@@ -82,7 +82,7 @@ CPPSRCS= \
 
 include $(topsrcdir)/config/config.mk
 
-CXXFLAGS += -DPYTHON_SO=\"libpython$(MOZ_PYTHON_VER_DOTTED).so\"
+CXXFLAGS += -DPYTHON_SO=\"$(PYTHON_SO)\"
 
 EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS) \
                     $(MOZ_COMPONENT_LIBS) \
