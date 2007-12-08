@@ -501,6 +501,7 @@ pref("javascript.enabled",                  true);
 pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
+pref("javascript.options.showInConsole",    true);
 
 // advanced prefs
 pref("security.enable_java",                true);
