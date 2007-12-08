@@ -539,6 +539,7 @@ pref("javascript.enabled",                  true);
 pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
+pref("javascript.options.showInConsole",    true);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       false);
 
