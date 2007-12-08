@@ -100,7 +100,7 @@ endif
 # look at mozilla/js/src/editline, which is license-free (but not part
 # of the mozilla build.)
 #
-ifdef JS_READLINE
+ifdef HAVE_READLINE
 DEFINES += -DEDITLINE
-LIBS += -lreadline $(JS_READLINE_EXTRA_LIBS)
+LIBS += $(READLINE_LIBS)
 endif
