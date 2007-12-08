@@ -556,6 +556,7 @@ pref("dom.event.contextmenu.enabled",       true);
 pref("javascript.enabled",                  true);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
+pref("javascript.options.showInConsole",    true);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
