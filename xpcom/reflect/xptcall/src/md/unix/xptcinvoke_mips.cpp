@@ -24,6 +24,7 @@
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
  *   Brendan Eich     <brendan@mozilla.org>
+ *   Thiemo Seufer    <seufer@csv.ica.uni-stuttgart.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -52,10 +53,8 @@ invoke_count_words(PRUint32 paramCount, nsXPTCVariant* s)
     // Count a word for a0 even though it's never stored or loaded
     // We do this only for alignment of register pairs.
     PRUint32 result = 1;
-    for (PRUint32 i = 0; i < paramCount; i++, s++)
+    for (PRUint32 i = 0; i < paramCount; i++, result++, s++)
     {
-        result++;
-
         if (s->IsPtrData())
             continue;
 
@@ -68,6 +67,9 @@ invoke_count_words(PRUint32 paramCount, nsXPTCVariant* s)
 		result++;
 	    result++;
 	    break;
+
+        default:
+            break;
         }
     }
     return (result + 1) & ~(PRUint32)1;
@@ -88,8 +90,6 @@ invoke_copy_to_stack(PRUint32* d, PRUint32 paramCount,
             continue;
         }
 
-        *((void**)d) = s->val.p;
-
         switch(s->type)
         {
         case nsXPTType::T_I64    :
@@ -103,6 +103,9 @@ invoke_copy_to_stack(PRUint32* d, PRUint32 paramCount,
         case nsXPTType::T_DOUBLE :
             if ((PRWord)d & 4) d++;
             *((double*)   d) = s->val.d;      d++;
+            break;
+        default:
+            *((void**)d) = s->val.p;
             break;
         }
     }
@@ -118,5 +121,4 @@ XPTC_InvokeByIndex(nsISupports* that, PRUint32 methodIndex,
                    PRUint32 paramCount, nsXPTCVariant* params)
 {
     return _XPTC_InvokeByIndex(that, methodIndex, paramCount, params);
-}    
-
+}
