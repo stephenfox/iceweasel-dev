@@ -144,7 +144,8 @@ rm -fv ./themes/classic/communicator/icons/turbo-systray.gif
 rm -fv ./themes/modern/communicator/icons/turbo-systray.gif
 
 
-rm -fvr other-licenses/
+rm -fvr ./other-licenses/7zstub
+rm -fvr ./other-licenses/branding
 rm -fv README/mozilla/README.os2
 
 rm -fv netwerk/protocol/ftp/doc/rfc959.txt
