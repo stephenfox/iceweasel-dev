@@ -1,0 +1,55 @@
+debian/tmp/usr/bin/firefox usr/bin
+debian/tmp/usr/lib/iceweasel/*.so usr/lib/iceweasel
+debian/tmp/usr/lib/iceweasel/components usr/lib/iceweasel
+debian/tmp/usr/lib/iceweasel/firefox-bin usr/lib/iceweasel
+debian/tmp/usr/lib/iceweasel/browserconfig.properties usr/share/iceweasel
+debian/iceweasel-xremote-client usr/lib/iceweasel
+
+debian/tmp/usr/lib/iceweasel/defaults/autoconfig usr/share/iceweasel/defaults
+debian/tmp/usr/lib/iceweasel/defaults/pref usr/share/iceweasel/defaults
+debian/tmp/usr/lib/iceweasel/greprefs usr/share/iceweasel
+debian/tmp/usr/lib/iceweasel/res usr/share/iceweasel
+debian/tmp/usr/lib/iceweasel/searchplugins usr/share/iceweasel
+debian/tmp/usr/lib/iceweasel/icons usr/share/iceweasel
+debian/tmp/usr/lib/iceweasel/chrome/browser* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/comm* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/en-US* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/toolkit* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/pippki* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/reporter* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/classic* usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome/icons usr/share/iceweasel/chrome
+
+debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
+
+debian/iceweasel.desktop usr/share/applications
+debian/iceweaselrc etc/iceweasel
+debian/presubj usr/share/bug/iceweasel
+
+debian/default.xpm usr/share/iceweasel/chrome/icons/default
+debian/mozicon16.xpm usr/share/iceweasel/chrome/icons/default
+debian/mozicon16.xpm usr/share/iceweasel/icons/
+debian/mozicon50.xpm usr/share/iceweasel/chrome/icons/default
+debian/mozicon50.xpm usr/share/iceweasel/icons/
+debian/mozicon128.png usr/share/iceweasel/icons/
+debian/document.png usr/share/iceweasel/icons/
+
+debian/iceweasel.js etc/iceweasel/pref
+debian/iceweasel.cfg usr/lib/iceweasel
+
+debian/debsearch.png usr/share/iceweasel/searchplugins
+
+debian/debsearch.src usr/share/iceweasel/searchplugins
+
+debian/wikipedia-en.xml usr/share/iceweasel/searchplugins
+
+debian/iceweasel-restart-required.update-notifier usr/share/iceweasel
+
+debian/tmp/usr/lib/iceweasel/extensions/\{972ce4c6-7e08-4474-a285-3208198ce6fd\} usr/lib/iceweasel/extensions
+
+debian/tmp/usr/lib/iceweasel/plugins/libunixprintplugin.so usr/lib/iceweasel/plugins
+
+debian/iceweasel.xpm usr/share/pixmaps
+
+debian/homepagereset.js usr/lib/iceweasel/components/
+debian/about_debian.js usr/lib/iceweasel/components/

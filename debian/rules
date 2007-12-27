@@ -1,0 +1,295 @@
+#!/usr/bin/make -f
+# Sample debian/rules that uses debhelper.
+# GNU copyright 1997 to 1999 by Joey Hess.
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# These are used for cross-compiling and for saving the configure script
+# # from having to guess our platform (since we know it already)
+DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+
+SHELL=/bin/bash # I use bashisms
+
+DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/Version: *\(.*\)/\1/ p')
+UPSTREAM_VERSION := $(shell echo $(DEBIAN_VERSION) | sed 's/-.*$$//')
+DEBIAN_REV_CODE := $(shell echo $(DEBIAN_VERSION) | sed 's/^.*-\([0-9]*\)[^-]*$$/0\1/ ; s/^.*\(..\)$$/\1/')
+
+BUILD_DATE=$(shell perl -e '($$s,$$m,$$h,$$d,$$M,$$y) = gmtime((stat("client.mk"))[9]); printf "%04d%02d%02d\n",$$y + 1900,$$M + 1,$$d;')
+
+AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
+
+export BUILD_OFFICIAL=1
+export MOZ_BUILD_DATE=$(BUILD_DATE)$(DEBIAN_REV_CODE)
+
+LIB_DIR := /usr/lib/iceweasel
+SHARE_DIR := /usr/share/iceweasel
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	OPTFLAGS = -O0 -g
+else
+	OPTFLAGS = -O2 -g -fno-strict-aliasing
+
+ifeq ($(DEB_BUILD_ARCH),ppc64)
+       OPTFLAGS = -mminimal-toc
+endif
+
+endif
+
+DEBUG_FLAG=
+ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+	DEBUG_FLAG = --enable-debug
+endif
+
+CONFIGURE_OPTIONS = \
+	--with-distribution-id=org.debian \
+	--enable-default-toolkit=gtk2 \
+	--with-default-mozilla-five-home=$(LIB_DIR) \
+	--enable-pango \
+	--with-user-appdir=.mozilla \
+	--with-system-png=/usr \
+	--with-system-jpeg=/usr \
+	--disable-mailnews \
+	--disable-composer \
+	--disable-ldap \
+	--enable-postscript \
+	--disable-installer \
+	--enable-xprint \
+	--enable-crypto \
+	--disable-strip \
+	--disable-strip-libs \
+	--enable-canvas \
+	--enable-svg \
+	--enable-svg-renderer=cairo \
+	--enable-system-cairo \
+	--enable-mathml \
+	--disable-tests \
+	--disable-gtktest \
+	--disable-debug \
+	--enable-xft \
+	--enable-optimize="-pipe -w $(OPTFLAGS)" \
+	--with-system-zlib=/usr \
+	--with-system-nspr \
+	--with-system-nss \
+	--enable-xinerama \
+	--enable-extensions=default \
+	--disable-pedantic \
+	--disable-long-long-warning \
+	--enable-single-profile \
+	--disable-profilesharing \
+	--enable-gnomevfs \
+	--enable-application=browser \
+	--disable-installer \
+	--disable-updater \
+	--enable-chrome-format=flat \
+	--disable-elf-dynstr-gc \
+	--enable-system-hunspell \
+	$(DEBUG_FLAG)
+
+ifneq ($(DEB_BUILD_ARCH),mips)
+ifneq ($(DEB_BUILD_ARCH),mipsel)
+	CONFIGURE_OPTIONS += --enable-static --disable-shared
+endif
+endif
+
+configure: config.status
+config.status:
+	dh_testdir
+	for dir in $(AUTOCONF_DIRS); do \
+		for file in config.guess config.sub; do \
+			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
+		done ; \
+	done
+	LDFLAGS="-Wl,--as-needed" \
+	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --infodir=\$${prefix}/share/info $(CONFIGURE_OPTIONS)
+
+build: build-stamp
+build-stamp: config.status
+	dh_testdir
+
+	(cd debian \
+		&& uudecode aboutCredits.png.uu \
+		&& uudecode debsearch.png.uu \
+		&& uudecode about.png.uu)
+
+	rsvg-convert -w 40 -h 40 -o debian/document_icon.png debian/iceweasel_icon.svg
+	composite -compose src-over -geometry -2+5 debian/document_icon.png browser/app/document.png debian/document.png
+	rsvg-convert -w 128 -h 128 -o debian/mozicon128.png debian/iceweasel_icon.svg
+	rsvg-convert -w 32 -h 32 -o debian/iceweasel.png debian/iceweasel_icon.svg
+	convert debian/iceweasel.png debian/iceweasel.xpm
+	rsvg-convert -w 16 -h 16 -o debian/mozicon16.png debian/iceweasel_icon.svg
+	convert debian/mozicon16.png debian/mozicon16.xpm
+
+	if [ ! -f browser/base/branding/aboutCredits.png.upstream ]; then \
+		mv -f browser/base/branding/aboutCredits.png \
+			browser/base/branding/aboutCredits.png.upstream; fi
+	composite -compose src-over -gravity center -geometry +0-7 debian/mozicon128.png debian/aboutCredits.png browser/base/branding/aboutCredits.png
+
+	if [ ! -f browser/base/branding/about.png.upstream ]; then \
+		mv -f browser/base/branding/about.png \
+			browser/base/branding/about.png.upstream; fi
+	rsvg-convert -w 256 -a -o debian/iceweasel_logo.png debian/iceweasel_logo.svg
+	composite -compose src-over -gravity center -geometry +0-26 debian/iceweasel_logo.png debian/about.png browser/base/branding/about.png
+
+	if [ ! -f browser/base/branding/icon64.png.upstream ]; then \
+		mv -f browser/base/branding/icon64.png \
+			browser/base/branding/icon64.png.upstream; fi
+	rsvg-convert -w 64 -h 64 -o browser/base/branding/icon64.png debian/iceweasel_icon.svg
+	if [ ! -f browser/base/branding/icon48.png.upstream ]; then \
+		mv -f browser/base/branding/icon48.png \
+			browser/base/branding/icon48.png.upstream; fi
+	rsvg-convert -w 48 -h 48 -o browser/base/branding/icon48.png debian/iceweasel_icon.svg
+	convert browser/base/branding/icon48.png debian/mozicon50.xpm
+	convert browser/base/branding/icon48.png debian/default.xpm
+
+	if [ ! -f browser/themes/pinstripe/browser/preferences/Options.png.upstream ]; then \
+		mv -f browser/themes/pinstripe/browser/preferences/Options.png \
+			browser/themes/pinstripe/browser/preferences/Options.png.upstream; fi
+	convert browser/themes/winstripe/browser/preferences/Options.png -chop 32x0+64 -background \#ffff -splice 32x0+64 debian/Options.png
+	xsltproc debian/filter-globe.xsl debian/iceweasel_icon.svg > debian/globe.svg
+	rsvg-convert -w 32 -h 32 -o debian/globe.png debian/globe.svg
+	composite -dissolve 80 -geometry +64+0 debian/globe.png debian/Options.png debian/Options.tmp.png
+	composite -compose src-over -geometry +64+32 debian/globe.png debian/Options.tmp.png debian/Options.png
+
+	cp -f debian/Options.png browser/themes/pinstripe/browser/preferences/Options.png
+	if [ ! -f browser/themes/winstripe/browser/preferences/Options.png.upstream ]; then \
+		mv -f browser/themes/winstripe/browser/preferences/Options.png \
+			browser/themes/winstripe/browser/preferences/Options.png.upstream; fi
+	cp -f debian/Options.png browser/themes/winstripe/browser/preferences/Options.png
+
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
+	$(MAKE) STRIP=:
+
+	touch build-stamp
+
+clean: 
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp install-stamp MPL \
+		debian/*.png \
+		debian/*.xpm \
+		debian/globe.svg
+	mv -f browser/base/branding/icon48.png.upstream \
+		browser/base/branding/icon48.png || true
+	mv -f browser/base/branding/icon64.png.upstream \
+		browser/base/branding/icon64.png || true
+	mv -f browser/base/branding/about.png.upstream \
+		browser/base/branding/about.png || true
+	mv -f browser/base/branding/aboutCredits.png.upstream \
+		browser/base/branding/aboutCredits.png || true
+	mv -f browser/themes/pinstripe/browser/preferences/Options.png.upstream \
+		browser/themes/pinstripe/browser/preferences/Options.png || true
+	mv -f browser/themes/winstripe/browser/preferences/Options.png.upstream \
+		browser/themes/winstripe/browser/preferences/Options.png || true
+
+	[ ! -f Makefile ] || $(MAKE) distclean
+
+	for dir in $(AUTOCONF_DIRS); do \
+		for file in config.guess config.sub; do \
+			sed -i '2!b;/^exec "/ d' $$dir/$$file ; \
+		done ; \
+	done
+	dh_clean
+
+install: install-stamp
+install-stamp: build-stamp
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
+	chmod 755 debian/iceweasel-xremote-client
+# Remove execute on javascript files
+	find debian/tmp -name '*.so' | xargs chmod a-x 
+	chmod a-x debian/tmp/$(LIB_DIR)/components/*.js
+
+# Install nspr and nss links
+	for lib in ssl3 softokn3 smime3 nss3 nspr4 plc4 plds4; do \
+		ln -s /usr/lib/$$(objdump -p /usr/lib/lib$$lib.so | awk '/SONAME/{print $$2}') debian/tmp/usr/lib/iceweasel/lib$$lib.so; \
+	done
+	ln -s /usr/lib/nss/libnssckbi.so debian/tmp/usr/lib/iceweasel/
+
+# Exclude gnome components from iceweasel
+	dh_install -piceweasel -Xgnome -Ximgicon
+	dh_install -piceweasel-dom-inspector
+	dh_install -piceweasel-gnome-support
+
+#Install helpers
+	install -m 755 debian/iceweasel-runner \
+		debian/iceweasel/$(LIB_DIR)/iceweasel
+
+# Install icons
+	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/16x16/apps
+	install -m 644 debian/mozicon16.png \
+		debian/iceweasel/usr/share/icons/hicolor/16x16/apps/iceweasel.png
+	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
+	install -m 644 debian/iceweasel.png \
+		debian/iceweasel/usr/share/icons/hicolor/32x32/apps/iceweasel.png
+	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/scalable/apps
+	install -m 644 debian/iceweasel_icon.svg \
+		debian/iceweasel/usr/share/icons/hicolor/scalable/apps/iceweasel.svg
+
+# Remove unneeded configs
+	rm -f debian/iceweasel/$(SHARE_DIR)/defaults/pref/firefox-l10n.js
+
+# Add Debian package version to preferences
+	echo // Debian package version \
+		> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
+	echo "pref(\"general.useragent.product\",\"Gecko\");" \
+		>> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
+	echo "pref(\"general.useragent.productSub\",\"$(BUILD_DATE)\");" \
+		>> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
+	echo "pref(\"general.useragent.extra.firefoxComment\",\"(Debian-$(DEBIAN_VERSION))\");" \
+		>> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
+
+	cp -f LICENSE MPL
+	touch install-stamp
+
+# Build architecture-independent files here.
+binary-indep: build install
+	dh_testdir -i
+	dh_testroot -i
+	dh_installdebconf -i	
+	dh_installdocs -i MPL
+	dh_installexamples -i
+	dh_installmenu -i
+	dh_installman -i
+	dh_installinfo -i
+	dh_installmime -i
+	dh_installchangelogs -i
+	dh_link -i
+	dh_compress -i
+	dh_fixperms -i
+	dh_installdeb -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir -a
+	dh_testroot -a
+	dh_installdebconf -a
+	dh_installdocs -a MPL
+	dh_installexamples -a
+	dh_installmenu -a
+	dh_installman -a
+	dh_installinfo -a
+	dh_installmime -a
+	dh_installchangelogs -a
+	dh_link -a
+	dh_strip -a --dbg-package=iceweasel-dbg
+	dh_compress -piceweasel -XREADME.Debian
+	dh_compress -a -Niceweasel
+	dh_fixperms -a 
+	dh_installdeb -a
+	dh_shlibdeps -a -l debian/iceweasel/usr/lib/iceweasel
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install configure

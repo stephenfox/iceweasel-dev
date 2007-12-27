@@ -1,0 +1,126 @@
+Iceweasel for Debian
+====================
+
+Please read the file /usr/share/bug/iceweasel/presubj for information
+you may want to know if you will report a bug.
+
+Why is it not called Firefox?
+-----------------------------
+
+Due to our inability to use the Firefox logo because of a non-free
+copyright, the Mozilla Corporation insisted that we not use the
+trademarked name Firefox either. Most of the details are documented in
+#354622 <http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=354622>. 
+
+Even though it is not called Firefox, it still comes from exactly the
+same upstream, and is by and large exactly the same (the differences
+some distribution specific customizations, rebranding and the
+occasional bug fix).
+
+Application Update
+------------------
+
+From version 1.5beta1 onwards, the automatic application update has been
+disabled through the app.update.enabled preference, which is locked to
+'false' by /usr/lib/iceweasel/greprefs/iceweasel.cfg.
+
+Automatic extensions update, which used to be disabled; has been re-enabled,
+since the Extensions Manager has a correct behaviour with system-wide
+installed extensions now.
+
+Extensions
+----------
+
+From Firefox 0.9, "old" extensions are disabled at first run (i.e.
+when no profile was found). By old extensions, Firefox means extensions
+not following the new extensions guidelines described at:
+http://www.bengoodger.com/software/mb/extensions/packaging/extensions.html
+But even the ones following these guidelines can be considered old if the
+contents.rdf file in their chrome gives the attribute chrome:extension = 
+"true" in the package information.
+
+Some extensions can also get disabled by a new release of Iceweasel, because
+the install.rdf file provided by the extension says it's targetted for a
+maximum version older than the current one.
+
+Packaged Extensions
+-------------------
+
+With older versions of Firefox, an update-mozilla-firefox-chrome script was
+provided so that extensions are correctly enabled in Firefox. This has been
+obsoleted by the new Extensions Manager, and the update-mozilla-firefox-chrome
+script removed. Packages that use this script to support older versions of
+Firefox are advised to check for its presence before using it.
+
+Sound
+-----
+
+By default, iceweasel detects and runs the correct dsp wrapper for esd,
+arts, or alsa. If this is not the desired behaviour, edit
+/etc/iceweasel/iceweaselrc or ~/.mozilla/firefox/rc and set the ICEWEASEL_DSP
+variable to:
+
+"auto": Auto-detection.
+
+"esddsp": Use esd.
+
+"artsdsp": Use arts.
+
+"aoss": Use alsa.
+
+"none": The default, don't use any sound wrapper.
+
+
+using Java. (You should use plugin which compiled with gcc-3.2 or newer)
+----------
+ 
+You can install one of the following packages: 
+ - gcjwebplugin,
+ - java-gcj-compat-plugin,
+ - sun-java5-plugin.
+
+Alternatively, you can grab a binary Java distribution from
+http://java.sun.com/, install the java-package package and do a make-jpkg
+on the file.
+
+Buttons
+-------
+
+Some people have complained that the button order in dialogs is
+non-intuitive (ie, they don't like it). To reverse the order, add the
+following to your chrome/userChrome.css file, under the
+~/.mozilla/firefox directory:
+
+.dialog-button-box { -moz-box-direction: reverse; -moz-box-pack: right; }
+.dialog-button-box spacer { display: none ! important; }
+
+Emacs keybindings
+-----------------
+
+Versions of Firefox before 1.0 supported Emacs style keybindings in
+text entry boxes. Version 1.0 now merely follows the GTK keybindings
+settings. To enable Emacs keybindings in GTK, follow the instructions
+at http://kb.mozillazine.org/Emacs_Keybindings_(Firefox).
+
+Pango
+-----
+
+From 1.5.0.1, pango support is enabled by default. This is not the
+default for Mozilla.org builds, so may have more problems, but it is
+the default because it supports more languages out of the box. If you
+experience problems, you can disable it by hand by setting
+MOZ_DISABLE_PANGO=1 either in /etc/iceweasel/iceweaselrc,
+${HOME}/.mozilla/firefox/rc or as an exported environment variable.
+
+Well Known Ports
+----------------
+
+To prevent Iceweasel from being used to launch attacks against other
+protocols, certain ports cannot be connected to by default. See
+http://www.mozilla.org/projects/netlib/PortBanning.html for further
+information. To allow the port numbers being used, enter
+"about:config" in the URL bar and edit the
+"network.security.ports.banned.override" entry to list the ports you
+wish to allow (eg "2049,4045,6000").
+
+ -- Eric Dorland <eric@debian.org>, Sun, 14 Jan 2007 23:29:21 -0500

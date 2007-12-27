@@ -1,0 +1,295 @@
+#!/bin/sh
+#
+# The contents of this file are subject to the Netscape Public
+# License Version 1.1 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of
+# the License at http://www.mozilla.org/NPL/
+#
+# Software distributed under the License is distributed on an "AS
+# IS" basis, WITHOUT WARRANTY OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# rights and limitations under the License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is Netscape
+# Communications Corporation.  Portions created by Netscape are
+# Copyright (C) 1998 Netscape Communications Corporation. All
+# Rights Reserved.
+#
+# Contributor(s): 
+#
+
+##
+## For silly people running iceweasel through sudo
+##
+if [ "${SUDO_USER}" ] && [ "${SUDO_USER}" != "${USER}" ]; then
+    SUDO_HOME=`getent passwd ${SUDO_USER} | cut -f6 -d:`
+    if [ "${SUDO_HOME}" = "${HOME}" ]; then
+        echo "You shouldn't really run Iceweasel through sudo WITHOUT the -H option." >&2
+        echo "Continuing as if you used the -H option." >&2
+        HOME=`getent passwd ${USER} | cut -f6 -d:`
+        if [ -z "${HOME}" ]; then
+            echo "Could not find the correct home directory. Please use the -H option of sudo." >&2
+        fi
+    fi
+fi
+
+##
+## Variables
+##
+MOZ_DIST_BIN="/usr/lib/iceweasel"
+MOZ_PROGRAM="${MOZ_DIST_BIN}/firefox-bin"
+
+##
+## Load system and user properties
+##
+
+RUNTIME_ICEWEASEL_DSP="${FIREFOX_DSP}"
+if [ "${ICEWEASEL_DSP}" ] ; then 
+    RUNTIME_ICEWEASEL_DSP="${ICEWEASEL_DSP}"
+fi
+
+if [ -f /etc/iceweasel/iceweaselrc ]; then
+    . /etc/iceweasel/iceweaselrc
+fi
+
+if [ -f "${HOME}/.mozilla/firefox/rc" ]; then
+    . "${HOME}/.mozilla/firefox/rc"
+elif [ -f "${HOME}/.mozilla-firefoxrc" ]; then
+    . "${HOME}/.mozilla-firefoxrc"
+    echo "Warning: a .mozilla-firefoxrc file has been found in your home directory" >&2
+    echo "While it is still supported, it is recommended to move it to" >&2
+    echo "\${HOME}/.mozilla/firefox/rc" >&2
+fi
+
+if [ "${RUNTIME_ICEWEASEL_DSP}" ]; then
+    ICEWEASEL_DSP="${RUNTIME_ICEWEASEL_DSP}"
+fi
+
+if [ -z "${ICEWEASEL_DSP}" ]; then
+    ICEWEASEL_DSP="none"
+fi
+
+export MOZ_DISABLE_PANGO
+
+##
+## find /dev/dsp handler
+##
+
+if [ "${ICEWEASEL_DSP}" = "auto" ]; then
+    ICEWEASEL_DSP=
+    if [ -n "${AUDIOSERVER}" ]; then
+        # do not prevent using other wrappers if $AUDIOSERVER was set up
+        # unintentionally or audiooss is not available
+        if type audiooss >/dev/null 2>&1; then
+            ICEWEASEL_DSP=audiooss
+        fi
+    fi
+    if pgrep -u `id -u` esd >/dev/null 2>&1; then 
+        ICEWEASEL_DSP=esddsp 
+    elif pgrep -u `id -u` arts >/dev/null 2>&1; then 
+        ICEWEASEL_DSP=artsdsp 
+    elif [ -x /usr/bin/aoss ] && [ -d /proc/asound ] ; then
+        ICEWEASEL_DSP=aoss
+    fi
+elif [ "${ICEWEASEL_DSP}" = "none" ]; then
+    ICEWEASEL_DSP=
+fi
+
+##
+## Set LD_LIBRARY_PATH
+##
+EXTENT_LD_LIB_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:/usr/lib/mozilla-firefox/plugins
+if [ "${LD_LIBRARY_PATH}" ]; then
+    LD_LIBRARY_PATH=${EXTENT_LD_LIB_PATH}:${LD_LIBRARY_PATH}
+else
+    LD_LIBRARY_PATH=${EXTENT_LD_LIB_PATH}
+fi
+
+export LD_LIBRARY_PATH
+
+EXTENT_MOZ_PLUGIN_PATH=/usr/lib/mozilla-firefox/plugins
+if [ "${MOZ_PLUGIN_PATH}" ]; then
+    MOZ_PLUGIN_PATH=${EXTENT_MOZ_PLUGIN_PATH}:${MOZ_PLUGIN_PATH}
+else
+    MOZ_PLUGIN_PATH=${EXTENT_MOZ_PLUGIN_PATH}
+fi
+
+export MOZ_PLUGIN_PATH
+
+# Set XPSERVERLIST if not set yet for XPrint support, or complain.
+
+#if [ -z "${XPSERVERLIST}" ]; then
+#    if [ -x /etc/init.d/xprint ]; then
+#        XPSERVERLIST=`/etc/init.d/xprint get_xpserverlist`
+#        export XPSERVERLIST
+#    else
+#        echo -e "Warning: \${XPSERVERLIST} not set and /etc/init.d/xprint not found;\nprinting will not work.\nPlease install the xprt-xprintorg package" >&2
+#    fi  
+#fi
+
+verbose () {
+    if [ "${VERBOSE}" ]; then
+        echo $@
+    fi
+}
+
+echo_vars () {
+    if [ "${VERBOSE}" ]; then
+      for var in "$@"; do
+          echo "$var=`eval echo \\${$var}`"
+      done
+    fi
+}
+    
+# exec wrapper for verbosity
+exec_verbose () {
+    verbose Running: $@
+    exec "$@"
+}
+
+# exec wrapper for verbosity
+run_verbose () {
+    verbose Running: $@
+    "$@"
+}
+
+# OK, here's where all the real work gets done
+
+# parse command line
+APPLICATION_ID=firefox
+VERBOSE=
+DEBUG=0
+DEBUGGER=
+first=1
+opt=
+for arg in "$@"; do
+    if [ ${first} -eq 1 ]; then
+        set --
+        first=0
+    fi
+
+    case "${arg}" in
+        -a | --display | -contentLocale | -UILocale | -remote | --debugger | -height | -width | -chrome | -P | -CreateProfile)
+            prev=${arg}
+            continue
+        ;;
+    esac
+    
+    if [ "${prev}" ]; then
+        case "${prev}" in
+            -a)
+                APPLICATION_ID="${arg}"
+                ;;
+            -P|-CreateProfile)
+                case "${arg}" in
+                default)    APPLICATION_ID=firefox ;;
+                *)          APPLICATION_ID=firefox--"${arg}" ;;
+                esac
+                MOZ_NO_REMOTE=1
+                export MOZ_NO_REMOTE
+                set -- "$@" "${prev}" "${arg}"
+                ;;
+            --display)
+                CMDLINE_DISPLAY="${arg}"
+                set -- "$@" --display "${arg}"
+                ;;
+            -remote)
+                set -- "$@" -remote "${arg}"
+                ;;
+            --debugger)
+                DEBUGGER="${arg}"
+                DEBUG=1
+                ;;
+            *)
+                set -- "$@" "${prev}" "${arg}"
+                ;;
+        esac
+        prev=
+    elif [ "${arg}" ]; then
+        case "$arg" in
+            --verbose | -V)
+                VERBOSE=1
+                ;;
+            --display=*)
+                CMDLINE_DISPLAY=`echo ${arg} | sed 's/^--display=//'`
+                set -- "$@" "${arg}"
+                ;;
+            -g | -debug)
+                DEBUG=1
+                ;;
+            -no-remote)
+                MOZ_NO_REMOTE=1
+                export MOZ_NO_REMOTE
+                ;;
+            -ProfileManager)
+                MOZ_NO_REMOTE=1
+                export MOZ_NO_REMOTE
+                APPLICATION_ID="unique--`uname -n`--$$"
+                set -- "$@" "${arg}"
+                ;;
+            -*)
+                set -- "$@" "${arg}"
+                ;;
+            *)
+                if [ -z "${opt}" ]; then
+                    opt="${arg}"
+                    # check to make sure that the url contains at least a :/ in it.
+                    echo ${opt} | grep -e ':/' 2>/dev/null > /dev/null
+                    RETURN_VAL=$?
+                    if [ "${RETURN_VAL}" -eq 1 ]; then
+                    # if it doesn't begin with a '/' and it exists when the pwd is
+                    # prepended to it then append the full path
+                        echo ${opt} | grep -e '^/' 2>/dev/null > /dev/null
+                        if [ "$?" -ne "0" ] && [ -e "`pwd`/${opt}" ]; then
+                            opt="`pwd`/${opt}"
+                        fi
+                        # Make it percent-encoded and prepend file:// if it is a valid file
+                        if [ -e "${opt}" ]; then
+                          opt="file://$( echo -n "${opt}" | perl -pe "s/([^a-zA-Z0-9-._~\!\\\$&'()*+,=:@\/])/'%'.unpack('H2',\$1)/ge" )"
+                        fi
+                    fi
+                    set -- "$@" "${opt}"
+                else
+                    set -- "$@" "${arg}"
+                fi
+                ;;
+        esac
+    fi
+done
+
+if [ -n "$prev" ]; then set -- "$@" "$prev"; fi
+set -- "-a" "${APPLICATION_ID}" "$@"
+
+OPTIONS="$@"
+
+if [ ${DEBUG} -eq 1 ]; then
+    if [ "${DEBUGGER}" = "" ]; then
+        DEBUGGER=gdb
+    fi
+    TMPFILE=`mktemp -t iceweasel_argsXXXXXX`
+    echo set args "$@" > ${TMPFILE}
+    case "${DEBUGGER}" in
+        gdb)
+            run_verbose gdb "${MOZ_PROGRAM}" -x ${TMPFILE}
+            ;;
+        ddd)
+            run_verbose ddd --debugger "gdb -x ${TMPFILE}" "${MOZ_PROGRAM}"
+            ;;
+        *)
+            run_verbose ${DEBUGGER} "${MOZ_PROGRAM}" "$@"
+            ;;
+    esac
+    rm ${TMPFILE}
+    exit
+fi
+
+echo_vars ICEWEASEL_DSP APPLICATION_ID CMDLINE_DISPLAY DISPLAY \
+          OPTIONS DEBUG DEBUGGER MOZ_DISABLE_PANGO MOZ_NO_REMOTE
+
+if type "${ICEWEASEL_DSP}" > /dev/null 2>&1; then
+    MOZ_PROGRAM="${ICEWEASEL_DSP} ${MOZ_PROGRAM}"
+fi
+
+exec_verbose ${MOZ_PROGRAM} "$@"

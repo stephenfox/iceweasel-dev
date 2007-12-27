@@ -1,0 +1,2 @@
+debian/tmp/usr/lib/iceweasel/components/*gnome* usr/lib/iceweasel/components
+debian/tmp/usr/lib/iceweasel/components/*imgicon* usr/lib/iceweasel/components

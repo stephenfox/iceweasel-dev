@@ -1,0 +1,21 @@
+#!/bin/sh
+
+##
+## Set MOZILLA_FIVE_HOME
+##
+MOZILLA_FIVE_HOME="/usr/lib/iceweasel"
+
+export MOZILLA_FIVE_HOME
+
+##
+## Set LD_LIBRARY_PATH
+##
+if [ "$LD_LIBRARY_PATH" ]
+then
+  LD_LIBRARY_PATH=/usr/lib/iceweasel:/usr/lib/iceweasel/plugins:/usr/lib/mozilla/plugins:/usr/lib:$LD_LIBRARY_PATH
+else
+  LD_LIBRARY_PATH=/usr/lib/iceweasel:/usr/lib/iceweasel/plugins:/usr/lib/mozilla/plugins:/usr/lib
+fi
+ export LD_LIBRARY_PATH
+
+/usr/lib/iceweasel/firefox-bin -a firefox -remote "$1"

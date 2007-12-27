@@ -1,0 +1,70 @@
+#!/bin/sh -e
+
+upgrade_conffile() {
+    new_file="$1"
+    old_file="$2"
+    old_md5sum="$3"
+
+    if [ -f "$old_file" ]; then
+        md5sum="`md5sum \"$old_file\" | sed -e \"s/ .*//\"`"
+    
+        if [ $md5sum != $old_md5sum ]; then
+            if [ ! -d `dirname $new_file` ]; then
+                mkdir -p `dirname $new_file` > /dev/null 2>&1 || true
+            fi
+        
+            cp -fa "$old_file" "$new_file"
+        fi
+    fi
+}
+
+# Upgrade conffiles for mozilla-firefox -> firefox transition
+if [ "$1" = 'install' ]; then
+    if [ ! -d /etc/iceweasel ]; then
+        upgrade_conffile /etc/iceweasel/iceweaselrc \
+            /etc/mozilla-firefox/mozilla-firefoxrc \
+            'fa562ca63014f5e9dd470a37766376d6'
+        upgrade_conffile /etc/iceweasel/pref/iceweasel.js \
+            /etc/mozilla-firefox/pref/firefox.js \
+            '9b21e21aa3f8a0ab8f134ba04b8846ff'
+        upgrade_conffile /etc/iceweasel/profile/bookmarks.html \
+            /etc/mozilla-firefox/profile/bookmarks.html \
+            'c8aeeddb2b9ee52199bcef9a809fc949'
+        upgrade_conffile /etc/iceweasel/profile/localstore.rdf \
+            /etc/mozilla-firefox/profile/localstore.rdf \
+            'ea03cc19c2a3f622fa557cd8ea9da6eb'
+        upgrade_conffile /etc/iceweasel/profile/search.rdf \
+            /etc/mozilla-firefox/profile/search.rdf \
+            '26d13f5d96ad118b5de5d234f9d052fa'
+        upgrade_conffile /etc/iceweasel/profile/mimeTypes.rdf \
+            /etc/mozilla-firefox/profile/mimeTypes.rdf \
+            '69cdcb7e0209f2e9d29000ee1c0ee2f0'
+        upgrade_conffile /etc/iceweasel/profile/chrome/userChrome-example.css \
+            /etc/mozilla-firefox/profile/chrome/userChrome-example.css \
+            '4788fdaa51b0a238cb21f5c2877ef06d'
+        upgrade_conffile /etc/iceweasel/profile/chrome/userContent-example.css \
+            /etc/mozilla-firefox/profile/chrome/userContent-example.css \
+            'd3765c7d2de5626529195007f4b7144a'
+
+        # More hacky way of upgrading from firefox
+
+        if [ -d /etc/firefox ] && [ ! -d /etc/iceweasel ]; then
+            mkdir /etc/iceweasel >/dev/null 2>&1 || true
+            cp -a /etc/firefox/* /etc/iceweasel
+	    #it can happen that /etc/firefox exists but doesn't
+	    #contain a complete firefox configuration (e.g. if someone
+	    #manually added stuff to it then purged firefox)
+	    #so check files exist before trying to rename them
+            if [ -e /etc/iceweasel/firefoxrc ]; then
+		mv -f /etc/iceweasel/firefoxrc /etc/iceweasel/iceweaselrc
+		sed -i s/FIREFOX/ICEWEASEL/ /etc/iceweasel/iceweaselrc
+	    fi
+            if [ -e /etc/iceweasel/pref/firefox.js ]; then
+		mv -f /etc/iceweasel/pref/firefox.js \
+        	    /etc/iceweasel/pref/iceweasel.js
+	    fi
+        fi
+    fi
+fi
+
+#DEBHELPER#

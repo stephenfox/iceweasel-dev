@@ -1,0 +1,58 @@
+Source: iceweasel
+Section: web
+Priority: optional
+Maintainer: Eric Dorland <eric@debian.org>
+Uploaders: Mike Hommey <glandium@debian.org>
+Build-Depends: debhelper (>= 5.0), libx11-dev, libxp-dev, libxt-dev, libgtk2.0-dev (>= 2.8), zlib1g-dev, liborbit2-dev, libidl-dev (>= 0.8.0), libxft-dev, libfreetype6-dev, libpng12-dev, libjpeg62-dev, libxrender-dev, libxinerama-dev, libcairo2-dev, libgnome2-dev, libgconf2-dev, libgnomevfs2-dev, libgnomeui-dev, patch, sharutils, m4, binutils (>= 2.17-1) [mips mipsel], xsltproc, librsvg2-bin, imagemagick, autotools-dev, libhunspell-dev (>= 1.1.5-2), libnspr4-dev, libnss3-dev (>= 3.11.5-2), dpkg-dev (>= 1.14.11) | dpkg-dev (<= 1.14.7)
+Build-Conflicts: graphicsmagick-imagemagick-compat
+Standards-Version: 3.7.2.2
+Vcs-Svn: svn://svn.debian.org/pkg-mozilla/iceweasel/trunk
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-mozilla/iceweasel/
+
+Package: iceweasel
+Architecture: any
+Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}
+Suggests: iceweasel-gnome-support (= ${binary:Version}), latex-xft-fonts, xprint, mozplugger, libkrb53
+Provides: www-browser
+Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1)
+Replaces: mozilla-firefox, firefox (<< 2.0+dfsg-1)
+Description: lightweight web browser based on Mozilla
+ Iceweasel is a redesign of the Mozilla browser component, similar to
+ Galeon, K-Meleon and Camino, but written using the XUL user interface
+ language and designed to be lightweight and cross-platform.
+ .
+ This browser is based on the Firefox source-code, with minor
+ modifications. Historically, this browser was previously known as
+ Firebird and Phoenix.
+
+Package: iceweasel-dom-inspector
+Architecture: all
+Depends: iceweasel (>= ${source:Version}), iceweasel (<< ${source:Version}.1~)
+Description: tool for inspecting the DOM of pages in Iceweasel
+ This is a tool that allows you to inspect the DOM for web pages in
+ Iceweasel.  This is of great use to people who are doing Mozilla chrome
+ development or web page development.
+
+Package: iceweasel-gnome-support
+Architecture: any
+Section: gnome
+Depends: ${shlibs:Depends}, iceweasel (= ${binary:Version})
+Provides: gnome-www-browser
+Description: Support for Gnome in Iceweasel
+ This is an Iceweasel component that allows it to use protocol
+ handlers from Gnome-VFS, such as smb or sftp, and other Gnome
+ integration features.
+
+Package: iceweasel-dbg
+Architecture: any
+Priority: extra
+Section: devel
+Depends: iceweasel (= ${binary:Version})
+Replaces: firefox-dbg
+Conflicts: firefox-dbg
+Description: debugging symbols for iceweasel
+ Iceweasel is a redesign of the Mozilla browser component, similar to
+ Galeon, K-Meleon and Camino, but written using the XUL user interface
+ language and designed to be lightweight and cross-platform.
+ .
+ This package contains the debugging symbols for iceweasel.

@@ -1,0 +1,9 @@
+Name: Iceweasel restart required
+Name-fr: Relancement de Iceweasel requis
+Priority: High
+Terminal: False
+DontShowAfterReboot: True
+Description: Iceweasel has been upgraded (or reinstalled) and must be restarted.
+ Please quit and restart your web browser now.
+Description-fr: Iceweasel a été mis à jour (ou réinstallé) et doit être relancé.
+ Veuillez quitter et redémarrer for navigateur.
