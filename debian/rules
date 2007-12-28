@@ -44,11 +44,10 @@ endif
 
 CONFIGURE_OPTIONS = \
 	--with-distribution-id=org.debian \
-	--enable-default-toolkit=gtk2 \
+	--enable-default-toolkit=cairo-gtk2 \
 	--with-default-mozilla-five-home=$(LIB_DIR) \
 	--enable-pango \
 	--with-user-appdir=.mozilla \
-	--with-system-png=/usr \
 	--with-system-jpeg=/usr \
 	--disable-mailnews \
 	--disable-composer \
@@ -70,8 +69,6 @@ CONFIGURE_OPTIONS = \
 	--enable-xft \
 	--enable-optimize="-pipe -w $(OPTFLAGS)" \
 	--with-system-zlib=/usr \
-	--with-system-nspr \
-	--with-system-nss \
 	--enable-xinerama \
 	--enable-extensions=default \
 	--disable-pedantic \
@@ -84,14 +81,7 @@ CONFIGURE_OPTIONS = \
 	--disable-updater \
 	--enable-chrome-format=flat \
 	--disable-elf-dynstr-gc \
-	--enable-system-hunspell \
 	$(DEBUG_FLAG)
-
-ifneq ($(DEB_BUILD_ARCH),mips)
-ifneq ($(DEB_BUILD_ARCH),mipsel)
-	CONFIGURE_OPTIONS += --enable-static --disable-shared
-endif
-endif
 
 configure: config.status
 config.status:

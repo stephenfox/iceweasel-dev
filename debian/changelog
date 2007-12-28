@@ -1,6 +1,11 @@
 iceweasel (3.0~b2-1) experimental; urgency=low
 
   * debian/remove.nonfree: Don't remove atk components from other-licenses.
+  * debian/rules:
+    - Don't build static, seems static building is incompatible with libxul.
+    - Need to build with internal libpng, since the system on doesn't support
+      APNG.
+    - Don't use system nss, nspr and hunspell for the moment.
 
  --
 
