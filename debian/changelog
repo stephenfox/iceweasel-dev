@@ -6,6 +6,7 @@ iceweasel (3.0~b2-1) experimental; urgency=low
     - Need to build with internal libpng, since the system on doesn't support
       APNG.
     - Don't use system nss, nspr and hunspell for the moment.
+    - Don't install the nspr, nss, etc links for now.
 
  --
 

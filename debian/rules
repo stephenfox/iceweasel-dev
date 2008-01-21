@@ -196,10 +196,10 @@ install-stamp: build-stamp
 	chmod a-x debian/tmp/$(LIB_DIR)/components/*.js
 
 # Install nspr and nss links
-	for lib in ssl3 softokn3 smime3 nss3 nspr4 plc4 plds4; do \
+#	for lib in ssl3 softokn3 smime3 nss3 nspr4 plc4 plds4; do \
 		ln -s /usr/lib/$$(objdump -p /usr/lib/lib$$lib.so | awk '/SONAME/{print $$2}') debian/tmp/usr/lib/iceweasel/lib$$lib.so; \
 	done
-	ln -s /usr/lib/nss/libnssckbi.so debian/tmp/usr/lib/iceweasel/
+#	ln -s /usr/lib/nss/libnssckbi.so debian/tmp/usr/lib/iceweasel/
 
 # Exclude gnome components from iceweasel
 	dh_install -piceweasel -Xgnome -Ximgicon
