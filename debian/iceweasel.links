@@ -21,4 +21,7 @@
 /usr/share/iceweasel/modules /usr/lib/iceweasel/modules
 /usr/share/iceweasel/browserconfig.properties /usr/lib/iceweasel/browserconfig.properties
 
+/usr/share/iceweasel/application.ini /usr/lib/iceweasel/application.ini
+/usr/share/iceweasel/platform.ini /usr/lib/iceweasel/platform.ini
+
 /usr/share/myspell/dicts /usr/lib/iceweasel/dictionaries
