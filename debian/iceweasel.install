@@ -11,14 +11,7 @@ debian/tmp/usr/lib/iceweasel/greprefs usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/res usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/searchplugins usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/icons usr/share/iceweasel
-debian/tmp/usr/lib/iceweasel/chrome/browser* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/comm* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/en-US* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/toolkit* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/pippki* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/reporter* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/classic* usr/share/iceweasel/chrome
-debian/tmp/usr/lib/iceweasel/chrome/icons usr/share/iceweasel/chrome
+debian/tmp/usr/lib/iceweasel/chrome usr/share/iceweasel
 
 debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
 
