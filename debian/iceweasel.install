@@ -47,8 +47,6 @@ debian/iceweasel-restart-required.update-notifier usr/share/iceweasel
 
 debian/tmp/usr/lib/iceweasel/extensions/\{972ce4c6-7e08-4474-a285-3208198ce6fd\} usr/lib/iceweasel/extensions
 
-debian/tmp/usr/lib/iceweasel/plugins/libunixprintplugin.so usr/lib/iceweasel/plugins
-
 debian/iceweasel.xpm usr/share/pixmaps
 
 debian/homepagereset.js usr/lib/iceweasel/components/
