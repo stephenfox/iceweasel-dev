@@ -7,6 +7,8 @@ iceweasel (3.0~b2-1) experimental; urgency=low
       APNG.
     - Don't use system nss, nspr and hunspell for the moment.
     - Don't install the nspr, nss, etc links for now.
+    - Pass --disable-install-strip and drop --disable-strip-libs, which 
+      doesn't exist anymore.
     seem to pull it in and we need it.
   * debian/iceweasel.install: 
     - Apparently the unixprintplugin isn't there anymore, remove the line.

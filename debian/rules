@@ -57,7 +57,7 @@ CONFIGURE_OPTIONS = \
 	--enable-xprint \
 	--enable-crypto \
 	--disable-strip \
-	--disable-strip-libs \
+	--disable-install-strip \
 	--enable-canvas \
 	--enable-svg \
 	--enable-svg-renderer=cairo \
