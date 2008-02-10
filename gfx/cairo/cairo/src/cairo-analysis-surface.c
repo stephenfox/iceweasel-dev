@@ -48,12 +48,17 @@ typedef struct {
 
     cairo_surface_t	*target;
 
+    cairo_bool_t first_op;
     cairo_bool_t has_supported;
     cairo_bool_t has_unsupported;
 
     cairo_region_t supported_region;
     cairo_region_t fallback_region;
     cairo_rectangle_int_t current_clip;
+    cairo_box_t page_bbox;
+
+    cairo_bool_t has_ctm;
+    cairo_matrix_t ctm;
 
 } cairo_analysis_surface_t;
 
@@ -61,25 +66,33 @@ static cairo_int_status_t
 _cairo_analysis_surface_analyze_meta_surface_pattern (cairo_analysis_surface_t *surface,
 						      cairo_pattern_t	       *pattern)
 {
+    cairo_surface_t *analysis = &surface->base;
     cairo_surface_pattern_t *surface_pattern;
-    cairo_surface_t *meta_surface;
-    cairo_surface_t *analysis;
     cairo_status_t status;
+    cairo_bool_t old_has_ctm;
+    cairo_matrix_t old_ctm, p2d;
 
     assert (pattern->type == CAIRO_PATTERN_TYPE_SURFACE);
     surface_pattern = (cairo_surface_pattern_t *) pattern;
     assert (_cairo_surface_is_meta (surface_pattern->surface));
 
-    meta_surface = surface_pattern->surface;
-    analysis = _cairo_analysis_surface_create (surface->target,
-					       surface->width, surface->height);
-    if (analysis == NULL)
-	return CAIRO_STATUS_NO_MEMORY;
+    old_ctm = surface->ctm;
+    old_has_ctm = surface->has_ctm;
+    p2d = pattern->matrix;
+    status = cairo_matrix_invert (&p2d);
+    /* _cairo_pattern_set_matrix guarantees invertibility */
+    assert (status == CAIRO_STATUS_SUCCESS);
 
-    status = _cairo_meta_surface_replay_analyze_meta_pattern (meta_surface, analysis);
+    cairo_matrix_multiply (&surface->ctm, &p2d, &surface->ctm);
+    surface->has_ctm = !_cairo_matrix_is_identity (&surface->ctm);
+
+    status = _cairo_meta_surface_replay_and_create_regions (surface_pattern->surface,
+							    analysis);
     if (status == CAIRO_STATUS_SUCCESS)
-	    status = analysis->status;
-    cairo_surface_destroy (analysis);
+	status = analysis->status;
+
+    surface->ctm = old_ctm;
+    surface->has_ctm = old_has_ctm;
 
     return status;
 }
@@ -90,9 +103,51 @@ _cairo_analysis_surface_add_operation  (cairo_analysis_surface_t *surface,
 					cairo_int_status_t        backend_status)
 {
     cairo_int_status_t status;
+    cairo_box_t bbox;
 
     if (rect->width == 0 || rect->height == 0)
 	return CAIRO_STATUS_SUCCESS;
+
+    if (surface->has_ctm) {
+	double x1, y1, x2, y2;
+
+	x1 = rect->x;
+	y1 = rect->y;
+	x2 = rect->x + rect->width;
+	y2 = rect->y + rect->height;
+	_cairo_matrix_transform_bounding_box (&surface->ctm,
+					      &x1, &y1, &x2, &y2,
+					      NULL);
+	rect->x = floor (x1);
+	rect->y = floor (y1);
+
+	x2 = ceil (x2) - rect->x;
+	y2 = ceil (y2) - rect->y;
+	if (x2 <= 0 || y2 <= 0)
+	    return CAIRO_STATUS_SUCCESS;
+
+	rect->width  = x2;
+	rect->height = y2;
+    }
+
+    bbox.p1.x = _cairo_fixed_from_int (rect->x);
+    bbox.p1.y = _cairo_fixed_from_int (rect->y);
+    bbox.p2.x = _cairo_fixed_from_int (rect->x + rect->width);
+    bbox.p2.y = _cairo_fixed_from_int (rect->y + rect->height);
+
+    if (surface->first_op) {
+	surface->first_op = FALSE;
+	surface->page_bbox = bbox;
+    } else {
+	if (bbox.p1.x < surface->page_bbox.p1.x)
+	    surface->page_bbox.p1.x = bbox.p1.x;
+	if (bbox.p1.y < surface->page_bbox.p1.y)
+	    surface->page_bbox.p1.y = bbox.p1.y;
+	if (bbox.p2.x > surface->page_bbox.p2.x)
+	    surface->page_bbox.p2.x = bbox.p2.x;
+	if (bbox.p2.y > surface->page_bbox.p2.y)
+	    surface->page_bbox.p2.y = bbox.p2.y;
+    }
 
     /* If the operation is completely enclosed within the fallback
      * region there is no benefit in emitting a native operation as
@@ -166,28 +221,24 @@ _cairo_analysis_surface_intersect_clip_path (void		*abstract_surface,
     cairo_analysis_surface_t *surface = abstract_surface;
     double                    x1, y1, x2, y2;
     cairo_rectangle_int_t   extent;
-    cairo_status_t	      status;
 
     if (path == NULL) {
 	surface->current_clip.x = 0;
 	surface->current_clip.y = 0;
-	surface->current_clip.width = surface->width;
+	surface->current_clip.width  = surface->width;
 	surface->current_clip.height = surface->height;
-	status = CAIRO_STATUS_SUCCESS;
     } else {
-	status = _cairo_path_fixed_bounds (path, &x1, &y1, &x2, &y2);
-	if (status)
-	    return status;
+	_cairo_path_fixed_bounds (path, &x1, &y1, &x2, &y2, tolerance);
 
 	extent.x = floor (x1);
 	extent.y = floor (y1);
-	extent.width = ceil (x2) - extent.x;
+	extent.width  = ceil (x2) - extent.x;
 	extent.height = ceil (y2) - extent.y;
 
 	_cairo_rectangle_intersect (&surface->current_clip, &extent);
     }
 
-    return status;
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static cairo_int_status_t
@@ -360,7 +411,7 @@ _cairo_analysis_surface_stroke (void			*abstract_surface,
 						    tolerance,
 						    &traps);
 
-	if (status) {
+	if (status || traps.num_traps == 0) {
 	    _cairo_traps_fini (&traps);
 	    return status;
 	}
@@ -383,9 +434,9 @@ _cairo_analysis_surface_fill (void			*abstract_surface,
 			      cairo_operator_t		 op,
 			      cairo_pattern_t		*source,
 			      cairo_path_fixed_t	*path,
-			      cairo_fill_rule_t	 	 fill_rule,
+			      cairo_fill_rule_t		 fill_rule,
 			      double			 tolerance,
-			      cairo_antialias_t	 	 antialias)
+			      cairo_antialias_t		 antialias)
 {
     cairo_analysis_surface_t *surface = abstract_surface;
     cairo_status_t	     status, backend_status;
@@ -432,7 +483,7 @@ _cairo_analysis_surface_fill (void			*abstract_surface,
 						  tolerance,
 						  &traps);
 
-	if (status) {
+	if (status || traps.num_traps == 0) {
 	    _cairo_traps_fini (&traps);
 	    return status;
 	}
@@ -535,6 +586,9 @@ static const cairo_surface_backend_t cairo_analysis_surface_backend = {
     _cairo_analysis_surface_fill,
     _cairo_analysis_surface_show_glyphs,
     NULL, /* snapshot */
+    NULL, /* is_similar */
+    NULL, /* reset */
+    NULL, /* fill_stroke */
 };
 
 cairo_surface_t *
@@ -546,7 +600,7 @@ _cairo_analysis_surface_create (cairo_surface_t		*target,
 
     surface = malloc (sizeof (cairo_analysis_surface_t));
     if (surface == NULL)
-	goto FAIL;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
     /* I believe the content type here is truly arbitrary. I'm quite
      * sure nothing will ever use this value. */
@@ -555,8 +609,11 @@ _cairo_analysis_surface_create (cairo_surface_t		*target,
 
     surface->width = width;
     surface->height = height;
+    cairo_matrix_init_identity (&surface->ctm);
+    surface->has_ctm = FALSE;
 
     surface->target = target;
+    surface->first_op  = TRUE;
     surface->has_supported = FALSE;
     surface->has_unsupported = FALSE;
     _cairo_region_init (&surface->supported_region);
@@ -568,9 +625,6 @@ _cairo_analysis_surface_create (cairo_surface_t		*target,
     surface->current_clip.height = height;
 
     return &surface->base;
-FAIL:
-    _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    return NULL;
 }
 
 cairo_region_t *
@@ -603,4 +657,13 @@ _cairo_analysis_surface_has_unsupported (cairo_surface_t *abstract_surface)
     cairo_analysis_surface_t	*surface = (cairo_analysis_surface_t *) abstract_surface;
 
     return surface->has_unsupported;
+}
+
+void
+_cairo_analysis_surface_get_bounding_box (cairo_surface_t *abstract_surface,
+					  cairo_box_t     *bbox)
+{
+    cairo_analysis_surface_t	*surface = (cairo_analysis_surface_t *) abstract_surface;
+
+    *bbox = surface->page_bbox;
 }

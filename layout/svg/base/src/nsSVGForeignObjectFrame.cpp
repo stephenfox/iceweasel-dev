@@ -91,8 +91,21 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGForeignObjectFrameBase)
 //----------------------------------------------------------------------
 // nsIFrame methods
 
+NS_IMETHODIMP
+nsSVGForeignObjectFrame::Init(nsIContent* aContent,
+                              nsIFrame*   aParent,
+                              nsIFrame*   aPrevInFlow)
+{
+  nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
+  if (NS_SUCCEEDED(rv)) {
+    nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
+  }
+  return rv;
+}
+
 void nsSVGForeignObjectFrame::Destroy()
 {
+  nsSVGUtils::GetOuterSVGFrame(this)->UnregisterForeignObject(this);
   // Delete any clipPath/filter/mask properties _before_ we die. The properties
   // and property hash table have weak pointers to us that are dereferenced
   // when the properties are destroyed.
@@ -115,7 +128,7 @@ nsSVGForeignObjectFrame::AttributeChanged(PRInt32  aNameSpaceID,
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
       UpdateGraphic(); // update mRect before requesting reflow
-      // XXXjwatt: why are we calling MarkIntrinsicWidthsDirty on our ancestors???
+      // XXXjwatt: why mark intrinsic widths dirty? can't we just use eResize?
       RequestReflow(nsIPresShell::eStyleChange);
     } else if (aAttribute == nsGkAtoms::x ||
                aAttribute == nsGkAtoms::y) {
@@ -135,23 +148,6 @@ nsSVGForeignObjectFrame::DidSetStyleContext()
 {
   nsSVGUtils::StyleEffects(this);
   return NS_OK;
-}
-
-/* virtual */ void
-nsSVGForeignObjectFrame::MarkIntrinsicWidthsDirty()
-{
-  // Since we don't know whether this call is because of a style change on an
-  // ancestor or a descendant, mark the kid dirty.  If it's a descendant,
-  // all we need is the NS_FRAME_HAS_DIRTY_CHILDREN that our caller is
-  // going to set, though. (If we could differentiate between a style change on
-  // an ancestor or descendant, we'd need to add a parameter to RequestReflow
-  // to pass either NS_FRAME_IS_DIRTY or NS_FRAME_HAS_DIRTY_CHILDREN.)
-  //
-  // This is really a style change, except we're already being called
-  // from MarkIntrinsicWidthsDirty, so say it's a resize to avoid doing
-  // the same work over again.
-
-  RequestReflow(nsIPresShell::eResize);
 }
 
 NS_IMETHODIMP
@@ -295,10 +291,11 @@ nsSVGForeignObjectFrame::TransformPointFromOuterPx(float aX, float aY, nsPoint* 
   nsresult rv = tm->Inverse(getter_AddRefs(inverse));
   if (NS_FAILED(rv))
     return rv;
-   
+
   nsSVGUtils::TransformPoint(inverse, &aX, &aY);
-  *aOut = nsPoint(nsPresContext::CSSPixelsToAppUnits(aX),
-                  nsPresContext::CSSPixelsToAppUnits(aY));
+  PRInt32 appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
+  *aOut = nsPoint(NSToCoordRound(aX * appUnitsPerDevPixel),
+                  NSToCoordRound(aY * appUnitsPerDevPixel));
   return NS_OK;
 }
  
@@ -326,8 +323,9 @@ nsPoint
 nsSVGForeignObjectFrame::TransformPointFromOuter(nsPoint aPt)
 {
   nsPoint pt(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-  TransformPointFromOuterPx(nsPresContext::AppUnitsToFloatCSSPixels(aPt.x),
-                            nsPresContext::AppUnitsToFloatCSSPixels(aPt.y),
+  float appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
+  TransformPointFromOuterPx(aPt.x / appUnitsPerDevPixel,
+                            aPt.y / appUnitsPerDevPixel,
                             &pt);
   return pt;
 }
@@ -382,18 +380,46 @@ nsSVGForeignObjectFrame::InitialUpdate()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSVGForeignObjectFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
+void
+nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  mCanvasTM = nsnull;
-  // If our width/height has a percentage value then we need to reflow if the
-  // width/height of our parent coordinate context changes. Actually we also
-  // need to reflow if our scale changes. Glyph metrics do not necessarily 
-  // scale uniformly with the change in scale, so a change in scale can
-  // (perhaps unexpectedly) cause text to break at different points.
-  RequestReflow(nsIPresShell::eResize);
-  UpdateGraphic();
-  return NS_OK;
+  PRBool reflow = PR_FALSE;
+
+  if (aFlags & TRANSFORM_CHANGED) {
+    // Perhaps unexpectedly, we reflow if our CTM changes. This is because
+    // glyph metrics do not necessarily scale uniformly with change in scale
+    // and, as a result, CTM changes may require text to break at different
+    // points.
+    // XXX roc says we shouldn't do this. See bug 381285 comment 20.
+    reflow = PR_TRUE;
+    mCanvasTM = nsnull;
+
+  } else if (aFlags & COORD_CONTEXT_CHANGED) {
+    // Our coordinate context's width/height has changed. If we have a
+    // percentage width/height our dimensions will change so we must reflow.
+    nsSVGForeignObjectElement *fO =
+      static_cast<nsSVGForeignObjectElement*>(mContent);
+    if (fO->mLengthAttributes[nsSVGForeignObjectElement::WIDTH].IsPercentage() ||
+        fO->mLengthAttributes[nsSVGForeignObjectElement::HEIGHT].IsPercentage()) {
+      reflow = PR_TRUE;
+    }
+  }
+
+  if (reflow) {
+    // If we're called while the PresShell is handling reflow events then we
+    // must have been called as a result of the NotifyViewportChange() call in
+    // our nsSVGOuterSVGFrame's Reflow() method. We must not call RequestReflow
+    // at this point (i.e. during reflow) because it could confuse the
+    // PresShell and prevent it from reflowing us properly in future. Besides
+    // that, nsSVGOuterSVGFrame::DidReflow will take care of reflowing us
+    // synchronously, so there's no need.
+    PRBool reflowing;
+    PresContext()->PresShell()->IsReflowLocked(&reflowing);
+    if (!reflowing) {
+      UpdateGraphic(); // update mRect before requesting reflow
+      RequestReflow(nsIPresShell::eResize);
+    }
+  }
 }
 
 NS_IMETHODIMP
@@ -524,23 +550,6 @@ void nsSVGForeignObjectFrame::RequestReflow(nsIPresShell::IntrinsicDirty aType)
   if (!kid)
     return;
 
-/* commenting out to fix reftest failure - see bug 381285
-  // If we're called while the PresShell is handling reflow events we must do
-  // the reflow synchronously here and now. Calling FrameNeedsReflow could
-  // confuse the PresShell and prevent us from being reflowed correctly in
-  // future.
-  PRBool reflowing;
-  PresContext()->PresShell()->IsReflowLocked(&reflowing);
-  if (reflowing) {
-    NS_ASSERTION(aType == nsIPresShell::eResize, "Failed to invalidate stored intrinsic widths!");
-    // only refow here and now if we the PresShell isn't already planning to
-    if (!(kid->GetStateBits() & NS_FRAME_IS_DIRTY)) {
-      DoReflow();
-    }
-    return;
-  }
-*/
-
   PresContext()->PresShell()->FrameNeedsReflow(kid, aType, NS_FRAME_IS_DIRTY);
 }
 
@@ -580,6 +589,25 @@ void nsSVGForeignObjectFrame::UpdateGraphic()
 
   // Clear any layout dirty region since we invalidated our whole area.
   mDirtyRegion.SetEmpty();
+}
+
+void
+nsSVGForeignObjectFrame::MaybeReflowFromOuterSVGFrame()
+{
+  // If we're already scheduled to reflow (i.e. our kid is dirty) we don't
+  // want to reflow now or else our presShell will do extra work trying to
+  // reflow us a second time. (It will also complain if it finds that a reflow
+  // root scheduled for reflow isn't dirty).
+
+  nsIFrame* kid = GetFirstChild(nsnull);
+  if (kid->GetStateBits() & NS_FRAME_IS_DIRTY) {
+    return;
+  }
+  kid->AddStateBits(NS_FRAME_IS_DIRTY); // we must be fully marked dirty
+  if (kid->GetStateBits() & NS_FRAME_HAS_DIRTY_CHILDREN) {
+    return;
+  }
+  DoReflow();
 }
 
 void
@@ -677,7 +705,7 @@ nsSVGForeignObjectFrame::FlushDirtyRegion()
   
   nsCOMPtr<nsIDOMSVGMatrix> tm = GetTMIncludingOffset();
   nsRect r = mDirtyRegion.GetBounds();
-  r.ScaleRoundOut(1.0f / nsPresContext::AppUnitsPerCSSPixel());
+  r.ScaleRoundOut(1.0f / PresContext()->AppUnitsPerDevPixel());
   float x = r.x, y = r.y, w = r.width, h = r.height;
   r = GetTransformedRegion(x, y, w, h, tm);
   outerSVGFrame->InvalidateRect(r);

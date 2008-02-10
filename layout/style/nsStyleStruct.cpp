@@ -46,7 +46,6 @@
 #include "nsStyleConsts.h"
 #include "nsThemeConstants.h"
 #include "nsString.h"
-#include "nsUnitConversion.h"
 #include "nsPresContext.h"
 #include "nsIDeviceContext.h"
 #include "nsIStyleRule.h"
@@ -107,33 +106,45 @@ static PRBool EqualImages(imgIRequest *aImage1, imgIRequest* aImage2)
 // --------------------
 // nsStyleFont
 //
-nsStyleFont::nsStyleFont()
-  : mFlags(NS_STYLE_FONT_DEFAULT),
-    mFont(nsnull, NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
-          NS_FONT_WEIGHT_NORMAL, NS_FONT_DECORATION_NONE, 0),
-    mSize(0)
-{ }
-
-nsStyleFont::nsStyleFont(const nsFont& aFont)
-  : mFlags(NS_STYLE_FONT_DEFAULT),
-    mFont(aFont),
-    mSize(aFont.size)
+nsStyleFont::nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext)
+  : mFont(aFont),
+    mFlags(NS_STYLE_FONT_DEFAULT)
 {
+  mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
+#ifdef MOZ_MATHML
+  mScriptUnconstrainedSize = mSize;
+  mScriptMinSize = aPresContext->TwipsToAppUnits(
+      NS_POINTS_TO_TWIPS(NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT));
+  mScriptLevel = 0;
+  mScriptSizeMultiplier = NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER;
+#endif
 }
 
 nsStyleFont::nsStyleFont(const nsStyleFont& aSrc)
-  : mFlags(aSrc.mFlags),
-    mFont(aSrc.mFont),
-    mSize(aSrc.mSize)
+  : mFont(aSrc.mFont)
+  , mSize(aSrc.mSize)
+  , mFlags(aSrc.mFlags)
+#ifdef MOZ_MATHML
+  , mScriptLevel(aSrc.mScriptLevel)
+  , mScriptUnconstrainedSize(aSrc.mScriptUnconstrainedSize)
+  , mScriptSizeMultiplier(aSrc.mScriptSizeMultiplier)
+  , mScriptMinSize(aSrc.mScriptMinSize)
+#endif
 {
 }
 
-
 nsStyleFont::nsStyleFont(nsPresContext* aPresContext)
-  : mFlags(NS_STYLE_FONT_DEFAULT),
-    mFont(*(aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID)))
+  : mFont(*(aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID))),
+    mFlags(NS_STYLE_FONT_DEFAULT)
 {
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
+#ifdef MOZ_MATHML
+  mScriptUnconstrainedSize = mSize;
+  mScriptMinSize = aPresContext->TwipsToAppUnits(
+      NS_POINTS_TO_TWIPS(NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT));
+  mScriptLevel = 0;
+  mScriptSizeMultiplier = NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER;
+#endif
 }
 
 void* 
@@ -961,13 +972,12 @@ nsStyleTable::nsStyleTable(const nsStyleTable& aSource)
 nsChangeHint nsStyleTable::CalcDifference(const nsStyleTable& aOther) const
 {
   // Changes in mRules may require reframing (if border-collapse stuff changes, for example).
-  if (mRules != aOther.mRules)
+  if (mRules != aOther.mRules || mSpan != aOther.mSpan)
     return NS_STYLE_HINT_FRAMECHANGE;
 
   if ((mLayoutStrategy == aOther.mLayoutStrategy) &&
       (mFrame == aOther.mFrame) &&
-      (mCols == aOther.mCols) &&
-      (mSpan == aOther.mSpan))
+      (mCols == aOther.mCols))
     return NS_STYLE_HINT_NONE;
   return NS_STYLE_HINT_REFLOW;
 }

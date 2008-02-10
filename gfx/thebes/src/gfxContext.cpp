@@ -61,6 +61,7 @@ gfxContext::gfxContext(gfxASurface *surface) :
     mSurface(surface)
 {
     mCairo = cairo_create(surface->CairoSurface());
+    mFlags = surface->GetDefaultContextFlags();
 }
 gfxContext::~gfxContext()
 {
@@ -383,12 +384,18 @@ gfxContext::UserToDevice(const gfxRect& rect) const
 }
 
 PRBool
-gfxContext::UserToDevicePixelSnapped(gfxRect& rect) const
+gfxContext::UserToDevicePixelSnapped(gfxRect& rect, PRBool ignoreScale) const
 {
-    // if we're not at 1.0 scale, don't snap
+    if (GetFlags() & FLAG_DISABLE_SNAPPING)
+        return PR_FALSE;
+
+    // if we're not at 1.0 scale, don't snap, unless we're
+    // ignoring the scale.  If we're not -just- a scale,
+    // never snap.
     cairo_matrix_t mat;
     cairo_get_matrix(mCairo, &mat);
-    if (mat.xx != 1.0 || mat.yy != 1.0)
+    if ((!ignoreScale && (mat.xx != 1.0 || mat.yy != 1.0)) ||
+        (mat.xy != 0.0 || mat.yx != 0.0))
         return PR_FALSE;
 
     gfxPoint p1 = UserToDevice(rect.pos);
@@ -508,6 +515,13 @@ gfxContext::CurrentLineWidth() const
 void
 gfxContext::SetOperator(GraphicsOperator op)
 {
+    if (mFlags & FLAG_SIMPLIFY_OPERATORS) {
+        if (op != OPERATOR_SOURCE &&
+            op != OPERATOR_CLEAR &&
+            op != OPERATOR_OVER)
+            op = OPERATOR_OVER;
+    }
+
     cairo_set_operator(mCairo, (cairo_operator_t)op);
 }
 
@@ -727,6 +741,14 @@ gfxContext::PointInStroke(const gfxPoint& pt)
 }
 
 gfxRect
+gfxContext::GetUserPathExtent()
+{
+    double xmin, ymin, xmax, ymax;
+    cairo_path_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
+    return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
+}
+
+gfxRect
 gfxContext::GetUserFillExtent()
 {
     double xmin, ymin, xmax, ymax;
@@ -749,4 +771,10 @@ gfxContext::GetFlattenedPath()
         new gfxFlattenedPath(cairo_copy_path_flat(mCairo));
     NS_IF_ADDREF(path);
     return path;
+}
+
+PRBool
+gfxContext::HasError()
+{
+     return cairo_status(mCairo) != CAIRO_STATUS_SUCCESS;
 }

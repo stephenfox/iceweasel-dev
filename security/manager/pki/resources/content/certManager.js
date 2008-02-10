@@ -318,7 +318,7 @@ function websites_enableButtons()
   var enableEditButton=document.getElementById('websites_editButton');
   enableEditButton.setAttribute("disabled", !enable_edit);
   var enableExportButton=document.getElementById('websites_exportButton');
-  enableExportButton.setAttribute("disabled", !enable_edit);
+  enableExportButton.setAttribute("disabled", !enable_view);
   var enableDeleteButton=document.getElementById('websites_deleteButton');
   enableDeleteButton.setAttribute("disabled", !enable_delete);
 }
@@ -604,7 +604,7 @@ function addWebSiteCert()
   var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.GetStringFromName("importWebSiteCertPrompt"),
+          bundle.GetStringFromName("importServerCertPrompt"),
           nsIFilePicker.modeOpen);
   fp.appendFilter(bundle.GetStringFromName("file_browse_Certificate_spec"),
                   "*.crt; *.cert; *.cer; *.pem; *.der");

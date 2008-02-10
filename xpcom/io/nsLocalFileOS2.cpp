@@ -51,7 +51,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIDirectoryEnumerator.h"
 #include "nsIComponentManager.h"
-#include "nsIProgrammingLanguage.h"
 #include "prtypes.h"
 #include "prio.h"
 
@@ -616,22 +615,11 @@ nsLocalFile::nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void*
 // nsLocalFile::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_THREADSAFE_ADDREF(nsLocalFile)
-NS_IMPL_THREADSAFE_RELEASE(nsLocalFile)
-NS_IMPL_QUERY_INTERFACE5_CI(nsLocalFile,
-                            nsILocalFile,
-                            nsIFile,
-                            nsILocalFileOS2,
-                            nsIHashable,
-                            nsIClassInfo)
-NS_IMPL_CI_INTERFACE_GETTER4(nsLocalFile,
-                             nsILocalFile,
-                             nsIFile,
-                             nsILocalFileOS2,
-                             nsIHashable)
-
-NS_DECL_CLASSINFO(nsLocalFile)
-NS_IMPL_THREADSAFE_CI(nsLocalFile)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsLocalFile,
+                              nsILocalFile,
+                              nsIFile,
+                              nsILocalFileOS2,
+                              nsIHashable)
 
 
 //-----------------------------------------------------------------------------
@@ -837,7 +825,8 @@ nsLocalFile::Create(PRUint32 type, PRUint32 attributes)
     if (type == NORMAL_FILE_TYPE)
     {
         PRFileDesc* file = PR_Open(mWorkingPath.get(), PR_RDONLY | PR_CREATE_FILE | PR_APPEND | PR_EXCL, attributes);
-        if (!file) return NS_ERROR_FILE_ALREADY_EXISTS;
+        if (!file)
+            return NS_ERROR_FILE_ALREADY_EXISTS;
 
         PR_Close(file);
         return NS_OK;

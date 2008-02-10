@@ -41,6 +41,7 @@
 #include "nsIX509Cert.h"
 #include "nsSSLStatus.h"
 #include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsNSSCertificate.h"
 #include "nsCRT.h"
 #include "nsPromiseFlatString.h"
@@ -85,7 +86,7 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
     return NS_ERROR_INVALID_ARG;
 
   *aStatus = nsnull;
-  nsCOMPtr<nsSSLStatus> status = new nsSSLStatus();
+  nsRefPtr<nsSSLStatus> status = new nsSSLStatus();
   if (!status)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -130,7 +131,7 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
     status->mServerCert = new nsNSSCertificate(nssCert);
     CERT_DestroyCertificate(nssCert);
 
-    status->mHaveCertStatus = PR_TRUE;
+    status->mHaveCertErrorBits = PR_TRUE;
     status->mIsDomainMismatch = isDomainMismatch;
     status->mIsNotValidAtThisTime = isNotValidAtThisTime;
     status->mIsUntrusted = isUntrusted;

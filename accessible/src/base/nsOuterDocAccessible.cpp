@@ -74,7 +74,7 @@ NS_IMETHODIMP nsOuterDocAccessible::GetName(nsAString& aName)
 /* unsigned long getRole (); */
 NS_IMETHODIMP nsOuterDocAccessible::GetRole(PRUint32 *aRole)
 {
-  *aRole = nsIAccessibleRole::ROLE_CLIENT;
+  *aRole = nsIAccessibleRole::ROLE_INTERNAL_FRAME;
   return NS_OK;
 }
 
@@ -116,7 +116,8 @@ void nsOuterDocAccessible::CacheChildren()
     return;
   }
 
-  SetFirstChild(nsnull);
+  InvalidateChildren();
+  mAccChildCount = 0;
 
   // In these variable names, "outer" relates to the nsOuterDocAccessible
   // as opposed to the nsDocAccessibleWrap which is "inner".
@@ -128,14 +129,12 @@ void nsOuterDocAccessible::CacheChildren()
 
   nsCOMPtr<nsIDocument> outerDoc = content->GetDocument();
   if (!outerDoc) {
-    mAccChildCount = 0;
     return;
   }
 
   nsIDocument *innerDoc = outerDoc->GetSubDocumentFor(content);
   nsCOMPtr<nsIDOMNode> innerNode(do_QueryInterface(innerDoc));
   if (!innerNode) {
-    mAccChildCount = 0;
     return;
   }
 
@@ -146,7 +145,6 @@ void nsOuterDocAccessible::CacheChildren()
   nsCOMPtr<nsPIAccessible> privateInnerAccessible = 
     do_QueryInterface(innerAccessible);
   if (!privateInnerAccessible) {
-    mAccChildCount = 0;
     return;
   }
 

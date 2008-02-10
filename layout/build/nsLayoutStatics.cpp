@@ -80,6 +80,8 @@
 #include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
+#include "nsCSSRuleProcessor.h"
+#include "nsXMLHttpRequest.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -245,6 +247,7 @@ nsLayoutStatics::Shutdown()
   nsContentList::Shutdown();
   nsComputedDOMStyle::Shutdown();
   CSSLoaderImpl::Shutdown();
+  nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsCSSRendering::Shutdown();
 #ifdef DEBUG
@@ -286,6 +289,7 @@ nsLayoutStatics::Shutdown()
 
   nsAttrValue::Shutdown();
   nsContentUtils::Shutdown();
+  nsNodeInfo::ClearCache();
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
   nsStyleSet::FreeGlobals();
@@ -300,6 +304,8 @@ nsLayoutStatics::Shutdown()
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
 #endif
+
+  nsXMLHttpRequest::ShutdownACCache();
 }
 
 void

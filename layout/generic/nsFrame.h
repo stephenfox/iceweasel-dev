@@ -281,6 +281,7 @@ public:
                                   InlinePrefWidthData *aData);
   virtual IntrinsicWidthOffsetData
     IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext);
+  virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
 
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
@@ -303,7 +304,7 @@ public:
    * override ComputeSize to enforce their width/height invariants.
    *
    * Implementations may optimize by returning a garbage width if
-   * GetStylePosition()->mWidth.GetUnit() == eStyleUnit_Auto, and
+   * GetStylePosition()->mWidth.GetUnit() != eStyleUnit_Auto, and
    * likewise for height, since in such cases the result is guaranteed
    * to be unused.
    */
@@ -328,10 +329,6 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus         aStatus);
   virtual PRBool CanContinueTextRun() const;
-  NS_IMETHOD TrimTrailingWhiteSpace(nsPresContext* aPresContext,
-                                    nsIRenderingContext& aRC,
-                                    nscoord& aDeltaWidth,
-                                    PRBool& aLastCharIsJustifiable);
 
   // Selection Methods
   // XXX Doc me... (in nsIFrame.h puhleeze)
@@ -414,7 +411,7 @@ public:
   NS_IMETHOD CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents);
   PRBool   IsMouseCaptured(nsPresContext* aPresContext);
 
-  virtual const nsStyleStruct* GetStyleDataExternal(nsStyleStructID aSID) const;
+  virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const;
 
 
 #ifdef NS_DEBUG
@@ -578,7 +575,7 @@ protected:
   //   of the enclosing cell or table (if not inside a cell)
   //  aTarget tells us what table element to select (currently only cell and table supported)
   //  (enums for this are defined in nsIFrame.h)
-  NS_IMETHOD GetDataForTableSelection(nsFrameSelection *aFrameSelection,
+  NS_IMETHOD GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
                                       nsIPresShell *aPresShell, nsMouseEvent *aMouseEvent, 
                                       nsIContent **aParentContent, PRInt32 *aContentOffset, 
                                       PRInt32 *aTarget);

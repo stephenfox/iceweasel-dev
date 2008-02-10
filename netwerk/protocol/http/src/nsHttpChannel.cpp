@@ -199,10 +199,6 @@ nsHttpChannel::Init(nsIURI *uri,
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(mConnectionInfo);
 
-    // make sure our load flags include this bit if this is a secure channel.
-    if (usingSSL && !gHttpHandler->IsPersistentHttpsCachingEnabled()) 
-        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
-
     // Set default request method
     mRequestHead.SetMethod(nsHttp::Get);
 
@@ -1388,21 +1384,27 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
         accessRequested = nsICache::ACCESS_READ_WRITE; // normal browsing
 
     nsCOMPtr<nsICacheSession> session;
-    rv = gHttpHandler->GetCacheSession(storagePolicy,
-                                       getter_AddRefs(session));
-    if (NS_FAILED(rv)) return rv;
+    if (mLoadFlags & LOAD_CHECK_OFFLINE_CACHE) {
+        // when LOAD_CHECK_OFFLINE_CACHE set prefer the offline cache
+        rv = gHttpHandler->GetCacheSession(nsICache::STORE_OFFLINE,
+                                           getter_AddRefs(session));
+        if (NS_FAILED(rv)) return rv;
 
-    // we'll try to synchronously open the cache entry... however, it may be
-    // in use and not yet validated, in which case we'll try asynchronously
-    // opening the cache entry.
-    rv = session->OpenCacheEntry(cacheKey, accessRequested, PR_FALSE,
-                                 getter_AddRefs(mCacheEntry));
+        // we'll try to synchronously open the cache entry... however, it may be
+        // in use and not yet validated, in which case we'll try asynchronously
+        // opening the cache entry.
+        //
+        // we need open in ACCESS_READ only because we don't want to overwrite
+        // the offline cache entry non-atomically so ACCESS_READ
+        // will prevent us from writing to the HTTP-offline cache as a
+        // normal cache entry.
+        rv = session->OpenCacheEntry(cacheKey, nsICache::ACCESS_READ, PR_FALSE,
+                                     getter_AddRefs(mCacheEntry));
+    }
 
-    if ((mLoadFlags & LOAD_CHECK_OFFLINE_CACHE) &&
-        !(NS_SUCCEEDED(rv) || rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION)) {
-        // couldn't find it in the main cache, check the offline cache
-
-        storagePolicy = nsICache::STORE_OFFLINE;
+    if (!(mLoadFlags & LOAD_CHECK_OFFLINE_CACHE) ||
+        (NS_FAILED(rv) && rv != NS_ERROR_CACHE_WAIT_FOR_VALIDATION)) 
+    {
         rv = gHttpHandler->GetCacheSession(storagePolicy,
                                            getter_AddRefs(session));
         if (NS_FAILED(rv)) return rv;
@@ -2013,8 +2015,12 @@ nsHttpChannel::InitCacheEntry()
     if (mResponseHead->NoStore())
         mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
 
-    // For HTTPS transactions, the storage policy will already be IN_MEMORY.
-    // We are concerned instead about load attributes which may have changed.
+    // Only cache SSL content on disk if the server sent a
+    // Cache-Control: public header, or if the user set the pref
+    if (!gHttpHandler->CanCacheAllSSLContent() &&
+        mConnectionInfo->UsingSSL() && !mResponseHead->CacheControlPublic())
+        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+
     if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
         rv = mCacheEntry->SetStoragePolicy(nsICache::STORE_IN_MEMORY);
         if (NS_FAILED(rv)) return rv;
@@ -3462,12 +3468,6 @@ NS_IMETHODIMP
 nsHttpChannel::SetLoadFlags(nsLoadFlags aLoadFlags)
 {
     mLoadFlags = aLoadFlags;
-
-    // don't let anyone overwrite this bit if we're using a secure channel.
-    if (mConnectionInfo && mConnectionInfo->UsingSSL() 
-        && !gHttpHandler->IsPersistentHttpsCachingEnabled())
-        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
-
     return NS_OK;
 }
 
@@ -4486,7 +4486,7 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
 
         //
         // we have to manually keep the logical offset of the stream up-to-date.
-        // we cannot depend soley on the offset provided, since we may have 
+        // we cannot depend solely on the offset provided, since we may have 
         // already streamed some data from another source (see, for example,
         // OnDoneReadingPartialCacheEntry).
         //
@@ -4552,6 +4552,21 @@ nsHttpChannel::GetCacheToken(nsISupports **token)
 
 NS_IMETHODIMP
 nsHttpChannel::SetCacheToken(nsISupports *token)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::GetOfflineCacheToken(nsISupports **token)
+{
+    NS_ENSURE_ARG_POINTER(token);
+    if (!mOfflineCacheEntry)
+        return NS_ERROR_NOT_AVAILABLE;
+    return CallQueryInterface(mOfflineCacheEntry, token);
+}
+
+NS_IMETHODIMP
+nsHttpChannel::SetOfflineCacheToken(nsISupports *token)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -4699,11 +4714,8 @@ nsHttpChannel::ResumeAt(PRUint64 aStartPos,
 NS_IMETHODIMP
 nsHttpChannel::GetEntityID(nsACString& aEntityID)
 {
-    // Don't return an entity ID for HTTP/1.0 servers
-    if (mResponseHead && (mResponseHead->Version() < NS_HTTP_VERSION_1_1)) {
-        return NS_ERROR_NOT_RESUMABLE;
-    }
-    // Neither return one for Non-GET requests which require additional data
+    // Don't return an entity ID for Non-GET requests which require
+    // additional data
     if (mRequestHead.Method() != nsHttp::Get) {
         return NS_ERROR_NOT_RESUMABLE;
     }

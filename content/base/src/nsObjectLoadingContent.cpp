@@ -60,6 +60,7 @@
 #include "nsIURL.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebNavigationInfo.h"
+#include "nsIScriptChannel.h"
 
 #include "nsPluginError.h"
 
@@ -542,7 +543,8 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
           pluginState == ePluginBlocklisted) {
         FirePluginError(thisContent, pluginState == ePluginBlocklisted);
       }
-      if (pluginState != ePluginDisabled) {
+      if (pluginState != ePluginDisabled &&
+          pluginState != ePluginBlocklisted) {
         mTypeUnsupported = PR_TRUE;
       }
       return NS_BINDING_ABORTED;
@@ -857,6 +859,23 @@ nsObjectLoadingContent::LoadObject(const nsAString& aURI,
   return LoadObject(uri, aNotify, aTypeHint, aForceLoad);
 }
 
+static PRBool
+IsAboutBlank(nsIURI* aURI)
+{
+  // XXXbz this duplicates an nsDocShell function, sadly
+  NS_PRECONDITION(aURI, "Must have URI");
+    
+  // GetSpec can be expensive for some URIs, so check the scheme first.
+  PRBool isAbout = PR_FALSE;
+  if (NS_FAILED(aURI->SchemeIs("about", &isAbout)) || !isAbout) {
+    return PR_FALSE;
+  }
+    
+  nsCAutoString str;
+  aURI->GetSpec(str);
+  return str.EqualsLiteral("about:blank");  
+}
+
 nsresult
 nsObjectLoadingContent::LoadObject(nsIURI* aURI,
                                    PRBool aNotify,
@@ -1014,13 +1033,21 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     switch (newType) {
       case eType_Image:
         // Don't notify, because we will take care of that ourselves.
-        rv = LoadImage(aURI, aForceLoad, PR_FALSE);
+        if (aURI) {
+          rv = LoadImage(aURI, aForceLoad, PR_FALSE);
+        } else {
+          rv = NS_ERROR_NOT_AVAILABLE;
+        }
         break;
       case eType_Plugin:
         rv = TryInstantiate(mContentType, mURI);
         break;
       case eType_Document:
-        rv = mFrameLoader->LoadURI(aURI);
+        if (aURI) {
+          rv = mFrameLoader->LoadURI(aURI);
+        } else {
+          rv = NS_ERROR_NOT_AVAILABLE;
+        }
         break;
       case eType_Loading:
         NS_NOTREACHED("Should not have a loading type here!");
@@ -1032,7 +1059,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
             pluginState == ePluginBlocklisted) {
           FirePluginError(thisContent, pluginState == ePluginBlocklisted);
         }
-        if (pluginState != ePluginDisabled) {
+        if (pluginState != ePluginDisabled &&
+            pluginState != ePluginBlocklisted) {
           fallback.TypeUnsupported();
         }
 
@@ -1130,6 +1158,23 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // MIME Type hint
   if (!aTypeHint.IsEmpty()) {
     chan->SetContentType(aTypeHint);
+  }
+
+  // Set up the channel's principal and such, like nsDocShell::DoURILoad does
+  PRBool inheritPrincipal;
+  rv = NS_URIChainHasFlags(aURI,
+                           nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
+                           &inheritPrincipal);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (inheritPrincipal || IsAboutBlank(aURI)) {
+    chan->SetOwner(thisContent->NodePrincipal());
+  }
+
+  nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(chan);
+  if (scriptChannel) {
+    // Allow execution against our context if the principals match
+    scriptChannel->
+      SetExecutionPolicy(nsIScriptChannel::EXECUTE_NORMAL);
   }
 
   // AsyncOpen can fail if a file does not exist.

@@ -35,10 +35,18 @@
  *	Carl D. Worth <cworth@cworth.org>
  */
 
+#define _GNU_SOURCE
+
 #include "cairoint.h"
 
 #include "cairo-clip-private.h"
 #include "cairo-gstate-private.h"
+
+#if _XOPEN_SOURCE >= 600 || _ISOC99_SOURCE
+#define ISFINITE(x) isfinite (x)
+#else
+#define ISFINITE(x) ((x) * (x) >= 0.) /* check for NaNs */
+#endif
 
 static cairo_status_t
 _cairo_gstate_init_copy (cairo_gstate_t *gstate, cairo_gstate_t *other);
@@ -62,6 +70,8 @@ cairo_status_t
 _cairo_gstate_init (cairo_gstate_t  *gstate,
 		    cairo_surface_t *target)
 {
+    cairo_status_t status;
+
     gstate->next = NULL;
 
     gstate->op = CAIRO_GSTATE_OPERATOR_DEFAULT;
@@ -93,10 +103,23 @@ _cairo_gstate_init (cairo_gstate_t  *gstate,
 
     gstate->source = _cairo_pattern_create_solid (CAIRO_COLOR_BLACK,
 						  CAIRO_CONTENT_COLOR);
-    if (gstate->source->status)
-	return CAIRO_STATUS_NO_MEMORY;
 
-    return target ? target->status : CAIRO_STATUS_NULL_POINTER;
+    /* Now that the gstate is fully initialized and ready for the eventual
+     * _cairo_gstate_fini(), we can check for errors (and not worry about
+     * the resource deallocation). */
+
+    if (target == NULL)
+	return _cairo_error (CAIRO_STATUS_NULL_POINTER);
+
+    status = target->status;
+    if (status)
+	return status;
+
+    status = gstate->source->status;
+    if (status)
+	return status;
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 /**
@@ -131,8 +154,12 @@ _cairo_gstate_init_copy (cairo_gstate_t *gstate, cairo_gstate_t *other)
     _cairo_font_options_init_copy (&gstate->font_options , &other->font_options);
 
     status = _cairo_clip_init_copy (&gstate->clip, &other->clip);
-    if (status)
+    if (status) {
+	_cairo_stroke_style_fini (&gstate->stroke_style);
+	cairo_font_face_destroy (gstate->font_face);
+	cairo_scaled_font_destroy (gstate->scaled_font);
 	return status;
+    }
 
     gstate->target = cairo_surface_reference (other->target);
     /* parent_target is always set to NULL; it's only ever set by redirect_target */
@@ -170,7 +197,7 @@ _cairo_gstate_fini (cairo_gstate_t *gstate)
     gstate->parent_target = NULL;
 
     cairo_surface_destroy (gstate->original_target);
-    gstate->target = NULL;
+    gstate->original_target = NULL;
 
     cairo_pattern_destroy (gstate->source);
     gstate->source = NULL;
@@ -207,8 +234,10 @@ _cairo_gstate_clone (cairo_gstate_t *other)
     assert (other != NULL);
 
     gstate = malloc (sizeof (cairo_gstate_t));
-    if (gstate == NULL)
+    if (gstate == NULL) {
+	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return NULL;
+    }
 
     status = _cairo_gstate_init_copy (gstate, other);
     if (status) {
@@ -233,10 +262,8 @@ _cairo_gstate_save (cairo_gstate_t **gstate)
     cairo_gstate_t *top;
 
     top = _cairo_gstate_clone (*gstate);
-
-    if (top == NULL) {
-	return CAIRO_STATUS_NO_MEMORY;
-    }
+    if (top == NULL)
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     top->next = *gstate;
     *gstate = top;
@@ -256,10 +283,8 @@ _cairo_gstate_restore (cairo_gstate_t **gstate)
     cairo_gstate_t *top;
 
     top = *gstate;
-
-    if (top->next == NULL) {
-	return CAIRO_STATUS_INVALID_RESTORE;
-    }
+    if (top->next == NULL)
+	return _cairo_error (CAIRO_STATUS_INVALID_RESTORE);
 
     *gstate = top->next;
 
@@ -533,7 +558,7 @@ _cairo_gstate_set_dash (cairo_gstate_t *gstate, const double *dash, int num_dash
     gstate->stroke_style.dash = _cairo_malloc_ab (gstate->stroke_style.num_dashes, sizeof (double));
     if (gstate->stroke_style.dash == NULL) {
 	gstate->stroke_style.num_dashes = 0;
-	return CAIRO_STATUS_NO_MEMORY;
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
     memcpy (gstate->stroke_style.dash, dash, gstate->stroke_style.num_dashes * sizeof (double));
@@ -541,12 +566,12 @@ _cairo_gstate_set_dash (cairo_gstate_t *gstate, const double *dash, int num_dash
     dash_total = 0.0;
     for (i = 0; i < gstate->stroke_style.num_dashes; i++) {
 	if (gstate->stroke_style.dash[i] < 0)
-	    return CAIRO_STATUS_INVALID_DASH;
+	    return _cairo_error (CAIRO_STATUS_INVALID_DASH);
 	dash_total += gstate->stroke_style.dash[i];
     }
 
     if (dash_total == 0.0)
-	return CAIRO_STATUS_INVALID_DASH;
+	return _cairo_error (CAIRO_STATUS_INVALID_DASH);
 
     /* A single dash value indicate symmetric repeating, so the total
      * is twice as long. */
@@ -606,10 +631,17 @@ _cairo_gstate_translate (cairo_gstate_t *gstate, double tx, double ty)
 {
     cairo_matrix_t tmp;
 
+    if (! ISFINITE (tx) || ! ISFINITE (ty))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
+
     _cairo_gstate_unset_scaled_font (gstate);
 
     cairo_matrix_init_translate (&tmp, tx, ty);
     cairo_matrix_multiply (&gstate->ctm, &tmp, &gstate->ctm);
+
+    /* paranoid check against gradual numerical instability */
+    if (! _cairo_matrix_is_invertible (&gstate->ctm))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
 
     cairo_matrix_init_translate (&tmp, -tx, -ty);
     cairo_matrix_multiply (&gstate->ctm_inverse, &gstate->ctm_inverse, &tmp);
@@ -622,13 +654,19 @@ _cairo_gstate_scale (cairo_gstate_t *gstate, double sx, double sy)
 {
     cairo_matrix_t tmp;
 
-    if (sx == 0 || sy == 0)
-	return CAIRO_STATUS_INVALID_MATRIX;
+    if (sx * sy == 0.) /* either sx or sy is 0, or det == 0 due to underflow */
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
+    if (! ISFINITE (sx) || ! ISFINITE (sy))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
 
     _cairo_gstate_unset_scaled_font (gstate);
 
     cairo_matrix_init_scale (&tmp, sx, sy);
     cairo_matrix_multiply (&gstate->ctm, &tmp, &gstate->ctm);
+
+    /* paranoid check against gradual numerical instability */
+    if (! _cairo_matrix_is_invertible (&gstate->ctm))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
 
     cairo_matrix_init_scale (&tmp, 1/sx, 1/sy);
     cairo_matrix_multiply (&gstate->ctm_inverse, &gstate->ctm_inverse, &tmp);
@@ -641,10 +679,20 @@ _cairo_gstate_rotate (cairo_gstate_t *gstate, double angle)
 {
     cairo_matrix_t tmp;
 
+    if (angle == 0.)
+	return CAIRO_STATUS_SUCCESS;
+
+    if (! ISFINITE (angle))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
+
     _cairo_gstate_unset_scaled_font (gstate);
 
     cairo_matrix_init_rotate (&tmp, angle);
     cairo_matrix_multiply (&gstate->ctm, &tmp, &gstate->ctm);
+
+    /* paranoid check against gradual numerical instability */
+    if (! _cairo_matrix_is_invertible (&gstate->ctm))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
 
     cairo_matrix_init_rotate (&tmp, -angle);
     cairo_matrix_multiply (&gstate->ctm_inverse, &gstate->ctm_inverse, &tmp);
@@ -659,15 +707,19 @@ _cairo_gstate_transform (cairo_gstate_t	      *gstate,
     cairo_matrix_t tmp;
     cairo_status_t status;
 
-    _cairo_gstate_unset_scaled_font (gstate);
-
     tmp = *matrix;
-    cairo_matrix_multiply (&gstate->ctm, &tmp, &gstate->ctm);
-
     status = cairo_matrix_invert (&tmp);
     if (status)
 	return status;
+
+    _cairo_gstate_unset_scaled_font (gstate);
+
+    cairo_matrix_multiply (&gstate->ctm, matrix, &gstate->ctm);
     cairo_matrix_multiply (&gstate->ctm_inverse, &gstate->ctm_inverse, &tmp);
+
+    /* paranoid check against gradual numerical instability */
+    if (! _cairo_matrix_is_invertible (&gstate->ctm))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -678,14 +730,15 @@ _cairo_gstate_set_matrix (cairo_gstate_t       *gstate,
 {
     cairo_status_t status;
 
+    if (! _cairo_matrix_is_invertible (matrix))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
+
     _cairo_gstate_unset_scaled_font (gstate);
 
     gstate->ctm = *matrix;
-
     gstate->ctm_inverse = *matrix;
     status = cairo_matrix_invert (&gstate->ctm_inverse);
-    if (status)
-	return status;
+    assert (status == CAIRO_STATUS_SUCCESS);
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -764,6 +817,17 @@ _cairo_gstate_stroke_to_path (cairo_gstate_t *gstate)
     return CAIRO_STATUS_SUCCESS;
 }
 */
+
+void
+_cairo_gstate_path_extents (cairo_gstate_t     *gstate,
+			    cairo_path_fixed_t *path,
+			    double *x1, double *y1,
+			    double *x2, double *y2)
+{
+    _cairo_path_fixed_bounds (path, x1, y1, x2, y2, gstate->tolerance);
+    
+    _cairo_gstate_backend_to_user_rectangle (gstate, x1, y1, x2, y2, NULL);
+}
 
 static cairo_status_t
 _cairo_gstate_copy_transformed_pattern (cairo_gstate_t  *gstate,
@@ -996,7 +1060,7 @@ _cairo_gstate_in_stroke (cairo_gstate_t	    *gstate,
 			 double		     y,
 			 cairo_bool_t	    *inside_ret)
 {
-    cairo_status_t status = CAIRO_STATUS_SUCCESS;
+    cairo_status_t status;
     cairo_traps_t traps;
 
     if (gstate->stroke_style.line_width <= 0.0) {
@@ -1062,7 +1126,7 @@ _cairo_gstate_in_fill (cairo_gstate_t	  *gstate,
 		       double		   y,
 		       cairo_bool_t	  *inside_ret)
 {
-    cairo_status_t status = CAIRO_STATUS_SUCCESS;
+    cairo_status_t status;
     cairo_traps_t traps;
 
     _cairo_gstate_user_to_backend (gstate, &x, &y);
@@ -1104,9 +1168,7 @@ _cairo_gstate_traps_extents_to_user_rectangle (cairo_gstate_t	  *gstate,
 {
     cairo_box_t extents;
 
-    _cairo_traps_extents (traps, &extents);
-
-    if (extents.p1.x >= extents.p2.x || extents.p1.y >= extents.p2.y) {
+    if (traps->num_traps == 0) {
         /* no traps, so we actually won't draw anything */
 	if (x1)
 	    *x1 = 0.0;
@@ -1117,6 +1179,8 @@ _cairo_gstate_traps_extents_to_user_rectangle (cairo_gstate_t	  *gstate,
 	if (y2)
 	    *y2 = 0.0;
     } else {
+	_cairo_traps_extents (traps, &extents);
+
 	if (x1)
 	    *x1 = _cairo_fixed_to_double (extents.p1.x);
 	if (y1)
@@ -1269,11 +1333,9 @@ _cairo_gstate_select_font_face (cairo_gstate_t       *gstate,
 	return font_face->status;
 
     status = _cairo_gstate_set_font_face (gstate, font_face);
-    if (status)
-	return status;
     cairo_font_face_destroy (font_face);
 
-    return CAIRO_STATUS_SUCCESS;
+    return status;
 }
 
 cairo_status_t
@@ -1291,6 +1353,9 @@ cairo_status_t
 _cairo_gstate_set_font_matrix (cairo_gstate_t	    *gstate,
 			       const cairo_matrix_t *matrix)
 {
+    if (! _cairo_matrix_is_invertible (matrix))
+	return _cairo_error (CAIRO_STATUS_INVALID_MATRIX);
+
     _cairo_gstate_unset_scaled_font (gstate);
 
     gstate->font_matrix = *matrix;
@@ -1311,7 +1376,7 @@ _cairo_gstate_set_font_options (cairo_gstate_t             *gstate,
 {
     _cairo_gstate_unset_scaled_font (gstate);
 
-    gstate->font_options = *options;
+    _cairo_font_options_init_copy (&gstate->font_options, options);
 }
 
 void
@@ -1546,7 +1611,6 @@ _cairo_gstate_glyph_extents (cairo_gstate_t *gstate,
     return cairo_scaled_font_status (gstate->scaled_font);
 }
 
-#define STACK_GLYPHS_LEN ((int) (CAIRO_STACK_BUFFER_SIZE / sizeof (cairo_glyph_t)))
 cairo_status_t
 _cairo_gstate_show_glyphs (cairo_gstate_t *gstate,
 			   const cairo_glyph_t *glyphs,
@@ -1555,8 +1619,7 @@ _cairo_gstate_show_glyphs (cairo_gstate_t *gstate,
     cairo_status_t status;
     cairo_pattern_union_t source_pattern;
     cairo_glyph_t *transformed_glyphs;
-    cairo_glyph_t stack_transformed_glyphs[STACK_GLYPHS_LEN];
-
+    cairo_glyph_t stack_transformed_glyphs[CAIRO_STACK_ARRAY_LENGTH (cairo_glyph_t)];
 
     if (gstate->source->status)
 	return gstate->source->status;
@@ -1569,12 +1632,12 @@ _cairo_gstate_show_glyphs (cairo_gstate_t *gstate,
     if (status)
 	return status;
 
-    if (num_glyphs <= STACK_GLYPHS_LEN) {
+    if (num_glyphs <= ARRAY_LENGTH (stack_transformed_glyphs)) {
 	transformed_glyphs = stack_transformed_glyphs;
     } else {
 	transformed_glyphs = _cairo_malloc_ab (num_glyphs, sizeof(cairo_glyph_t));
 	if (transformed_glyphs == NULL)
-	    return CAIRO_STATUS_NO_MEMORY;
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
     _cairo_gstate_transform_glyphs_to_backend (gstate, glyphs, num_glyphs,
@@ -1608,32 +1671,33 @@ _cairo_gstate_glyph_path (cairo_gstate_t      *gstate,
 {
     cairo_status_t status;
     cairo_glyph_t *transformed_glyphs;
-    cairo_glyph_t stack_transformed_glyphs[STACK_GLYPHS_LEN];
+    cairo_glyph_t stack_transformed_glyphs[CAIRO_STACK_ARRAY_LENGTH (cairo_glyph_t)];
 
     status = _cairo_gstate_ensure_scaled_font (gstate);
     if (status)
 	return status;
 
-    if (num_glyphs < STACK_GLYPHS_LEN)
+    if (num_glyphs < ARRAY_LENGTH (stack_transformed_glyphs))
       transformed_glyphs = stack_transformed_glyphs;
     else
       transformed_glyphs = _cairo_malloc_ab (num_glyphs, sizeof(cairo_glyph_t));
     if (transformed_glyphs == NULL)
-	return CAIRO_STATUS_NO_MEMORY;
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     _cairo_gstate_transform_glyphs_to_backend (gstate, glyphs, num_glyphs,
                                                transformed_glyphs);
 
+    CAIRO_MUTEX_LOCK (gstate->scaled_font->mutex);
     status = _cairo_scaled_font_glyph_path (gstate->scaled_font,
 					    transformed_glyphs, num_glyphs,
 					    path);
+    CAIRO_MUTEX_UNLOCK (gstate->scaled_font->mutex);
 
     if (transformed_glyphs != stack_transformed_glyphs)
       free (transformed_glyphs);
 
     return status;
 }
-#undef STACK_GLYPHS_LEN
 
 cairo_status_t
 _cairo_gstate_set_antialias (cairo_gstate_t *gstate,

@@ -1632,8 +1632,23 @@ nsresult nsXULWindow::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
     }
 #endif
     
-    NS_ENSURE_TRUE(mTargetableShells.AppendObject(contentShellWeak),
-                   NS_ERROR_OUT_OF_MEMORY);
+    // put the new shell at the start of the targetable shells list if either
+    // it's the new primary shell or there is no existing primary shell (which
+    // means that chances are this one just stopped being primary).  If we
+    // really cared, we could keep track of the "last no longer primary shell"
+    // explicitly, but it probably doesn't matter enough: the difference would
+    // only be felt in a situation where all shells were non-primary, which
+    // doesn't happen much.  In a situation where there is one and only one
+    // primary shell, and in which shells get unmarked as primary before some
+    // other shell gets marked as primary, this effectively stores the list of
+    // targetable shells in "most recently primary first" order.
+    PRBool inserted;
+    if (aPrimary || !mPrimaryContentShell) {
+      inserted = mTargetableShells.InsertObjectAt(contentShellWeak, 0);
+    } else {
+      inserted = mTargetableShells.AppendObject(contentShellWeak);
+    }
+    NS_ENSURE_TRUE(inserted, NS_ERROR_OUT_OF_MEMORY);
   }
 
   return NS_OK;
@@ -1992,16 +2007,25 @@ void nsXULWindow::SetContentScrollbarVisibility(PRBool aVisible)
 
 PRBool nsXULWindow::GetContentScrollbarVisibility()
 {
-  PRBool visible = PR_TRUE;
+  // This code already exists in dom/src/base/nsBarProp.cpp, but we
+  // can't safely get to that from here as this function is called
+  // while the DOM window is being set up, and we need the DOM window
+  // to get to that code.
+  nsCOMPtr<nsIScrollable> scroller(do_QueryInterface(mPrimaryContentShell));
 
-  nsCOMPtr<nsIDOMWindow> contentWin(do_GetInterface(mPrimaryContentShell));
-  if (contentWin) {
-    nsCOMPtr<nsIDOMBarProp> scrollbars;
-    contentWin->GetScrollbars(getter_AddRefs(scrollbars));
-    if (scrollbars)
-      scrollbars->GetVisible(&visible);
+  if (scroller) {
+    PRInt32 prefValue;
+    scroller->GetDefaultScrollbarPreferences(
+                  nsIScrollable::ScrollOrientation_Y, &prefValue);
+    if (prefValue == nsIScrollable::Scrollbar_Never) // try the other way
+      scroller->GetDefaultScrollbarPreferences(
+                  nsIScrollable::ScrollOrientation_X, &prefValue);
+
+    if (prefValue == nsIScrollable::Scrollbar_Never)
+      return PR_FALSE;
   }
-  return visible;
+
+  return PR_TRUE;
 }
 
 // during spinup, attributes that haven't been loaded yet can't be dirty

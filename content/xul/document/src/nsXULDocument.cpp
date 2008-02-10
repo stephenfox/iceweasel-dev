@@ -181,7 +181,7 @@ struct BroadcasterMapEntry : public PLDHashEntryHdr {
 };
 
 struct BroadcastListener {
-    nsIDOMElement*    mListener; // [WEAK] XXXwaterson crash waiting to happen!
+    nsWeakPtr mListener;
     nsCOMPtr<nsIAtom> mAttribute;
 };
 
@@ -359,11 +359,13 @@ NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
 
 
 // QueryInterface implementation for nsXULDocument
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXULDocument)
-    NS_INTERFACE_MAP_ENTRY(nsIXULDocument)
-    NS_INTERFACE_MAP_ENTRY(nsIDOMXULDocument)
-    NS_INTERFACE_MAP_ENTRY(nsIStreamLoaderObserver)
-    NS_INTERFACE_MAP_ENTRY(nsICSSLoaderObserver)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULDocument)
+    NS_INTERFACE_TABLE_INHERITED4(nsXULDocument,
+                                  nsIXULDocument,
+                                  nsIDOMXULDocument,
+                                  nsIStreamLoaderObserver,
+                                  nsICSSLoaderObserver)
+    NS_INTERFACE_TABLE_TO_MAP_SEGUE
     NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsXMLDocument)
 
@@ -417,6 +419,7 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     // NOTE: If this ever starts calling nsDocument::StartDocumentLoad
     // we'll possibly need to reset our content type afterwards.
     mStillWalking = PR_TRUE;
+    mMayStartLayout = PR_FALSE;
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
 
     mDocumentTitle.SetIsVoid(PR_TRUE);
@@ -661,7 +664,8 @@ CanBroadcast(PRInt32 aNameSpaceID, nsIAtom* aAttribute)
 void
 nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
                                             nsIDOMElement   *aListener,
-                                            const nsAString &aAttr)
+                                            const nsAString &aAttr,
+                                            PRBool aAddingListener)
 {
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
@@ -681,10 +685,14 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
             if (! CanBroadcast(nameSpaceID, name))
                 continue;
 
-            nsAutoString value;
-            broadcaster->GetAttr(nameSpaceID, name, value);
-            listener->SetAttr(nameSpaceID, name, attrName->GetPrefix(), value,
-                              PR_FALSE);
+            if (aAddingListener) {
+                nsAutoString value;
+                broadcaster->GetAttr(nameSpaceID, name, value);
+                listener->SetAttr(nameSpaceID, name, attrName->GetPrefix(), 
+                                  value, mInitialLayoutComplete);
+            } else {
+                listener->UnsetAttr(nameSpaceID, name, mInitialLayoutComplete);
+            }
 
 #if 0
             // XXX we don't fire the |onbroadcast| handler during
@@ -701,11 +709,13 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
         nsCOMPtr<nsIAtom> name = do_GetAtom(aAttr);
 
         nsAutoString value;
-        if (broadcaster->GetAttr(kNameSpaceID_None, name, value)) {
-            listener->SetAttr(kNameSpaceID_None, name, value, PR_FALSE);
+        if (broadcaster->GetAttr(kNameSpaceID_None, name, value) 
+            && aAddingListener) {
+            listener->SetAttr(kNameSpaceID_None, name, value,
+                              mInitialLayoutComplete);
         }
         else {
-            listener->UnsetAttr(kNameSpaceID_None, name, PR_FALSE);
+            listener->UnsetAttr(kNameSpaceID_None, name, mInitialLayoutComplete);
         }
 
 #if 0
@@ -788,7 +798,9 @@ nsXULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
     for (PRInt32 i = entry->mListeners.Count() - 1; i >= 0; --i) {
         bl = static_cast<BroadcastListener*>(entry->mListeners[i]);
 
-        if ((bl->mListener == aListener) && (bl->mAttribute == attr))
+        nsCOMPtr<nsIDOMElement> blListener = do_QueryReferent(bl->mListener);
+
+        if ((blListener == aListener) && (bl->mAttribute == attr))
             return NS_OK;
     }
 
@@ -796,12 +808,12 @@ nsXULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
     if (! bl)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    bl->mListener  = aListener;
+    bl->mListener  = do_GetWeakReference(aListener);
     bl->mAttribute = attr;
 
     entry->mListeners.AppendElement(bl);
 
-    SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
+    SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr, PR_TRUE);
     return NS_OK;
 }
 
@@ -826,7 +838,9 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
             BroadcastListener* bl =
                 static_cast<BroadcastListener*>(entry->mListeners[i]);
 
-            if ((bl->mListener == aListener) && (bl->mAttribute == attr)) {
+            nsCOMPtr<nsIDOMElement> blListener = do_QueryReferent(bl->mListener);
+
+            if ((blListener == aListener) && (bl->mAttribute == attr)) {
                 entry->mListeners.RemoveElementAt(i);
                 delete bl;
 
@@ -834,7 +848,7 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
                     PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                          PL_DHASH_REMOVE);
 
-                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
+                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr, PR_FALSE);
 
                 break;
             }
@@ -951,8 +965,10 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                 if ((bl->mAttribute == aAttribute) ||
                     (bl->mAttribute == nsGkAtoms::_asterix)) {
                     nsCOMPtr<nsIContent> listener
-                        = do_QueryInterface(bl->mListener);
-                    listenerArray.AppendObject(listener);
+                        = do_QueryReferent(bl->mListener);
+                    if (listener) {
+                      listenerArray.AppendObject(listener);
+                    }
                 }
             }
 
@@ -971,6 +987,10 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
             }
         }
     }
+
+    // checks for modifications in broadcasters
+    PRBool listener, resolved;
+    CheckBroadcasterHookup(aElement, &listener, &resolved);
 
     // See if there is anything we need to persist in the localstore.
     //
@@ -1875,7 +1895,7 @@ nsXULDocument::Init()
 nsresult
 nsXULDocument::StartLayout(void)
 {
-    if (!mRootContent) {
+    if (!GetRootContent()) {
 #ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULLog, PR_LOG_WARNING)) {
             nsCAutoString urlspec;
@@ -1930,19 +1950,13 @@ nsXULDocument::StartLayout(void)
             }
         }
 
+        mMayStartLayout = PR_TRUE;
+        
         // Make sure we're holding a strong ref to |shell| before we call
         // InitialReflow()
         nsCOMPtr<nsIPresShell> shellGrip = shell;
         rv = shell->InitialReflow(r.width, r.height);
         NS_ENSURE_SUCCESS(rv, rv);
-
-        // Start observing the document _after_ we do the initial
-        // reflow. Otherwise, we'll get into an trouble trying to
-        // create kids before the root frame is established.
-        // XXXbz why is that an issue here and not in nsContentSink or
-        // nsDocumentViewer?  Perhaps we should just flush the way
-        // nsDocumentViewer does?
-        shell->BeginObservingDocument();
     }
 
     return NS_OK;
@@ -3046,9 +3060,9 @@ nsXULDocument::DoneWalking()
         mDocumentLoaded = PR_TRUE;
 
         nsAutoString title;
-        if (mRootContent) {
-            mRootContent->GetAttr(kNameSpaceID_None, nsGkAtoms::title,
-                                  title);
+        nsIContent* root = GetRootContent();
+        if (root) {
+            root->GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);
         }
         SetTitle(title);
 
@@ -3729,11 +3743,12 @@ nsXULDocument::OverlayForwardReference::Resolve()
     if (id.IsEmpty()) {
         // mOverlay is a direct child of <overlay> and has no id.
         // Insert it under the root element in the base document.
-        if (!mDocument->mRootContent) {
+        nsIContent* root = mDocument->GetRootContent();
+        if (!root) {
             return eResolve_Error;
         }
 
-        rv = mDocument->InsertElement(mDocument->mRootContent, mOverlay, notify);
+        rv = mDocument->InsertElement(root, mOverlay, notify);
         if (NS_FAILED(rv)) return eResolve_Error;
 
         target = mOverlay;

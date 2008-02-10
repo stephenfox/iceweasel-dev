@@ -157,9 +157,9 @@ protected:
   {
     NS_PRECONDITION(aFrame, "Need a frame");
 
-    nsIFrame *prevInFlow = aFrame->GetPrevInFlow();
+    nsIFrame *prevContinuation = aFrame->GetPrevContinuation();
 
-    if (!prevInFlow || mFrame != prevInFlow) {
+    if (!prevContinuation || mFrame != prevContinuation) {
       // Ok, we've got the wrong frame.  We have to start from scratch.
       Reset();
       Init(aFrame);
@@ -177,14 +177,14 @@ protected:
   {    
     // Start with the previous flow frame as our continuation point
     // is the total of the widths of the previous frames.
-    nsIFrame* inlineFrame = aFrame->GetPrevInFlow();
+    nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
 
     while (inlineFrame) {
       nsRect rect = inlineFrame->GetRect();
       mContinuationPoint += rect.width;
       mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
-      inlineFrame = inlineFrame->GetPrevInFlow();
+      inlineFrame = inlineFrame->GetPrevContinuation();
     }
 
     // Next add this frame and subsequent frames to the bounding box and
@@ -194,7 +194,7 @@ protected:
       nsRect rect = inlineFrame->GetRect();
       mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
-      inlineFrame = inlineFrame->GetNextInFlow();
+      inlineFrame = inlineFrame->GetNextContinuation();
     }
 
     mFrame = aFrame;
@@ -975,7 +975,8 @@ NumBorderPasses (PRUint8 *borderStyles,
       case NS_STYLE_BORDER_STYLE_OUTSET:
       case NS_STYLE_BORDER_STYLE_GROOVE:
       case NS_STYLE_BORDER_STYLE_RIDGE:
-        numBorderPasses = 2;
+        /* XXX See bug 397303 why this is 4 instead of 2; this could be optimized further */
+        numBorderPasses = 4;
         break;
 
       case NS_STYLE_BORDER_STYLE_SOLID:
@@ -2539,7 +2540,9 @@ DrawBorders(gfxContext *ctx,
         sideBits = SIDE_BITS_ALL;
     }
 
-    if (borderStyles[side] != NS_STYLE_BORDER_STYLE_NONE) {
+    const PRUint8 style = borderStyles[side];
+    if (style != NS_STYLE_BORDER_STYLE_NONE &&
+        style != NS_STYLE_BORDER_STYLE_HIDDEN) {
       // Draw the whole border.  If we're not drawing multiple passes,
       // then sides are identical and no clip was set -- this will draw
       // the entire border.  Otherwise, this will still draw the entire
@@ -2549,7 +2552,7 @@ DrawBorders(gfxContext *ctx,
       DrawBorderSides(ctx,
                       borderWidths,
                       sideBits,
-                      borderStyles[side],
+                      style,
                       oRect, iRect,
                       borderColors[side],
                       compositeColors[side],
@@ -2741,8 +2744,7 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   SF(" borderStyles: %d %d %d %d\n", borderStyles[0], borderStyles[1], borderStyles[2], borderStyles[3]);
 
   // start drawing
-  nsRefPtr<gfxContext> ctx = (gfxContext*)
-    aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+  nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
 
   ctx->Save();
 
@@ -2900,8 +2902,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                                 width / twipsPerPixel };
 
   // start drawing
-  nsRefPtr<gfxContext> ctx = (gfxContext*)
-    aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+  nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
 
   ctx->Save();
 
@@ -3301,13 +3302,13 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
     nsIView* rootView;
     vm->GetRootView(rootView);
     if (!rootView->GetParent()) {
-      PRBool widgetIsTranslucent = PR_FALSE;
+      PRBool widgetIsTransparent = PR_FALSE;
 
       if (rootView->HasWidget()) {
-        rootView->GetWidget()->GetWindowTranslucency(widgetIsTranslucent);
+        rootView->GetWidget()->GetHasTransparentBackground(widgetIsTransparent);
       }
       
-      if (!widgetIsTranslucent) {
+      if (!widgetIsTransparent) {
         // Ensure that we always paint a color for the root (in case there's
         // no background at all or a partly transparent image).
         canvasColor.mBackgroundFlags &= ~NS_STYLE_BG_COLOR_TRANSPARENT;
@@ -3642,12 +3643,58 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     anchor.y += bgClipArea.y - aBorderArea.y;
   }
 
-#if (!defined(XP_UNIX) && !defined(XP_BEOS)) || defined(XP_MACOSX)
-  // Setup clipping so that rendering doesn't leak out of the computed
-  // dirty rect
-  aRenderingContext.PushState();
-  aRenderingContext.SetClipRect(dirtyRect, nsClipCombine_kIntersect);
-#endif
+  nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
+  ctx->Save();
+
+  nscoord appUnitsPerPixel = aPresContext->DevPixelsToAppUnits(1);
+
+  ctx->NewPath();
+  ctx->Rectangle(RectToGfxRect(dirtyRect, appUnitsPerPixel), PR_TRUE);
+  ctx->Clip();
+
+  nsStyleCoord bordStyleRadius[4];
+  nscoord borderRadii[4];
+
+  // get the radius for our border
+  aBorder.mBorderRadius.GetTop(bordStyleRadius[NS_SIDE_TOP]);       // topleft
+  aBorder.mBorderRadius.GetRight(bordStyleRadius[NS_SIDE_RIGHT]);   // topright
+  aBorder.mBorderRadius.GetBottom(bordStyleRadius[NS_SIDE_BOTTOM]); // bottomright
+  aBorder.mBorderRadius.GetLeft(bordStyleRadius[NS_SIDE_LEFT]);     // bottomleft
+
+  PRBool haveRadius = PR_FALSE;
+  PRUint8 side = 0;
+  for (; side < 4; ++side) {
+    borderRadii[side] = 0;
+    switch (bordStyleRadius[side].GetUnit()) {
+      case eStyleUnit_Percent:
+        borderRadii[side] = nscoord(bordStyleRadius[side].GetPercentValue() *
+                                    aForFrame->GetSize().width);
+        break;
+      case eStyleUnit_Coord:
+        borderRadii[side] = bordStyleRadius[side].GetCoordValue();
+        break;
+      default:
+        break;
+    }
+
+    if (borderRadii[side] != 0)
+      haveRadius = PR_TRUE;
+  }
+
+  if (haveRadius) {
+    gfxFloat radii[4];
+    ComputePixelRadii(borderRadii, bgClipArea, aBorder.GetBorder(),
+                      aForFrame ? aForFrame->GetSkipSides() : 0,
+                      appUnitsPerPixel, radii);
+
+    gfxRect oRect(RectToGfxRect(bgClipArea, appUnitsPerPixel));
+    oRect.Round();
+    oRect.Condition();
+
+    ctx->NewPath();
+    DoRoundedRectCWSubPath(ctx, oRect, radii);
+    ctx->Clip();
+  }      
 
   // Compute the x and y starting points and limits for tiling
 
@@ -3794,10 +3841,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     }
   }
 
-#if (!defined(XP_UNIX) && !defined(XP_BEOS)) || defined(XP_MACOSX)
-  // Restore clipping
-  aRenderingContext.PopState();
-#endif
+  ctx->Restore();
 
 }
 
@@ -3895,8 +3939,7 @@ nsCSSRendering::PaintRoundedBackground(nsPresContext* aPresContext,
                                        nscoord aTheRadius[4],
                                        PRBool aCanPaintNonWhite)
 {
-  nsRefPtr<gfxContext> ctx = (gfxContext*)
-    aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+  nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
 
   // needed for our border thickness
   nscoord appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
@@ -4139,7 +4182,7 @@ nsCSSRendering::DrawTableBorderSegment(nsIRenderingContext&     aContext,
   }
 
 #ifdef MOZ_CAIRO_GFX
-  gfxContext *ctx = (gfxContext*) aContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+  gfxContext *ctx = aContext.ThebesContext();
   gfxContext::AntialiasMode oldMode = ctx->CurrentAntialiasMode();
   ctx->SetAntialiasMode(gfxContext::MODE_ALIASED);
 #endif
@@ -4361,10 +4404,24 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
       aStyle == NS_STYLE_BORDER_STYLE_NONE)
     return;
 
+  if (aDecoration != NS_STYLE_TEXT_DECORATION_UNDERLINE &&
+      aDecoration != NS_STYLE_TEXT_DECORATION_OVERLINE &&
+      aDecoration != NS_STYLE_TEXT_DECORATION_LINE_THROUGH)
+  {
+    NS_ERROR("Invalid decoration value!");
+    return;
+  }
+
   PRBool contextIsSaved = PR_FALSE;
   gfxFloat totalHeight = aLineSize.height;
+
+  gfxFloat oldLineWidth;
+  nsRefPtr<gfxPattern> oldPattern;
+
   switch (aStyle) {
     case NS_STYLE_BORDER_STYLE_SOLID:
+      oldLineWidth = aGfxContext->CurrentLineWidth();
+      oldPattern = aGfxContext->GetPattern();
       break;
     case NS_STYLE_BORDER_STYLE_DASHED: {
       aGfxContext->Save();
@@ -4419,9 +4476,7 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
       break;
     }
     default:
-      NS_ERROR("Invalid decoration value!");
-      if (contextIsSaved)
-        aGfxContext->Restore();
+      NS_NOTREACHED("Invalid decoration value!");
       return;
   }
 
@@ -4461,12 +4516,16 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
         aGfxContext->LineTo(gfxPoint(x + width, y));
       }
       aGfxContext->Stroke();
-      aGfxContext->Restore();
-      contextIsSaved = PR_FALSE;
       break;
     default:
       NS_ERROR("Invalid style value!");
       break;
   }
-  NS_ASSERTION(!contextIsSaved, "The gfxContext has been saved, but not restored!");
+
+  if (contextIsSaved) {
+    aGfxContext->Restore();
+  } else {
+    aGfxContext->SetPattern(oldPattern);
+    aGfxContext->SetLineWidth(oldLineWidth);
+  }
 }

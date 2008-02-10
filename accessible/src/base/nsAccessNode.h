@@ -64,22 +64,13 @@ class nsIDOMNodeList;
 class nsITimer;
 class nsRootAccessible;
 class nsApplicationAccessibleWrap;
+class nsIDocShellTreeItem;
 
 #define ACCESSIBLE_BUNDLE_URL "chrome://global-platform/locale/accessible.properties"
 #define PLATFORM_KEYS_BUNDLE_URL "chrome://global-platform/locale/platformKeys.properties"
 
 typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsIAccessNode>
         nsAccessNodeHashtable;
-
-/**
- * Does the current content have this ARIA role? 
- * Implemented as a compiler macro so that length can be computed at compile time.
- * @param aContent  Node to get role string from
- * @param aRoleName Role string to compare with -- literal const char*
- * @return PR_TRUE if there is a match
- */
-#define ARIARoleEquals(aContent, aRoleName) \
-  nsAccessNode::ARIARoleEqualsImpl(aContent, aRoleName, NS_ARRAY_LENGTH(aRoleName) - 1)
 
 class nsAccessNode: public nsIAccessNode, public nsPIAccessNode
 {
@@ -109,32 +100,14 @@ class nsAccessNode: public nsIAccessNode, public nsPIAccessNode
     static PLDHashOperator PR_CALLBACK ClearCacheEntry(const void* aKey, nsCOMPtr<nsIAccessNode>& aAccessNode, void* aUserArg);
 
     // Static cache methods for global document cache
-    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIWeakReference *aPresShell);
-    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsISupports *aContainer, PRBool aCanCreate = PR_FALSE);
+    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDocument *aDocument);
+    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIWeakReference *aWeakShell);
+    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDocShellTreeItem *aContainer, PRBool aCanCreate = PR_FALSE);
     static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDOMNode *aNode);
 
     static already_AddRefed<nsIDOMNode> GetDOMNodeForContainer(nsISupports *aContainer);
     static already_AddRefed<nsIPresShell> GetPresShellFor(nsIDOMNode *aStartNode);
     
-    // Return PR_TRUE if there is a role attribute
-    static PRBool HasRoleAttribute(nsIContent *aContent)
-    {
-      return (aContent->IsNodeOfType(nsINode::eHTML) && aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) ||
-              aContent->HasAttr(kNameSpaceID_XHTML, nsAccessibilityAtoms::role) ||
-              aContent->HasAttr(kNameSpaceID_XHTML2_Unofficial, nsAccessibilityAtoms::role);
-    }
-
-    /**
-     * Provide the role string if there is one
-     * @param aContent Node to get role string from
-     * @param aRole String to fill role into
-     * @return PR_TRUE if there is a role attribute, and fill it into aRole
-     */
-    static PRBool GetARIARole(nsIContent *aContent, nsString& aRole);
-
-    static PRBool ARIARoleEqualsImpl(nsIContent* aContent, const char* aRoleName, PRUint32 aLen)
-      { nsAutoString role; return GetARIARole(aContent, role) && role.EqualsASCII(aRoleName, aLen); }
-
     static void GetComputedStyleDeclaration(const nsAString& aPseudoElt,
                                             nsIDOMElement *aElement,
                                             nsIDOMCSSStyleDeclaration **aCssDecl);
@@ -144,6 +117,11 @@ class nsAccessNode: public nsIAccessNode, public nsPIAccessNode
     static nsIDOMNode *gLastFocusedNode;
     static nsIAccessibilityService* GetAccService();
     already_AddRefed<nsIDOMNode> GetCurrentFocus();
+
+    /**
+     * Returns true when the accessible is defunct.
+     */
+    virtual PRBool IsDefunct() { return !mDOMNode; }
 
 protected:
     nsresult MakeAccessNode(nsIDOMNode *aNode, nsIAccessNode **aAccessNode);

@@ -79,7 +79,6 @@
 #include "nsIFile.h"
 
 #include "nsOS2Uni.h"
-#include "nsPaletteOS2.h"
 
 #include "imgIContainer.h"
 #include "gfxIImageFrame.h"
@@ -641,30 +640,22 @@ nsWindow :: DealWithPopups ( ULONG inMsg, MRESULT* outResult )
       if (rollup) {
         nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
         if ( menuRollup ) {
-          nsCOMPtr<nsISupportsArray> widgetChain;
-          menuRollup->GetSubmenuWidgetChain ( getter_AddRefs(widgetChain) );
-          if ( widgetChain ) {
-            PRUint32 count = 0;
-            widgetChain->Count(&count);
-            for ( PRUint32 i = 0; i < count; ++i ) {
-              nsCOMPtr<nsISupports> genericWidget;
-              widgetChain->GetElementAt ( i, getter_AddRefs(genericWidget) );
-              nsCOMPtr<nsIWidget> widget ( do_QueryInterface(genericWidget) );
-              if ( widget ) {
-                nsIWidget* temp = widget.get();
-                if ( nsWindow::EventIsInsideWindow((nsWindow*)temp) ) {
-                  rollup = PR_FALSE;
-                  break;
-                }
-              }
-            } // foreach parent menu widget
-          }
+          nsAutoTArray<nsIWidget*, 5> widgetChain;
+          menuRollup->GetSubmenuWidgetChain ( &widgetChain );
+          for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
+            nsIWidget* widget = widgetChain[i];
+            if ( nsWindow::EventIsInsideWindow((nsWindow*)widget) ) {
+              rollup = PR_FALSE;
+              break;
+            }
+          } // foreach parent menu widget
         } // if rollup listener knows about menus
       }
 
       // if we've determined that we should still rollup everything, do it.
       if ( rollup ) {
-        gRollupListener->Rollup();
+        // only need to deal with the last rollup for left mouse down events.
+        gRollupListener->Rollup(inMsg == WM_BUTTON1DOWN ? &mLastRollup : nsnull);
 
         // return TRUE tells Windows that the event is consumed, 
         // false allows the event to be dispatched
@@ -723,6 +714,8 @@ BOOL bothFromSameWindow( HWND hwnd1, HWND hwnd2 )
 //-------------------------------------------------------------------------
 MRESULT EXPENTRY fnwpNSWindow( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
+   nsAutoRollup autoRollup;
+
    MRESULT popupHandlingResult;
    if( nsWindow::DealWithPopups(msg, &popupHandlingResult) )
       return popupHandlingResult;
@@ -742,24 +735,15 @@ MRESULT EXPENTRY fnwpNSWindow( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
       if (rollup) {
         nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
         if ( menuRollup ) {
-          nsCOMPtr<nsISupportsArray> widgetChain;
-          menuRollup->GetSubmenuWidgetChain ( getter_AddRefs(widgetChain) );
-          if ( widgetChain ) {
-            PRUint32 count = 0;
-            widgetChain->Count(&count);
-            for ( PRUint32 i = 0; i < count; ++i ) {
-              nsCOMPtr<nsISupports> genericWidget;
-              widgetChain->GetElementAt ( i, getter_AddRefs(genericWidget) );
-              nsCOMPtr<nsIWidget> widget ( do_QueryInterface(genericWidget) );
-              if ( widget ) {
-                nsIWidget* temp = widget.get();
-                if ( nsWindow::EventIsInsideWindow((nsWindow*)temp) ) {
-                  rollup = PR_FALSE;
-                  break;
-                }
-              }
-            } // foreach parent menu widget
-          }
+          nsAutoTArray<nsIWidget*, 5> widgetChain;
+          menuRollup->GetSubmenuWidgetChain ( &widgetChain );
+          for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
+            nsIWidget* widget = widgetChain[i];
+            if ( nsWindow::EventIsInsideWindow((nsWindow*)widget) ) {
+              rollup = PR_FALSE;
+              break;
+            }
+          } // foreach parent menu widget
         } // if rollup listener knows about menus
       }
       }
@@ -767,7 +751,7 @@ MRESULT EXPENTRY fnwpNSWindow( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
          if( !mp2 && 
              !bothFromSameWindow( ((nsWindow*)gRollupWidget)->GetMainWindow(), 
                                   (HWND)mp1) ) {
-            gRollupListener->Rollup();
+            gRollupListener->Rollup(nsnull);
          }
       }
    }
@@ -953,7 +937,7 @@ void nsWindow::RealDoCreate( HWND              hwndP,
 #endif
 
    // Create a window: create hidden & then size to avoid swp_noadjust problems
-   // owner == parent except for 'borderless top-level' -- see nsCanvas.cpp
+   // owner == parent except for 'borderless top-level'
    mWnd = WinCreateWindow( hwndP,
                            WindowClass(),
                            0,          // text
@@ -1120,7 +1104,7 @@ NS_METHOD nsWindow::Destroy()
     // the rollup widget, rollup and turn off capture.
     if (this == gRollupWidget) {
       if (gRollupListener) {
-        gRollupListener->Rollup();
+        gRollupListener->Rollup(nsnull);
       }
       CaptureRollupEvents(nsnull, PR_FALSE, PR_TRUE);
     }
@@ -1823,6 +1807,10 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
       newPointer = ::WinQuerySysPointer(HWND_DESKTOP, SPTR_SIZEWE, FALSE);
       break;
   
+    case eCursor_none:
+      newPointer = gPtrArray[IDC_NONE-IDC_BASE];
+      break;
+  
     default:
       NS_ASSERTION(0, "Invalid cursor type");
       break;
@@ -2230,7 +2218,6 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
             CheckDragStatus(ACTION_DRAW, &hps);
             if (!hps)
               hps = WinGetPS(mWnd);
-            nsPaletteOS2::SelectGlobalPalette(hps, mWnd);
             return (void*)hps;
         }
 
@@ -2937,10 +2924,6 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
           break;
     
     
-        case WM_REALIZEPALETTE:          // hopefully only nsCanvas & nsFrame
-          result = OnRealizePalette();   // will need this
-          break;
-    
         case WM_PRESPARAMCHANGED:
           // This is really for font-change notifies.  Do that first.
           rc = GetPrevWP()( mWnd, msg, mp1, mp2);
@@ -3010,26 +2993,6 @@ PRBool nsWindow::OnReposition( PSWP pSwp)
       result = OnResize( pSwp->cx, pSwp->cy);
 
    return result;
-}
-
-PRBool nsWindow::OnRealizePalette()
-{
-  if (WinQueryWindowUShort(mWnd, QWS_ID) == FID_CLIENT) {
-    HWND hwndFocus = WinQueryFocus(HWND_DESKTOP);
-    if (WinIsChild(hwndFocus, mWnd)) {
-      /* We are getting the focus */
-      HPS hps = WinGetPS(hwndFocus);
-      nsPaletteOS2::SelectGlobalPalette(hps, hwndFocus);
-      WinReleasePS(hps);
-      WinInvalidateRect( mWnd, 0, TRUE);
-    } else {
-      /* We are losing the focus */
-      WinInvalidateRect( mWnd, 0, TRUE);
-    }
-  }
-
-  // Always call the default window procedure
-  return PR_TRUE;
 }
 
 PRBool nsWindow::OnPresParamChanged( MPARAM mp1, MPARAM mp2)
@@ -3139,7 +3102,6 @@ PRBool nsWindow::OnPaint()
     HPS hpsDrag = 0;
     CheckDragStatus(ACTION_PAINT, &hpsDrag);
     HPS hPS = WinBeginPaint(mWnd, hpsDrag, &rcl);
-    nsPaletteOS2::SelectGlobalPalette(hPS, mWnd);
 
     // if the update rect is empty, suppress the paint event
     if (!WinIsRectEmpty(0, &rcl)) {

@@ -41,6 +41,7 @@
 
 #include "nsIXTFElement.h"
 #include "nsIXFormsControlBase.h"
+#include "nsIDOMElement.h"
 
 /**
  * nsRepeatState is used to indicate whether the element is inside a

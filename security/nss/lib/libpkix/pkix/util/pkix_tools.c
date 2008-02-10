@@ -100,7 +100,7 @@ pkix_IsCertSelfIssued(
         PKIX_PL_X500Name *subject = NULL;
         PKIX_PL_X500Name *issuer = NULL;
 
-        PKIX_ENTER(CERT, "pkix_isCertSelfIssued");
+        PKIX_ENTER(CERT, "pkix_IsCertSelfIssued");
         PKIX_NULLCHECK_TWO(cert, pSelfIssued);
 
         PKIX_CHECK(PKIX_PL_Cert_GetSubject(cert, &subject, plContext),
@@ -121,6 +121,7 @@ pkix_IsCertSelfIssued(
 cleanup:
         PKIX_DECREF(subject);
         PKIX_DECREF(issuer);
+
         PKIX_RETURN(CERT);
 }
 
@@ -162,6 +163,7 @@ pkix_Throw(
         PKIX_ERRORCLASS errorClass,
         const char *funcName,
         PKIX_ERRORCODE errorCode,
+        PKIX_ERRORCLASS overrideClass,
         PKIX_Error *cause,
         PKIX_Error **pError,
         void *plContext)
@@ -175,14 +177,14 @@ pkix_Throw(
 
         /* if cause has error class of PKIX_FATAL_ERROR, return immediately */
         if (cause) {
-                pkixTempResult = PKIX_Error_GetErrorClass
-                        (cause, &causeClass, plContext);
-                if (pkixTempResult) goto cleanup;
-
-                if (causeClass == PKIX_FATAL_ERROR){
+                if (cause->errClass == PKIX_FATAL_ERROR){
                         *pError = cause;
                         goto cleanup;
                 }
+        }
+        
+        if (overrideClass == PKIX_FATAL_ERROR){
+                errorClass = overrideClass;
         }
 
        pkixTempResult = PKIX_Error_Create(errorClass, cause, NULL,
@@ -376,6 +378,7 @@ pkix_duplicateImmutable(
 
         *pNewObject = object;
 
+cleanup:
         PKIX_RETURN(OBJECT);
 }
 

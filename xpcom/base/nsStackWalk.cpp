@@ -1,4 +1,5 @@
-/* vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -711,8 +712,8 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
 
 
 static BOOL CALLBACK callbackEspecial(
-  LPSTR aModuleName,
-  DWORD aModuleBase,
+  PCSTR aModuleName,
+  ULONG aModuleBase,
   ULONG aModuleSize,
   PVOID aUserContext)
 {
@@ -733,7 +734,7 @@ static BOOL CALLBACK callbackEspecial(
        ? (addr >= aModuleBase && addr <= (aModuleBase + aModuleSize))
        : (addr <= aModuleBase && addr >= (aModuleBase - aModuleSize))
         ) {
-        retval = _SymLoadModule(GetCurrentProcess(), NULL, aModuleName, NULL, aModuleBase, aModuleSize);
+        retval = _SymLoadModule(GetCurrentProcess(), NULL, (PSTR)aModuleName, NULL, aModuleBase, aModuleSize);
         if (!retval)
             PrintError("SymLoadModule");
     }
@@ -742,7 +743,7 @@ static BOOL CALLBACK callbackEspecial(
 }
 
 static BOOL CALLBACK callbackEspecial64(
-  PTSTR aModuleName,
+  PCSTR aModuleName,
   DWORD64 aModuleBase,
   ULONG aModuleSize,
   PVOID aUserContext)
@@ -765,7 +766,7 @@ static BOOL CALLBACK callbackEspecial64(
        ? (addr >= aModuleBase && addr <= (aModuleBase + aModuleSize))
        : (addr <= aModuleBase && addr >= (aModuleBase - aModuleSize))
         ) {
-        retval = _SymLoadModule64(GetCurrentProcess(), NULL, aModuleName, NULL, aModuleBase, aModuleSize);
+        retval = _SymLoadModule64(GetCurrentProcess(), NULL, (PSTR)aModuleName, NULL, aModuleBase, aModuleSize);
         if (!retval)
             PrintError("SymLoadModule64");
     }
@@ -810,8 +811,11 @@ BOOL SymGetModuleInfoEspecial(HANDLE aProcess, DWORD aAddr, PIMAGEHLP_MODULE aMo
          * Not loaded, here's the magic.
          * Go through all the modules.
          */
-        // Need to cast to PENUMLOADED_MODULES_CALLBACK for some compiler
-        // or platform SDK; see bug 391848.
+        // Need to cast to PENUMLOADED_MODULES_CALLBACK because the
+        // constness of the first parameter of
+        // PENUMLOADED_MODULES_CALLBACK varies over SDK versions (from
+        // non-const to const over time).  See bug 391848 and bug
+        // 415426.
         enumRes = _EnumerateLoadedModules(aProcess, (PENUMLOADED_MODULES_CALLBACK)callbackEspecial, (PVOID)&aAddr);
         if (FALSE != enumRes)
         {
@@ -879,8 +883,11 @@ BOOL SymGetModuleInfoEspecial64(HANDLE aProcess, DWORD64 aAddr, PIMAGEHLP_MODULE
          * Not loaded, here's the magic.
          * Go through all the modules.
          */
-        // Need to cast to PENUMLOADED_MODULES_CALLBACK for some compiler
-        // or platform SDK; see bug 391848.
+        // Need to cast to PENUMLOADED_MODULES_CALLBACK64 because the
+        // constness of the first parameter of
+        // PENUMLOADED_MODULES_CALLBACK64 varies over SDK versions (from
+        // non-const to const over time).  See bug 391848 and bug
+        // 415426.
         enumRes = _EnumerateLoadedModules64(aProcess, (PENUMLOADED_MODULES_CALLBACK64)callbackEspecial64, (PVOID)&aAddr);
         if (FALSE != enumRes)
         {
@@ -1093,7 +1100,7 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
 
 // WIN32 x86 stack walking code
 // i386 or PPC Linux stackwalking code or Solaris
-#elif (defined(linux) && defined(__GNUC__) && (defined(__i386) || defined(PPC) || defined(__x86_64__))) || (defined(__sun) && (defined(__sparc) || defined(sparc) || defined(__i386) || defined(i386))) || (defined(XP_MACOSX) && (defined(__ppc__) || defined(__i386)))
+#elif HAVE_DLADDR && (HAVE__UNWIND_BACKTRACE || (defined(linux) && defined(__GNUC__) && (defined(__i386) || defined(PPC))) || (defined(__sun) && (defined(__sparc) || defined(sparc) || defined(__i386) || defined(i386))) || (defined(XP_MACOSX) && (defined(__ppc__) || defined(__i386))))
 
 #include <stdlib.h>
 #include <string.h>
@@ -1142,99 +1149,7 @@ void DemangleSymbol(const char * aSymbol,
 }
 
 
-#if (defined(linux) && defined(__GNUC__) && (defined(__i386) || defined(PPC) || defined(__x86_64__))) || (defined(XP_MACOSX) && (defined(__i386) || defined(__ppc__))) // i386 or PPC Linux stackwalking code
-
-
-EXPORT_XPCOM_API(nsresult)
-NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
-             void *aClosure)
-{
-  // Stack walking code courtesy Kipp's "leaky".
-
-  // Get the frame pointer
-  void **bp;
-#if defined(__i386) 
-  __asm__( "movl %%ebp, %0" : "=g"(bp));
-#elif defined(__x86_64__)
-  __asm__( "movq %%rbp, %0" : "=g"(bp));
-#else
-  // It would be nice if this worked uniformly, but at least on i386 and
-  // x86_64, it stopped working with gcc 4.1, because it points to the
-  // end of the saved registers instead of the start.
-  bp = (void**) __builtin_frame_address(0);
-#endif
-
-  int skip = aSkipFrames;
-  for ( ; (void**)*bp > bp; bp = (void**)*bp) {
-#if defined(__ppc__) && defined(XP_MACOSX) // other PPC platforms?
-    void *pc = *(bp+2);
-#else
-    void *pc = *(bp+1);
-#endif
-    if (--skip < 0) {
-      (*aCallback)(pc, aClosure);
-    }
-  }
-  return NS_OK;
-}
-
-EXPORT_XPCOM_API(nsresult)
-NS_DescribeCodeAddress(void *aPC, nsCodeAddressDetails *aDetails)
-{
-  aDetails->library[0] = '\0';
-  aDetails->loffset = 0;
-  aDetails->filename[0] = '\0';
-  aDetails->lineno = 0;
-  aDetails->function[0] = '\0';
-  aDetails->foffset = 0;
-
-  Dl_info info;
-  int ok = dladdr(aPC, &info);
-  if (!ok) {
-    return NS_OK;
-  }
-
-  PL_strncpyz(aDetails->library, info.dli_fname, sizeof(aDetails->library));
-  aDetails->loffset = (char*)aPC - (char*)info.dli_fbase;
-
-  const char * symbol = info.dli_sname;
-  int len;
-  if (!symbol || !(len = strlen(symbol))) {
-    return NS_OK;
-  }
-
-  char demangled[4096] = "\0";
-
-  DemangleSymbol(symbol, demangled, sizeof(demangled));
-
-  if (strlen(demangled)) {
-    symbol = demangled;
-    len = strlen(symbol);
-  }
-
-  PL_strncpyz(aDetails->function, symbol, sizeof(aDetails->function));
-  aDetails->foffset = (char*)aPC - (char*)info.dli_saddr;
-  return NS_OK;
-}
-
-EXPORT_XPCOM_API(nsresult)
-NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
-                            char *aBuffer, PRUint32 aBufferSize)
-{
-  if (!aDetails->library[0]) {
-    snprintf(aBuffer, aBufferSize, "UNKNOWN %p\n", aPC);
-  } else if (!aDetails->function[0]) {
-    snprintf(aBuffer, aBufferSize, "UNKNOWN [%s +0x%08lX]\n",
-                                   aDetails->library, aDetails->loffset);
-  } else {
-    snprintf(aBuffer, aBufferSize, "%s+0x%08lX [%s +0x%08lX]\n",
-                                   aDetails->function, aDetails->foffset,
-                                   aDetails->library, aDetails->loffset);
-  }
-  return NS_OK;
-}
-
-#elif defined(__sun) && (defined(__sparc) || defined(sparc) || defined(__i386) || defined(i386))
+#if defined(__sun) && (defined(__sparc) || defined(sparc) || defined(__i386) || defined(i386))
 
 /*
  * Stack walking code for Solaris courtesy of Bart Smaalder's "memtrak".
@@ -1468,6 +1383,159 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
              aDetails->function[0] ? aDetails->function : "??",
              aDetails->foffset);
     return NS_OK;
+}
+
+#else // not __sun-specific
+
+#if (defined(linux) && defined(__GNUC__) && (defined(__i386) || defined(PPC))) || (defined(XP_MACOSX) && (defined(__i386) || defined(__ppc__))) // i386 or PPC Linux or Mac stackwalking code
+
+#if __GLIBC__ > 2 || __GLIBC_MINOR > 1
+#define HAVE___LIBC_STACK_END 1
+#else
+#define HAVE___LIBC_STACK_END 0
+#endif
+
+#if HAVE___LIBC_STACK_END
+extern void *__libc_stack_end; // from ld-linux.so
+#endif
+
+EXPORT_XPCOM_API(nsresult)
+NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
+             void *aClosure)
+{
+  // Stack walking code courtesy Kipp's "leaky".
+
+  // Get the frame pointer
+  void **bp;
+#if defined(__i386) 
+  __asm__( "movl %%ebp, %0" : "=g"(bp));
+#else
+  // It would be nice if this worked uniformly, but at least on i386 and
+  // x86_64, it stopped working with gcc 4.1, because it points to the
+  // end of the saved registers instead of the start.
+  bp = (void**) __builtin_frame_address(0);
+#endif
+
+  int skip = aSkipFrames;
+  while (1) {
+    void **next = (void**)*bp;
+    // bp may not be a frame pointer on i386 if code was compiled with
+    // -fomit-frame-pointer, so do some sanity checks.
+    // (bp should be a frame pointer on ppc(64) but checking anyway may help
+    // a little if the stack has been corrupted.)
+    if (next <= bp ||
+#if HAVE___LIBC_STACK_END
+        next > __libc_stack_end ||
+#endif
+        (long(next) & 3)) {
+      break;
+    }
+#if (defined(__ppc__) && defined(XP_MACOSX)) || defined(__powerpc64__)
+    // ppc mac or powerpc64 linux
+    void *pc = *(bp+2);
+#else // i386 or powerpc32 linux
+    void *pc = *(bp+1);
+#endif
+    if (--skip < 0) {
+      (*aCallback)(pc, aClosure);
+    }
+    bp = next;
+  }
+  return NS_OK;
+}
+
+#elif defined(HAVE__UNWIND_BACKTRACE)
+
+// libgcc_s.so symbols _Unwind_Backtrace@@GCC_3.3 and _Unwind_GetIP@@GCC_3.0
+#include <unwind.h>
+
+struct unwind_info {
+    NS_WalkStackCallback callback;
+    int skip;
+    void *closure;
+};
+
+static _Unwind_Reason_Code
+unwind_callback (struct _Unwind_Context *context, void *closure)
+{
+    unwind_info *info = static_cast<unwind_info *>(closure);
+    if (--info->skip < 0) {
+        void *pc = reinterpret_cast<void *>(_Unwind_GetIP(context));
+        (*info->callback)(pc, info->closure);
+    }
+    return _URC_NO_REASON;
+}
+
+EXPORT_XPCOM_API(nsresult)
+NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
+             void *aClosure)
+{
+    unwind_info info;
+    info.callback = aCallback;
+    info.skip = aSkipFrames + 1;
+    info.closure = aClosure;
+
+    _Unwind_Backtrace(unwind_callback, &info);
+
+    return NS_OK;
+}
+
+#endif
+
+EXPORT_XPCOM_API(nsresult)
+NS_DescribeCodeAddress(void *aPC, nsCodeAddressDetails *aDetails)
+{
+  aDetails->library[0] = '\0';
+  aDetails->loffset = 0;
+  aDetails->filename[0] = '\0';
+  aDetails->lineno = 0;
+  aDetails->function[0] = '\0';
+  aDetails->foffset = 0;
+
+  Dl_info info;
+  int ok = dladdr(aPC, &info);
+  if (!ok) {
+    return NS_OK;
+  }
+
+  PL_strncpyz(aDetails->library, info.dli_fname, sizeof(aDetails->library));
+  aDetails->loffset = (char*)aPC - (char*)info.dli_fbase;
+
+  const char * symbol = info.dli_sname;
+  int len;
+  if (!symbol || !(len = strlen(symbol))) {
+    return NS_OK;
+  }
+
+  char demangled[4096] = "\0";
+
+  DemangleSymbol(symbol, demangled, sizeof(demangled));
+
+  if (strlen(demangled)) {
+    symbol = demangled;
+    len = strlen(symbol);
+  }
+
+  PL_strncpyz(aDetails->function, symbol, sizeof(aDetails->function));
+  aDetails->foffset = (char*)aPC - (char*)info.dli_saddr;
+  return NS_OK;
+}
+
+EXPORT_XPCOM_API(nsresult)
+NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
+                            char *aBuffer, PRUint32 aBufferSize)
+{
+  if (!aDetails->library[0]) {
+    snprintf(aBuffer, aBufferSize, "UNKNOWN %p\n", aPC);
+  } else if (!aDetails->function[0]) {
+    snprintf(aBuffer, aBufferSize, "UNKNOWN [%s +0x%08lX]\n",
+                                   aDetails->library, aDetails->loffset);
+  } else {
+    snprintf(aBuffer, aBufferSize, "%s+0x%08lX [%s +0x%08lX]\n",
+                                   aDetails->function, aDetails->foffset,
+                                   aDetails->library, aDetails->loffset);
+  }
+  return NS_OK;
 }
 
 #endif

@@ -91,7 +91,7 @@ LoginManagerPrompter.prototype = {
                         [Ci.nsIAuthPrompt2, Ci.nsILoginManagerPrompter]),
 
     _window        : null,
-    _debug         : false,
+    _debug         : false, // mirrors signon.debug
 
     __pwmgr : null, // Password Manager service
     get _pwmgr() {
@@ -192,23 +192,18 @@ LoginManagerPrompter.prototype = {
             // If the user submits a login but it fails, we need to remove the
             // notification bar that was displayed. Conveniently, the user will
             // be prompted for authentication again, which brings us here.
-            // XXX this isn't right if there are multiple logins on a page (eg,
-            // 2 images from different http realms). That seems like an edge
-            // case that we're probably not handling right anyway.
             var notifyBox = this._getNotifyBox();
             if (notifyBox)
                 this._removeSaveLoginNotification(notifyBox);
 
-            var hostname, httpRealm;
-            [hostname, httpRealm] = this._GetAuthKey(aChannel, aAuthInfo);
+            var [hostname, httpRealm] = this._getAuthTarget(aChannel, aAuthInfo);
 
 
             // Looks for existing logins to prefill the prompt with.
             var foundLogins = this._pwmgr.findLogins({},
                                         hostname, null, httpRealm);
 
-            // XXX Like the original code, we can't deal with multiple
-            // account selection. (bug 227632)
+            // XXX Can't select from multiple accounts yet. (bug 227632)
             if (foundLogins.length > 0) {
                 selectedLogin = foundLogins[0];
                 this._SetAuthInfo(aAuthInfo, selectedLogin.username,
@@ -234,6 +229,8 @@ LoginManagerPrompter.prototype = {
             return ok;
 
         try {
+            var [username, password] = this._GetAuthInfo(aAuthInfo);
+
             // If there's a notification box, use it to allow the user to
             // determine if the login should be saved. If there isn't a
             // notification box, only save the login if the user set the
@@ -244,16 +241,14 @@ LoginManagerPrompter.prototype = {
                 var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
                                createInstance(Ci.nsILoginInfo);
                 newLogin.init(hostname, null, httpRealm,
-                              aAuthInfo.username, aAuthInfo.password,
-                              "", "");
+                              username, password, "", "");
 
                 // If we didn't find an existing login, or if the username
                 // changed, save as a new login.
-                if (!selectedLogin ||
-                    aAuthInfo.username != selectedLogin.username) {
+                if (!selectedLogin || username != selectedLogin.username) {
 
                     // add as new
-                    this.log("New login seen for " + aAuthInfo.username +
+                    this.log("New login seen for " + username +
                              " @ " + hostname + " (" + httpRealm + ")");
                     if (notifyBox)
                         this._showSaveLoginNotification(notifyBox, newLogin);
@@ -261,9 +256,9 @@ LoginManagerPrompter.prototype = {
                         this._pwmgr.addLogin(newLogin);
 
                 } else if (selectedLogin &&
-                           aAuthInfo.password != selectedLogin.password) {
+                           password != selectedLogin.password) {
 
-                    this.log("Updating password for " + aAuthInfo.username +
+                    this.log("Updating password for " + username +
                              " @ " + hostname + " (" + httpRealm + ")");
                     // update password
                     this._pwmgr.modifyLogin(foundLogins[0], newLogin);
@@ -299,6 +294,10 @@ LoginManagerPrompter.prototype = {
      */
     init : function (aWindow) {
         this._window = aWindow;
+
+        var prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefService).getBranch("signon.");
+        this._debug = prefBranch.getBoolPref("debug");
         this.log("===== initialized =====");
     },
 
@@ -382,18 +381,18 @@ LoginManagerPrompter.prototype = {
         this.log("Adding new save-password notification bar");
         var newBar = aNotifyBox.appendNotification(
                                 notificationText, "password-save",
-                                null, priority, buttons);
+                                "chrome://mozapps/skin/passwordmgr/key.png",
+                                priority, buttons);
 
         // The page we're going to hasn't loaded yet, so we want to persist
         // across the first location change.
-        newBar.ignoreFirstLocationChange = true;
+        newBar.persistence++;
 
         // Sites like Gmail perform a funky redirect dance before you end up
         // at the post-authentication page. I don't see a good way to
         // heuristically determine when to ignore such location changes, so
         // we'll try ignoring location changes based on a time interval.
-        var now = Date.now() / 1000;
-        newBar.ignoreLocationChangeTimeout = now + 10; // 10 seconds
+        newBar.timeout = Date.now() + 20000; // 20 seconds
 
         if (oldBar) {
             this.log("(...and removing old save-password notification bar)");
@@ -614,10 +613,10 @@ LoginManagerPrompter.prototype = {
 
 
     /*
-     * _getLocalisedString
+     * _getLocalizedString
      *
      * Can be called as:
-     *   _getLocalisedString("key1");
+     *   _getLocalizedString("key1");
      *   _getLocalizedString("key2", ["arg1"]);
      *   _getLocalizedString("key3", ["arg1", "arg2"]);
      *   (etc)
@@ -635,92 +634,101 @@ LoginManagerPrompter.prototype = {
     },
 
 
-    // From /netwerk/base/public/nsNetUtil.h....
-    /**
-     * This function is a helper to get a protocol's default port if the
-     * URI does not specify a port explicitly. Returns -1 if protocol has no
-     * concept of ports or if there was an error getting the port.
+    /*
+     * _getFormattedHostname
+     *
+     * Returns the hostname to use in a nsILoginInfo object (for example,
+     * "http://example.com").
      */
-    _GetRealPort : function (aURI) {
-        var port = aURI.port;
-
-        if (port != -1)
-            return port; // explicitly specified
-
-        // Otherwise, we have to get the default port from the protocol handler
-        // Need the scheme first
+    _getFormattedHostname : function (aURI) {
         var scheme = aURI.scheme;
 
-        var ioService = Cc["@mozilla.org/network/io-service;1"].
-                        getService(Ci.nsIIOService);
+        var hostname = scheme + "://" + aURI.host;
 
-        var handler = ioService.getProtocolHandler(scheme);
-        port = handler.defaultPort;
+        // If the URI explicitly specified a port, only include it when
+        // it's not the default. (We never want "http://foo.com:80")
+        port = aURI.port;
+        if (port != -1) {
+            var ioService = Cc["@mozilla.org/network/io-service;1"].
+                            getService(Ci.nsIIOService);
+            var handler = ioService.getProtocolHandler(scheme);
+            if (port != handler.defaultPort)
+                hostname += ":" + port;
+        }
 
-        return port;
+        return hostname;
     },
 
 
-    // From: /embedding/components/windowwatcher/public/nsPromptUtils.h
-    // Args: nsIChannel, nsIAuthInformation, boolean, string, int
-    _GetAuthHostPort : function (aChannel, aAuthInfo) {
+    /*
+     * _getAuthTarget
+     *
+     * Returns the hostname and realm for which authentication is being
+     * requested, in the format expected to be used with nsILoginInfo.
+     */
+    _getAuthTarget : function (aChannel, aAuthInfo) {
+        var hostname, realm;
 
-        // Have to distinguish proxy auth and host auth here...
-        var flags = aAuthInfo.flags;
-
-        if (flags & (Ci.nsIAuthInformation.AUTH_PROXY)) {
-            // TODO: untested...
-            var proxied = aChannel.QueryInterface(Ci.nsIProxiedChannel);
-            if (!proxied)
+        // If our proxy is demanding authentication, don't use the
+        // channel's actual destination.
+        if (aAuthInfo.flags & Ci.nsIAuthInformation.AUTH_PROXY) {
+            this.log("getAuthTarget is for proxy auth");
+            if (!(aChannel instanceof Ci.nsIProxiedChannel))
                 throw "proxy auth needs nsIProxiedChannel";
 
-            var info = proxied.proxyInfo;
+            var info = aChannel.proxyInfo;
             if (!info)
                 throw "proxy auth needs nsIProxyInfo";
 
-            var idnhost = info.host;
-            var port    = info.port;
-
+            // Proxies don't have a scheme, but we'll use "moz-proxy://"
+            // so that it's more obvious what the login is for.
             var idnService = Cc["@mozilla.org/network/idn-service;1"].
                              getService(Ci.nsIIDNService);
-            host = idnService.convertUTF8toACE(idnhost);
-        } else {
-            var host = aChannel.URI.host;
-            var port = this._GetRealPort(aChannel.URI);
+            hostname = "moz-proxy://" +
+                        idnService.convertUTF8toACE(info.host) +
+                        ":" + info.port;
+            realm = aAuthInfo.realm;
+            if (!realm)
+                realm = hostname;
+
+            return [hostname, realm];
         }
 
-        return [host, port];
+        hostname = this._getFormattedHostname(aChannel.URI);
+
+        // If a HTTP WWW-Authenticate header specified a realm, that value
+        // will be available here. If it wasn't set or wasn't HTTP, we'll use
+        // the formatted hostname instead.
+        realm = aAuthInfo.realm;
+        if (!realm)
+            realm = hostname;
+
+        return [hostname, realm];
     },
 
 
-    // From: /embedding/components/windowwatcher/public/nsPromptUtils.h
-    // Args: nsIChannel, nsIAuthInformation
-    _GetAuthKey : function (aChannel, aAuthInfo) {
-        var key = "";
-        // HTTP does this differently from other protocols
-        var http = aChannel.QueryInterface(Ci.nsIHttpChannel);
-        if (!http) {
-            key = aChannel.URI.prePath;
-            this.log("_GetAuthKey: got http channel, key is: " + key);
-            return key;
-        }
+    /**
+     * Returns [username, password] as extracted from aAuthInfo (which
+     * holds this info after having prompted the user).
+     *
+     * If the authentication was for a Windows domain, we'll prepend the
+     * return username with the domain. (eg, "domain\user")
+     */
+    _GetAuthInfo : function (aAuthInfo) {
+        var username, password;
 
-        var [host, port] = this._GetAuthHostPort(aChannel, aAuthInfo);
+        var flags = aAuthInfo.flags;
+        if (flags & Ci.nsIAuthInformation.NEED_DOMAIN)
+            username = aAuthInfo.domain + "\\" + aAuthInfo.username;
+        else
+            username = aAuthInfo.username;
 
-        var realm = aAuthInfo.realm;
+        password = aAuthInfo.password;
 
-        key += host;
-        key += ':';
-        key += port;
-
-        this.log("_GetAuthKey got host: " + key + " and realm: " + realm);
-
-        return [key, realm];
+        return [username, password];
     },
 
 
-    // From: /embedding/components/windowwatcher/public/nsPromptUtils.h
-    // Args: nsIAuthInformation, string, string
     /**
      * Given a username (possibly in DOMAIN\user form) and password, parses the
      * domain out of the username if necessary and sets domain, username and
@@ -749,5 +757,3 @@ var component = [LoginManagerPromptFactory, LoginManagerPrompter];
 function NSGetModule(compMgr, fileSpec) {
     return XPCOMUtils.generateModule(component);
 }
-
-

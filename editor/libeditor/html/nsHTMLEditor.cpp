@@ -285,8 +285,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     result = nsPlaintextEditor::Init(aDoc, aPresShell, aRoot, aSelCon, aFlags);
     if (NS_FAILED(result)) { return result; }
 
-    // the HTML Editor is CSS-aware only in the case of Composer
-    mCSSAware = (0 == aFlags);
+    UpdateForFlags(aFlags);
 
     // disable Composer-only features
     if (aFlags & eEditorMailMask)
@@ -417,12 +416,12 @@ nsHTMLEditor::GetFlags(PRUint32 *aFlags)
   return mRules->GetFlags(aFlags);
 }
 
-
 NS_IMETHODIMP 
 nsHTMLEditor::SetFlags(PRUint32 aFlags)
 {
   if (!mRules) { return NS_ERROR_NULL_POINTER; }
-  mCSSAware = ((aFlags & (eEditorNoCSSMask | eEditorMailMask)) == 0);
+
+  UpdateForFlags(aFlags);
 
   return mRules->SetFlags(aFlags);
 }
@@ -5444,6 +5443,25 @@ nsHTMLEditor::SetIsCSSEnabled(PRBool aIsCSSPrefChecked)
   {
     err = mHTMLCSSUtils->SetCSSEnabled(aIsCSSPrefChecked);
   }
+  // Disable the eEditorNoCSSMask flag if we're enabling StyleWithCSS.
+  if (NS_SUCCEEDED(err)) {
+    PRUint32 flags = 0;
+    err = GetFlags(&flags);
+    NS_ENSURE_SUCCESS(err, err);
+
+    if (aIsCSSPrefChecked) {
+      // Turn off NoCSS as we're enabling CSS
+      if (flags & eEditorNoCSSMask) {
+        flags -= eEditorNoCSSMask;
+      }
+    } else if (!(flags & eEditorNoCSSMask)) {
+      // Turn on NoCSS, as we're disabling CSS.
+      flags += eEditorNoCSSMask;
+    }
+
+    err = SetFlags(flags);
+    NS_ENSURE_SUCCESS(err, err);
+  }
   return err;
 }
 
@@ -5782,34 +5800,21 @@ nsHTMLEditor::CopyLastEditableChildStyles(nsIDOMNode * aPreviousBlock, nsIDOMNod
 nsresult
 nsHTMLEditor::GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 & aY)
 {
-  // we are going to need the PresShell
+  aX = 0;
+  aY = 0;
+
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  nsIFrame *frame = ps->GetPrimaryFrameFor(content); // not ref-counted
+  nsIFrame *frame = ps->GetPrimaryFrameFor(content);
 
-  if (nsHTMLEditUtils::IsHR(aElement) && frame) {
-    frame = frame->GetNextSibling();
-  }
-  PRInt32 offsetX = 0, offsetY = 0;
-  while (frame) {
-    // Look for a widget so we can get screen coordinates
-    nsIView* view = frame->GetViewExternal();
-    if (view && view->HasWidget())
-      break;
-    
-    // No widget yet, so count up the coordinates of the frame 
-    nsPoint origin = frame->GetPosition();
-    offsetX += origin.x;
-    offsetY += origin.y;
-
-    frame = frame->GetParent();
-  }
-
-  aX = nsPresContext::AppUnitsToIntCSSPixels(offsetX);
-  aY = nsPresContext::AppUnitsToIntCSSPixels(offsetY);
+  nsIFrame *container = ps->GetAbsoluteContainingBlock(frame);
+  if (!frame) return NS_OK;
+  nsPoint off = frame->GetOffsetTo(container);
+  aX = nsPresContext::AppUnitsToIntCSSPixels(off.x);
+  aY = nsPresContext::AppUnitsToIntCSSPixels(off.y);
 
   return NS_OK;
 }

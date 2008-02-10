@@ -122,6 +122,7 @@ public:
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom *aAttribute) const;
   virtual PRInt32 IntrinsicState() const;
+  virtual void DestroyContent();
 
   // nsObjectLoadingContent
   virtual PRUint32 GetCapabilities() const;
@@ -318,7 +319,7 @@ nsHTMLSharedObjectElement::GetDesiredIMEState()
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Align, align)
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Alt, alt)
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Archive, archive)
-NS_IMPL_URI_ATTR_WITH_BASE(nsHTMLSharedObjectElement, Code, code, codebase)
+NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Code, code)
 NS_IMPL_URI_ATTR(nsHTMLSharedObjectElement, CodeBase, codebase)
 NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Height, height)
 NS_IMPL_INT_ATTR(nsHTMLSharedObjectElement, Hspace, hspace)
@@ -439,4 +440,11 @@ nsHTMLSharedObjectElement::GetCapabilities() const
   }
 
   return capabilities;
+}
+
+void
+nsHTMLSharedObjectElement::DestroyContent()
+{
+  RemovedFromDocument();
+  nsGenericHTMLElement::DestroyContent();
 }

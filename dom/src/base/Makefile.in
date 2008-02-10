@@ -129,9 +129,17 @@ LOCAL_INCLUDES = \
 		-I$(topsrcdir)/content/xul/document/src \
 		-I$(topsrcdir)/content/events/src \
 		-I$(topsrcdir)/content/base/src \
+		-I$(topsrcdir)/content/html/document/src \
+		-I$(topsrcdir)/layout/style \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
+
+ifdef MOZ_SHARK
+DEFINES += -DMOZ_SHARK
+CFLAGS += -F/System/Library/PrivateFrameworks
+LDFLAGS += -F/System/Library/PrivateFrameworks -framework CHUD
+endif
 
 ifdef MOZ_JSDEBUGGER
 DEFINES += -DMOZ_JSDEBUGGER

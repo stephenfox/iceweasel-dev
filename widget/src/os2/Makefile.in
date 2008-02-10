@@ -84,7 +84,6 @@ CPPSRCS		= \
 		nsFrameWindow.cpp \
 		nsLookAndFeel.cpp \
 		nsOS2Uni.cpp \
-		nsPaletteOS2.cpp \
 		nsPrintOS2.cpp \
 		nsSound.cpp \
 		nsToolkit.cpp \
@@ -95,6 +94,7 @@ CPPSRCS		= \
 		nsScreenManagerOS2.cpp \
 		nsDeviceContextSpecOS2.cpp \
 		nsPrintOptionsOS2.cpp \
+		nsRwsService.cpp \
 		$(NULL)
 
 SHARED_LIBRARY_LIBS = \

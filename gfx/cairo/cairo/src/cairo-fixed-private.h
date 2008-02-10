@@ -37,36 +37,11 @@
 #ifndef CAIRO_FIXED_PRIVATE_H
 #define CAIRO_FIXED_PRIVATE_H
 
+#include "cairo-fixed-type-private.h"
+
 #include "cairo-wideint-private.h"
 
-/*
- * Fixed-point configuration
- */
-
-typedef int32_t		cairo_fixed_16_16_t;
-typedef cairo_int64_t	cairo_fixed_32_32_t;
-typedef cairo_int64_t	cairo_fixed_48_16_t;
-typedef cairo_int128_t	cairo_fixed_64_64_t;
-typedef cairo_int128_t	cairo_fixed_96_32_t;
-
-/* Eventually, we should allow changing this, but I think
- * there are some assumptions in the tesselator about the
- * size of a fixed type.  For now, it must be 32.
- */
-#define CAIRO_FIXED_BITS	32
-
-/* The number of fractional bits. */
-#define CAIRO_FIXED_FRAC_BITS	8
-
-/* A signed type CAIRO_FIXED_BITS in size; the main fixed point type */
-typedef int32_t cairo_fixed_t;
-
-/* An unsigned type of the same size as cairo_fixed_t */
-typedef uint32_t cairo_fixed_unsigned_t;
-
-/*
- * No configurable bits below this.
- */
+/* Implementation */
 
 #if (CAIRO_FIXED_BITS != 32)
 # error CAIRO_FIXED_BITS must be 32, and the type must be a 32-bit type.
@@ -206,12 +181,13 @@ _cairo_fixed_to_16_16 (cairo_fixed_t f)
 #if (CAIRO_FIXED_FRAC_BITS == 16) && (CAIRO_FIXED_BITS == 32)
     return f;
 #elif CAIRO_FIXED_FRAC_BITS > 16
+    /* We're just dropping the low bits, so we won't ever got over/underflow here */
     return f >> (CAIRO_FIXED_FRAC_BITS - 16);
 #else
     cairo_fixed_16_16_t x;
 
-    /* Clamp to INT16 so that we don't get odd overflow or underflow by
-     * just shifting.
+    /* Handle overflow/underflow by claping to the lowest/highest
+     * value representable as 16.16
      */
     if ((f >> CAIRO_FIXED_FRAC_BITS) < INT16_MIN) {
 	x = INT32_MIN;

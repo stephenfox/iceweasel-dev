@@ -567,12 +567,12 @@ nsXBLContentSink::ConstructBinding()
       return NS_ERROR_OUT_OF_MEMORY;
       
     rv = mBinding->Init(cid, mDocInfo, binding);
-    if (NS_SUCCEEDED(rv)) {
+    if (NS_SUCCEEDED(rv) &&
+        NS_SUCCEEDED(mDocInfo->SetPrototypeBinding(cid, mBinding))) {
       if (!mFoundFirstBinding) {
         mFoundFirstBinding = PR_TRUE;
         mDocInfo->SetFirstPrototypeBinding(mBinding);
       }
-      mDocInfo->SetPrototypeBinding(cid, mBinding);
       binding->UnsetAttr(kNameSpaceID_None, nsGkAtoms::id, PR_FALSE);
     } else {
       delete mBinding;
@@ -676,11 +676,9 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber
   newHandler = new nsXBLPrototypeHandler(event, phase, action, command,
                                          keycode, charcode, modifiers, button,
                                          clickcount, group, preventdefault,
-                                         allowuntrusted, mBinding);
+                                         allowuntrusted, mBinding, aLineNumber);
 
   if (newHandler) {
-    newHandler->SetLineNumber(aLineNumber);
-    
     // Add this handler to our chain of handlers.
     if (mHandler) {
       // Already have a chain. Just append to the end.

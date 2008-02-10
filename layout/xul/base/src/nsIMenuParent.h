@@ -62,7 +62,7 @@ public:
   // deselects the current item and closes its popup if any, then selects the
   // new item aMenuItem. For a menubar, if another menu is already open, the
   // new menu aMenuItem is opened. In this case, if aSelectFirstItem is true,
-  // select the first item in it. For menupoups, the menu is not opened and
+  // select the first item in it. For menupopups, the menu is not opened and
   // the aSelectFirstItem argument is not used.
   NS_IMETHOD ChangeMenuItem(nsMenuFrame* aMenuItem, PRBool aSelectFirstItem) = 0;
 
@@ -85,10 +85,6 @@ public:
   // cleared. This should return true if the menu should be deselected
   // by the caller.
   virtual PRBool MenuClosed() = 0;
-
-  // return true if aMenuFrame is the menu that was recently closed. The
-  // recently closed menu state is cleared by this method.
-  virtual PRBool IsRecentlyClosed(nsMenuFrame* aMenuFrame) = 0;
 };
 
 #endif

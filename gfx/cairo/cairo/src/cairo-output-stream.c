@@ -38,15 +38,17 @@
 
 #include "cairo-output-stream-private.h"
 
+#include <stdio.h>
 #include <locale.h>
 #include <ctype.h>
+#include <errno.h>
 
 #ifdef _MSC_VER
 #define snprintf _snprintf
 #endif /* _MSC_VER */
 
 
-cairo_private void
+void
 _cairo_output_stream_init (cairo_output_stream_t            *stream,
 			   cairo_output_stream_write_func_t  write_func,
 			   cairo_output_stream_close_func_t  close_func)
@@ -58,7 +60,7 @@ _cairo_output_stream_init (cairo_output_stream_t            *stream,
     stream->closed = FALSE;
 }
 
-cairo_private cairo_status_t
+cairo_status_t
 _cairo_output_stream_fini (cairo_output_stream_t *stream)
 {
     return _cairo_output_stream_close (stream);
@@ -119,8 +121,10 @@ _cairo_output_stream_create (cairo_write_func_t		write_func,
     cairo_output_stream_with_closure_t *stream;
 
     stream = malloc (sizeof (cairo_output_stream_with_closure_t));
-    if (stream == NULL)
+    if (stream == NULL) {
+	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
+    }
 
     _cairo_output_stream_init (&stream->base, closure_write, closure_close);
     stream->write_func = write_func;
@@ -128,6 +132,29 @@ _cairo_output_stream_create (cairo_write_func_t		write_func,
     stream->closure = closure;
 
     return &stream->base;
+}
+
+cairo_output_stream_t *
+_cairo_output_stream_create_in_error (cairo_status_t status)
+{
+    cairo_output_stream_t *stream;
+
+    /* check for the common ones */
+    if (status == CAIRO_STATUS_NO_MEMORY)
+	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
+    if (status == CAIRO_STATUS_WRITE_ERROR)
+	return (cairo_output_stream_t *) &_cairo_output_stream_nil_write_error;
+
+    stream = malloc (sizeof (cairo_output_stream_t));
+    if (stream == NULL) {
+	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
+	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
+    }
+
+    _cairo_output_stream_init (stream, NULL, NULL);
+    stream->status = status;
+
+    return stream;
 }
 
 cairo_status_t
@@ -161,8 +188,13 @@ _cairo_output_stream_destroy (cairo_output_stream_t *stream)
 {
     cairo_status_t status;
 
-    if (stream == NULL)
-	return CAIRO_STATUS_NULL_POINTER;
+    assert (stream != NULL);
+
+    if (stream == &_cairo_output_stream_nil ||
+	stream == &_cairo_output_stream_nil_write_error)
+    {
+	return stream->status;
+    }
 
     status = _cairo_output_stream_fini (stream);
     free (stream);
@@ -207,6 +239,8 @@ _cairo_output_stream_write_hex_string (cairo_output_stream_t *stream,
     }
 }
 
+#define SIGNIFICANT_DIGITS_AFTER_DECIMAL 6
+
 /* Format a double in a locale independent way and trim trailing
  * zeros.  Based on code from Alex Larson <alexl@redhat.com>.
  * http://mail.gnome.org/archives/gtk-devel-list/2001-October/msg00087.html
@@ -223,18 +257,53 @@ _cairo_dtostr (char *buffer, size_t size, double d)
     int decimal_point_len;
     char *p;
     int decimal_len;
+    int num_zeros, decimal_digits;
 
     /* Omit the minus sign from negative zero. */
     if (d == 0.0)
 	d = 0.0;
-
-    snprintf (buffer, size, "%f", d);
 
     locale_data = localeconv ();
     decimal_point = locale_data->decimal_point;
     decimal_point_len = strlen (decimal_point);
 
     assert (decimal_point_len != 0);
+
+    /* Using "%f" to print numbers less than 0.1 will result in
+     * reduced precision due to the default 6 digits after the
+     * decimal point.
+     *
+     * For numbers is < 0.1, we print with maximum precision and count
+     * the number of zeros between the decimal point and the first
+     * significant digit. We then print the number again with the
+     * number of decimal places that gives us the required number of
+     * significant digits. This ensures the number is correctly
+     * rounded.
+     */
+    if (fabs (d) >= 0.1) {
+	snprintf (buffer, size, "%f", d);
+    } else {
+	snprintf (buffer, size, "%.18f", d);
+	p = buffer;
+
+	if (*p == '+' || *p == '-')
+	    p++;
+
+	while (isdigit (*p))
+	    p++;
+
+	if (strncmp (p, decimal_point, decimal_point_len) == 0)
+	    p += decimal_point_len;
+
+	num_zeros = 0;
+	while (*p++ == '0')
+	    num_zeros++;
+
+	decimal_digits = num_zeros + SIGNIFICANT_DIGITS_AFTER_DECIMAL;
+
+	if (decimal_digits < 18)
+	    snprintf (buffer, size, "%.*f", decimal_digits, d);
+    }
     p = buffer;
 
     if (*p == '+' || *p == '-')
@@ -432,7 +501,7 @@ stdio_write (cairo_output_stream_t *base,
     stdio_stream_t *stream = (stdio_stream_t *) base;
 
     if (fwrite (data, 1, length, stream->file) != length)
-	return CAIRO_STATUS_WRITE_ERROR;
+	return _cairo_error (CAIRO_STATUS_WRITE_ERROR);
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -445,7 +514,7 @@ stdio_flush (cairo_output_stream_t *base)
     fflush (stream->file);
 
     if (ferror (stream->file))
-	return CAIRO_STATUS_WRITE_ERROR;
+	return _cairo_error (CAIRO_STATUS_WRITE_ERROR);
     else
 	return CAIRO_STATUS_SUCCESS;
 }
@@ -468,12 +537,16 @@ _cairo_output_stream_create_for_file (FILE *file)
 {
     stdio_stream_t *stream;
 
-    if (file == NULL)
+    if (file == NULL) {
+	_cairo_error_throw (CAIRO_STATUS_WRITE_ERROR);
 	return (cairo_output_stream_t *) &_cairo_output_stream_nil_write_error;
+    }
 
     stream = malloc (sizeof *stream);
-    if (stream == NULL)
+    if (stream == NULL) {
+	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
+    }
 
     _cairo_output_stream_init (&stream->base, stdio_write, stdio_flush);
     stream->file = file;
@@ -488,12 +561,21 @@ _cairo_output_stream_create_for_filename (const char *filename)
     FILE *file;
 
     file = fopen (filename, "wb");
-    if (file == NULL)
-	return (cairo_output_stream_t *) &_cairo_output_stream_nil_write_error;
+    if (file == NULL) {
+	switch (errno) {
+	case ENOMEM:
+	    _cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
+	    return (cairo_output_stream_t *) &_cairo_output_stream_nil;
+	default:
+	    _cairo_error_throw (CAIRO_STATUS_WRITE_ERROR);
+	    return (cairo_output_stream_t *) &_cairo_output_stream_nil_write_error;
+	}
+    }
 
     stream = malloc (sizeof *stream);
     if (stream == NULL) {
 	fclose (file);
+	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
     }
 
@@ -534,8 +616,10 @@ _cairo_memory_stream_create (void)
     memory_stream_t *stream;
 
     stream = malloc (sizeof *stream);
-    if (stream == NULL)
+    if (stream == NULL) {
+	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
 	return (cairo_output_stream_t *) &_cairo_output_stream_nil;
+    }
 
     _cairo_output_stream_init (&stream->base, memory_write, memory_close);
     _cairo_array_init (&stream->array, 1);
@@ -548,6 +632,14 @@ _cairo_memory_stream_copy (cairo_output_stream_t *base,
 			   cairo_output_stream_t *dest)
 {
     memory_stream_t *stream = (memory_stream_t *) base;
+
+    if (dest->status)
+	return;
+
+    if (base->status) {
+	dest->status = base->status;
+	return;
+    }
 
     _cairo_output_stream_write (dest, 
 				_cairo_array_index (&stream->array, 0),

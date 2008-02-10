@@ -391,24 +391,27 @@ JS_FlagScriptFilenamePrefix(JSRuntime *rt, const char *prefix, uint32 flags);
 
 #define JSFILENAME_NULL         0xffffffff      /* null script filename */
 #define JSFILENAME_SYSTEM       0x00000001      /* "system" script, see below */
+#define JSFILENAME_PROTECTED    0x00000002      /* scripts need protection */
 
 /*
- * Return true if obj is a "system" object, that is, one flagged by a prior
- * call to JS_FlagSystemObject(cx, obj).  What "system" means is up to the API
- * client, but it can be used to coordinate access control policies based on
- * script filenames and their prefixes, using JS_FlagScriptFilenamePrefix and
- * JS_GetTopScriptFilenameFlags.
+ * Return true if obj is a "system" object, that is, one created by
+ * JS_NewSystemObject with the system flag set and not JS_NewObject.
+ *
+ * What "system" means is up to the API client, but it can be used to implement
+ * access control policies based on script filenames and their prefixes, using
+ * JS_FlagScriptFilenamePrefix and JS_GetTopScriptFilenameFlags.
  */
 extern JS_PUBLIC_API(JSBool)
 JS_IsSystemObject(JSContext *cx, JSObject *obj);
 
 /*
- * Flag obj as a "system" object.  The API client can flag system objects to
- * optimize access control checks.  The engine stores but does not interpret
- * the per-object flag set by this call.
+ * Call JS_NewObject(cx, clasp, proto, parent) and, if system is true, mark the
+ * result as a system object, that is an object for which JS_IsSystemObject
+ * returns true.
  */
-extern JS_PUBLIC_API(void)
-JS_FlagSystemObject(JSContext *cx, JSObject *obj);
+extern JS_PUBLIC_API(JSObject *)
+JS_NewSystemObject(JSContext *cx, JSClass *clasp, JSObject *proto,
+                   JSObject *parent, JSBool system);
 
 /************************************************************************/
 
@@ -417,6 +420,27 @@ JS_GetGlobalDebugHooks(JSRuntime *rt);
 
 extern JS_PUBLIC_API(JSDebugHooks *)
 JS_SetContextDebugHooks(JSContext *cx, JSDebugHooks *hooks);
+
+#ifdef MOZ_SHARK
+extern JS_PUBLIC_API(JSBool) JS_StartChudRemote();
+extern JS_PUBLIC_API(JSBool) JS_StopChudRemote();
+extern JS_PUBLIC_API(JSBool) JS_ConnectShark();
+extern JS_PUBLIC_API(JSBool) JS_DisconnectShark();
+
+extern JS_FRIEND_API(JSBool) js_StopShark(JSContext *cx, JSObject *obj,
+                                          uintN argc, jsval *argv, jsval *rval);
+
+extern JS_FRIEND_API(JSBool) js_StartShark(JSContext *cx, JSObject *obj,
+                                           uintN argc, jsval *argv, jsval *rval);
+
+extern JS_FRIEND_API(JSBool) js_ConnectShark(JSContext *cx, JSObject *obj,
+                                             uintN argc, jsval *argv,
+                                             jsval *rval);
+
+extern JS_FRIEND_API(JSBool) js_DisconnectShark(JSContext *cx, JSObject *obj,
+                                                uintN argc, jsval *argv,
+                                                jsval *rval);
+#endif /* MOZ_SHARK */
 
 JS_END_EXTERN_C
 

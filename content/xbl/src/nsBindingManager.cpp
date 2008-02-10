@@ -328,6 +328,8 @@ SetOrRemoveObject(PLDHashTable& table, nsIContent* aKey, nsISupports* aValue)
 // Implement our nsISupports methods
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBindingManager)
+  tmp->mDestroyed = PR_TRUE;
+
   if (tmp->mBindingTable.IsInitialized())
     tmp->mBindingTable.Clear();
 
@@ -404,6 +406,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsBindingManager)
 // Constructors/Destructors
 nsBindingManager::nsBindingManager(nsIDocument* aDocument)
   : mProcessingAttachedStack(PR_FALSE),
+    mDestroyed(PR_FALSE),
     mAttachedStackSizeOnOutermost(0),
     mDocument(aDocument)
 {
@@ -415,6 +418,8 @@ nsBindingManager::nsBindingManager(nsIDocument* aDocument)
 
 nsBindingManager::~nsBindingManager(void)
 {
+  mDestroyed = PR_TRUE;
+
   if (mContentListTable.ops)
     PL_DHashTableFinish(&mContentListTable);
   if (mAnonymousNodesTable.ops)
@@ -443,10 +448,7 @@ RemoveInsertionParentForNodeList(nsIDOMNodeList* aList, nsIContent* aParent)
     PRInt32 count = list->GetInsertionPointCount();
     for (PRInt32 i = 0; i < count; ++i) {
       nsRefPtr<nsXBLInsertionPoint> currPoint = list->GetInsertionPointAt(i);
-      nsCOMPtr<nsIContent> defContent = currPoint->GetDefaultContent();
-      if (defContent) {
-        defContent->UnbindFromTree();
-      }
+      currPoint->UnbindDefaultContent();
 #ifdef DEBUG
       nsCOMPtr<nsIContent> parent = currPoint->GetInsertionParent();
       NS_ASSERTION(!parent || parent == aParent, "Wrong insertion parent!");
@@ -553,6 +555,11 @@ nsBindingManager::SetInsertionParent(nsIContent* aContent, nsIContent* aParent)
 {
   NS_ASSERTION(!aParent || aParent->HasFlag(NODE_IS_INSERTION_PARENT),
                "Insertion parent should have NODE_IS_INSERTION_PARENT flag!");
+
+  if (mDestroyed) {
+    return NS_OK;
+  }
+
   return SetOrRemoveObject(mInsertionParentTable, aContent, aParent);
 }
 
@@ -569,6 +576,10 @@ nsBindingManager::GetWrappedJS(nsIContent* aContent)
 nsresult
 nsBindingManager::SetWrappedJS(nsIContent* aContent, nsIXPConnectWrappedJS* aWrappedJS)
 {
+  if (mDestroyed) {
+    return NS_OK;
+  }
+
   return SetOrRemoveObject(mWrapperTable, aContent, aWrappedJS);
 }
 
@@ -656,6 +667,10 @@ nsresult
 nsBindingManager::SetContentListFor(nsIContent* aContent,
                                     nsInsertionPointList* aList)
 {
+  if (mDestroyed) {
+    return NS_OK;
+  }
+
   nsIDOMNodeList* contentList = nsnull;
   if (aList) {
     contentList = new nsAnonymousContentList(aList);
@@ -712,6 +727,10 @@ nsresult
 nsBindingManager::SetAnonymousNodesFor(nsIContent* aContent,
                                        nsInsertionPointList* aList)
 {
+  if (mDestroyed) {
+    return NS_OK;
+  }
+
   nsIDOMNodeList* contentList = nsnull;
   if (aList) {
     contentList = new nsAnonymousContentList(aList);
@@ -848,6 +867,8 @@ nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
   NS_ASSERTION(doc, "No owner document?");
   
   // Finally remove the binding...
+  // XXXbz this doesn't remove the implementation!  Should fix!  Until
+  // then we need the explicit UnhookEventHandlers here.
   binding->UnhookEventHandlers();
   binding->ChangeDocument(doc, nsnull);
   SetBinding(aContent, nsnull);
@@ -897,28 +918,43 @@ nsBindingManager::AddToAttachedQueue(nsXBLBinding* aBinding)
   // If we're in the middle of processing our queue already, don't
   // bother posting the event.
   if (!mProcessingAttachedStack && !mProcessAttachedQueueEvent) {
-    mProcessAttachedQueueEvent =
-      new nsRunnableMethod<nsBindingManager>(
-        this, &nsBindingManager::DoProcessAttachedQueue);
-    nsresult rv = NS_DispatchToCurrentThread(mProcessAttachedQueueEvent);
-    if (NS_SUCCEEDED(rv) && mDocument) {
-      mDocument->BlockOnload();
-    }
+    PostProcessAttachedQueueEvent();
   }
 
   return NS_OK;
+
+}
+
+void
+nsBindingManager::PostProcessAttachedQueueEvent()
+{
+  mProcessAttachedQueueEvent =
+    new nsRunnableMethod<nsBindingManager>(
+      this, &nsBindingManager::DoProcessAttachedQueue);
+  nsresult rv = NS_DispatchToCurrentThread(mProcessAttachedQueueEvent);
+  if (NS_SUCCEEDED(rv) && mDocument) {
+    mDocument->BlockOnload();
+  }
 }
 
 void
 nsBindingManager::DoProcessAttachedQueue()
 {
-  ProcessAttachedQueue();
+  if (!mProcessingAttachedStack) {
+    ProcessAttachedQueue();
 
-  NS_ASSERTION(mAttachedStack.Length() == 0,
+    NS_ASSERTION(mAttachedStack.Length() == 0,
                "Shouldn't have pending bindings!");
   
-  mProcessAttachedQueueEvent = nsnull;
+    mProcessAttachedQueueEvent = nsnull;
+  } else {
+    // Someone's doing event processing from inside a constructor.
+    // They're evil, but we'll fight back!  Just poll on them being
+    // done and repost the attached queue event.
+    PostProcessAttachedQueueEvent();
+  }
 
+  // No matter what, unblock onload for the event that's fired.
   if (mDocument) {
     // Hold a strong reference while calling UnblockOnload since that might
     // run script.
@@ -1283,7 +1319,7 @@ nsBindingManager::GetNestedInsertionPoint(nsIContent* aParent, nsIContent* aChil
 
   PRUint32 index;
   nsIContent *insertionElement = GetInsertionPoint(aParent, aChild, &index);
-  if (insertionElement != aParent) {
+  if (insertionElement && insertionElement != aParent) {
     // See if we nest even further in.
     nsIContent* nestedPoint = GetNestedInsertionPoint(insertionElement, aChild);
     if (nestedPoint)
@@ -1293,50 +1329,28 @@ nsBindingManager::GetNestedInsertionPoint(nsIContent* aParent, nsIContent* aChil
   return insertionElement;
 }
 
-// Note: We don't hold a reference to the document observer; we assume
-// that it has a live reference to the document.
-void
-nsBindingManager::AddObserver(nsIMutationObserver* aObserver)
+nsIContent*
+nsBindingManager::GetNestedSingleInsertionPoint(nsIContent* aParent,
+                                                PRBool* aMultipleInsertionPoints)
 {
-  // The array makes sure the observer isn't already in the list
-  mObservers.AppendObserver(aObserver);
-}
+  *aMultipleInsertionPoints = PR_FALSE;
+  
+  PRUint32 index;
+  nsIContent *insertionElement =
+    GetSingleInsertionPoint(aParent, &index, aMultipleInsertionPoints);
+  if (*aMultipleInsertionPoints) {
+    return nsnull;
+  }
+  if (insertionElement && insertionElement != aParent) {
+    // See if we nest even further in.
+    nsIContent* nestedPoint =
+      GetNestedSingleInsertionPoint(insertionElement,
+                                    aMultipleInsertionPoints);
+    if (nestedPoint)
+      insertionElement = nestedPoint;
+  }
 
-PRBool
-nsBindingManager::RemoveObserver(nsIMutationObserver* aObserver)
-{
-  return mObservers.RemoveObserver(aObserver);
-}
-
-void
-nsBindingManager::CharacterDataWillChange(nsIDocument* aDocument,
-                                          nsIContent* aContent,
-                                          CharacterDataChangeInfo* aInfo)
-{
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(CharacterDataWillChange,
-                                     (aDocument, aContent, aInfo));
-}
-
-void
-nsBindingManager::CharacterDataChanged(nsIDocument* aDocument,
-                                       nsIContent* aContent,
-                                       CharacterDataChangeInfo* aInfo)
-{
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(CharacterDataChanged,
-                                     (aDocument, aContent, aInfo));
-}
-
-void
-nsBindingManager::AttributeChanged(nsIDocument* aDocument,
-                                   nsIContent* aContent,
-                                   PRInt32 aNameSpaceID,
-                                   nsIAtom* aAttribute,
-                                   PRInt32 aModType,
-                                   PRUint32 aStateMask)
-{
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(AttributeChanged,
-                                     (aDocument, aContent, aNameSpaceID,
-                                      aAttribute, aModType, aStateMask));
+  return insertionElement;
 }
 
 void
@@ -1348,21 +1362,26 @@ nsBindingManager::ContentAppended(nsIDocument* aDocument,
   if (aNewIndexInContainer != -1 &&
       (mContentListTable.ops || mAnonymousNodesTable.ops)) {
     // It's not anonymous.
-    PRInt32 childCount = aContainer->GetChildCount();
+    PRBool multiple;
+    nsIContent* ins = GetNestedSingleInsertionPoint(aContainer, &multiple);
 
-    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
-
-    nsCOMPtr<nsIContent> ins = GetNestedInsertionPoint(aContainer, child);
-
-    if (ins) {
+    if (multiple) {
+      // Do each kid individually
+      PRInt32 childCount = aContainer->GetChildCount();
+      NS_ASSERTION(aNewIndexInContainer >= 0, "Bogus index");
+      for (PRInt32 idx = aNewIndexInContainer; idx < childCount; ++idx) {
+        HandleChildInsertion(aContainer, aContainer->GetChildAt(idx),
+                             idx, PR_TRUE);
+      }
+    }
+    else if (ins) {
       nsCOMPtr<nsIDOMNodeList> nodeList;
       PRBool isAnonymousContentList;
       GetXBLChildNodesInternal(ins, getter_AddRefs(nodeList),
                                &isAnonymousContentList);
 
       if (nodeList && isAnonymousContentList) {
-        // Find a non-pseudo-insertion point and just jam ourselves in.
-        // This is not 100% correct.  Hack city, baby.
+        // Find the one non-pseudo-insertion point and just add ourselves.
         nsAnonymousContentList* contentList =
           static_cast<nsAnonymousContentList*>(nodeList.get());
 
@@ -1372,9 +1391,9 @@ nsBindingManager::ContentAppended(nsIDocument* aDocument,
           PRInt32 index = point->GetInsertionIndex();
           if (index != -1) {
             // We're real. Jam all the kids in.
-            // XXX Check the filters to find the correct points.
+            PRInt32 childCount = aContainer->GetChildCount();
             for (PRInt32 j = aNewIndexInContainer; j < childCount; j++) {
-              child = aContainer->GetChildAt(j);
+              nsIContent* child = aContainer->GetChildAt(j);
               point->AddChild(child);
               SetInsertionParent(child, ins);
             }
@@ -1384,10 +1403,6 @@ nsBindingManager::ContentAppended(nsIDocument* aDocument,
       }
     }
   }
-
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(ContentAppended,
-                                     (aDocument, aContainer,
-                                      aNewIndexInContainer));
 }
 
 void
@@ -1400,66 +1415,29 @@ nsBindingManager::ContentInserted(nsIDocument* aDocument,
   if (aIndexInContainer != -1 &&
       (mContentListTable.ops || mAnonymousNodesTable.ops)) {
     // It's not anonymous.
-    nsCOMPtr<nsIContent> ins = GetNestedInsertionPoint(aContainer, aChild);
+    NS_ASSERTION(aIndexInContainer >= 0, "Bogus index");
+    HandleChildInsertion(aContainer, aChild, aIndexInContainer, PR_FALSE);
+  }
+}
 
-    if (ins) {
-      nsCOMPtr<nsIDOMNodeList> nodeList;
-      PRBool isAnonymousContentList;
-      GetXBLChildNodesInternal(ins, getter_AddRefs(nodeList),
-                               &isAnonymousContentList);
-
-      if (nodeList && isAnonymousContentList) {
-        // Find a non-pseudo-insertion point and just jam ourselves in.
-        // This is not 100% correct.  Hack city, baby.
-        nsAnonymousContentList* contentList =
-          static_cast<nsAnonymousContentList*>(nodeList.get());
-
-        PRInt32 count = contentList->GetInsertionPointCount();
-        for (PRInt32 i = 0; i < count; i++) {
-          nsXBLInsertionPoint* point = contentList->GetInsertionPointAt(i);
-          if (point->GetInsertionIndex() != -1) {
-            // We're real. Jam the kid in.
-            // XXX Check the filters to find the correct points.
-
-            // Find the right insertion spot.  Can't just insert in the insertion
-            // point at aIndexInContainer since the point may contain anonymous
-            // content, not all of aContainer's kids, etc.  So find the last
-            // child of aContainer that comes before aIndexInContainer and is in
-            // the insertion point and insert right after it.
-            PRInt32 pointSize = point->ChildCount();
-            PRBool inserted = PR_FALSE;
-            for (PRInt32 parentIndex = aIndexInContainer - 1;
-                 parentIndex >= 0 && !inserted; --parentIndex) {
-              nsIContent* currentSibling = aContainer->GetChildAt(parentIndex);
-              for (PRInt32 pointIndex = pointSize - 1; pointIndex >= 0;
-                   --pointIndex) {
-                nsCOMPtr<nsIContent> currContent = point->ChildAt(pointIndex);
-                if (currContent == currentSibling) {
-                  point->InsertChildAt(pointIndex + 1, aChild);
-                  inserted = PR_TRUE;
-                  break;
-                }
-              }
-            }
-            if (!inserted) {
-              // None of our previous siblings are in here... just stick
-              // ourselves in at the beginning of the insertion point.
-              // XXXbz if we ever start doing the filter thing right, this may be
-              // no good, since we may _still_ have anonymous kids in there and
-              // may need to get the ordering with those right.
-              point->InsertChildAt(0, aChild);
-            }
-            SetInsertionParent(aChild, ins);
-            break;
-          }
-        }
-      }
+static void
+RemoveChildFromInsertionPoint(nsAnonymousContentList* aInsertionPointList,
+                              nsIContent* aChild,
+                              PRBool aRemoveFromPseudoPoints)
+{
+  // We need to find the insertion point that contains aChild and remove it
+  // from that insertion point.  Sadly, we don't know which point it is, or
+  // when we've hit it, but just trying to remove from all the pseudo or
+  // non-pseudo insertion points, depending on the value of
+  // aRemoveFromPseudoPoints, should work.
+  PRInt32 count = aInsertionPointList->GetInsertionPointCount();
+  for (PRInt32 i = 0; i < count; i++) {
+    nsXBLInsertionPoint* point =
+      aInsertionPointList->GetInsertionPointAt(i);
+    if ((point->GetInsertionIndex() == -1) == aRemoveFromPseudoPoints) {
+      point->RemoveChild(aChild);
     }
   }
-
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(ContentInserted,
-                                     (aDocument, aContainer, aChild,
-                                      aIndexInContainer));  
 }
 
 void
@@ -1468,7 +1446,7 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
                                  nsIContent* aChild,
                                  PRInt32 aIndexInContainer)
 {
-  if (aIndexInContainer != -1 &&
+  if (aContainer && aIndexInContainer != -1 &&
       (mContentListTable.ops || mAnonymousNodesTable.ops)) {
     // It's not anonymous
     nsCOMPtr<nsIContent> point = GetNestedInsertionPoint(aContainer, aChild);
@@ -1481,39 +1459,35 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
       
       if (nodeList && isAnonymousContentList) {
         // Find a non-pseudo-insertion point and remove ourselves.
-        nsAnonymousContentList* contentList = static_cast<nsAnonymousContentList*>(static_cast<nsIDOMNodeList*>(nodeList));
-        PRInt32 count = contentList->GetInsertionPointCount();
-        for (PRInt32 i =0; i < count; i++) {
-          nsXBLInsertionPoint* point = contentList->GetInsertionPointAt(i);
-          if (point->GetInsertionIndex() != -1) {
-            point->RemoveChild(aChild);
-          }
-        }
+        RemoveChildFromInsertionPoint(static_cast<nsAnonymousContentList*>
+                                        (static_cast<nsIDOMNodeList*>
+                                                    (nodeList)),
+                                      aChild,
+                                      PR_FALSE);
+        SetInsertionParent(aChild, nsnull);
       }
-    }  
+    }
+
+    // Whether the child has a nested insertion point or not, aContainer might
+    // have insertion points under it.  If that's the case, we need to remove
+    // aChild from the pseudo insertion point it's in.
+    if (mContentListTable.ops) {
+      nsAnonymousContentList* insertionPointList =
+        static_cast<nsAnonymousContentList*>(LookupObject(mContentListTable,
+                                                          aContainer));
+      if (insertionPointList) {
+        RemoveChildFromInsertionPoint(insertionPointList, aChild, PR_TRUE);
+      }
+    }
   }
-
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(ContentRemoved,
-                                     (aDocument, aContainer, aChild,
-                                      aIndexInContainer));  
-
-
 }
 
 void
-nsBindingManager::NodeWillBeDestroyed(const nsINode *aNode)
+nsBindingManager::DropDocumentReference()
 {
   // Make sure to not run any more XBL constructors
   mProcessingAttachedStack = PR_TRUE;
   mDocument = nsnull;
-  
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(NodeWillBeDestroyed, (aNode));
-}
-
-void
-nsBindingManager::ParentChainChanged(nsIContent *aContent)
-{
-  NS_BINDINGMANAGER_NOTIFY_OBSERVERS(ParentChainChanged, (aContent));
 }
 
 void
@@ -1572,6 +1546,80 @@ nsBindingManager::EndOutermostUpdate()
       nsresult rv = binding->EnsureScriptAPI();
       if (NS_FAILED(rv)) {
         mAttachedStack[i] = nsnull;
+      }
+    }
+  }
+}
+
+void
+nsBindingManager::HandleChildInsertion(nsIContent* aContainer,
+                                       nsIContent* aChild,
+                                       PRUint32 aIndexInContainer,
+                                       PRBool aAppend)
+{
+  NS_PRECONDITION(aChild, "Must have child");
+  NS_PRECONDITION(!aContainer ||
+                  PRUint32(aContainer->IndexOf(aChild)) == aIndexInContainer,
+                  "Child not at the right index?");
+
+  nsIContent* ins = GetNestedInsertionPoint(aContainer, aChild);
+
+  if (ins) {
+    nsCOMPtr<nsIDOMNodeList> nodeList;
+    PRBool isAnonymousContentList;
+    GetXBLChildNodesInternal(ins, getter_AddRefs(nodeList),
+                             &isAnonymousContentList);
+
+    if (nodeList && isAnonymousContentList) {
+      // Find a non-pseudo-insertion point and just jam ourselves in.  This is
+      // not 100% correct, since there might be multiple insertion points under
+      // this insertion parent, and we should really be using the one that
+      // matches our content...  Hack city, baby.
+      nsAnonymousContentList* contentList =
+        static_cast<nsAnonymousContentList*>(nodeList.get());
+
+      PRInt32 count = contentList->GetInsertionPointCount();
+      for (PRInt32 i = 0; i < count; i++) {
+        nsXBLInsertionPoint* point = contentList->GetInsertionPointAt(i);
+        if (point->GetInsertionIndex() != -1) {
+          // We're real. Jam the kid in.
+
+          // Find the right insertion spot.  Can't just insert in the insertion
+          // point at aIndexInContainer since the point may contain anonymous
+          // content, not all of aContainer's kids, etc.  So find the last
+          // child of aContainer that comes before aIndexInContainer and is in
+          // the insertion point and insert right after it.
+          PRInt32 pointSize = point->ChildCount();
+          PRBool inserted = PR_FALSE;
+          for (PRInt32 parentIndex = aIndexInContainer - 1;
+               parentIndex >= 0 && !inserted; --parentIndex) {
+            nsIContent* currentSibling = aContainer->GetChildAt(parentIndex);
+            for (PRInt32 pointIndex = pointSize - 1; pointIndex >= 0;
+                 --pointIndex) {
+              nsCOMPtr<nsIContent> currContent = point->ChildAt(pointIndex);
+              if (currContent == currentSibling) {
+                point->InsertChildAt(pointIndex + 1, aChild);
+                inserted = PR_TRUE;
+                break;
+              }
+            }
+          }
+          if (!inserted) {
+            // None of our previous siblings are in here... just stick
+            // ourselves in at the end of the insertion point if we're
+            // appending, and at the beginning otherwise.            
+            // XXXbz if we ever start doing the filter thing right, this may be
+            // no good, since we may _still_ have anonymous kids in there and
+            // may need to get the ordering with those right.
+            if (aAppend) {
+              point->AddChild(aChild);
+            } else {
+              point->InsertChildAt(0, aChild);
+            }
+          }
+          SetInsertionParent(aChild, ins);
+          break;
+        }
       }
     }
   }

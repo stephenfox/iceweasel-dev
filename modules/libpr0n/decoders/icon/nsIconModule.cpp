@@ -113,14 +113,13 @@ static const nsModuleComponentInfo components[] =
 PR_STATIC_CALLBACK(nsresult)
 IconDecoderModuleCtor(nsIModule* aSelf)
 {
-  nsMozIconURI::InitAtoms();
   return NS_OK;
 }
 
 PR_STATIC_CALLBACK(void)
 IconDecoderModuleDtor(nsIModule* aSelf)
 {
-#ifdef MOZ_ENABLE_GNOMEUI
+#ifdef MOZ_WIDGET_GTK2
   nsIconChannel::Shutdown();
 #endif
 }

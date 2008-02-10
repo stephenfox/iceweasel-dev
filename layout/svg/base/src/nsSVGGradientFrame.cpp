@@ -148,8 +148,8 @@ nsSVGGradientFrame::RemoveFrame(nsIAtom*        aListName,
                                 nsIFrame*       aOldFrame)
 {
   WillModify();
-  PRBool result = mFrames.DestroyFrame(aOldFrame);
   DidModify();
+  PRBool result = mFrames.DestroyFrame(aOldFrame);
   return result ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -272,11 +272,13 @@ nsSVGGradientFrame::GetGradientTransform(nsSVGGeometryFrame *aSource)
       nsCOMPtr<nsIDOMSVGMatrix> matrix = frame->GetOverrideCTM();
       frame->SetMatrixPropagation(PR_FALSE);
       frame->SetOverrideCTM(nsnull);
-      frame->NotifyCanvasTMChanged(PR_TRUE);
+      frame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                              nsISVGChildFrame::TRANSFORM_CHANGED);
       frame->GetBBox(getter_AddRefs(rect));
       frame->SetMatrixPropagation(PR_TRUE);
       frame->SetOverrideCTM(matrix);
-      frame->NotifyCanvasTMChanged(PR_TRUE);
+      frame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                              nsISVGChildFrame::TRANSFORM_CHANGED);
     }
     if (rect) {
       float x, y, width, height;

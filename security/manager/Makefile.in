@@ -50,6 +50,7 @@ PACKAGE_FILE = psm.pkg
 ifndef MOZ_NATIVE_NSS
 PACKAGE_VARS += \
 	NSS3_LIB \
+	NSSUTIL3_LIB \
 	SMIME3_LIB \
 	SSL3_LIB \
 	SOFTOKEN3_LIB \
@@ -66,6 +67,7 @@ LOADABLE_ROOT_MODULE = $(DLL_PREFIX)nssckbi$(DLL_SUFFIX)
 endif
 
 NSS3_LIB = $(DLL_PREFIX)nss3$(DLL_SUFFIX)
+NSSUTIL3_LIB = $(DLL_PREFIX)nssutil3$(DLL_SUFFIX)
 SMIME3_LIB = $(DLL_PREFIX)smime3$(DLL_SUFFIX)
 SSL3_LIB =  $(DLL_PREFIX)ssl3$(DLL_SUFFIX)
 SOFTOKEN3_LIB = $(DLL_PREFIX)softokn3$(DLL_SUFFIX)
@@ -263,6 +265,7 @@ endif
 	$(INSTALL) -m 755 $(DIST)/lib/$(SOFTOKEN3_LIB) $(DIST)/bin
 	$(INSTALL) -m 755 $(DIST)/lib/$(NSSDBM3_LIB) $(DIST)/bin
 	$(INSTALL) -m 755 $(DIST)/lib/$(NSS3_LIB) $(DIST)/bin
+	$(INSTALL) -m 755 $(DIST)/lib/$(NSSUTIL3_LIB) $(DIST)/bin
 	$(INSTALL) -m 755 $(DIST)/lib/$(SSL3_LIB) $(DIST)/bin
 	$(INSTALL) -m 755 $(DIST)/lib/$(SMIME3_LIB) $(DIST)/bin
 ifdef HAVE_FREEBL_LIBS
@@ -294,12 +297,14 @@ endif
 	$(INSTALL) -m 755 $(DIST)/lib/$(FREEBL_64FPU_LIB) $(DIST)/bin
 endif
 endif
+ifndef MOZ_NATIVE_NSS
 # NSS installs headers to dist/public and we want them in dist/include
 	$(NSINSTALL) -D $(DIST)/include/nss
 	(cd $(DIST)/public/nss && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/include/nss && tar -xf -)
 	(cd $(DIST)/public/nss && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/sdk/include && tar -xf -)
+endif
 	$(MAKE) -C boot $@
 	$(MAKE) -C ssl $@
 	$(MAKE) -C locales $@
@@ -319,6 +324,7 @@ endif
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(SOFTOKEN3_LIB) $(DESTDIR)$(mozappdir)
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(NSSDBM3_LIB) $(DESTDIR)$(mozappdir)
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(NSS3_LIB) $(DESTDIR)$(mozappdir)
+	$(SYSINSTALL) -m 755 $(DIST)/lib/$(NSSUTIL3_LIB) $(DESTDIR)$(mozappdir)
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(SSL3_LIB) $(DESTDIR)$(mozappdir)
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(SMIME3_LIB) $(DESTDIR)$(mozappdir)
 ifdef HAVE_FREEBL_LIBS

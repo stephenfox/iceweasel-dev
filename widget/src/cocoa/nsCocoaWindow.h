@@ -221,7 +221,7 @@ public:
     NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
     NS_IMETHOD              GetScreenBounds(nsRect &aRect);
     virtual PRBool          OnPaint(nsPaintEvent &event);
-    void                    ReportSizeEvent();
+    void                    ReportSizeEvent(NSRect *overrideRect = nsnull);
 
     NS_IMETHOD              SetTitle(const nsAString& aTitle);
 
@@ -237,6 +237,8 @@ public:
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
+    NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent);
+    NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor);
 
     virtual gfxASurface* GetThebesSurface();
@@ -251,6 +253,8 @@ public:
     
     // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
+    
+    void MakeBackgroundTransparent(PRBool aTransparent);
 
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();

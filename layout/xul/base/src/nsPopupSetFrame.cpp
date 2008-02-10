@@ -170,9 +170,9 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
       nsSize minSize = popupChild->GetMinSize(aState);
       nsSize maxSize = popupChild->GetMaxSize(aState);
 
-      BoundsCheck(minSize, prefSize, maxSize);
+      prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
-      popupChild->SetBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
+      popupChild->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
       popupChild->SetPopupPosition(nsnull);
 
       // is the new size too small? Make sure we handle scrollbars correctly
@@ -204,8 +204,12 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
       // real height for its inline element, but does once it is laid out.
       // This is bug 228673 which doesn't have a simple fix.
       if (popupChild->GetRect().width > bounds.width ||
-          popupChild->GetRect().height > bounds.height)
+          popupChild->GetRect().height > bounds.height) {
+        // the size after layout was larger than the preferred size,
+        // so set the preferred size accordingly
+        popupChild->SetPreferredSize(popupChild->GetSize());
         popupChild->SetPopupPosition(nsnull);
+      }
       popupChild->AdjustView();
     }
 

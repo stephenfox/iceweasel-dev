@@ -59,6 +59,9 @@
 
 #include "gfxASurface.h"
 #include "nsImageToPixbuf.h"
+#include "nsIPresShell.h"
+#include "nsPresContext.h"
+#include "nsIDocument.h"
 
 static PRLogModuleInfo *sDragLm = NULL;
 
@@ -197,20 +200,24 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
 
         GdkPixbuf* dragPixbuf = nsnull;
         nsRect dragRect;
+        nsPresContext* pc;
         if (mHasImage || mSelection) {
           nsRefPtr<gfxASurface> surface;
           DrawDrag(aDOMNode, aRegion, mScreenX, mScreenY,
-                   &dragRect, getter_AddRefs(surface));
+                   &dragRect, getter_AddRefs(surface), &pc);
           if (surface) {
             dragPixbuf =
               nsImageToPixbuf::SurfaceToPixbuf(surface, dragRect.width, dragRect.height);
           }
         }
 
-        if (dragPixbuf)
+        if (dragPixbuf) {
+          PRInt32 sx = mScreenX, sy = mScreenY;
+          ConvertToUnscaledDevPixels(pc, &sx, &sy);
           gtk_drag_set_icon_pixbuf(context, dragPixbuf,
-                                   mScreenX - NSToIntRound(dragRect.x),
-                                   mScreenY - NSToIntRound(dragRect.y));
+                                   sx - NSToIntRound(dragRect.x),
+                                   sy - NSToIntRound(dragRect.y));
+        }
         else
           gtk_drag_set_icon_default(context);
 
@@ -649,7 +656,8 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
     // check the target context vs. this flavor, one at a time
     GList *tmp;
     for (tmp = mTargetDragContext->targets; tmp; tmp = tmp->next) {
-        GdkAtom atom = (GdkAtom)GPOINTER_TO_INT(tmp->data);
+        /* Bug 331198 */
+        GdkAtom atom = GDK_POINTER_TO_ATOM(tmp->data);
         gchar *name = NULL;
         name = gdk_atom_name(atom);
         PR_LOG(sDragLm, PR_LOG_DEBUG,
@@ -799,7 +807,8 @@ nsDragService::IsTargetContextList(void)
     // walk the list of context targets and see if one of them is a list
     // of items.
     for (tmp = mTargetDragContext->targets; tmp; tmp = tmp->next) {
-        GdkAtom atom = (GdkAtom)GPOINTER_TO_INT(tmp->data);
+        /* Bug 331198 */
+        GdkAtom atom = GDK_POINTER_TO_ATOM(tmp->data);
         gchar *name = NULL;
         name = gdk_atom_name(atom);
         if (strcmp(name, gMimeListType) == 0)
@@ -873,7 +882,8 @@ nsDragService::GetSourceList(void)
             (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry));
         listTarget->target = g_strdup(gMimeListType);
         listTarget->flags = 0;
-        listTarget->info = GPOINTER_TO_UINT(listAtom);
+        /* Bug 331198 */
+        listTarget->info = NS_PTR_TO_UINT32(listAtom);
         PR_LOG(sDragLm, PR_LOG_DEBUG,
                ("automatically adding target %s with id %ld\n",
                listTarget->target, listAtom));
@@ -912,7 +922,8 @@ nsDragService::GetSourceList(void)
                              (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry));
                             listTarget->target = g_strdup(gTextUriListType);
                             listTarget->flags = 0;
-                            listTarget->info = GPOINTER_TO_UINT(listAtom);
+                            /* Bug 331198 */
+                            listTarget->info = NS_PTR_TO_UINT32(listAtom);
                             PR_LOG(sDragLm, PR_LOG_DEBUG,
                                    ("automatically adding target %s with \
                                    id %ld\n", listTarget->target, listAtom));
@@ -949,7 +960,8 @@ nsDragService::GetSourceList(void)
                           (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry));
                         target->target = g_strdup(flavorStr);
                         target->flags = 0;
-                        target->info = GPOINTER_TO_UINT(atom);
+                        /* Bug 331198 */
+                        target->info = NS_PTR_TO_UINT32(atom);
                         PR_LOG(sDragLm, PR_LOG_DEBUG,
                                ("adding target %s with id %ld\n",
                                target->target, atom));
@@ -966,7 +978,8 @@ nsDragService::GetSourceList(void)
                              (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry));
                             plainTarget->target = g_strdup(kTextMime);
                             plainTarget->flags = 0;
-                            plainTarget->info = GPOINTER_TO_UINT(plainAtom);
+                            /* Bug 331198 */
+                            plainTarget->info = NS_PTR_TO_UINT32(plainAtom);
                             PR_LOG(sDragLm, PR_LOG_DEBUG,
                                    ("automatically adding target %s with \
                                    id %ld\n", plainTarget->target, plainAtom));
@@ -983,7 +996,8 @@ nsDragService::GetSourceList(void)
                              (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry));
                             urlTarget->target = g_strdup(gMozUrlType);
                             urlTarget->flags = 0;
-                            urlTarget->info = GPOINTER_TO_UINT(urlAtom);
+                            /* Bug 331198 */
+                            urlTarget->info = NS_PTR_TO_UINT32(urlAtom);
                             PR_LOG(sDragLm, PR_LOG_DEBUG,
                                    ("automatically adding target %s with \
                                    id %ld\n", urlTarget->target, urlAtom));

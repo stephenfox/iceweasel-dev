@@ -359,7 +359,7 @@ nsComboboxControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   // This is needed on a temporary basis. It causes the focus
   // rect to be drawn. This is much faster than ReResolvingStyle
   // Bug 32920
-  Invalidate(nsRect(0,0,mRect.width,mRect.height), PR_TRUE);
+  Invalidate(nsRect(0,0,mRect.width,mRect.height), PR_FALSE);
 
   // Make sure the content area gets updated for where the dropdown was
   // This is only needed for embedding, the focus may go to 
@@ -562,19 +562,8 @@ static void printSize(char * aDesc, nscoord aSize)
 //-------------------------------------------------------------------
 
 nscoord
-nsComboboxControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
-{
-  // We want to size to our pref width
-  nscoord result;
-  DISPLAY_MIN_WIDTH(this, result);
-
-  result = GetPrefWidth(aRenderingContext);
-
-  return result;
-}
-
-nscoord
-nsComboboxControlFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
+nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
+                                          nsLayoutUtils::IntrinsicWidthType aType)
 {
   // get the scrollbar width, we'll use this later
   nscoord scrollbarWidth = 0;
@@ -587,23 +576,52 @@ nsComboboxControlFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
     scrollbarWidth = scrollable->GetDesiredScrollbarSizes(&bls).LeftRight();
   }
 
-  nscoord displayPrefWidth = 0;
-  DISPLAY_PREF_WIDTH(this, displayPrefWidth);
+  nscoord displayWidth = 0;
   if (NS_LIKELY(mDisplayFrame)) {
-    displayPrefWidth = nsLayoutUtils::IntrinsicForContainer(aRenderingContext, mDisplayFrame,
-                                                            nsLayoutUtils::PREF_WIDTH);
+    displayWidth = nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
+                                                        mDisplayFrame,
+                                                        aType);
   }
 
   if (mDropdownFrame) {
-    nscoord dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext) - scrollbarWidth;
-    displayPrefWidth = PR_MAX(dropdownContentWidth, displayPrefWidth);
+    nscoord dropdownContentWidth;
+    if (aType == nsLayoutUtils::MIN_WIDTH) {
+      dropdownContentWidth = mDropdownFrame->GetMinWidth(aRenderingContext);
+    } else {
+      NS_ASSERTION(aType == nsLayoutUtils::PREF_WIDTH, "Unexpected type");
+      dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext);
+    }
+    dropdownContentWidth = NSCoordSaturatingSubtract(dropdownContentWidth, 
+                                                     scrollbarWidth,
+                                                     nscoord_MAX);
+  
+    displayWidth = PR_MAX(dropdownContentWidth, displayWidth);
   }
 
   // add room for the dropmarker button if there is one
   if (!IsThemed() || presContext->GetTheme()->ThemeNeedsComboboxDropmarker())
-    displayPrefWidth += scrollbarWidth;
+    displayWidth += scrollbarWidth;
 
-  return displayPrefWidth;
+  return displayWidth;
+
+}
+
+nscoord
+nsComboboxControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
+{
+  nscoord minWidth;
+  DISPLAY_MIN_WIDTH(this, minWidth);
+  minWidth = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::MIN_WIDTH);
+  return minWidth;
+}
+
+nscoord
+nsComboboxControlFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
+{
+  nscoord prefWidth;
+  DISPLAY_PREF_WIDTH(this, prefWidth);
+  prefWidth = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::PREF_WIDTH);
+  return prefWidth;
 }
 
 NS_IMETHODIMP 
@@ -1285,8 +1303,11 @@ nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   //nsIRollupListener
 //----------------------------------------------------------------------
 NS_IMETHODIMP 
-nsComboboxControlFrame::Rollup()
+nsComboboxControlFrame::Rollup(nsIContent** aLastRolledUp)
 {
+  if (aLastRolledUp)
+    *aLastRolledUp = nsnull;
+
   if (mDroppedDown) {
     nsWeakFrame weakFrame(this);
     mListControlFrame->AboutToRollup(); // might destroy us

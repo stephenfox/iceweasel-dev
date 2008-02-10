@@ -69,7 +69,6 @@
 PRInt32 gfxPlatformGtk::sDPI = -1;
 gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nsnull;
 
-static cairo_user_data_key_t cairo_gdk_window_key;
 static cairo_user_data_key_t cairo_gdk_pixmap_key;
 static void do_gdk_pixmap_unref (void *data)
 {
@@ -109,7 +108,7 @@ already_AddRefed<gfxASurface>
 gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxImageFormat imageFormat)
 {
-    gfxASurface *newSurface = nsnull;
+    nsRefPtr<gfxASurface> newSurface = nsnull;
 
     int glitzf;
     int xrenderFormatID;
@@ -138,13 +137,17 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     // in more context, including the display and/or target surface type that
     // we should try to match
     Display* display = GDK_DISPLAY();
+    if (!display)
+        return nsnull;
+
     if (!UseGlitz()) {
         GdkPixmap* pixmap = nsnull;
         XRenderPictFormat* xrenderFormat =
             XRenderFindStandardFormat(display, xrenderFormatID);
+
         if (!xrenderFormat) {
             // We don't have Render; see if we can just create a pixmap
-            // of the requested depth.  Otherwise, create an Image surface.
+            // of the requested depth.
             GdkVisual* vis;
 
             if (imageFormat == gfxASurface::ImageFormatRGB24) {
@@ -159,27 +162,38 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
                                                 GDK_PIXMAP_XID(GDK_DRAWABLE(pixmap)),
                                                 GDK_VISUAL_XVISUAL(vis),
                                                 size);
-            } else {
-                // we couldn't create a Gdk Pixmap; fall back to image surface for the data
-                newSurface = new gfxImageSurface(gfxIntSize(size.width, size.height), imageFormat);
             }
         } else {
             pixmap = gdk_pixmap_new(nsnull, size.width, size.height,
                                     xrenderFormat->depth);
-            gdk_drawable_set_colormap(GDK_DRAWABLE(pixmap), nsnull);
 
-            newSurface = new gfxXlibSurface(display,
-                                            GDK_PIXMAP_XID(GDK_DRAWABLE(pixmap)),
-                                            xrenderFormat,
-                                            size);
+            if (pixmap) {
+                gdk_drawable_set_colormap(GDK_DRAWABLE(pixmap), nsnull);
+                newSurface = new gfxXlibSurface(display,
+                                                GDK_PIXMAP_XID(GDK_DRAWABLE(pixmap)),
+                                                xrenderFormat,
+                                                size);
+            }
         }
 
-        if (pixmap && newSurface) {
+        if (newSurface && newSurface->CairoStatus() == 0) {
             // set up the surface to auto-unref the gdk pixmap when the surface
             // is released
             newSurface->SetData(&cairo_gdk_pixmap_key,
                                 pixmap,
                                 do_gdk_pixmap_unref);
+        } else {
+            // something went wrong with the surface creation.  Ignore and let's fall back
+            // to image surfaces.
+            if (pixmap)
+                gdk_pixmap_unref(pixmap);
+            newSurface = nsnull;
+        }
+
+        if (!newSurface) {
+            // we couldn't create an xlib surface for whatever reason; fall back to
+            // image surface for the data.
+            newSurface = new gfxImageSurface(gfxIntSize(size.width, size.height), imageFormat);
         }
 
     } else {
@@ -211,33 +225,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
 #endif
     }
 
-    NS_IF_ADDREF(newSurface);
-    return newSurface;
-}
-
-GdkDrawable*
-gfxPlatformGtk::GetSurfaceGdkDrawable(gfxASurface *aSurf)
-{
-    GdkDrawable *gd;
-    gd = (GdkDrawable*) cairo_surface_get_user_data(aSurf->CairoSurface(), &cairo_gdk_pixmap_key);
-    if (gd)
-        return gd;
-
-    gd = (GdkDrawable*) cairo_surface_get_user_data(aSurf->CairoSurface(), &cairo_gdk_window_key);
-    if (gd)
-        return gd;
-
-    return nsnull;
-}
-
-void
-gfxPlatformGtk::SetSurfaceGdkWindow(gfxASurface *aSurf,
-                                    GdkWindow *win)
-{
-    cairo_surface_set_user_data(aSurf->CairoSurface(),
-                                &cairo_gdk_window_key,
-                                win,
-                                nsnull);
+    return newSurface.forget();
 }
 
 nsresult

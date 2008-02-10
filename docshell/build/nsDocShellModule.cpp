@@ -66,6 +66,9 @@
 #include "nsGlobalHistoryAdapter.h"
 #include "nsGlobalHistory2Adapter.h"
 
+// download history
+#include "nsDownloadHistory.h"
+
 static PRBool gInitialized = PR_FALSE;
 
 // The one time initialization for this module
@@ -103,7 +106,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsURILoader)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDocLoader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsOSHelperAppService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsExternalProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsBlockedExternalProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrefetchService, Init)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsOfflineCacheUpdateService,
                                          nsOfflineCacheUpdateService::GetInstance)
@@ -119,6 +121,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsInternetConfigService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSHEntry)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSHTransaction)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSHistory)
+
+// download history
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadHistory)
 
 // Currently no-one is instantiating docshell's directly because
 // nsWebShell is still our main "shell" class. nsWebShell is a subclass
@@ -151,6 +156,13 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "config",
       nsAboutRedirector::Create
     },
+#ifdef MOZ_CRASHREPORTER
+    { "about:crashes",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX "crashes",
+      nsAboutRedirector::Create
+    },
+#endif
     { "about:credits",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "credits",
@@ -209,8 +221,6 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
      nsOSHelperAppServiceConstructor, },
   { "Netscape Default Protocol Handler", NS_EXTERNALPROTOCOLHANDLER_CID, NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"default", 
      nsExternalProtocolHandlerConstructor, },
-  { "Netscape Default Blocked Protocol Handler", NS_BLOCKEDEXTERNALPROTOCOLHANDLER_CID, NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"default-blocked", 
-     nsBlockedExternalProtocolHandlerConstructor, },
   {  NS_PREFETCHSERVICE_CLASSNAME, NS_PREFETCHSERVICE_CID, NS_PREFETCHSERVICE_CONTRACTID,
      nsPrefetchServiceConstructor, },
   { NS_OFFLINECACHEUPDATESERVICE_CLASSNAME, NS_OFFLINECACHEUPDATESERVICE_CID, NS_OFFLINECACHEUPDATESERVICE_CONTRACTID,
@@ -243,7 +253,12 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
       nsGlobalHistoryAdapter::RegisterSelf },
     { "nsGlobalHistory2Adapter", NS_GLOBALHISTORY2ADAPTER_CID,
       nsnull, nsGlobalHistory2Adapter::Create,
-      nsGlobalHistory2Adapter::RegisterSelf }
+      nsGlobalHistory2Adapter::RegisterSelf },
+    
+    // download history
+    { "nsDownloadHistory", NS_DOWNLOADHISTORY_CID,
+      nsnull, nsDownloadHistoryConstructor,
+      nsDownloadHistory::RegisterSelf }
 };
 
 // "docshell provider" to illustrate that this thing really *should*

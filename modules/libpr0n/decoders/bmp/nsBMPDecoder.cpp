@@ -238,9 +238,12 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
             if (mBIH.colors && mBIH.colors < mNumColors)
                 mNumColors = mBIH.colors;
 
-            mColors = new colorTable[mNumColors];
+            // Always allocate 256 even though mNumColors might be smaller
+            mColors = new colorTable[256];
             if (!mColors)
                 return NS_ERROR_OUT_OF_MEMORY;
+
+            memset(mColors, 0, 256 * sizeof(colorTable));
         }
         else if (mBIH.compression != BI_BITFIELDS && mBIH.bpp == 16) {
             // Use default 5-5-5 format
@@ -596,12 +599,12 @@ NS_METHOD nsBMPDecoder::ProcessData(const char* aBuffer, PRUint32 aCount)
     
     const PRUint32 rows = mOldLine - mCurLine;
     if (rows) {
-        nsIntRect r(0, LINE(mCurLine), mBIH.width, rows);
+        nsIntRect r(0, mBIH.height < 0 ? -mBIH.height - mOldLine : mCurLine,
+                    mBIH.width, rows);
 
         // Tell the image that it's data has been updated
-        nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-        if (!img)
-            return PR_FALSE;
+        nsCOMPtr<nsIImage> img(do_GetInterface(mFrame, &rv));
+        NS_ENSURE_SUCCESS(rv, rv);
         img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
 
         mObserver->OnDataAvailable(nsnull, mFrame, &r);

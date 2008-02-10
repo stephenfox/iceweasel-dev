@@ -55,7 +55,10 @@ _TEST_FILES =	\
 		test_bug378866.xhtml \
 		test_bug397934.xhtml \
 		test_bug398135.xhtml \
+		test_bug398492.xul \
 		test_bug400705.xhtml \
+		test_bug401907.xhtml \
+		test_bug403162.xhtml \
 		bug310107-resource.xhtml \
 		$(NULL)
 

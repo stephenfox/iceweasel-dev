@@ -79,7 +79,8 @@ nsSVGFilterFrame::FilterFailCleanup(nsSVGRenderState *aContext,
 {
   aTarget->SetOverrideCTM(nsnull);
   aTarget->SetMatrixPropagation(PR_TRUE);
-  aTarget->NotifyCanvasTMChanged(PR_TRUE);
+  aTarget->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                            nsISVGChildFrame::TRANSFORM_CHANGED);
   aTarget->PaintSVG(aContext, nsnull);
 }
 
@@ -90,7 +91,6 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
   nsCOMPtr<nsIDOMSVGFilterElement> aFilter = do_QueryInterface(mContent);
   NS_ASSERTION(aFilter, "Wrong content element (not filter)");
 
-  PRBool unimplementedFilter = PR_FALSE;
   PRUint32 requirements = 0;
   PRUint32 count = mContent->GetChildCount();
   for (PRUint32 i=0; i<count; ++i) {
@@ -102,21 +102,13 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
       filter->GetRequirements(&tmp);
       requirements |= tmp;
     }
-
-    nsCOMPtr<nsIDOMSVGFEUnimplementedMOZElement> unimplemented;
-    unimplemented = do_QueryInterface(child);
-    if (unimplemented)
-      unimplementedFilter = PR_TRUE;
   }
 
-  // check for source requirements or filter elements that we don't support yet
-  if (requirements & ~(NS_FE_SOURCEGRAPHIC | NS_FE_SOURCEALPHA) ||
-      unimplementedFilter) {
+  // check for source requirements that we don't support yet
+  if (requirements & ~(NS_FE_SOURCEGRAPHIC | NS_FE_SOURCEALPHA)) {
 #ifdef DEBUG_tor
     if (requirements & ~(NS_FE_SOURCEGRAPHIC | NS_FE_SOURCEALPHA))
       fprintf(stderr, "FilterFrame: unimplemented source requirement\n");
-    if (unimplementedFilter)
-      fprintf(stderr, "FilterFrame: unimplemented filter element\n");
 #endif
     aTarget->PaintSVG(aContext, nsnull);
     return NS_OK;
@@ -130,7 +122,8 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
   nsSVGElement *target = static_cast<nsSVGElement*>(frame->GetContent());
 
   aTarget->SetMatrixPropagation(PR_FALSE);
-  aTarget->NotifyCanvasTMChanged(PR_TRUE);
+  aTarget->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                            nsISVGChildFrame::TRANSFORM_CHANGED);
 
   nsSVGFilterElement *filter = static_cast<nsSVGFilterElement*>(mContent);
 
@@ -201,7 +194,8 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
                   0.0f,                         filterRes.height / height,
                   -x * filterRes.width / width, -y * filterRes.height / height);
   aTarget->SetOverrideCTM(filterTransform);
-  aTarget->NotifyCanvasTMChanged(PR_TRUE);
+  aTarget->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                            nsISVGChildFrame::TRANSFORM_CHANGED);
 
   // paint the target geometry
   nsRefPtr<gfxImageSurface> tmpSurface =
@@ -298,7 +292,8 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
 
   aTarget->SetOverrideCTM(nsnull);
   aTarget->SetMatrixPropagation(PR_TRUE);
-  aTarget->NotifyCanvasTMChanged(PR_TRUE);
+  aTarget->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                            nsISVGChildFrame::TRANSFORM_CHANGED);
 
   return NS_OK;
 }
@@ -323,12 +318,14 @@ nsSVGFilterFrame::GetInvalidationRegion(nsIFrame *aTarget)
   nsCOMPtr<nsIDOMSVGRect> bbox;
 
   svg->SetMatrixPropagation(PR_FALSE);
-  svg->NotifyCanvasTMChanged(PR_TRUE);
+  svg->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                        nsISVGChildFrame::TRANSFORM_CHANGED);
 
   svg->GetBBox(getter_AddRefs(bbox));
 
   svg->SetMatrixPropagation(PR_TRUE);
-  svg->NotifyCanvasTMChanged(PR_TRUE);
+  svg->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                        nsISVGChildFrame::TRANSFORM_CHANGED);
 
   nsSVGLength2 *tmpX, *tmpY, *tmpWidth, *tmpHeight;
   tmpX = &filter->mLengthAttributes[nsSVGFilterElement::X];
@@ -552,6 +549,27 @@ nsSVGFilterInstance::LookupImage(const nsAString &aName,
     *aImage = nsnull;
     aRegion->Empty();
   }
+}
+
+nsSVGFilterInstance::ColorModel
+nsSVGFilterInstance::LookupImageColorModel(const nsAString &aName)
+{
+  ImageEntry *entry;
+
+  if (aName.IsEmpty())
+    entry = mLastImage;
+  else
+    mImageDictionary.Get(aName, &entry);
+
+  if (entry)
+    return entry->mColorModel;
+
+  // We'll reach this point if someone specifies a nonexistent input
+  // for a filter, as feDisplacementMap need to find the color model
+  // before the filter element calls AcquireSourceImage() which both
+  // uses the color model and tells us if the input exists.
+
+  return ColorModel(ColorModel::SRGB, ColorModel::PREMULTIPLIED);
 }
 
 void

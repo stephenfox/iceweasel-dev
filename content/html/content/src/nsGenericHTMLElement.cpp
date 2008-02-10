@@ -111,12 +111,6 @@
 #include "nsLayoutUtils.h"
 #include "nsContentCreatorFunctions.h"
 
-// If this flag is set on an nsGenericHTMLFormElement, that means that we have
-// added ourselves to our mForm.  It's possible to have a non-null mForm, but
-// not have this flag set.  That happens when the form is set via the content
-// sink.
-#define ADDED_TO_FORM (1 << NODE_TYPE_SPECIFIC_BITS_OFFSET)
-
 class nsINodeInfo;
 class nsIDOMNodeList;
 class nsRuleWalker;
@@ -184,30 +178,6 @@ nsGenericHTMLElement::Init(nsINodeInfo *aNodeInfo)
 
 #endif
 
-
-class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
-                                    public nsIDOMElementCSSInlineStyle
-{
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  nsGenericHTMLElementTearoff(nsGenericHTMLElement *aElement)
-    : mElement(aElement)
-  {
-  }
-
-  virtual ~nsGenericHTMLElementTearoff()
-  {
-  }
-
-  NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
-  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
-                                           nsIDOMNSHTMLElement)
-
-private:
-  nsCOMPtr<nsGenericHTMLElement> mElement;
-};
 
 NS_IMPL_CYCLE_COLLECTION_1(nsGenericHTMLElementTearoff, mElement)
 
@@ -1028,7 +998,7 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop)
   }
 
   PRIntn vpercent = aTop ? NS_PRESSHELL_SCROLL_TOP :
-    NS_PRESSHELL_SCROLL_ANYWHERE;
+    NS_PRESSHELL_SCROLL_BOTTOM;
 
   presShell->ScrollContentIntoView(this, vpercent,
                                    NS_PRESSHELL_SCROLL_ANYWHERE);
@@ -1151,13 +1121,6 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       if (htmlDocument) {
         htmlDocument->ChangeContentEditableCount(this, +1);
       }
-    }
-
-    // If we're in a document now, let our mapped attrs know what their new
-    // sheet is.
-    nsHTMLStyleSheet* sheet = aDocument->GetAttributeStyleSheet();
-    if (sheet) {
-      mAttrsAndChildren.SetMappedAttrStyleSheet(sheet);
     }
   }
 
@@ -1441,13 +1404,6 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                              aNotify);
 }
 
-nsresult
-nsGenericHTMLElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
-{
-  mAttrsAndChildren.WalkMappedAttributeStyleRules(aRuleWalker);
-  return NS_OK;
-}
-
 already_AddRefed<nsIURI>
 nsGenericHTMLElement::GetBaseURI() const
 {
@@ -1545,22 +1501,6 @@ nsGenericHTMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
   
   return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
-
-PRBool
-nsGenericHTMLElement::SetMappedAttribute(nsIDocument* aDocument,
-                                         nsIAtom* aName,
-                                         nsAttrValue& aValue,
-                                         nsresult* aRetval)
-{
-  NS_PRECONDITION(aDocument == GetCurrentDoc(), "Unexpected document");
-  nsHTMLStyleSheet* sheet = aDocument ?
-    aDocument->GetAttributeStyleSheet() : nsnull;
-  
-  *aRetval = mAttrsAndChildren.SetAndTakeMappedAttr(aName, aValue,
-                                                    this, sheet);
-  return PR_TRUE;
-}
-
 
 nsMapRuleToAttributesFunc
 nsGenericHTMLElement::GetAttributeMappingFunction() const
@@ -2187,7 +2127,9 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
   if (!(aData->mSIDs & NS_STYLE_INHERIT_BIT(Background)))
     return;
 
-  if (aData->mColorData->mBackImage.GetUnit() == eCSSUnit_Null) {
+  nsPresContext* presContext = aData->mPresContext;
+  if (aData->mColorData->mBackImage.GetUnit() == eCSSUnit_Null &&
+      presContext->UseDocumentColors()) {
     // background
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::background);
     if (value && value->Type() == nsAttrValue::eString) {
@@ -2199,7 +2141,7 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
         // as well as elements with _baseHref set. We need to be able
         // to get to the element somehow, or store the base URI in the
         // attributes.
-        nsIDocument* doc = aData->mPresContext->Document();
+        nsIDocument* doc = presContext->Document();
         nsCOMPtr<nsIURI> uri;
         nsresult rv = nsContentUtils::NewURIWithDocumentCharset(
             getter_AddRefs(uri), spec, doc, doc->GetBaseURI());
@@ -2222,8 +2164,7 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
           }
         }
       }
-      else if (aData->mPresContext->CompatibilityMode() ==
-               eCompatibility_NavQuirks) {
+      else if (presContext->CompatibilityMode() == eCompatibility_NavQuirks) {
         // in NavQuirks mode, allow the empty string to set the
         // background to empty
         aData->mColorData->mBackImage.SetNoneValue();
@@ -2239,7 +2180,8 @@ nsGenericHTMLElement::MapBGColorInto(const nsMappedAttributes* aAttributes,
   if (!(aData->mSIDs & NS_STYLE_INHERIT_BIT(Background)))
     return;
 
-  if (aData->mColorData->mBackColor.GetUnit() == eCSSUnit_Null) {
+  if (aData->mColorData->mBackColor.GetUnit() == eCSSUnit_Null &&
+      aData->mPresContext->UseDocumentColors()) {
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::bgcolor);
     nscolor color;
     if (value && value->GetColorValue(color)) {
@@ -2535,6 +2477,14 @@ nsGenericHTMLFormElement::IsNodeOfType(PRUint32 aFlags) const
   return !(aFlags & ~(eCONTENT | eELEMENT | eHTML | eHTML_FORM_CONTROL));
 }
 
+void
+nsGenericHTMLFormElement::DestroyContent()
+{
+  SaveState();
+  
+  nsGenericHTMLElement::DestroyContent();
+}
+
 NS_IMETHODIMP
 nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm,
                                   PRBool aRemoveFromForm,
@@ -2712,6 +2662,8 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
       nsCOMPtr<nsIDOMHTMLFormElement> form = FindForm(mForm);
       if (!form) {
         SetForm(nsnull, PR_TRUE, PR_TRUE);
+      } else {
+        UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
       }
     }
   }
@@ -2816,19 +2768,6 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                             aValue, aNotify);
 }
 
-nsresult
-nsGenericHTMLFormElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                    PRBool aNotify)
-{
-  BeforeSetAttr(aNameSpaceID, aName, nsnull, aNotify);
-  
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aName, aNotify);
-
-  AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
-
-  return rv;
-}
-
 PRBool
 nsGenericHTMLFormElement::CanBeDisabled() const
 {
@@ -2915,13 +2854,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGenericHTMLFrameElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFrameLoader)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
-  NS_INTERFACE_TABLE_INHERITED2(nsGenericHTMLFrameElement,
-                                nsIDOMNSHTMLFrameElement,
-                                nsIFrameLoaderOwner)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
-NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
 nsresult
 nsGenericHTMLFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
@@ -3066,6 +2998,17 @@ nsGenericHTMLFrameElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   }
 
   return rv;
+}
+
+void
+nsGenericHTMLFrameElement::DestroyContent()
+{
+  if (mFrameLoader) {
+    mFrameLoader->Destroy();
+    mFrameLoader = nsnull;
+  }
+
+  nsGenericHTMLElement::DestroyContent();
 }
 
 //----------------------------------------------------------------------
@@ -3778,7 +3721,7 @@ nsGenericHTMLElement::IsEditableRoot() const
   }
 
   if (document->HasFlag(NODE_IS_EDITABLE)) {
-    return this == document->GetRootContent();
+    return PR_FALSE;
   }
 
   if (GetContentEditableValue() != eTrue) {

@@ -156,8 +156,6 @@ public:
 
   virtual PRBool MenuClosed() { return PR_TRUE; }
 
-  virtual PRBool IsRecentlyClosed(nsMenuFrame* aMenuFrame) { return PR_FALSE; }
-
   NS_IMETHOD GetWidget(nsIWidget **aWidget);
 
   // The dismissal listener gets created and attached to the window.
@@ -177,6 +175,10 @@ public:
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
                                   PRBool aImmediate);
+
+  // returns true if the popup is a panel with the noautohide attribute set to
+  // true. These panels do not roll up automatically.
+  PRBool IsNoAutoHide();
 
   void EnsureWidget();
 
@@ -203,9 +205,11 @@ public:
   void SetGeneratedChildren() { mGeneratedChildren = PR_TRUE; }
 
   // called when the Enter key is pressed while the popup is open. This will
-  // just pass the call down to the current menu, if any. Also, calling Enter
-  // will reset the current incremental search string, calculated in
-  // FindMenuWithShortcut
+  // just pass the call down to the current menu, if any. If a current menu
+  // should be opened as a result, this method should return the frame for
+  // that menu, or null if no menu should be opened. Also, calling Enter will
+  // reset the current incremental search string, calculated in
+  // FindMenuWithShortcut.
   nsMenuFrame* Enter();
 
   nsPopupType PopupType() const { return mPopupType; }
@@ -262,12 +266,20 @@ public:
   // May kill the frame.
   void MoveTo(PRInt32 aLeft, PRInt32 aTop);
 
-  void GetAutoPosition(PRBool* aShouldAutoPosition);
+  PRBool GetAutoPosition();
   void SetAutoPosition(PRBool aShouldAutoPosition);
   void SetConsumeRollupEvent(PRUint32 aConsumeMode);
 
   nsIScrollableView* GetScrollableView(nsIFrame* aStart);
-  
+
+  // same as SetBounds except the preferred size mPrefSize is also set.
+  void SetPreferredBounds(nsBoxLayoutState& aState, const nsRect& aRect);
+
+  // retrieve the last preferred size
+  nsSize PreferredSize() { return mPrefSize; }
+  // set the last preferred size
+  void SetPreferredSize(nsSize aSize) { mPrefSize = aSize; }
+
 protected:
   // Move without updating attributes.                                          
   void MoveToInternal(PRInt32 aLeft, PRInt32 aTop);                             
@@ -278,7 +290,7 @@ protected:
   void InitPositionFromAnchorAlign(const nsAString& aAnchor,
                                    const nsAString& aAlign);
 
-  void AdjustPositionForAnchorAlign ( PRInt32* ioXPos, PRInt32* ioYPos, const nsRect & inParentRect,
+  void AdjustPositionForAnchorAlign ( PRInt32* ioXPos, PRInt32* ioYPos, const nsSize & inParentRect,
                                       PRBool* outFlushWithTopBottom ) ;
 
   PRBool IsMoreRoomOnOtherSideOfParent ( PRBool inFlushAboveBelow, PRInt32 inScreenViewLocX, PRInt32 inScreenViewLocY,
@@ -323,6 +335,15 @@ protected:
   PRPackedBool mInContentShell; // True if the popup is in a content shell
 
   nsString     mIncrementalString;  // for incremental typing navigation
+
+  // A popup's preferred size may be different than its actual size stored in
+  // mRect in the case where the popup was resized because it was too large
+  // for the screen. The preferred size mPrefSize holds the full size the popup
+  // would be before resizing. Computations are performed using this size.
+  // The parent frame is responsible for setting the preferred size using
+  // SetPreferredBounds or SetPreferredSize before positioning the popup with
+  // SetPopupPosition.
+  nsSize mPrefSize;
 
 }; // class nsMenuPopupFrame
 

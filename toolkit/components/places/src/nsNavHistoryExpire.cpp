@@ -98,7 +98,7 @@ const PRTime EXPIRATION_POLICY_WEEKS = ((PRTime)30 * 86400 * PR_USEC_PER_SEC);
 const PRTime EXPIRATION_POLICY_MONTHS = ((PRTime)180 * 86400 * PR_USEC_PER_SEC);
 
 // Expiration policy for embedded links (bug #401722)
-const PRTime EMBEDDED_LINK_LIFETIME = ((PRTime)10 * 86400 * PR_USEC_PER_SEC);
+const PRTime EMBEDDED_LINK_LIFETIME = ((PRTime)1 * 86400 * PR_USEC_PER_SEC);
 
 // Expiration cap for embedded visits
 #define EXPIRATION_CAP_EMBEDDED 500
@@ -118,13 +118,11 @@ const PRTime EMBEDDED_LINK_LIFETIME = ((PRTime)10 * 86400 * PR_USEC_PER_SEC);
 
 nsNavHistoryExpire::nsNavHistoryExpire(nsNavHistory* aHistory) :
     mHistory(aHistory),
-    mSequentialRuns(0),
     mTimerSet(PR_FALSE),
     mAnyEmptyRuns(PR_FALSE),
     mNextExpirationTime(0),
     mAddCount(0),
-    mExpiredItems(0),
-    mExpireRuns(0)
+    mExpiredItems(0)
 {
 
 }
@@ -151,7 +149,6 @@ void
 nsNavHistoryExpire::OnAddURI(PRTime aNow)
 {
   mAddCount ++;
-  mSequentialRuns = 0;
 
   if (mTimer && mTimerSet) {
     mTimer->Cancel();
@@ -211,16 +208,17 @@ nsNavHistoryExpire::OnQuit()
   if (NS_FAILED(rv))
     NS_WARNING("ExpireEmbeddedLinks failed.");
 
-  // Determine whether we must partially or fully expire dangling entries.
+  // Determine whether we can skip partially expiration of dangling entries
+  // because we be doing a full expiration on shutdown in ClearHistory()
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService("@mozilla.org/preferences-service;1"));
   PRBool sanitizeOnShutdown, sanitizeHistory;
   prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
   prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
-  PRInt32 maxRecords =
-    (sanitizeHistory && sanitizeOnShutdown) ? -1 :EXPIRATION_CAP_PLACES;
+  if (sanitizeHistory && sanitizeOnShutdown)
+    return;
 
   // vacuum up dangling items
-  rv = ExpireHistoryParanoid(connection, maxRecords);
+  rv = ExpireHistoryParanoid(connection, EXPIRATION_CAP_PLACES);
   if (NS_FAILED(rv))
     NS_WARNING("ExpireHistoryParanoid failed.");
   rv = ExpireFaviconsParanoid(connection);
@@ -241,11 +239,10 @@ nsNavHistoryExpire::OnQuit()
 nsresult
 nsNavHistoryExpire::ClearHistory()
 {
-  PRBool keepGoing;
-
   mozIStorageConnection* connection = mHistory->GetStorageConnection();
   NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
 
+  PRBool keepGoing;
   nsresult rv = ExpireItems(0, &keepGoing);
   if (NS_FAILED(rv))
     NS_WARNING("ExpireItems failed.");
@@ -261,6 +258,26 @@ nsNavHistoryExpire::ClearHistory()
   rv = ExpireAnnotationsParanoid(connection);
   if (NS_FAILED(rv))
     NS_WARNING("ExpireAnnotationsParanoid failed.");
+
+  // for all remaining places, reset the frecency
+  // Note, we don't reset the visit_count, as we use that in our "on idle"
+  // query to figure out which places to recalcuate frecency first.
+  rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+    "UPDATE moz_places SET frecency = -1"));
+  if (NS_FAILED(rv))
+    NS_WARNING("failed to recent frecency");
+
+  // some of the remaining places could be place: urls or
+  // unvisited livemark items, so setting the frecency to -1
+  // will cause them to show up in the url bar autocomplete
+  // call FixInvalidFrecenciesForExcludedPlaces() to handle that scenario
+  rv = mHistory->FixInvalidFrecenciesForExcludedPlaces();
+  if (NS_FAILED(rv))
+    NS_WARNING("failed to fix invalid frecencies");
+
+  // XXX todo
+  // forcibly call the "on idle" timer here to do a little work
+  // but the rest will happen on idle.
 
   ENUMERATE_WEAKARRAY(mHistory->mObservers, nsINavHistoryObserver,
                       OnClearHistory())
@@ -289,15 +306,12 @@ nsNavHistoryExpire::OnExpirationChanged()
 nsresult
 nsNavHistoryExpire::DoPartialExpiration()
 {
-  mSequentialRuns ++;
-
   // expire history items
   PRBool keepGoing;
   nsresult rv = ExpireItems(EXPIRATION_COUNT_PER_RUN, &keepGoing);
   if (NS_FAILED(rv))
     NS_WARNING("ExpireItems failed.");
-
-  if (keepGoing && mSequentialRuns < MAX_SEQUENTIAL_RUNS)
+  else if (keepGoing)
     StartTimer(SUBSEQUENT_EXPIRATION_TIMEOUT);
   return NS_OK;
 }
@@ -316,9 +330,6 @@ nsNavHistoryExpire::DoPartialExpiration()
 nsresult
 nsNavHistoryExpire::ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing)
 {
-  // mark how many times we've been able to run
-  mExpireRuns ++;
-
   mozIStorageConnection* connection = mHistory->GetStorageConnection();
   NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
 
@@ -420,8 +431,12 @@ nsNavHistoryExpireRecord::nsNavHistoryExpireRecord(
 
 // nsNavHistoryExpire::FindVisits
 //
-//    Find visits to expire, up to the cap in browser.history_expire_visits
-//    then the age in browser.history_expire_days.
+//    Find visits to expire, meeting the following criteria:
+//
+//    * With a visit date greater than (now - browser.history_expire_days_min)
+//    * With a visit date less than (now - browser.history_expire_days)
+//    * With a visit date greater than the minimum, and less than the maximum,
+//      and over the visit cap of browser.history_expire_sites.
 //
 //    aExpireThreshold is the time at which we will delete visits before.
 //    If it is zero, we will not use a threshold and will match everything.
@@ -434,70 +449,68 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
                                mozIStorageConnection* aConnection,
                                nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
-  // get default browser.history_expire_days value
-  nsresult rv;
-  nsCOMPtr<nsIPrefService> prefService =
-    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIPrefBranch> defaultPrefBranch;
-  rv = prefService->GetDefaultBranch(PREF_BRANCH_BASE,
-    getter_AddRefs(defaultPrefBranch));
-  NS_ENSURE_SUCCESS(rv, rv);
-  PRInt32 defaultExpireDays;
-  rv = defaultPrefBranch->GetIntPref(PREF_BROWSER_HISTORY_EXPIRE_DAYS, &defaultExpireDays);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // base sql
+  // Select moz_places records, including whether visited and whether the URI
+  // is bookmarked or not.
   nsCAutoString sqlBase;
   sqlBase.AssignLiteral(
-    "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, b.fk "
-    "FROM moz_historyvisits v LEFT JOIN moz_places h ON v.place_id = h.id "
-    "LEFT OUTER JOIN moz_bookmarks b on v.place_id = b.fk ");
+    "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, "
+    "(SELECT fk FROM moz_bookmarks WHERE fk = h.id) "
+    "FROM moz_places h JOIN moz_historyvisits v ON h.id = v.place_id ");
 
-  // If history_expire_days is the default then go ahead and expire up to the
-  // visit cap, else we respect the user's value, or if we're clearing history.
-  if (defaultExpireDays == mHistory->mExpireDays || !aNumToExpire) {
-    // build capped query
-    nsCOMPtr<mozIStorageStatement> visitsStatement;
-    nsCAutoString sqlVisits;
-    sqlVisits.Assign(sqlBase);
-    if (aNumToExpire) {
-      // Setting the visit cap as the OFFSET value selects the next aNumToExpire
-      // records above the cap.
-      sqlVisits.AppendLiteral("ORDER BY v.visit_date DESC LIMIT ?1 OFFSET ?2 ");
-    }
-    rv = aConnection->CreateStatement(sqlVisits, getter_AddRefs(visitsStatement));
-    NS_ENSURE_SUCCESS(rv, rv);
+  // 1. Expire records older than the max-age cap
+  nsCAutoString sqlMaxAge;
+  sqlMaxAge.Assign(sqlBase);
 
-    if (aNumToExpire) {
-      rv = visitsStatement->BindInt64Parameter(0, aNumToExpire);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = visitsStatement->BindInt32Parameter(1, mHistory->mExpireVisits);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    PRBool hasMore = PR_FALSE;
-    while (NS_SUCCEEDED(visitsStatement->ExecuteStep(&hasMore)) && hasMore) {
-      nsNavHistoryExpireRecord record(visitsStatement);
-      aRecords.AppendElement(record);
-    }
+  if (aNumToExpire) {
+    // Select records older than the max-age cap
+    sqlMaxAge.AppendLiteral("WHERE v.visit_date < ?1 "
+                            "ORDER BY v.visit_date ASC LIMIT ?2");
   }
 
-  if (aExpireThreshold && aRecords.Length() < aNumToExpire) {
-    nsCOMPtr<mozIStorageStatement> selectStatement;
-    nsCAutoString sqlDate;
-    sqlDate.Assign(sqlBase);
-    sqlDate.AppendLiteral("AND visit_date < ?1 LIMIT ?2");
-    rv = aConnection->CreateStatement(sqlDate, getter_AddRefs(selectStatement));
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<mozIStorageStatement> selectStatement;
+  nsresult rv = aConnection->CreateStatement(sqlMaxAge, getter_AddRefs(selectStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aNumToExpire) {
     rv = selectStatement->BindInt64Parameter(0, aExpireThreshold);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = selectStatement->BindInt32Parameter(1, aNumToExpire - aRecords.Length());
+    rv = selectStatement->BindInt64Parameter(1, aNumToExpire);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  PRBool hasMore = PR_FALSE;
+  while (NS_SUCCEEDED(selectStatement->ExecuteStep(&hasMore)) && hasMore) {
+    nsNavHistoryExpireRecord record(selectStatement);
+    aRecords.AppendElement(record);
+  }
+
+  // 2. if no over-max-age records are found, select records older than the min-age cap AND over the sites cap.
+  if (!aRecords.Length()) {
+    nsCAutoString sqlMinAge;
+    sqlMinAge.Assign(sqlBase);
+
+    // Select records older than the max-age cap
+    // Setting the visit cap as the OFFSET value selects the next aNumToExpire
+    // records above the cap.
+    sqlMinAge.AppendLiteral("WHERE v.visit_date < ?1 "
+                            "ORDER BY v.visit_date DESC LIMIT ?2 OFFSET ?3");
+
+    nsCOMPtr<mozIStorageStatement> selectMinStatement;
+    nsresult rv = aConnection->CreateStatement(sqlMinAge, getter_AddRefs(selectMinStatement));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    PRBool hasMore = PR_FALSE;
-    while (NS_SUCCEEDED(selectStatement->ExecuteStep(&hasMore)) && hasMore) {
-      nsNavHistoryExpireRecord record(selectStatement);
+    PRInt64 minDaysAgo = mHistory->mExpireDaysMin * 86400 * PR_USEC_PER_SEC;
+    PRTime minThreshold = PR_Now() - minDaysAgo;
+    rv = selectMinStatement->BindInt64Parameter(0, minThreshold);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = selectMinStatement->BindInt64Parameter(1, aNumToExpire);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = selectMinStatement->BindInt32Parameter(2, mHistory->mExpireSites);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    hasMore = PR_FALSE;
+    while (NS_SUCCEEDED(selectMinStatement->ExecuteStep(&hasMore)) && hasMore) {
+      nsNavHistoryExpireRecord record(selectMinStatement);
       aRecords.AppendElement(record);
     }
   }
@@ -513,21 +526,54 @@ nsNavHistoryExpire::EraseVisits(mozIStorageConnection* aConnection,
     const nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
   // build a comma separated string of visit ids to delete
+  // also build a comma separated string of place ids to reset frecency and
+  // visit_count.
   nsCString deletedVisitIds;
+  nsCString placeIds;
+  nsTArray<PRInt64> deletedPlaceIdsArray, deletedVisitIdsArray;
   for (PRUint32 i = 0; i < aRecords.Length(); i ++) {
-    // Do not add comma separator for the first entry
-    if (! deletedVisitIds.IsEmpty())
-      deletedVisitIds.AppendLiteral(", ");
-    deletedVisitIds.AppendInt(aRecords[i].visitID);
+    // Do not add comma separator for the first visit id
+    if (deletedVisitIdsArray.IndexOf(aRecords[i].visitID) == -1) {
+      if (!deletedVisitIds.IsEmpty())
+        deletedVisitIds.AppendLiteral(",");  
+      deletedVisitIds.AppendInt(aRecords[i].visitID);
+    }
+
+    // Do not add comma separator for the first place id
+    if (deletedPlaceIdsArray.IndexOf(aRecords[i].placeID) == -1) {
+      if (!placeIds.IsEmpty())
+        placeIds.AppendLiteral(",");
+      placeIds.AppendInt(aRecords[i].placeID);
+    }
   }
 
   if (deletedVisitIds.IsEmpty())
     return NS_OK;
 
-  return aConnection->ExecuteSimpleSQL(
+  nsresult rv = aConnection->ExecuteSimpleSQL(
     NS_LITERAL_CSTRING("DELETE FROM moz_historyvisits WHERE id IN (") +
     deletedVisitIds +
     NS_LITERAL_CSTRING(")"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (placeIds.IsEmpty())
+    return NS_OK;
+
+  // reset the frecencies for these places.
+  // Note, we don't reset the visit_count, as we use that in our "on idle"
+  // query to figure out which places to recalcuate frecency first.
+  rv = aConnection->ExecuteSimpleSQL(
+    NS_LITERAL_CSTRING("UPDATE moz_places SET "
+      "frecency = -1 WHERE id IN (") +
+    placeIds +
+    NS_LITERAL_CSTRING(")"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // XXX todo
+  // forcibly call the "on idle" timer here to do a little work
+  // but the rest will happen on idle.
+
+  return NS_OK;
 }
 
 
@@ -546,15 +592,20 @@ nsNavHistoryExpire::EraseHistory(mozIStorageConnection* aConnection,
 {
   // build a comma separated string of place ids to delete
   nsCString deletedPlaceIds;
+  nsTArray<PRInt64> deletedPlaceIdsArray;
   for (PRUint32 i = 0; i < aRecords.Length(); i ++) {
     // IF bookmarked entries OR "place" URIs do not delete
     if (aRecords[i].bookmarked ||
         StringBeginsWith(aRecords[i].uri, NS_LITERAL_CSTRING("place:")))
       continue;
-    // Do not add comma separator for the first entry
-    if (! deletedPlaceIds.IsEmpty())
-      deletedPlaceIds.AppendLiteral(", ");
-    deletedPlaceIds.AppendInt(aRecords[i].placeID);
+    // avoid trying to delete the same place id twice
+    if (deletedPlaceIdsArray.IndexOf(aRecords[i].placeID) == -1) {
+      // Do not add comma separator for the first entry
+      if (!deletedPlaceIds.IsEmpty())
+        deletedPlaceIds.AppendLiteral(",");
+      deletedPlaceIdsArray.AppendElement(aRecords[i].placeID);
+      deletedPlaceIds.AppendInt(aRecords[i].placeID);
+    }
     aRecords[i].erased = PR_TRUE;
   }
 
@@ -562,15 +613,15 @@ nsNavHistoryExpire::EraseHistory(mozIStorageConnection* aConnection,
     return NS_OK;
 
   return aConnection->ExecuteSimpleSQL(
-    NS_LITERAL_CSTRING("DELETE FROM moz_places WHERE id IN( ") +
-      deletedPlaceIds +
-      NS_LITERAL_CSTRING(") AND id IN( "    
-      "SELECT h.id FROM moz_places h "
-      "WHERE (SELECT id from moz_historyvisits WHERE place_id=h.id) IS NULL "
-      ") AND id NOT IN( " 
-      "SELECT DISTINCT place_id FROM moz_annos WHERE expiration = ") +
+    NS_LITERAL_CSTRING("DELETE FROM moz_places WHERE id IN( "
+      "SELECT h.id "
+      "FROM moz_places h "
+      "LEFT OUTER JOIN moz_historyvisits v ON v.place_id = h.id "
+      "LEFT OUTER JOIN moz_annos a ON a.place_id = h.id "
+      "WHERE h.id IN(") + deletedPlaceIds +
+      NS_LITERAL_CSTRING(") AND v.place_id IS NULL AND (a.expiration <> ") +
       nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER) +
-      NS_LITERAL_CSTRING(")"));              
+      NS_LITERAL_CSTRING(" OR a.expiration IS NULL))"));
 }
 
 
@@ -582,14 +633,19 @@ nsNavHistoryExpire::EraseFavicons(mozIStorageConnection* aConnection,
 {
   // build a comma separated string of favicon ids to delete
   nsCString deletedFaviconIds;
+  nsTArray<PRInt64> deletedFaviconIdsArray;  
   for (PRUint32 i = 0; i < aRecords.Length(); i ++) {
     // IF main entry not expired OR no favicon DO NOT DELETE
-    if (! aRecords[i].erased || aRecords[i].faviconID == 0)
+    if (!aRecords[i].erased || aRecords[i].faviconID == 0)
       continue;
-    // Do not add comma separator for the first entry
-    if (! deletedFaviconIds.IsEmpty())
-      deletedFaviconIds.AppendLiteral(", ");
-    deletedFaviconIds.AppendInt(aRecords[i].faviconID);
+    // avoid trying to delete the same favicon id twice
+    if (deletedFaviconIdsArray.IndexOf(aRecords[i].faviconID) == -1) {
+      // Do not add comma separator for the first entry
+      if (!deletedFaviconIds.IsEmpty())
+        deletedFaviconIds.AppendLiteral(",");
+      deletedFaviconIdsArray.AppendElement(aRecords[i].faviconID);
+      deletedFaviconIds.AppendInt(aRecords[i].faviconID);
+    }
   }
 
   if (deletedFaviconIds.IsEmpty())
@@ -597,12 +653,11 @@ nsNavHistoryExpire::EraseFavicons(mozIStorageConnection* aConnection,
 
   // delete only if id is not referenced in moz_places
   return aConnection->ExecuteSimpleSQL(
-    NS_LITERAL_CSTRING("DELETE FROM moz_favicons WHERE id IN (") +
-    deletedFaviconIds +
-    NS_LITERAL_CSTRING(") AND id IN "
-      "(SELECT f.id FROM moz_favicons f "
+    NS_LITERAL_CSTRING("DELETE FROM moz_favicons WHERE id IN ( "
+      "SELECT f.id FROM moz_favicons f "
       "LEFT OUTER JOIN moz_places h ON f.id = h.favicon_id "
-      "WHERE h.favicon_id IS NULL)"));
+      "WHERE f.id IN (") + deletedFaviconIds +
+      NS_LITERAL_CSTRING(") AND h.favicon_id IS NULL)"));
 }
 
 
@@ -614,10 +669,16 @@ nsNavHistoryExpire::EraseAnnotations(mozIStorageConnection* aConnection,
 {
   // remove annotations for the set of records passed in
   nsCString placeIds;
+  nsTArray<PRInt64> deletedPlaceIdsArray;
   for (PRUint32 i = 0; i < aRecords.Length(); i ++) {
-    if (!placeIds.IsEmpty())
-      placeIds.AppendLiteral(", ");
-    placeIds.AppendInt(aRecords[i].placeID);
+    // avoid trying to delete the same place id twice
+    if (deletedPlaceIdsArray.IndexOf(aRecords[i].placeID) == -1) {
+      // Do not add comma separator for the first entry
+      if (!placeIds.IsEmpty())
+        placeIds.AppendLiteral(",");
+      deletedPlaceIdsArray.AppendElement(aRecords[i].placeID);
+      placeIds.AppendInt(aRecords[i].placeID);
+    }
   }
   
   if (placeIds.IsEmpty())
@@ -804,11 +865,16 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
   NS_ENSURE_SUCCESS(rv, rv);
 
   // delete all uri annos w/o a corresponding place id
+  // or without any visits *and* not EXPIRE_NEVER.
   rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "DELETE FROM moz_annos WHERE id IN "
       "(SELECT a.id FROM moz_annos a "
       "LEFT OUTER JOIN moz_places p ON a.place_id = p.id "
-      "WHERE p.id IS NULL)"));
+      "LEFT OUTER JOIN moz_historyvisits v ON a.place_id = v.place_id "
+      "WHERE p.id IS NULL "
+      "OR (v.id IS NULL AND a.expiration != ") +
+      nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER) +
+      NS_LITERAL_CSTRING("))"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // delete item annos w/o a corresponding item id
@@ -880,7 +946,7 @@ nsNavHistoryExpire::ComputeNextExpirationTime(
 
   PRBool hasMore;
   rv = statement->ExecuteStep(&hasMore);
-  if (NS_FAILED(rv) || ! hasMore)
+  if (NS_FAILED(rv) || !hasMore)
     return; // no items, we'll leave mNextExpirationTime = 0 and try to expire
             // again next time
 
@@ -894,7 +960,7 @@ nsNavHistoryExpire::ComputeNextExpirationTime(
 nsresult
 nsNavHistoryExpire::StartTimer(PRUint32 aMilleseconds)
 {
-  if (! mTimer)
+  if (!mTimer)
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
   NS_ENSURE_STATE(mTimer); // returns on error
   nsresult rv = mTimer->InitWithFuncCallback(TimerCallback, this,
@@ -921,7 +987,7 @@ nsNavHistoryExpire::TimerCallback(nsITimer* aTimer, void* aClosure)
 PRTime
 nsNavHistoryExpire::GetExpirationTimeAgo()
 {
-  PRInt64 expireDays = mHistory->mExpireDays;
+  PRInt64 expireDays = mHistory->mExpireDaysMax;
 
   // Prevent Int64 overflow for people that type in huge numbers.
   // This number is 2^63 / 24 / 60 / 60 / 1000000 (reversing the math below)

@@ -130,7 +130,7 @@ nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
   if (pm) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
     pm->ShowPopup(mContent, anchorContent, aPosition, aXPos, aYPos,
-                  aIsContextMenu, aAttributesOverride, PR_FALSE);
+                  aIsContextMenu, aAttributesOverride, PR_FALSE, nsnull);
   }
 
   return NS_OK;
@@ -141,7 +141,7 @@ nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos, PRBool aIsCont
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
-    pm->ShowPopupAtScreen(mContent, aXPos, aYPos, aIsContextMenu);
+    pm->ShowPopupAtScreen(mContent, aXPos, aYPos, aIsContextMenu, nsnull);
   return NS_OK;
 }
 
@@ -175,7 +175,7 @@ nsPopupBoxObject::GetAutoPosition(PRBool* aShouldAutoPosition)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
-    menuPopupFrame->GetAutoPosition(aShouldAutoPosition);
+    *aShouldAutoPosition = menuPopupFrame->GetAutoPosition();
   }
 
   return NS_OK;

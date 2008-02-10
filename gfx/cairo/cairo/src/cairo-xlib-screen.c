@@ -55,6 +55,7 @@
 #include "cairoint.h"
 
 #include "cairo-xlib-private.h"
+#include "cairo-xlib-xrender-private.h"
 
 #include <fontconfig/fontconfig.h>
 
@@ -243,11 +244,9 @@ _cairo_xlib_init_screen_font_options (Display *dpy, cairo_xlib_screen_info_t *in
 cairo_xlib_screen_info_t *
 _cairo_xlib_screen_info_reference (cairo_xlib_screen_info_t *info)
 {
-    if (info == NULL)
-	return NULL;
+    assert (CAIRO_REFERENCE_COUNT_HAS_REFERENCE (&info->ref_count));
 
-    assert (info->ref_count > 0);
-    info->ref_count++;
+    _cairo_reference_count_inc (&info->ref_count);
 
     return info;
 }
@@ -271,11 +270,9 @@ _cairo_xlib_screen_info_destroy (cairo_xlib_screen_info_t *info)
     cairo_xlib_screen_info_t **prev;
     cairo_xlib_screen_info_t *list;
 
-    if (info == NULL)
-	return;
+    assert (CAIRO_REFERENCE_COUNT_HAS_REFERENCE (&info->ref_count));
 
-    assert (info->ref_count > 0);
-    if (--info->ref_count)
+    if (! _cairo_reference_count_dec_and_test (&info->ref_count))
 	return;
 
     CAIRO_MUTEX_LOCK (info->display->mutex);
@@ -330,7 +327,7 @@ _cairo_xlib_screen_info_get (Display *dpy, Screen *screen)
     } else {
 	info = malloc (sizeof (cairo_xlib_screen_info_t));
 	if (info != NULL) {
-	    info->ref_count = 2; /* Add one for display cache */
+	    CAIRO_REFERENCE_COUNT_INIT (&info->ref_count, 2); /* Add one for display cache */
 	    info->display = _cairo_xlib_display_reference (display);
 	    info->screen = screen;
 	    info->has_render = FALSE;

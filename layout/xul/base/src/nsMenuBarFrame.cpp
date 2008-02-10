@@ -86,7 +86,6 @@ nsMenuBarFrame::nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
     mStayActive(PR_FALSE),
     mIsActive(PR_FALSE),
     mCurrentMenu(nsnull),
-    mRecentlyClosedMenu(nsnull),
     mTarget(nsnull),
     mCaretWasVisible(PR_FALSE)
 {
@@ -331,16 +330,13 @@ nsMenuBarFrame::SetCurrentMenuItem(nsMenuFrame* aMenuItem)
   if (mCurrentMenu == aMenuItem)
     return NS_OK;
 
-  nsWeakFrame weakFrame(this);
   if (mCurrentMenu)
     mCurrentMenu->SelectMenu(PR_FALSE);
 
   if (aMenuItem)
     aMenuItem->SelectMenu(PR_TRUE);
 
-  NS_ENSURE_TRUE(weakFrame.IsAlive(), NS_OK);
   mCurrentMenu = aMenuItem;
-  mRecentlyClosedMenu = nsnull;
 
   return NS_OK;
 }
@@ -432,9 +428,7 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
   // Set the new child.
   if (aMenuItem) {
     nsCOMPtr<nsIContent> content = aMenuItem->GetContent();
-    nsWeakFrame weakNewMenu(aMenuItem);
     aMenuItem->SelectMenu(PR_TRUE);
-    NS_ENSURE_TRUE(weakNewMenu.IsAlive(), NS_OK);
     mCurrentMenu = aMenuItem;
     if (wasOpen && !aMenuItem->IsDisabled())
       aNewMenu = content;
@@ -464,7 +458,6 @@ nsMenuBarFrame::MenuClosed()
 {
   SetActive(PR_FALSE);
   if (!mIsActive && mCurrentMenu) {
-    SetRecentlyClosed(mCurrentMenu);
     mCurrentMenu->SelectMenu(PR_FALSE);
     mCurrentMenu = nsnull;
     return PR_TRUE;

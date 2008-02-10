@@ -134,7 +134,8 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::SetAnimFrameInfo()
 {
-  png_uint_16 delay_num, delay_den; /* in seconds */
+  png_uint_16 delay_num, delay_den;
+  /* delay, in seconds is delay_num/delay_den */
   png_byte dispose_op;
   png_byte blend_op;
   PRInt32 timeout; /* in milliseconds */
@@ -148,7 +149,7 @@ void nsPNGDecoder::SetAnimFrameInfo()
     timeout = 0; // gfxImageFrame::SetTimeout() will set to a minimum
   } else {
     if (delay_den == 0)
-      delay_den = 100; // so sais the APNG spec
+      delay_den = 100; // so says the APNG spec
     
     // Need to cast delay_num to float to have a proper division and
     // the result to int to avoid compiler warning
@@ -177,6 +178,9 @@ void nsPNGDecoder::SetAnimFrameInfo()
 NS_IMETHODIMP nsPNGDecoder::Init(imgILoad *aLoad)
 {
 #if defined(PNG_UNKNOWN_CHUNKS_SUPPORTED)
+  static png_byte color_chunks[]=
+       { 99,  72,  82,  77, '\0',   /* cHRM */
+        105,  67,  67,  80, '\0'};  /* iCCP */
   static png_byte unused_chunks[]=
        { 98,  75,  71,  68, '\0',   /* bKGD */
         104,  73,  83,  84, '\0',   /* hIST */
@@ -214,6 +218,9 @@ NS_IMETHODIMP nsPNGDecoder::Init(imgILoad *aLoad)
 
 #if defined(PNG_UNKNOWN_CHUNKS_SUPPORTED)
   /* Ignore unused chunks */
+  if (!gfxPlatform::IsCMSEnabled()) {
+    png_set_keep_unknown_chunks(mPNG, 1, color_chunks, 2);
+  }
   png_set_keep_unknown_chunks(mPNG, 1, unused_chunks,
      (int)sizeof(unused_chunks)/5);   
 #endif
@@ -346,6 +353,7 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
   cmsHPROFILE profile = nsnull;
   *intent = INTENT_PERCEPTUAL;   // XXX: should this be the default?
 
+#ifndef PNG_NO_READ_iCCP
   // First try to see if iCCP chunk is present
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP)) {
     png_uint_32 profileLen;
@@ -380,19 +388,23 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
       *intent = cmsTakeRenderingIntent(profile);
     }
   }
+#endif
 
+#ifndef PNG_NO_READ_sRGB
   // Check sRGB chunk
   if (!profile && png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB)) {
     profile = cmsCreate_sRGBProfile();
 
     if (profile) {
       int fileIntent;
+      png_set_gray_to_rgb(png_ptr); 
       png_get_sRGB(png_ptr, info_ptr, &fileIntent);
       PRUint32 map[] = { INTENT_PERCEPTUAL, INTENT_RELATIVE_COLORIMETRIC,
                          INTENT_SATURATION, INTENT_ABSOLUTE_COLORIMETRIC };
       *intent = map[fileIntent];
     }
   }
+#endif
 
   // Check gAMA/cHRM chunks
   if (!profile && png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA)) {
@@ -403,6 +415,7 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
       {0.1500, 0.0600, 1.0}
     };
 
+#ifndef PNG_NO_READ_cHRM
     if (png_get_valid(png_ptr, info_ptr, PNG_INFO_cHRM)) {
       png_get_cHRM(png_ptr, info_ptr,
                    &whitePoint.x, &whitePoint.y,
@@ -413,6 +426,7 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
       whitePoint.Y =
         primaries.Red.Y = primaries.Green.Y = primaries.Blue.Y = 1.0;
     }
+#endif
 
     double gammaOfFile;
     LPGAMMATABLE gammaTable[3];
@@ -427,7 +441,7 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
 
     profile = cmsCreateRGBProfile(&whitePoint, &primaries, gammaTable);
 
-    if (profile && !(color_type & PNG_COLOR_MASK_COLOR))
+    if (profile)
       png_set_gray_to_rgb(png_ptr);
 
     cmsFreeGamma(gammaTable[0]);
@@ -510,9 +524,7 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
                                              intent,
                                              0);
   } else {
-    if (color_type == PNG_COLOR_TYPE_GRAY ||
-        color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-      png_set_gray_to_rgb(png_ptr);
+    png_set_gray_to_rgb(png_ptr);
     if (gfxPlatform::IsCMSEnabled()) {
       if (color_type & PNG_COLOR_MASK_ALPHA || num_trans)
         decoder->mTransform = gfxPlatform::GetCMSRGBATransform();
@@ -522,10 +534,7 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   }
 
   if (!decoder->mTransform) {
-    if (color_type == PNG_COLOR_TYPE_GRAY ||
-        color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-      png_set_gray_to_rgb(png_ptr);
-
+    png_set_gray_to_rgb(png_ptr);
     if (png_get_gAMA(png_ptr, info_ptr, &aGamma)) {
       if ((aGamma <= 0.0) || (aGamma > 21474.83)) {
         aGamma = 0.45455;
@@ -723,7 +732,26 @@ row_callback(png_structp png_ptr, png_bytep new_row,
     case gfxIFormats::RGB:
     case gfxIFormats::BGR:
       {
-        for (PRUint32 x=iwidth; x>0; --x) {
+        // counter for while() loops below
+        PRUint32 idx = iwidth;
+
+        // copy as bytes until source pointer is 32-bit-aligned
+        for (; (NS_PTR_TO_UINT32(line) & 0x3) && idx; --idx) {
+          *cptr32++ = GFX_PACKED_PIXEL(0xFF, line[0], line[1], line[2]);
+          line += 3; 
+        }
+
+        // copy pixels in blocks of 4
+        while (idx >= 4) {
+          GFX_BLOCK_RGB_TO_FRGB(line, cptr32);
+          idx    -=  4;
+          line   += 12;
+          cptr32 +=  4;
+        }
+
+        // copy remaining pixel(s)
+        while (idx--) {
+          // 32-bit read of final pixel will exceed buffer, so read bytes
           *cptr32++ = GFX_PACKED_PIXEL(0xFF, line[0], line[1], line[2]);
           line += 3;
         }

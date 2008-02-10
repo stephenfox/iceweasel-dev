@@ -57,8 +57,6 @@
 #include "nsDataHashtable.h"
 #include "nsClassHashtable.h"
 
-class FontSelector;
-
 class gfxPangoTextRun;
 
 class gfxPangoFont : public gfxFont {
@@ -66,19 +64,16 @@ public:
     gfxPangoFont (const nsAString& aName,
                   const gfxFontStyle *aFontStyle);
     virtual ~gfxPangoFont ();
+    static already_AddRefed<gfxPangoFont> GetOrMakeFont(PangoFont *aPangoFont);
 
     static void Shutdown();
 
     virtual const gfxFont::Metrics& GetMetrics();
 
-    PangoFontDescription *GetPangoFontDescription() { if (!mPangoFontDesc) RealizeFont(); return mPangoFontDesc; }
-    PangoContext *GetPangoContext() { if (!mPangoFontDesc) RealizeFont(); return mPangoCtx; }
-
-    void GetMozLang(nsACString &aMozLang);
-    void GetActualFontFamily(nsACString &aFamily);
-
     PangoFont *GetPangoFont() { if (!mPangoFont) RealizePangoFont(); return mPangoFont; }
-    gfxFloat GetAdjustedSize() { if (!mPangoFontDesc) RealizeFont(); return mAdjustedSize; }
+
+    // Check GetStyle()->sizeAdjust != 0.0 before calling this 
+    gfxFloat GetAdjustedSize() { if (!mPangoFont) RealizePangoFont(); return mAdjustedSize; }
 
     PRUint32 GetGlyph(const PRUint32 aChar);
 
@@ -86,14 +81,13 @@ public:
 
     // Get the glyphID of a space
     virtual PRUint32 GetSpaceGlyph() {
+        NS_ASSERTION(GetStyle()->size != 0,
+                     "forgot to short-circuit a text run with zero-sized font?");
         GetMetrics();
         return mSpaceGlyph;
     }
 
 protected:
-    PangoFontDescription *mPangoFontDesc;
-    PangoContext *mPangoCtx;
-
     PangoFont *mPangoFont;
     cairo_scaled_font_t *mCairoFont;
 
@@ -102,15 +96,14 @@ protected:
     Metrics  mMetrics;
     gfxFloat mAdjustedSize;
 
-    void RealizeFont(PRBool force = PR_FALSE);
-    void RealizePangoFont(PRBool aForce = PR_FALSE);
+    gfxPangoFont(PangoFont *aPangoFont, const nsAString &aName,
+                 const gfxFontStyle *aFontStyle);
+    void RealizePangoFont();
     void GetCharSize(const char aChar, gfxSize& aInkSize, gfxSize& aLogSize,
                      PRUint32 *aGlyphID = nsnull);
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 };
-
-class FontSelector;
 
 class THEBES_API gfxPangoFontGroup : public gfxFontGroup {
 public:
@@ -131,8 +124,6 @@ public:
     }
 
 protected:
-    friend class FontSelector;
-
     // ****** Textrun glyph conversion helpers ******
 
     /**
@@ -142,7 +133,8 @@ protected:
      * but stored in UTF16 format)
      */
     void InitTextRun(gfxTextRun *aTextRun, const gchar *aUTF8Text,
-                     PRUint32 aUTF8Length, PRBool aTake8BitPath);
+                     PRUint32 aUTF8Length, PRUint32 aUTF8HeaderLength,
+                     PRBool aTake8BitPath);
 
     // Returns NS_ERROR_FAILURE if there's a missing glyph
     nsresult SetGlyphs(gfxTextRun *aTextRun, gfxPangoFont *aFont,
@@ -154,7 +146,8 @@ protected:
                               const gchar *aUTF8, PRUint32 aUTF8Length,
                               PRUint32 *aUTF16Offset);
     void CreateGlyphRunsItemizing(gfxTextRun *aTextRun,
-                                  const gchar *aUTF8, PRUint32 aUTF8Length);
+                                  const gchar *aUTF8, PRUint32 aUTF8Length,
+                                  PRUint32 aUTF8HeaderLength);
 #if defined(ENABLE_FAST_PATH_8BIT) || defined(ENABLE_FAST_PATH_ALWAYS)
     PRBool CanTakeFastPath(PRUint32 aFlags);
     nsresult CreateGlyphRunsFast(gfxTextRun *aTextRun,
@@ -164,9 +157,6 @@ protected:
     static PRBool FontCallback (const nsAString& fontName,
                                 const nsACString& genericName,
                                 void *closure);
-
-private:
-    nsTArray<gfxFontStyle> mAdditionalStyles;
 };
 
 class gfxPangoFontWrapper {

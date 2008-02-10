@@ -115,7 +115,7 @@ ssl_iopr_cov_ext_server()
 
   setValidCert; ret=$?
   if [ $ret -ne 0 ]; then
-      html_failed "<TR><TD>Fail to find valid test cert(ws: $host)" 
+      html_failed "Fail to find valid test cert(ws: $host)" 
       return $ret
   fi
 
@@ -147,7 +147,7 @@ ssl_iopr_cov_ext_server()
       grep "ACCESS=OK" $resFile
       test $? -eq 0 -a $ret -eq 0
       ret=$?
-      [ $ret -ne 0 ] && cat ${TMP}/$HOST.tmp.$$
+      [ $ret -ne 0 ] && cat $resFile
       rm -f $resFile 2>/dev/null
       html_msg $ret 0 "${testname}"
   done < ${SSLCOV}
@@ -184,7 +184,7 @@ ssl_iopr_auth_ext_server()
 
   setValidCert;ret=$?
   if [ $ret -ne 0 ]; then
-      html_failed "<TR><TD>Fail to find valid test cert(ws: $host)" 
+      html_failed "Fail to find valid test cert(ws: $host)" 
       return $ret
   fi
 
@@ -321,7 +321,7 @@ ssl_iopr_cov_ext_client()
   setValidCert
   ret=$?
   if [ $res -ne 0 ]; then
-      html_failed "<TR><TD>Fail to find valid test cert(ws: $host)" 
+      html_failed "Fail to find valid test cert(ws: $host)" 
       return $ret
   fi
 
@@ -424,7 +424,7 @@ ssl_iopr_auth_ext_client()
   setValidCert
   ret=$?
   if [ $res -ne 0 ]; then
-      html_failed "<TR><TD>Fail to find valid test cert(ws: $host)" 
+      html_failed "Fail to find valid test cert(ws: $host)" 
       return $ret
   fi
 

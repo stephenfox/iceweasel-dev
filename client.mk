@@ -79,7 +79,8 @@
 #    clean (realclean is now the same as clean)
 #    distclean
 #
-# See http://www.mozilla.org/build/ for more information.
+# See http://developer.mozilla.org/en/docs/Build_Documentation for 
+# more information.
 #
 # Options:
 #   MOZ_BUILD_PROJECTS   - Build multiple projects in subdirectories
@@ -158,6 +159,7 @@ MODULES_core :=                                 \
   mozilla/gfx                                   \
   mozilla/parser                                \
   mozilla/layout                                \
+  mozilla/memory/jemalloc                       \
   mozilla/jpeg                                  \
   mozilla/js/src/fdlibm                         \
   mozilla/js/src/liveconnect                    \
@@ -197,6 +199,7 @@ MODULES_core :=                                 \
   mozilla/storage                               \
   mozilla/db/sqlite3                            \
   mozilla/db/morkreader                         \
+  mozilla/testing/crashtest                     \
   mozilla/testing/mochitest                     \
   $(NULL)
 
@@ -256,6 +259,7 @@ LOCALES_suite :=                                \
   suite                                         \
   editor/ui                                     \
   extensions/reporter                           \
+  extensions/spellcheck                         \
   $(NULL)
 
 BOOTSTRAP_suite :=                              \
@@ -406,11 +410,11 @@ MODULES_all :=                                  \
 #
 # For branches, uncomment the MOZ_CO_TAG line with the proper tag,
 # and commit this file on that tag.
-MOZ_CO_TAG           = FIREFOX_3_0b1_RELEASE
-NSPR_CO_TAG          = FIREFOX_3_0b1_RELEASE
-NSS_CO_TAG           = FIREFOX_3_0b1_RELEASE
-LDAPCSDK_CO_TAG      = FIREFOX_3_0b1_RELEASE
-LOCALES_CO_TAG       = FIREFOX_3_0b1_RELEASE
+MOZ_CO_TAG           = FIREFOX_3_0b3_RELEASE
+NSPR_CO_TAG          = FIREFOX_3_0b3_RELEASE
+NSS_CO_TAG           = FIREFOX_3_0b3_RELEASE
+LDAPCSDK_CO_TAG      = LDAPCSDK_6_0_3_CLIENT_BRANCH
+LOCALES_CO_TAG       =
 
 #######################################################################
 # Defines
@@ -732,9 +736,9 @@ override MOZ_CO_LOCALES := $(subst $(comma), ,$(MOZ_CO_LOCALES))
 ifeq (all,$(MOZ_CO_LOCALES))
 MOZCONFIG_MODULES += $(foreach project,$(MOZ_PROJECT_LIST),mozilla/$(project)/locales/all-locales)
 
-LOCALE_CO_DIRS := $(sort $(foreach project,$(MOZ_PROJECT_LIST),$(foreach locale,$(shell cat mozilla/$(project)/locales/all-locales),$(foreach dir,$(LOCALES_$(project)),l10n/$(locale)/$(dir)))))
+LOCALE_CO_DIRS := $(sort $(foreach project,$(MOZ_PROJECT_LIST),$(foreach locale,$(shell cat mozilla/$(project)/locales/all-locales),l10n/$(locale)/)))
 else # MOZ_CO_LOCALES != all
-LOCALE_CO_DIRS = $(sort $(foreach locale,$(MOZ_CO_LOCALES),$(foreach dir,$(LOCALE_DIRS),l10n/$(locale)/$(dir))))
+LOCALE_CO_DIRS = $(sort $(foreach locale,$(MOZ_CO_LOCALES),l10n/$(locale)/))
 endif
 
 CVSCO_LOCALES := $(CVS) $(CVS_FLAGS) -d $(LOCALES_CVSROOT) co $(LOCALES_CO_FLAGS) $(CVS_CO_LOCALES_DATE_FLAGS) $(LOCALE_CO_DIRS)
@@ -890,19 +894,23 @@ l10n-checkout:
 	$(CVSCO) $(CVS_CO_DATE_FLAGS) mozilla/client.mk $(MOZCONFIG_MODULES)
 	@cd $(ROOTDIR) && $(MAKE) -f mozilla/client.mk real_l10n-checkout
 
-EN_US_CO_DIRS := $(sort $(foreach dir,$(LOCALE_DIRS),mozilla/$(dir)/locales)) \
-  $(foreach mod,$(MOZ_PROJECT_LIST),mozilla/$(mod)/config) \
+FULL_EN_US_DIRS := toolkit \
+	extensions \
+	$(MOZ_PROJECT_LIST) \
+	$(NULL)
+
+EN_US_LOCALE_DIRS := $(foreach dir, \
+	$(filter-out toolkit extensions/% $(MOZ_PROJECT_LIST), $(LOCALE_DIRS)), \
+	mozilla/$(dir)/locales)
+
+EN_US_CO_DIRS := $(EN_US_LOCALE_DIRS) \
+  $(foreach mod,$(FULL_EN_US_DIRS),mozilla/$(mod)) \
   mozilla/client.mk        \
-  $(MOZCONFIG_MODULES)     \
   mozilla/configure        \
   mozilla/configure.in     \
   mozilla/allmakefiles.sh  \
   mozilla/build            \
   mozilla/config           \
-  $(NULL)
-
-EN_US_CO_FILES_NS :=          \
-  mozilla/toolkit/mozapps/installer \
   $(NULL)
 
 #	Start the checkout. Split the output to the tty and a log file.
@@ -911,7 +919,6 @@ real_l10n-checkout:
 	cvs_co() { set -e; echo "$$@" ; \
 	  "$$@" 2>&1 | tee -a $(CVSCO_LOGFILE_L10N); }; \
 	cvs_co $(CVS) $(CVS_FLAGS) co $(MODULES_CO_FLAGS) $(CVS_CO_DATE_FLAGS) $(EN_US_CO_DIRS); \
-	cvs_co $(CVS) $(CVS_FLAGS) co $(MODULES_CO_FLAGS) $(CVS_CO_DATE_FLAGS) -l $(EN_US_CO_FILES_NS); \
 	cvs_co $(CVSCO_LOCALES)
 	@echo "checkout finish: "`date` | tee -a $(CVSCO_LOGFILE_L10N)
 #	@: Check the log for conflicts. ;
@@ -1018,7 +1025,7 @@ CONFIG_STATUS_DEPS := \
 	$(wildcard $(TOPSRCDIR)/directory/c-sdk/configure) \
 	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
 	$(wildcard $(TOPSRCDIR)/config/chrome-versions.sh) \
-  $(wildcard $(addsuffix confvars.sh,$(wildcard */))) \
+  $(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
 # configure uses the program name to determine @srcdir@. Calling it without

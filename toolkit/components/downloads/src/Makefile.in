@@ -67,14 +67,17 @@ REQUIRES  = xpcom \
             storage \
             xulapp \
             exthandler \
+            docshell \
             $(NULL)
 
 CPPSRCS   = \
     nsDownloadManager.cpp \
     $(NULL)
 
+ifndef GNU_CXX
 ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += nsDownloadScanner.cpp
+endif
 endif
 
 EXTRA_COMPONENTS = \

@@ -46,6 +46,7 @@
 #include "nsITimer.h"
 #include "prtime.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsScriptNameSpaceManager.h"
 
 class nsIXPConnectJSObjectHolder;
 
@@ -276,11 +277,9 @@ private:
   PRPackedBool mScriptsEnabled;
   PRPackedBool mGCOnDestruction;
   PRPackedBool mProcessingScriptTag;
-  PRPackedBool mIsTrackingChromeCodeTime;
 
-  PRUint32 mBranchCallbackCount;
-  PRTime mBranchCallbackTime;
   PRUint32 mDefaultJSOptions;
+  PRTime mOperationCallbackTime;
 
   // mGlobalWrapperRef is used only to hold a strong reference to the
   // global object wrapper while the nsJSContext is alive. This cuts
@@ -291,8 +290,7 @@ private:
 
   static int PR_CALLBACK JSOptionChangedCallback(const char *pref, void *data);
 
-  static JSBool JS_DLL_CALLBACK DOMBranchCallback(JSContext *cx,
-                                                  JSScript *script);
+  static JSBool JS_DLL_CALLBACK DOMOperationCallback(JSContext *cx);
 };
 
 class nsIJSRuntimeService;
@@ -326,6 +324,8 @@ public:
   static void Startup();
   // Setup all the statics etc - safe to call multiple times after Startup()
   static nsresult Init();
+  // Get the NameSpaceManager, creating if necessary
+  static nsScriptNameSpaceManager* GetNameSpaceManager();
 };
 
 // An interface for fast and native conversion to/from nsIArray. If an object

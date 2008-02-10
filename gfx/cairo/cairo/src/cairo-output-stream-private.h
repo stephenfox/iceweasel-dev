@@ -37,6 +37,7 @@
 #ifndef CAIRO_OUTPUT_STREAM_PRIVATE_H
 #define CAIRO_OUTPUT_STREAM_PRIVATE_H
 
+#include "cairo-compiler-private.h"
 #include "cairo-types-private.h"
 
 typedef cairo_status_t (*cairo_output_stream_write_func_t) (cairo_output_stream_t *output_stream,
@@ -85,6 +86,9 @@ cairo_private cairo_output_stream_t *
 _cairo_output_stream_create (cairo_write_func_t		write_func,
 			     cairo_close_func_t		close_func,
 			     void			*closure);
+
+cairo_private cairo_output_stream_t *
+_cairo_output_stream_create_in_error (cairo_status_t status);
 
 /* Returns the final status value associated with this object, just
  * before its last gasp. This final status value will capture any

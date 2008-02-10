@@ -100,7 +100,9 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
     nsISVGChildFrame* SVGFrame = nsnull;
     CallQueryInterface(kid, &SVGFrame);
     if (SVGFrame) {
-      SVGFrame->NotifyCanvasTMChanged(PR_TRUE);
+      // The CTM of each frame referencing us can be different.
+      SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION | 
+                                 nsISVGChildFrame::TRANSFORM_CHANGED);
       SVGFrame->PaintSVG(aContext, nsnull);
     }
   }
@@ -139,7 +141,7 @@ nsSVGClipPathFrame::ClipHitTest(nsISVGChildFrame* aParent,
       // Notify the child frame that we may be working with a
       // different transform, so it can update its covered region
       // (used to shortcut hit testing).
-      SVGFrame->NotifyCanvasTMChanged(PR_FALSE);
+      SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
 
       nsIFrame *temp = nsnull;
       nsresult rv = SVGFrame->GetFrameForPointSVG(aX, aY, &temp);
@@ -194,30 +196,7 @@ nsSVGClipPathFrame::GetCanvasTM()
   else
     canvasTM = mClipParentMatrix;
 
-  /* object bounding box? */
-  PRUint16 units =
-    clipPath->mEnumAttributes[nsSVGClipPathElement::CLIPPATHUNITS].GetAnimValue();
-
-  if (mClipParent &&
-      units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    nsCOMPtr<nsIDOMSVGRect> rect;
-    nsresult rv = mClipParent->GetBBox(getter_AddRefs(rect));
-
-    if (NS_SUCCEEDED(rv)) {
-      float minx, miny, width, height;
-      rect->GetX(&minx);
-      rect->GetY(&miny);
-      rect->GetWidth(&width);
-      rect->GetHeight(&height);
-
-      nsCOMPtr<nsIDOMSVGMatrix> tmp, fini;
-      canvasTM->Translate(minx, miny, getter_AddRefs(tmp));
-      tmp->ScaleNonUniform(width, height, getter_AddRefs(fini));
-      canvasTM = fini;
-    }
-  }
-
-  nsIDOMSVGMatrix* retval = canvasTM.get();
-  NS_IF_ADDREF(retval);
-  return retval;
+  return nsSVGUtils::AdjustMatrixForUnits(canvasTM,
+                                          &clipPath->mEnumAttributes[nsSVGClipPathElement::CLIPPATHUNITS],
+                                          mClipParent);
 }

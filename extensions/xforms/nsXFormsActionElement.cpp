@@ -156,12 +156,15 @@ PR_STATIC_CALLBACK(PLDHashOperator) DoDeferredActions(nsISupports * aModel,
 
 NS_IMETHODIMP
 nsXFormsActionElement::HandleAction(nsIDOMEvent* aEvent,
-                                    nsIXFormsActionElement *aParentAction)
+                                    nsIXFormsActionElement* aParentAction)
 {
-  if (!mElement) {
-    return NS_OK;
-  }
+  return nsXFormsActionModuleBase::DoHandleAction(this, aEvent, aParentAction);
+}
 
+nsresult
+nsXFormsActionElement::HandleSingleAction(nsIDOMEvent* aEvent,
+                                          nsIXFormsActionElement *aParentAction)
+{
   if (!mDeferredUpdates.IsInitialized()) {
     NS_ENSURE_TRUE(mDeferredUpdates.Init(), NS_ERROR_OUT_OF_MEMORY);
   } else {
@@ -291,6 +294,13 @@ nsXFormsActionElement::SetRefresh(nsIModelElementPrivate* aModel,
     deferred &= ~DEFERRED_REFRESH;
   }
   mDeferredUpdates.Put(temp, deferred);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXFormsActionElement::GetCurrentEvent(nsIDOMEvent** aEvent)
+{
+  NS_IF_ADDREF(*aEvent = mCurrentEvent);
   return NS_OK;
 }
 

@@ -722,6 +722,8 @@ nsTableFrame::CreateAnonymousColFrames(PRInt32         aNumColsToAdd,
                                        PRBool          aDoAppend,
                                        nsIFrame*       aPrevColIn)
 {
+  NS_PRECONDITION(aColType != eColAnonymousCol, "Shouldn't happen");
+  
   // get the last col group frame
   nsTableColGroupFrame* colGroupFrame = nsnull;
   nsIFrame* childFrame = mColGroups.FirstChild();
@@ -740,11 +742,6 @@ nsTableFrame::CreateAnonymousColFrames(PRInt32         aNumColsToAdd,
   if (eColAnonymousCell == aColType) {
     if (eColGroupAnonymousCell != lastColGroupType) {
       newColGroupType = eColGroupAnonymousCell;
-    }
-  }
-  else if (eColAnonymousCol == aColType) {
-    if (eColGroupAnonymousCol != lastColGroupType) {
-      newColGroupType = eColGroupAnonymousCol;
     }
   }
   else {
@@ -781,6 +778,8 @@ nsTableFrame::CreateAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
                                        nsIFrame**            aFirstNewFrame)
 {
   NS_PRECONDITION(aColGroupFrame, "null frame");
+  NS_PRECONDITION(aColType != eColAnonymousCol, "Shouldn't happen");
+
   *aFirstNewFrame = nsnull;
   nsIFrame* lastColFrame = nsnull;
   nsPresContext* presContext = PresContext();
@@ -803,20 +802,13 @@ nsTableFrame::CreateAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
     nsRefPtr<nsStyleContext> styleContext;
     nsStyleContext* parentStyleContext;
 
-    if ((aColType == eColAnonymousCol) && aPrevFrameIn) {
-      // a col due to a span in a previous col uses the style context of the col
-      styleContext = aPrevFrameIn->GetStyleContext();
-      // fix for bugzilla bug 54454: get the content from the prevFrame 
-      iContent = aPrevFrameIn->GetContent();
-    }
-    else {
-      // all other anonymous cols use a pseudo style context of the col group
-      iContent = aColGroupFrame->GetContent();
-      parentStyleContext = aColGroupFrame->GetStyleContext();
-      styleContext = shell->StyleSet()->ResolvePseudoStyleFor(iContent,
-                                                              nsCSSAnonBoxes::tableCol,
-                                                              parentStyleContext);
-    }
+    // all anonymous cols that we create here use a pseudo style context of the
+    // col group
+    iContent = aColGroupFrame->GetContent();
+    parentStyleContext = aColGroupFrame->GetStyleContext();
+    styleContext = shell->StyleSet()->ResolvePseudoStyleFor(iContent,
+                                                            nsCSSAnonBoxes::tableCol,
+                                                            parentStyleContext);
     // ASSERTION to check for bug 54454 sneaking back in...
     NS_ASSERTION(iContent, "null content in CreateAnonymousColFrames");
 
@@ -2298,37 +2290,39 @@ nsTableFrame::InsertFrames(nsIAtom*        aListName,
         pseudoFrame = pseudoFrame->GetFirstChild(nsnull);
       }
       nsCOMPtr<nsIContent> container = content->GetParent();
-      PRInt32 newIndex = container->IndexOf(content);
-      nsIFrame* kidFrame;
-      PRBool isColGroup = (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP ==
-                           display->mDisplay);
-      if (isColGroup) {
-        kidFrame = mColGroups.FirstChild();
-      }
-      else {
-        kidFrame = mFrames.FirstChild();
-      }
-      // Important: need to start at a value smaller than all valid indices
-      PRInt32 lastIndex = -1;
-      while (kidFrame) {
+      if (NS_LIKELY(container)) { // XXX need this null-check, see bug 411823.
+        PRInt32 newIndex = container->IndexOf(content);
+        nsIFrame* kidFrame;
+        PRBool isColGroup = (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP ==
+                             display->mDisplay);
         if (isColGroup) {
-          nsTableColGroupType groupType =
-            ((nsTableColGroupFrame *)kidFrame)->GetColType();
-          if (eColGroupAnonymousCell == groupType) {
-            continue;
+          kidFrame = mColGroups.FirstChild();
+        }
+        else {
+          kidFrame = mFrames.FirstChild();
+        }
+        // Important: need to start at a value smaller than all valid indices
+        PRInt32 lastIndex = -1;
+        while (kidFrame) {
+          if (isColGroup) {
+            nsTableColGroupType groupType =
+              ((nsTableColGroupFrame *)kidFrame)->GetColType();
+            if (eColGroupAnonymousCell == groupType) {
+              continue;
+            }
           }
+          pseudoFrame = kidFrame;
+          while (pseudoFrame  && (parentContent ==
+                                  (content = pseudoFrame->GetContent()))) {
+            pseudoFrame = pseudoFrame->GetFirstChild(nsnull);
+          }
+          PRInt32 index = container->IndexOf(content);
+          if (index > lastIndex && index < newIndex) {
+            lastIndex = index;
+            aPrevFrame = kidFrame;
+          }
+          kidFrame = kidFrame->GetNextSibling();
         }
-        pseudoFrame = kidFrame;
-        while (pseudoFrame  && (parentContent ==
-                                (content = pseudoFrame->GetContent()))) {
-          pseudoFrame = pseudoFrame->GetFirstChild(nsnull);
-        }
-        PRInt32 index = container->IndexOf(content);
-        if (index > lastIndex && index < newIndex) {
-          lastIndex = index;
-          aPrevFrame = kidFrame;
-        }
-        kidFrame = kidFrame->GetNextSibling();
       }
     }
   }
@@ -2804,10 +2798,44 @@ nsTableFrame::GetTFoot() const
 }
 
 static PRBool
-IsRepeatable(nsTableRowGroupFrame& aHeaderOrFooter,
-             nscoord               aPageHeight)
+IsRepeatable(nscoord aFrameHeight, nscoord aPageHeight)
 {
-  return aHeaderOrFooter.GetSize().height < (aPageHeight / 4);
+  return aFrameHeight < (aPageHeight / 4);
+}
+
+nsresult
+nsTableFrame::SetupHeaderFooterChild(const nsTableReflowState& aReflowState,
+                                     nsTableRowGroupFrame* aFrame,
+                                     nscoord* aDesiredHeight)
+{
+  nsPresContext* presContext = PresContext();
+  nscoord pageHeight = presContext->GetPageSize().height;
+
+  if (aFrame->GetParent() != this || pageHeight == NS_UNCONSTRAINEDSIZE) {
+    // Must be a scrollable head/footer (we don't allow those to repeat), or
+    // page has unconstrained height for some reason.
+    *aDesiredHeight = 0;
+    return NS_OK;
+  }
+
+  // Reflow the child with unconstrainted height
+  nsHTMLReflowState kidReflowState(presContext, aReflowState.reflowState,
+                                   aFrame,
+                                   nsSize(aReflowState.availSize.width, NS_UNCONSTRAINEDSIZE),
+                                   -1, -1, PR_FALSE);
+  InitChildReflowState(kidReflowState);
+  kidReflowState.mFlags.mIsTopOfPage = PR_TRUE;
+  nsHTMLReflowMetrics desiredSize;
+  desiredSize.width = desiredSize.height = 0;
+  nsReflowStatus status;
+  nsresult rv = ReflowChild(aFrame, presContext, desiredSize, kidReflowState,
+                            aReflowState.x, aReflowState.y, 0, status);
+  NS_ENSURE_SUCCESS(rv, rv);
+  // The child will be reflowed again "for real" so no need to place it now
+
+  aFrame->SetRepeatable(IsRepeatable(desiredSize.height, pageHeight));
+  *aDesiredHeight = desiredSize.height;
+  return NS_OK;
 }
 
 // Reflow the children based on the avail size and reason in aReflowState
@@ -2839,6 +2867,30 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
   nsTableRowGroupFrame *thead, *tfoot;
   PRUint32 numRowGroups = OrderRowGroups(rowGroups, &thead, &tfoot);
   PRBool pageBreak = PR_FALSE;
+  nscoord footerHeight = 0;
+
+  // Determine the repeatablility of headers and footers, and also the desired
+  // height of any repeatable footer.
+  // The repeatability of headers on continued tables is handled
+  // when they are created in nsCSSFrameConstructor::CreateContinuingTableFrame.
+  // We handle the repeatability of footers again here because we need to
+  // determine the footer's height anyway. We could perhaps optimize by
+  // using the footer's prev-in-flow's height instead of reflowing it again,
+  // but there's no real need.
+  if (isPaginated) {
+    if (thead && !GetPrevInFlow()) {
+      nscoord desiredHeight;
+      rv = SetupHeaderFooterChild(aReflowState, thead, &desiredHeight);
+      if (NS_FAILED(rv))
+        return rv;
+    }
+    if (tfoot) {
+      rv = SetupHeaderFooterChild(aReflowState, tfoot, &footerHeight);
+      if (NS_FAILED(rv))
+        return rv;
+    }
+  }
+
   for (PRUint32 childX = 0; childX < numRowGroups; childX++) {
     nsIFrame* kidFrame = rowGroups[childX];
     // Get the frame state bits
@@ -2856,23 +2908,15 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
 
       nsSize kidAvailSize(aReflowState.availSize);
       // if the child is a tbody in paginated mode reduce the height by a repeated footer
-      // XXXldb Shouldn't this check against |thead| and |tfoot| from
-      // OrderRowGroups?
-      nsIFrame* repeatedFooter = nsnull;
-      nscoord repeatedFooterHeight = 0;
+      PRBool allowRepeatedFooter = PR_FALSE;
       if (isPaginated && (NS_UNCONSTRAINEDSIZE != kidAvailSize.height)) {
-        if (NS_STYLE_DISPLAY_TABLE_ROW_GROUP == kidFrame->GetStyleDisplay()->mDisplay) { // the child is a tbody
-          nsIFrame* lastChild = rowGroups[rowGroups.Length() - 1];
-          if (NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP == lastChild->GetStyleDisplay()->mDisplay) { // the last child is a tfoot
-            // XXXbz what if lastChild is a scrollable tfoot?  Bogus!!
-            // dbaron is right -- this should be using thead/tfoot!
-            if (((nsTableRowGroupFrame*)lastChild)->IsRepeatable()) {
-              repeatedFooterHeight = lastChild->GetSize().height;
-              if (repeatedFooterHeight + cellSpacingY < kidAvailSize.height) {
-                repeatedFooter = lastChild;
-                kidAvailSize.height -= repeatedFooterHeight + cellSpacingY;
-              }
-            }
+        nsTableRowGroupFrame* kidRG = GetRowGroupFrame(kidFrame);
+        if (kidRG != thead && kidRG != tfoot && tfoot && tfoot->IsRepeatable()) {
+          // the child is a tbody and there is a repeatable footer
+          NS_ASSERTION(tfoot == rowGroups[rowGroups.Length() - 1], "Missing footer!");
+          if (footerHeight + cellSpacingY < kidAvailSize.height) {
+            allowRepeatedFooter = PR_TRUE;
+            kidAvailSize.height -= footerHeight + cellSpacingY;
           }
         }
       }
@@ -2938,6 +2982,7 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
         }
         else { // we are not on top, push this rowgroup onto the next page
           if (prevKidFrame) { // we had a rowgroup before so push this
+            // XXXroc shouldn't we add a repeated footer here?
             aStatus = NS_FRAME_NOT_COMPLETE;
             PushChildren(rowGroups, childX);
             aLastChildReflowed = prevKidFrame;
@@ -2998,18 +3043,18 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
         if (nsnull != nextSibling) {
           PushChildren(rowGroups, childX + 1);
         }
-        if (repeatedFooter) {
-          kidAvailSize.height = repeatedFooterHeight;
+        if (allowRepeatedFooter) {
+          kidAvailSize.height = footerHeight;
           nsHTMLReflowState footerReflowState(presContext,
                                               aReflowState.reflowState,
-                                              repeatedFooter, kidAvailSize,
+                                              tfoot, kidAvailSize,
                                               -1, -1, PR_FALSE);
           InitChildReflowState(footerReflowState);
           aReflowState.y += cellSpacingY;
           nsReflowStatus footerStatus;
-          rv = ReflowChild(repeatedFooter, presContext, desiredSize, footerReflowState,
+          rv = ReflowChild(tfoot, presContext, desiredSize, footerReflowState,
                            aReflowState.x, aReflowState.y, 0, footerStatus);
-          PlaceChild(aReflowState, repeatedFooter, desiredSize);
+          PlaceChild(aReflowState, tfoot, desiredSize);
         }
         break;
       }
@@ -3034,19 +3079,6 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
     ConsiderChildOverflow(aOverflowArea, kidFrame);
   }
   
-  // set the repeatablility of headers and footers in the original table during its first reflow
-  // the repeatability of header and footers on continued tables is handled when they are created
-  if (isPaginated && !GetPrevInFlow() && (NS_UNCONSTRAINEDSIZE == aReflowState.availSize.height)) {
-    nscoord height = presContext->GetPageSize().height;
-    // don't repeat the thead or tfoot unless it is < 25% of the page height
-    if (thead && height != NS_UNCONSTRAINEDSIZE) {
-      thead->SetRepeatable(IsRepeatable(*thead, height));
-    }
-    if (tfoot && height != NS_UNCONSTRAINEDSIZE) {
-      tfoot->SetRepeatable(IsRepeatable(*tfoot, height));
-    }
-  }
-
   // We've now propagated the column resizes and geometry changes to all
   // the children.
   mBits.mResizedColumns = PR_FALSE;
@@ -3248,7 +3280,8 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
     return;
   }
 
-  // get the first row without a style height where its row group has an unconstrianed height
+  // get the first row without a style height where its row group has an
+  // unconstrained height
   nsTableRowGroupFrame* firstUnStyledRG  = nsnull;
   nsTableRowFrame*      firstUnStyledRow = nsnull;
   for (rgX = 0; rgX < rowGroups.Length() && !firstUnStyledRG; rgX++) {
@@ -3266,30 +3299,48 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
     }
   }
 
-  nsTableRowFrame* lastElligibleRow = nsnull;
-  // accumulate the correct divisor. This will be the total of all unstyled rows inside 
-  // unstyled row groups, unless there are none, in which case, it will be all rows
+  nsTableRowFrame* lastEligibleRow = nsnull;
+  // Accumulate the correct divisor. This will be the total total height of all
+  // unstyled rows inside unstyled row groups, unless there are none, in which
+  // case, it will be number of all rows. If the unstyled rows don't have a
+  // height, divide the space equally among them.
   nscoord divisor = 0;
-  for (rgX = 0; rgX < rowGroups.Length(); rgX++) {
-    nsTableRowGroupFrame* rgFrame = rowGroups[rgX];
-    if (!firstUnStyledRG || !rgFrame->HasStyleHeight()) {
-      nsTableRowFrame* rowFrame = rgFrame->GetFirstRow();
-      while (rowFrame) {
-        if (!firstUnStyledRG || !rowFrame->HasStyleHeight()) {
-          divisor += rowFrame->GetSize().height;
-          lastElligibleRow = rowFrame;
+  PRInt32 eligibleRows = 0;
+  PRBool expandEmptyRows = PR_FALSE;
+
+  if (!firstUnStyledRow) {
+    // there is no unstyled row
+    divisor = GetRowCount();
+  }
+  else {
+    for (rgX = 0; rgX < rowGroups.Length(); rgX++) {
+      nsTableRowGroupFrame* rgFrame = rowGroups[rgX];
+      if (!firstUnStyledRG || !rgFrame->HasStyleHeight()) {
+        nsTableRowFrame* rowFrame = rgFrame->GetFirstRow();
+        while (rowFrame) {
+          if (!firstUnStyledRG || !rowFrame->HasStyleHeight()) {
+            NS_ASSERTION(rowFrame->GetSize().height >= 0,
+                         "negative row frame height");
+            divisor += rowFrame->GetSize().height;
+            eligibleRows++;
+            lastEligibleRow = rowFrame;
+          }
+          rowFrame = rowFrame->GetNextRow();
         }
-        rowFrame = rowFrame->GetNextRow();
+      }
+    }
+    if (divisor <= 0) {
+      if (eligibleRows > 0) {
+        expandEmptyRows = PR_TRUE;
+      }
+      else {
+        NS_ERROR("invalid divisor");
+        return;
       }
     }
   }
-  if (divisor <= 0) {
-    NS_ERROR("invalid divisor");
-    return;
-  }
-
   // allocate the extra height to the unstyled row groups and rows
-  pctBasis = aAmount - amountUsed;
+  nscoord heightToDistribute = aAmount - amountUsed;
   yOriginRG = borderPadding.top + cellSpacingY;
   yEndRG = yOriginRG;
   for (rgX = 0; rgX < rowGroups.Length(); rgX++) {
@@ -3297,18 +3348,32 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
     nscoord amountUsedByRG = 0;
     nscoord yOriginRow = 0;
     nsRect rgRect = rgFrame->GetRect();
-    // see if there is an eligible row group
-    if (!firstUnStyledRG || !rgFrame->HasStyleHeight()) {
+    // see if there is an eligible row group or we distribute to all rows
+    if (!firstUnStyledRG || !rgFrame->HasStyleHeight() || !eligibleRows) {
       nsTableRowFrame* rowFrame = rgFrame->GetFirstRow();
       while (rowFrame) {
         nsRect rowRect = rowFrame->GetRect();
-        // see if there is an eligible row
-        if (!firstUnStyledRow || !rowFrame->HasStyleHeight()) {
-          // The amount of additional space each row gets is proportional to its height
-          float percent = rowRect.height / ((float)divisor);
-          // give rows their percentage, except for the last row which gets the remainder
-          nscoord amountForRow = (rowFrame == lastElligibleRow) 
-                                 ? aAmount - amountUsed : NSToCoordRound(((float)(pctBasis)) * percent);
+        // see if there is an eligible row or we distribute to all rows
+        if (!firstUnStyledRow || !rowFrame->HasStyleHeight() || !eligibleRows) {          
+          float ratio;
+          if (eligibleRows) {
+            if (!expandEmptyRows) {
+              // The amount of additional space each row gets is proportional to
+              // its height
+              ratio = float(rowRect.height) / float(divisor);
+            } else {
+              // empty rows get all the same additional space
+              ratio = 1.0f / float(eligibleRows);
+            }
+          }
+          else {
+            // all rows get the same additional space
+            ratio = 1.0f / float(divisor);
+          }
+          // give rows their additional space, except for the last row which
+          // gets the remainder
+          nscoord amountForRow = (rowFrame == lastEligibleRow) 
+                                 ? aAmount - amountUsed : NSToCoordRound(((float)(heightToDistribute)) * ratio);
           amountForRow = PR_MIN(amountForRow, aAmount - amountUsed);
           // update the row height
           nsRect newRowRect(rowRect.x, yOriginRow, rowRect.width, rowRect.height + amountForRow);
@@ -3477,7 +3542,7 @@ nsTableFrame::IsAutoWidth(PRBool* aIsPctWidth)
     // seems silly.
     *aIsPctWidth = width.GetUnit() == eStyleUnit_Percent &&
                    width.GetPercentValue() > 0.0f;
-    // Should this handle -moz-fill and -moz-shrink-wrap?
+    // Should this handle -moz-available and -moz-fit-content?
   }
   return width.GetUnit() == eStyleUnit_Auto;
 }
@@ -3526,13 +3591,13 @@ nsTableFrame::IsAutoLayout()
   if (GetStyleTable()->mLayoutStrategy == NS_STYLE_TABLE_LAYOUT_AUTO)
     return PR_TRUE;
   // a fixed-layout inline-table must have a width
-  // and tables with 'width: -moz-intrinsic' must be auto-layout
+  // and tables with 'width: -moz-max-content' must be auto-layout
   // (at least as long as FixedTableLayoutStrategy::GetPrefWidth returns
   // nscoord_MAX)
   const nsStyleCoord &width = GetStylePosition()->mWidth;
   return (width.GetUnit() == eStyleUnit_Auto) ||
          (width.GetUnit() == eStyleUnit_Enumerated &&
-          width.GetIntValue() == NS_STYLE_WIDTH_INTRINSIC);
+          width.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT);
 }
 
 #ifdef DEBUG
@@ -4158,21 +4223,15 @@ BCMapCellIterator::SetNewRow(nsTableRowFrame* aRow)
 PRBool
 BCMapCellIterator::SetNewRowGroup(PRBool aFindFirstDamagedRow)
 {
-  mAtEnd = PR_TRUE;
-  mRowGroupIndex++;
+   mAtEnd = PR_TRUE;  
   PRInt32 numRowGroups = mRowGroups.Length();
   mCellMap = nsnull;
-  for (PRInt32 rgX = mRowGroupIndex; rgX < numRowGroups; rgX++) {
-    // XXXbz do we really want the group at mRowGroupIndex?  If so, what's the
-    // point of this rgX loop variable, exactly?  Why not just do a while
-    // (mRowGroupIndex < numRowGroups) loop or something?  I suspect this means
-    // to be getting the rowgroup at rgX.
+  for (mRowGroupIndex++; mRowGroupIndex < numRowGroups; mRowGroupIndex++) {
     mRowGroup = mRowGroups[mRowGroupIndex];
     PRInt32 rowCount = mRowGroup->GetRowCount();
     mRowGroupStart = mRowGroup->GetStartRowIndex();
     mRowGroupEnd   = mRowGroupStart + rowCount - 1;
-    if (rowCount > 0) { // XXXbz and if it's not we just keep looping?  What's
-                        // the point?
+    if (rowCount > 0) {
       mCellMap = mTableCellMap->GetMapFor(mRowGroup, mCellMap);
       if (!mCellMap) ABORT1(PR_FALSE);
       nsTableRowFrame* firstRow = mRowGroup->GetFirstRow();
@@ -4188,8 +4247,7 @@ BCMapCellIterator::SetNewRowGroup(PRBool aFindFirstDamagedRow)
             }
           }
         }
-        else {
-          mRowGroupIndex++;
+        else {     
           continue;
         }
       }

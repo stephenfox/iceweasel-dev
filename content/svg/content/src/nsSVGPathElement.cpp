@@ -434,30 +434,16 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
       mSegments = nsnull;
     }
 
-    nsSVGPathDataParserToInternal parser(&mPathData);
-    parser.Parse(*aValue);
+    if (aValue) {
+      nsSVGPathDataParserToInternal parser(&mPathData);
+      parser.Parse(*aValue);
+    } else {
+      mPathData.Clear();
+    }
   }
 
   return nsSVGPathElementBase::BeforeSetAttr(aNamespaceID, aName,
                                              aValue, aNotify);
-}
-
-nsresult
-nsSVGPathElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                            PRBool aNotify)
-{
-  if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::d) {
-    if (mSegments) {
-      NS_REMOVE_SVGVALUE_OBSERVER(mSegments);
-      mSegments = nsnull;
-    }
-
-    mPathData.Clear();
-
-    return nsGenericElement::UnsetAttr(aNamespaceID, aName, aNotify);
-  }
-
-  return nsSVGPathElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
 }
 
 NS_IMETHODIMP
@@ -549,11 +535,11 @@ nsSVGPathElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
 
   PRUint16 lastSegmentType = nsIDOMSVGPathSeg::PATHSEG_UNKNOWN;
 
-  float px, py;    // subpath initial point
-  float pathAngle;
-  PRUint32 pathIndex;
+  float px = 0, py = 0;    // subpath initial point
+  float pathAngle = 0;
+  PRUint32 pathIndex = 0;
 
-  float prevAngle = 0, startAngle, endAngle;
+  float prevAngle = 0, startAngle = 0, endAngle = 0;
 
   PRBool newSegment = PR_FALSE;
 

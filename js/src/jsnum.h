@@ -183,6 +183,20 @@ extern JSString *
 js_NumberToString(JSContext *cx, jsdouble d);
 
 /*
+ * Convert int to C string. The buf must be big enough for MIN_INT to fit
+ * including '-' and '\0'.
+ */
+char *
+js_IntToCString(jsint i, char *buf, size_t bufSize);
+
+/*
+ * Convert a number to C string. The buf must be at least
+ * DTOSTR_STANDARD_BUFFER_SIZE.
+ */
+char *
+js_NumberToCString(JSContext *cx, jsdouble d, char *buf, size_t bufSize);
+
+/*
  * Convert a value to a number, returning false after reporting any error,
  * otherwise returning true with *dp set.
  */
@@ -196,8 +210,8 @@ js_ValueToNumber(JSContext *cx, jsval v, jsdouble *dp);
 extern JSBool
 js_ValueToECMAInt32(JSContext *cx, jsval v, int32 *ip);
 
-extern JSBool
-js_DoubleToECMAInt32(JSContext *cx, jsdouble d, int32 *ip);
+extern int32
+js_DoubleToECMAInt32(jsdouble d);
 
 /*
  * Convert a value or a double to a uint32, according to the ECMA rules
@@ -206,8 +220,8 @@ js_DoubleToECMAInt32(JSContext *cx, jsdouble d, int32 *ip);
 extern JSBool
 js_ValueToECMAUint32(JSContext *cx, jsval v, uint32 *ip);
 
-extern JSBool
-js_DoubleToECMAUint32(JSContext *cx, jsdouble d, uint32 *ip);
+extern uint32
+js_DoubleToECMAUint32(jsdouble d);
 
 /*
  * Convert a value to a number, then to an int32 if it fits by rounding to

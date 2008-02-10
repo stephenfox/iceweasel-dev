@@ -41,6 +41,7 @@
 #include "nsXFormsDelegateStub.h"
 #include "nsXFormsActionElement.h"
 #include "nsIXFormsActionModuleElement.h"
+#include "nsXFormsActionModuleBase.h"
 
 #include "nsIDOMText.h"
 #include "nsIDOM3Node.h"
@@ -107,7 +108,8 @@ class nsXFormsMessageElement : public nsXFormsDelegateStub,
                                public nsIXFormsActionModuleElement,
                                public nsIStreamListener,
                                public nsIInterfaceRequestor,
-                               public nsIChannelEventSink
+                               public nsIChannelEventSink,
+                               public nsXFormsActionModuleHelper
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -132,6 +134,9 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
   NS_DECL_NSIXFORMSACTIONMODULEELEMENT
 
+  virtual nsIDOMElement* GetElement() { return mElement; }
+  virtual nsresult HandleSingleAction(nsIDOMEvent* aEvent,
+                                      nsIXFormsActionElement *aParentAction);
   // Start the timer, which is used to set the message visible
   void StartEphemeral();
   // Set the message visible and start timer to hide it later.
@@ -193,6 +198,13 @@ private:
    */
   PRBool IsEphemeral();
 
+  /** Set context info for events.
+   *
+   * @param aName     Name of the context property.
+   * @param aValue    Value of the context property.
+   */
+  nsresult SetContextInfo(const char *aName, const nsAString &aValue);
+
   MessageType          mType;
 
   // The position of the ephemeral message
@@ -205,6 +217,9 @@ private:
   StopType             mStopType;
   nsCString            mSrcAttrText;
   PRBool               mDoneAddingChildren;
+  // Context Info for events.
+  nsCOMArray<nsIXFormsContextInfo> mContextInfo;
+  nsString             mSrc;
 };
 
 NS_IMPL_ADDREF_INHERITED(nsXFormsMessageElement, nsXFormsDelegateStub)
@@ -440,12 +455,16 @@ nsXFormsMessageElement::DoneAddingChildren()
 }
 
 NS_IMETHODIMP
-nsXFormsMessageElement::HandleAction(nsIDOMEvent* aEvent, 
+nsXFormsMessageElement::HandleAction(nsIDOMEvent* aEvent,
                                      nsIXFormsActionElement *aParentAction)
 {
-  if (!mElement)
-    return NS_OK;
+  return nsXFormsActionModuleBase::DoHandleAction(this, aEvent, aParentAction);
+}
 
+nsresult
+nsXFormsMessageElement::HandleSingleAction(nsIDOMEvent *aEvent,
+                                           nsIXFormsActionElement *aParentAction)
+{
   // If TestExternalFile fails, then there is an external link that we need
   // to use that we can't reach right now.  If it won't load, then might as
   // well stop here.  We don't want to be popping up empty windows
@@ -458,7 +477,13 @@ nsXFormsMessageElement::HandleAction(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIModelElementPrivate> modelPriv =
       nsXFormsUtils::GetModel(mElement);
     nsCOMPtr<nsIDOMNode> model = do_QueryInterface(modelPriv);
-    nsXFormsUtils::DispatchEvent(model, eEvent_LinkError);
+
+    // Context Info: 'resource-uri'
+    // The URI associated with the failed link.
+    SetContextInfo("resource-uri", mSrc);
+
+    nsXFormsUtils::DispatchEvent(model, eEvent_LinkError, nsnull, nsnull,
+                                 &mContextInfo);
     return NS_OK;
   }
 
@@ -675,8 +700,7 @@ nsXFormsMessageElement::HandleModalAndModelessMessage(nsIDOMDocument* aDoc,
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(aDoc));
     NS_ENSURE_STATE(doc);
     nsCOMPtr<nsIURI> uri;
-    NS_NewURI(getter_AddRefs(uri), src, doc->GetDocumentCharacterSet().get(),
-              doc->GetDocumentURI());
+    nsXFormsUtils::GetNewURI(doc, src, getter_AddRefs(uri));
     NS_ENSURE_STATE(uri);
     nsCAutoString uriSpec;
     uri->GetSpec(uriSpec);
@@ -920,14 +944,16 @@ nsXFormsMessageElement::TestExternalFile()
   if (src.IsEmpty()) {
     return NS_OK;
   }
+  // Remember the src attribute so we can set it in the context info
+  // for the xforms-link-error event if the link fails.
+  mSrc = src;
 
   nsCOMPtr<nsIDOMDocument> domDoc;
   mElement->GetOwnerDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
   NS_ENSURE_STATE(doc);
   nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), src, doc->GetDocumentCharacterSet().get(),
-            doc->GetDocumentURI());
+  nsXFormsUtils::GetNewURI(doc, src, getter_AddRefs(uri));
   NS_ENSURE_STATE(uri);
 
   if (!nsXFormsUtils::CheckConnectionAllowed(mElement, uri)) {
@@ -984,6 +1010,9 @@ nsXFormsMessageElement::TestExternalFile()
     nsXFormsUtils::ReportError(NS_LITERAL_STRING("externalLink1Error"),
                                strings, 2, mElement, mElement);
     mStopType = eStopType_LinkError;
+    // Remember the src attribute so we can set it in the context info
+    // for the xforms-link-error event.
+    mSrc = src;
     return NS_ERROR_FAILURE;
   }
 
@@ -1094,6 +1123,9 @@ nsXFormsMessageElement::OnStartRequest(nsIRequest *aRequest,
       nsXFormsUtils::ReportError(NS_LITERAL_STRING("externalLink2Error"),
                                  strings, 2, mElement, mElement);
       mStopType = eStopType_LinkError;
+      // Remember the src attribute so we can set it in the context info
+      // for the xforms-link-error event.
+      mSrc = src;
     }
 
     AddRemoveExternalResource(PR_FALSE);
@@ -1120,6 +1152,9 @@ nsXFormsMessageElement::OnStartRequest(nsIRequest *aRequest,
       nsXFormsUtils::ReportError(NS_LITERAL_STRING("externalLink2Error"),
                                  strings, 2, mElement, mElement);
       mStopType = eStopType_LinkError;
+      // Remember the src attribute so we can set it in the context info
+      // for the xforms-link-error event.
+      mSrc = src;
     }
   }
 
@@ -1245,6 +1280,24 @@ PRBool nsXFormsMessageElement::IsEphemeral()
   nsAutoString level;
   mElement->GetAttribute(NS_LITERAL_STRING("level"), level);
   return level.Equals(NS_LITERAL_STRING("ephemeral"));
+}
+
+nsresult
+nsXFormsMessageElement::SetContextInfo(const char *aName, const nsAString &aValue)
+{
+  nsCOMPtr<nsXFormsContextInfo> contextInfo = new nsXFormsContextInfo(mElement);
+  NS_ENSURE_TRUE(contextInfo, NS_ERROR_OUT_OF_MEMORY);
+  contextInfo->SetStringValue(aName, aValue);
+  mContextInfo.AppendObject(contextInfo);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXFormsMessageElement::GetCurrentEvent(nsIDOMEvent **aEvent)
+{
+  NS_IF_ADDREF(*aEvent = mCurrentEvent);
+  return NS_OK;
 }
 
 NS_HIDDEN_(nsresult)

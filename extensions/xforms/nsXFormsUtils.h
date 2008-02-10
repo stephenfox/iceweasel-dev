@@ -51,6 +51,7 @@
 #include "nsVoidArray.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsXFormsXPathState.h"
+#include "nsXFormsDOMEvent.h"
 
 class nsIDOMElement;
 class nsIXFormsModelElement;
@@ -72,6 +73,7 @@ class nsIXPathEvaluatorInternal;
 #define NS_NAMESPACE_MOZ_XFORMS_LAZY     "http://www.mozilla.org/projects/xforms/2005/lazy"
 
 #define PREF_EXPERIMENTAL_FEATURES       "xforms.enableExperimentalFeatures"
+#define PREF_WAIT_LIMIT                  "dom.max_script_run_time"
 
 #define NS_ERROR_XFORMS_CALCULATION_EXCEPTION \
   NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL, 3001)
@@ -91,6 +93,8 @@ NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 3)
 NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL, 3001)
 #define NS_ERROR_XFORMS_UNION_TYPE \
 NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL, 3002)
+
+#define kNotFound -1
 
 /**
  * XForms event types
@@ -143,7 +147,8 @@ enum nsXFormsEvent {
   eEvent_LinkException,
   eEvent_LinkError,
   eEvent_ComputeException,
-  eEvent_MozHintOff
+  eEvent_MozHintOff,
+  eEvent_SubmitSerialize
 };
 
 struct EventData
@@ -153,7 +158,7 @@ struct EventData
   PRBool      canBubble;
 };
 
-extern const EventData sXFormsEventsEntries[42];
+extern const EventData sXFormsEventsEntries[43];
 
 // Default intrinsic state for XForms Controls
 extern const PRInt32 kDefaultIntrinsicState;
@@ -355,7 +360,8 @@ public:
   static NS_HIDDEN_(nsresult)
     DispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
                   PRBool *aDefaultActionEnabled = nsnull,
-                  nsIDOMElement *aSrcElement = nsnull);
+                  nsIDOMElement *aSrcElement = nsnull,
+                  nsCOMArray<nsIXFormsContextInfo> *aContextInfo = nsnull);
 
   static NS_HIDDEN_(nsresult)
     DispatchDeferredEvents(nsIDOMDocument* aDocument);
@@ -712,13 +718,40 @@ public:
                                                   PRInt32 * aDays);
 
   /**
+   * Get the current date and time as a string.  For example,
+   * 2007-01-11T17:57:30-6:00 if UTC is not set and 2007-01-11T23:57:30Z if
+   * it is.
+   *
+   * @param aResult          The returned string
+   * @param aUTC             Should the string be expressed in UTC format or
+   *                         in the current timezone.
+   */
+  static NS_HIDDEN_(nsresult) GetTime(nsAString & aResult, PRBool aUTC = false);
+
+  /**
    * Determine whether the given node contains an xf:itemset as a child.
    * In valid XForms documents this should only be possible if aNode is an
    * xf:select/1 or an xf:choices element.  This function is used primarily
    * as a worker function for select/1's IsContentAllowed override.
-
    */
   static NS_HIDDEN_(PRBool) NodeHasItemset(nsIDOMNode *aNode);
+
+  /**
+   * Ask the user if she would like to stop the current long-running script
+   * component.  Returns PR_TRUE if yes, otherwise PR_FALSE.
+   *
+   * @param aElement           An element in the current document; used to
+   *                           find the window for the prompt
+   */
+  static NS_HIDDEN_(PRBool) AskStopWaiting(nsIDOMElement *aElement);
+
+  /**
+   * Caches the current value of the PREF_WAIT_LIMIT preference, which
+   * stores the number of seconds that a user should have to wait before she
+   * is given an opportunity to stop the busy section of the processor.  (A
+   * value of 0 indicates that the user does not want to be prompted.)
+   */
+  static NS_HIDDEN_(PRInt32) waitLimit;
 
   /**
    * Variable is true if the 'xforms.enableExperimentalFeatures' preference has
@@ -735,6 +768,45 @@ public:
    * not yet reached recommendation.
    */
   static NS_HIDDEN_(PRBool) ExperimentalFeaturesEnabled();
+
+  /**
+   * Same as FindCharInSet but safely uses frozen string APIs.  Compares
+   * each character in aString against each character in aSet.  If a match to
+   * one of the characters in aSet is found, the index of that character in
+   * aString is returned.
+   *
+   * @param aString             The string to search
+   * @param aSet                The list of characters to search for
+   * @param aOffset             The position to start looking from inside
+   *                            aString
+   */
+  static NS_HIDDEN_(PRInt32) FindCharInSet(const nsAString &aString,
+                                           const char      *aSet,
+                                           PRInt32          aOffset = 0);
+
+  /**
+   * Convert the line breaks in a string to CRLF.  Returns PR_FALSE if an
+   * an error occurred, otherwise returns PR_TRUE.
+   *
+   * @param aSrc                String whose line breaks need to be converted
+   *                            to CRLF
+   * @param aDest               Result string containing the converted string
+   */
+  static NS_HIDDEN_(PRBool) ConvertLineBreaks(const nsCString &aSrc,
+                                              nsCString &aDest);
+
+  /**
+   * Get a new nsIURI object based on the character set of aDoc.
+   *
+   * @param aDoc The document which character set is used when creating aURI.
+   * @param aSrc The URI string
+   * @param aURI The URI object which was created.
+   *
+   * @note aDoc must be attached to the docshell tree.
+   */
+   static NS_HIDDEN_(nsresult) GetNewURI(nsIDocument* aDoc,
+                                         const nsAString& aSrc,
+                                         nsIURI** aURI);
 
 private:
   /**
@@ -766,7 +838,6 @@ private:
   static NS_HIDDEN_(PRBool) CheckContentPolicy(nsIDOMElement *aElement,
                                                nsIDocument   *aDoc,
                                                nsIURI        *aURI);
-
 };
 
 #endif

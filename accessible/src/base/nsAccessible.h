@@ -1,4 +1,4 @@
- /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -114,7 +114,6 @@ public:
   NS_DECL_NSIACCESSIBLEVALUE
 
   // nsIAccessNode
-  NS_IMETHOD Init();
   NS_IMETHOD Shutdown();
 
   /**
@@ -161,6 +160,15 @@ public:
     return parent;
   }
   
+  /**
+   *  Return the nsIContent* to check for ARIA attributes on -- this may not always
+   *  be the DOM node for the accessible. Specifically, for doc accessibles, it is not
+   *  the document node, but either the root element or <body> in HTML.
+   *  @param aDOMNode   The DOM node for the accessible that may be affected by ARIA
+   *  @return The nsIContent which may have ARIA markup
+   */
+  static nsIContent *GetRoleContent(nsIDOMNode *aDOMNode);
+
 protected:
   PRBool MappedAttrState(nsIContent *aContent, PRUint32 *aStateInOut, nsStateMapEntry *aStateMapEntry);
   virtual nsIFrame* GetBoundsFrame();
@@ -177,11 +185,10 @@ protected:
    * @param aName        Where to put the text
    * @return error or success code
    */
-  nsresult GetTextFromRelationID(EAriaProperty aIDProperty, nsString &aName);
+  nsresult GetTextFromRelationID(nsIAtom *aIDProperty, nsString &aName);
 
   static nsIContent *GetHTMLLabelContent(nsIContent *aForNode);
   static nsIContent *GetLabelContent(nsIContent *aForNode);
-  static nsIContent *GetRoleContent(nsIDOMNode *aDOMNode);
 
   // Name helpers
   nsresult GetHTMLName(nsAString& _retval, PRBool aCanAggregateSubtree = PR_TRUE);
@@ -231,7 +238,7 @@ protected:
   PRBool CheckVisibilityInParentChain(nsIDocument* aDocument, nsIView* aView);
 
   /**
-   *  Get the container node for an atomic region, defined by aria:atomic="true"
+   *  Get the container node for an atomic region, defined by aria-atomic="true"
    *  @return the container node
    */
   nsIDOMNode* GetAtomicRegion();
@@ -244,7 +251,7 @@ protected:
    *
    * @return - NS_OK_NO_ARIA_VALUE if there is no setted ARIA attribute
    */
-  nsresult GetAttrValue(EAriaProperty aAriaProperty, double *aValue);
+  nsresult GetAttrValue(nsIAtom *aAriaProperty, double *aValue);
 
   // Data Members
   nsCOMPtr<nsIAccessible> mParent;

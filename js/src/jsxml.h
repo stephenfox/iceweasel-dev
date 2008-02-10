@@ -215,7 +215,7 @@ extern void
 js_FinalizeXML(JSContext *cx, JSXML *xml);
 
 extern JSObject *
-js_ParseNodeToXMLObject(JSContext *cx, JSParseNode *pn);
+js_ParseNodeToXMLObject(JSContext *cx, JSParseContext *pc, JSParseNode *pn);
 
 extern JSObject *
 js_NewXMLObject(JSContext *cx, JSXMLClass xml_class);
@@ -285,7 +285,7 @@ extern JSBool
 js_ToAttributeName(JSContext *cx, jsval *vp);
 
 extern JSString *
-js_EscapeAttributeValue(JSContext *cx, JSString *str);
+js_EscapeAttributeValue(JSContext *cx, JSString *str, JSBool quote);
 
 extern JSString *
 js_AddAttributePart(JSContext *cx, JSBool isName, JSString *str,

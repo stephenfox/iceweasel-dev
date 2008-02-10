@@ -50,7 +50,6 @@
 #include "nsIURL.h"
 #include "nsNetCID.h"
 #include "nsIStringBundle.h"
-#include "nsIPref.h"
 #include "nsReadableUtils.h"
 
 #include "nsEscape.h"
@@ -75,6 +74,7 @@
 #include "nsIDOMNodeList.h"
 
 #include "nsITimer.h"
+#include "nsXULPopupManager.h"
 
 #include "prmem.h"
 #include "prlock.h"
@@ -109,7 +109,6 @@
 #include "nsIMarkupDocumentViewer.h"
 
 #if defined(XP_MACOSX)
-#include "nsIMenuListener.h"
 #include "nsIMenuBar.h"
 #define USE_NATIVE_MENUS
 #endif
@@ -307,12 +306,30 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
        * client area of the window...
        */
       case NS_MOVE: {
+#ifndef XP_MACOSX
+        // Move any popups that are attached to their parents. That is, the
+        // popup moves along with the parent window when it moves. This
+        // doesn't need to happen on Mac, as Cocoa provides a nice API
+        // which does this for us.
+        nsCOMPtr<nsIMenuRollup> pm =
+          do_GetService("@mozilla.org/xul/xul-popup-manager;1");
+        if (pm)
+          pm->AdjustPopupsOnWindowChange();
+#endif
+
         // persist position, but not immediately, in case this OS is firing
         // repeated move events as the user drags the window
         eventWindow->SetPersistenceTimer(PAD_POSITION);
         break;
       }
       case NS_SIZE: {
+#ifndef XP_MACOSX
+        nsCOMPtr<nsIMenuRollup> pm =
+          do_GetService("@mozilla.org/xul/xul-popup-manager;1");
+        if (pm)
+          pm->AdjustPopupsOnWindowChange();
+#endif
+ 
         nsSizeEvent* sizeEvent = (nsSizeEvent*)aEvent;
         nsCOMPtr<nsIBaseWindow> shellAsWin(do_QueryInterface(docShell));
         shellAsWin->SetPositionAndSize(0, 0, sizeEvent->windowSize->width, 
@@ -514,12 +531,11 @@ static void LoadNativeMenus(nsIDOMDocument *aDOMDoc, nsIWidget *aParentWindow)
   if (!pnsMenuBar)
     return;
 
-  // set pnsMenuBar as a nsMenuListener on aParentWindow
-  nsCOMPtr<nsIMenuListener> menuListener = do_QueryInterface(pnsMenuBar);
+  pnsMenuBar->Create(aParentWindow);
 
   // fake event
   nsMenuEvent fake(PR_TRUE, 0, nsnull);
-  menuListener->MenuConstruct(fake, aParentWindow, menubarNode);
+  pnsMenuBar->MenuConstruct(fake, aParentWindow, menubarNode);
 }
 #endif
 

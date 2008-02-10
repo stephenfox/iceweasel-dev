@@ -68,7 +68,7 @@ interface nsILayoutHistoryState;
 interface nsISecureBrowserUI;
 interface nsIDOMStorage;
 
-[scriptable, uuid(10ed386d-8598-408c-b571-e75ad18edeb0)]
+[scriptable, uuid(4b00222a-8d0a-46d7-a1fe-43bd89d19324)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -125,6 +125,8 @@ interface nsIDocShell : nsISupports
   // This flag marks the first load in this object
   // @see nsIWebNavigation::LOAD_FLAGS_FIRST_LOAD
   const long INTERNAL_LOAD_FLAGS_FIRST_LOAD              = 0x8;
+
+  const long INTERNAL_LOAD_FLAGS_BYPASS_CLASSIFIER       = 0x10;
 
   /**
    * Loads the given URI.  This method is identical to loadURI(...) except
@@ -448,5 +450,12 @@ interface nsIDocShell : nsISupports
    * document has been set up)
    */
   readonly attribute boolean isInUnload;
+
+  /**
+   * Find out if the currently loaded document came from a suspicious channel
+   * (such as a JAR channel where the server-returned content type isn't a
+   * known JAR type).
+   */
+  readonly attribute boolean channelIsUnsafe;
 };
 

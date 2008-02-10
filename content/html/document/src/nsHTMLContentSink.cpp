@@ -1391,7 +1391,7 @@ SinkContext::FlushTags()
           nsIContent* child = mStack[stackPos + 1].mContent;
           mSink->NotifyInsert(content,
                               child,
-                              mStack[stackPos].mInsertionPoint);
+                              mStack[stackPos].mInsertionPoint - 1);
         } else {
           mSink->NotifyAppend(content, mStack[stackPos].mNumFlushed);
         }
@@ -2347,6 +2347,7 @@ HTMLContentSink::OpenContainer(const nsIParserNode& aNode)
         if (!mNotifiedRootInsertion) {
           NotifyRootInsertion();
         }
+        ProcessOfflineManifest(mRoot);
       }
       break;
     case eHTMLTag_form:
@@ -2991,13 +2992,6 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
             PrefetchHref(hrefVal, element, hasPrefetch);
-          }
-        }
-        if (linkTypes.IndexOf(NS_LITERAL_STRING("offline-resource")) != -1) {
-          nsAutoString hrefVal;
-          element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
-          if (!hrefVal.IsEmpty()) {
-            AddOfflineResource(hrefVal, element);
           }
         }
       }

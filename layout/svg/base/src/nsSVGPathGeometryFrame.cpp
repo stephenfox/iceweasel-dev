@@ -258,6 +258,12 @@ nsSVGPathGeometryFrame::DidSetStyleContext()
 {
   nsSVGPathGeometryFrameBase::DidSetStyleContext();
 
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (outerSVGFrame) {
+    // invalidate here while we still have the filter information
+    outerSVGFrame->InvalidateRect(nsSVGUtils::FindFilterInvalidation(this));
+  }
+
   RemovePathProperties();
 
   // XXX: we'd like to use the style_hint mechanism and the
@@ -328,9 +334,20 @@ nsSVGPathGeometryFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
 {
   *hit = nsnull;
 
-  PRUint16 mask = GetHittestMask();
-  if (!mask || (!(mask & HITTEST_MASK_FORCE_TEST) && !mRect.Contains(x, y)))
-    return NS_OK;
+  PRUint16 fillRule, mask;
+  // check if we're a clipPath - cheaper than IsClipChild(), and we shouldn't
+  // get in here for other nondisplay children
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) {
+    NS_ASSERTION(IsClipChild(), "should be in clipPath but we're not");
+    mask = HITTEST_MASK_FILL;
+    fillRule = GetClipRule();
+  } else {
+    mask = GetHittestMask();
+    if (!mask || (!(mask & HITTEST_MASK_FORCE_TEST) &&
+                  !mRect.Contains(nscoord(x), nscoord(y))))
+      return NS_OK;
+    fillRule = GetStyleSVG()->mFillRule;
+  }
 
   PRBool isHit = PR_FALSE;
 
@@ -338,12 +355,6 @@ nsSVGPathGeometryFrame::GetFrameForPointSVG(float x, float y, nsIFrame** hit)
 
   GeneratePath(&context);
   gfxPoint devicePoint = context.DeviceToUser(gfxPoint(x, y));
-
-  PRUint32 fillRule;
-  if (IsClipChild())
-    fillRule = GetClipRule();
-  else
-    fillRule = GetStyleSVG()->mFillRule;
 
   if (fillRule == NS_STYLE_FILL_RULE_EVENODD)
     context.SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
@@ -429,7 +440,7 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
     }
   } else {
     context.IdentityMatrix();
-    extent = context.GetUserFillExtent();
+    extent = context.GetUserPathExtent();
     if (!IsDegeneratePath(extent)) {
       mRect = nsSVGUtils::ToBoundingPixelRect(extent);
     }
@@ -459,15 +470,10 @@ nsSVGPathGeometryFrame::InitialUpdate()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSVGPathGeometryFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
+void
+nsSVGPathGeometryFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  if (!suppressInvalidation)
-    nsSVGUtils::UpdateFilterRegion(this);
-
-  UpdateGraphic(suppressInvalidation);
-
-  return NS_OK;
+  UpdateGraphic((aFlags & SUPPRESS_INVALIDATION) != 0);
 }
 
 NS_IMETHODIMP
@@ -516,14 +522,7 @@ nsSVGPathGeometryFrame::GetBBox(nsIDOMSVGRect **_retval)
   GeneratePath(&context);
   context.IdentityMatrix();
 
-  gfxRect extent = context.GetUserFillExtent();
-
-  if (IsDegeneratePath(extent)) {
-    context.SetLineWidth(0);
-    extent = context.GetUserStrokeExtent();
-  }
-
-  return NS_NewSVGRect(_retval, extent);
+  return NS_NewSVGRect(_retval, context.GetUserPathExtent());
 }
 
 //----------------------------------------------------------------------
@@ -758,17 +757,13 @@ nsSVGPathGeometryFrame::UpdateGraphic(PRBool suppressInvalidation)
     if (suppressInvalidation)
       return NS_OK;
 
-    outerSVGFrame->InvalidateRect(mRect);
+    outerSVGFrame->InvalidateRect(nsSVGUtils::FindFilterInvalidation(this));
 
     UpdateMarkerProperty();
     UpdateCoveredRegion();
+    nsSVGUtils::UpdateFilterRegion(this);
 
-    nsRect filterRect = nsSVGUtils::FindFilterInvalidation(this);
-    if (!filterRect.IsEmpty()) {
-      outerSVGFrame->InvalidateRect(filterRect);
-    } else {
-      outerSVGFrame->InvalidateRect(mRect);
-    }
+    outerSVGFrame->InvalidateRect(nsSVGUtils::FindFilterInvalidation(this));
   }
 
   return NS_OK;

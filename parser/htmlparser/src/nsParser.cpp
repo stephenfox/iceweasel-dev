@@ -48,6 +48,7 @@
 #include "nsICachingChannel.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsICharsetAlias.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIInputStream.h"
 #include "CNavDTD.h"
 #include "prenv.h"
@@ -89,7 +90,7 @@ loop. The data which was left at the time of interruption will be processed
 the next time OnDataAvailable is called. If the parser has received its final
 chunk of data then OnDataAvailable will no longer be called by the networking
 module, so the parser will schedule a nsParserContinueEvent which will call
-the parser to process the  remaining data after returning to the event loop.
+the parser to process the remaining data after returning to the event loop.
 If the parser is interrupted while processing the remaining data it will
 schedule another ParseContinueEvent. The processing of data followed by
 scheduling of the continue events will proceed until either:
@@ -154,6 +155,9 @@ public:
 
 //-------------- End ParseContinue Event Definition ------------------------
 
+nsICharsetAlias* nsParser::sCharsetAliasService = nsnull;
+nsICharsetConverterManager* nsParser::sCharsetConverterManager = nsnull;
+
 /**
  *  This gets called when the htmlparser module is initialized.
  */
@@ -204,6 +208,17 @@ nsParser::Init()
     }
   }
 
+  nsCOMPtr<nsICharsetAlias> charsetAlias =
+    do_GetService(NS_CHARSETALIAS_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  nsCOMPtr<nsICharsetConverterManager> charsetConverter =
+    do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  charsetAlias.swap(sCharsetAliasService);
+  charsetConverter.swap(sCharsetConverterManager);
+
   return NS_OK;
 }
 
@@ -216,8 +231,10 @@ void nsParser::Shutdown()
 {
   delete sParserDataListeners;
   sParserDataListeners = nsnull;
+  
+  NS_IF_RELEASE(sCharsetAliasService);
+  NS_IF_RELEASE(sCharsetConverterManager);
 }
-
 
 #ifdef DEBUG
 static PRBool gDumpContent=PR_FALSE;
@@ -1423,14 +1440,14 @@ nsParser::Parse(const nsAString& aSourceBuffer,
 NS_IMETHODIMP
 nsParser::ParseFragment(const nsAString& aSourceBuffer,
                         void* aKey,
-                        nsVoidArray& aTagStack,
+                        nsTArray<nsAutoString>& aTagStack,
                         PRBool aXMLMode,
                         const nsACString& aMimeType,
                         nsDTDMode aMode)
 {
   nsresult result = NS_OK;
   nsAutoString  theContext;
-  PRUint32 theCount = aTagStack.Count();
+  PRUint32 theCount = aTagStack.Length();
   PRUint32 theIndex = 0;
 
   // Disable observers for fragments
@@ -1438,7 +1455,7 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
 
   for (theIndex = 0; theIndex < theCount; theIndex++) {
     theContext.AppendLiteral("<");
-    theContext.Append((PRUnichar*)aTagStack.ElementAt(theCount - theIndex - 1));
+    theContext.Append(aTagStack[theCount - theIndex - 1]);
     theContext.AppendLiteral(">");
   }
 
@@ -1453,7 +1470,7 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
   nsCOMPtr<nsIFragmentContentSink> fragSink = do_QueryInterface(mSink);
   NS_ASSERTION(fragSink, "ParseFragment requires a fragment content sink");
 
-  if (!aXMLMode) {
+  if (!aXMLMode && theCount) {
     // First, we have to flush any tags that don't belong in the head if there
     // was no <body> in the context.
     // XXX This is extremely ugly. Maybe CNavDTD should have FlushMisplaced()?
@@ -1515,7 +1532,7 @@ nsParser::ParseFragment(const nsAString& aSourceBuffer,
           endContext.AppendLiteral("</");
         }
 
-        nsAutoString thisTag( (PRUnichar*)aTagStack.ElementAt(theIndex) );
+        nsAutoString& thisTag = aTagStack[theIndex];
         // was there an xmlns=?
         PRInt32 endOfTag = thisTag.FindChar(PRUnichar(' '));
         if (endOfTag == -1) {

@@ -114,6 +114,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
   if (mAccChildCount != eChildCountUninitialized)
     return;
 
+  mAccChildCount = 0; // Avoid reentry
   nsIAccessibilityService *accService = GetAccService();
   if (!accService)
     return;
@@ -175,6 +176,14 @@ nsXFormsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
   *aState = 0;
+  if (!mDOMNode) {
+    if (aExtraState) {
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+    }
+    return NS_OK;
+  }
+  if (aExtraState)
+    *aExtraState = 0;
 
   NS_ENSURE_TRUE(sXFormsService, NS_ERROR_FAILURE);
 
@@ -216,7 +225,7 @@ NS_IMETHODIMP
 nsXFormsAccessible::GetName(nsAString& aName)
 {
   nsAutoString name;
-  nsresult rv = GetTextFromRelationID(eAria_labelledby, name);
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_labelledby, name);
   if (NS_SUCCEEDED(rv) && !name.IsEmpty()) {
     aName = name;
     return NS_OK;
@@ -230,7 +239,7 @@ NS_IMETHODIMP
 nsXFormsAccessible::GetDescription(nsAString& aDescription)
 {
   nsAutoString description;
-  nsresult rv = GetTextFromRelationID(eAria_describedby, description);
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
 
   if (NS_SUCCEEDED(rv) && !description.IsEmpty()) {
     aDescription = description;
@@ -308,8 +317,7 @@ nsXFormsEditableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
   nsresult rv = nsXFormsAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aExtraState)
+  if (!mDOMNode || !aExtraState)
     return NS_OK;
 
   PRBool isReadonly = PR_FALSE;

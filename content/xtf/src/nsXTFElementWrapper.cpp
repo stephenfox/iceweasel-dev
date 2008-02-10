@@ -104,8 +104,15 @@ nsXTFElementWrapper::Init()
 //----------------------------------------------------------------------
 // nsISupports implementation
 
-NS_IMPL_ADDREF_INHERITED(nsXTFElementWrapper,nsXTFElementWrapperBase)
-NS_IMPL_RELEASE_INHERITED(nsXTFElementWrapper,nsXTFElementWrapperBase)
+NS_IMPL_ADDREF_INHERITED(nsXTFElementWrapper, nsXTFElementWrapperBase)
+NS_IMPL_RELEASE_INHERITED(nsXTFElementWrapper, nsXTFElementWrapperBase)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXTFElementWrapper)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXTFElementWrapper,
+                                                  nsXTFElementWrapperBase)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mXTFElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAttributeHandler)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMETHODIMP
 nsXTFElementWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
@@ -541,8 +548,27 @@ void
 nsXTFElementWrapper::PerformAccesskey(PRBool aKeyCausesActivation,
                                       PRBool aIsTrustedEvent)
 {
-  if (mNotificationMask & nsIXTFElement::NOTIFY_PERFORM_ACCESSKEY)
-    GetXTFElement()->PerformAccesskey();
+  if (mNotificationMask & nsIXTFElement::NOTIFY_PERFORM_ACCESSKEY) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (!doc)
+      return;
+
+    // Get presentation shell 0
+    nsIPresShell *presShell = doc->GetPrimaryShell();
+    if (!presShell)
+      return;
+
+    nsPresContext *presContext = presShell->GetPresContext();
+    if (!presContext)
+      return;
+
+    nsIEventStateManager *esm = presContext->EventStateManager();
+    if (esm)
+      esm->ChangeFocusWith(this, nsIEventStateManager::eEventFocusedByKey);
+
+    if (aKeyCausesActivation)
+      GetXTFElement()->PerformAccesskey();
+  }
 }
 
 nsresult

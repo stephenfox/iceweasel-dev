@@ -79,10 +79,16 @@ public:
 
   // nsIContent interface methods
 
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
 
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
+
+  virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
 
@@ -117,6 +123,9 @@ public:
   // nsISupportsWeakReference
   // implementation inherited from nsSupportsWeakReference
 
+  // Gets the element that establishes the rectangular viewport against which
+  // we should resolve percentage lengths (our "coordinate context"). Returns
+  // nsnull for outer <svg> or SVG without an <svg> parent (invalid SVG).
   nsSVGSVGElement* GetCtx();
 
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
@@ -167,6 +176,8 @@ protected:
                          PRUint32 aLengthCount) :
       mLengths(aLengths), mLengthInfo(aLengthInfo), mLengthCount(aLengthCount)
       {}
+
+    void Reset(PRUint8 aAttrEnum);
   };
 
   struct NumberInfo {
@@ -184,6 +195,8 @@ protected:
                          PRUint32 aNumberCount) :
       mNumbers(aNumbers), mNumberInfo(aNumberInfo), mNumberCount(aNumberCount)
       {}
+
+    void Reset(PRUint8 aAttrEnum);
   };
 
   struct IntegerInfo {
@@ -201,6 +214,8 @@ protected:
                           PRUint32 aIntegerCount) :
       mIntegers(aIntegers), mIntegerInfo(aIntegerInfo), mIntegerCount(aIntegerCount)
       {}
+
+    void Reset(PRUint8 aAttrEnum);
   };
 
   struct AngleInfo {
@@ -219,6 +234,8 @@ protected:
                         PRUint32 aAngleCount) :
       mAngles(aAngles), mAngleInfo(aAngleInfo), mAngleCount(aAngleCount)
       {}
+
+    void Reset(PRUint8 aAttrEnum);
   };
 
   struct BooleanInfo {
@@ -236,6 +253,8 @@ protected:
                           PRUint32 aBooleanCount) :
       mBooleans(aBooleans), mBooleanInfo(aBooleanInfo), mBooleanCount(aBooleanCount)
       {}
+
+    void Reset(PRUint8 aAttrEnum);
   };
 
   friend class nsSVGEnum;
@@ -256,6 +275,8 @@ protected:
                        PRUint32 aEnumCount) :
       mEnums(aEnums), mEnumInfo(aEnumInfo), mEnumCount(aEnumCount)
       {}
+
+    void Reset(PRUint8 aAttrEnum);
   };
 
   virtual LengthAttributesInfo GetLengthInfo();
@@ -282,6 +303,9 @@ protected:
   static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
                                               nsIAtom* aAttribute,
                                               const nsAString& aValue);
+
+private:
+  void ResetOldStyleBaseType(nsISVGValue *svg_value);
 
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;

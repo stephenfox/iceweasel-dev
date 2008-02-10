@@ -60,6 +60,8 @@ class PropertyProvider;
 
 class nsTextFrame : public nsFrame {
 public:
+  friend class nsContinuingTextFrame;
+
   nsTextFrame(nsStyleContext* aContext) : nsFrame(aContext)
   {
     NS_ASSERTION(mContentOffset == 0, "Bogus content offset");
@@ -180,6 +182,12 @@ public:
    * should return PR_FALSE if this is not a text frame.
    */
   virtual PRBool HasTerminalNewline() const;
+
+  /**
+   * Returns true if this text frame is logically adjacent to the end of the
+   * line.
+   */
+  PRBool IsAtEndOfLine() const;
   
 #ifdef ACCESSIBILITY
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
@@ -202,10 +210,21 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
   virtual PRBool CanContinueTextRun() const;
-  NS_IMETHOD TrimTrailingWhiteSpace(nsPresContext* aPresContext,
-                                    nsIRenderingContext& aRC,
-                                    nscoord& aDeltaWidth,
-                                    PRBool& aLastCharIsJustifiable);
+  // Method that is called for a text frame that is logically
+  // adjacent to the end of the line (i.e. followed only by empty text frames,
+  // placeholders or inlines containing such).
+  struct TrimOutput {
+    // true if we trimmed some space or changed metrics in some other way.
+    // In this case, we should call RecomputeOverflowRect on this frame.
+    PRPackedBool mChanged;
+    // true if the last character is not justifiable so should be subtracted
+    // from the count of justifiable characters in the frame, since the last
+    // character in a line is not justifiable.
+    PRPackedBool mLastCharIsJustifiable;
+    // an amount to *subtract* from the frame's width (zero if !mChanged)
+    nscoord      mDeltaWidth;
+  };
+  TrimOutput TrimTrailingWhiteSpace(nsIRenderingContext* aRC);
   virtual nsresult GetRenderedText(nsAString* aString = nsnull,
                                    gfxSkipChars* aSkipChars = nsnull,
                                    gfxSkipCharsIterator* aSkipIter = nsnull,
@@ -263,11 +282,15 @@ public:
   PRInt16 GetSelectionStatus(PRInt16* aSelectionFlags);
 
 #ifdef DEBUG
-  void ToCString(nsString& aBuf, PRInt32* aTotalContentLength) const;
+  void ToCString(nsCString& aBuf, PRInt32* aTotalContentLength) const;
 #endif
 
   PRInt32 GetContentOffset() const { return mContentOffset; }
-  PRInt32 GetContentLength() const { return GetContentEnd() - mContentOffset; }
+  PRInt32 GetContentLength() const
+  {
+    NS_ASSERTION(GetContentEnd() - mContentOffset >= 0, "negative length");
+    return GetContentEnd() - mContentOffset;
+  }
   PRInt32 GetContentEnd() const;
   // This returns the length the frame thinks it *should* have after it was
   // last reflowed (0 if it hasn't been reflowed yet). This should be used only

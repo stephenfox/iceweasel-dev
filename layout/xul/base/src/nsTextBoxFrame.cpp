@@ -77,9 +77,6 @@
 #include "nsBidiPresUtils.h"
 #endif // IBMBIDI
 
-// horizontal ellipsis (U+2026)
-#define ELLIPSIS PRUnichar(0x2026)
-
 #define CROP_LEFT   "left"
 #define CROP_RIGHT  "right"
 #define CROP_CENTER "center"
@@ -226,6 +223,11 @@ public:
         }
         delete this;
         return shouldFlush;
+    }
+
+    virtual void ReflowCallbackCanceled()
+    {
+        delete this;
     }
 
     nsWeakFrame mWeakFrame;
@@ -449,8 +451,7 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
 
     nscoord baseline =
       presContext->RoundAppUnitsToNearestDevPixels(textRect.y + ascent);
-    nsRefPtr<gfxContext> ctx = (gfxContext*)
-      aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+    nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
     gfxPoint pt(presContext->AppUnitsToGfxUnits(textRect.x),
                 presContext->AppUnitsToGfxUnits(textRect.y));
     gfxFloat width = presContext->AppUnitsToGfxUnits(textRect.width);
@@ -627,14 +628,15 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
         return;  // fits, done.
     }
 
+    const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
     // start with an ellipsis
-    mCroppedTitle.Assign(ELLIPSIS);
+    mCroppedTitle.Assign(kEllipsis);
 
     // see if the width is even smaller than the ellipsis
     // if so, clear the text (XXX set as many '.' as we can?).
     nscoord ellipsisWidth;
     aRenderingContext.SetTextRunRTL(PR_FALSE);
-    aRenderingContext.GetWidth(ELLIPSIS, ellipsisWidth);
+    aRenderingContext.GetWidth(kEllipsis, ellipsisWidth);
 
     if (ellipsisWidth > aWidth) {
         mCroppedTitle.SetLength(0);
@@ -773,11 +775,7 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
                 rightPos--;
             }
 
-            // form the new cropped string
-            nsAutoString ellipsisString;
-            ellipsisString.Assign(ELLIPSIS);
-
-            mCroppedTitle = leftString + ellipsisString + rightString;
+            mCroppedTitle = leftString + kEllipsis + rightString;
         }
         break;
     }
@@ -785,6 +783,8 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
     mTitleWidth = nsLayoutUtils::GetStringWidth(this, &aRenderingContext,
                                                 mCroppedTitle.get(), mCroppedTitle.Length());
 }
+
+#define OLD_ELLIPSIS NS_LITERAL_STRING("...")
 
 // the following block is to append the accesskey to mTitle if there is an accesskey
 // but the mTitle doesn't have the character
@@ -819,20 +819,28 @@ nsTextBoxFrame::UpdateAccessTitle()
         return;
     }
 
-    PRInt32 offset = mTitle.RFind("...");
-    if (offset == kNotFound) {
-        offset = (PRInt32)mTitle.Length();
-        if (mTitle.Last() == PRUnichar(':'))
+    const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
+    PRUint32 offset = mTitle.Length();
+    if (StringEndsWith(mTitle, kEllipsis)) {
+        offset -= kEllipsis.Length();
+    } else if (StringEndsWith(mTitle, OLD_ELLIPSIS)) {
+        // Try to check with our old ellipsis (for old addons)
+        offset -= OLD_ELLIPSIS.Length();
+    } else {
+        // Try to check with
+        // our default ellipsis (for non-localized addons) or ':'
+        const PRUnichar kLastChar = mTitle.Last();
+        if (kLastChar == PRUnichar(0x2026) || kLastChar == PRUnichar(':'))
             offset--;
     }
 
-    if (InsertSeparatorBeforeAccessKey() && offset > 0 &&
+    if (InsertSeparatorBeforeAccessKey() &&
         !NS_IS_SPACE(mTitle[offset - 1])) {
-        mTitle.Insert(' ', (PRUint32)offset);
+        mTitle.Insert(' ', offset);
         offset++;
     }
 
-    mTitle.Insert(accessKeyLabel, (PRUint32)offset);
+    mTitle.Insert(accessKeyLabel, offset);
 }
 
 void

@@ -194,7 +194,7 @@ public:
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  NS_IMETHOD Rollup();
+  NS_IMETHOD Rollup(nsIContent** aLastRolledUp);
   /**
    * A combobox should roll up if a mousewheel event happens outside of
    * the popup area.
@@ -224,6 +224,9 @@ protected:
   nsresult ReflowDropdown(nsPresContext*          aPresContext, 
                           const nsHTMLReflowState& aReflowState);
 
+  // Helper for GetMinWidth/GetPrefWidth
+  nscoord GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
+                            nsLayoutUtils::IntrinsicWidthType aType);
 protected:
   class RedisplayTextEvent;
   friend class RedisplayTextEvent;

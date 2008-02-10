@@ -22,6 +22,7 @@
  *
  * Contributor(s):
  *   Kai Engert <kengert@redhat.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,6 +48,7 @@
 #include "nsIFile.h"
 #include "prmon.h"
 #include "secoidt.h"
+#include "nsWeakReference.h"
 
 class nsCertOverride
 {
@@ -68,6 +70,7 @@ public:
   nsCertOverride &operator=(const nsCertOverride &other)
   {
     mHostWithPortUTF8 = other.mHostWithPortUTF8;
+    mIsTemporary = other.mIsTemporary;
     mFingerprintAlgOID = other.mFingerprintAlgOID;
     mFingerprint = other.mFingerprint;
     mOverrideBits = other.mOverrideBits;
@@ -76,6 +79,7 @@ public:
   }
 
   nsCString mHostWithPortUTF8;
+  PRBool mIsTemporary; // true: session only, false: stored on disk
   nsCString mFingerprint;
   nsCString mFingerprintAlgOID;
   OverrideBits mOverrideBits;
@@ -150,6 +154,7 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
 
 class nsCertOverrideService : public nsICertOverrideService
                             , public nsIObserver
+                            , public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
@@ -182,7 +187,8 @@ protected:
     void RemoveAllFromMemory();
     nsresult Read();
     nsresult Write();
-    nsresult AddEntryToList(const nsACString &hostWithPortUTF8, 
+    nsresult AddEntryToList(const nsACString &hostWithPortUTF8,
+                            const PRBool aIsTemporary,
                             const nsACString &algo_oid, 
                             const nsACString &fingerprint,
                             nsCertOverride::OverrideBits ob,

@@ -1052,12 +1052,13 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
 
         /* Make a constructor function for the current name. */
         atom = cx->runtime->atomState.classAtoms[exceptions[i].key];
-        fun = js_DefineFunction(cx, obj, atom, exceptions[i].native, 3, 0);
+        fun = js_DefineFunction(cx, obj, atom, exceptions[i].native, 3,
+                                JSPROP_READONLY | JSPROP_PERMANENT);
         if (!fun)
             break;
 
         /* Make this constructor make objects of class Exception. */
-        fun->clasp = &js_ErrorClass;
+        fun->u.n.clasp = &js_ErrorClass;
 
         /* Extract the constructor object. */
         funobj = fun->object;
@@ -1200,7 +1201,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp)
 
     /* Protect the newly-created strings below from nesting GCs. */
     memset(tv, 0, sizeof tv);
-    JS_PUSH_TEMP_ROOT(cx, sizeof tv / sizeof tv[0], tv, &tvr);
+    JS_PUSH_TEMP_ROOT(cx, JS_ARRAY_LENGTH(tv), tv, &tvr);
 
     /*
      * Try to get an appropriate prototype by looking up the corresponding

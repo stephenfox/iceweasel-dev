@@ -46,6 +46,8 @@
 
 #include <fstream>
 #include <sstream>
+#include <memory>
+#include <time.h>
 
 using std::string;
 using std::istream;
@@ -55,6 +57,7 @@ using std::ostringstream;
 using std::ostream;
 using std::ofstream;
 using std::vector;
+using std::auto_ptr;
 
 namespace CrashReporter {
 
@@ -63,8 +66,9 @@ string       gSettingsPath;
 int          gArgc;
 char**       gArgv;
 
-static string       gDumpFile;
-static string       gExtraFile;
+static auto_ptr<ofstream> gLogStream(NULL);
+static string             gDumpFile;
+static string             gExtraFile;
 
 static string kExtraDataExtension = ".extra";
 
@@ -199,6 +203,24 @@ bool WriteStringsToFile(const string& path,
   return success;
 }
 
+void LogMessage(const std::string& message)
+{
+  if (gLogStream.get()) {
+    char date[64];
+    time_t tm;
+    time(&tm);
+    if (strftime(date, sizeof(date) - 1, "%c", localtime(&tm)) == 0)
+        date[0] = '\0';
+    (*gLogStream) << "[" << date << "] " << message << std::endl;
+  }
+}
+
+static void OpenLogFile()
+{
+  string logPath = gSettingsPath + UI_DIR_SEPARATOR + "submit.log";
+  gLogStream.reset(UIOpenWrite(logPath.c_str(), true));
+}
+
 static bool ReadConfig()
 {
   string iniPath;
@@ -207,6 +229,11 @@ static bool ReadConfig()
 
   if (!ReadStringsFromFile(iniPath, gStrings, true))
     return false;
+
+  // See if we have a string override file, if so process it
+  char* overrideEnv = getenv("MOZ_CRASHREPORTER_STRINGS_OVERRIDE");
+  if (overrideEnv && *overrideEnv && UIFileExists(overrideEnv))
+    ReadStringsFromFile(overrideEnv, gStrings, true);
 
   return true;
 }
@@ -265,6 +292,21 @@ static bool AddSubmittedReport(const string& serverResponse)
   istringstream in(serverResponse);
   ReadStrings(in, responseItems, false);
 
+  if (responseItems.find("StopSendingReportsFor") != responseItems.end()) {
+    // server wants to tell us to stop sending reports for a certain version
+    string reportPath =
+      gSettingsPath + UI_DIR_SEPARATOR + "EndOfLife" +
+      responseItems["StopSendingReportsFor"];
+
+    ofstream* reportFile = UIOpenWrite(reportPath);
+    if (reportFile->is_open()) {
+      // don't really care about the contents
+      *reportFile << 1 << "\n";
+      reportFile->close();
+    }
+    delete reportFile;
+  }
+
   if (responseItems.find("CrashID") == responseItems.end())
     return false;
 
@@ -302,17 +344,21 @@ static bool AddSubmittedReport(const string& serverResponse)
   return true;
 }
 
+void DeleteDump()
+{
+  const char* noDelete = getenv("MOZ_CRASHREPORTER_NO_DELETE_DUMP");
+  if (!noDelete || *noDelete == '\0') {
+    if (!gDumpFile.empty())
+      UIDeleteFile(gDumpFile);
+    if (!gExtraFile.empty())
+      UIDeleteFile(gExtraFile);
+  }
+}
+
 bool SendCompleted(bool success, const string& serverResponse)
 {
   if (success) {
-    const char* noDelete = getenv("MOZ_CRASHREPORTER_NO_DELETE_DUMP");
-    if (!noDelete || *noDelete == '\0') {
-      if (!gDumpFile.empty())
-        UIDeleteFile(gDumpFile);
-      if (!gExtraFile.empty())
-        UIDeleteFile(gExtraFile);
-    }
-
+    DeleteDump();
     return AddSubmittedReport(serverResponse);
   }
   return true;
@@ -359,6 +405,19 @@ void RewriteStrings(StringTable& queryParameters)
               gStrings[ST_RESTART].c_str(),
               product.c_str());
   gStrings[ST_RESTART] = buf;
+
+
+  UI_SNPRINTF(buf, sizeof(buf),
+              gStrings[ST_ERROR_ENDOFLIFE].c_str(),
+              product.c_str());
+  gStrings[ST_ERROR_ENDOFLIFE] = buf;
+}
+
+bool CheckEndOfLifed(string version)
+{
+  string reportPath =
+    gSettingsPath + UI_DIR_SEPARATOR + "EndOfLife" + version;
+  return UIFileExists(reportPath);
 }
 
 int main(int argc, char** argv)
@@ -433,6 +492,8 @@ int main(int argc, char** argv)
       return 0;
     }
 
+    OpenLogFile();
+
     if (!UIFileExists(gDumpFile)) {
       UIError(gStrings[ST_ERROR_DUMPFILEEXISTS]);
       return 0;
@@ -484,7 +545,16 @@ int main(int argc, char** argv)
       sendURL = urlEnv;
     }
 
-    UIShowCrashUI(gDumpFile, queryParameters, sendURL, restartArgs);
+     // see if this version has been end-of-lifed
+     if (queryParameters.find("Version") != queryParameters.end() &&
+         CheckEndOfLifed(queryParameters["Version"])) {
+       UIError(gStrings[ST_ERROR_ENDOFLIFE]);
+       DeleteDump();
+       return 0;
+     }
+
+    if (!UIShowCrashUI(gDumpFile, queryParameters, sendURL, restartArgs))
+      DeleteDump();
   }
 
   UIShutdown();

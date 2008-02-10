@@ -45,6 +45,8 @@ function Report(pages) {
   for (var i = 0; i < this.timeVals.length; ++i) {
     this.timeVals[i] = new Array();
   }
+  this.totalCCTime = 0;
+  this.showTotalCCTime = false;
 }
 
 // given an array of strings, finds the longest common prefix
@@ -105,18 +107,22 @@ function getArrayStats(ary) {
   }
 
   // median
-  sorted_ary = ary.concat();
-  sorted_ary.sort();
-  // remove longest run
-  sorted_ary.pop();
-  if (sorted_ary.length%2) {
-    r.median = sorted_ary[(sorted_ary.length-1)/2]; 
+  if (ary.length > 1) {
+      sorted_ary = ary.concat();
+      sorted_ary.sort();
+      // remove longest run
+      sorted_ary.pop();
+      if (sorted_ary.length%2) {
+        r.median = sorted_ary[(sorted_ary.length-1)/2]; 
+      }else{
+        var n = Math.floor(sorted_ary.length / 2);
+        if (n >= sorted_ary.length)
+          r.median = sorted_ary[n];
+        else
+          r.median = (sorted_ary[n] + sorted_ary[n + 1]) / 2;
+      }
   }else{
-    var n = Math.floor(sorted_ary.length / 2);
-    if (n >= sorted_ary.length)
-      r.median = sorted_ary[n];
-    else
-      r.median = (sorted_ary[n] + sorted_ary[n + 1]) / 2;
+    r.median = ary[0];
   }
 
   // ignore max value when computing mean and stddev
@@ -211,6 +217,9 @@ Report.prototype.getReport = function(format) {
         this.timeVals[i] +
         "\n";
     }
+    if (this.showTotalCCTime) {
+      report += "Cycle collection: " + this.totalCCTime + "\n"
+    }
     report += "============================================================\n";
   } else if (format == "tinderbox") {
     report = "__start_tp_report\n";
@@ -230,6 +239,11 @@ Report.prototype.getReport = function(format) {
         "\n";
     }
     report += "__end_tp_report\n";
+    if (this.showTotalCCTime) {
+      report += "__start_cc_report\n";
+      report += "_x_x_mozilla_cycle_collect," + this.totalCCTime + "\n";
+      report += "__end_cc_report\n";
+    }
   } else {
     report = "Unknown report format";
   }
@@ -239,4 +253,9 @@ Report.prototype.getReport = function(format) {
 
 Report.prototype.recordTime = function(pageIndex, ms) {
   this.timeVals[pageIndex].push(ms);
+}
+
+Report.prototype.recordCCTime = function(ms) {
+  this.totalCCTime += ms;
+  this.showTotalCCTime = true;
 }

@@ -1,3 +1,42 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Red Hat, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Kai Engert <kengert@redhat.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsStreamUtils.h"
 #include "nsNetUtil.h"
@@ -15,6 +54,10 @@
 #ifndef PSM_ENABLE_TEST_EV_ROOTS
 #define PSM_ENABLE_TEST_EV_ROOTS
 #endif
+#endif
+
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
@@ -36,6 +79,14 @@ struct nsMyTrustedEVInfo
 };
 
 static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
+  {
+    "2.16.840.1.113733.1.7.23.6",
+    "Verisign EV OID",
+    SEC_OID_UNKNOWN,
+    "OU=Class 3 Public Primary Certification Authority,O=\"VeriSign, Inc.\",C=US",
+    "OU=Class 3 Public Primary Certification Authority,O=\"VeriSign, Inc.\",C=US",
+    "74:2C:31:92:E6:07:E4:24:EB:45:49:54:2B:E1:BB:C5:3E:61:74:E2"
+  },
   {
     "0.0.0.0",
     0, // for real entries use a string like "Sample INVALID EV OID"
@@ -451,6 +502,17 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
   return SECFailure;
 }
 
+PRBool
+nsNSSSocketInfo::hasCertErrors()
+{
+  if (!mSSLStatus) {
+    // if the status is unknown, assume the cert is bad, better safe than sorry
+    return PR_TRUE;
+  }
+
+  return mSSLStatus->mHaveCertErrorBits;
+}
+
 NS_IMETHODIMP
 nsNSSSocketInfo::GetIsExtendedValidation(PRBool* aIsEV)
 {
@@ -460,7 +522,16 @@ nsNSSSocketInfo::GetIsExtendedValidation(PRBool* aIsEV)
   if (!mCert)
     return NS_OK;
 
-  return mCert->GetIsExtendedValidation(aIsEV);
+  // Never allow bad certs for EV, regardless of overrides.
+  if (hasCertErrors())
+    return NS_OK;
+
+  nsresult rv;
+  nsCOMPtr<nsIIdentityInfo> idinfo = do_QueryInterface(mCert, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return idinfo->GetIsExtendedValidation(aIsEV);
 }
 
 NS_IMETHODIMP
@@ -469,7 +540,15 @@ nsNSSSocketInfo::GetValidEVPolicyOid(nsACString &outDottedOid)
   if (!mCert)
     return NS_OK;
 
-  return mCert->GetValidEVPolicyOid(outDottedOid);
+  if (hasCertErrors())
+    return NS_OK;
+
+  nsresult rv;
+  nsCOMPtr<nsIIdentityInfo> idinfo = do_QueryInterface(mCert, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return idinfo->GetValidEVPolicyOid(outDottedOid);
 }
 
 nsresult
@@ -489,6 +568,15 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   validEV = PR_FALSE;
   resultOidTag = SEC_OID_UNKNOWN;
 
+  PRBool isOCSPEnabled = PR_FALSE;
+  nsCOMPtr<nsIX509CertDB> certdb;
+  certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
+  if (certdb)
+    certdb->GetIsOcspOn(&isOCSPEnabled);
+  // No OCSP, no EV
+  if (!isOCSPEnabled)
+    return NS_OK;
+
   SECOidTag oid_tag;
   SECStatus rv = getFirstEVPolicy(mCert, oid_tag);
   if (rv != SECSuccess)
@@ -501,15 +589,19 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   cvin[0].type = cert_pi_policyOID;
   cvin[0].value.arraySize = 1; 
   cvin[0].value.array.oids = &oid_tag;
+
   cvin[1].type = cert_pi_revocationFlags;
-  cvin[1].value.scalar.ul = CERT_REV_FLAG_OCSP
-                            | CERT_REV_FLAG_CRL;
+  cvin[1].value.scalar.ul = CERT_REV_FAIL_SOFT_CRL
+                            | CERT_REV_FLAG_CRL
+                            | CERT_REV_FLAG_OCSP
+                            ;
   cvin[2].type = cert_pi_end;
 
   CERTValOutParam cvout[2];
   cvout[0].type = cert_po_trustAnchor;
   cvout[1].type = cert_po_end;
 
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("calling CERT_PKIXVerifyCert nss cert %p\n", mCert));
   rv = CERT_PKIXVerifyCert(mCert, certificateUsageSSLServer,
                            cvin, cvout, nsnull);
   if (rv != SECSuccess)
@@ -525,6 +617,26 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   return NS_OK;
 }
 
+nsresult
+nsNSSCertificate::getValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
+{
+  if (mCachedEVStatus != ev_status_unknown) {
+    validEV = (mCachedEVStatus == ev_status_valid);
+    if (validEV)
+      resultOidTag = mCachedEVOidTag;
+    return NS_OK;
+  }
+
+  nsresult rv = hasValidEVOidTag(resultOidTag, validEV);
+  if (NS_SUCCEEDED(rv)) {
+    if (validEV) {
+      mCachedEVOidTag = resultOidTag;
+    }
+    mCachedEVStatus = validEV ? ev_status_valid : ev_status_invalid;
+  }
+  return rv;
+}
+
 NS_IMETHODIMP
 nsNSSCertificate::GetIsExtendedValidation(PRBool* aIsEV)
 {
@@ -535,8 +647,13 @@ nsNSSCertificate::GetIsExtendedValidation(PRBool* aIsEV)
   NS_ENSURE_ARG(aIsEV);
   *aIsEV = PR_FALSE;
 
+  if (mCachedEVStatus != ev_status_unknown) {
+    *aIsEV = (mCachedEVStatus == ev_status_valid);
+    return NS_OK;
+  }
+
   SECOidTag oid_tag;
-  return hasValidEVOidTag(oid_tag, *aIsEV);
+  return getValidEVOidTag(oid_tag, *aIsEV);
 }
 
 NS_IMETHODIMP
@@ -548,7 +665,7 @@ nsNSSCertificate::GetValidEVPolicyOid(nsACString &outDottedOid)
 
   SECOidTag oid_tag;
   PRBool valid;
-  nsresult rv = hasValidEVOidTag(oid_tag, valid);
+  nsresult rv = getValidEVOidTag(oid_tag, valid);
   if (NS_FAILED(rv))
     return rv;
 
@@ -582,7 +699,7 @@ nsNSSComponent::CleanupIdentityInfo()
   if (testEVInfosLoaded) {
     testEVInfosLoaded = PR_FALSE;
     if (testEVInfos) {
-      for (size_t i; i<testEVInfos->Length(); ++i) {
+      for (size_t i = 0; i<testEVInfos->Length(); ++i) {
         delete testEVInfos->ElementAt(i);
       }
       testEVInfos->Clear();

@@ -51,7 +51,6 @@
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
 #define PATH_SEPARATOR_CHAR '\\'
-#include "nsWindowsRestart.cpp"
 #define R_OK 04
 #elif defined(XP_MACOSX)
 #include <CFBundle.h>
@@ -72,6 +71,10 @@
 #define PATH_SEPARATOR_CHAR '/'
 #endif
 
+#ifdef XP_WIN
+#include "nsWindowsWMain.cpp"
+#endif
+
 #define VERSION_MAXLEN 128
 
 static void Output(PRBool isError, const char *fmt, ... )
@@ -87,7 +90,7 @@ static void Output(PRBool isError, const char *fmt, ... )
   UINT flags = MB_OK;
   if (isError)
     flags |= MB_ICONERROR;
-  else 
+  else
     flags |= MB_ICONINFORMATION;
   MessageBox(NULL, msg, "XULRunner", flags);
 #else
@@ -174,7 +177,7 @@ main(int argc, char **argv)
 #elif defined(XP_OS2)
    PPIB ppib;
    PTIB ptib;
- 
+
    DosGetInfoBlocks(&ptib, &ppib);
    DosQueryModuleName(ppib->pib_hmte, sizeof(iniPath), iniPath);
 
@@ -277,7 +280,7 @@ main(int argc, char **argv)
       // user/offer to download/?
 
       Output(PR_FALSE,
-             "Could not find compatible GRE between version %s and %s.\n", 
+             "Could not find compatible GRE between version %s and %s.\n",
              range.lower, range.upper);
       return 1;
     }
@@ -351,13 +354,3 @@ main(int argc, char **argv)
 
   return retval;
 }
-
-#if defined( XP_WIN ) && defined( WIN32 ) && !defined(__GNUC__)
-// We need WinMain in order to not be a console app.  This function is
-// unused if we are a console application.
-int WINAPI WinMain( HINSTANCE, HINSTANCE, LPSTR args, int )
-{
-  // Do the real work.
-  return main( __argc, __argv );
-}
-#endif

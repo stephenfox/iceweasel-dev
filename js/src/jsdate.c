@@ -483,7 +483,7 @@ msFromTime(jsdouble t)
 
 JSClass js_DateClass = {
     js_Date_str,
-    JSCLASS_HAS_RESERVED_SLOTS(2) | JSCLASS_HAS_CACHED_PROTO(JSProto_Date),
+    JSCLASS_HAS_RESERVED_SLOTS(2) |  JSCLASS_HAS_CACHED_PROTO(JSProto_Date),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
@@ -747,7 +747,7 @@ date_parseString(JSString *str, jsdouble *result)
             }
             if (i <= st + 1)
                 goto syntax;
-            for (k = (sizeof(wtb)/sizeof(char*)); --k >= 0;)
+            for (k = JS_ARRAY_LENGTH(wtb); --k >= 0;)
                 if (date_regionMatches(wtb[k], 0, s, st, i-st, 1)) {
                     int action = ttb[k];
                     if (action != 0) {
@@ -1612,34 +1612,11 @@ date_toGMTString(JSContext *cx, uintN argc, jsval *vp)
 }
 
 /* for Date.toLocaleString; interface to PRMJTime date struct.
- * If findEquivalent is true, then try to map the year to an equivalent year
- * that's in range.
  */
 static void
-new_explode(jsdouble timeval, PRMJTime *split, JSBool findEquivalent)
+new_explode(jsdouble timeval, PRMJTime *split)
 {
     jsint year = YearFromTime(timeval);
-    int16 adjustedYear;
-
-    /* If the year doesn't fit in a PRMJTime, find something to do about it. */
-    if (year > 32767 || year < -32768) {
-        if (findEquivalent) {
-            /* We're really just trying to get a timezone string; map the year
-             * to some equivalent year in the range 0 to 2800.  Borrowed from
-             * A. D. Olsen.
-             */
-            jsint cycles;
-#define CYCLE_YEARS 2800L
-            cycles = (year >= 0) ? year / CYCLE_YEARS
-                                 : -1 - (-1 - year) / CYCLE_YEARS;
-            adjustedYear = (int16)(year - cycles * CYCLE_YEARS);
-        } else {
-            /* Clamp it to the nearest representable year. */
-            adjustedYear = (int16)((year > 0) ? 32767 : - 32768);
-        }
-    } else {
-        adjustedYear = (int16)year;
-    }
 
     split->tm_usec = (int32) msFromTime(timeval) * 1000;
     split->tm_sec = (int8) SecFromTime(timeval);
@@ -1648,7 +1625,7 @@ new_explode(jsdouble timeval, PRMJTime *split, JSBool findEquivalent)
     split->tm_mday = (int8) DateFromTime(timeval);
     split->tm_mon = (int8) MonthFromTime(timeval);
     split->tm_wday = (int8) WeekDay(timeval);
-    split->tm_year = (int16) adjustedYear;
+    split->tm_year = year;
     split->tm_yday = (int16) DayWithinYear(timeval, year);
 
     /* not sure how this affects things, but it doesn't seem
@@ -1694,7 +1671,7 @@ date_format(JSContext *cx, jsdouble date, formatspec format, jsval *rval)
 
         /* get a timezone string from the OS to include as a
            comment. */
-        new_explode(date, &split, JS_TRUE);
+        new_explode(date, &split);
         if (PRMJ_FormatTime(tzbuf, sizeof tzbuf, "(%Z)", &split) != 0) {
 
             /* Decide whether to use the resulting timezone string.
@@ -1792,7 +1769,7 @@ date_toLocaleHelper(JSContext *cx, const char *format, jsval *vp)
     } else {
         intN result_len;
         jsdouble local = LocalTime(utctime);
-        new_explode(local, &split, JS_FALSE);
+        new_explode(local, &split);
 
         /* let PRMJTime format it.       */
         result_len = PRMJ_FormatTime(buf, sizeof buf, format, &split);
@@ -2186,6 +2163,7 @@ js_NewDateObject(JSContext* cx, int year, int mon, int mday,
     JSObject *obj;
     jsdouble msec_time;
 
+    JS_ASSERT(mon < 12);
     msec_time = date_msecFromDate(year, mon, mday, hour, min, sec, 0);
     obj = js_NewDateObjectMsec(cx, UTC(msec_time));
     return obj;
@@ -2293,6 +2271,8 @@ JS_FRIEND_API(void)
 js_DateSetMonth(JSContext *cx, JSObject *obj, int month)
 {
     jsdouble local;
+
+    JS_ASSERT(month < 12);
 
     if (!GetLocalTime(cx, obj, NULL, &local))
         return;

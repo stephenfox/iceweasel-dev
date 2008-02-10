@@ -50,7 +50,7 @@ CPPSRCS += \
 	nsDllMain.cpp \
 	$(NULL)
 
-RESFILE = xulrunner.res
+RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
@@ -145,6 +145,14 @@ COMPONENT_LIBS += \
 	mozfind \
 	appcomps \
 	$(NULL)
+endif
+
+ifdef MOZ_XUL
+ifdef MOZ_ENABLE_GTK2
+COMPONENT_LIBS += \
+        unixproxy \
+        $(NULL)
+endif
 endif
 
 ifdef MOZ_PERF_METRICS
@@ -262,7 +270,7 @@ COMPONENT_LIBS += system-pref
 endif
 endif
 
-ifneq (,$(MOZ_ENABLE_GTK2))
+ifdef MOZ_ENABLE_GTK2
 STATIC_LIBS += gtkxtbin
 endif
 
@@ -275,34 +283,16 @@ ifdef MOZ_ENABLE_POSTSCRIPT
 DEFINES += -DMOZ_ENABLE_POSTSCRIPT
 STATIC_LIBS += gfxpsshar
 endif
+
 ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
-ifndef MOZ_ENABLE_GNOMEUI
+ifndef MOZ_ENABLE_GTK2
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
 endif
 
-ifdef MOZ_ENABLE_CAIRO_GFX
 STATIC_LIBS += thebes
 COMPONENT_LIBS += gkgfxthebes
-
-else # Platform-specific GFX layer
-  ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gkgfxwin
-  endif
-  ifeq (beos,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gfx_beos
-  endif
-  ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gfx_os2
-  endif
-  ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-  COMPONENT_LIBS += gfx_mac
-  endif
-  ifdef MOZ_ENABLE_PHOTON
-  COMPONENT_LIBS += gfx_photon
-  endif
-endif
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += gkwidget

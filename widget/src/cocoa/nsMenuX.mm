@@ -50,8 +50,6 @@
 #include "nsIMenu.h"
 #include "nsIMenuBar.h"
 #include "nsIMenuItem.h"
-#include "nsIMenuListener.h"
-#include "nsIMenuCommandDispatcher.h"
 #include "nsToolkit.h"
 
 #include "nsString.h"
@@ -84,11 +82,11 @@ static PRBool gConstructingMenu = PR_FALSE;
 static NS_DEFINE_CID(kMenuCID,     NS_MENU_CID);
 static NS_DEFINE_CID(kMenuItemCID, NS_MENUITEM_CID);
 
-NS_IMPL_ISUPPORTS4(nsMenuX, nsIMenu, nsIMenuListener, nsIChangeObserver, nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS1(nsMenuX, nsIMenu)
 
 
 nsMenuX::nsMenuX()
-: mVisibleItemsCount(0), mParent(nsnull), mManager(nsnull), mMacMenuID(0), 
+: mVisibleItemsCount(0), mParent(nsnull), mMenuBar(nsnull), mMacMenuID(0), 
   mMacMenu(nil), mNativeMenuItem(nil), mIsEnabled(PR_TRUE),
   mDestroyHandlerCalled(PR_FALSE), mNeedsRebuild(PR_TRUE),
   mConstructed(PR_FALSE), mVisible(PR_TRUE), mXBLAttached(PR_FALSE)
@@ -107,25 +105,24 @@ nsMenuX::~nsMenuX()
   [mMacMenu release];
   [mMenuDelegate release];
   [mNativeMenuItem release];
-  
+
   // alert the change notifier we don't care no more
-  mManager->Unregister(mMenuContent);
+  if (mMenuContent)
+    mMenuBar->UnregisterForContentChanges(mMenuContent);
 }
 
 
 NS_IMETHODIMP
 nsMenuX::Create(nsISupports * aParent, const nsAString &aLabel, const nsAString &aAccessKey, 
-                nsIChangeManager* aManager, nsIContent* aNode)
+                nsMenuBarX* aMenuBar, nsIContent* aNode)
 {
   mMenuContent = aNode;
+  NS_ASSERTION(mMenuContent, "Menu not given a dom node at creation time");
 
   // register this menu to be notified when changes are made to our content object
-  mManager = aManager; // weak ref
-  nsCOMPtr<nsIChangeObserver> changeObs(do_QueryInterface(static_cast<nsIChangeObserver*>(this)));
-  mManager->Register(mMenuContent, changeObs);
-
-  NS_ASSERTION(mMenuContent, "Menu not given a dom node at creation time");
-  NS_ASSERTION(mManager, "No change manager given, can't tell content model updates");
+  mMenuBar = aMenuBar; // weak ref
+  NS_ASSERTION(mMenuBar, "No menu bar given, must have one");
+  mMenuBar->RegisterForContentChanges(mMenuContent, this);
 
   mParent = aParent;
   // our parent could be either a menu bar (if we're toplevel) or a menu (if we're a submenu)
@@ -250,13 +247,7 @@ nsresult nsMenuX::AddMenuItem(nsIMenuItem * aMenuItem)
   [newNativeMenuItem setAction:@selector(menuItemHit:)];
   
   // set its command. we get the unique command id from the menubar
-  nsCOMPtr<nsIMenuCommandDispatcher> dispatcher(do_QueryInterface(mManager));
-  if (dispatcher) {
-    PRUint32 commandID = 0L;
-    dispatcher->Register(aMenuItem, &commandID);
-    if (commandID)
-      [newNativeMenuItem setTag:commandID];
-  }
+  [newNativeMenuItem setTag:mMenuBar->RegisterForCommand(aMenuItem)];
   
   return NS_OK;
 }
@@ -388,13 +379,11 @@ NS_IMETHODIMP nsMenuX::RemoveItem(const PRUint32 aPos)
 
 NS_IMETHODIMP nsMenuX::RemoveAll()
 {
-  if (mMacMenu != nil) {
+  if (mMacMenu) {
     // clear command id's
-    nsCOMPtr<nsIMenuCommandDispatcher> dispatcher(do_QueryInterface(mManager));
-    if (dispatcher) {
-      for (int i = 0; i < [mMacMenu numberOfItems]; i++)
-        dispatcher->Unregister((PRUint32)[[mMacMenu itemAtIndex:i] tag]);
-    }
+    int itemCount = [mMacMenu numberOfItems];
+    for (int i = 0; i < itemCount; i++)
+      mMenuBar->UnregisterCommand((PRUint32)[[mMacMenu itemAtIndex:i] tag]);
     // get rid of Cocoa menu items
     for (int i = [mMacMenu numberOfItems] - 1; i >= 0; i--)
       [mMacMenu removeItemAtIndex:i];
@@ -419,32 +408,6 @@ NS_IMETHODIMP nsMenuX::SetNativeData(void * aData)
   [mMacMenu release];
   mMacMenu = [(NSMenu*)aData retain];
   return NS_OK;
-}
-
-
-NS_IMETHODIMP nsMenuX::AddMenuListener(nsIMenuListener * aMenuListener)
-{
-  mListener = aMenuListener; // strong ref
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP nsMenuX::RemoveMenuListener(nsIMenuListener * aMenuListener)
-{
-  if (aMenuListener == mListener)
-    mListener = nsnull;
-  return NS_OK;
-}
-
-
-//
-// nsIMenuListener interface
-//
-
-
-nsEventStatus nsMenuX::MenuItemSelected(const nsMenuEvent & aMenuEvent)
-{
-  return nsEventStatus_eIgnore;
 }
 
 
@@ -482,12 +445,12 @@ nsEventStatus nsMenuX::MenuSelected(const nsMenuEvent & aMenuEvent)
   else {
     // Make sure none of our submenus are the ones that should be handling this
     for (PRUint32 i = mMenuItemsArray.Count() - 1; i >= 0; i--) {
-      nsISupports*              menuSupports = mMenuItemsArray.ObjectAt(i);
-      nsCOMPtr<nsIMenuListener> menuListener = do_QueryInterface(menuSupports);
-      if (menuListener) {
-        nsEventStatus eventStatus = menuListener->MenuSelected(aMenuEvent);
-        if (eventStatus != nsEventStatus_eIgnore)
-          return eventStatus;
+      nsISupports* menuSupports = mMenuItemsArray.ObjectAt(i);
+      nsCOMPtr<nsIMenu> menu = do_QueryInterface(menuSupports);
+      if (menu) {
+        nsEventStatus status = menu->MenuSelected(aMenuEvent);
+        if (status != nsEventStatus_eIgnore)
+          return status;
       }  
     }
   }
@@ -496,18 +459,17 @@ nsEventStatus nsMenuX::MenuSelected(const nsMenuEvent & aMenuEvent)
 }
 
 
-nsEventStatus nsMenuX::MenuDeselected(const nsMenuEvent & aMenuEvent)
+void nsMenuX::MenuDeselected(const nsMenuEvent & aMenuEvent)
 {
   // Destroy the menu
   if (mConstructed) {
     MenuDestruct(aMenuEvent);
     mConstructed = false;
   }
-  return nsEventStatus_eIgnore;
 }
 
 
-nsEventStatus nsMenuX::MenuConstruct(
+void nsMenuX::MenuConstruct(
     const nsMenuEvent & aMenuEvent,
     nsIWidget         * aParentWindow, 
     void              * aMenuNode)
@@ -525,7 +487,7 @@ nsEventStatus nsMenuX::MenuConstruct(
   GetMenuPopupContent(getter_AddRefs(menuPopup));
   if (!menuPopup) {
     gConstructingMenu = PR_FALSE;
-    return nsEventStatus_eIgnore;
+    return;
   }
 
   // bug 365405: Manually wrap the menupopup node to make sure it's bounded
@@ -570,41 +532,29 @@ nsEventStatus nsMenuX::MenuConstruct(
   gConstructingMenu = PR_FALSE;
   mNeedsRebuild = PR_FALSE;
   // printf("Done building, mMenuItemsArray.Count() = %d \n", mMenuItemsArray.Count());
-  
-  return nsEventStatus_eIgnore;
 }
 
 
-nsEventStatus nsMenuX::MenuDestruct(const nsMenuEvent & aMenuEvent)
+void nsMenuX::MenuDestruct(const nsMenuEvent & aMenuEvent)
 {
   // printf("nsMenuX::MenuDestruct() called for %s \n", NS_LossyConvertUTF16toASCII(mLabel).get());
-  
-  // Fire our ondestroy handler. If we're told to stop, don't destroy the menu
-  PRBool keepProcessing = OnDestroy();
-  if (keepProcessing) {
-    if (mNeedsRebuild)
-        mConstructed = false;
-    // Close the node.
-    mMenuContent->UnsetAttr(kNameSpaceID_None, nsWidgetAtoms::open, PR_TRUE);
-    OnDestroyed();
-  }
-  return nsEventStatus_eIgnore;
+
+  // Fire our ondestroy handler. If we're told to stop, don't destroy the menu.
+  if (!OnDestroy())
+    return;
+
+  if (mNeedsRebuild)
+    mConstructed = false;
+  // Close the node.
+  mMenuContent->UnsetAttr(kNameSpaceID_None, nsWidgetAtoms::open, PR_TRUE);
+  OnDestroyed();
 }
 
 
-nsEventStatus nsMenuX::CheckRebuild(PRBool & aNeedsRebuild)
-{
-  aNeedsRebuild = PR_TRUE;
-  return nsEventStatus_eIgnore;
-}
-
-
-nsEventStatus nsMenuX::SetRebuild(PRBool aNeedsRebuild)
+void nsMenuX::SetRebuild(PRBool aNeedsRebuild)
 {
   if (!gConstructingMenu)
     mNeedsRebuild = aNeedsRebuild;
-  
-  return nsEventStatus_eIgnore;
 }
 
 
@@ -684,7 +634,7 @@ void nsMenuX::LoadMenuItem(nsIContent* inMenuItemContent)
   }
 
   // Create the item.
-  pnsMenuItem->Create(this, menuitemName, itemType, mManager, inMenuItemContent);
+  pnsMenuItem->Create(this, menuitemName, itemType, mMenuBar, inMenuItemContent);
 
   AddMenuItem(pnsMenuItem);
 
@@ -705,7 +655,7 @@ void nsMenuX::LoadSubMenu(nsIContent* inMenuContent)
   if (!pnsMenu)
     return;
 
-  pnsMenu->Create(reinterpret_cast<nsISupports*>(this), menuName, EmptyString(), mManager, inMenuContent);
+  pnsMenu->Create(reinterpret_cast<nsISupports*>(this), menuName, EmptyString(), mMenuBar, inMenuContent);
 
   AddMenu(pnsMenu);
 
@@ -999,16 +949,16 @@ nsMenuX::GetNativeMenuItem()
 
 
 //
-// nsIChangeObserver
+// nsChangeObserver
 //
 
 
-NS_IMETHODIMP nsMenuX::AttributeChanged(nsIDocument *aDocument, PRInt32 aNameSpaceID,
-                                        nsIContent *aContent, nsIAtom *aAttribute)
+void
+nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aContent, nsIAtom *aAttribute)
 {
   // ignore the |open| attribute, which is by far the most common
   if (gConstructingMenu || (aAttribute == nsWidgetAtoms::open))
-    return NS_OK;
+    return;
 
   nsCOMPtr<nsIMenuBar> menubarParent = do_QueryInterface(mParent);
 
@@ -1025,18 +975,17 @@ NS_IMETHODIMP nsMenuX::AttributeChanged(nsIDocument *aDocument, PRInt32 aNameSpa
     // invalidate my parent. If we're a submenu parent, we have to rebuild
     // the parent menu in order for the changes to be picked up. If we're
     // a regular menu, just change the title and redraw the menubar.
-    if (!menubarParent) {
-      nsCOMPtr<nsIMenuListener> parentListener(do_QueryInterface(mParent));
-      parentListener->SetRebuild(PR_TRUE);
-    }
-    else {
+    if (menubarParent) {
       // reuse the existing menu, to avoid rebuilding the root menu bar.
-      NS_ASSERTION(mMacMenu != nil, "nsMenuX::AttributeChanged: invalid menu handle.");
-      RemoveAll();
+      NS_ASSERTION(mMacMenu, "nsMenuX::AttributeChanged: invalid menu handle.");
       NSString *newCocoaLabelString = MenuHelpersX::CreateTruncatedCocoaLabel(mLabel);
       [mMacMenu setTitle:newCocoaLabelString];
       [newCocoaLabelString release];
     }
+    else {
+      nsCOMPtr<nsIMenu> parentMenu(do_QueryInterface(mParent));
+      parentMenu->SetRebuild(PR_TRUE);
+    }    
   }
   else if (aAttribute == nsWidgetAtoms::hidden || aAttribute == nsWidgetAtoms::collapsed) {
     SetRebuild(PR_TRUE);
@@ -1045,7 +994,7 @@ NS_IMETHODIMP nsMenuX::AttributeChanged(nsIDocument *aDocument, PRInt32 aNameSpa
 
     // don't do anything if the state is correct already
     if (contentIsHiddenOrCollapsed != mVisible)
-      return NS_OK;
+      return;
 
     nsCOMPtr<nsIMenu> menuParent = do_QueryInterface(mParent);
     if (contentIsHiddenOrCollapsed) {
@@ -1079,36 +1028,32 @@ NS_IMETHODIMP nsMenuX::AttributeChanged(nsIDocument *aDocument, PRInt32 aNameSpa
   }
   else if (aAttribute == nsWidgetAtoms::image) {
     SetupIcon();
-  }  
-
-  return NS_OK;
+  }
 }
 
 
-NS_IMETHODIMP nsMenuX::ContentRemoved(nsIDocument *aDocument, nsIContent *aChild,
-                                      PRInt32 aIndexInContainer)
+void
+nsMenuX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild,
+                          PRInt32 aIndexInContainer)
 {  
   if (gConstructingMenu)
-    return NS_OK;
+    return;
 
   SetRebuild(PR_TRUE);
 
   RemoveItem(aIndexInContainer);
-  mManager->Unregister(aChild);
-
-  return NS_OK;
+  mMenuBar->UnregisterForContentChanges(aChild);
 }
 
 
-NS_IMETHODIMP nsMenuX::ContentInserted(nsIDocument *aDocument, nsIContent *aChild,
-                                       PRInt32 aIndexInContainer)
+void
+nsMenuX::ObserveContentInserted(nsIDocument *aDocument, nsIContent *aChild,
+                           PRInt32 aIndexInContainer)
 {  
   if (gConstructingMenu)
-    return NS_OK;
+    return;
 
   SetRebuild(PR_TRUE);
-  
-  return NS_OK;
 }
 
 
@@ -1158,22 +1103,24 @@ static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRe
   }
   else if (kind == kEventMenuOpening || kind == kEventMenuClosed) {
     if (kind == kEventMenuOpening && gRollupListener && gRollupWidget) {
-      gRollupListener->Rollup();
+      gRollupListener->Rollup(nsnull);
       return userCanceledErr;
     }
     
     nsISupports* supports = reinterpret_cast<nsISupports*>(userData);
-    nsCOMPtr<nsIMenuListener> listener(do_QueryInterface(supports));
-    if (listener) {
+    nsCOMPtr<nsIMenu> menu(do_QueryInterface(supports));
+    if (menu) {
       MenuRef menuRef;
       ::GetEventParameter(event, kEventParamDirectObject, typeMenuRef, NULL, sizeof(menuRef), NULL, &menuRef);
       nsMenuEvent menuEvent(PR_TRUE, NS_MENU_SELECTED, nsnull);
       menuEvent.time = PR_IntervalNow();
       menuEvent.mCommand = (PRUint32)menuRef;
-      if (kind == kEventMenuOpening)
-        listener->MenuSelected(menuEvent);
-      else
-        listener->MenuDeselected(menuEvent);
+      if (kind == kEventMenuOpening) {
+        menu->MenuSelected(menuEvent);
+      }
+      else {
+        menu->MenuDeselected(menuEvent);
+      }
       return noErr;
     }
   }

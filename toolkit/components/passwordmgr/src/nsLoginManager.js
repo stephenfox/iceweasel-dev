@@ -358,7 +358,7 @@ LoginManager.prototype = {
         var logins = this.findLogins({}, login.hostname, login.formSubmitURL,
                                      login.httpRealm);
 
-        if (logins.some(function(l) { return login.username == l.username }))
+        if (logins.some(function(l) login.matches(l, true)))
             throw "This login already exists.";
 
         this.log("Adding login: " + login);
@@ -477,6 +477,10 @@ LoginManager.prototype = {
      * Enable or disable storing logins for the specified host.
      */
     setLoginSavingEnabled : function (hostname, enabled) {
+        // Nulls won't round-trip with getAllDisabledHosts().
+        if (hostname.indexOf("\0") != -1)
+            throw "Invalid hostname";
+
         this.log("Saving logins for " + hostname + " enabled? " + enabled);
         return this._storage.setLoginSavingEnabled(hostname, enabled);
     },
@@ -524,9 +528,6 @@ LoginManager.prototype = {
                 }
             }
         } else {
-            // XXX The C++ code took care to avoid reentrancy if a
-            // master-password dialog was triggered here, but since
-            // we're decrypting at load time that can't happen right now.
             this.log("Creating new autocomplete search result.");
 
             var doc = aElement.ownerDocument;
@@ -698,8 +699,6 @@ LoginManager.prototype = {
      * [Note that this happens before any DOM onsubmit handlers are invoked.]
      * Looks for a password change in the submitted form, so we can update
      * our stored password.
-     *
-     * XXX update actionURL of existing login, even if pw not being changed?
      */
     _onFormSubmit : function (form) {
 
@@ -770,17 +769,9 @@ LoginManager.prototype = {
 
             var logins = this.findLogins({}, hostname, formSubmitURL, null);
 
-            // XXX we could be smarter here: look for a login matching the
-            // old password value. If there's only one, update it. If there's
-            // more than one we could filter the list (but, edge case: the
-            // login for the pwchange is in pwmgr, but with an outdated
-            // password. and the user has another login, with the same
-            // password as the form login's old password.) ugh.
-            // XXX if you're changing a password, and there's no username
-            // in the form, then you can't add the login. Will need to change
-            // prompting to allow this.
-
             if (logins.length == 0) {
+                // Could prompt to save this as a new password-only login.
+                // This seems uncommon, and might be wrong, so ignore.
                 this.log("(no logins for this host -- pwchange ignored)");
                 return;
             }
@@ -816,14 +807,14 @@ LoginManager.prototype = {
             if (!login.username && formLogin.username) {
                 var restoreMe = formLogin.username;
                 formLogin.username = ""; 
-                same = formLogin.equals(login);
+                same = formLogin.matches(login);
                 formLogin.username = restoreMe;
             } else if (!formLogin.username && login.username) {
                 formLogin.username = login.username;
-                same = formLogin.equals(login);
+                same = formLogin.matches(login);
                 formLogin.username = ""; // we know it's always blank.
             } else {
-                same = formLogin.equalsIgnorePassword(login);
+                same = formLogin.matches(login, true);
             }
 
             if (same) {
@@ -877,12 +868,21 @@ LoginManager.prototype = {
         try {
             var uri = this._ioService.newURI(uriString, null, null);
 
-            realm += uri.scheme;
-            realm += "://";
-            realm += uri.hostPort;
+            realm = uri.scheme + "://" + uri.host;
+
+            // If the URI explicitly specified a port, only include it when
+            // it's not the default. (We never want "http://foo.com:80")
+            var port = uri.port;
+            if (port != -1) {
+                var handler = this._ioService.getProtocolHandler(uri.scheme);
+                if (port != handler.defaultPort)
+                    realm += ":" + port;
+            }
+
         } catch (e) {
             // bug 159484 - disallow url types that don't support a hostPort.
             // (set null to cause throw in the JS above)
+            this.log("Couldn't parse origin for " + uriString);
             realm = null;
         }
 
@@ -985,7 +985,6 @@ LoginManager.prototype = {
             // Attach autocomplete stuff to the username field, if we have
             // one. This is normally used to select from multiple accounts,
             // but even with one account we should refill if the user edits.
-            // XXX should be able to pass in |logins| to init attachment
             if (usernameField)
                 this._attachToInput(usernameField);
 
@@ -1074,12 +1073,9 @@ LoginManager.prototype = {
             return;
         }
 
-        // XXX: we could do better on forms with 2 or 3 password fields.
+        // If there are multiple passwords fields, we can't really figure
+        // out what each field is for, so just fill out the last field.
         var passwordField = pwFields[0].element;
-
-        // XXX this would really be cleaner if we could get at the
-        // AutoCompleteResult, which has the actual nsILoginInfo for the
-        // username selected.
 
         // Temporary LoginInfo with the info we know.
         var currentLogin = new this._nsLoginInfo();
@@ -1093,7 +1089,7 @@ LoginManager.prototype = {
 
         if (!logins.some(function(l) {
                                 match = l;
-                                return currentLogin.equalsIgnorePassword(l);
+                                return currentLogin.matches(l, true);
                         }))
         {
             this.log("Can't find a login for this autocomplete result.");

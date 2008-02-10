@@ -40,8 +40,12 @@
 
 interface nsIAccessible;
 interface nsIAccessibleEvent;
+%{C++
+   struct nsRoleMapEntry;
+%}
+[ptr] native nsRoleMapEntryPtr(nsRoleMapEntry);
 
-[uuid(af05f83c-6fd2-48c1-b1c3-811857472421)]
+[uuid(893ee16d-c157-4d5f-b236-60b3b2bef6a5)]
 interface nsPIAccessible : nsISupports
 {
   /**
@@ -79,12 +83,10 @@ interface nsPIAccessible : nsISupports
    *
    * @param aEvent - DOM event
    * @param aTarget - target of DOM event
-   * @param aData - additional information for accessible event.
    *
    * XXX: eventually this method will be removed (see bug 377022)
    */
-  void fireToolkitEvent(in unsigned long aEvent, in nsIAccessible aTarget,
-                        in voidPtr aData);
+  void fireToolkitEvent(in unsigned long aEvent, in nsIAccessible aTarget);
 
   /**
    * Fire accessible event.
@@ -107,5 +109,13 @@ interface nsPIAccessible : nsISupports
    */
   void appendTextTo(out AString aString, in unsigned long aStartOffset,
                     in unsigned long aLength);
+                    
+  /**
+   * Set the ARIA role map entry for a new accessible.
+   * For a newly created accessible, specify which role map entry should be used.
+   * @param aRoleMapEntry The ARIA nsRoleMapEntry* for the accessible, or 
+   *                      nsnull if none.
+   */
+   void setRoleMapEntry(in nsRoleMapEntryPtr aRoleMapEntry);
 };
 

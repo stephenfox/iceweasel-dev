@@ -54,6 +54,7 @@ protected:
     nsSVGContainerFrameBase(aContext) {}
 
 public:
+  // Returns the transform to our gfxContext (to device pixels, not CSS px)
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM() { return nsnull; }
 
   // nsIFrame:
@@ -106,7 +107,7 @@ public:
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
-  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation);
+  virtual void NotifySVGChanged(PRUint32 aFlags);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate) { return NS_ERROR_FAILURE; }

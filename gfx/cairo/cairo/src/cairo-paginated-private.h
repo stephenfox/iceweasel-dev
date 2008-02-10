@@ -59,6 +59,14 @@ struct _cairo_paginated_surface_backend {
     void
     (*set_paginated_mode)	(void			*surface,
 				 cairo_paginated_mode_t	 mode);
+
+    /* Optional. Specifies the smallest box that encloses all objects
+     * on the page. Will be called at the end of the ANALYZE phase but
+     * before the mode is changed to RENDER.
+     */
+    cairo_warn cairo_int_status_t
+    (*set_bounding_box)	(void	   	*surface,
+			 cairo_box_t	*bbox);
 };
 
 /* A cairo_paginated_surface provides a very convenient wrapper that
@@ -95,26 +103,33 @@ struct _cairo_paginated_surface_backend {
  *    from each operation). This analysis stage is used to decide which
  *    operations will require fallbacks.
  *
- * 4. Calls set_paginated_mode with an argument of CAIRO_PAGINATED_MODE_RENDER
+ * 4. Calls set_bounding_box to provide the target surface with the
+ *    tight bounding box of the page.
  *
- * 5. Replays a subset of the meta-surface operations to the target surface
+ * 5. Calls set_paginated_mode with an argument of CAIRO_PAGINATED_MODE_RENDER
  *
- * 6. Replays the remaining operations to an image surface, sets an
+ * 6. Replays a subset of the meta-surface operations to the target surface
+ *
+ * 7. Calls set_paginated_mode with an argument of CAIRO_PAGINATED_MODE_FALLBACK
+ *
+ * 8. Replays the remaining operations to an image surface, sets an
  *    appropriate clip on the target, then paints the resulting image
  *    surface to the target.
  *
- * So, the target will see drawing operations during two separate
- * stages, (ANALYZE and RENDER). During the ANALYZE phase the target
- * should not actually perform any rendering, (for example, if
- * performing output to a file, no output should be generated during
- * this stage). Instead the drawing functions simply need to return
- * CAIRO_STATUS_SUCCESS or CAIRO_INT_STATUS_UNSUPPORTED to indicate
- * whether rendering would be supported. And it should do this as
- * quickly as possible.
+ * So, the target will see drawing operations during three separate
+ * stages, (ANALYZE, RENDER and FALLBACK). During the ANALYZE phase
+ * the target should not actually perform any rendering, (for example,
+ * if performing output to a file, no output should be generated
+ * during this stage). Instead the drawing functions simply need to
+ * return CAIRO_STATUS_SUCCESS or CAIRO_INT_STATUS_UNSUPPORTED to
+ * indicate whether rendering would be supported. And it should do
+ * this as quickly as possible. The FALLBACK phase allows the surface
+ * to distinguish fallback images from native rendering in case they
+ * need to be handled as a special case.
  *
  * NOTE: The paginated surface layer assumes that the target surface
  * is "blank" by default at the beginning of each page, without any
- * need for an explicit erasea operation, (as opposed to an image
+ * need for an explicit erase operation, (as opposed to an image
  * surface, for example, which might have uninitialized content
  * originally). As such, it optimizes away CLEAR operations that
  * happen at the beginning of each page---the target surface will not

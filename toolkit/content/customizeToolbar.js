@@ -125,6 +125,13 @@ function notifyParentComplete()
     gToolbox.customizeDone(gToolboxChanged);
 }
 
+function toolboxChanged()
+{
+  gToolboxChanged = true;
+  if ("customizeChange" in gToolbox)
+    gToolbox.customizeChange();
+}
+
 function getToolbarAt(i)
 {
   return gToolbox.childNodes[i];
@@ -339,13 +346,6 @@ function buildPalette()
   templateNode.flex = 1;
   wrapPaletteItem(templateNode, currentRow, null);
 
-  // Add the splitter item.
-  templateNode = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
-                                          "splitter");
-  templateNode.id = "splitter";
-  templateNode.className = "toolbar-splitter";
-  wrapPaletteItem(templateNode, currentRow, null);
-
   var rowSlot = 3;
 
   var currentItems = getCurrentItemIds();
@@ -487,8 +487,6 @@ function setWrapperType(aItem, aWrapper)
     aWrapper.setAttribute("type", "spring");
   } else if (aItem.localName == "toolbarspacer") {
     aWrapper.setAttribute("type", "spacer");
-  } else if (aItem.localName == "splitter") {
-    aWrapper.setAttribute("type", "splitter");
   } else if (aItem.localName == "toolbaritem" && aItem.firstChild) {
     aWrapper.setAttribute("type", aItem.firstChild.localName);
   }
@@ -559,7 +557,7 @@ function addNewToolbar()
     
   gToolbox.appendCustomToolbar(name.value, "");
   
-  gToolboxChanged = true;
+  toolboxChanged();
 }
 
 /**
@@ -615,7 +613,7 @@ function restoreDefaultSet()
   // Restore the disabled and command states
   restoreItemAttributes(["itemdisabled", "itemcommand"], savedAttributes);
 
-  gToolboxChanged = true;
+  toolboxChanged();
 }
 
 function saveItemAttributes(aAttributeList)
@@ -707,8 +705,7 @@ function isSpecialItem(aElt)
 {
   return aElt.localName == "toolbarseparator" ||
          aElt.localName == "toolbarspring" ||
-         aElt.localName == "toolbarspacer" ||
-         aElt.localName == "splitter";
+         aElt.localName == "toolbarspacer";
 }
 
 function isToolbarItem(aElt)
@@ -717,8 +714,7 @@ function isToolbarItem(aElt)
          aElt.localName == "toolbaritem" ||
          aElt.localName == "toolbarseparator" ||
          aElt.localName == "toolbarspring" ||
-         aElt.localName == "toolbarspacer" ||
-         aElt.localName == "splitter";
+         aElt.localName == "toolbarspacer";
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -877,8 +873,7 @@ var toolbarDNDObserver =
       var currentRow = draggedPaletteWrapper.parentNode;
       if (draggedItemId != "separator" &&
           draggedItemId != "spring" &&
-          draggedItemId != "spacer" &&
-          draggedItemId != "splitter")
+          draggedItemId != "spacer")
       {
         currentRow.removeChild(draggedPaletteWrapper);
 
@@ -921,7 +916,7 @@ var toolbarDNDObserver =
     
     gCurrentDragOverItem = null;
 
-    gToolboxChanged = true;
+    toolboxChanged();
   },
   
   _flavourSet: null,
@@ -962,8 +957,7 @@ var paletteDNDObserver =
       var wrapperType = wrapper.getAttribute("type");
       if (wrapperType != "separator" &&
           wrapperType != "spacer" &&
-          wrapperType != "spring" &&
-          wrapperType != "splitter") {
+          wrapperType != "spring") {
         // Find the template node in the toolbox palette
         var templateNode = gToolbox.palette.firstChild;
         while (templateNode) {
@@ -980,7 +974,7 @@ var paletteDNDObserver =
       }
     }
     
-    gToolboxChanged = true;
+    toolboxChanged();
   },
   
   _flavourSet: null,

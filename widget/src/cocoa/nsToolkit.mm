@@ -204,7 +204,7 @@ static NSPoint ConvertCGGlobalToCocoaScreen(CGPoint aPoint)
 {
   NSPoint cocoaPoint;
   cocoaPoint.x = aPoint.x;
-  cocoaPoint.y = FlippedScreenY(aPoint.y);
+  cocoaPoint.y = nsCocoaUtils::FlippedScreenY(aPoint.y);
   return cocoaPoint;
 }
 
@@ -233,7 +233,7 @@ static CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
   // so would break the corresponding context menu).
   if (NSPointInRect(screenLocation, [ctxMenuWindow frame]))
     return event;
-  gRollupListener->Rollup();
+  gRollupListener->Rollup(nsnull);
   return event;
 }
 

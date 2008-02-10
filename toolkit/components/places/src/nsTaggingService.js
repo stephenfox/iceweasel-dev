@@ -49,8 +49,6 @@ const ANNO_CONTRACTID = "@mozilla.org/browser/annotation-service;1";
 const FAV_CONTRACTID = "@mozilla.org/browser/favicon-service;1";
 const OBSS_CONTRACTID = "@mozilla.org/observer-service;1";
 
-const TAG_CONTAINER_ICON_URI = "chrome://mozapps/skin/places/tagContainerIcon.png"
-
 var gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
 
 /**
@@ -82,7 +80,7 @@ TaggingService.prototype = {
     if (!this.__tagsResult) {
       var options = this._history.getNewQueryOptions();
       var query = this._history.getNewQuery();
-      query.setFolders([this._bms.tagRoot], 1);
+      query.setFolders([this._bms.tagsFolder], 1);
       this.__tagsResult = this._history.executeQuery(query, options);
       this.__tagsResult.root.containerOpen = true;
 
@@ -106,24 +104,16 @@ TaggingService.prototype = {
    * If there's no tag with the given name, null is returned;
    */
   _getTagNode: function TS__getTagIndex(aName) {
+    var nameLower = aName.toLowerCase();
     var root = this._tagsResult.root;
     var cc = root.childCount;
     for (var i=0; i < cc; i++) {
       var child = root.getChild(i);
-      if (child.title == aName)
+      if (child.title.toLowerCase() == nameLower)
         return child;
     }
 
     return null;
-  },
-
-  get _tagContainerIcon() {
-    if (!this.__tagContainerIcon) {
-      this.__tagContainerIcon =
-        gIoService.newURI(TAG_CONTAINER_ICON_URI, null, null);
-    }
-
-    return this.__tagContainerIcon;
   },
 
   /**
@@ -134,15 +124,8 @@ TaggingService.prototype = {
    * @returns the id of the new container.
    */
   _createTag: function TS__createTag(aName) {
-    var id = this._bms.createFolder(this._bms.tagRoot, aName,
-                                    this._bms.DEFAULT_INDEX);
-
-    // Set the favicon
-    var faviconService = Cc[FAV_CONTRACTID].getService(Ci.nsIFaviconService);
-    var uri = this._bms.getFolderURI(id);
-    faviconService.setFaviconUrlForPage(uri, this._tagContainerIcon);
-
-    return id;
+    return this._bms.createFolder(this._bms.tagsFolder, aName,
+                                  this._bms.DEFAULT_INDEX);
   },
 
   /**
@@ -158,17 +141,13 @@ TaggingService.prototype = {
    *          otherwise.
    */
   _isURITaggedInternal: function TS__uriTagged(aURI, aTagId, aItemId) {
-    var options = this._history.getNewQueryOptions();
-    options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
-    var query = this._history.getNewQuery();
-    query.setFolders([aTagId], 1);
-    query.uri = aURI;
-    var result = this._history.executeQuery(query, options);
-    var rootNode = result.root;
-    rootNode.containerOpen = true;
-    if (rootNode.childCount != 0) {
-      aItemId.value = rootNode.getChild(0).itemId;
-      return true;
+    var bookmarkIds = this._bms.getBookmarkIdsForURI(aURI, {});
+    for (var i=0; i < bookmarkIds.length; i++) {
+      var parent = this._bms.getFolderIdForItem(bookmarkIds[i]);
+      if (parent == aTagId) {
+        aItemId.value = bookmarkIds[i];
+        return true;
+      }
     }
     return false;
   },
@@ -191,6 +170,12 @@ TaggingService.prototype = {
         var tagId = tagNode.itemId;
         if (!this._isURITaggedInternal(aURI, tagNode.itemId, {}))
           this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
+
+        // _getTagNode ignores case sensitivity
+        // rename the tag container so the places view would match the
+        // user-typed values
+        if (tagNode.title != aTags[i])
+          this._bms.setItemTitle(tagNode.itemId, aTags[i]);
       }
     }
   },
@@ -220,7 +205,7 @@ TaggingService.prototype = {
     if (!aTags) {
       // see IDL.
       // XXXmano: write a perf-sensitive version of this code path...
-      aTags = this.getTagsForURI(aURI);
+      aTags = this.getTagsForURI(aURI, { });
     }
 
     for (var i=0; i < aTags.length; i++) {
@@ -257,7 +242,7 @@ TaggingService.prototype = {
   },
 
   // nsITaggingService
-  getTagsForURI: function TS_getTagsForURI(aURI) {
+  getTagsForURI: function TS_getTagsForURI(aURI, aCount) {
     if (!aURI)
       throw Cr.NS_ERROR_INVALID_ARG;
 
@@ -276,6 +261,7 @@ TaggingService.prototype = {
 
     // sort the tag list
     tags.sort();
+    aCount.value = tags.length;
     return tags;
   },
 
@@ -292,11 +278,6 @@ TaggingService.prototype = {
     // sort the tag list
     tags.sort();
     return tags;
-  },
-  
-  // nsITaggingService
-  get tagContainerIconSpec() {
-    return TAG_CONTAINER_ICON_URI;
   },
 
   // nsIObserver

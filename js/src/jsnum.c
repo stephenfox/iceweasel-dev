@@ -214,8 +214,8 @@ num_toSource(JSContext *cx, uintN argc, jsval *vp)
 #endif
 
 /* The buf must be big enough for MIN_INT to fit including '-' and '\0'. */
-static char *
-IntToString(jsint i, char *buf, size_t bufSize)
+char *
+js_IntToCString(jsint i, char *buf, size_t bufSize)
 {
     char *cp;
     jsuint u;
@@ -238,6 +238,7 @@ IntToString(jsint i, char *buf, size_t bufSize)
     if (i < 0)
         *--cp = '-';
 
+    JS_ASSERT(cp >= buf);
     return cp;
 }
 
@@ -254,12 +255,12 @@ num_toString(JSContext *cx, uintN argc, jsval *vp)
     JS_ASSERT(JSVAL_IS_NUMBER(v));
     d = JSVAL_IS_INT(v) ? (jsdouble)JSVAL_TO_INT(v) : *JSVAL_TO_DOUBLE(v);
     base = 10;
-    if (argc != 0) {
+    if (argc != 0 && !JSVAL_IS_VOID(vp[2])) {
         if (!js_ValueToECMAInt32(cx, vp[2], &base))
             return JS_FALSE;
         if (base < 2 || base > 36) {
             char numBuf[12];
-            char *numStr = IntToString(base, numBuf, sizeof numBuf);
+            char *numStr = js_IntToCString(base, numBuf, sizeof numBuf);
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_RADIX,
                                  numStr);
             return JS_FALSE;
@@ -298,7 +299,7 @@ num_toLocaleString(JSContext *cx, uintN argc, jsval *vp)
      * Create the string, move back to bytes to make string twiddling
      * a bit easier and so we can insert platform charset seperators.
      */
-    if (!num_toString(cx, argc, vp))
+    if (!num_toString(cx, 0, vp))
         return JS_FALSE;
     JS_ASSERT(JSVAL_IS_STRING(*vp));
     numStr = JSVAL_TO_STRING(*vp);
@@ -468,6 +469,8 @@ num_toExponential(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 num_toPrecision(JSContext *cx, uintN argc, jsval *vp)
 {
+    if (JSVAL_IS_VOID(vp[2]))
+        return num_toString(cx, 0, vp);
     return num_to(cx, DTOSTR_STANDARD, DTOSTR_PRECISION, 1, MAX_PRECISION, 0,
                   argc, vp);
 }
@@ -476,7 +479,7 @@ static JSFunctionSpec number_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,       num_toSource,       0,0,JSFUN_THISP_NUMBER),
 #endif
-    JS_FN(js_toString_str,       num_toString,       0,0,JSFUN_THISP_NUMBER),
+    JS_FN(js_toString_str,       num_toString,       0,1,JSFUN_THISP_NUMBER),
     JS_FN(js_toLocaleString_str, num_toLocaleString, 0,0,JSFUN_THISP_NUMBER),
     JS_FN(js_valueOf_str,        num_valueOf,        0,0,JSFUN_THISP_NUMBER),
     JS_FN("toFixed",             num_toFixed,        1,1,JSFUN_THISP_NUMBER),
@@ -677,22 +680,34 @@ js_NewNumberValue(JSContext *cx, jsdouble d, jsval *rval)
     return JS_TRUE;
 }
 
-JSString *
-js_NumberToString(JSContext *cx, jsdouble d)
+char *
+js_NumberToCString(JSContext *cx, jsdouble d, char *buf, size_t bufSize)
 {
     jsint i;
-    char buf[DTOSTR_STANDARD_BUFFER_SIZE];
     char *numStr;
 
+    JS_ASSERT(bufSize >= DTOSTR_STANDARD_BUFFER_SIZE);
     if (JSDOUBLE_IS_INT(d, i)) {
-        numStr = IntToString(i, buf, sizeof buf);
+        numStr = js_IntToCString(i, buf, bufSize);
     } else {
-        numStr = JS_dtostr(buf, sizeof buf, DTOSTR_STANDARD, 0, d);
+        numStr = JS_dtostr(buf, bufSize, DTOSTR_STANDARD, 0, d);
         if (!numStr) {
             JS_ReportOutOfMemory(cx);
             return NULL;
         }
     }
+    return numStr;
+}
+
+JSString *
+js_NumberToString(JSContext *cx, jsdouble d)
+{
+    char buf[DTOSTR_STANDARD_BUFFER_SIZE];
+    char *numStr;
+
+    numStr = js_NumberToCString(cx, d, buf, sizeof buf);
+    if (!numStr)
+        return NULL;
     return JS_NewStringCopyZ(cx, numStr);
 }
 
@@ -748,26 +763,22 @@ js_ValueToECMAInt32(JSContext *cx, jsval v, int32 *ip)
 
     if (!js_ValueToNumber(cx, v, &d))
         return JS_FALSE;
-    return js_DoubleToECMAInt32(cx, d, ip);
+    *ip = js_DoubleToECMAInt32(d);
+    return JS_TRUE;
 }
 
-JSBool
-js_DoubleToECMAInt32(JSContext *cx, jsdouble d, int32 *ip)
+int32
+js_DoubleToECMAInt32(jsdouble d)
 {
     jsdouble two32 = 4294967296.0;
     jsdouble two31 = 2147483648.0;
 
-    if (!JSDOUBLE_IS_FINITE(d) || d == 0) {
-        *ip = 0;
-        return JS_TRUE;
-    }
+    if (!JSDOUBLE_IS_FINITE(d) || d == 0)
+        return 0;
+
     d = fmod(d, two32);
     d = (d >= 0) ? floor(d) : ceil(d) + two32;
-    if (d >= two31)
-        *ip = (int32)(d - two32);
-    else
-        *ip = (int32)d;
-    return JS_TRUE;
+    return (int32) (d >= two31) ? (d - two32) : d;
 }
 
 JSBool
@@ -777,19 +788,18 @@ js_ValueToECMAUint32(JSContext *cx, jsval v, uint32 *ip)
 
     if (!js_ValueToNumber(cx, v, &d))
         return JS_FALSE;
-    return js_DoubleToECMAUint32(cx, d, ip);
+    *ip = js_DoubleToECMAUint32(d);
+    return JS_TRUE;
 }
 
-JSBool
-js_DoubleToECMAUint32(JSContext *cx, jsdouble d, uint32 *ip)
+uint32
+js_DoubleToECMAUint32(jsdouble d)
 {
     JSBool neg;
     jsdouble two32 = 4294967296.0;
 
-    if (!JSDOUBLE_IS_FINITE(d) || d == 0) {
-        *ip = 0;
-        return JS_TRUE;
-    }
+    if (!JSDOUBLE_IS_FINITE(d) || d == 0)
+        return 0;
 
     neg = (d < 0);
     d = floor(neg ? -d : d);
@@ -797,9 +807,7 @@ js_DoubleToECMAUint32(JSContext *cx, jsdouble d, uint32 *ip)
 
     d = fmod(d, two32);
 
-    d = (d >= 0) ? d : d + two32;
-    *ip = (uint32)d;
-    return JS_TRUE;
+    return (uint32) (d >= 0) ? d : d + two32;
 }
 
 JSBool

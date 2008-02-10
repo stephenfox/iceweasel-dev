@@ -52,6 +52,7 @@
 #include "nsIProperties.h"
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
+#include "nsIPrincipal.h"
 
 #include "nsCategoryCache.h"
 #include "nsCOMPtr.h"
@@ -121,6 +122,7 @@ private:
   inline nsresult GetResultFromImageStatus(PRUint32 aStatus) const;
   void Cancel(nsresult aStatus);
   nsresult GetURI(nsIURI **aURI);
+  nsresult GetPrincipal(nsIPrincipal **aPrincipal);
   void RemoveFromCache();
   inline const char *GetMimeType() const {
     return mContentType.get();
@@ -151,11 +153,12 @@ public:
 private:
   nsCOMPtr<nsIRequest> mRequest;
   nsCOMPtr<nsIURI> mURI;
+  nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<imgIContainer> mImage;
   nsCOMPtr<imgIDecoder> mDecoder;
   nsCOMPtr<nsIProperties> mProperties;
 
-  nsTObserverArray<imgRequestProxy> mObservers;
+  nsTObserverArray<imgRequestProxy*> mObservers;
 
   PRPackedBool mLoading;
   PRPackedBool mProcessing;

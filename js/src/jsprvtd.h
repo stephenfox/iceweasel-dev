@@ -75,19 +75,10 @@
 #define OBJECT_JSVAL_TO_JSID(v)     ((jsid)v)
 
 /*
- * To put a property into the hidden subspace we re-tag JSString * behind
- * property's atom as JSVAL_BOOLEAN to get a different id. js_TraceId must
- * properly trace such pseudo-booleans to ensure GC safety.
+ * Convenience constants.
  */
-#define JSID_IS_HIDDEN(id)          (JSVAL_TAG((jsval)(id)) == JSVAL_BOOLEAN)
-
-#define JSID_HIDE_NAME(id)                                                    \
-    (JS_ASSERT(JSID_IS_ATOM(id)),                                             \
-     (jsid)((jsval)(id) ^ (JSVAL_STRING ^ JSVAL_BOOLEAN)))
-
-#define JSID_UNHIDE_NAME(id)                                                  \
-    (JS_ASSERT(JSID_IS_HIDDEN(id)),                                           \
-     (jsid)((jsval)(id) ^ (JSVAL_BOOLEAN ^ JSVAL_STRING)))
+#define JS_BITS_PER_UINT32_LOG2 5
+#define JS_BITS_PER_UINT32      32
 
 /* Scalar typedefs. */
 typedef uint8  jsbytecode;
@@ -243,7 +234,9 @@ typedef union JSTempValueUnion {
     jsval               value;
     JSObject            *object;
     JSString            *string;
-    void                *gcthing;
+    JSFunction          *function;
+    JSXML               *xml;
+    JSXMLQName          *qname;
     JSTempValueTrace    trace;
     JSScopeProperty     *sprop;
     JSWeakRoots         *weakRoots;
@@ -258,6 +251,14 @@ struct JSTempValueRooter {
     JSTempValueUnion    u;
 };
 
-
+/*
+ * The following determines whether JS_EncodeCharacters and JS_DecodeBytes
+ * treat char[] as utf-8 or simply as bytes that need to be inflated/deflated.
+ */
+#ifdef JS_C_STRINGS_ARE_UTF8
+# define js_CStringsAreUTF8 JS_TRUE
+#else
+extern JSBool js_CStringsAreUTF8;
+#endif
 
 #endif /* jsprvtd_h___ */

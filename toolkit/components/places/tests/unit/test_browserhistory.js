@@ -23,6 +23,7 @@
  *  Darin Fisher <darin@meer.net>
  *  Dietrich Ayala <dietrich@mozilla.com>
  *  Dan Mills <thunder@mozilla.com>
+ *  Marco Bonardo <mak77@supereva.it>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,6 +46,20 @@ try {
   do_throw("Could not get history service\n");
 } 
 
+// Get annotation service
+try {
+  var annosvc= Cc["@mozilla.org/browser/annotation-service;1"].getService(Ci.nsIAnnotationService);
+} catch(ex) {
+  do_throw("Could not get annotation service\n");
+} 
+
+// Get bookmark service
+try {
+  var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].getService(Ci.nsINavBookmarksService);
+} catch(ex) {
+  do_throw("Could not get nav-bookmarks-service\n");
+}
+
 // main
 function run_test() {
   var testURI = uri("http://mozilla.com");
@@ -55,7 +70,7 @@ function run_test() {
    * the History migrator. 
    */
   try {
-    bhist.addPageWithDetails(testURI, "testURI", Date.now());
+    bhist.addPageWithDetails(testURI, "testURI", Date.now() * 1000);
   } catch(ex) {
     do_throw("addPageWithDetails failed");
   }
@@ -84,18 +99,64 @@ function run_test() {
   do_check_eq("", bhist.lastPageVisited);
 
   /**
+   * remove a bunch of pages from history
+   */
+  var deletedPages = [];
+  deletedPages.push(uri("http://mirror1.mozilla.com"));
+  deletedPages.push(uri("http://mirror2.mozilla.com"));
+  deletedPages.push(uri("http://mirror3.mozilla.com"));
+  deletedPages.push(uri("http://mirror4.mozilla.com"));
+  deletedPages.push(uri("http://mirror5.mozilla.com"));
+  deletedPages.push(uri("http://mirror6.mozilla.com"));
+  deletedPages.push(uri("http://mirror7.mozilla.com"));
+  deletedPages.push(uri("http://mirror8.mozilla.com"));
+
+  try {
+    for (var i = 0; i < deletedPages.length ; ++i)
+      bhist.addPageWithDetails(deletedPages[i], "testURI" + (i+1), Date.now() * 1000);
+  } catch(ex) {
+    do_throw("addPageWithDetails failed");
+  }
+
+  // annotated and bookmarked items should not be removed from moz_places
+  var annoIndex = 1;
+  var annoName = "testAnno";
+  var annoValue = "foo";
+  var bookmarkIndex = 2;
+  var bookmarkName = "bar";  
+  annosvc.setPageAnnotation(deletedPages[annoIndex], annoName, annoValue, 0,
+                            Ci.nsIAnnotationService.EXPIRE_NEVER);
+  var bookmark = bmsvc.insertBookmark(bmsvc.bookmarksMenuFolder,
+      deletedPages[bookmarkIndex], bmsvc.DEFAULT_INDEX, bookmarkName);
+
+  try {
+    bhist.removePages(deletedPages, deletedPages.length, false);
+  } catch(ex) {
+    do_throw("removePages failed");
+  }
+  do_check_eq(0, bhist.count);
+  do_check_eq("", bhist.lastPageVisited);
+  // check that bookmark and annotation still exist
+  do_check_eq(bmsvc.getBookmarkURI(bookmark).spec, deletedPages[bookmarkIndex].spec);
+  do_check_eq(annosvc.getPageAnnotation(deletedPages[annoIndex], annoName), annoValue);
+  // remove annotation and bookmark
+  annosvc.removePageAnnotation(deletedPages[annoIndex], annoName);
+  bmsvc.removeItem(bookmark);
+  bhist.removeAllPages();
+
+  /**
    * removePagesFromHost
    * Remove all pages from the given host.
    * If aEntireDomain is true, will assume aHost is a domain,
    * and remove all pages from the entire domain.
    */
-  bhist.addPageWithDetails(testURI, "testURI", Date.now());
+  bhist.addPageWithDetails(testURI, "testURI", Date.now() * 1000);
   bhist.removePagesFromHost("mozilla.com", true);
   do_check_eq(0, bhist.count);
 
   // test aEntireDomain
-  bhist.addPageWithDetails(testURI, "testURI", Date.now());
-  bhist.addPageWithDetails(uri("http://foobar.mozilla.com"), "testURI2", Date.now());
+  bhist.addPageWithDetails(testURI, "testURI", Date.now() * 1000);
+  bhist.addPageWithDetails(uri("http://foobar.mozilla.com"), "testURI2", Date.now() * 1000);
   bhist.removePagesFromHost("mozilla.com", false);
   do_check_eq(1, bhist.count);
 
@@ -115,15 +176,7 @@ function run_test() {
    * as if it was visited, and then marked as hidden
    */
   //XXX NOT IMPLEMENTED in the history service
-  //bhist.addPageWithDetails(testURI, "testURI", Date.now());
+  //bhist.addPageWithDetails(testURI, "testURI", Date.now() * 1000);
   //bhist.hidePage(testURI);
   //do_check_eq(0, bhist.count);
-
-  /**
-   * markPageAsTyped
-   * Designate the url as having been explicitly typed in by
-   * the user, so it's okay to be an autocomplete result.
-   */
-  //XXX how to test this?
-  //bhist.markPageAsTyped(testURI);
 }

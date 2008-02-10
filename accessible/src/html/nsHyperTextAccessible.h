@@ -53,6 +53,7 @@ enum EGetTextType { eGetBefore=-1, eGetAt=0, eGetAfter=1 };
 // This character marks where in the text returned via nsIAccessibleText(),
 // that embedded object characters exist
 const PRUnichar kEmbeddedObjectChar = 0xfffc;
+const PRUnichar kImaginaryEmbeddedObjectChar = ' ';
 const PRUnichar kForcedNewLineChar = '\n';
 
 #define NS_HYPERTEXTACCESSIBLE_IMPL_CID                 \
@@ -220,6 +221,13 @@ protected:
                          nsISelection **aDomSel = nsnull,
                          nsCOMArray<nsIDOMRange>* aRanges = nsnull);
   nsresult SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos);
+
+  /**
+   * Provide the line number for the caret, relative to the
+   * current DOM node.
+   * @return 1-based index for the line number with the caret
+   */
+  PRInt32 GetCaretLineNumber();
 
   // Helpers
   nsresult GetDOMPointByFrameOffset(nsIFrame *aFrame, PRInt32 aOffset,

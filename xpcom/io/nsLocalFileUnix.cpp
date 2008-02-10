@@ -81,7 +81,10 @@
 #include "nsIDirectoryEnumerator.h"
 #include "nsISimpleEnumerator.h"
 #include "nsITimelineService.h"
-#include "nsIProgrammingLanguage.h"
+
+#ifdef MOZ_WIDGET_GTK2
+#include "nsIGnomeVFSService.h"
+#endif
 
 #include "nsNativeCharsetUtils.h"
 #include "nsTraceRefcntImpl.h"
@@ -254,20 +257,10 @@ nsLocalFile::nsLocalFile(const nsLocalFile& other)
 {
 }
 
-NS_IMPL_THREADSAFE_ADDREF(nsLocalFile)
-NS_IMPL_THREADSAFE_RELEASE(nsLocalFile)
-NS_IMPL_QUERY_INTERFACE4_CI(nsLocalFile,
-                            nsILocalFile,
-                            nsIFile,
-                            nsIHashable,
-                            nsIClassInfo)
-NS_IMPL_CI_INTERFACE_GETTER3(nsLocalFile,
-                             nsILocalFile,
-                             nsIFile,
-                             nsIHashable)
-
-NS_DECL_CLASSINFO(nsLocalFile)
-NS_IMPL_THREADSAFE_CI(nsLocalFile)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsLocalFile,
+                              nsIFile,
+                              nsILocalFile,
+                              nsIHashable)
 
 nsresult
 nsLocalFile::nsLocalFileConstructor(nsISupports *outer, 
@@ -1663,13 +1656,44 @@ nsLocalFile::Launch()
 NS_IMETHODIMP
 nsLocalFile::Reveal()
 {
+#ifdef MOZ_WIDGET_GTK2
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (!vfs)
+        return NS_ERROR_FAILURE;
+
+    PRBool isDirectory;
+    if (NS_FAILED(IsDirectory(&isDirectory)))
+        return NS_ERROR_FAILURE;
+
+    if (isDirectory) {
+        return vfs->ShowURIForInput(mPath);
+    } else {
+        nsCOMPtr<nsIFile> parentDir;
+        nsCAutoString dirPath;
+        if (NS_FAILED(GetParent(getter_AddRefs(parentDir))))
+            return NS_ERROR_FAILURE;
+        if (NS_FAILED(parentDir->GetNativePath(dirPath)))
+            return NS_ERROR_FAILURE;
+
+        return vfs->ShowURIForInput(dirPath);
+    }
+#else
     return NS_ERROR_FAILURE;
+#endif
 }
 
 NS_IMETHODIMP
 nsLocalFile::Launch()
 {
+#ifdef MOZ_WIDGET_GTK2
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (!vfs)
+        return NS_ERROR_FAILURE;
+
+    return vfs->ShowURIForInput(mPath);
+#else
     return NS_ERROR_FAILURE;
+#endif
 }
 #endif
 

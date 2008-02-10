@@ -109,8 +109,8 @@
 #include "nsIPrefService.h"
 #include "nsIWindowWatcher.h"
 
-#include "nsIGlobalHistory.h" // to mark downloads as visited
-#include "nsIGlobalHistory2.h" // to mark downloads as visited
+#include "nsIDownloadHistory.h" // to mark downloads as visited
+#include "nsDocShellCID.h"
 
 #include "nsIDOMWindow.h"
 #include "nsIDOMWindowInternal.h"
@@ -123,6 +123,9 @@
 #include "nsIRandomGenerator.h"
 #include "plbase64.h"
 #include "prmem.h"
+
+// Buffer file writes in 32kb chunks
+#define BUFFERED_OUTPUT_SIZE (1024 * 32)
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* nsExternalHelperAppService::mLog = nsnull;
@@ -585,12 +588,18 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   LOG(("HelperAppService::DoContent: mime '%s', extension '%s'\n",
        PromiseFlatCString(aMimeContentType).get(), fileExtension.get()));
 
+  // we get the mime service here even though we're the default implementation of it,
+  // so it's possible to override only the mime service and not need to reimplement the
+  // whole external helper app service itself
+  nsCOMPtr<nsIMIMEService> mimeSvc(do_GetService(NS_MIMESERVICE_CONTRACTID));
+  NS_ENSURE_TRUE(mimeSvc, NS_ERROR_FAILURE);
+
   // Try to find a mime object by looking at the mime type/extension
   nsCOMPtr<nsIMIMEInfo> mimeInfo;
   if (aMimeContentType.Equals(APPLICATION_GUESS_FROM_EXT, nsCaseInsensitiveCStringComparator())) {
     nsCAutoString mimeType;
     if (!fileExtension.IsEmpty()) {
-      GetFromTypeAndExtension(EmptyCString(), fileExtension, getter_AddRefs(mimeInfo));
+      mimeSvc->GetFromTypeAndExtension(EmptyCString(), fileExtension, getter_AddRefs(mimeInfo));
       if (mimeInfo) {
         mimeInfo->GetMIMEType(mimeType);
 
@@ -601,8 +610,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
 
     if (fileExtension.IsEmpty() || mimeType.IsEmpty()) {
       // Extension lookup gave us no useful match
-      GetFromTypeAndExtension(NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM), fileExtension,
-                              getter_AddRefs(mimeInfo));
+      mimeSvc->GetFromTypeAndExtension(NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM), fileExtension,
+                                       getter_AddRefs(mimeInfo));
       mimeType.AssignLiteral(APPLICATION_OCTET_STREAM);
     }
     if (channel)
@@ -612,8 +621,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
       reason = nsIHelperAppLauncherDialog::REASON_TYPESNIFFED;
   } 
   else {
-    GetFromTypeAndExtension(aMimeContentType, fileExtension,
-                            getter_AddRefs(mimeInfo));
+    mimeSvc->GetFromTypeAndExtension(aMimeContentType, fileExtension,
+                                     getter_AddRefs(mimeInfo));
   } 
   LOG(("Type/Ext lookup found 0x%p\n", mimeInfo.get()));
 
@@ -755,13 +764,8 @@ NS_IMETHODIMP nsExternalHelperAppService::LoadUrl(nsIURI * aURL)
   return LoadURI(aURL, nsnull);
 }
 
-// helper routines used by LoadURI to check whether we're allowed
-// to load external schemes and whether or not to warn the user
-
 static const char kExternalProtocolPrefPrefix[]  = "network.protocol-handler.external.";
 static const char kExternalProtocolDefaultPref[] = "network.protocol-handler.external-default";
-static const char kExternalWarningPrefPrefix[]   = "network.protocol-handler.warn-external.";
-static const char kExternalWarningDefaultPref[]  = "network.protocol-handler.warn-external-default";
 
 NS_IMETHODIMP 
 nsExternalHelperAppService::LoadURI(nsIURI *aURI,
@@ -805,16 +809,6 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
   if (NS_FAILED(rv) || !allowLoad)
     return NS_OK; // explicitly denied or missing default pref
 
-  // allowLoad is now true. See whether we have to ask the user
-  nsCAutoString warningPref(kExternalWarningPrefPrefix);
-  warningPref += scheme;
-  PRBool warn = PR_TRUE;
-  rv = prefs->GetBoolPref(warningPref.get(), &warn);
-  if (NS_FAILED(rv))
-  {
-    // no scheme-specific value, check the default
-    prefs->GetBoolPref(kExternalWarningDefaultPref, &warn);
-  }
  
   nsCOMPtr<nsIHandlerInfo> handler;
   rv = GetProtocolHandlerInfo(scheme, getter_AddRefs(handler));
@@ -825,11 +819,9 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
   PRBool alwaysAsk = PR_TRUE;
   handler->GetAlwaysAskBeforeHandling(&alwaysAsk);
 
-  // if we are not supposed to warn, we are not supposed to always ask, and
-  // the preferred action is to use a helper app or the system default, we just
-  // launch the URI.
-  if (!warn &&
-      !alwaysAsk && (preferredAction == nsIHandlerInfo::useHelperApp ||
+  // if we are not supposed to ask, and the preferred action is to use
+  // a helper app or the system default, we just launch the URI.
+  if (!alwaysAsk && (preferredAction == nsIHandlerInfo::useHelperApp ||
                      preferredAction == nsIHandlerInfo::useSystemDefault))
     return handler->LaunchWithURI(uri, aWindowContext);
   
@@ -880,8 +872,11 @@ nsresult nsExternalHelperAppService::ExpungeTemporaryFiles()
   for (PRInt32 index = 0; index < numEntries; index++)
   {
     localFile = mTemporaryFilesList[index];
-    if (localFile)
+    if (localFile) {
+      // First make the file writable, since the temp file is probably readonly.
+      localFile->SetPermissions(0600);
       localFile->Remove(PR_FALSE);
+    }
   }
 
   mTemporaryFilesList.Clear();
@@ -889,13 +884,15 @@ nsresult nsExternalHelperAppService::ExpungeTemporaryFiles()
   return NS_OK;
 }
 
+static const char kExternalWarningPrefPrefix[] = 
+  "network.protocol-handler.warn-external.";
+static const char kExternalWarningDefaultPref[] = 
+  "network.protocol-handler.warn-external-default";
+
 NS_IMETHODIMP
 nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme, 
                                                    nsIHandlerInfo **aHandlerInfo)
 {
-  // XXX Now that we've exposed this to the UI (bug 391150), is there anything
-  // we need to do to make it compatible with the "warning" and "exposed" prefs?
-
   // XXX enterprise customers should be able to turn this support off with a
   // single master pref (maybe use one of the "exposed" prefs here?)
 
@@ -910,20 +907,37 @@ nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme,
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
   if (handlerSvc)
     rv = handlerSvc->FillHandlerInfo(*aHandlerInfo, EmptyCString());
-
+  
+  // this type isn't in our database, so we've only got an OS default handler,
+  // if one exists
   if (NS_FAILED(rv)) {
-    // We don't know it, so we always ask the user.  By the time we call this
-    // method, we already have checked if we should open this protocol and ask
-    // the user, so these defaults are OK.
-    // XXX this is a bit different than the MIME system, so we may want to look
-    //     into this more in the future.
-    (*aHandlerInfo)->SetAlwaysAskBeforeHandling(PR_TRUE);
-    // If no OS default existed, we set the preferred action to alwaysAsk.  This
-    // really means not initialized to all the code...
-    if (exists)
+    
+    if (exists) {
+      // we've got a default, so use it
       (*aHandlerInfo)->SetPreferredAction(nsIHandlerInfo::useSystemDefault);
-    else
+
+      // whether or not to ask the user depends on the warning preference
+
+      nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+      if (!prefs)
+        return NS_OK; // deny if we can't check prefs
+
+      nsCAutoString warningPref(kExternalWarningPrefPrefix);
+      warningPref += aScheme;
+      PRBool warn = PR_TRUE;
+      rv = prefs->GetBoolPref(warningPref.get(), &warn);
+      if (NS_FAILED(rv))
+      {
+        // no scheme-specific value, check the default
+        prefs->GetBoolPref(kExternalWarningDefaultPref, &warn);
+      }
+      (*aHandlerInfo)->SetAlwaysAskBeforeHandling(warn);
+    } else {
+      // If no OS default existed, we set the preferred action to alwaysAsk. 
+      // This really means not initialized (i.e. there's no available handler)
+      // to all the code...
       (*aHandlerInfo)->SetPreferredAction(nsIHandlerInfo::alwaysAsk);
+    }
   }
 
   return NS_OK;
@@ -1232,12 +1246,15 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   }
 #endif
 
-  rv = NS_NewLocalFileOutputStream(getter_AddRefs(mOutStream), mTempFile,
+  nsCOMPtr<nsIOutputStream> outputStream;
+  rv = NS_NewLocalFileOutputStream(getter_AddRefs(outputStream), mTempFile,
                                    PR_WRONLY | PR_CREATE_FILE, 0600);
   if (NS_FAILED(rv)) {
     mTempFile->Remove(PR_FALSE);
     return rv;
   }
+
+  mOutStream = NS_BufferOutputStream(outputStream, BUFFERED_OUTPUT_SIZE);
 
 #ifdef XP_MACOSX
     nsCAutoString contentType;
@@ -1491,24 +1508,13 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     }
   }
 
-  // Now let's mark the downloaded URL as visited
-  nsCOMPtr<nsIGlobalHistory> history(do_GetService(NS_GLOBALHISTORY_CONTRACTID));
-  nsCAutoString spec;
-  mSourceUrl->GetSpec(spec);
-  if (history && !spec.IsEmpty())
-  {
-    PRBool visited;
-    rv = history->IsVisited(spec.get(), &visited);
-    if (NS_FAILED(rv))
-        return rv;
-    history->AddPage(spec.get());
-    if (!visited) {
-      nsCOMPtr<nsIObserverService> obsService =
-          do_GetService("@mozilla.org/observer-service;1");
-      if (obsService) {
-        obsService->NotifyObservers(mSourceUrl, NS_LINK_VISITED_EVENT_TOPIC, nsnull);
-      }
-    }
+  // Now let's add the download to history
+  nsCOMPtr<nsIDownloadHistory> dh(do_GetService(NS_DOWNLOADHISTORY_CONTRACTID));
+  if (dh) {
+    nsCOMPtr<nsIURI> referrer;
+    if (aChannel)
+      NS_GetReferrerFromChannel(aChannel, getter_AddRefs(referrer));
+    dh->AddDownload(mSourceUrl, referrer, mTimeDownloadStarted);
   }
 
   return NS_OK;
@@ -1772,7 +1778,10 @@ nsresult nsExternalAppHandler::ExecuteDesiredAction()
       {
         mWebProgressListener->OnProgressChange64(nsnull, nsnull, mProgress, mContentLength, mProgress, mContentLength);
       }
-      mWebProgressListener->OnStateChange(nsnull, nsnull, nsIWebProgressListener::STATE_STOP, NS_OK);
+      mWebProgressListener->OnStateChange(nsnull, nsnull,
+        nsIWebProgressListener::STATE_STOP |
+        nsIWebProgressListener::STATE_IS_REQUEST |
+        nsIWebProgressListener::STATE_IS_NETWORK, NS_OK);
     }
   }
   
@@ -1830,7 +1839,9 @@ nsresult nsExternalAppHandler::CreateProgressListener()
     InitializeDownload(tr);
 
   if (tr)
-    tr->OnStateChange(nsnull, mRequest, nsIWebProgressListener::STATE_START, NS_OK);
+    tr->OnStateChange(nsnull, mRequest, nsIWebProgressListener::STATE_START |
+      nsIWebProgressListener::STATE_IS_REQUEST |
+      nsIWebProgressListener::STATE_IS_NETWORK, NS_OK);
 
   // note we might not have a listener here if the QI() failed, or if
   // there is no nsITransfer object, but we still call
@@ -1998,8 +2009,10 @@ NS_IMETHODIMP nsExternalAppHandler::SaveToDisk(nsIFile * aNewFileLocation, PRBoo
       rv = mTempFile->MoveTo(dir, name);
       if (NS_SUCCEEDED(rv)) // if it failed, we just continue with $TEMP
         mTempFile = movedFile;
-      rv = NS_NewLocalFileOutputStream(getter_AddRefs(mOutStream), mTempFile,
-                                         PR_WRONLY | PR_APPEND, 0600);
+
+      nsCOMPtr<nsIOutputStream> outputStream;
+      rv = NS_NewLocalFileOutputStream(getter_AddRefs(outputStream), mTempFile,
+                                       PR_WRONLY | PR_APPEND, 0600);
       if (NS_FAILED(rv)) { // (Re-)opening the output stream failed. bad luck.
         nsAutoString path;
         mTempFile->GetPath(path);
@@ -2007,6 +2020,8 @@ NS_IMETHODIMP nsExternalAppHandler::SaveToDisk(nsIFile * aNewFileLocation, PRBoo
         Cancel(rv);
         return NS_OK;
       }
+
+      mOutStream = NS_BufferOutputStream(outputStream, BUFFERED_OUTPUT_SIZE);
     }
   }
 
@@ -2305,6 +2320,9 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
     if (NS_FAILED(rv))
       return NS_ERROR_NOT_AVAILABLE;
   }
+
+  // We promise to only send lower case mime types to the OS
+  ToLowerCase(typeToUse);
 
   // (1) Ask the OS for a mime info
   PRBool found;

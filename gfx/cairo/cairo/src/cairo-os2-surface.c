@@ -135,6 +135,74 @@ cairo_os2_fini (void)
      * as much as possible.
      */
     _heapshrink ();
+#else
+    /* GCC has a heapmin function that approximately corresponds to
+     * what the Watcom function does
+     */
+    _heapmin ();
+#endif
+}
+
+/*
+ * This function calls the allocation function depending on which
+ * method was compiled into the library: it can be native allocation
+ * (DosAllocMem/DosFreeMem) or C-Library based allocation (malloc/free).
+ * Actually, for pixel buffers that we use this function for, cairo
+ * uses _cairo_malloc_abc, so we use that here, too. And use the
+ * change to check the size argument
+ */
+void *_buffer_alloc (size_t a, size_t b, const unsigned int size)
+{
+    /* check length like in the _cairo_malloc_abc macro, but we can leave
+     * away the unsigned casts as our arguments are unsigned already
+     */
+    size_t nbytes = b &&
+                    a >= INT32_MAX / b ? 0 : size &&
+                    a*b >= INT32_MAX / size ? 0 : a * b * size;
+    void *buffer = NULL;
+#ifdef OS2_USE_PLATFORM_ALLOC
+    APIRET rc = NO_ERROR;
+
+    rc = DosAllocMem ((PPVOID)&buffer,
+                      nbytes,
+#ifdef OS2_HIGH_MEMORY           /* only if compiled with high-memory support, */
+                      OBJ_ANY |  /* we can allocate anywhere!                  */
+#endif
+                      PAG_READ | PAG_WRITE | PAG_COMMIT);
+    if (rc != NO_ERROR) {
+        /* should there for some reason be another error, let's return
+         * a null surface and free the buffer again, because that's
+         * how a malloc failure would look like
+         */
+        if (rc != ERROR_NOT_ENOUGH_MEMORY && buffer) {
+            DosFreeMem (buffer);
+        }
+        return NULL;
+    }
+#else
+    buffer = malloc (nbytes);
+#endif
+
+    /* This does not seem to be needed, malloc'd space is usually
+     * already zero'd out!
+     */
+    /*
+     * memset (buffer, 0x00, nbytes);
+     */
+
+    return buffer;
+}
+
+/*
+ * This function selects the free function depending on which
+ * allocation method was compiled into the library
+ */
+void _buffer_free (void *buffer)
+{
+#ifdef OS2_USE_PLATFORM_ALLOC
+    DosFreeMem (buffer);
+#else
+    free (buffer);
 #endif
 }
 
@@ -296,9 +364,9 @@ _cairo_os2_surface_blit_pixels (cairo_os2_surface_t *surface,
         ULONG ulPixels;
 
         /* allocate temporary pixel buffer */
-        pchPixBuf = (unsigned char *) _cairo_malloc_abc (surface->bitmap_info.cy,
-						      surface->bitmap_info.cx,
-						      3);
+        pchPixBuf = (unsigned char *) _buffer_alloc (surface->bitmap_info.cy,
+                                                     surface->bitmap_info.cx,
+                                                     3);
         pchPixSource = surface->pixels; /* start at beginning of pixel buffer */
         pBufStart = pchPixBuf; /* remember beginning of the new pixel buffer */
 
@@ -330,7 +398,7 @@ _cairo_os2_surface_blit_pixels (cairo_os2_surface_t *surface,
                           ROP_SRCCOPY,
                           BBO_IGNORE);
 
-        free (pchPixBuf);
+        _buffer_free (pchPixBuf);
     }
 
     /* Restore Y inversion */
@@ -473,7 +541,7 @@ _cairo_os2_surface_acquire_source_image (void                   *abstract_surfac
         (local_os2_surface->base.backend != &cairo_os2_surface_backend))
     {
         /* Invalid parameter (wrong surface)! */
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+        return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
     }
 
     DosRequestMutexSem (local_os2_surface->hmtx_use_private_fields, SEM_INDEFINITE_WAIT);
@@ -529,7 +597,7 @@ _cairo_os2_surface_acquire_dest_image (void                     *abstract_surfac
         (local_os2_surface->base.backend != &cairo_os2_surface_backend))
     {
         /* Invalid parameter (wrong surface)! */
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+        return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
     }
 
     DosRequestMutexSem (local_os2_surface->hmtx_use_private_fields, SEM_INDEFINITE_WAIT);
@@ -637,7 +705,7 @@ _cairo_os2_surface_get_extents (void                    *abstract_surface,
         (local_os2_surface->base.backend != &cairo_os2_surface_backend))
     {
         /* Invalid parameter (wrong surface)! */
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+        return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
     }
 
     rectangle->x = 0;
@@ -654,6 +722,7 @@ cairo_os2_surface_create (HPS hps_client_window,
                           int height)
 {
     cairo_os2_surface_t *local_os2_surface;
+    cairo_status_t status;
     int rc;
 
     /* Check the size of the window */
@@ -661,15 +730,13 @@ cairo_os2_surface_create (HPS hps_client_window,
         (height <= 0))
     {
         /* Invalid window size! */
-        _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_surface_t *) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
     local_os2_surface = (cairo_os2_surface_t *) malloc (sizeof (cairo_os2_surface_t));
     if (!local_os2_surface) {
         /* Not enough memory! */
-        _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_surface_t *) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
     /* Initialize the OS/2 specific parts of the surface! */
@@ -681,8 +748,7 @@ cairo_os2_surface_create (HPS hps_client_window,
                             FALSE);
     if (rc != NO_ERROR) {
         /* Could not create mutex semaphore! */
-        _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_surface_t *) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
     /* Save PS handle */
@@ -701,8 +767,7 @@ cairo_os2_surface_create (HPS hps_client_window,
         /* Could not create event semaphore! */
         DosCloseMutexSem (local_os2_surface->hmtx_use_private_fields);
         free (local_os2_surface);
-        _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_surface_t *) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
     /* Prepare BITMAPINFO2 structure for our buffer */
@@ -714,22 +779,14 @@ cairo_os2_surface_create (HPS hps_client_window,
     local_os2_surface->bitmap_info.cBitCount = 32;
 
     /* Allocate memory for pixels */
-    local_os2_surface->pixels = (unsigned char *) _cairo_malloc_abc (height, width, 4);
+    local_os2_surface->pixels = (unsigned char *) _buffer_alloc (height, width, 4);
     if (!(local_os2_surface->pixels)) {
         /* Not enough memory for the pixels! */
         DosCloseEventSem (local_os2_surface->hev_pixel_array_came_back);
         DosCloseMutexSem (local_os2_surface->hmtx_use_private_fields);
         free (local_os2_surface);
-        _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_surface_t *) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
-
-    /* This is possibly not needed, malloc'd space is
-     * usually zero'd out!
-     */
-    /*
-     memset (local_os2_surface->pixels, 0x00, swpTemp.cx * swpTemp.cy * 4);
-     */
 
     /* Create image surface from pixel array */
     local_os2_surface->image_surface = (cairo_image_surface_t *)
@@ -739,14 +796,14 @@ cairo_os2_surface_create (HPS hps_client_window,
                                              height,     /* Height */
                                              width * 4); /* Rowstride */
 
-    if (local_os2_surface->image_surface->base.status) {
+    status = local_os2_surface->image_surface->base.status;
+    if (status) {
         /* Could not create image surface! */
-        free (local_os2_surface->pixels);
+        _buffer_free (local_os2_surface->pixels);
         DosCloseEventSem (local_os2_surface->hev_pixel_array_came_back);
         DosCloseMutexSem (local_os2_surface->hmtx_use_private_fields);
         free (local_os2_surface);
-        _cairo_error (CAIRO_STATUS_NO_MEMORY);
-        return (cairo_surface_t *) &_cairo_surface_nil;
+        return _cairo_surface_create_in_error (status);
     }
 
     /* Initialize base surface */
@@ -773,31 +830,24 @@ cairo_os2_surface_set_size (cairo_surface_t *surface,
         (local_os2_surface->base.backend != &cairo_os2_surface_backend))
     {
         /* Invalid parameter (wrong surface)! */
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+        return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
     }
 
     if ((new_width <= 0) ||
         (new_height <= 0))
     {
         /* Invalid size! */
-        return CAIRO_STATUS_NO_MEMORY;
+        return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
     /* Allocate memory for new stuffs */
-    pchNewPixels = (unsigned char *) _cairo_malloc_abc (new_height, new_width, 4);
+    pchNewPixels = (unsigned char *) _buffer_alloc (new_height, new_width, 4);
     if (!pchNewPixels) {
         /* Not enough memory for the pixels!
          * Everything remains the same!
          */
-        return CAIRO_STATUS_NO_MEMORY;
+        return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
-
-    /* This is possibly not needed, malloc'd space is usually
-     * already zero'd out!
-     */
-    /*
-     memset (pchNewPixels, 0x00, new_width * new_height * 4);
-     */
 
     /* Create image surface from new pixel array */
     pNewImageSurface = (cairo_image_surface_t *)
@@ -811,8 +861,8 @@ cairo_os2_surface_set_size (cairo_surface_t *surface,
         /* Could not create image surface!
          * Everything remains the same!
          */
-        free (pchNewPixels);
-        return CAIRO_STATUS_NO_MEMORY;
+        _buffer_free (pchNewPixels);
+        return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
     /* Okay, new memory allocated, so it's time to swap old buffers
@@ -823,8 +873,8 @@ cairo_os2_surface_set_size (cairo_surface_t *surface,
          * Everything remains the same!
          */
         cairo_surface_destroy ((cairo_surface_t *) pNewImageSurface);
-        free (pchNewPixels);
-        return CAIRO_STATUS_NO_MEMORY;
+        _buffer_free (pchNewPixels);
+        return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
 
     /* We have to make sure that we won't destroy a surface which
@@ -839,8 +889,8 @@ cairo_os2_surface_set_size (cairo_surface_t *surface,
         if (rc != NO_ERROR) {
             /* Either timeout or something wrong... Exit. */
             cairo_surface_destroy ((cairo_surface_t *) pNewImageSurface);
-            free (pchNewPixels);
-            return CAIRO_STATUS_NO_MEMORY;
+            _buffer_free (pchNewPixels);
+            return _cairo_error (CAIRO_STATUS_NO_MEMORY);
         }
         /* Okay, grab mutex and check counter again! */
         if (DosRequestMutexSem (local_os2_surface->hmtx_use_private_fields, SEM_INDEFINITE_WAIT)
@@ -850,15 +900,15 @@ cairo_os2_surface_set_size (cairo_surface_t *surface,
              * Everything remains the same!
              */
             cairo_surface_destroy ((cairo_surface_t *) pNewImageSurface);
-            free (pchNewPixels);
-            return CAIRO_STATUS_NO_MEMORY;
+            _buffer_free (pchNewPixels);
+            return _cairo_error (CAIRO_STATUS_NO_MEMORY);
         }
     }
 
     /* Destroy old image surface */
     cairo_surface_destroy ((cairo_surface_t *) (local_os2_surface->image_surface));
     /* Destroy old pixel buffer */
-    free (local_os2_surface->pixels);
+    _buffer_free (local_os2_surface->pixels);
     /* Set new image surface */
     local_os2_surface->image_surface = pNewImageSurface;
     /* Set new pixel buffer */
@@ -949,7 +999,7 @@ _cairo_os2_surface_finish (void *abstract_surface)
         (local_os2_surface->base.backend != &cairo_os2_surface_backend))
     {
         /* Invalid parameter (wrong surface)! */
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+        return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
     }
 
     DosRequestMutexSem (local_os2_surface->hmtx_use_private_fields, SEM_INDEFINITE_WAIT);
@@ -957,7 +1007,7 @@ _cairo_os2_surface_finish (void *abstract_surface)
     /* Destroy old image surface */
     cairo_surface_destroy ((cairo_surface_t *) (local_os2_surface->image_surface));
     /* Destroy old pixel buffer */
-    free (local_os2_surface->pixels);
+    _buffer_free (local_os2_surface->pixels);
     DosCloseMutexSem (local_os2_surface->hmtx_use_private_fields);
     DosCloseEventSem (local_os2_surface->hev_pixel_array_came_back);
 
@@ -1042,7 +1092,7 @@ _cairo_os2_surface_mark_dirty_rectangle (void *surface,
         (local_os2_surface->base.backend != &cairo_os2_surface_backend))
     {
         /* Invalid parameter (wrong surface)! */
-        return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+        return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
     }
 
     /* Get mutex, we'll work with the pixel array! */

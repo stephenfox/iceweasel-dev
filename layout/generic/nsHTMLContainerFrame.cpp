@@ -212,8 +212,7 @@ nsHTMLContainerFrame::PaintTextDecorationLine(
   const nsStyleVisibility* visibility = GetStyleVisibility();
   PRBool isRTL = visibility->mDirection == NS_STYLE_DIRECTION_RTL;
   nscoord innerWidth = mRect.width - bp.left - bp.right;
-  nsRefPtr<gfxContext> ctx = (gfxContext*)
-    aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+  nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
   gfxPoint pt(PresContext()->AppUnitsToGfxUnits(bp.left + aPt.x),
               PresContext()->AppUnitsToGfxUnits(bp.top + aPt.y));
   gfxSize size(PresContext()->AppUnitsToGfxUnits(innerWidth),
@@ -261,8 +260,9 @@ nsHTMLContainerFrame::GetTextDecorations(nsPresContext* aPresContext,
 
       nsStyleContext* styleContext = frame->GetStyleContext();
       const nsStyleDisplay* styleDisplay = styleContext->GetStyleDisplay();
-      if (!styleDisplay->IsBlockOutside() &&
-          styleDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL) {
+      if (!styleDisplay->IsBlockInside() &&
+          styleDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL &&
+          styleDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CAPTION) {
         // If an inline frame is discovered while walking up the tree,
         // we should stop according to CSS3 draft. CSS2 is rather vague
         // about this.

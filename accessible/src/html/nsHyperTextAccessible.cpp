@@ -56,10 +56,13 @@
 #include "nsIEditor.h"
 #include "nsIFontMetrics.h"
 #include "nsIFrame.h"
-#include "nsIScrollableFrame.h"
+#include "nsFrameSelection.h"
+#include "nsILineIterator.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPlaintextEditor.h"
+#include "nsIScrollableFrame.h"
 #include "nsISelection2.h"
+#include "nsISelectionPrivate.h"
 #include "nsIServiceManager.h"
 #include "nsTextFragment.h"
 #include "gfxSkipChars.h"
@@ -91,10 +94,13 @@ nsresult nsHyperTextAccessible::QueryInterface(REFNSIID aIID, void** aInstancePt
       return NS_OK;
     }
 
-    PRUint32 role = Role(this);
-    if (role == nsIAccessibleRole::ROLE_GRAPHIC ||
-        role == nsIAccessibleRole::ROLE_IMAGE_MAP ||
-        role == nsIAccessibleRole::ROLE_TEXT_LEAF) {
+    if (mRoleMapEntry &&
+        (mRoleMapEntry->role == nsIAccessibleRole::ROLE_GRAPHIC ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_IMAGE_MAP ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_SLIDER ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_PROGRESSBAR ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_SEPARATOR)) {
+      // ARIA roles that these interfaces are not appropriate for
       return nsAccessible::QueryInterface(aIID, aInstancePtr);
     }
 
@@ -105,15 +111,6 @@ nsresult nsHyperTextAccessible::QueryInterface(REFNSIID aIID, void** aInstancePt
     }
 
     if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperText))) {
-      if (role == nsIAccessibleRole::ROLE_ENTRY ||
-          role == nsIAccessibleRole::ROLE_PASSWORD_TEXT) {
-        nsCOMPtr<nsIEditor> editor;
-        GetAssociatedEditor(getter_AddRefs(editor));
-        nsCOMPtr<nsIPlaintextEditor> peditor(do_QueryInterface(editor));
-        if (peditor) {
-          return NS_ERROR_NO_INTERFACE; // No embedded objects ever in plain text
-        }
-      }
       *aInstancePtr = static_cast<nsIAccessibleHyperText*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
@@ -175,8 +172,7 @@ nsHyperTextAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aExtraState)
+  if (!mDOMNode || !aExtraState)
     return NS_OK;
 
   nsCOMPtr<nsIEditor> editor;
@@ -220,6 +216,7 @@ void nsHyperTextAccessible::CacheChildren()
       nsAccessible::CacheChildren();
       return;
     }
+    mAccChildCount = 0;  // Avoid reentry
     nsCOMPtr<nsIDOMElement> editorRoot;
     editor->GetRootElement(getter_AddRefs(editorRoot));
     nsCOMPtr<nsIDOMNode> editorRootDOMNode = do_QueryInterface(editorRoot);
@@ -331,11 +328,17 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
                                      nsIAccessible **aStartAcc,
                                      nsIAccessible **aEndAcc)
 {
-  if (aStartOffset < 0) {
+  if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
     GetCharacterCount(&aStartOffset);
   }
-  if (aEndOffset < 0) {
+  if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
+    GetCaretOffset(&aStartOffset);
+  }
+  if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
     GetCharacterCount(&aEndOffset);
+  }
+  if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
+    GetCaretOffset(&aEndOffset);
   }
 
   PRInt32 startOffset = aStartOffset;
@@ -466,8 +469,15 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
       else {
         if (endOffset > 0) {
           if (aText) {
-            *aText += (frame->GetType() == nsAccessibilityAtoms::brFrame) ?
-                      kForcedNewLineChar : kEmbeddedObjectChar;
+            if (frame->GetType() == nsAccessibilityAtoms::brFrame) {
+              *aText += kForcedNewLineChar;
+            } else if (MustPrune(this)) {
+              *aText += kImaginaryEmbeddedObjectChar;
+              // Expose imaginary embedded object character if the accessible
+              // hans't children.
+            } else {
+              *aText += kEmbeddedObjectChar;
+            }
           }
           if (aBoundsRect) {
             aBoundsRect->UnionRect(*aBoundsRect,
@@ -558,7 +568,10 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
   // On failure, return null. On success, return the DOM node which contains the offset.
   NS_ENSURE_ARG_POINTER(aHyperTextOffset);
   *aHyperTextOffset = 0;
-  NS_ENSURE_ARG_POINTER(aNode);
+
+  if (!aNode) {
+    return NS_ERROR_FAILURE;
+  }
   if (aFinalAccessible) {
     *aFinalAccessible = nsnull;
   }
@@ -612,6 +625,17 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
   // accessible for the next DOM node which has one (based on forward depth first search)
   nsCOMPtr<nsIAccessible> descendantAccessible;
   if (findNode) {
+    nsCOMPtr<nsIContent> findContent = do_QueryInterface(findNode);
+    if (findContent->IsNodeOfType(nsINode::eHTML) && 
+        findContent->NodeInfo()->Equals(nsAccessibilityAtoms::br)) {
+      nsIContent *parent = findContent->GetParent();
+      if (parent && parent->IsNativeAnonymous() && parent->GetChildCount() == 1) {
+        // This <br> is the only node in a text control, therefore it is the hacky
+        // "bogus node" used when there is no text in a control
+        *aHyperTextOffset = 0;
+        return NS_OK;
+      }
+    }
     descendantAccessible = GetFirstAvailableAccessible(findNode);
   }
   // From the descendant, go up and get the immediate child of this hypertext
@@ -844,14 +868,35 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
     return NS_ERROR_FAILURE;
   }
 
-  PRInt32 startOffset = aOffset;
-  PRInt32 endOffset = aOffset;
-
-  if (aBoundaryType == BOUNDARY_LINE_END) {
-    // Avoid getting the previous line
-    ++ startOffset;
-    ++ endOffset;
+  if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
+    GetCharacterCount(&aOffset);
   }
+  if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
+    GetCaretOffset(&aOffset);
+    if (aOffset > 0 && (aBoundaryType == BOUNDARY_LINE_START ||
+                        aBoundaryType == BOUNDARY_LINE_END)) {
+      // It is the same character offset when the caret is visually at the very end of a line
+      // or the start of a new line. Getting text at the line should provide the line with the visual caret,
+      // otherwise screen readers will announce the wrong line as the user presses up or down arrow and land
+      // at the end of a line.
+      nsCOMPtr<nsISelection> domSel;
+      nsresult rv = GetSelections(nsnull, getter_AddRefs(domSel));
+      nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
+      nsCOMPtr<nsFrameSelection> frameSelection;
+      rv = privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (frameSelection->GetHint() == nsFrameSelection::HINTLEFT) {
+        -- aOffset;  // We are at the start of a line
+      }
+    }
+  }
+  else if (aOffset < 0) {
+    return NS_ERROR_FAILURE;
+  }
+
+  PRInt32 startOffset = aOffset + (aBoundaryType == BOUNDARY_LINE_END);  // Avoid getting the previous line
+  PRInt32 endOffset = startOffset;
+
   // Convert offsets to frame-relative
   nsCOMPtr<nsIAccessible> startAcc;
   nsIFrame *startFrame = GetPosAndText(startOffset, endOffset, nsnull, nsnull,
@@ -868,7 +913,11 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
       }
     }
     if (!startFrame) {
-      return (aOffset < 0 || aOffset > textLength) ? NS_ERROR_FAILURE : NS_OK;
+      return aOffset > textLength ? NS_ERROR_FAILURE : NS_OK;
+    }
+    else {
+      // We're on the last continuation since we're on the last character
+      startFrame = startFrame->GetLastContinuation();
     }
   }
 
@@ -947,10 +996,18 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
     // Start moving forward from the start so that we don't get 
     // 2 words/lines if the offset occured on whitespace boundary
     // Careful, startOffset and endOffset are passed by reference to GetPosAndText() and changed
-    startOffset = endOffset = finalStartOffset;
+    // For BOUNDARY_LINE_END, make sure we start of this line
+    startOffset = endOffset = finalStartOffset + (aBoundaryType == BOUNDARY_LINE_END);
     nsCOMPtr<nsIAccessible> endAcc;
     nsIFrame *endFrame = GetPosAndText(startOffset, endOffset, nsnull, nsnull,
                                        nsnull, getter_AddRefs(endAcc));
+    if (endAcc && Role(endAcc) == nsIAccessibleRole::ROLE_STATICTEXT) {
+      // Static text like list bullets will ruin our forward calculation,
+      // since the caret cannot be in the static text. Start just after the static text.
+      startOffset = endOffset = finalStartOffset + (aBoundaryType == BOUNDARY_LINE_END) + TextLength(endAcc);
+      endFrame = GetPosAndText(startOffset, endOffset, nsnull, nsnull,
+                               nsnull, getter_AddRefs(endAcc));
+    }
     if (!endFrame) {
       return NS_ERROR_FAILURE;
     }
@@ -1043,7 +1100,7 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   nsresult rv = nsAccessibleWrap::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  nsCOMPtr<nsIContent> content(do_QueryInterface(GetRoleContent(mDOMNode)));
   NS_ENSURE_TRUE(content, NS_ERROR_UNEXPECTED);
   nsIAtom *tag = content->Tag();
 
@@ -1075,6 +1132,16 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
     nsAutoString oldValueUnused;
     aAttributes->SetStringProperty(NS_LITERAL_CSTRING("formatting"), NS_LITERAL_STRING("block"),
                                    oldValueUnused);
+  }
+
+  if (gLastFocusedNode == mDOMNode) {
+    PRInt32 lineNumber = GetCaretLineNumber();
+    if (lineNumber >= 1) {
+      nsAutoString strLineNumber;
+      strLineNumber.AppendInt(lineNumber);
+      nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::lineNumber,
+                             strLineNumber);
+    }
   }
 
   return  NS_OK;
@@ -1110,32 +1177,7 @@ NS_IMETHODIMP nsHyperTextAccessible::GetRangeExtents(PRInt32 aStartOffset, PRInt
   *aWidth = boundsRect.width;
   *aHeight = boundsRect.height;
 
-  if (aCoordType == nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE) {
-    //co-ord type = window
-    nsCOMPtr<nsIPresShell> shell = GetPresShell();
-    NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
-    nsCOMPtr<nsIDocument> doc = shell->GetDocument();
-    nsCOMPtr<nsIDOMDocumentView> docView(do_QueryInterface(doc));
-    NS_ENSURE_TRUE(docView, NS_ERROR_FAILURE);
-
-    nsCOMPtr<nsIDOMAbstractView> abstractView;
-    docView->GetDefaultView(getter_AddRefs(abstractView));
-    NS_ENSURE_TRUE(abstractView, NS_ERROR_FAILURE);
-
-    nsCOMPtr<nsIDOMWindowInternal> windowInter(do_QueryInterface(abstractView));
-    NS_ENSURE_TRUE(windowInter, NS_ERROR_FAILURE);
-
-    PRInt32 screenX, screenY;
-    if (NS_FAILED(windowInter->GetScreenX(&screenX)) ||
-        NS_FAILED(windowInter->GetScreenY(&screenY))) {
-      return NS_ERROR_FAILURE;
-    }
-    *aX -= screenX;
-    *aY -= screenY;
-  }
-  // else default: co-ord type = screen
-
-  return NS_OK;
+  return nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
 }
 
 /*
@@ -1157,32 +1199,18 @@ nsHyperTextAccessible::GetOffsetAtPoint(PRInt32 aX, PRInt32 aY,
   }
   nsIntRect frameScreenRect = hyperFrame->GetScreenRectExternal();
 
-  if (aCoordType == nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE) {
-    nsCOMPtr<nsIDocument> doc = shell->GetDocument();
-    nsCOMPtr<nsIDOMDocumentView> docView(do_QueryInterface(doc));
-    NS_ENSURE_TRUE(docView, NS_ERROR_FAILURE);
+  nsIntPoint coords;
+  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordType,
+                                                  this, &coords);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIDOMAbstractView> abstractView;
-    docView->GetDefaultView(getter_AddRefs(abstractView));
-    NS_ENSURE_TRUE(abstractView, NS_ERROR_FAILURE);
-
-    nsCOMPtr<nsIDOMWindowInternal> windowInter(do_QueryInterface(abstractView));
-    NS_ENSURE_TRUE(windowInter, NS_ERROR_FAILURE);
-
-    PRInt32 windowX, windowY;
-    if (NS_FAILED(windowInter->GetScreenX(&windowX)) ||
-        NS_FAILED(windowInter->GetScreenY(&windowY))) {
-      return NS_ERROR_FAILURE;
-    }
-    aX += windowX;
-    aY += windowY;
-  }
-  // aX, aY are currently screen coordinates, and we need to turn them into
+  // coords are currently screen coordinates, and we need to turn them into
   // frame coordinates relative to the current accessible
-  if (!frameScreenRect.Contains(aX, aY)) {
+  if (!frameScreenRect.Contains(coords.x, coords.y)) {
     return NS_OK;   // Not found, will return -1
   }
-  nsPoint pointInHyperText(aX - frameScreenRect.x, aY - frameScreenRect.y);
+  nsPoint pointInHyperText(coords.x - frameScreenRect.x,
+                           coords.y - frameScreenRect.y);
   nsPresContext *context = GetPresContext();
   NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
   pointInHyperText.x = context->DevPixelsToAppUnits(pointInHyperText.x);
@@ -1477,6 +1505,74 @@ NS_IMETHODIMP nsHyperTextAccessible::GetCaretOffset(PRInt32 *aCaretOffset)
   return DOMPointToHypertextOffset(caretNode, caretOffset, aCaretOffset);
 }
 
+PRInt32 nsHyperTextAccessible::GetCaretLineNumber()
+{
+  // Provide the line number for the caret, relative to the
+  // currently focused node. Use a 1-based index
+  nsCOMPtr<nsISelection> domSel;
+  GetSelections(nsnull, getter_AddRefs(domSel));
+  nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
+  NS_ENSURE_TRUE(privateSelection, -1);
+  nsCOMPtr<nsFrameSelection> frameSelection;
+  privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
+  NS_ENSURE_TRUE(frameSelection, -1);
+
+  nsCOMPtr<nsIDOMNode> caretNode;
+  domSel->GetFocusNode(getter_AddRefs(caretNode));
+  nsCOMPtr<nsIContent> caretContent = do_QueryInterface(caretNode);
+  if (!caretContent || !nsAccUtils::IsAncestorOf(mDOMNode, caretNode)) {
+    return -1;
+  }
+
+  PRInt32 caretOffset, returnOffsetUnused;
+  domSel->GetFocusOffset(&caretOffset);
+  nsFrameSelection::HINT hint = frameSelection->GetHint();
+  nsIFrame *caretFrame = frameSelection->GetFrameForNodeOffset(caretContent, caretOffset,
+                                                               hint, &returnOffsetUnused);
+  NS_ENSURE_TRUE(caretFrame, -1);
+
+  PRInt32 lineNumber = 1;
+  nsCOMPtr<nsILineIterator> lineIterForCaret;
+  nsCOMPtr<nsIContent> hyperTextContent = do_QueryInterface(mDOMNode);
+  while (caretFrame) {
+    if (hyperTextContent == caretFrame->GetContent()) {
+      return lineNumber; // Must be in a single line hyper text, there is no line iterator
+    }
+    nsIFrame *parentFrame = caretFrame->GetParent();
+    if (!parentFrame)
+      break;
+
+    // Add lines for the sibling frames before the caret
+    nsIFrame *sibling = parentFrame->GetFirstChild(nsnull);
+    while (sibling && sibling != caretFrame) {
+      nsCOMPtr<nsILineIterator> lineIterForSibling = do_QueryInterface(sibling);
+      if (lineIterForSibling) {
+        PRInt32 addLines;
+        // For the frames before that grab all the lines
+        lineIterForSibling->GetNumLines(&addLines);
+        lineNumber += addLines;
+      }
+      sibling = sibling->GetNextSibling();
+    }
+
+    // Get the line number relative to the container with lines
+    if (!lineIterForCaret) {   // Add the caret line just once
+      lineIterForCaret = do_QueryInterface(parentFrame);
+      if (lineIterForCaret) {
+        // Ancestor of caret
+        PRInt32 addLines;
+        lineIterForCaret->FindLineContaining(caretFrame, &addLines);
+        lineNumber += addLines;
+      }
+    }
+
+    caretFrame = parentFrame;
+  }
+
+  NS_NOTREACHED("DOM ancestry had this hypertext but frame ancestry didn't");
+  return lineNumber;
+}
+
 nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
                                               nsISelection **aDomSel,
                                               nsCOMArray<nsIDOMRange>* aRanges)
@@ -1497,6 +1593,7 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
   nsCOMPtr<nsISelection> domSel;
   nsCOMPtr<nsISelectionController> selCon;
 
+  nsCOMPtr<nsIDOMNode> startNode;
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
   nsCOMPtr<nsIPlaintextEditor> peditor(do_QueryInterface(editor));
@@ -1512,7 +1609,12 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
 
     editor->GetSelection(getter_AddRefs(domSel));
     NS_ENSURE_TRUE(domSel, NS_ERROR_FAILURE);
-    }
+
+    nsCOMPtr<nsIDOMElement> editorRoot;
+    editor->GetRootElement(getter_AddRefs(editorRoot));
+    startNode = do_QueryInterface(editorRoot);
+    NS_ENSURE_STATE(startNode);
+  }
   else {
     // Case 2: rich content subtree (can be rich editor)
     // This uses the selection controller from the entire document
@@ -1526,6 +1628,8 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
     selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                          getter_AddRefs(domSel));
     NS_ENSURE_TRUE(domSel, NS_ERROR_FAILURE);
+
+    startNode = mDOMNode;
   }
 
   if (aSelCon) {
@@ -1539,13 +1643,13 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
     NS_ENSURE_TRUE(selection2, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIDOMNodeList> childNodes;
-    nsresult rv = mDOMNode->GetChildNodes(getter_AddRefs(childNodes));
+    nsresult rv = startNode->GetChildNodes(getter_AddRefs(childNodes));
     NS_ENSURE_SUCCESS(rv, rv);
     PRUint32 numChildren; 
     rv = childNodes->GetLength(&numChildren);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = selection2->GetRangesForIntervalCOMArray(mDOMNode, 0,
-                                                  mDOMNode, numChildren,
+    rv = selection2->GetRangesForIntervalCOMArray(startNode, 0,
+                                                  startNode, numChildren,
                                                   PR_TRUE, aRanges);
     NS_ENSURE_SUCCESS(rv, rv);
     // Remove collapsed ranges
@@ -1810,6 +1914,12 @@ nsHyperTextAccessible::ScrollSubstringToPoint(PRInt32 aStartIndex,
 nsresult nsHyperTextAccessible::ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
                                                         PRUint32 *aRenderedOffset)
 {
+  if (!aFrame) {
+    // Current frame not rendered -- this can happen if text is set on
+    // something with display: none
+    *aRenderedOffset = 0;
+    return NS_OK;
+  }
   NS_ASSERTION(aFrame->GetType() == nsAccessibilityAtoms::textFrame,
                "Need text frame for offset conversion");
   NS_ASSERTION(aFrame->GetPrevContinuation() == nsnull,
@@ -1833,6 +1943,9 @@ nsresult nsHyperTextAccessible::ContentToRenderedOffset(nsIFrame *aFrame, PRInt3
 nsresult nsHyperTextAccessible::RenderedToContentOffset(nsIFrame *aFrame, PRUint32 aRenderedOffset,
                                                         PRInt32 *aContentOffset)
 {
+  *aContentOffset = 0;
+  NS_ENSURE_TRUE(aFrame, NS_ERROR_FAILURE);
+
   NS_ASSERTION(aFrame->GetType() == nsAccessibilityAtoms::textFrame,
                "Need text frame for offset conversion");
   NS_ASSERTION(aFrame->GetPrevContinuation() == nsnull,

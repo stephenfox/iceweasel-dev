@@ -117,7 +117,12 @@ CP = cp
 endif
 
 ifdef BUILD_OPT
-OPTIMIZER  = -O
+ifdef USE_MSVC
+OPTIMIZER  = -O2 -GL
+LDFLAGS    += -LTCG
+else
+OPTIMIZER  = -Os
+endif
 DEFINES    += -UDEBUG -DNDEBUG -UDEBUG_$(USER)
 OBJDIR_TAG = _OPT
 else

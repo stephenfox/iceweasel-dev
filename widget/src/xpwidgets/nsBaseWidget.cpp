@@ -39,7 +39,6 @@
 #include "nsBaseWidget.h"
 #include "nsIDeviceContext.h"
 #include "nsCOMPtr.h"
-#include "nsIMenuListener.h"
 #include "nsGfxCIID.h"
 #include "nsWidgetsCID.h"
 #include "nsIFullScreen.h"
@@ -47,6 +46,7 @@
 #include "nsIScreenManager.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
+#include "nsIContent.h"
 
 #ifdef DEBUG
 #include "nsIServiceManager.h"
@@ -63,9 +63,26 @@ static PRBool debug_InSecureKeyboardInputMode = PR_FALSE;
 static PRInt32 gNumWidgets;
 #endif
 
+nsIContent* nsBaseWidget::mLastRollup = nsnull;
+
 // nsBaseWidget
 NS_IMPL_ISUPPORTS1(nsBaseWidget, nsIWidget)
 
+
+nsAutoRollup::nsAutoRollup()
+{
+  // remember if mLastRollup was null, and only clear it upon destruction
+  // if so. This prevents recursive usage of nsAutoRollup from clearing
+  // mLastRollup when it shouldn't.
+  wasClear = !nsBaseWidget::mLastRollup;
+}
+
+nsAutoRollup::~nsAutoRollup()
+{
+  if (nsBaseWidget::mLastRollup && wasClear) {
+    NS_RELEASE(nsBaseWidget::mLastRollup);
+  }
+}
 
 //-------------------------------------------------------------------------
 //
@@ -80,7 +97,6 @@ nsBaseWidget::nsBaseWidget()
 , mToolkit(nsnull)
 , mMouseListener(nsnull)
 , mEventListener(nsnull)
-, mMenuListener(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
@@ -117,7 +133,6 @@ nsBaseWidget::~nsBaseWidget()
   printf("WIDGETS- = %d\n", gNumWidgets);
 #endif
 
-  NS_IF_RELEASE(mMenuListener);
   NS_IF_RELEASE(mToolkit);
   NS_IF_RELEASE(mContext);
   if (mOriginalBounds)
@@ -250,7 +265,6 @@ NS_METHOD nsBaseWidget::Destroy()
   // disconnect listeners.
   NS_IF_RELEASE(mMouseListener);
   NS_IF_RELEASE(mEventListener);
-  NS_IF_RELEASE(mMenuListener);
 
   return NS_OK;
 }
@@ -520,18 +534,13 @@ NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType)
 //
 //-------------------------------------------------------------------------
 
-NS_IMETHODIMP nsBaseWidget::SetWindowTranslucency(PRBool aTranslucent) {
+NS_IMETHODIMP nsBaseWidget::SetHasTransparentBackground(PRBool aTransparent) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsBaseWidget::GetWindowTranslucency(PRBool& aTranslucent) {
-  aTranslucent = PR_FALSE;
+NS_IMETHODIMP nsBaseWidget::GetHasTransparentBackground(PRBool& aTransparent) {
+  aTransparent = PR_FALSE;
   return NS_OK;
-}
-
-NS_IMETHODIMP nsBaseWidget::UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas) {
-  NS_ASSERTION(PR_FALSE, "Window is not translucent");
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //-------------------------------------------------------------------------
@@ -552,11 +561,7 @@ NS_IMETHODIMP nsBaseWidget::HideWindowChrome(PRBool aShouldHide)
 NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 {
   HideWindowChrome(aFullScreen);
-  return MakeFullScreenInternal(aFullScreen);
-}
 
-nsresult nsBaseWidget::MakeFullScreenInternal(PRBool aFullScreen)
-{
   nsCOMPtr<nsIFullScreen> fullScreen = do_GetService("@mozilla.org/browser/fullscreen;1");
 
   if (aFullScreen) {
@@ -717,23 +722,6 @@ NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
   mEventListener = aListener;
   return NS_OK;
 }
-
-/**
-* Add a menu listener
-* This interface should only be called by the menu services manager
-* This will AddRef() the menu listener
-* This will Release() a previously set menu listener
-*
-**/
-
-NS_METHOD nsBaseWidget::AddMenuListener(nsIMenuListener * aListener)
-{
-  NS_IF_RELEASE(mMenuListener);
-  NS_IF_ADDREF(aListener);
-  mMenuListener = aListener;
-  return NS_OK;
-}
-
 
 /**
 * If the implementation of nsWindow supports borders this method MUST be overridden
@@ -932,6 +920,12 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
     NS_ADDREF(*aResult = file);
 }
 
+NS_IMETHODIMP 
+nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+ 
 #ifdef DEBUG
 //////////////////////////////////////////////////////////////
 //

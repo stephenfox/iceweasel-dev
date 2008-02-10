@@ -110,11 +110,13 @@ NSSCleanupAutoPtrClass(NSSCMSSignedData, NSS_CMSSignedData_Destroy)
 
 /* nsNSSCertificate */
 
-NS_IMPL_THREADSAFE_ISUPPORTS5(nsNSSCertificate, nsIX509Cert,
+NS_IMPL_THREADSAFE_ISUPPORTS7(nsNSSCertificate, nsIX509Cert,
                                                 nsIX509Cert2,
                                                 nsIX509Cert3,
                                                 nsIIdentityInfo,
-                                                nsISMimeCert)
+                                                nsISMimeCert,
+                                                nsISerializable,
+                                                nsIClassInfo)
 
 nsNSSCertificate*
 nsNSSCertificate::ConstructFromDER(char *certDER, int derLen)
@@ -155,7 +157,8 @@ nsNSSCertificate::InitFromDER(char *certDER, int derLen)
 nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) : 
                                            mCert(nsnull),
                                            mPermDelete(PR_FALSE),
-                                           mCertType(CERT_TYPE_NOT_YET_INITIALIZED)
+                                           mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
+                                           mCachedEVStatus(ev_status_unknown)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -168,7 +171,8 @@ nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) :
 nsNSSCertificate::nsNSSCertificate() : 
   mCert(nsnull),
   mPermDelete(PR_FALSE),
-  mCertType(CERT_TYPE_NOT_YET_INITIALIZED)
+  mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
+  mCachedEVStatus(ev_status_unknown)
 {
 }
 
@@ -456,44 +460,47 @@ nsNSSCertificate::FormatUIStrings(const nsAutoString &nickname, nsAutoString &ni
       details.Append(PRUnichar('\n'));
     }
 
-    PRUint32 num;
-    PRUnichar **emailArray = NULL;
-    if (NS_SUCCEEDED(GetEmailAddresses(&num, &emailArray)) && num > 0) {
-      PRUnichar **emailAddr = emailArray;
-      details.AppendLiteral("  ");
-      if (NS_SUCCEEDED(nssComponent->GetPIPNSSBundleString("CertInfoEmail", info))) {
-        details.Append(info);
-        details.AppendLiteral(": ");
-      }
-      details.Append(*emailAddr);
+    nsAutoString firstEmail;
+    const char *aWalkAddr;
+    for (aWalkAddr = CERT_GetFirstEmailAddress(mCert)
+         ;
+         aWalkAddr
+         ;
+         aWalkAddr = CERT_GetNextEmailAddress(mCert, aWalkAddr))
+    {
+      NS_ConvertUTF8toUTF16 email(aWalkAddr);
+      if (email.IsEmpty())
+        continue;
 
-      /*
-       * If the first email address from the subject DN is also present
-       * in the subjectAltName extension, GetEmailAddresses() will return
-       * it twice (as received from NSS). Remember the first address so that
-       * we can filter out duplicates later on.
-       */
-      PRUnichar *firstEmail = *emailAddr;
-      emailAddr++;
-      num--;
+      if (firstEmail.IsEmpty()) {
+        /*
+         * If the first email address from the subject DN is also present
+         * in the subjectAltName extension, GetEmailAddresses() will return
+         * it twice (as received from NSS). Remember the first address so that
+         * we can filter out duplicates later on.
+         */
+        firstEmail = email;
 
-      /* append remaining addresses */
-      while (num > 0) {
-        if (!nsDependentString(firstEmail).Equals(nsDependentString(*emailAddr))) {
-          details.AppendLiteral(", ");
-          details.Append(*emailAddr);
+        details.AppendLiteral("  ");
+        if (NS_SUCCEEDED(nssComponent->GetPIPNSSBundleString("CertInfoEmail", info))) {
+          details.Append(info);
+          details.AppendLiteral(": ");
         }
-        nsMemory::Free(*emailAddr);
-        *emailAddr = nsnull;
-        emailAddr++;
-        num--;
+        details.Append(email);
       }
-
-      details.Append(PRUnichar('\n'));
-      nsMemory::Free(firstEmail);
+      else {
+        // Append current address if it's different from the first one.
+        if (!firstEmail.Equals(email)) {
+          details.AppendLiteral(", ");
+          details.Append(email);
+        }
+      }
     }
-    nsMemory::Free(emailArray);
-    emailArray = nsnull;
+
+    if (!firstEmail.IsEmpty()) {
+      // We got at least one email address, so we want a newline
+      details.Append(PRUnichar('\n'));
+    }
 
     if (NS_SUCCEEDED(nssComponent->GetPIPNSSBundleString("CertInfoIssuedBy", info))) {
       details.Append(info);
@@ -1498,8 +1505,27 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
   char* servername = nsnull;
   
   servername = CERT_GetCommonName(&cert->subject);
-  if (servername == NULL) {
-    return nsnull;
+  if (!servername) {
+    // Certs without common names are strange, but they do exist...
+    // Let's try to use another string for the nickname
+    servername = CERT_GetOrgUnitName(&cert->subject);
+    if (!servername) {
+      servername = CERT_GetOrgName(&cert->subject);
+      if (!servername) {
+        servername = CERT_GetLocalityName(&cert->subject);
+        if (!servername) {
+          servername = CERT_GetStateName(&cert->subject);
+          if (!servername) {
+            servername = CERT_GetCountryName(&cert->subject);
+            if (!servername) {
+              // We tried hard, there is nothing more we can do.
+              // A cert without any names doesn't really make sense.
+              return nsnull;
+            }
+          }
+        }
+      }
+    }
   }
    
   count = 1;
@@ -1516,7 +1542,7 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
 
     conflict = SEC_CertNicknameConflict(nickname, &cert->derSubject,
                                         cert->dbhandle);
-    if (conflict == PR_SUCCESS) {
+    if (!conflict) {
       break;
     }
     PR_Free(nickname);

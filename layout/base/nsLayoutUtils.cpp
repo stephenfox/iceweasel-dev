@@ -80,6 +80,22 @@
  * A namespace class for static layout utilities.
  */
 
+#ifdef DEBUG
+PRBool nsLayoutUtils::sDisableGetUsedXAssertions = PR_FALSE;
+#endif
+
+nsIFrame*
+nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
+{
+  NS_PRECONDITION(aFrame, "NULL frame pointer");
+  aFrame = aFrame->GetLastContinuation();
+  while (!aFrame->GetFirstChild(nsnull) &&
+         aFrame->GetPrevContinuation()) {
+    aFrame = aFrame->GetPrevContinuation();
+  }
+  return aFrame;
+}
+
 /**
  * GetFirstChildFrame returns the first "real" child frame of a
  * given frame.  It will descend down into pseudo-frames (unless the
@@ -121,11 +137,11 @@ GetLastChildFrame(nsIFrame*       aFrame,
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
-  // Get the last continuation frame
-  nsIFrame* lastContinuation = aFrame->GetLastContinuation();
+  // Get the last continuation frame that's a parent
+  nsIFrame* lastParentContinuation = nsLayoutUtils::GetLastContinuationWithChild(aFrame);
 
   // Get the last child frame
-  nsIFrame* firstChildFrame = lastContinuation->GetFirstChild(nsnull);
+  nsIFrame* firstChildFrame = lastParentContinuation->GetFirstChild(nsnull);
   if (firstChildFrame) {
     nsFrameList frameList(firstChildFrame);
     nsIFrame*   lastChildFrame = frameList.LastChild();
@@ -305,7 +321,7 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
   NS_PRECONDITION(aContent1, "aContent1 must not be null");
   NS_PRECONDITION(aContent2, "aContent2 must not be null");
 
-  nsAutoVoidArray content1Ancestors;
+  nsAutoTArray<nsINode*, 32> content1Ancestors;
   nsINode* c1;
   for (c1 = aContent1; c1 && c1 != aCommonAncestor; c1 = c1->GetNodeParent()) {
     content1Ancestors.AppendElement(c1);
@@ -316,7 +332,7 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
     aCommonAncestor = nsnull;
   }
 
-  nsAutoVoidArray content2Ancestors;
+  nsAutoTArray<nsINode*, 32> content2Ancestors;
   nsINode* c2;
   for (c2 = aContent2; c2 && c2 != aCommonAncestor; c2 = c2->GetNodeParent()) {
     content2Ancestors.AppendElement(c2);
@@ -328,13 +344,13 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
                                  aIf1Ancestor, aIf2Ancestor, nsnull);
   }
   
-  int last1 = content1Ancestors.Count() - 1;
-  int last2 = content2Ancestors.Count() - 1;
+  int last1 = content1Ancestors.Length() - 1;
+  int last2 = content2Ancestors.Length() - 1;
   nsINode* content1Ancestor = nsnull;
   nsINode* content2Ancestor = nsnull;
   while (last1 >= 0 && last2 >= 0
-         && ((content1Ancestor = static_cast<nsINode*>(content1Ancestors.ElementAt(last1)))
-             == (content2Ancestor = static_cast<nsINode*>(content2Ancestors.ElementAt(last2))))) {
+         && ((content1Ancestor = content1Ancestors.ElementAt(last1)) ==
+             (content2Ancestor = content2Ancestors.ElementAt(last2)))) {
     last1--;
     last2--;
   }
@@ -769,7 +785,8 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
   }
 #endif
   
-  nsIFrame* result = list.HitTest(&builder, aPt);
+  nsDisplayItem::HitTestState hitTestState;
+  nsIFrame* result = list.HitTest(&builder, aPt, &hitTestState);
   list.DeleteAll();
   return result;
 }
@@ -814,8 +831,12 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
   builder.EnterPresShell(aFrame, dirtyRect);
 
-  nsresult rv =
-    aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+  nsresult rv;
+  {
+    nsAutoDisableGetUsedXAssertions disableAssert;
+    rv =
+      aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+  }
 
   builder.LeavePresShell(aFrame, dirtyRect);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1068,7 +1089,8 @@ nsLayoutUtils::GetAllInFlowBoundingRect(nsIFrame* aFrame)
   if (!parent)
     return r;
 
-  for (nsIFrame* f = aFrame->GetNextContinuation(); f; f = f->GetNextContinuation()) {
+  for (nsIFrame* f = nsLayoutUtils::GetNextContinuationOrSpecialSibling(aFrame);
+       f; f = nsLayoutUtils::GetNextContinuationOrSpecialSibling(f)) {
     r.UnionRect(r, nsRect(f->GetOffsetTo(parent), f->GetSize()));
   }
 
@@ -1118,13 +1140,22 @@ nsLayoutUtils::FindChildContainingDescendant(nsIFrame* aParent, nsIFrame* aDesce
 }
 
 nsBlockFrame*
+nsLayoutUtils::GetAsBlock(nsIFrame* aFrame)
+{
+  nsBlockFrame* block;
+  if (NS_SUCCEEDED(aFrame->QueryInterface(kBlockFrameCID, (void**)&block)))
+    return block;
+  return nsnull;
+}
+
+nsBlockFrame*
 nsLayoutUtils::FindNearestBlockAncestor(nsIFrame* aFrame)
 {
   nsIFrame* nextAncestor;
   for (nextAncestor = aFrame->GetParent(); nextAncestor;
        nextAncestor = nextAncestor->GetParent()) {
-    nsBlockFrame* block;
-    if (NS_SUCCEEDED(nextAncestor->QueryInterface(kBlockFrameCID, (void**)&block)))
+    nsBlockFrame* block = GetAsBlock(nextAncestor);
+    if (block)
       return block;
   }
   return nsnull;
@@ -1327,7 +1358,7 @@ GetPercentHeight(const nsStyleCoord& aStyle,
     if (minh > h)
       h = minh;
   } else {
-    NS_ASSERTION(pos->mMaxHeight.GetUnit() == eStyleUnit_Percent,
+    NS_ASSERTION(pos->mMinHeight.GetUnit() == eStyleUnit_Percent,
                  "unknown min-height unit");
   }
 
@@ -1335,9 +1366,9 @@ GetPercentHeight(const nsStyleCoord& aStyle,
   return PR_TRUE;
 }
 
-// Handles only -moz-intrinsic and -moz-min-intrinsic, and
-// -moz-shrink-wrap for min-width and max-width, since the others
-// (-moz-shrink-wrap for width, and -moz-fill) have no effect on
+// Handles only -moz-max-content and -moz-min-content, and
+// -moz-fit-content for min-width and max-width, since the others
+// (-moz-fit-content for width, and -moz-available) have no effect on
 // intrinsic widths.
 enum eWidthProperty { PROP_WIDTH, PROP_MAX_WIDTH, PROP_MIN_WIDTH };
 static PRBool
@@ -1352,28 +1383,28 @@ GetIntrinsicCoord(const nsStyleCoord& aStyle,
   if (aStyle.GetUnit() != eStyleUnit_Enumerated)
     return PR_FALSE;
   PRInt32 val = aStyle.GetIntValue();
-  NS_ASSERTION(val == NS_STYLE_WIDTH_INTRINSIC ||
-               val == NS_STYLE_WIDTH_MIN_INTRINSIC ||
-               val == NS_STYLE_WIDTH_SHRINK_WRAP ||
-               val == NS_STYLE_WIDTH_FILL,
+  NS_ASSERTION(val == NS_STYLE_WIDTH_MAX_CONTENT ||
+               val == NS_STYLE_WIDTH_MIN_CONTENT ||
+               val == NS_STYLE_WIDTH_FIT_CONTENT ||
+               val == NS_STYLE_WIDTH_AVAILABLE,
                "unexpected enumerated value for width property");
-  if (val == NS_STYLE_WIDTH_FILL)
+  if (val == NS_STYLE_WIDTH_AVAILABLE)
     return PR_FALSE;
-  if (val == NS_STYLE_WIDTH_SHRINK_WRAP) {
+  if (val == NS_STYLE_WIDTH_FIT_CONTENT) {
     if (aProperty == PROP_WIDTH)
       return PR_FALSE; // handle like 'width: auto'
     if (aProperty == PROP_MAX_WIDTH)
-      // constrain large 'width' values down to -moz-intrinsic
-      val = NS_STYLE_WIDTH_INTRINSIC;
+      // constrain large 'width' values down to -moz-max-content
+      val = NS_STYLE_WIDTH_MAX_CONTENT;
     else
-      // constrain small 'width' or 'max-width' values up to -moz-min-intrinsic
-      val = NS_STYLE_WIDTH_MIN_INTRINSIC;
+      // constrain small 'width' or 'max-width' values up to -moz-min-content
+      val = NS_STYLE_WIDTH_MIN_CONTENT;
   }
 
-  NS_ASSERTION(val == NS_STYLE_WIDTH_INTRINSIC ||
-               val == NS_STYLE_WIDTH_MIN_INTRINSIC,
+  NS_ASSERTION(val == NS_STYLE_WIDTH_MAX_CONTENT ||
+               val == NS_STYLE_WIDTH_MIN_CONTENT,
                "should have reduced everything remaining to one of these");
-  if (val == NS_STYLE_WIDTH_INTRINSIC)
+  if (val == NS_STYLE_WIDTH_MAX_CONTENT)
     aResult = aFrame->GetPrefWidth(aRenderingContext);
   else
     aResult = aFrame->GetMinWidth(aRenderingContext);
@@ -1426,11 +1457,11 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
   // than the specified 'max-width', which works out to the same thing),
   // don't even bother getting the frame's intrinsic width.
   if (styleWidth.GetUnit() == eStyleUnit_Enumerated &&
-      (styleWidth.GetIntValue() == NS_STYLE_WIDTH_INTRINSIC ||
-       styleWidth.GetIntValue() == NS_STYLE_WIDTH_MIN_INTRINSIC)) {
-    // -moz-shrink-wrap and -moz-fill enumerated widths compute intrinsic
+      (styleWidth.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT ||
+       styleWidth.GetIntValue() == NS_STYLE_WIDTH_MIN_CONTENT)) {
+    // -moz-fit-content and -moz-available enumerated widths compute intrinsic
     // widths just like auto.
-    // For -moz-intrinsic and -moz-min-intrinsic, we handle them like
+    // For -moz-max-content and -moz-min-content, we handle them like
     // specified widths, but ignore -moz-box-sizing.
     boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
   } else if (styleWidth.GetUnit() != eStyleUnit_Coord &&
@@ -1653,15 +1684,15 @@ nsLayoutUtils::ComputeWidthValue(
   } else if (eStyleUnit_Enumerated == aCoord.GetUnit()) {
     PRInt32 val = aCoord.GetIntValue();
     switch (val) {
-      case NS_STYLE_WIDTH_INTRINSIC:
+      case NS_STYLE_WIDTH_MAX_CONTENT:
         result = aFrame->GetPrefWidth(aRenderingContext);
         NS_ASSERTION(result >= 0, "width less than zero");
         break;
-      case NS_STYLE_WIDTH_MIN_INTRINSIC:
+      case NS_STYLE_WIDTH_MIN_CONTENT:
         result = aFrame->GetMinWidth(aRenderingContext);
         NS_ASSERTION(result >= 0, "width less than zero");
         break;
-      case NS_STYLE_WIDTH_SHRINK_WRAP:
+      case NS_STYLE_WIDTH_FIT_CONTENT:
         {
           nscoord pref = aFrame->GetPrefWidth(aRenderingContext),
                    min = aFrame->GetMinWidth(aRenderingContext),
@@ -1671,7 +1702,7 @@ nsLayoutUtils::ComputeWidthValue(
           NS_ASSERTION(result >= 0, "width less than zero");
         }
         break;
-      case NS_STYLE_WIDTH_FILL:
+      case NS_STYLE_WIDTH_AVAILABLE:
         result = aContainingBlockWidth -
                  (aBoxSizingToMarginEdge + aContentEdgeToBoxSizing);
     }
@@ -1734,8 +1765,9 @@ IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
 
 /* static */ nsSize
 nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
-                   nsIRenderingContext* aRenderingContext,
-                   nsIFrame* aFrame, nsSize aIntrinsicSize, nsSize aCBSize,
+                   nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
+                   const nsIFrame::IntrinsicSize& aIntrinsicSize,
+                   nsSize aIntrinsicRatio, nsSize aCBSize,
                    nsSize aMargin, nsSize aBorder, nsSize aPadding)
 {
   const nsStylePosition *stylePos = aFrame->GetStylePosition();
@@ -1812,10 +1844,74 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
     minHeight = 0;
   }
 
+  // Resolve percentage intrinsic width/height as necessary:
+
+  NS_ASSERTION(aCBSize.width != NS_UNCONSTRAINEDSIZE,
+               "Our containing block must not have unconstrained width!");
+
+  PRBool hasIntrinsicWidth, hasIntrinsicHeight;
+  nscoord intrinsicWidth, intrinsicHeight;
+
+  if (aIntrinsicSize.width.GetUnit() == eStyleUnit_Coord ||
+      aIntrinsicSize.width.GetUnit() == eStyleUnit_Percent) {
+    hasIntrinsicWidth = PR_TRUE;
+    intrinsicWidth = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
+                           aFrame, aCBSize.width, 0, boxSizingAdjust.width +
+                           boxSizingToMarginEdgeWidth, aIntrinsicSize.width);
+  } else {
+    hasIntrinsicWidth = PR_FALSE;
+    intrinsicWidth = 0;
+  }
+
+  if (aIntrinsicSize.height.GetUnit() == eStyleUnit_Coord ||
+      (aIntrinsicSize.height.GetUnit() == eStyleUnit_Percent &&
+       aCBSize.height != NS_AUTOHEIGHT)) {
+    hasIntrinsicHeight = PR_TRUE;
+    intrinsicHeight = nsLayoutUtils::ComputeHeightDependentValue(
+                              aRenderingContext, aFrame, aCBSize.height,
+                              aIntrinsicSize.height);
+    if (intrinsicHeight < 0)
+      intrinsicHeight = 0;
+  } else {
+    hasIntrinsicHeight = PR_FALSE;
+    intrinsicHeight = 0;
+  }
+
+  NS_ASSERTION(aIntrinsicRatio.width >= 0 && aIntrinsicRatio.height >= 0,
+               "Intrinsic ratio has a negative component!");
+
+  // Now calculate the used values for width and height:
+
   if (isAutoWidth) {
     if (isAutoHeight) {
 
       // 'auto' width, 'auto' height
+
+      // Get tentative values - CSS 2.1 sections 10.3.2 and 10.6.2:
+
+      nscoord tentWidth, tentHeight;
+
+      if (hasIntrinsicWidth) {
+        tentWidth = intrinsicWidth;
+      } else if (hasIntrinsicHeight && aIntrinsicRatio.height > 0) {
+        tentWidth = MULDIV(intrinsicHeight, aIntrinsicRatio.width, aIntrinsicRatio.height);
+      } else if (aIntrinsicRatio.width > 0) {
+        tentWidth = aCBSize.width - boxSizingToMarginEdgeWidth; // XXX scrollbar?
+        if (tentWidth < 0) tentWidth = 0;
+      } else {
+        tentWidth = nsPresContext::CSSPixelsToAppUnits(300);
+      }
+
+      if (hasIntrinsicHeight) {
+        tentHeight = intrinsicHeight;
+      } else if (aIntrinsicRatio.width > 0) {
+        tentHeight = MULDIV(tentWidth, aIntrinsicRatio.height, aIntrinsicRatio.width);
+      } else {
+        tentHeight = nsPresContext::CSSPixelsToAppUnits(150);
+      }
+
+      // Now apply min/max-width/height - CSS 2.1 sections 10.4 and 10.7:
+
       if (minWidth > maxWidth)
         maxWidth = minWidth;
       if (minHeight > maxHeight)
@@ -1823,68 +1919,77 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
 
       nscoord heightAtMaxWidth, heightAtMinWidth,
               widthAtMaxHeight, widthAtMinHeight;
-      if (aIntrinsicSize.width > 0) {
-        heightAtMaxWidth = MULDIV(maxWidth, aIntrinsicSize.height, aIntrinsicSize.width);
+
+      if (tentWidth > 0) {
+        heightAtMaxWidth = MULDIV(maxWidth, tentHeight, tentWidth);
         if (heightAtMaxWidth < minHeight)
           heightAtMaxWidth = minHeight;
-        heightAtMinWidth = MULDIV(minWidth, aIntrinsicSize.height, aIntrinsicSize.width);
+        heightAtMinWidth = MULDIV(minWidth, tentHeight, tentWidth);
         if (heightAtMinWidth > maxHeight)
           heightAtMinWidth = maxHeight;
       } else {
-        heightAtMaxWidth = aIntrinsicSize.height;
-        heightAtMinWidth = aIntrinsicSize.height;
+        heightAtMaxWidth = tentHeight;
+        heightAtMinWidth = tentHeight;
       }
 
-      if (aIntrinsicSize.height > 0) {
-        widthAtMaxHeight = MULDIV(maxHeight, aIntrinsicSize.width, aIntrinsicSize.height);
+      if (tentHeight > 0) {
+        widthAtMaxHeight = MULDIV(maxHeight, tentWidth, tentHeight);
         if (widthAtMaxHeight < minWidth)
           widthAtMaxHeight = minWidth;
-        widthAtMinHeight = MULDIV(minHeight, aIntrinsicSize.width, aIntrinsicSize.height);
+        widthAtMinHeight = MULDIV(minHeight, tentWidth, tentHeight);
         if (widthAtMinHeight > maxWidth)
           widthAtMinHeight = maxWidth;
       } else {
-        widthAtMaxHeight = aIntrinsicSize.width;
-        widthAtMinHeight = aIntrinsicSize.width;
+        widthAtMaxHeight = tentWidth;
+        widthAtMinHeight = tentWidth;
       }
 
-      if (aIntrinsicSize.width > maxWidth) {
-        if (aIntrinsicSize.height > maxHeight) {
-          if (PRInt64(maxWidth) * PRInt64(aIntrinsicSize.height) <=
-              PRInt64(maxHeight) * PRInt64(aIntrinsicSize.width)) {
+      // The table at http://www.w3.org/TR/CSS21/visudet.html#min-max-widths :
+
+      if (tentWidth > maxWidth) {
+        if (tentHeight > maxHeight) {
+          if (PRInt64(maxWidth) * PRInt64(tentHeight) <=
+              PRInt64(maxHeight) * PRInt64(tentWidth)) {
             width = maxWidth;
             height = heightAtMaxWidth;
           } else {
-            height = maxHeight;
             width = widthAtMaxHeight;
+            height = maxHeight;
           }
         } else {
+          // This also covers "(w > max-width) and (h < min-height)" since in
+          // that case (max-width/w < 1), and with (h < min-height):
+          //   max(max-width * h/w, min-height) == min-height
           width = maxWidth;
           height = heightAtMaxWidth;
         }
-      } else if (aIntrinsicSize.width < minWidth) {
-        if (aIntrinsicSize.height < minHeight) {
-          if (PRInt64(minWidth) * PRInt64(aIntrinsicSize.height) <= 
-              PRInt64(minHeight) * PRInt64(aIntrinsicSize.width)) {
-            height = minHeight;
+      } else if (tentWidth < minWidth) {
+        if (tentHeight < minHeight) {
+          if (PRInt64(minWidth) * PRInt64(tentHeight) <= 
+              PRInt64(minHeight) * PRInt64(tentWidth)) {
             width = widthAtMinHeight;
+            height = minHeight;
           } else {
             width = minWidth;
             height = heightAtMinWidth;
           }
         } else {
+          // This also covers "(w < min-width) and (h > max-height)" since in
+          // that case (min-width/w > 1), and with (h > max-height):
+          //   min(min-width * h/w, max-height) == max-height
           width = minWidth;
           height = heightAtMinWidth;
         }
       } else {
-        if (aIntrinsicSize.height > maxHeight) {
-          height = maxHeight;
+        if (tentHeight > maxHeight) {
           width = widthAtMaxHeight;
-        } else if (aIntrinsicSize.height < minHeight) {
-          height = minHeight;
+          height = maxHeight;
+        } else if (tentHeight < minHeight) {
           width = widthAtMinHeight;
+          height = minHeight;
         } else {
-          width = aIntrinsicSize.width;
-          height = aIntrinsicSize.height;
+          width = tentWidth;
+          height = tentHeight;
         }
       }
 
@@ -1892,10 +1997,12 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
 
       // 'auto' width, non-'auto' height
       height = NS_CSS_MINMAX(height, minHeight, maxHeight);
-      if (aIntrinsicSize.height != 0) {
-        width = MULDIV(aIntrinsicSize.width, height, aIntrinsicSize.height);
+      if (aIntrinsicRatio.height > 0) {
+        width = MULDIV(height, aIntrinsicRatio.width, aIntrinsicRatio.height);
+      } else if (hasIntrinsicWidth) {
+        width = intrinsicWidth;
       } else {
-        width = aIntrinsicSize.width;
+        width = nsPresContext::CSSPixelsToAppUnits(300);
       }
       width = NS_CSS_MINMAX(width, minWidth, maxWidth);
 
@@ -1905,18 +2012,20 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
 
       // non-'auto' width, 'auto' height
       width = NS_CSS_MINMAX(width, minWidth, maxWidth);
-      if (aIntrinsicSize.width != 0) {
-        height = MULDIV(aIntrinsicSize.height, width, aIntrinsicSize.width);
+      if (aIntrinsicRatio.width > 0) {
+        height = MULDIV(width, aIntrinsicRatio.height, aIntrinsicRatio.width);
+      } else if (hasIntrinsicHeight) {
+        height = intrinsicHeight;
       } else {
-        height = aIntrinsicSize.height;
+        height = nsPresContext::CSSPixelsToAppUnits(150);
       }
       height = NS_CSS_MINMAX(height, minHeight, maxHeight);
 
     } else {
 
       // non-'auto' width, non-'auto' height
-      height = NS_CSS_MINMAX(height, minHeight, maxHeight);
       width = NS_CSS_MINMAX(width, minWidth, maxWidth);
+      height = NS_CSS_MINMAX(height, minHeight, maxHeight);
 
     }
   }
@@ -2161,9 +2270,7 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
   nsCOMPtr<nsIDeviceContext> dc;
   aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
 
-  nsRefPtr<gfxContext> ctx = static_cast<gfxContext*>
-                                        (aRenderingContext->GetNativeGraphicData(
-      nsIRenderingContext::NATIVE_THEBES_CONTEXT));
+  nsRefPtr<gfxContext> ctx = aRenderingContext->ThebesContext();
 
   // the dest rect is affected by the current transform; that'll be
   // handled by Image::Draw(), when we actually set up the rectangle.

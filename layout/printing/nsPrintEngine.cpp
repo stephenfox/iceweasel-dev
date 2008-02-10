@@ -139,6 +139,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
 #include "nsIDocShellTreeOwner.h"
+#include "nsIWebBrowserChrome.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
 #include "nsIFrameDebug.h"
@@ -474,6 +475,12 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
   if (aIsPrintPreview) {
     SetIsCreatingPrintPreview(PR_TRUE);
     SetIsPrintPreview(PR_TRUE);
+    nsCOMPtr<nsIMarkupDocumentViewer> viewer =
+      do_QueryInterface(mDocViewerPrint);
+    if (viewer) {
+      viewer->SetTextZoom(1.0f);
+      viewer->SetFullZoom(1.0f);
+    }
   } else {
     SetIsPrinting(PR_TRUE);
   }
@@ -590,9 +597,14 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
           // are telling GFX we want to print silent
           printSilently = PR_TRUE;
         }
+        // The user might have changed shrink-to-fit in the print dialog, so update our copy of its state
+        mPrt->mPrintSettings->GetShrinkToFit(&mPrt->mShrinkToFit);
       } else {
         rv = NS_ERROR_GFX_NO_PRINTROMPTSERVICE;
       }
+    } else {
+      // Call any code that requires a run of the event loop.
+      rv = mPrt->mPrintSettings->SetupSilentPrinting();
     }
     // Check explicitly for abort because it's expected
     if (rv == NS_ERROR_ABORT) 
@@ -964,6 +976,21 @@ nsPrintEngine::ShowPrintProgress(PRBool aIsForPrinting, PRBool& aDoNotify)
     if (printPromptService) {
       nsPIDOMWindow *domWin = mDocument->GetWindow(); 
       if (!domWin) return;
+
+      nsCOMPtr<nsIDocShellTreeItem> docShellItem =
+        do_QueryInterface(domWin->GetDocShell());
+      if (!docShellItem) return;
+      nsCOMPtr<nsIDocShellTreeOwner> owner;
+      docShellItem->GetTreeOwner(getter_AddRefs(owner));
+      nsCOMPtr<nsIWebBrowserChrome> browserChrome = do_GetInterface(owner);
+      if (!browserChrome) return;
+      PRBool isModal = PR_TRUE;
+      browserChrome->IsWindowModal(&isModal);
+      if (isModal) {
+        // Showing a print progress dialog when printing a modal window
+        // isn't supported. See bug 301560.
+        return;
+      }
 
       nsCOMPtr<nsIWebProgressListener> printProgressListener;
 
@@ -1682,12 +1709,23 @@ nsPrintEngine::SetupToPrintContent()
   // Don't start printing when regression test are executed  
   if (!mPrt->mDebugFilePtr && mIsDoingPrinting) {
     rv = mPrt->mPrintDC->BeginDocument(docTitleStr, fileName, startPage, endPage);
+  } 
+
+  if (mIsDoingPrintPreview) {
+    // Print Preview -- Pass ownership of docTitleStr and docURLStr
+    // to the pageSequenceFrame, to be displayed in the header
+    nsIPageSequenceFrame *seqFrame = nsnull;
+    mPrt->mPrintObject->mPresShell->GetPageSequenceFrame(&seqFrame);
+    if (seqFrame) {
+      seqFrame->StartPrint(mPrt->mPrintObject->mPresContext, 
+                           mPrt->mPrintSettings, docTitleStr, docURLStr);
+    }
+  } else {
+    if (docTitleStr) nsMemory::Free(docTitleStr);
+    if (docURLStr) nsMemory::Free(docURLStr);
   }
 
   PR_PL(("****************** Begin Document ************************\n"));
-
-  if (docTitleStr) nsMemory::Free(docTitleStr);
-  if (docURLStr) nsMemory::Free(docURLStr);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1781,7 +1819,7 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     documentIsTopLevel = PR_FALSE;
     // presshell exists because parent is printable
   } else {
-    PRInt32 pageWidth, pageHeight;
+    nscoord pageWidth, pageHeight;
     mPrt->mPrintDC->GetDeviceSurfaceDimensions(pageWidth, pageHeight);
     adjSize = nsSize(pageWidth, pageHeight);
     documentIsTopLevel = PR_TRUE;
@@ -1899,11 +1937,11 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   aPO->mPresContext->SetIsRootPaginatedDocument(documentIsTopLevel);
   aPO->mPresContext->SetPageScale(aPO->mZoomRatio);
   // Calculate scale factor from printer to screen
-  PRInt32 printDPI = mPrt->mPrintDC->AppUnitsPerInch() /
-                     mPrt->mPrintDC->AppUnitsPerDevPixel();
-  PRInt32 screenDPI = mDeviceContext->AppUnitsPerInch() /
-                      mDeviceContext->AppUnitsPerDevPixel();
-  aPO->mPresContext->SetPrintPreviewScale(float(screenDPI) / float(printDPI));
+  float printDPI = float(mPrt->mPrintDC->AppUnitsPerInch()) /
+                   float(mPrt->mPrintDC->AppUnitsPerDevPixel());
+  float screenDPI = float(mDeviceContext->AppUnitsPerInch()) /
+                    float(mDeviceContext->AppUnitsPerDevPixel());
+  aPO->mPresContext->SetPrintPreviewScale(screenDPI / printDPI);
 
   rv = aPO->mPresShell->InitialReflow(adjSize.width, adjSize.height);
 
@@ -2138,24 +2176,27 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
           if (NS_SUCCEEDED(rv)) {
             mPrt->mPrintSettings->SetStartPageRange(startPageNum);
             mPrt->mPrintSettings->SetEndPageRange(endPageNum);
-            nsMargin margin(0,0,0,0);
-            mPrt->mPrintSettings->GetMarginInTwips(margin);
+            nsMargin marginTwips(0,0,0,0);
+            mPrt->mPrintSettings->GetMarginInTwips(marginTwips);
+            nsMargin margin(poPresContext->TwipsToAppUnits(marginTwips.left),
+                            poPresContext->TwipsToAppUnits(marginTwips.top),
+                            poPresContext->TwipsToAppUnits(marginTwips.right),
+                            poPresContext->TwipsToAppUnits(marginTwips.bottom));
 
             if (startPageNum == endPageNum) {
               {
-                nsPresContext* presContext = poPresShell->GetPresContext();
-                startRect.y -= presContext->TwipsToAppUnits(margin.top);
-                endRect.y   -= presContext->TwipsToAppUnits(margin.top);
+                startRect.y -= margin.top;
+                endRect.y   -= margin.top;
                 // XXX This is temporary fix for printing more than one page of a selection
                 pageSequence->SetSelectionHeight(startRect.y, endRect.y+endRect.height-startRect.y);
 
                 // calc total pages by getting calculating the selection's height
                 // and then dividing it by how page content frames will fit.
                 nscoord selectionHgt = endRect.y + endRect.height - startRect.y;
-                PRInt32 pageWidth, pageHeight;
+                nscoord pageWidth, pageHeight;
                 mPrt->mPrintDC->GetDeviceSurfaceDimensions(pageWidth, pageHeight);
                 pageHeight -= margin.top + margin.bottom;
-                PRInt32 totalPages = PRInt32((float(selectionHgt) / float(pageHeight))+0.99);
+                PRInt32 totalPages = NSToIntCeil(float(selectionHgt) / float(pageHeight));
                 pageSequence->SetTotalNumPages(totalPages);
               }
             }
@@ -3023,7 +3064,7 @@ nsPrintEngine::FinishPrintPreview()
     mPrt->OnEndPrinting();
     TurnScriptingOn(PR_TRUE);
 
-    return CleanupOnFailure(rv, PR_FALSE); // ignore return value here
+    return rv;
   }
 
   // At this point we are done preparing everything
@@ -3088,6 +3129,9 @@ nsPrintEngine::Observe(nsISupports *aSubject, const char *aTopic, const PRUnicha
     }
   } else {
     rv = FinishPrintPreview();
+    if (NS_FAILED(rv)) {
+      CleanupOnFailure(rv, PR_FALSE);
+    }
     if (mPrtPreview) {
       mPrtPreview->OnEndPrinting();
     }

@@ -57,6 +57,10 @@
 #include "prenv.h"
 #include "nsINIParser.h"
 
+#ifdef XP_WIN
+#include "nsWindowsWMain.cpp"
+#endif
+
 /**
  * Output a string to the user.  This method is really only meant to be used to
  * output last-ditch error messages designed for developers NOT END USERS.
@@ -78,7 +82,7 @@ static void Output(PRBool isError, const char *fmt, ... )
     UINT flags = MB_OK;
     if (isError)
       flags |= MB_ICONERROR;
-    else 
+    else
       flags |= MB_ICONINFORMATION;
     MessageBox(NULL, msg, "XULRunner", flags);
     PR_smprintf_free(msg);
@@ -445,13 +449,3 @@ int main(int argc, char* argv[])
 
   return XRE_main(argc, argv, appData);
 }
-
-#if defined( XP_WIN ) && defined( WIN32 ) && !defined(__GNUC__)
-// We need WinMain in order to not be a console app.  This function is
-// unused if we are a console application.
-int WINAPI WinMain( HINSTANCE, HINSTANCE, LPSTR args, int )
-{
-  // Do the real work.
-  return main( __argc, __argv );
-}
-#endif

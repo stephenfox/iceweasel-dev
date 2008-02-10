@@ -80,6 +80,8 @@
 #include "nsIPopupBoxObject.h"
 #include "nsIReflowCallback.h"
 #include "nsBindingManager.h"
+#include "nsIDocShellTreeOwner.h"
+#include "nsIBaseWindow.h"
 #ifdef XP_WIN
 #include "nsISound.h"
 #endif
@@ -112,7 +114,8 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mMenuCanOverlapOSBar(PR_FALSE),
   mShouldAutoPosition(PR_TRUE),
   mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
-  mInContentShell(PR_TRUE)
+  mInContentShell(PR_TRUE),
+  mPrefSize(-1, -1)
 {
 } // ctor
 
@@ -174,6 +177,17 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
+PRBool
+nsMenuPopupFrame::IsNoAutoHide()
+{
+  // Panels with noautohide="true" don't hide when the mouse is clicked
+  // outside of them, or when another application is made active. Non-autohide
+  // panels cannot be used in content windows.
+  return (!mInContentShell && mPopupType == ePopupTypePanel &&
+           mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::noautohide,
+                                 nsGkAtoms::_true, eIgnoreCase));
+}
+
 void
 nsMenuPopupFrame::EnsureWidget()
 {
@@ -201,16 +215,36 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   if (parentContent)
     tag = parentContent->Tag();
   widgetData.mDropShadow = !(viewHasTransparentContent || tag == nsGkAtoms::menulist);
-  
+
+  // panels which don't auto-hide need a parent widget. This allows them
+  // to always appear in front of the parent window but behind other windows
+  // that should be in front of it.
+  nsCOMPtr<nsIWidget> parentWidget;
+  if (IsNoAutoHide()) {
+    nsCOMPtr<nsISupports> cont = PresContext()->GetContainer();
+    nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(cont);
+    if (!dsti)
+      return NS_ERROR_FAILURE;
+
+    nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
+    dsti->GetTreeOwner(getter_AddRefs(treeOwner));
+    if (!treeOwner) return NS_ERROR_FAILURE;
+
+    nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(treeOwner));
+    if (baseWindow)
+      baseWindow->GetMainWidget(getter_AddRefs(parentWidget));
+  }
+
 #if defined(XP_MACOSX) || defined(XP_BEOS)
   static NS_DEFINE_IID(kCPopupCID,  NS_POPUP_CID);
   aView->CreateWidget(kCPopupCID, &widgetData, nsnull, PR_TRUE, PR_TRUE, 
-                      eContentTypeUI);
+                      eContentTypeUI, parentWidget);
 #else
   static NS_DEFINE_IID(kCChildCID,  NS_CHILD_CID);
-  aView->CreateWidget(kCChildCID, &widgetData, nsnull, PR_TRUE, PR_TRUE);
+  aView->CreateWidget(kCChildCID, &widgetData, nsnull, PR_TRUE, PR_TRUE,
+                      eContentTypeInherit, parentWidget);
 #endif
-  aView->GetWidget()->SetWindowTranslucency(viewHasTransparentContent);
+  aView->GetWidget()->SetHasTransparentBackground(viewHasTransparentContent);
   return NS_OK;
 }
 
@@ -264,6 +298,14 @@ nsMenuPopupFrame::IsLeaf() const
   nsIContent* parentContent = mContent->GetParent();
   return (parentContent &&
           !parentContent->HasAttr(kNameSpaceID_None, nsGkAtoms::sizetopopup));
+}
+
+void
+nsMenuPopupFrame::SetPreferredBounds(nsBoxLayoutState& aState,
+                                     const nsRect& aRect)
+{
+  nsBox::SetBounds(aState, aRect, PR_FALSE);
+  mPrefSize = aRect.Size();
 }
 
 void
@@ -484,18 +526,19 @@ LazyGeneratePopupDone(nsIContent* aPopup, nsIFrame* aFrame, void* aArg)
     nsWeakFrame weakFrame(aFrame);
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(aFrame);
 
-    popupFrame->SetGeneratedChildren();
-
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm && popupFrame->IsMenu()) {
       nsCOMPtr<nsIContent> popup = aPopup;
+      pm->UpdateMenuItems(popup);
+
+      if (!weakFrame.IsAlive())
+        return;
+
       PRBool selectFirstItem = (PRBool)NS_PTR_TO_INT32(aArg);
       if (selectFirstItem) {
         nsMenuFrame* next = pm->GetNextMenuItem(popupFrame, nsnull, PR_TRUE);
         popupFrame->SetCurrentMenuItem(next);
       }
-
-      pm->UpdateMenuItems(popup);
     }
 
     if (weakFrame.IsAlive()) {
@@ -654,7 +697,7 @@ nsMenuPopupFrame::GetRootViewForPopup(nsIFrame* aStartFrame)
 // the left or right edge of the parent.
 // 
 void
-nsMenuPopupFrame::AdjustPositionForAnchorAlign(PRInt32* ioXPos, PRInt32* ioYPos, const nsRect & inParentRect,
+nsMenuPopupFrame::AdjustPositionForAnchorAlign(PRInt32* ioXPos, PRInt32* ioYPos, const nsSize & inParentSize,
                                                PRBool* outFlushWithTopBottom)
 {
   PRInt8 popupAnchor(mPopupAnchor);
@@ -683,23 +726,23 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(PRInt32* ioXPos, PRInt32* ioYPos,
   }
   
   if (popupAnchor == POPUPALIGNMENT_TOPRIGHT && popupAlign == POPUPALIGNMENT_TOPLEFT) {
-    *ioXPos += inParentRect.width;
+    *ioXPos += inParentSize.width;
   }
   else if (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT) {
     *outFlushWithTopBottom = PR_TRUE;
   }
   else if (popupAnchor == POPUPALIGNMENT_TOPRIGHT && popupAlign == POPUPALIGNMENT_BOTTOMRIGHT) {
-    *ioXPos -= (mRect.width - inParentRect.width);
+    *ioXPos -= (mRect.width - inParentSize.width);
     *ioYPos -= mRect.height;
     *outFlushWithTopBottom = PR_TRUE;
   }
   else if (popupAnchor == POPUPALIGNMENT_BOTTOMRIGHT && popupAlign == POPUPALIGNMENT_BOTTOMLEFT) {
-    *ioXPos += inParentRect.width;
-    *ioYPos -= (mRect.height - inParentRect.height);
+    *ioXPos += inParentSize.width;
+    *ioYPos -= (mRect.height - inParentSize.height);
   }
   else if (popupAnchor == POPUPALIGNMENT_BOTTOMRIGHT && popupAlign == POPUPALIGNMENT_TOPRIGHT) {
-    *ioXPos -= (mRect.width - inParentRect.width);
-    *ioYPos += inParentRect.height;
+    *ioXPos -= (mRect.width - inParentSize.width);
+    *ioYPos += inParentSize.height;
     *outFlushWithTopBottom = PR_TRUE;
   }
   else if (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPRIGHT) {
@@ -711,10 +754,10 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(PRInt32* ioXPos, PRInt32* ioYPos,
   }
   else if (popupAnchor == POPUPALIGNMENT_BOTTOMLEFT && popupAlign == POPUPALIGNMENT_BOTTOMRIGHT) {
     *ioXPos -= mRect.width;
-    *ioYPos -= (mRect.height - inParentRect.height);
+    *ioYPos -= (mRect.height - inParentSize.height);
   }
   else if (popupAnchor == POPUPALIGNMENT_BOTTOMLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT) {
-    *ioYPos += inParentRect.height;
+    *ioYPos += inParentSize.height;
     *outFlushWithTopBottom = PR_TRUE;
   }
   else
@@ -860,15 +903,33 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
     sizedToPopup = nsMenuFrame::IsSizedToPopup(aAnchorFrame->GetContent(), PR_FALSE);
   }
 
-  // |parentRect|
-  //   The dimensions of the frame invoking the popup. 
-  nsRect parentRect = aAnchorFrame->GetRect();
+  // |ParentSize|
+  //   The dimensions of the anchor in its app units
+  nsSize parentSize = aAnchorFrame->GetSize();
 
-  // If we stick to our parent's width, set it here before we move the
-  // window around, because moving is done with respect to the width...
+  // the anchor may be in a different document with a different scale,
+  // so adjust the size so that it is in the app units of the popup instead
+  // of the anchor. This is done by converting to device pixels by dividing
+  // by the anchor's app units per device pixel and then converting back to
+  // app units by multiplying by the popup's app units per device pixel.
+  float adj = float(presContext->AppUnitsPerDevPixel()) /
+              aAnchorFrame->PresContext()->AppUnitsPerDevPixel();
+  parentSize.width = NSToCoordCeil(parentSize.width * adj);
+  parentSize.height = NSToCoordCeil(parentSize.height * adj);
+
+  // Set the popup's size to the preferred size. Below, this size will be
+  // adjusted to fit on the screen or within the content area. If the anchor
+  // is sized to the popup, use the anchor's width instead of the preferred
+  // width. The preferred size should already be set by the parent frame.
+  NS_ASSERTION(mPrefSize.width >= 0 || mPrefSize.height >= 0,
+               "preferred size of popup not set");
   if (sizedToPopup) {
-    mRect.width = parentRect.width;
+    mRect.width = parentSize.width;
   }
+  else {
+    mRect.width = mPrefSize.width;
+  }
+  mRect.height = mPrefSize.height;
 
   // |xpos| and |ypos| hold the x and y positions of where the popup will be moved to,
   // in app units, in the coordinate system of the _parent view_.
@@ -883,6 +944,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   nsRect anchorScreenRect;
   nsRect rootScreenRect = rootFrame->GetScreenRect();
 
+  nsIDeviceContext* devContext = PresContext()->DeviceContext();
   if (mScreenXPos == -1 && mScreenYPos == -1) {
     // if we are anchored to our parent, there are certain things we don't want to do
     // when repositioning the view to fit on the screen, such as end up positioned over
@@ -896,7 +958,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
 
       // move the popup according to the anchor and alignment. This will also tell us
       // which axis the popup is flush against in case we have to move it around later.
-      AdjustPositionForAnchorAlign(&xpos, &ypos, parentRect, &readjustAboveBelow);
+      AdjustPositionForAnchorAlign(&xpos, &ypos, parentSize, &readjustAboveBelow);
     }
     else {
       // with no anchor, the popup is positioned relative to the root frame
@@ -914,10 +976,19 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
     screenViewLocY = presContext->DevPixelsToAppUnits(rootScreenRect.y) + ypos;
   }
   else {
-    // positioned on screen
+    // the popup is positioned at a screen coordinate.
+    // first convert the screen position in mScreenXPos and mScreenYPos from
+    // CSS pixels into device pixels, ignoring any scaling as mScreenXPos and
+    // mScreenYPos are unscaled screen coordinates.
+    PRInt32 factor = devContext->UnscaledAppUnitsPerDevPixel();
+    screenViewLocX = nsPresContext::CSSPixelsToAppUnits(mScreenXPos) / factor;
+    screenViewLocY = nsPresContext::CSSPixelsToAppUnits(mScreenYPos) / factor;
+
+    // next, convert back into app units accounting for the scaling,
+    // and add the margins on the popup
     GetStyleMargin()->GetMargin(margin);
-    screenViewLocX = nsPresContext::CSSPixelsToAppUnits(mScreenXPos) + margin.left;
-    screenViewLocY = nsPresContext::CSSPixelsToAppUnits(mScreenYPos) + margin.top;
+    screenViewLocX = presContext->DevPixelsToAppUnits(screenViewLocX) + margin.left;
+    screenViewLocY = presContext->DevPixelsToAppUnits(screenViewLocY) + margin.top;
 
     // determine the x and y position by subtracting the desired screen
     // position from the screen position of the root frame.
@@ -928,7 +999,6 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   // Compute info about the screen dimensions. Because of multiple monitor systems,
   // the left or top sides of the screen may be in negative space (main monitor is on the
   // right, etc). We need to be sure to do the right thing.
-  nsIDeviceContext* devContext = PresContext()->DeviceContext();
   nsRect rect;
   if ( mMenuCanOverlapOSBar ) {
     devContext->GetRect(rect);
@@ -954,9 +1024,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   PRInt32 screenRightTwips  = rect.XMost();
   PRInt32 screenBottomTwips = rect.YMost();
 
-  if (mPopupAnchor != POPUPALIGNMENT_NONE) {
-    NS_ASSERTION(mScreenXPos == -1 && mScreenYPos == -1,
-                 "screen position used with anchor");
+  if (mPopupAnchor != POPUPALIGNMENT_NONE && mScreenXPos == -1 && mScreenYPos == -1) {
     //
     // Popup is anchored to the parent, guarantee that it does not cover the parent. We
     // shouldn't do anything funky if it will already fit on the screen as is.
@@ -972,7 +1040,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
     //              | |                        |
     //              | |                        | (screenViewLocX,screenViewLocY)
     //              - |========================|+--------------
-    //                | parentRect           > ||
+    //                | parentSize           > ||
     //                |========================||
     //                |                        || Submenu 
     //                +------------------------+|  ( = mRect )
@@ -1123,8 +1191,19 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
       // XXXbz it'd be good to make use of IsMoreRoomOnOtherSideOfParent and
       // such here, but that's really focused on having a nonempty parent
       // rect...
-      if (screenBottomTwips - screenViewLocY >
-          screenViewLocY - screenTopTwips) {
+      if (screenViewLocY > screenBottomTwips) {
+        // if the popup is positioned off the edge, move it up. This is important
+        // when the popup is constrained to the content area so that the popup
+        // doesn't extend past the edge. This is a rare situation so include this
+        // check within the other.
+
+        // we already constrained the height to the screen size above, so this
+        // calculation should always result in a y position below the top.
+        NS_ASSERTION(mRect.height <= screenBottomTwips - screenTopTwips, "height too large");
+        ypos += screenBottomTwips - screenViewLocY - mRect.height;
+      }
+      else if (screenBottomTwips - screenViewLocY >
+               screenViewLocY - screenTopTwips) {
         // More space below our desired point.  Resize to fit in this space.
         // Note that this is making mRect smaller; othewise we would not have
         // reached this code.
@@ -1152,7 +1231,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
 
   if (sizedToPopup) {
     nsBoxLayoutState state(PresContext());
-    SetBounds(state, nsRect(mRect.x, mRect.y, parentRect.width, mRect.height));
+    SetBounds(state, nsRect(mRect.x, mRect.y, parentSize.width, mRect.height));
   }
 
   return NS_OK;
@@ -1539,7 +1618,7 @@ nsMenuPopupFrame::AttributeChanged(PRInt32 aNameSpaceID,
   if (aAttribute == nsGkAtoms::menugenerated &&
       mFrames.IsEmpty() && !mGeneratedChildren) {
     PresContext()->PresShell()->FrameConstructor()->
-      AddLazyChildren(mContent, LazyGeneratePopupDone, nsnull);
+      AddLazyChildren(mContent, LazyGeneratePopupDone, nsnull, PR_TRUE);
   }
   
   return rv;
@@ -1619,10 +1698,10 @@ nsMenuPopupFrame::MoveToInternal(PRInt32 aLeft, PRInt32 aTop)
     widget->Move(aLeft - screenPos.x, aTop - screenPos.y);
 }
 
-void 
-nsMenuPopupFrame::GetAutoPosition(PRBool* aShouldAutoPosition)
+PRBool
+nsMenuPopupFrame::GetAutoPosition()
 {
-  *aShouldAutoPosition = mShouldAutoPosition;
+  return mShouldAutoPosition;
 }
 
 void

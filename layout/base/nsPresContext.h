@@ -85,7 +85,6 @@ class nsIURI;
 class nsILookAndFeel;
 class nsICSSPseudoComparator;
 class nsIAtom;
-struct nsStyleStruct;
 struct nsStyleBackground;
 template <class T> class nsRunnableMethod;
 class nsIRunnable;
@@ -201,6 +200,9 @@ public:
     { return GetPresShell()->FrameManager(); } 
 #endif
 
+  void RebuildAllStyleData();
+  void PostRebuildAllStyleDataEvent();
+
   /**
    * Access compatibility mode for this context.  This is the same as
    * our document's compatibility mode.
@@ -237,11 +239,6 @@ public:
    * Get medium of presentation
    */
   nsIAtom* Medium() { return mMedium; }
-
-  /**
-   * Clear style data from the root frame downwards, and reflow.
-   */
-  NS_HIDDEN_(void) ClearStyleDataAndReflow();
 
   void* AllocateFromShell(size_t aSize)
   {
@@ -377,13 +374,13 @@ public:
 
   NS_HIDDEN_(void) SetContainer(nsISupports* aContainer);
 
-  virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal();
-  NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal();
+  virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal() const;
+  NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal() const;
 #ifdef _IMPL_NS_LAYOUT
-  already_AddRefed<nsISupports> GetContainer()
+  already_AddRefed<nsISupports> GetContainer() const
   { return GetContainerInternal(); }
 #else
-  already_AddRefed<nsISupports> GetContainer()
+  already_AddRefed<nsISupports> GetContainer() const
   { return GetContainerExternal(); }
 #endif
 
@@ -468,7 +465,7 @@ public:
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
     mTextZoom = aZoom;
-    ClearStyleDataAndReflow();
+    RebuildAllStyleData();
   }
 
   float GetFullZoom() { return mFullZoom; }
@@ -637,7 +634,7 @@ public:
    * Set the Bidi options for the presentation context
    */  
   NS_HIDDEN_(void) SetBidi(PRUint32 aBidiOptions,
-                           PRBool aForceReflow = PR_FALSE);
+                           PRBool aForceRestyle = PR_FALSE);
 
   /**
    * Get the Bidi options for the presentation context
@@ -727,10 +724,17 @@ public:
                               mType == eContext_PrintPreview); }
 
   // Is this presentation in a chrome docshell?
-  PRBool IsChrome();
+  PRBool IsChrome() const;
 
   // Public API for native theme code to get style internals.
   virtual PRBool HasAuthorSpecifiedBorderOrBackground(nsIFrame *aFrame) const;
+
+  // Is it OK to let the page specify colors and backgrounds?
+  PRBool UseDocumentColors() const {
+    return GetCachedBoolPref(kPresContext_UseDocumentColors) || IsChrome();
+  }
+
+  PRBool           SupressingResizeReflow() const { return mSupressResizeReflow; }
 
 protected:
   friend class nsRunnableMethod<nsPresContext>;
@@ -776,6 +780,7 @@ protected:
 
   float                 mTextZoom;      // Text zoom, defaults to 1.0
   float                 mFullZoom;      // Page zoom, defaults to 1.0
+
   PRInt32               mCurAppUnitsPerDevPixel;
   PRInt32               mAutoQualityMinFontSizePixelsPref;
 
@@ -845,6 +850,10 @@ protected:
   unsigned              mPendingSysColorChanged : 1;
   unsigned              mPendingThemeChanged : 1;
   unsigned              mRenderedPositionVaryingContent : 1;
+
+  // resize reflow is supressed when the only change has been to zoom
+  // the document rather than to change the document's dimensions
+  unsigned              mSupressResizeReflow : 1;
 
 #ifdef IBMBIDI
   unsigned              mIsVisual : 1;

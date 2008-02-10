@@ -1065,11 +1065,8 @@ FindSelectionRoot(nsIEditor *aEditor, nsIContent *aContent)
 
     CallQueryInterface(rootElement, &root);
 
-    if (!root) {
-      nsIDocument *document = aContent->GetCurrentDoc();
-      if (document) {
-        NS_IF_ADDREF(root = document->GetRootContent());
-      }
+    if (!root && document) {
+      NS_IF_ADDREF(root = document->GetRootContent());
     }
 
     return root;
@@ -1112,29 +1109,40 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
   // turn on selection and caret
   if (mEditor)
   {
+    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
     PRUint32 flags;
     mEditor->GetFlags(&flags);
     if (! (flags & nsIPlaintextEditor::eEditorDisabledMask))
     { // only enable caret and selection if the editor is not disabled
       nsCOMPtr<nsIContent> content = do_QueryInterface(target);
 
-      nsCOMPtr<nsIContent> editableRoot =
-        content ? FindSelectionRoot(mEditor, content) : nsnull;
+      PRBool targetIsEditableDoc = PR_FALSE;
+      nsCOMPtr<nsIContent> editableRoot;
+      if (content) {
+        editableRoot = FindSelectionRoot(mEditor, content);
+      }
+      else {
+        nsCOMPtr<nsIDocument> document = do_QueryInterface(target);
+        targetIsEditableDoc = document && document->HasFlag(NODE_IS_EDITABLE);
+      }
 
       nsCOMPtr<nsISelectionController> selCon;
       mEditor->GetSelectionController(getter_AddRefs(selCon));
-      if (selCon)
+      if (selCon && (targetIsEditableDoc || editableRoot))
       {
         nsCOMPtr<nsISelection> selection;
         selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                              getter_AddRefs(selection));
 
         nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
-        if (presShell && selection) {
+        if (presShell) {
           nsCOMPtr<nsICaret> caret;
           presShell->GetCaret(getter_AddRefs(caret));
           if (caret) {
-            caret->SetCaretDOMSelection(selection);
+            caret->SetIgnoreUserModify(PR_FALSE);
+            if (selection) {
+              caret->SetCaretDOMSelection(selection);
+            }
           }
         }
 
@@ -1161,7 +1169,6 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
       }
     }
 
-    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
     if (imeEditor)
       imeEditor->NotifyIMEOnFocus();
   }
@@ -1197,6 +1204,27 @@ nsTextEditorFocusListener::Blur(nsIDOMEvent* aEvent)
           do_QueryInterface(selection);
         if (selectionPrivate) {
           selectionPrivate->SetAncestorLimiter(nsnull);
+        }
+
+        nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
+        nsCOMPtr<nsISelectionController> presSelCon =
+          do_QueryInterface(presShell);
+        if (presSelCon == selCon && selection) {
+          nsCOMPtr<nsIDOMEventTarget> target;
+          aEvent->GetTarget(getter_AddRefs(target));
+          nsCOMPtr<nsINode> node = do_QueryInterface(target);
+          nsIDocument* doc = node ? node->GetOwnerDoc() : nsnull;
+          if (doc && !doc->HasFlag(NODE_IS_EDITABLE)) {
+            selection->RemoveAllRanges();
+          }
+        }
+
+        if (presShell) {
+          nsCOMPtr<nsICaret> caret;
+          presShell->GetCaret(getter_AddRefs(caret));
+          if (caret) {
+            caret->SetIgnoreUserModify(PR_TRUE);
+          }
         }
 
         selCon->SetCaretEnabled(PR_FALSE);

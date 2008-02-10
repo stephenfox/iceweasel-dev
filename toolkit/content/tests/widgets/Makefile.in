@@ -52,6 +52,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_colorpicker_popup.xul \
 		test_deck.xul \
 		test_menulist_keynav.xul \
+		test_menulist_null_value.xul \
 		test_popup_coords.xul \
 		test_popup_recreate.xul \
 		test_popup_button.xul \
@@ -61,7 +62,9 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_notificationbox.xul \
 		test_scale.xul \
 		test_radio.xul \
+		test_tabbox.xul \
 		test_tooltip.xul \
+		test_tooltip_noautohide.xul \
 		popup_shared.js \
 		popup_trigger.js \
 		window_popup_button.xul \
@@ -77,15 +80,23 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_tree_single.xul \
 		test_tree_hier.xul \
 		test_tree_hier_cell.xul \
+		test_tree_column_reorder.xul \
 		tree_shared.js \
 		test_textbox_number.xul \
 		xul_selectcontrol.js \
+		test_popupincontent.xul \
 		test_panelfrommenu.xul \
 		test_hiddenitems.xul \
 		test_hiddenpaging.xul \
 		test_popup_tree.xul \
 		test_popup_keys.xul \
 		test_popuphidden.xul \
+		test_popup_scaled.xul \
+		test_popupremoving.xul \
+		test_popupremoving_frame.xul \
+		frame_popupremoving_frame.xul \
+		test_position.xul \
+		test_menu_hide.xul \
 		$(NULL)
 
 ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))

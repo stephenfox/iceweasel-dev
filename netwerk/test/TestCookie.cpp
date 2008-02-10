@@ -525,7 +525,7 @@ main(PRInt32 argc, char *argv[])
       rv[1] = CheckResult(cookie.get(), MUST_EQUAL, "test=foreign");
       SetACookie(cookieService, "http://moose.yahoo.com/", "http://canada.yahoo.com/", "test=foreign; domain=.yahoo.com", nsnull);
       GetACookie(cookieService, "http://yahoo.com/", "http://sport.yahoo.com/", getter_Copies(cookie));
-      rv[2] = CheckResult(cookie.get(), MUST_BE_NULL);
+      rv[2] = CheckResult(cookie.get(), MUST_EQUAL, "test=foreign");
       GetACookie(cookieService, "http://sport.yahoo.com/", "http://yahoo.com/", getter_Copies(cookie));
       rv[3] = CheckResult(cookie.get(), MUST_EQUAL, "test=foreign");
       SetACookie(cookieService, "http://jack.yahoo.com/", "http://jill.yahoo.com/", "test=foreign; domain=.yahoo.com; max-age=0", nsnull);
@@ -534,7 +534,7 @@ main(PRInt32 argc, char *argv[])
 
       SetACookie(cookieService, "http://moose.yahoo.com/", "http://foo.moose.yahoo.com/", "test=foreign; domain=.yahoo.com", nsnull);
       GetACookie(cookieService, "http://yahoo.com/", "http://yahoo.com/", getter_Copies(cookie));
-      rv[5] = CheckResult(cookie.get(), MUST_BE_NULL);
+      rv[5] = CheckResult(cookie.get(), MUST_EQUAL, "test=foreign");
       SetACookie(cookieService, "http://foo.bar.yahoo.com/", "http://yahoo.com/", "test=foreign; domain=.yahoo.com", nsnull);
       GetACookie(cookieService, "http://yahoo.com/", "http://yahoo.com/", getter_Copies(cookie));
       rv[6] = CheckResult(cookie.get(), MUST_EQUAL, "test=foreign");
@@ -559,7 +559,27 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://192.168.54.33/", "http://192.168.54.33/", getter_Copies(cookie));
       rv[13] = CheckResult(cookie.get(), MUST_BE_NULL);
 
-      allTestsPassed = PrintResult(rv, 14) && allTestsPassed;
+      // test the case where the host is an eTLD, e.g. http://co.tv/ (a legitimate site)
+      SetACookie(cookieService, "http://co.uk/", "http://co.uk/", "test=foreign; domain=.co.uk", nsnull);
+      GetACookie(cookieService, "http://co.uk/", "http://co.uk/", getter_Copies(cookie));
+      // should be rejected, can't set a domain cookie for .co.uk
+      rv[14] = CheckResult(cookie.get(), MUST_BE_NULL);
+      SetACookie(cookieService, "http://co.uk/", "http://co.uk/", "test=foreign", nsnull);
+      GetACookie(cookieService, "http://co.uk/", "http://co.uk/", getter_Copies(cookie));
+      // should be allowed, hostURI == firstURI and it's not a domain cookie
+      rv[15] = CheckResult(cookie.get(), MUST_EQUAL, "test=foreign");
+      GetACookie(cookieService, "http://oblivious.co.uk/", nsnull, getter_Copies(cookie));
+      rv[16] = CheckResult(cookie.get(), MUST_BE_NULL);
+      // remove cookie
+      SetACookie(cookieService, "http://co.uk/", "http://co.uk/", "test=foreign; max-age=0", nsnull);
+      GetACookie(cookieService, "http://co.uk/", "http://co.uk/", getter_Copies(cookie));
+      rv[17] = CheckResult(cookie.get(), MUST_BE_NULL);
+      SetACookie(cookieService, "http://co.uk/", "http://evil.co.uk/", "test=foreign", nsnull);
+      GetACookie(cookieService, "http://co.uk/", "http://co.uk/", getter_Copies(cookie));
+      // should be rejected, hostURI != firstURI and hostURI is an eTLD
+      rv[18] = CheckResult(cookie.get(), MUST_BE_NULL);
+
+      allTestsPassed = PrintResult(rv, 19) && allTestsPassed;
 
 
       // *** parser tests
@@ -786,7 +806,7 @@ main(PRInt32 argc, char *argv[])
 
       // test that cookies are
       // a) returned by order of creation time (oldest first, newest last)
-      // b) evicted by order of creation time, if the limit on cookies per host (50) is reached
+      // b) evicted by order of lastAccessed time, if the limit on cookies per host (50) is reached
       nsCAutoString name;
       nsCAutoString expected;
       for (PRInt32 i = 0; i < 60; ++i) {
@@ -794,6 +814,12 @@ main(PRInt32 argc, char *argv[])
         name.AppendInt(i);
         name += NS_LITERAL_CSTRING("=creation");
         SetACookie(cookieService, "http://creation.ordering.tests/", nsnull, name.get(), nsnull);
+
+        if (i == 9) {
+          // sleep a couple of seconds, to make sure the first 10 cookies are older than
+          // subsequent ones (timer resolution varies on different platforms).
+          PR_Sleep(2 * PR_TicksPerSecond());
+        }
 
         if (i >= 10) {
           expected += name;
@@ -804,7 +830,7 @@ main(PRInt32 argc, char *argv[])
       GetACookie(cookieService, "http://creation.ordering.tests/", nsnull, getter_Copies(cookie));
       rv[0] = CheckResult(cookie.get(), MUST_EQUAL, expected.get());
 
-      // test that cookies are evicted by order of creation time, if the limit on total cookies
+      // test that cookies are evicted by order of lastAccessed time, if the limit on total cookies
       // (1000) is reached
       nsCAutoString host;
       for (PRInt32 i = 0; i < 1010; ++i) {
@@ -812,6 +838,12 @@ main(PRInt32 argc, char *argv[])
         host.AppendInt(i);
         host += NS_LITERAL_CSTRING(".tests/");
         SetACookie(cookieService, host.get(), nsnull, "test=eviction", nsnull);
+
+        if (i == 9) {
+          // sleep a couple of seconds, to make sure the first 10 cookies are older than
+          // subsequent ones (timer resolution varies on different platforms).
+          PR_Sleep(2 * PR_TicksPerSecond());
+        }
       }
       rv[1] = NS_SUCCEEDED(cookieMgr->GetEnumerator(getter_AddRefs(enumerator)));
       i = 0;

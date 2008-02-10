@@ -47,7 +47,6 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocument.h"
 #include "nsIDocumentViewer.h"
-#include "nsIDOM3Node.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMDocument.h"
@@ -176,12 +175,29 @@ NS_IMETHODIMP nsAccessNode::Init()
       return NS_ERROR_FAILURE;
     }
   }
+
   void* uniqueID;
   GetUniqueID(&uniqueID);
   nsCOMPtr<nsPIAccessibleDocument> privateDocAccessible =
     do_QueryInterface(docAccessible);
   NS_ASSERTION(privateDocAccessible, "No private docaccessible for docaccessible");
   privateDocAccessible->CacheAccessNode(uniqueID, this);
+
+  // Make sure an ancestor in real content is cached
+  // so that nsDocAccessible::RefreshNodes() can find the anonymous subtree to release when
+  // the root node goes away
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
+  if (content && (content->IsNativeAnonymous() ||
+                  content->GetBindingParent())) {
+    // Specific examples of where this is used: <input type="file"> and <xul:findbar>
+    nsCOMPtr<nsIAccessible> parentAccessible;
+    docAccessible->GetAccessibleInParentChain(mDOMNode, PR_TRUE, getter_AddRefs(parentAccessible));
+    if (parentAccessible) {
+      PRInt32 childCountUnused;
+      parentAccessible->GetChildCount(&childCountUnused);
+    }
+  }
+
 #ifdef DEBUG_A11Y
   mIsInitialized = PR_TRUE;
 #endif
@@ -639,11 +655,16 @@ void nsAccessNode::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
 /***************** Hashtable of nsIAccessNode's *****************/
 
 already_AddRefed<nsIAccessibleDocument>
-nsAccessNode::GetDocAccessibleFor(nsIWeakReference *aPresShell)
+nsAccessNode::GetDocAccessibleFor(nsIDocument *aDocument)
 {
+  if (!aDocument) {
+    return nsnull;
+  }
+
   nsIAccessibleDocument *docAccessible = nsnull;
   nsCOMPtr<nsIAccessNode> accessNode;
-  gGlobalDocAccessibleCache.Get(static_cast<void*>(aPresShell), getter_AddRefs(accessNode));
+  gGlobalDocAccessibleCache.Get(static_cast<void*>(aDocument),
+                                getter_AddRefs(accessNode));
   if (accessNode) {
     CallQueryInterface(accessNode, &docAccessible);
   }
@@ -651,15 +672,26 @@ nsAccessNode::GetDocAccessibleFor(nsIWeakReference *aPresShell)
 }
  
 already_AddRefed<nsIAccessibleDocument>
-nsAccessNode::GetDocAccessibleFor(nsISupports *aContainer, PRBool aCanCreate)
+nsAccessNode::GetDocAccessibleFor(nsIWeakReference *aWeakShell)
+{
+  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(aWeakShell));
+  if (!presShell) {
+    return nsnull;
+  }
+
+  return nsAccessNode::GetDocAccessibleFor(presShell->GetDocument());
+}
+
+already_AddRefed<nsIAccessibleDocument>
+nsAccessNode::GetDocAccessibleFor(nsIDocShellTreeItem *aContainer,
+                                  PRBool aCanCreate)
 {
   if (!aCanCreate) {
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
     NS_ASSERTION(docShell, "This method currently only supports docshells");
     nsCOMPtr<nsIPresShell> presShell;
     docShell->GetPresShell(getter_AddRefs(presShell));
-    nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(presShell));
-    return weakShell ? GetDocAccessibleFor(weakShell) : nsnull;
+    return presShell ? GetDocAccessibleFor(presShell->GetDocument()) : nsnull;
   }
 
   nsCOMPtr<nsIDOMNode> node = GetDOMNodeForContainer(aContainer);
@@ -680,8 +712,16 @@ already_AddRefed<nsIAccessibleDocument>
 nsAccessNode::GetDocAccessibleFor(nsIDOMNode *aNode)
 {
   nsCOMPtr<nsIPresShell> eventShell = GetPresShellFor(aNode);
-  nsCOMPtr<nsIWeakReference> weakEventShell(do_GetWeakReference(eventShell));
-  return weakEventShell? GetDocAccessibleFor(weakEventShell) : nsnull;
+  if (eventShell) {
+    return GetDocAccessibleFor(eventShell->GetDocument());
+  }
+
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(aNode));
+  if (doc) {
+    return GetDocAccessibleFor(doc);
+  }
+
+  return nsnull;
 }
 
 already_AddRefed<nsIPresShell>
@@ -839,71 +879,3 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
   return NS_OK;
 }
 
-PRBool
-nsAccessNode::GetARIARole(nsIContent *aContent, nsString& aRole)
-{
-  aRole.Truncate();
-
-  PRBool allowPrefixLookup = PR_TRUE;
-
-  if (aContent->IsNodeOfType(nsINode::eHTML)) {
-    // Allow non-namespaced role attribute in HTML
-    if (!aContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::role, aRole)) {
-      return PR_FALSE;
-    }
-    nsCOMPtr<nsIDOMNSDocument> doc(do_QueryInterface(aContent->GetDocument()));
-    if (doc) {
-      nsAutoString mimeType;
-      doc->GetContentType(mimeType);
-      if (mimeType.EqualsLiteral("text/html")) {
-        allowPrefixLookup = PR_FALSE;
-      }
-    }
-  }
-  // In non-HTML content, use XHTML namespaced-role attribute
-  else if (!aContent->GetAttr(kNameSpaceID_XHTML, nsAccessibilityAtoms::role, aRole)) {
-    return PR_FALSE;
-  }
-
-  PRBool hasPrefix = (aRole.Find(":") >= 0);
-
-  if (!hasPrefix) {
-    // * No prefix* -- not a QName
-    // Just return entire string as long as prefix is not currently required
-    return PR_TRUE;
-  }
-
-  // Has prefix -- is a QName (role="prefix:rolename")
-
-  // Check hardcoded 'wairole:' prefix
-  NS_NAMED_LITERAL_STRING(hardcodedWairolePrefix, "wairole:");
-  if (StringBeginsWith(aRole, hardcodedWairolePrefix)) {
-    // The exact prefix "wairole:" is reserved to 
-    // always indicate that we are using WAI roles.
-    aRole.Cut(0, hardcodedWairolePrefix.Length());
-    return PR_TRUE;
-  }
-
-  // Check for prefix mapped with xmlns:prefixname=""
-  nsAutoString prefix;
-  if (allowPrefixLookup) {  // Not text/html, so we will try to find the WAIRole prefix
-    // QI to nsIDOM3Node causes some overhead. Unfortunately we need to do this each
-    // time there is a prefixed role attribute, because the prefix to namespace mappings
-    // can change within any subtree via the xmlns attribute
-    nsCOMPtr<nsIDOM3Node> dom3Node(do_QueryInterface(aContent));
-    if (dom3Node) {
-      // Look up exact prefix name for WAI Roles
-      NS_NAMED_LITERAL_STRING(kWAIRoles_Namespace, "http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#");
-      dom3Node->LookupPrefix(kWAIRoles_Namespace, prefix);
-      prefix += ':';
-      PRUint32 length = prefix.Length();
-      if (length > 1 && StringBeginsWith(aRole, prefix)) {
-        // Is a QName (role="prefix:rolename"), and prefix matches WAI Role prefix
-        // Trim the WAI Role prefix off
-        aRole.Cut(0, length);
-      }
-    }
-  }
-
-  return PR_TRUE;
-}

@@ -220,27 +220,6 @@ enum {
  MOUSE_SCROLL_FULLZOOM
 };
 
-struct AccessKeyInfo {
-  PRUint32 mAccessKey;
-  nsIContent* mTarget;
-
-  AccessKeyInfo(nsIContent* aTarget) : mAccessKey(0), mTarget(aTarget) {}
-};
-
-static PRIntn PR_CALLBACK
-FindTargetForAccessKey(nsHashKey *aKey, void *aData, void* aClosure)
-{
-  AccessKeyInfo* info = static_cast<AccessKeyInfo*>(aClosure);
-  nsIContent* aTarget = static_cast<nsIContent*>(aData);
-
-  if (aTarget == info->mTarget) {
-    info->mAccessKey = aKey->HashCode();
-    return kHashEnumerateStop;
-  }
-
-  return kHashEnumerateNext;
-}
-
 // mask values for ui.key.chromeAccess and ui.key.contentAccess
 #define NS_MODIFIER_SHIFT    1
 #define NS_MODIFIER_CONTROL  2
@@ -469,8 +448,7 @@ nsEventStateManager::nsEventStateManager()
     mNormalLMouseEventInProcess(PR_FALSE),
     m_haveShutdown(PR_FALSE),
     mBrowseWithCaret(PR_FALSE),
-    mTabbedThroughDocument(PR_FALSE),
-    mAccessKeys(nsnull)
+    mTabbedThroughDocument(PR_FALSE)
 {
   if (sESMInstanceCount == 0) {
     gUserInteractionTimerCallback = new nsUITimerCallback();
@@ -571,8 +549,6 @@ nsEventStateManager::~nsEventStateManager()
       NS_RELEASE(gUserInteractionTimer);
     }
   }
-
-  delete mAccessKeys;
 
   if (!m_haveShutdown) {
     Shutdown();
@@ -732,9 +708,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEventStateManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstMouseOverEventElement);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFirstMouseOutEventElement);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument);
-  if (tmp->mAccessKeys) {
-    tmp->mAccessKeys->Enumerate(TraverseAccessKeyContent, &cb);
-  }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mAccessKeys);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsEventStateManager)
@@ -757,8 +731,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsEventStateManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstMouseOverEventElement);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFirstMouseOutEventElement);
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument);
-  delete tmp->mAccessKeys;
-  tmp->mAccessKeys = nsnull;
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mAccessKeys);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -1161,7 +1134,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       nsCOMPtr<nsPIDOMWindow> win = mDocument->GetWindow();
 
       if (!win) {
-        NS_ERROR("win is null.  this happens [often on xlib builds].  see bug #79213");
+        // NS_ERROR("win is null.  this happens [often on xlib builds].  see bug #79213");
         return NS_ERROR_NULL_POINTER;
       }
 
@@ -1209,7 +1182,8 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
             }
 
             // disable selection mousedown state on activation
-            shell->FrameSelection()->SetMouseDownState(PR_FALSE);
+            nsCOMPtr<nsFrameSelection> frameSelection = shell->FrameSelection();
+            frameSelection->SetMouseDownState(PR_FALSE);
           }
         }
       }
@@ -1428,6 +1402,31 @@ GetAccessModifierMask(nsISupports* aDocShell)
   }
 }
 
+static PRBool
+IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsString& aKey)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  if (!aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::accesskey, aKey, eIgnoreCase))
+    return PR_FALSE;
+
+  if (aFrame->IsFocusable())
+    return PR_TRUE;
+
+  if (!aFrame->GetStyleVisibility()->IsVisible())
+    return PR_FALSE;
+
+  if (!aFrame->AreAncestorViewsVisible())
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMXULControlElement> control(do_QueryInterface(aContent));
+  if (control)
+    return PR_TRUE;
+
+  return PR_FALSE;
+}
+
 void
 nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
                                      nsKeyEvent *aEvent,
@@ -1439,18 +1438,37 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
   nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainer();
 
   // Alt or other accesskey modifier is down, we may need to do an accesskey
-  if (mAccessKeys && aModifierMask == GetAccessModifierMask(pcContainer)) {
+  PRInt32 length = mAccessKeys.Count();
+  if (length > 0 && aModifierMask == GetAccessModifierMask(pcContainer)) {
     // Someone registered an accesskey.  Find and activate it.
-    PRUint32 accKey = (IS_IN_BMP(aEvent->charCode)) ? 
-      ToLowerCase((PRUnichar)aEvent->charCode) : aEvent->charCode;
-
-    nsVoidKey key(NS_INT32_TO_PTR(accKey));
-    if (mAccessKeys->Exists(&key)) {
-      nsCOMPtr<nsIContent> content =
-        dont_AddRef(static_cast<nsIContent*>(mAccessKeys->Get(&key)));
-      content->PerformAccesskey(sKeyCausesActivation,
-                                NS_IS_TRUSTED_EVENT(aEvent));
-      *aStatus = nsEventStatus_eConsumeNoDefault;
+    nsAutoString accKey(aEvent->charCode);
+    PRInt32 count, start = -1;
+    if (mCurrentFocus) {
+      start = mAccessKeys.IndexOf(mCurrentFocus);
+      if (start == -1 && mCurrentFocus->GetBindingParent())
+        start = mAccessKeys.IndexOf(mCurrentFocus->GetBindingParent());
+    }
+    nsIContent *content;
+    nsIFrame *frame;
+    for (count = 1; count <= length; ++count) {
+      content = mAccessKeys[(start + count) % length];
+      frame = mPresContext->PresShell()->GetPrimaryFrameFor(content);
+      if (IsAccessKeyTarget(content, frame, accKey)) {
+        PRBool shouldActivate = sKeyCausesActivation;
+        while (shouldActivate && ++count <= length) {
+          nsIContent *oc = mAccessKeys[(start + count) % length];
+          nsIFrame *of = mPresContext->PresShell()->GetPrimaryFrameFor(oc);
+          if (IsAccessKeyTarget(oc, of, accKey))
+            shouldActivate = PR_FALSE;
+        }
+        if (shouldActivate)
+          content->PerformAccesskey(shouldActivate,
+                                    NS_IS_TRUSTED_EVENT(aEvent));
+        else if (frame && frame->IsFocusable())
+          ChangeFocusWith(content, eEventFocusedByKey);
+        *aStatus = nsEventStatus_eConsumeNoDefault;
+        break;
+      }
     }
   }
 
@@ -1713,7 +1731,8 @@ nsEventStateManager::FireContextClick()
         // stop selection tracking, we're in control now
         if (mCurrentTarget)
         {
-          nsFrameSelection* frameSel = mCurrentTarget->GetFrameSelection();
+          nsCOMPtr<nsFrameSelection> frameSel =
+            mCurrentTarget->GetFrameSelection();
         
           if (frameSel && frameSel->GetMouseDownState()) {
             // note that this can cause selection changed events to fire if we're in
@@ -1849,7 +1868,7 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     // don't interfere!
     if (mCurrentTarget)
     {
-      nsFrameSelection* frameSel = mCurrentTarget->GetFrameSelection();
+      nsCOMPtr<nsFrameSelection> frameSel = mCurrentTarget->GetFrameSelection();
       if (frameSel && frameSel->GetMouseDownState()) {
         StopTrackingDragGesture();
         return;
@@ -2265,12 +2284,10 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   mCurrentTarget = aTargetFrame;
   mCurrentTargetContent = nsnull;
 
-  // All the events we handle below require a frame.
-  if (!mCurrentTarget) {
-    if (NS_EVENT_NEEDS_FRAME(aEvent)) {
-      NS_ERROR("Null frame for an event that requires a frame");
-      return NS_ERROR_NULL_POINTER;
-    }
+  // Most of the events we handle below require a frame.
+  // Add special cases here.
+  if (!mCurrentTarget &&
+      aEvent->message != NS_MOUSE_BUTTON_UP) {
     return NS_OK;
   }
 
@@ -2372,12 +2389,24 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       if (!mCurrentTarget) {
         nsIFrame* targ;
         GetEventTarget(&targ);
-        if (!targ) return NS_ERROR_FAILURE;
       }
-      ret = CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent, aStatus);
+      if (mCurrentTarget) {
+        ret =
+          CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent, aStatus);
+      }
       nsIPresShell *shell = presContext->GetPresShell();
       if (shell) {
-        shell->FrameSelection()->SetMouseDownState(PR_FALSE);
+        nsIViewManager* viewMan = shell->GetViewManager();
+        if (viewMan) {
+          nsIView* grabbingView = nsnull;
+          viewMan->GetMouseEventGrabber(grabbingView);
+          if (grabbingView == aView) {
+            PRBool result;
+            viewMan->GrabMouseEvents(nsnull, result);
+          }
+        }
+        nsCOMPtr<nsFrameSelection> frameSelection = shell->FrameSelection();
+        frameSelection->SetMouseDownState(PR_FALSE);
       }
     }
     break;
@@ -2830,6 +2859,9 @@ nsEventStateManager::SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
   case NS_STYLE_CURSOR_EW_RESIZE:
     c = eCursor_ew_resize;
     break;
+  case NS_STYLE_CURSOR_NONE:
+    c = eCursor_none;
+    break;
   }
 
   // First, try the imgIContainer, if non-null
@@ -3087,6 +3119,15 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
     {
       // This is actually the window mouse exit event. We're not moving
       // into any new element.
+
+      if (mLastMouseOverFrame &&
+          nsContentUtils::GetTopLevelWidget(aEvent->widget) !=
+          nsContentUtils::GetTopLevelWidget(mLastMouseOverFrame->GetWindow())) {
+        // the MouseOut event widget doesn't have same top widget with
+        // mLastMouseOverFrame, it's a spurious event for mLastMouseOverFrame
+        break;
+      }
+
       NotifyMouseOut(aEvent, nsnull);
     }
     break;
@@ -4804,26 +4845,8 @@ nsEventStateManager::EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK)
 NS_IMETHODIMP
 nsEventStateManager::RegisterAccessKey(nsIContent* aContent, PRUint32 aKey)
 {
-  if (!mAccessKeys) {
-    mAccessKeys = new nsSupportsHashtable();
-    if (!mAccessKeys) {
-      return NS_ERROR_FAILURE;
-    }
-  }
-
-  if (aContent) {
-    PRUint32 accKey = (IS_IN_BMP(aKey)) ? ToLowerCase((PRUnichar)aKey) : aKey;
-
-    nsVoidKey key(NS_INT32_TO_PTR(accKey));
-    NS_ASSERTION(key.HashCode() == accKey,
-                 "nsHashKey::HashCode() doesn't return an accesskey");
-
-#ifdef DEBUG_jag
-    nsCOMPtr<nsIContent> oldContent = dont_AddRef(static_cast<nsIContent*>(mAccessKeys->Get(&key)));
-    NS_ASSERTION(!oldContent, "Overwriting accesskey registration");
-#endif
-    mAccessKeys->Put(&key, aContent);
-  }
+  if (aContent && mAccessKeys.IndexOf(aContent) == -1)
+    mAccessKeys.AppendObject(aContent);
 
   return NS_OK;
 }
@@ -4831,24 +4854,9 @@ nsEventStateManager::RegisterAccessKey(nsIContent* aContent, PRUint32 aKey)
 NS_IMETHODIMP
 nsEventStateManager::UnregisterAccessKey(nsIContent* aContent, PRUint32 aKey)
 {
-  if (!mAccessKeys) {
-    return NS_ERROR_FAILURE;
-  }
+  if (aContent)
+    mAccessKeys.RemoveObject(aContent);
 
-  if (aContent) {
-    PRUint32 accKey = (IS_IN_BMP(aKey)) ? ToLowerCase((PRUnichar)aKey) : aKey;
-
-    nsVoidKey key(NS_INT32_TO_PTR(accKey));
-
-    nsCOMPtr<nsIContent> oldContent = dont_AddRef(static_cast<nsIContent*>(mAccessKeys->Get(&key)));
-#ifdef DEBUG_jag
-    NS_ASSERTION(oldContent == aContent, "Trying to unregister wrong content");
-#endif
-    if (oldContent != aContent)
-      return NS_OK;
-
-    mAccessKeys->Remove(&key);
-  }
   return NS_OK;
 }
 
@@ -4860,13 +4868,12 @@ nsEventStateManager::GetRegisteredAccessKey(nsIContent* aContent,
   NS_ENSURE_ARG_POINTER(aKey);
   *aKey = 0;
 
-  if (!mAccessKeys)
+  if (mAccessKeys.IndexOf(aContent) == -1)
     return NS_OK;
 
-  AccessKeyInfo info(aContent);
-  mAccessKeys->Enumerate(FindTargetForAccessKey, &info);
-
-  *aKey = info.mAccessKey;
+  nsAutoString accessKey;
+  aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, accessKey);
+  *aKey = accessKey.First();
   return NS_OK;
 }
 
@@ -4929,7 +4936,7 @@ nsEventStateManager::GetDocSelectionLocation(nsIContent **aStartContent,
   nsIPresShell *shell;
   shell = mPresContext->GetPresShell();
 
-  nsFrameSelection *frameSelection = nsnull;
+  nsCOMPtr<nsFrameSelection> frameSelection;
   if (shell)
     frameSelection = shell->FrameSelection();
 
@@ -4982,16 +4989,6 @@ nsEventStateManager::GetDocSelectionLocation(nsIContent **aStartContent,
   if (startContent) {
     startFrame = shell->GetPrimaryFrameFor(startContent);
     if (isCollapsed) {
-      // First check to see if we're in a <label>
-      // We don't want to return the selection in a label, because
-      // we we should be tabbing relative to what the label 
-      // points to (the current focus), not relative to the label itself.
-      nsIContent *parentContent = startContent;
-      while ((parentContent = parentContent->GetParent()) != nsnull) {
-        if (parentContent->Tag() == nsGkAtoms::label) {
-          return NS_OK; // Don't return selection location, we're on a label
-        }
-      }
       // Next check to see if our caret is at the very end of a node
       // If so, the caret is actually sitting in front of the next
       // logical frame's primary node - so for this case we need to
@@ -5290,7 +5287,8 @@ nsEventStateManager::MoveCaretToFocus()
       nsCOMPtr<nsIDOMDocumentRange> rangeDoc(do_QueryInterface(mDocument));
 
       if (rangeDoc) {
-        nsCOMPtr<nsISelection> domSelection = shell->FrameSelection()->
+        nsCOMPtr<nsFrameSelection> frameSelection = shell->FrameSelection();
+        nsCOMPtr<nsISelection> domSelection = frameSelection->
           GetSelection(nsISelectionController::SELECTION_NORMAL);
         if (domSelection) {
           nsCOMPtr<nsIDOMNode> currentFocusNode(do_QueryInterface(mCurrentFocus));
@@ -5349,7 +5347,7 @@ nsEventStateManager::SetContentCaretVisible(nsIPresShell* aPresShell,
   nsCOMPtr<nsICaret> caret;
   aPresShell->GetCaret(getter_AddRefs(caret));
 
-  nsFrameSelection* frameSelection = nsnull;
+  nsCOMPtr<nsFrameSelection> frameSelection;
   if (aFocusedContent) {
     nsIFrame *focusFrame = aPresShell->GetPrimaryFrameFor(aFocusedContent);
     
@@ -5357,7 +5355,7 @@ nsEventStateManager::SetContentCaretVisible(nsIPresShell* aPresShell,
       frameSelection = focusFrame->GetFrameSelection();
   }
 
-  nsFrameSelection *docFrameSelection = aPresShell->FrameSelection();
+  nsCOMPtr<nsFrameSelection> docFrameSelection = aPresShell->FrameSelection();
 
   if (docFrameSelection && caret &&
      (frameSelection == docFrameSelection || !aFocusedContent)) {

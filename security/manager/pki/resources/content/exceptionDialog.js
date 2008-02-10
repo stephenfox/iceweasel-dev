@@ -82,16 +82,21 @@ function initExceptionDialog() {
                                                          [brandName], 1));
   gDialog.getButton("extra1").disabled = true;
   
-  if (window.arguments[0]
-      && window.arguments[0].location) {
-    // We were pre-seeded with a location.  Populate the location bar, and check
-    // the cert
-    document.getElementById("locationTextBox").value = window.arguments[0].location;
-    checkCert();
+  var args = window.arguments;
+  if (args && args[0]) {
+    if (args[0].location) {
+      // We were pre-seeded with a location.
+      document.getElementById("locationTextBox").value = args[0].location;
+      document.getElementById('checkCertButton').disabled = false;
+      
+      // We can optionally pre-fetch the certificate too
+      if (args[0].prefetchCert)
+        checkCert();
+    }
+    
+    // Set out parameter to false by default
+    args[0].exceptionAdded = false; 
   }
-  
-  // Set out parameter to false by default
-  window.arguments[0].exceptionAdded = false;
 }
 
 // returns true if found and global status could be set
@@ -189,6 +194,7 @@ function getURI() {
 
 function resetDialog() {
   document.getElementById("viewCertButton").disabled = true;
+  document.getElementById("permanent").disabled = true;
   gDialog.getButton("extra1").disabled = true;
   setText("headerDescription", "");
   setText("statusDescription", "");
@@ -263,12 +269,14 @@ function updateCertStatus() {
       
       // In these cases, we do want to enable the "Add Exception" button
       gDialog.getButton("extra1").disabled = false;
+      document.getElementById("permanent").disabled = false;
       setText("headerDescription", gPKIBundle.GetStringFromName("addExceptionInvalidHeader"));
     }
     else {
       shortDesc = "addExceptionValidShort";
       longDesc  = "addExceptionValidLong";
       gDialog.getButton("extra1").disabled = true;
+      document.getElementById("permanent").disabled = true;
     }
     
     document.getElementById("viewCertButton").disabled = false;
@@ -278,12 +286,14 @@ function updateCertStatus() {
     longDesc  = "addExceptionCheckingLong";
     document.getElementById("viewCertButton").disabled = true;
     gDialog.getButton("extra1").disabled = true;
+    document.getElementById("permanent").disabled = true;
   }
   else {
     shortDesc = "addExceptionNoCertShort";
     longDesc  = "addExceptionNoCertLong";
     document.getElementById("viewCertButton").disabled = true;
     gDialog.getButton("extra1").disabled = true;
+    document.getElementById("permanent").disabled = true;
   }
   
   setText("statusDescription", gPKIBundle.GetStringFromName(shortDesc));
@@ -328,11 +338,17 @@ function addException() {
   if(gSSLStatus.isNotValidAtThisTime)
     flags |= overrideService.ERROR_TIME;
   
+  var permanentCheckbox = document.getElementById("permanent");
+
   overrideService.rememberValidityOverride(
     getURI().hostPort,
     gCert,
-    flags);
+    flags,
+    !permanentCheckbox.checked);
   
-  window.arguments[0].exceptionAdded = true;
+  var args = window.arguments;
+  if (args && args[0])
+    args[0].exceptionAdded = true;
+  
   gDialog.acceptDialog();
 }

@@ -81,7 +81,6 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
-#include "nsISupportsArray.h"
 #include "nsIMutableArray.h"
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
@@ -104,6 +103,7 @@
 #include "nsXULTemplateBuilder.h"
 #include "nsXULTemplateQueryProcessorRDF.h"
 #include "nsXULTemplateQueryProcessorXML.h"
+#include "nsXULTemplateQueryProcessorStorage.h"
 
 //----------------------------------------------------------------------
 
@@ -1159,6 +1159,10 @@ nsXULTemplateBuilder::LoadDataSources(nsIDocument* aDocument,
     }
     else if (querytype.EqualsLiteral("xml")) {
         mQueryProcessor = new nsXULTemplateQueryProcessorXML();
+        NS_ENSURE_TRUE(mQueryProcessor, NS_ERROR_OUT_OF_MEMORY);
+    }
+    else if (querytype.EqualsLiteral("storage")) {
+        mQueryProcessor = new nsXULTemplateQueryProcessorStorage();
         NS_ENSURE_TRUE(mQueryProcessor, NS_ERROR_OUT_OF_MEMORY);
     }
     else {

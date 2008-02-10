@@ -60,7 +60,6 @@
 #include "keyhi.h"
 #include "ocsp.h"
 #include "ocspt.h"
-#include "ocspti.h"
 #include "pk11pub.h"
 #include "pkcs11.h"
 #include "pkcs11t.h"
@@ -103,6 +102,7 @@
 #include "pkix_pl_httpdefaultclient.h"
 #include "pkix_pl_infoaccess.h"
 #include "pkix_sample_modules.h"
+#include "pkix_pl_ekuchecker.h"
 
 #define MAX_DIGITS_32 (PKIX_UInt32) 10
 

@@ -83,6 +83,10 @@
 #include "prmem.h"
 #include "plbase64.h"
 
+#ifdef MOZ_SHARK
+#include "jsdbgapi.h"
+#endif
+
 static const char kJSRuntimeServiceContractID[] = "@mozilla.org/js/xpc/RuntimeService;1";
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;1";
@@ -272,7 +276,12 @@ static JSFunctionSpec gGlobalFun[] = {
     {"debug",   Debug,  1,0,0},
     {"atob",    Atob,   1,0,0},
     {"btoa",    Btoa,   1,0,0},
-
+#ifdef MOZ_SHARK
+    {"startShark",      js_StartShark,     0,0,0},
+    {"stopShark",       js_StopShark,      0,0,0},
+    {"connectShark",    js_ConnectShark,   0,0,0},
+    {"disconnectShark", js_DisconnectShark,0,0,0},
+#endif
     {nsnull,nsnull,0,0,0}
 };
 
@@ -1230,7 +1239,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponent,
     // that?  On the other hand, the fact that this is in our components dir
     // means that if someone snuck a malicious file into this dir we're screwed
     // anyway...  So maybe flagging as a prefix is fine.
-    xpc->FlagSystemFilenamePrefix(nativePath.get());
+    xpc->FlagSystemFilenamePrefix(nativePath.get(), PR_TRUE);
 
 #ifdef DEBUG_shaver_off
     fprintf(stderr, "mJCL: compiled JS component %s\n",
@@ -1310,8 +1319,8 @@ mozJSComponentLoader::Import(const nsACString & registryLocation)
         do_GetService(kXPConnectServiceContractID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    nsCOMPtr<nsIXPCNativeCallContext> cc;
-    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext(&cc);
     NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG
@@ -1370,10 +1379,8 @@ mozJSComponentLoader::Import(const nsACString & registryLocation)
             NS_ERROR("null calling object");
             return NS_ERROR_FAILURE;
         }
-        
-        JSObject *parent;
-        while ((parent = JS_GetParent(cx, targetObject)))
-            targetObject = parent;
+
+        targetObject = JS_GetGlobalForObject(cx, targetObject);
     }
  
     JSObject *globalObj = nsnull;
@@ -1392,10 +1399,11 @@ mozJSComponentLoader::Import(const nsACString & registryLocation)
 NS_IMETHODIMP
 mozJSComponentLoader::ImportInto(const nsACString & aLocation,
                                  JSObject * targetObj,
-                                 nsIXPCNativeCallContext * cc,
+                                 nsAXPCNativeCallContext * cc,
                                  JSObject * *_retval)
 {
     nsresult rv;
+    *_retval = nsnull;
 
     if (!mInitialized) {
         rv = ReallyInit();
@@ -1405,19 +1413,12 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
     nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString scheme;
-    rv = ioService->ExtractScheme(aLocation, scheme);
-    if (NS_FAILED(rv) ||
-        !scheme.EqualsLiteral("resource")) {
-      *_retval = nsnull;
-      return NS_ERROR_INVALID_ARG;
-    }
-
-    // Get the resource:// URI.
+    // Get the URI.
     nsCOMPtr<nsIURI> resURI;
     rv = ioService->NewURI(aLocation, nsnull, nsnull, getter_AddRefs(resURI));
     nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(resURI, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    // If we don't have a file URL, then the location passed in is invalid.
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_INVALID_ARG);
 
     // Get the file belonging to it.
     nsCOMPtr<nsIFile> file;
@@ -1534,7 +1535,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 }
 
 nsresult
-mozJSComponentLoader::ReportOnCaller(nsIXPCNativeCallContext *cc,
+mozJSComponentLoader::ReportOnCaller(nsAXPCNativeCallContext *cc,
                                      const char *format, ...) {
     if (!cc) {
         return NS_ERROR_FAILURE;

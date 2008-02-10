@@ -266,6 +266,8 @@ public:
     static guint32     mLastButtonPressTime;
     static guint32     mLastButtonReleaseTime;
 
+    NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+
 #ifdef USE_XIM
     void               IMEInitData       (void);
     void               IMEReleaseData    (void);
@@ -341,13 +343,10 @@ public:
 
    void                ResizeTransparencyBitmap(PRInt32 aNewWidth, PRInt32 aNewHeight);
    void                ApplyTransparencyBitmap();
-#ifdef MOZ_XUL
-   NS_IMETHOD          SetWindowTranslucency(PRBool aTransparent);
-   NS_IMETHOD          GetWindowTranslucency(PRBool& aTransparent);
+   NS_IMETHOD          SetHasTransparentBackground(PRBool aTransparent);
+   NS_IMETHOD          GetHasTransparentBackground(PRBool& aTransparent);
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
-   NS_IMETHOD          UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas);
-#endif
 
     gfxASurface       *GetThebesSurface();
 
@@ -362,6 +361,7 @@ private:
     void              *SetupPluginPort(void);
     nsresult           SetWindowIconList(const nsCStringArray &aIconList);
     void               SetDefaultIcon(void);
+    void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
@@ -380,8 +380,8 @@ private:
     PRInt32             mSizeState;
     PluginType          mPluginType;
 
-    PRUint32            mTransparencyBitmapWidth;
-    PRUint32            mTransparencyBitmapHeight;
+    PRInt32             mTransparencyBitmapWidth;
+    PRInt32             mTransparencyBitmapHeight;
 
     nsRefPtr<gfxASurface> mThebesSurface;
 
@@ -398,7 +398,7 @@ private:
     static GdkCursor   *gsGtkCursorCache[eCursorCount];
 
     // Transparency
-    PRBool       mIsTranslucent;
+    PRBool       mIsTransparent;
     // This bitmap tracks which pixels are transparent. We don't support
     // full translucency at this time; each pixel is either fully opaque
     // or fully transparent.

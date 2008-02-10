@@ -445,10 +445,10 @@ TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
 }
 
 static PRIntn PR_CALLBACK
-UnlinkProtos(nsHashKey *aKey, void *aData, void* aClosure)
+UnlinkProtoJSObjects(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsXBLPrototypeBinding *proto = static_cast<nsXBLPrototypeBinding*>(aData);
-  proto->Unlink();
+  proto->UnlinkJSObjects();
   return kHashEnumerateNext;
 }
 
@@ -468,10 +468,12 @@ TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLDocumentInfo)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXBLDocumentInfo)
   if (tmp->mBindingTable) {
-    tmp->mBindingTable->Enumerate(UnlinkProtos, nsnull);
+    tmp->mBindingTable->Enumerate(UnlinkProtoJSObjects, nsnull);
   }
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -576,6 +578,7 @@ nsXBLDocumentInfo::SetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
 
   const nsPromiseFlatCString& flat = PromiseFlatCString(aRef);
   nsCStringKey key(flat.get());
+  NS_ENSURE_STATE(!mBindingTable->Get(&key));
   mBindingTable->Put(&key, aBinding);
 
   return NS_OK;

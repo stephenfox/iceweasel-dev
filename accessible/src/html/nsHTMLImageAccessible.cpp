@@ -84,7 +84,7 @@ nsLinkableAccessible(aDOMNode, aShell), mAccessNodeCache(nsnull)
   }
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLImageAccessible, nsLinkableAccessible, nsIAccessibleImage)
+NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLImageAccessible, nsAccessible, nsIAccessibleImage)
 
 NS_IMETHODIMP
 nsHTMLImageAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
@@ -94,6 +94,8 @@ nsHTMLImageAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
   nsresult rv = nsLinkableAccessible::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mDOMNode));
   nsCOMPtr<imgIRequest> imageRequest;
@@ -205,12 +207,12 @@ void nsHTMLImageAccessible::CacheChildren()
     return;
   }
 
+  mAccChildCount = 0;
   nsCOMPtr<nsIDOMHTMLCollection> mapAreas;
   if (mMapElement) {
     mMapElement->GetAreas(getter_AddRefs(mapAreas));
   }
   if (!mapAreas) {
-    mAccChildCount = 0;
     return;
   }
 
@@ -261,9 +263,23 @@ NS_IMETHODIMP nsHTMLImageAccessible::DoAction(PRUint8 index)
   return nsLinkableAccessible::DoAction(index);
 }
 
-NS_IMETHODIMP nsHTMLImageAccessible::GetImageBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height)
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetImagePosition(PRUint32 aCoordType,
+                                        PRInt32 *aX, PRInt32 *aY)
 {
-  return GetBounds(x, y, width, height);
+  PRInt32 width, height;
+  nsresult rv = GetBounds(aX, aY, &width, &height);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
+}
+
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetImageSize(PRInt32 *aWidth, PRInt32 *aHeight)
+{
+  PRInt32 x, y;
+  return GetBounds(&x, &y, aWidth, aHeight);
 }
 
 NS_IMETHODIMP

@@ -113,10 +113,10 @@ public:
                            PRInt32                aIndexInContainer,
                            nsILayoutHistoryState* aFrameState);
 
-  nsresult ContentRemoved(nsIContent*     aContainer,
-                          nsIContent*     aChild,
-                          PRInt32         aIndexInContainer,
-                          PRBool          aInReinsertContent);
+  nsresult ContentRemoved(nsIContent* aContainer,
+                          nsIContent* aChild,
+                          PRInt32     aIndexInContainer,
+                          PRBool*     aDidReconstruct);
 
   nsresult CharacterDataChanged(nsIContent*     aContent,
                                 PRBool          aAppend);
@@ -128,13 +128,15 @@ public:
   // Process the children of aContent and indicate that frames should be
   // created for them. This is used for lazily built content such as that
   // inside popups so that it is only created when the popup is opened.
-  // This method constructs the frames asynchronously.
+  // If aIsSynch is true, this method constructs the frames synchronously.
   // aCallback will be called with three arguments, the first is the value
   // of aContent, the second is aContent's primary frame, and the third is
   // the value of aArg.
+  // aCallback will always be called even if the children of aContent had
+  // been generated earlier.
   nsresult AddLazyChildren(nsIContent* aContent,
                            nsLazyFrameConstructionCallback* aCallback,
-                           void* aArg);
+                           void* aArg, PRBool aIsSynch = PR_FALSE);
 
   // Should be called when a frame is going to be destroyed and
   // WillDestroyFrameTree hasn't been called yet.
@@ -175,9 +177,23 @@ public:
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
   void ProcessPendingRestyles();
+  
+  void RebuildAllStyleData();
 
   void PostRestyleEvent(nsIContent* aContent, nsReStyleHint aRestyleHint,
                         nsChangeHint aMinChangeHint);
+
+  /**
+   * Asynchronously clear style data from the root frame downwards and ensure
+   * it will all be rebuilt. This is safe to call anytime; it will schedule
+   * a restyle and take effect next time style changes are flushed.
+   * This method is used to recompute the style data when some change happens
+   * outside of any style rules, like a color preference change or a change
+   * in a system font size, or to fix things up when an optimization in the
+   * style data has become invalid. We assume that the root frame will not
+   * need to be reframed.
+   */
+  void PostRebuildAllStyleDataEvent();
 
   // Request to create a continuing frame
   nsresult CreateContinuingFrame(nsPresContext* aPresContext,
@@ -322,8 +338,7 @@ private:
    * to create into aChildItems.  The newly-created outer frame will either be
    * in aChildItems or a descendant of a pseudo in aChildItems (unless it's
    * positioned or floated, in which case its placeholder will be in
-   * aChildItems).  If aAllowOutOfFlow is false, the table frame will be forced
-   * to be in-flow no matter what its float or position values are.
+   * aChildItems).
    */ 
   nsresult ConstructTableFrame(nsFrameConstructorState& aState,
                                nsIContent*              aContent,
@@ -332,7 +347,6 @@ private:
                                PRInt32                  aNameSpaceID,
                                PRBool                   aIsPseudo,
                                nsFrameItems&            aChildItems,
-                               PRBool                   aAllowOutOfFlow,
                                nsIFrame*&               aNewOuterFrame,
                                nsIFrame*&               aNewInnerFrame);
 
@@ -709,14 +723,16 @@ private:
   nsIFrame* GetFrameFor(nsIContent* aContent);
 
   /**
-   * These functions are used when we start frame creation from a non-root
+   * These two functions are used when we start frame creation from a non-root
    * element. They should recreate the same state that we would have
    * arrived at if we had built frames from the root frame to aFrame.
    * Therefore, any calls to PushFloatContainingBlock and
    * PushAbsoluteContainingBlock during frame construction should get
    * corresponding logic in these functions.
    */
+public:
   nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
+private:
   nsIFrame* GetFloatContainingBlock(nsIFrame* aFrame);
 
   nsIContent* PropagateScrollToViewport();
@@ -1007,30 +1023,52 @@ private:
 
   nsresult RemoveFixedItems(const nsFrameConstructorState& aState);
 
+  // Find the right frame to use for aContent when looking for sibling
+  // frames for aTargetContent.  If aPrevSibling is true, this
+  // will look for last continuations, etc, as necessary.  This calls
+  // IsValidSibling as needed; if that returns false it returns null.
+  //
+  // @param aTargetContentDisplay the CSS display enum for aTargetContent if
+  // already known, UNSET_DISPLAY otherwise.
+  nsIFrame* FindFrameForContentSibling(nsIContent* aContent,
+                                       nsIContent* aTargetContent,
+                                       PRUint8& aTargetContentDisplay,
+                                       PRBool aPrevSibling);
+
   // Find the ``rightmost'' frame for the content immediately preceding
-  // aIndexInContainer, following continuations if necessary. If aChild is
-  // not null, make sure it passes the call to IsValidSibling
-  nsIFrame* FindPreviousSibling(nsIContent*       aContainer,
-                                nsIFrame*         aContainerFrame,
-                                PRInt32           aIndexInContainer,
-                                const nsIContent* aChild = nsnull);
+  // aIndexInContainer, following continuations if necessary.
+  nsIFrame* FindPreviousSibling(nsIContent* aContainer,
+                                PRInt32     aIndexInContainer,
+                                nsIContent* aChild);
 
   // Find the frame for the content node immediately following aIndexInContainer.
-  // If aChild is not null, make sure it passes the call to IsValidSibling
-  nsIFrame* FindNextSibling(nsIContent*       aContainer,
-                            nsIFrame*         aContainerFrame,
-                            PRInt32           aIndexInContainer,
-                            const nsIContent* aChild = nsnull);
+  nsIFrame* FindNextSibling(nsIContent* aContainer,
+                            PRInt32     aIndexInContainer,
+                            nsIContent* aChild);
 
   // see if aContent and aSibling are legitimate siblings due to restrictions
   // imposed by table columns
   // XXXbz this code is generally wrong, since the frame for aContent
   // may be constructed based on tag, not based on aDisplay!
-  PRBool IsValidSibling(nsIFrame*              aParentFrame,
-                        nsIFrame*              aSibling,
-                        PRUint8                aSiblingDisplay,
-                        nsIContent&            aContent,
+  PRBool IsValidSibling(nsIFrame*              aSibling,
+                        nsIContent*            aContent,
                         PRUint8&               aDisplay);
+  
+  /**
+   * Find the ``rightmost'' frame for the anonymous content immediately
+   * preceding aChild, following continuation if necessary.
+   */
+  nsIFrame*
+  FindPreviousAnonymousSibling(nsIContent*   aContainer,
+                               nsIContent*   aChild);
+
+  /**
+   * Find the frame for the anonymous content immediately following
+   * aChild.
+   */
+  nsIFrame*
+  FindNextAnonymousSibling(nsIContent*   aContainer,
+                           nsIContent*   aChild);
 
   void QuotesDirty() {
     NS_PRECONDITION(mUpdateCount != 0, "Instant quote updates are bad news");
@@ -1077,6 +1115,7 @@ private:
   class LazyGenerateChildrenEvent;
   friend class LazyGenerateChildrenEvent;
 
+  // See comments of nsCSSFrameConstructor::AddLazyChildren()
   class LazyGenerateChildrenEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
@@ -1109,6 +1148,7 @@ private:
   PRPackedBool        mCountersDirty : 1;
   PRPackedBool        mInitialContainingBlockIsAbsPosContainer : 1;
   PRPackedBool        mIsDestroyingFrameTree : 1;
+  PRPackedBool        mRebuildAllStyleData : 1;
 
   nsRevocableEventPtr<RestyleEvent> mRestyleEvent;
 

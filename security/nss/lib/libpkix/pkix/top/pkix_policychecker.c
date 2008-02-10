@@ -357,6 +357,8 @@ pkix_PolicyCheckerState_RegisterSelf(void *plContext)
                 "pkix_PolicyCheckerState_RegisterSelf");
 
         entry.description = "PolicyCheckerState";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PolicyCheckerState);
         entry.destructor = pkix_PolicyCheckerState_Destroy;
         entry.equalsFunction = NULL;
         entry.hashcodeFunction = NULL;
@@ -525,12 +527,11 @@ pkix_PolicyCheckerState_Create(
         checkerState->mappedPolicyOIDs = NULL;
 
         *pCheckerState = checkerState;
+        checkerState = NULL;
 
 cleanup:
 
-        if (PKIX_ERROR_RECEIVED) {
-                PKIX_DECREF(checkerState);
-        }
+        PKIX_DECREF(checkerState);
 
         PKIX_DECREF(anyPolicyList);
 
@@ -2630,11 +2631,11 @@ pkix_PolicyChecker_Check(
 
 subrErrorCleanup:
                 /* We had an error. Was it a fatal error? */
-                pkixTempResult = PKIX_Error_GetErrorClass
-                        (subroutineErr, &pkixErrorClass, plContext);
-                if (pkixTempResult) return pkixTempResult;
+                pkixErrorClass = subroutineErr->errClass;
                 if (pkixErrorClass == PKIX_FATAL_ERROR) {
-                    PKIX_THROW(FATAL, PKIX_POLICYCHECKERERROR);
+                    pkixErrorResult = subroutineErr;
+                    subroutineErr = NULL;
+                    goto cleanup;
                 }
                 /*
                  * Abort policy processing, and then determine whether

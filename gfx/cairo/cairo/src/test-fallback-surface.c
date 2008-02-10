@@ -62,7 +62,7 @@ typedef struct _test_fallback_surface {
     cairo_surface_t *backing;
 } test_fallback_surface_t;
 
-const cairo_private cairo_surface_backend_t test_fallback_surface_backend;
+static const cairo_surface_backend_t test_fallback_surface_backend;
 
 slim_hidden_proto (_cairo_test_fallback_surface_create);
 
@@ -76,13 +76,12 @@ _cairo_test_fallback_surface_create (cairo_content_t	content,
 
     backing = _cairo_image_surface_create_with_content (content, width, height);
     if (cairo_surface_status (backing))
-	return (cairo_surface_t*) &_cairo_surface_nil;
+	return backing;
 
     surface = malloc (sizeof (test_fallback_surface_t));
     if (surface == NULL) {
 	cairo_surface_destroy (backing);
-	_cairo_error (CAIRO_STATUS_NO_MEMORY);
-	return (cairo_surface_t*) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
     _cairo_surface_init (&surface->base, &test_fallback_surface_backend,
@@ -199,7 +198,7 @@ _test_fallback_surface_get_extents (void		  *abstract_surface,
     return _cairo_surface_get_extents (surface->backing, rectangle);
 }
 
-const cairo_surface_backend_t test_fallback_surface_backend = {
+static const cairo_surface_backend_t test_fallback_surface_backend = {
     CAIRO_INTERNAL_SURFACE_TYPE_TEST_FALLBACK,
     _test_fallback_surface_create_similar,
     _test_fallback_surface_finish,

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=2 et tw=80: */
+/* vim: set sw=2 ts=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -474,47 +474,52 @@ CNavDTD::GetType()
   return NS_IPARSER_FLAG_HTML; 
 }
 
-/**
- * Text and some tags require a body when they're added, this function returns
- * true for those tags.
- *
- * @param aToken The current token that we care about.
- * @param aTokenizer A tokenizer that we can get the tags attributes off of.
- * @return PR_TRUE if aToken does indeed force the body to open.
- */
 static PRBool
-DoesRequireBody(CToken* aToken, nsITokenizer* aTokenizer)
+ValueIsHidden(const nsAString& aValue)
 {
-  PRBool result = PR_FALSE;
+  // Having to deal with whitespace here sucks, but we have to match
+  // what the content sink does.
+  nsAutoString str(aValue);
+  str.Trim("\n\r\t\b");
+  return str.LowerCaseEqualsLiteral("hidden");
+}
 
-  if (aToken) {
-    eHTMLTags theTag = (eHTMLTags)aToken->GetTypeID();
-    if (gHTMLElements[theTag].HasSpecialProperty(kRequiresBody)) {
-      if (theTag == eHTMLTag_input) {
-        // IE & Nav4x opens up a body for type=text - Bug 66985
-        PRInt32 ac = aToken->GetAttributeCount();
-        for(PRInt32 i = 0; i < ac; ++i) {
-          CAttributeToken* attr = static_cast<CAttributeToken*>
-                                             (aTokenizer->GetTokenAt(i));
-          const nsSubstring& name = attr->GetKey();
-          const nsAString& value = attr->GetValue();
-
-          if ((name.EqualsLiteral("type") || 
-               name.EqualsLiteral("TYPE"))    
-              && 
-              !(value.EqualsLiteral("hidden") || 
-              value.EqualsLiteral("HIDDEN"))) {
-            result = PR_TRUE; 
-            break;
-          }
-        }
-      } else {
-        result = PR_TRUE;
-      }
+// Check whether aToken corresponds to a <input type="hidden"> tag.  The token
+// must be a start tag token for an <input>.  This must be called at a point
+// when all the attributes for the input are still in the tokenizer.
+static PRBool
+IsHiddenInput(CToken* aToken, nsITokenizer* aTokenizer)
+{
+  NS_PRECONDITION(eHTMLTokenTypes(aToken->GetTokenType()) == eToken_start,
+                  "Must be start token");
+  NS_PRECONDITION(eHTMLTags(aToken->GetTypeID()) == eHTMLTag_input,
+                  "Must be <input> tag");
+  
+  PRInt32 ac = aToken->GetAttributeCount();
+  NS_ASSERTION(ac <= aTokenizer->GetCount(),
+               "Not enough tokens in the tokenizer");
+  // But we don't really trust ourselves to get that right
+  ac = PR_MIN(ac, aTokenizer->GetCount());
+  
+  for (PRInt32 i = 0; i < ac; ++i) {
+    NS_ASSERTION(eHTMLTokenTypes(aTokenizer->GetTokenAt(i)->GetTokenType()) ==
+                   eToken_attribute, "Unexpected token type");
+    // Again, we're not sure we actually manage to guarantee that
+    if (eHTMLTokenTypes(aTokenizer->GetTokenAt(i)->GetTokenType()) !=
+        eToken_attribute) {
+      break;
     }
+    
+    CAttributeToken* attrToken =
+      static_cast<CAttributeToken*>(aTokenizer->GetTokenAt(i));
+    if (!attrToken->GetKey().LowerCaseEqualsLiteral("type")) {
+      continue;
+    }
+
+    return ValueIsHidden(attrToken->GetValue());
   }
- 
-  return result;
+
+  return PR_FALSE;    
 }
 
 /**
@@ -566,7 +571,6 @@ CNavDTD::HandleToken(CToken* aToken, nsIParser* aParser)
     }
 
     eHTMLTags theParentTag = mBodyContext->Last();
-    theTag = (eHTMLTags)theToken->GetTypeID();
     if (FindTagInSet(theTag, gLegalElements,
                      NS_ARRAY_LENGTH(gLegalElements)) ||
         (gHTMLElements[theParentTag].CanContain(theTag, mDTDMode) &&
@@ -581,7 +585,11 @@ CNavDTD::HandleToken(CToken* aToken, nsIParser* aParser)
          // noscript, etc).  Script is special, though.  Shipping it out
          // breaks document.write stuff.  See bug 243064.
          (!gHTMLElements[theTag].HasSpecialProperty(kLegalOpen) ||
-          theTag == eHTMLTag_script))) {
+          theTag == eHTMLTag_script)) ||
+        (theTag == eHTMLTag_input && theType == eToken_start &&
+         FindTagInSet(theParentTag, gLegalElements,
+                      NS_ARRAY_LENGTH(gLegalElements)) &&
+         IsHiddenInput(theToken, mTokenizer))) {
       // Reset the state since all the misplaced tokens are about to get
       // handled.
       mFlags &= ~NS_DTD_FLAG_MISPLACED_CONTENT;
@@ -677,7 +685,10 @@ CNavDTD::HandleToken(CToken* aToken, nsIParser* aParser)
               // end tag.
             }
 
-            if (DoesRequireBody(aToken, mTokenizer)) {
+            if (gHTMLElements[theTag].HasSpecialProperty(kRequiresBody) &&
+                (theTag != eHTMLTag_input ||
+                 theType != eToken_start ||
+                 !IsHiddenInput(aToken, mTokenizer))) {
               CToken* theBodyToken =
                 mTokenAllocator->CreateTokenOfType(eToken_start,
                                                    eHTMLTag_body,
@@ -731,12 +742,11 @@ CNavDTD::HandleToken(CToken* aToken, nsIParser* aParser)
         break;
     }
 
-    if (NS_SUCCEEDED(result) || NS_ERROR_HTMLPARSER_BLOCK == result) {
-       IF_FREE(theToken, mTokenAllocator);
-    } else if (result == NS_ERROR_HTMLPARSER_STOPPARSING) {
+    IF_FREE(theToken, mTokenAllocator);
+    if (result == NS_ERROR_HTMLPARSER_STOPPARSING) {
       mFlags |= NS_DTD_FLAG_STOP_PARSING;
-    } else {
-      return NS_OK;
+    } else if (NS_FAILED(result) && result != NS_ERROR_HTMLPARSER_BLOCK) {
+      result = NS_OK;
     }
   }
 
@@ -875,9 +885,33 @@ CNavDTD::HandleDefaultStartToken(CToken* aToken, eHTMLTags aChildTag,
     do {
       eHTMLTags theParentTag = mBodyContext->TagAt(--theIndex);
 
+      // Figure out whether this is a hidden input inside a
+      // table/tbody/thead/tfoot/tr
+      static eHTMLTags sTableElements[] = {
+        eHTMLTag_table, eHTMLTag_thead, eHTMLTag_tbody,
+        eHTMLTag_tr, eHTMLTag_tfoot
+      };
+
+      PRBool isHiddenInputInsideTableElement = PR_FALSE;
+      if (aChildTag == eHTMLTag_input &&
+          FindTagInSet(theParentTag, sTableElements,
+                       NS_ARRAY_LENGTH(sTableElements))) {
+        PRInt32 attrCount = aNode->GetAttributeCount();
+        for (PRInt32 attrIndex = 0; attrIndex < attrCount; ++attrIndex) {
+          const nsAString& key = aNode->GetKeyAt(attrIndex);
+          if (key.LowerCaseEqualsLiteral("type")) {
+            isHiddenInputInsideTableElement =
+              ValueIsHidden(aNode->GetValueAt(attrIndex));
+            break;
+          }
+        }
+      }
+      
       // Precompute containment, and pass it to CanOmit()...
-      theParentContains = CanContain(theParentTag, aChildTag);
-      if (CanOmit(theParentTag, aChildTag, theParentContains)) {
+      theParentContains =
+        isHiddenInputInsideTableElement || CanContain(theParentTag, aChildTag);
+      if (!isHiddenInputInsideTableElement &&
+          CanOmit(theParentTag, aChildTag, theParentContains)) {
         HandleOmittedTag(aToken, aChildTag, theParentTag, aNode);
         return NS_OK;
       }
@@ -1087,6 +1121,14 @@ CNavDTD::HandleOmittedTag(CToken* aToken, eHTMLTags aChildTag,
       !nsHTMLElement::IsWhitespaceTag(aChildTag)) {
     eHTMLTags theTag = eHTMLTag_unknown;
 
+    // Don't bother saving misplaced stuff in the head. This can happen in
+    // cases like |<head><noscript><table>foo|. See bug 401169.
+    if (mFlags & NS_DTD_FLAG_HAS_OPEN_HEAD) {
+      NS_ASSERTION(!(mFlags & NS_DTD_FLAG_HAS_MAIN_CONTAINER),
+                   "Bad state");
+      return;
+    }
+
     // Determine the insertion point
     while (theTagCount > 0) {
       theTag = mBodyContext->TagAt(--theTagCount);
@@ -1104,7 +1146,7 @@ CNavDTD::HandleOmittedTag(CToken* aToken, eHTMLTags aChildTag,
       mFlags |= NS_DTD_FLAG_MISPLACED_CONTENT;
     }
   }
-  
+
   if (aChildTag != aParent &&
       gHTMLElements[aParent].HasSpecialProperty(kSaveMisplaced)) {
     NS_ASSERTION(!pushToken, "A strange element has both kBadContentWatch "

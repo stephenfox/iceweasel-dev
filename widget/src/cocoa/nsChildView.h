@@ -92,7 +92,7 @@ union nsPluginPort;
   BOOL mIsPluginView;
 
   NSEvent* mCurKeyEvent;   // only valid during a keyDown
-  PRBool  mKeyHandled;
+  PRBool mKeyDownHandled;
   
   // needed for NSTextInput implementation
   NSRange mMarkedRange;
@@ -111,6 +111,10 @@ union nsPluginPort;
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
 
+  // All views are always opaque (non-transparent). The only exception is when we're
+  // the content view in a transparent XUL window.
+  BOOL mIsTransparent;
+
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
   // the mouse exits or there is a drop. This prevents us from having to
@@ -127,6 +131,10 @@ union nsPluginPort;
 
 // Stop NSView hierarchy being changed during [ChildView drawRect:]
 - (void)delayedTearDown;
+
+- (void)setTransparent:(BOOL)transparent;
+
+- (void)sendFocusEvent:(PRUint32)eventType;
 @end
 
 
@@ -239,7 +247,6 @@ public:
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
-  NS_IMETHOD              MoveWithRepaintOption(PRInt32 aX, PRInt32 aY, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aWidth,PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY,PRInt32 aWidth,PRInt32 aHeight, PRBool aRepaint);
 
@@ -276,7 +283,7 @@ public:
 
   NS_IMETHOD        SetMenuBar(nsIMenuBar * aMenuBar);
   NS_IMETHOD        ShowMenuBar(PRBool aShow);
-  virtual nsIMenuBar*   GetMenuBar();
+
   NS_IMETHOD        GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight);
   NS_IMETHOD        SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight);
   
@@ -293,12 +300,13 @@ public:
   NS_IMETHOD        StartDrawPlugin();
   NS_IMETHOD        EndDrawPlugin();
   
+  NS_IMETHOD        GetHasTransparentBackground(PRBool& aTransparent);
+  NS_IMETHOD        SetHasTransparentBackground(PRBool aTransparent);
+  
   // Mac specific methods
   virtual PRBool    PointInWidget(Point aThePoint);
   
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
-  virtual void      AcceptFocusOnClick(PRBool aBool) { mAcceptFocusOnClick = aBool;};
-  PRBool            AcceptFocusOnClick() { return mAcceptFocusOnClick;};
   
   void              LiveResizeStarted();
   void              LiveResizeEnded();
@@ -342,17 +350,15 @@ protected:
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
 
-  PRPackedBool          mDestructorCalled;
   PRPackedBool          mVisible;
-
   PRPackedBool          mDrawing;
-    
-  PRPackedBool          mAcceptFocusOnClick;
   PRPackedBool          mLiveResizeInProgress;
   PRPackedBool          mIsPluginView; // true if this is a plugin view
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
-  
+
+  PRPackedBool          mInSetFocus;
+
   nsPluginPort          mPluginPort;
 };
 

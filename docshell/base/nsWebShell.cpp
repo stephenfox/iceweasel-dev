@@ -565,7 +565,6 @@ nsWebShell::~nsWebShell()
              // recursively if the refcount is allowed to remain 0
 
   mContentViewer=nsnull;
-  mDeviceContext=nsnull;
 
   InitFrameData();
 
@@ -767,7 +766,7 @@ nsWebShell::OnLinkClick(nsIContent* aContent,
 {
   NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
-  if (mFiredUnloadEvent) {
+  if (!IsOKToLoadURI(aURI)) {
     return NS_OK;
   }
 
@@ -798,7 +797,7 @@ nsWebShell::OnLinkClickSync(nsIContent *aContent,
     *aRequest = nsnull;
   }
 
-  if (mFiredUnloadEvent) {
+  if (!IsOKToLoadURI(aURI)) {
     return NS_OK;
   }
 
@@ -1196,6 +1195,7 @@ nsresult nsWebShell::EndPageLoad(nsIWebProgress *aProgress,
              aStatus == NS_ERROR_NET_RESET ||
              aStatus == NS_ERROR_MALWARE_URI ||
              aStatus == NS_ERROR_PHISHING_URI ||
+             aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
              NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
       DisplayLoadError(aStatus, url, nsnull, channel);
     }

@@ -740,11 +740,20 @@ nsHTMLInputElement::GetValue(nsAString& aValue)
   }
 
   if (mType == NS_FORM_INPUT_FILE) {
-    if (mFileName) {
-      aValue = *mFileName;
-    }
-    else {
-      aValue.Truncate();
+    if (nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
+      if (mFileName) {
+        aValue = *mFileName;
+      }
+      else {
+        aValue.Truncate();
+      }
+    } else {
+      // Just return the leaf name
+      nsCOMPtr<nsIFile> file;
+      GetFile(getter_AddRefs(file));
+      if (!file || NS_FAILED(file->GetLeafName(aValue))) {
+        aValue.Truncate();
+      }
     }
     
     return NS_OK;
@@ -771,15 +780,7 @@ nsHTMLInputElement::SetValue(const nsAString& aValue)
   // OK and gives pages a way to clear a file input if necessary.
   if (mType == NS_FORM_INPUT_FILE) {
     if (!aValue.IsEmpty()) {
-      nsIScriptSecurityManager *securityManager =
-        nsContentUtils::GetSecurityManager();
-
-      PRBool enabled;
-      nsresult rv =
-        securityManager->IsCapabilityEnabled("UniversalFileRead", &enabled);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      if (!enabled) {
+      if (!nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
         // setting the value of a "FILE" input widget requires the
         // UniversalFileRead privilege
         return NS_ERROR_DOM_SECURITY_ERR;
@@ -2094,6 +2095,12 @@ nsHTMLInputElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     nsGenericHTMLFormElement::GetAttributeChangeHint(aAttribute, aModType);
   if (aAttribute == nsGkAtoms::type) {
     NS_UpdateHint(retval, NS_STYLE_HINT_FRAMECHANGE);
+  } else if (mType == NS_FORM_INPUT_IMAGE &&
+             (aAttribute == nsGkAtoms::alt ||
+              aAttribute == nsGkAtoms::value)) {
+    // We might need to rebuild our alt text.  Just go ahead and
+    // reconstruct our frame.  This should be quite rare..
+    NS_UpdateHint(retval, NS_STYLE_HINT_FRAMECHANGE);
   } else if (aAttribute == nsGkAtoms::value) {
     NS_UpdateHint(retval, NS_STYLE_HINT_REFLOW);
   } else if (aAttribute == nsGkAtoms::size &&
@@ -2245,7 +2252,7 @@ nsHTMLInputElement::SetSelectionEnd(PRInt32 aSelectionEnd)
 }
 
 NS_IMETHODIMP
-nsHTMLInputElement::GetFileList(nsIDOMFileList** aFileList)
+nsHTMLInputElement::GetFiles(nsIDOMFileList** aFileList)
 {
   *aFileList = nsnull;
 

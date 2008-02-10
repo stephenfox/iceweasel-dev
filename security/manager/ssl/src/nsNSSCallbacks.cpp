@@ -24,6 +24,7 @@
  *   Brian Ryner <bryner@brianryner.com>
  *   Terry Hayes <thayes@netscape.com>
  *   Kai Engert <kengert@redhat.com>
+ *   Petr Kostka <petr.kostka@st.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -55,6 +56,8 @@
 #include "nsProxiedService.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsProtectedAuthThread.h"
+#include "nsITokenDialogs.h"
 #include "nsCRT.h"
 #include "nsNSSShutDown.h"
 #include "nsIUploadChannel.h"
@@ -210,6 +213,13 @@ SECStatus nsNSSHttpRequestSession::createFcn(SEC_HTTP_SERVER_SESSION session,
     return SECFailure;
 
   rs->mTimeoutInterval = timeout;
+
+  // Use a maximum timeout value of 10 seconds because of bug 404059.
+  // FIXME: Use a better approach once 406120 is ready.
+  PRUint32 maxBug404059Timeout = PR_TicksPerSecond() * 10;
+  if (timeout > maxBug404059Timeout) {
+    rs->mTimeoutInterval = maxBug404059Timeout;
+  }
 
   rs->mURL.Append(nsDependentCString(http_protocol_variant));
   rs->mURL.AppendLiteral("://");
@@ -623,6 +633,62 @@ void nsHTTPListener::send_done_signal()
   }
 }
 
+static char*
+ShowProtectedAuthPrompt(PK11SlotInfo* slot, nsIInterfaceRequestor *ir)
+{
+  char* protAuthRetVal = nsnull;
+
+  // Get protected auth dialogs
+  nsITokenDialogs* dialogs = 0;
+  nsresult nsrv = getNSSDialogs((void**)&dialogs, 
+                                NS_GET_IID(nsITokenDialogs), 
+                                NS_TOKENDIALOGS_CONTRACTID);
+  if (NS_SUCCEEDED(nsrv))
+  {
+    nsProtectedAuthThread* protectedAuthRunnable = new nsProtectedAuthThread();
+    if (protectedAuthRunnable)
+    {
+      NS_ADDREF(protectedAuthRunnable);
+
+      protectedAuthRunnable->SetParams(slot);
+      
+      nsCOMPtr<nsIProtectedAuthThread> runnable = do_QueryInterface(protectedAuthRunnable);
+      if (runnable)
+      {
+        nsrv = dialogs->DisplayProtectedAuth(ir, runnable);
+              
+        // We call join on the thread,
+        // so we can be sure that no simultaneous access will happen.
+        protectedAuthRunnable->Join();
+              
+        if (NS_SUCCEEDED(nsrv))
+        {
+          SECStatus rv = protectedAuthRunnable->GetResult();
+          switch (rv)
+          {
+              case SECSuccess:
+                  protAuthRetVal = PK11_PW_AUTHENTICATED;
+                  break;
+              case SECWouldBlock:
+                  protAuthRetVal = PK11_PW_RETRY;
+                  break;
+              default:
+                  protAuthRetVal = nsnull;
+                  break;
+              
+          }
+        }
+      }
+
+      NS_RELEASE(protectedAuthRunnable);
+    }
+
+    NS_RELEASE(dialogs);
+  }
+
+  return protAuthRetVal;
+}
+  
 char* PR_CALLBACK
 PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
   nsNSSShutDownPreventionLock locker;
@@ -682,6 +748,9 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
                          NS_PROXY_SYNC,
                          getter_AddRefs(proxyPrompt));
   }
+
+  if (PK11_ProtectedAuthenticationPath(slot))
+    return ShowProtectedAuthPrompt(slot, ir);
 
   nsAutoString promptString;
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
@@ -770,8 +839,7 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
     infoObject->SetShortSecurityDescription(shortDesc.get());
 
     /* Set the SSL Status information */
-    nsCOMPtr<nsSSLStatus> status;
-    infoObject->GetSSLStatus(getter_AddRefs(status));
+    nsRefPtr<nsSSLStatus> status = infoObject->SSLStatus();
     if (!status) {
       status = new nsSSLStatus();
       infoObject->SetSSLStatus(status);
@@ -782,9 +850,36 @@ void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {
       nsRefPtr<nsNSSCertificate> nssc = new nsNSSCertificate(serverCert);
       CERT_DestroyCertificate(serverCert);
       serverCert = nsnull;
-      infoObject->SetCert(nssc);
-      if (!status->mServerCert) {
-        status->mServerCert = nssc;
+
+      nsCOMPtr<nsIX509Cert> prevcert;
+      infoObject->GetPreviousCert(getter_AddRefs(prevcert));
+
+      PRBool equals_previous = PR_FALSE;
+      if (prevcert) {
+        nsresult rv = nssc->Equals(prevcert, &equals_previous);
+        if (NS_FAILED(rv)) {
+          equals_previous = PR_FALSE;
+        }
+      }
+
+      if (equals_previous) {
+        PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+               ("HandshakeCallback using PREV cert %p\n", prevcert.get()));
+        infoObject->SetCert(prevcert);
+        status->mServerCert = prevcert;
+      }
+      else {
+        if (status->mServerCert) {
+          PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+                 ("HandshakeCallback KEEPING cert %p\n", status->mServerCert.get()));
+          infoObject->SetCert(status->mServerCert);
+        }
+        else {
+          PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+                 ("HandshakeCallback using NEW cert %p\n", nssc.get()));
+          infoObject->SetCert(nssc);
+          status->mServerCert = nssc;
+        }
       }
     }
 
@@ -853,20 +948,21 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
 
       CERT_DestroyCertList(certList);
     }
-    else {
-      // The connection will be terminated, let's provide a minimal SSLStatus
-      // to the caller that contains at least the cert and its status.
-      nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
-      nsCOMPtr<nsSSLStatus> status;
-      infoObject->GetSSLStatus(getter_AddRefs(status));
-      if (!status) {
-        status = new nsSSLStatus();
-        infoObject->SetSSLStatus(status);
-      }
-      if (status) {
-        status->mServerCert = new nsNSSCertificate(serverCert);
-      }
+    // The connection may get terminated, for example, if the server requires
+    // a client cert. Let's provide a minimal SSLStatus
+    // to the caller that contains at least the cert and its status.
+    nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
+
+    nsRefPtr<nsSSLStatus> status = infoObject->SSLStatus();
+    if (!status) {
+      status = new nsSSLStatus();
+      infoObject->SetSSLStatus(status);
+    }
+    if (status && !status->mServerCert) {
+      status->mServerCert = new nsNSSCertificate(serverCert);
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+             ("AuthCertificateCallback setting NEW cert %p\n", status->mServerCert.get()));
     }
   }
 

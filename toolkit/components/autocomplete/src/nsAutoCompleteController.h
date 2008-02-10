@@ -50,13 +50,10 @@
 #include "nsITreeSelection.h"
 #include "nsISupportsArray.h"
 #include "nsITimer.h"
-#include "nsIRollupListener.h"
-#include "nsIWidget.h"
 #include "nsTArray.h"
 
 class nsAutoCompleteController : public nsIAutoCompleteController,
                                  public nsIAutoCompleteObserver,
-                                 public nsIRollupListener,
                                  public nsITimerCallback,
                                  public nsITreeView
 {
@@ -64,7 +61,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIAUTOCOMPLETECONTROLLER
   NS_DECL_NSIAUTOCOMPLETEOBSERVER
-  NS_DECL_NSIROLLUPLISTENER
   NS_DECL_NSITREEVIEW
   NS_DECL_NSITIMERCALLBACK
    
@@ -93,8 +89,6 @@ protected:
   nsresult ClearResults();
   
   nsresult RowIndexToSearch(PRInt32 aRowIndex, PRInt32 *aSearchIndex, PRInt32 *aItemIndex);
-
-  nsIWidget* GetPopupWidget();
 
   // members //////////////////////////////////////////
   

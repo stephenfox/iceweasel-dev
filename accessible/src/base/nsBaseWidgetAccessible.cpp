@@ -42,6 +42,7 @@
 #include "nsIAccessibleDocument.h"
 #include "nsAccessibleWrap.h"
 #include "nsAccessibilityUtils.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsGUIEvent.h"
 #include "nsHyperTextAccessibleWrap.h"
 #include "nsILink.h"
@@ -109,7 +110,13 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsLinkableAccessible, nsHyperTextAccessibleWrap)
 NS_IMETHODIMP nsLinkableAccessible::TakeFocus()
 { 
   if (mActionContent && mActionContent->IsFocusable()) {
-    mActionContent->SetFocus(nsCOMPtr<nsPresContext>(GetPresContext()));
+    nsCOMPtr<nsIDOMNSHTMLElement> htmlElement(do_QueryInterface(mActionContent));
+    if (htmlElement) {
+      // HTML Elements also set the caret position
+      // in order to affect tabbing order
+      return htmlElement->Focus();
+    }
+    NS_WARNING("Has action content that is not an HTML element");
   }
   
   return NS_OK;
@@ -121,6 +128,8 @@ nsLinkableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   if (mIsLink) {
     *aState |= nsIAccessibleStates::STATE_LINKED;
@@ -134,31 +143,21 @@ nsLinkableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     }
   }
 
-  // XXX What if we're in a contenteditable container?
-  //     We may need to go up the parent chain unless a better API is found
-  nsCOMPtr<nsIAccessible> docAccessible =
-    do_QueryInterface(nsCOMPtr<nsIAccessibleDocument>(GetDocAccessible()));
-  if (docAccessible) {
-    PRUint32 docState = 0, docExtraState = 0;
-    rv = docAccessible->GetFinalState(&docState, &docExtraState);
-    if (NS_SUCCEEDED(rv) &&
-        (docExtraState & nsIAccessibleStates::EXT_STATE_EDITABLE)) {
-      // Links not focusable in editor
-      *aState &= ~(nsIAccessibleStates::STATE_FOCUSED |
-                   nsIAccessibleStates::STATE_FOCUSABLE);
-    }
-  }
-
   return NS_OK;
 }
 
-NS_IMETHODIMP nsLinkableAccessible::GetValue(nsAString& _retval)
+NS_IMETHODIMP nsLinkableAccessible::GetValue(nsAString& aValue)
 {
+  aValue.Truncate();
+  nsHyperTextAccessible::GetValue(aValue);
+  if (!aValue.IsEmpty())
+    return NS_OK;
+
   if (mIsLink) {
     nsCOMPtr<nsIDOMNode> linkNode(do_QueryInterface(mActionContent));
     nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
     if (linkNode && presShell)
-      return presShell->GetLinkLocation(linkNode, _retval);
+      return presShell->GetLinkLocation(linkNode, aValue);
   }
   return NS_ERROR_NOT_IMPLEMENTED;
 }

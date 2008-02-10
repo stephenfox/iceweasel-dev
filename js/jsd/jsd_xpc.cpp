@@ -464,6 +464,15 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
 JS_STATIC_DLL_CALLBACK (void)
 jsds_NotifyPendingDeadScripts (JSContext *cx)
 {
+    /* Bug 411249, we can't drop the script hook.
+     * Even if we could drop the script hook, jsds_GCCallbackProc
+     * is never cleared, so it would call us anyway.
+     *
+     * If there's no gJsds, then we can't do anything.
+     */
+    if (!gJsds)
+        return;
+
     nsCOMPtr<jsdIScriptHook> hook = 0;   
     gJsds->GetScriptHook (getter_AddRefs(hook));
 
@@ -2267,8 +2276,8 @@ jsdValue::GetWrappedValue()
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIXPCNativeCallContext> cc;
-    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext(&cc);
     if (NS_FAILED(rv))
         return rv;
 
@@ -2468,8 +2477,8 @@ jsdService::On (void)
     nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID(), &rv);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIXPCNativeCallContext> cc;
-    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext(&cc);
     if (NS_FAILED(rv)) return rv;
 
     JSContext *cx;
@@ -2938,8 +2947,8 @@ jsdService::WrapValue(jsdIValue **_rval)
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIXPCNativeCallContext> cc;
-    rv = xpc->GetCurrentNativeCallContext (getter_AddRefs(cc));
+    nsAXPCNativeCallContext *cc = nsnull;
+    rv = xpc->GetCurrentNativeCallContext (&cc);
     if (NS_FAILED(rv))
         return rv;
 

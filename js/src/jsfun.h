@@ -47,26 +47,42 @@
 
 JS_BEGIN_EXTERN_C
 
+typedef struct JSLocalNameMap JSLocalNameMap;
+
+/*
+ * Depending on the number of arguments and variables in the function their
+ * names and attributes are stored either as a single atom or as an array of
+ * tagged atoms (when there are few locals) or as a hash-based map (when there
+ * are many locals). In the first 2 cases the lowest bit of the atom is used
+ * as a tag to distinguish const from var. See jsfun.c for details.
+ */
+typedef union JSLocalNames {
+    jsuword         taggedAtom;
+    jsuword         *array;
+    JSLocalNameMap  *map;
+} JSLocalNames;
+
 struct JSFunction {
-    JSObject     *object;       /* back-pointer to GC'ed object header */
-    uint16       nargs;         /* maximum number of specified arguments,
+    JSObject        *object;    /* back-pointer to GC'ed object header */
+    uint16          nargs;      /* maximum number of specified arguments,
                                    reflected as f.length/f.arity */
-    uint16       flags;         /* bound method and other flags, see jsapi.h */
+    uint16          flags;      /* bound method and other flags, see jsapi.h */
     union {
         struct {
-            uint16   extra;     /* number of arg slots for local GC roots */
-            uint16   minargs;   /* minimum number of specified arguments, used
+            uint16      extra;  /* number of arg slots for local GC roots */
+            uint16      minargs;/* minimum number of specified arguments, used
                                    only when calling fast native */
-            JSNative native;    /* native method pointer or null */
+            JSNative    native; /* native method pointer or null */
+            JSClass     *clasp; /* if non-null, constructor for this class */
         } n;
         struct {
-            uint16   nvars;     /* number of local variables */
-            uint16   spare;     /* reserved for future use */
-            JSScript *script;   /* interpreted bytecode descriptor or null */
+            uint16      nvars;  /* number of local variables */
+            uint16      spare;  /* reserved for future use */
+            JSScript    *script;/* interpreted bytecode descriptor or null */
+            JSLocalNames names; /* argument and variable names */
         } i;
     } u;
-    JSAtom       *atom;         /* name for diagnostics and decompiling */
-    JSClass      *clasp;        /* if non-null, constructor for this class */
+    JSAtom          *atom;      /* name for diagnostics and decompiling */
 };
 
 #define JSFUN_EXPR_CLOSURE   0x4000 /* expression closure: function(x)x*x */
@@ -86,7 +102,7 @@ struct JSFunction {
                               : (fun)->nargs)
 
 extern JSClass js_ArgumentsClass;
-extern JSClass js_CallClass;
+extern JS_FRIEND_DATA(JSClass) js_CallClass;
 
 /* JS_FRIEND_DATA so that VALUE_IS_FUNCTION is callable from the shell. */
 extern JS_FRIEND_DATA(JSClass) js_FunctionClass;
@@ -97,6 +113,14 @@ extern JS_FRIEND_DATA(JSClass) js_FunctionClass;
 #define VALUE_IS_FUNCTION(cx, v)                                              \
     (!JSVAL_IS_PRIMITIVE(v) &&                                                \
      OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == &js_FunctionClass)
+
+/*
+ * Macro to access the private slot of the function object after the slot is
+ * initialized.
+ */
+#define GET_FUNCTION_PRIVATE(cx, funobj)                                      \
+    (JS_ASSERT(OBJ_GET_CLASS(cx, funobj) == &js_FunctionClass),               \
+     (JSFunction *) OBJ_GET_PRIVATE(cx, funobj))
 
 extern JSObject *
 js_InitFunctionClass(JSContext *cx, JSObject *obj);
@@ -110,6 +134,9 @@ js_InitCallClass(JSContext *cx, JSObject *obj);
 extern JSFunction *
 js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, uintN nargs,
                uintN flags, JSObject *parent, JSAtom *atom);
+
+extern void
+js_TraceFunction(JSTracer *trc, JSFunction *fun);
 
 extern void
 js_FinalizeFunction(JSContext *cx, JSFunction *fun);
@@ -148,7 +175,7 @@ js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags);
 extern JSObject *
 js_GetCallObject(JSContext *cx, JSStackFrame *fp, JSObject *parent);
 
-extern JSBool
+extern JS_FRIEND_API(JSBool)
 js_PutCallObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool
@@ -166,11 +193,50 @@ js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, jsval *vp);
 extern JSObject *
 js_GetArgsObject(JSContext *cx, JSStackFrame *fp);
 
-extern JSBool
+extern JS_FRIEND_API(JSBool)
 js_PutArgsObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool
 js_XDRFunction(JSXDRState *xdr, JSObject **objp);
+
+typedef enum JSLocalKind {
+    JSLOCAL_NONE,
+    JSLOCAL_ARG,
+    JSLOCAL_VAR,
+    JSLOCAL_CONST
+} JSLocalKind;
+
+extern JSBool
+js_AddLocal(JSContext *cx, JSFunction *fun, JSAtom *atom, JSLocalKind kind);
+
+/*
+ * Look up an argument or variable name returning its kind when found or
+ * JSLOCAL_NONE when no such name exists. When indexp is not null and the name
+ * exists, *indexp will receive the index of the corresponding argument or
+ * variable.
+ */
+extern JSLocalKind
+js_LookupLocal(JSContext *cx, JSFunction *fun, JSAtom *atom, uintN *indexp);
+
+/*
+ * Get names of arguments and variables for the interpreted function.
+ *
+ * The result is an array allocated from the given pool with
+ *   fun->nargs + fun->u.i.nvars
+ * elements with the names of the arguments coming first. The argument
+ * name is null when it corresponds to a destructive pattern.
+ *
+ * When bitmap is not null, on successful return it will contain a bit array
+ * where for each index below fun->nargs the bit is set when the corresponding
+ * argument name is not null. For indexes greater or equal fun->nargs the bit
+ * is set when the corresponding var is really a const.
+ */
+extern JSAtom **
+js_GetLocalNames(JSContext *cx, JSFunction *fun, JSArenaPool *pool,
+                 uint32 **bitmap);
+
+extern void
+js_FreezeLocalNames(JSContext *cx, JSFunction *fun);
 
 JS_END_EXTERN_C
 

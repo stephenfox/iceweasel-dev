@@ -569,6 +569,7 @@ function lv_init ()
     };
 
     this.caption = MSG_VIEW_LOCALS;
+    this.childData.isRootRecord = true;
 
     this.jsdFrame = null;
     this.savedStates = new Object();
@@ -619,6 +620,7 @@ function lv_renit (jsdFrame)
         this.scopeRecord = new ValueRecord(jsdFrame.scope, MSG_VAL_SCOPE, "",
                                            jsdFrame);
         this.scopeRecord.onPreRefresh = null;
+        this.scopeRecord.isRootRecord = true;
         this.childData.appendChild(this.scopeRecord);
         if (!state && jsdFrame.scope.propertyCount <
             console.prefs["localsView.autoOpenMax"])
@@ -632,6 +634,7 @@ function lv_renit (jsdFrame)
         this.scopeRecord = new XTLabelRecord ("locals:col-0", MSV_VAL_SCOPE,
                                               ["locals:col-1", "locals:col-2",
                                                "locals:col-3"]);
+        this.scopeRecord.isRootRecord = true;
         this.scopeRecord.property = ValueRecord.prototype.atomObject;
         this.childData.appendChild(this.scopeRecord);
     }
@@ -4146,6 +4149,7 @@ function wv_init()
     };
 
     this.caption = MSG_VIEW_WATCHES;
+    this.childData.isRootRecord = true;
 
 }
 
@@ -4226,8 +4230,7 @@ function wv_getcx(cx)
                 {
                     cx.parentValue = rec.parentRecord.value;
                     var cur = rec.parentRecord;
-                    while (cur != watches.childData &&
-                           cur != watches.scopeRecord)
+                    while (!("isRootRecord" in cur) || !cur.isRootRecord)
                     {
                         if ("isECMAProto" in cur)
                             items.unshift("__proto__");
@@ -4332,7 +4335,7 @@ function cmdWatchExpr (e)
 {
     var watches = console.views.watches;
     
-    if (!e.expression)
+    if (!e.watchExpression)
     {
         if ("isInteractive" in e && e.isInteractive)
         {
@@ -4361,8 +4364,8 @@ function cmdWatchExpr (e)
         else
             parent = window;
             
-        e.expression = prompt(MSG_ENTER_WATCH, "", parent);
-        if (!e.expression)
+        e.watchExpression = prompt(MSG_ENTER_WATCH, "", parent);
+        if (!e.watchExpression)
             return null;
     }
     
@@ -4379,7 +4382,8 @@ function cmdWatchExpr (e)
                         if ("frames" in console)
                         {
                             this.jsdFrame = getCurrentFrame();
-                            this.value = evalInTargetScope(e.expression, true);
+                            this.value = evalInTargetScope(e.watchExpression,
+                                                           true);
                         }
                         else
                         {
@@ -4395,12 +4399,13 @@ function cmdWatchExpr (e)
     else
     {
         refresher = function () {
-                        var rv = evalInDebuggerScope(e.expression, true);
+                        var rv = evalInDebuggerScope(e.watchExpression, true);
                         this.value = console.jsds.wrapValue(rv);
                     };
     }
     
-    var rec = new ValueRecord(console.jsds.wrapValue(null), e.expression, 0);
+    var rec = new ValueRecord(console.jsds.wrapValue(null),
+                              e.watchExpression, 0);
     rec.onPreRefresh = refresher;
     rec.refresh();
     watches.childData.appendChild(rec);

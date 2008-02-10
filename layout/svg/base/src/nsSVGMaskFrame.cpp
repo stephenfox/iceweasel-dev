@@ -112,13 +112,15 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
     if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
 
       aParent->SetMatrixPropagation(PR_FALSE);
-      aParent->NotifyCanvasTMChanged(PR_TRUE);
+      aParent->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                nsISVGChildFrame::TRANSFORM_CHANGED);
 
       nsCOMPtr<nsIDOMSVGRect> bbox;
       aParent->GetBBox(getter_AddRefs(bbox));
 
       aParent->SetMatrixPropagation(PR_TRUE);
-      aParent->NotifyCanvasTMChanged(PR_TRUE);
+      aParent->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                nsISVGChildFrame::TRANSFORM_CHANGED);
 
       if (!bbox)
         return nsnull;
@@ -242,35 +244,10 @@ nsSVGMaskFrame::GetCanvasTM()
 {
   NS_ASSERTION(mMaskParentMatrix, "null parent matrix");
 
-  nsCOMPtr<nsIDOMSVGMatrix> canvasTM = mMaskParentMatrix;
-
-  /* object bounding box? */
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  PRUint16 contentUnits =
-    mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS].GetAnimValue();
-
-  if (mMaskParent &&
-      contentUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    nsCOMPtr<nsIDOMSVGRect> rect;
-    nsresult rv = mMaskParent->GetBBox(getter_AddRefs(rect));
-
-    if (NS_SUCCEEDED(rv)) {
-      float minx, miny, width, height;
-      rect->GetX(&minx);
-      rect->GetY(&miny);
-      rect->GetWidth(&width);
-      rect->GetHeight(&height);
-
-      nsCOMPtr<nsIDOMSVGMatrix> tmp, fini;
-      canvasTM->Translate(minx, miny, getter_AddRefs(tmp));
-      tmp->ScaleNonUniform(width, height, getter_AddRefs(fini));
-      canvasTM = fini;
-    }
-  }
-
-  nsIDOMSVGMatrix* retval = canvasTM.get();
-  NS_IF_ADDREF(retval);
-  return retval;
+  return nsSVGUtils::AdjustMatrixForUnits(mMaskParentMatrix,
+                                          &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
+                                          mMaskParent);
 }
 

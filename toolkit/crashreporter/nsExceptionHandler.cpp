@@ -69,6 +69,7 @@
 #include <time.h>
 #include <prenv.h>
 #include <prio.h>
+#include <prmem.h>
 #include "nsDebug.h"
 #include "nsCRT.h"
 #include "nsILocalFile.h"
@@ -297,6 +298,9 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
   if (pid == -1)
     return false;
   else if (pid == 0) {
+    // need to clobber this, as libcurl might load NSS,
+    // and we want it to load the system NSS.
+    unsetenv("LD_LIBRARY_PATH");
     (void) execl(crashReporterPath,
                  crashReporterPath, minidumpPath, (char*)0);
     _exit(1);
@@ -412,6 +416,12 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   if (aServerURL)
     AnnotateCrashReport(NS_LITERAL_CSTRING("ServerURL"),
                         nsDependentCString(aServerURL));
+
+  // store application start time
+  char timeString[32];
+  XP_TTOA(time(NULL), timeString, 10);
+  AnnotateCrashReport(NS_LITERAL_CSTRING("StartupTime"),
+                      nsDependentCString(timeString));
 
 #if defined(XP_MACOSX)
   // On OS X, many testers like to see the OS crash reporting dialog
@@ -551,9 +561,12 @@ InitUserID(nsACString& aUserID)
   *reinterpret_cast<PRUint32*>(&id.m3[4]) = random();
 #endif
 
-  nsCAutoString id_str(id.ToString());
+  char* id_cstr = id.ToString();
+  NS_ENSURE_TRUE(id_cstr, NS_ERROR_OUT_OF_MEMORY);
+  nsDependentCString id_str(id_cstr);
   aUserID = Substring(id_str, 1, id_str.Length()-2);
 
+  PR_Free(id_cstr);
   return NS_OK;
 }
 
@@ -773,7 +786,20 @@ SetRestartArgs(int argc, char **argv)
     envVar = "MOZ_CRASHREPORTER_RESTART_ARG_";
     envVar.AppendInt(i);
     envVar += "=";
-    envVar += argv[i];
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+    // we'd like to run the script around the binary
+    // instead of the binary itself, so remove the -bin
+    // if it exists on the first argument
+    int arg_len = 0;
+    if (i == 0 &&
+        (arg_len = strlen(argv[i])) > 4 &&
+        strcmp(argv[i] + arg_len - 4, "-bin") == 0) {
+      envVar.Append(argv[i], arg_len - 4);
+    } else
+#endif
+    {
+      envVar += argv[i];
+    }
 
     // PR_SetEnv() wants the string to be available for the lifetime
     // of the app, so dup it here

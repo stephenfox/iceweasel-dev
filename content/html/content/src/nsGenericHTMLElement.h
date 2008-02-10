@@ -38,19 +38,20 @@
 #ifndef nsGenericHTMLElement_h___
 #define nsGenericHTMLElement_h___
 
-#include "nsStyledElement.h"
+#include "nsMappedAttributeElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsINameSpaceManager.h"  // for kNameSpaceID_None
 #include "nsIFormControl.h"
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsFrameLoader.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMElementCSSInlineStyle.h"
+#include "nsIDOMNSHTMLElement.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
 class nsIDOMNodeList;
 class nsIFrame;
-class nsMappedAttributes;
 class nsIStyleRule;
 class nsChildContentList;
 class nsDOMCSSDeclaration;
@@ -64,12 +65,8 @@ class nsILayoutHistoryState;
 class nsIEditor;
 struct nsRect;
 struct nsSize;
-struct nsRuleData;
 
-typedef void (*nsMapRuleToAttributesFunc)(const nsMappedAttributes* aAttributes, 
-                                          nsRuleData* aData);
-
-typedef nsStyledElement nsGenericHTMLElementBase;
+typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
 /**
  * A common superclass for HTML elements
@@ -240,11 +237,9 @@ public:
   {
     return mAttrsAndChildren.GetAttr(aAttr);
   }
-  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   virtual void UpdateEditableState();
 
-  NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
   already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -253,10 +248,7 @@ public:
                                 nsAttrValue& aResult);
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
-  virtual PRBool SetMappedAttribute(nsIDocument* aDocument,
-                                    nsIAtom* aName,
-                                    nsAttrValue& aValue,
-                                    nsresult* aRetval);
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   /**
    * Get the base target for any links within this piece
@@ -824,6 +816,7 @@ public:
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
 
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
+  virtual void DestroyContent();
 
   // nsIFormControl
   NS_IMETHOD GetForm(nsIDOMHTMLFormElement** aForm);
@@ -852,8 +845,6 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                             PRBool aNotify);
   virtual PRUint32 GetDesiredIMEState();
   virtual PRInt32 IntrinsicState() const;
 
@@ -877,6 +868,21 @@ protected:
   nsIForm* mForm;
 };
 
+// If this flag is set on an nsGenericHTMLFormElement, that means that we have
+// added ourselves to our mForm.  It's possible to have a non-null mForm, but
+// not have this flag set.  That happens when the form is set via the content
+// sink.
+#define ADDED_TO_FORM (1 << NODE_TYPE_SPECIFIC_BITS_OFFSET)
+
+// If this flag is set on an nsGenericHTMLFormElement, that means that its form
+// is in the process of being unbound from the tree, and this form element
+// hasn't re-found its form in nsGenericHTMLFormElement::UnbindFromTree yet.
+#define MAYBE_ORPHAN_FORM_ELEMENT (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET+1))
+
+// NOTE: I don't think it's possible to have the above two flags set at the
+// same time, so if it becomes an issue we can probably merge them into the
+// same bit.  --bz
+
 //----------------------------------------------------------------------
 
 /**
@@ -893,9 +899,6 @@ public:
   {
   }
   virtual ~nsGenericHTMLFrameElement();
-
-  // nsISupports
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
 
   // nsIDOMNSHTMLFrameElement
   NS_DECL_NSIDOMNSHTMLFRAMEELEMENT
@@ -918,6 +921,7 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
+  virtual void DestroyContent();
 
   // nsIDOMNSHTMLElement 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
@@ -934,6 +938,30 @@ protected:
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
 
   nsCOMPtr<nsIFrameLoader> mFrameLoader;
+};
+
+class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
+                                    public nsIDOMElementCSSInlineStyle
+{
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  nsGenericHTMLElementTearoff(nsGenericHTMLElement *aElement)
+    : mElement(aElement)
+  {
+  }
+
+  virtual ~nsGenericHTMLElementTearoff()
+  {
+  }
+
+  NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
+  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
+                                           nsIDOMNSHTMLElement)
+
+private:
+  nsCOMPtr<nsGenericHTMLElement> mElement;
 };
 
 //----------------------------------------------------------------------

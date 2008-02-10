@@ -49,12 +49,6 @@
 #include "nsIIOService.h"
 #include "nsToolkitCompsCID.h"
 #include "nsIServiceManager.h"
-#include "nsIDOMNode.h"
-#include "nsIDOMDocument.h"
-#include "nsIDocument.h"
-#include "nsIContent.h"
-#include "nsIFrame.h"
-#include "nsIPresShell.h"
 #include "nsIAtomService.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
@@ -65,9 +59,8 @@
 
 static const char *kAutoCompleteSearchCID = "@mozilla.org/autocomplete/search;1?name=";
 
-NS_IMPL_ISUPPORTS5(nsAutoCompleteController, nsIAutoCompleteController,
+NS_IMPL_ISUPPORTS4(nsAutoCompleteController, nsIAutoCompleteController,
                                              nsIAutoCompleteObserver,
-                                             nsIRollupListener,
                                              nsITimerCallback,
                                              nsITreeView)
 
@@ -345,6 +338,13 @@ nsAutoCompleteController::HandleStartComposition()
   // Stop all searches in case they are async.
   StopSearch();
 
+  if (!mInput) {
+    // StopSearch() can call PostSearchCleanup() which might result
+    // in a blur event, which could null out mInput, so we need to check it
+    // again.  See bug #408463 for more details
+    return NS_OK;
+  }
+
   PRBool isOpen;
   mInput->GetPopupOpen(&isOpen);
   if (isOpen)
@@ -490,12 +490,19 @@ nsAutoCompleteController::HandleKeyNavigation(PRUint32 aKey, PRBool *_retval)
       ClearSearchTimer();
       ClosePopup();
     }
-    // Update last-searched string to the current input, since the input may
-    // have changed.  Without this, subsequent backspaces look like text
-    // additions, not text deletions.
-    nsAutoString value;
-    mInput->GetTextValue(value);
-    mSearchString = value;
+
+    // mInput may be null, see bug #408463 and bug #409902
+    if (mInput) {
+      // Update last-searched string to the current input, since the input may
+      // have changed.  Without this, subsequent backspaces look like text
+      // additions, not text deletions.
+      nsAutoString value;
+
+      mInput->GetTextValue(value);
+      mSearchString = value;
+    }
+    else
+      NS_WARNING("unexpected, please comment in bug #409902");
   }
   
   return NS_OK;
@@ -628,9 +635,16 @@ NS_IMETHODIMP
 nsAutoCompleteController::SetSearchString(const nsAString &aSearchString)
 { 
   mSearchString = aSearchString;
-  
   return NS_OK;
 }
+
+NS_IMETHODIMP
+nsAutoCompleteController::GetSearchString(nsAString &aSearchString)
+{ 
+  aSearchString = mSearchString;
+  return NS_OK;
+}
+
 
 ////////////////////////////////////////////////////////////////////////
 //// nsIAutoCompleteObserver
@@ -649,32 +663,6 @@ nsAutoCompleteController::OnSearchResult(nsIAutoCompleteSearch *aSearch, nsIAuto
     }
   }
   
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////
-//// nsIRollupListener
-
-NS_IMETHODIMP
-nsAutoCompleteController::Rollup()
-{
-  ClearSearchTimer();
-  ClearResults();
-  ClosePopup();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAutoCompleteController::ShouldRollupOnMouseWheelEvent(PRBool *aShouldRollup)
-{
-  *aShouldRollup = PR_TRUE;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAutoCompleteController::ShouldRollupOnMouseActivate(PRBool *aShouldRollup)
-{
-  *aShouldRollup = PR_FALSE;
   return NS_OK;
 }
 
@@ -964,6 +952,12 @@ nsAutoCompleteController::ClosePopup()
   if (!mInput) {
     return NS_OK;
   }
+
+  PRBool isOpen;
+  mInput->GetPopupOpen(&isOpen);
+  if (!isOpen)
+    return NS_OK;
+
   nsCOMPtr<nsIAutoCompletePopup> popup;
   mInput->GetPopup(getter_AddRefs(popup));
   NS_ENSURE_TRUE(popup != nsnull, NS_ERROR_FAILURE);
@@ -1142,6 +1136,12 @@ nsAutoCompleteController::EnterMatch()
 nsresult
 nsAutoCompleteController::RevertTextValue()
 {
+  // StopSearch() can call PostSearchCleanup() which might result
+  // in a blur event, which could null out mInput, so we need to check it
+  // again.  See bug #408463 for more details
+  if (!mInput)
+    return NS_OK;
+
   nsAutoString oldValue(mSearchString);
   
   PRBool cancel = PR_FALSE;
@@ -1230,11 +1230,12 @@ nsAutoCompleteController::ProcessResult(PRInt32 aSearchIndex, nsIAutoCompleteRes
   NS_ENSURE_TRUE(popup != nsnull, NS_ERROR_FAILURE);
   popup->Invalidate();
   
-  // Make sure the popup is open, if necessary, since we now
-  // have at least one search result ready to display
+  // Make sure the popup is open, if necessary, since we now have at least one
+  // search result ready to display. Don't force the popup closed if we might
+  // get results in the future to avoid unnecessarily canceling searches.
   if (mRowCount)
     OpenPopup();
-  else
+  else if (result != nsIAutoCompleteResult::RESULT_NOMATCH_ONGOING)
     ClosePopup();
 
   if (mSearchesOngoing == 0) {
@@ -1280,8 +1281,19 @@ nsAutoCompleteController::ClearResults()
   mRowCount = 0;
   mResults->Clear();
   mMatchCounts.Clear();
-  if (oldRowCount != 0 && mTree)
-    mTree->RowCountChanged(0, -oldRowCount);
+  if (oldRowCount != 0) {
+    if (mTree)
+      mTree->RowCountChanged(0, -oldRowCount);
+    else if (mInput) {
+      nsCOMPtr<nsIAutoCompletePopup> popup;
+      mInput->GetPopup(getter_AddRefs(popup));
+      NS_ENSURE_TRUE(popup != nsnull, NS_ERROR_FAILURE);
+      // if we had a tree, RowCountChanged() would have cleared the selection
+      // when the selected row was removed.  But since we don't have a tree,
+      // we need to clear the selection manually.
+      popup->SetSelectedIndex(-1);
+    }
+  }
   return NS_OK;
 }
 
@@ -1461,35 +1473,6 @@ nsAutoCompleteController::RowIndexToSearch(PRInt32 aRowIndex, PRInt32 *aSearchIn
   }
 
   return NS_OK;
-}
-
-nsIWidget*
-nsAutoCompleteController::GetPopupWidget()
-{
-  NS_ENSURE_TRUE(mInput, nsnull);
-
-  nsCOMPtr<nsIAutoCompletePopup> autoCompletePopup;
-  mInput->GetPopup(getter_AddRefs(autoCompletePopup));
-  NS_ENSURE_TRUE(autoCompletePopup, nsnull);
-
-  nsCOMPtr<nsIDOMNode> popup = do_QueryInterface(autoCompletePopup);
-  NS_ENSURE_TRUE(popup, nsnull);
-
-  nsCOMPtr<nsIDOMDocument> domDoc;
-  popup->GetOwnerDocument(getter_AddRefs(domDoc));
-  NS_ENSURE_TRUE(domDoc, nsnull);
-
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-  NS_ENSURE_TRUE(doc, nsnull);
-
-  nsIPresShell* presShell = doc->GetPrimaryShell();
-  NS_ENSURE_TRUE(presShell, nsnull);
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(popup);
-  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
-  NS_ENSURE_TRUE(frame, nsnull);
-
-  return frame->GetWindow();
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAutoCompleteController)

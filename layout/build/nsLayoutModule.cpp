@@ -99,6 +99,7 @@
 #include "nsLayoutCID.h"
 #include "nsILanguageAtomService.h"
 #include "nsStyleSheetService.h"
+#include "nsXULPopupManager.h"
 
 // Transformiix stuff
 #include "nsXPathEvaluator.h"
@@ -124,6 +125,7 @@
 #include "nsIControllerContext.h"
 #include "nsDOMScriptObjectFactory.h"
 #include "nsDOMStorage.h"
+#include "nsJSON.h"
 
 // Editor stuff
 #include "nsEditorCID.h"
@@ -281,7 +283,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(txMozillaXSLTProcessor)
 NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsXPathEvaluator, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsXMLHttpRequest)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
@@ -381,8 +383,9 @@ nsresult NS_NewFrameUtil(nsIFrameUtil** aResult);
 nsresult NS_NewLayoutDebugger(nsILayoutDebugger** aResult);
 #endif
 
-#ifdef MOZ_XUL
 nsresult NS_NewBoxObject(nsIBoxObject** aResult);
+
+#ifdef MOZ_XUL
 nsresult NS_NewListBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewScrollBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewMenuBoxObject(nsIBoxObject** aResult);
@@ -439,8 +442,9 @@ MAKE_CTOR(CreateNewLayoutDebugger,        nsILayoutDebugger,           NS_NewLay
 
 MAKE_CTOR(CreateNewFrameTraversal,      nsIFrameTraversal,      NS_CreateFrameTraversal)
 MAKE_CTOR(CreateNewPresShell,           nsIPresShell,           NS_NewPresShell)
-#ifdef MOZ_XUL
 MAKE_CTOR(CreateNewBoxObject,           nsIBoxObject,           NS_NewBoxObject)
+
+#ifdef MOZ_XUL
 MAKE_CTOR(CreateNewListBoxObject,       nsIBoxObject,           NS_NewListBoxObject)
 MAKE_CTOR(CreateNewMenuBoxObject,       nsIBoxObject,           NS_NewMenuBoxObject)
 MAKE_CTOR(CreateNewPopupBoxObject,      nsIBoxObject,           NS_NewPopupBoxObject)
@@ -506,6 +510,7 @@ MAKE_CTOR(CreateXULSortService,           nsIXULSortService,           NS_NewXUL
 MAKE_CTOR(CreateXULDocument,              nsIXULDocument,              NS_NewXULDocument)
 // NS_NewXULControllers
 // NS_NewXULPrototypeCache
+MAKE_CTOR(CreateXULPopupManager,      nsISupports,      NS_NewXULPopupManager)
 #endif
 #ifdef MOZ_XTF
 MAKE_CTOR(CreateXTFService,               nsIXTFService,               NS_NewXTFService)
@@ -808,12 +813,12 @@ static const nsModuleComponentInfo gComponents[] = {
 
   // XXX end ick
 
-#ifdef MOZ_XUL
-  { "XUL Box Object",
+  { "Box Object",
     NS_BOXOBJECT_CID,
     "@mozilla.org/layout/xul-boxobject;1",
     CreateNewBoxObject },
 
+#ifdef MOZ_XUL
   { "XUL Listbox Box Object",
     NS_LISTBOXOBJECT_CID,
     "@mozilla.org/layout/xul-boxobject-listbox;1",
@@ -1176,6 +1181,11 @@ static const nsModuleComponentInfo gComponents[] = {
     "@mozilla.org/xul/xul-tree-builder;1",
     NS_NewXULTreeBuilder },
 
+  { "XUL Popup Manager",
+    NS_XULPOPUPMANAGER_CID,
+    "@mozilla.org/xul/xul-popup-manager;1",
+    CreateXULPopupManager },
+
   { "XUL Document",
     NS_XULDOCUMENT_CID,
     "@mozilla.org/xul/xul-document;1",
@@ -1313,6 +1323,11 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_DOMSTORAGEMANAGER_CID,
     "@mozilla.org/dom/storagemanager;1",
     nsDOMStorageManagerConstructor },
+
+  { "DOM JSON",
+    NS_DOMJSON_CID,
+    "@mozilla.org/dom/json;1",
+    NS_NewJSON },
 
   { "Text Editor",
     NS_TEXTEDITOR_CID,

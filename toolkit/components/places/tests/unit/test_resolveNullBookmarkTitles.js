@@ -71,35 +71,21 @@ function run_test() {
   tagssvc.tagURI(uri1, ["tag 1"]);
   tagssvc.tagURI(uri2, ["tag 2"]);
 
-  histsvc.addVisit(uri1, Date.now(), 0, histsvc.TRANSITION_TYPED, false, 0);
+  histsvc.addVisit(uri1, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
   histsvc.setPageDetails(uri1, "foo title", 0, false, true);
-  histsvc.addVisit(uri2, Date.now(), 0, histsvc.TRANSITION_TYPED, false, 0);
+  histsvc.addVisit(uri2, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
   histsvc.setPageDetails(uri2, "bar title", 0, false, true);
 
   var options = histsvc.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   options.maxResults = 2;
 
-  // test without the "resolveNullBookmarkTitles" option, 
-  // our tag items don't have titles.
-  var query = histsvc.getNewQuery();
-  query.setFolders([bmsvc.tagRoot], 1);
-  var result = histsvc.executeQuery(query, options);
-  var root = result.root;
-  root.containerOpen = true;
-  do_check_eq(root.childCount, 2);
-  do_check_eq(root.getChild(0).title, null);
-  do_check_eq(root.getChild(1).title, null);
-
-  // test with the "resolveNullBookmarkTitles" option, 
-  // our tag items have titles from history
   options = histsvc.getNewQueryOptions();
-  options.resolveNullBookmarkTitles = true;
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
   options.maxResults = 2;
 
   query = histsvc.getNewQuery();
-  query.setFolders([bmsvc.tagRoot], 1);
+  query.setFolders([bmsvc.tagsFolder], 1);
   var result = histsvc.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;

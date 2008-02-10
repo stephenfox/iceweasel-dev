@@ -257,6 +257,8 @@ static void *_pt_root(void *arg)
     */
     if (PR_FALSE == detached)
     {
+        /* Call TPD destructors on this thread. */
+        _PR_DestroyThreadPrivate(thred);
         rv = pthread_setspecific(pt_book.key, NULL);
         PR_ASSERT(0 == rv);
     }
@@ -597,7 +599,7 @@ PR_IMPLEMENT(PRStatus) PR_JoinThread(PRThread *thred)
             rv = pthread_detach(&id);
             PR_ASSERT(0 == rv);
 #endif
-            _pt_thread_death(thred);
+            _pt_thread_death_internal(thred, PR_FALSE);
         }
         else
         {
@@ -1038,6 +1040,7 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup(void)
         _PR_CleanupNet();
         /* Close all the fd's before calling _PR_CleanupIO */
         _PR_CleanupIO();
+        _PR_CleanupCMon();
 
         _pt_thread_death(me);
         rv = pthread_setspecific(pt_book.key, NULL);
@@ -1208,7 +1211,12 @@ PR_IMPLEMENT(PRStatus) PR_EnumerateThreads(PREnumerator func, void *arg)
     PRIntn count = 0;
     PRStatus rv = PR_SUCCESS;
     PRThread* thred = pt_book.first;
+
+#if defined(DEBUG) || defined(FORCE_PR_ASSERT)
+#if !defined(_PR_DCETHREADS)
     PRThread *me = PR_GetCurrentThread();
+#endif
+#endif
 
     PR_LOG(_pr_gc_lm, PR_LOG_ALWAYS, ("Begin PR_EnumerateThreads\n"));
     /*

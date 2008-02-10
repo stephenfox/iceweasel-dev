@@ -140,6 +140,12 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsContentErrors.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsICaseConversion.h"
+#include "nsCompressedCharMap.h"
+#include "nsINativeKeyBindings.h"
+#include "nsIDOMNSUIEvent.h"
+#include "nsIDOMNSEvent.h"
+#include "nsIPrivateDOMEvent.h"
+#include "nsIPermissionManager.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -574,7 +580,7 @@ class CopyNormalizeNewlines
       return mLastCharCR;
     }
 
-    PRUint32 write(const typename OutputIterator::value_type* aSource, PRUint32 aSourceLength) {
+    void write(const typename OutputIterator::value_type* aSource, PRUint32 aSourceLength) {
 
       const typename OutputIterator::value_type* done_writing = aSource + aSourceLength;
 
@@ -610,7 +616,6 @@ class CopyNormalizeNewlines
       }
 
       mWritten += num_written;
-      return aSourceLength;
     }
 
   private:
@@ -652,6 +657,99 @@ nsContentUtils::CopyNewlineNormalizedUnicodeTo(nsReadingIterator<PRUnichar>& aSr
   CopyNormalizeNewlines<sink_traits> normalizer(&dest_traits);
   copy_string(aSrcStart, aSrcEnd, normalizer);
   return normalizer.GetCharsWritten();
+}
+
+// Replaced by precompiled CCMap (see bug 180266). To update the list
+// of characters, see one of files included below. As for the way
+// the original list of characters was obtained by Frank Tang, see bug 54467.
+// Updated to fix the regression (bug 263411). The list contains
+// characters of the following Unicode character classes : Ps, Pi, Po, Pf, Pe.
+// (ref.: http://www.w3.org/TR/2004/CR-CSS21-20040225/selector.html#first-letter)
+// Note that the file does NOT yet include non-BMP characters.
+#include "punct_marks.ccmap"
+DEFINE_CCMAP(gPuncCharsCCMap, const);
+
+// static
+PRBool
+nsContentUtils::IsPunctuationMark(PRUnichar aChar)
+{
+  return CCMAP_HAS_CHAR(gPuncCharsCCMap, aChar);
+}
+
+/* static */
+void
+nsContentUtils::GetOfflineAppManifest(nsIDOMWindow *aWindow, nsIURI **aURI)
+{
+  nsCOMPtr<nsIDOMWindow> top;
+  aWindow->GetTop(getter_AddRefs(top));
+  if (!top) {
+    return;
+  }
+
+  nsCOMPtr<nsIDOMDocument> topDOMDocument;
+  top->GetDocument(getter_AddRefs(topDOMDocument));
+  nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(topDOMDocument);
+  if (!topDoc) {
+    return;
+  }
+
+  nsCOMPtr<nsIContent> docElement = topDoc->GetRootContent();
+  if (!docElement) {
+    return;
+  }
+
+  nsAutoString manifestSpec;
+  docElement->GetAttr(kNameSpaceID_None, nsGkAtoms::manifest, manifestSpec);
+
+  // Manifest URIs can't have fragment identifiers.
+  if (manifestSpec.IsEmpty() ||
+      manifestSpec.FindChar('#') != kNotFound) {
+    return;
+  }
+
+  nsContentUtils::NewURIWithDocumentCharset(aURI, manifestSpec,
+                                            topDoc, topDoc->GetBaseURI());
+}
+
+/* static */
+PRBool
+nsContentUtils::OfflineAppAllowed(nsIURI *aURI)
+{
+  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
+  if (!innerURI)
+    return PR_FALSE;
+
+  // only http and https applications can use offline APIs.
+  PRBool match;
+  nsresult rv = innerURI->SchemeIs("http", &match);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  if (!match) {
+    rv = innerURI->SchemeIs("https", &match);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
+    if (!match) {
+      return PR_FALSE;
+    }
+  }
+
+  nsCOMPtr<nsIPermissionManager> permissionManager =
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+  if (!permissionManager) {
+    return PR_FALSE;
+  }
+
+  PRUint32 perm;
+  permissionManager->TestExactPermission(innerURI, "offline-app", &perm);
+
+  if (perm == nsIPermissionManager::UNKNOWN_ACTION) {
+    return GetBoolPref("offline-apps.allow_by_default");
+  }
+
+  if (perm == nsIPermissionManager::DENY_ACTION) {
+    return PR_FALSE;
+  }
+
+  return PR_TRUE;
 }
 
 // static
@@ -726,18 +824,20 @@ nsContentUtils::Shutdown()
   nsAutoGCRoot::Shutdown();
 }
 
-static PRBool IsCallerTrustedForCapability(const char* aCapability)
+// static
+PRBool
+nsContentUtils::IsCallerTrustedForCapability(const char* aCapability)
 {
   // The secman really should handle UniversalXPConnect case, since that
   // should include UniversalBrowserRead... doesn't right now, though.
   PRBool hasCap;
-  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-  if (NS_FAILED(ssm->IsCapabilityEnabled(aCapability, &hasCap)))
+  if (NS_FAILED(sSecurityManager->IsCapabilityEnabled(aCapability, &hasCap)))
     return PR_FALSE;
   if (hasCap)
     return PR_TRUE;
     
-  if (NS_FAILED(ssm->IsCapabilityEnabled("UniversalXPConnect", &hasCap)))
+  if (NS_FAILED(sSecurityManager->IsCapabilityEnabled("UniversalXPConnect",
+                                                      &hasCap)))
     return PR_FALSE;
   return hasCap;
 }
@@ -1292,7 +1392,7 @@ nsContentUtils::ComparePosition(nsINode* aNode1,
     return 0;
   }
 
-  nsAutoTPtrArray<nsINode, 30> parents1, parents2;
+  nsAutoTPtrArray<nsINode, 32> parents1, parents2;
 
   // Check if either node is an attribute
   nsIAttribute* attr1 = nsnull;
@@ -1405,7 +1505,7 @@ nsContentUtils::ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
            0;
   }
 
-  nsTArray<nsINode*> parents1, parents2;
+  nsAutoTArray<nsINode*, 32> parents1, parents2;
   nsINode* node1 = aParent1;
   nsINode* node2 = aParent2;
   do {
@@ -2646,8 +2746,8 @@ nsContentUtils::NotifyXPCIfExceptionPending(JSContext* aCx)
     return;
   }
 
-  nsCOMPtr<nsIXPCNativeCallContext> nccx;
-  XPConnect()->GetCurrentNativeCallContext(getter_AddRefs(nccx));
+  nsAXPCNativeCallContext *nccx = nsnull;
+  XPConnect()->GetCurrentNativeCallContext(&nccx);
   if (nccx) {
     // Check to make sure that the JSContext that nccx will mess with is the
     // same as the JSContext we've set an exception on.  If they're not the
@@ -2848,6 +2948,47 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
 
   nsMemory::Free(ustr);
   return rv;
+}
+
+/* static */
+PRBool
+nsContentUtils::CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
+                            nsACString& aCharset)
+{
+  PRBool found = PR_TRUE;
+  aCharset.Truncate();
+  if (aLength >= 3 &&
+      aBuffer[0] == 0xEF &&
+      aBuffer[1] == 0xBB &&
+      aBuffer[2] == 0xBF) {
+    aCharset = "UTF-8";
+  }
+  else if (aLength >= 4 &&
+           aBuffer[0] == 0x00 &&
+           aBuffer[1] == 0x00 &&
+           aBuffer[2] == 0xFE &&
+           aBuffer[3] == 0xFF) {
+    aCharset = "UTF-32BE";
+  }
+  else if (aLength >= 4 &&
+           aBuffer[0] == 0xFF &&
+           aBuffer[1] == 0xFE &&
+           aBuffer[2] == 0x00 &&
+           aBuffer[3] == 0x00) {
+    aCharset = "UTF-32LE";
+  }
+  else if (aLength >= 2 &&
+           aBuffer[0] == 0xFE && aBuffer[1] == 0xFF) {
+    aCharset = "UTF-16BE";
+  }
+  else if (aLength >= 2 &&
+           aBuffer[0] == 0xFF && aBuffer[1] == 0xFE) {
+    aCharset = "UTF-16LE";
+  } else {
+    found = PR_FALSE;
+  }
+
+  return found;
 }
 
 static PRBool EqualExceptRef(nsIURL* aURL1, nsIURL* aURL2)
@@ -3188,146 +3329,111 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   nsCOMPtr<nsIParser> parser = do_CreateInstance(kCParserCID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDocument> document;
-  nsCOMPtr<nsIDOMDocument> domDocument;
-
-  aContextNode->GetOwnerDocument(getter_AddRefs(domDocument));
-  document = do_QueryInterface(domDocument);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aContextNode);
+  NS_ENSURE_TRUE(content, NS_ERROR_NOT_AVAILABLE);
 
   // If we don't have a document here, we can't get the right security context
   // for compiling event handlers... so just bail out.
+  nsCOMPtr<nsIDocument> document = content->GetOwnerDoc();
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
 
-  nsVoidArray tagStack;
-  nsCOMPtr<nsIDOMNode> parent = aContextNode;
-  while (parent && (parent != domDocument)) {
-    PRUint16 nodeType;
-    parent->GetNodeType(&nodeType);
-    if (nsIDOMNode::ELEMENT_NODE == nodeType) {
-      nsAutoString tagName, uriStr;
-      parent->GetNodeName(tagName);
+  nsAutoTArray<nsAutoString, 32> tagStack;
+  nsAutoString uriStr, nameStr;
 
-      // see if we need to add xmlns declarations
-      nsCOMPtr<nsIContent> content = do_QueryInterface(parent);
-      if (!content) {
-        rv = NS_ERROR_FAILURE;
-        break;
-      }
+  // just in case we have a text node
+  if (!content->IsNodeOfType(nsINode::eELEMENT))
+    content = content->GetParent();
 
-      PRUint32 count = content->GetAttrCount();
-      PRBool setDefaultNamespace = PR_FALSE;
-      if (count > 0) {
-        PRUint32 index;
-        nsAutoString nameStr, prefixStr, valueStr;
+  while (content && content->IsNodeOfType(nsINode::eELEMENT)) {
+    nsAutoString& tagName = *tagStack.AppendElement();
+    NS_ENSURE_TRUE(&tagName, NS_ERROR_OUT_OF_MEMORY);
 
-        for (index = 0; index < count; index++) {
-          const nsAttrName* name = content->GetAttrNameAt(index);
-          if (name->NamespaceEquals(kNameSpaceID_XMLNS)) {
-            content->GetAttr(kNameSpaceID_XMLNS, name->LocalName(), uriStr);
+    content->NodeInfo()->GetQualifiedName(tagName);
 
-            // really want something like nsXMLContentSerializer::SerializeAttr
-            tagName.Append(NS_LITERAL_STRING(" xmlns")); // space important
-            if (name->GetPrefix()) {
-              tagName.Append(PRUnichar(':'));
-              name->LocalName()->ToString(nameStr);
-              tagName.Append(nameStr);
-            } else {
-              setDefaultNamespace = PR_TRUE;
-            }
-            tagName.Append(NS_LITERAL_STRING("=\"") + uriStr +
-              NS_LITERAL_STRING("\""));
+    // see if we need to add xmlns declarations
+    PRUint32 count = content->GetAttrCount();
+    PRBool setDefaultNamespace = PR_FALSE;
+    if (count > 0) {
+      PRUint32 index;
+
+      for (index = 0; index < count; index++) {
+        const nsAttrName* name = content->GetAttrNameAt(index);
+        if (name->NamespaceEquals(kNameSpaceID_XMLNS)) {
+          content->GetAttr(kNameSpaceID_XMLNS, name->LocalName(), uriStr);
+
+          // really want something like nsXMLContentSerializer::SerializeAttr
+          tagName.Append(NS_LITERAL_STRING(" xmlns")); // space important
+          if (name->GetPrefix()) {
+            tagName.Append(PRUnichar(':'));
+            name->LocalName()->ToString(nameStr);
+            tagName.Append(nameStr);
+          } else {
+            setDefaultNamespace = PR_TRUE;
           }
+          tagName.Append(NS_LITERAL_STRING("=\"") + uriStr +
+            NS_LITERAL_STRING("\""));
         }
-      }
-
-      if (!setDefaultNamespace) {
-        nsINodeInfo* info = content->NodeInfo();
-        if (!info->GetPrefixAtom() &&
-            info->NamespaceID() != kNameSpaceID_None) {
-          // We have no namespace prefix, but have a namespace ID.  Push
-          // default namespace attr in, so that our kids will be in our
-          // namespace.
-          nsAutoString uri;
-          info->GetNamespaceURI(uri);
-          tagName.Append(NS_LITERAL_STRING(" xmlns=\"") + uri +
-                         NS_LITERAL_STRING("\""));
-        }
-      }
-
-      // XXX Wish we didn't have to allocate here
-      PRUnichar* name = ToNewUnicode(tagName);
-      if (name) {
-        tagStack.AppendElement(name);
-        nsCOMPtr<nsIDOMNode> temp = parent;
-        rv = temp->GetParentNode(getter_AddRefs(parent));
-        if (NS_FAILED(rv)) {
-          break;
-        }
-      } else {
-        rv = NS_ERROR_OUT_OF_MEMORY;
-        break;
-      }
-    } else {
-      nsCOMPtr<nsIDOMNode> temp = parent;
-      rv = temp->GetParentNode(getter_AddRefs(parent));
-      if (NS_FAILED(rv)) {
-        break;
       }
     }
+
+    if (!setDefaultNamespace) {
+      nsINodeInfo* info = content->NodeInfo();
+      if (!info->GetPrefixAtom() &&
+          info->NamespaceID() != kNameSpaceID_None) {
+        // We have no namespace prefix, but have a namespace ID.  Push
+        // default namespace attr in, so that our kids will be in our
+        // namespace.
+        info->GetNamespaceURI(uriStr);
+        tagName.Append(NS_LITERAL_STRING(" xmlns=\"") + uriStr +
+                       NS_LITERAL_STRING("\""));
+      }
+    }
+
+    content = content->GetParent();
   }
 
+  nsCAutoString contentType;
+  PRBool bCaseSensitive = PR_TRUE;
+  nsAutoString buf;
+  document->GetContentType(buf);
+  LossyCopyUTF16toASCII(buf, contentType);
+  bCaseSensitive = document->IsCaseSensitive();
+
+  nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
+  PRBool bHTML = htmlDoc && !bCaseSensitive;
+  nsCOMPtr<nsIFragmentContentSink> sink;
+  if (bHTML) {
+    rv = NS_NewHTMLFragmentContentSink(getter_AddRefs(sink));
+  } else {
+    rv = NS_NewXMLFragmentContentSink(getter_AddRefs(sink));
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  sink->SetTargetDocument(document);
+  nsCOMPtr<nsIContentSink> contentsink(do_QueryInterface(sink));
+  parser->SetContentSink(contentsink);
+
+  nsDTDMode mode = eDTDMode_autodetect;
+  switch (document->GetCompatibilityMode()) {
+    case eCompatibility_NavQuirks:
+      mode = eDTDMode_quirks;
+      break;
+    case eCompatibility_AlmostStandards:
+      mode = eDTDMode_almost_standards;
+      break;
+    case eCompatibility_FullStandards:
+      mode = eDTDMode_full_standards;
+      break;
+    default:
+      NS_NOTREACHED("unknown mode");
+      break;
+  }
+
+  // XXX Shouldn't we be returning rv if it's a failure code?
+  rv = parser->ParseFragment(aFragment, nsnull, tagStack,
+                             !bHTML, contentType, mode);
   if (NS_SUCCEEDED(rv)) {
-    nsCAutoString contentType;
-    PRBool bCaseSensitive = PR_TRUE;
-    nsAutoString buf;
-    document->GetContentType(buf);
-    LossyCopyUTF16toASCII(buf, contentType);
-    bCaseSensitive = document->IsCaseSensitive();
-
-    nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(domDocument));
-    PRBool bHTML = htmlDoc && !bCaseSensitive;
-    nsCOMPtr<nsIFragmentContentSink> sink;
-    if (bHTML) {
-      rv = NS_NewHTMLFragmentContentSink(getter_AddRefs(sink));
-    } else {
-      rv = NS_NewXMLFragmentContentSink(getter_AddRefs(sink));
-    }
-    if (NS_SUCCEEDED(rv)) {
-      sink->SetTargetDocument(document);
-      nsCOMPtr<nsIContentSink> contentsink(do_QueryInterface(sink));
-      parser->SetContentSink(contentsink);
-
-      nsDTDMode mode = eDTDMode_autodetect;
-      switch (document->GetCompatibilityMode()) {
-        case eCompatibility_NavQuirks:
-          mode = eDTDMode_quirks;
-          break;
-        case eCompatibility_AlmostStandards:
-          mode = eDTDMode_almost_standards;
-          break;
-        case eCompatibility_FullStandards:
-          mode = eDTDMode_full_standards;
-          break;
-        default:
-          NS_NOTREACHED("unknown mode");
-          break;
-      }
-      rv = parser->ParseFragment(aFragment, nsnull, tagStack,
-                                 !bHTML, contentType, mode);
-
-      if (NS_SUCCEEDED(rv)) {
-        rv = sink->GetFragment(aReturn);
-      }
-    }
-  }
-
-  // XXX Ick! Delete strings we allocated above.
-  PRInt32 count = tagStack.Count();
-  for (PRInt32 i = 0; i < count; i++) {
-    PRUnichar* str = (PRUnichar*)tagStack.ElementAt(i);
-    if (str) {
-      NS_Free(str);
-    }
+    rv = sink->GetFragment(aReturn);
   }
 
   return NS_OK;
@@ -3563,7 +3669,6 @@ nsresult
 nsContentUtils::HoldJSObjects(void* aScriptObjectHolder,
                               nsScriptObjectTracer* aTracer)
 {
-  PRBool newHolder;
   nsresult rv = sXPConnect->AddJSHolder(aScriptObjectHolder, aTracer);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3710,6 +3815,7 @@ nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
   }
 }
 
+/* static */
 PRBool
 nsContentUtils::IsNativeAnonymous(nsIContent* aContent)
 {
@@ -3737,6 +3843,85 @@ nsContentUtils::IsNativeAnonymous(nsIContent* aContent)
   }
 
   return PR_FALSE;
+}
+
+/* static */
+nsIWidget*
+nsContentUtils::GetTopLevelWidget(nsIWidget* aWidget)
+{
+  if (!aWidget) {
+    return nsnull;
+  }
+
+  nsIWidget* currWidget = aWidget;
+  nsIWidget* parentWidget;
+  while ((parentWidget = currWidget->GetParent()) != nsnull) {
+    currWidget = parentWidget;
+  }
+  return currWidget;
+}
+
+/* static */
+const nsDependentString
+nsContentUtils::GetLocalizedEllipsis()
+{
+  static PRUnichar sBuf[4] = { 0, 0, 0, 0 };
+  if (!sBuf[0]) {
+    nsAutoString tmp(GetLocalizedStringPref("intl.ellipsis"));
+    PRUint32 len = PR_MIN(tmp.Length(), NS_ARRAY_LENGTH(sBuf) - 1);
+    CopyUnicodeTo(tmp, 0, sBuf, len);
+    if (!sBuf[0])
+      sBuf[0] = PRUnichar(0x2026);
+  }
+  return nsDependentString(sBuf);
+}
+
+//static
+nsEvent*
+nsContentUtils::GetNativeEvent(nsIDOMEvent* aDOMEvent)
+{
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDOMEvent));
+  if (!privateEvent)
+    return nsnull;
+  nsEvent* nativeEvent;
+  privateEvent->GetInternalNSEvent(&nativeEvent);
+  return nativeEvent;
+}
+
+//static
+PRBool
+nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMEvent* aDOMEvent,
+                                         nsNativeKeyEvent* aNativeEvent,
+                                         PRBool aGetCharCode)
+{
+  nsCOMPtr<nsIDOMNSUIEvent> uievent = do_QueryInterface(aDOMEvent);
+  PRBool defaultPrevented;
+  uievent->GetPreventDefault(&defaultPrevented);
+  if (defaultPrevented)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aDOMEvent);
+  PRBool trusted = PR_FALSE;
+  nsevent->GetIsTrusted(&trusted);
+  if (!trusted)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aDOMEvent);
+
+  if (aGetCharCode) {
+    keyEvent->GetCharCode(&aNativeEvent->charCode);
+  } else {
+    aNativeEvent->charCode = 0;
+  }
+  keyEvent->GetKeyCode(&aNativeEvent->keyCode);
+  keyEvent->GetAltKey(&aNativeEvent->altKey);
+  keyEvent->GetCtrlKey(&aNativeEvent->ctrlKey);
+  keyEvent->GetShiftKey(&aNativeEvent->shiftKey);
+  keyEvent->GetMetaKey(&aNativeEvent->metaKey);
+
+  aNativeEvent->nativeEvent = GetNativeEvent(aDOMEvent);
+
+  return PR_TRUE;
 }
 
 /* static */

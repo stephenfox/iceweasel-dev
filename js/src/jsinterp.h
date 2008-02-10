@@ -99,47 +99,24 @@ typedef struct JSInlineFrame {
                                        is currently assigning to a property */
 #define JSFRAME_DEBUGGER      0x08  /* frame for JS_EvaluateInStackFrame */
 #define JSFRAME_EVAL          0x10  /* frame for obj_eval */
-#define JSFRAME_SPECIAL       0x18  /* special evaluation frame flags */
-#define JSFRAME_COMPILING     0x20  /* frame is being used by compiler */
-#define JSFRAME_COMPILE_N_GO  0x40  /* compiler-and-go mode, can optimize name
-                                       references based on scope chain */
-#define JSFRAME_SCRIPT_OBJECT 0x80  /* compiling source for a Script object */
-#define JSFRAME_YIELDING      0x100 /* js_Interpret dispatched JSOP_YIELD */
-#define JSFRAME_FILTERING     0x200 /* XML filtering predicate expression */
-#define JSFRAME_ITERATOR      0x400 /* trying to get an iterator for for-in */
-#define JSFRAME_POP_BLOCKS    0x800 /* scope chain contains blocks to pop */
-#define JSFRAME_GENERATOR    0x1000 /* frame belongs to generator-iterator */
-#define JSFRAME_ROOTED_ARGV  0x2000 /* frame.argv is rooted by the caller */
+#define JSFRAME_SCRIPT_OBJECT 0x20  /* compiling source for a Script object */
+#define JSFRAME_YIELDING      0x40  /* js_Interpret dispatched JSOP_YIELD */
+#define JSFRAME_FILTERING     0x80  /* XML filtering predicate expression */
+#define JSFRAME_ITERATOR      0x100 /* trying to get an iterator for for-in */
+#define JSFRAME_POP_BLOCKS    0x200 /* scope chain contains blocks to pop */
+#define JSFRAME_GENERATOR     0x400 /* frame belongs to generator-iterator */
+#define JSFRAME_ROOTED_ARGV   0x800 /* frame.argv is rooted by the caller */
 
 #define JSFRAME_OVERRIDE_SHIFT 24   /* override bit-set params; see jsfun.c */
 #define JSFRAME_OVERRIDE_BITS  8
+
+#define JSFRAME_SPECIAL       (JSFRAME_DEBUGGER | JSFRAME_EVAL)
 
 extern JS_FRIEND_API(jsval *)
 js_AllocStack(JSContext *cx, uintN nslots, void **markp);
 
 extern JS_FRIEND_API(void)
 js_FreeStack(JSContext *cx, void *mark);
-
-extern JSBool
-js_GetArgument(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-
-extern JSBool
-js_SetArgument(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-
-extern JSBool
-js_GetLocalVariable(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-
-extern JSBool
-js_SetLocalVariable(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-
-#ifdef DUMP_CALL_TABLE
-# define JSOPTION_LOGCALL_TOSOURCE JS_BIT(15)
-
-extern JSHashTable  *js_CallTable;
-extern size_t       js_LogCallToSourceLimit;
-
-extern void         js_DumpCallTable(JSContext *cx);
-#endif
 
 /*
  * Refresh and return fp->scopeChain.  It may be stale if block scopes are
@@ -234,7 +211,7 @@ js_CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
                       JSObject **objp, JSProperty **propp);
 
 extern JSBool
-js_StrictlyEqual(jsval lval, jsval rval);
+js_StrictlyEqual(JSContext *cx, jsval lval, jsval rval);
 
 extern JSBool
 js_InvokeConstructor(JSContext *cx, jsval *vp, uintN argc);
