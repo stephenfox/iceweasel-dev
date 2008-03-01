@@ -321,6 +321,8 @@ pkix_ValidateResult_RegisterSelf(void *plContext)
         PKIX_ENTER(VALIDATERESULT, "pkix_ValidateResult_RegisterSelf");
 
         entry.description = "ValidateResult";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_ValidateResult);
         entry.destructor = pkix_ValidateResult_Destroy;
         entry.equalsFunction = pkix_ValidateResult_Equals;
         entry.hashcodeFunction = pkix_ValidateResult_Hashcode;
@@ -390,8 +392,11 @@ pkix_ValidateResult_Create(
         result->policyTree = policyTree;
 
         *pResult = result;
+        result = NULL;
 
 cleanup:
+
+        PKIX_DECREF(result);
 
         PKIX_RETURN(VALIDATERESULT);
 
@@ -415,6 +420,7 @@ PKIX_ValidateResult_GetPublicKey(
         PKIX_INCREF(result->pubKey);
         *pPublicKey = result->pubKey;
 
+cleanup:
         PKIX_RETURN(VALIDATERESULT);
 }
 
@@ -434,6 +440,7 @@ PKIX_ValidateResult_GetTrustAnchor(
         PKIX_INCREF(result->anchor);
         *pTrustAnchor = result->anchor;
 
+cleanup:
         PKIX_RETURN(VALIDATERESULT);
 }
 
@@ -453,5 +460,6 @@ PKIX_ValidateResult_GetPolicyTree(
         PKIX_INCREF(result->policyTree);
         (*pPolicyTree) = result->policyTree;
 
+cleanup:
         PKIX_RETURN(VALIDATERESULT);
 }

@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *  Aaron Reed <aaronr@us.ibm.com>
+ *  Merle Sterling <msterlin@us.ibm.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,18 +42,20 @@
 #include "nsComponentManagerUtils.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
-#include "nsString.h"
+#include "nsStringAPI.h"
 #include "nsXFormsUtils.h"
 #include "prprf.h"
 #include "txDouble.h"
 #include "txIFunctionEvaluationContext.h"
 #include "txINodeSet.h"
 #include "nsIClassInfoImpl.h"
+#include "nsIXFormsActionModuleElement.h"
+#include "nsIXFormsContextInfo.h"
 
 #define NS_NAMESPACE_XFORMS "http://www.w3.org/2002/xforms"
 
-static const PRUint32 nanMask[2] = TX_DOUBLE_NaN;
-#define kNaN *((double*)nanMask)
+static const txdpun nanMask = TX_DOUBLE_NaN;
+#define kNaN (nanMask.d)
 
 NS_IMPL_ISUPPORTS1_CI(nsXFormsXPathFunctions, nsIXFormsXPathFunctions)
 
@@ -362,28 +365,51 @@ nsXFormsXPathFunctions::Months(const nsAString & aDuration, double *aResult)
 NS_IMETHODIMP
 nsXFormsXPathFunctions::Now(nsAString & aResult)
 {
-    PRExplodedTime time;
-    char ctime[60];
+    return nsXFormsUtils::GetTime(aResult, true);
+}
 
-    PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &time);
-    int gmtoffsethour = time.tm_params.tp_gmt_offset < 0 ?
-                        -1*time.tm_params.tp_gmt_offset / 3600 :
-                        time.tm_params.tp_gmt_offset / 3600;
-    int remainder = time.tm_params.tp_gmt_offset%3600;
-    int gmtoffsetminute = remainder ? remainder/60 : 00;
+NS_IMETHODIMP
+nsXFormsXPathFunctions::LocalDate(nsAString & aResult)
+{
+    nsAutoString time;
+    nsresult rv = nsXFormsUtils::GetTime(time);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    char zone_location[40];
-    const int zoneBufSize = sizeof(zone_location);
-    PR_snprintf(zone_location, zoneBufSize, "%c%02d:%02d\0",
-                time.tm_params.tp_gmt_offset < 0 ? '-' : '+',
-                gmtoffsethour, gmtoffsetminute);
+    // since we know that the returned string will be in the format of
+    // yyyy-mm-ddThh:mm:ss.ssszzzz, we just need to grab the first 10
+    // characters to represent the date and then strip off the time zone
+    // information from the end and append it to the string to get our answer
+    aResult = Substring(time, 0, 10);
+    PRInt32 timeSeparator = time.FindChar(PRUnichar('T'));
+    if (timeSeparator == kNotFound) {
+      // though this should probably never happen, if this is the case we
+      // certainly don't have to worry about timezones.  Just return.
+      return NS_OK;
+    }
 
-    PR_FormatTime(ctime, sizeof(ctime), "%Y-%m-%dT%H:%M:%S\0", &time);
+    // Time zone information can be of the format '-hh:ss', '+hh:ss', 'Z' or
+    // might be no time zone information at all.
+    nsAutoString hms(Substring(time, timeSeparator+1, time.Length()));
+    PRInt32 timeZoneSeparator = hms.FindChar(PRUnichar('-'));
+    if (timeZoneSeparator == kNotFound) {
+      timeZoneSeparator = hms.FindChar(PRUnichar('+'));
+      if (timeZoneSeparator == kNotFound) {
+        timeZoneSeparator = hms.FindChar(PRUnichar('Z'));
+        if (timeZoneSeparator == kNotFound) {
+          // no time zone information available
+          return NS_OK;
+        }
+      }
+    }
 
-    aResult.AssignASCII(ctime);
-    AppendASCIItoUTF16(zone_location, aResult);
-
+    aResult.Append(Substring(hms, timeZoneSeparator, hms.Length()));
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXFormsXPathFunctions::LocalDateTime(nsAString & aResult)
+{
+    return nsXFormsUtils::GetTime(aResult);
 }
 
 NS_IMETHODIMP
@@ -436,10 +462,6 @@ nsXFormsXPathFunctions::Current(txIFunctionEvaluationContext *aContext,
 {
   *aResult = nsnull;
 
-  if (!nsXFormsUtils::ExperimentalFeaturesEnabled()) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
   // now get the contextNode passed in to the evaluation
   nsCOMPtr<nsIXFormsXPathState> state;
   aContext->GetState(getter_AddRefs(state));
@@ -456,4 +478,87 @@ nsXFormsXPathFunctions::Current(txIFunctionEvaluationContext *aContext,
   result.swap(*aResult);
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXFormsXPathFunctions::Event(txIFunctionEvaluationContext *aContext,
+                              const nsAString &aName,
+                              txINodeSet **aResult)
+{
+    *aResult = nsnull;
+    nsresult rv;
+
+    nsCOMPtr<nsIXFormsXPathState> state;
+    aContext->GetState(getter_AddRefs(state));
+    nsCOMPtr<nsIDOMNode> xfNode;
+    state->GetXformsNode(getter_AddRefs(xfNode));
+    NS_ENSURE_TRUE(xfNode, NS_ERROR_FAILURE);
+
+    nsCOMPtr<txINodeSet> result =
+        do_CreateInstance("@mozilla.org/transformiix-nodeset;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIXFormsContextInfo> contextInfo;
+    nsCOMPtr<nsIXFormsActionModuleElement> actionElt = do_QueryInterface(xfNode);
+    if (actionElt) {
+      nsCOMPtr<nsIDOMEvent> domEvent;
+      actionElt->GetCurrentEvent(getter_AddRefs(domEvent));
+      nsCOMPtr<nsIXFormsDOMEvent> xfEvent = do_QueryInterface(domEvent);
+      if (!xfEvent) {
+        // Event being called for an nsIDOMEvent that is not an
+        // nsIXFormsDOMEvent.
+        result.swap(*aResult);
+        return NS_OK;
+      }
+      xfEvent->GetContextInfo(aName, getter_AddRefs(contextInfo));
+      if (!contextInfo) {
+        // The requested context info property does not exist.
+        result.swap(*aResult);
+        return NS_OK;
+      }
+    }
+
+    // Determine the type of context info property.
+    PRInt32 resultType;
+    contextInfo->GetType(&resultType);
+
+    if (resultType == nsIXFormsContextInfo::NODESET_TYPE) {
+      // The context property is a nodeset. Snapshot each individual node
+      // in the nodeset and add them one at a time to the txINodeset.
+      nsCOMPtr<nsIDOMXPathResult> nodeset;
+      contextInfo->GetNodesetValue(getter_AddRefs(nodeset));
+      if (nodeset) {
+        PRUint32 nodesetSize;
+        rv = nodeset->GetSnapshotLength(&nodesetSize);
+        NS_ENSURE_SUCCESS(rv, rv);
+        for (PRUint32 i=0; i < nodesetSize; ++i) {
+          nsCOMPtr<nsIDOMNode> node;
+          nodeset->SnapshotItem(i, getter_AddRefs(node));
+          result->Add(node);
+        }
+      }
+    } else {
+      // The type is a dom node, string, or number. Strings and numbers
+      // are encapsulated in a text node.
+      nsCOMPtr<nsIDOMNode> node;
+      contextInfo->GetNodeValue(getter_AddRefs(node));
+      if (node) {
+        result->Add(node);
+      }
+#ifdef DEBUG
+      PRInt32 type;
+      contextInfo->GetType(&type);
+      if (type == nsXFormsContextInfo::STRING_TYPE) {
+        nsAutoString str;
+        contextInfo->GetStringValue(str);
+      } else if (type == nsXFormsContextInfo::NUMBER_TYPE) {
+        PRInt32 number;
+        contextInfo->GetNumberValue(&number);
+      }
+#endif
+    }
+
+    result.swap(*aResult);
+
+    return NS_OK;
 }

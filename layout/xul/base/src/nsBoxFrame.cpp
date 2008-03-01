@@ -69,7 +69,6 @@
 #include "nsStyleContext.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
-#include "nsUnitConversion.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
@@ -723,7 +722,7 @@ nsBoxFrame::Reflow(nsPresContext*          aPresContext,
     prefSize = GetPrefSize(state);
     nsSize minSize = GetMinSize(state);
     nsSize maxSize = GetMaxSize(state);
-    BoundsCheck(minSize, prefSize, maxSize);
+    prefSize = BoundsCheck(minSize, prefSize, maxSize);
   }
 
   // get our desiredSize
@@ -814,7 +813,7 @@ nsBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
   if (!nsIBox::AddCSSPrefSize(aBoxLayoutState, this, size))
   {
     if (mLayoutManager) {
-      mLayoutManager->GetPrefSize(this, aBoxLayoutState, size);
+      size = mLayoutManager->GetPrefSize(this, aBoxLayoutState);
       nsIBox::AddCSSPrefSize(aBoxLayoutState, this, size);
     } else
       size = nsBox::GetPrefSize(aBoxLayoutState);
@@ -822,10 +821,9 @@ nsBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 
   nsSize minSize = GetMinSize(aBoxLayoutState);
   nsSize maxSize = GetMaxSize(aBoxLayoutState);
-  BoundsCheck(minSize, size, maxSize);
-  mPrefSize = size;
+  mPrefSize = BoundsCheck(minSize, size, maxSize);
  
-  return size;
+  return mPrefSize;
 }
 
 nscoord
@@ -842,7 +840,7 @@ nsBoxFrame::GetBoxAscent(nsBoxLayoutState& aBoxLayoutState)
     return 0;
 
   if (mLayoutManager)
-    mLayoutManager->GetAscent(this, aBoxLayoutState, mAscent);
+    mAscent = mLayoutManager->GetAscent(this, aBoxLayoutState);
   else
     mAscent = nsBox::GetBoxAscent(aBoxLayoutState);
 
@@ -873,7 +871,7 @@ nsBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
   if (!nsIBox::AddCSSMinSize(aBoxLayoutState, this, size))
   {
     if (mLayoutManager) {
-      mLayoutManager->GetMinSize(this, aBoxLayoutState, size);
+      size = mLayoutManager->GetMinSize(this, aBoxLayoutState);
       nsIBox::AddCSSMinSize(aBoxLayoutState, this, size);
     } else {
       size = nsBox::GetMinSize(aBoxLayoutState);
@@ -909,7 +907,7 @@ nsBoxFrame::GetMaxSize(nsBoxLayoutState& aBoxLayoutState)
   if (!nsIBox::AddCSSMaxSize(aBoxLayoutState, this, size))
   {
     if (mLayoutManager) {
-      mLayoutManager->GetMaxSize(this, aBoxLayoutState, size);
+      size = mLayoutManager->GetMaxSize(this, aBoxLayoutState);
       nsIBox::AddCSSMaxSize(aBoxLayoutState, this, size);
     } else {
       size = nsBox::GetMaxSize(aBoxLayoutState);
@@ -1254,7 +1252,8 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt) {
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) {
     static_cast<nsBoxFrame*>(mFrame)->
       DisplayDebugInfoFor(this, aPt - aBuilder->ToReferenceFrame(mFrame));
     return PR_TRUE;
@@ -1806,6 +1805,8 @@ nsBoxFrame::GetFrameSizeWithMargin(nsIBox* aBox, nsSize& aSize)
 
 /**
  * Boxed don't support fixed positionioning of their children.
+ * KEEP THIS IN SYNC WITH nsContainerFrame::CreateViewForFrame
+ * as much as possible. Until we get rid of views finally...
  */
 nsresult
 nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
@@ -1833,9 +1834,7 @@ nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
         zIndex = PR_INT32_MAX;
       }
       else {
-        nsIFrame* parent = aFrame->GetAncestorWithView();
-        NS_ASSERTION(parent, "GetAncestorWithView failed");
-        parentView = parent->GetView();
+        parentView = aFrame->GetParent()->GetParentViewForChildFrame(aFrame);
       }
 
       NS_ASSERTION(parentView, "no parent view");
@@ -2121,16 +2120,17 @@ public:
   nsDisplayXULEventRedirector(nsIFrame* aFrame, nsDisplayList* aList,
                               nsIFrame* aTargetFrame)
     : nsDisplayWrapList(aFrame, aList), mTargetFrame(aTargetFrame) {}
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   NS_DISPLAY_DECL_NAME("XULEventRedirector")
 private:
   nsIFrame* mTargetFrame;
 };
 
 nsIFrame* nsDisplayXULEventRedirector::HitTest(nsDisplayListBuilder* aBuilder,
-    nsPoint aPt)
+    nsPoint aPt, HitTestState* aState)
 {
-  nsIFrame* frame = mList.HitTest(aBuilder, aPt);
+  nsIFrame* frame = mList.HitTest(aBuilder, aPt, aState);
   if (!frame)
     return nsnull;
 

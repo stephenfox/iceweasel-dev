@@ -126,6 +126,9 @@ NS_IMETHODIMP nsJPEGEncoder::InitFromData(const PRUint8* aData,
         NS_WARNING("Quality value invalid, should be integer 0-100, using default");
       }
     }
+    else {
+      return NS_ERROR_INVALID_ARG;
+    }
   }
 
   jpeg_compress_struct cinfo;
@@ -263,7 +266,7 @@ NS_IMETHODIMP nsJPEGEncoder::ReadSegments(nsWriteSegmentFun aWriter, void *aClos
     aCount = maxCount;
   nsresult rv = aWriter(this, aClosure,
                         reinterpret_cast<const char*>(mImageBuffer),
-                        0, aCount, _retval);
+                        mImageBufferReadPoint, aCount, _retval);
   if (NS_SUCCEEDED(rv)) {
     NS_ASSERTION(*_retval <= aCount, "bad write count");
     mImageBufferReadPoint += *_retval;

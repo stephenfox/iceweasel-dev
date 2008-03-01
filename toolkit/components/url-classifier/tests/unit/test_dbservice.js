@@ -1,5 +1,3 @@
-var dbservice = Cc["@mozilla.org/url-classifier/dbservice;1"].getService(Ci.nsIUrlClassifierDBService);
-
 var checkUrls = [];
 var checkExpect;
 
@@ -24,6 +22,12 @@ var chunk3Urls = [
   "blah.com/a",
   ];
 var chunk3 = chunk3Urls.join("\n");
+
+var chunk3SubUrls = [
+  "1:test.com/a",
+  "1:foo.bar.com/a",
+  "2:blah.com/a" ];
+var chunk3Sub = chunk3SubUrls.join("\n");
 
 var chunk4Urls = [
   "a.com/b",
@@ -136,8 +140,7 @@ function tablesCallbackWithSub(tables)
     "i:testing-phish-simple\n" +
     "sd:3\n";
 
-  dbservice.update(data);
-  dbservice.finish(expireSubSuccess, testFailure);
+  doSimpleUpdate(data, expireSubSuccess, testFailure);
 }
 
 function checkChunksWithSub()
@@ -207,13 +210,12 @@ function do_subs() {
   var data =
     "n:1000\n" +
     "i:testing-phish-simple\n" +
-    "s:3:" + chunk3.length + "\n" +
-    chunk3 + "\n" +
+    "s:3:32:" + chunk3Sub.length + "\n" +
+    chunk3Sub + "\n" +
     "ad:1\n" +
     "ad:4-6\n";
 
-  dbservice.update(data);
-  dbservice.finish(testSubSuccess, testFailure);
+  doSimpleUpdate(data, testSubSuccess, testFailure);
 }
 
 function testAddSuccess(arg) {
@@ -230,23 +232,21 @@ function do_adds() {
   var data =
     "n:1000\n" +
     "i:testing-phish-simple\n" +
-    "a:1:" + chunk1.length + "\n" +
+    "a:1:32:" + chunk1.length + "\n" +
     chunk1 + "\n" +
-    "a:2:" + chunk2.length + "\n" +
+    "a:2:32:" + chunk2.length + "\n" +
     chunk2 + "\n" +
-    "a:4:" + chunk4.length + "\n" +
+    "a:4:32:" + chunk4.length + "\n" +
     chunk4 + "\n" +
-    "a:5:" + chunk5.length + "\n" +
+    "a:5:32:" + chunk5.length + "\n" +
     chunk5 + "\n" +
-    "a:6:" + chunk6.length + "\n" +
+    "a:6:32:" + chunk6.length + "\n" +
     chunk6 + "\n" +
     "i:testing-malware-simple\n" +
-    "a:1:" + chunk2.length + "\n" +
+    "a:1:32:" + chunk2.length + "\n" +
       chunk2 + "\n";
 
-
-  dbservice.update(data);
-  dbservice.finish(testAddSuccess, testFailure);
+  doSimpleUpdate(data, testAddSuccess, testFailure);
 }
 
 function run_test() {

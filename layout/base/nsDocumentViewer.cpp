@@ -364,7 +364,14 @@ private:
                         PRBool aDoCreation,
                         PRBool aInPrintPreview,
                         PRBool aNeedMakeCX = PR_TRUE);
-  nsresult InitPresentationStuff(PRBool aDoInitialReflow);
+  /**
+   * @param aDoInitialReflow set to true if you want to kick off the initial
+   * reflow
+   * @param aReenableRefresh set to true if you want this to reenable refresh
+   * before returning; otherwise this will return with refresh disabled
+   * in the view manager
+   */
+  nsresult InitPresentationStuff(PRBool aDoInitialReflow, PRBool aReenableRefresh);
 
   nsresult GetPopupNode(nsIDOMNode** aNode);
   nsresult GetPopupLinkNode(nsIDOMNode** aNode);
@@ -659,7 +666,7 @@ DocumentViewerImpl::Init(nsIWidget* aParentWidget,
 }
 
 nsresult
-DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
+DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow, PRBool aReenableRefresh)
 {
   // Create the style set...
   nsStyleSet *styleSet;
@@ -721,15 +728,15 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
     nsCOMPtr<nsIPresShell> shellGrip = mPresShell;
     // Initial reflow
     mPresShell->InitialReflow(width, height);
-
-    // Now trigger a refresh
-    if (mEnableRendering && mViewManager) {
-      mViewManager->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
-    }
   } else {
     // Store the visible area so it's available for other callers of
     // InitialReflow, like nsContentSink::StartLayout.
     mPresContext->SetVisibleArea(nsRect(0, 0, width, height));
+  }
+
+  // Now trigger a refresh
+  if (aReenableRefresh && mEnableRendering && mViewManager) {
+    mViewManager->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
   }
 
   // now register ourselves as a selection listener, so that we get
@@ -753,7 +760,7 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
     return rv;
 
   // Save old listener so we can unregister it
-  nsCOMPtr<nsIDOMFocusListener> mOldFocusListener = mFocusListener;
+  nsCOMPtr<nsIDOMFocusListener> oldFocusListener = mFocusListener;
 
   // focus listener
   //
@@ -772,8 +779,8 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
     rv = mDocument->AddEventListenerByIID(mFocusListener,
                                           NS_GET_IID(nsIDOMFocusListener));
     NS_ASSERTION(NS_SUCCEEDED(rv), "failed to register focus listener");
-    if (mOldFocusListener) {
-      rv = mDocument->RemoveEventListenerByIID(mOldFocusListener,
+    if (oldFocusListener) {
+      rv = mDocument->RemoveEventListenerByIID(oldFocusListener,
                                                NS_GET_IID(nsIDOMFocusListener));
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to remove focus listener");
     }
@@ -906,7 +913,7 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
     // The ViewManager and Root View was created above (in
     // MakeWindow())...
 
-    rv = InitPresentationStuff(!makeCX);
+    rv = InitPresentationStuff(!makeCX, !makeCX);
   }
 
   return rv;
@@ -1498,10 +1505,7 @@ DocumentViewerImpl::Destroy()
     mPreviousViewer = nsnull;
   }
 
-  if (mDeviceContext) {
-    mDeviceContext->FlushFontCache();
-    mDeviceContext = nsnull;
-  }
+  mDeviceContext = nsnull;
 
   if (mPresShell) {
     // Break circular reference (or something)
@@ -1646,31 +1650,7 @@ DocumentViewerImpl::SetDOMDocument(nsIDOMDocument *aDocument)
       mPresContext->SetLinkHandler(linkHandler);
     }
 
-    // Create a new style set for the document
-
-    nsStyleSet *styleSet;
-    rv = CreateStyleSet(mDocument, &styleSet);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = newDoc->CreateShell(mPresContext, mViewManager, styleSet,
-                             getter_AddRefs(mPresShell));
-    if (NS_FAILED(rv)) {
-      delete styleSet;
-      return rv;
-    }
-
-    // We're done creating the style set
-    styleSet->EndUpdate();
-
-    // The pres shell owns the style set now.
-    mPresShell->BeginObservingDocument();
-
-    // Register the focus listener on the new document
-    if (mDocument) {
-      rv = mDocument->AddEventListenerByIID(mFocusListener,
-                                            NS_GET_IID(nsIDOMFocusListener));
-      NS_ASSERTION(NS_SUCCEEDED(rv), "failed to register focus listener");
-    }
+    rv = InitPresentationStuff(PR_FALSE, PR_TRUE);
   }
 
   return rv;
@@ -1934,7 +1914,8 @@ DocumentViewerImpl::Show(void)
     if (mPresContext) {
       Hide();
 
-      rv = InitPresentationStuff(PR_TRUE);
+      rv = InitPresentationStuff(mDocument->MayStartLayout(),
+                                 mDocument->MayStartLayout());
     }
 
     // If we get here the document load has already started and the
@@ -1973,10 +1954,6 @@ DocumentViewerImpl::Hide(void)
     // just because the window is hidden.
 
     return NS_OK;
-  }
-
-  if (mDeviceContext) {
-    mDeviceContext->FlushFontCache();
   }
 
   // Break circular reference (or something)
@@ -2687,10 +2664,8 @@ DocumentViewerImpl::SetTextZoom(float aTextZoom)
   if (!GetIsPrintPreview()) {
     mTextZoom = aTextZoom;
   }
-  nsCOMPtr<nsIViewManager> vm = GetViewManager();
-  if (vm) {
-    vm->BeginUpdateViewBatch();
-  }
+
+  nsIViewManager::UpdateViewBatch batch(GetViewManager());
       
   // Set the text zoom on all children of mContainer (even if our zoom didn't
   // change, our children's zoom may be different, though it would be unusual).
@@ -2705,9 +2680,7 @@ DocumentViewerImpl::SetTextZoom(float aTextZoom)
       pc->SetTextZoom(aTextZoom);
   }
 
-  if (vm) {
-    vm->EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
-  }
+  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
   
   return NS_OK;
 }
@@ -2728,10 +2701,7 @@ DocumentViewerImpl::SetFullZoom(float aFullZoom)
     mPageZoom = aFullZoom;
   }
 
-  nsCOMPtr<nsIViewManager> vm = GetViewManager();
-  if (vm) {
-    vm->BeginUpdateViewBatch();
-  }
+  nsIViewManager::UpdateViewBatch batch(GetViewManager());
 
   struct ZoomInfo ZoomInfo = { aFullZoom };
   CallChildren(SetChildFullZoom, &ZoomInfo);
@@ -2741,9 +2711,7 @@ DocumentViewerImpl::SetFullZoom(float aFullZoom)
     pc->SetFullZoom(aFullZoom);
   }
 
-  if (vm) {
-    vm->EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
-  }
+  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 
   return NS_OK;
 }
@@ -3454,6 +3422,11 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
   }
 #endif
 
+  if (!mContainer) {
+    PR_PL(("Container was destroyed yet we are still trying to use it!"));
+    return NS_ERROR_FAILURE;
+  }
+
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   NS_ASSERTION(docShell, "This has to be a docshell");
 
@@ -3547,6 +3520,11 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
     return NS_ERROR_FAILURE;
   }
 #endif
+
+  if (!mContainer) {
+    PR_PL(("Container was destroyed yet we are still trying to use it!"));
+    return NS_ERROR_FAILURE;
+  }
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   NS_ASSERTION(docShell, "This has to be a docshell");
@@ -3681,8 +3659,15 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
     }
     nscoord deadSpaceGap = mPresContext->TwipsToAppUnits(deadSpaceGapTwips);
 
-    // scroll so that top of page (plus the gray area) is at the top of the scroll area
-    scrollableView->ScrollTo(0, fndPageFrame->GetPosition().y-deadSpaceGap, PR_TRUE);
+    // XXXdholbert: deadSpaceGap should be subtracted from
+    // fndPageFrame->GetPosition().y, before the scaling.  However,
+    // deadSpaceGap isn't matching up to the actual visible dead space in Print
+    // Preview right now -- see bug 414075.  Hence, ignoring deadSpaceGap for
+    // now -- instead, we'll navigate to exactly the top of the given page.
+    nscoord newYPosn = 
+      nscoord(mPrintEngine->GetPrintPreviewScale() * 
+              float(fndPageFrame->GetPosition().y));
+    scrollableView->ScrollTo(0, newYPosn, PR_TRUE);
   }
   return NS_OK;
 

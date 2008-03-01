@@ -224,6 +224,8 @@ pkix_ComCertSelParams_RegisterSelf(void *plContext)
         PKIX_ENTER(COMCERTSELPARAMS, "pkix_ComCertSelParams_RegisterSelf");
 
         entry.description = "ComCertSelParams";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_ComCertSelParams);
         entry.destructor = pkix_ComCertSelParams_Destroy;
         entry.equalsFunction = NULL;
         entry.hashcodeFunction = NULL;
@@ -306,6 +308,7 @@ PKIX_ComCertSelParams_GetSubject(
 
         *pSubject = params->subject;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -398,6 +401,7 @@ PKIX_ComCertSelParams_GetPolicy(
         PKIX_INCREF(params->policies);
         *pPolicy = params->policies;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -441,6 +445,7 @@ PKIX_ComCertSelParams_GetCertificate(
         PKIX_INCREF(params->cert);
         *pCert = params->cert;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -487,6 +492,7 @@ PKIX_ComCertSelParams_GetCertificateValid(
         PKIX_INCREF(params->date);
         *pDate = params->date;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -534,6 +540,7 @@ PKIX_ComCertSelParams_GetNameConstraints(
 
         *pNameConstraints = params->nameConstraints;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -580,6 +587,7 @@ PKIX_ComCertSelParams_GetPathToNames(
 
         *pNames = params->pathToNames;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -667,6 +675,7 @@ PKIX_ComCertSelParams_GetSubjAltNames(
 
         *pNames = params->subjAltNames;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -688,6 +697,7 @@ PKIX_ComCertSelParams_SetSubjAltNames(
 
         params->subjAltNames = names;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -776,6 +786,7 @@ PKIX_ComCertSelParams_GetExtendedKeyUsage(
         PKIX_INCREF(params->extKeyUsage);
         *pExtKeyUsage = params->extKeyUsage;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -798,6 +809,7 @@ PKIX_ComCertSelParams_SetExtendedKeyUsage(
 
         params->extKeyUsage = extKeyUsage;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -855,6 +867,7 @@ PKIX_ComCertSelParams_GetIssuer(
         PKIX_INCREF(params->issuer);
         *pIssuer = params->issuer;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -900,6 +913,7 @@ PKIX_ComCertSelParams_GetSerialNumber(
         PKIX_INCREF(params->serialNumber);
         *pSerialNumber = params->serialNumber;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -989,6 +1003,7 @@ PKIX_ComCertSelParams_GetSubjKeyIdentifier(
 
         *pSubjKeyId = params->subjKeyId;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -1038,6 +1053,7 @@ PKIX_ComCertSelParams_GetAuthorityKeyIdentifier(
 
         *pAuthKeyId = params->authKeyId;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -1086,6 +1102,7 @@ PKIX_ComCertSelParams_GetSubjPubKey(
 
         *pSubjPubKey = params->subjPubKey;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 
@@ -1134,6 +1151,7 @@ PKIX_ComCertSelParams_GetSubjPKAlgId(
 
         *pAlgId = params->subjPKAlgId;
 
+cleanup:
         PKIX_RETURN(COMCERTSELPARAMS);
 }
 

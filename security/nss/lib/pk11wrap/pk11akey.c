@@ -59,6 +59,32 @@
 #include "secpkcs5.h"  
 #include "ec.h"
 
+static SECItem *
+pk11_MakeIDFromPublicKey(SECKEYPublicKey *pubKey)
+{
+    /* set the ID to the public key so we can find it again */
+    SECItem *pubKeyIndex =  NULL;
+    switch (pubKey->keyType) {
+    case rsaKey:
+      pubKeyIndex = &pubKey->u.rsa.modulus;
+      break;
+    case dsaKey:
+      pubKeyIndex = &pubKey->u.dsa.publicValue;
+      break;
+    case dhKey:
+      pubKeyIndex = &pubKey->u.dh.publicValue;
+      break;      
+    case ecKey:
+      pubKeyIndex = &pubKey->u.ec.publicValue;
+      break;      
+    default:
+      return NULL;
+    }
+    PORT_Assert(pubKeyIndex != NULL);
+
+    return PK11_MakeIDFromPubKey(pubKeyIndex);
+} 
+
 /*
  * import a public key into the desired slot
  */
@@ -71,9 +97,10 @@ PK11_ImportPublicKey(PK11SlotInfo *slot, SECKEYPublicKey *pubKey,
     CK_OBJECT_CLASS keyClass = CKO_PUBLIC_KEY;
     CK_KEY_TYPE keyType = CKK_GENERIC_SECRET;
     CK_OBJECT_HANDLE objectID;
-    CK_ATTRIBUTE theTemplate[10];
+    CK_ATTRIBUTE theTemplate[11];
     CK_ATTRIBUTE *signedattr = NULL;
     CK_ATTRIBUTE *attrs = theTemplate;
+    SECItem *ckaId = NULL;
     int signedcount = 0;
     int templateCount = 0;
     SECStatus rv;
@@ -97,6 +124,14 @@ PK11_ImportPublicKey(PK11SlotInfo *slot, SECKEYPublicKey *pubKey,
     PK11_SETATTRS(attrs, CKA_KEY_TYPE, &keyType, sizeof(keyType) ); attrs++;
     PK11_SETATTRS(attrs, CKA_TOKEN, isToken ? &cktrue : &ckfalse,
 						 sizeof(CK_BBOOL) ); attrs++;
+    if (isToken) {
+	ckaId = pk11_MakeIDFromPublicKey(pubKey);
+	if (ckaId == NULL) {
+	    PORT_SetError( SEC_ERROR_BAD_KEY );
+	    return CK_INVALID_HANDLE;
+	}
+	PK11_SETATTRS(attrs, CKA_ID, ckaId->data, ckaId->len); attrs++;
+    }
 
     /* now import the key */
     {
@@ -176,6 +211,9 @@ PK11_ImportPublicKey(PK11SlotInfo *slot, SECKEYPublicKey *pubKey,
 	} 
         rv = PK11_CreateNewObject(slot, CK_INVALID_SESSION, theTemplate,
 				 	templateCount, isToken, &objectID);
+	if (ckaId) {
+	    SECITEM_FreeItem(ckaId,PR_TRUE);
+	}
 	if ( rv != SECSuccess) {
 	    return CK_INVALID_HANDLE;
 	}
@@ -761,7 +799,6 @@ PK11_GenerateKeyPairWithOpFlags(PK11SlotInfo *slot,CK_MECHANISM_TYPE type,
     int peCount,i;
     CK_ATTRIBUTE *attrs;
     CK_ATTRIBUTE *privattrs;
-    SECItem *pubKeyIndex;
     CK_ATTRIBUTE setTemplate;
     CK_MECHANISM_INFO mechanism_info;
     CK_OBJECT_CLASS keyClass;
@@ -1083,25 +1120,7 @@ PK11_GenerateKeyPairWithOpFlags(PK11SlotInfo *slot,CK_MECHANISM_TYPE type,
     }
 
     /* set the ID to the public key so we can find it again */
-    pubKeyIndex =  NULL;
-    switch (type) {
-    case CKM_RSA_PKCS_KEY_PAIR_GEN:
-    case CKM_RSA_X9_31_KEY_PAIR_GEN:
-      pubKeyIndex = &(*pubKey)->u.rsa.modulus;
-      break;
-    case CKM_DSA_KEY_PAIR_GEN:
-      pubKeyIndex = &(*pubKey)->u.dsa.publicValue;
-      break;
-    case CKM_DH_PKCS_KEY_PAIR_GEN:
-      pubKeyIndex = &(*pubKey)->u.dh.publicValue;
-      break;      
-    case CKM_EC_KEY_PAIR_GEN:
-      pubKeyIndex = &(*pubKey)->u.ec.publicValue;
-      break;      
-    }
-    PORT_Assert(pubKeyIndex != NULL);
-
-    cka_id = PK11_MakeIDFromPubKey(pubKeyIndex);
+    cka_id = pk11_MakeIDFromPublicKey(*pubKey);
     pubIsToken = (PRBool)PK11_HasAttributeSet(slot,pubID, CKA_TOKEN);
 
     PK11_SETATTRS(&setTemplate, CKA_ID, cka_id->data, cka_id->len);
@@ -1216,12 +1235,11 @@ PK11_ImportEncryptedPrivateKeyInfo(PK11SlotInfo *slot,
 			PRBool isPrivate, KeyType keyType, 
 			unsigned int keyUsage, void *wincx)
 {
-    CK_MECHANISM_TYPE mechanism;
-    SECItem *pbe_param, crypto_param;
+    CK_MECHANISM_TYPE pbeMechType;
+    SECItem *crypto_param = NULL;
     PK11SymKey *key = NULL;
     SECStatus rv = SECSuccess;
-    CK_MECHANISM cryptoMech, pbeMech;
-    CK_RV crv;
+    CK_MECHANISM_TYPE cryptoMechType;
     SECKEYPrivateKey *privKey = NULL;
     PRBool faulty3DES = PR_FALSE;
     int usageCount = 0;
@@ -1235,9 +1253,7 @@ PK11_ImportEncryptedPrivateKeyInfo(PK11SlotInfo *slot,
     if((epki == NULL) || (pwitem == NULL))
 	return SECFailure;
 
-    crypto_param.data = NULL;
-
-    mechanism = PK11_AlgtagToMechanism(SECOID_FindOIDTag(
+    pbeMechType = PK11_AlgtagToMechanism(SECOID_FindOIDTag(
 					&epki->algorithm.algorithm));
 
     switch (keyType) {
@@ -1291,34 +1307,26 @@ PK11_ImportEncryptedPrivateKeyInfo(PK11SlotInfo *slot,
     }
 
 try_faulty_3des:
-    pbe_param = PK11_ParamFromAlgid(&epki->algorithm);
 
-    key = PK11_RawPBEKeyGen(slot, mechanism, pbe_param, pwitem, 
-							faulty3DES, wincx);
-    if((key == NULL) || (pbe_param == NULL)) {
+    key = PK11_PBEKeyGen(slot, &epki->algorithm, pwitem, faulty3DES, wincx);
+    if (key == NULL) {
+	rv = SECFailure;
+	goto done;
+    }
+    cryptoMechType = pk11_GetPBECryptoMechanism(&epki->algorithm,
+					 &crypto_param, pwitem, faulty3DES);
+    if (cryptoMechType == CKM_INVALID_MECHANISM) {
 	rv = SECFailure;
 	goto done;
     }
 
-    pbeMech.mechanism = mechanism;
-    pbeMech.pParameter = pbe_param->data;
-    pbeMech.ulParameterLen = pbe_param->len;
 
-    crv = PK11_MapPBEMechanismToCryptoMechanism(&pbeMech, &cryptoMech, 
-					        pwitem, faulty3DES);
-    if(crv != CKR_OK) {
-	rv = SECFailure;
-	goto done;
-    }
-
-    cryptoMech.mechanism = PK11_GetPadMechanism(cryptoMech.mechanism);
-    crypto_param.data = (unsigned char*)cryptoMech.pParameter;
-    crypto_param.len = cryptoMech.ulParameterLen;
+    cryptoMechType = PK11_GetPadMechanism(cryptoMechType);
 
     PORT_Assert(usage != NULL);
     PORT_Assert(usageCount != 0);
-    privKey = PK11_UnwrapPrivKey(slot, key, cryptoMech.mechanism, 
-				 &crypto_param, &epki->encryptedData, 
+    privKey = PK11_UnwrapPrivKey(slot, key, cryptoMechType, 
+				 crypto_param, &epki->encryptedData, 
 				 nickname, publicValue, isPerm, isPrivate,
 				 key_type, usage, usageCount, wincx);
     if(privKey) {
@@ -1328,28 +1336,21 @@ try_faulty_3des:
 	goto done;
     }
 
-    /* if we are unable to import the key and the mechanism is 
+    /* if we are unable to import the key and the pbeMechType is 
      * CKM_NETSCAPE_PBE_SHA1_TRIPLE_DES_CBC, then it is possible that
      * the encrypted blob was created with a buggy key generation method
      * which is described in the PKCS 12 implementation notes.  So we
      * need to try importing via that method.
      */ 
-    if((mechanism == CKM_NETSCAPE_PBE_SHA1_TRIPLE_DES_CBC) && (!faulty3DES)) {
+    if((pbeMechType == CKM_NETSCAPE_PBE_SHA1_TRIPLE_DES_CBC) && (!faulty3DES)) {
 	/* clean up after ourselves before redoing the key generation. */
 
 	PK11_FreeSymKey(key);
 	key = NULL;
 
-	if(pbe_param) {
-	    SECITEM_ZfreeItem(pbe_param, PR_TRUE);
-	    pbe_param = NULL;
-	}
-
-	if(crypto_param.data) {
-	    SECITEM_ZfreeItem(&crypto_param, PR_FALSE);
-	    crypto_param.data = NULL;
-	    cryptoMech.pParameter = NULL;
-	    crypto_param.len = cryptoMech.ulParameterLen = 0;
+	if(crypto_param) {
+	    SECITEM_ZfreeItem(crypto_param, PR_TRUE);
+	    crypto_param = NULL;
 	}
 
 	faulty3DES = PR_TRUE;
@@ -1360,13 +1361,8 @@ try_faulty_3des:
     rv = SECFailure;
 
 done:
-    if(pbe_param != NULL) {
-	SECITEM_ZfreeItem(pbe_param, PR_TRUE);
-	pbe_param = NULL;
-    }
-
-    if(crypto_param.data != NULL) {
-	SECITEM_ZfreeItem(&crypto_param, PR_FALSE);
+    if(crypto_param != NULL) {
+	SECITEM_ZfreeItem(crypto_param, PR_TRUE);
     }
 
     if(key != NULL) {
@@ -1394,28 +1390,27 @@ PK11_ExportEncryptedPrivKeyInfo(
     SECKEYEncryptedPrivateKeyInfo *epki      = NULL;
     PRArenaPool                   *arena     = NULL;
     SECAlgorithmID                *algid;
-    SECItem                       *pbe_param = NULL;
+    SECOidTag			  pbeAlgTag = SEC_OID_UNKNOWN;
+    SECItem                       *crypto_param = NULL;
     PK11SymKey                    *key       = NULL;
     SECKEYPrivateKey		  *tmpPK = NULL;
     SECStatus                      rv        = SECSuccess;
     CK_RV                          crv;
     CK_ULONG                       encBufLen;
-    CK_MECHANISM_TYPE              mechanism;
-    CK_MECHANISM                   pbeMech;
+    CK_MECHANISM_TYPE              pbeMechType;
+    CK_MECHANISM_TYPE              cryptoMechType;
     CK_MECHANISM                   cryptoMech;
-    SECItem                        crypto_param;
 
     if (!pwitem || !pk) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return NULL;
     }
 
-    algid = SEC_PKCS5CreateAlgorithmID(algTag, NULL, iteration);
+    algid = sec_pkcs5CreateAlgorithmID(algTag, SEC_OID_UNKNOWN, SEC_OID_UNKNOWN,
+				&pbeAlgTag, 0, NULL, iteration);
     if (algid == NULL) {
 	return NULL;
     }
-
-    crypto_param.data = NULL;
 
     arena = PORT_NewArena(2048);
     if (arena)
@@ -1426,15 +1421,6 @@ PK11_ExportEncryptedPrivKeyInfo(
     }
     epki->arena = arena;
 
-    mechanism = PK11_AlgtagToMechanism(algTag);
-    pbe_param = PK11_ParamFromAlgid(algid);
-    if (!pbe_param || mechanism == CKM_INVALID_MECHANISM) {
-	rv = SECFailure;
-	goto loser;
-    }
-    pbeMech.mechanism = mechanism;
-    pbeMech.pParameter = pbe_param->data;
-    pbeMech.ulParameterLen = pbe_param->len;
 
     /* if we didn't specify a slot, use the slot the private key was in */
     if (!slot) {
@@ -1444,28 +1430,27 @@ PK11_ExportEncryptedPrivKeyInfo(
     /* if we specified a different slot, and the private key slot can do the
      * pbe key gen, generate the key in the private key slot so we don't have 
      * to move it later */
+    pbeMechType = PK11_AlgtagToMechanism(pbeAlgTag);
     if (slot != pk->pkcs11Slot) {
-	if (PK11_DoesMechanism(pk->pkcs11Slot,mechanism)) {
+	if (PK11_DoesMechanism(pk->pkcs11Slot,pbeMechType)) {
 	    slot = pk->pkcs11Slot;
 	}
     }
-    key = PK11_RawPBEKeyGen(slot, mechanism, pbe_param, pwitem, 
-							PR_FALSE, wincx);
-
-    if((key == NULL) || (pbe_param == NULL)) {
+    key = PK11_PBEKeyGen(slot, algid, pwitem, PR_FALSE, wincx);
+    if (key == NULL) {
 	rv = SECFailure;
 	goto loser;
     }
 
-    crv = PK11_MapPBEMechanismToCryptoMechanism(&pbeMech, &cryptoMech, 
-						pwitem, PR_FALSE);
-    if(crv != CKR_OK) {
+    cryptoMechType = PK11_GetPBECryptoMechanism(algid, &crypto_param, pwitem);
+    if (cryptoMechType == CKM_INVALID_MECHANISM) {
 	rv = SECFailure;
 	goto loser;
     }
-    cryptoMech.mechanism = PK11_GetPadMechanism(cryptoMech.mechanism);
-    crypto_param.data = (unsigned char *)cryptoMech.pParameter;
-    crypto_param.len = cryptoMech.ulParameterLen;
+
+    cryptoMech.mechanism = PK11_GetPadMechanism(cryptoMechType);
+    cryptoMech.pParameter = crypto_param ? crypto_param->data : NULL;
+    cryptoMech.ulParameterLen = crypto_param ? crypto_param->len : 0;
 
     /* If the key isn't in the private key slot, move it */
     if (key->slot != pk->pkcs11Slot) {
@@ -1526,14 +1511,9 @@ PK11_ExportEncryptedPrivKeyInfo(
     rv = SECOID_CopyAlgorithmID(arena, &epki->algorithm, algid);
 
 loser:
-    if(pbe_param != NULL) {
-	SECITEM_ZfreeItem(pbe_param, PR_TRUE);
-	pbe_param = NULL;
-    }
-
-    if(crypto_param.data != NULL) {
-	SECITEM_ZfreeItem(&crypto_param, PR_FALSE);
-	crypto_param.data = NULL;
+    if(crypto_param != NULL) {
+	SECITEM_ZfreeItem(crypto_param, PR_TRUE);
+	crypto_param = NULL;
     }
 
     if(key != NULL) {

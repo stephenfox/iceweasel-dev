@@ -19,7 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Dietrich Ayala <autonome@gmail.com>
+ *   Dietrich Ayala <dietrich@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,13 +54,10 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-const CID = Components.ID("{5280606b-2510-4fe0-97ef-9b5a22eafe6b}");
-const CONTRACT_ID = "@mozilla.org/browser/sessionstore;1";
-const CLASS_NAME = "Browser Session Store Service";
-
 const STATE_STOPPED = 0;
 const STATE_RUNNING = 1;
 const STATE_QUITTING = -1;
+const STATE_DISABLED = -2;
 
 const STATE_STOPPED_STR = "stopped";
 const STATE_RUNNING_STR = "running";
@@ -68,6 +65,8 @@ const STATE_RUNNING_STR = "running";
 const PRIVACY_NONE = 0;
 const PRIVACY_ENCRYPTED = 1;
 const PRIVACY_FULL = 2;
+
+const NOTIFY_WINDOWS_RESTORED = "sessionstore-windows-restored";
 
 // global notifications observed
 const OBSERVING = [
@@ -102,6 +101,7 @@ const CAPABILITIES = [
 
 // module for JSON conversion (needed for the nsISessionStore API)
 Cu.import("resource://gre/modules/JSON.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function debug(aMsg) {
   aMsg = ("SessionStore: " + aMsg).replace(/\S{80}/g, "$&\n");
@@ -115,6 +115,13 @@ function SessionStoreService() {
 }
 
 SessionStoreService.prototype = {
+  classDescription: "Browser Session Store Service",
+  contractID: "@mozilla.org/browser/sessionstore;1",
+  classID: Components.ID("{5280606b-2510-4fe0-97ef-9b5a22eafe6b}"),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISessionStore,
+                                         Ci.nsIDOMEventListener,
+                                         Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference]),
 
   // xul:tab attributes to (re)store (extensions might want to hook in here)
   xulAttributes: [],
@@ -127,6 +134,9 @@ SessionStoreService.prototype = {
 
   // when crash recovery is disabled, session data is not written to disk
   _resume_from_crash: true,
+
+  // During the initial restore tracks the number of windows yet to be restored
+  _restoreCount: 0,
 
   // time in milliseconds (Date.now()) when the session was last written to file
   _lastSaveTime: 0, 
@@ -149,6 +159,9 @@ SessionStoreService.prototype = {
    * Initialize the component
    */
   init: function sss_init(aWindow) {
+    if (this._loadState == STATE_DISABLED)
+      return;
+
     if (!aWindow || this._loadState == STATE_RUNNING) {
       // make sure that all browser windows which try to initialize
       // SessionStore are really tracked by it
@@ -161,12 +174,17 @@ SessionStoreService.prototype = {
                        getService(Ci.nsIPrefService).getBranch("browser.");
     this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
 
-    // if the service is disabled, do not init 
-    if (!this._prefBranch.getBoolPref("sessionstore.enabled"))
-      return;
-
     var observerService = Cc["@mozilla.org/observer-service;1"].
                           getService(Ci.nsIObserverService);
+
+    // if the service is disabled, do not init 
+    if (!this._prefBranch.getBoolPref("sessionstore.enabled")) {
+      // Notify observers that the sessionstore has done everything it is going to.
+      observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
+      // Mark as disabled so we don't even try to initialise again.
+      this._loadState = STATE_DISABLED;
+      return;
+    }
 
     OBSERVING.forEach(function(aTopic) {
       observerService.addObserver(this, aTopic, true);
@@ -416,13 +434,15 @@ SessionStoreService.prototype = {
       if (this._initialState) {
         // make sure that the restored tabs are first in the window
         this._initialState._firstTabs = true;
+        this._restoreCount = this._initialState.windows ? this._initialState.windows.length : 0;
         this.restoreWindow(aWindow, this._initialState, this._isCmdLineEmpty(aWindow));
         delete this._initialState;
       }
-      
-      if (this._lastSessionCrashed) {
-        // restart any interrupted downloads
-        aWindow.setTimeout(this.retryDownloads, 0);
+      else {
+        // Nothing to restore, notify observers things are complete.
+        var observerService = Cc["@mozilla.org/observer-service;1"].
+                              getService(Ci.nsIObserverService);
+        observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
       }
     }
     
@@ -463,10 +483,6 @@ SessionStoreService.prototype = {
     tabbrowser.removeEventListener("TabClose", this, true);
     tabbrowser.removeEventListener("TabSelect", this, true);
     
-    for (var i = 0; i < tabpanels.childNodes.length; i++) {
-      this.onTabRemove(aWindow, tabpanels.childNodes[i], true);
-    }
-    
     if (this._loadState == STATE_RUNNING) { // window not closed during a regular shut-down 
       // update all window data for a last time
       this._collectWindowData(aWindow);
@@ -481,6 +497,10 @@ SessionStoreService.prototype = {
       
       // save the state without this window to disk
       this.saveStateDelayed();
+    }
+    
+    for (var i = 0; i < tabpanels.childNodes.length; i++) {
+      this.onTabRemove(aWindow, tabpanels.childNodes[i], true);
     }
     
     // cache the window state until the window is completely gone
@@ -540,6 +560,12 @@ SessionStoreService.prototype = {
    *        TabPanel reference
    */
   onTabClose: function sss_onTabClose(aWindow, aTab) {
+    // notify the tabbrowser that the tab state will be retrieved for the last time
+    // (so that extension authors can easily set data on soon-to-be-closed tabs)
+    var event = aWindow.document.createEvent("Events");
+    event.initEvent("SSTabClosing", true, false);
+    aTab.dispatchEvent(event);
+    
     var maxTabsUndo = this._prefBranch.getIntPref("sessionstore.max_tabs_undo");
     // don't update our internal state if we don't have to
     if (maxTabsUndo == 0) {
@@ -547,13 +573,11 @@ SessionStoreService.prototype = {
     }
     
     // make sure that the tab related data is up-to-date
-    this._saveWindowHistory(aWindow);
-    this._updateTextAndScrollData(aWindow);
+    var tabState = this._collectTabData(aTab);
+    this._updateTextAndScrollDataForTab(aWindow, aTab.linkedBrowser, tabState);
     
     // store closed-tab data for undo
-    var tabState = this._windows[aWindow.__SSi].tabs[aTab._tPos];
-    if (tabState && (tabState.entries.length > 1 ||
-        tabState.entries[0].url != "about:blank")) {
+    if (tabState.entries.length > 1 || tabState.entries[0].url != "about:blank") {
       this._windows[aWindow.__SSi]._closedTabs.unshift({
         state: tabState,
         title: aTab.getAttribute("label"),
@@ -787,76 +811,84 @@ SessionStoreService.prototype = {
    */
   _saveWindowHistory: function sss_saveWindowHistory(aWindow) {
     var tabbrowser = aWindow.getBrowser();
-    var browsers = tabbrowser.browsers;
-    var tabs = this._windows[aWindow.__SSi].tabs = [];
-    this._windows[aWindow.__SSi].selected = 0;
+    var tabs = tabbrowser.mTabs;
+    var tabsData = this._windows[aWindow.__SSi].tabs = [];
     
-    for (var i = 0; i < browsers.length; i++) {
-      var tabData = { entries: [], index: 0 };
-      
-      var browser = browsers[i];
-      if (!browser || !browser.currentURI) {
-        // can happen when calling this function right after .addTab()
-        tabs.push(tabData);
-        continue;
-      }
-      else if (browser.parentNode.__SS_data && browser.parentNode.__SS_data._tab) {
-        // use the data to be restored when the tab hasn't been completely loaded
-        tabs.push(browser.parentNode.__SS_data);
-        continue;
-      }
+    for (var i = 0; i < tabs.length; i++)
+      tabsData.push(this._collectTabData(tabs[i]));
+    
+    this._windows[aWindow.__SSi].selected = tabbrowser.mTabBox.selectedIndex + 1;
+  },
 
-      var history = null;
-      try {
-        history = browser.sessionHistory;
-      }
-      catch (ex) { } // this could happen if we catch a tab during (de)initialization
-      
-      if (history && browser.parentNode.__SS_data && browser.parentNode.__SS_data.entries[history.index]) {
-        tabData = browser.parentNode.__SS_data;
-        tabData.index = history.index + 1;
-      }
-      else if (history && history.count > 0) {
-        for (var j = 0; j < history.count; j++) {
-          tabData.entries.push(this._serializeHistoryEntry(history.getEntryAtIndex(j, false)));
-        }
-        tabData.index = history.index + 1;
-        
-        browser.parentNode.__SS_data = tabData;
-      }
-      else {
-        tabData.entries[0] = { url: browser.currentURI.spec };
-        tabData.index = 1;
-      }
-
-      tabData.zoom = browser.markupDocumentViewer.textZoom;
-      
-      var disallow = [];
-      for (let i = 0; i < CAPABILITIES.length; i++) {
-        if (!browser.docShell["allow" + CAPABILITIES[i]])
-          disallow.push(CAPABILITIES[i]); 
-      }
-      if (disallow.length != 0)
-        tabData.disallow = disallow.join(",");
-      
-      if (this.xulAttributes.length != 0) {
-        var xulattr = Array.filter(tabbrowser.mTabs[i].attributes, function(aAttr) {
-          return (this.xulAttributes.indexOf(aAttr.name) > -1);
-        }, this).map(function(aAttr) {
-          return aAttr.name + "=" + encodeURI(aAttr.value);
-        });
-        tabData.xultab = xulattr.join(" ");
-      }
-      
-      if (tabbrowser.mTabs[i].__SS_extdata)
-        tabData.extData = tabbrowser.mTabs[i].__SS_extdata;
-      
-      tabs.push(tabData);
-      
-      if (browser == tabbrowser.selectedBrowser) {
-        this._windows[aWindow.__SSi].selected = i + 1;
-      }
+  /**
+   * Collect data related to a single tab
+   * @param aTab
+   *        tabbrowser tab
+   * @returns object
+   */
+  _collectTabData: function sss_collectTabData(aTab) {
+    var tabData = { entries: [], index: 0 };
+    var browser = aTab.linkedBrowser;
+    
+    if (!browser || !browser.currentURI)
+      // can happen when calling this function right after .addTab()
+      return tabData;
+    else if (browser.parentNode.__SS_data && browser.parentNode.__SS_data._tab)
+      // use the data to be restored when the tab hasn't been completely loaded
+      return browser.parentNode.__SS_data;
+    
+    var history = null;
+    try {
+      history = browser.sessionHistory;
     }
+    catch (ex) { } // this could happen if we catch a tab during (de)initialization
+    
+    if (history && browser.parentNode.__SS_data &&
+        browser.parentNode.__SS_data.entries[history.index]) {
+      tabData = browser.parentNode.__SS_data;
+      tabData.index = history.index + 1;
+    }
+    else if (history && history.count > 0) {
+      // Cap the number of back history entries saved. (-1 = no cap)
+      var cap = this._prefBranch.getIntPref("sessionstore.max_tab_back_history");
+
+      var startIndex = -1 < cap && cap < history.index ? history.index - cap : 0;
+      for (var j = startIndex; j < history.count; j++)
+        tabData.entries.push(this._serializeHistoryEntry(history.getEntryAtIndex(j, false)));
+
+      tabData.index = history.index - startIndex + 1;
+
+      browser.parentNode.__SS_data = tabData;
+    }
+    else {
+      tabData.entries[0] = { url: browser.currentURI.spec };
+      tabData.index = 1;
+    }
+    
+    var disallow = [];
+    for (var i = 0; i < CAPABILITIES.length; i++)
+      if (!browser.docShell["allow" + CAPABILITIES[i]])
+        disallow.push(CAPABILITIES[i]);
+    if (disallow.length > 0)
+      tabData.disallow = disallow.join(",");
+    else if (tabData.disallow)
+      delete tabData.disallow;
+    
+    if (this.xulAttributes.length > 0) {
+      var xulattr = Array.filter(aTab.attributes, function(aAttr) {
+        return this.xulAttributes.indexOf(aAttr.name) > -1;
+      }, this).map(function(aAttr) {
+        return aAttr.name + "=" + encodeURI(aAttr.value);
+      });
+      tabData.xultab = xulattr.join(" ");
+    }
+    
+    if (aTab.__SS_extdata)
+      tabData.extData = aTab.__SS_extdata;
+    else if (tabData.extData)
+      delete tabData.extData;
+    
+    return tabData;
   },
 
   /**
@@ -1015,61 +1047,90 @@ SessionStoreService.prototype = {
   },
 
   /**
-   * go through all frames and store the current scroll positions
+   * go through all tabs and store the current scroll positions
    * and innerHTML content of WYSIWYG editors
    * @param aWindow
    *        Window reference
    */
   _updateTextAndScrollData: function sss_updateTextAndScrollData(aWindow) {
-    var _this = this;
-    function updateRecursively(aContent, aData) {
-      for (var i = 0; i < aContent.frames.length; i++) {
-        if (aData.children && aData.children[i]) {
-          updateRecursively(aContent.frames[i], aData.children[i]);
-        }
-      }
-      // designMode is undefined e.g. for XUL documents (as about:config)
-      var isHTTPS = _this._getURIFromString((aContent.parent || aContent).
-                                        document.location.href).schemeIs("https");
-      if ((aContent.document.designMode || "") == "on" && _this._checkPrivacyLevel(isHTTPS)) {
-        if (aData.innerHTML == undefined) {
-          // we get no "input" events from iframes - listen for keypress here
-          aContent.addEventListener("keypress", function(aEvent) { _this.saveStateDelayed(aWindow, 3000); }, true);
-        }
-        aData.innerHTML = aContent.document.body.innerHTML;
-      }
-      aData.scroll = aContent.scrollX + "," + aContent.scrollY;
-    }
-    
-    Array.forEach(aWindow.getBrowser().browsers, function(aBrowser, aIx) {
+    var browsers = aWindow.getBrowser().browsers;
+    for (var i = 0; i < browsers.length; i++) {
       try {
-        var tabData = this._windows[aWindow.__SSi].tabs[aIx];
+        var tabData = this._windows[aWindow.__SSi].tabs[i];
         if (tabData.entries.length == 0 ||
-            aBrowser.parentNode.__SS_data && aBrowser.parentNode.__SS_data._tab)
-          return; // ignore incompletely initialized tabs
-        
-        var text = [];
-        if (aBrowser.parentNode.__SS_text && this._checkPrivacyLevel(aBrowser.currentURI.schemeIs("https"))) {
-          for (var ix = aBrowser.parentNode.__SS_text.length - 1; ix >= 0; ix--) {
-            var data = aBrowser.parentNode.__SS_text[ix];
-            if (!data.cache) {
-              // update the text element's value before adding it to the data structure
-              data.cache = encodeURI(data.element.value);
-            }
-            text.push(data.id + "=" + data.cache);
-          }
-        }
-        if (aBrowser.currentURI.spec == "about:config") {
-          text = ["#textbox=" + encodeURI(aBrowser.contentDocument.getElementById("textbox").wrappedJSObject.value)];
-        }
-        if (text.length != 0)
-          tabData.text = text.join(" ");
-        
-        updateRecursively(aBrowser.contentWindow, tabData.entries[tabData.index - 1]);
+            browsers[i].parentNode.__SS_data && browsers[i].parentNode.__SS_data._tab)
+          continue; // ignore incompletely initialized tabs
+        this._updateTextAndScrollDataForTab(aWindow, browsers[i], tabData);
       }
       catch (ex) { debug(ex); } // get as much data as possible, ignore failures (might succeed the next time)
-    }, this);
+    }
   },
+
+  /**
+   * go through all frames and store the current scroll positions
+   * and innerHTML content of WYSIWYG editors
+   * @param aWindow
+   *        Window reference
+   * @param aBrowser
+   *        single browser reference
+   * @param aTabData
+   *        tabData object to add the information to
+   */
+  _updateTextAndScrollDataForTab:
+    function sss_updateTextAndScrollDataForTab(aWindow, aBrowser, aTabData) {
+    var text = [];
+    if (aBrowser.parentNode.__SS_text &&
+        this._checkPrivacyLevel(aBrowser.currentURI.schemeIs("https"))) {
+      for (var ix = aBrowser.parentNode.__SS_text.length - 1; ix >= 0; ix--) {
+        var data = aBrowser.parentNode.__SS_text[ix];
+        if (!data.cache)
+          // update the text element's value before adding it to the data structure
+          data.cache = encodeURI(data.element.value);
+        text.push(data.id + "=" + data.cache);
+      }
+    }
+    if (aBrowser.currentURI.spec == "about:config")
+      text = ["#textbox=" + encodeURI(aBrowser.contentDocument.getElementById("textbox").
+                                               wrappedJSObject.value)];
+    if (text.length > 0)
+      aTabData.text = text.join(" ");
+    else if (aTabData.text)
+      delete aTabData.text;
+    
+    this._updateTextAndScrollDataForFrame(aWindow, aBrowser.contentWindow,
+                                          aTabData.entries[aTabData.index - 1]);
+  },
+
+  /**
+   * go through all subframes and store the current scroll positions
+   * and innerHTML content of WYSIWYG editors
+   * @param aWindow
+   *        Window reference
+   * @param aContent
+   *        frame reference
+   * @param aData
+   *        part of a tabData object to add the information to
+   */
+  _updateTextAndScrollDataForFrame:
+    function sss_updateTextAndScrollDataForFrame(aWindow, aContent, aData) {
+    for (var i = 0; i < aContent.frames.length; i++) {
+      if (aData.children && aData.children[i])
+        this._updateTextAndScrollDataForFrame(aWindow, aContent.frames[i], aData.children[i]);
+    }
+    // designMode is undefined e.g. for XUL documents (as about:config)
+    var isHTTPS = this._getURIFromString((aContent.parent || aContent).
+                                         document.location.href).schemeIs("https");
+    if ((aContent.document.designMode || "") == "on" && this._checkPrivacyLevel(isHTTPS)) {
+      if (aData.innerHTML === undefined) {
+        // we get no "input" events from iframes - listen for keypress here
+        var _this = this;
+        aContent.addEventListener("keypress", function(aEvent) {
+          _this.saveStateDelayed(aWindow, 3000); }, true);
+      }
+      aData.innerHTML = aContent.document.body.innerHTML;
+    }
+    aData.scroll = aContent.scrollX + "," + aContent.scrollY;
+   },
 
   /**
    * store all hosts for a URL
@@ -1153,29 +1214,22 @@ SessionStoreService.prototype = {
     var winData = this._windows[aWindow.__SSi];
     
     WINDOW_ATTRIBUTES.forEach(function(aAttr) {
-      var value = this._getWindowDimension(aWindow, aAttr);
-      switch (aAttr) {
-        case "screenX":
-        case "screenY":
-          if (value != 0)
-            winData[aAttr] = value;
-          break;
-        default:
-          winData[aAttr] = value;
-      }
+      winData[aAttr] = this._getWindowDimension(aWindow, aAttr);
     }, this);
     
-    var hidden = [];
-    WINDOW_HIDEABLE_FEATURES.forEach(function(aItem) {
-      if (aWindow[aItem] && !aWindow[aItem].visible)
-        hidden.push(aItem);
+    var hidden = WINDOW_HIDEABLE_FEATURES.filter(function(aItem) {
+      return aWindow[aItem] && !aWindow[aItem].visible;
     });
     if (hidden.length != 0)
       winData.hidden = hidden.join(",");
+    else if (winData.hidden)
+      delete winData.hidden;
 
     var sidebar = aWindow.document.getElementById("sidebar-box").getAttribute("sidebarcommand");
     if (sidebar)
       winData.sidebar = sidebar;
+    else if (winData.sidebar)
+      delete winData.sidebar;
   },
 
   /**
@@ -1261,6 +1315,16 @@ SessionStoreService.prototype = {
    *        bool this isn't the restoration of the first window
    */
   restoreWindow: function sss_restoreWindow(aWindow, aState, aOverwriteTabs, aFollowUp) {
+    if (this._restoreCount) {
+      this._restoreCount--;
+      if (this._restoreCount == 0) {
+        // This was the last window restored at startup, notify observers.
+        var observerService = Cc["@mozilla.org/observer-service;1"].
+                              getService(Ci.nsIObserverService);
+        observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
+      }
+    }
+
     if (!aFollowUp) {
       this.windowToFocus = aWindow;
     }
@@ -1435,8 +1499,6 @@ SessionStoreService.prototype = {
     if (tabData.extData) {
       tab.__SS_extdata = tabData.extData;
     }
-    
-    browser.markupDocumentViewer.textZoom = parseFloat(tabData.zoom || 1);
     
     for (var i = 0; i < tabData.entries.length; i++) {
       history.addEntry(this._deserializeHistoryEntry(tabData.entries[i], aIdMap), true);
@@ -1728,15 +1790,6 @@ SessionStoreService.prototype = {
       }
       catch (ex) { Cu.reportError(ex); } // don't let a single cookie stop recovering
     }
-  },
-
-  /**
-   * Restart incomplete downloads
-   */
-  retryDownloads: function sss_retryDownloads() {
-    // The download manager cleans up after itself when it is created.
-    var dlManager = Cc["@mozilla.org/download-manager;1"].
-                    getService(Ci.nsIDownloadManager);
   },
 
 /* ........ Disk Access .............. */
@@ -2043,88 +2096,8 @@ SessionStoreService.prototype = {
     } else {
       stream.close();
     }
-  },
-
-/* ........ QueryInterface .............. */
-
-  QueryInterface: function(aIID) {
-    if (!aIID.equals(Ci.nsISupports) && 
-      !aIID.equals(Ci.nsIObserver) && 
-      !aIID.equals(Ci.nsISupportsWeakReference) && 
-      !aIID.equals(Ci.nsIDOMEventListener) &&
-      !aIID.equals(Ci.nsISessionStore)) {
-      Components.returnCode = Cr.NS_ERROR_NO_INTERFACE;
-      return null;
-    }
-    
-    return this;
   }
 };
 
-/* :::::::: Service Registration & Initialization ::::::::::::::: */
-
-/* ........ nsIModule .............. */
-
-const SessionStoreModule = {
-
-  getClassObject: function(aCompMgr, aCID, aIID) {
-    if (aCID.equals(CID)) {
-      return SessionStoreFactory;
-    }
-    
-    Components.returnCode = Cr.NS_ERROR_NOT_REGISTERED;
-    return null;
-  },
-
-  registerSelf: function(aCompMgr, aFileSpec, aLocation, aType) {
-    aCompMgr.QueryInterface(Ci.nsIComponentRegistrar);
-    aCompMgr.registerFactoryLocation(CID, CLASS_NAME, CONTRACT_ID, aFileSpec, aLocation, aType);
-
-    var catMan = Cc["@mozilla.org/categorymanager;1"].
-                 getService(Ci.nsICategoryManager);
-    catMan.addCategoryEntry("app-startup", CLASS_NAME, "service," + CONTRACT_ID, true, true);
-  },
-
-  unregisterSelf: function(aCompMgr, aLocation, aType) {
-    aCompMgr.QueryInterface(Ci.nsIComponentRegistrar);
-    aCompMgr.unregisterFactoryLocation(CID, aLocation);
-
-    var catMan = Cc["@mozilla.org/categorymanager;1"].
-                 getService(Ci.nsICategoryManager);
-    catMan.deleteCategoryEntry( "app-startup", "service," + CONTRACT_ID, true);
-  },
-
-  canUnload: function(aCompMgr) {
-    return true;
-  }
-}
-
-/* ........ nsIFactory .............. */
-
-const SessionStoreFactory = {
-
-  createInstance: function(aOuter, aIID) {
-    if (aOuter != null) {
-      Components.returnCode = Cr.NS_ERROR_NO_AGGREGATION;
-      return null;
-    }
-    
-    return (new SessionStoreService()).QueryInterface(aIID);
-  },
-
-  lockFactory: function(aLock) { },
-
-  QueryInterface: function(aIID) {
-    if (!aIID.equals(Ci.nsISupports) && !aIID.equals(Ci.nsIModule) &&
-        !aIID.equals(Ci.nsIFactory) && !aIID.equals(Ci.nsISessionStore)) {
-      Components.returnCode = Cr.NS_ERROR_NO_INTERFACE;
-      return null;
-    }
-    
-    return this;
-  }
-};
-
-function NSGetModule(aComMgr, aFileSpec) {
-  return SessionStoreModule;
-}
+function NSGetModule(aComMgr, aFileSpec)
+  XPCOMUtils.generateModule([SessionStoreService]);

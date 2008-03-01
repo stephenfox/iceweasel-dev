@@ -75,33 +75,29 @@ enum {
   // NOTE: Should only be used on nsIContent nodes
   NODE_IS_ANONYMOUS =            0x00000008U,
 
-  // Whether this node is anonymous for events
-  // NOTE: Should only be used on nsIContent nodes
-  NODE_IS_ANONYMOUS_FOR_EVENTS = 0x00000010U,
-
   // Whether this node may have a frame
   // NOTE: Should only be used on nsIContent nodes
-  NODE_MAY_HAVE_FRAME =          0x00000020U,
+  NODE_MAY_HAVE_FRAME =          0x00000010U,
 
   // Forces the XBL code to treat this node as if it were
   // in the document and therefore should get bindings attached.
-  NODE_FORCE_XBL_BINDINGS =      0x00000040U,
+  NODE_FORCE_XBL_BINDINGS =      0x00000020U,
 
   // Whether a binding manager may have a pointer to this
-  NODE_MAY_BE_IN_BINDING_MNGR =  0x00000080U,
+  NODE_MAY_BE_IN_BINDING_MNGR =  0x00000040U,
 
-  NODE_IS_EDITABLE =             0x00000100U,
+  NODE_IS_EDITABLE =             0x00000080U,
 
   // Optimizations to quickly check whether element may have ID, class or style
   // attributes. Not all element implementations may use these!
-  NODE_MAY_HAVE_ID =             0x00000200U,
-  NODE_MAY_HAVE_CLASS =          0x00000400U,
-  NODE_MAY_HAVE_STYLE =          0x00000800U,
+  NODE_MAY_HAVE_ID =             0x00000100U,
+  NODE_MAY_HAVE_CLASS =          0x00000200U,
+  NODE_MAY_HAVE_STYLE =          0x00000400U,
 
-  NODE_IS_INSERTION_PARENT =     0x00001000U,
+  NODE_IS_INSERTION_PARENT =     0x00000800U,
 
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               13,
+  NODE_SCRIPT_TYPE_OFFSET =               12,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -126,22 +122,18 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x8cef8b4e, 0x4b7f, 0x4f86, \
-  { 0xba, 0x64, 0x75, 0xdf, 0xed, 0x0d, 0xa2, 0x3e } }
-
-// hack to make egcs / gcc 2.95.2 happy
-class nsINode_base : public nsPIDOMEventTarget {
-public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
-};
+{ 0xd1c2e967, 0x854a, 0x436b, \
+  { 0xbf, 0xa5, 0xf6, 0xa4, 0x9a, 0x97, 0x46, 0x74 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
  * nsIContent and nsIDocument share.  An instance of this interface has a list
  * of nsIContent children and provides access to them.
  */
-class nsINode : public nsINode_base {
+class nsINode : public nsPIDOMEventTarget {
 public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
+
   friend class nsNodeUtils;
   friend class nsNodeWeakReference;
   friend class nsNodeSupportsWeakRefTearoff;
@@ -187,7 +179,9 @@ public:
     eDOCUMENT_FRAGMENT   = 1 << 11,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 12
+    eDATA_NODE           = 1 << 12,
+    /** nsMathMLElement */
+    eMATHML              = 1 << 13
   };
 
   /**
@@ -563,7 +557,7 @@ public:
     /**
      * A list of mutation observers
      */
-    nsTObserverArray<nsIMutationObserver> mMutationObservers;
+    nsTObserverArray<nsIMutationObserver*> mMutationObservers;
 
     /**
      * An object implementing nsIDOMNodeList for this content (childNodes)
@@ -671,6 +665,11 @@ protected:
     return slots;
   }
 
+  nsTObserverArray<nsIMutationObserver*> *GetMutationObservers()
+  {
+    return HasSlots() ? &FlagsAsSlots()->mMutationObservers : nsnull;
+  }
+
   PRBool IsEditableInternal() const;
   virtual PRBool IsEditableExternal() const
   {
@@ -693,6 +692,6 @@ protected:
   PtrBits mFlagsOrSlots;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsINode_base, NS_INODE_IID)
+NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
 
 #endif /* nsINode_h___ */

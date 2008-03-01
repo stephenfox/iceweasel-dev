@@ -59,7 +59,6 @@
   windowtype="Browser:page-info"
   onload="onLoadPageInfo()"
   onunload="onUnloadPageInfo()"
-  xmlns:xhtml="http://www.w3.org/1999/xhtml"
   align="stretch"
   screenX="10" screenY="10"
   width="&pageInfoWindow.width;" height="&pageInfoWindow.height;"
@@ -233,32 +232,17 @@
       </tree>
       <splitter orient="vertical" id="mediaSplitter"/>
       <vbox flex="1" id="mediaPreviewBox" collapsed="true">
-        <grid>
+        <grid id="mediaGrid">
           <columns>
-            <column/>
+            <column id="mediaLabelColumn"/>
             <column class="gridSeparator"/>
             <column flex="1"/>
           </columns>
           <rows>
             <row>
-              <label control="imageurltext" value="&mediaURL;"/>
+              <label control="imageurltext" value="&mediaLocation;"/>
               <separator/>
               <textbox readonly="true" id="imageurltext"/>
-            </row>
-            <row>
-              <label control="imagetitletext" value="&mediaTitle;"/>
-              <separator/>
-              <textbox readonly="true" id="imagetitletext"/>
-            </row>
-            <row>
-              <label control="imagealttext" value="&mediaAlt;"/>
-              <separator/>
-              <textbox readonly="true" id="imagealttext"/>
-            </row>
-            <row>
-              <label control="imagelongdesctext" value="&mediaLongdesc;"/>
-              <separator/>
-              <textbox readonly="true" id="imagelongdesctext"/>
             </row>
             <row>
               <label control="imagetypetext" value="&generalType;"/>
@@ -266,24 +250,24 @@
               <textbox readonly="true" id="imagetypetext"/>
             </row>
             <row>
-              <label control="imagesourcetext" value="&generalSource;"/>
-              <separator/>
-              <textbox readonly="true" id="imagesourcetext"/>
-            </row>
-            <row>
               <label control="imagesizetext" value="&generalSize;"/>
               <separator/>
               <textbox readonly="true" id="imagesizetext"/>
             </row>
             <row>
-              <label control="imageSize" value="&mediaDimensions;"/>
+              <label control="imagedimensiontext" value="&mediaDimension;"/>
               <separator/>
-              <textbox readonly="true" id="imageSize"/>
+              <textbox readonly="true" id="imagedimensiontext"/>
             </row>
             <row>
-              <label control="physSize" value="&mediaPhysDimensions;"/>
+              <label control="imagetext" value="&mediaText;"/>
               <separator/>
-              <textbox readonly="true" id="physSize"/>
+              <textbox readonly="true" id="imagetext"/>
+            </row>
+            <row>
+              <label control="imagelongdesctext" value="&mediaLongdesc;"/>
+              <separator/>
+              <textbox readonly="true" id="imagelongdesctext"/>
             </row>
           </rows>
         </grid>
@@ -330,7 +314,7 @@
       <vbox id="permList" flex="1">
         <vbox>
           <label value="&permImage;" control="permImageGroup imageRadioGroup"/>
-          <hbox id="permImageGroup" xhtml:role="group">
+          <hbox id="permImageGroup" role="group">
             <checkbox id="imageDef" command="cmd_imageDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="imageRadioGroup" orient="horizontal">
@@ -341,7 +325,7 @@
         </vbox>
         <vbox>
           <label value="&permPopup;" control="permPopupGroup popupRadioGroup"/>
-          <hbox id="permPopupGroup" xhtml:role="group">
+          <hbox id="permPopupGroup" role="group">
             <checkbox id="popupDef" command="cmd_popupDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="popupRadioGroup" orient="horizontal">
@@ -352,7 +336,7 @@
         </vbox>
         <vbox>
           <label value="&permCookie;" control="permCookieGroup cookieRadioGroup"/>
-          <hbox id="permCookieGroup" xhtml:role="group">
+          <hbox id="permCookieGroup" role="group">
             <checkbox id="cookieDef" command="cmd_cookieDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="cookieRadioGroup" orient="horizontal">
@@ -364,7 +348,7 @@
         </vbox>
         <vbox>
           <label value="&permInstall;" control="permInstallGroup installRadioGroup"/>
-          <hbox id="permInstallGroup" xhtml:role="group">
+          <hbox id="permInstallGroup" role="group">
             <checkbox id="installDef" command="cmd_installDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="installRadioGroup" orient="horizontal">
@@ -415,7 +399,7 @@
         </grid>
         <spacer flex="1"/>
         <hbox><!-- Cert button -->
-          <label id="security-view-text" class="fieldLabel"
+          <description id="security-view-text" class="fieldLabel"
                  control="security-view-cert" flex="1"/>
           <button id="security-view-cert" label="&securityView.certView;"
                   accesskey="&securityView.accesskey;"

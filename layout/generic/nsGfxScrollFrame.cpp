@@ -631,9 +631,13 @@ nsHTMLScrollFrame::ReflowContents(ScrollReflowState* aState,
   if (TryLayout(aState, &kidDesiredSize, PR_TRUE, newVScrollbarState, PR_FALSE, &rv))
     return NS_OK;
 
-  // OK, we're out of ideas. Try again with both scrollbars and force the layout
-  // to stick even if it's inconsistent. This just happens sometimes.
-  TryLayout(aState, &kidDesiredSize, PR_TRUE, PR_TRUE, PR_TRUE, &rv);
+  // OK, we're out of ideas. Try again enabling whatever scrollbars we can
+  // enable and force the layout to stick even if it's inconsistent.
+  // This just happens sometimes.
+  TryLayout(aState, &kidDesiredSize,
+            aState->mStyles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN,
+            aState->mStyles.mVertical != NS_STYLE_OVERFLOW_HIDDEN,
+            PR_TRUE, &rv);
   return rv;
 }
 
@@ -1244,7 +1248,8 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
     mHadNonInitialReflow(PR_FALSE),
     mHorizontalOverflow(PR_FALSE),
     mVerticalOverflow(PR_FALSE),
-    mPostedReflowCallback(PR_FALSE)
+    mPostedReflowCallback(PR_FALSE),
+    mMayHaveDirtyFixedChildren(PR_FALSE)
 {
 }
 
@@ -2346,6 +2351,19 @@ nsGfxScrollFrameInner::ReflowFinished()
 {
   mPostedReflowCallback = PR_FALSE;
 
+  if (mMayHaveDirtyFixedChildren) {
+    mMayHaveDirtyFixedChildren = PR_FALSE;
+    nsIFrame* parentFrame = mOuter->GetParent();
+    for (nsIFrame* fixedChild =
+           parentFrame->GetFirstChild(nsGkAtoms::fixedList);
+         fixedChild; fixedChild = fixedChild->GetNextSibling()) {
+      // force a reflow of the fixed child
+      mOuter->PresContext()->PresShell()->
+        FrameNeedsReflow(fixedChild, nsIPresShell::eResize,
+                         NS_FRAME_HAS_DIRTY_CHILDREN);
+    }
+  }
+
   // Update scrollbar attributes.
   nsPresContext* presContext = mOuter->PresContext();
 
@@ -2501,16 +2519,7 @@ nsGfxScrollFrameInner::LayoutScrollbars(nsBoxLayoutState& aState,
   if (aOldScrollArea.Size() != aScrollArea.Size() && 
       !(mOuter->GetStateBits() & NS_FRAME_IS_DIRTY) &&
       mIsRoot) {
-    nsIFrame* parentFrame = mOuter->GetParent();
-    for (nsIFrame *fixedChild =
-           parentFrame->GetFirstChild(nsGkAtoms::fixedList);
-         fixedChild; fixedChild = fixedChild->GetNextSibling()) {
-      // force a reflow of the fixed child
-      // XXX Will this work given where we currently are in reflow?
-      aState.PresContext()->PresShell()->
-        FrameNeedsReflow(fixedChild, nsIPresShell::eResize,
-                         NS_FRAME_HAS_DIRTY_CHILDREN);
-    }
+    mMayHaveDirtyFixedChildren = PR_TRUE;
   }
   
   // post reflow callback to modify scrollbar attributes

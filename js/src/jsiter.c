@@ -119,7 +119,7 @@ js_CloseNativeIterator(JSContext *cx, JSObject *iterobj)
 JSClass js_IteratorClass = {
     "Iterator",
     JSCLASS_HAS_RESERVED_SLOTS(2) | /* slots for state and flags */
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator) | JSCLASS_FIXED_BINDING,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
@@ -174,9 +174,7 @@ Iterator(JSContext *cx, JSObject *iterobj, uintN argc, jsval *argv, jsval *rval)
     uintN flags;
     JSObject *obj;
 
-    keyonly = JS_FALSE;
-    if (!js_ValueToBoolean(cx, argv[1], &keyonly))
-        return JS_FALSE;
+    keyonly = js_ValueToBoolean(argv[1]);
     flags = keyonly ? 0 : JSITER_FOREACH;
 
     if (cx->fp->flags & JSFRAME_CONSTRUCTING) {
@@ -328,7 +326,7 @@ js_GetNativeIteratorFlags(JSContext *cx, JSObject *iterobj)
  * Call ToObject(v).__iterator__(keyonly) if ToObject(v).__iterator__ exists.
  * Otherwise construct the defualt iterator.
  */
-JSBool
+JS_FRIEND_API(JSBool)
 js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
 {
     JSObject *obj;
@@ -439,7 +437,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
     goto out;
 }
 
-JSBool
+JS_FRIEND_API(JSBool)
 js_CloseIterator(JSContext *cx, jsval v)
 {
     JSObject *obj;
@@ -593,7 +591,7 @@ CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)
     return JS_TRUE;
 }
 
-JSBool
+JS_FRIEND_API(JSBool)
 js_CallIteratorNext(JSContext *cx, JSObject *iterobj, jsval *rval)
 {
     uintN flags;
@@ -920,7 +918,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     }
 
     /*
-     * An error, silent termination by branch callback or an exception.
+     * An error, silent termination by operation callback or an exception.
      * Propagate the condition to the caller.
      */
     return JS_FALSE;

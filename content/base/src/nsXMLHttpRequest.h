@@ -60,10 +60,74 @@
 #include "nsJSUtils.h"
 #include "nsTArray.h"
 #include "nsCycleCollectionParticipant.h"
-
+#include "nsIJSNativeInitializer.h"
+#include "nsPIDOMWindow.h"
 #include "nsIDOMLSProgressEvent.h"
+#include "nsClassHashtable.h"
+#include "nsHashKeys.h"
+#include "prclist.h"
+#include "prtime.h"
 
 class nsILoadGroup;
+
+class nsAccessControlLRUCache
+{
+  struct CacheEntry : public PRCList
+  {
+    CacheEntry(const nsACString& aKey, PRTime aValue)
+    : key(aKey), value(aValue)
+    {
+      MOZ_COUNT_CTOR(nsAccessControlLRUCache::CacheEntry);
+    }
+    
+    ~CacheEntry()
+    {
+      MOZ_COUNT_DTOR(nsAccessControlLRUCache::CacheEntry);
+    }
+    
+    nsCString key;
+    PRTime value;
+  };
+
+public:
+  nsAccessControlLRUCache()
+  {
+    MOZ_COUNT_CTOR(nsAccessControlLRUCache);
+    PR_INIT_CLIST(&mList);
+  }
+
+  ~nsAccessControlLRUCache()
+  {
+    Clear();
+    MOZ_COUNT_DTOR(nsAccessControlLRUCache);
+  }
+
+  PRBool Initialize()
+  {
+    return mTable.Init();
+  }
+
+  void GetEntry(const nsACString& aMethod, nsIURI* aURI,
+                nsIPrincipal* aPrincipal, PRTime* _retval);
+
+  void PutEntry(const nsACString& aMethod, nsIURI* aURI,
+                nsIPrincipal* aPrincipal, PRTime aValue);
+
+  void Clear();
+
+private:
+  PRBool GetEntryInternal(const nsACString& aKey, CacheEntry** _retval);
+
+  PR_STATIC_CALLBACK(PLDHashOperator)
+    RemoveExpiredEntries(const nsACString& aKey, nsAutoPtr<CacheEntry>& aValue,
+                         void* aUserData);
+
+  static PRBool GetCacheKey(const nsACString& aMethod, nsIURI* aURI,
+                            nsIPrincipal* aPrincipal, nsACString& _retval);
+
+  nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;
+  PRCList mList;
+};
 
 class nsXMLHttpRequest : public nsIXMLHttpRequest,
                          public nsIJSXMLHttpRequest,
@@ -73,7 +137,8 @@ class nsXMLHttpRequest : public nsIXMLHttpRequest,
                          public nsIChannelEventSink,
                          public nsIProgressEventSink,
                          public nsIInterfaceRequestor,
-                         public nsSupportsWeakReference
+                         public nsSupportsWeakReference,
+                         public nsIJSNativeInitializer
 {
 public:
   nsXMLHttpRequest();
@@ -115,7 +180,40 @@ public:
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
 
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
+                       PRUint32 argc, jsval* argv);
+
+  // This is called by the factory constructor.
+  nsresult Init();
+
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXMLHttpRequest, nsIXMLHttpRequest)
+
+  static PRBool EnsureACCache()
+  {
+    if (sAccessControlCache)
+      return PR_TRUE;
+
+    nsAutoPtr<nsAccessControlLRUCache> newCache(new nsAccessControlLRUCache());
+    NS_ENSURE_TRUE(newCache, PR_FALSE);
+
+    if (newCache->Initialize()) {
+      sAccessControlCache = newCache.forget();
+      return PR_TRUE;
+    }
+
+    return PR_FALSE;
+  }
+
+  static void ShutdownACCache()
+  {
+    if (sAccessControlCache) {
+      delete sAccessControlCache;
+      sAccessControlCache = nsnull;
+    }
+  }
+
+  static nsAccessControlLRUCache* sAccessControlCache;
 
 protected:
 
@@ -165,6 +263,18 @@ protected:
    */
   nsresult CheckChannelForCrossSiteRequest();
 
+  nsresult CheckInnerWindowCorrectness()
+  {
+    if (mOwner) {
+      NS_ASSERTION(mOwner->IsInnerWindow(), "Should have inner window here!\n");
+      nsPIDOMWindow* outer = mOwner->GetOuterWindow();
+      if (!outer || outer->GetCurrentInnerWindow() != mOwner) {
+        return NS_ERROR_FAILURE;
+      }
+    }
+    return NS_OK;
+  }
+
   nsCOMPtr<nsISupports> mContext;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIChannel> mChannel;
@@ -180,6 +290,7 @@ protected:
   nsCOMArray<nsIDOMEventListener> mReadystatechangeEventListeners;
   
   nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow>    mOwner; // Inner window.
 
   nsCOMPtr<nsIDOMEventListener> mOnLoadListener;
   nsCOMPtr<nsIDOMEventListener> mOnErrorListener;

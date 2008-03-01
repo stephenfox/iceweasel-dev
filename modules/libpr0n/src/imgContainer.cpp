@@ -124,6 +124,9 @@ NS_IMETHODIMP imgContainer::Init(PRInt32 aWidth, PRInt32 aHeight,
 
   mSize.SizeTo(aWidth, aHeight);
   
+  // As we are reloading it means we are no longer in 'discarded' state
+  mDiscarded = PR_FALSE;
+
   mObserver = do_GetWeakReference(aObserver);
   
   return NS_OK;
@@ -566,13 +569,8 @@ NS_IMETHODIMP imgContainer::AddRestoreData(const char *aBuffer, PRUint32 aCount)
 {
   NS_ASSERTION(aBuffer, "imgContainer::AddRestoreData() called with null aBuffer");
 
-  if (!DiscardingEnabled ())
+  if (!mDiscardable)
     return NS_OK;
-
-  if (!mDiscardable) {
-    NS_WARNING ("imgContainer::AddRestoreData() can only be called if SetDiscardable is called first");
-    return NS_ERROR_FAILURE;
-  }
 
   if (mRestoreDataDone) {
     /* We are being called from the decoder while the data is being restored
@@ -622,8 +620,8 @@ get_header_str (char *buf, char *data, PRSize data_len)
 /* void restoreDataDone(); */
 NS_IMETHODIMP imgContainer::RestoreDataDone (void)
 {
-
-  if (!DiscardingEnabled ())
+  // If image is not discardable, don't start discard timer
+  if (!mDiscardable)
     return NS_OK;
 
   if (mRestoreDataDone)
@@ -654,17 +652,12 @@ NS_IMETHODIMP imgContainer::RestoreDataDone (void)
 /* void notify(in nsITimer timer); */
 NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
 {
-  nsresult result;
-
-  result = RestoreDiscardedData();
-  if (NS_FAILED (result))
-    return result;
+  nsresult rv = RestoreDiscardedData();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // This should never happen since the timer is only set up in StartAnimation()
   // after mAnim is checked to exist.
-  NS_ASSERTION(mAnim, "imgContainer::Notify() called but mAnim is null");
-  if (!mAnim)
-    return NS_ERROR_UNEXPECTED;
+  NS_ENSURE_TRUE(mAnim, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(mAnim->timer == timer,
                "imgContainer::Notify() called with incorrect timer");
 
@@ -889,6 +882,9 @@ nsresult imgContainer::DoComposite(gfxIImageFrame** aFrameToUse,
       return rv;
     }
     needToBlankComposite = PR_TRUE;
+  } else if (aNextFrameIndex == 1) {
+    // When we are looping the compositing frame needs to be cleared.
+    needToBlankComposite = PR_TRUE;
   }
 
   // More optimizations possible when next frame is not transparent
@@ -1101,41 +1097,46 @@ PRBool imgContainer::CopyFrameImage(gfxIImageFrame *aSrcFrame,
 }
 
 //******************************************************************************
+/* 
+ * aSrc is the current frame being drawn,
+ * aDst is the composition frame where the current frame is drawn into.
+ * aSrcRect is the size of the current frame, and the position of that frame
+ *          in the composition frame.
+ */
 nsresult imgContainer::DrawFrameTo(gfxIImageFrame *aSrc,
                                    gfxIImageFrame *aDst, 
-                                   nsIntRect& aDstRect)
+                                   nsIntRect& aSrcRect)
 {
-  if (!aSrc || !aDst)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_ARG_POINTER(aSrc);
+  NS_ENSURE_ARG_POINTER(aDst);
 
-  nsIntRect srcRect, dstRect;
-  aSrc->GetRect(srcRect);
+  nsIntRect dstRect;
   aDst->GetRect(dstRect);
 
+  // According to both AGIF and APNG specs, offsets are unsigned
+  if (aSrcRect.x < 0 || aSrcRect.y < 0) {
+    NS_WARNING("imgContainer::DrawFrameTo: negative offsets not allowed");
+    return NS_ERROR_FAILURE;
+  }
+  // Outside the destination frame, skip it
+  if ((aSrcRect.x > dstRect.width) || (aSrcRect.y > dstRect.height)) {
+    return NS_OK;
+  }
   gfx_format format;
   aSrc->GetFormat(&format);
   if (format == gfxIFormats::PAL || format == gfxIFormats::PAL_A1) {
-    // Outside the destination frame, skip it
-    if ((aDstRect.x > dstRect.width) || (aDstRect.y > dstRect.height)) {
-      return NS_OK;
-    }
     // Larger than the destination frame, clip it
-    PRUint32 width = (PRUint32)aDstRect.width;
-    PRUint32 height = (PRUint32)aDstRect.height;
-    if (aDstRect.x + aDstRect.width > dstRect.width) {
-      width = dstRect.width - aDstRect.x;
-    }
-    if (aDstRect.y + aDstRect.height > dstRect.height) {
-      height = dstRect.height - aDstRect.y;
-    }
-    // dstRect must fully fit within destination image 
-    NS_ASSERTION((aDstRect.x >= 0) && (aDstRect.y >= 0) &&
-                 (aDstRect.x + width <= dstRect.width) &&
-                 (aDstRect.y + height <= dstRect.height),
-                "imgContainer::DrawFrameTo: Invalid aDstRect");
+    PRInt32 width = PR_MIN(aSrcRect.width, dstRect.width - aSrcRect.x);
+    PRInt32 height = PR_MIN(aSrcRect.height, dstRect.height - aSrcRect.y);
 
-    // dstRect size may be smaller than source, but not larger
-    NS_ASSERTION((width <= srcRect.width) && (height <= srcRect.height),
+    // The clipped image must now fully fit within destination image frame
+    NS_ASSERTION((aSrcRect.x >= 0) && (aSrcRect.y >= 0) &&
+                 (aSrcRect.x + width <= dstRect.width) &&
+                 (aSrcRect.y + height <= dstRect.height),
+                "imgContainer::DrawFrameTo: Invalid aSrcRect");
+
+    // clipped image size may be smaller than source, but not larger
+    NS_ASSERTION((width <= aSrcRect.width) && (height <= aSrcRect.height),
                  "imgContainer::DrawFrameTo: source must be smaller than dest");
 
     if (NS_FAILED(aDst->LockImageData()))
@@ -1155,24 +1156,27 @@ nsresult imgContainer::DrawFrameTo(gfxIImageFrame *aSrc,
     }
 
     // Skip to the right offset
-    dstPixels += aDstRect.x + (aDstRect.y * dstRect.width);
+    dstPixels += aSrcRect.x + (aSrcRect.y * dstRect.width);
     if (format == gfxIFormats::PAL) {
-      for (PRUint32 r = height; r > 0; --r) {
-        for (PRUint32 c = width; c > 0; --c) {
-          *dstPixels++ = colormap[*srcPixels++];
+      for (PRInt32 r = height; r > 0; --r) {
+        for (PRInt32 c = 0; c < width; c++) {
+          dstPixels[c] = colormap[srcPixels[c]];
         }
-        dstPixels += dstRect.width - width;
+        // Go to the next row in the source resp. destination image
+        srcPixels += aSrcRect.width;
+        dstPixels += dstRect.width;
       }
     } else {
       // With transparent source, skip transparent pixels
-      for (PRUint32 r = height; r > 0; --r) {
-        for (PRUint32 c = width; c > 0; --c) {
-          const PRUint32 color = colormap[*srcPixels++];
+      for (PRInt32 r = height; r > 0; --r) {
+        for (PRInt32 c = 0; c < width; c++) {
+          const PRUint32 color = colormap[srcPixels[c]];
           if (color)
-            *dstPixels = color;
-          dstPixels ++;
+            dstPixels[c] = color;
         }
-        dstPixels += dstRect.width - width;
+        // Go to the next row in the source resp. destination image
+        srcPixels += aSrcRect.width;
+        dstPixels += dstRect.width;
       }
     }
     aDst->UnlockImageData();
@@ -1188,26 +1192,18 @@ nsresult imgContainer::DrawFrameTo(gfxIImageFrame *aSrc,
   dstImg->GetSurface(getter_AddRefs(dstSurf));
 
   gfxContext dst(dstSurf);
+  dst.Translate(gfxPoint(aSrcRect.x, aSrcRect.y));
+  dst.Rectangle(gfxRect(0, 0, aSrcRect.width, aSrcRect.height), PR_TRUE);
   
   // first clear the surface if the blend flag says so
   PRInt32 blendMethod;
   aSrc->GetBlendMethod(&blendMethod);
-  gfxContext::GraphicsOperator defaultOperator = dst.CurrentOperator();
   if (blendMethod == imgIContainer::kBlendSource) {
+    gfxContext::GraphicsOperator defaultOperator = dst.CurrentOperator();
     dst.SetOperator(gfxContext::OPERATOR_CLEAR);
-    dst.Rectangle(gfxRect(aDstRect.x, aDstRect.y, aDstRect.width, aDstRect.height));
     dst.Fill();
+    dst.SetOperator(defaultOperator);
   }
-  
-  dst.NewPath();
-  dst.SetOperator(defaultOperator);
-  // We don't use PixelSnappedRectangleAndSetPattern because if
-  // these coords aren't already pixel aligned, we've lost
-  // before we've even begun.
-  dst.Translate(gfxPoint(aDstRect.x, aDstRect.y));
-  dst.Rectangle(gfxRect(0, 0, aDstRect.width, aDstRect.height), PR_TRUE);
-  dst.Scale(double(aDstRect.width) / srcRect.width, 
-            double(aDstRect.height) / srcRect.height);
   dst.SetSource(srcSurf);
   dst.Paint();
 
@@ -1263,21 +1259,20 @@ static int
 get_discard_timer_ms (void)
 {
   /* FIXME: don't hardcode this */
-  return 45000; /* 45 seconds */
+  return 15000; /* 15 seconds */
 }
 
 void
 imgContainer::sDiscardTimerCallback(nsITimer *aTimer, void *aClosure)
 {
   imgContainer *self = (imgContainer *) aClosure;
-  int old_frame_count;
 
   NS_ASSERTION(aTimer == self->mDiscardTimer,
                "imgContainer::DiscardTimerCallback() got a callback for an unknown timer");
 
   self->mDiscardTimer = nsnull;
 
-  old_frame_count = self->mFrames.Count();
+  int old_frame_count = self->mFrames.Count();
 
   if (self->mAnim) {
     delete self->mAnim;
@@ -1307,12 +1302,10 @@ imgContainer::ResetDiscardTimer (void)
 
   if (!mDiscardTimer) {
     mDiscardTimer = do_CreateInstance("@mozilla.org/timer;1");
-
-    if (!mDiscardTimer)
-      return NS_ERROR_OUT_OF_MEMORY;
+    NS_ENSURE_TRUE(mDiscardTimer, NS_ERROR_OUT_OF_MEMORY);
   } else {
-    if (NS_FAILED(mDiscardTimer->Cancel()))
-      return NS_ERROR_FAILURE;
+    nsresult rv = mDiscardTimer->Cancel();
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   }
 
   return mDiscardTimer->InitWithFuncCallback(sDiscardTimerCallback,
@@ -1324,30 +1317,25 @@ imgContainer::ResetDiscardTimer (void)
 nsresult
 imgContainer::RestoreDiscardedData(void)
 {
-  nsresult result;
-  int num_expected_frames;
-
-  if (!mDiscardable)
+  // mRestoreDataDone = PR_TRUE means that we want to timeout and then discard the image frames
+  // So, we only need to restore, if mRestoreDataDone is true, and then only when the frames are discarded...
+  if (!mRestoreDataDone) 
     return NS_OK;
 
-  result = ResetDiscardTimer();
-  if (NS_FAILED (result))
-    return result;
+  // Reset timer, as the frames are accessed
+  nsresult rv = ResetDiscardTimer();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!mDiscarded)
     return NS_OK;
 
-  num_expected_frames = mNumFrames;
+  int num_expected_frames = mNumFrames;
 
-  result = ReloadImages ();
-  if (NS_FAILED (result)) {
-    PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
-            ("CompressedImageAccounting: imgContainer::RestoreDiscardedData() for container %p failed to ReloadImages()",
-             this));
-    return result;
-  }
-
+  // To prevent that ReloadImages is called multiple times, reset the flag before reloading
   mDiscarded = PR_FALSE;
+
+  rv = ReloadImages();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ASSERTION (mNumFrames == mFrames.Count(),
                 "number of restored image frames doesn't match");
@@ -1489,9 +1477,6 @@ ContainerLoader::FrameChanged(imgIContainer *aContainer, gfxIImageFrame *aFrame,
 nsresult
 imgContainer::ReloadImages(void)
 {
-  nsresult result = NS_ERROR_FAILURE;
-  nsCOMPtr<nsIInputStream> stream;
-
   NS_ASSERTION(!mRestoreData.IsEmpty(),
                "imgContainer::ReloadImages(): mRestoreData should not be empty");
   NS_ASSERTION(mRestoreDataDone,
@@ -1522,7 +1507,7 @@ imgContainer::ReloadImages(void)
 
   loader->SetImage(this);
 
-  result = decoder->Init(loader);
+  nsresult result = decoder->Init(loader);
   if (NS_FAILED(result)) {
     PR_LOG(gCompressedImageAccountingLog, PR_LOG_WARNING,
            ("CompressedImageAccounting: imgContainer::ReloadImages() image container %p "
@@ -1532,6 +1517,7 @@ imgContainer::ReloadImages(void)
     return result;
   }
 
+  nsCOMPtr<nsIInputStream> stream;
   result = NS_NewByteInputStream(getter_AddRefs(stream), mRestoreData.Elements(), mRestoreData.Length(), NS_ASSIGNMENT_DEPEND);
   NS_ENSURE_SUCCESS(result, result);
 
@@ -1552,8 +1538,8 @@ imgContainer::ReloadImages(void)
   result = decoder->WriteFrom(stream, mRestoreData.Length(), &written);
   NS_ENSURE_SUCCESS(result, result);
 
-  if (NS_FAILED(decoder->Flush()))
-    return result;
+  result = decoder->Flush();
+  NS_ENSURE_SUCCESS(result, result);
 
   result = decoder->Close();
   NS_ENSURE_SUCCESS(result, result);

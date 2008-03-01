@@ -64,6 +64,9 @@ var PlacesOrganizer = {
       leftPaneSelection = window.arguments[0];
 
     this.selectLeftPaneQuery(leftPaneSelection);
+    // clear the back-stack
+    this._backHistory.splice(0);
+    document.getElementById("OrganizerCommand:Back").setAttribute("disabled", true);
 
     var view = this._content.treeBoxObject.view;
     if (view.rowCount > 0)
@@ -77,11 +80,13 @@ var PlacesOrganizer = {
     // Set up the advanced query builder UI
     PlacesQueryBuilder.init();
 
+    window.addEventListener("AppCommand", this, true);
 #ifdef XP_MACOSX
-    // 1. Make Edit->Find focus the organizer search field
-    var findCommand = document.getElementById("cmd_find");
-    findCommand.setAttribute("oncommand", "PlacesSearchBox.findCurrent();");
-    findCommand.removeAttribute("disabled");
+    // 1. Map Edit->Find command to the organizer's command
+    var findMenuItem = document.getElementById("menu_find");
+    findMenuItem.setAttribute("command", "OrganizerCommand_find:current");
+    var findKey = document.getElementById("key_find");
+    findKey.setAttribute("command", "OrganizerCommand_find:current");
 
     // 2. Disable some keybindings from browser.xul
     var elements = ["cmd_handleBackspace", "cmd_handleShiftBackspace"];
@@ -89,6 +94,34 @@ var PlacesOrganizer = {
       document.getElementById(elements[i]).setAttribute("disabled", "true");
     }
 #endif
+  },
+
+  QueryInterface: function PO_QueryInterface(aIID) {
+    if (aIID.equals(Components.interfaces.nsIDOMEventListener) ||
+        aIID.equals(Components.interfaces.nsISupports))
+      return this;
+
+    throw Components.results.NS_NOINTERFACE;
+  },
+
+  handleEvent: function PO_handleEvent(aEvent) {
+    if (aEvent.type != "AppCommand")
+      return;
+
+    aEvent.stopPropagation();
+    switch (aEvent.command) {
+      case "Back":
+        if (this._backHistory.length > 0)
+          this.back();
+        break;
+      case "Forward":
+        if (this._forwardHistory.length > 0)
+          this.forward();
+        break;
+      case "Search":
+        PlacesSearchBox.findAll();
+        break;
+    }
   },
 
   destroy: function PO_destroy() {
@@ -100,15 +133,21 @@ var PlacesOrganizer = {
   },
 
   set location(aLocation) {
-    LOG("Node URI: " + aLocation);
-
-    if (!aLocation)
+    if (!aLocation || this._location == aLocation)
       return aLocation;
 
-    if (this.location)
+    if (this.location) {
       this._backHistory.unshift(this.location);
+      this._forwardHistory.splice(0);
+    }
 
-    this._content.place = this._location = aLocation;
+    this._location = aLocation;
+    this._places.selectPlaceURI(aLocation);
+
+    if (!this._places.hasSelection) {
+      // If no node was found for the given place: uri, just load it directly
+      this._content.place = aLocation;
+    }
     this.onContentTreeSelect();
 
     // update navigation commands
@@ -126,6 +165,7 @@ var PlacesOrganizer = {
 
   _backHistory: [],
   _forwardHistory: [],
+
   back: function PO_back() {
     this._forwardHistory.unshift(this.location);
     var historyEntry = this._backHistory.shift();
@@ -133,7 +173,9 @@ var PlacesOrganizer = {
     this.location = historyEntry;
   },
   forward: function PO_forward() {
+    this._backHistory.unshift(this.location);
     var historyEntry = this._forwardHistory.shift();
+    this._location = null;
     this.location = historyEntry;
   },
 
@@ -144,22 +186,24 @@ var PlacesOrganizer = {
    *          be left alone.
    */
   onPlaceSelected: function PO_onPlaceSelected(resetSearchBox) {
+    // Don't change the right-hand pane contents when there's no selection
     if (!this._places.hasSelection)
       return;
 
-    var node = asQuery(this._places.selectedNode);
-
-    var queries = node.getQueries({});
+    var node = this._places.selectedNode;
+    var queries = asQuery(node).getQueries({});
 
     // Items are only excluded on the left pane
     var options = node.queryOptions.clone();
     options.excludeItems = false;
+    var placeURI = PlacesUtils.history.queriesToQueryString(queries, queries.length, options);
 
-    // clear forward history
-    this._forwardHistory.splice(0);
+    // update the right-pane contents
+    this._content.place = placeURI;
 
-    // update location
-    this.location = PlacesUtils.history.queriesToQueryString(queries, queries.length, options);
+    // This just updates the back/forward buttons, it doesn't call us back
+    // because node.uri is our current selection.
+    this.location = node.uri;
 
     // Make sure the search UI is hidden.
     PlacesSearchBox.hideSearchUI();
@@ -244,6 +288,14 @@ var PlacesOrganizer = {
    */
   getCurrentOptions: function PO_getCurrentOptions() {
     return asQuery(this._content.getResult().root).queryOptions;
+  },
+
+  /**
+   * Returns the queries associated with the query currently loaded in the
+   * main places pane.
+   */
+  getCurrentQueries: function PO_getCurrentQueries() {
+    return asQuery(this._content.getResult().root).getQueries({});
   },
 
   /**
@@ -570,10 +622,12 @@ var PlacesOrganizer = {
     if (infoScrollbox.getAttribute("minimal") == "true") {
       infoScrollbox.removeAttribute("minimal");
       scrollboxExpander.label = scrollboxExpander.getAttribute("lesslabel");
+      scrollboxExpander.accessKey = scrollboxExpander.getAttribute("lessaccesskey");
     }
     else {
       infoScrollbox.setAttribute("minimal", "true");
       scrollboxExpander.label = scrollboxExpander.getAttribute("morelabel");
+      scrollboxExpander.accessKey = scrollboxExpander.getAttribute("moreaccesskey");
     }
   },
 
@@ -603,7 +657,9 @@ var PlacesOrganizer = {
     var placeSpec = PlacesUtils.history.queriesToQueryString(queries,
                                                              queries.length,
                                                              options);
-    var placeURI = IO.newURI(placeSpec);
+    var placeURI = Cc["@mozilla.org/network/io-service;1"].
+                   getService(Ci.nsIIOService).
+                   newURI(placeSpec, null, null);
 
     // Prompt the user for a name for the query.
     // XXX - using prompt service for now; will need to make
@@ -628,6 +684,9 @@ var PlacesOrganizer = {
                                          PlacesUtils.bookmarks.DEFAULT_INDEX,
                                          input.value);
     PlacesUtils.ptm.doTransaction(txn);
+
+    // select and load the new query
+    this._places.selectPlaceURI(placeSpec);
   }
 };
 
@@ -991,9 +1050,7 @@ var PlacesQueryBuilder = {
       var searchTermsField = document.getElementById("advancedSearch1Textbox");
       if (searchTermsField)
         setTimeout(function() { searchTermsField.value = PlacesSearchBox.value; }, 10);
-      var query = PlacesUtils.history.getNewQuery();
-      query.searchTerms = PlacesSearchBox.value;
-      this.queries = [query];
+      this.queries = PlacesOrganizer.getCurrentQueries();
       return;
     }
 
@@ -1181,14 +1238,16 @@ var PlacesQueryBuilder = {
     else {
       query.uriIsPrefix = (type == "startswith");
       var spec = document.getElementById(prefix + "Textbox").value;
+      var ios = Cc["@mozilla.org/network/io-service;1"].
+                getService(Ci.nsIIOService);
       try {
-        query.uri = IO.newURI(spec);
+        query.uri = ios.newURI(spec, null, null);
       }
       catch (e) {
         // Invalid input can cause newURI to barf, that's OK, tack "http://"
         // onto the front and try again to see if the user omitted it
         try {
-          query.uri = IO.newURI("http://" + spec);
+          query.uri = ios.newURI("http://" + spec, null, null);
         }
         catch (e) {
           // OK, they have entered something which can never match. This should
@@ -1597,5 +1656,29 @@ var ViewMenu = {
     }
     result.sortingAnnotation = sortingAnnotation;
     result.sortingMode = sortingMode;
+  }
+};
+
+var PlacesToolbar = {
+  // make places toolbar act like menus
+  openedMenuButton: null,
+
+  autoOpenMenu: function (aTarget) {
+    if (this.openedMenuButton && this.openedMenuButton != aTarget &&
+        aTarget.localName == "toolbarbutton" &&
+        (aTarget.type == "menu" || aTarget.type == "menu-button")) {
+      this.openedMenuButton.open = false;
+      aTarget.open = true;
+    }
+  },
+
+  onMenuOpen: function (aTarget) {
+    if (aTarget.parentNode.localName == "toolbarbutton")
+      this.openedMenuButton = aTarget.parentNode;
+  },
+
+  onMenuClose: function (aTarget) {
+    if (aTarget.parentNode.localName == "toolbarbutton")
+      this.openedMenuButton = null;
   }
 };

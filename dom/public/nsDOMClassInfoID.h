@@ -178,8 +178,8 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_XULCommandDispatcher_id,
 #endif
   eDOMClassInfo_XULControllers_id,
-#ifdef MOZ_XUL
   eDOMClassInfo_BoxObject_id,
+#ifdef MOZ_XUL
   eDOMClassInfo_TreeSelection_id,
   eDOMClassInfo_TreeContentView_id,
 #endif
@@ -247,18 +247,20 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_SVGDescElement_id,
   eDOMClassInfo_SVGEllipseElement_id,
   eDOMClassInfo_SVGFEBlendElement_id,
-  eDOMClassInfo_SVGFEDiffuseLightingElement_id,
-  eDOMClassInfo_SVGFEDistantLightElement_id,
   eDOMClassInfo_SVGFEColorMatrixElement_id,
   eDOMClassInfo_SVGFEComponentTransferElement_id,
   eDOMClassInfo_SVGFECompositeElement_id,
   eDOMClassInfo_SVGFEConvolveMatrixElement_id,
+  eDOMClassInfo_SVGFEDiffuseLightingElement_id,
+  eDOMClassInfo_SVGFEDisplacementMapElement_id,
+  eDOMClassInfo_SVGFEDistantLightElement_id,
   eDOMClassInfo_SVGFEFloodElement_id,
   eDOMClassInfo_SVGFEFuncAElement_id,
   eDOMClassInfo_SVGFEFuncBElement_id,
   eDOMClassInfo_SVGFEFuncGElement_id,
   eDOMClassInfo_SVGFEFuncRElement_id,
   eDOMClassInfo_SVGFEGaussianBlurElement_id,
+  eDOMClassInfo_SVGFEImageElement_id,
   eDOMClassInfo_SVGFEMergeElement_id,
   eDOMClassInfo_SVGFEMergeNodeElement_id,
   eDOMClassInfo_SVGFEMorphologyElement_id,
@@ -268,7 +270,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_SVGFESpotLightElement_id,
   eDOMClassInfo_SVGFETileElement_id,
   eDOMClassInfo_SVGFETurbulenceElement_id,
-  eDOMClassInfo_SVGFEUnimplementedMOZElement_id,
   eDOMClassInfo_SVGFilterElement_id,
   eDOMClassInfo_SVGGElement_id,
   eDOMClassInfo_SVGImageElement_id,
@@ -353,7 +354,7 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_CanvasGradient_id,
   eDOMClassInfo_CanvasPattern_id,
 #endif
-  
+
   // SmartCard Events
   eDOMClassInfo_SmartCardEvent_id,
   
@@ -415,6 +416,13 @@ enum nsDOMClassInfoID {
 
   // DOM modal content window class, almost identical to Window
   eDOMClassInfo_ModalContentWindow_id,
+
+  // Data Events
+  eDOMClassInfo_DataContainerEvent_id,
+
+  // event used for cross-domain message-passing and for server-sent events in
+  // HTML5
+  eDOMClassInfo_MessageEvent_id,
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

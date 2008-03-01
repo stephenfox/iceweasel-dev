@@ -102,7 +102,7 @@ struct JSFunction {
                               : (fun)->nargs)
 
 extern JSClass js_ArgumentsClass;
-extern JSClass js_CallClass;
+extern JS_FRIEND_DATA(JSClass) js_CallClass;
 
 /* JS_FRIEND_DATA so that VALUE_IS_FUNCTION is callable from the shell. */
 extern JS_FRIEND_DATA(JSClass) js_FunctionClass;
@@ -175,7 +175,7 @@ js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags);
 extern JSObject *
 js_GetCallObject(JSContext *cx, JSStackFrame *fp, JSObject *parent);
 
-extern JSBool
+extern JS_FRIEND_API(JSBool)
 js_PutCallObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool
@@ -193,7 +193,7 @@ js_GetArgsProperty(JSContext *cx, JSStackFrame *fp, jsid id, jsval *vp);
 extern JSObject *
 js_GetArgsObject(JSContext *cx, JSStackFrame *fp);
 
-extern JSBool
+extern JS_FRIEND_API(JSBool)
 js_PutArgsObject(JSContext *cx, JSStackFrame *fp);
 
 extern JSBool

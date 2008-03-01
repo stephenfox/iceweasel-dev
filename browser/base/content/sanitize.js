@@ -123,6 +123,28 @@ Sanitizer.prototype = {
       }
     },
     
+    offlineApps: {
+      clear: function ()
+      {
+        const Cc = Components.classes;
+        const Ci = Components.interfaces;
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].
+                           getService(Ci.nsICacheService);
+        try {
+          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
+        } catch(er) {}
+
+        var storageManagerService = Cc["@mozilla.org/dom/storagemanager;1"].
+                                    getService(Ci.nsIDOMStorageManager);
+        storageManagerService.clearOfflineApps();
+      },
+
+      get canClear()
+      {
+          return true;
+      }
+    },
+
     history: {
       clear: function ()
       {
@@ -210,8 +232,8 @@ Sanitizer.prototype = {
       {
         var pwmgr = Components.classes["@mozilla.org/login-manager;1"]
                               .getService(Components.interfaces.nsILoginManager);
-        var logins = pwmgr.getAllLogins({});
-        return (logins.length > 0);
+        var count = pwmgr.countLogins("", "", ""); // count all logins
+        return (count > 0);
       }
     },
     

@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: loader.c,v 1.35 2007/07/24 14:36:57 slavomir.katuscak%sun.com Exp $ */
+/* $Id: loader.c,v 1.38 2007/11/09 23:43:32 wtc%google.com Exp $ */
 
 #include "loader.h"
 #include "prmem.h"
@@ -834,6 +834,22 @@ PQG_VerifyParams(const PQGParams *params, const PQGVerify *vfy,
   return (vector->p_PQG_VerifyParams)(params, vfy, result);
 }
 
+void   
+PQG_DestroyParams(PQGParams *params)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return;
+  (vector->p_PQG_DestroyParams)(params);
+}
+
+void   
+PQG_DestroyVerify(PQGVerify *vfy)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return;
+  (vector->p_PQG_DestroyVerify)(vfy);
+}
+
 void 
 BL_Cleanup(void)
 {
@@ -855,9 +871,7 @@ BL_Unload(void)
    * never does a handshake on it, BL_Unload will be called even though freebl
    * was never loaded. So, don't assert blLib. */
   if (blLib) {
-#ifdef DEBUG
       disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
-#endif
       if (!disableUnload) {
           PRStatus status = PR_UnloadLibrary(blLib);
           PORT_Assert(PR_SUCCESS == status);

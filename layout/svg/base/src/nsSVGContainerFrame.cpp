@@ -241,22 +241,17 @@ nsSVGDisplayContainerFrame::InitialUpdate()
   return NS_OK;
 }  
 
-NS_IMETHODIMP
-nsSVGDisplayContainerFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
+void
+nsSVGDisplayContainerFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  if (!suppressInvalidation)
+  NS_ASSERTION(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
+               "Invalidation logic may need adjusting");
+
+  if (!(aFlags & SUPPRESS_INVALIDATION) &&
+      !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
     nsSVGUtils::UpdateFilterRegion(this);
 
-  for (nsIFrame* kid = mFrames.FirstChild(); kid;
-       kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
-    if (SVGFrame) {
-      SVGFrame->NotifyCanvasTMChanged(suppressInvalidation);
-    }
-  }
-
-  return NS_OK;
+  nsSVGUtils::NotifyChildrenOfSVGChange(this, aFlags);
 }
 
 NS_IMETHODIMP

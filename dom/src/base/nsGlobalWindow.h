@@ -98,6 +98,11 @@
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 
+/* I hate you, Windows. */
+#ifdef PostMessage
+#undef PostMessage
+#endif
+
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
 
@@ -133,7 +138,7 @@ enum OpenAllowValue {
 };
 
 extern nsresult
-NS_CreateJSTimeoutHandler(nsIScriptContext *aContext,
+NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
                           PRBool *aIsInterval,
                           PRInt32 *aInterval,
                           nsIScriptTimeoutHandler **aRet);
@@ -211,7 +216,7 @@ private:
 // jst@netscape.com
 
 // nsGlobalWindow inherits PRCList for maintaining a list of all inner
-// widows still in memory for any given outer window. This list is
+// windows still in memory for any given outer window. This list is
 // needed to ensure that mOuterWindow doesn't end up dangling. The
 // nature of PRCList means that the window itself is always in the
 // list, and an outer window's list will also contain all inner window
@@ -301,6 +306,10 @@ public:
   virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
   virtual NS_HIDDEN_(nsresult) ResumeTimeouts();
   virtual NS_HIDDEN_(nsresult) FireDelayedDOMEvents();
+  virtual NS_HIDDEN_(PRBool) IsFrozen() const
+  {
+    return mIsFrozen;
+  }
 
   virtual NS_HIDDEN_(PRBool) WouldReuseInnerWindow(nsIDocument *aNewDocument);
 
@@ -392,11 +401,6 @@ public:
     return static_cast<nsGlobalWindow *>(EnsureInnerWindow());
   }
 
-  PRBool IsFrozen() const
-  {
-    return mIsFrozen;
-  }
-
   PRBool IsCreatingInnerWindow() const
   {
     return  mCreatingInnerWindow;
@@ -431,6 +435,7 @@ protected:
   void ClearControllers();
 
   void FreeInnerObjects(PRBool aClearScope);
+  nsGlobalWindow *CallerInnerWindow();
 
   nsresult SetNewDocument(nsIDocument *aDocument,
                           nsISupports *aState,
@@ -556,6 +561,8 @@ protected:
   static PRBool CanSetProperty(const char *aPrefName);
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
+
+  static PRBool CanMoveResizeWindows();
 
   // Helper for window.find()
   nsresult FindInternal(const nsAString& aStr, PRBool caseSensitive,
@@ -718,6 +725,8 @@ protected:
   PRBool mSetOpenerWindowCalled;
 #endif
 
+  nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
+
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   static nsIFactory *sComputedDOMStyleFactory;
@@ -804,8 +813,6 @@ public:
 protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
-  nsRefPtr<nsDOMOfflineResourceList> mOfflineResources;
-  nsRefPtr<nsDOMOfflineLoadStatusList> mPendingOfflineLoads;
   nsIDocShell* mDocShell; // weak reference
 
   static jsval       sPrefInternal_id;

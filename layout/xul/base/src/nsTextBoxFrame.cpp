@@ -451,8 +451,7 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
 
     nscoord baseline =
       presContext->RoundAppUnitsToNearestDevPixels(textRect.y + ascent);
-    nsRefPtr<gfxContext> ctx = (gfxContext*)
-      aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+    nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
     gfxPoint pt(presContext->AppUnitsToGfxUnits(textRect.x),
                 presContext->AppUnitsToGfxUnits(textRect.y));
     gfxFloat width = presContext->AppUnitsToGfxUnits(textRect.width);
@@ -629,7 +628,7 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
         return;  // fits, done.
     }
 
-    const nsDependentString kEllipsis = nsContentUtils::GetLocalizedEllipsis();
+    const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
     // start with an ellipsis
     mCroppedTitle.Assign(kEllipsis);
 
@@ -820,32 +819,28 @@ nsTextBoxFrame::UpdateAccessTitle()
         return;
     }
 
-    const nsDependentString kEllipsis = nsContentUtils::GetLocalizedEllipsis();
-    PRInt32 offset = mTitle.RFind(kEllipsis);
-    if (offset == kNotFound) {
+    const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
+    PRUint32 offset = mTitle.Length();
+    if (StringEndsWith(mTitle, kEllipsis)) {
+        offset -= kEllipsis.Length();
+    } else if (StringEndsWith(mTitle, OLD_ELLIPSIS)) {
         // Try to check with our old ellipsis (for old addons)
-        if (!kEllipsis.Equals(OLD_ELLIPSIS))
-            offset = mTitle.RFind(OLD_ELLIPSIS);
-        if (offset == kNotFound) {
-            // Try to check with our default ellipsis (for non-localized addons)
-            nsAutoString defaultEllipsis(PRUnichar(0x2026));
-            if (!kEllipsis.Equals(defaultEllipsis))
-                offset = mTitle.RFind(defaultEllipsis);
-        }
-    }
-    if (offset == kNotFound) {
-        offset = (PRInt32)mTitle.Length();
-        if (mTitle.Last() == PRUnichar(':'))
+        offset -= OLD_ELLIPSIS.Length();
+    } else {
+        // Try to check with
+        // our default ellipsis (for non-localized addons) or ':'
+        const PRUnichar kLastChar = mTitle.Last();
+        if (kLastChar == PRUnichar(0x2026) || kLastChar == PRUnichar(':'))
             offset--;
     }
 
-    if (InsertSeparatorBeforeAccessKey() && offset > 0 &&
+    if (InsertSeparatorBeforeAccessKey() &&
         !NS_IS_SPACE(mTitle[offset - 1])) {
-        mTitle.Insert(' ', (PRUint32)offset);
+        mTitle.Insert(' ', offset);
         offset++;
     }
 
-    mTitle.Insert(accessKeyLabel, (PRUint32)offset);
+    mTitle.Insert(accessKeyLabel, offset);
 }
 
 void

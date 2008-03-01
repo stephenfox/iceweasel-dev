@@ -337,6 +337,8 @@
 
       <method name="showHistoryPopup">
         <body><![CDATA[
+          this.setAttribute("open", "true");
+
           // Store our "normal" maxRows on the popup, so that it can reset the
           // value when the popup is hidden.
           this.popup._normalMaxRows = this.maxRows;
@@ -386,6 +388,9 @@
       <method name="onKeyPress">
         <parameter name="aEvent"/>
         <body><![CDATA[
+          if (aEvent.target.localName != "textbox")
+            return;  // Let child buttons of autocomplete take input
+
           //XXXpch this is so bogus...
           if (aEvent.getPreventDefault())
             return false;
@@ -508,11 +513,21 @@
       <handler event="compositionend" phase="capturing"
                action="if (this.mController.input == this) this.mController.handleEndComposition();"/>
 
-      <handler event="focus" phase="capturing"
-               action="this.attachController();"/>
+      <handler event="focus" phase="capturing">
+        <![CDATA[
+          this.attachController(); 
+          this.mInputElt.parentNode.parentNode.setAttribute('focused', 'true');
+        ]]>
+      </handler>
 
-      <handler event="blur" phase="capturing"
-               action="if (!this._dontBlur) this.detachController();"/>
+      <handler event="blur" phase="capturing">
+        <![CDATA[
+          if (!this._dontBlur) {
+            this.detachController();
+            this.mInputElt.parentNode.parentNode.removeAttribute('focused');
+          }
+        ]]>
+      </handler>
 
       <handler event="contextmenu" phase="capturing"
                action="this.closePopup();"/>
@@ -526,7 +541,7 @@
     </resources>
 
     <content ignorekeys="true">
-      <xul:tree anonid="tree" class="autocomplete-tree plain" hidecolumnpicker="true" flex="1">
+      <xul:tree anonid="tree" class="autocomplete-tree plain" hidecolumnpicker="true" flex="1" seltype="single">
         <xul:treecols anonid="treecols">
           <xul:treecol id="treecolAutoCompleteValue" class="autocomplete-treecol" flex="1" overflow="true"/>
         </xul:treecols>
@@ -667,7 +682,11 @@
             document.popupNode = null;
 
             var rect = aElement.getBoundingClientRect();
-            var width = rect.right - rect.left;
+            var nav = aElement.ownerDocument.defaultView.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                              .getInterface(Components.interfaces.nsIWebNavigation);
+            var docShell = nav.QueryInterface(Components.interfaces.nsIDocShell);
+            var docViewer = docShell.contentViewer.QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
+            var width = (rect.right - rect.left) * docViewer.fullZoom;
             this.setAttribute("width", width > 100 ? width : 100);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
 
@@ -727,6 +746,10 @@
 
   <binding id="autocomplete-base-popup" extends="chrome://global/content/bindings/popup.xml#popup">
     <implementation implements="nsIAutoCompletePopup">
+      <!-- nsIAccessible from #popup -->
+      <property name="accessibleType" readonly="true"
+                onget="return Components.interfaces.nsIAccessibleProvider.NoAccessible;"/>
+
       <field name="mInput">null</field>
       <field name="mPopupOpen">false</field>
 
@@ -821,16 +844,29 @@
       ]]></handler>
 
       <handler event="popuphiding"><![CDATA[
+        var isListActive = true;
+        if (this.selectedIndex == -1)
+          isListActive = false;
         var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
         controller.stopSearch();
 
+        // when the popup hides, we need to clear the selection
+        // otherwise we will use the value of the selected index when the
+        // user hits enter.
+        // see bug #400671 for details
+        this.selectedIndex = -1;
         this.mPopupOpen = false;
+        this.mInput.removeAttribute("open");
 
         // Reset the maxRows property to the cached "normal" value, and reset
         // _normalMaxRows so that we can detect whether it was set by the input
         // when the popupshowing handler runs.
         this.mInput.maxRows = this._normalMaxRows;
         this._normalMaxRows = -1;
+        // If the list was being navigated and then closed, make sure
+        // we fire accessible focus event back to textbox
+        if (isListActive)
+          this.mInput._focus();
       ]]></handler>
     </handlers>
   </binding>
@@ -856,7 +892,12 @@
         <setter>
           <![CDATA[
           this.richlistbox.selectedIndex = val;
-          this.richlistbox.ensureSelectedElementIsVisible();
+ 
+          // when clearing the selection (val == -1, so selectedItem will be
+          // null), we want to scroll back to the top.  see bug #406194
+          this.richlistbox.ensureElementIsVisible(
+            this.richlistbox.selectedItem || this.richlistbox.firstChild);
+
           return val;
         ]]>
         </setter>
@@ -908,19 +949,6 @@
           var existingItemsCount = this.richlistbox.childNodes.length;
           for (var i = this._matchCount; i < existingItemsCount; i++)
             this.richlistbox.childNodes[i].collapsed = true;
-
-          var clearSelection = true;
-          var currentSelectedIndex = this.selectedIndex;
-          if (currentSelectedIndex != -1 && currentSelectedIndex < this._matchCount) {
-            var controller = this.mInput.controller;
-            var item = this.richlistbox.childNodes[currentSelectedIndex];
-            if (item.getAttribute("url") == controller.getValueAt(currentSelectedIndex) &&
-                item.getAttribute("title") == controller.getCommentAt(currentSelectedIndex)) {
-              clearSelection = false;
-            }
-          }
-          if (currentSelectedIndex != -1 && clearSelection)
-            this.selectedIndex = -1;
 
           this._currentIndex = 0;
           this._appendCurrentResult();
@@ -1062,36 +1090,34 @@
 
   <binding id="autocomplete-richlistitem" extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
     <content>
-      <xul:vbox>
-        <xul:hbox align="center">
-          <xul:image xbl:inherits="src=image" class="ac-site-icon"/>
-          <xul:scrollbox anonid="title-scrollbox" class="ac-title">
+      <xul:hbox align="center">
+        <xul:image xbl:inherits="src=image" class="ac-site-icon"/>
+        <xul:hbox anonid="title-box" class="ac-title">
 # note, we rely on the newlines here so that we have
 # a textNode before and after the span.  see _setUpDescription()
 # for more details
-            <xul:description anonid="title" class="ac-normal-text ac-comment" xbl:inherits="selected">
-              <xul:label class="ac-emphasize-text"/>
-            </xul:description>
-          </xul:scrollbox>
-          <xul:label anonid="title-overflow-ellipsis" xbl:inherits="selected"
-                     class="ac-ellipsis-after ac-comment"/>
-          <xul:image anonid="type-image" class="ac-type-icon"/>
+          <xul:description anonid="title" class="ac-normal-text ac-comment" xbl:inherits="selected">
+            <html:span class="ac-emphasize-text"/>
+          </xul:description>
         </xul:hbox>
-        <xul:hbox align="center">
-          <xul:spacer class="ac-site-icon"/>
-          <xul:scrollbox anonid="url-scrollbox" class="ac-url">
+        <xul:label anonid="title-overflow-ellipsis" xbl:inherits="selected"
+                   class="ac-ellipsis-after ac-comment"/>
+        <xul:image anonid="type-image" class="ac-type-icon"/>
+      </xul:hbox>
+      <xul:hbox align="center">
+        <xul:spacer class="ac-site-icon"/>
+        <xul:hbox anonid="url-box" class="ac-url">
 # note, we rely on the newlines here so that we have
 # a textNode before and after the span.  see _setUpDescription()
 # for more details
-            <xul:description anonid="url" class="ac-normal-text ac-url-text" xbl:inherits="selected">
-              <xul:label class="ac-emphasize-text"/>
-            </xul:description>
-          </xul:scrollbox>
-          <xul:label anonid="url-overflow-ellipsis" xbl:inherits="selected" 
-                     class="ac-ellipsis-after ac-url-text"/>
-          <xul:spacer class="ac-type-icon"/>
+          <xul:description anonid="url" class="ac-normal-text ac-url-text" xbl:inherits="selected">
+            <html:span class="ac-emphasize-text"/>
+          </xul:description>
         </xul:hbox>
-      </xul:vbox>
+        <xul:label anonid="url-overflow-ellipsis" xbl:inherits="selected" 
+                   class="ac-ellipsis-after ac-url-text"/>
+        <xul:spacer class="ac-type-icon"/>
+      </xul:hbox>
     </content>
     <implementation implements="nsIDOMXULSelectControlItemElement">
       <constructor>
@@ -1101,10 +1127,10 @@
 
             this._typeImage = document.getAnonymousElementByAttribute(this, "anonid", "type-image");
 
-            this._urlScrollbox = document.getAnonymousElementByAttribute(this, "anonid", "url-scrollbox");
+            this._urlBox = document.getAnonymousElementByAttribute(this, "anonid", "url-box");
             this._url = document.getAnonymousElementByAttribute(this, "anonid", "url");
 
-            this._titleScrollbox = document.getAnonymousElementByAttribute(this, "anonid", "title-scrollbox");
+            this._titleBox = document.getAnonymousElementByAttribute(this, "anonid", "title-box");
             this._title = document.getAnonymousElementByAttribute(this, "anonid", "title");
 
             // XXX hack
@@ -1165,32 +1191,38 @@
       <method name="_setUpDescription">
         <parameter name="aDescriptionElement"/>
         <parameter name="aText"/>
-        <parameter name="aScrollBoxObject"/>
+        <parameter name="aBoxObject"/>
         <parameter name="aEllipsis"/>
         <parameter name="aMatchIndex"/>
         <parameter name="aMatchLength"/>
         <body>
           <![CDATA[
+          var oldValues = [aDescriptionElement.childNodes[0].textContent,
+                           aDescriptionElement.childNodes[1].textContent,
+                           aDescriptionElement.childNodes[2].textContent];
+
+          var newValues;
+
           if (aMatchIndex == -1) {
-            aDescriptionElement.childNodes[0].textContent = aText;
-            aDescriptionElement.childNodes[1].value = "";
-            aDescriptionElement.childNodes[2].textContent = "";
+            newValues = [aText, "", ""];
           }
           else {
-            aDescriptionElement.childNodes[0].textContent =
-              aText.substring(0, aMatchIndex);
+            var endOfMatch = aMatchIndex + aMatchLength;
+            newValues = [aText.substring(0, aMatchIndex),
+                         aText.substring(aMatchIndex, endOfMatch),
+                         aText.substring(endOfMatch)];
+          }
 
-            aDescriptionElement.childNodes[1].value =
-              aText.substring(aMatchIndex, aMatchIndex + aMatchLength);
-
-            aDescriptionElement.childNodes[2].textContent =
-              aText.substring(aMatchIndex + aMatchLength);
+          // only update the textContent if the value has changed
+          for (var i=0; i < oldValues.length; i++) {
+            if (oldValues[i] != newValues[i])
+              aDescriptionElement.childNodes[i].textContent = newValues[i];
           }
 
           // need to set up the ellipsis on a time out, 
           // because the width of the description element may still be 0
           // even though the aText length is non-zero
-          setTimeout(function(self) { self._setUpEllipsis(aScrollBoxObject, aDescriptionElement, aEllipsis); }, 0, this);
+          setTimeout(function(self) { self._setUpEllipsis(aBoxObject, aDescriptionElement.boxObject, aEllipsis); }, 0, this);
           ]]>
         </body>
       </method>
@@ -1203,36 +1235,27 @@
           var title = this.getAttribute("title");
           var type = this.getAttribute("type");
 
-          var url_sbo = this._urlScrollbox.boxObject.QueryInterface(Components.interfaces.nsIScrollBoxObject);
-          var title_sbo = this._titleScrollbox.boxObject.QueryInterface(Components.interfaces.nsIScrollBoxObject);
-
           this._typeImage.className = type ? ("ac-result-type-" + type) : "";
 
           // if we aren't matching any text 
           // (the user has clicked on the history drop down
           // or this result is a "tag" match, don't bold any matching text
           if (text == "" || type == "tag") {
-            this._setUpDescription(this._url, url, url_sbo, this._urlOverflowEllipsis, -1, -1);
-            this._setUpDescription(this._title, title, title_sbo, this._titleOverflowEllipsis, -1, -1); 
+            this._setUpDescription(this._url, url, this._urlBox.boxObject, this._urlOverflowEllipsis, -1, -1);
+            this._setUpDescription(this._title, title, this._titleBox.boxObject, this._titleOverflowEllipsis, -1, -1); 
             return;
           }
 
-          // emphasize the matching text, first try title, and then try url
+          // emphasize the matching text in both the title and the url
           var needle = text.toLowerCase();
+
           var hay = title.toLowerCase();
           var index = hay.indexOf(needle);
-
-          this._setUpDescription(this._title, title, title_sbo, this._titleOverflowEllipsis, index, text.length); 
+          this._setUpDescription(this._title, title, this._titleBox.boxObject, this._titleOverflowEllipsis, index, text.length); 
           
-          // if we didn't find it in the url, check the title
-          if (index == -1) {
-            hay = url.toLowerCase();
-            index = hay.indexOf(needle);
-          }
-          else
-            index = -1;
-      
-          this._setUpDescription(this._url, url, url_sbo, this._urlOverflowEllipsis, index, text.length);
+          hay = url.toLowerCase();
+          index = hay.indexOf(needle);
+          this._setUpDescription(this._url, url, this._urlBox.boxObject, this._urlOverflowEllipsis, index, text.length);
           ]]>
         </body>
       </method>
@@ -1241,36 +1264,38 @@
         <body>
           <![CDATA[
           // XXX hack
-          // see bug #399644 comment #39 for some details
+          // see bug #399664 comment #39 for some details
           // add 16px for the site image, 8 for the margin right of the site icon,
           // 16px for the type image, and 24px for scroll bar
           var pixelsUsedForNonText = 16 + 8 + 16 + 24;
 
-          var current_url_width = this.getAttribute("current_width") - 
-                                  pixelsUsedForNonText -
-                                  this._urlOverflowEllipsis.boxObject.width;
+          var current_url_width = 
+            Math.floor(this.getAttribute("current_width") - 
+                       pixelsUsedForNonText -
+                       this._urlOverflowEllipsis.boxObject.width);
 
-          var current_title_width = this.getAttribute("current_width") - 
-                                    pixelsUsedForNonText -
-                                    this._titleOverflowEllipsis.boxObject.width;
+          var current_title_width = 
+            Math.floor(this.getAttribute("current_width") - 
+                       pixelsUsedForNonText -
+                       this._titleOverflowEllipsis.boxObject.width);
 
-          this._urlScrollbox.minWidth = current_url_width;
-          this._urlScrollbox.maxWidth = current_url_width;
+          this._urlBox.minWidth = current_url_width;
+          this._urlBox.maxWidth = current_url_width;
 
-          this._titleScrollbox.minWidth = current_title_width;
-          this._titleScrollbox.maxWidth = current_title_width;
+          this._titleBox.minWidth = current_title_width;
+          this._titleBox.maxWidth = current_title_width;
         ]]>
         </body>
       </method>
 
       <method name="_setUpEllipsis">
-        <parameter name="aScrollBoxObject"/>
+        <parameter name="aBoxObject"/>
         <parameter name="aDescriptionElement"/>
         <parameter name="aEllipsis"/>
         <body>
           <![CDATA[
           // determine if we need to show the ellipsis
-          if ((aScrollBoxObject.x + aScrollBoxObject.width) >= (aDescriptionElement.boxObject.x + aDescriptionElement.boxObject.width))
+          if (aBoxObject.width >= aDescriptionElement.width)
             aEllipsis.value = "";
           else 
             aEllipsis.value = this.ellipsis;

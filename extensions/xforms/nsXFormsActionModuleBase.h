@@ -48,12 +48,55 @@
 #include "nsCOMPtr.h"
 #include "nsXFormsUtils.h"
 
+class nsXFormsActionModuleHelper
+{
+  /**
+   * nsXFormsActionModuleHelper provides the foundation that allows event
+   * iteration to work.  Every xforms action needs to inherit from
+   * nsXFormsActionModuleHelper in some capacity; they can inherit indirectly
+   * through nsXFormsActionModuleBase or directly from
+   * nsXFormsActionModuleHelper in the cases where the action actually needs to
+   * have binding capabilities (like nsXFormsAlertElement, etc)
+   */
+
+public:
+  nsXFormsActionModuleHelper() : mCanIterate(PR_TRUE) {}
+  virtual nsIDOMElement* GetElement() = 0;
+  PRBool CanIterate() { return mCanIterate; }
+  void SetCurrentEvent(nsIDOMEvent* aEvent) { mCurrentEvent = aEvent; }
+  /**
+   * With the `while` attribute, actions can potentially be iterated.  The
+   * `HandleSingleAction` method processes one iteration of an action (that
+   * is, the "body" of the action); it should be dispatched by the
+   * `HandleAction` method, which manages the conditional execution and
+   * iteration of the action.
+   */
+  virtual nsresult
+    HandleSingleAction(nsIDOMEvent *aEvent,
+                       nsIXFormsActionElement *aParentAction) = 0;
+protected:
+  /**
+   * This signals whether or not this action can iterate.  Technically, all
+   * XForms 1.1 actions are allowed to iterate, but for some of them it
+   * may not make sense.  Currently, this is set to PR_TRUE for all actions,
+   * but we can optionally disable iteration for specific actions based upon
+   * additional information in the future.
+   */
+  PRBool mCanIterate;
+
+  /**
+   * The event currently being processed.
+   */
+  nsCOMPtr<nsIDOMEvent> mCurrentEvent;
+};
+
 class nsXFormsActionModuleBase : public nsIDOMEventListener,
-                                 public virtual nsXFormsStubElement,
-                                 public nsIXFormsActionModuleElement
+                                 public nsXFormsStubElement,
+                                 public nsIXFormsActionModuleElement,
+                                 public nsXFormsActionModuleHelper
 {
 public:
-  nsXFormsActionModuleBase(PRBool canIterate = PR_FALSE);
+  nsXFormsActionModuleBase();
   virtual ~nsXFormsActionModuleBase();
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIXFORMSACTIONMODULEELEMENT
@@ -64,7 +107,12 @@ public:
   NS_IMETHOD DocumentChanged(nsIDOMDocument *aNewDocument);
   NS_IMETHOD WillChangeParent(nsIDOMElement *aNewParent);
   NS_IMETHOD ParentChanged(nsIDOMElement *aNewParent);
-protected:
+
+  virtual nsIDOMElement *GetElement() { return mElement; }
+
+  static nsresult DoHandleAction(nsXFormsActionModuleHelper *aXFormsAction,
+                                 nsIDOMEvent                *aEvent,
+                                 nsIXFormsActionElement     *aParentAction);
   /**
    * Determine whether this action element should be executed, based upon
    * optional `if` and `while` attributes.  For each of these attributes
@@ -75,30 +123,13 @@ protected:
    * This method indicates to the caller whether the action element uses a
    * `while` attribute through the `usesWhile` parameter.
    */
-  NS_HIDDEN_(PRBool) CanPerformAction(PRBool         *usesWhile,
-                                      nsIDOMNode     *contextNode = nsnull,
-                                      PRInt32         contextSize = 0,
-                                      PRInt32         contextPosition = 0);
-
-  /**
-   * With the `while` attribute, actions can potentially be iterated.  The
-   * `HandleSingleAction` method processes one iteration of an action (that
-   * is, the "body" of the action); it should be dispatched by the
-   * `HandleAction` method, which manages the conditional execution and
-   * iteration of the action.
-   */
-  virtual nsresult
-    HandleSingleAction(nsIDOMEvent* aEvent,
-                       nsIXFormsActionElement *aParentAction) = 0;
-
-  /**
-   * This signals whether or not this action can iterate.  Technically, all
-   * XForms 1.1 actions are allowed to iterate, but for some of them it
-   * may not make sense.  Currently, this is set to PR_TRUE for all actions,
-   * but we can optionally disable iteration for specific actions based upon
-   * additional information in the future.
-   */
-  PRBool mCanIterate;
+  static PRBool CanPerformAction(nsIDOMElement  *aElement,
+                                 PRBool         *aUsesWhile,
+                                 nsIDOMNode     *aContextNode = nsnull,
+                                 PRInt32         aContextSize = 0,
+                                 PRInt32         aContextPosition = 0);
+protected:
+  nsIDOMElement *mElement;
 };
 
 #endif

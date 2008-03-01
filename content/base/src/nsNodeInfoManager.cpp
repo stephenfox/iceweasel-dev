@@ -51,8 +51,7 @@
 #include "nsReadableUtils.h"
 #include "nsGkAtoms.h"
 #include "nsComponentManagerUtils.h"
-
-PRUint32 nsNodeInfoManager::gNodeManagerCount;
+#include "nsLayoutStatics.h"
 
 PLHashNumber
 nsNodeInfoManager::GetNodeInfoInnerHashValue(const void *key)
@@ -90,36 +89,23 @@ nsNodeInfoManager::nsNodeInfoManager()
     mCommentNodeInfo(nsnull),
     mDocumentNodeInfo(nsnull)
 {
-  ++gNodeManagerCount;
+  nsLayoutStatics::AddRef();
 
   mNodeInfoHash = PL_NewHashTable(32, GetNodeInfoInnerHashValue,
                                   NodeInfoInnerKeyCompare,
                                   PL_CompareValues, nsnull, nsnull);
-
-#ifdef DEBUG_jst
-  printf ("Creating NodeInfoManager, gcount = %d\n", gNodeManagerCount);
-#endif
 }
 
 
 nsNodeInfoManager::~nsNodeInfoManager()
 {
-  --gNodeManagerCount;
-
   if (mNodeInfoHash)
     PL_HashTableDestroy(mNodeInfoHash);
-
-
-  if (gNodeManagerCount == 0) {
-    nsNodeInfo::ClearCache();
-  }
 
   // Note: mPrincipal may be null here if we never got inited correctly
   NS_IF_RELEASE(mPrincipal);
 
-#ifdef DEBUG_jst
-  printf ("Removing NodeInfoManager, gcount = %d\n", gNodeManagerCount);
-#endif
+  nsLayoutStatics::Release();
 }
 
 

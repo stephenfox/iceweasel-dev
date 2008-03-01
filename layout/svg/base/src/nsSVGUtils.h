@@ -54,6 +54,7 @@ class nsIDOMSVGRect;
 class nsFrameList;
 class nsIFrame;
 struct nsStyleSVGPaint;
+class nsIDOMSVGElement;
 class nsIDOMSVGLength;
 class nsIDOMSVGMatrix;
 class nsIURI;
@@ -166,6 +167,19 @@ private:
   nsSVGRenderState::RenderMode mOriginalMode;
 };
 
+#define NS_ISVGFILTERPROPERTY_IID \
+{ 0x9744ee20, 0x1bcf, 0x4c62, \
+ { 0x86, 0x7d, 0xd3, 0x7a, 0x91, 0x60, 0x3e, 0xef } }
+
+class nsISVGFilterProperty : public nsISupports
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGFILTERPROPERTY_IID)
+  virtual void Invalidate() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGFilterProperty, NS_ISVGFILTERPROPERTY_IID)
+
 class nsSVGUtils
 {
 public:
@@ -226,6 +240,18 @@ public:
    */
   static nsresult GetReferencedFrame(nsIFrame **aRefFrame, nsIURI* aURI,
                                      nsIContent *aContent, nsIPresShell *aPresShell);
+
+  /*
+   * Return the nearest viewport element
+   */
+  static nsresult GetNearestViewportElement(nsIContent *aContent,
+                                            nsIDOMSVGElement * *aNearestViewportElement);
+
+  /*
+   * Get the farthest viewport element
+   */
+  static nsresult GetFarthestViewportElement(nsIContent *aContent,
+                                             nsIDOMSVGElement * *aFarthestViewportElement);
 
   /*
    * Creates a bounding box by walking the children and doing union.
@@ -326,6 +352,12 @@ public:
    * child or container SVG frame.
    */
   static already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM(nsIFrame *aFrame);
+
+  /*
+   * Tells child frames that something that might affect them has changed
+   */
+  static void
+  NotifyChildrenOfSVGChange(nsIFrame *aFrame, PRUint32 aFlags);
 
   /*
    * Get frame's covered region by walking the children and doing union.

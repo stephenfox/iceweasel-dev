@@ -65,16 +65,14 @@
 
 <!ENTITY  mediaTab              "Media">
 <!ENTITY  mediaTab.accesskey    "M">
-<!ENTITY  mediaURL              "Address:">
-<!ENTITY  mediaAlt              "Alternate Text:">
+<!ENTITY  mediaLocation         "Location:">
+<!ENTITY  mediaText             "Associated Text:">
 <!ENTITY  mediaAltHeader        "Alternate Text">
 <!ENTITY  mediaAddress          "Address">
 <!ENTITY  mediaType             "Type">
 <!ENTITY  mediaSize             "Size">
 <!ENTITY  mediaCount            "Count">
-<!ENTITY  mediaDimensions       "Specified Dimensions:">
-<!ENTITY  mediaPhysDimensions   "Actual Dimensions:">
-<!ENTITY  mediaTitle            "Title:">
+<!ENTITY  mediaDimension        "Dimensions:">
 <!ENTITY  mediaLongdesc         "Long Description:">
 <!ENTITY  mediaBlockImage.accesskey "B">
 <!ENTITY  mediaSaveAs           "Save As…">
@@ -95,7 +93,7 @@
 <!ENTITY  permBlock             "Block">
 <!ENTITY  permissionsFor        "Permissions for:">
 <!ENTITY  permImage             "Load Images">
-<!ENTITY  permPopup             "Open Popup Windows">
+<!ENTITY  permPopup             "Open Pop-up Windows">
 <!ENTITY  permCookie            "Set Cookies">
 <!ENTITY  permInstall           "Install Extensions or Themes">
 

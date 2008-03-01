@@ -29,6 +29,7 @@ CPPSRCS	= \
 	gfxFont.cpp \
 	gfxFontMissingGlyphs.cpp \
 	gfxFontTest.cpp \
+	gfxFontUtils.cpp \
 	gfxMatrix.cpp \
 	gfxPath.cpp \
 	gfxPattern.cpp \
@@ -74,6 +75,7 @@ CPPSRCS	+=	gfxOS2Fonts.cpp \
 		nsUnicodeRange.cpp \
 		gfxFontconfigUtils.cpp \
 		$(NULL)
+CPPSRCS +=	gfxPDFSurface.cpp
 EXTRA_DSO_LDOPTS += $(MOZ_CAIRO_LIBS)
 REQUIRES += uconv
 endif
@@ -142,7 +144,7 @@ include $(topsrcdir)/config/rules.mk
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 CFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 
-ifdef MOZ_ENABLE_PANGO
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CXXFLAGS += $(MOZ_PANGO_CFLAGS)
 endif
 

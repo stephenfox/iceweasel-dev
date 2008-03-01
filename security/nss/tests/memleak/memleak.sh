@@ -73,13 +73,15 @@ memleak_init()
 		CLEANUP="${SCRIPTNAME}"
 	fi
 
- 	NSS_DISABLE_ARENA_FREE_LIST="1"
- 	export NSS_DISABLE_ARENA_FREE_LIST
+	NSS_DISABLE_ARENA_FREE_LIST="1"
+	export NSS_DISABLE_ARENA_FREE_LIST
 	
 	OLD_LIBRARY_PATH=${LD_LIBRARY_PATH}
 	TMP_LIBDIR="${HOSTDIR}/tmp$$"
 	TMP_STACKS="${HOSTDIR}/stacks$$"
+	TMP_SORTED="${HOSTDIR}/sorted$$"
 	TMP_COUNT="${HOSTDIR}/count$$"
+	TMP_DBX="${HOSTDIR}/dbx$$"
 	
 	PORT=${PORT:-8443}
 	
@@ -168,21 +170,22 @@ memleak_init()
 		;;
 	esac
 
-	if [ "${BUILD_OPT}" -eq "1" ] ; then
+	if [ "${BUILD_OPT}" = "1" ] ; then
 		OPT="OPT"
-		unset NSS_DISABLE_UNLOAD
 	else 
 		OPT="DBG"
-		NSS_DISABLE_UNLOAD="1"
-		export NSS_DISABLE_UNLOAD
 	fi
 
+	NSS_DISABLE_UNLOAD="1"
+	export NSS_DISABLE_UNLOAD
+
 	SELFSERV_ATTR="-D -p ${PORT} -d ${SERVER_DB} -n ${HOSTADDR} -e ${HOSTADDR}-ec -w nss -c ABCDEF:C001:C002:C003:C004:C005:C006:C007:C008:C009:C00A:C00B:C00C:C00D:C00E:C00F:C010:C011:C012:C013:C014cdefgijklmnvyz -t 5"
-	TSTCLNT_ATTR="-p ${PORT} -h ${HOSTADDR} -c j -f -d ${CLIENT_DB} -w nss"
+	TSTCLNT_ATTR="-p ${PORT} -h ${HOSTADDR} -c j -f -d ${CLIENT_DB} -w nss -o"
+	STRSCLNT_ATTR="-q -p ${PORT} -d ${CLIENT_DB} -w nss -c 1000 -n TestUser ${HOSTADDR}"
 
 	tbytes=0
 	tblocks=0
-	truns=0;
+	truns=0
 	
 	MEMLEAK_DBG=1
 	export MEMLEAK_DBG
@@ -194,6 +197,8 @@ memleak_init()
 memleak_cleanup()
 {
 	unset MEMLEAK_DBG
+	unset NSS_DISABLE_UNLOAD
+	
 	. ${QADIR}/common/cleanup.sh
 }
 
@@ -305,7 +310,12 @@ run ${ATTR}
 	echo "${DBX} ${COMMAND}"
 	echo "${SCRIPTNAME}: -------- DBX commands:"
 	echo "${DBX_CMD}"
-	echo "${DBX_CMD}" | ${DBX} ${COMMAND} 2>/dev/null | grep -v Reading
+	
+	echo "${DBX_CMD}" | ${DBX} ${COMMAND} 2>/dev/null | grep -v Reading > ${TMP_DBX}
+	cat ${TMP_DBX} 1>&2
+	
+	grep "exit code is 0" ${TMP_DBX}
+	return $?
 }
 
 ######################### run_command_valgrind #########################
@@ -316,11 +326,15 @@ run_command_valgrind()
 	COMMAND=$1
 	shift
 	ATTR=$*
-
+	
 	echo "${SCRIPTNAME}: -------- Running ${COMMAND} under Valgrind:"
 	echo "${VALGRIND} --tool=memcheck --leak-check=yes --show-reachable=yes --partial-loads-ok=yes --leak-resolution=high --num-callers=50 ${COMMAND} ${ATTR}"
-	${VALGRIND} --tool=memcheck --leak-check=yes --show-reachable=yes --partial-loads-ok=yes --leak-resolution=high --num-callers=50 ${COMMAND} ${ATTR} 
-	echo "==0==" 
+	echo "Running: ${COMMAND} ${ATTR}" 1>&2
+	${VALGRIND} --tool=memcheck --leak-check=yes --show-reachable=yes --partial-loads-ok=yes --leak-resolution=high --num-callers=50 ${COMMAND} ${ATTR} 1>&2
+	ret=$?
+	echo "==0=="
+	
+	return $ret
 }
 
 ############################# run_selfserv #############################
@@ -333,6 +347,12 @@ run_selfserv()
 	echo "${SCRIPTNAME}: -------- Running selfserv:"
 	echo "selfserv ${SELFSERV_ATTR}"
 	selfserv ${SELFSERV_ATTR}
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		html_failed "<TR><TD> ${LOGNAME}: Selfserv"
+		echo "${SCRIPTNAME} ${LOGNAME}: " \
+			"Selfserv produced a returncode of ${ret} - FAILED"
+	fi
 }
 
 ########################### run_selfserv_dbg ###########################
@@ -343,6 +363,12 @@ run_selfserv_dbg()
 	echo "PATH=${PATH}"
 	echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 	${RUN_COMMAND_DBG} selfserv ${SERVER_OPTION} ${SELFSERV_ATTR}
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		html_failed "<TR><TD> ${LOGNAME}: Selfserv"
+		echo "${SCRIPTNAME} ${LOGNAME}: " \
+			"Selfserv produced a returncode of ${ret} - FAILED"
+	fi
 }
 
 ############################# run_strsclnt #############################
@@ -352,15 +378,27 @@ run_selfserv_dbg()
 run_strsclnt()
 {
 	for cipher in ${cipher_list}; do
-		STRSCLNT_ATTR="-q -p ${PORT} -d ${CLIENT_DB} -w nss -c 1000 -C ${cipher} ${HOSTADDR}"
+		ATTR="${STRSCLNT_ATTR} -C ${cipher}"
 		echo "${SCRIPTNAME}: -------- Trying cipher ${cipher}:"
-		echo "strsclnt ${STRSCLNT_ATTR}"
-		strsclnt ${STRSCLNT_ATTR}
+		echo "strsclnt ${ATTR}"
+		strsclnt ${ATTR}
+		ret=$?
+		if [ $ret -ne 0 ]; then
+			html_failed "<TR><TD> ${LOGNAME}: Strsclnt with cipher ${cipher}"
+			echo "${SCRIPTNAME} ${LOGNAME}: " \
+				"Strsclnt produced a returncode of ${ret} - FAILED"
+		fi
 	done
 	
 	echo "${SCRIPTNAME}: -------- Stopping server:"
 	echo "tstclnt ${TSTCLNT_ATTR} < ${REQUEST_FILE}"
 	tstclnt ${TSTCLNT_ATTR} < ${REQUEST_FILE}
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		html_failed "<TR><TD> ${LOGNAME}: Tstclnt"
+		echo "${SCRIPTNAME} ${LOGNAME}: " \
+			"Tstclnt produced a returncode of ${ret} - FAILED"
+	fi
 }
 
 ########################### run_strsclnt_dbg ###########################
@@ -370,13 +408,83 @@ run_strsclnt()
 run_strsclnt_dbg()
 {
 	for cipher in ${cipher_list}; do
-		STRSCLNT_ATTR="-q -p ${PORT} -d ${CLIENT_DB} -w nss -c 1001 -C ${cipher} ${HOSTADDR}"
-		${RUN_COMMAND_DBG} strsclnt ${CLIENT_OPTION} ${STRSCLNT_ATTR}
+		ATTR="${STRSCLNT_ATTR} -C ${cipher}"
+		${RUN_COMMAND_DBG} strsclnt ${CLIENT_OPTION} ${ATTR}
+		ret=$?
+		if [ $ret -ne 0 ]; then
+			html_failed "<TR><TD> ${LOGNAME}: Strsclnt with cipher ${cipher}"
+			echo "${SCRIPTNAME} ${LOGNAME}: " \
+				"Strsclnt produced a returncode of ${ret} - FAILED"
+		fi
 	done
 	
 	echo "${SCRIPTNAME}: -------- Stopping server:"
 	echo "tstclnt ${TSTCLNT_ATTR} < ${REQUEST_FILE}"
 	tstclnt ${TSTCLNT_ATTR} < ${REQUEST_FILE}
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		html_failed "<TR><TD> ${LOGNAME}: Tstclnt"
+		echo "${SCRIPTNAME} ${LOGNAME}: " \
+			"Tstclnt produced a returncode of ${ret} - FAILED"
+	fi
+}
+
+stat_clear()
+{
+	stat_minbytes=9999999
+	stat_maxbytes=0
+	stat_minblocks=9999999
+	stat_maxblocks=0
+	stat_bytes=0
+	stat_blocks=0
+	stat_runs=0
+}
+
+stat_add()
+{
+	read hash lbytes bytes_str lblocks blocks_str in_str lruns runs_str \
+		minbytes minbytes_str maxbytes maxbytes_str minblocks \
+		minblocks_str maxblocks maxblocks_str rest < ${TMP_COUNT} 
+	rm ${TMP_COUNT}
+	
+	tbytes=`expr ${tbytes} + ${lbytes}`
+	tblocks=`expr ${tblocks} + ${lblocks}`
+	truns=`expr ${truns} + ${lruns}`
+	
+	if [ ${stat_minbytes} -gt ${minbytes} ]; then
+		stat_minbytes=${minbytes}
+	fi
+			
+	if [ ${stat_maxbytes} -lt ${maxbytes} ]; then
+		stat_maxbytes=${maxbytes}
+	fi
+			
+	if [ ${stat_minblocks} -gt ${minblocks} ]; then
+		stat_minblocks=${minblocks}
+	fi
+			
+	if [ ${stat_maxblocks} -lt ${maxblocks} ]; then
+		stat_maxblocks=${maxblocks}
+	fi
+			
+	stat_bytes=`expr ${stat_bytes} + ${lbytes}`
+	stat_blocks=`expr ${stat_blocks} + ${lblocks}`
+	stat_runs=`expr ${stat_runs} + ${lruns}`
+}
+
+stat_print()
+{
+	if [ ${stat_runs} -gt 0 ]; then
+		stat_avgbytes=`expr "${stat_bytes}" / "${stat_runs}"`
+		stat_avgblocks=`expr "${stat_blocks}" / "${stat_runs}"`
+		
+		echo
+		echo "$1 statistics:"
+		echo "Leaked bytes: ${stat_minbytes} min, ${stat_avgbytes} avg, ${stat_maxbytes} max"
+		echo "Leaked blocks: ${stat_minblocks} min, ${stat_avgblocks} avg, ${stat_maxblocks} max"
+		echo "Total runs: ${stat_runs}"
+		echo
+	fi
 }
 
 ########################## run_ciphers_server ##########################
@@ -385,6 +493,8 @@ run_strsclnt_dbg()
 run_ciphers_server()
 {
 	html_head "Memory leak checking - server"
+	
+	stat_clear
 	
 	client_mode="NORMAL"	
 	for server_mode in ${MODE_LIST}; do
@@ -397,18 +507,21 @@ run_ciphers_server()
 			LOGFILE=${LOGDIR}/${LOGNAME}.log
 			echo "Running ${LOGNAME}"
 			
-			run_selfserv_dbg 2>&1 | tee ${LOGFILE} &
+			run_selfserv_dbg 2>> ${LOGFILE} &
 			sleep 5
 			run_strsclnt
 			
 			sleep 20
 			clear_freebl
 			
-			log_parse >> ${FOUNDLEAKS}
+			log_parse
 			ret=$?
+			
 			html_msg ${ret} 0 "${LOGNAME}" "produced a returncode of $ret, expected is 0"
 		done
 	done
+	
+	stat_print "Selfserv"
 	
 	html "</TABLE><BR>"
 }
@@ -419,6 +532,8 @@ run_ciphers_server()
 run_ciphers_client()
 {
 	html_head "Memory leak checking - client"
+	
+	stat_clear
 	
 	server_mode="NORMAL"
 	for client_mode in ${MODE_LIST}; do
@@ -433,16 +548,18 @@ run_ciphers_client()
 			
 			run_selfserv &
 			sleep 5
-			run_strsclnt_dbg 2>&1 | tee ${LOGFILE}
+			run_strsclnt_dbg 2>> ${LOGFILE}
 			
 			sleep 20
 			clear_freebl
 			
-			log_parse >> ${FOUNDLEAKS}
+			log_parse
 			ret=$?
 			html_msg ${ret} 0 "${LOGNAME}" "produced a returncode of $ret, expected is 0"
 		done
 	done
+	
+	stat_print "Strsclnt"
 	
 	html "</TABLE><BR>"
 }
@@ -452,69 +569,87 @@ run_ciphers_client()
 ########################################################################
 parse_logfile_dbx()
 {
-	in_mel=0
-	bin_name=""
+	${AWK} '
+	BEGIN {
+		in_mel = 0
+		mel_line = 0
+		bytes = 0
+		lbytes = 0
+		minbytes = 9999999
+		maxbytes = 0
+		blocks = 0
+		lblocks = 0
+		minblocks = 9999999
+		maxblocks = 0
+		runs = 0
+		stack_string = ""
+		bin_name = ""
+	}
+	/Memory Leak \(mel\):/ ||
+	/Possible memory leak -- address in block \(aib\):/ ||
+	/Block in use \(biu\):/ {
+		in_mel = 1
+		stack_string = ""
+		next
+	}
+	in_mel == 1 && /^$/ {
+		print bin_name stack_string
+		in_mel = 0
+		mel_line = 0
+		next
+	}
+	in_mel == 1 {
+		mel_line += 1
+	}
+	/Found leaked block of size/ {
+		bytes += $6
+		blocks += 1
+		next
+	}
+	/Found .* leaked blocks/ {
+		bytes += $8
+		blocks += $2
+		next
+	}
+	/Found block of size/ {
+		bytes += $5
+		blocks += 1
+		next
+	}
+	/Found .* blocks totaling/ {
+		bytes += $5
+		blocks += $2
+		next
+	}
+	mel_line > 2 {
+		gsub(/\(\)/, "")
+		new_line = $2
+		stack_string = "/" new_line stack_string
+		next
+	}
+	/^Running: / {
+		bin_name = $2
+		next
+	}
+	/execution completed/ {
+		runs += 1
+		lbytes += bytes
+		minbytes = (minbytes < bytes) ? minbytes : bytes
+		maxbytes = (maxbytes > bytes) ? maxbytes : bytes
+		bytes = 0
+		lblocks += blocks
+		minblocks = (minblocks < blocks) ? minblocks : blocks
+		maxblocks = (maxblocks > blocks) ? maxblocks : blocks
+		blocks = 0
+		next
+	}
+	END {
+		print "# " lbytes " bytes " lblocks " blocks in " runs " runs " \
+		minbytes " minbytes " maxbytes " maxbytes " minblocks " minblocks " \
+		maxblocks " maxblocks " > "/dev/stderr"
+	}' 2> ${TMP_COUNT}
 	
-	while read line
-	do
-		if [ "${line}" = "Memory Leak (mel):" -o "${line}" = "Possible memory leak -- address in block (aib):" \
-			-o "${line}" = "Block in use (biu):" ] ; then
-			in_mel=1
-			mel_line=0
-			stack_string=""
-		fi
-		
-		if [ -z "${line}" ] ; then
-			if [ ${in_mel} -eq "1" ] ; then
-				in_mel=0
-				echo "${bin_name}${stack_string}"
-			fi
-		fi
-			
-		if [ ${in_mel} -eq 1 ] ; then
-			mel_line=`expr ${mel_line} + 1`
-			
-			if [ ${mel_line} -ge 4 ] ; then
-				new_line=`echo "${line}" | cut -d" " -f2 | cut -d"(" -f1`
-				stack_string="/${new_line}${stack_string}"
-			fi
-				
-			gline=`echo "${line}" | grep "Found leaked block of size"`
-			if [ -n "${gline}" ] ; then
-				lbytes=`echo "${line}" | sed "s/Found leaked block of size \(.*\) bytes.*/\1/"`
-				tbytes=`expr "${tbytes}" + "${lbytes}"`
-				tblocks=`expr "${tblocks}" + 1`
-			fi
-			
-			gline=`echo "${line}" | grep "Found .* leaked blocks"`
-			if [ -n "${gline}" ] ; then
-				lbytes=`echo "${line}" | sed "s/Found .* leaked blocks with total size \(.*\) bytes.*/\1/"`
-				tbytes=`expr "${tbytes}" + "${lbytes}"`
-				lblocks=`echo "${line}" | sed "s/Found \(.*\) leaked blocks.*/\1/"`
-				tblocks=`expr "${tblocks}" + "${lblocks}"`
-			fi
-			
-			gline=`echo "${line}" | grep "Found block of size"`
-			if [ -n "${gline}" ] ; then
-				lbytes=`echo "${line}" | sed "s/Found block of size \(.*\) bytes.*/\1/"`
-				tbytes=`expr "${tbytes}" + "${lbytes}"`
-				tblocks=`expr "${tblocks}" + 1`
-			fi
-			
-			gline=`echo "${line}" | grep "Found .* blocks totaling"`
-			if [ -n "${gline}" ] ; then
-				lbytes=`echo "${line}" | sed "s/Found .* blocks totaling \(.*\) bytes.*/\1/"`
-				tbytes=`expr "${tbytes}" + "${lbytes}"`
-				lblocks=`echo "${line}" | sed "s/Found \(.*\) blocks totaling.*/\1/"`
-				tblocks=`expr "${tblocks}" + "${lblocks}"`
-			fi
-		else
-			gline=`echo "${line}" | grep "^Running: "`
-			if [ -n "${gline}" ] ; then
-				bin_name=`echo "${line}" | cut -d" " -f2`
-			fi
-		fi 
-	done
+	stat_add
 }
 
 ######################## parse_logfile_valgrind ########################
@@ -523,68 +658,80 @@ parse_logfile_dbx()
 parse_logfile_valgrind()
 {
 	${AWK} '
-	 BEGIN {
-		 in_mel=0;
-		 in_sum=0;
-		 bytes=0;
-		 blocks=0;
-		 runs=0;
-		 stack_string="";
-		 bin_name=""; }
-	 !/==[0-9]*==/ { 
-		if ( $1 == "'${VALGRIND}'" ) 
-			bin_name = $8 ; 
-		next;
-	 }
-	 /blocks are/ {
-		in_mel = 1;
-		stack_string="";
-		next;
-	 }
-	 /LEAK SUMMARY/ {
-		in_sum=1;
-		runs += 1;
-		next;
-	 }
-	 /^==[0-9]*== *$/ { 
-	    	if (in_mel)
-			print bin_name stack_string;
-		in_sum = 0;
-		in_mel = 0;
-		next;
-	 }
-	 in_mel == 1 {	
-		new_line = $4;
+	BEGIN {
+		in_mel = 0
+		in_sum = 0
+		bytes = 0
+		lbytes = 0
+		minbytes = 9999999
+		maxbytes = 0
+		blocks = 0
+		lblocks = 0
+		minblocks = 9999999
+		maxblocks = 0
+		runs = 0
+		stack_string = ""
+		bin_name = "" 
+	}
+	!/==[0-9]*==/ { 
+		if ( $1 == "Running:" ) 
+			bin_name = $2 
+		next
+	}
+	/blocks are/ {
+		in_mel = 1
+		stack_string = ""
+		next
+	}
+	/LEAK SUMMARY/ {
+		in_sum = 1
+		next
+	}
+	/^==[0-9]*== *$/ { 
+		if (in_mel)
+			print bin_name stack_string
+		if (in_sum) {
+			runs += 1
+			lbytes += bytes
+			minbytes = (minbytes < bytes) ? minbytes : bytes
+			maxbytes = (maxbytes > bytes) ? maxbytes : bytes
+			bytes = 0
+			lblocks += blocks
+			minblocks = (minblocks < blocks) ? minblocks : blocks
+			maxblocks = (maxblocks > blocks) ? maxblocks : blocks
+			blocks = 0
+		}
+		in_sum = 0
+		in_mel = 0
+		next
+	}
+	in_mel == 1 {	
+		new_line = $4
 		if ( new_line == "(within")
-			new_line = "*";
-		stack_string = "/" new_line stack_string;
-	 }
-	 in_sum == 1 {
-		for (i=2; i <= NF; i++) {
+			new_line = "*"
+		stack_string = "/" new_line stack_string
+	}
+	in_sum == 1 {
+		for (i = 2; i <= NF; i++) {
 			if ($i == "bytes") {
-				str = $(i-1);
-				gsub(",","",str);
-				bytes += str;
+				str = $(i - 1)
+				gsub(",", "", str)
+				bytes += str
 			}
 			if ($i == "blocks.") {
-				str = $(i-1);
-				gsub(",","",str);
-				blocks += str;
+				str = $(i - 1)
+				gsub(",", "", str)
+				blocks += str
 			}
 		}
-	 }
-	 END {
-		print "# " bytes " bytes " blocks " blocks in " runs " runs" > "/dev/stderr";
-	 }' 2> ${TMP_COUNT}
-
-	# sigh it would be nice to just pipe stderr and let stdout go by I've never been 
-	# able to convince any shell to do that correctly, so we are reduced to using a temp
-	# file
-	read hash lbytes bytes_str lblocks blocks_str in_str lruns rest < ${TMP_COUNT}
-	tbytes=`expr "${tbytes}" + "${lbytes}"`
-	tblocks=`expr "${tblocks}" + "${lblocks}"`
-	truns=`expr "${truns}" + "${lruns}"`
-	rm ${TMP_COUNT}
+	}
+	END {
+		print "# " lbytes " bytes " lblocks " blocks in " runs " runs " \
+		minbytes " minbytes " maxbytes " maxbytes " minblocks " minblocks " \
+		maxblocks " maxblocks " > "/dev/stderr"
+	}' 2> ${TMP_COUNT}
+	
+	stat_add
 }
 
 ############################# check_ignored ############################
@@ -592,80 +739,62 @@ parse_logfile_valgrind()
 ########################################################################
 check_ignored()
 {
-    ${AWK} -F/ '
+	${AWK} -F/ '
 	BEGIN {
-		ignore="'${IGNORED_STACKS}'"
+		ignore = "'${IGNORED_STACKS}'"
 		# read in the ignore file
-		BUGNUM="";
-		count = 0;
-		new = 0;
+		BUGNUM = ""
+		count = 0
+		new = 0
 		while ((getline line < ignore) > 0)  {
 			if (line ~ "^#[0-9]+") {
-				BUGNUM = line;
+				BUGNUM = line
 			} else if (line ~ "^#") {
-				continue;
+				continue
 			} else if (line == "") {
-				continue;
+				continue
 			} else {
-				bugnum_array[count] = BUGNUM;
-				line_array[count] = line;
-				depth_array[count]= split(line, tmp_array, "/");
-				for (i=1; i <= depth_array[count]; i++ ) {
-					ignore_array[count,i] = tmp_array[i];
-				}
-				count++;
+				bugnum_array[count] = BUGNUM
+				# Create a regular expression for the ignored stack:
+				# replace * with % so we can later replace them with regular expressions
+				# without messing up everything (the regular expressions contain *)
+				gsub("\\*", "%", line)
+				# replace %% with .*
+				gsub("%%", ".*", line)
+				# replace % with [^/]*
+				gsub("%", "[^/]*", line)
+				# add ^ at the beginning
+				# add $ at the end
+				line_array[count] = "^" line "$"
+				count++
 			}
 		}
 	}
 	{
-		match_found = 0;
-	 	for (i=0 ; i < count; i++) {
-			do_next = 0;
-			for (j=1; j <= NF; j++) {
-				# our stack is deeper, no match 
-				if (j > depth_array[i]) {
-					do_next = 1;
-					break;
-				}
-				ignore = ignore_array[i,j];
-				# we found the end of the stack we have a match
-				if (ignore == "**") {
-					match_found = 1;
-					break;
-				}
-				# our stack is mismatched, no match
-				if ((ignore != "*") &&
-				    (ignore != $j)) {
-					do_next = 1;
-					break;
-				}
+		match_found = 0
+		# Look for matching ignored stack
+		for (i = 0; i < count; i++) {
+			if ($0 ~ line_array[i]) {
+				# found a match
+				match_found = 1
+				bug_found = bugnum_array[i]
+				break
 			}
-			# we ve matched to the end of the stack
-			if (match_found == 1) {
-			    break;
-			}
-			# we haven t found a mismatch, make sure the
-			# stack depth is long enough.
-			if (do_next != 1) {
-				if  (NF == depth_array[i]) {
-					match_found=1;
-					break;
+		}
+		# Process result
+		if (match_found == 1 ) {
+				if (bug_found != "") {
+					print "IGNORED STACK (" bug_found "): " $0
+				} else {
+					print "IGNORED STACK: " $0
 				}
-			}
-		  }
-		  if (match_found == 1) {
-			if (bugnum_array[i] != "") {
-				print "IGNORED STACK (" bugnum_array[i] "): " $0;
-			} else {
-				print "IGNORED STACK: " $0;
-			}
 		} else {
-			print "NEW STACK: " $0;
-			new=1;
+				print "NEW STACK: " $0
+				new = 1
 		}
 	}
 	END {
-		exit new;
+		exit new
 	}'
 	ret=$?
 	return $ret
@@ -676,13 +805,15 @@ check_ignored()
 ########################################################################
 log_parse()
 {
-	echo "${SCRIPTNAME}: Processing log ${LOGNAME}:"
 	${PARSE_LOGFILE} < ${LOGFILE} > ${TMP_STACKS}
-	cat ${TMP_STACKS} | sort -u | check_ignored
+	echo "${SCRIPTNAME}: Processing log ${LOGNAME}:" > ${TMP_SORTED}
+	cat ${TMP_STACKS} | sort -u | check_ignored >> ${TMP_SORTED}
 	ret=$?
-	rm ${TMP_STACKS}
-	echo ""
-
+	echo >> ${TMP_SORTED}
+	
+	cat ${TMP_SORTED} | tee -a ${FOUNDLEAKS}
+	rm ${TMP_STACKS} ${TMP_SORTED}
+	
 	return ${ret}
 }
 
@@ -703,9 +834,13 @@ cnt_total()
 ########################################################################
 run_ocsp()
 {
+	stat_clear
+	
 	cd ${QADIR}/iopr
 	. ./ocsp_iopr.sh
 	ocsp_iopr_run
+	
+	stat_print "Ocspclnt"
 }
 
 ################################# main #################################

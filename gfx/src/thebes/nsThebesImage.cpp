@@ -111,7 +111,7 @@ nsThebesImage::Init(PRInt32 aWidth, PRInt32 aHeight, PRInt32 aDepth, nsMaskRequi
 
     mFormat = format;
 
-#ifdef XP_WIN
+#if defined(XP_WIN)
     if (!ShouldUseImageSurfaces()) {
         mWinSurface = new gfxWindowsSurface(gfxIntSize(mWidth, mHeight), format);
         if (mWinSurface && mWinSurface->CairoStatus() == 0) {
@@ -120,13 +120,22 @@ nsThebesImage::Init(PRInt32 aWidth, PRInt32 aHeight, PRInt32 aDepth, nsMaskRequi
         }
     }
 
-    if (!mImageSurface) {
+    if (!mImageSurface)
         mWinSurface = nsnull;
-        mImageSurface = new gfxImageSurface(gfxIntSize(mWidth, mHeight), format);
+#elif defined(XP_MACOSX)
+    if (!ShouldUseImageSurfaces()) {
+        mQuartzSurface = new gfxQuartzSurface(gfxSize(mWidth, mHeight), format);
+        if (mQuartzSurface && mQuartzSurface->CairoStatus() == 0) {
+            mImageSurface = mQuartzSurface->GetImageSurface();
+        }
     }
-#else
-    mImageSurface = new gfxImageSurface(gfxIntSize(mWidth, mHeight), format);
+
+    if (!mImageSurface)
+        mQuartzSurface = nsnull;
 #endif
+
+    if (!mImageSurface)
+        mImageSurface = new gfxImageSurface(gfxIntSize(mWidth, mHeight), format);
 
     if (!mImageSurface || mImageSurface->CairoStatus()) {
         mImageSurface = nsnull;
@@ -298,6 +307,11 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
     }
 #endif
 
+#ifdef XP_MACOSX
+    if (mQuartzSurface && !mFormatChanged)
+        mOptSurface = mQuartzSurface;
+#endif
+
     if (mOptSurface == nsnull)
         mOptSurface = gfxPlatform::GetPlatform()->OptimizeImage(mImageSurface, mFormat);
 
@@ -305,6 +319,9 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
         mImageSurface = nsnull;
 #ifdef XP_WIN
         mWinSurface = nsnull;
+#endif
+#ifdef XP_MACOSX
+        mQuartzSurface = nsnull;
 #endif
     }
 
@@ -340,17 +357,13 @@ nsThebesImage::LockImagePixels(PRBool aMaskPixels)
                                             gfxImageSurface::ImageFormatARGB32);
         if (!mImageSurface || mImageSurface->CairoStatus())
             return NS_ERROR_OUT_OF_MEMORY;
-        nsRefPtr<gfxContext> context = new gfxContext(mImageSurface);
-        if (!context) {
-            mImageSurface = nsnull;
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
-        context->SetOperator(gfxContext::OPERATOR_SOURCE);
+        gfxContext context(mImageSurface);
+        context.SetOperator(gfxContext::OPERATOR_SOURCE);
         if (mSinglePixel)
-            context->SetColor(mSinglePixelColor);
+            context.SetColor(mSinglePixelColor);
         else
-            context->SetSource(mOptSurface);
-        context->Paint();
+            context.SetSource(mOptSurface);
+        context.Paint();
     }
     return NS_OK;
 }
@@ -361,10 +374,10 @@ nsThebesImage::UnlockImagePixels(PRBool aMaskPixels)
     if (aMaskPixels)
         return NS_ERROR_NOT_IMPLEMENTED;
     if (mImageSurface && mOptSurface) {
-        nsRefPtr<gfxContext> context = new gfxContext(mOptSurface);
-        context->SetOperator(gfxContext::OPERATOR_SOURCE);
-        context->SetSource(mImageSurface);
-        context->Paint();
+        gfxContext context(mOptSurface);
+        context.SetOperator(gfxContext::OPERATOR_SOURCE);
+        context.SetSource(mImageSurface);
+        context.Paint();
         // Don't need the pixel data anymore
         mImageSurface = nsnull;
     }
@@ -383,7 +396,7 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
     }
 
     nsThebesRenderingContext *thebesRC = static_cast<nsThebesRenderingContext*>(&aContext);
-    gfxContext *ctx = thebesRC->Thebes();
+    gfxContext *ctx = thebesRC->ThebesContext();
 
 #if 0
     fprintf (stderr, "nsThebesImage::Draw src [%f %f %f %f] dest [%f %f %f %f] trans: [%f %f] dec: [%f %f]\n",
@@ -427,6 +440,10 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
       destRect.size.height = srcRect.size.height * yscale;
     }
 
+    // if either rectangle is empty now (possibly after the image complete check)
+    if (srcRect.IsEmpty() || destRect.IsEmpty())
+        return NS_OK;
+
     // Reject over-wide or over-tall images.
     if (!AllowedImageSize(destRect.size.width + 1, destRect.size.height + 1))
         return NS_ERROR_FAILURE;
@@ -442,21 +459,29 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
     {
         gfxIntSize dim(NS_lroundf(destRect.size.width),
                        NS_lroundf(destRect.size.height));
+
+        // nothing to do in this case
+        if (dim.width == 0 || dim.height == 0)
+            return NS_OK;
+
         nsRefPtr<gfxASurface> temp =
             gfxPlatform::GetPlatform()->CreateOffscreenSurface (dim,  mFormat);
-        nsRefPtr<gfxContext> tempctx = new gfxContext(temp);
+        if (!temp || temp->CairoStatus() != 0)
+            return NS_ERROR_FAILURE;
 
-        nsRefPtr<gfxPattern> srcpat = new gfxPattern(ThebesSurface());
+        gfxContext tempctx(temp);
+
+        gfxPattern srcpat(ThebesSurface());
         gfxMatrix mat;
         mat.Translate(srcRect.pos);
         mat.Scale(1.0 / xscale, 1.0 / yscale);
-        srcpat->SetMatrix(mat);
+        srcpat.SetMatrix(mat);
 
-        tempctx->SetPattern(srcpat);
-        tempctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        tempctx->NewPath();
-        tempctx->Rectangle(gfxRect(0.0, 0.0, dim.width, dim.height));
-        tempctx->Fill();
+        tempctx.SetPattern(&srcpat);
+        tempctx.SetOperator(gfxContext::OPERATOR_SOURCE);
+        tempctx.NewPath();
+        tempctx.Rectangle(gfxRect(0.0, 0.0, dim.width, dim.height));
+        tempctx.Fill();
 
         pat = new gfxPattern(temp);
 
@@ -524,9 +549,6 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     if (mSinglePixel && mSinglePixelColor.a == 0.0)
         return NS_OK;
 
-    // so we can hold on to this for a bit longer; might not be needed
-    nsRefPtr<gfxPattern> pat;
-
     PRBool doSnap = !(thebesContext->CurrentMatrix().HasNonTranslation());
     PRBool hasPadding = ((xPadding != 0) || (yPadding != 0));
 
@@ -556,15 +578,15 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
 
             tmpSurfaceGrip = surface;
 
-            nsRefPtr<gfxContext> tmpContext = new gfxContext(surface);
+            gfxContext tmpContext(surface);
             if (mSinglePixel) {
-                tmpContext->SetColor(mSinglePixelColor);
+                tmpContext.SetColor(mSinglePixelColor);
             } else {
-                tmpContext->SetSource(ThebesSurface());
+                tmpContext.SetSource(ThebesSurface());
             }
-            tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-            tmpContext->Rectangle(gfxRect(0, 0, mWidth, mHeight));
-            tmpContext->Fill();
+            tmpContext.SetOperator(gfxContext::OPERATOR_SOURCE);
+            tmpContext.Rectangle(gfxRect(0, 0, mWidth, mHeight));
+            tmpContext.Fill();
         } else {
             width = mWidth;
             height = mHeight;
@@ -584,19 +606,19 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
         patMat.Scale(scale, scale);
         patMat.Translate(p0);
 
-        pat = new gfxPattern(surface);
-        pat->SetExtend(gfxPattern::EXTEND_REPEAT);
-        pat->SetMatrix(patMat);
+        gfxPattern pat(surface);
+        pat.SetExtend(gfxPattern::EXTEND_REPEAT);
+        pat.SetMatrix(patMat);
 
 #ifndef XP_MACOSX
         if (scale < 1.0) {
             // See bug 324698.  This is a workaround.  See comments
             // by the earlier SetFilter call.
-            pat->SetFilter(0);
+            pat.SetFilter(0);
         }
 #endif
 
-        thebesContext->SetPattern(pat);
+        thebesContext->SetPattern(&pat);
     }
 
     thebesContext->NewPath();

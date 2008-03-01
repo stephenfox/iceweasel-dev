@@ -522,7 +522,11 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'z':
             obj = split_setup(cx);
             break;
-
+#ifdef MOZ_SHARK
+        case 'k':
+            JS_ConnectShark();
+            break;
+#endif
         default:
             return usage();
         }
@@ -647,6 +651,7 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
     FILE *from;
     char *buf, *tmp;
     size_t bufsize, buflength, gotlength;
+    JSBool sawNewline;
     JSString *str;
 
     from = stdin;
@@ -656,6 +661,7 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
     if (!buf)
         return JS_FALSE;
 
+    sawNewline = JS_FALSE;
     while ((gotlength =
             js_fgets(buf + buflength, bufsize - buflength, from)) > 0) {
         buflength += gotlength;
@@ -663,6 +669,9 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
         /* Are we done? */
         if (buf[buflength - 1] == '\n') {
             buf[buflength - 1] = '\0';
+            sawNewline = JS_TRUE;
+            break;
+        } else if (buflength < bufsize - 1) {
             break;
         }
 
@@ -703,7 +712,7 @@ ReadLine(JSContext *cx, uintN argc, jsval *vp)
      * Turn buf into a JSString. Note that buflength includes the trailing null
      * character.
      */
-    str = JS_NewString(cx, buf, buflength - 1);
+    str = JS_NewString(cx, buf, sawNewline ? buflength - 1 : buflength);
     if (!str) {
         JS_free(cx, buf);
         return JS_FALSE;
@@ -718,12 +727,17 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i;
     JSString *str;
+    char *bytes;
 
     for (i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return JS_FALSE;
-        fprintf(gOutFile, "%s%s", i ? " " : "", JS_GetStringBytes(str));
+        bytes = JS_EncodeString(cx, str);
+        if (!bytes)
+            return JS_FALSE;
+        fprintf(gOutFile, "%s%s", i ? " " : "", bytes);
+        JS_free(cx, bytes);
     }
     fputc('\n', gOutFile);
     return JS_TRUE;
@@ -1535,7 +1549,7 @@ DumpStats(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     uintN i;
     JSString *str;
     const char *bytes;
-    JSAtom *atom;
+    jsid id;
     JSObject *obj2;
     JSProperty *prop;
     jsval value;
@@ -1544,6 +1558,7 @@ DumpStats(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return JS_FALSE;
+        argv[i] = STRING_TO_JSVAL(str);
         bytes = JS_GetStringBytes(str);
         if (strcmp(bytes, "arena") == 0) {
 #ifdef JS_ARENAMETER
@@ -1554,14 +1569,13 @@ DumpStats(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         } else if (strcmp(bytes, "global") == 0) {
             DumpScope(cx, cx->globalObject, stdout);
         } else {
-            atom = js_Atomize(cx, bytes, JS_GetStringLength(str), 0);
-            if (!atom)
+            if (!JS_ValueToId(cx, STRING_TO_JSVAL(str), &id))
                 return JS_FALSE;
-            if (!js_FindProperty(cx, ATOM_TO_JSID(atom), &obj, &obj2, &prop))
+            if (js_FindProperty(cx, id, &obj, &obj2, &prop) < 0)
                 return JS_FALSE;
             if (prop) {
                 OBJ_DROP_PROPERTY(cx, obj2, prop);
-                if (!OBJ_GET_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &value))
+                if (!OBJ_GET_PROPERTY(cx, obj, id, &value))
                     return JS_FALSE;
             }
             if (!prop || !JSVAL_IS_OBJECT(value)) {
@@ -1680,7 +1694,7 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 DoExport(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
-    JSAtom *atom;
+    jsid id;
     JSObject *obj2;
     JSProperty *prop;
     JSBool ok;
@@ -1693,19 +1707,18 @@ DoExport(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (!JS_ValueToObject(cx, argv[0], &obj))
         return JS_FALSE;
     argv[0] = OBJECT_TO_JSVAL(obj);
-    atom = js_ValueToStringAtom(cx, argv[1]);
-    if (!atom)
+    if (!js_ValueToStringId(cx, argv[1], &id))
         return JS_FALSE;
-    if (!OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &obj2, &prop))
+    if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
         return JS_FALSE;
     if (!prop) {
         ok = OBJ_DEFINE_PROPERTY(cx, obj, id, JSVAL_VOID, NULL, NULL,
                                  JSPROP_EXPORTED, NULL);
     } else {
-        ok = OBJ_GET_ATTRIBUTES(cx, obj, ATOM_TO_JSID(atom), prop, &attrs);
+        ok = OBJ_GET_ATTRIBUTES(cx, obj, id, prop, &attrs);
         if (ok) {
             attrs |= JSPROP_EXPORTED;
-            ok = OBJ_SET_ATTRIBUTES(cx, obj, ATOM_TO_JSID(atom), prop, &attrs);
+            ok = OBJ_SET_ATTRIBUTES(cx, obj, id, prop, &attrs);
         }
         OBJ_DROP_PROPERTY(cx, obj2, prop);
     }
@@ -1933,6 +1946,12 @@ GetPDA(JSContext *cx, uintN argc, jsval *vp)
             break;
         }
 
+        /* Protect pdobj from GC by setting it as an element of aobj now */
+        v = OBJECT_TO_JSVAL(pdobj);
+        ok = JS_SetElement(cx, aobj, i, &v);
+        if (!ok)
+            break;
+
         ok = JS_SetProperty(cx, pdobj, "id", &pd->id) &&
              JS_SetProperty(cx, pdobj, "value", &pd->value) &&
              (v = INT_TO_JSVAL(pd->flags),
@@ -1940,11 +1959,6 @@ GetPDA(JSContext *cx, uintN argc, jsval *vp)
              (v = INT_TO_JSVAL(pd->slot),
               JS_SetProperty(cx, pdobj, "slot", &v)) &&
              JS_SetProperty(cx, pdobj, "alias", &pd->alias);
-        if (!ok)
-            break;
-
-        v = OBJECT_TO_JSVAL(pdobj);
-        ok = JS_SetElement(cx, aobj, i, &v);
         if (!ok)
             break;
     }
@@ -2433,7 +2447,7 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
             ok = JS_FALSE;
             goto out;
         }
-        v = BOOLEAN_TO_JSVAL(v);
+        v = BOOLEAN_TO_JSVAL(lazy);
         ok = JS_SetProperty(cx, sobj, "lazy", &v);
         if (!ok)
             goto out;
@@ -2512,6 +2526,12 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("getslx",         GetSLX,         1,1,0),
     JS_FN("toint32",        ToInt32,        1,1,0),
     JS_FS("evalcx",         EvalInContext,  1,0,0),
+#ifdef MOZ_SHARK
+    JS_FS("startShark",      StartShark,      0,0,0),
+    JS_FS("stopShark",       StopShark,       0,0,0),
+    JS_FS("connectShark",    ConnectShark,    0,0,0),
+    JS_FS("disconnectShark", DisconnectShark, 0,0,0),
+#endif
     JS_FS_END
 };
 
@@ -2574,6 +2594,14 @@ static const char *const shell_help_messages[] = {
 "  Evaluate s in optional sandbox object o\n"
 "  if (s == '' && !o) return new o with eager standard classes\n"
 "  if (s == 'lazy' && !o) return new o with lazy standard classes",
+#ifdef MOZ_SHARK
+"startShark()             Start a Shark session.\n"
+"                         Shark must be running with programatic sampling.",
+"stopShark()              Stop a running Shark session.",
+"connectShark()           Connect to Shark.\n"
+"                         The -k switch does this automatically.",
+"disconnectShark()        Disconnect from Shark.",
+#endif
 };
 
 /* Help messages must match shell functions. */

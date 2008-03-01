@@ -125,6 +125,13 @@ gfxWindowsSurface::~gfxWindowsSurface()
 already_AddRefed<gfxImageSurface>
 gfxWindowsSurface::GetImageSurface()
 {
+    if (!mSurfaceValid) {
+        NS_WARNING ("GetImageSurface on an invalid (null) surface; who's calling this without checking for surface errors?");
+        return nsnull;
+    }
+
+    NS_ASSERTION(CairoSurface() != nsnull, "CairoSurface() shouldn't be nsnull when mSurfaceValid is TRUE!");
+
     if (mForPrinting)
         return nsnull;
 
@@ -151,10 +158,10 @@ gfxWindowsSurface::OptimizeToDDB(HDC dc, const gfxIntSize& size, gfxImageFormat 
     if (wsurf->CairoStatus() != 0)
         return nsnull;
 
-    nsRefPtr<gfxContext> tmpCtx = new gfxContext(wsurf);
-    tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    tmpCtx->SetSource(this);
-    tmpCtx->Paint();
+    gfxContext tmpCtx(wsurf);
+    tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
+    tmpCtx.SetSource(this);
+    tmpCtx.Paint();
 
     gfxWindowsSurface *raw = (gfxWindowsSurface*) (wsurf.get());
     NS_ADDREF(raw);
@@ -236,10 +243,11 @@ nsresult gfxWindowsSurface::EndPage()
     return NS_OK;
 }
 
-PRInt32 gfxWindowsSurface::GetDefaultContextFlags()
+PRInt32 gfxWindowsSurface::GetDefaultContextFlags() const
 {
     if (mForPrinting)
-        return gfxContext::FLAG_SIMPLIFY_OPERATORS;
+        return gfxContext::FLAG_SIMPLIFY_OPERATORS |
+               gfxContext::FLAG_DISABLE_SNAPPING;
 
     return 0;
 }

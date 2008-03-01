@@ -534,18 +534,13 @@ NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType)
 //
 //-------------------------------------------------------------------------
 
-NS_IMETHODIMP nsBaseWidget::SetWindowTranslucency(PRBool aTranslucent) {
+NS_IMETHODIMP nsBaseWidget::SetHasTransparentBackground(PRBool aTransparent) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsBaseWidget::GetWindowTranslucency(PRBool& aTranslucent) {
-  aTranslucent = PR_FALSE;
+NS_IMETHODIMP nsBaseWidget::GetHasTransparentBackground(PRBool& aTransparent) {
+  aTransparent = PR_FALSE;
   return NS_OK;
-}
-
-NS_IMETHODIMP nsBaseWidget::UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas) {
-  NS_ASSERTION(PR_FALSE, "Window is not translucent");
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //-------------------------------------------------------------------------
@@ -566,11 +561,7 @@ NS_IMETHODIMP nsBaseWidget::HideWindowChrome(PRBool aShouldHide)
 NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 {
   HideWindowChrome(aFullScreen);
-  return MakeFullScreenInternal(aFullScreen);
-}
 
-nsresult nsBaseWidget::MakeFullScreenInternal(PRBool aFullScreen)
-{
   nsCOMPtr<nsIFullScreen> fullScreen = do_GetService("@mozilla.org/browser/fullscreen;1");
 
   if (aFullScreen) {
@@ -929,6 +920,12 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
     NS_ADDREF(*aResult = file);
 }
 
+NS_IMETHODIMP 
+nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+ 
 #ifdef DEBUG
 //////////////////////////////////////////////////////////////
 //

@@ -74,6 +74,10 @@ XPC_XOW_WrapFunction(JSContext *cx, JSObject *wrapperObj, JSObject *funobj,
 JSBool
 XPC_XOW_RewrapIfNeeded(JSContext *cx, JSObject *wrapperObj, jsval *vp);
 
+JSBool
+XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
+                     XPCWrappedNativeScope *newScope);
+
 nsresult
 IsWrapperSameOrigin(JSContext *cx, JSObject *wrappedObj);
 
@@ -83,7 +87,6 @@ XPC_XOW_ClassNeedsXOW(const char *name)
   // TODO Make a perfect hash of these and use that?
   return !strcmp(name, "Window")            ||
          !strcmp(name, "Location")          ||
-         !strcmp(name, "HTMLDocument")      ||
          !strcmp(name, "HTMLIFrameElement") ||
          !strcmp(name, "HTMLFrameElement");
 }
@@ -159,6 +162,15 @@ public:
   }
 
   /**
+   * Returns the script security manager used by XPConnect.
+   */
+  static nsIScriptSecurityManager *GetSecurityManager() {
+    extern nsIScriptSecurityManager *gScriptSecurityManager;
+
+    return gScriptSecurityManager;
+  }
+
+  /**
    * Used to ensure that an XPCWrappedNative stays alive when its scriptable
    * helper defines an "expando" property on it.
    */
@@ -177,11 +189,10 @@ public:
   }
 
   /**
-   * Unwraps an XPCSafeJSObjectWrapper or an XPCCrossOriginWrapper into its
-   * wrapped native.
+   * Unwraps a XPCCrossOriginWrapper into its wrapped native.
    */
   static JSObject *Unwrap(JSContext *cx, JSObject *wrapper) {
-    if (JS_GET_CLASS(cx, wrapper) != &sXPC_XOW_JSClass.base) {
+    if (STOBJ_GET_CLASS(wrapper) != &sXPC_XOW_JSClass.base) {
       return nsnull;
     }
 
@@ -230,6 +241,18 @@ public:
            ? XPC_NW_WrapFunction(cx, funobj, v)
            : XPC_XOW_WrapFunction(cx, wrapperObj, funobj, v);
   }
+
+  /**
+   * Creates an iterator object that walks up the prototype of
+   * wrappedObj. This is suitable for for-in loops over a wrapper. If
+   * a property is not supposed to be reflected, the resolve hook
+   * is expected to censor it. tempWrapper must be rooted already.
+   */
+  static JSObject *CreateIteratorObj(JSContext *cx,
+                                     JSObject *tempWrapper,
+                                     JSObject *wrapperObj,
+                                     JSObject *innerObj,
+                                     JSBool keysonly);
 
   /**
    * Called for the common part of adding a property to obj.

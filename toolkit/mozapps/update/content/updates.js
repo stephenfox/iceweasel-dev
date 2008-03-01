@@ -43,7 +43,6 @@ const nsIIncrementalDownload  = Components.interfaces.nsIIncrementalDownload;
 const XMLNS_XUL               = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 const PREF_UPDATE_MANUAL_URL        = "app.update.url.manual";
-const PREF_UPDATE_NAGTIMER_DL       = "app.update.nagTimer.download";
 const PREF_UPDATE_NAGTIMER_RESTART  = "app.update.nagTimer.restart";
 const PREF_APP_UPDATE_LOG_BRANCH    = "app.update.log.";
 const PREF_UPDATE_TEST_LOOP         = "app.update.test.loop";
@@ -741,7 +740,7 @@ var gUpdatesAvailablePage = {
     gUpdates.setButtons(null, true, "downloadButton_" + severity,
                         false, null, false,
                         null, false, true,
-                        "laterButton", false,
+                        "notNowButton", false,
                         severity == "major" ? "neverButton" : null, false);
     gUpdates.wiz.getButton("next").focus();
   },
@@ -1574,7 +1573,7 @@ var gFinishedPage = {
    */
   onPageShow: function(aDelayRestart) {
     gUpdates.setButtons(null, true, null, true, "restartButton", aDelayRestart,
-                        "laterButton", false, false, null, false, null, false);
+                        "notNowButton", false, false, null, false, null, false);
     if (aDelayRestart)
       setTimeout(this._enableRestartButton, 2000);
     else
@@ -1663,18 +1662,11 @@ var gFinishedPage = {
   },
 
   /**
-   * Called when the wizard is canceled, i.e. when the "Later" button is
+   * Called when the wizard is canceled, i.e. when the "Not Now" button is
    * clicked.
    */
   onWizardCancel: function() {
-    var ps = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
-                       .getService(Components.interfaces.nsIPromptService);
-    var message = gUpdates.strings.getFormattedString("restartLaterMsg",
-      [gUpdates.brandName]);
-    ps.alert(window, gUpdates.strings.getString("restartLaterTitle"),
-             message);
-
-    var interval = getPref("getIntPref", PREF_UPDATE_NAGTIMER_RESTART, 1800);
+    var interval = getPref("getIntPref", PREF_UPDATE_NAGTIMER_RESTART, 86400);
     gUpdates.registerNagTimer("restart-nag-timer", interval,
                               "showUpdateComplete");
   }

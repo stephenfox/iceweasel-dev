@@ -103,12 +103,10 @@ public:
                                     PRUint32 aHotspotX, PRUint32 aHotspotY);
   NS_IMETHOD              GetWindowType(nsWindowType& aWindowType);
   NS_IMETHOD              SetWindowType(nsWindowType aWindowType);
-  NS_IMETHOD              SetWindowTranslucency(PRBool aTranslucent);
-  NS_IMETHOD              GetWindowTranslucency(PRBool& aTranslucent);
-  NS_IMETHOD              UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas);
+  NS_IMETHOD              SetHasTransparentBackground(PRBool aTransparent);
+  NS_IMETHOD              GetHasTransparentBackground(PRBool& aTransparent);
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
-  nsresult                MakeFullScreenInternal(PRBool aFullScreen);
   virtual nsIRenderingContext* GetRenderingContext();
   virtual nsIDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();  
@@ -138,6 +136,7 @@ public:
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor);
   virtual void            ConvertToDeviceCoordinates(nscoord  &aX,nscoord &aY) {}
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
+  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
 protected:
 

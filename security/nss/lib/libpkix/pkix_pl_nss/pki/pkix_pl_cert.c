@@ -1385,6 +1385,8 @@ pkix_pl_Cert_RegisterSelf(void *plContext)
         PKIX_ENTER(CERT, "pkix_pl_Cert_RegisterSelf");
 
         entry.description = "Cert";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_Cert);
         entry.destructor = pkix_pl_Cert_Destroy;
         entry.equalsFunction = pkix_pl_Cert_Equals;
         entry.hashcodeFunction = pkix_pl_Cert_Hashcode;
@@ -3269,8 +3271,8 @@ PKIX_PL_Cert_IsCertTrusted(
 
         rv = CERT_TrustFlagsForCACertUsage(certUsage, &requiredFlags, &trustType);
         if (rv != SECSuccess) {
-                requiredFlags = 0;
-                trustType = trustSSL;
+                *pTrusted = PKIX_FALSE;
+                goto cleanup;
         }
 
         nssCert = cert->nssCert;
@@ -3339,6 +3341,7 @@ PKIX_PL_Cert_GetTrustCertStore(
         PKIX_INCREF(cert->store);
         *pTrustCertStore = cert->store;
 
+cleanup:
         PKIX_RETURN(CERT);
 }
 
@@ -3357,6 +3360,7 @@ PKIX_PL_Cert_SetTrustCertStore(
         PKIX_INCREF(trustCertStore);
         cert->store = trustCertStore;
 
+cleanup:
         PKIX_RETURN(CERT);
 }
 

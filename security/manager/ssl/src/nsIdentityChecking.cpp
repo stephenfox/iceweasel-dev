@@ -56,6 +56,10 @@
 #endif
 #endif
 
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* gPIPNSSLog;
+#endif
+
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 NSSCleanupAutoPtrClass(CERTCertList, CERT_DestroyCertList)
 NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, PR_TRUE)
@@ -498,6 +502,17 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
   return SECFailure;
 }
 
+PRBool
+nsNSSSocketInfo::hasCertErrors()
+{
+  if (!mSSLStatus) {
+    // if the status is unknown, assume the cert is bad, better safe than sorry
+    return PR_TRUE;
+  }
+
+  return mSSLStatus->mHaveCertErrorBits;
+}
+
 NS_IMETHODIMP
 nsNSSSocketInfo::GetIsExtendedValidation(PRBool* aIsEV)
 {
@@ -507,7 +522,16 @@ nsNSSSocketInfo::GetIsExtendedValidation(PRBool* aIsEV)
   if (!mCert)
     return NS_OK;
 
-  return mCert->GetIsExtendedValidation(aIsEV);
+  // Never allow bad certs for EV, regardless of overrides.
+  if (hasCertErrors())
+    return NS_OK;
+
+  nsresult rv;
+  nsCOMPtr<nsIIdentityInfo> idinfo = do_QueryInterface(mCert, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return idinfo->GetIsExtendedValidation(aIsEV);
 }
 
 NS_IMETHODIMP
@@ -516,7 +540,15 @@ nsNSSSocketInfo::GetValidEVPolicyOid(nsACString &outDottedOid)
   if (!mCert)
     return NS_OK;
 
-  return mCert->GetValidEVPolicyOid(outDottedOid);
+  if (hasCertErrors())
+    return NS_OK;
+
+  nsresult rv;
+  nsCOMPtr<nsIIdentityInfo> idinfo = do_QueryInterface(mCert, &rv);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return idinfo->GetValidEVPolicyOid(outDottedOid);
 }
 
 nsresult
@@ -536,6 +568,15 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   validEV = PR_FALSE;
   resultOidTag = SEC_OID_UNKNOWN;
 
+  PRBool isOCSPEnabled = PR_FALSE;
+  nsCOMPtr<nsIX509CertDB> certdb;
+  certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
+  if (certdb)
+    certdb->GetIsOcspOn(&isOCSPEnabled);
+  // No OCSP, no EV
+  if (!isOCSPEnabled)
+    return NS_OK;
+
   SECOidTag oid_tag;
   SECStatus rv = getFirstEVPolicy(mCert, oid_tag);
   if (rv != SECSuccess)
@@ -552,6 +593,7 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   cvin[1].type = cert_pi_revocationFlags;
   cvin[1].value.scalar.ul = CERT_REV_FAIL_SOFT_CRL
                             | CERT_REV_FLAG_CRL
+                            | CERT_REV_FLAG_OCSP
                             ;
   cvin[2].type = cert_pi_end;
 
@@ -559,6 +601,7 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   cvout[0].type = cert_po_trustAnchor;
   cvout[1].type = cert_po_end;
 
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("calling CERT_PKIXVerifyCert nss cert %p\n", mCert));
   rv = CERT_PKIXVerifyCert(mCert, certificateUsageSSLServer,
                            cvin, cvout, nsnull);
   if (rv != SECSuccess)
@@ -574,6 +617,26 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
   return NS_OK;
 }
 
+nsresult
+nsNSSCertificate::getValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
+{
+  if (mCachedEVStatus != ev_status_unknown) {
+    validEV = (mCachedEVStatus == ev_status_valid);
+    if (validEV)
+      resultOidTag = mCachedEVOidTag;
+    return NS_OK;
+  }
+
+  nsresult rv = hasValidEVOidTag(resultOidTag, validEV);
+  if (NS_SUCCEEDED(rv)) {
+    if (validEV) {
+      mCachedEVOidTag = resultOidTag;
+    }
+    mCachedEVStatus = validEV ? ev_status_valid : ev_status_invalid;
+  }
+  return rv;
+}
+
 NS_IMETHODIMP
 nsNSSCertificate::GetIsExtendedValidation(PRBool* aIsEV)
 {
@@ -584,8 +647,13 @@ nsNSSCertificate::GetIsExtendedValidation(PRBool* aIsEV)
   NS_ENSURE_ARG(aIsEV);
   *aIsEV = PR_FALSE;
 
+  if (mCachedEVStatus != ev_status_unknown) {
+    *aIsEV = (mCachedEVStatus == ev_status_valid);
+    return NS_OK;
+  }
+
   SECOidTag oid_tag;
-  return hasValidEVOidTag(oid_tag, *aIsEV);
+  return getValidEVOidTag(oid_tag, *aIsEV);
 }
 
 NS_IMETHODIMP
@@ -597,7 +665,7 @@ nsNSSCertificate::GetValidEVPolicyOid(nsACString &outDottedOid)
 
   SECOidTag oid_tag;
   PRBool valid;
-  nsresult rv = hasValidEVOidTag(oid_tag, valid);
+  nsresult rv = getValidEVOidTag(oid_tag, valid);
   if (NS_FAILED(rv))
     return rv;
 
@@ -631,7 +699,7 @@ nsNSSComponent::CleanupIdentityInfo()
   if (testEVInfosLoaded) {
     testEVInfosLoaded = PR_FALSE;
     if (testEVInfos) {
-      for (size_t i; i<testEVInfos->Length(); ++i) {
+      for (size_t i = 0; i<testEVInfos->Length(); ++i) {
         delete testEVInfos->ElementAt(i);
       }
       testEVInfos->Clear();

@@ -316,9 +316,7 @@ static
 nsOperaProfileMigrator::PrefTransform gTransforms[] = {
   { "User Prefs", "Download Directory", _OPM(STRING), "browser.download.dir", _OPM(SetFile), PR_FALSE, -1 },
   { nsnull, "Enable Cookies", _OPM(INT), "network.cookie.cookieBehavior", _OPM(SetCookieBehavior), PR_FALSE, -1 },
-  { nsnull, "Accept Cookies Session Only", _OPM(BOOL), "network.cookie.enableForCurrentSessionOnly", _OPM(SetBool), PR_FALSE, -1 },
-  { nsnull, "Allow script to resize window", _OPM(BOOL), "dom.disable_window_move_resize", _OPM(SetBool), PR_FALSE, -1 },
-  { nsnull, "Allow script to move window", _OPM(BOOL), "dom.disable_window_move_resize", _OPM(SetBool), PR_FALSE, -1 },
+  { nsnull, "Accept Cookies Session Only", _OPM(BOOL), "network.cookie.lifetimePolicy", _OPM(SetCookieLifetime), PR_FALSE, -1 },
   { nsnull, "Allow script to raise window", _OPM(BOOL), "dom.disable_window_flip", _OPM(SetBool), PR_FALSE, -1 },
   { nsnull, "Allow script to change status", _OPM(BOOL), "dom.disable_window_status_change", _OPM(SetBool), PR_FALSE, -1 },
   { nsnull, "Ignore Unrequested Popups", _OPM(BOOL), "dom.disable_open_during_load", _OPM(SetBool), PR_FALSE, -1 },
@@ -351,6 +349,13 @@ nsOperaProfileMigrator::SetCookieBehavior(void* aTransform, nsIPrefBranch* aBran
   PrefTransform* xform = (PrefTransform*)aTransform;
   PRInt32 val = (xform->intValue == 3) ? 0 : (xform->intValue == 0) ? 2 : 1;
   return aBranch->SetIntPref(xform->targetPrefName, val);
+}
+
+nsresult 
+nsOperaProfileMigrator::SetCookieLifetime(void* aTransform, nsIPrefBranch* aBranch)
+{
+  PrefTransform* xform = (PrefTransform*)aTransform;
+  return aBranch->SetIntPref(xform->targetPrefName, xform->boolValue ? 2 : 0);
 }
 
 nsresult 
@@ -1068,7 +1073,7 @@ nsOperaProfileMigrator::CopyBookmarks(PRBool aReplace)
                                  sourceNameStrings, 1, 
                                  getter_Copies(importedOperaHotlistTitle));
 
-    bms->CreateFolder(parentFolder, importedOperaHotlistTitle,
+    bms->CreateFolder(parentFolder, NS_ConvertUTF16toUTF8(importedOperaHotlistTitle),
                       nsINavBookmarksService::DEFAULT_INDEX, &parentFolder);
   }
   else {
@@ -1133,7 +1138,7 @@ nsOperaProfileMigrator::CopySmartKeywords(nsINavBookmarksService* aBMS,
                                 getter_Copies(importedSearchUrlsTitle));
 
   PRInt64 keywordsFolder;
-  rv = aBMS->CreateFolder(aParentFolder, importedSearchUrlsTitle,
+  rv = aBMS->CreateFolder(aParentFolder, NS_ConvertUTF16toUTF8(importedSearchUrlsTitle),
                           nsINavBookmarksService::DEFAULT_INDEX, &keywordsFolder);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1163,22 +1168,21 @@ nsOperaProfileMigrator::CopySmartKeywords(nsINavBookmarksService* aBMS,
     if (url.IsEmpty() || keyword.IsEmpty() || name.IsEmpty())
       continue;
 
-    NS_ConvertUTF8toUTF16 nameStr(name);
-    PRUint32 length = nameStr.Length();
+    PRUint32 length = name.Length();
     PRInt32 index = 0; 
     do {
-      index = nameStr.FindChar('&', index);
+      index = name.FindChar('&', index);
       if (index >= length - 2)
         break;
 
       // Assume "&&" is an escaped ampersand in the search query title. 
-      if (nameStr.CharAt(index + 1) == '&') {
-        nameStr.Cut(index, 1);
+      if (name.CharAt(index + 1) == '&') {
+        name.Cut(index, 1);
         index += 2;
         continue;
       }
 
-      nameStr.Cut(index, 1);
+      name.Cut(index, 1);
     }
     while (index < length);
 
@@ -1199,7 +1203,7 @@ nsOperaProfileMigrator::CopySmartKeywords(nsINavBookmarksService* aBMS,
     PRInt64 newId;
     rv = aBMS->InsertBookmark(keywordsFolder, uri,
                               nsINavBookmarksService::DEFAULT_INDEX,
-                              nameStr, &newId);
+                              name, &newId);
     NS_ENSURE_SUCCESS(rv, rv);
     // TODO -- set bookmark keyword to keyword and description to keywordDesc.
   }
@@ -1270,8 +1274,8 @@ nsOperaProfileMigrator::ParseBookmarksFolder(nsILineInputStream* aStream,
   PRBool moreData = PR_FALSE;
   nsAutoString buffer;
   EntryType entryType = EntryType_BOOKMARK;
-  nsAutoString name, keyword, description;
-  nsCAutoString url;
+  nsAutoString keyword, description;
+  nsCAutoString url, name;
   PRBool onToolbar = PR_FALSE;
   do {
     nsCAutoString cBuffer;
@@ -1295,7 +1299,7 @@ nsOperaProfileMigrator::ParseBookmarksFolder(nsILineInputStream* aStream,
       // folder, or CopyBookmarks (which means we're done parsing all bookmarks).
       goto done;
     case LineType_NAME:
-      name = data;
+      name.Assign(NS_ConvertUTF16toUTF8(data));
       break;
     case LineType_URL:
       url.Assign(NS_ConvertUTF16toUTF8(data));

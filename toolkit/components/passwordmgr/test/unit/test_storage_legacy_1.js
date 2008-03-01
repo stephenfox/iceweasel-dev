@@ -120,6 +120,15 @@ do_check_eq(1, storage.countLogins("http://dummyhost.mozilla.org", "foo", null))
 do_check_eq(0, storage.countLogins("http://dummyhost.mozilla.org", null,    ""));
 // counting logins (don't match a bogus hostname)
 do_check_eq(0, storage.countLogins("blah", "", ""));
+// counting all logins (empty hostname)
+do_check_eq(1, storage.countLogins("", "", null));
+// counting all logins (empty hostname)
+do_check_eq(1, storage.countLogins("", "foo", null));
+// counting no logins (null hostname)
+do_check_eq(0, storage.countLogins(null, "", null));
+do_check_eq(0, storage.countLogins(null, null, ""));
+do_check_eq(0, storage.countLogins(null, "", ""));
+do_check_eq(0, storage.countLogins(null, null, null));
 
 
 /* ========== 9 ========== */
@@ -180,6 +189,17 @@ do_check_eq(0,   storage.countLogins("http://dummyhost.site.org", null, ""));
 do_check_eq(1, storage.countLogins("http://dummyhost-1.site.org", "", ""));
 do_check_eq(1, storage.countLogins("http://dummyhost-1.site.org", "", null));
 do_check_eq(0, storage.countLogins("http://dummyhost-1.site.org", null, ""));
+// counting logins for all hosts
+do_check_eq(500, storage.countLogins("", "", ""));
+do_check_eq(500, storage.countLogins("", "http://cgi.site.org", ""));
+do_check_eq(500, storage.countLogins("", "http://cgi.site.org", null));
+do_check_eq(0,   storage.countLogins("", "blah", ""));
+do_check_eq(0,   storage.countLogins("", "", "blah"));
+// counting logins for no hosts
+do_check_eq(0, storage.countLogins(null, "", ""));
+do_check_eq(0, storage.countLogins(null, "http://cgi.site.org", ""));
+do_check_eq(0, storage.countLogins(null, "http://cgi.site.org", null));
+do_check_eq(0, storage.countLogins(null, null, null));
 
 
 /* ========== 12 ========== */
@@ -351,6 +371,20 @@ testuser1.init("ftp://protocol.mozilla.org", null, "ftp://protocol.mozilla.org",
 testuser2.init("ftp://form.mozilla.org", "", null,
                "dummydude", "itsasecret", "put_user_here", "put_pw_here");
 LoginTest.initStorage(storage, INDIR, "signons-2d-09.txt");
+LoginTest.checkStorageData(storage, [], [testuser1, testuser2]);
+
+
+/* ========== 20 ========== */
+testnum++;
+testdesc = "Initialize with signons-2d-10.txt";
+// Extensions like the eBay Companion just use an arbitrary string for the
+// hostname. We don't want to change the format of these logins.
+
+testuser1.init("eBay.companion.paypal.guard", "", null,
+               "p", "paypalpass", "", "");
+testuser2.init("eBay.companion.ebay.guard", "", null,
+               "p", "ebaypass", "", "");
+LoginTest.initStorage(storage, INDIR, "signons-2d-10.txt");
 LoginTest.checkStorageData(storage, [], [testuser1, testuser2]);
 
 

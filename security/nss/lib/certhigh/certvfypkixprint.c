@@ -74,7 +74,8 @@ cleanup:
         }
 
         if (errorResult){
-                return (NULL);
+            PKIX_PL_Object_DecRef((PKIX_PL_Object*)errorResult, plContext);
+            return (NULL);
         }
 
         return (asciiString);
@@ -197,7 +198,7 @@ cert_PrintCertChain(
         PKIX_List_GetLength(pkixCertChain, &numCerts, plContext),
         PKIX_LISTGETLENGTHFAILED);
     
-    printf("\n");
+    fprintf(stderr, "\n");
     
     for (i = 0; i < numCerts; i++){
         PKIX_CHECK
@@ -207,7 +208,7 @@ cert_PrintCertChain(
         
         asciiResult = pkix_Cert2ASCII(cert);
         
-        printf("CERT[%d]:\n%s\n", i, asciiResult);
+        fprintf(stderr, "CERT[%d]:\n%s\n", i, asciiResult);
         
         PKIX_PL_Free(asciiResult, plContext);
         asciiResult = NULL;
@@ -230,7 +231,7 @@ cert_PrintCert(
     
     asciiResult = pkix_Cert2ASCII(pkixCert);
     
-    printf("CERT[0]:\n%s\n", asciiResult);
+    fprintf(stderr, "CERT[0]:\n%s\n", asciiResult);
     
     PKIX_PL_Free(asciiResult, plContext);
 }

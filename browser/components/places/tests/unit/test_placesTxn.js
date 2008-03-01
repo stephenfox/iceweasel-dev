@@ -60,11 +60,18 @@ try {
 
 // Get Places Transaction Manager Service
 try {
-    var ptSvc =
-      Cc["@mozilla.org/browser/placesTransactionsService;1"].
-        getService(Ci.nsIPlacesTransactionsService);
+  var ptSvc = Cc["@mozilla.org/browser/placesTransactionsService;1"].
+              getService(Ci.nsIPlacesTransactionsService);
 } catch(ex) {
   do_throw("Could not get Places Transactions Service\n");
+}
+
+// Get tagging service
+try {
+  var tagssvc = Cc["@mozilla.org/browser/tagging-service;1"].
+                getService(Ci.nsITaggingService);
+} catch(ex) {
+  do_throw("Could not get tagging service\n");
 }
 
 // create and add bookmarks observer
@@ -113,14 +120,14 @@ var observer = {
 };
 bmsvc.addObserver(observer, false);
 
-// get bookmarks root index
-var root = bmsvc.bookmarksMenuFolder;
-
 // index at which items should begin
 var bmStartIndex = 0;
 
 // main
 function run_test() {
+  // get bookmarks root index
+  var root = bmsvc.bookmarksMenuFolder;
+
   const DESCRIPTION_ANNO = "bookmarkProperties/description";
   var testDescription = "this is my test description";
   var annotationService = Cc["@mozilla.org/browser/annotation-service;1"].
@@ -159,6 +166,7 @@ function run_test() {
 
   // Create to a folder
   var txn2a = ptSvc.createFolder("Folder", root, bmStartIndex);
+  ptSvc.doTransaction(txn2a);
   var fldrId = bmsvc.getChildFolder(root, "Folder");
   var txn2b = ptSvc.createItem(uri("http://www.example2.com"), fldrId, bmStartIndex, "Testing1b");
   ptSvc.doTransaction(txn2b);
@@ -166,7 +174,7 @@ function run_test() {
   do_check_eq(observer._itemAddedId, b2);
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_true(bmsvc.isBookmarked(uri("http://www.example2.com")));
-  txn2.undoTransaction();
+  txn2b.undoTransaction();
   do_check_eq(observer._itemRemovedId, b2);
   do_check_eq(observer._itemRemovedIndex, bmStartIndex);
 
@@ -185,30 +193,30 @@ function run_test() {
   // Moving items between the same folder
   do_check_eq(observer._itemMovedId, bkmk1Id);
   do_check_eq(observer._itemMovedOldParent, root);
-  do_check_eq(observer._itemMovedOldIndex, 0);
+  do_check_eq(observer._itemMovedOldIndex, 1);
   do_check_eq(observer._itemMovedNewParent, root);
-  do_check_eq(observer._itemMovedNewIndex, 1);
+  do_check_eq(observer._itemMovedNewIndex, 2);
   txn3.undoTransaction();
   do_check_eq(observer._itemMovedId, bkmk1Id);
   do_check_eq(observer._itemMovedOldParent, root);
-  do_check_eq(observer._itemMovedOldIndex, 1);
+  do_check_eq(observer._itemMovedOldIndex, 2);
   do_check_eq(observer._itemMovedNewParent, root);
-  do_check_eq(observer._itemMovedNewIndex, 0);
+  do_check_eq(observer._itemMovedNewIndex, 1);
 
   // Moving items between different folders
   var txn3b = ptSvc.moveItem(bkmk1Id, fldrId, -1);
   txn3b.doTransaction();
   do_check_eq(observer._itemMovedId, bkmk1Id);
   do_check_eq(observer._itemMovedOldParent, root);
-  do_check_eq(observer._itemMovedOldIndex, 0);
+  do_check_eq(observer._itemMovedOldIndex, 1);
   do_check_eq(observer._itemMovedNewParent, fldrId);
-  do_check_eq(observer._itemMovedNewIndex, 2);
+  do_check_eq(observer._itemMovedNewIndex, 1);
   txn3.undoTransaction();
   do_check_eq(observer._itemMovedId, bkmk1Id);
   do_check_eq(observer._itemMovedOldParent, fldrId);
-  do_check_eq(observer._itemMovedOldIndex, 2);
+  do_check_eq(observer._itemMovedOldIndex, 1);
   do_check_eq(observer._itemMovedNewParent, root);
-  do_check_eq(observer._itemMovedNewIndex, 0);
+  do_check_eq(observer._itemMovedNewIndex, 1);
 
   // Test Removing a Folder
   ptSvc.doTransaction(ptSvc.createFolder("Folder2", root, -1));
@@ -217,22 +225,22 @@ function run_test() {
   txn4.doTransaction();
   do_check_eq(observer._itemRemovedId, fldrId2);
   do_check_eq(observer._itemRemovedFolder, root);
-  do_check_eq(observer._itemRemovedIndex, 2);
+  do_check_eq(observer._itemRemovedIndex, 3);
   txn4.undoTransaction();
   do_check_eq(observer._itemAddedId, fldrId2);
   do_check_eq(observer._itemAddedParent, root);
-  do_check_eq(observer._itemAddedIndex, 2);
+  do_check_eq(observer._itemAddedIndex, 3);
 
   // Test removing an item
   var txn5 = ptSvc.removeItem(bkmk2Id);
   txn5.doTransaction();
   do_check_eq(observer._itemRemovedId, bkmk2Id);
   do_check_eq(observer._itemRemovedFolder, root);
-  do_check_eq(observer._itemRemovedIndex, 0);
+  do_check_eq(observer._itemRemovedIndex, 1);
   txn5.undoTransaction();
 
   do_check_eq(observer._itemAddedParent, root);
-  do_check_eq(observer._itemAddedIndex, 0);
+  do_check_eq(observer._itemAddedIndex, 1);
 
   // Test creating a separator
   var txn6 = ptSvc.createSeparator(root, 1);
@@ -394,4 +402,39 @@ function run_test() {
   do_check_eq(annotationService.getItemAnnotation(postDataId, POST_DATA_ANNO), postData);
   postDataTxn.undoTransaction();
   do_check_false(annotationService.itemHasAnnotation(postDataId, POST_DATA_ANNO))
+
+  // Test editing item date added
+  var oldAdded = bmsvc.getItemDateAdded(bkmk1Id);
+  var newAdded = Date.now();
+  var eidaTxn = ptSvc.editItemDateAdded(bkmk1Id, newAdded);
+  eidaTxn.doTransaction();
+  do_check_eq(newAdded, bmsvc.getItemDateAdded(bkmk1Id));
+  eidaTxn.undoTransaction();
+  do_check_eq(oldAdded, bmsvc.getItemDateAdded(bkmk1Id));
+
+  // Test editing item last modified 
+  var oldModified = bmsvc.getItemLastModified(bkmk1Id);
+  var newModified = Date.now();
+  var eilmTxn = ptSvc.editItemLastModified(bkmk1Id, newModified);
+  eilmTxn.doTransaction();
+  do_check_eq(newModified, bmsvc.getItemLastModified(bkmk1Id));
+  eilmTxn.undoTransaction();
+  do_check_eq(oldModified, bmsvc.getItemLastModified(bkmk1Id));
+
+  // Test tagURI/untagURI
+  var tagURI = uri("http://foo.tld");
+  var tagTxn = ptSvc.tagURI(tagURI, ["foo", "bar"]);
+  tagTxn.doTransaction();
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["bar","foo"]));
+  tagTxn.undoTransaction();
+  do_check_true(tagssvc.getTagsForURI(tagURI, { }).length == 0);
+  tagTxn.redoTransaction();
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["bar","foo"]));
+  var untagTxn = ptSvc.untagURI(tagURI, ["bar"]);
+  untagTxn.doTransaction();
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["foo"]));
+  untagTxn.undoTransaction();
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["bar","foo"]));
+  untagTxn.redoTransaction();
+  do_check_eq(uneval(tagssvc.getTagsForURI(tagURI, { })), uneval(["foo"]));
 }

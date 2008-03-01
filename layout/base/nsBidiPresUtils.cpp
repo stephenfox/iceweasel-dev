@@ -196,29 +196,38 @@ CreateBidiContinuation(nsIFrame*       aFrame,
 }
 
 static PRBool
+IsFrameInCurrentLine(nsBlockInFlowLineIterator* aLineIter,
+                     nsIFrame* aPrevFrame, nsIFrame* aFrame)
+{
+  nsIFrame* endFrame = aLineIter->IsLastLineInList() ? nsnull :
+    aLineIter->GetLine().next()->mFirstChild;
+  nsIFrame* startFrame = aPrevFrame ? aPrevFrame : aLineIter->GetLine()->mFirstChild;
+  return nsFrameList(startFrame).ContainsFrameBefore(aFrame, endFrame);
+}
+
+static void
 AdvanceLineIteratorToFrame(nsIFrame* aFrame,
-                           nsIFrame* aBlockFrame,
-                           nsBlockFrame::line_iterator& aLine,
-                           nsIFrame*& aPrevFrame,
-                           const nsBlockFrame::line_iterator& aEndLines)
+                           nsBlockInFlowLineIterator* aLineIter,
+                           nsIFrame*& aPrevFrame)
 {
   // Advance aLine to the line containing aFrame
   nsIFrame* child = aFrame;
-  nsIFrame* parent = child->GetParent();
-  while (parent && parent != aBlockFrame) {
-    if (parent->GetStyleDisplay()->IsBlockOutside())
-      return PR_FALSE;
+  nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
+  nsIFrame* parent = nsLayoutUtils::GetParentOrPlaceholderFor(frameManager, child);
+  while (parent && !nsLayoutUtils::GetAsBlock(parent)) {
     child = parent;
-    parent = child->GetParent();
+    parent = nsLayoutUtils::GetParentOrPlaceholderFor(frameManager, child);
   }
   NS_ASSERTION (parent, "aFrame is not a descendent of aBlockFrame");
-  while (aLine != aEndLines && !aLine->ContainsAfter(aPrevFrame, child, aLine, aEndLines)) {
-    ++aLine;
+  while (!IsFrameInCurrentLine(aLineIter, aPrevFrame, child)) {
+#ifdef DEBUG
+    PRBool hasNext =
+#endif
+      aLineIter->Next();
+    NS_ASSERTION(hasNext, "Can't find frame in lines!");
     aPrevFrame = nsnull;
   }
   aPrevFrame = child;
-  NS_ASSERTION (aLine != aEndLines, "frame not found on any line");
-  return PR_TRUE;
 }
 
 /*
@@ -254,7 +263,6 @@ AdvanceLineIteratorToFrame(nsIFrame* aFrame,
  */
 nsresult
 nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
-                         nsIFrame*       aFirstChild,
                          PRBool          aIsVisualFormControl)
 {
   mLogicalFrames.Clear();
@@ -283,7 +291,11 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
       mLogicalFrames.AppendElement(directionalFrame);
     }
   }
-  InitLogicalArray(aFirstChild);
+  for (nsBlockFrame* block = aBlockFrame; block;
+       block = static_cast<nsBlockFrame*>(block->GetNextContinuation())) {
+    block->RemoveStateBits(NS_BLOCK_NEEDS_BIDI_RESOLUTION);
+    InitLogicalArray(block->GetFirstChild(nsnull));
+  }
 
   if (text->mUnicodeBidi == NS_STYLE_UNICODE_BIDI_OVERRIDE) {
     nsIFrame* directionalFrame = NS_NewDirectionalFrame(shell, styleContext, kPDF);
@@ -342,8 +354,11 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
 
   nsPropertyTable *propTable = presContext->PropertyTable();
 
-  nsBlockFrame::line_iterator line = aBlockFrame->begin_lines();
-  nsBlockFrame::line_iterator endLines = aBlockFrame->end_lines();
+  nsBlockInFlowLineIterator lineIter(aBlockFrame, aBlockFrame->begin_lines(), PR_FALSE);
+  if (lineIter.GetLine() == aBlockFrame->end_lines()) {
+    // Advance to first valid line (might be in a next-continuation)
+    lineIter.Next();
+  }
   nsIFrame* prevFrame = nsnull;
   PRBool lineNeedsUpdate = PR_FALSE;
   
@@ -411,17 +426,16 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
         // IBMBIDI - Egypt - End
 
         if ( (runLength > 0) && (runLength < fragmentLength) ) {
-          if (!EnsureBidiContinuation(frame, &nextBidi, frameIndex) ) {
+          if (!EnsureBidiContinuation(frame, &nextBidi, frameIndex,
+                                      contentOffset,
+                                      contentOffset + runLength) ) {
             break;
           }
           if (lineNeedsUpdate) {
-            if (AdvanceLineIteratorToFrame(frame, aBlockFrame, line,
-                                           prevFrame, endLines)) {
-              lineNeedsUpdate = PR_FALSE;
-            }
+            AdvanceLineIteratorToFrame(frame, &lineIter, prevFrame);
+            lineNeedsUpdate = PR_FALSE;
           }
-          line->MarkDirty();
-          frame->AdjustOffsetsForBidi(contentOffset, contentOffset + runLength);
+          lineIter.GetLine()->MarkDirty();
           frame = nextBidi;
           contentOffset += runLength;
         } // if (runLength < fragmentLength)
@@ -431,12 +445,10 @@ nsBidiPresUtils::Resolve(nsBlockFrame*   aBlockFrame,
           if (newIndex > frameIndex) {
             RemoveBidiContinuation(frame, frameIndex, newIndex, temp);
             if (lineNeedsUpdate) {
-              if (AdvanceLineIteratorToFrame(frame, aBlockFrame, line,
-                                             prevFrame, endLines)) {
-                lineNeedsUpdate = PR_FALSE;
-              }
+              AdvanceLineIteratorToFrame(frame, &lineIter, prevFrame);
+              lineNeedsUpdate = PR_FALSE;
             }
-            line->MarkDirty();
+            lineIter.GetLine()->MarkDirty();
             runLength -= temp;
             fragmentLength -= temp;
             lineOffset += temp;
@@ -481,6 +493,9 @@ PRBool IsBidiLeaf(nsIFrame* aFrame) {
 void
 nsBidiPresUtils::InitLogicalArray(nsIFrame*       aCurrentFrame)
 {
+  if (!aCurrentFrame)
+    return;
+
   nsIPresShell* shell = aCurrentFrame->PresContext()->PresShell();
   nsStyleContext* styleContext;
 
@@ -819,8 +834,10 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*              aFrame,
     else
       aFrame->RemoveStateBits(NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST);
   }
-  nsMargin margin;
-  aFrame->GetMargin(margin);
+  // This method is called from nsBlockFrame::PlaceLine via the call to
+  // bidiUtils->ReorderFrames, so this is guaranteed to be after the inlines
+  // have been reflowed, which is required for GetUsedMargin/Border/Padding
+  nsMargin margin = aFrame->GetUsedMargin();
   if (isLeftMost)
     aLeft += margin.left;
 
@@ -829,8 +846,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*              aFrame,
   if (!IsBidiLeaf(aFrame))
   {
     nscoord x = 0;
-    nsMargin borderPadding;
-    aFrame->GetBorderAndPadding(borderPadding);
+    nsMargin borderPadding = aFrame->GetUsedBorderAndPadding();
     if (isLeftMost) {
       x += borderPadding.left;
     }
@@ -899,12 +915,14 @@ nsBidiPresUtils::InitContinuationStates(nsIFrame*              aFrame,
 void
 nsBidiPresUtils::RepositionInlineFrames(nsIFrame* aFirstChild) const
 {
-  nsMargin margin;
   const nsStyleVisibility* vis = aFirstChild->GetStyleVisibility();
   PRBool isLTR = (NS_STYLE_DIRECTION_LTR == vis->mDirection);
   nscoord leftSpace = 0;
 
-  aFirstChild->GetMargin(margin);
+  // This method is called from nsBlockFrame::PlaceLine via the call to
+  // bidiUtils->ReorderFrames, so this is guaranteed to be after the inlines
+  // have been reflowed, which is required for GetUsedMargin/Border/Padding
+  nsMargin margin = aFirstChild->GetUsedMargin();
   if (!aFirstChild->GetPrevContinuation())
     leftSpace = isLTR ? margin.left : margin.right;
 
@@ -1019,10 +1037,14 @@ nsBidiPresUtils::GetFrameToLeftOf(const nsIFrame*  aFrame,
 PRBool
 nsBidiPresUtils::EnsureBidiContinuation(nsIFrame*       aFrame,
                                         nsIFrame**      aNewFrame,
-                                        PRInt32&        aFrameIndex)
+                                        PRInt32&        aFrameIndex,
+                                        PRInt32         aStart,
+                                        PRInt32         aEnd)
 {
   NS_PRECONDITION(aNewFrame, "null OUT ptr");
   NS_PRECONDITION(aFrame, "aFrame is null");
+  NS_ASSERTION(!aFrame->GetPrevInFlow(),
+               "Calling EnsureBidiContinuation on non-first-in-flow");
 
   *aNewFrame = nsnull;
   nsBidiLevel embeddingLevel = NS_GET_EMBEDDING_LEVEL(aFrame);
@@ -1045,9 +1067,11 @@ nsBidiPresUtils::EnsureBidiContinuation(nsIFrame*       aFrame,
     frame->SetProperty(nsGkAtoms::charType, NS_INT32_TO_PTR(charType));
     frame->AddStateBits(NS_FRAME_IS_BIDI);
     aFrameIndex++;
+    aFrame->AdjustOffsetsForBidi(aStart, aStart);
     aFrame = frame;
   }
   
+  aFrame->AdjustOffsetsForBidi(aStart, aEnd);
   if (!*aNewFrame) {
     mSuccess = CreateBidiContinuation(aFrame, aNewFrame);
     if (NS_FAILED(mSuccess) ) {

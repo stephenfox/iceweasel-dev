@@ -737,9 +737,9 @@ nsWindow::nsWindow() : nsBaseWidget()
   mIsVisible          = PR_FALSE;
   mHas3DBorder        = PR_FALSE;
 #ifdef MOZ_XUL
-  mIsTranslucent      = PR_FALSE;
-  mIsTopTranslucent   = PR_FALSE;
-  mTranslucentSurface = nsnull;
+  mIsTransparent      = PR_FALSE;
+  mIsTopTransparent   = PR_FALSE;
+  mTransparentSurface = nsnull;
   mMemoryDC           = NULL;
   mMemoryBitmap       = NULL;
   mMemoryBits         = NULL;
@@ -1181,7 +1181,7 @@ nsWindow::EventIsInsideWindow(UINT Msg, nsWindow* aWindow)
 {
   RECT r;
 
-  if (Msg == WM_ACTIVATE)
+  if (Msg == WM_ACTIVATEAPP)
 #ifndef WINCE
     // don't care about activation/deactivation
     return PR_FALSE;
@@ -1559,7 +1559,7 @@ NS_METHOD nsWindow::Destroy()
       ::DestroyIcon(icon);
 
 #ifdef MOZ_XUL
-    if (mIsTranslucent)
+    if (mIsTransparent)
     {
       SetupTranslucentWindowMemoryBitmap(PR_FALSE);
 
@@ -1775,7 +1775,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
   
 #ifdef MOZ_XUL
-  if (!mIsVisible && bState && mIsTopTranslucent)
+  if (!mIsVisible && bState && mIsTopTransparent)
     Invalidate(PR_FALSE);
 #endif
 
@@ -2093,7 +2093,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
   NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
 
 #ifdef MOZ_XUL
-  if (mIsTranslucent)
+  if (mIsTransparent)
     ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
@@ -2143,7 +2143,7 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
   NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
 
 #ifdef MOZ_XUL
-  if (mIsTranslucent)
+  if (mIsTransparent)
     ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
@@ -2498,6 +2498,10 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 
     case eCursor_ew_resize:
       newCursor = ::LoadCursor(NULL, IDC_SIZEWE);
+      break;
+
+    case eCursor_none:
+      newCursor = ::LoadCursor(nsToolkit::mDllInstance, MAKEINTRESOURCE(IDC_NONE));
       break;
 
     default:
@@ -2874,7 +2878,7 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
     case NS_NATIVE_GRAPHIC:
       // XXX:  This is sleezy!!  Remember to Release the DC after using it!
 #ifdef MOZ_XUL
-      return (void*)(mIsTranslucent) ?
+      return (void*)(mIsTransparent) ?
         mMemoryDC : ::GetDC(mWnd);
 #else
       return (void*)::GetDC(mWnd);
@@ -2894,7 +2898,7 @@ void nsWindow::FreeNativeData(void * data, PRUint32 aDataType)
   {
     case NS_NATIVE_GRAPHIC:
 #ifdef MOZ_XUL
-      if (!mIsTranslucent)
+      if (!mIsTransparent)
         ::ReleaseDC(mWnd, (HDC)data);
 #else
       ::ReleaseDC(mWnd, (HDC)data);
@@ -4625,13 +4629,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
         result = DispatchFocus(NS_ACTIVATE, PR_TRUE);
       }
 
-#ifdef ACCESSIBILITY
-      if (nsWindow::gIsAccessibilityOn) {
-        // Create it for the first time so that it can start firing events
-        nsCOMPtr<nsIAccessible> rootAccessible = GetRootAccessible();
-      }
-#endif
-
 #ifdef WINCE
       // On Windows CE, we have a window that overlaps
       // the ISP button.  In this case, we should always
@@ -4704,7 +4701,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
 
 #ifdef MOZ_XUL
-        if (mIsTranslucent)
+        if (mIsTransparent)
           ResizeTranslucentWindow(newWidth, newHeight);
 #endif
 
@@ -5569,7 +5566,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
   nsEventStatus eventStatus = nsEventStatus_eIgnore;
 
 #ifdef MOZ_XUL
-  if (!aDC && mIsTranslucent)
+  if (!aDC && mIsTransparent)
   {
     // For layered translucent windows all drawing should go to memory DC and no
     // WM_PAINT messages are normally generated. To support asynchronous painting
@@ -5603,7 +5600,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
   RECT paintRect;
 
 #ifdef MOZ_XUL
-  if (aDC || mIsTranslucent) {
+  if (aDC || mIsTransparent) {
 #else
   if (aDC) {
 #endif
@@ -5641,8 +5638,8 @@ PRBool nsWindow::OnPaint(HDC aDC)
 
 #ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
-      if (mIsTranslucent) {
-        targetSurface = mTranslucentSurface;
+      if (mIsTransparent) {
+        targetSurface = mTransparentSurface;
       } else {
         targetSurface = new gfxWindowsSurface(hDC);
       }
@@ -5653,7 +5650,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
 
 #ifdef MOZ_XUL
-      if (mIsTranslucent) {
+      if (mIsTransparent) {
         // If we're rendering with translucency, we're going to be
         // rendering the whole window; make sure we clear it first
         thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -5683,7 +5680,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
       event.renderingContext = nsnull;
 
 #ifdef MOZ_XUL
-      if (mIsTranslucent) {
+      if (mIsTransparent) {
         // Data from offscreen drawing surface was copied to memory bitmap of transparent
         // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
         // that displayed on the screen.
@@ -7724,24 +7721,15 @@ nsWindow :: DealWithPopups ( HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inL
       if (rollup) {
         nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
         if ( menuRollup ) {
-          nsCOMPtr<nsISupportsArray> widgetChain;
-          menuRollup->GetSubmenuWidgetChain ( getter_AddRefs(widgetChain) );
-          if ( widgetChain ) {
-            PRUint32 count = 0;
-            widgetChain->Count(&count);
-            for ( PRUint32 i = 0; i < count; ++i ) {
-              nsCOMPtr<nsISupports> genericWidget;
-              widgetChain->GetElementAt ( i, getter_AddRefs(genericWidget) );
-              nsCOMPtr<nsIWidget> widget ( do_QueryInterface(genericWidget) );
-              if ( widget ) {
-                nsIWidget* temp = widget.get();
-                if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)temp) ) {
-                  rollup = PR_FALSE;
-                  break;
-                }
-              }
-            } // foreach parent menu widget
-          }
+          nsAutoTArray<nsIWidget*, 5> widgetChain;
+          menuRollup->GetSubmenuWidgetChain ( &widgetChain );
+          for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) {
+            nsIWidget* widget = widgetChain[i];
+            if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)widget) ) {
+              rollup = PR_FALSE;
+              break;
+            }
+          } // foreach parent menu widget
         } // if rollup listener knows about menus
       }
 
@@ -7889,28 +7877,28 @@ void nsWindow::ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PR
   if (!force && aNewWidth == mBounds.width && aNewHeight == mBounds.height)
     return;
 
-  mTranslucentSurface = new gfxWindowsSurface(gfxIntSize(aNewWidth, aNewHeight), gfxASurface::ImageFormatARGB32);
-  mMemoryDC = mTranslucentSurface->GetDC();
+  mTransparentSurface = new gfxWindowsSurface(gfxIntSize(aNewWidth, aNewHeight), gfxASurface::ImageFormatARGB32);
+  mMemoryDC = mTransparentSurface->GetDC();
   mMemoryBitmap = NULL;
 }
 
-NS_IMETHODIMP nsWindow::GetWindowTranslucency(PRBool& aTranslucent)
+NS_IMETHODIMP nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
-  aTranslucent = GetTopLevelWindow()->GetWindowTranslucencyInner();
+  aTransparent = GetTopLevelWindow()->GetWindowTranslucencyInner();
 
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWindow::SetWindowTranslucency(PRBool aTranslucent)
+NS_IMETHODIMP nsWindow::SetHasTransparentBackground(PRBool aTransparent)
 {
-  nsresult rv = GetTopLevelWindow()->SetWindowTranslucencyInner(aTranslucent);
+  nsresult rv = GetTopLevelWindow()->SetWindowTranslucencyInner(aTransparent);
 
   return rv;
 }
 
-nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTranslucent)
+nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTransparent)
 {
-  if (aTranslucent == mIsTranslucent)
+  if (aTransparent == mIsTransparent)
     return NS_OK;
   
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
@@ -7924,7 +7912,7 @@ nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTranslucent)
 
   LONG style, exStyle;
 
-  if (aTranslucent)
+  if (aTransparent)
   {
     style = ::GetWindowLongW(hWnd, GWL_STYLE) &
             ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
@@ -7940,14 +7928,14 @@ nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTranslucent)
   ::SetWindowLongW(hWnd, GWL_STYLE, style);
   ::SetWindowLongW(hWnd, GWL_EXSTYLE, exStyle);
 
-  mIsTranslucent = aTranslucent;
-  topWindow->mIsTopTranslucent = aTranslucent;
+  mIsTransparent = aTransparent;
+  topWindow->mIsTopTransparent = aTransparent;
 
   nsresult rv = NS_OK;
 
-  rv = SetupTranslucentWindowMemoryBitmap(aTranslucent);
+  rv = SetupTranslucentWindowMemoryBitmap(aTransparent);
 
-  if (aTranslucent)
+  if (aTransparent)
   {
     if (!mBounds.IsEmpty())
     {
@@ -7969,12 +7957,12 @@ nsresult nsWindow::SetWindowTranslucencyInner(PRBool aTranslucent)
   return rv;
 }
 
-nsresult nsWindow::SetupTranslucentWindowMemoryBitmap(PRBool aTranslucent)
+nsresult nsWindow::SetupTranslucentWindowMemoryBitmap(PRBool aTransparent)
 {
-  if (aTranslucent) {
+  if (aTransparent) {
     ResizeTranslucentWindow(mBounds.width, mBounds.height, PR_TRUE);
   } else {
-    mTranslucentSurface = nsnull;
+    mTransparentSurface = nsnull;
     mMemoryDC = NULL;
     mMemoryBitmap = NULL;
   }

@@ -264,12 +264,12 @@ NS_IMETHODIMP nsGIFDecoder2::WriteFrom(nsIInputStream *inStr, PRUint32 count, PR
   /* necko doesn't propagate the errors from ReadDataOut - take matters
      into our own hands.  if we have at least one frame of an animated
      gif, then return success so we keep displaying as much as possible. */
-  if (NS_SUCCEEDED(rv) && mGIFStruct.state == gif_error) {
+  if (mGIFStruct.state == gif_error || mGIFStruct.state == gif_oom) {
     PRUint32 numFrames = 0;
     if (mImageContainer)
       mImageContainer->GetNumFrames(&numFrames);
-    if (numFrames <= 0)
-      return NS_ERROR_FAILURE;
+    if (numFrames <= 1)
+      rv = NS_ERROR_FAILURE;
   }
 
   return rv;
@@ -353,7 +353,8 @@ void nsGIFDecoder2::BeginImageFrame(gfx_depth aDepth)
   }
 
   mImageFrame->SetFrameDisposalMethod(mGIFStruct.disposal_method);
-  mImageContainer->AppendFrame(mImageFrame);
+  if (!mGIFStruct.images_decoded)
+    mImageContainer->AppendFrame(mImageFrame);
 
   if (mObserver)
     mObserver->OnStartFrame(nsnull, mImageFrame);
@@ -390,17 +391,27 @@ void nsGIFDecoder2::EndImageFrame()
   mCurrentRow = mLastFlushedRow = -1;
   mCurrentPass = mLastFlushedPass = 0;
 
-  mGIFStruct.images_decoded++;
+  // Only add frame if we have any rows at all
+  if (mGIFStruct.rows_remaining != mGIFStruct.height) {
+    if (mGIFStruct.rows_remaining && mGIFStruct.images_decoded) {
+      // Clear the remaining rows (only needed for the animation frames)
+      PRUint8 *rowp = mImageData + ((mGIFStruct.height - mGIFStruct.rows_remaining) * mGIFStruct.width);
+      memset(rowp, 0, mGIFStruct.rows_remaining * mGIFStruct.width);
+    }
 
-  // We actually have the timeout information before we get the lzw encoded 
-  // image data, at least according to the spec, but we delay in setting the 
-  // timeout for the image until here to help ensure that we have the whole 
-  // image frame decoded before we go off and try to display another frame.
-  mImageFrame->SetTimeout(mGIFStruct.delay_time);
-  mImageContainer->EndFrameDecode(mGIFStruct.images_decoded, mGIFStruct.delay_time);
+    // We actually have the timeout information before we get the lzw encoded 
+    // image data, at least according to the spec, but we delay in setting the 
+    // timeout for the image until here to help ensure that we have the whole 
+    // image frame decoded before we go off and try to display another frame.
+    mImageFrame->SetTimeout(mGIFStruct.delay_time);
+    if (mGIFStruct.images_decoded)
+      mImageContainer->AppendFrame(mImageFrame);
+    mImageContainer->EndFrameDecode(mGIFStruct.images_decoded, mGIFStruct.delay_time);
+    mGIFStruct.images_decoded++; 
 
-  if (mObserver)
-    mObserver->OnStopFrame(nsnull, mImageFrame);
+    if (mObserver)
+      mObserver->OnStopFrame(nsnull, mImageFrame);
+  }
 
   // Release reference to this frame
   mImageFrame = nsnull;
@@ -579,6 +590,8 @@ nsGIFDecoder2::DoLzw(const PRUint8 *q)
       }
 
       if (oldcode == -1) {
+        if (code >= MAX_BITS)
+          return PR_FALSE;
         *rowp++ = suffix[code];
         if (rowp == rowend)
           OUTPUT_ROW();
@@ -592,13 +605,13 @@ nsGIFDecoder2::DoLzw(const PRUint8 *q)
         *stackp++ = firstchar;
         code = oldcode;
 
-        if (stackp == stack + MAX_BITS)
+        if (stackp >= stack + MAX_BITS)
           return PR_FALSE;
       }
 
       while (code >= clear_code)
       {
-        if (code == prefix[code])
+        if ((code >= MAX_BITS) || (code == prefix[code]))
           return PR_FALSE;
 
         *stackp++ = suffix[code];
@@ -671,7 +684,29 @@ static void ConvertColormap(PRUint32 *aColormap, PRUint32 aColors)
   PRUint32 *to = aColormap + aColors;
 
   // Convert color entries to Cairo format
-  for (PRUint32 c = aColors; c > 0; c--) {
+
+  // set up for loops below
+  if (!aColors) return;
+  PRUint32 c = aColors;
+
+  // copy as bytes until source pointer is 32-bit-aligned
+  // NB: can't use 32-bit reads, they might read off the end of the buffer
+  for (; (NS_PTR_TO_UINT32(from) & 0x3) && c; --c) {
+    from -= 3;
+    *--to = GFX_PACKED_PIXEL(0xFF, from[0], from[1], from[2]);
+  }
+
+  // bulk copy of pixels.
+  while (c >= 4) {
+    from -= 12;
+    to   -=  4;
+    c    -=  4;
+    GFX_BLOCK_RGB_TO_FRGB(from,to);
+  }
+
+  // copy remaining pixel(s)
+  // NB: can't use 32-bit reads, they might read off the end of the buffer
+  while (c--) {
     from -= 3;
     *--to = GFX_PACKED_PIXEL(0xFF, from[0], from[1], from[2]);
   }
@@ -1010,7 +1045,12 @@ nsresult nsGIFDecoder2::GifWrite(const PRUint8 *buf, PRUint32 len)
       PRUint32 depth = mGIFStruct.global_colormap_depth;
       if (q[8] & 0x80)
         depth = (q[8]&0x07) + 1;
-      BeginImageFrame(depth);
+      // Make sure the transparent pixel is within colormap space
+      PRUint32 realDepth = depth;
+      while (mGIFStruct.tpixel >= (1 << realDepth) && (realDepth < 8)) {
+        realDepth++;
+      } 
+      BeginImageFrame(realDepth);
       
       // handle allocation error
       if (!mImageFrame) {
@@ -1039,17 +1079,17 @@ nsresult nsGIFDecoder2::GifWrite(const PRUint8 *buf, PRUint32 len)
       if (q[8] & 0x80) /* has a local colormap? */
       {
         mGIFStruct.local_colormap_size = 1 << depth;
+        PRUint32 paletteSize;
         if (mGIFStruct.images_decoded) {
           // Copy directly into the palette of current frame,
           // by pointing mColormap to that palette.
-          PRUint32 paletteSize;
           mImageFrame->GetPaletteData(&mColormap, &paletteSize);
         } else {
           // First frame has local colormap, allocate space for it
           // as the image frame doesn't have its own palette
+          paletteSize = sizeof(PRUint32) << realDepth;
           if (!mGIFStruct.local_colormap) {
-            mGIFStruct.local_colormap = 
-  			  (PRUint32*)PR_MALLOC(mGIFStruct.local_colormap_size * sizeof(PRUint32));
+            mGIFStruct.local_colormap = (PRUint32*)PR_MALLOC(paletteSize);
             if (!mGIFStruct.local_colormap) {
               mGIFStruct.state = gif_oom;
               break;
@@ -1058,6 +1098,10 @@ nsresult nsGIFDecoder2::GifWrite(const PRUint8 *buf, PRUint32 len)
           mColormap = mGIFStruct.local_colormap;
         }
         const PRUint32 size = 3 << depth;
+        if (paletteSize > size) {
+          // Clear the notfilled part of the colormap
+          memset(((PRUint8*)mColormap) + size, 0, paletteSize - size);
+        }
         if (len < size) {
           // Use 'hold' pattern to get the image colormap
           GETN(size, gif_image_colormap);

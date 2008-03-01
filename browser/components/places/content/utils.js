@@ -53,6 +53,7 @@ const DESCRIPTION_ANNO = "bookmarkProperties/description";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
 const LMANNO_FEEDURI = "livemark/feedURI";
 const LMANNO_SITEURI = "livemark/siteURI";
+const ORGANIZER_FOLDER_ANNO = "PlacesOrganizer/OrganizerFolder";
 const ORGANIZER_QUERY_ANNO = "PlacesOrganizer/OrganizerQuery";
 
 #ifdef XP_MACOSX
@@ -109,6 +110,12 @@ var PlacesUtils = {
     delete this.history;
     return this.history = Cc["@mozilla.org/browser/nav-history-service;1"].
                           getService(Ci.nsINavHistoryService);
+  },
+
+  get globalHistory() {
+    delete this.globalHistory;
+    return this.globalHistory = Cc["@mozilla.org/browser/global-history;2"].
+                                getService(Ci.nsIBrowserHistory);
   },
 
   /**
@@ -193,7 +200,9 @@ var PlacesUtils = {
    */
   _uri: function PU__uri(aSpec) {
     NS_ASSERT(aSpec, "empty URL spec");
-    return IO.newURI(aSpec);
+    return Cc["@mozilla.org/network/io-service;1"].
+           getService(Ci.nsIIOService).
+           newURI(aSpec, null, null);
   },
 
   /**
@@ -247,7 +256,8 @@ var PlacesUtils = {
    */
   nodeIsFolder: function PU_nodeIsFolder(aNode) {
     NS_ASSERT(aNode, "null node");
-    return (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER);
+    return (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
+            aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT);
   },
 
   /**
@@ -325,7 +335,7 @@ var PlacesUtils = {
     NS_ASSERT(aNode, "null node");
 
     if (this.nodeIsFolder(aNode))
-      return this.bookmarks.getFolderReadonly(aNode.itemId);
+      return this.bookmarks.getFolderReadonly(asQuery(aNode).folderItemId);
     if (this.nodeIsQuery(aNode))
       return asQuery(aNode).childrenReadOnly;
     return false;
@@ -349,6 +359,7 @@ var PlacesUtils = {
    * @returns true if the node is a container item, false otherwise
    */
   containerTypes: [Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER,
+                   Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_HOST,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_DAY,
@@ -408,7 +419,17 @@ var PlacesUtils = {
     NS_ASSERT(aNode, "null node");
 
     return this.nodeIsFolder(aNode) &&
-           this.bookmarks.getFolderReadonly(aNode.itemId);
+           this.bookmarks.getFolderReadonly(asQuery(aNode).folderItemId);
+  },
+
+  /**
+   * Gets the concrete item-id for the given node. Generally, this is just
+   * node.itemId, but for folder-shortcuts that's node.folderItemId.
+   */
+  getConcreteItemId: function PU_getConcreteItemId(aNode) {
+    if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT)
+      return asQuery(aNode).folderItemId;
+    return aNode.itemId;
   },
 
   /**
@@ -632,7 +653,7 @@ var PlacesUtils = {
    * @returns A nsITransaction object that performs the copy.
    */
   _getURIItemCopyTransaction: function (aData, aContainer, aIndex) {
-    return this.ptm.createItem(IO.newURI(aData.uri), aContainer, aIndex,
+    return this.ptm.createItem(this._uri(aData.uri), aContainer, aIndex,
                                aData.title, "");
   },
 
@@ -653,7 +674,7 @@ var PlacesUtils = {
   _getBookmarkItemCopyTransaction:
   function PU__getBookmarkItemCopyTransaction(aData, aContainer, aIndex,
                                               aExcludeAnnotations) {
-    var itemURL = IO.newURI(aData.uri);
+    var itemURL = this._uri(aData.uri);
     var itemTitle = aData.title;
     var keyword = aData.keyword;
     var annos = aData.annos;
@@ -663,9 +684,14 @@ var PlacesUtils = {
                        return aExcludeAnnotations.indexOf(aValue.name) == -1;
                     });
     }
+    var childTxns = [];
+    if (aData.dateAdded)
+      childTxns.push(this.ptm.editItemDateAdded(null, aData.dateAdded));
+    if (aData.lastModified)
+      childTxns.push(this.ptm.editItemLastModified(null, aData.lastModified));
 
     return this.ptm.createItem(itemURL, aContainer, aIndex, itemTitle, keyword,
-                               annos);
+                               annos, childTxns);
   },
 
   /**
@@ -706,8 +732,8 @@ var PlacesUtils = {
                                         folderItemsTransactions);
           }
           else { // node is a livemark
-            var feedURI = IO.newURI(node.uri.feed);
-            var siteURI = IO.newURI(node.uri.site);
+            var feedURI = self._uri(node.uri.feed);
+            var siteURI = self._uri(node.uri.site);
             txn = self.ptm.createLivemark(feedURI, siteURI, node.title,
                                           aContainer, index, node.annos);
           }
@@ -726,9 +752,12 @@ var PlacesUtils = {
 
     var title = aData.folder.title;
     var annos = aData.folder.annos;
-
-    return this.ptm.createFolder(title, aContainer, aIndex, annos,
-                                 getChildItemsTransactions(aData.children));
+    var childItems = getChildItemsTransactions(aData.children);
+    if (aData.folder.dateAdded)
+      childItems.push(this.ptm.editItemDateAdded(null, aData.folder.dateAdded));
+    if (aData.folder.lastModified)
+      childItems.push(this.ptm.editItemLastModified(null, aData.folder.lastModified));
+    return this.ptm.createFolder(title, aContainer, aIndex, annos, childItems);
   },
 
   /**
@@ -753,13 +782,24 @@ var PlacesUtils = {
         var parts = blob.split("\n");
         // data in this type has 2 parts per entry, so if there are fewer
         // than 2 parts left, the blob is malformed and we should stop
-        if (parts.length % 2)
+        // but drag and drop of files from the shell has parts.length = 1
+        if (parts.length != 1 && parts.length % 2)
           break;
         for (var i = 0; i < parts.length; i=i+2) {
           var uriString = parts[i];
-          var titleString = parts[i+1];
-          // note:  IO.newURI() will throw if uriString is not a valid URI
-          if (IO.newURI(uriString)) {
+          var titleString = "";
+          if (parts.length > i+1)
+            titleString = parts[i+1];
+          else {
+            // for drag and drop of files, try to use the leafName as title
+            try {
+              titleString = this._uri(uriString).QueryInterface(Ci.nsIURL)
+                              .fileName;
+            }
+            catch (e) {}
+          }
+          // note:  this._uri() will throw if uriString is not a valid URI
+          if (this._uri(uriString)) {
             nodes.push({ uri: uriString,
                          title: titleString ? titleString : uriString });
           }
@@ -769,8 +809,8 @@ var PlacesUtils = {
         var parts = blob.split("\n");
         for (var i = 0; i < parts.length; i++) {
           var uriString = parts[i];
-          // note: IO.newURI() will throw if uriString is not a valid URI
-          if (uriString != "" && IO.newURI(uriString))
+          // note: this._uri() will throw if uriString is not a valid URI
+          if (uriString != "" && this._uri(uriString))
             nodes.push({ uri: uriString, title: uriString });
         }
         break;
@@ -808,8 +848,8 @@ var PlacesUtils = {
       }
       else if (copy) {
         // Place is a Livemark Container, should be reinstantiated
-        var feedURI = IO.newURI(data.uri.feed);
-        var siteURI = IO.newURI(data.uri.site);
+        var feedURI = this._uri(data.uri.feed);
+        var siteURI = this._uri(data.uri.site);
         return this.ptm.createLivemark(feedURI, siteURI, data.title, container,
                                        index, data.annos);
       }
@@ -837,7 +877,7 @@ var PlacesUtils = {
     default:
       if (type == this.TYPE_X_MOZ_URL || type == this.TYPE_UNICODE) {
         var title = (type == this.TYPE_X_MOZ_URL) ? data.title : data.uri;
-        return this.ptm.createItem(IO.newURI(data.uri), container, index,
+        return this.ptm.createItem(this._uri(data.uri), container, index,
                                    title);
       }
       return null;
@@ -1242,6 +1282,29 @@ var PlacesUtils = {
   },
 
   /**
+   * By calling this before we visit a URL, we will use TRANSITION_TYPED
+   * as the transition for the visit to that URL (if we don't have a referrer).
+   * This is used when visiting pages from the history menu, history sidebar,
+   * url bar, url autocomplete results, and history searches from the places
+   * organizer.  If we don't call this, we'll treat those visits as
+   * TRANSITION_LINK.
+   */
+  markPageAsTyped: function PU_markPageAsTyped(aURL) {
+    this.globalHistory.markPageAsTyped(this.createFixedURI(aURL));
+  },
+
+  /**
+   * By calling this before we visit a URL, we will use TRANSITION_BOOKMARK
+   * as the transition for the visit to that URL (if we don't have a referrer).
+   * This is used when visiting pages from the bookmarks menu, 
+   * personal toolbar, and bookmarks from within the places organizer.
+   * If we don't call this, we'll treat those visits as TRANSITION_LINK.
+   */
+  markPageAsFollowedBookmark: function PU_markPageAsFollowedBookmark(aURL) {
+    this.history.markPageAsFollowedBookmark(this.createFixedURI(aURL));
+  },
+
+  /**
    * Allows opening of javascript/data URI only if the given node is
    * bookmarked (see bug 224521).
    * @param aURINode
@@ -1251,7 +1314,7 @@ var PlacesUtils = {
    */
   checkURLSecurity: function PU_checkURLSecurity(aURINode) {
     if (!this.nodeIsBookmark(aURINode)) {
-      var uri = IO.newURI(aURINode.uri);
+      var uri = this._uri(aURINode.uri);
       if (uri.schemeIs("javascript") || uri.schemeIs("data")) {
         const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
         var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
@@ -1511,6 +1574,29 @@ var PlacesUtils = {
     return "";
   },
 
+
+  /**
+   * Get all bookmarks for a URL, excluding items under tag or livemark
+   * containers.
+   */
+  getBookmarksForURI:
+  function PU_getBookmarksForURI(aURI) {
+    var bmkIds = this.bookmarks.getBookmarkIdsForURI(aURI, {});
+
+    // filter the ids list
+    return bmkIds.filter(function(aID) {
+      var parent = this.bookmarks.getFolderIdForItem(aID);
+      // Livemark child
+      if (this.annotations.itemHasAnnotation(parent, LMANNO_FEEDURI))
+        return false;
+      var grandparent = this.bookmarks.getFolderIdForItem(parent);
+      // item under a tag container
+      if (grandparent == this.tagsFolderId)
+        return false;
+      return true;
+    }, this);
+  },
+
   /**
    * Get the most recently added/modified bookmark for a URL, excluding items
    * under tag or livemark containers. -1 is returned if no item is found.
@@ -1518,8 +1604,9 @@ var PlacesUtils = {
   getMostRecentBookmarkForURI:
   function PU_getMostRecentBookmarkForURI(aURI) {
     var bmkIds = this.bookmarks.getBookmarkIdsForURI(aURI, {});
-    for each (var bk in bmkIds) {
+    for (var i = 0; i < bmkIds.length; i++) {
       // Find the first folder which isn't a tag container
+      var bk = bmkIds[i];
       var parent = this.bookmarks.getFolderIdForItem(bk);
       if (parent == this.unfiledBookmarksFolderId)
         return bk;
@@ -1552,29 +1639,39 @@ var PlacesUtils = {
       for (let i = 0; i < contents.childCount; ++i) {
         let child = contents.getChild(i);
         if (this.nodeIsURI(child))
-          urls.push(child.uri);
+          urls.push({uri: child.uri, isBookmark: this.nodeIsBookmark(child)});
       }
     }
     else {
-      let result, oldViewer;
+      let result, oldViewer, wasOpen;
       try {
         let wasOpen = aNode.containerOpen;
+        result = aNode.parentResult;
+        oldViewer = result.viewer;
         if (!wasOpen) {
-          result = aNode.parentResult;
-          oldViewer = result.viewer;
           result.viewer = null;
           aNode.containerOpen = true;
         }
         for (let i = 0; i < aNode.childCount; ++i) {
+          // Include visible url nodes only
           let child = aNode.getChild(i);
-          if (this.nodeIsURI(child))
-            urls.push(child.uri);
+          if (this.nodeIsURI(child)) {
+            // If the node contents is visible, add the uri only if its node is
+            // visible. Otherwise follow viewer's collapseDuplicates property,
+            // default to true
+            if ((wasOpen && oldViewer && child.viewIndex != -1) ||
+                (oldViewer && !oldViewer.collapseDuplicates) ||
+                urls.indexOf(child.uri) == -1) {
+              urls.push({ uri: child.uri,
+                          isBookmark: this.nodeIsBookmark(child) });
+            }
+          }
         }
         if (!wasOpen)
           aNode.containerOpen = false;
       }
       finally {
-        if (oldViewer)
+        if (!wasOpen)
           result.viewer = oldViewer;
       }
     }
@@ -1625,19 +1722,33 @@ var PlacesUtils = {
     return reallyOpen;
   },
 
-  _openTabset: function PU__openTabset(aURLs, aEvent) {
+  /** aItemsToOpen needs to be an array of objects of the form:
+    * {uri: string, isBookmark: boolean}
+    */
+  _openTabset: function PU__openTabset(aItemsToOpen, aEvent) {
+    var urls = [];
+    for (var i = 0; i < aItemsToOpen.length; i++) {
+      var item = aItemsToOpen[i];
+      if (item.isBookmark)
+        this.markPageAsFollowedBookmark(item.uri);
+      else
+        this.markPageAsTyped(item.uri);
+
+      urls.push(item.uri);
+    }
+
     var browserWindow = getTopWin();
     var where = browserWindow ?
                 whereToOpenLink(aEvent, false, true) : "window";
     if (where == "window") {
       window.openDialog(getBrowserURL(), "_blank",
-                        "chrome,all,dialog=no", aURLs.join("|"));
+                        "chrome,all,dialog=no", urls.join("|"));
       return;
     }
 
     var loadInBackground = where == "tabshifted" ? true : false;
     var replaceCurrentTab = where == "tab" ? false : true;
-    browserWindow.getBrowser().loadTabs(aURLs, loadInBackground,
+    browserWindow.getBrowser().loadTabs(urls, loadInBackground,
                                         replaceCurrentTab);
   },
 
@@ -1645,14 +1756,16 @@ var PlacesUtils = {
     var urlsToOpen = this.getURLsForContainerNode(aNode);
     if (!this._confirmOpenInTabs(urlsToOpen.length))
       return;
+
     this._openTabset(urlsToOpen, aEvent);
   },
 
   openURINodesInTabs: function PU_openURINodesInTabs(aNodes, aEvent) {
     var urlsToOpen = [];
     for (var i=0; i < aNodes.length; i++) {
+      // skip over separators and folders
       if (this.nodeIsURI(aNodes[i]))
-        urlsToOpen.push(aNodes[i].uri);
+        urlsToOpen.push({uri: aNodes[i].uri, isBookmark: this.nodeIsBookmark(aNodes[i])});
     }
     this._openTabset(urlsToOpen, aEvent);
   },
@@ -1721,28 +1834,24 @@ var PlacesUtils = {
 
   // get the folder id for the organizer left-pane folder
   get leftPaneFolderId() {
-    var prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch2);
     var leftPaneRoot = -1;
     var allBookmarksId;
-    try {
-      leftPaneRoot = prefs.getIntPref("browser.places.leftPaneFolderId");
-      // if the pref is set to -1 then we must create a new root because we have a new places.sqlite
-      if (leftPaneRoot != -1) {
-        // Build the leftPaneQueries Map
-        delete this.leftPaneQueries;
-        this.leftPaneQueries = {};
-        var items = this.annotations.getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, { });
-        for (var i=0; i < items.length; i++) {
-          var queryName = this.annotations
-                              .getItemAnnotation(items[i], ORGANIZER_QUERY_ANNO);
-          this.leftPaneQueries[queryName] = items[i];
-        }
-        delete this.leftPaneFolderId;
-        return this.leftPaneFolderId = leftPaneRoot;
+    var items = this.annotations.getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
+    if (items.length != 0 && items[0] != -1)
+      leftPaneRoot = items[0];
+    if (leftPaneRoot != -1) {
+      // Build the leftPaneQueries Map
+      delete this.leftPaneQueries;
+      this.leftPaneQueries = {};
+      var items = this.annotations.getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, { });
+      for (var i=0; i < items.length; i++) {
+        var queryName = this.annotations
+                            .getItemAnnotation(items[i], ORGANIZER_QUERY_ANNO);
+        this.leftPaneQueries[queryName] = items[i];
       }
+      delete this.leftPaneFolderId;
+      return this.leftPaneFolderId = leftPaneRoot;
     }
-    catch (ex) { }
 
     var self = this;
     const EXPIRE_NEVER = this.annotations.EXPIRE_NEVER;
@@ -1755,7 +1864,7 @@ var PlacesUtils = {
         leftPaneRoot = self.bookmarks.createFolder(self.placesRootId, "", -1);
 
         // History Query
-        let uri = IO.newURI("place:sort=4&");
+        let uri = self._uri("place:sort=4&");
         let title = self.getString("OrganizerQueryHistory");
         let itemId = self.bookmarks.insertBookmark(leftPaneRoot, uri, -1, title);
         self.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
@@ -1765,7 +1874,7 @@ var PlacesUtils = {
         // XXX: Downloads
 
         // Tags Query
-        uri = IO.newURI("place:folder=" + self.tagsFolderId);
+        uri = self._uri("place:folder=" + self.tagsFolderId);
         itemId = self.bookmarks.insertBookmark(leftPaneRoot, uri, -1, null);
         self.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
                                            "Tags", 0, EXPIRE_NEVER);
@@ -1780,21 +1889,21 @@ var PlacesUtils = {
         self.leftPaneQueries["AllBookmarks"] = itemId;
 
         // All Bookmarks->Bookmarks Toolbar Query
-        uri = IO.newURI("place:folder=" + self.toolbarFolderId);
+        uri = self._uri("place:folder=" + self.toolbarFolderId);
         itemId = self.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
         self.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
                                            "BookmarksToolbar", 0, EXPIRE_NEVER);
         self.leftPaneQueries["BookmarksToolbar"] = itemId;
 
         // All Bookmarks->Bookmarks Menu Query
-        uri = IO.newURI("place:folder=" + self.bookmarksMenuFolderId);
+        uri = self._uri("place:folder=" + self.bookmarksMenuFolderId);
         itemId = self.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
         self.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
                                            "BookmarksMenu", 0, EXPIRE_NEVER);
         self.leftPaneQueries["BookmarksMenu"] = itemId;
 
         // All Bookmarks->Unfiled bookmarks
-        uri = IO.newURI("place:folder=" + self.unfiledBookmarksFolderId);
+        uri = self._uri("place:folder=" + self.unfiledBookmarksFolderId);
         itemId = self.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
         self.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
                                            "UnfiledBookmarks", 0,
@@ -1806,7 +1915,8 @@ var PlacesUtils = {
       }
     };
     this.bookmarks.runInBatchMode(callback, null);
-    prefs.setIntPref("browser.places.leftPaneFolderId", leftPaneRoot);
+    this.annotations.setItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO,
+                                       true, 0, EXPIRE_NEVER);
     delete this.leftPaneFolderId;
     return this.leftPaneFolderId = leftPaneRoot;
   },

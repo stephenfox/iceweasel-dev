@@ -164,50 +164,6 @@ static void GetIDString(const nsID& aCID, char buf[UID_STRING_LENGTH])
 }
 
 nsresult
-nsCreateInstanceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) const
-{
-    /*
-     * If I were a real man, I would consolidate this with
-     * nsGetServiceFromContractID::operator().
-     */
-    nsresult rv;
-    nsXPIDLCString value;
-    nsCOMPtr<nsIComponentManager> compMgr;
-    nsCOMPtr<nsICategoryManager> catman =
-        do_GetService(kCategoryManagerCID, &rv);
-
-    if (NS_FAILED(rv)) goto error;
-
-    if (!mCategory || !mEntry) {
-        // when categories have defaults, use that for null mEntry
-        rv = NS_ERROR_NULL_POINTER;
-        goto error;
-    }
-
-    /* find the contractID for category.entry */
-    rv = catman->GetCategoryEntry(mCategory, mEntry,
-                                  getter_Copies(value));
-    if (NS_FAILED(rv)) goto error;
-    if (!value) {
-        rv = NS_ERROR_SERVICE_NOT_AVAILABLE;
-        goto error;
-    }
-    NS_GetComponentManager(getter_AddRefs(compMgr));
-    if (!compMgr)
-        return NS_ERROR_FAILURE;
-    rv = compMgr->CreateInstanceByContractID(value, mOuter, aIID, aInstancePtr);
-    if (NS_FAILED(rv)) {
-    error:
-        *aInstancePtr = 0;
-    }
-
-    if (mErrorPtr)
-        *mErrorPtr = rv;
-    return rv;
-}
-
-
-nsresult
 nsGetServiceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) const
 {
     nsresult rv;
@@ -347,46 +303,6 @@ static const PLDHashTableOps contractID_DHashTableOps = {
 ////////////////////////////////////////////////////////////////////////////////
 // Hashtable Enumeration
 ////////////////////////////////////////////////////////////////////////////////
-typedef NS_CALLBACK(EnumeratorConverter)(PLDHashTable *table,
-                                         const PLDHashEntryHdr *hdr,
-                                         void *data,
-                                         nsISupports **retval);
-
-class PLDHashTableEnumeratorImpl : public nsIBidirectionalEnumerator,
-                                   public nsISimpleEnumerator
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIENUMERATOR
-    NS_DECL_NSIBIDIRECTIONALENUMERATOR
-    NS_DECL_NSISIMPLEENUMERATOR
-
-    PLDHashTableEnumeratorImpl(PLDHashTable *table,
-                               EnumeratorConverter converter,
-                               void *converterData);
-    PRInt32 Count() { return mCount; }
-private:
-    PLDHashTableEnumeratorImpl(); /* no implementation */
-
-    ~PLDHashTableEnumeratorImpl();
-    void ReleaseElements();
-
-    nsVoidArray   mElements;
-    PRInt32       mCount, mCurrent;
-    PRMonitor*    mMonitor;
-
-    struct Closure {
-        PRBool                        succeeded;
-        EnumeratorConverter           converter;
-        void                          *data;
-        PLDHashTableEnumeratorImpl    *impl;
-    };
-
-    static PLDHashOperator PR_CALLBACK Enumerator(PLDHashTable *table,
-                                                  PLDHashEntryHdr *hdr,
-                                                  PRUint32 number,
-                                                  void *data);
-};
 
 // static
 PLDHashOperator PR_CALLBACK
@@ -424,11 +340,6 @@ PLDHashTableEnumeratorImpl::PLDHashTableEnumeratorImpl(PLDHashTable *table,
         mCount = 0;
     }
 }
-
-NS_IMPL_ISUPPORTS3(PLDHashTableEnumeratorImpl,
-                   nsIBidirectionalEnumerator,
-                   nsIEnumerator,
-                   nsISimpleEnumerator)
 
 PLDHashTableEnumeratorImpl::~PLDHashTableEnumeratorImpl()
 {
@@ -812,16 +723,6 @@ nsComponentManagerImpl::~nsComponentManagerImpl()
     }
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG, ("nsComponentManager: Destroyed."));
 }
-
-NS_IMPL_THREADSAFE_ISUPPORTS7(nsComponentManagerImpl,
-                              nsIComponentManager,
-                              nsIServiceManager,
-                              nsISupportsWeakReference,
-                              nsIInterfaceRequestor,
-                              nsIComponentRegistrar,
-                              nsIServiceManagerObsolete,
-                              nsIComponentManagerObsolete)
-
 
 nsresult
 nsComponentManagerImpl::GetInterface(const nsIID & uuid, void **result)

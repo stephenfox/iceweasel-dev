@@ -68,6 +68,15 @@ pref("extensions.logging.enabled", false);
 // Hides the install button in the add-ons mgr
 pref("extensions.hideInstallButton", true);
 
+// Preferences for the Get Add-ons pane
+pref("extensions.getAddons.showPane", true);
+pref("extensions.getAddons.browseAddons", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%");
+pref("extensions.getAddons.maxResults", 5);
+pref("extensions.getAddons.recommended.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/recommended");
+pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/list/featured/all/10");
+pref("extensions.getAddons.search.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/search?q=%TERMS%");
+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/search/%TERMS%");
+
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
@@ -112,16 +121,15 @@ pref("app.update.url", "https://aus2.mozilla.org/update/3/%PRODUCT%/%VERSION%/%B
 // Interval: Time between checks for a new version (in seconds)
 //           default=1 day
 pref("app.update.interval", 86400);
-// Interval: Time before prompting the user to download a new version that 
-//           is available (in seconds) default=1 day
-pref("app.update.nagTimer.download", 86400);
-// Interval: Time before prompting the user to restart to install the latest
-//           download (in seconds) default=30 minutes
-pref("app.update.nagTimer.restart", 1800);
+// Interval: Time before prompting the user again to restart to install the
+//           latest download (in seconds) default=1 day
+pref("app.update.nagTimer.restart", 86400);
 // Interval: When all registered timers should be checked (in milliseconds)
 //           default=10 minutes
 pref("app.update.timer", 600000);
-// Show the Update Checking UI when the user was idle for x seconds
+// Give the user x seconds to react before showing the big UI. default=12 hrs
+pref("app.update.promptWaitTime", 43200);
+// Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
 
 // Whether or not we show a dialog box informing the user that the update was
@@ -190,7 +198,7 @@ pref("browser.chrome.favicons", true);
 pref("browser.formfill.enable", true);
 pref("browser.warnOnQuit", true);
 
-#ifdef XP_UNIX
+#ifdef UNIX_BUT_NOT_MAC
 pref("browser.urlbar.clickSelectsAll", false);
 #else
 pref("browser.urlbar.clickSelectsAll", true);
@@ -203,10 +211,13 @@ pref("browser.urlbar.doubleClickSelectsAll", false);
 pref("browser.urlbar.autoFill", false);
 pref("browser.urlbar.matchOnlyTyped", false);
 
-// if false, will use one-line-per-result for urlbar autocomplete
-pref("browser.urlbar.richResults", true);
 // the maximum number of results to show in autocomplete when doing richResults
 pref("browser.urlbar.maxRichResults", 25);
+// Size of "chunks" affects the number of places to process between each search
+// timeout (ms). Too big and the UI will be unresponsive; too small and we'll
+// be waiting on the timeout too often without many results.
+pref("browser.urlbar.search.chunkSize", 1000);
+pref("browser.urlbar.search.timeout", 50);
 
 pref("browser.download.useDownloadDir", true);
 pref("browser.download.folderList", 0);
@@ -219,8 +230,9 @@ pref("browser.download.manager.closeWhenDone", false);
 pref("browser.download.manager.openDelay", 0);
 pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
-pref("browser.download.manager.displayedHistoryDays", 7);
 pref("browser.download.manager.addToRecentDocs", true);
+pref("browser.download.manager.quitBehavior", 0);
+pref("browser.download.manager.scanWhenDone", true);
 
 // search engines URL
 pref("browser.search.searchEnginesURL",      "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/search-engines/");
@@ -273,7 +285,12 @@ pref("browser.link.open_newwindow", 3);
 // 2: don't divert window.open with features
 pref("browser.link.open_newwindow.restriction", 2);
 
-// Tab browser preferences.
+// Tabbed browser
+pref("browser.tabs.autoHide", true);
+pref("browser.tabs.forceHide", false);
+pref("browser.tabs.warnOnClose", true);
+pref("browser.tabs.warnOnOpen", true);
+pref("browser.tabs.maxOpenBeforeWarn", 15);
 pref("browser.tabs.loadInBackground", true);
 pref("browser.tabs.loadFolderAndReplace", true);
 pref("browser.tabs.opentabfor.middleclick", true);
@@ -323,8 +340,6 @@ pref("dom.disable_window_open_feature.status",    true);
 // without it there isn't a really good way to prevent chrome spoofing, see bug 337344
 pref("dom.disable_window_open_feature.location",  true);
 pref("dom.disable_window_status_change",          true);
-// allow JS to move and resize existing windows
-pref("dom.disable_window_move_resize",            false);
 // prevent JS from monkeying with window focus, etc
 pref("dom.disable_window_flip",                   true);
 
@@ -334,22 +349,22 @@ pref("privacy.popups.usecustom",            true);
 pref("privacy.popups.firstTime",            true);
 pref("privacy.popups.showBrowserMessage",   true);
  
-pref("privacy.item.history",    true);
-pref("privacy.item.formdata",   true);
-pref("privacy.item.passwords",  false);
-pref("privacy.item.downloads",  true);
-pref("privacy.item.cookies",    false);
-pref("privacy.item.cache",      true);
-pref("privacy.item.siteprefs",  false);
-pref("privacy.item.sessions",   true);
+pref("privacy.item.history",     true);
+pref("privacy.item.formdata",    true);
+pref("privacy.item.passwords",   false);
+pref("privacy.item.downloads",   true);
+pref("privacy.item.cookies",     false);
+pref("privacy.item.cache",       true);
+pref("privacy.item.siteprefs",   false);
+pref("privacy.item.sessions",    true);
+pref("privacy.item.offlineApps", false);
 
 pref("privacy.sanitize.sanitizeOnShutdown", false);
 pref("privacy.sanitize.promptOnSanitize", true);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
 
-pref("network.cookie.cookieBehavior",       0); // cookies enabled
-pref("network.cookie.enableForCurrentSessionOnly", false);
+pref("network.cookie.cookieBehavior",       1); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
 
 // l12n and i18n
 pref("intl.accept_languages", "chrome://global/locale/intl.properties");
@@ -454,7 +469,11 @@ pref("browser.preferences.instantApply", false);
 #else
 pref("browser.preferences.instantApply", true);
 #endif
+#ifdef XP_MACOSX
+pref("browser.preferences.animateFadeIn", true);
+#else
 pref("browser.preferences.animateFadeIn", false);
+#endif
 
 pref("browser.download.show_plugins_in_list", true);
 pref("browser.download.hide_plugins_without_extensions", true);
@@ -483,7 +502,7 @@ pref("layout.spellcheckDefault", 1);
 pref("view_source.editor.path", "");
 pref("view_source.editor.external", false);
 
-pref("browser.send_pings", true);
+pref("browser.send_pings", false);
 
 /* initial web feed readers list */
 pref("browser.contentHandlers.types.0.title", "chrome://browser-region/locale/region.properties");
@@ -506,6 +525,8 @@ pref("browser.contentHandlers.types.5.uri", "chrome://browser-region/locale/regi
 pref("browser.contentHandlers.types.5.type", "application/vnd.mozilla.maybe.feed");
 
 pref("browser.feeds.handler", "ask");
+pref("browser.videoFeeds.handler", "ask");
+pref("browser.audioFeeds.handler", "ask");
 
 // For now, this is living in content rather than in locales, as per Pike.
 // Eventually it will get merged into region.properties; see bug 395277.
@@ -530,7 +551,7 @@ pref("browser.safebrowsing.remoteLookups", false);
 pref("browser.safebrowsing.malware.enabled", true);
 
 // Non-enhanced mode (local url lists) URL list to check for updates
-pref("browser.safebrowsing.provider.0.updateURL", "http://sb.google.com/safebrowsing/downloads?client={moz:client}&appver={moz:version}&pver=2.0");
+pref("browser.safebrowsing.provider.0.updateURL", "http://sb.google.com/safebrowsing/downloads?client={moz:client}&appver={moz:version}&pver=2.1");
 
 pref("browser.safebrowsing.dataProvider", 0);
 
@@ -539,6 +560,7 @@ pref("browser.safebrowsing.provider.0.name", "Google");
 pref("browser.safebrowsing.provider.0.lookupURL", "http://sb.google.com/safebrowsing/lookup?sourceid=firefox-antiphish&features=TrustRank&client={moz:client}&appver={moz:version}&");
 pref("browser.safebrowsing.provider.0.keyURL", "https://sb-ssl.google.com/safebrowsing/getkey?client={moz:client}&");
 pref("browser.safebrowsing.provider.0.reportURL", "http://sb.google.com/safebrowsing/report?");
+pref("browser.safebrowsing.provider.0.gethashURL", "http://sb.google.com/safebrowsing/gethash?client={moz:client}&appver={moz:version}&pver=2.1");
 
 // privacy policy -- Both url and fallbackurl must exist, although they may
 // point to the same file.  fallbackurl must be a chrome url
@@ -578,6 +600,8 @@ pref("browser.sessionstore.postdata", 0);
 pref("browser.sessionstore.privacy_level", 1);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
+// maximum number of pages of back-history per tab to save
+pref("browser.sessionstore.max_tab_back_history", 10);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
@@ -593,8 +617,63 @@ pref("browser.places.createdSmartBookmarks", false);
 // XXX to be removed after beta 2 (bug 391419)
 pref("browser.places.migratePostDataAnnotations", true);
 
+// the (maximum) number of the recent visits to sample
+// when calculating frecency
+pref("places.frecency.numVisits", 10);
+
+// Number of records to update frecency for when idle.
+pref("places.frecency.numCalcOnIdle", 50);
+
+// Number of records to update frecency for when migrating from
+// a pre-frecency build.
+pref("places.frecency.numCalcOnMigrate", 50);
+
+// Perform frecency recalculation after this amount of idle, repeating.
+// A value of zero disables updating of frecency on idle.
+// Default is 1 minute (60000ms).
+pref("places.frecency.updateIdleTime", 60000);
+
+// buckets (in days) for frecency calculation
+pref("places.frecency.firstBucketCutoff", 4);
+pref("places.frecency.secondBucketCutoff", 14);
+pref("places.frecency.thirdBucketCutoff", 31);
+pref("places.frecency.fourthBucketCutoff", 90);
+
+// weights for buckets for frecency calculations
+pref("places.frecency.firstBucketWeight", 100);
+pref("places.frecency.secondBucketWeight", 70);
+pref("places.frecency.thirdBucketWeight", 50);
+pref("places.frecency.fourthBucketWeight", 30);
+pref("places.frecency.defaultBucketWeight", 10);
+
+// bonus (in percent) for visit transition types for frecency calculations
+pref("places.frecency.embedVisitBonus", 0);
+pref("places.frecency.linkVisitBonus", 120);
+pref("places.frecency.typedVisitBonus", 200);
+pref("places.frecency.bookmarkVisitBonus", 140);
+pref("places.frecency.downloadVisitBonus", 0);
+pref("places.frecency.permRedirectVisitBonus", 0);
+pref("places.frecency.tempRedirectVisitBonus", 0);
+pref("places.frecency.defaultVisitBonus", 0);
+
+// bonus (in percent) for place types for frecency calculations
+pref("places.frecency.unvisitedBookmarkBonus", 140);
+pref("places.frecency.unvisitedTypedBonus", 200);
+
 // Controls behavior of the "Add Exception" dialog launched from SSL error pages
 // 0 - don't pre-populate anything
 // 1 - pre-populate site URL, but don't fetch certificate
 // 2 - pre-populate site URL and pre-fetch certificate
 pref("browser.ssl_override_behavior", 1);
+
+// Controls the display of domain in the identity box for SSL connections.
+// 0 - do not show domain
+// 1 - show effectiveTLD + 1 (e.g. mozilla.org)
+// 2 - show full domain (e.g. bugzilla.mozilla.org)
+pref("browser.identity.ssl_domain_display", 0);
+
+// replace newlines with spaces when pasting into <input type="text"> fields
+pref("editor.singleLine.pasteNewlines", 2);
+
+// The breakpad report server to link to in about:crashes
+pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");

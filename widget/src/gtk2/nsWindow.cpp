@@ -176,6 +176,8 @@ static gboolean window_state_event_cb     (GtkWidget *widget,
 static void     theme_changed_cb          (GtkSettings *settings,
                                            GParamSpec *pspec,
                                            nsWindow *data);
+static nsWindow* GetFirstNSWindowForGDKWindow (GdkWindow *aGdkWindow);
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -242,8 +244,10 @@ static PRBool            gGlobalsInitialized   = PR_FALSE;
 static PRBool            gRaiseWindows         = PR_TRUE;
 static nsWindow         *gPluginFocusWindow    = NULL;
 
-nsCOMPtr  <nsIRollupListener> gRollupListener;
-nsWeakPtr                     gRollupWindow;
+static nsCOMPtr<nsIRollupListener> gRollupListener;
+static nsWeakPtr                   gRollupWindow;
+static PRBool                      gConsumeRollupEvent;
+
 
 #define NS_WINDOW_TITLE_MAX_LENGTH 4095
 
@@ -345,7 +349,7 @@ nsWindow::nsWindow()
     mRootAccessible  = nsnull;
 #endif
 
-    mIsTranslucent = PR_FALSE;
+    mIsTransparent = PR_FALSE;
     mTransparencyBitmap = nsnull;
 
     mTransparencyBitmapWidth  = 0;
@@ -1336,21 +1340,26 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
     nsCAutoString path;
     nsCStringArray iconList;
 
-    // Assume the given string is a local identifier for an icon file.
+    // Look for icons with the following suffixes appended to the base name.
+    // The last two entries (for the old XPM format) will be ignored unless
+    // no icons are found using the other suffixes. XPM icons are depricated.
 
-    ResolveIconName(aIconSpec, NS_LITERAL_STRING(".xpm"),
-                    getter_AddRefs(iconFile));
-    if (iconFile) {
-        iconFile->GetNativePath(path);
-        iconList.AppendCString(path);
-    }
+    const char extensions[6][7] = { ".png", "16.png", "32.png", "48.png",
+                                    ".xpm", "16.xpm" };
 
-    // Get the 16px icon path as well
-    ResolveIconName(aIconSpec, NS_LITERAL_STRING("16.xpm"),
-                    getter_AddRefs(iconFile));
-    if (iconFile) {
-        iconFile->GetNativePath(path);
-        iconList.AppendCString(path);
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(extensions); i++) {
+        // Don't bother looking for XPM versions if we found a PNG.
+        if (i == NS_ARRAY_LENGTH(extensions) - 2 && iconList.Count())
+            break;
+
+        nsAutoString extension;
+        extension.AppendASCII(extensions[i]);
+
+        ResolveIconName(aIconSpec, extension, getter_AddRefs(iconFile));
+        if (iconFile) {
+            iconFile->GetNativePath(path);
+            iconList.AppendCString(path);
+        }
     }
 
     // leave the default icon intact if no matching icons were found
@@ -1488,6 +1497,7 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
     LOG(("CaptureRollupEvents %p\n", (void *)this));
 
     if (aDoCapture) {
+        gConsumeRollupEvent = aConsumeRollupEvent;
         gRollupListener = aListener;
         gRollupWindow = do_GetWeakReference(static_cast<nsIWidget*>
                                                        (this));
@@ -1661,7 +1671,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     }
 
     PRBool translucent;
-    GetWindowTranslucency(translucent);
+    GetHasTransparentBackground(translucent);
     nsIntRect boundsRect;
     GdkPixmap* bufferPixmap = nsnull;
     nsRefPtr<gfxXlibSurface> bufferPixmapSurface;
@@ -1670,8 +1680,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                                  &boundsRect.width, &boundsRect.height);
 
     // do double-buffering and clipping here
-    nsRefPtr<gfxContext> ctx
-        = (gfxContext*)rc->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+    nsRefPtr<gfxContext> ctx = rc->ThebesContext();
     ctx->Save();
     ctx->NewPath();
     if (translucent) {
@@ -1968,8 +1977,17 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
         event.time = xevent.xmotion.time;
     }
     else {
-        event.refPoint.x = nscoord(aEvent->x);
-        event.refPoint.y = nscoord(aEvent->y);
+        // XXX see OnScrollEvent()
+        if (aEvent->window == mDrawingarea->inner_window) {
+            event.refPoint.x = nscoord(aEvent->x);
+            event.refPoint.y = nscoord(aEvent->y);
+        } else {
+            nsRect windowRect;
+            ScreenToWidget(nsRect(nscoord(aEvent->x_root), nscoord(aEvent->y_root), 1, 1), windowRect);
+
+            event.refPoint.x = windowRect.x;
+            event.refPoint.y = windowRect.y;
+        }
 
         event.isShift   = (aEvent->state & GDK_SHIFT_MASK)
             ? PR_TRUE : PR_FALSE;
@@ -1983,6 +2001,42 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
 
     nsEventStatus status;
     DispatchEvent(&event, status);
+}
+
+void
+nsWindow::InitButtonEvent(nsMouseEvent &aEvent,
+                          GdkEventButton *aGdkEvent)
+{
+    // XXX see OnScrollEvent()
+    if (aGdkEvent->window == mDrawingarea->inner_window) {
+        aEvent.refPoint.x = nscoord(aGdkEvent->x);
+        aEvent.refPoint.y = nscoord(aGdkEvent->y);
+    } else {
+        nsRect windowRect;
+        ScreenToWidget(nsRect(nscoord(aGdkEvent->x_root), nscoord(aGdkEvent->y_root), 1, 1), windowRect);
+
+        aEvent.refPoint.x = windowRect.x;
+        aEvent.refPoint.y = windowRect.y;
+    }
+
+    aEvent.isShift   = (aGdkEvent->state & GDK_SHIFT_MASK) != 0;
+    aEvent.isControl = (aGdkEvent->state & GDK_CONTROL_MASK) != 0;
+    aEvent.isAlt     = (aGdkEvent->state & GDK_MOD1_MASK) != 0;
+    aEvent.isMeta    = (aGdkEvent->state & GDK_MOD4_MASK) != 0;
+
+    aEvent.time = aGdkEvent->time;
+
+    switch (aGdkEvent->type) {
+    case GDK_2BUTTON_PRESS:
+        aEvent.clickCount = 2;
+        break;
+    case GDK_3BUTTON_PRESS:
+        aEvent.clickCount = 3;
+        break;
+        // default is one click
+    default:
+        aEvent.clickCount = 1;
+    }
 }
 
 void
@@ -2016,9 +2070,11 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
         containerWindow->mActivatePending = PR_FALSE;
         DispatchActivateEvent();
     }
-    if (check_for_rollup(aEvent->window, aEvent->x_root, aEvent->y_root,
-                         PR_FALSE))
-        return;
+
+    PRBool rolledUp = check_for_rollup(aEvent->window, aEvent->x_root,
+                                       aEvent->y_root, PR_FALSE);
+    if (gConsumeRollupEvent && rolledUp)
+            return;
 
     PRUint16 domButton;
     switch (aEvent->button) {
@@ -2392,14 +2448,53 @@ nsWindow::OnKeyReleaseEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
 void
 nsWindow::OnScrollEvent(GtkWidget *aWidget, GdkEventScroll *aEvent)
 {
-    nsMouseScrollEvent event(PR_TRUE, NS_MOUSE_SCROLL, this);
-    InitMouseScrollEvent(event, aEvent);
-
     // check to see if we should rollup
-    if (check_for_rollup(aEvent->window, aEvent->x_root, aEvent->y_root,
-                         PR_TRUE)) {
+    PRBool rolledUp =  check_for_rollup(aEvent->window, aEvent->x_root,
+                                        aEvent->y_root, PR_TRUE);
+    if (gConsumeRollupEvent && rolledUp)
         return;
+
+    nsMouseScrollEvent event(PR_TRUE, NS_MOUSE_SCROLL, this);
+    switch (aEvent->direction) {
+    case GDK_SCROLL_UP:
+        event.scrollFlags = nsMouseScrollEvent::kIsVertical;
+        event.delta = -3;
+        break;
+    case GDK_SCROLL_DOWN:
+        event.scrollFlags = nsMouseScrollEvent::kIsVertical;
+        event.delta = 3;
+        break;
+    case GDK_SCROLL_LEFT:
+        event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+        event.delta = -3;
+        break;
+    case GDK_SCROLL_RIGHT:
+        event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+        event.delta = 3;
+        break;
     }
+
+    if (aEvent->window == mDrawingarea->inner_window) {
+        // we are the window that the event happened on so no need for expensive ScreenToWidget
+        event.refPoint.x = nscoord(aEvent->x);
+        event.refPoint.y = nscoord(aEvent->y);
+    } else {
+        // XXX we're never quite sure which GdkWindow the event came from due to our custom bubbling
+        // in scroll_event_cb(), so use ScreenToWidget to translate the screen root coordinates into
+        // coordinates relative to this widget.
+        nsRect windowRect;
+        ScreenToWidget(nsRect(nscoord(aEvent->x_root), nscoord(aEvent->y_root), 1, 1), windowRect);
+
+        event.refPoint.x = windowRect.x;
+        event.refPoint.y = windowRect.y;
+    }
+
+    event.isShift   = (aEvent->state & GDK_SHIFT_MASK) != 0;
+    event.isControl = (aEvent->state & GDK_CONTROL_MASK) != 0;
+    event.isAlt     = (aEvent->state & GDK_MOD1_MASK) != 0;
+    event.isMeta    = (aEvent->state & GDK_MOD4_MASK) != 0;
+
+    event.time = aEvent->time;
 
     nsEventStatus status;
     DispatchEvent(&event, status);
@@ -2432,8 +2527,8 @@ nsWindow::OnWindowStateEvent(GtkWidget *aWidget, GdkEventWindowState *aEvent)
 
     // We don't care about anything but changes in the maximized/icon
     // states
-    if (aEvent->changed_mask &
-        (GDK_WINDOW_STATE_ICONIFIED|GDK_WINDOW_STATE_MAXIMIZED) == 0) {
+    if ((aEvent->changed_mask
+         & (GDK_WINDOW_STATE_ICONIFIED|GDK_WINDOW_STATE_MAXIMIZED)) == 0) {
         return;
     }
 
@@ -3380,7 +3475,7 @@ nsWindow::EnsureGrabs(void)
 }
 
 NS_IMETHODIMP
-nsWindow::SetWindowTranslucency(PRBool aTranslucent)
+nsWindow::SetHasTransparentBackground(PRBool aTransparent)
 {
     if (!mShell) {
         // Pass the request to the toplevel window
@@ -3393,13 +3488,13 @@ nsWindow::SetWindowTranslucency(PRBool aTranslucent)
         if (!topWindow)
             return NS_ERROR_FAILURE;
 
-        return topWindow->SetWindowTranslucency(aTranslucent);
+        return topWindow->SetHasTransparentBackground(aTransparent);
     }
 
-    if (mIsTranslucent == aTranslucent)
+    if (mIsTransparent == aTransparent)
         return NS_OK;
 
-    if (!aTranslucent) {
+    if (!aTransparent) {
         if (mTransparencyBitmap) {
             delete[] mTransparencyBitmap;
             mTransparencyBitmap = nsnull;
@@ -3410,32 +3505,32 @@ nsWindow::SetWindowTranslucency(PRBool aTranslucent)
     } // else the new default alpha values are "all 1", so we don't
     // need to change anything yet
 
-    mIsTranslucent = aTranslucent;
+    mIsTransparent = aTransparent;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::GetWindowTranslucency(PRBool& aTranslucent)
+nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
     if (!mShell) {
         // Pass the request to the toplevel window
         GtkWidget *topWidget = nsnull;
         GetToplevelWidget(&topWidget);
         if (!topWidget) {
-            aTranslucent = PR_FALSE;
+            aTransparent = PR_FALSE;
             return NS_ERROR_FAILURE;
         }
 
         nsWindow *topWindow = get_window_for_gtk_widget(topWidget);
         if (!topWindow) {
-            aTranslucent = PR_FALSE;
+            aTransparent = PR_FALSE;
             return NS_ERROR_FAILURE;
         }
 
-        return topWindow->GetWindowTranslucency(aTranslucent);
+        return topWindow->GetHasTransparentBackground(aTransparent);
     }
 
-    aTranslucent = mIsTranslucent;
+    aTransparent = mIsTransparent;
     return NS_OK;
 }
 
@@ -3563,7 +3658,7 @@ nsWindow::UpdateTranslucentWindowAlphaInternal(const nsRect& aRect,
         return topWindow->UpdateTranslucentWindowAlphaInternal(aRect, aAlphas, aStride);
     }
 
-    NS_ASSERTION(mIsTranslucent, "Window is not transparent");
+    NS_ASSERTION(mIsTransparent, "Window is not transparent");
 
     if (mTransparencyBitmap == nsnull) {
         PRInt32 size = ((mBounds.width+7)/8)*mBounds.height;
@@ -3592,12 +3687,6 @@ nsWindow::UpdateTranslucentWindowAlphaInternal(const nsRect& aRect,
         ApplyTransparencyBitmap();
     }
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas)
-{
-    return UpdateTranslucentWindowAlphaInternal(aRect, aAlphas, aRect.width);
 }
 
 void
@@ -3802,23 +3891,7 @@ nsWindow::SetWindowIconList(const nsCStringArray &aIconList)
 void
 nsWindow::SetDefaultIcon(void)
 {
-    // Set up the default window icon
-    nsCOMPtr<nsILocalFile> iconFile;
-    ResolveIconName(NS_LITERAL_STRING("default"),
-                    NS_LITERAL_STRING(".xpm"),
-                    getter_AddRefs(iconFile));
-    if (!iconFile) {
-        NS_WARNING("default.xpm not found");
-        return;
-    }
-
-    nsCAutoString path;
-    iconFile->GetNativePath(path);
-
-    nsCStringArray iconList;
-    iconList.AppendCString(path);
-
-    SetWindowIconList(iconList);
+    SetIcon(NS_LITERAL_STRING("default"));
 }
 
 void
@@ -3962,10 +4035,10 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
         gdk_window_fullscreen (mShell->window);
     else
         gdk_window_unfullscreen (mShell->window);
+    return NS_OK;
 #else
-    HideWindowChrome(aFullScreen);
+    return nsBaseWidget::MakeFullScreen(aFullScreen);
 #endif
-    return MakeFullScreenInternal(aFullScreen);
 }
 
 NS_IMETHODIMP
@@ -3982,7 +4055,11 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
     // Sawfish, metacity, and presumably other window managers get
     // confused if we change the window decorations while the window
     // is visible.
-    gdk_window_hide(mShell->window);
+    PRBool wasVisible = PR_FALSE;
+    if (gdk_window_is_visible(mShell->window)) {
+        gdk_window_hide(mShell->window);
+        wasVisible = PR_TRUE;
+    }
 
     gint wmd;
     if (aShouldHide)
@@ -3992,7 +4069,8 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
 
     gdk_window_set_decorations(mShell->window, (GdkWMDecoration) wmd);
 
-    gdk_window_show(mShell->window);
+    if (wasVisible)
+        gdk_window_show(mShell->window);
 
     // For some window managers, adding or removing window decorations
     // requires unmapping and remapping our toplevel window.  Go ahead
@@ -4026,26 +4104,17 @@ check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
             nsCOMPtr<nsIMenuRollup> menuRollup;
             menuRollup = (do_QueryInterface(gRollupListener));
             if (menuRollup) {
-                nsCOMPtr<nsISupportsArray> widgetChain;
-                menuRollup->GetSubmenuWidgetChain(getter_AddRefs(widgetChain));
-                if (widgetChain) {
-                    PRUint32 count = 0;
-                    widgetChain->Count(&count);
-                    for (PRUint32 i=0; i<count; ++i) {
-                        nsCOMPtr<nsISupports> genericWidget;
-                        widgetChain->GetElementAt(i,
-                                                  getter_AddRefs(genericWidget));
-                        nsCOMPtr<nsIWidget> widget(do_QueryInterface(genericWidget));
-                        if (widget) {
-                            GdkWindow* currWindow =
-                                (GdkWindow*) widget->GetNativeData(NS_NATIVE_WINDOW);
-                            if (is_mouse_in_window(currWindow, aMouseX, aMouseY)) {
-                                rollup = PR_FALSE;
-                                break;
-                            }
-                        }
-                    } // foreach parent menu widget
-                }
+                nsAutoTArray<nsIWidget*, 5> widgetChain;
+                menuRollup->GetSubmenuWidgetChain(&widgetChain);
+                for (PRUint32 i=0; i<widgetChain.Length(); ++i) {
+                    nsIWidget* widget =  widgetChain[i];
+                    GdkWindow* currWindow =
+                        (GdkWindow*) widget->GetNativeData(NS_NATIVE_WINDOW);
+                    if (is_mouse_in_window(currWindow, aMouseX, aMouseY)) {
+                       rollup = PR_FALSE;
+                       break;
+                    }
+                } // foreach parent menu widget
             } // if rollup listener knows about menus
 
             // if we've determined that we should still rollup, do it.
@@ -4287,6 +4356,9 @@ get_gtk_cursor(nsCursor aCursor)
     case eCursor_ew_resize:
         gdkcursor = gdk_cursor_new(GDK_SB_H_DOUBLE_ARROW);
         break;
+    case eCursor_none:
+        newType = MOZ_CURSOR_NONE;
+        break;
     default:
         NS_ASSERTION(aCursor, "Invalid cursor type");
         gdkcursor = gdk_cursor_new(GDK_LEFT_PTR);
@@ -4412,6 +4484,16 @@ leave_notify_event_cb(GtkWidget *widget,
         return TRUE;
     }
 
+    // bug 369599: Suppress LeaveNotify events caused by pointer grabs to
+    // avoid generating spurious mouse exit events.
+    gint x = gint(event->x_root);
+    gint y = gint(event->y_root);
+    GdkDisplay* display = gtk_widget_get_display(widget);
+    GdkWindow* winAtPt = gdk_display_get_window_at_pointer(display, &x, &y);
+    if (winAtPt == event->window) {
+        return TRUE;
+    }
+
     nsRefPtr<nsWindow> window = get_window_for_gdk_window(event->window);
     if (!window)
         return TRUE;
@@ -4421,13 +4503,30 @@ leave_notify_event_cb(GtkWidget *widget,
     return TRUE;
 }
 
+nsWindow*
+GetFirstNSWindowForGDKWindow(GdkWindow *aGdkWindow)
+{
+    nsWindow* window;
+    while (!(window = get_window_for_gdk_window(aGdkWindow))) {
+        // The event has bubbled to the moz_container widget as passed into each caller's *widget parameter,
+        // but its corresponding nsWindow is an ancestor of the window that we need.  Instead, look at
+        // event->window and find the first ancestor nsWindow of it because event->window may be in a plugin.
+        aGdkWindow = gdk_window_get_parent(aGdkWindow);
+        if (!aGdkWindow) {
+            window = nsnull;
+            break;
+        }
+    }
+    return window;
+}
+
 /* static */
 gboolean
 motion_notify_event_cb(GtkWidget *widget, GdkEventMotion *event)
 {
-    nsRefPtr<nsWindow> window = get_window_for_gdk_window(event->window);
+    nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
-        return TRUE;
+        return FALSE;
 
     window->OnMotionNotifyEvent(widget, event);
 
@@ -4438,10 +4537,9 @@ motion_notify_event_cb(GtkWidget *widget, GdkEventMotion *event)
 gboolean
 button_press_event_cb(GtkWidget *widget, GdkEventButton *event)
 {
-    LOG(("button_press_event_cb\n"));
-    nsWindow *window = get_window_for_gdk_window(event->window);
+    nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
-        return TRUE;
+        return FALSE;
 
     window->OnButtonPressEvent(widget, event);
 
@@ -4452,9 +4550,9 @@ button_press_event_cb(GtkWidget *widget, GdkEventButton *event)
 gboolean
 button_release_event_cb(GtkWidget *widget, GdkEventButton *event)
 {
-    nsRefPtr<nsWindow> window = get_window_for_gdk_window(event->window);
+    nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
-        return TRUE;
+        return FALSE;
 
     window->OnButtonReleaseEvent(widget, event);
 
@@ -4619,7 +4717,7 @@ key_release_event_cb(GtkWidget *widget, GdkEventKey *event)
 gboolean
 scroll_event_cb(GtkWidget *widget, GdkEventScroll *event)
 {
-    nsRefPtr<nsWindow> window = get_window_for_gdk_window(event->window);
+    nsWindow *window = GetFirstNSWindowForGDKWindow(event->window);
     if (!window)
         return FALSE;
 
@@ -5112,7 +5210,7 @@ nsWindow::DispatchActivateEvent(void)
         if (privAcc) {
             privAcc->FireToolkitEvent(
                          nsIAccessibleEvent::EVENT_WINDOW_ACTIVATE,
-                         rootAcc, nsnull);
+                         rootAcc);
         }
     }
 
@@ -5131,7 +5229,7 @@ nsWindow::DispatchDeactivateEvent(void)
         if (privAcc) {
             privAcc->FireToolkitEvent(
                          nsIAccessibleEvent::EVENT_WINDOW_DEACTIVATE,
-                         rootAcc, nsnull);
+                         rootAcc);
         }
     }
 }
@@ -5660,6 +5758,8 @@ nsWindow::GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState)
     PRBool foundMasks = gdk_keyboard_get_modmap_masks(
                           GDK_WINDOW_XDISPLAY(mDrawingarea->inner_window),
                           &capsLockMask, &numLockMask, &scrollLockMask);
+    if (!foundMasks)
+        return NS_ERROR_NOT_IMPLEMENTED;
 
     PRUint32 mask = 0;
     switch (aKeyCode) {
@@ -6011,4 +6111,86 @@ nsWindow::GetThebesSurface()
     }
 
     return mThebesSurface;
+}
+
+NS_IMETHODIMP
+nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical)
+{
+    NS_ENSURE_ARG_POINTER(aEvent);
+
+    if (aEvent->eventStructType != NS_MOUSE_EVENT) {
+      // you can only begin a resize drag with a mouse event
+      return NS_ERROR_INVALID_ARG;
+    }
+
+    nsMouseEvent* mouse_event = static_cast<nsMouseEvent*>(aEvent);
+    
+    if (mouse_event->button != nsMouseEvent::eLeftButton) {
+      // you can only begin a resize drag with the left mouse button
+      return NS_ERROR_INVALID_ARG;
+    }
+
+    // work out what GdkWindowEdge we're talking about
+    GdkWindowEdge window_edge;
+    if (aVertical < 0) {
+        if (aHorizontal < 0) {
+            window_edge = GDK_WINDOW_EDGE_NORTH_WEST;
+        } else if (aHorizontal == 0) {
+            window_edge = GDK_WINDOW_EDGE_NORTH;
+        } else {
+            window_edge = GDK_WINDOW_EDGE_NORTH_EAST;
+        }
+    } else if (aVertical == 0) {
+        if (aHorizontal < 0) {
+            window_edge = GDK_WINDOW_EDGE_WEST;
+        } else if (aHorizontal == 0) {
+            return NS_ERROR_INVALID_ARG;
+        } else {
+            window_edge = GDK_WINDOW_EDGE_EAST;
+        }
+    } else {
+        if (aHorizontal < 0) {
+            window_edge = GDK_WINDOW_EDGE_SOUTH_WEST;
+        } else if (aHorizontal == 0) {
+            window_edge = GDK_WINDOW_EDGE_SOUTH;
+        } else {
+            window_edge = GDK_WINDOW_EDGE_SOUTH_EAST;
+        }
+    }
+
+    // get the gdk window for this widget
+    GdkWindow* gdk_window = mDrawingarea->inner_window;
+    if (!GDK_IS_WINDOW(gdk_window)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    // find the top-level window
+    gdk_window = gdk_window_get_toplevel(gdk_window);
+    if (!GDK_IS_WINDOW(gdk_window)) {
+      return NS_ERROR_FAILURE;
+    }
+
+
+    // get the current (default) display
+    GdkDisplay* display = gdk_display_get_default();
+    if (!GDK_IS_DISPLAY(display)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    // get the current pointer position and button state
+    GdkScreen* screen = NULL;
+    gint screenX, screenY;
+    GdkModifierType mask;
+    gdk_display_get_pointer(display, &screen, &screenX, &screenY, &mask);
+
+    // we only support resizing with button 1
+    if (!(mask & GDK_BUTTON1_MASK)) {
+        return NS_ERROR_FAILURE;
+    }
+
+    // tell the window manager to start the resize
+    gdk_window_begin_resize_drag(gdk_window, window_edge, 1,
+            screenX, screenY, aEvent->time);
+
+    return NS_OK;
 }

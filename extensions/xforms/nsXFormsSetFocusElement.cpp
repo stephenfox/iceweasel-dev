@@ -39,20 +39,18 @@
 #include "nsXFormsActionModuleBase.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
-#include "nsString.h"
+#include "nsStringAPI.h"
 #include "nsCOMPtr.h"
 
 class nsXFormsSetFocusElement : public nsXFormsActionModuleBase
 {
 public:
   nsXFormsSetFocusElement();
-protected:
-  nsresult HandleSingleAction(nsIDOMEvent* aEvent,
-                              nsIXFormsActionElement *aParentAction);
+  virtual nsresult HandleSingleAction(nsIDOMEvent* aEvent,
+                                      nsIXFormsActionElement *aParentAction);
 };
 
-nsXFormsSetFocusElement::nsXFormsSetFocusElement() :
-  nsXFormsActionModuleBase(PR_TRUE)
+nsXFormsSetFocusElement::nsXFormsSetFocusElement()
 {
 }
 

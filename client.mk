@@ -159,6 +159,7 @@ MODULES_core :=                                 \
   mozilla/gfx                                   \
   mozilla/parser                                \
   mozilla/layout                                \
+  mozilla/memory/jemalloc                       \
   mozilla/jpeg                                  \
   mozilla/js/src/fdlibm                         \
   mozilla/js/src/liveconnect                    \
@@ -258,6 +259,7 @@ LOCALES_suite :=                                \
   suite                                         \
   editor/ui                                     \
   extensions/reporter                           \
+  extensions/spellcheck                         \
   $(NULL)
 
 BOOTSTRAP_suite :=                              \
@@ -408,9 +410,9 @@ MODULES_all :=                                  \
 #
 # For branches, uncomment the MOZ_CO_TAG line with the proper tag,
 # and commit this file on that tag.
-MOZ_CO_TAG           = FIREFOX_3_0b2_RELEASE
-NSPR_CO_TAG          = FIREFOX_3_0b2_RELEASE
-NSS_CO_TAG           = FIREFOX_3_0b2_RELEASE
+MOZ_CO_TAG           = FIREFOX_3_0b3_RELEASE
+NSPR_CO_TAG          = FIREFOX_3_0b3_RELEASE
+NSS_CO_TAG           = FIREFOX_3_0b3_RELEASE
 LDAPCSDK_CO_TAG      = LDAPCSDK_6_0_3_CLIENT_BRANCH
 LOCALES_CO_TAG       =
 
@@ -734,9 +736,9 @@ override MOZ_CO_LOCALES := $(subst $(comma), ,$(MOZ_CO_LOCALES))
 ifeq (all,$(MOZ_CO_LOCALES))
 MOZCONFIG_MODULES += $(foreach project,$(MOZ_PROJECT_LIST),mozilla/$(project)/locales/all-locales)
 
-LOCALE_CO_DIRS := $(sort $(foreach project,$(MOZ_PROJECT_LIST),$(foreach locale,$(shell cat mozilla/$(project)/locales/all-locales),$(foreach dir,$(LOCALES_$(project)),l10n/$(locale)/$(dir)))))
+LOCALE_CO_DIRS := $(sort $(foreach project,$(MOZ_PROJECT_LIST),$(foreach locale,$(shell cat mozilla/$(project)/locales/all-locales),l10n/$(locale)/)))
 else # MOZ_CO_LOCALES != all
-LOCALE_CO_DIRS = $(sort $(foreach locale,$(MOZ_CO_LOCALES),$(foreach dir,$(LOCALE_DIRS),l10n/$(locale)/$(dir))))
+LOCALE_CO_DIRS = $(sort $(foreach locale,$(MOZ_CO_LOCALES),l10n/$(locale)/))
 endif
 
 CVSCO_LOCALES := $(CVS) $(CVS_FLAGS) -d $(LOCALES_CVSROOT) co $(LOCALES_CO_FLAGS) $(CVS_CO_LOCALES_DATE_FLAGS) $(LOCALE_CO_DIRS)
@@ -1023,7 +1025,7 @@ CONFIG_STATUS_DEPS := \
 	$(wildcard $(TOPSRCDIR)/directory/c-sdk/configure) \
 	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
 	$(wildcard $(TOPSRCDIR)/config/chrome-versions.sh) \
-  $(wildcard $(addsuffix confvars.sh,$(wildcard */))) \
+  $(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
 # configure uses the program name to determine @srcdir@. Calling it without

@@ -380,6 +380,7 @@ public:
                                      nsIDocument* aSubDoc);
   virtual nsIDocument* GetSubDocumentFor(nsIContent *aContent) const;
   virtual nsIContent* FindContentForSubDocument(nsIDocument *aDocument) const;
+  virtual nsIContent* GetRootContentInternal() const;
 
   /**
    * Get the style sheets owned by this document.
@@ -738,12 +739,15 @@ protected:
   nsCOMArray<nsIStyleSheet> mCatalogSheets;
 
   // Array of observers
-  nsTObserverArray<nsIDocumentObserver> mObservers;
+  nsTObserverArray<nsIDocumentObserver*> mObservers;
 
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
   nsCOMPtr<nsIScriptGlobalObject> mScriptGlobalObject;
+  // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
+  // updated on every set of mSecriptGlobalObject.
+  nsPIDOMWindow *mWindow;
 
   // If document is created for example using
   // document.implementation.createDocument(...), mScriptObject points to
@@ -792,7 +796,7 @@ protected:
   // Our update nesting level
   PRUint32 mUpdateNestLevel;
 
-private:
+protected:
   friend class nsUnblockOnloadEvent;
 
   void PostUnblockOnloadEvent();

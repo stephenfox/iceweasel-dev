@@ -500,6 +500,33 @@ nsXPCWrappedJSClass::IsWrappedJS(nsISupports* aPtr)
            result == WrappedJSIdentity::GetSingleton();
 }
 
+static JSContext *
+GetContextFromObject(JSObject *obj)
+{
+    // Don't stomp over a running context.
+    XPCJSContextStack* stack =
+        XPCPerThreadData::GetData(nsnull)->GetJSContextStack();
+    JSContext* topJSContext;
+
+    if(stack && NS_SUCCEEDED(stack->Peek(&topJSContext)) && topJSContext)
+        return nsnull;
+
+    // In order to get a context, we need a context.
+    XPCCallContext ccx(NATIVE_CALLER);
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, obj);
+    XPCContext *xpcc = scope->GetContext();
+
+    if(xpcc)
+    {
+        JSContext *cx = xpcc->GetJSContext();
+        if(cx->thread->id == js_CurrentThreadId())
+            return cx;
+    }
+
+    return nsnull;
+}
+
 NS_IMETHODIMP
 nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
                                              REFNSIID aIID,
@@ -513,7 +540,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
     }
 
     // Objects internal to xpconnect are the only objects that even know *how*
-    // to ask for this iid. And none of them bother refcoutning the thing.
+    // to ask for this iid. And none of them bother refcounting the thing.
     if(aIID.Equals(NS_GET_IID(WrappedJSIdentity)))
     {
         // asking to find out if this is a wrapper object
@@ -544,7 +571,9 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         return NS_OK;
     }
 
-    XPCCallContext ccx(NATIVE_CALLER);
+
+    JSContext *context = GetContextFromObject(self->GetJSObject());
+    XPCCallContext ccx(NATIVE_CALLER, context);
     if(!ccx.IsValid())
     {
         *aInstancePtr = nsnull;
@@ -1048,7 +1077,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
     // convert natives to JSObjects, but we do NOT plan to pass those JSObjects
     // to our real callee.
-    XPCCallContext ccx(NATIVE_CALLER);
+    JSContext *context = GetContextFromObject(wrapper->GetJSObject());
+    XPCCallContext ccx(NATIVE_CALLER, context);
     if(ccx.IsValid())
     {
         xpcc = ccx.GetXPCContext();

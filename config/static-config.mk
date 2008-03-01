@@ -88,13 +88,7 @@ STATIC_EXTRA_LIBS	+= $(MOZ_CAIRO_LIBS)
 
 ifdef MOZ_ENABLE_GTK2
 STATIC_EXTRA_LIBS	+= $(XLDFLAGS) $(XT_LIBS) -lgthread-2.0
-endif
-
-ifdef MOZ_ENABLE_XFT
 STATIC_EXTRA_LIBS	+= $(MOZ_XFT_LIBS)
-endif
-
-ifdef MOZ_ENABLE_PANGO
 STATIC_EXTRA_LIBS	+= $(MOZ_PANGO_LIBS)
 endif
 
@@ -120,9 +114,7 @@ STATIC_EXTRA_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 
 ifdef GNU_CC
 STATIC_EXTRA_LIBS += $(call EXPAND_LIBNAME,winmm wsock32 gdi32)
 endif
-ifdef MOZ_ENABLE_CAIRO_GFX
 STATIC_EXTRA_LIBS += $(call EXPAND_LIBNAME, usp10)
-endif
 endif
 
 ifeq ($(OS_ARCH),AIX)

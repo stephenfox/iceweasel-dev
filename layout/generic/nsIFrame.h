@@ -641,16 +641,7 @@ public:
    * The use of the typesafe functions below is preferred to direct use
    * of this function.
    */
-  virtual const nsStyleStruct* GetStyleDataExternal(nsStyleStructID aSID) const = 0;
-
-  const nsStyleStruct* GetStyleData(nsStyleStructID aSID) const {
-#ifdef _IMPL_NS_LAYOUT
-    NS_ASSERTION(mStyleContext, "No style context found!");
-    return mStyleContext->GetStyleData(aSID);
-#else
-    return GetStyleDataExternal(aSID);
-#endif
-  }
+  virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const = 0;
 
   /**
    * Define typesafe getter functions for each style struct by
@@ -1067,7 +1058,14 @@ public:
   virtual nsIFrame* GetLastContinuation() const {
     return const_cast<nsIFrame*>(this);
   }
-  
+
+  /**
+   * GetTailContinuation gets the last non-overflow-container continuation
+   * in the continuation chain, i.e. where the next sibling element
+   * should attach).
+   */
+  nsIFrame* GetTailContinuation();
+
   /**
    * Flow member functions
    */
@@ -1146,7 +1144,8 @@ public:
       , trailingWhitespace(0)
     {}
 
-    // The line. This may be null if the inlines are not associated with a block.
+    // The line. This may be null if the inlines are not associated with
+    // a block or if we just don't know the line.
     const nsLineList_iterator* line;
 
     // The maximum intrinsic width for all previous lines.
@@ -1158,8 +1157,8 @@ public:
     nscoord currentLine;
 
     // True if initial collapsable whitespace should be skipped.  This
-    // should be true at the beginning of a block and when the last text
-    // ended with whitespace.
+    // should be true at the beginning of a block, after hard breaks
+    // and when the last text ended with whitespace.
     PRBool skipWhitespace;
 
     // This contains the width of the trimmable whitespace at the end of
@@ -1564,7 +1563,7 @@ public:
     eLineParticipant =                  1 << 6,
     eXULBox =                           1 << 7,
     eCanContainOverflowContainers =     1 << 8,
-
+    eBlockFrame =                       1 << 9,
 
     // These are to allow nsFrame::Init to assert that IsFrameOfType
     // implementations all call the base class method.  They are only

@@ -50,7 +50,7 @@ interface nsINavHistoryBatchCallback;
 interface nsITreeColumn;
 interface nsIWritablePropertyBag;
 
-[scriptable, uuid(62c517f4-046e-474d-adba-975bf8924703)]
+[scriptable, uuid(47cf89e3-4777-46bf-9677-21793870ce62)]
 interface nsINavHistoryResultNode : nsISupports
 {
   /**
@@ -85,6 +85,7 @@ interface nsINavHistoryResultNode : nsISupports
   const unsigned long RESULT_TYPE_FOLDER = 6;            // nsINavHistoryQueryResultNode
   const unsigned long RESULT_TYPE_SEPARATOR = 7;         // nsINavHistoryResultNode
   const unsigned long RESULT_TYPE_DAY = 8;               // nsINavHistoryContainerResultNode
+  const unsigned long RESULT_TYPE_FOLDER_SHORTCUT = 9;   // nsINavHistoryQueryResultNode
   readonly attribute unsigned long type;
 
   /**
@@ -182,6 +183,12 @@ interface nsINavHistoryResultNode : nsISupports
    * time that the item was last modified. For other nodes, this value is 0.
    */
   readonly attribute PRTime lastModified;
+
+  /**
+   * For uri nodes, this is a sorted list of the tags, delimited with commans,
+   * for the uri represented by this node. Otherwise this is an empty string.
+   */
+  readonly attribute AString tags;
 };
 
 
@@ -387,7 +394,7 @@ interface nsINavHistoryContainerResultNode : nsINavHistoryResultNode
  * generated this node, this item will report it has no children and never try
  * to populate itself.
  */
-[scriptable, uuid(dcd6a2b7-3d50-4c78-b1cb-2f0f18ac5864)]
+[scriptable, uuid(ea17745a-1852-4155-a98f-d1dd1763b3df)]
 interface nsINavHistoryQueryResultNode : nsINavHistoryContainerResultNode
 {
   /**
@@ -402,73 +409,12 @@ interface nsINavHistoryQueryResultNode : nsINavHistoryContainerResultNode
    * Only valid for RESULT_TYPE_QUERY nodes.
    */
   readonly attribute nsINavHistoryQueryOptions queryOptions;
-};
-
-/**
- *  Allows clients of the HistoryResult to define domain specific handling 
- *  of specific nsITreeView methods that the HistoryResult does not implement.
- *
- *  @see nsINavHistoryResult for where this fits in
- */
-[scriptable, uuid(b34d5ca4-ce8e-49a6-9201-a59ae2128d2c)]
-interface nsINavHistoryResultViewObserver : nsISupports
-{
-  const long DROP_BEFORE = -1;
-  const long DROP_ON = 0;
-  const long DROP_AFTER = 1;
-  /**
-   * Methods used by the drag feedback code to determine if a drag is allowable at
-   * the current location. To get the behavior where drops are only allowed on
-   * items, such as the mailNews folder pane, always return false whe
-   * the orientation is not DROP_ON. Implementors should not change the content of
-   * the observer list!
-   */
-  boolean canDrop(in long index, in long orientation);
 
   /**
-   * Called when the user drops something on this view. The |orientation| param
-   * specifies before/on/after the given |row|.
+   * For both simple folder nodes and simple-folder-query nodes, this is set
+   * to the concrete itemId of the folder. Otherwise, this is set to -1.
    */
-  void onDrop(in long row, in long orientation);
-
-  /** 
-   * Called when an item is opened or closed. 
-   */
-  void onToggleOpenState (in long index);
-
-  /** 
- * Called when a header is clicked.
-   */
-  void onCycleHeader(in nsITreeColumn column);
-
-  /**
-   * Called when a cell in a non-selectable cycling column (e.g. 
-   * unread/flag/etc.) is clicked.
-   */
-  void onCycleCell(in long row, in nsITreeColumn column);
-
-  /** 
-   * Called when selection in the tree changes
-   */
-  void onSelectionChanged();
-
-  /**
-   * A command API that can be used to invoke commands on the selection.  
-   * The tree will automatically invoke this method when certain keys 
-   * are pressed.  For example, when the DEL key is pressed, performAction 
-   * will be called with the "delete" string. 
-   */
-  void onPerformAction(in wstring action);
-
-  /**
-   * A command API that can be used to invoke commands on a specific row.
-   */
-  void onPerformActionOnRow(in wstring action, in long row);
-
-  /**
-   * A command API that can be used to invoke commands on a specific cell.
-   */
-  void onPerformActionOnCell(in wstring action, in long row, in nsITreeColumn column);
+  readonly attribute long long folderItemId;
 };
 
 
@@ -479,27 +425,42 @@ interface nsINavHistoryResultViewObserver : nsISupports
  *
  * @see nsINavHistoryResult for where this fits in
  */
-[scriptable, uuid(f208e54c-834f-4a6c-bd4d-a476015bc139)]
+[scriptable, uuid(e60f4429-3787-45c8-a8c0-18ef52621bbf)]
 interface nsINavHistoryResultViewer : nsISupports
 {
   /**
-   * Called when 'item' is inserted into 'parent' at index 'newIndex'. The item
-   * previously at index (if any) and everything below it will have been
-   * shifted down by one. The item may be a container or a leaf.
+   * Called when 'aItem' is inserted into 'aParent' at index 'aNewIndex'.
+   * The item previously at index (if any) and everything below it will have
+   * been shifted down by one. The item may be a container or a leaf.
    */
-  void itemInserted(in nsINavHistoryContainerResultNode parent,
-                    in nsINavHistoryResultNode item,
-                    in unsigned long newIndex);
+  void itemInserted(in nsINavHistoryContainerResultNode aParent,
+                    in nsINavHistoryResultNode aItem,
+                    in unsigned long aNewIndex);
 
   /**
-   * Called whan 'item' is removed from 'parent' at 'oldIndex'. The item may be
-   * a container or a leaf. This function will be called after the item has
-   * been removed from its parent list, but before anything else (including
+   * Called whan 'aItem' is removed from 'aParent' at 'aOldIndex'. The item
+   * may be a container or a leaf. This function will be called after the item
+   * has been removed from its parent list, but before anything else (including
    * NULLing out the item's parent) has happened.
    */
-  void itemRemoved(in nsINavHistoryContainerResultNode parent,
-                   in nsINavHistoryResultNode item,
-                   in unsigned long oldIndex);
+  void itemRemoved(in nsINavHistoryContainerResultNode aParent,
+                   in nsINavHistoryResultNode aItem,
+                   in unsigned long aOldIndex);
+
+  /**
+   * Called whan 'aItem' is moved from 'aOldParent' at 'aOldIndex' to
+   * aNewParent at aNewIndex. The item may be a container or a leaf.
+   *
+   * XXX: at the moment, this method is called only when an item is moved
+   * within the same container. When an item is moved between containers,
+   * a new node is created for the item, and the itemRemoved/itemAdded methods
+   * are used.
+   */
+  void itemMoved(in nsINavHistoryResultNode aItem,
+                 in nsINavHistoryContainerResultNode aOldParent,
+                 in unsigned long aOldIndex,
+                 in nsINavHistoryContainerResultNode aNewParent,
+                 in unsigned long aNewIndex);
 
   /**
    * Called when an item has been changed and should be repainted. This only
@@ -564,21 +525,6 @@ interface nsINavHistoryResultViewer : nsISupports
    * is being deallocated. This should not be set by other code.
    */
   attribute nsINavHistoryResult result;
-
-  /**
-   * Adds the specified view observer to the view. In ownsWeak is false, then
-   * the result will hold a strong reference to the observer. If ownsWeak is
-   * true, then the observer must implement nsISupportsWeakReference, and the
-   * result will hold a weak reference to the observer.
-   */
-  void addViewObserver(in nsINavHistoryResultViewObserver observer,
-                       in boolean ownsWeak);
-
-  /**
-   * Removes the specified view observer from this view. This observer must
-   * have been previously registered using addViewObserver.
-   */
-  void removeViewObserver(in nsINavHistoryResultViewObserver observer);
 };
 
 
@@ -591,7 +537,7 @@ interface nsINavHistoryResultViewer : nsISupports
  * object, attach it to a result, never attach it to a tree, and forget about
  * it, it will leak!
  */
-[scriptable, uuid(ecd6ad22-8eb0-4824-8a57-5edad9a08ae6)]
+[scriptable, uuid(e0ce87df-8b77-407b-a52b-7510eab14fb5)]
 interface nsINavHistoryResultTreeViewer : nsINavHistoryResultViewer
 {
   /**
@@ -608,14 +554,6 @@ interface nsINavHistoryResultTreeViewer : nsINavHistoryResultViewer
    * refresh.
    */
   attribute boolean collapseDuplicates;
-
-  /**
-   * This tells you how many items are in the flattened list of results, i.e.
-   * how many rows are in this tree right now. The tree adaptor will also
-   * QI to nsITreeView, and this will be the same as nsITreeView.rowCount.
-   * This is only valid when a tree is attached, the result will be 0 otherwise.
-   */
-  readonly attribute unsigned long flatItemCount;
 
   /**
    * This allows you to get at the real node for a given row index. This is
@@ -649,21 +587,13 @@ interface nsINavHistoryResultTreeViewer : nsINavHistoryResultViewer
  * represents the model where the data is stored. External components
  * provide the view and controller which define how the data looks and how
  * interaction happens.
- *                           +-- nsINavHistoryResultViewObserver
- *                           |
  *   [RESULT]----->[viewer]----->[controller]
  *             |
  *             +-- nsINavHistoryResultViewer
  *
  * The result indicates to the view when something changes through the
- * nsINavHistoryResultViewer interface. Viewers register themselves through
- * the nsINavHistoryResult.RegisterViewer. The viewer interface would then tell
- * the actual view object what to do. A nsINavHistoryResultTreeViewer is
- * provided which provides pre-packaged interaction with a nsITreeBoxObject.
- * Other views will need to provide their own viewer interfaces.
- *
- * The viewer provides notifications to the controller when view events occur
- * through the nsINavHistoryResultViewObserver interface.
+ * nsINavHistoryResultViewer interface. The viewer is set through
+ * the nsINavHistoryResult.viewer property.
  */
 
 [scriptable, uuid(d1562f6f-8d5a-4042-8524-72f747a51b18)]
@@ -1000,8 +930,10 @@ interface nsINavHistoryQueryOptions : nsISupports
   const unsigned short SORT_BY_LASTMODIFIED_DESCENDING = 14;
   const unsigned short SORT_BY_COUNT_ASCENDING = 15;
   const unsigned short SORT_BY_COUNT_DESCENDING = 16;
-  const unsigned short SORT_BY_ANNOTATION_ASCENDING = 17;
-  const unsigned short SORT_BY_ANNOTATION_DESCENDING = 18;
+  const unsigned short SORT_BY_TAGS_ASCENDING = 17;
+  const unsigned short SORT_BY_TAGS_DESCENDING = 18;
+  const unsigned short SORT_BY_ANNOTATION_ASCENDING = 19;
+  const unsigned short SORT_BY_ANNOTATION_DESCENDING = 20;
 
 
   /**
@@ -1152,7 +1084,7 @@ interface nsINavHistoryQueryOptions : nsISupports
   nsINavHistoryQueryOptions clone();
 };
 
-[scriptable, uuid(c5846d2c-5340-4cfb-9c0d-c15feca939ce)]
+[scriptable, uuid(a9bea2db-0a3e-4895-9ccc-24bac41a0674)]
 interface nsINavHistoryService : nsISupports
 {
   /**
@@ -1163,7 +1095,9 @@ interface nsINavHistoryService : nsISupports
 
   /**
    * This transition type means that the user typed the page's URL in the
-   * URL bar.
+   * URL bar or selected it from URL bar autocomplete results, clicked on
+   * it from a history query (from the History sidebar, History menu, 
+   * or history query in the personal toolbar or Places organizer.
    */
   const unsigned long TRANSITION_TYPED = 2;
 
@@ -1257,9 +1191,8 @@ interface nsINavHistoryService : nsISupports
    *
    * @param aURI             Visited page
    * @param aTime            Time page was visited (microseconds)
-   * @param aReferringVisit  The ID of the visit that generated this one. Use 0
-   *                         for no referrer. This must be a valid visit already
-   *                         in the DB or 0.
+   * @param aReferringURI    The URI of the visit that generated this one. Use
+   *                         null for no referrer.
    * @param aTranstitionType Type of transition: one of TRANSITION_* above
    * @param aIsRedirect      True if the given visit redirects to somewhere else.
    *                         (ie you will create an visit out of here that is a
@@ -1272,7 +1205,7 @@ interface nsINavHistoryService : nsISupports
    *          valid for adding to history (canAddURI = false).
    */
   long long addVisit(in nsIURI aURI, in PRTime aTime,
-                     in long long aReferringVisit, in long aTransitionType,
+                     in nsIURI aReferringURI, in long aTransitionType,
                      in boolean aIsRedirect, in long long aSessionID);
 
   /**

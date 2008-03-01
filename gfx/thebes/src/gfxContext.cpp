@@ -386,6 +386,9 @@ gfxContext::UserToDevice(const gfxRect& rect) const
 PRBool
 gfxContext::UserToDevicePixelSnapped(gfxRect& rect, PRBool ignoreScale) const
 {
+    if (GetFlags() & FLAG_DISABLE_SNAPPING)
+        return PR_FALSE;
+
     // if we're not at 1.0 scale, don't snap, unless we're
     // ignoring the scale.  If we're not -just- a scale,
     // never snap.
@@ -738,6 +741,14 @@ gfxContext::PointInStroke(const gfxPoint& pt)
 }
 
 gfxRect
+gfxContext::GetUserPathExtent()
+{
+    double xmin, ymin, xmax, ymax;
+    cairo_path_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
+    return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
+}
+
+gfxRect
 gfxContext::GetUserFillExtent()
 {
     double xmin, ymin, xmax, ymax;
@@ -760,4 +771,10 @@ gfxContext::GetFlattenedPath()
         new gfxFlattenedPath(cairo_copy_path_flat(mCairo));
     NS_IF_ADDREF(path);
     return path;
+}
+
+PRBool
+gfxContext::HasError()
+{
+     return cairo_status(mCairo) != CAIRO_STATUS_SUCCESS;
 }

@@ -1119,8 +1119,8 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
 
   // set it all up
   // XXX is windowless different?
-  window.x = origin.x;
-  window.y = origin.y;
+  window.x = presContext->AppUnitsToDevPixels(origin.x);
+  window.y = presContext->AppUnitsToDevPixels(origin.y);
   window.width = presContext->AppUnitsToDevPixels(mRect.width);
   window.height= presContext->AppUnitsToDevPixels(mRect.height);
   window.clipRect.bottom = 0; window.clipRect.top = 0;
@@ -1239,7 +1239,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
        * to tell the plugin where it is, we dispatch a NPWindow through
        * |HandleEvent| to tell the plugin when its window moved
        */
-      nsRefPtr<gfxContext> ctx = (gfxContext*)aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+      nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
       gfxMatrix ctxMatrix = ctx->CurrentMatrix();
       if (ctxMatrix.HasNonTranslation()) {
         // soo; in the future, we should be able to render
@@ -1654,10 +1654,13 @@ nsObjectFrame::NotifyContentObjectWrapper()
   if (NS_FAILED(rv))
     return;
 
-  // Abuse the scriptable helper to trigger prototype setup for the
-  // wrapper for mContent so that this plugin becomes part of the DOM
-  // object.
-  helper->PostCreate(wrapper, cx, obj);
+  nsCxPusher cxPusher;
+  if (cxPusher.Push(mContent)) {
+    // Abuse the scriptable helper to trigger prototype setup for the
+    // wrapper for mContent so that this plugin becomes part of the DOM
+    // object.
+    helper->PostCreate(wrapper, cx, obj);
+  }
 }
 
 // static
@@ -2024,7 +2027,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(nsPluginRect *invalidRect)
 {
   nsresult rv = NS_ERROR_FAILURE;
 
-  if (mOwner && invalidRect) {
+  if (mOwner && invalidRect && mWidgetVisible) {
     //no reference count on view
     nsIView* view = mOwner->GetView();
 

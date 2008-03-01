@@ -656,16 +656,14 @@ nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *
 NS_IMETHODIMP
 nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
 {
-  NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetNearestViewportElement");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return nsSVGUtils::GetNearestViewportElement(this, aNearestViewportElement);
 }
 
 /* readonly attribute nsIDOMSVGElement farthestViewportElement; */
 NS_IMETHODIMP
 nsSVGSVGElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetFarthestViewportElement");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return nsSVGUtils::GetFarthestViewportElement(this, aFarthestViewportElement);
 }
 
 /* nsIDOMSVGRect getBBox (); */
@@ -676,22 +674,24 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
 
-  if (frame) {
-    nsISVGChildFrame* svgframe;
-    CallQueryInterface(frame, &svgframe);
-    if (svgframe) {
-      svgframe->SetMatrixPropagation(PR_FALSE);
-      svgframe->NotifyCanvasTMChanged(PR_TRUE);
-      nsresult rv = svgframe->GetBBox(_retval);
-      svgframe->SetMatrixPropagation(PR_TRUE);
-      svgframe->NotifyCanvasTMChanged(PR_TRUE);
-      return rv;
-    } else {
-      // XXX: outer svg
-      return NS_ERROR_NOT_IMPLEMENTED;
-    }
+  if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
+    return NS_ERROR_FAILURE;
+
+  nsISVGChildFrame* svgframe;
+  CallQueryInterface(frame, &svgframe);
+  if (svgframe) {
+    svgframe->SetMatrixPropagation(PR_FALSE);
+    svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+    nsresult rv = svgframe->GetBBox(_retval);
+    svgframe->SetMatrixPropagation(PR_TRUE);
+    svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+    return rv;
+  } else {
+    // XXX: outer svg
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
-  return NS_ERROR_FAILURE;
 }
 
 /* nsIDOMSVGMatrix getCTM (); */
@@ -700,6 +700,12 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
 {
   nsresult rv;
   *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
 
   // first try to get the "screen" CTM of our nearest SVG ancestor
 
@@ -757,8 +763,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
   if (!ancestorCTM) {
     // we didn't find an SVG ancestor
     float s=1, x=0, y=0;
-    if (ownerDoc &&
-        ownerDoc->GetRootContent() == static_cast<nsIContent*>(this)) {
+    if (IsRoot()) {
       // we're the root element. get our currentScale and currentTranslate vals
       mCurrentScale->GetValue(&s);
       mCurrentTranslate->GetX(&x);
@@ -818,6 +823,12 @@ nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
   nsresult rv;
   *_retval = nsnull;
 
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
   // first try to get the "screen" CTM of our nearest SVG ancestor
 
   nsBindingManager *bindingManager = nsnull;
@@ -867,8 +878,7 @@ nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
   if (!ancestorScreenCTM) {
     // we didn't find an SVG ancestor
     float s=1, x=0, y=0;
-    if (ownerDoc &&
-        ownerDoc->GetRootContent() == static_cast<nsIContent*>(this)) {
+    if (IsRoot()) {
       // we're the root element. get our currentScale and currentTranslate vals
       mCurrentScale->GetValue(&s);
       mCurrentTranslate->GetX(&x);
@@ -996,8 +1006,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     NS_ASSERTION(presShell, "no presShell");
-    if (presShell &&
-        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+    if (presShell && IsRoot()) {
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, NS_SVG_ZOOM, 0);
       event.eventStructType = NS_SVGZOOM_EVENT;
@@ -1021,8 +1030,7 @@ nsSVGSVGElement::SetCurrentTranslate(float x, float y)
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     NS_ASSERTION(presShell, "no presShell");
-    if (presShell &&
-        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+    if (presShell && IsRoot()) {
       nsEventStatus status = nsEventStatus_eIgnore;
       nsEvent event(PR_TRUE, NS_SVG_SCROLL);
       event.eventStructType = NS_SVG_EVENT;
@@ -1160,8 +1168,7 @@ nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
   // dispatch an SVGZoom or SVGScroll DOM event before repainting
   nsCOMPtr<nsIDOMSVGNumber> n = do_QueryInterface(observable);
   if (n && n==mCurrentScale) {
-    if (mDispatchEvent &&
-        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+    if (mDispatchEvent && IsRoot()) {
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, NS_SVG_ZOOM, 0);
       event.eventStructType = NS_SVGZOOM_EVENT;
@@ -1174,8 +1181,7 @@ nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
   else {
     nsCOMPtr<nsIDOMSVGPoint> p = do_QueryInterface(observable);
     if (p && p==mCurrentTranslate) {
-      if (mDispatchEvent &&
-          doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+      if (mDispatchEvent && IsRoot()) {
         nsEventStatus status = nsEventStatus_eIgnore;
         nsEvent event(PR_TRUE, NS_SVG_SCROLL);
         event.eventStructType = NS_SVG_EVENT;

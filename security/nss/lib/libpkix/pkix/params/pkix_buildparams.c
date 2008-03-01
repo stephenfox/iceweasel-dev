@@ -243,6 +243,8 @@ pkix_BuildParams_RegisterSelf(void *plContext)
         PKIX_ENTER(BUILDPARAMS, "pkix_BuildParams_RegisterSelf");
 
         entry.description = "BuildParams";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_BuildParams);
         entry.destructor = pkix_BuildParams_Destroy;
         entry.equalsFunction = pkix_BuildParams_Equals;
         entry.hashcodeFunction = pkix_BuildParams_Hashcode;
@@ -283,8 +285,11 @@ PKIX_BuildParams_Create(
         params->procParams = procParams;
 
         *pParams = params;
+        params = NULL;
 
 cleanup:
+
+        PKIX_DECREF(params);
 
         PKIX_RETURN(BUILDPARAMS);
 
@@ -307,5 +312,6 @@ PKIX_BuildParams_GetProcessingParams(
 
         *pProcParams = buildParams->procParams;
 
+cleanup:
         PKIX_RETURN(BUILDPARAMS);
 }

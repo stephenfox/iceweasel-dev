@@ -532,9 +532,11 @@ NS_IMETHODIMP nsFrame::DidSetStyleContext()
 /* virtual */ nsMargin
 nsIFrame::GetUsedMargin() const
 {
-  NS_ASSERTION(!NS_SUBTREE_DIRTY(this) ||
+  NS_ASSERTION(nsLayoutUtils::sDisableGetUsedXAssertions ||
+               !NS_SUBTREE_DIRTY(this) ||
                (GetStateBits() & NS_FRAME_IN_REFLOW),
-               "cannot call on a dirty frame not currently being reflowed");
+               "cannot call GetUsedMargin on a dirty frame not currently "
+               "being reflowed");
 
   nsMargin margin(0, 0, 0, 0);
   if (!GetStyleMargin()->GetMargin(margin)) {
@@ -551,9 +553,11 @@ nsIFrame::GetUsedMargin() const
 /* virtual */ nsMargin
 nsIFrame::GetUsedBorder() const
 {
-  NS_ASSERTION(!NS_SUBTREE_DIRTY(this) ||
+  NS_ASSERTION(nsLayoutUtils::sDisableGetUsedXAssertions ||
+               !NS_SUBTREE_DIRTY(this) ||
                (GetStateBits() & NS_FRAME_IN_REFLOW),
-               "cannot call on a dirty frame not currently being reflowed");
+               "cannot call GetUsedBorder on a dirty frame not currently "
+               "being reflowed");
 
   // Theme methods don't use const-ness.
   nsIFrame *mutable_this = const_cast<nsIFrame*>(this);
@@ -578,9 +582,11 @@ nsIFrame::GetUsedBorder() const
 /* virtual */ nsMargin
 nsIFrame::GetUsedPadding() const
 {
-  NS_ASSERTION(!NS_SUBTREE_DIRTY(this) ||
+  NS_ASSERTION(nsLayoutUtils::sDisableGetUsedXAssertions ||
+               !NS_SUBTREE_DIRTY(this) ||
                (GetStateBits() & NS_FRAME_IN_REFLOW),
-               "cannot call on a dirty frame not currently being reflowed");
+               "cannot call GetUsedPadding on a dirty frame not currently "
+               "being reflowed");
 
   nsMargin padding(0, 0, 0, 0);
 
@@ -778,7 +784,7 @@ void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
   gfxRGBA c(color);
   c.a = .5;
 
-  nsRefPtr<gfxContext> ctx = (gfxContext*)aCtx->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+  nsRefPtr<gfxContext> ctx = aCtx->ThebesContext();
   ctx->SetColor(c);
 
   nsRect rect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
@@ -2817,6 +2823,7 @@ nsIFrame::InlineMinWidthData::ForceBreak(nsIRenderingContext *aRenderingContext)
   }
   floats.Clear();
   trailingTextFrame = nsnull;
+  skipWhitespace = PR_TRUE;
 }
 
 void
@@ -2880,6 +2887,7 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext
   currentLine = NSCoordSaturatingSubtract(currentLine, trailingWhitespace, nscoord_MAX);
   prevLines = PR_MAX(prevLines, currentLine);
   currentLine = trailingWhitespace = 0;
+  skipWhitespace = PR_TRUE;
 }
 
 static void
@@ -3287,6 +3295,22 @@ NS_IMETHODIMP nsFrame::SetNextInFlow(nsIFrame*)
 {
   NS_ERROR("not splittable");
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsIFrame* nsIFrame::GetTailContinuation()
+{
+  nsIFrame* frame = this;
+  while (frame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
+    frame = frame->GetPrevContinuation();
+    NS_ASSERTION(frame, "first continuation can't be overflow container");
+  }
+  for (nsIFrame* next = frame->GetNextContinuation();
+       next && !(next->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER);
+       next = frame->GetNextContinuation())  {
+    frame = next;
+  }
+  NS_POSTCONDITION(frame, "illegal state in continuation chain.");
+  return frame;
 }
 
 nsIView*
@@ -5633,7 +5657,7 @@ nsIFrame::UnsetProperty(nsIAtom* aPropName, nsresult* aStatus) const
                                                           aStatus);
 }
 
-/* virtual */ const nsStyleStruct*
+/* virtual */ const void*
 nsFrame::GetStyleDataExternal(nsStyleStructID aSID) const
 {
   NS_ASSERTION(mStyleContext, "unexpected null pointer");

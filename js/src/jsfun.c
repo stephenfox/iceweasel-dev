@@ -278,7 +278,7 @@ js_GetArgsObject(JSContext *cx, JSStackFrame *fp)
 static JSBool
 args_enumerate(JSContext *cx, JSObject *obj);
 
-JSBool
+JS_FRIEND_API(JSBool)
 js_PutArgsObject(JSContext *cx, JSStackFrame *fp)
 {
     JSObject *argsobj;
@@ -589,7 +589,6 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp, JSObject *parent)
     callobj = fp->callobj;
     if (callobj)
         return callobj;
-    JS_ASSERT(fp->fun);
 
     /* The default call parent is its function's parent (static link). */
     if (!parent) {
@@ -616,7 +615,7 @@ js_GetCallObject(JSContext *cx, JSStackFrame *fp, JSObject *parent)
 static JSBool
 call_enumerate(JSContext *cx, JSObject *obj);
 
-JSBool
+JS_FRIEND_API(JSBool)
 js_PutCallObject(JSContext *cx, JSStackFrame *fp)
 {
     JSObject *callobj;
@@ -807,12 +806,11 @@ call_enumerate(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-call_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
+call_resolve(JSContext *cx, JSObject *obj, jsval idval, uintN flags,
              JSObject **objp)
 {
     JSStackFrame *fp;
-    JSString *str;
-    JSAtom *atom;
+    jsid id;
     JSLocalKind localKind;
     JSPropertyOp getter, setter;
     uintN slot, attrs;
@@ -824,15 +822,13 @@ call_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     JS_ASSERT(fp->fun);
     JS_ASSERT(GET_FUNCTION_PRIVATE(cx, fp->callee) == fp->fun);
 
-    if (!JSVAL_IS_STRING(id))
+    if (!JSVAL_IS_STRING(idval))
         return JS_TRUE;
 
-    str = JSVAL_TO_STRING(id);
-    atom = js_AtomizeString(cx, str, 0);
-    if (!atom)
+    if (!js_ValueToStringId(cx, idval, &id))
         return JS_FALSE;
 
-    localKind = js_LookupLocal(cx, fp->fun, atom, &slot);
+    localKind = js_LookupLocal(cx, fp->fun, JSID_TO_ATOM(id), &slot);
     if (localKind != JSLOCAL_NONE) {
         if (localKind == JSLOCAL_ARG) {
             JS_ASSERT(slot < fp->fun->nargs);
@@ -850,32 +846,28 @@ call_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                     ? JSPROP_PERMANENT | JSPROP_READONLY
                     : JSPROP_PERMANENT;
         }
-        if (!js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(atom), vp[slot],
-                                     getter, setter, attrs,
-                                     SPROP_HAS_SHORTID, (int) slot, NULL)) {
+        if (!js_DefineNativeProperty(cx, obj, id, vp[slot], getter, setter,
+                                     attrs, SPROP_HAS_SHORTID, (int) slot,
+                                     NULL)) {
             return JS_FALSE;
         }
         *objp = obj;
         return JS_TRUE;
     }
 
-    if (!(flags & JSRESOLVE_ASSIGNING)) {
-        /*
-         * Resolve arguments so that we never store a particular Call object's
-         * arguments object reference in a Call prototype's |arguments| slot.
-         */
-        atom = cx->runtime->atomState.argumentsAtom;
-        if (id == ATOM_KEY(atom)) {
-            if (!js_DefineNativeProperty(cx, obj,
-                                         ATOM_TO_JSID(atom), JSVAL_VOID,
-                                         NULL, NULL, JSPROP_PERMANENT,
-                                         SPROP_HAS_SHORTID, CALL_ARGUMENTS,
-                                         NULL)) {
-                return JS_FALSE;
-            }
-            *objp = obj;
-            return JS_TRUE;
+    /*
+     * Resolve arguments so that we never store a particular Call object's
+     * arguments object reference in a Call prototype's |arguments| slot.
+     */
+    if (id == ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom)) {
+        if (!js_DefineNativeProperty(cx, obj, id, JSVAL_VOID,
+                                     NULL, NULL, JSPROP_PERMANENT,
+                                     SPROP_HAS_SHORTID, CALL_ARGUMENTS,
+                                     NULL)) {
+            return JS_FALSE;
         }
+        *objp = obj;
+        return JS_TRUE;
     }
     return JS_TRUE;
 }
@@ -895,7 +887,7 @@ call_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
     return JS_TRUE;
 }
 
-JSClass js_CallClass = {
+JS_FRIEND_DATA(JSClass) js_CallClass = {
     js_Call_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Call),
@@ -1091,46 +1083,20 @@ fun_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
      */
     atom = cx->runtime->atomState.classPrototypeAtom;
     if (id == ATOM_KEY(atom)) {
-        JSObject *proto, *parentProto;
-        jsval pval;
-
-        proto = parentProto = NULL;
-        if (fun->object != obj &&
-            (!cx->runtime->findObjectPrincipals ||
-             cx->runtime->findObjectPrincipals(cx, obj) ==
-             cx->runtime->findObjectPrincipals(cx, fun->object))) {
-            /*
-             * Clone of a function where the clone and the object owning fun
-             * appear to be in the same trust domain: make the cloned function
-             * object's 'prototype' property value have the same class as the
-             * clone-parent's 'prototype' value.
-             */
-            if (!OBJ_GET_PROPERTY(cx, fun->object, ATOM_TO_JSID(atom), &pval))
-                return JS_FALSE;
-            if (!JSVAL_IS_PRIMITIVE(pval)) {
-                /*
-                 * We are about to allocate a new object, so hack the newborn
-                 * root until then to protect pval in case it is figuratively
-                 * up in the air, with no strong refs protecting it.
-                 */
-                cx->weakRoots.newborn[GCX_OBJECT] = JSVAL_TO_GCTHING(pval);
-                parentProto = JSVAL_TO_OBJECT(pval);
-            }
-        }
+        JSObject *proto;
 
         /*
          * Beware of the wacky case of a user function named Object -- trying
          * to find a prototype for that will recur back here _ad perniciem_.
          */
-        if (!parentProto && fun->atom == CLASS_ATOM(cx, Object))
+        if (fun->atom == CLASS_ATOM(cx, Object))
             return JS_TRUE;
 
         /*
-         * If resolving "prototype" in a clone, clone the parent's prototype.
-         * Pass the constructor's (obj's) parent as the prototype parent, to
-         * avoid defaulting to parentProto.constructor.__parent__.
+         * Make the prototype object to have the same parent as the function
+         * object itself.
          */
-        proto = js_NewObject(cx, &js_ObjectClass, parentProto,
+        proto = js_NewObject(cx, &js_ObjectClass, NULL,
                              OBJ_GET_PARENT(cx, obj));
         if (!proto)
             return JS_FALSE;
@@ -1218,6 +1184,8 @@ fun_xdrObject(JSXDRState *xdr, JSObject **objp)
         fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, NULL, NULL);
         if (!fun)
             return JS_FALSE;
+        STOBJ_SET_PARENT(fun->object, NULL);
+        STOBJ_SET_PROTO(fun->object, NULL);
 #ifdef __GNUC__
         nvars = nargs = 0;   /* quell GCC uninitialized warning */
 #endif
@@ -1409,8 +1377,7 @@ fun_reserveSlots(JSContext *cx, JSObject *obj)
 JS_FRIEND_DATA(JSClass) js_FunctionClass = {
     js_Function_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE | JSCLASS_HAS_RESERVED_SLOTS(2) |
-    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Function) |
-    JSCLASS_FIXED_BINDING,
+    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
     JS_PropertyStub,  JS_PropertyStub,
     fun_getProperty,  JS_PropertyStub,
     fun_enumerate,    (JSResolveOp)fun_resolve,
@@ -1753,9 +1720,14 @@ Function(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JS_ASSERT(!fp->script && fp->fun && fp->fun->u.n.native == Function);
     caller = JS_GetScriptedCaller(cx, fp);
     if (caller) {
-        filename = caller->script->filename;
-        lineno = js_PCToLineNumber(cx, caller->script, caller->pc);
         principals = JS_EvalFramePrincipals(cx, fp, caller);
+        if (principals == caller->script->principals) {
+            filename = caller->script->filename;
+            lineno = js_PCToLineNumber(cx, caller->script, caller->pc);
+        } else {
+            filename = principals->codebase;
+            lineno = 0;
+        }
     } else {
         filename = NULL;
         lineno = 0;
@@ -2154,7 +2126,7 @@ js_ValueToFunctionObject(JSContext *cx, jsval *vp, uintN flags)
 
     caller = JS_GetScriptedCaller(cx, cx->fp);
     if (caller) {
-        principals = caller->script->principals;
+        principals = JS_StackFramePrincipals(cx, caller);
     } else {
         /* No scripted caller, don't allow access. */
         principals = NULL;

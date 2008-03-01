@@ -34,7 +34,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: keydb.c,v 1.5 2007/09/25 01:14:23 nelson%bolyard.com Exp $ */
+/* $Id: keydb.c,v 1.9 2007/12/03 20:26:44 kaie%kuix.de Exp $ */
 
 #include "lowkeyi.h"
 #include "secasn1.h"
@@ -45,7 +45,6 @@
 #include "pcert.h"
 #include "mcom_db.h"
 #include "secerr.h"
-#include "nsslocks.h"
 
 #include "keydbi.h"
 #include "lgdb.h"
@@ -63,12 +62,14 @@
 /* Size of the global salt for key database */
 #define SALT_LENGTH     16
 
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
+
 const SEC_ASN1Template nsslowkey_EncryptedPrivateKeyInfoTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	0, NULL, sizeof(NSSLOWKEYEncryptedPrivateKeyInfo) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	offsetof(NSSLOWKEYEncryptedPrivateKeyInfo,algorithm),
-	SECOID_AlgorithmIDTemplate },
+	SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_OCTET_STRING,
 	offsetof(NSSLOWKEYEncryptedPrivateKeyInfo,encryptedData) },
     { 0 }
@@ -108,27 +109,6 @@ static int keydb_Del(NSSLOWKEYDBHandle *db, DBT *key, unsigned int flags);
 static int keydb_Seq(NSSLOWKEYDBHandle *db, DBT *key, DBT *data, 
 		     unsigned int flags);
 static void keydb_Close(NSSLOWKEYDBHandle *db);
-
-static void
-keydb_InitLocks(NSSLOWKEYDBHandle *handle) 
-{
-    if (handle->lock == NULL) {
-	nss_InitLock(&handle->lock, nssILockKeyDB);
-    }
-
-    return;
-}
-
-static void
-keydb_DestroyLocks(NSSLOWKEYDBHandle *handle)
-{
-    if (handle->lock != NULL) {
-	PZ_DestroyLock(handle->lock);
-	handle->lock = NULL;
-    }
-
-    return;
-}
 
 /*
  * format of key database entries for version 3 of database:
@@ -978,8 +958,8 @@ nsslowkey_NewHandle(DB *dbHandle)
     handle->updatedb = NULL;
     handle->db = dbHandle;
     handle->ref = 1;
+    handle->lock = PZ_NewLock(nssILockKeyDB);
 
-    keydb_InitLocks(handle);
     return handle;
 }
 
@@ -1070,7 +1050,9 @@ nsslowkey_CloseKeyDB(NSSLOWKEYDBHandle *handle)
 	if (handle->global_salt) {
 	    SECITEM_FreeItem(handle->global_salt,PR_TRUE);
 	}
-	keydb_DestroyLocks(handle);
+	if (handle->lock != NULL) {
+	    PZ_DestroyLock(handle->lock);
+	}
 	    
 	PORT_Free(handle);
     }
@@ -1256,9 +1238,9 @@ typedef struct LGEncryptedDataInfoStr LGEncryptedDataInfo;
 const SEC_ASN1Template lg_EncryptedDataInfoTemplate[] = {
     { SEC_ASN1_SEQUENCE,
         0, NULL, sizeof(LGEncryptedDataInfo) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
         offsetof(LGEncryptedDataInfo,algorithm),
-        SECOID_AlgorithmIDTemplate },
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_OCTET_STRING,
         offsetof(LGEncryptedDataInfo,encryptedData) },
     { 0 }
@@ -1418,7 +1400,7 @@ loser:
     if (dbkey) {
  	sec_destroy_dbkey(dbkey);
     }
-    if (global_salt) {
+    if (global_salt && global_salt != &none) {
 	SECITEM_FreeItem(global_salt,PR_TRUE);
     }
     return rv;

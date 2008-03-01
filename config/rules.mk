@@ -117,6 +117,10 @@ ifdef EXTRA_DSO_LIBS
 EXTRA_DSO_LIBS	:= $(call EXPAND_MOZLIBNAME,$(EXTRA_DSO_LIBS))
 endif
 
+ifdef GQI_SRCS
+CPPSRCS += $(GQI_SRCS:.gqi=QI.cpp)
+endif
+
 #
 # Library rules
 #
@@ -1087,6 +1091,19 @@ ifdef NO_LD_ARCHIVE_FLAGS
 ifdef SHARED_LIBRARY_LIBS
 	@rm -f $(SUB_SHLOBJS)
 	@for lib in $(SHARED_LIBRARY_LIBS); do $(AR_EXTRACT) $${lib}; $(CLEANUP2); done
+ifeq ($(OS_ARCH),Darwin)
+	@echo Making symlinks to the original object files in the archive libraries $(SHARED_LIBRARY_LIBS)
+	@for lib in $(SHARED_LIBRARY_LIBS); do \
+		libdir=`echo $$lib|sed -e 's,/[^/]*\.a,,'`; \
+		ofiles=`$(AR_LIST) $${lib}`; \
+		for ofile in $$ofiles; do \
+			if [ -f $$libdir/$$ofile ]; then \
+				rm -f $$ofile; \
+				ln -s $$libdir/$$ofile $$ofile; \
+			fi; \
+		done; \
+	done
+endif
 endif # SHARED_LIBRARY_LIBS
 endif # NO_LD_ARCHIVE_FLAGS
 ifdef DTRACE_LIB_DEPENDENT
@@ -1122,17 +1139,6 @@ endif   # EMBED_MANIFEST_AT
 endif	# MSVC with manifest tool
 endif	# WINNT && !GCC
 ifeq ($(OS_ARCH),Darwin)
-	@for lib in $(SHARED_LIBRARY_LIBS); do \
-		libdir=`echo $$lib|sed -e 's,/[^/]*\.a,,'`; \
-		ofiles=`$(AR_LIST) $${lib}`; \
-		for ofile in $$ofiles; do \
-			if [ -f $$libdir/$$ofile ]; then \
-				rm -f $$ofile; \
-				ln -s $$libdir/$$ofile $$ofile; \
-			fi; \
-		done; \
-	done
-	@touch $(SHARED_LIBRARY)
 else # non-Darwin
 	@rm -f $(SUB_SHLOBJS)
 endif # Darwin
@@ -1185,6 +1191,9 @@ MAKE_DEPS_AUTO_CXX = $(MAKE_DEPS_AUTO)
 endif # COMPILER_DEPEND
 
 endif # MOZ_AUTO_DEPS
+
+%QI.cpp: %.gqi $(topsrcdir)/xpcom/base/gqi.py
+	$(PYTHON) $(topsrcdir)/xpcom/base/gqi.py $(INCLUDES) -I $(IDL_DIR) -o $@ -D $(MDDEPDIR)/$(@F).pp $<
 
 # Rules for building native targets must come first because of the host_ prefix
 host_%.$(OBJ_SUFFIX): %.c Makefile Makefile.in
@@ -1660,6 +1669,7 @@ ifdef EXTRA_PP_COMPONENTS
 libs:: $(EXTRA_PP_COMPONENTS)
 ifndef NO_DIST_INSTALL
 	$(EXIT_ON_ERROR) \
+	$(NSINSTALL) -D $(FINAL_TARGET)/components; \
 	for i in $^; do \
 	  dest=$(FINAL_TARGET)/components/`basename $$i`; \
 	  $(RM) -f $$dest; \
@@ -1683,6 +1693,7 @@ ifdef EXTRA_PP_JS_MODULES
 libs:: $(EXTRA_PP_JS_MODULES)
 ifndef NO_DIST_INSTALL
 	$(EXIT_ON_ERROR) \
+	$(NSINSTALL) -D $(FINAL_TARGET)/modules; \
 	for i in $^; do \
 	  dest=$(FINAL_TARGET)/modules/`basename $$i`; \
 	  $(RM) -f $$dest; \
@@ -2171,13 +2182,5 @@ documentation:
 	$(DOXYGEN) $(DEPTH)/config/doxygen.cfg
 
 check:: $(SUBMAKEFILES) $(MAKE_DIRS)
-	+$(LOOP_OVER_DIRS)
-	+$(LOOP_OVER_TOOL_DIRS)
-
-check-interactive:: $(SUBMAKEFILES) $(MAKE_DIRS)
-	+$(LOOP_OVER_DIRS)
-	+$(LOOP_OVER_TOOL_DIRS)
-
-check-one:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	+$(LOOP_OVER_DIRS)
 	+$(LOOP_OVER_TOOL_DIRS)

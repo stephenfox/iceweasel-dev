@@ -39,7 +39,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.43 2007/10/04 13:04:42 kaie%kuix.de Exp $
+ * $Id: ocsp.c,v 1.46 2007/12/19 20:14:18 alexei.volkov.bugs%sun.com Exp $
  */
 
 #include "prerror.h"
@@ -63,6 +63,7 @@
 #include "cryptohi.h"
 #include "ocsp.h"
 #include "ocspti.h"
+#include "ocspi.h"
 #include "genname.h"
 #include "certxutl.h"
 #include "pk11func.h"	/* for PK11_HashBuf */
@@ -72,6 +73,7 @@
 #define DEFAULT_OCSP_CACHE_SIZE 1000
 #define DEFAULT_MINIMUM_SECONDS_TO_NEXT_OCSP_FETCH_ATTEMPT 1*60*60L
 #define DEFAULT_MAXIMUM_SECONDS_TO_NEXT_OCSP_FETCH_ATTEMPT 24*60*60L
+#define DEFAULT_OSCP_TIMEOUT_SECONDS 60
 #define MICROSECONDS_PER_SECOND 1000000L
 
 typedef struct OCSPCacheItemStr OCSPCacheItem;
@@ -112,6 +114,7 @@ static struct OCSPGlobalStruct {
     PRInt32 maxCacheEntries;
     PRUint32 minimumSecondsToNextFetchAttempt;
     PRUint32 maximumSecondsToNextFetchAttempt;
+    PRUint32 timeoutSeconds;
     OCSPCacheData cache;
     SEC_OcspFailureMode ocspFailureMode;
 } OCSP_Global = { NULL, 
@@ -119,6 +122,7 @@ static struct OCSPGlobalStruct {
                   DEFAULT_OCSP_CACHE_SIZE, 
                   DEFAULT_MINIMUM_SECONDS_TO_NEXT_OCSP_FETCH_ATTEMPT,
                   DEFAULT_MAXIMUM_SECONDS_TO_NEXT_OCSP_FETCH_ATTEMPT,
+                  DEFAULT_OSCP_TIMEOUT_SECONDS,
                   {NULL, 0, NULL, NULL},
                   ocspMode_FailureIsVerificationFailure
                 };
@@ -836,6 +840,14 @@ CERT_OCSPCacheSettings(PRInt32 maxCacheEntries,
     return SECSuccess;
 }
 
+SECStatus
+CERT_SetOCSPTimeout(PRUint32 seconds)
+{
+    /* no locking, see bug 406120 */
+    OCSP_Global.timeoutSeconds = seconds;
+    return SECSuccess;
+}
+
 /* this function is called at NSS initialization time */
 SECStatus OCSP_InitGlobal(void)
 {
@@ -937,6 +949,15 @@ typedef struct ocspCheckingContextStr {
     CERTCertificate *defaultResponderCert;
 } ocspCheckingContext;
 
+SEC_ASN1_MKSUB(SEC_AnyTemplate);
+SEC_ASN1_MKSUB(SEC_IntegerTemplate);
+SEC_ASN1_MKSUB(SEC_NullTemplate);
+SEC_ASN1_MKSUB(SEC_OctetStringTemplate);
+SEC_ASN1_MKSUB(SEC_PointerToAnyTemplate);
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate);
+SEC_ASN1_MKSUB(SEC_SequenceOfAnyTemplate);
+SEC_ASN1_MKSUB(SEC_PointerToGeneralizedTimeTemplate)
+SEC_ASN1_MKSUB(SEC_PointerToEnumeratedTemplate)
 
 /*
  * Forward declarations of sub-types, so I can lay out the types in the
@@ -993,13 +1014,13 @@ const SEC_ASN1Template ocsp_TBSRequestTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	0, NULL, sizeof(ocspTBSRequest) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |		/* XXX DER_DEFAULT */
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
 	offsetof(ocspTBSRequest, version),
-	SEC_IntegerTemplate },
+	SEC_ASN1_SUB(SEC_IntegerTemplate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 1,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 1,
 	offsetof(ocspTBSRequest, derRequestorName),
-	SEC_PointerToAnyTemplate },
+	SEC_ASN1_SUB(SEC_PointerToAnyTemplate) },
     { SEC_ASN1_SEQUENCE_OF,
 	offsetof(ocspTBSRequest, requestList),
 	ocsp_SingleRequestTemplate },
@@ -1019,15 +1040,15 @@ const SEC_ASN1Template ocsp_TBSRequestTemplate[] = {
 static const SEC_ASN1Template ocsp_SignatureTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	0, NULL, sizeof(ocspSignature) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	offsetof(ocspSignature, signatureAlgorithm),
-	SECOID_AlgorithmIDTemplate },
+	SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_BIT_STRING,
 	offsetof(ocspSignature, signature) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
 	offsetof(ocspSignature, derCerts), 
-	SEC_SequenceOfAnyTemplate },
+	SEC_ASN1_SUB(SEC_SequenceOfAnyTemplate) },
     { 0 }
 };
 
@@ -1085,9 +1106,9 @@ const SEC_ASN1Template ocsp_SingleRequestTemplate[] = {
 const SEC_ASN1Template ocsp_CertIDTemplate[] = {
     { SEC_ASN1_SEQUENCE, 
 	0, NULL, sizeof(CERTOCSPCertID) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	offsetof(CERTOCSPCertID, hashAlgorithm),
-	SECOID_AlgorithmIDTemplate },
+	SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_OCTET_STRING,
 	offsetof(CERTOCSPCertID, issuerNameHash) },
     { SEC_ASN1_OCTET_STRING,
@@ -1161,15 +1182,15 @@ static const SEC_ASN1Template ocsp_BasicOCSPResponseTemplate[] = {
     { SEC_ASN1_POINTER,
 	offsetof(ocspBasicOCSPResponse, tbsResponseData),
 	ocsp_ResponseDataTemplate },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	offsetof(ocspBasicOCSPResponse, responseSignature.signatureAlgorithm),
-	SECOID_AlgorithmIDTemplate },
+	SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_BIT_STRING,
 	offsetof(ocspBasicOCSPResponse, responseSignature.signature) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
 	offsetof(ocspBasicOCSPResponse, responseSignature.derCerts),
-	SEC_SequenceOfAnyTemplate },
+	SEC_ASN1_SUB(SEC_SequenceOfAnyTemplate) },
     { 0 }
 };
 
@@ -1189,9 +1210,9 @@ const SEC_ASN1Template ocsp_ResponseDataTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	0, NULL, sizeof(ocspResponseData) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |		/* XXX DER_DEFAULT */
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
 	offsetof(ocspResponseData, version),
-	SEC_IntegerTemplate },
+	SEC_ASN1_SUB(SEC_IntegerTemplate) },
     { SEC_ASN1_ANY,
 	offsetof(ocspResponseData, derResponderID) },
     { SEC_ASN1_GENERALIZED_TIME,
@@ -1227,9 +1248,10 @@ static const SEC_ASN1Template ocsp_ResponderIDByNameTemplate[] = {
 	CERT_NameTemplate }
 };
 static const SEC_ASN1Template ocsp_ResponderIDByKeyTemplate[] = {
-    { SEC_ASN1_EXPLICIT | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 2,
+    { SEC_ASN1_EXPLICIT | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC |
+        SEC_ASN1_XTRN | 2,
 	offsetof(ocspResponderID, responderIDValue.keyHash),
-	SEC_OctetStringTemplate }
+	SEC_ASN1_SUB(SEC_OctetStringTemplate) }
 };
 static const SEC_ASN1Template ocsp_ResponderIDOtherTemplate[] = {
     { SEC_ASN1_ANY,
@@ -1238,8 +1260,8 @@ static const SEC_ASN1Template ocsp_ResponderIDOtherTemplate[] = {
 
 /* Decode choice container, but leave x509 name object encoded */
 static const SEC_ASN1Template ocsp_ResponderIDDerNameTemplate[] = {
-    { SEC_ASN1_EXPLICIT | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 1,
-	0, SEC_AnyTemplate }
+    { SEC_ASN1_EXPLICIT | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC |
+        SEC_ASN1_XTRN | 1, 0, SEC_ASN1_SUB(SEC_AnyTemplate) }
 };
 
 /*
@@ -1265,9 +1287,9 @@ const SEC_ASN1Template ocsp_SingleResponseTemplate[] = {
     { SEC_ASN1_GENERALIZED_TIME,
 	offsetof(CERTOCSPSingleResponse, thisUpdate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
 	offsetof(CERTOCSPSingleResponse, nextUpdate),
-	SEC_PointerToGeneralizedTimeTemplate },
+	SEC_ASN1_SUB(SEC_PointerToGeneralizedTimeTemplate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |
       SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 1,
 	offsetof(CERTOCSPSingleResponse, singleExtensions),
@@ -1289,9 +1311,9 @@ const SEC_ASN1Template ocsp_SingleResponseTemplate[] = {
  * now we list each choice as its own template:
  */
 static const SEC_ASN1Template ocsp_CertStatusGoodTemplate[] = {
-    { SEC_ASN1_POINTER | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+    { SEC_ASN1_POINTER | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 0,
 	offsetof(ocspCertStatus, certStatusInfo.goodInfo),
-	SEC_NullTemplate }
+	SEC_ASN1_SUB(SEC_NullTemplate) }
 };
 static const SEC_ASN1Template ocsp_CertStatusRevokedTemplate[] = {
     { SEC_ASN1_POINTER | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 1, 
@@ -1299,14 +1321,14 @@ static const SEC_ASN1Template ocsp_CertStatusRevokedTemplate[] = {
 	ocsp_RevokedInfoTemplate }
 };
 static const SEC_ASN1Template ocsp_CertStatusUnknownTemplate[] = {
-    { SEC_ASN1_POINTER | SEC_ASN1_CONTEXT_SPECIFIC | 2,
+    { SEC_ASN1_POINTER | SEC_ASN1_CONTEXT_SPECIFIC | SEC_ASN1_XTRN | 2,
 	offsetof(ocspCertStatus, certStatusInfo.unknownInfo),
-	SEC_NullTemplate }
+	SEC_ASN1_SUB(SEC_NullTemplate) }
 };
 static const SEC_ASN1Template ocsp_CertStatusOtherTemplate[] = {
-    { SEC_ASN1_POINTER,
+    { SEC_ASN1_POINTER | SEC_ASN1_XTRN,
 	offsetof(ocspCertStatus, certStatusInfo.otherInfo),
-	SEC_AnyTemplate }
+	SEC_ASN1_SUB(SEC_AnyTemplate) }
 };
 
 /*
@@ -1324,9 +1346,10 @@ const SEC_ASN1Template ocsp_RevokedInfoTemplate[] = {
     { SEC_ASN1_GENERALIZED_TIME,
 	offsetof(ocspRevokedInfo, revocationTime) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_EXPLICIT |
-      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 0,
+      SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC |
+        SEC_ASN1_XTRN | 0,
 	offsetof(ocspRevokedInfo, revocationReason), 
-	SEC_PointerToEnumeratedTemplate },
+	SEC_ASN1_SUB(SEC_PointerToEnumeratedTemplate) },
     { 0 }
 };
 
@@ -2093,8 +2116,8 @@ CERT_AddOCSPAcceptableResponses(CERTOCSPRequest *request,
     acceptableResponses[i] = NULL;
 
     rv = CERT_EncodeAndAddExtension(extHandle, SEC_OID_PKIX_OCSP_RESPONSE,
-				    &acceptableResponses, PR_FALSE,
-				    SEC_SequenceOfObjectIDTemplate);
+                                &acceptableResponses, PR_FALSE,
+                                SEC_ASN1_GET(SEC_SequenceOfObjectIDTemplate));
     if (rv != SECSuccess)
 	goto loser;
 
@@ -2565,7 +2588,7 @@ loser:
  *   Returns a pointer to ocspResponseData structure: decoded OCSP response
  *   data, and a pointer(tbsResponseDataDER) to its undecoded data DER.
  */
-static ocspResponseData *
+ocspResponseData *
 ocsp_GetResponseData(CERTOCSPResponse *response, SECItem **tbsResponseDataDER)
 {
     ocspBasicOCSPResponse *basic;
@@ -2598,7 +2621,7 @@ ocsp_GetResponseData(CERTOCSPResponse *response, SECItem **tbsResponseDataDER)
  * Much like the routine above, except it returns the response signature.
  * Again, no copy is done.
  */
-static ocspSignature *
+ocspSignature *
 ocsp_GetResponseSignature(CERTOCSPResponse *response)
 {
     ocspBasicOCSPResponse *basic;
@@ -3234,6 +3257,7 @@ fetchOcspHttpClientV1(PRArenaPool *arena,
        - the client will use blocking I/O
        - TryFcn will not return WOULD_BLOCK nor a poll descriptor
        - it's sufficient to call TryFcn once
+       No lock for accessing OCSP_Global.timeoutSeconds, bug 406120
     */
 
     if ((*hcv1->createFcn)(
@@ -3241,7 +3265,7 @@ fetchOcspHttpClientV1(PRArenaPool *arena,
             "http",
             path,
             "POST",
-            PR_TicksPerSecond() * 60,
+            PR_TicksPerSecond() * OCSP_Global.timeoutSeconds,
             &pRequestSession) != SECSuccess) {
         PORT_SetError(SEC_ERROR_OCSP_SERVER_ERROR);
         goto loser;
@@ -3549,85 +3573,19 @@ ocsp_matchcert(SECItem *certIndex,CERTCertificate *testCert)
     return PR_FALSE;
 }
 
-static PRBool
-ocsp_CertIsOCSPDefaultResponder(CERTCertDBHandle *handle, CERTCertificate *cert);
-
 static CERTCertificate *
 ocsp_CertGetDefaultResponder(CERTCertDBHandle *handle,CERTOCSPCertID *certID);
 
-/*
- * FUNCTION: CERT_VerifyOCSPResponseSignature
- *   Check the signature on an OCSP Response.  Will also perform a
- *   verification of the signer's certificate.  Note, however, that a
- *   successful verification does not make any statement about the
- *   signer's *authority* to provide status for the certificate(s),
- *   that must be checked individually for each certificate.
- * INPUTS:
- *   CERTOCSPResponse *response
- *     Pointer to response structure with signature to be checked.
- *   CERTCertDBHandle *handle
- *     Pointer to CERTCertDBHandle for certificate DB to use for verification.
- *   void *pwArg
- *     Pointer to argument for password prompting, if needed.
- * OUTPUTS:
- *   CERTCertificate **pSignerCert
- *     Pointer in which to store signer's certificate; only filled-in if
- *     non-null.
- * RETURN:
- *   Returns SECSuccess when signature is valid, anything else means invalid.
- *   Possible errors set:
- *	SEC_ERROR_OCSP_MALFORMED_RESPONSE - unknown type of ResponderID
- *	SEC_ERROR_INVALID_TIME - bad format of "ProducedAt" time
- *	SEC_ERROR_UNKNOWN_SIGNER - signer's cert could not be found
- *	SEC_ERROR_BAD_SIGNATURE - the signature did not verify
- *   Other errors are any of the many possible failures in cert verification
- *   (e.g. SEC_ERROR_REVOKED_CERTIFICATE, SEC_ERROR_UNTRUSTED_ISSUER) when
- *   verifying the signer's cert, or low-level problems (no memory, etc.)
- */
-SECStatus
-CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,	
-				 CERTCertDBHandle *handle, void *pwArg,
-				 CERTCertificate **pSignerCert,
-				 CERTCertificate *issuer)
+CERTCertificate *
+ocsp_GetSignerCertificate(CERTCertDBHandle *handle, ocspResponseData *tbsData,
+                          ocspSignature *signature, CERTCertificate *issuer)
 {
-    SECItem rawSignature;
-    SECItem *tbsResponseDataDER;
-    CERTCertificate *responder = NULL;
-    CERTCertificate *signerCert = NULL;
-    SECKEYPublicKey *signerKey = NULL;
     CERTCertificate **certs = NULL;
+    CERTCertificate *signerCert = NULL;
     SECStatus rv = SECFailure;
+    PRBool lookupByName = PR_TRUE;
+    void *certIndex = NULL;
     int certCount = 0;
-    PRBool lookupByName;
-    void *certIndex;
-    int64 producedAt;
-
-    /* ocsp_DecodeBasicOCSPResponse will fail if asn1 decoder is unable
-     * to properly decode tbsData (see the function and
-     * ocsp_BasicOCSPResponseTemplate). Thus, tbsData can not be
-     * equal to null */
-    ocspResponseData *tbsData = ocsp_GetResponseData(response,
-                                                     &tbsResponseDataDER);
-    ocspSignature *signature = ocsp_GetResponseSignature(response);
-
-    if (!signature) {
-        PORT_SetError(SEC_ERROR_OCSP_BAD_SIGNATURE);
-        return SECFailure;
-    }
-
-    /*
-     * If this signature has already gone through verification, just
-     * return the cached result.
-     */
-    if (signature->wasChecked) {
-	if (signature->status == SECSuccess) {
-	    if (pSignerCert != NULL)
-		*pSignerCert = CERT_DupCertificate(signature->cert);
-	} else {
-	    PORT_SetError(signature->failureReason);
-	}
-	return signature->status;
-    }
 
     PORT_Assert(tbsData->responderID != NULL);
     switch (tbsData->responderID->responderIDType) {
@@ -3643,7 +3601,7 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
     default:
 	PORT_Assert(0);
 	PORT_SetError(SEC_ERROR_OCSP_MALFORMED_RESPONSE);
-	return SECFailure;
+	return NULL;
     }
 
     /*
@@ -3694,7 +3652,8 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
 	 * passed in the cert list to use. Figure out which it is.
 	 */
 	int i;
-	responder = ocsp_CertGetDefaultResponder(handle,NULL);
+	CERTCertificate *responder = 
+            ocsp_CertGetDefaultResponder(handle, NULL);
 	if (responder && ocsp_matchcert(certIndex,responder)) {
 	    signerCert = CERT_DupCertificate(responder);
 	} else if (issuer && ocsp_matchcert(certIndex,issuer)) {
@@ -3707,6 +3666,129 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
 	}
     }
 
+finish:
+    if (certs != NULL) {
+	CERT_DestroyCertArray(certs, certCount);
+    }
+
+    return signerCert;
+}
+
+SECStatus
+ocsp_VerifyResponseSignature(CERTCertificate *signerCert,
+                             ocspSignature *signature,
+                             SECItem *tbsResponseDataDER,
+                             void *pwArg)
+{
+    SECItem rawSignature;
+    SECKEYPublicKey *signerKey = NULL;
+    SECStatus rv = SECFailure;
+
+    /*
+     * Now get the public key from the signer's certificate; we need
+     * it to perform the verification.
+     */
+    signerKey = CERT_ExtractPublicKey(signerCert);
+    if (signerKey == NULL)
+	return SECFailure;
+    /*
+     * We copy the signature data *pointer* and length, so that we can
+     * modify the length without damaging the original copy.  This is a
+     * simple copy, not a dup, so no destroy/free is necessary.
+     */
+    rawSignature = signature->signature;
+    /*
+     * The raw signature is a bit string, but we need to represent its
+     * length in bytes, because that is what the verify function expects.
+     */
+    DER_ConvertBitString(&rawSignature);
+
+    rv = VFY_VerifyDataWithAlgorithmID(tbsResponseDataDER->data,
+                                       tbsResponseDataDER->len,
+                                       signerKey, &rawSignature,
+                                       &signature->signatureAlgorithm,
+                                       NULL, pwArg);
+    if (rv != SECSuccess && PORT_GetError() == SEC_ERROR_BAD_SIGNATURE) {
+        PORT_SetError(SEC_ERROR_OCSP_BAD_SIGNATURE);
+    }
+    
+    if (signerKey != NULL) {
+        SECKEY_DestroyPublicKey(signerKey);
+    }
+
+    return rv;
+}
+
+
+/*
+ * FUNCTION: CERT_VerifyOCSPResponseSignature
+ *   Check the signature on an OCSP Response.  Will also perform a
+ *   verification of the signer's certificate.  Note, however, that a
+ *   successful verification does not make any statement about the
+ *   signer's *authority* to provide status for the certificate(s),
+ *   that must be checked individually for each certificate.
+ * INPUTS:
+ *   CERTOCSPResponse *response
+ *     Pointer to response structure with signature to be checked.
+ *   CERTCertDBHandle *handle
+ *     Pointer to CERTCertDBHandle for certificate DB to use for verification.
+ *   void *pwArg
+ *     Pointer to argument for password prompting, if needed.
+ * OUTPUTS:
+ *   CERTCertificate **pSignerCert
+ *     Pointer in which to store signer's certificate; only filled-in if
+ *     non-null.
+ * RETURN:
+ *   Returns SECSuccess when signature is valid, anything else means invalid.
+ *   Possible errors set:
+ *	SEC_ERROR_OCSP_MALFORMED_RESPONSE - unknown type of ResponderID
+ *	SEC_ERROR_INVALID_TIME - bad format of "ProducedAt" time
+ *	SEC_ERROR_UNKNOWN_SIGNER - signer's cert could not be found
+ *	SEC_ERROR_BAD_SIGNATURE - the signature did not verify
+ *   Other errors are any of the many possible failures in cert verification
+ *   (e.g. SEC_ERROR_REVOKED_CERTIFICATE, SEC_ERROR_UNTRUSTED_ISSUER) when
+ *   verifying the signer's cert, or low-level problems (no memory, etc.)
+ */
+SECStatus
+CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,	
+				 CERTCertDBHandle *handle, void *pwArg,
+				 CERTCertificate **pSignerCert,
+				 CERTCertificate *issuer)
+{
+    SECItem *tbsResponseDataDER;
+    CERTCertificate *signerCert = NULL;
+    SECStatus rv = SECFailure;
+    int64 producedAt;
+
+    /* ocsp_DecodeBasicOCSPResponse will fail if asn1 decoder is unable
+     * to properly decode tbsData (see the function and
+     * ocsp_BasicOCSPResponseTemplate). Thus, tbsData can not be
+     * equal to null */
+    ocspResponseData *tbsData = ocsp_GetResponseData(response,
+                                                     &tbsResponseDataDER);
+    ocspSignature *signature = ocsp_GetResponseSignature(response);
+
+    if (!signature) {
+        PORT_SetError(SEC_ERROR_OCSP_BAD_SIGNATURE);
+        return SECFailure;
+    }
+
+    /*
+     * If this signature has already gone through verification, just
+     * return the cached result.
+     */
+    if (signature->wasChecked) {
+	if (signature->status == SECSuccess) {
+	    if (pSignerCert != NULL)
+		*pSignerCert = CERT_DupCertificate(signature->cert);
+	} else {
+	    PORT_SetError(signature->failureReason);
+	}
+	return signature->status;
+    }
+
+    signerCert = ocsp_GetSignerCertificate(handle, tbsData,
+                                           signature, issuer);
     if (signerCert == NULL) {
 	rv = SECFailure;
 	if (PORT_GetError() == SEC_ERROR_UNKNOWN_CERT) {
@@ -3741,48 +3823,23 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
     if (ocsp_CertIsOCSPDefaultResponder(handle, signerCert)) {
         rv = SECSuccess;
     } else {
+        SECCertUsage certUsage;
         if (CERT_IsCACert(signerCert, NULL)) {
-            rv = CERT_VerifyCert(handle, signerCert, PR_TRUE,
-                                 certUsageVerifyCA,
-                                 producedAt, pwArg, NULL);
+            certUsage = certUsageVerifyCA;
         } else {
-            rv = CERT_VerifyCert(handle, signerCert, PR_TRUE,
-                                 certUsageStatusResponder,
-                                 producedAt, pwArg, NULL);
+            certUsage = certUsageStatusResponder;
         }
+        rv = CERT_VerifyCert(handle, signerCert, PR_TRUE,
+                             certUsage, producedAt, pwArg, NULL);
         if (rv != SECSuccess) {
             PORT_SetError(SEC_ERROR_OCSP_INVALID_SIGNING_CERT);
             goto finish;
         }
     }
 
-    /*
-     * Now get the public key from the signer's certificate; we need
-     * it to perform the verification.
-     */
-    signerKey = CERT_ExtractPublicKey(signerCert);
-    if (signerKey == NULL)
-	goto finish;
-    /*
-     * We copy the signature data *pointer* and length, so that we can
-     * modify the length without damaging the original copy.  This is a
-     * simple copy, not a dup, so no destroy/free is necessary.
-     */
-    rawSignature = signature->signature;
-    /*
-     * The raw signature is a bit string, but we need to represent its
-     * length in bytes, because that is what the verify function expects.
-     */
-    DER_ConvertBitString(&rawSignature);
-
-    rv = VFY_VerifyDataWithAlgorithmID(tbsResponseDataDER->data,
-                                       tbsResponseDataDER->len,
-                                       signerKey, &rawSignature,
-                                       &signature->signatureAlgorithm,
-                                       NULL, pwArg);
-    if (rv != SECSuccess && PORT_GetError() == SEC_ERROR_BAD_SIGNATURE) {
-        PORT_SetError(SEC_ERROR_OCSP_BAD_SIGNATURE);
-    }
+    rv = ocsp_VerifyResponseSignature(signerCert, signature,
+                                      tbsResponseDataDER,
+                                      pwArg);
 
 finish:
     if (signature->wasChecked)
@@ -3805,13 +3862,6 @@ finish:
 	    *pSignerCert = CERT_DupCertificate(signerCert);
 	}
     }
-
-    if (signerKey != NULL)
-	SECKEY_DestroyPublicKey(signerKey);
-
-    if (certs != NULL)
-	CERT_DestroyCertArray(certs, certCount);
-	/* Free CERTS from SPKDigest Table */
 
     return rv;
 }
@@ -3990,7 +4040,7 @@ loser:
  * Return true if the cert is one of the default responders configured for
  * ocsp context. If not, or if any error, return false.
  */
-static PRBool
+PRBool
 ocsp_CertIsOCSPDefaultResponder(CERTCertDBHandle *handle, CERTCertificate *cert)
 {
     ocspCheckingContext *ocspcx;

@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=80:
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -242,41 +242,28 @@ struct JSObject {
 #define CX_THREAD_IS_RUNNING_GC(cx)                                           \
     THREAD_IS_RUNNING_GC((cx)->runtime, (cx)->thread)
 
-#define GC_AWARE_GET_SLOT(cx, obj, slot)                                      \
-    ((OBJ_IS_NATIVE(obj) && CX_THREAD_IS_RUNNING_GC(cx))                      \
-     ? STOBJ_GET_SLOT(obj, slot)                                              \
-     : OBJ_GET_SLOT(cx, obj, slot))
-
 #else   /* !JS_THREADSAFE */
 
 #define OBJ_GET_SLOT(cx,obj,slot)       LOCKED_OBJ_GET_SLOT(obj,slot)
 #define OBJ_SET_SLOT(cx,obj,slot,value) LOCKED_OBJ_SET_SLOT(obj,slot,value)
-#define GC_AWARE_GET_SLOT(cx,obj,slot)  STOBJ_GET_SLOT(obj,slot)
 
 #endif /* !JS_THREADSAFE */
 
-#define GC_AWARE_GET_PROTO(cx, obj)                                           \
-    JSVAL_TO_OBJECT(GC_AWARE_GET_SLOT(cx, obj, JSSLOT_PROTO))
-
-#define GC_AWARE_GET_PARENT(cx, obj)                                          \
-    JSVAL_TO_OBJECT(GC_AWARE_GET_SLOT(cx, obj, JSSLOT_PARENT))
-
 /* Thread-safe proto, parent, and class access macros. */
 #define OBJ_GET_PROTO(cx,obj) \
-    JSVAL_TO_OBJECT(OBJ_GET_SLOT(cx, obj, JSSLOT_PROTO))
+    STOBJ_GET_PROTO(obj)
 #define OBJ_SET_PROTO(cx,obj,proto) \
     OBJ_SET_SLOT(cx, obj, JSSLOT_PROTO, OBJECT_TO_JSVAL(proto))
 
 #define OBJ_GET_PARENT(cx,obj) \
-    JSVAL_TO_OBJECT(OBJ_GET_SLOT(cx, obj, JSSLOT_PARENT))
+    STOBJ_GET_PARENT(obj)
 #define OBJ_SET_PARENT(cx,obj,parent) \
     OBJ_SET_SLOT(cx, obj, JSSLOT_PARENT, OBJECT_TO_JSVAL(parent))
 
 /*
- * Class is invariant and comes from the fixed JSCLASS_SLOT. Thus no locking
+ * Class is invariant and comes from the fixed JSSLOT_CLASS. Thus no locking
  * is necessary to read it. Same for the private slot.
  */
-#define GC_AWARE_GET_CLASS(cx, obj)     STOBJ_GET_CLASS(obj)
 #define OBJ_GET_CLASS(cx,obj)           STOBJ_GET_CLASS(obj)
 #define OBJ_GET_PRIVATE(cx,obj)         STOBJ_GET_PRIVATE(obj)
 
@@ -480,10 +467,10 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         uintN flags, intN shortid, JSProperty **propp);
 
 /*
- * Unlike js_DefineProperty, propp must be non-null.  On success, and if id was
+ * Unlike js_DefineProperty, propp must be non-null. On success, and if id was
  * found, return true with *objp non-null and locked, and with a held property
- * stored in *propp.  If successful but id was not found, return true with both
- * *objp and *propp null.  Therefore all callers who receive a non-null *propp
+ * stored in *propp. If successful but id was not found, return true with both
+ * *objp and *propp null. Therefore all callers who receive a non-null *propp
  * must later call OBJ_DROP_PROPERTY(cx, *objp, *propp).
  */
 extern JS_FRIEND_API(JSBool)
@@ -491,13 +478,19 @@ js_LookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                   JSProperty **propp);
 
 /*
- * Specialized subroutine that allows caller to preset JSRESOLVE_* flags.
+ * Specialized subroutine that allows caller to preset JSRESOLVE_* flags and
+ * returns the index along the prototype chain in which *propp was found, or
+ * the last index if not found, or -1 on error.
  */
-extern JSBool
+extern int
 js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                            JSObject **objp, JSProperty **propp);
 
-extern JS_FRIEND_API(JSBool)
+/*
+ * Return the index along the scope chain in which id was found, or the last
+ * index if not found, or -1 on error.
+ */
+extern JS_FRIEND_API(int)
 js_FindProperty(JSContext *cx, jsid id, JSObject **objp, JSObject **pobjp,
                 JSProperty **propp);
 

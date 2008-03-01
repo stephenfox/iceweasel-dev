@@ -732,7 +732,26 @@ row_callback(png_structp png_ptr, png_bytep new_row,
     case gfxIFormats::RGB:
     case gfxIFormats::BGR:
       {
-        for (PRUint32 x=iwidth; x>0; --x) {
+        // counter for while() loops below
+        PRUint32 idx = iwidth;
+
+        // copy as bytes until source pointer is 32-bit-aligned
+        for (; (NS_PTR_TO_UINT32(line) & 0x3) && idx; --idx) {
+          *cptr32++ = GFX_PACKED_PIXEL(0xFF, line[0], line[1], line[2]);
+          line += 3; 
+        }
+
+        // copy pixels in blocks of 4
+        while (idx >= 4) {
+          GFX_BLOCK_RGB_TO_FRGB(line, cptr32);
+          idx    -=  4;
+          line   += 12;
+          cptr32 +=  4;
+        }
+
+        // copy remaining pixel(s)
+        while (idx--) {
+          // 32-bit read of final pixel will exceed buffer, so read bytes
           *cptr32++ = GFX_PACKED_PIXEL(0xFF, line[0], line[1], line[2]);
           line += 3;
         }

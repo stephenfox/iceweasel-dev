@@ -132,8 +132,6 @@ typedef struct JSContext         JSContext;
 typedef struct JSErrorReport     JSErrorReport;
 typedef struct JSFunction        JSFunction;
 typedef struct JSFunctionSpec    JSFunctionSpec;
-typedef struct JSFastNativeSpec  JSFastNativeSpec;
-typedef struct JSFastNativeBlock JSFastNativeBlock;
 typedef struct JSTracer          JSTracer;
 typedef struct JSIdArray         JSIdArray;
 typedef struct JSProperty        JSProperty;
@@ -644,6 +642,12 @@ typedef void
 (* JS_DLL_CALLBACK JSTraceDataOp)(JSTracer *trc, void *data);
 
 typedef JSBool
+(* JS_DLL_CALLBACK JSOperationCallback)(JSContext *cx);
+
+/*
+ * Deprecated form of JSOperationCallback.
+ */
+typedef JSBool
 (* JS_DLL_CALLBACK JSBranchCallback)(JSContext *cx, JSScript *script);
 
 typedef void
@@ -669,7 +673,7 @@ typedef enum JSExnType {
 } JSExnType;
 
 typedef struct JSErrorFormatString {
-    /* The error format string (UTF-8 if JS_C_STRINGS_ARE_UTF8 is defined). */
+    /* The error format string (UTF-8 if js_CStringsAreUTF8). */
     const char *format;
 
     /* The number of arguments to expand in the formatted error message. */

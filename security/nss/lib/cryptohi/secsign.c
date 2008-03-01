@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: secsign.c,v 1.18 2006/06/23 17:01:37 rrelyea%redhat.com Exp $ */
+/* $Id: secsign.c,v 1.20 2007/11/07 02:37:21 julien.pierre.boogz%sun.com Exp $ */
 
 #include <stdio.h>
 #include "cryptohi.h"
@@ -150,6 +150,32 @@ SGN_Update(SGNContext *cx, unsigned char *input, unsigned inputLen)
     return SECSuccess;
 }
 
+/* XXX Old template; want to expunge it eventually. */
+static DERTemplate SECAlgorithmIDTemplate[] = {
+    { DER_SEQUENCE,
+	  0, NULL, sizeof(SECAlgorithmID) },
+    { DER_OBJECT_ID,
+	  offsetof(SECAlgorithmID,algorithm), },
+    { DER_OPTIONAL | DER_ANY,
+	  offsetof(SECAlgorithmID,parameters), },
+    { 0, }
+};
+
+/*
+ * XXX OLD Template.  Once all uses have been switched over to new one,
+ * remove this.
+ */
+static DERTemplate SGNDigestInfoTemplate[] = {
+    { DER_SEQUENCE,
+	  0, NULL, sizeof(SGNDigestInfo) },
+    { DER_INLINE,
+	  offsetof(SGNDigestInfo,digestAlgorithm),
+	  SECAlgorithmIDTemplate, },
+    { DER_OCTET_STRING,
+	  offsetof(SGNDigestInfo,digest), },
+    { 0, }
+};
+
 SECStatus
 SGN_End(SGNContext *cx, SECItem *result)
 {
@@ -189,7 +215,8 @@ SGN_End(SGNContext *cx, SECItem *result)
 	}
 
 	/* Der encode the digest as a DigestInfo */
-	rv = DER_Encode(arena, &digder, SGNDigestInfoTemplate, di);
+        rv = DER_Encode(arena, &digder, SGNDigestInfoTemplate,
+                        di);
 	if (rv != SECSuccess) {
 	    goto loser;
 	}
@@ -293,15 +320,17 @@ DERTemplate CERTSignedDataTemplate[] =
     { 0, }
 };
 
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
+
 const SEC_ASN1Template CERT_SignedDataTemplate[] =
 {
     { SEC_ASN1_SEQUENCE,
 	  0, NULL, sizeof(CERTSignedData) },
     { SEC_ASN1_ANY,
 	  offsetof(CERTSignedData,data), },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTSignedData,signatureAlgorithm),
-	  SECOID_AlgorithmIDTemplate, },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate), },
     { SEC_ASN1_BIT_STRING,
 	  offsetof(CERTSignedData,signature), },
     { 0, }
@@ -392,7 +421,8 @@ SGN_Digest(SECKEYPrivateKey *privKey,
 	}
 
 	/* Der encode the digest as a DigestInfo */
-	rv = DER_Encode(arena, &digder, SGNDigestInfoTemplate, di);
+        rv = DER_Encode(arena, &digder, SGNDigestInfoTemplate,
+                        di);
 	if (rv != SECSuccess) {
 	    goto loser;
 	}

@@ -179,7 +179,7 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
     mDefaultFantasyFont("fantasy", NS_FONT_STYLE_NORMAL,
                         NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL, 0, 0),
     mCanPaginatedScroll(PR_FALSE),
-    mIsRootPaginatedDocument(PR_FALSE)
+    mIsRootPaginatedDocument(PR_FALSE), mSupressResizeReflow(PR_FALSE)
 {
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -701,61 +701,35 @@ nsPresContext::GetUserPreferences()
   SetBidi(bidiOptions, PR_FALSE);
 }
 
-void
-nsPresContext::ClearStyleDataAndReflow()
-{
-  // This method is used to recompute the style data when some change happens
-  // outside of any style rules, like a color preference change or a change
-  // in a system font size
-  if (mShell && mShell->GetRootFrame()) {
-    // Tell the style set to get the old rule tree out of the way
-    // so we can recalculate while maintaining rule tree immutability
-    nsresult rv = mShell->StyleSet()->BeginReconstruct();
-    if (NS_FAILED(rv))
-      return;
-    // Recalculate all of the style contexts for the document
-    // Note that we can ignore the return value of ComputeStyleChangeFor
-    // because we never need to reframe the root frame
-    // XXX This could be made faster by not rerunning rule matching
-    // (but note that nsPresShell::SetPreferenceStyleRules currently depends
-    // on us re-running rule matching here
-    nsStyleChangeList changeList;
-    mShell->FrameManager()->ComputeStyleChangeFor(mShell->GetRootFrame(),
-                                                  &changeList, nsChangeHint(0));
-    // Tell the frame constructor to process the required changes
-    mShell->FrameConstructor()->ProcessRestyledFrames(changeList);
-    // Tell the style set it's safe to destroy the old rule tree.  We
-    // must do this after the ProcessRestyledFrames call in case the
-    // change list has frame reconstructs in it (since frames to be
-    // reconstructed will still have their old style context pointers
-    // until they are destroyed).
-    mShell->StyleSet()->EndReconstruct();
-  }
-}
-
 static const char sMinFontSizePref[] = "browser.display.auto_quality_min_font_size";
 
 void
 nsPresContext::PreferenceChanged(const char* aPrefName)
 {
   if (!nsCRT::strcmp(aPrefName, "layout.css.dpi")) {
-    nsRect bounds(mVisibleArea);
-    bounds *= 1.0f / AppUnitsPerDevPixel();
+    PRInt32 oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
     if (mDeviceContext->CheckDPIChange() && mShell) {
       mDeviceContext->FlushFontCache();
 
+      // Re-fetch the view manager's window dimensions in case there's a deferred
+      // resize which hasn't affected our mVisibleArea yet
+      nscoord oldWidthAppUnits, oldHeightAppUnits;
       nsIViewManager* vm = GetViewManager();
-      nscoord width = DevPixelsToAppUnits(bounds.width);
-      nscoord height = DevPixelsToAppUnits(bounds.height);
+      vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
+      float oldWidthDevPixels = oldWidthAppUnits/oldAppUnitsPerDevPixel;
+      float oldHeightDevPixels = oldHeightAppUnits/oldAppUnitsPerDevPixel;
+
+      nscoord width = NSToCoordRound(oldWidthDevPixels*AppUnitsPerDevPixel());
+      nscoord height = NSToCoordRound(oldHeightDevPixels*AppUnitsPerDevPixel());
       vm->SetWindowDimensions(width, height);
 
-      ClearStyleDataAndReflow();
+      RebuildAllStyleData();
     }
     return;
   }
   if (!nsCRT::strcmp(aPrefName, sMinFontSizePref)) {
     mAutoQualityMinFontSizePixelsPref = nsContentUtils::GetIntPref(sMinFontSizePref);
-    ClearStyleDataAndReflow();
+    RebuildAllStyleData();
     return;
   }
   // we use a zero-delay timer to coalesce multiple pref updates
@@ -790,7 +764,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
   }
 
   mDeviceContext->FlushFontCache();
-  ClearStyleDataAndReflow();
+  RebuildAllStyleData();
 }
 
 nsresult
@@ -976,8 +950,7 @@ nsPresContext::Observe(nsISupports* aSubject,
   if (!nsCRT::strcmp(aTopic, "charset")) {
     UpdateCharSet(NS_LossyConvertUTF16toASCII(aData));
     mDeviceContext->FlushFontCache();
-    ClearStyleDataAndReflow();
-
+    RebuildAllStyleData();
     return NS_OK;
   }
 
@@ -1156,14 +1129,26 @@ nsPresContext::SetFullZoom(float aZoom)
   if (!mShell || mFullZoom == aZoom) {
     return;
   }
-  float oldWidth = mVisibleArea.width / float(mCurAppUnitsPerDevPixel);
-  float oldHeight = mVisibleArea.height / float(mCurAppUnitsPerDevPixel);
+  // Re-fetch the view manager's window dimensions in case there's a deferred
+  // resize which hasn't affected our mVisibleArea yet
+  nscoord oldWidthAppUnits, oldHeightAppUnits;
+  GetViewManager()->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
+  float oldWidthDevPixels = oldWidthAppUnits / float(mCurAppUnitsPerDevPixel);
+  float oldHeightDevPixels = oldHeightAppUnits / float(mCurAppUnitsPerDevPixel);
   if (mDeviceContext->SetPixelScale(aZoom)) {
     mDeviceContext->FlushFontCache();
   }
+
+  NS_ASSERTION(mSupressResizeReflow == PR_FALSE, "two zooms happening at the same time? impossible!");
+  mSupressResizeReflow = PR_TRUE;
+
   mFullZoom = aZoom;
-  GetViewManager()->SetWindowDimensions(oldWidth * AppUnitsPerDevPixel(), oldHeight * AppUnitsPerDevPixel());
-  ClearStyleDataAndReflow();
+  GetViewManager()->SetWindowDimensions(NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel()),
+                                        NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel()));
+  RebuildAllStyleData();
+
+  mSupressResizeReflow = PR_FALSE;
+
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
@@ -1273,14 +1258,14 @@ nsPresContext::GetBidiUtils()
 }
 
 void
-nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceReflow)
+nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceRestyle)
 {
   // Don't do all this stuff unless the options have changed.
   if (aSource == GetBidi()) {
     return;
   }
 
-  NS_ASSERTION(!(aForceReflow && (GetBidi() == 0)), 
+  NS_ASSERTION(!(aForceRestyle && (GetBidi() == 0)), 
                "ForceReflow on new prescontext");
 
   Document()->SetBidiOptions(aSource);
@@ -1300,8 +1285,8 @@ nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceReflow)
       SetVisualMode(IsVisualCharset(doc->GetDocumentCharacterSet()));
     }
   }
-  if (aForceReflow) {
-    ClearStyleDataAndReflow();
+  if (aForceRestyle) {
+    RebuildAllStyleData();
   }
 }
 
@@ -1362,7 +1347,7 @@ nsPresContext::ThemeChangedInternal()
   // immutability has been violated since any style rule that uses
   // system colors or fonts (and probably -moz-appearance as well) has
   // changed.
-  nsPresContext::ClearStyleDataAndReflow();
+  RebuildAllStyleData();
 }
 
 void
@@ -1398,7 +1383,29 @@ nsPresContext::SysColorChangedInternal()
   // data without reflowing/updating views will lead to incorrect change hints
   // later, because when generating change hints, any style structs which have
   // been cleared and not reread are assumed to not be used at all.
-  ClearStyleDataAndReflow();
+  // XXXroc not sure what to make of the above comment, because we don't reflow
+  // synchronously here
+  RebuildAllStyleData();
+}
+
+void
+nsPresContext::RebuildAllStyleData()
+{
+  if (!mShell) {
+    // We must have been torn down. Nothing to do here.
+    return;
+  }
+  mShell->FrameConstructor()->RebuildAllStyleData();
+}
+
+void
+nsPresContext::PostRebuildAllStyleDataEvent()
+{
+  if (!mShell) {
+    // We must have been torn down. Nothing to do here.
+    return;
+  }
+  mShell->FrameConstructor()->PostRebuildAllStyleDataEvent();
 }
 
 void

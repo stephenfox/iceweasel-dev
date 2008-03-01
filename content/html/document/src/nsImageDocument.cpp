@@ -267,11 +267,11 @@ NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 
 NS_INTERFACE_TABLE_HEAD(nsImageDocument)
-  NS_INTERFACE_TABLE4(nsImageDocument,
-                      nsIImageDocument,
-                      imgIDecoderObserver,
-                      imgIContainerObserver,
-                      nsIDOMEventListener)
+  NS_INTERFACE_TABLE_INHERITED4(nsImageDocument,
+                                nsIImageDocument,
+                                imgIDecoderObserver,
+                                imgIContainerObserver,
+                                nsIDOMEventListener)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ImageDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsMediaDocument)
@@ -356,7 +356,7 @@ nsImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObjec
   nsHTMLDocument::SetScriptGlobalObject(aScriptGlobalObject);
 
   if (aScriptGlobalObject) {
-    if (!mRootContent) {
+    if (!GetRootContent()) {
       // Create synthetic document
       nsresult rv = CreateSyntheticDocument();
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create synthetic document");
@@ -570,7 +570,7 @@ nsImageDocument::CreateSyntheticDocument()
   nsresult rv = nsMediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> body = do_QueryInterface(mBodyContent);
+  nsIContent* body = GetBodyContent();
   if (!body) {
     NS_WARNING("no body on image document!");
     return NS_ERROR_FAILURE;
@@ -608,7 +608,7 @@ nsresult
 nsImageDocument::CheckOverflowing(PRBool changeState)
 {
   /* Create a scope so that the style context gets destroyed before we might
-   * call ClearStyleDataAndReflow.  Also, holding onto pointers to the
+   * call RebuildStyleData.  Also, holding onto pointers to the
    * presentatation through style resolution is potentially dangerous.
    */
   {
@@ -620,7 +620,7 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
     nsPresContext *context = shell->GetPresContext();
     nsRect visibleArea = context->GetVisibleArea();
 
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mBodyContent);
+    nsIContent* content = GetBodyContent();
     if (!content) {
       NS_WARNING("no body on image document!");
       return NS_ERROR_FAILURE;

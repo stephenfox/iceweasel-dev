@@ -129,10 +129,6 @@
 
 #include "nsINIParser.h"
 
-#ifdef MOZ_XPINSTALL
-#include "InstallCleanupDefines.h"
-#endif
-
 #include <stdlib.h>
 
 #ifdef XP_UNIX
@@ -291,9 +287,46 @@ SaveWordToEnv(const char *name, const nsACString & word)
 static void
 SaveFileToEnv(const char *name, nsIFile *file)
 {
+#ifdef XP_WIN
+  nsAutoString path;
+  file->GetPath(path);
+  SetEnvironmentVariableW(NS_ConvertASCIItoUTF16(name).get(), path.get());
+#else
   nsCAutoString path;
   file->GetNativePath(path);
   SaveWordToEnv(name, path);
+#endif
+}
+
+// Load the path of a file saved with SaveFileToEnv
+static already_AddRefed<nsILocalFile>
+GetFileFromEnv(const char *name)
+{
+  nsresult rv;
+  nsILocalFile *file = nsnull;
+
+#ifdef XP_WIN
+  WCHAR path[_MAX_PATH];
+  if (!GetEnvironmentVariableW(NS_ConvertASCIItoUTF16(name).get(),
+                               path, _MAX_PATH))
+    return nsnull;
+
+  rv = NS_NewLocalFile(nsDependentString(path), PR_TRUE, &file);
+  if (NS_FAILED(rv))
+    return nsnull;
+
+  return file;
+#else
+  const char *arg = PR_GetEnv(name);
+  if (!arg || !*arg)
+    return nsnull;
+
+  rv = NS_NewNativeLocalFile(nsDependentCString(arg), PR_TRUE, &file);
+  if (NS_FAILED(rv))
+    return nsnull;
+
+  return file;
+#endif
 }
 
 // Save the path of the given word to the specified environment variable
@@ -355,7 +388,7 @@ static void Output(PRBool isError, const char *fmt, ... )
       flags |= MB_ICONERROR;
     else 
       flags |= MB_ICONINFORMATION;
-    MessageBox(NULL, msg, "XULRunner", flags);
+    MessageBoxA(NULL, msg, "XULRunner", flags);
     PR_smprintf_free(msg);
   }
 #else
@@ -691,8 +724,8 @@ nsXULAppInfo::LaunchAppHelperWithArgs(int aArgc, char **aArgv)
   rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCAutoString appHelperPath;
-  rv = appHelper->GetNativePath(appHelperPath);
+  nsAutoString appHelperPath;
+  rv = appHelper->GetPath(appHelperPath);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!WinLaunchChild(appHelperPath.get(), aArgc, aArgv, 1))
@@ -850,6 +883,10 @@ private:
 ScopedXPCOMStartup::~ScopedXPCOMStartup()
 {
   if (mServiceManager) {
+    nsCOMPtr<nsIAppStartup> appStartup (do_GetService(NS_APPSTARTUP_CONTRACTID));
+    if (appStartup)
+      appStartup->DestroyHiddenWindow();
+
     gDirServiceProvider->DoShutdown();
 
     WriteConsoleLog();
@@ -1117,69 +1154,6 @@ DumpHelp()
   DumpArbitraryHelp();
 }
 
-#ifdef MOZ_XPINSTALL
-// don't modify aAppDir directly... clone it first
-static int
-VerifyInstallation(nsIFile* aAppDir)
-{
-  static const char lastResortMessage[] =
-    "A previous install did not complete correctly.  Finishing install.";
-
-  // Maximum allowed / used length of alert message is 255 chars, due to restrictions on Mac.
-  // Please make sure that file contents and fallback_alert_text are at most 255 chars.
-
-  char message[256];
-  PRInt32 numRead = 0;
-  const char *messageToShow = lastResortMessage;
-
-  nsresult rv;
-  nsCOMPtr<nsIFile> messageFile;
-  rv = aAppDir->Clone(getter_AddRefs(messageFile));
-  if (NS_SUCCEEDED(rv)) {
-    messageFile->AppendNative(NS_LITERAL_CSTRING("res"));
-    messageFile->AppendNative(CLEANUP_MESSAGE_FILENAME);
-    PRFileDesc* fd = 0;
-
-    nsCOMPtr<nsILocalFile> lf (do_QueryInterface(messageFile));
-    if (lf) {
-      rv = lf->OpenNSPRFileDesc(PR_RDONLY, 0664, &fd);
-      if (NS_SUCCEEDED(rv)) {
-        numRead = PR_Read(fd, message, sizeof(message)-1);
-        if (numRead > 0) {
-          message[numRead] = 0;
-          messageToShow = message;
-        }
-      }
-    }
-  }
-
-  ShowOSAlert(messageToShow);
-
-  nsCOMPtr<nsIFile> cleanupUtility;
-  aAppDir->Clone(getter_AddRefs(cleanupUtility));
-  if (!cleanupUtility) return 1;
-
-  cleanupUtility->AppendNative(CLEANUP_UTIL);
-
-  ScopedXPCOMStartup xpcom;
-  rv = xpcom.Initialize();
-  if (NS_FAILED(rv)) return 1;
-
-  { // extra scoping needed to release things before xpcom shutdown
-    //Create the process framework to run the cleanup utility
-    nsCOMPtr<nsIProcess> cleanupProcess
-      (do_CreateInstance(NS_PROCESS_CONTRACTID));
-    rv = cleanupProcess->Init(cleanupUtility);
-    if (NS_FAILED(rv)) return 1;
-
-    rv = cleanupProcess->Run(PR_FALSE,nsnull, 0, nsnull);
-    if (NS_FAILED(rv)) return 1;
-  }
-
-  return 0;
-}
-#endif
-
 #ifdef DEBUG_warren
 #ifdef XP_WIN
 #define _CRTDBG_MAP_ALLOC
@@ -1321,13 +1295,13 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   // nsGREDirServiceProvider.cpp
 
 #ifdef XP_WIN
-  char exePath[MAXPATHLEN];
+  PRUnichar exePath[MAXPATHLEN];
 
-  if (!::GetModuleFileName(0, exePath, MAXPATHLEN))
+  if (!::GetModuleFileNameW(0, exePath, MAXPATHLEN))
     return NS_ERROR_FAILURE;
 
-  rv = NS_NewNativeLocalFile(nsDependentCString(exePath), PR_TRUE,
-                             getter_AddRefs(lf));
+  rv = NS_NewLocalFile(nsDependentString(exePath), PR_TRUE,
+                       getter_AddRefs(lf));
   if (NS_FAILED(rv))
     return rv;
 
@@ -1575,15 +1549,22 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   if (NS_FAILED(rv))
     return rv;
 
+#if defined(XP_WIN)
+  nsAutoString exePath;
+  rv = lf->GetPath(exePath);
+  if (NS_FAILED(rv))
+    return rv;
+
+  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, needElevation))
+    return NS_ERROR_FAILURE;
+
+#else
   nsCAutoString exePath;
   rv = lf->GetNativePath(exePath);
   if (NS_FAILED(rv))
     return rv;
 
-#if defined(XP_WIN)
-  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, needElevation))
-    return NS_ERROR_FAILURE;
-#elif defined(XP_OS2) && (__GNUC__ == 3 && __GNUC_MINOR__ == 3)
+#if defined(XP_OS2) && (__GNUC__ == 3 && __GNUC_MINOR__ == 3)
   // implementation of _execv() is broken with GCC 3.3.x on OS/2
   if (OS2LaunchChild(exePath.get(), gRestartArgc, gRestartArgv) == -1)
     return NS_ERROR_FAILURE;
@@ -1608,8 +1589,9 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   PRStatus failed = PR_WaitProcess(process, &exitCode);
   if (failed || exitCode)
     return NS_ERROR_FAILURE;
-#endif
-#endif
+#endif // XP_OS2 series
+#endif // WP_WIN
+#endif // WP_MACOSX
 
   return NS_ERROR_LAUNCHED_CHILD_PROCESS;
 }
@@ -1851,27 +1833,17 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
     *aStartOffline = PR_TRUE;
 
 
-  arg = PR_GetEnv("XRE_PROFILE_PATH");
-  if (arg && *arg) {
-    nsCOMPtr<nsILocalFile> lf;
-    rv = NS_NewNativeLocalFile(nsDependentCString(arg), PR_TRUE,
-                               getter_AddRefs(lf));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsILocalFile> localDir;
-    arg = PR_GetEnv("XRE_PROFILE_LOCAL_PATH");
-    if (arg && *arg) {
-      rv = NS_NewNativeLocalFile(nsDependentCString(arg), PR_TRUE,
-                                 getter_AddRefs(localDir));
-      NS_ENSURE_SUCCESS(rv, rv);
-    } else {
+  nsCOMPtr<nsILocalFile> lf = GetFileFromEnv("XRE_PROFILE_PATH");
+  if (lf) {
+    nsCOMPtr<nsILocalFile> localDir =
+      GetFileFromEnv("XRE_PROFILE_LOCAL_PATH");
+    if (!localDir) {
       localDir = lf;
     }
 
     arg = PR_GetEnv("XRE_PROFILE_NAME");
     if (arg && *arg && aProfileName)
       aProfileName->Assign(nsDependentCString(arg));
-
 
     // Clear out flags that we handled (or should have handled!) last startup.
     const char *dummy;
@@ -2481,6 +2453,29 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     gBinaryPath = nsnull;
 #endif
 
+  // Check for application.ini overrides
+  const char* override = nsnull;
+  ar = CheckArg("override", PR_TRUE, &override);
+  if (ar == ARG_BAD) {
+    Output(PR_TRUE, "Incorrect number of arguments passed to -override");
+    return 1;
+  }
+  else if (ar == ARG_FOUND) {
+    nsCOMPtr<nsILocalFile> overrideLF;
+    rv = XRE_GetFileFromPath(override, getter_AddRefs(overrideLF));
+    if (NS_FAILED(rv)) {
+      Output(PR_TRUE, "Error: unrecognized override.ini path.\n");
+      return 1;
+    }
+
+    nsXREAppData* overrideAppData = const_cast<nsXREAppData*>(aAppData);
+    rv = XRE_ParseAppData(overrideLF, overrideAppData);
+    if (NS_FAILED(rv)) {
+      Output(PR_TRUE, "Couldn't read override.ini");
+      return 1;
+    }
+  }
+
   ScopedAppData appData(aAppData);
   gAppData = &appData;
 
@@ -2574,16 +2569,16 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // pass some basic info from the app data
     if (appData.vendor)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Vendor"),
-                                     nsDependentCString(appData.vendor));
+                                         nsDependentCString(appData.vendor));
     if (appData.name)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ProductName"),
-                                     nsDependentCString(appData.name));
+                                         nsDependentCString(appData.name));
     if (appData.version)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Version"),
-                                     nsDependentCString(appData.version));
+                                         nsDependentCString(appData.version));
     if (appData.buildID)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("BuildID"),
-                                     nsDependentCString(appData.buildID));
+                                         nsDependentCString(appData.buildID));
     CrashReporter::SetRestartArgs(argc, argv);
 
     // annotate other data (user id etc)
@@ -2592,9 +2587,31 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     rv = dirProvider.Initialize(gAppData->directory, gAppData->xreDirectory);
     if (NS_SUCCEEDED(rv) &&
         NS_SUCCEEDED(dirProvider.GetUserAppDataDirectory(
-                                 getter_AddRefs(userAppDataDir)))) {
+                                                         getter_AddRefs(userAppDataDir)))) {
       CrashReporter::SetupExtraData(userAppDataDir,
                                     nsDependentCString(appData.buildID));
+
+      // see if we have a crashreporter-override.ini in the application directory
+      nsCOMPtr<nsIFile> overrideini;
+      PRBool exists;
+      static char overrideEnv[MAXPATHLEN];
+      if (NS_SUCCEEDED(dirProvider.GetAppDir()->Clone(getter_AddRefs(overrideini))) &&
+          NS_SUCCEEDED(overrideini->AppendNative(NS_LITERAL_CSTRING("crashreporter-override.ini"))) &&
+          NS_SUCCEEDED(overrideini->Exists(&exists)) &&
+          exists) {
+#ifdef XP_WIN
+        nsAutoString overridePathW;
+        overrideini->GetPath(overridePathW);
+        NS_ConvertUTF16toUTF8 overridePath(overridePathW);
+#else
+        nsCAutoString overridePath;
+        overrideini->GetNativePath(overridePath);
+#endif
+
+        sprintf(overrideEnv, "MOZ_CRASHREPORTER_STRINGS_OVERRIDE=%s",
+                overridePath.get());
+        PR_SetEnv(overrideEnv);
+      }
     }
   }
 #endif
@@ -2791,33 +2808,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (NS_FAILED(rv) || !canRun) {
       return 1;
     }
-
-#ifdef MOZ_XPINSTALL
-    //----------------------------------------------------------------
-    // We need to check if a previous installation occured and
-    // if so, make sure it finished and cleaned up correctly.
-    //
-    // If there is an xpicleanup.dat file left around, that means the
-    // previous installation did not finish correctly. We must cleanup
-    // before a valid mozilla can run.
-    //
-    // Show the user a platform-specific Alert message, then spawn the
-    // xpicleanup utility, then exit.
-    //----------------------------------------------------------------
-    {
-      nsCOMPtr<nsIFile> registryFile;
-      rv = dirProvider.GetAppDir()->Clone(getter_AddRefs(registryFile));
-      if (NS_SUCCEEDED(rv)) {
-        registryFile->AppendNative(CLEANUP_REGISTRY);
-
-        PRBool exists;
-        rv = registryFile->Exists(&exists);
-        if (NS_SUCCEEDED(rv) && exists) {
-          return VerifyInstallation(dirProvider.GetAppDir());
-        }
-      }
-    }
-#endif
 
 #ifdef MOZ_ENABLE_XREMOTE
     // handle -remote now that xpcom is fired up
@@ -3182,12 +3172,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #ifdef XP_MACOSX
           SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
-
-          // Ensure hidden window is destroyed before xpcom shuts down
-          nsCOMPtr<nsIAppShellService> appShellService
-                  (do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
-          if (appShellService)
-            appShellService->DestroyHiddenWindow();
         }
       }
     }

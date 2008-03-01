@@ -37,8 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 /*
- * rendering object for CSS display:block and display:list-item objects,
- * also used inside table cells
+ * rendering object for CSS display:block, inline-block, and list-item
+ * boxes, also used for various anonymous boxes
  */
 
 #ifndef nsBlockFrame_h___
@@ -192,7 +192,8 @@ public:
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
-             ~(nsIFrame::eCanContainOverflowContainers));
+             ~(nsIFrame::eCanContainOverflowContainers |
+               nsIFrame::eBlockFrame));
   }
 
 #ifdef DEBUG
@@ -290,6 +291,21 @@ public:
 
   static PRBool BlockIsMarginRoot(nsIFrame* aBlock);
   static PRBool BlockNeedsSpaceManager(nsIFrame* aBlock);
+
+  /**
+   * Returns whether aFrame is a block frame that will wrap its contents
+   * around floats intruding on it from the outside.  (aFrame need not
+   * be a block frame, but if it's not, the result will be false.)
+   */
+  static PRBool BlockCanIntersectFloats(nsIFrame* aFrame);
+
+  /**
+   * Returns the width that needs to be cleared past floats for blocks
+   * that cannot intersect floats.
+   */
+  static nscoord WidthToClearPastFloats(nsBlockReflowState& aState,
+                                        nsIFrame* aFrame);
+
   /**
    * Walks up the frame tree, starting with aCandidate, and returns the first
    * block frame that it encounters.
@@ -674,9 +690,10 @@ private:
 class nsBlockInFlowLineIterator {
 public:
   typedef nsBlockFrame::line_iterator line_iterator;
-  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, line_iterator& aLine, PRBool aInOverflow);
-
+  nsBlockInFlowLineIterator(nsBlockFrame* aFrame, line_iterator aLine, PRBool aInOverflow);
+  
   line_iterator GetLine() { return mLine; }
+  PRBool IsLastLineInList();
   nsBlockFrame* GetContainer() { return mFrame; }
   PRBool GetInOverflow() { return mInOverflowLines != nsnull; }
   /**
