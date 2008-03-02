@@ -241,8 +241,7 @@ protected:
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
-  PRBool GetBodyContent();
-  void GetBodyElement(nsIDOMHTMLBodyElement** aBody);
+  nsIContent* GetBodyContent();
 
   void GetDomainURI(nsIURI **uri);
 
@@ -332,8 +331,6 @@ protected:
   // Load flags of the document's channel
   PRUint32 mLoadFlags;
 
-  nsCOMPtr<nsIDOMNode> mBodyContent;
-
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
@@ -365,12 +362,7 @@ protected:
 
   /* Midas implementation */
   nsresult   GetMidasCommandManager(nsICommandManager** aCommandManager);
-  PRBool     ConvertToMidasInternalCommand(const nsAString & inCommandID,
-                                           const nsAString & inParam,
-                                           nsACString& outCommandID,
-                                           nsACString& outParam,
-                                           PRBool& isBoolean,
-                                           PRBool& boolValue);
+
   nsCOMPtr<nsICommandManager> mMidasCommandManager;
 
   nsresult TurnEditingOff();

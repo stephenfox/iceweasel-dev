@@ -314,11 +314,10 @@
           if (!queries.value.length) 
             queries.value = [history.getNewQuery()];
           try {
-            this._result = 
+            var result =
               history.executeQueries(queries.value, queries.value.length,
                                      options.value);
-            this._result.viewer = this._viewer;
-            this._result.root.containerOpen = true;
+            result.viewer = this._viewer;
           }
           catch(ex) {
             // Invalid query, or had no results.
@@ -395,29 +394,23 @@
 
           // By default, the insertion point is at the top level, at the end. 
           var index = -1;
-          var folderId = this._result.root.itemId;
+          var folderId = PlacesUtils.getConcreteItemId(this._result.root);
 
           if (this.hasSelection) {
             if (PlacesUtils.nodeIsFolder(this.selectedNode)) {
               // If there is a folder selected, the insertion point is the
               // end of the folder.
-              folderId = this.selectedNode.itemId;
+              folderId = PlacesUtils.getConcreteItemId(this.selectedNode);
             } else {
               // If there is another type of node selected, the insertion point
               // is after that node.
-              index = PlacesUtils.getIndexOfNode(this.selectedNode)
+              index = PlacesUtils.getIndexOfNode(this.selectedNode);
             }
           }
           this._cachedInsertionPoint = new InsertionPoint(folderId, index, 1);
           return this._cachedInsertionPoint;
         ]]></getter>
       </property>
-
-      <!-- nsIPlacesView -->
-      <field name="peerDropTypes">PlacesUtils.GENERIC_VIEW_DROP_TYPES</field>
-
-      <!-- nsIPlacesView -->
-      <field name="childDropTypes">PlacesUtils.GENERIC_VIEW_DROP_TYPES</field>
 
       <!-- nsIPlacesView -->
       <method name="selectAll">
@@ -443,6 +436,17 @@
               return this._self._containerNodesMap[i].domNode;
           }
           throw("Container view not found");
+        },
+
+        get result() {
+          return this._self._result;
+        },
+
+        set result(val) {
+          this._self._result = val;
+          if (val)
+            val.root.containerOpen = true;
+          return val;
         },
 
         itemInserted: function TV_V_itemInserted(aParentNode, aNode, aIndex) {
@@ -492,6 +496,37 @@
                   this._self._showEmptyMenuItem(popup);
                 }
               }
+            }
+          }
+        },
+
+        itemMoved:
+        function TV_V_itemMoved(aItem, aOldParent, aOldIndex, aNewParent,
+                                aNewIndex) {
+          // This cannot actually happen yet (see IDL)
+          if (aNewParent != aOldParent)
+            return;
+
+          if (aNewParent == this._self.getResultNode()) {
+            var children = this._self.childNodes;
+            for (var i = 0; i < children.length; i++) {
+              var button = children[i];
+              if (button.node == aItem) {
+                this._self.removeChild(button);
+                this._self.insertBefore(button, children[aNewIndex]);
+                this._self.updateChevron();
+                return;
+              }
+            }
+          }
+          var popup = this._getPopupForContainer(aNewParent);
+          var children = popup.childNodes;
+          for (var i = 0; i < children.length; i++) {
+            var menuItem = children[i];
+            if (menuItem.node == aItem) {
+              popup.removeChild(menuItem);
+              popup.insertBefore(menuItem, children[aNewIndex]);
+              return;
             }
           }
         },
@@ -725,13 +760,17 @@
               // 50%, drop into the folder.  If it's past that, drop to the right.
               if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width * 0.25)) {
                 // Drop to the left of this folder.
-                dropPoint.ip = new InsertionPoint(result.root.itemId, i, -1);
+                dropPoint.ip =
+                  new InsertionPoint(PlacesUtils.getConcreteItemId(result.root),
+                                     i, -1);
                 dropPoint.beforeIndex = i;
                 return dropPoint;
               }
               else if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width * 0.75)) {
                 // Drop inside this folder.
-                dropPoint.ip = new InsertionPoint(xulNode.node.itemId, -1, 1);
+                dropPoint.ip =
+                  new InsertionPoint(PlacesUtils.getConcreteItemId(xulNode.node),
+                                     -1, 1);
                 dropPoint.beforeIndex = i;
                 dropPoint.folderNode = xulNode;
                 return dropPoint;
@@ -741,14 +780,18 @@
               // drop to the left of the folder.  If it's right, drop to the right.
               if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width / 2)) {
                 // Drop to the left of this bookmark.
-                dropPoint.ip = new InsertionPoint(result.root.itemId, i, -1);
+                dropPoint.ip =
+	        new InsertionPoint(PlacesUtils.getConcreteItemId(result.root),
+	                           i, -1);
                 dropPoint.beforeIndex = i;
                 return dropPoint;
               }
             }
           }
           // Should drop to the right of the last node.
-          dropPoint.ip = new InsertionPoint(result.root.itemId, -1, 1);
+          dropPoint.ip =
+	  new InsertionPoint(PlacesUtils.getConcreteItemId(result.root),
+	                     -1, 1);
           dropPoint.beforeIndex = -1;
           return dropPoint;
         },
@@ -778,7 +821,7 @@
         },
         
         canDrop: function TBV_DO_canDrop(event, session) {
-          return PlacesControllerDragHelper.canDrop(this._self, -1);
+          return PlacesControllerDragHelper.canDrop(this._self._viewer, -1);
         },
         
         onDragOver: function TBV_DO_onDragOver(event, flavor, session) {
@@ -807,23 +850,26 @@
             if (!ib.hasAttribute("dragging"))
               ib.setAttribute("dragging", "true");
             var ind = ib.firstChild;
+            var halfInd = ind.boxObject.width / 2;
             var direction = document.defaultView.getComputedStyle(this._self.parentNode, "").direction;
             if (direction == "ltr") {
+              halfInd = Math.ceil(halfInd);
               if (!this._self.childNodes.length)
-                ind.style.marginLeft = 0 - this._self.boxObject.x - 7 + 'px'
+                ind.style.marginLeft = 0 - this._self.boxObject.x - halfInd + 'px'
               else if (dropPoint.beforeIndex == -1)
                 ind.style.marginLeft = this._self.lastChild.boxObject.x + 
-                                       this._self.lastChild.boxObject.width - this._self.boxObject.x - 7 + 'px';
+                                       this._self.lastChild.boxObject.width - this._self.boxObject.x - halfInd + 'px';
               else
                 ind.style.marginLeft = this._self.childNodes[dropPoint.beforeIndex].boxObject.x -
-                                       this._self.boxObject.x - 7 + 'px';
+                                       this._self.boxObject.x - halfInd + 'px';
             } else {
+              halfInd = Math.floor(halfInd);
               if (dropPoint.beforeIndex == -1 || !this._self.childNodes.length)
                 ind.style.marginRight = '0px';
               else
                 ind.style.marginRight = (this._self.childNodes[this._self.childNodes.length - 1].boxObject.x +
                                          this._self.childNodes[this._self.childNodes.length - 1].boxObject.width) -
-                                        (this._self.childNodes[dropPoint.beforeIndex].boxObject.x) - 5 + 'px';
+                                        (this._self.childNodes[dropPoint.beforeIndex].boxObject.x) - halfInd + 'px';
             }
             // Clear out old folder information
             this._clearOverFolder();
@@ -834,7 +880,7 @@
           var dropPoint = this._getDropPoint(event);
           if (dropPoint == null)
             return;
-          PlacesControllerDragHelper.onDrop(null, this._self, dropPoint.ip);
+          PlacesControllerDragHelper.onDrop(dropPoint.ip);
         },
 
         onDragExit: function TBV_DO_onDragExit(event, session) {
@@ -852,8 +898,9 @@
 
         getSupportedFlavours: function TBV_DO_getSupportedFlavours() {
           var flavorSet = new FlavourSet();
-          for (var i = 0; i < this._self.peerDropTypes.length; ++i)
-            flavorSet.appendFlavour(this._self.peerDropTypes[i]);
+          var types = PlacesUtils.GENERIC_VIEW_DROP_TYPES;
+          for (var i = 0; i < types.length; ++i)
+            flavorSet.appendFlavour(types[i]);
           return flavorSet;
         }
       })]]></field>
@@ -1001,16 +1048,16 @@
         // When the user clicks down on a button, set it as the selection and 
         // tell the controller that we are the active view.
         //
-        // Sub-menus are handled by the DOMMenuItemActive handler
         var target = event.target;
-        if (target.parentNode != this)
+        if (target == this)
+          this._selection = this.getResult().root;
+        else if (target.parentNode == this &&
+                 (target.localName == "toolbarbutton" ||
+                  target.localName == "toolbarseparator"))
+          this._selection = target.node;
+        else  // Sub-menus are handled by the DOMMenuItemActive handler
           return;
 
-        if (target.localName == "toolbarbutton" ||
-            target.localName == "toolbarseparator")
-          this._selection = target.node;
-        else
-          this._selection = this.getResult().root;
         this._cachedInsertionPoint = undefined;
       ]]></handler>
       <handler event="draggesture"><![CDATA[

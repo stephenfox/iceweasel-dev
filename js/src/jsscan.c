@@ -226,7 +226,7 @@ js_InitTokenStream(JSContext *cx, JSTokenStream *ts,
          ? 2 * JS_LINE_LIMIT * sizeof(jschar)
          : JS_LINE_LIMIT * sizeof(jschar);
     JS_ARENA_ALLOCATE_CAST(buf, jschar *, &cx->tempPool, nb);
-    if (!ts) {
+    if (!buf) {
         js_ReportOutOfScriptQuota(cx);
         return JS_FALSE;
     }
@@ -560,7 +560,8 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
             goto report;
         tp = &pn->pn_pos;
     } else {
-        tp = &ts->tokens[(ts->cursor+ts->lookahead) & NTOKENS_MASK].pos;
+        /* Point to the current token, not the next one to get. */
+        tp = &ts->tokens[ts->cursor].pos;
     }
     report.lineno = ts->lineno;
     linelength = PTRDIFF(ts->linebuf.limit, ts->linebuf.base, jschar);

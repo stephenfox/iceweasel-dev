@@ -98,6 +98,11 @@ public:
     cairo_t *GetCairo() { return mCairo; }
 
     /**
+     * Returns true if the cairo context is in an error state.
+     */
+    PRBool HasError();
+
+    /**
      ** State
      **/
     // XXX document exactly what bits are saved
@@ -533,6 +538,7 @@ public:
     /**
      ** Extents - returns user space extent of current path
      **/
+    gfxRect GetUserPathExtent();
     gfxRect GetUserFillExtent();
     gfxRect GetUserStrokeExtent();
 
@@ -557,17 +563,53 @@ public:
          * However, when printing complex renderings such as SVG,
          * care should be taken to clear this flag.
          */
-        FLAG_SIMPLIFY_OPERATORS = (1 << 0)
+        FLAG_SIMPLIFY_OPERATORS = (1 << 0),
+        /**
+         * When this flag is set, snapping to device pixels is disabled.
+         * It simply never does anything.
+         */
+        FLAG_DISABLE_SNAPPING = (1 << 1)
     };
 
     void SetFlag(PRInt32 aFlag) { mFlags |= aFlag; }
     void ClearFlag(PRInt32 aFlag) { mFlags &= ~aFlag; }
-    PRInt32 GetFlags() { return mFlags; }
+    PRInt32 GetFlags() const { return mFlags; }
 
 private:
     cairo_t *mCairo;
     nsRefPtr<gfxASurface> mSurface;
     PRInt32 mFlags;
+};
+
+
+/**
+ * Sentry helper class for functions with multiple return points that need to
+ * call Save() on a gfxContext and have Restore() called automatically on the
+ * gfxContext before they return.
+ */
+class THEBES_API gfxContextAutoSaveRestore
+{
+public:
+  gfxContextAutoSaveRestore() : mContext(nsnull) {}
+
+  gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
+    mContext->Save();
+  }
+
+  ~gfxContextAutoSaveRestore() {
+    if (mContext) {
+      mContext->Restore();
+    }
+  }
+
+  void SetContext(gfxContext *aContext) {
+    NS_ASSERTION(!mContext, "Not going to call Restore() on some context!!!");
+    mContext = aContext;
+    mContext->Save();    
+  }
+
+private:
+  gfxContext *mContext;
 };
 
 #endif /* GFX_CONTEXT_H */

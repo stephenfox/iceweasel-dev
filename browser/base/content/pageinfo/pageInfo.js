@@ -308,12 +308,12 @@ function onLoadPageInfo()
   loadPageInfo();
 
   /* Select the requested tab, if the name is specified */
-  var initialTab = "general";
+  var initialTab = "generalTab";
   if ("arguments" in window && window.arguments.length >= 1 &&
        window.arguments[0] && window.arguments[0].initialTab)
     initialTab = window.arguments[0].initialTab;
   var radioGroup = document.getElementById("viewGroup");
-  initialTab = document.getElementById(initialTab + "Tab") || document.getElementById("generalTab");
+  initialTab = document.getElementById(initialTab) || document.getElementById("generalTab");
   radioGroup.selectedItem = initialTab;
   radioGroup.selectedItem.doCommand();
   radioGroup.focus();
@@ -557,11 +557,11 @@ function addImage(url, type, alt, elem, isBg)
 {
   if (!url)
     return;
-  if (!(url in gImageHash))
+  if (!gImageHash.hasOwnProperty(url))
     gImageHash[url] = { };
-  if (!(type in gImageHash[url]))
+  if (!gImageHash[url].hasOwnProperty(type))
     gImageHash[url][type] = { };
-  if (!(alt in gImageHash[url][type])) {
+  if (!gImageHash[url][type].hasOwnProperty(alt)) {
     gImageHash[url][type][alt] = gImageView.data.length;
     try {
       // open for READ, in non-blocking mode
@@ -609,6 +609,16 @@ function grabAll(elem)
   if (elem instanceof HTMLImageElement)
     addImage(elem.src, gStrings.mediaImg,
              (elem.hasAttribute("alt")) ? elem.alt : gStrings.notSet, elem, false);
+#ifdef MOZ_SVG
+  else if (elem instanceof SVGImageElement) {
+    try {
+      // Note: makeURLAbsolute will throw if either the baseURI is not a valid URI
+      //       or the URI formed from the baseURI and the URL is not a valid URI
+      var href = makeURLAbsolute(elem.baseURI, elem.href.baseVal);
+      addImage(href, gStrings.mediaImg, "", elem, false);
+    } catch (e) { }
+  }
+#endif
   else if (elem instanceof HTMLLinkElement) {
     if (elem.rel && /\bicon\b/i.test(elem.rel))
       addImage(elem.href, gStrings.mediaLink, "", elem, false);
@@ -813,89 +823,87 @@ function makePreview(row)
 {
   var imageTree = document.getElementById("imagetree");
   var item = getSelectedImage(imageTree);
-  var col = imageTree.columns["image-address"];
-  var url = gImageView.getCellText(row, col);
-  // image-bg
+  var url = gImageView.data[row][COL_IMAGE_ADDRESS];
   var isBG = gImageView.data[row][COL_IMAGE_BG];
 
   setItemValue("imageurltext", url);
 
-  if (item.hasAttribute("title"))
-    setItemValue("imagetitletext", item.title);
-  else
-    setItemValue("imagetitletext", null);
+  var imageText;
+  if (!isBG &&
+#ifdef MOZ_SVG
+      !(item instanceof SVGImageElement) &&
+#endif
+      !(gDocument instanceof ImageDocument)) {
+    imageText = item.title || item.alt;
 
-  if (item.hasAttribute("longDesc"))
-    setItemValue("imagelongdesctext", item.longDesc);
-  else
-    setItemValue("imagelongdesctext", null);
+    if (!imageText && !(item instanceof HTMLImageElement))
+      imageText = getValueText(item);
+  }
+  setItemValue("imagetext", imageText);
 
-  if (item.hasAttribute("alt"))
-    setItemValue("imagealttext", item.alt);
-  else if (item instanceof HTMLImageElement || isBG)
-    setItemValue("imagealttext", null);
-  else
-    setItemValue("imagealttext", getValueText(item));
+  setItemValue("imagelongdesctext", item.longDesc);
 
   // get cache info
-  var sourceText = gBundle.getString("generalNotCached");
   var cacheKey = url.replace(/#.*$/, "");
   try {
     // open for READ, in non-blocking mode
     var cacheEntryDescriptor = httpCacheSession.openCacheEntry(cacheKey, ACCESS_READ, false);
-    if (cacheEntryDescriptor)
-      switch (cacheEntryDescriptor.deviceID) {
-        case "disk":
-          sourceText = gBundle.getString("generalDiskCache");
-          break;
-        case "memory":
-          sourceText = gBundle.getString("generalMemoryCache");
-          break;
-        default:
-          sourceText = cacheEntryDescriptor.deviceID;
-          break;
-      }
   }
   catch(ex) {
     try {
       // open for READ, in non-blocking mode
       cacheEntryDescriptor = ftpCacheSession.openCacheEntry(cacheKey, ACCESS_READ, false);
-      if (cacheEntryDescriptor)
-        switch (cacheEntryDescriptor.deviceID) {
-          case "disk":
-            sourceText = gBundle.getString("generalDiskCache");
-            break;
-          case "memory":
-            sourceText = gBundle.getString("generalMemoryCache");
-            break;
-          default:
-            sourceText = cacheEntryDescriptor.deviceID;
-            break;
-        }
     }
     catch(ex2) { }
   }
-  setItemValue("imagesourcetext", sourceText);
 
   // find out the file size
   var sizeText;
   if (cacheEntryDescriptor) {
-    var pageSize = cacheEntryDescriptor.dataSize;
-    var kbSize = Math.round(pageSize / 1024 * 100) / 100;
+    var imageSize = cacheEntryDescriptor.dataSize;
+    var kbSize = Math.round(imageSize / 1024 * 100) / 100;
     sizeText = gBundle.getFormattedString("generalSize",
-                                          [formatNumber(kbSize), formatNumber(pageSize)]);
+                                          [formatNumber(kbSize), formatNumber(imageSize)]);
   }
+  else
+    sizeText = gBundle.getString("mediaUnknownNotCached");
   setItemValue("imagesizetext", sizeText);
 
   var mimeType;
+  var numFrames = 1;
   if (item instanceof HTMLObjectElement ||
       item instanceof HTMLEmbedElement ||
       item instanceof HTMLLinkElement)
     mimeType = item.type;
-  if (!mimeType)
-    mimeType = getContentTypeFromImgRequest(item) ||
-               getContentTypeFromHeaders(cacheEntryDescriptor);
 
+  if (!mimeType && item instanceof nsIImageLoadingContent) {
+    var imageRequest = item.getRequest(nsIImageLoadingContent.CURRENT_REQUEST);
+    if (imageRequest) {
+      mimeType = imageRequest.mimeType;
+      var image = imageRequest.image;
+      if (image)
+        numFrames = image.numFrames;
+    }
+  }
+  if (!mimeType)
+    mimeType = getContentTypeFromHeaders(cacheEntryDescriptor);
+
+  if (mimeType) {
+    // We found the type, try to display it nicely
+    var imageMimeType = /^image\/(.*)/.exec(mimeType);
+    if (imageMimeType) {
+      mimeType = imageMimeType[1].toUpperCase();
+      if (numFrames > 1)
+        mimeType = gBundle.getFormattedString("mediaAnimatedImageType",
+                                              [mimeType, numFrames]);
+      else
+        mimeType = gBundle.getFormattedString("mediaImageType", [mimeType]);
+    }
+  }
+  else {
+    // We couldn't find the type, fall back to the value in the treeview
+    mimeType = gImageView.data[row][COL_IMAGE_TYPE];
+  }
   setItemValue("imagetypetext", mimeType);
 
   var imageContainer = document.getElementById("theimagecontainer");
@@ -913,6 +921,9 @@ function makePreview(row)
 
   if ((item instanceof HTMLLinkElement || item instanceof HTMLInputElement ||
        item instanceof HTMLImageElement ||
+#ifdef MOZ_SVG
+       item instanceof SVGImageElement ||
+#endif
       (item instanceof HTMLObjectElement && /^image\//.test(mimeType)) || isBG) && isProtocolAllowed) {
     newImage.setAttribute("src", url);
     physWidth = newImage.width || 0;
@@ -926,11 +937,18 @@ function makePreview(row)
       newImage.height = ("height" in item && item.height) || newImage.naturalHeight;
     }
     else {
-      // the Width and Height of an HTML tag should not be use for its background image
+      // the Width and Height of an HTML tag should not be used for its background image
       // (for example, "table" can have "width" or "height" attributes)
       newImage.width = newImage.naturalWidth;
       newImage.height = newImage.naturalHeight;
     }
+
+#ifdef MOZ_SVG
+    if (item instanceof SVGImageElement) {
+      newImage.width = item.width.baseVal.value;
+      newImage.height = item.height.baseVal.value;
+    }
+#endif
 
     width = newImage.width;
     height = newImage.height;
@@ -946,18 +964,21 @@ function makePreview(row)
   }
 
   var imageSize = "";
-  if (url)
-    imageSize = gBundle.getFormattedString("mediaSize",
-                                           [formatNumber(width),
-                                           formatNumber(height)]);
-  setItemValue("imageSize", imageSize);
-
-  var physSize = "";
-  if (width != physWidth || height != physHeight)
-    physSize = gBundle.getFormattedString("mediaSize",
-                                          [formatNumber(physWidth),
-                                           formatNumber(physHeight)]);
-  setItemValue("physSize", physSize);
+  if (url) {
+    if (width != physWidth || height != physHeight) {
+      imageSize = gBundle.getFormattedString("mediaDimensionsScaled",
+                                             [formatNumber(physWidth),
+                                              formatNumber(physHeight),
+                                              formatNumber(width),
+                                              formatNumber(height)]);
+    }
+    else {
+      imageSize = gBundle.getFormattedString("mediaDimensions",
+                                             [formatNumber(width),
+                                              formatNumber(height)]);
+    }
+  }
+  setItemValue("imagedimensiontext", imageSize);
 
   makeBlockImage(url);
 
@@ -1017,21 +1038,6 @@ function getContentTypeFromHeaders(cacheEntryDescriptor)
 
   return (/^Content-Type:\s*(.*?)\s*(?:\;|$)/mi
           .exec(cacheEntryDescriptor.getMetaDataElement("response-head")))[1];
-}
-
-function getContentTypeFromImgRequest(item)
-{
-  var httpRequest;
-
-  try {
-    var imageItem = item.QueryInterface(nsIImageLoadingContent);
-    var imageRequest = imageItem.getRequest(nsIImageLoadingContent.CURRENT_REQUEST);
-    if (imageRequest)
-      httpRequest = imageRequest.mimeType;
-  }
-  catch (ex) { } // This never happened.  ;)
-
-  return httpRequest;
 }
 
 //******** Other Misc Stuff

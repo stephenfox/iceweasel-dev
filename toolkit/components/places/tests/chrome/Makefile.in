@@ -46,10 +46,13 @@ include $(topsrcdir)/config/rules.mk
 
 _HTTP_FILES	= \
 		sample_feed.atom \
+		bad_links.atom \
 		$(NULL)
 
 _CHROME_FILES	= \
 		test_371798.xul \
+		test_342484.xul \
+		test_341972a.xul \
 		$(NULL)
 
 libs:: $(_HTTP_FILES)

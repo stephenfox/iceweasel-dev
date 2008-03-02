@@ -142,7 +142,20 @@ function onClose()
 function onUnload()
 {
     dd("Shutting down ChatZilla.");
+
+    // Close all dialogs.
+    for (var net in client.networks)
+    {
+        if ("joinDialog" in client.networks[net])
+            client.networks[net].joinDialog.close();
+    }
+    if ("configWindow" in client)
+        client.configWindow.close();
+
+    // We don't trust anybody.
+    client.hiddenDocument = null;
     uninitOfflineIcon();
+    uninitIdleAutoAway(client.prefs["awayIdleTime"]);
     destroy();
 }
 
@@ -332,7 +345,14 @@ function onInputKeyPress (e)
                 onTabCompleteRequest(e);
                 e.preventDefault();
             }
-            break;
+            return;
+
+        case 77: /* Hackaround for carbon on mac sending us this instead of 13
+                  * for ctrl+enter. 77 = "M", and ctrl+M was originally used
+                  * to send a CR in a terminal. */
+            // Fallthrough if ctrl was pressed, otherwise break out to default:
+            if (!e.ctrlKey)
+                break;
 
         case 13: /* CR */
             e.line = e.target.value;
@@ -342,12 +362,12 @@ function onInputKeyPress (e)
             if (e.ctrlKey)
                 e.line = client.COMMAND_CHAR + "say " + e.line;
             onInputCompleteLine (e);
-            break;
+            return;
 
         case 37: /* left */
-             if (e.altKey && e.metaKey)
-                 cycleView(-1);
-             break;
+            if (e.altKey && e.metaKey)
+                cycleView(-1);
+            return;
 
         case 38: /* up */
             if (e.ctrlKey || e.metaKey)
@@ -370,12 +390,12 @@ function onInputKeyPress (e)
                 }
             }
             e.preventDefault();
-            break;
+            return;
 
         case 39: /* right */
-             if (e.altKey && e.metaKey)
-                 cycleView(+1);
-             break;
+            if (e.altKey && e.metaKey)
+                cycleView(+1);
+            return;
 
         case 40: /* down */
             if (client.lastHistoryReferenced > 0)
@@ -392,14 +412,10 @@ function onInputKeyPress (e)
                 e.target.value = client.incompleteLine;
             }
             e.preventDefault();
-            break;
-
-        default:
-            client.lastHistoryReferenced = -1;
-            client.incompleteLine = e.target.value;
-            break;
+            return;
     }
-
+    client.lastHistoryReferenced = -1;
+    client.incompleteLine = e.target.value;
 }
 
 function onTabCompleteRequest (e)
@@ -1081,6 +1097,7 @@ function my_showtonet (e)
                     this.dispatch(cmdary[i]);
             }
 
+            this.isIdleAway = client.isIdleAway;
             if (this.prefs["away"])
                 this.dispatch("away", { reason: this.prefs["away"] });
 
@@ -1098,11 +1115,11 @@ function my_showtonet (e)
 
             if ("pendingURLs" in this)
             {
-                var url = this.pendingURLs.pop();
-                while (url)
+                var target = this.pendingURLs.pop();
+                while (target)
                 {
-                    gotoIRCURL(url);
-                    url = this.pendingURLs.pop();
+                    gotoIRCURL(target.url, target.e);
+                    target = this.pendingURLs.pop();
                 }
                 delete this.pendingURLs;
             }
@@ -1168,10 +1185,18 @@ function my_ctcprunk (e)
 }
 
 CIRCNetwork.prototype.onNotice =
-function my_notice (e)
+function my_notice(e)
 {
     client.munger.getRule(".mailto").enabled = client.prefs["munger.mailto"];
     this.display(e.decodeParam(2), "NOTICE", this, e.server.me);
+    client.munger.getRule(".mailto").enabled = false;
+}
+
+CIRCNetwork.prototype.onPrivmsg =
+function my_privmsg(e)
+{
+    client.munger.getRule(".mailto").enabled = client.prefs["munger.mailto"];
+    this.display(e.decodeParam(2), "PRIVMSG", this, e.server.me);
     client.munger.getRule(".mailto").enabled = false;
 }
 
@@ -1282,7 +1307,11 @@ function my_305(e)
 CIRCNetwork.prototype.on306 =
 function my_306(e)
 {
-    this.display(getMsg(MSG_AWAY_ON, this.prefs["away"]));
+    var idleMsgParams = [this.prefs["away"], client.prefs["awayIdleTime"]];
+    if (!this.isIdleAway)
+        this.display(getMsg(MSG_AWAY_ON, this.prefs["away"]));
+    else
+        this.display(getMsg(MSG_IDLE_AWAY_ON, idleMsgParams));
 
     return true;
 }
@@ -1979,9 +2008,11 @@ function my_netdisconnect (e)
                       "reconnect"]);
         msgNetwork = msg;
     }
-    // We won't reconnect if the error was really bad.
-    else if ((typeof e.disconnectStatus != "undefined") &&
-             (e.disconnectStatus == NS_ERROR_ABORT))
+    // We won't reconnect if the error was really bad, or if the user doesn't
+    // want us to do so.
+    else if (((typeof e.disconnectStatus != "undefined") &&
+              (e.disconnectStatus == NS_ERROR_ABORT)) ||
+             !this.stayingPower)
     {
         msgNetwork = msg;
     }
@@ -2135,6 +2166,17 @@ function my_netpong (e)
     this.updateHeader(this);
 }
 
+CIRCNetwork.prototype.onWallops =
+function my_netwallops(e)
+{
+    client.munger.getRule(".mailto").enabled = client.prefs["munger.mailto"];
+    if (e.user)
+        this.display(e.msg, "WALLOPS/WALLOPS", e.user, this);
+    else
+        this.display(e.msg, "WALLOPS/WALLOPS", undefined, this);
+    client.munger.getRule(".mailto").enabled = false;
+}
+
 CIRCNetwork.prototype.reclaimName =
 function my_reclaimname()
 {
@@ -2216,9 +2258,12 @@ CIRCChannel.prototype.onPrivmsg =
 function my_cprivmsg (e)
 {
     var msg = e.decodeParam(2);
+    var msgtype = "PRIVMSG";
+    if ("msgPrefix" in e)
+        msgtype += "/" + e.msgPrefix.symbol;
 
     client.munger.getRule(".mailto").enabled = client.prefs["munger.mailto"];
-    this.display (msg, "PRIVMSG", e.user, this);
+    this.display (msg, msgtype, e.user, this);
     client.munger.getRule(".mailto").enabled = false;
 }
 
@@ -2226,6 +2271,16 @@ function my_cprivmsg (e)
 CIRCChannel.prototype.on366 =
 function my_366 (e)
 {
+    // First clear up old users:
+    var removals = new Array();
+    while (this.userList.childData.childData.length > 0)
+    {
+        var userToRemove = this.userList.childData.childData[0]._userObj;
+        this.removeFromList(userToRemove);
+        removals.push(userToRemove);
+    }
+    this.removeUsers(removals);
+
     var entries = new Array(), updates = new Array();
     for (var u in this.users)
     {
@@ -2354,8 +2409,12 @@ function my_needops(e)
 CIRCChannel.prototype.onNotice =
 function my_notice (e)
 {
+    var msgtype = "NOTICE";
+    if ("msgPrefix" in e)
+        msgtype += "/" + e.msgPrefix.symbol;
+
     client.munger.getRule(".mailto").enabled = client.prefs["munger.mailto"];
-    this.display(e.decodeParam(2), "NOTICE", e.user, this);
+    this.display(e.decodeParam(2), msgtype, e.user, this);
     client.munger.getRule(".mailto").enabled = false;
 }
 

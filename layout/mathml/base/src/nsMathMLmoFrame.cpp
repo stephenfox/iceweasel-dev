@@ -42,7 +42,6 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
-#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsIRenderingContext.h"
@@ -154,7 +153,7 @@ nsMathMLmoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 // get the text that we enclose and setup our nsMathMLChar
 void
-nsMathMLmoFrame::ProcessTextData(PRBool aComputeStyleChange)
+nsMathMLmoFrame::ProcessTextData()
 {
   mFlags = 0;
 
@@ -398,7 +397,7 @@ nsMathMLmoFrame::ProcessOperatorData()
       // tuning if we don't want too much extra space when we are a script.
       // (with its fonts, TeX sets lspace=0 & rspace=0 as soon as scriptlevel>0.
       // Our fonts can be anything, so...)
-      if (mPresentationData.scriptLevel > 0) {
+      if (GetStyleFont()->mScriptLevel > 0) {
         if (NS_MATHML_OPERATOR_EMBELLISH_IS_ISOLATED(mFlags)) {
           // could be an isolated accent or script, e.g., x^{+}, just zero out
           mEmbellishData.leftSpace = 0;
@@ -890,19 +889,13 @@ nsMathMLmoFrame::Stretch(nsIRenderingContext& aRenderingContext,
     }
   }
 
-  if (mFrames.GetLength() != 1)
-    return NS_OK;
+  // Set our overflow area
+  GatherAndStoreOverflow(&aDesiredStretchSize);
 
-  nsRect rect = firstChild->GetRect();
-  if (useMathMLChar) {
-    // even though our child text frame is not doing the rendering, we make it play
-    // nice with other operations that the MathMLChar doesn't handle (e.g., caret)
-    // use our whole height (i.e., with the leading that isn't part of the MathMLChar)
-    mMathMLChar.GetRect(rect);
-    rect.y = 0;
-  }
-  rect.height = aDesiredStretchSize.height;
-  firstChild->SetRect(rect);
+  // There used to be code here to change the height of the child frame to
+  // change the caret height, but the text frame that manages the caret is now
+  // not a direct child but wrapped in a block frame.  See also bug 412033.
+
   return NS_OK;
 }
 
@@ -965,7 +958,7 @@ nsMathMLmoFrame::MarkIntrinsicWidthsDirty()
   // from the parent of our outermost embellished container (we ensure
   // that we are the core, not just a sibling of the core)
 
-  ProcessTextData(PR_FALSE);
+  ProcessTextData();
 
   nsIFrame* target = this;
   nsEmbellishData embellishData;

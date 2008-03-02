@@ -115,11 +115,13 @@ interface nsINavBookmarkObserver : nsISupports
    *        Is aProperty the name of an item annotation
    *
    * property = "cleartime": (history was deleted, there is no last visit date):
-   *                         value = none
-   * property = "title": value = new title
+   *                         value = empty string.
+   * property = "title": value = new title.
    * property = "favicon": value = new "moz-anno" URL of favicon image
-   * property = "uri": value = new uri spec
-   * aIsAnnotationProperty = true: value = empty string
+   * property = "uri": value = new uri spec.
+   * property = "tags: (tags set for the bookmarked uri have changed)
+   *             value = empty string.
+   * aIsAnnotationProperty = true: value = empty string.
    */
   void onItemChanged(in long long aBookmarkId, in ACString aProperty,
                      in boolean aIsAnnotationProperty,
@@ -163,7 +165,7 @@ interface nsINavBookmarkObserver : nsISupports
  * folders.  A URI in history can be contained in one or more such folders.
  */
 
-[scriptable, uuid(fb8dc678-681b-453b-a5fe-ab3cc19b3698)]
+[scriptable, uuid(617fe3a9-5c5b-4854-aae6-23a66ddf1c25)]
 interface nsINavBookmarksService : nsISupports
 {
   /**
@@ -217,7 +219,7 @@ interface nsINavBookmarksService : nsISupports
    *  @returns The ID of the newly-created bookmark
    */
   long long insertBookmark(in long long aParentFolder, in nsIURI aURI,
-                           in long aIndex, in AString aTitle);
+                           in long aIndex, in AUTF8String aTitle);
 
   /**
    * Removes a child item. Used to delete a bookmark or separator.
@@ -236,7 +238,7 @@ interface nsINavBookmarksService : nsISupports
    *         The index to insert at, or -1 to append
    *  @returns the ID of the newly-inserted folder
    */
-  long long createFolder(in long long aParentFolder, in AString name,
+  long long createFolder(in long long aParentFolder, in AUTF8String name,
                          in long index);
 
   /**
@@ -254,7 +256,7 @@ interface nsINavBookmarksService : nsISupports
    *         
    *  @returns the ID of the newly-inserted folder
    */
-  long long createDynamicContainer(in long long aParentFolder, in AString aName,
+  long long createDynamicContainer(in long long aParentFolder, in AUTF8String aName,
                                   in AString aContractId, in long aIndex);
 
   /**
@@ -369,7 +371,7 @@ interface nsINavBookmarksService : nsISupports
    *  @param aTitle
    *         The new title for the bookmark.
    */
-  void setItemTitle(in long long aItemId, in AString aTitle);
+  void setItemTitle(in long long aItemId, in AUTF8String aTitle);
 
   /**
    * Get the title for an item.
@@ -380,7 +382,7 @@ interface nsINavBookmarksService : nsISupports
    *         The id of the item whose title should be retrieved
    *  @returns The title of the item.
    */
-  AString getItemTitle(in long long aItemId);
+  AUTF8String getItemTitle(in long long aItemId);
 
   /**
    * Set the date added time for an item.

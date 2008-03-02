@@ -81,6 +81,10 @@
 
 #include "nsIJSContextStack.h"
 
+#ifdef MOZ_SHARK
+#include "jsdbgapi.h"
+#endif
+
 /***************************************************************************/
 
 #ifdef JS_THREADSAFE
@@ -425,6 +429,12 @@ static JSFunctionSpec glob_functions[] = {
     {"clear",           Clear,          1,0,0},
 #ifdef DEBUG
     {"dumpHeap",        DumpHeap,       5,0,0},
+#endif
+#ifdef MOZ_SHARK
+    {"startShark",      js_StartShark,      0,0,0},
+    {"stopShark",       js_StopShark,       0,0,0},
+    {"connectShark",    js_ConnectShark,    0,0,0},
+    {"disconnectShark", js_DisconnectShark, 0,0,0},
 #endif
     {nsnull,nsnull,0,0,0}
 };
@@ -884,7 +894,11 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             compileOnly = JS_TRUE;
             isInteractive = JS_FALSE;
             break;
-
+#ifdef MOZ_SHARK
+        case 'k':
+            JS_ConnectShark();
+            break;
+#endif
         default:
             return usage();
         }
@@ -970,7 +984,7 @@ FullTrustSecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
 /* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in JSVal aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP
 FullTrustSecMan::CanAccess(PRUint32 aAction,
-                           nsIXPCNativeCallContext *aCallContext,
+                           nsAXPCNativeCallContext *aCallContext,
                            JSContext * aJSContext, JSObject * aJSObject,
                            nsISupports *aObj, nsIClassInfo *aClassInfo,
                            jsval aName, void * *aPolicy)
@@ -1198,6 +1212,13 @@ FullTrustSecMan::IsSystemPrincipal(nsIPrincipal *aPrincipal, PRBool *_retval)
     *_retval = aPrincipal == mSystemPrincipal;
     return NS_OK;
 }
+
+NS_IMETHODIMP_(nsIPrincipal *)
+FullTrustSecMan::GetCxSubjectPrincipal(JSContext *cx)
+{
+    return mSystemPrincipal;
+}
+
 #endif
 
 /***************************************************************************/
@@ -1343,9 +1364,6 @@ main(int argc, char **argv, char **envp)
         // we will be sure that the secman on this context gives full trust.
         nsRefPtr<FullTrustSecMan> secman = new FullTrustSecMan();
         xpc->SetSecurityManagerForJSContext(cx, secman, 0xFFFF);
-
-        //    xpc->SetCollectGarbageOnMainThreadOnly(PR_TRUE);
-        //    xpc->SetDeferReleasesUntilAfterGarbageCollection(PR_TRUE);
 
 #ifndef XPCONNECT_STANDALONE
         // Fetch the system principal and store it away in a global, to use for

@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *  Darin Fisher <darin@meer.net>
+ *  Merle Sterling <msterlin@us.ibm.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,15 +42,17 @@
 
 #include "nsXFormsStubElement.h"
 #include "nsIRequestObserver.h"
-#include "nsIInputStream.h"
+#include "nsIAsyncInputStream.h"
 #include "nsCOMPtr.h"
 #include "nsIModelElementPrivate.h"
 #include "nsIXFormsSubmitElement.h"
 #include "nsIXFormsSubmissionElement.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsHashSets.h"
 #include "nsIDocument.h"
+#include "nsIHttpHeaderVisitor.h"
+#include "nsIXFormsContextInfo.h"
+#include "nsDataHashtable.h"
 
 
 class nsIMultiplexInputStream;
@@ -71,7 +74,8 @@ class nsXFormsSubmissionElement : public nsXFormsStubElement,
                                   public nsIRequestObserver,
                                   public nsIXFormsSubmissionElement,
                                   public nsIChannelEventSink,
-                                  public nsIInterfaceRequestor
+                                  public nsIInterfaceRequestor,
+                                  public nsIHttpHeaderVisitor
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -79,13 +83,15 @@ public:
   NS_DECL_NSIXFORMSSUBMISSIONELEMENT
   NS_DECL_NSICHANNELEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
+  NS_DECL_NSIHTTPHEADERVISITOR
 
   nsXFormsSubmissionElement()
-    : nsXFormsStubElement(),
+    : mElement(nsnull),
       mSubmissionActive(PR_FALSE),
       mIsReplaceInstance(PR_FALSE),
       mIsSOAPRequest(PR_FALSE),
-      mFormat(0)
+      mFormat(0),
+      mSubmissionBody(nsnull)
   {}
 
   // nsIXTFElement overrides
@@ -145,6 +151,7 @@ public:
                                 const nsCString &contentType);
 
 private:
+  nsIDOMElement*                   mElement;
   PRPackedBool                     mSubmissionActive;
    // Valid when mSubmissionActive == PR_TRUE
   PRPackedBool                     mIsReplaceInstance;
@@ -154,16 +161,27 @@ private:
   nsCOMPtr<nsIXFormsSubmitElement> mActivator;
 
   // input end of pipe, which contains response data.
-  nsCOMPtr<nsIInputStream>         mPipeIn;
+  nsCOMPtr<nsIAsyncInputStream>    mPipeIn;
+
+  // Context Info for events.
+  nsCOMArray<nsIXFormsContextInfo> mContextInfo;
+  // Document for http header context info.
+  nsCOMPtr<nsIDOMDocument>         mHttpHeaderDoc;
+  // Submission body from xforms-submit-serialize.
+  nsIDOMNode*                      mSubmissionBody;
+  // Type of submit error.
+  nsString                         mSubmitError;
 
   /**
    * @return true if aTestURI has the same origin as aBaseURI or if
    * there is no need for a same origin check.
    */
   PRBool CheckSameOrigin(nsIDocument *aBaseDocument, nsIURI *aTestURI);
-  nsresult AddNameSpaces(nsIDOMElement* aTarget, nsIDOMNode* aSource,
-                         nsStringHashSet* aPrefixHash);
-  nsresult GetIncludeNSPrefixesAttr(nsStringHashSet** aHash);
+  nsresult AddNameSpaces(
+             nsIDOMElement* aTarget, nsIDOMNode* aSource,
+             nsDataHashtable<nsStringHashKey, PRUint32>* aPrefixHash);
+  nsresult GetIncludeNSPrefixesAttr(
+             nsDataHashtable<nsStringHashKey, PRUint32>** aHash);
 
   /**
    * Send xforms-submit-done/-error, depending on |aSucceeded|
@@ -196,6 +214,21 @@ private:
    */
   nsresult CreateAttachments(nsIModelElementPrivate *aModel, nsIDOMNode *aDoc,
                              SubmissionAttachmentArray *aAttachments);
+
+  /**
+   * Set context info.
+   */
+  nsresult SetContextInfo();
+
+  /**
+   * Set Http context info.
+   *
+   * @param aResponse         Protocol response code
+   * @param aResponseText     Protocol response reason phrase
+   */
+  nsresult SetHttpContextInfo(PRUint32 aResponse, const nsAString &aResponseText);
+
+  nsresult ParseErrorResponse(nsIChannel *aChannel);
 };
 
 NS_HIDDEN_(nsresult)

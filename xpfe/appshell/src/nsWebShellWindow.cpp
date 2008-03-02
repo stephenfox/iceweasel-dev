@@ -50,7 +50,6 @@
 #include "nsIURL.h"
 #include "nsNetCID.h"
 #include "nsIStringBundle.h"
-#include "nsIPref.h"
 #include "nsReadableUtils.h"
 
 #include "nsEscape.h"
@@ -531,6 +530,8 @@ static void LoadNativeMenus(nsIDOMDocument *aDOMDoc, nsIWidget *aParentWindow)
   nsCOMPtr<nsIMenuBar> pnsMenuBar = do_CreateInstance(kMenuBarCID);
   if (!pnsMenuBar)
     return;
+
+  pnsMenuBar->Create(aParentWindow);
 
   // fake event
   nsMenuEvent fake(PR_TRUE, 0, nsnull);

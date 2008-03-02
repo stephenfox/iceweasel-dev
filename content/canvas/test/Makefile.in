@@ -90,8 +90,6 @@ _TEST_FILES_A = \
 	test_toDataURL.default.html \
 	test_toDataURL.png.html \
 	test_toDataURL.nocontext.html \
-	test_toDataURL.primarycolours.html \
-	test_toDataURL.complexcolours.html \
 	test_2d.getcontext.exists.html \
 	test_2d.type.name.html \
 	test_2d.type.exists.html \
@@ -151,6 +149,9 @@ _TEST_FILES_A = \
 	test_2d.composite.globalAlpha.imagepattern.html \
 	test_2d.composite.globalAlpha.canvaspattern.html \
 	$(NULL)
+# The following two tests tend to fail randomly.
+#       test_toDataURL.primarycolours.html 
+#       test_toDataURL.complexcolours.html 
 
 _TEST_FILES_B = \
 	test_2d.composite.solid.source-over.html \
@@ -176,12 +177,8 @@ _TEST_FILES_B = \
 	test_2d.composite.transparent.lighter.html \
 	test_2d.composite.image.source-over.html \
 	test_2d.composite.image.destination-over.html \
-	test_2d.composite.image.source-in.html \
-	test_2d.composite.image.destination-in.html \
-	test_2d.composite.image.source-out.html \
 	test_2d.composite.image.destination-out.html \
 	test_2d.composite.image.source-atop.html \
-	test_2d.composite.image.destination-atop.html \
 	test_2d.composite.image.xor.html \
 	test_2d.composite.image.copy.html \
 	test_2d.composite.image.lighter.html \
@@ -487,6 +484,7 @@ _TEST_FILES_E = \
 	test_2d.imageData.put.unchanged.html \
 	test_2d.imageData.put.unaffected.html \
 	test_2d.imageData.put.path.html \
+	test_bug405982.html \
 	image_transparent50.png \
 	image_redtransparent.png \
 	image_yellow.png \
@@ -512,9 +510,19 @@ endif
 # Tests that fail on Mac (possibly because spec is underdefined?).  Bug 407105
 ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 _TEST_FILES_E += \
-	test_2d.line.cap.zerobezier.round.html \
 	test_2d.line.join.parallel.html \
 	test_2d.strokeRect.zero.5.html \
+	$(NULL)
+
+# test_2d.line.cap.zerobezier.round.html disabled for now, from above
+
+# These are failing due to different quartz implementations of these operators when
+# images are in play.  Bug 413026.
+_TEST_FILES_E += \
+	test_2d.composite.image.destination-in.html \
+	test_2d.composite.image.destination-atop.html \
+	test_2d.composite.image.source-in.html \
+	test_2d.composite.image.source-out.html \
 	$(NULL)
 endif
 

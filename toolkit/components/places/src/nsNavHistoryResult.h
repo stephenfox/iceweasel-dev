@@ -216,7 +216,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryResult, NS_NAVHISTORYRESULT_IID)
 // implementation and all subclasses. More complex are GetIcon, GetParent
 // (which depends on the definition of container result node), and GetUri
 // (which is overridded for lazy construction for some containers).
-#define NS_IMPLEMENT_SIMPLE_RESULTNODE \
+#define NS_IMPLEMENT_SIMPLE_RESULTNODE_NO_GETITEMMID \
   NS_IMETHOD GetTitle(nsACString& aTitle) \
     { aTitle = mTitle; return NS_OK; } \
   NS_IMETHOD GetAccessCount(PRUint32* aAccessCount) \
@@ -231,12 +231,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryResult, NS_NAVHISTORYRESULT_IID)
     { mViewIndex = aViewIndex; return NS_OK; } \
   NS_IMETHOD GetBookmarkIndex(PRInt32* aIndex) \
     { *aIndex = mBookmarkIndex; return NS_OK; } \
-  NS_IMETHOD GetItemId(PRInt64* aId) \
-    { *aId = mItemId; return NS_OK; } \
   NS_IMETHOD GetDateAdded(PRTime* aDateAdded) \
     { *aDateAdded = mDateAdded; return NS_OK; } \
   NS_IMETHOD GetLastModified(PRTime* aLastModified) \
     { *aLastModified = mLastModified; return NS_OK; }
+
+#define NS_IMPLEMENT_SIMPLE_RESULTNODE \
+  NS_IMPLEMENT_SIMPLE_RESULTNODE_NO_GETITEMMID \
+  NS_IMETHOD GetItemId(PRInt64* aId) \
+    { *aId = mItemId; return NS_OK; }
 
 // This is used by the base classes instead of
 // NS_FORWARD_NSINAVHISTORYRESULTNODE(nsNavHistoryResultNode) because they
@@ -247,8 +250,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryResult, NS_NAVHISTORYRESULT_IID)
 // (GetUri is redefined only by QueryResultNode and FolderResultNode because
 // the queries might not necessarily be parsed. The rest just return the node's
 // buffer.)
-#define NS_FORWARD_COMMON_RESULTNODE_TO_BASE \
-  NS_IMPLEMENT_SIMPLE_RESULTNODE \
+#define NS_FORWARD_COMMON_RESULTNODE_TO_BASE_NO_GETITEMMID \
+  NS_IMPLEMENT_SIMPLE_RESULTNODE_NO_GETITEMMID \
   NS_IMETHOD GetIcon(nsIURI** aIcon) \
     { return nsNavHistoryResultNode::GetIcon(aIcon); } \
   NS_IMETHOD GetParent(nsINavHistoryContainerResultNode** aParent) \
@@ -256,7 +259,14 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryResult, NS_NAVHISTORYRESULT_IID)
   NS_IMETHOD GetParentResult(nsINavHistoryResult** aResult) \
     { return nsNavHistoryResultNode::GetParentResult(aResult); } \
   NS_IMETHOD GetPropertyBag(nsIWritablePropertyBag** aBag) \
-    { return nsNavHistoryResultNode::GetPropertyBag(aBag); }
+    { return nsNavHistoryResultNode::GetPropertyBag(aBag); } \
+  NS_IMETHOD GetTags(nsAString& aTags) \
+    { return nsNavHistoryResultNode::GetTags(aTags); } \
+
+#define NS_FORWARD_COMMON_RESULTNODE_TO_BASE \
+  NS_FORWARD_COMMON_RESULTNODE_TO_BASE_NO_GETITEMMID \
+  NS_IMETHOD GetItemId(PRInt64* aId) \
+    { *aId = mItemId; return NS_OK; }
 
 class nsNavHistoryResultNode : public nsINavHistoryResultNode
 {
@@ -280,6 +290,7 @@ public:
     { *type = nsNavHistoryResultNode::RESULT_TYPE_URI; return NS_OK; }
   NS_IMETHOD GetUri(nsACString& aURI)
     { aURI = mURI; return NS_OK; }
+  NS_IMETHOD GetTags(nsAString& aTags);
 
   virtual void OnRemoving();
 
@@ -303,6 +314,7 @@ public:
             type == nsINavHistoryResultNode::RESULT_TYPE_DYNAMIC_CONTAINER ||
             type == nsINavHistoryResultNode::RESULT_TYPE_QUERY ||
             type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER ||
+            type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER_SHORTCUT ||
             type == nsINavHistoryResultNode::RESULT_TYPE_DAY);
   }
   PRBool IsContainer() {
@@ -348,7 +360,8 @@ public:
     return IsTypeVisit(type);
   }
   static PRBool IsTypeFolder(PRUint32 type) {
-    return (type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER);
+    return (type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER ||
+            type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER_SHORTCUT);
   }
   PRBool IsFolder() {
     PRUint32 type;
@@ -388,6 +401,7 @@ public:
   nsNavHistoryContainerResultNode* mParent;
   nsCString mURI; // not necessarily valid for containers, call GetUri
   nsCString mTitle;
+  nsString mTags;
   PRUint32 mAccessCount;
   PRInt64 mTime;
   nsCString mFaviconURI;
@@ -622,6 +636,10 @@ public:
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
   PR_STATIC_CALLBACK(int) SortComparison_CountGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
+  PR_STATIC_CALLBACK(int) SortComparison_TagsLess(
+      nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
+  PR_STATIC_CALLBACK(int) SortComparison_TagsGreater(
+      nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
 
   // finding children: THESE DO NOT ADDREF
   nsNavHistoryResultNode* FindChildURI(nsIURI* aURI, PRUint32* aNodeIndex)
@@ -645,6 +663,7 @@ public:
                          PRBool aIsTemporary = PR_FALSE);
   nsresult InsertSortedChild(nsNavHistoryResultNode* aNode,
                              PRBool aIsTemporary = PR_FALSE);
+  PRBool EnsureItemPosition(PRUint32 aIndex);
   void MergeResults(nsCOMArray<nsNavHistoryResultNode>* aNodes);
   nsresult ReplaceChildURIAt(PRUint32 aIndex, nsNavHistoryResultNode* aNode);
   nsresult RemoveChildAt(PRInt32 aIndex, PRBool aIsTemporary = PR_FALSE);
@@ -742,13 +761,20 @@ public:
                                const nsACString& aDynamicContainerType);
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_COMMON_RESULTNODE_TO_BASE
-  NS_IMETHOD GetType(PRUint32* type)
-    { *type = nsNavHistoryResultNode::RESULT_TYPE_FOLDER; return NS_OK; }
+  NS_FORWARD_COMMON_RESULTNODE_TO_BASE_NO_GETITEMMID
+  NS_IMETHOD GetType(PRUint32* type) {
+    if (mQueryItemId != -1) {
+      *type = nsNavHistoryResultNode::RESULT_TYPE_FOLDER_SHORTCUT;
+    } else {
+      *type = nsNavHistoryResultNode::RESULT_TYPE_FOLDER;
+    }
+    return NS_OK;
+  }
   NS_IMETHOD GetUri(nsACString& aURI);
   NS_FORWARD_CONTAINERNODE_EXCEPT_HASCHILDREN_AND_READONLY
   NS_IMETHOD GetHasChildren(PRBool* aHasChildren);
   NS_IMETHOD GetChildrenReadOnly(PRBool *aChildrenReadOnly);
+  NS_IMETHOD GetItemId(PRInt64 *aItemId);
   NS_DECL_NSINAVHISTORYQUERYRESULTNODE
 
   virtual nsresult OpenContainer();
@@ -765,6 +791,10 @@ public:
   // this indicates whether the folder contents are valid, they don't go away
   // after the container is closed until a notification comes in
   PRBool mContentsValid;
+
+  // If the node is generated from a place:folder=X query, this is the query's
+  // itemId.
+  PRInt64 mQueryItemId;
 
   nsresult FillChildren();
   void ClearChildren(PRBool aUnregister);

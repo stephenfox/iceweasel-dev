@@ -105,8 +105,10 @@ pkix_pl_InfoAccess_Create(
         infoAccess->location = generalName;
 
         *pInfoAccess = infoAccess;
+        infoAccess = NULL;
 
 cleanup:
+        PKIX_DECREF(infoAccess);
 
         PKIX_RETURN(INFOACCESS);
 }
@@ -343,6 +345,8 @@ pkix_pl_InfoAccess_RegisterSelf(void *plContext)
                 "pkix_pl_InfoAccess_RegisterSelf");
 
         entry.description = "InfoAccess";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_InfoAccess);
         entry.destructor = pkix_pl_InfoAccess_Destroy;
         entry.equalsFunction = pkix_pl_InfoAccess_Equals;
         entry.hashcodeFunction = pkix_pl_InfoAccess_Hashcode;
@@ -394,8 +398,6 @@ pkix_pl_InfoAccess_CreateList(
 
         PKIX_CHECK(PKIX_List_Create(&infoAccessList, plContext),
                 PKIX_LISTCREATEFAILED);
-
-        *pInfoAccessList = infoAccessList;
 
         if (nssInfoAccess == NULL) {
                 goto cleanup;
@@ -472,12 +474,15 @@ pkix_pl_InfoAccess_CreateList(
                             plContext),
                             PKIX_LISTAPPENDITEMFAILED);
                 PKIX_DECREF(infoAccess);
+                PKIX_DECREF(location);
         }
 
         *pInfoAccessList = infoAccessList;
+        infoAccessList = NULL;
 
 cleanup:
 
+        PKIX_DECREF(infoAccessList);
         PKIX_DECREF(infoAccess);
         PKIX_DECREF(location);
 
@@ -519,6 +524,7 @@ PKIX_PL_InfoAccess_GetLocation(
 
         *pLocation = infoAccess->location;
 
+cleanup:
         PKIX_RETURN(INFOACCESS);
 }
 

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: Objective-C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -66,6 +66,8 @@ extern nsIWidget         * gRollupWidget;
 extern BOOL                gSomeMenuBarPainted;
 
 #define NS_APPSHELLSERVICE_CONTRACTID "@mozilla.org/appshell/appShellService;1"
+
+#define POPUP_DEFAULT_TRANSPARENCY 0.95
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsCocoaWindow, Inherited, nsPIWidgetCocoa)
 
@@ -372,10 +374,10 @@ nsresult nsCocoaWindow::StandardCreate(nsIWidget *aParent,
 
     // Create the window
     mWindow = [[windowClass alloc] initWithContentRect:rect styleMask:features 
-                                   backing:NSBackingStoreBuffered defer:NO];
+                                   backing:NSBackingStoreBuffered defer:YES];
     
     if (mWindowType == eWindowType_popup) {
-      [mWindow setAlphaValue:0.95];
+      [mWindow setAlphaValue:POPUP_DEFAULT_TRANSPARENCY];
       [mWindow setLevel:NSPopUpMenuWindowLevel];
       [mWindow setHasShadow:YES];
 
@@ -694,6 +696,48 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
   if (mPopupContentView)
       mPopupContentView->Show(bState);
 
+  return NS_OK;
+}
+
+
+void nsCocoaWindow::MakeBackgroundTransparent(PRBool aTransparent)
+{
+  BOOL currentTransparency = ![mWindow isOpaque];
+  if (aTransparent != currentTransparency) {
+    // Popups have an alpha value we need to toggle.
+    if (mWindowType == eWindowType_popup) {
+      [mWindow setAlphaValue:(aTransparent ? 1.0 : POPUP_DEFAULT_TRANSPARENCY)];
+    }
+    [mWindow setOpaque:!aTransparent];
+    [mWindow setBackgroundColor:(aTransparent ? [NSColor clearColor] : [NSColor whiteColor])];
+    [mWindow setHasShadow:!aTransparent];
+  }
+}
+
+
+NS_IMETHODIMP nsCocoaWindow::GetHasTransparentBackground(PRBool& aTransparent)
+{
+  aTransparent = ![mWindow isOpaque];   
+  return NS_OK;
+}
+
+
+// This is called from nsMenuPopupFrame when making a popup transparent.
+// For other window types, nsChildView::SetHasTransparentBackground is used.
+NS_IMETHODIMP nsCocoaWindow::SetHasTransparentBackground(PRBool aTransparent)
+{
+  BOOL currentTransparency = ![mWindow isOpaque];
+  if (aTransparent != currentTransparency) {
+    // Take care of window transparency
+    MakeBackgroundTransparent(aTransparent);
+    // Make sure our content view is also transparent
+    if (mPopupContentView) {
+      ChildView *childView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
+      if (childView) {
+        [childView setTransparent:aTransparent];
+      }
+    }
+  }
   return NS_OK;
 }
 
@@ -1498,8 +1542,11 @@ NS_IMETHODIMP nsCocoaWindow::EndSecureKeyboardInput()
   if ((self = [super init])) {
     mTitlebarColor = [aTitlebarColor retain];
     mBackgroundColor = [aBackgroundColor retain];
-    mWindow = aWindow; // weak ref
+    mWindow = aWindow; // weak ref to avoid a cycle
     NSRect frameRect = [aWindow frame];
+
+    // We cant just use a static because the height can vary by window, and we don't
+    // want to recalculate this every time we draw. A member is the best solution.
     mTitlebarHeight = frameRect.size.height - [aWindow contentRectForFrameRect:frameRect].size.height;
   }
   return self;
@@ -1526,6 +1573,7 @@ static const float sTigerHeaderEndGrey = 202/255.0f;
 
 // This is the grey for the border at the bottom of the titlebar.
 static const float sLeopardTitlebarBorderGrey = 64/255.0f;
+static const float sLeopardTitlebarBackgroundBorderGrey = 134/255.0f;
 static const float sTigerTitlebarBorderGrey = 140/255.0f;
 
 // Callback used by the default titlebar shading.
@@ -1556,6 +1604,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NSColor *titlebarColor = [color titlebarColor];
   NSColor *backgroundColor = [color backgroundColor];
   NSWindow *window = [color window];
+  BOOL isMain = [window isMainWindow];
 
   // Remember: this context is NOT flipped, so the origin is in the bottom left.
   float titlebarHeight = [color titlebarHeight];
@@ -1566,7 +1615,6 @@ void patternDraw(void* aInfo, CGContextRef aContext)
 
   // If the titlebar color is nil, draw the default titlebar shading.
   if (!titlebarColor) {
-    BOOL isMain = [window isMainWindow];
     // On Tiger when the window is not main, we want to draw a pinstripe pattern instead.
     if (!nsToolkit::OnLeopardOrLater() && !isMain) {
       [[NSColor windowBackgroundColor] set];
@@ -1586,10 +1634,9 @@ void patternDraw(void* aInfo, CGContextRef aContext)
     }
 
     // Draw the one pixel border at the bottom of the titlebar.
-    if (nsToolkit::OnLeopardOrLater())
-      [[NSColor colorWithDeviceWhite:sLeopardTitlebarBorderGrey alpha:1.0f] set];
-    else
-      [[NSColor colorWithDeviceWhite:sTigerTitlebarBorderGrey alpha:1.0f] set];
+    float borderGrey = !nsToolkit::OnLeopardOrLater() ? sTigerTitlebarBorderGrey :
+      (isMain ? sLeopardTitlebarBorderGrey : sLeopardTitlebarBackgroundBorderGrey);
+    [[NSColor colorWithDeviceWhite:borderGrey alpha:1.0f] set];
     NSRectFill(NSMakeRect(0.0f, titlebarOrigin, sPatternWidth, 1.0f));
   } else {
     // if the titlebar color is not nil, just set and draw it normally.
@@ -1671,6 +1718,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   [self setFill];
 }
 
+
 - (float)titlebarHeight
 {
   return mTitlebarHeight;
@@ -1711,7 +1759,8 @@ void patternDraw(void* aInfo, CGContextRef aContext)
 // events for a given NSWindow object go through its sendEvent: method.)
 - (void)sendEvent:(NSEvent *)anEvent
 {
-  NSView *target = nil, *contentView = nil;
+  NSView *target = nil;
+  NSView *contentView = nil;
   NSEventType type = [anEvent type];
   NSPoint windowLocation = NSZeroPoint;
   switch (type) {
@@ -1726,10 +1775,14 @@ void patternDraw(void* aInfo, CGContextRef aContext)
     case NSLeftMouseDragged:
     case NSRightMouseDragged:
     case NSOtherMouseDragged:
-      if ((contentView = [self contentView]) != nil) {
+      if ((contentView = [self contentView])) {
         // Since [anEvent window] might not be us, we can't use [anEvent locationInWindow].
         windowLocation = nsCocoaUtils::EventLocationForWindow(anEvent, self);
         target = [contentView hitTest:[contentView convertPoint:windowLocation fromView:nil]];
+        // If the hit test failed, the event is targeted here but is not over the window.
+        // Target it at the first responder.
+        if (!target)
+          target = (NSView*)[self firstResponder];
       }
       break;
     default:
@@ -1743,17 +1796,17 @@ void patternDraw(void* aInfo, CGContextRef aContext)
       case NSLeftMouseDown:
         [target mouseDown:anEvent];
         // If we're in a context menu we don't want the OS to send the coming
-        // leftMouseUp event to NSApp via the window server, but we do want
-        // our ChildView to receive a leftMouseUp event (and to send a Gecko
+        // NSLeftMouseUp event to NSApp via the window server, but we do want
+        // our ChildView to receive an NSLeftMouseUp event (and to send a Gecko
         // NS_MOUSE_BUTTON_UP event to the corresponding nsChildView object).
         // If our NSApp isn't active (i.e. if we're in a context menu raised
-        // by a rightMouseDown event) when it receives the coming leftMouseUp
-        // via the window server, our browser will (in effect) become partially
+        // by a right mouse down event) when it receives the coming NSLeftMouseUp
+        // via the window server, our app will (in effect) become partially
         // activated, which has strange side effects:  For example, if another
         // app's window had the focus, that window will lose the focus and the
         // other app's main menu will be completely disabled (though it will
         // continue to be displayed).
-        // A side effect of not allowing the coming leftMouseUp event to be
+        // A side effect of not allowing the coming NSLeftMouseUp event to be
         // sent to NSApp via the window server is that our custom context
         // menus will roll up whenever the user left-clicks on them, whether
         // or not the left-click hit an active menu item.  This is how native
@@ -1761,8 +1814,8 @@ void patternDraw(void* aInfo, CGContextRef aContext)
         // behaved previously (on the trunk or e.g. in Firefox 2.0.0.4).
         // If our ChildView's corresponding nsChildView object doesn't
         // dispatch an NS_MOUSE_BUTTON_UP event, none of our active menu items
-        // will "work" on a leftMouseDown.
-        if (mIsContextMenu) {
+        // will "work" on an NSLeftMouseUp.
+        if (mIsContextMenu && ![NSApp isActive]) {
           NSEvent *newEvent = [NSEvent mouseEventWithType:NSLeftMouseUp
                                                  location:windowLocation
                                             modifierFlags:[anEvent modifierFlags]
@@ -1808,24 +1861,6 @@ void patternDraw(void* aInfo, CGContextRef aContext)
         break;
     }
   } else {
-    // Sometimes more than one popup window can be visible at the same time
-    // (e.g. nested non-native context menus, or the test case (attachment
-    // 276885) for bmo bug 392389, which displays a non-native combo-box in
-    // a non-native popup window).  In these cases the "active" popup window
-    // (the one that corresponds to the current gRollupWidget) should receive
-    // all mouse events that happen over it.  So if anEvent wasn't processed
-    // here, if there's a current gRollupWidget, and if its NSWindow object
-    // isn't us, we send anEvent to the gRollupWidget's NSWindow object, then
-    // return.  Other code (in nsChildView.mm's ChildView class) will redirect
-    // events that happen over us but should be redirected to the current
-    // gRollupWidget.
-    if (gRollupWidget) {
-      NSWindow *rollupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
-      if (rollupWindow && ![rollupWindow isEqual:self]) {
-        [rollupWindow sendEvent:anEvent];
-        return;
-      }
-    }
     [super sendEvent:anEvent];
   }
 }

@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXFormsUtils.h"
-#include "nsString.h"
+#include "nsStringAPI.h"
 #include "nsXFormsAtoms.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNSHTMLElement.h"
@@ -61,12 +61,9 @@
 #include "nsIDOMLocation.h"
 #include "nsIDOMSerializer.h"
 #include "nsIContent.h"
-#include "nsIAttribute.h"
 #include "nsXFormsAtoms.h"
 #include "nsIXFormsRepeatElement.h"
 #include "nsIContentPolicy.h"
-#include "nsContentUtils.h"
-#include "nsContentPolicyUtils.h"
 #include "nsIXFormsContextControl.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMEvent.h"
@@ -81,7 +78,6 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPermissionManager.h"
-#include "nsServiceManagerUtils.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOM3Node.h"
 #include "nsIConsoleService.h"
@@ -96,7 +92,9 @@
 #include "nsISchemaDuration.h"
 #include "nsXFormsSchemaValidator.h"
 #include "prdtoa.h"
+#include "prprf.h"
 
+#include "nsIPref.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIDOMDocumentView.h"
@@ -115,6 +113,11 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPrompt.h"
+#include "nsComponentManagerUtils.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIDocShell.h"
+#include "nsIDocCharset.h"
+#include "nsNetUtil.h"
 
 // For locale aware string methods
 #include "plstr.h"
@@ -122,7 +125,7 @@
 #define CANCELABLE 0x01
 #define BUBBLES    0x02
 
-const EventData sXFormsEventsEntries[42] = {
+const EventData sXFormsEventsEntries[43] = {
   { "xforms-model-construct",      PR_FALSE, PR_TRUE  },
   { "xforms-model-construct-done", PR_FALSE, PR_TRUE  },
   { "xforms-ready",                PR_FALSE, PR_TRUE  },
@@ -164,7 +167,8 @@ const EventData sXFormsEventsEntries[42] = {
   { "xforms-link-exception",       PR_FALSE, PR_TRUE  },
   { "xforms-link-error",           PR_FALSE, PR_TRUE  },
   { "xforms-compute-exception",    PR_FALSE, PR_TRUE  },
-  { "xforms-moz-hint-off",         PR_FALSE, PR_TRUE  }
+  { "xforms-moz-hint-off",         PR_FALSE, PR_TRUE  },
+  { "xforms-submit-serialize",     PR_FALSE, PR_TRUE  }
 };
 
 static const EventData sEventDefaultsEntries[] = {
@@ -220,6 +224,7 @@ struct EventItem
   nsXFormsEvent           event;
   nsCOMPtr<nsIDOMNode>    eventTarget;
   nsCOMPtr<nsIDOMElement> srcElement;
+  nsCOMArray<nsIXFormsContextInfo> *contextInfo;
 };
 
 static PRBool gExperimentalFeaturesEnabled = PR_FALSE;
@@ -566,7 +571,7 @@ nsXFormsUtils::EvaluateXPath(const nsAString        &aExpression,
 
   PRBool throwException = PR_FALSE;
   if (!expression) {
-    const nsPromiseFlatString& flat = PromiseFlatString(aExpression);
+    const nsString& flat = PromiseFlatString(aExpression);
     const PRUnichar *strings[] = { flat.get() };
     nsXFormsUtils::ReportError(NS_LITERAL_STRING("exprParseError"),
                                strings, 1, aContextNode, nsnull);
@@ -611,7 +616,7 @@ nsXFormsUtils::EvaluateXPath(const nsAString        &aExpression,
     }
 
     if (rv == NS_ERROR_XFORMS_CALCULATION_EXCEPTION) {
-      const nsPromiseFlatString& flat = PromiseFlatString(aExpression);
+      const nsString& flat = PromiseFlatString(aExpression);
       const PRUnichar *strings[] = { flat.get() };
       nsXFormsUtils::ReportError(NS_LITERAL_STRING("exprEvaluateError"),
                                  strings, 1, aContextNode, nsnull);
@@ -625,7 +630,21 @@ nsXFormsUtils::EvaluateXPath(const nsAString        &aExpression,
     nsCOMPtr<nsIModelElementPrivate> modelPriv =
       nsXFormsUtils::GetModel(resolverElement);
     nsCOMPtr<nsIDOMNode> model = do_QueryInterface(modelPriv);
-    DispatchEvent(model, eEvent_ComputeException, nsnull, resolverElement);
+
+    // Context Info: 'error-message'
+    // Error message containing the expression being processed.
+    nsAutoString errorMsg;
+    errorMsg.AssignLiteral("Error evaluating expression: ");
+    errorMsg.Append(aExpression);
+
+    nsCOMPtr<nsXFormsContextInfo> contextInfo =
+      new nsXFormsContextInfo(resolverElement);
+    NS_ENSURE_TRUE(contextInfo, NS_ERROR_OUT_OF_MEMORY);
+    contextInfo->SetStringValue("error-message", errorMsg);
+    nsCOMArray<nsIXFormsContextInfo> contextInfoArray;
+    contextInfoArray.AppendObject(contextInfo);
+    DispatchEvent(model, eEvent_ComputeException, nsnull, resolverElement,
+                  &contextInfoArray);
   }
 
   return rv;
@@ -782,7 +801,7 @@ nsXFormsUtils::EvaluateNodeBinding(nsIDOMElement           *aElement,
             const PRUnichar* colon;
             rv = parserService->CheckQName(expr, PR_TRUE, &colon);
             if (NS_SUCCEEDED(rv)) {
-              nsAutoString namespaceURI(EmptyString());
+              nsAutoString namespaceURI;
 
               // if we detect a namespace, we'll add it to the node, otherwise
               // we'll use the empty namespace.  If we should have gotten a
@@ -970,7 +989,8 @@ nsXFormsUtils::GetSingleNodeBindingValue(nsIDOMElement* aElement,
 
 nsresult
 DispatchXFormsEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
-                    PRBool *aDefaultActionEnabled)
+                    PRBool *aDefaultActionEnabled,
+                    nsCOMArray<nsIXFormsContextInfo> *aContextInfo)
 {
   nsCOMPtr<nsIDOMDocument> domDoc;
   aTarget->GetOwnerDocument(getter_AddRefs(domDoc));
@@ -990,8 +1010,12 @@ DispatchXFormsEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
 
   nsXFormsUtils::SetEventTrusted(event, aTarget);
 
+  // Create an nsXFormsDOMEvent with the context info for the event.
+  nsCOMPtr<nsIXFormsDOMEvent> xfDOMEvent = new nsXFormsDOMEvent(event, aContextInfo);
+  NS_ENSURE_TRUE(xfDOMEvent, NS_ERROR_OUT_OF_MEMORY);
+
   PRBool defaultActionEnabled = PR_TRUE;
-  nsresult rv = target->DispatchEvent(event, &defaultActionEnabled);
+  nsresult rv = target->DispatchEvent(xfDOMEvent, &defaultActionEnabled);
 
   if (NS_SUCCEEDED(rv) && aDefaultActionEnabled)
     *aDefaultActionEnabled = defaultActionEnabled;
@@ -1023,6 +1047,10 @@ DispatchXFormsEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
     break;
   }
 
+  // Clear the context info array before the next event.
+  if (aContextInfo)
+    aContextInfo->Clear();
+
   return rv;
 }
 
@@ -1045,7 +1073,8 @@ DeleteVoidArray(void    *aObject,
 
 nsresult
 DeferDispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
-                   nsIDOMElement *aSrcElement)
+                   nsIDOMElement *aSrcElement,
+                   nsCOMArray<nsIXFormsContextInfo> *aContextInfo)
 {
   nsCOMPtr<nsIDOMDocument> domDoc;
   if (aTarget) {
@@ -1075,6 +1104,7 @@ DeferDispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
   deferredEvent->event = aEvent;
   deferredEvent->eventTarget = aTarget;
   deferredEvent->srcElement = aSrcElement;
+  deferredEvent->contextInfo = aContextInfo;
   eventList->AppendElement(deferredEvent);
 
   return NS_OK;
@@ -1083,7 +1113,8 @@ DeferDispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
 /* static */ nsresult
 nsXFormsUtils::DispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
                              PRBool *aDefaultActionEnabled,
-                             nsIDOMElement *aSrcElement)
+                             nsIDOMElement *aSrcElement,
+                             nsCOMArray<nsIXFormsContextInfo> *aContextInfo)
 {
   // it is valid to have aTarget be null if this is an event that must be
   // targeted at a model per spec and aSrcElement is non-null.  Basically we
@@ -1137,7 +1168,7 @@ nsXFormsUtils::DispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
         // model later when the DOM is finished loading
         if (!aTarget) {
           if (aSrcElement) {
-            DeferDispatchEvent(aTarget, aEvent, aSrcElement);
+            DeferDispatchEvent(aTarget, aEvent, aSrcElement, aContextInfo);
             return NS_OK;
           }
           return NS_ERROR_FAILURE;
@@ -1149,7 +1180,7 @@ nsXFormsUtils::DispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
         PRBool safeToSendEvent = PR_FALSE;
         modelPriv->GetHasDOMContentFired(&safeToSendEvent);
         if (!safeToSendEvent) {
-          DeferDispatchEvent(aTarget, aEvent, nsnull);
+          DeferDispatchEvent(aTarget, aEvent, nsnull, aContextInfo);
           return NS_OK;
         }
       
@@ -1191,7 +1222,7 @@ nsXFormsUtils::DispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
         PRBool safeToSendEvent = PR_FALSE;
         modelPriv->GetHasDOMContentFired(&safeToSendEvent);
         if (!safeToSendEvent) {
-          DeferDispatchEvent(aTarget, aEvent, nsnull);
+          DeferDispatchEvent(aTarget, aEvent, nsnull, aContextInfo);
           return NS_OK;
         }
       
@@ -1201,7 +1232,7 @@ nsXFormsUtils::DispatchEvent(nsIDOMNode* aTarget, nsXFormsEvent aEvent,
       break;
   }
 
-  return DispatchXFormsEvent(aTarget, aEvent, aDefaultActionEnabled);
+  return DispatchXFormsEvent(aTarget, aEvent, aDefaultActionEnabled, aContextInfo);
 
 }
 
@@ -1257,7 +1288,7 @@ nsXFormsUtils::DispatchDeferredEvents(nsIDOMDocument* aDocument)
       NS_ENSURE_STATE(item->eventTarget);
     }
 
-    DispatchXFormsEvent(item->eventTarget, item->event, nsnull);
+    DispatchXFormsEvent(item->eventTarget, item->event, nsnull, item->contextInfo);
   }
 
   doc->DeleteProperty(nsXFormsAtoms::deferredEventListProperty);
@@ -1572,7 +1603,7 @@ nsXFormsUtils::CheckSameOrigin(nsIDocument   *aBaseDocument,
   // permitted to access sites from other domains.
 
   nsCOMPtr<nsIPermissionManager> permMgr =
-      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, PR_FALSE);
 
   nsCOMPtr<nsIURI> principalURI;
@@ -1600,17 +1631,28 @@ nsXFormsUtils::CheckContentPolicy(nsIDOMElement *aElement,
 {
   NS_ASSERTION(aElement && aDoc && aURI, "Got null parameters?!");
 
+  nsIURI *docURI = aDoc->GetDocumentURI();
+  NS_ENSURE_TRUE(docURI, PR_FALSE);
+
+  nsresult rv;
+  nsCOMPtr<nsIContentPolicy> policy =
+    do_GetService("@mozilla.org/layout/content-policy;1", &rv);
+  if (NS_FAILED(rv) || !policy) {
+    return PR_FALSE;
+  }
+
   PRInt16 decision = nsIContentPolicy::ACCEPT;
-  nsresult rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_OTHER,
-                                          aURI,
-                                          aDoc->NodePrincipal(),
-                                          aElement,        // context
-                                          EmptyCString(),  // mime guess
-                                          nsnull,          // extra
-                                          &decision);
+  rv = policy->ShouldLoad(nsIContentPolicy::TYPE_OTHER,
+                          aURI,
+                          docURI,
+                          aElement,        // context
+                          EmptyCString(),  // mime guess
+                          nsnull,          // extra
+                          &decision);
+
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-  return NS_CP_ACCEPTED(decision);
+  return (decision == nsIContentPolicy::ACCEPT);
 }
 
 /*static*/ PRBool
@@ -1765,7 +1807,7 @@ nsXFormsUtils::ReportError(const nsAString& aMessage, const PRUnichar **aParams,
     nsCOMPtr<nsIStringBundle> bundle;
     bundleService->CreateBundle("chrome://xforms/locale/xforms.properties",
                                 getter_AddRefs(bundle));
-    nsXPIDLString message;
+    nsString message;
     if (aParams) {
       bundle->FormatStringFromName(PromiseFlatString(aMessage).get(), aParams,
                                    aParamLength, getter_Copies(message));
@@ -2604,7 +2646,7 @@ nsXFormsUtils::GetMonths(const nsAString & aValue, PRInt32 * aMonths)
 
   *aMonths = 0;
   nsCOMPtr<nsISchemaDuration> duration;
-  nsCOMPtr<nsISchemaValidator> schemaValidator = 
+  nsCOMPtr<nsISchemaValidator> schemaValidator =
     do_CreateInstance("@mozilla.org/schemavalidator;1");
   NS_ENSURE_TRUE(schemaValidator, NS_ERROR_FAILURE);
 
@@ -2714,16 +2756,15 @@ nsXFormsUtils::GetSecondsFromDateTime(const nsAString & aValue,
     return NS_OK;
   }
 
-  const nsAString& fraction = Substring(aValue, findFractionalSeconds+1,
+  const nsAString& fraction = Substring(aValue, findFractionalSeconds + 1,
                                         aValue.Length());
 
   PRBool done = PR_FALSE;
   PRUnichar currentChar;
   nsCAutoString fractionResult;
-  nsAString::const_iterator start, end, buffStart;
-  fraction.BeginReading(start);
-  fraction.BeginReading(buffStart);
-  fraction.EndReading(end);
+  const PRUnichar *start = nsnull, *end = nsnull, *buffStart = nsnull;
+  fraction.BeginReading(&start, &end);
+  fraction.BeginReading(&buffStart);
 
   while ((start != end) && !done) {
     currentChar = *start++;
@@ -2735,8 +2776,9 @@ nsXFormsUtils::GetSecondsFromDateTime(const nsAString & aValue,
     if ((currentChar == 'Z') || (currentChar == '+') || (currentChar == '-') ||
         (start == end)) {
       fractionResult.AssignLiteral("0.");
-      AppendUTF16toUTF8(Substring(buffStart.get(), start.get()-1),
-                        fractionResult);
+      nsCAutoString tempCString =
+        NS_ConvertUTF16toUTF8(Substring(buffStart, start - 1));
+      fractionResult.Append(tempCString);
     } else if ((currentChar > '9') || (currentChar < '0')) {
       // has to be a numerical character or else abort.  This should have been
       // caught by the schemavalidator, but it is worth double checking.
@@ -2768,18 +2810,17 @@ nsXFormsUtils::GetDaysFromDateTime(const nsAString & aValue, PRInt32 * aDays)
     do_CreateInstance("@mozilla.org/schemavalidator;1");
   NS_ENSURE_TRUE(schemaValidator, NS_ERROR_FAILURE);
 
-  // aValue could be a xsd:date or a xsd:dateTime.  If it is a dateTime, we
-  // should ignore the hours, minutes, and seconds according to 7.10.2 in
-  // the spec.  So search for such things now.  If they are there, strip 'em.
-  PRInt32 findTime = aValue.FindChar('T');
+  // aValue could be a xsd:date or a xsd:dateTime.  If it is a xsd:dateTime,
+  // there will be a 'T' separating the date portion of the string from the time
+  // portion http://www.w3.org/TR/xmlschema-2/#dateTime
+  PRInt32 timeSeparator = aValue.FindChar('T');
 
-  nsAutoString dateString;
-  dateString.Assign(aValue);
-  if (findTime >= 0) {
-    dateString.Assign(Substring(dateString, 0, findTime));
+  nsresult rv;
+  if (timeSeparator >= 0) {
+    rv = schemaValidator->ValidateBuiltinTypeDateTime(aValue, &date);
+  } else {
+    rv = schemaValidator->ValidateBuiltinTypeDate(aValue, &date);
   }
-
-  nsresult rv = schemaValidator->ValidateBuiltinTypeDate(dateString, &date);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRTime secs64 = date;
@@ -2795,10 +2836,73 @@ nsXFormsUtils::GetDaysFromDateTime(const nsAString & aValue, PRInt32 * aDays)
   // convert whole seconds to PRInt32
   LL_L2I(secs32, secs64);
 
-  // convert whole seconds to days.  86400 seconds in a day.
+  // If aValue was a dateTime, "Hour, minute, and second components are ignored
+  // after normalization" according to 7.10.2 in the spec.  So according to spec
+  // we should strip off the fraction of a day after normalizing and before
+  // figuring out its distance from the epoch.  But secs32 already has been
+  // normalized and contains the distance from the epoch.  So now we might have
+  // to alter aDays to account for the fact that we didn't remove any fraction
+  // before.  For example, if aValue is 1970-01-02T12:00:00, then this is
+  // 1.5 days after the epoch.  But if we removed the fraction before the
+  // calculation we'd have 1970-01-02, which is 1 day from the epoch.  So
+  // GetDaysFromDateTime would return 1.  So we see that if aValue is on or
+  // after the epoch, we can ignore the remainder.  However, if aValue is
+  // 1969-12-31T12:00:00, this would be -0.5 days from the epoch.  Applying
+  // the spec rule of dropping the fractional day, we would be calculating
+  // using 1969-12-31 which would give us -1 days from the epoch (negative
+  // because it is before the epoch).  So we can't simply ignore the remainder.
+  // If we have a negative value with a remainder, we need to round down to
+  // the next whole day value.  So that is what we will do below.
+
+  // Convert seconds to days.  86400 seconds in a day.
   *aDays = secs32/86400;
 
+  // Apply the rule from above to simulate having removed the fractional day
+  // prior to calculating the distance from the epoch.  If secs32 is negative
+  // then if there was a fraction of a day, round down a day.
+  if (secs32 < 0) {
+    PRInt32 remainder = secs32%86400;
+    if (remainder) {
+      --*aDays;
+    }
+  }
+
   return NS_OK;
+}
+
+/* static */ nsresult
+nsXFormsUtils::GetTime(nsAString & aResult, PRBool aUTC)
+{
+    PRExplodedTime time;
+    char ctime[60];
+
+    PR_ExplodeTime(PR_Now(),
+                   aUTC ? PR_GMTParameters : PR_LocalTimeParameters, &time);
+
+    PR_FormatTime(ctime, sizeof(ctime), "%Y-%m-%dT%H:%M:%S\0", &time);
+
+    aResult.AssignLiteral(ctime);
+
+    if (aUTC) {
+      aResult.AppendLiteral("Z");
+      return NS_OK;
+    }
+
+    int gmtoffsethour = time.tm_params.tp_gmt_offset < 0 ?
+                        -1*time.tm_params.tp_gmt_offset / 3600 :
+                        time.tm_params.tp_gmt_offset / 3600;
+    int remainder = time.tm_params.tp_gmt_offset%3600;
+    int gmtoffsetminute = remainder ? remainder/60 : 00;
+  
+    char zone_location[40];
+    const int zoneBufSize = sizeof(zone_location);
+    PR_snprintf(zone_location, zoneBufSize, "%c%02d:%02d\0",
+                time.tm_params.tp_gmt_offset < 0 ? '-' : '+',
+                gmtoffsethour, gmtoffsetminute);
+
+    aResult.Append(NS_ConvertASCIItoUTF16(zone_location));
+
+    return NS_OK;
 }
 
 /* static */ PRBool
@@ -2883,7 +2987,7 @@ nsXFormsUtils::AskStopWaiting(nsIDOMElement *aElement)
                               getter_AddRefs(bundle));
   NS_ENSURE_TRUE(bundle, PR_TRUE);
   
-  nsXPIDLString title, msg, stopButton, waitButton;
+  nsString title, msg, stopButton, waitButton;
 
   nsresult rv;
   rv = bundle->GetStringFromName(NS_LITERAL_STRING("KillScriptTitle").get(),
@@ -2895,9 +2999,7 @@ nsXFormsUtils::AskStopWaiting(nsIDOMElement *aElement)
   rv |= bundle->GetStringFromName(NS_LITERAL_STRING("KillScriptMessage").get(),
                                   getter_Copies(msg));
 
-
-  // GetStringFromName can return NS_OK and still give NULL string
-  if (NS_FAILED(rv) || !title || !msg || !stopButton || !waitButton) {
+  if (NS_FAILED(rv)) {
     NS_ERROR("Failed to get localized strings.");
     return PR_TRUE;
   }
@@ -2907,7 +3009,8 @@ nsXFormsUtils::AskStopWaiting(nsIDOMElement *aElement)
                           (nsIPrompt::BUTTON_POS_0 + nsIPrompt::BUTTON_POS_1));
 
   // Open the dialog.
-  rv = prompt->ConfirmEx(title, msg, buttonFlags, stopButton, waitButton,
+  rv = prompt->ConfirmEx(title.get(), msg.get(), buttonFlags,
+                         stopButton.get(), waitButton.get(),
                          nsnull, nsnull, nsnull, &buttonPressed);
 
   if (NS_SUCCEEDED(rv) && (buttonPressed == 0)) {
@@ -2924,4 +3027,142 @@ nsXFormsUtils::ExperimentalFeaturesEnabled()
   // Return the value of the preference that surrounds all of our
   // 'not yet standardized' XForms work.
   return gExperimentalFeaturesEnabled;
+}
+
+/* static */ PRInt32
+nsXFormsUtils::FindCharInSet(const nsAString &aString, const char *aSet,
+                             PRInt32 aOffset)
+{
+  if (aString.IsEmpty()) {
+    return kNotFound;
+  }
+
+  if (aOffset < 0) {
+    aOffset = 0;
+  } else if (aOffset > (PRInt32)aString.Length()) {
+    return kNotFound;
+  }
+
+  const PRUnichar *start = nsnull, *end = nsnull, *iter = nsnull;
+  aString.BeginReading(&start, &end);
+  iter = start + aOffset;
+
+  // Starting at aOffset, compare each character in the string against each
+  // character in aSet.  As soon as a character in aSet is found, we return
+  // the offset of that character in the original string.
+  for (; iter != end; ++iter) {
+    for (const char *temp = aSet; *temp; ++temp) {
+      if (*iter == PRUnichar(*temp)) {
+        return (iter - start);
+      }
+    }
+  }
+
+  return kNotFound;
+}
+
+/* static */ PRBool
+nsXFormsUtils::ConvertLineBreaks(const nsCString &aSrc, nsCString &aDest)
+{
+  // Stole most of this code from the ConvertUnknownBreaks function inside
+  // xpcom\io\nsLinebreakConverter.cpp.  Orig authored by sfraser%netscape.com.
+
+  const char *src, *srcEnd;
+  aSrc.BeginReading(&src, &srcEnd);
+  
+  const PRInt32 destBreakLen = 2;  //strlen of "\015\012", a CR LF equiv string
+  PRUint32 finalLen = 0;
+
+  if (src == srcEnd) {
+    // I guess if there isn't anything to convert, we should return PR_TRUE
+    // since we didn't encounter an error.
+    return PR_TRUE;
+  }
+
+  while (src < srcEnd)
+  {
+    if (*src == '\r')
+    {
+      if (src[1] == '\n')
+      {
+        // CRLF
+        finalLen += destBreakLen;
+        src++;
+      }
+      else
+      {
+        // Lone CR
+        finalLen += destBreakLen;
+      }
+    }
+    else if (*src == '\n')
+    {
+      // Lone LF
+      finalLen += destBreakLen;
+    }
+    else
+    {
+      finalLen++;
+    }
+    src++;
+  }
+  
+  char* dst = aDest.BeginWriting(finalLen);
+  if (!dst) return PR_FALSE;
+
+  aSrc.BeginReading(&src);
+
+  while (src < srcEnd)
+  {
+    if (*src == '\r')
+    {
+      if (src[1] == '\n')
+      {
+        // CRLF
+        *dst++ = '\015';
+        *dst++ = '\012';
+        src++;
+      }
+      else
+      {
+        // Lone CR
+        *dst++ = '\015';
+        *dst++ = '\012';
+      }
+    }
+    else if (*src == '\n')
+    {
+      // Lone LF
+      *dst++ = '\015';
+      *dst++ = '\012';
+    }
+    else
+    {
+      *dst++ = *src;
+    }
+    src++;
+  }
+
+  return PR_TRUE;
+}
+
+/* static */ nsresult
+nsXFormsUtils::GetNewURI(nsIDocument* aDoc, const nsAString& aSrc,
+                         nsIURI** aURI)
+{
+  NS_ENSURE_ARG_POINTER(aURI);
+  *aURI = nsnull;
+
+  nsCOMPtr<nsPIDOMWindow> window = aDoc->GetWindow();
+  NS_ENSURE_STATE(window);
+  nsCOMPtr<nsIDocCharset> docCharset = do_QueryInterface(window->GetDocShell());
+  NS_ENSURE_STATE(docCharset);
+  nsCString charset;
+  nsresult rv = docCharset->GetCharset(getter_Copies(charset));
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewURI(getter_AddRefs(uri), aSrc, charset.get(), aDoc->GetDocumentURI());
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ADDREF(*aURI = uri);
+  return rv;
 }

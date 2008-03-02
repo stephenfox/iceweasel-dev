@@ -56,6 +56,7 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug308484.html \
 		test_bug311681.xml \
 		test_bug322317.html \
+		test_bug330925.xhtml \
 		test_bug337631.html \
 		test_bug338541.xhtml \
 		test_bug338679.html \
@@ -108,16 +109,36 @@ _TEST_FILES = 	test_bug5141.html \
 		file_CrossSiteXHR_pass1.xml^headers^ \
 		file_CrossSiteXHR_pass2.xml \
 		file_CrossSiteXHR_pass3.xml \
+		test_CrossSiteXHR2.html \
+		file_CrossSiteXHR2_inner.html \
+		file_CrossSiteXHR2_fail1.xml \
+		file_CrossSiteXHR2_fail1.xml^headers^ \
+		file_CrossSiteXHR2_fail2.xml \
+		file_CrossSiteXHR2_pass1.xml \
+		file_CrossSiteXHR2_pass1.xml^headers^ \
+		file_CrossSiteXHR2_pass2.xml \
+		file_CrossSiteXHR2_pass3.xml \
+		file_CrossSiteXHR2_pass3.xml^headers^ \
+		file_CrossSiteXHR2_pass3_redirect.xml \
+		test_CrossSiteXHR3.html \
+		file_CrossSiteXHR3_inner.html \
+		file_CrossSiteXHR3_pass1.xml^headers^ \
+		file_CrossSiteXHR3_pass1.xml \
 		test_bug326337.html \
 		file_bug326337_inner.html \
+		file_bug326337_outer.html \
 		file_bug326337.xml \
 		file_bug326337_multipart.txt \
 		file_bug326337_multipart.txt^headers^ \
 		test_bug402150.html \
 		test_bug402150.html^headers^ \
 		test_bug401662.html \
+		test_bug403852.html \
 		test_bug403868.xml \
 		test_bug405182.html \
+		test_bug403841.html \
+		test_bug410229.html \
+		test_bug414190.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

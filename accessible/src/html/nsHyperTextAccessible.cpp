@@ -57,9 +57,10 @@
 #include "nsIFontMetrics.h"
 #include "nsIFrame.h"
 #include "nsFrameSelection.h"
-#include "nsIScrollableFrame.h"
+#include "nsILineIterator.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPlaintextEditor.h"
+#include "nsIScrollableFrame.h"
 #include "nsISelection2.h"
 #include "nsISelectionPrivate.h"
 #include "nsIServiceManager.h"
@@ -95,7 +96,10 @@ nsresult nsHyperTextAccessible::QueryInterface(REFNSIID aIID, void** aInstancePt
 
     if (mRoleMapEntry &&
         (mRoleMapEntry->role == nsIAccessibleRole::ROLE_GRAPHIC ||
-         mRoleMapEntry->role == nsIAccessibleRole::ROLE_IMAGE_MAP)) {
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_IMAGE_MAP ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_SLIDER ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_PROGRESSBAR ||
+         mRoleMapEntry->role == nsIAccessibleRole::ROLE_SEPARATOR)) {
       // ARIA roles that these interfaces are not appropriate for
       return nsAccessible::QueryInterface(aIID, aInstancePtr);
     }
@@ -564,7 +568,10 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
   // On failure, return null. On success, return the DOM node which contains the offset.
   NS_ENSURE_ARG_POINTER(aHyperTextOffset);
   *aHyperTextOffset = 0;
-  NS_ENSURE_ARG_POINTER(aNode);
+
+  if (!aNode) {
+    return NS_ERROR_FAILURE;
+  }
   if (aFinalAccessible) {
     *aFinalAccessible = nsnull;
   }
@@ -618,6 +625,17 @@ nsresult nsHyperTextAccessible::DOMPointToHypertextOffset(nsIDOMNode* aNode, PRI
   // accessible for the next DOM node which has one (based on forward depth first search)
   nsCOMPtr<nsIAccessible> descendantAccessible;
   if (findNode) {
+    nsCOMPtr<nsIContent> findContent = do_QueryInterface(findNode);
+    if (findContent->IsNodeOfType(nsINode::eHTML) && 
+        findContent->NodeInfo()->Equals(nsAccessibilityAtoms::br)) {
+      nsIContent *parent = findContent->GetParent();
+      if (parent && parent->IsNativeAnonymous() && parent->GetChildCount() == 1) {
+        // This <br> is the only node in a text control, therefore it is the hacky
+        // "bogus node" used when there is no text in a control
+        *aHyperTextOffset = 0;
+        return NS_OK;
+      }
+    }
     descendantAccessible = GetFirstAvailableAccessible(findNode);
   }
   // From the descendant, go up and get the immediate child of this hypertext
@@ -983,6 +1001,13 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
     nsCOMPtr<nsIAccessible> endAcc;
     nsIFrame *endFrame = GetPosAndText(startOffset, endOffset, nsnull, nsnull,
                                        nsnull, getter_AddRefs(endAcc));
+    if (endAcc && Role(endAcc) == nsIAccessibleRole::ROLE_STATICTEXT) {
+      // Static text like list bullets will ruin our forward calculation,
+      // since the caret cannot be in the static text. Start just after the static text.
+      startOffset = endOffset = finalStartOffset + (aBoundaryType == BOUNDARY_LINE_END) + TextLength(endAcc);
+      endFrame = GetPosAndText(startOffset, endOffset, nsnull, nsnull,
+                               nsnull, getter_AddRefs(endAcc));
+    }
     if (!endFrame) {
       return NS_ERROR_FAILURE;
     }
@@ -1075,7 +1100,7 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   nsresult rv = nsAccessibleWrap::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  nsCOMPtr<nsIContent> content(do_QueryInterface(GetRoleContent(mDOMNode)));
   NS_ENSURE_TRUE(content, NS_ERROR_UNEXPECTED);
   nsIAtom *tag = content->Tag();
 
@@ -1107,6 +1132,16 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
     nsAutoString oldValueUnused;
     aAttributes->SetStringProperty(NS_LITERAL_CSTRING("formatting"), NS_LITERAL_STRING("block"),
                                    oldValueUnused);
+  }
+
+  if (gLastFocusedNode == mDOMNode) {
+    PRInt32 lineNumber = GetCaretLineNumber();
+    if (lineNumber >= 1) {
+      nsAutoString strLineNumber;
+      strLineNumber.AppendInt(lineNumber);
+      nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::lineNumber,
+                             strLineNumber);
+    }
   }
 
   return  NS_OK;
@@ -1470,6 +1505,74 @@ NS_IMETHODIMP nsHyperTextAccessible::GetCaretOffset(PRInt32 *aCaretOffset)
   return DOMPointToHypertextOffset(caretNode, caretOffset, aCaretOffset);
 }
 
+PRInt32 nsHyperTextAccessible::GetCaretLineNumber()
+{
+  // Provide the line number for the caret, relative to the
+  // currently focused node. Use a 1-based index
+  nsCOMPtr<nsISelection> domSel;
+  GetSelections(nsnull, getter_AddRefs(domSel));
+  nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(domSel));
+  NS_ENSURE_TRUE(privateSelection, -1);
+  nsCOMPtr<nsFrameSelection> frameSelection;
+  privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
+  NS_ENSURE_TRUE(frameSelection, -1);
+
+  nsCOMPtr<nsIDOMNode> caretNode;
+  domSel->GetFocusNode(getter_AddRefs(caretNode));
+  nsCOMPtr<nsIContent> caretContent = do_QueryInterface(caretNode);
+  if (!caretContent || !nsAccUtils::IsAncestorOf(mDOMNode, caretNode)) {
+    return -1;
+  }
+
+  PRInt32 caretOffset, returnOffsetUnused;
+  domSel->GetFocusOffset(&caretOffset);
+  nsFrameSelection::HINT hint = frameSelection->GetHint();
+  nsIFrame *caretFrame = frameSelection->GetFrameForNodeOffset(caretContent, caretOffset,
+                                                               hint, &returnOffsetUnused);
+  NS_ENSURE_TRUE(caretFrame, -1);
+
+  PRInt32 lineNumber = 1;
+  nsCOMPtr<nsILineIterator> lineIterForCaret;
+  nsCOMPtr<nsIContent> hyperTextContent = do_QueryInterface(mDOMNode);
+  while (caretFrame) {
+    if (hyperTextContent == caretFrame->GetContent()) {
+      return lineNumber; // Must be in a single line hyper text, there is no line iterator
+    }
+    nsIFrame *parentFrame = caretFrame->GetParent();
+    if (!parentFrame)
+      break;
+
+    // Add lines for the sibling frames before the caret
+    nsIFrame *sibling = parentFrame->GetFirstChild(nsnull);
+    while (sibling && sibling != caretFrame) {
+      nsCOMPtr<nsILineIterator> lineIterForSibling = do_QueryInterface(sibling);
+      if (lineIterForSibling) {
+        PRInt32 addLines;
+        // For the frames before that grab all the lines
+        lineIterForSibling->GetNumLines(&addLines);
+        lineNumber += addLines;
+      }
+      sibling = sibling->GetNextSibling();
+    }
+
+    // Get the line number relative to the container with lines
+    if (!lineIterForCaret) {   // Add the caret line just once
+      lineIterForCaret = do_QueryInterface(parentFrame);
+      if (lineIterForCaret) {
+        // Ancestor of caret
+        PRInt32 addLines;
+        lineIterForCaret->FindLineContaining(caretFrame, &addLines);
+        lineNumber += addLines;
+      }
+    }
+
+    caretFrame = parentFrame;
+  }
+
+  NS_NOTREACHED("DOM ancestry had this hypertext but frame ancestry didn't");
+  return lineNumber;
+}
+
 nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
                                               nsISelection **aDomSel,
                                               nsCOMArray<nsIDOMRange>* aRanges)
@@ -1490,6 +1593,7 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
   nsCOMPtr<nsISelection> domSel;
   nsCOMPtr<nsISelectionController> selCon;
 
+  nsCOMPtr<nsIDOMNode> startNode;
   nsCOMPtr<nsIEditor> editor;
   GetAssociatedEditor(getter_AddRefs(editor));
   nsCOMPtr<nsIPlaintextEditor> peditor(do_QueryInterface(editor));
@@ -1505,7 +1609,12 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
 
     editor->GetSelection(getter_AddRefs(domSel));
     NS_ENSURE_TRUE(domSel, NS_ERROR_FAILURE);
-    }
+
+    nsCOMPtr<nsIDOMElement> editorRoot;
+    editor->GetRootElement(getter_AddRefs(editorRoot));
+    startNode = do_QueryInterface(editorRoot);
+    NS_ENSURE_STATE(startNode);
+  }
   else {
     // Case 2: rich content subtree (can be rich editor)
     // This uses the selection controller from the entire document
@@ -1519,6 +1628,8 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
     selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                          getter_AddRefs(domSel));
     NS_ENSURE_TRUE(domSel, NS_ERROR_FAILURE);
+
+    startNode = mDOMNode;
   }
 
   if (aSelCon) {
@@ -1532,13 +1643,13 @@ nsresult nsHyperTextAccessible::GetSelections(nsISelectionController **aSelCon,
     NS_ENSURE_TRUE(selection2, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIDOMNodeList> childNodes;
-    nsresult rv = mDOMNode->GetChildNodes(getter_AddRefs(childNodes));
+    nsresult rv = startNode->GetChildNodes(getter_AddRefs(childNodes));
     NS_ENSURE_SUCCESS(rv, rv);
     PRUint32 numChildren; 
     rv = childNodes->GetLength(&numChildren);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = selection2->GetRangesForIntervalCOMArray(mDOMNode, 0,
-                                                  mDOMNode, numChildren,
+    rv = selection2->GetRangesForIntervalCOMArray(startNode, 0,
+                                                  startNode, numChildren,
                                                   PR_TRUE, aRanges);
     NS_ENSURE_SUCCESS(rv, rv);
     // Remove collapsed ranges

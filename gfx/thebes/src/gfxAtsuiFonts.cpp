@@ -21,6 +21,7 @@
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   John Daggett <jdaggett@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,23 +48,25 @@
 
 #include "gfxContext.h"
 #include "gfxPlatform.h"
+#include "gfxPlatformMac.h"
 #include "gfxAtsuiFonts.h"
 
 #include "gfxFontTest.h"
+#include "gfxFontUtils.h"
 
 #include "cairo-atsui.h"
 
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzFontCache.h"
 
-#include "nsIPrefBranch.h"
-#include "nsIPrefService.h"
-#include "nsServiceManagerUtils.h"
 #include "nsUnicodeRange.h"
-#include "nsCRT.h"
 
 // Uncomment this to dump all text runs created to stdout
 // #define DUMP_TEXT_RUNS
+
+#ifdef DUMP_TEXT_RUNS
+static PRLogModuleInfo *gAtsuiTextRunLog = PR_NewLogModule("atsuiTextRun");
+#endif
 
 #define ROUND(x) (floor((x) + 0.5))
 
@@ -85,19 +88,21 @@ OSStatus ATSInitializeGlyphVector(int size, void *glyphVectorPtr);
 OSStatus ATSClearGlyphVector(void *glyphVectorPtr);
 #endif
 
-gfxAtsuiFont::gfxAtsuiFont(ATSUFontID fontID,
-                           const nsAString& name,
+eFontPrefLang GetFontPrefLangFor(PRUint8 aUnicodeRange);
+
+gfxAtsuiFont::gfxAtsuiFont(MacOSFontEntry *aFontEntry,
                            const gfxFontStyle *fontStyle)
-    : gfxFont(name, fontStyle),
-      mFontStyle(fontStyle), mATSUFontID(fontID), mATSUStyle(nsnull),
-      mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE), mAdjustedSize(0)
+    : gfxFont(aFontEntry->Name(), fontStyle),
+      mFontStyle(fontStyle), mFontEntry(aFontEntry), mATSUStyle(nsnull),
+      mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE), mAdjustedSize(0.0f)
 {
+    ATSUFontID fontID = mFontEntry->GetFontID();
     ATSFontRef fontRef = FMGetATSFontRefFromFont(fontID);
 
     InitMetrics(fontID, fontRef);
 
-    mFontFace = cairo_atsui_font_face_create_for_atsu_font_id(mATSUFontID);
-
+    mFontFace = cairo_atsui_font_face_create_for_atsu_font_id(fontID);
+    
     cairo_matrix_t sizeMatrix, ctm;
     cairo_matrix_init_identity(&ctm);
     cairo_matrix_init_scale(&sizeMatrix, mAdjustedSize, mAdjustedSize);
@@ -107,6 +112,12 @@ gfxAtsuiFont::gfxAtsuiFont(ATSUFontID fontID,
     cairo_font_options_destroy(fontOptions);
     NS_ASSERTION(cairo_scaled_font_status(mScaledFont) == CAIRO_STATUS_SUCCESS,
                  "Failed to create scaled font");
+}
+
+
+ATSUFontID gfxAtsuiFont::GetATSUFontID()
+{
+    return mFontEntry->GetFontID();
 }
 
 void
@@ -128,7 +139,7 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     };
 
     gfxFloat size =
-        PR_MAX(((mAdjustedSize != 0) ? mAdjustedSize : GetStyle()->size), 1.0f);
+        PR_MAX(((mAdjustedSize != 0.0f) ? mAdjustedSize : GetStyle()->size), 1.0f);
 
     //fprintf (stderr, "string: '%s', size: %f\n", NS_ConvertUTF16toUTF8(aString).get(), size);
 
@@ -165,8 +176,8 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     else
         mMetrics.xHeight = GetCharHeight('x');
 
-    if (mAdjustedSize == 0) {
-        if (GetStyle()->sizeAdjust != 0) {
+    if (mAdjustedSize == 0.0f) {
+        if (mMetrics.xHeight != 0.0f && GetStyle()->sizeAdjust != 0.0f) {
             gfxFloat aspect = mMetrics.xHeight / size;
             mAdjustedSize = GetStyle()->GetAdjustedSize(aspect);
             InitMetrics(aFontID, aFontRef);
@@ -200,7 +211,7 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     else
         mMetrics.aveCharWidth = xWidth;
 
-    if (gfxQuartzFontCache::SharedFontCache()->IsFixedPitch(aFontID)) {
+    if (mFontEntry->IsFixedPitch()) {
         // Some Quartz fonts are fixed pitch, but there's some glyph with a bigger
         // advance than the average character width... this forces
         // those fonts to be recognized like fixed pitch fonts by layout.
@@ -315,26 +326,6 @@ gfxAtsuiFont::GetMetrics()
     return mMetrics;
 }
 
-static nsresult
-CreateFontFallbacksFromFontList(nsTArray< nsRefPtr<gfxFont> > *aFonts,
-                                ATSUFontFallbacks *aFallbacks,
-                                ATSUFontFallbackMethod aMethod)
-{
-    // Create the fallback structure
-    OSStatus status = ::ATSUCreateFontFallbacks(aFallbacks);
-    NS_ENSURE_TRUE(status == noErr, NS_ERROR_FAILURE);
-
-    nsAutoTArray<ATSUFontID,16> fids;
-
-    for (unsigned int i = 0; i < aFonts->Length(); i++) {
-        gfxAtsuiFont* atsuiFont = static_cast<gfxAtsuiFont*>(aFonts->ElementAt(i).get());
-        fids.AppendElement(atsuiFont->GetATSUFontID());
-    }
-    status = ::ATSUSetObjFontFallbacks(*aFallbacks, fids.Length(), fids.Elements(), aMethod);
-
-    return status == noErr ? NS_OK : NS_ERROR_FAILURE;
-}
-
 void
 gfxAtsuiFont::SetupGlyphExtents(gfxContext *aContext, PRUint32 aGlyphID,
         PRBool aNeedTight, gfxGlyphExtents *aExtents)
@@ -351,7 +342,7 @@ gfxAtsuiFont::SetupGlyphExtents(gfxContext *aContext, PRUint32 aGlyphID,
         -metrics.topLeft.y + metrics.height <= mMetrics.maxAscent &&
         metrics.topLeft.y <= mMetrics.maxDescent) {
         PRUint32 appUnitsWidth =
-        	PRUint32(NS_ceil((metrics.topLeft.x + metrics.width)*appUnitsPerDevUnit));
+            PRUint32(NS_ceil((metrics.topLeft.x + metrics.width)*appUnitsPerDevUnit));
         if (appUnitsWidth < gfxGlyphExtents::INVALID_WIDTH) {
             aExtents->SetContainedGlyphWidthAppUnits(aGlyphID, PRUint16(appUnitsWidth));
             return;
@@ -380,31 +371,29 @@ gfxAtsuiFont::HasMirroringInfo()
     return mHasMirroring;
 }
 
+PRBool gfxAtsuiFont::TestCharacterMap(PRUint32 aCh) {
+    return mFontEntry->TestCharacterMap(aCh);
+}
 
 /**
  * Look up the font in the gfxFont cache. If we don't find it, create one.
- * In either case, add a ref, append it to the aFonts array, and return it ---
+ * In either case, add a ref and return it ---
  * except for OOM in which case we do nothing and return null.
  */
-static gfxAtsuiFont *
-GetOrMakeFont(ATSUFontID aFontID, const gfxFontStyle *aStyle,
-              nsTArray<nsRefPtr<gfxFont> > *aFonts)
+ 
+static already_AddRefed<gfxAtsuiFont>
+GetOrMakeFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aStyle)
 {
-    const nsAString& name =
-        gfxQuartzFontCache::SharedFontCache()->GetPostscriptNameForFontID(aFontID);
-    nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(name, aStyle);
+    // the font entry name is the psname, not the family name
+    nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aFontEntry->Name(), aStyle);
     if (!font) {
-        font = new gfxAtsuiFont(aFontID, name, aStyle);
+        font = new gfxAtsuiFont(aFontEntry, aStyle);
         if (!font)
             return nsnull;
         gfxFontCache::GetCache()->AddNew(font);
     }
-    // Add it to aFonts without unncessary refcount adjustment
-    nsRefPtr<gfxFont> *destination = aFonts->AppendElement();
-    if (!destination)
-        return nsnull;
-    destination->swap(font);
-    gfxFont *f = *destination;
+    gfxFont *f = nsnull;
+    font.swap(f);
     return static_cast<gfxAtsuiFont *>(f);
 }
 
@@ -425,11 +414,16 @@ gfxAtsuiFontGroup::gfxAtsuiFontGroup(const nsAString& families,
         // If we get here, we most likely didn't have a default font for
         // a specific langGroup.  Let's just pick the default OSX
         // user font.
-        ATSUFontID fontID = gfxQuartzFontCache::SharedFontCache()->GetDefaultATSUFontID (aStyle);
-        GetOrMakeFont(fontID, aStyle, &mFonts);
-    }
 
-    CreateFontFallbacksFromFontList(&mFonts, &mFallbacks, kATSUSequentialFallbacksExclusive);
+        MacOSFontEntry *defaultFont = gfxQuartzFontCache::SharedFontCache()->GetDefaultFont(aStyle);
+        NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
+
+        nsRefPtr<gfxAtsuiFont> font = GetOrMakeFont(defaultFont, aStyle);
+
+        if (font) {
+            mFonts.AppendElement(font);
+        }
+    }
 }
 
 PRBool
@@ -441,19 +435,17 @@ gfxAtsuiFontGroup::FindATSUFont(const nsAString& aName,
     const gfxFontStyle *fontStyle = fontGroup->GetStyle();
 
     gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
-    ATSUFontID fontID = fc->FindATSUFontIDForFamilyAndStyle (aName, fontStyle);
 
-    if (fontID != kATSUInvalidFontID && !fontGroup->HasFont(fontID)) {
-        //fprintf (stderr, "..FindATSUFont: %s\n", NS_ConvertUTF16toUTF8(aName).get());
-        GetOrMakeFont(fontID, fontStyle, &fontGroup->mFonts);
+    MacOSFontEntry *fe = fc->FindFontForFamily(aName, fontStyle);
+
+    if (fe && !fontGroup->HasFont(fe->GetFontID())) {
+        nsRefPtr<gfxAtsuiFont> font = GetOrMakeFont(fe, fontStyle);
+        if (font) {
+            fontGroup->mFonts.AppendElement(font);
+        }
     }
 
     return PR_TRUE;
-}
-
-gfxAtsuiFontGroup::~gfxAtsuiFontGroup()
-{
-    ATSUDisposeFontFallbacks(mFallbacks);
 }
 
 gfxFontGroup *
@@ -659,23 +651,6 @@ gfxAtsuiFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
     return textRun;
 }
 
-gfxAtsuiFont*
-gfxAtsuiFontGroup::FindFontFor(ATSUFontID fid)
-{
-    gfxAtsuiFont *font;
-
-    // In most cases, this will just be 1 -- maybe a
-    // small number, so no need for any more complex
-    // lookup
-    for (PRUint32 i = 0; i < FontListLength(); i++) {
-        font = GetFontAt(i);
-        if (font->GetATSUFontID() == fid)
-            return font;
-    }
-
-    return GetOrMakeFont(fid, GetStyle(), &mFonts);
-}
-
 PRBool
 gfxAtsuiFontGroup::HasFont(ATSUFontID fid)
 {
@@ -684,6 +659,130 @@ gfxAtsuiFontGroup::HasFont(ATSUFontID fid)
             return PR_TRUE;
     }
     return PR_FALSE;
+}
+
+struct PrefFontCallbackData {
+    PrefFontCallbackData(nsTArray<nsRefPtr<MacOSFamilyEntry> >& aFamiliesArray) 
+        : mPrefFamilies(aFamiliesArray)
+    {}
+
+    nsTArray<nsRefPtr<MacOSFamilyEntry> >& mPrefFamilies;
+
+    static PRBool AddFontFamilyEntry(eFontPrefLang aLang, const nsAString& aName, void *aClosure)
+    {
+        PrefFontCallbackData *prefFontData = (PrefFontCallbackData*) aClosure;
+        
+        MacOSFamilyEntry *family = gfxQuartzFontCache::SharedFontCache()->FindFamily(aName);
+        if (family) {
+            prefFontData->mPrefFamilies.AppendElement(family);
+        }
+        return PR_TRUE;
+    }
+};
+
+
+already_AddRefed<gfxAtsuiFont>
+gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
+{
+    // FindCharUnicodeRange only supports BMP character points and there are no non-BMP fonts in prefs
+    if (aCh > 0xFFFF)
+        return nsnull;
+
+    // get the pref font list if it hasn't been set up already
+    PRUint32 unicodeRange = FindCharUnicodeRange(aCh);
+    eFontPrefLang charLang = GetFontPrefLangFor(unicodeRange);
+    eFontPrefLang pageLang = gfxPlatform::GetFontPrefLangFor(mStyle.langGroup.get());    
+    
+    // based on char lang and page lang, set up list of pref lang fonts to check
+    eFontPrefLang prefLangs[kMaxLenPrefLangList];
+    PRUint32 i, numLangs = 0;
+    
+    gfxPlatformMac *macPlatform = gfxPlatformMac::GetPlatform();
+    macPlatform->GetLangPrefs(prefLangs, numLangs, charLang, pageLang);
+    
+    for (i = 0; i < numLangs; i++) {
+        nsAutoTArray<nsRefPtr<MacOSFamilyEntry>, 5> families;
+        eFontPrefLang currentLang = prefLangs[i];
+        
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
+
+        // get the pref families for a single pref lang
+        if (!fc->GetPrefFontFamilyEntries(currentLang, &families)) {
+            eFontPrefLang prefLangsToSearch[1] = { currentLang };
+            PrefFontCallbackData prefFontData(families);
+            gfxPlatform::ForEachPrefFont(prefLangsToSearch, 1, PrefFontCallbackData::AddFontFamilyEntry,
+                                           &prefFontData);
+            fc->SetPrefFontFamilyEntries(currentLang, families);
+        }
+    
+        // find the first pref font that includes the character
+        PRUint32  i, numPrefs;
+        numPrefs = families.Length();
+        for (i = 0; i < numPrefs; i++) {
+            // look up the appropriate face
+            MacOSFamilyEntry *family = families[i];
+            if (family) {
+                MacOSFontEntry *fe = family->FindFont(&mStyle);
+                // if ch in cmap, create and return a gfxFont
+                if (fe && fe->TestCharacterMap(aCh)) {
+                    return GetOrMakeFont(fe, &mStyle);
+                }
+            }
+        }
+    }
+    
+    return nsnull;
+}
+
+already_AddRefed<gfxAtsuiFont>
+gfxAtsuiFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh, PRUint32 aNextCh, gfxAtsuiFont* aPrevMatchedFont)
+{
+    nsRefPtr<gfxAtsuiFont>    selectedFont;
+    
+    // if this character or the next one is a joiner use the
+    // same font as the previous range if we can
+    if (gfxFontUtils::IsJoiner(aCh) || gfxFontUtils::IsJoiner(aPrevCh) || gfxFontUtils::IsJoiner(aNextCh)) {
+        if (aPrevMatchedFont && aPrevMatchedFont->TestCharacterMap(aCh)) {
+            selectedFont = aPrevMatchedFont;
+            return selectedFont.forget();
+        }
+    }
+    
+    // 1. check fonts in the font group
+    selectedFont = WhichFontSupportsChar(mFonts, aCh);
+    
+    // don't look in other fonts if the character is in a Private Use Area
+    if ((aCh >= 0xE000  && aCh <= 0xF8FF) || 
+        (aCh >= 0xF0000 && aCh <= 0x10FFFD))
+        return selectedFont.forget();
+    if ( selectedFont ) 
+        return selectedFont.forget();
+    
+    // 2. search pref fonts if none of the font group fonts match
+    //    FindCharUnicodeRange only supports BMP character points and there are no non-BMP fonts in prefs
+    if ((selectedFont = WhichPrefFontSupportsChar(aCh))) {
+        return selectedFont.forget();
+    }
+
+    // 3. use fallback fonts
+    // -- before searching for something else check the font used for the previous character
+    if (!selectedFont && aPrevMatchedFont && aPrevMatchedFont->TestCharacterMap(aCh)) {
+        selectedFont = aPrevMatchedFont;
+        return selectedFont.forget();
+    }
+    
+    // -- otherwise look for other stuff
+    if (!selectedFont) {
+        MacOSFontEntry *fe;
+
+        fe = gfxQuartzFontCache::SharedFontCache()->FindFontForChar(aCh, GetFontAt(0));
+        if (fe) {
+            selectedFont = GetOrMakeFont(fe, &mStyle);
+            return selectedFont.forget();
+        }
+    }
+
+    return nsnull;
 }
 
 /**
@@ -1026,90 +1125,13 @@ PostLayoutOperationCallback(ATSULayoutOperationSelector iCurrentOperation,
     return noErr;
 }
 
-// The lang IDs for font prefs
-enum eFontPrefLang {
-    eFontPrefLang_Western     =  0,
-    eFontPrefLang_CentEuro    =  1,
-    eFontPrefLang_Japanese    =  2,
-    eFontPrefLang_ChineseTW   =  3,
-    eFontPrefLang_ChineseCN   =  4,
-    eFontPrefLang_ChineseHK   =  5,
-    eFontPrefLang_Korean      =  6,
-    eFontPrefLang_Cyrillic    =  7,
-    eFontPrefLang_Baltic      =  8,
-    eFontPrefLang_Greek       =  9,
-    eFontPrefLang_Turkish     = 10,
-    eFontPrefLang_Thai        = 11,
-    eFontPrefLang_Hebrew      = 12,
-    eFontPrefLang_Arabic      = 13,
-    eFontPrefLang_Devanagari  = 14,
-    eFontPrefLang_Tamil       = 15,
-    eFontPrefLang_Armenian    = 16,
-    eFontPrefLang_Bengali     = 17,
-    eFontPrefLang_Canadian    = 18,
-    eFontPrefLang_Ethiopic    = 19,
-    eFontPrefLang_Georgian    = 20,
-    eFontPrefLang_Gujarati    = 21,
-    eFontPrefLang_Gurmukhi    = 22,
-    eFontPrefLang_Khmer       = 23,
-    eFontPrefLang_Malayalam   = 24,
-
-    eFontPrefLang_LangCount   = 25, // except Others and UserDefined.
-
-    eFontPrefLang_Others      = 25, // x-unicode
-    eFontPrefLang_UserDefined = 26,
-
-    eFontPrefLang_CJKSet      = 27, // special code for CJK set
-    eFontPrefLang_AllCount    = 28
-};
-
-// The lang names for eFontPrefLang
-static const char *gPrefLangNames[] = {
-    "x-western",
-    "x-central-euro",
-    "ja",
-    "zh-TW",
-    "zh-CN",
-    "zh-HK",
-    "ko",
-    "x-cyrillic",
-    "x-baltic",
-    "el",
-    "tr",
-    "th",
-    "he",
-    "ar",
-    "x-devanagari",
-    "x-tamil",
-    "x-armn",
-    "x-beng",
-    "x-cans",
-    "x-ethi",
-    "x-geor",
-    "x-gujr",
-    "x-guru",
-    "x-khmr",
-    "x-mlym",
-    "x-unicode",
-    "x-user-def"
-};
-
-static eFontPrefLang
-GetFontPrefLangFor(const char* aLang)
-{
-    if (!aLang || aLang[0])
-        return eFontPrefLang_Others;
-    for (PRUint32 i = 0; i < PRUint32(eFontPrefLang_LangCount); ++i) {
-        if (!PL_strcasecmp(gPrefLangNames[i], aLang))
-            return eFontPrefLang(i);
-    }
-    return eFontPrefLang_Others;
-}
+// xxx - leaving this here for now, probably belongs in platform code somewhere
 
 eFontPrefLang
 GetFontPrefLangFor(PRUint8 aUnicodeRange)
 {
     switch (aUnicodeRange) {
+        case kRangeSetLatin:   return eFontPrefLang_Western;
         case kRangeCyrillic:   return eFontPrefLang_Cyrillic;
         case kRangeGreek:      return eFontPrefLang_Greek;
         case kRangeTurkish:    return eFontPrefLang_Turkish;
@@ -1135,140 +1157,6 @@ GetFontPrefLangFor(PRUint8 aUnicodeRange)
         case kRangeSetCJK:     return eFontPrefLang_CJKSet;
         default:               return eFontPrefLang_Others;
     }
-}
-
-static const char*
-GetPrefLangName(eFontPrefLang aLang)
-{
-    if (PRUint32(aLang) < PRUint32(eFontPrefLang_AllCount))
-        return gPrefLangNames[PRUint32(aLang)];
-    return nsnull;
-}
-
-struct AFLClosure {
-    const gfxFontStyle *style;
-    nsTArray<nsRefPtr<gfxFont> > *fontArray;
-};
-
-PRBool
-AppendFontToList(const nsAString& aName,
-                 const nsACString& aGenericName,
-                 void *closure)
-{
-    struct AFLClosure *afl = (struct AFLClosure *) closure;
-
-    gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
-    ATSUFontID fontID = fc->FindATSUFontIDForFamilyAndStyle (aName, afl->style);
-
-    if (fontID != kATSUInvalidFontID) {
-        //fprintf (stderr, "..AppendFontToList: %s\n", NS_ConvertUTF16toUTF8(aName).get());
-        GetOrMakeFont(fontID, afl->style, afl->fontArray);
-    }
-
-    return PR_TRUE;
-}
-
-static nsresult
-AppendPrefFonts(nsTArray<nsRefPtr<gfxFont> > *aFonts,
-                eFontPrefLang aLang,
-                PRUint32& didAppendBits,
-                const gfxFontStyle *aStyle)
-{
-    if (didAppendBits & (1 << aLang))
-        return NS_OK;
-
-    didAppendBits |= (1 << aLang);
-
-    const char* langGroup = GetPrefLangName(aLang);
-    if (!langGroup || !langGroup[0]) {
-        NS_ERROR("The langGroup is null");
-        return NS_ERROR_FAILURE;
-    }
-    gfxPlatform *platform = gfxPlatform::GetPlatform();
-    NS_ENSURE_TRUE(platform, NS_ERROR_OUT_OF_MEMORY);
-    nsString fonts;
-    platform->GetPrefFonts(langGroup, fonts, PR_FALSE);
-    if (fonts.IsEmpty())
-        return NS_OK;
-
-    struct AFLClosure afl = { aStyle, aFonts };
-    gfxFontGroup::ForEachFont(fonts, nsDependentCString(langGroup),
-                              AppendFontToList, &afl);
-    return NS_OK;
-}
-
-static nsresult
-AppendCJKPrefFonts(nsTArray<nsRefPtr<gfxFont> > *aFonts,
-                   PRUint32& didAppendBits,
-                   const gfxFontStyle *aStyle)
-{
-    nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefs, NS_ERROR_OUT_OF_MEMORY);
-
-    nsCOMPtr<nsIPrefBranch> prefBranch;
-    prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
-    NS_ENSURE_TRUE(prefBranch, NS_ERROR_OUT_OF_MEMORY);
-
-    // Add the CJK pref fonts from accept languages, the order should be same order
-    nsXPIDLCString list;
-    nsresult rv = prefBranch->GetCharPref("intl.accept_languages", getter_Copies(list));
-    if (NS_SUCCEEDED(rv) && !list.IsEmpty()) {
-        const char kComma = ',';
-        const char *p, *p_end;
-        list.BeginReading(p);
-        list.EndReading(p_end);
-        while (p < p_end) {
-            while (nsCRT::IsAsciiSpace(*p)) {
-                if (++p == p_end)
-                    break;
-            }
-            if (p == p_end)
-                break;
-            const char *start = p;
-            while (++p != p_end && *p != kComma)
-                /* nothing */ ;
-            nsCAutoString lang(Substring(start, p));
-            lang.CompressWhitespace(PR_FALSE, PR_TRUE);
-            eFontPrefLang fpl = GetFontPrefLangFor(lang.get());
-            switch (fpl) {
-                case eFontPrefLang_Japanese:
-                case eFontPrefLang_Korean:
-                case eFontPrefLang_ChineseCN:
-                case eFontPrefLang_ChineseHK:
-                case eFontPrefLang_ChineseTW:
-                    rv = AppendPrefFonts(aFonts, fpl, didAppendBits, aStyle);
-                    NS_ENSURE_SUCCESS(rv, rv);
-                    break;
-                default:
-                    break;
-            }
-            p++;
-        }
-    }
-
-    // Prefer the system locale if it is CJK.
-    ScriptCode sysScript = ::GetScriptManagerVariable(smSysScript);
-    // XXX Is not there the HK locale?
-    switch (sysScript) {
-        case smJapanese:    rv = AppendPrefFonts(aFonts, eFontPrefLang_Japanese, didAppendBits, aStyle);  break;
-        case smTradChinese: rv = AppendPrefFonts(aFonts, eFontPrefLang_ChineseTW, didAppendBits, aStyle); break;
-        case smKorean:      rv = AppendPrefFonts(aFonts, eFontPrefLang_Korean, didAppendBits, aStyle);    break;
-        case smSimpChinese: rv = AppendPrefFonts(aFonts, eFontPrefLang_ChineseCN, didAppendBits, aStyle); break;
-        default:            rv = NS_OK;
-    }
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // last resort... (the order is same as old gfx.)
-    rv = AppendPrefFonts(aFonts, eFontPrefLang_Japanese, didAppendBits, aStyle);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = AppendPrefFonts(aFonts, eFontPrefLang_Korean, didAppendBits, aStyle);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = AppendPrefFonts(aFonts, eFontPrefLang_ChineseCN, didAppendBits, aStyle);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = AppendPrefFonts(aFonts, eFontPrefLang_ChineseHK, didAppendBits, aStyle);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = AppendPrefFonts(aFonts, eFontPrefLang_ChineseTW, didAppendBits, aStyle);
-    return rv;
 }
 
 static void
@@ -1340,6 +1228,101 @@ static void MirrorSubstring(ATSUTextLayout layout, nsAutoArrayPtr<PRUnichar>& mi
     }
 }
 
+// match fonts with character sequence based on font cmap tables
+class CmapFontMatcher {
+public:
+    CmapFontMatcher(const PRUnichar *aString, PRUint32 aBeginOffset, PRUint32 aEndOffset, gfxAtsuiFontGroup* aFontGroup) :
+        mString(aString), mOffset(aBeginOffset), mPrevOffset(aBeginOffset), mEndOffset(aEndOffset), mPrevCh(0), mFirstRange(PR_TRUE), mFontGroup(aFontGroup), mMatchedFont(0), mNextMatchedFont(0)
+    {}
+    
+    // match the next substring that uses the same font, returns the length matched
+    PRUint32 MatchNextRange() 
+    { 
+        PRUint32                matchStartOffset, chStartOffset, ch, nextCh;
+        nsRefPtr<gfxAtsuiFont>  font;
+        
+        matchStartOffset = mPrevOffset;
+
+        if ( !mFirstRange ) {
+            mMatchedFont = mNextMatchedFont;
+        }
+        
+        while ( mOffset < mEndOffset ) {
+            chStartOffset = mOffset;
+            
+            // set up current ch
+            ch = mString[mOffset];
+            if ((mOffset+1 < mEndOffset) && NS_IS_HIGH_SURROGATE(ch) && NS_IS_LOW_SURROGATE(mString[mOffset+1])) {
+                mOffset++;
+                ch = SURROGATE_TO_UCS4(ch, mString[mOffset]);
+            }
+            
+            // set up next ch
+            nextCh = 0;
+            if (mOffset+1 < mEndOffset) {
+                nextCh = mString[mOffset+1];
+                if ((mOffset+2 < mEndOffset) && NS_IS_HIGH_SURROGATE(nextCh) && NS_IS_LOW_SURROGATE(mString[mOffset+2]))
+                    nextCh = SURROGATE_TO_UCS4(nextCh, mString[mOffset+2]);
+            }
+
+            // find the font for this char
+            font = mFontGroup->FindFontForChar(ch, mPrevCh, nextCh, mMatchedFont);
+            mOffset++;
+            mPrevCh = ch;
+            
+            // no previous match, set one up
+            if ( mFirstRange ) {
+                mMatchedFont = font;
+                mFirstRange = PR_FALSE;
+            } else if ( font != mMatchedFont ) {
+                mPrevOffset = chStartOffset;
+                mNextMatchedFont = font;
+                return chStartOffset - matchStartOffset;
+            }
+            
+        }
+        
+        // reached the end of the string
+        mPrevOffset = mEndOffset;
+        mNextMatchedFont = nsnull;
+        return mOffset - matchStartOffset;
+    }
+    
+    inline gfxAtsuiFont* MatchedFont() { return mMatchedFont.get(); }
+
+private:
+    const PRUnichar         *mString;
+    PRUint32                mOffset;
+    PRUint32                mPrevOffset;
+    PRUint32                mEndOffset;
+    PRUint32                mPrevCh;
+    PRBool                  mFirstRange;
+    gfxAtsuiFontGroup       *mFontGroup;
+    nsRefPtr<gfxAtsuiFont>  mMatchedFont;
+    nsRefPtr<gfxAtsuiFont>  mNextMatchedFont;
+};
+
+
+static ATSUStyle
+SetLayoutRangeToFont(ATSUTextLayout layout, ATSUStyle mainStyle, UniCharArrayOffset offset,
+                      UniCharCount length, ATSUFontID fontID)
+{
+    ATSUStyle subStyle;
+    ATSUCreateStyle (&subStyle);
+    ATSUCopyAttributes (mainStyle, subStyle);
+
+    ATSUAttributeTag fontTags[] = { kATSUFontTag };
+    ByteCount fontArgSizes[] = { sizeof(ATSUFontID) };
+    ATSUAttributeValuePtr fontArgs[] = { &fontID };
+
+    ATSUSetAttributes (subStyle, 1, fontTags, fontArgSizes, fontArgs);
+
+    // apply the new style to the layout for the changed substring
+    ATSUSetRunStyle (layout, subStyle, offset, length);
+
+    return subStyle;
+}
+
 PRBool
 gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
                                const PRUnichar *aString, PRUint32 aLength,
@@ -1358,7 +1341,8 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
 #ifdef DUMP_TEXT_RUNS
     NS_ConvertUTF16toUTF8 str(realString, aSegmentLength);
     NS_ConvertUTF16toUTF8 families(mFamilies);
-    printf("%p(%s) TEXTRUN \"%s\" ENDTEXTRUN\n", this, families.get(), str.get());
+    PR_LOG(gAtsuiTextRunLog, PR_LOG_DEBUG, ("InitTextRun %p fontgroup %p (%s) lang: %s len %d TEXTRUN \"%s\" ENDTEXTRUN\n", aRun, this, families.get(), mStyle.langGroup.get(), aSegmentLength, str.get()) );
+    PR_LOG(gAtsuiTextRunLog, PR_LOG_DEBUG, ("InitTextRun font: %s\n", NS_ConvertUTF16toUTF8(firstFont->GetUniqueName()).get()) );
 #endif
 
     if (aRun->GetFlags() & TEXT_DISABLE_OPTIONAL_LIGATURES) {
@@ -1404,18 +1388,15 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
 
     static ATSUAttributeTag layoutTags[] = {
         kATSULineLayoutOptionsTag,
-        kATSULineFontFallbacksTag,
         kATSULayoutOperationOverrideTag
     };
     static ByteCount layoutArgSizes[] = {
         sizeof(ATSLineLayoutOptions),
-        sizeof(ATSUFontFallbacks),
         sizeof(ATSULayoutOperationOverrideSpecifier)
     };
 
     ATSUAttributeValuePtr layoutArgs[] = {
         &lineLayoutOptions,
-        GetATSUFontFallbacksPtr(),
         &override
     };
     ATSUSetLayoutControls(layout,
@@ -1427,229 +1408,74 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
     /* Now go through and update the styles for the text, based on font matching. */
 
     nsAutoArrayPtr<PRUnichar> mirroredStr;
-    nsTArray<PRUint32> missingOffsetsAndLengths;
-    nsTArray<ATSUFontFallbacks> fallbacksToDispose;
-
-    PRBool firstTime = PR_TRUE;
 
     UniCharArrayOffset runStart = headerChars;
     UniCharCount runLength = aSegmentLength;
     UniCharCount totalLength = headerChars + aSegmentLength;
     
-    nsresult rv;
+    /// ---- match fonts using cmap info instead of ATSUI ----
+    
+    CmapFontMatcher fontMatcher(aString, runStart, runStart + runLength, this);
+    
+    while (runStart < totalLength) {
+        gfxAtsuiFont *matchedFont;
+        UniCharCount  matchedLength;
+        
+        // match a range of text
+        matchedLength = fontMatcher.MatchNextRange();
+        matchedFont = fontMatcher.MatchedFont();
 
-    //fprintf (stderr, "==== Starting font maching [string length: %d (%s)]\n", totalLength, NS_ConvertUTF16toUTF8(aString, aLength).get());
-    do {
-        PRUint32 missingRanges = missingOffsetsAndLengths.Length() / 2;
-        UniCharArrayOffset missingStart = 0;
-        UniCharCount missingLength = 0;
+#ifdef DUMP_TEXT_RUNS
+        PR_LOG(gAtsuiTextRunLog, PR_LOG_DEBUG, ("InitTextRun %p fontgroup %p font %p match %s (%d-%d)", aRun, this, matchedFont, (matchedFont ? NS_ConvertUTF16toUTF8(matchedFont->GetUniqueName()).get() : "<null>"), runStart, matchedLength));
+#endif
+        //printf("Matched: %s [%d, %d)\n", (matchedFont ? NS_ConvertUTF16toUTF8(matchedFont->GetUniqueName()).get() : "<null>"), runStart, runStart + matchedLength);
+        
+        // in the RTL case, handle fallback mirroring
+        if (aRun->IsRightToLeft() && matchedFont && !matchedFont->HasMirroringInfo()) {
+            MirrorSubstring(layout, mirroredStr, aString, aLength, runStart, runLength);
+        }       
 
-        //fprintf (stderr, "(loop start, missing ranges: %d)\n", missingRanges);
-
-        if (missingRanges > 0) {
-            // we had some misses.  Let's figure out what languages we need
-            // and pull in the fallback fonts from prefs.
-
-            missingStart = missingOffsetsAndLengths[(missingRanges-1) * 2];
-            missingLength = missingOffsetsAndLengths[(missingRanges-1) * 2 + 1];
-            missingOffsetsAndLengths.RemoveElementsAt((missingRanges-1) * 2, 2);
-
-            runStart = missingStart;
-            runLength = missingLength;
-
-            //fprintf (stderr, ".. range: %d %d\n", runStart, runLength);
-
-            totalLength = runStart + runLength;
-
-            PRUint32 didAppendFonts = 0;
-            PRUint32 lastRange = kRangeTableBase;
-
-            nsAutoTArray<nsRefPtr<gfxFont>,3> mLangFonts;
-
-            for (PRUint32 j = 0; j < runLength; j++) {
-                PRUint32 unicodeRange = FindCharUnicodeRange(aString[j+runStart]);
-                if (unicodeRange == lastRange)
-                    continue;
-
-                lastRange = unicodeRange;
-                eFontPrefLang prefLang = GetFontPrefLangFor(unicodeRange);
-
-                if (prefLang == eFontPrefLang_CJKSet)
-                    rv = AppendCJKPrefFonts(&mLangFonts, didAppendFonts, GetStyle());
-                else
-                    rv = AppendPrefFonts(&mLangFonts, prefLang, didAppendFonts, GetStyle());
-                if (NS_FAILED(rv))
-                    break;
-            }
-
-            if (NS_FAILED(rv))
-                break;
-
-            // always append Unicode
-            rv = AppendPrefFonts(&mLangFonts, eFontPrefLang_Others, didAppendFonts, GetStyle());
-            if (NS_FAILED(rv))
-                break;
-
-            // now we have a list of fonts in mLangFonts (potentially -- 0-length is ok)
-            ATSUFontFallbacks langFallbacks;
-            rv = CreateFontFallbacksFromFontList(&mLangFonts, &langFallbacks, kATSUSequentialFallbacksPreferred);
-            if (NS_FAILED(rv))
-                break;
-
-            fallbacksToDispose.AppendElement(langFallbacks);
-
-            static ATSUAttributeTag fallbackTags[] = { kATSULineFontFallbacksTag };
-            static ByteCount fallbackArgSizes[] = { sizeof(ATSUFontFallbacks) };
-            ATSUAttributeValuePtr fallbackArgs[] = { &langFallbacks };
-
-            ATSUSetLayoutControls(layout,
-                                  NS_ARRAY_LENGTH(fallbackTags),
-                                  fallbackTags, fallbackArgSizes, fallbackArgs);
-        }
-
-        while (runStart < totalLength) {
-            ATSUFontID substituteFontID;
-            UniCharArrayOffset changedOffset;
-            UniCharCount changedLength;
-            UniCharCount foundCharacters;
-
-            OSStatus status = ATSUMatchFontsToText(layout, runStart, runLength,
-                                                   &substituteFontID, &changedOffset, &changedLength);
-
-            if (status == noErr) {
-                foundCharacters = runLength;
-                changedLength = 0;
-            } else {
-                foundCharacters = changedOffset - runStart;
-            }
-
-            // first, handle any characters that were matched with firstFont
-            if (foundCharacters) {
-                //fprintf (stderr, "... glyphs found in first: %d %d\n", runStart, foundCharacters);
-                // glyphs exist for all characters in the [runStart, runStart + foundCharacters) substring
-
-                // in the RTL case, handle fallback mirroring
-                if (aRun->IsRightToLeft() && !firstFont->HasMirroringInfo()) {
-                    MirrorSubstring(layout, mirroredStr, aString, aLength, runStart, runLength);
-                }
+        // if no matched font, mark as unmatched
+        if (!matchedFont) {
+        
+            aRun->AddGlyphRun(firstFont, aSegmentStart + runStart - headerChars, PR_TRUE);
             
-                // add a glyph run for the entire substring
-                aRun->AddGlyphRun(firstFont, aSegmentStart + runStart - headerChars, PR_TRUE);
-
-                // do we have any more work to do?
-                if (status == noErr)
-                    break;
-            }
-
-            if (firstTime && !HasFont(substituteFontID)) {
-                // XXX We are using kATSUSequentialFallbacksExclusive at first time.
-                // But the method uses non-listed font in font fallbacks on 10.4. (ATSUI Reference does not say so...)
-                status = kATSUFontsNotMatched;
-            }
-
-            // then, handle any chars that were found in the fallback list
-            if (status == kATSUFontsMatched) {
-                // substitute font will be used in [changedOffset, changedOffset + changedLength)
-                gfxAtsuiFont *font = FindFontFor(substituteFontID);
-
-                //fprintf (stderr, "... glyphs matched in fallback: %d %d (%s)\n", changedOffset, changedLength, NS_ConvertUTF16toUTF8(font->GetUniqueName()).get());
-
-                if (font) {
-                    // create a new style for the substitute font
-                    ATSUStyle subStyle;
-                    ATSUCreateStyle (&subStyle);
-                    ATSUCopyAttributes (mainStyle, subStyle);
-
-                    ATSUAttributeTag fontTags[] = { kATSUFontTag };
-                    ByteCount fontArgSizes[] = { sizeof(ATSUFontID) };
-                    ATSUAttributeValuePtr fontArgs[] = { &substituteFontID };
-
-                    ATSUSetAttributes (subStyle, 1, fontTags, fontArgSizes, fontArgs);
-
-                    // apply the new style to the layout for the changed substring
-                    ATSUSetRunStyle (layout, subStyle, changedOffset, changedLength);
-
-                    stylesToDispose.AppendElement(subStyle);
-
-                    // add a glyph run for [changedOffset, changedOffset + changedLength) with the
-                    // substituted font
-
-                    // in the RTL case, handle fallback mirroring
-                    if (aRun->IsRightToLeft() && !font->HasMirroringInfo()) {
-                        MirrorSubstring(layout, mirroredStr, aString, aLength, changedOffset, 
-                                        changedLength);
-                    }
-                
-                    aRun->AddGlyphRun(font, aSegmentStart + changedOffset - headerChars, PR_TRUE);
-                } else {
-                    // We could hit this case if we decided to ignore the
-                    // font when enumerating at startup; pretend that these are
-                    // missing glyphs.
-                    // XXX - wait, why did it even end up in the fallback list,
-                    // then?
-
-                    status = kATSUFontsNotMatched;
+            if (!closure.mUnmatchedChars) {
+                closure.mUnmatchedChars = new PRPackedBool[aLength];
+                if (closure.mUnmatchedChars) {
+                    //printf("initializing %d\n", aLength);
+                    memset(closure.mUnmatchedChars.get(), PR_FALSE, aLength);
                 }
             }
-
-            if (status == kATSUFontsNotMatched) {
-                //fprintf (stderr, "... glyphs not found: %d %d\n", changedOffset, changedLength);
-
-                // If this is our first time through (no fallback),
-                // or if we're missing a different range than before,
-                // add it to the list of ranges to examine
-                if (firstTime ||
-                    (changedOffset != missingStart && changedLength != missingLength))
-                {
-                    //fprintf (stderr, " (will look again at %d %d)\n", changedOffset, changedLength);
-                    missingOffsetsAndLengths.AppendElement(changedOffset);
-                    missingOffsetsAndLengths.AppendElement(changedLength);
-                } else {
-                    aRun->AddGlyphRun(firstFont, aSegmentStart + changedOffset - headerChars, PR_TRUE);
-
-                    if (!closure.mUnmatchedChars) {
-                        closure.mUnmatchedChars = new PRPackedBool[aLength];
-                        if (closure.mUnmatchedChars) {
-                            memset(closure.mUnmatchedChars.get(), PR_FALSE, aLength);
-                        }
-                    }
-
-                    if (closure.mUnmatchedChars) {
-                        memset(closure.mUnmatchedChars.get() + changedOffset - headerChars,
-                               PR_TRUE, changedLength);
-                    }
-                }
+    
+            if (closure.mUnmatchedChars) {
+                //printf("setting %d unmatched from %d\n", matchedLength, runStart - headerChars);
+                memset(closure.mUnmatchedChars.get() + runStart - headerChars,
+                       PR_TRUE, matchedLength);
+            }
+            
+        } else {
+        
+            if (matchedFont != firstFont) {
+                // create a new sub-style and add it to the layout
+                ATSUStyle subStyle = SetLayoutRangeToFont(layout, mainStyle, runStart, matchedLength, matchedFont->GetATSUFontID());
+                stylesToDispose.AppendElement(subStyle);
             }
 
-            //fprintf (stderr, "total length: %d changedOffset: %d changedLength: %d\n",  runLength, changedOffset, changedLength);
-
-            runStart = changedOffset + changedLength;
-            runLength = totalLength - runStart;
+            // add a glyph run for the matched substring
+            aRun->AddGlyphRun(matchedFont, aSegmentStart + runStart - headerChars, PR_TRUE);
         }
-
-        firstTime = PR_FALSE;
-    } while (missingOffsetsAndLengths.Length() > 0);
-
-    // put back the fallback object, because we'll be disposing
-    // of any of the ones we created while doing fallback
-    if (fallbacksToDispose.Length() > 0) {
-        static ATSUAttributeTag fallbackTags[] = { kATSULineFontFallbacksTag };
-        static ByteCount fallbackArgSizes[] = { sizeof(ATSUFontFallbacks) };
-        ATSUAttributeValuePtr fallbackArgs[] = { GetATSUFontFallbacksPtr() };
-
-        ATSUSetLayoutControls(layout,
-                              NS_ARRAY_LENGTH(fallbackTags),
-                              fallbackTags, fallbackArgSizes, fallbackArgs);
+        
+        runStart += matchedLength;
+        runLength -= matchedLength;    
     }
+    
 
-    for (PRUint32 i = 0; i < fallbacksToDispose.Length(); i++)
-        ATSUDisposeFontFallbacks(fallbacksToDispose[i]);
+    /// -------------------------------------------------
 
-    // sort our glyph runs; we may have added
-    // some out of order while doing fallback font matching
+    // xxx - for some reason, this call appears to be needed to avoid assertions about glyph runs not being coalesced properly
+    //       this appears to occur when there are unmatched characters in the text run
     aRun->SortGlyphRuns();
-
-    //fprintf (stderr, "==== End font matching\n");
 
     // Trigger layout so that our callback fires. We don't actually care about
     // the result of this call.

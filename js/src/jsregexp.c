@@ -353,22 +353,33 @@ typedef struct REGlobalData {
  *    code point value is less than decimal 128, then return ch.
  * 6. Return cu.
  */
-static jschar
-upcase(jschar ch)
+static uintN
+upcase(uintN ch)
 {
-    jschar cu = JS_TOUPPER(ch);
-    if (ch >= 128 && cu < 128)
+    uintN cu;
+
+    JS_ASSERT((uintN) (jschar) ch == ch);
+    if (ch < 128) {
+        if (ch - (uintN) 'a' <= (uintN) ('z' - 'a'))
+            ch -= (uintN) ('a' - 'A');
         return ch;
-    return cu;
+    }
+
+    cu = JS_TOUPPER(ch);
+    return (cu < 128) ? ch : cu;
 }
 
-static jschar
-downcase(jschar ch)
+static uintN
+downcase(uintN ch)
 {
-    jschar cl = JS_TOLOWER(ch);
-    if (cl >= 128 && ch < 128)
+    JS_ASSERT((uintN) (jschar) ch == ch);
+    if (ch < 128) {
+        if (ch - (uintN) 'A' <= (uintN) ('Z' - 'A'))
+            ch += (uintN) ('a' - 'A');
         return ch;
-    return cl;
+    }
+
+    return JS_TOLOWER(ch);
 }
 
 /* Construct and initialize an RENode, returning NULL for out-of-memory */
@@ -916,7 +927,9 @@ CalculateBitmapSize(CompilerState *state, RENode *target, const jschar *src,
     }
 
     while (src != end) {
+        JSBool canStartRange = JS_TRUE;
         uintN localMax = 0;
+
         switch (*src) {
           case '\\':
             ++src;
@@ -942,7 +955,7 @@ CalculateBitmapSize(CompilerState *state, RENode *target, const jschar *src,
                 break;
               case 'c':
                 if (src < end && RE_IS_LETTER(*src)) {
-                    localMax = (jschar) (*src++ & 0x1F);
+                    localMax = (uintN) (*src++) & 0x1F;
                 } else {
                     --src;
                     localMax = '\\';
@@ -971,6 +984,7 @@ lexHex:
                 localMax = n;
                 break;
               case 'd':
+                canStartRange = JS_FALSE;
                 if (inRange) {
                     JS_ReportErrorNumber(state->context,
                                          js_GetErrorMessage, NULL,
@@ -984,6 +998,7 @@ lexHex:
               case 'S':
               case 'w':
               case 'W':
+                canStartRange = JS_FALSE;
                 if (inRange) {
                     JS_ReportErrorNumber(state->context,
                                          js_GetErrorMessage, NULL,
@@ -1040,7 +1055,7 @@ lexHex:
             break;
         }
         if (state->flags & JSREG_FOLD) {
-            c = JS_MAX(upcase((jschar) localMax), downcase((jschar) localMax));
+            c = (jschar) JS_MAX(upcase(localMax), downcase(localMax));
             if (c > localMax)
                 localMax = c;
         }
@@ -1053,7 +1068,7 @@ lexHex:
             }
             inRange = JS_FALSE;
         } else {
-            if (src < end - 1) {
+            if (canStartRange && src < end - 1) {
                 if (*src == '-') {
                     ++src;
                     inRange = JS_TRUE;
@@ -2216,12 +2231,12 @@ AddCharacterToCharSet(RECharSet *cs, jschar c)
 
 /* Add a character range, c1 to c2 (inclusive) to the RECharSet */
 static void
-AddCharacterRangeToCharSet(RECharSet *cs, jschar c1, jschar c2)
+AddCharacterRangeToCharSet(RECharSet *cs, uintN c1, uintN c2)
 {
     uintN i;
 
-    uintN byteIndex1 = (uintN)(c1 >> 3);
-    uintN byteIndex2 = (uintN)(c2 >> 3);
+    uintN byteIndex1 = c1 >> 3;
+    uintN byteIndex2 = c2 >> 3;
 
     JS_ASSERT((c2 <= cs->length) && (c1 <= c2));
 
@@ -3367,7 +3382,14 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     gData.start = start;
     gData.skipped = 0;
 
-    JS_INIT_ARENA_POOL(&gData.pool, "RegExpPool", 8096, 4,
+    /*
+     * To avoid multiple allocations in InitMatch(), the arena size parameter
+     * should be at least as big as:
+     * INITIAL_BACKTRACK
+     * + (sizeof(REProgState) * INITIAL_STATESTACK)
+     * + (offsetof(REMatchState, parens) + avgParanSize * sizeof(RECapture))
+     */
+    JS_INIT_ARENA_POOL(&gData.pool, "RegExpPool", 12288, 4,
                        &cx->scriptStackQuota);
     x = InitMatch(cx, &gData, re, length);
 
@@ -3834,6 +3856,8 @@ regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
         obj = js_NewObject(xdr->cx, &js_RegExpClass, NULL, NULL);
         if (!obj)
             return JS_FALSE;
+        STOBJ_SET_PARENT(obj, NULL);
+        STOBJ_SET_PROTO(obj, NULL);
         re = js_NewRegExp(xdr->cx, NULL, source, (uint8)flagsword, JS_FALSE);
         if (!re)
             return JS_FALSE;
@@ -3866,8 +3890,7 @@ regexp_trace(JSTracer *trc, JSObject *obj)
 JSClass js_RegExpClass = {
     js_RegExp_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_RegExp) |
-    JSCLASS_FIXED_BINDING,
+    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_RegExp),
     JS_PropertyStub,    JS_PropertyStub,
     regexp_getProperty, regexp_setProperty,
     JS_EnumerateStub,   JS_ResolveStub,

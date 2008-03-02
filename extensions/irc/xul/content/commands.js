@@ -119,6 +119,8 @@ function initCommands()
          ["goto-url-external", cmdGotoURL,                                   0],
          ["help",              cmdHelp,                            CMD_CONSOLE],
          ["hide-view",         cmdHideView,                        CMD_CONSOLE],
+         ["idle-away",         cmdAway,                                      0],
+         ["idle-back",         cmdAway,                                      0],
          ["ignore",            cmdIgnore,           CMD_NEED_NET | CMD_CONSOLE],
          ["input-text-direction", cmdInputTextDirection,                     0],
          ["invite",            cmdInvite,           CMD_NEED_SRV | CMD_CONSOLE],
@@ -215,6 +217,7 @@ function initCommands()
          ["homepage",         "goto-url homepage",                           0],
          // Used to display a nickname in the menu only.
          ["label-user",       "echo",                                        0],
+         ["label-user-multi", "echo",                                        0],
          // These are all the font family/size menu commands...
          ["font-family-default",    "font-family default",                   0],
          ["font-family-serif",      "font-family serif",                     0],
@@ -875,6 +878,30 @@ function cmdAblePlugin(e)
 
 function cmdBanOrExcept(e)
 {
+    var modestr;
+    switch (e.command.name)
+    {
+        case "ban":
+            modestr = "+bbbb";
+            break;
+
+        case "unban":
+            modestr = "-bbbb";
+            break;
+
+        case "except":
+            modestr = "+eeee";
+            break;
+
+        case "unexcept":
+            modestr = "-eeee";
+            break;
+
+        default:
+            ASSERT(0, "Dispatch from unknown name " + e.command.name);
+            return;
+    }
+
     /* If we're unbanning, or banning in odd cases, we may actually be talking
      * about a user who is not in the channel, so we need to check the server
      * for information as well.
@@ -884,11 +911,17 @@ function cmdBanOrExcept(e)
     if (!e.user && e.nickname)
         e.user = e.server.getUser(e.nickname);
 
-    var mask = "";
-    if (e.user)
+    var masks = new Array();
+
+    if (e.userList)
+    {
+        for (var i = 0; i < e.userList.length; i++)
+            masks.push(fromUnicode(e.userList[i].getBanMask(), e.server));
+    }
+    else if (e.user)
     {
         // We have a real user object, so get their proper 'ban mask'.
-        mask = fromUnicode(e.user.getBanMask(), e.server);
+        masks = [fromUnicode(e.user.getBanMask(), e.server)];
     }
     else if (e.nickname)
     {
@@ -896,28 +929,25 @@ function cmdBanOrExcept(e)
          * us a complete mask and pass it directly, otherwise assume it is
          * only the nickname and use * for username/host.
          */
-        mask = fromUnicode(e.nickname, e.server);
+        masks = [fromUnicode(e.nickname, e.server)];
         if (!/[!@]/.test(e.nickname))
-            mask = mask + "!*@*";
+            masks[0] = masks[0] + "!*@*";
+    }
+    else
+    {
+        // Nothing specified, so we want to list the bans/excepts.
+        masks = [""];
     }
 
-    var op;
-    switch (e.command.name)
+    // Collapses into groups we can do individually.
+    masks = combineNicks(masks);
+
+    for (var i = 0; i < masks.length; i++)
     {
-        case "ban":
-            op = " +b ";
-            break;
-        case "unban":
-            op = " -b ";
-            break;
-        case "except":
-            op = " +e ";
-            break;
-        case "unexcept":
-            op = " -e ";
-            break;
+        e.server.sendData("MODE " + e.channel.encodedName + " " +
+                          modestr.substr(0, masks[i].count + 1) +
+                          " " + masks[i] + "\n");
     }
-    e.server.sendData("MODE " + e.channel.encodedName + op + mask + "\n");
 }
 
 function cmdCancel(e)
@@ -1633,6 +1663,12 @@ function cmdHideView(e)
         // Detach messages from output window content.
         if (e.view.messages.parentNode)
             e.view.messages.parentNode.removeChild(e.view.messages);
+
+        /* XXX Bug 335998: Adopt the messages into our own internal document
+         * so that when the real one the messages were in gets incorrectly
+         * GC-collected (see bug) the nodes still have an ownerDocument.
+         */
+        client.adoptNode(e.view.messages, client.hiddenDocument);
     }
 
     var tb = getTabForObject(e.view);
@@ -2139,7 +2175,7 @@ function cmdNick(e)
     if (!e.nickname)
     {
         var curNick;
-        if (e.server && e.server.isConnected())
+        if (e.server && e.server.isConnected)
             curNick = e.server.me.unicodeName;
         else if (e.network)
             curNick = e.network.prefs["nickname"];
@@ -2772,15 +2808,25 @@ function cmdAway(e)
     {
         for (var n in client.networks)
         {
-            if (client.networks[n].primServ &&
-                (client.networks[n].state == NET_ONLINE))
+            var net = client.networks[n];
+            if (net.primServ && (net.state == NET_ONLINE))
             {
-                client.networks[n].dispatch(command, { reason: reason });
+                // If we can override the network's away state, or they are
+                // already idly-away, or they're not away to begin with:
+                if (overrideAway || net.isIdleAway || !net.prefs["away"])
+                {
+                    net.dispatch(command, {reason: reason });
+                    net.isIdleAway = (e.command.name == "idle-away");
+                }
             }
         }
     };
 
-    if ((e.command.name == "away") || (e.command.name == "custom-away"))
+    // Idle away shouldn't override away state set by the user.
+    var overrideAway = (e.command.name.indexOf("idle") != 0);
+
+    if ((e.command.name == "away") || (e.command.name == "custom-away") ||
+        (e.command.name == "idle-away"))
     {
         /* going away */
         if (e.command.name == "custom-away")
@@ -2826,6 +2872,7 @@ function cmdAway(e)
             display(getMsg(MSG_ERR_AWAY_SAVE, formatException(ex)), MT_ERROR);
         }
 
+        // Actually do away stuff, is this on a specific network?
         if (e.server)
         {
             var normalNick = e.network.prefs["nickname"];
@@ -2836,7 +2883,8 @@ function cmdAway(e)
                 // user doesn't want to change nicks:
                 if (awayNick && (normalNick != awayNick))
                     e.server.changeNick(awayNick);
-                e.server.sendData("AWAY :" + fromUnicode(e.reason, e.network) + "\n");
+                e.server.sendData("AWAY :" + fromUnicode(e.reason, e.network) +
+                                  "\n");
             }
             if (awayNick && (normalNick != awayNick))
                 e.network.preferredNick = awayNick;
@@ -2844,10 +2892,23 @@ function cmdAway(e)
         }
         else
         {
-            client.prefs["away"] = e.reason;
             // Client view, do command for all networks.
             sendToAllNetworks("away", e.reason);
-            display(getMsg(MSG_AWAY_ON, e.reason));
+            client.prefs["away"] = e.reason;
+
+            // Don't tell people how to get back if they're idle:
+            var idleMsgParams = [e.reason, client.prefs["awayIdleTime"]];
+            if (e.command.name == "idle-away")
+                var msg = getMsg(MSG_IDLE_AWAY_ON, idleMsgParams);
+            else
+                msg = getMsg(MSG_AWAY_ON, e.reason);
+
+            // Display on the *client* tab, or on the current tab iff
+            // there's nowhere else they'll hear about it:
+            if (("frame" in client) && client.frame)
+                client.display(msg);
+            else if (!client.getConnectedNetworks())
+                display(msg);
         }
     }
     else
@@ -2873,7 +2934,10 @@ function cmdAway(e)
             client.prefs["away"] = "";
             // Client view, do command for all networks.
             sendToAllNetworks("back");
-            display(MSG_AWAY_OFF);
+            if (("frame" in client) && client.frame)
+                client.display(MSG_AWAY_OFF);
+            else if (!client.getConnectedNetworks())
+                display(MSG_AWAY_OFF);
         }
     }
 }
@@ -3102,11 +3166,7 @@ function cmdInvite(e)
 {
     var channel;
 
-    if (!e.channelName)
-    {
-        channel = e.channel;
-    }
-    else
+    if (e.channelName)
     {
         channel = e.server.getChannel(e.channelName);
         if (!channel)
@@ -3115,12 +3175,46 @@ function cmdInvite(e)
             return;
         }
     }
+    else if (e.channel)
+    {
+        channel = e.channel;
+    }
+    else
+    {
+        display(getMsg(MSG_ERR_NO_CHANNEL, e.command.name), MT_ERROR);
+        return;
+    }
 
     channel.invite(e.nickname);
 }
 
 function cmdKick(e)
 {
+    if (e.userList)
+    {
+        if (e.command.name == "kick-ban")
+        {
+            e.sourceObject.dispatch("ban", { userList: e.userList,
+                                             canonNickList: e.canonNickList,
+                                             user: e.user,
+                                             nickname: e.user.encodedName });
+        }
+
+        /* Note that we always do /kick below; the /ban is covered above.
+         * Also note that we are required to pass the nickname, to satisfy
+         * the dispatching of the command (which is defined with a required
+         * <nickname> parameter). It's not required for /ban, above, but it
+         * seems prudent to include it anyway.
+         */
+        for (var i = 0; i < e.userList.length; i++)
+        {
+            var e2 = { user: e.userList[i],
+                       nickname: e.userList[i].encodedName };
+            e.sourceObject.dispatch("kick", e2);
+        }
+        return;
+    }
+
     if (!e.user)
         e.user = e.channel.getUser(e.nickname);
 
@@ -3672,6 +3766,16 @@ function cmdDoCommand(e)
     {
         window.openDialog('chrome://chatzilla/content/config.xul', '',
                           'chrome,resizable,dialog=no', window);
+    }
+    else if (e.cmdName == "cmd_selectAll")
+    {
+        var userList = document.getElementById("user-list");
+        var elemFocused = document.commandDispatcher.focusedElement;
+
+        if (userList.view && (elemFocused == userList))
+            userList.view.selection.selectAll();
+        else
+            doCommand("cmd_selectAll");
     }
     else
     {

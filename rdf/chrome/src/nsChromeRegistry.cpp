@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 sw=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -80,6 +81,7 @@
 #include "nsLayoutCID.h"
 #include "prio.h"
 #include "nsInt64.h"
+#include "nsEscape.h"
 #include "nsIDirectoryService.h"
 #include "nsILocalFile.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -387,26 +389,16 @@ SplitURL(nsIURI *aChromeURI, nsCString& aPackage, nsCString& aProvider, nsCStrin
   } else {
     // Protect against URIs containing .. that reach up out of the
     // chrome directory to grant chrome privileges to non-chrome files.
-    int depth = 0;
-    PRBool sawSlash = PR_TRUE;  // .. at the beginning is suspect as well as /..
-    for (const char* p=aFile.get(); *p; p++) {
-      if (sawSlash) {
-        if (p[0] == '.' && p[1] == '.'){
-          depth--;    // we have /.., decrement depth.
-        } else {
-          static const char escape[] = "%2E%2E";
-          if (PL_strncasecmp(p, escape, sizeof(escape)-1) == 0)
-            depth--;   // we have the HTML-escaped form of /.., decrement depth.
-        }
-      } else if (p[0] != '/') {
-        depth++;        // we have /x for some x that is not /
-      }
-      sawSlash = (p[0] == '/');
-
-      if (depth < 0) {
-        return NS_ERROR_FAILURE;
-      }
+    PRInt32 origLen = aFile.Length();
+    PRInt32 newLen = nsUnescapeCount(aFile.BeginWriting());
+    if (origLen != newLen) {
+        aFile.SetLength(newLen);
+        nofile = PR_TRUE; // let caller know path is modified
     }
+
+    if (aFile.Find(NS_LITERAL_CSTRING("..")) != kNotFound ||
+        aFile.FindChar(':') != kNotFound)
+      return NS_ERROR_FAILURE;
   }
   if (aModified)
     *aModified = nofile;
@@ -2976,7 +2968,7 @@ nsChromeRegistry::FlagXPCNativeWrappers()
         uri.AssignLiteral("chrome://");
         uri.Append(source + sizeof urn - 1);
         uri.Append('/');
-        rv = xpc->FlagSystemFilenamePrefix(uri.get());
+        rv = xpc->FlagSystemFilenamePrefix(uri.get(), PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }

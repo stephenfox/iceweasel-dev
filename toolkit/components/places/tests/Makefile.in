@@ -50,7 +50,10 @@ XPCSHELL_TESTS = unit \
                  $(NULL)
 
 ifdef MOZ_MOCHITEST
-DIRS = chrome
+DIRS = \
+  chrome \
+  browser \
+  $(NULL)
 endif
 
 include $(topsrcdir)/config/rules.mk

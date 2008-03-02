@@ -102,6 +102,8 @@ pkix_TargetCertCheckerState_RegisterSelf(void *plContext)
                     "pkix_TargetCertCheckerState_RegisterSelf");
 
         entry.description = "TargetCertCheckerState";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(pkix_TargetCertCheckerState);
         entry.destructor = pkix_TargetCertCheckerState_Destroy;
         entry.equalsFunction = NULL;
         entry.hashcodeFunction = NULL;
@@ -215,28 +217,38 @@ pkix_TargetCertCheckerState_Create(
                 }
         }
 
+        state->certsRemaining = certsRemaining;
+        state->subjAltNameMatchAll = subjAltNameMatchAll;
+
         PKIX_INCREF(certSelector);
         state->certSelector = certSelector;
+
         state->pathToNameList = pathToNameList;
+        pathToNameList = NULL;
+
         state->extKeyUsageList = extKeyUsageList;
+        extKeyUsageList = NULL;
+
         state->subjAltNameList = subjAltNameList;
-        state->subjAltNameMatchAll = subjAltNameMatchAll;
-        state->certsRemaining = certsRemaining;
+        subjAltNameList = NULL;
+
         state->extKeyUsageOID = extKeyUsageOID;
+        extKeyUsageOID = NULL;
+
         state->subjAltNameOID = subjAltNameOID;
+        subjAltNameOID = NULL;
 
         *pState = state;
+        state = NULL;
 
 cleanup:
-
-        if (PKIX_ERROR_RECEIVED){
-                PKIX_DECREF(extKeyUsageOID);
-                PKIX_DECREF(subjAltNameOID);
-                PKIX_DECREF(pathToNameList);
-                PKIX_DECREF(extKeyUsageList);
-                PKIX_DECREF(subjAltNameList);
-                PKIX_DECREF(state);
-        }
+        
+        PKIX_DECREF(extKeyUsageOID);
+        PKIX_DECREF(subjAltNameOID);
+        PKIX_DECREF(pathToNameList);
+        PKIX_DECREF(extKeyUsageList);
+        PKIX_DECREF(subjAltNameList);
+        PKIX_DECREF(state);
 
         PKIX_DECREF(certSelectorParams);
 

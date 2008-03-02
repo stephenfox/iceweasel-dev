@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nssinit.c,v 1.84 2007/10/04 19:07:23 alexei.volkov.bugs%sun.com Exp $ */
+/* $Id: nssinit.c,v 1.87 2007/12/19 23:03:55 alexei.volkov.bugs%sun.com Exp $ */
 
 #include <ctype.h>
 #include "seccomon.h"
@@ -60,6 +60,7 @@
 #include "pki3hack.h"
 #include "certi.h"
 #include "secmodi.h"
+#include "ocspti.h"
 #include "ocspi.h"
 
 /*
@@ -127,7 +128,7 @@ nss_makeFlags(PRBool readOnly, PRBool noCertDB,
 }
 
 /*
- * statics to remember the PKCS11_ConfigurePKCS11()
+ * statics to remember the PK11_ConfigurePKCS11()
  * info.
  */
 static char * pk11_config_strings = NULL;
@@ -226,6 +227,18 @@ PK11_ConfigurePKCS11(const char *man, const char *libdes, const char *tokdes,
     pk11_password_required = pwRequired;
 
     return;
+}
+
+void PK11_UnconfigurePKCS11(void)
+{
+    if (pk11_config_strings != NULL) {
+	PR_smprintf_free(pk11_config_strings);
+        pk11_config_strings = NULL;
+    }
+    if (pk11_config_name) {
+        PORT_Free(pk11_config_name);
+        pk11_config_name = NULL;
+    }
 }
 
 static char *
@@ -431,6 +444,10 @@ nss_Init(const char *configdir, const char *certPrefix, const char *keyPrefix,
 
     /* New option bits must not change the size of CERTCertificate. */
     PORT_Assert(sizeof(dummyCert.options) == sizeof(void *));
+
+    if (SECSuccess != cert_InitLocks()) {
+        return SECFailure;
+    }
 
     if (SECSuccess != InitCRLCache()) {
         return SECFailure;
@@ -809,6 +826,7 @@ NSS_Shutdown(void)
     if (rv != SECSuccess) {
 	shutdownRV = SECFailure;
     }
+    cert_DestroyLocks();
     ShutdownCRLCache();
     OCSP_ShutdownGlobal();
     PKIX_Shutdown(plContext);

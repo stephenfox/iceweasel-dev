@@ -76,6 +76,7 @@ static nsSystemFontsWin *gSystemFonts = nsnull;
 #include <usp10.h>
 #elif defined(XP_OS2)
 #include "nsSystemFontsOS2.h"
+#include "gfxPDFSurface.h"
 static nsSystemFontsOS2 *gSystemFonts = nsnull;
 #elif defined(XP_BEOS)
 #include "nsSystemFontsBeOS.h"
@@ -673,7 +674,7 @@ nsThebesDeviceContext::CalcPrintingSize()
         size = reinterpret_cast<gfxImageSurface*>(mPrintingSurface.get())->GetSize();
         break;
 
-#if defined(MOZ_ENABLE_GTK2) || defined(XP_WIN)
+#if defined(MOZ_ENABLE_GTK2) || defined(XP_WIN) || defined(XP_OS2)
     case gfxASurface::SurfaceTypePDF:
         inPoints = PR_TRUE;
         size = reinterpret_cast<gfxPDFSurface*>(mPrintingSurface.get())->GetSize();
@@ -707,6 +708,27 @@ nsThebesDeviceContext::CalcPrintingSize()
         mDepth = (PRUint32)::GetDeviceCaps(dc, BITSPIXEL);
         if (dc != (HDC)GetPrintHDC())
             ReleaseDC((HWND)mWidget, dc);
+        break;
+    }
+#endif
+
+#ifdef XP_OS2
+    case gfxASurface::SurfaceTypeOS2:
+    {
+        inPoints = PR_FALSE;
+        // we already set the size in the surface constructor we set for
+        // printing, so just get those values here
+        size = reinterpret_cast<gfxOS2Surface*>(mPrintingSurface.get())->GetSize();
+        // as they are in pixels we need to scale them to app units
+        size.width = NSFloatPixelsToAppUnits(size.width, AppUnitsPerDevPixel());
+        size.height = NSFloatPixelsToAppUnits(size.height, AppUnitsPerDevPixel());
+        // still need to get the depth from the device context
+        HDC dc = GetPrintHDC();
+        LONG value;
+        if (DevQueryCaps(dc, CAPS_COLOR_BITCOUNT, 1, &value))
+            mDepth = value;
+        else
+            mDepth = 8; // default to 8bpp, should be enough for printers
         break;
     }
 #endif

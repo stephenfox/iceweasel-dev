@@ -35,22 +35,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const LAST_USED_ANNO = "bookmarkPropertiesDialog/lastUsed";
+const LAST_USED_ANNO = "bookmarkPropertiesDialog/folderLastUsed";
 const STATIC_TITLE_ANNO = "bookmarks/staticTitle";
 const MAX_FOLDER_ITEM_IN_MENU_LIST = 5;
 
 var gEditItemOverlay = {
-  /**
-   * The Microsummary Service for displaying microsummaries.
-   */
-  __mss: null,
-  get _mss() {
-    if (!this.__mss)
-      this.__mss = Cc["@mozilla.org/microsummary/service;1"].
-                  getService(Ci.nsIMicrosummaryService);
-    return this.__mss;
-  },
-
   _uri: null,
   _itemId: -1,
   _itemType: -1,
@@ -58,6 +47,7 @@ var gEditItemOverlay = {
   _microsummaries: null,
   _hiddenRows: [],
   _observersAdded: false,
+  _staticFoldersListBuilt: false,
 
   get itemId() {
     return this._itemId;
@@ -121,8 +111,12 @@ var gEditItemOverlay = {
       this._initTextField("locationField", this._uri.spec);
       this._initTextField("tagsField",
                            PlacesUtils.tagging
-                                      .getTagsForURI(this._uri).join(", "),
+                                      .getTagsForURI(this._uri, {}).join(", "),
                           false);
+
+      // tags selector
+      this._rebuildTagsSelectorList();
+
       this._initTextField("keywordField",
                           bms.getKeywordForBookmark(this._itemId));
 
@@ -202,7 +196,7 @@ var gEditItemOverlay = {
   _initFolderMenuList: function EIO__initFolderMenuList(aSelectedFolder) {
     // clean up first
     var menupopup = this._folderMenuList.menupopup;
-    while (menupopup.childNodes.length > 4)
+    while (menupopup.childNodes.length > 6)
       menupopup.removeChild(menupopup.lastChild);
 
     const bms = PlacesUtils.bookmarks;
@@ -210,14 +204,17 @@ var gEditItemOverlay = {
 
     // Build the static list
     var unfiledItem = this._element("unfiledRootItem");
-    unfiledItem.label = bms.getItemTitle(PlacesUtils.unfiledBookmarksFolderId);
-    // only show "Unfiled Bookmarks" if the url isn't bookmarked somewhere else
-    unfiledItem.hidden = aSelectedFolder != PlacesUtils.unfiledBookmarksFolderId;
-
-    this._element("bmRootItem").label =
-      bms.getItemTitle(PlacesUtils.bookmarksMenuFolderId);
-    this._element("toolbarFolderItem").label =
-      bms.getItemTitle(PlacesUtils.toolbarFolderId);
+    if (!this._staticFoldersListBuilt) {
+      unfiledItem.label = bms.getItemTitle(PlacesUtils.unfiledBookmarksFolderId);
+      unfiledItem.folderId = PlacesUtils.unfiledBookmarksFolderId;
+      var bmMenuItem = this._element("bmRootItem");
+      bmMenuItem.label = bms.getItemTitle(PlacesUtils.bookmarksMenuFolderId);
+      bmMenuItem.folderId = PlacesUtils.bookmarksMenuFolderId;
+      var toolbarItem = this._element("toolbarFolderItem");
+      toolbarItem.label = bms.getItemTitle(PlacesUtils.toolbarFolderId);
+      toolbarItem.folderId = PlacesUtils.toolbarFolderId;
+      this._staticFoldersListBuilt = true;
+    }
 
     // List of recently used folders:
     var folderIds = annos.getItemsWithAnnotation(LAST_USED_ANNO, { });
@@ -248,11 +245,11 @@ var gEditItemOverlay = {
       this._appendFolderItemToMenupopup(menupopup, folders[i].folderId);
     }
 
-    var defaultItem = this._getFolderMenuItem(aSelectedFolder, true);
+    var defaultItem = this._getFolderMenuItem(aSelectedFolder);
     this._folderMenuList.selectedItem = defaultItem;
 
     // Hide the folders-separator if no folder is annotated as recently-used
-    this._element("foldersSeparator").hidden = (menupopup.childNodes.length <= 4);
+    this._element("foldersSeparator").hidden = (menupopup.childNodes.length <= 6);
     this._folderMenuList.disabled = this._readOnly;
   },
 
@@ -327,7 +324,8 @@ var gEditItemOverlay = {
     try {
       if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK &&
           !this._readOnly)
-        this._microsummaries = this._mss.getMicrosummaries(this._uri, -1);
+        this._microsummaries = PlacesUtils.microsummaries
+                                          .getMicrosummaries(this._uri, -1);
     }
     catch(ex) {
       // getMicrosummaries will throw an exception in at least two cases:
@@ -348,7 +346,8 @@ var gEditItemOverlay = {
           var microsummary = enumerator.getNext()
                                        .QueryInterface(Ci.nsIMicrosummary);
           var menuItem = this._createMicrosummaryMenuItem(microsummary);
-          if (this._mss.isMicrosummary(this._itemId, microsummary))
+          if (PlacesUtils.microsummaries
+                         .isMicrosummary(this._itemId, microsummary))
             itemToSelect = menuItem;
 
           menupopup.appendChild(menuItem);
@@ -434,25 +433,29 @@ var gEditItemOverlay = {
   },
 
   _updateTags: function EIO__updateTags() {
-    var currentTags = PlacesUtils.tagging.getTagsForURI(this._uri);
+    var currentTags = PlacesUtils.tagging.getTagsForURI(this._uri, { });
     var tags = this._getTagsArrayFromTagField();
     if (tags.length > 0 || currentTags.length > 0) {
       var tagsToRemove = [];
       var tagsToAdd = [];
-      var t;
-      for each (t in currentTags) {
-        if (tags.indexOf(t) == -1)
-          tagsToRemove.push(t);
+      var i;
+      for (i = 0; i < currentTags.length; i++) {
+        if (tags.indexOf(currentTags[i]) == -1)
+          tagsToRemove.push(currentTags[i]);
       }
-      for each (t in tags) {
-        if (currentTags.indexOf(t) == -1)
-          tagsToAdd.push(t);
+      for (i = 0; i < tags.length; i++) {
+        if (currentTags.indexOf(tags[i]) == -1)
+          tagsToAdd.push(tags[i]);
       }
 
-      if (tagsToAdd.length > 0)
-        PlacesUtils.tagging.tagURI(this._uri, tagsToAdd);
-      if (tagsToRemove.length > 0)
-        PlacesUtils.tagging.untagURI(this._uri, tagsToRemove);
+      if (tagsToAdd.length > 0) {
+        var tagTxn = PlacesUtils.ptm.tagURI(this._uri, tagsToAdd);
+        PlacesUtils.ptm.doTransaction(tagTxn);
+      }
+      if (tagsToRemove.length > 0) {
+        var untagTxn = PlacesUtils.ptm.untagURI(this._uri, tagsToRemove);
+        PlacesUtils.ptm.doTransaction(untagTxn);
+      }
     }
   },
 
@@ -462,6 +465,9 @@ var gEditItemOverlay = {
   },
 
   onNamePickerChange: function EIO_onNamePickerChange() {
+    if (this._itemId == -1)
+      return;
+
     var namePicker = this._element("namePicker")
     var txns = [];
     const ptm = PlacesUtils.ptm;
@@ -489,9 +495,11 @@ var gEditItemOverlay = {
     // has actually changed, i.e. the user selected no microsummary, but the
     // bookmark previously had one, or the user selected a microsummary which
     // is not the one the bookmark previously had
-    if ((newMicrosummary == null && this._mss.hasMicrosummary(this._itemId)) ||
+    if ((newMicrosummary == null &&
+         PlacesUtils.microsummaries.hasMicrosummary(this._itemId)) ||
         (newMicrosummary != null &&
-         !this._mss.isMicrosummary(this._itemId, newMicrosummary))) {
+         !PlacesUtils.microsummaries
+                     .isMicrosummary(this._itemId, newMicrosummary))) {
       txns.push(ptm.editBookmarkMicrosummary(this._itemId, newMicrosummary));
     }
 
@@ -572,6 +580,8 @@ var gEditItemOverlay = {
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextdown"));
       this._folderTree.collapsed = true;
+      this._element("chooseFolderSeparator").hidden =
+        this._element("chooseFolderMenuItem").hidden = false;
     }
     else {
       expander.className = "expander-up"
@@ -585,6 +595,8 @@ var gEditItemOverlay = {
         this._folderTree.place = FOLDER_TREE_PLACE_URI;
       }
 
+      this._element("chooseFolderSeparator").hidden =
+        this._element("chooseFolderMenuItem").hidden = true;
       var currentFolder = this._getFolderIdFromMenuList();
       this._folderTree.selectItems([currentFolder]);
       this._folderTree.focus();
@@ -593,16 +605,7 @@ var gEditItemOverlay = {
 
   _getFolderIdFromMenuList:
   function EIO__getFolderIdFromMenuList() {
-    var selectedItem = this._folderMenuList.selectedItem
-    switch (selectedItem.id) {
-      case "editBMPanel_unfiledRootItem":
-        return PlacesUtils.unfiledBookmarksFolderId;
-      case "editBMPanel_bmRootItem":
-        return PlacesUtils.bookmarksMenuFolderId;
-      case "editBMPanel_toolbarFolderItem":
-        return PlacesUtils.toolbarFolderId;
-    }
-
+    var selectedItem = this._folderMenuList.selectedItem;
     NS_ASSERT("folderId" in selectedItem,
               "Invalid menuitem in the folders-menulist");
     return selectedItem.folderId;
@@ -614,29 +617,15 @@ var gEditItemOverlay = {
    * folder. If the items-count limit (see MAX_FOLDERS_IN_MENU_LIST) is reached,
    * the new item replaces the last menu-item.
    * @param aFolderId
-   *        The identifier of the bookmarks folder
-   * @param aCheckStaticFolderItems
-   *        whether or not to also treat the static items at the top of
-   *        menu-list. Note dynamic items get precedence even if this is set to
-   *        true.
+   *        The identifier of the bookmarks folder.
    */
   _getFolderMenuItem:
-  function EIO__getFolderMenuItem(aFolderId, aCheckStaticFolderItems) {
+  function EIO__getFolderMenuItem(aFolderId) {
     var menupopup = this._folderMenuList.menupopup;
 
-    // 0: All Bookmarks, 1: Bookmarks root, 2: toolbar folder, 3: separator
-    for (var i=4;  i < menupopup.childNodes.length; i++) {
+    for (var i=0;  i < menupopup.childNodes.length; i++) {
       if (menupopup.childNodes[i].folderId == aFolderId)
         return menupopup.childNodes[i];
-    }
-
-    if (aCheckStaticFolderItems) {
-      if (aFolderId == PlacesUtils.unfiledBookmarksFolderId)
-        return this._element("unfiledRootItem");
-      if (aFolderId == PlacesUtils.bookmarksMenuFolderId)
-        return this._element("bmRootItem");
-      if (aFolderId == PlacesUtils.toolbarFolderId)
-        return this._element("toolbarFolderItem");
     }
 
     // 3 special folders + separator + folder-items-count limit
@@ -647,23 +636,37 @@ var gEditItemOverlay = {
   },
 
   onFolderMenuListCommand: function EIO_onFolderMenuListCommand(aEvent) {
-    var container = this._getFolderIdFromMenuList();
+    if (aEvent.target.id == "editBMPanel_chooseFolderMenuItem") {
+      // reset the selection back to where it was and expand the tree
+      // (this menu-item is hidden when the tree is already visible
+      var container = PlacesUtils.bookmarks.getFolderIdForItem(this._itemId);
+      var item = this._getFolderMenuItem(container);
+      this._folderMenuList.selectedItem = item;
+      // XXXmano HACK: setTimeout 100, otherwise focus goes back to the
+      // menulist right away
+      setTimeout(function(self) self.toggleFolderTreeVisibility(), 100, this);
+      return;
+    }
 
     // Move the item
+    var container = this._getFolderIdFromMenuList();
     if (PlacesUtils.bookmarks.getFolderIdForItem(this._itemId) != container) {
       var txn = PlacesUtils.ptm.moveItem(this._itemId, container, -1);
       PlacesUtils.ptm.doTransaction(txn);
 
-      // Mark the containing folder as recently-used if it isn't the
-      // "All Bookmarks" root
-      if (container != PlacesUtils.unfiledBookmarksFolderId)
+      // Mark the containing folder as recently-used if it isn't in the
+      // static list
+      if (container != PlacesUtils.unfiledBookmarksFolderId &&
+          container != PlacesUtils.toolbarFolderId &&
+          container != PlacesUtils.bookmarksMenuFolderId)
         this._markFolderAsRecentlyUsed(container);
     }
 
     // Update folder-tree selection
     if (!this._folderTree.collapsed) {
       var selectedNode = this._folderTree.selectedNode;
-      if (!selectedNode || selectedNode.itemId != container)
+      if (!selectedNode ||
+          PlacesUtils.getConcreteItemId(selectedNode) != container)
         this._folderTree.selectItems([container]);
     }
   },
@@ -673,11 +676,11 @@ var gEditItemOverlay = {
     if (!selectedNode)
       return;
 
-    var folderId = selectedNode.itemId;
+    var folderId = PlacesUtils.getConcreteItemId(selectedNode);
     if (this._getFolderIdFromMenuList() == folderId)
       return;
 
-    var folderItem = this._getFolderMenuItem(folderId, false);
+    var folderItem = this._getFolderMenuItem(folderId);
     this._folderMenuList.selectedItem = folderItem;
     folderItem.doCommand();
   },
@@ -694,13 +697,16 @@ var gEditItemOverlay = {
 
   _rebuildTagsSelectorList: function EIO__rebuildTagsSelectorList() {
     var tagsSelector = this._element("tagsSelector");
+    if (tagsSelector.collapsed)
+      return;
 
     while (tagsSelector.hasChildNodes())
       tagsSelector.removeChild(tagsSelector.lastChild);
 
     var tagsInField = this._getTagsArrayFromTagField();
     var allTags = PlacesUtils.tagging.allTags;
-    for each (var tag in allTags) {
+    for (var i = 0; i < allTags.length; i++) {
+      var tag = allTags[i];
       var elt = document.createElement("listitem");
       elt.setAttribute("type", "checkbox");
       elt.setAttribute("label", tag);
@@ -718,12 +724,11 @@ var gEditItemOverlay = {
       expander.className = "expander-up";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextup"));
-
+      tagsSelector.collapsed = false;
       this._rebuildTagsSelectorList();
 
       // This is a no-op if we've added the listener.
       tagsSelector.addEventListener("CheckboxStateChange", this, false);
-      tagsSelector.collapsed = false;
     }
     else {
       expander.className = "expander-down";
@@ -799,12 +804,14 @@ var gEditItemOverlay = {
     case "uri":
       var locationField = this._element("locationField");
       if (locationField.value != aValue) {
-        this._uri = IO.newURI(aValue);
+        this._uri = Cc["@mozilla.org/network/io-service;1"].
+                    getService(Ci.nsIIOService).
+                    newURI(aValue, null, null);
         this._initTextField("locationField", this._uri.spec);
         this._initNamePicker(); // for microsummaries
         this._initTextField("tagsField",
                              PlacesUtils.tagging
-                                        .getTagsForURI(this._uri).join(", "),
+                                        .getTagsForURI(this._uri, { }).join(", "),
                             false);
         this._rebuildTagsSelectorList();
       }
@@ -843,7 +850,7 @@ var gEditItemOverlay = {
         aNewParent == this._getFolderIdFromMenuList())
       return;
 
-    var folderItem = this._getFolderMenuItem(aNewParent, false);
+    var folderItem = this._getFolderMenuItem(aNewParent);
 
     // just setting selectItem _does not_ trigger oncommand, so we don't
     // recurse

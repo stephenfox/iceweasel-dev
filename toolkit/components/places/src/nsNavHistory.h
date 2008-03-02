@@ -48,14 +48,17 @@
 #include "nsCOMPtr.h"
 #include "nsDataHashtable.h"
 #include "nsINavHistoryService.h"
+#ifdef MOZ_XUL
 #include "nsIAutoCompleteSearch.h"
 #include "nsIAutoCompleteResult.h"
 #include "nsIAutoCompleteSimpleResult.h"
+#endif
 #include "nsIBrowserHistory.h"
 #include "nsICollation.h"
 #include "nsIDateTimeFormat.h"
 #include "nsIGlobalHistory.h"
 #include "nsIGlobalHistory3.h"
+#include "nsIDownloadHistory.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIObserver.h"
@@ -63,8 +66,10 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIStringBundle.h"
 #include "nsITimer.h"
+#ifdef MOZ_XUL
 #include "nsITreeSelection.h"
 #include "nsITreeView.h"
+#endif
 #include "nsString.h"
 #include "nsVoidArray.h"
 #include "nsWeakReference.h"
@@ -87,6 +92,13 @@
 #define QUERYUPDATE_COMPLEX 2
 #define QUERYUPDATE_COMPLEX_WITH_BOOKMARKS 3
 
+// this is a work-around for a problem with the optimizer of sqlite
+// A sub-select on MAX(visit_date) is slower than this query with our indexes
+// see Bug #392399 for more details
+#define SQL_STR_FRAGMENT_MAX_VISIT_DATE( place_relation ) \
+  "(SELECT visit_date FROM moz_historyvisits WHERE place_id = " place_relation \
+  " AND visit_type NOT IN (0,4) ORDER BY visit_date DESC LIMIT 1)"
+
 struct AutoCompleteIntermediateResult;
 class AutoCompleteResultComparator;
 class mozIAnnotationService;
@@ -101,8 +113,11 @@ class nsNavHistory : public nsSupportsWeakReference,
                      public nsIObserver,
                      public nsIBrowserHistory,
                      public nsIGlobalHistory3,
-                     public nsIAutoCompleteSearch,
+                     public nsIDownloadHistory
+#ifdef MOZ_XUL
+                     , public nsIAutoCompleteSearch,
                      public nsIAutoCompleteSimpleResultListener
+#endif
 {
   friend class AutoCompleteIntermediateResultSet;
   friend class AutoCompleteResultComparator;
@@ -114,10 +129,13 @@ public:
   NS_DECL_NSINAVHISTORYSERVICE
   NS_DECL_NSIGLOBALHISTORY2
   NS_DECL_NSIGLOBALHISTORY3
+  NS_DECL_NSIDOWNLOADHISTORY
   NS_DECL_NSIBROWSERHISTORY
   NS_DECL_NSIOBSERVER
+#ifdef MOZ_XUL
   NS_DECL_NSIAUTOCOMPLETESEARCH
   NS_DECL_NSIAUTOCOMPLETESIMPLERESULTLISTENER
+#endif
 
   nsresult Init();
 
@@ -166,6 +184,12 @@ public:
    */
   nsresult GetUrlIdFor(nsIURI* aURI, PRInt64* aEntryID,
                        PRBool aAutoCreate);
+
+  nsresult CalculateVisitCount(PRInt64 aPlaceId, PRBool aForFrecency, PRInt32 *aVisitCount);
+
+  nsresult UpdateFrecency(PRInt64 aPageID, PRBool isBookmark);
+
+  nsresult FixInvalidFrecenciesForExcludedPlaces();
 
   /**
    * Returns a pointer to the storage connection used by history. This
@@ -218,16 +242,8 @@ public:
   static const PRInt32 kGetInfoIndex_ItemDateAdded;
   static const PRInt32 kGetInfoIndex_ItemLastModified;
 
-  // select a history row by URL, with visit date info (extra work)
-  mozIStorageStatement* DBGetURLPageInfoFull()
-  { return mDBGetURLPageInfoFull; }
-
   // select a history row by id
   mozIStorageStatement* DBGetIdPageInfo() { return mDBGetIdPageInfo; }
-
-  // select a history row by id, with visit date info (extra work)
-  mozIStorageStatement* DBGetIdPageInfoFull()
-  { return mDBGetIdPageInfoFull; }
 
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
@@ -258,9 +274,7 @@ public:
   nsresult VisitIdToResultNode(PRInt64 visitId,
                                nsNavHistoryQueryOptions* aOptions,
                                nsNavHistoryResultNode** aResult);
-  nsresult UriToResultNode(nsIURI* aUri,
-                           nsNavHistoryQueryOptions* aOptions,
-                           nsNavHistoryResultNode** aResult);
+
   nsresult BookmarkIdToResultNode(PRInt64 aBookmarkId,
                                   nsNavHistoryQueryOptions* aOptions,
                                   nsNavHistoryResultNode** aResult);
@@ -366,9 +380,7 @@ protected:
   nsCOMPtr<nsIFile> mDBFile;
 
   nsCOMPtr<mozIStorageStatement> mDBGetURLPageInfo;   // kGetInfoIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBGetURLPageInfoFull; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBGetIdPageInfo;     // kGetInfoIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBGetIdPageInfoFull; // kGetInfoIndex_* results
 
   nsCOMPtr<mozIStorageStatement> mDBRecentVisitOfURL; // converts URL into most recent visit ID/session ID
   nsCOMPtr<mozIStorageStatement> mDBInsertVisit; // used by AddVisit
@@ -384,13 +396,28 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBUrlToUrlResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBBookmarkToUrlResult; // kGetInfoIndex_* results
 
+  nsresult RecalculateFrecencies(PRInt32 aCount, PRBool aRecalcOld);
+  nsresult RecalculateFrecenciesInternal(mozIStorageStatement *aStatement, PRInt64 aBindParameter, PRInt32 aCount);
+
+  nsresult CalculateFrecency(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, nsCAutoString &aURL, PRInt32 *aFrecency);
+  nsresult CalculateFrecencyInternal(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, PRBool aIsBookmarked, PRInt32 *aFrecency);
+  nsCOMPtr<mozIStorageStatement> mDBVisitsForFrecency;
+  nsCOMPtr<mozIStorageStatement> mDBInvalidFrecencies;
+  nsCOMPtr<mozIStorageStatement> mDBOldFrecencies;
+  nsCOMPtr<mozIStorageStatement> mDBUpdateFrecencyAndHidden;
+  nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;
+  nsCOMPtr<mozIStorageStatement> mDBGetBookmarkParentsForPlace;
+  nsCOMPtr<mozIStorageStatement> mDBVisitCountForFrecency;
+  nsCOMPtr<mozIStorageStatement> mDBTrueVisitCount;
+
   nsresult InitDBFile(PRBool aForceInit);
   nsresult BackupDBFile();
-  nsresult InitDB(PRBool *aDoImport);
+  nsresult InitDB(PRInt16 *aMadeChanges);
   nsresult InitStatements();
   nsresult ForceMigrateBookmarksDB(mozIStorageConnection *aDBConn);
   nsresult MigrateV3Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV6Up(mozIStorageConnection *aDBConn);
+  nsresult EnsureCurrentSchema(mozIStorageConnection* aDBConn, PRBool *aMadeChanges);
   nsresult CleanUpOnQuit();
 
 #ifdef IN_MEMORY_LINKS
@@ -411,14 +438,15 @@ protected:
                          PRInt64* aSessionID, PRInt64* aRedirectBookmark);
   nsresult InternalAddNewPage(nsIURI* aURI, const nsAString& aTitle,
                               PRBool aHidden, PRBool aTyped,
-                              PRInt32 aVisitCount, PRInt64* aPageID);
+                              PRInt32 aVisitCount, PRBool aCalculateFrecency,
+                              PRInt64* aPageID);
   nsresult InternalAddVisit(PRInt64 aPageID, PRInt64 aReferringVisit,
                             PRInt64 aSessionID, PRTime aTime,
                             PRInt32 aTransitionType, PRInt64* aVisitID);
   PRBool FindLastVisit(nsIURI* aURI, PRInt64* aVisitID,
                        PRInt64* aSessionID);
   PRBool IsURIStringVisited(const nsACString& url);
-  nsresult LoadPrefs();
+  nsresult LoadPrefs(PRBool aInitializing);
 
   // Current time optimization
   PRTime mLastNow;
@@ -580,27 +608,33 @@ protected:
   static const PRInt32 kAutoCompleteIndex_FaviconURL;
   static const PRInt32 kAutoCompleteIndex_ItemId;
   static const PRInt32 kAutoCompleteIndex_ParentId;
+  static const PRInt32 kAutoCompleteIndex_BookmarkTitle;
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBTagAutoCompleteQuery; //  kAutoCompleteIndex_* results
 
   nsresult InitAutoComplete();
   nsresult CreateAutoCompleteQueries();
   PRBool mAutoCompleteOnlyTyped;
+  PRInt32 mAutoCompleteMaxResults;
+  PRInt32 mAutoCompleteSearchChunkSize;
+  PRInt32 mAutoCompleteSearchTimeout;
   nsCOMPtr<nsITimer> mAutoCompleteTimer;
 
   nsString mCurrentSearchString;
+
+#ifdef MOZ_XUL
   nsCOMPtr<nsIAutoCompleteObserver> mCurrentListener;
   nsCOMPtr<nsIAutoCompleteSimpleResult> mCurrentResult;
+#endif
+
   nsDataHashtable<nsStringHashKey, PRBool> mCurrentResultURLs;
-  PRTime mCurrentChunkEndTime;
-  PRTime mCurrentOldestVisit;
-  PRBool mFirstChunk;
+  PRInt32 mCurrentChunkOffset;
 
   nsDataHashtable<nsTrimInt64HashKey, PRBool> mLivemarkFeedItemIds;
   nsDataHashtable<nsStringHashKey, PRBool> mLivemarkFeedURIs;
 
   nsresult AutoCompleteTypedSearch();
-  nsresult AutoCompleteFullHistorySearch();
+  nsresult AutoCompleteFullHistorySearch(PRBool* aHasMoreResults);
   nsresult AutoCompleteTagsSearch();
 
   nsresult PerformAutoComplete();
@@ -612,12 +646,38 @@ protected:
   PRInt32 mExpireDaysMax;
   PRInt32 mExpireSites;
 
+  // frecency prefs
+  PRInt32 mNumVisitsForFrecency;
+  PRInt32 mNumCalculateFrecencyOnIdle;
+  PRInt32 mNumCalculateFrecencyOnMigrate;
+  PRInt32 mFrecencyUpdateIdleTime;
+  PRInt32 mFirstBucketCutoffInDays;
+  PRInt32 mSecondBucketCutoffInDays;
+  PRInt32 mThirdBucketCutoffInDays;
+  PRInt32 mFourthBucketCutoffInDays;
+  PRInt32 mFirstBucketWeight;
+  PRInt32 mSecondBucketWeight;
+  PRInt32 mThirdBucketWeight;
+  PRInt32 mFourthBucketWeight;
+  PRInt32 mDefaultWeight;
+  PRInt32 mEmbedVisitBonus;
+  PRInt32 mLinkVisitBonus;
+  PRInt32 mTypedVisitBonus;
+  PRInt32 mBookmarkVisitBonus;
+  PRInt32 mDownloadVisitBonus;
+  PRInt32 mPermRedirectVisitBonus;
+  PRInt32 mTempRedirectVisitBonus;
+  PRInt32 mDefaultVisitBonus;
+  PRInt32 mUnvisitedBookmarkBonus;
+  PRInt32 mUnvisitedTypedBonus;
+
   // in nsNavHistoryQuery.cpp
   nsresult TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
                            nsCOMArray<nsNavHistoryQuery>* aQueries,
                            nsNavHistoryQueryOptions* aOptions);
 
   nsCOMPtr<nsITimer> mIdleTimer;
+  nsresult InitializeIdleTimer();
   static void IdleTimerCallback(nsITimer* aTimer, void* aClosure);
   nsresult OnIdle();
 

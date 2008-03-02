@@ -70,21 +70,16 @@ function initMenus()
                "Math.abs((cx.fontSizeDefault - cx.fontSize) / 2) != 1";
     };
 
-    function onMenuCommand (event, window)
+    function onMenuCommand(event, window)
     {
-        var params;
         var commandName = event.originalTarget.getAttribute("commandname");
+        var params = new Object();
         if ("cx" in client.menuManager && client.menuManager.cx)
-        {
-            client.menuManager.cx.sourceWindow = window;
             params = client.menuManager.cx;
-        }
-        else
-        {
-            params = { sourceWindow: window };
-        }
+        params.sourceWindow = window;
+        params.source = "menu";
 
-        dispatch (commandName, params);
+        dispatch(commandName, params);
 
         delete client.menuManager.cx;
     };
@@ -357,10 +352,14 @@ function initMenus()
          ["toggle-umode", {type: "checkbox",
                            checkedif: "client.prefs['showModeSymbols']"}],
          ["-", {visibleif: "cx.nickname"}],
-         ["label-user", {visibleif: "cx.nickname", header: true}],
+         ["label-user", {visibleif: "cx.nickname && (cx.userCount == 1)",
+                         header: true}],
+         ["label-user-multi", {visibleif: "cx.nickname && (cx.userCount != 1)",
+                               header: true}],
          [">popup:opcommands", {visibleif: "cx.nickname",
                                 enabledif: isopish + "true"}],
-         [">popup:usercommands", {visibleif: "cx.nickname"}],
+         [">popup:usercommands", {visibleif: "cx.nickname",
+                                  enabledif: "cx.userCount == 1"}],
         ]
     };
 

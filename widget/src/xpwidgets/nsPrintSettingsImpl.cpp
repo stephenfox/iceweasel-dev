@@ -37,7 +37,6 @@
 
 #include "nsPrintSettingsImpl.h"
 #include "nsCoord.h"
-#include "nsUnitConversion.h"
 #include "nsReadableUtils.h"
 #include "nsIPrintSession.h"
 
@@ -969,6 +968,15 @@ NS_IMETHODIMP
 nsPrintSettings::GetEdgeInTwips(nsMargin& aEdge)
 {
   aEdge = mEdge;
+  return NS_OK;
+}
+
+/** ---------------------------------------------------
+ * Stub - platform-specific implementations can use this function.
+ */
+NS_IMETHODIMP
+nsPrintSettings::SetupSilentPrinting()
+{
   return NS_OK;
 }
 

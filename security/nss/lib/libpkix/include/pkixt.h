@@ -208,7 +208,6 @@ typedef int PKIX_Boolean;
     TYPEMACRO(STRING), \
     TYPEMACRO(CERTBASICCONSTRAINTS), \
     TYPEMACRO(CERT), \
-    TYPEMACRO(HTTPCLIENT), \
     TYPEMACRO(CRL), \
     TYPEMACRO(CRLENTRY), \
     TYPEMACRO(DATE), \
@@ -254,7 +253,8 @@ typedef int PKIX_Boolean;
     TYPEMACRO(OCSPREQUEST), \
     TYPEMACRO(OCSPRESPONSE), \
     TYPEMACRO(HTTPDEFAULTCLIENT), \
-    TYPEMACRO(VERIFYNODE)
+    TYPEMACRO(VERIFYNODE), \
+    TYPEMACRO(EKUCHECKER)
 
 #define TYPEMACRO(type) PKIX_ ## type ## _TYPE
 
@@ -263,11 +263,16 @@ typedef enum {     /* Now invoke all those TYPEMACROs to assign the numbers */
    PKIX_NUMTYPES   /* This gets PKIX_NUMTYPES defined as the total number */
 } PKIX_TYPENUM;
 
+
+#ifdef PKIX_USER_OBJECT_TYPE
+
 /* User Define Object Types
  *
  * User may define their own object types offset from PKIX_USER_OBJECT_TYPE
  */
 #define PKIX_USER_OBJECT_TYPEBASE 1000
+
+#endif /* PKIX_USER_OBJECT_TYPE */
 
 /* Error Codes
  *
@@ -299,7 +304,6 @@ typedef enum {     /* Now invoke all those TYPEMACROs to assign the numbers */
    ERRMACRO(DATE), \
    ERRMACRO(TRUSTANCHOR), \
    ERRMACRO(PROCESSINGPARAMS), \
-   ERRMACRO(HTTPCLIENT), \
    ERRMACRO(VALIDATEPARAMS), \
    ERRMACRO(VALIDATE), \
    ERRMACRO(VALIDATERESULT), \
@@ -348,6 +352,7 @@ typedef enum {     /* Now invoke all those TYPEMACROs to assign the numbers */
    ERRMACRO(OCSPRESPONSE), \
    ERRMACRO(HTTPDEFAULTCLIENT), \
    ERRMACRO(VERIFYNODE), \
+   ERRMACRO(EKUCHECKER), \
    ERRMACRO(CERTVFYPKIX)
 
 #define ERRMACRO(type) PKIX_ ## type ## _ERROR

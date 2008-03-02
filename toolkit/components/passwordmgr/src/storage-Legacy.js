@@ -177,6 +177,9 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     addLogin : function (login) {
+        // Throws if there are bogus values.
+        this._checkLoginValues(login);
+
         // We rely on using login.wrappedJSObject. addLogin is the
         // only entry point where we might get a nsLoginInfo object
         // that wasn't created by us (and so might not be a JS
@@ -272,6 +275,9 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     modifyLogin : function (oldLogin, newLogin) {
+        // Throws if there are bogus values.
+        this._checkLoginValues(newLogin);
+
         this.removeLogin(oldLogin);
         this.addLogin(newLogin);
     },
@@ -341,6 +347,14 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     setLoginSavingEnabled : function (hostname, enabled) {
+        // File format prohibits certain values. Also, nulls
+        // won't round-trip with getAllDisabledHosts().
+        if (hostname == "." ||
+            hostname.indexOf("\r") != -1 ||
+            hostname.indexOf("\n") != -1 ||
+            hostname.indexOf("\0") != -1)
+            throw "Invalid hostname";
+
         if (enabled)
             delete this._disabledHosts[hostname];
         else
@@ -377,10 +391,27 @@ LoginManagerStorage_legacy.prototype = {
      * countLogins
      *
      */
-    countLogins : function (hostname, formSubmitURL, httpRealm) {
-        var logins = this._searchLogins(hostname, formSubmitURL, httpRealm);
+    countLogins : function (aHostname, aFormSubmitURL, aHttpRealm) {
+        var logins;
 
-        return logins.length;
+        // Normal case: return direct results for the specified host.
+        if (aHostname) {
+            logins = this._searchLogins(aHostname, aFormSubmitURL, aHttpRealm);
+            return logins.length
+        } 
+
+        // For consistency with how aFormSubmitURL and aHttpRealm work
+        if (aHostname == null)
+            return 0;
+
+        // aHostname == "", so loop through each known host to match with each.
+        var count = 0;
+        for (var hostname in this._logins) {
+            logins = this._searchLogins(hostname, aFormSubmitURL, aHttpRealm);
+            count += logins.length;
+        }
+
+        return count;
     },
 
 
@@ -436,6 +467,45 @@ LoginManagerStorage_legacy.prototype = {
         }
 
         return result;
+    },
+
+
+    /*
+     * _checkLoginValues
+     *
+     * Due to the way the signons2.txt file is formatted, we need to make
+     * sure certain field values or characters do not cause the file to
+     * be parse incorrectly. Reject logins that we can't store correctly.
+     */
+    _checkLoginValues : function (aLogin) {
+        function badCharacterPresent(l, c) {
+            return ((l.formSubmitURL && l.formSubmitURL.indexOf(c) != -1) ||
+                    (l.httpRealm     && l.httpRealm.indexOf(c)     != -1) ||
+                                        l.hostname.indexOf(c)      != -1  ||
+                                        l.usernameField.indexOf(c) != -1  ||
+                                        l.passwordField.indexOf(c) != -1);
+        }
+
+        // Nulls are invalid, as they don't round-trip well.
+        // Mostly not a formatting problem, although ".\0" can be quirky.
+        if (badCharacterPresent(aLogin, "\0"))
+            throw "login values can't contain nulls";
+
+        // Newlines are invalid for any field stored as plaintext.
+        if (badCharacterPresent(aLogin, "\r") ||
+            badCharacterPresent(aLogin, "\n"))
+            throw "login values can't contain newlines";
+
+        // A line with just a "." can have special meaning.
+        if (aLogin.usernameField == "." ||
+            aLogin.formSubmitURL == ".")
+            throw "login values can't be periods";
+
+        // A hostname with "\ \(" won't roundtrip.
+        // eg host="foo (", realm="bar" --> "foo ( (bar)"
+        // vs host="foo", realm=" (bar" --> "foo ( (bar)"
+        if (aLogin.hostname.indexOf(" (") != -1)
+            throw "bad parens in hostname";
     },
 
 
@@ -511,6 +581,14 @@ LoginManagerStorage_legacy.prototype = {
          */
         if (aLogin.hostname.indexOf("://") == -1) {
             var oldHost = aLogin.hostname;
+
+            // Check for a trailing port number, EG "site.com:80". If there's
+            // no port, it wasn't saved by the browser and is probably some
+            // arbitrary string picked by an extension.
+            if (!/:\d+$/.test(aLogin.hostname)) {
+                this.log("2E upgrade: no port, skipping " + aLogin.hostname);
+                return upgradedLogins;
+            }
 
             // Parse out "host:port".
             try {
@@ -881,12 +959,16 @@ LoginManagerStorage_legacy.prototype = {
 
         this.log("Writing passwords to " + this._signonsFile.path);
 
-        var outputStream = Cc["@mozilla.org/network/safe-file-output-stream;1"]
-                                .createInstance(Ci.nsIFileOutputStream);
-        outputStream.QueryInterface(Ci.nsISafeOutputStream);
-
+        var safeStream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
+                         createInstance(Ci.nsIFileOutputStream);
         // WR_ONLY|CREAT|TRUNC
-        outputStream.init(this._signonsFile, 0x02 | 0x08 | 0x20, 0600, null);
+        safeStream.init(this._signonsFile, 0x02 | 0x08 | 0x20, 0600, null);
+
+        var outputStream = Cc["@mozilla.org/network/buffered-output-stream;1"].
+                           createInstance(Ci.nsIBufferedOutputStream);
+        outputStream.init(safeStream, 8192);
+        outputStream.QueryInterface(Ci.nsISafeOutputStream); // for .finish()
+
 
         // write file version header
         writeLine("#2e");

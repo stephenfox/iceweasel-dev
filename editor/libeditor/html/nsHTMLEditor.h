@@ -624,7 +624,7 @@ protected:
                                      nsIDOMNode **aTargetNode,       
                                      PRInt32 *aTargetOffset,   
                                      PRBool *aDoContinue);
-  nsresult   RelativizeURIInFragmentList(nsCOMArray<nsIDOMNode> aNodeList,
+  nsresult   RelativizeURIInFragmentList(const nsCOMArray<nsIDOMNode> &aNodeList,
                                         const nsAString &aFlavor,
                                         nsIDOMDocument *aSourceDoc,
                                         nsIDOMNode *aTargetNode);
@@ -815,6 +815,8 @@ protected:
   void     DeleteRefToAnonymousNode(nsIDOMElement* aElement,
                                     nsIContent * aParentContent,
                                     nsIPresShell* aShell);
+
+  // Returns the offset of an element's frame to its absolute containing block.
   nsresult GetElementOrigin(nsIDOMElement * aElement, PRInt32 & aX, PRInt32 & aY);
   nsresult GetPositionAndDimensions(nsIDOMElement * aElement,
                                     PRInt32 & aX, PRInt32 & aY,

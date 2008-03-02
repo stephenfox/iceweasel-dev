@@ -22,6 +22,7 @@
 # Contributor(s):
 #   Terry Hayes <thayes@netscape.com>
 #   Florian QUEZE <f.qu@queze.net>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -135,11 +136,26 @@ var security = {
     var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                        .getService(Components.interfaces.nsIWindowMediator);
     var win = wm.getMostRecentWindow("Browser:Cookies");
-    if (win)
+    var eTLDService = Components.classes["@mozilla.org/network/effective-tld-service;1"].
+                      getService(Components.interfaces.nsIEffectiveTLDService);
+
+    var eTLD;
+    var uri = gDocument.documentURIObject;
+    try {
+      eTLD = eTLDService.getBaseDomain(uri);
+    }
+    catch (e) {
+      // getBaseDomain will fail if the host is an IP address or is empty
+      eTLD = uri.asciiHost;
+    }
+
+    if (win) {
+      win.gCookiesWindow.setFilter(eTLD);
       win.focus();
+    }
     else
       window.openDialog("chrome://browser/content/preferences/cookies.xul",
-                        "Browser:Cookies", "");
+                        "Browser:Cookies", "", {filterString : eTLD});
   },
   
   /**
@@ -150,11 +166,14 @@ var security = {
     var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                        .getService(Components.interfaces.nsIWindowMediator);
     var win = wm.getMostRecentWindow("Toolkit:PasswordManager");
-    if (win)
+    if (win) {
+      win.setFilter(this._getSecurityInfo().hostName);
       win.focus();
+    }
     else
       window.openDialog("chrome://passwordmgr/content/passwordManager.xul",
-                        "Toolkit:PasswordManager", "");
+                        "Toolkit:PasswordManager", "", 
+                        {filterString : this._getSecurityInfo().hostName});
   },
 
   _cert : null
@@ -220,10 +239,11 @@ function securityOnLoad() {
   var yesStr = pageInfoBundle.getString("yes");
   var noStr = pageInfoBundle.getString("no");
 
+  var uri = gDocument.documentURIObject;
   setText("security-privacy-cookies-value",
-          hostHasCookies(info.hostName) ? yesStr : noStr);
+          hostHasCookies(uri) ? yesStr : noStr);
   setText("security-privacy-passwords-value",
-          realmHasPasswords(info.fullLocation) ? yesStr : noStr);
+          realmHasPasswords(uri) ? yesStr : noStr);
   
   var visitCount = previousVisitCount(info.hostName);
   if(visitCount > 1) {
@@ -300,30 +320,23 @@ function viewCertHelper(parent, cert)
 }
 
 /**
- * Return true iff we have cookies for hostName
+ * Return true iff we have cookies for uri
  */
-function hostHasCookies(hostName) {
-  if (!hostName)
-    return false;
-  
+function hostHasCookies(uri) {
   var cookieManager = Components.classes["@mozilla.org/cookiemanager;1"]
                                 .getService(Components.interfaces.nsICookieManager2);
 
-  return cookieManager.countCookiesFromHost(hostName) > 0;
+  return cookieManager.countCookiesFromHost(uri.asciiHost) > 0;
 }
 
 /**
- * Return true iff realm (proto://host:port) (extracted from location) has
+ * Return true iff realm (proto://host:port) (extracted from uri) has
  * saved passwords
  */
-function realmHasPasswords(location) {
-  if (!location) 
-    return false;
-  
-  var realm = makeURI(location).prePath;
+function realmHasPasswords(uri) {
   var passwordManager = Components.classes["@mozilla.org/login-manager;1"]
                                   .getService(Components.interfaces.nsILoginManager);
-  return passwordManager.countLogins(realm, "", "");
+  return passwordManager.countLogins(uri.prePath, "", "") > 0;
 }
 
 /**

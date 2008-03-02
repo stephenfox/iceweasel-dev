@@ -64,6 +64,10 @@ var gCookiesWindow = {
     this.sort("rawHost");
     if (this._view.rowCount > 0) 
       this._tree.view.selection.select(0);
+
+    if ("arguments" in window && window.arguments[0] &&
+        window.arguments[0].filterString)
+      this.setFilter(window.arguments[0].filterString);
     
     this._saveState();
       
@@ -266,6 +270,18 @@ var gCookiesWindow = {
     {
       var removeCount = aCount === undefined ? 1 : aCount;
       if (this._filtered) {
+        // remove the cookies from the unfiltered set so that they
+        // don't reappear when the filter is changed. See bug 410863.
+        for (var i = aIndex; i < aIndex + removeCount; ++i) {
+          var item = this._filterSet[i];
+          var parent = gCookiesWindow._hosts[item.rawHost];
+          for (var j = 0; j < parent.cookies.length; ++j) {
+            if (item == parent.cookies[j]) {
+              parent.cookies.splice(j, 1);
+              break;
+            }
+          }
+        }
         this._filterSet.splice(aIndex, removeCount);
         return;
       }
@@ -915,6 +931,12 @@ var gCookiesWindow = {
     var filter = document.getElementById("filter");
     filter.focus();
     filter.select();
+  },
+
+  setFilter: function (aFilterString)
+  {
+    document.getElementById("filter").value = aFilterString;
+    this.onFilterInput();
   }
 };
 

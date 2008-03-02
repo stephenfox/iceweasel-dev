@@ -49,7 +49,7 @@
 
 pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
-pref("general.useragent.locale", "chrome://navigator/locale/navigator.properties");
+pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
@@ -71,6 +71,14 @@ pref("browser.cache.offline.enable",           true);
 // offline cache capacity in kilobytes
 pref("browser.cache.offline.capacity",         10240);
 
+// offline apps should be limited to this much data in global storage
+// (in kilobytes)
+pref("offline-apps.quota.max",        204800);
+
+// the user should be warned if offline app disk usage exceeds this amount
+// (in kilobytes)
+pref("offline-apps.quota.warn",        51200);
+
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
@@ -87,7 +95,7 @@ pref("browser.display.force_inline_alttext", false); // true = force ALT text fo
 pref("browser.display.normal_lineheight_calc_control", 2);
 pref("browser.display.show_image_placeholders", true); // true = show image placeholders while image is loaded and when image is broken
 // min font device pixel size at which to turn on high quality
-pref("browser.display.auto_quality_min_font_size", 60);
+pref("browser.display.auto_quality_min_font_size", 20);
 pref("browser.anchor_color",                "#0000EE");
 pref("browser.active_color",                "#EE0000");
 pref("browser.visited_color",               "#551A8B");
@@ -172,28 +180,9 @@ pref("browser.frames.enabled", true);
 // form submission
 pref("browser.forms.submit.backwards_compatible", true);
 
-// xxxbsmedberg more toolkit prefs?
-// Tab browser preferences.
-pref("browser.tabs.autoHide", true);
-pref("browser.tabs.forceHide", false);
-pref("browser.tabs.warnOnClose", true);
-pref("browser.tabs.warnOnCloseOther", true);
-pref("browser.tabs.warnOnOpen", true);
-pref("browser.tabs.maxOpenBeforeWarn", 15);
-// 0 = append, 1 = replace
-pref("browser.tabs.loadGroup", 1);
-
 pref("toolkit.scrollbox.smoothScroll", true);
 pref("toolkit.scrollbox.scrollIncrement", 20);
 pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
-
-// lets new tab/window load something different than first window
-// -1 - use navigator startup preference
-//  0 - loads blank page
-//  1 - loads home page
-//  2 - loads last page visited
-pref("browser.tabs.loadOnNewTab", 0);
-pref("browser.windows.loadOnNewWindow", 1);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -320,6 +309,7 @@ pref("capability.policy.default.Window.length.get", "allAccess");
 pref("capability.policy.default.Window.location", "allAccess");
 pref("capability.policy.default.Window.opener.get", "allAccess");
 pref("capability.policy.default.Window.parent.get", "allAccess");
+pref("capability.policy.default.Window.postMessage.get", "allAccess");
 pref("capability.policy.default.Window.self.get", "allAccess");
 pref("capability.policy.default.Window.top.get", "allAccess");
 pref("capability.policy.default.Window.window.get", "allAccess");
@@ -451,7 +441,6 @@ pref("capability.policy.default.Clipboard.paste", "noAccess");
 // Scripts & Windows prefs
 pref("dom.disable_image_src_set",           false);
 pref("dom.disable_window_flip",             false);
-pref("dom.disable_window_move_resize",      false);
 pref("dom.disable_window_status_change",    false);
 
 pref("dom.disable_window_open_feature.titlebar",    false);
@@ -645,6 +634,7 @@ pref("network.IDN.whitelist.fi", true);
 pref("network.IDN.whitelist.gr", true);
 pref("network.IDN.whitelist.hu", true);
 pref("network.IDN.whitelist.io", true);
+pref("network.IDN.whitelist.ir", true);
 pref("network.IDN.whitelist.is", true);
 pref("network.IDN.whitelist.jp", true);
 pref("network.IDN.whitelist.kr", true);
@@ -802,32 +792,31 @@ pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 pref("converter.html2txt.structs",          true); // Output structured phrases (strong, em, code, sub, sup, b, i, u)
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
 
-pref("intl.accept_languages",               "chrome://navigator/locale/navigator.properties");
+pref("intl.accept_languages",               "chrome://global/locale/intl.properties");
 pref("intl.accept_charsets",                "iso-8859-1,*,utf-8");
-pref("intl.menuitems.alwaysappendaccesskeys","chrome://navigator/locale/navigator.properties");
-pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.static",     "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.more1",      "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.more2",      "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.more3",      "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.more4",      "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.more5",      "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.browser.unicode",    "chrome://navigator/locale/navigator.properties");
-pref("intl.charsetmenu.mailedit",           "chrome://navigator/locale/navigator.properties");
+pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
+pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.static",     "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more1",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more2",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more3",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more4",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.more5",      "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.unicode",    "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.mailedit",           "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.cache",      "");
 pref("intl.charsetmenu.mailview.cache",     "");
 pref("intl.charsetmenu.composer.cache",     "");
 pref("intl.charsetmenu.browser.cache.size", 5);
-pref("intl.charset.detector",               "chrome://navigator/locale/navigator.properties");
-pref("intl.charset.default",                "chrome://navigator-platform/locale/navigator.properties");
-pref("intl.content.langcode",               "chrome://communicator-region/locale/region.properties");
+pref("intl.charset.detector",               "chrome://global/locale/intl.properties");
+pref("intl.charset.default",                "chrome://global-platform/locale/intl.properties");
 pref("intl.ellipsis",                       "chrome://global-platform/locale/intl.properties");
 pref("intl.locale.matchOS",                 false);
 // fallback charset list for Unicode conversion (converting from Unicode)
 // currently used for mail send only to handle symbol characters (e.g Euro, trademark, smartquotes)
 // for ISO-8859-1
 pref("intl.fallbackCharsetList.ISO-8859-1", "windows-1252");
-pref("font.language.group",                 "chrome://navigator/locale/navigator.properties");
+pref("font.language.group",                 "chrome://global/locale/intl.properties");
 
 pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Cambria Math, Standard Symbols L, DejaVu Sans");
 
@@ -1653,12 +1642,12 @@ pref("font.name-list.serif.zh-CN", "华文宋体");
 pref("font.name-list.sans-serif.zh-CN", "Hei");
 pref("font.name-list.monospace.zh-CN", "Hei");
 
-pref("font.name.serif.zh-TW", "Apple LiSung Light"); 
-pref("font.name.sans-serif.zh-TW", "Apple LiGothic Medium");  
-pref("font.name.monospace.zh-TW", "Apple LiGothic Medium");  
-pref("font.name-list.serif.zh-TW", "Apple LiSung Light"); 
-pref("font.name-list.sans-serif.zh-TW", "Apple LiGothic Medium");  
-pref("font.name-list.monospace.zh-TW", "Apple LiGothic Medium");  
+pref("font.name.serif.zh-TW", "Apple LiSung"); 
+pref("font.name.sans-serif.zh-TW", "Apple LiGothic");  
+pref("font.name.monospace.zh-TW", "Apple LiGothic");  
+pref("font.name-list.serif.zh-TW", "Apple LiSung"); 
+pref("font.name-list.sans-serif.zh-TW", "Apple LiGothic");  
+pref("font.name-list.monospace.zh-TW", "Apple LiGothic");  
 
 pref("font.name.serif.zh-HK", "儷宋 Pro");
 pref("font.name.sans-serif.zh-HK", "儷黑 Pro");
@@ -1798,12 +1787,6 @@ pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 
 // This indicates whether it should use the native dialog or the XP Dialog
 pref("print.use_native_print_dialog", true);
-
-// Disable IPv6 name lookups by default.
-// This is because OS X (including 10.3) always performs IPv6 name lookups
-// even if IPv6 is turned off at the OS level. This causes long delays even
-// for people who use IPv4 only. See bugs 231607 and 68796.
-pref("network.dns.disableIPv6", true);
 
 # XP_MACOSX
 #endif
@@ -2134,7 +2117,7 @@ pref("applications.telnet", "xterm -e telnet %h %p");
 pref("applications.tn3270", "xterm -e tn3270 %h");
 pref("applications.rlogin", "xterm -e rlogin %h");
 pref("applications.rlogin_with_user", "xterm -e rlogin %h -l %u");
-pref("print.print_command", "lpr ${MOZ_PRINTER_NAME:+'-P'}${MOZ_PRINTER_NAME}");
+pref("print.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER_NAME\"}");
 pref("print.printer_list", ""); // list of printers, separated by spaces
 pref("print.print_reversed", false);
 pref("print.print_color", true);
@@ -2161,8 +2144,6 @@ pref("font.alias-list", "sans,sans-serif,serif,monospace");
 
 // ar
 
-#ifdef MOZ_ENABLE_XFT
-
 pref("font.name.serif.el", "serif");
 pref("font.name.sans-serif.el", "sans-serif");
 pref("font.name.monospace.el", "monospace");
@@ -2174,6 +2155,10 @@ pref("font.name.monospace.he", "monospace");
 pref("font.name.serif.ja", "serif");
 pref("font.name.sans-serif.ja", "sans-serif");
 pref("font.name.monospace.ja", "monospace");
+// Include Latin fonts explicitly for bug 339513
+pref("font.name-list.sans-serif.ja", "Bitstream Vera Sans, DejaVu Sans, Verdana");
+pref("font.name-list.serif.ja", "Bitstream Vera Serif, DejaVu Serif, Times New Roman");
+pref("font.name-list.monospace.ja", "Bitstream Vera Sans Mono, DejaVu Sans Mono, Andale Mono");
 
 pref("font.name.serif.ko", "serif");
 pref("font.name.sans-serif.ko", "sans-serif");
@@ -2212,75 +2197,20 @@ pref("font.name.monospace.x-western", "monospace");
 pref("font.name.serif.zh-CN", "serif");
 pref("font.name.sans-serif.zh-CN", "sans-serif");
 pref("font.name.monospace.zh-CN", "monospace");
+pref("font.name-list.sans-serif.zh-CN", "Bitstream Vera Sans, DejaVu Sans, Verdana");
+pref("font.name-list.serif.zh-CN", "Bitstream Vera Serif, DejaVu Serif, Times New Roman");
+pref("font.name-list.monospace.zh-CN", "Bitstream Vera Sans Mono, DejaVu Sans Mono, Andale Mono");
 
 // ming_uni.ttf (HKSCS-2001) 
 // http://www.info.gov.hk/digital21/eng/hkscs/download/uime.exe
 pref("font.name.serif.zh-HK", "serif");
 pref("font.name.sans-serif.zh-HK", "sans-serif");
 pref("font.name.monospace.zh-HK", "monospace");
+pref("font.name-list.sans-serif.zh-HK", "Bitstream Vera Sans, DejaVu Sans, Verdana");
+pref("font.name-list.serif.zh-HK", "Bitstream Vera Serif, DejaVu Serif, Times New Roman");
+pref("font.name-list.monospace.zh-HK", "Bitstream Vera Sans Mono, DejaVu Sans Mono, Andale Mono");
 
 // zh-TW
-# MOZ_ENABLE_XFT
-#else
-pref("font.name.serif.el", "misc-fixed-iso8859-7");
-pref("font.name.sans-serif.el", "misc-fixed-iso8859-7");
-pref("font.name.monospace.el", "misc-fixed-iso8859-7");
-
-pref("font.name.serif.he", "misc-fixed-iso8859-8");
-pref("font.name.sans-serif.he", "misc-fixed-iso8859-8");
-pref("font.name.monospace.he", "misc-fixed-iso8859-8");
-
-pref("font.name.serif.ja", "jis-fixed-jisx0208.1983-0");
-pref("font.name.sans-serif.ja", "jis-fixed-jisx0208.1983-0");
-pref("font.name.monospace.ja", "jis-fixed-jisx0208.1983-0");
-
-pref("font.name.serif.ko", "daewoo-mincho-ksc5601.1987-0");
-pref("font.name.sans-serif.ko", "daewoo-mincho-ksc5601.1987-0");
-pref("font.name.monospace.ko", "daewoo-mincho-ksc5601.1987-0");
-
-// th
-
-pref("font.name.serif.tr", "adobe-times-iso8859-9");
-pref("font.name.sans-serif.tr", "adobe-helvetica-iso8859-9");
-pref("font.name.monospace.tr", "adobe-courier-iso8859-9");
-
-pref("font.name.serif.x-baltic", "b&h-lucidux serif-iso8859-4");
-pref("font.name.sans-serif.x-baltic", "b&h-lucidux sans-iso8859-4");
-pref("font.name.monospace.x-baltic", "b&h-lucidux mono-iso8859-4");
-
-pref("font.name.serif.x-central-euro", "adobe-times-iso8859-2");
-pref("font.name.sans-serif.x-central-euro", "adobe-helvetica-iso8859-2");
-pref("font.name.monospace.x-central-euro", "adobe-courier-iso8859-2");
-
-pref("font.name.serif.x-cyrillic", "cronyx-times-koi8-r");
-pref("font.name.sans-serif.x-cyrillic", "cronyx-helvetica-koi8-r");
-pref("font.name.monospace.x-cyrillic", "cronyx-courier-koi8-r");
-
-pref("font.name.serif.x-unicode", "adobe-times-iso8859-1");
-pref("font.name.sans-serif.x-unicode", "adobe-helvetica-iso8859-1");
-pref("font.name.monospace.x-unicode", "adobe-courier-iso8859-1");
-
-pref("font.name.serif.x-user-def", "adobe-times-iso8859-1");
-pref("font.name.sans-serif.x-user-def", "adobe-helvetica-iso8859-1");
-pref("font.name.monospace.x-user-def", "adobe-courier-iso8859-1");
-
-pref("font.name.serif.x-western", "adobe-times-iso8859-1");
-pref("font.name.sans-serif.x-western", "adobe-helvetica-iso8859-1");
-pref("font.name.monospace.x-western", "adobe-courier-iso8859-1");
-
-pref("font.name.serif.zh-CN", "isas-song ti-gb2312.1980-0");
-pref("font.name.sans-serif.zh-CN", "isas-song ti-gb2312.1980-0");
-pref("font.name.monospace.zh-CN", "isas-song ti-gb2312.1980-0");
-
-// ming_uni.ttf (HKSCS-2001) 
-// http://www.info.gov.hk/digital21/eng/hkscs/download/uime.exe
-pref("font.name.serif.zh-HK", "-arphic-Ming for ISO10646-big5hkscs-0");
-pref("font.name.sans-serif.zh-HK", "-arphic-Ming for ISO10646-big5hkscs-0");
-pref("font.name.monospace.zh-HK", "-arphic-Ming for ISO10646-big5hkscs-0");
-
-// zh-TW
-# MOZ_ENABLE_XFT
-#endif
 
 pref("font.default.ar", "sans-serif");
 pref("font.size.variable.ar", 16);
@@ -2346,7 +2276,7 @@ pref("font.size.fixed.zh-HK", 16);
 // pref("print.postscript.enabled",      true);
 pref("print.postscript.paper_size",    "letter");
 pref("print.postscript.orientation",   "portrait");
-pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+'-P'}${MOZ_PRINTER_NAME}");
+pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER_NAME\"}");
 
 # XP_UNIX
 #endif
@@ -2468,8 +2398,8 @@ pref("font.name.monospace.x-unicode", "dt-interface user-ucs2.cjk_japan-0");
 
 #ifdef SOLARIS
 
-pref("print.postscript.print_command", "lp -c -s ${MOZ_PRINTER_NAME:+'-d'}${MOZ_PRINTER_NAME}");
-pref("print.print_command", "lp -c -s ${MOZ_PRINTER_NAME:+'-d'}${MOZ_PRINTER_NAME}");
+pref("print.postscript.print_command", "lp -c -s ${MOZ_PRINTER_NAME:+-d\"$MOZ_PRINTER_NAME\"}");
+pref("print.print_command", "lp -c -s ${MOZ_PRINTER_NAME:+-d\"$MOZ_PRINTER_NAME\"}");
 
 # Solaris
 #endif

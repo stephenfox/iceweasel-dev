@@ -80,7 +80,6 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
     NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
     NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
     NS_IMETHOD GetParent(nsIAccessible **aParent);
-    NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
     NS_IMETHOD TakeFocus(void);
 
     // ----- nsIScrollPositionListener ---------------------------
@@ -109,7 +108,6 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
       *
       * @param aEvent - the nsIAccessibleEvent event type
       * @param aDOMNode - DOM node the accesible event should be fired for
-      * @param aData - any additional data for the event
       * @param aAllowDupes - eAllowDupes: more than one event of the same type is allowed. 
       *                      eCoalesceFromSameSubtree: if two events are in the same subtree,
       *                                                only the event on ancestor is used
@@ -120,7 +118,7 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
       *                  synchronous with a DOM event
       */
     nsresult FireDelayedToolkitEvent(PRUint32 aEvent, nsIDOMNode *aDOMNode,
-                                     void *aData, EDupeEventRule aAllowDupes = eRemoveDupes,
+                                     EDupeEventRule aAllowDupes = eRemoveDupes,
                                      PRBool aIsAsynch = PR_FALSE);
 
     /**
@@ -145,6 +143,13 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
     virtual nsresult RemoveEventListeners();
     void AddScrollListener();
     void RemoveScrollListener();
+
+    /**
+     * For any accessibles in this subtree, invalidate their knowledge of
+     * their children. Only weak refrences are destroyed, not accessibles.
+     * @param aStartNode  The root of the subrtee to invalidate accessible child refs in
+     */
+    void InvalidateChildrenInSubtree(nsIDOMNode *aStartNode);
     void RefreshNodes(nsIDOMNode *aStartNode);
     static void ScrollTimerCallback(nsITimer *aTimer, void *aClosure);
 
@@ -216,7 +221,6 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
 protected:
     PRBool mIsAnchor;
     PRBool mIsAnchorJumped;
-    PRUint32 mAriaPropTypes;
     static PRUint32 gLastFocusedAccessiblesState;
 
 private:

@@ -55,7 +55,6 @@
 #include "secitem.h"
 #include "secport.h"
 #include "blapi.h"
-#include "pqgutil.h"
 #include "pkcs11.h"
 #include "pkcs11i.h"
 #include "lowkeyi.h"
@@ -629,8 +628,14 @@ finish_des:
     case CKM_CAMELLIA_CBC_PAD:
 	context->doPad = PR_TRUE;
 	/* fall thru */
-    case CKM_CAMELLIA_ECB:
     case CKM_CAMELLIA_CBC:
+	if (!pMechanism->pParameter ||
+		 pMechanism->ulParameterLen != 16) {
+	    crv = CKR_MECHANISM_PARAM_INVALID;
+	    break;
+	}
+	/* fall thru */
+    case CKM_CAMELLIA_ECB:
 	context->blockSize = 16;
 	if (key_type != CKK_CAMELLIA) {
 	    crv = CKR_KEY_TYPE_INCONSISTENT;
@@ -1638,6 +1643,32 @@ sftk_HashSign(SFTKHashSignInfo *info,unsigned char *sig,unsigned int *sigLen,
 							hash,hashLen);
 }
 
+/* XXX Old template; want to expunge it eventually. */
+static DERTemplate SECAlgorithmIDTemplate[] = {
+    { DER_SEQUENCE,
+	  0, NULL, sizeof(SECAlgorithmID) },
+    { DER_OBJECT_ID,
+	  offsetof(SECAlgorithmID,algorithm), },
+    { DER_OPTIONAL | DER_ANY,
+	  offsetof(SECAlgorithmID,parameters), },
+    { 0, }
+};
+
+/*
+ * XXX OLD Template.  Once all uses have been switched over to new one,
+ * remove this.
+ */
+static DERTemplate SGNDigestInfoTemplate[] = {
+    { DER_SEQUENCE,
+	  0, NULL, sizeof(SGNDigestInfo) },
+    { DER_INLINE,
+	  offsetof(SGNDigestInfo,digestAlgorithm),
+	  SECAlgorithmIDTemplate, },
+    { DER_OCTET_STRING,
+	  offsetof(SGNDigestInfo,digest), },
+    { 0, }
+};
+
 SECStatus
 RSA_HashSign(SECOidTag hashOid, NSSLOWKEYPrivateKey *key,
 		unsigned char *sig, unsigned int *sigLen, unsigned int maxLen,
@@ -2605,11 +2636,12 @@ nsc_pbe_key_gen(NSSPKCS5PBEParameter *pkcs5_pbe, CK_MECHANISM_PTR pMechanism,
     if (pMechanism->mechanism == CKM_PKCS5_PBKD2) {
 	pbkd2_params = (CK_PKCS5_PBKD2_PARAMS *)pMechanism->pParameter;
 	pwitem.data = (unsigned char *)pbkd2_params->pPassword;
-	pwitem.len = (unsigned int)pbkd2_params->ulPasswordLen;
+	/* was this a typo in the PKCS #11 spec? */
+	pwitem.len = *pbkd2_params->ulPasswordLen;
     } else {
 	pbe_params = (CK_PBE_PARAMS *)pMechanism->pParameter;
 	pwitem.data = (unsigned char *)pbe_params->pPassword;
-	pwitem.len = (unsigned int)pbe_params->ulPasswordLen;
+	pwitem.len = pbe_params->ulPasswordLen;
     }
     pbe_key = nsspkcs5_ComputeKeyAndIV(pkcs5_pbe, &pwitem, &iv, faulty3DES);
     if (pbe_key == NULL) {
@@ -3028,6 +3060,7 @@ CK_RV NSC_GenerateKey(CK_SESSION_HANDLE hSession,
     case CKM_PBE_SHA1_RC4_40:
     case CKM_PBE_MD5_DES_CBC:
     case CKM_PBE_MD2_DES_CBC:
+    case CKM_PKCS5_PBKD2:
 	key_gen_type = nsc_pbe;
 	crv = nsc_SetupPBEKeyGen(pMechanism,&pbe_param, &key_type, &key_length);
 	break;

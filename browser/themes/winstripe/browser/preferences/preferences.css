@@ -130,11 +130,11 @@ filefield {
 }
 
 filefield[disabled="true"] .fileFieldContentBox {
-  -moz-opacity: 0.5;
+  opacity: 0.5;
 }
 
 filefield[disabled="true"] .fileFieldIcon {
-  -moz-opacity: 0.2;
+  opacity: 0.2;
 }
 
 .fileFieldIcon {
@@ -190,14 +190,6 @@ filefield[disabled="true"] .fileFieldIcon {
   -moz-border-radius: 0px;
   margin: 4px;
   padding: 0px;
-}
-
-#cookieInfoBox textbox {
-  background-color: transparent;
-}
-
-#cookieInfoGrid {
-  background-color: #E9E7E3; 
 }
 
 /* bottom-most box containing a groupbox in a prefpane. Prevents the bottom

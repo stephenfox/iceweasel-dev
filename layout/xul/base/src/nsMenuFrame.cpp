@@ -392,6 +392,10 @@ nsMenuFrame::Destroy()
   // doesn't try to interact with a deallocated frame.
   mTimerMediator->ClearFrame();
 
+  // if the menu content is just being hidden, it may be made visible again
+  // later, so make sure to clear the highlighting.
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::menuactive, PR_FALSE);
+
   // are we our menu parent's current menu item?
   if (mMenuParent && mMenuParent->GetCurrentMenuItem() == this) {
     // yes; tell it that we're going away
@@ -742,15 +746,15 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
     nsSize minSize = mPopupFrame->GetMinSize(aState); 
     nsSize maxSize = mPopupFrame->GetMaxSize(aState);
 
-    BoundsCheck(minSize, prefSize, maxSize);
+    prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
     if (sizeToPopup)
         prefSize.width = mRect.width;
 
     // if the pref size changed then set bounds to be the pref size
-    PRBool sizeChanged = (mPopupFrame->GetRect().Size() != prefSize);
+    PRBool sizeChanged = (mPopupFrame->PreferredSize() != prefSize);
     if (sizeChanged) {
-      mPopupFrame->SetBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
+      mPopupFrame->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
     }
 
     // if the menu has just been opened, or its size changed, position
@@ -1286,7 +1290,7 @@ nsMenuFrame::GetPrefSize(nsBoxLayoutState& aState)
     // We now need to ensure that size is within the min - max range.
     nsSize minSize = nsBoxFrame::GetMinSize(aState);
     nsSize maxSize = GetMaxSize(aState);
-    BoundsCheck(minSize, size, maxSize);
+    size = BoundsCheck(minSize, size, maxSize);
   }
 
   return size;

@@ -1113,15 +1113,19 @@ nsTableOuterFrame::OuterReflowChild(nsPresContext*             aPresContext,
   // work around pixel rounding errors, round down to ensure we don't exceed the avail height in
   nscoord availHeight = aOuterRS.availableHeight;
   if (NS_UNCONSTRAINEDSIZE != availHeight) {
-    nsMargin margin;
-    GetMargin(aPresContext, aOuterRS, aChildFrame, aOuterRS.availableWidth,
-              margin);
+    if (mCaptionFrame == aChildFrame) {
+      availHeight = NS_UNCONSTRAINEDSIZE;
+    } else {
+      nsMargin margin;
+      GetMargin(aPresContext, aOuterRS, aChildFrame, aOuterRS.availableWidth,
+                margin);
     
-    NS_ASSERTION(NS_UNCONSTRAINEDSIZE != margin.top, "No unconstrainedsize arithmetic, please");
-    availHeight -= margin.top;
-    
-    NS_ASSERTION(NS_UNCONSTRAINEDSIZE != margin.bottom, "No unconstrainedsize arithmetic, please");
-    availHeight -= margin.bottom;
+      NS_ASSERTION(NS_UNCONSTRAINEDSIZE != margin.top, "No unconstrainedsize arithmetic, please");
+      availHeight -= margin.top;
+ 
+      NS_ASSERTION(NS_UNCONSTRAINEDSIZE != margin.bottom, "No unconstrainedsize arithmetic, please");
+      availHeight -= margin.bottom;
+    }
   }
   nsSize availSize(aAvailWidth, availHeight);
   // create and init the child reflow state, using placement new on
@@ -1320,67 +1324,6 @@ NS_METHOD nsTableOuterFrame::VerifyTree() const
   return NS_OK;
 }
 #endif
-
-/**
- * Remove and delete aChild's next-in-flow(s). Updates the sibling and flow
- * pointers.
- *
- * Updates the child count and content offsets of all containers that are
- * affected
- *
- * Overloaded here because nsContainerFrame makes assumptions about pseudo-frames
- * that are not true for tables.
- *
- * @param   aChild child this child's next-in-flow
- * @return  PR_TRUE if successful and PR_FALSE otherwise
- */
-void nsTableOuterFrame::DeleteChildsNextInFlow(nsPresContext* aPresContext, 
-                                               nsIFrame*       aChild)
-{
-  if (!aChild) return;
-  NS_PRECONDITION(mFrames.ContainsFrame(aChild), "bad geometric parent");
-
-  nsIFrame* nextInFlow = aChild->GetNextInFlow();
-  if (!nextInFlow) {
-    NS_ASSERTION(PR_FALSE, "null next-in-flow");
-    return;
-  }
-
-  nsTableOuterFrame* parent = static_cast<nsTableOuterFrame*>
-                                         (nextInFlow->GetParent());
-  if (!parent) {
-    NS_ASSERTION(PR_FALSE, "null parent");
-    return;
-  }
-  // If the next-in-flow has a next-in-flow then delete it too (and
-  // delete it first).
-  nsIFrame* nextNextInFlow = nextInFlow->GetNextInFlow();
-  if (nextNextInFlow) {
-    parent->DeleteChildsNextInFlow(aPresContext, nextInFlow);
-  }
-
-  // Disconnect the next-in-flow from the flow list
-  nsSplittableFrame::BreakFromPrevFlow(nextInFlow);
-
-  // Take the next-in-flow out of the parent's child list
-  if (parent->mFrames.FirstChild() == nextInFlow) {
-    parent->mFrames.SetFrames(nextInFlow->GetNextSibling());
-  } else {
-    // Because the next-in-flow is not the first child of the parent
-    // we know that it shares a parent with aChild. Therefore, we need
-    // to capture the next-in-flow's next sibling (in case the
-    // next-in-flow is the last next-in-flow for aChild AND the
-    // next-in-flow is not the last child in parent)
-    NS_ASSERTION(aChild->GetNextSibling() == nextInFlow, "unexpected sibling");
-
-    aChild->SetNextSibling(nextInFlow->GetNextSibling());
-  }
-
-  // Delete the next-in-flow frame and adjust its parent's child count
-  nextInFlow->Destroy();
-
-  NS_POSTCONDITION(!aChild->GetNextInFlow(), "non null next-in-flow");
-}
 
 nsIAtom*
 nsTableOuterFrame::GetType() const

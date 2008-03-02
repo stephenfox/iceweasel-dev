@@ -39,7 +39,7 @@
 #include "nsIXFormsSelectChild.h"
 #include "nsXFormsStubElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
-#include "nsString.h"
+#include "nsStringAPI.h"
 #include "nsCOMPtr.h"
 #include "nsIXTFElementWrapper.h"
 #include "nsIDOMDocument.h"
@@ -51,7 +51,7 @@ class nsXFormsChoicesElement : public nsXFormsStubElement,
                                public nsIXFormsSelectChild
 {
 public:
-  nsXFormsChoicesElement() : nsXFormsStubElement(), mDoneAddingChildren(PR_FALSE) {}
+  nsXFormsChoicesElement() : mElement(nsnull), mDoneAddingChildren(PR_FALSE) {}
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -69,6 +69,7 @@ public:
   NS_DECL_NSIXFORMSSELECTCHILD
 
 private:
+  nsIDOMElement* mElement;
   PRBool         mDoneAddingChildren;
 
   void Refresh();

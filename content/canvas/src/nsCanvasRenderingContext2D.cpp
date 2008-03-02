@@ -736,6 +736,7 @@ nsCanvasRenderingContext2D::GetInputStream(const char *aMimeType,
         cairo_surface_status(mSurface) != CAIRO_STATUS_SUCCESS)
         return NS_ERROR_FAILURE;
 
+    nsresult rv;
     const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
     nsAutoArrayPtr<char> conid(new (std::nothrow) char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
     strcpy(conid, encoderPrefix);
@@ -746,10 +747,11 @@ nsCanvasRenderingContext2D::GetInputStream(const char *aMimeType,
         return NS_ERROR_FAILURE;
 
     if (mImageSurfaceData) {
-        encoder->InitFromData(mImageSurfaceData,
-                              mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
-                              imgIEncoder::INPUT_FORMAT_HOSTARGB,
-                              nsDependentString(aEncoderOptions));
+        rv = encoder->InitFromData(mImageSurfaceData,
+                                   mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
+                                   imgIEncoder::INPUT_FORMAT_HOSTARGB,
+                                   nsDependentString(aEncoderOptions));
+        NS_ENSURE_SUCCESS(rv, rv);
     } else {
         nsAutoArrayPtr<PRUint8> imageBuffer(new (std::nothrow) PRUint8[mWidth * mHeight * 4]);
         if (!imageBuffer)
@@ -769,10 +771,11 @@ nsCanvasRenderingContext2D::GetInputStream(const char *aMimeType,
         cairo_paint (cr);
         cairo_destroy (cr);
 
-        encoder->InitFromData(imageBuffer.get(),
-                              mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
-                              imgIEncoder::INPUT_FORMAT_HOSTARGB,
-                              nsDependentString(aEncoderOptions));
+        rv = encoder->InitFromData(imageBuffer.get(),
+                                   mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
+                                   imgIEncoder::INPUT_FORMAT_HOSTARGB,
+                                   nsDependentString(aEncoderOptions));
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     return CallQueryInterface(encoder, aStream);
@@ -824,7 +827,9 @@ nsCanvasRenderingContext2D::Save()
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::Restore()
 {
-    if (mSaveCount <= 0)
+    if (mSaveCount == 0)
+        return NS_OK;
+    if (mSaveCount < 0)
         return NS_ERROR_DOM_INVALID_STATE_ERR;
 
     mStyleStack.RemoveElementAt(mSaveCount);
@@ -1850,9 +1855,9 @@ nsCanvasRenderingContext2D::DrawImage()
 {
     nsresult rv;
 
-    nsCOMPtr<nsIXPCNativeCallContext> ncc;
+    nsAXPCNativeCallContext *ncc = nsnull;
     rv = nsContentUtils::XPConnect()->
-        GetCurrentNativeCallContext(getter_AddRefs(ncc));
+        GetCurrentNativeCallContext(&ncc);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!ncc)
@@ -1941,10 +1946,10 @@ nsCanvasRenderingContext2D::DrawImage()
         goto FINISH;
     }
 
-    if (!FloatValidate(sx,sy,sw,sh))
-        return NS_ERROR_DOM_SYNTAX_ERR;
-    if (!FloatValidate(dx,dy,dw,dh))
-        return NS_ERROR_DOM_SYNTAX_ERR;
+    if (!FloatValidate(sx,sy,sw,sh) || !FloatValidate(dx,dy,dw,dh)) {
+        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        goto FINISH;
+    }
 
     // check args
     if (sx < 0.0 || sy < 0.0 ||
@@ -2376,9 +2381,9 @@ nsCanvasRenderingContext2D::GetImageData()
       return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    nsCOMPtr<nsIXPCNativeCallContext> ncc;
+    nsAXPCNativeCallContext *ncc = nsnull;
     nsresult rv = nsContentUtils::XPConnect()->
-        GetCurrentNativeCallContext(getter_AddRefs(ncc));
+        GetCurrentNativeCallContext(&ncc);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!ncc)
@@ -2501,9 +2506,9 @@ nsCanvasRenderingContext2D::PutImageData()
 {
     nsresult rv;
 
-    nsCOMPtr<nsIXPCNativeCallContext> ncc;
+    nsAXPCNativeCallContext *ncc = nsnull;
     rv = nsContentUtils::XPConnect()->
-        GetCurrentNativeCallContext(getter_AddRefs(ncc));
+        GetCurrentNativeCallContext(&ncc);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!ncc)
@@ -2606,9 +2611,10 @@ nsCanvasRenderingContext2D::PutImageData()
     if (mImageSurfaceData) {
         int stride = mWidth*4;
         PRUint8 *dest = mImageSurfaceData + stride*y + x*4;
+        PRUint8 *src = imageBuffer.get();
 
-        for (int32 i = 0; i < y; i++) {
-            memcpy(dest, imgPtr + (w*4)*i, w*4);
+        for (int32 i = 0; i < h; i++) {
+            memcpy(dest, src + (w*4)*i, w*4);
             dest += stride;
         }
     } else {

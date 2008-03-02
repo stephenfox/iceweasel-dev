@@ -142,6 +142,8 @@ pkix_pl_AIAMgr_RegisterSelf(void *plContext)
                 "pkix_pl_AIAMgr_RegisterSelf");
 
         entry.description = "AIAMgr";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_AIAMgr);
         entry.destructor = pkix_pl_AIAMgr_Destroy;
         entry.equalsFunction = NULL;
         entry.hashcodeFunction = NULL;
@@ -213,7 +215,9 @@ pkix_pl_AiaMgr_FindLDAPClient(
                 /* No, create a connection (and cache it) */
                 PKIX_CHECK(PKIX_PL_LdapDefaultClient_CreateByName
                         (domainName,
-                        PR_INTERVAL_NO_WAIT, /* PR_INTERVAL_NO_TIMEOUT, */
+                         /* Do not use NBIO until we verify, that
+                          * it is working */
+                        PR_INTERVAL_NO_TIMEOUT, /* PR_INTERVAL_NO_WAIT, */
                         NULL,
                         &client,
                         plContext),
@@ -374,21 +378,43 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 	                pCerts,
 	                plContext),
 	                PKIX_HTTPCERTSTOREPROCESSCERTRESPONSEFAILED);
-
-		PKIX_DECREF(aiaMgr->client.hdata.requestSession);
-		PKIX_DECREF(aiaMgr->client.hdata.serverSession);
-		aiaMgr->client.hdata.httpClient = 0; /* not an object */
+                
+                /* Session and request cleanup in case of success */
+                if (aiaMgr->client.hdata.requestSession != NULL) {
+                    (*hcv1->freeFcn)(aiaMgr->client.hdata.requestSession);
+                    aiaMgr->client.hdata.requestSession = NULL;
+                }
+                if (aiaMgr->client.hdata.serverSession != NULL) {
+                    (*hcv1->freeSessionFcn)(aiaMgr->client.hdata.serverSession);
+                    aiaMgr->client.hdata.serverSession = NULL;
+                }
+                aiaMgr->client.hdata.httpClient = 0; /* callback fn */
 
         } else  {
 		PKIX_ERROR(PKIX_UNSUPPORTEDVERSIONOFHTTPCLIENT);
 	}
 
 cleanup:
-	if (PKIX_ERROR_RECEIVED) {
-		PKIX_DECREF(aiaMgr->client.hdata.requestSession);
-		PKIX_DECREF(aiaMgr->client.hdata.serverSession);
-		aiaMgr->client.hdata.httpClient = 0; /* not an object */
-	}
+        /* Session and request cleanup in case of error. Passing through without cleanup
+         * if interrupted by blocked IO. */
+        if (PKIX_ERROR_RECEIVED && aiaMgr) {
+            if (aiaMgr->client.hdata.requestSession != NULL) {
+                (*hcv1->freeFcn)(aiaMgr->client.hdata.requestSession);
+                aiaMgr->client.hdata.requestSession = NULL;
+            }
+            if (aiaMgr->client.hdata.serverSession != NULL) {
+                (*hcv1->freeSessionFcn)(aiaMgr->client.hdata.serverSession);
+                aiaMgr->client.hdata.serverSession = NULL;
+            }
+            aiaMgr->client.hdata.httpClient = 0; /* callback fn */
+        }
+
+        PKIX_DECREF(location);
+        PKIX_DECREF(locationString);
+
+        if (locationAscii) {
+            PORT_Free(locationAscii);
+        }
 
         PKIX_RETURN(AIAMGR);
 }

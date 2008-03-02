@@ -41,8 +41,7 @@
 
 #include "nsIMenuItem.h"
 #include "nsString.h"
-#include "nsIChangeManager.h"
-#include "nsIWidget.h"
+#include "nsChangeObserver.h"
 #include "nsAutoPtr.h"
 
 #import <Cocoa/Cocoa.h>
@@ -51,11 +50,11 @@ class nsIMenu;
 class nsMenuItemIconX;
 
 /**
- * Native Motif MenuItem wrapper
+ * Native menu item wrapper
  */
 
 class nsMenuItemX : public nsIMenuItem,
-                    public nsIChangeObserver
+                    public nsChangeObserver
 {
 public:
   nsMenuItemX();
@@ -63,13 +62,12 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS
-  NS_DECL_NSICHANGEOBSERVER
+  NS_DECL_CHANGEOBSERVER
 
   // nsIMenuItem Methods
   NS_IMETHOD Create(nsIMenu* aParent, const nsString & aLabel, EMenuItemType aItemType,
-                    nsIChangeManager* aManager, nsIContent* aNode);
+                    nsMenuBarX* aMenuBar, nsIContent* aNode);
   NS_IMETHOD GetLabel(nsString &aText);
-  NS_IMETHOD SetShortcutChar(const nsString &aText);
   NS_IMETHOD GetShortcutChar(nsString &aText);
   NS_IMETHOD GetEnabled(PRBool *aIsEnabled);
   NS_IMETHOD SetChecked(PRBool aIsEnabled);
@@ -80,14 +78,13 @@ public:
 
   NS_IMETHOD DoCommand();
   NS_IMETHOD DispatchDOMEvent(const nsString &eventName, PRBool *preventDefaultCalled);
-  NS_IMETHOD SetModifiers(PRUint8 aModifiers);
-  NS_IMETHOD GetModifiers(PRUint8 * aModifiers);
   NS_IMETHOD SetupIcon();
   NS_IMETHOD GetMenuItemContent(nsIContent ** aMenuItemContent);
 
 protected:
 
   void UncheckRadioSiblings(nsIContent* inCheckedElement);
+  void SetKeyEquiv(PRUint8 aModifiers, const nsString &aText);
 
   NSMenuItem*               mNativeMenuItem;       // strong ref, we own
   
@@ -95,7 +92,7 @@ protected:
   nsString                  mKeyEquivalent;
 
   nsIMenu*                  mMenuParent;          // weak, parent owns us
-  nsIChangeManager*         mManager;             // weak
+  nsMenuBarX*               mMenuBar;             // weak
   
   nsCOMPtr<nsIContent>      mContent;
   nsCOMPtr<nsIContent>      mCommandContent;

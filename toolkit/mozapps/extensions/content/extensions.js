@@ -64,8 +64,16 @@ var gAppID            = "";
 var gPref             = null;
 var gPriorityCount    = 0;
 var gInstallCount     = 0;
+var gPendingActions   = false;
 var gPlugins          = null;
 var gPluginsDS        = null;
+var gSearchDS         = null;
+var gAddonRepository  = null;
+var gShowGetAddonsPane = false;
+var gRetrievedResults = false;
+var gRecommendedAddons = null;
+var gRDF              = null;
+var gPendingInstalls  = [];
 
 const PREF_EM_CHECK_COMPATIBILITY           = "extensions.checkCompatibility";
 const PREF_EM_CHECK_UPDATE_SECURITY         = "extensions.checkUpdateSecurity";
@@ -75,9 +83,15 @@ const PREF_EXTENSIONS_GETMOREPLUGINSURL     = "extensions.getMorePluginsURL";
 const PREF_EXTENSIONS_DSS_ENABLED           = "extensions.dss.enabled";
 const PREF_EXTENSIONS_DSS_SWITCHPENDING     = "extensions.dss.switchPending";
 const PREF_EXTENSIONS_HIDE_INSTALL_BTN      = "extensions.hideInstallButton";
-const PREF_EM_LAST_SELECTED_SKIN            = "extensions.lastSelectedSkin";
+const PREF_DSS_SKIN_TO_SELECT               = "extensions.lastSelectedSkin";
 const PREF_GENERAL_SKINS_SELECTEDSKIN       = "general.skins.selectedSkin";
 const PREF_UPDATE_NOTIFYUSER                = "extensions.update.notifyUser";
+const PREF_GETADDONS_SHOWPANE               = "extensions.getAddons.showPane";
+const PREF_GETADDONS_REPOSITORY             = "extensions.getAddons.repository";
+const PREF_GETADDONS_MAXRESULTS             = "extensions.getAddons.maxResults";
+
+const URI_GENERIC_ICON_XPINSTALL      = "chrome://mozapps/skin/xpinstall/xpinstallItemGeneric.png";
+const URI_GENERIC_ICON_THEME          = "chrome://mozapps/skin/extensions/themeGeneric.png";
 
 const RDFURI_ITEM_ROOT    = "urn:mozilla:item:root";
 const PREFIX_ITEM_URI     = "urn:mozilla:item:";
@@ -92,6 +106,8 @@ const OP_NEEDS_UNINSTALL              = "needs-uninstall";
 const OP_NEEDS_ENABLE                 = "needs-enable";
 const OP_NEEDS_DISABLE                = "needs-disable";
 
+Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
+
 ///////////////////////////////////////////////////////////////////////////////
 // Utility Functions
 function setElementDisabledByID(aID, aDoDisable) {
@@ -102,6 +118,27 @@ function setElementDisabledByID(aID, aDoDisable) {
     else
       element.removeAttribute("disabled");
   }
+}
+
+/**
+ * This returns the richlistitem element for the theme with the given
+ * internalName
+ */
+function getItemForInternalName(aInternalName) {
+  var property = gRDF.GetResource(PREFIX_NS_EM + "internalName");
+  var name = gRDF.GetLiteral(aInternalName);
+  var id = gExtensionManager.datasource.GetSource(property, name, true)
+  if (id && id instanceof Components.interfaces.nsIRDFResource)
+    return document.getElementById(id.ValueUTF8);
+  return null;
+}
+
+function isSafeURI(aURI) {
+  try {
+    var uri = makeURI(aURI);
+    var scheme = uri.scheme;
+  } catch (ex) {}
+  return (uri && (scheme == "http" || scheme == "https" || scheme == "ftp"));
 }
 
 function getBrandShortName() {
@@ -154,23 +191,17 @@ function showMessage(aIconURL, aMessage, aButtonLabel, aButtonAccesskey,
 
 // dynamically creates a template
 var AddonsViewBuilder = {
-  _bindingList: null,
-  _actionList: null,
-
   // if aActionList is null aBindingList will be used to generate actions
-  updateView: function(aRulesList, aURI, aBindingList, aActionList)
+  updateView: function(aRulesList, aURIList, aBindingList, aActionList)
   {
-    this._bindingList = aBindingList;
-    this._actionList = aActionList ? aActionList : aBindingList;
+    var actionList = aActionList ? aActionList : aBindingList;
 
     this.clearChildren(gExtensionsView);
     var template = document.createElementNS(kXULNSURI, "template");
     gExtensionsView.appendChild(template);
     for (var i = 0; i < aRulesList.length; ++i)
-      template.appendChild(this.createRule(aRulesList[i], aURI));
+      template.appendChild(this.createRule(aRulesList[i], aURIList[i], aBindingList[i], actionList[i]));
 
-    this._bindingList = null;
-    this._actionList = null;
     gExtensionsView.builder.rebuild();
   },
 
@@ -180,7 +211,7 @@ var AddonsViewBuilder = {
       aEl.removeChild(aEl.lastChild);
   },
 
-  createRule: function(aTriplesList, aURI)
+  createRule: function(aTriplesList, aURI, aBindingList, aActionList)
   {
     var rule = document.createElementNS(kXULNSURI, "rule");
     var conditions = document.createElementNS(kXULNSURI, "conditions");
@@ -198,16 +229,16 @@ var AddonsViewBuilder = {
 
     var bindings = document.createElementNS(kXULNSURI, "bindings");
     rule.appendChild(bindings);
-    for (i = 0; i < this._bindingList.length; ++i)
-      bindings.appendChild(this.createBinding(this._bindingList[i], aURI));
+    for (i = 0; i < aBindingList.length; ++i)
+      bindings.appendChild(this.createBinding(aBindingList[i], aURI));
 
     var action = document.createElementNS(kXULNSURI, "action");
     rule.appendChild(action);
     var extension = document.createElementNS(kXULNSURI, aURI);
     action.appendChild(extension);
     extension.setAttribute("uri", "?" + aURI);
-    for (i = 0; i < this._actionList.length; ++i)
-      extension.setAttribute(this._actionList[i][0], this._actionList[i][1]);
+    for (i = 0; i < aActionList.length; ++i)
+      extension.setAttribute(aActionList[i][0], aActionList[i][1]);
 
     return rule;
   },
@@ -252,31 +283,32 @@ function showView(aView) {
   // Using disabled to represent add-on state in regards to the EM causes evil
   // focus behavior when used as an element attribute when the element isn't
   // really disabled.
-  var bindingList = [ ["aboutURL", "?aboutURL"],
-                      ["addonID", "?addonID"],
-                      ["availableUpdateURL", "?availableUpdateURL"],
-                      ["availableUpdateVersion", "?availableUpdateVersion"],
-                      ["blocklisted", "?blocklisted"],
-                      ["compatible", "?compatible"],
-                      ["description", "?description"],
-                      ["downloadURL", "?downloadURL"],
-                      ["isDisabled", "?isDisabled"],
-                      ["hidden", "?hidden"],
-                      ["homepageURL", "?homepageURL"],
-                      ["iconURL", "?iconURL"],
-                      ["internalName", "?internalName"],
-                      ["locked", "?locked"],
-                      ["name", "?name"],
-                      ["optionsURL", "?optionsURL"],
-                      ["opType", "?opType"],
-                      ["plugin", "?plugin"],
-                      ["previewImage", "?previewImage"],
-                      ["satisfiesDependencies", "?satisfiesDependencies"],
-                      ["providesUpdatesSecurely", "?providesUpdatesSecurely"],
-                      ["type", "?type"],
-                      ["updateable", "?updateable"],
-                      ["updateURL", "?updateURL"],
-                      ["version", "?version"] ];
+  var bindingList = [ [ ["aboutURL", "?aboutURL"],
+                        ["addonID", "?addonID"],
+                        ["availableUpdateURL", "?availableUpdateURL"],
+                        ["availableUpdateVersion", "?availableUpdateVersion"],
+                        ["blocklisted", "?blocklisted"],
+                        ["compatible", "?compatible"],
+                        ["description", "?description"],
+                        ["downloadURL", "?downloadURL"],
+                        ["isDisabled", "?isDisabled"],
+                        ["hidden", "?hidden"],
+                        ["homepageURL", "?homepageURL"],
+                        ["iconURL", "?iconURL"],
+                        ["internalName", "?internalName"],
+                        ["locked", "?locked"],
+                        ["name", "?name"],
+                        ["optionsURL", "?optionsURL"],
+                        ["opType", "?opType"],
+                        ["plugin", "?plugin"],
+                        ["previewImage", "?previewImage"],
+                        ["satisfiesDependencies", "?satisfiesDependencies"],
+                        ["providesUpdatesSecurely", "?providesUpdatesSecurely"],
+                        ["type", "?type"],
+                        ["updateable", "?updateable"],
+                        ["updateURL", "?updateURL"],
+                        ["version", "?version"] ] ];
+  var displays = [ "richlistitem" ];
 
   var prefURL;
   var showInstallFile = true;
@@ -286,13 +318,38 @@ function showView(aView) {
   catch (e) { }
   var showCheckUpdatesAll = true;
   var showInstallUpdatesAll = false;
-  var showRestartApp = true;
   var showSkip = false;
   var showContinue = false;
   switch (aView) {
+    case "search":
+      var bindingList = [ [ ["action", "?action"],
+                            ["addonID", "?addonID"],
+                            ["description", "?description"],
+                            ["eula", "?eula"],
+                            ["homepageURL", "?homepageURL"],
+                            ["iconURL", "?iconURL"],
+                            ["name", "?name"],
+                            ["previewImage", "?previewImage"],
+                            ["rating", "?rating"],
+                            ["addonType", "?addonType"],
+                            ["thumbnailURL", "?thumbnailURL"],
+                            ["version", "?version"],
+                            ["xpiHash", "?xpiHash"],
+                            ["xpiURL", "?xpiURL"],
+                            ["typeName", "searchResult"] ],
+                          [ ["type", "?type"],
+                            ["typeName", "status"],
+                            ["count", "?count"],
+                            ["link", "?link" ] ] ];
+      var types = [ [ ["searchResult", "true", null] ],
+                    [ ["statusMessage", "true", null] ] ];
+      var displays = [ "richlistitem", "vbox" ];
+      showCheckUpdatesAll = false;
+      document.getElementById("searchbox").disabled = isOffline("offlineSearchMsg");
+      break;
     case "extensions":
       prefURL = PREF_EXTENSIONS_GETMOREEXTENSIONSURL;
-      var types = [ [ ["type", nsIUpdateItem.TYPE_EXTENSION, "Integer"] ] ];
+      types = [ [ ["type", nsIUpdateItem.TYPE_EXTENSION, "Integer"] ] ];
       break;
     case "themes":
       prefURL = PREF_EXTENSIONS_GETMORETHEMESURL;
@@ -310,28 +367,26 @@ function showView(aView) {
       showInstallFile = false;
       showCheckUpdatesAll = false;
       showInstallUpdatesAll = true;
-      if (gUpdatesOnly) {
+      if (gUpdatesOnly)
         showSkip = true;
-        showRestartApp = false;
-      }
-      bindingList = [ ["aboutURL", "?aboutURL"],
-                      ["availableUpdateURL", "?availableUpdateURL"],
-                      ["availableUpdateVersion", "?availableUpdateVersion"],
-                      ["availableUpdateInfo", "?availableUpdateInfo"],
-                      ["blocklisted", "?blocklisted"],
-                      ["homepageURL", "?homepageURL"],
-                      ["iconURL", "?iconURL"],
-                      ["internalName", "?internalName"],
-                      ["locked", "?locked"],
-                      ["name", "?name"],
-                      ["opType", "?opType"],
-                      ["previewImage", "?previewImage"],
-                      ["satisfiesDependencies", "?satisfiesDependencies"],
-                      ["providesUpdatesSecurely", "?providesUpdatesSecurely"],
-                      ["type", "?type"],
-                      ["updateURL", "?updateURL"],
-                      ["version", "?version"],
-                      ["typeName", "update"] ];
+      bindingList = [ [ ["aboutURL", "?aboutURL"],
+                        ["availableUpdateURL", "?availableUpdateURL"],
+                        ["availableUpdateVersion", "?availableUpdateVersion"],
+                        ["availableUpdateInfo", "?availableUpdateInfo"],
+                        ["blocklisted", "?blocklisted"],
+                        ["homepageURL", "?homepageURL"],
+                        ["iconURL", "?iconURL"],
+                        ["internalName", "?internalName"],
+                        ["locked", "?locked"],
+                        ["name", "?name"],
+                        ["opType", "?opType"],
+                        ["previewImage", "?previewImage"],
+                        ["satisfiesDependencies", "?satisfiesDependencies"],
+                        ["providesUpdatesSecurely", "?providesUpdatesSecurely"],
+                        ["type", "?type"],
+                        ["updateURL", "?updateURL"],
+                        ["version", "?version"],
+                        ["typeName", "update"] ] ];
       types = [ [ ["availableUpdateVersion", "?availableUpdateVersion", null],
                   ["updateable", "true", null] ] ];
       break;
@@ -340,44 +395,42 @@ function showView(aView) {
       showInstallFile = false;
       showCheckUpdatesAll = false;
       showInstallUpdatesAll = false;
-      if (gUpdatesOnly) {
+      if (gUpdatesOnly)
         showContinue = true;
-        showRestartApp = false;
-      }
-      bindingList = [ ["aboutURL", "?aboutURL"],
-                      ["addonID", "?addonID"],
-                      ["availableUpdateURL", "?availableUpdateURL"],
-                      ["availableUpdateVersion", "?availableUpdateVersion"],
-                      ["blocklisted", "?blocklisted"],
-                      ["compatible", "?compatible"],
-                      ["description", "?description"],
-                      ["downloadURL", "?downloadURL"],
-                      ["incompatibleUpdate", "?incompatibleUpdate"],
-                      ["isDisabled", "?isDisabled"],
-                      ["hidden", "?hidden"],
-                      ["homepageURL", "?homepageURL"],
-                      ["iconURL", "?iconURL"],
-                      ["internalName", "?internalName"],
-                      ["locked", "?locked"],
-                      ["name", "?name"],
-                      ["optionsURL", "?optionsURL"],
-                      ["opType", "?opType"],
-                      ["previewImage", "?previewImage"],
-                      ["progress", "?progress"],
-                      ["state", "?state"],
-                      ["type", "?type"],
-                      ["updateable", "?updateable"],
-                      ["updateURL", "?updateURL"],
-                      ["version", "?version"],
-                      ["newVersion", "?newVersion"],
-                      ["typeName", "install"] ];
+      bindingList = [ [ ["aboutURL", "?aboutURL"],
+                        ["addonID", "?addonID"],
+                        ["availableUpdateURL", "?availableUpdateURL"],
+                        ["availableUpdateVersion", "?availableUpdateVersion"],
+                        ["blocklisted", "?blocklisted"],
+                        ["compatible", "?compatible"],
+                        ["description", "?description"],
+                        ["downloadURL", "?downloadURL"],
+                        ["incompatibleUpdate", "?incompatibleUpdate"],
+                        ["isDisabled", "?isDisabled"],
+                        ["hidden", "?hidden"],
+                        ["homepageURL", "?homepageURL"],
+                        ["iconURL", "?iconURL"],
+                        ["internalName", "?internalName"],
+                        ["locked", "?locked"],
+                        ["name", "?name"],
+                        ["optionsURL", "?optionsURL"],
+                        ["opType", "?opType"],
+                        ["previewImage", "?previewImage"],
+                        ["progress", "?progress"],
+                        ["state", "?state"],
+                        ["type", "?type"],
+                        ["updateable", "?updateable"],
+                        ["updateURL", "?updateURL"],
+                        ["version", "?version"],
+                        ["newVersion", "?newVersion"],
+                        ["typeName", "install"] ] ];
       types = [ [ ["state", "?state", null] ] ];
       break;
   }
 
   var showGetMore = false;
   var getMore = document.getElementById("getMore");
-  if (prefURL) {
+  if (prefURL && !gShowGetAddonsPane) {
     try {
       getMore.setAttribute("value", getMore.getAttribute("value" + aView));
       var getMoreURL = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
@@ -404,15 +457,15 @@ function showView(aView) {
   document.getElementById("installFileButton").hidden = !showInstallFile;
   document.getElementById("checkUpdatesAllButton").hidden = !showCheckUpdatesAll;
   document.getElementById("installUpdatesAllButton").hidden = !showInstallUpdatesAll;
-  document.getElementById("restartAppButton").hidden = !showRestartApp;
   document.getElementById("skipDialogButton").hidden = !showSkip;
   document.getElementById("continueDialogButton").hidden = !showContinue;
   document.getElementById("themePreviewArea").hidden = !isThemes;
   document.getElementById("themeSplitter").hidden = !isThemes;
   document.getElementById("showUpdateInfoButton").hidden = aView != "updates";
   document.getElementById("hideUpdateInfoButton").hidden = true;
+  document.getElementById("searchPanel").hidden = aView != "search";
 
-  AddonsViewBuilder.updateView(types, "richlistitem", bindingList, null);
+  AddonsViewBuilder.updateView(types, displays, bindingList, null);
 
   if (aView == "updates" || aView == "installs")
     gExtensionsView.selectedItem = gExtensionsView.children[0];
@@ -429,8 +482,15 @@ function showView(aView) {
   else
     document.getElementById("continueDialogButton").removeAttribute("default");
 
-  if (isThemes)
+  if (isThemes) {
+    if (gPref.getBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING)) {
+      var item = getItemForInternalName(gCurrentTheme);
+      if (item)
+        setRestartMessage(item);
+    }
+
     onAddonSelect();
+  }
   updateGlobalCommands();
 }
 
@@ -509,11 +569,8 @@ function noUpdatesDismiss(aEvent)
     document.getElementById("addonsMsg").removeCurrentNotification();
 }
 
-function setRestartMessage(aItem)
+function clearRestartMessage()
 {
-  var themeName = aItem.getAttribute("name");
-  var restartMessage = getExtensionString("dssSwitchAfterRestart",
-                                          [getBrandShortName()]);
   var children = gExtensionsView.children;
   for (var i = 0; i < children.length; ++i) {
     var item = children[i];
@@ -522,8 +579,298 @@ function setRestartMessage(aItem)
       item.removeAttribute("oldDescription");
     }
   }
+}
+
+function setRestartMessage(aItem)
+{
+  var themeName = aItem.getAttribute("name");
+  var restartMessage = getExtensionString("dssSwitchAfterRestart",
+                                          [getBrandShortName()]);
   aItem.setAttribute("oldDescription", aItem.getAttribute("description"));
   aItem.setAttribute("description", restartMessage);
+}
+
+// Removes any assertions in the datasource about a given resource
+function cleanResource(ds, resource) {
+  // Remove outward arcs
+  var arcs = ds.ArcLabelsOut(resource);
+  while (arcs.hasMoreElements()) {
+    var arc = arcs.getNext().QueryInterface(Components.interfaces.nsIRDFResource);
+    var targets = ds.GetTargets(resource, arc, true);
+    while (targets.hasMoreElements()) {
+      var value = targets.getNext().QueryInterface(Components.interfaces.nsIRDFNode);
+      if (value)
+        ds.Unassert(resource, arc, value);
+    }
+  }
+}
+
+// Wipes the datasource clean of assertions
+function cleanDataSource(ds, rootctr) {
+  // Remove old entries from the list
+  var nodes = rootctr.GetElements();
+  while (nodes.hasMoreElements()) {
+    var node = nodes.getNext()
+                    .QueryInterface(Components.interfaces.nsIRDFResource);
+    rootctr.RemoveElement(node, false);
+    cleanResource(ds, node);
+  }
+}
+
+// Displays the search status message
+function displaySearchThrobber(aKey) {
+  var rdfCU = Components.classes["@mozilla.org/rdf/container-utils;1"]
+                        .getService(Components.interfaces.nsIRDFContainerUtils);
+  var rootctr = rdfCU.MakeSeq(gSearchDS, gRDF.GetResource(RDFURI_ITEM_ROOT));
+
+  cleanDataSource(gSearchDS, rootctr);
+
+  var labelNode = gRDF.GetResource("urn:mozilla:addons:search:status:header");
+  rootctr.AppendElement(labelNode);
+  gSearchDS.Assert(labelNode,
+                   gRDF.GetResource(PREFIX_NS_EM + "statusMessage"),
+                   gRDF.GetLiteral("true"),
+                   true);
+  gSearchDS.Assert(labelNode,
+                   gRDF.GetResource(PREFIX_NS_EM + "type"),
+                   gRDF.GetLiteral(aKey),
+                   true);
+}
+
+// Clears the search box and updates the result list
+function resetSearch() {
+  var searchbox = document.getElementById("searchbox");
+  searchbox.value = "";
+  retrieveRepositoryAddons("");
+}
+
+// Searches for results
+function retrieveRepositoryAddons(aTerms) {
+  if (gAddonRepository.isSearching)
+    gAddonRepository.cancelSearch();
+  if (aTerms) {
+    displaySearchThrobber("retrieve-search");
+    gAddonRepository.searchAddons(aTerms,
+                                  gPref.getIntPref(PREF_GETADDONS_MAXRESULTS),
+                                  AddonSearchResults);
+  }
+  else {
+    if (gRecommendedAddons) {
+      displaySearchResults(gRecommendedAddons, -1, true);
+    }
+    else {
+      displaySearchThrobber("retrieve-recommended");
+      gAddonRepository.retrieveRecommendedAddons(gPref.getIntPref(PREF_GETADDONS_MAXRESULTS),
+                                                 RecommendedSearchResults);
+    }
+  }
+  gRetrievedResults = true;
+}
+
+// Puts search results into the search datasource
+function displaySearchResults(addons, count, isRecommended) {
+  var rdfCU = Components.classes["@mozilla.org/rdf/container-utils;1"]
+                        .getService(Components.interfaces.nsIRDFContainerUtils);
+  var rootctr = rdfCU.MakeSeq(gSearchDS, gRDF.GetResource(RDFURI_ITEM_ROOT));
+
+  gSearchDS.beginUpdateBatch();
+
+  cleanDataSource(gSearchDS, rootctr);
+
+  if (isRecommended) {
+    var labelNode = gRDF.GetResource("urn:mozilla:addons:search:status:header");
+    rootctr.AppendElement(labelNode);
+    gSearchDS.Assert(labelNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "statusMessage"),
+                     gRDF.GetLiteral("true"),
+                     true);
+    gSearchDS.Assert(labelNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "type"),
+                     gRDF.GetLiteral("header-recommended"),
+                     true);
+
+    // Case insensitive sort
+    function compare(a, b) {
+      if (a.name.toLowerCase() < b.name.toLowerCase())
+        return -1;
+      if (a.name.toLowerCase() > b.name.toLowerCase())
+        return 1;
+      return 0;
+    }
+    addons.sort(compare);
+  }
+  
+  if (addons.length == 0 && (isRecommended || count > 0)) {
+    var labelNode = gRDF.GetResource("urn:mozilla:addons:search:status:noresults");
+    rootctr.AppendElement(labelNode);
+    gSearchDS.Assert(labelNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "statusMessage"),
+                     gRDF.GetLiteral("true"),
+                     true);
+    if (isRecommended) {
+      gSearchDS.Assert(labelNode,
+                       gRDF.GetResource(PREFIX_NS_EM + "type"),
+                       gRDF.GetLiteral("message-norecommended"),
+                       true);
+    }
+    else {
+      gSearchDS.Assert(labelNode,
+                       gRDF.GetResource(PREFIX_NS_EM + "type"),
+                       gRDF.GetLiteral("message-nosearchresults"),
+                       true);
+    }
+  }
+
+  var urlproperties = [ "iconURL", "homepageURL", "thumbnailURL", "xpiURL" ];
+  var properties = [ "name", "eula", "iconURL", "homepageURL", "thumbnailURL", "xpiURL", "xpiHash" ];
+  for (var i = 0; i < addons.length; i++) {
+    var addon = addons[i];
+    // Strip out any items with potentially unsafe urls
+    var unsafe = false;
+    for (var j = 0; j < urlproperties.length; j++) {
+      if (!isSafeURI(addon[urlproperties[j]])) {
+        unsafe = true;
+        break;
+      }
+    }
+    if (unsafe)
+      continue;
+
+    var resultNode = gRDF.GetResource("urn:mozilla:addons:search:" + addon.xpiURL);
+    gSearchDS.Assert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "addonID"),
+                     gRDF.GetLiteral(addon.id),
+                     true);
+    // Use the short summary for our "description"
+    gSearchDS.Assert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "description"),
+                     gRDF.GetLiteral(addon.summary),
+                     true);
+    gSearchDS.Assert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "addonType"),
+                     gRDF.GetIntLiteral(addon.type),
+                     true);
+    if (addon.rating >= 0) {
+      gSearchDS.Assert(resultNode,
+                       gRDF.GetResource(PREFIX_NS_EM + "rating"),
+                       gRDF.GetIntLiteral(addon.rating),
+                       gRDF.GetIntLiteral(3),
+                       true);
+    }
+
+    for (var j = 0; j < properties.length; j++) {
+      gSearchDS.Assert(resultNode,
+                       gRDF.GetResource(PREFIX_NS_EM + properties[j]),
+                       gRDF.GetLiteral(addon[properties[j]]),
+                       true);
+    }
+    gSearchDS.Assert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "searchResult"),
+                     gRDF.GetLiteral("true"),
+                     true);
+    rootctr.AppendElement(resultNode);
+  }
+
+  labelNode = gRDF.GetResource("urn:mozilla:addons:search:status:footer");
+  rootctr.AppendElement(labelNode);
+  gSearchDS.Assert(labelNode,
+                   gRDF.GetResource(PREFIX_NS_EM + "statusMessage"),
+                   gRDF.GetLiteral("true"),
+                   true);
+  if (isRecommended) {
+    gSearchDS.Assert(labelNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "type"),
+                     gRDF.GetLiteral("footer-recommended"),
+                     true);
+    var url = gAddonRepository.getRecommendedURL();
+  }
+  else {
+    gSearchDS.Assert(labelNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "type"),
+                     gRDF.GetLiteral("footer-search"),
+                     true);
+    gSearchDS.Assert(labelNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "count"),
+                     gRDF.GetIntLiteral(count),
+                     true);
+    var searchbox = document.getElementById("searchbox");
+    // The value attribute will be the persisted value of the last search run
+    url = gAddonRepository.getSearchURL(searchbox.getAttribute("value"));
+  }
+  gSearchDS.Assert(labelNode,
+                   gRDF.GetResource(PREFIX_NS_EM + "link"),
+                   gRDF.GetLiteral(url),
+                   true);
+
+  gSearchDS.endUpdateBatch();
+}
+
+// Displays the search failure status message
+function displaySearchFailure(isRecommended) {
+  var rdfCU = Components.classes["@mozilla.org/rdf/container-utils;1"]
+                        .getService(Components.interfaces.nsIRDFContainerUtils);
+  var rootctr = rdfCU.MakeSeq(gSearchDS, gRDF.GetResource(RDFURI_ITEM_ROOT));
+
+  cleanDataSource(gSearchDS, rootctr);
+
+  var labelNode = gRDF.GetResource("urn:mozilla:addons:search:status:header");
+  rootctr.AppendElement(labelNode);
+  gSearchDS.Assert(labelNode,
+                   gRDF.GetResource(PREFIX_NS_EM + "statusMessage"),
+                   gRDF.GetLiteral("true"),
+                   true);
+  gSearchDS.Assert(labelNode,
+                   gRDF.GetResource(PREFIX_NS_EM + "type"),
+                   gRDF.GetLiteral(isRecommended ? "recommended-failure" : "search-failure"),
+                   true);
+}
+
+// nsIAddonSearchResultsCallback for the recommended search
+var RecommendedSearchResults = {
+  searchSucceeded: function(aAddons, aAddonCount, aTotalResults) {
+    gRecommendedAddons = aAddons;
+    displaySearchResults(aAddons, aTotalResults, true);
+  },
+
+  searchFailed: function() {
+    displaySearchFailure(true);
+  }
+}
+
+// nsIAddonSearchResultsCallback for a standard search
+var AddonSearchResults = {
+  searchSucceeded: function(aAddons, aAddonCount, aTotalResults) {
+    displaySearchResults(aAddons, aTotalResults, false);
+  },
+
+  searchFailed: function() {
+    displaySearchFailure(false);
+  }
+}
+
+// Initialises the search repository and the results datasource
+function initSearchDS() {
+  var repository = "@mozilla.org/extensions/addon-repository;1";
+  try {
+    var repo = gPref.getCharPref(PREF_GETADDONS_REPOSITORY);
+    if (repo in Components.classes)
+      repository = repo;
+  } catch (e) { }
+  gAddonRepository = Components.classes[repository]
+                               .createInstance(Components.interfaces.nsIAddonRepository);
+  var browseAddons = document.getElementById("browseAddons");
+  var homepage = gAddonRepository.homepageURL;
+  if (homepage)
+    browseAddons.setAttribute("homepageURL", homepage);
+  else
+    browseAddons.hidden = true;
+  gSearchDS = Components.classes["@mozilla.org/rdf/datasource;1?name=in-memory-datasource"]
+                        .createInstance(Components.interfaces.nsIRDFDataSource);
+  gExtensionsView.database.AddDataSource(gSearchDS);
+  var ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                            .getService(nsIIOService);
+  if (!ioService.offline)
+    retrieveRepositoryAddons(document.getElementById("searchbox").value);
 }
 
 function initPluginsDS()
@@ -538,23 +885,15 @@ function rebuildPluginsDS()
   var phs = Components.classes["@mozilla.org/plugin/host;1"]
                       .getService(Components.interfaces.nsIPluginHost);
   var plugins = phs.getPluginTags({ });
-  var rdf = Components.classes["@mozilla.org/rdf/rdf-service;1"]
-                      .getService(Components.interfaces.nsIRDFService);
   var rdfCU = Components.classes["@mozilla.org/rdf/container-utils;1"]
                         .getService(Components.interfaces.nsIRDFContainerUtils);
-  var rootctr = rdfCU.MakeSeq(gPluginsDS, rdf.GetResource(RDFURI_ITEM_ROOT));
+  var rootctr = rdfCU.MakeSeq(gPluginsDS, gRDF.GetResource(RDFURI_ITEM_ROOT));
   gPlugins = { };
   
   // Running in a batch stops the template builder from running
   gPluginsDS.beginUpdateBatch();
 
-  // Remove old entries from the list
-  var nodes = rootctr.GetElements();
-  while (nodes.hasMoreElements()) {
-    var node = nodes.getNext()
-                    .QueryInterface(Components.interfaces.nsIRDFResource);
-    rootctr.RemoveElement(node, false);
-  }
+  cleanDataSource(gPluginsDS, rootctr);
 
   // Case insensitive sort
   function compare(a, b) {
@@ -594,40 +933,40 @@ function rebuildPluginsDS()
   for (var pluginName in gPlugins) {
     for (var pluginDesc in gPlugins[pluginName]) {
       plugin = gPlugins[pluginName][pluginDesc];
-      var pluginNode = rdf.GetResource(PREFIX_ITEM_URI + plugin.filename);
+      var pluginNode = gRDF.GetResource(PREFIX_ITEM_URI + plugin.filename);
       rootctr.AppendElement(pluginNode);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "name"),
-                        rdf.GetLiteral(pluginName),
+                        gRDF.GetResource(PREFIX_NS_EM + "name"),
+                        gRDF.GetLiteral(pluginName),
                         true);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "addonID"),
-                        rdf.GetLiteral(plugin.filename),
+                        gRDF.GetResource(PREFIX_NS_EM + "addonID"),
+                        gRDF.GetLiteral(plugin.filename),
                         true);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "description"),
-                        rdf.GetLiteral(pluginDesc),
+                        gRDF.GetResource(PREFIX_NS_EM + "description"),
+                        gRDF.GetLiteral(pluginDesc),
                         true);
       if (plugin.homepageURL)
         gPluginsDS.Assert(pluginNode,
-                          rdf.GetResource(PREFIX_NS_EM + "homepageURL"),
-                          rdf.GetLiteral(plugin.homepageURL),
+                          gRDF.GetResource(PREFIX_NS_EM + "homepageURL"),
+                          gRDF.GetLiteral(plugin.homepageURL),
                           true);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "isDisabled"),
-                        rdf.GetLiteral(plugin.disabled ? "true" : "false"),
+                        gRDF.GetResource(PREFIX_NS_EM + "isDisabled"),
+                        gRDF.GetLiteral(plugin.disabled ? "true" : "false"),
                         true);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "blocklisted"),
-                        rdf.GetLiteral(plugin.blocklisted ? "true" : "false"),
+                        gRDF.GetResource(PREFIX_NS_EM + "blocklisted"),
+                        gRDF.GetLiteral(plugin.blocklisted ? "true" : "false"),
                         true);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "compatible"),
-                        rdf.GetLiteral("true"),
+                        gRDF.GetResource(PREFIX_NS_EM + "compatible"),
+                        gRDF.GetLiteral("true"),
                         true);
       gPluginsDS.Assert(pluginNode,
-                        rdf.GetResource(PREFIX_NS_EM + "plugin"),
-                        rdf.GetLiteral("true"),
+                        gRDF.GetResource(PREFIX_NS_EM + "plugin"),
+                        gRDF.GetLiteral("true"),
                         true);
     }
   }
@@ -641,12 +980,10 @@ function togglePluginDisabled(aName, aDesc)
   plugin.disabled = !plugin.disabled;
   for (var i = 0; i < plugin.plugins.length; ++i)
     plugin.plugins[i].disabled = plugin.disabled;
-  var rdf = Components.classes["@mozilla.org/rdf/rdf-service;1"]
-                      .getService(Components.interfaces.nsIRDFService);
-  gPluginsDS.Change(rdf.GetResource(PREFIX_ITEM_URI + plugin.filename),
-                    rdf.GetResource(PREFIX_NS_EM + "isDisabled"),
-                    rdf.GetLiteral(plugin.disabled ? "false" : "true"),
-                    rdf.GetLiteral(plugin.disabled ? "true" : "false"));
+  gPluginsDS.Change(gRDF.GetResource(PREFIX_ITEM_URI + plugin.filename),
+                    gRDF.GetResource(PREFIX_NS_EM + "isDisabled"),
+                    gRDF.GetLiteral(plugin.disabled ? "false" : "true"),
+                    gRDF.GetLiteral(plugin.disabled ? "true" : "false"));
   gExtensionsViewController.onCommandUpdate();
   gExtensionsView.selectedItem.focus();
 }
@@ -657,12 +994,14 @@ function Startup()
 {
   gExtensionStrings = document.getElementById("extensionsStrings");
   gPref = Components.classes["@mozilla.org/preferences-service;1"]
-                    .getService(Components.interfaces.nsIPrefBranch);
+                    .getService(Components.interfaces.nsIPrefBranch2);
   var defaultPref = gPref.QueryInterface(Components.interfaces.nsIPrefService)
                          .getDefaultBranch(null);
   try {
     gCurrentTheme = gPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
     gDefaultTheme = defaultPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
+    if (gPref.getBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING))
+      gCurrentTheme = gPref.getCharPref(PREF_DSS_SKIN_TO_SELECT);
   }
   catch (e) { }
 
@@ -683,16 +1022,30 @@ function Startup()
     gCheckUpdateSecurity = gPref.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY);
   } catch(e) { }
 
+  gPref.addObserver(PREF_DSS_SKIN_TO_SELECT, gPrefObserver, false);
+  gPref.addObserver(PREF_GENERAL_SKINS_SELECTEDSKIN, gPrefObserver, false);
+
+  try {
+    gShowGetAddonsPane = gPref.getBoolPref(PREF_GETADDONS_SHOWPANE);
+  } catch(e) { }
+
   // Sort on startup and anytime an add-on is installed or upgraded.
   gExtensionManager.sortTypeByProperty(nsIUpdateItem.TYPE_ADDON, "name", true);
   // Extension Command Updating is handled by a command controller.
   gExtensionsView.controllers.appendController(gExtensionsViewController);
   gExtensionsView.addEventListener("select", onAddonSelect, false);
 
+  gRDF = Components.classes["@mozilla.org/rdf/rdf-service;1"]
+                   .getService(Components.interfaces.nsIRDFService);
+
   initPluginsDS();
   gExtensionsView.database.AddDataSource(gPluginsDS);
+  if (gShowGetAddonsPane)
+    initSearchDS();
   gExtensionsView.database.AddDataSource(gExtensionManager.datasource);
   gExtensionsView.setAttribute("ref", RDFURI_ITEM_ROOT);
+
+  document.getElementById("search-view").hidden = !gShowGetAddonsPane;
   updateOptionalViews();
 
   var viewGroup = document.getElementById("viewGroup");
@@ -746,7 +1099,6 @@ function Startup()
     try {
       var params = window.arguments[0].QueryInterface(Components.interfaces.nsIDialogParamBlock);
       var manager = window.arguments[1].QueryInterface(Components.interfaces.nsIObserver);
-      showView("installs");
       gDownloadManager.addDownloads(params, manager);
     }
     catch (e) {
@@ -770,6 +1122,7 @@ function Startup()
     }
   }
   else if (viewGroup.hasAttribute("last-selected") &&
+           document.getElementById(viewGroup.getAttribute("last-selected") + "-view") &&
            !document.getElementById(viewGroup.getAttribute("last-selected") + "-view").hidden)
     showView(viewGroup.getAttribute("last-selected"));
   else
@@ -786,6 +1139,12 @@ function Startup()
 
 function Shutdown()
 {
+  gPref.removeObserver(PREF_DSS_SKIN_TO_SELECT, gPrefObserver);
+  gPref.removeObserver(PREF_GENERAL_SKINS_SELECTEDSKIN, gPrefObserver);
+  if (gAddonRepository && gAddonRepository.isSearching)
+    gAddonRepository.cancelSearch();
+
+  gRDF = null;
   gPref = null;
   gExtensionsView.removeEventListener("select", onAddonSelect, false);
   gExtensionsView.database.RemoveDataSource(gExtensionManager.datasource);
@@ -817,22 +1176,13 @@ function getURLSpecFromFile(aFile)
 
 function XPInstallDownloadManager()
 {
-  this._statusFormatKBMB  = getExtensionString("statusFormatKBMB");
-  this._statusFormatKBKB  = getExtensionString("statusFormatKBKB");
-  this._statusFormatMBMB  = getExtensionString("statusFormatMBMB");
 }
 
 XPInstallDownloadManager.prototype = {
-  _statusFormat     : null,
-  _statusFormatKBMB : null,
-  _statusFormatKBKB : null,
-  _statusFormatMBMB : null,
-
   observe: function (aSubject, aTopic, aData)
   {
     switch (aTopic) {
       case "xpinstall-download-started":
-        showView("installs");
         var params = aSubject.QueryInterface(Components.interfaces.nsISupportsArray);
         var paramBlock = params.GetElementAt(0).QueryInterface(Components.interfaces.nsISupportsInterfacePointer);
         paramBlock = paramBlock.data.QueryInterface(Components.interfaces.nsIDialogParamBlock);
@@ -847,6 +1197,7 @@ XPInstallDownloadManager.prototype = {
   {
     var numXPInstallItems = aParams.GetInt(1);
     var items = [];
+    var switchPane = false;
     for (var i = 0; i < numXPInstallItems;) {
       var displayName = aParams.GetString(i++);
       var url = aParams.GetString(i++);
@@ -867,11 +1218,22 @@ XPInstallDownloadManager.prototype = {
 
       // Advance the enumerator
       var certName = aParams.GetString(i++);
+
+      // Check whether the install was triggered from the Get Add-ons pane.
+      var pos = gPendingInstalls.indexOf(url);
+      if (pos >= 0)
+        gPendingInstalls.splice(pos, 1);
+      else
+        switchPane = true;
     }
 
     gExtensionManager.addDownloads(items, items.length, aManager);
     updateOptionalViews();
     updateGlobalCommands();
+    // Only switch to the installs pane if there was an not started by the
+    // Get Add-ons pane
+    if (switchPane)
+      showView("installs");
   },
 
   getElementForAddon: function(aAddon)
@@ -929,8 +1291,10 @@ XPInstallDownloadManager.prototype = {
           setElementDisabledByID("cmd_continue", false);
           document.getElementById("continueDialogButton").focus();
         }
-        else
+        else {
+          updateOptionalViews();
           updateGlobalCommands();
+        }
         break;
     }
   },
@@ -945,50 +1309,10 @@ XPInstallDownloadManager.prototype = {
     if (percent > 1 && !(aAddon.xpiURL in this._urls))
       this._urls[aAddon.xpiURL] = true;
 
-    var KBProgress = parseInt(aValue/1024 + .5);
-    var KBTotal = parseInt(aMaxValue/1024 + .5);
     var statusPrevious = element.getAttribute("status");
-    var statusCurrent = this._formatKBytes(KBProgress, KBTotal);
+    var statusCurrent = DownloadUtils.getTransferTotal(aValue, aMaxValue);
     if (statusCurrent != statusPrevious)
       element.setAttribute("status", statusCurrent);
-  },
-
-  _replaceInsert: function ( text, index, value )
-  {
-    return text.replace("#"+index, value);
-  },
-
-  // aBytes     aTotalKBytes    returns:
-  // x, < 1MB   y < 1MB         x of y KB
-  // x, < 1MB   y >= 1MB        x KB of y MB
-  // x, >= 1MB  y >= 1MB        x of y MB
-  _formatKBytes: function (aKBytes, aTotalKBytes)
-  {
-    var progressHasMB = parseInt(aKBytes/1000) > 0;
-    var totalHasMB = parseInt(aTotalKBytes/1000) > 0;
-
-    var format = "";
-    if (!progressHasMB && !totalHasMB) {
-      format = this._statusFormatKBKB;
-      format = this._replaceInsert(format, 1, aKBytes);
-      format = this._replaceInsert(format, 2, aTotalKBytes);
-    }
-    else if (progressHasMB && totalHasMB) {
-      format = this._statusFormatMBMB;
-      format = this._replaceInsert(format, 1, (aKBytes / 1000).toFixed(1));
-      format = this._replaceInsert(format, 2, (aTotalKBytes / 1000).toFixed(1));
-    }
-    else if (totalHasMB && !progressHasMB) {
-      format = this._statusFormatKBMB;
-      format = this._replaceInsert(format, 1, aKBytes);
-      format = this._replaceInsert(format, 2, (aTotalKBytes / 1000).toFixed(1));
-    }
-    else {
-      // This is an undefined state!
-      dump("*** huh?!\n");
-    }
-
-    return format;
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -1034,6 +1358,7 @@ UpdateCheckListener.prototype = {
     viewGroup.hidden = false;
     gExtensionsView.removeAttribute("update-operation");
     gExtensionsViewController.onCommandUpdate();
+    updateOptionalViews();
     updateGlobalCommands();
     if (this._updateFound)
       showView("updates");
@@ -1168,12 +1493,9 @@ function onAddonSelect(aEvent)
         previewImageDeck.selectedIndex = 3;
       }
       else {
-        try {
-          var uri = makeURI(gExtensionsView.selectedItem.getAttribute("availableUpdateInfo"));
-          var scheme = uri.scheme;
-        } catch (ex) {}
-        if (uri && (scheme == "http" || scheme == "https"))
-          UpdateInfoLoader.loadInfo(uri.spec);
+        var uri = gExtensionsView.selectedItem.getAttribute("availableUpdateInfo");
+        if (isSafeURI(uri))
+          UpdateInfoLoader.loadInfo(uri);
         else
           previewImageDeck.selectedIndex = 4;
       }
@@ -1496,25 +1818,19 @@ var gExtensionsDNDObserver =
       if (!fileData)
         continue;
 
-      if (fileData.type == nsIUpdateItem.TYPE_EXTENSION) {
-        xpinstallObj[fileData.fileName] = fileData.fileURL;
-        ++xpiCount;
-      }
-      else if (fileData.type == nsIUpdateItem.TYPE_THEME) {
-        themes[fileData.fileName] = fileData.fileURL;
-        ++themeCount;
-      }
+      xpinstallObj[fileData.fileName] = {
+        URL: fileData.fileURL,
+        toString: function() { return this.URL; }
+      };
+      ++xpiCount;
+      if (fileData.type == nsIUpdateItem.TYPE_THEME)
+        xpinstallObj[fileData.fileName].IconURL = URI_GENERIC_ICON_THEME;
+      else
+        xpinstallObj[fileData.fileName].IconURL = URI_GENERIC_ICON_XPINSTALL;
     }
 
     if (xpiCount > 0)
       InstallTrigger.install(xpinstallObj);
-    if (themeCount > 0) {
-      // XXXrstrong Only allow the install of one theme due to bug 257992
-      for (var fileName in themes) {
-        InstallTrigger.installChrome(InstallTrigger.SKIN, themes[fileName], fileName);
-        break;
-      }
-    }
   },
   _flavourSet: null,
   getSupportedFlavours: function ()
@@ -1557,12 +1873,39 @@ const gAddonsMsgObserver = {
       var ioService = Components.classes["@mozilla.org/network/io-service;1"]
                                 .getService(nsIIOService);
       ioService.offline = false;
+      // If no results have been retrieved start pulling some
+      if (!gRetrievedResults)
+        retrieveRepositoryAddons(document.getElementById("searchbox").value);
+      if (gView == "search")
+        document.getElementById("searchbox").disabled = false;
       break;
     case "addons-message-dismiss":
+      break;
+    case "addons-restart-app":
+      restartApp();
       break;
     }
     if (gExtensionsView.selectedItem)
       gExtensionsView.selectedItem.focus();
+  }
+};
+
+const gPrefObserver = {
+  observe: function (aSubject, aTopic, aData)
+  {
+    if (aData == PREF_GENERAL_SKINS_SELECTEDSKIN) {
+      // Changed as the result of a dynamic theme switch
+      gCurrentTheme = gPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
+    }
+    else if (aData == PREF_DSS_SKIN_TO_SELECT) {
+      // Either a new skin has been selected or the switch has been cancelled
+      if (gPref.getBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING))
+        gCurrentTheme = gPref.getCharPref(PREF_DSS_SKIN_TO_SELECT);
+      else
+        gCurrentTheme = gPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
+      updateOptionalViews();
+      updateGlobalCommands();
+    }
   }
 };
 
@@ -1621,6 +1964,28 @@ function canWriteToLocation(element)
   return installLocation ? installLocation.canAccess : false;
 }
 
+function enableRestartButton() {
+  var addonsMsg = document.getElementById("addonsMsg");
+  var notification = addonsMsg.getNotificationWithValue("restart-app");
+  if (!notification) {
+    var appname = getBrandShortName();
+    var message = getExtensionString("restartMessage", [appname]);
+    var buttons = [ new MessageButton(getExtensionString("restartButton", [appname]),
+                                      getExtensionString("restartAccessKey"),
+                                      "addons-restart-app") ];
+    addonsMsg.appendNotification(message, "restart-app",
+                                 "chrome://mozapps/skin/extensions/question.png",
+                                 addonsMsg.PRIORITY_WARNING_HIGH, buttons);
+  }
+}
+
+function disableRestartButton() {
+  var addonsMsg = document.getElementById("addonsMsg");
+  var notification = addonsMsg.getNotificationWithValue("restart-app");
+  if (notification)
+    notification.close();
+}
+
 function updateOptionalViews() {
   var ds = gExtensionsView.database;
   var rdfs = Components.classes["@mozilla.org/rdf/rdf-service;1"]
@@ -1633,6 +1998,11 @@ function updateOptionalViews() {
   var showUpdates = false;
   var showInstalls = false;
   gInstallCount = 0;
+  gPendingActions = false;
+
+  var stateArc = rdfs.GetResource(PREFIX_NS_EM + "state");
+  var opTypeArc = rdfs.GetResource(PREFIX_NS_EM + "opType");
+
   while (elements.hasMoreElements()) {
     var e = elements.getNext().QueryInterface(Components.interfaces.nsIRDFResource);
     if (!showLocales) {
@@ -1644,13 +2014,21 @@ function updateOptionalViews() {
       }
     }
 
-    var stateArc = rdfs.GetResource(PREFIX_NS_EM + "state");
     var state = ds.GetTarget(e, stateArc, true);
     if (state) {
       showInstalls = true;
       if (state instanceof Components.interfaces.nsIRDFLiteral &&
           state.Value != "success" && state.Value != "failure")
         gInstallCount++;
+    }
+
+    if (!gPendingActions) {
+      var opType = ds.GetTarget(e, opTypeArc, true);
+      if (opType) {
+        if (opType instanceof Components.interfaces.nsIRDFLiteral &&
+            opType.Value != OP_NONE)
+          gPendingActions = true;
+      }
     }
 
     if (!showUpdates) {
@@ -1674,14 +2052,14 @@ function updateGlobalCommands() {
   var disableInstallFile = false;
   var disableUpdateCheck = true;
   var disableInstallUpdate = true;
-  var disableAppRestart = (gInstallCount > 0);
+
   if (gExtensionsView.hasAttribute("update-operation")) {
     disableInstallFile = true;
-    disableAppRestart = true;
+    disableRestartButton();
   }
   else if (gView == "updates") {
     disableInstallUpdate = false;
-    disableAppRestart = true;
+    disableRestartButton();
   }
   else {
     var children = gExtensionsView.children;
@@ -1691,10 +2069,16 @@ function updateGlobalCommands() {
         break;
       }
     }
+
+    if (gInstallCount == 0 &&
+        (gPendingActions || gPref.getBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING)))
+      enableRestartButton();
+    else
+      disableRestartButton();
   }
+
   setElementDisabledByID("cmd_checkUpdatesAll", disableUpdateCheck);
   setElementDisabledByID("cmd_installUpdatesAll", disableInstallUpdate);
-  setElementDisabledByID("cmd_restartApp", disableAppRestart);
   setElementDisabledByID("cmd_installFile", disableInstallFile);
 }
 
@@ -1822,6 +2206,38 @@ function confirmOperation(aName, aTitle, aQueryMsg, aAcceptBtn, aCancelBtn,
   return params.result == "accept";
 }
 
+function installCallback(item, status) {
+  var resultNode = gRDF.GetResource(item.id);
+
+  // Strip out old status
+  gSearchDS.Unassert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "action"),
+                     gRDF.GetLiteral("installing"),
+                     true);
+
+  if (status == -210) {
+    // User cancelled
+    var pos = gPendingInstalls.indexOf(item.getAttribute("xpiURL"));
+    if (pos >= 0)
+      gPendingInstalls.splice(pos, 1);
+    return;
+  }
+  if (status < 0) {
+    // Some other failure
+    gSearchDS.Assert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "action"),
+                     gRDF.GetLiteral("failed"),
+                     true);
+  }
+  else {
+    // Success
+    gSearchDS.Assert(resultNode,
+                     gRDF.GetResource(PREFIX_NS_EM + "action"),
+                     gRDF.GetLiteral("installed"),
+                     true);
+  }
+}
+
 var gExtensionsViewController = {
   supportsCommand: function (aCommand)
   {
@@ -1842,6 +2258,8 @@ var gExtensionsViewController = {
       return false;
     }
     switch (aCommand) {
+    case "cmd_installSearchResult":
+      return true;
     case "cmd_useTheme":
       return selectedItem.type == nsIUpdateItem.TYPE_THEME &&
              !selectedItem.isDisabled &&
@@ -1930,6 +2348,41 @@ var gExtensionsViewController = {
   },
 
   commands: {
+    cmd_installSearchResult: function (aSelectedItem)
+    {
+      if (!isXPInstallEnabled())
+        return;
+
+      if (aSelectedItem.hasAttribute("eula")) {
+        var eula = {
+          name: aSelectedItem.getAttribute("name"),
+          text: aSelectedItem.getAttribute("eula"),
+          accepted: false
+        };
+        window.openDialog("chrome://mozapps/content/extensions/eula.xul", "_blank",
+                          "chrome,dialog,modal,centerscreen,resizable=no", eula);
+        if (!eula.accepted)
+          return;
+      }
+
+      var details = {
+        URL: aSelectedItem.getAttribute("xpiURL"),
+        Hash: aSelectedItem.getAttribute("xpiHash"),
+        IconURL: aSelectedItem.getAttribute("iconURL"),
+        toString: function () { return this.URL; }
+      };
+      var params = [];
+      params[aSelectedItem.getAttribute("name")] = details;
+
+      gSearchDS.Assert(gRDF.GetResource(aSelectedItem.id),
+                       gRDF.GetResource(PREFIX_NS_EM + "action"),
+                       gRDF.GetLiteral("installing"),
+                       true);
+      // Remember that we don't want to change panes for this install
+      gPendingInstalls.push(details.URL);
+      InstallTrigger.install(params, function(url, status) { installCallback(aSelectedItem, status); });
+    },
+
     cmd_close: function (aSelectedItem)
     {
       closeWindow(true);
@@ -1938,20 +2391,27 @@ var gExtensionsViewController = {
     cmd_useTheme: function (aSelectedItem)
     {
       gCurrentTheme = aSelectedItem.getAttribute("internalName");
-      // Set this pref so the user can reset the theme in safe mode
-      gPref.setCharPref(PREF_EM_LAST_SELECTED_SKIN, gCurrentTheme);
 
-      if (gPref.getBoolPref(PREF_EXTENSIONS_DSS_ENABLED)) {
-        gPref.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, gCurrentTheme);
+      // If choosing the current skin just reset the pending change
+      if (gCurrentTheme == gPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN)) {
+        gPref.clearUserPref(PREF_EXTENSIONS_DSS_SWITCHPENDING);
+        gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
+        clearRestartMessage();
       }
       else {
-        // Theme change will happen on next startup, this flag tells
-        // the Theme Manager that it needs to show "This theme will
-        // be selected after a restart" text in the selected theme
-        // item.
-        gPref.setBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING, true);
-        // Update the view
-        setRestartMessage(aSelectedItem);
+        if (gPref.getBoolPref(PREF_EXTENSIONS_DSS_ENABLED)) {
+          gPref.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, gCurrentTheme);
+        }
+        else {
+          // Theme change will happen on next startup, this flag tells
+          // the Theme Manager that it needs to show "This theme will
+          // be selected after a restart" text in the selected theme
+          // item.
+          gPref.setBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING, true);
+          gPref.setCharPref(PREF_DSS_SKIN_TO_SELECT, gCurrentTheme);
+          clearRestartMessage();
+          setRestartMessage(aSelectedItem);
+        }
       }
 
       // Flush preference change to disk
@@ -1996,12 +2456,8 @@ var gExtensionsViewController = {
       if (!aSelectedItem) return;
       var homepageURL = aSelectedItem.getAttribute("homepageURL");
       // only allow http(s) homepages
-      try {
-        var uri = makeURI(homepageURL);
-        var scheme = uri.scheme;
-      } catch (ex) {}
-      if (uri && (scheme == "http" || scheme == "https"))
-        openURL(uri.spec);
+      if (isSafeURI(homepageURL))
+        openURL(homepageURL);
     },
 
     cmd_about: function (aSelectedItem)
@@ -2065,30 +2521,54 @@ var gExtensionsViewController = {
         return;
 
       if (aSelectedItem.type == nsIUpdateItem.TYPE_THEME) {
-        // If the theme being uninstalled is the current theme, we need to reselect
-        // the default. If it isn't change the selection before uninstall so the
-        // theme preview is updated since the theme will be removed immediately.
-        var currentTheme = gPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
-        if (aSelectedItem.getAttribute("internalName") == currentTheme)
-          this.cmd_useTheme(document.getElementById(PREFIX_ITEM_URI + "{972ce4c6-7e08-4474-a285-3208198ce6fd}"));
-        else if (!gExtensionsView.goDown())
-          gExtensionsView.goUp();
+        var theme = aSelectedItem.getAttribute("internalName");
+        var selectedTheme = gPref.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
+        if (theme == gCurrentTheme) {
+          if (gPref.getBoolPref(PREF_EXTENSIONS_DSS_SWITCHPENDING)) {
+            var item = getItemForInternalName(selectedTheme);
+            if (item && item.getAttribute("opType") == OP_NEEDS_UNINSTALL) {
+              // We're uninstalling the theme to be switched to, but the current
+              // theme is already marked for uninstall so switch to the default
+              // theme
+              this.cmd_useTheme(document.getElementById(PREFIX_ITEM_URI + "{972ce4c6-7e08-4474-a285-3208198ce6fd}"));
+            }
+            else {
+              // The theme being uninstalled is the theme to be changed to on
+              // restart so clear the pending theme change.
+              gPref.clearUserPref(PREF_EXTENSIONS_DSS_SWITCHPENDING);
+              gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
+              clearRestartMessage();
+            }
+          }
+          else {
+            // The theme being uninstalled is the current theme, we need to reselect
+            // the default.
+            this.cmd_useTheme(document.getElementById(PREFIX_ITEM_URI + "{972ce4c6-7e08-4474-a285-3208198ce6fd}"));
+          }
+        }
+
+        // If the theme is not the current theme then it will vanish and nothing
+        // will be selected so update the selection now.
+        if (theme != selectedTheme) {
+          if (!gExtensionsView.goDown())
+            gExtensionsView.goUp();
+        }
       }
       gExtensionManager.uninstallItem(getIDFromResourceURI(aSelectedItem.id));
       gExtensionsViewController.onCommandUpdate();
-      updateGlobalCommands();
       if (gExtensionsView.selectedItem)
         gExtensionsView.selectedItem.focus();
       updateOptionalViews();
+      updateGlobalCommands();
     },
 
     cmd_cancelUninstall: function (aSelectedItem)
     {
       gExtensionManager.cancelUninstallItem(getIDFromResourceURI(aSelectedItem.id));
       gExtensionsViewController.onCommandUpdate();
-      updateGlobalCommands();
       gExtensionsView.selectedItem.focus();
       updateOptionalViews();
+      updateGlobalCommands();
     },
 
     cmd_cancelInstall: function (aSelectedItem)
@@ -2114,9 +2594,9 @@ var gExtensionsViewController = {
 
       gExtensionManager.cancelInstallItem(getIDFromResourceURI(aSelectedItem.id));
       gExtensionsViewController.onCommandUpdate();
-      updateGlobalCommands();
       gExtensionsView.selectedItem.focus();
       updateOptionalViews();
+      updateGlobalCommands();
     },
 
     cmd_cancelUpgrade: function (aSelectedItem)
@@ -2148,6 +2628,7 @@ var gExtensionsViewController = {
       gExtensionsViewController.onCommandUpdate();
       gExtensionsView.selectedItem.focus();
       updateOptionalViews();
+      updateGlobalCommands();
     },
 
     cmd_enable: function (aSelectedItem)
@@ -2163,6 +2644,7 @@ var gExtensionsViewController = {
       gExtensionsViewController.onCommandUpdate();
       gExtensionsView.selectedItem.focus();
       updateOptionalViews();
+      updateGlobalCommands();
     }
   }
 };

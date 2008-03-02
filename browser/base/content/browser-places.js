@@ -1,46 +1,50 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Places Browser Integration
- *
- * The Initial Developer of the Original Code is Google Inc.
- * Portions created by the Initial Developer are Copyright (C) 2006
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Ben Goodger <beng@google.com>
- *   Annie Sullivan <annie.sullivan@gmail.com>
- *   Joe Hughes <joe@retrovirus.com>
- *   Asaf Romano <mano@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Places Browser Integration
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <beng@google.com>
+#   Annie Sullivan <annie.sullivan@gmail.com>
+#   Joe Hughes <joe@retrovirus.com>
+#   Asaf Romano <mano@mozilla.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-var PlacesCommandHook = {
+
+var StarUI = {
+  _itemId: -1,
+  uri: null,
+  _batching: false,
+
   // nsISupports
-  QueryInterface: function PCH_QueryInterface(aIID) {
+  QueryInterface: function SU_QueryInterface(aIID) {
     if (aIID.equals(Ci.nsIDOMEventListener) ||
         aIID.equals(Ci.nsISupports))
       return this;
@@ -48,10 +52,14 @@ var PlacesCommandHook = {
     throw Cr.NS_NOINTERFACE;
   },
 
+  _element: function(aID) {
+    return document.getElementById(aID);
+  },
+
   // Edit-bookmark panel
   get panel() {
     delete this.panel;
-    var element = document.getElementById("editBookmarkPanel");
+    var element = this._element("editBookmarkPanel");
     // initially the panel is hidden
     // to avoid impacting startup / new window performance
     element.hidden = false;
@@ -62,10 +70,12 @@ var PlacesCommandHook = {
 
   // list of command elements (by id) to disable when the panel is opened
   _blockedCommands: ["cmd_close", "cmd_closeWindow"],
-
-  _blockCommands: function PCH__blockCommands() {
+  _blockCommands: function SU__blockCommands() {
     for each(var key in this._blockedCommands) {
-      var elt = document.getElementById(key);
+      var elt = this._element(key);
+      // make sure not to permanently disable this item (see bug 409155)
+      if (elt.hasAttribute("wasDisabled"))
+        continue;
       if (elt.getAttribute("disabled") == "true")
         elt.setAttribute("wasDisabled", "true");
       else {
@@ -75,9 +85,9 @@ var PlacesCommandHook = {
     }
   },
 
-  _restoreCommandsState: function PCH__restoreCommandsState() {
+  _restoreCommandsState: function SU__restoreCommandsState() {
     for each(var key in this._blockedCommands) {
-      var elt = document.getElementById(key);
+      var elt = this._element(key);
       if (elt.getAttribute("wasDisabled") != "true")
         elt.removeAttribute("disabled");
       elt.removeAttribute("wasDisabled");
@@ -85,21 +95,31 @@ var PlacesCommandHook = {
   },
 
   // nsIDOMEventListener
-  handleEvent: function PCH_handleEvent(aEvent) {
+  handleEvent: function SU_handleEvent(aEvent) {
     switch (aEvent.type) {
       case "popuphidden":
         if (aEvent.originalTarget == this.panel) {
-          gEditItemOverlay.uninitPanel(true);
+          if (!this._element("editBookmarkPanelContent").hidden)
+            gEditItemOverlay.uninitPanel(true);
           this._restoreCommandsState();
+          this._itemId = -1;
+          this._uri = null;
+          if (this._batching) {
+            PlacesUtils.ptm.endBatch();
+            this._batching = false;
+          }
         }
         break;
       case "keypress":
-        if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE ||
-            aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
-          // focus the content area and hide the panel
-          window.content.focus();
-          this.panel.hidePopup();
+        if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE) {
+          // In edit mode, the ESC key is mapped to the cancel button
+          if (!this._element("editBookmarkPanelContent").hidden)
+            this.cancelButtonOnCommand();
+          else // otherwise we just hide the panel
+            this.panel.hidePopup();
         }
+        else if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN)
+          this.panel.hidePopup(); // hide the panel
         break;
     }
   },
@@ -107,7 +127,7 @@ var PlacesCommandHook = {
   _overlayLoaded: false,
   _overlayLoading: false,
   showEditBookmarkPopup:
-  function PCH_showEditBookmarkPopup(aItemId, aAnchorElement, aPosition) {
+  function SU_showEditBookmarkPopup(aItemId, aAnchorElement, aPosition) {
     // Performance: load the overlay the first time the panel is opened
     // (see bug 392443).
     if (this._overlayLoading)
@@ -124,13 +144,10 @@ var PlacesCommandHook = {
       _anchorElement: aAnchorElement,
       _position: aPosition,
       observe: function (aSubject, aTopic, aData) {
-        // scripts within the overlay are compiled after this is called :(
-        setTimeout(function(aSelf) {
-          aSelf._self._overlayLoading = false;
-          aSelf._self._overlayLoaded = true;
-          aSelf._self._doShowEditBookmarkPanel(aItemId, aSelf._anchorElement,
-                                               aSelf._position);
-        }, 0, this);
+        this._self._overlayLoading = false;
+        this._self._overlayLoaded = true;
+        this._self._doShowEditBookmarkPanel(this._itemId, this._anchorElement,
+                                            this._position);
       }
     };
     this._overlayLoading = true;
@@ -139,26 +156,195 @@ var PlacesCommandHook = {
   },
 
   _doShowEditBookmarkPanel:
-  function PCH__doShowEditBookmarkPanel(aItemId, aAnchorElement, aPosition) {
+  function SU__doShowEditBookmarkPanel(aItemId, aAnchorElement, aPosition) {
     this._blockCommands(); // un-done in the popuphiding handler
 
-    // Consume dismiss clicks, see bug 400924
-    this.panel.popupBoxObject
-        .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
-    this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
+    var bundle = this._element("bundle_browser");
 
-    gEditItemOverlay.initPanel(aItemId,
+    // "Page Bookmarked" title
+    this._element("editBookmarkPanelTitle").value =
+      bundle.getString("editBookmarkPanel.pageBookmarkedTitle");
+
+    // No description; show the Done, Cancel;
+    // hide the Edit, Undo buttons
+    this._element("editBookmarkPanelDescription").textContent = "";
+    this._element("editBookmarkPanelBottomButtons").hidden = false;
+    this._element("editBookmarkPanelContent").hidden = false;
+    this._element("editBookmarkPanelEditButton").hidden = true;
+    this._element("editBookmarkPanelUndoRemoveButton").hidden = true;
+
+    // The remove button is shown only if we're not already batching, i.e.
+    // if the cancel button/ESC does not remove the bookmark.
+    this._element("editBookmarkPanelRemoveButton").hidden = this._batching;
+
+    // unset the unstarred state, if set
+    this._element("editBookmarkPanelStarIcon").removeAttribute("unstarred");
+
+    this._itemId = aItemId !== undefined ? aItemId : this._itemId;
+    this.beginBatch();
+
+    // XXXmano hack: We push a no-op transaction on the stack so it's always
+    // safe for the Cancel button to call undoTransaction after endBatch.
+    // Otherwise, if no changes were done in the edit-item panel, the last
+    // transaction on the undo stack may be the initial createItem transaction,
+    // or worse, the batched editing of some other item.
+    PlacesUtils.ptm.doTransaction({ doTransaction: function() { },
+                                    undoTransaction: function() { },
+                                    redoTransaction: function() { },
+                                    isTransient: false,
+                                    merge: function() { return false; } });
+
+    if (this.panel.state == "closed") {
+      // Consume dismiss clicks, see bug 400924
+      this.panel.popupBoxObject
+          .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+      this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
+    }
+    else {
+      var namePicker = this._element("editBMPanel_namePicker");
+      namePicker.focus();
+      namePicker.editor.selectAll();
+    }
+
+    gEditItemOverlay.initPanel(this._itemId,
                                { hiddenRows: ["description", "location",
                                               "loadInSidebar", "keyword"] });
   },
 
-  editBookmarkPanelShown:
-  function PCH__doShowEditBookmarkPanel() {
-    var namePicker = document.getElementById("editBMPanel_namePicker");
-    namePicker.focus();
-    namePicker.editor.selectAll();
+  panelShown:
+  function SU_panelShown(aEvent) {
+    if (aEvent.target == this.panel) {
+      if (!this._element("editBookmarkPanelContent").hidden) {
+        var namePicker = this._element("editBMPanel_namePicker");
+        namePicker.focus();
+        namePicker.editor.selectAll();
+      }
+      else
+        this.panel.focus();
+    }
   },
 
+  showPageBookmarkedNotification:
+  function PCH_showPageBookmarkedNotification(aItemId, aAnchorElement, aPosition) {
+    this._blockCommands(); // un-done in the popuphiding handler
+
+    var bundle = this._element("bundle_browser");
+    var brandBundle = this._element("bundle_brand");
+    var brandShortName = brandBundle.getString("brandShortName");
+
+    // "Page Bookmarked" title
+    this._element("editBookmarkPanelTitle").value =
+      bundle.getString("editBookmarkPanel.pageBookmarkedTitle");
+
+    // description
+    this._element("editBookmarkPanelDescription").textContent =
+      bundle.getFormattedString("editBookmarkPanel.pageBookmarkedDescription",
+                                [brandShortName]);
+
+    // hide the edit panel and the buttons below to it (Cancel, Done)
+    this._element("editBookmarkPanelContent").hidden = true;
+    this._element("editBookmarkPanelBottomButtons").hidden = true;
+
+    // show the "Edit.." button and the Remove Bookmark button, hide the
+    // undo-remove-bookmark button.
+    this._element("editBookmarkPanelEditButton").hidden = false;
+    this._element("editBookmarkPanelRemoveButton").hidden = false;
+    this._element("editBookmarkPanelUndoRemoveButton").hidden = true;
+
+    // unset the unstarred state, if set
+    this._element("editBookmarkPanelStarIcon").removeAttribute("unstarred");
+
+    this._itemId = aItemId !== undefined ? aItemId : this._itemId;
+    if (this.panel.state == "closed") {
+      // Consume dismiss clicks, see bug 400924
+      this.panel.popupBoxObject
+          .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+      this.panel.openPopup(aAnchorElement, aPosition, -1, -1);
+    }
+    else
+      this.panel.focus();
+  },
+
+  editButtonCommand: function SU_editButtonCommand() {
+    this.showEditBookmarkPopup();
+  },
+
+  cancelButtonOnCommand: function SU_cancelButtonOnCommand() {
+    this.endBatch();
+    PlacesUtils.ptm.undoTransaction();
+    this.panel.hidePopup();
+  },
+
+  removeBookmarkButtonCommand: function SU_removeBookmarkButtonCommand() {
+#ifdef ADVANCED_STARRING_UI
+    // In minimal mode ("page bookmarked" notification), the bookmark
+    // is removed and the panel is hidden immediately. In full edit mode,
+    // a "Bookmark Removed" notification along with an Undo button is
+    // shown
+    if (this._batching) {
+      PlacesUtils.ptm.endBatch();
+      PlacesUtils.ptm.beginBatch(); // allow undo from within the notification
+      var bundle = this._element("bundle_browser");
+
+      // "Bookmark Removed" title (the description field is already empty in
+      // this mode)
+      this._element("editBookmarkPanelTitle").value =
+        bundle.getString("editBookmarkPanel.bookmarkedRemovedTitle");
+      // hide the edit fields, the buttons below to and the remove bookmark
+      // button. Show the undo-remove-bookmark button.
+      this._element("editBookmarkPanelContent").hidden = true;
+      this._element("editBookmarkPanelBottomButtons").hidden = true;
+      this._element("editBookmarkPanelUndoRemoveButton").hidden = false;
+      this._element("editBookmarkPanelRemoveButton").hidden = true;
+      this._element("editBookmarkPanelStarIcon").setAttribute("unstarred", "true");
+      this.panel.focus();
+    }
+#endif
+
+    // cache its uri so we can get the new itemId in the case of undo
+    this._uri = PlacesUtils.bookmarks.getBookmarkURI(this._itemId);
+
+    // remove all bookmarks for the bookmark's url, this also removes
+    // the tags for the url
+    var itemIds = PlacesUtils.getBookmarksForURI(this._uri);
+    for (var i=0; i < itemIds.length; i++) {
+      var txn = PlacesUtils.ptm.removeItem(itemIds[i]);
+      PlacesUtils.ptm.doTransaction(txn);
+    }
+
+#ifdef ADVANCED_STARRING_UI
+    // hidePopup resets our itemId, thus we call it only after removing
+    // the bookmark
+    if (!this._batching)
+#endif
+      this.panel.hidePopup();
+  },
+
+  undoRemoveBookmarkCommand: function SU_undoRemoveBookmarkCommand() {
+    // restore the bookmark by undoing the last transaction and go back
+    // to the edit state
+    this.endBatch();
+    PlacesUtils.ptm.undoTransaction();
+    this._itemId = PlacesUtils.getMostRecentBookmarkForURI(this._uri);
+    this.showEditBookmarkPopup();
+  },
+
+  beginBatch: function SU_beginBatch() {
+    if (!this._batching) {
+      PlacesUtils.ptm.beginBatch();
+      this._batching = true;
+    }
+  },
+
+  endBatch: function SU_endBatch() {
+    if (this._batching) {
+      PlacesUtils.ptm.endBatch();
+      this._batching = false;
+    }
+  }
+}
+
+var PlacesCommandHook = {
   /**
    * Adds a bookmark to the page loaded in the given browser.
    *
@@ -185,10 +371,17 @@ var PlacesCommandHook = {
       var title;
       var description;
       try {
-        title = webNav.document.title;
+        title = webNav.document.title || url.spec;
         description = PlacesUtils.getDescriptionFromDocument(webNav.document);
       }
       catch (e) { }
+
+      if (aShowEditUI) {
+        // If we bookmark the page here (i.e. page was not "starred" already)
+        // but open right into the "edit" state, start batching here, so
+        // "Cancel" in that state removes the bookmark.
+        StarUI.beginBatch();
+      }
 
       var parent = aParent != undefined ?
                    aParent : PlacesUtils.unfiledBookmarksFolderId;
@@ -196,22 +389,25 @@ var PlacesCommandHook = {
       var txn = PlacesUtils.ptm.createItem(uri, parent, -1,
                                            title, null, [descAnno]);
       PlacesUtils.ptm.doTransaction(txn);
-      if (aShowEditUI)
-        itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
+      itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
     }
 
-    if (aShowEditUI) {
-      // dock the panel to the star icon when possible, otherwise dock
-      // it to the content area
-      if (aBrowser.contentWindow == window.content) {
-        var starIcon = aBrowser.ownerDocument.getElementById("star-button");
-        if (starIcon && isElementVisible(starIcon)) {
-          this.showEditBookmarkPopup(itemId, starIcon, "after_start");
-          return;
-        }
+    // dock the panel to the star icon when possible, otherwise dock
+    // it to the content area
+    if (aBrowser.contentWindow == window.content) {
+      var starIcon = aBrowser.ownerDocument.getElementById("star-button");
+      if (starIcon && isElementVisible(starIcon)) {
+        if (aShowEditUI)
+          StarUI.showEditBookmarkPopup(itemId, starIcon, "after_end");
+#ifdef ADVANCED_STARRING_UI
+        else
+          StarUI.showPageBookmarkedNotification(itemId, starIcon, "after_end");
+#endif
+        return;
       }
-      this.showEditBookmarkPopup(itemId, aBrowser, "overlap");
     }
+
+    StarUI.showEditBookmarkPopup(itemId, aBrowser, "overlap");
   },
 
   /**
@@ -232,15 +428,16 @@ var PlacesCommandHook = {
    *        The link text
    */
   bookmarkLink: function PCH_bookmarkLink(aParent, aURL, aTitle) {
-    var linkURI = IO.newURI(aURL)
+    var linkURI = makeURI(aURL);
     var itemId = PlacesUtils.getMostRecentBookmarkForURI(linkURI);
     if (itemId == -1) {
       var txn = PlacesUtils.ptm.createItem(linkURI, aParent, -1, aTitle);
-      PlacesUtils.ptm.commitTransaction(txn);
+      PlacesUtils.ptm.doTransaction(txn);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(linkURI);
+      StarUI.beginBatch();
     }
 
-    this.showEditBookmarkPopup(itemId, getBrowser(), "overlap");
+    StarUI.showEditBookmarkPopup(itemId, getBrowser(), "overlap");
   },
 
   /**
@@ -331,10 +528,6 @@ var PlacesCommandHook = {
       organizer.PlacesOrganizer.selectLeftPaneQuery(aLeftPaneRoot);
       organizer.focus();
     }
-  },
-
-  doneButtonOnCommand: function PCH_doneButtonOnCommand() {
-    this.panel.hidePopup();
   },
 
   deleteButtonOnCommand: function PCH_deleteButtonCommand() {
@@ -487,11 +680,16 @@ var BookmarksEventHandler = {
           var openHomePage = document.createElement("menuitem");
           openHomePage.setAttribute("siteURI", siteURIString);
           openHomePage.setAttribute("oncommand",
-                                    "openUILink(this.getAttribute('siteURI'), event);");
-          openHomePage.setAttribute(
-            "label",
-            PlacesUtils.getFormattedString("menuOpenLivemarkOrigin.label",
-                                           [target.parentNode.getAttribute("label")]));
+              "openUILink(this.getAttribute('siteURI'), event);");
+          // If a user middle-clicks this item we serve the oncommand event
+          // We are using checkForMiddleClick because of Bug 246720
+          // Note: stopPropagation is needed to avoid serving middle-click 
+          // with BT_onClick that would open all items in tabs
+          openHomePage.setAttribute("onclick",
+              "checkForMiddleClick(this, event); event.stopPropagation();");
+          openHomePage.setAttribute("label",
+              PlacesUtils.getFormattedString("menuOpenLivemarkOrigin.label",
+              [target.parentNode.getAttribute("label")]));
           target.appendChild(openHomePage);
         }
 
@@ -560,8 +758,9 @@ var BookmarksMenuDropHandler = {
   getSupportedFlavours: function BMDH_getSupportedFlavours() {
     var flavorSet = new FlavourSet();
     var view = document.getElementById("bookmarksMenuPopup");
-    for (var i = 0; i < view.peerDropTypes.length; ++i)
-      flavorSet.appendFlavour(view.peerDropTypes[i]);
+    var types = PlacesUtils.GENERIC_VIEW_DROP_TYPES
+    for (var i = 0; i < types.length; ++i)
+      flavorSet.appendFlavour(types[i]);
     return flavorSet;
   }, 
 
@@ -576,7 +775,7 @@ var BookmarksMenuDropHandler = {
    */
   canDrop: function BMDH_canDrop(event, session) {
     var view = document.getElementById("bookmarksMenuPopup");
-    return PlacesControllerDragHelper.canDrop(view, -1);
+    return PlacesControllerDragHelper.canDrop(view._viewer, -1);
   },
   
   /**
@@ -590,11 +789,9 @@ var BookmarksMenuDropHandler = {
    */
   onDrop: function BMDH_onDrop(event, data, session) {
     var view = document.getElementById("bookmarksMenuPopup");
-
-    // The insertion point for a menupopup view should be -1 during a drag
-    // & drop operation.
-    NS_ASSERT(view.insertionPoint.index == -1, "Insertion point for an menupopup view during a drag must be -1!");
-    PlacesControllerDragHelper.onDrop(null, view, view.insertionPoint, 1);
+    // Put the item at the end of bookmark menu
+    var ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId, -1);
+    PlacesControllerDragHelper.onDrop(ip);
     view._rebuild();
   }
 };

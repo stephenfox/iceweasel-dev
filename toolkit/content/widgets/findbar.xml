@@ -45,6 +45,8 @@
 <!DOCTYPE bindings [
 <!ENTITY % findBarDTD SYSTEM "chrome://global/locale/findbar.dtd" >
 %findBarDTD;
+<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+%globalDTD;
 ]>
 
 <bindings id="findbarBindings"
@@ -217,22 +219,26 @@
                 class="find-field-container findbar-find-fast">
         <xul:textbox class="findbar-textbox" anonid="findbar-textbox"/>
       </xul:hbox>
-      <xul:toolbarbutton anonid="find-next"
-                         class="findbar-find-next tabbable"
-                         label="&next.label;"
-                         accesskey="&next.accesskey;"
-                         tooltiptext="&next.tooltip;"
-                         oncommand="onFindAgainCommand(false);"
-                         disabled="true"
-                         xbl:inherits="accesskey=findnextaccesskey"/>
-      <xul:toolbarbutton anonid="find-previous"
-                         class="findbar-find-previous tabbable"
-                         label="&previous.label;"
-                         accesskey="&previous.accesskey;"
-                         tooltiptext="&previous.tooltip;"
-                         oncommand="onFindAgainCommand(true);"
-                         disabled="true"
-                         xbl:inherits="accesskey=findpreviousaccesskey"/>
+      <xul:hbox anonid="find-buttons-container" class="find-buttons-container">
+        <xul:toolbarbutton anonid="find-next"
+                           class="findbar-find-next tabbable"
+                           label="&next.label;"
+                           accesskey="&next.accesskey;"
+                           tooltiptext="&next.tooltip;"
+                           oncommand="onFindAgainCommand(false);"
+                           disabled="true"
+                           chromedir="&locale.dir;"
+                           xbl:inherits="accesskey=findnextaccesskey"/>
+        <xul:toolbarbutton anonid="find-previous"
+                           class="findbar-find-previous tabbable"
+                           label="&previous.label;"
+                           accesskey="&previous.accesskey;"
+                           tooltiptext="&previous.tooltip;"
+                           oncommand="onFindAgainCommand(true);"
+                           disabled="true"
+                           chromedir="&locale.dir;"
+                           xbl:inherits="accesskey=findpreviousaccesskey"/>
+      </xul:hbox>
       <xul:toolbarbutton anonid="highlight"
                          class="findbar-highlight tabbable"
                          label="&highlight.label;"
@@ -344,6 +350,8 @@
             case "accessibility.typeaheadfind.casesensitive":
               this._self._typeAheadCaseSensitive = prefsvc.getIntPref(aPrefName);
               this._self._updateCaseSensitivity();
+              if (this._self.getElement("highlight").checked)
+                this._self._setHighlightTimeout();
               break;
           }
         }

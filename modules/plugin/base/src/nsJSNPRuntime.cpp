@@ -42,6 +42,7 @@
 #include "nsPIPluginInstancePeer.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
+#include "nsDOMJSUtils.h"
 #include "nsIDocument.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIJSContextStack.h"
@@ -265,7 +266,22 @@ struct AutoCXPusher
 
   ~AutoCXPusher()
   {
-    sContextStack->Pop(nsnull);
+    JSContext *cx = nsnull;
+    sContextStack->Pop(&cx);
+
+    JSContext *currentCx = nsnull;
+    sContextStack->Peek(&currentCx);
+
+    if (!currentCx) {
+      // No JS is running, tell the context we're done executing
+      // script.
+
+      nsIScriptContext *scx = GetScriptContextFromJSContext(cx);
+
+      if (scx) {
+        scx->ScriptEvaluated(PR_TRUE);
+      }
+    }
 
     OnWrapperDestroyed();
   }
@@ -835,22 +851,22 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier identifier)
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
+  jsval deleted = JSVAL_FALSE;
 
   if (JSVAL_IS_STRING(id)) {
     JSString *str = JSVAL_TO_STRING(id);
 
-    jsval unused;
     ok = ::JS_DeleteUCProperty2(cx, npjsobj->mJSObj, ::JS_GetStringChars(str),
-                                ::JS_GetStringLength(str), &unused);
+                                ::JS_GetStringLength(str), &deleted);
   } else {
     NS_ASSERTION(JSVAL_IS_INT(id), "id must be either string or int!\n");
 
-    ok = ::JS_DeleteElement(cx, npjsobj->mJSObj, JSVAL_TO_INT(id));
+    ok = ::JS_DeleteElement2(cx, npjsobj->mJSObj, JSVAL_TO_INT(id), &deleted);
   }
 
   // return ok == JS_TRUE to quiet down compiler warning, even if
   // return ok is what we really want.
-  return ok == JS_TRUE;
+  return ok == JS_TRUE && deleted == JSVAL_TRUE;
 }
 
 //static

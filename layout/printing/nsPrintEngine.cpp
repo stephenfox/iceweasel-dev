@@ -597,9 +597,14 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
           // are telling GFX we want to print silent
           printSilently = PR_TRUE;
         }
+        // The user might have changed shrink-to-fit in the print dialog, so update our copy of its state
+        mPrt->mPrintSettings->GetShrinkToFit(&mPrt->mShrinkToFit);
       } else {
         rv = NS_ERROR_GFX_NO_PRINTROMPTSERVICE;
       }
+    } else {
+      // Call any code that requires a run of the event loop.
+      rv = mPrt->mPrintSettings->SetupSilentPrinting();
     }
     // Check explicitly for abort because it's expected
     if (rv == NS_ERROR_ABORT) 
@@ -1704,12 +1709,23 @@ nsPrintEngine::SetupToPrintContent()
   // Don't start printing when regression test are executed  
   if (!mPrt->mDebugFilePtr && mIsDoingPrinting) {
     rv = mPrt->mPrintDC->BeginDocument(docTitleStr, fileName, startPage, endPage);
+  } 
+
+  if (mIsDoingPrintPreview) {
+    // Print Preview -- Pass ownership of docTitleStr and docURLStr
+    // to the pageSequenceFrame, to be displayed in the header
+    nsIPageSequenceFrame *seqFrame = nsnull;
+    mPrt->mPrintObject->mPresShell->GetPageSequenceFrame(&seqFrame);
+    if (seqFrame) {
+      seqFrame->StartPrint(mPrt->mPrintObject->mPresContext, 
+                           mPrt->mPrintSettings, docTitleStr, docURLStr);
+    }
+  } else {
+    if (docTitleStr) nsMemory::Free(docTitleStr);
+    if (docURLStr) nsMemory::Free(docURLStr);
   }
 
   PR_PL(("****************** Begin Document ************************\n"));
-
-  if (docTitleStr) nsMemory::Free(docTitleStr);
-  if (docURLStr) nsMemory::Free(docURLStr);
 
   NS_ENSURE_SUCCESS(rv, rv);
 

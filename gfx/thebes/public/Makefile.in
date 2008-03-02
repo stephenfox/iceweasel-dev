@@ -17,6 +17,7 @@ EXPORTS		= 	gfxASurface.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \
+			gfxFontUtils.h \
 			gfxImageSurface.h \
 			gfxMatrix.h \
 			gfxPath.h \
@@ -65,6 +66,7 @@ EXPORTS	+=	gfxOS2Surface.h \
 		gfxOS2Platform.h \
 		gfxOS2Fonts.h \
 		$(NULL)
+EXPORTS +=	gfxPDFSurface.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)

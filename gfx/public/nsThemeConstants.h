@@ -32,14 +32,17 @@
 // A dual toolbar button (e.g., a Back button with a dropdown)
 #define NS_THEME_TOOLBAR_DUAL_BUTTON                       14
 
-// The dropdown portion of a dual toolbar button
-#define NS_THEME_TOOLBAR_DUAL_BUTTON_DROPDOWN              15
+// The dropdown portion of a toolbar button
+#define NS_THEME_TOOLBAR_BUTTON_DROPDOWN                   15
 
 // A separator.  Can be horizontal or vertical.
 #define NS_THEME_TOOLBAR_SEPARATOR                         16
 
 // The gripper for a toolbar.
 #define NS_THEME_TOOLBAR_GRIPPER                           17
+
+// A splitter.  Can be horizontal or vertical.
+#define NS_THEME_SPLITTER                                  19
 
 // A status bar in a main application window.
 #define NS_THEME_STATUSBAR                                 21
@@ -122,6 +125,9 @@
 
 // The down button of a spin control
 #define NS_THEME_SPINNER_DOWN_BUTTON                       74
+
+// The textfield of a spin control
+#define NS_THEME_SPINNER_TEXTFIELD                         75
 
 // A scrollbar.
 #define NS_THEME_SCROLLBAR                                 80

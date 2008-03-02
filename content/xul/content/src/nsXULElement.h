@@ -254,6 +254,7 @@ public:
 
     virtual ~nsXULPrototypeElement()
     {
+        UnlinkJSObjects();
         Unlink();
         NS_ASSERTION(!mChildren && mNumChildren == 0,
                      "ReleaseSubtree not called");
@@ -289,6 +290,7 @@ public:
 
     nsresult SetAttrAt(PRUint32 aPos, const nsAString& aValue, nsIURI* aDocumentURI);
 
+    void UnlinkJSObjects();
     void Unlink();
 
     PRUint32                 mNumChildren;
@@ -359,7 +361,7 @@ public:
                      nsIDocument* aDocument,
                      nsIScriptGlobalObjectOwner* aGlobalOwner);
 
-    void Unlink()
+    void UnlinkJSObjects()
     {
         if (mScriptObject.mObject) {
             nsContentUtils::DropScriptObjects(mScriptObject.mLangID, this,
@@ -547,7 +549,6 @@ public:
 
     // nsIContent
     virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-    virtual void SetNativeAnonymous(PRBool aAnonymous);
     virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
     virtual nsIAtom *GetIDAttributeName() const;
     virtual nsIAtom *GetClassAttributeName() const;
@@ -717,6 +718,8 @@ protected:
     void SetTitlebarColor(nscolor aColor);
 
     const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
+
+    void RemoveBroadcaster(const nsAString & broadcasterId);
 
 protected:
     // Internal accessor. This shadows the 'Slots', and returns

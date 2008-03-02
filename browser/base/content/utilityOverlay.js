@@ -422,7 +422,7 @@ function checkForUpdates()
   // UI instead and let the user know they have to restart the browser for
   // the changes to be applied. 
   if (um.activeUpdate && um.activeUpdate.state == "pending")
-    prompter.showUpdateDownloaded(um.activeUpdate, false);
+    prompter.showUpdateDownloaded(um.activeUpdate);
   else
     prompter.checkForUpdates();
 }
@@ -493,6 +493,12 @@ function isElementVisible(aElement)
   // height, width or both will be 0.
   var bo = aElement.boxObject;
   return (bo.height > 0 && bo.width > 0);
+}
+
+function makeURLAbsolute(aBase, aUrl)
+{
+  // Note:  makeURI() will throw if aUri is not a valid URI
+  return makeURI(aUrl, null, makeURI(aBase)).spec;
 }
 
 function getBrowserFromContentWindow(aContentWindow)

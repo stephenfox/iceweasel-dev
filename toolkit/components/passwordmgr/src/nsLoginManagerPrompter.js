@@ -229,6 +229,8 @@ LoginManagerPrompter.prototype = {
             return ok;
 
         try {
+            var [username, password] = this._GetAuthInfo(aAuthInfo);
+
             // If there's a notification box, use it to allow the user to
             // determine if the login should be saved. If there isn't a
             // notification box, only save the login if the user set the
@@ -239,16 +241,14 @@ LoginManagerPrompter.prototype = {
                 var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
                                createInstance(Ci.nsILoginInfo);
                 newLogin.init(hostname, null, httpRealm,
-                              aAuthInfo.username, aAuthInfo.password,
-                              "", "");
+                              username, password, "", "");
 
                 // If we didn't find an existing login, or if the username
                 // changed, save as a new login.
-                if (!selectedLogin ||
-                    aAuthInfo.username != selectedLogin.username) {
+                if (!selectedLogin || username != selectedLogin.username) {
 
                     // add as new
-                    this.log("New login seen for " + aAuthInfo.username +
+                    this.log("New login seen for " + username +
                              " @ " + hostname + " (" + httpRealm + ")");
                     if (notifyBox)
                         this._showSaveLoginNotification(notifyBox, newLogin);
@@ -256,9 +256,9 @@ LoginManagerPrompter.prototype = {
                         this._pwmgr.addLogin(newLogin);
 
                 } else if (selectedLogin &&
-                           aAuthInfo.password != selectedLogin.password) {
+                           password != selectedLogin.password) {
 
-                    this.log("Updating password for " + aAuthInfo.username +
+                    this.log("Updating password for " + username +
                              " @ " + hostname + " (" + httpRealm + ")");
                     // update password
                     this._pwmgr.modifyLogin(foundLogins[0], newLogin);
@@ -381,18 +381,18 @@ LoginManagerPrompter.prototype = {
         this.log("Adding new save-password notification bar");
         var newBar = aNotifyBox.appendNotification(
                                 notificationText, "password-save",
-                                null, priority, buttons);
+                                "chrome://mozapps/skin/passwordmgr/key.png",
+                                priority, buttons);
 
         // The page we're going to hasn't loaded yet, so we want to persist
         // across the first location change.
-        newBar.ignoreFirstLocationChange = true;
+        newBar.persistence++;
 
         // Sites like Gmail perform a funky redirect dance before you end up
         // at the post-authentication page. I don't see a good way to
         // heuristically determine when to ignore such location changes, so
         // we'll try ignoring location changes based on a time interval.
-        var now = Date.now() / 1000;
-        newBar.ignoreLocationChangeTimeout = now + 10; // 10 seconds
+        newBar.timeout = Date.now() + 20000; // 20 seconds
 
         if (oldBar) {
             this.log("(...and removing old save-password notification bar)");
@@ -613,10 +613,10 @@ LoginManagerPrompter.prototype = {
 
 
     /*
-     * _getLocalisedString
+     * _getLocalizedString
      *
      * Can be called as:
-     *   _getLocalisedString("key1");
+     *   _getLocalizedString("key1");
      *   _getLocalizedString("key2", ["arg1"]);
      *   _getLocalizedString("key3", ["arg1", "arg2"]);
      *   (etc)
@@ -706,6 +706,29 @@ LoginManagerPrompter.prototype = {
         return [hostname, realm];
     },
 
+
+    /**
+     * Returns [username, password] as extracted from aAuthInfo (which
+     * holds this info after having prompted the user).
+     *
+     * If the authentication was for a Windows domain, we'll prepend the
+     * return username with the domain. (eg, "domain\user")
+     */
+    _GetAuthInfo : function (aAuthInfo) {
+        var username, password;
+
+        var flags = aAuthInfo.flags;
+        if (flags & Ci.nsIAuthInformation.NEED_DOMAIN)
+            username = aAuthInfo.domain + "\\" + aAuthInfo.username;
+        else
+            username = aAuthInfo.username;
+
+        password = aAuthInfo.password;
+
+        return [username, password];
+    },
+
+
     /**
      * Given a username (possibly in DOMAIN\user form) and password, parses the
      * domain out of the username if necessary and sets domain, username and
@@ -734,5 +757,3 @@ var component = [LoginManagerPromptFactory, LoginManagerPrompter];
 function NSGetModule(compMgr, fileSpec) {
     return XPCOMUtils.generateModule(component);
 }
-
-

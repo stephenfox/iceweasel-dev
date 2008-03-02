@@ -201,6 +201,12 @@ public:
                                        nsIFrame* aCommonAncestor = nsnull);
 
   /**
+   * GetLastContinuationWithChild gets the last continuation in aFrame's chain
+   * that has a child, or the first continuation if the frame has no children.
+   */
+  static nsIFrame* GetLastContinuationWithChild(nsIFrame* aFrame);
+
+  /**
    * GetLastSibling simply finds the last sibling of aFrame, or returns nsnull if
    * aFrame is null.
    */
@@ -501,6 +507,12 @@ public:
    * Find the nearest ancestor that's a block
    */
   static nsBlockFrame* FindNearestBlockAncestor(nsIFrame* aFrame);
+
+  /**
+   * Cast aFrame to an nsBlockFrame* or return null if it's not
+   * an nsBlockFrame.
+   */
+  static nsBlockFrame* GetAsBlock(nsIFrame* aFrame);
   
   /**
    * If aFrame is an out of flow frame, return its placeholder, otherwise
@@ -741,6 +753,33 @@ public:
   static PRUint32 GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
                                           const nsStyleText* aStyleText,
                                           const nsStyleFont* aStyleFont);
+
+  /**
+   * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should
+   * disabled.
+   */
+#ifdef DEBUG
+  static PRBool sDisableGetUsedXAssertions;
+#endif
+};
+
+class nsAutoDisableGetUsedXAssertions
+{
+#ifdef DEBUG
+public:
+  nsAutoDisableGetUsedXAssertions()
+    : mOldValue(nsLayoutUtils::sDisableGetUsedXAssertions)
+  {
+    nsLayoutUtils::sDisableGetUsedXAssertions = PR_TRUE;
+  }
+  ~nsAutoDisableGetUsedXAssertions()
+  {
+    nsLayoutUtils::sDisableGetUsedXAssertions = mOldValue;
+  }
+
+private:
+  PRBool mOldValue;
+#endif  
 };
 
 #endif // nsLayoutUtils_h__

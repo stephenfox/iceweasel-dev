@@ -93,6 +93,7 @@
 #include "nsINestedURI.h"
 #include "nsIMutable.h"
 #include "nsIPropertyBag2.h"
+#include "nsIIDNService.h"
 
 // Helper, to simplify getting the I/O service.
 inline const nsGetServiceByContractIDWithError
@@ -300,6 +301,46 @@ NS_MakeAbsoluteURI(nsAString       &result,
 }
 
 /**
+ * This function is a helper function to get a scheme's default port.
+ */
+inline PRInt32
+NS_GetDefaultPort(const char *scheme,
+                  nsIIOService* ioService = nsnull)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIIOService> grip;
+  net_EnsureIOService(&ioService, grip);
+  if (!ioService)
+      return -1;
+ 
+  nsCOMPtr<nsIProtocolHandler> handler;
+  rv = ioService->GetProtocolHandler(scheme, getter_AddRefs(handler));
+  if (NS_FAILED(rv))
+    return -1;
+  PRInt32 port;
+  rv = handler->GetDefaultPort(&port);
+  return NS_SUCCEEDED(rv) ? port : -1;
+}
+
+/**
+ * This function is a helper function to apply the ToAscii conversion
+ * to a string
+ */
+inline PRBool
+NS_StringToACE(const nsACString &idn, nsACString &result)
+{
+  nsCOMPtr<nsIIDNService> idnSrv = do_GetService(NS_IDNSERVICE_CONTRACTID);
+  if (!idnSrv)
+    return PR_FALSE;
+  nsresult rv = idnSrv->ConvertUTF8toACE(idn, result);
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+  
+  return PR_TRUE;
+}
+
+/**
  * This function is a helper function to get a protocol's default port if the
  * URI does not specify a port explicitly. Returns -1 if this protocol has no
  * concept of ports or if there was an error getting the port.
@@ -324,19 +365,7 @@ NS_GetRealPort(nsIURI* aURI,
     if (NS_FAILED(rv))
         return -1;
 
-    nsCOMPtr<nsIIOService> grip;
-    rv = net_EnsureIOService(&ioService, grip);
-    if (!ioService)
-        return -1;
-
-    nsCOMPtr<nsIProtocolHandler> handler;
-    rv = ioService->GetProtocolHandler(scheme.get(), getter_AddRefs(handler));
-    if (NS_FAILED(rv))
-        return -1;
-
-    NS_ASSERTION(handler, "IO Service lied");
-    rv = handler->GetDefaultPort(&port);
-    return NS_SUCCEEDED(rv) ? port : -1;
+    return NS_GetDefaultPort(scheme.get());
 }
 
 inline nsresult
@@ -945,6 +974,33 @@ NS_NewBufferedOutputStream(nsIOutputStream **result,
             NS_ADDREF(*result = out);  // cannot use nsCOMPtr::swap
     }
     return rv;
+}
+
+/**
+ * Attempts to buffer a given output stream.  If this fails, it returns the
+ * passed-in output stream.
+ *
+ * @param aOutputStream
+ *        The output stream we want to buffer.  This cannot be null.
+ * @param aBufferSize
+ *        The size of the buffer for the buffered output stream.
+ * @returns an nsIOutputStream that is buffered with the specified buffer size,
+ *          or is aOutputStream if creating the new buffered stream failed.
+ */
+inline already_AddRefed<nsIOutputStream>
+NS_BufferOutputStream(nsIOutputStream *aOutputStream,
+                      PRUint32 aBufferSize)
+{
+    NS_ASSERTION(aOutputStream, "No output stream given!");
+
+    nsCOMPtr<nsIOutputStream> bos;
+    nsresult rv = NS_NewBufferedOutputStream(getter_AddRefs(bos), aOutputStream,
+                                             aBufferSize);
+    if (NS_SUCCEEDED(rv))
+        return bos.forget();
+
+    NS_ADDREF(aOutputStream);
+    return aOutputStream;
 }
 
 // returns an input stream compatible with nsIUploadChannel::SetUploadStream()

@@ -179,30 +179,6 @@ nsGenericHTMLElement::Init(nsINodeInfo *aNodeInfo)
 #endif
 
 
-class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
-                                    public nsIDOMElementCSSInlineStyle
-{
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  nsGenericHTMLElementTearoff(nsGenericHTMLElement *aElement)
-    : mElement(aElement)
-  {
-  }
-
-  virtual ~nsGenericHTMLElementTearoff()
-  {
-  }
-
-  NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
-  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
-                                           nsIDOMNSHTMLElement)
-
-private:
-  nsCOMPtr<nsGenericHTMLElement> mElement;
-};
-
 NS_IMPL_CYCLE_COLLECTION_1(nsGenericHTMLElementTearoff, mElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsGenericHTMLElementTearoff,
@@ -1022,7 +998,7 @@ nsGenericHTMLElement::ScrollIntoView(PRBool aTop)
   }
 
   PRIntn vpercent = aTop ? NS_PRESSHELL_SCROLL_TOP :
-    NS_PRESSHELL_SCROLL_ANYWHERE;
+    NS_PRESSHELL_SCROLL_BOTTOM;
 
   presShell->ScrollContentIntoView(this, vpercent,
                                    NS_PRESSHELL_SCROLL_ANYWHERE);
@@ -1145,13 +1121,6 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       if (htmlDocument) {
         htmlDocument->ChangeContentEditableCount(this, +1);
       }
-    }
-
-    // If we're in a document now, let our mapped attrs know what their new
-    // sheet is.
-    nsHTMLStyleSheet* sheet = aDocument->GetAttributeStyleSheet();
-    if (sheet) {
-      mAttrsAndChildren.SetMappedAttrStyleSheet(sheet);
     }
   }
 
@@ -1435,13 +1404,6 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                              aNotify);
 }
 
-nsresult
-nsGenericHTMLElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
-{
-  mAttrsAndChildren.WalkMappedAttributeStyleRules(aRuleWalker);
-  return NS_OK;
-}
-
 already_AddRefed<nsIURI>
 nsGenericHTMLElement::GetBaseURI() const
 {
@@ -1539,22 +1501,6 @@ nsGenericHTMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
   
   return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
-
-PRBool
-nsGenericHTMLElement::SetMappedAttribute(nsIDocument* aDocument,
-                                         nsIAtom* aName,
-                                         nsAttrValue& aValue,
-                                         nsresult* aRetval)
-{
-  NS_PRECONDITION(aDocument == GetCurrentDoc(), "Unexpected document");
-  nsHTMLStyleSheet* sheet = aDocument ?
-    aDocument->GetAttributeStyleSheet() : nsnull;
-  
-  *aRetval = mAttrsAndChildren.SetAndTakeMappedAttr(aName, aValue,
-                                                    this, sheet);
-  return PR_TRUE;
-}
-
 
 nsMapRuleToAttributesFunc
 nsGenericHTMLElement::GetAttributeMappingFunction() const
@@ -2909,13 +2855,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGenericHTMLFrameElement,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFrameLoader)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
-  NS_INTERFACE_TABLE_INHERITED2(nsGenericHTMLFrameElement,
-                                nsIDOMNSHTMLFrameElement,
-                                nsIFrameLoaderOwner)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
-NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
-
 nsresult
 nsGenericHTMLFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
 {
@@ -3782,7 +3721,7 @@ nsGenericHTMLElement::IsEditableRoot() const
   }
 
   if (document->HasFlag(NODE_IS_EDITABLE)) {
-    return this == document->GetRootContent();
+    return PR_FALSE;
   }
 
   if (GetContentEditableValue() != eTrue) {

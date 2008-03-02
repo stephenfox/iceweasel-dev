@@ -54,6 +54,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsSVGMatrix.h"
 
 #if defined(DEBUG) && defined(SVG_DEBUG_PRINTING)
 #include "nsIDeviceContext.h"
@@ -155,10 +156,13 @@ NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleCo
 }
 
 nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
-    : nsSVGOuterSVGFrameBase(aContext),
-      mRedrawSuspendCount(0),
-      mFullZoom(0),
-      mViewportInitialized(PR_FALSE)
+    : nsSVGOuterSVGFrameBase(aContext)
+    ,  mRedrawSuspendCount(0)
+    , mFullZoom(0)
+    , mViewportInitialized(PR_FALSE)
+#ifdef XP_MACOSX
+    , mEnableBitmapFallback(PR_FALSE)
+#endif
 {
 }
 
@@ -223,10 +227,15 @@ nsSVGOuterSVGFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   nsSVGSVGElement *svg = static_cast<nsSVGSVGElement*>(mContent);
   nsSVGLength2 &width = svg->mLengthAttributes[nsSVGSVGElement::WIDTH];
 
-  if (width.GetSpecifiedUnitType() == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
-    result = nscoord(0);
+  if (width.IsPercentage()) {
+    // If we're being called then our containing block's width depends on our
+    // width - fall back to 300px as required by CSS 2.1 section 10.3.2:
+    result = nsPresContext::CSSPixelsToAppUnits(300);
   } else {
     result = nsPresContext::CSSPixelsToAppUnits(width.GetAnimValue(svg));
+    if (result < 0) {
+      result = nscoord(0);
+    }
   }
 
   return result;
@@ -244,7 +253,7 @@ nsSVGOuterSVGFrame::GetIntrinsicSize()
   nsSVGLength2 &width  = content->mLengthAttributes[nsSVGSVGElement::WIDTH];
   nsSVGLength2 &height = content->mLengthAttributes[nsSVGSVGElement::HEIGHT];
 
-  if (width.GetSpecifiedUnitType() == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
+  if (width.IsPercentage()) {
     float val = width.GetAnimValInSpecifiedUnits() / 100.0f;
     if (val < 0.0f) val = 0.0f;
     intrinsicSize.width.SetPercentValue(val);
@@ -254,7 +263,7 @@ nsSVGOuterSVGFrame::GetIntrinsicSize()
     intrinsicSize.width.SetCoordValue(val);
   }
 
-  if (height.GetSpecifiedUnitType() == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
+  if (height.IsPercentage()) {
     float val = height.GetAnimValInSpecifiedUnits() / 100.0f;
     if (val < 0.0f) val = 0.0f;
     intrinsicSize.height.SetPercentValue(val);
@@ -278,9 +287,15 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
   nsSVGLength2 &width  = content->mLengthAttributes[nsSVGSVGElement::WIDTH];
   nsSVGLength2 &height = content->mLengthAttributes[nsSVGSVGElement::HEIGHT];
 
-  if (width.GetSpecifiedUnitType()  != nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE &&
-      height.GetSpecifiedUnitType() != nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
-    return nsSize(width.GetAnimValue(content), height.GetAnimValue(content));
+  if (!width.IsPercentage() && !height.IsPercentage()) {
+    nsSize ratio(width.GetAnimValue(content), height.GetAnimValue(content));
+    if (ratio.width < 0) {
+      ratio.width = 0;
+    }
+    if (ratio.height < 0) {
+      ratio.height = 0;
+    }
+    return ratio;
   }
 
   if (content->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
@@ -355,6 +370,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
   if (newViewportSize != svgElem->GetViewportSize() ||
       mFullZoom != PresContext()->GetFullZoom()) {
     svgElem->SetViewportSize(newViewportSize);
+    mViewportInitialized = PR_TRUE;
     mFullZoom = PresContext()->GetFullZoom();
     NotifyViewportChange();
   }
@@ -379,12 +395,11 @@ nsSVGOuterSVGFrame::DidReflow(nsPresContext*   aPresContext,
                               const nsHTMLReflowState*  aReflowState,
                               nsDidReflowStatus aStatus)
 {
+  PRBool firstReflow = (GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
+
   nsresult rv = nsSVGOuterSVGFrameBase::DidReflow(aPresContext,aReflowState,aStatus);
 
-  if (!mViewportInitialized) {
-    // it is now
-    mViewportInitialized = PR_TRUE;
-
+  if (firstReflow) {
     // call InitialUpdate() on all frames:
     nsIFrame* kid = mFrames.FirstChild();
     while (kid) {
@@ -424,14 +439,16 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("SVGEventReceiver")
 };
 
 nsIFrame*
-nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt)
+nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                      HitTestState* aState)
 {
   return static_cast<nsSVGOuterSVGFrame*>(mFrame)->
     GetFrameForPoint(aPt - aBuilder->ToReferenceFrame(mFrame));
@@ -577,10 +594,12 @@ nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
 
   nsSVGRenderState ctx(&aRenderingContext);
 
-  // nquartz fallback paths, which svg tends to trigger, need
-  // a non-window context target
 #ifdef XP_MACOSX
-  ctx.GetGfxContext()->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+  if (mEnableBitmapFallback) {
+    // nquartz fallback paths, which svg tends to trigger, need
+    // a non-window context target
+    ctx.GetGfxContext()->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+  }
 #endif
 
   // paint children:
@@ -589,10 +608,31 @@ nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
     nsSVGUtils::PaintChildWithEffects(&ctx, &dirtyRect, kid);
   }
 
-// show the surface we pushed earlier for nquartz fallbacks
 #ifdef XP_MACOSX
-  ctx.GetGfxContext()->PopGroupToSource();
-  ctx.GetGfxContext()->Paint();
+  if (mEnableBitmapFallback) {
+    // show the surface we pushed earlier for fallbacks
+    ctx.GetGfxContext()->PopGroupToSource();
+    ctx.GetGfxContext()->Paint();
+  }
+  
+  if (ctx.GetGfxContext()->HasError() && !mEnableBitmapFallback) {
+    mEnableBitmapFallback = PR_TRUE;
+    // It's not really clear what area to invalidate here. We might have
+    // stuffed up rendering for the entire window in this paint pass,
+    // so we can't just invalidate our own rect. Invalidate everything
+    // in sight.
+    // This won't work for printing, by the way, but failure to print the
+    // odd document is probably no worse than printing horribly for all
+    // documents. Better to fix things so we don't need fallback.
+    nsIFrame* frame = this;
+    while (PR_TRUE) {
+      nsIFrame* next = nsLayoutUtils::GetCrossDocParentFrame(frame);
+      if (!next)
+        break;
+      frame = next;
+    }
+    frame->Invalidate(nsRect(nsPoint(0, 0), frame->GetSize()));
+  }
 #endif
 
 #if defined(DEBUG) && defined(SVG_DEBUG_PAINT_TIMING)
@@ -679,29 +719,28 @@ NS_IMETHODIMP
 nsSVGOuterSVGFrame::NotifyViewportChange()
 {
   // no point in doing anything when were not init'ed yet:
-  if (!mViewportInitialized) return NS_OK;
-
-/* XXX this caused reftest failures
-  // viewport changes only affect our transform if we have a viewBox attribute
-  nsSVGSVGElement *svgElem = static_cast<nsSVGSVGElement*>(mContent);
-  if (!svgElem->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+  if (!mViewportInitialized) {
     return NS_OK;
   }
-*/
 
-  // make sure canvas transform matrix gets (lazily) recalculated:
-  mCanvasTM = nsnull;
-  
+  PRUint32 flags = COORD_CONTEXT_CHANGED;
+
+  // viewport changes only affect our transform if we have a viewBox attribute
+#if 1
+  {
+#else
+  // XXX this caused reftest failures (bug 413960)
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+#endif
+    // make sure canvas transform matrix gets (lazily) recalculated:
+    mCanvasTM = nsnull;
+
+    flags |= TRANSFORM_CHANGED;
+  }
+
   // inform children
   SuspendRedraw();
-  nsIFrame* kid = mFrames.FirstChild();
-  while (kid) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
-    if (SVGFrame)
-      SVGFrame->NotifyCanvasTMChanged(PR_FALSE); 
-    kid = kid->GetNextSibling();
-  }
+  nsSVGUtils::NotifyChildrenOfSVGChange(this, flags);
   UnsuspendRedraw();
   return NS_OK;
 }
@@ -713,15 +752,21 @@ already_AddRefed<nsIDOMSVGMatrix>
 nsSVGOuterSVGFrame::GetCanvasTM()
 {
   if (!mCanvasTM) {
-    nsCOMPtr<nsIDOMSVGMatrix> vb2vp;
     nsSVGSVGElement *svgElement = static_cast<nsSVGSVGElement*>(mContent);
-    svgElement->GetViewboxToViewportTransform(getter_AddRefs(vb2vp));
 
-    // Scale the transform from CSS pixel space to device pixel space
     float devPxPerCSSPx =
       1 / PresContext()->AppUnitsToFloatCSSPixels(
                                 PresContext()->AppUnitsPerDevPixel());
-    vb2vp->Scale(devPxPerCSSPx, getter_AddRefs(mCanvasTM));
+    nsCOMPtr<nsIDOMSVGMatrix> devPxToCSSPxMatrix;
+    NS_NewSVGMatrix(getter_AddRefs(devPxToCSSPxMatrix),
+                    devPxPerCSSPx, 0.0f,
+                    0.0f, devPxPerCSSPx);
+
+    nsCOMPtr<nsIDOMSVGMatrix> viewBoxMatrix;
+    svgElement->GetViewboxToViewportTransform(getter_AddRefs(viewBoxMatrix));
+
+    // PRE-multiply px conversion!
+    devPxToCSSPxMatrix->Multiply(viewBoxMatrix, getter_AddRefs(mCanvasTM));
 
     // our content is the document element so we must premultiply the values
     // of its currentScale and currentTranslate properties

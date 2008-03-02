@@ -200,8 +200,7 @@ JS_ConvertArgumentsVA(JSContext *cx, uintN argc, jsval *argv,
         }
         switch (c) {
           case 'b':
-            if (!js_ValueToBoolean(cx, *sp, va_arg(ap, JSBool *)))
-                return JS_FALSE;
+            *va_arg(ap, JSBool *) = js_ValueToBoolean(*sp);
             break;
           case 'c':
             if (!js_ValueToUint16(cx, *sp, va_arg(ap, uint16 *)))
@@ -259,6 +258,7 @@ JS_ConvertArgumentsVA(JSContext *cx, uintN argc, jsval *argv,
             obj = js_ValueToFunctionObject(cx, sp, 0);
             if (!obj)
                 return JS_FALSE;
+            *sp = OBJECT_TO_JSVAL(obj);
             *va_arg(ap, JSFunction **) = (JSFunction *) JS_GetPrivate(cx, obj);
             break;
           case 'v':
@@ -459,7 +459,7 @@ JS_RemoveArgumentFormatter(JSContext *cx, const char *format)
 JS_PUBLIC_API(JSBool)
 JS_ConvertValue(JSContext *cx, jsval v, JSType type, jsval *vp)
 {
-    JSBool ok, b;
+    JSBool ok;
     JSObject *obj;
     JSString *str;
     jsdouble d, *dp;
@@ -496,10 +496,8 @@ JS_ConvertValue(JSContext *cx, jsval v, JSType type, jsval *vp)
         }
         break;
       case JSTYPE_BOOLEAN:
-        ok = js_ValueToBoolean(cx, v, &b);
-        if (ok)
-            *vp = BOOLEAN_TO_JSVAL(b);
-        break;
+        *vp = js_ValueToBoolean(v);
+        return JS_TRUE;
       default: {
         char numBuf[12];
         JS_snprintf(numBuf, sizeof numBuf, "%d", (int)type);
@@ -579,7 +577,8 @@ JS_PUBLIC_API(JSBool)
 JS_ValueToBoolean(JSContext *cx, jsval v, JSBool *bp)
 {
     CHECK_REQUEST(cx);
-    return js_ValueToBoolean(cx, v, bp);
+    *bp = js_ValueToBoolean(v);
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSType)
@@ -651,15 +650,22 @@ JS_GetTypeName(JSContext *cx, JSType type)
 
 /************************************************************************/
 
+/*
+ * Has a new runtime ever been created?  This flag is used to detect unsafe
+ * changes to js_CStringsAreUTF8 after a runtime has been created, and to
+ * ensure that "first checks" on runtime creation are run only once.
+ */
+#ifdef DEBUG
+static JSBool js_NewRuntimeWasCalled = JS_FALSE;
+#endif
+
 JS_PUBLIC_API(JSRuntime *)
 JS_NewRuntime(uint32 maxbytes)
 {
     JSRuntime *rt;
 
 #ifdef DEBUG
-    static JSBool didFirstChecks;
-
-    if (!didFirstChecks) {
+    if (!js_NewRuntimeWasCalled) {
         /*
          * This code asserts that the numbers associated with the error names
          * in jsmsg.def are monotonically increasing.  It uses values for the
@@ -685,7 +691,7 @@ JS_NewRuntime(uint32 maxbytes)
 #include "js.msg"
 #undef MSG_DEF
 
-        didFirstChecks = JS_TRUE;
+        js_NewRuntimeWasCalled = JS_TRUE;
     }
 #endif /* DEBUG */
 
@@ -726,12 +732,6 @@ JS_NewRuntime(uint32 maxbytes)
     rt->stateChange = JS_NEW_CONDVAR(rt->gcLock);
     if (!rt->stateChange)
         goto bad;
-    rt->setSlotLock = JS_NEW_LOCK();
-    if (!rt->setSlotLock)
-        goto bad;
-    rt->setSlotDone = JS_NEW_CONDVAR(rt->setSlotLock);
-    if (!rt->setSlotDone)
-        goto bad;
     rt->scopeSharingDone = JS_NEW_CONDVAR(rt->gcLock);
     if (!rt->scopeSharingDone)
         goto bad;
@@ -769,6 +769,13 @@ JS_DestroyRuntime(JSRuntime *rt)
     js_FinishAtomState(rt);
 
     /*
+     * Free unit string storage only after all strings have been finalized, so
+     * that js_FinalizeString can detect unit strings and avoid calling free
+     * on their chars storage.
+     */
+    js_FinishUnitStrings(rt);
+
+    /*
      * Finish the deflated string cache after the last GC and after
      * calling js_FinishAtomState, which finalizes strings.
      */
@@ -785,10 +792,6 @@ JS_DestroyRuntime(JSRuntime *rt)
         JS_DESTROY_LOCK(rt->rtLock);
     if (rt->stateChange)
         JS_DESTROY_CONDVAR(rt->stateChange);
-    if (rt->setSlotLock)
-        JS_DESTROY_LOCK(rt->setSlotLock);
-    if (rt->setSlotDone)
-        JS_DESTROY_CONDVAR(rt->setSlotDone);
     if (rt->scopeSharingDone)
         JS_DESTROY_CONDVAR(rt->scopeSharingDone);
     if (rt->debuggerLock)
@@ -890,8 +893,8 @@ JS_EndRequest(JSContext *cx)
              * If js_DropObjectMap returns null, we held the last ref to scope.
              * The waiting thread(s) must have been killed, after which the GC
              * collected the object that held this scope.  Unlikely, because it
-             * requires that the GC ran (e.g., from a branch callback) during
-             * this request, but possible.
+             * requires that the GC ran (e.g., from an operation callback)
+             * during this request, but possible.
              */
             if (js_DropObjectMap(cx, &scope->map, NULL)) {
                 js_InitLock(&scope->lock);
@@ -2457,6 +2460,7 @@ JS_MaybeGC(JSContext *cx)
 JS_PUBLIC_API(JSGCCallback)
 JS_SetGCCallback(JSContext *cx, JSGCCallback cb)
 {
+    CHECK_REQUEST(cx);
     return JS_SetGCCallbackRT(cx->runtime, cb);
 }
 
@@ -2487,6 +2491,9 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value)
       case JSGC_MAX_MALLOC_BYTES:
         rt->gcMaxMallocBytes = value;
         break;
+      case JSGC_STACKPOOL_LIFESPAN:
+        rt->gcStackPoolLifespan = value;
+        break;
     }
 }
 
@@ -2514,7 +2521,7 @@ JS_NewExternalString(JSContext *cx, jschar *chars, size_t length, intN type)
                                      sizeof(JSString));
     if (!str)
         return NULL;
-    JSSTRING_INIT(str, chars, length);
+    JSFLATSTR_INIT(str, chars, length);
     return str;
 }
 
@@ -2551,23 +2558,15 @@ JS_DestroyIdArray(JSContext *cx, JSIdArray *ida)
 JS_PUBLIC_API(JSBool)
 JS_ValueToId(JSContext *cx, jsval v, jsid *idp)
 {
-    JSAtom *atom;
-
     CHECK_REQUEST(cx);
-    if (JSVAL_IS_INT(v)) {
+    if (JSVAL_IS_INT(v))
         *idp = INT_JSVAL_TO_JSID(v);
-    } else {
 #if JS_HAS_XML_SUPPORT
-        if (JSVAL_IS_OBJECT(v)) {
-            *idp = OBJECT_JSVAL_TO_JSID(v);
-            return JS_TRUE;
-        }
+    else if (!JSVAL_IS_PRIMITIVE(v))
+        *idp = OBJECT_JSVAL_TO_JSID(v);
 #endif
-        atom = js_ValueToStringAtom(cx, v);
-        if (!atom)
-            return JS_FALSE;
-        *idp = ATOM_TO_JSID(atom);
-    }
+    else
+        return js_ValueToStringId(cx, v, idp);
     return JS_TRUE;
 }
 
@@ -2755,7 +2754,7 @@ bad:
 JS_PUBLIC_API(JSClass *)
 JS_GetClass(JSContext *cx, JSObject *obj)
 {
-    return GC_AWARE_GET_CLASS(cx, obj);
+    return OBJ_GET_CLASS(cx, obj);
 }
 #else
 JS_PUBLIC_API(JSClass *)
@@ -2797,7 +2796,7 @@ JS_GetPrivate(JSContext *cx, JSObject *obj)
     jsval v;
 
     JS_ASSERT(OBJ_GET_CLASS(cx, obj)->flags & JSCLASS_HAS_PRIVATE);
-    v = GC_AWARE_GET_SLOT(cx, obj, JSSLOT_PRIVATE);
+    v = obj->fslots[JSSLOT_PRIVATE];
     if (!JSVAL_IS_INT(v))
         return NULL;
     return JSVAL_TO_PRIVATE(v);
@@ -2807,7 +2806,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetPrivate(JSContext *cx, JSObject *obj, void *data)
 {
     JS_ASSERT(OBJ_GET_CLASS(cx, obj)->flags & JSCLASS_HAS_PRIVATE);
-    OBJ_SET_SLOT(cx, obj, JSSLOT_PRIVATE, PRIVATE_TO_JSVAL(data));
+    obj->fslots[JSSLOT_PRIVATE] = PRIVATE_TO_JSVAL(data);
     return JS_TRUE;
 }
 
@@ -2826,7 +2825,7 @@ JS_GetPrototype(JSContext *cx, JSObject *obj)
     JSObject *proto;
 
     CHECK_REQUEST(cx);
-    proto = GC_AWARE_GET_PROTO(cx, obj);
+    proto = OBJ_GET_PROTO(cx, obj);
 
     /* Beware ref to dead object (we may be called from obj's finalizer). */
     return proto && proto->map ? proto : NULL;
@@ -2847,7 +2846,7 @@ JS_GetParent(JSContext *cx, JSObject *obj)
 {
     JSObject *parent;
 
-    parent = GC_AWARE_GET_PARENT(cx, obj);
+    parent = OBJ_GET_PARENT(cx, obj);
 
     /* Beware ref to dead object (we may be called from obj's finalizer). */
     return parent && parent->map ? parent : NULL;
@@ -3322,6 +3321,7 @@ JS_AlreadyHasOwnProperty(JSContext *cx, JSObject *obj, const char *name,
 {
     JSAtom *atom;
 
+    CHECK_REQUEST(cx);
     atom = js_Atomize(cx, name, strlen(name), 0);
     if (!atom)
         return JS_FALSE;
@@ -3374,7 +3374,7 @@ JS_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, const char *name,
         return JS_FALSE;
     ok = OBJ_IS_NATIVE(obj)
          ? js_LookupPropertyWithFlags(cx, obj, ATOM_TO_JSID(atom), flags,
-                                      &obj2, &prop)
+                                      &obj2, &prop) >= 0
          : OBJ_LOOKUP_PROPERTY(cx, obj, ATOM_TO_JSID(atom), &obj2, &prop);
     if (ok)
         *vp = LookupResult(cx, obj, obj2, prop);
@@ -3529,6 +3529,7 @@ JS_AlreadyHasOwnUCProperty(JSContext *cx, JSObject *obj,
 {
     JSAtom *atom;
 
+    CHECK_REQUEST(cx);
     atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen), 0);
     if (!atom)
         return JS_FALSE;
@@ -3766,7 +3767,7 @@ JS_ClearScope(JSContext *cx, JSObject *obj)
         obj->map->ops->clear(cx, obj);
 
     /* Clear cached class objects on the global object. */
-    if (JS_GET_CLASS(cx, obj)->flags & JSCLASS_IS_GLOBAL) {
+    if (OBJ_GET_CLASS(cx, obj)->flags & JSCLASS_IS_GLOBAL) {
         int key;
 
         for (key = JSProto_Null; key < JSProto_LIMIT; key++)
@@ -3854,7 +3855,7 @@ prop_iter_finalize(JSContext *cx, JSObject *obj)
     jsint i;
     JSIdArray *ida;
 
-    v = GC_AWARE_GET_SLOT(cx, obj, JSSLOT_ITER_INDEX);
+    v = obj->fslots[JSSLOT_ITER_INDEX];
     if (JSVAL_IS_VOID(v))
         return;
 
@@ -3876,10 +3877,10 @@ prop_iter_trace(JSTracer *trc, JSObject *obj)
     JSIdArray *ida;
     jsid id;
 
-    v = GC_AWARE_GET_SLOT(trc->context, obj, JSSLOT_PRIVATE);
+    v = obj->fslots[JSSLOT_PRIVATE];
     JS_ASSERT(!JSVAL_IS_VOID(v));
 
-    i = JSVAL_TO_INT(OBJ_GET_SLOT(trc->context, obj, JSSLOT_ITER_INDEX));
+    i = JSVAL_TO_INT(obj->fslots[JSSLOT_ITER_INDEX]);
     if (i < 0) {
         /* Native case: just mark the next property to visit. */
         sprop = (JSScopeProperty *) JSVAL_TO_PRIVATE(v);
@@ -4637,6 +4638,7 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
                                   const char *filename, uintN lineno)
 {
     JSFunction *fun;
+    JSTempValueRooter tvr;
     JSAtom *funAtom, *argAtom;
     uintN i;
 
@@ -4647,12 +4649,15 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
         funAtom = js_Atomize(cx, name, strlen(name), 0);
         if (!funAtom) {
             fun = NULL;
-            goto out;
+            goto out2;
         }
     }
     fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, obj, funAtom);
     if (!fun)
-        goto out;
+        goto out2;
+
+    /* From this point the control must flow through the label out. */
+    JS_PUSH_TEMP_ROOT_FUNCTION(cx, fun, &tvr);
     for (i = 0; i < nargs; i++) {
         argAtom = js_Atomize(cx, argnames[i], strlen(argnames[i]), 0);
         if (!argAtom) {
@@ -4679,7 +4684,22 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
         fun = NULL;
     }
 
+#ifdef JS_SCOPE_DEPTH_METER
+    if (fun && obj) {
+        JSObject *pobj = obj;
+        uintN depth = 1;
+
+        while ((pobj = OBJ_GET_PARENT(cx, pobj)) != NULL)
+            ++depth;
+        JS_BASIC_STATS_ACCUM(&cx->runtime->hostenvScopeDepthStats, depth);
+    }
+#endif
+
   out:
+    cx->weakRoots.newborn[JSTRACE_FUNCTION] = fun;
+    JS_POP_TEMP_ROOT(cx, &tvr);
+
+  out2:
     LAST_FRAME_CHECKS(cx, fun);
     return fun;
 }
@@ -4915,13 +4935,79 @@ JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, uintN argc,
     return ok;
 }
 
+JS_PUBLIC_API(void)
+JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback,
+                        uint32 operationLimit)
+{
+    JS_ASSERT(callback);
+    JS_ASSERT(operationLimit <= JS_MAX_OPERATION_LIMIT);
+    JS_ASSERT(operationLimit > 0);
+
+    cx->operationCount = (int32) operationLimit;
+    cx->operationLimit = operationLimit;
+    cx->operationCallbackIsSet = 1;
+    cx->operationCallback = callback;
+}
+
+JS_PUBLIC_API(void)
+JS_ClearOperationCallback(JSContext *cx)
+{
+    cx->operationCount = (int32) JS_MAX_OPERATION_LIMIT;
+    cx->operationLimit = JS_MAX_OPERATION_LIMIT;
+    cx->operationCallbackIsSet = 0;
+    cx->operationCallback = NULL;
+}
+
+JS_PUBLIC_API(JSOperationCallback)
+JS_GetOperationCallback(JSContext *cx)
+{
+    JS_ASSERT(cx->operationCallbackIsSet || !cx->operationCallback);
+    return cx->operationCallback;
+}
+
+JS_PUBLIC_API(uint32)
+JS_GetOperationLimit(JSContext *cx)
+{
+    JS_ASSERT(cx->operationCallbackIsSet);
+    return cx->operationLimit;
+}
+
+JS_PUBLIC_API(void)
+JS_SetOperationLimit(JSContext *cx, uint32 operationLimit)
+{
+    JS_ASSERT(operationLimit <= JS_MAX_OPERATION_LIMIT);
+    JS_ASSERT(operationLimit > 0);
+    JS_ASSERT(cx->operationCallbackIsSet);
+
+    cx->operationLimit = operationLimit;
+    if (cx->operationCount > (int32) operationLimit)
+        cx->operationCount = (int32) operationLimit;
+}
+
 JS_PUBLIC_API(JSBranchCallback)
 JS_SetBranchCallback(JSContext *cx, JSBranchCallback cb)
 {
     JSBranchCallback oldcb;
 
-    oldcb = cx->branchCallback;
-    cx->branchCallback = cb;
+    if (cx->operationCallbackIsSet) {
+#ifdef DEBUG
+        fprintf(stderr,
+"JS API usage error: call to JS_SetOperationCallback is followed by\n"
+"invocation of deprecated JS_SetBranchCallback\n");
+        JS_ASSERT(0);
+#endif
+        cx->operationCallbackIsSet = 0;
+        oldcb = NULL;
+    } else {
+        oldcb = (JSBranchCallback) cx->operationCallback;
+    }
+    if (cb) {
+        cx->operationCount = JSOW_SCRIPT_JUMP;
+        cx->operationLimit = JSOW_SCRIPT_JUMP;
+        cx->operationCallback = (JSOperationCallback) cb;
+    } else {
+        JS_ClearOperationCallback(cx);
+    }
     return oldcb;
 }
 
@@ -5141,13 +5227,13 @@ JS_GetStringChars(JSString *str)
         if (s) {
             memcpy(s, JSSTRDEP_CHARS(str), n * sizeof *s);
             s[n] = 0;
-            JSSTRING_INIT(str, s, n);
+            JSFLATSTR_INIT(str, s, n);
         } else {
             s = JSSTRDEP_CHARS(str);
         }
     } else {
-        JSSTRING_CLEAR_MUTABLE(str);
-        s = str->u.chars;
+        JSFLATSTR_CLEAR_MUTABLE(str);
+        s = JSFLATSTR_CHARS(str);
     }
     return s;
 }
@@ -5173,7 +5259,7 @@ JS_NewGrowableString(JSContext *cx, jschar *chars, size_t length)
     str = js_NewString(cx, chars, length);
     if (!str)
         return str;
-    JSSTRING_SET_MUTABLE(str);
+    JSFLATSTR_SET_MUTABLE(str);
     return str;
 }
 
@@ -5232,13 +5318,34 @@ JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst,
     return js_InflateStringToBuffer(cx, src, srclen, dst, dstlenp);
 }
 
+JS_PUBLIC_API(char *)
+JS_EncodeString(JSContext *cx, JSString *str)
+{
+    return js_DeflateString(cx, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
+}
+
+/*
+ * The following determines whether C Strings are to be treated as UTF-8
+ * or ISO-8859-1.  For correct operation, it must be set prior to the
+ * first call to JS_NewRuntime.
+ */
+#ifndef JS_C_STRINGS_ARE_UTF8
+JSBool js_CStringsAreUTF8 = JS_FALSE;
+#endif
+
 JS_PUBLIC_API(JSBool)
 JS_CStringsAreUTF8()
 {
-#ifdef JS_C_STRINGS_ARE_UTF8
-    return JS_TRUE;
-#else
-    return JS_FALSE;
+    return js_CStringsAreUTF8;
+}
+
+JS_PUBLIC_API(void)
+JS_SetCStringsAreUTF8()
+{
+    JS_ASSERT(!js_NewRuntimeWasCalled);
+
+#ifndef JS_C_STRINGS_ARE_UTF8
+    js_CStringsAreUTF8 = JS_TRUE;
 #endif
 }
 

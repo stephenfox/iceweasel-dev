@@ -59,6 +59,8 @@ REQUIRES = xpcom \
            morkreader \
            pref \
            necko \
+           imglib2 \
+           gfx \
            intl \
            layout \
            locale \
@@ -83,7 +85,6 @@ CPPSRCS = \
           nsAnnotationService.cpp \
           nsFaviconService.cpp \
           nsNavHistory.cpp \
-          nsNavHistoryAutoComplete.cpp \
           nsNavHistoryExpire.cpp \
           nsNavHistoryQuery.cpp \
           nsNavHistoryResult.cpp \
@@ -92,6 +93,12 @@ CPPSRCS = \
           nsMorkHistoryImporter.cpp \
           nsPlacesModule.cpp \
           $(NULL)
+
+ifdef MOZ_XUL
+CPPSRCS += \
+          nsNavHistoryAutoComplete.cpp \
+          $(NULL)
+endif
 
 EXTRA_DSO_LDOPTS += \
 	$(DEPTH)/db/morkreader/$(LIB_PREFIX)morkreader_s.$(LIB_SUFFIX) \

@@ -46,7 +46,7 @@
 #include "nsIDOM3Node.h"
 #include "nsIDOMNodeList.h"
 #include "nsIVariant.h"
-#include "nsString.h"
+#include "nsStringAPI.h"
 #include "nsIDocument.h"
 #include "nsXFormsAtoms.h"
 #include "nsINameSpaceManager.h"
@@ -72,7 +72,6 @@
 #include "nsXFormsUtils.h"
 #include "nsXFormsSchemaValidator.h"
 #include "nsIXFormsUIWidget.h"
-#include "nsIAttribute.h"
 #include "nsISchemaLoader.h"
 #include "nsISchema.h"
 #include "nsAutoPtr.h"
@@ -84,6 +83,8 @@
 #include "nsIPrefBranch.h"
 #include "nsIEventStateManager.h"
 #include "nsStringEnumerator.h"
+#include "nsIAtomService.h"
+#include "nsIAttribute.h"
 
 #define XFORMS_LAZY_INSTANCE_BINDING \
   "chrome://xforms/content/xforms.xml#xforms-lazy-instance"
@@ -641,7 +642,7 @@ nsXFormsModelElement::CancelPostRefresh(nsIXFormsControl* aControl)
 }
 
 nsXFormsModelElement::nsXFormsModelElement()
-  : nsXFormsStubElement(),
+  : mElement(nsnull),
     mFormControls(nsnull, &mControlListHash),
     mSchemaCount(0),
     mSchemaTotal(0),
@@ -810,6 +811,7 @@ nsXFormsModelElement::InitializeInstances()
 
     for (PRInt32 i=0; i<mSchemaTotal; ++i) {
       rv = NS_OK;
+      nsCAutoString uriSpec;
       nsCOMPtr<nsIURI> newURI;
       NS_NewURI(getter_AddRefs(newURI), *schemas[i], nsnull, baseURI);
       nsCOMPtr<nsIURL> newURL = do_QueryInterface(newURI);
@@ -847,7 +849,6 @@ nsXFormsModelElement::InitializeInstances()
             i--;
           }
         } else {
-          nsCAutoString uriSpec;
           newURI->GetSpec(uriSpec);
           rv = mSchemas->LoadAsync(NS_ConvertUTF8toUTF16(uriSpec), this);
         }
@@ -855,7 +856,11 @@ nsXFormsModelElement::InitializeInstances()
       if (NS_FAILED(rv)) {
         // this is a fatal error
         nsXFormsUtils::ReportError(NS_LITERAL_STRING("schemaLoadError"), mElement);
-        nsXFormsUtils::DispatchEvent(mElement, eEvent_LinkException);
+        // Context Info: 'resource-uri'
+        // The URI associated with the failed link.
+        SetContextInfo("resource-uri", NS_ConvertUTF8toUTF16(uriSpec));
+        nsXFormsUtils::DispatchEvent(mElement, eEvent_LinkException, nsnull,
+                                     nsnull, &mContextInfo);
         return NS_OK;
       }
     }
@@ -939,20 +944,20 @@ nsXFormsModelElement::HandleDefault(nsIDOMEvent *aEvent, PRBool *aHandled)
   aEvent->GetType(type);
   nsresult rv = NS_OK;
 
-  if (type.EqualsASCII(sXFormsEventsEntries[eEvent_Refresh].name)) {
+  if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_Refresh].name)) {
     rv = Refresh();
-  } else if (type.EqualsASCII(sXFormsEventsEntries[eEvent_Revalidate].name)) {
+  } else if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_Revalidate].name)) {
     rv = Revalidate();
-  } else if (type.EqualsASCII(sXFormsEventsEntries[eEvent_Recalculate].name)) {
+  } else if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_Recalculate].name)) {
     rv = Recalculate();
-  } else if (type.EqualsASCII(sXFormsEventsEntries[eEvent_Rebuild].name)) {
+  } else if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_Rebuild].name)) {
     rv = Rebuild();
-  } else if (type.EqualsASCII(sXFormsEventsEntries[eEvent_ModelConstructDone].name)) {
+  } else if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_ModelConstructDone].name)) {
     rv = ConstructDone();
     mConstructDoneHandled = PR_TRUE;
-  } else if (type.EqualsASCII(sXFormsEventsEntries[eEvent_Reset].name)) {
+  } else if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_Reset].name)) {
     Reset();
-  } else if (type.EqualsASCII(sXFormsEventsEntries[eEvent_BindingException].name)) {
+  } else if (type.EqualsLiteral(sXFormsEventsEntries[eEvent_BindingException].name)) {
     // we threw up a popup during the nsXFormsUtils::DispatchEvent that sent
     // this error to the model
     *aHandled = PR_TRUE;
@@ -1040,7 +1045,7 @@ nsXFormsModelElement::GetInstanceDocument(const nsAString& aInstanceID,
     return NS_OK;
   }
 
-  const nsPromiseFlatString& flat = PromiseFlatString(aInstanceID);
+  const nsString& flat = PromiseFlatString(aInstanceID);
   const PRUnichar *strings[] = { flat.get() };
   nsXFormsUtils::ReportError(aInstanceID.IsEmpty() ?
                                NS_LITERAL_STRING("defInstanceNotFound") :
@@ -1830,12 +1835,17 @@ nsXFormsModelElement::GetTypeFromNode(nsIDOMNode *aInstanceData,
 
   // If there was no type information on the node itself, check for a type
   // bound to the node via \<xforms:bind\>
+  nsresult rv = NS_ERROR_FAILURE;
   if (!typeVal && !mNodeToType.Get(aInstanceData, &typeVal)) {
     // check if schema validation left us a nsISchemaType*
-    nsCOMPtr<nsIAtom> key = do_GetAtom("xsdtype");
-    NS_ENSURE_TRUE(key, NS_ERROR_OUT_OF_MEMORY);
+    nsCOMPtr<nsIAtomService> atomServ =
+      do_GetService(NS_ATOMSERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsresult rv = NS_ERROR_FAILURE;
+    nsCOMPtr<nsIAtom> key;
+    rv = atomServ->GetAtomUTF8("xsdtype", getter_AddRefs(key));
+    NS_ENSURE_SUCCESS(rv, rv);
+
     nsCOMPtr<nsIVariant> xsdType;
     // this is stored on the DOM3Node as a property called xsdtype
     nsCOMPtr<nsIContent> pContent(do_QueryInterface(aInstanceData));
@@ -1895,12 +1905,11 @@ nsXFormsModelElement::GetTypeFromNode(nsIDOMNode *aInstanceData,
   }
 
   // get the namespace url from the prefix using instance data node
-  nsresult rv;
   nsCOMPtr<nsIDOM3Node> domNode3 = do_QueryInterface(aInstanceData, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = domNode3->LookupNamespaceURI(prefix, aNSUri);
 
-  if (DOMStringIsNull(aNSUri)) {
+  if (aNSUri.IsVoid()) {
     // if not found using instance data node, use <xf:instance> node
     nsCOMPtr<nsIDOMNode> instanceNode;
     rv = nsXFormsUtils::GetInstanceNodeForData(aInstanceData,
@@ -2331,7 +2340,15 @@ nsXFormsModelElement::MaybeNotifyCompletion()
     if (!extFunctionAtt.IsEmpty()) {
       nsXFormsUtils::ReportError(NS_LITERAL_STRING("invalidExtFunction"),
                                  tElement);
-      nsXFormsUtils::DispatchEvent(tElement, eEvent_ComputeException);
+
+      // Context Info: 'error-message'
+      // Error message containing the expression being processed.
+      nsAutoString errorMsg;
+      errorMsg.AssignLiteral("Non-existent extension functions: ");
+      errorMsg.Append(extFunctionAtt);
+      SetContextInfo("error-message", errorMsg);
+      nsXFormsUtils::DispatchEvent(tElement, eEvent_ComputeException, nsnull,
+                                   nsnull, &mContextInfo);
       return;
     }
   }
@@ -2426,7 +2443,15 @@ nsXFormsModelElement::ProcessBind(nsIDOMXPathEvaluator *aEvaluator,
       const PRUnichar *strings[] = { exprString.get() };
       nsXFormsUtils::ReportError(NS_LITERAL_STRING("exprParseError"),
                                  strings, 1, aBindElement, nsnull);
-      nsXFormsUtils::DispatchEvent(mElement, eEvent_ComputeException);
+
+      // Context Info: 'error-message'
+      // Error message containing the expression being processed.
+      nsAutoString errorMsg;
+      errorMsg.AssignLiteral("Error parsing XPath expression: ");
+      errorMsg.Append(exprString);
+      SetContextInfo("error-message", errorMsg);
+      nsXFormsUtils::DispatchEvent(mElement, eEvent_ComputeException, nsnull,
+                                   nsnull, &mContextInfo);
     } else {
 #ifdef DEBUG
       printf("xforms-binding-exception: XPath Evaluation failed\n");
@@ -2554,7 +2579,15 @@ nsXFormsModelElement::ProcessBind(nsIDOMXPathEvaluator *aEvaluator,
           const PRUnichar *strings[] = { propStrings[j].get() };
           nsXFormsUtils::ReportError(NS_LITERAL_STRING("mipParseError"),
                                      strings, 1, aBindElement, aBindElement);
-          nsXFormsUtils::DispatchEvent(mElement, eEvent_ComputeException);
+
+          // Context Info: 'error-message'
+          // Error message containing the expression being processed.
+          nsAutoString errorMsg;
+          errorMsg.AssignLiteral("Error while parsing model item property: ");
+          errorMsg.Append(propStrings[j]);
+          SetContextInfo("error-message", errorMsg);
+          nsXFormsUtils::DispatchEvent(mElement, eEvent_ComputeException,
+                                       nsnull, nsnull, &mContextInfo);
           return rv;
         }
 
@@ -3198,32 +3231,28 @@ nsXFormsModelElement::GetDerivedTypeList(const nsAString &aType,
   nsStringArray typeArray;
   nsresult rv = WalkTypeChainInternal(schemaType, PR_FALSE, nsnull, &typeArray);
   if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsIStringEnumerator> stringEnum;
-    rv = NS_NewStringEnumerator(getter_AddRefs(stringEnum), &typeArray);
-    if (NS_SUCCEEDED(rv)) {
-      nsAutoString constructorString;
-      PRBool hasMore = PR_FALSE;
-      rv = stringEnum->HasMore(&hasMore);
-      while (NS_SUCCEEDED(rv) && hasMore) {
-        nsAutoString tempString;
-        rv = stringEnum->GetNext(tempString);
-        if (NS_SUCCEEDED(rv)) {
-          constructorString.Append(tempString);
-          stringEnum->HasMore(&hasMore);
-          if (hasMore) {
-            constructorString.AppendLiteral(" ");
-          }
-        }
+    PRUint32 numStrings = typeArray.Count();
+    nsAutoString constructorString;
+    for (PRUint32 i = 0; i < numStrings; ++i) {
+      nsAutoString tempString;
+      typeArray.StringAt(i, tempString);
+      constructorString.Append(tempString);
+      if (i != numStrings - 1) {
+        // if we aren't appending the last string, then stick in the space
+        // delimeter
+        constructorString.AppendLiteral(" ");
       }
+    }
 
-      if (NS_SUCCEEDED(rv)) {
-        aTypeList.Assign(constructorString);
-      }
+    if (numStrings) {
+      aTypeList.Assign(constructorString);
+    } else {
+      aTypeList.Truncate();
     }
   }
 
   if (NS_FAILED(rv)) {
-    aTypeList.Assign(EmptyString());
+    aTypeList.Truncate();
   }
 
   typeArray.Clear();
@@ -3470,9 +3499,8 @@ nsXFormsModelElement::IsDuplicateSchema(nsIDOMElement *aSchemaElement)
   if (!schemaColl)
     return PR_FALSE;
 
-  const nsAFlatString& empty = EmptyString();
   nsAutoString targetNamespace;
-  aSchemaElement->GetAttributeNS(empty,
+  aSchemaElement->GetAttributeNS(EmptyString(),
                                  NS_LITERAL_STRING("targetNamespace"),
                                  targetNamespace);
   targetNamespace.Trim(" \r\n\t");
@@ -3486,13 +3514,24 @@ nsXFormsModelElement::IsDuplicateSchema(nsIDOMElement *aSchemaElement)
   // schema collection and the first instance has already been processed.
   // Report an error to the JS console and dispatch the LinkError event,
   // but do not consider it a fatal error.
-  const nsPromiseFlatString& flat = PromiseFlatString(targetNamespace);
+  const nsString& flat = PromiseFlatString(targetNamespace);
   const PRUnichar *strings[] = { flat.get() };
   nsXFormsUtils::ReportError(NS_LITERAL_STRING("duplicateSchema"),
                              strings, 1, aSchemaElement, aSchemaElement,
                              nsnull);
   nsXFormsUtils::DispatchEvent(mElement, eEvent_LinkError);
   return PR_TRUE;
+}
+
+nsresult
+nsXFormsModelElement::SetContextInfo(const char *aName, const nsAString &aValue)
+{
+  nsCOMPtr<nsXFormsContextInfo> contextInfo = new nsXFormsContextInfo(mElement);
+  NS_ENSURE_TRUE(contextInfo, NS_ERROR_OUT_OF_MEMORY);
+  contextInfo->SetStringValue(aName, aValue);
+  mContextInfo.AppendObject(contextInfo);
+
+  return NS_OK;
 }
 
 nsresult

@@ -88,7 +88,9 @@
   
             <menu id="edit-menu" label="&editMenu.label;"
                   accesskey="&editMenu.accesskey;">
-              <menupopup id="menu_EditPopup">
+              <menupopup id="menu_EditPopup"
+                         onpopupshowing="updateEditUIVisibility()"
+                         onpopuphidden="updateEditUIVisibility()">
                 <menuitem label="&undoCmd.label;"
                           key="key_undo"
                           accesskey="&undoCmd.accesskey;"
@@ -171,7 +173,7 @@
 #endif
                 <menuitem label="&reloadCmd.label;" accesskey="&reloadCmd.accesskey;" command="Browser:Reload" key="key_reload"/>
                 <menuseparator/>
-                <menu id="viewFullZoomMenu" label="&fullZoom.label;" accesskey="&fullZoom.accesskey;" observes="isImage">
+                <menu id="viewFullZoomMenu" label="&fullZoom.label;" accesskey="&fullZoom.accesskey;">
                   <menupopup>
                     <menuitem key="key_fullZoomEnlarge" label="&fullZoomEnlargeCmd.label;" accesskey="&fullZoomEnlargeCmd.accesskey;"
                               command="cmd_fullZoomEnlarge"/>
@@ -324,7 +326,7 @@
             </menu>
 
             <menu id="history-menu"
-                  oncommand="var url = event.target.getAttribute('statustext'); if (url) openUILink(url, event, false, true);"
+                  oncommand="var url = event.target.getAttribute('statustext'); if (url) { PlacesUtils.markPageAsTyped(url); openUILink(url, event, false, true); }"
                   onclick="checkForMiddleClick(this, event);"
                   label="&historyMenu.label;"
                   accesskey="&historyMenu.accesskey;">
@@ -338,6 +340,7 @@
 #else
                           key="goBackKb"
 #endif
+                          chromedir="&locale.dir;"
                           oncommand="BrowserBack(event, true)"
                           onclick="checkForMiddleClick(this, event);">
                   <observes element="Browser:Back" attribute="disabled" />
@@ -348,22 +351,26 @@
 #else
                           key="goForwardKb"
 #endif
+                          chromedir="&locale.dir;"
                           oncommand="BrowserForward(event, true)"
                           onclick="checkForMiddleClick(this, event);">
                   <observes element="Browser:Forward" attribute="disabled" />
                 </menuitem>
 
                 <menuitem label="&historyHomeCmd.label;"
-                          command="Browser:Home"
+                          oncommand="BrowserGoHome(event);"
+                          onclick="checkForMiddleClick(this, event);"
                           key="goHome"/>
+                <menuitem label="&showAllHistoryCmd.label;"
+#ifndef XP_MACOSX
+                          key="showAllHistoryKb"
+#endif
+                          command="Browser:ShowAllHistory"/>
                 <menuseparator id="startHistorySeparator" builder="start"/>
                 <menuseparator id="endHistorySeparator" builder="end"/>
                 <menu id="historyUndoMenu" label="&historyUndoMenu.label;" disabled="true">
                   <menupopup id="historyUndoPopup" onpopupshowing="HistoryMenu.populateUndoSubmenu();"/>
                 </menu>
-                <menuseparator id="endUndoSeparator"/>
-                <menuitem label="&showAllHistoryCmd.label;"
-                          command="Browser:ShowAllHistory"/>
               </menupopup>
             </menu>
 
@@ -381,7 +388,7 @@
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);">
-      <menuitem label="&addCurPageAsCmd.label;" 
+      <menuitem label="&bookmarkThisPageCmd.label;" 
                 command="Browser:AddBookmarkAs" key="addBookmarkAsKb"/>
       <menuitem id="subscribeToPageMenuitem"
                 label="&subscribeToPageMenuitem.label;"
@@ -417,7 +424,7 @@
               <menuseparator id="devToolsSeparator"/>
               <menuitem id="javascriptConsole" 
                         label="&errorConsoleCmd.label;" accesskey="&errorConsoleCmd.accesskey;" 
-                        oncommand="toJavaScriptConsole();"/>
+                        key="key_errorConsole" oncommand="toJavaScriptConsole();"/>
 #ifdef XP_WIN
               <menuitem accesskey="&pageInfoCmd.accesskey;" label="&pageInfoCmd.label;"   
                         command="View:PageInfo"/>

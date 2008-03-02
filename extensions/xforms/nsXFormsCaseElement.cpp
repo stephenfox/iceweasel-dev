@@ -44,7 +44,7 @@
 #include "nsIXFormsSwitchElement.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMElement.h"
-#include "nsString.h"
+#include "nsStringAPI.h"
 #include "nsIXTFElementWrapper.h"
 
 /**
@@ -63,11 +63,12 @@ public:
   NS_IMETHOD DoneAddingChildren();
 
   nsXFormsCaseElement()
-  : nsXFormsStubElement(), mSelected(PR_FALSE), mCachedSelectedAttr(PR_FALSE)
+  : mElement(nsnull), mSelected(PR_FALSE), mCachedSelectedAttr(PR_FALSE)
   {
   }
 
 protected:
+  nsIDOMElement* mElement;
   PRPackedBool   mSelected;
   PRPackedBool   mCachedSelectedAttr;
 };

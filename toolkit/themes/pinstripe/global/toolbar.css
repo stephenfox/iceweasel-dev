@@ -46,7 +46,6 @@
 /* ::::: toolbox ::::: */
 
 toolbox {
-  -moz-appearance: toolbar !important;
 }
 
 /* ::::: toolbar & menubar ::::: */
@@ -56,11 +55,8 @@ toolbarpalette {
   min-width: 1px;
   min-height: 20px !important;
   color: #000000;
-  border-bottom: 1px solid #a3a3a3;
-  background-color: rgb(235, 235, 235);
-  background-image: url("chrome://global/skin/toolbar/toolbar-background.gif");
-  background-repeat: repeat-x;
-  background-position: top right;
+  border-bottom: 1px solid #404040;
+  background-color: #C4C4C4;
 }
 
 menubar {
@@ -78,10 +74,6 @@ toolbar[mode="icons"] .toolbarbutton-text {
 
 toolbar[mode="text"] .toolbarbutton-icon {
   display: none;
-}
-
-toolbar[mode="text"] .toolbarbutton-1 > .toolbarbutton-text, toolbar[mode="text"] .toolbarbutton-1 > stack > toolbarbutton > .toolbarbutton-text {
-  margin: 4px;
 }
 
 /* ::::: toolbarseparator ::::: */

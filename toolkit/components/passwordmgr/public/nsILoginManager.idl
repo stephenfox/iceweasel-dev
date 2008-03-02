@@ -155,11 +155,8 @@ interface nsILoginManager : nsISupports {
      *        the array's .length property, and supply an dummy object for
      *        this out param. For example: |findLogins({}, hostname, ...)|
      * @param aHostname
-     *        The hostname to restrict searches to. When looking for form
-     *        logins, this argument should be in origin URL format, without
-     *        a pathname. For example: "http://www.site.com". For protocol
-     *        logins (http//ftp), it should be the hostname with a port
-     *        appended. For example: "www.bar.com:443".
+     *        The hostname to restrict searches to, in URL format. For
+     *        example: "http://www.site.com".
      * @param aActionURL
      *        For form logins, this argument should be the URL to which the
      *        form will be submitted. For protocol logins, specify null.
@@ -188,7 +185,9 @@ interface nsILoginManager : nsISupports {
     * password to decrypt the logins.
     *
     * @param aHostname
-    *        The hostname to restrict searches to.
+    *        The hostname to restrict searches to. Specify an empty string
+    *        to match all hosts. A null value will not match any logins, and
+    *        will thus always return a count of 0.
     * @param aActionURL
     *        The URL to which a form login will be submitted. To match any
     *        form login, specify an empty string. To not match any form

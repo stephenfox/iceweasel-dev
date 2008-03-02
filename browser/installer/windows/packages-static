@@ -99,6 +99,7 @@ bin\components\dom_css.xpt
 bin\components\dom_events.xpt
 bin\components\dom_html.xpt
 bin\components\dom_offline.xpt
+bin\components\dom_json.xpt
 bin\components\dom_range.xpt
 bin\components\dom_sidebar.xpt
 bin\components\dom_storage.xpt
@@ -181,6 +182,7 @@ bin\components\widget.xpt
 bin\components\windowds.xpt
 bin\components\windowwatcher.xpt
 bin\components\shellservice.xpt
+bin\components\spellchecker.xpt
 bin\components\xpcom_base.xpt
 bin\components\xpcom_system.xpt
 bin\components\xpcom_components.xpt
@@ -200,6 +202,7 @@ bin\components\FeedConverter.js
 bin\components\FeedWriter.js
 bin\components\fuelApplication.js
 bin\components\WebContentConverter.js
+bin\components\nsAddonRepository.js
 bin\components\nsBrowserContentHandler.js
 bin\components\nsBrowserGlue.js
 bin\components\nsSetDefaultBrowser.js
@@ -237,7 +240,6 @@ bin\components\nsDefaultCLH.js
 bin\components\nsContentPrefService.js
 bin\components\nsContentDispatchChooser.js
 bin\components\nsHandlerService.js
-bin\components\nsScriptableIO.js
 bin\components\nsWebHandlerApp.js
 
 ; Modules
@@ -330,6 +332,7 @@ bin\nssckbi.dll
 bin\components\pipboot.xpt
 bin\components\pipnss.xpt
 bin\components\pippki.xpt
+bin\nssutil3.dll
 bin\nss3.dll
 bin\smime3.dll
 bin\softokn3.chk
@@ -348,6 +351,7 @@ bin\updater.exe
 ; [Crash Reporter]
 bin\crashreporter.exe
 bin\crashreporter.ini
+bin\crashreporter-override.ini
 
 ; [Additional Developer Tools]
 [adt]

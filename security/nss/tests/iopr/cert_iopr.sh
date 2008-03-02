@@ -80,6 +80,9 @@ createDBDir() {
 
     if [ -z "`ls $trgDir | grep db`" ]; then
         trgDir=`cd ${trgDir}; pwd`
+        if [ "${OS_ARCH}" = "WINNT" -a "$OS_NAME" = "CYGWIN_NT" ]; then
+			trgDir=`cygpath -m ${trgDir}`
+        fi
 
         CU_ACTION="Initializing DB at ${trgDir}"
         certu -N -d "${trgDir}" -f "${R_PWFILE}" 2>&1
@@ -209,14 +212,14 @@ download_install_certs() {
     download_file $host "$confPath/iopr_server.cfg" $caDir
     RET=$?
     if [ $RET -ne 0 -o ! -f $caDir/iopr_server.cfg ]; then
-        html_failed "<TR><TD>Fail to download website config file(ws: $host)" 
+        html_failed "Fail to download website config file(ws: $host)" 
         return 1
     fi
 
     . $caDir/iopr_server.cfg
     RET=$?
     if [ $RET -ne 0 ]; then
-        html_failed "<TR><TD>Fail to source config file(ws: $host)" 
+        html_failed "Fail to source config file(ws: $host)" 
         return $RET
     fi
 
@@ -232,7 +235,7 @@ download_install_certs() {
     download_file $host $certDir/$caCertName.p12 $caDir
     RET=$?
     if [ $RET -ne 0 -o ! -f $caDir/$caCertName.p12 ]; then
-        html_failed "<TR><TD>Fail to download $caCertName cert(ws: $host)" 
+        html_failed "Fail to download $caCertName cert(ws: $host)" 
         return 1
     fi
     tmpFiles="$caDir/$caCertName.p12"
@@ -240,7 +243,7 @@ download_install_certs() {
     importFile $caDir $caDir/$caCertName.p12 $caCertName "TC,C,C"
     RET=$?
     if [ $RET -ne 0 ]; then
-        html_failed "<TR><TD>Fail to import $caCertName cert to CA DB(ws: $host)" 
+        html_failed "Fail to import $caCertName cert to CA DB(ws: $host)" 
         return $RET
     fi
 
@@ -268,7 +271,7 @@ download_install_certs() {
                         "TC,C,C"
             RET=$?
             if [ $RET -ne 0 ]; then
-                html_failed "<TR><TD>Fail to import server-client-CA cert to \
+                html_failed "Fail to import server-client-CA cert to \
                              server DB(ws: $host)" 
                 return $RET
             fi
@@ -294,7 +297,7 @@ download_install_certs() {
             importFile $sslServerDir $caDir/$CERTNAME.cert $CERTNAME ",,"
             RET=$?
             if [ $RET -ne 0 ]; then
-                html_failed "<TR><TD>Fail to import $CERTNAME cert to server\
+                html_failed "Fail to import $CERTNAME cert to server\
                              DB(ws: $host)" 
                 return $RET
             fi
@@ -306,7 +309,7 @@ download_install_certs() {
             download_file $host "$certDir/$caCrlName.crl" $sslServerDir
             RET=$?
             if [ $? -ne 0 ]; then
-                html_failed "<TR><TD>Fail to download $caCertName crl\
+                html_failed "Fail to download $caCertName crl\
                              (ws: $host)" 
                 return $RET
             fi
@@ -315,7 +318,7 @@ download_install_certs() {
             importFile $sslServerDir $sslServerDir/TestCA.crl
             RET=$?
             if [ $RET -ne 0 ]; then
-                html_failed "<TR><TD>Fail to import TestCA crt to server\
+                html_failed "Fail to import TestCA crt to server\
                              DB(ws: $host)" 
                 return $RET
             fi
@@ -329,7 +332,7 @@ download_install_certs() {
                    "TC,C,C"
         RET=$?
         if [ $RET -ne 0 ]; then
-            html_failed "<TR><TD>Fail to import server-client-CA cert to \
+            html_failed "Fail to import server-client-CA cert to \
                          server DB(ws: $host)" 
             return $RET
         fi
@@ -344,7 +347,7 @@ download_install_certs() {
                    "TC,C,C"
         RET=$?
         if [ $RET -ne 0 ]; then
-            html_failed "<TR><TD>Fail to import server-client-CA cert to \
+            html_failed "Fail to import server-client-CA cert to \
                          server DB(ws: $host)" 
             return $RET
         fi
@@ -367,7 +370,7 @@ download_install_certs() {
         download_file $host "$certDir/$fileName" $clientDir
         RET=$?
         if [ $RET -ne 0 -o ! -f $clientDir/$fileName ]; then
-            html_failed "<TR><TD>Fail to download $certName cert(ws: $host)" 
+            html_failed "Fail to download $certName cert(ws: $host)" 
             return $RET
         fi
         tmpFiles="$tmpFiles $clientDir/$fileName"
@@ -375,7 +378,7 @@ download_install_certs() {
         importFile $clientDir $clientDir/$fileName $certName ",,"
         RET=$?
         if [ $RET -ne 0 ]; then
-            html_failed "<TR><TD>Fail to import $certName cert to client DB\
+            html_failed "Fail to import $certName cert to client DB\
                         (ws: $host)" 
             return $RET
         fi

@@ -135,7 +135,9 @@ is_selfserv_alive()
           Exit 9 "Fatal - selfserv pid file ${SERVERPID} does not exist"
       fi
   fi
-  if [ "${OS_ARCH}" = "WINNT" -a "$OS_NAME" = "CYGWIN_NT" ]; then
+  
+  if [ "${OS_ARCH}" = "WINNT" ] && \
+     [ "$OS_NAME" = "CYGWIN_NT" -o "$OS_NAME" = "MINGW32_NT" ]; then
       PID=${SHELL_SERVERPID}
   else
       PID=`cat ${SERVERPID}`
@@ -165,8 +167,7 @@ wait_for_selfserv()
       tstclnt -p ${PORT} -h ${HOSTADDR} ${CLIENT_OPTIONS} -q \
               -d ${P_R_CLIENTDIR} < ${REQUEST_FILE}
       if [ $? -ne 0 ]; then
-          html_failed "<TR><TD> Waiting for Server"
-          echo "${SCRIPTNAME}: Waiting for Server - FAILED"
+          html_failed "Waiting for Server"
       fi
   fi
   is_selfserv_alive
@@ -177,7 +178,8 @@ wait_for_selfserv()
 ########################################################################
 kill_selfserv()
 {
-  if [ "${OS_ARCH}" = "WINNT" -a "$OS_NAME" = "CYGWIN_NT" ]; then
+  if [ "${OS_ARCH}" = "WINNT" ] && \
+     [ "$OS_NAME" = "CYGWIN_NT" -o "$OS_NAME" = "MINGW32_NT" ]; then
       PID=${SHELL_SERVERPID}
   else
       PID=`cat ${SERVERPID}`
@@ -210,7 +212,7 @@ kill_selfserv()
   echo "selfserv with PID ${PID} killed at `date`"
 
   rm ${SERVERPID}
-  html_detect_core "<TR><TD>kill_selfserv core detection step"
+  html_detect_core "kill_selfserv core detection step"
 }
 
 ########################### start_selfserv #############################
@@ -259,7 +261,8 @@ start_selfserv()
   SHELL_SERVERPID=$!
   wait_for_selfserv
 
-  if [ "${OS_ARCH}" = "WINNT" -a "$OS_NAME" = "CYGWIN_NT" ]; then
+  if [ "${OS_ARCH}" = "WINNT" ] && \
+     [ "$OS_NAME" = "CYGWIN_NT" -o "$OS_NAME" = "MINGW32_NT" ]; then
       PID=${SHELL_SERVERPID}
   else
       PID=`cat ${SERVERPID}`
@@ -617,7 +620,7 @@ _EOF_REQUEST_
              -p ../tests.pw.928
         ret=$?
         if [ "$ret" -eq 0 ]; then
-	    html_passed "<TR><TD> ${CU_ACTION}"
+	    html_passed "${CU_ACTION}"
             return 1
         fi
         start_selfserv        
@@ -847,15 +850,17 @@ if [ -z  "$DO_REM_ST" -a -z  "$DO_DIST_ST" ] ; then
     # Test all combinations of client bypass and server bypass
 
     if [ -z "$NSS_TEST_DISABLE_CIPHERS" ] ; then
-	if [ -n "$NSS_TEST_DISABLE_BYPASS" ] ; then
+        if [ -n "$NSS_TEST_DISABLE_BYPASS" ] ; then
             SERVER_OPTIONS=""
             CLIENT_OPTIONS=""
             BYPASS_STRING="No Bypass"
             ssl_run
-	fi
+        fi
 
-        if [ -z "$NSS_TEST_DISABLE_BYPASS" -a -z "$NSS_TEST_DISABLE_CLIENT_BYPASS" ] ; then
-            CLIENT_OPTIONS="-B -s"
+        if [ -z "$NSS_TEST_DISABLE_BYPASS" -a \
+            -z "$NSS_TEST_DISABLE_CLIENT_BYPASS" -a \
+            -z "$NSS_TEST_SERVER_CLIENT_BYPASS" ] ; then
+            CLIENT_OPTIONS="-B -s" 
             SERVER_OPTIONS=""
             BYPASS_STRING="Client Bypass"
             ssl_run
@@ -863,13 +868,23 @@ if [ -z  "$DO_REM_ST" -a -z  "$DO_DIST_ST" ] ; then
             echo "$SCRIPTNAME: Skipping Cipher Coverage - Client Bypass Tests"
         fi
 
-        if [ -z "$NSS_TEST_DISABLE_BYPASS" -a -z "$NSS_TEST_DISABLE_SERVER_BYPASS" ] ; then
+        if [ -z "$NSS_TEST_DISABLE_BYPASS" -a \
+            -z "$NSS_TEST_DISABLE_SERVER_BYPASS" -a \
+            -z "$NSS_TEST_SERVER_CLIENT_BYPASS" ] ; then
             SERVER_OPTIONS="-B -s"
             CLIENT_OPTIONS=""
             BYPASS_STRING="Server Bypass"
             ssl_run
         else
             echo "$SCRIPTNAME: Skipping Cipher Coverage - Server Bypass Tests"
+        fi
+
+        if [ -n "$NSS_TEST_SERVER_CLIENT_BYPASS" -a \
+            -z "$NSS_TEST_DISABLE_BYPASS" ] ; then
+            SERVER_OPTIONS="-B -s"
+            CLIENT_OPTIONS="-B -s"
+            BYPASS_STRING="Server Bypass/Client Bypass"
+            ssl_run
         fi
 
         if [ -z "$NSS_TEST_DISABLE_FIPS" ] ; then

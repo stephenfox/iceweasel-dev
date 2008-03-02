@@ -95,13 +95,13 @@ typedef nsEventStatus (*PR_CALLBACK EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_PLUGIN_PORT_CG    101
 #endif
 
-// 092c37e8-2806-4ebc-b04b-e0bb624ce0d4
+// a6593177-ba36-400e-8812-a0d36b3af17b
 #define NS_IWIDGET_IID \
-{ 0x092c37e8, 0x2806, 0x4ebc, \
-  { 0xb0, 0x4b, 0xe0, 0xbb, 0x62, 0x4c, 0xe0, 0xd4 } }
+{ 0xa6593177, 0xba36, 0x400e, \
+  { 0x88, 0x12, 0xa0, 0xd3, 0x6b, 0x3a, 0xf1, 0x7b } }
 
 // Hide the native window systems real window type so as to avoid
-// including native window system types and api's. This is necessary
+// including native window system types and APIs. This is necessary
 // to ensure cross-platform code.
 typedef void* nsNativeWidget;
 
@@ -206,6 +206,7 @@ enum nsCursor {   ///(normal cursor,       usually rendered as an arrow)
                 eCursor_nwse_resize,
                 eCursor_ns_resize,
                 eCursor_ew_resize,
+                eCursor_none,
                 // This one better be the last one in this list.
                 eCursorCount
                 }; 
@@ -669,29 +670,18 @@ class nsIWidget : public nsISupports {
      * If the window is resized then the alpha channel values for
      * all pixels are reset to 1.
      * Pixel RGB color values are already premultiplied with alpha channel values.
-     * @param aTranslucent true if the window may have translucent
+     * @param aTransparent true if the window may have translucent
      *   or transparent pixels
      */
-    NS_IMETHOD SetWindowTranslucency(PRBool aTranslucent) = 0;
+    NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent) = 0;
 
     /**
      * Get the translucency of the top-level window that contains this
      * widget.
-     * @param aTranslucent true if the window may have translucent or
+     * @param aTransparent true if the window may have translucent or
      *   transparent pixels
      */
-    NS_IMETHOD GetWindowTranslucency(PRBool& aTranslucent) = 0;
-
-    /**
-     * Update the alpha channel for some pixels of the top-level window
-     * that contains this widget.
-     * The window must have been made translucent using SetWindowTranslucency.
-     * Pixel RGB color values are already premultiplied with alpha channel values.
-     * @param aRect the rect to update
-     * @param aAlphas the alpha values, in w x h array, row-major order,
-     * in units of 1/255. nsBlender::GetAlphas is a good way to compute this array.
-     */
-    NS_IMETHOD UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas) = 0;
+    NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent) = 0;
 
     /** 
      * Hide window chrome (borders, buttons) for this widget.
@@ -1044,6 +1034,11 @@ class nsIWidget : public nsISupports {
      * Return the popup that was last rolled up, or null if there isn't one.
      */
     virtual nsIContent* GetLastRollup() = 0;
+
+    /**
+     * Begin a window resizing drag, based on the event passed in.
+     */
+    NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical) = 0;
 
 protected:
     // keep the list of children.  We also keep track of our siblings.

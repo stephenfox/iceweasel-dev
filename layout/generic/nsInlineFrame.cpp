@@ -425,12 +425,12 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
                    : aReflowState.mComputedBorderPadding.right;
   }
   nscoord availableWidth = aReflowState.availableWidth;
-  if (NS_UNCONSTRAINEDSIZE != availableWidth) {
-    // Subtract off left and right border+padding from availableWidth
-    availableWidth -= leftEdge;
-    availableWidth -= ltr ? aReflowState.mComputedBorderPadding.right
-                          : aReflowState.mComputedBorderPadding.left;
-  }
+  NS_ASSERTION(availableWidth != NS_UNCONSTRAINEDSIZE,
+               "should no longer use available widths");
+  // Subtract off left and right border+padding from availableWidth
+  availableWidth -= leftEdge;
+  availableWidth -= ltr ? aReflowState.mComputedBorderPadding.right
+                        : aReflowState.mComputedBorderPadding.left;
   lineLayout->BeginSpan(this, &aReflowState, leftEdge, leftEdge + availableWidth);
 
   // First reflow our current children
@@ -536,11 +536,9 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // line-height calculations. However, continuations of an inline
   // that are empty we force to empty so that things like collapsed
   // whitespace in an inline element don't affect the line-height.
-  nsSize size;
-  lineLayout->EndSpan(this, size);
+  aMetrics.width = lineLayout->EndSpan(this);
 
   // Compute final width
-  aMetrics.width = size.width;
   if (nsnull == GetPrevContinuation()) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
                           : aReflowState.mComputedBorderPadding.right;

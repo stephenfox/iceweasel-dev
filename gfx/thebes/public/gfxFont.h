@@ -52,6 +52,10 @@
 #include "nsMathUtils.h"
 #include "nsBidiUtils.h"
 
+#ifdef DEBUG
+#include <stdio.h>
+#endif
+
 class gfxContext;
 class gfxTextRun;
 class nsIAtom;
@@ -272,7 +276,10 @@ public:
     }
 
     // Get glyph extents; a rectangle relative to the left baseline origin
-    gfxRect GetTightGlyphExtentsAppUnits(gfxFont *aFont, gfxContext *aContext, PRUint32 aGlyphID);
+    // Returns true on success. Can fail on OOM or when aContext is null
+    // and extents were not (successfully) prefetched.
+    PRBool GetTightGlyphExtentsAppUnits(gfxFont *aFont, gfxContext *aContext,
+            PRUint32 aGlyphID, gfxRect *aExtents);
 
     void SetContainedGlyphWidthAppUnits(PRUint32 aGlyphID, PRUint16 aWidth) {
         mContainedGlyphWidths.Set(aGlyphID, aWidth);
@@ -349,6 +356,9 @@ class THEBES_API gfxFont {
 public:
     nsrefcnt AddRef(void) {
         NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");
+        if (mExpirationState.IsTracked()) {
+            gfxFontCache::GetCache()->RemoveObject(this);
+        }
         ++mRefCnt;
         NS_LOG_ADDREF(this, mRefCnt, "gfxFont", sizeof(*this));
         return mRefCnt;
@@ -488,6 +498,8 @@ public:
      * the advance width for the character run,y=-(font ascent), and height=
      * font ascent + font descent). Otherwise, we must return as tight as possible
      * an approximation to the area actually painted by glyphs.
+     * @param aContextForTightBoundingBox when aTight is true, this must
+     * be non-null.
      * @param aSpacing spacing to insert before and after glyphs. The bounding box
      * need not include the spacing itself, but the spacing affects the glyph
      * positions. null if there is no spacing.
@@ -1203,6 +1215,12 @@ public:
     void SetMissingGlyph(PRUint32 aCharIndex, PRUint32 aUnicodeChar);
     void SetSpaceGlyph(gfxFont *aFont, gfxContext *aContext, PRUint32 aCharIndex);
     
+    /**
+     * Prefetch all the glyph extents needed to ensure that Measure calls
+     * on this textrun with aTightBoundingBox false will succeed. Note
+     * that some glyph extents might not be fetched due to OOM or other
+     * errors.
+     */
     void FetchGlyphExtents(gfxContext *aRefContext);
 
     // API for access to the raw glyph data, needed by gfxFont::Draw
@@ -1249,6 +1267,8 @@ public:
 #ifdef DEBUG
     // number of entries referencing this textrun in the gfxTextRunWordCache
     PRUint32 mCachedWords;
+    
+    void Dump(FILE* aOutput);
 #endif
 
 protected:
@@ -1402,6 +1422,7 @@ public:
      * Make a textrun for a given string.
      * If aText is not persistent (aFlags & TEXT_IS_PERSISTENT), the
      * textrun will copy it.
+     * This calls FetchGlyphExtents on the textrun.
      */
     virtual gfxTextRun *MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
                                     const Parameters *aParams, PRUint32 aFlags) = 0;
@@ -1409,6 +1430,7 @@ public:
      * Make a textrun for a given string.
      * If aText is not persistent (aFlags & TEXT_IS_PERSISTENT), the
      * textrun will copy it.
+     * This calls FetchGlyphExtents on the textrun.
      */
     virtual gfxTextRun *MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
                                     const Parameters *aParams, PRUint32 aFlags) = 0;
@@ -1425,9 +1447,6 @@ public:
                               void *closure);
     PRBool ForEachFont(FontCreationCallback fc, void *closure);
 
-    /* this will call back fc with the a generic font based on the style's langgroup */
-    void FindGenericFontFromStyle(FontCreationCallback fc, void *closure);
-
     const nsString& GetFamilies() { return mFamilies; }
 
 protected:
@@ -1435,11 +1454,24 @@ protected:
     gfxFontStyle mStyle;
     nsTArray< nsRefPtr<gfxFont> > mFonts;
 
+    /* If aResolveGeneric is true, then CSS/Gecko generic family names are
+     * replaced with preferred fonts.
+     *
+     * If aResolveFontName is true then fc() is called only for existing fonts
+     * and with actual font names.  If false then fc() is called with each
+     * family name in aFamilies (after resolving CSS/Gecko generic family names
+     * if aResolveGeneric).
+     */
     static PRBool ForEachFontInternal(const nsAString& aFamilies,
                                       const nsACString& aLangGroup,
                                       PRBool aResolveGeneric,
+                                      PRBool aResolveFontName,
                                       FontCreationCallback fc,
                                       void *closure);
+
+    /* this will call back fc with the a generic font based on the style's langgroup */
+    void FindGenericFontFromStyle(PRBool aResolveFontName,
+                                  FontCreationCallback fc, void *closure);
 
     static PRBool FontResolverProc(const nsAString& aName, void *aClosure);
 };

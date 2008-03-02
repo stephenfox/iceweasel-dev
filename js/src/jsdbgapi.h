@@ -391,6 +391,7 @@ JS_FlagScriptFilenamePrefix(JSRuntime *rt, const char *prefix, uint32 flags);
 
 #define JSFILENAME_NULL         0xffffffff      /* null script filename */
 #define JSFILENAME_SYSTEM       0x00000001      /* "system" script, see below */
+#define JSFILENAME_PROTECTED    0x00000002      /* scripts need protection */
 
 /*
  * Return true if obj is a "system" object, that is, one created by
@@ -419,6 +420,27 @@ JS_GetGlobalDebugHooks(JSRuntime *rt);
 
 extern JS_PUBLIC_API(JSDebugHooks *)
 JS_SetContextDebugHooks(JSContext *cx, JSDebugHooks *hooks);
+
+#ifdef MOZ_SHARK
+extern JS_PUBLIC_API(JSBool) JS_StartChudRemote();
+extern JS_PUBLIC_API(JSBool) JS_StopChudRemote();
+extern JS_PUBLIC_API(JSBool) JS_ConnectShark();
+extern JS_PUBLIC_API(JSBool) JS_DisconnectShark();
+
+extern JS_FRIEND_API(JSBool) js_StopShark(JSContext *cx, JSObject *obj,
+                                          uintN argc, jsval *argv, jsval *rval);
+
+extern JS_FRIEND_API(JSBool) js_StartShark(JSContext *cx, JSObject *obj,
+                                           uintN argc, jsval *argv, jsval *rval);
+
+extern JS_FRIEND_API(JSBool) js_ConnectShark(JSContext *cx, JSObject *obj,
+                                             uintN argc, jsval *argv,
+                                             jsval *rval);
+
+extern JS_FRIEND_API(JSBool) js_DisconnectShark(JSContext *cx, JSObject *obj,
+                                                uintN argc, jsval *argv,
+                                                jsval *rval);
+#endif /* MOZ_SHARK */
 
 JS_END_EXTERN_C
 

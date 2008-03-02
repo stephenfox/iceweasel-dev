@@ -258,6 +258,17 @@
           throw("Container view not found");
         },
 
+        get result() {
+          return this._self._result;
+        },
+
+        set result(val) {
+          this._built = false;
+          this._self._containerNodesMap = [];
+          this._self._resultNode = val.root;
+          return this._self._result = val;
+        },
+
         itemInserted: function PMV_itemInserted(aParentNode, aNode, aIndex) {
           var popup = this._getPopupForContainer(aParentNode);
           if (!popup._built)
@@ -284,6 +295,26 @@
                    popup.firstChild == popup._emptyMenuItem)) {
                 this._self._showEmptyMenuItem(popup);
               }
+            }
+          }
+        },
+
+        itemMoved:
+        function PMV_itemMoved(aItem, aOldParent, aOldIndex, aNewParent,
+                               aNewIndex) {
+          // This cannot actually happen yet (see IDL)
+          if (aNewParent != aOldParent)
+            return;
+
+          var popup = this._getPopupForContainer(aNewParent);
+          var index = popup._startMarker + 1 + aNewIndex;
+          var children = popup.childNodes;
+          for (var i = 0; i < children.length; i++) {
+            var menuItem = children[i];
+            if (menuItem.node == aItem) {
+              popup.removeChild(menuItem);
+              popup.insertBefore(menuItem, children[index]);
+              return;
             }
           }
         },
@@ -402,22 +433,16 @@
           return this.getAttribute("place");
         ]]></getter>
         <setter><![CDATA[
-          // Map for containerNodes<->domNodes. There's only one map per
-          // result/viewer, the field is initialized once for the root menu,
-          // for sub menus it is set to the root's map (see insertNewItem)
-          this._containerNodesMap = [];
-
           this.setAttribute("place", val);
           var queries = { }, options = { };
           PlacesUtils.history.queryStringToQueries(val, queries, { }, options);
           if (!queries.value.length)
             queries.value = [PlacesUtils.history.getNewQuery()];
-          this._result =
+          var result =
             PlacesUtils.history.executeQueries(queries.value,
                                                queries.value.length,
                                                options.value);
-          this._result.viewer = this._viewer;
-          this._resultNode = this._result.root;
+          result.viewer = this._viewer;
           return val;
         ]]></setter>
       </property>
@@ -491,17 +516,17 @@
           var index = -1;
           var folderId = 0;
           if (PlacesUtils.nodeIsFolder(this._resultNode))
-            folderId = this._resultNode.itemId;
+            folderId = PlacesUtils.getConcreteItemId(this._resultNode);
 
           if (this.hasSelection) {
             if (PlacesUtils.nodeIsFolder(this.selectedNode)) {
               // If there is a folder selected, the insertion point is the
               // end of the folder.
-              folderId = this.selectedNode.itemId;
+              folderId = PlacesUtils.getConcreteItemId(this.selectedNode);
             } else {
               // If there is another type of node selected, the insertion point
               // is after that node.
-              folderId = this.selectedNode.parent.itemId;
+              folderId = PlacesUtils.getConcreteItemId(this.selectedNode.parent);
               index = PlacesUtils.getIndexOfNode(this.selectedNode)
             }
           }
@@ -509,12 +534,6 @@
           return this._cachedInsertionPoint;
         ]]></getter>
       </property>
-
-      <!-- nsIPlacesView -->
-      <field name="peerDropTypes">PlacesUtils.GENERIC_VIEW_DROP_TYPES</field>
-
-      <!-- nsIPlacesView -->
-      <field name="childDropTypes">PlacesUtils.GENERIC_VIEW_DROP_TYPES</field>
 
       <!-- nsIPlacesView -->
       <method name="selectAll">

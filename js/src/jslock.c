@@ -85,18 +85,36 @@ js_UnlockGlobal(void *id)
 /* Exclude Alpha NT. */
 #if defined(_WIN32) && defined(_M_IX86)
 #pragma warning( disable : 4035 )
+#pragma intrinsic(_InterlockedCompareExchange)
+
+static JS_INLINE int
+js_CompareAndSwapHelper(jsword *w, jsword ov, jsword nv)
+{
+    _InterlockedCompareExchange(w, nv, ov);
+    __asm {
+        sete al
+    }
+}
 
 static JS_INLINE int
 js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
-    __asm {
-        mov eax, ov
-        mov ecx, nv
-        mov ebx, w
-        lock cmpxchg [ebx], ecx
-        sete al
-        and eax, 1h
-    }
+    return (js_CompareAndSwapHelper(w, ov, nv) & 1);
+}
+
+#elif defined(XP_MACOSX) || defined(DARWIN)
+
+#include <libkern/OSAtomic.h>
+
+static JS_INLINE int
+js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
+{
+    /* Details on these functions available in the manpage for atomic */
+#if JS_BYTES_PER_WORD == 8 && JS_BYTES_PER_LONG != 8
+    return OSAtomicCompareAndSwap64Barrier(ov, nv, (int64_t*) w);
+#else
+    return OSAtomicCompareAndSwap32Barrier(ov, nv, (int32_t*) w);
+#endif
 }
 
 #elif defined(__GNUC__) && defined(__i386__)
@@ -335,30 +353,7 @@ ShareScope(JSContext *cx, JSScope *scope)
         JS_NOTIFY_ALL_CONDVAR(rt->scopeSharingDone);
     }
     js_InitLock(&scope->lock);
-    if (scope == rt->setSlotScope) {
-        /*
-         * Nesting locks on another thread that's using scope->ownercx: give
-         * the held lock a reentrancy count of 1 and set its lock.owner field
-         * directly (no compare-and-swap needed while scope->ownercx is still
-         * non-null).  See below in ClaimScope, before the ShareScope call,
-         * for more on why this is necessary.
-         *
-         * If NSPR_LOCK is defined, we cannot deadlock holding rt->gcLock and
-         * acquiring scope->lock.fat here, against another thread holding that
-         * fat lock and trying to grab rt->gcLock.  This is because no other
-         * thread can attempt to acquire scope->lock.fat until scope->ownercx
-         * is null *and* our thread has released rt->gcLock, which interlocks
-         * scope->ownercx's transition to null against tests of that member
-         * in ClaimScope.
-         */
-        scope->lock.owner = CX_THINLOCK_ID(scope->ownercx);
-#ifdef NSPR_LOCK
-        JS_ACQUIRE_LOCK((JSLock*)scope->lock.fat);
-#endif
-        scope->u.count = 1;
-    } else {
-        scope->u.count = 0;
-    }
+    scope->u.count = 0;
     js_FinishSharingScope(cx, scope);
 }
 
@@ -389,8 +384,8 @@ js_FinishSharingScope(JSContext *cx, JSScope *scope)
         if (JSVAL_IS_STRING(v) &&
             !js_MakeStringImmutable(cx, JSVAL_TO_STRING(v))) {
             /*
-             * FIXME bug 363059: The following error recovery changes the
-             * execution semantic arbitrary and silently ignores any errors
+             * FIXME bug 363059: The following error recovery changes runtime
+             * execution semantics, arbitrarily and silently ignoring errors
              * except out-of-memory, which should have been reported through
              * JS_ReportOutOfMemory at this point.
              */
@@ -452,30 +447,19 @@ ClaimScope(JSScope *scope, JSContext *cx)
         /*
          * Avoid deadlock if scope's owner context is waiting on a scope that
          * we own, by revoking scope's ownership.  This approach to deadlock
-         * avoidance works because the engine never nests scope locks, except
-         * for the notable case of js_SetProtoOrParent (see jsobj.c).
+         * avoidance works because the engine never nests scope locks.
          *
          * If cx could hold locks on ownercx->scopeToShare, or if ownercx
          * could hold locks on scope, we would need to keep reentrancy counts
          * for all such "flyweight" (ownercx != NULL) locks, so that control
          * would unwind properly once these locks became "thin" or "fat".
-         * Apart from the js_SetProtoOrParent exception, the engine promotes
-         * a scope from exclusive to shared access only when locking, never
-         * when holding or unlocking.
-         *
-         * If ownercx's thread is calling js_SetProtoOrParent, trying to lock
-         * the inner scope (the scope of the object being set as the prototype
-         * of the outer object), ShareScope will find the outer object's scope
-         * at rt->setSlotScope.  If it's the same as scope, we give it a lock
-         * held by ownercx's thread with reentrancy count of 1, then we return
-         * here and break.  After that we unwind to js_[GS]etSlotThreadSafe or
-         * js_LockScope (our caller), where we wait on the newly-fattened lock
-         * until ownercx's thread unwinds from js_SetProtoOrParent.
+         * The engine promotes a scope from exclusive to shared access only
+         * when locking, never when holding or unlocking.
          *
          * Avoid deadlock before any of this scope/context cycle detection if
          * cx is on the active GC's thread, because in that case, no requests
          * will run until the GC completes.  Any scope wanted by the GC (from
-         * a finalizer) that can't be claimed must be slated for sharing.
+         * a finalizer) that can't be claimed must become shared.
          */
         if (rt->gcThread == cx->thread ||
             (ownercx->scopeToShare &&
@@ -591,10 +575,10 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
     JS_ASSERT(slot < obj->map->freeslot);
 
     /*
-     * Avoid locking if called from the GC (see GC_AWARE_GET_SLOT in jsobj.h).
-     * Also avoid locking an object owning a sealed scope.  If neither of those
-     * special cases applies, try to claim scope's flyweight lock from whatever
-     * context may have had it in an earlier request.
+     * Avoid locking if called from the GC.  Also avoid locking an object
+     * owning a sealed scope.  If neither of those special cases applies, try
+     * to claim scope's flyweight lock from whatever context may have had it in
+     * an earlier request.
      */
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
         (SCOPE_IS_SEALED(scope) && scope->object == obj) ||
@@ -684,10 +668,10 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     JS_ASSERT(slot < obj->map->freeslot);
 
     /*
-     * Avoid locking if called from the GC (see GC_AWARE_GET_SLOT in jsobj.h).
-     * Also avoid locking an object owning a sealed scope.  If neither of those
-     * special cases applies, try to claim scope's flyweight lock from whatever
-     * context may have had it in an earlier request.
+     * Avoid locking if called from the GC.  Also avoid locking an object
+     * owning a sealed scope.  If neither of those special cases applies, try
+     * to claim scope's flyweight lock from whatever context may have had it in
+     * an earlier request.
      */
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
         (SCOPE_IS_SEALED(scope) && scope->object == obj) ||
@@ -1040,13 +1024,12 @@ js_Unlock(JSThinLock *tl, jsword me)
     JS_ASSERT(CURRENT_THREAD_IS_ME(me));
 
     /*
-     * Only me can hold the lock, no need to use compare and swap atomic
-     * operation for this common case.
+     * Since we can race with the CompareAndSwap in js_Enqueue, we need
+     * to use a C_A_S here as well -- Arjan van de Ven 30/1/08
      */
-    if (tl->owner == me) {
-        tl->owner = 0;
+    if (js_CompareAndSwap(&tl->owner, me, 0))
         return;
-    }
+
     JS_ASSERT(Thin_GetWait(tl->owner));
     if (Thin_RemoveWait(ReadWord(tl->owner)) == me)
         js_Dequeue(tl);

@@ -866,7 +866,8 @@ safe_pclose(FILE *fp)
     /* if the child hasn't exited, kill it -- we're done with its output */
     while ((rv = waitpid(pid, &status, WNOHANG)) == -1 && errno == EINTR)
 	;
-    if (rv == 0 && kill(pid, SIGKILL) == 0) {
+    if (rv == 0) {
+	kill(pid, SIGKILL);
 	while ((rv = waitpid(pid, &status, 0)) == -1 && errno == EINTR)
 	    ;
     }
@@ -921,15 +922,6 @@ void RNG_SystemInfoForRNG(void)
     };
 #endif
 
-#ifdef DO_PS
-For now it is considered that it is too expensive to run the ps command
-for the small amount of entropy it provides.
-#if defined(__sun) && (!defined(__svr4) && !defined(SVR4)) || defined(bsdi) || defined(LINUX)
-    static char ps_cmd[] = "ps aux";
-#else
-    static char ps_cmd[] = "ps -el";
-#endif
-#endif /* DO_PS */
 #if defined(BSDI)
     static char netstat_ni_cmd[] = "netstat -nis";
 #else
@@ -980,9 +972,12 @@ for the small amount of entropy it provides.
  * in a pthreads environment.  Therefore, we call safe_popen last and on
  * BSD/OS we do not call safe_popen when we succeeded in getting data
  * from /dev/urandom.
+ *
+ * Bug 174993: LINUX provides /dev/urandom, don't fork netstat
+ * if data has been gathered successfully
  */
 
-#ifdef BSDI
+#if defined(BSDI) || defined(LINUX)
     if (bytes)
         return;
 #endif
@@ -1007,15 +1002,6 @@ for the small amount of entropy it provides.
         }
         bytes += kstat_bytes;
         PORT_Assert(bytes);
-    }
-#endif
-
-#ifdef DO_PS
-    fp = safe_popen(ps_cmd);
-    if (fp != NULL) {
-	while ((bytes = fread(buf, 1, sizeof(buf), fp)) > 0)
-	    RNG_RandomUpdate(buf, bytes);
-	safe_pclose(fp);
     }
 #endif
 

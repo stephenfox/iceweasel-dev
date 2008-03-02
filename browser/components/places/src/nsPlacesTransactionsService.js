@@ -136,8 +136,24 @@ placesTransactionsService.prototype = {
     return new placesEditBookmarkMicrosummaryTransactions(aID, newMicrosummary);
   },
 
+  editItemDateAdded: function placesEditItemDateAdded(aID, aNewDateAdded) {
+    return new placesEditItemDateAddedTransaction(aID, aNewDateAdded);
+  },
+
+  editItemLastModified: function placesEditItemLastModified(aID, aNewLastModified) {
+    return new placesEditItemLastModifiedTransaction(aID, aNewLastModified);
+  },
+
   sortFolderByName: function placesSortFldrByName(aFolderId, aFolderIndex) {
-   return new placesSortFolderByNameTransactions(aFolderId, aFolderIndex);
+    return new placesSortFolderByNameTransactions(aFolderId, aFolderIndex);
+  },
+
+  tagURI: function placesTagURI(aURI, aTags) {
+    return new placesTagURITransaction(aURI, aTags);
+  },
+
+  untagURI: function placesTagURI(aURI, aTags) {
+    return new placesUntagURITransaction(aURI, aTags);
   },
 
   // Update commands in the undo group of the active window
@@ -469,6 +485,15 @@ placesRemoveItemTransaction.prototype = {
       if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK)
         this._uri = PlacesUtils.bookmarks.getBookmarkURI(this._id);
       PlacesUtils.bookmarks.removeItem(this._id);
+      if (this._uri) {
+        // if this was the last bookmark (excluding tag-items and livemark
+        // children, see getMostRecentBookmarkForURI) for the bookmark's url,
+        // remove the url from tag containers as well.
+        if (PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
+          this._tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
+          PlacesUtils.tagging.untagURI(this._uri, this._tags);
+        }
+      }
     }
   },
 
@@ -478,6 +503,8 @@ placesRemoveItemTransaction.prototype = {
                                                       this._uri,
                                                       this._oldIndex,
                                                       this._title);
+      if (this._tags && this._tags.length > 0)
+        PlacesUtils.tagging.tagURI(this._uri, this._tags);
     }
     else if (this._itemType == Ci.nsINavBookmarksService.TYPE_FOLDER) {
       this._removeTxn.undoTransaction();
@@ -730,6 +757,54 @@ placesEditBookmarkMicrosummaryTransactions.prototype = {
   }
 };
 
+function placesEditItemDateAddedTransaction(id, newDateAdded) {
+  this.id = id;
+  this._newDateAdded = newDateAdded;
+  this._oldDateAdded = null;
+  this.redoTransaction = this.doTransaction;
+}
+
+placesEditItemDateAddedTransaction.prototype = {
+  __proto__: placesBaseTransaction.prototype,
+
+  // to support folders as well
+  get container() { return this.id; },
+  set container(val) { return this.id = val; },
+
+  doTransaction: function PEITT_doTransaction() {
+    this._oldDateAdded = PlacesUtils.bookmarks.getItemDateAdded(this.id);
+    PlacesUtils.bookmarks.setItemDateAdded(this.id, this._newDateAdded);
+  },
+
+  undoTransaction: function PEITT_undoTransaction() {
+    PlacesUtils.bookmarks.setItemDateAdded(this.id, this._oldDateAdded);
+  }
+};
+
+function placesEditItemLastModifiedTransaction(id, newLastModified) {
+  this.id = id;
+  this._newLastModified = newLastModified;
+  this._oldLastModified = null;
+  this.redoTransaction = this.doTransaction;
+}
+
+placesEditItemLastModifiedTransaction.prototype = {
+  __proto__: placesBaseTransaction.prototype,
+
+  // to support folders as well
+  get container() { return this.id; },
+  set container(val) { return this.id = val; },
+
+  doTransaction: function PEITT_doTransaction() {
+    this._oldLastModified = PlacesUtils.bookmarks.getItemLastModified(this.id);
+    PlacesUtils.bookmarks.setItemLastModified(this.id, this._newLastModified);
+  },
+
+  undoTransaction: function PEITT_undoTransaction() {
+    PlacesUtils.bookmarks.setItemLastModified(this.id, this._oldLastModified);
+  }
+};
+
 function placesSortFolderByNameTransactions(aFolderId, aFolderIndex) {
   this._folderId = aFolderId;
   this._folderIndex = aFolderIndex;
@@ -750,7 +825,13 @@ placesSortFolderByNameTransactions.prototype = {
     var newOrder = []; 
     var preSep = []; // temporary array for sorting each group of items
     var sortingMethod =
-      function (a, b) { return a.title.localeCompare(b.title); };
+      function (a, b) {
+        if (PlacesUtils.nodeIsContainer(a) && !PlacesUtils.nodeIsContainer(b))
+          return -1;
+        if (!PlacesUtils.nodeIsContainer(a) && PlacesUtils.nodeIsContainer(b))
+          return 1;
+        return a.title.localeCompare(b.title);
+      };
 
     for (var i = 0; i < count; ++i) {
       var item = contents.getChild(i);
@@ -781,6 +862,43 @@ placesSortFolderByNameTransactions.prototype = {
       PlacesUtils.bookmarks.setItemIndex(item, this._oldOrder[item]);
   }
 };
+
+function placesTagURITransaction(aURI, aTags) {
+  this._uri = aURI;
+  this._tags = aTags;
+  this.redoTransaction = this.doTransaction;
+}
+
+placesTagURITransaction.prototype = {
+  __proto__: placesBaseTransaction.prototype,
+
+  doTransaction: function PTU_doTransaction() {
+    PlacesUtils.tagging.tagURI(this._uri, this._tags);
+  },
+
+  undoTransaction: function PTU_undoTransaction() {
+    PlacesUtils.tagging.untagURI(this._uri, this._tags);
+  }
+};
+
+function placesUntagURITransaction(aURI, aTags) {
+  this._uri = aURI;
+  this._tags = aTags || PlacesUtils.tagging.getTagsForURI(this._uri, {});
+  this.redoTransaction = this.doTransaction;
+}
+
+placesUntagURITransaction.prototype = {
+  __proto__: placesBaseTransaction.prototype,
+
+  doTransaction: function PUTU_doTransaction() {
+    PlacesUtils.tagging.untagURI(this._uri, this._tags);
+  },
+
+  undoTransaction: function PUTU_undoTransaction() {
+    PlacesUtils.tagging.tagURI(this._uri, this._tags);
+  }
+};
+
 
 function NSGetModule(aCompMgr, aFileSpec) {
   return XPCOMUtils.generateModule([placesTransactionsService]);

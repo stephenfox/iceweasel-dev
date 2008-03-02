@@ -73,7 +73,7 @@ extern "C" {
 struct PKIX_PL_ObjectStruct {
         PKIX_UInt32 magicHeader;
         PKIX_UInt32 type;
-        PKIX_UInt32 references;
+        PKIX_Int32 references;
         PRLock *lock;
         PKIX_PL_String *stringRep;
         PKIX_UInt32 hashcode;
@@ -88,20 +88,19 @@ pkix_pl_Object_RetrieveEqualsCallback(
         PKIX_PL_EqualsCallback *equalsCallback,
         void *plContext);
 
-PKIX_Error *
-PKIX_PL_Object_RegisterSystemType(
-        PKIX_UInt32 type,
-        PKIX_PL_DestructorCallback destructor,
-        PKIX_PL_EqualsCallback equalsFunction,
-        PKIX_PL_HashcodeCallback hashcodeFunction,
-        PKIX_PL_ToStringCallback toStringFunction,
-        PKIX_PL_ComparatorCallback comparator,
-        PKIX_PL_DuplicateCallback duplicateFunction,
-        void *plContext);
-
 extern PKIX_Boolean initializing;
 extern PKIX_Boolean initialized;
+
+#ifdef PKIX_USER_OBJECT_TYPE
+
 extern PRLock *classTableLock;
+
+#endif
+
+extern pkix_ClassTable_Entry systemClasses[PKIX_NUMTYPES];
+
+PKIX_Error *
+pkix_pl_Object_RegisterSelf(void *plContext);
 
 #ifdef __cplusplus
 }

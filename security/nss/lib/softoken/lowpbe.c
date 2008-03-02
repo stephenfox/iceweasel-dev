@@ -51,6 +51,8 @@
 #include "softoken.h"
 #include "secerr.h"
 
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
+
 /* template for PKCS 5 PBE Parameter.  This template has been expanded
  * based upon the additions in PKCS 12.  This should eventually be moved
  * if RSA updates PKCS 5.
@@ -89,10 +91,12 @@ typedef struct nsspkcs5V2PBEParameterStr nsspkcs5V2PBEParameter;
 static const SEC_ASN1Template NSSPKCS5V2PBES2ParameterTemplate[] =
 {   
     { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(nsspkcs5V2PBEParameter) },
-    { SEC_ASN1_INLINE, offsetof(nsspkcs5V2PBEParameter, keyParams), 
-					SECOID_AlgorithmIDTemplate },
-    { SEC_ASN1_INLINE, offsetof(nsspkcs5V2PBEParameter, algParams), 
-					SECOID_AlgorithmIDTemplate },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+        offsetof(nsspkcs5V2PBEParameter, keyParams), 
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+        offsetof(nsspkcs5V2PBEParameter, algParams),
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { 0 }
 };
 
@@ -104,8 +108,9 @@ static const SEC_ASN1Template NSSPKCS5V2PBEParameterTemplate[] =
     { SEC_ASN1_OCTET_STRING, offsetof(NSSPKCS5PBEParameter, salt) },
     { SEC_ASN1_INTEGER, offsetof(NSSPKCS5PBEParameter, iteration) },
     { SEC_ASN1_INTEGER, offsetof(NSSPKCS5PBEParameter, keyLength) },
-    { SEC_ASN1_INLINE, offsetof(NSSPKCS5PBEParameter, prfAlg), 
-					SECOID_AlgorithmIDTemplate },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+        offsetof(NSSPKCS5PBEParameter, prfAlg),
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { 0 }
 };
 #endif
@@ -357,7 +362,7 @@ nsspkcs5_PBKFD2_F(const SECHashObject *hashobj, SECItem *pwitem, SECItem *salt,
     unsigned int lastLength = salt->len + 4;
     unsigned int lastBufLength;
 
-    cx=HMAC_Create(hashobj,pwitem->data,pwitem->len,PR_TRUE);
+    cx=HMAC_Create(hashobj,pwitem->data,pwitem->len,PR_FALSE);
     if (cx == NULL) {
 	goto loser;
     }
@@ -401,7 +406,7 @@ nsspkcs5_PBKDF2(const SECHashObject *hashobj, NSSPKCS5PBEParameter *pbe_param,
     int bytesNeeded = pbe_param->keyLen;
     unsigned int dkLen = bytesNeeded;
     unsigned int hLen = hashobj->length;
-    unsigned int l = (dkLen+hLen-1) / hLen;
+    unsigned int nblocks = (dkLen+hLen-1) / hLen;
     unsigned int i;
     unsigned char *rp;
     unsigned char *T = NULL;
@@ -409,7 +414,7 @@ nsspkcs5_PBKDF2(const SECHashObject *hashobj, NSSPKCS5PBEParameter *pbe_param,
     SECItem *salt = &pbe_param->salt;
     SECStatus rv = SECFailure;
 
-    result = SECITEM_AllocItem(NULL,NULL,l*hLen);
+    result = SECITEM_AllocItem(NULL,NULL,nblocks*hLen);
     if (result == NULL) {
 	return NULL;
     }
@@ -419,7 +424,7 @@ nsspkcs5_PBKDF2(const SECHashObject *hashobj, NSSPKCS5PBEParameter *pbe_param,
 	goto loser;
     }
 
-    for (i=0,rp=result->data; i < l ; i++, rp +=hLen) {
+    for (i=1,rp=result->data; i <= nblocks ; i++, rp +=hLen) {
 	rv = nsspkcs5_PBKFD2_F(hashobj,pwitem,salt,iterations,i,T);
 	if (rv != SECSuccess) {
 	    break;

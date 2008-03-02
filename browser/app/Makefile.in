@@ -130,10 +130,7 @@ LIBS += \
 
 # Add explicit X11 dependency when building against X11 toolkits
 ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
-LIBS += $(XLDFLAGS) $(XLIBS)
-ifdef MOZ_ENABLE_CAIRO_GFX
-LIBS += $(ZLIB_LIBS)
-endif
+LIBS += $(XLDFLAGS) $(XLIBS) $(ZLIB_LIBS)
 endif
 
 ifdef MOZ_JPROF
@@ -151,6 +148,13 @@ endif
 NSDISTMODE = copy
 
 include $(topsrcdir)/config/config.mk
+
+ifdef _MSC_VER
+# Always enter a Windows program through wmain, whether or not we're
+# a console application.
+WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
+
 ifndef BUILD_STATIC_LIBS
 
 ifdef NS_TRACE_MALLOC
@@ -175,11 +179,9 @@ endif
 
 ifeq ($(OS_ARCH),WINNT)
 OS_LIBS += $(call EXPAND_LIBNAME,comctl32 comdlg32 uuid shell32 ole32 oleaut32 version winspool)
-ifdef MOZ_ENABLE_CAIRO_GFX
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 msimg32)
 ifdef MOZ_ENABLE_GLITZ
 OS_LIBS += $(call EXPAND_LIBNAME,opengl32)
-endif
 endif
 
 RCINCLUDE = splash.rc
@@ -311,10 +313,9 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
-	$(INSTALL) $(DIST)/branding/default.xpm $(DIST)/bin/chrome/icons/default
-
-install::
-	$(SYSINSTALL) $(IFLAGS1) $(DIST)/branding/default.xpm $(DESTDIR)$(mozappdir)/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default48.png $(DIST)/bin/chrome/icons/default
 endif
 
 export::
@@ -340,7 +341,9 @@ ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
 	cp $(srcdir)/document.png $(DIST)/branding/document.png
 endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
-	cp $(srcdir)/default.xpm   $(DIST)/branding/default.xpm	
+	cp $(srcdir)/default16.png   $(DIST)/branding/default16.png
+	cp $(srcdir)/default32.png   $(DIST)/branding/default32.png
+	cp $(srcdir)/default48.png   $(DIST)/branding/default48.png
 endif
 ifeq ($(OS_ARCH),OS2)
 	cp $(srcdir)/firefox-os2.ico   $(DIST)/branding/firefox.ico
@@ -351,6 +354,9 @@ endif
 
 libs::
 	touch $(DIST)/bin/.autoreg
+
+libs:: $(srcdir)/profile/prefs.js
+	$(INSTALL) $^ $(DIST)/bin/defaults/profile
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 
@@ -411,12 +417,6 @@ ifeq ($(OS_ARCH),WINNT)
 else
 	$(INSTALL) $(topsrcdir)/LICENSE	$(DIST)/bin
 endif
-
-libs:: $(srcdir)/profile/prefs.js
-	$(INSTALL) $^ $(DIST)/bin/defaults/profile
-
-install:: $(srcdir)/profile/prefs.js
-	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/defaults/profile
 
 ifdef LIBXUL_SDK
 ifndef SKIP_COPY_XULRUNNER

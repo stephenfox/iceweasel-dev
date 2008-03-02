@@ -80,6 +80,22 @@
  * A namespace class for static layout utilities.
  */
 
+#ifdef DEBUG
+PRBool nsLayoutUtils::sDisableGetUsedXAssertions = PR_FALSE;
+#endif
+
+nsIFrame*
+nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
+{
+  NS_PRECONDITION(aFrame, "NULL frame pointer");
+  aFrame = aFrame->GetLastContinuation();
+  while (!aFrame->GetFirstChild(nsnull) &&
+         aFrame->GetPrevContinuation()) {
+    aFrame = aFrame->GetPrevContinuation();
+  }
+  return aFrame;
+}
+
 /**
  * GetFirstChildFrame returns the first "real" child frame of a
  * given frame.  It will descend down into pseudo-frames (unless the
@@ -121,11 +137,11 @@ GetLastChildFrame(nsIFrame*       aFrame,
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
-  // Get the last continuation frame
-  nsIFrame* lastContinuation = aFrame->GetLastContinuation();
+  // Get the last continuation frame that's a parent
+  nsIFrame* lastParentContinuation = nsLayoutUtils::GetLastContinuationWithChild(aFrame);
 
   // Get the last child frame
-  nsIFrame* firstChildFrame = lastContinuation->GetFirstChild(nsnull);
+  nsIFrame* firstChildFrame = lastParentContinuation->GetFirstChild(nsnull);
   if (firstChildFrame) {
     nsFrameList frameList(firstChildFrame);
     nsIFrame*   lastChildFrame = frameList.LastChild();
@@ -769,7 +785,8 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
   }
 #endif
   
-  nsIFrame* result = list.HitTest(&builder, aPt);
+  nsDisplayItem::HitTestState hitTestState;
+  nsIFrame* result = list.HitTest(&builder, aPt, &hitTestState);
   list.DeleteAll();
   return result;
 }
@@ -814,8 +831,12 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
   builder.EnterPresShell(aFrame, dirtyRect);
 
-  nsresult rv =
-    aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+  nsresult rv;
+  {
+    nsAutoDisableGetUsedXAssertions disableAssert;
+    rv =
+      aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+  }
 
   builder.LeavePresShell(aFrame, dirtyRect);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1068,7 +1089,8 @@ nsLayoutUtils::GetAllInFlowBoundingRect(nsIFrame* aFrame)
   if (!parent)
     return r;
 
-  for (nsIFrame* f = aFrame->GetNextContinuation(); f; f = f->GetNextContinuation()) {
+  for (nsIFrame* f = nsLayoutUtils::GetNextContinuationOrSpecialSibling(aFrame);
+       f; f = nsLayoutUtils::GetNextContinuationOrSpecialSibling(f)) {
     r.UnionRect(r, nsRect(f->GetOffsetTo(parent), f->GetSize()));
   }
 
@@ -1118,13 +1140,22 @@ nsLayoutUtils::FindChildContainingDescendant(nsIFrame* aParent, nsIFrame* aDesce
 }
 
 nsBlockFrame*
+nsLayoutUtils::GetAsBlock(nsIFrame* aFrame)
+{
+  nsBlockFrame* block;
+  if (NS_SUCCEEDED(aFrame->QueryInterface(kBlockFrameCID, (void**)&block)))
+    return block;
+  return nsnull;
+}
+
+nsBlockFrame*
 nsLayoutUtils::FindNearestBlockAncestor(nsIFrame* aFrame)
 {
   nsIFrame* nextAncestor;
   for (nextAncestor = aFrame->GetParent(); nextAncestor;
        nextAncestor = nextAncestor->GetParent()) {
-    nsBlockFrame* block;
-    if (NS_SUCCEEDED(nextAncestor->QueryInterface(kBlockFrameCID, (void**)&block)))
+    nsBlockFrame* block = GetAsBlock(nextAncestor);
+    if (block)
       return block;
   }
   return nsnull;
@@ -1327,7 +1358,7 @@ GetPercentHeight(const nsStyleCoord& aStyle,
     if (minh > h)
       h = minh;
   } else {
-    NS_ASSERTION(pos->mMaxHeight.GetUnit() == eStyleUnit_Percent,
+    NS_ASSERTION(pos->mMinHeight.GetUnit() == eStyleUnit_Percent,
                  "unknown min-height unit");
   }
 
@@ -2239,9 +2270,7 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
   nsCOMPtr<nsIDeviceContext> dc;
   aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
 
-  nsRefPtr<gfxContext> ctx = static_cast<gfxContext*>
-                                        (aRenderingContext->GetNativeGraphicData(
-      nsIRenderingContext::NATIVE_THEBES_CONTEXT));
+  nsRefPtr<gfxContext> ctx = aRenderingContext->ThebesContext();
 
   // the dest rect is affected by the current transform; that'll be
   // handled by Image::Draw(), when we actually set up the rectangle.
