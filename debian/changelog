@@ -1,5 +1,6 @@
-iceweasel (3.0~b2-1) experimental; urgency=low
+iceweasel (3.0~b2-1) UNRELEASED; urgency=low
 
+  * New upstream beta release.
   * debian/remove.nonfree: Don't remove atk components from other-licenses.
   * debian/rules:
     - Don't build static, seems static building is incompatible with libxul.
@@ -9,6 +10,7 @@ iceweasel (3.0~b2-1) experimental; urgency=low
     - Don't install the nspr, nss, etc links for now.
     - Pass --disable-install-strip and drop --disable-strip-libs, which 
       doesn't exist anymore.
+  * toolkit/library/Makefile.in: Include -lXrender, the GTK libs don't
     seem to pull it in and we need it.
   * debian/iceweasel.install: 
     - Apparently the unixprintplugin isn't there anymore, remove the line.
