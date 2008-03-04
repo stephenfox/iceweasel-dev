@@ -1,8 +1,9 @@
 iceweasel (3.0~b3-1) experimental; urgency=low
 
   * New upstream beta release.
+  * debian/rules: Remove the --enable-chrome-format=flat for now.
 
- -- Eric Dorland <eric@debian.org>  Sun, 02 Mar 2008 16:33:22 -0500
+ -- Eric Dorland <eric@debian.org>  Tue, 04 Mar 2008 01:36:37 -0500
 
 iceweasel (3.0~b2-1) UNRELEASED; urgency=low
 
