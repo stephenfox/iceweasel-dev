@@ -81,7 +81,7 @@
 #include "nsIDownloadHistory.h"
 #include "nsDocShellCID.h"
 
-#ifdef XP_WIN
+#if defined(XP_WIN) && !defined(WINCE) 
 #include <shlobj.h>
 #ifndef __MINGW32__
 #include "nsDownloadScanner.h"
@@ -94,7 +94,6 @@
 #define PREF_BDM_SHOWALERTINTERVAL "browser.download.manager.showAlertInterval"
 #define PREF_BDM_RETENTION "browser.download.manager.retention"
 #define PREF_BDM_QUITBEHAVIOR "browser.download.manager.quitBehavior"
-#define PREF_BDM_CLOSEWHENDONE "browser.download.manager.closeWhenDone"
 #define PREF_BDM_ADDTORECENTDOCS "browser.download.manager.addToRecentDocs"
 #define PREF_BDM_SCANWHENDONE "browser.download.manager.scanWhenDone"
 #define PREF_BH_DELETETEMPFILEONEXIT "browser.helperApps.deleteTempFileOnExit"
@@ -248,13 +247,22 @@ nsDownloadManager::InitDB(PRBool *aDoImport)
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = storage->OpenDatabase(dbFile, getter_AddRefs(mDBConn));
-  if (rv == NS_ERROR_FILE_CORRUPTED) {
-    // delete and try again
-    rv = dbFile->Remove(PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool ready;
+  (void)mDBConn->GetConnectionReady(&ready);
+  if (!ready) {
+    // delete and try again, since we don't care so much about losing a users
+    // download history
+    rv = dbFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = storage->OpenDatabase(dbFile, getter_AddRefs(mDBConn));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    (void)mDBConn->GetConnectionReady(&ready);
+    if (!ready)
+      return NS_ERROR_UNEXPECTED;
   }
-  NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool tableExists;
   rv = mDBConn->TableExists(NS_LITERAL_CSTRING("moz_downloads"), &tableExists);
@@ -708,6 +716,27 @@ nsDownloadManager::RestoreDatabaseState()
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // Switch any download that is supposed to automatically resume and is in a
+  // finished state to *not* automatically resume.  See Bug 409179 for details.
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    "UPDATE moz_downloads "
+    "SET autoResume = ?1 "
+    "WHERE state = ?2 "
+      "AND autoResume = ?3"),
+    getter_AddRefs(stmt));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  i = 0;
+  rv = stmt->BindInt32Parameter(i++, nsDownload::DONT_RESUME);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stmt->BindInt32Parameter(i++, nsIDownloadManager::DOWNLOAD_FINISHED);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stmt->BindInt32Parameter(i++, nsDownload::AUTO_RESUME);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = stmt->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 
@@ -841,7 +870,7 @@ nsDownloadManager::Init()
                                    getter_AddRefs(mBundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
-#if defined(XP_WIN) && !defined(__MINGW32__)
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
   mScanner = new nsDownloadScanner();
   if (!mScanner)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1119,7 +1148,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
     rv = downloadDir->Append(folderName);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-#elif defined (XP_WIN)
+#elif defined(XP_WIN) && !defined(WINCE)
   rv = dirService->Get(NS_WIN_DEFAULT_DOWNLOAD_DIR,
                        NS_GET_IID(nsILocalFile),
                        getter_AddRefs(downloadDir));
@@ -1819,7 +1848,7 @@ nsDownload::SetState(DownloadState aState)
       // Transfers are finished, so break the reference cycle
       Finalize();
       break;
-#if defined(XP_WIN) && !defined(__MINGW32__)
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
     case nsIDownloadManager::DOWNLOAD_SCANNING:
     {
       nsresult rv = mDownloadManager->mScanner ? mDownloadManager->mScanner->ScanDownload(this) : NS_ERROR_NOT_INITIALIZED;
@@ -1879,7 +1908,7 @@ nsDownload::SetState(DownloadState aState)
             }
         }
       }
-#ifdef XP_WIN
+#if defined(XP_WIN) && !defined(WINCE)
       // Default is to add the download to the system's "recent documents"
       // list, with a pref to disable.
       PRBool addToRecentDocs = PR_TRUE;
@@ -1971,8 +2000,13 @@ nsDownload::OnProgressChange64(nsIWebProgress *aWebProgress,
     // Obtain the referrer
     nsresult rv;
     nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
+    nsCOMPtr<nsIURI> referrer = mReferrer;
     if (channel)
       (void)NS_GetReferrerFromChannel(channel, getter_AddRefs(mReferrer));
+
+    // Restore the original referrer if the new one isn't useful
+    if (!mReferrer)
+      mReferrer = referrer;
 
     // If we have a MIME info, we know that exthandler has already added this to
     // the history, but if we do not, we'll have to add it ourselves.
@@ -2130,7 +2164,7 @@ nsDownload::OnStateChange(nsIWebProgress *aWebProgress,
       mPercentComplete = 100;
       mLastUpdate = PR_Now();
 
-#if defined(XP_WIN) && !defined(__MINGW32__)
+#if defined(XP_WIN) && !defined(__MINGW32__) && !defined(WINCE)
       PRBool scan = PR_TRUE;
       nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
       if (prefs)
@@ -2309,6 +2343,9 @@ nsDownload::Finalize()
 
   // Remove ourself from the active downloads
   (void)mDownloadManager->mCurrentDownloads.RemoveObject(this);
+
+  // Make sure we do not automatically resume
+  mAutoResume = DONT_RESUME;
 }
 
 nsresult

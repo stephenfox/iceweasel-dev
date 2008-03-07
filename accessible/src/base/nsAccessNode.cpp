@@ -86,6 +86,7 @@ nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
 nsITimer *nsAccessNode::gDoCommandTimer = 0;
 nsIDOMNode *nsAccessNode::gLastFocusedNode = 0;
 PRBool nsAccessNode::gIsAccessibilityActive = PR_FALSE;
+PRBool nsAccessNode::gIsShuttingDownApp = PR_FALSE;
 PRBool nsAccessNode::gIsCacheDisabled = PR_FALSE;
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
 nsAccessNodeHashtable nsAccessNode::gGlobalDocAccessibleCache;
@@ -95,6 +96,9 @@ nsApplicationAccessibleWrap *nsAccessNode::gApplicationAccessible = nsnull;
 nsIAccessibilityService *nsAccessNode::sAccService = nsnull;
 nsIAccessibilityService *nsAccessNode::GetAccService()
 {
+  if (!gIsAccessibilityActive)
+    return nsnull;
+
   if (!sAccService) {
     nsresult rv = CallGetService("@mozilla.org/accessibilityService;1",
                                  &sAccService);
@@ -222,8 +226,10 @@ NS_IMETHODIMP nsAccessNode::GetUniqueID(void **aUniqueID)
 
 NS_IMETHODIMP nsAccessNode::GetOwnerWindow(void **aWindow)
 {
+  *aWindow = nsnull;
   nsCOMPtr<nsIAccessibleDocument> docAccessible(GetDocAccessible());
-  NS_ASSERTION(docAccessible, "No root accessible pointer back, Init() not called.");
+  if (!docAccessible)
+    return NS_ERROR_FAILURE; // This node or doc accessible is shut down
   return docAccessible->GetWindowHandle(aWindow);
 }
 
@@ -308,6 +314,8 @@ void nsAccessNode::ShutdownXPAccessibility()
   if (!gIsAccessibilityActive) {
     return;
   }
+  gIsShuttingDownApp = PR_TRUE;
+
   NS_IF_RELEASE(gStringBundle);
   NS_IF_RELEASE(gKeyStringBundle);
   NS_IF_RELEASE(gDoCommandTimer);
@@ -467,7 +475,7 @@ nsAccessNode::ScrollToPoint(PRUint32 aCoordinateType, PRInt32 aX, PRInt32 aY)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsIFrame *parentFrame = frame;
-  while (parentFrame = parentFrame->GetParent())
+  while ((parentFrame = parentFrame->GetParent()))
     nsAccUtils::ScrollFrameToPoint(parentFrame, frame, coords);
 
   return NS_OK;

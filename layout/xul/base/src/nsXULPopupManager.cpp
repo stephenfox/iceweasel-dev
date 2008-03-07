@@ -45,6 +45,8 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMNSUIEvent.h"
+#include "nsIDOMXULElement.h"
+#include "nsIXULTemplateBuilder.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
@@ -60,6 +62,8 @@
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIBaseWindow.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDOMMouseEvent.h"
 
 // See matching definitions in nsXULPopupManager.h
 nsNavigationDirection DirectionFromKeyCode_lr_tb [6] = {
@@ -315,10 +319,23 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
         nsIDocument* doc = aPopup->GetCurrentDoc();
         if (doc) {
           nsIPresShell* presShell = doc->GetPrimaryShell();
-          if (presShell) {
+          if (presShell && presShell->GetPresContext()) {
             nsPresContext* presContext = presShell->GetPresContext();
             nsIFrame* rootFrame = presShell->GetRootFrame();
-            if (rootFrame && presContext) {
+            if ((event->eventStructType == NS_MOUSE_EVENT || 
+                 event->eventStructType == NS_MOUSE_SCROLL_EVENT) &&
+                 !(static_cast<nsGUIEvent *>(event))->widget) {
+              // no widget, so just use the client point if available
+              nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aEvent);
+              mouseEvent->GetClientX(&mCachedMousePoint.x);
+              mouseEvent->GetClientY(&mCachedMousePoint.y);
+
+              // convert to device pixels
+              PRInt32 adj = presContext->DeviceContext()->AppUnitsPerDevPixel();
+              mCachedMousePoint.x = nsPresContext::CSSPixelsToAppUnits(mCachedMousePoint.x) / adj;
+              mCachedMousePoint.y = nsPresContext::CSSPixelsToAppUnits(mCachedMousePoint.y) / adj;
+            }
+            else if (rootFrame) {
               nsPoint pnt =
                 nsLayoutUtils::GetEventCoordinatesRelativeTo(event, rootFrame);
               mCachedMousePoint = nsPoint(presContext->AppUnitsToDevPixels(pnt.x),
@@ -351,6 +368,24 @@ nsXULPopupManager::ShowMenu(nsIContent *aMenu,
                             PRBool aSelectFirstItem,
                             PRBool aAsynchronous)
 {
+  // generate any template content first. Otherwise, the menupopup may not
+  // have been created yet.
+  if (aMenu) {
+    nsIContent* element = aMenu;
+    do {
+      nsCOMPtr<nsIDOMXULElement> xulelem = do_QueryInterface(element);
+      if (xulelem) {
+        nsCOMPtr<nsIXULTemplateBuilder> builder;
+        xulelem->GetBuilder(getter_AddRefs(builder));
+        if (builder) {
+          builder->CreateContents(aMenu, PR_TRUE);
+          break;
+        }
+      }
+      element = element->GetParent();
+    } while (element);
+  }
+
   nsMenuFrame* menuFrame = GetMenuFrameForContent(aMenu);
   if (!menuFrame || !menuFrame->IsMenu())
     return;
@@ -765,8 +800,25 @@ nsXULPopupManager::HidePopupsInList(const nsTArray<nsMenuPopupFrame *> &aFrames,
   SetCaptureState(nsnull);
 }
 
+PRBool
+nsXULPopupManager::IsChildOfDocShell(nsIDocument* aDoc, nsIDocShellTreeItem* aExpected)
+{
+  nsCOMPtr<nsISupports> doc = aDoc->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellItem(do_QueryInterface(doc));
+  while(docShellItem) {
+    if (docShellItem == aExpected)
+      return PR_TRUE;
+
+    nsCOMPtr<nsIDocShellTreeItem> parent;
+    docShellItem->GetParent(getter_AddRefs(parent));
+    docShellItem = parent;
+  }
+
+  return PR_FALSE;
+}
+
 void
-nsXULPopupManager::HidePopupsInDocument(nsIDocument* aDocument)
+nsXULPopupManager::HidePopupsInDocShell(nsIDocShellTreeItem* aDocShellToHide)
 {
   nsTArray<nsMenuPopupFrame *> popupsToHide;
 
@@ -775,7 +827,7 @@ nsXULPopupManager::HidePopupsInDocument(nsIDocument* aDocument)
   while (item) {
     nsMenuChainItem* parent = item->GetParent();
     if (item->Frame()->PopupState() != ePopupInvisible &&
-        aDocument && item->Content()->GetOwnerDoc() == aDocument) {
+        IsChildOfDocShell(item->Content()->GetOwnerDoc(), aDocShellToHide)) {
       nsMenuPopupFrame* frame = item->Frame();
       item->Detach(&mCurrentMenu);
       delete item;
@@ -789,7 +841,7 @@ nsXULPopupManager::HidePopupsInDocument(nsIDocument* aDocument)
   while (item) {
     nsMenuChainItem* parent = item->GetParent();
     if (item->Frame()->PopupState() != ePopupInvisible &&
-        aDocument && item->Content()->GetOwnerDoc() == aDocument) {
+        IsChildOfDocShell(item->Content()->GetOwnerDoc(), aDocShellToHide)) {
       nsMenuPopupFrame* frame = item->Frame();
       item->Detach(&mPanels);
       delete item;
@@ -881,12 +933,6 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
                                          PRBool aSelectFirstItem)
 {
   nsCOMPtr<nsIPresShell> presShell = aPresContext->PresShell();
-
-  // set the open attribute on the menu first so that templates will generate
-  // their content before the popupshowing event fires.
-  if (aMenu)
-    aMenu->SetAttr(kNameSpaceID_None, nsGkAtoms::open,
-                   NS_LITERAL_STRING("true"), PR_TRUE);
 
   // XXXndeakin (bug 383930)
   //   eventually, the popup events will be a different event type with

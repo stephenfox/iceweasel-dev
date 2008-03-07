@@ -288,15 +288,18 @@ class nsObjectLoadingContent : public nsImageLoadingContent
                                            PRInt16 aRetval);
 
     /**
-     * Checks if we have a frame that's ready for instantiation, and if so,
-     * calls Instantiate().
+     * Checks if we have a frame that's ready for instantiation, and
+     * if so, calls Instantiate(). Note that this can cause the frame
+     * to be deleted while we're instantiating the plugin.
      */
     nsresult TryInstantiate(const nsACString& aMIMEType, nsIURI* aURI);
 
     /**
-     * Instantiates the plugin. This differs from GetFrame()->Instantiate() in
-     * that it ensures that the URI will be non-null, and that a MIME type
-     * will be passed.
+     * Instantiates the plugin. This differs from
+     * GetFrame()->Instantiate() in that it ensures that the URI will
+     * be non-null, and that a MIME type will be passed. Note that
+     * this can cause the frame to be deleted while we're
+     * instantiating the plugin.
      */
     nsresult Instantiate(nsIObjectFrame* aFrame, const nsACString& aMIMEType, nsIURI* aURI);
 
@@ -337,6 +340,15 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      */
     static PluginSupportState
       GetPluginDisabledState(const nsCString& aContentType);
+
+    /**
+     * When there is no usable plugin available this will send UI events and
+     * update the AutoFallback object appropriate to the reason for there being
+     * no plugin available.
+     */
+    static void
+      UpdateFallbackState(nsIContent* aContent, AutoFallback& fallback,
+                          const nsCString& aTypeHint);
 
     /**
      * The final listener to ship the data to (imagelib, uriloader, etc)

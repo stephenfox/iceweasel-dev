@@ -58,6 +58,10 @@
 class nsTextPaintStyle;
 class PropertyProvider;
 
+// This state bit is set on frames that have some non-collapsed characters after
+// reflow
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x02000000
+
 class nsTextFrame : public nsFrame {
 public:
   friend class nsContinuingTextFrame;
@@ -188,6 +192,14 @@ public:
    * line.
    */
   PRBool IsAtEndOfLine() const;
+  
+  /**
+   * Call this only after reflow the frame. Returns true if non-collapsed
+   * characters are present.
+   */
+  PRBool HasNoncollapsedCharacters() const {
+    return (GetStateBits() & TEXT_HAS_NONCOLLAPSED_CHARACTERS) != 0;
+  }
   
 #ifdef ACCESSIBILITY
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
@@ -365,6 +377,38 @@ protected:
                                     PRBool isRTLChars,
                                     PRBool isOddLevel,
                                     PRBool isBidiSystem);
+
+  void UnionTextDecorationOverflow(nsPresContext* aPresContext,
+                                   const gfxTextRun::Metrics& aTextMetrics,
+                                   nsRect* aOverflowRect);
+
+  struct TextDecorations {
+    PRUint8 mDecorations;
+    nscolor mOverColor;
+    nscolor mUnderColor;
+    nscolor mStrikeColor;
+
+    TextDecorations() :
+      mDecorations(0), mOverColor(NS_RGB(0, 0, 0)),
+      mUnderColor(NS_RGB(0, 0, 0)), mStrikeColor(NS_RGB(0, 0, 0))
+    { }
+
+    PRBool HasDecorationlines() {
+      return !!(mDecorations & (NS_STYLE_TEXT_DECORATION_UNDERLINE |
+                                NS_STYLE_TEXT_DECORATION_OVERLINE |
+                                NS_STYLE_TEXT_DECORATION_LINE_THROUGH));
+    }
+    PRBool HasUnderline() {
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_UNDERLINE);
+    }
+    PRBool HasOverline() {
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_OVERLINE);
+    }
+    PRBool HasStrikeout() {
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_LINE_THROUGH);
+    }
+  };
+  TextDecorations GetTextDecorations(nsPresContext* aPresContext);
 };
 
 #endif

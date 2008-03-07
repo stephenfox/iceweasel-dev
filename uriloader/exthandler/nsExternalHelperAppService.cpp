@@ -706,8 +706,8 @@ NS_IMETHODIMP nsExternalHelperAppService::ExternalProtocolHandlerExists(const ch
                                                                         PRBool * aHandlerExists)
 {
   nsCOMPtr<nsIHandlerInfo> handlerInfo;
-  nsresult rv = GetProtocolHandlerInfo(
-      nsDependentCString(aProtocolScheme), getter_AddRefs(handlerInfo));
+  nsresult rv = GetProtocolHandlerInfo(nsDependentCString(aProtocolScheme), 
+                                       getter_AddRefs(handlerInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // See if we have any known possible handler apps for this
@@ -890,54 +890,72 @@ static const char kExternalWarningDefaultPref[] =
   "network.protocol-handler.warn-external-default";
 
 NS_IMETHODIMP
-nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme, 
+nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme,
                                                    nsIHandlerInfo **aHandlerInfo)
 {
   // XXX enterprise customers should be able to turn this support off with a
   // single master pref (maybe use one of the "exposed" prefs here?)
 
   PRBool exists;
-  *aHandlerInfo = GetProtocolInfoFromOS(aScheme, &exists).get();
-  if (!(*aHandlerInfo)) {
+  nsresult rv = GetProtocolHandlerInfoFromOS(aScheme, &exists, aHandlerInfo);
+  if (NS_FAILED(rv)) {
     // Either it knows nothing, or we ran out of memory
     return NS_ERROR_FAILURE;
   }
-
-  nsresult rv = NS_ERROR_FAILURE;
+  
+  rv = NS_ERROR_FAILURE;
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
   if (handlerSvc)
     rv = handlerSvc->FillHandlerInfo(*aHandlerInfo, EmptyCString());
+
+  if (NS_SUCCEEDED(rv))
+    return NS_OK;
   
+  return SetProtocolHandlerDefaults(*aHandlerInfo, exists);
+}
+
+NS_IMETHODIMP
+nsExternalHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
+                                                         PRBool *found,
+                                                         nsIHandlerInfo **aHandlerInfo)
+{
+  // intended to be implemented by the subclass
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsExternalHelperAppService::SetProtocolHandlerDefaults(nsIHandlerInfo *aHandlerInfo,
+                                                       PRBool aOSHandlerExists)
+{
   // this type isn't in our database, so we've only got an OS default handler,
   // if one exists
-  if (NS_FAILED(rv)) {
+
+  if (aOSHandlerExists) {
+    // we've got a default, so use it
+    aHandlerInfo->SetPreferredAction(nsIHandlerInfo::useSystemDefault);
+
+    // whether or not to ask the user depends on the warning preference
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (!prefs)
+      return NS_OK; // deny if we can't check prefs
+
+    nsCAutoString scheme;
+    aHandlerInfo->GetType(scheme);
     
-    if (exists) {
-      // we've got a default, so use it
-      (*aHandlerInfo)->SetPreferredAction(nsIHandlerInfo::useSystemDefault);
-
-      // whether or not to ask the user depends on the warning preference
-
-      nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-      if (!prefs)
-        return NS_OK; // deny if we can't check prefs
-
-      nsCAutoString warningPref(kExternalWarningPrefPrefix);
-      warningPref += aScheme;
-      PRBool warn = PR_TRUE;
-      rv = prefs->GetBoolPref(warningPref.get(), &warn);
-      if (NS_FAILED(rv))
-      {
-        // no scheme-specific value, check the default
-        prefs->GetBoolPref(kExternalWarningDefaultPref, &warn);
-      }
-      (*aHandlerInfo)->SetAlwaysAskBeforeHandling(warn);
-    } else {
-      // If no OS default existed, we set the preferred action to alwaysAsk. 
-      // This really means not initialized (i.e. there's no available handler)
-      // to all the code...
-      (*aHandlerInfo)->SetPreferredAction(nsIHandlerInfo::alwaysAsk);
+    nsCAutoString warningPref(kExternalWarningPrefPrefix);
+    warningPref += scheme;
+    PRBool warn = PR_TRUE;
+    nsresult rv = prefs->GetBoolPref(warningPref.get(), &warn);
+    if (NS_FAILED(rv)) {
+      // no scheme-specific value, check the default
+      prefs->GetBoolPref(kExternalWarningDefaultPref, &warn);
     }
+    aHandlerInfo->SetAlwaysAskBeforeHandling(warn);
+  } else {
+    // If no OS default existed, we set the preferred action to alwaysAsk. 
+    // This really means not initialized (i.e. there's no available handler)
+    // to all the code...
+    aHandlerInfo->SetPreferredAction(nsIHandlerInfo::alwaysAsk);
   }
 
   return NS_OK;
@@ -1197,6 +1215,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   nsCAutoString ext;
   mMimeInfo->GetPrimaryExtension(ext);
   if (!ext.IsEmpty()) {
+    ext.ReplaceChar(FILE_PATH_SEPARATOR FILE_ILLEGAL_CHARACTERS, '_');
     if (ext.First() != '.')
       tempLeafName.Append('.');
     tempLeafName.Append(ext);
@@ -1211,8 +1230,10 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the file name without .part
-  dummyFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
-  dummyFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  rv = dummyFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = dummyFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Store executable-ness then delete
   dummyFile->IsExecutable(&mTempFileIsExecutable);
@@ -1223,9 +1244,11 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   // default application.
   tempLeafName.Append(NS_LITERAL_CSTRING(".part"));
 
-  mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
+  rv = mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
   // make this file unique!!!
-  mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  NS_ENSURE_SUCCESS(rv, rv);
 
 #ifndef XP_WIN
   // On other platforms, the file permission bits are used, so we can just call
@@ -2050,8 +2073,25 @@ nsresult nsExternalAppHandler::OpenWithApplication()
   // if a stop request was already issued then proceed with launching the application.
   if (mStopRequestIssued)
   {
+    PRBool deleteTempFileOnExit;
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (!prefs || NS_FAILED(prefs->GetBoolPref(
+        "browser.helperApps.deleteTempFileOnExit", &deleteTempFileOnExit))) {
+      // No prefservice or no pref set; use default value
+#if !defined(XP_MACOSX)
+      // Mac users have been very verbal about temp files being deleted on
+      // app exit - they don't like it - but we'll continue to do this on
+      // other platforms for now.
+      deleteTempFileOnExit = PR_TRUE;
+#else
+      deleteTempFileOnExit = PR_FALSE;
+#endif
+    }
+
     // make the tmp file readonly so users won't edit it and lose the changes
-    mFinalFileDestination->SetPermissions(0400);
+    // only if we're going to delete the file
+    if (deleteTempFileOnExit)
+      mFinalFileDestination->SetPermissions(0400);
 
     rv = mMimeInfo->LaunchWithFile(mFinalFileDestination);        
     if (NS_FAILED(rv))
@@ -2062,30 +2102,9 @@ nsresult nsExternalAppHandler::OpenWithApplication()
       SendStatusChange(kLaunchError, rv, nsnull, path);
       Cancel(rv); // Cancel, and clean up temp file.
     }
-    else
-    {
-      PRBool deleteTempFileOnExit;
-      nsresult result = NS_ERROR_NOT_AVAILABLE;  // don't return this!
-      nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-      if (prefs) {
-        result = prefs->GetBoolPref("browser.helperApps.deleteTempFileOnExit",
-                                    &deleteTempFileOnExit);
-      }
-      if (NS_FAILED(result)) {
-        // No pref set; use default value
-#if !defined(XP_MACOSX)
-          // Mac users have been very verbal about temp files being deleted on
-          // app exit - they don't like it - but we'll continue to do this on
-          // other platforms for now.
-        deleteTempFileOnExit = PR_TRUE;
-#else
-        deleteTempFileOnExit = PR_FALSE;
-#endif
-      }
-      if (deleteTempFileOnExit) {
-        NS_ASSERTION(gExtProtSvc, "Service gone away!?");
-        gExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
-      }
+    else if (deleteTempFileOnExit) {
+      NS_ASSERTION(gExtProtSvc, "Service gone away!?");
+      gExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
     }
   }
 

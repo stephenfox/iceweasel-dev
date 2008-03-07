@@ -56,6 +56,9 @@
 #include "nsCRT.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
+#include "nsIContentPolicy.h"
+#include "nsContentPolicyUtils.h"
+#include "nsContentErrors.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsUnicharInputStream.h"
 
@@ -378,9 +381,16 @@ IsLoadableDTD(const nsCatalogData* aCatalogData, nsIURI* aDTD,
 
 /***************************** END CATALOG UTILS *****************************/
 
-NS_IMPL_ISUPPORTS2(nsExpatDriver,
-                   nsITokenizer,
-                   nsIDTD)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsExpatDriver)
+  NS_INTERFACE_MAP_ENTRY(nsITokenizer)
+  NS_INTERFACE_MAP_ENTRY(nsIDTD)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDTD)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsExpatDriver)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsExpatDriver)
+
+NS_IMPL_CYCLE_COLLECTION_2(nsExpatDriver, mSink, mExtendedSink)
 
 nsExpatDriver::nsExpatDriver()
   : mExpatParser(nsnull),
@@ -787,6 +797,24 @@ nsExpatDriver::OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
     }
 
     localURI.swap(uri);
+  }
+
+  nsCOMPtr<nsIContentSink> sink = do_QueryInterface(mSink);
+  nsCOMPtr<nsIDocument> doc;
+  if (sink)
+    doc = do_QueryInterface(sink->GetTarget());
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
+  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_OTHER,
+                                uri,
+                                (doc ? doc->NodePrincipal() : nsnull),
+                                doc,
+                                EmptyCString(), //mime guess
+                                nsnull,         //extra
+                                &shouldLoad);
+  if (NS_FAILED(rv)) return rv;
+  if (NS_CP_REJECTED(shouldLoad)) {
+    // Disallowed by content policy
+    return NS_ERROR_CONTENT_BLOCKED;
   }
 
   rv = NS_OpenURI(aStream, uri);

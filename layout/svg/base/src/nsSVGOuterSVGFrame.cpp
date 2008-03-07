@@ -56,11 +56,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsSVGMatrix.h"
 
-#if defined(DEBUG) && defined(SVG_DEBUG_PRINTING)
-#include "nsIDeviceContext.h"
-#include "nsTransform2D.h"
-#endif
-
 class nsSVGMutationObserver : public nsStubMutationObserver
 {
 public:
@@ -228,9 +223,10 @@ nsSVGOuterSVGFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   nsSVGLength2 &width = svg->mLengthAttributes[nsSVGSVGElement::WIDTH];
 
   if (width.IsPercentage()) {
-    // If we're being called then our containing block's width depends on our
-    // width - fall back to 300px as required by CSS 2.1 section 10.3.2:
-    result = nsPresContext::CSSPixelsToAppUnits(300);
+    // It looks like our containing block's width may depend on our width. In
+    // that case our behavior is undefined according to CSS 2.1 section 10.3.2,
+    // so return zero.
+    result = nscoord(0);
   } else {
     result = nsPresContext::CSSPixelsToAppUnits(width.GetAnimValue(svg));
     if (result < 0) {
@@ -306,6 +302,12 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
     content->mViewBox->GetAnimVal(getter_AddRefs(viewBox));
     viewBox->GetWidth(&viewBoxWidth);
     viewBox->GetHeight(&viewBoxHeight);
+    if (viewBoxWidth < 0.0f) {
+      viewBoxWidth = 0.0f;
+    }
+    if (viewBoxHeight < 0.0f) {
+      viewBoxHeight = 0.0f;
+    }
     return nsSize(viewBoxWidth, viewBoxHeight);
   }
 
@@ -544,32 +546,6 @@ void
 nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
                           const nsRect& aDirtyRect, nsPoint aPt)
 {
-#if defined(DEBUG) && defined(SVG_DEBUG_PRINTING)
-  {
-    nsCOMPtr<nsIDeviceContext>  dx;
-    aRenderingContext.GetDeviceContext(*getter_AddRefs(dx));
-    float zoom,tzoom,scale;
-    dx->GetZoom(zoom);
-    dx->GetTextZoom(tzoom);
-    dx->GetCanonicalPixelScale(scale);
-    printf("nsSVGOuterSVGFrame(%p)::Paint()[ z=%f tz=%f ps=%f\n",this,zoom,tzoom,scale);
-    printf("dirtyrect= %d, %d, %d, %d\n", aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
-    nsTransform2D* xform;
-    aRenderingContext.GetCurrentTransform(xform);
-    printf("translation=(%f,%f)\n", xform->GetXTranslation(), xform->GetYTranslation());
-    float sx=1.0f,sy=1.0f;
-    xform->TransformNoXLate(&sx,&sy);
-    printf("scale=(%f,%f)\n", sx, sy);
-    float twipsPerScPx = aPresContext->ScaledPixelsToTwips();
-    float twipsPerPx = aPresContext->PixelsToTwips();
-    printf("tw/sc(px)=%f tw/px=%f\n", twipsPerScPx, twipsPerPx);
-    int fontsc;
-    GetPresContext()->GetFontScaler(&fontsc);
-    printf("font scale=%d\n",fontsc);
-    printf("]\n");
-  }
-#endif
-  
   // initialize Mozilla rendering context
   aRenderingContext.PushState();
 
@@ -641,6 +617,12 @@ nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
 #endif
   
   aRenderingContext.PopState();
+}
+
+nsSplittableType
+nsSVGOuterSVGFrame::GetSplittableType() const
+{
+  return NS_FRAME_NOT_SPLITTABLE;
 }
 
 nsIAtom *
@@ -762,11 +744,16 @@ nsSVGOuterSVGFrame::GetCanvasTM()
                     devPxPerCSSPx, 0.0f,
                     0.0f, devPxPerCSSPx);
 
-    nsCOMPtr<nsIDOMSVGMatrix> viewBoxMatrix;
-    svgElement->GetViewboxToViewportTransform(getter_AddRefs(viewBoxMatrix));
-
-    // PRE-multiply px conversion!
-    devPxToCSSPxMatrix->Multiply(viewBoxMatrix, getter_AddRefs(mCanvasTM));
+    nsCOMPtr<nsIDOMSVGMatrix> viewBoxTM;
+    nsresult res =
+      svgElement->GetViewboxToViewportTransform(getter_AddRefs(viewBoxTM));
+    if (NS_SUCCEEDED(res) && viewBoxTM) {
+      // PRE-multiply px conversion!
+      devPxToCSSPxMatrix->Multiply(viewBoxTM, getter_AddRefs(mCanvasTM));
+    } else {
+      NS_WARNING("We should propagate the fact that the viewBox is invalid.");
+      mCanvasTM = devPxToCSSPxMatrix;
+    }
 
     // our content is the document element so we must premultiply the values
     // of its currentScale and currentTranslate properties

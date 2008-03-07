@@ -16,6 +16,10 @@ richlistitem[type="download"] {
   min-height: 46px;
 }
 
+richlistitem[type="download"][selected="true"] {
+  background-image: url(chrome://mozapps/skin/extensions/itemEnabledFader.png);
+}
+
 richlistitem[type="download"][alternate="true"]:not([selected="true"]) {
   background-color: ThreeDLightShadow;
 }
@@ -100,8 +104,4 @@ menuitem:not([type]) {
 .downloadTypeIcon {
   min-height: 32px;
   min-width: 32px;
-}
-
-#searchbox[empty] {
-  color: GrayText;
 }

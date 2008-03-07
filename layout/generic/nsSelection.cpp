@@ -343,8 +343,6 @@ private:
   // If this requirement is added, the current design makes the most sense, we
   // can just remove the array sorted by endings.
 
-  nsTArray<RangeData> mRanges;
-  nsTArray<PRInt32> mRangeEndings;    // references info mRanges
 #ifdef DEBUG
   PRBool ValidateRanges();
 #endif
@@ -366,19 +364,20 @@ private:
                              nsIDOMNode* aEndNode, PRInt32 aEndOffset,
                              PRInt32 aStartSearchingHere);
 
+  nsTArray<RangeData> mRanges;
+  nsTArray<PRInt32> mRangeEndings;    // references info mRanges
   nsCOMPtr<nsIDOMRange> mAnchorFocusRange;
   nsCOMPtr<nsIDOMRange> mOriginalAnchorRange; //used as a point with range gravity for security
-  nsDirection mDirection; //FALSE = focus, anchor;  TRUE = anchor, focus
-  PRBool mFixupState; //was there a fixup?
-
   nsFrameSelection *mFrameSelection;
-  nsWeakPtr mPresShellWeak; //weak reference to presshell.
-  SelectionType mType;//type of this nsTypedSelection;
-  nsRefPtr<nsAutoScrollTimer> mAutoScrollTimer; // timer for autoscrolling.
+  nsWeakPtr mPresShellWeak;
+  nsRefPtr<nsAutoScrollTimer> mAutoScrollTimer;
   nsCOMArray<nsISelectionListener> mSelectionListeners;
-  PRPackedBool mTrueDirection;
   nsRevocableEventPtr<ScrollSelectionIntoViewEvent> mScrollEvent;
   CachedOffsetForFrame *mCachedOffsetForFrame;
+  nsDirection mDirection;
+  SelectionType mType;
+  PRPackedBool mTrueDirection;
+  PRPackedBool mFixupState;
 };
 
 // Stack-class to turn on/off selection batching for table selection
@@ -2559,8 +2558,10 @@ nsFrameSelection::ScrollSelectionIntoView(SelectionType   aType,
   if (!mDomSelections[index])
     return NS_ERROR_NULL_POINTER;
 
+  // After ScrollSelectionIntoView(), the pending notifications might be
+  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
   return mDomSelections[index]->ScrollIntoView(aRegion, aIsSynchronous,
-                                               PR_FALSE);
+                                               PR_TRUE);
 }
 
 nsresult
@@ -2770,6 +2771,12 @@ nsFrameSelection::CharacterMove(PRBool aForward, PRBool aExtend)
     return MoveCaret(nsIDOMKeyEvent::DOM_VK_RIGHT,aExtend,eSelectCharacter);
   else
     return MoveCaret(nsIDOMKeyEvent::DOM_VK_LEFT,aExtend,eSelectCharacter);
+}
+
+nsresult
+nsFrameSelection::CharacterExtendForDelete()
+{
+  return MoveCaret(nsIDOMKeyEvent::DOM_VK_DELETE, PR_TRUE, eSelectCharacter);
 }
 
 nsresult
@@ -3981,24 +3988,25 @@ nsFrameSelection::GetDelayedCaretData()
 
 // note: this can return a nil anchor node
 
-nsTypedSelection::nsTypedSelection(nsFrameSelection *aList)
-{
-  mFrameSelection = aList;
-  mFixupState = PR_FALSE;
-  mDirection = eDirNext;
-  mCachedOffsetForFrame = nsnull;
-}
-
-
 nsTypedSelection::nsTypedSelection()
+  : mFrameSelection(nsnull)
+  , mCachedOffsetForFrame(nsnull)
+  , mDirection(eDirNext)
+  , mType(nsISelectionController::SELECTION_NORMAL)
+  , mTrueDirection(PR_FALSE)
+  , mFixupState(PR_FALSE)
 {
-  mFrameSelection = nsnull;
-  mFixupState = PR_FALSE;
-  mDirection = eDirNext;
-  mCachedOffsetForFrame = nsnull;
 }
 
-
+nsTypedSelection::nsTypedSelection(nsFrameSelection *aList)
+  : mFrameSelection(aList)
+  , mCachedOffsetForFrame(nsnull)
+  , mDirection(eDirNext)
+  , mType(nsISelectionController::SELECTION_NORMAL)
+  , mTrueDirection(PR_FALSE)
+  , mFixupState(PR_FALSE)
+{
+}
 
 nsTypedSelection::~nsTypedSelection()
 {

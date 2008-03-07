@@ -271,14 +271,26 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           aState->maxpos = CheckIntAttr(tmpFrame, nsWidgetAtoms::maxpos);
         }
 
-        // In order to simulate native GTK scrollbar click behavior, we set the
-        // active attribute on the element to true if it's pressed with any mouse
-        // button. This allows us to show that it's active without setting :active
         if (aWidgetType == NS_THEME_SCROLLBAR_BUTTON_UP ||
             aWidgetType == NS_THEME_SCROLLBAR_BUTTON_DOWN ||
             aWidgetType == NS_THEME_SCROLLBAR_BUTTON_LEFT ||
             aWidgetType == NS_THEME_SCROLLBAR_BUTTON_RIGHT) {
-          if (CheckBooleanAttr(aFrame, nsWidgetAtoms::active))
+          // set the state to disabled when the scrollbar is scrolled to
+          // the beginning or the end, depending on the button type.
+          PRInt32 curpos = CheckIntAttr(aFrame, nsWidgetAtoms::curpos);
+          PRInt32 maxpos = CheckIntAttr(aFrame, nsWidgetAtoms::maxpos);
+          if ((curpos == 0 && (aWidgetType == NS_THEME_SCROLLBAR_BUTTON_UP ||
+                aWidgetType == NS_THEME_SCROLLBAR_BUTTON_LEFT)) ||
+              (curpos == maxpos &&
+               (aWidgetType == NS_THEME_SCROLLBAR_BUTTON_DOWN ||
+                aWidgetType == NS_THEME_SCROLLBAR_BUTTON_RIGHT)))
+            aState->disabled = PR_TRUE;
+
+          // In order to simulate native GTK scrollbar click behavior,
+          // we set the active attribute on the element to true if it's
+          // pressed with any mouse button.
+          // This allows us to show that it's active without setting :active
+          else if (CheckBooleanAttr(aFrame, nsWidgetAtoms::active))
             aState->active = PR_TRUE;
 
           if (aWidgetFlags) {
@@ -339,6 +351,12 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           aState->depressed = IsCheckedButton(aFrame) || menuOpen;
           // we must not highlight buttons with open drop down menus on hover.
           aState->inHover = aState->inHover && !menuOpen;
+        }
+
+        // When the input field of the drop down button has focus, some themes
+        // should draw focus for the drop down button as well.
+        if (aWidgetType == NS_THEME_DROPDOWN_BUTTON && aWidgetFlags) {
+          *aWidgetFlags = CheckBooleanAttr(aFrame, nsWidgetAtoms::parentfocused);
         }
       }
     }
@@ -506,6 +524,13 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
   case NS_THEME_PROGRESSBAR_CHUNK:
   case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
     aGtkWidgetType = MOZ_GTK_PROGRESS_CHUNK;
+    break;
+  case NS_THEME_TAB_SCROLLARROW_BACK:
+  case NS_THEME_TAB_SCROLLARROW_FORWARD:
+    if (aWidgetFlags)
+      *aWidgetFlags = aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ?
+                        GTK_ARROW_LEFT : GTK_ARROW_RIGHT;
+    aGtkWidgetType = MOZ_GTK_TAB_SCROLLARROW;
     break;
   case NS_THEME_TAB_PANELS:
     aGtkWidgetType = MOZ_GTK_TABPANELS;
@@ -872,7 +897,9 @@ nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
 {
   if (aWidgetType == NS_THEME_BUTTON_FOCUS ||
       aWidgetType == NS_THEME_TOOLBAR_BUTTON ||
-      aWidgetType == NS_THEME_TOOLBAR_DUAL_BUTTON) {
+      aWidgetType == NS_THEME_TOOLBAR_DUAL_BUTTON ||
+      aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
+      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD) {
     aResult->SizeTo(0, 0, 0, 0);
     return PR_TRUE;
   }
@@ -1016,6 +1043,13 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
         *aIsOverridable = PR_FALSE;
       }
       break;
+    case NS_THEME_TAB_SCROLLARROW_BACK:
+    case NS_THEME_TAB_SCROLLARROW_FORWARD:
+      {
+        moz_gtk_get_tab_scroll_arrow_size(&aResult->width, &aResult->height);
+        *aIsOverridable = PR_FALSE;
+      }
+      break;
   case NS_THEME_DROPDOWN_BUTTON:
     {
       moz_gtk_get_dropdown_arrow_size(&aResult->width, &aResult->height);
@@ -1134,6 +1168,16 @@ nsNativeThemeGTK::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
     return NS_OK;
   }
 
+  if ((aWidgetType == NS_THEME_SCROLLBAR_BUTTON_UP ||
+       aWidgetType == NS_THEME_SCROLLBAR_BUTTON_DOWN ||
+       aWidgetType == NS_THEME_SCROLLBAR_BUTTON_LEFT ||
+       aWidgetType == NS_THEME_SCROLLBAR_BUTTON_RIGHT) &&
+      (aAttribute == nsWidgetAtoms::curpos ||
+       aAttribute == nsWidgetAtoms::maxpos)) {
+    *aShouldRepaint = PR_TRUE;
+    return NS_OK;
+  }
+
   // XXXdwh Not sure what can really be done here.  Can at least guess for
   // specific widgets that they're highly unlikely to have certain states.
   // For example, a toolbar doesn't care about any states.
@@ -1152,7 +1196,8 @@ nsNativeThemeGTK::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
         aAttribute == nsWidgetAtoms::readonly ||
         aAttribute == nsWidgetAtoms::_default ||
         aAttribute == nsWidgetAtoms::mozmenuactive ||
-        aAttribute == nsWidgetAtoms::open)
+        aAttribute == nsWidgetAtoms::open ||
+        aAttribute == nsWidgetAtoms::parentfocused)
       *aShouldRepaint = PR_TRUE;
   }
 
@@ -1215,6 +1260,8 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_TAB:
     // case NS_THEME_TAB_PANEL:
     case NS_THEME_TAB_PANELS:
+    case NS_THEME_TAB_SCROLLARROW_BACK:
+    case NS_THEME_TAB_SCROLLARROW_FORWARD:
   case NS_THEME_TOOLTIP:
   case NS_THEME_SPINNER:
   case NS_THEME_SPINNER_UP_BUTTON:
@@ -1276,9 +1323,11 @@ NS_IMETHODIMP_(PRBool)
 nsNativeThemeGTK::WidgetIsContainer(PRUint8 aWidgetType)
 {
   // XXXdwh At some point flesh all of this out.
-  if (aWidgetType == NS_THEME_DROPDOWN_BUTTON || 
+  if (aWidgetType == NS_THEME_DROPDOWN_BUTTON ||
       IsRadioWidgetType(aWidgetType) ||
-      IsCheckboxWidgetType(aWidgetType))
+      IsCheckboxWidgetType(aWidgetType) ||
+      aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
+      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD)
     return PR_FALSE;
   return PR_TRUE;
 }

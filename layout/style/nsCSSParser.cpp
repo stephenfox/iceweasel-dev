@@ -110,8 +110,7 @@ public:
                    nsIURI*                aBaseURI,
                    nsIPrincipal*          aSheetPrincipal,
                    PRUint32               aLineNumber,
-                   PRBool                 aAllowUnsafeRules,
-                   nsICSSStyleSheet*&     aResult);
+                   PRBool                 aAllowUnsafeRules);
 
   NS_IMETHOD ParseStyleAttribute(const nsAString&  aAttributeValue,
                                  nsIURI*           aDocURL,
@@ -151,7 +150,6 @@ public:
   NS_IMETHOD ParseColorString(const nsSubstring& aBuffer,
                               nsIURI* aURL, // for error reporting
                               PRUint32 aLineNumber, // for error reporting
-                              PRBool aHandleAlphaColors,
                               nscolor* aColor);
 
   void AppendRule(nsICSSRule* aRule);
@@ -458,10 +456,6 @@ protected:
   // ignore CSS comments.
   PRPackedBool mHTMLMediaMode : 1;
 
-  // True if ParseColor should handle rgba() and hsla(), which most of
-  // Gecko currently doesn't understand.
-  PRPackedBool mHandleAlphaColors : 1;
-
   // True if tagnames and attributes are case-sensitive
   PRPackedBool  mCaseSensitive : 1;
 
@@ -560,11 +554,6 @@ CSSParserImpl::CSSParserImpl()
     mSVGMode(PR_FALSE),
 #endif
     mHTMLMediaMode(PR_FALSE),
-#ifdef MOZ_CAIRO_GFX
-    mHandleAlphaColors(PR_TRUE),
-#else
-    mHandleAlphaColors(PR_FALSE),
-#endif
     mCaseSensitive(PR_FALSE),
     mParsingCompoundProperty(PR_FALSE)
 #ifdef DEBUG
@@ -584,16 +573,15 @@ CSSParserImpl::~CSSParserImpl()
 NS_IMETHODIMP
 CSSParserImpl::SetStyleSheet(nsICSSStyleSheet* aSheet)
 {
-  NS_PRECONDITION(nsnull != aSheet, "null ptr");
-  if (nsnull == aSheet) {
-    return NS_ERROR_NULL_POINTER;
-  }
-
   if (aSheet != mSheet) {
-    // Switch to using the new sheet
+    // Switch to using the new sheet, if any
     mGroupStack.Clear();
     mSheet = aSheet;
-    mNameSpaceMap = mSheet->GetNameSpaceMap();
+    if (mSheet) {
+      mNameSpaceMap = mSheet->GetNameSpaceMap();
+    } else {
+      mNameSpaceMap = nsnull;
+    }
   }
 
   return NS_OK;
@@ -684,6 +672,7 @@ CSSParserImpl::ReleaseScanner(void)
 #endif
   mBaseURL = nsnull;
   mSheetURL = nsnull;
+  mSheetPrincipal = nsnull;
   return NS_OK;
 }
 
@@ -694,34 +683,26 @@ CSSParserImpl::Parse(nsIUnicharInputStream* aInput,
                      nsIURI*                aBaseURI,
                      nsIPrincipal*          aSheetPrincipal,
                      PRUint32               aLineNumber,
-                     PRBool                 aAllowUnsafeRules,
-                     nsICSSStyleSheet*&     aResult)
+                     PRBool                 aAllowUnsafeRules)
 {
   NS_PRECONDITION(aSheetPrincipal, "Must have principal here!");
   
   NS_ASSERTION(nsnull != aBaseURI, "need base URL");
   NS_ASSERTION(nsnull != aSheetURI, "need sheet URL");
 
-  if (! mSheet) {
-    NS_NewCSSStyleSheet(getter_AddRefs(mSheet));
-    NS_ENSURE_TRUE(mSheet, NS_ERROR_OUT_OF_MEMORY);
+  NS_PRECONDITION(mSheet, "Must have sheet to parse into");
+  NS_ENSURE_STATE(mSheet);
 
-    mSheet->SetURIs(aSheetURI, aSheetURI, aBaseURI);
-    mSheet->SetPrincipal(aSheetPrincipal);
-    mNameSpaceMap = nsnull;
-  }
 #ifdef DEBUG
-  else {
-    nsCOMPtr<nsIURI> uri;
-    mSheet->GetSheetURI(getter_AddRefs(uri));
-    PRBool equal;
-    NS_ASSERTION(NS_SUCCEEDED(aSheetURI->Equals(uri, &equal)) && equal,
-                 "Sheet URI does not match passed URI");
-    NS_ASSERTION(NS_SUCCEEDED(mSheet->Principal()->Equals(aSheetPrincipal,
-                                                          &equal)) &&
-                 equal,
-                 "Sheet principal does not match passed principal");
-  }
+  nsCOMPtr<nsIURI> uri;
+  mSheet->GetSheetURI(getter_AddRefs(uri));
+  PRBool equal;
+  NS_ASSERTION(NS_SUCCEEDED(aSheetURI->Equals(uri, &equal)) && equal,
+               "Sheet URI does not match passed URI");
+  NS_ASSERTION(NS_SUCCEEDED(mSheet->Principal()->Equals(aSheetPrincipal,
+                                                        &equal)) &&
+               equal,
+               "Sheet principal does not match passed principal");
 #endif
   
   nsresult errorCode = NS_OK;
@@ -783,9 +764,6 @@ CSSParserImpl::Parse(nsIUnicharInputStream* aInput,
   ReleaseScanner();
 
   mUnsafeRulesEnabled = PR_FALSE;
-
-  aResult = mSheet;
-  NS_ADDREF(aResult);
 
   return NS_OK;
 }
@@ -1091,25 +1069,17 @@ NS_IMETHODIMP
 CSSParserImpl::ParseColorString(const nsSubstring& aBuffer,
                                 nsIURI* aURL, // for error reporting
                                 PRUint32 aLineNumber, // for error reporting
-                                PRBool aHandleAlphaColors,
                                 nscolor* aColor)
 {
-  NS_ASSERTION(aHandleAlphaColors == PR_TRUE || aHandleAlphaColors == PR_FALSE, "bad PRBool value");
-
   nsresult rv = InitScanner(aBuffer, aURL, aLineNumber, aURL, nsnull);
   if (NS_FAILED(rv))
     return rv;
-
-  PRBool origHandleAlphaColors = mHandleAlphaColors;
-  mHandleAlphaColors = aHandleAlphaColors;
 
   nsCSSValue value;
   PRBool colorParsed = ParseColor(rv, value);
 
   OUTPUT_ERROR();
   ReleaseScanner();
-
-  mHandleAlphaColors = origHandleAlphaColors;
 
   if (!colorParsed) {
     return NS_ERROR_FAILURE;
@@ -1124,7 +1094,7 @@ CSSParserImpl::ParseColorString(const nsSubstring& aBuffer,
   } else if (value.GetUnit() == eCSSUnit_Color) {
     (*aColor) = value.GetColorValue();
     rv = NS_OK;
-  } else if (value.GetUnit() == eCSSUnit_Integer) {
+  } else if (value.GetUnit() == eCSSUnit_EnumColor) {
     PRInt32 intValue = value.GetIntValue();
     if (intValue >= 0) {
       nsCOMPtr<nsILookAndFeel> lfSvc = do_GetService("@mozilla.org/widget/lookandfeel;1");
@@ -1617,7 +1587,7 @@ PRBool CSSParserImpl::ParseNameSpaceRule(nsresult& aErrorCode,
 
   if (eCSSToken_Ident == mToken.mType) {
     prefix = mToken.mIdent;
-    ToLowerCase(prefix); // always case insensitive, since stays within CSS
+    // user-specified identifiers are case-sensitive (bug 416106)
     if (! GetToken(aErrorCode, PR_TRUE)) {
       REPORT_UNEXPECTED_EOF(PEAtNSURIEOF);
       return PR_FALSE;
@@ -2176,7 +2146,7 @@ CSSParserImpl::ParseTypeOrUniversalSelector(PRInt32&       aDataMask,
       aDataMask |= SEL_MASK_NSPACE;
       PRInt32 nameSpaceID = kNameSpaceID_Unknown;
       if (mNameSpaceMap) {
-        ToLowerCase(buffer); // always case insensitive, since stays within CSS
+        // user-specified identifiers are case-sensitive (bug 416106)
         nsCOMPtr<nsIAtom> prefix = do_GetAtom(buffer);
         nameSpaceID = mNameSpaceMap->FindNameSpaceID(prefix);
       } // else, no declared namespaces
@@ -2341,7 +2311,7 @@ CSSParserImpl::ParseAttributeSelector(PRInt32&       aDataMask,
     if (ExpectSymbol(aErrorCode, '|', PR_FALSE)) {  // was a namespace
       nameSpaceID = kNameSpaceID_Unknown;
       if (mNameSpaceMap) {
-        ToLowerCase(attr); // always case insensitive, since stays within CSS
+        // user-specified identifiers are case-sensitive (bug 416106)
         nsCOMPtr<nsIAtom> prefix = do_GetAtom(attr);
         nameSpaceID = mNameSpaceMap->FindNameSpaceID(prefix);
       } // else, no declared namespaces
@@ -2930,18 +2900,16 @@ PRBool CSSParserImpl::ParseColor(nsresult& aErrorCode, nsCSSValue& aValue)
         nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(tk->mIdent);
         if (eCSSKeyword_UNKNOWN < keyword) { // known keyword
           PRInt32 value;
-#ifdef MOZ_CAIRO_GFX
-          // XXX Once non-cairo is no longer supported, we should remove
+          // XXX Now that non-cairo is no longer supported, we should remove
           // the special parsing of transparent for background-color and
           // border-color.  (It currently overrides this, since keywords
           // are checked earlier in ParseVariant.)
-#endif
-          if (mHandleAlphaColors && keyword == eCSSKeyword_transparent) {
+          if (keyword == eCSSKeyword_transparent) {
             aValue.SetColorValue(NS_RGBA(0, 0, 0, 0));
             return PR_TRUE;
           }
           if (nsCSSProps::FindKeyword(keyword, nsCSSProps::kColorKTable, value)) {
-            aValue.SetIntValue(value, eCSSUnit_Integer);
+            aValue.SetIntValue(value, eCSSUnit_EnumColor);
             return PR_TRUE;
           }
         }
@@ -2962,7 +2930,7 @@ PRBool CSSParserImpl::ParseColor(nsresult& aErrorCode, nsCSSValue& aValue)
         return PR_FALSE;  // already pushed back
       }
       else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-rgba") ||
-               (mHandleAlphaColors && mToken.mIdent.LowerCaseEqualsLiteral("rgba"))) {
+               mToken.mIdent.LowerCaseEqualsLiteral("rgba")) {
         // rgba ( component , component , component , opacity )
         PRUint8 r, g, b, a;
         PRInt32 type = COLOR_TYPE_UNKNOWN;
@@ -2986,7 +2954,7 @@ PRBool CSSParserImpl::ParseColor(nsresult& aErrorCode, nsCSSValue& aValue)
         return PR_FALSE;
       }
       else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-hsla") ||
-               (mHandleAlphaColors && mToken.mIdent.LowerCaseEqualsLiteral("hsla"))) {
+               mToken.mIdent.LowerCaseEqualsLiteral("hsla")) {
         // hsla ( hue , saturation , lightness , opacity )
         // "hue" is a number, "saturation" and "lightness" are percentages,
         // "opacity" is a number.
@@ -3893,8 +3861,8 @@ PRBool CSSParserImpl::ParseVariant(nsresult& aErrorCode, nsCSSValue& aValue,
           tk->mIdent.LowerCaseEqualsLiteral("hsl") ||
           tk->mIdent.LowerCaseEqualsLiteral("-moz-rgba") ||
           tk->mIdent.LowerCaseEqualsLiteral("-moz-hsla") ||
-          (mHandleAlphaColors && (tk->mIdent.LowerCaseEqualsLiteral("rgba") ||
-                                  tk->mIdent.LowerCaseEqualsLiteral("hsla"))))))
+          tk->mIdent.LowerCaseEqualsLiteral("rgba") ||
+          tk->mIdent.LowerCaseEqualsLiteral("hsla"))))
     {
       // Put token back so that parse color can get it
       UngetToken();
@@ -4012,7 +3980,7 @@ PRBool CSSParserImpl::ParseAttr(nsresult& aErrorCode, nsCSSValue& aValue)
         if (ExpectSymbol(aErrorCode, '|', PR_FALSE)) {  // namespace
           PRInt32 nameSpaceID = kNameSpaceID_Unknown;
           if (mNameSpaceMap) {
-            ToLowerCase(holdIdent); // always case insensitive, since stays within CSS
+            // user-specified identifiers are case-sensitive (bug 416106)
             nsCOMPtr<nsIAtom> prefix = do_GetAtom(holdIdent);
             nameSpaceID = mNameSpaceMap->FindNameSpaceID(prefix);
           } // else, no declared namespaces
@@ -4687,9 +4655,9 @@ PRBool CSSParserImpl::ParseSingleValueProperty(nsresult& aErrorCode,
   case eCSSProperty__moz_column_count:
     return ParsePositiveVariant(aErrorCode, aValue, VARIANT_AHI, nsnull);
   case eCSSProperty__moz_column_width:
-    return ParseVariant(aErrorCode, aValue, VARIANT_AHL, nsnull);
+    return ParsePositiveVariant(aErrorCode, aValue, VARIANT_AHL, nsnull);
   case eCSSProperty__moz_column_gap:
-    return ParseVariant(aErrorCode, aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
+    return ParsePositiveVariant(aErrorCode, aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
   case eCSSProperty__moz_outline_radius_topLeft:
   case eCSSProperty__moz_outline_radius_topRight:
   case eCSSProperty__moz_outline_radius_bottomRight:
@@ -6374,7 +6342,7 @@ PRBool CSSParserImpl::ParseTextShadow(nsresult& aErrorCode)
       } else {
         // Must be a color (as string or color value)
         NS_ASSERTION(unit == eCSSUnit_String || unit == eCSSUnit_Color ||
-                     unit == eCSSUnit_Integer,
+                     unit == eCSSUnit_EnumColor,
                      "Must be a color value (named color, numeric color, "
                      "or system color)");
         haveColor = PR_TRUE;

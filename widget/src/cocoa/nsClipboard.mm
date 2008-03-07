@@ -49,6 +49,7 @@
 #include "nsDragService.h"
 #include "nsEscape.h"
 #include "nsPrintfCString.h"
+#include "nsObjCExceptions.h"
 
 // Screenshots use the (undocumented) png pasteboard type.
 #define IMAGE_PASTEBOARD_TYPES NSTIFFPboardType, @"Apple PNG pasteboard type", nil
@@ -91,40 +92,11 @@ GetDataFromPasteboard(NSPasteboard* aPasteboard, NSString* aType)
 }
 
 
-// This function converts the image referenced by aSourceImageRef to the
-// specified type and adds it to the Pasteboard dictionary aDict.
-static PRBool
-AddImageDataToPasteboardDict(NSMutableDictionary *aDict,
-                             CGImageRef aSourceImageRef,
-                             CFStringRef aImageType,
-                             NSString *aPasteboardType)
-{
-  if (!aDict || !aSourceImageRef || !aImageType || !aPasteboardType)
-    return PR_FALSE;
-
-  CFMutableDataRef imageData = CFDataCreateMutable(kCFAllocatorDefault, 0);
-  CGImageDestinationRef destRef = CGImageDestinationCreateWithData(imageData,
-                                                                   aImageType,
-                                                                   1,
-                                                                   NULL);
-  CGImageDestinationAddImage(destRef, aSourceImageRef, NULL);
-  PRBool imageConverted = CGImageDestinationFinalize(destRef);
-  if (destRef)
-    CFRelease(destRef);
-
-  if (imageConverted)
-    [aDict setObject:(NSMutableData*)imageData forKey:aPasteboardType];
-
-  if (imageData)
-    CFRelease(imageData);
-
-  return imageConverted;
-}
-
-
 NS_IMETHODIMP
 nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   if ((aWhichClipboard != kGlobalClipboard) || !mTransferable)
     return NS_ERROR_FAILURE;
 
@@ -156,12 +128,16 @@ nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
   mIgnoreEmptyNotification = PR_FALSE;
 
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP
 nsClipboard::GetNativeClipboardData(nsITransferable* aTransferable, PRInt32 aWhichClipboard)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   if ((aWhichClipboard != kGlobalClipboard) || !aTransferable)
     return NS_ERROR_FAILURE;
 
@@ -317,6 +293,8 @@ nsClipboard::GetNativeClipboardData(nsITransferable* aTransferable, PRInt32 aWhi
   }
 
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -325,6 +303,8 @@ NS_IMETHODIMP
 nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
                                     PRInt32 aWhichClipboard, PRBool* outResult)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   *outResult = PR_FALSE;
 
   if ((aWhichClipboard != kGlobalClipboard) || !aFlavorList)
@@ -378,6 +358,8 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
   }
 
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -387,6 +369,8 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
 NSDictionary* 
 nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
   if (!aTransferable)
     return nil;
 
@@ -474,18 +458,28 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
       CGColorSpaceRelease(colorSpace);
       CGDataProviderRelease(dataProvider);
 
-      // Convert the CGImageRef to TIFF and PICT data and add to dictionary.
-      // We include PICT in order to work around a problem with a system
-      // component that places invalid PICT data on the clipboard when it sees
-      // TIFF data (this seems to happen when the user quits the application
-      // immediately after copying an image).  See bug 400028.
-      AddImageDataToPasteboardDict(pasteboardOutputDict, imageRef,
-                                   CFSTR("public.tiff"), NSTIFFPboardType);
-      AddImageDataToPasteboardDict(pasteboardOutputDict, imageRef,
-                                   CFSTR("com.apple.pict"), NSPICTPboardType);
-      CGImageRelease(imageRef);
+      // Convert the CGImageRef to TIFF data.
+      CFMutableDataRef tiffData = CFDataCreateMutable(kCFAllocatorDefault, 0);
+      CGImageDestinationRef destRef = CGImageDestinationCreateWithData(tiffData,
+                                                                       CFSTR("public.tiff"),
+                                                                       1,
+                                                                       NULL);
+      CGImageDestinationAddImage(destRef, imageRef, NULL);
+      PRBool successfullyConverted = CGImageDestinationFinalize(destRef);
 
-      image->UnlockImagePixels(PR_FALSE);
+      CGImageRelease(imageRef);
+      if (destRef)
+        CFRelease(destRef);
+
+      if (NS_FAILED(image->UnlockImagePixels(PR_FALSE)) || !successfullyConverted) {
+        if (tiffData)
+          CFRelease(tiffData);
+        continue;
+      }
+
+      [pasteboardOutputDict setObject:(NSMutableData*)tiffData forKey:NSTIFFPboardType];
+      if (tiffData)
+        CFRelease(tiffData);
     }
     else if (flavorStr.EqualsLiteral(kFilePromiseMime)) {
       [pasteboardOutputDict setObject:[NSArray arrayWithObject:@""] forKey:NSFilesPromisePboardType];      
@@ -533,4 +527,6 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
   }
 
   return pasteboardOutputDict;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }

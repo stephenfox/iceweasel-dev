@@ -160,6 +160,16 @@ static PRLogModuleInfo* gJSDiagnostics;
 #define NS_PROBABILITY_MULTIPLIER   3
 // Cycle collector should never run more often than this value
 #define NS_MIN_CC_INTERVAL          10000 // ms
+// If previous cycle collection collected more than this number of objects,
+// the next collection will happen somewhat soon.
+#define NS_COLLECTED_OBJECTS_LIMIT  5000
+// CC will be called if GC has been called at least this number of times and
+// there are at least NS_MIN_SUSPECT_CHANGES new suspected objects.
+#define NS_MAX_GC_COUNT             5
+#define NS_MIN_SUSPECT_CHANGES      10
+// CC will be called if there are at least NS_MAX_SUSPECT_CHANGES new suspected
+// objects.
+#define NS_MAX_SUSPECT_CHANGES      100
 
 // if you add statics here, add them to the list in nsJSRuntime::Startup
 
@@ -167,7 +177,10 @@ static PRUint32 sDelayedCCollectCount;
 static PRUint32 sCCollectCount;
 static PRBool sUserIsActive;
 static PRTime sPreviousCCTime;
-static PRBool sPreviousCCDidCollect;
+static PRUint32 sCollectedObjectsCounts;
+static PRUint32 sGCCount;
+static PRUint32 sCCSuspectChanges;
+static PRUint32 sCCSuspectedCount;
 static nsITimer *sGCTimer;
 static PRBool sReadyForGC;
 
@@ -297,6 +310,50 @@ nsCCMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
 {
   nsJSContext::CC();
   return NS_OK;
+}
+
+class nsJSVersionSetter {
+public:
+  nsJSVersionSetter(JSContext *aContext, PRUint32 aVersion);
+  ~nsJSVersionSetter();
+
+private:
+  JSContext* mContext;
+  uint32 mOldOptions;
+  JSVersion mOldVersion;
+  JSBool mOptionsChanged;
+};
+
+nsJSVersionSetter::nsJSVersionSetter(JSContext *aContext, PRUint32 aVersion)
+  : mContext(aContext)
+{
+  // JSVERSION_HAS_XML may be set in our version mask - however, we can't
+  // simply pass this directly to JS_SetOptions as it masks out that bit -
+  // the only way to make this happen is via JS_SetOptions.
+  JSBool hasxml = (aVersion & JSVERSION_HAS_XML) != 0;
+  mOldOptions = ::JS_GetOptions(mContext);
+  mOptionsChanged = ((hasxml) ^ !!(mOldOptions & JSOPTION_XML));
+
+  if (mOptionsChanged) {
+    ::JS_SetOptions(mContext,
+                    hasxml
+                    ? mOldOptions | JSOPTION_XML
+                    : mOldOptions & ~JSOPTION_XML);
+  }
+
+  // Change the version - this is cheap when the versions match, so no need
+  // to optimize here...
+  JSVersion newVer = (JSVersion)(aVersion & JSVERSION_MASK);
+  mOldVersion = ::JS_SetVersion(mContext, newVer);
+}
+
+nsJSVersionSetter::~nsJSVersionSetter()
+{
+  ::JS_SetVersion(mContext, mOldVersion);
+
+  if (mOptionsChanged) {
+      ::JS_SetOptions(mContext, mOldOptions);
+  }
 }
 
 
@@ -781,8 +838,24 @@ PrintWinCodebase(nsGlobalWindow *win)
 }
 #endif
 
-// The accumulated operation weight before we call JS_MaybeGC
+// The accumulated operation weight before we call MaybeGC
 const PRUint32 MAYBE_GC_OPERATION_WEIGHT = 5000 * JS_OPERATION_WEIGHT_BASE;
+
+static void
+MaybeGC(JSContext *cx)
+{
+  size_t bytes = cx->runtime->gcBytes;
+  size_t lastBytes = cx->runtime->gcLastBytes;
+
+  if ((bytes > 8192 && bytes / 16 > lastBytes)
+#ifdef DEBUG
+      || cx->runtime->gcZeal > 0
+#endif
+      ) {
+    ++sGCCount;
+    JS_GC(cx);
+  }
+}
 
 JSBool JS_DLL_CALLBACK
 nsJSContext::DOMOperationCallback(JSContext *cx)
@@ -801,7 +874,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   // See bug 302333.
   PRTime callbackTime = ctx->mOperationCallbackTime;
 
-  JS_MaybeGC(cx);
+  MaybeGC(cx);
 
   // Now restore the callback time and count, in case they got reset.
   ctx->mOperationCallbackTime = callbackTime;
@@ -1260,29 +1333,12 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
   nsJSContext::TerminationFuncHolder holder(this);
 
   // SecurityManager said "ok", but don't compile if aVersion is unknown.
-  // Do compile with the default version (and avoid thrashing the context's
-  // version) if aVersion is the default.
-  // As the caller is responsible for parsing the version strings, we just
+  // Since the caller is responsible for parsing the version strings, we just
   // check it isn't JSVERSION_UNKNOWN.
   if (ok && ((JSVersion)aVersion) != JSVERSION_UNKNOWN) {
-    // JSVERSION_HAS_XML may be set in our version mask - however, we can't
-    // simply pass this directly to JS_SetOptions as it masks out that bit -
-    // the only way to make this happen is via JS_SetOptions.
-    JSBool hasxml = (aVersion & JSVERSION_HAS_XML) != 0;
-    uint32 jsoptions = ::JS_GetOptions(mContext);
-    JSBool optionsChanged = ((hasxml) ^ !!(jsoptions & JSOPTION_XML));
 
-    if (optionsChanged) {
-      ::JS_SetOptions(mContext,
-                      hasxml
-                      ? jsoptions | JSOPTION_XML
-                      : jsoptions & ~JSOPTION_XML);
-    }
-    // Change the version - this is cheap when the versions match, so no need
-    // to optimize here...
-    JSVersion newVer = (JSVersion)(aVersion & JSVERSION_MASK);
-    JSVersion oldVer = ::JS_SetVersion(mContext, newVer);
     JSAutoRequest ar(mContext);
+    nsJSVersionSetter setVersion(mContext, aVersion);
 
     ok = ::JS_EvaluateUCScriptForPrincipals(mContext,
                                             (JSObject *)aScopeObject,
@@ -1292,12 +1348,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                             aURL,
                                             aLineNo,
                                             &val);
-
-    ::JS_SetVersion(mContext, oldVer);
-
-    if (optionsChanged) {
-      ::JS_SetOptions(mContext, jsoptions);
-    }
 
     if (!ok) {
         // Tell XPConnect about any pending exceptions. This is needed
@@ -1463,29 +1513,11 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   nsJSContext::TerminationFuncHolder holder(this);
 
   // SecurityManager said "ok", but don't compile if aVersion is unknown.
-  // Do compile with the default version (and avoid thrashing the context's
-  // version) if aVersion is the default.
-  // As the caller is responsible for parsing the version strings, we just
+  // Since the caller is responsible for parsing the version strings, we just
   // check it isn't JSVERSION_UNKNOWN.
   if (ok && ((JSVersion)aVersion) != JSVERSION_UNKNOWN) {
     JSAutoRequest ar(mContext);
-    // JSVERSION_HAS_XML may be set in our version mask - however, we can't
-    // simply pass this directly to JS_SetOptions as it masks out that bit -
-    // the only way to make this happen is via JS_SetOptions.
-    JSBool hasxml = (aVersion & JSVERSION_HAS_XML) != 0;
-    uint32 jsoptions = ::JS_GetOptions(mContext);
-    JSBool optionsChanged = ((hasxml) ^ !!(jsoptions & JSOPTION_XML));
-
-    if (optionsChanged) {
-      ::JS_SetOptions(mContext,
-                      hasxml
-                      ? jsoptions | JSOPTION_XML
-                      : jsoptions & ~JSOPTION_XML);
-    }
-    // Change the version - this is cheap when the versions match, so no need
-    // to optimize here...
-    JSVersion newVer = (JSVersion)(aVersion & JSVERSION_MASK);
-    JSVersion oldVer = ::JS_SetVersion(mContext, newVer);
+    nsJSVersionSetter setVersion(mContext, aVersion);
 
     ok = ::JS_EvaluateUCScriptForPrincipals(mContext,
                                               (JSObject *)aScopeObject,
@@ -1495,12 +1527,6 @@ nsJSContext::EvaluateString(const nsAString& aScript,
                                               aURL,
                                               aLineNo,
                                               &val);
-
-    ::JS_SetVersion(mContext, oldVer);
-
-    if (optionsChanged) {
-      ::JS_SetOptions(mContext, jsoptions);
-    }
 
     if (!ok) {
         // Tell XPConnect about any pending exceptions. This is needed
@@ -1572,29 +1598,11 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   aScriptObject.drop(); // ensure old object not used on failure...
 
   // SecurityManager said "ok", but don't compile if aVersion is unknown.
-  // Do compile with the default version (and avoid thrashing the context's
-  // version) if aVersion is the default.
-  // As the caller is responsible for parsing the version strings, we just
+  // Since the caller is responsible for parsing the version strings, we just
   // check it isn't JSVERSION_UNKNOWN.
   if (ok && ((JSVersion)aVersion) != JSVERSION_UNKNOWN) {
-    // JSVERSION_HAS_XML may be set in our version mask - however, we can't
-    // simply pass this directly to JS_SetOptions as it masks out that bit -
-    // the only way to make this happen is via JS_SetOptions.
     JSAutoRequest ar(mContext);
-    JSBool hasxml = (aVersion & JSVERSION_HAS_XML) != 0;
-    uint32 jsoptions = ::JS_GetOptions(mContext);
-    JSBool optionsChanged = ((hasxml) ^ !!(jsoptions & JSOPTION_XML));
-
-    if (optionsChanged) {
-      ::JS_SetOptions(mContext,
-                      hasxml
-                      ? jsoptions | JSOPTION_XML
-                      : jsoptions & ~JSOPTION_XML);
-    }
-    // Change the version - this is cheap when the versions match, so no need
-    // to optimize here...
-    JSVersion newVer = (JSVersion)(aVersion & JSVERSION_MASK);
-    JSVersion oldVer = ::JS_SetVersion(mContext, newVer);
+    nsJSVersionSetter setVersion(mContext, aVersion);
 
     JSScript* script =
         ::JS_CompileUCScriptForPrincipals(mContext,
@@ -1614,13 +1622,8 @@ nsJSContext::CompileScript(const PRUnichar* aText,
         ::JS_DestroyScript(mContext, script);
         script = nsnull;
       }
-    } else
+    } else {
       rv = NS_ERROR_OUT_OF_MEMORY;
-
-    ::JS_SetVersion(mContext, oldVer);
-
-    if (optionsChanged) {
-      ::JS_SetOptions(mContext, jsoptions);
     }
   }
 
@@ -1672,7 +1675,7 @@ nsJSContext::ExecuteScript(void *aScriptObject,
   JSAutoRequest ar(mContext);
   ok = ::JS_ExecuteScript(mContext,
                           (JSObject *)aScopeObject,
-                          (JSScript*) ::JS_GetPrivate(mContext,
+                          (JSScript*)::JS_GetPrivate(mContext,
                           (JSObject*)aScriptObject),
                           &val);
 
@@ -1760,6 +1763,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                  const char** aArgNames,
                                  const nsAString& aBody,
                                  const char *aURL, PRUint32 aLineNo,
+                                 PRUint32 aVersion,
                                  nsScriptObjectHolder &aHandler)
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
@@ -1771,12 +1775,20 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
     return NS_ERROR_UNEXPECTED;
   }
 
+  // Don't compile if aVersion is unknown.  Since the caller is responsible for
+  // parsing the version strings, we just check it isn't JSVERSION_UNKNOWN.
+  if ((JSVersion)aVersion == JSVERSION_UNKNOWN) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
+
   const char *charName = AtomToEventHandlerName(aName);
 
   // Event handlers are always shared, and must be bound before use.
   // Therefore we never bother compiling with principals.
   // (that probably means we should avoid JS_CompileUCFunctionForPrincipals!)
   JSAutoRequest ar(mContext);
+  nsJSVersionSetter setVersion(mContext, aVersion);
+
   JSFunction* fun =
       ::JS_CompileUCFunctionForPrincipals(mContext,
                                           nsnull, nsnull,
@@ -1805,10 +1817,17 @@ nsJSContext::CompileFunction(void* aTarget,
                              const nsAString& aBody,
                              const char* aURL,
                              PRUint32 aLineNo,
+                             PRUint32 aVersion,
                              PRBool aShared,
                              void** aFunctionObject)
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
+
+  // Don't compile if aVersion is unknown.  Since the caller is responsible for
+  // parsing the version strings, we just check it isn't JSVERSION_UNKNOWN.
+  if ((JSVersion)aVersion == JSVERSION_UNKNOWN) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
 
   JSPrincipals *jsprin = nsnull;
 
@@ -1827,6 +1846,7 @@ nsJSContext::CompileFunction(void* aTarget,
   JSObject *target = (JSObject*)aTarget;
 
   JSAutoRequest ar(mContext);
+  nsJSVersionSetter setVersion(mContext, aVersion);
 
   JSFunction* fun =
       ::JS_CompileUCFunctionForPrincipals(mContext,
@@ -1945,7 +1965,9 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      nsContentUtils::NotifyXPCIfExceptionPending(mContext);
+      if (JS_IsExceptionPending(mContext)) {
+        JS_ReportPendingException(mContext);
+      }
 
       // Don't pass back results from failed calls.
       rval = JSVAL_VOID;
@@ -2816,7 +2838,7 @@ nsJSContext::FindXPCNativeWrapperClass(nsIXPConnectJSObjectHolder *aHolder)
   NS_ASSERTION(JSVAL_IS_OBJECT(wrapper), "This should be an object!");
 
   NS_DOMClassInfo_SetXPCNativeWrapperClass(
-    ::JS_GetClass(mContext, JSVAL_TO_OBJECT(wrapper)));
+    ::JS_GET_CLASS(mContext, JSVAL_TO_OBJECT(wrapper)));
   return NS_OK;
 }
 
@@ -3129,6 +3151,13 @@ nsJSContext::InitClasses(void *aGlobalObj)
 void
 nsJSContext::ClearScope(void *aGlobalObj, PRBool aClearFromProtoChain)
 {
+  // Push our JSContext on our thread's context stack.
+  nsCOMPtr<nsIJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (stack && NS_FAILED(stack->Push(mContext))) {
+    stack = nsnull;
+  }
+
   if (aGlobalObj) {
     JSObject *obj = (JSObject *)aGlobalObj;
     JSAutoRequest ar(mContext);
@@ -3159,8 +3188,12 @@ nsJSContext::ClearScope(void *aGlobalObj, PRBool aClearFromProtoChain)
         ::JS_ClearScope(mContext, o);
     }
   }
+
   ::JS_ClearRegExpStatics(mContext);
 
+  if (stack) {
+    stack->Pop(nsnull);
+  }
 }
 
 void
@@ -3214,12 +3247,12 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
 
 #ifdef JS_GC_ZEAL
   if (mContext->runtime->gcZeal >= 2) {
-    ::JS_MaybeGC(mContext);
+    MaybeGC(mContext);
   } else
 #endif
   if (mNumEvaluations > 20) {
     mNumEvaluations = 0;
-    ::JS_MaybeGC(mContext);
+    MaybeGC(mContext);
   }
 
   mOperationCallbackTime = LL_ZERO;
@@ -3298,19 +3331,22 @@ nsJSContext::PreserveWrapper(nsIXPConnectWrappedNative *aWrapper)
 void
 nsJSContext::CC()
 {
-  sPreviousCCTime = PR_Now();
-  sDelayedCCollectCount = 0;
   ++sCCollectCount;
 #ifdef DEBUG_smaug
-  printf("Will run cycle collector (%i)\n", sCCollectCount);
+  printf("Will run cycle collector (%i), %lldms since previous.\n",
+         sCCollectCount, (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
 #endif
+  sPreviousCCTime = PR_Now();
+  sDelayedCCollectCount = 0;
+  sGCCount = 0;
+  sCCSuspectChanges = 0;
   // nsCycleCollector_collect() will run a ::JS_GC() indirectly, so
   // we do not explicitly call ::JS_GC() here.
-  sPreviousCCDidCollect = nsCycleCollector_collect();
+  sCollectedObjectsCounts = nsCycleCollector_collect();
+  sCCSuspectedCount = nsCycleCollector_suspectedCount();
 #ifdef DEBUG_smaug
-  printf("(1) %s\n", sPreviousCCDidCollect ?
-                     "Cycle collector did collect nodes" :
-                     "Cycle collector did not collect nodes");
+  printf("Collected %u objects, %u suspected objects\n",
+         sCollectedObjectsCounts, sCCSuspectedCount);
 #endif
 }
 
@@ -3319,13 +3355,42 @@ PRBool
 nsJSContext::MaybeCC(PRBool aHigherProbability)
 {
   ++sDelayedCCollectCount;
+
+  // Don't check suspected count if CC will be called anyway.
+  if (sCCSuspectChanges <= NS_MIN_SUSPECT_CHANGES ||
+      sGCCount <= NS_MAX_GC_COUNT) {
+#ifdef DEBUG_smaug
+    PRTime now = PR_Now();
+#endif
+    PRUint32 suspected = nsCycleCollector_suspectedCount();
+#ifdef DEBUG_smaug
+    printf("%u suspected objects (%lldms), sCCSuspectedCount %u\n",
+            suspected, (PR_Now() - now) / PR_USEC_PER_MSEC,
+            sCCSuspectedCount);
+#endif
+    // Update only when suspected count has increased.
+    if (suspected > sCCSuspectedCount) {
+      sCCSuspectChanges += (suspected - sCCSuspectedCount);
+      sCCSuspectedCount = suspected;
+    }
+  }
+#ifdef DEBUG_smaug
+  printf("sCCSuspectChanges %u, sGCCount %u\n",
+         sCCSuspectChanges, sGCCount);
+#endif
+
   // Increase the probability also if the previous call to cycle collector
   // collected something.
-  if (aHigherProbability || sPreviousCCDidCollect) {
+  if (aHigherProbability ||
+      sCollectedObjectsCounts > NS_COLLECTED_OBJECTS_LIMIT) {
     sDelayedCCollectCount *= NS_PROBABILITY_MULTIPLIER;
   }
 
-  if (!sGCTimer && (sDelayedCCollectCount > NS_MAX_DELAYED_CCOLLECT)) {
+  if (!sGCTimer &&
+      (sDelayedCCollectCount > NS_MAX_DELAYED_CCOLLECT) &&
+      ((sCCSuspectChanges > NS_MIN_SUSPECT_CHANGES &&
+        sGCCount > NS_MAX_GC_COUNT) ||
+       (sCCSuspectChanges > NS_MAX_SUSPECT_CHANGES))) {
     if ((PR_Now() - sPreviousCCTime) >=
         PRTime(NS_MIN_CC_INTERVAL * PR_USEC_PER_MSEC)) {
       nsJSContext::CC();
@@ -3540,7 +3605,10 @@ nsJSRuntime::Startup()
   sCCollectCount = 0;
   sUserIsActive = PR_FALSE;
   sPreviousCCTime = 0;
-  sPreviousCCDidCollect = PR_FALSE;
+  sCollectedObjectsCounts = 0;
+  sGCCount = 0;
+  sCCSuspectChanges = 0;
+  sCCSuspectedCount = 0;
   sGCTimer = nsnull;
   sReadyForGC = PR_FALSE;
   sLoadInProgressGCTimer = PR_FALSE;

@@ -410,9 +410,9 @@ MODULES_all :=                                  \
 #
 # For branches, uncomment the MOZ_CO_TAG line with the proper tag,
 # and commit this file on that tag.
-MOZ_CO_TAG           = FIREFOX_3_0b3_RELEASE
-NSPR_CO_TAG          = FIREFOX_3_0b3_RELEASE
-NSS_CO_TAG           = FIREFOX_3_0b3_RELEASE
+MOZ_CO_TAG           = FIREFOX_3_0b4_RELEASE
+NSPR_CO_TAG          = FIREFOX_3_0b4_RELEASE
+NSS_CO_TAG           = FIREFOX_3_0b4_RELEASE
 LDAPCSDK_CO_TAG      = LDAPCSDK_6_0_3_CLIENT_BRANCH
 LOCALES_CO_TAG       =
 
@@ -791,9 +791,9 @@ ifdef RUN_AUTOCONF_LOCALLY
 	$(RM) -f $(CONFIGURES)
 endif
 	@echo "checkout start: "`date` | tee $(CVSCO_LOGFILE)
-	@echo '$(CVSCO) $(CVS_CO_DATE_FLAGS) mozilla/client.mk $(MOZCONFIG_MODULES)'; \
+	@echo '$(CVSCO) mozilla/client.mk $(MOZCONFIG_MODULES)'; \
         cd $(ROOTDIR) && \
-	$(CVSCO) $(CVS_CO_DATE_FLAGS) mozilla/client.mk $(MOZCONFIG_MODULES)
+	$(CVSCO) mozilla/client.mk $(MOZCONFIG_MODULES)
 	@cd $(ROOTDIR) && $(MAKE) -f mozilla/client.mk real_checkout
 
 #	Start the checkout. Split the output to the tty and a log file.
@@ -889,9 +889,9 @@ l10n-checkout:
 	else true; \
 	fi
 	@echo "checkout start: "`date` | tee $(CVSCO_LOGFILE_L10N)
-	@echo '$(CVSCO) $(CVS_CO_DATE_FLAGS) mozilla/client.mk $(MOZCONFIG_MODULES)'; \
+	@echo '$(CVSCO) mozilla/client.mk $(MOZCONFIG_MODULES)'; \
         cd $(ROOTDIR) && \
-	$(CVSCO) $(CVS_CO_DATE_FLAGS) mozilla/client.mk $(MOZCONFIG_MODULES)
+	$(CVSCO) mozilla/client.mk $(MOZCONFIG_MODULES)
 	@cd $(ROOTDIR) && $(MAKE) -f mozilla/client.mk real_l10n-checkout
 
 FULL_EN_US_DIRS := toolkit \
@@ -1097,9 +1097,8 @@ build::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
 profiledbuild:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
 	$(MOZ_MAKE) MOZ_PROFILE_GENERATE=1
 	OBJDIR=${OBJDIR} $(PROFILE_GEN_SCRIPT)
-	$(MOZ_MAKE) clobber_all
+	$(MOZ_MAKE) maybe_clobber_profiledbuild
 	$(MOZ_MAKE) MOZ_PROFILE_USE=1
-	find $(OBJDIR) -name "*.da" -exec rm {} \;
 
 ####################################
 # Other targets
@@ -1162,4 +1161,4 @@ endif
 echo-variable-%:
 	@echo $($*)
 
-.PHONY: checkout real_checkout depend build export libs alldep install clean realclean distclean cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all
+.PHONY: checkout real_checkout depend build profiledbuild export libs alldep install clean realclean distclean cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all

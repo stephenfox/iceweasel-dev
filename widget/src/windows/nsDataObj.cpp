@@ -435,8 +435,9 @@ STDMETHODIMP_(ULONG) nsDataObj::Release()
 	if (0 < g_cRef)
 		--g_cRef;
 
+	--m_cRef;
 	NS_LOG_RELEASE(this, m_cRef, "nsDataObj");
-	if (0 != --m_cRef)
+	if (0 != m_cRef)
 		return m_cRef;
 
 	delete this;
@@ -754,16 +755,11 @@ STDMETHODIMP nsDataObj::EnumFormatEtc(DWORD dwDir, LPENUMFORMATETC *ppEnum)
         break;
   } // switch
 
-  // Since a new one has been created, 
-  // we will ref count the new clone here 
-  // before giving it back
   if (NULL == *ppEnum)
     return ResultFromScode(E_FAIL);
-  else
-    (*ppEnum)->AddRef();
 
+  // Clone already AddRefed the result so don't addref it again.
   return NOERROR;
-
 }
 
 //-----------------------------------------------------
@@ -1802,7 +1798,7 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamA(FORMATETC& aFE, STGMEDIUM& aSTG)
   HGLOBAL fileGroupDescHandle = ::GlobalAlloc(GMEM_ZEROINIT|GMEM_SHARE,sizeof(FILEGROUPDESCRIPTORW));
   NS_ENSURE_TRUE(fileGroupDescHandle, E_OUTOFMEMORY);
 
-  LPFILEGROUPDESCRIPTORA fileGroupDescA = reinterpret_cast<LPFILEGROUPDESCRIPTORA>(::GlobalLock(fileGroupDescHandle));
+  LPFILEGROUPDESCRIPTORA fileGroupDescA = reinterpret_cast<LPFILEGROUPDESCRIPTORA>(GlobalLock(fileGroupDescHandle));
   if (!fileGroupDescA) {
     ::GlobalFree(fileGroupDescHandle);
     return E_OUTOFMEMORY;
@@ -1829,7 +1825,7 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamA(FORMATETC& aFE, STGMEDIUM& aSTG)
   fileGroupDescA->cItems = 1;
   fileGroupDescA->fgd[0].dwFlags = FD_PROGRESSUI;
 
-  ::GlobalUnlock( fileGroupDescHandle );
+  GlobalUnlock( fileGroupDescHandle );
   aSTG.hGlobal = fileGroupDescHandle;
   aSTG.tymed = TYMED_HGLOBAL;
 
@@ -1841,7 +1837,7 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamW(FORMATETC& aFE, STGMEDIUM& aSTG)
   HGLOBAL fileGroupDescHandle = ::GlobalAlloc(GMEM_ZEROINIT|GMEM_SHARE,sizeof(FILEGROUPDESCRIPTORW));
   NS_ENSURE_TRUE(fileGroupDescHandle, E_OUTOFMEMORY);
 
-  LPFILEGROUPDESCRIPTORW fileGroupDescW = reinterpret_cast<LPFILEGROUPDESCRIPTORW>(::GlobalLock(fileGroupDescHandle));
+  LPFILEGROUPDESCRIPTORW fileGroupDescW = reinterpret_cast<LPFILEGROUPDESCRIPTORW>(GlobalLock(fileGroupDescHandle));
   if (!fileGroupDescW) {
     ::GlobalFree(fileGroupDescHandle);
     return E_OUTOFMEMORY;
@@ -1864,7 +1860,7 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamW(FORMATETC& aFE, STGMEDIUM& aSTG)
   fileGroupDescW->cItems = 1;
   fileGroupDescW->fgd[0].dwFlags = FD_PROGRESSUI;
 
-  ::GlobalUnlock(fileGroupDescHandle);
+  GlobalUnlock(fileGroupDescHandle);
   aSTG.hGlobal = fileGroupDescHandle;
   aSTG.tymed = TYMED_HGLOBAL;
 

@@ -51,12 +51,10 @@ REQUIRES = \
 	appcomps \
 	toolkitcomps \
 	appshell \
-	appstartup \
 	chrome \
 	content \
 	docshell \
 	dom \
-	layout \
 	embed_base \
 	embedcomponents \
 	extensions \
@@ -68,13 +66,11 @@ REQUIRES = \
 	profile \
 	string \
 	uriloader \
-        layout \
 	widget \
 	windowwatcher \
 	xpcom \
 	xpconnect \
 	xpinstall \
-	xremoteservice \
 	$(NULL)
 
 ifdef MOZ_JPROF
@@ -252,6 +248,8 @@ export:: $(addprefix $(topsrcdir)/xpfe/bootstrap/, $(SHAREDCPPSRCS))
 
 platform.ini: FORCE
 	$(PYTHON) $(srcdir)/make-platformini.py --buildid=$(shell cat $(DEPTH)/config/buildid) $(topsrcdir)/config/milestone.txt > $@
+
+GARBAGE += platform.ini
 
 libs:: platform.ini
 	$(INSTALL) $^ $(DIST)/bin

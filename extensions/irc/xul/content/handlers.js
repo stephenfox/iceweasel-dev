@@ -1774,9 +1774,14 @@ function my_341 (e)
 CIRCNetwork.prototype.onInvite = /* invite message */
 function my_invite (e)
 {
+    client.munger.getRule(".inline-buttons").enabled = true;
     this.display(getMsg(MSG_INVITE_YOU, [e.user.unicodeName, e.user.name,
-                                         e.user.host, e.channel.unicodeName]),
+                                         e.user.host,
+                                         e.channel.unicodeName,
+                                         e.channel.unicodeName,
+                                         e.channel.getURL()]),
                  "INVITE");
+    client.munger.getRule(".inline-buttons").enabled = false;
 
     if ("messages" in e.channel)
         e.channel.join();
@@ -3022,7 +3027,6 @@ CIRCDCCFileTransfer.prototype.onInit =
 function my_dccfileinit(e)
 {
     this.busy = false;
-    this.progress = -1;
     updateProgress();
 }
 
@@ -3046,7 +3050,6 @@ function my_dccfileconnect(e)
 {
     this.displayHere(getMsg(MSG_DCCFILE_OPENED, this._getParams()), "DCC-FILE");
     this.busy = true;
-    this.progress = 0;
     this.speed = 0;
     updateProgress();
     this._lastUpdate = new Date();
@@ -3058,7 +3061,7 @@ CIRCDCCFileTransfer.prototype.onProgress =
 function my_dccfileprogress(e)
 {
     var now = new Date();
-    var pcent = Math.floor(100 * this.position / this.size);
+    var pcent = this.progress;
 
     var tab = getTabForObject(this);
 
@@ -3066,7 +3069,6 @@ function my_dccfileprogress(e)
     if ((this.position > this._lastPosition + 102400) ||
         (now - this._lastUpdate > 10000))
     {
-        this.progress = pcent;
         updateProgress();
         updateTitle();
 
@@ -3104,6 +3106,7 @@ function my_dccfileabort(e)
 {
     this.busy = false;
     updateProgress();
+    updateTitle();
     this.display(getMsg(MSG_DCCFILE_ABORTED, this._getParams()), "DCC-FILE");
 }
 
@@ -3112,6 +3115,7 @@ function my_dccfilefail(e)
 {
     this.busy = false;
     updateProgress();
+    updateTitle();
     this.display(getMsg(MSG_DCCFILE_FAILED, this._getParams()), "DCC-FILE");
 }
 
@@ -3121,6 +3125,7 @@ function my_dccfiledisconnect(e)
     this.busy = false;
     updateProgress();
     this.updateHeader();
+    updateTitle();
 
     var msg, tab = getTabForObject(this);
     if (tab)

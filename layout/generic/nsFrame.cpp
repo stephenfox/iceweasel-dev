@@ -3601,6 +3601,21 @@ nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
 }
 
 void
+nsIFrame::InvalidateRectDifference(const nsRect& aR1, const nsRect& aR2)
+{
+  nsRect sizeHStrip, sizeVStrip;
+  nsLayoutUtils::GetRectDifferenceStrips(aR1, aR2, &sizeHStrip, &sizeVStrip);
+  Invalidate(sizeVStrip);
+  Invalidate(sizeHStrip);
+}
+
+void
+nsIFrame::InvalidateOverflowRect()
+{
+  Invalidate(GetOverflowRect());
+}
+
+void
 nsIFrame::InvalidateRoot(const nsRect& aDamageRect,
                          nscoord aX, nscoord aY, PRBool aImmediate)
 {
@@ -3642,13 +3657,12 @@ nsIFrame::GetOverflowRect() const
   // of child frames. That's OK because any reflow that updates these
   // areas will invalidate the appropriate area, so any (mis)uses of
   // this method will be fixed up.
-  nsRect* storedOA = const_cast<nsIFrame*>(this)
-    ->GetOverflowAreaProperty(PR_FALSE);
-  if (storedOA) {
-    return *storedOA;
-  } else {
-    return nsRect(nsPoint(0, 0), GetSize());
-  }
+
+  if (GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN)
+    return *const_cast<nsIFrame*>(this)->GetOverflowAreaProperty(PR_FALSE);
+  // NOTE this won't return accurate info if the overflow rect was updated
+  // but the mRect hasn't been set yet!
+  return nsRect(nsPoint(0, 0), GetSize());
 }
   
 void
@@ -3791,10 +3805,10 @@ nsFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsFrame* f = const_cast<nsFrame*>(this);
-  nsRect* overflowArea = f->GetOverflowAreaProperty(PR_FALSE);
-  if (overflowArea) {
-    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea->x, overflowArea->y,
-            overflowArea->width, overflowArea->height);
+  if (f->GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN) {
+    nsRect overflowArea = f->GetOverflowRect();
+    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
   }
   fputs("\n", out);
   return NS_OK;
@@ -4505,6 +4519,7 @@ FindBlockFrameOrBR(nsIFrame* aFrame, nsDirection aDirection)
 {
   nsContentAndOffset result;
   result.mContent =  nsnull;
+  result.mOffset = 0;
 
   if (aFrame->IsGeneratedContentFrame())
     return result;
@@ -4526,8 +4541,13 @@ FindBlockFrameOrBR(nsIFrame* aFrame, nsDirection aDirection)
       aFrame->GetType() == nsGkAtoms::brFrame) {
     nsIContent* content = aFrame->GetContent();
     result.mContent = content->GetParent();
-    result.mOffset = result.mContent->IndexOf(content) + 
-      (aDirection == eDirPrevious ? 1 : 0);
+    // In some cases (bug 310589, bug 370174) we end up here with a null content.
+    // This probably shouldn't ever happen, but since it sometimes does, we want
+    // to avoid crashing here.
+    NS_ASSERTION(result.mContent, "Unexpected orphan content");
+    if (result.mContent)
+      result.mOffset = result.mContent->IndexOf(content) + 
+        (aDirection == eDirPrevious ? 1 : 0);
     return result;
   }
 
@@ -4971,7 +4991,7 @@ nsFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsK
     if (!aState->mAtStart) {
       if (aState->mLastCharWasPunctuation) {
         // We're not punctuation, so this is a punctuation boundary.
-        if (BreakWordBetweenPunctuation(aForward, aIsKeyboardSelect))
+        if (BreakWordBetweenPunctuation(aState, aForward, PR_FALSE, PR_FALSE, aIsKeyboardSelect))
           return PR_TRUE;
       } else {
         // This is not a punctuation boundary.
@@ -4981,7 +5001,9 @@ nsFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsK
     }
     // Otherwise skip to the other side and note that we encountered non-whitespace.
     *aOffset = 1 - startOffset;
-    aState->Update(PR_FALSE);
+    aState->Update(PR_FALSE, // not punctuation
+                   PR_FALSE  // not whitespace
+                   );
     if (!aWordSelectEatSpace)
       aState->SetSawBeforeType();
   }
@@ -4989,18 +5011,34 @@ nsFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsK
 }
 
 PRBool
-nsFrame::BreakWordBetweenPunctuation(PRBool aAfterPunct, PRBool aIsKeyboardSelect)
+nsFrame::BreakWordBetweenPunctuation(const PeekWordState* aState,
+                                     PRBool aForward,
+                                     PRBool aPunctAfter, PRBool aWhitespaceAfter,
+                                     PRBool aIsKeyboardSelect)
 {
+  NS_ASSERTION(aPunctAfter != aState->mLastCharWasPunctuation,
+               "Call this only at punctuation boundaries");
+  if (aState->mLastCharWasWhitespace) {
+    // We always stop between whitespace and punctuation
+    return PR_TRUE;
+  }
   if (!nsContentUtils::GetBoolPref("layout.word_select.stop_at_punctuation")) {
-    // When this pref is false, we never stop at a punctuation boundary.
+    // When this pref is false, we never stop at a punctuation boundary unless
+    // it's after whitespace
     return PR_FALSE;
   }
   if (!aIsKeyboardSelect) {
     // mouse caret movement (e.g. word selection) always stops at every punctuation boundary
     return PR_TRUE;
   }
-  // keyboard caret movement stops after punctuation, not before it
-  return aAfterPunct;
+  PRBool afterPunct = aForward ? aState->mLastCharWasPunctuation : aPunctAfter;
+  if (!afterPunct) {
+    // keyboard caret movement only stops after punctuation (in content order)
+    return PR_FALSE;
+  }
+  // Stop only if we've seen some non-punctuation since the last whitespace;
+  // don't stop after punctuation that follows whitespace.
+  return aState->mSeenNonPunctuationSinceWhitespace;
 }
 
 NS_IMETHODIMP
@@ -5220,6 +5258,11 @@ DestroyRectFunc(void*    aFrame,
   delete static_cast<nsRect*>(aPropertyValue);
 }
 
+/** Create or retrieve the previously stored overflow area, if the frame does 
+ * not overflow and no creation is required return nsnull.
+ * @param aCreateIfNecessary  create a new nsRect for the overflow area
+ * @return pointer to the overflow area rectangle 
+ */
 nsRect*
 nsIFrame::GetOverflowAreaProperty(PRBool aCreateIfNecessary) 
 {
@@ -5268,6 +5311,11 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
       aOverflowArea->UnionRect(*aOverflowArea, r);
     }
   }
+  
+  // Overflow area must always include the frame's top-left and bottom-right,
+  // even if the frame rect is empty.
+  aOverflowArea->UnionRectIncludeEmpty(*aOverflowArea,
+                                       nsRect(nsPoint(0, 0), aNewSize));
 
   PRBool geometricOverflow =
     aOverflowArea->x < 0 || aOverflowArea->y < 0 ||
@@ -5293,7 +5341,6 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
   }
 
   if (outlineRect != nsRect(nsPoint(0, 0), aNewSize)) {
-    // Throw out any overflow if we're -moz-hidden-unscrollable
     mState |= NS_FRAME_OUTSIDE_CHILDREN;
     nsRect* overflowArea = GetOverflowAreaProperty(PR_TRUE); 
     NS_ASSERTION(overflowArea, "should have created rect");
@@ -5316,15 +5363,9 @@ nsFrame::ConsiderChildOverflow(nsRect&   aOverflowArea,
   // check here also for hidden as table frames (table, tr and td) currently 
   // don't wrap their content into a scrollable frame if overflow is specified
   if (!disp->IsTableClip()) {
-    nsRect* overflowArea = aChildFrame->GetOverflowAreaProperty();
-    if (overflowArea) {
-      nsRect childOverflow(*overflowArea);
-      childOverflow.MoveBy(aChildFrame->GetPosition());
-      aOverflowArea.UnionRect(aOverflowArea, childOverflow);
-    }
-    else {
-      aOverflowArea.UnionRect(aOverflowArea, aChildFrame->GetRect());
-    }
+    nsRect childOverflow = aChildFrame->GetOverflowRect();
+    childOverflow.MoveBy(aChildFrame->GetPosition());
+    aOverflowArea.UnionRect(aOverflowArea, childOverflow);
   }
 }
 
@@ -7279,21 +7320,19 @@ void nsFrame::DisplayReflowExit(nsPresContext*      aPresContext,
       printf("status=0x%x", aStatus);
     }
     if (aFrame->GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN) {
-       DR_state->PrettyUC(aMetrics.mOverflowArea.x, x);
-       DR_state->PrettyUC(aMetrics.mOverflowArea.y, y);
-       DR_state->PrettyUC(aMetrics.mOverflowArea.width, width);
-       DR_state->PrettyUC(aMetrics.mOverflowArea.height, height);
-       printf("o=(%s,%s) %s x %s", x, y, width, height);
-       nsRect* storedOverflow = aFrame->GetOverflowAreaProperty();
-       if (storedOverflow) {
-         if (aMetrics.mOverflowArea != *storedOverflow) {
-           DR_state->PrettyUC(storedOverflow->x, x);
-           DR_state->PrettyUC(storedOverflow->y, y);
-           DR_state->PrettyUC(storedOverflow->width, width);
-           DR_state->PrettyUC(storedOverflow->height, height);
-           printf("sto=(%s,%s) %s x %s", x, y, width, height);
-         }
-       }
+      DR_state->PrettyUC(aMetrics.mOverflowArea.x, x);
+      DR_state->PrettyUC(aMetrics.mOverflowArea.y, y);
+      DR_state->PrettyUC(aMetrics.mOverflowArea.width, width);
+      DR_state->PrettyUC(aMetrics.mOverflowArea.height, height);
+      printf("o=(%s,%s) %s x %s", x, y, width, height);
+      if (aFrame->GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN) {
+        nsRect storedOverflow = aFrame->GetOverflowRect();
+        DR_state->PrettyUC(storedOverflow.x, x);
+        DR_state->PrettyUC(storedOverflow.y, y);
+        DR_state->PrettyUC(storedOverflow.width, width);
+        DR_state->PrettyUC(storedOverflow.height, height);
+        printf("sto=(%s,%s) %s x %s", x, y, width, height);
+      }
     }
     printf("\n");
     if (DR_state->mDisplayPixelErrors) {

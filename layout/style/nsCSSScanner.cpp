@@ -190,7 +190,7 @@ nsCSSScanner::nsCSSScanner()
     BuildLexTable();
   }
   mPushback = mLocalPushback;
-  mPushbackSize = 4;
+  mPushbackSize = NS_ARRAY_LENGTH(mLocalPushback);
   // No need to init the other members, since they represent state
   // which can get cleared.  We'll init them every time Init() is
   // called.
@@ -456,6 +456,18 @@ void nsCSSScanner::Close()
 {
   mInputStream = nsnull;
   mReadPointer = nsnull;
+
+  // Clean things up so we don't hold on to memory if our parser gets recycled.
+#ifdef CSS_REPORT_PARSE_ERRORS
+  mFileName.Truncate();
+  mURI = nsnull;
+  mError.Truncate();
+#endif
+  if (mPushback != mLocalPushback) {
+    delete [] mPushback;
+    mPushback = mLocalPushback;
+    mPushbackSize = NS_ARRAY_LENGTH(mLocalPushback);
+  }
 }
 
 #ifdef CSS_REPORT_PARSE_ERRORS
@@ -899,6 +911,24 @@ PRBool nsCSSScanner::GatherIdent(nsresult& aErrorCode, PRInt32 aChar,
     aIdent.Append(aChar);
   }
   for (;;) {
+    // If nothing in pushback, first try to get as much as possible in one go
+    if (!mPushbackCount && EnsureData(aErrorCode)) {
+      // See how much we can consume and append in one go
+      PRUint32 n = mOffset;
+      // Count number of Ident characters that can be processed
+      while (n < mCount && IsIdent(mReadPointer[n])) {
+        ++n;
+      }
+      // Add to the token what we have so far
+      if (n > mOffset) {
+#ifdef CSS_REPORT_PARSE_ERRORS
+        mColNumber += n - mOffset;
+#endif
+        aIdent.Append(&mReadPointer[mOffset], n - mOffset);
+        mOffset = n;
+      }
+    }
+
     aChar = Read(aErrorCode);
     if (aChar < 0) break;
     if (aChar == CSS_ESCAPE) {
@@ -1096,24 +1126,46 @@ PRBool nsCSSScanner::ParseString(nsresult& aErrorCode, PRInt32 aStop,
   aToken.mType = eCSSToken_String;
   aToken.mSymbol = PRUnichar(aStop); // remember how it's quoted
   for (;;) {
-    if (EatNewline(aErrorCode)) {
+    // If nothing in pushback, first try to get as much as possible in one go
+    if (!mPushbackCount && EnsureData(aErrorCode)) {
+      // See how much we can consume and append in one go
+      PRUint32 n = mOffset;
+      // Count number of characters that can be processed
+      for (;n < mCount; ++n) {
+        PRUnichar nextChar = mReadPointer[n];
+        if ((nextChar == aStop) || (nextChar == CSS_ESCAPE) ||
+            (nextChar == '\n') || (nextChar == '\r') || (nextChar == '\f')) {
+          break;
+        }
+#ifdef CSS_REPORT_PARSE_ERRORS
+        if (nextChar == '\t') {
+          mColNumber = ((mColNumber - 1 + TAB_STOP_WIDTH) / TAB_STOP_WIDTH)
+                       * TAB_STOP_WIDTH;
+        } else {
+          ++mColNumber;
+        }
+#endif
+      }
+      // Add to the token what we have so far
+      if (n > mOffset) {
+        aToken.mIdent.Append(&mReadPointer[mOffset], n - mOffset);
+        mOffset = n;
+      }
+    }
+    PRInt32 ch = Read(aErrorCode);
+    if (ch < 0 || ch == aStop) {
+      break;
+    }
+    if (ch == '\n') {
       aToken.mType = eCSSToken_Error;
 #ifdef CSS_REPORT_PARSE_ERRORS
       ReportUnexpectedToken(aToken, "SEUnterminatedString");
 #endif
-      return PR_TRUE;
-    }
-    PRInt32 ch = Read(aErrorCode);
-    if (ch < 0) {
-      return PR_FALSE;
-    }
-    if (ch == aStop) {
       break;
     }
     if (ch == CSS_ESCAPE) {
       ParseAndAppendEscape(aErrorCode, aToken.mIdent);
-    }
-    else if (0 < ch) {
+    } else {
       aToken.mIdent.Append(ch);
     }
   }

@@ -1439,6 +1439,9 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
   }
       
   // Try to scroll the selection into view if the paste/drop succeeded
+
+  // After ScrollSelectionIntoView(), the pending notifications might be
+  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
   if (NS_SUCCEEDED(rv))
     ScrollSelectionIntoView(PR_FALSE);
 
@@ -1667,6 +1670,8 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     if (!nsEditorHookUtils::DoInsertionHook(domdoc, aDropEvent, trans))
       return NS_OK;
 
+    // Beware! This may flush notifications via synchronous
+    // ScrollSelectionIntoView.
     rv = InsertFromTransferable(trans, srcdomdoc, contextStr, infoStr,
                                 newSelectionParent,
                                 newSelectionOffset, deleteSelection);
@@ -1887,6 +1892,8 @@ NS_IMETHODIMP nsHTMLEditor::Paste(PRInt32 aSelectionType)
       if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, trans))
         return NS_OK;
 
+      // Beware! This may flush notifications via synchronous
+      // ScrollSelectionIntoView.
       rv = InsertFromTransferable(trans, nsnull, contextStr, infoStr,
                                   nsnull, 0, PR_TRUE);
     }
@@ -1918,6 +1925,8 @@ NS_IMETHODIMP nsHTMLEditor::PasteNoFormatting(PRInt32 aSelectionType)
     if (NS_SUCCEEDED(clipboard->GetData(trans, aSelectionType)) && IsModifiable())
     {
       const nsAFlatString& empty = EmptyString();
+      // Beware! This may flush notifications via synchronous
+      // ScrollSelectionIntoView.
       rv = InsertFromTransferable(trans, nsnull, empty, empty, nsnull, 0,
                                   PR_TRUE);
     }
@@ -1932,14 +1941,11 @@ NS_IMETHODIMP nsHTMLEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
   NS_ENSURE_ARG_POINTER(aCanPaste);
   *aCanPaste = PR_FALSE;
 
-  nsresult rv = FireClipboardEvent(NS_BEFOREPASTE, aCanPaste);
-  if (NS_FAILED(rv) || *aCanPaste)
-    return rv;
-  
   // can't paste if readonly
   if (!IsModifiable())
     return NS_OK;
-    
+
+  nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if (NS_FAILED(rv)) return rv;
   

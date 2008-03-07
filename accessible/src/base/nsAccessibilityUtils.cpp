@@ -54,6 +54,7 @@
 #include "nsIDOMDocumentXBL.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
+#include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIDOMWindowInternal.h"
@@ -204,10 +205,61 @@ nsAccUtils::SetAccAttrsForXULSelectControlItem(nsIDOMNode *aNode,
   SetAccGroupAttrs(aAttributes, 0, posInSet + 1, setSize);
 }
 
+void
+nsAccUtils::SetAccAttrsForXULContainerItem(nsIDOMNode *aNode,
+                                           nsIPersistentProperties *aAttributes)
+{
+  nsCOMPtr<nsIDOMXULContainerItemElement> item(do_QueryInterface(aNode));
+  if (!item)
+    return;
+
+  nsCOMPtr<nsIDOMXULContainerElement> container;
+  item->GetParentContainer(getter_AddRefs(container));
+  if (!container)
+    return;
+
+  // Get item count.
+  PRUint32 itemsCount = 0;
+  container->GetItemCount(&itemsCount);
+
+  // Get item index.
+  PRInt32 indexOf = 0;
+  container->GetIndexOfItem(item, &indexOf);
+  
+  PRUint32 setSize = itemsCount, posInSet = indexOf;
+  for (PRUint32 index = 0; index < itemsCount; index++) {
+    nsCOMPtr<nsIDOMXULElement> currItem;
+    container->GetItemAtIndex(index, getter_AddRefs(currItem));
+    nsCOMPtr<nsIDOMNode> currNode(do_QueryInterface(currItem));
+    
+    nsCOMPtr<nsIAccessible> itemAcc;
+    nsAccessNode::GetAccService()->GetAccessibleFor(currNode,
+                                                    getter_AddRefs(itemAcc));
+    if (!itemAcc ||
+        nsAccessible::State(itemAcc) & nsIAccessibleStates::STATE_INVISIBLE) {
+      setSize--;
+      if (index < static_cast<PRUint32>(indexOf))
+        posInSet--;
+    }
+  }
+
+  // Get level of the item.
+  PRInt32 level = -1;
+  while (container) {
+    level++;
+
+    nsCOMPtr<nsIDOMXULContainerElement> parentContainer;
+    container->GetParentContainer(getter_AddRefs(parentContainer));
+    parentContainer.swap(container);
+  }
+  
+  SetAccGroupAttrs(aAttributes, level, posInSet + 1, setSize);
+}
+
 PRBool
 nsAccUtils::HasListener(nsIContent *aContent, const nsAString& aEventType)
 {
-  NS_ENSURE_ARG_POINTER(aContent);
+  NS_ENSURE_TRUE(aContent, PR_FALSE);
   nsCOMPtr<nsIEventListenerManager> listenerManager;
   aContent->GetListenerManager(PR_FALSE, getter_AddRefs(listenerManager));
 
@@ -267,8 +319,8 @@ PRBool
 nsAccUtils::IsAncestorOf(nsIDOMNode *aPossibleAncestorNode,
                          nsIDOMNode *aPossibleDescendantNode)
 {
-  NS_ENSURE_ARG_POINTER(aPossibleAncestorNode);
-  NS_ENSURE_ARG_POINTER(aPossibleDescendantNode);
+  NS_ENSURE_TRUE(aPossibleAncestorNode, PR_FALSE);
+  NS_ENSURE_TRUE(aPossibleDescendantNode, PR_FALSE);
 
   nsCOMPtr<nsIDOMNode> loopNode = aPossibleDescendantNode;
   nsCOMPtr<nsIDOMNode> parentNode;
@@ -302,6 +354,81 @@ nsAccUtils::GetAncestorWithRole(nsIAccessible *aDescendant, PRUint32 aRole)
     parentAccessible.swap(testRoleAccessible);
   }
   return nsnull;
+}
+
+void
+nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem, nsIContent *aStartContent,
+                                  nsIAccessible **aTreeItemParentResult)
+{
+  *aTreeItemParentResult = nsnull;
+  nsAutoString levelStr;
+  PRInt32 level = 0;
+  if (aStartContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_level, levelStr)) {
+    // This is a tree that uses aria-level to define levels, so find the first previous
+    // sibling accessible where level is defined to be less than the current level
+    PRInt32 success;
+    level = levelStr.ToInteger(&success);
+    if (level > 1 && NS_SUCCEEDED(success)) {
+      nsCOMPtr<nsIAccessible> currentAccessible = aStartTreeItem, prevAccessible;
+      while (PR_TRUE) {
+        currentAccessible->GetPreviousSibling(getter_AddRefs(prevAccessible));
+        currentAccessible.swap(prevAccessible);
+        nsCOMPtr<nsIAccessNode> accessNode = do_QueryInterface(currentAccessible);
+        if (!accessNode) {
+          break; // Reached top of tree, no higher level found
+        }
+        PRUint32 role;
+        currentAccessible->GetFinalRole(&role);
+        if (role != nsIAccessibleRole::ROLE_OUTLINEITEM)
+          continue;
+        nsCOMPtr<nsIDOMNode> treeItemNode;
+        accessNode->GetDOMNode(getter_AddRefs(treeItemNode));
+        nsCOMPtr<nsIContent> treeItemContent = do_QueryInterface(treeItemNode);
+        if (treeItemContent &&
+            treeItemContent->GetAttr(kNameSpaceID_None,
+                                     nsAccessibilityAtoms::aria_level, levelStr)) {
+          if (levelStr.ToInteger(&success) < level && NS_SUCCEEDED(success)) {
+            NS_ADDREF(*aTreeItemParentResult = currentAccessible);
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // Possibly a tree arranged by using role="group" to organize levels
+  // In this case the parent of the tree item will be a group and the
+  // previous sibling of that should be the tree item parent.
+  // Or, if the parent is something other than a tree we will return that.
+  nsCOMPtr<nsIAccessible> parentAccessible;
+  aStartTreeItem->GetParent(getter_AddRefs(parentAccessible));
+  if (!parentAccessible)
+    return;
+  PRUint32 role;
+  parentAccessible->GetFinalRole(&role);
+  if (role != nsIAccessibleRole::ROLE_GROUPING) {
+    NS_ADDREF(*aTreeItemParentResult = parentAccessible);
+    return; // The container for the tree items
+  }
+  nsCOMPtr<nsIAccessible> prevAccessible;
+  parentAccessible->GetPreviousSibling(getter_AddRefs(prevAccessible));
+  if (!prevAccessible)
+    return;
+  prevAccessible->GetFinalRole(&role);
+  if (role == nsIAccessibleRole::ROLE_TEXT_LEAF) {
+    // XXX Sometimes an empty text accessible is in the hierarchy here,
+    // although the text does not appear to be rendered, GetRenderedText() says that it is
+    // so we need to skip past it to find the true previous sibling
+    nsCOMPtr<nsIAccessible> tempAccessible = prevAccessible;
+    tempAccessible->GetPreviousSibling(getter_AddRefs(prevAccessible));
+    if (!prevAccessible)
+      return;
+    prevAccessible->GetFinalRole(&role);
+  }
+  if (role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+    // Previous sibling of parent group is a tree item -- this is the conceptual tree item parent
+    NS_ADDREF(*aTreeItemParentResult = prevAccessible);
+  }
 }
 
 nsresult

@@ -664,8 +664,7 @@ CanBroadcast(PRInt32 aNameSpaceID, nsIAtom* aAttribute)
 void
 nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
                                             nsIDOMElement   *aListener,
-                                            const nsAString &aAttr,
-                                            PRBool aAddingListener)
+                                            const nsAString &aAttr)
 {
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
@@ -685,14 +684,10 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
             if (! CanBroadcast(nameSpaceID, name))
                 continue;
 
-            if (aAddingListener) {
-                nsAutoString value;
-                broadcaster->GetAttr(nameSpaceID, name, value);
-                listener->SetAttr(nameSpaceID, name, attrName->GetPrefix(), 
-                                  value, mInitialLayoutComplete);
-            } else {
-                listener->UnsetAttr(nameSpaceID, name, mInitialLayoutComplete);
-            }
+            nsAutoString value;
+            broadcaster->GetAttr(nameSpaceID, name, value);
+            listener->SetAttr(nameSpaceID, name, attrName->GetPrefix(), value, 
+                              mInitialLayoutComplete);
 
 #if 0
             // XXX we don't fire the |onbroadcast| handler during
@@ -709,13 +704,12 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
         nsCOMPtr<nsIAtom> name = do_GetAtom(aAttr);
 
         nsAutoString value;
-        if (broadcaster->GetAttr(kNameSpaceID_None, name, value) 
-            && aAddingListener) {
+        if (broadcaster->GetAttr(kNameSpaceID_None, name, value)) {
             listener->SetAttr(kNameSpaceID_None, name, value,
                               mInitialLayoutComplete);
-        }
-        else {
-            listener->UnsetAttr(kNameSpaceID_None, name, mInitialLayoutComplete);
+        } else {
+            listener->UnsetAttr(kNameSpaceID_None, name,
+                                mInitialLayoutComplete);
         }
 
 #if 0
@@ -813,7 +807,7 @@ nsXULDocument::AddBroadcastListenerFor(nsIDOMElement* aBroadcaster,
 
     entry->mListeners.AppendElement(bl);
 
-    SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr, PR_TRUE);
+    SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
     return NS_OK;
 }
 
@@ -848,7 +842,7 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
                     PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                          PL_DHASH_REMOVE);
 
-                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr, PR_FALSE);
+                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
 
                 break;
             }
@@ -2611,18 +2605,13 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     if (aIsDynamic)
         mResolutionPhase = nsForwardReference::eStart;
 
-    nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-    NS_ENSURE_TRUE(secMan, NS_ERROR_NOT_AVAILABLE);
-
     // Chrome documents are allowed to load overlays from anywhere.
-    // Also, any document may load a chrome:// overlay.
     // In all other cases, the overlay is only allowed to load if
     // the master document and prototype document have the same origin.
 
-    PRBool overlayIsChrome = IsChromeURI(aURI);
-    if (!IsChromeURI(mDocumentURI) && !overlayIsChrome) {
+    if (!IsChromeURI(mDocumentURI)) {
         // Make sure we're allowed to load this overlay.
-        rv = secMan->CheckSameOriginURI(mDocumentURI, aURI, PR_TRUE);
+        rv = NodePrincipal()->CheckMayLoad(aURI, PR_TRUE);
         if (NS_FAILED(rv)) {
             *aFailureFromContent = PR_TRUE;
             return rv;
@@ -2631,6 +2620,7 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
 
     // Look in the prototype cache for the prototype document with
     // the specified overlay URI.
+    PRBool overlayIsChrome = IsChromeURI(aURI);
     mCurrentPrototype = overlayIsChrome ?
         nsXULPrototypeCache::GetInstance()->GetPrototype(aURI) : nsnull;
 
@@ -3682,7 +3672,7 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
         }
         else {
             // Force construction of immediate template sub-content _now_.
-            builder->CreateContents(aElement);
+            builder->CreateContents(aElement, PR_FALSE);
         }
     }
 

@@ -40,3 +40,5 @@
 <!ENTITY role.label "Rôle">
 <!ENTITY name.label "Nom">
 <!ENTITY nodeName.label "Nom du nœud">
+
+<!ENTITY evaluateJS.label "Évaluer le JavaScript">

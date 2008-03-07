@@ -393,9 +393,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsEventListenerManager, nsIEventListen
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsEventListenerManager, nsIEventListenerManager)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEventListenerManager)
-  PRInt32 i, count = tmp->mListeners.Length();
-  for (i = 0; i < count; i++) {
-    cb.NoteXPCOMChild(tmp->mListeners.ElementAt(i)->mListener.get());
+  PRUint32 count = tmp->mListeners.Length();
+  for (PRUint32 i = 0; i < count; i++) {
+    cb.NoteXPCOMChild(tmp->mListeners.ElementAt(i).mListener.get());
   }  
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -472,10 +472,10 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
     }
   }
 
-  nsListenerStruct* ls = nsnull;
-  PRInt32 count = mListeners.Length();
-  for (PRInt32 i = 0; i < count; i++) {
-    ls = mListeners.ElementAt(i);
+  nsListenerStruct* ls;
+  PRUint32 count = mListeners.Length();
+  for (PRUint32 i = 0; i < count; i++) {
+    ls = &mListeners.ElementAt(i);
     if (ls->mListener == aListener && ls->mFlags == aFlags &&
         ls->mGroupFlags == group &&
         (EVENT_TYPE_EQUALS(ls, aType, aTypeAtom) ||
@@ -487,7 +487,7 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
   mNoListenerForEvent = NS_EVENT_TYPE_NULL;
   mNoListenerForEventAtom = nsnull;
 
-  ls = new nsListenerStruct();
+  ls = mListeners.AppendElement();
   NS_ENSURE_TRUE(ls, NS_ERROR_OUT_OF_MEMORY);
 
   ls->mListener = aListener;
@@ -497,7 +497,6 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
   ls->mGroupFlags = group;
   ls->mHandlerIsString = PR_FALSE;
   ls->mTypeData = aTypeData;
-  mListeners.AppendElement(ls);
 
   // For mutation listeners, we need to update the global bit on the DOM window.
   // Otherwise we won't actually fire the mutation event.
@@ -556,12 +555,12 @@ nsEventListenerManager::RemoveEventListener(nsIDOMEventListener *aListener,
     }
   }
 
-  nsListenerStruct* ls = nsnull;
+  nsListenerStruct* ls;
   aFlags &= ~NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
 
-  PRInt32 count = mListeners.Length();
-  for (PRInt32 i = 0; i < count; ++i) {
-    ls = mListeners.ElementAt(i);
+  PRUint32 count = mListeners.Length();
+  for (PRUint32 i = 0; i < count; ++i) {
+    ls = &mListeners.ElementAt(i);
     if (ls->mListener == aListener &&
         ls->mGroupFlags == group &&
         ((ls->mFlags & ~NS_PRIV_EVENT_UNTRUSTED_PERMITTED) == aFlags) &&
@@ -640,9 +639,9 @@ nsEventListenerManager::FindJSEventListener(PRUint32 aEventType,
   // Run through the listeners for this type and see if a script
   // listener is registered
   nsListenerStruct *ls;
-  PRInt32 count = mListeners.Length();
-  for (PRInt32 i = 0; i < count; ++i) {
-    ls = mListeners.ElementAt(i);
+  PRUint32 count = mListeners.Length();
+  for (PRUint32 i = 0; i < count; ++i) {
+    ls = &mListeners.ElementAt(i);
     if (EVENT_TYPE_EQUALS(ls, aEventType, aTypeAtom) &&
         ls->mFlags & NS_PRIV_EVENT_FLAG_SCRIPT) {
       return ls;
@@ -813,6 +812,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
         rv = context->CompileEventHandler(aName, argCount, argNames,
                                           aBody,
                                           url.get(), lineNo,
+                                          SCRIPTVERSION_DEFAULT, // for now?
                                           handler);
         if (rv == NS_ERROR_ILLEGAL_VALUE) {
           NS_WARNING("Probably a syntax error in the event handler!");
@@ -838,7 +838,7 @@ nsEventListenerManager::RemoveScriptEventListener(nsIAtom* aName)
   nsListenerStruct* ls = FindJSEventListener(eventType, aName);
 
   if (ls) {
-    mListeners.RemoveElement(ls);
+    mListeners.RemoveElementAt(PRUint32(ls - &mListeners.ElementAt(0)));
     mNoListenerForEvent = NS_EVENT_TYPE_NULL;
     mNoListenerForEventAtom = nsnull;
   }
@@ -1028,6 +1028,7 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
                                                argCount, argNames,
                                                handlerBody,
                                                url.get(), lineNo,
+                                               SCRIPTVERSION_DEFAULT, // for now?
                                                handler);
         NS_ENSURE_SUCCESS(result, result);
         // And bind it.
@@ -1117,6 +1118,8 @@ nsEventListenerManager::HandleEvent(nsPresContext* aPresContext,
   }
   PRUint16 currentGroup = aFlags & NS_EVENT_FLAG_SYSTEM_EVENT;
 
+  // Beware! This may flush notifications via synchronous
+  // ScrollSelectionIntoView.
   if (aEvent->message == NS_CONTEXTMENU &&
       NS_FAILED(FixContextMenuEvent(aPresContext, aCurrentTarget, aEvent,
                                     aDOMEvent))) {
@@ -1151,11 +1154,11 @@ nsEventListenerManager::HandleEvent(nsPresContext* aPresContext,
 
 found:
 
-  nsAutoTObserverArray<nsAutoPtr<nsListenerStruct>, 2>::EndLimitedIterator iter(mListeners);
+  nsAutoTObserverArray<nsListenerStruct, 2>::EndLimitedIterator iter(mListeners);
   nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
   PRBool hasListener = PR_FALSE;
   while (iter.HasMore()) {
-    nsListenerStruct* ls = iter.GetNext();
+    nsListenerStruct* ls = &iter.GetNext();
     PRBool useTypeInterface =
       EVENT_TYPE_DATA_EQUALS(ls->mTypeData, typeData);
     PRBool useGenericInterface =
@@ -1368,8 +1371,7 @@ nsEventListenerManager::FixContextMenuEvent(nsPresContext* aPresContext,
     // the DOM event. Since we never call InitMouseEvent() on the event, 
     // the client X/Y will be 0,0. We can make use of that if the widget is null.
     if (contextMenuKey) {
-      NS_IF_RELEASE(((nsGUIEvent*)aEvent)->widget);
-      aPresContext->GetViewManager()->GetWidget(&((nsGUIEvent*)aEvent)->widget);
+      aPresContext->GetViewManager()->GetWidget(getter_AddRefs(((nsGUIEvent*)aEvent)->widget));
       aEvent->refPoint.x = 0;
       aEvent->refPoint.y = 0;
     }
@@ -1380,6 +1382,8 @@ nsEventListenerManager::FixContextMenuEvent(nsPresContext* aPresContext,
   // see if we should use the caret position for the popup
   if (contextMenuKey) {
     nsPoint caretPoint;
+    // Beware! This may flush notifications via synchronous
+    // ScrollSelectionIntoView.
     if (PrepareToUseCaretPosition(((nsGUIEvent*)aEvent)->widget,
                                   shell, caretPoint)) {
       // caret position is good
@@ -1468,29 +1472,31 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
   NS_ENSURE_TRUE(node, PR_FALSE);
   nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-  for ( ; content; content = content->GetParent()) {
-    if (!content->IsNativeAnonymous()) {
-      // It seems like selCon->ScrollSelectionIntoView should be enough, but it's
-      // not. The problem is that scrolling the selection into view when it is
-      // below the current viewport will align the top line of the frame exactly
-      // with the bottom of the window. This is fine, BUT, the popup event causes
-      // the control to be re-focused which does this exact call to
-      // ScrollContentIntoView, which has a one-pixel disagreement of whether the
-      // frame is actually in view. The result is that the frame is aligned with
-      // the top of the window, but the menu is still at the bottom.
-      //
-      // Doing this call first forces the frame to be in view, eliminating the
-      // problem. The only difference in the result is that if your cursor is in
-      // an edit box below the current view, you'll get the edit box aligned with
-      // the top of the window. This is arguably better behavior anyway.
-      rv = aShell->ScrollContentIntoView(content,
-                                         NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
-                                         NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
-      NS_ENSURE_SUCCESS(rv, PR_FALSE);
-      frame = aShell->GetPrimaryFrameFor(content);
-      NS_ASSERTION(frame, "No frame for focused content?");
-      break;
-    }
+  if (content) {
+    nsIContent* nonNative = content->FindFirstNonNativeAnonymous();
+    content = nonNative;
+  }
+
+  if (content) {
+    // It seems like selCon->ScrollSelectionIntoView should be enough, but it's
+    // not. The problem is that scrolling the selection into view when it is
+    // below the current viewport will align the top line of the frame exactly
+    // with the bottom of the window. This is fine, BUT, the popup event causes
+    // the control to be re-focused which does this exact call to
+    // ScrollContentIntoView, which has a one-pixel disagreement of whether the
+    // frame is actually in view. The result is that the frame is aligned with
+    // the top of the window, but the menu is still at the bottom.
+    //
+    // Doing this call first forces the frame to be in view, eliminating the
+    // problem. The only difference in the result is that if your cursor is in
+    // an edit box below the current view, you'll get the edit box aligned with
+    // the top of the window. This is arguably better behavior anyway.
+    rv = aShell->ScrollContentIntoView(content,
+                                       NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
+                                       NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
+    frame = aShell->GetPrimaryFrameFor(content);
+    NS_WARN_IF_FALSE(frame, "No frame for focused content?");
   }
 
   // Actually scroll the selection (ie caret) into view. Note that this must
@@ -1505,6 +1511,8 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   else
     selCon = do_QueryInterface(aShell);
   if (selCon) {
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     rv = selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
         nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, PR_FALSE);
@@ -1676,9 +1684,9 @@ nsEventListenerManager::HasMutationListeners(PRBool* aListener)
 {
   *aListener = PR_FALSE;
   if (mMayHaveMutationListeners) {
-    PRInt32 count = mListeners.Length();
-    for (PRInt32 i = 0; i < count; ++i) {
-      nsListenerStruct* ls = mListeners.ElementAt(i);
+    PRUint32 count = mListeners.Length();
+    for (PRUint32 i = 0; i < count; ++i) {
+      nsListenerStruct* ls = &mListeners.ElementAt(i);
       if (ls->mEventType >= NS_MUTATION_START &&
           ls->mEventType <= NS_MUTATION_END) {
         *aListener = PR_TRUE;
@@ -1695,9 +1703,9 @@ nsEventListenerManager::MutationListenerBits()
 {
   PRUint32 bits = 0;
   if (mMayHaveMutationListeners) {
-    PRInt32 i, count = mListeners.Length();
-    for (i = 0; i < count; ++i) {
-      nsListenerStruct* ls = mListeners.ElementAt(i);
+    PRUint32 count = mListeners.Length();
+    for (PRUint32 i = 0; i < count; ++i) {
+      nsListenerStruct* ls = &mListeners.ElementAt(i);
       if (ls->mEventType >= NS_MUTATION_START &&
           ls->mEventType <= NS_MUTATION_END) {
         if (ls->mEventType == NS_MUTATION_SUBTREEMODIFIED) {
@@ -1733,9 +1741,9 @@ nsEventListenerManager::HasListenersFor(const nsAString& aEventName)
   }
 found:
 
-  PRInt32 i, count = mListeners.Length();
-  for (i = 0; i < count; ++i) {
-    nsListenerStruct* ls = mListeners.ElementAt(i);
+  PRUint32 count = mListeners.Length();
+  for (PRUint32 i = 0; i < count; ++i) {
+    nsListenerStruct* ls = &mListeners.ElementAt(i);
     if (ls->mTypeAtom == atom ||
         EVENT_TYPE_DATA_EQUALS(ls->mTypeData, typeData)) {
       return PR_TRUE;
@@ -1747,9 +1755,9 @@ found:
 PRBool
 nsEventListenerManager::HasUnloadListeners()
 {
-  PRInt32 count = mListeners.Length();
-  for (PRInt32 i = 0; i < count; ++i) {
-    nsListenerStruct* ls = mListeners.ElementAt(i);
+  PRUint32 count = mListeners.Length();
+  for (PRUint32 i = 0; i < count; ++i) {
+    nsListenerStruct* ls = &mListeners.ElementAt(i);
     if (ls->mEventType == NS_PAGE_UNLOAD ||
         ls->mEventType == NS_BEFORE_PAGE_UNLOAD ||
         (ls->mTypeData && ls->mTypeData->iid &&

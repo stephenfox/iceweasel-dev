@@ -121,9 +121,13 @@ struct JSThread {
      * among two or more contexts running script in one thread.
      */
     JSGSNCache          gsnCache;
+
+    /* Property cache for faster call/get/set invocation. */
+    JSPropertyCache     propertyCache;
 };
 
-#define JS_GSN_CACHE(cx) ((cx)->thread->gsnCache)
+#define JS_GSN_CACHE(cx)        ((cx)->thread->gsnCache)
+#define JS_PROPERTY_CACHE(cx)   ((cx)->thread->propertyCache)
 
 extern void JS_DLL_CALLBACK
 js_ThreadDestructorCB(void *ptr);
@@ -183,6 +187,7 @@ struct JSRuntime {
     /* Garbage collector state, used by jsgc.c. */
     JSGCChunkInfo       *gcChunkList;
     JSGCArenaList       gcArenaList[GC_NUM_FREELISTS];
+    JSGCDoubleArenaList gcDoubleArenaList;
     JSDHashTable        gcRootsHash;
     JSDHashTable        *gcLocksHash;
     jsrefcount          gcKeepAtoms;
@@ -295,26 +300,26 @@ struct JSRuntime {
     PRCondVar           *stateChange;
 
     /*
-     * State for sharing single-threaded scopes, once a second thread tries to
-     * lock a scope.  The scopeSharingDone condvar is protected by rt->gcLock,
+     * State for sharing single-threaded titles, once a second thread tries to
+     * lock a title.  The titleSharingDone condvar is protected by rt->gcLock
      * to minimize number of locks taken in JS_EndRequest.
      *
-     * The scopeSharingTodo linked list is likewise "global" per runtime, not
+     * The titleSharingTodo linked list is likewise "global" per runtime, not
      * one-list-per-context, to conserve space over all contexts, optimizing
-     * for the likely case that scopes become shared rarely, and among a very
+     * for the likely case that titles become shared rarely, and among a very
      * small set of threads (contexts).
      */
-    PRCondVar           *scopeSharingDone;
-    JSScope             *scopeSharingTodo;
+    PRCondVar           *titleSharingDone;
+    JSTitle             *titleSharingTodo;
 
 /*
- * Magic terminator for the rt->scopeSharingTodo linked list, threaded through
- * scope->u.link.  This hack allows us to test whether a scope is on the list
- * by asking whether scope->u.link is non-null.  We use a large, likely bogus
+ * Magic terminator for the rt->titleSharingTodo linked list, threaded through
+ * title->u.link.  This hack allows us to test whether a title is on the list
+ * by asking whether title->u.link is non-null.  We use a large, likely bogus
  * pointer here to distinguish this value from any valid u.count (small int)
  * value.
  */
-#define NO_SCOPE_SHARING_TODO   ((JSScope *) 0xfeedbeef)
+#define NO_TITLE_SHARING_TODO   ((JSTitle *) 0xfeedbeef)
 
     /*
      * Lock serializing trapList and watchPointList accesses, and count of all
@@ -386,8 +391,26 @@ struct JSRuntime {
      */
     JSGSNCache          gsnCache;
 
-#define JS_GSN_CACHE(cx) ((cx)->runtime->gsnCache)
+    /* Property cache for faster call/get/set invocation. */
+    JSPropertyCache     propertyCache;
+
+#define JS_GSN_CACHE(cx)        ((cx)->runtime->gsnCache)
+#define JS_PROPERTY_CACHE(cx)   ((cx)->runtime->propertyCache)
 #endif
+
+    /*
+     * Object shape (property cache structural type) identifier generator.
+     *
+     * Type 0 stands for the empty scope, and must not be regenerated due to
+     * uint32 wrap-around. Since we use atomic pre-increment, the initial
+     * value for the first typed non-empty scope will be 1.
+     *
+     * The GC compresses live types, minimizing rt->shapeGen in the process.
+     * If this counter overflows into SHAPE_OVERFLOW_BIT (in jsinterp.h), the
+     * GC will disable property caches for all threads, to avoid aliasing two
+     * different types. Updated by js_GenerateShape (in jsinterp.c).
+     */
+    uint32              shapeGen;
 
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
@@ -405,13 +428,13 @@ struct JSRuntime {
     jsrefcount          nonInlineCalls;
     jsrefcount          constructs;
 
-    /* Scope lock and property metering. */
+    /* Title lock and scope property metering. */
     jsrefcount          claimAttempts;
-    jsrefcount          claimedScopes;
+    jsrefcount          claimedTitles;
     jsrefcount          deadContexts;
     jsrefcount          deadlocksAvoided;
     jsrefcount          liveScopes;
-    jsrefcount          sharedScopes;
+    jsrefcount          sharedTitles;
     jsrefcount          totalScopes;
     jsrefcount          liveScopeProps;
     jsrefcount          liveScopePropsPreSweep;
@@ -747,9 +770,9 @@ struct JSContext {
     jsrefcount          requestDepth;
     /* Same as requestDepth but ignoring JS_SuspendRequest/JS_ResumeRequest */
     jsrefcount          outstandingRequests;
-    JSScope             *scopeToShare;      /* weak reference, see jslock.c */
-    JSScope             *lockedSealedScope; /* weak ref, for low-cost sealed
-                                               scope locking */
+    JSTitle             *titleToShare;      /* weak reference, see jslock.c */
+    JSTitle             *lockedSealedTitle; /* weak ref, for low-cost sealed
+                                               title locking */
     JSCList             threadLinks;        /* JSThread contextList linkage */
 
 #define CX_FROM_THREAD_LINKS(tl) \
@@ -764,6 +787,9 @@ struct JSContext {
 
     /* Stack of thread-stack-allocated temporary GC roots. */
     JSTempValueRooter   *tempValueRooters;
+
+    /* List of pre-allocated doubles. */
+    JSGCDoubleCell      *doubleFreeList;
 
     /* Debug hooks associated with the current context. */
     JSDebugHooks        *debugHooks;
@@ -875,7 +901,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode);
 
 /*
  * Return true if cx points to a context in rt->contextList, else return false.
- * NB: the caller (see jslock.c:ClaimScope) must hold rt->gcLock.
+ * NB: the caller (see jslock.c:ClaimTitle) must hold rt->gcLock.
  */
 extern JSBool
 js_ValidContextPointer(JSRuntime *rt, JSContext *cx);

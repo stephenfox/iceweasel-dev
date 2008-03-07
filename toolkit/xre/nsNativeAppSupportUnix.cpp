@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *   Michael Wu <flamingice@sourmilk.net>    (original author)
+ *   Michael Ventnor <m.ventnor@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,10 +45,19 @@
 #include "nsIAppStartup.h"
 #include "nsServiceManagerUtils.h"
 #include "prlink.h"
+#include "nsXREDirProvider.h"
+#include "nsReadableUtils.h"
 
 #include <stdlib.h>
 #include <glib.h>
 #include <glib-object.h>
+#include <gtk/gtk.h>
+
+#define MIN_GTK_MAJOR_VERSION 2
+#define MIN_GTK_MINOR_VERSION 10
+#define UNSUPPORTED_GTK_MSG "We're sorry, this application requires a version of the GTK+ library that is not installed on your computer.\n\n\
+You have GTK+ %d.%d.\nThis application requires GTK+ %d.%d or newer.\n\n\
+Please upgrade your GTK+ library if you wish to use this application."
 
 typedef struct _GnomeProgram GnomeProgram;
 typedef struct _GnomeModuleInfo GnomeModuleInfo;
@@ -82,9 +92,11 @@ typedef void (*_gnome_client_request_interaction_fn)(GnomeClient *,
                                                      GnomeInteractFunction,
                                                      gpointer);
 typedef void (*_gnome_interaction_key_return_fn)(gint, gboolean);
+typedef void (*_gnome_client_set_restart_command_fn)(GnomeClient*, gint, gchar*[]);
 
 static _gnome_client_request_interaction_fn gnome_client_request_interaction;
 static _gnome_interaction_key_return_fn gnome_interaction_key_return;
+static _gnome_client_set_restart_command_fn gnome_client_set_restart_command;
 
 void interact_cb(GnomeClient *client, gint key,
                  GnomeDialogType type, gpointer data)
@@ -109,9 +121,58 @@ gboolean save_yourself_cb(GnomeClient *client, gint phase,
                           GnomeInteractStyle interact, gboolean fast,
                           gpointer user_data)
 {
-  if (interact == GNOME_INTERACT_ANY)
-    gnome_client_request_interaction(client, GNOME_DIALOG_NORMAL,
-                                     interact_cb, nsnull);
+  if (!shutdown)
+    return TRUE;
+
+  nsCOMPtr<nsIObserverService> obsServ =
+    do_GetService("@mozilla.org/observer-service;1");
+
+  nsCOMPtr<nsISupportsPRBool> didSaveSession =
+    do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
+
+  if (!obsServ || !didSaveSession)
+    return TRUE; // OOM
+
+  didSaveSession->SetData(PR_FALSE);
+  obsServ->NotifyObservers(didSaveSession, "session-save", nsnull);
+
+  PRBool status;
+  didSaveSession->GetData(&status);
+
+  // Didn't save, or no way of saving. So signal for quit-application.
+  if (!status) {
+    if (interact == GNOME_INTERACT_ANY)
+      gnome_client_request_interaction(client, GNOME_DIALOG_NORMAL,
+                                       interact_cb, nsnull);
+    return TRUE;
+  }
+
+  // Tell GNOME the command for restarting us so that we can be part of XSMP session restore
+  NS_ASSERTION(gDirServiceProvider, "gDirServiceProvider is NULL! This shouldn't happen!");
+  nsCOMPtr<nsIFile> executablePath;
+  nsresult rv;
+
+  PRBool dummy;
+  rv = gDirServiceProvider->GetFile(XRE_EXECUTABLE_FILE, &dummy, getter_AddRefs(executablePath));
+
+  if (NS_SUCCEEDED(rv)) {
+    nsCAutoString path;
+    char* argv[1];
+
+    // Strip off the -bin suffix to get the shell script we should run; this is what Breakpad does
+    nsCAutoString leafName;
+    rv = executablePath->GetNativeLeafName(leafName);
+    if (NS_SUCCEEDED(rv) && StringEndsWith(leafName, NS_LITERAL_CSTRING("-bin"))) {
+      leafName.SetLength(leafName.Length() - strlen("-bin"));
+      executablePath->SetNativeLeafName(leafName);
+    }
+
+    executablePath->GetNativePath(path);
+    argv[0] = (char*)(path.get());
+
+    gnome_client_set_restart_command(client, 1, argv);
+  }
+
   return TRUE;
 }
 
@@ -133,6 +194,24 @@ public:
 NS_IMETHODIMP
 nsNativeAppSupportUnix::Start(PRBool *aRetVal)
 {
+
+  if (gtk_major_version < MIN_GTK_MAJOR_VERSION ||
+      (gtk_major_version == MIN_GTK_MAJOR_VERSION && gtk_minor_version < MIN_GTK_MINOR_VERSION)) {
+    GtkWidget* versionErrDialog = gtk_message_dialog_new(NULL,
+                     GtkDialogFlags(GTK_DIALOG_MODAL |
+                                    GTK_DIALOG_DESTROY_WITH_PARENT),
+                     GTK_MESSAGE_ERROR,
+                     GTK_BUTTONS_OK,
+                     UNSUPPORTED_GTK_MSG,
+                     gtk_major_version,
+                     gtk_minor_version,
+                     MIN_GTK_MAJOR_VERSION,
+                     MIN_GTK_MINOR_VERSION);
+    gtk_dialog_run(GTK_DIALOG(versionErrDialog));
+    gtk_widget_destroy(versionErrDialog);
+    exit(0);
+  }
+
   *aRetVal = PR_TRUE;
 
   PRLibrary *gnomeuiLib = PR_LoadLibrary("libgnomeui-2.so.0");
@@ -163,8 +242,7 @@ nsNativeAppSupportUnix::Start(PRBool *aRetVal)
   setenv(accEnv, "0", 1);
 #endif
 
-  char *argv[2] = { "gecko", "--disable-crash-dialog" };
-  gnome_program_init("Gecko", "1.0", libgnomeui_module_info_get(), 2, argv, NULL);
+  gnome_program_init("Gecko", "1.0", libgnomeui_module_info_get(), gArgc, gArgv, NULL);
 
 #ifdef ACCESSIBILITY
   if (accOldValue) { 
@@ -182,6 +260,8 @@ nsNativeAppSupportUnix::Start(PRBool *aRetVal)
     PR_FindFunctionSymbol(gnomeuiLib, "gnome_client_request_interaction");
   gnome_interaction_key_return = (_gnome_interaction_key_return_fn)
     PR_FindFunctionSymbol(gnomeuiLib, "gnome_interaction_key_return");
+  gnome_client_set_restart_command = (_gnome_client_set_restart_command_fn)
+    PR_FindFunctionSymbol(gnomeuiLib, "gnome_client_set_restart_command");
 
   _gnome_master_client_fn gnome_master_client = (_gnome_master_client_fn)
     PR_FindFunctionSymbol(gnomeuiLib, "gnome_master_client");

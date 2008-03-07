@@ -1,5 +1,5 @@
 /* ***** BEGIN LICENSE BLOCK *****
- *   Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -108,7 +108,11 @@ nsDownloadManagerUI.prototype = {
 
     var prefs = Cc["@mozilla.org/preferences-service;1"].
                 getService(Ci.nsIPrefBranch);
-    var flashCount = prefs.getIntPref(PREF_FLASH_COUNT);
+    // This preference may not be set, so defaulting to two.
+    let flashCount = 2;
+    try {
+      flashCount = prefs.getIntPref(PREF_FLASH_COUNT);
+    } catch (e) { }
 
     var win = this.recentWindow.QueryInterface(Ci.nsIDOMChromeWindow);
     win.getAttentionWithCycleCount(flashCount);

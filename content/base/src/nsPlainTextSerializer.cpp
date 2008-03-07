@@ -100,7 +100,7 @@ nsPlainTextSerializer::nsPlainTextSerializer()
 {
 
   mOutputString = nsnull;
-  mInHead = PR_FALSE;
+  mHeadLevel = 0;
   mAtFirstColumn = PR_TRUE;
   mIndent = 0;
   mCiteQuoteLevel = 0;
@@ -140,6 +140,7 @@ nsPlainTextSerializer::~nsPlainTextSerializer()
 {
   delete[] mTagStack;
   delete[] mOLStack;
+  NS_WARN_IF_FALSE(mHeadLevel == 0, "Wrong head level!");
 }
 
 NS_IMPL_ISUPPORTS4(nsPlainTextSerializer, 
@@ -406,8 +407,9 @@ nsPlainTextSerializer::AppendElementStart(nsIDOMElement *aElement,
   mContent = 0;
   mOutputString = nsnull;
 
-  if (!mInHead && id == eHTMLTag_head)
-    mInHead = PR_TRUE;    
+  if (id == eHTMLTag_head) {
+    ++mHeadLevel;
+  }
 
   return rv;
 } 
@@ -436,8 +438,10 @@ nsPlainTextSerializer::AppendElementEnd(nsIDOMElement *aElement,
   mContent = 0;
   mOutputString = nsnull;
 
-  if (mInHead && id == eHTMLTag_head)
-    mInHead = PR_FALSE;    
+  if (id == eHTMLTag_head) {
+    --mHeadLevel;
+    NS_ASSERTION(mHeadLevel >= 0, "mHeadLevel < 0");
+  }
 
   return rv;
 }
@@ -464,7 +468,7 @@ nsPlainTextSerializer::OpenContainer(const nsIParserNode& aNode)
   PRInt32 type = aNode.GetNodeType();
 
   if (type == eHTMLTag_head) {
-    mInHead = PR_TRUE;
+    ++mHeadLevel;
     return NS_OK;
   }
 
@@ -475,7 +479,8 @@ NS_IMETHODIMP
 nsPlainTextSerializer::CloseContainer(const nsHTMLTag aTag)
 {
   if (aTag == eHTMLTag_head) {
-    mInHead = PR_FALSE;
+    --mHeadLevel;
+    NS_ASSERTION(mHeadLevel >= 0, "mHeadLevel < 0");
     return NS_OK;
   }
 
@@ -512,7 +517,7 @@ nsPlainTextSerializer::AddLeaf(const nsIParserNode& aNode)
 NS_IMETHODIMP 
 nsPlainTextSerializer::OpenHead()
 {
-  mInHead = PR_TRUE;
+  ++mHeadLevel;
   return NS_OK;
 }
 
@@ -602,7 +607,7 @@ nsPlainTextSerializer::DoOpenContainer(const nsIParserNode* aNode, PRInt32 aTag)
     if(NS_SUCCEEDED(GetAttributeValue(aNode, nsGkAtoms::style, style)) &&
        (kNotFound != (whitespace = style.Find("white-space:")))) {
 
-      if (kNotFound != style.Find("-moz-pre-wrap", PR_TRUE, whitespace)) {
+      if (kNotFound != style.Find("pre-wrap", PR_TRUE, whitespace)) {
 #ifdef DEBUG_preformatted
         printf("Set mPreFormatted based on style moz-pre-wrap\n");
 #endif

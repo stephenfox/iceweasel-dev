@@ -386,11 +386,21 @@ nsStringArray* GlobalPrinters::mGlobalPrinterList = nsnull;
 nsDeviceContextSpecGTK::nsDeviceContextSpecGTK()
 {
   DO_PR_DEBUG_LOG(("nsDeviceContextSpecGTK::nsDeviceContextSpecGTK()\n"));
+  mGtkPageSetup = nsnull;
+  mGtkPrintSettings = nsnull;
 }
 
 nsDeviceContextSpecGTK::~nsDeviceContextSpecGTK()
 {
   DO_PR_DEBUG_LOG(("nsDeviceContextSpecGTK::~nsDeviceContextSpecGTK()\n"));
+
+  if (mGtkPageSetup) {
+    g_object_unref(mGtkPageSetup);
+  }
+
+  if (mGtkPrintSettings) {
+    g_object_unref(mGtkPrintSettings);
+  }
 }
 
 NS_IMPL_ISUPPORTS1(nsDeviceContextSpecGTK,
@@ -454,8 +464,8 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetSurfaceForPrinter(gfxASurface **aSurfac
       const gchar* fmtGTK = gtk_print_settings_get(mGtkPrintSettings, GTK_PRINT_SETTINGS_OUTPUT_FILE_FORMAT);
       if (!fmtGTK && GTK_IS_PRINTER(mGtkPrinter)) {
         // Likely not print-to-file, check printer's capabilities
-        format = (gtk_printer_accepts_pdf(mGtkPrinter)) ? nsIPrintSettings::kOutputFormatPDF
-                                                        : nsIPrintSettings::kOutputFormatPS;
+        format = (gtk_printer_accepts_ps(mGtkPrinter)) ? nsIPrintSettings::kOutputFormatPS
+                                                       : nsIPrintSettings::kOutputFormatPDF;
       } else if (nsDependentCString(fmtGTK).EqualsIgnoreCase("pdf")) {
           format = nsIPrintSettings::kOutputFormatPDF;
       } else {
@@ -509,6 +519,25 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::Init(nsIWidget *aWidget,
   mGtkPrinter = printSettingsGTK->GetGtkPrinter();
   mGtkPrintSettings = printSettingsGTK->GetGtkPrintSettings();
   mGtkPageSetup = printSettingsGTK->GetGtkPageSetup();
+
+  // This is a horrible workaround for some printer driver bugs that treat custom page sizes different
+  // to standard ones. If our paper object matches one of a standard one, use a standard paper size
+  // object instead. See bug 414314 for more info.
+  GtkPaperSize* geckosHackishPaperSize = gtk_page_setup_get_paper_size(mGtkPageSetup);
+  GtkPaperSize* standardGtkPaperSize = gtk_paper_size_new(gtk_paper_size_get_name(geckosHackishPaperSize));
+
+  mGtkPageSetup = gtk_page_setup_copy(mGtkPageSetup);
+  mGtkPrintSettings = gtk_print_settings_copy(mGtkPrintSettings);
+
+  GtkPaperSize* properPaperSize;
+  if (gtk_paper_size_is_equal(geckosHackishPaperSize, standardGtkPaperSize)) {
+    properPaperSize = standardGtkPaperSize;
+  } else {
+    properPaperSize = geckosHackishPaperSize;
+    gtk_paper_size_free(standardGtkPaperSize);
+  }
+  gtk_print_settings_set_paper_size(mGtkPrintSettings, properPaperSize);
+  gtk_page_setup_set_paper_size_and_default_margins(mGtkPageSetup, properPaperSize);
 
   return NS_OK;
 }
@@ -677,7 +706,7 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::BeginDocument(PRUnichar * aTitle, PRUnicha
 NS_IMETHODIMP nsDeviceContextSpecGTK::EndDocument()
 {
   if (mToPrinter) {
-    if (!gtk_print_job_set_source_file(mPrintJob, mSpoolName.get(), NULL))
+    if (!gtk_print_job_set_source_file(mPrintJob, mSpoolName.get(), nsnull))
       return NS_ERROR_GFX_PRINTER_COULD_NOT_OPEN_FILE;
 
     NS_ADDREF(mSpoolFile.get());

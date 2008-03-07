@@ -129,7 +129,7 @@ else
 ifdef USE_MSVC
 OPTIMIZER  = -Zi
 else
-OPTIMIZER  = -g
+OPTIMIZER  = -g3
 endif
 DEFINES    += -DDEBUG -DDEBUG_$(USER)
 OBJDIR_TAG = _DBG
@@ -177,9 +177,6 @@ else
 OBJDIR          = $(OS_CONFIG)$(OBJDIR_TAG).OBJ
 endif
 VPATH           = $(OBJDIR)
-
-# Automatic make dependencies file
-DEPENDENCIES    = $(OBJDIR)/.md
 
 LCJAR = js15lc30.jar
 

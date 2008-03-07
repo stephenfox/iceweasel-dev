@@ -114,8 +114,8 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
       *                      eRemoveDupes (default): events of the same type are discarded
       *                                              (the last one is used)
       *
-      * @param aIsAsyn - set to PR_TRUE if this is not being called from code
-      *                  synchronous with a DOM event
+      * @param aIsAsynch - set to PR_TRUE if this is not being called from code
+      *                    synchronous with a DOM event
       */
     nsresult FireDelayedToolkitEvent(PRUint32 aEvent, nsIDOMNode *aDOMNode,
                                      EDupeEventRule aAllowDupes = eRemoveDupes,
@@ -128,12 +128,9 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
      * @param aAllowDupes - if false then delayed events of the same type and
      *                      for the same DOM node in the event queue won't
      *                      be fired.
-     * @param aIsAsych - set to PR_TRUE if this is being called from
-     *                   an event asynchronous with the DOM
      */
     nsresult FireDelayedAccessibleEvent(nsIAccessibleEvent *aEvent,
-                                        EDupeEventRule aAllowDupes = eRemoveDupes,
-                                        PRBool aIsAsynch = PR_FALSE);
+                                        EDupeEventRule aAllowDupes = eRemoveDupes);
 
     void ShutdownChildDocuments(nsIDocShellTreeItem *aStart);
 
@@ -203,10 +200,11 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
      *
      * @param aDOMNode               the given node
      * @param aEventType             event type to fire an event
+     * @param aAvoidOnThisNode       Call with PR_TRUE the first time to prevent event firing on root node for change
      * @param aDelay                 whether to fire the event on a delay
      * @param aForceIsFromUserInput  the event is known to be from user input
      */
-    nsresult FireShowHideEvents(nsIDOMNode *aDOMNode, PRUint32 aEventType,
+    nsresult FireShowHideEvents(nsIDOMNode *aDOMNode, PRBool aAvoidOnThisNode, PRUint32 aEventType,
                                 PRBool aDelay, PRBool aForceIsFromUserInput);
 
     nsAccessNodeHashtable mAccessNodeCache;
@@ -216,16 +214,14 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
     nsCOMPtr<nsITimer> mFireEventTimer;
     PRUint16 mScrollPositionChangedTicks; // Used for tracking scroll events
     PRPackedBool mIsContentLoaded;
+    PRPackedBool mIsLoadCompleteFired;
     nsCOMArray<nsIAccessibleEvent> mEventsToFire;
 
 protected:
     PRBool mIsAnchor;
     PRBool mIsAnchorJumped;
     static PRUint32 gLastFocusedAccessiblesState;
-
-private:
-    static void DocLoadCallback(nsITimer *aTimer, void *aClosure);
-    nsCOMPtr<nsITimer> mDocLoadTimer;
+    static nsIAtom *gLastFocusedFrameType;
 };
 
 #endif  

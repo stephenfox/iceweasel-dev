@@ -526,6 +526,35 @@ gfxFont::SetupGlyphExtents(gfxContext *aContext, PRUint32 aGlyphID, PRBool aNeed
     aExtents->SetTightGlyphExtents(aGlyphID, bounds);
 }
 
+void
+gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics)
+{
+    // MS (P)Gothic and MS (P)Mincho are not having suitable values in their super script offset.
+    // If the values are not suitable, we should use x-height instead of them.
+    // See https://bugzilla.mozilla.org/show_bug.cgi?id=353632
+    if (aMetrics->superscriptOffset == 0 ||
+        aMetrics->superscriptOffset >= aMetrics->maxAscent) {
+        aMetrics->superscriptOffset = aMetrics->xHeight;
+    }
+    // And also checking the case of sub script offset. The old gfx for win has checked this too.
+    if (aMetrics->subscriptOffset == 0 ||
+        aMetrics->subscriptOffset >= aMetrics->maxAscent) {
+        aMetrics->subscriptOffset = aMetrics->xHeight;
+    }
+
+    aMetrics->underlineSize = PR_MAX(1.0, aMetrics->underlineSize);
+    aMetrics->strikeoutSize = PR_MAX(1.0, aMetrics->strikeoutSize);
+
+    aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -1.0);
+
+    // XXX we need to adjust the underline offset for "bad" CJK fonts, here.
+
+    // If underline positioned is too far from the text, descent position is preferred so that underline
+    // will stay within the boundary.
+    if (aMetrics->underlineSize - aMetrics->underlineOffset > aMetrics->maxDescent)
+        aMetrics->underlineOffset = aMetrics->underlineSize - aMetrics->maxDescent;
+}
+
 gfxGlyphExtents::~gfxGlyphExtents()
 {
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
@@ -808,48 +837,6 @@ gfxFontGroup::FontResolverProc(const nsAString& aName, void *aClosure)
 {
     ResolveData *data = reinterpret_cast<ResolveData*>(aClosure);
     return (data->mCallback)(aName, data->mGenericFamily, data->mClosure);
-}
-
-void
-gfxFontGroup::FindGenericFontFromStyle(PRBool aResolveFontName,
-                                       FontCreationCallback fc,
-                                       void *closure)
-{
-    nsCOMPtr<nsIPref> prefs(do_GetService(NS_PREF_CONTRACTID));
-    if (!prefs)
-        return;
-
-    nsCAutoString prefName;
-    nsXPIDLString genericName;
-    nsXPIDLString familyName;
-
-    // add the default font to the end of the list
-    prefName.AssignLiteral("font.default.");
-    prefName.Append(mStyle.langGroup);
-    nsresult rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(genericName));
-    if (NS_SUCCEEDED(rv)) {
-        prefName.AssignLiteral("font.name.");
-        prefName.Append(NS_LossyConvertUTF16toASCII(genericName));
-        prefName.AppendLiteral(".");
-        prefName.Append(mStyle.langGroup);
-
-        rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(familyName));
-        if (NS_SUCCEEDED(rv)) {
-            ForEachFontInternal(familyName, mStyle.langGroup,
-                                PR_FALSE, aResolveFontName, fc, closure);
-        }
-
-        prefName.AssignLiteral("font.name-list.");
-        prefName.Append(NS_LossyConvertUTF16toASCII(genericName));
-        prefName.AppendLiteral(".");
-        prefName.Append(mStyle.langGroup);
-
-        rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(familyName));
-        if (NS_SUCCEEDED(rv)) {
-            ForEachFontInternal(familyName, mStyle.langGroup,
-                                PR_FALSE, aResolveFontName, fc, closure);
-        }
-    }
 }
 
 gfxTextRun *

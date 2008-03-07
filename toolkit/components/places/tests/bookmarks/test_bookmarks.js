@@ -283,14 +283,18 @@ function run_test() {
   do_check_eq(observer._itemChangedProperty, "title");
 
   // insert query item
-  var newId6 = bmsvc.insertBookmark(testRoot, uri("place:domain=google.com&group=1"),
-                                    bmsvc.DEFAULT_INDEX, "");
+  var uri6 = uri("place:domain=google.com&type="+
+                 Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY);
+  var newId6 = bmsvc.insertBookmark(testRoot, uri6, bmsvc.DEFAULT_INDEX, "");
   do_check_eq(observer._itemAddedParent, testRoot);
   do_check_eq(observer._itemAddedIndex, 3);
 
   // change item
   bmsvc.setItemTitle(newId6, "Google Sites");
   do_check_eq(observer._itemChangedProperty, "title");
+
+  // test getIdForItemAt
+  do_check_eq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
 
   // move folder, appending, to different folder
   var oldParentCC = getChildCount(testRoot);
@@ -305,9 +309,16 @@ function run_test() {
   do_check_eq(bmsvc.getItemIndex(workFolder), 1);
   do_check_eq(bmsvc.getFolderIdForItem(workFolder), homeFolder);
 
-  // try to get index of the folder from it's ex-parent
-  // XXX expose getItemAtIndex(folder, idx) to test that the item was *removed* from the old parent?
-  // XXX or expose FolderCount, and check that the old parent has one less kids?
+  // try to get index of the item from within the old parent folder
+  // check that it has been really removed from there
+  do_check_neq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
+  // check the last item from within the old parent folder
+  do_check_neq(bmsvc.getIdForItemAt(testRoot, -1), workFolder);
+  // check the index of the item within the new parent folder
+  do_check_eq(bmsvc.getIdForItemAt(homeFolder, 1), workFolder);
+  // try to get index of the last item within the new parent folder
+  do_check_eq(bmsvc.getIdForItemAt(homeFolder, -1), workFolder);
+  // XXX expose FolderCount, and check that the old parent has one less child?
   do_check_eq(getChildCount(testRoot), oldParentCC-1);
 
   // XXX move folder, specified index, to different folder

@@ -126,6 +126,10 @@
 
 #include "gfxContext.h"
 
+#ifdef XP_WIN
+#include "gfxWindowsNativeDrawing.h"
+#endif
+
 // accessibility support
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
@@ -140,6 +144,10 @@
 
 #include "nsContentCID.h"
 static NS_DEFINE_CID(kRangeCID, NS_RANGE_CID);
+
+#ifdef XP_MACOSX
+#include "gfxQuartzNativeDrawing.h"
+#endif
 
 #ifdef MOZ_X11
 #include <X11/Xlib.h>
@@ -408,9 +416,10 @@ private:
   PRUint16          mNumCachedParams;
   char              **mCachedAttrParamNames;
   char              **mCachedAttrParamValues;
-  
-  nsPluginDOMContextMenuListener * mCXMenuListener;  // pointer to wrapper for nsIDOMContextMenuListener
-  
+
+  // pointer to wrapper for nsIDOMContextMenuListener
+  nsRefPtr<nsPluginDOMContextMenuListener> mCXMenuListener;
+
   nsresult DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent);
   nsresult DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent);
   nsresult DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent);
@@ -452,8 +461,17 @@ static void ConvertAppUnitsToPixels(const nsPresContext& aPresContext, const nsR
 
 #endif // XP_MACOSX
 
+nsObjectFrame::nsObjectFrame(nsStyleContext* aContext)
+  : nsObjectFrameSuper(aContext)
+{
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("Created new nsObjectFrame %p\n", this));
+}
+
 nsObjectFrame::~nsObjectFrame()
 {
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("nsObjectFrame %p deleted\n", this));
 }
 
 NS_IMETHODIMP
@@ -514,6 +532,9 @@ nsObjectFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aPrevInFlow)
 {
   mInstantiating = PR_FALSE;
+
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("Initializing nsObjectFrame %p for content %p\n", this, aContent));
 
   return nsObjectFrameSuper::Init(aContent, aParent, aPrevInFlow);
 }
@@ -1168,10 +1189,60 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
 
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG, ("plugin printing done, return code is %lx\n", (long)rv));
 
+#elif defined(XP_WIN)
+
+  /* On Windows, we use the win32 printing surface to print.  This, in
+   * turn, uses the Cairo paginated surface, which in turn uses the
+   * meta surface to record all operations and then play them back.
+   * This doesn't work too well for plugins, because if plugins render
+   * directly into the DC, the meta surface won't have any knowledge
+   * of them, and so at the end when it actually does the replay step,
+   * it'll fill the background with white and draw over whatever was
+   * rendered before.
+   *
+   * So, to avoid this, we use PushGroup, which creates a new windows
+   * surface, the plugin renders to that, and then we use normal
+   * cairo methods to composite that in such that it's recorded using the
+   * meta surface.
+   */
+
+  gfxContext *ctx = aRenderingContext.ThebesContext();
+
+  ctx->Save();
+
+  ctx->NewPath();
+  ctx->Rectangle(gfxRect(window.x, window.y,
+                         window.width, window.height));
+  ctx->Clip();
+  ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+
+  gfxWindowsNativeDrawing nativeDraw(ctx,
+                                     gfxRect(window.x, window.y,
+                                             window.width, window.height));
+  do {
+    HDC dc = nativeDraw.BeginNativeDrawing();
+    if (!dc)
+      return;
+
+    npprint.print.embedPrint.platformPrint = dc;
+    npprint.print.embedPrint.window = window;
+    // send off print info to plugin
+    rv = pi->Print(&npprint);
+
+    nativeDraw.EndNativeDrawing();
+  } while (nativeDraw.ShouldRenderAgain());
+  nativeDraw.PaintToContext();
+
+  ctx->PopGroupToSource();
+  ctx->Paint();
+
+  ctx->Restore();
+
 #else
 
   // we need the native printer device context to pass to plugin
-  // On Windows, this will be the HDC
+  // NATIVE_WINDOWS_DC is a misnomer, it's whatever the native platform
+  // thing is.
   void* dc;
   dc = aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_WINDOWS_DC);
   if (!dc)
@@ -1196,8 +1267,50 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
   // Screen painting code
 #if defined(XP_MACOSX)
   // delegate all painting to the plugin instance.
-  if (mInstanceOwner)
+  if (mInstanceOwner) {
+    if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreGraphics) {
+      PRInt32 p2a = PresContext()->AppUnitsPerDevPixel();
+      gfxRect nativeClipRect(aDirtyRect.x, aDirtyRect.y,
+                             aDirtyRect.width, aDirtyRect.height);
+      nativeClipRect.ScaleInverse(gfxFloat(p2a));
+      gfxContext* ctx = aRenderingContext.ThebesContext();
+      gfxQuartzNativeDrawing nativeDrawing(ctx, nativeClipRect);
+
+      CGContextRef cgContext = nativeDrawing.BeginNativeDrawing();
+      if (!cgContext) {
+        NS_WARNING("null CGContextRef during PaintPlugin");
+        return;
+      }
+
+      // If gfxQuartzNativeDrawing hands out a CGContext other than the last
+      // one we passed to the plugin, we need to pass the new one to the
+      // plugin via SetWindow.
+      // XXXkinetik it's not necessary to call SetWindow for every paint so
+      // this should eventually be optimized to only do so when necessary
+      nsPluginPort* pluginPort = mInstanceOwner->GetPluginPort();
+      nsCOMPtr<nsIPluginInstance> inst;
+      GetPluginInstance(*getter_AddRefs(inst));
+      if (!inst) {
+        NS_WARNING("null plugin instance during PaintPlugin");
+        return;
+      }
+      nsPluginWindow* window;
+      mInstanceOwner->GetWindow(window);
+      if (!window) {
+        NS_WARNING("null plugin window during PaintPlugin");
+        return;
+      }
+      pluginPort->cgPort.context = cgContext;
+      window->window = pluginPort;
+      inst->SetWindow(window);
+
       mInstanceOwner->Paint(aDirtyRect);
+
+      nativeDrawing.EndNativeDrawing();
+    } else {
+      mInstanceOwner->Paint(aDirtyRect);
+    }
+  }
 #elif defined(MOZ_X11)
   if (mInstanceOwner)
     {
@@ -1393,13 +1506,16 @@ nsObjectFrame::PrepareInstanceOwner()
   NS_ASSERTION(!mInstanceOwner, "Must not have an instance owner here");
 
   mInstanceOwner = new nsPluginInstanceOwner();
+
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("Created new instance owner %p for frame %p\n", mInstanceOwner.get(),
+          this));
+
   if (!mInstanceOwner)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_ADDREF(mInstanceOwner);
-  mInstanceOwner->Init(PresContext(), this, GetContent());
-
-  return NS_OK;
+  // Note, |this| may very well be gone after this call.
+  return mInstanceOwner->Init(PresContext(), this, GetContent());
 }
 
 nsresult
@@ -1409,6 +1525,8 @@ nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamList
     return NS_OK;
   }
   
+  // Note: If PrepareInstanceOwner() returns an error, |this| may very
+  // well be deleted already.
   nsresult rv = PrepareInstanceOwner();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1431,11 +1549,18 @@ nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamList
 nsresult
 nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
 {
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("nsObjectFrame::Instantiate(%s) called on frame %p\n", aMimeType,
+          this));
+
   if (mInstantiating) {
     return NS_OK;
   }
-  
+
   NS_ASSERTION(aMimeType || aURI, "Need a type or a URI!");
+
+  // Note: If PrepareInstanceOwner() returns an error, |this| may very
+  // well be deleted already.
   nsresult rv = PrepareInstanceOwner();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1509,6 +1634,8 @@ DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner)
       inst->GetValue(nsPluginInstanceVariable_CallSetWindowAfterDestroyBool, 
                      (void *)&doCallSetWindowAfterDestroy);
       if (doCallSetWindowAfterDestroy) {
+        // XXXjst: ns4xPluginInstance::Destroy() is a no-op, clean
+        // this mess up when there are no other instance types.
         inst->Stop();
         inst->Destroy();
 
@@ -1599,7 +1726,7 @@ nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
   // Break relationship between frame and plugin instance owner
   mInstanceOwner->SetOwner(nsnull);
 
-  NS_RELEASE(mInstanceOwner);
+  mInstanceOwner = nsnull;
 
   // Make sure that our windowless rect has been zeroed out, so if we
   // get reinstantiated we'll send the right messages to the plug-in.
@@ -1759,11 +1886,17 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mCachedAttrParamNames = nsnull;
   mCachedAttrParamValues = nsnull;
   mDestroyWidget = PR_FALSE;
+
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("nsPluginInstanceOwner %p created\n", this));
 }
 
 nsPluginInstanceOwner::~nsPluginInstanceOwner()
 {
   PRInt32 cnt;
+
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("nsPluginInstanceOwner %p deleted\n", this));
 
   // shut off the timer.
   if (mPluginTimer != nsnull) {
@@ -3496,7 +3629,7 @@ nsPluginInstanceOwner::Destroy()
   // unregister context menu listener
   if (mCXMenuListener) {
     mCXMenuListener->Destroy(mContent);
-    NS_RELEASE(mCXMenuListener);
+    mCXMenuListener = nsnull;
   }
 
   nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(mContent));
@@ -3833,19 +3966,32 @@ nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,
                                      nsObjectFrame* aFrame,
                                      nsIContent*    aContent)
 {
+  PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+         ("nsPluginInstanceOwner::Init() called on %p for frame %p\n", this,
+          aFrame));
+
   mOwner = aFrame;
   mContent = aContent;
-  
+
+  nsWeakFrame weakFrame(aFrame);
+
   // Some plugins require a specific sequence of shutdown and startup when
   // a page is reloaded. Shutdown happens usually when the last instance
   // is destroyed. Here we make sure the plugin instance in the old
   // document is destroyed before we try to create the new one.
   aPresContext->EnsureVisible(PR_TRUE);
 
+  if (!weakFrame.IsAlive()) {
+    PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
+           ("nsPluginInstanceOwner::Init's EnsureVisible() call destroyed "
+            "instance owner %p\n", this));
+
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   // register context menu listener
   mCXMenuListener = new nsPluginDOMContextMenuListener();
   if (mCXMenuListener) {    
-    NS_ADDREF(mCXMenuListener);    
     mCXMenuListener->Init(aContent);
   }
 

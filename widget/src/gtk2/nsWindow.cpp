@@ -59,6 +59,9 @@
 #include <gtk/gtkwindow.h>
 #include <gdk/gdkx.h>
 #include <gdk/gdkkeysyms.h>
+#include <X11/XF86keysym.h>
+
+#include "nsWidgetAtoms.h"
 
 #ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
 #define SN_API_NOT_YET_FROZEN
@@ -134,8 +137,8 @@ static GdkWindow *get_inner_gdk_window (GdkWindow *aWindow,
                                         gint *retx, gint *rety);
 
 static inline PRBool is_context_menu_key(const nsKeyEvent& inKeyEvent);
-static void   key_event_to_context_menu_event(const nsKeyEvent* inKeyEvent,
-                                              nsMouseEvent* outCMEvent);
+static void   key_event_to_context_menu_event(nsMouseEvent &aEvent,
+                                              GdkEventKey *aGdkEvent);
 
 static int    is_parent_ungrab_enter(GdkEventCrossing *aEvent);
 static int    is_parent_grab_leave(GdkEventCrossing *aEvent);
@@ -2087,6 +2090,13 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     case 3:
         domButton = nsMouseEvent::eRightButton;
         break;
+        // Map buttons 8-9 to back/forward
+    case 8:
+        DispatchCommandEvent(nsWidgetAtoms::Back);
+        return;
+    case 9:
+        DispatchCommandEvent(nsWidgetAtoms::Forward);
+        return;
     default:
         return;
     }
@@ -2236,6 +2246,15 @@ is_latin_shortcut_key(guint aKeyval)
             (GDK_a <= aKeyval && aKeyval <= GDK_z));
 }
 
+PRBool
+nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
+{
+    nsEventStatus status;
+    nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, aCommand, this);
+    DispatchEvent(&event, status);
+    return TRUE;
+}
+
 gboolean
 nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
 {
@@ -2297,6 +2316,25 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
         || aEvent->keyval == GDK_Meta_R) {
         return TRUE;
     }
+
+    // Look for specialized app-command keys
+    switch (aEvent->keyval) {
+        case XF86XK_Back:
+            return DispatchCommandEvent(nsWidgetAtoms::Back);
+        case XF86XK_Forward:
+            return DispatchCommandEvent(nsWidgetAtoms::Forward);
+        case XF86XK_Refresh:
+            return DispatchCommandEvent(nsWidgetAtoms::Reload);
+        case XF86XK_Stop:
+            return DispatchCommandEvent(nsWidgetAtoms::Stop);
+        case XF86XK_Search:
+            return DispatchCommandEvent(nsWidgetAtoms::Search);
+        case XF86XK_Favorites:
+            return DispatchCommandEvent(nsWidgetAtoms::Bookmarks);
+        case XF86XK_HomePage:
+            return DispatchCommandEvent(nsWidgetAtoms::Home);
+    }
+
     nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
     InitKeyEvent(event, aEvent);
     if (isKeyDownCancelled) {
@@ -2397,8 +2435,10 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     // before we dispatch a key, check if it's the context menu key.
     // If so, send a context menu key event instead.
     if (is_context_menu_key(event)) {
-        nsMouseEvent contextMenuEvent(PR_TRUE, 0, nsnull, nsMouseEvent::eReal);
-        key_event_to_context_menu_event(&event, &contextMenuEvent);
+        nsMouseEvent contextMenuEvent(PR_TRUE, NS_CONTEXTMENU, this,
+                                      nsMouseEvent::eReal,
+                                      nsMouseEvent::eContextMenuKey);
+        key_event_to_context_menu_event(contextMenuEvent, aEvent);
         DispatchEvent(&contextMenuEvent, status);
     }
     else {
@@ -2466,11 +2506,11 @@ nsWindow::OnScrollEvent(GtkWidget *aWidget, GdkEventScroll *aEvent)
         break;
     case GDK_SCROLL_LEFT:
         event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
-        event.delta = -3;
+        event.delta = -1;
         break;
     case GDK_SCROLL_RIGHT:
         event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
-        event.delta = 3;
+        event.delta = 1;
         break;
     }
 
@@ -5028,18 +5068,16 @@ is_context_menu_key(const nsKeyEvent& aKeyEvent)
 }
 
 void
-key_event_to_context_menu_event(const nsKeyEvent* aKeyEvent,
-                                nsMouseEvent* aCMEvent)
+key_event_to_context_menu_event(nsMouseEvent &aEvent,
+                                GdkEventKey *aGdkEvent)
 {
-    memcpy(aCMEvent, aKeyEvent, sizeof(nsInputEvent));
-    aCMEvent->eventStructType = NS_MOUSE_EVENT;
-    aCMEvent->message = NS_CONTEXTMENU;
-    aCMEvent->context = nsMouseEvent::eContextMenuKey;
-    aCMEvent->button = nsMouseEvent::eLeftButton;
-    aCMEvent->isShift = aCMEvent->isControl = PR_FALSE;
-    aCMEvent->isAlt = aCMEvent->isMeta = PR_FALSE;
-    aCMEvent->clickCount = 0;
-    aCMEvent->acceptActivation = PR_FALSE;
+    aEvent.refPoint = nsPoint(0, 0);
+    aEvent.isShift = PR_FALSE;
+    aEvent.isControl = PR_FALSE;
+    aEvent.isAlt = PR_FALSE;
+    aEvent.isMeta = PR_FALSE;
+    aEvent.time = aGdkEvent->time;
+    aEvent.clickCount = 1;
 }
 
 /* static */

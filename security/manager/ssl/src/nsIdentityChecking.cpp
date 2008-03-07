@@ -80,6 +80,54 @@ struct nsMyTrustedEVInfo
 
 static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
   {
+    "2.16.840.1.114413.1.7.23.3",
+    "Go Daddy EV OID a",
+    SEC_OID_UNKNOWN,
+    "OU=Go Daddy Class 2 Certification Authority,O=\"The Go Daddy Group, Inc.\",C=US",
+    "OU=Go Daddy Class 2 Certification Authority,O=\"The Go Daddy Group, Inc.\",C=US",
+    "27:96:BA:E6:3F:18:01:E2:77:26:1B:A0:D7:77:70:02:8F:20:EE:E4",
+  },
+  {
+    "2.16.840.1.114413.1.7.23.3",
+    "Go Daddy EV OID a",
+    SEC_OID_UNKNOWN,
+    "E=info@valicert.com,CN=http://www.valicert.com/,OU=ValiCert Class 2 Policy Validation Authority,O=\"ValiCert, Inc.\",L=ValiCert Validation Network",
+    "E=info@valicert.com,CN=http://www.valicert.com/,OU=ValiCert Class 2 Policy Validation Authority,O=\"ValiCert, Inc.\",L=ValiCert Validation Network",
+    "31:7A:2A:D0:7F:2B:33:5E:F5:A1:C3:4E:4B:57:E8:B7:D8:F1:FC:A6",
+  },
+  {
+    "2.16.840.1.114414.1.7.23.3",
+    "Go Daddy EV OID b",
+    SEC_OID_UNKNOWN,
+    "E=info@valicert.com,CN=http://www.valicert.com/,OU=ValiCert Class 2 Policy Validation Authority,O=\"ValiCert, Inc.\",L=ValiCert Validation Network",
+    "E=info@valicert.com,CN=http://www.valicert.com/,OU=ValiCert Class 2 Policy Validation Authority,O=\"ValiCert, Inc.\",L=ValiCert Validation Network",
+    "31:7A:2A:D0:7F:2B:33:5E:F5:A1:C3:4E:4B:57:E8:B7:D8:F1:FC:A6",
+  },
+  {
+    "2.16.840.1.114414.1.7.23.3",
+    "Go Daddy EV OID b",
+    SEC_OID_UNKNOWN,
+    "OU=Starfield Class 2 Certification Authority,O=\"Starfield Technologies, Inc.\",C=US",
+    "OU=Starfield Class 2 Certification Authority,O=\"Starfield Technologies, Inc.\",C=US",
+    "AD:7E:1C:28:B0:64:EF:8F:60:03:40:20:14:C3:D0:E3:37:0E:B5:8A",
+  },
+  {
+    "2.16.840.1.114412.2.1",
+    "DigiCert EV OID",
+    SEC_OID_UNKNOWN,
+    "CN=DigiCert High Assurance EV Root CA,OU=www.digicert.com,O=DigiCert Inc,C=US",
+    "CN=DigiCert High Assurance EV Root CA,OU=www.digicert.com,O=DigiCert Inc,C=US",
+    "5F:B7:EE:06:33:E2:59:DB:AD:0C:4C:9A:E6:D3:8F:1A:61:C7:DC:25"
+  },
+  {
+    "1.3.6.1.4.1.8024.0.2.100.1.2",
+    "Quo Vadis EV OID",
+    SEC_OID_UNKNOWN,
+    "CN=QuoVadis Root CA 2,O=QuoVadis Limited,C=BM",
+    "CN=QuoVadis Root CA 2,O=QuoVadis Limited,C=BM",
+    "CA:3A:FB:CF:12:40:36:4B:44:B2:16:20:88:80:48:39:19:93:7C:F7"
+  },
+  {
     "2.16.840.1.113733.1.7.23.6",
     "Verisign EV OID",
     SEC_OID_UNKNOWN,
@@ -609,6 +657,9 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
 
   CERTCertificate *issuerCert = cvout[0].value.pointer.cert;
   CERTCertificateCleaner issuerCleaner(issuerCert);
+
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("CERT_PKIXVerifyCert returned success, issuer: %s\n", 
+    issuerCert->subjectName));
 
   validEV = isApprovedForEV(oid_tag, issuerCert);
   if (validEV)

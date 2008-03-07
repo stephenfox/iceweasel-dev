@@ -1141,7 +1141,7 @@ nsStandardURL::SetUserPass(const nsACString &input)
 
     if (userpass.IsEmpty()) {
         // remove user:pass
-        if (mUsername.mLen >= 0) {
+        if (mUsername.mLen > 0) {
             if (mPassword.mLen > 0)
                 mUsername.mLen += (mPassword.mLen + 1);
             mUsername.mLen++;
@@ -1278,7 +1278,7 @@ nsStandardURL::SetPassword(const nsACString &input)
         NS_ERROR("cannot set password on no-auth url");
         return NS_ERROR_UNEXPECTED;
     }
-    if (mUsername.mLen < 0) {
+    if (mUsername.mLen <= 0) {
         NS_ERROR("cannot set password without existing username");
         return NS_ERROR_FAILURE;
     }
@@ -1481,7 +1481,7 @@ nsStandardURL::SetPath(const nsACString &input)
 
         return SetSpec(spec);
     }
-    else if (mPath.mLen > 1) {
+    else if (mPath.mLen >= 1) {
         mSpec.Cut(mPath.mPos + 1, mPath.mLen - 1);
         // these contain only a '/'
         mPath.mLen = 1;

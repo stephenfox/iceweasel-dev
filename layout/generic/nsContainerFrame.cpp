@@ -655,16 +655,16 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   const nsStylePadding *stylePadding = GetStylePadding();
   const nsStyleBorder *styleBorder = GetStyleBorder();
   const nsStyleMargin *styleMargin = GetStyleMargin();
-  nsStyleCoord tmp;
+  nsStyleCoord marginCoord, paddingCoord;
 
   // This goes at the beginning no matter how things are broken and how
   // messy the bidi situations are, since per CSS2.1 section 8.6
   // (implemented in bug 328168), the startSide border is always on the
   // first line.
   aData->currentLine +=
-    GetCoord(stylePadding->mPadding.Get(startSide, tmp), 0) +
+    GetCoord(stylePadding->mPadding.Get(startSide, paddingCoord), 0) +
     styleBorder->GetBorderWidth(startSide) +
-    GetCoord(styleMargin->mMargin.Get(startSide, tmp), 0);
+    GetCoord(styleMargin->mMargin.Get(startSide, marginCoord), 0);
 
   const nsLineList_iterator* savedLine = aData->line;
 
@@ -692,9 +692,9 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // (implemented in bug 328168), the endSide border is always on the
   // last line.
   aData->currentLine +=
-    GetCoord(stylePadding->mPadding.Get(endSide, tmp), 0) +
+    GetCoord(stylePadding->mPadding.Get(endSide, paddingCoord), 0) +
     styleBorder->GetBorderWidth(endSide) +
-    GetCoord(styleMargin->mMargin.Get(endSide, tmp), 0);
+    GetCoord(styleMargin->mMargin.Get(endSide, marginCoord), 0);
 }
 
 /* virtual */ nsSize
@@ -743,6 +743,11 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
   aKidFrame->WillReflow(aPresContext);
 
   if (0 == (aFlags & NS_FRAME_NO_MOVE_FRAME)) {
+    if ((aFlags & NS_FRAME_INVALIDATE_ON_MOVE) &&
+        !(aKidFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
+        aKidFrame->GetPosition() != nsPoint(aX, aY)) {
+      aKidFrame->InvalidateOverflowRect();
+    }
     aKidFrame->SetPosition(nsPoint(aX, aY));
   }
 
@@ -1021,6 +1026,14 @@ nsContainerFrame::DisplayOverflowContainers(nsDisplayListBuilder*   aBuilder,
       BuildDisplayListForChild(aBuilder, frame, aDirtyRect, aLists);
     }
   }
+}
+
+nsresult
+nsContainerFrame::AddFrames(nsIFrame* aFrameList,
+                            nsIFrame* aPrevSibling)
+{
+  mFrames.InsertFrames(nsnull, aPrevSibling, aFrameList);
+  return NS_OK;
 }
 
 nsresult
@@ -1510,10 +1523,10 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsContainerFrame* f = const_cast<nsContainerFrame*>(this);
-  nsRect* overflowArea = f->GetOverflowAreaProperty(PR_FALSE);
-  if (overflowArea) {
-    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea->x, overflowArea->y,
-            overflowArea->width, overflowArea->height);
+  if (f->GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN) {
+    nsRect overflowArea = f->GetOverflowRect();
+    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
   }
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   nsIAtom* pseudoTag = mStyleContext->GetPseudoType();

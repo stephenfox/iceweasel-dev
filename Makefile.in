@@ -47,8 +47,9 @@ include $(topsrcdir)/config/config.mk
 default alldep all::
 	$(RM) -rf $(DIST)/sdk
 	$(RM) -rf $(DIST)/include
+	$(RM) -rf $(DIST)/private
+	$(RM) -rf $(DIST)/public
 	$(RM) -rf _tests
-	$(MAKE) -C config export
 
 TIERS += base
 
@@ -61,6 +62,10 @@ tier_base_dirs = \
 	probes \
 	$(NULL)
 
+ifdef MOZ_MEMORY
+tier_base_dirs += memory/jemalloc
+endif
+
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
 
 TIERS += testharness
@@ -70,7 +75,7 @@ ifdef ENABLE_TESTS
 tier_testharness_dirs += tools/test-harness
 endif
 
-GARBAGE_DIRS += dist
+GARBAGE_DIRS += dist _javagen _tests staticlib
 DIST_GARBAGE = config.cache config.log config.status config-defs.h \
    dependencies.beos config/autoconf.mk config/myrules.mk config/myconfig.mk \
    unallmakefiles mozilla-config.h \
@@ -135,6 +140,9 @@ endif # WINNT
 ifeq ($(OS_ARCH),WINNT)
 # we want to copy PDB files on Windows
 MAKE_SYM_STORE_ARGS := -c
+ifdef PDBSTR_PATH
+MAKE_SYM_STORE_ARGS += -i
+endif
 ifeq (,$(CYGWIN_WRAPPER))
 # this doesn't work with Cygwin Python
 MAKE_SYM_STORE_ARGS += --vcs-info
@@ -206,3 +214,13 @@ BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/a
 else
 BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
+
+#XXX: this is a hack, since we don't want to clobber for MSVC
+# PGO support, but we can't do this test in client.mk
+ifneq ($(OS_ARCH)_$(GNU_CC), WINNT_)
+maybe_clobber_profiledbuild: clobber_all
+else
+maybe_clobber_profiledbuild:
+endif
+
+.PHONY: maybe_clobber_profiledbuild

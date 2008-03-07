@@ -96,7 +96,7 @@ fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 28811-2a.html 28811-2-ref.html # bug 38
 == 134706-4.html 134706-4-ref.html
 == 134706-5.html 134706-5-ref.html
 == 134706-6.html 134706-6-ref.html
-fails == 134706-6b.html 134706-6b-ref.html # bug 363248 (via bug 414193, anyway)
+== 134706-6b.html 134706-6b-ref.html
 == 134706-6c.html 134706-6c-ref.html
 == 134706-7.html 134706-7-ref.html
 == 139550-1a.html 139550-1-ref.html
@@ -115,6 +115,10 @@ fails == 134706-6b.html 134706-6b-ref.html # bug 363248 (via bug 414193, anyway)
 == 180085-2.html 180085-2-ref.html
 == 185388-1.html 185388-1-ref.html
 == 201215-1.html 201215-1-ref.html
+== 201293-1a.html 201293-1-ref.html
+== 201293-1b.html 201293-1-ref.html
+== 201293-1c.html 201293-1-ref.html
+== 201293-1d.html 201293-1-ref.html
 == 206516-1.html 206516-1-ref.html
 == 210876-1.html 210876-1-ref.html
 == 212563-1.html 212563-1-ref.html
@@ -124,22 +128,22 @@ fails == 134706-6b.html 134706-6b-ref.html # bug 363248 (via bug 414193, anyway)
 == 234686-1.html 234686-ref.html
 == 234686-2.html 234686-ref.html
 == 234686-3.html 234686-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-4.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-5.html 234686-ref.html # bug 371316 or other image scaling issue
+== 234686-4.html 234686-ref.html
+== 234686-5.html 234686-ref.html
 == 234686-6.html 234686-ref.html
 == 234686-7.html 234686-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-8.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-9.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-10.html 234686-ref.html # bug 371316 or other image scaling issue
+== 234686-8.html 234686-ref.html
+== 234686-9.html 234686-ref.html
+== 234686-10.html 234686-ref.html
 == 234686-11.html 234686-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-12.html 234686-ref.html # bug 371316 or other image scaling issue
+== 234686-12.html 234686-ref.html
 == 234686-13.html 234686-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-14.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-15.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-16.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-17.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-18.html 234686-ref.html # bug 371316 or other image scaling issue
-fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 234686-19.html 234686-ref.html # bug 371316 or other image scaling issue
+== 234686-14.html 234686-ref.html
+== 234686-15.html 234686-ref.html
+== 234686-16.html 234686-ref.html
+== 234686-17.html 234686-ref.html
+== 234686-18.html 234686-ref.html
+== 234686-19.html 234686-ref.html
 == 234964-1.html 234964-1-ref.html
 == 234964-2.html 234964-2-ref.html
 == 235593-1.html 235593-1-ref.html
@@ -178,6 +182,8 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") HTTP == 289480.html#top 289480-ref.html # 
 == 307102-2.html 307102-2-ref.html
 == 307102-3.html 307102-3-ref.html
 == 307102-4.html 307102-4-ref.html
+== 308406-1.html 308406-1-ref.html
+== 308406-2.html 308406-2-ref.html
 == 311822-1.html 311822-1-ref-a.html
 == 311822-1.html 311822-1-ref-b.html
 == 315620-1a.html 315620-1-ref.html
@@ -196,8 +202,8 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") HTTP == 289480.html#top 289480-ref.html # 
 == 315920-3c.html 315920-3-ref.html
 == 315920-3d.html 315920-3-ref.html
 != 315920-3e.html 315920-3-ref.html
-fails == 315920-4.html 315920-4-ref.html # bug 229915
-fails == 315920-5.html 315920-5-ref.html # bug 229915
+== 315920-4.html 315920-4-ref.html
+fails == 315920-5.html 315920-5-ref.html # bug 229915 ???
 == 315920-6.html 315920-6-ref.html
 == 315920-7a.html 315920-7-ref.html
 == 315920-7b.html 315920-7-ref.html
@@ -212,7 +218,7 @@ fails == 315920-5.html 315920-5-ref.html # bug 229915
 == 315920-12c.html 315920-12-ref.html
 == 315920-13a.html 315920-13-ref.html
 == 315920-13b.html 315920-13-ref.html
-fails == 315920-14.html 315920-14-ref.html # bug 229915
+== 315920-14.html 315920-14-ref.html
 == 315920-15.html 315920-15-ref.html
 == 315920-16.html 315920-16-ref.html
 == 315920-17.html 315920-17-ref.html
@@ -323,9 +329,9 @@ skip-if(MOZ_WIDGET_TOOLKIT=="windows") == 347496-1.xhtml 347496-1-ref.xhtml # Bu
 == 352980-1c.html 352980-1-ref.html
 == 352980-1d.html 352980-1-ref.html
 == 352980-1e.html 352980-1-ref.html
-fails == 352980-1f.html 352980-1-ref.html
+== 352980-1f.html 352980-1-ref.html
 == 352980-1g.html 352980-1-ref.html
-fails == 352980-1h.html 352980-1-ref.html
+== 352980-1h.html 352980-1-ref.html
 == 352980-1i.html 352980-1-ref.html
 == 352980-1j.html 352980-1-ref.html
 == 352980-1k.html 352980-1-ref.html
@@ -367,6 +373,7 @@ fails == 352980-1h.html 352980-1-ref.html
 == 363329-1.html 363329-1-ref.html
 == 363329-2.html 363329-2-ref.html
 == 363370-1.html 363370-1-ref.html
+== 363402-1.html 363402-1-ref.html
 == 363637-1.html 363637-1-ref.html
 == 363858-1.html 363858-1-ref.html
 == 363858-2.html 363858-2-ref.html
@@ -400,6 +407,8 @@ fails == 352980-1h.html 352980-1-ref.html
 == 367332-1e.html 367332-1-ref.html
 == 367332-1f.html 367332-1-ref.html
 == 367332-1g.html 367332-1-ref.html
+== 367375-1.html 367375-1-ref.html
+== 367375-2.html 367375-2-ref.html
 == 367489-1.html 367489-1-ref.html
 == 367504-margin-1.html 367504-margin-1-ref.html
 == 367504-float-1.html 367504-float-1-ref.html
@@ -459,9 +468,11 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 368020-5.html 368020-5-ref.html # bug 3
 == 371925-1a.html 371925-1-ref.html
 == 371925-1b.html 371925-1-ref.html
 == 372037-1.html 372037-1-ref.html
-== 372553-1.html 372553-1-ref.html
 == 372323-1.xhtml 372323-1-ref.xhtml
+== 372553-1.html 372553-1-ref.html
+== 372632-1.html 372632-1-ref.html
 == 373295-1.html 373295-1-ref.html
+== 373298-1.html 373298-1-ref.html
 == 373381-1.html 373381-1-ref.html
 == 375508-1.html 375508-1-ref.html
 == 373433-1.html 373433-1-ref.html
@@ -474,6 +485,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 368020-5.html 368020-5-ref.html # bug 3
 fails == 374927-1.html 374927-1-ref.html # Was broken by patch for bug 368600; fails until bug 400776 is fixed
 == 375716-1.html 375716-1-ref.html
 == 375827-1.html 375827-1-ref.html
+== 376375-1.html 376375-1-ref.html
 == 376484-1.html 376484-1-ref.html
 == 376532-1.html 376532-1-ref.html
 != 376532-2.html 376532-2-ref.html
@@ -497,8 +509,13 @@ random-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 379316-2.html 379316-2-ref.html # bug 
 == 379361-1.html 379361-1-ref.html
 == 379361-2.html 379361-2-ref.html
 == 379361-3.html 379361-3-ref.html
+== 379461-1.xhtml 379461-1.html
+== 379461-2.xhtml 379461-2.html
+== 379461-3-container-xhtml.html 379461-3-container-html.html
+!= 379461-3-container-xhtml.html 379461-3-container-blank.html # there is a scrollbar
 == 380004-1.html 380004-1-ref.html
 == 380227-1.html 380227-1-ref.html
+== 380825-1.html 380825-1-ref.html
 == 380842-1.html 380842-1-ref.html
 == 381130-1.html 381130-1-ref.html
 == 381507-1.html 381507-1-ref.html
@@ -568,6 +585,7 @@ skip-if(MOZ_WIDGET_TOOLKIT!="windows") == 391045.html 391045-ref.html # windows-
 == 391994-1.html 391994-1-ref.html
 == 392435-1.html 392435-1-ref.html
 == 393330-1.html 393330-1-ref.html
+== 393490-1.html 393490-1-ref.html
 == 393517-1.xhtml about:blank  # crash test
 == 393649-1.html 393649-1-ref.html
 == 393655-1.html 393655-1-ref.html
@@ -611,6 +629,7 @@ skip-if(MOZ_WIDGET_TOOLKIT!="windows") == 391045.html 391045-ref.html # windows-
 == 400171-2b.html 400171-2-ref.html
 == 400171-2c.html 400171-2-ref.html
 == 400421-1.html 400421-1-ref.html
+== 400813-1.html 400813-1-ref.html
 == 400826-1.html 400826-1-ref.html
 == 401946-1.xul about:blank
 == 402338-1.html 402338-1-ref.html
@@ -618,7 +637,10 @@ skip-if(MOZ_WIDGET_TOOLKIT!="windows") == 391045.html 391045-ref.html # windows-
 == 402567-2.html 402567-2-ref.html
 == 402567-3.html 402567-3-ref.html
 == 402567-4.html 402567-4-ref.html
-fails == 402807-1.html 402807-1-ref.html # bug 402807
+== 402629-1.html 402629-1-ref.html
+== 402629-2.html 402629-2-ref.html
+== 402629-3.html 402629-3-ref.html
+#== 402807-1.html 402807-1-ref.html # Fails on Mac (qm-xserve01)
 == 402950-1.html 402950-1-ref.html
 == 403129-1.html 403129-1-ref.html
 == 403129-2.html 403129-2-ref.html
@@ -629,6 +651,7 @@ random == 403134-1.html 403134-1-ref.html # bug 405377
 == 403249-1b.html 403249-1-ref.html
 == 403249-2a.html 403249-2-ref.html
 == 403249-2b.html 403249-2-ref.html
+== 403328-1.html 403328-1-ref.html
 == 403426-1.html 403426-1-ref.html
 == 403455-1.html 403455-1-ref.html
 == 403505-1.xml 403505-1-ref.xul
@@ -642,11 +665,13 @@ random == 403134-1.html 403134-1-ref.html # bug 405377
 #== 403657-1.html 403657-1-ref.html  # Fails depending on the fonts...
 == 403733-1.html 403733-1-ref.html
 == 403962-1.xhtml 403962-1-ref.xhtml
-== 404180-1.html 404180-1-ref.html
 == 404030-1.html 404030-1-ref.html
 != 404030-1-notref.html 404030-1.html
 != 404030-1-notref2.html 404030-1.html
+== 404180-1.html 404180-1-ref.html
 == 404301-1.html 404301-1-ref.html
+== 404309-1a.html 404309-1-ref.html
+== 404309-1b.html 404309-1-ref.html
 != data:application/xml,<foo/> data:text/plain, # bug 404419
 == 404553-1.html 404553-1-ref.html  # assertion test, also tests that marquee binding is applied correctly
 == 404666-1.html 404666-1-ref.html
@@ -657,6 +682,7 @@ random == 403134-1.html 403134-1-ref.html # bug 405377
 == 405517-1.xhtml 405517-1-ref.xhtml
 == 405577-1.html 405577-1-ref.html
 == 405584-1.html 405584-1-ref.html
+# == 405952-1.html 405952-1-ref.html
 == 406073-1.html 406073-1-ref.html
 == 406484-1.html 406484-1-ref.html
 == 406568-1.html 406568-1-ref.html
@@ -664,6 +690,7 @@ random == 403134-1.html 403134-1-ref.html # bug 405377
 == 407016-1-b.html 407016-1-ref.html
 == 407016-2.html 407016-2-ref.html
 == 407078-1.html 407078-1-ref.html
+== 407095-1.html 407095-1-ref.html
 == 407111-1.html 407111-1-ref.html
 == 407227-1.html 407227-1-ref.html
 == 407937-1.html 407937-1-ref.html
@@ -680,11 +707,40 @@ random == 403134-1.html 403134-1-ref.html # bug 405377
 != 409659-1b.html 409659-1-ref.html
 != 409659-1c.html 409659-1-ref.html
 == 409659-1d.html 409659-1-ref.html
-# == 400813-1.html 400813-1-ref.html
-== 412679-1.html 412679-1-ref.html
-== 412679-2.html 412679-2-ref.html
 == 411334-1.xml 411334-1-ref.xml
 == 411792-1.html 411792-1-ref.html
+== 412093-1.html 412093-1-ref.html
+== 412607-1a.html 412607-1-ref.html
+== 412607-1b.html 412607-1-ref.html
+== 412679-1.html 412679-1-ref.html
+== 412679-2.html 412679-2-ref.html
+== 413286-1a.html 413286-1-ref.html
+== 413286-1b.html 413286-1-ref.html
+== 413286-1c.html 413286-1-ref.html
+== 413286-2a.html 413286-2-ref.html
+== 413286-2b.html 413286-2-ref.html
+== 413286-2c.html 413286-2-ref.html
+== 413286-3.html 413286-3-ref.html 
+== 413286-4a.html 413286-4-ref.html 
+== 413286-4b.html 413286-4-ref.html 
+== 413286-5.html 413286-5-ref.html 
+== 413286-6.html 413286-6-ref.html 
 == 413292-1.html 413292-1-ref.html
 == 413361-1.html 413361-1-ref.html
+== 413840-background-unchanged.html 413840-background-unchanged-ref.html
+== 413840-ltr-offsets.html 413840-ltr-offsets-ref.html
+== 413840-rtl-offsets.html 413840-rtl-offsets-ref.html
+== 413840-pushed-line-bullet.html 413840-pushed-line-bullet-ref.html
+== 413840-bullet-first-line.html 413840-bullet-first-line-ref.html
+== 413982.html 413982-ref.html
 == 414123.xhtml 414123-ref.xhtml
+== 414851-1.html 414851-1-ref.html
+== 416106-1.xhtml 416106-1-ref.xhtml
+== 416752-1.html 416752-1-ref.html
+== 417676.html 417676-ref.html
+== 418766-1a.html 418766-1-ref.html
+== 418766-1b.html 418766-1-ref.html
+== 419060.html 419060-ref.html
+== 419531-1.html 419531-1-ref.html
+== 420069-1.html 420069-1-ref.html
+== 420069-2.html 420069-2-ref.html

@@ -40,3 +40,5 @@
 <!ENTITY role.label "Úloha">
 <!ENTITY name.label "Názov">
 <!ENTITY nodeName.label "Názov uzla">
+
+<!ENTITY evaluateJS.label "Vyhodnotiť JavaScript">

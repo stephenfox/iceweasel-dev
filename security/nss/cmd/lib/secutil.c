@@ -51,6 +51,7 @@
 #include "cryptohi.h"
 #include "secutil.h"
 #include "secpkcs7.h"
+#include "secpkcs5.h"
 #include <stdarg.h>
 #if !defined(_WIN32_WCE)
 #include <sys/stat.h>
@@ -1431,12 +1432,159 @@ SECU_PrintObjectID(FILE *out, SECItem *oid, char *m, int level)
     return SEC_OID_UNKNOWN;
 }
 
+typedef struct secuPBEParamsStr {
+    SECItem salt;
+    SECItem iterationCount;
+    SECItem keyLength;
+    SECAlgorithmID cipherAlg;
+    SECAlgorithmID kdfAlg;
+} secuPBEParams;
+
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate);
+
+/* SECOID_PKCS5_PBKDF2 */
+const SEC_ASN1Template secuKDF2Params[] =
+{
+    { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(secuPBEParams) },
+    { SEC_ASN1_OCTET_STRING, offsetof(secuPBEParams, salt) },
+    { SEC_ASN1_INTEGER, offsetof(secuPBEParams, iterationCount) },
+    { SEC_ASN1_INTEGER, offsetof(secuPBEParams, keyLength) },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN, offsetof(secuPBEParams, kdfAlg),
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
+    { 0 }
+};
+
+/* PKCS5v1 & PKCS12 */
+const SEC_ASN1Template secuPBEParamsTemp[] =
+{
+    { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(secuPBEParams) },
+    { SEC_ASN1_OCTET_STRING, offsetof(secuPBEParams, salt) },
+    { SEC_ASN1_INTEGER, offsetof(secuPBEParams, iterationCount) },
+    { 0 }
+};
+
+/* SEC_OID_PKCS5_PBES2, SEC_OID_PKCS5_PBMAC1 */
+const SEC_ASN1Template secuPBEV2Params[] =
+{
+    { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(secuPBEParams)},
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN, offsetof(secuPBEParams, kdfAlg),
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN, offsetof(secuPBEParams, cipherAlg),
+        SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
+    { 0 }
+};
+
+void
+secu_PrintKDF2Params(FILE *out, SECItem *value, char *m, int level)
+{
+    PRArenaPool *pool = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    SECStatus rv;
+    secuPBEParams param;
+
+    if (m) {
+	SECU_Indent(out, level);
+	fprintf (out, "%s:\n", m);
+    }
+
+    if (!pool) {
+	SECU_Indent(out, level);
+	fprintf(out, "Out of memory\n");
+	return;
+    }
+
+    PORT_Memset(&param, 0, sizeof param);
+    rv = SEC_QuickDERDecodeItem(pool, &param, secuKDF2Params, value);
+    if (rv == SECSuccess) {
+	SECU_PrintAsHex(out, &param.salt, "Salt", level+1);
+	SECU_PrintInteger(out, &param.iterationCount, "Iteration Count", 
+			level+1);
+	SECU_PrintInteger(out, &param.keyLength, "Key Length", level+1);
+	SECU_PrintAlgorithmID(out, &param.kdfAlg, "KDF algorithm", level+1);
+    }
+    PORT_FreeArena(pool, PR_FALSE);
+}
+
+void
+secu_PrintPKCS5V2Params(FILE *out, SECItem *value, char *m, int level)
+{
+    PRArenaPool *pool = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    SECStatus rv;
+    secuPBEParams param;
+
+    if (m) {
+	SECU_Indent(out, level);
+	fprintf (out, "%s:\n", m);
+    }
+
+    if (!pool) {
+	SECU_Indent(out, level);
+	fprintf(out, "Out of memory\n");
+	return;
+    }
+
+    PORT_Memset(&param, 0, sizeof param);
+    rv = SEC_QuickDERDecodeItem(pool, &param, secuPBEV2Params, value);
+    if (rv == SECSuccess) {
+	SECU_PrintAlgorithmID(out, &param.kdfAlg, "KDF", level+1);
+	SECU_PrintAlgorithmID(out, &param.cipherAlg, "Cipher", level+1);
+    }
+    PORT_FreeArena(pool, PR_FALSE);
+}
+
+void
+secu_PrintPBEParams(FILE *out, SECItem *value, char *m, int level)
+{
+    PRArenaPool *pool = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    SECStatus rv;
+    secuPBEParams param;
+
+    if (m) {
+	SECU_Indent(out, level);
+	fprintf (out, "%s:\n", m);
+    }
+
+    if (!pool) {
+	SECU_Indent(out, level);
+	fprintf(out, "Out of memory\n");
+	return;
+    }
+
+    PORT_Memset(&param, 0, sizeof(secuPBEParams));
+    rv = SEC_QuickDERDecodeItem(pool, &param, secuPBEParamsTemp, value);
+    if (rv == SECSuccess) {
+	SECU_PrintAsHex(out, &param.salt, "Salt", level+1);
+	SECU_PrintInteger(out, &param.iterationCount, "Iteration Count", 
+			level+1);
+    }
+    PORT_FreeArena(pool, PR_FALSE);
+}
 
 /* This function does NOT expect a DER type and length. */
 void
 SECU_PrintAlgorithmID(FILE *out, SECAlgorithmID *a, char *m, int level)
 {
+    SECOidTag algtag;
     SECU_PrintObjectID(out, &a->algorithm, m, level);
+
+    algtag = SECOID_GetAlgorithmTag(a);
+    if (SEC_PKCS5IsAlgorithmPBEAlgTag(algtag)) {
+	switch (algtag) {
+	case SEC_OID_PKCS5_PBKDF2:
+	    secu_PrintKDF2Params(out, &a->parameters, "Parameters", level+1);
+	    break;
+	case SEC_OID_PKCS5_PBES2:
+	    secu_PrintPKCS5V2Params(out, &a->parameters, "Encryption", level+1);
+	    break;
+	case SEC_OID_PKCS5_PBMAC1:
+	    secu_PrintPKCS5V2Params(out, &a->parameters, "MAC", level+1);
+	    break;
+	default:
+	    secu_PrintPBEParams(out, &a->parameters, "Parameters", level+1);
+	    break;
+	}
+	return;
+    }
+	
 
     if (a->parameters.len == 0
 	|| (a->parameters.len == 2
@@ -3079,6 +3227,36 @@ loser:
 }
 
 SECStatus
+SEC_PrintCertificateAndTrust(CERTCertificate *cert,
+                             const char *label,
+                             CERTCertTrust *trust)
+{
+    SECStatus rv;
+    SECItem data;
+    
+    data.data = cert->derCert.data;
+    data.len = cert->derCert.len;
+
+    rv = SECU_PrintSignedData(stdout, &data, label, 0,
+			      SECU_PrintCertificate);
+    if (rv) {
+	return(SECFailure);
+    }
+    if (trust) {
+	SECU_PrintTrustFlags(stdout, trust,
+	                     "Certificate Trust Flags", 1);
+    } else if (cert->trust) {
+	SECU_PrintTrustFlags(stdout, cert->trust,
+	                     "Certificate Trust Flags", 1);
+    }
+
+    printf("\n");
+
+    return(SECSuccess);
+}
+
+
+SECStatus
 SECU_ParseCommandLine(int argc, char **argv, char *progName,
 		      const secuCommand *cmd)
 {
@@ -3373,10 +3551,8 @@ SECU_printCertProblemsOnDate(FILE *outfile, CERTCertDBHandle *handle,
 	PRTime datetime)
 {
     CERTVerifyLog      log;
-    CERTVerifyLogNode *node   = NULL;
-    unsigned int       depth  = (unsigned int)-1;
-    unsigned int       flags  = 0;
-    char *             errstr = NULL;
+    CERTVerifyLogNode *node;
+
     PRErrorCode	       err    = PORT_GetError();
 
     log.arena = PORT_NewArena(512);
@@ -3384,9 +3560,29 @@ SECU_printCertProblemsOnDate(FILE *outfile, CERTCertDBHandle *handle,
     log.count = 0;
     CERT_VerifyCertificate(handle, cert, checksig, certUsage, datetime, pinArg, &log, NULL);
 
-    if (log.count > 0) {
+    SECU_displayVerifyLog(outfile, &log, verbose);
+
+    for (node = log.head; node; node = node->next) {
+        if (node->cert)
+            CERT_DestroyCertificate(node->cert);
+    }
+    PORT_FreeArena(log.arena, PR_FALSE);
+
+    PORT_SetError(err); /* restore original error code */
+}
+
+void
+SECU_displayVerifyLog(FILE *outfile, CERTVerifyLog *log,
+                      PRBool verbose)
+{
+    CERTVerifyLogNode *node   = NULL;
+    unsigned int       depth  = (unsigned int)-1;
+    unsigned int       flags  = 0;
+    char *             errstr = NULL;
+
+    if (log->count > 0) {
 	fprintf(outfile,"PROBLEM WITH THE CERT CHAIN:\n");
-	for (node = log.head; node; node = node->next) {
+	for (node = log->head; node; node = node->next) {
 	    if (depth != node->depth) {
 		depth = node->depth;
 		fprintf(outfile,"CERT %d. %s %s:\n", depth,
@@ -3462,10 +3658,8 @@ SECU_printCertProblemsOnDate(FILE *outfile, CERTCertDBHandle *handle,
 	    if (errstr) {
 		fprintf(stderr,"    %s\n",errstr);
 	    }
-	    CERT_DestroyCertificate(node->cert);
 	}    
     }
-    PORT_SetError(err); /* restore original error code */
 }
 
 void
@@ -3505,7 +3699,7 @@ SECU_StringToSignatureAlgTag(const char *alg)
 
 SECStatus
 SECU_StoreCRL(PK11SlotInfo *slot, SECItem *derCrl, PRFileDesc *outFile,
-              const PRBool ascii, char *url)
+              PRBool ascii, char *url)
 {
     PORT_Assert(derCrl != NULL);
     if (!derCrl) {
@@ -3810,3 +4004,53 @@ SECU_SECItemToHex(const SECItem * item, char * dst)
 	*dst = '\0';
     }
 }
+
+static unsigned char nibble(char c) {
+    c = PORT_Tolower(c);
+    return ( c >= '0' && c <= '9') ? c - '0' :
+           ( c >= 'a' && c <= 'f') ? c - 'a' +10 : -1;
+}
+
+SECStatus
+SECU_SECItemHexStringToBinary(SECItem* srcdest)
+{
+    int i;
+
+    if (!srcdest) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+    if (srcdest->len < 4 || (srcdest->len % 2) ) {
+        /* too short to convert, or even number of characters */
+        PORT_SetError(SEC_ERROR_BAD_DATA);
+        return SECFailure;
+    }
+    if (PORT_Strncasecmp((const char*)srcdest->data, "0x", 2)) {
+        /* wrong prefix */
+        PORT_SetError(SEC_ERROR_BAD_DATA);
+        return SECFailure;
+    }
+
+    /* 1st pass to check for hex characters */
+    for (i=2; i<srcdest->len; i++) {
+        char c = PORT_Tolower(srcdest->data[i]);
+        if (! ( ( c >= '0' && c <= '9') ||
+                ( c >= 'a' && c <= 'f')
+              ) ) {
+            PORT_SetError(SEC_ERROR_BAD_DATA);
+            return SECFailure;
+        }
+    }
+
+    /* 2nd pass to convert */
+    for (i=2; i<srcdest->len; i+=2) {
+        srcdest->data[(i-2)/2] = (nibble(srcdest->data[i]) << 4) +
+                                 nibble(srcdest->data[i+1]);
+    }
+
+    /* adjust length */
+    srcdest->len -= 2;
+    srcdest->len /= 2;
+    return SECSuccess;
+}
+

@@ -277,7 +277,7 @@ menu.menu-iconic {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menu-iconic");
 }
 
-menu:empty {
+menubar > menu:empty {
   visibility: collapse;
 }
 
@@ -303,6 +303,17 @@ menuitem[type="radio"] {
 menuitem.menuitem-non-iconic {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menubutton-item");
 }
+
+%ifdef MOZ_WIDGET_GTK2
+/********* detection of system setting to use icons in menus ***********/
+menuitem:not([type]):not(:-moz-system-metric(images-in-menus)) > .menu-iconic-left {
+  visibility: hidden;
+}
+
+menu:not(:-moz-system-metric(images-in-menus)) > .menu-iconic-left {
+  visibility: hidden;
+}
+%endif
 
 /********* menuseparator ***********/
 
@@ -751,10 +762,17 @@ panel[type="rich-autocomplete"] {
 .autocomplete-richlistbox {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-richlistbox");
   -moz-user-focus: ignore;
+  -moz-appearance: none;
+}
+
+.autocomplete-richlistbox > scrollbox {
+  overflow-x: hidden !important;
 }
 
 .autocomplete-richlistitem {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-richlistitem");
+  -moz-box-orient: vertical;
+  overflow: -moz-hidden-unscrollable;
 }
 
 .autocomplete-treerows {
@@ -820,6 +838,7 @@ menulist[type="description"] {
 
 html|*.menulist-editable-input {
   -moz-appearance: none !important;
+  background: transparent ! important;
 }
 
 menulist > menupopup > menuitem {
