@@ -64,7 +64,7 @@ include $(topsrcdir)/config/config.mk
 #
 # Lots of Unixish x86 flavors
 #
-ifneq (,$(filter FreeBSD NetBSD OpenBSD BSD_OS Darwin,$(OS_ARCH)))
+ifneq (,$(filter FreeBSD NetBSD OpenBSD BSD_OS Darwin GNU,$(OS_ARCH)))
 ifeq (86,$(findstring 86,$(OS_TEST)))
 CPPSRCS		:= xptcinvoke_unixish_x86.cpp xptcstubs_unixish_x86.cpp
 ifeq (Darwin,$(OS_ARCH))
