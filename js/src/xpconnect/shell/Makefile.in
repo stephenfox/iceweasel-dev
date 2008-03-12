@@ -61,7 +61,9 @@ endif
 LIBS		= \
 		$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
 		$(MOZ_JS_LIBS) \
+		-Wl,--no-as-needed \
 		$(XPCOM_LIBS) \
+		-Wl,--as-needed \
 		$(NSPR_LIBS) \
 		$(NULL)
 
