@@ -4310,7 +4310,7 @@ if test -n "$_USE_SYSTEM_NSS"; then
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
-   NSS_LIBS="$NSS_LIBS -lcrmf"
+   NSS_LIBS=`echo $NSS_LIBS | sed 's/-l/-lcrmf &/'`
 else
    NSS_CFLAGS='-I$(LIBXUL_DIST)/include/nss'
    NSS_DEP_LIBS="\
