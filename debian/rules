@@ -22,6 +22,8 @@ PYVER := $(shell pyversions -d)
 
 CFLAGS := -Wall -pipe
 
+AUTOCONF_DIRS := build/autoconf
+
 JAVA_VARS := MOZ_JAVAXPCOM=1 JAVA_INCLUDE_PATH=$(CURDIR)/sun-java/stubs/include JAVAC=javac JAR=jar
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
@@ -46,6 +48,13 @@ endif
 
 config.status: ./configure debian/mozconfig
 	dh_testdir
+
+	for dir in $(AUTOCONF_DIRS); do \
+		for file in config.guess config.sub; do \
+			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
+		done; \
+	done
+
 	# Add here commands to configure the package.
 	JAVA_HOME=/usr/lib/jvm/java-gcj \
 	MOZCONFIG=debian/mozconfig \
@@ -82,6 +91,12 @@ clean:
 
 	# Add here commands to clean up after the build process.
 	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
+
+	for dir in $(AUTOCONF_DIRS); do \
+		for file in config.guess config.sub; do \
+			sed -i '2!b;/^exec "/ d' $$dir/$$file; \
+		done; \
+	done
 
 	dh_clean 
 
