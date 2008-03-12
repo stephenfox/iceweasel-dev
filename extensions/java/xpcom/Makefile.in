@@ -41,7 +41,11 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = interfaces glue
+DIRS = glue
+
+ifndef DEB_NO_JAR
+DIRS += interfaces
+endif
 
 ifdef ENABLE_TESTS
 DIRS += tests
@@ -50,8 +54,10 @@ endif
 include $(topsrcdir)/config/rules.mk
 
 # Build the implementation Java classes
+ifndef DEB_NO_JAR
 libs::
 	$(MAKE) -C src jar-libs
 
 install::
 	$(MAKE) -C src jar-install
+endif
