@@ -22,7 +22,6 @@ Libraries:
     xpcom
     nspr
     js
-    jsj
     gfx
 EOF
 	exit $1
@@ -60,9 +59,6 @@ while test $# -gt 0; do
       exit 0
       ;;
     --cflags)
-      if test "%includedir%" != /usr/include ; then
-        includes="-I%includedir%"
-      fi
       echo_cflags=yes
       ;;
     --defines)
@@ -74,7 +70,7 @@ while test $# -gt 0; do
     --idlflags)
       echo_idlflags=yes
       ;;
-    xpcom|js|nspr|gfx|jsj)
+    xpcom|js|nspr|gfx)
       echo_components="$echo_components $1"
       echo_libraries="$echo_libraries $1"
       ;;
@@ -105,7 +101,17 @@ fi
 if test "$echo_cflags" = "yes"; then
     nspr_cflags="%FULL_NSPR_CFLAGS%"
     for n in $echo_components; do
-	component_includes="$component_includes -I%includedir%/$n"
+        case "$n" in
+        js)
+               component_includes="$component_includes -I/usr/include/mozjs"
+            ;;
+        nspr)
+            ;;
+        *)
+               component_includes="$component_includes -I%includedir% \
+                                   -I%includedir%/$n"
+            ;;
+        esac
     done
     echo $component_includes $includes $nspr_cflags
 fi
@@ -133,10 +139,7 @@ if test "$echo_libs" = "yes"; then
 	js)
 	    libs="$libs $_js_libs"
 	    ;;
-	jsj)
-	    libs="$libs -ljsj $_js_libs $_xpcom_libs"
-	    ;;
         esac
     done
-    echo -L%libdir% $libs
+    echo $libs
 fi
