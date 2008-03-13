@@ -39,7 +39,8 @@
 // We need to override the default values of these preferences since all.js
 // assumes these are in the navigator package, which for us is non-existant.
 // XXX(darin): perhaps all.js should not be seamonkey specific
-pref("general.useragent.locale", "@AB_CD@");
+pref("intl.locale.matchOS", true);
+pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("font.language.group", "chrome://global/locale/intl.properties");
 pref("intl.accept_languages", "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.static", "chrome://global/locale/intl.properties");
