@@ -43,7 +43,6 @@
 
 #include "nsXULAppAPI.h"
 #include "nsXPCOMGlue.h"
-#include "nsRegisterGRE.h"
 #include "nsAppRunner.h"
 #include "nsILocalFile.h"
 #include "nsIXULAppInstall.h"
@@ -175,12 +174,6 @@ static void Usage(const char *argv0)
            "  -h, --help                 show this message\n"
            "  -v, --version              show version\n"
            "  --gre-version              print the GRE version string on stdout\n"
-           "  --register-global          register this GRE in the machine registry\n"
-           "  --register-user            register this GRE in the user registry\n"
-           "  --unregister-global        unregister this GRE formerly registered with\n"
-           "                             --register-global\n"
-           "  --unregister-user          unregister this GRE formely registered with\n"
-           "                             --register-user\n"
            "  --find-gre <version>       Find a GRE with version <version> and print\n"
            "                             the path on stdout\n"
            "  --install-app <application> [<destination> [<directoryname>]]\n"
@@ -316,42 +309,6 @@ int main(int argc, char* argv[])
     nsresult rv = GetGREVersion(argv[0], &milestone, nsnull);
     if (NS_FAILED(rv))
       return 2;
-
-    PRBool registerGlobal = IsArg(argv[1], "register-global");
-    PRBool registerUser   = IsArg(argv[1], "register-user");
-    if (registerGlobal || registerUser) {
-      if (argc != 2) {
-        Usage(argv[0]);
-        return 1;
-      }
-
-      nsCOMPtr<nsIFile> regDir;
-      rv = GetXULRunnerDir(argv[0], getter_AddRefs(regDir));
-      if (NS_FAILED(rv))
-        return 2;
-
-      return RegisterXULRunner(registerGlobal, regDir,
-                               kGREProperties,
-                               NS_ARRAY_LENGTH(kGREProperties),
-                               milestone.get()) ? 0 : 2;
-    }
-
-    registerGlobal = IsArg(argv[1], "unregister-global");
-    registerUser   = IsArg(argv[1], "unregister-user");
-    if (registerGlobal || registerUser) {
-      if (argc != 2) {
-        Usage(argv[0]);
-        return 1;
-      }
-
-      nsCOMPtr<nsIFile> regDir;
-      rv = GetXULRunnerDir(argv[0], getter_AddRefs(regDir));
-      if (NS_FAILED(rv))
-        return 2;
-
-      UnregisterXULRunner(registerGlobal, regDir, milestone.get());
-      return 0;
-    }
 
     if (IsArg(argv[1], "find-gre")) {
       if (argc != 3) {
