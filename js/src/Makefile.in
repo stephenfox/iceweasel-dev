@@ -48,6 +48,7 @@ MODULE		= js
 LIBRARY_NAME	= mozjs
 LIB_IS_C_ONLY	= 1
 GRE_MODULE	= 1
+SO_VERSION	= 0d
 
 ifdef GNU_CC
 ifdef INTEL_CC
