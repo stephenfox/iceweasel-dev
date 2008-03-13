@@ -47,6 +47,7 @@ EXTRA_DEPS += $(srcdir)/../objs.mk
 
 MODULE		= xpcom
 LIBRARY_NAME	= xpcomglue
+SO_VERSION	= 0d
 DIST_INSTALL	= 1
 
 REQUIRES	= string \
@@ -93,11 +94,8 @@ SDK_HEADERS     = \
 		$(NULL)
 
 SDK_LIBRARY     	= \
-		$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX) \
+		$(SHARED_LIBRARY) \
 		$(NULL)
-
-# we don't want the shared lib, but we want to force the creation of a static lib.
-FORCE_STATIC_LIB = 1
 
 # Force use of PIC
 FORCE_USE_PIC	= 1

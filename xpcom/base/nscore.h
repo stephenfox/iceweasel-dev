@@ -284,7 +284,7 @@
 
 #define EXPORT_XPCOM_API(type) NS_EXTERN_C NS_EXPORT type NS_FROZENCALL
 #define IMPORT_XPCOM_API(type) NS_EXTERN_C NS_IMPORT type NS_FROZENCALL
-#define GLUE_XPCOM_API(type) NS_EXTERN_C NS_HIDDEN_(type) NS_FROZENCALL
+#define GLUE_XPCOM_API(type) NS_EXTERN_C NS_EXPORT type NS_FROZENCALL
 
 #ifdef _IMPL_NS_COM
 #define XPCOM_API(type) EXPORT_XPCOM_API(type)
@@ -316,11 +316,7 @@
 #  define nsAString nsAString_internal
 #  define nsACString nsACString_internal
 #else
-#  ifdef HAVE_VISIBILITY_ATTRIBUTE
-#    define NS_COM_GLUE NS_VISIBILITY_HIDDEN
-#  else
-#    define NS_COM_GLUE
-#  endif
+#    define NS_COM_GLUE NS_EXPORT
 #endif
 
 

@@ -99,7 +99,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
  * Initialize the XPCOM glue by dynamically linking against the XPCOM
  * shared library indicated by xpcomFile.
  */
-extern "C" NS_HIDDEN_(nsresult)
+extern "C" NS_EXPORT_(nsresult)
 XPCOMGlueStartup(const char* xpcomFile);
 
 typedef void (*NSFuncPtr)();
@@ -118,13 +118,13 @@ struct nsDynamicFunctionLoad
  * @throws NS_ERROR_LOSS_OF_SIGNIFICANT_DATA if only some of the required
  *         functions were found.
  */
-extern "C" NS_HIDDEN_(nsresult)
+extern "C" NS_EXPORT_(nsresult)
 XPCOMGlueLoadXULFunctions(const nsDynamicFunctionLoad *symbols);
 
 /**
  * Finish the XPCOM glue after it is no longer needed.
  */
-extern "C" NS_HIDDEN_(nsresult)
+extern "C" NS_EXPORT_(nsresult)
 XPCOMGlueShutdown();
 
 #endif // XPCOM_GLUE
