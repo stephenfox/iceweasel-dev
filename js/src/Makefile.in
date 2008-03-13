@@ -74,6 +74,7 @@ MODULE		    = js
 LIBRARY_NAME	    = mozjs
 STATIC_LIBRARY_NAME = js_static
 GRE_MODULE	    = 1
+SO_VERSION	= $(JS_SO_VERSION)
 
 LIBS		= $(NSPR_LIBS) 
 
@@ -922,6 +923,9 @@ ifneq (,$(LIBRARY))
 endif
 ifneq (,$(SHARED_LIBRARY))
 	$(SYSINSTALL) $(SHARED_LIBRARY) $(DESTDIR)$(libdir)
+ifneq (,$(UNVERSIONED_LIBRARY))
+	ln -s $(SHARED_LIBRARY) $(DESTDIR)$(libdir)/$(UNVERSIONED_LIBRARY)
+endif
 endif
 ifneq (,$(IMPORT_LIBRARY))
 	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)

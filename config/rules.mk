@@ -290,6 +290,18 @@ else
 SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
 endif
 
+ifdef SO_VERSION
+UNVERSIONED_LIBRARY	:= $(notdir $(SHARED_LIBRARY))
+
+ifeq ($(strip $(SHARED_LIBRARY)),$(strip $(SDK_LIBRARY)))
+SDK_LIBRARY		:= $(SHARED_LIBRARY)
+endif
+
+SHARED_LIBRARY		:= $(SHARED_LIBRARY).$(SO_VERSION)
+
+MKSHLINKS		= rm -f $(1)/$(UNVERSIONED_LIBRARY); ln -s $(SHARED_LIBRARY) $(1)/$(UNVERSIONED_LIBRARY)
+endif
+
 ifeq ($(OS_ARCH),OS2)
 DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
 endif
@@ -380,7 +392,7 @@ SIMPLE_PROGRAMS :=
 endif
 
 ifndef TARGETS
-TARGETS			= $(LIBRARY) $(SHARED_LIBRARY) $(PROGRAM) $(SIMPLE_PROGRAMS) $(HOST_LIBRARY) $(HOST_PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
+TARGETS			= $(LIBRARY) $(UNVERSIONED_LIBRARY) $(SHARED_LIBRARY) $(PROGRAM) $(SIMPLE_PROGRAMS) $(HOST_LIBRARY) $(HOST_PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
 endif
 
 ifndef OBJS
@@ -1059,6 +1071,8 @@ endif
 # so instead of deleting .o files after repacking them into a dylib, we make
 # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
 # so no need to conditionalize on OS version or debugging format.
+$(UNVERSIONED_LIBRARY): $(SHARED_LIBRARY)
+	$(call MKSHLINKS,.)
 
 $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(SHARED_LIBRARY_LIBS_DEPS) $(LIBRARY) $(EXTRA_DEPS) $(DSO_LDOPTS_DEPS) $(GLOBAL_DEPS)
 ifndef INCREMENTAL_LINKER
