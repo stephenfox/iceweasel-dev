@@ -49,6 +49,7 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= js
 LIBRARY_NAME	= mozjs
 GRE_MODULE	= 1
+SO_VERSION	= 2d
 
 PROGRAM         = js$(BIN_SUFFIX)
 # The shell uses some 'HIDDEN' symbols to produce statistics, so we
@@ -609,6 +610,9 @@ ifneq (,$(LIBRARY))
 endif
 ifneq (,$(SHARED_LIBRARY))
 	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(libdir)
+ifneq (,$(UNVERSIONED_LIBRARY))
+	ln -s $(SHARED_LIBRARY) $(libdir)/$(UNVERSIONED_LIBRARY)
+endif
 endif
 ifneq (,$(IMPORT_LIBRARY))
 	$(SYSINSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(libdir)
