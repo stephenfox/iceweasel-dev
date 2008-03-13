@@ -86,19 +86,21 @@ ReadDependentCB(const char *aDependentLib)
 GetFrozenFunctionsFunc
 XPCOMGlueLoad(const char *xpcomFile)
 {
-    char xpcomDir[MAXPATHLEN];
-    if (realpath(xpcomFile, xpcomDir)) {
-        char *lastSlash = strrchr(xpcomDir, '/');
-        if (lastSlash) {
-            *lastSlash = '\0';
-
-            XPCOMGlueLoadDependentLibs(xpcomDir, ReadDependentCB);
-
-            snprintf(lastSlash, MAXPATHLEN - strlen(xpcomDir), "/" XUL_DLL);
-
-            sXULLibHandle = dlopen(xpcomDir, RTLD_GLOBAL | RTLD_LAZY);
-        }
+    char xulFile[MAXPATHLEN];
+    char *lastSlash = strrchr(xpcomFile, '/');
+    if (!lastSlash) {
+        snprintf(xulFile, MAXPATHLEN, "./%s", xpcomFile);
+        return XPCOMGlueLoad(xulFile);
     }
+    *lastSlash = '\0';
+
+    XPCOMGlueLoadDependentLibs(xpcomFile, ReadDependentCB);
+
+    snprintf(xulFile, MAXPATHLEN - strlen(xpcomFile), "%s/" XUL_DLL, xpcomFile);
+
+    sXULLibHandle = dlopen(xulFile, RTLD_GLOBAL | RTLD_LAZY);
+
+    *lastSlash = '/';
 
     // RTLD_DEFAULT is not defined in non-GNU toolchains, and it is
     // (void*) 0 in any case.
