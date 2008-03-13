@@ -448,9 +448,13 @@ endif
 # Flags passed to make-jars.pl
 
 MAKE_JARS_FLAGS = \
-	-s $(srcdir) -t $(topsrcdir) -z $(ZIP) -p $(MOZILLA_DIR)/config/preprocessor.pl \
+	-s $(srcdir) -t $(topsrcdir) -p $(MOZILLA_DIR)/config/preprocessor.pl \
 	-f $(MOZ_CHROME_FILE_FORMAT) \
 	$(NULL)
+
+ifdef ZIP
+MAKE_JARS_FLAGS += -z $(ZIP)
+endif
 
 ifdef NO_JAR_AUTO_REG
 MAKE_JARS_FLAGS += -a
