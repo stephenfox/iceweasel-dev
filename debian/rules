@@ -205,11 +205,11 @@ binary-arch: build install
 	dh_installman -pspidermonkey-bin $(CURDIR)/debian/smjs.1
 	dh_link -a
 	dh_strip -plibxul0d -pxulrunner -pxulrunner-gnome-support -ppython-xpcom --dbg-package=libxul0d-dbg
-	dh_strip -plibmozjs0d -pspidermonkey-bin --dbg-package=libmozjs0d-dbg
+	dh_strip -plibmozjs1d -pspidermonkey-bin --dbg-package=libmozjs1d-dbg
 	dh_compress -a
 	dh_fixperms -a
 	dh_makeshlibs -plibxul0d -Xusr/lib/xulrunner/components -V 'libxul0d (>= 1.8.1.4)'
-	dh_makeshlibs -plibmozjs0d -V 'libmozjs0d (>= 1.8.1.5)'
+	dh_makeshlibs -plibmozjs1d
 	dh_installdeb -a
 	dh_shlibdeps -a
 	dh_gencontrol -a

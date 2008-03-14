@@ -37,7 +37,7 @@ Description: Support for GNOME in xulrunner applications
  protocol handlers from GnomeVFS, such as smb or sftp, and other GNOME
  integration features.
 
-Package: libmozjs0d
+Package: libmozjs1d
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -50,7 +50,7 @@ Homepage: http://www.mozilla.org/js/
 Package: libmozjs-dev
 Section: libdevel
 Architecture: all
-Depends: ${misc:Depends}, libmozjs0d (>= ${source:Upstream-Version}), libnspr4-dev
+Depends: ${misc:Depends}, libmozjs1d (>= ${source:Upstream-Version}), libnspr4-dev
 Conflicts: mozilla-browser (<< 2:1.8)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -61,11 +61,11 @@ Description: Development files for the Mozilla SpiderMonkey JavaScript library
  Mozilla SpiderMonkey JavaScript library.
 Homepage: http://www.mozilla.org/js/
 
-Package: libmozjs0d-dbg
+Package: libmozjs1d-dbg
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libmozjs0d (= ${binary:Version})
+Depends: libmozjs1d (= ${binary:Version})
 Suggests: spidermonkey-bin
 Conflicts: spidermonkey-bin (<< ${source:Version}), spidermonkey-bin (>= ${source:Version}.1~)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
