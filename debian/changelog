@@ -1,3 +1,14 @@
+xulrunner (1.9~b4-1) UNRELEASED; urgency=low
+
+  * New upstream beta release (taken from upstream CVS). Closes: #449448.
+    + Don't crash when font file is unreadable. Closes: #425233.
+    + Better rendering of some extreme conditions. Closes: #391024.
+    + MOZILLA_1_8_BRANCH is not defined anymore: Closes: #441059.
+    + Don't jump when clicking out of the search bar. Closes: #404759.
+    + Ligatures don't overlap the following glyph. Closes: #363159.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 24 Nov 2007 16:56:12 +0100
+
 xulrunner (1.8.1.13-1) unstable; urgency=low
 
   * New security/stability upstream release (taken from upstream CVS)
