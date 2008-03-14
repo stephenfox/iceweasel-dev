@@ -73,7 +73,9 @@ public:
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
                    PRInt32 width, PRInt32 height, gfx_format format);
+#ifdef APNG
   void SetAnimFrameInfo();
+#endif
   
   void EndImageFrame();
 
@@ -94,7 +96,9 @@ public:
   PRUint8 mChannels;
   PRPackedBool mError;
   PRPackedBool mFrameHasNoAlpha;
+#ifdef APNG
   PRPackedBool mFrameIsHidden;
+#endif
 };
 
 #endif // nsPNGDecoder_h__
