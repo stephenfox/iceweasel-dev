@@ -65,12 +65,14 @@ private:
 protected:
   nsresult ParseOptions(const nsAString& aOptions,
                            PRBool* useTransparency,
+#ifdef APNG
                            PRBool* skipFirstFrame,
                            PRUint32* numAnimatedFrames,
                            PRUint32* numIterations,
                            PRUint32* frameDispose,
                            PRUint32* frameBlend,
                            PRUint32* frameDelay,
+#endif
                            PRUint32* offsetX,
                            PRUint32* offsetY);
   void ConvertHostARGBRow(const PRUint8* aSrc, PRUint8* aDest,
@@ -83,7 +85,9 @@ protected:
   png_struct* mPNG;
   png_info* mPNGinfo;
 
+#ifdef APNG
   PRBool mIsAnimation;
+#endif
 
   // image buffer
   PRUint8* mImageBuffer;
