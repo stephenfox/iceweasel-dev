@@ -45,170 +45,30 @@ under the same terms as the files around them and that a lot of the
 information has been extracted automatically, thus maybe leaving some doubt.
 Again, if you find "bugs", please contact me by email or via the BTS.)
 
-The following files are dual licensed under the terms of the MPL and of
-the GPL:
-
-  all files in directory/c-sdk/config, except the autoconf sub-directory and
-    the prmkdir.bat file.
-  all files in security/nss/lib/ckfw/dbm
-    
-  directory/c-sdk/configure.in
-  directory/c-sdk/gmakefile.win
-  nsprpub/configure.in
-  nsprpub/pr/include/md/_beos.cfg
-  nsprpub/pr/include/md/_netbsd.h
-  nsprpub/pr/src/linking/prlink.c
-  nsprpub/pr/src/md/beos/bfile.c
-  nsprpub/pr/src/md/beos/brng.c
-  nsprpub/pr/src/md/os2/os2emx.s
-  nsprpub/pr/src/md/os2/os2vaclegacy.s
-  nsprpub/pr/src/md/unix/os_AIX.s
-  nsprpub/pr/src/md/unix/os_BSD_386_2.s
-  nsprpub/pr/src/md/unix/os_Darwin_ppc.s
-  nsprpub/pr/src/md/unix/os_Darwin_x86.s
-  nsprpub/pr/src/md/unix/os_HPUX.s
-  nsprpub/pr/src/md/unix/os_Irix.s
-  nsprpub/pr/src/md/unix/os_Linux_ia64.s
-  nsprpub/pr/src/md/unix/os_Linux_x86.s
-  nsprpub/pr/src/md/unix/os_Linux_x86_64.s
-  nsprpub/pr/src/md/unix/os_ReliantUNIX.s
-  nsprpub/pr/src/md/unix/os_SunOS.s
-  nsprpub/pr/src/md/unix/os_SunOS_sparcv9.s
-  nsprpub/pr/src/md/unix/os_SunOS_ultrasparc.s
-  nsprpub/pr/src/md/unix/os_SunOS_x86.s
-  nsprpub/pr/src/md/unix/os_SunOS_x86_64.s
-  nsprpub/pr/src/md/unix/unix.c
-  nsprpub/pr/tests/testfile.c
-  nsprpub/pr/tests/tmocon.c
-  security/nss/cmd/crlutil/crlgen.c
-  security/nss/lib/freebl/mpi/hpma512.s
-  security/nss/lib/freebl/mpi/hppa20.s
-  security/nss/lib/freebl/mpi/montmulf.s
-  security/nss/lib/freebl/mpi/montmulfv8.s
-  security/nss/lib/freebl/mpi/montmulfv9.s
-  security/nss/lib/freebl/mpi/mpi_i86pc.s
-  security/nss/lib/freebl/mpi/mpi_mips.s
-  security/nss/lib/freebl/mpi/mpi_x86.s
-  security/nss/lib/freebl/mpi/mpv_sparcv8.s
-  security/nss/lib/freebl/mpi/mpv_sparcv9.s
-  security/nss/lib/util/ret_cr16.s
-  security/nss/tests/pkcs11/netscape/trivial/configure.in
-  
-The following files are licensed under the terms of the MPL only:
-
-  configure.in
-  directory/c-sdk/ldap/build/autoconf.mk.in
-  directory/c-sdk/ldap/build/my_overrides.mk
-  extensions/xmlterm/scripts/xmlterm.spec
-  modules/libpr0n/decoders/jpeg/Makefile.in
-  modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp
-  modules/libpr0n/decoders/jpeg/nsJPEGDecoder.h
-  netwerk/streamconv/converters/mozTXTToHTMLConv.cpp
-  netwerk/streamconv/converters/mozTXTToHTMLConv.h
-  netwerk/streamconv/public/mozITXTToHTMLConv.idl
-  security/nss/lib/freebl/mpi/doc/basecvt.pod
-  security/nss/lib/freebl/mpi/doc/gcd.pod
-  security/nss/lib/freebl/mpi/doc/invmod.pod
-  security/nss/lib/freebl/mpi/doc/isprime.pod
-  security/nss/lib/freebl/mpi/doc/lap.pod
-  security/nss/lib/freebl/mpi/doc/mpi-test.pod
-  security/nss/lib/freebl/mpi/doc/prime.txt
-  security/nss/lib/freebl/mpi/doc/prng.pod
-  security/nss/lib/freebl/mpi/tests/pi1k.txt
-  security/nss/lib/freebl/mpi/tests/pi2k.txt
-  security/nss/lib/freebl/mpi/tests/pi5k.txt
-  security/nss/lib/freebl/mpi/utils/PRIMES
-  toolkit/mozapps/preferences/fontscaling.xul
-  widget/src/windows/nsFilePicker.cpp
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_mips.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparcv9_solaris_SUNW.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_mips.cpp
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_mips.s.m4
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_sparcv9_solaris.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_mips.cpp
-  xpcom/typelib/xpidl/xpidl_java.c
-
 The following files are tri licensed under the terms of the NPL, of the
 GPL, and the LGPL:
 
-  all files in accessible/src/atk, except the following:
-    accessible/src/atk/Makefile.in
-    accessible/src/atk/nsAccessNodeWrap.cpp
-    accessible/src/atk/nsAccessNodeWrap.h
-    accessible/src/atk/nsXULMenuAccessibleWrap.h
-  all files in extensions/pref, except autoconfig/resources/Makefile.in
-  all files in modules/libpref, except the following:
-    modules/libpref/Makefile.in
-    modules/libpref/public/Makefile.in
-    modules/libpref/src/Makefile.in
-  all files in sun-java, except the following:
-    sun-java/Makefile.in
-    sun-java/stubs/Makefile.in
-    sun-java/stubs/include/Makefile.in
-    sun-java/stubs/include/jni_md.h
-    sun-java/stubs/jri/Makefile.in
-  all files in xpcom/typelib/xpidl, except Makefile.in
-
-  accessible/src/mac/nsTextAccessibleWrap.h
-  accessible/src/msaa/nsTextAccessibleWrap.cpp
-  accessible/src/msaa/nsTextAccessibleWrap.h
-  accessible/src/msaa/nsXULTreeAccessibleWrap.cpp
-  accessible/src/msaa/nsXULTreeAccessibleWrap.h
-  accessible/src/other/nsTextAccessibleWrap.h
-  dbm/include/cdefs.h
-  dbm/include/mcom_db.h
-  dbm/tests/lots.c
-  editor/ui/composer/content/editorInlineSpellCheck.js
-  mailnews/mime/cthandlers/calendar/mimecal.cpp
-  mailnews/mime/cthandlers/calendar/mimecal.h
-  mailnews/mime/cthandlers/calendar/nsCalendarFactory.cpp
-  toolkit/themes/qute/global/preferences.css
-  toolkit/themes/winstripe/global/preferences.css
-  widget/src/os2/nsAppShell.h
-
-The following files are dual licensed under the terms of the NPL and of
-the GPL:
-
-  gc/boehm/xSYM/SymFiles.cpp
-  gc/boehm/leaksoup/Addr2Line.java
-  gc/boehm/leaksoup/BlameTable.java
-  gc/boehm/leaksoup/CallTree.java
-  gc/boehm/leaksoup/FileLocator.java
-  gc/boehm/leaksoup/FileTable.java
-  gc/boehm/leaksoup/Histogram.java
-  gc/boehm/leaksoup/Reference.java
-  gc/boehm/leaksoup/RevisionTable.java
-  gc/boehm/leaksoup/StringTable.java
-  gc/boehm/leaksoup/Type.java
-  gc/boehm/leaksoup/bloatsoup.java
-  gc/boehm/leaksoup/leaksoup.java
-  gc/boehm/leaksoup/tracesoup.java
-  gc/boehm/xSYM/SymFiles.h
-  gc/boehm/xSYM/sym_file.h
-  js/src/lock_SunOS.s
+  extensions/pref/system-pref/src/gconf/nsSystemPrefService.cpp
+  extensions/pref/system-pref/src/gconf/nsSystemPrefService.h
+  extensions/pref/system-pref/src/nsSystemPref.cpp
+  extensions/pref/system-pref/src/nsSystemPref.h
+  extensions/pref/system-pref/src/nsSystemPrefFactory.cpp
+  extensions/pref/system-pref/src/nsSystemPrefLog.h
+  modules/plugin/samples/npruntime/np_entry.cpp
+  modules/plugin/samples/npruntime/npn_gate.cpp
+  modules/plugin/samples/npruntime/npp_gate.cpp
+  modules/plugin/samples/npruntime/plugin.cpp
+  modules/plugin/samples/npruntime/plugin.h
+  netwerk/base/public/nsIIOService2.idl
+  netwerk/base/public/nsINetworkLinkService.idl
+  toolkit/system/dbus/nsDBusModule.cpp
+  toolkit/system/dbus/nsDBusService.cpp
+  toolkit/system/dbus/nsDBusService.h
+  toolkit/system/dbus/nsNetworkManagerListener.cpp
+  toolkit/system/dbus/nsNetworkManagerListener.h
 
 The following files are licensed under the terms of the NPL only:
 
-  all files in directory/c-sdk/ldap, except the following:
-    directory/c-sdk/ldap/build/autoconf.mk.in
-    directory/c-sdk/ldap/build/my_overrides.mk
-    directory/c-sdk/ldap/examples/win32.mak
-    directory/c-sdk/ldap/libraries/libssldap/errormap.c
-
-  dbm/Makefile.in
-  dbm/include/Makefile.in
-  dbm/include/Makefile.win
-  dbm/src/Makefile.in
-  dbm/src/Makefile.win
-  dbm/tests/Makefile.in
-  directory/c-sdk/aclocal.m4
-  directory/c-sdk/build.mk
-  directory/c-sdk/component_versions.mk
-  directory/c-sdk/config/prmkdir.bat
-  directory/c-sdk/package.mk
-  extensions/pref/autoconfig/resources/Makefile.in
-  gc/boehm/Makefile.in
-  gc/boehm/makefile.win
   intl/uconv/ucvibm/864i.uf
   intl/uconv/ucvibm/cp850.uf
   intl/uconv/ucvibm/cp852.uf
@@ -228,60 +88,41 @@ The following files are licensed under the terms of the NPL only:
   intl/uconv/ucvmath/texcmmi-ttf.uf
   intl/uconv/ucvmath/texcmr-ttf.uf
   intl/uconv/ucvmath/texcmsy-t1.uf
-  jpeg/Makefile.in
-  jpeg/jerror.c
-  jpeg/jmorecfg.h
-  jpeg/netscape_mods.doc
-  mailnews/mime/cthandlers/calendar/Makefile.in
-  mailnews/mime/cthandlers/calendar/calendar.def
-  mailnews/mime/cthandlers/calendar/mimect-cal.def
-  modules/libimg/png/Makefile.in
-  modules/libpref/Makefile.in
-  modules/libpref/public/Makefile.in
-  modules/libpref/src/Makefile.in
-  modules/libpref/src/nsPref.cpp
-  modules/zlib/Makefile.in
-  modules/zlib/src/Makefile.in
-  modules/zlib/src/objs.mk
-  modules/zlib/standalone/Makefile.in
-  sun-java/Makefile.in
-  sun-java/stubs/Makefile.in
-  sun-java/stubs/include/Makefile.in
-  sun-java/stubs/include/jni_md.h
-  sun-java/stubs/jri/Makefile.in
-  toolkit/components/cookie/Makefile.in
-  xpcom/reflect/xptcall/src/md/mac/xptcinvoke_mac.s
-  xpcom/reflect/xptcall/src/md/mac/xptcstubs_mac.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_openvms_alpha.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_ppc_aix.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_ppc_ibmobj_aix.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_ppc_linux.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_ppc_netbsd.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_ppc_rhapsody.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_bsdos.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_linux.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_netbsd.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_solaris.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_solaris_GCC.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_solaris_GCC3.s
-  xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_sparc_solaris_SUNW.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_openvms_alpha.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_ppc_aix.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_ppc_linux.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_ppc_netbsd.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_sparc_netbsd.s
-  xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_sparc_solaris.s
-  xpcom/typelib/xpidl/Makefile.in
 
 The following files are licensed under the terms of the GPL only:
 
   build/autoconf/codeset.m4
   build/autoconf/config.guess
   build/autoconf/config.sub
-  directory/c-sdk/config/autoconf/config.guess
-  directory/c-sdk/config/autoconf/config.sub
   nsprpub/build/autoconf/config.guess
   nsprpub/build/autoconf/config.sub
+
+The following files are licensed under the terms of the GPL and the MIT
+license, which terms are following:
+
+  dom/tests/mochitest/ajax/jquery/dist/jquery.js
+  dom/tests/mochitest/ajax/jquery/src/jquery/jquery.js
+
+  Permission is hereby granted, free of charge, to any person
+  obtaining a copy of this software and associated documentation
+  files (the "Software"), to deal in the Software without
+  restriction, including without limitation the rights to use,
+  copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+  OTHER DEALINGS IN THE SOFTWARE.
 
 The following files are in the Public Domain:
   
@@ -324,7 +165,6 @@ The file db/mork/src/morkQuickSort.cpp is licensed under the following terms:
 The following files come from X11R5, without any clear licensing terms:
 
   build/autoconf/install-sh
-  directory/c-sdk/config/autoconf/install-sh
   nsprpub/build/autoconf/install-sh
 
 The embedding/qa/mozembed/public/nsIQABrowserUIGlue.idl file and the files
@@ -437,24 +277,6 @@ terms:
   OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
   SUCH DAMAGE.
 
-=== boehm
-
-The gc/boehm directory, except the files listed under the xulrunner section,
-is licensed under the following terms:
-
-  Copyright 1988, 1989 Hans-J. Boehm, Alan J. Demers
-  Copyright (c) 1991-1996 by Xerox Corporation.  All rights reserved.
-  Copyright (c) 1996-1998 by Silicon Graphics.  All rights reserved.
-
-  THIS MATERIAL IS PROVIDED AS IS, WITH ABSOLUTELY NO WARRANTY EXPRESSED
-  OR IMPLIED.  ANY USE IS AT YOUR OWN RISK.
-
-  Permission is hereby granted to use or copy this program
-  for any purpose,  provided the above notices are retained on all copies.
-  Permission to modify the code and to distribute modified code is granted,
-  provided the above notices are retained, and a notice that the code was
-  modified is included with the above copyright notice.
-
 === cairo
 
 The gfx/cairo/cairo directory is licensed under the following terms:
@@ -471,6 +293,33 @@ The gfx/cairo/cairo directory is licensed under the following terms:
   modified under the terms of either the GNU Lesser General Public
   License (LGPL) version 2.1 or the Mozilla Public License (MPL) version
   1.1.
+
+=== glitz
+
+The gfx/cairo/glitz directory is licensed under the following terms:
+(from gfx/cairo/glitz/COPYING)
+
+  Copyright © 2004 David Reveman, Peter Nilsson
+
+  Permission to use, copy, modify, distribute, and sell this software
+  and its documentation for any purpose is hereby granted without
+  fee, provided that the above copyright notice appear in all copies
+  and that both that copyright notice and this permission notice
+  appear in supporting documentation, and that the names of
+  David Reveman and Peter Nilsson not be used in advertising or
+  publicity pertaining to distribution of the software without
+  specific, written prior permission. David Reveman and Peter Nilsson
+  makes no representations about the suitability of this software for
+  any purpose. It is provided "as is" without express or implied warranty.
+
+  DAVID REVEMAN AND PETER NILSSON DISCLAIMS ALL WARRANTIES WITH
+  REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL DAVID REVEMAN AND
+  PETER NILSSON BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL
+  DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+  OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+  PERFORMANCE OF THIS SOFTWARE.
 
 === libpixman
 
@@ -831,3 +680,119 @@ The directory parser/expat is licensed under the following terms:
   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+=== jemalloc
+
+The memory/jemalloc/jemalloc.c is liensed under the following terms:
+
+  Copyright (C) 2006-2008 Jason Evans <jasone@FreeBSD.org>.
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+  1. Redistributions of source code must retain the above copyright
+     notice(s), this list of conditions and the following disclaimer as
+     the first lines of this file unmodified other than the possible
+     addition of one or more copyright notices.
+  2. Redistributions in binary form must reproduce the above copyright
+     notice(s), this list of conditions and the following disclaimer in
+     the documentation and/or other materials provided with the
+     distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER(S) ``AS IS'' AND ANY
+  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+  PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER(S) BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+  BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+  OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The memory/jemalloc/tree.h is liensed under the following terms:
+
+  Copyright 2002 Niels Provos <provos@citi.umich.edu>
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+  1. Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+  OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+  NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+== lcms
+ 
+The directory modules/lcms is licensed under the followin terms:
+(from modules/lcms/COPYING)
+
+  Copyright (c) 1998-2007 Marti Maria Saguer
+
+  Permission is hereby granted, free of charge, to any person obtaining
+  a copy of this software and associated documentation files (the "Software"),
+  to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+  THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+== breakpad
+
+The directory toolkit/crashreporter/google-breakpad is licensed under the
+followin terms:
+(from toolkit/crashreporter/google-breakpad/COPYING)
+
+  Copyright (c) 2006, Google Inc.
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+      * Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+      * Redistributions in binary form must reproduce the above
+  copyright notice, this list of conditions and the following disclaimer
+  in the documentation and/or other materials provided with the
+  distribution.
+      * Neither the name of Google Inc. nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
