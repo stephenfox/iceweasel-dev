@@ -51,7 +51,9 @@
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsPNGEncoder, imgIEncoder, nsIInputStream)
 
 nsPNGEncoder::nsPNGEncoder() : mPNG(nsnull), mPNGinfo(nsnull),
+#ifdef APNG
                                mIsAnimation(PR_FALSE),
+#endif
                                mImageBuffer(nsnull), mImageBufferSize(0),
                                mImageBufferUsed(0), mImageBufferReadPoint(0)
 {
@@ -109,9 +111,12 @@ NS_IMETHODIMP nsPNGEncoder::StartImageEncode(PRUint32 aWidth,
                                              PRUint32 aInputFormat,
                                              const nsAString& aOutputOptions)
 {
-  PRBool useTransparency = PR_TRUE, skipFirstFrame = PR_FALSE;
+  PRBool useTransparency = PR_TRUE;
+#ifdef APNG
+  PRBool skipFirstFrame = PR_FALSE;
   PRUint32 numFrames = 1;
   PRUint32 numPlays = 0; // For animations, 0 == forever
+#endif
 
   // can't initialize more than once
   if (mImageBuffer != nsnull)
@@ -124,14 +129,19 @@ NS_IMETHODIMP nsPNGEncoder::StartImageEncode(PRUint32 aWidth,
     return NS_ERROR_INVALID_ARG;
 
   // parse and check any provided output options
-  nsresult rv = ParseOptions(aOutputOptions, &useTransparency, &skipFirstFrame,
-                             &numFrames, &numPlays, nsnull, nsnull,
-                             nsnull, nsnull, nsnull);
+  nsresult rv = ParseOptions(aOutputOptions, &useTransparency,
+#ifdef APNG
+                             &skipFirstFrame, &numFrames, &numPlays,
+			     nsnull, nsnull, nsnull,
+#endif
+			     nsnull, nsnull);
   if (rv != NS_OK) { return rv; }
 
+#ifdef APNG
   if (numFrames > 1) {
     mIsAnimation = PR_TRUE;
   }
+#endif
 
   // initialize
   mPNG = png_create_write_struct(PNG_LIBPNG_VER_STRING,
@@ -181,10 +191,12 @@ NS_IMETHODIMP nsPNGEncoder::StartImageEncode(PRUint32 aWidth,
                PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
                PNG_FILTER_TYPE_DEFAULT);
 
+#ifdef APNG
   if (mIsAnimation) {
     png_set_first_frame_is_hidden(mPNG, mPNGinfo, skipFirstFrame);
     png_set_acTL(mPNG, mPNGinfo, numFrames, numPlays);
   }
+#endif
 
   // XXX: support PLTE, gAMA, tRNS, bKGD?
 
@@ -203,9 +215,11 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
                                           const nsAString& aFrameOptions)
 {
   PRBool useTransparency= PR_TRUE;
+#ifdef APNG
   PRUint32 delay_ms = 500;
   PRUint32 dispose_op = PNG_DISPOSE_OP_NONE;
   PRUint32 blend_op = PNG_BLEND_OP_SOURCE;
+#endif
   PRUint32 x_offset = 0, y_offset = 0;
 
   // must be initialized
@@ -229,17 +243,22 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
   }
 
   // parse and check any provided output options
-  nsresult rv = ParseOptions(aFrameOptions, &useTransparency, nsnull,
-                             nsnull, nsnull, &dispose_op, &blend_op,
-                             &delay_ms, &x_offset, &y_offset);
+  nsresult rv = ParseOptions(aFrameOptions, &useTransparency,
+#ifdef APNG
+                             nsnull, nsnull, nsnull, &dispose_op,
+			     &blend_op, &delay_ms,
+#endif
+                             &x_offset, &y_offset);
   if (rv != NS_OK) { return rv; }
 
+#ifdef APNG
   if (mIsAnimation) {
     // XXX the row pointers arg (#3) is unused, can it be removed?
     png_write_frame_head(mPNG, mPNGinfo, nsnull,
                          aWidth, aHeight, x_offset, y_offset,
                          delay_ms, 1000, dispose_op, blend_op);
   }
+#endif
 
   // Stride is the padded width of each row, so it better be longer (I'm afraid
   // people will not understand what stride means, so check it well)
@@ -283,9 +302,11 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
     return NS_ERROR_INVALID_ARG;
   }
 
+#ifdef APNG
   if (mIsAnimation) {
     png_write_frame_tail(mPNG, mPNGinfo);
   }
+#endif
 
   return NS_OK;
 }
@@ -321,12 +342,14 @@ NS_IMETHODIMP nsPNGEncoder::EndImageEncode()
 nsresult
 nsPNGEncoder::ParseOptions(const nsAString& aOptions,
                            PRBool* useTransparency,
+#ifdef APNG
                            PRBool* skipFirstFrame,
                            PRUint32* numFrames,
                            PRUint32* numPlays,
                            PRUint32* frameDispose,
                            PRUint32* frameBlend,
                            PRUint32* frameDelay,
+#endif
                            PRUint32* offsetX,
                            PRUint32* offsetY)
 {
@@ -355,6 +378,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
         return NS_ERROR_INVALID_ARG;
       }
 
+#ifdef APNG
     // skipfirstframe=[yes|no]
     } else if (nsCRT::strcmp(token, "skipfirstframe") == 0 && skipFirstFrame) {
       if (!value) { return NS_ERROR_INVALID_ARG; }
@@ -414,6 +438,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
       if (!value) { return NS_ERROR_INVALID_ARG; }
 
       if (PR_sscanf(value, "%u", frameDelay) != 1) { return NS_ERROR_INVALID_ARG; }
+#endif
 
     // xoffset=#
     } else if (nsCRT::strcmp(token, "xoffset") == 0 && offsetX) {
