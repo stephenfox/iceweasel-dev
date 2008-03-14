@@ -62,7 +62,9 @@
 static void PNGAPI info_callback(png_structp png_ptr, png_infop info_ptr);
 static void PNGAPI row_callback(png_structp png_ptr, png_bytep new_row,
                            png_uint_32 row_num, int pass);
+#ifdef APNG
 static void PNGAPI frame_info_callback(png_structp png_ptr, png_uint_32 frame_num);
+#endif
 static void PNGAPI end_callback(png_structp png_ptr, png_infop info_ptr);
 static void PNGAPI error_callback(png_structp png_ptr, png_const_charp error_msg);
 static void PNGAPI warning_callback(png_structp png_ptr, png_const_charp warning_msg);
@@ -78,7 +80,10 @@ nsPNGDecoder::nsPNGDecoder() :
   mPNG(nsnull), mInfo(nsnull),
   mCMSLine(nsnull), interlacebuf(nsnull),
   mInProfile(nsnull), mTransform(nsnull),
-  mChannels(0), mError(PR_FALSE), mFrameIsHidden(PR_FALSE)
+  mChannels(0), mError(PR_FALSE)
+#ifdef APNG
+  , mFrameIsHidden(PR_FALSE)
+#endif
 {
 }
 
@@ -109,8 +114,10 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   if (NS_FAILED(rv))
     longjmp(mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY
 
+#ifdef APNG
   if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL))
     SetAnimFrameInfo();
+#endif
   
   mImage->AppendFrame(mFrame);
   
@@ -126,6 +133,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   mFrameHasNoAlpha = PR_TRUE;
 }
 
+#ifdef APNG
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::SetAnimFrameInfo()
 {
@@ -165,6 +173,7 @@ void nsPNGDecoder::SetAnimFrameInfo()
   /*else // 'over' is the default for a gfxImageFrame
       mFrame->SetBlendMethod(imgIContainer::kBlendOver); */
 }
+#endif
 
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::EndImageFrame()
@@ -636,12 +645,15 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
     }
   }
 
+#ifdef APNG
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL))
     png_set_progressive_frame_fn(png_ptr, frame_info_callback, NULL);
   
   if (png_get_first_frame_is_hidden(png_ptr, info_ptr)) {
     decoder->mFrameIsHidden = PR_TRUE;
-  } else {
+  } else
+#endif
+  {
     decoder->CreateFrame(0, 0, width, height, decoder->format);
   }
   
@@ -662,8 +674,10 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
     }
   }
   
+#ifdef APNG
   if (png_get_first_frame_is_hidden(png_ptr, info_ptr))
     decoder->mFrame = nsnull;
+#endif
   
   return;
 }
@@ -701,9 +715,11 @@ row_callback(png_structp png_ptr, png_bytep new_row,
    */
   nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
   
+#ifdef APNG
   // skip this frame
   if (decoder->mFrameIsHidden)
     return;
+#endif
 
   if (new_row) {
     PRInt32 width;
@@ -803,6 +819,7 @@ row_callback(png_structp png_ptr, png_bytep new_row,
   }
 }
 
+#ifdef APNG
 // got the header of a new frame that's coming
 void
 frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
@@ -812,11 +829,15 @@ frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
   
   nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
   
+#ifdef APNG
   // old frame is done
   if (!decoder->mFrameIsHidden)
+#endif
     decoder->EndImageFrame();
   
+#ifdef APNG
   decoder->mFrameIsHidden = PR_FALSE;
+#endif
   
   x_offset = png_get_next_frame_x_offset(png_ptr, decoder->mInfo);
   y_offset = png_get_next_frame_y_offset(png_ptr, decoder->mInfo);
@@ -825,6 +846,7 @@ frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
   
   decoder->CreateFrame(x_offset, y_offset, width, height, decoder->format);
 }
+#endif
 
 void
 end_callback(png_structp png_ptr, png_infop info_ptr)
@@ -843,12 +865,14 @@ end_callback(png_structp png_ptr, png_infop info_ptr)
 
   nsPNGDecoder *decoder = static_cast<nsPNGDecoder*>(png_get_progressive_ptr(png_ptr));
   
+#ifdef APNG
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL)) {
     PRInt32 num_plays = png_get_num_plays(png_ptr, info_ptr);
     decoder->mImage->SetLoopCount(num_plays - 1);
   }
   
   if (!decoder->mFrameIsHidden)
+#endif
     decoder->EndImageFrame();
   
   decoder->mImage->DecodingComplete();
