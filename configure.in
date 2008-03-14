@@ -7450,7 +7450,7 @@ then
         LCMS_LIBS='-L$(LIBXUL_DIST)/bin -lmozlcms'
     fi
 else
-    PKG_CHECK_MODULES(LCMS, lcms >= $LCMS_VERSION)
+    PKG_CHECK_MODULES(LCMS, lcms)
 fi
 
 AC_SUBST(MOZ_NATIVE_LCMS)
