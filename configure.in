@@ -4458,6 +4458,7 @@ if test -n "${PNG_DIR}" -a "${PNG_DIR}" != "yes"; then
     CFLAGS="-I${PNG_DIR}/include $CFLAGS"
     LDFLAGS="-L${PNG_DIR}/lib $LDFLAGS"
 fi
+APNG=1
 if test -z "$PNG_DIR" -o "$PNG_DIR" = no; then
     SYSTEM_PNG=
 else
@@ -4466,7 +4467,8 @@ else
                  AC_MSG_ERROR([--with-system-png requested but no working libpng found]), 
                  $PNG_LIBS)
     AC_CHECK_LIB(png, png_get_acTL, ,
-                 AC_MSG_ERROR([--with-system-png won't work because the system's libpng doesn't have APNG support]),
+                 AC_MSG_WARN([system's libpng doesn't have APNG support])
+		 APNG=,
                  $_SAVE_PNG_LIBS)
 fi
 if test "$SYSTEM_PNG" = 0; then
@@ -8361,6 +8363,7 @@ AC_SUBST(SYSTEM_MAKEDEPEND)
 AC_SUBST(SYSTEM_LIBXUL)
 AC_SUBST(SYSTEM_JPEG)
 AC_SUBST(SYSTEM_PNG)
+AC_SUBST(APNG)
 AC_SUBST(SYSTEM_ZLIB)
 AC_SUBST(SYSTEM_BZ2)
 
