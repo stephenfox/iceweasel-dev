@@ -37,3 +37,4 @@ ac_add_options --enable-native-uconv
 ac_add_options --disable-elf-dynstr-gc
 ac_add_options --enable-system-hunspell
 ac_add_options --disable-crashreporter
+ac_add_options --enable-system-sqlite
