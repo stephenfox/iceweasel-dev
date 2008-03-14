@@ -9,8 +9,6 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-include /usr/share/dpatch/dpatch.make
-
 # These are used for cross-compiling and for saving the configure script
 # from having to guess our platform (since we know it already)
 DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
@@ -46,7 +44,7 @@ ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
 	DEBUGFLAGS := --enable-debug
 endif
 
-config.status: patch-stamp ./configure debian/mozconfig
+config.status: ./configure debian/mozconfig
 	dh_testdir
 	# Add here commands to configure the package.
 	JAVA_HOME=/usr/lib/jvm/java-gcj \
@@ -76,8 +74,7 @@ build-jars-stamp: build-stamp
 	
 	touch build-jars-stamp
 
-clean: clean-patched unpatch
-clean-patched:
+clean:
 	dh_testdir
 	dh_testroot
 	rm -f build*-stamp install*-stamp mozilla MPL debian/*.shlibs.local
@@ -214,4 +211,4 @@ binary: binary-indep binary-arch
 	diff debian/tmp.list debian/pkg.list | grep "^[<>]" | grep -v "^> DEBIAN" | sort
 	rm -f debian/tmp.list debian/pkg.list
 
-.PHONY: build clean clean-patched binary-indep binary-arch binary install source build-jars install-jars
+.PHONY: build clean binary-indep binary-arch binary install source build-jars install-jars
