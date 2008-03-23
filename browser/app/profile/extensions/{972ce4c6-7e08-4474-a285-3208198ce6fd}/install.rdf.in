@@ -20,7 +20,7 @@
     </em:targetApplication>
     
     <!-- Front End MetaData -->
-    <em:name>Firefox (default)</em:name>
+    <em:name>Iceweasel (default)</em:name>
     <em:description>The default theme</em:description>
     
     <!-- EXTENSION AUTHORS!
