@@ -255,7 +255,11 @@ function initCommands()
          ["iltr",             "input-text-direction ltr",          CMD_CONSOLE],
          // Instrumentation aliases
          ["allow-inst1",      "pref instrumentation.inst1 1",                0],
-         ["deny-inst1",       "pref instrumentation.inst1 2",                0]
+         ["deny-inst1",       "pref instrumentation.inst1 2",                0],
+         // Services aliases
+         ["cs",               "quote cs",                                    0],
+         ["ms",               "quote ms",                                    0],
+         ["ns",               "quote ns",                                    0]
         ];
 
     // set the stringbundle associated with these commands.
@@ -2273,8 +2277,11 @@ function cmdGotoURL(e)
     if (e.url.search(/^x-cz-command:/i) == 0)
     {
         var ary = e.url.match(/^x-cz-command:(.*)$/i);
-        getContentWindow(e.sourceObject.frame).location.href = 
-            "javascript:void(view.dispatch('" + decodeURI(ary[1]) + "', null, true))";
+        // Do the escaping dance:
+        var commandStr = decodeURI(ary[1]).quote();
+        var jsStr = "void(view.dispatch(" + commandStr + ", null, true))";
+        var jsURI = "javascript:" + encodeURI(jsStr);
+        getContentWindow(e.sourceObject.frame).location.href = jsURI;
         return;
     }
 
@@ -2305,7 +2312,10 @@ function cmdGotoURL(e)
         return;
     }
 
-    var window = getWindowByType("navigator:browser");
+    if (client.host == "Songbird")
+        var window = getWindowByType("Songbird:Main");
+    else
+        window = getWindowByType("navigator:browser");
 
     if (!window)
     {
@@ -2392,7 +2402,8 @@ function cmdJoin(e)
      * ignore any contextual information, like the channel the command was
      * run on.
      */
-    if (!e.hasOwnProperty("channelName") || !e.channelName)
+    if ((!e.hasOwnProperty("channelName") || !e.channelName) &&
+        !e.channelToJoin)
     {
         if (e.network.joinDialog)
             return e.network.joinDialog.focus();
@@ -2404,61 +2415,66 @@ function cmdJoin(e)
         return null;
     }
 
-    if (!("charset" in e))
+    var chan;
+    if (!e.channelToJoin)
     {
-        e.charset = null;
-    }
-    else if (e.charset && !checkCharset(e.charset))
-    {
-        display (getMsg(MSG_ERR_INVALID_CHARSET, e.charset), MT_ERROR);
-        return null;
-    }
-
-    if (e.channelName.search(",") != -1)
-    {
-        // We can join multiple channels! Woo!
-        var chan;
-        var chans = e.channelName.split(",");
-        var keys = [];
-        if (e.key)
-            keys = e.key.split(",");
-        for (var c in chans)
+        if (!("charset" in e))
         {
-            chan = dispatch("join", { charset: e.charset,
-                                      channelName: chans[c],
-                                      key: keys.shift() });
+            e.charset = null;
         }
-        return chan;
+        else if (e.charset && !checkCharset(e.charset))
+        {
+            display (getMsg(MSG_ERR_INVALID_CHARSET, e.charset), MT_ERROR);
+            return null;
+        }
+    
+        if (e.channelName.search(",") != -1)
+        {
+            // We can join multiple channels! Woo!
+            var chans = e.channelName.split(",");
+            var keys = [];
+            if (e.key)
+                keys = e.key.split(",");
+            for (var c in chans)
+            {
+                chan = dispatch("join", { charset: e.charset,
+                                          channelName: chans[c],
+                                          key: keys.shift() });
+            }
+            return chan;
+        }
+    
+        if ((arrayIndexOf(["#", "&", "+", "!"], e.channelName[0]) == -1) &&
+            (arrayIndexOf(e.server.channelTypes, e.channelName[0]) == -1))
+        {
+            e.channelName = e.server.channelTypes[0] + e.channelName;
+        }
+    
+        var charset = e.charset ? e.charset : e.network.prefs["charset"];
+        chan = e.server.addChannel(e.channelName, charset);
+        if (e.charset)
+            chan.prefs["charset"] = e.charset;
     }
-
-    if ((arrayIndexOf(["#", "&", "+", "!"], e.channelName[0]) == -1) &&
-        (arrayIndexOf(e.server.channelTypes, e.channelName[0]) == -1))
+    else
     {
-        e.channelName = e.server.channelTypes[0] + e.channelName;
+        chan = e.channelToJoin;
     }
 
-    var charset = e.charset ? e.charset : e.network.prefs["charset"];
-    e.channel = e.server.addChannel(e.channelName, charset);
-    if (e.charset)
-        e.channel.prefs["charset"] = e.charset;
-
-    e.channel.join(e.key);
+    chan.join(e.key);
 
     /* !-channels are "safe" channels, and get a server-generated prefix. For
      * this reason, we shouldn't do anything client-side until the server
      * replies (since the reply will have the appropriate prefix). */
-    if (e.channelName[0] != "!")
+    if (chan.unicodeName[0] != "!")
     {
-        if (!("messages" in e.channel))
-        {
-            e.channel.displayHere(getMsg(MSG_CHANNEL_OPENED,
-                                         e.channel.unicodeName), MT_INFO);
-        }
+        var chanName = chan.unicodeName;
+        if (!("messages" in chan))
+            chan.displayHere(getMsg(MSG_CHANNEL_OPENED, chanName), MT_INFO);
 
-        dispatch("set-current-view", { view: e.channel });
+        dispatch("set-current-view", { view: chan });
     }
 
-    return e.channel;
+    return chan;
 }
 
 function cmdLeave(e)
@@ -2944,9 +2960,11 @@ function cmdAway(e)
 
 function cmdOpenAtStartup(e)
 {
-    var url = e.sourceObject.getURL();
+    var origURL = e.sourceObject.getURL();
+    var url = makeCanonicalIRCURL(origURL);
     var list = client.prefs["initialURLs"];
-    var index = arrayIndexOf(list, url);
+    ensureCachedCanonicalURLs(list);
+    var index = arrayIndexOf(list.canonicalURLs, url);
 
     if (e.toggle == null)
     {
@@ -2964,7 +2982,7 @@ function cmdOpenAtStartup(e)
         // yes, please open at startup
         if (index == -1)
         {
-            list.push(url);
+            list.push(origURL);
             list.update();
             display(getMsg(MSG_STARTUP_ADDED, url));
         }
@@ -4151,7 +4169,7 @@ function cmdDCCList(e) {
                 if (c.TYPE == "IRCDCCFileTransfer")
                 {
                     state = getMsg(MSG_DCC_STATE_CONNECTPRO,
-                                   [Math.floor(100 * c.position / c.size),
+                                   [c.progress,
                                     getSISize(c.position), getSISize(c.size),
                                     getSISpeed(c.speed)]);
                 }

@@ -2028,8 +2028,7 @@ nsDocShell::FindItemWithName(const PRUnichar * aName,
         if (name.LowerCaseEqualsLiteral("_self")) {
             foundItem = this;
         }
-        else if (name.LowerCaseEqualsLiteral("_blank") ||
-                 name.LowerCaseEqualsLiteral("_new"))
+        else if (name.LowerCaseEqualsLiteral("_blank"))
         {
             // Just return null.  Caller must handle creating a new window with
             // a blank name himself.
@@ -6881,6 +6880,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             OnNewURI(aURI, nsnull, mLoadType, PR_TRUE);
             nsCOMPtr<nsIInputStream> postData;
             PRUint32 pageIdent = PR_UINT32_MAX;
+            nsCOMPtr<nsISupports> cacheKey;
             
             if (mOSHE) {
                 /* save current position of scroller(s) (bug 59774) */
@@ -6894,6 +6894,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 if (aLoadType & LOAD_CMD_NORMAL) {
                     mOSHE->GetPostData(getter_AddRefs(postData));
                     mOSHE->GetPageIdentifier(&pageIdent);
+                    mOSHE->GetCacheKey(getter_AddRefs(cacheKey));
                 }
             }
             
@@ -6908,6 +6909,11 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 // page will restore the appropriate postData.
                 if (postData)
                     mOSHE->SetPostData(postData);
+
+                // Make sure we won't just repost without hitting the
+                // cache first
+                if (cacheKey)
+                    mOSHE->SetCacheKey(cacheKey);
                 
                 // Propagate our page ident to the new mOSHE so that
                 // we'll know it just differed by a scroll on the page.
@@ -8612,6 +8618,16 @@ nsDocShell::AddToGlobalHistory(nsIURI * aURI, PRBool aRedirect,
     if (mItemType != typeContent || !mGlobalHistory)
         return NS_OK;
 
+    // If this is a POST request, we do not want to include this in global
+    // history, so return early.
+    nsCOMPtr<nsIHttpChannel> hchan(do_QueryInterface(aChannel));
+    if (hchan) {
+        nsCAutoString type;
+        nsresult rv = hchan->GetRequestMethod(type);
+        if (NS_SUCCEEDED(rv) && type.EqualsLiteral("POST"))
+            return NS_OK;
+    }
+
     PRBool visited;
     nsresult rv = mGlobalHistory->IsVisited(aURI, &visited);
     if (NS_FAILED(rv))
@@ -8777,6 +8793,25 @@ nsDocShell::GetRootScrollableView(nsIScrollableView ** aOutScrollView)
     return NS_OK;
 }
 
+#ifdef DEBUG
+class nsDebugAutoBoolTrueSetter
+{
+public:
+    nsDebugAutoBoolTrueSetter(PRBool *aBool)
+        : mBool(aBool)
+    {
+        *mBool = PR_TRUE;
+    }
+
+    ~nsDebugAutoBoolTrueSetter()
+    {
+        *mBool = PR_FALSE;
+    }
+protected:
+    PRBool *mBool;
+};
+#endif
+
 NS_IMETHODIMP
 nsDocShell::EnsureScriptEnvironment()
 {
@@ -8794,7 +8829,7 @@ nsDocShell::EnsureScriptEnvironment()
 
     // Yeah, this isn't re-entrant safe, but that's ok since if we
     // re-enter this method, we'll infinitely loop...
-    mInEnsureScriptEnv = PR_TRUE;
+    nsDebugAutoBoolTrueSetter boolSetter(&mInEnsureScriptEnv);
 #endif
 
     nsCOMPtr<nsIDOMScriptObjectFactory> factory =
@@ -8827,10 +8862,6 @@ nsDocShell::EnsureScriptEnvironment()
     nsresult rv;
     rv = mScriptGlobal->EnsureScriptEnvironment(nsIProgrammingLanguage::JAVASCRIPT);
     NS_ENSURE_SUCCESS(rv, rv);
-
-#ifdef DEBUG
-    mInEnsureScriptEnv = PR_FALSE;
-#endif
 
     return NS_OK;
 }

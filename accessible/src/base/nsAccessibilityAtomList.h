@@ -116,6 +116,8 @@ ACCESSIBILITY_ATOM(label, "label")
 ACCESSIBILITY_ATOM(legend, "legend")
 ACCESSIBILITY_ATOM(li, "li")
 ACCESSIBILITY_ATOM(link, "link")
+ACCESSIBILITY_ATOM(listhead, "listhead") // XUL
+ACCESSIBILITY_ATOM(listheader, "listheader") // XUL
 ACCESSIBILITY_ATOM(map, "map")
 ACCESSIBILITY_ATOM(math, "math")
 ACCESSIBILITY_ATOM(menu, "menu")    // XUL
@@ -211,13 +213,13 @@ ACCESSIBILITY_ATOM(aria_pressed, "aria-pressed")
 ACCESSIBILITY_ATOM(aria_readonly, "aria-readonly")
 ACCESSIBILITY_ATOM(aria_relevant, "aria-relevant")
 ACCESSIBILITY_ATOM(aria_required, "aria-required")
-ACCESSIBILITY_ATOM(aria_secret, "aria-secret")
 ACCESSIBILITY_ATOM(aria_selected, "aria-selected")
 ACCESSIBILITY_ATOM(aria_setsize, "aria-setsize")
 ACCESSIBILITY_ATOM(aria_sort, "aria-sort")
 ACCESSIBILITY_ATOM(aria_valuenow, "aria-valuenow")
 ACCESSIBILITY_ATOM(aria_valuemin, "aria-valuemin")
 ACCESSIBILITY_ATOM(aria_valuemax, "aria-valuemax")
+ACCESSIBILITY_ATOM(aria_valuetext, "aria-valuetext")
 
   // misc atoms
 // a form property used to obtain the default label

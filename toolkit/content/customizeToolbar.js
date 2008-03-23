@@ -524,10 +524,18 @@ function addNewToolbar()
 
   var name = {};
 
+  // Quitting from the toolbar dialog while the new toolbar prompt is up
+  // can cause things to become unresponsive on the Mac. Until dialog modality
+  // is fixed (395465), disable the "Done" button explicitly.
+  var doneButton = document.getElementById("donebutton");
+  doneButton.disabled = true;
+
   while (true) {
 
-    if (!promptService.prompt(window, title, message, name, null, {}))
+    if (!promptService.prompt(window, title, message, name, null, {})) {
+      doneButton.disabled = false;
       return;
+    }
     
     if (!name.value) {
       message = stringBundle.getFormattedString("enterToolbarBlank", [name.value]);
@@ -558,6 +566,8 @@ function addNewToolbar()
   gToolbox.appendCustomToolbar(name.value, "");
   
   toolboxChanged();
+
+  doneButton.disabled = false;
 }
 
 /**
@@ -570,28 +580,6 @@ function restoreDefaultSet()
   // going to recreate the wrappers and lose this
   var savedAttributes = saveItemAttributes(["itemdisabled", "itemcommand"]);
 
-  // Restore the defaultset for fixed toolbars.
-  var toolbar = gToolbox.firstChild;
-  while (toolbar) {
-    if (isCustomizableToolbar(toolbar)) {
-      if (!toolbar.hasAttribute("customindex")) {
-        var defaultSet = toolbar.getAttribute("defaultset");
-        if (defaultSet)
-          toolbar.currentSet = defaultSet;
-      }
-    }
-    toolbar = toolbar.nextSibling;
-  }
-
-  // Restore the default icon size and mode.
-  var defaultMode = gToolbox.getAttribute("defaultmode");
-  var defaultIconsSmall = gToolbox.getAttribute("defaulticonsize") == "small";
-
-  updateIconSize(defaultIconsSmall);
-  document.getElementById("smallicons").checked = defaultIconsSmall;
-  updateToolbarMode(defaultMode);
-  document.getElementById("modelist").value = defaultMode;
-  
   // Remove all of the customized toolbars.
   var child = gToolbox.lastChild;
   while (child) {
@@ -603,7 +591,27 @@ function restoreDefaultSet()
       child = child.previousSibling;
     }
   }
-  
+
+  // Restore the defaultset for fixed toolbars.
+  var toolbar = gToolbox.firstChild;
+  while (toolbar) {
+    if (isCustomizableToolbar(toolbar)) {
+      var defaultSet = toolbar.getAttribute("defaultset");
+      if (defaultSet)
+        toolbar.currentSet = defaultSet;
+    }
+    toolbar = toolbar.nextSibling;
+  }
+
+  // Restore the default icon size and mode.
+  var defaultMode = gToolbox.getAttribute("defaultmode");
+  var defaultIconsSmall = gToolbox.getAttribute("defaulticonsize") == "small";
+
+  updateIconSize(defaultIconsSmall, true);
+  document.getElementById("smallicons").checked = defaultIconsSmall;
+  updateToolbarMode(defaultMode, true);
+  document.getElementById("modelist").value = defaultMode;
+
   // Now rebuild the palette.
   buildPalette();
 
@@ -653,7 +661,7 @@ function restoreItemAttributes(aAttributeList, aSavedAttrList)
   }
 }
 
-function updateIconSize(aUseSmallIcons)
+function updateIconSize(aUseSmallIcons, localDefault)
 {
   gToolboxIconSize = aUseSmallIcons ? "small" : "large";
   
@@ -663,13 +671,16 @@ function updateIconSize(aUseSmallIcons)
   for (var i = 0; i < gToolbox.childNodes.length; ++i) {
     var toolbar = getToolbarAt(i);
     if (isCustomizableToolbar(toolbar)) {
-      setAttribute(toolbar, "iconsize", gToolboxIconSize);
+      var toolbarIconSize = (localDefault && toolbar.hasAttribute("defaulticonsize")) ?
+                            toolbar.getAttribute("defaulticonsize") :
+                            gToolboxIconSize;
+      setAttribute(toolbar, "iconsize", toolbarIconSize);
       gToolboxDocument.persist(toolbar.id, "iconsize");
     }
   }
 }
 
-function updateToolbarMode(aModeValue)
+function updateToolbarMode(aModeValue, localDefault)
 {
   setAttribute(gToolbox, "mode", aModeValue);
   gToolboxDocument.persist(gToolbox.id, "mode");
@@ -677,7 +688,10 @@ function updateToolbarMode(aModeValue)
   for (var i = 0; i < gToolbox.childNodes.length; ++i) {
     var toolbar = getToolbarAt(i);
     if (isCustomizableToolbar(toolbar)) {
-      setAttribute(toolbar, "mode", aModeValue);
+      var toolbarMode = (localDefault && toolbar.hasAttribute("defaultmode")) ?
+                        toolbar.getAttribute("defaultmode") :
+                        aModeValue;
+      setAttribute(toolbar, "mode", toolbarMode);
       gToolboxDocument.persist(toolbar.id, "mode");
     }
   }

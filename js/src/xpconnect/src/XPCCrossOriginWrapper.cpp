@@ -215,7 +215,7 @@ XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
     return JS_TRUE;
   }
 
-  return JS_SetReservedSlot(cx, xow, XPCWrapper::sNumSlots,
+  return JS_SetReservedSlot(cx, xow, XPC_XOW_ScopeSlot,
                             PRIVATE_TO_JSVAL(newScope)) &&
          JS_SetParent(cx, xow, newScope->GetGlobalJSObject());
 }
@@ -506,15 +506,9 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp)
   // FIXME: bug 408871, Note that we create outerObj with a null parent
   // here. We set it later so that we find our nominal prototype in the
   // same scope as the one that is calling us.
-  outerObj = JS_NewObject(cx, &sXPC_XOW_JSClass.base, nsnull, nsnull);
+  outerObj = JS_NewObjectWithGivenProto(cx, &sXPC_XOW_JSClass.base, nsnull,
+                                        parent);
   if (!outerObj) {
-    return JS_FALSE;
-  }
-
-  // Sever the prototype link from Object.prototype so we don't
-  // accidentally inherit properties like __proto__ and __parent__.
-  if (!JS_SetParent(cx, outerObj, parent) ||
-      !JS_SetPrototype(cx, outerObj, nsnull)) {
     return JS_FALSE;
   }
 
@@ -1062,7 +1056,7 @@ XPC_XOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
   if (!JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sWrappedObjSlot, v) ||
       !JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sResolvingSlot,
                           JSVAL_FALSE) ||
-      !JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sNumSlots,
+      !JS_SetReservedSlot(cx, wrapperIter, XPC_XOW_ScopeSlot,
                           PRIVATE_TO_JSVAL(nsnull))) {
     return nsnull;
   }

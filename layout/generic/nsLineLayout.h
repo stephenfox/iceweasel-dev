@@ -133,6 +133,12 @@ public:
    */
   void RelativePositionFrames(nsRect& aCombinedArea);
 
+  static void CombineTextDecorations(nsPresContext* aPresContext,
+                                     PRUint8 aDecorations,
+                                     nsIFrame* aFrame,
+                                     nsRect& aCombinedArea,
+                                     nscoord aAscentOverride = 0,
+                                     float aUnderlineSizeRatio = 1.0f);
   //----------------------------------------
 
   // Supporting methods and data for flags
@@ -468,6 +474,7 @@ protected:
     PRPackedBool mChangedFrameDirection;
     PRPackedBool mZeroEffectiveSpanBox;
     PRPackedBool mContainsFloat;
+    PRPackedBool mHasNonemptyContent;
 
     nscoord mLeftEdge;
     nscoord mX;

@@ -51,6 +51,7 @@
 #include "nsHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMScriptObjectHolder.h"
 
 // Interfaces Needed
 #include "nsDOMWindowList.h"
@@ -97,11 +98,6 @@
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
-
-/* I hate you, Windows. */
-#ifdef PostMessage
-#undef PostMessage
-#endif
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -415,6 +411,7 @@ public:
                    const PRUnichar* aData);
 
   static void ShutDown();
+  static void CleanupCachedXBLHandlers(nsGlobalWindow* aWindow);
   static PRBool IsCallerChrome();
   static void CloseBlockScriptTerminationFunc(nsISupports *aRef);
 
@@ -423,10 +420,18 @@ public:
 
   friend class WindowStateHolder;
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGlobalWindow,
-                                           nsIScriptGlobalObject)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsGlobalWindow,
+                                                         nsIScriptGlobalObject)
 
   void InitJavaProperties();
+
+  virtual NS_HIDDEN_(void*)
+    GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
+
+  virtual NS_HIDDEN_(void)
+    CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
+                             nsScriptObjectHolder& aHandler);
+
 
 protected:
   // Object Management
@@ -623,6 +628,8 @@ protected:
     return aList != &mTimeouts;
   }
 
+  static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
+
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
   // could own objects that are implemented in JavaScript, then those
@@ -668,7 +675,7 @@ protected:
   PRPackedBool                  mIsChrome : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
-  nsCOMPtr<nsIDOMWindowInternal> mOpener;
+  nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
   nsCOMPtr<nsIArray>            mArguments;
   nsCOMPtr<nsIArray>            mArgumentsLast;
@@ -723,9 +730,12 @@ protected:
 
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;
+  PRUint32 mSerial;
 #endif
 
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
+
+  nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;

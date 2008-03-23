@@ -63,6 +63,15 @@ public:
   virtual void SetSharedPageData(nsSharedPageData* aPD) { mPD = aPD; }
 
   /**
+   *  Computes page size based on shared page data; SetSharedPageData must be
+   *  given valid data first.
+   */
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             PRBool aShrinkWrap);
+
+  /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::pageFrame
@@ -78,6 +87,10 @@ protected:
   nsPageContentFrame(nsStyleContext* aContext) : ViewportFrame(aContext) {}
 
   nsSharedPageData*         mPD;
+
+private:
+  PRBool IsFixedPlaceholder(nsIFrame* aFrame);
+  nsFrameList StealFixedPlaceholders(nsIFrame* aDocRoot);
 };
 
 #endif /* nsPageContentFrame_h___ */

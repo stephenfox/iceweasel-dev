@@ -65,6 +65,7 @@ function nsContextMenu(aXulMenu, aBrowser) {
   this.onKeywordField    = false;
   this.onImage           = false;
   this.onLoadedImage     = false;
+  this.onCompletedImage  = false;
   this.onCanvas          = false;
   this.onLink            = false;
   this.onMailtoLink      = false;
@@ -197,6 +198,9 @@ nsContextMenu.prototype = {
       document.getElementById("context-setDesktopBackground")
               .disabled = this.disableSetDesktopBackground();
     }
+
+    // Show image depends on an image that's not fully loaded
+    this.showItem("context-showimage", (this.onImage && !this.onCompletedImage));
 
     // View image depends on having an image that's not standalone
     // (or is in a frame), or a canvas.
@@ -337,8 +341,8 @@ nsContextMenu.prototype = {
     // Copy email link depends on whether we're on an email link.
     this.showItem("context-copyemail", this.onMailtoLink);
 
-    // Copy link location depends on whether we're on a link.
-    this.showItem("context-copylink", this.onLink);
+    // Copy link location depends on whether we're on a non-mailto link.
+    this.showItem("context-copylink", this.onLink && !this.onMailtoLink);
     this.showItem("context-sep-copylink", this.onLink && this.onImage);
 
 #ifdef CONTEXT_COPY_IMAGE_CONTENTS
@@ -358,7 +362,8 @@ nsContextMenu.prototype = {
   // Set various context menu attributes based on the state of the world.
   setTarget: function (aNode, aRangeParent, aRangeOffset) {
     const xulNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-    if (aNode.namespaceURI == xulNS) {
+    if (aNode.namespaceURI == xulNS ||
+        this.isTargetAFormControl(aNode)) {
       this.shouldDisplay = false;
       return;
     }
@@ -366,6 +371,7 @@ nsContextMenu.prototype = {
     // Initialize contextual info.
     this.onImage           = false;
     this.onLoadedImage     = false;
+    this.onCompletedImage  = false;
     this.onStandaloneImage = false;
     this.onCanvas          = false;
     this.onMetaDataItem    = false;
@@ -407,6 +413,8 @@ nsContextMenu.prototype = {
           this.target.getRequest(Ci.nsIImageLoadingContent.CURRENT_REQUEST);
         if (request && (request.imageStatus & request.STATUS_SIZE_AVAILABLE))
           this.onLoadedImage = true;
+        if (request && (request.imageStatus & request.STATUS_LOAD_COMPLETE))
+          this.onCompletedImage = true;
 
         this.imageURL = this.target.currentURI.spec;
         if (this.target.ownerDocument instanceof ImageDocument)
@@ -590,6 +598,7 @@ nsContextMenu.prototype = {
         this.onKeywordField    = false;
         this.onImage           = false;
         this.onLoadedImage     = false;
+        this.onCompletedImage  = false;
         this.onMetaDataItem    = false;
         this.onMathML          = false;
         this.inFrame           = false;
@@ -717,6 +726,15 @@ nsContextMenu.prototype = {
 
   viewFrameInfo: function() {
     BrowserPageInfo(this.target.ownerDocument);
+  },
+
+  showImage: function(e) {
+    urlSecurityCheck(this.imageURL,
+                     this.browser.contentPrincipal,
+                     Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
+
+    if (this.target instanceof Ci.nsIImageLoadingContent)
+      this.target.forceReload();
   },
 
   // Change current window to the URL of the image.
@@ -1074,6 +1092,18 @@ nsContextMenu.prototype = {
            "contextMenu.link       = " + this.link + "\n" +
            "contextMenu.inFrame    = " + this.inFrame + "\n" +
            "contextMenu.hasBGImage = " + this.hasBGImage + "\n";
+  },
+
+  // Returns true if aNode is a from control (except text boxes).
+  // This is used to disable the context menu for form controls.
+  isTargetAFormControl: function(aNode) {
+    if (aNode instanceof HTMLInputElement)
+      return (aNode.type != "text" && aNode.type != "password");
+
+    return (aNode instanceof HTMLButtonElement) ||
+           (aNode instanceof HTMLSelectElement) ||
+           (aNode instanceof HTMLOptionElement) ||
+           (aNode instanceof HTMLOptGroupElement);
   },
 
   isTargetATextBox: function(node) {

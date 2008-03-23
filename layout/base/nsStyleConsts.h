@@ -43,9 +43,8 @@
 
 #include "nsFont.h"
 
-#ifndef MOZ_CAIRO_GFX
-#define GFX_HAS_INVERT
-#endif
+// cairo doesn't support invert
+// #define GFX_HAS_INVERT
 
 // XXX fold this into nsStyleContext and group by nsStyleXXX struct
 
@@ -594,7 +593,7 @@
 #define NS_STYLE_WHITESPACE_NORMAL              0
 #define NS_STYLE_WHITESPACE_PRE                 1
 #define NS_STYLE_WHITESPACE_NOWRAP              2
-#define NS_STYLE_WHITESPACE_MOZ_PRE_WRAP        3
+#define NS_STYLE_WHITESPACE_PRE_WRAP            3
 
 // See nsStyleText
 #define NS_STYLE_UNICODE_BIDI_NORMAL            0
@@ -629,7 +628,12 @@
 #define NS_STYLE_TABLE_EMPTY_CELLS_SHOW            1
 #define NS_STYLE_TABLE_EMPTY_CELLS_SHOW_BACKGROUND 2
 
-// CAPTION_SIDE uses NS_SIDE_*
+#define NS_STYLE_CAPTION_SIDE_TOP               0
+#define NS_STYLE_CAPTION_SIDE_RIGHT             1
+#define NS_STYLE_CAPTION_SIDE_BOTTOM            2
+#define NS_STYLE_CAPTION_SIDE_LEFT              3
+#define NS_STYLE_CAPTION_SIDE_TOP_OUTSIDE       4
+#define NS_STYLE_CAPTION_SIDE_BOTTOM_OUTSIDE    5
 
 // constants for cell "scope" attribute
 #define NS_STYLE_CELL_SCOPE_ROW                 0

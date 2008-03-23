@@ -147,6 +147,7 @@ protected:
     static nsIStringBundle *gKeyStringBundle;
     static nsITimer *gDoCommandTimer;
     static PRBool gIsAccessibilityActive;
+    static PRBool gIsShuttingDownApp;
     static PRBool gIsCacheDisabled;
     static PRBool gIsFormFillEnabled;
 

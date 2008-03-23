@@ -78,8 +78,10 @@ endif
 ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
 EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
+		gfxQuartzImageSurface.h \
 		gfxQuartzPDFSurface.h \
 		gfxAtsuiFonts.h \
+		gfxQuartzNativeDrawing.h \
 		$(NULL)
 
 ifdef MOZ_ENABLE_GLITZ

@@ -70,6 +70,7 @@
 #include "nsBindingManager.h"
 #include "nsIDOMNodeList.h"
 #include "nsINameSpaceManager.h"
+#include "nsIObserverService.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFInferDataSource.h"
 #include "nsIRDFContainerUtils.h"
@@ -98,6 +99,7 @@
 #include "pldhash.h"
 #include "plhash.h"
 #include "nsIDOMClassInfo.h"
+#include "nsPIDOMWindow.h"
 
 #include "nsNetUtil.h"
 #include "nsXULTemplateBuilder.h"
@@ -120,6 +122,7 @@ nsIRDFService*            nsXULTemplateBuilder::gRDFService;
 nsIRDFContainerUtils*     nsXULTemplateBuilder::gRDFContainerUtils;
 nsIScriptSecurityManager* nsXULTemplateBuilder::gScriptSecurityManager;
 nsIPrincipal*             nsXULTemplateBuilder::gSystemPrincipal;
+nsIObserverService*       nsXULTemplateBuilder::gObserverService;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gXULTemplateLog;
@@ -135,7 +138,8 @@ PRLogModuleInfo* gXULTemplateLog;
 nsXULTemplateBuilder::nsXULTemplateBuilder(void)
     : mQueriesCompiled(PR_FALSE),
       mFlags(0),
-      mTop(nsnull)
+      mTop(nsnull),
+      mObservedDocument(nsnull)
 {
 }
 
@@ -161,6 +165,7 @@ nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
         NS_IF_RELEASE(gRDFContainerUtils);
         NS_IF_RELEASE(gSystemPrincipal);
         NS_IF_RELEASE(gScriptSecurityManager);
+        NS_IF_RELEASE(gObserverService);
     }
 
     Uninit(PR_TRUE);
@@ -191,6 +196,10 @@ nsXULTemplateBuilder::InitGlobals()
         rv = gScriptSecurityManager->GetSystemPrincipal(&gSystemPrincipal);
         if (NS_FAILED(rv))
             return rv;
+
+        rv = CallGetService(NS_OBSERVERSERVICE_CONTRACTID, &gObserverService);
+        if (NS_FAILED(rv))
+            return rv;
     }
 
 #ifdef PR_LOGGING
@@ -209,6 +218,11 @@ nsXULTemplateBuilder::InitGlobals()
 void
 nsXULTemplateBuilder::Uninit(PRBool aIsFinal)
 {
+    if (mObservedDocument) {
+        gObserverService->RemoveObserver(this, DOM_WINDOW_DESTROYED_TOPIC);
+        mObservedDocument = nsnull;
+    }
+
     if (mQueryProcessor)
         mQueryProcessor->Done();
 
@@ -286,6 +300,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(XULTemplateBuilder)
 NS_INTERFACE_MAP_END
@@ -298,7 +313,30 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsXULTemplateBuilder::GetRoot(nsIDOMElement** aResult)
 {
-    return CallQueryInterface(mRoot, aResult);
+    if (mRoot) {
+        return CallQueryInterface(mRoot, aResult);
+    }
+    *aResult = nsnull;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULTemplateBuilder::GetDatasource(nsISupports** aResult)
+{
+    if (mCompDB)
+        NS_ADDREF(*aResult = mCompDB);
+    else
+        NS_IF_ADDREF(*aResult = mDataSource);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULTemplateBuilder::SetDatasource(nsISupports* aResult)
+{
+    mDataSource = aResult;
+    mCompDB = do_QueryInterface(mDataSource);
+
+    return Rebuild();
 }
 
 NS_IMETHODIMP
@@ -395,7 +433,7 @@ nsXULTemplateBuilder::Refresh()
 NS_IMETHODIMP
 nsXULTemplateBuilder::Init(nsIContent* aElement)
 {
-    NS_PRECONDITION(aElement, "null ptr");
+    NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
     mRoot = aElement;
 
     nsCOMPtr<nsIDocument> doc = mRoot->GetDocument();
@@ -409,13 +447,17 @@ nsXULTemplateBuilder::Init(nsIContent* aElement)
     if (NS_SUCCEEDED(rv)) {
         // Add ourselves as a document observer
         doc->AddObserver(this);
+
+        mObservedDocument = doc;
+        gObserverService->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC,
+                                      PR_FALSE);
     }
 
     return rv;
 }
 
 NS_IMETHODIMP
-nsXULTemplateBuilder::CreateContents(nsIContent* aElement)
+nsXULTemplateBuilder::CreateContents(nsIContent* aElement, PRBool aForceCreation)
 {
     return NS_OK;
 }
@@ -1029,6 +1071,24 @@ nsXULTemplateBuilder::RemoveListener(nsIXULBuilderListener* aListener)
     return NS_OK;
 }
 
+NS_IMETHODIMP
+nsXULTemplateBuilder::Observe(nsISupports* aSubject,
+                              const char* aTopic,
+                              const PRUnichar* aData)
+{
+    // Uuuuber hack to clean up circular references that the cycle collector
+    // doesn't know about. See bug 394514.
+    if (!strcmp(aTopic, DOM_WINDOW_DESTROYED_TOPIC)) {
+        nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aSubject);
+        if (window) {
+            nsCOMPtr<nsIDocument> doc =
+                do_QueryInterface(window->GetExtantDocument());
+            if (doc && doc == mObservedDocument)
+                NodeWillBeDestroyed(doc);
+        }
+    }
+    return NS_OK;
+}
 //----------------------------------------------------------------------
 //
 // nsIDocumentOberver interface

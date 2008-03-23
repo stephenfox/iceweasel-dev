@@ -59,7 +59,6 @@ REQUIRES	= xpcom \
 		  js \
 		  webshell \
 		  necko \
-		  nkcache \
 		  mimetype \
 		  exthandler \
 		  chardet \
@@ -82,8 +81,12 @@ REQUIRES	= xpcom \
 		  util \
 		  appshell \
 		  shistory \
-		  accessibility \
+		  editor \
 		  $(NULL)
+
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 EXPORTS		= \
 		nsAtomListUtils.h \

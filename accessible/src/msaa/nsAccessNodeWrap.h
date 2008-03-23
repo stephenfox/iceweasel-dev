@@ -43,6 +43,13 @@
 #ifndef _nsAccessNodeWrap_H_
 #define _nsAccessNodeWrap_H_
 
+// Avoid warning C4509:
+// nonstandard extension used: 'nsAccessibleWrap::[methodname]' 
+// uses SEH and 'xpAccessible' has destructor
+// At this point we're catching a crash which is of much greater
+// importance than the missing dereference for the nsCOMPtr<>
+#pragma warning( disable : 4509 )
+
 #include "nsCOMPtr.h"
 #include "nsIAccessible.h"
 #include "nsIAccessibleEvent.h"
@@ -58,6 +65,9 @@
 #include <winable.h>
 #endif
 #undef ERROR /// Otherwise we can't include nsIDOMNSEvent.h if we include this
+#ifdef MOZ_CRASHREPORTER
+#include "nsICrashReporter.h"
+#endif
 
 typedef LRESULT (STDAPICALLTYPE *LPFNNOTIFYWINEVENT)(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
 typedef LRESULT (STDAPICALLTYPE *LPFNGETGUITHREADINFO)(DWORD idThread, GUITHREADINFO* pgui);
@@ -145,6 +155,8 @@ class nsAccessNodeWrap :  public nsAccessNode,
     static LPFNACCESSIBLEOBJECTFROMWINDOW gmAccessibleObjectFromWindow;
     static LPFNNOTIFYWINEVENT gmNotifyWinEvent;
     static LPFNGETGUITHREADINFO gmGetGUIThreadInfo;
+
+    static int FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo);
 
   protected:
     void GetAccessibleFor(nsIDOMNode *node, nsIAccessible **newAcc);

@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -185,6 +186,10 @@ JS_BEGIN_EXTERN_C
 #define JSFUN_FLAGS_MASK      0x0ff8    /* overlay JSFUN_* attributes --
                                            note that bit #15 is used internally
                                            to flag interpreted functions */
+
+#define JSFUN_STUB_GSOPS      0x1000    /* use JS_PropertyStub getter/setter
+                                           instead of defaulting to class gsops
+                                           for property holding function */
 
 #endif
 
@@ -430,8 +435,6 @@ JS_GetRuntimePrivate(JSRuntime *rt);
 JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime *rt, void *data);
 
-#ifdef JS_THREADSAFE
-
 extern JS_PUBLIC_API(void)
 JS_BeginRequest(JSContext *cx);
 
@@ -480,8 +483,6 @@ class JSAutoRequest {
 
 JS_BEGIN_EXTERN_C
 #endif
-
-#endif /* JS_THREADSAFE */
 
 extern JS_PUBLIC_API(void)
 JS_Lock(JSRuntime *rt);
@@ -656,6 +657,16 @@ JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
  * without breaking source and binary compatibility (argv[-2] is well-known to
  * be the callee jsval, and argv[-1] is as well known to be |this|).
  *
+ * Note well: However, argv[-1] may be JSVAL_NULL where with slow natives it
+ * is the global object, so embeddings implementing fast natives *must* call
+ * JS_THIS or JS_THIS_OBJECT and test for failure indicated by a null return,
+ * which should propagate as a false return from native functions and hooks.
+ *
+ * To reduce boilerplace checks, JS_InstanceOf and JS_GetInstancePrivate now
+ * handle a null obj parameter by returning false (throwing a TypeError if
+ * given non-null argv), so most native functions that type-check their |this|
+ * parameter need not add null checking.
+ *
  * NB: there is an anti-dependency between JS_CALLEE and JS_SET_RVAL: native
  * methods that may inspect their callee must defer setting their return value
  * until after any such possible inspection. Otherwise the return value will be
@@ -667,11 +678,14 @@ JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
  */
 #define JS_CALLEE(cx,vp)        ((vp)[0])
 #define JS_ARGV_CALLEE(argv)    ((argv)[-2])
-#define JS_THIS(cx,vp)          ((vp)[1])
+#define JS_THIS(cx,vp)          JS_ComputeThis(cx, vp)
 #define JS_THIS_OBJECT(cx,vp)   ((JSObject *) JS_THIS(cx,vp))
 #define JS_ARGV(cx,vp)          ((vp) + 2)
 #define JS_RVAL(cx,vp)          (*(vp))
 #define JS_SET_RVAL(cx,vp,v)    (*(vp) = (v))
+
+extern JS_PUBLIC_API(jsval)
+JS_ComputeThis(JSContext *cx, jsval *vp);
 
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
@@ -1464,7 +1478,8 @@ struct JSFunctionSpec {
  * frame when activated.
  */
 #define JS_FN(name,fastcall,minargs,nargs,flags)                              \
-    {name, (JSNative)(fastcall), nargs, (flags) | JSFUN_FAST_NATIVE,          \
+    {name, (JSNative)(fastcall), nargs,                                       \
+     (flags) | JSFUN_FAST_NATIVE | JSFUN_STUB_GSOPS,                          \
      (minargs) << 16}
 
 extern JS_PUBLIC_API(JSObject *)
@@ -1526,6 +1541,14 @@ JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
+
+/*
+ * Unlike JS_NewObject, JS_NewObjectWithGivenProto does not compute a default
+ * proto if proto's actual parameter value is null.
+ */
+extern JS_PUBLIC_API(JSObject *)
+JS_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
+                           JSObject *parent);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep);
@@ -2567,8 +2590,6 @@ JS_ThrowReportedError(JSContext *cx, const char *message,
 extern JS_PUBLIC_API(JSBool)
 JS_ThrowStopIteration(JSContext *cx);
 
-#ifdef JS_THREADSAFE
-
 /*
  * Associate the current thread with the given context.  This is done
  * implicitly by JS_NewContext.
@@ -2586,8 +2607,6 @@ JS_SetContextThread(JSContext *cx);
 
 extern JS_PUBLIC_API(jsword)
 JS_ClearContextThread(JSContext *cx);
-
-#endif /* JS_THREADSAFE */
 
 /************************************************************************/
 

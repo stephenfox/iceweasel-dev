@@ -49,7 +49,9 @@ _TEST_FILES	= \
 		test_bug291377.html \
 		test_bug308856.html \
 		test_bug317448.html \
+		test_bug327891.html \
 		test_bug333983.html \
+		test_bug335976.xhtml \
 		test_bug342448.html \
 		test_bug345521.html \
 		test_bug351601.html \
@@ -62,6 +64,9 @@ _TEST_FILES	= \
 		test_bug397571.html \
 		test_bug400204.html \
 		test_bug404748.html \
+		test_bug409349.html \
+		iframe_bug409349.html \
+		test_bug411103.html \
 		$(NULL)
 
 libs:: 	$(_TEST_FILES)

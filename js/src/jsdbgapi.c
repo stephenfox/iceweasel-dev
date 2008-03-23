@@ -161,21 +161,16 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
 JS_PUBLIC_API(JSOp)
 JS_GetTrapOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
+    JSRuntime *rt;
     JSTrap *trap;
+    JSOp op;
 
-    DBG_LOCK_EVAL(cx->runtime, trap = FindTrap(cx->runtime, script, pc));
-    if (!trap) {
-#ifdef JS_THREADSAFE
-        /*
-         * If we lost a race with another thread, return JSOP_LIMIT so our
-         * caller can detect this case and do something sane.
-         */
-#else
-        JS_ASSERT(0);   /* XXX can't happen */
-#endif
-        return JSOP_LIMIT;
-    }
-    return trap->op;
+    rt = cx->runtime;
+    DBG_LOCK(rt);
+    trap = FindTrap(rt, script, pc);
+    op = trap ? trap->op : (JSOp) *pc;
+    DBG_UNLOCK(rt);
+    return op;
 }
 
 static void
@@ -1087,10 +1082,35 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
     return js_GetCallObject(cx, fp, NULL);
 }
 
-
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameThis(JSContext *cx, JSStackFrame *fp)
 {
+    JSStackFrame *afp;
+
+    if (fp->flags & JSFRAME_COMPUTED_THIS)
+        return fp->thisp;
+
+    /* js_ComputeThis gets confused if fp != cx->fp, so set it aside. */
+    if (cx->fp != fp) {
+        afp = cx->fp;
+        if (afp) {
+            afp->dormantNext = cx->dormantFrameChain;
+            cx->dormantFrameChain = afp;
+            cx->fp = fp;
+        }
+    } else {
+        afp = NULL;
+    }
+
+    if (!fp->thisp && fp->argv)
+        fp->thisp = js_ComputeThis(cx, JS_TRUE, fp->argv);
+
+    if (afp) {
+        cx->fp = afp;
+        cx->dormantFrameChain = afp->dormantNext;
+        afp->dormantNext = NULL;
+    }
+
     return fp->thisp;
 }
 
@@ -1671,9 +1691,9 @@ JS_SetContextDebugHooks(JSContext *cx, JSDebugHooks *hooks)
 #ifdef MOZ_SHARK
 
 JS_PUBLIC_API(JSBool)
-JS_StartChudRemote() 
+JS_StartChudRemote()
 {
-    if (chudIsRemoteAccessAcquired() && 
+    if (chudIsRemoteAccessAcquired() &&
         (chudStartRemotePerfMonitor("Mozilla") == chudSuccess)) {
         return JS_TRUE;
     }
@@ -1731,7 +1751,7 @@ js_StopShark(JSContext *cx, JSObject *obj,
     if (!JS_StopChudRemote()) {
         JS_ReportError(cx, "Error stopping CHUD.");
     }
-        
+
     return JS_TRUE;
 }
 
@@ -1742,7 +1762,7 @@ js_ConnectShark(JSContext *cx, JSObject *obj,
     if (!JS_ConnectShark()) {
         JS_ReportError(cx, "Error connecting to Shark.");
     }
-        
+
     return JS_TRUE;
 }
 
@@ -1753,7 +1773,7 @@ js_DisconnectShark(JSContext *cx, JSObject *obj,
     if (!JS_DisconnectShark()) {
         JS_ReportError(cx, "Error disconnecting from Shark.");
     }
-        
+
     return JS_TRUE;
 }
 

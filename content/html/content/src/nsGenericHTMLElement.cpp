@@ -179,6 +179,30 @@ nsGenericHTMLElement::Init(nsINodeInfo *aNodeInfo)
 #endif
 
 
+class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
+                                    public nsIDOMElementCSSInlineStyle
+{
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  nsGenericHTMLElementTearoff(nsGenericHTMLElement *aElement)
+    : mElement(aElement)
+  {
+  }
+
+  virtual ~nsGenericHTMLElementTearoff()
+  {
+  }
+
+  NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
+  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
+                                           nsIDOMNSHTMLElement)
+
+private:
+  nsCOMPtr<nsGenericHTMLElement> mElement;
+};
+
 NS_IMPL_CYCLE_COLLECTION_1(nsGenericHTMLElementTearoff, mElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsGenericHTMLElementTearoff,
@@ -488,8 +512,6 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
     parent = parent->GetParent();
   }
 
-  // Get the union of all rectangles in this and continuation frames.
-  nsRect rcFrame = nsLayoutUtils::GetAllInFlowBoundingRect(frame);
   nsIContent* docElement = GetCurrentDoc()->GetRootContent();
   nsIContent* content = frame->GetContent();
 
@@ -570,6 +592,12 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
   // Convert to pixels.
   aRect.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
   aRect.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+
+  // Get the union of all rectangles in this and continuation frames.
+  // It doesn't really matter what we use as aRelativeTo here, since
+  // we only care about the size. Using 'parent' might make things
+  // a bit faster by speeding up the internal GetOffsetTo operations.
+  nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, parent);
   aRect.width = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width);
   aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
 }
@@ -1097,7 +1125,7 @@ nsGenericHTMLElement::UpdateEditableState()
   // XXX Should we do this only when in a document?
   ContentEditableTristate value = GetContentEditableValue();
   if (value != eInherit) {
-    SetEditableFlag(value);
+    SetEditableFlag(!!value);
 
     return;
   }
@@ -1819,7 +1847,7 @@ nsGenericHTMLElement::ParseImageAttribute(nsIAtom* aAttribute,
 {
   if ((aAttribute == nsGkAtoms::width) ||
       (aAttribute == nsGkAtoms::height)) {
-    return aResult.ParseSpecialIntValue(aString, PR_TRUE, PR_FALSE);
+    return aResult.ParseSpecialIntValue(aString, PR_TRUE);
   }
   else if ((aAttribute == nsGkAtoms::hspace) ||
            (aAttribute == nsGkAtoms::vspace) ||
@@ -1882,7 +1910,7 @@ nsGenericHTMLFormElement::UpdateEditableFormControlState()
 {
   ContentEditableTristate value = GetContentEditableValue();
   if (value != eInherit) {
-    SetEditableFlag(value);
+    SetEditableFlag(!!value);
 
     return;
   }
@@ -2855,6 +2883,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGenericHTMLFrameElement,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFrameLoader)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
+NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
+  NS_INTERFACE_TABLE_INHERITED2(nsGenericHTMLFrameElement,
+                                nsIDOMNSHTMLFrameElement,
+                                nsIFrameLoaderOwner)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
+NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
+
 nsresult
 nsGenericHTMLFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
 {
@@ -3080,6 +3115,16 @@ nsGenericHTMLElement::RemoveFocus(nsPresContext *aPresContext)
 PRBool
 nsGenericHTMLElement::IsFocusable(PRInt32 *aTabIndex)
 {
+  nsIDocument *doc = GetCurrentDoc();
+  if (!doc || doc->HasFlag(NODE_IS_EDITABLE)) {
+    // In designMode documents we only allow focusing the document.
+    if (aTabIndex) {
+      *aTabIndex = -1;
+    }
+
+    return PR_FALSE;
+  }
+
   PRInt32 tabIndex = 0;   // Default value for non HTML elements with -moz-user-focus
   GetTabIndex(&tabIndex);
 

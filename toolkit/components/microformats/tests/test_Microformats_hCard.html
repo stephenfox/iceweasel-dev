@@ -1,7 +1,7 @@
 <html>
 <head>
   <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
-  <title>Testing Microformats.js</title>
+  <title>Testing Microformats.js (hCard)</title>
   <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
@@ -331,6 +331,10 @@
         </span>
         <span class="title"><strong>President</strong></span> and
         <span class="role"><em>Chief</em></span>
+        <span class="agent vcard">
+          <span class="fn">Bob Smith</span>
+          <span class="title">Executive Assistant</span>
+        </span>
   <!--       <span class="agent</span> @TODO -->
         <span class="org">
           <span class="organization-name"><strong>Intellicorp</strong></span>
@@ -530,7 +534,12 @@
     <span class="fn">Ryan King</span>
     <map id="foo"><area class="url uid" href="http://theryanking.com/contact/" alt="my other hcard" /></map>
   </div>
-  
+
+  <div class="vcard" id="39-noteHTML">
+    <a class="fn">Joe Public</a>
+    <span class="note"><b>Note</b></span>
+  </div>
+
 </div>
 <pre id="test">
 <script class="testbody" type="text/javascript">
@@ -872,6 +881,8 @@ function test_hCard() {
   is(hcard.org[0]["organization-name"], "Intellicorp", "26-ancestors - organization-name");
   is(hcard.org[0]["organization-unit"][0], "Intelligence", "26-ancestors - organization-unit");
   is(hcard.role, "Chief", "26-ancestors - role");
+  is(hcard.agent[0].fn, "Bob Smith", "26-ancestors - agent.fn");
+  is(hcard.agent[0].title, "Executive Assistant", "26-ancestors - agent.title");
   is(hcard.tel[0].value, "415.555.1234", "26-ancestors - tel");
   is(hcard.title[0], "President", "26-ancestors - title");
   is(hcard.tz, "-0700", "26-ancestors - tz");
@@ -1125,6 +1136,13 @@ function test_hCard() {
   is(hcard.n["family-name"], "King", "38-uid.4 - family-name");
   is(hcard.uid, "http://theryanking.com/contact/", "38-uid.4 - uid");
   is(hcard.url[0], "http://theryanking.com/contact/", "38-uid.4 - url");
+
+  hcard = new hCard(document.getElementById("39-noteHTML"));
+
+  is(hcard.note[0], "Note", "39-noteHTML - note");
+  is(hcard.note[0].toHTML(), "<b>Note</b>", "39-noteHTML - note as HTML");
+  is(hcard.note[0].match("Note"), "Note", "39-noteHTML - match in note");
+  
 }
 
 </script>

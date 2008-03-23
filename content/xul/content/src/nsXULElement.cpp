@@ -738,7 +738,9 @@ nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
     nsContentUtils::GetEventArgNames(kNameSpaceID_XUL, aName, &argCount,
                                      &argNames);
     rv = context->CompileEventHandler(aName, argCount, argNames,
-                                      aBody, aURL, aLineNo, aHandler);
+                                      aBody, aURL, aLineNo,
+                                      SCRIPTVERSION_DEFAULT,  // for now?
+                                      aHandler);
     if (NS_FAILED(rv)) return rv;
 
     // XXX: Shouldn't this use context and not aContext?
@@ -1064,14 +1066,6 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             SetTitlebarColor(color);
         }
 
-        // handle :read-only/:read-write
-        if (aName == nsGkAtoms::readonly && document) {
-            mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
-            document->ContentStatesChanged(this, nsnull,
-                                           NS_EVENT_STATE_MOZ_READONLY |
-                                           NS_EVENT_STATE_MOZ_READWRITE);
-        }
-
         // XXX need to check if they're changing an event handler: if
         // so, then we need to unhook the old one.  Or something.
     }
@@ -1094,7 +1088,7 @@ nsXULElement::ParseAttribute(PRInt32 aNamespaceID,
     if (aNamespaceID == kNameSpaceID_None) {
         if (aAttribute == nsGkAtoms::style) {
             SetFlags(NODE_MAY_HAVE_STYLE);
-            nsStyledElement::ParseStyleAttribute(this, aValue, aResult);
+            nsStyledElement::ParseStyleAttribute(this, aValue, aResult, PR_FALSE);
             return PR_TRUE;
         }
 
@@ -1652,7 +1646,7 @@ nsXULElement::EnsureContentsGenerated(void) const
                         return NS_OK;
                     }
 
-                    return builder->CreateContents(unconstThis);
+                    return builder->CreateContents(unconstThis, PR_FALSE);
                 }
             }
 
@@ -1838,9 +1832,7 @@ nsXULElement::GetBoxObject(nsIBoxObject** aResult)
   *aResult = nsnull;
 
   // XXX sXBL/XBL2 issue! Owner or current document?
-  nsIDocument* doc = HasFlag(NODE_FORCE_XBL_BINDINGS) ?
-    GetOwnerDoc() : GetCurrentDoc();
-  nsCOMPtr<nsIDOMNSDocument> nsDoc(do_QueryInterface(doc));
+  nsCOMPtr<nsIDOMNSDocument> nsDoc = do_QueryInterface(GetOwnerDoc());
 
   return nsDoc ? nsDoc->GetBoxObjectFor(this, aResult) : NS_ERROR_FAILURE;
 }

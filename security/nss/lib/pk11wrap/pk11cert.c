@@ -354,8 +354,7 @@ PK11_MakeCertFromHandle(PK11SlotInfo *slot,CK_OBJECT_HANDLE certID,
 	     * valid CA's which are self-signed here. They must have an object
 	     * ID of '0'.  */ 
 	    if (pk11_isID0(slot,certID) && 
-		SECITEM_CompareItem(&cert->derSubject,&cert->derIssuer)
-							   == SECEqual) {
+		cert->isRoot) {
 		trustflags |= CERTDB_TRUSTED_CA;
 		/* is the slot a fortezza card? allow the user or
 		 * admin to turn on objectSigning, but don't turn
@@ -1998,46 +1997,6 @@ PK11_FindCertFromDERCertItem(PK11SlotInfo *slot, SECItem *inDerCert,
     return c ? STAN_GetCERTCertificateOrRelease(c) : NULL;
 } 
 
-/* mcgreer 3.4 -- nobody uses this, ignoring */
-/*
- * return the certificate associated with a derCert 
- */
-CERTCertificate *
-PK11_FindCertFromDERSubjectAndNickname(PK11SlotInfo *slot, 
-					CERTCertificate *cert, 
-					char *nickname, void *wincx)
-{
-    CK_OBJECT_CLASS certClass = CKO_CERTIFICATE;
-    CK_ATTRIBUTE theTemplate[] = {
-	{ CKA_SUBJECT, NULL, 0 },
-	{ CKA_LABEL, NULL, 0 },
-	{ CKA_CLASS, NULL, 0 }
-    };
-    /* if you change the array, change the variable below as well */
-    int tsize = sizeof(theTemplate)/sizeof(theTemplate[0]);
-    CK_OBJECT_HANDLE certh;
-    CK_ATTRIBUTE *attrs = theTemplate;
-    SECStatus rv;
-
-    PK11_SETATTRS(attrs, CKA_SUBJECT, cert->derSubject.data, 
-						cert->derSubject.len); attrs++;
-    PK11_SETATTRS(attrs, CKA_LABEL, nickname, PORT_Strlen(nickname));
-    PK11_SETATTRS(attrs, CKA_CLASS, &certClass, sizeof(certClass));
-
-    /*
-     * issue the find
-     */
-    rv = pk11_AuthenticateUnfriendly(slot, PR_TRUE, wincx);
-    if (rv != SECSuccess) return NULL;
-
-    certh = pk11_getcerthandle(slot,cert,theTemplate,tsize);
-    if (certh == CK_INVALID_HANDLE) {
-	return NULL;
-    }
-
-    return PK11_MakeCertFromHandle(slot, certh, NULL);
-}
-
 /*
  * import a cert for a private key we have already generated. Set the label
  * on both to be the nickname.
@@ -2267,39 +2226,10 @@ PK11_FindCertInSlot(PK11SlotInfo *slot, CERTCertificate *cert, void *wincx)
     return pk11_getcerthandle(slot,cert,theTemplate,tsize);
 }
 
-SECItem *
-PK11_GetKeyIDFromCert(CERTCertificate *cert, void *wincx)
-{
-    CK_OBJECT_HANDLE handle;
-    PK11SlotInfo *slot = NULL;
-    CK_ATTRIBUTE theTemplate[] = {
-	{ CKA_ID, NULL, 0 },
-    };
-    int tsize = sizeof(theTemplate)/sizeof(theTemplate[0]);
-    SECItem *item = NULL;
-    CK_RV crv;
+/* Looking for PK11_GetKeyIDFromCert?  
+ * Use PK11_GetLowLevelKeyIDForCert instead.
+ */
 
-    handle = PK11_FindObjectForCert(cert,wincx,&slot);
-    if (handle == CK_INVALID_HANDLE) {
-	goto loser;
-    }
-
-    crv = PK11_GetAttributes(NULL,slot,handle,theTemplate,tsize);
-    if (crv != CKR_OK) {
-	PORT_SetError( PK11_MapError(crv) );
-	goto loser;
-    }
-
-    item = PORT_ZNew(SECItem);
-    if (item) {
-        item->data = (unsigned char*) theTemplate[0].pValue;
-        item->len = theTemplate[0].ulValueLen;
-    }
-
-loser:
-    PK11_FreeSlot(slot);
-    return item;
-}
 
 struct listCertsStr {
     PK11CertListType type;

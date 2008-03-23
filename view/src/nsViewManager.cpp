@@ -596,9 +596,25 @@ void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
     nsPoint offsetToRoot = aView->GetOffsetTo(displayRoot); 
     nsRegion damageRegion(aRegion);
     damageRegion.MoveBy(offsetToRoot);
-    
+
+    gfxContext* ctx = aRC.ThebesContext();
+    nsCOMPtr<nsIDeviceContext> dc;
+    aRC.GetDeviceContext(*getter_AddRefs(dc));
+    double appPerDev = dc->AppUnitsPerDevPixel();
+    gfxRect r(-offsetToRoot.x/appPerDev, -offsetToRoot.y/appPerDev, 1.0, 1.0);
+
     aRC.PushState();
-    aRC.Translate(-offsetToRoot.x, -offsetToRoot.y);
+    // Translate by the pixel-snapped offsetToRoot so that aRC's (0,0) will
+    // be aligned to pixel boundaries. We use gfx pixel-snapping here to
+    // ensure that the snapping we do here is consistent with other gfx
+    // snapping. For example if someone drew a border around the outside
+    // of aView, we want our (0,0) to be the inside top-left of that
+    // border.
+    if (ctx->UserToDevicePixelSnapped(r)) {
+      ctx->Translate(ctx->DeviceToUser(r).pos);
+    } else {
+      aRC.Translate(-offsetToRoot.x, -offsetToRoot.y);
+    }
     mObserver->Paint(displayRoot, &aRC, damageRegion);
     aRC.PopState();
   }
@@ -935,6 +951,73 @@ void nsViewManager::UpdateViews(nsView *aView, PRUint32 aUpdateFlags)
   }
 }
 
+nsView *nsViewManager::sCurrentlyFocusView = nsnull;
+nsView *nsViewManager::sViewFocusedBeforeSuppression = nsnull;
+PRInt32 nsViewManager::sSuppressCount = 0;
+
+void nsViewManager::SuppressFocusEvents()
+{
+  sSuppressCount++;
+  if (sSuppressCount == 1) {
+    // We're turning on focus/blur suppression, remember what had
+    // the focus.
+    SetViewFocusedBeforeSuppression(GetCurrentlyFocusedView());
+  }  
+}
+
+void nsViewManager::UnsuppressFocusEvents()
+{
+  sSuppressCount--;
+  if (sSuppressCount > 0 ||
+      GetCurrentlyFocusedView() == GetViewFocusedBeforeSuppression())
+  return;
+  
+  // We're turning off suppression, synthesize LOSTFOCUS/GOTFOCUS.
+  nsIWidget *widget = nsnull;
+  nsEventStatus status;
+
+  // Backup what is focused before we send the blur. If the
+  // blur causes a focus change, keep that new focus change,
+  // don't overwrite with the old "currently focused view".
+  nsIView *currentFocusBeforeBlur = GetCurrentlyFocusedView();
+
+  // Send NS_LOSTFOCUS to widget that was focused before
+  // focus/blur suppression.
+  if (GetViewFocusedBeforeSuppression()) {
+    widget = GetViewFocusedBeforeSuppression()->GetWidget();
+    if (widget) {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+      printf("*** 0 INFO TODO [CPEARCE] Unsuppressing, dispatching NS_LOSTFOCUS\n");
+#endif
+      nsGUIEvent event(PR_TRUE, NS_LOSTFOCUS, widget);
+      widget->DispatchEvent(&event, status);
+    }
+  }
+
+  // Send NS_GOTFOCUS to the widget that we think should be focused.
+  if (GetCurrentlyFocusedView() &&
+      currentFocusBeforeBlur == GetCurrentlyFocusedView())
+  {
+    widget = GetCurrentlyFocusedView()->GetWidget();
+    if (widget) {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+      printf("*** 0 INFO TODO [CPEARCE] Unsuppressing, dispatching NS_GOTFOCUS\n");
+#endif
+      nsGUIEvent event(PR_TRUE, NS_GOTFOCUS, widget);
+      widget->DispatchEvent(&event, status); 
+    }
+  }
+
+}
+
+static void ConvertRectAppUnitsToIntPixels(nsRect& aRect, PRInt32 p2a)
+{
+  aRect.x = NSAppUnitsToIntPixels(aRect.x, p2a);
+  aRect.y = NSAppUnitsToIntPixels(aRect.y, p2a);
+  aRect.width = NSAppUnitsToIntPixels(aRect.width, p2a);
+  aRect.height = NSAppUnitsToIntPixels(aRect.height, p2a);
+}
+
 NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aStatus)
 {
   *aStatus = nsEventStatus_eIgnore;
@@ -1138,6 +1221,23 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
 
     default:
       {
+        if (aEvent->message == NS_GOTFOCUS) {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+          printf("*** 0 INFO TODO [CPEARCE] Focus changing%s\n",
+            (nsViewManager::IsFocusSuppressed() ? " while suppressed" : ""));
+#endif
+          SetCurrentlyFocusedView(nsView::GetViewFor(aEvent->widget));
+        }
+        if ((aEvent->message == NS_GOTFOCUS || aEvent->message == NS_LOSTFOCUS) &&
+             nsViewManager::IsFocusSuppressed())
+        {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+          printf("*** 0 INFO TODO [CPEARCE] Suppressing %s\n",
+            (aEvent->message == NS_GOTFOCUS ? "NS_GOTFOCUS" : "NS_LOSTFOCUS"));
+#endif          
+          break;
+        }
+        
         if ((NS_IS_MOUSE_EVENT(aEvent) &&
              // Ignore moves that we synthesize.
              static_cast<nsMouseEvent*>(aEvent)->reason ==
@@ -1164,6 +1264,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
         
         if (!NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
             !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
+            !NS_IS_QUERY_CONTENT_EVENT(aEvent) &&
              aEvent->eventStructType != NS_ACCESSIBLE_EVENT) {
           // will dispatch using coordinates. Pretty bogus but it's consistent
           // with what presshell does.
@@ -1250,26 +1351,27 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           *aStatus = HandleEvent(view, pt, aEvent, capturedEvent);
 
           //
-          // if the event is an nsTextEvent, we need to map the reply back into platform coordinates
+          // need to map the reply back into platform coordinates
           //
-          if (aEvent->message==NS_TEXT_TEXT) {
-            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.x=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.x, p2a);
-            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.y=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.y, p2a);
-            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.width=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.width, p2a);
-            ((nsTextEvent*)aEvent)->theReply.mCursorPosition.height=NSAppUnitsToIntPixels(((nsTextEvent*)aEvent)->theReply.mCursorPosition.height, p2a);
-          }
-          if((aEvent->message==NS_COMPOSITION_START) ||
-             (aEvent->message==NS_COMPOSITION_QUERY)) {
-            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.x=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.x, p2a);
-            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.y=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.y, p2a);
-            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.width=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.width, p2a);
-            ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.height=NSAppUnitsToIntPixels(((nsCompositionEvent*)aEvent)->theReply.mCursorPosition.height, p2a);
-          }
-          if(aEvent->message==NS_QUERYCARETRECT) {
-            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.x=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.x, p2a);
-            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.y=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.y, p2a);
-            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.width=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.width, p2a);
-            ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.height=NSAppUnitsToIntPixels(((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect.height, p2a);
+          switch (aEvent->message) {
+            case NS_TEXT_TEXT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsTextEvent*)aEvent)->theReply.mCursorPosition, p2a);
+              break;
+            case NS_COMPOSITION_START:
+            case NS_COMPOSITION_QUERY:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition, p2a);
+              break;
+            case NS_QUERYCARETRECT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect, p2a);
+              break;
+            case NS_QUERY_CHARACTER_RECT:
+            case NS_QUERY_CARET_RECT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsQueryContentEvent*)aEvent)->mReply.mRect, p2a);
+              break;
           }
         }
     
@@ -1560,7 +1662,7 @@ NS_IMETHODIMP nsViewManager::ResizeView(nsIView *aView, const nsRect &aRect, PRB
   nsRect oldDimensions;
 
   view->GetDimensions(oldDimensions);
-  if (oldDimensions != aRect) {
+  if (!oldDimensions.IsExactEqual(aRect)) {
     nsView* parentView = view->GetParent();
     if (parentView == nsnull)
       parentView = view;
@@ -1621,7 +1723,7 @@ PRBool nsViewManager::CanScrollWithBitBlt(nsView* aView, nsPoint aDelta,
 
   aUpdateRegion->MoveBy(-displayOffset);
 
-#ifdef MOZ_WIDGET_GTK2
+#if defined(MOZ_WIDGET_GTK2) || defined(XP_OS2)
   return aUpdateRegion->IsEmpty();
 #else
   return PR_TRUE;

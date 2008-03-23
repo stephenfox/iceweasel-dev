@@ -41,6 +41,9 @@
 /* Class used to manage the wrapped native objects within a JS scope. */
 
 #include "xpcprivate.h"
+#ifdef DEBUG
+#include "XPCNativeWrapper.h"
+#endif
 
 /***************************************************************************/
 
@@ -235,7 +238,6 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal)
     mScriptObjectPrincipal = nsnull;
     // Now init our script object principal, if the new global has one
 
-    JSContext* cx = ccx.GetJSContext();
     const JSClass* jsClass = STOBJ_GET_CLASS(aGlobal);
     if(!(~jsClass->flags & (JSCLASS_HAS_PRIVATE |
                             JSCLASS_PRIVATE_IS_NSISUPPORTS)))
@@ -353,7 +355,7 @@ WrappedNativeJSGCThingTracer(JSDHashTable *table, JSDHashEntryHdr *hdr,
                              uint32 number, void *arg)
 {
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
-    if(wrapper->HasExternalReference())
+    if(wrapper->HasExternalReference() && !wrapper->IsWrapperExpired())
     {
         JSTracer* trc = (JSTracer *)arg;
         JS_CALL_OBJECT_TRACER(trc, wrapper->GetFlatJSObject(),
@@ -712,7 +714,8 @@ GetScopeOfObject(JSObject* obj)
         {
             if(!(~clazz->flags & (JSCLASS_HAS_PRIVATE |
                                   JSCLASS_PRIVATE_IS_NSISUPPORTS)) &&
-               (supports = (nsISupports*) xpc_GetJSPrivate(obj)))
+               (supports = (nsISupports*) xpc_GetJSPrivate(obj)) &&
+               !XPCNativeWrapper::IsNativeWrapperClass(clazz))
             {
                 nsCOMPtr<nsIXPConnectWrappedNative> iface =
                     do_QueryInterface(supports);

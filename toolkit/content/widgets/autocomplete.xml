@@ -54,7 +54,7 @@
     </resources>
 
     <content sizetopopup="pref">
-      <xul:hbox class="autocomplete-textbox-container" flex="1">
+      <xul:hbox class="autocomplete-textbox-container" flex="1" xbl:inherits="focused">
         <children includes="image|deck|stack|box">
           <xul:image class="autocomplete-icon" allowevents="true"/>
         </children>
@@ -70,7 +70,7 @@
 
       <xul:dropmarker anonid="historydropmarker" class="autocomplete-history-dropmarker"
                       allowevents="true"
-                      xbl:inherits="open,enablehistory"/>
+                      xbl:inherits="open,enablehistory,parentfocused=focused"/>
 
       <xul:popupset anonid="popupset" class="autocomplete-result-popupset"/>
     </content>
@@ -81,10 +81,6 @@
       <field name="mIgnoreInput">false</field>
       <field name="mEnterEvent">null</field>
       <field name="mConsumeRollupEvent">false</field>
-
-      <field name="mInputElt">
-        document.getAnonymousElementByAttribute(this, "anonid", "input");
-      </field>
 
       <constructor><![CDATA[
         mController = Components.classes["@mozilla.org/autocomplete/controller;1"].
@@ -200,7 +196,13 @@
         <parameter name="aStartIndex"/>
         <parameter name="aEndIndex"/>
         <body><![CDATA[
-          this.mInputElt.setSelectionRange(aStartIndex, aEndIndex);
+          this.inputField.setSelectionRange(aStartIndex, aEndIndex);
+        ]]></body>
+      </method>
+
+      <method name="onSearchBegin">
+        <body><![CDATA[
+          this.fireEvent("searchbegin");
         ]]></body>
       </method>
 
@@ -238,33 +240,35 @@
                 onset="this.setAttribute('crop',val); return val;"
                 onget="return this.getAttribute('crop');"/>
 
-      <property name="label" readonly="true" onget="return this.mInputElt.value;"/>
-
       <property name="open"
                 onget="return this.getAttribute('open') == 'true';">
         <setter><![CDATA[
-            if (val) {
-              this.setAttribute("open", "true"); 
-              this.showHistoryPopup();
-            }
-            else {
-              this.removeAttribute("open");
-              this.closePopup();
-            }
+          if (val)
+            this.showHistoryPopup();
+          else
+            this.closePopup();
         ]]></setter>
       </property>
 
       <!-- =================== PUBLIC MEMBERS =================== -->
 
       <property name="value"
-                onget="return this.mInputElt.value;">
+                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           this.mIgnoreInput = true;
-          this.mInputElt.value = val;
+          if (val) {
+            // clear the emptyText _before_ setting a new non-empty value
+            this._clearEmptyText();
+            this.inputField.value = val;
+          } else {
+            // display the emptyText _after_ setting a value that's an empty string
+            this.inputField.value = val;
+            this._updateVisibleText();
+          }
           this.mIgnoreInput = false;
           var event = document.createEvent('Events');
           event.initEvent('ValueChange', true, true);
-          this.mInputElt.dispatchEvent(event);
+          this.inputField.dispatchEvent(event);
           return val;
         ]]></setter>
       </property>
@@ -337,7 +341,22 @@
 
       <method name="showHistoryPopup">
         <body><![CDATA[
-          this.setAttribute("open", "true");
+          // history dropmarker pushed state
+          function cleanup(popup) {
+            popup.removeEventListener("popupshowing", onShow, false);
+          }
+          function onShow(event) {
+            var popup = event.target, input = popup.input;
+            cleanup(popup);
+            input.setAttribute("open", "true");
+            function onHide() {
+              input.removeAttribute("open");
+              popup.removeEventListener("popuphiding", onHide, false);
+            }
+            popup.addEventListener("popuphiding", onHide, false);
+          }
+          this.popup.addEventListener("popupshowing", onShow, false);
+          setTimeout(cleanup, 1000, this.popup);
 
           // Store our "normal" maxRows on the popup, so that it can reset the
           // value when the popup is hidden.
@@ -436,7 +455,7 @@
               break;
             case KeyEvent.DOM_VK_RETURN:
               this.mEnterEvent = aEvent;
-              cancel = this.mController.handleEnter();
+              cancel = this.mController.handleEnter(false);
               break;
             case KeyEvent.DOM_VK_DELETE:
 #ifdef XP_MACOSX
@@ -513,21 +532,11 @@
       <handler event="compositionend" phase="capturing"
                action="if (this.mController.input == this) this.mController.handleEndComposition();"/>
 
-      <handler event="focus" phase="capturing">
-        <![CDATA[
-          this.attachController(); 
-          this.mInputElt.parentNode.parentNode.setAttribute('focused', 'true');
-        ]]>
-      </handler>
+      <handler event="focus" phase="capturing"
+               action="this.attachController();"/>
 
-      <handler event="blur" phase="capturing">
-        <![CDATA[
-          if (!this._dontBlur) {
-            this.detachController();
-            this.mInputElt.parentNode.parentNode.removeAttribute('focused');
-          }
-        ]]>
-      </handler>
+      <handler event="blur" phase="capturing"
+               action="if (!this._dontBlur) this.detachController();"/>
 
       <handler event="contextmenu" phase="capturing"
                action="this.closePopup();"/>
@@ -828,7 +837,7 @@
         <parameter name="aEvent"/>
         <body><![CDATA[
           var controller = this.view.QueryInterface(Components.interfaces.nsIAutoCompleteController);
-          controller.handleEnter();
+          controller.handleEnter(true);
         ]]></body>
       </method>
     </implementation>
@@ -856,7 +865,6 @@
         // see bug #400671 for details
         this.selectedIndex = -1;
         this.mPopupOpen = false;
-        this.mInput.removeAttribute("open");
 
         // Reset the maxRows property to the cached "normal" value, and reset
         // _normalMaxRows so that we can detect whether it was set by the input
@@ -1222,7 +1230,7 @@
           // need to set up the ellipsis on a time out, 
           // because the width of the description element may still be 0
           // even though the aText length is non-zero
-          setTimeout(function(self) { self._setUpEllipsis(aBoxObject, aDescriptionElement.boxObject, aEllipsis); }, 0, this);
+          setTimeout(function(self) { self._setUpEllipsis(aBoxObject, aDescriptionElement, aEllipsis); }, 0, this);
           ]]>
         </body>
       </method>
@@ -1295,10 +1303,14 @@
         <body>
           <![CDATA[
           // determine if we need to show the ellipsis
-          if (aBoxObject.width >= aDescriptionElement.width)
+          if (aBoxObject.width >= aDescriptionElement.boxObject.width) {
             aEllipsis.value = "";
-          else 
+            aDescriptionElement.tooltipText = "";
+          }
+          else {
             aEllipsis.value = this.ellipsis;
+            aDescriptionElement.tooltipText = aDescriptionElement.textContent;
+          }
           ]]>
         </body>
       </method>

@@ -74,7 +74,13 @@ public:
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nsIFrame* GetContentInsertionFrame() {
-    return GetFirstChild(nsnull)->GetContentInsertionFrame();
+    nsIFrame* frame = GetFirstChild(nsnull);
+
+    // if no children return nsnull
+    if (!frame)
+      return nsnull;
+
+    return frame->GetContentInsertionFrame();
   }
 
   virtual nsresult StealFrame(nsPresContext* aPresContext,
@@ -218,8 +224,10 @@ GetColumnGap(nsColumnSetFrame*    aFrame,
     return aFrame->GetStyleFont()->mFont.size;
   else if (nsLayoutUtils::GetAbsoluteCoord(aColStyle->mColumnGap,
                                            aRenderingContext,
-                                           aFrame, colGap))
+                                           aFrame, colGap)) {
+    NS_ASSERTION(colGap >= 0, "negative column gap");
     return colGap;
+  }
 
   NS_NOTREACHED("Unknown gap type");
   return 0;
@@ -245,11 +253,12 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState)
   if (nsLayoutUtils::GetAbsoluteCoord(colStyle->mColumnWidth,
                                       aReflowState.rendContext,
                                       this, colWidth)) {
+    NS_ASSERTION(colWidth >= 0, "negative column width");
     // Reduce column count if necessary to make columns fit in the
     // available width. Compute max number of columns that fit in
     // availContentWidth, satisfying colGap*(maxColumns - 1) +
     // colWidth*maxColumns <= availContentWidth
-    if (availContentWidth != NS_INTRINSICSIZE && colWidth + colGap > 0
+    if (availContentWidth != NS_INTRINSICSIZE && colGap + colWidth > 0
         && numColumns > 0) {
       // This expression uses truncated rounding, which is what we
       // want
@@ -277,7 +286,9 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState)
       // choose so that colGap*(nominalColumnCount - 1) +
       // colWidth*nominalColumnCount is nearly availContentWidth
       // make sure to round down
-      numColumns = (availContentWidth + colGap)/(colGap + colWidth);
+      if (colGap + colWidth > 0) {
+        numColumns = (availContentWidth + colGap)/(colGap + colWidth);
+      }
       if (numColumns <= 0) {
         numColumns = 1;
       }
@@ -329,8 +340,7 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
     return;
   }
   
-  nsRect* overflowArea = aChild->GetOverflowAreaProperty(PR_FALSE);
-  nsRect r = overflowArea ? *overflowArea : nsRect(nsPoint(0, 0), aChild->GetSize());
+  nsRect r = aChild->GetOverflowRect();
   r += aChild->GetPosition();
   aParent->Invalidate(r);
   r -= aChild->GetPosition();
@@ -756,7 +766,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
   // if we have a next in flow because we don't want to suck all its
   // content back here and then have to push it out again!
   nsIFrame* nextInFlow = GetNextInFlow();
-  PRBool unboundedLastColumn = isBalancing && nextInFlow;
+  PRBool unboundedLastColumn = isBalancing && !nextInFlow;
   nsCollapsingMargin carriedOutBottomMargin;
   PRBool feasible = ReflowChildren(aDesiredSize, aReflowState,
     aStatus, config, unboundedLastColumn, &carriedOutBottomMargin);

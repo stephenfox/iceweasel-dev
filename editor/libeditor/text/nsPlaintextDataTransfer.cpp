@@ -136,6 +136,9 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
   NS_Free(bestFlavor);
       
   // Try to scroll the selection into view if the paste/drop succeeded
+
+  // After ScrollSelectionIntoView(), the pending notifications might be flushed
+  // and PresShell/PresContext/Frames may be dead. See bug 418470.
   if (NS_SUCCEEDED(rv))
     ScrollSelectionIntoView(PR_FALSE);
 
@@ -301,6 +304,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     if (!nsEditorHookUtils::DoInsertionHook(destdomdoc, aDropEvent, trans))
       return NS_OK;
 
+    // Beware! This may flush notifications via synchronous
+    // ScrollSelectionIntoView.
     rv = InsertTextFromTransferable(trans, newSelectionParent, newSelectionOffset, deleteSelection);
   }
 
@@ -450,6 +455,8 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
       if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, trans))
         return NS_OK;
 
+      // Beware! This may flush notifications via synchronous
+      // ScrollSelectionIntoView.
       rv = InsertTextFromTransferable(trans, nsnull, nsnull, PR_TRUE);
     }
   }
@@ -463,14 +470,11 @@ NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPa
   NS_ENSURE_ARG_POINTER(aCanPaste);
   *aCanPaste = PR_FALSE;
 
-  nsresult rv = FireClipboardEvent(NS_BEFOREPASTE, aCanPaste);
-  if (NS_FAILED(rv) || *aCanPaste)
-    return rv;
-
   // can't paste if readonly
   if (!IsModifiable())
     return NS_OK;
 
+  nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
   if (NS_FAILED(rv)) return rv;
   

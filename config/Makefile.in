@@ -121,19 +121,22 @@ export::
 		-DBUILD_STATIC_LIBS=$(BUILD_STATIC_LIBS) \
 		-DMOZ_TREE_CAIRO=$(MOZ_TREE_CAIRO) \
 		-DMOZ_ENABLE_LIBXUL=$(MOZ_ENABLE_LIBXUL) \
+		-DMOZ_NATIVE_HUNSPELL=$(MOZ_NATIVE_HUNSPELL) \
 		-DMOZ_NATIVE_ZLIB=$(MOZ_NATIVE_ZLIB) \
 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
 		-DMOZ_NATIVE_LCMS=$(MOZ_NATIVE_LCMS) \
 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
 	$(INSTALL) system_wrappers $(DIST)/include
+
+GARBAGE_DIRS += system_wrappers
 endif
 
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(DEPTH)/mozilla-config.h $(DESTDIR)$(includedir)
 
 GARBAGE += \
-	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC

@@ -94,6 +94,7 @@ CSRCS   = \
         cairo-lzw.c \
         cairo-matrix.c \
         cairo-meta-surface.c \
+	cairo-misc.c \
 	cairo-mutex.c \
         cairo-output-stream.c \
         cairo-paginated-surface.c \
@@ -163,7 +164,7 @@ EXPORTS += $(PDF_EXPORTS)
 endif
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-CSRCS   += cairo-quartz-surface.c cairo-atsui-font.c
+CSRCS   += cairo-quartz-surface.c cairo-quartz-image-surface.c cairo-atsui-font.c
 EXPORTS += cairo-quartz.h cairo-atsui.h
 endif
 

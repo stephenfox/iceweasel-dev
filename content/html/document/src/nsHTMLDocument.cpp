@@ -408,6 +408,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEmbeds)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLinks)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAnchors)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFragmentParser)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mForms, nsIDOMNodeList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mFormControls,
                                                        nsIDOMNodeList)
@@ -415,6 +416,18 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLDocument, nsDocument)
 NS_IMPL_RELEASE_INHERITED(nsHTMLDocument, nsDocument)
+
+
+// QueryInterface implementation for nsHTMLDocument
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLDocument)
+  NS_INTERFACE_TABLE_INHERITED3(nsHTMLDocument,
+                                nsIHTMLDocument,
+                                nsIDOMHTMLDocument,
+                                nsIDOMNSHTMLDocument)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLDocument)
+NS_INTERFACE_MAP_END_INHERITING(nsDocument)
+
 
 nsresult
 nsHTMLDocument::Init()
@@ -1739,26 +1752,28 @@ nsHTMLDocument::SetDomain(const nsAString& aDomain)
   // For example, a page from foo.bar.com may set domain to bar.com,
   // but not to ar.com, baz.com, or fi.foo.bar.com.
   nsCAutoString current, domain;
-  if (NS_FAILED(uri->GetHost(current)))
+  if (NS_FAILED(uri->GetAsciiHost(current)))
     current.Truncate();
-  if (NS_FAILED(newURI->GetHost(domain)))
+  if (NS_FAILED(newURI->GetAsciiHost(domain)))
     domain.Truncate();
 
   PRBool ok = current.Equals(domain);
   if (current.Length() > domain.Length() &&
       StringEndsWith(current, domain) &&
       current.CharAt(current.Length() - domain.Length() - 1) == '.') {
-    // Using only a TLD is forbidden (bug 368700)
+    // We're golden if the new domain is the current page's base domain or a
+    // subdomain of it.
     nsCOMPtr<nsIEffectiveTLDService> tldService =
       do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
     if (!tldService)
       return NS_ERROR_NOT_AVAILABLE;
 
-    // try to get the base domain; if this works, we're ok.
-    // if we're dealing with an IP address, getting the base domain
-    // will fail, as required.
-    nsCAutoString baseDomain;
-    ok = NS_SUCCEEDED(tldService->GetBaseDomain(newURI, 0, baseDomain));
+    nsCAutoString currentBaseDomain;
+    ok = NS_SUCCEEDED(tldService->GetBaseDomain(uri, 0, currentBaseDomain));
+    NS_ASSERTION(StringEndsWith(domain, currentBaseDomain) ==
+                 (domain.Length() >= currentBaseDomain.Length()),
+                 "uh-oh!  slight optimization wasn't valid somehow!");
+    ok = ok && domain.Length() >= currentBaseDomain.Length();
   }
   if (!ok) {
     // Error: illegal domain
@@ -3558,6 +3573,12 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 
 //----------------------------
 
+/* virtual */ nsIContent*
+nsHTMLDocument::GetBodyContentExternal()
+{
+  return GetBodyContent();
+}
+
 nsIContent*
 nsHTMLDocument::GetBodyContent()
 {
@@ -3893,6 +3914,21 @@ NotifyEditableStateChange(nsINode *aNode, nsIDocument *aDocument,
   }
 }
 
+void
+nsHTMLDocument::TearingDownEditor(nsIEditor *aEditor)
+{
+  if (IsEditingOn()) {
+    mEditingState = eTearingDown;
+
+    nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(aEditor);
+    if (editorss) {
+      editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
+      if (mEditingState == eDesignMode)
+        editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
+    }
+  }
+}
+
 nsresult
 nsHTMLDocument::TurnEditingOff()
 {
@@ -3907,25 +3943,12 @@ nsHTMLDocument::TurnEditingOff()
     return NS_ERROR_FAILURE;
 
   nsresult rv;
-  nsCOMPtr<nsIEditorDocShell> editorDocShell =
-    do_QueryInterface(docshell, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIEditingSession> editSession = do_GetInterface(docshell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // turn editing off
   rv = editSession->TearDownEditorOnWindow(window);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIEditor> editor;
-  editorDocShell->GetEditor(getter_AddRefs(editor));
-  nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(editor);
-  if (editorss) {
-    editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
-    if (mEditingState == eDesignMode)
-      editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
-  }
 
   mEditingState = eOff;
 
@@ -3945,7 +3968,7 @@ static PRBool HasPresShell(nsPIDOMWindow *aWindow)
 nsresult
 nsHTMLDocument::EditingStateChanged()
 {
-  if (mEditingState == eSettingUp) {
+  if (mEditingState == eSettingUp || mEditingState == eTearingDown) {
     // XXX We shouldn't recurse.
     return NS_OK;
   }

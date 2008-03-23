@@ -75,9 +75,7 @@ var gLastBrowserCharset = null;
 var gPrevCharset = null;
 var gURLBar = null;
 var gFindBar = null;
-var gProxyButton = null;
 var gProxyFavIcon = null;
-var gProxyDeck = null;
 var gNavigatorBundle = null;
 var gIsLoadingBlank = false;
 var gLastValidURLStr = "";
@@ -656,7 +654,7 @@ const gXPInstallObserver = {
         var notificationBox = gBrowser.getNotificationBox(browser);
         if (!notificationBox.getNotificationWithValue(notificationName)) {
           const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-          const iconURL = "chrome://mozapps/skin/xpinstall/xpinstallItemGeneric.png";
+          const iconURL = "chrome://mozapps/skin/update/update.png";
           notificationBox.appendNotification(messageString, notificationName,
                                              iconURL, priority, buttons);
         }
@@ -946,21 +944,25 @@ function delayedStartup()
                            gAutoHideTabbarPrefListener, false);
 
   gPrefService.addObserver(gHomeButton.prefDomain, gHomeButton, false);
-  gHomeButton.updateTooltip();
+
+  var homeButton = document.getElementById("home-button");
+  gHomeButton.updateTooltip(homeButton);
+  gHomeButton.updatePersonalToolbarStyle(homeButton);
 
 #ifdef HAVE_SHELL_SERVICE
   // Perform default browser checking (after window opens).
   var shell = getShellService();
   if (shell) {
     var shouldCheck = shell.shouldCheckDefaultBrowser;
-    var willRestoreSession = false;
+    var willRecoverSession = false;
     try {
       var ss = Cc["@mozilla.org/browser/sessionstartup;1"].
                getService(Ci.nsISessionStartup);
-      willRestoreSession = ss.doRestore();
+      willRecoverSession =
+        (ss.sessionType == Ci.nsISessionStartup.RECOVER_SESSION);
     }
     catch (ex) { /* never mind; suppose SessionStore is broken */ }
-    if (shouldCheck && !shell.isDefaultBrowser(true) && !willRestoreSession) {
+    if (shouldCheck && !shell.isDefaultBrowser(true) && !willRecoverSession) {
       var brandBundle = document.getElementById("bundle_brand");
       var shellBundle = document.getElementById("bundle_shell");
 
@@ -1074,7 +1076,6 @@ function delayedStartup()
                    getService(Ci.nsIDownloadManager);
 
     // Initialize the downloads monitor panel listener
-    gDownloadMgr.addListener(DownloadMonitorPanel);
     DownloadMonitorPanel.init();
   }, 10000);
 
@@ -1120,6 +1121,7 @@ function BrowserShutdown()
 
   BrowserOffline.uninit();
   OfflineApps.uninit();
+  DownloadMonitorPanel.uninit();
 
   var windowManager = Components.classes['@mozilla.org/appshell/window-mediator;1'].getService();
   var windowManagerInterface = windowManager.QueryInterface(Components.interfaces.nsIWindowMediator);
@@ -1562,7 +1564,7 @@ function BrowserOpenTab()
 {
   gBrowser.loadOneTab("about:blank", null, null, null, false, false);
   if (gURLBar)
-    setTimeout(function() { gURLBar.focus(); }, 0);
+    gURLBar.focus();
 }
 
 /* Called from the openLocation dialog. This allows that dialog to instruct
@@ -1612,15 +1614,21 @@ function BrowserCloseTabOrWindow()
   }
 #endif
 
-  if (gBrowser.tabContainer.childNodes.length > 1 ||
-      window.toolbar.visible && !gPrefService.getBoolPref("browser.tabs.autoHide")) {
-    // Just close the tab (and focus the address bar if it was the last one).
-    var isLastTab = gBrowser.tabContainer.childNodes.length == 1;
+  if (gBrowser.tabContainer.childNodes.length > 1) {
+    gBrowser.removeCurrentTab(); 
+    return;
+  }
+
+#ifndef XP_MACOSX
+  if (gBrowser.localName == "tabbrowser" && window.toolbar.visible &&
+      !gPrefService.getBoolPref("browser.tabs.autoHide")) {
+    // Replace the remaining tab with a blank one and focus the address bar
     gBrowser.removeCurrentTab();
-    if (isLastTab && gURLBar)
+    if (gURLBar)
       setTimeout(function() { gURLBar.focus(); }, 0);
     return;
   }
+#endif
 
   closeWindow(true);
 }
@@ -1686,12 +1694,16 @@ function getShortcutOrURI(aURL, aPostDataRef) {
     param = aURL.substr(offset + 1);
   }
 
-  var engine = searchService.getEngineByAlias(keyword);
-  if (engine)
-    return engine.getSubmission(param, null).uri.spec;
-
   if (!aPostDataRef)
     aPostDataRef = {};
+
+  var engine = searchService.getEngineByAlias(keyword);
+  if (engine) {
+    var submission = engine.getSubmission(param, null);
+    aPostDataRef.value = submission.postData;
+    return submission.uri.spec;
+  }
+
   [shortcutURL, aPostDataRef.value] =
     PlacesUtils.getURLAndPostDataForKeyword(keyword);
 
@@ -1960,8 +1972,7 @@ function URLBarSetURI(aURI) {
   SetPageProxyState(state);
 }
 
-// If "ESC" is pressed in the url bar, we replace the urlbar's value with the url of the page
-// and highlight it, unless it is empty.
+// Replace the urlbar's value with the url of the page.
 function handleURLBarRevert() {
   var throbberElement = document.getElementById("navigator-throbber");
   var isScrolling = gURLBar.popupOpen;
@@ -1972,7 +1983,9 @@ function handleURLBarRevert() {
   // and user is NOT key-scrolling through autocomplete list
   if ((!throbberElement || !throbberElement.hasAttribute("busy")) && !isScrolling) {
     URLBarSetURI();
-    if (gURLBar.value)
+
+    // If the value isn't empty and the urlbar has focus, select the value.
+    if (gURLBar.value && gURLBar.hasAttribute("focused"))
       gURLBar.select();
   }
 
@@ -2099,6 +2112,28 @@ function UpdateUrlbarSearchSplitterState()
     splitter.parentNode.removeChild(splitter);
 }
 
+var LocationBarHelpers = {
+  _timeoutID: null,
+
+  _searchBegin: function LocBar_searchBegin() {
+    function delayedBegin(self) {
+      self._timeoutID = null;
+      document.getElementById("urlbar-throbber").setAttribute("busy", "true");
+    }
+
+    this._timeoutID = setTimeout(delayedBegin, 500, this);
+  },
+
+  _searchComplete: function LocBar_searchComplete() {
+    // Did we finish the search before delayedBegin was invoked?
+    if (this._timeoutID) {
+      clearTimeout(this._timeoutID);
+      this._timeoutID = null;
+    }
+    document.getElementById("urlbar-throbber").removeAttribute("busy");
+  }
+};
+
 function UpdatePageProxyState()
 {
   if (gURLBar && gURLBar.value != gLastValidURLStr)
@@ -2110,15 +2145,11 @@ function SetPageProxyState(aState)
   if (!gURLBar)
     return;
 
-  if (!gProxyButton)
-    gProxyButton = document.getElementById("page-proxy-button");
   if (!gProxyFavIcon)
     gProxyFavIcon = document.getElementById("page-proxy-favicon");
-  if (!gProxyDeck)
-    gProxyDeck = document.getElementById("page-proxy-deck");
 
   gURLBar.setAttribute("pageproxystate", aState);
-  gProxyButton.setAttribute("pageproxystate", aState);
+  gProxyFavIcon.setAttribute("pageproxystate", aState);
 
   // the page proxy state is set to valid via OnLocationChange, which
   // gets called when we switch tabs.
@@ -2142,21 +2173,17 @@ function PageProxySetIcon (aURL)
     PageProxyClearIcon();
   else if (gProxyFavIcon.getAttribute("src") != aURL)
     gProxyFavIcon.setAttribute("src", aURL);
-  else if (gProxyDeck.selectedIndex != 1)
-    gProxyDeck.selectedIndex = 1;
 }
 
 function PageProxyClearIcon ()
 {
-  if (gProxyDeck.selectedIndex != 0)
-    gProxyDeck.selectedIndex = 0;
-  if (gProxyFavIcon.hasAttribute("src"))
-    gProxyFavIcon.removeAttribute("src");
+  gProxyFavIcon.removeAttribute("src");
 }
+
 
 function PageProxyDragGesture(aEvent)
 {
-  if (gProxyButton.getAttribute("pageproxystate") == "valid") {
+  if (gProxyFavIcon.getAttribute("pageproxystate") == "valid") {
     nsDragAndDrop.startDrag(aEvent, proxyIconDNDObserver);
     return true;
   }
@@ -2201,11 +2228,10 @@ function BrowserImport()
  * Handle command events bubbling up from error page content
  */
 function BrowserOnCommand(event) {
-    
     // Don't trust synthetic events
     if (!event.isTrusted)
       return;
-    
+
     // If the event came from an ssl error page, it is probably either the "Add
     // Exception…" or "Get me out of here!" button
     if (/^about:neterror\?e=nssBadCert/.test(event.originalTarget.ownerDocument.documentURI)) {
@@ -2770,7 +2796,15 @@ const BrowserSearch = {
   addEngine: function(engine, targetDoc) {
     if (!this.searchBar)
       return;
+
     var browser = gBrowser.getBrowserForDocument(targetDoc);
+
+    // Check to see whether we've already added an engine with this title
+    if (browser.engines) {
+      if (browser.engines.some(function (e) e.title == engine.title))
+        return;
+    }
+
     // Append the URI and an appropriate title to the browser data.
     var iconURL = null;
     if (gBrowser.shouldLoadFavIcon(browser.currentURI))
@@ -2796,7 +2830,7 @@ const BrowserSearch = {
       browser.hiddenEngines = engines;
     else {
       browser.engines = engines;
-      if (browser == gBrowser || browser == gBrowser.mCurrentBrowser)
+      if (browser == gBrowser.mCurrentBrowser)
         this.updateSearchButton();
     }
   },
@@ -2948,8 +2982,18 @@ function FillHistoryMenu(aParent) {
 
     item.setAttribute("label", entry.title || entry.URI.spec);
     item.setAttribute("index", j);
+
+    if (j != index) {
+      try {
+        let iconURL = Cc["@mozilla.org/browser/favicon-service;1"]
+                         .getService(Ci.nsIFaviconService)
+                         .getFaviconForPage(entry.URI).spec;
+        item.style.listStyleImage = "url(" + iconURL + ")";
+      } catch (ex) {}
+    }
+
     if (j < index) {
-      item.className = "unified-nav-back";
+      item.className = "unified-nav-back menuitem-iconic";
       item.setAttribute("tooltiptext", tooltipBack);
     } else if (j == index) {
       item.setAttribute("type", "radio");
@@ -2957,7 +3001,7 @@ function FillHistoryMenu(aParent) {
       item.className = "unified-nav-current";
       item.setAttribute("tooltiptext", tooltipCurrent);
     } else {
-      item.className = "unified-nav-forward";
+      item.className = "unified-nav-forward menuitem-iconic";
       item.setAttribute("tooltiptext", tooltipForward);
     }
 
@@ -3097,9 +3141,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged)
   // Update global UI elements that may have been added or removed
   if (aToolboxChanged) {
     gURLBar = document.getElementById("urlbar");
-    gProxyButton = document.getElementById("page-proxy-button");
     gProxyFavIcon = document.getElementById("page-proxy-favicon");
-    gProxyDeck = document.getElementById("page-proxy-deck");
     gHomeButton.updateTooltip();
     gIdentityHandler._cacheElements();
     window.XULBrowserWindow.init();
@@ -3109,6 +3151,14 @@ function BrowserToolboxCustomizeDone(aToolboxChanged)
       backForwardDropmarker.disabled =
         document.getElementById('Browser:Back').hasAttribute('disabled') &&
         document.getElementById('Browser:Forward').hasAttribute('disabled');
+
+    // support downgrading to Firefox 2.0
+    var navBar = document.getElementById("nav-bar");
+    navBar.setAttribute("currentset",
+                        navBar.getAttribute("currentset")
+                              .replace("unified-back-forward-button",
+                                "unified-back-forward-button,back-button,forward-button"));
+    document.persist(navBar.id, "currentset");
 
 #ifndef XP_MACOSX
     updateEditUIVisibility();
@@ -4176,9 +4226,10 @@ var gHomeButton = {
     this.updateTooltip();
   },
 
-  updateTooltip: function ()
+  updateTooltip: function (homeButton)
   {
-    var homeButton = document.getElementById("home-button");
+    if (!homeButton)
+      homeButton = document.getElementById("home-button");
     if (homeButton) {
       var homePage = this.getHomePage();
       homePage = homePage.replace(/\|/g,', ');
@@ -4205,9 +4256,10 @@ var gHomeButton = {
     return url;
   },
 
-  updatePersonalToolbarStyle: function ()
+  updatePersonalToolbarStyle: function (homeButton)
   {
-    var homeButton = document.getElementById("home-button");
+    if (!homeButton)
+      homeButton = document.getElementById("home-button");
     if (homeButton)
       homeButton.className = homeButton.parentNode.id == "PersonalToolbar"
                                || homeButton.parentNode.parentNode.id == "PersonalToolbar" ?
@@ -4336,15 +4388,6 @@ function asyncOpenWebPanel(event)
    var wrapper = null;
    if (linkNode) {
      wrapper = linkNode;
-
-     // javascript links should be executed in the current browser
-     if (wrapper.href.substr(0, 11) === "javascript:")
-       return true;
-
-     // data links should be executed in the current browser
-     if (wrapper.href.substr(0, 5) === "data:")
-       return true;
-
      if (event.button == 0 && !event.ctrlKey && !event.shiftKey &&
          !event.altKey && !event.metaKey) {
        // A Web panel's links should target the main content area.  Do this
@@ -4360,6 +4403,12 @@ function asyncOpenWebPanel(event)
          if (!wrapper.href)
            return true;
          if (wrapper.getAttribute("onclick"))
+           return true;
+         // javascript links should be executed in the current browser
+         if (wrapper.href.substr(0, 11) === "javascript:")
+           return true;
+         // data links should be executed in the current browser
+         if (wrapper.href.substr(0, 5) === "data:")
            return true;
 
          try {
@@ -4956,12 +5005,18 @@ var OfflineApps = {
   // OfflineApps Public Methods
   init: function ()
   {
-    // XXX: empty init left as a placeholder for patch in bug 397417
+    var obs = Cc["@mozilla.org/observer-service;1"].
+              getService(Ci.nsIObserverService);
+    obs.addObserver(this, "dom-storage-warn-quota-exceeded", false);
+    obs.addObserver(this, "offline-cache-update-completed", false);
   },
 
   uninit: function ()
   {
-    // XXX: empty uninit left as a placeholder for patch in bug 397417
+    var obs = Cc["@mozilla.org/observer-service;1"].
+              getService(Ci.nsIObserverService);
+    obs.removeObserver(this, "dom-storage-warn-quota-exceeded");
+    obs.removeObserver(this, "offline-cache-update-completed");
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -4989,7 +5044,97 @@ var OfflineApps = {
     }
   },
 
+  _getManifestURI: function(aWindow) {
+    var attr = aWindow.document.documentElement.getAttribute("manifest");
+    if (!attr) return null;
+
+    try {
+      var ios = Cc["@mozilla.org/network/io-service;1"].
+                getService(Ci.nsIIOService);
+
+      var contentURI = ios.newURI(aWindow.location.href, null, null);
+      return ios.newURI(attr, aWindow.document.characterSet, contentURI);
+    } catch (e) {
+      return null;
+    }
+  },
+
+  // A cache update isn't tied to a specific window.  Try to find
+  // the best browser in which to warn the user about space usage
+  _getBrowserForCacheUpdate: function(aCacheUpdate) {
+    // Prefer the current browser
+    var uri = this._getManifestURI(gBrowser.mCurrentBrowser.contentWindow);
+    if (uri && uri.equals(aCacheUpdate.manifestURI)) {
+      return gBrowser.mCurrentBrowser;
+    }
+
+    var browsers = getBrowser().browsers;
+    for (var i = 0; i < browsers.length; ++i) {
+      uri = this._getManifestURI(browsers[i].contentWindow);
+      if (uri && uri.equals(aCacheUpdate.manifestURI)) {
+        return browsers[i];
+      }
+    }
+
+    return null;
+  },
+
+  _warnUsage: function(aBrowser, aURI) {
+    if (!aBrowser)
+      return;
+
+    var notificationBox = gBrowser.getNotificationBox(aBrowser);
+    var notification = notificationBox.getNotificationWithValue("offline-app-usage");
+    if (!notification) {
+      var bundle_browser = document.getElementById("bundle_browser");
+
+      var buttons = [{
+          label: bundle_browser.getString("offlineApps.manageUsage"),
+          accessKey: bundle_browser.getString("offlineApps.manageUsageAccessKey"),
+          callback: OfflineApps.manage
+        }];
+
+      var warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
+      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
+      var message = bundle_browser.getFormattedString("offlineApps.usage",
+                                                      [ aURI.host,
+                                                        warnQuota / 1024 ]);
+
+      notificationBox.appendNotification(message, "offline-app-usage",
+                                         "chrome://browser/skin/Info.png",
+                                         priority, buttons);
+    }
+
+    // Now that we've warned once, prevent the warning from showing up
+    // again.
+    var pm = Cc["@mozilla.org/permissionmanager;1"].
+             getService(Ci.nsIPermissionManager);
+    pm.add(aURI, "offline-app",
+           Ci.nsIOfflineCacheUpdateService.ALLOW_NO_WARN);
+  },
+
+  _checkUsage: function(aURI) {
+    var pm = Cc["@mozilla.org/permissionmanager;1"].
+             getService(Ci.nsIPermissionManager);
+
+    // if the user has already allowed excessive usage, don't bother checking
+    if (pm.testExactPermission(aURI, "offline-app") !=
+        Ci.nsIOfflineCacheUpdateService.ALLOW_NO_WARN) {
+      var usage = getOfflineAppUsage(aURI.asciiHost);
+      var warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
+      if (usage >= warnQuota * 1024) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
   offlineAppRequested: function(aContentWindow) {
+    if (!gPrefService.getBoolPref("browser.offline-apps.notify")) {
+      return;
+    }
+
     var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);
     var browser = this._getBrowserForContentWindow(browserWindow,
                                                    aContentWindow);
@@ -5021,6 +5166,14 @@ var OfflineApps = {
         label: bundle_browser.getString("offlineApps.allow"),
         accessKey: bundle_browser.getString("offlineApps.allowAccessKey"),
         callback: function() { OfflineApps.allowSite(); }
+      },{
+        label: bundle_browser.getString("offlineApps.never"),
+        accessKey: bundle_browser.getString("offlineApps.neverAccessKey"),
+        callback: function() { OfflineApps.disallowSite(); }
+      },{
+        label: bundle_browser.getString("offlineApps.notNow"),
+        accessKey: bundle_browser.getString("offlineApps.notNowAccessKey"),
+        callback: function() { /* noop */ }
       }];
 
       const priority = notificationBox.PRIORITY_INFO_LOW;
@@ -5044,6 +5197,17 @@ var OfflineApps = {
     this._startFetching();
   },
 
+  disallowSite: function() {
+    var currentURI = gBrowser.selectedBrowser.webNavigation.currentURI;
+    var pm = Cc["@mozilla.org/permissionmanager;1"].
+             getService(Ci.nsIPermissionManager);
+    pm.add(currentURI, "offline-app", Ci.nsIPermissionManager.DENY_ACTION);
+  },
+
+  manage: function() {
+    openAdvancedPreferences("networkTab");
+  },
+
   _startFetching: function() {
     var manifest = content.document.documentElement.getAttribute("manifest");
     if (!manifest)
@@ -5059,6 +5223,37 @@ var OfflineApps = {
     var updateService = Cc["@mozilla.org/offlinecacheupdate-service;1"].
                         getService(Ci.nsIOfflineCacheUpdateService);
     updateService.scheduleUpdate(manifestURI, contentURI);
+  },
+
+  /////////////////////////////////////////////////////////////////////////////
+  // nsIObserver
+  observe: function (aSubject, aTopic, aState)
+  {
+    if (aTopic == "dom-storage-warn-quota-exceeded") {
+      if (aSubject) {
+        var uri = Cc["@mozilla.org/network/io-service;1"].
+                  getService(Ci.nsIIOService).
+                  newURI(aSubject.location.href, null, null);
+
+        if (OfflineApps._checkUsage(uri)) {
+          var browserWindow =
+            this._getBrowserWindowForContentWindow(aSubject);
+          var browser = this._getBrowserForContentWindow(browserWindow,
+                                                         aSubject);
+          OfflineApps._warnUsage(browser, uri);
+        }
+      }
+    } else if (aTopic == "offline-cache-update-completed") {
+      var cacheUpdate = aSubject.QueryInterface(Ci.nsIOfflineCacheUpdate);
+
+      var uri = cacheUpdate.manifestURI;
+      if (OfflineApps._checkUsage(uri)) {
+        var browser = this._getBrowserForCacheUpdate(cacheUpdate);
+        if (browser) {
+          OfflineApps._warnUsage(browser, cacheUpdate.manifestURI);
+        }
+      }
+    }
   }
 };
 
@@ -5470,6 +5665,7 @@ var FeedHandler = {
       menuItem.setAttribute("label", labelStr);
       menuItem.setAttribute("feed", feedInfo.href);
       menuItem.setAttribute("tooltiptext", feedInfo.href);
+      menuItem.setAttribute("crop", "center");
       menuPopup.appendChild(menuItem);
     }
     return true;
@@ -5799,14 +5995,12 @@ IdentityHandler.prototype = {
   },
 
   /**
-   * Handler for mouseclicks on the "Tell me more about this website" link text
-   * in the "identity-popup" panel.
+   * Handler for mouseclicks on the "More Information" button in the
+   * "identity-popup" panel.
    */
   handleMoreInfoClick : function(event) {
-    if (event.button == 0) {
-      displaySecurityInfo();
-      event.stopPropagation();
-    }   
+    displaySecurityInfo();
+    event.stopPropagation();
   },
   
   /**
@@ -6047,6 +6241,9 @@ IdentityHandler.prototype = {
          event.keyCode != KeyEvent.DOM_VK_RETURN))
       return; // Left click, space or enter only
 
+    // Revert the contents of the location bar, see bug 406779
+    handleURLBarRevert();
+
     // Make sure that the display:none style we set in xul is removed now that
     // the popup is actually needed
     this._identityPopup.hidden = false;
@@ -6083,6 +6280,7 @@ let DownloadMonitorPanel = {
   _activeStr: null,
   _pausedStr: null,
   _lastTime: Infinity,
+  _listening: false,
 
   //////////////////////////////////////////////////////////////////////////////
   //// DownloadMonitorPanel Public Methods
@@ -6104,7 +6302,15 @@ let DownloadMonitorPanel = {
       this._pausedStr = bundle.getString("pausedDownloads");
     }
 
+    gDownloadMgr.addListener(this);
+    this._listening = true;
+
     this.updateStatus();
+  },
+
+  uninit: function DMP_uninit() {
+    if (this._listening)
+      gDownloadMgr.removeListener(this);
   },
 
   /**
@@ -6140,7 +6346,7 @@ let DownloadMonitorPanel = {
 
     // Get the remaining time string and last sec for time estimation
     let timeLeft;
-    [timeLeft, this._lastSec] = DownloadUtils.getTimeLeft(maxTime, this._lastSec);
+    [timeLeft, this._lastTime] = DownloadUtils.getTimeLeft(maxTime, this._lastTime);
 
     // Figure out how many downloads are currently downloading
     let numDls = numActive - numPaused;

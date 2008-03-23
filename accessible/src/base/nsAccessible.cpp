@@ -1948,15 +1948,7 @@ NS_IMETHODIMP nsAccessible::GetFinalRole(PRUint32 *aRole)
 
     // These unfortunate exceptions don't fit into the ARIA table
     // This is where the nsIAccessible role depends on both the role and ARIA state
-    if (*aRole == nsIAccessibleRole::ROLE_ENTRY) {
-      nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
-      if (content && content->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::aria_secret,
-                                          nsAccessibilityAtoms::_true, eCaseMatters)) {
-        // For entry field with aria-secret="true"
-        *aRole = nsIAccessibleRole::ROLE_PASSWORD_TEXT;
-      }
-    }
-    else if (*aRole == nsIAccessibleRole::ROLE_PUSHBUTTON) {
+    if (*aRole == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
       if (content) {
         if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_pressed)) {
@@ -1987,10 +1979,15 @@ NS_IMETHODIMP nsAccessible::GetFinalRole(PRUint32 *aRole)
       }
     }
 
-    // We can now expose ROLE_NOTHING when there is a role map entry, which will
-    // cause ATK to use ROLE_UNKNOWN and MSAA to use a BSTR role with the ARIA role or element's tag.
-    // In either case the AT can also use the object attributes tag and xml-roles to find out more.
-    return NS_OK;
+    // gLandmarkRoleMap: can use role of accessible class impl
+    // gEmptyRoleMap and all others: cannot use role of accessible class impl
+    if (mRoleMapEntry != &nsARIAMap::gLandmarkRoleMap) {
+      // We can now expose ROLE_NOTHING when there is a role map entry, which
+      // will cause ATK to use ROLE_UNKNOWN and MSAA to use a BSTR role with
+      // the ARIA role or element's tag. In either case the AT can also use
+      // the object attributes tag and xml-roles to find out more.
+      return NS_OK;
+    }
   }
   return mDOMNode ? GetRole(aRole) : NS_ERROR_FAILURE;  // Node already shut down
 }
@@ -2041,6 +2038,17 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
       attributes->SetStringProperty(nsDependentCString(ariaPropertyString[index]), value, oldValueUnused);    
     }
   }
+
+  nsCOMPtr<nsIAccessibleValue> supportsValue = do_QueryInterface(static_cast<nsIAccessible*>(this));
+  if (supportsValue) {
+    // We support values, so expose the string value as well, via the valuetext object attribute
+    // We test for the value interface because we don't want to expose traditional get_accValue()
+    // information such as URL's on links and documents, or text in an input
+    nsAutoString valuetext;
+    GetValue(valuetext);
+    attributes->SetStringProperty(NS_LITERAL_CSTRING("valuetext"), valuetext, oldValueUnused);
+  }
+
 
   // Get container-foo computed live region properties based on the closest container with
   // the live region attribute
@@ -2402,8 +2410,11 @@ NS_IMETHODIMP nsAccessible::GetValue(nsAString& aValue)
       return NS_OK;
     }
     nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-    if (content && content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_valuenow, aValue)) {
-      return NS_OK;
+    NS_ENSURE_STATE(content);
+    // aria-valuenow is a number, and aria-valuetext is the optional text equivalent
+    // For the string value, we will try the optional text equivalent first
+    if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_valuetext, aValue)) {
+      content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_valuenow, aValue);
     }
   }
   return NS_OK;
@@ -2655,6 +2666,11 @@ NS_IMETHODIMP nsAccessible::GetAccessibleRelated(PRUint32 aRelationType, nsIAcce
     {
       relatedNode =
         do_QueryInterface(nsAccUtils::FindNeighbourPointingToNode(content, nsAccessibilityAtoms::aria_owns));
+      if (!relatedNode && mRoleMapEntry && mRoleMapEntry->role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+        // This is an ARIA tree that doesn't use owns, so we need to get the parent the hard way
+        nsAccUtils::GetARIATreeItemParent(this, content, aRelated);
+        return NS_OK;
+      }
       break;
     }
   case nsIAccessibleRelation::RELATION_CONTROLLED_BY:

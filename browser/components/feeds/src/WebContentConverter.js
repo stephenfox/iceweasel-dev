@@ -62,6 +62,8 @@ const PREF_CONTENTHANDLERS_BRANCH = "browser.contentHandlers.types.";
 const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
 const PREF_SELECTED_ACTION = "browser.feeds.handler";
 const PREF_SELECTED_READER = "browser.feeds.handler.default";
+const PREF_HANDLER_EXTERNAL_PREFIX = "network.protocol-handler.external";
+const PREF_ALLOW_DIFFERENT_HOST = "gecko.handlerService.allowRegisterFromDifferentHost";
 
 const STRING_BUNDLE_URI = "chrome://browser/locale/feeds/subscribe.properties";
 
@@ -346,7 +348,7 @@ WebContentConverterRegistrar.prototype = {
   },
 
   _checkAndGetURI:
-  function WCCR_checkAndGetURI(aURIString)
+  function WCCR_checkAndGetURI(aURIString, aContentWindow)
   {
     try {
       var uri = this._makeURI(aURIString);
@@ -355,12 +357,20 @@ WebContentConverterRegistrar.prototype = {
       return; 
     }
 
-    // For security reasons we reject non-http(s) urls (see bug Bug 354316),
+    // For security reasons we reject non-http(s) urls (see bug 354316),
     // we may need to revise this once we support more content types
     // XXX this should be a "security exception" according to spec, but that
     // isn't defined yet.
     if (uri.scheme != "http" && uri.scheme != "https")
       throw("Permission denied to add " + uri.spec + " as a content or protocol handler");
+
+    // We also reject handlers registered from a different host (see bug 402287)
+    // The pref allows us to test the feature
+    var pb = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+    if ((!pb.prefHasUserValue(PREF_ALLOW_DIFFERENT_HOST) ||
+         !pb.getBoolPref(PREF_ALLOW_DIFFERENT_HOST)) &&
+        aContentWindow.location.hostname != uri.host)
+      throw("Permision denied to add " + uri.spec + " as a content or protocol handler");
 
     // If the uri doesn't contain '%s', it won't be a good handler
     if (uri.spec.indexOf("%s") < 0)
@@ -412,8 +422,22 @@ WebContentConverterRegistrar.prototype = {
       // isn't defined yet.
       throw("Permission denied to add " + aURIString + "as a protocol handler");
     }
- 
-    var uri = this._checkAndGetURI(aURIString);
+
+    // check if it is in the black list
+    var pb = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+    var allowed;
+    try {
+      allowed = pb.getBoolPref(PREF_HANDLER_EXTERNAL_PREFIX + "." + aProtocol);
+    }
+    catch (e) {
+      allowed = pb.getBoolPref(PREF_HANDLER_EXTERNAL_PREFIX + "-default");
+    }
+    if (!allowed) {
+      // XXX this should be a "security exception" according to spec
+      throw("Not allowed to register a protocol handler for " + aProtocol);
+    }
+
+    var uri = this._checkAndGetURI(aURIString, aContentWindow);
 
     var buttons, message;
     if (this._protocolHandlerRegistered(aProtocol, uri.spec))
@@ -474,9 +498,8 @@ WebContentConverterRegistrar.prototype = {
 
   /**
    * See nsIWebContentHandlerRegistrar
-   * This is the web front end into the registration system, so a prompt to 
-   * confirm the registration is provided, and the result is saved to 
-   * preferences.
+   * If a DOM window is provided, then the request came from content, so we
+   * prompt the user to confirm the registration.
    */
   registerContentHandler: 
   function WCCR_registerContentHandler(aContentType, aURIString, aTitle, aContentWindow) {
@@ -489,12 +512,16 @@ WebContentConverterRegistrar.prototype = {
     if (contentType != TYPE_MAYBE_FEED)
       return;
 
-    var uri = this._checkAndGetURI(aURIString);
-
-    var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);
-    var browserElement = this._getBrowserForContentWindow(browserWindow, aContentWindow);
-    var notificationBox = browserWindow.getBrowser().getNotificationBox(browserElement);
-    this._appendFeedReaderNotification(uri, aTitle, notificationBox);
+    if (aContentWindow) {
+      var uri = this._checkAndGetURI(aURIString, aContentWindow);
+  
+      var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);
+      var browserElement = this._getBrowserForContentWindow(browserWindow, aContentWindow);
+      var notificationBox = browserWindow.getBrowser().getNotificationBox(browserElement);
+      this._appendFeedReaderNotification(uri, aTitle, notificationBox);
+    }
+    else
+      this._registerContentHandler(contentType, aURIString, aTitle);
   },
 
   /**
@@ -584,25 +611,8 @@ WebContentConverterRegistrar.prototype = {
           var outer = aButtonInfo._outer;
 
           // The reader could have been added from another window mean while
-          if (!outer.getWebContentHandlerByURI(TYPE_MAYBE_FEED, uri)) {
+          if (!outer.getWebContentHandlerByURI(TYPE_MAYBE_FEED, uri))
             outer._registerContentHandler(TYPE_MAYBE_FEED, uri, name);
-            outer._saveContentHandlerToPrefs(TYPE_MAYBE_FEED, uri, name);
-
-            // Make the new handler the last-selected reader in the preview page
-            // and make sure the preview page is shown the next time a feed is visited
-            var pb = Cc["@mozilla.org/preferences-service;1"].
-                     getService(Ci.nsIPrefService).getBranch(null);
-            pb.setCharPref(PREF_SELECTED_READER, "web");
-
-            var supportsString = 
-              Cc["@mozilla.org/supports-string;1"].
-              createInstance(Ci.nsISupportsString);
-              supportsString.data = uri;
-            pb.setComplexValue(PREF_SELECTED_WEB, Ci.nsISupportsString,
-                               supportsString);
-            pb.setCharPref(PREF_SELECTED_ACTION, "ask");
-            outer._setAutoHandler(TYPE_MAYBE_FEED, null);
-          }
 
           // avoid reference cycles
           aButtonInfo._outer = null;
@@ -703,6 +713,39 @@ WebContentConverterRegistrar.prototype = {
   },
   
   /**
+   * Register a web service handler for a content type.
+   * 
+   * @param   contentType
+   *          the content type being handled
+   * @param   uri
+   *          the URI of the web service
+   * @param   title
+   *          the human readable name of the web service
+   */
+  _registerContentHandler:
+  function WCCR__registerContentHandler(contentType, uri, title) {
+    this._updateContentTypeHandlerMap(contentType, uri, title);
+    this._saveContentHandlerToPrefs(contentType, uri, title);
+
+    if (contentType == TYPE_MAYBE_FEED) {
+      // Make the new handler the last-selected reader in the preview page
+      // and make sure the preview page is shown the next time a feed is visited
+      var pb = Cc["@mozilla.org/preferences-service;1"].
+               getService(Ci.nsIPrefService).getBranch(null);
+      pb.setCharPref(PREF_SELECTED_READER, "web");
+  
+      var supportsString = 
+        Cc["@mozilla.org/supports-string;1"].
+        createInstance(Ci.nsISupportsString);
+        supportsString.data = uri;
+      pb.setComplexValue(PREF_SELECTED_WEB, Ci.nsISupportsString,
+                         supportsString);
+      pb.setCharPref(PREF_SELECTED_ACTION, "ask");
+      this._setAutoHandler(TYPE_MAYBE_FEED, null);
+    }
+  },
+
+  /**
    * Update the content type -> handler map. This mapping is not persisted, use
    * registerContentHandler or _saveContentHandlerToPrefs for that purpose.
    * @param   contentType
@@ -712,8 +755,8 @@ WebContentConverterRegistrar.prototype = {
    * @param   title
    *          The human readable name of the web service
    */
-  _registerContentHandler: 
-  function WCCR__registerContentHandler(contentType, uri, title) {
+  _updateContentTypeHandlerMap: 
+  function WCCR__updateContentTypeHandlerMap(contentType, uri, title) {
     if (!(contentType in this._contentTypes))
       this._contentTypes[contentType] = [];
 
@@ -781,7 +824,7 @@ WebContentConverterRegistrar.prototype = {
       var uri = branch.getComplexValue("uri", Ci.nsIPrefLocalizedString).data;
       var title = branch.getComplexValue("title",
                                          Ci.nsIPrefLocalizedString).data;
-      this._registerContentHandler(type, uri, title);
+      this._updateContentTypeHandlerMap(type, uri, title);
     }
     catch(ex) {
       // do nothing, the next branch might have values
@@ -809,6 +852,9 @@ WebContentConverterRegistrar.prototype = {
       else
         nums.push(match[1]);
     }
+
+    // sort them, to get them back in order
+    nums.sort(function(a, b) {return a - b;});
 
     // now register them
     for (var i = 0; i < nums.length; i++) {

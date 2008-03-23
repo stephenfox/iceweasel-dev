@@ -35,7 +35,6 @@ bin/libplc4.so
 bin/libplds4.so
 bin/libxpcom.so
 bin/libxpcom_core.so
-bin/libxpistub.so
 bin/libnspr4.so
 bin/libxul.so
 bin/components/libxpinstall.so
@@ -50,11 +49,9 @@ bin/platform.ini
 bin/mozilla-xremote-client
 bin/run-mozilla.sh
 bin/plugins/libnullplugin.so
-bin/res/cmessage.txt
-bin/res/effective_tld_names.dat
-bin/xpicleanup
 bin/libsqlite3.so
 bin/README.txt
+bin/libjemalloc.so
 
 ; [Components]
 bin/components/alerts.xpt
@@ -81,7 +78,6 @@ bin/components/content_xslt.xpt
 bin/components/content_xtf.xpt
 bin/components/contentprefs.xpt
 bin/components/cookie.xpt
-bin/components/crashreporter.xpt
 bin/components/directory.xpt
 bin/components/docshell.xpt
 bin/components/dom.xpt
@@ -251,7 +247,6 @@ bin/modules/*
 
 ; Safe Browsing
 bin/components/nsSafebrowsingApplication.js
-bin/components/safebrowsing.xpt
 bin/components/nsUrlClassifierListManager.js
 bin/components/nsUrlClassifierLib.js
 bin/components/url-classifier.xpt

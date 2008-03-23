@@ -41,3 +41,5 @@
 <!ENTITY name.label "Name">
 <!ENTITY nodeName.label "Node Name">
 
+<!ENTITY evaluateJS.label "Evaluate JavaScript">
+

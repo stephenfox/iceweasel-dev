@@ -48,7 +48,6 @@ LIBRARY_NAME = exception_handler_s
 REQUIRES = \
 	xpcom \
 	string \
-	xulapp \
 	$(NULL)
 
 DIRS = \
@@ -88,10 +87,6 @@ DIRS += client
 
 LOCAL_INCLUDES = -I$(srcdir)/google-breakpad/src
 DEFINES += -DUNICODE -D_UNICODE
-
-XPIDLSRCS = \
-	nsICrashReporter.idl \
-	$(NULL)
 
 EXPORTS = \
 	nsExceptionHandler.h \

@@ -48,6 +48,7 @@
 class nsIContent;
 class nsIDocument;
 class nsIDOMEvent;
+class nsIPresShell;
 class nsPresContext;
 class nsEventChainVisitor;
 class nsEventChainPreVisitor;
@@ -59,6 +60,7 @@ class nsIMutationObserver;
 class nsChildContentList;
 class nsNodeWeakReference;
 class nsNodeSupportsWeakRefTearoff;
+class nsIEditor;
 
 enum {
   // This bit will be set if the node doesn't have nsSlots
@@ -96,8 +98,30 @@ enum {
 
   NODE_IS_INSERTION_PARENT =     0x00000800U,
 
+  // Node has an :empty or :-moz-only-whitespace selector
+  NODE_HAS_EMPTY_SELECTOR =      0x00001000U,
+
+  // A child of the node has a selector such that any insertion,
+  // removal, or appending of children requires restyling the parent.
+  NODE_HAS_SLOW_SELECTOR =       0x00002000U,
+
+  // A child of the node has a :first-child, :-moz-first-node,
+  // :only-child, :last-child or :-moz-last-node selector.
+  NODE_HAS_EDGE_CHILD_SELECTOR = 0x00004000U,
+
+  // A child of the node has a selector such that any insertion or
+  // removal of children requires restyling the parent (but append is
+  // OK).
+  NODE_HAS_SLOW_SELECTOR_NOAPPEND
+                               = 0x00008000U,
+
+  NODE_ALL_SELECTOR_FLAGS =      NODE_HAS_EMPTY_SELECTOR |
+                                 NODE_HAS_SLOW_SELECTOR |
+                                 NODE_HAS_EDGE_CHILD_SELECTOR |
+                                 NODE_HAS_SLOW_SELECTOR_NOAPPEND,
+
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               12,
+  NODE_SCRIPT_TYPE_OFFSET =               16,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -122,8 +146,8 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xd1c2e967, 0x854a, 0x436b, \
-  { 0xbf, 0xa5, 0xf6, 0xa4, 0x9a, 0x97, 0x46, 0x74 } }
+{ 0x6f69dd90, 0x318d, 0x40ac, \
+  { 0xb8, 0xb8, 0x99, 0xb8, 0xa7, 0xbb, 0x9a, 0x58 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -629,6 +653,22 @@ public:
     return IsEditableExternal();
 #endif
   }
+
+  /**
+   * Get the root content of an editor. So, this node must be a descendant of
+   * an editor. Note that this should be only used for getting input or textarea
+   * editor's root content. This method doesn't support HTML editors.
+   */
+  nsIContent* GetTextEditorRootContent(nsIEditor** aEditor = nsnull);
+
+  /**
+   * Get the nearest selection root, ie. the node that will be selected if the
+   * user does "Select All" while the focus is in this node. Note that if this
+   * node is not in an editor, the result comes from the nsFrameSelection that
+   * is related to aPresShell, so the result might not be the ancestor of this
+   * node.
+   */
+  nsIContent* GetSelectionRootContent(nsIPresShell* aPresShell);
 
 protected:
 

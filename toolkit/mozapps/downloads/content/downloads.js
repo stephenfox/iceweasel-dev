@@ -64,7 +64,7 @@ let gDownloadManager = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
 let gDownloadListener = null;
 let gDownloadsView = null;
 let gSearchBox = null;
-let gSearchTerms = "";
+let gSearchTerms = [];
 let gBuilder = 0;
 
 // Control the performance of the incremental list building by setting how many
@@ -72,6 +72,13 @@ let gBuilder = 0;
 // add between each delay.
 const gListBuildDelay = 300;
 const gListBuildChunk = 3;
+
+// Array of download richlistitem attributes to check when searching
+const gSearchAttributes = [
+  "target",
+  "status",
+  "dateTime",
+];
 
 // If the user has interacted with the window in a significant way, we should
 // not auto-close the window. Tough UI decisions about what is "significant."
@@ -97,20 +104,11 @@ let gStr = {
   fileExecutableSecurityWarningDontAsk: "fileExecutableSecurityWarningDontAsk"
 };
 
-// Create a getDisplayHost function for queries to use
-gDownloadManager.DBConnection.createFunction("getDisplayHost", 1, {
-  QueryInterface: XPCOMUtils.generateQI([Ci.mozIStorageFunction]),
-  onFunctionCall: function(aArgs)
-    DownloadUtils.getURIHost(aArgs.getUTF8String(0))[0]
-});
-
 // The statement to query for downloads that are active or match the search
 let gStmt = gDownloadManager.DBConnection.createStatement(
   "SELECT id, target, name, source, state, startTime, endTime, referrer, " +
-         "currBytes, maxBytes, state IN (?1, ?2, ?3, ?4, ?5) isActive, " +
-         "getDisplayHost(IFNULL(referrer, source)) display " +
+         "currBytes, maxBytes, state IN (?1, ?2, ?3, ?4, ?5) isActive " +
   "FROM moz_downloads " +
-  "WHERE isActive OR name LIKE ?6 ESCAPE '/' OR display LIKE ?6 ESCAPE '/' " +
   "ORDER BY isActive DESC, endTime DESC, startTime DESC");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,9 +136,8 @@ function downloadCompleted(aDownload)
     dl.setAttribute("currBytes", aDownload.amountTransferred);
     dl.setAttribute("maxBytes", aDownload.size);
 
-    // If we aren't displaying search results, move the download to after the
-    // active ones
-    if (gSearchTerms.length == 0) {
+    // Move the download below active if it should stay in the list
+    if (downloadMatchesSearch(dl)) {
       // Iterate down until we find a non-active download
       let next = dl.nextSibling;
       while (next && next.inProgress)
@@ -182,8 +179,13 @@ function autoRemoveAndClose(aDownload)
     // For the moment, just use the simple heuristic that if this window was
     // opened by the download process, rather than by the user, it should
     // auto-close if the pref is set that way. If the user opened it themselves,
-    // it should not close until they explicitly close it.
-    var autoClose = pref.getBoolPref(PREF_BDM_CLOSEWHENDONE);
+    // it should not close until they explicitly close it.  Additionally, the
+    // preference to control the feature may not be set, so defaulting to
+    // keeping the window open.
+    let autoClose = false;
+    try {
+      autoClose = pref.getBoolPref(PREF_BDM_CLOSEWHENDONE);
+    } catch (e) { }
     var autoOpened =
       !window.opener || window.opener.location.href == window.location.href;
     if (autoClose && autoOpened && !gUserInteracted) {
@@ -391,7 +393,7 @@ function Startup()
       gStr[name] = typeof value == "string" ? getStr(value) : value.map(getStr);
   }
 
-  buildDownloadList();
+  buildDownloadList(true);
 
   // The DownloadProgressListener (DownloadProgressListener.js) handles progress
   // notifications.
@@ -406,6 +408,19 @@ function Startup()
   let obs = Cc["@mozilla.org/observer-service;1"].
             getService(Ci.nsIObserverService);
   obs.addObserver(gDownloadObserver, "download-manager-remove-download", false);
+
+  // Clear the search box and move focus to the list on escape from the box
+  gSearchBox.addEventListener("keypress", function(e) {
+    if (e.keyCode == e.DOM_VK_ESCAPE) {
+      // Clear the input as if the user did it
+      gSearchBox.value = "";
+      gSearchBox.doCommand();
+
+      // Move focus to the list instead of closing the window
+      gDownloadsView.focus();
+      e.preventDefault();
+    }
+  }, true);
 }
 
 function Shutdown()
@@ -419,8 +434,6 @@ function Shutdown()
   clearTimeout(gBuilder);
   gStmt.reset();
   gStmt.finalize();
-
-  gDownloadManager.DBConnection.removeFunction("getDisplayHost");
 }
 
 let gDownloadObserver = {
@@ -430,7 +443,7 @@ let gDownloadObserver = {
         // A null subject here indicates "remove all"
         if (!aSubject) {
           // Rebuild the default view
-          buildDownloadList();
+          buildDownloadList(true);
           break;
         }
 
@@ -994,13 +1007,26 @@ function getReferrerOrSource(aDownload)
 /**
  * Initiate building the download list to have the active downloads followed by
  * completed ones filtered by the search term if necessary.
+ *
+ * @param aForceBuild
+ *        Force the list to be built even if the search terms don't change
  */
-function buildDownloadList()
+function buildDownloadList(aForceBuild)
 {
+  // Stringify the previous search
+  let prevSearch = gSearchTerms ? gSearchTerms.join(" ") : null;
+
+  // Array of space-separated lower-case search terms
+  gSearchTerms = gSearchBox.value.replace(/^\s+|\s+$/g, "").
+                 toLowerCase().split(/\s+/);
+
+  // Unless forced, don't rebuild the download list if the search didn't change
+  if (!aForceBuild && gSearchTerms.join(" ") == prevSearch)
+    return;
+
   // Clear out values before using them
   clearTimeout(gBuilder);
   gStmt.reset();
-  gSearchTerms = "";
 
   // Clear the list before adding items by replacing with a shallow copy
   let (empty = gDownloadsView.cloneNode(false)) {
@@ -1008,19 +1034,12 @@ function buildDownloadList()
     gDownloadsView = empty;
   }
 
-  // If the search box isn't empty, trim the search terms
-  if (!gSearchBox.hasAttribute("empty"))
-    gSearchTerms = gSearchBox.value.replace(/^\s+|\s+$/, "");
-
-  let like = "%" + gStmt.escapeStringForLIKE(gSearchTerms, "/") + "%";
-
   try {
     gStmt.bindInt32Parameter(0, nsIDM.DOWNLOAD_NOTSTARTED);
     gStmt.bindInt32Parameter(1, nsIDM.DOWNLOAD_DOWNLOADING);
     gStmt.bindInt32Parameter(2, nsIDM.DOWNLOAD_PAUSED);
     gStmt.bindInt32Parameter(3, nsIDM.DOWNLOAD_QUEUED);
     gStmt.bindInt32Parameter(4, nsIDM.DOWNLOAD_SCANNING);
-    gStmt.bindStringParameter(5, like);
   } catch (e) {
     // Something must have gone wrong when binding, so clear and quit
     gStmt.reset();
@@ -1069,12 +1088,13 @@ function stepListBuilder(aNumItems) {
     }
 
     // If the download is active, grab the real progress, otherwise default 100
-    attrs.progress = gStmt.getInt32(10) ?
-      gDownloadManager.getDownload(attrs.dlid).percentComplete : 100;
+    let isActive = gStmt.getInt32(10);
+    attrs.progress = isActive ? gDownloadManager.getDownload(attrs.dlid).
+      percentComplete : 100;
 
-    // Make the item and add it to the end
+    // Make the item and add it to the end if it's active or matches the search
     let item = createDownloadItem(attrs);
-    if (item) {
+    if (item && (isActive || downloadMatchesSearch(item))) {
       // Add item to the end and color just that one item
       gDownloadsView.appendChild(item);
       stripeifyList(item);
@@ -1082,6 +1102,10 @@ function stepListBuilder(aNumItems) {
       // Because of the joys of XBL, we can't update the buttons until the
       // download object is in the document.
       updateButtons(item);
+    } else {
+      // We didn't add an item, so bump up the number of items to process, but
+      // not a whole number so that we eventually do pause for a chunk break
+      aNumItems += .9;
     }
   } catch (e) {
     // Something went wrong when stepping or getting values, so clear and quit
@@ -1135,6 +1159,31 @@ function prependList(aDownload)
 }
 
 /**
+ * Check if the download matches the current search term based on the texts
+ * shown to the user. All search terms are checked to see if each matches any
+ * of the displayed texts.
+ *
+ * @param aItem
+ *        Download richlistitem to check if it matches the current search
+ * @return Boolean true if it matches the search; false otherwise
+ */
+function downloadMatchesSearch(aItem)
+{
+  // Search through the download attributes that are shown to the user and
+  // make it into one big string for easy combined searching
+  let combinedSearch = "";
+  for each (let attr in gSearchAttributes)
+    combinedSearch += aItem.getAttribute(attr).toLowerCase() + " ";
+
+  // Make sure each of the terms are found
+  for each (let term in gSearchTerms)
+    if (combinedSearch.search(term) == -1)
+      return false;
+
+  return true;
+}
+
+/**
  * Stripeify the download list by setting or clearing the "alternate" attribute
  * on items starting from a particular item and continuing to the end.
  *
@@ -1152,20 +1201,6 @@ function stripeifyList(aItem)
   while (aItem) {
     flipFrom(aItem.previousSibling);
     aItem = aItem.nextSibling;
-  }
-}
-
-function onSearchboxBlur() {
-  if (gSearchBox.value == "") {
-    gSearchBox.setAttribute("empty", "true");
-    gSearchBox.value = gSearchBox.getAttribute("defaultValue");
-  }
-}
-
-function onSearchboxFocus() {
-  if (gSearchBox.hasAttribute("empty")) {
-    gSearchBox.value = "";
-    gSearchBox.removeAttribute("empty");
   }
 }
 

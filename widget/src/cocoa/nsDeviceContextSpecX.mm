@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsDeviceContextSpecX.h"
+#include "nsObjCExceptions.h"
 
 #include "prmem.h"
 #include "plstr.h"
@@ -70,8 +71,12 @@ nsDeviceContextSpecX::nsDeviceContextSpecX()
  */
 nsDeviceContextSpecX::~nsDeviceContextSpecX()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
   if (mPrintSession)
     ::PMRelease(mPrintSession);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 NS_IMPL_ISUPPORTS1(nsDeviceContextSpecX, nsIDeviceContextSpec)
@@ -84,6 +89,8 @@ NS_IMETHODIMP nsDeviceContextSpecX::Init(nsIWidget *aWidget,
                                          nsIPrintSettings* aPS,
                                          PRBool aIsPrintPreview)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsresult rv;
 
   nsCOMPtr<nsIPrintSettingsX> printSettingsX(do_QueryInterface(aPS));
@@ -104,6 +111,8 @@ NS_IMETHODIMP nsDeviceContextSpecX::Init(nsIWidget *aWidget,
     return rv;
 
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecX::BeginDocument(PRUnichar*  aTitle, 
@@ -111,10 +120,12 @@ NS_IMETHODIMP nsDeviceContextSpecX::BeginDocument(PRUnichar*  aTitle,
                                                   PRInt32     aStartPage, 
                                                   PRInt32     aEndPage)
 {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
     if (aTitle) {
       CFStringRef cfString = ::CFStringCreateWithCharacters(NULL, aTitle, nsCRT::strlen(aTitle));
       if (cfString) {
-        ::PMSetJobNameCFString(mPrintSettings, cfString);
+        ::PMPrintSettingsSetJobName(mPrintSettings, cfString);
         ::CFRelease(cfString);
       }
     }
@@ -130,12 +141,18 @@ NS_IMETHODIMP nsDeviceContextSpecX::BeginDocument(PRUnichar*  aTitle,
       return NS_ERROR_ABORT;
 
     return NS_OK;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecX::EndDocument()
 {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
     ::PMSessionEndDocumentNoDialog(mPrintSession);
     return NS_OK;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 /*
@@ -147,31 +164,64 @@ NS_IMETHODIMP nsDeviceContextSpecX::AbortDocument()
 
 NS_IMETHODIMP nsDeviceContextSpecX::BeginPage()
 {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
     PMSessionError(mPrintSession);
     OSStatus status = ::PMSessionBeginPageNoDialog(mPrintSession, mPageFormat, NULL);
     if (status != noErr) return NS_ERROR_ABORT;
     return NS_OK;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecX::EndPage()
 {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
     OSStatus status = ::PMSessionEndPageNoDialog(mPrintSession);
     if (status != noErr) return NS_ERROR_ABORT;
     return NS_OK;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 void nsDeviceContextSpecX::GetPageRect(double* aTop, double* aLeft, double* aBottom, double* aRight)
 {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
     PMRect pageRect;
     ::PMGetAdjustedPageRect(mPageFormat, &pageRect);
     *aTop = pageRect.top, *aLeft = pageRect.left;
     *aBottom = pageRect.bottom, *aRight = pageRect.right;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+void nsDeviceContextSpecX::GetPageMargins(double *aTopMargin, double* aLeftMargin,
+                                          double* aBottomMargin, double *aRightMargin)
+{
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+    PMPaper paper;
+    PMPaperMargins margins;
+    ::PMGetPageFormatPaper(mPageFormat, &paper);
+    ::PMPaperGetMargins(paper, &margins);
+    *aTopMargin    = margins.top;
+    *aLeftMargin   = margins.left;
+    *aBottomMargin = margins.bottom;
+    *aRightMargin  = margins.right;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 NS_IMETHODIMP nsDeviceContextSpecX::GetSurfaceForPrinter(gfxASurface **surface)
 {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
     double top, left, bottom, right;
+    double topMargin, leftMargin, bottomMargin, rightMargin;
     GetPageRect(&top, &left, &bottom, &right);
+    GetPageMargins(&topMargin, &leftMargin, &bottomMargin, &rightMargin);
 
     const double width = right - left;
     const double height = bottom - top;
@@ -182,7 +232,9 @@ NS_IMETHODIMP nsDeviceContextSpecX::GetSurfaceForPrinter(gfxASurface **surface)
     nsRefPtr<gfxASurface> newSurface;
 
     if (context) {
-        CGContextTranslateCTM(context, 0.0, height);
+        // Initially, origin is at bottom-left corner of the paper.
+        // Here, we translate it to top-left corner of the printable area.
+        CGContextTranslateCTM(context, leftMargin, bottomMargin + height);
         CGContextScaleCTM(context, 1.0, -1.0);
         newSurface = new gfxQuartzSurface(context, gfxSize(width, height), PR_TRUE);
     } else {
@@ -196,4 +248,6 @@ NS_IMETHODIMP nsDeviceContextSpecX::GetSurfaceForPrinter(gfxASurface **surface)
     NS_ADDREF(*surface);
 
     return NS_OK;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

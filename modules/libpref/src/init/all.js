@@ -592,6 +592,7 @@ pref("network.http.redirection-limit", 20);
 pref("network.http.accept-encoding" ,"gzip,deflate");
 
 pref("network.http.pipelining"      , false);
+pref("network.http.pipelining.ssl"  , true); // enable pipelining over SSL
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
@@ -656,6 +657,10 @@ pref("network.IDN.whitelist.info", true);
 pref("network.IDN.whitelist.museum", true);
 pref("network.IDN.whitelist.org", true);
 
+// NOTE: Before these can be removed, one of bug 414812's tests must be updated
+//       or it will likely fail!  Please CC jwalden+bmo on the bug associated
+//       with removing these so he can provide a patch to make the necessary
+//       changes to avoid bustage.
 // ".test" localised TLDs for ICANN's top-level IDN trial
 pref("network.IDN.whitelist.xn--0zwm56d", true);
 pref("network.IDN.whitelist.xn--11b5bs3a9aj6g", true);
@@ -758,7 +763,17 @@ pref("network.ntlm.send-lm-response", false);
 pref("network.hosts.nntp_server",           "news.mozilla.org");
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
+
+#ifndef XP_MACOSX
+#ifdef XP_UNIX
+pref("network.proxy.type",                  5);
+#else
 pref("network.proxy.type",                  0);
+#endif
+#else
+pref("network.proxy.type",                  0);
+#endif
+
 pref("network.proxy.ftp",                   "");
 pref("network.proxy.ftp_port",              0);
 pref("network.proxy.gopher",                "");
@@ -877,25 +892,6 @@ pref("mousewheel.withmetakey.action",0);
 pref("mousewheel.withmetakey.numlines",1);
 pref("mousewheel.withmetakey.sysnumlines",true);
 
-// on platforms where scroll messages differ between horizontal scroll
-// and back/forward button events we can activate them by default
-#ifdef XP_WIN
-#define HORIZSCROLL_AVAILABLE
-#endif
-#ifdef XP_MACOSX
-#define HORIZSCROLL_AVAILABLE
-// The Mac does interesting things with horizontal scrolling.  If a
-// scroll event comes from a pointing device with a scroll wheel for
-// the vertical axis, and the user is holding the shift key, the event
-// comes through as a horizontal scroll event with the shift key
-// (mousewheel.horizscroll.withshiftkey) and not mousewheel.withshiftkey.
-// These events should map to horizontal scroll to maintain platform
-// UI consistency.
-#endif
-#ifdef XP_OS2
-#define HORIZSCROLL_AVAILABLE
-#endif
-#ifdef HORIZSCROLL_AVAILABLE
 // activate horizontal scrolling by default
 pref("mousewheel.horizscroll.withnokey.action",0);
 pref("mousewheel.horizscroll.withnokey.numlines",1);
@@ -912,25 +908,6 @@ pref("mousewheel.horizscroll.withaltkey.sysnumlines",false);
 pref("mousewheel.horizscroll.withmetakey.action",0);
 pref("mousewheel.horizscroll.withmetakey.numlines",1);
 pref("mousewheel.horizscroll.withmetakey.sysnumlines",true);
-#endif
-#ifndef HORIZSCROLL_AVAILABLE
-// disable horizontal scrolling to be able to use back/forward buttons
-pref("mousewheel.horizscroll.withnokey.action",2);
-pref("mousewheel.horizscroll.withnokey.numlines",-1);
-pref("mousewheel.horizscroll.withnokey.sysnumlines",false);
-pref("mousewheel.horizscroll.withcontrolkey.action",2);
-pref("mousewheel.horizscroll.withcontrolkey.numlines",-1);
-pref("mousewheel.horizscroll.withcontrolkey.sysnumlines",false);
-pref("mousewheel.horizscroll.withshiftkey.action",2);
-pref("mousewheel.horizscroll.withshiftkey.numlines",-1);
-pref("mousewheel.horizscroll.withshiftkey.sysnumlines",false);
-pref("mousewheel.horizscroll.withaltkey.action",2);
-pref("mousewheel.horizscroll.withaltkey.numlines",-1);
-pref("mousewheel.horizscroll.withaltkey.sysnumlines",false);
-pref("mousewheel.horizscroll.withmetakey.action",2);
-pref("mousewheel.horizscroll.withmetakey.numlines",-1);
-pref("mousewheel.horizscroll.withmetakey.sysnumlines",false);
-#endif
 
 pref("profile.confirm_automigration",true);
 // profile.migration_behavior determines how the profiles root is set
@@ -1763,6 +1740,14 @@ pref("font.size.fixed.zh-HK", 16);
 // Apple's Symbol is Unicode so use it
 pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Cambria Math, Symbol, DejaVu Sans");
 
+// individual font faces to be treated as independent families
+// names are Postscript names of each face
+pref("font.single-face-list", "Osaka-Mono");
+
+// optimization hint for fonts with localized names to be read in at startup, otherwise read in at lookup miss
+// names are canonical family names (typically English names)
+pref("font.preload-names-list", "Hiragino Kaku Gothic Pro,Hiragino Mincho Pro,STSong");
+
 pref("browser.urlbar.clickAtEndSelects", false);
 
 // Override the Windows settings: no menu key, meta accelerator key. ctrl for general access key in HTML/XUL
@@ -2155,10 +2140,6 @@ pref("font.name.monospace.he", "monospace");
 pref("font.name.serif.ja", "serif");
 pref("font.name.sans-serif.ja", "sans-serif");
 pref("font.name.monospace.ja", "monospace");
-// Include Latin fonts explicitly for bug 339513
-pref("font.name-list.sans-serif.ja", "Bitstream Vera Sans, DejaVu Sans, Verdana");
-pref("font.name-list.serif.ja", "Bitstream Vera Serif, DejaVu Serif, Times New Roman");
-pref("font.name-list.monospace.ja", "Bitstream Vera Sans Mono, DejaVu Sans Mono, Andale Mono");
 
 pref("font.name.serif.ko", "serif");
 pref("font.name.sans-serif.ko", "sans-serif");
@@ -2197,18 +2178,12 @@ pref("font.name.monospace.x-western", "monospace");
 pref("font.name.serif.zh-CN", "serif");
 pref("font.name.sans-serif.zh-CN", "sans-serif");
 pref("font.name.monospace.zh-CN", "monospace");
-pref("font.name-list.sans-serif.zh-CN", "Bitstream Vera Sans, DejaVu Sans, Verdana");
-pref("font.name-list.serif.zh-CN", "Bitstream Vera Serif, DejaVu Serif, Times New Roman");
-pref("font.name-list.monospace.zh-CN", "Bitstream Vera Sans Mono, DejaVu Sans Mono, Andale Mono");
 
 // ming_uni.ttf (HKSCS-2001) 
 // http://www.info.gov.hk/digital21/eng/hkscs/download/uime.exe
 pref("font.name.serif.zh-HK", "serif");
 pref("font.name.sans-serif.zh-HK", "sans-serif");
 pref("font.name.monospace.zh-HK", "monospace");
-pref("font.name-list.sans-serif.zh-HK", "Bitstream Vera Sans, DejaVu Sans, Verdana");
-pref("font.name-list.serif.zh-HK", "Bitstream Vera Serif, DejaVu Serif, Times New Roman");
-pref("font.name-list.monospace.zh-HK", "Bitstream Vera Sans Mono, DejaVu Sans Mono, Andale Mono");
 
 // zh-TW
 
@@ -2414,6 +2389,7 @@ pref("signon.autofillForms",                true);
 pref("signon.debug",                        false); // logs to Error Console
 
 // Zoom prefs
-pref("fullZoom.minPercent", 50);
-pref("fullZoom.maxPercent", 300);
-pref("toolkit.zoomManager.fullZoomValues", ".5,.75,1,1.25,1.5,2,3");
+pref("browser.zoom.full", false);
+pref("zoom.minPercent", 50);
+pref("zoom.maxPercent", 300);
+pref("toolkit.zoomManager.zoomValues", ".5,.75,1,1.25,1.5,2,3");

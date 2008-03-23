@@ -227,6 +227,9 @@ nsNavHistoryExpire::OnQuit()
   rv = ExpireAnnotationsParanoid(connection);
   if (NS_FAILED(rv))
     NS_WARNING("ExpireAnnotationsParanoid failed.");
+  rv = ExpireInputHistoryParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireInputHistoryParanoid failed.");
 }
 
 
@@ -258,6 +261,10 @@ nsNavHistoryExpire::ClearHistory()
   rv = ExpireAnnotationsParanoid(connection);
   if (NS_FAILED(rv))
     NS_WARNING("ExpireAnnotationsParanoid failed.");
+
+  rv = ExpireInputHistoryParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireInputHistoryParanoid failed.");
 
   // for all remaining places, reset the frecency
   // Note, we don't reset the visit_count, as we use that in our "on idle"
@@ -559,19 +566,22 @@ nsNavHistoryExpire::EraseVisits(mozIStorageConnection* aConnection,
   if (placeIds.IsEmpty())
     return NS_OK;
 
-  // reset the frecencies for these places.
-  // Note, we don't reset the visit_count, as we use that in our "on idle"
-  // query to figure out which places to recalcuate frecency first.
+  // Reset the frecencies for the places that don't have any more visits after
+  // we deleted them and make sure they aren't bookmarked either. This means we
+  // keep the old frecencies when possible as an estimate for the new frecency
+  // unless we know it has to be -1.
   rv = aConnection->ExecuteSimpleSQL(
-    NS_LITERAL_CSTRING("UPDATE moz_places SET "
-      "frecency = -1 WHERE id IN (") +
+    NS_LITERAL_CSTRING(
+      "UPDATE moz_places "
+      "SET frecency = -1 "
+      "WHERE id IN ("
+        "SELECT h.id FROM moz_places h "
+        "LEFT OUTER JOIN moz_historyvisits v ON v.place_id = h.id "
+        "LEFT OUTER JOIN moz_bookmarks b ON b.fk = h.id "
+        "WHERE v.id IS NULL AND b.id IS NULL AND h.id IN (") +
     placeIds +
-    NS_LITERAL_CSTRING(")"));
+    NS_LITERAL_CSTRING("))"));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // XXX todo
-  // forcibly call the "on idle" timer here to do a little work
-  // but the rest will happen on idle.
 
   return NS_OK;
 }
@@ -877,6 +887,51 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
       NS_LITERAL_CSTRING("))"));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // XXX REMOVE ME BEFORE FINAL
+  // There was a period in which we inserted bogus charset annos during bookmark
+  // import, we must move them into items annos, since those pages will
+  // never get deleted from moz_places and that is a valid privacy concern.
+  nsCAutoString charsetAnno("URIProperties/characterSet");
+
+  // XXX REMOVE ME BEFORE FINAL
+  // Move current page annos to items annos for bookmarked items.
+  // In the migration query we use NULL as the id, since we don't know the
+  // new id where the annotation will be inserted
+  nsCOMPtr<mozIStorageStatement> migrateStatement;
+  rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
+        "INSERT INTO moz_items_annos "
+        "SELECT null, b.id, a.anno_attribute_id, a.mime_type, a.content, "
+        " a.flags, a.expiration, a.type, a.dateAdded, a.lastModified "
+        "FROM moz_annos a "
+        "JOIN moz_anno_attributes n ON a.anno_attribute_id = n.id "
+        "JOIN moz_bookmarks b ON b.fk = a.place_id "
+        "WHERE b.id IS NOT NULL AND n.name = ?1 AND a.expiration = ") +
+        nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER),
+      getter_AddRefs(migrateStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = migrateStatement->BindUTF8StringParameter(0, charsetAnno);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = migrateStatement->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // XXX REMOVE ME BEFORE FINAL
+  // Delete old bogus page annos for bookmarked items
+  nsCOMPtr<mozIStorageStatement> cleanupStatement;
+  rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
+        "DELETE FROM moz_annos WHERE id IN "
+        "(SELECT a.id FROM moz_annos a "
+        "JOIN moz_anno_attributes n ON a.anno_attribute_id = n.id "
+        "JOIN moz_bookmarks b ON b.fk = a.place_id "
+        "WHERE b.id IS NOT NULL AND n.name = ?1 AND a.expiration = ") +
+        nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER) +
+        NS_LITERAL_CSTRING(")"),
+      getter_AddRefs(cleanupStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = cleanupStatement->BindUTF8StringParameter(0, charsetAnno);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = cleanupStatement->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // delete item annos w/o a corresponding item id
   rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "DELETE FROM moz_items_annos WHERE id IN "
@@ -896,6 +951,25 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
       "JOIN moz_items_annos c ON c.anno_attribute_id = a.id "
       "JOIN moz_bookmarks p ON c.item_id = p.id)"));
   NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
+}
+
+
+// nsNavHistoryExpire::ExpireInputHistoryParanoid
+//
+//    Deletes dangling input history
+
+nsresult
+nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnection)
+{
+  // Delete dangling input history that have no associated pages
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+    "DELETE FROM moz_inputhistory WHERE place_id IN "
+    "(SELECT i.place_id FROM moz_inputhistory i "
+      "LEFT OUTER JOIN moz_places h ON i.place_id = h.id "
+      "WHERE h.id IS NULL)"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 

@@ -339,72 +339,6 @@ JS_ArenaRelease(JSArenaPool *pool, char *mark)
 }
 
 JS_PUBLIC_API(void)
-JS_ArenaFreeAllocation(JSArenaPool *pool, void *p, size_t size)
-{
-    JSArena **ap, *a, *b;
-    jsuword q;
-
-    /*
-     * If the allocation is oversized, it consumes an entire arena, and it has
-     * a header just before the allocation pointing back to its predecessor's
-     * next member.  Otherwise, we have to search pool for a.
-     */
-    if (size > pool->arenasize) {
-        ap = *PTR_TO_HEADER(pool, p);
-        a = *ap;
-    } else {
-        q = (jsuword)p + size;
-        q = JS_ARENA_ALIGN(pool, q);
-        ap = &pool->first.next;
-        while ((a = *ap) != NULL) {
-            JS_ASSERT(a->base <= a->avail && a->avail <= a->limit);
-
-            if (a->avail == q) {
-                /*
-                 * If a is consumed by the allocation at p, we can free it to
-                 * the malloc heap.
-                 */
-                if (a->base == (jsuword)p)
-                    break;
-
-                /*
-                 * We can't free a, but we can "retract" its avail cursor --
-                 * whether there are others after it in pool.
-                 */
-                a->avail = (jsuword)p;
-                return;
-            }
-            ap = &a->next;
-        }
-    }
-
-    /*
-     * At this point, a is doomed, so ensure that pool->current doesn't point
-     * at it.  We must preserve LIFO order of mark/release cursors, so we use
-     * the oversized-allocation arena's back pointer (or if not oversized, we
-     * use the result of searching the entire pool) to compute the address of
-     * the arena that precedes a.
-     */
-    if (pool->current == a)
-        pool->current = (JSArena *) ((char *)ap - offsetof(JSArena, next));
-
-    /*
-     * This is a non-LIFO deallocation, so take care to fix up a->next's back
-     * pointer in its header, if a->next is oversized.
-     */
-    *ap = b = a->next;
-    if (b && b->avail - b->base > pool->arenasize) {
-        JS_ASSERT(GET_HEADER(pool, b) == &a->next);
-        SET_HEADER(pool, b, ap);
-    }
-    if (pool->quotap)
-        *pool->quotap += a->limit - (jsuword) a;
-    JS_CLEAR_ARENA(a);
-    JS_COUNT_ARENA(pool,--);
-    free(a);
-}
-
-JS_PUBLIC_API(void)
 JS_FreeArenaPool(JSArenaPool *pool)
 {
     FreeArenaList(pool, &pool->first);
@@ -514,31 +448,3 @@ JS_DumpArenaStats(FILE *fp)
     }
 }
 #endif /* JS_ARENAMETER */
-
-#ifdef DEBUG
-
-JSBool
-js_GuardedArenaMark(JSArenaPool *pool, void *mark, void *guardMark)
-{
-    JSArena *a;
-
-    a = pool->current;
-    if (JS_ARENA_MARK_MATCH(a, mark)) {
-        return !JS_ARENA_MARK_MATCH(a, guardMark) ||
-               (uint8 *)guardMark <= (uint8 *)mark;
-    }
-
-    for (a = &pool->first; !JS_ARENA_MARK_MATCH(a, guardMark); a = a->next) {
-        if (JS_ARENA_MARK_MATCH(a, mark))
-            return JS_FALSE;
-    }
-
-    /*
-     * We found the guarded arena. Mark follows the guard when it either marks
-     * arenas after a or if it is greater or equal to the guard.
-     */
-    return !JS_ARENA_MARK_MATCH(a, mark) ||
-           (uint8 *)guardMark <= (uint8 *)mark;
-}
-
-#endif

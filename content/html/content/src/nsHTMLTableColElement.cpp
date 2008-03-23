@@ -124,14 +124,14 @@ nsHTMLTableColElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     /* ignore these attributes, stored simply as strings ch */
     if (aAttribute == nsGkAtoms::charoff) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::span) {
       /* protection from unrealistic large colspan values */
       return aResult.ParseIntWithBounds(aValue, 1, MAX_COLSPAN);
     }
     if (aAttribute == nsGkAtoms::width) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::align) {
       return ParseTableCellHAlignValue(aValue, aResult);
@@ -148,6 +148,21 @@ nsHTMLTableColElement::ParseAttribute(PRInt32 aNamespaceID,
 static 
 void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
 {
+  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Table) && 
+      aData->mTableData->mSpan.GetUnit() == eCSSUnit_Null) {
+    // span: int
+    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::span);
+    if (value && value->Type() == nsAttrValue::eInteger) {
+      PRInt32 val = value->GetIntegerValue();
+      // Note: Do NOT use this code for table cells!  The value "0"
+      // means something special for colspan and rowspan, but for <col
+      // span> and <colgroup span> it's just disallowed.
+      if (val > 0) {
+        aData->mTableData->mSpan.SetIntValue(value->GetIntegerValue(),
+                                             eCSSUnit_Integer);
+      }
+    }
+  }
   if ((aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) &&
       aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
     // width
@@ -187,26 +202,6 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
-static 
-void ColMapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                              nsRuleData* aData)
-{
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Table) && 
-      aData->mTableData->mSpan.GetUnit() == eCSSUnit_Null) {
-    // span: int
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::span);
-    if (value && value->Type() == nsAttrValue::eInteger) {
-      PRInt32 val = value->GetIntegerValue();
-      if (val >= 1) {
-        aData->mTableData->mSpan.SetIntValue(value->GetIntegerValue(),
-                                             eCSSUnit_Integer);
-      }
-    }
-  }
-
-  MapAttributesIntoRule(aAttributes, aData);
-}
-
 NS_IMETHODIMP_(PRBool)
 nsHTMLTableColElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
@@ -214,40 +209,21 @@ nsHTMLTableColElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     { &nsGkAtoms::width },
     { &nsGkAtoms::align },
     { &nsGkAtoms::valign },
-    { nsnull }
-  };
-
-  static const MappedAttributeEntry span_attribute[] = {
     { &nsGkAtoms::span },
     { nsnull }
   };
 
-  static const MappedAttributeEntry* const col_map[] = {
-    attributes,
-    span_attribute,
-    sCommonAttributeMap,
-  };
-
-  static const MappedAttributeEntry* const colspan_map[] = {
+  static const MappedAttributeEntry* const map[] = {
     attributes,
     sCommonAttributeMap,
   };
 
-  // we only match "span" if we're a <col>
-  if (mNodeInfo->Equals(nsGkAtoms::col))
-    return FindAttributeDependence(aAttribute, col_map,
-                                   NS_ARRAY_LENGTH(col_map));
-  return FindAttributeDependence(aAttribute, colspan_map,
-                                 NS_ARRAY_LENGTH(colspan_map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 
 nsMapRuleToAttributesFunc
 nsHTMLTableColElement::GetAttributeMappingFunction() const
 {
-  if (mNodeInfo->Equals(nsGkAtoms::col)) {
-    return &ColMapAttributesIntoRule;
-  }
-
   return &MapAttributesIntoRule;
 }

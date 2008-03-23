@@ -1,3 +1,4 @@
+/*
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -36,6 +37,7 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
+*/
 
 var currentconfigname;
 var currentconfigpath;
@@ -356,6 +358,8 @@ Array.prototype.exists = function (x) {
 }
 
 var prefsLockOnly = ["browser.startup.homepage", "browser.throbber.url",
+                     "startup.homepage_override_url", "startup.homepage_welcome_url",
+                     "browser.search.defaultenginename", "browser.search.order.1",
                      "network.proxy.type", "network.proxy.http", "network.proxy.http_port",
                      "network.proxy.share_proxy_settings", "network.proxy.ssl",
                      "network.proxy.ssl_port", "network.proxy.ftp", "network.proxy.ftp_port",
@@ -704,7 +708,6 @@ function RefreshDefaultSearchEngines()
   if (!listbox)
     listbox = this.opener.document.getElementById('searchEngineList');
 
-
   var curitem = menulist.value;
   menulist.selectedIndex = -1;
   menulist.removeAllItems();
@@ -722,6 +725,18 @@ function RefreshDefaultSearchEngines()
       setcuritem = true;
     menulistitem.minWidth=menulist.width;
   }
+  var ss = Components.classes["@mozilla.org/browser/search-service;1"]
+                     .getService(Components.interfaces.nsIBrowserSearchService);
+  var engines = ss.getVisibleEngines({ });
+  for (var i=0; i < engines.length; i++) {
+    name = engines[i].name;
+    menulistitem = menulist.appendItem(name, name);
+    if (name == curitem)
+      setcuritem = true;
+    menulistitem.minWidth=menulist.width;
+  }
+
+
   if (setcuritem)
     menulist.value = curitem;
   else 
@@ -1563,6 +1578,7 @@ function CCKWriteProperties(destdir)
   input.close();
 
   str = str.replace(/%id%/g, document.getElementById("id").value);
+  str = str.replace(/%version%/g, document.getElementById("version").value);
   str = str.replace(/%OrganizationName%/g, document.getElementById("OrganizationName").value);
   str = str.replace(/%browser.throbber.url%/g, document.getElementById("AnimatedLogoURL").value);
   str = str.replace(/%cckhelp.url%/g, document.getElementById("HelpMenuCommandURL").value);
@@ -1737,8 +1753,9 @@ function CCKWriteDefaultJS(destdir)
 {
   var throbber1 = 'pref("browser.throbber.url",            "';
   var homepage1 = 'pref("browser.startup.homepage",        "';
-  var homepage2 = 'pref("startup.homepage_override_url",   "chrome://cck/content/cck.properties");\n';
-  var override  = 'pref("browser.startup.homepage_override.mstone",   "ignore");\n';
+  var homepage2 = 'pref("startup.homepage_override_url",   "';
+  var homepage3 = 'pref("startup.homepage_welcome_url",   "';
+
   var chromeurl =   "chrome://cck/content/cck.properties";
   var prefend = '");\n';
   var useragent1begin = 'pref("general.useragent.vendorComment", "CK-';
@@ -1759,41 +1776,51 @@ function CCKWriteDefaultJS(destdir)
 
   var logobuttonurl = document.getElementById("AnimatedLogoURL").value;
   if (logobuttonurl && (logobuttonurl.length > 0)) {
-    fos.write(throbber1, throbber1.length);
-    if (prefIsLocked("browser.throbber.url")) {
-      fos.write(logobuttonurl, logobuttonurl.length);
-    } else {
+    /* If the pref is locked, we set it in our service using */
+    /* The value from properties */
+    if (!prefIsLocked("browser.throbber.url")) {
+      fos.write(throbber1, throbber1.length);
       fos.write(chromeurl, chromeurl.length);
+      fos.write(prefend, prefend.length);
     }
-    fos.write(prefend, prefend.length);
   }
 
   var browserstartuppage = document.getElementById("HomePageURL").value;
   var overrideurl = document.getElementById('HomePageOverrideURL').value;
+  var welcomeurl = document.getElementById('HomePageWelcomeURL').value;
   if (browserstartuppage && (browserstartuppage.length > 0)) {
-    fos.write(homepage1, homepage1.length);
-    if (prefIsLocked("browser.startup.homepage")) {
-      fos.write(browserstartuppage, browserstartuppage.length);
-    } else {    
+    /* If the pref is locked, we set it in our service using */
+    /* The value from properties */
+    if (!prefIsLocked("browser.startup.homepage")) {
+      fos.write(homepage1, homepage1.length);
       fos.write(chromeurl, chromeurl.length);
+      fos.write(prefend, prefend.length);
+    }
+  }
+  if ((overrideurl && overrideurl.length) || (document.getElementById("noOverridePage").checked)) {
+    fos.write(homepage2, homepage2.length);
+    if (!document.getElementById("noOverridePage").checked) {
+      fos.write(overrideurl, overrideurl.length);
     }
     fos.write(prefend, prefend.length);
+  }
+  if ((welcomeurl && welcomeurl.length) || (document.getElementById("noWelcomePage").checked)) {
+    fos.write(homepage3, homepage3.length);
+    if (!document.getElementById("noWelcomePage").checked) {
+      fos.write(welcomeurl, welcomeurl.length);
+    }
+    fos.write(prefend, prefend.length);
+  }
 
-    fos.write(homepage2, homepage2.length);
-  } else if (overrideurl && overrideurl.length) {
-    fos.write(homepage2, homepage2.length);
-  }
-  
-  if (document.getElementById("noWelcomePage").checked) {
-    fos.write(override, override.length);
-  }
-  
-  
   var bundle = document.getElementById("bundle_cckwizard");
 
-  if (document.getElementById("defaultSearchEngine").value != bundle.getString("useBrowserDefault")) {
-    fos.write(searchengine1, searchengine1.length);
-    fos.write(searchengine2, searchengine2.length);
+  if (document.getElementById("defaultSearchEngine").selectedItem.label != bundle.getString("useBrowserDefault")) {
+    if (!prefIsLocked("browser.search.defaultenginename")) {
+      fos.write(searchengine1, searchengine1.length);
+    }
+    if (!prefIsLocked("browser.search.order.1")) {
+      fos.write(searchengine2, searchengine2.length);
+    }
   }
   
 
@@ -2698,6 +2725,9 @@ function CCKReadConfigFile(srcdir)
   var noWelcomePage = document.getElementById("noWelcomePage");
   noWelcomePage.checked = configarray["noWelcomePage"];
 
+  var noWelcomePage = document.getElementById("noOverridePage");
+  noWelcomePage.checked = configarray["noOverridePage"];
+
 
   var proxyitem = document.getElementById("shareAllProxies");
   proxyitem.checked = configarray["shareAllProxies"];
@@ -2944,4 +2974,3 @@ function htmlEscape(s)
   return s;
 }
 
-#include search.js
