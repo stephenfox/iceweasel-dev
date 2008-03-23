@@ -55,13 +55,18 @@ include $(topsrcdir)/config/rules.mk
 _SERV_FILES = 	\
 		runtests.pl \
 		runtests.py \
+		automation.py \
 		gen_template.pl \
 		server.js \
+		harness-a11y.xul \
+		harness-overlay.xul \
 		harness.xul \
 		browser-test-overlay.xul \
 		browser-test.js \
 		browser-harness.xul \
+		redirect-a11y.html \
 		redirect.html \
+		redirect.js \
 		$(topsrcdir)/netwerk/test/httpserver/httpd.js \
 		$(NULL)	
 
@@ -96,14 +101,23 @@ else
 TEST_DRIVER_PPARGS += -DIS_MAC=0
 endif
 
+ifeq ($(host_os), cygwin)
+TEST_DRIVER_PPARGS += -DIS_CYGWIN=1
+endif
+
 runtests.pl: runtests.pl.in
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
 	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
 
 runtests.py: runtests.py.in
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
 	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
 
+automation.py: $(topsrcdir)/build/pgo/automation.py.in
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+	$(TEST_DRIVER_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
+
+GARBAGE += runtests.pl runtests.py automation.py
 
 libs:: $(_SERV_FILES)
 	$(INSTALL) $^ $(_DEST_DIR)

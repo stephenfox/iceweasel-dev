@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Travis Bogard <travis@netscape.com>
- *   Håkan Waara <hwaara@chello.se>
+ *   HÃ‚kan Waara <hwaara@chello.se>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -94,6 +94,10 @@
 #include "nsIObjectLoadingContent.h"
 #include "nsLayoutUtils.h"
 
+#ifdef MOZ_XUL
+#include "nsXULPopupManager.h"
+#endif
+
 // For Accessibility
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
@@ -140,6 +144,11 @@ public:
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nsSize  GetIntrinsicRatio();
+
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
+                                 nsSize aCBSize, nscoord aAvailableWidth,
+                                 nsSize aMargin, nsSize aBorder,
+                                 nsSize aPadding, PRBool aShrinkWrap);
 
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
@@ -445,6 +454,24 @@ nsSubDocumentFrame::GetIntrinsicRatio()
 }
 
 /* virtual */ nsSize
+nsSubDocumentFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
+                                    nsSize aCBSize, nscoord aAvailableWidth,
+                                    nsSize aMargin, nsSize aBorder,
+                                    nsSize aPadding, PRBool aShrinkWrap)
+{
+  if (!IsInline()) {
+    return nsFrame::ComputeAutoSize(aRenderingContext, aCBSize,
+                                    aAvailableWidth, aMargin, aBorder,
+                                    aPadding, aShrinkWrap);
+  }
+
+  return nsLeafFrame::ComputeAutoSize(aRenderingContext, aCBSize,
+                                      aAvailableWidth, aMargin, aBorder,
+                                      aPadding, aShrinkWrap);  
+}
+
+
+/* virtual */ nsSize
 nsSubDocumentFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
@@ -672,6 +699,15 @@ nsSubDocumentFrame::AttributeChanged(PRInt32 aNameSpaceID,
       mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
 
       PRBool is_primary = value.LowerCaseEqualsLiteral("content-primary");
+
+#ifdef MOZ_XUL
+      // when a content panel is no longer primary, hide any open popups it may have
+      if (!is_primary) {
+        nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+        if (pm)
+          pm->HidePopupsInDocShell(docShellAsItem);
+      }
+#endif
 
       parentTreeOwner->ContentShellRemoved(docShellAsItem);
 

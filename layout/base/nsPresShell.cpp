@@ -835,6 +835,7 @@ public:
   NS_IMETHOD CreateRenderingContext(nsIFrame *aFrame,
                                     nsIRenderingContext** aContext);
   NS_IMETHOD GoToAnchor(const nsAString& aAnchorName, PRBool aScroll);
+  NS_IMETHOD ScrollToAnchor();
 
   NS_IMETHOD ScrollContentIntoView(nsIContent* aContent,
                                    PRIntn      aVPercent,
@@ -927,6 +928,7 @@ public:
   // nsISelectionController
 
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -1133,6 +1135,8 @@ protected:
   nsVoidArray mCurrentEventFrameStack;
   nsCOMArray<nsIContent> mCurrentEventContentStack;
 
+  nsCOMPtr<nsIContent>          mLastAnchorScrolledTo;
+  nscoord                       mLastAnchorScrollPositionY;
   nsCOMPtr<nsICaret>            mCaret;
   nsCOMPtr<nsICaret>            mOriginalCaret;
   PRInt16                       mSelectionFlags;
@@ -1864,7 +1868,7 @@ nsresult PresShell::CreatePreferenceStyleSheet(void)
     result = NS_NewURI(getter_AddRefs(uri), "about:PreferenceStyleSheet", nsnull);
     if (NS_SUCCEEDED(result)) {
       NS_ASSERTION(uri, "null but no error");
-      result = mPrefStyleSheet->SetURIs(uri, nsnull, uri);
+      result = mPrefStyleSheet->SetURIs(uri, uri, uri);
       if (NS_SUCCEEDED(result)) {
         mPrefStyleSheet->SetComplete();
         PRUint32 index;
@@ -2716,6 +2720,12 @@ PresShell::CharacterMove(PRBool aForward, PRBool aExtend)
   return mSelection->CharacterMove(aForward, aExtend);  
 }
 
+NS_IMETHODIMP
+PresShell::CharacterExtendForDelete()
+{
+  return mSelection->CharacterExtendForDelete();
+}
+
 NS_IMETHODIMP 
 PresShell::WordMove(PRBool aForward, PRBool aExtend)
 {
@@ -2763,7 +2773,8 @@ PresShell::PageMove(PRBool aForward, PRBool aExtend)
   nsIView *scrolledView;
   result = scrollableView->GetScrolledView(scrolledView);
   mSelection->CommonPageMove(aForward, aExtend, scrollableView);
-  // do ScrollSelectionIntoView()
+  // After ScrollSelectionIntoView(), the pending notifications might be
+  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
   return ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 }
 
@@ -2839,6 +2850,8 @@ PresShell::CompleteScroll(PRBool aForward)
 NS_IMETHODIMP
 PresShell::CompleteMove(PRBool aForward, PRBool aExtend)
 {
+  // Beware! This may flush notifications via synchronous
+  // ScrollSelectionIntoView.
   return CompleteMoveInner(aForward, aExtend, PR_TRUE);
 }
 
@@ -2876,6 +2889,8 @@ PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollInto
     mSelection->SetAncestorLimiter(root);
 
     if (aScrollIntoView) {
+      // After ScrollSelectionIntoView(), the pending notifications might be
+      // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
       return
         ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
                                 nsISelectionController::SELECTION_FOCUS_REGION,
@@ -2920,6 +2935,8 @@ PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollInto
   mSelection->HandleClick(pos.mResultContent ,pos.mContentOffset ,pos.mContentOffset/*End*/ ,aExtend, PR_FALSE, aForward);
 
   if (aScrollIntoView) {
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     result = ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
                                      nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
     if (NS_FAILED(result)) 
@@ -3613,11 +3630,16 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
   esm->SetContentState(content, NS_EVENT_STATE_URLTARGET);
 
   if (content) {
-    // Flush notifications so we scroll to the right place
     if (aScroll) {
       rv = ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_TOP,
                                  NS_PRESSHELL_SCROLL_ANYWHERE);
       NS_ENSURE_SUCCESS(rv, rv);
+
+      nsIScrollableFrame* rootScroll = GetRootScrollFrameAsScrollable();
+      if (rootScroll) {
+        mLastAnchorScrolledTo = content;
+        mLastAnchorScrollPositionY = rootScroll->GetScrollPosition().y;
+      }
     }
 
     // Should we select the target? This action is controlled by a
@@ -3698,6 +3720,23 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
     }
   }
 
+  return rv;
+}
+
+NS_IMETHODIMP
+PresShell::ScrollToAnchor()
+{
+  if (!mLastAnchorScrolledTo)
+    return NS_OK;
+
+  nsIScrollableFrame* rootScroll = GetRootScrollFrameAsScrollable();
+  if (!rootScroll ||
+      mLastAnchorScrollPositionY != rootScroll->GetScrollPosition().y)
+    return NS_OK;
+
+  nsresult rv = ScrollContentIntoView(mLastAnchorScrolledTo, NS_PRESSHELL_SCROLL_TOP,
+                                      NS_PRESSHELL_SCROLL_ANYWHERE);
+  mLastAnchorScrolledTo = nsnull;
   return rv;
 }
 
@@ -3796,11 +3835,7 @@ UnionRectForClosestScrolledView(nsIFrame* aFrame,
       // We can't use nsRect::UnionRect since it drops empty rects on
       // the floor, and we need to include them.  (Thus we need
       // aHaveRect to know when to drop the initial value on the floor.)
-      nscoord x = PR_MIN(aRect.x, frameBounds.x),
-              y = PR_MIN(aRect.y, frameBounds.y),
-          xmost = PR_MAX(aRect.XMost(), frameBounds.XMost()),
-          ymost = PR_MAX(aRect.YMost(), frameBounds.YMost());
-      aRect.SetRect(x, y, xmost - x, ymost - y);
+      aRect.UnionRectIncludeEmpty(aRect, frameBounds);
     } else {
       aHaveRect = PR_TRUE;
       aRect = frameBounds;
@@ -4553,6 +4588,23 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
     // frame to the caret.
     mCaret->InvalidateOutsideCaret();
   }
+
+  // Call this here so it only happens for real content mutations and
+  // not cases when the frame constructor calls its own methods to force
+  // frame reconstruction.
+  nsIContent *container = aContent->GetParent();
+  PRUint32 selectorFlags =
+    container ? (container->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
+  if (selectorFlags != 0) {
+    PRUint32 index;
+    if (aInfo->mAppend &&
+        container->GetChildAt((index = container->GetChildCount() - 1)) ==
+          aContent)
+      mFrameConstructor->RestyleForAppend(container, index);
+    else
+      mFrameConstructor->RestyleForInsertOrChange(container, aContent);
+  }
+
   mFrameConstructor->CharacterDataChanged(aContent, aInfo->mAppend);
   VERIFY_STYLE_TREE;
   DidCauseReflow();
@@ -4606,6 +4658,7 @@ PresShell::ContentAppended(nsIDocument *aDocument,
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected ContentAppended");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
+  NS_PRECONDITION(aContainer, "must have container");
   
   if (!mDidInitialReflow) {
     return;
@@ -4614,6 +4667,11 @@ PresShell::ContentAppended(nsIDocument *aDocument,
   WillCauseReflow();
   MOZ_TIMER_DEBUGLOG(("Start: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
   MOZ_TIMER_START(mFrameCreationWatch);
+
+  // Call this here so it only happens for real content mutations and
+  // not cases when the frame constructor calls its own methods to force
+  // frame reconstruction.
+  mFrameConstructor->RestyleForAppend(aContainer, aNewIndexInContainer);
 
   mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer);
   VERIFY_STYLE_TREE;
@@ -4637,6 +4695,13 @@ PresShell::ContentInserted(nsIDocument* aDocument,
   }
   
   WillCauseReflow();
+
+  // Call this here so it only happens for real content mutations and
+  // not cases when the frame constructor calls its own methods to force
+  // frame reconstruction.
+  if (aContainer)
+    mFrameConstructor->RestyleForInsertOrChange(aContainer, aChild);
+
   mFrameConstructor->ContentInserted(aContainer, aChild,
                                      aIndexInContainer, nsnull);
   VERIFY_STYLE_TREE;
@@ -4662,6 +4727,13 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
   mPresContext->EventStateManager()->ContentRemoved(aChild);
 
   WillCauseReflow();
+
+  // Call this here so it only happens for real content mutations and
+  // not cases when the frame constructor calls its own methods to force
+  // frame reconstruction.
+  if (aContainer)
+    mFrameConstructor->RestyleForRemove(aContainer, aChild, aIndexInContainer);
+
   PRBool didReconstruct;
   mFrameConstructor->ContentRemoved(aContainer, aChild,
                                     aIndexInContainer, &didReconstruct);
@@ -5585,23 +5657,7 @@ PresShell::HandleEvent(nsIView         *aView,
       if (mCurrentEventFrame) {
         esm->GetFocusedContent(getter_AddRefs(mCurrentEventContent));
       } else {
-#if defined(MOZ_X11) || defined(XP_WIN)
-#if defined(MOZ_X11)
-        if (NS_IS_IME_EVENT(aEvent)) {
-          // bug 52416 (MOZ_X11)
-          // Lookup region (candidate window) of UNIX IME grabs
-          // input focus from Mozilla but wants to send IME event
-          // to redraw pre-edit (composed) string
-          // If Mozilla does not have input focus and event is IME,
-          // sends IME event to pre-focused element
-#else
-        if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent)) {
-          // bug 292263 (XP_WIN)
-          // If software keyboard has focus, it may send the key messages and
-          // the IME messages to pre-focused window. Therefore, if Mozilla
-          // doesn't have focus and event is key event or IME event, we should
-          // send the events to pre-focused element.
-#endif /* defined(MOZ_X11) */
+        if (NS_TargetUnfocusedEventToLastFocusedContent(aEvent)) {
           nsPIDOMWindow *ourWindow = mDocument->GetWindow();
           if (ourWindow) {
             nsIFocusController *focusController =
@@ -5622,7 +5678,6 @@ PresShell::HandleEvent(nsIView         *aView,
             }
           }
         }
-#endif /* defined(MOZ_X11) || defined(XP_WIN) */
         if (!mCurrentEventContent) {
           mCurrentEventContent = mDocument->GetRootContent();
         }

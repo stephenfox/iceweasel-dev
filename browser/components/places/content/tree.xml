@@ -68,7 +68,7 @@
       <!-- overriding -->
       <property name="view">
         <getter><![CDATA[
-          return this.treeBoxObject.view;
+          return this.treeBoxObject.view.QueryInterface(Ci.nsINavHistoryResultTreeViewer);
         ]]></getter>
         <setter><![CDATA[ 
           return this.treeBoxObject.view = val;
@@ -97,15 +97,6 @@
           var query = PlacesUtils.history.getNewQuery();
           query.searchTerms = filterString;
 
-          // Remove "group by folder" from the options list, because
-          // nsNavHistory::RecursiveGroup doesn't support it.
-          function isFolderGrouping(grouping, index, ary) {
-            return grouping != Ci.nsINavHistoryQueryOptions.GROUP_BY_FOLDER;
-          }
-          var groupings = options.getGroupingMode({});
-          var folderGroupings = groupings.filter(isFolderGrouping);
-          options.setGroupingMode(folderGroupings, folderGroupings.length);
-
           if (folderRestrict) {
             query.setFolders(folderRestrict, folderRestrict.length);
             options.queryType = options.QUERY_TYPE_BOOKMARKS;
@@ -121,7 +112,14 @@
         <body><![CDATA[
           var result = PlacesUtils.history.executeQueries(queries, queries.length, 
                                                           options);
-          var treeView = new PlacesTreeView(this.showRoot, this.flatList);
+          var callback;
+          if (this.flatList) {
+            var onOpenFlatContainer = this.onOpenFlatContainer;
+            if (onOpenFlatContainer)
+              callback = new Function("aContainer", onOpenFlatContainer);
+          }
+
+          var treeView = new PlacesTreeView(this.showRoot, this.flatList, callback);
           result.viewer = treeView;
           this.view = treeView;
           if (!this._controller) {
@@ -154,6 +152,21 @@
         <setter><![CDATA[
           if (this.flatList != val) {
             this.setAttribute("flatList", val);
+            // reload with the last place set
+            if (this.place)
+              this.place = this.place;
+          }
+          return val;
+        ]]></setter>
+      </property>
+
+      <property name="onOpenFlatContainer">
+        <getter><![CDATA[
+          return this.getAttribute("onopenflatcontainer");
+        ]]></getter>
+        <setter><![CDATA[
+          if (this.onOpenFlatContainer != val) {
+            this.setAttribute("onopenflatcontainer", val);
             // reload with the last place set
             if (this.place)
               this.place = this.place;
@@ -318,13 +331,6 @@
           return this.view.selection.count >= 1;
         ]]></getter>
       </property>
-
-      <!-- nsIPlacesView -->
-      <property name="hasSingleSelection">
-        <getter><![CDATA[
-          return this.view.selection.count == 1;
-        ]]></getter>
-      </property>
       
       <!-- nsIPlacesView -->
       <method name="getSelectionNodes">
@@ -397,22 +403,9 @@
       </method>
       
       <!-- nsIPlacesView -->
-      <method name="getCopyableSelection">
-        <body><![CDATA[ 
-          // XXXben implement me!
-          return this.getSelectionNodes();
-        ]]></body>
-      </method>
-
-      <!-- nsIPlacesView -->
       <method name="getDragableSelection">
         <body><![CDATA[
-          var nodes = this.getSelectionNodes();
-          for (var i = nodes.length - 1; i >= 0; i--) {
-            if (PlacesUtils.nodeIsReadOnly(nodes[i].parent))
-              nodes.splice(i, 1);
-          }
-          return nodes;
+          return this.getSelectionNodes();
         ]]></body>
       </method>
       
@@ -420,36 +413,16 @@
       <property name="selectedNode">
         <getter><![CDATA[
           var view = this.view;
-          var selection = view.selection;
-          var rc = selection.getRangeCount();
-          if (rc != 1) 
+          if (view.selection.count != 1)
             return null;
+
+          var selection = view.selection;
           var min = { }, max = { };
           selection.getRangeAt(0, min, max);
 
           return this.getResultView().nodeForTreeIndex(min.value);
         ]]></getter>
       </property>
-      
-      <!-- nsIPlacesView -->
-      <property name="selectedURINode">
-        <getter><![CDATA[
-          var view = this.view;
-          var selection = view.selection;
-          var rc = selection.getRangeCount();
-          if (rc != 1) 
-            return null;
-          var min = { }, max = { };
-          selection.getRangeAt(0, min, max);
-
-          // only URI nodes should be returned
-          var node = this.getResultView().nodeForTreeIndex(min.value);
-          if (PlacesUtils.nodeIsURI(node))
-            return node;
-          return null;
-        ]]></getter>
-      </property>
-
 
       <!-- nsIPlacesView -->
       <property name="insertionPoint">
@@ -504,7 +477,7 @@
           // into it even if it is not opened
           var itemId =
             PlacesUtils.getConcreteItemId(resultView.nodeForTreeIndex(max.value));
-          if (this.hasSingleSelection && resultView.isContainer(max.value) &&
+          if (selection.count == 1 && resultView.isContainer(max.value) &&
               (resultView.isContainerOpen(max.value) ||
                itemId == PlacesUtils.bookmarksMenuFolderId))
             orientation = Ci.nsITreeView.DROP_ON;
@@ -742,54 +715,6 @@
           for (var i = 0; i < types.length; ++i)
             flavorSet.appendFlavour(types[i]);
           return flavorSet;
-        ]]></body>
-      </method>
-
-      <field name="_nextSelection">[]</field>
-      <field name="SAVE_SELECTION_RELOAD">0</field>
-      <field name="SAVE_SELECTION_INSERT">1</field>
-      <method name="saveSelection">
-        <parameter name="mode"/>
-        <body><![CDATA[ 
-          // mode can be one of any of the SAVE_SELECTION field values, 
-          // specifying how selection is to be saved.
-          var s = this.view.selection;
-          var rc = s.getRangeCount();
-          switch (mode) {
-          case this.SAVE_SELECTION_INSERT:
-            var min = { }, max = { };
-            s.getRangeAt(rc - 1, min, max);
-            this._nextSelection = [{ min: max.value, max: max.value }];
-            break;
-          case this.SAVE_SELECTION_RELOAD:
-            this._nextSelection = [];
-            for (var i = 0; i < rc; ++i) {
-              var min = { }, max = { };
-              s.getRangeAt(i, range.min, range.max);
-              this._nextSelection.push({ min: range.min, max: range.max });
-            }
-            break;
-          }
-        ]]></body>
-      </method>
-
-      <method name="restoreSelection">
-        <body><![CDATA[
-          var allowedMaxIndex = this.view.rowCount - 1;
-
-          for (var i = 0; i < this._nextSelection.length; ++i) {
-            var range = this._nextSelection[i];
-
-            // make sure the index is not over the end of the view
-            // this fixes bug 376581
-            if (range.max > allowedMaxIndex)
-              range.max = allowedMaxIndex;
-            if (range.min > allowedMaxIndex)
-              range.min = allowedMaxIndex;
-
-            if (range.min > -1 && range.max > -1)
-              this.view.selection.rangedSelect(range.min, range.max, true);
-          }
         ]]></body>
       </method>
 

@@ -490,9 +490,11 @@
             <xul:vbox flex="1">
               <xul:label anonid="addonDescriptionWrap" class="descriptionWrap"
                          xbl:inherits="xbl:text=description"/>
-              <xul:label class="addonLearnMore text-link" xbl:inherits="homepageURL"
-                         value="&searchResultHomepage.value;"
-                         onclick="openURL(this.getAttribute('homepageURL'));"/>
+              <xul:hbox pack="start">
+                <xul:label class="addonLearnMore text-link" xbl:inherits="homepageURL"
+                           value="&searchResultHomepage.value;"
+                           onclick="openURL(this.getAttribute('homepageURL'));"/>
+              </xul:hbox>
               <xul:spacer flex="1"/>
               <xul:hbox anonid="selectedButtons" class="selectedButtons">
                 <xul:hbox align="center" class="addonType addonTypeExtension">
@@ -649,11 +651,11 @@
   <binding id="addon-icon">
     <content>
       <xul:stack class="addonIconStack">
-        <xul:vbox pack="start" align="start">
-          <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
+        <xul:vbox pack="center" align="center" class="addonIcon">
+          <xul:image xbl:inherits="src=iconURL"/>
         </xul:vbox>
-        <xul:vbox pack="start" align="start">
-          <xul:image class="addonIcon pluginIcon" src="chrome://mozapps/skin/plugins/pluginGeneric.png"/>
+        <xul:vbox pack="start" align="start" class="addonIcon pluginIcon">
+          <xul:image src="chrome://mozapps/skin/plugins/pluginGeneric.png"/>
         </xul:vbox>
         <xul:vbox pack="end" align="start">
           <xul:image class="notifyBadge"/>
@@ -726,7 +728,7 @@
         <xul:vbox flex="1">
           <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
           <xul:hbox>
-            <xul:description xbl:inherits="value=updateStatus" flex="1" crop="end"/>
+            <xul:label xbl:inherits="value=updateStatus" flex="1" crop="end"/>
           </xul:hbox>
         </xul:vbox>
       </xul:hbox>
@@ -742,7 +744,7 @@
         <xul:vbox flex="1">
           <xul:hbox class="addon-name-version" xbl:inherits="name, version"/>
           <xul:hbox>
-            <xul:description xbl:inherits="value=updateAvailableMsg" flex="1" crop="end"/>
+            <xul:label xbl:inherits="value=updateAvailableMsg" flex="1" crop="end"/>
           </xul:hbox>
           <xul:hbox pack="end" align="end">
             <xul:checkbox anonid="includeUpdate" class="includeUpdate" checked="true"
@@ -867,7 +869,7 @@
     <content align="center">
       <xul:image class="searchbox-image" xbl:inherits="src=image"/>
       <xul:textbox class="plain"
-                   xbl:inherits="emptyText,onfocus,onblur,spellcheck,value,maxlength,disabled,size,readonly,tabindex,accesskey"/>
+                   xbl:inherits="emptytext,onfocus,onblur,spellcheck,value,maxlength,disabled,size,readonly,tabindex,accesskey"/>
       <xul:button class="searchbox-search" xbl:inherits="disabled" oncommand="this.parentNode.startSearch()"/>
       <xul:button class="searchbox-cancel" xbl:inherits="disabled" hidden="true" oncommand="this.parentNode.clearSearch()"/>
     </content>

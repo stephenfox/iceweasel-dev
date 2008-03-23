@@ -35,6 +35,11 @@
 #
 # ***** END LICENSE BLOCK *****
 
+#ifdef XP_MACOSX
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+#endif
+
 var gAppManagerDialog = {
   _removed: [],
 
@@ -59,6 +64,9 @@ var gAppManagerDialog = {
     var apps = this.handlerInfo.possibleApplicationHandlers.enumerate();
     while (apps.hasMoreElements()) {
       let app = apps.getNext();
+      if (!gApplicationsPane.isValidHandlerApp(app))
+        continue;
+
       app.QueryInterface(Ci.nsIHandlerApp);
       var item = list.appendItem(app.name);
       item.setAttribute("image", gApplicationsPane._getIconURLForHandlerApp(app));

@@ -277,31 +277,15 @@ nsACProxyListener::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
     rv = status;
   }
 
-  nsCOMPtr<nsIHttpChannel> http;
-  if (NS_SUCCEEDED(rv)) {
-    http = do_QueryInterface(aRequest, &rv);
-  }
-  if (NS_SUCCEEDED(rv)) {
-    rv = NS_ERROR_DOM_BAD_URI;
-    nsCString allow;
-    http->GetResponseHeader(NS_LITERAL_CSTRING("Allow"), allow);
-    nsCWhitespaceTokenizer tok(allow);
-    while (tok.hasMoreTokens()) {
-      if (mRequestMethod.Equals(tok.nextToken(),
-                                nsCaseInsensitiveCStringComparator())) {
-        rv = NS_OK;
-        break;
-      }
-    }
-  }
-
   if (NS_SUCCEEDED(rv)) {
     // Everything worked, check to see if there is an expiration time set on
     // this access control list. If so go ahead and cache it.
 
-    // The "Method-Check-Max-Age" header should return an age in seconds.
+    nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(aRequest, &rv);
+
+    // The "Access-Control-Max-Age" header should return an age in seconds.
     nsCAutoString ageString;
-    http->GetResponseHeader(NS_LITERAL_CSTRING("Method-Check-Max-Age"),
+    http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Max-Age"),
                             ageString);
 
     // Sanitize the string. We only allow 'delta-seconds' as specified by
@@ -322,8 +306,7 @@ nsACProxyListener::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 
         // PR_Now gives microseconds
         PRTime expirationTime = PR_Now() + age * PR_USEC_PER_SEC;
-        nsXMLHttpRequest::sAccessControlCache->PutEntry(mRequestMethod, uri,
-                                                        mReferrerPrincipal,
+        nsXMLHttpRequest::sAccessControlCache->PutEntry(uri, mReferrerPrincipal,
                                                         expirationTime);
       }
     }
@@ -405,13 +388,12 @@ GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
 }
 
 void
-nsAccessControlLRUCache::GetEntry(const nsACString& aMethod,
-                                  nsIURI* aURI,
+nsAccessControlLRUCache::GetEntry(nsIURI* aURI,
                                   nsIPrincipal* aPrincipal,
                                   PRTime* _retval)
 {
   nsCAutoString key;
-  if (GetCacheKey(aMethod, aURI, aPrincipal, key)) {
+  if (GetCacheKey(aURI, aPrincipal, key)) {
     CacheEntry* entry;
     if (GetEntryInternal(key, &entry)) {
       *_retval = entry->value;
@@ -422,13 +404,12 @@ nsAccessControlLRUCache::GetEntry(const nsACString& aMethod,
 }
 
 void
-nsAccessControlLRUCache::PutEntry(const nsACString& aMethod,
-                                  nsIURI* aURI,
+nsAccessControlLRUCache::PutEntry(nsIURI* aURI,
                                   nsIPrincipal* aPrincipal,
                                   PRTime aValue)
 {
   nsCString key;
-  if (!GetCacheKey(aMethod, aURI, aPrincipal, key)) {
+  if (!GetCacheKey(aURI, aPrincipal, key)) {
     NS_WARNING("Invalid cache key!");
     return;
   }
@@ -520,12 +501,10 @@ nsAccessControlLRUCache::RemoveExpiredEntries(const nsACString& aKey,
 }
 
 /* static */ PRBool
-nsAccessControlLRUCache::GetCacheKey(const nsACString& aMethod,
-                                     nsIURI* aURI,
+nsAccessControlLRUCache::GetCacheKey(nsIURI* aURI,
                                      nsIPrincipal* aPrincipal,
                                      nsACString& _retval)
 {
-  NS_ASSERTION(!aMethod.IsEmpty(), "Empty method string!");
   NS_ASSERTION(aURI, "Null uri!");
   NS_ASSERTION(aPrincipal, "Null principal!");
   
@@ -544,7 +523,7 @@ nsAccessControlLRUCache::GetCacheKey(const nsACString& aMethod,
   rv = aURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-  _retval.Assign(aMethod + space + host + space + spec);
+  _retval.Assign(host + space + spec);
 
   return PR_TRUE;
 }
@@ -579,6 +558,9 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
   nsLayoutStatics::Release();
 }
 
+/**
+ * This Init method is called from the factory constructor.
+ */
 nsresult
 nsXMLHttpRequest::Init()
 {
@@ -597,28 +579,55 @@ nsXMLHttpRequest::Init()
     return NS_OK;
   }
 
-  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
-  if (!context) {
-    return NS_OK;
-  }
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
     secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   }
   NS_ENSURE_STATE(subjectPrincipal);
-
-  mScriptContext = context;
   mPrincipal = subjectPrincipal;
-  nsCOMPtr<nsPIDOMWindow> window =
-    do_QueryInterface(context->GetGlobalObject());
-  if (window) {
-    mOwner = window->GetCurrentInnerWindow();
+
+  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
+  if (context) {
+    mScriptContext = context;
+    nsCOMPtr<nsPIDOMWindow> window =
+      do_QueryInterface(context->GetGlobalObject());
+    if (window) {
+      mOwner = window->GetCurrentInnerWindow();
+    }
+  }
+
+  return NS_OK;
+}
+/**
+ * This Init method should only be called by C++ consumers.
+ */
+NS_IMETHODIMP
+nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
+                       nsIScriptContext* aScriptContext,
+                       nsPIDOMWindow* aOwnerWindow)
+{
+  NS_ENSURE_ARG_POINTER(aPrincipal);
+
+  // This object may have already been initialized in the other Init call above
+  // if JS was on the stack. Clear the old values for mScriptContext and mOwner
+  // if new ones are not supplied here.
+
+  mPrincipal = aPrincipal;
+  mScriptContext = aScriptContext;
+  if (aOwnerWindow) {
+    mOwner = aOwnerWindow->GetCurrentInnerWindow();
+  }
+  else {
+    mOwner = nsnull;
   }
 
   return NS_OK;
 }
 
+/**
+ * This Initialize method is called from XPConnect via nsIJSNativeInitializer.
+ */
 NS_IMETHODIMP
 nsXMLHttpRequest::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
                              PRUint32 argc, jsval *argv)
@@ -1106,9 +1115,14 @@ nsXMLHttpRequest::Abort()
     mACGetChannel->Cancel(NS_BINDING_ABORTED);
   }
   mDocument = nsnull;
+  mResponseBody.Truncate();
   mState |= XML_HTTP_REQUEST_ABORTED;
 
-  ChangeState(XML_HTTP_REQUEST_COMPLETED, PR_TRUE, PR_TRUE);
+  if (!(mState & (XML_HTTP_REQUEST_UNINITIALIZED |
+                  XML_HTTP_REQUEST_OPENED |
+                  XML_HTTP_REQUEST_COMPLETED))) {
+    ChangeState(XML_HTTP_REQUEST_COMPLETED, PR_TRUE, PR_TRUE);
+  }
 
   // The ChangeState call above calls onreadystatechange handlers which
   // if they load a new url will cause nsXMLHttpRequest::OpenRequest to clear
@@ -1358,22 +1372,29 @@ nsXMLHttpRequest::GetCurrentHttpChannel()
   return httpChannel;
 }
 
+inline PRBool
+IsSystemPrincipal(nsIPrincipal* aPrincipal)
+{
+  PRBool isSystem = PR_FALSE;
+  nsContentUtils::GetSecurityManager()->
+    IsSystemPrincipal(aPrincipal, &isSystem);
+  return isSystem;
+}
+
 static PRBool
 IsSameOrigin(nsIPrincipal* aPrincipal, nsIChannel* aChannel)
 {
-  if (!aPrincipal) {
-    // XXX Until we got our principal story straight we have to do this to
-    // support C++ callers.
-    return PR_TRUE;
-  }
+  NS_ASSERTION(!IsSystemPrincipal(aPrincipal), "Shouldn't get here!");
 
   nsCOMPtr<nsIURI> codebase;
   nsresult rv = aPrincipal->GetURI(getter_AddRefs(codebase));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  NS_ASSERTION(codebase, "Principal must have a URI!");
 
   nsCOMPtr<nsIURI> channelURI;
   rv = aChannel->GetURI(getter_AddRefs(channelURI));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   rv = nsContentUtils::GetSecurityManager()->
     CheckSameOriginURI(codebase, channelURI, PR_FALSE);
@@ -1395,7 +1416,7 @@ nsXMLHttpRequest::CheckChannelForCrossSiteRequest()
   // The request is now cross-site, so update flag.
   mState |= XML_HTTP_REQUEST_USE_XSITE_AC;
 
-  // Remove dangerous headers and set XMLHttpRequest-Security-Check
+  // Remove dangerous headers
   nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(mChannel);
   if (http) {
     PRUint32 i;
@@ -1405,17 +1426,7 @@ nsXMLHttpRequest::CheckChannelForCrossSiteRequest()
     mExtraRequestHeaders.Clear();
   }
 
-  // Cancel if username/password is supplied to avoid brute-force password
-  // hacking
-  nsCOMPtr<nsIURI> channelURI;
-  nsresult rv = mChannel->GetURI(getter_AddRefs(channelURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCString userpass;
-  channelURI->GetUserPass(userpass);
-  NS_ENSURE_TRUE(userpass.IsEmpty(), NS_ERROR_DOM_BAD_URI);
-  
-  return nsCrossSiteListenerProxy::AddRequestHeaders(mChannel, mPrincipal);
+  return NS_OK;
 }
 
 /* noscript void openRequest (in AUTF8String method, in AUTF8String url, in boolean async, in AString user, in AString password); */
@@ -1428,6 +1439,8 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
 {
   NS_ENSURE_ARG(!method.IsEmpty());
   NS_ENSURE_ARG(!url.IsEmpty());
+
+  NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 
   // Disallow HTTP/1.1 TRACE method (see bug 302489)
   // and MS IIS equivalent TRACK (see bug 381264)
@@ -1529,12 +1542,14 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
   if (NS_FAILED(rv)) return rv;
 
   // Check if we're doing a cross-origin request.
-  if (!(mState & XML_HTTP_REQUEST_XSITEENABLED) &&
-      !IsSameOrigin(mPrincipal, mChannel)) {
+  if (IsSystemPrincipal(mPrincipal)) {
+    // Chrome callers are always allowed to read from different origins.
+    mState |= XML_HTTP_REQUEST_XSITEENABLED;
+  }
+  else if (!(mState & XML_HTTP_REQUEST_XSITEENABLED) &&
+           !IsSameOrigin(mPrincipal, mChannel)) {
     mState |= XML_HTTP_REQUEST_USE_XSITE_AC;
   }
-
-  //mChannel->SetAuthTriedWithPrehost(authp);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mChannel));
   if (httpChannel) {
@@ -1555,7 +1570,7 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
     // our special Access Control Cache.
     PRTime expiration = 0;
     if (sAccessControlCache) {
-      sAccessControlCache->GetEntry(method, uri, mPrincipal, &expiration);
+      sAccessControlCache->GetEntry(uri, mPrincipal, &expiration);
     }
 
     if (expiration <= PR_Now()) {
@@ -1565,16 +1580,10 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
                          nsnull, loadFlags);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = nsCrossSiteListenerProxy::AddRequestHeaders(mACGetChannel, mPrincipal);
-
       nsCOMPtr<nsIHttpChannel> acHttp = do_QueryInterface(mACGetChannel);
       NS_ASSERTION(acHttp, "Failed to QI to nsIHttpChannel!");
 
       rv = acHttp->SetRequestMethod(NS_LITERAL_CSTRING("OPTIONS"));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = acHttp->SetRequestHeader(NS_LITERAL_CSTRING("Method-Check"), method,
-                                    PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -2057,6 +2066,8 @@ nsXMLHttpRequest::SendAsBinary(const nsAString &aBody)
 NS_IMETHODIMP
 nsXMLHttpRequest::Send(nsIVariant *aBody)
 {
+  NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
+
   nsresult rv = CheckInnerWindowCorrectness();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2082,12 +2093,10 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
   if (httpChannel) {
     httpChannel->GetRequestMethod(method); // If GET, method name will be uppercase
 
-    if (mPrincipal) {
-      nsCOMPtr<nsIURI> codebase;
-      mPrincipal->GetURI(getter_AddRefs(codebase));
+    nsCOMPtr<nsIURI> codebase;
+    mPrincipal->GetURI(getter_AddRefs(codebase));
 
-      httpChannel->SetReferrer(codebase);
-    }
+    httpChannel->SetReferrer(codebase);
   }
 
   if (aBody && httpChannel && !method.EqualsLiteral("GET")) {
@@ -2209,12 +2218,8 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
         if (NS_FAILED(rv)) {
           contentType.AssignLiteral("application/xml");
           specifiedCharset.Truncate();
-          haveCharset = PR_FALSE;
-        }
-
-        if (!haveCharset) {
           charsetStart = charsetEnd = contentType.Length();
-        } 
+        }
 
         // If the content-type the page set already has a charset parameter,
         // and it's the same charset, up to case, as |charset|, just send the
@@ -2269,8 +2274,10 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
   if (!(mState & XML_HTTP_REQUEST_XSITEENABLED)) {
     // Always create a nsCrossSiteListenerProxy here even if it's
     // a same-origin request right now, since it could be redirected.
-    listener = new nsCrossSiteListenerProxy(listener, mPrincipal);
+    listener = new nsCrossSiteListenerProxy(listener, mPrincipal, mChannel,
+                                            &rv);
     NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Bypass the network cache in cases where it makes no sense:
@@ -2307,8 +2314,10 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
       new nsACProxyListener(mChannel, listener, nsnull, mPrincipal, method);
     NS_ENSURE_TRUE(acListener, NS_ERROR_OUT_OF_MEMORY);
 
-    listener = new nsCrossSiteListenerProxy(acListener, mPrincipal);
+    listener = new nsCrossSiteListenerProxy(acListener, mPrincipal,
+                                            mACGetChannel, &rv);
     NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     rv = mACGetChannel->AsyncOpen(listener, nsnull);
   }
@@ -2393,7 +2402,7 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     const char *kInvalidHeaders[] = {
       "accept-charset", "accept-encoding", "connection", "content-length",
       "content-transfer-encoding", "date", "expect", "host", "keep-alive",
-      "proxy-connection", "referer", "referer-root", "te", "trailer",
+      "proxy-connection", "referer", "access-control-origin", "te", "trailer",
       "transfer-encoding", "upgrade", "via", "xmlhttprequest-security-check"
     };
     PRUint32 i;
@@ -2472,7 +2481,7 @@ nsXMLHttpRequest::OverrideMimeType(const nsACString& aMimeType)
 NS_IMETHODIMP
 nsXMLHttpRequest::GetMultipart(PRBool *_retval)
 {
-  *_retval = mState & XML_HTTP_REQUEST_MULTIPART;
+  *_retval = !!(mState & XML_HTTP_REQUEST_MULTIPART);
 
   return NS_OK;
 }
@@ -2591,9 +2600,12 @@ nsXMLHttpRequest::ChangeState(PRUint32 aState, PRBool aBroadcast,
 
   // Grab private copies of the listeners we need
   nsCOMArray<nsIDOMEventListener> readystatechangeEventListeners;
-  CopyEventListeners(mOnReadystatechangeListener,
-                     mReadystatechangeEventListeners,
-                     readystatechangeEventListeners);
+
+  if (aBroadcast) {
+    CopyEventListeners(mOnReadystatechangeListener,
+                       mReadystatechangeEventListeners,
+                       readystatechangeEventListeners);
+  }
 
   if (aClearEventListeners) {
     ClearEventListeners();

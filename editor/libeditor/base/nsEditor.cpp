@@ -991,6 +991,9 @@ nsEditor::EndPlaceHolderTransaction()
     // time to turn off the batch
     EndUpdateViewBatch();
     // make sure selection is in view
+
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     ScrollSelectionIntoView(PR_FALSE);
 
     // cached for frame offset are Not available now
@@ -2246,6 +2249,14 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
 }
 
 NS_IMETHODIMP
+nsEditor::GetComposing(PRBool* aResult)
+{
+  NS_ENSURE_ARG_POINTER(aResult);
+  *aResult = IsIMEComposing();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsEditor::GetReconversionString(nsReconversionEventReply* aReply)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -2552,6 +2563,8 @@ NS_IMETHODIMP nsEditor::ScrollSelectionIntoView(PRBool aScrollToAnchor)
       syncScroll = !(flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask);
     }
 
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
                                     region, syncScroll);
   }
@@ -4168,8 +4181,7 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
 
   const nsStyleText* styleText = frame->GetStyleText();
 
-  *aResult = NS_STYLE_WHITESPACE_PRE == styleText->mWhiteSpace ||
-             NS_STYLE_WHITESPACE_MOZ_PRE_WRAP == styleText->mWhiteSpace;
+  *aResult = styleText->WhiteSpaceIsSignificant();
   return NS_OK;
 }
 

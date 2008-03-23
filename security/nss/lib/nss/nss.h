@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nss.h,v 1.51.12.1 2008/01/17 20:00:14 rrelyea%redhat.com Exp $ */
+/* $Id: nss.h,v 1.51 2007/05/04 05:15:43 nelson%bolyard.com Exp $ */
 
 #ifndef __nss_h_
 #define __nss_h_
@@ -70,7 +70,7 @@ SEC_BEGIN_PROTOS
  * The format of the version string should be
  *     "<major version>.<minor version>[.<patch level>][ <ECC>][ <Beta>]"
  */
-#define NSS_VERSION  "3.12" _NSS_ECC_STRING " Beta 1" _NSS_CUSTOMIZED
+#define NSS_VERSION  "3.12" _NSS_ECC_STRING " Beta" _NSS_CUSTOMIZED
 #define NSS_VMAJOR   3
 #define NSS_VMINOR   12
 #define NSS_VPATCH   0

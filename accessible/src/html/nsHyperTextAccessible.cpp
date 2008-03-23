@@ -343,6 +343,8 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
 
   PRInt32 startOffset = aStartOffset;
   PRInt32 endOffset = aEndOffset;
+  // XXX this prevents text interface usage on <input type="password">
+  PRBool isPassword = (Role(this) == nsIAccessibleRole::ROLE_PASSWORD_TEXT);
 
   // Clear out parameters and set up loop
   if (aText) {
@@ -433,9 +435,15 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
           aEndOffset = endOffset;
         }
         if (aText) {
-          nsCOMPtr<nsPIAccessible> pAcc(do_QueryInterface(accessible));
-          pAcc->AppendTextTo(*aText, startOffset,
-                             substringEndOffset - startOffset);
+          if (isPassword) {
+            for (PRInt32 count = startOffset; count < substringEndOffset; count ++)
+              *aText += '*'; // Show *'s only for password text
+          }
+          else {
+            nsCOMPtr<nsPIAccessible> pAcc(do_QueryInterface(accessible));
+            pAcc->AppendTextTo(*aText, startOffset,
+                               substringEndOffset - startOffset);
+          }
         }
         if (aBoundsRect) {    // Caller wants the bounds of the text
           aBoundsRect->UnionRect(*aBoundsRect,
@@ -1472,8 +1480,10 @@ nsresult nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEn
   }
   
   if (selCon) {
+    // XXX I'm not sure this can do synchronous scrolling. If the last param is
+    // set to true, this calling might flush the pending reflow. See bug 418470.
     selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-       nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
+      nsISelectionController::SELECTION_FOCUS_REGION, PR_FALSE);
   }
 
   return NS_OK;
@@ -1873,7 +1883,7 @@ nsHyperTextAccessible::ScrollSubstringToPoint(PRInt32 aStartIndex,
 
   PRBool initialScrolled = PR_FALSE;
   nsIFrame *parentFrame = frame;
-  while (parentFrame = parentFrame->GetParent()) {
+  while ((parentFrame = parentFrame->GetParent())) {
     nsIScrollableFrame *scrollableFrame = nsnull;
     CallQueryInterface(parentFrame, &scrollableFrame);
     if (scrollableFrame) {

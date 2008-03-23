@@ -647,6 +647,8 @@ public:
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
   virtual NS_HIDDEN_(void) FlushSkinBindings();
+  
+  virtual NS_HIDDEN_(nsresult) FinalizeFrameLoader(nsFrameLoader* aLoader);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
@@ -776,11 +778,13 @@ protected:
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject:1;
 
+  PRPackedBool mHasWarnedAboutBoxObjects:1;
+
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
 
-  nsInterfaceHashtable<nsISupportsHashKey, nsPIBoxObject> *mBoxObjectTable;
+  nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject> *mBoxObjectTable;
   nsInterfaceHashtable<nsVoidPtrHashKey, nsISupports> *mContentWrapperHash;
 
   // The channel that got passed to StartDocumentLoad(), if any
@@ -796,7 +800,7 @@ protected:
   // Our update nesting level
   PRUint32 mUpdateNestLevel;
 
-protected:
+private:
   friend class nsUnblockOnloadEvent;
 
   void PostUnblockOnloadEvent();
@@ -837,6 +841,8 @@ protected:
 
   // Member to store out last-selected stylesheet set.
   nsString mLastStyleSheetSet;
+
+  nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
 };
 
 

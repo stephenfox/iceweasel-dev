@@ -52,6 +52,7 @@
   xmlns:html="http://www.w3.org/1999/xhtml"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script src="chrome://cckwizard/content/cckwizard.js"/>
+  <script src="chrome://cckwizard/content/search.js"/>
   <script type="application/x-javascript"   
   src="chrome://global/content/dialogOverlay.js" />
 
@@ -215,15 +216,32 @@
         <label control="HomePageURL">&homePage.label;</label>
         <textbox id="HomePageURL" flex="1"/>
       </hbox>
+    </groupbox>
+    <groupbox>
+      <caption label="&homePageWelcome.caption;"/>
+      <description>&homePageWelcome.description;</description>
+      <hbox align="center">
+        <label control="HomePageWelcomeURL">&homePageWelcome.label;</label>
+        <textbox id="HomePageWelcomeURL" flex="1"/>
+      </hbox>
+      <hbox align="center">
+        <checkbox id="noWelcomePage" label="&noWelcomePage.label;"/>
+      </hbox>
+    </groupbox>
+    <groupbox>
+      <caption label="&homePageOverride.caption;"/>
       <description>&homePageOverride.description;</description>
       <hbox align="center">
         <label control="HomePageOverrideURL">&homePageOverride.label;</label>
         <textbox id="HomePageOverrideURL" flex="1"/>
       </hbox>
        <hbox align="center">
-         <checkbox id="noWelcomePage" label="&noWelcomePage.label;"/>
+         <checkbox id="noOverridePage" label="&noOverridePage.label;"/>
        </hbox>
     </groupbox>
+  </wizardpage>
+
+  <wizardpage label="&customizePartTwo.label;" onpageshow="initimage('LargeStillPath','LargeStill');initimage('LargeAnimPath','LargeAnim');" onpageadvanced="return ValidateFile('LargeAnimPath','LargeStillPath');">
     <groupbox>
       <caption label="&titleBar.caption;"/>
       <description>&titleBar.description;</description>
@@ -232,9 +250,6 @@
         <textbox id="CompanyName" flex="1"/>
       </hbox>
     </groupbox>
-  </wizardpage>
-
-  <wizardpage label="&customizePartTwo.label;" onpageshow="initimage('LargeStillPath','LargeStill');initimage('LargeAnimPath','LargeAnim');" onpageadvanced="return ValidateFile('LargeAnimPath','LargeStillPath');">
     <groupbox>
       <caption label="&animLogo.caption;"/>
       <description>&animLogoURL.description;</description>
@@ -304,7 +319,7 @@
   </wizardpage>
 
 
-  <wizardpage label="&customizeSearchEngines.label;">
+  <wizardpage label="&customizeSearchEngines.label;" onpageshow="RefreshDefaultSearchEngines();">
     <groupbox>
       <caption label="&engines.label;"/>
     <description>&searchEngines.description;</description>
@@ -314,7 +329,7 @@
 
     <hbox align="center">
       <label control="defaultSearchEngine" value="&defaultSearchEngine.label;" />
-       <menulist editable="true" id="defaultSearchEngine">
+       <menulist id="defaultSearchEngine">
          <menupopup>
          </menupopup>
        </menulist>

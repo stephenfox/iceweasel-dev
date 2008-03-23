@@ -249,7 +249,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Determines whether or not a ResultNode is a Bookmark folder or not.
+   * Determines whether or not a ResultNode is a Bookmark folder.
    * @param   aNode
    *          A result node
    * @returns true if the node is a Bookmark folder, false otherwise
@@ -285,7 +285,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Determines whether or not a ResultNode is a visit item or not
+   * Determines whether or not a ResultNode is a visit item.
    * @param   aNode
    *          A result node
    * @returns true if the node is a visit item, false otherwise
@@ -300,7 +300,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Determines whether or not a ResultNode is a URL item or not
+   * Determines whether or not a ResultNode is a URL item.
    * @param   aNode
    *          A result node
    * @returns true if the node is a URL item, false otherwise
@@ -314,7 +314,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Determines whether or not a ResultNode is a Query item or not
+   * Determines whether or not a ResultNode is a Query item.
    * @param   aNode
    *          A result node
    * @returns true if the node is a Query item, false otherwise
@@ -342,18 +342,37 @@ var PlacesUtils = {
   },
 
   /**
-   * Determines whether or not a ResultNode is a host folder or not
+   * Determines whether or not a ResultNode is a host container.
    * @param   aNode
    *          A result node
-   * @returns true if the node is a host item, false otherwise
+   * @returns true if the node is a host container, false otherwise
    */
   nodeIsHost: function PU_nodeIsHost(aNode) {
     NS_ASSERT(aNode, "null node");
-    return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_HOST;
+    return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY &&
+           aNode.parent &&
+           asQuery(aNode.parent).queryOptions.resultType ==
+             Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY;
   },
 
   /**
-   * Determines whether or not a ResultNode is a container item or not
+   * Determines whether or not a ResultNode is a day container.
+   * @param   node
+   *          A NavHistoryResultNode
+   * @returns true if the node is a day container, false otherwise
+   */
+  nodeIsDay: function PU_nodeIsDay(aNode) {
+    NS_ASSERT(aNode, "null node");
+    var resultType;
+    return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY &&
+           aNode.parent &&
+           ((resultType = asQuery(aNode.parent).queryOptions.resultType) ==
+               Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY ||
+             resultType == Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY);
+  },
+
+  /**
+   * Determines whether or not a ResultNode is a container.
    * @param   aNode
    *          A result node
    * @returns true if the node is a container item, false otherwise
@@ -361,8 +380,6 @@ var PlacesUtils = {
   containerTypes: [Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY,
-                   Ci.nsINavHistoryResultNode.RESULT_TYPE_HOST,
-                   Ci.nsINavHistoryResultNode.RESULT_TYPE_DAY,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER],
   nodeIsContainer: function PU_nodeIsContainer(aNode) {
     NS_ASSERT(aNode, "null node");
@@ -1656,11 +1673,8 @@ var PlacesUtils = {
           // Include visible url nodes only
           let child = aNode.getChild(i);
           if (this.nodeIsURI(child)) {
-            // If the node contents is visible, add the uri only if its node is
-            // visible. Otherwise follow viewer's collapseDuplicates property,
-            // default to true
+            // If the node contents is visible, add the uri
             if ((wasOpen && oldViewer && child.viewIndex != -1) ||
-                (oldViewer && !oldViewer.collapseDuplicates) ||
                 urls.indexOf(child.uri) == -1) {
               urls.push({ uri: child.uri,
                           isBookmark: this.nodeIsBookmark(child) });
@@ -1771,6 +1785,51 @@ var PlacesUtils = {
   },
 
   /**
+   * Loads the node's URL in the appropriate tab or window or as a web
+   * panel given the user's preference specified by modifier keys tracked by a
+   * DOM mouse/key event.
+   * @param   aNode
+   *          An uri result node.
+   * @param   aEvent
+   *          The DOM mouse/key event with modifier keys set that track the
+   *          user's preferred destination window or tab.
+   */
+  openNodeWithEvent: function PU_openNodeWithEvent(aNode, aEvent) {
+    this.openNodeIn(aNode, whereToOpenLink(aEvent));
+  },
+  
+  /**
+   * Loads the node's URL in the appropriate tab or window or as a
+   * web panel.
+   * see also openUILinkIn
+   */
+  openNodeIn: function PU_openNodeIn(aNode, aWhere) {
+    if (aNode && PlacesUtils.nodeIsURI(aNode) &&
+        PlacesUtils.checkURLSecurity(aNode)) {
+      var isBookmark = PlacesUtils.nodeIsBookmark(aNode);
+
+      if (isBookmark)
+        PlacesUtils.markPageAsFollowedBookmark(aNode.uri);
+      else
+        PlacesUtils.markPageAsTyped(aNode.uri);
+
+      // Check whether the node is a bookmark which should be opened as
+      // a web panel
+      if (aWhere == "current" && isBookmark) {
+        if (PlacesUtils.annotations
+                       .itemHasAnnotation(aNode.itemId, LOAD_IN_SIDEBAR_ANNO)) {
+          var w = getTopWin();
+          if (w) {
+            w.openWebPanel(aNode.title, aNode.uri);
+            return;
+          }
+        }
+      }
+      openUILinkIn(aNode.uri, aWhere);
+    }
+  },
+
+  /**
    * Helper for the toolbar and menu views
    */
   createMenuItemForNode: function(aNode, aContainersMap) {
@@ -1795,14 +1854,16 @@ var PlacesUtils = {
 
         if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY)
           element.setAttribute("query", "true");
-        if (this.nodeIsLivemarkContainer(aNode))
-          element.setAttribute("livemark", "true");
-        else if (this.bookmarks
-                     .getFolderIdForItem(aNode.itemId) == this.tagsFolderId) {
+        else if (aNode.itemId != -1) {
+          if (this.nodeIsLivemarkContainer(aNode))
+            element.setAttribute("livemark", "true");
+          else if (this.bookmarks
+                     .getFolderIdForItem(aNode.itemId) == this.tagsFolderId)
             element.setAttribute("tagContainer", "true");
         }
 
         var popup = document.createElement("menupopup");
+        popup.setAttribute("placespopup", "true");
         popup._resultNode = asContainer(aNode);
 #ifndef XP_MACOSX
         // no context menu on mac

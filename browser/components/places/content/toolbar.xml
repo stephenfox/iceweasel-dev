@@ -122,8 +122,6 @@
       <field name="_dropIndicatorBar">document.getAnonymousElementByAttribute(this, "class", "toolbar-drop-indicator-bar")</field>
       <field name="_chevron">document.getAnonymousElementByAttribute(this, "class", "chevron")</field>
 
-      <field name="_selection">null</field>
-
       <field name="_openedMenuButton">null</field>
 
       <field name="_result">null</field>
@@ -199,6 +197,7 @@
                 button.setAttribute("livemark", "true");
 
               var popup = document.createElement("menupopup");
+              popup.setAttribute("placespopup", "true");
               button.appendChild(popup);
               popup._result = this._result;
               popup._resultNode = asContainer(aChild);
@@ -231,6 +230,11 @@
             }
           }
 
+          // if document.popupNode pointed to this child, null it out,
+          // otherwise controller's command-updating may rely on the removed
+          // item still being "selected".
+          if (document.popupNode == child)
+            document.popupNode = null;
           child.parentNode.removeChild(child);
         ]]></body>
       </method>
@@ -330,85 +334,65 @@
       <!-- nsIPlacesView -->
       <property name="hasSelection">
         <getter><![CDATA[ 
-          return this._selection != null;
-        ]]></getter>
-      </property>
-
-      <!-- nsIPlacesView -->
-      <property name="hasSingleSelection">
-        <getter><![CDATA[ 
-          return this.hasSelection;
+          return this.selectedNode != null;
         ]]></getter>
       </property>
 
       <!-- nsIPlacesView -->
       <method name="getSelectionNodes">
         <body><![CDATA[
-          return this.hasSelection ? [this.selectedNode] : [];
+          var selectedNode = this.selectedNode;
+          return selectedNode ? [selectedNode] : [];
         ]]></body>
       </method>
 
       <!-- nsIPlacesView -->
       <method name="getRemovableSelectionRanges">
-        <body><![CDATA[ 
+        <body><![CDATA[
           return [this.getSelectionNodes()];
-        ]]></body>
-      </method>
-
-      <!-- nsIPlacesView -->
-      <method name="getCopyableSelection">
-        <body><![CDATA[ 
-          return this.getSelectionNodes();
         ]]></body>
       </method>
 
       <!-- nsIPlacesView -->
       <method name="getDragableSelection">
         <body><![CDATA[
-          if (PlacesUtils.nodeIsReadOnly(this._result.root))
-            return null;
-          return this.getSelectionNodes();
+          return [this._draggedNode];
         ]]></body>
       </method>
 
       <!-- nsIPlacesView -->
       <property name="selectedNode">
-        <getter><![CDATA[ 
-          return this.hasSelection ? this._selection : null;
-        ]]></getter>
-      </property>
-
-      <!-- nsIPlacesView -->
-      <property name="selectedURINode">
         <getter><![CDATA[
-          var node = this.selectedNode;
-          return node && PlacesUtils.nodeIsURI(node) ? node : null;
+          if (this._contextMenuShown) {
+            var popupNode = document.popupNode;
+            return popupNode.node || popupNode.parentNode._resultNode || null;
+          }
+          return null;
         ]]></getter>
       </property>
 
       <!-- nsIPlacesView -->
       <property name="insertionPoint">
         <getter><![CDATA[
-          if (this._cachedInsertionPoint !== undefined)
-            return this._cachedInsertionPoint;
-
           // By default, the insertion point is at the top level, at the end. 
           var index = -1;
           var folderId = PlacesUtils.getConcreteItemId(this._result.root);
 
-          if (this.hasSelection) {
-            if (PlacesUtils.nodeIsFolder(this.selectedNode)) {
+          var selectedNode = this.selectedNode;
+          if (selectedNode) {
+            if (PlacesUtils.nodeIsFolder(selectedNode)) {
               // If there is a folder selected, the insertion point is the
               // end of the folder.
-              folderId = PlacesUtils.getConcreteItemId(this.selectedNode);
-            } else {
+              folderId = PlacesUtils.getConcreteItemId(selectedNode);
+            }
+            else {
               // If there is another type of node selected, the insertion point
               // is after that node.
-              index = PlacesUtils.getIndexOfNode(this.selectedNode);
+              folderId = PlacesUtils.getConcreteItemId(selectedNode.parent);
+              index = PlacesUtils.getIndexOfNode(selectedNode);
             }
           }
-          this._cachedInsertionPoint = new InsertionPoint(folderId, index, 1);
-          return this._cachedInsertionPoint;
+          return new InsertionPoint(folderId, index, 1);
         ]]></getter>
       </property>
 
@@ -419,8 +403,11 @@
         ]]></body>
       </method>
 
-      <!-- Map for containerNodes<->domNodes. -->
-      <field name="_containerNodesMap">[]</field>
+      <method name="selectItems">
+        <body><![CDATA[
+          // Nothing
+        ]]></body>
+      </method>
 
       <!-- nsINavHistoryResultViewer -->
       <field name="_viewer"><![CDATA[({
@@ -443,9 +430,17 @@
         },
 
         set result(val) {
-          this._self._result = val;
-          if (val)
-            val.root.containerOpen = true;
+          // some methods (e.g. getURLsFromContainer) temporarily null out the
+          // viewer when they do temporary changes to the view, this does _not_
+          // call setResult(null), but then, we're called again with the result
+          // object which is already set for this viewer. At that point,
+          // we should do nothing.
+          if (this._self._result != val) {
+            this._self._containerNodesMap = [];
+            this._self._result = val;
+            if (val) // this calls _rebuild through invalidateContainer
+              val.root.containerOpen = true;
+          }
           return val;
         },
 
@@ -692,7 +687,7 @@
             this._overFolder.node.open = true;
             this._overFolder.openTimer = null;
           }
-          
+
           // Timer to close a menubutton that's been dragged off of.
           if (timer == this._overFolder.closeTimer) {
             // Only close the menubutton if the drag session isn't currently over
@@ -716,7 +711,7 @@
             this._clearOverFolder();
           }
         },
-        
+
         // The mouse is no longer dragging over the stored menubutton.
         // Close the menubutton, clear out drag styles, and clear all
         // timers for opening/closing it.
@@ -737,7 +732,7 @@
             this._overFolder.closeTimer = null;
           }
         },
-        
+
         // This function returns information about where to drop when
         // dragging over this menu--insertion point, child index to drop
         // before, and folder to drop into.
@@ -746,7 +741,7 @@
           var result = this._self.getResult();
           if (!PlacesUtils.nodeIsFolder(result.root))
             return null;
-          
+
           var dropPoint = { ip: null, beforeIndex: null, folderNode: null };
           // Loop through all the nodes to see which one this should
           // get dropped in/next to
@@ -775,7 +770,8 @@
                 dropPoint.folderNode = xulNode;
                 return dropPoint;
               }
-            } else{
+            }
+            else {
               // This is a non-folder node. If the mouse is left of the middle,
               // drop to the left of the folder.  If it's right, drop to the right.
               if (event.clientX < xulNode.boxObject.x + (xulNode.boxObject.width / 2)) {
@@ -797,6 +793,10 @@
         },
         
         onDragStart: function TBV_DO_onDragStart(event, xferData, dragAction) {
+          // sub menus have their own d&d handlers
+          if (event.target.parentNode != this._self)
+            return false;
+
           if (event.target.localName == "toolbarbutton" &&
               event.target.getAttribute("type") == "menu") {
 #ifdef XP_WIN
@@ -811,19 +811,22 @@
 #endif
           }
 
-          if (event.ctrlKey) {
+          if (event.ctrlKey)
             dragAction.action = Ci.nsIDragService.DRAGDROP_ACTION_COPY;
-          }
+
+          // activate the view and cache the dragged node
+          this._self._draggedNode = event.target.node;
+          this._self.focus();
           xferData.data = this._self._controller.getTransferData(dragAction.action);
 #ifdef XP_WIN
           return true;
 #endif
         },
-        
+
         canDrop: function TBV_DO_canDrop(event, session) {
-          return PlacesControllerDragHelper.canDrop(this._self._viewer, -1);
+          return PlacesControllerDragHelper.canDrop();
         },
-        
+
         onDragOver: function TBV_DO_onDragOver(event, flavor, session) {
           PlacesControllerDragHelper.currentDropTarget = event.target;
           var dropPoint = this._getDropPoint(event);
@@ -862,7 +865,8 @@
               else
                 ind.style.marginLeft = this._self.childNodes[dropPoint.beforeIndex].boxObject.x -
                                        this._self.boxObject.x - halfInd + 'px';
-            } else {
+            }
+            else {
               halfInd = Math.floor(halfInd);
               if (dropPoint.beforeIndex == -1 || !this._self.childNodes.length)
                 ind.style.marginRight = '0px';
@@ -929,21 +933,12 @@
         ]]></body>
       </method>
 
-      <method name="saveSelection">
-        <parameter name="mode"/>
-        <body><![CDATA[
-        ]]></body>
-      </method>
-      <method name="restoreSelection">
-        <body><![CDATA[
-        ]]></body>
-      </method>
-
       <property name="selType" onget="return 'single';"/>
 
       <method name="buildContextMenu">
         <parameter name="aPopup"/>
         <body><![CDATA[
+          this._contextMenuShown = true;
           this.focus();
           return this.controller.buildContextMenu(aPopup);
         ]]></body>
@@ -952,6 +947,7 @@
       <method name="destroyContextMenu">
         <parameter name="aPopup"/>
         <body><![CDATA[
+          this._contextMenuShown = false;
           if (window.content)
             window.content.focus();
         ]]></body>
@@ -1019,9 +1015,6 @@
             this._showEmptyMenuItem(aPopup);
           }
           aPopup._built = true;
-
-          if (!aPopup._DNDObserver)
-            aPopup._DNDObserver = new PlacesMenuDNDObserver(this, aPopup);
         ]]></body>
       </method>
 
@@ -1044,24 +1037,18 @@
     </implementation>
 
     <handlers>
-      <handler event="mousedown"><![CDATA[
-        // When the user clicks down on a button, set it as the selection and 
-        // tell the controller that we are the active view.
-        //
-        var target = event.target;
-        if (target == this)
-          this._selection = this.getResult().root;
-        else if (target.parentNode == this &&
-                 (target.localName == "toolbarbutton" ||
-                  target.localName == "toolbarseparator"))
-          this._selection = target.node;
-        else  // Sub-menus are handled by the DOMMenuItemActive handler
-          return;
-
-        this._cachedInsertionPoint = undefined;
+      <handler event="mouseover"><![CDATA[
+        var button = event.target;
+        if (button.parentNode == this && button.node &&
+            PlacesUtils.nodeIsURI(button.node))
+          window.XULBrowserWindow.setOverLink(event.target.node.uri, null);
+      ]]></handler>
+      <handler event="mouseout"><![CDATA[
+        window.XULBrowserWindow.setOverLink("", null);
       ]]></handler>
       <handler event="draggesture"><![CDATA[
-        if (event.target.localName == "toolbarbutton")
+        if (event.target.localName == "toolbarbutton" ||
+            event.target.localName == "toolbarseparator")
           nsDragAndDrop.startDrag(event, this._DNDObserver);
       ]]></handler>
       <handler event="dragover"><![CDATA[
@@ -1111,35 +1098,6 @@
           this._openedMenuButton = null;
       ]]></handler>
 
-       <!-- Set selected node on DOMMenuItemActive/contextmenu events
-           so that they're set up when command and click events fire. -->
-      <handler event="DOMMenuItemActive"><![CDATA[
-        // Set the selection to the node that was activated.  If that
-        // node has a command but no data associated with it, it should
-        // act on the entire menu.
-        if (event.target.parentNode._resultNode) {
-          // the chevron has its own view
-          if (this._isChevronChild(event.target))
-            return;
-
-          this._cachedInsertionPoint = undefined;
-          this._selection = event.target.node ||
-                            event.target.parentNode._resultNode;
-        }
-      ]]></handler>
-      <handler event="contextmenu"><![CDATA[
-        // DOMMenuItemActive is not dispatched for disabled menuitems and
-        // menuseparators. Set the selection here manually.
-        var popupNode = document.popupNode;
-        // the chevron has its own view
-        if (this._isChevronChild(popupNode))
-          return;
-
-        // |popupNode == menupopup| happens when the area between menuseparators
-        // is clicked.
-        this._selection = popupNode.node || popupNode.parentNode._resultNode;
-        this._cachedInsertionPoint = undefined;
-      ]]></handler>
       <handler event="mousemove"><![CDATA[
         if (this._openedMenuButton == null || PlacesControllerDragHelper.getSession())
           return;

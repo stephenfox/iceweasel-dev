@@ -93,7 +93,7 @@ public:
   
 protected:
   
-  nsCOMPtr<nsIDOMWindow> mWindow;
+  nsWeakPtr mWindow;
   nsCOMPtr<nsIStringBundle> mStringBundle;
   nsCOMPtr<nsIURI> mCurrentURI;
   nsCOMPtr<nsISecurityEventSink> mToplevelEventSink;
@@ -106,8 +106,8 @@ protected:
     lis_high_security
   };
 
-  lockIconState mPreviousSecurityState;
-  PRBool mPreviousToplevelWasEV;
+  lockIconState mNotifiedSecurityState;
+  PRBool mNotifiedToplevelIsEV;
 
   void ResetStateTracking();
   PRUint32 mNewToplevelSecurityState;

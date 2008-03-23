@@ -178,17 +178,24 @@ extern void SECU_PrintSystemError(char *progName, char *msg, ...);
 /* Return informative error string */
 extern const char * SECU_Strerror(PRErrorCode errNum);
 
-/* print information about cert verification failure at time == now */
+/* revalidate the cert and print information about cert verification
+ * failure at time == now */
 extern void
 SECU_printCertProblems(FILE *outfile, CERTCertDBHandle *handle, 
 	CERTCertificate *cert, PRBool checksig, 
 	SECCertificateUsage certUsage, void *pinArg, PRBool verbose);
 
-/* print information about cert verification failure at specified time */
+/* revalidate the cert and print information about cert verification
+ * failure at specified time */
 extern void
 SECU_printCertProblemsOnDate(FILE *outfile, CERTCertDBHandle *handle, 
 	CERTCertificate *cert, PRBool checksig, SECCertificateUsage certUsage, 
 	void *pinArg, PRBool verbose, PRTime datetime);
+
+/* print out CERTVerifyLog info. */
+extern void
+SECU_displayVerifyLog(FILE *outfile, CERTVerifyLog *log,
+                      PRBool verbose);
 
 /* Read the contents of a file into a SECItem */
 extern SECStatus SECU_FileToItem(SECItem *dst, PRFileDesc *src);
@@ -287,6 +294,11 @@ extern SECStatus SECU_PKCS11Init(PRBool readOnly);
 extern int SECU_PrintSignedData(FILE *out, SECItem *der, char *m, int level,
 				SECU_PPFunc inner);
 
+/* Print cert data and its trust flags */
+extern SECStatus SEC_PrintCertificateAndTrust(CERTCertificate *cert,
+                                              const char *label,
+                                              CERTCertTrust *trust);
+
 extern int SECU_PrintCrl(FILE *out, SECItem *der, char *m, int level);
 
 extern void
@@ -327,7 +339,7 @@ extern SECOidTag SECU_StringToSignatureAlgTag(const char *alg);
  * encodes with base64 and exports to file if ascii flag is set
  * and file is not NULL. */
 extern SECStatus SECU_StoreCRL(PK11SlotInfo *slot, SECItem *derCrl,
-                               PRFileDesc *outFile, int ascii, char *url);
+                               PRFileDesc *outFile, PRBool ascii, char *url);
 
 
 /*
@@ -390,6 +402,11 @@ SECU_EncodeAndAddExtensionValue(PRArenaPool *arena, void *extHandle,
 /* Caller ensures that dst is at least item->len*2+1 bytes long */
 void
 SECU_SECItemToHex(const SECItem * item, char * dst);
+
+/* Requires 0x prefix. Case-insensitive. Will do in-place replacement if
+ * successful */
+SECStatus
+SECU_SECItemHexStringToBinary(SECItem* srcdest);
 
 /*
  *

@@ -581,6 +581,7 @@ public:
   NS_IMETHOD GetCaretEnabled(PRBool *_retval);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -669,6 +670,8 @@ NS_IMETHODIMP
 nsTextInputSelectionImpl::ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRBool aIsSynchronous)
 {
   if (mFrameSelection) {
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
     nsresult rv = mFrameSelection->ScrollSelectionIntoView(aType, aRegion, aIsSynchronous);
 
     nsIScrollableView* scrollableView = mFrameSelection->GetScrollableView();
@@ -794,6 +797,13 @@ nsTextInputSelectionImpl::CharacterMove(PRBool aForward, PRBool aExtend)
   return NS_ERROR_NULL_POINTER;
 }
 
+NS_IMETHODIMP
+nsTextInputSelectionImpl::CharacterExtendForDelete()
+{
+  if (mFrameSelection)
+    return mFrameSelection->CharacterExtendForDelete();
+  return NS_ERROR_NULL_POINTER;
+}
 
 NS_IMETHODIMP
 nsTextInputSelectionImpl::WordMove(PRBool aForward, PRBool aExtend)
@@ -851,6 +861,8 @@ nsTextInputSelectionImpl::PageMove(PRBool aForward, PRBool aExtend)
     if (scrollableView)
       mFrameSelection->CommonPageMove(aForward, aExtend, scrollableView);
   }
+  // After ScrollSelectionIntoView(), the pending notifications might be
+  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
   return ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 }
 

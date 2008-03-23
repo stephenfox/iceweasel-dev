@@ -73,11 +73,27 @@ LoginManagerStorage_legacy.prototype = {
         return this.__decoderRing;
     },
 
+    __profileDir: null,  // nsIFile for the user's profile dir
+    get _profileDir() {
+        if (!this.__profileDir) {
+            var dirService = Cc["@mozilla.org/file/directory_service;1"].
+                             getService(Ci.nsIProperties);
+            this.__profileDir = dirService.get("ProfD", Ci.nsIFile);
+        }
+        return this.__profileDir;
+    },
+
     _prefBranch : null,  // Preferences service
 
     _signonsFile : null,  // nsIFile for "signons3.txt" (or whatever pref is)
     _debug       : false, // mirrors signon.debug
 
+    /*
+     * A list of prefs that have been used to specify the filename for storing
+     * logins. (We've used a number over time due to compatibility issues.)
+     * This list is also used by _removeOldSignonsFile() to clean up old files.
+     */
+    _filenamePrefs : ["SignonFileName3", "SignonFileName2", "SignonFileName"],
 
     /*
      * Core datastructures
@@ -130,8 +146,8 @@ LoginManagerStorage_legacy.prototype = {
         this._disabledHosts = {};
 
         // Connect to the correct preferences branch.
-        this._prefBranch = Cc["@mozilla.org/preferences-service;1"]
-                                .getService(Ci.nsIPrefService);
+        this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                           getService(Ci.nsIPrefService);
         this._prefBranch = this._prefBranch.getBranch("signon.");
         this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
 
@@ -139,8 +155,8 @@ LoginManagerStorage_legacy.prototype = {
 
         // Check to see if the internal PKCS#11 token has been initialized.
         // If not, set a blank password.
-        var tokenDB = Cc["@mozilla.org/security/pk11tokendb;1"]
-                            .getService(Ci.nsIPK11TokenDB);
+        var tokenDB = Cc["@mozilla.org/security/pk11tokendb;1"].
+                      getService(Ci.nsIPK11TokenDB);
 
         var token = tokenDB.getInternalKeyToken();
         if (token.needsUserInit) {
@@ -310,9 +326,11 @@ LoginManagerStorage_legacy.prototype = {
      * Removes all logins from storage.
      */
     removeAllLogins : function () {
-        this._logins = {};
-        // Disabled hosts kept, as one presumably doesn't want to erase those.
+        // Delete any old, unused files.
+        this._removeOldSignonsFiles();
 
+        // Disabled hosts kept, as one presumably doesn't want to erase those.
+        this._logins = {};
         this._writeFile();
     },
 
@@ -519,26 +537,16 @@ LoginManagerStorage_legacy.prototype = {
     _getSignonsFile : function() {
         var destFile = null, importFile = null;
 
-        // Get the location of the user's profile.
-        var DIR_SERVICE = new Components.Constructor(
-                "@mozilla.org/file/directory_service;1", "nsIProperties");
-        var pathname = (new DIR_SERVICE()).get("ProfD", Ci.nsIFile).path;
-
         // We've used a number of prefs over time due to compatibility issues.
         // Use the filename specified in the newest pref, but import from
         // older files if needed.
-        var prefs = ["SignonFileName3", "SignonFileName2", "SignonFileName"];
-        for (var i = 0; i < prefs.length; i++) {
-            var prefName = prefs[i];
-
-            var filename = this._prefBranch.getCharPref(prefName);
-
-            this.log("Checking file " + filename + " (" + prefName + ")");
-
-            var file = Cc["@mozilla.org/file/local;1"].
-                       createInstance(Ci.nsILocalFile);
-            file.initWithPath(pathname);
+        for (var i = 0; i < this._filenamePrefs.length; i++) {
+            var prefname = this._filenamePrefs[i];
+            var filename = this._prefBranch.getCharPref(prefname);
+            var file = this._profileDir.clone();
             file.append(filename);
+
+            this.log("Checking file " + filename + " (" + prefname + ")");
 
             // First loop through, save the preferred filename.
             if (!destFile)
@@ -552,6 +560,32 @@ LoginManagerStorage_legacy.prototype = {
 
         // If we can't find any existing file, use the preferred file.
         return [destFile, null];
+    },
+
+
+    /*
+     * _removeOldSignonsFiles
+     *
+     * Deletes any storage files that we're not using any more.
+     */
+    _removeOldSignonsFiles : function() {
+        // We've used a number of prefs over time due to compatibility issues.
+        // Skip the first entry (the newest) and delete the others.
+        for (var i = 1; i < this._filenamePrefs.length; i++) {
+            var prefname = this._filenamePrefs[i];
+            var filename = this._prefBranch.getCharPref(prefname);
+            var file = this._profileDir.clone();
+            file.append(filename);
+
+            if (file.exists()) {
+                this.log("Deleting old " + filename + " (" + prefname + ")");
+                try {
+                    file.remove(false);
+                } catch (e) {
+                    this.log("NOTICE: Couldn't delete " + filename + ": " + e);
+                }
+            }
+        }
     },
 
 
@@ -764,8 +798,8 @@ LoginManagerStorage_legacy.prototype = {
             return;
         }
 
-        var inputStream = Cc["@mozilla.org/network/file-input-stream;1"]
-                                .createInstance(Ci.nsIFileInputStream);
+        var inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
+                          createInstance(Ci.nsIFileInputStream);
         // init the stream as RD_ONLY, -1 == default permissions.
         inputStream.init(this._signonsFile, 0x01, -1, null);
         var lineStream = inputStream.QueryInterface(Ci.nsILineInputStream);
@@ -1218,8 +1252,8 @@ LoginManagerStorage_legacy.prototype = {
             } else {
                 plainOctet = this._decoderRing.decryptString(cipherText);
             }
-            var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                              .createInstance(Ci.nsIScriptableUnicodeConverter);
+            var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                            createInstance(Ci.nsIScriptableUnicodeConverter);
             converter.charset = "UTF-8";
             plainText = converter.ConvertToUnicode(plainOctet);
         } catch (e) {

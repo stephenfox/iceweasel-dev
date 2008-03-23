@@ -117,10 +117,6 @@ ifdef EXTRA_DSO_LIBS
 EXTRA_DSO_LIBS	:= $(call EXPAND_MOZLIBNAME,$(EXTRA_DSO_LIBS))
 endif
 
-ifdef GQI_SRCS
-CPPSRCS += $(GQI_SRCS:.gqi=QI.cpp)
-endif
-
 #
 # Library rules
 #
@@ -238,7 +234,7 @@ OS_LDFLAGS += -DEF:$(DEFFILE)
 endif
 
 ifdef MAPFILE
-OS_LDFLAGS += -MAP:$(MAPFILE) -MAPINFO:LINES
+OS_LDFLAGS += -MAP:$(MAPFILE)
 #CFLAGS += -Fm$(MAPFILE)
 #CXXFLAGS += -Fm$(MAPFILE)
 endif
@@ -371,6 +367,10 @@ endif
 LOOP_OVER_DIRS = \
     @$(EXIT_ON_ERROR) \
     $(foreach dir,$(DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
+
+LOOP_OVER_STATIC_DIRS = \
+    @$(EXIT_ON_ERROR) \
+    $(foreach dir,$(STATIC_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
 
 LOOP_OVER_TOOL_DIRS = \
     @$(EXIT_ON_ERROR) \
@@ -574,7 +574,8 @@ endif
 
 ifeq ($(OS_TARGET), WINCE)
 OUTOPTION = -Fo# eol
-endif
+HOST_OUTOPTION = -Fo# eol
+else
 
 ifeq (,$(CROSS_COMPILE))
 HOST_OUTOPTION = $(OUTOPTION)
@@ -582,6 +583,7 @@ else
 HOST_OUTOPTION = -o # eol
 endif
 
+endif
 ################################################################################
 
 # SUBMAKEFILES: List of Makefiles for next level down.
@@ -621,7 +623,7 @@ alldep::
 endif # TIERS
 endif # SUPPRESS_DEFAULT_RULES
 
-MAKE_TIER_SUBMAKEFILES = $(if $(tier_$*_dirs),$(MAKE) $(addsuffix /Makefile,$(tier_$*_dirs)))
+MAKE_TIER_SUBMAKEFILES = +$(if $(tier_$*_dirs),$(MAKE) $(addsuffix /Makefile,$(tier_$*_dirs)))
 
 export_tier_%: 
 	@echo "$@"
@@ -779,6 +781,37 @@ endif # !NO_DIST_INSTALL
 
 ##############################################
 
+ifndef NO_PROFILE_GUIDED_OPTIMIZE
+ifneq (,$(MOZ_PROFILE_GENERATE)$(MOZ_PROFILE_USE))
+ifeq ($(OS_ARCH)_$(GNU_CC)$(INTERNAL_TOOLS), WINNT_)
+# Force re-linking when building with PGO, since
+# the MSVC linker does all the work.  We force re-link
+# in both stages so you can do depend builds with PGO.
+ifdef SHARED_LIBRARY
+$(SHARED_LIBRARY): FORCE
+BINARY_BASENAME = $(SHARED_LIBRARY:$(DLL_SUFFIX)=)
+endif
+ifdef PROGRAM
+$(PROGRAM): FORCE
+BINARY_BASENAME = $(PROGRAM:$(BIN_SUFFIX)=)
+endif
+
+ifdef MOZ_PROFILE_USE
+# In the second pass, we need to merge the pgc files into the pgd file.
+# The compiler would do this for us automatically if they were in the right
+# place, but they're in dist/bin.
+ifdef BINARY_BASENAME
+export::
+	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
+	  $(BINARY_BASENAME) $(DIST)/bin
+endif
+endif # MOZ_PROFILE_USE
+endif # WINNT_
+endif # MOZ_PROFILE_GENERATE || MOZ_PROFILE_USE
+endif # NO_PROFILE_GUIDED_OPTIMIZE
+
+##############################################
+
 checkout:
 	$(MAKE) -C $(topsrcdir) -f client.mk checkout
 
@@ -791,12 +824,13 @@ run_viewer: $(FINAL_TARGET)/viewer
 clean clobber realclean clobber_all:: $(SUBMAKEFILES)
 	-rm -f $(ALL_TRASH)
 	-rm -rf $(ALL_TRASH_DIRS)
-	+-$(foreach dir,$(STATIC_DIRS),$(MAKE) -C $(dir) $@; )
 	+-$(LOOP_OVER_DIRS)
+	+-$(LOOP_OVER_STATIC_DIRS)
 	+-$(LOOP_OVER_TOOL_DIRS)
 
 distclean:: $(SUBMAKEFILES)
 	+-$(LOOP_OVER_DIRS)
+	+-$(LOOP_OVER_STATIC_DIRS)
 	+-$(LOOP_OVER_TOOL_DIRS)
 	-rm -rf $(ALL_TRASH_DIRS) 
 	-rm -f $(ALL_TRASH)  \
@@ -1192,9 +1226,6 @@ endif # COMPILER_DEPEND
 
 endif # MOZ_AUTO_DEPS
 
-%QI.cpp: %.gqi $(topsrcdir)/xpcom/base/gqi.py
-	$(PYTHON) $(topsrcdir)/xpcom/base/gqi.py $(INCLUDES) -I $(IDL_DIR) -o $@ -D $(MDDEPDIR)/$(@F).pp $<
-
 # Rules for building native targets must come first because of the host_ prefix
 host_%.$(OBJ_SUFFIX): %.c Makefile Makefile.in
 	$(REPORT_BUILD)
@@ -1210,11 +1241,11 @@ host_%.$(OBJ_SUFFIX): %.cc Makefile Makefile.in
 
 host_%.$(OBJ_SUFFIX): %.m Makefile Makefile.in
 	$(REPORT_BUILD)
-	$(ELOG) $(HOST_CC) $(HOST_OUTOPTION)$@ -c $(HOST_CFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(HOST_CC) $(HOST_OUTOPTION)$@ -c $(HOST_CFLAGS) $(HOST_CMFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 host_%.$(OBJ_SUFFIX): %.mm Makefile Makefile.in
 	$(REPORT_BUILD)
-	$(ELOG) $(HOST_CXX) $(HOST_OUTOPTION)$@ -c $(HOST_CXXFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(HOST_CXX) $(HOST_OUTOPTION)$@ -c $(HOST_CXXFLAGS) $(HOST_CMMFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
 %: %.c Makefile Makefile.in
 	$(REPORT_BUILD)
@@ -1269,12 +1300,12 @@ endif #STRICT_CPLUSPLUS_SUFFIX
 $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.mm Makefile Makefile.in
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
-	$(ELOG) $(CCC) -o $@ -c $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CCC) -o $@ -c $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(_VPATH_SRCS)
 
 $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.m Makefile Makefile.in
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
-	$(ELOG) $(CC) -o $@ -c $(COMPILE_CFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CC) -o $@ -c $(COMPILE_CFLAGS) $(COMPILE_CMFLAGS) $(_VPATH_SRCS)
 
 %.s: %.cpp
 	$(CCC) -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
@@ -1985,6 +2016,7 @@ endif # COMPILER_DEPEND
 $(MDDEPDIR):
 	@if test ! -d $@; then echo Creating $@; rm -rf $@; mkdir $@; else true; fi
 
+ifneq (,$(filter-out all chrome default export realchrome tools clean clobber clobber_all distclean realclean,$(MAKECMDGOALS)))
 ifneq (,$(OBJS)$(XPIDLSRCS)$(SDK_XPIDLSRCS)$(SIMPLE_PROGRAMS))
 MDDEPEND_FILES		:= $(strip $(wildcard $(MDDEPDIR)/*.pp))
 
@@ -1996,14 +2028,17 @@ ifdef PERL
 # The script has an advantage over including the *.pp files directly
 # because it handles the case when header files are removed from the build.
 # 'make' would complain that there is no way to build missing headers.
+ifeq (,$(MAKE_RESTARTS))
 $(MDDEPDIR)/.all.pp: FORCE
 	@$(PERL) $(BUILD_TOOLS)/mddepend.pl $@ $(MDDEPEND_FILES)
+endif
 -include $(MDDEPDIR)/.all.pp
 else
 include $(MDDEPEND_FILES)
 endif
 endif
 
+endif
 endif
 #############################################################################
 
@@ -2138,6 +2173,8 @@ showbuild:
 	@echo "CXXFLAGS           = $(CXXFLAGS)"
 	@echo "OS_CXXFLAGS        = $(OS_CXXFLAGS)"
 	@echo "COMPILE_CXXFLAGS   = $(COMPILE_CXXFLAGS)"
+	@echo "COMPILE_CMFLAGS    = $(COMPILE_CMFLAGS)"
+	@echo "COMPILE_CMMFLAGS   = $(COMPILE_CMMFLAGS)"
 	@echo "LDFLAGS            = $(LDFLAGS)"
 	@echo "OS_LDFLAGS         = $(OS_LDFLAGS)"
 	@echo "DSO_LDOPTS         = $(DSO_LDOPTS)"

@@ -39,7 +39,6 @@ searchplugins/yahoo.gif
 searchplugins/
 #ifdef MOZ_ENABLE_LIBXUL
 @DLL_PREFIX@xpcom_core@DLL_SUFFIX@
-@DLL_PREFIX@xpistub@DLL_SUFFIX@
 components/@DLL_PREFIX@jar50@DLL_SUFFIX@
 #ifdef XP_WIN
 components/jsd3250.dll
@@ -48,7 +47,6 @@ components/xpinstal.dll
 components/@DLL_PREFIX@jsd@DLL_SUFFIX@
 components/@DLL_PREFIX@xpinstall@DLL_SUFFIX@
 #endif
-components/@DLL_PREFIX@jar50@DLL_SUFFIX@
 #else
 #ifdef XP_MACOSX
 XUL
@@ -56,6 +54,7 @@ XUL
 @DLL_PREFIX@xul@DLL_SUFFIX@
 #endif
 #endif
+@DLL_PREFIX@xpistub@DLL_SUFFIX@
 component.reg
 components/compreg.dat
 components/@DLL_PREFIX@myspell@DLL_SUFFIX@
@@ -88,6 +87,13 @@ extensions/reporter@mozilla.org/install.rdf
 extensions/reporter@mozilla.org/chrome.manifest
 extensions/reporter@mozilla.org/chrome/reporter.jar
 extensions/reporter@mozilla.org/defaults/preferences/reporter.js
+#Remove Inspector (present from upgrades from Fx2/Fx3b3)
+extensions/inspector@mozilla.org/install.rdf
+extensions/inspector@mozilla.org/components/inspector-cmdline.js
+extensions/inspector@mozilla.org/chrome.manifest
+extensions/inspector@mozilla.org/chrome/inspector.jar
+extensions/inspector@mozilla.org/defaults/preferences/inspector.js
+extensions/inspector@mozilla.org/platform/WINNT/chrome/icons/default/winInspectorMain.ico
 extensions/inspector@mozilla.org/components/inspector.xpt
 extensions/inspector@mozilla.org/components/@DLL_PREFIX@inspector@DLL_SUFFIX@
 extensions/inspector@mozilla.org/chrome/icons/default/winInspectorMain.ico
@@ -529,6 +535,7 @@ extensions/talkback@mozilla.org/components/talkback/talkback.so
 #endif
 components/airbag.xpt
 components/nsUrlClassifierTable.js
+res/cmessage.txt
 res/html/gopher-audio.gif
 res/html/gopher-binary.gif
 res/html/gopher-find.gif
@@ -560,12 +567,14 @@ chrome/chromelist.txt
 LICENSE
 extensions/inspector@mozilla.org/chrome/chromelist.txt
 components/accessibility.xpt
+components/crashreporter.xpt
 components/gksvgrenderer.xpt
 components/jsconsole.xpt
 components/necko_data.xpt
 components/nsKillAll.js
 components/passwordmgr.xpt
 components/progressDlg.xpt
+components/safebrowsing.xpt
 components/search.xpt
 components/websrvcs.xpt
 components/widget_mac.xpt
@@ -574,9 +583,26 @@ components/xpcom_obsolete.xpt
 init.d/README
 redo-prebinding.sh
 res/viewer.properties
+res/bloatcycle.html
 #endif
 #ifdef XP_UNIX
+#ifndef XP_MACOSX
 readme.txt
+chrome/icons/default/default.xpm
+#endif
 #endif
 dictionaries/PL.dic
 dictionaries/PL.aff
+#ifdef XP_WIN
+#ifdef MOZ_MEMORY
+Microsoft.VC80.CRT.manifest
+msvcm80.dll
+msvcp80.dll
+msvcr80.dll
+#else
+mozcrt19.dll
+#endif
+xpicleanup.exe
+#else
+xpicleanup
+#endif

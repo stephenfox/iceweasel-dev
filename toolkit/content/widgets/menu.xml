@@ -15,7 +15,8 @@
     <resources>
       <stylesheet src="chrome://global/skin/menu.css"/>
     </resources>
-    <implementation implements="nsIDOMXULSelectControlItemElement, nsIAccessibleProvider">
+    <implementation implements="nsIDOMXULSelectControlItemElement, nsIDOMXULContainerItemElement, nsIAccessibleProvider">
+      <!-- nsIAccessibleProvider -->
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[
@@ -25,6 +26,8 @@
           ]]>
         </getter>
       </property>
+
+      <!-- nsIDOMXULSelectControlItemElement -->
       <property name="selected" readonly="true"
                 onget="return this.getAttribute('selected') == 'true';"/>
       <property name="control" readonly="true">
@@ -36,6 +39,17 @@
               return parent.parentNode;
             return null;
           ]]>
+        </getter>
+      </property>
+
+      <!-- nsIDOMXULContainerItemElement -->
+      <property name="parentContainer" readonly="true">
+        <getter>
+          for (var parent = this.parentNode; parent; parent = parent.parentNode) {
+            if (parent instanceof Components.interfaces.nsIDOMXULContainerElement)
+              return parent;
+          }
+          return null;
         </getter>
       </property>
     </implementation>
@@ -58,7 +72,7 @@
         <parameter name="aLabel"/>
         <parameter name="aValue"/>
         <body>
-          this.insertItemAt(-1, aLabel, aValue);
+          return this.insertItemAt(-1, aLabel, aValue);
         </body>
       </method>
 
@@ -82,9 +96,8 @@
 
           var before = this.getItemAtIndex(aIndex);
           if (before)
-            menupopup.insertBefore(menuitem, before);
-          else
-            menupopup.appendChild(menuitem);
+            return menupopup.insertBefore(menuitem, before);
+          return menupopup.appendChild(menuitem);
         </body>
       </method>
 
@@ -140,16 +153,6 @@
         ]]>
         </body>
       </method>
-
-      <property name="parentContainer" readonly="true">
-        <getter>
-          for (var parent = this.parentNode; parent; parent = parent.parentNode) {
-            if (parent instanceof Components.interfaces.nsIDOMXULContainerElement)
-              return parent;
-          }
-          return null;
-        </getter>
-      </property>
 
       <property name="menupopup" readonly="true">
         <getter>

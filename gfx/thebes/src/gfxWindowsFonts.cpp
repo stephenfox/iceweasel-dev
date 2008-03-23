@@ -21,6 +21,7 @@
  * Contributor(s):
  *   Stuart Parmenter <stuart@mozilla.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -64,6 +65,7 @@
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
+#include "nsIPrefLocalizedString.h"
 #include "nsServiceManagerUtils.h"
 
 #include "nsCRT.h"
@@ -291,10 +293,11 @@ gfxWindowsFont::ComputeMetrics()
 
     if (0 < GetOutlineTextMetrics(dc, sizeof(oMetrics), &oMetrics)) {
         mMetrics->superscriptOffset = (double)oMetrics.otmptSuperscriptOffset.y;
-        mMetrics->subscriptOffset = (double)oMetrics.otmptSubscriptOffset.y;
-        mMetrics->strikeoutSize = PR_MAX(1, (double)oMetrics.otmsStrikeoutSize);
+        // Some fonts have wrong sign on their subscript offset, bug 410917.
+        mMetrics->subscriptOffset = fabs((double)oMetrics.otmptSubscriptOffset.y);
+        mMetrics->strikeoutSize = (double)oMetrics.otmsStrikeoutSize;
         mMetrics->strikeoutOffset = (double)oMetrics.otmsStrikeoutPosition;
-        mMetrics->underlineSize = PR_MAX(1, (double)oMetrics.otmsUnderscoreSize);
+        mMetrics->underlineSize = (double)oMetrics.otmsUnderscoreSize;
         mMetrics->underlineOffset = (double)oMetrics.otmsUnderscorePosition;
 
         const MAT2 kIdentityMatrix = { {0, 1}, {0, 0}, {0, 0}, {0, 1} };
@@ -306,20 +309,10 @@ gfxWindowsFont::ComputeMetrics()
         } else {
             mMetrics->xHeight = gm.gmptGlyphOrigin.y;
         }
-        // The MS (P)Gothic and MS (P)Mincho are not having suitable values
-        // in them super script offset. If the values are not suitable,
-        // we should use x-height instead of them.
-        // See https://bugzilla.mozilla.org/show_bug.cgi?id=353632
-        if (mMetrics->superscriptOffset == 0 ||
-            mMetrics->superscriptOffset >= metrics.tmAscent) {
-            mMetrics->superscriptOffset = mMetrics->xHeight;
-        }
-        // And also checking the case of sub script offset.
-        // The old gfx has checked this too.
-        if (mMetrics->subscriptOffset == 0 ||
-            mMetrics->subscriptOffset >= metrics.tmAscent) {
-            mMetrics->subscriptOffset = mMetrics->xHeight;
-        }
+        mMetrics->emHeight = metrics.tmHeight - metrics.tmInternalLeading;
+        gfxFloat typEmHeight = (double)oMetrics.otmAscent - (double)oMetrics.otmDescent;
+        mMetrics->emAscent = ROUND(mMetrics->emHeight * (double)oMetrics.otmAscent / typEmHeight);
+        mMetrics->emDescent = mMetrics->emHeight - mMetrics->emAscent;
     } else {
         // Make a best-effort guess at extended metrics
         // this is based on general typographic guidelines
@@ -332,13 +325,13 @@ gfxWindowsFont::ComputeMetrics()
         mMetrics->strikeoutOffset = ROUND(mMetrics->xHeight / 2.0f); // 50% of xHeight
         mMetrics->underlineSize = 1;
         mMetrics->underlineOffset = -ROUND((float)metrics.tmDescent * 0.30f); // 30% of descent
+        mMetrics->emHeight = metrics.tmHeight - metrics.tmInternalLeading;
+        mMetrics->emAscent = metrics.tmAscent - metrics.tmInternalLeading;
+        mMetrics->emDescent = metrics.tmDescent;
     }
 
     mMetrics->internalLeading = metrics.tmInternalLeading;
     mMetrics->externalLeading = metrics.tmExternalLeading;
-    mMetrics->emHeight = (metrics.tmHeight - metrics.tmInternalLeading);
-    mMetrics->emAscent = (metrics.tmAscent - metrics.tmInternalLeading);
-    mMetrics->emDescent = metrics.tmDescent;
     mMetrics->maxHeight = metrics.tmHeight;
     mMetrics->maxAscent = metrics.tmAscent;
     mMetrics->maxDescent = metrics.tmDescent;
@@ -363,6 +356,8 @@ gfxWindowsFont::ComputeMetrics()
     SelectObject(dc, oldFont);
 
     ReleaseDC((HWND)nsnull, dc);
+
+    SanitizeMetrics(mMetrics);
 }
 
 void
@@ -995,12 +990,9 @@ public:
         return PR_FALSE;
     }
 
-    HRESULT Place() {
+
+    HRESULT PlaceUniscribe() {
         HRESULT rv;
-
-        mOffsets.SetLength(mNumGlyphs);
-        mAdvances.SetLength(mNumGlyphs);
-
         HDC placeDC = nsnull;
 
         while (PR_TRUE) {
@@ -1019,6 +1011,52 @@ public:
         }
 
         return rv;
+    }
+
+    HRESULT PlaceGDI() {
+        SelectFont();
+
+        nsAutoTArray<int,500> partialWidthArray;
+        if (!partialWidthArray.SetLength(mNumGlyphs))
+            return GDI_ERROR;
+        SIZE size;
+
+        GetTextExtentExPointI(mDC,
+                              (WORD*) mGlyphs.Elements(),
+                              mNumGlyphs,
+                              INT_MAX,
+                              NULL,
+                              partialWidthArray.Elements(),
+                              &size);
+
+        PRInt32 lastWidth = 0;
+
+        for (PRUint32 i = 0; i < mNumGlyphs; i++) {
+            mAdvances[i] = partialWidthArray[i] - lastWidth;
+            lastWidth = partialWidthArray[i];
+            mOffsets[i].du = mOffsets[i].dv = 0;
+        }
+        return 0;
+    }
+
+    HRESULT Place() {
+        mOffsets.SetLength(mNumGlyphs);
+        mAdvances.SetLength(mNumGlyphs);
+
+        PRBool allCJK = PR_TRUE;
+        for (PRUint32 i = 0; i < mRangeLength; i++) {
+            const PRUnichar ch = mRangeString[i];
+            if (ch == ' ' || FindCharUnicodeRange(ch) == kRangeSetCJK)
+                continue;
+
+            allCJK = PR_FALSE;
+            break;
+        }
+
+        if (allCJK)
+            return PlaceGDI();
+
+        return PlaceUniscribe();
     }
 
     const SCRIPT_PROPERTIES *ScriptProperties() {
@@ -1397,10 +1435,17 @@ private:
             if (!prefBranch)
                 return;
 
-            // Add by the order of accept languages.
-            nsXPIDLCString list;
-            nsresult rv = prefBranch->GetCharPref("intl.accept_languages", getter_Copies(list));
-            if (NS_SUCCEEDED(rv) && !list.IsEmpty()) {
+            // Add the CJK pref fonts from accept languages, the order should be same order
+            nsCAutoString list;
+            nsCOMPtr<nsIPrefLocalizedString> val;
+            nsresult rv = prefBranch->GetComplexValue("intl.accept_languages", NS_GET_IID(nsIPrefLocalizedString),
+                                                      getter_AddRefs(val));
+            if (NS_SUCCEEDED(rv) && val) {
+                nsAutoString temp;
+                val->ToString(getter_Copies(temp));
+                LossyCopyUTF16toASCII(temp, list);
+            }
+            if (!list.IsEmpty()) {
                 const char kComma = ',';
                 const char *p, *p_end;
                 list.BeginReading(p);

@@ -92,6 +92,7 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
 static void
 InitMinimalScope(JSScope *scope)
 {
+    scope->shape = 0;
     scope->hashShift = JS_DHASH_BITS - MIN_SCOPE_SIZE_LOG2;
     scope->entryCount = scope->removedCount = 0;
     scope->table = NULL;
@@ -109,8 +110,11 @@ CreateScopeTable(JSContext *cx, JSScope *scope, JSBool report)
 
     if (scope->entryCount > SCOPE_HASH_THRESHOLD) {
         /*
-         * Ouch: calloc failed at least once already -- let's try again,
-         * overallocating to hold at least twice the current population.
+         * Either we're creating a table for a large scope that was populated
+         * via property cache hit logic under JSOP_INITPROP, JSOP_SETNAME, or
+         * JSOP_SETPROP; or else calloc failed at least once already. In any
+         * event, let's try to grow, overallocating to hold at least twice the
+         * current population.
          */
         sizeLog2 = JS_CeilingLog2(2 * scope->entryCount);
         scope->hashShift = JS_DHASH_BITS - sizeLog2;
@@ -152,21 +156,8 @@ js_NewScope(JSContext *cx, jsrefcount nrefs, JSObjectOps *ops, JSClass *clasp,
     InitMinimalScope(scope);
 
 #ifdef JS_THREADSAFE
-    scope->ownercx = cx;
-    memset(&scope->lock, 0, sizeof scope->lock);
-
-    /*
-     * Set u.link = NULL, not u.count = 0, in case the target architecture's
-     * null pointer has a non-zero integer representation.
-     */
-    scope->u.link = NULL;
-
-#ifdef DEBUG
-    scope->file[0] = scope->file[1] = scope->file[2] = scope->file[3] = NULL;
-    scope->line[0] = scope->line[1] = scope->line[2] = scope->line[3] = 0;
+    js_InitTitle(cx, &scope->title);
 #endif
-#endif
-
     JS_RUNTIME_METER(cx->runtime, liveScopes);
     JS_RUNTIME_METER(cx->runtime, totalScopes);
     return scope;
@@ -192,10 +183,7 @@ js_DestroyScope(JSContext *cx, JSScope *scope)
 #endif
 
 #ifdef JS_THREADSAFE
-    /* Scope must be single-threaded at this point, so set scope->ownercx. */
-    JS_ASSERT(scope->u.count == 0);
-    scope->ownercx = cx;
-    js_FinishLock(&scope->lock);
+    js_FinishTitle(cx, &scope->title);
 #endif
     if (scope->table)
         JS_free(cx, scope->table);
@@ -276,9 +264,8 @@ js_SearchScope(JSScope *scope, jsid id, JSBool adding)
         return spp;
     }
 
-    METER(hashes);
-
     /* Compute the primary hash address. */
+    METER(hashes);
     hash0 = SCOPE_HASH0(id);
     hashShift = scope->hashShift;
     hash1 = SCOPE_HASH1(hash0, hashShift);
@@ -350,6 +337,9 @@ ChangeScope(JSContext *cx, JSScope *scope, int change)
     uint32 oldsize, newsize, nbytes;
     JSScopeProperty **table, **oldtable, **spp, **oldspp, *sprop;
 
+    if (!scope->table)
+        return CreateScopeTable(cx, scope, JS_TRUE);
+
     /* Grow, shrink, or compress by changing scope->table. */
     oldlog2 = JS_DHASH_BITS - scope->hashShift;
     newlog2 = oldlog2 + change;
@@ -390,7 +380,7 @@ ChangeScope(JSContext *cx, JSScope *scope, int change)
 /*
  * Take care to exclude the mark bits in case we're called from the GC.
  */
-#define SPROP_FLAGS_NOT_MATCHED SPROP_MARK
+#define SPROP_FLAGS_NOT_MATCHED (SPROP_MARK | SPROP_FLAG_SHAPE_REGEN)
 
 JS_STATIC_DLL_CALLBACK(JSDHashNumber)
 js_HashScopeProperty(JSDHashTable *table, const void *key)
@@ -903,6 +893,8 @@ locked_not_found:
     sprop->flags = child->flags;
     sprop->shortid = child->shortid;
     sprop->parent = sprop->kids = NULL;
+    sprop->shape = js_GenerateShape(cx);
+
     if (!parent) {
         entry->child = sprop;
     } else {
@@ -1099,6 +1091,7 @@ js_AddScopeProperty(JSContext *cx, JSScope *scope, jsid id,
             }
             SCOPE_SET_MIDDLE_DELETE(scope);
         }
+        SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
 
         /*
          * If we fail later on trying to find or create a new sprop, we will
@@ -1233,13 +1226,12 @@ js_AddScopeProperty(JSContext *cx, JSScope *scope, jsid id,
                  * We may have set slot from a nearly-matching sprop, above.
                  * If so, we're overwriting that nearly-matching sprop, so we
                  * can reuse its slot -- we don't need to allocate a new one.
-                 * Callers should therefore pass SPROP_INVALID_SLOT for all
-                 * non-alias, unshared property adds.
+                 * Similarly, we use a specific slot if provided by the caller.
                  */
-                if (slot != SPROP_INVALID_SLOT)
-                    JS_ASSERT(overwriting);
-                else if (!js_AllocSlot(cx, scope->object, &slot))
+                if (slot == SPROP_INVALID_SLOT &&
+                    !js_AllocSlot(cx, scope->object, &slot)) {
                     goto fail_overwrite;
+                }
             }
         }
 
@@ -1268,6 +1260,13 @@ js_AddScopeProperty(JSContext *cx, JSScope *scope, jsid id,
         sprop = GetPropertyTreeChild(cx, scope->lastProp, &child);
         if (!sprop)
             goto fail_overwrite;
+
+        /*
+         * The scope's shape defaults to its last property's shape, but may
+         * be regenerated later as the scope diverges (from the property cache
+         * point of view) from the structural type associated with sprop.
+         */
+        SCOPE_EXTEND_SHAPE(cx, scope, sprop);
 
         /* Store the tree node pointer in the table entry for id. */
         if (scope->table)
@@ -1402,8 +1401,14 @@ js_ChangeScopePropertyAttrs(JSContext *cx, JSScope *scope,
                                        child.attrs, child.flags, child.shortid);
     }
 
+    if (newsprop) {
+        if (scope->shape == sprop->shape)
+            scope->shape = newsprop->shape;
+        else
+            SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
+    }
 #ifdef JS_DUMP_PROPTREE_STATS
-    if (!newsprop)
+    else
         METER(changeFailures);
 #endif
     return newsprop;
@@ -1470,6 +1475,7 @@ js_RemoveScopeProperty(JSContext *cx, JSScope *scope, jsid id)
     } else if (!SCOPE_HAD_MIDDLE_DELETE(scope)) {
         SCOPE_SET_MIDDLE_DELETE(scope);
     }
+    SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
     CHECK_ANCESTOR_LINE(scope, JS_TRUE);
 
     /* Last, consider shrinking scope's table if its load factor is <= .25. */
@@ -1707,9 +1713,22 @@ js_SweepScopeProperties(JSContext *cx)
             if (sprop->id == JSVAL_NULL)
                 continue;
 
-            /* If the mark bit is set, sprop is alive, so we skip it. */
+            /*
+             * If the mark bit is set, sprop is alive, so clear the mark bit
+             * and continue the while loop.
+             *
+             * Regenerate sprop->shape if it hasn't already been refreshed
+             * during the mark phase, when live scopes' lastProp members are
+             * followed to update both scope->shape and lastProp->shape.
+             */
             if (sprop->flags & SPROP_MARK) {
                 sprop->flags &= ~SPROP_MARK;
+                if (sprop->flags & SPROP_FLAG_SHAPE_REGEN) {
+                    sprop->flags &= ~SPROP_FLAG_SHAPE_REGEN;
+                } else {
+                    sprop->shape = ++cx->runtime->shapeGen;
+                    JS_ASSERT(sprop->shape != 0);
+                }
                 liveCount++;
                 continue;
             }

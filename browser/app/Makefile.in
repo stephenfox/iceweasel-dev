@@ -72,6 +72,12 @@ GRE_BUILDID = $(shell $(PYTHON) $(topsrcdir)/config/printconfigsetting.py $(LIBX
 
 DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)
 
+ifdef MOZ_MEMORY
+ifneq ($(OS_ARCH),WINNT)
+LIBS += -ljemalloc
+endif
+endif
+
 ifdef LIBXUL_SDK
 include $(topsrcdir)/config/rules.mk
 else
@@ -86,7 +92,6 @@ endif
 REQUIRES = \
 	xpcom \
 	string \
-	xulapp \
 	$(NULL)
 
 CPPSRCS = nsBrowserApp.cpp
@@ -109,7 +114,7 @@ endif
 endif
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-TK_LIBS := -framework Cocoa $(TK_LIBS)
+TK_LIBS := $(TK_LIBS)
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -232,7 +237,7 @@ include $(topsrcdir)/config/static-rules.mk
 DEFINES += -DIMPL_XREAPI
 endif
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 ifdef BUILD_STATIC_LIBS
 ifdef USE_PREBINDING
 BIN_FLAGS += -Wl,-headerpad -Wl,5a0c

@@ -187,6 +187,7 @@ public:
   virtual void AddedForm();
   virtual void RemovedForm();
   virtual PRInt32 GetNumFormsSynchronous();
+  virtual void TearingDownEditor(nsIEditor *aEditor);
 
   PRBool IsXHTML()
   {
@@ -212,9 +213,18 @@ public:
     mDisableCookieAccess = PR_TRUE;
   }
 
+  virtual nsIContent* GetBodyContentExternal();
+
   void EndUpdate(nsUpdateType aUpdateType);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLDocument, nsDocument)
+
+  virtual already_AddRefed<nsIParser> GetFragmentParser() {
+    return mFragmentParser.forget();
+  }
+  virtual void SetFragmentParser(nsIParser* aParser) {
+    mFragmentParser = aParser;
+  }
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
@@ -382,6 +392,9 @@ protected:
   PRInt32 mDefaultNamespaceID;
 
   PRBool mDisableCookieAccess;
+
+  // Parser used for constructing document fragments.
+  nsCOMPtr<nsIParser> mFragmentParser;
 };
 
 #endif /* nsHTMLDocument_h___ */

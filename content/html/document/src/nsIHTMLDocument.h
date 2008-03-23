@@ -53,10 +53,13 @@ class nsICSSLoader;
 class nsIContent;
 class nsIDOMHTMLBodyElement;
 class nsIScriptElement;
+class nsIEditor;
 
+// Update htmldocument.gqi when updating this IID!
+// bfd644d6-92cc-4560-a329-f02ba0c91ca5
 #define NS_IHTMLDOCUMENT_IID \
-{ 0x61e989a8, 0x70cd, 0x4582, \
-  { 0x84, 0x5e, 0x6e, 0x5e, 0x12, 0x55, 0x9a, 0x83 } }
+{ 0xbfd644d6, 0x92cc, 0x4560, \
+  { 0xa3, 0x29, 0xf0, 0x2b, 0xa0, 0xc9, 0x1c, 0xa5 } }
 
 /**
  * HTML document extensions to nsIDocument.
@@ -140,6 +143,7 @@ public:
                                               PRInt32 aChange) = 0;
 
   enum EditingState {
+    eTearingDown = -2,
     eSettingUp = -1,
     eOff = 0,
     eDesignMode,
@@ -173,6 +177,17 @@ public:
    * Disables getting and setting cookies
    */
   virtual void DisableCookieAccess() = 0;
+
+  /**
+   * Get the first <body> child of the root <html>, but don't do
+   * anything <frameset>-related (like nsIDOMHTMLDocument::GetBody).
+   */
+  virtual nsIContent* GetBodyContentExternal() = 0;
+
+  /**
+   * Called when this nsIHTMLDocument's editor is destroyed.
+   */
+  virtual void TearingDownEditor(nsIEditor *aEditor) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLDocument, NS_IHTMLDOCUMENT_IID)

@@ -145,7 +145,7 @@
 
 #define TEXT_REFLOW_FLAGS    \
   (TEXT_FIRST_LETTER|TEXT_START_OF_LINE|TEXT_END_OF_LINE|TEXT_HYPHEN_BREAK| \
-   TEXT_TRIMMED_TRAILING_WHITESPACE)
+   TEXT_TRIMMED_TRAILING_WHITESPACE|TEXT_HAS_NONCOLLAPSED_CHARACTERS)
 
 // Cache bits for IsEmpty().
 // Set this bit if the textframe is known to be only collapsible whitespace.
@@ -838,6 +838,9 @@ static void
 BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
               nsIFrame* aLineContainer, const nsLineList::iterator* aForFrameLine)
 {
+  NS_ASSERTION(aForFrame || aForFrameLine,
+               "One of aForFrame or aForFrameLine must be set!");
+  
   if (!aLineContainer) {
     aLineContainer = FindLineContainer(aForFrame);
   } else {
@@ -869,23 +872,18 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   }
 
   // Find the line containing aForFrame
-  nsBlockFrame::line_iterator startLine;
+
+  PRBool isValid = PR_TRUE;
+  nsBlockInFlowLineIterator backIterator(block, &isValid);
   if (aForFrameLine) {
-    startLine = *aForFrameLine;
+    backIterator = nsBlockInFlowLineIterator(block, *aForFrameLine, PR_FALSE);
   } else {
-    NS_ASSERTION(aForFrame, "One of aForFrame or aForFrameLine must be set!");
-    nsIFrame* immediateChild =
-      nsLayoutUtils::FindChildContainingDescendant(block, aForFrame);
-    // This may be a float e.g. for a floated first-letter
-    if (immediateChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
-      immediateChild =
-        nsLayoutUtils::FindChildContainingDescendant(block,
-          presContext->FrameManager()->GetPlaceholderFrameFor(immediateChild));
-    }
-    startLine = block->FindLineFor(immediateChild);
-    NS_ASSERTION(startLine != block->end_lines(),
-                 "Frame is not in the block!!!");
+    backIterator = nsBlockInFlowLineIterator(block, aForFrame, &isValid);
+    NS_ASSERTION(isValid, "aForFrame not found in block, someone lied to us");
+    NS_ASSERTION(backIterator.GetContainer() == block,
+                 "Someone lied to us about the block");
   }
+  nsBlockFrame::line_iterator startLine = backIterator.GetLine();
 
   // Find a line where we can start building text runs. We choose the last line
   // where:
@@ -900,17 +898,14 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   // but we discard them instead of assigning them to frames.
   // This is a little awkward because we traverse lines in the reverse direction
   // but we traverse the frames in each line in the forward direction.
-  nsBlockInFlowLineIterator backIterator(block, startLine, PR_FALSE);
+  nsBlockInFlowLineIterator forwardIterator = backIterator;
   nsTextFrame* stopAtFrame = aForFrame;
   nsTextFrame* nextLineFirstTextFrame = nsnull;
   PRBool seenTextRunBoundaryOnLaterLine = PR_FALSE;
   PRBool mayBeginInTextRun = PR_TRUE;
-  PRBool inOverflow = PR_FALSE;
-  nsBlockFrame::line_iterator line;
   while (PR_TRUE) {
-    line = backIterator.GetLine();
-    block = backIterator.GetContainer();
-    inOverflow = backIterator.GetInOverflow();
+    forwardIterator = backIterator;
+    nsBlockFrame::line_iterator line = backIterator.GetLine();
     if (!backIterator.Prev() || backIterator.GetLine()->IsBlock()) {
       mayBeginInTextRun = PR_FALSE;
       break;
@@ -954,11 +949,10 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   // text frames will be accumulated into textRunFrames as we go. When a
   // text run boundary is required we flush textRunFrames ((re)building their
   // gfxTextRuns as necessary).
-  nsBlockInFlowLineIterator forwardIterator(block, line, inOverflow);
   PRBool seenStartLine = PR_FALSE;
   PRUint32 linesAfterStartLine = 0;
   do {
-    line = forwardIterator.GetLine();
+    nsBlockFrame::line_iterator line = forwardIterator.GetLine();
     if (line->IsBlock())
       break;
     line->SetInvalidateTextRuns(PR_FALSE);
@@ -2081,7 +2075,11 @@ protected:
   nsTextFrame*          mFrame;
   gfxSkipCharsIterator  mStart;  // Offset in original and transformed string
   gfxSkipCharsIterator  mTempIterator;
-  nsTArray<gfxFloat>*   mTabWidths;  // widths for each transformed string character
+  
+  // Widths for each transformed string character, 0 for non-tab characters.
+  // Either null, or pointing to the frame's tabWidthProperty.
+  nsTArray<gfxFloat>*   mTabWidths;
+
   PRInt32               mLength; // DOM string length, may be PR_INT32_MAX
   gfxFloat              mWordSpacing;     // space for each whitespace char
   gfxFloat              mLetterSpacing;   // space for each letter
@@ -2266,6 +2264,16 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
         return nsnull;
       }
     } else {
+      if (!mLineContainer) {
+        // Intrinsic width computation, no way to compute real tab widths
+        // (and we wouldn't want to use it if we could, because it depends
+        // on layout). Don't wipe out existing tab widths that might still
+        // be useful for painting. Just return null which uses zero for
+        // all tab widths.
+        NS_WARNING("Preformatted tabs encountered in intrinsic width situation");
+        return nsnull;
+      }
+
       nsAutoPtr<nsTArray<gfxFloat> > tabs(new nsTArray<gfxFloat>());
       if (!tabs)
         return nsnull;
@@ -2288,47 +2296,38 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
     if (!mTabWidths->AppendElements(aStart + aLength - tabsEnd))
       return nsnull;
     
-    PRUint32 i;
-    if (!mLineContainer) {
-      NS_WARNING("Tabs encountered in a situation where we don't support tabbing");
-      for (i = tabsEnd; i < aStart + aLength; ++i) {
+    gfxFloat tabWidth = NS_round(8*mTextRun->GetAppUnitsPerDevUnit()*
+      GetFontMetrics(GetFontGroupForFrame(mLineContainer)).spaceWidth);
+    for (PRUint32 i = tabsEnd; i < aStart + aLength; ++i) {
+      Spacing spacing;
+      GetSpacingInternal(i, 1, &spacing, PR_TRUE);
+      mOffsetFromBlockOriginForTabs += spacing.mBefore;
+
+      if (mTextRun->GetChar(i) != '\t') {
         (*mTabWidths)[i - startOffset] = 0;
-      }
-    } else {
-      gfxFloat tabWidth = NS_round(8*mTextRun->GetAppUnitsPerDevUnit()*
-        GetFontMetrics(GetFontGroupForFrame(mLineContainer)).spaceWidth);
-      
-      for (i = tabsEnd; i < aStart + aLength; ++i) {
-        Spacing spacing;
-        GetSpacingInternal(i, 1, &spacing, PR_TRUE);
-        mOffsetFromBlockOriginForTabs += spacing.mBefore;
-  
-        if (mTextRun->GetChar(i) != '\t') {
-          (*mTabWidths)[i - startOffset] = 0;
-          if (mTextRun->IsClusterStart(i)) {
-            PRUint32 clusterEnd = i + 1;
-            while (clusterEnd < mTextRun->GetLength() &&
-                   !mTextRun->IsClusterStart(clusterEnd)) {
-              ++clusterEnd;
-            }
-            mOffsetFromBlockOriginForTabs +=
-              mTextRun->GetAdvanceWidth(i, clusterEnd - i, nsnull);
+        if (mTextRun->IsClusterStart(i)) {
+          PRUint32 clusterEnd = i + 1;
+          while (clusterEnd < mTextRun->GetLength() &&
+                 !mTextRun->IsClusterStart(clusterEnd)) {
+            ++clusterEnd;
           }
-        } else {
-          // Advance mOffsetFromBlockOriginForTabs to the next multiple of tabWidth
-          // Ensure that if it's just epsilon less than a multiple of tabWidth, we still
-          // advance by tabWidth.
-          static const double EPSILON = 0.000001;
-          double nextTab = NS_ceil(mOffsetFromBlockOriginForTabs/tabWidth)*tabWidth;
-          if (nextTab < mOffsetFromBlockOriginForTabs + EPSILON) {
-            nextTab += tabWidth;
-          }
-          (*mTabWidths)[i - startOffset] = nextTab - mOffsetFromBlockOriginForTabs;
-          mOffsetFromBlockOriginForTabs = nextTab;
+          mOffsetFromBlockOriginForTabs +=
+            mTextRun->GetAdvanceWidth(i, clusterEnd - i, nsnull);
         }
-  
-        mOffsetFromBlockOriginForTabs += spacing.mAfter;
+      } else {
+        // Advance mOffsetFromBlockOriginForTabs to the next multiple of tabWidth
+        // Ensure that if it's just epsilon less than a multiple of tabWidth, we still
+        // advance by tabWidth.
+        static const double EPSILON = 0.000001;
+        double nextTab = NS_ceil(mOffsetFromBlockOriginForTabs/tabWidth)*tabWidth;
+        if (nextTab < mOffsetFromBlockOriginForTabs + EPSILON) {
+          nextTab += tabWidth;
+        }
+        (*mTabWidths)[i - startOffset] = nextTab - mOffsetFromBlockOriginForTabs;
+        mOffsetFromBlockOriginForTabs = nextTab;
       }
+
+      mOffsetFromBlockOriginForTabs += spacing.mAfter;
     }
   }
 
@@ -3588,39 +3587,35 @@ FillClippedRect(gfxContext* aCtx, nsPresContext* aPresContext,
   aCtx->Fill();
 }
 
-void 
-nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
-                                  const gfxPoint& aFramePt,
-                                  const gfxPoint& aTextBaselinePt,
-                                  nsTextPaintStyle& aTextPaintStyle,
-                                  PropertyProvider& aProvider)
+nsTextFrame::TextDecorations
+nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
 {
+  TextDecorations decorations;
+
   // Quirks mode text decoration are rendered by children; see bug 1777
   // In non-quirks mode, nsHTMLContainer::Paint and nsBlockFrame::Paint
   // does the painting of text decorations.
-  if (eCompatibility_NavQuirks != aTextPaintStyle.PresContext()->CompatibilityMode())
-    return;
+  if (eCompatibility_NavQuirks != aPresContext->CompatibilityMode())
+    return decorations;
 
   PRBool useOverride = PR_FALSE;
   nscolor overrideColor;
 
-  PRUint8 decorations = NS_STYLE_TEXT_DECORATION_NONE;
   // A mask of all possible decorations.
   PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_UNDERLINE | 
                       NS_STYLE_TEXT_DECORATION_OVERLINE |
-                      NS_STYLE_TEXT_DECORATION_LINE_THROUGH;    
-  nscolor overColor, underColor, strikeColor;
-  nsStyleContext* context = GetStyleContext();
-  PRBool hasDecorations = context->HasTextDecorations();
+                      NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
 
-  while (hasDecorations) {
+  for (nsStyleContext* context = GetStyleContext();
+       decorMask && context && context->HasTextDecorations();
+       context = context->GetParent()) {
     const nsStyleTextReset* styleText = context->GetStyleTextReset();
     if (!useOverride && 
         (NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL & styleText->mTextDecoration)) {
       // This handles the <a href="blah.html"><font color="green">La 
       // la la</font></a> case. The link underline should be green.
       useOverride = PR_TRUE;
-      overrideColor = context->GetStyleColor()->mColor;          
+      overrideColor = context->GetStyleColor()->mColor;
     }
 
     PRUint8 useDecorations = decorMask & styleText->mTextDecoration;
@@ -3628,30 +3623,59 @@ nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
       nscolor color = context->GetStyleColor()->mColor;
   
       if (NS_STYLE_TEXT_DECORATION_UNDERLINE & useDecorations) {
-        underColor = useOverride ? overrideColor : color;
+        decorations.mUnderColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_UNDERLINE;
-        decorations |= NS_STYLE_TEXT_DECORATION_UNDERLINE;
+        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_UNDERLINE;
       }
       if (NS_STYLE_TEXT_DECORATION_OVERLINE & useDecorations) {
-        overColor = useOverride ? overrideColor : color;
+        decorations.mOverColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_OVERLINE;
-        decorations |= NS_STYLE_TEXT_DECORATION_OVERLINE;
+        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_OVERLINE;
       }
       if (NS_STYLE_TEXT_DECORATION_LINE_THROUGH & useDecorations) {
-        strikeColor = useOverride ? overrideColor : color;
+        decorations.mStrikeColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
-        decorations |= NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
+        decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
       }
     }
-    if (0 == decorMask)
-      break;
-    context = context->GetParent();
-    if (!context)
-      break;
-    hasDecorations = context->HasTextDecorations();
   }
 
-  if (!decorations)
+  return decorations;
+}
+
+void
+nsTextFrame::UnionTextDecorationOverflow(
+               nsPresContext* aPresContext,
+               const gfxTextRun::Metrics& aTextMetrics,
+               nsRect* aOverflowRect)
+{
+  NS_ASSERTION(mTextRun, "mTextRun is null");
+  nsRect rect;
+  TextDecorations decorations = GetTextDecorations(aPresContext);
+  float ratio = 1.0f;
+  // Note that we need to add underline area when this frame has selection for
+  // spellchecking and IME.
+  if (mState & NS_FRAME_SELECTED_CONTENT) {
+    nsILookAndFeel* look = aPresContext->LookAndFeel();
+    look->GetMetric(nsILookAndFeel::eMetricFloat_IMEUnderlineRelativeSize,
+                    ratio);
+    decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_UNDERLINE;
+  }
+  nsLineLayout::CombineTextDecorations(aPresContext, decorations.mDecorations,
+                  this, *aOverflowRect, nscoord(NS_round(aTextMetrics.mAscent)),
+                  ratio);
+}
+
+void 
+nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
+                                  const gfxPoint& aFramePt,
+                                  const gfxPoint& aTextBaselinePt,
+                                  nsTextPaintStyle& aTextPaintStyle,
+                                  PropertyProvider& aProvider)
+{
+  TextDecorations decorations =
+    GetTextDecorations(aTextPaintStyle.PresContext());
+  if (!decorations.HasDecorationlines())
     return;
 
   gfxFont::Metrics fontMetrics = GetFontMetrics(aProvider.GetFontGroup());
@@ -3662,26 +3686,26 @@ nsTextFrame::PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
   gfxSize size(GetRect().width / app, 0);
   gfxFloat ascent = gfxFloat(mAscent) / app;
 
-  if (decorations & NS_FONT_DECORATION_OVERLINE) {
+  if (decorations.HasOverline()) {
     size.height = fontMetrics.underlineSize;
     nsCSSRendering::PaintDecorationLine(
-      aCtx, overColor, pt, size, ascent, ascent, size.height,
+      aCtx, decorations.mOverColor, pt, size, ascent, ascent,
       NS_STYLE_TEXT_DECORATION_OVERLINE, NS_STYLE_BORDER_STYLE_SOLID,
       mTextRun->IsRightToLeft());
   }
-  if (decorations & NS_FONT_DECORATION_UNDERLINE) {
+  if (decorations.HasUnderline()) {
     size.height = fontMetrics.underlineSize;
     gfxFloat offset = fontMetrics.underlineOffset;
     nsCSSRendering::PaintDecorationLine(
-      aCtx, underColor, pt, size, ascent, offset, size.height,
+      aCtx, decorations.mUnderColor, pt, size, ascent, offset,
       NS_STYLE_TEXT_DECORATION_UNDERLINE, NS_STYLE_BORDER_STYLE_SOLID,
       mTextRun->IsRightToLeft());
   }
-  if (decorations & NS_FONT_DECORATION_LINE_THROUGH) {
+  if (decorations.HasStrikeout()) {
     size.height = fontMetrics.strikeoutSize;
     gfxFloat offset = fontMetrics.strikeoutOffset;
     nsCSSRendering::PaintDecorationLine(
-      aCtx, strikeColor, pt, size, ascent, offset, size.height,
+      aCtx, decorations.mStrikeColor, pt, size, ascent, offset,
       NS_STYLE_TEXT_DECORATION_UNDERLINE, NS_STYLE_BORDER_STYLE_SOLID,
       mTextRun->IsRightToLeft());
   }
@@ -3709,7 +3733,7 @@ static void DrawIMEUnderline(gfxContext* aContext, PRInt32 aIndex,
   gfxFloat width = PR_MAX(0, aWidth - 2.0 * aSize);
   gfxPoint pt(aPt.x + 1.0, aPt.y);
   nsCSSRendering::PaintDecorationLine(
-    aContext, color, pt, gfxSize(width, actualSize), aAscent, aOffset, aSize,
+    aContext, color, pt, gfxSize(width, actualSize), aAscent, aOffset,
     NS_STYLE_TEXT_DECORATION_UNDERLINE, style, aIsRTL);
 }
 
@@ -3727,7 +3751,7 @@ static void DrawSelectionDecorations(gfxContext* aContext, SelectionType aType,
     case nsISelectionController::SELECTION_SPELLCHECK: {
       nsCSSRendering::PaintDecorationLine(
         aContext, NS_RGB(255,0,0),
-        aPt, size, aAscent, aFontMetrics.underlineOffset, size.height,
+        aPt, size, aAscent, aFontMetrics.underlineOffset,
         NS_STYLE_TEXT_DECORATION_UNDERLINE, NS_STYLE_BORDER_STYLE_DOTTED,
         aIsRTL);
       break;
@@ -4354,6 +4378,7 @@ nsTextFrame::SetSelected(nsPresContext* aPresContext,
     found = PR_TRUE;
   }
 
+ nsFrameState oldState = mState;
   if ( aSelected )
     AddStateBits(NS_FRAME_SELECTED_CONTENT);
   else
@@ -4366,6 +4391,20 @@ nsTextFrame::SetSelected(nsPresContext* aPresContext,
     }
   }
   if (found) {
+    // If the selection state is changed, we need to reflow to recompute
+    // the overflow area for underline of spellchecking or IME. However, if
+    // the non-selected text already has underline, we don't need to reflow.
+    // And also when the IME underline is thicker than normal underline.
+    nsILookAndFeel* look = aPresContext->LookAndFeel();
+    float ratio;
+    look->GetMetric(nsILookAndFeel::eMetricFloat_IMEUnderlineRelativeSize,
+                    ratio);
+    if (oldState != mState &&
+        (ratio > 1.0 || !GetTextDecorations(aPresContext).HasUnderline())) {
+      PresContext()->PresShell()->FrameNeedsReflow(this,
+                                                   nsIPresShell::eStyleChange,
+                                                   NS_FRAME_IS_DIRTY);
+    }
     // Selection might change anything. Invalidate the overflow area.
     Invalidate(GetOverflowRect(), PR_FALSE);
   }
@@ -4749,23 +4788,23 @@ nsTextFrame::PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool 
   
   do {
     PRBool isPunctuation = cIter.IsPunctuation();
-    if (aWordSelectEatSpace == cIter.IsWhitespace() && !aState->mSawBeforeType) {
+    PRBool isWhitespace = cIter.IsWhitespace();
+    if (aWordSelectEatSpace == isWhitespace && !aState->mSawBeforeType) {
       aState->SetSawBeforeType();
-      aState->Update(isPunctuation);
+      aState->Update(isPunctuation, isWhitespace);
       continue;
     }
     // See if we can break before the current cluster
     if (!aState->mAtStart) {
       PRBool canBreak = isPunctuation != aState->mLastCharWasPunctuation
-        ? BreakWordBetweenPunctuation(aForward ? aState->mLastCharWasPunctuation : isPunctuation,
-                                      aIsKeyboardSelect)
+        ? BreakWordBetweenPunctuation(aState, aForward, isPunctuation, isWhitespace, aIsKeyboardSelect)
         : cIter.HaveWordBreakBefore() && aState->mSawBeforeType;
       if (canBreak) {
         *aOffset = cIter.GetBeforeOffset() - mContentOffset;
         return PR_TRUE;
       }
     }
-    aState->Update(isPunctuation);
+    aState->Update(isPunctuation, isWhitespace);
   } while (cIter.NextCluster());
 
   *aOffset = cIter.GetAfterOffset() - mContentOffset;
@@ -5502,6 +5541,9 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   aMetrics.mOverflowArea.UnionRect(boundingBox,
                                    nsRect(0, 0, aMetrics.width, aMetrics.height));
 
+  UnionTextDecorationOverflow(aPresContext, textMetrics,
+                              &aMetrics.mOverflowArea);
+
   /////////////////////////////////////////////////////////////////////
   // Clean up, update state
   /////////////////////////////////////////////////////////////////////
@@ -5513,6 +5555,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   // frame to accumulate with trimmable width from this frame.)
   if (transformedCharsFit > 0) {
     lineLayout.SetTrimmableWidth(NSToCoordFloor(trimmableWidth));
+    AddStateBits(TEXT_HAS_NONCOLLAPSED_CHARACTERS);
   }
   if (charsFit > 0 && charsFit == length &&
       HasSoftHyphenBefore(frag, mTextRun, offset, end)) {
@@ -5723,6 +5766,9 @@ nsTextFrame::RecomputeOverflowRect()
     ConvertGfxRectOutward(textMetrics.mBoundingBox + gfxPoint(0, textMetrics.mAscent));
   boundingBox.UnionRect(boundingBox,
                         nsRect(nsPoint(0,0), GetSize()));
+
+  UnionTextDecorationOverflow(PresContext(), textMetrics, &boundingBox);
+
   return boundingBox;
 }
 
@@ -5860,7 +5906,7 @@ nsIAtom*
 nsTextFrame::GetType() const
 {
   return nsGkAtoms::textFrame;
-} 
+}
 
 /* virtual */ PRBool
 nsTextFrame::IsEmpty()
@@ -5946,10 +5992,10 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
     }
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
-  nsRect* overflowArea = const_cast<nsTextFrame*>(this)->GetOverflowAreaProperty(PR_FALSE);
-  if (overflowArea) {
-    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea->x, overflowArea->y,
-            overflowArea->width, overflowArea->height);
+  if (GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN) {
+    nsRect overflowArea = GetOverflowRect();
+    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
   }
   fprintf(out, " sc=%p", static_cast<void*>(mStyleContext));
   nsIAtom* pseudoTag = mStyleContext->GetPseudoType();

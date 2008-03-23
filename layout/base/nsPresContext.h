@@ -61,6 +61,7 @@
 #include "nsIDocument.h"
 #include "nsInterfaceHashtable.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsChangeHint.h"
 // XXX we need only gfxTypes.h, but we cannot include it directly.
 #include "gfxPoint.h"
 class nsImageLoader;
@@ -200,7 +201,7 @@ public:
     { return GetPresShell()->FrameManager(); } 
 #endif
 
-  void RebuildAllStyleData();
+  void RebuildAllStyleData(nsChangeHint aExtraHint);
   void PostRebuildAllStyleDataEvent();
 
   /**
@@ -465,7 +466,7 @@ public:
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
     mTextZoom = aZoom;
-    RebuildAllStyleData();
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
   }
 
   float GetFullZoom() { return mFullZoom; }
@@ -505,6 +506,10 @@ public:
   PRInt32 AppUnitsToDevPixels(nscoord aAppUnits) const
   { return NSAppUnitsToIntPixels(aAppUnits,
                                  mDeviceContext->AppUnitsPerDevPixel()); }
+
+  // If there is a remainder, it is rounded to nearest app units.
+  nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
+  { return mDeviceContext->GfxUnitsToAppUnits(aGfxUnits); }
 
   gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const
   { return mDeviceContext->AppUnitsToGfxUnits(aAppUnits); }
@@ -849,6 +854,7 @@ protected:
   unsigned              mPrefScrollbarSide : 2;
   unsigned              mPendingSysColorChanged : 1;
   unsigned              mPendingThemeChanged : 1;
+  unsigned              mPrefChangePendingNeedsReflow : 1;
   unsigned              mRenderedPositionVaryingContent : 1;
 
   // resize reflow is supressed when the only change has been to zoom

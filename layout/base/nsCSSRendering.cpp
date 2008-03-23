@@ -65,10 +65,10 @@
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
 #include "nsIServiceManager.h"
-#include "nsIDOMHTMLBodyElement.h"
-#include "nsIDOMHTMLDocument.h"
+#include "nsIHTMLDocument.h"
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
+#include "nsBlockFrame.h"
 
 #include "gfxContext.h"
 
@@ -106,7 +106,7 @@ enum ePathTypes{
 struct InlineBackgroundData
 {
   InlineBackgroundData()
-      : mFrame(nsnull)
+      : mFrame(nsnull), mBlockFrame(nsnull)
   {
   }
 
@@ -117,18 +117,62 @@ struct InlineBackgroundData
   void Reset()
   {
     mBoundingBox.SetRect(0,0,0,0);
-    mContinuationPoint = mUnbrokenWidth = 0;
-    mFrame = nsnull;    
+    mContinuationPoint = mLineContinuationPoint = mUnbrokenWidth = 0;
+    mFrame = mBlockFrame = nsnull;
   }
 
   nsRect GetContinuousRect(nsIFrame* aFrame)
   {
     SetFrame(aFrame);
 
+    nscoord x;
+    if (mBidiEnabled) {
+      x = mLineContinuationPoint;
+
+      // Scan continuations on the same line as aFrame and accumulate the widths
+      // of frames that are to the left (if this is an LTR block) or right 
+      // (if it's RTL) of the current one.
+      PRBool isRtlBlock = (mBlockFrame->GetStyleVisibility()->mDirection ==
+                           NS_STYLE_DIRECTION_RTL);      
+      nscoord curOffset = aFrame->GetOffsetTo(mBlockFrame).x;
+
+      nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
+      // If the continuation is fluid we know inlineFrame is not on the same line.
+      // If it's not fluid, we need to test furhter to be sure.
+      while (inlineFrame && !inlineFrame->GetNextInFlow() &&
+             AreOnSameLine(aFrame, inlineFrame)) {
+        nscoord frameXOffset = inlineFrame->GetOffsetTo(mBlockFrame).x;
+        if(isRtlBlock == (frameXOffset >= curOffset)) {
+          x += inlineFrame->GetSize().width;
+        }
+        inlineFrame = inlineFrame->GetPrevContinuation();
+      }
+
+      inlineFrame = aFrame->GetNextContinuation();
+      while (inlineFrame && !inlineFrame->GetPrevInFlow() &&
+             AreOnSameLine(aFrame, inlineFrame)) {
+        nscoord frameXOffset = inlineFrame->GetOffsetTo(mBlockFrame).x;
+        if(isRtlBlock == (frameXOffset >= curOffset)) {
+          x += inlineFrame->GetSize().width;
+        }
+        inlineFrame = inlineFrame->GetNextContinuation();
+      }
+      if (isRtlBlock) {
+        // aFrame itself is also to the right of its left edge, so add its width.
+        x += aFrame->GetSize().width;
+        // x is now the distance from the left edge of aFrame to the right edge
+        // of the unbroken content. Change it to indicate the distance from the
+        // left edge of the unbroken content to the left edge of aFrame.
+        x = mUnbrokenWidth - x;
+      }
+    } else {
+      x = mContinuationPoint;
+    }
+
     // Assume background-origin: border and return a rect with offsets
     // relative to (0,0).  If we have a different background-origin,
     // then our rect should be deflated appropriately by our caller.
-    return nsRect(-mContinuationPoint, 0, mUnbrokenWidth, mFrame->GetSize().height);
+    return nsRect(-x, 0, mUnbrokenWidth, mFrame->GetSize().height);
   }
 
   nsRect GetBoundingRect(nsIFrame* aFrame)
@@ -153,6 +197,10 @@ protected:
   nscoord       mUnbrokenWidth;
   nsRect        mBoundingBox;
 
+  PRBool        mBidiEnabled;
+  nsBlockFrame* mBlockFrame;
+  nscoord       mLineContinuationPoint;
+  
   void SetFrame(nsIFrame* aFrame)
   {
     NS_PRECONDITION(aFrame, "Need a frame");
@@ -170,6 +218,12 @@ protected:
     // point before we cache the new frame.
     mContinuationPoint += mFrame->GetSize().width;
 
+    // If this a new line, update mLineContinuationPoint.
+    if (mBidiEnabled &&
+        (aFrame->GetPrevInFlow() || !AreOnSameLine(mFrame, aFrame))) {
+       mLineContinuationPoint = mContinuationPoint;
+    }
+    
     mFrame = aFrame;
   }
 
@@ -198,6 +252,30 @@ protected:
     }
 
     mFrame = aFrame;
+
+    mBidiEnabled = aFrame->PresContext()->BidiEnabled();
+    if (mBidiEnabled) {
+      // Find the containing block frame
+      nsIFrame* frame = aFrame;
+      nsresult rv = NS_ERROR_FAILURE;
+      while (frame &&
+             frame->IsFrameOfType(nsIFrame::eLineParticipant) &&
+             NS_FAILED(rv)) {
+        frame = frame->GetParent();
+        rv = frame->QueryInterface(kBlockFrameCID, (void**)&mBlockFrame);
+      }
+      NS_ASSERTION(NS_SUCCEEDED(rv) && mBlockFrame, "Cannot find containing block.");
+
+      mLineContinuationPoint = mContinuationPoint;
+    }
+  }
+  
+  PRBool AreOnSameLine(nsIFrame* aFrame1, nsIFrame* aFrame2) {
+    // Assumes that aFrame1 and aFrame2 are both decsendants of mBlockFrame.
+    PRBool isValid1, isValid2;
+    nsBlockInFlowLineIterator it1(mBlockFrame, aFrame1, &isValid1);
+    nsBlockInFlowLineIterator it2(mBlockFrame, aFrame2, &isValid2);
+    return isValid1 && isValid2 && it1.GetLine() == it2.GetLine();
   }
 };
 
@@ -3147,27 +3225,23 @@ FindCanvasBackground(nsIFrame* aForFrame,
       if (content) {
         // Use |GetOwnerDoc| so it works during destruction.
         nsIDocument* document = content->GetOwnerDoc();
-        nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryInterface(document);
+        nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
         if (htmlDoc) {
-          if (!document->IsCaseSensitive()) { // HTML, not XHTML
-            nsCOMPtr<nsIDOMHTMLElement> body;
-            htmlDoc->GetBody(getter_AddRefs(body));
-            nsCOMPtr<nsIContent> bodyContent = do_QueryInterface(body);
-            // We need to null check the body node (bug 118829) since
-            // there are cases, thanks to the fix for bug 5569, where we
-            // will reflow a document with no body.  In particular, if a
-            // SCRIPT element in the head blocks the parser and then has a
-            // SCRIPT that does "document.location.href = 'foo'", then
-            // nsParser::Terminate will call |DidBuildModel| methods
-            // through to the content sink, which will call |StartLayout|
-            // and thus |InitialReflow| on the pres shell.  See bug 119351
-            // for the ugly details.
-            if (bodyContent) {
-              nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
-                GetPrimaryFrameFor(bodyContent);
-              if (bodyFrame)
-                result = bodyFrame->GetStyleBackground();
-            }
+          nsIContent* bodyContent = htmlDoc->GetBodyContentExternal();
+          // We need to null check the body node (bug 118829) since
+          // there are cases, thanks to the fix for bug 5569, where we
+          // will reflow a document with no body.  In particular, if a
+          // SCRIPT element in the head blocks the parser and then has a
+          // SCRIPT that does "document.location.href = 'foo'", then
+          // nsParser::Terminate will call |DidBuildModel| methods
+          // through to the content sink, which will call |StartLayout|
+          // and thus |InitialReflow| on the pres shell.  See bug 119351
+          // for the ugly details.
+          if (bodyContent) {
+            nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
+              GetPrimaryFrameFor(bodyContent);
+            if (bodyFrame)
+              result = bodyFrame->GetStyleBackground();
           }
         }
       }
@@ -3217,16 +3291,11 @@ FindElementBackground(nsIFrame* aForFrame,
 
   // We should only look at the <html> background if we're in an HTML document
   nsIDocument* document = content->GetOwnerDoc();
-  nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryInterface(document);
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
   if (!htmlDoc)
     return PR_TRUE;
 
-  if (document->IsCaseSensitive()) // XHTML, not HTML
-    return PR_TRUE;
-  
-  nsCOMPtr<nsIDOMHTMLElement> body;
-  htmlDoc->GetBody(getter_AddRefs(body));
-  nsCOMPtr<nsIContent> bodyContent = do_QueryInterface(body);
+  nsIContent* bodyContent = htmlDoc->GetBodyContentExternal();
   if (bodyContent != content)
     return PR_TRUE; // this wasn't the background that was propagated
 
@@ -3591,8 +3660,9 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     nsIFrame* topFrame =
       aPresContext->PresShell()->FrameManager()->GetRootFrame();
     NS_ASSERTION(topFrame, "no root frame");
+    nsIFrame* pageContentFrame = nsnull;
     if (aPresContext->IsPaginated()) {
-      nsIFrame* pageContentFrame =
+      pageContentFrame =
         nsLayoutUtils::GetClosestFrameOfType(aForFrame, nsGkAtoms::pageContentFrame);
       if (pageContentFrame) {
         topFrame = pageContentFrame;
@@ -3600,8 +3670,19 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
       // else this is an embedded shell and its root frame is what we want
     }
 
-    // Get the anchor point, relative to the viewport.
     nsRect viewportArea = topFrame->GetRect();
+
+    if (!pageContentFrame) {
+      // Subtract the size of scrollbars.
+      nsIScrollableFrame* scrollableFrame =
+        aPresContext->PresShell()->GetRootScrollFrameAsScrollable();
+      if (scrollableFrame) {
+        nsMargin scrollbars = scrollableFrame->GetActualScrollbarSizes();
+        viewportArea.Deflate(scrollbars);
+      }
+    }
+     
+    // Get the anchor point, relative to the viewport.
     ComputeBackgroundAnchorPoint(aColor, viewportArea, viewportArea, tileWidth, tileHeight, anchor);
 
     // Convert the anchor point from viewport coordinates to aForFrame
@@ -3892,26 +3973,13 @@ nsCSSRendering::PaintBackgroundColor(nsPresContext* aPresContext,
   }
 
   // Rounded version of the border
-  // XXXdwh Composite borders (with multiple colors per side) use their own border radius
-  // algorithm now, since the current one doesn't work right for small radii.
-  if (!aBorder.mBorderColors) {
-    for (side = 0; side < 4; ++side) {
-      if (borderRadii[side] > 0) {
-        PaintRoundedBackground(aPresContext, aRenderingContext, aForFrame,
-                               bgClipArea, aColor, aBorder, borderRadii,
-                               aCanPaintNonWhite);
-        return;
-      }
+  for (side = 0; side < 4; ++side) {
+    if (borderRadii[side] > 0) {
+      PaintRoundedBackground(aPresContext, aRenderingContext, aForFrame,
+                             bgClipArea, aColor, aBorder, borderRadii,
+                             aCanPaintNonWhite);
+      return;
     }
-  }
-  else if (aColor.mBackgroundClip == NS_STYLE_BG_CLIP_BORDER) {
-    // XXX users of -moz-border-*-colors expect a transparent border-color
-    // to show the parent's background-color instead of its background-color.
-    // This seems wrong, but we handle that here by explictly clipping the
-    // background to the padding area.
-    nsMargin border = aForFrame->GetUsedBorder();
-    aForFrame->ApplySkipSides(border);
-    bgClipArea.Deflate(border);
   }
 
   nscolor color;
@@ -4181,11 +4249,9 @@ nsCSSRendering::DrawTableBorderSegment(nsIRenderingContext&     aContext,
     aEndBevelOffset = 0;
   }
 
-#ifdef MOZ_CAIRO_GFX
   gfxContext *ctx = aContext.ThebesContext();
   gfxContext::AntialiasMode oldMode = ctx->CurrentAntialiasMode();
   ctx->SetAntialiasMode(gfxContext::MODE_ALIASED);
-#endif
 
   switch (aBorderStyle) {
   case NS_STYLE_BORDER_STYLE_NONE:
@@ -4381,9 +4447,7 @@ nsCSSRendering::DrawTableBorderSegment(nsIRenderingContext&     aContext,
     break;
   }
 
-#ifdef MOZ_CAIRO_GFX
   ctx->SetAntialiasMode(oldMode);
-#endif
 }
 
 // End table border-collapsing section
@@ -4395,13 +4459,14 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
                                     const gfxSize& aLineSize,
                                     const gfxFloat aAscent,
                                     const gfxFloat aOffset,
-                                    const gfxFloat aPreferredHeight,
                                     const PRUint8 aDecoration,
                                     const PRUint8 aStyle,
                                     const PRBool aIsRTL)
 {
-  if (aLineSize.width <= 0 || aLineSize.height <= 0 ||
-      aStyle == NS_STYLE_BORDER_STYLE_NONE)
+  gfxRect rect =
+    GetTextDecorationRectInternal(aPt, aLineSize, aAscent, aOffset,
+                                  aDecoration, aStyle);
+  if (rect.IsEmpty())
     return;
 
   if (aDecoration != NS_STYLE_TEXT_DECORATION_UNDERLINE &&
@@ -4412,21 +4477,22 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
     return;
   }
 
+  gfxFloat lineHeight = PR_MAX(NS_round(aLineSize.height), 1.0);
   PRBool contextIsSaved = PR_FALSE;
-  gfxFloat totalHeight = aLineSize.height;
 
   gfxFloat oldLineWidth;
   nsRefPtr<gfxPattern> oldPattern;
 
   switch (aStyle) {
     case NS_STYLE_BORDER_STYLE_SOLID:
+    case NS_STYLE_BORDER_STYLE_DOUBLE:
       oldLineWidth = aGfxContext->CurrentLineWidth();
       oldPattern = aGfxContext->GetPattern();
       break;
     case NS_STYLE_BORDER_STYLE_DASHED: {
       aGfxContext->Save();
       contextIsSaved = PR_TRUE;
-      gfxFloat dashWidth = aLineSize.height * DOT_LENGTH * DASH_LENGTH;
+      gfxFloat dashWidth = lineHeight * DOT_LENGTH * DASH_LENGTH;
       gfxFloat dash[2] = { dashWidth, dashWidth };
       aGfxContext->SetLineCap(gfxContext::LINE_CAP_BUTT);
       aGfxContext->SetDash(dash, 2, 0.0);
@@ -4435,9 +4501,9 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
     case NS_STYLE_BORDER_STYLE_DOTTED: {
       aGfxContext->Save();
       contextIsSaved = PR_TRUE;
-      gfxFloat dashWidth = aLineSize.height * DOT_LENGTH;
+      gfxFloat dashWidth = lineHeight * DOT_LENGTH;
       gfxFloat dash[2];
-      if (aLineSize.height > 2.0) {
+      if (lineHeight > 2.0) {
         dash[0] = 0.0;
         dash[1] = dashWidth * 2.0;
         aGfxContext->SetLineCap(gfxContext::LINE_CAP_ROUND);
@@ -4448,72 +4514,41 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
       aGfxContext->SetDash(dash, 2, 0.0);
       break;
     }
-    case NS_STYLE_BORDER_STYLE_DOUBLE:
-      totalHeight *= 3.0;
-      break;
     default:
       NS_ERROR("Invalid style value!");
       return;
   }
 
-  gfxFloat offset = aOffset;
-  switch (aDecoration) {
-    case NS_STYLE_TEXT_DECORATION_UNDERLINE:
-      break;
-    case NS_STYLE_TEXT_DECORATION_OVERLINE:
-      // The offset includes the preferred size, we should remove it
-      offset += aPreferredHeight;
-      // the bottom of the decoration line should be aligned to the top of the
-      // text.
-      offset -= totalHeight;
-      break;
-    case NS_STYLE_TEXT_DECORATION_LINE_THROUGH: {
-      // The offset includes the preferred size, we should remove it
-      offset += aPreferredHeight;
-      // the middle of the decoration line should be aligned to the middle of
-      // the original strike out offset.
-      offset -= PR_MAX(aPreferredHeight, (totalHeight / 2.0));
-      break;
-    }
-    default:
-      NS_NOTREACHED("Invalid decoration value!");
-      return;
-  }
-
-  // round to device pixels for suppressing the AA.
-  gfxFloat x = NS_round(aPt.x);
-  gfxFloat y = NS_round(aPt.y + aAscent) - NS_round(offset);
-  gfxFloat width = NS_round(aLineSize.width);
-  gfxFloat height = NS_round(aLineSize.height);
   // The y position should be set to the middle of the line.
-  y += height / 2;
+  rect.pos.y += lineHeight / 2;
 
   aGfxContext->SetColor(gfxRGBA(aColor));
-  aGfxContext->SetLineWidth(height);
+  aGfxContext->SetLineWidth(lineHeight);
   switch (aStyle) {
     case NS_STYLE_BORDER_STYLE_SOLID:
       aGfxContext->NewPath();
-      aGfxContext->MoveTo(gfxPoint(x, y));
-      aGfxContext->LineTo(gfxPoint(x + width, y));
+      aGfxContext->MoveTo(rect.TopLeft());
+      aGfxContext->LineTo(rect.TopRight());
       aGfxContext->Stroke();
       break;
     case NS_STYLE_BORDER_STYLE_DOUBLE:
       aGfxContext->NewPath();
-      aGfxContext->MoveTo(gfxPoint(x, y));
-      aGfxContext->LineTo(gfxPoint(x + width, y));
-      aGfxContext->MoveTo(gfxPoint(x, y + height * 2.0));
-      aGfxContext->LineTo(gfxPoint(x + width, y + height * 2.0));
+      aGfxContext->MoveTo(rect.TopLeft());
+      aGfxContext->LineTo(rect.TopRight());
+      rect.size.height -= lineHeight;
+      aGfxContext->MoveTo(rect.BottomLeft());
+      aGfxContext->LineTo(rect.BottomRight());
       aGfxContext->Stroke();
       break;
     case NS_STYLE_BORDER_STYLE_DOTTED:
     case NS_STYLE_BORDER_STYLE_DASHED:
       aGfxContext->NewPath();
       if (aIsRTL) {
-        aGfxContext->MoveTo(gfxPoint(x + width, y));
-        aGfxContext->LineTo(gfxPoint(x, y));
+        aGfxContext->MoveTo(rect.TopRight());
+        aGfxContext->LineTo(rect.TopLeft());
       } else {
-        aGfxContext->MoveTo(gfxPoint(x, y));
-        aGfxContext->LineTo(gfxPoint(x + width, y));
+        aGfxContext->MoveTo(rect.TopLeft());
+        aGfxContext->LineTo(rect.TopRight());
       }
       aGfxContext->Stroke();
       break;
@@ -4528,4 +4563,71 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
     aGfxContext->SetPattern(oldPattern);
     aGfxContext->SetLineWidth(oldLineWidth);
   }
+}
+
+nsRect
+nsCSSRendering::GetTextDecorationRect(nsPresContext* aPresContext,
+                                      const gfxSize& aLineSize,
+                                      const gfxFloat aAscent,
+                                      const gfxFloat aOffset,
+                                      const PRUint8 aDecoration,
+                                      const PRUint8 aStyle)
+{
+  NS_ASSERTION(aPresContext, "aPresContext is null");
+
+  gfxRect rect =
+    GetTextDecorationRectInternal(gfxPoint(0, 0), aLineSize, aAscent, aOffset,
+                                  aDecoration, aStyle);
+  // The rect values are already rounded to nearest device pixels.
+  nsRect r;
+  r.x = aPresContext->GfxUnitsToAppUnits(rect.X());
+  r.y = aPresContext->GfxUnitsToAppUnits(rect.Y());
+  r.width = aPresContext->GfxUnitsToAppUnits(rect.Width());
+  r.height = aPresContext->GfxUnitsToAppUnits(rect.Height());
+  return r;
+}
+
+gfxRect
+nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
+                                              const gfxSize& aLineSize,
+                                              const gfxFloat aAscent,
+                                              const gfxFloat aOffset,
+                                              const PRUint8 aDecoration,
+                                              const PRUint8 aStyle)
+{
+  gfxRect r;
+  r.pos.x = NS_round(aPt.x);
+  r.size.width = NS_round(aLineSize.width);
+
+  gfxFloat basesize = NS_round(aLineSize.height);
+  basesize = PR_MAX(basesize, 1.0);
+  r.size.height = basesize;
+  if (aStyle == NS_STYLE_BORDER_STYLE_DOUBLE) {
+    gfxFloat gap = NS_round(basesize / 2.0);
+    gap = PR_MAX(gap, 1.0);
+    r.size.height = basesize * 2.0 + gap;
+  } else {
+    r.size.height = basesize;
+  }
+
+  gfxFloat baseline = NS_round(aPt.y + aAscent);
+  gfxFloat offset = 0;
+  switch (aDecoration) {
+    case NS_STYLE_TEXT_DECORATION_UNDERLINE:
+      offset = NS_round(aOffset);
+      break;
+    case NS_STYLE_TEXT_DECORATION_OVERLINE:
+      offset = NS_round(aOffset - basesize + r.Height());
+      break;
+    case NS_STYLE_TEXT_DECORATION_LINE_THROUGH: {
+      gfxFloat extra = NS_round(r.Height() / 2.0);
+      extra = PR_MAX(extra, basesize);
+      offset = NS_round(aOffset - basesize + extra);
+      break;
+    }
+    default:
+      NS_ERROR("Invalid decoration value!");
+  }
+  r.pos.y = baseline - NS_round(offset);
+  return r;
 }

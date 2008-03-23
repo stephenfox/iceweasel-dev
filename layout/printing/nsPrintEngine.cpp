@@ -226,18 +226,18 @@ NS_IMPL_ISUPPORTS1(nsPrintEngine, nsIObserver)
 nsPrintEngine::nsPrintEngine() :
   mIsCreatingPrintPreview(PR_FALSE),
   mIsDoingPrinting(PR_FALSE),
+  mIsDoingPrintPreview(PR_FALSE),
+  mProgressDialogIsShown(PR_FALSE),
   mDocViewerPrint(nsnull),
   mContainer(nsnull),
   mDeviceContext(nsnull),
   mPrt(nsnull),
   mPagePrintTimer(nsnull),
   mPageSeqFrame(nsnull),
-  mIsDoingPrintPreview(PR_FALSE),
   mParentWidget(nsnull),
   mPrtPreview(nsnull),
   mOldPrtPreview(nsnull),
-  mDebugFile(nsnull),
-  mProgressDialogIsShown(PR_FALSE)
+  mDebugFile(nsnull)
 {
 }
 
@@ -1267,7 +1267,9 @@ nsPrintEngine::MapContentForPO(nsPrintObject*   aPO,
         po->mContent  = aContent;
 
         nsCOMPtr<nsIDOMHTMLFrameElement> frame(do_QueryInterface(aContent));
-        if (frame) {
+        // "frame" elements not in a frameset context should be treated
+        // as iframes
+        if (frame && po->mParent->mFrameType == eFrameSet) {
           po->mFrameType = eFrame;
         } else {
           // Assume something iframe-like, i.e. iframe, object, or embed

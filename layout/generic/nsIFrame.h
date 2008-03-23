@@ -585,6 +585,7 @@ public:
 
   /**
    * Get the frame that should be the parent for the frames of child elements
+   * May return nsnull during reflow
    */
   virtual nsIFrame* GetContentInsertionFrame() { return this; }
 
@@ -717,6 +718,10 @@ public:
    * frame has at least *started*.
    *
    * This doesn't include any margin collapsing that may have occurred.
+   *
+   * It also treats 'auto' margins as zero, and treats any margins that
+   * should have been turned into 'auto' because of overconstraint as
+   * having their original values.
    */
   virtual nsMargin GetUsedMargin() const;
 
@@ -752,6 +757,11 @@ public:
   /**
    * Like the frame's rect (see |GetRect|), which is the border rect,
    * other rectangles of the frame, in twips, relative to the parent.
+   *
+   * Note that GetMarginRect is not meaningful for blocks (anything with
+   * 'display:block', whether block frame or not) because of both the
+   * collapsing and 'auto' issues with GetUsedMargin (on which it
+   * depends).
    */
   nsRect GetMarginRect() const;
   nsRect GetPaddingRect() const;
@@ -1656,10 +1666,32 @@ public:
                                   nsIFrame* aForChild, PRBool aImmediate);
 
   /**
+   * Take two rectangles in the coordinate system of this frame which
+   * have the same origin and invalidate the difference between them.
+   * This is a helper method to be used when a frame is being resized.
+   *
+   * @param aR1 the first rectangle
+   * @param aR2 the second rectangle
+   */
+  void InvalidateRectDifference(const nsRect& aR1, const nsRect& aR2);
+
+  /**
+   * Invalidate the overflow rect of this frame
+   */
+  void InvalidateOverflowRect();
+  
+  /**
    * Computes a rect that encompasses everything that might be painted by
    * this frame.  This includes this frame, all its descendent frames, this
    * frame's outline, and descentant frames' outline, but does not include
    * areas clipped out by the CSS "overflow" and "clip" properties.
+   *
+   * The NS_FRAME_OUTSIDE_CHILDREN state bit is set when this overflow rect
+   * is different from nsRect(0, 0, GetRect().width, GetRect().height).
+   * XXX Note: because of a space optimization using the formula above,
+   * during reflow this function does not give accurate data if
+   * FinishAndStoreOverflow has been called but mRect hasn't yet been
+   * updated yet.
    *
    * @return the rect relative to this frame's origin
    */
@@ -1917,14 +1949,6 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::baseLevel))
 #define NS_GET_EMBEDDING_LEVEL(frame) \
 NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
 
-  /** Create or retrieve the previously stored overflow area, if the frame does 
-    * not overflow and no creation is required return nsnull.
-    * @param aPresContext PresContext
-    * @param aCreateIfNecessary  create a new nsRect for the overflow area
-    * @return pointer to the overflow area rectangle 
-    */
-  nsRect* GetOverflowAreaProperty(PRBool aCreateIfNecessary = PR_FALSE);
-
   /**
    * Return PR_TRUE if and only if this frame obeys visibility:hidden.
    * if it does not, then nsContainerFrame will hide its view even though
@@ -2167,15 +2191,27 @@ protected:
     PRPackedBool mSawBeforeType;
     // true when the last character encountered was punctuation
     PRPackedBool mLastCharWasPunctuation;
+    // true when the last character encountered was whitespace
+    PRPackedBool mLastCharWasWhitespace;
+    // true when we've seen non-punctuation since the last whitespace
+    PRPackedBool mSeenNonPunctuationSinceWhitespace;
     // text that's *before* the current frame when aForward is true, *after*
-    // the current frame when aForward is false.
+    // the current frame when aForward is false. Only includes the text
+    // on the current line.
     nsAutoString mContext;
 
     PeekWordState() : mAtStart(PR_TRUE), mSawBeforeType(PR_FALSE),
-        mLastCharWasPunctuation(PR_FALSE) {}
+        mLastCharWasPunctuation(PR_FALSE), mLastCharWasWhitespace(PR_FALSE),
+        mSeenNonPunctuationSinceWhitespace(PR_FALSE) {}
     void SetSawBeforeType() { mSawBeforeType = PR_TRUE; }
-    void Update(PRBool aAfterPunctuation) {
+    void Update(PRBool aAfterPunctuation, PRBool aAfterWhitespace) {
       mLastCharWasPunctuation = aAfterPunctuation;
+      mLastCharWasWhitespace = aAfterWhitespace;
+      if (aAfterWhitespace) {
+        mSeenNonPunctuationSinceWhitespace = PR_FALSE;
+      } else if (!aAfterPunctuation) {
+        mSeenNonPunctuationSinceWhitespace = PR_TRUE;
+      }
       mAtStart = PR_FALSE;
     }
   };
@@ -2194,6 +2230,8 @@ protected:
 private:
   NS_IMETHOD_(nsrefcnt) AddRef(void) = 0;
   NS_IMETHOD_(nsrefcnt) Release(void) = 0;
+
+  nsRect* GetOverflowAreaProperty(PRBool aCreateIfNecessary = PR_FALSE);
 };
 
 //----------------------------------------------------------------------

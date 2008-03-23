@@ -827,6 +827,16 @@ nsXULAppInfo::AnnotateCrashReport(const nsACString& key,
 {
   return CrashReporter::AnnotateCrashReport(key, data);
 }
+
+NS_IMETHODIMP
+nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
+{
+#ifdef XP_WIN32
+  return CrashReporter::WriteMinidumpForException(static_cast<EXCEPTION_POINTERS*>(aExceptionInfo));
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+}
 #endif
 
 static const nsXULAppInfo kAppInfo;
@@ -2356,6 +2366,10 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
   }
   else {
     gdk_display_close(display);
+#if GTK_CHECK_VERSION(2,8,0) && \
+  (defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) || defined(NS_TRACE_MALLOC))
+    cairo_debug_reset_static_data();
+#endif
   }
 }
 #endif // MOZ_WIDGET_GTK2

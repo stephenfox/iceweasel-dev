@@ -181,7 +181,7 @@ Number(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         *rval = v;
         return JS_TRUE;
     }
-    OBJ_SET_SLOT(cx, obj, JSSLOT_PRIVATE, v);
+    STOBJ_SET_SLOT(obj, JSSLOT_PRIVATE, v);
     return JS_TRUE;
 }
 
@@ -391,7 +391,7 @@ num_valueOf(JSContext *cx, uintN argc, jsval *vp)
         *vp = v;
         return JS_TRUE;
     }
-    obj = JSVAL_TO_OBJECT(v);
+    obj = JS_THIS_OBJECT(cx, vp);
     if (!JS_InstanceOf(cx, obj, &js_NumberClass, vp + 2))
         return JS_FALSE;
     *vp = OBJ_GET_SLOT(cx, obj, JSSLOT_PRIVATE);
@@ -548,21 +548,21 @@ js_InitRuntimeNumberState(JSContext *cx)
     u.s.hi = JSDOUBLE_HI32_EXPMASK | JSDOUBLE_HI32_MANTMASK;
     u.s.lo = 0xffffffff;
     number_constants[NC_NaN].dval = NaN = u.d;
-    rt->jsNaN = js_NewDouble(cx, NaN, GCF_LOCK);
+    rt->jsNaN = js_NewDouble(cx, NaN);
     if (!rt->jsNaN)
         return JS_FALSE;
 
     u.s.hi = JSDOUBLE_HI32_EXPMASK;
     u.s.lo = 0x00000000;
     number_constants[NC_POSITIVE_INFINITY].dval = u.d;
-    rt->jsPositiveInfinity = js_NewDouble(cx, u.d, GCF_LOCK);
+    rt->jsPositiveInfinity = js_NewDouble(cx, u.d);
     if (!rt->jsPositiveInfinity)
         return JS_FALSE;
 
     u.s.hi = JSDOUBLE_HI32_SIGNBIT | JSDOUBLE_HI32_EXPMASK;
     u.s.lo = 0x00000000;
     number_constants[NC_NEGATIVE_INFINITY].dval = u.d;
-    rt->jsNegativeInfinity = js_NewDouble(cx, u.d, GCF_LOCK);
+    rt->jsNegativeInfinity = js_NewDouble(cx, u.d);
     if (!rt->jsNegativeInfinity)
         return JS_FALSE;
 
@@ -579,6 +579,20 @@ js_InitRuntimeNumberState(JSContext *cx)
         JS_strdup(cx, locale->grouping ? locale->grouping : "\3\0");
 
     return rt->thousandsSeparator && rt->decimalSeparator && rt->numGrouping;
+}
+
+void
+js_TraceRuntimeNumberState(JSTracer *trc)
+{
+    JSRuntime *rt;
+
+    rt = trc->context->runtime;
+    if (rt->jsNaN)
+        JS_CALL_DOUBLE_TRACER(trc, rt->jsNaN, "NaN");
+    if (rt->jsPositiveInfinity)
+        JS_CALL_DOUBLE_TRACER(trc, rt->jsPositiveInfinity, "+Infinity");
+    if (rt->jsNegativeInfinity)
+        JS_CALL_DOUBLE_TRACER(trc, rt->jsNegativeInfinity, "-Infinity");
 }
 
 void
@@ -616,7 +630,7 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
                          NULL, number_methods, NULL, NULL);
     if (!proto || !(ctor = JS_GetConstructor(cx, proto)))
         return NULL;
-    OBJ_SET_SLOT(cx, proto, JSSLOT_PRIVATE, JSVAL_ZERO);
+    STOBJ_SET_SLOT(proto, JSSLOT_PRIVATE, JSVAL_ZERO);
     if (!JS_DefineConstDoubles(cx, ctor, number_constants))
         return NULL;
 
@@ -637,21 +651,15 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
 }
 
 jsdouble *
-js_NewDouble(JSContext *cx, jsdouble d, uintN gcflag)
+js_NewDouble(JSContext *cx, jsdouble d)
 {
     jsdouble *dp;
 
-    dp = (jsdouble *) js_NewGCThing(cx, gcflag | GCX_DOUBLE, sizeof(jsdouble));
+    dp = js_NewDoubleGCThing(cx);
     if (!dp)
         return NULL;
     *dp = d;
     return dp;
-}
-
-void
-js_FinalizeDouble(JSContext *cx, jsdouble *dp)
-{
-    *dp = NaN;
 }
 
 JSBool
@@ -659,9 +667,10 @@ js_NewDoubleValue(JSContext *cx, jsdouble d, jsval *rval)
 {
     jsdouble *dp;
 
-    dp = js_NewDouble(cx, d, 0);
+    dp = js_NewDoubleGCThing(cx);
     if (!dp)
         return JS_FALSE;
+    *dp = d;
     *rval = DOUBLE_TO_JSVAL(dp);
     return JS_TRUE;
 }
@@ -778,7 +787,7 @@ js_DoubleToECMAInt32(jsdouble d)
 
     d = fmod(d, two32);
     d = (d >= 0) ? floor(d) : ceil(d) + two32;
-    return (int32) (d >= two31) ? (d - two32) : d;
+    return (int32) (d >= two31 ? d - two32 : d);
 }
 
 JSBool
@@ -807,7 +816,7 @@ js_DoubleToECMAUint32(jsdouble d)
 
     d = fmod(d, two32);
 
-    return (uint32) (d >= 0) ? d : d + two32;
+    return (uint32) (d >= 0 ? d : d + two32);
 }
 
 JSBool

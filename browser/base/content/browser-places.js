@@ -431,10 +431,10 @@ var PlacesCommandHook = {
     var linkURI = makeURI(aURL);
     var itemId = PlacesUtils.getMostRecentBookmarkForURI(linkURI);
     if (itemId == -1) {
+      StarUI.beginBatch();
       var txn = PlacesUtils.ptm.createItem(linkURI, aParent, -1, aTitle);
       PlacesUtils.ptm.doTransaction(txn);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(linkURI);
-      StarUI.beginBatch();
     }
 
     StarUI.showEditBookmarkPopup(itemId, getBrowser(), "overlap");
@@ -582,12 +582,12 @@ var BookmarksEventHandler = {
 
     var target = aEvent.originalTarget;
     var view = PlacesUtils.getViewForNode(target);
-    if (PlacesUtils.nodeIsFolder(view.selectedNode)) {
+    if (target.node && PlacesUtils.nodeIsFolder(target.node)) {
       // Don't open the root folder in tabs when the empty area on the toolbar
       // is middle-clicked or when a non-bookmark item except for Open in Tabs)
       // in a bookmarks menupopup is middle-clicked.
-      if (!view.controller.rootNodeIsSelected())
-        view.controller.openSelectionInTabs(aEvent);
+      if (target.localName == "menu" || target.localName == "toolbarbutton")
+        PlacesUtils.openContainerNodeInTabs(target.node, aEvent);
     }
     else
       this.onCommand(aEvent);
@@ -624,11 +624,8 @@ var BookmarksEventHandler = {
    */
   onCommand: function BM_onCommand(aEvent) {
     var target = aEvent.originalTarget;
-    if (target.node) {
-      PlacesUtils.getViewForNode(target)
-                 .controller
-                 .openSelectedNodeWithEvent(aEvent);
-    }
+    if (target.node)
+      PlacesUtils.openNodeWithEvent(target.node, aEvent);
   },
 
   /**
@@ -774,10 +771,9 @@ var BookmarksMenuDropHandler = {
    *          otherwise.
    */
   canDrop: function BMDH_canDrop(event, session) {
-    var view = document.getElementById("bookmarksMenuPopup");
-    return PlacesControllerDragHelper.canDrop(view._viewer, -1);
+    return PlacesControllerDragHelper.canDrop();
   },
-  
+
   /**
    * Called when the user drops onto the top level Bookmarks Menu item.
    * @param   event
@@ -819,21 +815,6 @@ var PlacesMenuDNDController = {
     
     this._setDragTimer("loadTime", this._openBookmarksMenu, 
                        this._springLoadDelay, [event]);
-  },
-  
-  /**
-   * When the user drags out of the Bookmarks Menu or Toolbar, set a timer to 
-   * manually close the popup chain that was dragged out of. We need to do this
-   * since the global popup dismissal listener does not handle multiple extant
-   * popup chains well. See bug 332845 for more information.
-   */
-  onDragExit: function PMDC_onDragExit(event) {
-    // Ensure that we don't set multiple timers if there's one already set.
-    if ("closeTime" in this._timers)
-      return;
-      
-    this._setDragTimer("closeTime", this._closePopups, 
-                       this._springLoadDelay, [event.target]);
   },
   
   /**
@@ -884,38 +865,6 @@ var PlacesMenuDNDController = {
   _isContainer: function PMDC__isContainer(node) {
     return node.localName == "menu" || 
            node.localName == "toolbarbutton" && node.getAttribute("type") == "menu";
-  },
-  
-  /**
-   * Close all pieces of toplevel menu UI in the browser window. Called in 
-   * circumstances where there may be multiple chains of menupopups, e.g. 
-   * during drag and drop operations between menus, and in context menu-on-
-   * menu situations.
-   */
-  _closePopups: function PMDC__closePopups(target) {
-    if (PlacesControllerDragHelper.draggingOverChildNode(target))
-      return;
-
-    if ("closeTime" in this._timers)
-      delete this._timers.closeTime;
-    
-    // Close the bookmarks menu
-    var bookmarksMenu = document.getElementById("bookmarksMenu");
-    bookmarksMenu.firstChild.hidePopup();
-
-    var bookmarksBar = document.getElementById("bookmarksBarContent");
-    if (bookmarksBar) {
-      // Close the overflow chevron menu and all its children
-      bookmarksBar._chevron.firstChild.hidePopup();
-
-      // Close all popups on the bookmarks toolbar
-      var toolbarItems = bookmarksBar.childNodes;
-      for (var i = 0; i < toolbarItems.length; ++i) {
-        var item = toolbarItems[i]
-        if (this._isContainer(item))
-          item.firstChild.hidePopup();
-      }
-    }
   },
   
   /**
@@ -1028,7 +977,7 @@ function placesMigrationTasks() {
   // XXX - REMOVE ME FOR BETA 3 (bug 391419)
   if (gPrefService.getBoolPref("browser.places.migratePostDataAnnotations")) {
     const annosvc = PlacesUtils.annotations;
-    const bmsvc = PlacesUtils.bookmarks;
+    var bmsvc = PlacesUtils.bookmarks;
     const oldPostDataAnno = "URIProperties/POSTData";
     var pages = annosvc.getPagesWithAnnotation(oldPostDataAnno, {});
     for (let i = 0; i < pages.length; i++) {
@@ -1051,5 +1000,31 @@ function placesMigrationTasks() {
       } catch(ex) {}
     }
     gPrefService.setBoolPref("browser.places.migratePostDataAnnotations", false);
+  }
+
+  if (gPrefService.getBoolPref("browser.places.updateRecentTagsUri")) {
+    var bmsvc = PlacesUtils.bookmarks;
+    var tagsFolder = bmsvc.tagsFolder;
+    var oldUriSpec = "place:folder=" + tagsFolder + "&group=3&queryType=1"+
+                     "&applyOptionsToContainers=1&sort=12&maxResults=10";
+
+    var maxResults = 10;
+    var newUriSpec = "place:type=" + 
+                     Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY +
+                     "&sort=" + 
+                     Ci.nsINavHistoryQueryOptions.SORT_BY_LASTMODIFIED_DESCENDING +
+                     "&maxResults=" + maxResults;
+                     
+    var ios = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
+
+    var oldUri = ios.newURI(oldUriSpec, null, null);
+    var newUri = ios.newURI(newUriSpec, null, null);
+
+    let bookmarks = bmsvc.getBookmarkIdsForURI( oldUri, {});
+    for (let i = 0; i < bookmarks.length; i++) {
+      bmsvc.changeBookmarkURI( bookmarks[i], newUri);
+    }
+    gPrefService.setBoolPref("browser.places.updateRecentTagsUri", false);
   }
 }

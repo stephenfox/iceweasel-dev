@@ -213,6 +213,10 @@ static PRInt32              gOpenPopupSpamCount        = 0;
 static PopupControlState    gPopupControlState         = openAbused;
 static PRInt32              gRunningTimeoutDepth       = 0;
 
+#ifdef DEBUG
+static PRUint32             gSerialCounter             = 0;
+#endif
+
 #ifdef DEBUG_jst
 PRInt32 gTimeoutCnt                                    = 0;
 #endif
@@ -580,7 +584,6 @@ nsTimeout::~nsTimeout()
   MOZ_COUNT_DTOR(nsTimeout);
 }
 
-
   
 //*****************************************************************************
 //***    nsGlobalWindow: Object Management
@@ -655,7 +658,10 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     CallGetService(NS_ENTROPYCOLLECTOR_CONTRACTID, &gEntropyCollector);
   }
 #ifdef DEBUG
-  printf("++DOMWINDOW == %d\n", gRefCnt);
+  printf("++DOMWINDOW == %d (%p) [serial = %d] [Outer = %p]\n", gRefCnt,
+         static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
+         ++gSerialCounter, aOuterWindow);
+  mSerial = gSerialCounter;
 #endif
 
 #ifdef PR_LOGGING
@@ -674,7 +680,9 @@ nsGlobalWindow::~nsGlobalWindow()
     NS_IF_RELEASE(gEntropyCollector);
   }
 #ifdef DEBUG
-  printf("--DOMWINDOW == %d\n", gRefCnt);
+  printf("--DOMWINDOW == %d (%p) [serial = %d] [Outer = %p]\n",
+         gRefCnt, static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
+         mSerial, mOuterWindow);
 #endif
 
 #ifdef PR_LOGGING
@@ -753,6 +761,23 @@ nsGlobalWindow::ShutDown()
   NS_IF_RELEASE(sComputedDOMStyleFactory);
 }
 
+// static
+void
+nsGlobalWindow::CleanupCachedXBLHandlers(nsGlobalWindow* aWindow)
+{
+  if (aWindow->mCachedXBLPrototypeHandlers.IsInitialized() &&
+      aWindow->mCachedXBLPrototypeHandlers.Count() > 0) {
+    aWindow->mCachedXBLPrototypeHandlers.Clear();
+
+    nsCOMPtr<nsISupports> supports;
+    aWindow->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
+                            getter_AddRefs(supports));
+    NS_ASSERTION(supports, "Failed to QI to nsCycleCollectionISupports?!");
+
+    nsContentUtils::DropJSObjects(supports);
+  }
+}
+
 void
 nsGlobalWindow::CleanUp()
 {
@@ -797,6 +822,8 @@ nsGlobalWindow::CleanUp()
   }
   mArguments = nsnull;
   mArgumentsLast = nsnull;
+
+  CleanupCachedXBLHandlers(this);
 
 #ifdef DEBUG
   nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsIScriptGlobalObject*>(this));
@@ -849,6 +876,9 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     nsCycleCollector_DEBUG_shouldBeFreed(nsCOMPtr<nsISupports>(do_QueryInterface(mDocument)));
 #endif
 
+  // Make sure that this is called before we null out the document.
+  NotifyDOMWindowDestroyed(this);
+
   // Remove our reference to the document and the document principal.
   mDocument = nsnull;
   mDoc = nsnull;
@@ -881,6 +911,8 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     mDummyJavaPluginOwner = nsnull;
   }
 #endif
+
+  CleanupCachedXBLHandlers(this);
 
 #ifdef DEBUG
   nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsIScriptGlobalObject*>(this));
@@ -930,8 +962,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContext)
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOpener)
-
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mControllers)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArguments)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArgumentsLast)
@@ -974,8 +1004,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContext)
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOpener)
-
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mArguments)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mArgumentsLast)
@@ -1016,6 +1044,33 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
+struct TraceData
+{
+  TraceData(TraceCallback& aCallback, void* aClosure) :
+    callback(aCallback), closure(aClosure) {}
+
+  TraceCallback& callback;
+  void* closure;
+};
+
+PR_STATIC_CALLBACK(PLDHashOperator)
+TraceXBLHandlers(const void* aKey, void* aData, void* aClosure)
+{
+  TraceData* data = static_cast<TraceData*>(aClosure);
+  data->callback(nsIProgrammingLanguage::JAVASCRIPT, aData, data->closure);
+  return PL_DHASH_NEXT;
+}
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGlobalWindow)
+  if (tmp->mCachedXBLPrototypeHandlers.IsInitialized()) {
+    TraceData data(aCallback, aClosure);
+    tmp->mCachedXBLPrototypeHandlers.EnumerateRead(TraceXBLHandlers, &data);
+  }
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsGlobalWindow)
+  nsGlobalWindow::CleanupCachedXBLHandlers(tmp);
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
 
 //*****************************************************************************
 // nsGlobalWindow::nsIScriptGlobalObject
@@ -1884,6 +1939,18 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                                   OBJECT_TO_JSVAL(nav), nsnull, nsnull,
                                   JSPROP_ENUMERATE | JSPROP_PERMANENT |
                                   JSPROP_READONLY);
+
+              // The Navigator's prototype object keeps a reference to the
+              // window in which it was first created and can thus cause that
+              // window to stay alive for too long. Reparenting it here allows
+              // the window to be collected sooner.
+              nsIDOMNavigator* navigator =
+                static_cast<nsIDOMNavigator*>(mNavigator);
+
+              xpc->
+                ReparentWrappedNativeIfFound(cx, nav, newInnerWindow->mJSObject,
+                                             navigator,
+                                             getter_AddRefs(navigatorHolder));
             }
           }
         }
@@ -1945,6 +2012,9 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       NS_ASSERTION(inner->mOuterWindow == this, "bad outer window pointer");
       inner->FreeInnerObjects(PR_TRUE);
     }
+
+    // Make sure that this is called before we null out the document.
+    NotifyDOMWindowDestroyed(this);
 
     nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
@@ -2073,7 +2143,9 @@ nsGlobalWindow::SetOpenerWindow(nsIDOMWindowInternal* aOpener,
   NS_ASSERTION(aOpener || !aOriginalOpener,
                "Shouldn't set mHadOriginalOpener if aOpener is null");
 
-  mOpener = aOpener;
+  mOpener = do_GetWeakReference(aOpener);
+  NS_ASSERTION(mOpener, "Opener must support weak references!");
+
   if (aOriginalOpener) {
     mHadOriginalOpener = PR_TRUE;
   }
@@ -2801,18 +2873,22 @@ nsGlobalWindow::GetOpener(nsIDOMWindowInternal** aOpener)
   FORWARD_TO_OUTER(GetOpener, (aOpener), NS_ERROR_NOT_INITIALIZED);
 
   *aOpener = nsnull;
-  // First, check if we were called from a privileged chrome script
 
+  nsCOMPtr<nsIDOMWindowInternal> opener = do_QueryReferent(mOpener);
+  if (!opener) {
+    return NS_OK;
+  }
+
+  // First, check if we were called from a privileged chrome script
   if (nsContentUtils::IsCallerTrustedForRead()) {
-    *aOpener = mOpener;
-    NS_IF_ADDREF(*aOpener);
+    NS_ADDREF(*aOpener = opener);
     return NS_OK;
   }
 
   // We don't want to reveal the opener if the opener is a mail window,
   // because opener can be used to spoof the contents of a message (bug 105050).
   // So, we look in the opener's root docshell to see if it's a mail window.
-  nsCOMPtr<nsPIDOMWindow> openerPwin(do_QueryInterface(mOpener));
+  nsCOMPtr<nsPIDOMWindow> openerPwin(do_QueryInterface(opener));
   if (openerPwin) {
     nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
       do_QueryInterface(openerPwin->GetDocShell());
@@ -2825,7 +2901,7 @@ nsGlobalWindow::GetOpener(nsIDOMWindowInternal** aOpener)
         PRUint32 appType;
         nsresult rv = openerRootDocShell->GetAppType(&appType);
         if (NS_SUCCEEDED(rv) && appType != nsIDocShell::APP_TYPE_MAIL) {
-          *aOpener = mOpener;
+          *aOpener = opener;
         }
       }
     }
@@ -3297,10 +3373,8 @@ nsGlobalWindow::CheckSecurityWidthAndHeight(PRInt32* aWidth, PRInt32* aHeight)
 #ifdef MOZ_XUL
   if (!nsContentUtils::IsCallerTrustedForWrite()) {
     // if attempting to resize the window, hide any open popups
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(mDocument));
-    if (pm && doc)
-      pm->HidePopupsInDocument(doc);
+    nsContentUtils::HidePopupsInDocument(doc);
   }
 #endif
 
@@ -3332,10 +3406,8 @@ nsGlobalWindow::CheckSecurityLeftAndTop(PRInt32* aLeft, PRInt32* aTop)
   if (!nsContentUtils::IsCallerTrustedForWrite()) {
 #ifdef MOZ_XUL
     // if attempting to move the window, hide any open popups
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(mDocument));
-    if (pm && doc)
-      pm->HidePopupsInDocument(doc);
+    nsContentUtils::HidePopupsInDocument(doc);
 #endif
 
     PRInt32 screenLeft, screenTop, screenWidth, screenHeight;
@@ -5046,15 +5118,10 @@ nsGlobalWindow::CallerInnerWindow()
   return static_cast<nsGlobalWindow*>(win.get());
 }
 
-/* I hate you, Windows. */
-#ifdef PostMessage
-#undef PostMessage
-#endif
-
 NS_IMETHODIMP
-nsGlobalWindow::PostMessage(const nsAString& aMessage)
+nsGlobalWindow::PostMessageMoz(const nsAString& aMessage, const nsAString& aOrigin)
 {
-  FORWARD_TO_INNER_CREATE(PostMessage, (aMessage));
+  FORWARD_TO_INNER_CREATE(PostMessageMoz, (aMessage, aOrigin));
 
   //
   // Window.postMessage is an intentional subversion of the same-origin policy.
@@ -5071,69 +5138,104 @@ nsGlobalWindow::PostMessage(const nsAString& aMessage)
     return NS_OK;
   NS_ASSERTION(callerInnerWin->IsInnerWindow(), "should have gotten an inner window here");
 
-  // Obtain the caller's principal, from which we can usually extract a URI
-  // and domain for the event.
+  // Compute the caller's origin either from its principal or, in the case the
+  // principal doesn't carry a URI (e.g. the system principal), the caller's
+  // document.
   nsIPrincipal* callerPrin = callerInnerWin->GetPrincipal();
   if (!callerPrin)
     return NS_OK;
-  nsCOMPtr<nsIURI> docURI;
-  if (NS_FAILED(callerPrin->GetURI(getter_AddRefs(docURI))))
+  nsCOMPtr<nsIURI> callerURI;
+  if (NS_FAILED(callerPrin->GetURI(getter_AddRefs(callerURI))))
     return NS_OK;
-
-  // If we hit this, we're probably in chrome context and have the URI-less
-  // system principal, so get the URI off the caller's document.
-  if (!docURI) {
+  if (!callerURI) {
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(callerInnerWin->mDocument);
     if (!doc)
       return NS_OK;
+    callerURI = doc->GetDocumentURI();
+    if (!callerURI)
+      return NS_OK;
+  }
+  const nsCString& empty = EmptyCString();
+  nsCOMPtr<nsIURI> callerOrigin;
+  if (NS_FAILED(callerURI->Clone(getter_AddRefs(callerOrigin))) ||
+      NS_FAILED(callerOrigin->SetUserPass(empty)))
+    return NS_OK;
 
-    docURI = doc->GetDocumentURI();
-    if (!docURI)
+
+  // Calling postMessage on a closed window does nothing.
+  if (!mDocument)
+    return NS_OK;
+
+  nsCOMPtr<nsIDOMEventTarget> targetDoc = do_QueryInterface(mDocument);
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(mDocument);
+
+
+  // Ensure that any origin which might have been provided is the origin of this
+  // window's document.
+  if (!aOrigin.IsVoid()) {
+    nsCOMPtr<nsIURI> providedOrigin;
+    if (NS_FAILED(NS_NewURI(getter_AddRefs(providedOrigin), aOrigin)))
+      return NS_ERROR_DOM_SYNTAX_ERR;
+    if (NS_FAILED(providedOrigin->SetUserPass(empty)) ||
+        NS_FAILED(providedOrigin->SetPath(empty)))
+      return NS_OK;
+
+    // Get the target's origin either from its principal or, in the case the
+    // principal doesn't carry a URI (e.g. the system principal), the target's
+    // document.
+    nsIPrincipal* targetPrin = GetPrincipal();
+    if (!targetPrin)
+      return NS_OK;
+    nsCOMPtr<nsIURI> targetURI;
+    if (NS_FAILED(targetPrin->GetURI(getter_AddRefs(targetURI))))
+      return NS_OK;
+    if (!targetURI) {
+      nsCOMPtr<nsIDocument> targetDoc = do_QueryInterface(mDocument);
+      if (!targetDoc)
+        return NS_OK;
+      targetURI = targetDoc->GetDocumentURI();
+      if (!targetURI)
+        return NS_OK;
+    }
+    nsCOMPtr<nsIURI> targetOrigin;
+    if (NS_FAILED(targetURI->Clone(getter_AddRefs(targetOrigin))) ||
+        NS_FAILED(targetOrigin->SetUserPass(empty)) ||
+        NS_FAILED(targetOrigin->SetPath(empty)))
+      return NS_OK;
+
+    PRBool equal = PR_FALSE;
+    if (NS_FAILED(targetOrigin->Equals(providedOrigin, &equal)) || !equal)
       return NS_OK;
   }
 
-  nsCAutoString domain, uri;
-  nsresult rv  = docURI->GetSpec(uri);
-  if (NS_FAILED(rv))
-    return NS_OK;
-
-  // This really shouldn't be necessary -- URLs which don't have a host should
-  // return the empty string -- but nsSimpleURI just errors instead of
-  // truncating domain.  We could just ignore the returned error, but in the
-  // interests of playing it safe in a sensitive API, we check and truncate if
-  // GetHost fails.  Empty hosts are valid for some URI schemes, and any code
-  // which expects a non-empty host should ignore the message we'll dispatch.
-  if (NS_FAILED(docURI->GetHost(domain)))
-    domain.Truncate();
 
   // Create the event
-  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(mDocument);
-  if (!docEvent)
-    return NS_OK;
   nsCOMPtr<nsIDOMEvent> event;
   docEvent->CreateEvent(NS_LITERAL_STRING("MessageEvent"),
                         getter_AddRefs(event));
   if (!event)
-    return NS_ERROR_FAILURE;
+    return NS_OK;
   
+  nsCAutoString origin;
+  if (NS_FAILED(callerOrigin->GetPrePath(origin)))
+    return NS_OK;
+
   nsCOMPtr<nsIDOMMessageEvent> message = do_QueryInterface(event);
-  rv = message->InitMessageEvent(NS_LITERAL_STRING("message"),
-                                 PR_TRUE /* bubbling */,
-                                 PR_TRUE /* cancelable */,
-                                 aMessage,
-                                 NS_ConvertUTF8toUTF16(domain),
-                                 NS_ConvertUTF8toUTF16(uri),
-                                 nsContentUtils::IsCallerChrome()
-                                 ? nsnull
-                                 : callerInnerWin->GetOuterWindowInternal());
+  nsresult rv = message->InitMessageEvent(NS_LITERAL_STRING("message"),
+                                          PR_TRUE /* bubbling */,
+                                          PR_TRUE /* cancelable */,
+                                          aMessage,
+                                          NS_ConvertUTF8toUTF16(origin),
+                                          nsContentUtils::IsCallerChrome()
+                                          ? nsnull
+                                          : callerInnerWin->GetOuterWindowInternal());
   if (NS_FAILED(rv))
-    return rv;
+    return NS_OK;
 
 
   // Finally, dispatch the event, ignoring the result to prevent an exception
   // from revealing anything about the document for this window.
   PRBool dummy;
-  nsCOMPtr<nsIDOMEventTarget> targetDoc = do_QueryInterface(mDocument);
   targetDoc->DispatchEvent(message, &dummy);
 
   // Cancel exceptions that might somehow be pending. XPConnect swallows these
@@ -5491,6 +5593,18 @@ nsGlobalWindow::IsInModalState()
                                 (top.get()))->mModalStateDepth != 0;
 }
 
+// static
+void
+nsGlobalWindow::NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow) {
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+  if (observerService) {
+    observerService->
+      NotifyObservers(static_cast<nsIScriptGlobalObject*>(aWindow),
+                      DOM_WINDOW_DESTROYED_TOPIC, nsnull);
+  }
+}
+
 void
 nsGlobalWindow::InitJavaProperties()
 {
@@ -5565,6 +5679,49 @@ nsGlobalWindow::InitJavaProperties()
     manager->InitLiveConnectClasses(cx, mJSObject);
   }
 #endif
+}
+
+void*
+nsGlobalWindow::GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey)
+{
+  void* handler = nsnull;
+  if (mCachedXBLPrototypeHandlers.IsInitialized()) {
+    mCachedXBLPrototypeHandlers.Get(aKey, &handler);
+  }
+  return handler;
+}
+
+void
+nsGlobalWindow::CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
+                                         nsScriptObjectHolder& aHandler)
+{
+  if (!mCachedXBLPrototypeHandlers.IsInitialized() &&
+      !mCachedXBLPrototypeHandlers.Init()) {
+    NS_ERROR("Failed to initiailize hashtable!");
+    return;
+  }
+
+  if (!mCachedXBLPrototypeHandlers.Count()) {
+    // Can't use macros to get the participant because nsGlobalChromeWindow also
+    // runs through this code. Use QueryInterface to get the correct objects.
+    nsXPCOMCycleCollectionParticipant* participant;
+    CallQueryInterface(this, &participant);
+    NS_ASSERTION(participant,
+                 "Failed to QI to nsXPCOMCycleCollectionParticipant!");
+
+    nsCOMPtr<nsISupports> thisSupports;
+    QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
+                   getter_AddRefs(thisSupports));
+    NS_ASSERTION(thisSupports, "Failed to QI to nsCycleCollectionISupports!");
+
+    nsresult rv = nsContentUtils::HoldJSObjects(thisSupports, participant);
+    if (NS_FAILED(rv)) {
+      NS_ERROR("nsContentUtils::HoldJSObjects failed!");
+      return;
+    }
+  }
+
+  mCachedXBLPrototypeHandlers.Put(aKey, aHandler);
 }
 
 NS_IMETHODIMP
@@ -9255,9 +9412,9 @@ nsNavigator::RegisterProtocolHandler(const nsAString& aProtocol,
 
 
 NS_IMETHODIMP
-nsNavigator::IsLocallyAvailable(const nsAString &aURI,
-                                PRBool aWhenOffline,
-                                PRBool *aIsAvailable)
+nsNavigator::MozIsLocallyAvailable(const nsAString &aURI,
+                                   PRBool aWhenOffline,
+                                   PRBool *aIsAvailable)
 {
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aURI);

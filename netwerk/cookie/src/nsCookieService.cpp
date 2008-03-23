@@ -467,12 +467,22 @@ nsCookieService::InitDB()
 
   // cache a connection to the cookie database
   rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
-  if (rv == NS_ERROR_FILE_CORRUPTED) {
-    // delete and try again
-    cookieFile->Remove(PR_FALSE);
-    rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
-  }
   NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool ready;
+  mDBConn->GetConnectionReady(&ready);
+  if (!ready) {
+    // delete and try again
+    rv = cookieFile->Remove(PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mDBConn->GetConnectionReady(&ready);
+    if (!ready)
+      return NS_ERROR_UNEXPECTED;
+  }
 
   PRBool tableExists = PR_FALSE;
   mDBConn->TableExists(NS_LITERAL_CSTRING("moz_cookies"), &tableExists);
@@ -770,13 +780,13 @@ nsCookieService::PrefChanged(nsIPrefBranch *aPrefBranch)
 {
   PRInt32 val;
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefCookiesPermissions, &val)))
-    mCookiesPermissions = LIMIT(val, 0, 2, 0);
+    mCookiesPermissions = (PRUint8) LIMIT(val, 0, 2, 0);
 
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefMaxNumberOfCookies, &val)))
-    mMaxNumberOfCookies = LIMIT(val, 0, 0xFFFF, 0xFFFF);
+    mMaxNumberOfCookies = (PRUint16) LIMIT(val, 0, 0xFFFF, 0xFFFF);
 
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefMaxCookiesPerHost, &val)))
-    mMaxCookiesPerHost = LIMIT(val, 0, 0xFFFF, 0xFFFF);
+    mMaxCookiesPerHost = (PRUint16) LIMIT(val, 0, 0xFFFF, 0xFFFF);
 }
 
 /******************************************************************************
@@ -922,8 +932,8 @@ nsCookieService::Read()
 
     PRInt64 expiry = stmt->AsInt64(5);
     PRInt64 lastAccessed = stmt->AsInt64(6);
-    PRBool isSecure = stmt->AsInt32(7);
-    PRBool isHttpOnly = stmt->AsInt32(8);
+    PRBool isSecure = 0 != stmt->AsInt32(7);
+    PRBool isHttpOnly = 0 != stmt->AsInt32(8);
 
     // create a new nsCookie and assign the data.
     nsCookie* newCookie =

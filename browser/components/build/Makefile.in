@@ -17,18 +17,12 @@ FORCE_SHARED_LIB = 1
 USE_STATIC_LIBS = 1
 
 REQUIRES = \
-	docshell \
 	xpcom \
 	string \
-	pref \
 	rdf \
 	uriloader \
-	webbrowserpersist \
 	intl \
 	necko \
-	nkcache \
-	txmgr \
-	chardet \
 	migration \
 	shellservice \
 	xulapp \
@@ -68,12 +62,6 @@ SHARED_LIBRARY_LIBS = \
 ifneq (,$(filter windows mac cocoa gtk2, $(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += ../shell/src/$(LIB_PREFIX)shellservice_s.$(LIB_SUFFIX) \
 	$(NULL)
-endif
-
-ifdef MOZ_SAFE_BROWSING
-REQUIRES += safebrowsing
-LOCAL_INCLUDES += -I$(srcdir)/../safebrowsing/src
-SHARED_LIBRARY_LIBS += ../safebrowsing/src/$(LIB_PREFIX)safebrowsing_s.$(LIB_SUFFIX)
 endif
 
 EXTRA_DSO_LDOPTS += \

@@ -1,5 +1,3 @@
-Components.utils.import("resource://gre/modules/ISO8601DateUtils.jsm");
-
 var EXPORTED_SYMBOLS = ["Microformats", "adr", "tag", "hCard", "hCalendar", "geo"];
 
 var Microformats = {
@@ -152,32 +150,30 @@ var Microformats = {
   getParent: function(node) {
     var xpathExpression;
     var xpathResult;
-    var mfname;
-    for (let i in Microformats)
-    {
-      mfname = i;
-      if (Microformats[mfname]) {
-        if (Microformats[mfname].className) {
-          xpathExpression = "ancestor::*[contains(concat(' ', @class, ' '), ' " + Microformats[mfname].className + " ')]";
-        } else if (Microformats[mfname].attributeValues) {
-          xpathExpression = "ancestor::*[";
-          var attributeList = Microformats[i].attributeValues.split(" ");
-          for (let j=0; j < attributeList.length; j++) {
-            if (j != 0) {
-              xpathExpression += " or ";
-            }
-            xpathExpression += "contains(concat(' ', @" + Microformats[mfname].attributeName + ", ' '), ' " + attributeList[j] + " ')";
+
+    xpathExpression = "ancestor::*[";
+    for (let i=0; i < Microformats.list.length; i++) {
+      var mfname = Microformats.list[i];
+      if (i != 0) {
+        xpathExpression += " or ";
+      }
+      if (Microformats[mfname].className) {
+        xpathExpression += "contains(concat(' ', @class, ' '), ' " + Microformats[mfname].className + " ')";
+      } else {
+        var attributeList = Microformats[mfname].attributeValues.split(" ");
+        for (let j=0; j < attributeList.length; j++) {
+          if (j != 0) {
+            xpathExpression += " or ";
           }
-          xpathExpression += "]"; 
-        } else {
-          continue;
-        }
-        xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
-        if (xpathResult.singleNodeValue) {
-          xpathResult.singleNodeValue.microformat = mfname;
-          return xpathResult.singleNodeValue;
+          xpathExpression += "contains(concat(' ', @" + Microformats[mfname].attributeName + ", ' '), ' " + attributeList[j] + " ')";
         }
       }
+    }
+    xpathExpression += "][1]";
+    xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
+    if (xpathResult.singleNodeValue) {
+      xpathResult.singleNodeValue.microformat = mfname;
+      return xpathResult.singleNodeValue;
     }
     return null;
   },
@@ -302,39 +298,44 @@ var Microformats = {
         return propnode.value;
       } else {
         var values = Microformats.getElementsByClassName(propnode, "value");
+        /* Verify that values are children of the propnode */
+        for (let i = values.length-1; i >= 0; i--) {
+          if (values[i].parentNode != propnode) {
+            values.splice(i,1);
+          }
+        }
         if (values.length > 0) {
           var value = "";
           for (let j=0;j<values.length;j++) {
             value += Microformats.parser.defaultGetter(values[j], propnode, datatype);
           }
           return value;
+        }
+        var s;
+        if (datatype == "HTML") {
+          s = propnode.innerHTML;
         } else {
-          var s;
-          if (datatype == "HTML") {
-            s = propnode.innerHTML;
+          if (propnode.innerText) {
+            s = propnode.innerText;
           } else {
-            if (propnode.innerText) {
-              s = propnode.innerText;
-            } else {
-              s = propnode.textContent;
-            }
+            s = propnode.textContent;
           }
-          /* If we are processing a value node, don't remove whitespace */
-          if (!Microformats.matchClass(propnode, "value")) {
-            /* Remove new lines, carriage returns and tabs */
-            s	= s.replace(/[\n\r\t]/gi, ' ');
-            /* Replace any double spaces with single spaces */
-            s	= s.replace(/\s{2,}/gi, ' ');
-            /* Remove any double spaces that are left */
-            s	= s.replace(/\s{2,}/gi, '');
-            /* Remove any spaces at the beginning */
-            s	= s.replace(/^\s+/, '');
-            /* Remove any spaces at the end */
-            s	= s.replace(/\s+$/, '');
-          }
-          if (s.length > 0) {
-            return s;
-          }
+        }
+        /* If we are processing a value node, don't remove whitespace */
+        if (!Microformats.matchClass(propnode, "value")) {
+          /* Remove new lines, carriage returns and tabs */
+          s	= s.replace(/[\n\r\t]/gi, ' ');
+          /* Replace any double spaces with single spaces */
+          s	= s.replace(/\s{2,}/gi, ' ');
+          /* Remove any double spaces that are left */
+          s	= s.replace(/\s{2,}/gi, '');
+          /* Remove any spaces at the beginning */
+          s	= s.replace(/^\s+/, '');
+          /* Remove any spaces at the end */
+          s	= s.replace(/\s+$/, '');
+        }
+        if (s.length > 0) {
+          return s;
         }
       }
     },
@@ -406,6 +407,7 @@ var Microformats = {
           }
         }
       }
+     /* Special case - if this node is a value, use the parent node to get all the values */
       if (Microformats.matchClass(propnode, "value")) {
         return Microformats.parser.textGetter(parentnode, parentnode);
       } else {
@@ -464,25 +466,21 @@ var Microformats = {
      * @param  parentnode The parent node of the property. If it is a subproperty,
      *                    this is the parent property node. If it is not, this is the
      *                    microformat node.
-     * @return An object with function to access the string and the HTML
-     *         Note that because this is an object, you can't do string functions
-     *         so i faked a couple string functions that might be useful.
+     * @return An emulated string object that also has a new function called toHTML
      */
     HTMLGetter: function(propnode, parentnode) {
-      return {
-        toString: function () {
-          return Microformats.parser.defaultGetter(propnode, parentnode, "text");
-        },
-        toHTML: function () {
-          return Microformats.parser.defaultGetter(propnode, parentnode, "HTML"); 
-        },
-        replace: function (a, b) {
-          return this.toString().replace(a,b);
-        },
-        match: function (a) {
-          return this.toString().match(a);
-        }
-      };
+      /* This is so we can have a string that behaves like a string */
+      /* but also has a new function that can return the HTML that corresponds */
+      /* to the string. */
+      function mfHTML(value) {
+        this.valueOf = function() {return value.valueOf();}
+        this.toString = function() {return value.toString();}
+      }
+      mfHTML.prototype = new String;
+      mfHTML.prototype.toHTML = function() {
+        return Microformats.parser.defaultGetter(propnode, parentnode, "HTML");
+      }
+      return new mfHTML(Microformats.parser.defaultGetter(propnode, parentnode, "text"));
     },
     /**
      * Internal parser API used to determine which getter to call based on the
@@ -592,7 +590,7 @@ var Microformats = {
       object.resolvedNode = node; 
       object.semanticType = microformat;
       if (validate) {
-        Microformats.parser.validate(object.node, microformat);
+        Microformats.parser.validate(node, microformat);
       }
     },
     getMicroformatPropertyGenerator: function getMicroformatPropertyGenerator(node, name, property, microformat)
@@ -688,6 +686,38 @@ var Microformats = {
         propnodes = Microformats.getElementsByAttribute(mfnode, "rel", propname);
       } else {
         propnodes = Microformats.getElementsByClassName(mfnode, propname);
+      }
+      for (let i=propnodes.length-1; i >= 0; i--) {
+        /* The reason getParent is not used here is because this code does */
+        /* not apply to attribute based microformats, plus adr and geo */
+        /* when contained in hCard are a special case */
+        var parentnode;
+        var node = propnodes[i];
+        var xpathExpression = "";
+        for (let j=0; j < Microformats.list.length; j++) {
+          /* Don't treat adr or geo in an hCard as a microformat in this case */
+          if ((mfname == "hCard") && ((Microformats.list[j] == "adr") || (Microformats.list[j] == "geo"))) {
+            continue;
+          }
+          if (Microformats[Microformats.list[j]].className) {
+            if (xpathExpression.length == 0) {
+              xpathExpression = "ancestor::*[";
+            } else {
+              xpathExpression += " or ";
+            }
+            xpathExpression += "contains(concat(' ', @class, ' '), ' " + Microformats[Microformats.list[j]].className + " ')";
+          }
+        }
+        xpathExpression += "][1]";
+        var xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        if (xpathResult.singleNodeValue) {
+          xpathResult.singleNodeValue.microformat = mfname;
+          parentnode = xpathResult.singleNodeValue;
+        }
+        /* If the propnode is not a child of the microformat, remove it*/
+        if (parentnode != mfnode) {
+          propnodes.splice(i,1);
+        }
       }
       if (propnodes.length > 0) {
         var resultArray = [];
@@ -831,6 +861,65 @@ var Microformats = {
       }
       return dateString;
     }
+  },
+  /**
+   * Converts an ISO8601 date into a JavaScript date object, honoring the TZ
+   * offset and Z if present to convert the date to local time
+   * NOTE: I'm using an extra parameter on the date object for this function.
+   * I set date.time to true if there is a date, otherwise date.time is false.
+   * 
+   * @param  string ISO8601 formatted date
+   * @return JavaScript date object that represents the ISO date. 
+   */
+  dateFromISO8601: function dateFromISO8601(string) {
+    var dateArray = string.match(/(\d\d\d\d)(?:-?(\d\d)(?:-?(\d\d)(?:[T ](\d\d)(?::?(\d\d)(?::?(\d\d)(?:\.(\d+))?)?)?(?:([-+Z])(?:(\d\d)(?::?(\d\d))?)?)?)?)?)?/);
+  
+    var date = new Date(dateArray[1], 0, 1);
+    date.time = false;
+
+    if (dateArray[2]) {
+      date.setMonth(dateArray[2] - 1);
+    }
+    if (dateArray[3]) {
+      date.setDate(dateArray[3]);
+    }
+    if (dateArray[4]) {
+      date.setHours(dateArray[4]);
+      date.time = true;
+      if (dateArray[5]) {
+        date.setMinutes(dateArray[5]);
+        if (dateArray[6]) {
+          date.setSeconds(dateArray[6]);
+          if (dateArray[7]) {
+            date.setMilliseconds(Number("0." + dateArray[7]) * 1000);
+          }
+        }
+      }
+    }
+    if (dateArray[8]) {
+      if (dateArray[8] == "-") {
+        if (dateArray[9] && dateArray[10]) {
+          date.setHours(date.getHours() + parseInt(dateArray[9], 10));
+          date.setMinutes(date.getMinutes() + parseInt(dateArray[10], 10));
+        }
+      } else if (dateArray[8] == "+") {
+        if (dateArray[9] && dateArray[10]) {
+          date.setHours(date.getHours() - parseInt(dateArray[9], 10));
+          date.setMinutes(date.getMinutes() - parseInt(dateArray[10], 10));
+        }
+      }
+      /* at this point we have the time in gmt */
+      /* convert to local if we had a Z - or + */
+      if (dateArray[8]) {
+        var tzOffset = date.getTimezoneOffset();
+        if (tzOffset < 0) {
+          date.setMinutes(date.getMinutes() + tzOffset); 
+        } else if (tzOffset > 0) {
+          date.setMinutes(date.getMinutes() - tzOffset); 
+        }
+      }
+    }
+    return date;
   },
   /**
    * Converts a Javascript date object into an ISO 8601 formatted date
@@ -987,18 +1076,19 @@ adr.prototype.toString = function() {
   var start_parens = false;
   if (this["street-address"]) {
     address_text += this["street-address"][0];
-    address_text += " ";
+  } else if (this["extended-address"]) {
+    address_text += this["extended-address"];
   }
   if (this["locality"]) {
-    if (this["street-address"]) {
-      address_text += "(";
+    if (this["street-address"] || this["extended-address"]) {
+      address_text += " (";
       start_parens = true;
     }
     address_text += this["locality"];
   }
   if (this["region"]) {
-    if ((this["street-address"]) && (!start_parens)) {
-      address_text += "(";
+    if ((this["street-address"] || this["extended-address"]) && (!start_parens)) {
+      address_text += " (";
       start_parens = true;
     } else if (this["locality"]) {
       address_text += ", ";
@@ -1006,8 +1096,8 @@ adr.prototype.toString = function() {
     address_text += this["region"];
   }
   if (this["country-name"]) {
-    if ((this["street-address"]) && (!start_parens)) {
-      address_text += "(";
+    if ((this["street-address"] || this["extended-address"]) && (!start_parens)) {
+      address_text += " (";
       start_parens = true;
       address_text += this["country-name"];
     } else if ((!this["locality"]) && (!this["region"])) {
@@ -1102,7 +1192,9 @@ var hCard_definition = {
       microformat: "adr"
     },
     "agent" : {
-      plural: true
+      plural: true,
+      datatype: "microformat",
+      microformat: "hCard"
     },
     "bday" : {
       datatype: "dateTime"
@@ -1288,7 +1380,7 @@ hCalendar.prototype.toString = function() {
     if (summaries.length === 0) {
       if (this.summary) {
         if (this.dtstart) {
-          return this.summary + " (" + ISO8601DateUtils.parse(this.dtstart).toLocaleString() + ")";
+          return this.summary + " (" + Microformats.dateFromISO8601(this.dtstart).toLocaleString() + ")";
         }
       }
     }
@@ -1463,13 +1555,16 @@ function geo(node, validate) {
 geo.prototype.toString = function() {
   if (this.latitude && this.longitude) {
     var s;
-    if ((this.node.localName.toLowerCase() != "abbr") && (this.node.localName.toLowerCase() == "html:abbr")) {
+    if ((this.node.localName.toLowerCase() != "abbr") && (this.node.localName.toLowerCase() != "html:abbr")) {
       s = Microformats.parser.textGetter(this.node);
     } else {
       s = this.node.textContent;
     }
 
-    /* FIXME - THIS IS FIREFOX SPECIFIC */
+    if (s) {
+      return s;
+    }
+
     /* check if geo is contained in a vcard */
     var xpathExpression = "ancestor::*[contains(concat(' ', @class, ' '), ' vcard ')]";
     var xpathResult = this.node.ownerDocument.evaluate(xpathExpression, this.node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
@@ -1543,9 +1638,6 @@ function tag(node, validate) {
   }
 }
 tag.prototype.toString = function() {
-//  if (!this.tag) {
-//    return this.text;
-//  }
   return this.tag;
 }
 

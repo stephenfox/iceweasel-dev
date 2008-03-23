@@ -127,8 +127,8 @@ nsStyleFont::nsStyleFont(const nsStyleFont& aSrc)
 #ifdef MOZ_MATHML
   , mScriptLevel(aSrc.mScriptLevel)
   , mScriptUnconstrainedSize(aSrc.mScriptUnconstrainedSize)
-  , mScriptSizeMultiplier(aSrc.mScriptSizeMultiplier)
   , mScriptMinSize(aSrc.mScriptMinSize)
+  , mScriptSizeMultiplier(aSrc.mScriptSizeMultiplier)
 #endif
 {
 }
@@ -972,14 +972,12 @@ nsStyleTable::nsStyleTable(const nsStyleTable& aSource)
 nsChangeHint nsStyleTable::CalcDifference(const nsStyleTable& aOther) const
 {
   // Changes in mRules may require reframing (if border-collapse stuff changes, for example).
-  if (mRules != aOther.mRules || mSpan != aOther.mSpan)
+  if (mRules != aOther.mRules || mSpan != aOther.mSpan ||
+      mLayoutStrategy != aOther.mLayoutStrategy)
     return NS_STYLE_HINT_FRAMECHANGE;
-
-  if ((mLayoutStrategy == aOther.mLayoutStrategy) &&
-      (mFrame == aOther.mFrame) &&
-      (mCols == aOther.mCols))
-    return NS_STYLE_HINT_NONE;
-  return NS_STYLE_HINT_REFLOW;
+  if (mFrame != aOther.mFrame || mCols != aOther.mCols)
+    return NS_STYLE_HINT_REFLOW;
+  return NS_STYLE_HINT_NONE;
 }
 
 #ifdef DEBUG
@@ -1003,7 +1001,7 @@ nsStyleTableBorder::nsStyleTableBorder(nsPresContext* aPresContext)
   mEmptyCells = (compatMode == eCompatibility_NavQuirks)
                   ? NS_STYLE_TABLE_EMPTY_CELLS_SHOW_BACKGROUND     
                   : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
-  mCaptionSide = NS_SIDE_TOP;
+  mCaptionSide = NS_STYLE_CAPTION_SIDE_TOP;
   mBorderSpacingX.SetCoordValue(0);
   mBorderSpacingY.SetCoordValue(0);
 }
@@ -1523,18 +1521,10 @@ nsStyleTextReset::~nsStyleTextReset(void) { }
 
 nsChangeHint nsStyleTextReset::CalcDifference(const nsStyleTextReset& aOther) const
 {
-  if (mVerticalAlign == aOther.mVerticalAlign
-      && mUnicodeBidi == aOther.mUnicodeBidi) {
-    if (mTextDecoration != aOther.mTextDecoration) {
-      // Reflow for blink changes, repaint for others
-      return
-        (mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) ==
-        (aOther.mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) ?
-          NS_STYLE_HINT_VISUAL : NS_STYLE_HINT_REFLOW;
-    }
-    
+  if (mVerticalAlign == aOther.mVerticalAlign &&
+      mUnicodeBidi == aOther.mUnicodeBidi &&
+      mTextDecoration == aOther.mTextDecoration)
     return NS_STYLE_HINT_NONE;
-  }
   return NS_STYLE_HINT_REFLOW;
 }
 

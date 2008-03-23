@@ -64,8 +64,8 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="BrowserStartup()" onunload="BrowserShutdown()" onclose="return WindowIsClosing();"
         contenttitlesetting="true"
-        title="&mainWindow.title; 3 Beta 3"
-        titlemodifier="&mainWindow.title; 3 Beta 3"
+        title="&mainWindow.title; 3 Beta 4"
+        titlemodifier="&mainWindow.title; 3 Beta 4"
         titlemenuseparator="&mainWindow.titlemodifiermenuseparator;"
         windowtype="navigator:browser"
         screenX="4" screenY="4"
@@ -90,6 +90,7 @@
 
   <popupset id="mainPopupSet">
     <menupopup id="backForwardMenu"
+               chromedir="&locale.dir;"
                onpopupshowing="return FillHistoryMenu(event.target);"
                oncommand="gotoHistoryIndex(event);"
                onclick="checkForMiddleClick(this, event);"/>
@@ -168,7 +169,7 @@
 
     <!-- Popup for site identity information -->
     <panel id="identity-popup" position="after_start" hidden="true" noautofocus="true"
-           onpopupshown="document.getElementById('identity-popup-more-info-link').focus();"
+           onpopupshown="document.getElementById('identity-popup-more-info-button').focus();"
            onpopuphidden="focusAndSelectUrlBar();" norestorefocus="true">
       <hbox id="identity-popup-container" align="top">
         <image id="identity-popup-icon"/>
@@ -189,12 +190,14 @@
             <description id="identity-popup-encryption-label" flex="1"/>
           </hbox>
           <spacer flex="1"/>
-          <!-- Footer link to page info -->
-          <label id="identity-popup-more-info-link"
-                 class="text-link plain"
-                 value="&identity.moreInfoLinkText;"
-                 onblur="getIdentityHandler().hideIdentityPopup();"
-                 onclick="getIdentityHandler().handleMoreInfoClick(event);"/>
+          <!-- Footer button to open security page info -->
+          <hbox>
+            <spacer flex="1"/>
+            <button id="identity-popup-more-info-button"
+                    label="&identity.moreInfoLinkText;"
+                    onblur="getIdentityHandler().hideIdentityPopup();"
+                    oncommand="getIdentityHandler().handleMoreInfoClick(event);"/>
+          </hbox>
         </vbox>
       </hbox>
     </panel>
@@ -222,7 +225,8 @@
 #else
              defaultset="menubar-items,spring,throbber-box"
 #endif
-             mode="icons" context="toolbar-context-menu">
+             mode="icons" iconsize="small" defaulticonsize="small"
+             context="toolbar-context-menu">
       <toolbaritem id="menubar-items" align="center">
 # The entire main menubar is placed into browser-menubar.inc, so that it can be shared by 
 # hiddenWindow.xul.
@@ -255,10 +259,13 @@
         </toolbarbutton>
         <toolbarbutton id="back-forward-dropmarker" type="menu" chromedir="&locale.dir;"
                        disabled="true">
+          <!-- bug 415444: event.stopPropagation is here for the cloned version of
+               this menupopup -->
           <menupopup context=""
+                     chromedir="&locale.dir;"
                      position="after_start"
                      onpopupshowing="return FillHistoryMenu(event.target);"
-                     oncommand="gotoHistoryIndex(event);"
+                     oncommand="gotoHistoryIndex(event); event.stopPropagation();"
                      onclick="checkForMiddleClick(this, event);"/>
         </toolbarbutton>
       </toolbaritem>
@@ -300,6 +307,8 @@
                  ontextentered="return handleURLBarCommand(param);"
                  ontextreverted="return handleURLBarRevert();"
                  pageproxystate="invalid"
+                 onsearchbegin="LocationBarHelpers._searchBegin();"
+                 onsearchcomplete="LocationBarHelpers._searchComplete();"
                  onfocus="document.getElementById('identity-box').style.MozUserFocus= 'normal'"
                  onblur="document.getElementById('identity-box').style.MozUserFocus = 'ignore';">
           <!-- Use onclick instead of normal popup= syntax since the popup
@@ -310,25 +319,21 @@
                onclick="getIdentityHandler().handleIdentityButtonEvent(event);"
                onkeypress="getIdentityHandler().handleIdentityButtonEvent(event);">
             <hbox align="center">
-              <deck id="page-proxy-deck" onclick="PageProxyClickHandler(event);">
-                <image id="page-proxy-button"
-                       ondraggesture="PageProxyDragGesture(event);"
-                       tooltiptext="&proxyIcon.tooltip;"/>
+              <stack id="page-proxy-stack"
+                     onclick="PageProxyClickHandler(event);"
+                     tooltiptext="&proxyIcon.tooltip;">
+                <image id="urlbar-throbber" busy="false"/>
                 <image id="page-proxy-favicon" validate="never"
                        ondraggesture="PageProxyDragGesture(event);"
-                       onload="this.parentNode.selectedIndex = 1;
-                               event.stopPropagation();"
-                       onerror="this.removeAttribute('src');
-                                this.parentNode.selectedIndex = 0;"
-                       tooltiptext="&proxyIcon.tooltip;"/>
-              </deck>
+                       onerror="this.removeAttribute('src');"/>
+              </stack>
               <label id="identity-icon-label"/>
             </hbox>
           </box>
           <hbox id="urlbar-icons">
             <button type="menu"
                     style="-moz-user-focus: none"
-                    class="plain"
+                    class="plain urlbar-icon"
                     id="feed-button"
                     chromedir="&locale.dir;"
                     onclick="return FeedHandler.onFeedButtonClick(event);">
@@ -340,11 +345,14 @@
 #ifdef MOZ_SAFE_BROWSING
             <image id="safebrowsing-urlbar-icon" tooltiptext="&safeb.urlbaricon.tooltip;"
                    level="safe"
+                   class="urlbar-icon"
                    onclick="goDoCommand('safebrowsing-show-warning')"/>
 #endif
           <image id="star-button"
+                 class="urlbar-icon"
                  onclick="PlacesStarButton.onClick(event);"/>
           <image id="go-button" chromedir="&locale.dir;"
+                 class="urlbar-icon"
                  tooltiptext="&goEndCap.tooltip;"
                  onclick="handleURLBarCommand(event);"/>
           </hbox>
@@ -372,7 +380,6 @@
                onclick="BookmarksEventHandler.onClick(event);"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
-               ondragexit="PlacesMenuDNDController.onDragExit(event);"
                tooltip="btTooltip"/>
       </toolbaritem>
 
@@ -459,7 +466,8 @@
 
     <toolbarset id="customToolbars" context="toolbar-context-menu"/>
 
-    <toolbar id="PersonalToolbar" mode="icons" iconsize="small"
+    <toolbar id="PersonalToolbar"
+             mode="icons" iconsize="small" defaulticonsize="small"
              class="chromeclass-directories"
              context="toolbar-context-menu"
              defaultset="home-button,personal-bookmarks"
@@ -498,28 +506,30 @@
   </panel>
 #endif
 
-  <findbar browserid="content" id="FindToolbar"/>
-
-  <statusbar class="chromeclass-status" id="status-bar"
-             ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
-    <statusbarpanel id="statusbar-display" label="" flex="1"/>
-    <statusbarpanel id="download-monitor" class="statusbarpanel-iconic-text"
-                    tooltiptext="&downloadMonitor2.tooltip;" hidden="true"
-                    command="Tools:Downloads"/>
-    <statusbarpanel class="statusbarpanel-progress" collapsed="true" id="statusbar-progresspanel">
-      <progressmeter class="progressmeter-statusbar" id="statusbar-icon" mode="normal" value="0"/>
-    </statusbarpanel>
-    <statusbarpanel id="security-button" class="statusbarpanel-iconic-text"
-                    ondblclick="if (event.button == 0) displaySecurityInfo();"/>
-    <statusbarpanel id="page-report-button" type="menu"
-                    class="statusbarpanel-menu-iconic"
-                    tooltiptext="&pageReportIcon.tooltip;">
-      <menupopup onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
-        <menuitem observes="blockedPopupAllowSite"/>
-        <menuitem observes="blockedPopupEditSettings"/>
-        <menuitem observes="blockedPopupDontShowMessage"/>
-        <menuseparator observes="blockedPopupsSeparator"/>
-      </menupopup>
-    </statusbarpanel>
-  </statusbar>
+  <vbox id="browser-bottombox">
+    <findbar browserid="content" id="FindToolbar"/>
+  
+    <statusbar class="chromeclass-status" id="status-bar"
+               ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
+      <statusbarpanel id="statusbar-display" label="" flex="1"/>
+      <statusbarpanel class="statusbarpanel-progress" collapsed="true" id="statusbar-progresspanel">
+        <progressmeter class="progressmeter-statusbar" id="statusbar-icon" mode="normal" value="0"/>
+      </statusbarpanel>
+      <statusbarpanel id="download-monitor" class="statusbarpanel-iconic-text"
+                      tooltiptext="&downloadMonitor2.tooltip;" hidden="true"
+                      command="Tools:Downloads"/>
+      <statusbarpanel id="security-button" class="statusbarpanel-iconic-text"
+                      ondblclick="if (event.button == 0) displaySecurityInfo();"/>
+      <statusbarpanel id="page-report-button" type="menu"
+                      class="statusbarpanel-menu-iconic"
+                      tooltiptext="&pageReportIcon.tooltip;">
+        <menupopup onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
+          <menuitem observes="blockedPopupAllowSite"/>
+          <menuitem observes="blockedPopupEditSettings"/>
+          <menuitem observes="blockedPopupDontShowMessage"/>
+          <menuseparator observes="blockedPopupsSeparator"/>
+        </menupopup>
+      </statusbarpanel>
+    </statusbar>
+  </vbox>
 </window>

@@ -57,25 +57,7 @@
  *   could add generation counters to surfaces and remember the stream
  *   ID for a particular generation for a particular surface.
  *
- * - Images of other formats than 8 bit RGBA.
- *
  * - Backend specific meta data.
- *
- * - Surface patterns.
- *
- * - Should/does cairo support drawing into a scratch surface and then
- *   using that as a fill pattern?  For this backend, that would involve
- *   using a tiling pattern (4.6.2).  How do you create such a scratch
- *   surface?  cairo_surface_create_similar() ?
- *
- * - What if you create a similar surface and does show_page and then
- *   does show_surface on another surface?
- *
- * - Add test case for RGBA images.
- *
- * - Add test case for RGBA gradients.
- *
- * - Coordinate space for create_similar() args?
  */
 
 /*
@@ -285,10 +267,11 @@ _cairo_pdf_surface_create_for_stream_internal (cairo_output_stream_t	*output,
     surface->paginated_mode = CAIRO_PAGINATED_MODE_ANALYZE;
 
     surface->force_fallbacks = FALSE;
+    surface->select_pattern_gstate_saved = FALSE;
 
     _cairo_pdf_operators_init (&surface->pdf_operators,
 			       surface->output,
-			       surface->cairo_to_pdf,
+			       &surface->cairo_to_pdf,
 			       surface->font_subsets);
     _cairo_pdf_operators_set_font_subsets_callback (&surface->pdf_operators,
 						    _cairo_pdf_surface_add_font,
@@ -332,7 +315,7 @@ BAIL0:
  * incrementally to the stream represented by @write_func and @closure.
  *
  * Return value: a pointer to the newly created surface. The caller
- * owns the surface and should call cairo_surface_destroy when done
+ * owns the surface and should call cairo_surface_destroy() when done
  * with it.
  *
  * This function always returns a valid pointer, but it will return a
@@ -368,7 +351,7 @@ cairo_pdf_surface_create_for_stream (cairo_write_func_t		 write_func,
  * to @filename.
  *
  * Return value: a pointer to the newly created surface. The caller
- * owns the surface and should call cairo_surface_destroy when done
+ * owns the surface and should call cairo_surface_destroy() when done
  * with it.
  *
  * This function always returns a valid pointer, but it will return a
@@ -401,7 +384,7 @@ _cairo_surface_is_pdf (cairo_surface_t *surface)
 
 /* If the abstract_surface is a paginated surface, and that paginated
  * surface's target is a pdf_surface, then set pdf_surface to that
- * target. Otherwise return CAIRO_STATUS_SURFACE_TYPE_MISMATCH.
+ * target. Otherwise return %CAIRO_STATUS_SURFACE_TYPE_MISMATCH.
  */
 static cairo_status_t
 _extract_pdf_surface (cairo_surface_t		 *surface,
@@ -424,7 +407,7 @@ _extract_pdf_surface (cairo_surface_t		 *surface,
 
 /**
  * cairo_pdf_surface_set_size:
- * @surface: a PDF cairo_surface_t
+ * @surface: a PDF #cairo_surface_t
  * @width_in_points: new surface width, in points (1 point == 1/72.0 inch)
  * @height_in_points: new surface height, in points (1 point == 1/72.0 inch)
  *
@@ -457,7 +440,7 @@ cairo_pdf_surface_set_size (cairo_surface_t	*surface,
     pdf_surface->height = height_in_points;
     cairo_matrix_init (&pdf_surface->cairo_to_pdf, 1, 0, 0, -1, 0, height_in_points);
     _cairo_pdf_operators_set_cairo_to_pdf_matrix (&pdf_surface->pdf_operators,
-						  pdf_surface->cairo_to_pdf);
+						  &pdf_surface->cairo_to_pdf);
     status = _cairo_paginated_surface_set_size (pdf_surface->paginated_surface,
 						width_in_points,
 						height_in_points);
@@ -727,6 +710,8 @@ _cairo_pdf_surface_create_smask_group (cairo_pdf_surface_t	*surface)
 	free (group);
 	return NULL;
     }
+    group->width = surface->width;
+    group->height = surface->height;
 
     return group;
 }
@@ -800,6 +785,8 @@ _cairo_pdf_surface_add_pdf_pattern (cairo_pdf_surface_t		*surface,
         }
     }
 
+    pdf_pattern.width = surface->width;
+    pdf_pattern.height = surface->height;
     *pattern_res = pdf_pattern.pattern_res;
     *gstate_res = pdf_pattern.gstate_res;
 
@@ -1086,17 +1073,15 @@ _cairo_pdf_surface_open_content_stream (cairo_pdf_surface_t  *surface,
 					    surface->width,
 					    surface->height,
 					    surface->content_resources.id);
-	if (status)
-	    return status;
     } else {
 	status =
 	    _cairo_pdf_surface_open_stream (surface,
 					    NULL,
 					    surface->compress_content,
 					    NULL);
-	if (status)
-	    return status;
     }
+    if (status)
+	return status;
 
     surface->content = surface->pdf_stream.self;
 
@@ -1240,29 +1225,6 @@ _cairo_pdf_surface_start_page (void *abstract_surface)
     return CAIRO_STATUS_SUCCESS;
 }
 
-static void *
-compress_dup (const void *data, unsigned long data_size,
-	      unsigned long *compressed_size)
-{
-    void *compressed;
-
-    /* Bound calculation taken from zlib. */
-    *compressed_size = data_size + (data_size >> 12) + (data_size >> 14) + 11;
-    compressed = malloc (*compressed_size);
-    if (compressed == NULL) {
-	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
-	return NULL;
-    }
-
-    if (compress (compressed, compressed_size, data, data_size) != Z_OK) {
-	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
-	free (compressed);
-	compressed = NULL;
-    }
-
-    return compressed;
-}
-
 /* Emit alpha channel from the image into the given data, providing
  * an id that can be used to reference the resulting SMask object.
  *
@@ -1275,8 +1237,8 @@ _cairo_pdf_surface_emit_smask (cairo_pdf_surface_t	*surface,
 			       cairo_pdf_resource_t	*stream_ret)
 {
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
-    char *alpha, *alpha_compressed;
-    unsigned long alpha_size, alpha_compressed_size;
+    char *alpha;
+    unsigned long alpha_size;
     uint32_t *pixel32;
     uint8_t *pixel8;
     int i, x, y;
@@ -1291,11 +1253,18 @@ _cairo_pdf_surface_emit_smask (cairo_pdf_surface_t	*surface,
 
     stream_ret->id = 0;
 
-    if (image->format == CAIRO_FORMAT_A1)
-	alpha_size = (image->height * image->width + 7)/8;
-    else
+    if (image->format == CAIRO_FORMAT_A1) {
+	/* We allocate using slightly different math so that we can get
+	 * the overflow checking from _cairo_malloc_ab, but alpha_size
+	 * needs to be the correct size for emitting the data in the PDF.
+	 */
+	alpha_size = (image->width*image->height + 7) / 8;
+	alpha = _cairo_malloc_ab ((image->width+7) / 8, image->height);
+    } else {
 	alpha_size = image->height * image->width;
-    alpha = malloc (alpha_size);
+	alpha = _cairo_malloc_ab (image->height, image->width);
+    }
+
     if (alpha == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto CLEANUP;
@@ -1350,35 +1319,24 @@ _cairo_pdf_surface_emit_smask (cairo_pdf_surface_t	*surface,
     if (opaque)
 	goto CLEANUP_ALPHA;
 
-    alpha_compressed = compress_dup (alpha, alpha_size, &alpha_compressed_size);
-    if (alpha_compressed == NULL) {
-	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	goto CLEANUP_ALPHA;
-    }
-
     status = _cairo_pdf_surface_open_stream (surface,
 					     NULL,
-					     FALSE,
+					     TRUE,
 					     "   /Type /XObject\r\n"
 					     "   /Subtype /Image\r\n"
 					     "   /Width %d\r\n"
 					     "   /Height %d\r\n"
 					     "   /ColorSpace /DeviceGray\r\n"
-					     "   /BitsPerComponent %d\r\n"
-					     "   /Filter /FlateDecode\r\n",
+					     "   /BitsPerComponent %d\r\n",
 					     image->width, image->height,
 					     image->format == CAIRO_FORMAT_A1 ? 1 : 8);
     if (status)
-	goto CLEANUP_ALPHA_COMPRESSED;
+	goto CLEANUP_ALPHA;
 
     *stream_ret = surface->pdf_stream.self;
-
-    _cairo_output_stream_write (surface->output, alpha_compressed, alpha_compressed_size);
-    _cairo_output_stream_printf (surface->output, "\r\n");
+    _cairo_output_stream_write (surface->output, alpha, alpha_size);
     status = _cairo_pdf_surface_close_stream (surface);
 
- CLEANUP_ALPHA_COMPRESSED:
-    free (alpha_compressed);
  CLEANUP_ALPHA:
     free (alpha);
  CLEANUP:
@@ -1393,17 +1351,12 @@ _cairo_pdf_surface_emit_image (cairo_pdf_surface_t   *surface,
                                cairo_pdf_resource_t  *image_ret)
 {
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
-    char *rgb, *compressed;
-    unsigned long rgb_size, compressed_size;
+    char *rgb;
+    unsigned long rgb_size;
     uint32_t *pixel;
     int i, x, y;
     cairo_pdf_resource_t smask = {0}; /* squelch bogus compiler warning */
     cairo_bool_t need_smask;
-
-    /* XXX: Need to rewrite this as a pdf_surface function with
-     * pause/resume of content_stream, (currently the only caller does
-     * the pause/resume already, but that is expected to change in the
-     * future). */
 
     /* These are the only image formats we currently support, (which
      * makes things a lot simpler here). This is enforced through
@@ -1416,7 +1369,7 @@ _cairo_pdf_surface_emit_image (cairo_pdf_surface_t   *surface,
 	    image->format == CAIRO_FORMAT_A1);
 
     rgb_size = image->height * image->width * 3;
-    rgb = malloc (rgb_size);
+    rgb = _cairo_malloc_abc (image->width, image->height, 3);
     if (rgb == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	goto CLEANUP;
@@ -1456,19 +1409,13 @@ _cairo_pdf_surface_emit_image (cairo_pdf_surface_t   *surface,
 	}
     }
 
-    compressed = compress_dup (rgb, rgb_size, &compressed_size);
-    if (compressed == NULL) {
-	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	goto CLEANUP_RGB;
-    }
-
     need_smask = FALSE;
     if (image->format == CAIRO_FORMAT_ARGB32 ||
 	image->format == CAIRO_FORMAT_A8 ||
 	image->format == CAIRO_FORMAT_A1) {
 	status = _cairo_pdf_surface_emit_smask (surface, image, &smask);
 	if (status)
-	    goto CLEANUP_COMPRESSED;
+	    goto CLEANUP_RGB;
 
 	if (smask.id)
 	    need_smask = TRUE;
@@ -1479,13 +1426,12 @@ _cairo_pdf_surface_emit_image (cairo_pdf_surface_t   *surface,
 				"   /Width %d\r\n"		\
 				"   /Height %d\r\n"		\
 				"   /ColorSpace /DeviceRGB\r\n"	\
-				"   /BitsPerComponent 8\r\n"	\
-				"   /Filter /FlateDecode\r\n"
+				"   /BitsPerComponent 8\r\n"
 
     if (need_smask)
 	status = _cairo_pdf_surface_open_stream (surface,
 						 NULL,
-						 FALSE,
+						 TRUE,
 						 IMAGE_DICTIONARY
 						 "   /SMask %d 0 R\r\n",
 						 image->width, image->height,
@@ -1493,22 +1439,18 @@ _cairo_pdf_surface_emit_image (cairo_pdf_surface_t   *surface,
     else
 	status = _cairo_pdf_surface_open_stream (surface,
 						 NULL,
-						 FALSE,
+						 TRUE,
 						 IMAGE_DICTIONARY,
 						 image->width, image->height);
     if (status)
-	goto CLEANUP_COMPRESSED;
+	goto CLEANUP_RGB;
 
 #undef IMAGE_DICTIONARY
 
     *image_ret = surface->pdf_stream.self;
-
-    _cairo_output_stream_write (surface->output, compressed, compressed_size);
-    _cairo_output_stream_printf (surface->output, "\r\n");
+    _cairo_output_stream_write (surface->output, rgb, rgb_size);
     status = _cairo_pdf_surface_close_stream (surface);
 
-CLEANUP_COMPRESSED:
-    free (compressed);
 CLEANUP_RGB:
     free (rgb);
 CLEANUP:
@@ -1572,7 +1514,7 @@ _cairo_pdf_surface_emit_meta_surface (cairo_pdf_surface_t  *surface,
     surface->paginated_mode = CAIRO_PAGINATED_MODE_RENDER;
     cairo_matrix_init (&surface->cairo_to_pdf, 1, 0, 0, -1, 0, surface->height);
     _cairo_pdf_operators_set_cairo_to_pdf_matrix (&surface->pdf_operators,
-						  surface->cairo_to_pdf);
+						  &surface->cairo_to_pdf);
 
     _cairo_pdf_group_resources_clear (&surface->resources);
     status = _cairo_pdf_surface_open_content_stream (surface, TRUE);
@@ -1606,7 +1548,7 @@ _cairo_pdf_surface_emit_meta_surface (cairo_pdf_surface_t  *surface,
     surface->paginated_mode = old_paginated_mode;
     surface->cairo_to_pdf = old_cairo_to_pdf;
     _cairo_pdf_operators_set_cairo_to_pdf_matrix (&surface->pdf_operators,
-						  surface->cairo_to_pdf);
+						  &surface->cairo_to_pdf);
 
     return status;
 }
@@ -2572,23 +2514,42 @@ _cairo_pdf_surface_emit_radial_pattern (cairo_pdf_surface_t    *surface,
 static cairo_status_t
 _cairo_pdf_surface_emit_pattern (cairo_pdf_surface_t *surface, cairo_pdf_pattern_t *pdf_pattern)
 {
+    double old_width, old_height;
+    cairo_status_t status;
+
+    old_width = surface->width;
+    old_height = surface->height;
+    surface->width = pdf_pattern->width;
+    surface->height = pdf_pattern->height;
+
     switch (pdf_pattern->pattern->type) {
     case CAIRO_PATTERN_TYPE_SOLID:
 	ASSERT_NOT_REACHED;
+	status = _cairo_error (CAIRO_STATUS_PATTERN_TYPE_MISMATCH);
 	break;
 
     case CAIRO_PATTERN_TYPE_SURFACE:
-	return _cairo_pdf_surface_emit_surface_pattern (surface, pdf_pattern);
+	status = _cairo_pdf_surface_emit_surface_pattern (surface, pdf_pattern);
+	break;
 
     case CAIRO_PATTERN_TYPE_LINEAR:
-	return _cairo_pdf_surface_emit_linear_pattern (surface, pdf_pattern);
+	status = _cairo_pdf_surface_emit_linear_pattern (surface, pdf_pattern);
+	break;
 
     case CAIRO_PATTERN_TYPE_RADIAL:
-	return _cairo_pdf_surface_emit_radial_pattern (surface, pdf_pattern);
+	status = _cairo_pdf_surface_emit_radial_pattern (surface, pdf_pattern);
+	break;
+
+    default:
+	ASSERT_NOT_REACHED;
+	status = _cairo_error (CAIRO_STATUS_PATTERN_TYPE_MISMATCH);
+	break;
     }
 
-    ASSERT_NOT_REACHED;
-    return _cairo_error (CAIRO_STATUS_PATTERN_TYPE_MISMATCH);
+    surface->width = old_width;
+    surface->height = old_height;
+
+    return status;
 }
 
 static cairo_status_t
@@ -2608,7 +2569,7 @@ _cairo_pdf_surface_select_pattern (cairo_pdf_surface_t *surface,
 	    return status;
 
 	_cairo_output_stream_printf (surface->output,
-				     "q %f %f %f ",
+				     "%f %f %f ",
 				     solid_pattern->color.red,
 				     solid_pattern->color.green,
 				     solid_pattern->color.blue);
@@ -2621,6 +2582,7 @@ _cairo_pdf_surface_select_pattern (cairo_pdf_surface_t *surface,
         _cairo_output_stream_printf (surface->output,
                                      "/a%d gs\r\n",
                                      alpha);
+	surface->select_pattern_gstate_saved = FALSE;
     } else {
 	status = _cairo_pdf_surface_add_alpha (surface, 1.0, &alpha);
 	if (status)
@@ -2630,18 +2592,24 @@ _cairo_pdf_surface_select_pattern (cairo_pdf_surface_t *surface,
 	if (status)
 	    return status;
 
+	/* fill-stroke calls select_pattern twice. Don't save if the
+	 * gstate is already saved. */
+	if (!surface->select_pattern_gstate_saved)
+	    _cairo_output_stream_printf (surface->output, "q ");
+
 	if (is_stroke) {
 	    _cairo_output_stream_printf (surface->output,
-					 "q /Pattern CS /p%d SCN ",
+					 "/Pattern CS /p%d SCN ",
 					 pattern_res.id);
 	} else {
 	    _cairo_output_stream_printf (surface->output,
-					 "q /Pattern cs /p%d scn ",
+					 "/Pattern cs /p%d scn ",
 					 pattern_res.id);
 	}
 	_cairo_output_stream_printf (surface->output,
 				     "/a%d gs\r\n",
 				     alpha);
+	surface->select_pattern_gstate_saved = TRUE;
     }
 
     return _cairo_output_stream_get_status (surface->output);
@@ -2650,7 +2618,9 @@ _cairo_pdf_surface_select_pattern (cairo_pdf_surface_t *surface,
 static void
 _cairo_pdf_surface_unselect_pattern (cairo_pdf_surface_t *surface)
 {
-    _cairo_output_stream_printf (surface->output, "Q\r\n");
+    if (surface->select_pattern_gstate_saved)
+	_cairo_output_stream_printf (surface->output, "Q\r\n");
+    surface->select_pattern_gstate_saved = FALSE;
 }
 
 static cairo_int_status_t
@@ -2845,11 +2815,11 @@ _cairo_pdf_surface_emit_to_unicode_stream (cairo_pdf_surface_t		*surface,
         }
         if (is_composite) {
             _cairo_output_stream_printf (surface->output,
-                                         "<%04x> <%04x>\r\n",
+                                         "<%04x> <%04lx>\r\n",
                                          i + 1, font_subset->to_unicode[i + 1]);
         } else {
             _cairo_output_stream_printf (surface->output,
-                                         "<%02x> <%04x>\r\n",
+                                         "<%02x> <%04lx>\r\n",
                                          i + 1, font_subset->to_unicode[i + 1]);
         }
     }
@@ -2874,8 +2844,6 @@ _cairo_pdf_surface_emit_cff_font (cairo_pdf_surface_t		*surface,
     cairo_pdf_resource_t stream, descriptor, cidfont_dict;
     cairo_pdf_resource_t subset_resource, to_unicode_stream;
     cairo_pdf_font_t font;
-    unsigned long compressed_length;
-    char *compressed;
     unsigned int i;
     cairo_status_t status;
 
@@ -2885,31 +2853,19 @@ _cairo_pdf_surface_emit_cff_font (cairo_pdf_surface_t		*surface,
     if (subset_resource.id == 0)
 	return CAIRO_STATUS_SUCCESS;
 
-    compressed = compress_dup (subset->data, subset->data_length, &compressed_length);
-    if (compressed == NULL)
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    status = _cairo_pdf_surface_open_stream (surface,
+					     NULL,
+					     TRUE,
+					     "   /Subtype /CIDFontType0C\r\n");
+    if (status)
+	return status;
 
-    stream = _cairo_pdf_surface_new_object (surface);
-    if (stream.id == 0) {
-	free (compressed);
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    }
-
-    _cairo_output_stream_printf (surface->output,
-				 "%d 0 obj\r\n"
-				 "<< /Filter /FlateDecode\r\n"
-				 "   /Length %lu\r\n"
-				 "   /Subtype /CIDFontType0C\r\n"
-				 ">>\r\n"
-				 "stream\r\n",
-				 stream.id,
-				 compressed_length);
-    _cairo_output_stream_write (surface->output, compressed, compressed_length);
-    _cairo_output_stream_printf (surface->output,
-				 "\r\n"
-				 "endstream\r\n"
-				 "endobj\r\n");
-    free (compressed);
+    stream = surface->pdf_stream.self;
+    _cairo_output_stream_write (surface->output,
+				subset->data, subset->data_length);
+    status = _cairo_pdf_surface_close_stream (surface);
+    if (status)
+	return status;
 
     status = _cairo_pdf_surface_emit_to_unicode_stream (surface,
 	                                                font_subset, TRUE,
@@ -3055,8 +3011,7 @@ _cairo_pdf_surface_emit_type1_font (cairo_pdf_surface_t		*surface,
     cairo_pdf_resource_t stream, descriptor, subset_resource, to_unicode_stream;
     cairo_pdf_font_t font;
     cairo_status_t status;
-    unsigned long length, compressed_length;
-    char *compressed;
+    unsigned long length;
     unsigned int i;
 
     subset_resource = _cairo_pdf_surface_get_font_resource (surface,
@@ -3067,35 +3022,22 @@ _cairo_pdf_surface_emit_type1_font (cairo_pdf_surface_t		*surface,
 
     /* We ignore the zero-trailer and set Length3 to 0. */
     length = subset->header_length + subset->data_length;
-    compressed = compress_dup (subset->data, length, &compressed_length);
-    if (compressed == NULL)
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    status = _cairo_pdf_surface_open_stream (surface,
+					     NULL,
+					     TRUE,
+					     "   /Length1 %lu\r\n"
+					     "   /Length2 %lu\r\n"
+					     "   /Length3 0\r\n",
+					     subset->header_length,
+					     subset->data_length);
+    if (status)
+	return status;
 
-    stream = _cairo_pdf_surface_new_object (surface);
-    if (stream.id == 0) {
-	free (compressed);
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    }
-
-    _cairo_output_stream_printf (surface->output,
-				 "%d 0 obj\r\n"
-				 "<< /Filter /FlateDecode\r\n"
-				 "   /Length %lu\r\n"
-				 "   /Length1 %lu\r\n"
-				 "   /Length2 %lu\r\n"
-				 "   /Length3 0\r\n"
-				 ">>\r\n"
-				 "stream\r\n",
-				 stream.id,
-				 compressed_length,
-				 subset->header_length,
-				 subset->data_length);
-    _cairo_output_stream_write (surface->output, compressed, compressed_length);
-    _cairo_output_stream_printf (surface->output,
-				 "\r\n"
-				 "endstream\r\n"
-				 "endobj\r\n");
-    free (compressed);
+    stream = surface->pdf_stream.self;
+    _cairo_output_stream_write (surface->output, subset->data, length);
+    status = _cairo_pdf_surface_close_stream (surface);
+    if (status)
+	return status;
 
     status = _cairo_pdf_surface_emit_to_unicode_stream (surface,
 	                                                font_subset, FALSE,
@@ -3223,8 +3165,6 @@ _cairo_pdf_surface_emit_truetype_font_subset (cairo_pdf_surface_t		*surface,
     cairo_status_t status;
     cairo_pdf_font_t font;
     cairo_truetype_subset_t subset;
-    unsigned long compressed_length;
-    char *compressed;
     unsigned int i;
 
     subset_resource = _cairo_pdf_surface_get_font_resource (surface,
@@ -3237,35 +3177,24 @@ _cairo_pdf_surface_emit_truetype_font_subset (cairo_pdf_surface_t		*surface,
     if (status)
 	return status;
 
-    compressed = compress_dup (subset.data, subset.data_length,
-			       &compressed_length);
-    if (compressed == NULL) {
+    status = _cairo_pdf_surface_open_stream (surface,
+					     NULL,
+					     TRUE,
+					     "   /Length1 %lu\r\n",
+					     subset.data_length);
+    if (status) {
 	_cairo_truetype_subset_fini (&subset);
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return status;
     }
 
-    stream = _cairo_pdf_surface_new_object (surface);
-    if (stream.id == 0) {
-	free (compressed);
+    stream = surface->pdf_stream.self;
+    _cairo_output_stream_write (surface->output,
+				subset.data, subset.data_length);
+    status = _cairo_pdf_surface_close_stream (surface);
+    if (status) {
 	_cairo_truetype_subset_fini (&subset);
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return status;
     }
-    _cairo_output_stream_printf (surface->output,
-				 "%d 0 obj\r\n"
-				 "<< /Filter /FlateDecode\r\n"
-				 "   /Length %lu\r\n"
-				 "   /Length1 %lu\r\n"
-				 ">>\r\n"
-				 "stream\r\n",
-				 stream.id,
-				 compressed_length,
-				 subset.data_length);
-    _cairo_output_stream_write (surface->output, compressed, compressed_length);
-    _cairo_output_stream_printf (surface->output,
-				 "\r\n"
-				 "endstream\r\n"
-				 "endobj\r\n");
-    free (compressed);
 
     status = _cairo_pdf_surface_emit_to_unicode_stream (surface,
 	                                                font_subset, TRUE,
@@ -3895,7 +3824,18 @@ static cairo_status_t
 _cairo_pdf_surface_write_smask_group (cairo_pdf_surface_t     *surface,
 				      cairo_pdf_smask_group_t *group)
 {
+    double old_width, old_height;
+    cairo_matrix_t old_cairo_to_pdf;
     cairo_status_t status;
+
+    old_width = surface->width;
+    old_height = surface->height;
+    old_cairo_to_pdf = surface->cairo_to_pdf;
+    surface->width = group->width;
+    surface->height = group->height;
+    cairo_matrix_init (&surface->cairo_to_pdf, 1, 0, 0, -1, 0, surface->height);
+    _cairo_pdf_operators_set_cairo_to_pdf_matrix (&surface->pdf_operators,
+						  &surface->cairo_to_pdf);
 
     /* _mask is a special case that requires two groups - source
      * and mask as well as a smask and gstate dictionary */
@@ -3928,11 +3868,11 @@ _cairo_pdf_surface_write_smask_group (cairo_pdf_surface_t     *surface,
 					    group->fill_rule);
 	break;
     case PDF_STROKE:
-	status = _cairo_pdf_operator_stroke (&surface->pdf_operators,
-					     &group->path,
-					     group->style,
-					     &group->ctm,
-					     &group->ctm_inverse);
+	status = _cairo_pdf_operators_stroke (&surface->pdf_operators,
+					      &group->path,
+					      group->style,
+					      &group->ctm,
+					      &group->ctm_inverse);
 	break;
     case PDF_SHOW_GLYPHS:
 	status = _cairo_pdf_operators_show_glyphs (&surface->pdf_operators,
@@ -3945,8 +3885,15 @@ _cairo_pdf_surface_write_smask_group (cairo_pdf_surface_t     *surface,
 	return status;
 
     _cairo_pdf_surface_unselect_pattern (surface);
+    status = _cairo_pdf_surface_close_group (surface, NULL);
 
-    return _cairo_pdf_surface_close_group (surface, NULL);
+    surface->width = old_width;
+    surface->height = old_height;
+    surface->cairo_to_pdf = old_cairo_to_pdf;
+    _cairo_pdf_operators_set_cairo_to_pdf_matrix (&surface->pdf_operators,
+						  &surface->cairo_to_pdf);
+
+    return status;
 }
 
 static cairo_status_t
@@ -4422,11 +4369,11 @@ _cairo_pdf_surface_stroke (void			*abstract_surface,
 	if (status)
 	    return status;
 
-	status = _cairo_pdf_operator_stroke (&surface->pdf_operators,
-					     path,
-					     style,
-					     ctm,
-					     ctm_inverse);
+	status = _cairo_pdf_operators_stroke (&surface->pdf_operators,
+					      path,
+					      style,
+					      ctm,
+					      ctm_inverse);
 	if (status)
 	    return status;
 
@@ -4514,6 +4461,97 @@ _cairo_pdf_surface_fill (void			*abstract_surface,
 
 	_cairo_pdf_surface_unselect_pattern (surface);
     }
+
+    return _cairo_output_stream_get_status (surface->output);
+}
+
+static cairo_int_status_t
+_cairo_pdf_surface_fill_stroke (void		     *abstract_surface,
+				cairo_operator_t      fill_op,
+				cairo_pattern_t	     *fill_source,
+				cairo_fill_rule_t     fill_rule,
+				double		      fill_tolerance,
+				cairo_antialias_t     fill_antialias,
+				cairo_path_fixed_t   *path,
+				cairo_operator_t      stroke_op,
+				cairo_pattern_t	     *stroke_source,
+				cairo_stroke_style_t *stroke_style,
+				cairo_matrix_t	     *stroke_ctm,
+				cairo_matrix_t	     *stroke_ctm_inverse,
+				double		      stroke_tolerance,
+				cairo_antialias_t     stroke_antialias)
+{
+    cairo_pdf_surface_t *surface = abstract_surface;
+    cairo_status_t status;
+    cairo_pdf_resource_t fill_pattern_res, stroke_pattern_res, gstate_res;
+
+    /* During analysis we return unsupported and let the _fill and
+     * _stroke functions that are on the fallback path do the analysis
+     * for us. During render we may still encounter unsupported
+     * combinations of fill/stroke patterns. However we can return
+     * unsupported anytime to let the _fill and _stroke functions take
+     * over.
+     */
+    if (surface->paginated_mode == CAIRO_PAGINATED_MODE_ANALYZE)
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    /* Fill-stroke with patterns requiring an SMask are not currently
+     * implemented. Non opaque stroke patterns are not supported
+     * because the PDF fill-stroke operator does not blend a
+     * transparent stroke with the fill.
+     */
+    if (fill_source->type == CAIRO_PATTERN_TYPE_LINEAR ||
+        fill_source->type == CAIRO_PATTERN_TYPE_RADIAL)
+    {
+        if (!_cairo_pattern_is_opaque (fill_source))
+	    return CAIRO_INT_STATUS_UNSUPPORTED;
+    }
+    if (!_cairo_pattern_is_opaque (stroke_source))
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    fill_pattern_res.id = 0;
+    gstate_res.id = 0;
+    status = _cairo_pdf_surface_add_pdf_pattern (surface, fill_source,
+						 &fill_pattern_res,
+						 &gstate_res);
+    if (status)
+	return status;
+
+    assert (gstate_res.id == 0);
+
+    stroke_pattern_res.id = 0;
+    gstate_res.id = 0;
+    status = _cairo_pdf_surface_add_pdf_pattern (surface,
+						 stroke_source,
+						 &stroke_pattern_res,
+						 &gstate_res);
+    if (status)
+	return status;
+
+    assert (gstate_res.id == 0);
+
+    /* As PDF has separate graphics state for fill and stroke we can
+     * select both at the same time */
+    status = _cairo_pdf_surface_select_pattern (surface, fill_source,
+						fill_pattern_res, FALSE);
+    if (status)
+	return status;
+
+    status = _cairo_pdf_surface_select_pattern (surface, stroke_source,
+						stroke_pattern_res, TRUE);
+    if (status)
+	return status;
+
+    status = _cairo_pdf_operators_fill_stroke (&surface->pdf_operators,
+					       path,
+					       fill_rule,
+					       stroke_style,
+					       stroke_ctm,
+					       stroke_ctm_inverse);
+    if (status)
+	return status;
+
+    _cairo_pdf_surface_unselect_pattern (surface);
 
     return _cairo_output_stream_get_status (surface->output);
 }
@@ -4635,6 +4673,7 @@ static const cairo_surface_backend_t cairo_pdf_surface_backend = {
 
     NULL, /* is_compatible */
     NULL, /* reset */
+    _cairo_pdf_surface_fill_stroke,
 };
 
 static const cairo_paginated_surface_backend_t cairo_pdf_surface_paginated_backend = {

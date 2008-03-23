@@ -266,6 +266,7 @@ public:
                    nsHTMLReflowMetrics* aKidMetrics,
                    PRBool aAssumeVScroll, PRBool aAssumeHScroll,
                    PRBool aForce, nsresult* aResult);
+  PRBool ScrolledContentDependsOnHeight(ScrollReflowState* aState);
   nsresult ReflowScrolledFrame(ScrollReflowState* aState,
                                PRBool aAssumeHScroll,
                                PRBool aAssumeVScroll,
@@ -274,6 +275,7 @@ public:
   nsresult ReflowContents(ScrollReflowState* aState,
                           const nsHTMLReflowMetrics& aDesiredSize);
   void PlaceScrollArea(const ScrollReflowState& aState);
+  nscoord GetIntrinsicVScrollbarWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -388,6 +390,7 @@ protected:
   void SetSuppressScrollbarUpdate(PRBool aSuppress) {
     mInner.mSupppressScrollbarUpdate = aSuppress;
   }
+  PRBool GuessHScrollbarNeeded(const ScrollReflowState& aState);
   PRBool GuessVScrollbarNeeded(const ScrollReflowState& aState);
   nsSize GetScrollPortSize() const
   {

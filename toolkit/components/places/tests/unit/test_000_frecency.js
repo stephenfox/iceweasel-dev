@@ -24,6 +24,7 @@ version(180);
  *   Matt Crocker <matt@songbirdnest.com>
  *   Seth Spitzer <sspitzer@mozilla.org>
  *   Dietrich Ayala <dietrich@mozilla.com>
+ *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -167,6 +168,8 @@ bucketPrefs.every(function(bucket) {
 // sort results by frecency
 results.sort(function(a,b) a[1] - b[1]);
 results.reverse();
+// Make sure there's enough results returned
+prefs.setIntPref("browser.urlbar.maxRichResults", results.length);
 
 //results.every(function(el) { dump("result: " + el[1] + ": " + el[0].spec + " (" + el[2] + ")\n"); return true; })
 
@@ -193,6 +196,7 @@ AutoCompleteInput.prototype = {
     return this.searches[aIndex];
   },
   
+  onSearchBegin: function() {},
   onSearchComplete: function() {},
   
   popupOpen: false,  
@@ -234,7 +238,14 @@ function run_test() {
   // Search is asynchronous, so don't let the test finish immediately
   do_test_pending();
 
+  var numSearchesStarted = 0;
+  input.onSearchBegin = function() {
+    numSearchesStarted++;
+    do_check_eq(numSearchesStarted, 1);
+  };
+
   input.onSearchComplete = function() {
+    do_check_eq(numSearchesStarted, 1);
     do_check_eq(controller.searchStatus, 
                 Ci.nsIAutoCompleteController.STATUS_COMPLETE_MATCH);
 
@@ -243,8 +254,19 @@ function run_test() {
 
     // test that matches are sorted by frecency
     for (var i = 0; i < controller.matchCount; i++) {
-      do_check_eq(controller.getValueAt(i), results[i][0].spec);
-      do_check_eq(controller.getCommentAt(i), results[i][2]);
+      let searchURL = controller.getValueAt(i);
+      let expectURL = results[i][0].spec;
+      if (searchURL == expectURL) {
+        do_check_eq(controller.getValueAt(i), results[i][0].spec);
+        do_check_eq(controller.getCommentAt(i), results[i][2]);
+      } else {
+        // If the results didn't match exactly, perhaps it's still the right
+        // frecency just in the wrong "order" (order of same frecency is
+        // undefined), so check if frecency matches. This is okay because we
+        // can still ensure the correct number of expected frecencies.
+        let getFrecency = function(aURL) aURL.match(/frecency:(-?\d+)$/)[1];
+        do_check_eq(getFrecency(searchURL), getFrecency(expectURL));
+      }
     }
 
     do_test_finished();

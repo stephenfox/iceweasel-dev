@@ -44,7 +44,7 @@ const MOUSE_SCROLL_IS_HORIZONTAL = 1 << 2;
 
 // One of the possible values for the mousewheel.* preferences.
 // From nsEventStateManager.cpp.
-const MOUSE_SCROLL_FULLZOOM = 5;
+const MOUSE_SCROLL_ZOOM = 3;
 
 /**
  * Controls the "full zoom" setting and its site-specific preferences.
@@ -79,13 +79,24 @@ var FullZoom = {
                        getService(Ci.nsIContentPrefService);
   },
 
+  get _prefBranch FullZoom_get__prefBranch() {
+    delete this._prefBranch;
+    return this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                              getService(Ci.nsIPrefBranch2);
+  },
+
+  // browser.zoom.siteSpecific preference cache
+  siteSpecific: undefined,
+
 
   //**************************************************************************//
   // nsISupports
 
   // We can't use the Ci shortcut here because it isn't defined yet.
   interfaces: [Components.interfaces.nsIDOMEventListener,
+               Components.interfaces.nsIObserver,
                Components.interfaces.nsIContentPrefObserver,
+               Components.interfaces.nsISupportsWeakReference,
                Components.interfaces.nsISupports],
 
   QueryInterface: function FullZoom_QueryInterface(aIID) {
@@ -104,9 +115,16 @@ var FullZoom = {
 
     // Register ourselves with the service so we know when our pref changes.
     this._cps.addObserver(this.name, this);
+
+    // Listen for changes to the browser.zoom.siteSpecific preference so we can
+    // enable/disable per-site saving and restoring of zoom levels accordingly.
+    this.siteSpecific =
+      this._prefBranch.getBoolPref("browser.zoom.siteSpecific");
+    this._prefBranch.addObserver("browser.zoom.siteSpecific", this, true);
   },
 
   destroy: function FullZoom_destroy() {
+    this._prefBranch.removeObserver("browser.zoom.siteSpecific", this);
     this._cps.removeObserver(this.name, this);
     window.removeEventListener("DOMMouseScroll", this, false);
     delete this._cps;
@@ -149,7 +167,7 @@ var FullZoom = {
     // Don't do anything if this isn't a "zoom" scroll event.
     var isZoomEvent = false;
     try {
-      isZoomEvent = (gPrefService.getIntPref(pref) == MOUSE_SCROLL_FULLZOOM);
+      isZoomEvent = (gPrefService.getIntPref(pref) == MOUSE_SCROLL_ZOOM);
     } catch (e) {}
     if (!isZoomEvent)
       return;
@@ -162,6 +180,21 @@ var FullZoom = {
     // the event before the event state manager has a chance to apply the zoom
     // during nsEventStateManager::PostHandleEvent.
     window.setTimeout(function (self) { self._applySettingToPref() }, 0, this);
+  },
+
+  // nsIObserver
+
+  observe: function (aSubject, aTopic, aData) {
+    switch(aTopic) {
+      case "nsPref:changed":
+        switch(aData) {
+          case "browser.zoom.siteSpecific":
+            this.siteSpecific =
+              this._prefBranch.getBoolPref("browser.zoom.siteSpecific");
+            break;
+        }
+        break;
+    }
   },
 
   // nsIContentPrefObserver
@@ -202,6 +235,13 @@ var FullZoom = {
     this._applyPrefToSetting(this._cps.getPref(aURI, this.name));
   },
 
+  // update state of zoom type menu item
+
+  updateMenu: function FullZoom_updateMenu() {
+    var menuItem = document.getElementById("toggle_zoom");
+
+    menuItem.setAttribute("checked", !ZoomManager.useFullZoom);
+  },
 
   //**************************************************************************//
   // Setting & Pref Manipulation
@@ -218,7 +258,7 @@ var FullZoom = {
 
   reset: function FullZoom_reset() {
     if (typeof this.globalValue != "undefined")
-      ZoomManager.fullZoom = this.globalValue;
+      ZoomManager.zoom = this.globalValue;
     else
       ZoomManager.reset();
 
@@ -250,26 +290,26 @@ var FullZoom = {
    * one.
    **/
   _applyPrefToSetting: function FullZoom__applyPrefToSetting(aValue) {
-    if (gInPrintPreviewMode)
+    if (!this.siteSpecific || gInPrintPreviewMode)
       return;
 
     try {
       if (typeof aValue != "undefined")
-        ZoomManager.fullZoom = this._ensureValid(aValue);
+        ZoomManager.zoom = this._ensureValid(aValue);
       else if (typeof this.globalValue != "undefined")
-        ZoomManager.fullZoom = this.globalValue;
+        ZoomManager.zoom = this.globalValue;
       else
-        ZoomManager.fullZoom = 1;
+        ZoomManager.zoom = 1;
     }
     catch(ex) {}
   },
 
   _applySettingToPref: function FullZoom__applySettingToPref() {
-    if (gInPrintPreviewMode)
+    if (!this.siteSpecific || gInPrintPreviewMode)
       return;
 
-    var fullZoom = ZoomManager.fullZoom;
-    this._cps.setPref(gBrowser.currentURI, this.name, fullZoom);
+    var zoomLevel = ZoomManager.zoom;
+    this._cps.setPref(gBrowser.currentURI, this.name, zoomLevel);
   },
 
   _removePref: function FullZoom__removePref() {

@@ -65,6 +65,7 @@
 
 #include "nsCRT.h"
 
+#include <locale.h>
 #include <freetype/tttables.h>
 
 #include <cairo.h>
@@ -163,8 +164,6 @@ gfxPangoFontGroup::gfxPangoFontGroup (const nsAString& families,
     // best match.
     ForEachFontInternal(families, aStyle->langGroup, PR_TRUE, PR_FALSE,
                         FontCallback, &familyArray);
-
-    FindGenericFontFromStyle(PR_FALSE, FontCallback, &familyArray);
 
     // Construct a string suitable for fontconfig
     nsAutoString fcFamilies;
@@ -376,14 +375,18 @@ gfxPangoFont::GetOrMakeFont(PangoFont *aPangoFont)
         (g_object_get_qdata(G_OBJECT(aPangoFont), GetFontQuark()));
 
     if (!font) {
-        PangoFontDescription *desc =
-            pango_font_describe_with_absolute_size(aPangoFont);
+        // pango_font_describe_with_absolute_size requires Pango-1.14
+        PangoFontDescription *desc = pango_font_describe(aPangoFont);
+
+        PangoFcFont *fcfont = PANGO_FC_FONT(aPangoFont);
+        double size;
+        if (FcPatternGetDouble(fcfont->font_pattern, FC_PIXEL_SIZE, 0, &size)
+            != FcResultMatch)
+            size = pango_font_description_get_size(desc) / FLOAT_PANGO_SCALE;
 
         // Shouldn't actually need to take too much care about the correct
         // family or style, as size is the only thing expected to be
         // important.
-        gfxFloat size =
-            pango_font_description_get_size(desc) / FLOAT_PANGO_SCALE;
         PRUint8 style =
             PangoStyleToThebesStyle(pango_font_description_get_style(desc));
         PRUint16 weight = pango_font_description_get_weight(desc);
@@ -542,12 +545,13 @@ gfxPangoFont::GetMetrics()
     if (NS_LIKELY(GetStyle()->size > 0.0)) {
         font = GetPangoFont(); // RealizePangoFont is called here.
         PangoLanguage *lang = GetPangoLanguage(GetStyle()->langGroup);
+        // If lang is NULL, Pango will measure a string of many languages,
+        // which will require many FcFontSorts, but we don't want to go to
+        // that much trouble.
+        // pango_language_get_default() is available from Pango-1.16.
+        if (!lang)
+            lang = pango_language_from_string(setlocale(LC_CTYPE, NULL));
 
-        // XXX
-        // 1.18 null is fine
-        // 1.16 might want to use pango_language_get_default if lang is null here.
-        // earlier we want to use something other than null where possible.
-        //
         pfm = pango_font_get_metrics(font, lang);
     } else {
         // Don't ask pango when the font-size is zero since it causes
@@ -566,16 +570,15 @@ gfxPangoFont::GetMetrics()
         mMetrics.aveCharWidth =
             pango_font_metrics_get_approximate_char_width(pfm) / FLOAT_PANGO_SCALE;
 
-        gfxFloat temp =
+        mMetrics.underlineOffset =
             pango_font_metrics_get_underline_position(pfm) / FLOAT_PANGO_SCALE;
-        mMetrics.underlineOffset = PR_MIN(temp, -1.0);
-        
+
         mMetrics.underlineSize =
             pango_font_metrics_get_underline_thickness(pfm) / FLOAT_PANGO_SCALE;
-        
+
         mMetrics.strikeoutOffset =
             pango_font_metrics_get_strikethrough_position(pfm) / FLOAT_PANGO_SCALE;
-        
+
         mMetrics.strikeoutSize =
             pango_font_metrics_get_strikethrough_thickness(pfm) / FLOAT_PANGO_SCALE;
 
@@ -650,6 +653,8 @@ gfxPangoFont::GetMetrics()
         mMetrics.superscriptOffset = mMetrics.xHeight;
         mMetrics.subscriptOffset = mMetrics.xHeight;
     }
+
+    SanitizeMetrics(&mMetrics);
 
 #if 0
     //    printf("font name: %s %f %f\n", NS_ConvertUTF16toUTF8(mName).get(), GetStyle()->size, mAdjustedSize);
@@ -831,7 +836,12 @@ CreateScaledFont(cairo_t *aCR, cairo_matrix_t *aCTM, PangoFont *aPangoFont)
     if (FcPatternGetDouble(fcfont->font_pattern, FC_PIXEL_SIZE, 0, &size) != FcResultMatch)
         size = 12.0;
     cairo_matrix_t fontMatrix;
-    cairo_matrix_init_scale(&fontMatrix, size, size);
+    FcMatrix *fcMatrix;
+    if (FcPatternGetMatrix(fcfont->font_pattern, FC_MATRIX, 0, &fcMatrix) == FcResultMatch)
+        cairo_matrix_init(&fontMatrix, fcMatrix->xx, -fcMatrix->yx, -fcMatrix->xy, fcMatrix->yy, 0, 0);
+    else
+        cairo_matrix_init_identity(&fontMatrix);
+    cairo_matrix_scale(&fontMatrix, size, size);
     cairo_font_options_t *fontOptions = cairo_font_options_create();
     cairo_get_font_options(aCR, fontOptions);
     cairo_scaled_font_t *scaledFont =

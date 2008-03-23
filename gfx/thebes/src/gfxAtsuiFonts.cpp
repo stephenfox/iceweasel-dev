@@ -93,7 +93,7 @@ eFontPrefLang GetFontPrefLangFor(PRUint8 aUnicodeRange);
 gfxAtsuiFont::gfxAtsuiFont(MacOSFontEntry *aFontEntry,
                            const gfxFontStyle *fontStyle)
     : gfxFont(aFontEntry->Name(), fontStyle),
-      mFontStyle(fontStyle), mFontEntry(aFontEntry), mATSUStyle(nsnull),
+      mFontStyle(fontStyle), mATSUStyle(nsnull), mFontEntry(aFontEntry),
       mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE), mAdjustedSize(0.0f)
 {
     ATSUFontID fontID = mFontEntry->GetFontID();
@@ -218,9 +218,8 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
         mMetrics.maxAdvance = mMetrics.aveCharWidth;
     }
 
-    mMetrics.underlineOffset = -mMetrics.maxDescent - atsMetrics.underlinePosition * size;
-    // ATSUI sometimes returns 0 for underline thickness, see bug 361576.
-    mMetrics.underlineSize = PR_MAX(1.0, atsMetrics.underlineThickness * size);
+    mMetrics.underlineOffset = atsMetrics.underlinePosition * size;
+    mMetrics.underlineSize = atsMetrics.underlineThickness * size;
 
     mMetrics.subscriptOffset = mMetrics.xHeight;
     mMetrics.superscriptOffset = mMetrics.xHeight;
@@ -231,6 +230,8 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     PRUint32 glyphID;
     mMetrics.spaceWidth = GetCharWidth(' ', &glyphID);
     mSpaceGlyph = glyphID;
+
+    SanitizeMetrics(&mMetrics);
 
 #if 0
     fprintf (stderr, "Font: %p size: %f (fixed: %d)", this, size, gfxQuartzFontCache::SharedFontCache()->IsFixedPitch(aFontID));
@@ -424,6 +425,8 @@ gfxAtsuiFontGroup::gfxAtsuiFontGroup(const nsAString& families,
             mFonts.AppendElement(font);
         }
     }
+    
+    mPageLang = gfxPlatform::GetFontPrefLangFor(mStyle.langGroup.get());
 }
 
 PRBool
@@ -691,14 +694,19 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
     // get the pref font list if it hasn't been set up already
     PRUint32 unicodeRange = FindCharUnicodeRange(aCh);
     eFontPrefLang charLang = GetFontPrefLangFor(unicodeRange);
-    eFontPrefLang pageLang = gfxPlatform::GetFontPrefLangFor(mStyle.langGroup.get());    
+
+    // if the last pref font was the first family in the pref list, no need to recheck through a list of families
+    if (mLastPrefFont && charLang == mLastPrefLang && mLastPrefFirstFont && mLastPrefFont->TestCharacterMap(aCh)) {
+        nsRefPtr<gfxAtsuiFont> prefFont = mLastPrefFont;
+        return prefFont.forget();
+    }
     
     // based on char lang and page lang, set up list of pref lang fonts to check
     eFontPrefLang prefLangs[kMaxLenPrefLangList];
     PRUint32 i, numLangs = 0;
     
     gfxPlatformMac *macPlatform = gfxPlatformMac::GetPlatform();
-    macPlatform->GetLangPrefs(prefLangs, numLangs, charLang, pageLang);
+    macPlatform->GetLangPrefs(prefLangs, numLangs, charLang, mPageLang);
     
     for (i = 0; i < numLangs; i++) {
         nsAutoTArray<nsRefPtr<MacOSFamilyEntry>, 5> families;
@@ -721,13 +729,28 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
         for (i = 0; i < numPrefs; i++) {
             // look up the appropriate face
             MacOSFamilyEntry *family = families[i];
-            if (family) {
-                MacOSFontEntry *fe = family->FindFont(&mStyle);
-                // if ch in cmap, create and return a gfxFont
-                if (fe && fe->TestCharacterMap(aCh)) {
-                    return GetOrMakeFont(fe, &mStyle);
-                }
+            if (!family) continue;
+            
+            // if a pref font is used, it's likely to be used again in the same text run.
+            // the style doesn't change so the face lookup can be cached rather than calling
+            // GetOrMakeFont repeatedly.  speeds up FindFontForChar lookup times for subsequent
+            // pref font lookups
+            if (family == mLastPrefFamily && mLastPrefFont->TestCharacterMap(aCh)) {
+                nsRefPtr<gfxAtsuiFont> prefFont = mLastPrefFont;
+                return prefFont.forget();
             }
+            
+            MacOSFontEntry *fe = family->FindFont(&mStyle);
+            // if ch in cmap, create and return a gfxFont
+            if (fe && fe->TestCharacterMap(aCh)) {
+                nsRefPtr<gfxAtsuiFont> prefFont = GetOrMakeFont(fe, &mStyle);
+                mLastPrefFamily = family;
+                mLastPrefFont = prefFont;
+                mLastPrefLang = charLang;
+                mLastPrefFirstFont == (i == 0);
+                return prefFont.forget();
+            }
+
         }
     }
     
@@ -899,10 +922,10 @@ SetGlyphsForCharacterGroup(ATSLayoutRecord *aGlyphs, PRUint32 aGlyphCount,
     // Also make them not be cluster boundaries, i.e., fuse them into a cluster,
     // if the glyphs are out of character order.
     for (offset = firstOffset + 2; offset <= lastOffset; offset += 2) {
-        PRUint32 index = offset/2;        
-        PRBool makeClusterStart = inOrder && aRun->IsClusterStart(index);
+        PRUint32 charIndex = aSegmentStart + offset/2;
+        PRBool makeClusterStart = inOrder && aRun->IsClusterStart(charIndex);
         g.SetComplex(makeClusterStart, PR_FALSE, 0);
-        aRun->SetGlyphs(aSegmentStart + index, g, nsnull);
+        aRun->SetGlyphs(charIndex, g, nsnull);
     }
 
     // Grab total advance for all glyphs
@@ -912,7 +935,8 @@ SetGlyphsForCharacterGroup(ATSLayoutRecord *aGlyphs, PRUint32 aGlyphCount,
         if (advance >= 0 &&
             (!aBaselineDeltas || aBaselineDeltas[displayGlyph - aGlyphs] == 0) &&
             gfxTextRun::CompressedGlyph::IsSimpleAdvance(advance) &&
-            gfxTextRun::CompressedGlyph::IsSimpleGlyphID(displayGlyph->glyphID)) {
+            gfxTextRun::CompressedGlyph::IsSimpleGlyphID(displayGlyph->glyphID) &&
+            aRun->IsClusterStart(charIndex)) {
             aRun->SetSimpleGlyph(charIndex, g.SetSimpleGlyph(advance, displayGlyph->glyphID));
             return;
         }

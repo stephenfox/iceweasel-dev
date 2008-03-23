@@ -91,7 +91,7 @@ interface nsIDOMSVGFEComponentTransferElement : nsIDOMSVGFilterPrimitiveStandard
     readonly attribute nsIDOMSVGAnimatedString in1;
 };
 
-[scriptable, uuid(dfdb8833-0e7d-407d-acac-18e563ea94e8)]
+[scriptable, uuid(cb615c0f-8d4a-4e30-9695-a3dd6f4216ee)]
 interface nsIDOMSVGComponentTransferFunctionElement : nsIDOMSVGElement
 {
     // Component Transfer Types
@@ -109,8 +109,6 @@ interface nsIDOMSVGComponentTransferFunctionElement : nsIDOMSVGElement
     readonly attribute nsIDOMSVGAnimatedNumber      amplitude;
     readonly attribute nsIDOMSVGAnimatedNumber      exponent;
     readonly attribute nsIDOMSVGAnimatedNumber      offset;
-
-    [noscript] void GenerateLookupTable(out PRUint8 aTable);
 };
 
 [scriptable, uuid(6FF3C539-1A3B-4a3f-8ACD-354D349EB7FC)]
@@ -184,10 +182,9 @@ interface nsIDOMSVGFEOffsetElement : nsIDOMSVGFilterPrimitiveStandardAttributes 
     readonly attribute nsIDOMSVGAnimatedNumber dy;
 };
 
-[scriptable, uuid(4d507655-08c4-4726-8887-308a18ebbf2b)]
+[scriptable, uuid(2743af95-28c5-429d-9812-12b7b017887e)]
 interface nsIDOMSVGFEFloodElement : nsIDOMSVGFilterPrimitiveStandardAttributes
 {
-    readonly attribute nsIDOMSVGAnimatedString in1;
 };
 
 [scriptable, uuid(ed042a81-39fc-4c89-9385-75758a2434b5)]

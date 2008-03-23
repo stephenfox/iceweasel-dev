@@ -97,6 +97,19 @@ placesTransactionsService.prototype = {
   },
 
   removeItem: function placesRmItem(id) {
+    if (id == PlacesUtils.tagsFolderId || id == PlacesUtils.placesRootId ||
+        id == PlacesUtils.bookmarksMenuFolderId ||
+        id == PlacesUtils.toolbarFolderId)
+      throw Cr.NS_ERROR_INVALID_ARG;
+
+    // if the item lives within a tag container, use the tagging transactions
+    var parent = PlacesUtils.bookmarks.getFolderIdForItem(id);
+    var grandparent = PlacesUtils.bookmarks.getFolderIdForItem(parent);
+    if (grandparent == PlacesUtils.tagsFolderId) {
+      var uri = PlacesUtils.bookmarks.getBookmarkURI(id);
+      return this.untagURI(uri, [parent]);
+    }
+
     return new placesRemoveItemTransaction(id);
   },
 
@@ -144,8 +157,8 @@ placesTransactionsService.prototype = {
     return new placesEditItemLastModifiedTransaction(aID, aNewLastModified);
   },
 
-  sortFolderByName: function placesSortFldrByName(aFolderId, aFolderIndex) {
-    return new placesSortFolderByNameTransactions(aFolderId, aFolderIndex);
+  sortFolderByName: function placesSortFldrByName(aFolderId) {
+    return new placesSortFolderByNameTransactions(aFolderId);
   },
 
   tagURI: function placesTagURI(aURI, aTags) {
@@ -805,9 +818,8 @@ placesEditItemLastModifiedTransaction.prototype = {
   }
 };
 
-function placesSortFolderByNameTransactions(aFolderId, aFolderIndex) {
+function placesSortFolderByNameTransactions(aFolderId) {
   this._folderId = aFolderId;
-  this._folderIndex = aFolderIndex;
   this._oldOrder = null,
   this.redoTransaction = this.doTransaction;
 }
@@ -866,6 +878,7 @@ placesSortFolderByNameTransactions.prototype = {
 function placesTagURITransaction(aURI, aTags) {
   this._uri = aURI;
   this._tags = aTags;
+  this._unfiledItemId = -1;
   this.redoTransaction = this.doTransaction;
 }
 
@@ -873,10 +886,22 @@ placesTagURITransaction.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PTU_doTransaction() {
+    if (PlacesUtils.getBookmarksForURI(this._uri).length == 0) {
+      // Force an unfiled bookmark first
+      this.__unfiledItemId =
+        PlacesUtils.bookmarks
+                   .insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
+                                   this._uri, -1,
+                                   PlacesUtils.history.getPageTitle(this._uri));
+    }
     PlacesUtils.tagging.tagURI(this._uri, this._tags);
   },
 
   undoTransaction: function PTU_undoTransaction() {
+    if (this.__unfiledItemId != -1) {
+      PlacesUtils.bookmarks.removeItem(this.__unfiledItemId);
+      this.__unfiledItemId = -1;
+    }
     PlacesUtils.tagging.untagURI(this._uri, this._tags);
   }
 };

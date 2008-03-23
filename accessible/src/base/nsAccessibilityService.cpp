@@ -41,6 +41,7 @@
 #include "nsAccessibilityService.h"
 #include "nsAccessibilityUtils.h"
 #include "nsARIAMap.h"
+#include "nsIContentViewer.h"
 #include "nsCURILoader.h"
 #include "nsDocAccessible.h"
 #include "nsHTMLImageAccessibleWrap.h"
@@ -155,10 +156,21 @@ nsAccessibilityService::Observe(nsISupports *aSubject, const char *aTopic,
       observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
     }
     nsCOMPtr<nsIWebProgress> progress(do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID));
-    if (progress) {
+    if (progress)
       progress->RemoveProgressListener(static_cast<nsIWebProgressListener*>(this));
-    }
     nsAccessNodeWrap::ShutdownAccessibility();
+    // Cancel and release load timers
+    while (mLoadTimers.Count() > 0 ) {
+      nsCOMPtr<nsITimer> timer = mLoadTimers.ObjectAt(0);
+      void *closure = nsnull;
+      timer->GetClosure(&closure);
+      if (closure) {
+        nsIWebProgress *webProgress = static_cast<nsIWebProgress*>(closure);
+        NS_RELEASE(webProgress);  // Release nsIWebProgress for timer
+      }
+      timer->Cancel();
+      mLoadTimers.RemoveObjectAt(0);
+    }
   }
   return NS_OK;
 }
@@ -169,58 +181,92 @@ NS_IMETHODIMP nsAccessibilityService::OnStateChange(nsIWebProgress *aWebProgress
 {
   NS_ASSERTION(aStateFlags & STATE_IS_DOCUMENT, "Other notifications excluded");
 
-  if (0 == (aStateFlags & (STATE_START | STATE_STOP))) {
+  if (!aWebProgress || 0 == (aStateFlags & (STATE_START | STATE_STOP))) {
     return NS_OK;
   }
+  
+  nsCAutoString name;
+  aRequest->GetName(name);
+  if (name.EqualsLiteral("about:blank"))
+    return NS_OK;
 
+  if (NS_FAILED(aStatus) && (aStateFlags & STATE_START))
+    return NS_OK;
+ 
+  nsCOMPtr<nsITimer> timer = do_CreateInstance("@mozilla.org/timer;1");
+  if (!timer)
+    return NS_OK;
+  mLoadTimers.AppendObject(timer);
+  NS_ADDREF(aWebProgress);
+
+  if (aStateFlags & STATE_START)
+    timer->InitWithFuncCallback(StartLoadCallback, aWebProgress, 0,
+                                nsITimer::TYPE_ONE_SHOT);
+  else if (NS_SUCCEEDED(aStatus)) 
+    timer->InitWithFuncCallback(EndLoadCallback, aWebProgress, 0,
+                                nsITimer::TYPE_ONE_SHOT);
+  else // Failed end load
+    timer->InitWithFuncCallback(FailedLoadCallback, aWebProgress, 0,
+                                nsITimer::TYPE_ONE_SHOT);
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsAccessibilityService::ProcessDocLoadEvent(nsITimer *aTimer, void *aClosure, PRUint32 aEventType)
+{
   nsCOMPtr<nsIDOMWindow> domWindow;
-  aWebProgress->GetDOMWindow(getter_AddRefs(domWindow));
-  NS_ASSERTION(domWindow, "DOM Window for state change is null");
-  NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
+  nsIWebProgress *webProgress = static_cast<nsIWebProgress*>(aClosure);
+  webProgress->GetDOMWindow(getter_AddRefs(domWindow));
+  NS_RELEASE(webProgress);
+  mLoadTimers.RemoveObject(aTimer);
+  NS_ENSURE_STATE(domWindow);
 
-  nsCOMPtr<nsIDOMDocument> domDoc;
-  domWindow->GetDocument(getter_AddRefs(domDoc));
-  nsCOMPtr<nsIDOMNode> domDocRootNode(do_QueryInterface(domDoc));
-  NS_ENSURE_TRUE(domDocRootNode, NS_ERROR_FAILURE);
-
-  // Get the accessible for the new document.
-  // If it not created yet this will create it & cache it, as well as 
-  // set up event listeners so that MSAA/ATK toolkit and internal 
-  // accessibility events will get fired.
-  nsCOMPtr<nsIAccessible> accessible;
-  GetAccessibleFor(domDocRootNode, getter_AddRefs(accessible));
-  nsCOMPtr<nsPIAccessibleDocument> docAccessible =
-    do_QueryInterface(accessible);
-  NS_ENSURE_TRUE(docAccessible, NS_ERROR_FAILURE);
-
-  PRUint32 eventType = 0;
-  if ((aStateFlags & STATE_STOP) && NS_SUCCEEDED(aStatus)) {
-    eventType = nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE;
-  } else if ((aStateFlags & STATE_STOP) && (aStatus & NS_BINDING_ABORTED)) {
-    eventType = nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED;
-  } else if (aStateFlags & STATE_START) {
-    eventType = nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START;
+  if (aEventType == nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START) {
     nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(domWindow));
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(webNav));
-    NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
+    NS_ENSURE_STATE(docShell);
     PRUint32 loadType;
     docShell->GetLoadType(&loadType);
     if (loadType == LOAD_RELOAD_NORMAL ||
         loadType == LOAD_RELOAD_BYPASS_CACHE ||
         loadType == LOAD_RELOAD_BYPASS_PROXY ||
         loadType == LOAD_RELOAD_BYPASS_PROXY_AND_CACHE) {
-      eventType = nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD;
+      aEventType = nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD;
     }
   }
       
-  if (eventType == 0)
-    return NS_OK; //no actural event need to be fired
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  domWindow->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDOMNode> docNode = do_QueryInterface(domDoc);
+  NS_ENSURE_STATE(docNode);
 
-  if (docAccessible) {
-    docAccessible->FireDocLoadEvents(eventType);
-  }
+  nsCOMPtr<nsIAccessible> accessible;
+  GetAccessibleFor(docNode, getter_AddRefs(accessible));
+  nsCOMPtr<nsPIAccessibleDocument> privDocAccessible = do_QueryInterface(accessible);
+  NS_ENSURE_STATE(privDocAccessible);
+  privDocAccessible->FireDocLoadEvents(aEventType);
 
   return NS_OK;
+}
+
+void nsAccessibilityService::StartLoadCallback(nsITimer *aTimer, void *aClosure)
+{
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  if (accService)
+    accService->ProcessDocLoadEvent(aTimer, aClosure, nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START);
+}
+
+void nsAccessibilityService::EndLoadCallback(nsITimer *aTimer, void *aClosure)
+{
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  if (accService)
+    accService->ProcessDocLoadEvent(aTimer, aClosure, nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
+}
+
+void nsAccessibilityService::FailedLoadCallback(nsITimer *aTimer, void *aClosure)
+{
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  if (accService)
+    accService->ProcessDocLoadEvent(aTimer, aClosure, nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED);
 }
 
 /* void onProgressChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in long aCurSelfProgress, in long aMaxSelfProgress, in long aCurTotalProgress, in long aMaxTotalProgress); */
@@ -368,6 +414,25 @@ nsAccessibilityService::CreateRootAccessible(nsIPresShell *aShell,
   nsCOMPtr<nsIWeakReference> weakShell(do_GetWeakReference(presShell));
 
   nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIContentViewer> contentViewer;
+  docShell->GetContentViewer(getter_AddRefs(contentViewer));
+  NS_ENSURE_TRUE(contentViewer, NS_ERROR_FAILURE); // Doc was already shut down
+  PRUint32 busyFlags;
+  docShell->GetBusyFlags(&busyFlags);
+  if (busyFlags != nsIDocShell::BUSY_FLAGS_NONE) {
+    nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(docShell));
+    nsCOMPtr<nsIURI> uri;
+    webNav->GetCurrentURI(getter_AddRefs(uri));
+    NS_ENSURE_STATE(uri);
+    nsCAutoString url;
+    uri->GetSpec(url);
+    if (url.EqualsLiteral("about:blank")) {
+      return NS_OK;  // No load events for a busy about:blank -- they are often temporary
+    }
+  }
+
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
     do_QueryInterface(container);
   NS_ENSURE_TRUE(docShellTreeItem, NS_ERROR_FAILURE);
@@ -1441,7 +1506,8 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
           if (!tableAccessible && !content->IsFocusable()) {
 #ifdef DEBUG
             nsRoleMapEntry *tableRoleMapEntry = nsAccUtils::GetRoleMapEntry(tableNode);
-            NS_ASSERTION(roleMapEntry && !nsCRT::strcmp(roleMapEntry->roleString, "presentation"),
+            NS_ASSERTION(tableRoleMapEntry &&
+                         !nsCRT::strcmp(tableRoleMapEntry->roleString, "presentation"),
                          "No accessible for parent table and it didn't have role of presentation");
 #endif
             // Table-related descendants of presentation table are also presentation
@@ -1450,7 +1516,8 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
           }
           if (tableAccessible && nsAccessible::Role(tableAccessible) != nsIAccessibleRole::ROLE_TABLE) {
             NS_ASSERTION(!roleMapEntry, "Should not be changing ARIA role, just overriding impl class role");
-            roleMapEntry = &nsARIAMap::gLandmarkRoleMap; // Not in table: override role (roleMap entry was null)
+            // Not in table: override role (roleMap entry was null).
+            roleMapEntry = &nsARIAMap::gEmptyRoleMap;
           }
           break;
         }
@@ -1458,7 +1525,8 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
           // Stop before we are fooled by any additional table ancestors
           // This table cell frameis part of a separate ancestor table.
           NS_ASSERTION(!roleMapEntry, "Should not be changing ARIA role, just overriding impl class role");
-          roleMapEntry = &nsARIAMap::gLandmarkRoleMap; // Not in table: override role
+          // Not in table: override role (roleMap entry was null).
+          roleMapEntry = &nsARIAMap::gEmptyRoleMap;
           break;
         }
       }
@@ -1501,9 +1569,9 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   // correspond to the doc accessible and will be created in any case
   if (!newAcc && content->Tag() != nsAccessibilityAtoms::body && content->GetParent() && 
       (content->IsFocusable() ||
-      (isHTML && nsAccUtils::HasListener(content, NS_LITERAL_STRING("click"))) ||
-       HasUniversalAriaProperty(content, aWeakShell) || roleMapEntry) ||
-       HasRelatedContent(content)) {
+       (isHTML && nsAccUtils::HasListener(content, NS_LITERAL_STRING("click"))) ||
+       HasUniversalAriaProperty(content, aWeakShell) || roleMapEntry ||
+       HasRelatedContent(content))) {
     // This content is focusable or has an interesting dynamic content accessibility property.
     // If it's interesting we need it in the accessibility hierarchy so that events or
     // other accessibles can point to it, or so that it can hold a state, etc.
@@ -1684,6 +1752,9 @@ nsresult nsAccessibilityService::GetAccessibleByType(nsIDOMNode *aNode,
       break;
     case nsIAccessibleProvider::XULListbox:
       *aAccessible = new nsXULListboxAccessible(aNode, weakShell);
+      break;
+    case nsIAccessibleProvider::XULListCell:
+      *aAccessible = new nsXULListCellAccessible(aNode, weakShell);
       break;
     case nsIAccessibleProvider::XULListHead:
       *aAccessible = new nsXULColumnsAccessible(aNode, weakShell);

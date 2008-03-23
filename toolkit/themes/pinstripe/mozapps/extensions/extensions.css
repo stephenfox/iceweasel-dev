@@ -62,6 +62,10 @@ richlistitem[selected="true"] {
   color: HighlightText;
 }
 
+richlistitem[selected="true"] .text-link {
+  color: inherit;
+}
+
 richlistitem[selected="true"][isDisabled="true"] {
   background-image: url("chrome://mozapps/skin/extensions/itemDisabledFader.png");
 }
@@ -238,6 +242,8 @@ richlistitem[opType="needs-uninstall"] .notifyBadge {
 
 .addonMissingThumbnail {
   color: GrayText;
+  font-size: larger;
+  font-weight: bold;
 }
 
 .addonFailure {

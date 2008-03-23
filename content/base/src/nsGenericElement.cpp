@@ -84,6 +84,7 @@
 #include "nsXULElement.h"
 #endif /* MOZ_XUL */
 #include "nsFrameManager.h"
+#include "nsFrameSelection.h"
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
@@ -117,6 +118,9 @@
 #include "nsIDOMNSFeatureFactory.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMUserDataHandler.h"
+#include "nsIDOMNSEditableElement.h"
+#include "nsIEditor.h"
+#include "nsIEditorDocShell.h"
 #include "nsEventDispatcher.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIFocusController.h"
@@ -311,6 +315,101 @@ nsINode::IsEditableInternal() const
   return doc && doc->HasFlag(NODE_IS_EDITABLE);
 }
 
+static nsIContent* GetEditorRootContent(nsIEditor* aEditor)
+{
+  nsCOMPtr<nsIDOMElement> rootElement;
+  aEditor->GetRootElement(getter_AddRefs(rootElement));
+  nsCOMPtr<nsIContent> rootContent(do_QueryInterface(rootElement));
+  return rootContent;
+}
+
+nsIContent*
+nsINode::GetTextEditorRootContent(nsIEditor** aEditor)
+{
+  if (aEditor)
+    *aEditor = nsnull;
+  for (nsINode* node = this; node; node = node->GetNodeParent()) {
+    nsCOMPtr<nsIDOMNSEditableElement> editableElement(do_QueryInterface(node));
+    if (!editableElement)
+      continue;
+
+    nsCOMPtr<nsIEditor> editor;
+    nsresult rv = editableElement->GetEditor(getter_AddRefs(editor));
+    NS_ENSURE_TRUE(editor, nsnull);
+    nsIContent* rootContent = GetEditorRootContent(editor);
+    if (aEditor)
+      editor.swap(*aEditor);
+    return rootContent;
+  }
+  return nsnull;
+}
+
+static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext)
+{
+  nsCOMPtr<nsISupports> container = aPresContext->GetContainer();
+  nsCOMPtr<nsIEditorDocShell> editorDocShell(do_QueryInterface(container));
+  PRBool isEditable;
+  if (!editorDocShell ||
+      NS_FAILED(editorDocShell->GetEditable(&isEditable)) || !isEditable)
+    return nsnull;
+
+  nsCOMPtr<nsIEditor> editor;
+  editorDocShell->GetEditor(getter_AddRefs(editor));
+  return editor;
+}
+
+nsIContent*
+nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
+{
+  NS_ENSURE_TRUE(aPresShell, nsnull);
+
+  if (IsNodeOfType(eDOCUMENT))
+    return static_cast<nsIDocument*>(this)->GetRootContent();
+  if (!IsNodeOfType(eCONTENT))
+    return nsnull;
+
+  nsIFrame* frame =
+    aPresShell->GetPrimaryFrameFor(static_cast<nsIContent*>(this));
+  if (frame && frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION) {
+    // This node should be a descendant of input/textarea editor.
+    nsIContent* content = GetTextEditorRootContent();
+    if (content)
+      return content;
+    NS_ERROR("Editor is not found!");
+  }
+
+  nsPresContext* presContext = aPresShell->GetPresContext();
+  if (presContext) {
+    nsIEditor* editor = GetHTMLEditor(presContext);
+    if (editor) {
+      // This node is in HTML editor.
+      nsIDocument* doc = GetCurrentDoc();
+      if (!doc || doc->HasFlag(NODE_IS_EDITABLE) || !HasFlag(NODE_IS_EDITABLE))
+        return GetEditorRootContent(editor);
+      // If the current document is not editable, but current content is
+      // editable, we should assume that the child of the nearest non-editable
+      // ancestor is selection root.
+      nsIContent* content = static_cast<nsIContent*>(this);
+      for (nsIContent* parent = GetParent();
+           parent && parent->HasFlag(NODE_IS_EDITABLE);
+           parent = content->GetParent())
+        content = parent;
+      return content;
+    }
+  }
+
+  nsCOMPtr<nsFrameSelection> fs = aPresShell->FrameSelection();
+  nsIContent* content = fs->GetLimiter();
+  if (content)
+    return content;
+  content = fs->GetAncestorLimiter();
+  if (content)
+    return content;
+  nsIDocument* doc = aPresShell->GetDocument();
+  NS_ENSURE_TRUE(doc, nsnull);
+  return doc->GetRootContent();
+}
+
 //----------------------------------------------------------------------
 
 PRInt32
@@ -326,6 +425,37 @@ nsIContent::UpdateEditableState()
   nsIContent *parent = GetParent();
 
   SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
+}
+
+nsIContent*
+nsIContent::FindFirstNonNativeAnonymous() const
+{
+  // This handles also nested native anonymous content.
+  nsIContent* content = GetBindingParent();
+  nsIContent* possibleResult = 
+    !IsNativeAnonymous() ? const_cast<nsIContent*>(this) : nsnull;
+  while (content) {
+    if (content->IsNativeAnonymous()) {
+      content = possibleResult = content->GetParent();
+    } else {
+      content = content->GetBindingParent();
+    }
+  }
+
+  return possibleResult;
+}
+
+PRBool
+nsIContent::IsInNativeAnonymousSubtree() const
+{
+  nsIContent* content = GetBindingParent();
+  while (content) {
+    if (content->IsNativeAnonymous()) {
+      return PR_TRUE;
+    }
+    content = content->GetBindingParent();
+  }
+  return PR_FALSE;
 }
 
 //----------------------------------------------------------------------
@@ -680,19 +810,16 @@ nsNSElementTearoff::GetElementsByClassName(const nsAString& aClasses,
   return nsDocument::GetElementsByClassNameHelper(mContent, aClasses, aReturn);
 }
 
-static nsPoint
-GetOffsetFromInitialContainingBlock(nsIFrame* aFrame)
+static nsIFrame*
+GetContainingBlockForClientRect(nsIFrame* aFrame)
 {
-  nsIFrame* refFrame = aFrame->GetParent();
-  if (!refFrame)
-    return nsPoint(0, 0);
-
   // get the nearest enclosing SVG foreign object frame or the root frame
-  while (refFrame->GetParent() &&
-         !refFrame->IsFrameOfType(nsIFrame::eSVGForeignObject))
-    refFrame = refFrame->GetParent();
+  while (aFrame->GetParent() &&
+         !aFrame->IsFrameOfType(nsIFrame::eSVGForeignObject)) {
+    aFrame = aFrame->GetParent();
+  }
 
-  return aFrame->GetOffsetTo(refFrame);
+  return aFrame;
 }
 
 static double
@@ -717,25 +844,6 @@ SetTextRectangle(const nsRect& aLayoutRect, nsPresContext* aPresContext,
                  RoundFloat(aLayoutRect.YMost()*t2pScaled)*scaleInv - y);
 }
 
-static PRBool
-TryGetSVGBoundingRect(nsIFrame* aFrame, nsRect* aRect)
-{
-#ifdef MOZ_SVG
-  nsRect r;
-  nsIFrame* outer = nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(aFrame, &r);
-  if (!outer)
-    return PR_FALSE;
-
-  // r is in pixels relative to 'outer', get it into twips
-  // relative to ICB origin
-  r.ScaleRoundOut(1.0/aFrame->PresContext()->AppUnitsPerDevPixel());
-  *aRect = r + GetOffsetFromInitialContainingBlock(outer);
-  return PR_TRUE;
-#else
-  return PR_FALSE;
-#endif
-}
-
 NS_IMETHODIMP
 nsNSElementTearoff::GetBoundingClientRect(nsIDOMTextRectangle** aResult)
 {
@@ -751,75 +859,44 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMTextRectangle** aResult)
     // display:none, perhaps? Return the empty rect
     return NS_OK;
   }
+
   nsPresContext* presContext = frame->PresContext();
-  
-  nsRect r;
-  if (TryGetSVGBoundingRect(frame, &r)) {
-    // Currently SVG frames don't have continuations but I don't want things to
-    // break if that changes.
-    while ((frame = nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame)) != nsnull) {
-      nsRect nextRect;
-#ifdef DEBUG
-      PRBool isSVG =
-#endif
-        TryGetSVGBoundingRect(frame, &nextRect);
-      NS_ASSERTION(isSVG, "SVG frames must have SVG continuations");
-      r.UnionRect(r, nextRect);
-    }
-  } else {
-    // The weird frame layout of tables requires this
-    if (frame->GetType() == nsGkAtoms::tableOuterFrame) {
-      nsIFrame* innerTable = frame->GetFirstChild(nsnull);
-      if (innerTable) {
-        r = nsLayoutUtils::GetAllInFlowBoundingRect(innerTable) + innerTable->GetPosition();
-      }
-      nsIFrame* caption = frame->GetFirstChild(nsGkAtoms::captionList);
-      if (caption) {
-        r.UnionRect(r, nsLayoutUtils::GetAllInFlowBoundingRect(caption) + caption->GetPosition());
-      }
-    } else {
-      r = nsLayoutUtils::GetAllInFlowBoundingRect(frame);
-    }
-    r += GetOffsetFromInitialContainingBlock(frame);
-  }
+  nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(frame,
+          GetContainingBlockForClientRect(frame));
   SetTextRectangle(r, presContext, rect);
   return NS_OK;
 }
 
-static nsresult
-AddRectanglesForFrames(nsTextRectangleList* aRectList, nsIFrame* aFrame)
-{
-  if (!aFrame)
-    return NS_OK;
+struct RectListBuilder : public nsLayoutUtils::RectCallback {
+  nsPresContext*       mPresContext;
+  nsTextRectangleList* mRectList;
+  nsresult             mRV;
 
-  nsPresContext* presContext = aFrame->PresContext();
-  for (nsIFrame* f = aFrame; f;
-       f = nsLayoutUtils::GetNextContinuationOrSpecialSibling(f)) {
+  RectListBuilder(nsPresContext* aPresContext, nsTextRectangleList* aList) 
+    : mPresContext(aPresContext), mRectList(aList),
+      mRV(NS_OK) {}
+
+  virtual void AddRect(const nsRect& aRect) {
     nsRefPtr<nsTextRectangle> rect = new nsTextRectangle();
-    if (!rect)
-      return NS_ERROR_OUT_OF_MEMORY;
-    
-    nsRect r;
-    if (!TryGetSVGBoundingRect(f, &r)) {
-      r = nsRect(GetOffsetFromInitialContainingBlock(f), f->GetSize());
+    if (!rect) {
+      mRV = NS_ERROR_OUT_OF_MEMORY;
+      return;
     }
-    SetTextRectangle(r, presContext, rect);
-    aRectList->Append(rect);
+    
+    SetTextRectangle(aRect, mPresContext, rect);
+    mRectList->Append(rect);
   }
-
-  return NS_OK;
-}
+};
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetClientRects(nsIDOMTextRectangleList** aResult)
 {
   *aResult = nsnull;
 
-  // Weak ref, since we addref it below
   nsRefPtr<nsTextRectangleList> rectList = new nsTextRectangleList();
   if (!rectList)
     return NS_ERROR_OUT_OF_MEMORY;
-  
+
   nsIFrame* frame = mContent->GetPrimaryFrame(Flush_Layout);
   if (!frame) {
     // display:none, perhaps? Return an empty list
@@ -827,21 +904,11 @@ nsNSElementTearoff::GetClientRects(nsIDOMTextRectangleList** aResult)
     return NS_OK;
   }
 
-  if (frame->GetType() == nsGkAtoms::tableOuterFrame) {
-    // The weird frame layout of tables requires this
-    nsIFrame* innerTable = frame->GetFirstChild(nsnull);
-    nsresult rv = AddRectanglesForFrames(rectList, innerTable);
-    if (NS_FAILED(rv))
-      return rv;
-    nsIFrame* caption = frame->GetFirstChild(nsGkAtoms::captionList);
-    rv = AddRectanglesForFrames(rectList, caption);
-    if (NS_FAILED(rv))
-      return rv;
-  } else {
-    nsresult rv = AddRectanglesForFrames(rectList, frame);
-    if (NS_FAILED(rv))
-      return rv;
-  }
+  RectListBuilder builder(frame->PresContext(), rectList);
+  nsLayoutUtils::GetAllInFlowRects(frame,
+          GetContainingBlockForClientRect(frame), &builder);
+  if (NS_FAILED(builder.mRV))
+    return builder.mRV;
   *aResult = rectList.forget().get();
   return NS_OK;
 }
@@ -1974,11 +2041,11 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_PRECONDITION(!aParent || !aDocument ||
                   !aParent->HasFlag(NODE_FORCE_XBL_BINDINGS),
                   "Parent in document but flagged as forcing XBL");
-  // XXXbz XUL's SetNativeAnonymous is all weird, so can't assert
-  // anything here
-  NS_PRECONDITION(IsNodeOfType(eXUL) ||
-                  aBindingParent != this || IsNativeAnonymous(),
+  NS_PRECONDITION(aBindingParent != this || IsNativeAnonymous(),
                   "Only native anonymous content should have itself as its "
+                  "own binding parent");
+  NS_PRECONDITION(!IsNativeAnonymous() || aBindingParent == this,
+                  "Native anonymous content must have itself as its "
                   "own binding parent");
   
   if (!aBindingParent && aParent) {
@@ -2173,24 +2240,6 @@ nsGenericElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsGenericElement::doPreHandleEvent(this, aVisitor);
 }
 
-static nsIContent*
-FindFirstNonAnonContent(nsIContent* aContent)
-{
-  while (aContent && aContent->IsNativeAnonymous()) {
-    aContent = aContent->GetParent();
-  }
-  return aContent;
-}
-
-static PRBool
-IsInAnonContent(nsIContent* aContent)
-{
-  while (aContent && !aContent->IsNativeAnonymous()) {
-    aContent = aContent->GetParent();
-  }
-  return !!aContent;
-}
-
 nsresult
 nsGenericElement::doPreHandleEvent(nsIContent* aContent,
                                    nsEventChainPreVisitor& aVisitor)
@@ -2216,10 +2265,12 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
       // must be updated.
       if (isAnonForEvents || aVisitor.mRelatedTargetIsInAnon ||
           (aVisitor.mEvent->originalTarget == aContent &&
-           (aVisitor.mRelatedTargetIsInAnon = IsInAnonContent(relatedTarget)))) {
-        nsIContent* nonAnon = FindFirstNonAnonContent(aContent);
+           (aVisitor.mRelatedTargetIsInAnon =
+            relatedTarget->IsInNativeAnonymousSubtree()))) {
+        nsIContent* nonAnon = aContent->FindFirstNonNativeAnonymous();
         if (nonAnon) {
-          nsIContent* nonAnonRelated = FindFirstNonAnonContent(relatedTarget);
+          nsIContent* nonAnonRelated =
+            relatedTarget->FindFirstNonNativeAnonymous();
           if (nonAnonRelated) {
             if (nonAnon == nonAnonRelated ||
                 nsContentUtils::ContentIsDescendantOf(nonAnonRelated, nonAnon)) {
@@ -2639,22 +2690,29 @@ nsGenericElement::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 
   nsresult rv;
   nsINode* container = NODE_FROM(aParent, aDocument);
-  if (!container->HasSameOwnerDoc(aKid)) {
-    if (aKid->GetOwnerDoc()) {
-      return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
-    }
 
+  if (!container->HasSameOwnerDoc(aKid)) {
     nsCOMPtr<nsIDOMNode> kid = do_QueryInterface(aKid, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-
+ 
     PRUint16 nodeType = 0;
     rv = kid->GetNodeType(&nodeType);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // DocumentType nodes are the only nodes that can have a null ownerDocument
-    // according to the DOM spec, and we need to allow inserting them.
-    if (nodeType != nsIDOMNode::DOCUMENT_TYPE_NODE) {
-      return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
+    nsCOMPtr<nsIDOM3Document> domDoc =
+      do_QueryInterface(container->GetOwnerDoc());
+
+    // DocumentType nodes are the only nodes that can have a null
+    // ownerDocument according to the DOM spec, and we need to allow
+    // inserting them w/o calling AdoptNode().
+
+    if (domDoc && (nodeType != nsIDOMNode::DOCUMENT_TYPE_NODE ||
+                   aKid->GetOwnerDoc())) {
+      nsCOMPtr<nsIDOMNode> adoptedKid;
+      rv = domDoc->AdoptNode(kid, getter_AddRefs(adoptedKid));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      NS_ASSERTION(adoptedKid == kid, "Uh, adopt node changed nodes?");
     }
   }
 
@@ -3155,16 +3213,20 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
 
-  if (!container->HasSameOwnerDoc(newContent)) {
-    // DocumentType nodes are the only nodes that can have a null ownerDocument
-    // according to the DOM spec, and we need to allow inserting them.
-    if (nodeType != nsIDOMNode::DOCUMENT_TYPE_NODE ||
-        newContent->GetOwnerDoc()) {
-      return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
-    }
+  // DocumentType nodes are the only nodes that can have a null
+  // ownerDocument according to the DOM spec, and we need to allow
+  // inserting them w/o calling AdoptNode().
+  if (!container->HasSameOwnerDoc(newContent) &&
+      (nodeType != nsIDOMNode::DOCUMENT_TYPE_NODE ||
+       newContent->GetOwnerDoc())) {
+    nsCOMPtr<nsIDOM3Document> domDoc = do_QueryInterface(aDocument);
 
-    if (!nsContentUtils::CanCallerAccess(aNewChild)) {
-      return NS_ERROR_DOM_SECURITY_ERR;
+    if (domDoc) {
+      nsCOMPtr<nsIDOMNode> adoptedKid;
+      nsresult rv = domDoc->AdoptNode(aNewChild, getter_AddRefs(adoptedKid));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      NS_ASSERTION(adoptedKid == aNewChild, "Uh, adopt node changed nodes?");
     }
   }
 
@@ -3400,7 +3462,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
-      slots->mAttributeMap = nsnull;
+      if (slots->mAttributeMap) {
+        slots->mAttributeMap->DropReference();
+        slots->mAttributeMap = nsnull;
+      }
       if (tmp->IsNodeOfType(nsINode::eXUL))
         NS_IF_RELEASE(slots->mControllers);
     }
@@ -3451,6 +3516,28 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGenericElement)
+  NS_INTERFACE_MAP_ENTRY(nsIContent)
+  NS_INTERFACE_MAP_ENTRY(nsINode)
+  NS_INTERFACE_MAP_ENTRY(nsPIDOMEventTarget)
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Node, new nsNode3Tearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNSElement, new nsNSElementTearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMEventTarget,
+                                 nsDOMEventRTTearoff::Create(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3EventTarget,
+                                 nsDOMEventRTTearoff::Create(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNSEventTarget,
+                                 nsDOMEventRTTearoff::Create(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
+                                 new nsNodeSupportsWeakRefTearoff(this))
+  // nsNodeSH::PreCreate() depends on the identity pointer being the
+  // same as nsINode (which nsIContent inherits), so if you change the
+  // below line, make sure nsNodeSH::PreCreate() still does the right
+  // thing!
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)
+NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsGenericElement, nsIContent)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS_WITH_DESTROY(nsGenericElement, 

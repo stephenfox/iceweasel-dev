@@ -41,6 +41,10 @@
   -moz-margin-end: 5px;
 }
 
+#checkUpdatesAllButton {
+  list-style-image: none !important;
+}
+
 #installFileButton, #installUpdatesAllButton {
   -moz-image-region: rect(0px, 84px, 21px, 63px);
 }
@@ -50,11 +54,8 @@
   -moz-image-region: rect(21px, 84px, 42px, 63px);
 }
 
-#checkUpdatesAllButton, #showUpdateInfoButton, #hideUpdateInfoButton {
+#showUpdateInfoButton, #hideUpdateInfoButton {
   -moz-image-region: rect(0px, 63px, 21px, 42px);
-}
-#checkUpdatesAllButton[disabled="true"] {
-  -moz-image-region: rect(21px, 63px, 42px, 42px);
 }
 
 #restartAppButton {
@@ -103,6 +104,10 @@ richlistitem[isDisabled="true"] {
 richlistitem[selected="true"] {
   background-color: -moz-cellhighlight;
   color: -moz-cellhighlighttext;
+}
+
+richlistitem[selected="true"] .text-link {
+  color: inherit;
 }
 
 #extensionsView:focus > richlistitem[selected="true"] {
@@ -281,6 +286,8 @@ richlistitem[opType="needs-uninstall"] .notifyBadge {
 
 .addonMissingThumbnail {
   color: GrayText;
+  font-size: larger;
+  font-weight: bold;
 }
 
 .addonFailure {
@@ -301,33 +308,33 @@ richlistitem[opType="needs-uninstall"] .notifyBadge {
 
 .addonRating[rating] {
   display: -moz-box;
-  width: 68px;
-  height: 12px;
+  width: 63px;
+  height: 11px;
   list-style-image: url("chrome://mozapps/skin/extensions/ratings.png");
 }
 
 .addonRating[rating="0"] {
-  -moz-image-region: rect(0px 68px 12px 0px);
+  -moz-image-region: rect(0px 63px 11px 0px);
 }
 
 .addonRating[rating="1"], .addonRating[rating="2"] {
-  -moz-image-region: rect(12px 68px 24px 0px);
+  -moz-image-region: rect(11px 63px 22px 0px);
 }
 
 .addonRating[rating="3"], .addonRating[rating="4"] {
-  -moz-image-region: rect(24px 68px 36px 0px);
+  -moz-image-region: rect(22px 63px 33px 0px);
 }
 
 .addonRating[rating="5"], .addonRating[rating="6"] {
-  -moz-image-region: rect(36px 68px 48px 0px);
+  -moz-image-region: rect(33px 63px 44px 0px);
 }
 
 .addonRating[rating="7"], .addonRating[rating="8"] {
-  -moz-image-region: rect(48px 68px 60px 0px);
+  -moz-image-region: rect(44px 63px 55px 0px);
 }
 
 .addonRating[rating="9"], .addonRating[rating="10"] {
-  -moz-image-region: rect(60px 68px 72px 0px);
+  -moz-image-region: rect(55px 63px 66px 0px);
 }
 
 .addonType image {

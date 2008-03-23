@@ -37,6 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <errno.h>
+#include <math.h>
+#include <stdlib.h>
+#include <time.h>
+
 #include "nsXFormsXPathFunctions.h"
 #include "nsAutoPtr.h"
 #include "nsComponentManagerUtils.h"
@@ -51,6 +56,7 @@
 #include "nsIClassInfoImpl.h"
 #include "nsIXFormsActionModuleElement.h"
 #include "nsIXFormsContextInfo.h"
+#include "prrng.h"
 
 #define NS_NAMESPACE_XFORMS "http://www.w3.org/2002/xforms"
 
@@ -499,23 +505,27 @@ nsXFormsXPathFunctions::Event(txIFunctionEvaluationContext *aContext,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIXFormsContextInfo> contextInfo;
-    nsCOMPtr<nsIXFormsActionModuleElement> actionElt = do_QueryInterface(xfNode);
-    if (actionElt) {
-      nsCOMPtr<nsIDOMEvent> domEvent;
-      actionElt->GetCurrentEvent(getter_AddRefs(domEvent));
-      nsCOMPtr<nsIXFormsDOMEvent> xfEvent = do_QueryInterface(domEvent);
-      if (!xfEvent) {
-        // Event being called for an nsIDOMEvent that is not an
-        // nsIXFormsDOMEvent.
-        result.swap(*aResult);
-        return NS_OK;
-      }
-      xfEvent->GetContextInfo(aName, getter_AddRefs(contextInfo));
-      if (!contextInfo) {
-        // The requested context info property does not exist.
-        result.swap(*aResult);
-        return NS_OK;
-      }
+    nsCOMPtr<nsIXFormsActionModuleElement> actionElt(do_QueryInterface(xfNode));
+    if (!actionElt) {
+      result.swap(*aResult);
+      return NS_OK;
+    }
+
+    nsCOMPtr<nsIDOMEvent> domEvent;
+    actionElt->GetCurrentEvent(getter_AddRefs(domEvent));
+    nsCOMPtr<nsIXFormsDOMEvent> xfEvent(do_QueryInterface(domEvent));
+    if (!xfEvent) {
+      // Event being called for an nsIDOMEvent that is not an
+      // nsIXFormsDOMEvent.
+      result.swap(*aResult);
+      return NS_OK;
+    }
+
+    xfEvent->GetContextInfo(aName, getter_AddRefs(contextInfo));
+    if (!contextInfo) {
+      // The requested context info property does not exist.
+      result.swap(*aResult);
+      return NS_OK;
     }
 
     // Determine the type of context info property.
@@ -562,3 +572,47 @@ nsXFormsXPathFunctions::Event(txIFunctionEvaluationContext *aContext,
 
     return NS_OK;
 }
+
+NS_IMETHODIMP
+nsXFormsXPathFunctions::Power(double aBase, double aExponent, double *aResult)
+{
+    double result = 0;
+
+    // If base is negative and exponent is not an integral value, or if base
+    // is zero and exponent is negative, a domain error occurs, setting the
+    // global variable errno to the value EDOM.
+    // If the result is too large (ERANGE), we consider the result to be kNaN.
+    result = pow(aBase, aExponent);
+    if (errno == EDOM || errno == ERANGE) {
+      result = kNaN;
+    }
+    *aResult = result;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXFormsXPathFunctions::Random(PRBool aSeed, double *aResult)
+{
+    if (aSeed) {
+      // initialize random seed.
+      PRUint32 seed = 0;
+      PRSize rSize = PR_GetRandomNoise(&seed, sizeof(seed));
+      if (rSize) {
+        srand (seed);
+      }
+    }
+    *aResult = (rand() / ((double)RAND_MAX + 1.0));
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXFormsXPathFunctions::Compare(const nsAString &aString1,
+                                const nsAString &aString2,
+                                double *aResult)
+{
+    *aResult = aString1.Compare(aString2);
+    return NS_OK;
+}
+

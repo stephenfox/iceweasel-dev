@@ -46,6 +46,7 @@
 #include "nsEventStateManager.h"
 #include "nsEventListenerManager.h"
 #include "nsIMEStateManager.h"
+#include "nsQueryContentEventHandler.h"
 #include "nsIContent.h"
 #include "nsINodeInfo.h"
 #include "nsIDocument.h"
@@ -215,9 +216,8 @@ enum {
  MOUSE_SCROLL_N_LINES,
  MOUSE_SCROLL_PAGE,
  MOUSE_SCROLL_HISTORY,
- MOUSE_SCROLL_TEXTSIZE,
- MOUSE_SCROLL_PIXELS,
- MOUSE_SCROLL_FULLZOOM
+ MOUSE_SCROLL_ZOOM,
+ MOUSE_SCROLL_PIXELS
 };
 
 // mask values for ui.key.chromeAccess and ui.key.contentAccess
@@ -225,6 +225,8 @@ enum {
 #define NS_MODIFIER_CONTROL  2
 #define NS_MODIFIER_ALT      4
 #define NS_MODIFIER_META     8
+
+static PRBool GetWindowShowCaret(nsIDocument *aDocument);
 
 static nsIDocument *
 GetDocumentFromWindow(nsIDOMWindow *aWindow)
@@ -1041,11 +1043,20 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
   case NS_LOSTFOCUS:
     {
-      // Hide the caret used in "browse with caret mode"
-      if (mBrowseWithCaret && mPresContext) {
+      // Hide the caret if it's visible.
+      if (mPresContext) {
         nsIPresShell *presShell = mPresContext->GetPresShell();
-        if (presShell)
-           SetContentCaretVisible(presShell, mCurrentFocus, PR_FALSE);
+        if (presShell) {
+           nsCOMPtr<nsICaret> caret;
+           presShell->GetCaret(getter_AddRefs(caret));
+           if (caret) {
+             PRBool caretVisible = PR_FALSE;
+             caret->GetCaretVisible(&caretVisible);
+             if (caretVisible) {
+               SetContentCaretVisible(presShell, mCurrentFocus, PR_FALSE);
+             }
+           }
+        }
       }
 
       // If focus is going to another mozilla window, we wait for the
@@ -1374,6 +1385,30 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
             ? nsIDOMNSUIEvent::SCROLL_PAGE_DOWN
             : nsIDOMNSUIEvent::SCROLL_PAGE_UP;
       }
+    }
+    break;
+  case NS_QUERY_SELECTED_TEXT:
+    {
+      nsQueryContentEventHandler handler(mPresContext);
+      handler.OnQuerySelectedText((nsQueryContentEvent*)aEvent);
+    }
+    break;
+  case NS_QUERY_TEXT_CONTENT:
+    {
+      nsQueryContentEventHandler handler(mPresContext);
+      handler.OnQueryTextContent((nsQueryContentEvent*)aEvent);
+    }
+    break;
+  case NS_QUERY_CHARACTER_RECT:
+    {
+      nsQueryContentEventHandler handler(mPresContext);
+      handler.OnQueryCharacterRect((nsQueryContentEvent*)aEvent);
+    }
+    break;
+  case NS_QUERY_CARET_RECT:
+    {
+      nsQueryContentEventHandler handler(mPresContext);
+      handler.OnQueryCaretRect((nsQueryContentEvent*)aEvent);
     }
     break;
   }
@@ -2025,8 +2060,8 @@ nsEventStateManager::ChangeFullZoom(PRInt32 change)
   NS_ENSURE_SUCCESS(rv, rv);
 
   float fullzoom;
-  float zoomMin = ((float)nsContentUtils::GetIntPref("fullZoom.minPercent", 50)) / 100;
-  float zoomMax = ((float)nsContentUtils::GetIntPref("fullZoom.maxPercent", 300)) / 100;
+  float zoomMin = ((float)nsContentUtils::GetIntPref("zoom.minPercent", 50)) / 100;
+  float zoomMax = ((float)nsContentUtils::GetIntPref("zoom.maxPercent", 300)) / 100;
   mv->GetFullZoom(&fullzoom);
   fullzoom += ((float)change) / 10;
   if (fullzoom < zoomMin)
@@ -2055,8 +2090,8 @@ nsEventStateManager::DoScrollHistory(PRInt32 direction)
 }
 
 void
-nsEventStateManager::DoScrollTextsize(nsIFrame *aTargetFrame,
-                                      PRInt32 adjustment)
+nsEventStateManager::DoScrollZoom(nsIFrame *aTargetFrame,
+                                  PRInt32 adjustment)
 {
   // Exclude form controls and XUL content.
   nsIContent *content = aTargetFrame->GetContent();
@@ -2064,23 +2099,13 @@ nsEventStateManager::DoScrollTextsize(nsIFrame *aTargetFrame,
       !content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
       !content->IsNodeOfType(nsINode::eXUL))
     {
-      // negative adjustment to increase text size, positive to decrease
-      ChangeTextSize((adjustment > 0) ? -1 : 1);
-    }
-}
+      // positive adjustment to decrease zoom, negative to increase
+      PRInt32 change = (adjustment > 0) ? -1 : 1;
 
-void
-nsEventStateManager::DoScrollFullZoom(nsIFrame *aTargetFrame,
-                                      PRInt32 adjustment)
-{
-  // Exclude form controls and XUL content.
-  nsIContent *content = aTargetFrame->GetContent();
-  if (content &&
-      !content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
-      !content->IsNodeOfType(nsINode::eXUL))
-    {
-      // negative adjustment to increase zoom, positive to decrease
-      ChangeFullZoom((adjustment > 0) ? -1 : 1);
+      if (nsContentUtils::GetBoolPref("browser.zoom.full"))
+        ChangeFullZoom(change);
+      else
+        ChangeTextSize(change);
     }
 }
 
@@ -2471,15 +2496,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         }
         break;
 
-      case MOUSE_SCROLL_TEXTSIZE:
+      case MOUSE_SCROLL_ZOOM:
         {
-          DoScrollTextsize(aTargetFrame, msEvent->delta);
-        }
-        break;
-
-      case MOUSE_SCROLL_FULLZOOM:
-        {
-          DoScrollFullZoom(aTargetFrame, msEvent->delta);
+          DoScrollZoom(aTargetFrame, msEvent->delta);
         }
         break;
 
@@ -4706,7 +4725,7 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
     }
   }
 
-  if (mBrowseWithCaret)
+  if (mBrowseWithCaret || GetWindowShowCaret(mDocument))
     SetContentCaretVisible(presShell, aContent, PR_TRUE);
 
   return NS_OK;
@@ -5334,6 +5353,7 @@ nsEventStateManager::SetCaretEnabled(nsIPresShell *aPresShell, PRBool aEnabled)
 
   selCon->SetCaretEnabled(aEnabled);
   caret->SetCaretVisible(aEnabled);
+  caret->SetIgnoreUserModify(aEnabled);
 
   return NS_OK;
 }
@@ -5365,9 +5385,6 @@ nsEventStateManager::SetContentCaretVisible(nsIPresShell* aPresShell,
       // First, tell the caret which selection to use
       caret->SetCaretDOMSelection(domSelection);
 
-      // Ignore user-modify status of nodes when browsing with caret
-      caret->SetIgnoreUserModify(aVisible);
-
       // In content, we need to set the caret
       // the only other case is edit fields, where they have a different frame selection from the doc's
       // in that case they'll take care of making the caret visible themselves
@@ -5380,11 +5397,30 @@ nsEventStateManager::SetContentCaretVisible(nsIPresShell* aPresShell,
   return NS_OK;
 }
 
-
 PRBool
 nsEventStateManager::GetBrowseWithCaret()
 {
   return mBrowseWithCaret;
+}
+
+// Checks if the window corresponding to |aDocument| has the 
+// showcaret="true" attribute set.
+static PRBool
+GetWindowShowCaret(nsIDocument *aDocument)
+{
+  if (!aDocument) return PR_FALSE;
+
+  nsPIDOMWindow* window = aDocument->GetWindow();
+  if (!window) return PR_FALSE;
+
+  nsCOMPtr<nsIContent> docContent =
+    do_QueryInterface(window->GetFrameElementInternal());
+  if (!docContent) return PR_FALSE;
+
+  return docContent->AttrValueIs(kNameSpaceID_None,
+                                 nsGkAtoms::showcaret,
+                                 NS_LITERAL_STRING("true"),
+                                 eCaseMatters);
 }
 
 void
@@ -5428,12 +5464,20 @@ nsEventStateManager::ResetBrowseWithCaret()
 
   mBrowseWithCaret = browseWithCaret;
 
-
-  // Make caret visible or not, depending on what's appropriate
-  // Set caret visibility for focused document only
-  // Others will be set when they get focused again
+  // Make caret visible or not, depending on what's appropriate.
+  // Set caret visibility for focused document only,
+  // others will be set when they get focused again
   if (presShell && gLastFocusedDocument && gLastFocusedDocument == mDocument) {
-    SetContentCaretVisible(presShell, mCurrentFocus, browseWithCaret);
+
+    // Contenteditable nodes should always have a caret.
+    PRBool isFocusEditable =
+      (mCurrentFocus) ? mCurrentFocus->HasFlag(NODE_IS_EDITABLE) : PR_FALSE;
+
+    PRBool caretShouldBeVisible = isFocusEditable ||
+                                  browseWithCaret ||
+                                  GetWindowShowCaret(mDocument);
+
+    SetContentCaretVisible(presShell, mCurrentFocus, caretShouldBeVisible);
   }
 }
 
