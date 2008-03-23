@@ -1,3 +1,9 @@
+iceweasel (3.0~b4-1) experimental; urgency=low
+
+  * New upstream beta release.
+
+ -- Eric Dorland <eric@debian.org>  Sun, 23 Mar 2008 18:56:03 -0400
+
 iceweasel (3.0~b3-1) experimental; urgency=low
 
   * New upstream beta release.
