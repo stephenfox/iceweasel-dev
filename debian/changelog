@@ -1,6 +1,11 @@
 iceweasel (3.0~b4-1) experimental; urgency=low
 
   * New upstream beta release.
+  
+  * debian/control:
+    - Sort the Build-Depends by alphabetical order and add proper linebreaks.
+    - Update Standards-Version to 3.7.3.
+    - Point Vcs-* headers at new Git repo.
 
  -- Eric Dorland <eric@debian.org>  Sun, 23 Mar 2008 18:56:03 -0400
 
