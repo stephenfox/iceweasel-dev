@@ -21,7 +21,7 @@ Architecture: any
 Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}
 Suggests: iceweasel-gnome-support (= ${binary:Version}), latex-xft-fonts, xprint, mozplugger, libkrb53
 Provides: www-browser
-Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1)
+Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1), iceweasel-dom-inspector (<< 3.0~b4)
 Replaces: mozilla-firefox, firefox (<< 2.0+dfsg-1)
 Description: lightweight web browser based on Mozilla
  Iceweasel is a redesign of the Mozilla browser component, similar to
@@ -31,14 +31,6 @@ Description: lightweight web browser based on Mozilla
  This browser is based on the Firefox source-code, with minor
  modifications. Historically, this browser was previously known as
  Firebird and Phoenix.
-
-Package: iceweasel-dom-inspector
-Architecture: all
-Depends: iceweasel (>= ${source:Version}), iceweasel (<< ${source:Version}.1~)
-Description: tool for inspecting the DOM of pages in Iceweasel
- This is a tool that allows you to inspect the DOM for web pages in
- Iceweasel.  This is of great use to people who are doing Mozilla chrome
- development or web page development.
 
 Package: iceweasel-gnome-support
 Architecture: any

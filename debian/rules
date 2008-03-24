@@ -202,7 +202,6 @@ install-stamp: build-stamp
 
 # Exclude gnome components from iceweasel
 	dh_install -piceweasel -Xgnome -Ximgicon
-	dh_install -piceweasel-dom-inspector
 	dh_install -piceweasel-gnome-support
 
 #Install helpers

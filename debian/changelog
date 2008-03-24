@@ -14,8 +14,12 @@ iceweasel (3.0~b4-1) experimental; urgency=low
     browser/locales/en-US/searchplugins/answers.xml,
     browser/locales/en-US/searchplugins/google.xml: Re-port a bunch of
     Firefox to Iceweasel renames.
+  * debian/iceweasel-dom-inspector.install,
+    debian/iceweasel-dom-inspector.links, debian/control, debian/rules:
+    The dom-inspector has been removed from 3.0, so remove the package and
+    conflict against the old one.
 
- -- Eric Dorland <eric@debian.org>  Sun, 23 Mar 2008 20:28:12 -0400
+ -- Eric Dorland <eric@debian.org>  Sun, 23 Mar 2008 23:09:32 -0400
 
 iceweasel (3.0~b3-1) experimental; urgency=low
 
