@@ -5,12 +5,14 @@ Maintainer: Eric Dorland <eric@debian.org>
 Uploaders: Mike Hommey <glandium@debian.org>
 Build-Depends: autotools-dev, binutils (>= 2.17-1) [mips mipsel],
 	debhelper (>= 5.0), dpkg-dev (>= 1.14.11) | dpkg-dev (<= 1.14.7),
-	imagemagick, libcairo2-dev, libfreetype6-dev, libgconf2-dev, libgnome2-dev,
+	imagemagick, libcairo2-dev (>= 1.5.2), libdbus-glib-1-dev,
+	libfreetype6-dev, libgconf2-dev, libgnome2-dev,
 	libgnomeui-dev, libgnomevfs2-dev,libgtk2.0-dev (>= 2.8),
 	libhunspell-dev (>= 1.1.5-2), libidl-dev (>= 0.8.0), libjpeg62-dev,
 	libnspr4-dev, libnss3-dev (>= 3.11.5-2), liborbit2-dev, libpng12-dev,
 	librsvg2-bin, libx11-dev, libxft-dev, libxinerama-dev, libxp-dev,
-	libxrender-dev, libxt-dev, m4, patch, sharutils, xsltproc, zlib1g-dev
+	libxrender-dev, libxt-dev, m4, patch, sharutils, xsltproc, zip,
+	zlib1g-dev
 Build-Conflicts: graphicsmagick-imagemagick-compat
 Standards-Version: 3.7.3
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git

@@ -1,3 +1,11 @@
+iceweasel (3.0~b4-2) experimental; urgency=low
+
+  * debian/control: Fix build dependencies, add zip and
+    libdbus-glib-1-dev, and tighten the cairo dependency. Thanks Michel
+    Dänzer. (Closes: #472467)
+
+ -- Eric Dorland <eric@debian.org>  Sun, 30 Mar 2008 03:27:52 -0400
+
 iceweasel (3.0~b4-1) experimental; urgency=low
 
   * New upstream beta release.
