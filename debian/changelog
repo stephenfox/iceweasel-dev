@@ -1,5 +1,9 @@
 iceweasel (3.0~b4-2) experimental; urgency=low
 
+  * debian/branding/*, debian/rules, debian/iceweasel.install: Use the
+    --with-branding flag, create a branding directory and generate all of
+    our snazy icons inside of it.
+  * debian/filter-globe.xsl: Remove, no longer needed.
   * debian/control: Fix build dependencies, add zip and
     libdbus-glib-1-dev, and tighten the cairo dependency. Thanks Michel
     Dänzer. (Closes: #472467)

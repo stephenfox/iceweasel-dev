@@ -80,11 +80,53 @@ CONFIGURE_OPTIONS = \
 	--disable-installer \
 	--disable-updater \
 	--disable-elf-dynstr-gc \
+	--with-branding=debian/branding \
 	$(DEBUG_FLAG)
 
 configure: config.status
 config.status:
 	dh_testdir
+
+# Build all branding images
+	(cd debian \
+		&& uudecode debsearch.png.uu \
+		&& uudecode aboutCredits.png.uu \
+		&& uudecode about.png.uu)
+
+	rsvg-convert -w 40 -h 40 -o debian/document_icon.png \
+		debian/iceweasel_icon.svg
+	composite -compose src-over -geometry -2+5 debian/document_icon.png \
+		browser/app/document.png debian/branding/document.png
+	convert debian/branding/document.png debian/branding/document.ico
+	rsvg-convert -w 128 -h 128 -o debian/branding/mozicon128.png \
+		debian/iceweasel_icon.svg
+	convert debian/branding/mozicon128.png debian/branding/firefox.ico
+	rsvg-convert -w 32 -h 32 -o debian/iceweasel.png debian/iceweasel_icon.svg
+	convert debian/iceweasel.png debian/iceweasel.xpm
+	cp -f debian/iceweasel.png debian/branding/default32.png
+	rsvg-convert -w 16 -h 16 -o debian/branding/default16.png \
+		debian/iceweasel_icon.svg
+	convert debian/branding/default16.png debian/branding/mozicon16.xpm
+
+	composite -compose src-over -gravity center -geometry +0-7 \
+		debian/branding/mozicon128.png debian/aboutCredits.png \
+		debian/branding/content/aboutCredits.png
+
+	rsvg-convert -w 256 -a -o debian/iceweasel_logo.png\
+		debian/iceweasel_logo.svg
+	composite -compose src-over -gravity center -geometry +0-26 \
+		debian/iceweasel_logo.png debian/about.png \
+		debian/branding/content/about.png
+
+	rsvg-convert -w 64 -h 64 -o debian/branding/content/icon64.png \
+		debian/iceweasel_icon.svg
+
+	rsvg-convert -w 48 -h 48 -o debian/branding/default48.png \
+		debian/iceweasel_icon.svg
+	cp -f debian/branding/default48.png debian/branding/content/icon48.png
+	convert debian/branding/default48.png debian/branding/mozicon50.xpm
+	convert browser/base/branding/icon48.png debian/default.xpm
+
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
@@ -97,55 +139,6 @@ build: build-stamp
 build-stamp: config.status
 	dh_testdir
 
-	(cd debian \
-		&& uudecode aboutCredits.png.uu \
-		&& uudecode debsearch.png.uu \
-		&& uudecode about.png.uu)
-
-	rsvg-convert -w 40 -h 40 -o debian/document_icon.png debian/iceweasel_icon.svg
-	composite -compose src-over -geometry -2+5 debian/document_icon.png browser/app/document.png debian/document.png
-	rsvg-convert -w 128 -h 128 -o debian/mozicon128.png debian/iceweasel_icon.svg
-	rsvg-convert -w 32 -h 32 -o debian/iceweasel.png debian/iceweasel_icon.svg
-	convert debian/iceweasel.png debian/iceweasel.xpm
-	rsvg-convert -w 16 -h 16 -o debian/mozicon16.png debian/iceweasel_icon.svg
-	convert debian/mozicon16.png debian/mozicon16.xpm
-
-	if [ ! -f browser/base/branding/aboutCredits.png.upstream ]; then \
-		mv -f browser/base/branding/aboutCredits.png \
-			browser/base/branding/aboutCredits.png.upstream; fi
-	composite -compose src-over -gravity center -geometry +0-7 debian/mozicon128.png debian/aboutCredits.png browser/base/branding/aboutCredits.png
-
-	if [ ! -f browser/base/branding/about.png.upstream ]; then \
-		mv -f browser/base/branding/about.png \
-			browser/base/branding/about.png.upstream; fi
-	rsvg-convert -w 256 -a -o debian/iceweasel_logo.png debian/iceweasel_logo.svg
-	composite -compose src-over -gravity center -geometry +0-26 debian/iceweasel_logo.png debian/about.png browser/base/branding/about.png
-
-	if [ ! -f browser/base/branding/icon64.png.upstream ]; then \
-		mv -f browser/base/branding/icon64.png \
-			browser/base/branding/icon64.png.upstream; fi
-	rsvg-convert -w 64 -h 64 -o browser/base/branding/icon64.png debian/iceweasel_icon.svg
-	if [ ! -f browser/base/branding/icon48.png.upstream ]; then \
-		mv -f browser/base/branding/icon48.png \
-			browser/base/branding/icon48.png.upstream; fi
-	rsvg-convert -w 48 -h 48 -o browser/base/branding/icon48.png debian/iceweasel_icon.svg
-	convert browser/base/branding/icon48.png debian/mozicon50.xpm
-	convert browser/base/branding/icon48.png debian/default.xpm
-
-	if [ ! -f browser/themes/pinstripe/browser/preferences/Options.png.upstream ]; then \
-		mv -f browser/themes/pinstripe/browser/preferences/Options.png \
-			browser/themes/pinstripe/browser/preferences/Options.png.upstream; fi
-	convert browser/themes/winstripe/browser/preferences/Options.png -chop 32x0+64 -background \#ffff -splice 32x0+64 debian/Options.png
-	xsltproc debian/filter-globe.xsl debian/iceweasel_icon.svg > debian/globe.svg
-	rsvg-convert -w 32 -h 32 -o debian/globe.png debian/globe.svg
-	composite -dissolve 80 -geometry +64+0 debian/globe.png debian/Options.png debian/Options.tmp.png
-	composite -compose src-over -geometry +64+32 debian/globe.png debian/Options.tmp.png debian/Options.png
-
-	cp -f debian/Options.png browser/themes/pinstripe/browser/preferences/Options.png
-	if [ ! -f browser/themes/winstripe/browser/preferences/Options.png.upstream ]; then \
-		mv -f browser/themes/winstripe/browser/preferences/Options.png \
-			browser/themes/winstripe/browser/preferences/Options.png.upstream; fi
-	cp -f debian/Options.png browser/themes/winstripe/browser/preferences/Options.png
 
 	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
 	$(MAKE) STRIP=:
@@ -158,19 +151,8 @@ clean:
 	rm -f build-stamp install-stamp MPL \
 		debian/*.png \
 		debian/*.xpm \
-		debian/globe.svg
-	mv -f browser/base/branding/icon48.png.upstream \
-		browser/base/branding/icon48.png || true
-	mv -f browser/base/branding/icon64.png.upstream \
-		browser/base/branding/icon64.png || true
-	mv -f browser/base/branding/about.png.upstream \
-		browser/base/branding/about.png || true
-	mv -f browser/base/branding/aboutCredits.png.upstream \
-		browser/base/branding/aboutCredits.png || true
-	mv -f browser/themes/pinstripe/browser/preferences/Options.png.upstream \
-		browser/themes/pinstripe/browser/preferences/Options.png || true
-	mv -f browser/themes/winstripe/browser/preferences/Options.png.upstream \
-		browser/themes/winstripe/browser/preferences/Options.png || true
+	rm -f debian/branding/*.png debian/branding/*.xpm \
+		debian/branding/content/*.png
 
 	[ ! -f Makefile ] || $(MAKE) distclean
 
@@ -210,7 +192,7 @@ install-stamp: build-stamp
 
 # Install icons
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/16x16/apps
-	install -m 644 debian/mozicon16.png \
+	install -m 644 debian/branding/default16.png \
 		debian/iceweasel/usr/share/icons/hicolor/16x16/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
 	install -m 644 debian/iceweasel.png \

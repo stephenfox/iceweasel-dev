@@ -24,12 +24,12 @@ debian/iceweaselrc etc/iceweasel
 debian/presubj usr/share/bug/iceweasel
 
 debian/default.xpm usr/share/iceweasel/chrome/icons/default
-debian/mozicon16.xpm usr/share/iceweasel/chrome/icons/default
-debian/mozicon16.xpm usr/share/iceweasel/icons/
-debian/mozicon50.xpm usr/share/iceweasel/chrome/icons/default
-debian/mozicon50.xpm usr/share/iceweasel/icons/
-debian/mozicon128.png usr/share/iceweasel/icons/
-debian/document.png usr/share/iceweasel/icons/
+debian/branding/mozicon16.xpm usr/share/iceweasel/chrome/icons/default
+debian/branding/mozicon16.xpm usr/share/iceweasel/icons/
+debian/branding/mozicon50.xpm usr/share/iceweasel/chrome/icons/default
+debian/branding/mozicon50.xpm usr/share/iceweasel/icons/
+debian/branding/mozicon128.png usr/share/iceweasel/icons/
+debian/branding/document.png usr/share/iceweasel/icons/
 
 debian/iceweasel.js etc/iceweasel/pref
 debian/iceweasel.cfg usr/lib/iceweasel
