@@ -81,6 +81,7 @@ CONFIGURE_OPTIONS = \
 	--disable-updater \
 	--disable-elf-dynstr-gc \
 	--with-branding=debian/branding \
+	--disable-crashreporter \
 	$(DEBUG_FLAG)
 
 configure: config.status
