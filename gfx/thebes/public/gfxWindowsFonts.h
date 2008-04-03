@@ -51,27 +51,63 @@
 #include <usp10.h>
 #include <cairo-win32.h>
 
+
 /**
- * FontEntry is a class that describes one of the fonts on the users system
- * It contains information such as the name, font type, charset table and unicode ranges.
- * It may be extended to also keep basic metrics of the fonts so that we can better
- * compare one FontEntry to another.
+ * FontFamily is a class that describes one of the fonts on the users system.  It holds
+ * each FontEntry (maps more directly to a font face) which holds font type, charset info
+ * and character map info.
  */
+class FontEntry;
+class FontFamily
+{
+public:
+    THEBES_INLINE_DECL_REFCOUNTING(FontFamily)
+
+    FontFamily(const nsAString& aName) :
+        mName(aName)
+    {
+    }
+
+    nsTArray<nsRefPtr<FontEntry> > mVariations;
+    nsString mName;
+};
+
 class FontEntry
 {
 public:
     THEBES_INLINE_DECL_REFCOUNTING(FontEntry)
 
-    FontEntry(const nsAString& aName, PRUint16 aFontType) : 
-        mName(aName), mFontType(aFontType), mDefaultWeight(0),
-        mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
-        mCharset(0), mUnicodeRanges(0)
+    FontEntry(const nsString& aFaceName) : 
+        mFaceName(aFaceName), mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
+        mTrueType(PR_FALSE), mIsType1(PR_FALSE),
+        mIsBadUnderlineFont(PR_FALSE), mForceGDI(PR_FALSE), mCharset(0), mUnicodeRanges(0)
     {
     }
 
+    FontEntry(const FontEntry& aFontEntry) :
+        mFaceName(aFontEntry.mFaceName),
+        mWindowsFamily(aFontEntry.mWindowsFamily),
+        mWindowsPitch(aFontEntry.mWindowsPitch),
+        mUnicodeFont(aFontEntry.mUnicodeFont),
+        mSymbolFont(aFontEntry.mSymbolFont),
+        mTrueType(aFontEntry.mTrueType),
+        mIsType1(aFontEntry.mIsType1),
+        mIsBadUnderlineFont(aFontEntry.mIsBadUnderlineFont),
+        mItalic(aFontEntry.mItalic),
+        mWeight(aFontEntry.mWeight),
+        mCharset(aFontEntry.mCharset),
+        mUnicodeRanges(aFontEntry.mUnicodeRanges),
+        mCharacterMap(aFontEntry.mCharacterMap)
+    {
+    }
+
+    const nsString& GetName() const {
+        return mFaceName;
+    }
+
     PRBool IsCrappyFont() const {
-        /* return if it is a bitmap, old school font or not a unicode font */
-        return (!mUnicodeFont || mSymbolFont || mFontType != TRUETYPE_FONTTYPE);
+        /* return if it is a bitmap not a unicode font */
+        return (!mUnicodeFont || mSymbolFont || mIsType1);
     }
 
     PRBool MatchesGenericFamily(const nsACString& aGeneric) const {
@@ -80,18 +116,18 @@ public:
 
         // Japanese 'Mincho' fonts do not belong to FF_MODERN even if
         // they are fixed pitch because they have variable stroke width.
-        if (mFamily == FF_ROMAN && mPitch & FIXED_PITCH) {
+        if (mWindowsFamily == FF_ROMAN && mWindowsPitch & FIXED_PITCH) {
             return aGeneric.EqualsLiteral("monospace");
         }
 
         // Japanese 'Gothic' fonts do not belong to FF_SWISS even if
         // they are variable pitch because they have constant stroke width.
-        if (mFamily == FF_MODERN && mPitch & VARIABLE_PITCH) {
+        if (mWindowsFamily == FF_MODERN && mWindowsPitch & VARIABLE_PITCH) {
             return aGeneric.EqualsLiteral("sans-serif");
         }
 
         // All other fonts will be grouped correctly using family...
-        switch (mFamily) {
+        switch (mWindowsFamily) {
         case FF_DONTCARE:
             return PR_TRUE;
         case FF_ROMAN:
@@ -158,46 +194,28 @@ public:
         return mUnicodeRanges[range];
     }
 
-    class WeightTable
-    {
-    public:
-        THEBES_INLINE_DECL_REFCOUNTING(WeightTable)
-            
-        WeightTable() : mWeights(0) {}
-        ~WeightTable() {}
-        PRBool TriedWeight(PRUint8 aWeight) {
-            return mWeights[aWeight - 1 + 10];
-        }
-        PRBool HasWeight(PRUint8 aWeight) {
-            return mWeights[aWeight - 1];
-        }
-        void SetWeight(PRUint8 aWeight, PRBool aValue) {
-            mWeights[aWeight - 1] = aValue;
-            mWeights[aWeight - 1 + 10] = PR_TRUE;
-        }
-    private:
-        std::bitset<20> mWeights;
-    };
+    // whether this font family is in "bad" underline offset blacklist.
+    PRBool IsBadUnderlineFont() { return mIsBadUnderlineFont != 0; }
 
-    // The family name of the font
-    nsString mName;
+    nsString mFaceName;
 
-    PRUint16 mFontType;
-    PRUint16 mDefaultWeight;
+    PRUint8 mWindowsFamily;
+    PRUint8 mWindowsPitch;
 
-    PRUint8 mFamily;
-    PRUint8 mPitch;
     PRPackedBool mUnicodeFont;
     PRPackedBool mSymbolFont;
+    PRPackedBool mTrueType;
+    PRPackedBool mIsType1;
+    PRPackedBool mIsBadUnderlineFont;
+    PRPackedBool mForceGDI;
+    PRPackedBool mItalic;
+    PRUint16 mWeight;
 
     std::bitset<256> mCharset;
     std::bitset<128> mUnicodeRanges;
 
-    WeightTable mWeightTable;
-
     gfxSparseBitSet mCharacterMap;
 };
-
 
 /**********************************************************************
  *
@@ -207,7 +225,7 @@ public:
 
 class gfxWindowsFont : public gfxFont {
 public:
-    gfxWindowsFont(const nsAString& aName, const gfxFontStyle *aFontStyle);
+    gfxWindowsFont(const nsAString& aName, const gfxFontStyle *aFontStyle, FontEntry *aFontEntry);
     virtual ~gfxWindowsFont();
 
     virtual const gfxFont::Metrics& GetMetrics();
@@ -233,7 +251,7 @@ public:
 
 protected:
     HFONT MakeHFONT();
-    void FillLogFont(gfxFloat aSize, PRInt16 aWeight);
+    void FillLogFont(gfxFloat aSize);
 
     HFONT    mFont;
     gfxFloat mAdjustedSize;
@@ -292,6 +310,11 @@ public:
 
     virtual gfxWindowsFont *GetFontAt(PRInt32 i);
 
+    void GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list);
+    void FamilyListToArrayList(const nsString& aFamilies,
+                               const nsCString& aLangGroup,
+                               nsTArray<nsRefPtr<FontEntry> > *list);
+
 protected:
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const char *aString, PRUint32 aLength);
     void InitTextRunGDI(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
@@ -299,6 +322,7 @@ protected:
     void InitTextRunUniscribe(gfxContext *aContext, gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength);
 
 private:
+
     nsCString mGenericFamily;
     nsTArray<nsRefPtr<FontEntry> > mFontEntries;
 };

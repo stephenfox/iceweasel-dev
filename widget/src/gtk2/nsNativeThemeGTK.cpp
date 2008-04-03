@@ -444,6 +444,13 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
     aGtkWidgetType = MOZ_GTK_TREEVIEW;
     break;
   case NS_THEME_TREEVIEW_HEADER_CELL:
+    if (aWidgetFlags) {
+      // In this case, the flag denotes whether the header is the sorted one or not
+      if (GetTreeSortDirection(aFrame) == eTreeSortDirection_Natural)
+        *aWidgetFlags = PR_FALSE;
+      else
+        *aWidgetFlags = PR_TRUE;
+    }
     aGtkWidgetType = MOZ_GTK_TREE_HEADER_CELL;
     break;
   case NS_THEME_TREEVIEW_HEADER_SORTARROW:
@@ -483,6 +490,9 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
     break;
   case NS_THEME_DROPDOWN:
     aGtkWidgetType = MOZ_GTK_DROPDOWN;
+    if (aWidgetFlags)
+        *aWidgetFlags = aFrame && aFrame->GetContent()->
+                                        IsNodeOfType(nsINode::eHTML);
     break;
   case NS_THEME_DROPDOWN_TEXT:
     return PR_FALSE; // nothing to do, but prevents the bg from being drawn
@@ -685,6 +695,27 @@ GetExtraSizeForWidget(PRUint8 aWidgetType, nsIntMargin* aExtra)
   case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL:
     aExtra->left = aExtra->right = 1;
     return PR_TRUE;
+
+  // Include the indicator spacing (the padding around the control).
+  case NS_THEME_CHECKBOX:
+  case NS_THEME_CHECKBOX_SMALL:
+  case NS_THEME_RADIO:
+  case NS_THEME_RADIO_SMALL:
+    {
+      gint indicator_size, indicator_spacing;
+
+      if (IsCheckboxWidgetType(aWidgetType)) {
+        moz_gtk_checkbox_get_metrics(&indicator_size, &indicator_spacing);
+      } else {
+        moz_gtk_radio_get_metrics(&indicator_size, &indicator_spacing);
+      }
+
+      aExtra->top = indicator_spacing;
+      aExtra->right = indicator_spacing;
+      aExtra->bottom = indicator_spacing;
+      aExtra->left = indicator_spacing;
+      return PR_TRUE;
+    }
   default:
     return PR_FALSE;
   }
@@ -777,7 +808,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
   // need to draw outside this rect if you don't feel like it!"
   GdkRectangle gdk_rect, gdk_clip;
   gfxRect gfx_rect = ConvertToGfxRect(aRect - drawingRect.TopLeft(), p2a);
-  gfxRect gfx_clip = ConvertToGfxRect(aClipRect - drawingRect.TopLeft(), p2a);
+  gfxRect gfx_clip = ConvertToGfxRect(drawingRect - drawingRect.TopLeft(), p2a);
   if (ctx->UserToDevicePixelSnapped(gfx_rect) &&
       ctx->UserToDevicePixelSnapped(gfx_clip)) {
     gfxPoint currentTranslation = current.GetTranslation();
@@ -786,7 +817,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
   }
   else {
     gdk_rect = ConvertToGdkRect(aRect - drawingRect.TopLeft(), p2a);
-    gdk_clip = ConvertToGdkRect(aClipRect - drawingRect.TopLeft(), p2a);
+    gdk_clip = ConvertToGdkRect(drawingRect - drawingRect.TopLeft(), p2a);
   }
   ThemeRenderer renderer(state, gtkWidgetType, flags, direction, gdk_rect, gdk_clip);
 
@@ -895,13 +926,22 @@ nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame, PRUint8 aWidgetType,
                                    nsMargin* aResult)
 {
-  if (aWidgetType == NS_THEME_BUTTON_FOCUS ||
-      aWidgetType == NS_THEME_TOOLBAR_BUTTON ||
-      aWidgetType == NS_THEME_TOOLBAR_DUAL_BUTTON ||
-      aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
-      aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD) {
-    aResult->SizeTo(0, 0, 0, 0);
-    return PR_TRUE;
+  switch (aWidgetType) {
+    case NS_THEME_BUTTON_FOCUS:
+    case NS_THEME_TOOLBAR_BUTTON:
+    case NS_THEME_TOOLBAR_DUAL_BUTTON:
+    case NS_THEME_TAB_SCROLLARROW_BACK:
+    case NS_THEME_TAB_SCROLLARROW_FORWARD:
+    case NS_THEME_DROPDOWN_BUTTON:
+    // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
+    // and have a meaningful baseline, so they can't have
+    // author-specified padding.
+    case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
+    case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
+      aResult->SizeTo(0, 0, 0, 0);
+      return PR_TRUE;
   }
 
   return PR_FALSE;
@@ -1052,7 +1092,8 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
       break;
   case NS_THEME_DROPDOWN_BUTTON:
     {
-      moz_gtk_get_dropdown_arrow_size(&aResult->width, &aResult->height);
+      moz_gtk_get_combo_box_entry_button_size(&aResult->width,
+                                              &aResult->height);
       *aIsOverridable = PR_FALSE;
     }
     break;
@@ -1080,17 +1121,23 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
       }
 
       // Include space for the indicator and the padding around it.
-      aResult->width = indicator_size + 2 * indicator_spacing;
-      aResult->height = indicator_size + 2 * indicator_spacing;
+      aResult->width = indicator_size;
+      aResult->height = indicator_size;
       *aIsOverridable = PR_FALSE;
     }
     break;
-
+  case NS_THEME_TOOLBAR_BUTTON_DROPDOWN:
+    {
+        moz_gtk_get_downarrow_size(&aResult->width, &aResult->height);
+        *aIsOverridable = PR_FALSE;
+    }
+    break;
   case NS_THEME_CHECKBOX_CONTAINER:
   case NS_THEME_RADIO_CONTAINER:
   case NS_THEME_CHECKBOX_LABEL:
   case NS_THEME_RADIO_LABEL:
   case NS_THEME_BUTTON:
+  case NS_THEME_DROPDOWN:
   case NS_THEME_TOOLBAR_BUTTON:
   case NS_THEME_TREEVIEW_HEADER_CELL:
     {

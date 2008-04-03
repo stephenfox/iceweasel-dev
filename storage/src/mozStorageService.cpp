@@ -41,19 +41,56 @@
 
 #include "mozStorageService.h"
 #include "mozStorageConnection.h"
-#include "nsThreadUtils.h"
 #include "nsCRT.h"
 #include "plstr.h"
+#include "prinit.h"
+#include "nsAutoLock.h"
+#include "nsAutoPtr.h"
+#include "mozStorage.h"
 
 #include "sqlite3.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(mozStorageService, mozIStorageService)
+
+/**
+ * Lock used in mozStorageService::GetSingleton to ensure that we only create
+ * one instance of the storage service.  This lock is created in SingetonInit()
+ * and destroyed in mozStorageService::~mozStorageService().
+ */
+static PRLock *gSingletonLock;
+
+/**
+ * Creates the lock used in the singleton getter.  This lock is destroyed in
+ * the services destructor.
+ *
+ * @returns PR_SUCCESS if creating the lock was successful, PR_FAILURE otherwise
+ */
+static
+PRStatus
+SingletonInit()
+{
+    gSingletonLock = PR_NewLock();
+    NS_ENSURE_TRUE(gSingletonLock, PR_FAILURE);
+    return PR_SUCCESS;
+}
 
 mozStorageService *mozStorageService::gStorageService = nsnull;
 
 mozStorageService *
 mozStorageService::GetSingleton()
 {
+    // Since this service can be called by multiple threads, we have to use a
+    // a lock to test and possibly create gStorageService
+    static PRCallOnceType sInitOnce;
+    PRStatus rc = PR_CallOnce(&sInitOnce, SingletonInit);
+    if (rc != PR_SUCCESS)
+        return nsnull;
+
+    // If someone managed to start us twice, error out early.
+    if (!gSingletonLock)
+        return nsnull;
+
+    nsAutoLock lock(gSingletonLock);
     if (gStorageService) {
         NS_ADDREF(gStorageService);
         return gStorageService;
@@ -72,14 +109,25 @@ mozStorageService::GetSingleton()
 mozStorageService::~mozStorageService()
 {
     gStorageService = nsnull;
+    PR_DestroyLock(mLock);
+    PR_DestroyLock(gSingletonLock);
+    gSingletonLock = nsnull;
 }
 
 nsresult
 mozStorageService::Init()
 {
-    // this makes multiple connections to the same database share the same pager
-    // cache.
-    sqlite3_enable_shared_cache(1);
+    mLock = PR_NewLock();
+    if (!mLock)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    // This makes multiple connections to the same database share the same pager
+    // cache.  We do not need to lock here with mLock because this function is
+    // only ever called from mozStorageService::GetSingleton, which will only
+    // call this function once, and will not return until this function returns.
+    int rc = sqlite3_enable_shared_cache(1);
+    if (rc != SQLITE_OK)
+        return ConvertResultCode(rc);
 
     return NS_OK;
 }
@@ -129,17 +177,17 @@ mozStorageService::OpenSpecialDatabase(const char *aStorageKey, mozIStorageConne
 NS_IMETHODIMP
 mozStorageService::OpenDatabase(nsIFile *aDatabaseFile, mozIStorageConnection **_retval)
 {
-    nsresult rv;
-
-    mozStorageConnection *msc = new mozStorageConnection(this);
+    nsRefPtr<mozStorageConnection> msc = new mozStorageConnection(this);
     if (!msc)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    // We want to return a valid connection regardless if it succeeded or not so
-    // that consumers can backup the database if it failed.
-    (void)msc->Initialize(aDatabaseFile);
-    NS_ADDREF(*_retval = msc);
+    {
+        nsAutoLock lock(mLock);
+        nsresult rv = msc->Initialize(aDatabaseFile);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
 
+    NS_ADDREF(*_retval = msc);
     return NS_OK;
 }
 
@@ -147,9 +195,7 @@ mozStorageService::OpenDatabase(nsIFile *aDatabaseFile, mozIStorageConnection **
 NS_IMETHODIMP
 mozStorageService::OpenUnsharedDatabase(nsIFile *aDatabaseFile, mozIStorageConnection **_retval)
 {
-    nsresult rv;
-
-    mozStorageConnection *msc = new mozStorageConnection(this);
+    nsRefPtr<mozStorageConnection> msc = new mozStorageConnection(this);
     if (!msc)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -159,12 +205,63 @@ mozStorageService::OpenUnsharedDatabase(nsIFile *aDatabaseFile, mozIStorageConne
     // lifetimes, unaffected by changes to the shared caches setting, so we can
     // disable shared caches temporarily while we initialize the new connection
     // without affecting the caches currently in use by other connections.
-    // We want to return a valid connection regardless if it succeeded or not so
-    // that consumers can backup the database if it failed.
-    sqlite3_enable_shared_cache(0);
-    (void)msc->Initialize(aDatabaseFile);
-    sqlite3_enable_shared_cache(1);
-    NS_ADDREF(*_retval = msc);
+    nsresult rv;
+    {
+        nsAutoLock lock(mLock);
+        int rc = sqlite3_enable_shared_cache(0);
+        if (rc != SQLITE_OK)
+            return ConvertResultCode(rc);
 
+        rv = msc->Initialize(aDatabaseFile);
+
+        rc = sqlite3_enable_shared_cache(1);
+        if (rc != SQLITE_OK)
+            return ConvertResultCode(rc);
+    }
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    NS_ADDREF(*_retval = msc);
     return NS_OK;
 }
+
+/**
+ ** Utilities
+ **/
+
+NS_IMETHODIMP
+mozStorageService::BackupDatabaseFile(nsIFile *aDBFile,
+                                      const nsAString &aBackupFileName,
+                                      nsIFile *aBackupParentDirectory,
+                                      nsIFile **backup)
+{
+    nsresult rv;
+    nsCOMPtr<nsIFile> parentDir = aBackupParentDirectory;
+    if (!parentDir) {
+        // This argument is optional, and defaults to the same parent directory
+        // as the current file.
+        rv = aDBFile->GetParent(getter_AddRefs(parentDir));
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    nsCOMPtr<nsIFile> backupDB;
+    rv = parentDir->Clone(getter_AddRefs(backupDB));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = backupDB->Append(aBackupFileName);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = backupDB->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsAutoString fileName;
+    rv = backupDB->GetLeafName(fileName);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = backupDB->Remove(PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    backupDB.swap(*backup);
+
+    return aDBFile->CopyTo(parentDir, fileName);
+}
+

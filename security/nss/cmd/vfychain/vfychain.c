@@ -50,7 +50,6 @@
 
 #include "prerror.h"
 
-#include "nssrenam.h"
 #include "pk11func.h"
 #include "seccomon.h"
 #include "secutil.h"
@@ -105,7 +104,9 @@ Usage(const char *progName)
 	"\t-b YYMMDDHHMMZ\t Validate date (default: now)\n"
 	"\t-d directory\t Database directory\n"
 	"\t-o oid\t\t Set policy OID for cert validation(Format OID.1.2.3)\n"
-	"\t-p \t\t Use PKIX Library to validate certificate\n"   
+	"\t-p \t\t Use PKIX Library to validate certificate by calling:\n"
+	"\t\t\t   * CERT_VerifyCertificate if specified once,\n"
+	"\t\t\t   * CERT_PKIXVerifyCert if specified twice and more.\n"
 	"\t-r\t\t Following certfile is raw binary DER (default)\n"
 	"\t-u usage \t 0=SSL client, 1=SSL server, 2=SSL StepUp, 3=SSL CA,\n"
 	"\t\t\t 4=Email signer, 5=Email recipient, 6=Object signer,\n"
@@ -150,15 +151,23 @@ typedef struct certMemStr {
 } certMem;
 
 certMem * theCerts;
+CERTCertList *trustedCertList;
 
 void
-rememberCert(CERTCertificate * cert)
+rememberCert(CERTCertificate * cert, PRBool trusted)
 {
-    certMem * newCertMem = PORT_ZNew(certMem);
-    if (newCertMem) {
-	newCertMem->next = theCerts;
-	newCertMem->cert = cert;
-	theCerts = newCertMem;
+    if (trusted) {
+        if (!trustedCertList) {
+            trustedCertList = CERT_NewCertList();
+        }
+        CERT_AddCertToListTail(trustedCertList, cert);
+    } else {
+        certMem * newCertMem = PORT_ZNew(certMem);
+        if (newCertMem) {
+            newCertMem->next = theCerts;
+            newCertMem->cert = cert;
+            theCerts = newCertMem;
+        }
     }
 }
 
@@ -171,6 +180,9 @@ forgetCerts(void)
     	theCerts = theCerts->next;
 	CERT_DestroyCertificate(oldCertMem->cert);
 	PORT_Free(oldCertMem);
+    }
+    if (trustedCertList) {
+        CERT_DestroyCertList(trustedCertList);
     }
 }
 
@@ -261,13 +273,14 @@ main(int argc, char *argv[], char *envp[])
     CERTCertificate *    issuerCert   = NULL;
     CERTCertDBHandle *   defaultDB    = NULL;
     PRBool               isAscii      = PR_FALSE;
-    PRBool               usePkix   = PR_FALSE;
+    PRBool               trusted      = PR_FALSE;
     SECStatus            secStatus;
     SECCertificateUsage  certUsage    = certificateUsageSSLServer;
     PLOptState *         optstate;
     PRTime               time         = 0;
     PLOptStatus          status;
-    int                  rv = 1;
+    int                  usePkix      = 0;
+    int                  rv           = 1;
     int                  usage;
     CERTVerifyLog        log;
 
@@ -275,7 +288,7 @@ main(int argc, char *argv[], char *envp[])
 
     progName = PL_strdup(argv[0]);
 
-    optstate = PL_CreateOptState(argc, argv, "ab:d:o:pru:w:v");
+    optstate = PL_CreateOptState(argc, argv, "ab:d:o:prtu:w:v");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch(optstate->option) {
 	case  0  : /* positional parameter */  goto breakout;
@@ -284,7 +297,7 @@ main(int argc, char *argv[], char *envp[])
 	           if (secStatus != SECSuccess) Usage(progName); break;
 	case 'd' : certDir  = PL_strdup(optstate->value);     break;
 	case 'o' : oidStr = PL_strdup(optstate->value);       break;
-	case 'p' : usePkix = PR_TRUE;                      break;
+	case 'p' : usePkix += 1;                              break;
 	case 'r' : isAscii  = PR_FALSE;                       break;
 	case 'u' : usage    = PORT_Atoi(optstate->value);
 	           if (usage < 0 || usage > 62) Usage(progName);
@@ -322,14 +335,15 @@ breakout:
 	default  : Usage(progName);                           break;
 	case 'a' : isAscii  = PR_TRUE;                        break;
 	case 'r' : isAscii  = PR_FALSE;                       break;
+	case 't' : trusted  = PR_TRUE;                       break;
 	case  0  : /* positional parameter */
 	    cert = getCert(optstate->value, isAscii);
 	    if (!cert) 
 	        goto punt;
-	    rememberCert(cert);
+	    rememberCert(cert, trusted);
 	    if (!firstCert)
 	        firstCert = cert;
-	    break;
+            trusted = PR_FALSE;
 	}
         status = PL_GetNextOpt(optstate);
     }
@@ -345,8 +359,12 @@ breakout:
     log.head = log.tail = NULL;
     log.count = 0;
 
-    if (!usePkix) {
+    if (usePkix < 2) {
         /* NOW, verify the cert chain. */
+        if (usePkix) {
+            /* Use old API with libpkix validation lib */
+            CERT_SetUsePKIXForValidation(PR_TRUE);
+        }
         defaultDB = CERT_GetDefaultCertDB();
         secStatus = CERT_VerifyCertificate(defaultDB, firstCert, 
                                            PR_TRUE /* check sig */,
@@ -357,9 +375,11 @@ breakout:
                                            NULL);/* returned usages */
     } else do {
         CERTValOutParam cvout[3];
-        CERTValInParam cvin[3];
+        CERTValInParam cvin[5];
         SECOidTag oidTag;
         int inParamIndex = 0;
+        CERTRevocationFlags rev;
+        PRUint64 revFlags[1];
 
         if (oidStr) {
             PRArenaPool *arena;
@@ -393,17 +413,44 @@ breakout:
                 break;
             }
 
-            cvin[0].type = cert_pi_policyOID;
-            cvin[0].value.arraySize = 1;
-            cvin[0].value.array.oids = &oidTag;
+            cvin[inParamIndex].type = cert_pi_policyOID;
+            cvin[inParamIndex].value.arraySize = 1;
+            cvin[inParamIndex].value.array.oids = &oidTag;
 
-            inParamIndex = 1;
+            inParamIndex++;
         }
-    
+
+        if (trustedCertList) {
+            cvin[inParamIndex].type = cert_pi_trustAnchors;
+            cvin[inParamIndex].value.pointer.chain = trustedCertList;
+            
+            inParamIndex++;
+        }
+
+	cvin[inParamIndex].type = cert_pi_date;
+	cvin[inParamIndex].value.scalar.time = time;
+	inParamIndex++;
+
+        revFlags[cert_revocation_method_crl] = 
+            CERT_REV_M_TEST_USING_THIS_METHOD;
+
+        rev.leafTests.number_of_defined_methods = cert_revocation_method_crl +1;
+        rev.leafTests.cert_rev_flags_per_method = revFlags;
+        rev.leafTests.number_of_preferred_methods = 0;
+        rev.leafTests.preferred_methods = 0;
+        rev.leafTests.cert_rev_method_independent_flags = 0;
+      
+        rev.chainTests.number_of_defined_methods = cert_revocation_method_crl +1;
+        rev.chainTests.cert_rev_flags_per_method = revFlags;
+        rev.chainTests.number_of_preferred_methods = 0;
+        rev.chainTests.preferred_methods = 0;
+        rev.chainTests.cert_rev_method_independent_flags = 0;
+
         cvin[inParamIndex].type = cert_pi_revocationFlags;
-        cvin[inParamIndex].value.scalar.ul = CERT_REV_FAIL_SOFT_CRL |
-                                  CERT_REV_FLAG_CRL;
-        cvin[inParamIndex + 1].type = cert_pi_end;
+        cvin[inParamIndex].value.pointer.revocation = &rev;
+	inParamIndex++;
+
+        cvin[inParamIndex].type = cert_pi_end;
         
         cvout[0].type = cert_po_trustAnchor;
 
@@ -438,14 +485,14 @@ breakout:
     	rv = 1;
     } else {
     	fprintf(stderr, "Chain is good!\n");
-    	if (issuerCert && verbose) {
+    	if (issuerCert) {
     	   if (verbose > 1) {
                rv = SEC_PrintCertificateAndTrust(issuerCert, "Root Certificate",
                                                  NULL);
                if (rv != SECSuccess) {
 		 SECU_PrintError(progName, "problem printing certificate");
                }
-    	   } else {
+    	   } else if (verbose > 0) {
     	      SECU_PrintName(stdout, &issuerCert->subject, "Root "
                              "Certificate Subject:", 0);
     	   }

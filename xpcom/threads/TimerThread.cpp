@@ -154,6 +154,7 @@ nsresult TimerThread::Shutdown()
   if (!mThread)
     return NS_ERROR_NOT_INITIALIZED;
 
+  nsVoidArray timers;
   {   // lock scope
     nsAutoLock lock(mLock);
 
@@ -163,12 +164,22 @@ nsresult TimerThread::Shutdown()
     if (mCondVar && mWaiting)
       PR_NotifyCondVar(mCondVar);
 
-    nsTimerImpl *timer;
-    for (PRInt32 i = mTimers.Count() - 1; i >= 0; i--) {
-      timer = static_cast<nsTimerImpl*>(mTimers[i]);
-      timer->ReleaseCallback();
-      RemoveTimerInternal(timer);
-    }
+    // Need to copy content of mTimers array to a local array
+    // because call to timers' ReleaseCallback() (and release its self)
+    // must not be done under the lock. Destructor of a callback
+    // might potentially call some code reentering the same lock
+    // that leads to unexpected behavior or deadlock.
+    // See bug 422472.
+    PRBool rv = timers.AppendElements(mTimers);
+    NS_ASSERTION(rv, "Could not copy timers array, remaining timers will not be released");
+    mTimers.Clear();
+  }
+
+  PRInt32 timersCount = timers.Count();
+  for (PRInt32 i = 0; i < timersCount; i++) {
+    nsTimerImpl *timer = static_cast<nsTimerImpl*>(timers[i]);
+    timer->ReleaseCallback();
+    ReleaseTimerInternal(timer);
   }
 
   mThread->Shutdown();    // wait for the thread to die
@@ -277,7 +288,23 @@ NS_IMETHODIMP TimerThread::Run()
           // We are going to let the call to PostTimerEvent here handle the
           // release of the timer so that we don't end up releasing the timer
           // on the TimerThread instead of on the thread it targets.
-          timer->PostTimerEvent();
+          if (NS_FAILED(timer->PostTimerEvent())) {
+            nsrefcnt rc;
+            NS_RELEASE2(timer, rc);
+            
+            // The nsITimer interface requires that its users keep a reference
+            // to the timers they use while those timers are initialized but
+            // have not yet fired.  If this ever happens, it is a bug in the
+            // code that created and used the timer.
+            //
+            // Further, note that this should never happen even with a
+            // misbehaving user, because nsTimerImpl::Release checks for a
+            // refcount of 1 with an armed timer (a timer whose only reference
+            // is from the timer thread) and when it hits this will remove the
+            // timer from the timer thread and thus destroy the last reference,
+            // preventing this situation from occurring.
+            NS_ASSERTION(rc != 0, "destroyed timer off its target thread!");
+          }
           timer = nsnull;
 
           lock.lock();
@@ -329,7 +356,7 @@ nsresult TimerThread::AddTimer(nsTimerImpl *aTimer)
   // Add the timer to our list.
   PRInt32 i = AddTimerInternal(aTimer);
   if (i < 0)
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // Awaken the timer thread.
   if (mCondVar && mWaiting && i == 0)
@@ -418,10 +445,15 @@ PRBool TimerThread::RemoveTimerInternal(nsTimerImpl *aTimer)
   if (!mTimers.RemoveElement(aTimer))
     return PR_FALSE;
 
+  ReleaseTimerInternal(aTimer);
+  return PR_TRUE;
+}
+
+void TimerThread::ReleaseTimerInternal(nsTimerImpl *aTimer)
+{
   // Order is crucial here -- see nsTimerImpl::Release.
   aTimer->mArmed = PR_FALSE;
   NS_RELEASE(aTimer);
-  return PR_TRUE;
 }
 
 void TimerThread::DoBeforeSleep()

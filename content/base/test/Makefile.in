@@ -43,6 +43,10 @@ relativesrcdir  = content/base/test
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS += \
+  chrome \
+  $(NULL)
+
 CPP_UNIT_TESTS += TestNativeXMLHttpRequest.cpp TestPlainTextSerializer.cpp
 
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/tests
@@ -116,6 +120,7 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug375314.html \
 		test_bug378969.html \
 		test_bug382113.html \
+		test_bug383430.html \
 		test_bug390219.html \
 		test_bug390735.html \
 		test_bug392318.html \
@@ -126,31 +131,6 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug398243.html \
 		formReset.html \
 		bug382113_object.html \
-		test_CrossSiteXHR.html \
-		file_CrossSiteXHR_fail1.xml \
-		file_CrossSiteXHR_fail2.xml \
-		file_CrossSiteXHR_fail2.xml^headers^ \
-		file_CrossSiteXHR_fail3.xml \
-		file_CrossSiteXHR_fail4.xml \
-		file_CrossSiteXHR_pass1.xml \
-		file_CrossSiteXHR_pass1.xml^headers^ \
-		file_CrossSiteXHR_pass2.xml \
-		file_CrossSiteXHR_pass3.xml \
-		test_CrossSiteXHR2.html \
-		file_CrossSiteXHR2_inner.html \
-		file_CrossSiteXHR2_fail1.xml \
-		file_CrossSiteXHR2_fail1.xml^headers^ \
-		file_CrossSiteXHR2_fail2.xml \
-		file_CrossSiteXHR2_pass1.xml \
-		file_CrossSiteXHR2_pass1.xml^headers^ \
-		file_CrossSiteXHR2_pass2.xml \
-		file_CrossSiteXHR2_pass3.xml \
-		file_CrossSiteXHR2_pass3.xml^headers^ \
-		file_CrossSiteXHR2_pass3_redirect.xml \
-		test_CrossSiteXHR3.html \
-		file_CrossSiteXHR3_inner.html \
-		file_CrossSiteXHR3_pass1.xml^headers^ \
-		file_CrossSiteXHR3_pass1.xml \
 		test_bug326337.html \
 		file_bug326337_inner.html \
 		file_bug326337_outer.html \
@@ -174,6 +154,19 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug417255.html \
 		test_bug417384.html \
 		test_bug418214.html \
+		test_bug419527.xhtml \
+		test_bug420609.xhtml \
+		test_bug420700.html \
+		test_bug421602.html \
+		test_bug422537.html \
+		test_bug424212.html \
+    test_XHR.html \
+    file_XHR_pass1.xml \
+    file_XHR_pass2.txt \
+    file_XHR_pass3.txt \
+    file_XHR_pass3.txt^headers^ \
+    file_XHR_fail1.txt \
+    file_XHR_fail1.txt^headers^ \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

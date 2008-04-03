@@ -481,10 +481,12 @@ NS_IMETHODIMP nsWebBrowserPersist::SaveDocument(
     {
         // tell the listener we're done
         mProgressListener->OnStateChange(nsnull, nsnull,
-                                         nsIWebProgressListener::STATE_START,
+                                         nsIWebProgressListener::STATE_START |
+                                         nsIWebProgressListener::STATE_IS_NETWORK,
                                          NS_OK);
         mProgressListener->OnStateChange(nsnull, nsnull,
-                                         nsIWebProgressListener::STATE_STOP,
+                                         nsIWebProgressListener::STATE_STOP |
+                                         nsIWebProgressListener::STATE_IS_NETWORK,
                                          rv);
     }
 
@@ -912,6 +914,7 @@ NS_IMETHODIMP nsWebBrowserPersist::OnDataAvailable(
                     rv = StartUpload(storStream, data->mFile, contentType);
                     if (NS_FAILED(rv))
                     {
+                        readError = PR_FALSE;
                         cancel = PR_TRUE;
                     }
                 }
@@ -1344,6 +1347,7 @@ nsresult nsWebBrowserPersist::SaveChannelInternal(
         // Opening failed, but do we care?
         if (mPersistFlags & PERSIST_FLAGS_FAIL_ON_BROKEN_LINKS)
         {
+            SendErrorStatusChange(PR_TRUE, rv, aChannel, aFile);
             EndDownload(NS_ERROR_FAILURE);
             return NS_ERROR_FAILURE;
         }

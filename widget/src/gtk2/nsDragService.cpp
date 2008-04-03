@@ -62,6 +62,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
+#include "nsISelection.h"
 
 static PRLogModuleInfo *sDragLm = NULL;
 
@@ -154,8 +155,11 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                  PRUint32 aActionType)
 {
     PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::InvokeDragSession"));
-    nsBaseDragService::InvokeDragSession(aDOMNode, aArrayTransferables,
-                                         aRegion, aActionType);
+    nsresult rv = nsBaseDragService::InvokeDragSession(aDOMNode,
+                                                       aArrayTransferables,
+                                                       aRegion, aActionType);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // make sure that we have an array of transferables to use
     if (!aArrayTransferables)
         return NS_ERROR_INVALID_ARG;
@@ -454,6 +458,35 @@ nsDragService::GetData(nsITransferable * aTransferable,
             }
             else {
                 PR_LOG(sDragLm, PR_LOG_DEBUG, ("dataFound = PR_FALSE\n"));
+
+                // Dragging and dropping from the file manager would cause us to parse the source text as a
+                // nsILocalFile URL.
+                if ( strcmp(flavorStr, kFileMime) == 0 ) {
+                    gdkFlavor = gdk_atom_intern(kTextMime, FALSE);
+                    GetTargetDragData(gdkFlavor);
+                    if (mTargetDragData) {
+                        const char* text = static_cast<char*>(mTargetDragData);
+                        NS_ConvertUTF8toUTF16 fileUrl = NS_ConvertUTF8toUTF16(text);
+                        if (StringBeginsWith(fileUrl, NS_LITERAL_STRING("file://")))
+                            fileUrl.Cut(0, strlen("file://"));
+
+                        // Sometimes there are linebreaks in the file URLs. Yes, linebreaks in the file URLs.
+                        fileUrl.StripChars("\r\n");
+
+                        nsCOMPtr<nsILocalFile> file;
+                        nsresult rv = NS_NewLocalFile(fileUrl, PR_TRUE, getter_AddRefs(file));
+                        if (NS_SUCCEEDED(rv)) {
+                            // The common wrapping code at the end of this function assumes the data is text
+                            // and calls text-specific operations.
+                            // Make a secret hideout here for nsILocalFile objects and return early.
+                            aTransferable->SetTransferData(flavorStr, file,
+                                                           fileUrl.Length() * sizeof(PRUnichar));
+                            return NS_OK;
+                        }
+                        continue;
+                    }
+                }
+
                 // if we are looking for text/unicode and we fail to find it
                 // on the clipboard first, try again with text/plain. If that
                 // is present, convert it to unicode.
@@ -690,10 +723,11 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
         if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, kTextMime) == 0) &&
-            (strcmp(aDataFlavor, kUnicodeMime) == 0)) {
+            ((strcmp(aDataFlavor, kUnicodeMime) == 0) ||
+             (strcmp(aDataFlavor, kFileMime) == 0))) {
             PR_LOG(sDragLm, PR_LOG_DEBUG,
                    ("good! ( it's text plain and we're checking \
-                   against text/unicode )\n"));
+                   against text/unicode or application/x-moz-file)\n"));
             *_retval = PR_TRUE;
         }
         g_free(name);

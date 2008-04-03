@@ -64,8 +64,8 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="BrowserStartup()" onunload="BrowserShutdown()" onclose="return WindowIsClosing();"
         contenttitlesetting="true"
-        title="&mainWindow.title; 3 Beta 4"
-        titlemodifier="&mainWindow.title; 3 Beta 4"
+        title="&mainWindow.title; 3 Beta 5"
+        titlemodifier="&mainWindow.title; 3 Beta 5"
         titlemenuseparator="&mainWindow.titlemodifiermenuseparator;"
         windowtype="navigator:browser"
         screenX="4" screenY="4"
@@ -133,6 +133,15 @@
       <vbox id="editBookmarkPanelContent" flex="1" hidden="true"/>
       <hbox flex="1" id="editBookmarkPanelBottomButtons">
         <spacer flex="1"/>
+#ifndef XP_UNIX
+        <button id="editBookmarkPanelDoneButton"
+                label="&editBookmark.done.label;"
+                default="true"
+                oncommand="StarUI.panel.hidePopup();"/>
+        <button id="editBookmarkPanelDeleteButton"
+                label="&editBookmark.cancel.label;"
+                oncommand="StarUI.cancelButtonOnCommand();"/>
+#else
         <button id="editBookmarkPanelDeleteButton"
                 label="&editBookmark.cancel.label;"
                 oncommand="StarUI.cancelButtonOnCommand();"/>
@@ -140,6 +149,7 @@
                 label="&editBookmark.done.label;"
                 default="true"
                 oncommand="StarUI.panel.hidePopup();"/>
+#endif
       </hbox>
     </panel>
 
@@ -159,6 +169,17 @@
       <menuseparator observes="blockedPopupsSeparator"/>
     </popup>
 
+    <menupopup id="autohide-context"
+           onpopupshowing="FullScreen.getAutohide(this.firstChild);">
+      <menuitem type="checkbox" label="&fullScreenAutohide.label;"
+                accesskey="&fullScreenAutohide.accesskey;"
+                oncommand="FullScreen.setAutohide();"/>
+      <menuseparator/>
+      <menuitem label="&fullScreenExit.label;"
+                accesskey="&fullScreenExit.accesskey;"
+                oncommand="BrowserFullScreen();"/>
+    </menupopup>
+
     <popup id="contentAreaContextMenu"
            onpopupshowing="if (event.target != this) return true; updateEditUIVisibility(); gContextMenu = new nsContextMenu(this, window.getBrowser()); return gContextMenu.shouldDisplay;"
            onpopuphiding="if (event.target == this) { gContextMenu = null; updateEditUIVisibility(); }">
@@ -176,7 +197,7 @@
         <vbox id="identity-popup-content-box">
           <label id="identity-popup-connectedToLabel" value="&identity.connectedTo;"/>
           <label id="identity-popup-connectedToLabel2"
-                 value="&identity.unverifiedsite;"/>
+                 value="&identity.unverifiedsite2;"/>
           <description id="identity-popup-content-host"/>
           <label id="identity-popup-runByLabel" value="&identity.runBy;"/>
           <description id="identity-popup-content-owner"/>
@@ -280,7 +301,7 @@
                      command="Browser:Stop"
                      tooltiptext="&stopButton.tooltip;"/>
 
-      <toolbarbutton id="home-button" class="bookmark-item chromeclass-toolbar-additional"
+      <toolbarbutton id="home-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      persist="class"
                      label="&homeButton.label;"
                      ondragover="nsDragAndDrop.dragOver(event, homeButtonObserver);"
@@ -301,7 +322,7 @@
                  showimagecolumn="true"
                  enablehistory="true"
                  timeout="100"
-                 maxrows="10"
+                 maxrows="6"
                  newlines="stripsurroundingwhitespace"
                  oninput="URLBarOnInput(event);"
                  ontextentered="return handleURLBarCommand(param);"
@@ -320,8 +341,7 @@
                onkeypress="getIdentityHandler().handleIdentityButtonEvent(event);">
             <hbox align="center">
               <stack id="page-proxy-stack"
-                     onclick="PageProxyClickHandler(event);"
-                     tooltiptext="&proxyIcon.tooltip;">
+                     onclick="PageProxyClickHandler(event);">
                 <image id="urlbar-throbber" busy="false"/>
                 <image id="page-proxy-favicon" validate="never"
                        ondraggesture="PageProxyDragGesture(event);"
@@ -441,9 +461,9 @@
              fullscreentoolbar="true" mode="icons" iconsize="large"
              customizable="true"
 #ifdef XP_MACOSX
-             defaultset="unified-back-forward-button,reload-button,stop-button,urlbar-container,search-container,throbber-box"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,throbber-box"
 #else
-             defaultset="unified-back-forward-button,reload-button,stop-button,urlbar-container,search-container,fullscreenflex,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,fullscreenflex,window-controls"
 #endif
              context="toolbar-context-menu">
 #ifndef XP_MACOSX
@@ -470,7 +490,7 @@
              mode="icons" iconsize="small" defaulticonsize="small"
              class="chromeclass-directories"
              context="toolbar-context-menu"
-             defaultset="home-button,personal-bookmarks"
+             defaultset="personal-bookmarks"
              toolbarname="&personalbarCmd.label;" accesskey="&personalbarCmd.accesskey;"
              customizable="true"/>
   </toolbox>
@@ -501,7 +521,6 @@
   <panel id="customizeToolbarSheetPopup" noautohide="true">
     <iframe id="customizeToolbarSheetIFrame"
             style="&dialog.style;"
-            src="chrome://global/content/customizeToolbar.xul"
             hidden="true"/>
   </panel>
 #endif

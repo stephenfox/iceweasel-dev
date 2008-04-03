@@ -57,6 +57,11 @@ richlistitem[isDisabled="true"] {
   color: GrayText;
 }
 
+richlistitem[newAddon="true"] {
+  background-color: #fdf2ab;
+  color: #585620;
+}
+
 richlistitem[selected="true"] {
   background-color: Highlight;
   color: HighlightText;
@@ -108,8 +113,11 @@ richlistitem[selected="true"]:not([opType]) .descriptionCrop {
 .addonIcon {
   -moz-margin-end: 2px;
   width: 32px;
-  max-width: 32px;
   height: 32px;
+}
+
+.addonIcon > image {
+  max-width: 32px;
   max-height: 32px;
 }
 
@@ -273,23 +281,23 @@ richlistitem[opType="needs-uninstall"] .notifyBadge {
   -moz-image-region: rect(0px 68px 12px 0px);
 }
 
-.addonRating[rating="1"], .addonRating[rating="2"] {
+.addonRating[rating="1"] {
   -moz-image-region: rect(12px 68px 24px 0px);
 }
 
-.addonRating[rating="3"], .addonRating[rating="4"] {
+.addonRating[rating="2"] {
   -moz-image-region: rect(24px 68px 36px 0px);
 }
 
-.addonRating[rating="5"], .addonRating[rating="6"] {
+.addonRating[rating="3"] {
   -moz-image-region: rect(36px 68px 48px 0px);
 }
 
-.addonRating[rating="7"], .addonRating[rating="8"] {
+.addonRating[rating="4"] {
   -moz-image-region: rect(48px 68px 60px 0px);
 }
 
-.addonRating[rating="9"], .addonRating[rating="10"] {
+.addonRating[rating="5"] {
   -moz-image-region: rect(60px 68px 72px 0px);
 }
 
@@ -329,11 +337,6 @@ vbox[typeName="status"][type="header-recommended"] {
 
 #searchPanel {
   border-bottom: 1px solid #878787;
-}
-
-#searchbox {
-  list-style-image: url(chrome://mozapps/skin/extensions/searchIcons.png);
-  -moz-image-region: rect(0px 19px 19px 0px);
 }
 
 .searchbox-search, .searchbox-cancel {

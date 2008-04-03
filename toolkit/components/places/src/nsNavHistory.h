@@ -343,7 +343,7 @@ public:
                                    nsCOMArray<nsNavHistoryQuery>* aQueries,
                                    nsNavHistoryQueryOptions** aOptions);
 
-  // Import-friendly version of SetPageDetails + AddVisit.
+  // Import-friendly version of AddVisit.
   // This method adds a page to history along with a single last visit.
   // It is an error to call this method if aURI might already be in history.
   // The given aVisitCount should include the given last-visit date.
@@ -368,6 +368,8 @@ public:
 
   // sets the schema version in the database to match SCHEMA_VERSION
   nsresult UpdateSchemaVersion();
+
+  typedef nsDataHashtable<nsCStringHashKey, nsCString> StringHash;
 
  private:
   ~nsNavHistory();
@@ -566,20 +568,19 @@ protected:
 #endif
 
   nsresult ConstructQueryString(const nsCOMArray<nsNavHistoryQuery>& aQueries, 
-                                nsNavHistoryQueryOptions *aOptions,
+                                nsNavHistoryQueryOptions* aOptions,
                                 nsCString& queryString,
-                                PRBool& aParamsPresent);
+                                PRBool& aParamsPresent,
+                                StringHash& aAddParams);
 
   nsresult QueryToSelectClause(nsNavHistoryQuery* aQuery,
                                nsNavHistoryQueryOptions* aOptions,
-                               PRInt32 aStartParameter,
-                               nsCString* aClause,
-                               PRInt32* aParamCount);
+                               PRInt32 aQueryIndex,
+                               nsCString* aClause);
   nsresult BindQueryClauseParameters(mozIStorageStatement* statement,
-                                     PRInt32 aStartParameter,
+                                     PRInt32 aQueryIndex,
                                      nsNavHistoryQuery* aQuery,
-                                     nsNavHistoryQueryOptions* aOptions,
-                                     PRInt32* aParamCount);
+                                     nsNavHistoryQueryOptions* aOptions);
 
   nsresult ResultsAsList(mozIStorageStatement* statement,
                          nsNavHistoryQueryOptions* aOptions,
@@ -650,12 +651,14 @@ protected:
   static const PRInt32 kAutoCompleteIndex_BookmarkTitle;
   static const PRInt32 kAutoCompleteIndex_Tags;
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteQuery; //  kAutoCompleteIndex_* results
+  nsCOMPtr<mozIStorageStatement> mDBPreviousQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBAdaptiveQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;
 
   nsresult InitAutoComplete();
   nsresult CreateAutoCompleteQueries();
   PRBool mAutoCompleteOnlyTyped;
+  PRBool mAutoCompleteOnWordBoundary;
   PRBool mAutoCompleteFilterJavascript;
   PRInt32 mAutoCompleteMaxResults;
   PRInt32 mAutoCompleteSearchChunkSize;
@@ -678,11 +681,13 @@ protected:
 
   nsDataHashtable<nsStringHashKey, PRBool> mCurrentResultURLs;
   PRInt32 mCurrentChunkOffset;
+  PRInt32 mPreviousChunkOffset;
 
   nsDataHashtable<nsTrimInt64HashKey, PRBool> mLivemarkFeedItemIds;
   nsDataHashtable<nsStringHashKey, PRBool> mLivemarkFeedURIs;
 
   nsresult AutoCompleteFullHistorySearch(PRBool* aHasMoreResults);
+  nsresult AutoCompletePreviousSearch();
   nsresult AutoCompleteAdaptiveSearch();
 
   /**
@@ -701,7 +706,9 @@ protected:
   nsresult PerformAutoComplete();
   nsresult StartAutoCompleteTimer(PRUint32 aMilliseconds);
   static void AutoCompleteTimerCallback(nsITimer* aTimer, void* aClosure);
-  void DoneSearching();
+
+  PRBool mAutoCompleteFinishedSearch;
+  void DoneSearching(PRBool aFinished);
 
   PRInt32 mExpireDaysMin;
   PRInt32 mExpireDaysMax;

@@ -59,12 +59,16 @@
 #include "prprf.h"
 #include "nsTArray.h"
 #include "nsCSSValue.h"
+#include "nsIRunnable.h"
+#include "nsThreadUtils.h"
 
 // JavaScript includes
 #include "jsapi.h"
-#include "jsnum.h"
-#include "jsdbgapi.h"
+#include "jsprvtd.h"    // we are using private JS typedefs...
 #include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsnum.h"
+#include "jsscope.h"
 
 // General helper includes
 #include "nsGlobalWindow.h"
@@ -111,8 +115,8 @@
 #include "nsIDOMMediaList.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMConstructor.h"
-#include "nsIDOMTextRectangle.h"
-#include "nsIDOMTextRectangleList.h"
+#include "nsIDOMClientRect.h"
+#include "nsIDOMClientRectList.h"
 
 // DOM core includes
 #include "nsDOMError.h"
@@ -494,6 +498,7 @@ static const char kDOMStringBundleURL[] =
    nsIXPCScriptable::WANT_ADDPROPERTY |                                       \
    nsIXPCScriptable::WANT_DELPROPERTY |                                       \
    nsIXPCScriptable::WANT_GETPROPERTY |                                       \
+   nsIXPCScriptable::WANT_ENUMERATE   |                                       \
    nsIXPCScriptable::WANT_POSTCREATE  |                                       \
    nsIXPCScriptable::WANT_FINALIZE)
 
@@ -591,8 +596,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   // Core classes
   NS_DEFINE_CLASSINFO_DATA(XMLDocument, nsDocumentSH,
-                           DOCUMENT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ENUMERATE)
+                           DOCUMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(DocumentType, nsNodeSH,
                            NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(DOMImplementation, nsDOMGenericSH,
@@ -640,8 +644,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   // Misc HTML classes
   NS_DEFINE_CLASSINFO_DATA(HTMLDocument, nsHTMLDocumentSH,
-                           DOCUMENT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ENUMERATE)
+                           DOCUMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLOptionsCollection,
                            nsHTMLOptionsCollectionSH,
                            ARRAY_SCRIPTABLE_FLAGS |
@@ -811,8 +814,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   // XUL classes
 #ifdef MOZ_XUL
   NS_DEFINE_CLASSINFO_DATA(XULDocument, nsDocumentSH,
-                           DOCUMENT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ENUMERATE)
+                           DOCUMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(XULElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(XULCommandDispatcher, nsDOMGenericSH,
@@ -870,8 +872,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            NODE_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(ImageDocument, nsHTMLDocumentSH,
-                           DOCUMENT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ENUMERATE)
+                           DOCUMENT_SCRIPTABLE_FLAGS)
 
 #ifdef MOZ_XUL
   NS_DEFINE_CLASSINFO_DATA(XULTemplateBuilder, nsDOMGenericSH,
@@ -1186,9 +1187,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(XMLHttpRequest, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(TextRectangle, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(ClientRect, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(TextRectangleList, nsTextRectangleListSH,
+  NS_DEFINE_CLASSINFO_DATA(ClientRectList, nsClientRectListSH,
                            ARRAY_SCRIPTABLE_FLAGS)
 
   // Define MOZ_SVG_FOREIGNOBJECT here so that when it gets switched on,
@@ -3328,12 +3329,12 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(TextRectangle, nsIDOMTextRectangle)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMTextRectangle)
+  DOM_CLASSINFO_MAP_BEGIN(ClientRect, nsIDOMClientRect)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientRect)
    DOM_CLASSINFO_MAP_END
  
-  DOM_CLASSINFO_MAP_BEGIN(TextRectangleList, nsIDOMTextRectangleList)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMTextRectangleList)
+  DOM_CLASSINFO_MAP_BEGIN(ClientRectList, nsIDOMClientRectList)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientRectList)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(FileList, nsIDOMFileList)
@@ -3738,18 +3739,20 @@ NS_IMETHODIMP
 nsDOMClassInfo::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, PRBool *_retval)
 {
-  if (!sSecMan)
+#ifdef DEBUG
+  if (!sSecMan) {
+    NS_ERROR("No security manager!!!");
     return NS_OK;
+  }
 
   // Ask the security manager if it's OK to enumerate
   nsresult rv =
     sSecMan->CheckPropertyAccess(cx, obj, mData->mName, sEnumerate_id,
                                  nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
 
-  if (NS_FAILED(rv)) {
-    // Let XPConnect know that the access was not granted.
-    *_retval = PR_FALSE;
-  }
+  NS_ASSERTION(NS_SUCCEEDED(rv),
+               "XOWs should have stopped us from getting here!!!");
+#endif
 
   return NS_OK;
 }
@@ -3772,7 +3775,7 @@ nsDOMClassInfo::ResolveConstructor(JSContext *cx, JSObject *obj,
 
   jsval val;
   JSAutoRequest ar(cx);
-  if (!::JS_GetProperty(cx, global, mData->mName, &val)) {
+  if (!::JS_LookupProperty(cx, global, mData->mName, &val)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -5423,14 +5426,14 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     if (class_parent_name) {
       jsval val;
 
-      if (!::JS_GetProperty(cx, obj, CutPrefix(class_parent_name), &val)) {
+      if (!::JS_LookupProperty(cx, obj, CutPrefix(class_parent_name), &val)) {
         return NS_ERROR_UNEXPECTED;
       }
 
       JSObject *tmp = JSVAL_IS_OBJECT(val) ? JSVAL_TO_OBJECT(val) : nsnull;
 
       if (tmp) {
-        if (!::JS_GetProperty(cx, tmp, "prototype", &val)) {
+        if (!::JS_LookupProperty(cx, tmp, "prototype", &val)) {
           return NS_ERROR_UNEXPECTED;
         }
 
@@ -5789,8 +5792,12 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   JSAutoRequest ar(my_cx);
 
-  // Don't resolve standard classes on XPCNativeWrapper.
-  JSBool ok = !ObjectIsNativeWrapper(cx, obj) ?
+  JSObject *realObj;
+  wrapper->GetJSObject(&realObj);
+
+  // Don't resolve standard classes on XPCNativeWrapper etc, only
+  // resolve them if we're resolving on the real global object.
+  JSBool ok = obj == realObj ?
               ::JS_ResolveStandardClass(my_cx, obj, id, &did_resolve) :
               JS_TRUE;
 
@@ -6175,8 +6182,70 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 #endif
   }
 
-  return nsEventReceiverSH::NewResolve(wrapper, cx, obj, id, flags, objp,
-                                       _retval);
+  JSObject *oldobj = *objp;
+  rv = nsEventReceiverSH::NewResolve(wrapper, cx, obj, id, flags, objp,
+                                     _retval);
+
+  if (NS_FAILED(rv) || *objp != oldobj) {
+    // Something went wrong, or the property got resolved. Return.
+    return rv;
+  }
+
+  // Make a fast expando if we're assigning to (not declaring or
+  // binding a name) a new undefined property that's not already
+  // defined on our prototype chain. This way we can access this
+  // expando w/o ever getting back into XPConnect.
+  if ((flags & (JSRESOLVE_ASSIGNING)) && cx->fp->regs &&
+      (JSOp)*cx->fp->regs->pc != JSOP_BINDNAME && win->IsInnerWindow()) {
+    JSObject *realObj;
+    wrapper->GetJSObject(&realObj);
+
+    if (obj == realObj) {
+      JSObject *proto = STOBJ_GET_PROTO(obj);
+      if (proto) {
+        jsid interned_id;
+        JSProperty *prop = nsnull;
+
+        if (!::JS_ValueToId(cx, id, &interned_id) ||
+            !OBJ_LOOKUP_PROPERTY(cx, proto, interned_id, objp, &prop)) {
+          *_retval = JS_FALSE;
+
+          return NS_OK;
+        }
+
+        if (prop) {
+          // A property was found on the prototype chain, and *objp is
+          // already set to point to the prototype where the property
+          // was found.
+          OBJ_DROP_PROPERTY(cx, proto, prop);
+
+          return NS_OK;
+        }
+      }
+
+      // Define a fast expando, the key here is to use JS_PropertyStub
+      // as the getter/setter, which makes us stay out of XPConnect
+      // when using this property.
+      //
+      // We don't need to worry about property attributes here as we
+      // know here we're dealing with an undefined property set, so
+      // we're not declaring readonly or permanent properties.
+
+      JSString *str = JSVAL_TO_STRING(id);
+      if (!::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
+                                 ::JS_GetStringLength(str), JSVAL_VOID,
+                                 JS_PropertyStub, JS_PropertyStub,
+                                 JSPROP_ENUMERATE)) {
+        *_retval = JS_FALSE;
+
+        return NS_OK;
+      }
+
+      *objp = obj;
+    }
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -7076,20 +7145,17 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // We must ensure that the XBL Binding is installed before we hand
   // back this object.
 
-  nsRefPtr<nsXBLBinding> binding;
   if (content->HasFlag(NODE_MAY_BE_IN_BINDING_MNGR) &&
-      (binding = doc->BindingManager()->GetBinding(content))) {
-    // There's already a binding for this element, make sure that
-    // the script API has been installed.
-    // Note that this could end up recusing into code that calls
-    // WrapNative. So don't do anything important beyond this point
-    // as that will not be done to the wrapper returned from that
-    // WrapNative call.
-    // In theory we could also call ExecuteAttachedHandler here if
-    // we also removed the binding from the PAQ queue, but that seems
-    // like a scary change that would mosly just add more inconsistencies.
+      doc->BindingManager()->GetBinding(content)) {
+    // There's already a binding for this element so nothing left to
+    // be done here.
 
-    return binding->EnsureScriptAPI();
+    // In theory we could call ExecuteAttachedHandler here when it's safe to
+    // run script if we also removed the binding from the PAQ queue, but that
+    // seems like a scary change that would mosly just add more
+    // inconsistencies.
+
+    return NS_OK;
   }
 
   // See if we have a frame.
@@ -7113,6 +7179,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   // Make sure the style context goes away _before_ we execute the binding
   // constructor, since the constructor can destroy the relevant presshell.
+  nsRefPtr<nsXBLBinding> binding;
   {
     // Scope for the nsRefPtr
     nsRefPtr<nsStyleContext> sc = pctx->StyleSet()->ResolveStyleFor(content,
@@ -7137,17 +7204,13 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   }
   
   if (binding) {
-
-#ifdef DEBUG
-    PRBool safeToRunScript = PR_FALSE;
-    pctx->PresShell()->IsSafeToFlush(safeToRunScript);
-    NS_ASSERTION(safeToRunScript, "Wrapping when it's not safe to flush");
-#endif
-
-    rv = binding->EnsureScriptAPI();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    binding->ExecuteAttachedHandler();
+    if (nsContentUtils::IsSafeToRunScript()) {
+      binding->ExecuteAttachedHandler();
+    }
+    else {
+      nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsXBLBinding>(
+        binding, &nsXBLBinding::ExecuteAttachedHandler));
+    }
   }
 
   return NS_OK;
@@ -8738,17 +8801,24 @@ nsHTMLSelectElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
 
 // static
 nsresult
-nsHTMLPluginObjElementSH::GetPluginInstance(nsIXPConnectWrappedNative *wrapper,
-                                            nsIPluginInstance **_result)
+nsHTMLPluginObjElementSH::GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *wrapper,
+                                                  nsIPluginInstance **_result)
 {
   *_result = nsnull;
 
   nsCOMPtr<nsIContent> content(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(content, NS_ERROR_UNEXPECTED);
 
-  // Make sure that there is a plugin
   nsCOMPtr<nsIObjectLoadingContent> objlc(do_QueryInterface(content));
   NS_ASSERTION(objlc, "Object nodes must implement nsIObjectLoadingContent");
+
+  // If it's not safe to run script we'll only return the instance if it
+  // exists.
+  if (!nsContentUtils::IsSafeToRunScript()) {
+    return objlc->GetPluginInstance(_result);
+  }
+
+  // Make sure that there is a plugin
   return objlc->EnsureInstantiation(_result);
 }
 
@@ -8774,22 +8844,51 @@ IsObjInProtoChain(JSContext *cx, JSObject *obj, JSObject *proto)
   return PR_FALSE;
 }
 
-
-// Note that not only XPConnect calls this PostCreate() method when
-// it creates wrappers, nsObjectFrame also calls this method when a
-// plugin is loaded if the embed/object element is already wrapped to
-// get the scriptable plugin inserted into the embed/object's proto
-// chain.
-
-NS_IMETHODIMP
-nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
-                                     JSContext *cx, JSObject *obj)
+class nsPluginProtoChainInstallRunner : public nsIRunnable
 {
-  nsresult rv = nsElementSH::PostCreate(wrapper, cx, obj);
-  NS_ENSURE_SUCCESS(rv, rv);
+public:
+  NS_DECL_ISUPPORTS
+
+  nsPluginProtoChainInstallRunner(nsIXPConnectWrappedNative* wrapper,
+                                  nsIScriptContext* scriptContext)
+    : mWrapper(wrapper),
+      mContext(scriptContext)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    JSObject* obj = nsnull;
+    mWrapper->GetJSObject(&obj);
+    NS_ASSERTION(obj, "Should never be null");
+    nsHTMLPluginObjElementSH::SetupProtoChain(
+      mWrapper, (JSContext*)mContext->GetNativeContext(), obj);
+    return NS_OK;
+  }
+
+private:
+  nsCOMPtr<nsIXPConnectWrappedNative> mWrapper;
+  nsCOMPtr<nsIScriptContext> mContext;
+};
+
+NS_IMPL_ISUPPORTS1(nsPluginProtoChainInstallRunner, nsIRunnable)
+
+// static
+nsresult
+nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
+                                          JSContext *cx,
+                                          JSObject *obj)
+{
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
+               "Shouldn't have gotten in here");
+
+  nsCxPusher cxPusher;
+  if (!cxPusher.Push(cx)) {
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIPluginInstance> pi;
-  rv = GetPluginInstance(wrapper, getter_AddRefs(pi));
+  nsresult rv = GetPluginInstanceIfSafe(wrapper, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!pi) {
@@ -8813,7 +8912,7 @@ nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
   if (IsObjInProtoChain(cx, obj, pi_obj)) {
     // We must have re-entered ::PostCreate() from nsObjectFrame()
     // (through the EnsureInstantiation() call in
-    // GetPluginInstance()), this means that we've already done what
+    // GetPluginInstanceIfSafe()), this means that we've already done what
     // we're about to do in this function so we can just return here.
 
     return NS_OK;
@@ -8903,6 +9002,26 @@ nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
+                                     JSContext *cx, JSObject *obj)
+{
+  nsresult rv = nsElementSH::PostCreate(wrapper, cx, obj);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (nsContentUtils::IsSafeToRunScript()) {
+    return SetupProtoChain(wrapper, cx, obj);
+  }
+
+  nsCOMPtr<nsIScriptContext> scriptContext =
+    GetScriptContextFromJSContext(cx);
+  NS_ENSURE_TRUE(scriptContext, NS_ERROR_UNEXPECTED);
+
+  nsContentUtils::AddScriptRunner(
+      new nsPluginProtoChainInstallRunner(wrapper, scriptContext));
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
@@ -9004,7 +9123,7 @@ nsHTMLPluginObjElementSH::Call(nsIXPConnectWrappedNative *wrapper,
                                jsval *argv, jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIPluginInstance> pi;
-  nsresult rv = GetPluginInstance(wrapper, getter_AddRefs(pi));
+  nsresult rv = GetPluginInstanceIfSafe(wrapper, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!pi) {
@@ -9221,7 +9340,7 @@ nsHTMLPluginObjElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
   // plugin instances.
 
   nsCOMPtr<nsIPluginInstance> pi;
-  nsresult rv = GetPluginInstance(wrapper, getter_AddRefs(pi));
+  nsresult rv = GetPluginInstanceIfSafe(wrapper, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIPluginInstanceInternal> plugin_internal =
@@ -9690,16 +9809,16 @@ nsCSSRuleListSH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
   return rv;
 }
 
-// TextRectangleList scriptable helper
+// ClientRectList scriptable helper
 
 nsresult
-nsTextRectangleListSH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsISupports **aResult)
+nsClientRectListSH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
+                              nsISupports **aResult)
 {
-  nsCOMPtr<nsIDOMTextRectangleList> list(do_QueryInterface(aNative));
+  nsCOMPtr<nsIDOMClientRectList> list(do_QueryInterface(aNative));
   NS_ENSURE_TRUE(list, NS_ERROR_UNEXPECTED);
 
-  nsIDOMTextRectangle *rule = nsnull; // Weak, transfer the ownership over to aResult
+  nsIDOMClientRect *rule = nsnull; // Weak, transfer the ownership over to aResult
   nsresult rv = list->Item(aIndex, &rule);
 
   *aResult = rule;

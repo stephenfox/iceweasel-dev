@@ -51,7 +51,7 @@ bin/run-mozilla.sh
 bin/plugins/libnullplugin.so
 bin/libsqlite3.so
 bin/README.txt
-bin/libjemalloc.so
+bin/blocklist.xml
 
 ; [Components]
 bin/components/alerts.xpt
@@ -103,6 +103,7 @@ bin/components/downloads.xpt
 bin/components/editor.xpt
 bin/components/embed_base.xpt
 bin/components/exthandler.xpt
+bin/components/exthelper.xpt
 bin/components/fastfind.xpt
 bin/components/feeds.xpt
 bin/components/filepicker.xpt
@@ -241,6 +242,7 @@ bin/components/nsContentDispatchChooser.js
 bin/components/nsHandlerService.js
 bin/components/nsWebHandlerApp.js
 bin/components/libdbusservice.so
+bin/components/aboutRobots.js
 
 ; Modules
 bin/modules/*

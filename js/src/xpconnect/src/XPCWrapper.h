@@ -79,7 +79,7 @@ XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
                      XPCWrappedNativeScope *newScope);
 
 nsresult
-IsWrapperSameOrigin(JSContext *cx, JSObject *wrappedObj);
+CanAccessWrapper(JSContext *cx, JSObject *wrappedObj);
 
 inline JSBool
 XPC_XOW_ClassNeedsXOW(const char *name)
@@ -92,6 +92,7 @@ XPC_XOW_ClassNeedsXOW(const char *name)
 }
 
 extern JSExtendedClass sXPC_XOW_JSClass;
+extern JSExtendedClass sXPC_SJOW_JSClass;
 
 // This class wraps some common functionality between the three existing
 // wrappers. Its main purpose is to allow XPCCrossOriginWrapper to act both
@@ -207,7 +208,7 @@ public:
     }
 
     JSObject *wrappedObj = JSVAL_TO_OBJECT(v);
-    nsresult rv = IsWrapperSameOrigin(cx, wrappedObj);
+    nsresult rv = CanAccessWrapper(cx, wrappedObj);
     if (NS_FAILED(rv)) {
       JS_ClearPendingException(cx);
       return nsnull;
@@ -257,7 +258,8 @@ public:
   /**
    * Called for the common part of adding a property to obj.
    */
-  static JSBool AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
+  static JSBool AddProperty(JSContext *cx, JSObject *wrapperObj,
+                            JSObject *innerObj, jsval id, jsval *vp);
 
   /**
    * Called for the common part of deleting a property from obj.

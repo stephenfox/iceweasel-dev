@@ -345,8 +345,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
     for (i = 0; i < count; ++i) {
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
-    
+
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTooltipNode)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLocalStore)
 
     if (tmp->mOverlayLoadObservers.IsInitialized())
         tmp->mOverlayLoadObservers.EnumerateRead(TraverseObservers, &cb);
@@ -2761,6 +2762,7 @@ nsXULDocument::ResumeWalk()
     // <html:script src="..." />) can be properly re-loaded if the
     // cached copy of the document becomes stale.
     nsresult rv;
+    nsCOMPtr<nsIURI> overlayURI = mCurrentPrototype->GetURI();
 
     while (1) {
         // Begin (or resume) walking the current prototype.
@@ -2949,8 +2951,6 @@ nsXULDocument::ResumeWalk()
 
                     const PRUnichar* params[] = { piProto->mTarget.get() };
 
-                    nsCOMPtr<nsIURI> overlayURI = mCurrentPrototype->GetURI();
-
                     nsContentUtils::ReportToConsole(
                                         nsContentUtils::eXUL_PROPERTIES,
                                         "PINotInProlog",
@@ -3005,8 +3005,21 @@ nsXULDocument::ResumeWalk()
             continue;
         if (NS_FAILED(rv))
             return rv;
+        if (mOverlayLoadObservers.IsInitialized()) {
+            nsIObserver *obs = mOverlayLoadObservers.GetWeak(overlayURI);
+            if (obs) {
+                // This overlay has an unloaded overlay, so it will never
+                // notify. The best we can do is to notify for the unloaded
+                // overlay instead, assuming nobody is already notifiable
+                // for it. Note that this will confuse the observer.
+                if (!mOverlayLoadObservers.GetWeak(uri))
+                    mOverlayLoadObservers.Put(uri, obs);
+                mOverlayLoadObservers.Remove(overlayURI);
+            }
+        }
         if (shouldReturn)
             return NS_OK;
+        overlayURI.swap(uri);
     }
 
     // If we get here, there is nothing left for us to walk. The content
@@ -3187,7 +3200,9 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, PRBool* aBlock)
     // Load a transcluded script
     nsresult rv;
 
-    if (aScriptProto->mScriptObject.mObject) {
+    PRBool isChromeDoc = IsChromeURI(mDocumentURI);
+
+    if (isChromeDoc && aScriptProto->mScriptObject.mObject) {
         rv = ExecuteScript(aScriptProto);
 
         // Ignore return value from execution, and don't block
@@ -3200,7 +3215,7 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, PRBool* aBlock)
     // XXXbe the cache relies on aScriptProto's GC root!
     PRBool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
 
-    if (useXULCache) {
+    if (isChromeDoc && useXULCache) {
         PRUint32 fetchedLang = nsIProgrammingLanguage::UNKNOWN;
         void *newScriptObject =
             nsXULPrototypeCache::GetInstance()->GetScript(
@@ -3320,13 +3335,16 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
         nsString stringStr;
         rv = nsScriptLoader::ConvertToUTF16(channel, string, stringLen,
                                             EmptyString(), this, stringStr);
-        if (NS_SUCCEEDED(rv))
-          rv = scriptProto->Compile(stringStr.get(), stringStr.Length(), uri,
-                                    1, this, mCurrentPrototype);
+        if (NS_SUCCEEDED(rv)) {
+            rv = scriptProto->Compile(stringStr.get(), stringStr.Length(),
+                                      uri, 1, this, mCurrentPrototype);
+        }
 
         aStatus = rv;
         if (NS_SUCCEEDED(rv)) {
-            rv = ExecuteScript(scriptProto);
+            if (nsScriptLoader::ShouldExecuteScript(this, channel)) {
+                rv = ExecuteScript(scriptProto);
+            }
 
             // If the XUL cache is enabled, save the script object there in
             // case different XUL documents source the same script.
@@ -3407,7 +3425,8 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
         doc->mNextSrcLoadWaiter = nsnull;
 
         // Execute only if we loaded and compiled successfully, then resume
-        if (NS_SUCCEEDED(aStatus) && scriptProto->mScriptObject.mObject) {
+        if (NS_SUCCEEDED(aStatus) && scriptProto->mScriptObject.mObject &&
+            nsScriptLoader::ShouldExecuteScript(doc, channel)) {
             doc->ExecuteScript(scriptProto);
         }
         doc->ResumeWalk();

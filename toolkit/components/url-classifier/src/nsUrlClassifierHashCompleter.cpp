@@ -40,6 +40,7 @@
 #include "nsIChannel.h"
 #include "nsICryptoHMAC.h"
 #include "nsIHttpChannel.h"
+#include "nsIKeyModule.h"
 #include "nsIObserverService.h"
 #include "nsIUploadChannel.h"
 #include "nsNetUtil.h"
@@ -224,13 +225,21 @@ nsUrlClassifierHashCompleterRequest::HandleMAC(nsACString::const_iterator& begin
   nsUrlClassifierUtils::UnUrlsafeBase64(serverMAC);
 
   nsresult rv;
+
+  nsCOMPtr<nsIKeyObjectFactory> keyObjectFactory(
+    do_GetService("@mozilla.org/security/keyobjectfactory;1", &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIKeyObject> keyObject;
+  rv = keyObjectFactory->KeyFromString(nsIKeyObject::HMAC, mClientKey,
+      getter_AddRefs(keyObject));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsICryptoHMAC> hmac =
     do_CreateInstance(NS_CRYPTO_HMAC_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = hmac->Init(nsICryptoHMAC::SHA1,
-                  reinterpret_cast<const PRUint8*>(mClientKey.BeginReading()),
-                  mClientKey.Length());
+  rv = hmac->Init(nsICryptoHMAC::SHA1, keyObject);
   NS_ENSURE_SUCCESS(rv, rv);
 
   const nsCSubstring &remaining = Substring(begin, end);
@@ -530,8 +539,12 @@ nsUrlClassifierHashCompleter::Complete(const nsACString &partialHash,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    // Schedule ourselves to start this request on the main loop.
-    NS_DispatchToCurrentThread(this);
+    // If we don't have a gethash url yet, don't bother scheduling
+    // the request until we have one.
+    if (!mGethashUrl.IsEmpty()) {
+      // Schedule ourselves to start this request on the main loop.
+      NS_DispatchToCurrentThread(this);
+    }
   }
 
   return mRequest->Add(partialHash, c);
@@ -541,6 +554,12 @@ NS_IMETHODIMP
 nsUrlClassifierHashCompleter::SetGethashUrl(const nsACString &url)
 {
   mGethashUrl = url;
+
+  if (mRequest) {
+    // Schedule any pending request.
+    NS_DispatchToCurrentThread(this);
+  }
+
   return NS_OK;
 }
 

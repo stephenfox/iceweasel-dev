@@ -319,8 +319,7 @@ PRBool
 nsAccUtils::IsAncestorOf(nsIDOMNode *aPossibleAncestorNode,
                          nsIDOMNode *aPossibleDescendantNode)
 {
-  NS_ENSURE_TRUE(aPossibleAncestorNode, PR_FALSE);
-  NS_ENSURE_TRUE(aPossibleDescendantNode, PR_FALSE);
+  NS_ENSURE_TRUE(aPossibleAncestorNode && aPossibleDescendantNode, PR_FALSE);
 
   nsCOMPtr<nsIDOMNode> loopNode = aPossibleDescendantNode;
   nsCOMPtr<nsIDOMNode> parentNode;
@@ -330,6 +329,21 @@ nsAccUtils::IsAncestorOf(nsIDOMNode *aPossibleAncestorNode,
       return PR_TRUE;
     }
     loopNode.swap(parentNode);
+  }
+  return PR_FALSE;
+}
+
+PRBool
+nsAccUtils::AreSiblings(nsIDOMNode *aDOMNode1,
+                       nsIDOMNode *aDOMNode2)
+{
+  NS_ENSURE_TRUE(aDOMNode1 && aDOMNode2, PR_FALSE);
+
+  nsCOMPtr<nsIDOMNode> parentNode1, parentNode2;
+  if (NS_SUCCEEDED(aDOMNode1->GetParentNode(getter_AddRefs(parentNode1))) &&
+      NS_SUCCEEDED(aDOMNode2->GetParentNode(getter_AddRefs(parentNode2))) &&
+      parentNode1 == parentNode2) {
+    return PR_TRUE;
   }
   return PR_FALSE;
 }
@@ -907,3 +921,59 @@ nsAccUtils::GetRoleMapEntry(nsIDOMNode *aNode)
   return &nsARIAMap::gLandmarkRoleMap;
 }
 
+PRBool
+nsAccUtils::IsARIAPropForObjectAttr(nsIAtom *aAtom)
+{
+  return aAtom != nsAccessibilityAtoms::aria_activedescendant &&
+         aAtom != nsAccessibilityAtoms::aria_checked &&
+         aAtom != nsAccessibilityAtoms::aria_controls &&
+         aAtom != nsAccessibilityAtoms::aria_describedby &&
+         aAtom != nsAccessibilityAtoms::aria_disabled &&
+         aAtom != nsAccessibilityAtoms::aria_expanded &&
+         aAtom != nsAccessibilityAtoms::aria_flowto &&
+         aAtom != nsAccessibilityAtoms::aria_invalid &&
+         aAtom != nsAccessibilityAtoms::aria_haspopup &&
+         aAtom != nsAccessibilityAtoms::aria_labelledby &&
+         aAtom != nsAccessibilityAtoms::aria_multiline &&
+         aAtom != nsAccessibilityAtoms::aria_multiselectable &&
+         aAtom != nsAccessibilityAtoms::aria_owns &&
+         aAtom != nsAccessibilityAtoms::aria_pressed &&
+         aAtom != nsAccessibilityAtoms::aria_readonly &&
+         aAtom != nsAccessibilityAtoms::aria_relevant &&
+         aAtom != nsAccessibilityAtoms::aria_required &&
+         aAtom != nsAccessibilityAtoms::aria_selected &&
+         aAtom != nsAccessibilityAtoms::aria_valuemax &&
+         aAtom != nsAccessibilityAtoms::aria_valuemin &&
+         aAtom != nsAccessibilityAtoms::aria_valuenow &&
+         aAtom != nsAccessibilityAtoms::aria_valuetext;
+}
+
+void nsAccUtils::GetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
+                                                nsIContent *aStartContent, nsIContent *aTopContent)
+{
+  nsAutoString atomic, live, relevant, channel, busy;
+  nsIContent *ancestor = aStartContent;
+  while (ancestor) {
+    if (relevant.IsEmpty() &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_relevant, relevant))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerRelevant, relevant);
+    if (live.IsEmpty() &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_live, live))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerLive, live);
+    if (channel.IsEmpty() &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_channel, channel))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerChannel, channel);
+    if (atomic.IsEmpty() &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_atomic, atomic))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerAtomic, atomic);
+    if (busy.IsEmpty() &&
+        ancestor->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_busy, busy))
+      SetAccAttr(aAttributes, nsAccessibilityAtoms::containerBusy, busy);
+    if (ancestor == aTopContent)
+      break;
+    ancestor = ancestor->GetParent();
+    if (!ancestor) {
+      ancestor = aTopContent; // Use <body>/<frameset>
+    }
+  }
+}

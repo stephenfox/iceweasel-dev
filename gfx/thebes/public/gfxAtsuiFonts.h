@@ -57,7 +57,7 @@ class gfxAtsuiFont : public gfxFont {
 public:
 
     gfxAtsuiFont(MacOSFontEntry *aFontEntry,
-                 const gfxFontStyle *fontStyle);
+                 const gfxFontStyle *fontStyle, PRBool aNeedsBold);
 
     virtual ~gfxAtsuiFont();
 
@@ -76,13 +76,15 @@ public:
     virtual nsString GetUniqueName();
 
     virtual PRUint32 GetSpaceGlyph() { return mSpaceGlyph; }
-    
+
     PRBool HasMirroringInfo();
 
     virtual void SetupGlyphExtents(gfxContext *aContext, PRUint32 aGlyphID,
             PRBool aNeedTight, gfxGlyphExtents *aExtents);
 
     PRBool TestCharacterMap(PRUint32 aCh);
+
+    MacOSFontEntry* GetFontEntry();
 
 protected:
     const gfxFontStyle *mFontStyle;

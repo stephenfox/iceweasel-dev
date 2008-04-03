@@ -189,7 +189,11 @@ NATIVE_ARCH	= $(shell uname -p | sed -e s/powerpc/ppc/)
 NATIVE_DIST	= $(DIST)/../../$(NATIVE_ARCH)/dist
 SIGN_CMD	= $(NATIVE_DIST)/bin/run-mozilla.sh $(NATIVE_DIST)/bin/shlibsign -v -i
 else
+ifeq ($(OS_ARCH),OS2)
+SIGN_CMD	= $(topsrcdir)/toolkit/mozapps/installer/os2/sign.cmd $(DIST)
+else
 SIGN_CMD	= $(RUN_TEST_PROGRAM) $(DIST)/bin/shlibsign -v -i
+endif
 endif
 
 SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)softokn3$(DLL_SUFFIX)
@@ -270,7 +274,7 @@ STRIP_FLAGS	= -g
 PLATFORM_EXCLUDE_LIST = ! -name "*.stub" ! -name "$(MOZ_PKG_APPNAME)-bin"
 endif
 ifeq ($(OS_ARCH),OS2)
-STRIP		= $(srcdir)/os2/strip.cmd
+STRIP		= $(topsrcdir)/toolkit/mozapps/installer/os2/strip.cmd
 STRIP_FLAGS	=
 PLATFORM_EXCLUDE_LIST = ! -name "*.ico"
 endif
@@ -340,7 +344,11 @@ ifeq ($(MOZ_PKG_FORMAT),DMG)
 # If UNIVERSAL_BINARY, the package will be made from an already-prepared
 # STAGEPATH
 ifndef UNIVERSAL_BINARY
+ifndef STAGE_SDK
 	@cd $(DIST) && rsync -auv --copy-unsafe-links $(_APPNAME) $(MOZ_PKG_APPNAME)
+else
+	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_APPNAME); tar -xf -)
+endif
 endif
 else
 	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_APPNAME); tar -xf -)
@@ -434,11 +442,12 @@ ifdef INSTALL_SDK # Here comes the hard part
 	ln -s $(idldir)/unstable $(DESTDIR)$(sdkdir)/idl
 endif # INSTALL_SDK
 
-make-sdk:: stage-package
+make-sdk:
+	$(MAKE) stage-package STAGE_SDK=1 MOZ_PKG_APPNAME=sdk-stage
 	@echo "Packaging SDK..."
 	$(RM) -rf $(DIST)/$(MOZ_APP_NAME)-sdk
 	$(NSINSTALL) -D $(DIST)/$(MOZ_APP_NAME)-sdk/bin
-	(cd $(DIST)/$(MOZ_PKG_APPNAME) && tar $(TAR_CREATE_FLAGS) - .) | \
+	(cd $(DIST)/sdk-stage && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/$(MOZ_APP_NAME)-sdk/bin && tar -xf -)
 	$(NSINSTALL) -D $(DIST)/$(MOZ_APP_NAME)-sdk/sdk
 	(cd $(DIST)/sdk && tar $(TAR_CREATE_FLAGS) - .) | \

@@ -67,6 +67,7 @@
 #navigator-toolbox[inFullscreen="true"],
 #navigator-toolbox[inFullscreen="true"] > #nav-bar {
   border-top: none;
+  padding-top: 0;
 }
 
 /* Places toolbar */
@@ -455,7 +456,7 @@ menuitem[key="key_openHelp"] {
   list-style-image: url("chrome://browser/skin/Toolbar.png");
 }
 
-.toolbarbutton-1 .toolbarbutton-icon {
+.toolbarbutton-1 > .toolbarbutton-icon {
   -moz-margin-end: 0px;
 }
 
@@ -599,10 +600,6 @@ toolbar[iconsize="small"] .toolbarbutton-1 {
   -moz-box-orient: vertical;
   min-width: 0;
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
-}
-
-toolbar[iconsize="small"] .toolbarbutton-1 .toolbarbutton-icon {
-  -moz-margin-end: 0px;
 }
 
 toolbar[iconsize="small"] .toolbarbutton-1[type="menu-button"] {
@@ -861,7 +858,7 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 #identity-icon-label[value=""] {
-    display: none;
+  display: none;
 }
 
 #identity-box.verifiedIdentity > hbox {
@@ -877,70 +874,56 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   -moz-image-region: rect(0px, 64px, 64px, 0px);
 }
 
-.verifiedDomain > #identity-popup-container > #identity-popup-icon {
+#identity-popup.verifiedDomain > #identity-popup-container > #identity-popup-icon {
   -moz-image-region: rect(64px, 64px, 128px, 0px);
 }
 
-.verifiedIdentity > #identity-popup-container > #identity-popup-icon {
+#identity-popup.verifiedIdentity > #identity-popup-container > #identity-popup-icon {
   -moz-image-region: rect(128px, 64px, 192px, 0px);
 }
 
 /* Identity popup body text */
-.unknownIdentity > #identity-popup-connectedToLabel,
-.unknownIdentity > #identity-popup-runByLabel,
-.unknownIdentity > #identity-popup-content-host,
-.unknownIdentity > #identity-popup-content-owner {
-    display: none;
-}
-
-.verifiedIdentity > #identity-popup-connectedToLabel2,
-.verifiedDomain > #identity-popup-connectedToLabel2 {
-    display: none;
-}
-
 #identity-popup-content-box > description,
 #identity-popup-encryption-label {
-  white-space: -moz-pre-wrap;
+  white-space: pre-wrap;
   color: black;
   padding-left: 15px;
   margin: 2px 0 4px;
 }
 
 #identity-popup-content-box > label {
-  white-space: -moz-pre-wrap;
+  white-space: pre-wrap;
   padding-left: 15px;
   margin: 0;
 }
 
-#identity-popup-content-host {
-   font-weight: bold;
-   max-width: 300px;
+#identity-popup-content-host ,
+#identity-popup-content-owner {
+  font-weight: bold;
+  max-width: 300px;
+}
+
+#identity-popup-content-host ,
+#identity-popup-content-box.verifiedIdentity > #identity-popup-content-owner {
+  font-size: 140%;
 }
 
 #identity-popup-content-owner {
-   font-weight: bold;
-   max-width: 300px;
-   margin-bottom: 0 !important;
-}
-
-.verifiedIdentity > #identity-popup-content-owner,
-.verifiedIdentity > #identity-popup-content-host,
-.verifiedDomain > #identity-popup-content-host {
-   font-size: 140%;
+  margin-bottom: 0 !important;
 }
 
 #identity-popup-content-verifier {
   margin: 4px 0 2px;
 }
 
-.verifiedIdentity > #identity-popup-encryption,
-.verifiedDomain > #identity-popup-encryption {
+#identity-popup-content-box.verifiedIdentity > #identity-popup-encryption ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-encryption {
   margin-top: 10px;
   margin-left: -18px;
 }
 
-.verifiedIdentity > #identity-popup-encryption > * > #identity-popup-encryption-icon,
-.verifiedDomain > #identity-popup-encryption > * > #identity-popup-encryption-icon {
+#identity-popup-content-box.verifiedIdentity > #identity-popup-encryption > vbox > #identity-popup-encryption-icon ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-encryption > vbox > #identity-popup-encryption-icon {
   list-style-image: url("chrome://browser/skin/Secure.png");
 }
 
@@ -968,7 +951,7 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 #autocomplete-security-wrapper {
   /* keep the URL bar content LTR */
   direction: ltr;
-  -moz-box-align: center;
+  -moz-box-align: stretch;
   /* cover the white gap between the text field and the drop down button */
   margin-right: -3px;
 }
@@ -1033,7 +1016,7 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 .ac-comment {
-  font-size: larger;
+  font-size: 1.15em;
 }
 
 .ac-url-text {

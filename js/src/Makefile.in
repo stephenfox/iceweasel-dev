@@ -50,7 +50,19 @@ LIB_IS_C_ONLY	= 1
 GRE_MODULE	= 1
 
 ifdef GNU_CC
-MODULE_OPTIMIZE_FLAGS = -Os
+ifdef INTEL_CC
+# icc gets special optimize flags
+ifdef MOZ_PROFILE_GENERATE
+MODULE_OPTIMIZE_FLAGS = -O0
+else
+MODULE_OPTIMIZE_FLAGS = -O2 -ip
+#XXX: do we want different INTERP_OPTIMIZER flags here?
+endif
+else
+MODULE_OPTIMIZE_FLAGS = -Os -fstrict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
+# Special optimization flags for jsinterp.c
+INTERP_OPTIMIZER = -O3 -fstrict-aliasing
+endif
 else
 ifeq ($(OS_ARCH),SunOS)
 MODULE_OPTIMIZE_FLAGS = -O
@@ -93,6 +105,7 @@ CSRCS		= \
 		jsgc.c \
 		jshash.c \
 		jsinterp.c \
+		jsinvoke.c \
 		jsiter.c \
 		jslock.c \
 		jslog2.c \
@@ -334,6 +347,11 @@ LDFLAGS		+= -ldl -lnsl
 else
 LDFLAGS		+= -lposix4 -ldl -lnsl -lsocket
 endif
+endif
+
+# Allow building jsinterp.c with special optimization flags
+ifdef INTERP_OPTIMIZER
+jsinterp.$(OBJ_SUFFIX): MODULE_OPTIMIZE_FLAGS=$(INTERP_OPTIMIZER)
 endif
 
 ifeq ($(OS_ARCH),IRIX)
