@@ -1,6 +1,8 @@
 iceweasel (3.0~b5-1) experimental; urgency=low
 
   * New upstream beta release.
+  * debian/branding/locales/Makefile.in: Fix location of the branding
+    directory.
 
  -- Eric Dorland <eric@debian.org>  Wed, 02 Apr 2008 22:58:08 -0400
 

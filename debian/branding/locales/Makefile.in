@@ -38,7 +38,7 @@ DEPTH          = ../../..
 topsrcdir      = @top_srcdir@
 srcdir         = @srcdir@
 VPATH          = @srcdir@
-relativesrcdir = browser/branding/unofficial/locales
+relativesrcdir = debian/branding/locales
 
 include $(DEPTH)/config/autoconf.mk
 
