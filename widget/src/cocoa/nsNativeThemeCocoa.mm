@@ -146,32 +146,6 @@ nsNativeThemeCocoa::~nsNativeThemeCocoa()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-
-static PRBool
-IsTransformOnlyTranslateOrFlip(CGAffineTransform aTransform)
-{
-  return (aTransform.a == 1.0f && aTransform.b == 0.0f && 
-          aTransform.c == 0.0f && (aTransform.d == 1.0f || aTransform.d == -1.0f));
-}
-
-
-// We separate this into its own function because after an @try, all local
-// variables within that function get marked as volatile, and our C++ type
-// system doesn't like volatile things.
-static PRBool
-LockFocusOnImage(NSImage* aImage)
-{
-  @try {
-    [aImage lockFocus];
-  } @catch (NSException* e) {
-    NS_WARNING(nsPrintfCString(256, "Exception raised while drawing to offscreen buffer: \"%s - %s\"", 
-                               [[e name] UTF8String], [[e reason] UTF8String]).get());
-    return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
-
 void
 nsNativeThemeCocoa::DrawCheckbox(CGContextRef cgContext, ThemeButtonKind inKind,
                                  const HIRect& inBoxRect, PRBool inChecked,
@@ -194,20 +168,156 @@ nsNativeThemeCocoa::DrawCheckbox(CGContextRef cgContext, ThemeButtonKind inKind,
   bdi.adornment = (inState & NS_EVENT_STATE_FOCUS) ? kThemeAdornmentFocus : kThemeAdornmentNone;
 
   HIRect drawFrame = inBoxRect;
-  if (inKind == kThemeSmallCheckBox)
+
+  // on Tiger, shift the checkbox rendering down 1px to get the frame
+  // in the right spot
+  if (!nsToolkit::OnLeopardOrLater() && inKind == kThemeSmallCheckBox)
     drawFrame.origin.y += 1;
 
   HIThemeDrawButton(&drawFrame, &bdi, cgContext, HITHEME_ORIENTATION, NULL);
 
 #if DRAW_IN_FRAME_DEBUG
-  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.8);
+  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
   CGContextFillRect(cgContext, inBoxRect);
 #endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+/*
+ * Draw the given NSCell into the given cgContext.
+ *
+ * destRect - the size and position of the resulting control rectangle
+ * controlSize - the NSControlSize which will be given to the NSCell before
+ *  asking it to render
+ * naturalWidth, naturalHeight - The natural dimensions of this control.
+ *  If the control rect size is not equal to either of these, a scale
+ *  will be applied to the context so that rendering the control at the
+ *  natural size will result in it filling the destRect space.
+ *  If a control has no natural dimensions in either/both axes, pass 0.0f.
+ * minWidth, minHeight - The minimum dimensions of this control.
+ *  If the control rect size is less than the minimum for a given axis,
+ *  a scale will be applied to the context so that the minimum is used
+ *  for drawing.  If a control has no minimum dimensions in either/both
+ *  axes, pass 0.0f.
+ * marginSet - an array of margins; a multidimensional array of [2][3][4],
+ *  with the first two array elements being margins for Tiger or Leopard,
+ *  the next three being control size (mini, small, regular), and the 4
+ *  being the 4 margin values.
+ * doSaveCTM - whether this routine should bother to save the CTM before
+ *  manipuating; if the caller has already done this, pass PR_FALSE.
+ */
+void
+nsNativeThemeCocoa::DrawCellWithScaling(NSCell *cell,
+                                        CGContextRef cgContext,
+                                        const HIRect& destRect,
+                                        NSControlSize controlSize,
+                                        float naturalWidth, float naturalHeight,
+                                        float minWidth, float minHeight,
+                                        const float marginSet[][3][4],
+                                        PRBool doSaveCTM)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  NSRect drawRect = NSMakeRect(destRect.origin.x, destRect.origin.y, destRect.size.width, destRect.size.height);
+
+  CGAffineTransform savedCTM;
+  NSGraphicsContext* savedContext = NULL;
+
+  float xscale = 1.0f, yscale = 1.0f;
+
+  if (naturalWidth != 0.0f) {
+    xscale = drawRect.size.width / naturalWidth;
+    drawRect.size.width = naturalWidth;
+  }
+  else if (minWidth != 0.0f &&
+           drawRect.size.width < minWidth)
+  {
+    xscale = drawRect.size.width / minWidth;
+    drawRect.size.width = minWidth;
+  }
+
+  if (naturalHeight != 0.0f) {
+    yscale = drawRect.size.height / naturalHeight;
+    drawRect.size.height = naturalHeight;
+  }
+  else if (minHeight != 0.0f &&
+           drawRect.size.height < minHeight)
+  {
+    yscale = drawRect.size.height / minHeight;
+    drawRect.size.height = minHeight;
+  }
+
+  if (doSaveCTM)
+    savedCTM = CGContextGetCTM(cgContext);
+
+  if (xscale == 1.0f && yscale == 1.0f) {
+    // Inflate the rect Gecko gave us by the margin for the control.
+    InflateControlRect(&drawRect, controlSize, marginSet);
+
+    // Set up the graphics context we've been asked to draw to.
+    savedContext = [NSGraphicsContext currentContext];
+    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:cgContext flipped:YES]];
+
+    [cell drawWithFrame:drawRect inView:[NSView focusView]];
+  }
+  else {
+    float w = ceil(drawRect.size.width);
+    float h = ceil(drawRect.size.height);
+
+    NSRect tmpRect = NSMakeRect(0.0f, 0.0f, w, h);
+
+    // inflate to figure out the frame we need to tell NSCell to draw in, to get something that's 0,0,w,h
+    InflateControlRect(&tmpRect, controlSize, marginSet);
+
+    // and then, expand by MAX_FOCUS_RING_WIDTH size to make sure we can capture any focus ring
+    w += MAX_FOCUS_RING_WIDTH * 2.0;
+    h += MAX_FOCUS_RING_WIDTH * 2.0;
+
+    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(NULL,
+                                             (int) w, (int) h,
+                                             8, (int) w * 4,
+                                             rgb, kCGImageAlphaPremultipliedFirst);
+    CGColorSpaceRelease(rgb);
+
+    CGContextTranslateCTM(ctx, MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH);
+
+    savedContext = [NSGraphicsContext currentContext];
+    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES]];
+
+    [cell drawWithFrame:tmpRect inView:[NSView focusView]];
+
+    [NSGraphicsContext setCurrentContext:savedContext];
+
+    CGImageRef img = CGBitmapContextCreateImage(ctx);
+
+    // Drop the image into the original destination rectangle, scaling to fit
+    // XXX in theory we should scale this MAX_FOCUS_RING_WIDTH here by xscale/yscale,
+    // but in practice, this looks better.
+    CGContextDrawImage(cgContext, CGRectMake(destRect.origin.x - MAX_FOCUS_RING_WIDTH,
+                                             destRect.origin.y - MAX_FOCUS_RING_WIDTH,
+                                             destRect.size.width + MAX_FOCUS_RING_WIDTH * 2,
+                                             destRect.size.height + MAX_FOCUS_RING_WIDTH * 2),
+                       img);
+
+    CGImageRelease(img);
+    CGContextRelease(ctx);
+  }
+
+  if (doSaveCTM)
+    CGContextSetCTM(cgContext, savedCTM);
+
+  [NSGraphicsContext setCurrentContext:savedContext];
+
+#if DRAW_IN_FRAME_DEBUG
+  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
+  CGContextFillRect(cgContext, destRect);
+#endif
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+                                        
 // These are the sizes that Gecko needs to request to draw if it wants
 // to get a standard-sized Aqua radio button drawn. Note that the rects
 // that draw these are actually a little bigger.
@@ -246,86 +356,16 @@ nsNativeThemeCocoa::DrawRadioButton(CGContextRef cgContext, const HIRect& inBoxR
   [mRadioButtonCell setState:(inSelected ? NSOnState : NSOffState)];
   [mRadioButtonCell setHighlighted:((inState & NS_EVENT_STATE_ACTIVE) && (inState & NS_EVENT_STATE_HOVER))];
 
-  // Set up the graphics context we've been asked to draw to.
-  NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
-  [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:cgContext flipped:YES]];
-  [NSGraphicsContext saveGraphicsState];
-
   // Always use a regular size control because for some reason NSCell doesn't respect other
   // size choices here. Maybe because of a rendering context/ctm setup it doesn't like?
   NSControlSize controlSize = NSRegularControlSize;
-  float naturalHeight = NATURAL_REGULAR_RADIO_BUTTON_HEIGHT;
-  float naturalWidth = NATURAL_REGULAR_RADIO_BUTTON_WIDTH;
   [mRadioButtonCell setControlSize:controlSize];
 
-  // Render, by scaling if the target height is not the natural height of the control we're drawing.
-  if (drawRect.size.height == naturalHeight &&
-      drawRect.size.width ==  naturalWidth) {
-    // Just inflate the rect Gecko gave us by the margin for the control.
-    NSRect cellRenderRect = drawRect;
-    InflateControlRect(&cellRenderRect, controlSize, radioButtonMargins);
-    [mRadioButtonCell drawWithFrame:cellRenderRect inView:[NSView focusView]];
-  }
-  else {
-    // We need to calculate three things here - the size of our offscreen buffer, the rect we'll
-    // use to draw into it, and the rect that we'll copy the buffer to.
+  DrawCellWithScaling(mRadioButtonCell, cgContext, inBoxRect, controlSize,
+                      NATURAL_REGULAR_RADIO_BUTTON_WIDTH, NATURAL_REGULAR_RADIO_BUTTON_HEIGHT,
+                      0.0f, 0.0f,
+                      radioButtonMargins, PR_TRUE);
 
-    // This is the rect we'll render the control into our buffer with. We need to inset our control to leave room for a
-    // focus ring to be rendered.
-    NSRect bufferRenderRect = NSMakeRect(MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH, naturalWidth, naturalHeight);
-
-    // At this point the size of our render rect reflects the size of the control we actually
-    // want to draw into the buffer. Grab it for our initial buffer size and then expand the
-    // buffer size to allow for a focus ring to render.
-    NSSize initialBufferSize = bufferRenderRect.size;
-    initialBufferSize.width += (MAX_FOCUS_RING_WIDTH * 2);
-    initialBufferSize.height += (MAX_FOCUS_RING_WIDTH * 2);
-
-    // Now we need to inflate our rendering rect to account for the quirks of NSCell rendering,
-    // which is what this rect will actually be used for. The rect we pass to NSCell for
-    // rendering is not necessarily the same size as the control that gets drawn.
-    InflateControlRect(&bufferRenderRect, controlSize, radioButtonMargins);
-
-    // This is the rect in our destination that we'll copy our buffer to.
-    NSRect finalCopyRect = NSMakeRect(drawRect.origin.x - MAX_FOCUS_RING_WIDTH,
-                                      drawRect.origin.y - MAX_FOCUS_RING_WIDTH,
-                                      drawRect.size.width + (MAX_FOCUS_RING_WIDTH * 2),
-                                      drawRect.size.height + (MAX_FOCUS_RING_WIDTH * 2));
-
-    // This flips the image in place and is necessary to work around a bug in the way
-    // NSButtonCell draws buttons.
-    CGContextScaleCTM(cgContext, 1.0f, -1.0f);
-    CGContextTranslateCTM(cgContext, 0.0f, -(2.0 * drawRect.origin.y + drawRect.size.height));
-
-    // Now actually do all the drawing/scaling with the rects we have set up.
-    NSImage *buffer = [[NSImage alloc] initWithSize:initialBufferSize];
-    if (!LockFocusOnImage(buffer)) {
-      [buffer release];
-      [NSGraphicsContext restoreGraphicsState];
-      [NSGraphicsContext setCurrentContext:savedContext];
-      return;
-    }
-
-    [mRadioButtonCell drawWithFrame:bufferRenderRect inView:[NSView focusView]];
-
-    [buffer setScalesWhenResized:YES];
-    [[NSGraphicsContext currentContext] setImageInterpolation:NSImageInterpolationHigh];
-    [buffer setSize:finalCopyRect.size];
-
-    [buffer unlockFocus];
-
-    [buffer drawInRect:finalCopyRect fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
-
-    [buffer release];
-  }
-
-  [NSGraphicsContext restoreGraphicsState];
-  [NSGraphicsContext setCurrentContext:savedContext];
-
-#if DRAW_IN_FRAME_DEBUG
-  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.8);
-  CGContextFillRect(cgContext, inBoxRect);
-#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -356,6 +396,11 @@ static const float pushButtonMargins[2][3][4] =
   }
 };
 
+// The height at which we start doing square buttons instead of rounded buttons
+// Rounded buttons look bad if drawn at a height greater than 26, so at that point
+// we switch over to doing square buttons which looks fine at any size.
+#define DO_SQUARE_BUTTON_HEIGHT 26
+
 void
 nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRect, PRBool inIsDefault,
                                    PRBool inDisabled, PRInt32 inState)
@@ -368,23 +413,26 @@ nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRe
   [mPushButtonCell setHighlighted:((inState & NS_EVENT_STATE_ACTIVE) && (inState & NS_EVENT_STATE_HOVER) || (inIsDefault && !inDisabled))];
   [mPushButtonCell setShowsFirstResponder:(inState & NS_EVENT_STATE_FOCUS)];
 
-  // Set up the graphics context we've been asked to draw to.
-  NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
-  [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:cgContext flipped:YES]];
-  [NSGraphicsContext saveGraphicsState];
+  CGAffineTransform savedCTM = CGContextGetCTM(cgContext);
 
   // This flips the image in place and is necessary to work around a bug in the way
   // NSButtonCell draws buttons.
   CGContextScaleCTM(cgContext, 1.0f, -1.0f);
   CGContextTranslateCTM(cgContext, 0.0f, -(2.0 * drawRect.origin.y + drawRect.size.height));
 
+  // Set up the graphics context we've been asked to draw to.
+
   // If the button is tall enough, draw the square button style so that buttons with
   // non-standard content look good. Otherwise draw normal rounded aqua buttons.
-  if (drawRect.size.height > 26) {
+  if (drawRect.size.height > DO_SQUARE_BUTTON_HEIGHT) {
+    NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
+    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:cgContext flipped:YES]];
+
     [mPushButtonCell setBezelStyle:NSShadowlessSquareBezelStyle];
     [mPushButtonCell drawWithFrame:drawRect inView:[NSView focusView]];
-  }
-  else {
+
+    [NSGraphicsContext setCurrentContext:savedContext];
+  } else {
     [mPushButtonCell setBezelStyle:NSRoundedBezelStyle];
 
     // Figure out what size cell control we're going to draw and grab its
@@ -406,74 +454,16 @@ nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRe
     }
     [mPushButtonCell setControlSize:controlSize];
 
-    // Render, by scaling if the target height is not the natural height of the control we're drawing.
-    if (drawRect.size.height == naturalHeight) {
-      // Just inflate the rect Gecko gave us by the margin for the control.
-      NSRect cellRenderRect = drawRect;
-      InflateControlRect(&cellRenderRect, controlSize, pushButtonMargins);
-
-      [mPushButtonCell drawWithFrame:cellRenderRect inView:[NSView focusView]];
-    }
-    else {
-      // We need to calculate three things here - the size of our offscreen buffer, the rect we'll
-      // use to draw into it, and the rect that we'll copy the buffer to.
-
-      // This is the rect we'll render the control into our buffer with. We need to inset our control to leave room for a
-      // focus ring to be rendered. Also, we start with the min width for the control or the desired width, whichever is
-      // larger.
-      NSRect bufferRenderRect = NSMakeRect(MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH, PR_MAX(minWidth, drawRect.size.width), naturalHeight);
-
-      // Adjust the size of our control to avoid distortion when scaling.
-      float scaleFactor = drawRect.size.height / naturalHeight;
-      if (scaleFactor != 0.0)
-        bufferRenderRect.size.width = bufferRenderRect.size.width / scaleFactor;
-
-      // At this point the size of our render rect reflects the size of the control we actually
-      // want to draw into the buffer. Grab it for our initial buffer size and then expand the
-      // buffer size to allow for a focus ring to render.
-      NSSize initialBufferSize = bufferRenderRect.size;
-      initialBufferSize.width += (MAX_FOCUS_RING_WIDTH * 2);
-      initialBufferSize.height += (MAX_FOCUS_RING_WIDTH * 2);
-
-      // Now we need to inflate our rendering rect to account for the quirks of NSCell rendering,
-      // which is what this rect will actually be used for. The rect we pass to NSCell for
-      // rendering is not necessarily the same size as the control that gets drawn.
-      InflateControlRect(&bufferRenderRect, controlSize, pushButtonMargins);
-
-      // This is the rect in our destination that we'll copy our buffer to.
-      NSRect finalCopyRect = NSMakeRect(drawRect.origin.x - MAX_FOCUS_RING_WIDTH,
-                                        drawRect.origin.y - MAX_FOCUS_RING_WIDTH,
-                                        drawRect.size.width + (MAX_FOCUS_RING_WIDTH * 2),
-                                        drawRect.size.height + (MAX_FOCUS_RING_WIDTH * 2));
-
-      // Now actually do all the drawing/scaling with the rects we have set up.
-      NSImage *buffer = [[NSImage alloc] initWithSize:initialBufferSize];
-      if (!LockFocusOnImage(buffer)) {
-        [buffer release];
-        [NSGraphicsContext restoreGraphicsState];
-        [NSGraphicsContext setCurrentContext:savedContext];
-        return;
-      }
-
-      [mPushButtonCell drawWithFrame:bufferRenderRect inView:[NSView focusView]];
-
-      [buffer setScalesWhenResized:YES];
-      [[NSGraphicsContext currentContext] setImageInterpolation:NSImageInterpolationHigh];
-      [buffer setSize:finalCopyRect.size];
-
-      [buffer unlockFocus];
-
-      [buffer drawInRect:finalCopyRect fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
-
-      [buffer release];
-    }
+    DrawCellWithScaling(mPushButtonCell, cgContext, inBoxRect, controlSize,
+                        0.0f, naturalHeight,
+                        minWidth, 0.0f,
+                        pushButtonMargins, PR_FALSE);
   }
 
-  [NSGraphicsContext restoreGraphicsState];
-  [NSGraphicsContext setCurrentContext:savedContext];
+  CGContextSetCTM (cgContext, savedCTM);
 
 #if DRAW_IN_FRAME_DEBUG
-  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.8);
+  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
   CGContextFillRect(cgContext, inBoxRect);
 #endif
 
@@ -509,17 +499,97 @@ nsNativeThemeCocoa::DrawButton(CGContextRef cgContext, ThemeButtonKind inKind,
     bdi.adornment |= kThemeAdornmentDefault;
 
   HIRect drawFrame = inBoxRect;
+  PRBool needsScaling = PR_FALSE;
+  int drawWidth = 0, drawHeight = 0;
+
   if (inKind == kThemePopupButton) {
-    // popup buttons draw outside their frame by 1 pixel on each side and two on the bottom
-    drawFrame.size.width -= 2;
-    drawFrame.origin.x += 1;
-    drawFrame.size.height -= 2;
+    /* popup buttons draw outside their frame by 1 pixel on each side and
+     * two on the bottom but of the bottom two pixels one is a 'shadow'
+     * and not the frame itself.  That extra pixel should be handled
+     * by GetWidgetOverflow, but we already extend each widget's overflow
+     * by 4px to handle a potential focus ring.
+     */
+
+    if (nsToolkit::OnLeopardOrLater()) {
+      /* Leopard will happily scale up for buttons that are sized 20px or higher,
+       * drawing 1px below the actual requested area.  (So 20px == 21px.)
+       * but anything below that will be clamped:
+       *  requested: 20 actual: 21 (handled above)
+       *  requested: 19 actual: 18 <- note that there is no way to draw a dropdown that's exactly 20 px in size
+       *  requested: 18 actual: 18
+       *  requested: 17 actual: 18
+       *  requested: 16 actual: 15 (min size)
+       * For those, draw to a buffer and scale
+       */
+      if (drawFrame.size.height != 18 && drawFrame.size.height != 15) {
+        if (drawFrame.size.height > 20) {
+          drawFrame.size.width -= 2;
+          drawFrame.origin.x += 1;
+          drawFrame.size.height -= 1;
+        }
+        else {
+          // pick which native height to use for the small scale
+          float nativeHeight = 15.0f;
+          if (drawFrame.size.height > 16)
+            nativeHeight = 18.0f;
+
+          drawWidth = (int) drawFrame.size.width;
+          drawHeight = (int) nativeHeight;
+
+          needsScaling = PR_TRUE;
+        }
+      }
+    }
+    else {
+      // leave things alone on Tiger
+      drawFrame.size.height -= 1;
+    }
   }
 
-  HIThemeDrawButton(&drawFrame, &bdi, cgContext, kHIThemeOrientationNormal, NULL);
+  if (!needsScaling) {
+    HIThemeDrawButton(&drawFrame, &bdi, cgContext, kHIThemeOrientationNormal, NULL);
+  } else {
+    int w = drawWidth + MAX_FOCUS_RING_WIDTH*2;
+    int h = drawHeight + MAX_FOCUS_RING_WIDTH*2;
+
+    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(NULL, w, h, 8, w * 4,
+                                             rgb, kCGImageAlphaPremultipliedFirst);
+    CGColorSpaceRelease(rgb);
+
+    // Flip the context
+    CGContextTranslateCTM(ctx, 0.0f, h);
+    CGContextScaleCTM(ctx, 1.0f, -1.0f);
+
+    // then draw the button (offset by the focus ring size
+    CGRect tmpFrame = CGRectMake(MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH, drawWidth, drawHeight);
+    HIThemeDrawButton(&tmpFrame, &bdi, ctx, kHIThemeOrientationNormal, NULL);
+
+    CGImageRef img = CGBitmapContextCreateImage(ctx);
+    CGRect imgRect = CGRectMake(drawFrame.origin.x - MAX_FOCUS_RING_WIDTH,
+                                drawFrame.origin.y - MAX_FOCUS_RING_WIDTH,
+                                drawFrame.size.width + MAX_FOCUS_RING_WIDTH * 2.0,
+                                drawFrame.size.height + MAX_FOCUS_RING_WIDTH * 2.0);
+
+    // And then flip the main context here so that the image gets drawn right-side up
+    CGAffineTransform ctm = CGContextGetCTM (cgContext);
+
+    CGContextTranslateCTM (cgContext, imgRect.origin.x, imgRect.origin.y + imgRect.size.height);
+    CGContextScaleCTM (cgContext, 1.0, -1.0);
+
+    imgRect.origin.x = imgRect.origin.y = 0.0f;
+
+    // See comment about why we don't scale MAX_FOCUS_RING in DrawCellWithScaling
+    CGContextDrawImage(cgContext, imgRect, img);
+
+    CGContextSetCTM (cgContext, ctm);
+
+    CGImageRelease(img);
+    CGContextRelease(ctx);
+  }
 
 #if DRAW_IN_FRAME_DEBUG
-  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.8);
+  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
   CGContextFillRect(cgContext, inBoxRect);
 #endif
 
@@ -590,7 +660,7 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
   }
 
 #if DRAW_IN_FRAME_DEBUG
-  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.8);
+  CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
   CGContextFillRect(cgContext, inBoxRect);
 #endif
 
@@ -715,7 +785,7 @@ nsNativeThemeCocoa::DrawTab(CGContextRef cgContext, const HIRect& inBoxRect,
 }
 
 
-static UInt8
+static inline UInt8
 ConvertToPressState(PRInt32 aButtonState, UInt8 aPressState)
 {
   // If the button is pressed, return the press state passed in. Otherwise, return 0.
@@ -789,15 +859,12 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
   PRInt32 longSideLength = (PRInt32)(isHorizontal ? (aRect.size.width) : (aRect.size.height));
   aTdi.trackInfo.scrollbar.viewsize = (SInt32)longSideLength;
 
-  // Only display the thumb if we have room for it to display. Note that this doesn't 
-  // affect the actual tracking rects Gecko maintains -- this is a purely cosmetic
-  // change. See bmo bug 380185 for more info.
+  /* Only display features if we have enough room for them.
+   * Gecko still maintains the scrollbar info; this is just a visual issue (bug 380185).
+   */
   if (longSideLength >= (isSmall ? MIN_SMALL_SCROLLBAR_SIZE_WITH_THUMB : MIN_SCROLLBAR_SIZE_WITH_THUMB)) {
     aTdi.attributes |= kThemeTrackShowThumb;
   }
-  // If we don't have enough room to display *any* features, we're done creating 
-  // this tdi, so return early. Again, this doesn't affect the tracking rects Gecko 
-  // maintains. See bmo bug 380185 for more info.
   else if (longSideLength < (isSmall ? MIN_SMALL_SCROLLBAR_SIZE : MIN_SCROLLBAR_SIZE)) {
     aTdi.enableState = kThemeTrackNothingToScroll;
     return;
@@ -834,39 +901,61 @@ nsNativeThemeCocoa::DrawScrollbar(CGContextRef aCGContext, const HIRect& aBoxRec
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // If we're drawing offscreen, make the origin (0, 0), since that's where in
-  // the offscreen buffer we'll be drawing.
-  PRBool drawOnScreen = IsTransformOnlyTranslateOrFlip(CGContextGetCTM(aCGContext));
-  HIRect drawRect = drawOnScreen ? aBoxRect : CGRectMake(0, 0, aBoxRect.size.width, aBoxRect.size.height);
+  // HIThemeDrawTrack is buggy with rotations and scaling
+  CGAffineTransform savedCTM = CGContextGetCTM(aCGContext);
+  PRBool drawDirect;
+  HIRect drawRect = aBoxRect;
+
+  if (savedCTM.a == 1.0f && savedCTM.b == 0.0f &&
+      savedCTM.c == 0.0f && (savedCTM.d == 1.0f || savedCTM.d == -1.0f))
+  {
+    drawDirect = TRUE;
+  } else {
+    drawRect.origin.x = drawRect.origin.y = 0.0f;
+    drawDirect = FALSE;
+  }
+
   HIThemeTrackDrawInfo tdi;
   GetScrollbarDrawInfo(tdi, aFrame, drawRect, PR_TRUE); //True means we want the press states
 
-  if (drawOnScreen)
+  if (drawDirect) {
     ::HIThemeDrawTrack(&tdi, NULL, aCGContext, HITHEME_ORIENTATION);
-  else {
-    NSImage *buffer = [[NSImage alloc] initWithSize:NSMakeSize(aBoxRect.size.width, aBoxRect.size.height)];
-    if (!LockFocusOnImage(buffer)) {
-      [buffer release];
-      return;
-    }
-    ::HIThemeDrawTrack(&tdi, NULL, (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort],
-                       kHIThemeOrientationInverted);
-    [buffer unlockFocus];
-    
-    [NSGraphicsContext saveGraphicsState];
-    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:aCGContext flipped:YES]];
+  } else {
+    // Note that NSScroller can draw transformed just fine, but HITheme can't.
+    // However, we can't make NSScroller's parts light up easily (depressed buttons, etc.)
+    // This is very frustrating.
 
-    // We need to flip the buffer when we draw it.
-    CGContextTranslateCTM(aCGContext, 0, aBoxRect.size.height + (2 * aBoxRect.origin.y));
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef bitmapctx = CGBitmapContextCreate(NULL,
+                                                   (size_t) ceil(drawRect.size.width),
+                                                   (size_t) ceil(drawRect.size.height),
+                                                   8,
+                                                   (size_t) ceil(drawRect.size.width) * 4,
+                                                   colorSpace,
+                                                   kCGImageAlphaPremultipliedFirst);
+    CGColorSpaceRelease(colorSpace);
+
+    // HITheme always wants to draw into a flipped context, or things
+    // get confused.
+    CGContextTranslateCTM(bitmapctx, 0.0f, aBoxRect.size.height);
+    CGContextScaleCTM(bitmapctx, 1.0f, -1.0f);
+
+    HIThemeDrawTrack(&tdi, NULL, bitmapctx, HITHEME_ORIENTATION);
+
+    CGImageRef bitmap = CGBitmapContextCreateImage(bitmapctx);
+
+    CGAffineTransform ctm = CGContextGetCTM(aCGContext);
+
+    // We need to unflip, so that we can do a DrawImage without getting a flipped image.
+    CGContextTranslateCTM(aCGContext, 0.0f, aBoxRect.size.height);
     CGContextScaleCTM(aCGContext, 1.0f, -1.0f);
-    [buffer drawInRect:*(NSRect*)&aBoxRect
-              fromRect:NSZeroRect
-             operation:NSCompositeSourceOver
-              fraction:1.0];
 
-    [NSGraphicsContext restoreGraphicsState];
+    CGContextDrawImage(aCGContext, aBoxRect, bitmap);
 
-    [buffer release];
+    CGContextSetCTM(aCGContext, ctm);
+
+    CGImageRelease(bitmap);
+    CGContextRelease(bitmapctx);
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -1075,6 +1164,12 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
                   IsDisabled(aFrame), kThemeButtonOn,
                   kThemeAdornmentArrowDownArrow, eventState);
       break;
+
+    case NS_THEME_GROUPBOX: {
+      HIThemeGroupBoxDrawInfo gdi = { 0, kThemeStateActive, kHIThemeGroupBoxKindPrimary };
+      HIThemeDrawGroupBox(&macRect, &gdi, cgContext, HITHEME_ORIENTATION);
+      break;
+    }
 
     case NS_THEME_TEXTFIELD:
       // HIThemeSetFill is not available on 10.3
@@ -1357,9 +1452,17 @@ nsNativeThemeCocoa::GetWidgetPadding(nsIDeviceContext* aContext,
 {
   // We don't want CSS padding being used for certain widgets.
   // See bug 381639 for an example of why.
-  if (aWidgetType == NS_THEME_BUTTON) {
-    aResult->SizeTo(0, 0, 0, 0);
-    return PR_TRUE;
+  switch (aWidgetType) {
+    case NS_THEME_BUTTON:
+    // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
+    // and have a meaningful baseline, so they can't have
+    // author-specified padding.
+    case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
+    case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
+      aResult->SizeTo(0, 0, 0, 0);
+      return PR_TRUE;
   }
   return PR_FALSE;
 }
@@ -1658,6 +1761,7 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
     case NS_THEME_TAB_PANEL:
     case NS_THEME_DIALOG:
     case NS_THEME_MENUPOPUP:
+    case NS_THEME_GROUPBOX:
       *aShouldRepaint = PR_FALSE;
       return NS_OK;
   }
@@ -1725,6 +1829,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_RADIO:
     case NS_THEME_RADIO_SMALL:
     case NS_THEME_RADIO_CONTAINER:
+    case NS_THEME_GROUPBOX:
     case NS_THEME_BUTTON:
     case NS_THEME_BUTTON_BEVEL:
     case NS_THEME_SPINNER:

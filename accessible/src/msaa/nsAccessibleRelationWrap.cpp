@@ -93,6 +93,7 @@ __try {
   if (NS_FAILED(rv))
     return E_FAIL;
 
+  INT res;
   switch (type) {
     case RELATION_CONTROLLED_BY:
       *aRelationType = ::SysAllocString(IA2_RELATION_CONTROLLED_BY);
@@ -143,8 +144,9 @@ __try {
       return E_FAIL;
   }
 
-  if (!aRelationType)
+  if (!res)
     return E_OUTOFMEMORY;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   
   return S_OK;
@@ -153,6 +155,7 @@ __try {
 STDMETHODIMP
 nsAccessibleRelationWrap::get_localizedRelationType(BSTR *aLocalizedRelationType)
 {
+  ::SysFreeString(*aLocalizedRelationType);
   return E_NOTIMPL;
 }
 

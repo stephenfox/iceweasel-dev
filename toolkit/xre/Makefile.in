@@ -92,7 +92,7 @@ XPIDLSRCS = \
 	nsIXULRuntime.idl \
 	$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
 XPIDLSRCS += nsIWinAppHelper.idl
 endif
 
@@ -126,7 +126,11 @@ DEFINES += -DMOZ_UPDATER
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+ifdef WINCE
+CPPSRCS += nsNativeAppSupportDefault.cpp
+else
 CPPSRCS += nsNativeAppSupportWin.cpp
+endif
 DEFINES += -DWIN32_LEAN_AND_MEAN -DUNICODE -D_UNICODE
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -164,7 +168,7 @@ SHAREDCPPSRCS	  += nsSigHandlers.cpp
 endif
 
 GARBAGE += $(SHAREDCPPSRCS) $(wildcard *.$(OBJ_SUFFIX))
-ifeq ($(OS_ARCH),WINNT)
+ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
 GARBAGE	+= $(addprefix $(srcdir)/,$(SHAREDCPPSRCS))
 endif
 
@@ -197,6 +201,15 @@ SHARED_LIBRARY_LIBS += \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/linux/$(LIB_PREFIX)breakpad_linux_common_s.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifeq ($(OS_ARCH),SunOS)
+SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/solaris/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/solaris/$(LIB_PREFIX)breakpad_solaris_common_s.$(LIB_SUFFIX) \
   $(NULL)
 endif
 endif

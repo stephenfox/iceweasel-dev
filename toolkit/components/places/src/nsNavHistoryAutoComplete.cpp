@@ -79,6 +79,144 @@
 #define NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID \
   "@mozilla.org/autocomplete/simple-result;1"
 
+// Helper to get a particular column with a desired name from the bookmark and
+// tags table based on if we want to include tags or not
+#define SQL_STR_FRAGMENT_GET_BOOK_TAG(name, column, comparison, getMostRecent) \
+  NS_LITERAL_CSTRING(", (" \
+  "SELECT " column " " \
+  "FROM moz_bookmarks b " \
+  "JOIN moz_bookmarks t ON t.id = b.parent AND t.parent " comparison " ?1 " \
+  "WHERE b.type = ") + nsPrintfCString("%d", \
+    nsINavBookmarksService::TYPE_BOOKMARK) + \
+    NS_LITERAL_CSTRING(" AND b.fk = h.id") + \
+  (getMostRecent ? NS_LITERAL_CSTRING(" " \
+    "ORDER BY b.lastModified DESC LIMIT 1") : EmptyCString()) + \
+  NS_LITERAL_CSTRING(") " name)
+
+// Get three named columns from the bookmarks and tags table
+#define BOOK_TAG_SQL (\
+  SQL_STR_FRAGMENT_GET_BOOK_TAG("parent", "b.parent", "!=", PR_TRUE) + \
+  SQL_STR_FRAGMENT_GET_BOOK_TAG("bookmark", "b.title", "!=", PR_TRUE) + \
+  SQL_STR_FRAGMENT_GET_BOOK_TAG("tags", "GROUP_CONCAT(t.title, ',')", "=", PR_FALSE))
+
+////////////////////////////////////////////////////////////////////////////////
+//// nsNavHistoryAutoComplete Helper Functions
+
+/**
+ * Returns true if the string starts with javascript:
+ */
+inline PRBool
+StartsWithJS(const nsAString &aString)
+{
+  return StringBeginsWith(aString, NS_LITERAL_STRING("javascript:"));
+}
+
+/**
+ * Callback function for putting URLs from a nsDataHashtable<nsStringHashKey,
+ * PRBool> into a nsStringArray.
+ *
+ * @param aKey
+ *        The hashtable entry's key (the url)
+ * @param aData
+ *        Unused data
+ * @param aArg
+ *        The nsStringArray pointer for collecting URLs
+ */
+PLDHashOperator
+HashedURLsToArray(const nsAString &aKey, PRBool aData, void *aArg)
+{
+  // Append the current url to the array of urls
+  static_cast<nsStringArray *>(aArg)->AppendString(aKey);
+  return PL_DHASH_NEXT;
+}
+
+/**
+ * Returns true if the unicode character is a word boundary. I.e., anything
+ * that *isn't* used to build up a word from a string of characters. We are
+ * conservative here because anything that we don't list will be treated as
+ * word boundary. This means searching for that not-actually-a-word-boundary
+ * character can still be matched in the middle of a word.
+ */
+inline PRBool
+IsWordBoundary(const PRUnichar &aChar)
+{
+  // Lower-case alphabetic, so upper-case matches CamelCase. Because
+  // upper-case is treated as a word boundary, matches will also happen
+  // _after_ an upper-case character.
+  return !(PRUnichar('a') <= aChar && aChar <= PRUnichar('z'));
+}
+
+/**
+ * Returns true if the token matches the target on a word boundary
+ *
+ * @param aToken
+ *        Token to search for that must match on a word boundary
+ * @param aTarget
+ *        Target string to search against
+ */
+PRBool
+FindOnBoundary(const nsAString &aToken, const nsAString &aTarget)
+{
+  // Define a const instance of this class so it is created once
+  const nsCaseInsensitiveStringComparator caseInsensitiveCompare;
+
+  // Can't match anything if there's nothing to match
+  if (aTarget.IsEmpty())
+    return PR_FALSE;
+
+  nsAString::const_iterator tokenStart, tokenEnd;
+  aToken.BeginReading(tokenStart);
+  aToken.EndReading(tokenEnd);
+
+  nsAString::const_iterator targetStart, targetEnd;
+  aTarget.BeginReading(targetStart);
+  aTarget.EndReading(targetEnd);
+
+  // Go straight into checking the token at the beginning of the target because
+  // the beginning is considered a word boundary
+  do {
+    // We're on a word boundary, so prepare to match by copying the iterators
+    nsAString::const_iterator testToken(tokenStart);
+    nsAString::const_iterator testTarget(targetStart);
+
+    // Keep trying to match the token one by one until it doesn't match
+    while (!caseInsensitiveCompare(*testToken, *testTarget)) {
+      // We matched something, so move down one
+      testToken++;
+      testTarget++;
+
+      // Matched the token! We're done!
+      if (testToken == tokenEnd)
+        return PR_TRUE;
+
+      // If we ran into the end while matching the token, we won't find it
+      if (testTarget == targetEnd)
+        return PR_FALSE;
+    }
+
+    // Unconditionally move past the current position in the target, but if
+    // we're not currently on a word boundary, eat up as many non-word boundary
+    // characters as possible -- don't kill characters if we're currently on a
+    // word boundary so that we can match tokens that start on a word boundary.
+    if (!IsWordBoundary(*targetStart++))
+      while (targetStart != targetEnd && !IsWordBoundary(*targetStart))
+        targetStart++;
+
+    // If we hit the end eating up non-boundaries then boundaries, we're done
+  } while (targetStart != targetEnd);
+
+  return PR_FALSE;
+}
+
+/**
+ * A local wrapper to CaseInsensitiveFindInReadable that isn't overloaded
+ */
+inline PRBool
+FindAnywhere(const nsAString &aToken, const nsAString &aTarget)
+{
+  return CaseInsensitiveFindInReadable(aToken, aTarget);
+}
+
 // nsNavHistory::InitAutoComplete
 nsresult
 nsNavHistory::InitAutoComplete()
@@ -107,28 +245,8 @@ nsNavHistory::InitAutoComplete()
 nsresult
 nsNavHistory::CreateAutoCompleteQueries()
 {
-  // Helper to get a particular column from the bookmark/tags table based on if
-  // we want to include tags or not
-#define SQL_STR_FRAGMENT_GET_BOOK_TAG(column, comparison, getMostRecent) \
-  NS_LITERAL_CSTRING( \
-  "(SELECT " column " " \
-  "FROM moz_bookmarks b " \
-  "JOIN moz_bookmarks t ON t.id = b.parent AND t.parent " comparison " ?1 " \
-  "WHERE b.type = ") + nsPrintfCString("%d", \
-    nsINavBookmarksService::TYPE_BOOKMARK) + \
-    NS_LITERAL_CSTRING(" AND b.fk = h.id") + \
-  (getMostRecent ? NS_LITERAL_CSTRING(" " \
-    "ORDER BY b.lastModified DESC LIMIT 1), ") : NS_LITERAL_CSTRING("), "))
-
-  // This gets three columns from the bookmarks and tags table followed by ", "
-  const nsCString &bookTag = 
-    SQL_STR_FRAGMENT_GET_BOOK_TAG("b.parent", "!=", PR_TRUE) +
-    SQL_STR_FRAGMENT_GET_BOOK_TAG("b.title", "!=", PR_TRUE) +
-    SQL_STR_FRAGMENT_GET_BOOK_TAG("GROUP_CONCAT(t.title, ' ')", "=", PR_FALSE);
-
   nsCString sql = NS_LITERAL_CSTRING(
-    "SELECT h.url, h.title, f.url, ") + bookTag +
-      NS_LITERAL_CSTRING("NULL "
+    "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(" "
     "FROM moz_places h "
     "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
     "WHERE h.frecency <> 0 ");
@@ -145,13 +263,12 @@ nsNavHistory::CreateAutoCompleteQueries()
   // which is better than nothing.  but this is slow, so not doing it yet.
   sql += NS_LITERAL_CSTRING(
     "ORDER BY h.frecency DESC LIMIT ?2 OFFSET ?3");
-
   nsresult rv = mDBConn->CreateStatement(sql, 
     getter_AddRefs(mDBAutoCompleteQuery));
   NS_ENSURE_SUCCESS(rv, rv);
 
   sql = NS_LITERAL_CSTRING(
-    "SELECT h.url, h.title, f.url, ") + bookTag + NS_LITERAL_CSTRING(
+    "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
       "ROUND(MAX(((i.input = ?2) + (SUBSTR(i.input, 1, LENGTH(?2)) = ?2)) * "
                 "i.use_count), 1) rank "
     "FROM moz_inputhistory i "
@@ -222,8 +339,24 @@ nsNavHistory::PerformAutoComplete()
   }
 
   PRBool moreChunksToSearch = PR_FALSE;
-  rv = AutoCompleteFullHistorySearch(&moreChunksToSearch);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // If we constructed a previous search query, use it instead of full
+  if (mDBPreviousQuery) {
+    rv = AutoCompletePreviousSearch();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // We want to continue searching if we didn't finish last time, so move to
+    // one before the previous chunk so that we move up to the previous chunk
+    if (moreChunksToSearch = mPreviousChunkOffset != -1)
+      mCurrentChunkOffset = mPreviousChunkOffset - mAutoCompleteSearchChunkSize;
+  } else {
+    rv = AutoCompleteFullHistorySearch(&moreChunksToSearch);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  // If we ran out of pages to search, set offset to -1, so we can tell the
+  // difference between completing and stopping because we have enough results
+  if (!moreChunksToSearch)
+    mCurrentChunkOffset = -1;
 
   // Only search more chunks if there are more and we need more results
   moreChunksToSearch &= !AutoCompleteHasEnoughResults();
@@ -256,14 +389,16 @@ nsNavHistory::PerformAutoComplete()
     rv = StartAutoCompleteTimer(mAutoCompleteSearchTimeout);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
-    DoneSearching();
+    DoneSearching(PR_TRUE);
   }
   return NS_OK;
 }
 
 void
-nsNavHistory::DoneSearching()
+nsNavHistory::DoneSearching(PRBool aFinished)
 {
+  mPreviousChunkOffset = mCurrentChunkOffset;
+  mAutoCompleteFinishedSearch = aFinished;
   mCurrentResult = nsnull;
   mCurrentListener = nsnull;
 }
@@ -283,6 +418,10 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
 
   NS_ENSURE_ARG_POINTER(aListener);
 
+  // Keep track of the previous search results to try optimizing
+  PRUint32 prevMatchCount = mCurrentResultURLs.Count();
+  nsAutoString prevSearchString(mCurrentSearchString);
+
   // Copy the input search string for case-insensitive search
   ToLowerCase(aSearchString, mCurrentSearchString);
   // remove whitespace, see bug #392141 for details
@@ -294,6 +433,71 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   mCurrentResult = do_CreateInstance(NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // Use the previous in-progress search by looking at which urls it found if
+  // the new search begins with the old one and both aren't empty. We don't run
+  // into bug 412730 because we only specify urls and not titles to look at.
+  // Also, only reuse the search if the previous and new search both start with
+  // javascript: or both don't. (bug 417798)
+  if (!prevSearchString.IsEmpty() &&
+      StringBeginsWith(mCurrentSearchString, prevSearchString) &&
+      (StartsWithJS(prevSearchString) == StartsWithJS(mCurrentSearchString))) {
+
+    // Got nothing before? We won't get anything new, so stop now
+    if (mAutoCompleteFinishedSearch && prevMatchCount == 0) {
+      // Set up the result to let the listener know that there's nothing
+      mCurrentResult->SetSearchString(mCurrentSearchString);
+      mCurrentResult->SetSearchResult(nsIAutoCompleteResult::RESULT_NOMATCH);
+      mCurrentResult->SetDefaultIndex(-1);
+
+      rv = mCurrentResult->SetListener(this);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      (void)mCurrentListener->OnSearchResult(this, mCurrentResult);
+      DoneSearching(PR_TRUE);
+
+      return NS_OK;
+    } else {
+      // We either have a previous in-progress search or a finished search that
+      // has more than 0 results. We can continue from where the previous
+      // search left off, but first we want to create an optimized query that
+      // only searches through the urls that were previously found
+      nsCString sql = NS_LITERAL_CSTRING(
+        "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(" "
+        "FROM moz_places h "
+        "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
+        "WHERE h.url IN (");
+
+      // Put in bind spots for the urls
+      for (PRUint32 i = 0; i < prevMatchCount; i++) {
+        if (i)
+          sql += NS_LITERAL_CSTRING(",");
+
+        // +2 to skip over the ?1 for the tag root parameter
+        sql += nsPrintfCString("?%d", i + 2);
+      }
+
+      sql += NS_LITERAL_CSTRING(") "
+        "ORDER BY h.frecency DESC");
+
+      rv = mDBConn->CreateStatement(sql, getter_AddRefs(mDBPreviousQuery));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // Collect the previous result's URLs that we want to process
+      nsStringArray urls;
+      (void)mCurrentResultURLs.EnumerateRead(HashedURLsToArray, &urls);
+
+      // Bind the parameters right away. We can only use the query once.
+      for (PRUint32 i = 0; i < prevMatchCount; i++) {
+        rv = mDBPreviousQuery->BindStringParameter(i + 1, *urls[i]);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
+  } else {
+    // Clear out any previous result queries
+    mDBPreviousQuery = nsnull;
+  }
+
+  mAutoCompleteFinishedSearch = PR_FALSE;
   mCurrentChunkOffset = 0;
   mCurrentResultURLs.Clear();
   mCurrentSearchTokens.Clear();
@@ -341,8 +545,7 @@ nsNavHistory::StopSearch()
   if (mAutoCompleteTimer)
     mAutoCompleteTimer->Cancel();
 
-  mCurrentSearchString.Truncate();
-  DoneSearching();
+  DoneSearching(PR_FALSE);
 
   return NS_OK;
 }
@@ -395,6 +598,21 @@ nsNavHistory::AutoCompleteAdaptiveSearch()
   return NS_OK;
 }
 
+nsresult
+nsNavHistory::AutoCompletePreviousSearch()
+{
+  nsresult rv = mDBPreviousQuery->BindInt32Parameter(0, GetTagsFolder());
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = AutoCompleteProcessSearch(mDBPreviousQuery, QUERY_FULL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Don't use this query more than once
+  mDBPreviousQuery = nsnull;
+
+  return NS_OK;
+}
+
 // nsNavHistory::AutoCompleteFullHistorySearch
 //
 // Search for places that have a title, url, 
@@ -429,17 +647,21 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
                                         const QueryType aType,
                                         PRBool *aHasMoreResults)
 {
-  // Don't bother processing results if we already have enough results
-  if (AutoCompleteHasEnoughResults())
+  // Unless we're checking if there are any results for the query, don't bother
+  // processing results if we already have enough results
+  if (!aHasMoreResults && AutoCompleteHasEnoughResults())
     return NS_OK;
 
   nsFaviconService* faviconService = nsFaviconService::GetFaviconService();
   NS_ENSURE_TRUE(faviconService, NS_ERROR_OUT_OF_MEMORY);
 
   // We want to filter javascript: URIs if the search doesn't start with it
-  const nsString &javascriptColon = NS_LITERAL_STRING("javascript:");
   PRBool filterJavascript = mAutoCompleteFilterJavascript &&
-    mCurrentSearchString.Find(javascriptColon) != 0;
+    !StartsWithJS(mCurrentSearchString);
+
+  // Determine what type of search to try matching tokens against targets
+  PRBool (*tokenMatchesTarget)(const nsAString &, const nsAString &) =
+    mAutoCompleteOnWordBoundary ? FindOnBoundary : FindAnywhere;
 
   PRBool hasMore = PR_FALSE;
   // Determine the result of the search
@@ -449,7 +671,7 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // If we need to filter and have a javascript URI.. skip!
-    if (filterJavascript && escapedEntryURL.Find(javascriptColon) == 0)
+    if (filterJavascript && StartsWithJS(escapedEntryURL))
       continue;
 
     // Prevent duplicates that might appear from previous searches such as tag
@@ -501,19 +723,19 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
             // Check if the current token matches the bookmark
             PRBool bookmarkMatch = parentId &&
-              CaseInsensitiveFindInReadable(*token, entryBookmarkTitle);
+              (*tokenMatchesTarget)(*token, entryBookmarkTitle);
             // If any part of the search string is in the bookmark title, show
             // that in the result instead of the page title
             useBookmark |= bookmarkMatch;
 
             // If the token is in any of the tags, remember to show tags
-            PRBool tagsMatch = CaseInsensitiveFindInReadable(*token, entryTags);
+            PRBool tagsMatch = (*tokenMatchesTarget)(*token, entryTags);
             showTags |= tagsMatch;
 
             // True if any of them match; false makes us quit the loop
             matchAll = bookmarkMatch || tagsMatch ||
-              CaseInsensitiveFindInReadable(*token, entryTitle) ||
-              CaseInsensitiveFindInReadable(*token, entryURL);
+              (*tokenMatchesTarget)(*token, entryTitle) ||
+              (*tokenMatchesTarget)(*token, entryURL);
           }
 
           // Skip if we don't match all terms in the bookmark, tag, title or url
@@ -561,7 +783,7 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
       NS_ConvertUTF8toUTF16 faviconURI(faviconSpec);
 
       // New item: append to our results and put it in our hash table
-      rv = mCurrentResult->AppendMatch(entryURL, title, faviconURI, style);
+      rv = mCurrentResult->AppendMatch(escapedEntryURL, title, faviconURI, style);
       NS_ENSURE_SUCCESS(rv, rv);
       mCurrentResultURLs.Put(escapedEntryURL, PR_TRUE);
 

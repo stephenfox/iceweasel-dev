@@ -48,9 +48,6 @@
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsIChannel.h"
-#include "nsIHttpChannel.h"
-#include "nsIHttpChannelInternal.h" // evil hack!
-#include "nsIPrompt.h"
 #include "nsIFile.h"
 #include "nsIObserverService.h"
 #include "nsILineInputStream.h"
@@ -448,6 +445,10 @@ nsCookieService::Init()
   }
 
   mPermissionService = do_GetService(NS_COOKIEPERMISSION_CONTRACTID);
+  if (!mPermissionService) {
+    NS_WARNING("nsICookiePermission implementation not available - some features won't work!");
+    COOKIE_LOGSTRING(PR_LOG_WARNING, ("Init(): nsICookiePermission implementation not available"));
+  }
 
   return NS_OK;
 }
@@ -467,22 +468,14 @@ nsCookieService::InitDB()
 
   // cache a connection to the cookie database
   rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool ready;
-  mDBConn->GetConnectionReady(&ready);
-  if (!ready) {
+  if (rv == NS_ERROR_FILE_CORRUPTED) {
     // delete and try again
     rv = cookieFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = storage->OpenDatabase(cookieFile, getter_AddRefs(mDBConn));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    mDBConn->GetConnectionReady(&ready);
-    if (!ready)
-      return NS_ERROR_UNEXPECTED;
   }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool tableExists = PR_FALSE;
   mDBConn->TableExists(NS_LITERAL_CSTRING("moz_cookies"), &tableExists);
@@ -647,15 +640,7 @@ nsCookieService::GetCookieString(nsIURI     *aHostURI,
                                  nsIChannel *aChannel,
                                  char       **aCookie)
 {
-  // try to determine first party URI
-  nsCOMPtr<nsIURI> firstURI;
-  if (aChannel) {
-    nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(aChannel);
-    if (httpInternal)
-      httpInternal->GetDocumentURI(getter_AddRefs(firstURI));
-  }
-
-  GetCookieInternal(aHostURI, firstURI, aChannel, PR_FALSE, aCookie);
+  GetCookieInternal(aHostURI, aChannel, PR_FALSE, aCookie);
   
   return NS_OK;
 }
@@ -666,7 +651,7 @@ nsCookieService::GetCookieStringFromHttp(nsIURI     *aHostURI,
                                          nsIChannel *aChannel,
                                          char       **aCookie)
 {
-  GetCookieInternal(aHostURI, aFirstURI, aChannel, PR_TRUE, aCookie);
+  GetCookieInternal(aHostURI, aChannel, PR_TRUE, aCookie);
 
   return NS_OK;
 }
@@ -677,16 +662,7 @@ nsCookieService::SetCookieString(nsIURI     *aHostURI,
                                  const char *aCookieHeader,
                                  nsIChannel *aChannel)
 {
-  // try to determine first party URI
-  nsCOMPtr<nsIURI> firstURI;
-
-  if (aChannel) {
-    nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(aChannel);
-    if (httpInternal)
-      httpInternal->GetDocumentURI(getter_AddRefs(firstURI));
-  }
-
-  return SetCookieStringInternal(aHostURI, firstURI, aPrompt, aCookieHeader, nsnull, aChannel, PR_FALSE);
+  return SetCookieStringInternal(aHostURI, aPrompt, aCookieHeader, nsnull, aChannel, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -697,12 +673,11 @@ nsCookieService::SetCookieStringFromHttp(nsIURI     *aHostURI,
                                          const char *aServerTime,
                                          nsIChannel *aChannel) 
 {
-  return SetCookieStringInternal(aHostURI, aFirstURI, aPrompt, aCookieHeader, aServerTime, aChannel, PR_TRUE);
+  return SetCookieStringInternal(aHostURI, aPrompt, aCookieHeader, aServerTime, aChannel, PR_TRUE);
 }
 
 nsresult
 nsCookieService::SetCookieStringInternal(nsIURI     *aHostURI,
-                                         nsIURI     *aFirstURI,
                                          nsIPrompt  *aPrompt,
                                          const char *aCookieHeader,
                                          const char *aServerTime,
@@ -715,7 +690,7 @@ nsCookieService::SetCookieStringInternal(nsIURI     *aHostURI,
   }
 
   // check default prefs
-  PRUint32 cookieStatus = CheckPrefs(aHostURI, aFirstURI, aChannel, aCookieHeader);
+  PRUint32 cookieStatus = CheckPrefs(aHostURI, aChannel, aCookieHeader);
   // fire a notification if cookie was rejected (but not if there was an error)
   switch (cookieStatus) {
   case STATUS_REJECTED:
@@ -810,12 +785,27 @@ nsCookieService::RemoveAll()
   return NS_OK;
 }
 
+// helper struct for passing arguments into hash enumeration callback.
+struct nsGetEnumeratorData
+{
+  nsGetEnumeratorData(nsCOMArray<nsICookie> *aArray, PRInt64 aTime)
+   : array(aArray)
+   , currentTime(aTime) {}
+
+  nsCOMArray<nsICookie> *array;
+  PRInt64 currentTime;
+};
+
 PR_STATIC_CALLBACK(PLDHashOperator)
 COMArrayCallback(nsCookieEntry *aEntry,
                  void          *aArg)
 {
+  nsGetEnumeratorData *data = static_cast<nsGetEnumeratorData *>(aArg);
+
   for (nsCookie *cookie = aEntry->Head(); cookie; cookie = cookie->Next()) {
-    static_cast<nsCOMArray<nsICookie>*>(aArg)->AppendObject(cookie);
+    // only append non-expired cookies
+    if (cookie->Expiry() > data->currentTime)
+      data->array->AppendObject(cookie);
   }
   return PL_DHASH_NEXT;
 }
@@ -823,10 +813,10 @@ COMArrayCallback(nsCookieEntry *aEntry,
 NS_IMETHODIMP
 nsCookieService::GetEnumerator(nsISimpleEnumerator **aEnumerator)
 {
-  RemoveExpiredCookies(PR_Now() / PR_USEC_PER_SEC);
-
   nsCOMArray<nsICookie> cookieList(mCookieCount);
-  mHostTable.EnumerateEntries(COMArrayCallback, &cookieList);
+  nsGetEnumeratorData data(&cookieList, PR_Now() / PR_USEC_PER_SEC);
+
+  mHostTable.EnumerateEntries(COMArrayCallback, &data);
 
   return NS_NewArrayEnumerator(aEnumerator, cookieList);
 }
@@ -1104,7 +1094,6 @@ static inline PRBool ispathdelimiter(char c) { return c == '/' || c == '?' || c 
 
 void
 nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
-                                   nsIURI      *aFirstURI,
                                    nsIChannel  *aChannel,
                                    PRBool       aHttpBound,
                                    char       **aCookie)
@@ -1117,7 +1106,7 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
   }
 
   // check default prefs
-  PRUint32 cookieStatus = CheckPrefs(aHostURI, aFirstURI, aChannel, nsnull);
+  PRUint32 cookieStatus = CheckPrefs(aHostURI, aChannel, nsnull);
   // for GetCookie(), we don't fire rejection notifications.
   switch (cookieStatus) {
   case STATUS_REJECTED:
@@ -1714,15 +1703,11 @@ PRBool
 nsCookieService::IsForeign(nsIURI *aHostURI,
                            nsIURI *aFirstURI)
 {
-  // if aFirstURI is null, default to not foreign
-  if (!aFirstURI) {
-    return PR_FALSE;
-  }
-
   // Get hosts
   nsCAutoString currentHost, firstHost;
   if (NS_FAILED(aHostURI->GetAsciiHost(currentHost)) ||
       NS_FAILED(aFirstURI->GetAsciiHost(firstHost))) {
+    // assume foreign
     return PR_TRUE;
   }
   // trim trailing dots
@@ -1743,19 +1728,10 @@ nsCookieService::IsForeign(nsIURI *aHostURI,
   if (firstHost.Equals(currentHost))
     return PR_FALSE;
 
-  // chrome URLs are never foreign (otherwise sidebar cookies won't work).
-  // eventually we want to have a protocol whitelist here,
-  // _or_ do something smart with nsIProtocolHandler::protocolFlags.
-  PRBool isChrome = PR_FALSE;
-  nsresult rv = aFirstURI->SchemeIs("chrome", &isChrome);
-  if (NS_SUCCEEDED(rv) && isChrome) {
-    return PR_FALSE;
-  }
-
   // get the base domain for the originating URI.
   // e.g. for "images.bbc.co.uk", this would be "bbc.co.uk".
   nsCAutoString baseDomain;
-  rv = mTLDService->GetBaseDomain(aFirstURI, 0, baseDomain);
+  nsresult rv = mTLDService->GetBaseDomain(aFirstURI, 0, baseDomain);
   if (NS_FAILED(rv)) {
     // URI is an IP, eTLD, or something else went wrong - assume foreign
     return PR_TRUE;
@@ -1772,35 +1748,14 @@ nsCookieService::IsForeign(nsIURI *aHostURI,
 
 PRUint32
 nsCookieService::CheckPrefs(nsIURI     *aHostURI,
-                            nsIURI     *aFirstURI,
                             nsIChannel *aChannel,
                             const char *aCookieHeader)
 {
-  // pref tree:
-  // 0) get the scheme strings from the two URI's
-  // 1) disallow ftp
-  // 2) disallow mailnews, if pref set
-  // 3) perform a permissionlist lookup to see if an entry exists for this host
-  //    (a match here will override defaults in 4)
-  // 4) go through enumerated permissions to see which one we have:
-  // -> cookies disabled: return
-  // -> dontacceptforeign: check if cookie is foreign
-
-  // first, get the URI scheme for further use
-  // if GetScheme fails on aHostURI, reject; aFirstURI is optional, so failing is ok
-  nsCAutoString currentURIScheme, firstURIScheme;
-  nsresult rv, rv2 = NS_OK;
-  rv = aHostURI->GetScheme(currentURIScheme);
-  if (aFirstURI) {
-    rv2 = aFirstURI->GetScheme(firstURIScheme);
-  }
-  if (NS_FAILED(rv) || NS_FAILED(rv2)) {
-    COOKIE_LOGFAILURE(aCookieHeader ? SET_COOKIE : GET_COOKIE, aHostURI, aCookieHeader, "couldn't get scheme of host URI");
-    return STATUS_REJECTED_WITH_ERROR;
-  }
+  nsresult rv;
 
   // don't let ftp sites get/set cookies (could be a security issue)
-  if (currentURIScheme.EqualsLiteral("ftp")) {
+  PRBool ftp;
+  if (NS_SUCCEEDED(aHostURI->SchemeIs("ftp", &ftp)) && ftp) {
     COOKIE_LOGFAILURE(aCookieHeader ? SET_COOKIE : GET_COOKIE, aHostURI, aCookieHeader, "ftp sites cannot read cookies");
     return STATUS_REJECTED_WITH_ERROR;
   }
@@ -1809,7 +1764,7 @@ nsCookieService::CheckPrefs(nsIURI     *aHostURI,
   // default prefs. see bug 184059.
   if (mPermissionService) {
     nsCookieAccess access;
-    rv = mPermissionService->CanAccess(aHostURI, aFirstURI, aChannel, &access);
+    rv = mPermissionService->CanAccess(aHostURI, aChannel, &access);
 
     // if we found an entry, use it
     if (NS_SUCCEEDED(rv)) {
@@ -1824,19 +1779,23 @@ nsCookieService::CheckPrefs(nsIURI     *aHostURI,
     }
   }
 
-  // check default prefs - go thru enumerated permissions
+  // check default prefs
   if (mCookiesPermissions == BEHAVIOR_REJECT) {
     COOKIE_LOGFAILURE(aCookieHeader ? SET_COOKIE : GET_COOKIE, aHostURI, aCookieHeader, "cookies are disabled");
     return STATUS_REJECTED;
 
   } else if (mCookiesPermissions == BEHAVIOR_REJECTFOREIGN) {
-    // check if cookie is foreign.
-    // if aFirstURI is null, allow by default
+    // check if cookie is foreign
+    if (!mPermissionService) {
+      NS_WARNING("Foreign cookie blocking enabled, but nsICookiePermission unavailable! Rejecting cookie");
+      COOKIE_LOGSTRING(PR_LOG_WARNING, ("CheckPrefs(): foreign blocking enabled, but nsICookiePermission unavailable! Rejecting cookie"));
+      return STATUS_REJECTED;
+    }
 
-    // note: this can be circumvented if we have http redirects within html,
-    // since the documentURI attribute isn't always correctly
-    // passed to the redirected channels. (or isn't correctly set in the first place)
-    if (IsForeign(aHostURI, aFirstURI)) {
+    nsCOMPtr<nsIURI> firstURI;
+    rv = mPermissionService->GetOriginatingURI(aChannel, getter_AddRefs(firstURI));
+
+    if (NS_FAILED(rv) || IsForeign(aHostURI, firstURI)) {
       COOKIE_LOGFAILURE(aCookieHeader ? SET_COOKIE : GET_COOKIE, aHostURI, aCookieHeader, "originating server test failed");
       return STATUS_REJECTED;
     }

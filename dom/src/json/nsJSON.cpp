@@ -417,7 +417,7 @@ nsJSON::ToJSON(JSContext *cx, jsval *vp)
 {
   // Now we check to see whether the return value implements toJSON()
   JSBool ok = JS_TRUE;
-  char *toJSON = "toJSON";
+  const char *toJSON = "toJSON";
 
   if (!JSVAL_IS_PRIMITIVE(*vp)) {
     JSObject *obj = JSVAL_TO_OBJECT(*vp);
@@ -537,8 +537,13 @@ nsJSONWriter::Write(const PRUnichar *aBuffer, PRUint32 aLength)
     mBufferCount = 0;
   }
 
-  memcpy(&mBuffer[mBufferCount], aBuffer, aLength * sizeof(PRUnichar));
-  mBufferCount += aLength;
+  if (JSON_PARSER_BUFSIZE <= aLength) {
+    // we know mBufferCount is 0 because we know we hit the if above
+    mOutputString.Append(aBuffer, aLength);
+  } else {
+    memcpy(&mBuffer[mBufferCount], aBuffer, aLength * sizeof(PRUnichar));
+    mBufferCount += aLength;
+  }
 
   return NS_OK;
 }
@@ -931,7 +936,7 @@ buf[bufIndex] = _c;                          \
 bufIndex++;
 
   if (*mStatep == JSON_PARSE_STATE_INIT) {
-    PushState(JSON_PARSE_STATE_VALUE);
+    PushState(JSON_PARSE_STATE_OBJECT_VALUE);
   }
 
   for (i = 0; i < len; i++) {
@@ -939,6 +944,35 @@ bufIndex++;
 
     switch (*mStatep) {
       case JSON_PARSE_STATE_VALUE :
+        if (c == ']') {
+          // empty array
+          rv = PopState();
+          NS_ENSURE_SUCCESS(rv, rv);
+          if (*mStatep != JSON_PARSE_STATE_ARRAY) {
+            return NS_ERROR_FAILURE; // unexpected char
+          }
+          rv = this->CloseArray();
+          NS_ENSURE_SUCCESS(rv, rv);
+          rv = PopState();
+          NS_ENSURE_SUCCESS(rv, rv);
+          break;
+        } else if (c == '}') {
+          // we should only find these in OBJECT_KEY state
+          return NS_ERROR_FAILURE; // unexpected failure
+        } else if (c == '"') {
+          *mStatep = JSON_PARSE_STATE_STRING;
+          break;
+        } else if (IsNumChar(c)) {
+          *mStatep = JSON_PARSE_STATE_NUMBER;
+          PUSHCHAR(c);
+          break;
+        } else if (NS_IsAsciiAlpha(c)) {
+          *mStatep = JSON_PARSE_STATE_KEYWORD;
+          PUSHCHAR(c);
+          break;
+        } 
+        // fall through in case the value is an object or array
+      case JSON_PARSE_STATE_OBJECT_VALUE :
         if (c == '{') {
           *mStatep = JSON_PARSE_STATE_OBJECT;
           rv = this->OpenObject();
@@ -951,28 +985,6 @@ bufIndex++;
           NS_ENSURE_SUCCESS(rv, rv);
           rv = PushState(JSON_PARSE_STATE_VALUE);
           NS_ENSURE_SUCCESS(rv, rv);
-        } else if (c == ']') {
-          // empty array
-          rv = PopState();
-          NS_ENSURE_SUCCESS(rv, rv);
-          if (*mStatep != JSON_PARSE_STATE_ARRAY) {
-            return NS_ERROR_FAILURE; // unexpected char
-          }
-          rv = this->CloseArray();
-          NS_ENSURE_SUCCESS(rv, rv);
-          rv = PopState();
-          NS_ENSURE_SUCCESS(rv, rv);
-        } else if (c == '}') {
-          // we should only find these in OBJECT_KEY state
-          return NS_ERROR_FAILURE; // unexpected failure
-        } else if (c == '"') {
-          *mStatep = JSON_PARSE_STATE_STRING;
-        } else if (IsNumChar(c)) {
-          *mStatep = JSON_PARSE_STATE_NUMBER;
-          PUSHCHAR(c);
-        } else if (NS_IsAsciiAlpha(c)) {
-          *mStatep = JSON_PARSE_STATE_KEYWORD;
-          PUSHCHAR(c);
         } else if (!NS_IsAsciiWhitespace(c)) {
           return NS_ERROR_FAILURE; // unexpected
         }

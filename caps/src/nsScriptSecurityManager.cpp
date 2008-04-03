@@ -25,6 +25,7 @@
  *   Steve Morse
  *   Christopher A. Aillon
  *   Giorgio Maone
+ *   Daniel Veditz
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -98,7 +99,7 @@ nsIIOService    *nsScriptSecurityManager::sIOService = nsnull;
 nsIXPConnect    *nsScriptSecurityManager::sXPConnect = nsnull;
 nsIStringBundle *nsScriptSecurityManager::sStrBundle = nsnull;
 JSRuntime       *nsScriptSecurityManager::sRuntime   = 0;
-PRInt32 nsScriptSecurityManager::sFileURIOriginPolicy = FILEURI_SOP_SELF;
+PRBool nsScriptSecurityManager::sStrictFileOriginPolicy = PR_TRUE;
 
 // Info we need about the JSClasses used by XPConnects wrapped
 // natives, to avoid having to QI to nsIXPConnectWrappedNative all the
@@ -149,18 +150,13 @@ GetScriptContext(JSContext *cx)
 inline void SetPendingException(JSContext *cx, const char *aMsg)
 {
     JSAutoRequest ar(cx);
-    JSString *str = JS_NewStringCopyZ(cx, aMsg);
-    if (str)
-        JS_SetPendingException(cx, STRING_TO_JSVAL(str));
+    JS_ReportError(cx, "%s", aMsg);
 }
 
 inline void SetPendingException(JSContext *cx, const PRUnichar *aMsg)
 {
     JSAutoRequest ar(cx);
-    JSString *str = JS_NewUCStringCopyZ(cx,
-                        reinterpret_cast<const jschar*>(aMsg));
-    if (str)
-        JS_SetPendingException(cx, STRING_TO_JSVAL(str));
+    JS_ReportError(cx, "%hs", aMsg);
 }
 
 // DomainPolicy members
@@ -318,7 +314,30 @@ nsScriptSecurityManager::SecurityCompareURIs(nsIURI* aSourceURI,
 
     // special handling for file: URIs
     if (targetScheme.EqualsLiteral("file"))
-        return SecurityCompareFileURIs( sourceBaseURI, targetBaseURI );
+    {
+        // in traditional unsafe behavior all files are the same origin
+        if (!sStrictFileOriginPolicy)
+            return PR_TRUE;
+
+        nsCOMPtr<nsIFileURL> sourceFileURL(do_QueryInterface(sourceBaseURI));
+        nsCOMPtr<nsIFileURL> targetFileURL(do_QueryInterface(targetBaseURI));
+
+        if (!sourceFileURL || !targetFileURL)
+            return PR_FALSE;
+
+        nsCOMPtr<nsIFile> sourceFile, targetFile;
+
+        sourceFileURL->GetFile(getter_AddRefs(sourceFile));
+        targetFileURL->GetFile(getter_AddRefs(targetFile));
+
+        if (!sourceFile || !targetFile)
+            return PR_FALSE;
+
+        // Otherwise they had better match
+        PRBool filesAreEqual = PR_FALSE;
+        nsresult rv = sourceFile->Equals(targetFile, &filesAreEqual);
+        return NS_SUCCEEDED(rv) && filesAreEqual;
+    }
 
     // Special handling for mailnews schemes
     if (targetScheme.EqualsLiteral("imap") ||
@@ -372,83 +391,6 @@ nsScriptSecurityManager::SecurityCompareURIs(nsIURI* aSourceURI,
     }
 
     return result;
-}
-
-// helper function for SecurityCompareURIs
-PRBool
-nsScriptSecurityManager::SecurityCompareFileURIs(nsIURI* aSourceURI,
-                                                 nsIURI* aTargetURI)
-{
-    // in traditional unsafe behavior all files are the same origin
-    if (sFileURIOriginPolicy == FILEURI_SOP_TRADITIONAL)
-        return PR_TRUE;
-
-
-    // Check simplest and default FILEURI_SOP_SELF case first:
-    // If they're equal or if the policy says they must be, we're done
-    PRBool filesAreEqual = PR_FALSE;
-    if (NS_FAILED( aSourceURI->Equals(aTargetURI, &filesAreEqual) ))
-        return PR_FALSE;
-    if (filesAreEqual || sFileURIOriginPolicy == FILEURI_SOP_SELF)
-        return filesAreEqual;
-
-
-    // disallow access to directory listings (bug 209234)
-    PRBool targetIsDir = PR_TRUE;
-    nsCOMPtr<nsIFile> targetFile;
-    nsCOMPtr<nsIFileURL> targetFileURL( do_QueryInterface(aTargetURI) );
-
-    if (!targetFileURL ||
-        NS_FAILED( targetFileURL->GetFile(getter_AddRefs(targetFile)) ) ||
-        NS_FAILED( targetFile->IsDirectory(&targetIsDir) ) ||
-        targetIsDir)
-    {
-        return PR_FALSE;
-    }
-
-
-    // For policy ANYFILE we're done
-    if (sFileURIOriginPolicy == FILEURI_SOP_ANYFILE)
-        return PR_TRUE;
-
-
-    // source parent directory is needed for remaining policies
-    nsCOMPtr<nsIFile> sourceFile;
-    nsCOMPtr<nsIFile> sourceParent;
-    nsCOMPtr<nsIFileURL> sourceFileURL( do_QueryInterface(aSourceURI) );
-
-    if (!sourceFileURL ||
-        NS_FAILED( sourceFileURL->GetFile(getter_AddRefs(sourceFile)) ) ||
-        NS_FAILED( sourceFile->GetParent(getter_AddRefs(sourceParent)) ) ||
-        !sourceParent)
-    {
-        // unexpected error
-        return PR_FALSE;
-    }
-
-    // check remaining policies
-    if (sFileURIOriginPolicy == FILEURI_SOP_SAMEDIR)
-    {
-        // file: URIs in the same directory have the same origin
-        PRBool sameParent = PR_FALSE;
-        nsCOMPtr<nsIFile> targetParent;
-        if (NS_FAILED( targetFile->GetParent(getter_AddRefs(targetParent)) ) ||
-            NS_FAILED( sourceParent->Equals(targetParent, &sameParent) ))
-            return PR_FALSE;
-        return sameParent;
-    }
-
-    if (sFileURIOriginPolicy == FILEURI_SOP_SUBDIR)
-    {
-        // file: URIs can access files in the same or lower directories
-        PRBool isChild = PR_FALSE;
-        if (NS_FAILED( sourceParent->Contains(targetFile, PR_TRUE, &isChild) ))
-            return PR_FALSE;
-        return isChild;
-    }
-
-    NS_NOTREACHED("invalid file uri policy setting");
-    return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -726,16 +668,6 @@ nsScriptSecurityManager::CheckSameOriginURI(nsIURI* aSourceURI,
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsScriptSecurityManager::CheckSameOriginPrincipal(nsIPrincipal* aSourcePrincipal,
-                                                  nsIPrincipal* aTargetPrincipal)
-{
-    return CheckSameOriginPrincipalInternal(aSourcePrincipal,
-                                            aTargetPrincipal,
-                                            PR_FALSE);
-}
-
-
 nsresult
 nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
                                                  nsAXPCNativeCallContext* aCallContext,
@@ -962,10 +894,11 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
     return rv;
 }
 
+/* static */
 nsresult
-nsScriptSecurityManager::CheckSameOriginPrincipalInternal(nsIPrincipal* aSubject,
-                                                          nsIPrincipal* aObject,
-                                                          PRBool aIsCheckConnect)
+nsScriptSecurityManager::CheckSameOriginPrincipal(nsIPrincipal* aSubject,
+                                                  nsIPrincipal* aObject,
+                                                  PRBool aIsCheckConnect)
 {
     /*
     ** Get origin of subject and object and compare.
@@ -1035,8 +968,19 @@ nsScriptSecurityManager::CheckSameOriginDOMProp(nsIPrincipal* aSubject,
                                                 PRUint32 aAction,
                                                 PRBool aIsCheckConnect)
 {
-    nsresult rv = CheckSameOriginPrincipalInternal(aSubject, aObject,
-                                                   aIsCheckConnect);
+    nsresult rv;
+    if (aIsCheckConnect) {
+        // Don't do equality compares, just do a same-origin compare,
+        // since the object principal isn't a real principal, just a
+        // GetCodebasePrincipal() on whatever URI we started with.
+        rv = CheckSameOriginPrincipal(aSubject, aObject, aIsCheckConnect);
+    } else {
+        PRBool subsumes;
+        rv = aSubject->Subsumes(aObject, &subsumes);
+        if (NS_SUCCEEDED(rv) && !subsumes) {
+            rv = NS_ERROR_DOM_PROP_ACCESS_DENIED;
+        }
+    }
     
     if (NS_SUCCEEDED(rv))
         return NS_OK;
@@ -1064,6 +1008,40 @@ nsScriptSecurityManager::CheckSameOriginDOMProp(nsIPrincipal* aSubject,
     ** Access tests failed, so now report error.
     */
     return NS_ERROR_DOM_PROP_ACCESS_DENIED;
+}
+
+static
+nsresult
+GetPrincipalDomainOrigin(nsIPrincipal* aPrincipal,
+                         nsACString& aOrigin)
+{
+  aOrigin.Truncate();
+
+  nsCOMPtr<nsIURI> uri;
+  aPrincipal->GetDomain(getter_AddRefs(uri));
+  if (!uri) {
+    aPrincipal->GetURI(getter_AddRefs(uri));
+  }
+
+  NS_ENSURE_TRUE(uri, NS_ERROR_UNEXPECTED);
+
+  nsCAutoString hostPort;
+
+  nsresult rv = uri->GetHostPort(hostPort);
+  if (NS_SUCCEEDED(rv)) {
+    nsCAutoString scheme;
+    rv = uri->GetScheme(scheme);
+    NS_ENSURE_SUCCESS(rv, rv);
+    aOrigin = scheme + NS_LITERAL_CSTRING("://") + hostPort;
+  }
+  else {
+    // Some URIs (e.g., nsSimpleURI) don't support host. Just
+    // get the full spec.
+    rv = uri->GetSpec(aOrigin);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  return NS_OK;
 }
 
 nsresult
@@ -1097,9 +1075,9 @@ nsScriptSecurityManager::LookupPolicy(nsIPrincipal* aPrincipal,
         printf("DomainLookup ");
 #endif
 
-        nsXPIDLCString origin;
-        if (NS_FAILED(rv = aPrincipal->GetOrigin(getter_Copies(origin))))
-            return rv;
+        nsCAutoString origin;
+        rv = GetPrincipalDomainOrigin(aPrincipal, origin);
+        NS_ENSURE_SUCCESS(rv, rv);
  
         char *start = origin.BeginWriting();
         const char *nextToLastDot = nsnull;
@@ -1658,8 +1636,7 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
     {
 #ifdef DEBUG
         {
-            JSFunction *fun =
-                (JSFunction *)caps_GetJSPrivate((JSObject *)aFunObj);
+            JSFunction *fun = OBJ_TO_FUNCTION((JSObject *)aFunObj);
             JSScript *script = JS_GetFunctionScript(aCx, fun);
 
             NS_ASSERTION(!script, "Null principal for non-native function!");
@@ -1696,9 +1673,12 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
     if (!object)
         return NS_ERROR_FAILURE;        
 
-    // Note that CheckSameOriginPrincipalInternal already does an equality
-    // comparison on subject and object, so no need for us to do it.
-    return CheckSameOriginPrincipalInternal(subject, object, PR_TRUE);
+    PRBool subsumes;
+    rv = subject->Subsumes(object, &subsumes);
+    if (NS_SUCCEEDED(rv) && !subsumes) {
+        rv = NS_ERROR_DOM_PROP_ACCESS_DENIED;
+    }
+    return rv;
 }
 
 NS_IMETHODIMP
@@ -2171,7 +2151,7 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
                                                     nsresult *rv)
 {
     NS_PRECONDITION(rv, "Null out param");
-    JSFunction *fun = (JSFunction *) caps_GetJSPrivate(obj);
+    JSFunction *fun = OBJ_TO_FUNCTION(obj);
     JSScript *script = JS_GetFunctionScript(cx, fun);
 
     *rv = NS_OK;
@@ -2195,29 +2175,17 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
         // Script object came from, and we want the principal of
         // the eval function object or new Script object.
 
-        script = frameScript;
-    }
-    else if (JS_GetFunctionObject(fun) != obj)
-    {
-        // Here, obj is a cloned function object.  In this case, the
-        // clone's prototype may have been precompiled from brutally
-        // shared chrome, or else it is a lambda or nested function.
-        // The general case here is a function compiled against a
-        // different scope than the one it is parented by at runtime,
-        // hence the creation of a clone to carry the correct scope
-        // chain linkage.
-        //
-        // Since principals follow scope, we must get the object
-        // principal from the clone's scope chain. There are no
-        // reliable principals compiled into the function itself.
-
-        nsIPrincipal *result = doGetObjectPrincipal(obj);
-        if (!result)
-            *rv = NS_ERROR_FAILURE;
-        return result;
+        return GetScriptPrincipal(cx, frameScript, rv);
     }
 
-    return GetScriptPrincipal(cx, script, rv);
+    // Since principals follow scope, we must get the object
+    // principal from the function's scope chain. There are no
+    // reliable principals compiled into the function itself.
+
+    nsIPrincipal *result = doGetObjectPrincipal(obj);
+    if (!result)
+        *rv = NS_ERROR_FAILURE;
+    return result;
 }
 
 // static
@@ -2240,7 +2208,7 @@ nsScriptSecurityManager::GetFramePrincipal(JSContext *cx,
 #ifdef DEBUG
     if (NS_SUCCEEDED(*rv) && !result)
     {
-        JSFunction *fun = (JSFunction *)caps_GetJSPrivate(obj);
+        JSFunction *fun = OBJ_TO_FUNCTION(obj);
         JSScript *script = JS_GetFunctionScript(cx, fun);
 
         NS_ASSERTION(!script, "Null principal for non-native function!");
@@ -2665,13 +2633,13 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
     if (NS_FAILED(rv))
         return PR_FALSE;
 
-    nsXPIDLCString val;
+    nsCAutoString val;
     PRBool hasCert;
     aPrincipal->GetHasCertificate(&hasCert);
     if (hasCert)
         rv = aPrincipal->GetPrettyName(val);
     else
-        rv = aPrincipal->GetOrigin(getter_Copies(val));
+        rv = GetPrincipalDomainOrigin(aPrincipal, val);
 
     if (NS_FAILED(rv))
         return PR_FALSE;
@@ -2786,14 +2754,14 @@ nsScriptSecurityManager::EnableCapability(const char *capability)
 
     if (canEnable != nsIPrincipal::ENABLE_GRANTED)
     {
-        nsXPIDLCString val;
+        nsCAutoString val;
         PRBool hasCert;
         nsresult rv;
         principal->GetHasCertificate(&hasCert);
         if (hasCert)
             rv = principal->GetPrettyName(val);
         else
-            rv = principal->GetOrigin(getter_Copies(val));
+            rv = GetPrincipalDomainOrigin(principal, val);
 
         if (NS_FAILED(rv))
             return rv;
@@ -3858,7 +3826,7 @@ const char nsScriptSecurityManager::sJSEnabledPrefName[] =
 const char nsScriptSecurityManager::sJSMailEnabledPrefName[] =
     "javascript.allow.mailnews";
 const char nsScriptSecurityManager::sFileOriginPolicyPrefName[] =
-    "security.fileuri.origin_policy";
+    "security.fileuri.strict_origin_policy";
 #ifdef XPC_IDISPATCH_SUPPORT
 const char nsScriptSecurityManager::sXPCDefaultGrantAllName[] =
     "security.classID.allowByDefault";
@@ -3876,9 +3844,8 @@ nsScriptSecurityManager::ScriptSecurityPrefChanged()
     // JavaScript in Mail defaults to disabled in failure cases.
     mIsMailJavaScriptEnabled = NS_SUCCEEDED(rv) && temp;
 
-    PRInt32 policy;
-    rv = mSecurityPref->SecurityGetIntPref(sFileOriginPolicyPrefName, &policy);
-    sFileURIOriginPolicy = NS_SUCCEEDED(rv) ? policy : FILEURI_SOP_SELF;
+    rv = mSecurityPref->SecurityGetBoolPref(sFileOriginPolicyPrefName, &temp);
+    sStrictFileOriginPolicy = NS_SUCCEEDED(rv) && temp;
 
 #ifdef XPC_IDISPATCH_SUPPORT
     rv = mSecurityPref->SecurityGetBoolPref(sXPCDefaultGrantAllName, &temp);

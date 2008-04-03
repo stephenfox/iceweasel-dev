@@ -170,9 +170,11 @@ nsSchemaValidatorUtils::ParseDateTime(const nsAString & aNodeValue,
 
   // if no T, invalid
   if (findString >= 0) {
-    isValid = ParseSchemaDate(Substring(aNodeValue, 0, findString+1), &aResult->date);
+    // we get the date part (from 0 to before 'T')
+    isValid = ParseSchemaDate(Substring(aNodeValue, 0, findString), PR_FALSE, &aResult->date);
 
     if (isValid) {
+      // we get the time part (from after the 'T' till the end)
       isValid = ParseSchemaTime(
                   Substring(aNodeValue, findString + 1, aNodeValue.Length()),
                   &aResult->time);
@@ -184,13 +186,16 @@ nsSchemaValidatorUtils::ParseDateTime(const nsAString & aNodeValue,
 
 PRBool
 nsSchemaValidatorUtils::ParseSchemaDate(const nsAString & aStrValue,
+                                        PRBool aAllowTimeZone,
                                         nsSchemaDate *aDate)
 {
   PRBool isValid = PR_FALSE;
 
   /*
     http://www.w3.org/TR/xmlschema-2/#date
-    (-)CCYY-MM-DDT
+    (-)CCYY-MM-DD
+    then optionally: Z
+      or [+/-]hh:mm
   */
 
   const PRUnichar *start, *end, *buffStart;
@@ -204,6 +209,8 @@ nsSchemaValidatorUtils::ParseSchemaDate(const nsAString & aStrValue,
   nsAutoString year;
   char month[3] = "";
   char day[3] = "";
+  char timezoneHour[3] = "";
+  char timezoneMinute[3] = "";
 
   // if year is negative, skip it
   if (aStrValue.First() == '-') {
@@ -261,10 +268,24 @@ nsSchemaValidatorUtils::ParseSchemaDate(const nsAString & aStrValue,
         // day
         if (buffLength > 2) {
           done = PR_TRUE;
-        } else if (currentChar == 'T') {
-          if ((start == end) && (buffLength == 2) && (strcmp(day, "31") < 1))
+        } else if (currentChar == 'Z') {
+          if (aAllowTimeZone) {
+            if ((start == end) && (buffLength == 2) && (strcmp(day, "31") < 1)) {
             isValid = PR_TRUE;
+            }
+          }
+
           done = PR_TRUE;
+        } else if ((currentChar == '+') || (currentChar == '-')) {
+          // timezone
+          if (aAllowTimeZone) {
+            state = 3;
+            buffLength = 0;
+            buffStart = start;
+          } else {
+            // no timezones allowed
+            done = PR_TRUE;
+          }
         } else {
           // has to be a numerical character or else abort
           if ((currentChar > '9') || (currentChar < '0'))
@@ -273,10 +294,26 @@ nsSchemaValidatorUtils::ParseSchemaDate(const nsAString & aStrValue,
             day[buffLength] = currentChar;
           }
           buffLength++;
+
+          // are we at the end?
+          if (start == end && buffLength == 2) {
+            isValid = PR_TRUE;
+            done = PR_TRUE;
+          }
         }
         break;
       }
 
+      case 3: {
+        // timezone hh:mm
+        if (end-buffStart == 5) {
+          isValid = ParseSchemaTimeZone(Substring(buffStart, end), timezoneHour,
+                                        timezoneMinute);
+        }
+
+        done = PR_TRUE;
+        break;
+      }
     }
   }
 
@@ -466,6 +503,11 @@ nsSchemaValidatorUtils::ParseSchemaTime(const nsAString & aStrValue,
           // has to be a numerical character or else abort
           if ((currentChar > '9') || (currentChar < '0'))
             done = PR_TRUE;
+          else if (start == end) {
+            usec.Assign(Substring(buffStart, end));
+            isValid = PR_TRUE;
+            done = PR_TRUE;
+          }
           buffLength++;
         }
         break;
@@ -1209,8 +1251,8 @@ nsSchemaValidatorUtils::GetMaximumDayInMonthFor(PRUint32 aYearValue, PRUint8 aMo
     Return Value      Condition
     31                month is either 1, 3, 5, 7, 8, 10, 12
     30                month is either 4, 6, 9, 11
-    29                month is 2 AND either (year % 400 == 0) OR (year % 100 == 0)
-                                            AND (year % 4 == 0)
+    29                month is 2 AND either ((year % 4 == 0) AND (year % 100 != 0))
+                                            OR (year % 400 == 0)
     28                Otherwise
   */
 
@@ -1219,7 +1261,7 @@ nsSchemaValidatorUtils::GetMaximumDayInMonthFor(PRUint32 aYearValue, PRUint8 aMo
     maxDay = 31;
   else if ((month == 4) || (month == 6) || (month == 9) || (month == 11))
     maxDay = 30;
-  else if ((month == 2) && ((year % 400 == 0) || (year % 100 == 0) && (year % 4 == 0)))
+  else if ((month == 2) && (((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0)))
     maxDay = 29;
 
   return maxDay;

@@ -36,7 +36,7 @@
 /*
  * certi.h - private data structures for the certificate library
  *
- * $Id: certi.h,v 1.22 2007/11/10 04:23:25 julien.pierre.boogz%sun.com Exp $
+ * $Id: certi.h,v 1.24 2008/03/15 02:15:34 alexei.volkov.bugs%sun.com Exp $
  */
 #ifndef _CERTI_H_
 #define _CERTI_H_
@@ -276,14 +276,6 @@ SECStatus DPCache_GetCRLEntry(CRLDPCache* cache, PRBool readlocked,
  */
 void CERT_MapStanError();
 
-/* Programatical interface to switch to and from libpkix cert
- * validation engine. */
-SECStatus cert_SetPKIXValidation(PRBool enable);
-
-/* The function return PR_TRUE if cert validation should go
- * through libpkix cert validation engine. */
-PRBool cert_UsePKIXValidation();
-
 /* Interface function for libpkix cert validation engine:
  * cert_verify wrapper. */
 SECStatus
@@ -299,6 +291,17 @@ cert_VerifyCertChainPkix(CERTCertificate *cert,
 SECStatus cert_InitLocks(void);
 
 SECStatus cert_DestroyLocks(void);
+
+/*
+ * fill in nsCertType field of the cert based on the cert extension
+ */
+extern SECStatus cert_GetCertType(CERTCertificate *cert);
+
+/*
+ * compute and return the value of nsCertType for cert, but do not 
+ * update the CERTCertificate.
+ */
+extern PRUint32 cert_ComputeCertType(CERTCertificate *cert);
 
 #endif /* _CERTI_H_ */
 

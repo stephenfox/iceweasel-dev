@@ -247,6 +247,7 @@ else # ! MOZ_DEBUG
 # Used in the Windows nightlies to generate symbols for crash reporting.
 ifdef MOZ_DEBUG_SYMBOLS
 OS_CXXFLAGS += -Zi -UDEBUG -DNDEBUG
+OS_CFLAGS += -Zi -UDEBUG -DNDEBUG
 OS_LDFLAGS += -DEBUG -OPT:REF -OPT:nowin98
 endif
 
@@ -348,6 +349,11 @@ DSO_PIC_CFLAGS=-mdynamic-no-pic
 else
 DSO_PIC_CFLAGS=
 endif
+endif
+
+# This comes from configure
+ifdef MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE
+NO_PROFILE_GUIDED_OPTIMIZE = 1
 endif
 
 # Enable profile-based feedback

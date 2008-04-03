@@ -175,7 +175,7 @@ gfxFontCache::DestroyFont(gfxFont *aFont)
 }
 
 gfxFont::gfxFont(const nsAString &aName, const gfxFontStyle *aFontStyle) :
-    mName(aName), mStyle(*aFontStyle)
+    mName(aName), mStyle(*aFontStyle), mSyntheticBoldOffset(0)
 {
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
     ++gFontCount;
@@ -225,7 +225,6 @@ struct GlyphBuffer {
 #undef GLYPH_BUFFER_SIZE
 };
 
-
 void
 gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
               gfxContext *aContext, PRBool aDrawToPath, gfxPoint *aPt,
@@ -239,6 +238,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
     const double devUnitsPerAppUnit = 1.0/double(appUnitsPerDevUnit);
     PRBool isRTL = aTextRun->IsRightToLeft();
     double direction = aTextRun->GetDirection();
+    double synBoldDevUnitOffset = direction * (double) mSyntheticBoldOffset;  // double-strike in direction of run
     PRUint32 i;
     // Current position in appunits
     double x = aPt->x;
@@ -274,6 +274,16 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
             } else {
                 x += advance;
             }
+            
+            // synthetic bolding by drawing with a one-pixel offset
+            if (mSyntheticBoldOffset) {
+                cairo_glyph_t *doubleglyph;
+                doubleglyph = glyphs.AppendGlyph();
+                doubleglyph->index = glyph->index;
+                doubleglyph->x = glyph->x + synBoldDevUnitOffset;
+                doubleglyph->y = glyph->y;
+            }
+            
             glyphs.Flush(cr, aDrawToPath);
         } else {
             PRUint32 j;
@@ -301,6 +311,16 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                     if (isRTL) {
                         glyph->x -= ToDeviceUnits(advance, devUnitsPerAppUnit);
                     }
+
+                    // synthetic bolding by drawing with a one-pixel offset
+                    if (mSyntheticBoldOffset) {
+                        cairo_glyph_t *doubleglyph;
+                        doubleglyph = glyphs.AppendGlyph();
+                        doubleglyph->index = glyph->index;
+                        doubleglyph->x = glyph->x + synBoldDevUnitOffset;
+                        doubleglyph->y = glyph->y;
+                    }
+
                     glyphs.Flush(cr, aDrawToPath);
                 }
                 x += direction*advance;
@@ -527,7 +547,7 @@ gfxFont::SetupGlyphExtents(gfxContext *aContext, PRUint32 aGlyphID, PRBool aNeed
 }
 
 void
-gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics)
+gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
 {
     // MS (P)Gothic and MS (P)Mincho are not having suitable values in their super script offset.
     // If the values are not suitable, we should use x-height instead of them.
@@ -547,12 +567,35 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics)
 
     aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -1.0);
 
-    // XXX we need to adjust the underline offset for "bad" CJK fonts, here.
+    /**
+     * Some CJK fonts have bad underline offset. Therefore, if this is such font,
+     * we need to lower the underline offset to bottom of *em* descent.
+     * However, if this is system font, we should not do this for the rendering compatibility with
+     * another application's UI on the platform.
+     */
+    if (!mStyle.systemFont && aIsBadUnderlineFont) {
+        // First, we need 2 pixels between baseline and underline at least. Because many CJK characters
+        // put their glyphs on the baseline, so, 1 pixel is too close for CJK characters.
+        aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -2.0);
 
+        // Next, we put the underline to bottom of below of the descent space.
+        // Note that the underline might overlap to next line when the line height is 1em.
+        // However, in CJK text, such case is very rare, so, we don't need to worry about such case.
+        // Becasue most CJK glyphs use top of the em square. Therefore, for readability, CJK text needs
+        // larger line gap than Western text, generally.
+        if (aMetrics->internalLeading + aMetrics->externalLeading > aMetrics->underlineSize) {
+            aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -aMetrics->emDescent);
+        } else {
+            aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset,
+                                               aMetrics->underlineSize - aMetrics->emDescent);
+        }
+    }
     // If underline positioned is too far from the text, descent position is preferred so that underline
     // will stay within the boundary.
-    if (aMetrics->underlineSize - aMetrics->underlineOffset > aMetrics->maxDescent)
+    else if (aMetrics->underlineSize - aMetrics->underlineOffset > aMetrics->maxDescent) {
         aMetrics->underlineOffset = aMetrics->underlineSize - aMetrics->maxDescent;
+        aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -1.0);
+    }
 }
 
 gfxGlyphExtents::~gfxGlyphExtents()
@@ -669,7 +712,7 @@ gfxGlyphExtents::SetTightGlyphExtents(PRUint32 aGlyphID, const gfxRect& aExtents
 }
 
 gfxFontGroup::gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle)
-    : mFamilies(aFamilies), mStyle(*aStyle)
+    : mFamilies(aFamilies), mStyle(*aStyle), mUnderlineOffset(0)
 {
 
 }
@@ -871,6 +914,15 @@ gfxFontGroup::MakeSpaceTextRun(const Parameters *aParams, PRUint32 aFlags)
     // always contain an entry for the font's space glyph, so we don't have
     // to call FetchGlyphExtents here.
     return textRun.forget();
+}
+
+#define DEFAULT_PIXEL_FONT_SIZE 16.0f
+
+gfxFontStyle::gfxFontStyle() :
+    style(FONT_STYLE_NORMAL), systemFont(PR_TRUE), familyNameQuirks(PR_FALSE),
+    weight(FONT_WEIGHT_NORMAL), size(DEFAULT_PIXEL_FONT_SIZE),
+    langGroup(NS_LITERAL_CSTRING("x-western")), sizeAdjust(0.0f)
+{
 }
 
 gfxFontStyle::gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
@@ -1278,6 +1330,120 @@ gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx, PRUint32 aStar
     aPt->x += direction*data.mPartWidth;
 }
 
+// returns true if a glyph run is using a font with synthetic bolding enabled, false otherwise
+static PRBool
+HasSyntheticBold(gfxTextRun *aRun, PRUint32 aStart, PRUint32 aLength)
+{
+    gfxTextRun::GlyphRunIterator iter(aRun, aStart, aLength);
+    while (iter.NextRun()) {
+        gfxFont *font = iter.GetGlyphRun()->mFont;
+        if (font && font->IsSyntheticBold()) {
+            return PR_TRUE;
+        }
+    }
+
+    return PR_FALSE;
+}
+
+// returns true if color is non-opaque (i.e. alpha != 1.0) or completely transparent, false otherwise
+// if true, color is set on output
+static PRBool
+HasNonOpaqueColor(gfxContext *aContext, gfxRGBA& aCurrentColor)
+{
+    if (aContext->GetColor(aCurrentColor)) {
+        if (aCurrentColor.a < 1.0 && aCurrentColor.a > 0.0) {
+            return PR_TRUE;
+        }
+    }
+        
+    return PR_FALSE;
+}
+
+// helper class for double-buffering drawing with non-opaque color
+struct BufferAlphaColor {
+    BufferAlphaColor(gfxContext *aContext)
+        : mContext(aContext)
+    {
+    
+    }
+    
+    ~BufferAlphaColor() {}
+    
+    void PushSolidColor(const gfxRect& aBounds, const gfxRGBA& aAlphaColor, PRUint32 appsPerDevUnit)
+    {
+        mContext->Save();
+        mContext->NewPath();
+        mContext->Rectangle(gfxRect(aBounds.X() / appsPerDevUnit,
+                    aBounds.Y() / appsPerDevUnit,
+                    aBounds.Width() / appsPerDevUnit,
+                    aBounds.Height() / appsPerDevUnit), PR_TRUE);
+        mContext->Clip();
+        mContext->SetColor(gfxRGBA(aAlphaColor.r, aAlphaColor.g, aAlphaColor.b));
+        mContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+        mAlpha = aAlphaColor.a;
+    }
+    
+    void PopAlpha()
+    {
+        // pop the text, using the color alpha as the opacity
+        mContext->PopGroupToSource();
+        mContext->SetOperator(gfxContext::OPERATOR_OVER);
+        mContext->Paint(mAlpha);
+        mContext->Restore();
+    }
+
+    gfxContext *mContext;
+    gfxFloat mAlpha;
+};
+
+void
+gfxTextRun::AdjustAdvancesForSyntheticBold(PRUint32 aStart, PRUint32 aLength)
+{
+    const PRUint32 appUnitsPerDevUnit = GetAppUnitsPerDevUnit();
+    PRBool isRTL = IsRightToLeft();
+
+    GlyphRunIterator iter(this, aStart, aLength);
+    while (iter.NextRun()) {
+        gfxFont *font = iter.GetGlyphRun()->mFont;
+        if (font->IsSyntheticBold()) {
+            PRUint32 synAppUnitOffset = font->GetSyntheticBoldOffset() * appUnitsPerDevUnit;
+            PRUint32 start = iter.GetStringStart();
+            PRUint32 end = iter.GetStringEnd();
+            PRUint32 i;
+            
+            // iterate over glyphs, start to end
+            for (i = start; i < end; ++i) {
+                gfxTextRun::CompressedGlyph *glyphData = &mCharacterGlyphs[i];
+                
+                if (glyphData->IsSimpleGlyph()) {
+                    // simple glyphs ==> just add the advance
+                    PRUint32 advance = glyphData->GetSimpleAdvance() + synAppUnitOffset;
+                    if (CompressedGlyph::IsSimpleAdvance(advance)) {
+                        glyphData->SetSimpleGlyph(advance, glyphData->GetSimpleGlyph());
+                    } else {
+                        // rare case, tested by making this the default
+                        PRUint32 glyphIndex = glyphData->GetSimpleGlyph();
+                        glyphData->SetComplex(PR_TRUE, PR_TRUE, 1);
+                        DetailedGlyph detail = {glyphIndex, advance, 0, 0};
+                        SetGlyphs(i, *glyphData, &detail);
+                    }
+                } else {
+                    // complex glyphs ==> add offset at cluster/ligature boundaries
+                    PRUint32 detailedLength = glyphData->GetGlyphCount();
+                    if (detailedLength && mDetailedGlyphs) {
+                        gfxTextRun::DetailedGlyph *details = mDetailedGlyphs[i].get();
+                        if (!details) continue;
+                        if (isRTL)
+                            details[0].mAdvance += synAppUnitOffset;
+                        else
+                            details[detailedLength - 1].mAdvance += synAppUnitOffset;
+                    }
+                }
+            }
+        }
+    }
+}
+
 void
 gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
                  PRUint32 aStart, PRUint32 aLength, const gfxRect *aDirtyRect,
@@ -1288,6 +1454,19 @@ gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
     gfxFloat direction = GetDirection();
     gfxPoint pt = aPt;
 
+    // synthetic bolding draws glyphs twice ==> colors with opacity won't draw correctly unless first drawn without alpha
+    BufferAlphaColor syntheticBoldBuffer(aContext);
+    gfxRGBA currentColor;
+    PRBool needToRestore = PR_FALSE;
+    
+    if (HasNonOpaqueColor(aContext, currentColor) && HasSyntheticBold(this, aStart, aLength)) {
+        needToRestore = PR_TRUE;
+        // measure text, use the bounding box
+        gfxTextRun::Metrics metrics = MeasureText(aStart, aLength, PR_FALSE, aContext, aProvider);
+        metrics.mBoundingBox.MoveBy(aPt);
+        syntheticBoldBuffer.PushSolidColor(metrics.mBoundingBox, currentColor, GetAppUnitsPerDevUnit());
+    }
+    
     GlyphRunIterator iter(this, aStart, aLength);
     while (iter.NextRun()) {
         gfxFont *font = iter.GetGlyphRun()->mFont;
@@ -1296,11 +1475,16 @@ gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt,
         PRUint32 ligatureRunStart = start;
         PRUint32 ligatureRunEnd = end;
         ShrinkToLigatureBoundaries(&ligatureRunStart, &ligatureRunEnd);
-
+        
         DrawPartialLigature(font, aContext, start, ligatureRunStart, aDirtyRect, &pt, aProvider);
         DrawGlyphs(font, aContext, PR_FALSE, &pt, ligatureRunStart,
                    ligatureRunEnd, aProvider, ligatureRunStart, ligatureRunEnd);
         DrawPartialLigature(font, aContext, ligatureRunEnd, end, aDirtyRect, &pt, aProvider);
+    }
+
+    // composite result when synthetic bolding used
+    if (needToRestore) {
+        syntheticBoldBuffer.PopAlpha();
     }
 
     if (aAdvanceWidth) {
@@ -1578,7 +1762,7 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
 
     if (aMetrics) {
         *aMetrics = MeasureText(aStart, charsFit - trimmableChars,
-    	    aTightBoundingBox, aRefContext, aProvider);
+            aTightBoundingBox, aRefContext, aProvider);
     }
     if (aTrimWhitespace) {
         *aTrimWhitespace = trimmableAdvance;

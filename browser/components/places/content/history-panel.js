@@ -65,8 +65,6 @@ function HistorySidebarInit()
   initContextMenu();
   
   searchHistory("");
-
-  gSearchBox.focus();
 }
 
 function initContextMenu() {
@@ -104,7 +102,7 @@ function historyAddBookmarks()
   // or if the selected item is not a URI node
   var node = gHistoryTree.selectedNode;
   if (node && PlacesUtils.nodeIsURI(node))
-    PlacesUtils.showMinimalAddBookmarkUI(PlacesUtils._uri(node.uri), node.title);
+    PlacesUIUtils.showMinimalAddBookmarkUI(PlacesUtils._uri(node.uri), node.title);
 }
 
 function searchHistory(aInput)
@@ -153,3 +151,8 @@ function searchHistory(aInput)
   // otherwise, we will end up calling load() twice
   gHistoryTree.load([query], options);
 }
+
+window.addEventListener("SidebarFocused",
+                        function()
+                          gSearchBox.focus(),
+                        false);

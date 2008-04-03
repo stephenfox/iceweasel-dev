@@ -44,6 +44,7 @@
 #include "gfxColor.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
+#include "gfxPattern.h"
 #if defined(XP_WIN)
 #include "gfxWindowsSurface.h"
 #elif defined(XP_MACOSX)
@@ -76,6 +77,7 @@ public:
 
     NS_IMETHOD Draw(nsIRenderingContext &aContext,
                     const gfxRect &aSourceRect,
+                    const gfxRect &aSubimageRect,
                     const gfxRect &aDestRect);
 
     nsresult ThebesDrawTile(gfxContext *thebesContext,
@@ -93,6 +95,15 @@ public:
     NS_IMETHOD GetSurface(gfxASurface **aSurface) {
         *aSurface = ThebesSurface();
         NS_ADDREF(*aSurface);
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetPattern(gfxPattern **aPattern) {
+        if (mSinglePixel)
+            *aPattern = new gfxPattern(mSinglePixelColor);
+        else
+            *aPattern = new gfxPattern(ThebesSurface());
+        NS_ADDREF(*aPattern);
         return NS_OK;
     }
 

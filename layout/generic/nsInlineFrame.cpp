@@ -102,15 +102,15 @@ nsInlineFrame::GetType() const
   return nsGkAtoms::inlineFrame;
 }
 
-inline PRBool
-IsPaddingZero(nsStyleUnit aUnit, nsStyleCoord &aCoord)
+static inline PRBool
+IsPaddingZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
 {
     return ((aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
             (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
 }
 
-inline PRBool
-IsMarginZero(nsStyleUnit aUnit, nsStyleCoord &aCoord)
+static inline PRBool
+IsMarginZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
 {
     return (aUnit == eStyleUnit_Auto ||
             (aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
@@ -130,20 +130,19 @@ nsInlineFrame::IsSelfEmpty()
   const nsStyleMargin* margin = GetStyleMargin();
   const nsStyleBorder* border = GetStyleBorder();
   const nsStylePadding* padding = GetStylePadding();
-  nsStyleCoord coord;
   // XXX Top and bottom removed, since they shouldn't affect things, but this
   // doesn't really match with nsLineLayout.cpp's setting of
   // ZeroEffectiveSpanBox, anymore, so what should this really be?
   if (border->GetBorderWidth(NS_SIDE_RIGHT) != 0 ||
       border->GetBorderWidth(NS_SIDE_LEFT) != 0 ||
       !IsPaddingZero(padding->mPadding.GetRightUnit(),
-                     padding->mPadding.GetRight(coord)) ||
+                     padding->mPadding.GetRight()) ||
       !IsPaddingZero(padding->mPadding.GetLeftUnit(),
-                     padding->mPadding.GetLeft(coord)) ||
+                     padding->mPadding.GetLeft()) ||
       !IsMarginZero(margin->mMargin.GetRightUnit(),
-                    margin->mMargin.GetRight(coord)) ||
+                    margin->mMargin.GetRight()) ||
       !IsMarginZero(margin->mMargin.GetLeftUnit(),
-                    margin->mMargin.GetLeft(coord))) {
+                    margin->mMargin.GetLeft())) {
     return PR_FALSE;
   }
   return PR_TRUE;
@@ -565,14 +564,6 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
     // affect our height.
     fm->GetMaxAscent(aMetrics.ascent);
     fm->GetHeight(aMetrics.height);
-    // Include the text-decoration lines to the height for readable.
-    nscoord offset, size;
-    fm->GetUnderline(offset, size);
-    nscoord ascentAndUnderline =
-      aPresContext->RoundAppUnitsToNearestDevPixels(aMetrics.ascent - offset) +
-      aPresContext->RoundAppUnitsToNearestDevPixels(size);
-    if (ascentAndUnderline > aMetrics.height)
-      aMetrics.height = ascentAndUnderline;
   } else {
     NS_WARNING("Cannot get font metrics - defaulting sizes to 0");
     aMetrics.ascent = aMetrics.height = 0;

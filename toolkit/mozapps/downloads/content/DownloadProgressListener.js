@@ -60,14 +60,22 @@ DownloadProgressListener.prototype = {
 
   onDownloadStateChange: function dlPL_onDownloadStateChange(aState, aDownload)
   {
+    // Update window title in-case we don't get all progress notifications
+    onUpdateProgress();
+
     let state = aDownload.state;
     switch (state) {
       case nsIDM.DOWNLOAD_QUEUED:
         prependList(aDownload);
         break;
+
+      case nsIDM.DOWNLOAD_BLOCKED_POLICY:
+        prependList(aDownload);
+        // Should fall through, this is a final state but DOWNLOAD_QUEUED
+        // is skipped. See nsDownloadManager::AddDownload.
       case nsIDM.DOWNLOAD_FAILED:
       case nsIDM.DOWNLOAD_CANCELED:
-      case nsIDM.DOWNLOAD_BLOCKED:
+      case nsIDM.DOWNLOAD_BLOCKED_PARENTAL:
       case nsIDM.DOWNLOAD_DIRTY:
       case nsIDM.DOWNLOAD_FINISHED:
         downloadCompleted(aDownload);

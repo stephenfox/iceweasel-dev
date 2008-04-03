@@ -1042,14 +1042,9 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
       state.mReflowStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
     }
 
-    if (NS_STYLE_OVERFLOW_CLIP == aReflowState.mStyleDisplay->mOverflowX) {
-      state.mReflowStatus = NS_FRAME_COMPLETE;
-    }
-    else {
 #ifdef DEBUG_kipp
-      ListTag(stdout); printf(": block is not complete\n");
+    ListTag(stdout); printf(": block is not complete\n");
 #endif
-    }
   }
 
   CheckFloats(state);
@@ -1923,7 +1918,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       // to the result of nextLine->ShouldApplyTopMargin.
       if (line.next() != end_lines()) {
         PRBool maybeWasEmpty = oldY == line.next()->mBounds.y;
-        PRBool isEmpty = line->mBounds.width == 0 && line->CachedIsEmpty();
+        PRBool isEmpty = line->CachedIsEmpty();
         if (maybeReflowingForFirstTime /*1*/ ||
             (isEmpty || maybeWasEmpty) /*2/3/4*/) {
           line.next()->MarkPreviousMarginDirty();
@@ -2247,6 +2242,7 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
     // of much confusion and bugs. Thus the following hack considers *both*
     // overflowArea and bounds. This should be considered a temporary hack
     // until we decide how it's really supposed to work.
+    // Note that we have a similar hack in nsTableFrame::InvalidateFrame.
     nsRect lineCombinedArea(aLine->GetCombinedArea());
     if (oldCombinedArea.TopLeft() != lineCombinedArea.TopLeft() ||
         oldBounds.TopLeft() != newBounds.TopLeft()) {
@@ -2575,18 +2571,10 @@ nsBlockFrame::AttributeChanged(PRInt32         aNameSpaceID,
   return rv;
 }
 
-inline PRBool
-IsPaddingZero(nsStyleUnit aUnit, nsStyleCoord &aCoord)
+static inline PRBool
+IsPaddingZero(nsStyleUnit aUnit, const nsStyleCoord &aCoord)
 {
     return ((aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
-            (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
-}
-
-inline PRBool
-IsMarginZero(nsStyleUnit aUnit, nsStyleCoord &aCoord)
-{
-    return (aUnit == eStyleUnit_Auto ||
-            (aUnit == eStyleUnit_Coord && aCoord.GetCoordValue() == 0) ||
             (aUnit == eStyleUnit_Percent && aCoord.GetPercentValue() == 0.0));
 }
 
@@ -2631,13 +2619,12 @@ nsBlockFrame::IsSelfEmpty()
 
   const nsStyleBorder* border = GetStyleBorder();
   const nsStylePadding* padding = GetStylePadding();
-  nsStyleCoord coord;
   if (border->GetBorderWidth(NS_SIDE_TOP) != 0 ||
       border->GetBorderWidth(NS_SIDE_BOTTOM) != 0 ||
       !IsPaddingZero(padding->mPadding.GetTopUnit(),
-                    padding->mPadding.GetTop(coord)) ||
+                     padding->mPadding.GetTop()) ||
       !IsPaddingZero(padding->mPadding.GetBottomUnit(),
-                    padding->mPadding.GetBottom(coord))) {
+                     padding->mPadding.GetBottom())) {
     return PR_FALSE;
   }
 
@@ -5893,12 +5880,12 @@ nsBlockFrame::IsVisibleInSelection(nsISelection* aSelection)
 
 /* virtual */ void
 nsBlockFrame::PaintTextDecorationLine(nsIRenderingContext& aRenderingContext, 
-                                      nsPoint aPt,
+                                      const nsPoint& aPt,
                                       nsLineBox* aLine,
                                       nscolor aColor, 
-                                      nscoord aOffset, 
-                                      nscoord aAscent, 
-                                      nscoord aSize,
+                                      gfxFloat aOffset, 
+                                      gfxFloat aAscent, 
+                                      gfxFloat aSize,
                                       const PRUint8 aDecoration) 
 {
   NS_ASSERTION(!aLine->IsBlock(), "Why did we ask for decorations on a block?");
@@ -5938,13 +5925,11 @@ nsBlockFrame::PaintTextDecorationLine(nsIRenderingContext& aRenderingContext,
     nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
     gfxPoint pt(PresContext()->AppUnitsToGfxUnits(start + aPt.x),
                 PresContext()->AppUnitsToGfxUnits(aLine->mBounds.y + aPt.y));
-    gfxSize size(PresContext()->AppUnitsToGfxUnits(width),
-                 PresContext()->AppUnitsToGfxUnits(aSize));
+    gfxSize size(PresContext()->AppUnitsToGfxUnits(width), aSize);
     nsCSSRendering::PaintDecorationLine(
       ctx, aColor, pt, size,
       PresContext()->AppUnitsToGfxUnits(aLine->GetAscent()),
-      PresContext()->AppUnitsToGfxUnits(aOffset),
-      aDecoration, NS_STYLE_BORDER_STYLE_SOLID, isRTL);
+      aOffset, aDecoration, NS_STYLE_BORDER_STYLE_SOLID, isRTL);
   }
 }
 

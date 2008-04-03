@@ -133,6 +133,7 @@
 #include "nsITimer.h"
 #include "nsISHistoryInternal.h"
 #include "nsIPrincipal.h"
+#include "nsIFileURL.h"
 #include "nsIHistoryEntry.h"
 #include "nsISHistoryListener.h"
 #include "nsIWindowWatcher.h"
@@ -201,6 +202,7 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #endif
 
 #include "nsContentErrors.h"
+#include "nsIFocusEventSuppressor.h"
 
 // Number of documents currently loading
 static PRInt32 gNumberOfDocumentsLoading = 0;
@@ -1026,6 +1028,9 @@ nsDocShell::FirePageHideNotification(PRBool aIsUnload)
 // This routine answers: 'Is origin's document from same domain as
 // target's document?'
 //
+// file: uris are considered the same domain for the purpose of
+// frame navigation regardless of script accessibility (bug 420425)
+//
 /* static */
 PRBool
 nsDocShell::ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
@@ -1066,10 +1071,32 @@ nsDocShell::ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
     NS_ENSURE_TRUE(targetDocument, PR_FALSE);
 
     PRBool equal;
-    return
-        NS_SUCCEEDED(originDocument->NodePrincipal()->
-                       Equals(targetDocument->NodePrincipal(), &equal)) &&
-        equal;
+    rv = originDocument->NodePrincipal()->
+            Equals(targetDocument->NodePrincipal(), &equal);
+    if (NS_SUCCEEDED(rv) && equal) {
+        return PR_TRUE;
+    }
+
+    // Not strictly equal, special case if both are file: uris
+    PRBool originIsFile = PR_FALSE;
+    PRBool targetIsFile = PR_FALSE;
+    nsCOMPtr<nsIURI> originURI;
+    nsCOMPtr<nsIURI> targetURI;
+    nsCOMPtr<nsIURI> innerOriginURI;
+    nsCOMPtr<nsIURI> innerTargetURI;
+
+    rv = originDocument->NodePrincipal()->GetURI(getter_AddRefs(originURI));
+    if (NS_SUCCEEDED(rv))
+        innerOriginURI = NS_GetInnermostURI(originURI);
+
+    rv = targetDocument->NodePrincipal()->GetURI(getter_AddRefs(targetURI));
+    if (NS_SUCCEEDED(rv))
+        innerTargetURI = NS_GetInnermostURI(targetURI);
+
+    return innerOriginURI && innerTargetURI &&
+        NS_SUCCEEDED(innerOriginURI->SchemeIs("file", &originIsFile)) &&
+        NS_SUCCEEDED(innerTargetURI->SchemeIs("file", &targetIsFile)) &&
+        originIsFile && targetIsFile;
 }
 
 NS_IMETHODIMP
@@ -1915,6 +1942,7 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
     // Bug 13871:  Prevent frameset spoofing
     // Bug 103638: Targets with same name in different windows open in wrong
     //             window with javascript
+    // Bug 408052: Adopt "ancestor" frame navigation policy
 
     // Now do a security check
     //
@@ -2908,9 +2936,10 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     NS_ENSURE_TRUE(prompter, NS_ERROR_FAILURE);
 
     nsAutoString error;
-    const PRUint32 kMaxFormatStrArgs = 2;
+    const PRUint32 kMaxFormatStrArgs = 3;
     nsAutoString formatStrs[kMaxFormatStrArgs];
     PRUint32 formatStrCount = 0;
+    PRBool addHostPort = PR_FALSE;
     nsresult rv = NS_OK;
     nsAutoString messageStr;
     nsCAutoString cssClass;
@@ -2930,29 +2959,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     }
     else if (NS_ERROR_FILE_NOT_FOUND == aError) {
         NS_ENSURE_ARG_POINTER(aURI);
-        nsCAutoString spec;
-        // displaying "file://" is aesthetically unpleasing and could even be
-        // confusing to the user
-        PRBool isFileURI = PR_FALSE;
-        rv = aURI->SchemeIs("file", &isFileURI);
-        if (NS_FAILED(rv))
-            return rv;
-        if (isFileURI)
-            aURI->GetPath(spec);
-        else
-            aURI->GetSpec(spec);
-        nsCAutoString charset;
-        // unescape and convert from origin charset
-        aURI->GetOriginCharset(charset);
-        nsCOMPtr<nsITextToSubURI> textToSubURI(
-                do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
-        if (NS_SUCCEEDED(rv))
-            // UnEscapeURIForUI always succeeds 
-            textToSubURI->UnEscapeURIForUI(charset, spec, formatStrs[0]);
-        else 
-            CopyUTF8toUTF16(spec, formatStrs[0]);
-        rv = NS_OK;
-        formatStrCount = 1;
         error.AssignLiteral("fileNotFound");
     }
     else if (NS_ERROR_UNKNOWN_HOST == aError) {
@@ -2967,20 +2973,12 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     }
     else if(NS_ERROR_CONNECTION_REFUSED == aError) {
         NS_ENSURE_ARG_POINTER(aURI);
-        // Build up the host:port string.
-        nsCAutoString hostport;
-        aURI->GetHostPort(hostport);
-        CopyUTF8toUTF16(hostport, formatStrs[0]);
-        formatStrCount = 1;
+        addHostPort = PR_TRUE;
         error.AssignLiteral("connectionFailure");
     }
     else if(NS_ERROR_NET_INTERRUPT == aError) {
         NS_ENSURE_ARG_POINTER(aURI);
-        // Build up the host:port string.
-        nsCAutoString hostport;
-        aURI->GetHostPort(hostport);
-        CopyUTF8toUTF16(hostport, formatStrs[0]);
-        formatStrCount = 1;
+        addHostPort = PR_TRUE;
         error.AssignLiteral("netInterrupt");
     }
     else if (NS_ERROR_NET_TIMEOUT == aError) {
@@ -3065,7 +3063,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             error.AssignLiteral("netReset");
             break;
         case NS_ERROR_DOCUMENT_NOT_CACHED:
-            // Doc falied to load because we are offline and the cache does not
+            // Doc failed to load because we are offline and the cache does not
             // contain a copy of the document.
             error.AssignLiteral("netOffline");
             break;
@@ -3075,6 +3073,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             break;
         case NS_ERROR_PORT_ACCESS_NOT_ALLOWED:
             // Port blocked for security reasons
+            addHostPort = PR_TRUE;
             error.AssignLiteral("deniedPortAccess");
             break;
         case NS_ERROR_UNKNOWN_PROXY_HOST:
@@ -3105,7 +3104,46 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     if (!messageStr.IsEmpty()) {
         // already obtained message
     }
-    else if (formatStrCount > 0) {
+    else {
+        if (addHostPort) {
+            // Build up the host:port string.
+            nsCAutoString hostport;
+            if (aURI) {
+                aURI->GetHostPort(hostport);
+            } else {
+                hostport.AssignLiteral("?");
+            }
+            CopyUTF8toUTF16(hostport, formatStrs[formatStrCount++]);
+        }
+
+        nsCAutoString spec;
+        rv = NS_ERROR_NOT_AVAILABLE;
+        if (aURI) {
+            // displaying "file://" is aesthetically unpleasing and could even be
+            // confusing to the user
+            PRBool isFileURI = PR_FALSE;
+            rv = aURI->SchemeIs("file", &isFileURI);
+            if (NS_SUCCEEDED(rv) && isFileURI)
+                aURI->GetPath(spec);
+            else
+                aURI->GetSpec(spec);
+
+            nsCAutoString charset;
+            // unescape and convert from origin charset
+            aURI->GetOriginCharset(charset);
+            nsCOMPtr<nsITextToSubURI> textToSubURI(
+                do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
+            if (NS_SUCCEEDED(rv)) {
+                rv = textToSubURI->UnEscapeURIForUI(charset, spec, formatStrs[formatStrCount]);
+            }
+        } else {
+            spec.AssignLiteral("?");
+        }
+        if (NS_FAILED(rv))
+            CopyUTF8toUTF16(spec, formatStrs[formatStrCount]);
+        rv = NS_OK;
+        ++formatStrCount;
+
         const PRUnichar *strs[kMaxFormatStrArgs];
         for (PRUint32 i = 0; i < formatStrCount; i++) {
             strs[i] = formatStrs[i].get();
@@ -3114,15 +3152,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         rv = stringBundle->FormatStringFromName(
             error.get(),
             strs, formatStrCount, getter_Copies(str));
-        NS_ENSURE_SUCCESS(rv, rv);
-        messageStr.Assign(str.get());
-    }
-    else
-    {
-        nsXPIDLString str;
-        rv = stringBundle->GetStringFromName(
-                error.get(),
-                getter_Copies(str));
         NS_ENSURE_SUCCESS(rv, rv);
         messageStr.Assign(str.get());
     }
@@ -3578,7 +3607,7 @@ nsDocShell::Create()
         const char* msg = mItemType == typeContent ?
             NS_WEBNAVIGATION_CREATE : NS_CHROME_WEBNAVIGATION_CREATE;
         serv->NotifyObservers(GetAsSupports(this), msg, nsnull);
-    }    
+    }
 
     return NS_OK;
 }
@@ -3648,7 +3677,12 @@ nsDocShell::Destroy()
     if (docShellParentAsItem)
         docShellParentAsItem->RemoveChild(this);
 
+    nsCOMPtr<nsIFocusEventSuppressorService> suppressor;
     if (mContentViewer) {
+        suppressor =
+          do_GetService(NS_NSIFOCUSEVENTSUPPRESSORSERVICE_CONTRACTID);
+        NS_ENSURE_STATE(suppressor);
+        suppressor->Suppress();
         mContentViewer->Close(nsnull);
         mContentViewer->Destroy();
         mContentViewer = nsnull;
@@ -3675,7 +3709,9 @@ nsDocShell::Destroy()
     // Cancel any timers that were set for this docshell; this is needed
     // to break the cycle between us and the timers.
     CancelRefreshURITimers();
-
+    if (suppressor) {
+      suppressor->Unsuppress();
+    }
     return NS_OK;
 }
 
@@ -4958,12 +4994,7 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     // If this load is being checked by the URI classifier, we need to
     // query the classifier again for the new URI.
     if (mClassifier) {
-        mClassifier->SetChannel(aNewChannel);
-
-        // we call the nsClassifierCallback:Run() from the main loop to
-        // give the channel a chance to AsyncOpen() the channel before
-        // we suspend it.
-        NS_DispatchToCurrentThread(mClassifier);
+        mClassifier->OnRedirect(aOldChannel, aNewChannel);
     }
 
     nsCOMPtr<nsIGlobalHistory3> history3(do_QueryInterface(mGlobalHistory));
@@ -7313,6 +7344,20 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         channel->SetOwner(aOwner);
     }
 
+    //
+    // file: uri special-casing
+    //
+    // If this is a file: load opened from another file: then it may need
+    // to inherit the owner from the referrer so they can script each other.
+    // If we don't set the owner explicitly then each file: gets an owner
+    // based on its own codebase later.
+    //
+    nsCOMPtr<nsIPrincipal> ownerPrincipal(do_QueryInterface(aOwner));
+    if (URIIsLocalFile(aURI) && ownerPrincipal &&
+        NS_SUCCEEDED(ownerPrincipal->CheckMayLoad(aURI, PR_FALSE))) {
+        channel->SetOwner(aOwner);
+    }
+
     nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(channel);
     if (scriptChannel) {
         // Allow execution against our context if the principals match
@@ -7330,7 +7375,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     }
 
     rv = DoChannelLoad(channel, uriLoader, aBypassClassifier);
-    
+
     //
     // If the channel load failed, we failed and nsIWebProgress just ain't
     // gonna happen.
@@ -7503,8 +7548,7 @@ nsDocShell::CheckClassifier(nsIChannel *aChannel)
     nsRefPtr<nsClassifierCallback> classifier = new nsClassifierCallback();
     if (!classifier) return NS_ERROR_OUT_OF_MEMORY;
 
-    classifier->SetChannel(aChannel);
-    nsresult rv = classifier->Run();
+    nsresult rv = classifier->Start(aChannel);
     if (rv == NS_ERROR_FACTORY_NOT_REGISTERED ||
         rv == NS_ERROR_NOT_AVAILABLE) {
         // no URI classifier => ignored cases
@@ -9287,6 +9331,19 @@ nsDocShell::URIInheritsSecurityContext(nsIURI* aURI, PRBool* aResult)
 
 /* static */
 PRBool
+nsDocShell::URIIsLocalFile(nsIURI *aURI)
+{
+    PRBool isFile;
+    nsCOMPtr<nsINetUtil> util = do_GetIOService();
+
+    return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
+                                    nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                                    &isFile)) &&
+           isFile;
+}
+
+/* static */
+PRBool
 nsDocShell::IsAboutBlank(nsIURI* aURI)
 {
     NS_PRECONDITION(aURI, "Must have URI");
@@ -9326,9 +9383,10 @@ nsDocShell::IsOKToLoadURI(nsIURI* aURI)
 // nsClassifierCallback
 //*****************************************************************************
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsClassifierCallback,
-                              nsIURIClassifierCallback,
-                              nsIRunnable)
+NS_IMPL_ISUPPORTS3(nsClassifierCallback,
+                   nsIChannelClassifier,
+                   nsIURIClassifierCallback,
+                   nsIRunnable)
 
 NS_IMETHODIMP
 nsClassifierCallback::Run()
@@ -9497,7 +9555,27 @@ nsClassifierCallback::OnClassifyComplete(nsresult aErrorCode)
     return NS_OK;
 }
 
-void
+NS_IMETHODIMP
+nsClassifierCallback::Start(nsIChannel *aChannel)
+{
+    mChannel = aChannel;
+    return Run();
+}
+
+NS_IMETHODIMP
+nsClassifierCallback::OnRedirect(nsIChannel *aOldChannel,
+                                nsIChannel *aNewChannel)
+{
+    mChannel = aNewChannel;
+
+    // we call the Run() from the main loop to give the channel a
+    // chance to AsyncOpen() before we suspend it.
+    NS_DispatchToCurrentThread(this);
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsClassifierCallback::Cancel()
 {
     if (mSuspendedChannel) {
@@ -9513,4 +9591,6 @@ nsClassifierCallback::Cancel()
     if (mChannel) {
         mChannel = nsnull;
     }
+
+    return NS_OK;
 }

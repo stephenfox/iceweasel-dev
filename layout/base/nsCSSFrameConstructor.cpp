@@ -121,7 +121,7 @@
 #include "nsIPrincipal.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsStyleUtil.h"
-
+#include "nsIFocusEventSuppressor.h"
 #include "nsBox.h"
 
 #ifdef MOZ_XUL
@@ -378,23 +378,6 @@ static PRInt32 FFWC_slowSearchForText=0;
 static nsresult
 DeletingFrameSubtree(nsFrameManager* aFrameManager,
                      nsIFrame*       aFrame);
-
-void nsFocusEventSuppressor::Suppress(nsIPresShell *aPresShell)
-{
-  NS_ASSERTION(aPresShell, "Need non-null nsIPresShell!");
-  if (!mViewManager) {
-    nsFrameManager *frameManager = aPresShell->FrameManager();
-    mViewManager = frameManager->GetPresContext()->GetViewManager();
-    NS_ASSERTION(mViewManager, "We must have an mViewManager here");
-  }
-  mViewManager->SuppressFocusEvents();
-}
-
-void nsFocusEventSuppressor::Unsuppress()
-{
-  NS_ASSERTION(mViewManager, "We must have an mViewManager here");
-  mViewManager->UnsuppressFocusEvents();
-}
 
 #ifdef  MOZ_SVG
 
@@ -8880,8 +8863,7 @@ PRBool NotifyListBoxBody(nsPresContext*    aPresContext,
   }
 
   PRInt32 namespaceID;
-  nsIAtom* tag =
-    aDocument->BindingManager()->ResolveTag(aContainer, &namespaceID);
+  aDocument->BindingManager()->ResolveTag(aContainer, &namespaceID);
 
   // XBL form control cruft... should that really be testing that the
   // namespace is XUL?  Seems odd...
@@ -10253,7 +10235,7 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
 
 void
 nsCSSFrameConstructor::BeginUpdate() {
-  mFocusSuppressor.Suppress(mPresShell);
+  NS_SuppressFocusEvent();
   ++mUpdateCount;
 }
 
@@ -10267,7 +10249,7 @@ nsCSSFrameConstructor::EndUpdate()
     RecalcQuotesAndCounters();
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
-  mFocusSuppressor.Unsuppress();
+  NS_UnsuppressFocusEvent();
   --mUpdateCount;
 }
 

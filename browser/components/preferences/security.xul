@@ -47,8 +47,9 @@
 <overlay id="SecurityPaneOverlay"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <prefpane id="paneSecurity" onpaneload="gSecurityPane.init();"
-            helpTopic="prefs-security" helpURI="chrome://browser/locale/help/help.rdf">
+  <prefpane id="paneSecurity"
+            onpaneload="gSecurityPane.init();"
+            helpTopic="prefs-security">
 
     <preferences id="securityPreferences">
       <!-- XXX buttons -->
@@ -134,7 +135,7 @@
       <hbox id="showPasswordsBox">
         <spacer flex="1"/>
         <button id="showPasswords"
-                label="&showPasswords.label;" accesskey="&showPasswords.accesskey;"
+                label="&savedPasswords.label;" accesskey="&savedPasswords.accesskey;"
                 oncommand="gSecurityPane.showPasswords();"
                 preference="pref.privacy.disable_button.view_passwords"/>
       </hbox>

@@ -127,10 +127,11 @@ nsAsyncInstantiateEvent::Run()
   mContent->mPendingInstantiateEvent = nsnull;
 
   // Make sure that we still have the right frame (NOTE: we don't need to check
-  // the type here - GetFrame() only returns object frames, and that means we're
-  // a plugin)
+  // the type here - GetExistingFrame() only returns object frames, and that
+  // means we're a plugin)
   // Also make sure that we still refer to the same data.
-  nsIObjectFrame* frame = mContent->GetFrame(PR_FALSE);
+  nsIObjectFrame* frame = mContent->
+    GetExistingFrame(nsObjectLoadingContent::eFlushContent);
   if (frame == mFrame &&
       mContent->mURI == mURI &&
       mContent->mContentType.Equals(mContentType)) {
@@ -359,6 +360,9 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
     return NS_BINDING_ABORTED;
   }
 
+  // We're done with the classifier
+  mClassifier = nsnull;
+
   AutoNotifier notifier(this, PR_TRUE);
 
   if (!IsSuccessfulRequest(aRequest)) {
@@ -383,15 +387,25 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
     channelType = APPLICATION_OCTET_STREAM;
     chan->SetContentType(channelType);
   }
-  
-  if (mContentType.IsEmpty() ||
-      !channelType.EqualsASCII(APPLICATION_OCTET_STREAM)) {
-    mContentType = channelType;
-  } else {
+
+  // We want to use the channel type unless one of the following is
+  // true:
+  //
+  // 1) The channel type is application/octet-stream and we have a
+  //    type hint
+  // 2) Our type hint is a type that we support with a plugin.
+
+  if ((channelType.EqualsASCII(APPLICATION_OCTET_STREAM) && 
+       !mContentType.IsEmpty()) ||
+      (IsSupportedPlugin(mContentType) && 
+       GetTypeOfContent(mContentType) == eType_Plugin)) {
     // Set the type we'll use for dispatch on the channel.  Otherwise we could
     // end up trying to dispatch to a nsFrameLoader, which will complain that
     // it couldn't find a way to handle application/octet-stream
+
     chan->SetContentType(mContentType);
+  } else {
+    mContentType = channelType;
   }
 
   // Now find out what type the content is
@@ -516,7 +530,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
         notifier.Notify();
       }
       nsIObjectFrame* frame;
-      frame = GetFrame(PR_TRUE);
+      frame = GetExistingFrame(eFlushLayout);
       if (!frame) {
         // Do nothing in this case: This is probably due to a display:none
         // frame. If we ever get a frame, HasNewFrame will do the right thing.
@@ -582,7 +596,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
 #endif
       Fallback(PR_FALSE);
     } else if (mType == eType_Plugin) {
-      nsIObjectFrame* frame = GetFrame(PR_FALSE);
+      nsIObjectFrame* frame = GetExistingFrame(eFlushContent);
       if (frame) {
         // We have to notify the wrapper here instead of right after
         // Instantiate because the plugin only gets instantiated by
@@ -671,7 +685,7 @@ nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
     return NS_OK;
   }
 
-  nsIObjectFrame* frame = GetFrame(PR_FALSE);
+  nsIObjectFrame* frame = GetExistingFrame(eFlushContent);
   if (frame) {
     // If we have a frame, we may have pending instantiate events; revoke
     // them.
@@ -708,7 +722,7 @@ nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
 
     mInstantiating = PR_FALSE;
 
-    frame = GetFrame(PR_FALSE);
+    frame = GetExistingFrame(eFlushContent);
     if (!frame) {
       return NS_OK;
     }
@@ -772,6 +786,19 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
 }
 
 NS_IMETHODIMP
+nsObjectLoadingContent::GetPluginInstance(nsIPluginInstance** aInstance)
+{
+  *aInstance = nsnull;
+
+  nsIObjectFrame* objFrame = GetExistingFrame(eDontFlush);
+  if (!objFrame) {
+    return NS_OK;
+  }
+
+  return objFrame->GetPluginInstance(*aInstance);
+}
+
+NS_IMETHODIMP
 nsObjectLoadingContent::GetContentTypeForMIMEType(const nsACString& aMIMEType,
                                                   PRUint32* aType)
 {
@@ -802,6 +829,10 @@ nsObjectLoadingContent::OnChannelRedirect(nsIChannel *aOldChannel,
   // If we're already busy with a new load, cancel the redirect
   if (aOldChannel != mChannel) {
     return NS_BINDING_ABORTED;
+  }
+
+  if (mClassifier) {
+    mClassifier->OnRedirect(aOldChannel, aNewChannel);
   }
 
   mChannel = aNewChannel;
@@ -964,6 +995,12 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // possibly-loading channel should be aborted.
   if (mChannel) {
     LOG(("OBJLC [%p]: Cancelling existing load\n", this));
+
+    if (mClassifier) {
+      mClassifier->Cancel();
+      mClassifier = nsnull;
+    }
+
     // These three statements are carefully ordered:
     // - onStopRequest should get a channel whose status is the same as the
     //   status argument
@@ -1208,7 +1245,10 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
                            nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
                            &inheritPrincipal);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (inheritPrincipal || IsAboutBlank(aURI)) {
+  if (inheritPrincipal || IsAboutBlank(aURI) ||
+      (nsContentUtils::URIIsLocalFile(aURI) &&
+       NS_SUCCEEDED(thisContent->NodePrincipal()->CheckMayLoad(aURI,
+                                                               PR_FALSE)))) {
     chan->SetOwner(thisContent->NodePrincipal());
   }
 
@@ -1224,6 +1264,13 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   rv = chan->AsyncOpen(this, nsnull);
   if (NS_SUCCEEDED(rv)) {
     LOG(("OBJLC [%p]: Channel opened.\n", this));
+
+    rv = CheckClassifier(chan);
+    if (NS_FAILED(rv)) {
+      chan->Cancel(rv);
+      return rv;
+    }
+
     mChannel = chan;
     mType = eType_Loading;
   }
@@ -1527,13 +1574,12 @@ nsObjectLoadingContent::GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI)
 }
 
 nsIObjectFrame*
-nsObjectLoadingContent::GetFrame(PRBool aFlushLayout)
+nsObjectLoadingContent::GetExistingFrame(FlushType aFlushType)
 {
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
 
-  PRBool flushed = PR_FALSE;
   nsIFrame* frame;
   do {
     nsIDocument* doc = thisContent->GetCurrentDoc();
@@ -1551,17 +1597,17 @@ nsObjectLoadingContent::GetFrame(PRBool aFlushLayout)
       return nsnull;
     }
 
-    if (flushed) {
+    if (aFlushType == eDontFlush) {
       break;
     }
     
     // OK, let's flush out and try again.  Note that we want to reget
     // the document, etc, since flushing might run script.
     mozFlushType flushType =
-      aFlushLayout ? Flush_Layout : Flush_ContentAndNotify;
+      aFlushType == eFlushLayout ? Flush_Layout : Flush_ContentAndNotify;
     doc->FlushPendingNotifications(flushType);
 
-    flushed = PR_TRUE;
+    aFlushType = eDontFlush;
   } while (1);
 
   nsIObjectFrame* objFrame;
@@ -1590,7 +1636,7 @@ nsresult
 nsObjectLoadingContent::TryInstantiate(const nsACString& aMIMEType,
                                        nsIURI* aURI)
 {
-  nsIObjectFrame* frame = GetFrame(PR_FALSE);
+  nsIObjectFrame* frame = GetExistingFrame(eFlushContent);
   if (!frame) {
     LOG(("OBJLC [%p]: No frame yet\n", this));
     return NS_OK; // Not a failure to have no frame
@@ -1633,6 +1679,26 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
   LOG(("OBJLC [%p]: Calling [%p]->Instantiate(<%s>, %p)\n", this, aFrame,
        typeToUse.get(), aURI));
   return aFrame->Instantiate(typeToUse.get(), aURI);
+}
+
+nsresult
+nsObjectLoadingContent::CheckClassifier(nsIChannel *aChannel)
+{
+  nsresult rv;
+  nsCOMPtr<nsIChannelClassifier> classifier =
+    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = classifier->Start(aChannel);
+  if (rv == NS_ERROR_FACTORY_NOT_REGISTERED) {
+    // no URI classifier, ignore this
+    return NS_OK;
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mClassifier = classifier;
+
+  return NS_OK;
 }
 
 /* static */ PRBool
