@@ -1,3 +1,9 @@
+xulrunner (1.9~b5-1) UNRELEASED; urgency=low
+
+  * New upstream beta release (taken from upstream CVS).
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 06 Apr 2008 16:01:45 +0200
+
 xulrunner (1.9~b4-1) experimental; urgency=low
 
   * New upstream beta release (taken from upstream CVS). Closes: #449448.
