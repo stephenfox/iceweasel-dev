@@ -503,7 +503,8 @@ NS_ScriptErrorReporter(JSContext *cx,
                 // URIs. See bug 387476.
                 sameOrigin =
                   NS_SUCCEEDED(sSecurityManager->
-                               CheckSameOriginURI(errorURI, codebase, PR_TRUE));
+                               CheckSameOriginURI(errorURI, codebase,
+                                                  PR_FALSE));
               }
             }
 
@@ -3316,7 +3317,7 @@ nsJSContext::SetGCOnDestruction(PRBool aGCOnDestruction)
 NS_IMETHODIMP
 nsJSContext::ScriptExecuted()
 {
-  ScriptEvaluated(PR_FALSE);
+  ScriptEvaluated(!::JS_IsRunning(mContext));
 
   return NS_OK;
 }
@@ -3398,7 +3399,7 @@ nsJSContext::MaybeCC(PRBool aHigherProbability)
     }
 #ifdef DEBUG_smaug
     else {
-      printf("Running cycle collector was delayed: NS_MIN_CC_INTERVAL\n");
+      printf("Running CC was delayed because of NS_MIN_CC_INTERVAL.\n");
     }
 #endif
   }
@@ -3547,6 +3548,14 @@ nsJSContext::DropScriptObject(void* aScriptObject)
 
   ::JS_UnlockGCThingRT(nsJSRuntime::sRuntime, aScriptObject);
   return NS_OK;
+}
+
+void
+nsJSContext::ReportPendingException()
+{
+  if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
+    ::JS_ReportPendingException(mContext);
+  }
 }
 
 /**********************************************************************

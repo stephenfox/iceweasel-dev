@@ -151,14 +151,17 @@ UpdateDepth(JSContext *cx, JSCodeGenerator *cg, ptrdiff_t target)
     jsbytecode *pc;
     JSOp op;
     const JSCodeSpec *cs;
+    uintN depth;
     intN nuses;
 
     pc = CG_CODE(cg, target);
     op = (JSOp) *pc;
     cs = &js_CodeSpec[op];
-    if ((cs->format & JOF_TMPSLOT) &&
-        (uintN)cg->stackDepth >= cg->maxStackDepth) {
-        cg->maxStackDepth = cg->stackDepth + 1;
+    if (cs->format & JOF_TMPSLOT_MASK) {
+        depth = (uintN) cg->stackDepth +
+                ((cs->format & JOF_TMPSLOT_MASK) >> JOF_TMPSLOT_SHIFT);
+        if (depth > cg->maxStackDepth)
+            cg->maxStackDepth = depth;
     }
     nuses = cs->nuses;
     if (nuses < 0) {
@@ -1611,8 +1614,8 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
              * nor can prop be deleted.
              */
             if (cg->treeContext.flags & TCF_IN_FUNCTION) {
-                if (js_LookupLocal(cx, cg->treeContext.fun, atom, NULL) !=
-                    JSLOCAL_NONE) {
+                if (js_LookupLocal(cx, FUN_TO_SCRIPTED(cg->treeContext.funobj),
+                                   atom, NULL) != JSLOCAL_NONE) {
                     break;
                 }
             } else if (cg->treeContext.flags & TCF_COMPILE_N_GO) {
@@ -1959,7 +1962,8 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
          * to stack slot. Look for an argument or variable in the function and
          * rewrite pn_op and update pn accordingly.
          */
-        localKind = js_LookupLocal(cx, tc->fun, atom, &index);
+        localKind = js_LookupLocal(cx, FUN_TO_SCRIPTED(tc->funobj), atom,
+                                   &index);
         if (localKind != JSLOCAL_NONE) {
             op = PN_OP(pn);
             if (localKind == JSLOCAL_ARG) {
@@ -2034,7 +2038,7 @@ CheckSideEffects(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                  JSBool *answer)
 {
     JSBool ok;
-    JSFunction *fun;
+    JSScriptedFunction *fun;
     JSParseNode *pn2;
 
     ok = JS_TRUE;
@@ -2050,7 +2054,7 @@ CheckSideEffects(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
          * name in that scope object.  See comments at case JSOP_NAMEDFUNOBJ:
          * in jsinterp.c.
          */
-        fun = GET_FUNCTION_PRIVATE(cx, pn->pn_funpob->object);
+        fun = FUN_TO_SCRIPTED(OBJ_TO_FUNCTION(pn->pn_funpob->object));
         if (fun->atom)
             *answer = JS_TRUE;
         break;
@@ -3921,7 +3925,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     switch (pn->pn_type) {
       case TOK_FUNCTION:
       {
-        JSFunction *fun;
+        JSFunction *funobj;
         void *cg2mark;
         JSCodeGenerator *cg2;
         uintN slot;
@@ -3934,8 +3938,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         }
 #endif
 
-        fun = GET_FUNCTION_PRIVATE(cx, pn->pn_funpob->object);
-        if (fun->u.i.script) {
+        funobj = OBJ_TO_FUNCTION(pn->pn_funpob->object);
+        if (FUN_TO_SCRIPTED(funobj)->script) {
             /*
              * This second pass is needed to emit JSOP_NOP with a source note
              * for the already-emitted function. See comments in the TOK_LC
@@ -3961,7 +3965,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                              pn->pn_pos.begin.lineno);
         cg2->treeContext.flags = (uint16) (pn->pn_flags | TCF_IN_FUNCTION);
         cg2->treeContext.maxScopeDepth = pn->pn_sclen;
-        cg2->treeContext.fun = fun;
+        cg2->treeContext.funobj = funobj;
         cg2->parent = cg;
         if (!js_EmitFunctionScript(cx, cg2, pn->pn_body)) {
             pn = NULL;
@@ -4022,7 +4026,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 #ifdef DEBUG
             JSLocalKind localKind =
 #endif
-                js_LookupLocal(cx, cg->treeContext.fun, fun->atom, &slot);
+                js_LookupLocal(cx, FUN_TO_SCRIPTED(cg->treeContext.funobj),
+                               FUN_TO_SCRIPTED(funobj)->atom, &slot);
             JS_ASSERT(localKind == JSLOCAL_VAR || localKind == JSLOCAL_CONST);
             JS_ASSERT(pn->pn_index == (uint32) -1);
             pn->pn_index = index;
@@ -5350,6 +5355,21 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         op = PN_OP(pn);
 #if JS_HAS_GETTER_SETTER
         if (op == JSOP_GETTER || op == JSOP_SETTER) {
+            if (pn2->pn_type == TOK_NAME && PN_OP(pn2) != JSOP_SETNAME) {
+                /*
+                 * x getter = y where x is a local or let variable is not
+                 * supported.
+                 */
+                js_ReportCompileErrorNumber(cx,
+                                            TS(cg->treeContext.parseContext),
+                                            pn2, JSREPORT_ERROR,
+                                            JSMSG_BAD_GETTER_OR_SETTER,
+                                            (op == JSOP_GETTER)
+                                            ? js_getter_str
+                                            : js_setter_str);
+                return JS_FALSE;
+            }
+
             /* We'll emit these prefix bytecodes after emitting the r.h.s. */
         } else
 #endif
@@ -5433,14 +5453,14 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         /* Finally, emit the specialized assignment bytecode. */
         switch (pn2->pn_type) {
           case TOK_NAME:
-            if (pn2->pn_slot < 0 || !pn2->pn_const) {
-                if (pn2->pn_slot >= 0) {
+            if (pn2->pn_slot >= 0) {
+                if (!pn2->pn_const)
                     EMIT_UINT16_IMM_OP(PN_OP(pn2), atomIndex);
-                } else {
-          case TOK_DOT:
-                    EMIT_INDEX_OP(PN_OP(pn2), atomIndex);
-                }
+                break;
             }
+            // FALL THROUGH
+          case TOK_DOT:
+            EMIT_INDEX_OP(PN_OP(pn2), atomIndex);
             break;
           case TOK_LB:
 #if JS_HAS_LVALUE_RETURN
@@ -5672,7 +5692,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         JS_ASSERT(pn2->pn_type != TOK_RP);
         op = PN_OP(pn);
         switch (pn2->pn_type) {
-          case TOK_NAME:
+          default:
+            JS_ASSERT(pn2->pn_type == TOK_NAME);
             pn2->pn_op = op;
             if (!BindNameToSlot(cx, cg, pn2, 0))
                 return JS_FALSE;
@@ -5722,20 +5743,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 return JS_FALSE;
             break;
 #endif
-          default:
-            JS_ASSERT(0);
         }
-
-        /*
-         * Post-increments require an extra slot for GC protection in case
-         * the initial value being post-incremented or -decremented is not a
-         * number, but converts to a jsdouble.  In the TOK_NAME cases, op has
-         * 0 operand uses and 1 definition, so we don't need an extra stack
-         * slot -- we can use the one allocated for the def.
-         */
-        JS_ASSERT(((js_CodeSpec[op].format >> JOF_TMPSLOT_SHIFT) & 1) ==
-                  ((js_CodeSpec[op].format & JOF_POST) &&
-                   pn2->pn_type != TOK_NAME));
         break;
 
       case TOK_DELETE:
@@ -5916,6 +5924,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         argc = pn->pn_count - 1;
         if (js_Emit3(cx, cg, PN_OP(pn), ARGC_HI(argc), ARGC_LO(argc)) < 0)
             return JS_FALSE;
+        if (PN_OP(pn) == JSOP_EVAL)
+            EMIT_UINT16_IMM_OP(JSOP_LINENO, pn->pn_pos.begin.lineno);
         break;
       }
 

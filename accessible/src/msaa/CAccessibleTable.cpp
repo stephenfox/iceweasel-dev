@@ -172,8 +172,13 @@ __try {
   if (NS_FAILED(rv))
     return E_FAIL;
 
-  if (!::SysReAllocStringLen(aDescription, descr.get(), descr.Length()))
+  if (descr.IsEmpty())
+    return S_FALSE;
+
+  *aDescription = ::SysAllocStringLen(descr.get(), descr.Length());
+  if (!*aDescription)
     return E_OUTOFMEMORY;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }
@@ -383,8 +388,13 @@ __try {
   if (NS_FAILED(rv))
     return E_FAIL;
 
-  if (!::SysReAllocStringLen(aDescription, descr.get(), descr.Length()))
+  if (descr.IsEmpty())
+    return S_FALSE;
+
+  *aDescription = ::SysAllocStringLen(descr.get(), descr.Length());
+  if (!*aDescription)
     return E_OUTOFMEMORY;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }
@@ -736,8 +746,12 @@ CAccessibleTable::GetSelectedItems(long aMaxItems, long **aItems,
   if (size == 0 || !items)
     return S_OK;
 
-  PRUint32 maxSize = size < (PRUint32)aMaxItems ? size : aMaxItems;
+  PRUint32 maxSize = size < static_cast<PRUint32>(aMaxItems) ? size : aMaxItems;
   *aItemsCount = maxSize;
+
+  *aItems = static_cast<long*>(nsMemory::Alloc((maxSize) * sizeof(long)));
+  if (!*aItems)
+    return E_OUTOFMEMORY;
 
   for (PRUint32 index = 0; index < maxSize; ++index)
     (*aItems)[index] = items[index];

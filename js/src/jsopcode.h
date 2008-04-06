@@ -121,8 +121,12 @@ typedef enum JSOpLength {
                                      parenthesized statement head */
 #define JOF_INVOKE       (1U<<22) /* JSOP_CALL, JSOP_NEW, JSOP_EVAL */
 #define JOF_TMPSLOT      (1U<<23) /* interpreter uses extra temporary slot
-                                     to root intermediate objects */
+                                     to root intermediate objects besides
+                                     the slots opcode uses */
+#define JOF_TMPSLOT2     (2U<<23) /* interpreter uses extra 2 temporary slot
+                                     besides the slots opcode uses */
 #define JOF_TMPSLOT_SHIFT 23
+#define JOF_TMPSLOT_MASK  (JS_BITMASK(2) << JOF_TMPSLOT_SHIFT)
 
 /* Shorthands for type from format and type from opcode. */
 #define JOF_TYPE(fmt)   ((fmt) & JOF_TYPEMASK)
@@ -278,16 +282,15 @@ js_QuoteString(JSContext *cx, JSString *str, jschar quote);
  */
 
 #ifdef JS_ARENAMETER
-# define JS_NEW_PRINTER(cx, name, fun, indent, pretty)                        \
-    js_NewPrinter(cx, name, fun, indent, pretty)
+# define JS_NEW_PRINTER(cx, name, indent, pretty)                             \
+    js_NewPrinter(cx, name, indent, pretty)
 #else
-# define JS_NEW_PRINTER(cx, name, fun, indent, pretty)                        \
-    js_NewPrinter(cx, fun, indent, pretty)
+# define JS_NEW_PRINTER(cx, name, indent, pretty)                             \
+    js_NewPrinter(cx, indent, pretty)
 #endif
 
 extern JSPrinter *
-JS_NEW_PRINTER(JSContext *cx, const char *name, JSFunction *fun,
-               uintN indent, JSBool pretty);
+JS_NEW_PRINTER(JSContext *cx, const char *name, uintN indent, JSBool pretty);
 
 extern void
 js_DestroyPrinter(JSPrinter *jp);
@@ -358,17 +361,19 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
  * Decompilers, for script, function, and expression pretty-printing.
  */
 extern JSBool
-js_DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, uintN len,
-                 uintN pcdepth);
+js_DecompileNativeFunctionBody(JSPrinter *jp, JSNativeFunction *fun);
+
+JSBool
+js_DecompileNativeFunction(JSPrinter *jp, JSNativeFunction *fun);
 
 extern JSBool
 js_DecompileScript(JSPrinter *jp, JSScript *script);
 
 extern JSBool
-js_DecompileFunctionBody(JSPrinter *jp);
+js_DecompileFunctionBody(JSPrinter *jp, JSScriptedFunction *fun);
 
 extern JSBool
-js_DecompileFunction(JSPrinter *jp);
+js_DecompileFunction(JSPrinter *jp, JSScriptedFunction *fun);
 
 /*
  * Find the source expression that resulted in v, and return a newly allocated

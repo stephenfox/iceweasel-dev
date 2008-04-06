@@ -1124,14 +1124,20 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   NS_ASSERTION(mIsPluginView, "StartDrawPlugin must only be called on a plugin widget");
   if (!mIsPluginView) return NS_ERROR_FAILURE;
 
-  // nothing to do if this is a CoreGraphics plugin
-  if (mPluginIsCG)
-    return NS_OK;
-
-  // prevent reentrant drawing
+  // Prevent reentrant "drawing" (or in fact reentrant handling of any plugin
+  // event).  Doing this for both CoreGraphics and QuickDraw plugins restores
+  // the 1.8-branch behavior wrt reentrancy, and fixes (or works around) bugs
+  // caused by plugins depending on the old behavior -- e.g. bmo bug 409615.
   if (mPluginDrawing)
     return NS_ERROR_FAILURE;
-  
+
+  // If this is a CoreGraphics plugin, nothing to do but prevent being
+  // reentered.
+  if (mPluginIsCG) {
+    mPluginDrawing = PR_TRUE;
+    return NS_OK;
+  }
+
   NSWindow* window = [mView nativeWindow];
   if (!window)
     return NS_ERROR_FAILURE;
@@ -1524,6 +1530,10 @@ NS_IMETHODIMP nsChildView::Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect)
 // Invokes callback and ProcessEvent methods on Event Listener object
 NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
+#ifdef DEBUG
+  debug_DumpEvent(stdout, event->widget, event, nsCAutoString("something"), 0);
+#endif
+
   aStatus = nsEventStatus_eIgnore;
 
   nsCOMPtr<nsIWidget> kungFuDeathGrip(mParentWidget ? mParentWidget : this);
@@ -1886,7 +1896,7 @@ NS_IMETHODIMP nsChildView::GetToggledKeyState(PRUint32 aKeyCode,
     default:
       return NS_ERROR_NOT_IMPLEMENTED;
   }
-  PRUint32 modifierFlags = ::GetCurrentKeyModifiers();
+  PRUint32 modifierFlags = ::GetCurrentEventKeyModifiers();
   *aLEDState = (modifierFlags & key) != 0;
   return NS_OK;
 
@@ -1997,7 +2007,7 @@ NSEvent* gLastDragEvent = nil;
 
     mCurKeyEvent = nil;
     mKeyDownHandled = PR_FALSE;
-    mIgnoreDoCommand = NO;
+    mKeyPressHandled = NO;
     mKeyPressSent = NO;
 
     // initialization for NSTextInput
@@ -2713,6 +2723,15 @@ NSEvent* gLastDragEvent = nil;
 
   if (!gRollupWidget)
     return;
+
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    PRBool useNativeContextMenus;
+    nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows", &useNativeContextMenus);
+    if (NS_SUCCEEDED(rv) && useNativeContextMenus)
+      return;
+  }
+
   NSWindow *popupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
   if (!popupWindow || ![popupWindow isKindOfClass:[PopupWindow class]])
     return;
@@ -2825,7 +2844,7 @@ NSEvent* gLastDragEvent = nil;
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = GetCurrentKeyModifiers();
+  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchMouseEvent(geckoEvent);
@@ -2861,7 +2880,7 @@ NSEvent* gLastDragEvent = nil;
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = GetCurrentKeyModifiers();
+  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchMouseEvent(geckoEvent);
@@ -2875,7 +2894,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
                                                     PRUint32 msg,
                                                     nsIWidget *widget,
                                                     nsMouseEvent::reasonType aReason,
-                                                    NSPoint* localEventLocation)
+                                                    NSPoint* localEventLocation,
+                                                    nsMouseEvent::exitType type)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -2891,8 +2911,10 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = ::GetCurrentKeyModifiers();
+  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
   event.nativeMsg = &macEvent;
+
+  event.exit = type;
 
   nsEventStatus status;
   widget->DispatchEvent(&event, status);
@@ -2935,7 +2957,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     if (sLastViewEntered) {
       nsIWidget* lastViewEnteredWidget = [(NSView<mozView>*)sLastViewEntered widget];
       NSPoint exitEventLocation = [sLastViewEntered convertPoint:windowEventLocation fromView:nil];
-      SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal, &exitEventLocation);
+      SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal,
+                                     &exitEventLocation, nsMouseEvent::eChild);
       sLastViewEntered = nil;
     }
     return;
@@ -2959,7 +2982,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
       NSPoint exitEventLocation = [sLastViewEntered convertPoint:windowEventLocation fromView:nil];
       // NSLog(@"sending NS_MOUSE_EXIT event with point %f,%f\n", exitEventLocation.x, exitEventLocation.y);
       nsIWidget* lastViewEnteredWidget = [(NSView<mozView>*)sLastViewEntered widget];
-      SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal, &exitEventLocation);
+      SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal,
+                                     &exitEventLocation, nsMouseEvent::eTopLevel);
       sLastViewEntered = nil;
     }
     return;
@@ -2976,7 +3000,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
       NSPoint exitEventLocation = [sLastViewEntered convertPoint:windowEventLocation fromView:nil];
       // NSLog(@"sending NS_MOUSE_EXIT event with point %f,%f\n", exitEventLocation.x, exitEventLocation.y);
       nsIWidget* lastViewEnteredWidget = [(NSView<mozView>*)sLastViewEntered widget];
-      SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal, &exitEventLocation);
+      SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal,
+                                     &exitEventLocation, nsMouseEvent::eChild);
 
       // The mouse exit event we just sent may have destroyed this widget, bail if that happened.
       if (!mGeckoChild)
@@ -2984,7 +3009,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     }
 
     // NSLog(@"sending NS_MOUSE_ENTER event with point %f,%f\n", viewEventLocation.x, viewEventLocation.y);
-    SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_ENTER, mGeckoChild, nsMouseEvent::eReal, &viewEventLocation);
+    SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_ENTER, mGeckoChild, nsMouseEvent::eReal,
+                                   &viewEventLocation, nsMouseEvent::eChild);
 
     // The mouse enter event we just sent may have destroyed this widget, bail if that happened.
     if (!mGeckoChild)
@@ -3012,7 +3038,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = GetCurrentKeyModifiers();
+  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchMouseEvent(geckoEvent);
@@ -3049,7 +3075,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = btnState | ::GetCurrentKeyModifiers();
+  macEvent.modifiers = btnState | ::GetCurrentEventKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchMouseEvent(geckoEvent);
@@ -3345,17 +3371,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if (!mGeckoChild)
     return nil;
 
-  // If we're running in a browser that (unlike Camino) uses non-native
-  // context menus, we must call maybeInitContextMenuTracking.  This call was
-  // dropped with the patch for bug 396186, which caused at least one
-  // regression (bug 416455).
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (prefs) {
-    PRBool useNativeContextMenus;
-    nsresult rv = prefs->GetBoolPref("ui.use_native_popup_windows", &useNativeContextMenus);
-    if (!NS_SUCCEEDED(rv) || !useNativeContextMenus)
-      [self maybeInitContextMenuTracking];
-  }
+  [self maybeInitContextMenuTracking];
 
   // Go up our view chain to fetch the correct menu to return.
   return [self contextMenu];
@@ -3436,7 +3452,8 @@ static void ConvertCocoaKeyEventToMacEvent(NSEvent* cocoaEvent, EventRecord& mac
     if ([cocoaEvent type] == NSFlagsChanged) {
       macEvent.what = keyType == NS_KEY_DOWN ? keyDown : keyUp;
     } else {
-      charCode = [[cocoaEvent characters] characterAtIndex:0];
+      if ([[cocoaEvent characters] length] > 0)
+        charCode = [[cocoaEvent characters] characterAtIndex:0];
       if ([cocoaEvent type] == NSKeyDown)
         macEvent.what = [cocoaEvent isARepeat] ? autoKey : keyDown;
       else
@@ -3468,7 +3485,7 @@ static void ConvertCocoaKeyEventToMacEvent(NSEvent* cocoaEvent, EventRecord& mac
     macEvent.message = (charCode & 0x00FF) | ([cocoaEvent keyCode] << 8);
     macEvent.when = ::TickCount();
     ::GetGlobalMouse(&macEvent.where);
-    macEvent.modifiers = ::GetCurrentKeyModifiers();
+    macEvent.modifiers = ::GetCurrentEventKeyModifiers();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3973,6 +3990,10 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
     // create native EventRecord for use by plugins
     EventRecord macEvent;
     if (mCurKeyEvent) {
+      // XXX The ASCII characters inputting mode of egbridge (Japanese IME)
+      // might send the keyDown event with wrong keyboard layout if other
+      // keyboard layouts are already loaded. In that case, the native event
+      // doesn't match to this gecko event...
       ConvertCocoaKeyEventToMacEvent(mCurKeyEvent, macEvent);
       geckoEvent.nativeMsg = &macEvent;
       geckoEvent.isShift   = ([mCurKeyEvent modifierFlags] & NSShiftKeyMask) != 0;
@@ -3990,7 +4011,7 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
       }
     }
 
-    mGeckoChild->DispatchWindowEvent(geckoEvent);
+    mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
     mKeyPressSent = YES;
   }
   else {
@@ -4031,25 +4052,20 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 
 - (void)insertNewline:(id)sender
 {
-  // dummy impl, does nothing other than stop the beeping when hitting return
+  [self insertText:@"\n"];
 }
 
 
 - (void) doCommandBySelector:(SEL)aSelector
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
 #if DEBUG_IME 
-  NSLog(@"**** in doCommandBySelector %s (ignore %d)", aSelector, mIgnoreDoCommand);
+  NSLog(@"**** in doCommandBySelector %s (ignore %d)", aSelector, mKeyPressHandled);
 #endif
-  if (mIgnoreDoCommand)
-    return;
 
-  if (aSelector == @selector(insertNewline:)) {
-    [self insertText:@"\n"];
-    return;
-  }
-
-  [super doCommandBySelector:aSelector];
+  if (!mKeyPressHandled)
+    [super doCommandBySelector:aSelector];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -4348,12 +4364,13 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 }
 
 
-- (void)processKeyDownEvent:(NSEvent*)theEvent keyEquiv:(BOOL)isKeyEquiv
+// Returns PR_TRUE if Gecko claims to have handled the event, PR_FALSE otherwise.
+- (PRBool)processKeyDownEvent:(NSEvent*)theEvent keyEquiv:(BOOL)isKeyEquiv
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (!mGeckoChild)
-    return;
+    return NO;
 
   nsAutoRetainView kungFuDeathGrip(self);
   mCurKeyEvent = theEvent;
@@ -4373,15 +4390,30 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 
       mKeyDownHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
       if (!mGeckoChild)
-        return;
+        return mKeyDownHandled;
 
       // The key down event may have shifted the focus, in which
       // case we should not fire the key press.
       if (firstResponder != [[self window] firstResponder]) {
+        PRBool handled = mKeyDownHandled;
         mCurKeyEvent = nil;
         mKeyDownHandled = PR_FALSE;
-        return;
+        return handled;
       }
+    }
+
+    // If this is the context menu key command, send a context menu key event.
+    unsigned int modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
+    if (modifierFlags == NSControlKeyMask && [[theEvent charactersIgnoringModifiers] isEqualToString:@" "]) {
+      nsMouseEvent contextMenuEvent(PR_TRUE, NS_CONTEXTMENU, [self widget], nsMouseEvent::eReal, nsMouseEvent::eContextMenuKey);
+      contextMenuEvent.isShift = contextMenuEvent.isControl = contextMenuEvent.isAlt = contextMenuEvent.isMeta = PR_FALSE;
+      PRBool cmEventHandled = mGeckoChild->DispatchWindowEvent(contextMenuEvent);
+      [self maybeInitContextMenuTracking];
+      // Bail, there is nothing else to do here.
+      PRBool handled = (cmEventHandled || mKeyDownHandled);
+      mCurKeyEvent = nil;
+      mKeyDownHandled = PR_FALSE;
+      return handled;
     }
 
     nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
@@ -4401,10 +4433,10 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
       ConvertCocoaKeyEventToMacEvent(theEvent, macEvent);
       geckoEvent.nativeMsg = &macEvent;
 
-      mIgnoreDoCommand = mGeckoChild->DispatchWindowEvent(geckoEvent);
-      if (!mGeckoChild)
-        return;
+      mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
       mKeyPressSent = YES;
+      if (!mGeckoChild)
+        return (mKeyDownHandled || mKeyPressHandled);
     }
   }
 
@@ -4412,11 +4444,11 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   // We don't do it if this came from performKeyEquivalent because
   // interpretKeyEvents isn't set up to handle those key combinations.
   PRBool wasComposing = nsTSMManager::IsComposing();
-  if (!isKeyEquiv)
+  if (!isKeyEquiv && nsTSMManager::IsIMEEnabled())
     [super interpretKeyEvents:[NSArray arrayWithObject:theEvent]];
 
   if (!mGeckoChild)
-    return;
+    return (mKeyDownHandled || mKeyPressHandled);;
 
   if (!mKeyPressSent && nonDeadKeyPress && !wasComposing && !nsTSMManager::IsComposing()) {
     nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
@@ -4429,18 +4461,22 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
     ConvertCocoaKeyEventToMacEvent(theEvent, macEvent);
     geckoEvent.nativeMsg = &macEvent;
 
-    mGeckoChild->DispatchWindowEvent(geckoEvent);    
+    mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
   }
 
   // Note: mGeckoChild might have become null here. Don't count on it from here on.
 
+  PRBool handled = (mKeyDownHandled || mKeyPressHandled);
+
   // See note about nested event loops where these variables are declared in header.
-  mIgnoreDoCommand = NO;
+  mKeyPressHandled = NO;
   mKeyPressSent = NO;
   mCurKeyEvent = nil;
   mKeyDownHandled = PR_FALSE;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  return handled;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 
@@ -4533,14 +4569,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  // First we need to ignore certain system commands. If we don't we'll have
-  // to duplicate their functionality in Gecko, which as of this time we haven't.
-  // The only thing we ignore now is command-tilde, because NSApp handles that for us
-  // and we need the event to propagate to there.
-  unsigned int modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
-  if (modifierFlags & NSCommandKeyMask && [theEvent keyCode] == kTildeKeyCode)
-    return NO;
-
   // don't do anything if we don't have a gecko widget
   if (!mGeckoChild)
     return NO;
@@ -4554,6 +4582,8 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // don't process if we're composing, but don't consume the event
   if (nsTSMManager::IsComposing())
     return NO;
+
+  unsigned int modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
 
   // see if the menu system will handle the event
   if ([[NSApp mainMenu] performKeyEquivalent:theEvent]) {
@@ -4586,8 +4616,13 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if ((modifierFlags & NSFunctionKeyMask) || (modifierFlags & NSNumericPadKeyMask))
     return NO;
 
-  if ([theEvent type] == NSKeyDown)
-    [self processKeyDownEvent:theEvent keyEquiv:YES];
+  if ([theEvent type] == NSKeyDown) {
+    // We trust the Gecko handled status for cmd key events. See bug 417466 for more info.
+    if (modifierFlags & NSCommandKeyMask)
+      return [self processKeyDownEvent:theEvent keyEquiv:YES];
+    else
+      [self processKeyDownEvent:theEvent keyEquiv:YES];
+  }
 
   return YES;
 

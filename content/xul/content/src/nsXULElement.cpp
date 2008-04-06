@@ -135,7 +135,7 @@
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
 #include "nsNodeUtils.h"
-
+#include "nsFrameLoader.h"
 #include "prlog.h"
 #include "rdf.h"
 
@@ -215,26 +215,32 @@ PRUint32             nsXULPrototypeAttribute::gNumCacheSets;
 PRUint32             nsXULPrototypeAttribute::gNumCacheFills;
 #endif
 
-class nsXULElementTearoff : public nsIDOMElementCSSInlineStyle
+class nsXULElementTearoff : public nsIDOMElementCSSInlineStyle,
+                            public nsIFrameLoaderOwner
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULElementTearoff,
+                                           nsIDOMElementCSSInlineStyle)
 
   nsXULElementTearoff(nsXULElement *aElement)
     : mElement(aElement)
   {
   }
 
-  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
-
+  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(static_cast<nsXULElement*>(mElement.get())->)
+  NS_FORWARD_NSIFRAMELOADEROWNER(static_cast<nsXULElement*>(mElement.get())->);
 private:
-  nsRefPtr<nsXULElement> mElement;
+  nsCOMPtr<nsIDOMXULElement> mElement;
 };
 
-NS_IMPL_ADDREF(nsXULElementTearoff)
-NS_IMPL_RELEASE(nsXULElementTearoff)
+NS_IMPL_CYCLE_COLLECTION_1(nsXULElementTearoff, mElement)
 
-NS_INTERFACE_MAP_BEGIN(nsXULElementTearoff)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULElementTearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULElementTearoff)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULElementTearoff)
+  NS_INTERFACE_MAP_ENTRY(nsIFrameLoaderOwner)
   NS_INTERFACE_MAP_ENTRY(nsIDOMElementCSSInlineStyle)
 NS_INTERFACE_MAP_END_AGGREGATED(mElement)
 
@@ -257,6 +263,9 @@ nsXULElement::nsXULSlots::nsXULSlots(PtrBits aFlags)
 nsXULElement::nsXULSlots::~nsXULSlots()
 {
     NS_IF_RELEASE(mControllers); // Forces release
+    if (mFrameLoader) {
+        mFrameLoader->Destroy();
+    }
 }
 
 nsINode::nsSlots*
@@ -404,6 +413,9 @@ nsXULElement::QueryInterface(REFNSIID aIID, void** aInstancePtr)
         NS_ENSURE_TRUE(inst, NS_ERROR_OUT_OF_MEMORY);
     } else if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
         inst = NS_GetDOMClassInfoInstance(eDOMClassInfo_XULElement_id);
+        NS_ENSURE_TRUE(inst, NS_ERROR_OUT_OF_MEMORY);
+    } else if (aIID.Equals(NS_GET_IID(nsIFrameLoaderOwner))) {
+        inst = static_cast<nsIFrameLoaderOwner*>(new nsXULElementTearoff(this));
         NS_ENSURE_TRUE(inst, NS_ERROR_OUT_OF_MEMORY);
     } else {
         return PostQueryInterface(aIID, aInstancePtr);
@@ -553,37 +565,79 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
 PRBool
 nsXULElement::IsFocusable(PRInt32 *aTabIndex)
 {
-  // Use incoming tabindex as default value
-  PRInt32 tabIndex = aTabIndex? *aTabIndex : -1;
-  PRBool disabled = tabIndex < 0;
+  /* 
+   * Returns true if an element may be focused, and false otherwise. The inout
+   * argument aTabIndex will be set to the tab order index to be used; -1 for
+   * elements that should not be part of the tab order and a greater value to
+   * indicate its tab order.
+   *
+   * Confusingly, the supplied value for the aTabIndex argument may indicate
+   * whether the element may be focused as a result of the -moz-user-focus
+   * property.
+   *
+   * For controls, the element cannot be focused and is not part of the tab
+   * order if it is disabled.
+   *
+   * Controls (those that implement nsIDOMXULControlElement):
+   *  *aTabIndex = -1  no tabindex     Not focusable or tabbable
+   *  *aTabIndex = -1  tabindex="-1"   Not focusable or tabbable
+   *  *aTabIndex = -1  tabindex=">=0"  Focusable and tabbable
+   *  *aTabIndex >= 0  no tabindex     Focusable and tabbable
+   *  *aTabIndex >= 0  tabindex="-1"   Focusable but not tabbable
+   *  *aTabIndex >= 0  tabindex=">=0"  Focusable and tabbable
+   * Non-controls:
+   *  *aTabIndex = -1                  Not focusable or tabbable
+   *  *aTabIndex >= 0                  Focusable and tabbable
+   *
+   * If aTabIndex is null, then the tabindex is not computed, and
+   * true is returned for non-disabled controls and false otherwise.
+   */
+
+  // elements are not focusable by default
+  PRBool shouldFocus = PR_FALSE;
+
   nsCOMPtr<nsIDOMXULControlElement> xulControl = 
     do_QueryInterface(static_cast<nsIContent*>(this));
   if (xulControl) {
+    // a disabled element cannot be focused and is not part of the tab order
+    PRBool disabled;
     xulControl->GetDisabled(&disabled);
     if (disabled) {
-      tabIndex = -1;  // Can't tab to disabled elements
+      if (aTabIndex)
+        *aTabIndex = -1;
+      return PR_FALSE;
     }
-    else if (HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
-      // If attribute not set, will use default value passed in
-      xulControl->GetTabIndex(&tabIndex);
-    }
-    if (tabIndex != -1 && sTabFocusModelAppliesToXUL &&
-        !(sTabFocusModel & eTabFocus_formElementsMask)) {
-      // By default, the tab focus model doesn't apply to xul element on any system but OS X.
-      // on OS X we're following it for UI elements (XUL) as sTabFocusModel is based on
-      // "Full Keyboard Access" system setting (see mac/nsILookAndFeel).
-      // both textboxes and list elements (i.e. trees and list) should always be focusable
-      // (textboxes are handled as html:input)
-      if (!mNodeInfo->Equals(nsGkAtoms::tree) && !mNodeInfo->Equals(nsGkAtoms::listbox))
-        tabIndex = -1; 
-    }
+    shouldFocus = PR_TRUE;
   }
 
   if (aTabIndex) {
-    *aTabIndex = tabIndex;
+    if (xulControl && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
+      // if either the aTabIndex argument or a specified tabindex is non-negative,
+      // the element becomes focusable.
+      PRInt32 tabIndex = 0;
+      xulControl->GetTabIndex(&tabIndex);
+      shouldFocus = *aTabIndex >= 0 || tabIndex >= 0;
+      *aTabIndex = tabIndex;
+
+      if (shouldFocus && sTabFocusModelAppliesToXUL &&
+          !(sTabFocusModel & eTabFocus_formElementsMask)) {
+        // By default, the tab focus model doesn't apply to xul element on any system but OS X.
+        // on OS X we're following it for UI elements (XUL) as sTabFocusModel is based on
+        // "Full Keyboard Access" system setting (see mac/nsILookAndFeel).
+        // both textboxes and list elements (i.e. trees and list) should always be focusable
+        // (textboxes are handled as html:input)
+        // For compatibility, we only do this for controls, otherwise elements like <browser>
+        // cannot take this focus.
+        if (!mNodeInfo->Equals(nsGkAtoms::tree) && !mNodeInfo->Equals(nsGkAtoms::listbox))
+          *aTabIndex = -1;
+      }
+    }
+    else {
+      shouldFocus = *aTabIndex >= 0;
+    }
   }
 
-  return tabIndex >= 0 || (!disabled && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
+  return shouldFocus;
 }
 
 void
@@ -812,6 +866,25 @@ nsXULElement::MaybeAddPopupListener(nsIAtom* aLocalName)
 // nsIContent interface
 //
 
+nsresult
+nsXULElement::BindToTree(nsIDocument* aDocument,
+                         nsIContent* aParent,
+                         nsIContent* aBindingParent,
+                         PRBool aCompileEventHandlers)
+{
+  nsresult rv = nsGenericElement::BindToTree(aDocument, aParent,
+                                             aBindingParent,
+                                             aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aDocument) {
+      // We're in a document now.  Kick off the frame load.
+      LoadSrc();
+  }
+
+  return rv;
+}
+
 void
 nsXULElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
@@ -826,9 +899,18 @@ nsXULElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // mDocument in nsGlobalWindow::SetDocShell, but I'm not
     // sure whether that would fix all possible cycles through
     // mControllers.)
-    nsDOMSlots* slots = GetExistingDOMSlots();
+    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
     if (slots) {
         NS_IF_RELEASE(slots->mControllers);
+        if (slots->mFrameLoader) {
+            // This element is being taken out of the document, destroy the
+            // possible frame loader.
+            // XXXbz we really want to only partially destroy the frame
+            // loader... we don't want to tear down the docshell.  Food for
+            // later bug.
+            slots->mFrameLoader->Destroy();
+            slots->mFrameLoader = nsnull;
+        }
     }
 
     nsGenericElement::UnbindFromTree(aDeep, aNullParent);
@@ -1064,6 +1146,10 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             attrValue.GetColorValue(color);
 
             SetTitlebarColor(color);
+        }
+
+        if (aName == nsGkAtoms::src && document) {
+            LoadSrc();
         }
 
         // XXX need to check if they're changing an event handler: if
@@ -1351,6 +1437,8 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
           mutation.mPrevAttrValue = do_GetAtom(oldValue);
         mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
 
+        mozAutoDocUpdateContentUnnest updateUnnest(doc);
+
         mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
         nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
                                     nsnull, &mutation);
@@ -1473,9 +1561,13 @@ nsXULElement::GetAttrCount() const
 void
 nsXULElement::DestroyContent()
 {
-    nsDOMSlots* slots = GetExistingDOMSlots();
+    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
     if (slots) {
-      NS_IF_RELEASE(slots->mControllers);
+        NS_IF_RELEASE(slots->mControllers);
+        if (slots->mFrameLoader) {
+            slots->mFrameLoader->Destroy();
+            slots->mFrameLoader = nsnull;
+        }
     }
 
     nsGenericElement::DestroyContent();
@@ -1948,6 +2040,44 @@ nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
     return NS_OK;
 }
 
+nsresult
+nsXULElement::LoadSrc()
+{
+    // Allow frame loader only on objects for which a container box object
+    // can be obtained.
+    nsIAtom* tag = Tag();
+    if (tag != nsGkAtoms::browser &&
+        tag != nsGkAtoms::editor &&
+        tag != nsGkAtoms::iframe) {
+        return NS_OK;
+    }
+    if (!IsInDoc() ||
+        !GetOwnerDoc()->GetRootContent() ||
+        GetOwnerDoc()->GetRootContent()->
+            NodeInfo()->Equals(nsGkAtoms::overlay, kNameSpaceID_XUL)) {
+        return NS_OK;
+    }
+    nsXULSlots* slots = static_cast<nsXULSlots*>(GetSlots());
+    NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+    if (!slots->mFrameLoader) {
+        slots->mFrameLoader = new nsFrameLoader(this);
+        NS_ENSURE_TRUE(slots->mFrameLoader, NS_ERROR_OUT_OF_MEMORY);
+    }
+
+    return slots->mFrameLoader->LoadFrame();
+}
+
+nsresult
+nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
+{
+    *aFrameLoader = nsnull;
+    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingSlots());
+    if (slots) {
+        NS_IF_ADDREF(*aFrameLoader = slots->mFrameLoader);
+    }
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)
 {
@@ -2416,7 +2546,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXULPrototypeNode)
         PRUint32 i;
         for (i = 0; i < elem->mNumChildren; ++i) {
             NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(elem->mChildren[i],
-                                                         nsXULPrototypeNode)
+                                                         nsXULPrototypeNode,
+                                                         "mChildren[i]")
         }
     }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -3075,6 +3206,9 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
                                 // Use the enclosing document's principal
                                 // XXX is this right? or should we use the
                                 // protodoc's?
+                                // If we start using the protodoc's, make sure
+                                // the DowngradePrincipalIfNeeded stuff in
+                                // nsXULDocument::OnStreamComplete still works!
                                 aDocument->NodePrincipal(),
                                 urlspec.get(),
                                 aLineNo,

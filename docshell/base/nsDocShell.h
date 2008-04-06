@@ -106,6 +106,7 @@
 #include "nsDocShellLoadTypes.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIURIClassifier.h"
+#include "nsIChannelClassifier.h"
 
 class nsIScrollableView;
 
@@ -142,7 +143,8 @@ protected:
     virtual ~nsRefreshTimer();
 };
 
-class nsClassifierCallback : public nsIURIClassifierCallback
+class nsClassifierCallback : public nsIChannelClassifier
+                           , public nsIURIClassifierCallback
                            , public nsIRunnable
 {
 public:
@@ -150,13 +152,10 @@ public:
     ~nsClassifierCallback() {}
 
     NS_DECL_ISUPPORTS
+    NS_DECL_NSICHANNELCLASSIFIER
     NS_DECL_NSIURICLASSIFIERCALLBACK
     NS_DECL_NSIRUNNABLE
 
-    void SetChannel(nsIChannel * aChannel)
-        { mChannel = aChannel; }
-
-    void Cancel();
 private:
     nsCOMPtr<nsIChannel> mChannel;
     nsCOMPtr<nsIChannel> mSuspendedChannel;
@@ -514,6 +513,9 @@ protected:
     
     // Check whether aURI should inherit our security context
     static nsresult URIInheritsSecurityContext(nsIURI* aURI, PRBool* aResult);
+
+    // Check whether aURI is a URI_IS_LOCAL_FILE or not
+    static PRBool URIIsLocalFile(nsIURI *aURI);
 
     // Check whether aURI is about:blank
     static PRBool IsAboutBlank(nsIURI* aURI);

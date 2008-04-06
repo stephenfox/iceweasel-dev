@@ -33,18 +33,16 @@
  *	Kristian Høgsberg <krh@redhat.com>
  */
 
+#define _BSD_SOURCE /* for snprintf() */
 #include "cairoint.h"
 
 #include "cairo-output-stream-private.h"
+#include "cairo-compiler-private.h"
 
 #include <stdio.h>
 #include <locale.h>
 #include <ctype.h>
 #include <errno.h>
-
-#ifdef _MSC_VER
-#define snprintf _snprintf
-#endif /* _MSC_VER */
 
 
 void

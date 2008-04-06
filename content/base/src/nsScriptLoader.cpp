@@ -71,48 +71,6 @@
 #include "nsThreadUtils.h"
 
 //////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////
-
-// If aMaybeCertPrincipal is a cert principal and aNewPrincipal is not the same
-// as aMaybeCertPrincipal, downgrade aMaybeCertPrincipal to a codebase
-// principal.  Return the downgraded principal, or aMaybeCertPrincipal if no
-// downgrade was needed.
-static already_AddRefed<nsIPrincipal>
-MaybeDowngradeToCodebase(nsIPrincipal *aMaybeCertPrincipal,
-                         nsIPrincipal *aNewPrincipal)
-{
-  NS_PRECONDITION(aMaybeCertPrincipal, "Null old principal!");
-  NS_PRECONDITION(aNewPrincipal, "Null new principal!");
-
-  nsIPrincipal *principal = aMaybeCertPrincipal;
-
-  PRBool hasCert;
-  aMaybeCertPrincipal->GetHasCertificate(&hasCert);
-  if (hasCert) {
-    PRBool equal;
-    aMaybeCertPrincipal->Equals(aNewPrincipal, &equal);
-    if (!equal) {
-      nsCOMPtr<nsIURI> uri, domain;
-      aMaybeCertPrincipal->GetURI(getter_AddRefs(uri));
-      aMaybeCertPrincipal->GetDomain(getter_AddRefs(domain));
-
-      nsContentUtils::GetSecurityManager()->GetCodebasePrincipal(uri,
-                                                                 &principal);
-      if (principal && domain) {
-        principal->SetDomain(domain);
-      }
-
-      return principal;
-    }
-  }
-
-  NS_ADDREF(principal);
-
-  return principal;
-}
-
-//////////////////////////////////////////////////////////////
 // Per-request data structure
 //////////////////////////////////////////////////////////////
 
@@ -159,8 +117,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsScriptLoadRequest)
 nsScriptLoader::nsScriptLoader(nsIDocument *aDocument)
   : mDocument(aDocument),
     mBlockerCount(0),
-    mEnabled(PR_TRUE),
-    mHadPendingScripts(PR_FALSE)
+    mEnabled(PR_TRUE)
 {
 }
 
@@ -491,7 +448,8 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 
     // If we've got existing pending requests, add ourselves
     // to this list.
-    if (mPendingRequests.Count() == 0 && ReadyToExecuteScripts()) {
+    if (mPendingRequests.Count() == 0 && ReadyToExecuteScripts() &&
+        nsContentUtils::IsSafeToRunScript()) {
       return ProcessRequest(request);
     }
   }
@@ -500,6 +458,14 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   NS_ENSURE_TRUE(mPendingRequests.AppendObject(request),
                  NS_ERROR_OUT_OF_MEMORY);
 
+  // If there weren't any pending requests before, and this one is
+  // ready to execute, do that as soon as it's safe.
+  if (mPendingRequests.Count() == 1 && !request->mLoading &&
+      ReadyToExecuteScripts()) {
+    nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsScriptLoader>(this,
+      &nsScriptLoader::ProcessPendingRequests));
+  }
+
   // Added as pending request, now we can send blocking back
   return NS_ERROR_HTMLPARSER_BLOCK;
 }
@@ -507,7 +473,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 nsresult
 nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
 {
-  NS_ASSERTION(ReadyToExecuteScripts(),
+  NS_ASSERTION(ReadyToExecuteScripts() && nsContentUtils::IsSafeToRunScript(),
                "Caller forgot to check ReadyToExecuteScripts()");
 
   NS_ENSURE_ARG(aRequest);
@@ -884,20 +850,8 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
                  "Could not convert external JavaScript to Unicode!");
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // -- Merge the principal of the script file with that of the document; if
-    // the script has a non-cert principal, the document's principal should be
-    // downgraded.
-    if (channel) {
-      nsCOMPtr<nsIPrincipal> channelPrincipal;
-      nsContentUtils::GetSecurityManager()->
-        GetChannelPrincipal(channel, getter_AddRefs(channelPrincipal));
-      if (channelPrincipal) {
-        nsCOMPtr<nsIPrincipal> newPrincipal =
-          MaybeDowngradeToCodebase(mDocument->NodePrincipal(),
-                                   channelPrincipal);
-
-        mDocument->SetPrincipal(newPrincipal);
-      }
+    if (!ShouldExecuteScript(mDocument, channel)) {
+      return NS_ERROR_NOT_AVAILABLE;
     }
   }
 
@@ -912,4 +866,34 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
   aRequest->mLoading = PR_FALSE;
 
   return NS_OK;
+}
+
+/* static */
+PRBool
+nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
+                                    nsIChannel* aChannel)
+{
+  if (!aChannel) {
+    return PR_FALSE;
+  }
+
+  PRBool hasCert;
+  nsIPrincipal* docPrincipal = aDocument->NodePrincipal();
+  docPrincipal->GetHasCertificate(&hasCert);
+  if (!hasCert) {
+    return PR_TRUE;
+  }
+
+  nsCOMPtr<nsIPrincipal> channelPrincipal;
+  nsresult rv = nsContentUtils::GetSecurityManager()->
+    GetChannelPrincipal(aChannel, getter_AddRefs(channelPrincipal));
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  NS_ASSERTION(channelPrincipal, "Gotta have a principal here!");
+
+  // If the document principal is a cert principal and is not the same
+  // as the channel principal, then we don't execute the script.
+  PRBool equal;
+  rv = docPrincipal->Equals(channelPrincipal, &equal);
+  return NS_SUCCEEDED(rv) && equal;
 }

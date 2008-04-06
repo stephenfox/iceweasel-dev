@@ -386,9 +386,19 @@ _cairo_win32_surface_create_similar_internal (void	    *abstract_src,
     cairo_format_t format = _cairo_format_from_content (content);
     cairo_win32_surface_t *new_surf;
 
-    /* if the parent is a DIB or if we need alpha, then
-     * we have to create a dib */
-    if (force_dib || src->is_dib || (content & CAIRO_CONTENT_ALPHA)) {
+    /* We force a DIB always if:
+     * - we need alpha; or
+     * - the parent is a DIB; or
+     * - the parent is for printing (because we don't care about the bit depth at that point)
+     */
+    if (src->is_dib ||
+	(content & CAIRO_CONTENT_ALPHA) ||
+	src->base.backend->type == CAIRO_SURFACE_TYPE_WIN32_PRINTING)
+    {
+	force_dib = TRUE;
+    }
+
+    if (force_dib) {
 	new_surf = (cairo_win32_surface_t*)
 	    _cairo_win32_surface_create_for_dc (src->dc, format, width, height);
     } else {
@@ -765,8 +775,8 @@ _cairo_win32_surface_composite_inner (cairo_win32_surface_t *src,
 				      cairo_image_surface_t *src_image,
 				      cairo_win32_surface_t *dst,
 				      cairo_rectangle_int_t src_extents,
-				      cairo_rectangle_int32_t src_r,
-				      cairo_rectangle_int32_t dst_r,
+				      cairo_rectangle_int_t src_r,
+				      cairo_rectangle_int_t dst_r,
 				      int alpha,
 				      cairo_bool_t needs_alpha,
 				      cairo_bool_t needs_scale)
@@ -874,8 +884,8 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
     cairo_format_t src_format;
     cairo_rectangle_int_t src_extents;
 
-    cairo_rectangle_int32_t src_r = { src_x, src_y, width, height };
-    cairo_rectangle_int32_t dst_r = { dst_x, dst_y, width, height };
+    cairo_rectangle_int_t src_r = { src_x, src_y, width, height };
+    cairo_rectangle_int_t dst_r = { dst_x, dst_y, width, height };
 
 #ifdef DEBUG_COMPOSITE
     fprintf (stderr, "+++ composite: %d %p %p %p [%d %d] [%d %d] [%d %d] %dx%d\n",
@@ -1123,7 +1133,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
      * a bunch of piece-by-piece blits.
      */
     if (needs_repeat) {
-	cairo_rectangle_int32_t piece_src_r, piece_dst_r;
+	cairo_rectangle_int_t piece_src_r, piece_dst_r;
 	uint32_t rendered_width = 0, rendered_height = 0;
 	uint32_t to_render_height, to_render_width;
 	int32_t piece_x, piece_y;
@@ -1677,9 +1687,10 @@ _cairo_win32_surface_show_glyphs (void			*surface,
  *
  * Creates a cairo surface that targets the given DC.  The DC will be
  * queried for its initial clip extents, and this will be used as the
- * size of the cairo surface.  The resulting surface will always
- * be of format CAIRO_FORMAT_RGB24; should you need an ARGB32 surface,
- * you will need to create one through cairo_win32_surface_create_with_dib.
+ * size of the cairo surface.  The resulting surface will always be of
+ * format %CAIRO_FORMAT_RGB24; should you need another surface format,
+ * you will need to create one through
+ * cairo_win32_surface_create_with_dib().
  *
  * Return value: the newly created surface
  **/

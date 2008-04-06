@@ -96,7 +96,7 @@
 #include "nsPIBoxObject.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMNSElement.h"
-#include "nsTextRectangle.h"
+#include "nsClientRect.h"
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
 #endif
@@ -137,7 +137,6 @@
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsCycleCollector.h"
 
 #ifdef MOZ_SVG
 PRBool NS_SVG_TestFeature(const nsAString &fstr);
@@ -829,8 +828,8 @@ RoundFloat(double aValue)
 }
 
 static void
-SetTextRectangle(const nsRect& aLayoutRect, nsPresContext* aPresContext,
-                 nsTextRectangle* aRect)
+SetClientRect(const nsRect& aLayoutRect, nsPresContext* aPresContext,
+              nsClientRect* aRect)
 {
   double scale = 65536.0;
   // Round to the nearest 1/scale units. We choose scale so it can be represented
@@ -845,10 +844,10 @@ SetTextRectangle(const nsRect& aLayoutRect, nsPresContext* aPresContext,
 }
 
 NS_IMETHODIMP
-nsNSElementTearoff::GetBoundingClientRect(nsIDOMTextRectangle** aResult)
+nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
   // Weak ref, since we addref it below
-  nsTextRectangle* rect = new nsTextRectangle();
+  nsClientRect* rect = new nsClientRect();
   if (!rect)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -863,37 +862,37 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMTextRectangle** aResult)
   nsPresContext* presContext = frame->PresContext();
   nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(frame,
           GetContainingBlockForClientRect(frame));
-  SetTextRectangle(r, presContext, rect);
+  SetClientRect(r, presContext, rect);
   return NS_OK;
 }
 
 struct RectListBuilder : public nsLayoutUtils::RectCallback {
-  nsPresContext*       mPresContext;
-  nsTextRectangleList* mRectList;
-  nsresult             mRV;
+  nsPresContext*    mPresContext;
+  nsClientRectList* mRectList;
+  nsresult          mRV;
 
-  RectListBuilder(nsPresContext* aPresContext, nsTextRectangleList* aList) 
+  RectListBuilder(nsPresContext* aPresContext, nsClientRectList* aList) 
     : mPresContext(aPresContext), mRectList(aList),
       mRV(NS_OK) {}
 
   virtual void AddRect(const nsRect& aRect) {
-    nsRefPtr<nsTextRectangle> rect = new nsTextRectangle();
+    nsRefPtr<nsClientRect> rect = new nsClientRect();
     if (!rect) {
       mRV = NS_ERROR_OUT_OF_MEMORY;
       return;
     }
     
-    SetTextRectangle(aRect, mPresContext, rect);
+    SetClientRect(aRect, mPresContext, rect);
     mRectList->Append(rect);
   }
 };
 
 NS_IMETHODIMP
-nsNSElementTearoff::GetClientRects(nsIDOMTextRectangleList** aResult)
+nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
 {
   *aResult = nsnull;
 
-  nsRefPtr<nsTextRectangleList> rectList = new nsTextRectangleList();
+  nsRefPtr<nsClientRectList> rectList = new nsClientRectList();
   if (!rectList)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1200,9 +1199,6 @@ nsGenericElement::~nsGenericElement()
 {
   NS_PRECONDITION(!IsInDoc(),
                   "Please remove this from the document properly");
-#ifdef DEBUG
-  nsCycleCollector_DEBUG_wasFreed(static_cast<nsINode*>(this));
-#endif
 }
 
 NS_IMETHODIMP
@@ -2229,15 +2225,21 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   }
 
   nsNodeUtils::ParentChainChanged(this);
-#ifdef DEBUG
-  nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsINode*>(this));
-#endif
 }
 
 nsresult
 nsGenericElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   return nsGenericElement::doPreHandleEvent(this, aVisitor);
+}
+
+static nsIContent*
+FindFirstNonNativeAnonymousAncestor(nsIContent* aContent)
+{
+  while (aContent && aContent->IsNativeAnonymous()) {
+    aContent = aContent->GetParent();
+  }
+  return aContent;
 }
 
 nsresult
@@ -2267,10 +2269,10 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
           (aVisitor.mEvent->originalTarget == aContent &&
            (aVisitor.mRelatedTargetIsInAnon =
             relatedTarget->IsInNativeAnonymousSubtree()))) {
-        nsIContent* nonAnon = aContent->FindFirstNonNativeAnonymous();
+        nsIContent* nonAnon = FindFirstNonNativeAnonymousAncestor(aContent);
         if (nonAnon) {
           nsIContent* nonAnonRelated =
-            relatedTarget->FindFirstNonNativeAnonymous();
+            FindFirstNonNativeAnonymousAncestor(relatedTarget);
           if (nonAnonRelated) {
             if (nonAnon == nonAnonRelated ||
                 nsContentUtils::ContentIsDescendantOf(nonAnonRelated, nonAnon)) {
@@ -2756,6 +2758,9 @@ nsGenericElement::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
           NS_EVENT_BITS_MUTATION_NODEINSERTED, container)) {
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEINSERTED);
       mutation.mRelatedNode = do_QueryInterface(container);
+
+      mozAutoDocUpdateContentUnnest updateUnnest(aDocument);
+
       mozAutoSubtreeModified subtree(container->GetOwnerDoc(), container);
       nsEventDispatcher::Dispatch(aKid, nsnull, &mutation);
     }
@@ -2823,6 +2828,9 @@ nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
         NS_EVENT_BITS_MUTATION_NODEREMOVED, container)) {
     nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
     mutation.mRelatedNode = do_QueryInterface(container);
+
+    mozAutoDocUpdateContentUnnest updateUnnest(aDocument);
+
     subtree.UpdateTarget(container->GetOwnerDoc(), container);
     nsEventDispatcher::Dispatch(aKid, nsnull, &mutation);
   }
@@ -3502,8 +3510,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
   {
     PRUint32 i;
     PRUint32 kids = tmp->mAttrsAndChildren.ChildCount();
-    for (i = 0; i < kids; i++)
+    for (i = 0; i < kids; i++) {
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mAttrsAndChildren[i]");
       cb.NoteXPCOMChild(tmp->mAttrsAndChildren.GetSafeChildAt(i));
+    }
   }
 
   // Traverse any DOM slots of interest.
@@ -3748,11 +3758,14 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (document) {
-    nsRefPtr<nsXBLBinding> binding =
-      document->BindingManager()->GetBinding(this);
-    if (binding) {
-      binding->AttributeChanged(aName, aNamespaceID, PR_FALSE, aNotify);
+  if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
+    nsIDocument* ownerDoc = GetOwnerDoc();
+    if (ownerDoc) {
+      nsRefPtr<nsXBLBinding> binding =
+        ownerDoc->BindingManager()->GetBinding(this);
+      if (binding) {
+        binding->AttributeChanged(aName, aNamespaceID, PR_FALSE, aNotify);
+      }
     }
   }
 
@@ -3787,6 +3800,9 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
       mutation.mPrevAttrValue = do_GetAtom(aOldValue);
     }
     mutation.mAttrChange = modType;
+
+    mozAutoDocUpdateContentUnnest updateUnnest(document);
+
     mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
   }
@@ -3998,11 +4014,15 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   rv = mAttrsAndChildren.RemoveAttrAt(index, oldValue);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (document) {
-    nsRefPtr<nsXBLBinding> binding =
-      document->BindingManager()->GetBinding(this);
-    if (binding)
-      binding->AttributeChanged(aName, aNameSpaceID, PR_TRUE, aNotify);
+  if (document || HasFlag(NODE_FORCE_XBL_BINDINGS)) {
+    nsIDocument* ownerDoc = GetOwnerDoc();
+    if (ownerDoc) {
+      nsRefPtr<nsXBLBinding> binding =
+        ownerDoc->BindingManager()->GetBinding(this);
+      if (binding) {
+        binding->AttributeChanged(aName, aNameSpaceID, PR_TRUE, aNotify);
+      }
+    }
   }
 
   if (aNotify) {
@@ -4029,6 +4049,8 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     if (!value.IsEmpty())
       mutation.mPrevAttrValue = do_GetAtom(value);
     mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
+
+    mozAutoDocUpdateContentUnnest updateUnnest(document);
 
     mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
