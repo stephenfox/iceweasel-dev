@@ -20,30 +20,26 @@ UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)-.*
 
 PYVER := $(shell pyversions -d)
 
-CFLAGS := -Wall -pipe
+CFLAGS := -g
 
 AUTOCONF_DIRS := build/autoconf
 
 JAVA_VARS := MOZ_JAVAXPCOM=1 JAVA_INCLUDE_PATH=$(CURDIR)/sun-java/stubs/include JAVAC=javac JAR=jar
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	OPTCFLAGS := -O0
-else
-	OPTCFLAGS := -O2 -fno-strict-aliasing
+	CONFIGURE_FLAGS += --disable-optim
 endif
 
-OPTCFLAGS += -g
-
 ifeq ($(DEB_BUILD_ARCH),alpha)
-	OPTCFLAGS += -Wl,--no-relax
+	CFLAGS += -Wl,--no-relax
 endif
 
 ifeq ($(DEB_BUILD_ARCH),ppc64)
-	OPTCFLAGS += -mminimal-toc
+	CFLAGS += -mminimal-toc
 endif
 
 ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
-	DEBUGFLAGS := --enable-debug
+	CONFIGURE_FLAGS += --enable-debug
 endif
 
 config.status: ./configure debian/mozconfig
@@ -59,10 +55,9 @@ config.status: ./configure debian/mozconfig
 	JAVA_HOME=/usr/lib/jvm/java-gcj \
 	MOZCONFIG=debian/mozconfig \
 	CFLAGS="$(CFLAGS)" \
-	LDFLAGS="-Wl,--as-needed" \
+	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
-	            --enable-optimize="$(OPTCFLAGS)" \
-	            $(DEBUGFLAGS)
+	            $(CONFIGURE_FLAGS)
 
 build: build-stamp
 
@@ -70,7 +65,7 @@ build-stamp:  config.status
 	dh_testdir
 
 	# Add here commands to compile the package.
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(shell pyversions -d).so | grep SONAME | awk '{print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 MOZ_APP_VERSION=1.9
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(shell pyversions -d).so | grep SONAME | awk '{print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 MOZ_APP_VERSION=1.9 OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
