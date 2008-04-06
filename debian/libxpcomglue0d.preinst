@@ -1,0 +1,7 @@
+#!/bin/sh
+
+[ "$1" = "install" ] && dpkg-divert --package libxpcomglue0d --add --rename --divert /usr/lib/libxpcomglue.0d.old /usr/lib/libxpcomglue.so.0d
+
+#DEBHELPER#
+
+exit 0
