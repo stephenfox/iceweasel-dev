@@ -1,0 +1,74 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 85_no_register.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Remove (un|)registering system.
+
+@DPATCH@
+
+=== xulrunner/app/nsXULRunnerApp.cpp
+==================================================================
+--- xulrunner/xulrunner/app/nsXULRunnerApp.cpp	(revision 69)
++++ xulrunner/xulrunner/app/nsXULRunnerApp.cpp	(local)
+@@ -43,7 +43,6 @@
+ 
+ #include "nsXULAppAPI.h"
+ #include "nsXPCOMGlue.h"
+-#include "nsRegisterGRE.h"
+ #include "nsAppRunner.h"
+ #include "nsINIParser.h"
+ #include "nsILocalFile.h"
+@@ -264,12 +263,6 @@
+            "  -h, --help                 show this message\n"
+            "  -v, --version              show version\n"
+            "  --gre-version              print the GRE version string on stdout\n"
+-           "  --register-global          register this GRE in the machine registry\n"
+-           "  --register-user            register this GRE in the user registry\n"
+-           "  --unregister-global        unregister this GRE formerly registered with\n"
+-           "                             --register-global\n"
+-           "  --unregister-user          unregister this GRE formely registered with\n"
+-           "                             --register-user\n"
+            "  --find-gre <version>       Find a GRE with version <version> and print\n"
+            "                             the path on stdout\n"
+            "  --install-app <application> [<destination> [<directoryname>]]\n"
+@@ -373,40 +366,6 @@
+   }
+ 
+   if (argc > 1) {
+-    PRBool registerGlobal = IsArg(argv[1], "register-global");
+-    PRBool registerUser   = IsArg(argv[1], "register-user");
+-    if (registerGlobal || registerUser) {
+-      if (argc != 2) {
+-        Usage();
+-        return 1;
+-      }
+-
+-      nsCOMPtr<nsIFile> regDir;
+-      nsresult rv = GetXULRunnerDir(argv[0], getter_AddRefs(regDir));
+-      if (NS_FAILED(rv))
+-        return 2;
+-
+-      return RegisterXULRunner(registerGlobal, regDir,
+-                               kGREProperties,
+-                               NS_ARRAY_LENGTH(kGREProperties)) ? 0 : 2;
+-    }
+-
+-    registerGlobal = IsArg(argv[1], "unregister-global");
+-    registerUser   = IsArg(argv[1], "unregister-user");
+-    if (registerGlobal || registerUser) {
+-      if (argc != 2) {
+-        Usage();
+-        return 1;
+-      }
+-
+-      nsCOMPtr<nsIFile> regDir;
+-      nsresult rv = GetXULRunnerDir(argv[0], getter_AddRefs(regDir));
+-      if (NS_FAILED(rv))
+-        return 2;
+-      UnregisterXULRunner(registerGlobal, regDir);
+-      return 0;
+-    }
+-
+     if (IsArg(argv[1], "find-gre")) {
+       if (argc != 3) {
+         Usage();

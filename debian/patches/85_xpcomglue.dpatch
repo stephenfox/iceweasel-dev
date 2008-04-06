@@ -1,0 +1,261 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 85_xpcomglue.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: - Build the xpcom glue as a shared library. Still hackish.
+## DP: - Load DSOs from . when directory is not given.
+
+@DPATCH@
+
+=== xpcom/glue/Makefile.in
+==================================================================
+--- xulrunner/xpcom/glue/Makefile.in	(revision 62)
++++ xulrunner/xpcom/glue/Makefile.in	(local)
+@@ -45,6 +45,7 @@
+ 
+ DIRS            = standalone
+ 
++ifeq (1,0)
+ MODULE		= xpcom
+ LIBRARY_NAME	= xpcomglue_s
+ 
+@@ -64,6 +65,7 @@
+ 		$(XPCOM_GLUE_SRC_LCPPSRCS) \
+ 		$(XPCOM_GLUENS_SRC_LCPPSRCS) \
+ 		$(NULL)
++endif
+ 
+ EXPORTS		= \
+ 		pldhash.h \
+@@ -96,6 +98,7 @@
+ 		nsVersionComparator.h \
+ 		$(NULL)
+ 
++ifeq (1,0)
+ SDK_LIBRARY     =                        \
+ 		$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+ 		$(NULL)
+@@ -105,6 +108,7 @@
+ 
+ # Force use of PIC
+ FORCE_USE_PIC	= 1
++endif
+ 
+ include $(topsrcdir)/config/rules.mk
+ 
+=== xpcom/glue/standalone/Makefile.in
+==================================================================
+--- xulrunner/xpcom/glue/standalone/Makefile.in	(revision 245)
++++ xulrunner/xpcom/glue/standalone/Makefile.in	(local)
+@@ -45,10 +45,13 @@
+ 
+ MODULE		= xpcom
+ LIBRARY_NAME	= xpcomglue
++SO_VERSION	= 0d
+ 
+ REQUIRES	= string \
+ 		  $(NULL)
+ 
++EXTRA_DSO_LDOPTS= -L$(topsrcdir)/dist/lib -lnspr4
++
+ LOCAL_INCLUDES	= \
+ 		-I$(srcdir)/../../build \
+ 		$(NULL)
+@@ -87,11 +90,11 @@
+ 		$(NULL)
+ 
+ SDK_LIBRARY     	= \
+-		$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX) \
++		$(DLL_PREFIX)xpcomglue$(DLL_SUFFIX) \
+ 		$(NULL)
+ 
+ # we don't want the shared lib, but we want to force the creation of a static lib.
+-FORCE_STATIC_LIB = 1
++#FORCE_STATIC_LIB = 1
+ 
+ # Force use of PIC
+ FORCE_USE_PIC	= 1
+=== xpcom/glue/standalone/nsGlueLinking.h
+==================================================================
+--- xulrunner/xpcom/glue/standalone/nsGlueLinking.h	(revision 62)
++++ xulrunner/xpcom/glue/standalone/nsGlueLinking.h	(local)
+@@ -42,15 +42,15 @@
+ 
+ #define XPCOM_DEPENDENT_LIBS_LIST "dependentlibs.list"
+ 
+-NS_HIDDEN_(GetFrozenFunctionsFunc)
++NS_EXPORT_(GetFrozenFunctionsFunc)
+ XPCOMGlueLoad(const char *xpcomFile);
+ 
+-NS_HIDDEN_(void)
++NS_EXPORT_(void)
+ XPCOMGlueUnload();
+ 
+ typedef void (*DependentLibsCallback)(const char *aDependentLib);
+ 
+-NS_HIDDEN_(void)
++NS_EXPORT_(void)
+ XPCOMGlueLoadDependentLibs(const char *xpcomDir, DependentLibsCallback cb);
+ 
+ #endif // nsGlueLinking_h__
+=== xpcom/glue/standalone/nsXPCOMGlue.h
+==================================================================
+--- xulrunner/xpcom/glue/standalone/nsXPCOMGlue.h	(revision 62)
++++ xulrunner/xpcom/glue/standalone/nsXPCOMGlue.h	(local)
+@@ -99,7 +99,7 @@
+  * Initialize the XPCOM glue by dynamically linking against the XPCOM
+  * shared library indicated by xpcomFile.
+  */
+-extern "C" NS_HIDDEN_(nsresult)
++extern "C" NS_EXPORT_(nsresult)
+ XPCOMGlueStartup(const char* xpcomFile);
+ 
+ typedef void (*NSFuncPtr)();
+@@ -118,13 +118,13 @@
+  * @throws NS_ERROR_LOSS_OF_SIGNIFICANT_DATA if only some of the required
+  *         functions were found.
+  */
+-extern "C" NS_HIDDEN_(nsresult)
++extern "C" NS_EXPORT_(nsresult)
+ XPCOMGlueLoadXULFunctions(const nsDynamicFunctionLoad *symbols);
+ 
+ /**
+  * Finish the XPCOM glue after it is no longer needed.
+  */
+-extern "C" NS_HIDDEN_(nsresult)
++extern "C" NS_EXPORT_(nsresult)
+ XPCOMGlueShutdown();
+ 
+ 
+@@ -139,7 +139,7 @@
+  *         not need to free this buffer.
+  * @status DEPRECATED - Use GRE_GetGREPathWithProperties
+  */
+-extern "C" NS_HIDDEN_(char const *)
++extern "C" NS_EXPORT_(char const *)
+ GRE_GetXPCOMPath();
+ 
+ 
+@@ -148,7 +148,7 @@
+  *
+  * @param _retval   Ordinary XPCOM getter, returns an addrefed interface.
+  */
+-extern "C" NS_HIDDEN_(nsresult)
++extern "C" NS_EXPORT_(nsresult)
+ GRE_GetGREDirectory(nsILocalFile* *_retval);
+ 
+ 
+@@ -157,14 +157,14 @@
+  * directoryserviceprovider may use GRE_Startup to start the XPCOM
+  * glue and initialize the GRE in one step.
+  */
+-extern "C" NS_HIDDEN_(nsresult)
++extern "C" NS_EXPORT_(nsresult)
+ GRE_Startup();
+ 
+ 
+ /**
+  * Shut down XPCOM and the XPCOM glue in one step.
+  */
+-extern "C" NS_HIDDEN_(nsresult)
++extern "C" NS_EXPORT_(nsresult)
+ GRE_Shutdown();
+ 
+ #endif // XPCOM_GLUE
+=== xpcom/string/public/nsStringAPI.h
+==================================================================
+--- xulrunner/xpcom/string/public/nsStringAPI.h	(revision 62)
++++ xulrunner/xpcom/string/public/nsStringAPI.h	(local)
+@@ -75,7 +75,7 @@
+ #include "nscore.h"
+ 
+ #if defined( XPCOM_GLUE )
+-#define NS_STRINGAPI(type) extern "C" NS_HIDDEN_(type)
++#define NS_STRINGAPI(type) extern "C" NS_EXPORT_(type)
+ #elif defined( _IMPL_NS_STRINGAPI )
+ #define NS_STRINGAPI(type) extern "C" NS_EXPORT type
+ #else
+=== xpcom/tools/registry/Makefile.in
+==================================================================
+--- xulrunner/xpcom/tools/registry/Makefile.in	(revision 62)
++++ xulrunner/xpcom/tools/registry/Makefile.in	(local)
+@@ -55,7 +55,6 @@
+ 
+ LIBS            = \
+ 		$(XPCOM_STANDALONE_GLUE_LDOPTS) \
+-		$(NSPR_LIBS) \
+ 		$(NULL)
+ 
+ # Need to link with CoreFoundation on Mac
+=== configure.in
+==================================================================
+--- xulrunner/configure.in	(revision 62)
++++ xulrunner/configure.in	(local)
+@@ -754,7 +754,7 @@
+ XPCOM_FROZEN_LDOPTS='-L$(DIST)/bin $(MOZ_FIX_LINK_PATHS) -lxpcom'
+ LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) -lxul'
+ XPCOM_GLUE_LDOPTS='$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) $(XPCOM_FROZEN_LDOPTS)'
+-XPCOM_STANDALONE_GLUE_LDOPTS='$(DIST)/lib/$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX)'
++XPCOM_STANDALONE_GLUE_LDOPTS='-L$(DIST)/lib -lxpcomglue'
+ 
+ MOZ_COMPONENT_NSPR_LIBS='-L$(DIST)/bin $(NSPR_LIBS)'
+ MOZ_XPCOM_OBSOLETE_LIBS='-L$(DIST)/lib -lxpcom_compat'
+=== xpcom/glue/standalone/nsGlueLinkingDlopen.cpp
+==================================================================
+--- xulrunner/xpcom/glue/standalone/nsGlueLinkingDlopen.cpp	(revision 65)
++++ xulrunner/xpcom/glue/standalone/nsGlueLinkingDlopen.cpp	(local)
+@@ -86,20 +86,22 @@
+ GetFrozenFunctionsFunc
+ XPCOMGlueLoad(const char *xpcomFile)
+ {
+-    char xpcomDir[MAXPATHLEN];
+-    if (realpath(xpcomFile, xpcomDir)) {
+-        char *lastSlash = strrchr(xpcomDir, '/');
+-        if (lastSlash) {
+-            *lastSlash = '\0';
++    char xulFile[MAXPATHLEN];
++    char *lastSlash = strrchr(xpcomFile, '/');
++    if (!lastSlash) {
++        snprintf(xulFile, MAXPATHLEN, "./%s", xpcomFile);
++        return XPCOMGlueLoad(xulFile);
++    }
++    *lastSlash = '\0';
+ 
+-            XPCOMGlueLoadDependentLibs(xpcomDir, ReadDependentCB);
++    XPCOMGlueLoadDependentLibs(xpcomFile, ReadDependentCB);
+ 
+-            snprintf(lastSlash, MAXPATHLEN - strlen(xpcomDir), "/" XUL_DLL);
++    snprintf(xulFile, MAXPATHLEN - strlen(xpcomFile), "%s/" XUL_DLL, xpcomFile);
+ 
+-            sXULLibHandle = dlopen(xpcomDir, RTLD_GLOBAL | RTLD_LAZY);
+-        }
+-    }
++    sXULLibHandle = dlopen(xulFile, RTLD_GLOBAL | RTLD_LAZY);
+ 
++    *lastSlash = '/';
++
+     // RTLD_DEFAULT is not defined in non-GNU toolchains, and it is
+     // (void*) 0 in any case.
+ 
+=== xpcom/base/nscore.h
+==================================================================
+--- xulrunner/xpcom/base/nscore.h	(revision 245)
++++ xulrunner/xpcom/base/nscore.h	(local)
+@@ -235,8 +235,6 @@
+ #define NS_COM NS_EXPORT
+ #elif  defined(_IMPL_NS_COM_OFF)
+ #define NS_COM
+-#elif  defined(XPCOM_GLUE)
+-#define NS_COM
+ #else
+ #define NS_COM NS_IMPORT
+ #endif
+@@ -253,7 +251,7 @@
+ #  define nsAString nsAString_internal
+ #  define nsACString nsACString_internal
+ #else
+-#  define NS_COM_GLUE
++#  define NS_COM_GLUE NS_COM
+ #endif
+ 
+ 

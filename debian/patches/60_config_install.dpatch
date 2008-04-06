@@ -1,0 +1,23 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 60_config_install.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Correct installation of all the headers files from the config/ 
+## DP: directory.
+
+@DPATCH@
+
+=== config/Makefile.in
+==================================================================
+--- xulrunner/config/Makefile.in	(revision 77)
++++ xulrunner/config/Makefile.in	(local)
+@@ -157,8 +157,7 @@
+ 		echo "(nsBuildID.h is missing.)"; \
+ 		exit 1; \
+ 	fi;
+-	$(SYSINSTALL) $(IFLAGS1) nsBuildID.h $(DESTDIR)$(includedir)
+-	$(SYSINSTALL) $(IFLAGS1) $(DEPTH)/mozilla-config.h $(DESTDIR)$(includedir)
++	$(SYSINSTALL) $(IFLAGS1) $(HEADERS) $(DESTDIR)$(includedir)
+ 
+ GARBAGE += build_number nsBuildID \
+ 	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)

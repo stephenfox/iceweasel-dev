@@ -1,0 +1,214 @@
+Source: xulrunner
+Section: devel
+Priority: optional
+Maintainer: Mike Hommey <glandium@debian.org>
+Build-Depends: debhelper (>= 5.0.37.2), autotools-dev, dpatch, libx11-dev, libxt-dev, libidl-dev, libgtk2.0-dev, libgnomevfs2-dev, libgnome2-dev, libgnomeui-dev, libcairo2-dev, libpng12-dev, libjpeg62-dev, zlib1g-dev, libbz2-dev, libreadline5-dev | libreadline-dev, libkrb5-dev, python-dev, python-support (>= 0.3), dpkg-dev (>= 1.13.19), binutils (>= 2.17) [mips mipsel], libnspr4-dev, libnss3-dev (>= 3.11.5-2), libhunspell-dev (>= 1.1.5-2)
+Build-Depends-Indep: java-gcj-compat-dev (>= 1.0.56)
+Standards-Version: 3.7.3.0
+
+Package: xulrunner
+Section: devel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Suggests: xulrunner-gnome-support
+Description: XUL + XPCOM application runner
+ XULRunner is a single "gecko runtime" that can be used to bootstrap
+ multiple XUL + XPCOM applications that are as rich as Firefox and
+ Thunderbird.
+ .
+ XUL is Mozilla's XML based User Interface language that lets you build
+ feature-rich cross platform applications. These applications are easily
+ customized with alternative text, graphics and layout so that they can be
+ readily branded or localized for various markets. Web developers already
+ familiar with Dynamic HTML (DHTML) will learn XUL quickly and can start
+ building applications right away.
+ .
+ XPCOM is a cross platform component model. It has multiple language
+ bindings and IDL descriptions so programmers can plug their custom
+ functionality into the framework and connect it with other components.
+Homepage: http://developer.mozilla.org/en/docs/XULRunner
+
+Package: xulrunner-gnome-support
+Section: devel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Support for GNOME in xulrunner applications
+ This is an extension to xulrunner that allows XUL applications to use
+ protocol handlers from GnomeVFS, such as smb or sftp, and other GNOME
+ integration features.
+
+Package: libmozjs0d
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: The Mozilla SpiderMonkey JavaScript library
+ This library provides the embeddable JavaScript/ECMAScript engine from
+ the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
+ browsers as well as by the iPlanet WebServer).
+Homepage: http://www.mozilla.org/js/
+
+Package: libmozjs-dev
+Section: libdevel
+Architecture: all
+Depends: ${misc:Depends}, libmozjs0d (>= ${source:Upstream-Version}), libnspr4-dev
+Conflicts: mozilla-browser (<< 2:1.8)
+Description: Development files for the Mozilla SpiderMonkey JavaScript library
+ This library provides the embeddable JavaScript/ECMAScript engine from
+ the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
+ browsers as well as by the iPlanet WebServer).
+ .
+ Install this package if you wish to develop your own programs using the
+ Mozilla SpiderMonkey JavaScript library.
+Homepage: http://www.mozilla.org/js/
+
+Package: libmozjs0d-dbg
+Section: libdevel
+Priority: extra
+Architecture: any
+Depends: libmozjs0d (= ${binary:Version})
+Suggests: spidermonkey-bin
+Conflicts: spidermonkey-bin (<< ${source:Version}), spidermonkey-bin (>= ${source:Version}.1~)
+Description: Development files for the Mozilla SpiderMonkey JavaScript library
+ This library provides the embeddable JavaScript/ECMAScript engine from
+ the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
+ browsers as well as by the iPlanet WebServer).
+ .
+ This package provides the debugging symbols for the library and for
+ the spidermonkey-bin package.
+Homepage: http://www.mozilla.org/js/
+
+Package: spidermonkey-bin
+Section: interpreters
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: standalone JavaScript/ECMAScript (ECMA-262) interpreter
+ SpiderMonkey is a standalone JavaScript/ECMAScript interpreter. It can either
+ take input from files or from a command line driven interface.
+ .
+ ECMAScript (ECMA-262) is a dynamic scripting language supporting prototype
+ based object construction. The basic syntax is intentionally similar to
+ both Java and C++ to reduce the number of new concepts required to learn
+ the language. Language constructs, such as if statements, for and while
+ loops, and switch and try ... catch blocks function the same as these
+ languages (or nearly so).
+ .
+ JavaScript is a superset of the ECMA-262 Edition 3 (ECMAScript) standard
+ first introduced by Netscape and now led by the Mozilla project.
+Homepage: http://www.mozilla.org/js/
+
+Package: libxul0d
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libxul-common (>= ${source:Upstream-Version})
+Replaces: xulrunner (<< 1.8.0.1-9)
+Description: Gecko engine library
+ This library provides an API for XUL applications and Gecko embedders.
+ The Gecko engine is the core of the mozilla.org applications such as
+ Firefox, Thunderbird or SeaMonkey.
+ .
+ Gecko features include XPCOM, networking, DOM editing and transaction
+ support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
+ Web Services (SOAP), accessibility support, IPC services, gtkmozembed,
+ JavaXPCOM, etc.
+Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+
+Package: libxul-common
+Section: libs
+Architecture: all
+Depends: ${misc:Depends}
+Replaces: xulrunner (<< 1.8.0.1-9)
+Conflicts: libxul0d (<< 1.8.0.4-2)
+Description: Gecko engine library - common files
+ This library provides an API for XUL applications and Gecko embedders.
+ The Gecko engine is the core of the mozilla.org applications such as
+ Firefox, Thunderbird or SeaMonkey.
+ .
+ Gecko features include XPCOM, networking, DOM editing and transaction
+ support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
+ Web Services (SOAP), accessibility support, IPC services, gtkmozembed,
+ JavaXPCOM, etc.
+ .
+ This package provides all architecture independent files for libxul0d.
+Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+
+Package: libxul-dev
+Section: libdevel
+Architecture: all
+Depends: ${misc:Depends}, libxul0d (>= ${source:Upstream-Version}), libnss3-dev, libnspr4-dev, libmozjs-dev (>= ${source:Version}), xulrunner
+Conflicts: mozilla-browser (<< 2:1.8)
+Description: Development files for the Gecko engine library
+ This library provides an  API for XUL applications and Gecko embedders.
+ The Gecko engine is the core of the mozilla.org applications such as
+ Firefox, Thunderbird or SeaMonkey.
+ .
+ Gecko features include XPCOM, networking, DOM editing and transaction
+ support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
+ Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
+ .
+ Install this package if you wish to embed the Gecko engine in your
+ program or want to develop XPCOM components.
+ .
+ This package also provides the Xulrunner Software Development Kit in the
+ same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
+ .
+ It also contains the JavaXPCOM interfaces and their sources.
+Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+
+Package: libxul0d-dbg
+Section: libdevel
+Priority: extra
+Architecture: any
+Depends: libxul0d (= ${binary:Version})
+Suggests: xulrunner, xulrunner-gnome-support
+Conflicts: xulrunner (<< ${source:Version}), xulrunner (>= ${source:Version}.1~), xulrunner-gnome-support (<< ${source:Version}), xulrunner-gnome-support (>= ${source:Version}.1~)
+Description: Development files for the Gecko engine library
+ This library provides an  API for XUL applications and Gecko embedders.
+ The Gecko engine is the core of the mozilla.org applications such as
+ Firefox, Thunderbird or SeaMonkey.
+ .
+ Gecko features include XPCOM, networking, DOM editing and transaction
+ support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
+ Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
+ .
+ This package provides the debugging symbols for the library, and for the
+ xulrunner, xulrunner-gnome-support and python-xpcom packages.
+Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+
+Package: libmozillainterfaces-java
+Section: libdevel
+Priority: extra
+Architecture: all
+Depends: libxul0d (>= 1.8.0.1-12), gij | java2-runtime
+Description: XPCOM bindings for Java
+ JavaXPCOM allows for communication between Java and XPCOM, such that a
+ Java application can access XPCOM objects, and XPCOM can access any Java
+ class that implements an XPCOM interface.
+ With JavaXPCOM, a developer can talk to XPCOM or embed Gecko from a Java
+ application. JavaXPCOM is very similar to XPConnect (JavaScript-XPCOM
+ bridge), and uses XPIDL
+ .
+ Install this package if you wish to access XPCOM objects from Java.
+ The counterpart is built in libxul0d.
+ .
+ This package also provides the Java interfaces sources.
+Homepage: http://developer.mozilla.org/en/docs/JavaXPCOM
+
+Package: python-xpcom
+Section: python
+Priority: extra
+Architecture: any
+Provides: ${python:Provides}
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}
+Conflicts: epiphany-browser
+XB-Python-Version: ${python:Versions}
+Description: XPCOM bindings for Python
+ PyXPCOM allows for communication between Python and XPCOM, such that a
+ Python application can access XPCOM objects, and XPCOM can access any
+ Python class that implements an XPCOM interface.
+ With PyXPCOM, a developer can talk to XPCOM or embed Gecko from a
+ Python application. PyXPCOM is similar to JavaXPCOM (Java-XPCOM bridge)
+ or XPConnect (JavaScript-XPCOM bridge).
+ .
+ Install this package if you wish to access XPCOM objects from Python, or
+ want to use Python components from XPCOM.
+Homepage: http://developer.mozilla.org/en/docs/pyxpcom

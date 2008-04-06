@@ -1,0 +1,51 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 80_libxpcom_hack.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Force libxpcom to be linked to xulrunner-bin, xpcshell and libgtkmozembed
+## DP: so that it is loaded in most of the cases.
+
+@DPATCH@
+
+=== embedding/browser/gtk/src/Makefile.in
+==================================================================
+--- xulrunner/embedding/browser/gtk/src/Makefile.in	(revision 118)
++++ xulrunner/embedding/browser/gtk/src/Makefile.in	(local)
+@@ -120,7 +120,9 @@
+ 
+ ifdef MOZ_ENABLE_GTK2
+ EXTRA_DSO_LDOPTS = \
++		-Wl,--no-as-needed \
+ 		$(MOZ_COMPONENT_LIBS) \
++		-Wl,--as-needed \
+ 		$(NULL)
+ endif
+ 
+=== js/src/xpconnect/shell/Makefile.in
+==================================================================
+--- xulrunner/js/src/xpconnect/shell/Makefile.in	(revision 118)
++++ xulrunner/js/src/xpconnect/shell/Makefile.in	(local)
+@@ -57,7 +57,9 @@
+ 
+ LIBS		= \
+ 		$(MOZ_JS_LIBS) \
++		-Wl,--no-as-needed \
+ 		$(XPCOM_LIBS) \
++		-Wl,--as-needed \
+ 		$(NSPR_LIBS) \
+ 		$(NULL)
+ 
+=== xulrunner/app/Makefile.in
+==================================================================
+--- xulrunner/xulrunner/app/Makefile.in	(revision 118)
++++ xulrunner/xulrunner/app/Makefile.in	(local)
+@@ -104,7 +104,9 @@
+ 	$(STATIC_COMPONENTS_LINKER_PATH) \
+ 	$(EXTRA_DSO_LIBS) \
+ 	$(MOZ_JS_LIBS) \
++        -Wl,--no-as-needed \
+ 	$(XPCOM_LIBS) \
++        -Wl,--as-needed \
+ 	$(NSPR_LIBS) \
+ 	$(TK_LIBS) \
+ 	$(NULL)

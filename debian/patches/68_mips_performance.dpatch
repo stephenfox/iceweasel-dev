@@ -1,0 +1,41 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 68_mips_performance.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Patch from Thiemo Seufer to increase stability and performance on mips.
+
+@DPATCH@
+
+=== config/rules.mk
+==================================================================
+--- xulrunner/config/rules.mk	(revision 22)
++++ xulrunner/config/rules.mk	(local)
+@@ -456,15 +456,6 @@ endif
+ endif
+ endif
+ 
+-ifeq ($(OS_ARCH),Linux)
+-ifneq (,$(filter mips mipsel,$(OS_TEST)))
+-ifeq ($(MODULE),layout)
+-OS_CFLAGS += -Wa,-xgot
+-OS_CXXFLAGS += -Wa,-xgot
+-endif
+-endif
+-endif
+-
+ #
+ # HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
+ # which uses internal symbols first
+=== configure.in
+==================================================================
+--- xulrunner/configure.in	(revision 22)
++++ xulrunner/configure.in	(local)
+@@ -1481,8 +1481,6 @@
+         MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS=1
+     ;;
+     mips*)
+-        CFLAGS="$CFLAGS -Wa,-xgot"
+-        CXXFLAGS="$CXXFLAGS -Wa,-xgot"
+     ;;
+     esac
+     ;;

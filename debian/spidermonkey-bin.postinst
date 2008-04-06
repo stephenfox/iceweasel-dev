@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+# Rationale: we install the alternative at upgrade time only if we upgrade
+# from a version between 1.8 and 1.8.0.1-6 (versions where the alternative
+# was not installed, and only if the alternative is not present (it can be
+# there because we first upgraded from an older version)
+if [ "$1" = "configure" ] ||
+   ( [ "$1" = "upgrade" ] &&
+     dpkg --compare-versions "$2" ge "1.8" &&
+     dpkg --compare-versions "$2" lt "1.8.0.1-6" &&
+     update-alternatives --list js | grep ^/usr/bin/smjs$ > /dev/null
+   ); then
+    update-alternatives --install /usr/bin/js js /usr/bin/smjs 200 \
+                        --slave /usr/share/man/man1/js.1.gz js.1.gz /usr/share/man/man1/smjs.1.gz
+fi
+
+#DEBHELPER#
+

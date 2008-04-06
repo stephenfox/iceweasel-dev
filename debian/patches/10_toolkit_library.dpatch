@@ -1,0 +1,22 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 10_toolkit_library.dpatch by  <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Add Freetype library to the list of linked libraries. Stolen from 
+## DP: bz#340795
+
+@DPATCH@
+
+--- xulrunner/toolkit/library/Makefile.in
++++ xulrunner/toolkit/library/Makefile.in
+@@ -350,6 +350,10 @@
+ EXTRA_DSO_LDOPTS += $(XLDFLAGS) $(XLIBS) $(MOZ_GTK_LDFLAGS) $(MOZ_XFT_LIBS) $(MOZ_GTK2_LIBS) $(XT_LIBS)
+ endif
+ 
++ifdef MOZ_ENABLE_XFT
++EXTRA_DSO_LDOPTS += $(FT2_LIBS)
++endif
++
+ ifdef MOZ_ENABLE_XPRINT
+ EXTRA_DSO_LDOPTS += $(MOZ_XPRINT_LDFLAGS)
+ endif

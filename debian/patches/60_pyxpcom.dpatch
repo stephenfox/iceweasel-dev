@@ -1,0 +1,57 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 60_pyxpcom.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: - Fix installation directory for PyXPCOM
+## DP: - Use a make variable for PYTHON_SO
+
+@DPATCH@
+
+=== extensions/python/xpcom/Makefile.in
+==================================================================
+--- xulrunner/extensions/python/xpcom/Makefile.in	(revision 85)
++++ xulrunner/extensions/python/xpcom/Makefile.in	(local)
+@@ -90,9 +90,9 @@
+ 	$(INSTALL) $(PYSRCS_XPCOMTOOLS) $(DIST)/bin/python/xpcom/tools
+ 
+ install::
+-	$(SYSINSTALL) $(IFLAGS1) $(PYSRCS_XPCOM) $(DISTDIR)$(pyexecdir)/xpcom
+-	$(SYSINSTALL) $(IFLAGS1) $(PYSRCS_XPCOMCLIENT) $(DISTDIR)$(pyexecdir)/xpcom/client
+-	$(SYSINSTALL) $(IFLAGS1) $(PYSRCS_XPCOMSERVER) $(DISTDIR)$(pyexecdir)/xpcom/server
++	$(SYSINSTALL) $(IFLAGS1) $(PYSRCS_XPCOM) $(DESTDIR)$(pyexecdir)/xpcom
++	$(SYSINSTALL) $(IFLAGS1) $(PYSRCS_XPCOMCLIENT) $(DESTDIR)$(pyexecdir)/xpcom/client
++	$(SYSINSTALL) $(IFLAGS1) $(PYSRCS_XPCOMSERVER) $(DESTDIR)$(pyexecdir)/xpcom/server
+ 
+ clobber::
+ 	rm -rf $(DIST)/bin/python/xpcom
+=== extensions/python/xpcom/src/Makefile.in
+==================================================================
+--- xulrunner/extensions/python/xpcom/src/Makefile.in	(revision 85)
++++ xulrunner/extensions/python/xpcom/src/Makefile.in	(local)
+@@ -104,9 +104,11 @@
+ 
+ install::
+ ifneq ($(OS_ARCH),WINNT)
+-	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DISTDIR)$(pyexecdir)/xpcom
+-	mv $(DISTDIR)$(pyexecdir)/xpcom/$(SHARED_LIBRARY) $(DISTDIR)$(pyexecdir)/xpcom/_xpcom$(PYTHON_DLL_SUFFIX)
++	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DESTDIR)$(pyexecdir)/xpcom
++	mv $(DESTDIR)$(pyexecdir)/xpcom/$(SHARED_LIBRARY) $(DESTDIR)$(pyexecdir)/xpcom/_xpcom$(PYTHON_DLL_SUFFIX)
+ endif
++	rm -f $(DESTDIR)$(mozappdir)/$(SHARED_LIBRARY)
++	rm -f $(DESTDIR)$(mozappdir)/$(IMPORT_LIBRARY)
+ 
+ clobber::
+ 	rm -f *.ilk *.pdb
+=== extensions/python/xpcom/src/loader/Makefile.in
+==================================================================
+--- xulrunner/extensions/python/xpcom/src/loader/Makefile.in	(revision 94)
++++ xulrunner/extensions/python/xpcom/src/loader/Makefile.in	(local)
+@@ -61,7 +61,7 @@
+ include $(topsrcdir)/config/config.mk
+ 
+ include $(topsrcdir)/config/rules.mk
+-CXXFLAGS += -DPYTHON_SO=\"libpython$(PYTHON_VER_DOTTED).so\"
++CXXFLAGS += -DPYTHON_SO=\"$(PYTHON_SO)\"
+ EXTRA_DSO_LDOPTS += $(MOZ_COMPONENT_LIBS)
+ 
+ clobber::

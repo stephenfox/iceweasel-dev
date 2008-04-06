@@ -1,0 +1,52 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 80_javaxpcom.dpatch by  <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Force creation of Makefiles in extensions/java, even when javaxpcom is 
+## DP: disabled. Don't build the jars if DEB_NO_JAR is defined.
+
+@DPATCH@
+
+=== allmakefiles.sh
+==================================================================
+--- xulrunner/allmakefiles.sh	(revision 134)
++++ xulrunner/allmakefiles.sh	(local)
+@@ -1353,7 +1353,7 @@
+ "
+ fi
+ 
+-if [ "$MOZ_JAVAXPCOM" ]; then
++if [ "1" ]; then
+     MAKEFILES_javaxpcom="
+         extensions/java/Makefile
+         extensions/java/xpcom/Makefile
+=== extensions/java/xpcom/interfaces/Makefile.in
+==================================================================
+--- xulrunner/extensions/java/xpcom/interfaces/Makefile.in	(revision 209)
++++ xulrunner/extensions/java/xpcom/interfaces/Makefile.in	(local)
+@@ -59,7 +59,9 @@
+ 		$(NULL)
+ 
+ # install jars into SDK
++ifndef DEB_NO_JAR
+ SDK_LIBRARY = $(JARFILE) $(JARFILE_SRC)
++endif
+ 
+ GARBAGE += $(JARFILE) $(JARFILE_SRC) java.files
+ GARBAGE_DIRS += org
+=== extensions/java/xpcom/Makefile.in
+==================================================================
+--- xulrunner/extensions/java/xpcom/Makefile.in	(revision 220)
++++ xulrunner/extensions/java/xpcom/Makefile.in	(local)
+@@ -45,9 +45,11 @@
+ 
+ include $(topsrcdir)/config/rules.mk
+ 
++ifndef DEB_NO_JAR
+ # Build the implementation Java classes
+ libs::
+ 	make -C src jar-libs
+ 
+ install::
+ 	make -C src jar-install
++endif

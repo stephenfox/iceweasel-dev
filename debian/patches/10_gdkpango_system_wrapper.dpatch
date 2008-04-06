@@ -1,0 +1,21 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 10_gdkpango_system_wrapper.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Create a system wrapper for gdkpango.h to avoid FTBFS because of
+## DP: default visibility.
+
+@DPATCH@
+
+diff --git a/config/system-headers b/config/system-headers
+index 1088e4f..10890ec 100644
+--- a/config/system-headers
++++ b/config/system-headers
+@@ -210,6 +210,7 @@ gdk/gdk.h
+ gdk/gdkkeysyms.h
+ gdk/gdkprivate.h
+ gdk/gdkregion.h
++gdk/gdkpango.h
+ gdk/gdkwindow.h
+ gdk/gdkx.h
+ gdk-pixbuf/gdk-pixbuf.h

@@ -1,0 +1,28 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 35_pango_null_char.dpatch.dpatch by  <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Avoid freeze/crash when null characters are present in justified text
+## DP: by discarding NULL characters before displaying. bz#366902
+## DP: I don't like to have the two backends do different things, so we
+## DP: just unconditionally apply the workaround.
+
+@DPATCH@
+
+=== layout/generic/nsTextTransformer.h
+==================================================================
+--- xulrunner/layout/generic/nsTextTransformer.h	(revision 161)
++++ xulrunner/layout/generic/nsTextTransformer.h	(local)
+@@ -80,10 +80,10 @@
+ #ifdef IBMBIDI
+ // added BIDI formatting codes
+ #define IS_DISCARDED(_ch) \
+-  (((_ch) == CH_SHY) || ((_ch) == '\r') || IS_BIDI_CONTROL(_ch))
++  (((_ch) == CH_SHY) || ((_ch) == '\r') || IS_BIDI_CONTROL(_ch) || ((_ch) == '\0'))
+ #else
+ #define IS_DISCARDED(_ch) \
+-  (((_ch) == CH_SHY) || ((_ch) == '\r'))
++  (((_ch) == CH_SHY) || ((_ch) == '\r') || ((_ch) == '\0'))
+ #endif
+ 
+ #define IS_ASCII_CHAR(ch) ((ch&0xff80) == 0)

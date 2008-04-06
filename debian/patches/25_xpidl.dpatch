@@ -1,0 +1,34 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 25_xpidl.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Fix crash when no file is given on the command line.
+## DP: Fix the error message about extra arguments given showing before
+## DP: the crash. bz#331818.
+
+@DPATCH@
+
+=== xpcom/typelib/xpidl/xpidl.c
+==================================================================
+--- xulrunner/xpcom/typelib/xpidl/xpidl.c	(revision 62)
++++ xulrunner/xpcom/typelib/xpidl/xpidl.c	(local)
+@@ -260,7 +260,7 @@
+         xpidl_usage(argc, argv);
+         return 1;
+     }
+-    if (argc != i + 1) {
++    if (argc > i + 1) {
+         fprintf(stderr, "ERROR: extra arguments after input file\n");
+     }
+ 
+@@ -268,7 +268,9 @@
+      * Don't try to process multiple files, given that we don't handle -o
+      * multiply.
+      */
+-    if (xpidl_process_idl(argv[i], inc_head, file_basename, mode))
++    if (i >= argc)
++        fprintf(stderr, "ERROR: no file to process\n");
++    else if (xpidl_process_idl(argv[i], inc_head, file_basename, mode))
+         return 0;
+ 
+     return 1;

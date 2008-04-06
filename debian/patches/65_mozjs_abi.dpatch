@@ -1,0 +1,37 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 65_mozjs_abi.dpatch by  <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Make 1.8.1 ABI compatible with version 1.8.0
+
+@DPATCH@
+
+--- xulrunner/js/src/jsapi.c	(revision 224)
++++ xulrunner/js/src/jsapi.c	(local)
+@@ -4623,6 +4623,10 @@
+ #endif
+ }
+ 
++/* For backwards compatibility */
++JS_PUBLIC_API(JSBool)
++JS_StringsAreUTF8() __attribute__((alias("JS_CStringsAreUTF8")));
++
+ /************************************************************************/
+ 
+ JS_PUBLIC_API(void)
+--- xulrunner/js/src/jsstr.c	(revision 224)
++++ xulrunner/js/src/jsstr.c	(local)
+@@ -2668,6 +2668,13 @@
+     return bytes;
+ }
+ 
++#undef js_ValueToPrintableString
++JS_FRIEND_API(const char *)
++js_ValueToPrintableString(JSContext *cx, jsval v)
++{
++    return js_ValueToPrintable(cx, v, js_ValueToString);
++}
++
+ JS_FRIEND_API(JSString *)
+ js_ValueToString(JSContext *cx, jsval v)
+ {

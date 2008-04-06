@@ -1,0 +1,217 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Sample debian/rules that uses debhelper.
+# This file was originally written by Joey Hess and Craig Small.
+# As a special exception, when this file is copied by dh-make into a
+# dh-make output file, you may use that output file without restriction.
+# This special exception was added by Craig Small in version 0.37 of dh-make.
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+include /usr/share/dpatch/dpatch.make
+
+# These are used for cross-compiling and for saving the configure script
+# from having to guess our platform (since we know it already)
+DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
+
+DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)$$/\1/ p')
+UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)-.*$$/\1/ p')
+
+PYVER := $(shell pyversions -d)
+
+CFLAGS := -Wall -pipe
+
+JAVA_VARS := MOZ_JAVAXPCOM=1 JAVA_INCLUDE_PATH=$(CURDIR)/sun-java/stubs/include JAVAC=javac JAR=jar
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	OPTCFLAGS := -O0
+else
+	OPTCFLAGS := -O2 -fno-strict-aliasing
+endif
+
+OPTCFLAGS += -g
+
+ifeq ($(DEB_BUILD_ARCH),alpha)
+	OPTCFLAGS += -Wl,--no-relax
+endif
+
+ifeq ($(DEB_BUILD_ARCH),ppc64)
+	OPTCFLAGS += -mminimal-toc
+endif
+
+ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+	DEBUGFLAGS := --enable-debug
+endif
+
+config.status: patch-stamp ./configure debian/mozconfig
+	dh_testdir
+	# Add here commands to configure the package.
+	JAVA_HOME=/usr/lib/jvm/java-gcj \
+	MOZCONFIG=debian/mozconfig \
+	CFLAGS="$(CFLAGS)" \
+	LDFLAGS="-Wl,--as-needed" \
+	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
+	            --enable-optimize="$(OPTCFLAGS)" \
+	            $(DEBUGFLAGS)
+
+build: build-stamp
+
+build-stamp:  config.status
+	dh_testdir
+
+	# Add here commands to compile the package.
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(shell pyversions -d).so | grep SONAME | awk '{print $$2}') $(JAVA_VARS) DEB_NO_JAR=1
+	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
+
+	touch build-stamp
+
+build-jars: build-jars-stamp
+
+build-jars-stamp: build-stamp
+	$(MAKE) -C extensions/java/xpcom/interfaces $(JAVA_VARS)
+	$(MAKE) -C extensions/java/xpcom/src jar-libs $(JAVA_VARS)
+	
+	touch build-jars-stamp
+
+clean: clean-patched unpatch
+clean-patched:
+	dh_testdir
+	dh_testroot
+	rm -f build*-stamp install*-stamp mozilla MPL debian/*.shlibs.local
+	rm -rf debian/include
+
+	# Add here commands to clean up after the build process.
+	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
+
+	dh_clean 
+
+install: install-stamp
+
+install-stamp: build-stamp
+	dh_testdir
+	dh_testroot
+	dh_clean -k 
+	dh_installdirs
+
+	# Add here commands to install the package into debian/tmp.
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
+	$(MAKE) -C extensions/java/xpcom/glue install DESTDIR=$(CURDIR)/debian/tmp
+	find dist/bin -printf %P\\n | sort -u > debian/dist.list
+	find debian/tmp/usr/lib/xulrunner -printf %P\\n | sort -u > debian/tmp.list
+	diff debian/tmp.list debian/dist.list | grep "^[<>]" | grep -v "^> DEBIAN" | sort
+	rm -f debian/tmp.list debian/dist.list
+
+	# Move out libraries in /usr
+	mv $(CURDIR)/debian/tmp/usr/include/xulrunner/js $(CURDIR)/debian/tmp/usr/include/mozjs
+	for lib in mozjs gtkembedmoz xpcom xpcomglue xul; do \
+		mv $(CURDIR)/debian/tmp/usr/lib/xulrunner/lib$$lib* $(CURDIR)/debian/tmp/usr/lib; \
+	done
+	mv $(CURDIR)/debian/tmp/usr/lib/xulrunner/js $(CURDIR)/debian/tmp/usr/bin/smjs
+
+	sed 's,/xulrunner,, ; s,/js,/mozjs, ; s,nspr.*,xulrunner-nspr >= 4.6.5,' \
+		$(CURDIR)/debian/tmp/usr/lib/pkgconfig/xulrunner-js.pc \
+		> $(CURDIR)/debian/libmozjs-dev/usr/lib/pkgconfig/xulrunner-js.pc
+	sed 's,nspr.*,xulrunner-nspr >= 4.6.5,' \
+		$(CURDIR)/debian/tmp/usr/lib/pkgconfig/xulrunner-xpcom.pc \
+		> $(CURDIR)/debian/libxul-dev/usr/lib/pkgconfig/xulrunner-xpcom.pc
+	for file in usr/lib/pkgconfig/xulrunner-gtkmozembed.pc \
+		usr/lib/pkgconfig/xulrunner-plugin.pc; do \
+		install -m 644 $(CURDIR)/debian/tmp/$$file $(CURDIR)/debian/libxul-dev/$$file ; \
+	done
+	#sed s,/lib/xulrunner,/lib, $(CURDIR)/debian/tmp/$$file \
+	#	> $(CURDIR)/debian/libxul-dev/$$file ;
+	install -d -m 755 $(CURDIR)/debian/tmp/etc/gre.d
+	install -m 644 $(CURDIR)/debian/*.conf $(CURDIR)/debian/tmp/etc/gre.d
+
+	# Add Debian package version to preferences
+	echo // Debian package version \
+		> debian/tmp/usr/lib/xulrunner/defaults/pref/vendor.js
+	echo "pref(\"general.useragent.product\",\"Gecko\");" \
+		>> debian/tmp/usr/lib/xulrunner/defaults/pref/vendor.js
+	echo "pref(\"general.useragent.productSub\",\"`perl -e '($$s,$$m,$$h,$$d,$$M,$$y) = gmtime((stat("client.mk"))[9]); printf "%04d%02d%02d\n",$$y + 1900,$$M + 1,$$d;'`\");" \
+		>> debian/tmp/usr/lib/xulrunner/defaults/pref/vendor.js
+	echo "pref(\"general.useragent.productComment\",\"Debian-$(DEBIAN_VERSION)\");" \
+		>> debian/tmp/usr/lib/xulrunner/defaults/pref/vendor.js
+
+	# Install the SDK
+	for dir in bin idl include lib; do install -d -m 755 debian/tmp/usr/lib/xulrunner/sdk/$$dir; done
+	for file in dist/sdk/lib/*.so; do ln -s ../../../`basename $$file` debian/tmp/usr/lib/xulrunner/sdk/lib/; done
+	for file in dist/sdk/bin/*; do ln -s ../../`basename $$file` debian/tmp/usr/lib/xulrunner/sdk/bin/; done
+	for file in dist/sdk/include/*; do f=`basename $$file`; ff=`find debian/tmp -name $$f -printf "%P\n" | head -1`; if [ -n "$$ff" ]; then ln -s ../../../../../$$ff debian/tmp/usr/lib/xulrunner/sdk/include/; else echo "Can't find $$f"; exit 1; fi; done
+	for file in dist/sdk/idl/*; do f=`basename $$file`; if [ -e "debian/tmp/usr/share/idl/xulrunner/$$f" ]; then ln -s ../../../../share/idl/xulrunner/$$f debian/tmp/usr/lib/xulrunner/sdk/idl/; else echo "Can't find $$f"; exit 1; fi; done
+	for file in /usr/include/nspr/*; do ln -s $$file debian/tmp/usr/lib/xulrunner/sdk/include/; done
+	for file in /usr/lib/libnspr4.so /usr/lib/libplc4.so /usr/lib/libplds4.so; do ln -s $$file debian/tmp/usr/lib/xulrunner/sdk/lib/; done
+
+	cp -f LICENSE MPL
+	touch install-stamp
+
+install-jars: install-jars-stamp
+
+install-jars-stamp: build-jars-stamp
+	dh_testdir
+	dh_testroot
+	
+	$(MAKE) -C extensions/java/xpcom/interfaces install DESTDIR=$(CURDIR)/debian/tmp
+	$(MAKE) -C extensions/java/xpcom/src jar-install DESTDIR=$(CURDIR)/debian/tmp
+	
+	# Install the jar files
+	install -d -m 755 debian/tmp/usr/lib/xulrunner/sdk/lib/
+	install -m 644 dist/sdk/lib/MozillaInterfaces*.jar debian/tmp/usr/lib/xulrunner/sdk/lib/
+	
+	touch install-jars-stamp
+
+# Build architecture-independent files here.
+binary-indep: build build-jars install install-jars
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -i
+	dh_installdocs -A -i MPL
+	dh_installexamples -i
+	dh_install -i --sourcedir=debian/tmp
+	dh_link -i
+	dh_compress -i
+	dh_fixperms -i
+	dh_installdeb -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -a
+	dh_installdocs -A -a -XREADME.txt MPL
+	dh_installexamples -a
+	dh_installmenu -pspidermonkey-bin
+	dh_install -a --sourcedir=debian/tmp
+	dh_pysupport -a
+	dh_python -a
+	dh_installman -pspidermonkey-bin $(CURDIR)/debian/smjs.1
+	dh_link -a
+	dh_strip -plibxul0d -pxulrunner -pxulrunner-gnome-support -ppython-xpcom --dbg-package=libxul0d-dbg
+	dh_strip -plibmozjs0d -pspidermonkey-bin --dbg-package=libmozjs0d-dbg
+	dh_compress -a
+	dh_fixperms -a
+	dh_makeshlibs -plibxul0d -Xusr/lib/xulrunner/components -V 'libxul0d (>= 1.8.1.4)'
+	dh_makeshlibs -plibmozjs0d -V 'libmozjs0d (>= 1.8.1.5)'
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+source: clean
+	find . -name CVS -o -name .cvsignore | xargs rm -rf
+	tar -C .. -zcf ../`dpkg-parsechangelog | sed -n '/Source:/ N; s/Source: \(.*\)\nVersion: \(.*\)-[0-9][0-9]*$$/\1_\2/ p'`.orig.tar.gz --exclude=`basename $(CURDIR)`/debian `basename $(CURDIR)`
+
+binary: binary-indep binary-arch
+	find debian/tmp -printf %P\\n | sort -u > debian/tmp.list
+	find `grep Package: debian/control | awk '{print "debian/"$$2}'` -printf %P\\n | sed 's,usr/share/xulrunner,usr/lib/xulrunner,' | sort -u > debian/pkg.list
+	diff debian/tmp.list debian/pkg.list | grep "^[<>]" | grep -v "^> DEBIAN" | sort
+	rm -f debian/tmp.list debian/pkg.list
+
+.PHONY: build clean clean-patched binary-indep binary-arch binary install source build-jars install-jars

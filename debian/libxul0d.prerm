@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "remove" ]; then
+    rm -f /usr/lib/xulrunner/components/compreg.dat \
+          /usr/lib/xulrunner/components/xpti.dat \
+          /usr/lib/xulrunner/.autoreg
+fi
+
+#DEBHELPER#

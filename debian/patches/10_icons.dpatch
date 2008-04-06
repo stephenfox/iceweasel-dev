@@ -1,0 +1,21 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 10_icons.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Apply patch from bz#314927 to install default.xpm in the right place
+
+@DPATCH@
+
+=== xulrunner/app/Makefile.in
+==================================================================
+--- xulrunner/xulrunner/app/Makefile.in	(revision 72)
++++ xulrunner/xulrunner/app/Makefile.in	(local)
+@@ -274,7 +274,7 @@
+ 	$(INSTALL) $(DIST)/branding/default.xpm $(DIST)/bin/chrome/icons/default
+ 
+ install::
+-	$(SYSINSTALL) $(IFLAGS1) $(DIST)/branding/default.xpm $(DESTDIR)$(mozappdir)/icons
++	$(SYSINSTALL) $(IFLAGS1) $(DIST)/branding/default.xpm $(DESTDIR)$(mozappdir)/chrome/icons/default
+ endif
+ 
+ # XXX applications would need to supply this file

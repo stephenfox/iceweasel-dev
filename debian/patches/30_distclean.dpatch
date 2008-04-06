@@ -1,0 +1,220 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 30_distclean.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Make distclean cleaner. bz#333308.
+
+@DPATCH@
+
+=== Makefile.in
+==================================================================
+--- xulrunner/Makefile.in	(revision 73)
++++ xulrunner/Makefile.in	(local)
+@@ -456,6 +456,7 @@
+ DIST_GARBAGE = config.cache config.log config.status config-defs.h \
+    dependencies.beos config/autoconf.mk config/myrules.mk config/myconfig.mk \
+    unallmakefiles mozilla-config.h \
++   gfx/gfx-config.h netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
+    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out 
+ 
+ # Build pseudo-external modules first when export is explicitly called
+=== build/unix/Makefile.in
+==================================================================
+--- xulrunner/build/unix/Makefile.in	(revision 73)
++++ xulrunner/build/unix/Makefile.in	(local)
+@@ -71,7 +71,7 @@
+ 	$(MOZ_APP_NAME)-js.pc $(MOZ_APP_NAME)-gtkmozembed.pc \
+ 	$(MOZ_APP_NAME)-nss.pc $(MOZ_APP_NAME)-plugin.pc
+ 
+-GARBAGE	= $(pkg_config_files) mozilla-config
++GARBAGE	= $(pkg_config_files) $(MOZ_APP_NAME)-config
+ 
+ $(MOZ_APP_NAME)-config:: mozilla-config.in Makefile.in Makefile $(DEPTH)/config/autoconf.mk
+ 	cat $< | sed \
+=== extensions/java/xpcom/src/Makefile.in
+==================================================================
+--- xulrunner/extensions/java/xpcom/src/Makefile.in	(revision 73)
++++ xulrunner/extensions/java/xpcom/src/Makefile.in	(local)
+@@ -92,7 +92,7 @@
+ 	$(MOZ_COMPONENT_LIBS) \
+ 	$(NULL)
+ 
+-GARBAGE += $(JARFILE) $(JARFILE_SRC) java.files
++GARBAGE += $(JARFILE) $(JARFILE_SRC) java.files .done
+ GARBAGE_DIRS += _javagen org
+ 
+ include $(topsrcdir)/config/rules.mk
+=== extensions/pref/system-pref/src/gconf/Makefile.in
+==================================================================
+--- xulrunner/extensions/pref/system-pref/src/gconf/Makefile.in	(revision 73)
++++ xulrunner/extensions/pref/system-pref/src/gconf/Makefile.in	(local)
+@@ -84,3 +84,5 @@
+ 
+ export::
+ 	$(INSTALL) $(srcdir)/../nsSystemPrefFactory.cpp .
++
++GARBAGE += nsSystemPrefFactory.cpp
+=== profile/dirserviceprovider/standalone/Makefile.in
+==================================================================
+--- xulrunner/profile/dirserviceprovider/standalone/Makefile.in	(revision 73)
++++ xulrunner/profile/dirserviceprovider/standalone/Makefile.in	(local)
+@@ -65,3 +65,5 @@
+ 
+ export:: $(MODULES_PROFILEDIRSERVICE_SRC_CSRCS)
+ 	$(INSTALL) $^ .
++
++GARBAGE		= $(notdir $(MODULES_PROFILEDIRSERVICE_SRC_CSRCS))
+=== security/manager/Makefile.in
+==================================================================
+--- xulrunner/security/manager/Makefile.in	(revision 73)
++++ xulrunner/security/manager/Makefile.in	(local)
+@@ -158,6 +158,8 @@
+ endif
+ 	touch $@
+ 
++GARBAGE += .nss.cleaned
++
+ .nss.checkout:
+ 	touch $(srcdir)/$@
+ 
+=== toolkit/library/Makefile.in
+==================================================================
+--- xulrunner/toolkit/library/Makefile.in	(revision 73)
++++ xulrunner/toolkit/library/Makefile.in	(local)
+@@ -369,9 +369,13 @@
+ dlldeps-obs.cpp: $(topsrcdir)/xpcom/obsolete/dlldeps-obs.cpp
+ 	$(INSTALL) $^ .
+ 
++GARBAGE += dlldeps.cpp dlldeps-obs.cpp
++
+ ifdef MOZ_JAVAXPCOM
+ export:: dlldeps-javaxpcom.cpp
+ 
+ dlldeps-javaxpcom.cpp: $(topsrcdir)/extensions/java/xpcom/src/dlldeps-javaxpcom.cpp
+ 	$(INSTALL) $^ .
++
++GARBAGE += dlldeps-javaxpcom.cpp
+ endif
+=== toolkit/mozapps/downloads/src/Makefile.in
+==================================================================
+--- xulrunner/toolkit/mozapps/downloads/src/Makefile.in	(revision 73)
++++ xulrunner/toolkit/mozapps/downloads/src/Makefile.in	(local)
+@@ -45,6 +45,7 @@
+ MODULE = helperAppDlg
+ 
+ EXTRA_COMPONENTS = nsHelperAppDlg.js
++GARBAGE += nsHelperAppDlg.js
+ 
+ include $(topsrcdir)/config/rules.mk
+ 
+=== toolkit/mozapps/extensions/src/Makefile.in
+==================================================================
+--- xulrunner/toolkit/mozapps/extensions/src/Makefile.in	(revision 73)
++++ xulrunner/toolkit/mozapps/extensions/src/Makefile.in	(local)
+@@ -45,6 +45,7 @@
+ MODULE = extensions
+ 
+ EXTRA_COMPONENTS = nsExtensionManager.js
++GARBAGE += nsExtensionManager.js
+ 
+ include $(topsrcdir)/config/rules.mk
+ 
+=== toolkit/mozapps/update/src/Makefile.in
+==================================================================
+--- xulrunner/toolkit/mozapps/update/src/Makefile.in	(revision 73)
++++ xulrunner/toolkit/mozapps/update/src/Makefile.in	(local)
+@@ -49,6 +49,7 @@
+ endif
+ 
+ EXTRA_COMPONENTS = nsUpdateService.js
++GARBAGE += nsUpdateService.js
+ 
+ ifeq ($(OS_ARCH),WINNT)
+ EXTRA_COMPONENTS += nsPostUpdateWin.js
+=== toolkit/xre/Makefile.in
+==================================================================
+--- xulrunner/toolkit/xre/Makefile.in	(revision 73)
++++ xulrunner/toolkit/xre/Makefile.in	(local)
+@@ -156,16 +156,14 @@
+ SHAREDCPPSRCS	  += nsSigHandlers.cpp
+ endif
+ 
+-GARBAGE += $(SHAREDSRCS) $(wildcard *.$(OBJ_SUFFIX))
++GARBAGE += $(SHAREDCPPSRCS) $(wildcard *.$(OBJ_SUFFIX))
+ ifeq ($(OS_ARCH),WINNT)
+-GARBAGE	+= $(addprefix $(srcdir)/,$(SHAREDSRCS))
++GARBAGE	+= $(addprefix $(srcdir)/,$(SHAREDCPPSRCS))
+ endif
+ 
+ ifneq (,$(filter-out OS2 WINNT,$(OS_ARCH)))
+-ifndef MOZ_ENABLE_LIBXUL
+ GARBAGE += $(STACKWALK_SRC_LCSRCS)
+ endif
+-endif
+ 
+ SHARED_LIBRARY_LIBS += ../profile/src/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX)
+ 
+=== xpcom/build/Makefile.in
+==================================================================
+--- xulrunner/xpcom/build/Makefile.in	(revision 73)
++++ xulrunner/xpcom/build/Makefile.in	(local)
+@@ -149,7 +149,7 @@
+ # UNIX98 iconv support
+ OS_LIBS += $(LIBICONV)
+ 
+-GARBAGE         += $(XPCOM_GLUE_SRC_LCSRCS) $(XPCOM_GLUENS_SRC_LCSRCS) $(wildcard *.$(OBJ_SUFFIX))
++GARBAGE         += $(XPCOM_GLUE_SRC_LCSRCS) $(XPCOM_GLUE_SRC_LCPPSRCS) $(XPCOM_GLUENS_SRC_LCPPSRCS) $(wildcard *.$(OBJ_SUFFIX))
+ 
+ include $(topsrcdir)/config/rules.mk
+ 
+=== xpcom/glue/standalone/Makefile.in
+==================================================================
+--- xulrunner/xpcom/glue/standalone/Makefile.in	(revision 73)
++++ xulrunner/xpcom/glue/standalone/Makefile.in	(local)
+@@ -96,7 +96,7 @@
+ # Force use of PIC
+ FORCE_USE_PIC	= 1
+ 
+-GARBAGE         += $(XPCOM_GLUE_SRC_LCSRCS) $(wildcard *.$(OBJ_SUFFIX))
++GARBAGE         += $(XPCOM_GLUE_SRC_LCSRCS) $(XPCOM_GLUE_SRC_LCPPSRCS) $(wildcard *.$(OBJ_SUFFIX))
+ 
+ SRCS_IN_OBJDIR	= 1
+ 
+=== xpfe/components/filepicker/src/Makefile.in
+==================================================================
+--- xulrunner/xpfe/components/filepicker/src/Makefile.in	(revision 73)
++++ xulrunner/xpfe/components/filepicker/src/Makefile.in	(local)
+@@ -68,6 +68,7 @@
+ 		$(NULL)
+ 
+ EXTRA_COMPONENTS = nsFilePicker.js
++GARBAGE += nsFilePicker.js
+ 
+ include $(topsrcdir)/config/rules.mk
+ 
+=== config/static-rules.mk
+==================================================================
+--- xulrunner/config/static-rules.mk
++++ xulrunner/config/static-rules.mk
+@@ -14,6 +14,8 @@
+ 	sed -e "s|%MODULE_LIST%|$(foreach m, $(STATIC_COMPONENT_LIST),MODULE($(m)))|" \
+ 	> $(_TARGET)
+ 
++GARBAGE += nsStaticComponents.cpp
++
+ ifeq ($(OS_ARCH),IRIX)
+ LDFLAGS	+= -Wl,-LD_LAYOUT:lgot_buffer=80
+ endif
+=== config/Makefile.in
+==================================================================
+--- xulrunner/config/Makefile.in	(revision 167)
++++ xulrunner/config/Makefile.in	(local)
+@@ -144,6 +144,8 @@
+ 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
+ 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
+ 	$(INSTALL) system_wrappers $(DIST)/include
++
++GARBAGE_DIRS += system_wrappers
+ endif
+ 
+ # we don't use an explicit dependency here because then we would

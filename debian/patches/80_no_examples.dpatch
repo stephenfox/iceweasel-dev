@@ -1,0 +1,32 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 80_no_examples.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Don't build examples
+
+@DPATCH@
+
+=== xulrunner/Makefile.in
+==================================================================
+--- xulrunner/xulrunner/Makefile.in	(revision 62)
++++ xulrunner/xulrunner/Makefile.in	(local)
+@@ -48,7 +48,6 @@
+ 	stub \
+ 	util \
+ 	app \
+-	examples \
+ 	$(NULL)
+ 
+ ifeq ($(OS_ARCH),WINNT)
+=== extensions/python/xpcom/Makefile.in
+==================================================================
+--- xulrunner/extensions/python/xpcom/Makefile.in	(revision 85)
++++ xulrunner/extensions/python/xpcom/Makefile.in	(local)
+@@ -40,7 +40,6 @@
+ 
+ DIRS = \
+         src \
+-        test/test_component \
+         $(NULL)
+ 
+ topsrcdir	= @top_srcdir@

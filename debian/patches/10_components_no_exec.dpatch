@@ -1,0 +1,25 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 10_components_no_exec.dpatch by Mike Hommey <glandium@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: install extra components without exec premissions. bz#331777
+
+@DPATCH@
+
+--- xulrunner/config/rules.mk	2005-08-11 18:41:53.000000000 +0200
++++ xulrunner/config/rules.mk	2005-10-03 10:02:57.000000000 +0200
+@@ -1486,12 +1486,12 @@
+ ifdef EXTRA_COMPONENTS
+ libs:: $(EXTRA_COMPONENTS)
+ ifndef NO_DIST_INSTALL
+-	$(INSTALL) $(IFLAGS2) $^ $(FINAL_TARGET)/components
++	$(INSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/components
+ endif
+ 
+ install:: $(EXTRA_COMPONENTS)
+ ifndef NO_INSTALL
+-	$(SYSINSTALL) $(IFLAGS2) $^ $(DESTDIR)$(mozappdir)/components
++	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/components
+ endif
+ endif
+ 
