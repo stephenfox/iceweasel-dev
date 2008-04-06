@@ -186,16 +186,12 @@ binary-arch: build install
 	dh_md5sums -a
 	dh_builddeb -a
 
-source: clean
-	find . -name CVS -o -name .cvsignore | xargs rm -rf
-	tar -C .. -zcf ../`dpkg-parsechangelog | sed -n '/Source:/ N; s/Source: \(.*\)\nVersion: \(.*\)-[0-9][0-9]*$$/\1_\2/ p'`.orig.tar.gz --exclude=`basename $(CURDIR)`/debian `basename $(CURDIR)`
-
 binary: binary-indep binary-arch
 	find debian/tmp -printf %P\\n | sort -u > debian/tmp.list
 	find `grep Package: debian/control | awk '{print "debian/"$$2}'` -printf %P\\n | sed 's,usr/share/xulrunner,usr/lib/xulrunner,' | sort -u > debian/pkg.list
 	diff debian/tmp.list debian/pkg.list | grep "^[<>]" | grep -v "^> DEBIAN" | sort
 	rm -f debian/tmp.list debian/pkg.list
 
-.PHONY: build clean binary-indep binary-arch binary install source build-jars
+.PHONY: build clean binary-indep binary-arch binary install build-jars
 
 .NOTPARALLEL:
