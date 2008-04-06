@@ -137,7 +137,7 @@ if (defined($::opt_z)) {
     $zipprog = $::opt_z;
 }
 
-if (($fileformat eq "jar" || $fileformat eq "both") && $zipprog eq "") {
+if ($zipprog eq "") {
     print "A valid zip program must be given via the -z option or the ZIP environment variable. Exiting.\n";
     exit(1);
 }
@@ -535,7 +535,6 @@ start:
                 my $dest = $1;
                 my $srcPath = defined($2) ? substr($2, 1, -1) : $2;
                 EnsureFileInDir("$chromeDir/$jarfile", $baseFilesDir, $dest, $srcPath, 0, 0);
-                EnsureFileInDir("$jarDir/$jarfile", $baseFilesDir, $dest, $srcPath, 0, 0) if ($fileformat eq "flat");
                 $args = "$args$dest ";
                 if (!foreignPlatformFile($jarfile) && !foreignPlatformPath($dest) && $autoreg &&
                     $dest =~ /([\w\d.\-\_\+]+)\/([\w\d.\-\_\\\/]+)contents.rdf/)
@@ -548,7 +547,6 @@ start:
                 my $dest = $1;
                 my $srcPath = defined($2) ? substr($2, 1, -1) : $2;
                 EnsureFileInDir("$chromeDir/$jarfile", $baseFilesDir, $dest, $srcPath, 1, 0);
-                EnsureFileInDir("$jarDir/$jarfile", $baseFilesDir, $dest, $srcPath, 1, 0) if ($fileformat eq "flat");
                 $overrides = "$overrides$dest ";
                 if (!foreignPlatformFile($jarfile) && !foreignPlatformPath($dest) && $autoreg &&
                     $dest =~ /([\w\d.\-\_\+]+)\/([\w\d.\-\_\\\/]+)contents.rdf/)
@@ -562,7 +560,6 @@ start:
                 my $dest = $1;
                 my $srcPath = defined($2) ? substr($2, 1, -1) : $2;
                 EnsureFileInDir("$chromeDir/$jarfile", $baseFilesDir, $dest, $srcPath, 1, 1);
-                EnsureFileInDir("$jarDir/$jarfile", $baseFilesDir, $dest, $srcPath, 1, 1) if ($fileformat eq "flat");
                 $overrides = "$overrides$dest ";
                 if (!foreignPlatformFile($jarfile) && !foreignPlatformPath($dest) && $autoreg &&
                     $dest =~ /([\w\d.\-\_\+]+)\/([\w\d.\-\_\\\/]+)contents.rdf/)
