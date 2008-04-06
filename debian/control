@@ -6,11 +6,11 @@ Build-Depends: debhelper (>= 5.0.37.2), autotools-dev, libx11-dev, libxt-dev, li
 Build-Depends-Indep: java-gcj-compat-dev (>= 1.0.56)
 Standards-Version: 3.7.3.0
 
-Package: xulrunner
+Package: xulrunner-1.9
 Section: devel
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Suggests: xulrunner-gnome-support
+Depends: ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9-common (>= ${source:Upstream-Version})
+Suggests: xulrunner-1.9-gnome-support
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
  multiple XUL + XPCOM applications that are as rich as Firefox and
@@ -26,9 +26,11 @@ Description: XUL + XPCOM application runner
  XPCOM is a cross platform component model. It has multiple language
  bindings and IDL descriptions so programmers can plug their custom
  functionality into the framework and connect it with other components.
+ .
+ This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
 
-Package: xulrunner-gnome-support
+Package: xulrunner-1.9-gnome-support
 Section: devel
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -96,28 +98,19 @@ Description: standalone JavaScript/ECMAScript (ECMA-262) interpreter
  first introduced by Netscape and now led by the Mozilla project.
 Homepage: http://www.mozilla.org/js/
 
-Package: libxul0d
+Package: libxpcomglue0d
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libxul-common (>= ${source:Upstream-Version})
-Replaces: xulrunner (<< 1.8.0.1-9)
-Description: Gecko engine library
- This library provides an API for XUL applications and Gecko embedders.
- The Gecko engine is the core of the mozilla.org applications such as
- Firefox, Thunderbird or SeaMonkey.
- .
- Gecko features include XPCOM, networking, DOM editing and transaction
- support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
- Web Services (SOAP), accessibility support, IPC services, gtkmozembed,
- JavaXPCOM, etc.
-Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: XPCOM standalone glue
+ This library allows embedding applications to link against a single library
+ while keeping compatibility with multiple versions of XPCOM/libxul.
+Homepage: http://developer.mozilla.org/en/docs/XPCOM_Glue
 
-Package: libxul-common
+Package: xulrunner-1.9-common
 Section: libs
 Architecture: all
 Depends: ${misc:Depends}
-Replaces: xulrunner (<< 1.8.0.1-9)
-Conflicts: libxul0d (<< 1.8.0.4-2)
 Description: Gecko engine library - common files
  This library provides an API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -128,14 +121,14 @@ Description: Gecko engine library - common files
  Web Services (SOAP), accessibility support, IPC services, gtkmozembed,
  JavaXPCOM, etc.
  .
- This package provides all architecture independent files for libxul0d.
+ This package provides all architecture independent files for xulrunner-1.9.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
-Package: libxul-dev
+Package: xulrunner-dev
 Section: libdevel
 Architecture: all
-Depends: ${misc:Depends}, libxul0d (>= ${source:Upstream-Version}), libnss3-dev, libnspr4-dev, libmozjs-dev (>= ${source:Version}), xulrunner
-Conflicts: mozilla-browser (<< 2:1.8)
+Depends: ${misc:Depends}, xulrunner-1.9 (>= ${source:Upstream-Version}), libnss3-dev, libnspr4-dev, libmozjs-dev (>= ${source:Version}), xulrunner
+Conflicts: libxul-dev
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -154,13 +147,32 @@ Description: Development files for the Gecko engine library
  It also contains the JavaXPCOM interfaces and their sources.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
-Package: libxul0d-dbg
+Package: xulrunner-dev-static
+Section: libdevel
+Architecture: any
+Depends: ${misc:Depends}, xulrunner-dev (= ${source:Version})
+Description: Static libraries for the Gecko engine
+ This library provides an API for XUL applications and Gecko embedders.
+ The Gecko engine is the core of the mozilla.org applications such as
+ Firefox, Thunderbird or SeaMonkey.
+ .
+ Gecko features include XPCOM, networking, DOM editing and transaction
+ support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
+ Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
+ .
+ Install this package if you wish to embed the Gecko engine in your
+ program or want to develop XPCOM components.
+ .
+ It contains the XPCOM dependent glue, and a few other static libraries.
+Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+
+Package: xulrunner-1.9-dbg
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: libxul0d (= ${binary:Version})
-Suggests: xulrunner, xulrunner-gnome-support
-Conflicts: xulrunner (<< ${source:Version}), xulrunner (>= ${source:Version}.1~), xulrunner-gnome-support (<< ${source:Version}), xulrunner-gnome-support (>= ${source:Version}.1~)
+Depends: xulrunner-1.9 (= ${binary:Version})
+Suggests: xulrunner-1.9-gnome-support
+Conflicts: xulrunner-1.9-gnome-support (<< ${source:Version}), xulrunner-1.9-gnome-support (>= ${source:Version}.1~)
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -178,7 +190,7 @@ Package: libmozillainterfaces-java
 Section: libdevel
 Priority: extra
 Architecture: all
-Depends: libxul0d (>= 1.8.0.1-12), gij | java2-runtime
+Depends: xulrunner-1.9, gij | java2-runtime
 Description: XPCOM bindings for Java
  JavaXPCOM allows for communication between Java and XPCOM, such that a
  Java application can access XPCOM objects, and XPCOM can access any Java
@@ -188,7 +200,7 @@ Description: XPCOM bindings for Java
  bridge), and uses XPIDL
  .
  Install this package if you wish to access XPCOM objects from Java.
- The counterpart is built in libxul0d.
+ The counterpart is built in xulrunner.
  .
  This package also provides the Java interfaces sources.
 Homepage: http://developer.mozilla.org/en/docs/JavaXPCOM

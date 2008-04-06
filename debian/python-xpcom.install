@@ -1,2 +1,3 @@
-usr/lib/python*
-usr/lib/xulrunner/components/libpyloader.so
+usr/lib/xulrunner-1.9/libpyxpcom.so
+usr/lib/xulrunner-1.9/python
+usr/lib/xulrunner-1.9/components/libpyloader.so

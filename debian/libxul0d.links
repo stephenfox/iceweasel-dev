@@ -1,8 +1,0 @@
-usr/lib/libnspr4.so.0d usr/lib/xulrunner/libnspr4.so
-usr/lib/libplds4.so.0d usr/lib/xulrunner/libplds4.so
-usr/lib/libplc4.so.0d usr/lib/xulrunner/libplc4.so
-usr/lib/libmozjs.so.0d usr/lib/xulrunner/libmozjs.so
-usr/lib/libxul.so.0d usr/lib/xulrunner/libxul.so
-usr/lib/libxpcom.so.0d usr/lib/xulrunner/libxpcom.so
-usr/lib/libgtkembedmoz.so.0d usr/lib/xulrunner/libgtkembedmoz.so
-usr/share/myspell/dicts usr/lib/xulrunner/dictionaries

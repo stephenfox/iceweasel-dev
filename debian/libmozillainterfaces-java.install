@@ -1,2 +1,2 @@
-usr/lib/xulrunner/sdk/lib/MozillaInterfaces.jar usr/share/java
-usr/lib/xulrunner/sdk/lib/MozillaInterfaces-src.jar
+usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces.jar usr/share/java
+usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces-src.jar

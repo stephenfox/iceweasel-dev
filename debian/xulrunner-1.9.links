@@ -1,0 +1,6 @@
+usr/lib/libnspr4.so.0d usr/lib/xulrunner-1.9/libnspr4.so
+usr/lib/libplds4.so.0d usr/lib/xulrunner-1.9/libplds4.so
+usr/lib/libplc4.so.0d usr/lib/xulrunner-1.9/libplc4.so
+usr/lib/libmozjs.so.1d usr/lib/xulrunner-1.9/libmozjs.so
+usr/share/myspell/dicts usr/lib/xulrunner-1.9/dictionaries
+usr/share/xulrunner-1.9/icons usr/lib/xulrunner-1.9/icons
