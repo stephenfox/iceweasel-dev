@@ -1,4 +1,4 @@
-xulrunner (1.9~b4-1) UNRELEASED; urgency=low
+xulrunner (1.9~b4-1) experimental; urgency=low
 
   * New upstream beta release (taken from upstream CVS). Closes: #449448.
     + Don't crash when font file is unreadable. Closes: #425233.
@@ -6,8 +6,168 @@ xulrunner (1.9~b4-1) UNRELEASED; urgency=low
     + MOZILLA_1_8_BRANCH is not defined anymore: Closes: #441059.
     + Don't jump when clicking out of the search bar. Closes: #404759.
     + Ligatures don't overlap the following glyph. Closes: #363159.
+  * debian/patches/*: Remove patches.
+  * debian/rules: Remove patch rules.
+  * debian/control: Don't depend on dpatch.
+  * debian/mozconfig: Use the new default cairo-gtk toolkit.
+  * (was: debian/patches/31_system_bz2.dpatch)
+    config/Makefile.in, config/autoconf.mk.in, config/system-headers,
+    configure.in, extensions/metrics/build/Makefile.in
+    extensions/metrics/src/Makefile.in,
+    extensions/metrics/test/Makefile.in,
+    toolkit/mozapps/update/src/updater/Makefile.in,
+    toolkit/mozapps/update/src/updater/updater.cpp,
+    toolkit/toolkit-tiers.mk: Allow to use system libbz2. bz#305782.
+  * (was: debian/patches/35_zip_cache.dpatch)
+    modules/libjar/nsJAR.cpp, modules/libjar/nsJAR.h: Invalidate cache for
+    modified jar files. bz#368428.
+  * (was: debian/patches/38_gnu.dpatch and debian/patches/38_kbsd.dpatch)
+    config/rules.mk, configure.in, xpcom/glue/standalone/Makefile.in,
+    xpcom/reflect/xptcall/src/md/unix/Makefile.in,
+    xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h: Support
+    building on GNU/kFreeBSD and GNU/Hurd. bz#356011.
+  * (was: debian/patches/38_hppa_xpcom.dpatch)
+    Most of the patch was applied upstream, but need a small fix in
+    xpcom/reflect/xptcall/src/md/unix/Makefile.in.
+  * (was: debian/patches/38_mips_xpcom.dpatch)
+    xpcom/reflect/xptcall/src/md/unix/Makefile.in,
+    xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_mips.s,
+    xpcom/reflect/xptcall/src/md/unix/xptcinvoke_mips.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcstubs_asm_mips.s: Fix crashes on
+    mips. bz#258429.
+  * (was: debian/patches/60_js_binary.dpatch)
+    config/autoconf.mk.in, config/rules.mk, configure.in, js/src/Makefile.in:
+    Allow to build a standalone js binary. bz#331776.
+    js/src/xpconnect/shell/Makefile.in: Add readline support to xpcshell.
+    bz#331776.
+    js/src/js.c, js/src/xpconnect/shell/xpcshell.cpp: Avoid visibility hidden
+    issues with readline symbols. bz#331776.
+  * (was: debian/patches/60_pyxpcom.dpatch)
+    extensions/python/xpcom/src/Makefile.in: Allow to override the PYTHON_SO
+    variable.
+  * (was: debian/patches/65_native_uconv.dpatch)
+    intl/uconv/native/nsINativeUConvService.idl,
+    intl/uconv/native/nsNativeUConvService.cpp,
+    intl/uconv/src/nsCharsetConverterManager.cpp: Properly load invalid UTF-8
+    files with native uconv. bz#331748.
+    intl/uconv/src/charsetalias.properties: Fix aliases for gbk and euc-tw for
+    use with native uconv. bz#369403.
+  * (was: debian/patches/68_m68k_xpcom.dpatch)
+    xpcom/reflect/xptcall/src/md/unix/xptcinvoke_linux_m68k.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcstubs_linux_m68k.cpp: Improve
+    assembly for m68k. bz#422337.
+  * (was: debian/patches/68_mips_performance.dpatch)
+    config/rules.mk, configure.in: Increase stability and performance on mips.
+    Reverted to Thiemo's original version for better followup with upstream
+    when it will happen (but already has to wait for bz#258429).
+  * (was: debian/patches/80_config.dpatch)
+    debian/rules: Use config.guess and config.sub from autotools-dev.
+  * (was: debian/patches/80_crmf.dpatch)
+    configure.in: Put the crmf library before the NSS libraries.
+  * (was: debian/patches/80_javaxpcom.dpatch)
+    extensions/java/xpcom/Makefile.in, toolkit/toolkit-makefiles.sh: Force
+    creation of Makefiles in extensions/java, even when javaxpcom is disabled.
+    Don't build the jars if DEB_NO_JAR is defined.
+  * (was: debian/patches/80_libxpcom_hack.dpatch)
+    js/src/xpconnect/shell/Makefile.in, xulrunner/app/Makefile.in: Force
+    libxpcom to be linked to xulrunner-bin and xpcshell so that it is loaded
+    in most cases.
+  * (was: debian/patches/80_no_examples.dpatch)
+    xulrunner/Makefile.in: Don't build example component.
+  * (was: debian/patches/80_no_sys_profile.dpatch)
+    xulrunner/app/Makefile.in: Don't install system profile.
+  * (was: debian/patches/80_system_libs.dpatch)
+    configure.in: Make sure we won't be bitten by upstream changing libjpeg,
+    libpng or zlib internal version, which makes system library not used even
+    though --with-system-* argument is given to configure.
+  * (was: debian/patches/80_xulrunner-config.dpatch)
+    build/unix/mozilla-config.in: Give more appropriate cflags and libs.
+  * (was: debian/patches/80_zip.dpatch)
+    config/config.mk, config/make-jars.pl, configure.in: Avoid needing zip if
+    not required. bz#331785.
+  * (was: debian/patches/81_soname.dpatch)
+    config/rules.mk, js/src/Makefile.in, toolkit/library/Makefile.in,
+    xpcom/stub/Makefile.in: Add soname to appropriate libraries. This is
+    a stripped down version, compared to the dpatch version, because we
+    actually are never going to use minor and micro version numbers. Also, we
+    now don't set a SO version on libxul and libxpcom because they will now
+    be dlloaded() by the standalone xpcomglue.
+  * (was: debian/patches/82_locale.dpatch)
+    xulrunner/app/xulrunner.js: Enable intl.locale.matchOS, and report the
+    locale correctly. bz#331779.
+  * (was: debian/patches/82_prefs.dpatch)
+    modules/libpref/src/init/all.js: Set javascript.options.showInConsole ;
+    Set DPI to system settings.
+  * (was: debian/patches/85_installer.dpatch)
+    xulrunner/setup/nsXULAppInstall.js: Install applications in /usr/local/lib
+    instead of /usr/lib.
+  * (was: debian/patches/85_no_register.dpatch)
+    xulrunner/app/nsXULRunnerApp.cpp: Remove (un|)registering system.
+  * (was: debian/patches/85_xpcomglue.dpatch)
+    configure.in, xpcom/base/nscore.h, xpcom/glue/standalone/Makefile.in,
+    xpcom/glue/standalone/nsGlueLinking.h,
+    xpcom/glue/standalone/nsXPCOMGlue.h: Build the xpcom glue as a shared
+    library. Now, also build the dependent xpcom glue.
+    xpcom/glue/standalone/nsGlueLinkingDlopen.cpp: Load DSOs from . when
+    directory is not given.
+  * Other patches have been removed either because incorporated or made
+    obsolete by this new upstream release.
 
- -- Mike Hommey <glandium@debian.org>  Sat, 24 Nov 2007 16:56:12 +0100
+  * config/autoconf.mk.in, configure.in,
+    modules/libpr0n/decoders/png/nsPNGDecoder.cpp,
+    modules/libpr0n/decoders/png/nsPNGDecoder.h,
+    modules/libpr0n/encoders/png/nsPNGEncoder.cpp,
+    modules/libpr0n/encoders/png/nsPNGEncoder.h: Disable APNG support when
+    system libpng doesn't support it.
+  * Makefile.in, netwerk/dns/src/Makefile.in, xulrunner/build.mk: Make
+    distclean cleaner. While previous cleanups have been incorporated
+    upstream, some new files need to be removed. bz#333308.
+  * debian/control:
+    + Add new required build-dependency on libdbus-glib-1-dev.
+    + Build-Depend on libnspr4-dev >= 3.7.0.
+    + Build-Depend on libnss3-dev >= 3.12.0~beta2.
+    + Build-Depend on libcairo2-dev >= 1.5.
+    + Build-Depend on libgtk2.0-dev >= 2.10.
+  * debian/remove.nonfree: Updated for new binary blobs and removed
+    directory/c-sdk removals, since the directory is not here anymore.
+    Also, fixed removal of files with names containing spaces.
+  * debian/copyright: A whole lot of files have been either removed or
+    relicensed under MPL/GPL/LGPL tri-license. Some new external libraries
+    have been incorporated into the source tree, too.
+  * debian/mozconfig: Don't build crash reporter (Google Breakpad).
+  * debian/mozconfig, debian/control: Use system sqlite and lcms.
+  * configure.in: Don't check lcms version, for the same reason as libpng
+    and others.
+  * js/src/Makefile.in, debian/control, debian/libmozjs0d.install,
+    debian/rules: Bumped libmozjs SO version to 1d.
+  * debian/libmozjs0d.README.Debian: Removed, as it is not relevant anymore.
+  * intl/uconv/native/nsNativeUConvService.cpp: Fix native uconv so that
+    XmlHTTPRequest works properly. bz#342133.
+  * xulrunner/installer/Makefile.in, debian/rules: Build as if we were version
+    1.9 instead of 1.9b4. Also fix permissions for /etc/gre.d file.
+  * debian/control, debian/*: Change package names and installed files to fit
+    new upstream.
+  * debian/rules:
+    + Adapted to new upstream files and install method. There is unfortunately
+      only one install target now, and it must be run after build-jars when
+      building binary-indep. This is why we must set .NOTPARALLEL.
+    + Removed source target, which isn't appropriate anymore.
+    + Changed the way we set optimization flags so that we use upstream ones,
+      and arrange LDFLAGS so that -Wl,--as-needed appears before -lpthread
+      during builds.
+  * debian/mozconfig:
+    + Don't set mozilla default home, it's not useful anymore.
+    + Disable stripping of binaries during build.
+  * debian/xulrunner.conf: Removed. The equivalent is now provided by upstream
+    build system.
+  * xulrunner/app/Makefile.in: Link libjemalloc to the xulrunner binary.
+  * libxpcomglue0d.preinst, libxpcomglue0d.postrm: Divert libxpcomglue.so.0d
+    from libxul0d so that both packages can be installed at the same time.
+
+  * (was: debian/patches/99_configure.dpatch)
+    configure: Updated.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 06 Apr 2008 13:01:04 +0200
 
 xulrunner (1.8.1.13-1) unstable; urgency=low
 
