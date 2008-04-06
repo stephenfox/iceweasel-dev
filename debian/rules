@@ -70,7 +70,7 @@ build-stamp:  config.status
 	dh_testdir
 
 	# Add here commands to compile the package.
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(shell pyversions -d).so | grep SONAME | awk '{print $$2}') $(JAVA_VARS) DEB_NO_JAR=1
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(shell pyversions -d).so | grep SONAME | awk '{print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 MOZ_APP_VERSION=1.9
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
@@ -90,7 +90,7 @@ clean:
 	rm -rf debian/include
 
 	# Add here commands to clean up after the build process.
-	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
+	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS) MOZ_APP_VERSION=1.9
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
@@ -109,7 +109,7 @@ install-stamp: build-stamp
 	dh_installdirs
 
 	# Add here commands to install the package into debian/tmp.
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp MOZ_APP_VERSION=1.9
 	$(MAKE) -C extensions/java/xpcom/glue install DESTDIR=$(CURDIR)/debian/tmp
 	find dist/bin -printf %P\\n | sort -u > debian/dist.list
 	find debian/tmp/usr/lib/xulrunner -printf %P\\n | sort -u > debian/tmp.list
