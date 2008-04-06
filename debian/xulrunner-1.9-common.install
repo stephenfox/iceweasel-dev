@@ -153,7 +153,6 @@ usr/lib/xulrunner-1.9/components/toolkitprofile.xpt
 usr/lib/xulrunner-1.9/components/toolkitremote.xpt
 usr/lib/xulrunner-1.9/components/txmgr.xpt
 usr/lib/xulrunner-1.9/components/txtsvc.xpt
-usr/lib/xulrunner-1.9/components/ucnative.xpt
 usr/lib/xulrunner-1.9/components/uconv.xpt
 usr/lib/xulrunner-1.9/components/unicharutil.xpt
 usr/lib/xulrunner-1.9/components/update.xpt
