@@ -191,8 +191,9 @@ nsCharsetConverterManager::GetUnicodeEncoderRaw(const char * aDest,
 #ifdef MOZ_USE_NATIVE_UCONV
   if (mNativeUC) {
     nsCOMPtr<nsISupports> supports;
-    mNativeUC->GetNativeUnicodeEncoder(aDest,
-                                       getter_AddRefs(supports));
+    mNativeUC->GetNativeConverter("UCS-2", 
+                                  aDest,
+                                  getter_AddRefs(supports));
 
     encoder = do_QueryInterface(supports);
 
@@ -201,8 +202,7 @@ nsCharsetConverterManager::GetUnicodeEncoderRaw(const char * aDest,
       return NS_OK;
     }
   }
-  return NS_ERROR_UCONV_NOCONV;
-#else
+#endif  
   nsresult rv = NS_OK;
 
   nsCAutoString
@@ -220,7 +220,6 @@ nsCharsetConverterManager::GetUnicodeEncoderRaw(const char * aDest,
     NS_ADDREF(*aResult);
   }
   return rv;
-#endif
 }
 
 NS_IMETHODIMP
@@ -247,8 +246,9 @@ nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
 #ifdef MOZ_USE_NATIVE_UCONV
   if (mNativeUC) {
     nsCOMPtr<nsISupports> supports;
-    mNativeUC->GetNativeUnicodeDecoder(aSrc,
-                                       getter_AddRefs(supports));
+    mNativeUC->GetNativeConverter(aSrc,
+                                  "UCS-2", 
+                                  getter_AddRefs(supports));
     
     decoder = do_QueryInterface(supports);
 
@@ -257,8 +257,7 @@ nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
       return NS_OK;
     }
   }
-  return NS_ERROR_UCONV_NOCONV;
-#else
+#endif
   nsresult rv = NS_OK;
 
   NS_NAMED_LITERAL_CSTRING(contractbase, NS_UNICODEDECODER_CONTRACTID_BASE);
@@ -284,7 +283,6 @@ nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
 
   decoder.forget(aResult);
   return rv;
-#endif
 }
 
 nsresult 
