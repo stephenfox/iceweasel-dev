@@ -85,15 +85,8 @@ else
 MODULE_OPTIMIZE_FLAGS = -O2
 LIBRARY_NAME	= jemalloc
 
-ifeq (Darwin,$(OS_TARGET))
 # Build jemalloc as a shared lib, so that the library init function is executed.
 FORCE_SHARED_LIB= 1
-else
-# Make jemalloc part of libxul, in order to reduce dynamic loading overhead.
-MODULE		= jemalloc
-LIBXUL_LIBRARY	= 1
-FORCE_STATIC_LIB = 1
-endif
 
 CSRCS		= \
 		jemalloc.c \
