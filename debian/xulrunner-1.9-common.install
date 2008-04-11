@@ -25,6 +25,7 @@ usr/lib/xulrunner-1.9/components/FeedProcessor.js
 usr/lib/xulrunner-1.9/components/jsconsole-clhandler.js
 usr/lib/xulrunner-1.9/components/jsdservice.xpt
 usr/lib/xulrunner-1.9/components/nsAddonRepository.js
+usr/lib/xulrunner-1.9/components/nsBadCertHandler.js
 usr/lib/xulrunner-1.9/components/nsBlocklistService.js
 usr/lib/xulrunner-1.9/components/nsContentDispatchChooser.js
 usr/lib/xulrunner-1.9/components/nsContentPrefService.js
@@ -99,6 +100,7 @@ usr/lib/xulrunner-1.9/components/editor.xpt
 usr/lib/xulrunner-1.9/components/embed_base.xpt
 usr/lib/xulrunner-1.9/components/extensions.xpt
 usr/lib/xulrunner-1.9/components/exthandler.xpt
+usr/lib/xulrunner-1.9/components/exthelper.xpt
 usr/lib/xulrunner-1.9/components/fastfind.xpt
 usr/lib/xulrunner-1.9/components/feeds.xpt
 usr/lib/xulrunner-1.9/components/filepicker.xpt
