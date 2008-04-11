@@ -1,8 +1,38 @@
-xulrunner (1.9~b5-1) UNRELEASED; urgency=low
+xulrunner (1.9~b5-1) experimental; urgency=low
 
   * New upstream beta release (taken from upstream CVS).
+  * debian/mozconfig:
+    + Don't enable native uconv. I'm tired of maintaining this broken piece
+      of code (especially considering there are still know broken things).
+    + Don't build with flat chrome. The original need for that was to allow to
+      override content from other packages, but in the end this happened to be
+      made possible with extensions and proper overlays.
+  * debian/xulrunner-1.9-common.install:
+    + Don't install ucnative.xpt, which is native uconv's xpt file.
+    + Add new components files: nsBadCertHandler.js and exthelper.xpt.
+  * intl/uconv/native/nsINativeUConvService.idl,
+    intl/uconv/native/nsNativeUConvService.cpp,
+    intl/uconv/src/charsetalias.properties,
+    intl/uconv/src/nsCharsetConverterManager.cpp: Revert fixes to the native
+    uconv.
+  * debian/control:
+    + Build-depend on zip for jar chrome. This has the side effect to make
+      nsIPref.java removal from MozillaInterfaces-src.jar work.
+    + Bump build dependency on libnss3-dev, since we require additions only
+      available in latest version.
+  * config/config.mk, config/make-jars.pl, configure.in: Revert changes to
+    avoid needing zip when not required.
+  * configure: Updated.
+  * debian/xulrunner-1.9-gnome-support.install, debian/xulrunner-1.9.install:
+    Moved libimgicon.so from xulrunner-1.9-gnome-support to xulrunner-1.9.
+    This component doesn't require gnome, only standard gtk and glib.
+  * memory/jemalloc/Makefile.in, toolkit/library/Makefile.in: Don't link
+    libjemalloc statically into libxul, which has a potential of breaking
+    embedding applications.
+  * netwerk/cookie/src/Makefile.in: Don't turn warnings into errors.
+    Closes: #474925. (Hoping it will not turn in a runtime failure)
 
- -- Mike Hommey <glandium@debian.org>  Sun, 06 Apr 2008 16:01:45 +0200
+ -- Mike Hommey <glandium@debian.org>  Fri, 11 Apr 2008 21:07:40 +0200
 
 xulrunner (1.9~b4-1) experimental; urgency=low
 
