@@ -127,7 +127,7 @@ Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 Package: xulrunner-dev
 Section: libdevel
 Architecture: all
-Depends: ${misc:Depends}, xulrunner-1.9 (>= ${source:Upstream-Version}), libnss3-dev, libnspr4-dev, libmozjs-dev (>= ${source:Version}), xulrunner
+Depends: ${misc:Depends}, xulrunner-1.9 (>= ${source:Upstream-Version}), libnss3-dev, libnspr4-dev, libmozjs-dev (>= ${source:Version})
 Conflicts: libxul-dev
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
