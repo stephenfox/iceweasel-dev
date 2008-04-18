@@ -135,9 +135,6 @@ install-stamp: build-stamp
 	done
 	mv $(CURDIR)/debian/tmp/usr/lib/xulrunner-1.9/js $(CURDIR)/debian/tmp/usr/bin/smjs
 
-	# Add Debian package version to preferences
-	sed -i 's/\(BuildID=\).*/\1$(shell perl -e '($$s,$$m,$$h,$$d,$$M,$$y) = gmtime((stat("client.mk"))[9]); printf "%04d%02d%02d\n",$$y + 1900,$$M + 1,$$d;') (Debian-$(DEBIAN_VERSION))/' debian/tmp/usr/lib/xulrunner-1.9/platform.ini
-
 	cp -f LICENSE MPL
 	touch install-stamp
 
