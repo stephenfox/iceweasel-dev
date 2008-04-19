@@ -1,3 +1,14 @@
+iceweasel (3.0~b5-2) UNRELEASED; urgency=low
+
+  * allmakefiles.sh: Make the branding directory cleanup properly.
+  * browser/build.mk, browser/installer/Makefile.in,
+    toolkit/mozapps/installer/packager.mk: Cleanup the few remaining files in
+    browser/installer when distcleaning.
+  * configure.in, configure: Check less things during configure when using
+    libxul-sdk.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 19 Apr 2008 23:07:43 +0200
+
 iceweasel (3.0~b5-1) experimental; urgency=low
 
   * New upstream beta release.
