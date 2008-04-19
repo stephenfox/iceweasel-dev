@@ -123,7 +123,6 @@ install-stamp: build-stamp
 	diff debian/tmp.list debian/dist.list | grep "^[<>]" | grep -v "^> DEBIAN" | sort
 	rm -f debian/tmp.list debian/dist.list
 
-	# Move out libraries in /usr
 	cp -Lr dist/include/js debian/tmp/usr/include/mozjs
 	find debian/tmp/usr/include/mozjs -type f -printf %P\\n | while read f; do \
 		file=$$(echo debian/tmp/usr/include/xulrunner-1.9/*/$$f); \
@@ -134,6 +133,7 @@ install-stamp: build-stamp
 		ln -s $$f debian/tmp/usr/include/xulrunner-1.9/stable/$$(basename $$f); \
 		ln -s $$f debian/tmp/usr/include/xulrunner-1.9/unstable/$$(basename $$f); \
 	done
+	# Move out libraries in /usr
 	for lib in mozjs xpcomglue; do \
 		mv debian/tmp/usr/lib/xulrunner-1.9/lib$$lib* debian/tmp/usr/lib; \
 	done
