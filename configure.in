@@ -4131,6 +4131,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
                 AC_MSG_ERROR([system NSPR does not support PR_STATIC_ASSERT]))
     CFLAGS=$_SAVE_CFLAGS
 else
+  if test -n "$LIBXUL_SDK"; then
+      NSPR_CFLAGS="-I$LIBXUL_SDK_DIR/sdk/include"
+      NSPR_LIBS="-L$LIBXUL_SDK_DIR/sdk/lib -lnspr$NSPR_VERSION -lplc$NSPR_VERSION -lplds$NSPR_VERSION"
+  else
     if test "$OS_ARCH" = "WINCE"; then
         NSPR_CFLAGS="-I${LIBXUL_DIST}/include/nspr"
         NSPR_LIBS="${LIBXUL_DIST}/lib/nspr${NSPR_VERSION}.lib ${LIBXUL_DIST}/lib/plc${NSPR_VERSION}.lib ${LIBXUL_DIST}/lib/plds${NSPR_VERSION}.lib "
@@ -4145,6 +4149,7 @@ else
         NSPR_CFLAGS='`$(LIBXUL_DIST)/bin/nspr-config --prefix='${LIBXUL_DIST}' --includedir='${LIBXUL_DIST}'/include/nspr --cflags`'
         NSPR_LIBS='`$(LIBXUL_DIST)/bin/nspr-config --prefix='${LIBXUL_DIST}' --libdir='${LIBXUL_DIST}'/lib --libs`'
     fi
+  fi
 fi
 
 dnl ========================================================
@@ -4710,6 +4715,10 @@ dnl =
 dnl ========================================================
 MOZ_ARG_HEADER(Toolkit Options)
 
+if test -n "$LIBXUL_SDK"; then
+    MOZ_WIDGET_TOOLKIT=`perl -e 'while (<>) { /MOZ_DEFAULT_TOOLKIT *\"(.*)\"/ && print $1; }' $LIBXUL_SDK_DIR/include/mozilla-config.h`
+else
+
     dnl ========================================================
     dnl = Select the default toolkit
     dnl ========================================================
@@ -4746,6 +4755,7 @@ MOZ_ARG_HEADER(Toolkit Options)
     else
         AC_MSG_ERROR([You must specify a default toolkit (perhaps $_PLATFORM_DEFAULT_TOOLKIT).])
     fi
+fi # LIBXUL_SDK
 
 AC_DEFINE_UNQUOTED(MOZ_DEFAULT_TOOLKIT,"$MOZ_WIDGET_TOOLKIT")
 
@@ -4868,6 +4878,7 @@ dnl ========================================================
 dnl = startup-notification support module
 dnl ========================================================
 
+if test -z "$LIBXUL_SDK"; then
 if test "$MOZ_ENABLE_GTK2"
 then
     MOZ_ENABLE_STARTUP_NOTIFICATION=
@@ -4894,6 +4905,7 @@ then
     fi
 
     TK_LIBS="$TK_LIBS $MOZ_STARTUP_NOTIFICATION_LIBS"
+fi
 fi
 AC_SUBST(MOZ_ENABLE_STARTUP_NOTIFICATION)
 AC_SUBST(MOZ_STARTUP_NOTIFICATION_CFLAGS)
@@ -4955,6 +4967,12 @@ AC_SUBST(MOZ_QT_LIBS)
 AC_SUBST(MOC)
 
 AC_SUBST(MOZ_DFB)
+
+if test "$MOZ_ENABLE_GTK2" && test -z "$LIBXUL_SDK"
+then
+    AC_DEFINE(MOZ_X11)
+    MOZ_X11=1
+fi
 AC_SUBST(MOZ_X11)
 
 dnl ========================================================
@@ -5037,7 +5055,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
 dnl ========================================================
 dnl = Pango
 dnl ========================================================
-if test "$MOZ_ENABLE_GTK2"
+if test "$MOZ_ENABLE_GTK2" && test -z "$LIBXUL_SDK"
 then
     AC_SUBST(MOZ_PANGO)
 
@@ -5072,6 +5090,7 @@ dnl ========================================================
 dnl = GnomeVFS support module
 dnl ========================================================
 
+if test -z "$LIBXUL_SDK"; then
 if test "$MOZ_X11"
 then
     dnl build the gnomevfs extension by default only when the
@@ -5207,6 +5226,9 @@ fi
 AC_SUBST(MOZ_ENABLE_DBUS)
 AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
 AC_SUBST(MOZ_DBUS_GLIB_LIBS)
+
+fi # LIBXUL_SDK
+
 
 dnl ========================================================
 dnl = Build Personal Security Manager
@@ -5465,7 +5487,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
 dnl ========================================================
 
 dnl If using sydneyaudio with Linux, ensure that the alsa library is available
-if test "$COMPILE_ENVIRONMENT"; then
+if test "$COMPILE_ENVIRONMENT" && test -z "$LIBXUL_SDK"; then
 if test -n "$MOZ_SYDNEYAUDIO"; then
    case "$target_os" in
 linux*)
@@ -6472,7 +6494,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
     MOZ_MEMORY=1,
     MOZ_MEMORY=)
 
-if test "$NS_TRACE_MALLOC"; then
+if test "$NS_TRACE_MALLOC" || test "$LIBXUL_SDK"; then
     MOZ_MEMORY=
 fi
 
@@ -7373,7 +7395,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
     ;;
 esac
 
-if test -z "$COMPILE_ENVIRONMENT"; then
+if test -z "$COMPILE_ENVIRONMENT" || test "$LIBXUL_SDK"; then
     SKIP_IDL_CHECK="yes"
 fi
 
@@ -7480,7 +7502,7 @@ if test -n "$CROSS_COMPILE"; then
     fi
 fi
 
-if test -z "$SKIP_PATH_CHECKS"; then
+if test -z "$SKIP_PATH_CHECKS" && test -z "$LIBXUL_SDK"; then
 if test -z "${GLIB_CFLAGS}" || test -z "${GLIB_LIBS}" ; then
     if test "$MOZ_ENABLE_GTK2" || test "$USE_ELF_DYNSTR_GC" ; then
         PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
@@ -8212,7 +8234,7 @@ if test "$USING_HCC"; then
 fi
 
 dnl Check for missing components
-if test "$COMPILE_ENVIRONMENT"; then
+if test "$COMPILE_ENVIRONMENT" && test -z "$LIBXUL_SDK"; then
 if test "$MOZ_X11"; then
     dnl ====================================================
     dnl = Check if X headers exist
