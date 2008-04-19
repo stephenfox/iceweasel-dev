@@ -1,3 +1,32 @@
+xulrunner (1.9~b5-2) experimental; urgency=low
+
+  * debian/control: Don't make xulrunner-dev depend on xulrunner (the older
+    package).
+  * debian/rules:
+    + Don't add the debian release version in platform.ini. This can create
+      some problems.
+    + Fixed sdk/lib/libxpcomglue.so symlink. Closes: #475614.
+    + Add nspr include files in /usr/include/xulrunner-1.9/(un|)stable/.
+    + Bump shlibs for libxpcomglue0d, and fail when symbols file is not
+      up-to-date.
+  * debian/libxpcomglue0d.symbols: Add symbols file.
+  * xpcom/glue/nsGREGlue.cpp: Fix FTBFS on architectures not defining
+    TARGET_XPCOM_ABI. Closes: #476092.
+  * debian/xulrunner-dev-static.install, debian/xulrunner-dev.install: Move
+    mozilla-gtkmozembed.pc from xulrunner-dev to xulrunner-dev-static.
+    Closes: #475613.
+  * xpcom/base/nscore.h, xpcom/glue/nsMemory.h, xpcom/glue/nsProxyRelease.h,
+    xpcom/glue/nsStringAPI.h: Export standalone glue symbols instead of hiding
+    them. This will make nsAString::BeginReading and many other symbols
+    available.
+  * xpcom/glue/standalone/Makefile.in: Force even more symbols to be exported
+    from standalone glue by removing visibiliby flags.
+  * config/config.mk: Fix FTBFS with newer hunspell due to local hunspell.hxx
+    (from version 1.1) being chosen over system hunspell.hxx because of
+    include flags.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 19 Apr 2008 13:05:22 +0200
+
 xulrunner (1.9~b5-1) experimental; urgency=low
 
   * New upstream beta release (taken from upstream CVS).
