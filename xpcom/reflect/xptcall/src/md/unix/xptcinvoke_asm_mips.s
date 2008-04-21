@@ -67,15 +67,15 @@
 	.text
 
 #	
-# _XPTC_InvokeByIndex(that, methodIndex, paramCount, params)
+# _NS_InvokeByIndex_P(that, methodIndex, paramCount, params)
 #                      a0       a1          a2         a3
 
-	.globl	_XPTC_InvokeByIndex
+	.globl	_NS_InvokeByIndex_P
 	.align	2
-	.type	_XPTC_InvokeByIndex,@function
-	.ent	_XPTC_InvokeByIndex,0
+	.type	_NS_InvokeByIndex_P,@function
+	.ent	_NS_InvokeByIndex_P,0
 	.frame	fp, FRAMESZ, ra
-_XPTC_InvokeByIndex:
+_NS_InvokeByIndex_P:
 	SETUP_GP
 	subu	sp, FRAMESZ
 
@@ -164,4 +164,4 @@ _XPTC_InvokeByIndex:
 
 	addiu	sp, FRAMESZ
 	j	ra
-END(_XPTC_InvokeByIndex)
+END(_NS_InvokeByIndex_P)
