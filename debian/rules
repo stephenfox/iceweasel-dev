@@ -114,7 +114,7 @@ install-stamp: build-stamp
 	for f in js run-mozilla.sh xulrunner mozilla-xremote-client regxpcom updater xpcshell xpidl xpt_dump xpt_link xulrunner-bin xulrunner-stub; do chmod 755 debian/tmp/usr/lib/xulrunner-1.9/$$f; done
 
 	# Replace some installed files by symlinks
-	cd debian/tmp/usr/lib/xulrunner-devel-1.9/sdk/lib; for f in *.so; do rm -f $$f; [ -f ../../$$f ] && ln -s ../../$$f $$f || ln -s ../../../$$f $$f; done
+	cd debian/tmp/usr/lib/xulrunner-devel-1.9/sdk/lib; for f in *.so; do rm -f $$f; ln -s /usr/lib/xulrunner-1.9/$$f $$f; done
 	cd debian/tmp/usr/include/xulrunner-1.9/stable; for f in *; do rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; done
 	cd debian/tmp/usr/share/idl/xulrunner-1.9/stable; for f in *; do rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; done
 
@@ -134,9 +134,7 @@ install-stamp: build-stamp
 		ln -s $$f debian/tmp/usr/include/xulrunner-1.9/unstable/$$(basename $$f); \
 	done
 	# Move out libraries in /usr
-	for lib in mozjs xpcomglue; do \
-		mv debian/tmp/usr/lib/xulrunner-1.9/lib$$lib* debian/tmp/usr/lib; \
-	done
+	mv debian/tmp/usr/lib/xulrunner-1.9/libmozjs.so* debian/tmp/usr/lib
 	mv $(CURDIR)/debian/tmp/usr/lib/xulrunner-1.9/js $(CURDIR)/debian/tmp/usr/bin/smjs
 
 	cp -f LICENSE MPL
@@ -174,7 +172,6 @@ binary-arch: build install
 	dh_strip -plibmozjs1d -pspidermonkey-bin --dbg-package=libmozjs1d-dbg
 	dh_compress -a
 	dh_fixperms -a
-	dh_makeshlibs -plibxpcomglue0d -V 'libxpcomglue0d (>= 1.9~b5-2)' -- -c4
 	dh_makeshlibs -plibmozjs1d
 	dh_installdeb -a
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-1.9

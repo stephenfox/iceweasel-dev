@@ -13,7 +13,6 @@ usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces.jar
 usr/lib/xulrunner-devel-1.9/sdk/lib/libxpcom.so
 usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces-src.jar
 usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaGlue.jar
-usr/lib/xulrunner-devel-1.9/sdk/lib/libxpcomglue.so
 
 usr/lib/pkgconfig/libxul-unstable.pc
 usr/lib/pkgconfig/libxul-embedding-unstable.pc

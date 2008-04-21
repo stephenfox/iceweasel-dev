@@ -98,15 +98,6 @@ Description: standalone JavaScript/ECMAScript (ECMA-262) interpreter
  first introduced by Netscape and now led by the Mozilla project.
 Homepage: http://www.mozilla.org/js/
 
-Package: libxpcomglue0d
-Section: libs
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: XPCOM standalone glue
- This library allows embedding applications to link against a single library
- while keeping compatibility with multiple versions of XPCOM/libxul.
-Homepage: http://developer.mozilla.org/en/docs/XPCOM_Glue
-
 Package: xulrunner-1.9-common
 Section: libs
 Architecture: all

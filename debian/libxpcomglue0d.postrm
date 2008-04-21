@@ -1,7 +1,0 @@
-#!/bin/sh
-
-[ "$1" = "remove" ] || [ "$1" = "purge" ] && dpkg-divert --package libxpcomglue0d --remove --rename --divert /usr/lib/libxpcomglue.0d.old /usr/lib/libxpcomglue.so.0d
-
-#DEBHELPER#
-
-exit 0
