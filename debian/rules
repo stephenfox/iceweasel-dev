@@ -184,7 +184,7 @@ install-stamp: build-stamp
 #	ln -s /usr/lib/nss/libnssckbi.so debian/tmp/usr/lib/iceweasel/
 
 # Exclude gnome components from iceweasel
-	dh_install -piceweasel -Xgnome -Ximgicon
+	dh_install -piceweasel -Xgnome
 	dh_install -piceweasel-gnome-support
 
 #Install helpers

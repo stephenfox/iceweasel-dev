@@ -1,13 +1,20 @@
-iceweasel (3.0~b5-2) UNRELEASED; urgency=low
+iceweasel (3.0~b5-2) experimental; urgency=low
 
+  [ Mike Hommey ]
   * allmakefiles.sh: Make the branding directory cleanup properly.
   * browser/build.mk, browser/installer/Makefile.in,
     toolkit/mozapps/installer/packager.mk: Cleanup the few remaining files in
     browser/installer when distcleaning.
   * configure.in, configure: Check less things during configure when using
     libxul-sdk.
+  
+  [ Eric Dorland ]
+  * debian/rules: Install the libimgicon.so component in the regular
+    iceweasel package and not iceweasel-gnome-support. It's needed to
+    display the icons and doesn't actually depend on anything gnome
+    specific. (Closes: #474728)
 
- -- Mike Hommey <glandium@debian.org>  Sat, 19 Apr 2008 23:07:43 +0200
+ -- Eric Dorland <eric@debian.org>  Tue, 22 Apr 2008 01:26:06 -0400
 
 iceweasel (3.0~b5-1) experimental; urgency=low
 
