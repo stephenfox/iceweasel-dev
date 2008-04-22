@@ -13,6 +13,8 @@ iceweasel (3.0~b5-2) experimental; urgency=low
     iceweasel package and not iceweasel-gnome-support. It's needed to
     display the icons and doesn't actually depend on anything gnome
     specific. (Closes: #474728)
+  * debian/rules: Suggest xfonts-mathml and ttf-mathematica4.1 for mathml
+    support. (Closes: #445564)
 
  -- Eric Dorland <eric@debian.org>  Tue, 22 Apr 2008 01:26:06 -0400
 
