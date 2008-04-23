@@ -1,3 +1,21 @@
+xulrunner (1.8.1.14-2) unstable; urgency=low
+
+  * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_ipf64.cpp: Apply fix from
+    bz#419350 for FTBFS with g++-4.3 on ia64. Closes: #477168.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 22 Apr 2008 22:24:18 +0200
+
+xulrunner (1.8.1.14-1) unstable; urgency=low
+
+  * New security/stability upstream release (taken from upstream CVS)
+  * Fixes mfsa-2008-20, also known as CVE-2008-1380.
+  * debian/patches/38_armel.dpatch: Force to not use -fshort-wchar where it
+    fails. Closes: #476303.
+  * debian/patches/00list: Updated accordingly.
+  * debian/patches/99_configure.dpatch: Updated.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 17 Apr 2008 21:08:57 +0200
+
 xulrunner (1.9~b5-2) experimental; urgency=low
 
   * debian/control: Don't make xulrunner-dev depend on xulrunner (the older
