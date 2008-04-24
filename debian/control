@@ -162,7 +162,8 @@ Description: Static libraries for the Gecko engine
  Install this package if you wish to embed the Gecko engine in your
  program or want to develop XPCOM components.
  .
- It contains the XPCOM dependent glue, and a few other static libraries.
+ It contains the XPCOM dependent and standalone glues, and a few other
+ static libraries.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: xulrunner-1.9-dbg
