@@ -5133,7 +5133,7 @@ MOZ_FIX_LINK_PATHS='-Wl,-rpath-link,$(LIBXUL_DIST)/bin'
 XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/bin -lxpcom'
 LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) -lxul'
 XPCOM_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) $(XPCOM_FROZEN_LDOPTS)'
-XPCOM_STANDALONE_GLUE_LDOPTS='$(call EXPAND_LIBNAME_PATH,xpcomglue,$(LIBXUL_DIST)/lib)'
+XPCOM_STANDALONE_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX)'
 
 MOZ_COMPONENT_NSPR_LIBS='-L$(LIBXUL_DIST)/bin $(NSPR_LIBS)'
 MOZ_XPCOM_OBSOLETE_LIBS='-L$(LIBXUL_DIST)/lib -lxpcom_compat'
@@ -8027,7 +8027,7 @@ CONFIGURE_STATIC_ASSERT(sizeof(wchar_t) == 2);
                          CONFIGURE_STATIC_ASSERT((wchar_t)-1 > (wchar_t) 0)
 ; return 0; }
 EOF
-if { (eval echo configure:8031: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+if { (eval echo configure:8031: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
   rm -rf conftest*
   ac_cv_have_usable_wchar_option_v2="yes"
 else

@@ -1,3 +1,30 @@
+xulrunner (1.9~b5-3) experimental; urgency=low
+
+  * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_linux_m68k.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcinvoke_asm_mips.s,
+    xpcom/reflect/xptcall/src/md/unix/xptcinvoke_mips.cpp: Implement new XPCOM
+    API on m68k and mips. This fixes FTBFSes on these architectures.
+    Closes: #477068.
+  * configure, configure.in, xpcom/base/nscore.h, xpcom/glue/nsMemory.h,
+    xpcom/glue/nsProxyRelease.h, xpcom/glue/nsStringAPI.h,
+    xpcom/glue/standalone/Makefile.in, xpcom/glue/standalone/nsGlueLinking.h,
+    xpcom/glue/standalone/nsXPCOMGlue.h: Don't build the standalone glue as a
+    dynamic library. This is actually not maintenable without being a PITA.
+    Closes: #476920, #476921.
+  * debian/control:
+    + Invert xulrunner-dev and xulrunner-static-dev dependencies on each
+      other.
+    + xulrunner-dev doesn't need to conflict with libxul-dev now it doesn't
+      contain libxpcomglue.so.
+    + Modify xulrunner-dev-static description.
+  * (was: debian/patches/38_armel.dpatch)
+    configure.in, configure: Force to not use -fshort-wchar where it fails.
+    Closes: #476303.
+  * debian/xulrunner-dev-static.install, debian/xulrunner-dev.install: Move
+    all pkg-config files into xulrunner-dev.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 24 Apr 2008 21:12:31 +0200
+
 xulrunner (1.8.1.14-2) unstable; urgency=low
 
   * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_ipf64.cpp: Apply fix from
