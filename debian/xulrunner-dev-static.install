@@ -3,7 +3,3 @@ usr/lib/xulrunner-devel-1.9/sdk/lib/libunicharutil_external_s.a
 usr/lib/xulrunner-devel-1.9/sdk/lib/libembed_base_standalone.a
 usr/lib/xulrunner-devel-1.9/sdk/lib/libembed_base_s.a
 usr/lib/xulrunner-devel-1.9/sdk/lib/libmozreg_s.a
-
-usr/lib/pkgconfig/libxul-unstable.pc
-usr/lib/pkgconfig/libxul.pc
-usr/lib/pkgconfig/mozilla-gtkmozembed.pc

@@ -15,7 +15,10 @@ usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces-src.jar
 usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaGlue.jar
 usr/lib/xulrunner-devel-1.9/sdk/lib/libxpcomglue.so
 
+usr/lib/pkgconfig/libxul-unstable.pc
 usr/lib/pkgconfig/libxul-embedding-unstable.pc
+usr/lib/pkgconfig/libxul.pc
 usr/lib/pkgconfig/libxul-embedding.pc
+usr/lib/pkgconfig/mozilla-gtkmozembed.pc
 usr/lib/pkgconfig/mozilla-gtkmozembed-embedding.pc
 usr/lib/pkgconfig/mozilla-plugin.pc
