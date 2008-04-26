@@ -71,8 +71,6 @@ if [ -z "${ICEWEASEL_DSP}" ]; then
     ICEWEASEL_DSP="none"
 fi
 
-export MOZ_DISABLE_PANGO
-
 ##
 ## find /dev/dsp handler
 ##

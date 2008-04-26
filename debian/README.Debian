@@ -105,12 +105,8 @@ at http://kb.mozillazine.org/Emacs_Keybindings_(Firefox).
 Pango
 -----
 
-From 1.5.0.1, pango support is enabled by default. This is not the
-default for Mozilla.org builds, so may have more problems, but it is
-the default because it supports more languages out of the box. If you
-experience problems, you can disable it by hand by setting
-MOZ_DISABLE_PANGO=1 either in /etc/iceweasel/iceweaselrc,
-${HOME}/.mozilla/firefox/rc or as an exported environment variable.
+From version 3.0~b4-1, pango is the only font backend upstream.
+MOZ_DISABLE_PANGO now has no effect.
 
 Well Known Ports
 ----------------
