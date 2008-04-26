@@ -10,6 +10,8 @@ iceweasel (3.0~b5-3) UNRELEASED; urgency=low
     - Arrange LDFLAGS so that -Wl,--as-needed appears before -lpthread.
   * debian/iceweasel-gnome-support.install: Remove the imgicon component from
     the iceweasel-gnome-support package. (Closes: #477661)
+  * xpcom/reflect/xptcall/src/md/unix/Makefile.in: Fix FTBFS on hppa.
+    (Closes: #473766)
 
  -- Mike Hommey <glandium@debian.org>  Sat, 26 Apr 2008 08:52:43 +0200
 
