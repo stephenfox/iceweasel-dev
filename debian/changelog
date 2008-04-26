@@ -4,6 +4,7 @@ iceweasel (3.0~b5-3) UNRELEASED; urgency=low
     the only font backend and MOZ_DISABLE_PANGO is effectless.
   * debian/presubj: Remove the paragraph about MOZ_DISABLE_PANGO.
   * debian/iceweasel-runner: Don't export the MOZ_DISABLE_PANGO variable.
+  * debian/rules: Remove old unused stuff.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 26 Apr 2008 08:52:43 +0200
 

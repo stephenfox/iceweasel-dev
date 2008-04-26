@@ -20,9 +20,6 @@ BUILD_DATE=$(shell perl -e '($$s,$$m,$$h,$$d,$$M,$$y) = gmtime((stat("client.mk"
 
 AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 
-export BUILD_OFFICIAL=1
-export MOZ_BUILD_DATE=$(BUILD_DATE)$(DEBIAN_REV_CODE)
-
 LIB_DIR := /usr/lib/iceweasel
 SHARE_DIR := /usr/share/iceweasel
 
@@ -142,7 +139,7 @@ build-stamp: config.status
 
 
 	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
-	$(MAKE) STRIP=:
+	$(MAKE)
 
 	touch build-stamp
 
@@ -176,12 +173,6 @@ install-stamp: build-stamp
 # Remove execute on javascript files
 	find debian/tmp -name '*.so' | xargs chmod a-x 
 	chmod a-x debian/tmp/$(LIB_DIR)/components/*.js
-
-# Install nspr and nss links
-#	for lib in ssl3 softokn3 smime3 nss3 nspr4 plc4 plds4; do \
-		ln -s /usr/lib/$$(objdump -p /usr/lib/lib$$lib.so | awk '/SONAME/{print $$2}') debian/tmp/usr/lib/iceweasel/lib$$lib.so; \
-	done
-#	ln -s /usr/lib/nss/libnssckbi.so debian/tmp/usr/lib/iceweasel/
 
 # Exclude gnome components from iceweasel
 	dh_install -piceweasel -Xgnome
