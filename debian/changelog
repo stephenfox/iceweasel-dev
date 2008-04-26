@@ -1,4 +1,4 @@
-iceweasel (3.0~b5-3) UNRELEASED; urgency=low
+iceweasel (3.0~b5-3) experimental; urgency=low
 
   * debian/README.Debian: Change the paragraph about pango, since this is now
     the only font backend and MOZ_DISABLE_PANGO is effectless.
@@ -13,7 +13,7 @@ iceweasel (3.0~b5-3) UNRELEASED; urgency=low
   * xpcom/reflect/xptcall/src/md/unix/Makefile.in: Fix FTBFS on hppa.
     (Closes: #473766)
 
- -- Mike Hommey <glandium@debian.org>  Sat, 26 Apr 2008 08:52:43 +0200
+ -- Mike Hommey <glandium@debian.org>  Sat, 26 Apr 2008 09:35:27 +0200
 
 iceweasel (3.0~b5-2) experimental; urgency=low
 
