@@ -132,7 +132,6 @@ config.status:
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
 		done ; \
 	done
-	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --infodir=\$${prefix}/share/info $(CONFIGURE_OPTIONS)
@@ -143,7 +142,7 @@ build-stamp: config.status
 
 
 	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
-	$(MAKE)
+	$(MAKE) OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 
 	touch build-stamp
 

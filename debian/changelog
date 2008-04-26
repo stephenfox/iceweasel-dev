@@ -7,6 +7,7 @@ iceweasel (3.0~b5-3) UNRELEASED; urgency=low
   * debian/rules:
     - Remove old unused stuff.
     - Use upstream optimization flags.
+    - Arrange LDFLAGS so that -Wl,--as-needed appears before -lpthread.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 26 Apr 2008 08:52:43 +0200
 
