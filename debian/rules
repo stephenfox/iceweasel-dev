@@ -23,20 +23,14 @@ AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 LIB_DIR := /usr/lib/iceweasel
 SHARE_DIR := /usr/share/iceweasel
 
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	OPTFLAGS = -O0 -g
-else
-	OPTFLAGS = -O2 -g -fno-strict-aliasing
+CFLAGS := -g
+
+ifeq ($(DEB_BUILD_ARCH),alpha)
+	CFLAGS += -Wl,--no-relax
+endif
 
 ifeq ($(DEB_BUILD_ARCH),ppc64)
-       OPTFLAGS = -mminimal-toc
-endif
-
-endif
-
-DEBUG_FLAG=
-ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
-	DEBUG_FLAG = --enable-debug
+	CFLAGS += -mminimal-toc
 endif
 
 CONFIGURE_OPTIONS = \
@@ -64,7 +58,6 @@ CONFIGURE_OPTIONS = \
 	--disable-gtktest \
 	--disable-debug \
 	--enable-xft \
-	--enable-optimize="-pipe -w $(OPTFLAGS)" \
 	--with-system-zlib=/usr \
 	--enable-xinerama \
 	--enable-extensions=default \
@@ -78,8 +71,17 @@ CONFIGURE_OPTIONS = \
 	--disable-updater \
 	--disable-elf-dynstr-gc \
 	--with-branding=debian/branding \
-	--disable-crashreporter \
-	$(DEBUG_FLAG)
+	--disable-crashreporter
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	CONFIGURE_OPTIONS += --disable-optim
+endif
+
+ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+	CONFIGURE_OPTIONS += --enable-debug
+endif
+
+
 
 configure: config.status
 config.status:
@@ -131,6 +133,8 @@ config.status:
 		done ; \
 	done
 	LDFLAGS="-Wl,--as-needed" \
+	CFLAGS="$(CFLAGS)" \
+	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --infodir=\$${prefix}/share/info $(CONFIGURE_OPTIONS)
 
 build: build-stamp
