@@ -24,7 +24,7 @@ Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}
 Suggests: iceweasel-gnome-support (= ${binary:Version}), latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
 Provides: www-browser
 Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1), iceweasel-dom-inspector (<< 3.0~b4)
-Replaces: mozilla-firefox, firefox (<< 2.0+dfsg-1)
+Replaces: mozilla-firefox, firefox (<< 2.0+dfsg-1), iceweasel-gnome-support (<= 3.0~b5-2)
 Description: lightweight web browser based on Mozilla
  Iceweasel is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface
