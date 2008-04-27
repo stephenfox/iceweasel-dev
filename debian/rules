@@ -225,6 +225,7 @@ binary-indep: build install
 	dh_installmime -i
 	dh_installchangelogs -i
 	dh_link -i
+	dh_desktop -i
 	dh_compress -i
 	dh_fixperms -i
 	dh_installdeb -i
@@ -245,6 +246,7 @@ binary-arch: build install
 	dh_installmime -a
 	dh_installchangelogs -a
 	dh_link -a
+	dh_desktop -a
 	dh_strip -a --dbg-package=iceweasel-dbg
 	dh_compress -piceweasel -XREADME.Debian
 	dh_compress -a -Niceweasel
