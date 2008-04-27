@@ -41,9 +41,7 @@
 #include "nsIComponentManager.h"
 #include "nsIGenericFactory.h"
 
-#ifndef MOZILLA_1_8_BRANCH
 #include "nsIClassInfoImpl.h"
-#endif
 
 #include "nsICanvasRenderingContextGLES11.h"
 #include "nsICanvasRenderingContextGLWeb20.h"
