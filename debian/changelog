@@ -4,6 +4,8 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
     - Add Replaces on iceweasel-gnome-support for imgicon move.
       (Closes: #478084)
     - Fix GNOME spelling errors.
+    - Remove binutils and dpkg-dev build dependencies that were workarounds
+      for broken version that are no longer in Debian.
   * debian/rules: Add calls to dh_desktop.
   * debian/iceweasel.postinst: Fix inverted check for a running
     iceweasel. Thanks Andreas Beckmann. (Closes: #473756)
