@@ -39,9 +39,9 @@ Architecture: any
 Section: gnome
 Depends: ${shlibs:Depends}, iceweasel (= ${binary:Version})
 Provides: gnome-www-browser
-Description: Support for Gnome in Iceweasel
+Description: Support for GNOME in Iceweasel
  This is an Iceweasel component that allows it to use protocol
- handlers from Gnome-VFS, such as smb or sftp, and other Gnome
+ handlers from GnomeVFS, such as smb or sftp, and other GNOME
  integration features.
 
 Package: iceweasel-dbg

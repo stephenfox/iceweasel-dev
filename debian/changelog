@@ -1,7 +1,9 @@
 iceweasel (3.0~b5-4) UNRELEASED; urgency=low
 
-  * debian/control: Add Replaces on iceweasel-gnome-support for imgicon
-    move. (Closes: #478084)
+  * debian/control:
+    - Add Replaces on iceweasel-gnome-support for imgicon move.
+      (Closes: #478084)
+    - Fix GNOME spelling errors.
   * debian/iceweasel.postinst: Fix inverted check for a running
     iceweasel. Thanks Andreas Beckmann. (Closes: #473756)
 
