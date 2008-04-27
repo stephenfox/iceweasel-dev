@@ -2,8 +2,10 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
 
   * debian/control: Add Replaces on iceweasel-gnome-support for imgicon
     move. (Closes: #478084)
+  * debian/iceweasel.postinst: Fix inverted check for a running
+    iceweasel. Thanks Andreas Beckmann. (Closes: #473756)
 
- -- Eric Dorland <eric@debian.org>  Sun, 27 Apr 2008 00:36:21 -0400
+ -- Eric Dorland <eric@debian.org>  Sun, 27 Apr 2008 14:45:36 -0400
 
 iceweasel (3.0~b5-3) experimental; urgency=low
 

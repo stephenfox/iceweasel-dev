@@ -18,7 +18,7 @@ fi
 
 #DEBHELPER#
 
-if ! pgrep firefox-bin >/dev/null 2>&1 ; then 
+if pgrep firefox-bin >/dev/null 2>&1 ; then 
     echo "Please restart any running Iceweasels," \
         "or you will experience problems."
 fi
