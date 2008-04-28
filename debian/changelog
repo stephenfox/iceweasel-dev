@@ -9,8 +9,11 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
   * debian/rules: Add calls to dh_desktop.
   * debian/iceweasel.postinst: Fix inverted check for a running
     iceweasel. Thanks Andreas Beckmann. (Closes: #473756)
+  * debian/iceweasel.desktop: Add trailing semicolons to Categories and
+    Mimetype to comply the standard. Thanks Michael Biebl. (Closes:
+    #468117)
 
- -- Eric Dorland <eric@debian.org>  Sun, 27 Apr 2008 14:45:36 -0400
+ -- Eric Dorland <eric@debian.org>  Mon, 28 Apr 2008 03:16:48 -0400
 
 iceweasel (3.0~b5-3) experimental; urgency=low
 
