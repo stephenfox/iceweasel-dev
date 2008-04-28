@@ -140,7 +140,7 @@ Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 Package: xulrunner-dev-bin
 Section: libdevel
 Architecture: any
-Depends: ${misc:Depends}
+Depends: ${shlibs:Depends} ${misc:Depends}
 Description: Static libraries for the Gecko engine
  This library provides an API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
