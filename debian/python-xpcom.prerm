@@ -3,9 +3,9 @@
 set -e
 
 if [ "$1" = "remove" ]; then
-    touch /usr/lib/xulrunner/.autoreg
-    rm -f /usr/lib/xulrunner/components/compreg.dat \
-          /usr/lib/xulrunner/components/xpti.dat
+    touch /usr/lib/xulrunner-1.9/.autoreg
+    rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
+          /usr/lib/xulrunner-1.9/components/xpti.dat
 fi
 
 #DEBHELPER#
