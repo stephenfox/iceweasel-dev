@@ -137,6 +137,9 @@ install-stamp: build-stamp
 	mv debian/tmp/usr/lib/xulrunner-1.9/libmozjs.so* debian/tmp/usr/lib
 	mv $(CURDIR)/debian/tmp/usr/lib/xulrunner-1.9/js $(CURDIR)/debian/tmp/usr/bin/smjs
 
+	install -d -m 755 debian/tmp/usr/lib/$(PYVER)
+	mv debian/tmp/usr/lib/xulrunner-1.9/python debian/tmp/usr/lib/$(PYVER)/site-packages
+
 	cp -f LICENSE MPL
 	touch install-stamp
 
@@ -165,7 +168,7 @@ binary-arch: build install
 	dh_installexamples -a
 	dh_installmenu -pspidermonkey-bin
 	dh_install -a --sourcedir=debian/tmp
-	dh_pysupport -ppython-xpcom /usr/lib/xulrunner-1.9/python
+	dh_pysupport -ppython-xpcom
 	dh_installman -pspidermonkey-bin $(CURDIR)/debian/smjs.1
 	dh_link -a
 	dh_strip -a -Nlibmozjs1d -Nspidermonkey-bin --dbg-package=xulrunner-1.9-dbg
