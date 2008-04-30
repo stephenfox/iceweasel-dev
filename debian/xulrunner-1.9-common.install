@@ -10,11 +10,8 @@ usr/lib/xulrunner-1.9/defaults/autoconfig usr/share/xulrunner-1.9/defaults
 usr/lib/xulrunner-1.9/res usr/share/xulrunner-1.9
 usr/lib/xulrunner-1.9/modules usr/share/xulrunner-1.9
 
-usr/lib/xulrunner-1.9/chrome/classic* usr/share/xulrunner-1.9/chrome
-usr/lib/xulrunner-1.9/chrome/en-US* usr/share/xulrunner-1.9/chrome
-usr/lib/xulrunner-1.9/chrome/toolkit* usr/share/xulrunner-1.9/chrome
-usr/lib/xulrunner-1.9/chrome/pippki* usr/share/xulrunner-1.9/chrome
-usr/lib/xulrunner-1.9/chrome/comm* usr/share/xulrunner-1.9/chrome
+usr/lib/xulrunner-1.9/chrome/*.jar usr/share/xulrunner-1.9/chrome
+usr/lib/xulrunner-1.9/chrome/*.manifest usr/share/xulrunner-1.9/chrome
 
 usr/lib/xulrunner-1.9/components/FeedProcessor.js
 usr/lib/xulrunner-1.9/components/jsconsole-clhandler.js
