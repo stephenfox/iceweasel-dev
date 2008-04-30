@@ -140,6 +140,10 @@ install-stamp: build-stamp
 	install -d -m 755 debian/tmp/usr/lib/$(PYVER)
 	mv debian/tmp/usr/lib/xulrunner-1.9/python debian/tmp/usr/lib/$(PYVER)/site-packages
 
+	install -d -m 755 debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit/content/global/
+	install -m 644 toolkit/content/buildconfig.html debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit/content/global/
+	echo override chrome://global/content/buildconfig.html toolkit/content/global/buildconfig.html >> debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit.manifest
+
 	cp -f LICENSE MPL
 	touch install-stamp
 
