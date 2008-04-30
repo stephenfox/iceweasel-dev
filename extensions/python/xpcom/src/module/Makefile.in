@@ -77,6 +77,7 @@ ifeq ($(OS_ARCH),Darwin)
 else
   EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS) \
                       $(MOZ_COMPONENT_LIBS) \
+		      -Wl,-rpath,/usr/lib/xulrunner-1.9
                       $(NULL)
 endif
 IMPORT_LIBRARY		:= $(SHARED_LIBRARY:.pyd=.lib)
