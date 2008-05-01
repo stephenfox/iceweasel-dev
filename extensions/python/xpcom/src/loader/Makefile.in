@@ -69,6 +69,7 @@ include $(topsrcdir)/config/config.mk
 
 EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS) \
                     $(MOZ_COMPONENT_LIBS) \
+                    -Wl,-rpath,/usr/lib/xulrunner-1.9 \
                     $(NULL)
 
 include $(topsrcdir)/config/rules.mk
