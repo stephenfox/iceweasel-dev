@@ -47,7 +47,6 @@ extern "C" {
 
         nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
         nsXPTCMiniVariant* dispatchParams = NULL;
-        nsIInterfaceInfo* iface_info = NULL;
         const nsXPTMethodInfo* info;
         PRUint8 paramCount;
         PRUint8 i;
@@ -55,11 +54,8 @@ extern "C" {
 
         NS_ASSERTION(self,"no self");
 
-        self->GetInterfaceInfo(&iface_info);
-        NS_ASSERTION(iface_info,"no interface info");
-
-        iface_info->GetMethodInfo(PRUint16(methodIndex), &info);
-        NS_ASSERTION(info,"no interface info");
+        self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
+        NS_ASSERTION(info,"no method info");
 
         paramCount = info->GetParamCount();
 
@@ -107,9 +103,7 @@ extern "C" {
             }
         }
 
-        result = self->CallMethod((PRUint16)methodIndex, info, dispatchParams);
-
-        NS_RELEASE(iface_info);
+        result = self->mOuter->CallMethod((PRUint16)methodIndex, info, dispatchParams);
 
         if(dispatchParams != paramBuffer)
             delete [] dispatchParams;
