@@ -121,7 +121,7 @@ clean:
 		debian/*.png \
 		debian/*.xpm \
 	rm -f debian/branding/*.png debian/branding/*.xpm \
-		debian/branding/content/*.png
+		debian/branding/*.ico debian/branding/content/*.png
 
 	[ ! -f Makefile ] || $(MAKE) distclean
 
