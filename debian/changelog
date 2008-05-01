@@ -1,3 +1,86 @@
+xulrunner (1.9~b5-4) experimental; urgency=low
+
+  * js/src/jsfun.h: use struct JSArenaPool instead of undefined opaque
+    JSArenaPool type. bz#430955.
+  * content/html/document/src/nsHTMLFragmentContentSink.cpp,
+    embedding/browser/gtk/src/EmbedContextMenuInfo.cpp,
+    embedding/browser/gtk/src/EmbedPasswordMgr.cpp,
+    extensions/canvas3d/src/nsCanvas3DModule.cpp,
+    extensions/cck/browser/resources/content/cckwizard/srcfiles/cckService.js.in,
+    extensions/metrics/build/nsMetricsModule.cpp,
+    extensions/metrics/src/nsLoadCollector.cpp,
+    extensions/metrics/src/nsMetricsService.cpp,
+    extensions/metrics/test/TestMetricsConfig.cpp,
+    js/src/jsapi.h, parser/xml/src/nsSAXXMLReader.cpp,
+    toolkit/components/places/src/nsFaviconService.cpp,
+    toolkit/components/places/src/nsMaybeWeakPtr.h,
+    toolkit/components/places/src/nsNavHistory.cpp,
+    toolkit/components/places/src/nsNavHistoryQuery.h,
+    toolkit/components/satchel/src/nsStorageFormHistory.h,
+    toolkit/components/url-classifier/src/nsUrlClassifierDBService.h:
+    Remove MOZILLA_1_8_BRANCH ifdefs. bz#398810, bz#398811.
+  * debian/control, debian/xulrunner-dev-static.install: Rename
+    xulrunner-dev-static package to xulrunner-dev-bin.
+  * debian/xulrunner-dev-bin.install, debian/xulrunner-1.9.install: Move
+    xpidl, xpt_link and xpt_dump binaries to xulrunner-dev-bin.
+  * debian/control: Add shlibs:Depends to Depends list for xulrunner-dev-bin.
+  * debian/pycompat: Removed.
+  * debian/python-xpcom.postinst, debian/python-xpcom.prerm: Fix directory
+    used for component registration.
+  * debian/python-xpcom.install, debian/rules: Put python-xpcom files under
+    /usr/lib/pythonX.Y/site-packages. Closes: #478527.
+  * debian/mozconfig: Re-add default-mozilla-five-home, which appears to be
+    necessary for proper python-xpcom functionning.
+  * extensions/python/xpcom/src/module/Makefile.in: Add an rpath to _xpcom.so
+    so that libxpcom.so and libpyxpcom.so can be found when importing it from
+    python.
+  * extensions/python/xpcom/src/loader/Makefile.in: Add an rpath to
+    libpyloader.so xpcom component so that libpyxpcom.so can be found when
+    libxul loads the component.
+  * debian/control: Add a dependency on xulrunner-1.9 for python-xpcom.
+  * debian/rules:
+    + Don't use $(CURDIR) when not necessary.
+    + Symplify how we set PYTHON_SO.
+  * debian/xulrunner-1.9.install, debian/xulrunner-1.9-common.install: Move
+    /etc/gre.d/1.9.system.conf, /usr/lib/xulrunner-1.9/dependentlibs.list and
+    /usr/lib/xulrunner-1.9/platform.ini from xulrunner-1.9-common to
+    xulrunner-1.9. Closes: #478037.
+  * toolkit/content/jar.mn: Don't include content/global/buildconfig.html in
+    toolkit.jar.
+  * debian/rules: Install buildconfig.html under a subdirectory of the chrome,
+    and register it in toolkit.manifest.
+  * debian/xulrunner-1.9.install: Put this new buildconfig.html file in the
+    xulrunner-1.9 package so that build information is architecture dependent.
+  * debian/xulrunner-1.9-common.install: Put all chrome jars and manifests in
+    the package, instead of using fixed names followed by wildcards.
+  * debian/control: Make xulrunner-1.9 conflict with versions of
+    xulrunner-1.9-common containing moved files.
+  * debian/xulrunner-1.9.postinst: Do registration work on upgrade and
+    become trigger-aware. Also use regxpcom instead of relying on
+    autoregistration of components. Closes: #409049.
+  * debian/xulrunner-1.9.triggers: Add trigger to the xulrunner-1.9 package.
+  * debian/control: Build-depend on trigger-aware version of debhelper.
+  * debian/postinstrm.in: New postinst/postrm trigger-aware template for
+    python-xpcom and xulrunner-1.9-gnome-support, using the same registration
+    technique.
+  * debian/rules: Generate python-xpcom and xulrunner-1.9-gnome-support
+    maintainer scripts from debian/postinstrm.in
+  * debian/python-xpcom.postinst, debian/python-xpcom.prerm,
+    debian/xulrunner-1.9-gnome-support.postinst,
+    debian/xulrunner-1.9-gnome-support.prerm: Removed.
+  * debian/spidermonkey-bin.postinst: As versions 1.8 to 1.8.0.1-6 have long
+    been gone and were never in a stable release, we don't care about
+    upgrading properly from them anymore.
+  * xpcom/reflect/xptcall/src/md/unix/xptcstubs_linux_m68k.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcstubs_mips.cpp: Implement more of
+    the new XPCOM ABI on m68k and mips. This fixes FTBFSes on these
+    architectures.
+  * xulrunner/stub/nsXULStub.cpp: Use application.ini in the executable dir
+    without following symlinks for the executable, if present. This will avoid
+    copying the stub in all xulrunner applications like upstream does.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 01 May 2008 14:41:15 +0200
+
 xulrunner (1.9~b5-3) experimental; urgency=low
 
   * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_linux_m68k.cpp,
