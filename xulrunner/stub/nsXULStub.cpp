@@ -192,8 +192,18 @@ main(int argc, char **argv)
   // 3) give up
 
   struct stat fileStat;
+  PRBool found = PR_FALSE;
 
-  if (!realpath(argv[0], iniPath) || stat(iniPath, &fileStat)) {
+  strncpy(iniPath, argv[0], sizeof(iniPath));
+  lastSlash = strrchr(iniPath, PATH_SEPARATOR_CHAR);
+  if (lastSlash) {
+    lastSlash++;
+    strncpy(lastSlash, "application.ini", sizeof(iniPath) - (lastSlash - iniPath));
+    if (stat(iniPath, &fileStat) == 0)
+      found = PR_TRUE;
+  }
+
+  if (!found && (!realpath(argv[0], iniPath) || stat(iniPath, &fileStat))) {
     const char *path = getenv("PATH");
     if (!path)
       return 1;
@@ -202,7 +212,6 @@ main(int argc, char **argv)
     if (!pathdup)
       return 1;
 
-    PRBool found = PR_FALSE;
     char *token = strtok(pathdup, ":");
     while (token) {
       sprintf(tmpPath, "%s/%s", token, argv[0]);
