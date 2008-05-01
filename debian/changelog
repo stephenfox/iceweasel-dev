@@ -40,6 +40,8 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
     - Install the xulrunner-stub as a /usr/lib/iceweasel/firefox-bin symlink.
       It will also allow smooth upgrade for those whose session manager stored
       firefox-bin as iceweasel main executable.
+    - Help xulrunner-stub by pointing to xulrunner's home with a
+      /usr/lib/iceweasel/xulrunner symlink to /usr/lib/xulrunner-1.9.
 
  -- Eric Dorland <eric@debian.org>  Mon, 28 Apr 2008 03:16:48 -0400
 
