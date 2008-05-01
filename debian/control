@@ -10,6 +10,7 @@ Package: xulrunner-1.9
 Section: devel
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9-common (>= ${source:Upstream-Version})
+Conflicts: xulrunner-1.9-common (<< 1.9~b5-4)
 Suggests: xulrunner-1.9-gnome-support
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
