@@ -1,6 +1,7 @@
 /usr/lib/iceweasel/iceweasel /usr/bin/mozilla-firefox
 /usr/lib/iceweasel/iceweasel /usr/bin/firefox
 /usr/lib/iceweasel/iceweasel /usr/bin/iceweasel
+/usr/lib/xulrunner-1.9/xulrunner-stub /usr/lib/iceweasel/firefox-bin
 /usr/share/man/man1/iceweasel.1.gz /usr/share/man/man1/firefox.1.gz
 /usr/share/man/man1/iceweasel.1.gz /usr/share/man/man1/mozilla-firefox.1.gz
 /usr/share/iceweasel/icons/mozicon128.png /usr/share/icons/hicolor/128x128/apps/iceweasel.png
