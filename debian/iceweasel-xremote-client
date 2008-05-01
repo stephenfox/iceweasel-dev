@@ -1,13 +1,6 @@
 #!/bin/sh
 
 ##
-## Set MOZILLA_FIVE_HOME
-##
-MOZILLA_FIVE_HOME="/usr/lib/iceweasel"
-
-export MOZILLA_FIVE_HOME
-
-##
 ## Set LD_LIBRARY_PATH
 ##
 if [ "$LD_LIBRARY_PATH" ]
