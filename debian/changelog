@@ -42,6 +42,7 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
       firefox-bin as iceweasel main executable.
     - Help xulrunner-stub by pointing to xulrunner's home with a
       /usr/lib/iceweasel/xulrunner symlink to /usr/lib/xulrunner-1.9.
+  * debian/iceweasel.postinst: Remove /usr/lib/iceweasel/.autoreg on upgrade.
 
  -- Eric Dorland <eric@debian.org>  Mon, 28 Apr 2008 03:16:48 -0400
 
