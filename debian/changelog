@@ -1,4 +1,4 @@
-iceweasel (3.0~b5-4) UNRELEASED; urgency=low
+iceweasel (3.0~b5-4) experimental; urgency=low
 
   [ Eric Dorland ]
   * debian/control:
@@ -54,7 +54,7 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
     xpcom/reflect/xptcall/src/md/unix/Makefile.in: Revert changes to these
     files, as they are not used for the build anymore.
 
- -- Eric Dorland <eric@debian.org>  Mon, 28 Apr 2008 03:16:48 -0400
+ -- Mike Hommey <glandium@debian.org>  Thu, 01 May 2008 18:56:40 +0200
 
 iceweasel (3.0~b5-3) experimental; urgency=low
 
