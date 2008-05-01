@@ -36,6 +36,9 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
     - Build against xulrunner-1.9.
     - Don't install files in the iceweasel-gnome-support package and don't
       filter anything in the iceweasel package.
+    - Don't set general.useragent.product and general.useragent.productSub,
+      they have no effect anymore.
+    - defaults/pref is now defaults/preferences.
   * debian/iceweasel.links:
     - Install the xulrunner-stub as a /usr/lib/iceweasel/firefox-bin symlink.
       It will also allow smooth upgrade for those whose session manager stored

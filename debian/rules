@@ -16,8 +16,6 @@ DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/Version: *\(.*\)/\1/ p
 UPSTREAM_VERSION := $(shell echo $(DEBIAN_VERSION) | sed 's/-.*$$//')
 DEBIAN_REV_CODE := $(shell echo $(DEBIAN_VERSION) | sed 's/^.*-\([0-9]*\)[^-]*$$/0\1/ ; s/^.*\(..\)$$/\1/')
 
-BUILD_DATE=$(shell perl -e '($$s,$$m,$$h,$$d,$$M,$$y) = gmtime((stat("client.mk"))[9]); printf "%04d%02d%02d\n",$$y + 1900,$$M + 1,$$d;')
-
 AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 
 LIB_DIR := /usr/lib/iceweasel
@@ -177,14 +175,8 @@ install-stamp: build-stamp
 	rm -f debian/iceweasel/$(SHARE_DIR)/defaults/pref/firefox-l10n.js
 
 # Add Debian package version to preferences
-	echo // Debian package version \
-		> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
-	echo "pref(\"general.useragent.product\",\"Gecko\");" \
-		>> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
-	echo "pref(\"general.useragent.productSub\",\"$(BUILD_DATE)\");" \
-		>> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(Debian-$(DEBIAN_VERSION))\");" \
-		>> debian/iceweasel/$(SHARE_DIR)/defaults/pref/vendor.js
+		> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
 	cp -f LICENSE MPL
 	touch install-stamp
