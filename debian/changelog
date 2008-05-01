@@ -29,6 +29,9 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
     - Don't install files that are provided by xulrunner-1.9, including the
       firefox binary, which is a copy of xulrunner-stub.
     - defaults/pref is now defaults/preferences.
+    - Install application.ini in /usr/lib/iceweasel instead of
+      /usr/share/iceweasel. Xulrunner following symlinks, it fails running
+      iceweasel without the file being in /usr/lib/iceweasel.
   * debian/rules:
     - Build against xulrunner-1.9.
     - Don't install files in the iceweasel-gnome-support package and don't

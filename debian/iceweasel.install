@@ -8,7 +8,7 @@ debian/tmp/usr/lib/iceweasel/icons usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/chrome usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/modules usr/share/iceweasel
 
-debian/tmp/usr/lib/iceweasel/application.ini usr/share/iceweasel
+debian/tmp/usr/lib/iceweasel/application.ini usr/lib/iceweasel
 
 debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
 

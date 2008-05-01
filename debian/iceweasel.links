@@ -18,5 +18,3 @@
 /usr/share/iceweasel/defaults /usr/lib/iceweasel/defaults
 /usr/share/iceweasel/modules /usr/lib/iceweasel/modules
 /usr/share/iceweasel/browserconfig.properties /usr/lib/iceweasel/browserconfig.properties
-
-/usr/share/iceweasel/application.ini /usr/lib/iceweasel/application.ini
