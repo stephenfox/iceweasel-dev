@@ -1,21 +1,14 @@
-debian/tmp/usr/bin/firefox usr/bin
-debian/tmp/usr/lib/iceweasel/*.so usr/lib/iceweasel
 debian/tmp/usr/lib/iceweasel/components usr/lib/iceweasel
-debian/tmp/usr/lib/iceweasel/firefox-bin usr/lib/iceweasel
 debian/tmp/usr/lib/iceweasel/browserconfig.properties usr/share/iceweasel
 debian/iceweasel-xremote-client usr/lib/iceweasel
 
-debian/tmp/usr/lib/iceweasel/defaults/autoconfig usr/share/iceweasel/defaults
-debian/tmp/usr/lib/iceweasel/defaults/pref usr/share/iceweasel/defaults
-debian/tmp/usr/lib/iceweasel/greprefs usr/share/iceweasel
-debian/tmp/usr/lib/iceweasel/res usr/share/iceweasel
+debian/tmp/usr/lib/iceweasel/defaults/preferences usr/share/iceweasel/defaults
 debian/tmp/usr/lib/iceweasel/searchplugins usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/icons usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/chrome usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/modules usr/share/iceweasel
 
 debian/tmp/usr/lib/iceweasel/application.ini usr/share/iceweasel
-debian/tmp/usr/lib/iceweasel/platform.ini usr/share/iceweasel
 
 debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
 

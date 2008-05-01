@@ -1,5 +1,6 @@
 iceweasel (3.0~b5-4) UNRELEASED; urgency=low
 
+  [ Eric Dorland ]
   * debian/control:
     - Add Replaces on iceweasel-gnome-support for imgicon move.
       (Closes: #478084)
@@ -12,6 +13,26 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
   * debian/iceweasel.desktop: Add trailing semicolons to Categories and
     Mimetype to comply the standard. Thanks Michael Biebl. (Closes:
     #468117)
+
+  [ Mike Hommey ]
+  * debian/control:
+    - Replace a bunch of build dependencies with xulrunner-dev and
+      xulrunner-1.9-common (a versioned dependency is required for this one
+      because of an incompatible platform.ini in 1.9~b5-1).
+    - iceweasel now depends on xulrunner-1.9 (we rely on xulrunner-stub from
+      version 1.9~b5-4).
+    - iceweasel-dbg depends on xulrunner-1.9-dbg.
+    - iceweasel-gnome-support is transformed into a dummy package to install
+      xulrunner-1.9-gnome-support.
+  * debian/iceweasel-gnome-support.*: Removed.
+  * debian/iceweasel.install, debian/iceweasel.links:
+    - Don't install files that are provided by xulrunner-1.9, including the
+      firefox binary, which is a copy of xulrunner-stub.
+    - defaults/pref is now defaults/preferences.
+  * debian/rules:
+    - Build against xulrunner-1.9.
+    - Don't install files in the iceweasel-gnome-support package and don't
+      filter anything in the iceweasel package.
 
  -- Eric Dorland <eric@debian.org>  Mon, 28 Apr 2008 03:16:48 -0400
 

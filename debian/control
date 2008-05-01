@@ -3,15 +3,9 @@ Section: web
 Priority: optional
 Maintainer: Eric Dorland <eric@debian.org>
 Uploaders: Mike Hommey <glandium@debian.org>
-Build-Depends: autotools-dev, debhelper (>= 5.0), imagemagick
-	libcairo2-dev (>= 1.5.2), libdbus-glib-1-dev, libfreetype6-dev,
-	libgconf2-dev, libgnome2-dev, libgnomeui-dev, libgnomevfs2-dev,
-	libgtk2.0-dev (>= 2.8), libhunspell-dev (>= 1.1.5-2),
-	libidl-dev (>= 0.8.0), libjpeg62-dev, libnspr4-dev,
-	libnss3-dev (>= 3.11.5-2), liborbit2-dev, libpng12-dev,
-	librsvg2-bin, libx11-dev, libxft-dev, libxinerama-dev, libxp-dev,
-	libxrender-dev, libxt-dev, m4, patch, sharutils, xsltproc, zip,
-	zlib1g-dev
+Build-Depends: autotools-dev, debhelper (>= 5.0), imagemagick,
+	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
+	zip, xulrunner-dev (>= 1.9~b5-2), xulrunner-1.9-common (>= 1.9~b5-2)
 Build-Conflicts: graphicsmagick-imagemagick-compat
 Standards-Version: 3.7.3
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
@@ -19,8 +13,8 @@ Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 
 Package: iceweasel
 Architecture: any
-Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}
-Suggests: iceweasel-gnome-support (= ${binary:Version}), latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
+Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, xulrunner-1.9 (>= 1.9~b5-4)
+Suggests: xulrunner-1.9-gnome-support, latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
 Provides: www-browser
 Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1), iceweasel-dom-inspector (<< 3.0~b4)
 Replaces: mozilla-firefox, firefox (<< 2.0+dfsg-1), iceweasel-gnome-support (<= 3.0~b5-2)
@@ -34,9 +28,9 @@ Description: lightweight web browser based on Mozilla
  Firebird and Phoenix.
 
 Package: iceweasel-gnome-support
-Architecture: any
+Architecture: all
 Section: gnome
-Depends: ${shlibs:Depends}, iceweasel (= ${binary:Version})
+Depends: iceweasel, xulrunner-1.9-gnome-support
 Provides: gnome-www-browser
 Description: Support for GNOME in Iceweasel
  This is an Iceweasel component that allows it to use protocol
@@ -47,7 +41,7 @@ Package: iceweasel-dbg
 Architecture: any
 Priority: extra
 Section: devel
-Depends: iceweasel (= ${binary:Version})
+Depends: iceweasel (= ${binary:Version}), xulrunner-1.9-dbg
 Replaces: firefox-dbg
 Conflicts: firefox-dbg
 Description: debugging symbols for iceweasel

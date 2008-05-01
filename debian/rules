@@ -35,39 +35,17 @@ endif
 
 CONFIGURE_OPTIONS = \
 	--with-distribution-id=org.debian \
-	--enable-default-toolkit=cairo-gtk2 \
-	--with-default-mozilla-five-home=$(LIB_DIR) \
-	--enable-pango \
+	--with-libxul-sdk=/usr/lib/xulrunner-devel-1.9 \
 	--with-user-appdir=.mozilla \
-	--with-system-jpeg=/usr \
-	--disable-mailnews \
-	--disable-composer \
-	--disable-ldap \
-	--enable-postscript \
 	--disable-installer \
-	--enable-xprint \
-	--enable-crypto \
 	--disable-strip \
 	--disable-install-strip \
-	--enable-canvas \
-	--enable-svg \
-	--enable-svg-renderer=cairo \
-	--enable-system-cairo \
-	--enable-mathml \
 	--disable-tests \
 	--disable-gtktest \
-	--disable-debug \
-	--enable-xft \
-	--with-system-zlib=/usr \
-	--enable-xinerama \
 	--enable-extensions=default \
-	--disable-pedantic \
-	--disable-long-long-warning \
 	--enable-single-profile \
 	--disable-profilesharing \
-	--enable-gnomevfs \
 	--enable-application=browser \
-	--disable-installer \
 	--disable-updater \
 	--disable-elf-dynstr-gc \
 	--with-branding=debian/branding \
@@ -178,8 +156,7 @@ install-stamp: build-stamp
 	chmod a-x debian/tmp/$(LIB_DIR)/components/*.js
 
 # Exclude gnome components from iceweasel
-	dh_install -piceweasel -Xgnome
-	dh_install -piceweasel-gnome-support
+	dh_install -piceweasel
 
 #Install helpers
 	install -m 755 debian/iceweasel-runner \
