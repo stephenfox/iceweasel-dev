@@ -39,6 +39,8 @@ iceweasel (3.0~b5-4) UNRELEASED; urgency=low
     - Don't set general.useragent.product and general.useragent.productSub,
       they have no effect anymore.
     - defaults/pref is now defaults/preferences.
+    - Remove specific CFLAGS for alpha and ppc64, since we don't build from
+      code that may require it.
   * debian/iceweasel.links:
     - Install the xulrunner-stub as a /usr/lib/iceweasel/firefox-bin symlink.
       It will also allow smooth upgrade for those whose session manager stored

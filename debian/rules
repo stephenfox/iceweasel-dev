@@ -23,14 +23,6 @@ SHARE_DIR := /usr/share/iceweasel
 
 CFLAGS := -g
 
-ifeq ($(DEB_BUILD_ARCH),alpha)
-	CFLAGS += -Wl,--no-relax
-endif
-
-ifeq ($(DEB_BUILD_ARCH),ppc64)
-	CFLAGS += -mminimal-toc
-endif
-
 CONFIGURE_OPTIONS = \
 	--with-distribution-id=org.debian \
 	--with-libxul-sdk=/usr/lib/xulrunner-devel-1.9 \
