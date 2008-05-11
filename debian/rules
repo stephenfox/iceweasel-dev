@@ -170,6 +170,9 @@ install-stamp: build-stamp
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(Debian-$(DEBIAN_VERSION))\");" \
 		> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
+# Allow to use xulrunner up to version 1.9 (final)
+	sed -i 's/\(MaxVersion=\).*/\11.9/' debian/iceweasel/$(LIB_DIR)/application.ini
+
 	cp -f LICENSE MPL
 	touch install-stamp
 
