@@ -52,7 +52,7 @@ Homepage: http://www.mozilla.org/js/
 
 Package: libmozjs-dev
 Section: libdevel
-Architecture: all
+Architecture: any
 Depends: ${misc:Depends}, libmozjs1d (>= ${source:Upstream-Version}), libnspr4-dev
 Conflicts: mozilla-browser (<< 2:1.8)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
