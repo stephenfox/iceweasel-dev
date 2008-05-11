@@ -7,3 +7,4 @@ usr/lib/xulrunner-devel-1.9/sdk/lib/libmozreg_s.a
 usr/lib/xulrunner-1.9/xpt_dump
 usr/lib/xulrunner-1.9/xpt_link
 usr/lib/xulrunner-1.9/xpidl
+usr/include/xulrunner-1.9/unstable/mozilla-config.h
