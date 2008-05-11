@@ -12028,8 +12028,8 @@ rm -f conftest*
     CFLAGS=$_SAVE_CFLAGS
 else
   if test -n "$LIBXUL_SDK"; then
-      NSPR_CFLAGS="-I$(LIBXUL_SDK_DIR)/sdk/include"
-      NSPR_LIBS="-L$(LIBXUL_SDK_DIR)/sdk/lib -lnspr$NSPR_VERSION -lplc$NSPR_VERSION -lplds$NSPR_VERSION"
+      NSPR_CFLAGS="-I$LIBXUL_SDK_DIR/sdk/include"
+      NSPR_LIBS="-L$LIBXUL_SDK_DIR/sdk/lib -lnspr$NSPR_VERSION -lplc$NSPR_VERSION -lplds$NSPR_VERSION"
   else
     NSPR_CFLAGS='`$(DEPTH)/nsprpub/config/nspr-config --prefix=$(LIBXUL_DIST) --includedir=$(LIBXUL_DIST)/include/nspr --cflags`'
     # explicitly set libs for Visual Age C++ for OS/2
