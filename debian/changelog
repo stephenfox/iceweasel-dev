@@ -1,3 +1,9 @@
+iceweasel (3.0~b5-5) UNRELEASED; urgency=low
+
+  * configure.in, configure: Fix LIBXUL_SDK_DIR variable use. Closes: #479041.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
+
 iceweasel (3.0~b5-4) experimental; urgency=low
 
   [ Eric Dorland ]
