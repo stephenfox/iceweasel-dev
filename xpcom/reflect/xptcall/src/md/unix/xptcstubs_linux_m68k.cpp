@@ -38,6 +38,7 @@
 /* Implement shared vtbl methods. */
 
 #include "xptcprivate.h"
+#include "xptiprivate.h"
 
 extern "C" {
     nsresult

@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "xptcprivate.h"
 #include "xptiprivate.h"
 
 /*
