@@ -276,7 +276,7 @@ ifeq ($(OS_ARCH),Linux)
 ifneq (,$(findstring mips, $(OS_TEST)))
 CPPSRCS		:= xptcinvoke_mips.cpp xptcstubs_mips.cpp
 ASFILES		:= xptcinvoke_asm_mips.s xptcstubs_asm_mips.s
-AS		:= $(CC) $(CFLAGS) $(INCLUDES) -c -x assembler-with-cpp
+ASFLAGS		+= -I$(PUBLIC) -x assembler-with-cpp
 endif
 endif
 
@@ -462,8 +462,7 @@ LOCAL_INCLUDES += \
 
 ifeq ($(OS_ARCH),Linux)
 ifneq (,$(findstring mips, $(OS_TEST)))
-xptcstubs_asm_mips.o: xptcstubs_asm_mips.s $(PUBLIC)/xptcstubsdef.inc
-	$(AS) -o $@ $<
+xptcstubs_asm_mips.o: $(PUBLIC)/xptcstubsdef.inc
 endif
 endif
 
