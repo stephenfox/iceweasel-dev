@@ -150,6 +150,8 @@ install-stamp: build-stamp
 	install -m 644 toolkit/content/buildconfig.html debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit/content/global/
 	echo override chrome://global/content/buildconfig.html toolkit/content/global/buildconfig.html >> debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit.manifest
 
+	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
+
 	cp -f LICENSE MPL
 	touch install-stamp
 
