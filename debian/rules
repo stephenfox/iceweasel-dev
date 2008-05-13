@@ -59,6 +59,7 @@ config.status: ./configure debian/mozconfig
 	# Add here commands to configure the package.
 	JAVA_HOME=/usr/lib/jvm/java-gcj \
 	MOZCONFIG=debian/mozconfig \
+	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
