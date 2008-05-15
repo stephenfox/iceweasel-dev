@@ -6,8 +6,8 @@ if ! dpkg-trigger --check-supported > /dev/null 2>&1; then
 
 if [ "$1" = "configure" ] || [ "$1" = "upgrade" ] ||
    [ "$1" = "abort-upgrade" ]; then
-    rm -f /usr/lib/xulrunner-1.9/.autoreg \
-          /usr/lib/xulrunner-1.9/components/compreg.dat \
+    touch /usr/lib/xulrunner-1.9/.autoreg
+    rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
     cd /usr/lib/xulrunner-1.9
     ./regxpcom

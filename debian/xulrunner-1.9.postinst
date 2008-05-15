@@ -4,8 +4,8 @@ set -e
 
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ||
    [ "$1" = "triggered" ]; then
-    rm -f /usr/lib/xulrunner-1.9/.autoreg \
-          /usr/lib/xulrunner-1.9/components/compreg.dat \
+    touch /usr/lib/xulrunner-1.9/.autoreg
+    rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
     cd /usr/lib/xulrunner-1.9
     ./regxpcom
