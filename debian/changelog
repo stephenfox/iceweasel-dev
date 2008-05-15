@@ -5,9 +5,12 @@ iceweasel (3.0~b5-5) UNRELEASED; urgency=low
     preloading the glibc. Closes: #475166.
   * debian/rules: Allow to use xulrunner up to version 1.9 (final) by patching
     application.ini.
-  * debian/iceweasel.postinst: Remove any compreg.dat and xpti.dat that would
-    be left from earlier runs of iceweasel as root, causing possible random
-    crashes with xpcom. Closes: #481020.
+  * debian/iceweasel.postinst:
+    - Remove any compreg.dat and xpti.dat that would be left from earlier runs
+      of iceweasel as root, causing possible random crashes with xpcom.
+      Closes: #481020.
+    - Touch .autoreg on install/upgrade, so that components registration is
+      triggered for the components provided by iceweasel.
 
  -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
 
