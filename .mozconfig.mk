@@ -4,4 +4,4 @@
 # To create a new .mozconfig file, you can visit,
 #   http://webtools.mozilla.org/build/config.cgi
 
-# PATH=/home/mh/git/git:/usr/local/bin:/usr/bin:/bin:/usr/games
+# PATH=/usr/local/bin:/usr/bin:/bin:/usr/games

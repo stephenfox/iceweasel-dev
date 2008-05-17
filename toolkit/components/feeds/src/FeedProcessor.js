@@ -79,9 +79,7 @@ const SAX_CONTRACTID = "@mozilla.org/saxparser/xmlreader;1";
 const UNESCAPE_CONTRACTID = "@mozilla.org/feed-unescapehtml;1";
 
 
-var gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
-var gUnescapeHTML = Cc[UNESCAPE_CONTRACTID].
-                    getService(Ci.nsIScriptableUnescapeHTML);
+var gIoService = null;
 
 const XMLNS = "http://www.w3.org/XML/1998/namespace";
 const RSS090NS = "http://my.netscape.com/rdf/simple/0.9/";
@@ -90,6 +88,8 @@ const WAIROLE_NS = "http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#";
 /***** Some general utils *****/
 function strToURI(link, base) {
   var base = base || null;
+  if (!gIoService)
+    gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
   try {
     return gIoService.newURI(link, null, base);
   }
@@ -521,7 +521,9 @@ Entry.prototype = {
   __enclosure_map: null,
 
   _addToEnclosures: function Entry_addToEnclosures(new_enc) {
-    if (!bagHasKey(new_enc, "url"))
+    // items we add to the enclosures array get displayed in the FeedWriter and
+    // they must have non-empty urls.
+    if (!bagHasKey(new_enc, "url") || new_enc.getPropertyAsAString("url") == "")
       return;
 
     if (this.__enclosure_map == null)
@@ -586,20 +588,29 @@ Entry.prototype = {
   },
 
   _mediacontentToEnclosures: function Entry_mediacontentToEnclosures() {
-    var mc = this.fields.getPropertyAsInterface("mediacontent", Ci.nsIPropertyBag2);
+    var mediacontent = this.fields.getPropertyAsInterface("mediacontent", Ci.nsIArray);
 
-    if (!(mc.getProperty("url")))
-      return;
+    for (var i = 0; i < mediacontent.length; ++i) {
+      var contentElement = mediacontent.queryElementAt(i, Ci.nsIWritablePropertyBag2);
 
-    var enc = Cc[BAG_CONTRACTID].createInstance(Ci.nsIWritablePropertyBag2);
+      // media:content don't require url, but if it's not there, we should
+      // skip it.
+      if (!bagHasKey(contentElement, "url"))
+        continue;
 
-    enc.setPropertyAsAString("url", mc.getPropertyAsAString("url"));
-    if (bagHasKey(mc, "fileSize"))
-      enc.setPropertyAsAString("length", mc.getPropertyAsAString("fileSize"));
-    if (bagHasKey(mc, "type"))
-      enc.setPropertyAsAString("type", mc.getPropertyAsAString("type"));
-    
-    this._addToEnclosures(enc);
+      var enc = Cc[BAG_CONTRACTID].createInstance(Ci.nsIWritablePropertyBag2);
+
+      // copy media:content bits over to equivalent enclosure bits
+      enc.setPropertyAsAString("url", contentElement.getPropertyAsAString("url"));
+      if (bagHasKey(contentElement, "type")) {
+        enc.setPropertyAsAString("type", contentElement.getPropertyAsAString("type"));
+      }
+      if (bagHasKey(contentElement, "fileSize")) {
+        enc.setPropertyAsAString("length", contentElement.getPropertyAsAString("fileSize"));
+      }
+
+      this._addToEnclosures(enc);
+    }
   },
 
   _mediagroupToEnclosures: function Entry_mediagroupToEnclosures() {
@@ -648,12 +659,14 @@ function TextConstruct() {
   this.base = null;
   this.type = "text";
   this.text = null;
+  this.unescapeHTML = Cc[UNESCAPE_CONTRACTID].
+                      getService(Ci.nsIScriptableUnescapeHTML);
 }
 
 TextConstruct.prototype = {
   plainText: function TC_plainText() {
     if (this.type != "text") {
-      return gUnescapeHTML.unescape(stripTags(this.text));
+      return this.unescapeHTML.unescape(stripTags(this.text));
     }
     return this.text;
   },
@@ -674,7 +687,8 @@ TextConstruct.prototype = {
     else
       return null;
 
-    return gUnescapeHTML.parseFragment(this.text, isXML, this.base, element);
+    return this.unescapeHTML.parseFragment(this.text, isXML,
+                                           this.base, element);
   },
  
   // XPCOM stuff
@@ -1262,7 +1276,7 @@ function FeedProcessor() {
                                          rssAuthor, true),
       "category": new ElementInfo("categories", null, rssCatTerm, true),
       "enclosure": new ElementInfo("enclosure", null, null, false),
-      "media:content": new ElementInfo("mediacontent", null, null, false),
+      "media:content": new ElementInfo("mediacontent", null, null, true),
       "media:group": new ElementInfo("mediagroup", null, null, false),
       "guid": new ElementInfo("guid", null, rssGuid, false)
     },
@@ -1421,9 +1435,9 @@ FeedProcessor.prototype = {
   // The XMLReader will throw sensible exceptions if these get called
   // out of order.
   onStartRequest: function FP_onStartRequest(request, context) {
+    // this will throw if the request is not a channel, but so will nsParser.
     var channel = request.QueryInterface(Ci.nsIChannel);
-    if (channel)
-      channel.contentType = "application/xml";
+    channel.contentType = "application/vnd.mozilla.maybe.feed";
     this._reader.onStartRequest(request, context);
   },
 
@@ -1630,8 +1644,7 @@ FeedProcessor.prototype = {
     if (target == "xml-stylesheet") {
       var hrefAttribute = data.match(/href=[\"\'](.*?)[\"\']/);
       if (hrefAttribute && hrefAttribute.length == 2) 
-        this._result.stylesheet = gIoService.newURI(hrefAttribute[1], null,
-                                                    this._result.uri);
+        this._result.stylesheet = strToURI(hrefAttribute[1], this._result.uri);
     }
   },
 

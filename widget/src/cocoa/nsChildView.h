@@ -48,6 +48,7 @@
 #include "nsAutoPtr.h"
 #include "nsISupports.h"
 #include "nsBaseWidget.h"
+#include "nsIPluginInstanceOwner.h"
 #include "nsIPluginWidget.h"
 #include "nsIScrollableView.h"
 #include "nsWeakPtr.h"
@@ -70,6 +71,36 @@
 class gfxASurface;
 class nsChildView;
 union nsPluginPort;
+
+enum {
+  // Currently focused ChildView (while this TSM document is active).
+  // Transient (only set while TSMProcessRawKeyEvent() is processing a key
+  // event), and the ChildView will be retained and released around the call
+  // to TSMProcessRawKeyEvent() -- so it can be weak.
+  kFocusedChildViewTSMDocPropertyTag  = 'GKFV', // type ChildView* [WEAK]
+};
+
+// Undocumented HIToolbox function used by WebKit to allow Carbon-based IME
+// to work in a Cocoa-based browser (like Safari or Cocoa-widgets Firefox).
+// (Recent WebKit versions actually use a thin wrapper around this function
+// called WKSendKeyEventToTSM().)
+//
+// Calling TSMProcessRawKeyEvent() from ChildView's keyDown: and keyUp:
+// methods (when the ChildView is a plugin view) bypasses Cocoa's IME
+// infrastructure and (instead) causes Carbon TSM events to be sent on each
+// NSKeyDown event.  We install a Carbon event handler
+// (PluginKeyEventsHandler()) to catch these events and pass them to Gecko
+// (which in turn passes them to the plugin).
+extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
+
+@interface NSEvent (Undocumented)
+
+// Return Cocoa event's corresponding Carbon event.  Not initialized (on
+// synthetic events) until the OS actually "sends" the event.  This method
+// has been present in the same form since at least OS X 10.2.8.
+- (EventRef)_eventRef;
+
+@end
 
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
@@ -112,8 +143,8 @@ union nsPluginPort;
   NSPoint mHandScrollStartMouseLoc;
   nscoord mHandScrollStartScrollX, mHandScrollStartScrollY;
   
-  // when menuForEvent: is called, we store its event here (strong)
-  NSEvent* mLastMenuForEventEvent;
+  // when mouseDown: is called, we store its event here (strong)
+  NSEvent* mLastMouseDownEvent;
   
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
@@ -131,6 +162,11 @@ union nsPluginPort;
   nsIDragService* mDragService;
   
   PRUint32 mLastModifierState;
+
+  // For use with plugins, so that we can support IME in them.  We can't use
+  // Cocoa TSM documents (those created and managed by the NSTSMInputContext
+  // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
+  TSMDocumentID mPluginTSMDoc;
 }
 
 // these are sent to the first responder when the window key status changes
@@ -143,6 +179,8 @@ union nsPluginPort;
 - (void)setTransparent:(BOOL)transparent;
 
 - (void)sendFocusEvent:(PRUint32)eventType;
+
+- (void) processPluginKeyEvent:(EventRef)aKeyEvent;
 @end
 
 
@@ -308,6 +346,7 @@ public:
   NS_IMETHOD        GetPluginClipRect(nsRect& outClipRect, nsPoint& outOrigin, PRBool& outWidgetVisible);
   NS_IMETHOD        StartDrawPlugin();
   NS_IMETHOD        EndDrawPlugin();
+  NS_IMETHOD        SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner);
   
   NS_IMETHOD        GetHasTransparentBackground(PRBool& aTransparent);
   NS_IMETHOD        SetHasTransparentBackground(PRBool aTransparent);
@@ -329,6 +368,8 @@ public:
   NS_IMETHOD BeginSecureKeyboardInput();
   NS_IMETHOD EndSecureKeyboardInput();
 
+  void              HidePlugin();
+
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -343,6 +384,12 @@ protected:
   // caller must retain.
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
+
+  virtual nsresult SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
+                                            PRInt32 aNativeKeyCode,
+                                            PRUint32 aModifierFlags,
+                                            const nsAString& aCharacters,
+                                            const nsAString& aUnmodifiedCharacters);
 
 protected:
 
@@ -369,7 +416,10 @@ protected:
   PRPackedBool          mInSetFocus;
 
   nsPluginPort          mPluginPort;
+  nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 };
 
+void NS_InstallPluginKeyEventsHandler();
+void NS_RemovePluginKeyEventsHandler();
 
 #endif // nsChildView_h_

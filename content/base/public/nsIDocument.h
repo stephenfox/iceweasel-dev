@@ -51,11 +51,12 @@
 #include "nsIAtom.h"
 #include "nsCompatibility.h"
 #include "nsTObserverArray.h"
+#include "nsNodeInfoManager.h"
 
 class nsIContent;
 class nsPresContext;
 class nsIPresShell;
-
+class nsIDocShell;
 class nsIStreamListener;
 class nsIStreamObserver;
 class nsStyleSet;
@@ -80,7 +81,6 @@ class nsIObserver;
 class nsScriptLoader;
 class nsIContentSink;
 class nsIScriptEventManager;
-class nsNodeInfoManager;
 class nsICSSLoader;
 class nsHTMLStyleSheet;
 class nsIHTMLCSSStyleSheet;
@@ -97,8 +97,8 @@ class nsFrameLoader;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0xd76acf2e, 0x4b55, 0x420c, \
-  { 0xaa, 0xbf, 0x5c, 0x4d, 0xbf, 0xc9, 0x81, 0x08 } }
+{ 0xc81acf0b, 0x2539, 0x47ab, \
+  { 0xa6, 0x04, 0x64, 0x04, 0x07, 0x63, 0xc8, 0x3d } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -117,7 +117,6 @@ public:
   nsIDocument()
     : nsINode(nsnull),
       mCharacterSet(NS_LITERAL_CSTRING("ISO-8859-1")),
-      mBindingManager(nsnull),
       mNodeInfoManager(nsnull),
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
@@ -596,8 +595,6 @@ public:
   // To make this easy and painless, use the mozAutoDocUpdate helper class.
   virtual void BeginUpdate(nsUpdateType aUpdateType) = 0;
   virtual void EndUpdate(nsUpdateType aUpdateType) = 0;
-  virtual PRUint32 GetUpdateNestingLevel() = 0;
-  virtual PRBool AllUpdatesAreContent() = 0;
   virtual void BeginLoad() = 0;
   virtual void EndLoad() = 0;
   // notify that one or two content nodes changed state
@@ -631,7 +628,7 @@ public:
 
   nsBindingManager* BindingManager() const
   {
-    return mBindingManager;
+    return mNodeInfoManager->GetBindingManager();
   }
 
   /**
@@ -792,6 +789,14 @@ public:
    */
   virtual void Destroy() = 0;
 
+  /**
+   * Notify the document that its associated ContentViewer is no longer
+   * the current viewer for the docshell. The document might still
+   * be rendered in "zombie state" until the next document is ready.
+   * The document should save form control state.
+   */
+  virtual void RemovedFromDocShell() = 0;
+  
   /**
    * Get the layout history state that should be used to save and restore state
    * for nodes in this document.  This may return null; if that happens state
@@ -959,6 +964,10 @@ public:
   // In case of failure, the caller must handle the error, for example by
   // finalizing frame loader asynchronously.
   virtual nsresult FinalizeFrameLoader(nsFrameLoader* aLoader) = 0;
+  // Removes the frame loader of aShell from the initialization list.
+  virtual void TryCancelFrameLoaderInitialization(nsIDocShell* aShell) = 0;
+  //  Returns true if the frame loader of aShell is in the finalization list.
+  virtual PRBool FrameLoaderScheduledToBeFinalized(nsIDocShell* aShell) = 0;
 protected:
   ~nsIDocument()
   {
@@ -966,7 +975,6 @@ protected:
     //     releasing it) happens in the nsDocument destructor. We'd prefer to
     //     do it here but nsNodeInfoManager is a concrete class that we don't
     //     want to expose to users of the nsIDocument API outside of Gecko.
-    // XXX Same thing applies to mBindingManager
   }
 
   /**
@@ -1001,7 +1009,6 @@ protected:
   // We'd like these to be nsRefPtrs, but that'd require us to include
   // additional headers that we don't want to expose.
   // The cleanup is handled by the nsDocument destructor.
-  nsBindingManager* mBindingManager; // [STRONG]
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
   nsICSSLoader* mCSSLoader; // [STRONG]
 
@@ -1063,45 +1070,6 @@ private:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
-
-/**
- * Helper class to automatically handle batching of document updates.  This
- * class will call BeginUpdate on construction and EndUpdate on destruction on
- * the given document with the given update type.  The document could be null,
- * in which case no updates will be called.  The constructor also takes a
- * boolean that can be set to false to prevent notifications.
- */
-class mozAutoDocUpdate
-{
-public:
-  mozAutoDocUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType,
-                   PRBool aNotify) :
-    mDocument(aNotify ? aDocument : nsnull),
-    mUpdateType(aUpdateType)
-  {
-    if (mDocument) {
-      mDocument->BeginUpdate(mUpdateType);
-    }
-  }
-
-  ~mozAutoDocUpdate()
-  {
-    if (mDocument) {
-      mDocument->EndUpdate(mUpdateType);
-    }
-  }
-
-private:
-  nsCOMPtr<nsIDocument> mDocument;
-  nsUpdateType mUpdateType;
-};
-
-#define MOZ_AUTO_DOC_UPDATE_PASTE2(tok,line) tok##line
-#define MOZ_AUTO_DOC_UPDATE_PASTE(tok,line) \
-  MOZ_AUTO_DOC_UPDATE_PASTE2(tok,line)
-#define MOZ_AUTO_DOC_UPDATE(doc,type,notify) \
-  mozAutoDocUpdate MOZ_AUTO_DOC_UPDATE_PASTE(_autoDocUpdater_, __LINE__) \
-  (doc,type,notify)
 
 /**
  * mozAutoSubtreeModified batches DOM mutations so that a DOMSubtreeModified

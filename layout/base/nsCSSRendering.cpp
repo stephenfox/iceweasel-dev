@@ -1053,8 +1053,7 @@ NumBorderPasses (PRUint8 *borderStyles,
       case NS_STYLE_BORDER_STYLE_OUTSET:
       case NS_STYLE_BORDER_STYLE_GROOVE:
       case NS_STYLE_BORDER_STYLE_RIDGE:
-        /* XXX See bug 397303 why this is 4 instead of 2; this could be optimized further */
-        numBorderPasses = 4;
+        numBorderPasses = 2;
         break;
 
       case NS_STYLE_BORDER_STYLE_SOLID:
@@ -2765,15 +2764,6 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
     innerRect.height = outerRect.height;
   }
 
-  // If the dirty rect is completely inside the border area (e.g., only the
-  // content is being painted), then we can skip out now
-  // XXX this isn't exactly true for rounded borders, where the inner curves may
-  // encroach into the content area.  A safer calculation would be to
-  // shorten innerRect by the radius one each side before performing this test.
-  if (innerRect.Contains(aDirtyRect)) {
-    return;
-  }
-
   // we can assume that we're already clipped to aDirtyRect -- I think? (!?)
 
   // Get our conversion values
@@ -3904,19 +3894,23 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                  "Bogus y coord for draw rect");
     // Figure out whether we can get away with not tiling at all.
     nsRect sourceRect = drawRect - absTileRect.TopLeft();
+    // Compute the subimage rectangle that we expect to be sampled.
+    // This is the tile rectangle, clipped to the bgClipArea, and then
+    // passed in relative to the image top-left.
+    nsRect destRect; // The rectangle we would draw ignoring dirty-rect
+    destRect.IntersectRect(absTileRect, bgClipArea);
+    nsRect subimageRect = destRect - aBorderArea.TopLeft() - tileRect.TopLeft();
     if (sourceRect.XMost() <= tileWidth && sourceRect.YMost() <= tileHeight) {
       // The entire drawRect is contained inside a single tile; just
       // draw the corresponding part of the image once.
-      // Pass in the subimage rectangle that we expect to be sampled.
-      // This is the tile rectangle, clipped to the bgClipArea, and then
-      // passed in relative to the image top-left.
-      nsRect destRect; // The rectangle we would draw ignoring dirty-rect
-      destRect.IntersectRect(absTileRect, bgClipArea);
-      nsRect subimageRect = destRect - aBorderArea.TopLeft() - tileRect.TopLeft();
       nsLayoutUtils::DrawImage(&aRenderingContext, image,
               destRect, drawRect, &subimageRect);
     } else {
-      aRenderingContext.DrawTile(image, absTileRect.x, absTileRect.y, &drawRect);
+      // Note that the subimage is in tile space so it may cover
+      // multiple tiles of the image.
+      subimageRect.ScaleRoundOutInverse(nsIDeviceContext::AppUnitsPerCSSPixel());
+      aRenderingContext.DrawTile(image, absTileRect.x, absTileRect.y,
+              &drawRect, &subimageRect);
     }
   }
 
@@ -4458,8 +4452,7 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
                                     const gfxFloat aAscent,
                                     const gfxFloat aOffset,
                                     const PRUint8 aDecoration,
-                                    const PRUint8 aStyle,
-                                    const PRBool aIsRTL)
+                                    const PRUint8 aStyle)
 {
   gfxRect rect =
     GetTextDecorationRectInternal(aPt, aLineSize, aAscent, aOffset,
@@ -4541,13 +4534,8 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
     case NS_STYLE_BORDER_STYLE_DOTTED:
     case NS_STYLE_BORDER_STYLE_DASHED:
       aGfxContext->NewPath();
-      if (aIsRTL) {
-        aGfxContext->MoveTo(rect.TopRight());
-        aGfxContext->LineTo(rect.TopLeft());
-      } else {
-        aGfxContext->MoveTo(rect.TopLeft());
-        aGfxContext->LineTo(rect.TopRight());
-      }
+      aGfxContext->MoveTo(rect.TopLeft());
+      aGfxContext->LineTo(rect.TopRight());
       aGfxContext->Stroke();
       break;
     default:

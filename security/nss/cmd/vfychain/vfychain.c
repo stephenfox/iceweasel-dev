@@ -56,6 +56,7 @@
 #include "secmod.h"
 #include "secitem.h"
 #include "cert.h"
+#include "ocsp.h"
 
 
 /* #include <stdlib.h> */
@@ -108,6 +109,10 @@ Usage(const char *progName)
 	"\t\t\t   * CERT_VerifyCertificate if specified once,\n"
 	"\t\t\t   * CERT_PKIXVerifyCert if specified twice and more.\n"
 	"\t-r\t\t Following certfile is raw binary DER (default)\n"
+        "\t-s\t\t Status checking, following a configuration description.\n"
+        "\t\t\t Implemented as of today are:\n"
+        "\t\t\t   * allow-crl (default)\n"
+        "\t\t\t   * allow-crl-and-ocsp\n"
 	"\t-u usage \t 0=SSL client, 1=SSL server, 2=SSL StepUp, 3=SSL CA,\n"
 	"\t\t\t 4=Email signer, 5=Email recipient, 6=Object signer,\n"
 	"\t\t\t 9=ProtectedObjectSigner, 10=OCSP responder, 11=Any CA\n"
@@ -262,6 +267,21 @@ getCert(const char *name, PRBool isAscii)
     return cert;
 }
 
+#define REVCONFIG_ALLOW_CRL "allow-crl"
+#define REVCONFIG_ALLOW_CRL_OCSP "allow-crl-and-ocsp"
+
+PRBool
+isAllowedRevConfig(const char *name)
+{
+    if (strcmp(REVCONFIG_ALLOW_CRL, name) == 0)
+        return PR_TRUE;
+
+    if (strcmp(REVCONFIG_ALLOW_CRL_OCSP, name) == 0)
+        return PR_TRUE;
+
+    return PR_FALSE;
+}
+
 int
 main(int argc, char *argv[], char *envp[])
 {
@@ -283,12 +303,14 @@ main(int argc, char *argv[], char *envp[])
     int                  rv           = 1;
     int                  usage;
     CERTVerifyLog        log;
+    CERTCertList        *builtChain = NULL;
+    char *               revConfig    = NULL;
 
     PR_Init( PR_SYSTEM_THREAD, PR_PRIORITY_NORMAL, 1);
 
     progName = PL_strdup(argv[0]);
 
-    optstate = PL_CreateOptState(argc, argv, "ab:d:o:prtu:w:v");
+    optstate = PL_CreateOptState(argc, argv, "ab:d:o:prs:tu:w:v");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch(optstate->option) {
 	case  0  : /* positional parameter */  goto breakout;
@@ -299,6 +321,7 @@ main(int argc, char *argv[], char *envp[])
 	case 'o' : oidStr = PL_strdup(optstate->value);       break;
 	case 'p' : usePkix += 1;                              break;
 	case 'r' : isAscii  = PR_FALSE;                       break;
+        case 's' : revConfig  = PL_strdup(optstate->value);   break;
 	case 'u' : usage    = PORT_Atoi(optstate->value);
 	           if (usage < 0 || usage > 62) Usage(progName);
 		   certUsage = ((SECCertificateUsage)1) << usage; 
@@ -312,6 +335,11 @@ main(int argc, char *argv[], char *envp[])
 breakout:
     if (status != PL_OPT_OK)
 	Usage(progName);
+
+    if (revConfig && !isAllowedRevConfig(revConfig)) {
+        fprintf(stderr, "Invalid revocation configuration specified.\n");
+        goto punt;
+    }
 
     /* Set our password function callback. */
     PK11_SetPasswordFunc(myPasswd);
@@ -329,6 +357,10 @@ breakout:
 	exitErr("NSS_Init");
     }
     SECU_RegisterDynamicOids();
+    if (revConfig && strcmp(REVCONFIG_ALLOW_CRL_OCSP, revConfig) == 0) {
+        CERT_EnableOCSPChecking(CERT_GetDefaultCertDB());
+        CERT_DisableOCSPDefaultResponder(CERT_GetDefaultCertDB());
+    }
 
     while (status == PL_OPT_OK) {
 	switch(optstate->option) {
@@ -374,12 +406,12 @@ breakout:
                                            &log, /* error log */
                                            NULL);/* returned usages */
     } else do {
-        CERTValOutParam cvout[3];
+        CERTValOutParam cvout[4];
         CERTValInParam cvin[5];
         SECOidTag oidTag;
         int inParamIndex = 0;
         CERTRevocationFlags rev;
-        PRUint64 revFlags[1];
+        PRUint64 revFlags[2];
 
         if (oidStr) {
             PRArenaPool *arena;
@@ -433,14 +465,25 @@ breakout:
 
         revFlags[cert_revocation_method_crl] = 
             CERT_REV_M_TEST_USING_THIS_METHOD;
+        rev.leafTests.number_of_defined_methods = 
+            cert_revocation_method_crl +1;
+        rev.chainTests.number_of_defined_methods = 
+            cert_revocation_method_crl +1;
 
-        rev.leafTests.number_of_defined_methods = cert_revocation_method_crl +1;
+        if (revConfig && strcmp(REVCONFIG_ALLOW_CRL_OCSP, revConfig) == 0) {
+            revFlags[cert_revocation_method_ocsp] = 
+                CERT_REV_M_TEST_USING_THIS_METHOD;
+            rev.leafTests.number_of_defined_methods = 
+                cert_revocation_method_ocsp +1;
+            rev.chainTests.number_of_defined_methods = 
+                cert_revocation_method_ocsp +1;
+        }
+
         rev.leafTests.cert_rev_flags_per_method = revFlags;
         rev.leafTests.number_of_preferred_methods = 0;
         rev.leafTests.preferred_methods = 0;
         rev.leafTests.cert_rev_method_independent_flags = 0;
       
-        rev.chainTests.number_of_defined_methods = cert_revocation_method_crl +1;
         rev.chainTests.cert_rev_flags_per_method = revFlags;
         rev.chainTests.number_of_preferred_methods = 0;
         rev.chainTests.preferred_methods = 0;
@@ -453,13 +496,14 @@ breakout:
         cvin[inParamIndex].type = cert_pi_end;
         
         cvout[0].type = cert_po_trustAnchor;
+        cvout[1].type = cert_po_certList;
 
         /* setting pointer to CERTVerifyLog. Initialized structure
          * will be used CERT_PKIXVerifyCert */
-        cvout[1].type = cert_po_errorLog;
-        cvout[1].value.pointer.log = &log;
+        cvout[2].type = cert_po_errorLog;
+        cvout[2].value.pointer.log = &log;
 
-        cvout[2].type = cert_po_end;
+        cvout[3].type = cert_po_end;
         
         secStatus = CERT_PKIXVerifyCert(firstCert, certUsage,
                                         cvin, cvout, NULL);
@@ -467,6 +511,7 @@ breakout:
             break;
         }
         issuerCert = cvout[0].value.pointer.cert;
+        builtChain = cvout[1].value.pointer.chain;
     } while (0);
 
     /* Display validation results */
@@ -498,6 +543,20 @@ breakout:
     	   }
     	   CERT_DestroyCertificate(issuerCert);
     	}
+         if (builtChain) {
+            CERTCertListNode *node;
+            int count = 0;
+            char buff[256];
+
+            if (verbose) { 
+                for(node = CERT_LIST_HEAD(builtChain); !CERT_LIST_END(node, builtChain);
+                    node = CERT_LIST_NEXT(node), count++ ) {
+                    sprintf(buff, "Certificate %d Subject", count + 1);
+                    SECU_PrintName(stdout, &node->cert->subject, buff, 0);
+                }
+            }
+            CERT_DestroyCertList(builtChain);
+         }
 	rv = 0;
     }
 

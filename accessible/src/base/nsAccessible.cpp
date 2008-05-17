@@ -88,6 +88,7 @@
 #include "nsIServiceManager.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsAttrName.h"
+#include "nsNetUtil.h"
 
 #ifdef NS_DEBUG
 #include "nsIFrameDebug.h"
@@ -1053,6 +1054,10 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   if (frame && (frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW))
     *aState |= nsIAccessibleStates::STATE_FLOATING;
 
+  // Add 'linked' state for simple xlink.
+  if (nsAccUtils::IsXLink(content))
+    *aState |= nsIAccessibleStates::STATE_LINKED;
+
   return NS_OK;
 }
 
@@ -1435,20 +1440,54 @@ NS_IMETHODIMP nsAccessible::TakeSelection()
 }
 
 /* void takeFocus (); */
-NS_IMETHODIMP nsAccessible::TakeFocus()
-{ 
-  nsCOMPtr<nsIDOMNSHTMLElement> htmlElement(do_QueryInterface(mDOMNode));
+NS_IMETHODIMP
+nsAccessible::TakeFocus()
+{
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+
+  nsIFrame *frame = GetFrame();
+  NS_ENSURE_STATE(frame);
+
+  // If the current element can't take real DOM focus and if it has an ID and
+  // ancestor with a the aria-activedescendant attribute present, then set DOM
+  // focus to that ancestor and set aria-activedescendant on the ancestor to
+  // the ID of the desired element.
+  if (!frame->IsFocusable()) {
+    nsAutoString id;
+    if (content && nsAccUtils::GetID(content, id)) {
+
+      nsCOMPtr<nsIContent> ancestorContent = content;
+      while ((ancestorContent = ancestorContent->GetParent()) &&
+             !ancestorContent->HasAttr(kNameSpaceID_None,
+                                       nsAccessibilityAtoms::aria_activedescendant));
+
+      if (ancestorContent) {
+        nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
+        if (presShell) {
+          nsIFrame *frame = presShell->GetPrimaryFrameFor(ancestorContent);
+          if (frame && frame->IsFocusable()) {
+
+            content = ancestorContent;            
+            content->SetAttr(kNameSpaceID_None,
+                             nsAccessibilityAtoms::aria_activedescendant,
+                             id, PR_TRUE);
+          }
+        }
+      }
+    }
+  }
+
+  nsCOMPtr<nsIDOMNSHTMLElement> htmlElement(do_QueryInterface(content));
   if (htmlElement) {
     // HTML Elements also set the caret position
     // in order to affect tabbing order
     return htmlElement->Focus();
   }
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  if (!content) {
-    return NS_ERROR_FAILURE;
-  }
-  content->SetFocus(GetPresContext());
 
+  content->SetFocus(GetPresContext());
   return NS_OK;
 }
 
@@ -2051,6 +2090,9 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
       role == nsIAccessibleRole::ROLE_PUSHBUTTON ||
       role == nsIAccessibleRole::ROLE_MENUITEM ||
       role == nsIAccessibleRole::ROLE_LISTITEM ||
+      role == nsIAccessibleRole::ROLE_OPTION ||
+      role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
+      role == nsIAccessibleRole::ROLE_RICH_OPTION ||
       role == nsIAccessibleRole::ROLE_OUTLINEITEM ||
       content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_checked)) {
     // Might be checkable -- checking role & ARIA attribute first is faster than getting state
@@ -2075,6 +2117,8 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
         role == nsIAccessibleRole::ROLE_MENUITEM ||
         role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
         role == nsIAccessibleRole::ROLE_PAGETAB ||
+        role == nsIAccessibleRole::ROLE_OPTION ||
+        role == nsIAccessibleRole::ROLE_RADIOBUTTON ||
         role == nsIAccessibleRole::ROLE_OUTLINEITEM) &&
         0 == (State(this) & nsIAccessibleStates::STATE_INVISIBLE)) {
       nsCOMPtr<nsIAccessible> parent = GetParent();
@@ -2419,7 +2463,6 @@ nsAccessible::GetARIAState(PRUint32 *aState)
     return NS_OK;
   }
 
-  PRUint32 ariaState = 0;
   PRUint32 index = 0;
   while (MappedAttrState(content, aState, &nsARIAMap::gWAIUnivStateMap[index])) {
     ++ index;
@@ -2429,9 +2472,21 @@ nsAccessible::GetARIAState(PRUint32 *aState)
     return NS_OK;
 
   // Once DHTML role is used, we're only readonly if DHTML readonly used
-  ariaState &= ~nsIAccessibleStates::STATE_READONLY;
+  *aState &= ~nsIAccessibleStates::STATE_READONLY;
 
-  ariaState |= mRoleMapEntry->state;
+  if (content->HasAttr(kNameSpaceID_None, content->GetIDAttributeName())) {
+    // If has a role & ID and aria-activedescendant on the container, assume focusable
+    nsIContent *ancestorContent = content;
+    while ((ancestorContent = ancestorContent->GetParent()) != nsnull) {
+      if (ancestorContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_activedescendant)) {
+          // ancestor has activedescendant property, this content could be active
+        *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
+        break;
+      }
+    }
+  }
+
+  *aState |= mRoleMapEntry->state;
   if (MappedAttrState(content, aState, &mRoleMapEntry->attributeMap1) &&
       MappedAttrState(content, aState, &mRoleMapEntry->attributeMap2) &&
       MappedAttrState(content, aState, &mRoleMapEntry->attributeMap3) &&
@@ -2448,23 +2503,38 @@ nsAccessible::GetARIAState(PRUint32 *aState)
 // Not implemented by this class
 
 /* DOMString getValue (); */
-NS_IMETHODIMP nsAccessible::GetValue(nsAString& aValue)
+NS_IMETHODIMP
+nsAccessible::GetValue(nsAString& aValue)
 {
-  if (!mDOMNode) {
-    return NS_ERROR_FAILURE;  // Node already shut down
-  }
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content)
+    return NS_OK;
+
   if (mRoleMapEntry) {
     if (mRoleMapEntry->valueRule == eNoValue) {
       return NS_OK;
     }
-    nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-    NS_ENSURE_STATE(content);
+
     // aria-valuenow is a number, and aria-valuetext is the optional text equivalent
     // For the string value, we will try the optional text equivalent first
     if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_valuetext, aValue)) {
       content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_valuenow, aValue);
     }
   }
+
+  if (!aValue.IsEmpty())
+    return NS_OK;
+
+  // Check if it's an simple xlink.
+  if (nsAccUtils::IsXLink(content)) {
+    nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
+    if (presShell)
+      return presShell->GetLinkLocation(mDOMNode, aValue);
+  }
+
   return NS_OK;
 }
 
@@ -2568,6 +2638,14 @@ NS_IMETHODIMP nsAccessible::GetRole(PRUint32 *aRole)
 {
   NS_ENSURE_ARG_POINTER(aRole);
   *aRole = nsIAccessibleRole::ROLE_NOTHING;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (nsAccUtils::IsXLink(content))
+    *aRole = nsIAccessibleRole::ROLE_LINK;
+
   return NS_OK;
 }
 
@@ -2581,7 +2659,14 @@ nsAccessible::GetNumActions(PRUint8 *aNumActions)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  // Check if it's an simple xlink.
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (nsAccUtils::IsXLink(content)) {
+    *aNumActions = 1;
+    return NS_OK;
+  }
+
+  // Has registered 'click' event handler.
   PRBool isOnclick = nsAccUtils::HasListener(content,
                                              NS_LITERAL_STRING("click"));
 
@@ -2603,7 +2688,14 @@ nsAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  // Check if it's simple xlink.
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (nsAccUtils::IsXLink(content)) {
+    aName.AssignLiteral("jump");
+    return NS_OK;
+  }
+
+  // Has registered 'click' event handler.
   PRBool isOnclick = nsAccUtils::HasListener(content,
                                              NS_LITERAL_STRING("click"));
   
@@ -2637,11 +2729,18 @@ nsAccessible::DoAction(PRUint8 aIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
+  PRBool doAction = PR_FALSE;
+
+  // Check if it's simple xlink.
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  PRBool isOnclick = nsAccUtils::HasListener(content,
-                                             NS_LITERAL_STRING("click"));
+  if (nsAccUtils::IsXLink(content))
+    doAction = PR_TRUE;
+
+  // Has registered 'click' event handler.
+  if (!doAction)
+    doAction = nsAccUtils::HasListener(content, NS_LITERAL_STRING("click"));
   
-  if (isOnclick)
+  if (doAction)
     return DoCommand(content);
 
   return NS_ERROR_INVALID_ARG;
@@ -2912,10 +3011,15 @@ nsAccessible::GetRelation(PRUint32 aIndex, nsIAccessibleRelation **aRelation)
   nsCOMPtr<nsIAccessibleRelation> relation;
   rv = relations->QueryElementAt(aIndex, NS_GET_IID(nsIAccessibleRelation),
                                  getter_AddRefs(relation));
+
+  // nsIArray::QueryElementAt() returns NS_ERROR_ILLEGAL_VALUE on invalid index.
+  if (rv == NS_ERROR_ILLEGAL_VALUE)
+    return NS_ERROR_INVALID_ARG;
+
   NS_ENSURE_SUCCESS(rv, rv);
 
   NS_IF_ADDREF(*aRelation = relation);
-  return rv;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -3194,59 +3298,96 @@ NS_IMETHODIMP nsAccessible::SelectAllSelection(PRBool *_retval)
 // nsIAccessibleHyperLink, which helps determine where it is located
 // within containing text
 
-NS_IMETHODIMP nsAccessible::GetAnchors(PRInt32 *aAnchors)
+// readonly attribute long nsIAccessibleHyperLink::anchorCount
+NS_IMETHODIMP
+nsAccessible::GetAnchorCount(PRInt32 *aAnchorCount)
 {
-  *aAnchors = 1;
+  NS_ENSURE_ARG_POINTER(aAnchorCount);
+  *aAnchorCount = 1;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsAccessible::GetStartIndex(PRInt32 *aStartIndex)
+// readonly attribute long nsIAccessibleHyperLink::startIndex
+NS_IMETHODIMP
+nsAccessible::GetStartIndex(PRInt32 *aStartIndex)
 {
+  NS_ENSURE_ARG_POINTER(aStartIndex);
   *aStartIndex = 0;
   PRInt32 endIndex;
   return GetLinkOffset(aStartIndex, &endIndex);
 }
 
-NS_IMETHODIMP nsAccessible::GetEndIndex(PRInt32 *aEndIndex)
+// readonly attribute long nsIAccessibleHyperLink::endIndex
+NS_IMETHODIMP
+nsAccessible::GetEndIndex(PRInt32 *aEndIndex)
 {
+  NS_ENSURE_ARG_POINTER(aEndIndex);
   *aEndIndex = 0;
   PRInt32 startIndex;
   return GetLinkOffset(&startIndex, aEndIndex);
 }
 
-NS_IMETHODIMP nsAccessible::GetURI(PRInt32 i, nsIURI **aURI)
+NS_IMETHODIMP
+nsAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 {
+  NS_ENSURE_ARG_POINTER(aURI);
   *aURI = nsnull;
-  return NS_ERROR_FAILURE;
+
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
+
+  // Check if it's simple xlink.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (nsAccUtils::IsXLink(content)) {
+    nsAutoString href;
+    content->GetAttr(kNameSpaceID_XLink, nsAccessibilityAtoms::href, href);
+
+    nsCOMPtr<nsIURI> baseURI = content->GetBaseURI();
+    nsCOMPtr<nsIDocument> document = content->GetOwnerDoc();
+    return NS_NewURI(aURI, href,
+                     document ? document->GetDocumentCharacterSet().get() : nsnull,
+                     baseURI);
+  }
+
+  return NS_OK;
 }
 
-NS_IMETHODIMP nsAccessible::GetObject(PRInt32 aIndex,
-                                      nsIAccessible **aAccessible)
+
+NS_IMETHODIMP
+nsAccessible::GetAnchor(PRInt32 aIndex,
+                        nsIAccessible **aAccessible)
 {
-  if (aIndex != 0) {
-    *aAccessible = nsnull;
-    return NS_ERROR_FAILURE;
-  }
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+
+  if (aIndex != 0)
+    return NS_ERROR_INVALID_ARG;
+
   *aAccessible = this;
   NS_ADDREF_THIS();
   return NS_OK;
 }
 
-// nsIAccessibleHyperLink::IsValid()
-NS_IMETHODIMP nsAccessible::IsValid(PRBool *aIsValid)
+// readonly attribute boolean nsIAccessibleHyperLink::valid
+NS_IMETHODIMP
+nsAccessible::GetValid(PRBool *aValid)
 {
+  NS_ENSURE_ARG_POINTER(aValid);
   PRUint32 state = State(this);
-  *aIsValid = (0 == (state & nsIAccessibleStates::STATE_INVALID));
+  *aValid = (0 == (state & nsIAccessibleStates::STATE_INVALID));
   // XXX In order to implement this we would need to follow every link
   // Perhaps we can get information about invalid links from the cache
-  // In the mean time authors can use role="link" aria_invalid="true"
+  // In the mean time authors can use role="link" aria-invalid="true"
   // to force it for links they internally know to be invalid
   return NS_OK;
 }
 
-NS_IMETHODIMP nsAccessible::IsSelected(PRBool *aIsSelected)
+// readonly attribute boolean nsIAccessibleHyperLink::selected
+NS_IMETHODIMP
+nsAccessible::GetSelected(PRBool *aSelected)
 {
-  *aIsSelected = (gLastFocusedNode == mDOMNode);
+  NS_ENSURE_ARG_POINTER(aSelected);
+  *aSelected = (gLastFocusedNode == mDOMNode);
   return NS_OK;
 }
 
@@ -3421,6 +3562,7 @@ PRBool nsAccessible::MustPrune(nsIAccessible *aAccessible)
          role == nsIAccessibleRole::ROLE_COMBOBOX_OPTION ||
          role == nsIAccessibleRole::ROLE_OPTION ||
          role == nsIAccessibleRole::ROLE_ENTRY ||
+         role == nsIAccessibleRole::ROLE_FLAT_EQUATION ||
          role == nsIAccessibleRole::ROLE_PASSWORD_TEXT ||
          role == nsIAccessibleRole::ROLE_PUSHBUTTON ||
          role == nsIAccessibleRole::ROLE_TOGGLE_BUTTON ||

@@ -438,6 +438,8 @@ user_pref("browser.shell.checkDefaultBrowser", false);
 user_pref("browser.warnOnQuit", false);
 user_pref("accessibility.typeaheadfind.autostart", false);
 user_pref("javascript.options.showInConsole", true);
+user_pref("layout.debug.enable_data_xbl", true);
+user_pref("browser.EULA.override", true);
 PREFEND
 
   # Grant God-power to all the servers on which tests can run.
@@ -529,7 +531,7 @@ CHROMEEND
   my $manifest = $directories . "chrome/mochikit.manifest";
   open(MANIFEST, ">$manifest") ||
     die("Could not open manifest file $!");
-  print MANIFEST ("content mochikit $chrometest_dir\n");
+  print MANIFEST ("content mochikit $chrometest_dir contentaccessible=yes\n");
   if ($do_browser_tests) {
     print MANIFEST ("overlay " . BROWSER_CHROME_URL . " chrome://mochikit/content/browser-test-overlay.xul\n");
   }

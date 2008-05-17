@@ -125,8 +125,13 @@ _cairo_hull_vertex_compare (const void *av, const void *bv)
 static int
 _cairo_hull_prev_valid (cairo_hull_t *hull, int num_hull, int index)
 {
+    /* hull[0] is always valid, and we never need to wraparound, (if
+     * we are passed an index of 0 here, then the calling loop is just
+     * about to terminate). */
+    if (index == 0)
+	return 0;
+
     do {
-	/* hull[0] is always valid, so don't test and wraparound */
 	index--;
     } while (hull[index].discard);
 
@@ -192,7 +197,7 @@ cairo_status_t
 _cairo_hull_compute (cairo_pen_vertex_t *vertices, int *num_vertices)
 {
     cairo_status_t status;
-    cairo_hull_t *hull;
+    cairo_hull_t *hull = NULL;
     int num_hull = *num_vertices;
 
     status = _cairo_hull_create (vertices, num_hull, &hull);

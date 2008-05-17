@@ -341,6 +341,7 @@ nsNativeThemeWin::nsNativeThemeWin() {
   mOsVersion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
   GetVersionEx(&mOsVersion);
 
+  mIsXPOrLater = ((mOsVersion.dwMajorVersion << 8 | mOsVersion.dwMinorVersion) >= 0x501);
   mIsVistaOrLater = (mOsVersion.dwMajorVersion >= 6);
 
   UpdateConfig();
@@ -448,11 +449,17 @@ static PRBool IsFrameRTL(nsIFrame *frame)
 void
 nsNativeThemeWin::UpdateConfig()
 {
-  // On Windows 2000 this SystemParametersInfo call will fail
-  //   and we get non-flat as desired.
-  BOOL useFlat = PR_FALSE;
-  mFlatMenus = ::SystemParametersInfo(SPI_GETFLATMENU, 0, &useFlat, 0) ?
-                   useFlat : PR_FALSE;
+  if (mIsXPOrLater) {
+    BOOL useFlat = PR_FALSE;
+    mFlatMenus = ::SystemParametersInfo(SPI_GETFLATMENU, 0, &useFlat, 0) ?
+                     useFlat : PR_FALSE;
+  } else {
+    // Contrary to Microsoft's documentation, SPI_GETFLATMENU will not fail
+    // on Windows 2000, and it is also possible (though unlikely) for WIN2K
+    // to be misconfigured in such a way that it would return true, so we
+    // shall give WIN2K special treatment
+    mFlatMenus = PR_FALSE;
+  }
 }
 
 HANDLE
@@ -460,6 +467,15 @@ nsNativeThemeWin::GetTheme(PRUint8 aWidgetType)
 { 
   if (!mThemeDLL)
     return NULL;
+
+  if (!mIsVistaOrLater) {
+    // On XP or earlier, render dropdowns as textfields;
+    // doing it the right way works fine with the MS themes,
+    // but breaks on a lot of custom themes (presumably because MS
+    // apps do the textfield border business as well).
+    if (aWidgetType == NS_THEME_DROPDOWN)
+      aWidgetType = NS_THEME_TEXTFIELD;
+  }
 
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
@@ -478,7 +494,8 @@ nsNativeThemeWin::GetTheme(PRUint8 aWidgetType)
       return mTextFieldTheme;
     }
     case NS_THEME_TOOLTIP: {
-      if (!mTooltipTheme)
+      // BUG #161600: XP/2K3 should force a classic treatment of tooltips
+      if (!mTooltipTheme && mIsVistaOrLater)
         mTooltipTheme = openTheme(NULL, L"Tooltip");
       return mTooltipTheme;
     }
@@ -487,17 +504,17 @@ nsNativeThemeWin::GetTheme(PRUint8 aWidgetType)
         mRebarTheme = openTheme(NULL, L"Rebar");
       return mRebarTheme;
     }
-    case NS_THEME_MEDIA_TOOLBOX: {
+    case NS_THEME_WIN_MEDIA_TOOLBOX: {
       if (!mMediaRebarTheme)
         mMediaRebarTheme = openTheme(NULL, L"Media::Rebar");
       return mMediaRebarTheme;
     }
-    case NS_THEME_COMMUNICATIONS_TOOLBOX: {
+    case NS_THEME_WIN_COMMUNICATIONS_TOOLBOX: {
       if (!mCommunicationsRebarTheme)
         mCommunicationsRebarTheme = openTheme(NULL, L"Communications::Rebar");
       return mCommunicationsRebarTheme;
     }
-    case NS_THEME_BROWSER_TAB_BAR_TOOLBOX: {
+    case NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX: {
       if (!mBrowserTabBarRebarTheme)
         mBrowserTabBarRebarTheme = openTheme(NULL, L"BrowserTabBar::Rebar");
       return mBrowserTabBarRebarTheme;
@@ -632,6 +649,12 @@ nsresult
 nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                        PRInt32& aPart, PRInt32& aState)
 {
+  if (!mIsVistaOrLater) {
+    // See GetTheme
+    if (aWidgetType == NS_THEME_DROPDOWN)
+      aWidgetType = NS_THEME_TEXTFIELD;
+  }
+
   switch (aWidgetType) {
     case NS_THEME_BUTTON: {
       aPart = BP_BUTTON;
@@ -932,9 +955,9 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
       return NS_OK;    
     }
     case NS_THEME_TOOLBOX:
-    case NS_THEME_MEDIA_TOOLBOX:
-    case NS_THEME_COMMUNICATIONS_TOOLBOX:
-    case NS_THEME_BROWSER_TAB_BAR_TOOLBOX:
+    case NS_THEME_WIN_MEDIA_TOOLBOX:
+    case NS_THEME_WIN_COMMUNICATIONS_TOOLBOX:
+    case NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX:
     case NS_THEME_STATUSBAR:
     case NS_THEME_SCROLLBAR:
     case NS_THEME_SCROLLBAR_SMALL: {
@@ -1075,10 +1098,11 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
         return NS_OK;
       }
 
-      if (mIsVistaOrLater && isHTML) {
-        nsIComboboxControlFrame* ccf = nsnull;
-        CallQueryInterface(aFrame, &ccf);
-        if (ccf && ccf->IsDroppedDown()) {
+      if (mIsVistaOrLater) {
+        if (isHTML) {
+          nsIComboboxControlFrame* ccf = nsnull;
+          CallQueryInterface(aFrame, &ccf);
+          if (ccf && ccf->IsDroppedDown()) {
           /* Hover is propagated, but we need to know whether we're
            * hovering just the combobox frame, not the dropdown frame.
            * But, we can't get that information, since hover is on the
@@ -1086,11 +1110,20 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
            * instead, we cheat -- if the dropdown is open, we always
            * show the hover state.  This looks fine in practice.
            */
-          aState = TS_HOVER;
-          return NS_OK;
+            aState = TS_HOVER;
+            return NS_OK;
+          }
+        } else {
+          /* On Vista, the dropdown indicator on a menulist button in  
+           * chrome is not given a hover effect. When the frame isn't
+           * isn't HTML content, we cheat and force the dropdown state
+           * to be normal. (Bug 430434)
+           */
+            aState = TS_NORMAL;
+            return NS_OK;
         }
       }
-
+  
       aState = StandardGetState(aFrame, aWidgetType, PR_FALSE);
 
       return NS_OK;
@@ -1196,14 +1229,6 @@ nsNativeThemeWin::DrawWidgetBackground(nsIRenderingContext* aContext,
   HANDLE theme = GetTheme(aWidgetType);
   if (!theme)
     return ClassicDrawWidgetBackground(aContext, aFrame, aWidgetType, aRect, aClipRect); 
-
-#ifndef WINCE
-  if (aWidgetType == NS_THEME_TOOLTIP && !mIsVistaOrLater) {
-    // BUG #161600: When rendering a non-classic tooltip, check
-    // for Windows prior to Vista, and if so, force a classic rendering
-    return ClassicDrawWidgetBackground(aContext, aFrame, aWidgetType, aRect, aClipRect);
-  }
-#endif
 
   if (!drawThemeBG)
     return NS_ERROR_FAILURE;    
@@ -1427,9 +1452,9 @@ nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext,
 
   if (!WidgetIsContainer(aWidgetType) ||
       aWidgetType == NS_THEME_TOOLBOX || 
-      aWidgetType == NS_THEME_MEDIA_TOOLBOX ||
-      aWidgetType == NS_THEME_COMMUNICATIONS_TOOLBOX ||
-      aWidgetType == NS_THEME_BROWSER_TAB_BAR_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_MEDIA_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_COMMUNICATIONS_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX ||
       aWidgetType == NS_THEME_STATUSBAR || 
       aWidgetType == NS_THEME_RESIZER || aWidgetType == NS_THEME_TAB_PANEL ||
       aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL ||
@@ -1514,7 +1539,7 @@ nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext,
   }
 
   HANDLE theme = GetTheme(aWidgetType);
-  if (!theme && aWidgetType != NS_THEME_MENUITEMTEXT)
+  if (!theme)
     return PR_FALSE;
 
   if (aWidgetType == NS_THEME_MENUPOPUP)
@@ -1527,23 +1552,26 @@ nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext,
   }
 
   if (mIsVistaOrLater) {
-    /* textfields need an extra pixel on all sides, otherwise they
+    if (aWidgetType == NS_THEME_TEXTFIELD ||
+        aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
+        aWidgetType == NS_THEME_DROPDOWN)
+    {
+      /* If we have author-specified padding for these elements, don't do the fixups below */
+      if (aFrame->PresContext()->HasAuthorSpecifiedRules(aFrame, NS_AUTHOR_SPECIFIED_PADDING))
+        return PR_FALSE;
+    }
+
+    /* textfields need extra pixels on all sides, otherwise they
      * wrap their content too tightly.  The actual border is drawn 1px
      * inside the specified rectangle, so Gecko will end up making the
-     * contents look too small.  Instead, we add 1px padding for the
-     * contents and fix this.
+     * contents look too small.  Instead, we add 2px padding for the
+     * contents and fix this. (Used to be 1px added, see bug 430212)
      */
     if (aWidgetType == NS_THEME_TEXTFIELD || aWidgetType == NS_THEME_TEXTFIELD_MULTILINE) {
-      aResult->top = aResult->bottom = 1;
-      aResult->left = aResult->right = 1;
+      aResult->top = aResult->bottom = 2;
+      aResult->left = aResult->right = 2;
       return PR_TRUE;
-    }
-  }
-
-  // Some things only apply to widgets in HTML content, since
-  // they're drawn differently
-  if (IsHTMLContent(aFrame)) {
-    if (aWidgetType == NS_THEME_DROPDOWN) {
+    } else if (IsHTMLContent(aFrame) && aWidgetType == NS_THEME_DROPDOWN) {
       /* For content menulist controls, we need an extra pixel so
        * that we have room to draw our focus rectangle stuff.
        * Otherwise, the focus rect might overlap the control's
@@ -1560,7 +1588,7 @@ nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext,
   switch (aWidgetType)
   {
     case NS_THEME_MENUIMAGE:
-        right = 9;
+        right = 8;
         left = 3;
         break;
     case NS_THEME_MENUCHECKBOX:
@@ -1569,17 +1597,10 @@ nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext,
         left = 0;
         break;
     case NS_THEME_MENUITEMTEXT:
-        if (!theme)
-        {
-          left = 18;
-        }
-        else
-        {
-          // There seem to be exactly 4 pixels from the edge
-          // of the gutter to the text
-          SIZE size(GetGutterSize(theme, NULL));
-          left = size.cx + 4;
-        }
+        // There seem to be exactly 4 pixels from the edge
+        // of the gutter to the text: 2px margin (CSS) + 2px padding (here)
+        SIZE size(GetGutterSize(theme, NULL));
+        left = size.cx + 2;
         break;
     case NS_THEME_MENUSEPARATOR:
         {
@@ -1610,7 +1631,7 @@ nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext,
 PRBool
 nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext, 
                                     nsIFrame* aFrame,
-                                    PRUint8 aWidgetType,
+                                    PRUint8 aOverflowRect,
                                     nsRect* aResult)
 {
   /* This is disabled for now, because it causes invalidation problems --
@@ -1632,9 +1653,7 @@ nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext,
       PRInt32 p2a = aContext->AppUnitsPerDevPixel();
       /* Note: no overflow on the left */
       nsMargin m(0, p2a, p2a, p2a);
-      nsRect r(nsPoint(0, 0), aFrame->GetSize());
-      r.Inflate (m);
-      *aResult = r;
+      aOverflowRect->Inflate (m);
       return PR_TRUE;
     }
   }
@@ -1656,9 +1675,9 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* 
     return ClassicGetMinimumWidgetSize(aContext, aFrame, aWidgetType, aResult, aIsOverridable);
 
   if (aWidgetType == NS_THEME_TOOLBOX ||
-      aWidgetType == NS_THEME_MEDIA_TOOLBOX ||
-      aWidgetType == NS_THEME_COMMUNICATIONS_TOOLBOX ||
-      aWidgetType == NS_THEME_BROWSER_TAB_BAR_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_MEDIA_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_COMMUNICATIONS_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX ||
       aWidgetType == NS_THEME_TOOLBAR || 
       aWidgetType == NS_THEME_STATUSBAR || aWidgetType == NS_THEME_PROGRESSBAR_CHUNK ||
       aWidgetType == NS_THEME_PROGRESSBAR_CHUNK_VERTICAL ||
@@ -1698,12 +1717,11 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* 
       }
       break;
     case NS_THEME_MENUIMAGE:
-      aResult->width = 1;
     case NS_THEME_MENUCHECKBOX:
     case NS_THEME_MENURADIO:
       {
         SIZE boxSize(GetGutterSize(theme, NULL));
-        aResult->width += boxSize.cx+2;
+        aResult->width = boxSize.cx+2;
         aResult->height = boxSize.cy;
         *aIsOverridable = PR_FALSE;
       }
@@ -1788,9 +1806,9 @@ nsNativeThemeWin::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
 {
   // Some widget types just never change state.
   if (aWidgetType == NS_THEME_TOOLBOX ||
-      aWidgetType == NS_THEME_MEDIA_TOOLBOX ||
-      aWidgetType == NS_THEME_COMMUNICATIONS_TOOLBOX ||
-      aWidgetType == NS_THEME_BROWSER_TAB_BAR_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_MEDIA_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_COMMUNICATIONS_TOOLBOX ||
+      aWidgetType == NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX ||
       aWidgetType == NS_THEME_TOOLBAR ||
       aWidgetType == NS_THEME_STATUSBAR || aWidgetType == NS_THEME_STATUSBAR_PANEL ||
       aWidgetType == NS_THEME_STATUSBAR_RESIZER_PANEL ||
@@ -1860,7 +1878,7 @@ nsNativeThemeWin::CloseData()
   CLOSE_THEME(mProgressTheme);
   CLOSE_THEME(mButtonTheme);
   CLOSE_THEME(mTextFieldTheme);
-  CLOSE_THEME(mToolbarTheme);
+  CLOSE_THEME(mTooltipTheme);
   CLOSE_THEME(mStatusbarTheme);
   CLOSE_THEME(mTabTheme);
   CLOSE_THEME(mTreeViewTheme);

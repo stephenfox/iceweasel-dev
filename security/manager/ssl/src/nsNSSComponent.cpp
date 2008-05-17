@@ -1722,6 +1722,19 @@ nsNSSComponent::Init()
     return rv;
   }      
 
+  // Access our string bundles now, this prevents assertions from I/O
+  // - nsStandardURL not thread-safe
+  // - wrong thread: 'NS_IsMainThread()' in nsIOService.cpp
+  // when loading error strings on the SSL threads.
+  {
+    NS_NAMED_LITERAL_STRING(dummy_name, "dummy");
+    nsXPIDLString result;
+    mPIPNSSBundle->GetStringFromName(dummy_name.get(),
+                                     getter_Copies(result));
+    mNSSErrorsBundle->GetStringFromName(dummy_name.get(),
+                                        getter_Copies(result));
+  }
+
   if (!mPrefBranch) {
     mPrefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
     NS_ASSERTION(mPrefBranch, "Unable to get pref service");
@@ -2262,6 +2275,7 @@ nsNSSComponent::GetErrorClass(nsresult aXPCOMErrorCode, PRUint32 *aErrorClass)
     case SEC_ERROR_UNTRUSTED_ISSUER:
     case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
     case SEC_ERROR_UNTRUSTED_CERT:
+    case SEC_ERROR_INADEQUATE_KEY_USAGE:
     case SSL_ERROR_BAD_CERT_DOMAIN:
     case SEC_ERROR_EXPIRED_CERTIFICATE:
       *aErrorClass = ERROR_CLASS_BAD_CERT;

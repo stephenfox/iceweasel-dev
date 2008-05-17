@@ -336,6 +336,12 @@ NS_IMETHODIMP
 nsHTMLEditor::ShowResizers(nsIDOMElement *aResizedElement)
 {
   NS_ENSURE_ARG_POINTER(aResizedElement);
+
+  if (mResizedObject) {
+    NS_ERROR("call HideResizers first");
+    return NS_ERROR_UNEXPECTED;
+  }
+
   mResizedObject = aResizedElement;
 
   // The resizers and the shadow will be anonymous siblings of the element.
@@ -476,6 +482,11 @@ nsHTMLEditor::HideResizers(void)
                              mResizingInfo, parentContent, ps);
   mResizingInfo = nsnull;
 
+  if (mActivatedHandle) {
+    mActivatedHandle->RemoveAttribute(NS_LITERAL_STRING("_moz_activated"));
+    mActivatedHandle = nsnull;
+  }
+
   // don't forget to remove the listeners !
 
   nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
@@ -612,7 +623,7 @@ nsHTMLEditor::StartResizing(nsIDOMElement *aHandle)
 
 NS_IMETHODIMP 
 nsHTMLEditor::MouseDown(PRInt32 aClientX, PRInt32 aClientY,
-                        nsIDOMElement *aTarget)
+                        nsIDOMElement *aTarget, nsIDOMEvent* aEvent)
 {
   PRBool anonElement = PR_FALSE;
   if (aTarget && NS_SUCCEEDED(aTarget->HasAttribute(NS_LITERAL_STRING("_moz_anonclass"), &anonElement)))
@@ -623,6 +634,8 @@ nsHTMLEditor::MouseDown(PRInt32 aClientX, PRInt32 aClientY,
       if (NS_FAILED(res)) return res;
       if (anonclass.EqualsLiteral("mozResizer")) {
         // and that element is a resizer, let's start resizing!
+        aEvent->PreventDefault();
+
         mOriginalX = aClientX;
         mOriginalY = aClientY;
         return StartResizing(aTarget);

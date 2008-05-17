@@ -173,6 +173,7 @@ NS_INTERFACE_MAP_BEGIN(nsWebBrowser)
     NS_INTERFACE_MAP_ENTRY(nsIScrollable)
     NS_INTERFACE_MAP_ENTRY(nsITextScroll)
     NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeItem)
+    NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeNode)
     NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
     NS_INTERFACE_MAP_ENTRY(nsIWebBrowserSetup)
     NS_INTERFACE_MAP_ENTRY(nsIWebBrowserPersist)
@@ -1645,16 +1646,15 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
 /* static */
 nsEventStatus PR_CALLBACK nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
-  nsEventStatus  result = nsEventStatus_eIgnore;
   nsWebBrowser  *browser = nsnull;
   void          *data = nsnull;
 
   if (!aEvent->widget)
-    return result;
+    return nsEventStatus_eIgnore;
 
   aEvent->widget->GetClientData(data);
   if (!data)
-    return result;
+    return nsEventStatus_eIgnore;
 
   browser = static_cast<nsWebBrowser *>(data);
 
@@ -1694,16 +1694,14 @@ nsEventStatus PR_CALLBACK nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
           rc->FillRect(r);
       }
       rc->SetColor(oldColor);
-      break;
+      return nsEventStatus_eConsumeDoDefault;
     }
 
   default:
     break;
   }
 
-  return result;
-    
-  
+  return nsEventStatus_eIgnore;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindowInternal **aDOMWindow)

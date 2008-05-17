@@ -62,6 +62,7 @@ class nsIContent;
 class nsRegion;
 class nsIRenderingContext;
 class nsIDeviceContext;
+class nsDisplayTableItem;
 
 /*
  * An nsIFrame can have many different visual parts. For example an image frame
@@ -132,7 +133,7 @@ public:
    * operation, we specify the scrolled frame as the moving frame.
    */
   nsDisplayListBuilder(nsIFrame* aReferenceFrame, PRBool aIsForEvents,
-                       PRBool aBuildCaret, nsIFrame* aMovingFrame = nsnull);
+                       PRBool aBuildCaret);
   ~nsDisplayListBuilder();
 
   /**
@@ -153,14 +154,30 @@ public:
    * a new stacking context
    */
   PRBool IsAtRootOfPseudoStackingContext() { return mIsAtRootOfPseudoStackingContext; }
+
+  /**
+   * Indicate that we'll use this display list to analyze the effects
+   * of aMovingFrame moving by aMoveDelta. The move has already been
+   * applied to the frame tree.
+   */
+  void SetMovingFrame(nsIFrame* aMovingFrame, const nsPoint& aMoveDelta) {
+    mMovingFrame = aMovingFrame;
+    mMoveDelta = aMoveDelta;
+  }
+
   /**
    * @return PR_TRUE if we are doing analysis of moving frames
    */
   PRBool HasMovingFrames() { return mMovingFrame != nsnull; }
   /**
-   * @return the frame that is being hypothetically moved
+   * @return the frame that was moved
    */
   nsIFrame* GetRootMovingFrame() { return mMovingFrame; }
+  /**
+   * @return the amount by which mMovingFrame was moved.
+   * Only valid when GetRootMovingFrame() returns non-null.
+   */
+  const nsPoint& GetMoveDelta() { return mMoveDelta; }
   /**
    * @return PR_TRUE if aFrame is, or is a descendant of, the hypothetical
    * moving frame
@@ -281,6 +298,10 @@ public:
     PRPackedBool          mOldValue;
   };
   
+  // Helpers for tables
+  nsDisplayTableItem* GetCurrentTableItem() { return mCurrentTableItem; }
+  void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
+
 private:
   // This class is only used on stack, so we don't have to worry about leaking
   // it.  Don't let us be heap-allocated!
@@ -300,10 +321,12 @@ private:
   nsIFrame*                      mReferenceFrame;
   nsIFrame*                      mMovingFrame;
   nsIFrame*                      mIgnoreScrollFrame;
+  nsPoint                        mMoveDelta; // only valid when mMovingFrame is non-null
   PLArenaPool                    mPool;
   nsCOMPtr<nsISelection>         mBoundingSelection;
   nsAutoTArray<PresShellState,8> mPresShellStates;
   nsAutoTArray<nsIFrame*,100>    mFramesMarkedForDisplay;
+  nsDisplayTableItem*            mCurrentTableItem;
   PRPackedBool                   mBuildCaret;
   PRPackedBool                   mEventDelivery;
   PRPackedBool                   mIsBackgroundOnly;
@@ -420,11 +443,12 @@ public:
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder) { return PR_FALSE; }
   /**
    * @return PR_FALSE if the painting performed by the item is invariant
-   * when frame aFrame is moved relative to its parent (so it would be safe
-   * to update the display by just copying pixels from their old to new location)
+   * when frame aFrame is moved relative to aBuilder->GetRootMovingFrame().
+   * This can only be called when aBuilder->IsMovingFrame(mFrame) is true.
+   * It return PR_TRUE for all wrapped lists.
    */
-  virtual PRBool IsVaryingRelativeToFrame(nsDisplayListBuilder* aBuilder,
-       nsIFrame* aFrame) { return PR_FALSE; }
+  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder)
+  { return PR_FALSE; }
   /**
    * Actually paint this item to some rendering context.
    * @param aDirtyRect relative to aBuilder->ReferenceFrame()
@@ -990,8 +1014,7 @@ public:
   virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                             HitTestState* aState) { return mFrame; }
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsVaryingRelativeToFrame(nsDisplayListBuilder* aBuilder,
-                                          nsIFrame* aAncestorFrame);
+  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
@@ -1074,8 +1097,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsVaryingRelativeToFrame(nsDisplayListBuilder* aBuilder,
-                                          nsIFrame* aFrame);
+  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder,
@@ -1168,8 +1190,15 @@ private:
  */
 class nsDisplayClip : public nsDisplayWrapList {
 public:
-  nsDisplayClip(nsIFrame* aFrame, nsDisplayItem* aItem, const nsRect& aRect);
-  nsDisplayClip(nsIFrame* aFrame, nsDisplayList* aList, const nsRect& aRect);
+  /**
+   * @param aFrame the frame that should be considered the underlying
+   * frame for this content, e.g. the frame whose z-index we have.
+   * @param aClippingFrame the frame that is inducing the clipping.
+   */
+  nsDisplayClip(nsIFrame* aFrame, nsIFrame* aClippingFrame, 
+                nsDisplayItem* aItem, const nsRect& aRect);
+  nsDisplayClip(nsIFrame* aFrame, nsIFrame* aClippingFrame,
+                nsDisplayList* aList, const nsRect& aRect);
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayClip();
 #endif
@@ -1184,12 +1213,19 @@ public:
   NS_DISPLAY_DECL_NAME("Clip")
   
   nsRect GetClipRect() { return mClip; }
+  void SetClipRect(const nsRect& aRect) { mClip = aRect; }
+  nsIFrame* GetClippingFrame() { return mClippingFrame; }
 
   virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
                                            nsDisplayItem* aItem);
 
 private:
-  nsRect mClip;
+  // The frame that is responsible for the clipping. This may be different
+  // from mFrame because mFrame represents the content that is being
+  // clipped, and for example may be used to obtain the z-index of the
+  // content.
+  nsIFrame* mClippingFrame;
+  nsRect    mClip;
 };
 
 #endif /*NSDISPLAYLIST_H_*/

@@ -68,7 +68,7 @@ public:
   virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame,
                                    PRUint8 aWidgetType,
-                                   nsRect* aResult);
+                                   nsRect* aOverflowRect);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
@@ -153,6 +153,7 @@ private:
   BOOL mFlatMenus;
   OSVERSIONINFO mOsVersion;
 
+  PRPackedBool mIsXPOrLater;
   PRPackedBool mIsVistaOrLater;
 };
 

@@ -55,7 +55,7 @@
  * have that, as should unvisited children of livemark feeds (that aren't
  * bookmarked elsewhere).
  *
- * But places with frecency (-1) are included, as that means that these items
+ * But places with frecency < 0 are included, as that means that these items
  * have not had their frecency calculated yet (will happen on idle).
  */
 
@@ -98,6 +98,11 @@
   SQL_STR_FRAGMENT_GET_BOOK_TAG("parent", "b.parent", "!=", PR_TRUE) + \
   SQL_STR_FRAGMENT_GET_BOOK_TAG("bookmark", "b.title", "!=", PR_TRUE) + \
   SQL_STR_FRAGMENT_GET_BOOK_TAG("tags", "GROUP_CONCAT(t.title, ',')", "=", PR_FALSE))
+
+// This separator is used as an RTL-friendly way to split the title and tags.
+// It can also be used by an nsIAutoCompleteResult consumer to re-split the
+// "comment" back into the title and tag.
+NS_NAMED_LITERAL_STRING(kTitleTagsSeparator, " \u2013 ");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsNavHistoryAutoComplete Helper Functions
@@ -198,7 +203,7 @@ FindOnBoundary(const nsAString &aToken, const nsAString &aTarget)
     // we're not currently on a word boundary, eat up as many non-word boundary
     // characters as possible -- don't kill characters if we're currently on a
     // word boundary so that we can match tokens that start on a word boundary.
-    if (!IsWordBoundary(*targetStart++))
+    if (!IsWordBoundary(ToLowerCase(*targetStart++)))
       while (targetStart != targetEnd && !IsWordBoundary(*targetStart))
         targetStart++;
 
@@ -256,7 +261,7 @@ nsNavHistory::CreateAutoCompleteQueries()
 
   // NOTE:
   // after migration or clear all private data, we might end up with
-  // a lot of places with frecency = -1 (until idle)
+  // a lot of places with frecency < 0 (until idle)
   //
   // XXX bug 412736
   // in the case of a frecency tie, break it with h.typed and h.visit_count
@@ -355,12 +360,22 @@ nsNavHistory::PerformAutoComplete()
 
   // If we ran out of pages to search, set offset to -1, so we can tell the
   // difference between completing and stopping because we have enough results
-  if (!moreChunksToSearch)
-    mCurrentChunkOffset = -1;
+  PRBool notEnoughResults = !AutoCompleteHasEnoughResults();
+  if (!moreChunksToSearch) {
+    // But check first to see if we don't have enough results, and we're
+    // matching word boundaries, so try again without the match restriction
+    if (notEnoughResults && mCurrentMatchType == MATCH_BOUNDARY_ANYWHERE) {
+      mCurrentMatchType = MATCH_ANYWHERE;
+      mCurrentChunkOffset = -mAutoCompleteSearchChunkSize;
+      moreChunksToSearch = PR_TRUE;
+    } else {
+      mCurrentChunkOffset = -1;
+    }
+  } else {
+    // We know that we do have more chunks, so make sure we want more results
+    moreChunksToSearch = notEnoughResults;
+  }
 
-  // Only search more chunks if there are more and we need more results
-  moreChunksToSearch &= !AutoCompleteHasEnoughResults();
- 
   // Determine the result of the search
   PRUint32 count;
   mCurrentResult->GetMatchCount(&count); 
@@ -397,6 +412,7 @@ nsNavHistory::PerformAutoComplete()
 void
 nsNavHistory::DoneSearching(PRBool aFinished)
 {
+  mPreviousMatchType = mCurrentMatchType;
   mPreviousChunkOffset = mCurrentChunkOffset;
   mAutoCompleteFinishedSearch = aFinished;
   mCurrentResult = nsnull;
@@ -417,6 +433,10 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   // not reusing results, see bug #412730 for details
 
   NS_ENSURE_ARG_POINTER(aListener);
+
+  // Lazily init nsITextToSubURI service
+  if (!mTextURIService)
+    mTextURIService = do_GetService(NS_ITEXTTOSUBURI_CONTRACTID);
 
   // Keep track of the previous search results to try optimizing
   PRUint32 prevMatchCount = mCurrentResultURLs.Count();
@@ -491,10 +511,15 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
         rv = mDBPreviousQuery->BindStringParameter(i + 1, *urls[i]);
         NS_ENSURE_SUCCESS(rv, rv);
       }
+
+      // Use the same match behavior as the previous search
+      mCurrentMatchType = mPreviousMatchType;
     }
   } else {
     // Clear out any previous result queries
     mDBPreviousQuery = nsnull;
+    // Default to matching based on the user's preference
+    mCurrentMatchType = mAutoCompleteMatchBehavior;
   }
 
   mAutoCompleteFinishedSearch = PR_FALSE;
@@ -661,7 +686,7 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
   // Determine what type of search to try matching tokens against targets
   PRBool (*tokenMatchesTarget)(const nsAString &, const nsAString &) =
-    mAutoCompleteOnWordBoundary ? FindOnBoundary : FindAnywhere;
+    mCurrentMatchType != MATCH_ANYWHERE ? FindOnBoundary : FindAnywhere;
 
   PRBool hasMore = PR_FALSE;
   // Determine the result of the search
@@ -682,11 +707,6 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
     // XXX bug 412734
     PRBool dummy;
     if (!mCurrentResultURLs.Get(escapedEntryURL, &dummy)) {
-      // Convert the escaped UTF16 (all ascii) to ASCII then unescape to UTF16
-      NS_LossyConvertUTF16toASCII cEntryURL(escapedEntryURL);
-      NS_UnescapeURL(cEntryURL);
-      NS_ConvertUTF8toUTF16 entryURL(cEntryURL);
-
       PRInt64 parentId = 0;
       nsAutoString entryTitle, entryFavicon, entryBookmarkTitle;
       rv = aQuery->GetString(kAutoCompleteIndex_Title, entryTitle);
@@ -706,8 +726,10 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
       rv = aQuery->GetString(kAutoCompleteIndex_Tags, entryTags);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      PRBool useBookmark = PR_FALSE;
-      PRBool showTags = PR_FALSE;
+      // Always prefer the bookmark title unless it's empty
+      nsAutoString title =
+        entryBookmarkTitle.IsEmpty() ? entryTitle : entryBookmarkTitle;
+
       nsString style;
       switch (aType) {
         case QUERY_FULL: {
@@ -715,27 +737,24 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
           if (aHasMoreResults)
             *aHasMoreResults = PR_TRUE;
 
+          // Unescape the url to search for unescaped terms
+          nsString entryURL = FixupURIText(escapedEntryURL);
+
           // Determine if every token matches either the bookmark title, tags,
           // page title, or page url
           PRBool matchAll = PR_TRUE;
           for (PRInt32 i = 0; i < mCurrentSearchTokens.Count() && matchAll; i++) {
             const nsString *token = mCurrentSearchTokens.StringAt(i);
 
-            // Check if the current token matches the bookmark
-            PRBool bookmarkMatch = parentId &&
-              (*tokenMatchesTarget)(*token, entryBookmarkTitle);
-            // If any part of the search string is in the bookmark title, show
-            // that in the result instead of the page title
-            useBookmark |= bookmarkMatch;
-
-            // If the token is in any of the tags, remember to show tags
-            PRBool tagsMatch = (*tokenMatchesTarget)(*token, entryTags);
-            showTags |= tagsMatch;
+            // Check if the tags match the search term
+            PRBool matchTags = (*tokenMatchesTarget)(*token, entryTags);
+            // Check if the title matches the search term
+            PRBool matchTitle = (*tokenMatchesTarget)(*token, title);
+            // Check if the url matches the search term
+            PRBool matchUrl = (*tokenMatchesTarget)(*token, entryURL);
 
             // True if any of them match; false makes us quit the loop
-            matchAll = bookmarkMatch || tagsMatch ||
-              (*tokenMatchesTarget)(*token, entryTitle) ||
-              (*tokenMatchesTarget)(*token, entryURL);
+            matchAll = matchTags || matchTitle || matchUrl;
           }
 
           // Skip if we don't match all terms in the bookmark, tag, title or url
@@ -744,27 +763,14 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
           break;
         }
-        default: {
-          // Always prefer to show tags if we have them; otherwise, prefer the
-          // bookmark title if we have it
-          if (!entryTags.IsEmpty())
-            showTags = PR_TRUE;
-          else
-            useBookmark = !entryBookmarkTitle.IsEmpty();
-
-          break;
-        }
       }
+
+      // Always prefer to show tags if we have them
+      PRBool showTags = !entryTags.IsEmpty();
 
       // Add the tags to the title if necessary
-      if (showTags) {
-        // Always show the bookmark if possible when we have tags
-        useBookmark = !entryBookmarkTitle.IsEmpty();
-        /* XXX bug 418257 to look at RTL issues of appending tags
-        (useBookmark ? entryBookmarkTitle : entryTitle)
-          += NS_LITERAL_STRING(" (") + entryTags + NS_LITERAL_STRING(")");
-        */
-      }
+      if (showTags)
+        title += kTitleTagsSeparator + entryTags;
 
       // Tags have a special style to show a tag icon; otherwise, style the
       // bookmarks that aren't feed items and feed URIs as bookmark
@@ -772,9 +778,6 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
         !mLivemarkFeedItemIds.Get(parentId, &dummy)) ||
         mLivemarkFeedURIs.Get(escapedEntryURL, &dummy) ?
         NS_LITERAL_STRING("bookmark") : NS_LITERAL_STRING("favicon");
-
-      // Pick the right title to show based on the result of the query type
-      const nsAString &title = useBookmark ? entryBookmarkTitle : entryTitle;
 
       // Get the URI for the favicon
       nsCAutoString faviconSpec;
@@ -844,4 +847,24 @@ nsNavHistory::AutoCompleteFeedback(PRInt32 aIndex,
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
+}
+
+nsString
+nsNavHistory::FixupURIText(const nsAString &aURIText)
+{
+  // Unescaping utilities expect UTF8 strings
+  NS_ConvertUTF16toUTF8 escaped(aURIText);
+
+  nsString fixedUp;
+  // Use the service if we have it to avoid invalid UTF8 strings
+  if (mTextURIService) {
+    mTextURIService->UnEscapeURIForUI(NS_LITERAL_CSTRING("UTF-8"),
+      escaped, fixedUp);
+    return fixedUp;
+  }
+
+  // Fallback on using this if the service is unavailable for some reason
+  NS_UnescapeURL(escaped);
+  CopyUTF8toUTF16(escaped, fixedUp);
+  return fixedUp;
 }

@@ -49,7 +49,9 @@
 
 #ifdef MOZ_ENABLE_GTK2
 // for getenv
-#include <stdlib.h>
+#include <cstdlib>
+// for round
+#include <cmath>
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
@@ -170,8 +172,9 @@ nsThebesDeviceContext::SetDPI()
         }
 
 #if defined(MOZ_ENABLE_GTK2)
-        float screenWidthIn = float(::gdk_screen_width_mm()) / 25.4f;
-        PRInt32 OSVal = NSToCoordRound(float(::gdk_screen_width()) / screenWidthIn);
+        GdkScreen *screen = gdk_screen_get_default();
+        gtk_settings_get_for_screen(screen); // Make sure init is run so we have a resolution
+        PRInt32 OSVal = PRInt32(round(gdk_screen_get_resolution(screen)));
 
         if (prefDPI == 0) // Force the use of the OS dpi
             dpi = OSVal;
@@ -238,8 +241,7 @@ nsThebesDeviceContext::SetDPI()
         // to get the number of app units per dev pixel.  The PR_MAXes are to
         // make sure we don't end up dividing by zero.
         mAppUnitsPerDevNotScaledPixel = PR_MAX(1, AppUnitsPerCSSPixel() /
-                                        PR_MAX(1, (dpi + 48) / 96));
-
+                                        PR_MAX(1, dpi / 96));
     } else {
         /* set mAppUnitsPerDevPixel so we're using exactly 72 dpi, even
          * though that means we have a non-integer number of device "pixels"
@@ -272,10 +274,7 @@ nsThebesDeviceContext::Init(nsNativeWidget aWidget)
 
 #endif
 
-
-    mDepth = 24;
-
-    mScreenManager = do_GetService("@mozilla.org/gfx/screenmanager;1");   
+    mScreenManager = do_GetService("@mozilla.org/gfx/screenmanager;1");
 
     return NS_OK;
 }
@@ -421,6 +420,12 @@ nsThebesDeviceContext::CheckFontExistence(const nsString& aFaceName)
 NS_IMETHODIMP
 nsThebesDeviceContext::GetDepth(PRUint32& aDepth)
 {
+    nsCOMPtr<nsIScreen> primaryScreen;
+    if (mDepth == 0) {
+        mScreenManager->GetPrimaryScreen(getter_AddRefs(primaryScreen));
+        primaryScreen->GetColorDepth(reinterpret_cast<PRInt32 *>(&mDepth));
+    }
+
     aDepth = mDepth;
     return NS_OK;
 }
@@ -536,58 +541,71 @@ nsThebesDeviceContext::BeginDocument(PRUnichar*  aTitle,
                                      PRInt32     aEndPage)
 {
     static const PRUnichar kEmpty[] = { '\0' };
+    nsresult rv;
 
-    mPrintingSurface->BeginPrinting(nsDependentString(aTitle ? aTitle : kEmpty),
-                                    nsDependentString(aPrintToFileName ? aPrintToFileName : kEmpty));
-    if (mDeviceContextSpec)
-        mDeviceContextSpec->BeginDocument(aTitle, aPrintToFileName, aStartPage, aEndPage);
-    return NS_OK;
+    rv = mPrintingSurface->BeginPrinting(nsDependentString(aTitle ? aTitle : kEmpty),
+                                         nsDependentString(aPrintToFileName ? aPrintToFileName : kEmpty));
+
+    if (NS_SUCCEEDED(rv) && mDeviceContextSpec)
+        rv = mDeviceContextSpec->BeginDocument(aTitle, aPrintToFileName, aStartPage, aEndPage);
+
+    return rv;
 }
 
 
 NS_IMETHODIMP
 nsThebesDeviceContext::EndDocument(void)
 {
+    nsresult rv = NS_OK;
+
     if (mPrintingSurface) {
-        mPrintingSurface->EndPrinting();
-        mPrintingSurface->Finish();
+        rv = mPrintingSurface->EndPrinting();
+        if (NS_SUCCEEDED(rv))
+            mPrintingSurface->Finish();
     }
+
     if (mDeviceContextSpec)
         mDeviceContextSpec->EndDocument();
-    return NS_OK;
+
+    return rv;
 }
 
 
 NS_IMETHODIMP
 nsThebesDeviceContext::AbortDocument(void)
 {
-    mPrintingSurface->AbortPrinting();
+    nsresult rv = mPrintingSurface->AbortPrinting();
 
     if (mDeviceContextSpec)
         mDeviceContextSpec->EndDocument();
-    return NS_OK;
+
+    return rv;
 }
 
 
 NS_IMETHODIMP
 nsThebesDeviceContext::BeginPage(void)
 {
+    nsresult rv = NS_OK;
+
     if (mDeviceContextSpec)
-        mDeviceContextSpec->BeginPage();
+        rv = mDeviceContextSpec->BeginPage();
+
+    if (NS_FAILED(rv)) return rv;
 
    /* We need to get a new surface for each page on the Mac */
 #ifdef XP_MACOSX
     mDeviceContextSpec->GetSurfaceForPrinter(getter_AddRefs(mPrintingSurface));
 #endif
-    mPrintingSurface->BeginPage();
+    rv = mPrintingSurface->BeginPage();
 
-    return NS_OK;
+    return rv;
 }
 
 NS_IMETHODIMP
 nsThebesDeviceContext::EndPage(void)
 {
-    mPrintingSurface->EndPage();
+    nsresult rv = mPrintingSurface->EndPage();
 
     /* We need to release the CGContextRef in the surface here, plus it's
        not something you would want anyway, as these CGContextRefs are only good
@@ -599,7 +617,7 @@ nsThebesDeviceContext::EndPage(void)
     if (mDeviceContextSpec)
         mDeviceContextSpec->EndPage();
 
-    return NS_OK;
+    return rv;
 }
 
 /** End printing methods **/
@@ -745,8 +763,6 @@ nsThebesDeviceContext::CalcPrintingSize()
     if (inPoints) {
         mWidth = NSToCoordRound(float(size.width) * AppUnitsPerInch() / 72);
         mHeight = NSToCoordRound(float(size.height) * AppUnitsPerInch() / 72);
-        printf("%f %f\n", size.width, size.height);
-        printf("%d %d\n", (PRInt32)mWidth, (PRInt32)mHeight);
     } else {
         mWidth = NSToIntRound(size.width);
         mHeight = NSToIntRound(size.height);

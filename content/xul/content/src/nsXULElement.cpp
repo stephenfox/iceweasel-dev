@@ -151,6 +151,7 @@
 #include "nsXBLBinding.h"
 #include "nsEventDispatcher.h"
 #include "nsPresShellIterator.h"
+#include "mozAutoDocUpdate.h"
 
 /**
  * Three bits are used for XUL Element's lazy state.
@@ -541,9 +542,10 @@ nsXULElement::GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
     if (!doc)
         return NS_ERROR_UNEXPECTED; // XXX
 
+    nsPIDOMWindow *window;
     nsIContent *root = doc->GetRootContent();
-    if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay)) {
-        nsPIDOMWindow *window = doc->GetInnerWindow();
+    if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay) &&
+        (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
 
         nsCOMPtr<nsPIDOMEventTarget> piTarget = do_QueryInterface(window);
         if (!piTarget)
@@ -573,7 +575,7 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex)
    *
    * Confusingly, the supplied value for the aTabIndex argument may indicate
    * whether the element may be focused as a result of the -moz-user-focus
-   * property.
+   * property, where -1 means no and 0 means yes.
    *
    * For controls, the element cannot be focused and is not part of the tab
    * order if it is disabled.
@@ -611,13 +613,20 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex)
   }
 
   if (aTabIndex) {
-    if (xulControl && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
-      // if either the aTabIndex argument or a specified tabindex is non-negative,
-      // the element becomes focusable.
-      PRInt32 tabIndex = 0;
-      xulControl->GetTabIndex(&tabIndex);
-      shouldFocus = *aTabIndex >= 0 || tabIndex >= 0;
-      *aTabIndex = tabIndex;
+    if (xulControl) {
+      if (HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
+        // if either the aTabIndex argument or a specified tabindex is non-negative,
+        // the element becomes focusable.
+        PRInt32 tabIndex = 0;
+        xulControl->GetTabIndex(&tabIndex);
+        shouldFocus = *aTabIndex >= 0 || tabIndex >= 0;
+        *aTabIndex = tabIndex;
+      }
+      else {
+        // otherwise, if there is no tabindex attribute, just use the value of
+        // *aTabIndex to indicate focusability
+        shouldFocus = *aTabIndex >= 0;
+      }
 
       if (shouldFocus && sTabFocusModelAppliesToXUL &&
           !(sTabFocusModel & eTabFocus_formElementsMask)) {
@@ -1135,9 +1144,10 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
         }
 
-        // titlebarcolor is settable on any root node (windows, dialogs, etc)
+        // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
         nsIDocument *document = GetCurrentDoc();
-        if (aName == nsGkAtoms::titlebarcolor &&
+        if ((aName == nsGkAtoms::activetitlebarcolor ||
+             aName == nsGkAtoms::inactivetitlebarcolor) &&
             document && document->GetRootContent() == this) {
 
             nscolor color = NS_RGBA(0, 0, 0, 0);
@@ -1145,7 +1155,7 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             attrValue.ParseColor(*aValue, document);
             attrValue.GetColorValue(color);
 
-            SetTitlebarColor(color);
+            SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
         }
 
         if (aName == nsGkAtoms::src && document) {
@@ -1388,10 +1398,11 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             HideWindowChrome(PR_FALSE);
         }
 
-        if (aName == nsGkAtoms::titlebarcolor &&
+        if ((aName == nsGkAtoms::activetitlebarcolor ||
+             aName == nsGkAtoms::inactivetitlebarcolor) &&
             doc && doc->GetRootContent() == this) {
             // Use 0, 0, 0, 0 as the "none" color.
-            SetTitlebarColor(NS_RGBA(0, 0, 0, 0));
+            SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
         }
 
         // If the accesskey attribute is removed, unregister it here
@@ -1428,6 +1439,8 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     }
 
     if (hasMutationListeners) {
+        mozAutoRemovableBlockerRemover blockerRemover;
+
         nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
         mutation.mRelatedNode = attrNode;
@@ -1436,8 +1449,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
         if (!oldValue.IsEmpty())
           mutation.mPrevAttrValue = do_GetAtom(oldValue);
         mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
-
-        mozAutoDocUpdateContentUnnest updateUnnest(doc);
 
         mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
         nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
@@ -2445,7 +2456,7 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
 }
 
 void
-nsXULElement::SetTitlebarColor(nscolor aColor)
+nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
 {
     nsIDocument* doc = GetCurrentDoc();
     if (!doc || doc->GetRootContent() != this) {
@@ -2460,7 +2471,7 @@ nsXULElement::SetTitlebarColor(nscolor aColor)
             nsCOMPtr<nsIWidget> mainWidget;
             baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
             if (mainWidget) {
-                mainWidget->SetWindowTitlebarColor(aColor);
+                mainWidget->SetWindowTitlebarColor(aColor, aActive);
             }
         }
     }
@@ -2543,7 +2554,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {
         nsXULPrototypeElement *elem =
             static_cast<nsXULPrototypeElement*>(tmp);
+        cb.NoteXPCOMChild(elem->mNodeInfo);
         PRUint32 i;
+        for (i = 0; i < elem->mNumAttributes; ++i) {
+            const nsAttrName& name = elem->mAttributes[i].mName;
+            if (!name.IsAtom())
+                cb.NoteXPCOMChild(name.NodeInfo());
+        }
         for (i = 0; i < elem->mNumChildren; ++i) {
             NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(elem->mChildren[i],
                                                          nsXULPrototypeNode,
