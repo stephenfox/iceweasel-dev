@@ -5,7 +5,7 @@ Maintainer: Eric Dorland <eric@debian.org>
 Uploaders: Mike Hommey <glandium@debian.org>
 Build-Depends: autotools-dev, debhelper (>= 5.0), imagemagick,
 	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
-	zip, xulrunner-dev (>= 1.9~b5-2), xulrunner-1.9-common (>= 1.9~b5-2)
+	zip, xulrunner-dev (>= 1.9~rc1)
 Build-Conflicts: graphicsmagick-imagemagick-compat
 Standards-Version: 3.7.3
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
@@ -13,7 +13,7 @@ Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 
 Package: iceweasel
 Architecture: any
-Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, xulrunner-1.9 (>= 1.9~b5-4)
+Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, xulrunner-1.9 (>= 1.9~rc1)
 Suggests: xulrunner-1.9-gnome-support, latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
 Provides: www-browser
 Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1), iceweasel-dom-inspector (<< 3.0~b4)

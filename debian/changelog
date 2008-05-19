@@ -1,4 +1,4 @@
-iceweasel (3.0~b5-5) UNRELEASED; urgency=low
+iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
 
   * configure.in, configure: Fix LIBXUL_SDK_DIR variable use. Closes: #479041.
   * debian/iceweasel-runner: Work around problems with aoss and libjemalloc by
@@ -11,6 +11,11 @@ iceweasel (3.0~b5-5) UNRELEASED; urgency=low
       Closes: #481020.
     - Touch .autoreg on install/upgrade, so that components registration is
       triggered for the components provided by iceweasel.
+  * debian/control:
+    - Build depend on xulrunner-dev 1.9~rc1 and stop build depending on
+      xulrunner-1.9-common which was only required because of incompatible
+      platform.ini in xulrunner-1.9-common 1.9~b5-1.
+    - iceweasel depends on xulrunner >= 1.9~rc1.
 
  -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
 
