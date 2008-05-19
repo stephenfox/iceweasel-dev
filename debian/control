@@ -41,7 +41,6 @@ Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          xulrunner-1.9-common (>= ${source:Upstream-Version})
-Conflicts: xulrunner-1.9-common (<< 1.9~b5-4)
 Suggests: xulrunner-1.9-gnome-support
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
@@ -140,6 +139,7 @@ Package: xulrunner-1.9-common
 Section: libs
 Architecture: all
 Depends: ${misc:Depends}
+Conflicts: xulrunner-1.9 (<< ${source:Upstream-Version})
 Description: Gecko engine library - common files
  This library provides an API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
