@@ -71,7 +71,7 @@ build-stamp:  config.status
 	dh_testdir
 
 	# Add here commands to compile the package.
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
