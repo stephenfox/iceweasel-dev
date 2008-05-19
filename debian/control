@@ -2,14 +2,45 @@ Source: xulrunner
 Section: devel
 Priority: optional
 Maintainer: Mike Hommey <glandium@debian.org>
-Build-Depends: debhelper (>= 5.0.59), autotools-dev, libx11-dev, libxt-dev, libidl-dev, libgtk2.0-dev (>= 2.10), libgnomevfs2-dev, libgnome2-dev, libgnomeui-dev, libcairo2-dev (>= 1.5), libpng12-dev, libjpeg62-dev, zlib1g-dev, libbz2-dev, libreadline5-dev | libreadline-dev, libkrb5-dev, python-dev, python-support (>= 0.3), dpkg-dev (>= 1.13.19), binutils (>= 2.17) [mips mipsel], libnspr4-dev (>= 4.7.0), libnss3-dev (>= 3.12.0~beta3), libhunspell-dev (>= 1.1.5-2), libdbus-glib-1-dev, libsqlite3-dev (>= 3.5), liblcms1-dev, zip, xvfb, xfonts-base, xauth
+Build-Depends: debhelper (>= 5.0.59),
+               autotools-dev,
+               libx11-dev,
+               libxt-dev,
+               libidl-dev,
+               libgtk2.0-dev (>= 2.10),
+               libgnomevfs2-dev,
+               libgnome2-dev,
+               libgnomeui-dev,
+               libcairo2-dev (>= 1.5),
+               libpng12-dev,
+               libjpeg62-dev,
+               zlib1g-dev,
+               libbz2-dev,
+               libreadline5-dev | libreadline-dev,
+               libkrb5-dev,
+               python-dev,
+               python-support (>= 0.3),
+               dpkg-dev (>= 1.13.19),
+               binutils (>= 2.17) [mips mipsel],
+               libnspr4-dev (>= 4.7.0),
+               libnss3-dev (>= 3.12.0~beta3),
+               libhunspell-dev (>= 1.1.5-2),
+               libdbus-glib-1-dev,
+               libsqlite3-dev (>= 3.5),
+               liblcms1-dev,
+               zip,
+               xvfb,
+               xfonts-base,
+               xauth
 Build-Depends-Indep: java-gcj-compat-dev (>= 1.0.56)
 Standards-Version: 3.7.3.0
 
 Package: xulrunner-1.9
 Section: devel
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9-common (>= ${source:Upstream-Version})
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         xulrunner-1.9-common (>= ${source:Upstream-Version})
 Conflicts: xulrunner-1.9-common (<< 1.9~b5-4)
 Suggests: xulrunner-1.9-gnome-support
 Description: XUL + XPCOM application runner
@@ -34,7 +65,8 @@ Homepage: http://developer.mozilla.org/en/docs/XULRunner
 Package: xulrunner-1.9-gnome-support
 Section: devel
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
 Description: Support for GNOME in xulrunner applications
  This is an extension to xulrunner that allows XUL applications to use
  protocol handlers from GnomeVFS, such as smb or sftp, and other GNOME
@@ -43,7 +75,8 @@ Description: Support for GNOME in xulrunner applications
 Package: libmozjs1d
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
 Description: The Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
@@ -53,7 +86,9 @@ Homepage: http://www.mozilla.org/js/
 Package: libmozjs-dev
 Section: libdevel
 Architecture: any
-Depends: ${misc:Depends}, libmozjs1d (>= ${source:Upstream-Version}), libnspr4-dev
+Depends: ${misc:Depends},
+         libmozjs1d (>= ${source:Upstream-Version}),
+         libnspr4-dev
 Conflicts: mozilla-browser (<< 2:1.8)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -70,7 +105,8 @@ Priority: extra
 Architecture: any
 Depends: libmozjs1d (= ${binary:Version})
 Suggests: spidermonkey-bin
-Conflicts: spidermonkey-bin (<< ${source:Version}), spidermonkey-bin (>= ${source:Version}.1~)
+Conflicts: spidermonkey-bin (<< ${source:Version}),
+           spidermonkey-bin (>= ${source:Version}.1~)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
@@ -83,7 +119,8 @@ Homepage: http://www.mozilla.org/js/
 Package: spidermonkey-bin
 Section: interpreters
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
 Description: standalone JavaScript/ECMAScript (ECMA-262) interpreter
  SpiderMonkey is a standalone JavaScript/ECMAScript interpreter. It can either
  take input from files or from a command line driven interface.
@@ -119,7 +156,12 @@ Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 Package: xulrunner-dev
 Section: libdevel
 Architecture: all
-Depends: ${misc:Depends}, xulrunner-1.9 (>= ${source:Upstream-Version}), libnss3-dev, libnspr4-dev, libmozjs-dev (>= ${source:Version}), xulrunner-dev-bin (>= ${source:Upstream-Version})
+Depends: ${misc:Depends},
+         xulrunner-1.9 (>= ${source:Upstream-Version}),
+         libnss3-dev,
+         libnspr4-dev,
+         libmozjs-dev (>= ${source:Version}),
+         xulrunner-dev-bin (>= ${source:Upstream-Version})
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -141,7 +183,8 @@ Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 Package: xulrunner-dev-bin
 Section: libdevel
 Architecture: any
-Depends: ${shlibs:Depends} ${misc:Depends}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
 Description: Static libraries for the Gecko engine
  This library provides an API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -164,7 +207,11 @@ Priority: extra
 Architecture: any
 Depends: xulrunner-1.9 (= ${binary:Version})
 Suggests: xulrunner-1.9-gnome-support
-Conflicts: xulrunner-1.9-gnome-support (<< ${source:Version}), xulrunner-1.9-gnome-support (>= ${source:Version}.1~), python-xpcom (<< ${binary:Version}), python-xpcom (>> ${binary:Version}), libxul0d-dbg
+Conflicts: xulrunner-1.9-gnome-support (<< ${source:Version}),
+           xulrunner-1.9-gnome-support (>= ${source:Version}.1~),
+           python-xpcom (<< ${binary:Version}),
+           python-xpcom (>> ${binary:Version}),
+           libxul0d-dbg
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -182,7 +229,8 @@ Package: libmozillainterfaces-java
 Section: libdevel
 Priority: extra
 Architecture: all
-Depends: xulrunner-1.9, gij | java2-runtime
+Depends: xulrunner-1.9,
+         gij | java2-runtime
 Description: XPCOM bindings for Java
  JavaXPCOM allows for communication between Java and XPCOM, such that a
  Java application can access XPCOM objects, and XPCOM can access any Java
@@ -202,7 +250,10 @@ Section: python
 Priority: extra
 Architecture: any
 Provides: ${python:Provides}
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, xulrunner-1.9
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         ${python:Depends},
+         xulrunner-1.9
 Conflicts: epiphany-browser
 XB-Python-Version: ${python:Versions}
 Description: XPCOM bindings for Python

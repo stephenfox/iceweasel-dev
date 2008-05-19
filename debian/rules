@@ -24,7 +24,11 @@ CFLAGS := -g
 
 AUTOCONF_DIRS := build/autoconf
 
-JAVA_VARS := MOZ_JAVAXPCOM=1 JAVA_INCLUDE_PATH=$(CURDIR)/sun-java/stubs/include JAVAC=javac JAR=jar
+JAVA_VARS := \
+	MOZ_JAVAXPCOM=1 \
+	JAVA_INCLUDE_PATH=$(CURDIR)/sun-java/stubs/include \
+	JAVAC=javac \
+	JAR=jar \
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --disable-optimize
@@ -71,7 +75,12 @@ build-stamp:  config.status
 	dh_testdir
 
 	# Add here commands to compile the package.
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
+	$(MAKE) \
+		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
+		$(JAVA_VARS) \
+		DEB_NO_JAR=1 \
+		OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
@@ -150,12 +159,35 @@ install-stamp: build-stamp
 
 	# Fixup permissions
 	find debian/tmp -type f -print0 | xargs -0 chmod 644
-	for f in js run-mozilla.sh xulrunner mozilla-xremote-client updater xpcshell xpidl xpt_dump xpt_link xulrunner-bin xulrunner-stub; do chmod 755 debian/tmp/usr/lib/xulrunner-1.9/$$f; done
+	for f in \
+		js \
+		run-mozilla.sh \
+		xulrunner \
+		mozilla-xremote-client \
+		updater \
+		xpcshell \
+		xpidl \
+		xpt_dump \
+		xpt_link \
+		xulrunner-bin \
+		xulrunner-stub \
+		; do \
+			chmod 755 debian/tmp/usr/lib/xulrunner-1.9/$$f; \
+	done
 
 	# Replace some installed files by symlinks
-	cd debian/tmp/usr/lib/xulrunner-devel-1.9/sdk/lib; for f in *.so; do rm -f $$f; ln -s /usr/lib/xulrunner-1.9/$$f $$f; done
-	cd debian/tmp/usr/include/xulrunner-1.9/stable; for f in *; do rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; done
-	cd debian/tmp/usr/share/idl/xulrunner-1.9/stable; for f in *; do rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; done
+	cd debian/tmp/usr/lib/xulrunner-devel-1.9/sdk/lib; \
+		for f in *.so; do \
+			rm -f $$f; ln -s /usr/lib/xulrunner-1.9/$$f $$f; \
+		done
+	cd debian/tmp/usr/include/xulrunner-1.9/stable; \
+		for f in *; do \
+			rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; \
+		done
+	cd debian/tmp/usr/share/idl/xulrunner-1.9/stable; \
+		for f in *; do \
+			rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; \
+		done
 
 	find dist/bin -printf %P\\n | sort -u > debian/dist.list
 	find debian/tmp/usr/lib/xulrunner-1.9 -printf %P\\n | sort -u > debian/tmp.list
@@ -181,7 +213,8 @@ install-stamp: build-stamp
 
 	install -d -m 755 debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit/content/global/
 	install -m 644 toolkit/content/buildconfig.html debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit/content/global/
-	echo override chrome://global/content/buildconfig.html toolkit/content/global/buildconfig.html >> debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit.manifest
+	echo override chrome://global/content/buildconfig.html toolkit/content/global/buildconfig.html \
+		>> debian/tmp/usr/lib/xulrunner-1.9/chrome/toolkit.manifest
 
 	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
