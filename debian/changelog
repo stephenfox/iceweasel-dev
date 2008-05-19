@@ -3,8 +3,6 @@ iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
   * configure.in, configure: Fix LIBXUL_SDK_DIR variable use. Closes: #479041.
   * debian/iceweasel-runner: Work around problems with aoss and libjemalloc by
     preloading the glibc. Closes: #475166.
-  * debian/rules: Allow to use xulrunner up to version 1.9 (final) by patching
-    application.ini.
   * debian/iceweasel.postinst:
     - Remove any compreg.dat and xpti.dat that would be left from earlier runs
       of iceweasel as root, causing possible random crashes with xpcom.
