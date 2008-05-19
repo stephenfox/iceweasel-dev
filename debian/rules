@@ -79,8 +79,13 @@ build-stamp:  config.status
 test: build-stamp
 	dh_testdir
 
-	# Usually, regxpcom is enough to trigger xptc invoke/stubs breakages
-	cd dist/bin && ./regxpcom
+	# xpcshell should be enough to trigger xptc invoke/stubs breakages
+	@cd dist/bin && \
+	./run-mozilla.sh ./xpcshell -e \
+		"var f = Components.classes['@mozilla.org/file/local;1'] \
+		         .createInstance(Components.interfaces.nsILocalFile); \
+		 f.initWithPath('/'); \
+		 dump('xpcshell test ' + (f.isDirectory() ? 'successful' : 'failed') + '\n');"
 
 build-jars: build-jars-stamp
 
@@ -120,11 +125,10 @@ install-stamp: build-stamp
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-1.9
-	install -m 755 dist/bin/regxpcom debian/tmp/usr/lib/xulrunner-1.9
 
 	# Fixup permissions
 	find debian/tmp -type f -print0 | xargs -0 chmod 644
-	for f in js run-mozilla.sh xulrunner mozilla-xremote-client regxpcom updater xpcshell xpidl xpt_dump xpt_link xulrunner-bin xulrunner-stub; do chmod 755 debian/tmp/usr/lib/xulrunner-1.9/$$f; done
+	for f in js run-mozilla.sh xulrunner mozilla-xremote-client updater xpcshell xpidl xpt_dump xpt_link xulrunner-bin xulrunner-stub; do chmod 755 debian/tmp/usr/lib/xulrunner-1.9/$$f; done
 
 	# Replace some installed files by symlinks
 	cd debian/tmp/usr/lib/xulrunner-devel-1.9/sdk/lib; for f in *.so; do rm -f $$f; ln -s /usr/lib/xulrunner-1.9/$$f $$f; done

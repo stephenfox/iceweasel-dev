@@ -11,7 +11,6 @@ usr/lib/xulrunner-1.9/libjemalloc.so
 
 usr/bin/xulrunner-1.9
 usr/lib/xulrunner-1.9/run-mozilla.sh
-usr/lib/xulrunner-1.9/regxpcom
 usr/lib/xulrunner-1.9/xpcshell
 usr/lib/xulrunner-1.9/mozilla-xremote-client
 usr/lib/xulrunner-1.9/updater

@@ -8,7 +8,7 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ||
     rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
     cd /usr/lib/xulrunner-1.9
-    ./regxpcom
+    ./run-mozilla.sh ./xpcshell -e ""
 fi
 
 #DEBHELPER#
