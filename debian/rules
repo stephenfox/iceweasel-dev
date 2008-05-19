@@ -27,7 +27,7 @@ AUTOCONF_DIRS := build/autoconf
 JAVA_VARS := MOZ_JAVAXPCOM=1 JAVA_INCLUDE_PATH=$(CURDIR)/sun-java/stubs/include JAVAC=javac JAR=jar
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CONFIGURE_FLAGS += --disable-optim
+	CONFIGURE_FLAGS += --disable-optimize
 endif
 
 ifeq ($(DEB_BUILD_ARCH),alpha)
