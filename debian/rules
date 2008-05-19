@@ -76,6 +76,18 @@ build-stamp:  config.status
 
 	touch build-stamp
 
+TEST =	( if ( \
+		cd dist/bin; \
+		HOME="$(CURDIR)/dist" \
+		xvfb-run -a sh -c "LD_PRELOAD=$(strip $(1)) ./xulrunner '$(CURDIR)/debian/test/application.ini' 2> /dev/null" || \
+			echo "xulrunner test exited with code $$?" >&2; \
+	) | grep -q '^unload$$'; then \
+		echo "xulrunner test successful" >&2; \
+	else \
+		echo "xulrunner test failed" >&2; \
+		exit 1; \
+	fi )
+
 test: build-stamp
 	dh_testdir
 
@@ -86,6 +98,16 @@ test: build-stamp
 		         .createInstance(Components.interfaces.nsILocalFile); \
 		 f.initWithPath('/'); \
 		 dump('xpcshell test ' + (f.isDirectory() ? 'successful' : 'failed') + '\n');"
+
+	# basic test that can trigger failures with libjemalloc.
+	@$(call TEST, ./libjemalloc.so) || \
+	if objdump -p dist/bin/xulrunner-bin | grep -q "NEEDED *libjemalloc.so"; then \
+		echo Rebuilding xulrunner without libjemalloc >&2; \
+		$(MAKE) -C xulrunner/app -W nsXULRunnerApp.o libs MOZ_MEMORY= ; \
+	fi
+
+	# same test, without libjemalloc
+	@$(call TEST, /lib/libc6.so.6)
 
 build-jars: build-jars-stamp
 
