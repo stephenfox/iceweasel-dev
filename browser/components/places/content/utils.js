@@ -60,6 +60,7 @@ const LMANNO_FEEDURI = "livemark/feedURI";
 const LMANNO_SITEURI = "livemark/siteURI";
 const ORGANIZER_FOLDER_ANNO = "PlacesOrganizer/OrganizerFolder";
 const ORGANIZER_QUERY_ANNO = "PlacesOrganizer/OrganizerQuery";
+const ORGANIZER_LEFTPANE_VERSION = 4;
 
 #ifdef XP_MACOSX
 // On Mac OSX, the transferable system converts "\r\n" to "\n\n", where we
@@ -171,8 +172,8 @@ var PlacesUIUtils = {
   /**
    * Get a transaction for copying a uri item from one container to another
    * as a bookmark.
-   * @param   aURI
-   *          The URI of the item being copied
+   * @param   aData
+   *          JSON object of dropped or pasted item properties
    * @param   aContainer
    *          The container being copied into
    * @param   aIndex
@@ -187,8 +188,8 @@ var PlacesUIUtils = {
   /**
    * Get a transaction for copying a bookmark item from one container to
    * another.
-   * @param   aID
-   *          The identifier of the bookmark item being copied
+   * @param   aData
+   *          JSON object of dropped or pasted item properties
    * @param   aContainer
    *          The container being copied into
    * @param   aIndex
@@ -215,6 +216,17 @@ var PlacesUIUtils = {
       childTxns.push(this.ptm.editItemDateAdded(null, aData.dateAdded));
     if (aData.lastModified)
       childTxns.push(this.ptm.editItemLastModified(null, aData.lastModified));
+    if (aData.tags) {
+      var tags = aData.tags.split(", ");
+      // filter out tags already present, so that undo doesn't remove them
+      // from pre-existing bookmarks
+      var storedTags = PlacesUtils.tagging.getTagsForURI(itemURL, {});
+      tags = tags.filter(function (aTag) {
+        return (storedTags.indexOf(aTag) == -1);
+      }, this);
+      if (tags.length)
+        childTxns.push(this.ptm.tagURI(itemURL, tags));
+    }
 
     return this.ptm.createItem(itemURL, aContainer, aIndex, itemTitle, keyword,
                                annos, childTxns);
@@ -243,24 +255,17 @@ var PlacesUIUtils = {
         var txn = null;
         var node = aChildren[i];
 
-        // adjusted to make sure that items are given the correct index -
-        // transactions insert differently if index == -1
-        if (aIndex > -1)
-          index = aIndex + i;
+        // Make sure that items are given the correct index, this will be
+        // passed by the transaction manager to the backend for the insertion.
+        // Insertion behaves differently if index == DEFAULT_INDEX (append)
+        if (aIndex != PlacesUtils.bookmarks.DEFAULT_INDEX)
+          index = i;
 
         if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) {
           if (node.livemark && node.annos) // node is a livemark
             txn = self._getLivemarkCopyTransaction(node, aContainer, index);
-          else {
-            var folderItemsTransactions = [];
-            if (node.dateAdded)
-              folderItemsTransactions.push(self.ptm.editItemDateAdded(null, node.dateAdded));
-            if (node.lastModified)
-              folderItemsTransactions.push(self.ptm.editItemLastModified(null, node.lastModified));
-            var annos = node.annos || [];
-            txn = self.ptm.createFolder(node.title, -1, index, annos,
-                                        folderItemsTransactions);
-          }
+          else
+            txn = self._getFolderCopyTransaction(node, aContainer, index);
         }
         else if (node.type == PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR)
           txn = self.ptm.createSeparator(-1, index);
@@ -366,7 +371,10 @@ var PlacesUIUtils = {
       case PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR:
         // There is no data in a separator, so copying it just amounts to
         // inserting a new separator.
-        return this.ptm.createSeparator(container, index);
+        if (copy)
+          return this.ptm.createSeparator(container, index);
+        // Move the separator otherwise
+        return this.ptm.moveItem(data.id, container, index);
         break;
       default:
         if (type == PlacesUtils.TYPE_X_MOZ_URL || type == PlacesUtils.TYPE_UNICODE) {
@@ -412,10 +420,12 @@ var PlacesUIUtils = {
    *        will be shown in the dialog if this is used.
    * @param [optional] aPostData
    *        POST data for POST-style keywords.
+   * @param [optional] aCharSet
+   *        The character set for the bookmarked page.
    * @return true if any transaction has been performed.
    *
    * Notes:
-   *  - the location, description and "load in sidebar" fields are
+   *  - the location, description and "loadInSidebar" fields are
    *    visible only if there is no initial URI (aURI is null).
    *  - When aDefaultInsertionPoint is not set, the dialog defaults to the
    *    bookmarks root folder.
@@ -427,7 +437,8 @@ var PlacesUIUtils = {
                                                    aShowPicker,
                                                    aLoadInSidebar,
                                                    aKeyword,
-                                                   aPostData) {
+                                                   aPostData,
+                                                   aCharSet) {
     var info = {
       action: "add",
       type: "bookmark"
@@ -456,6 +467,8 @@ var PlacesUIUtils = {
       info.keyword = aKeyword;
       if (typeof(aPostData) == "string")
         info.postData = aPostData;
+      if (typeof(aCharSet) == "string")
+        info.charSet = aCharSet;
     }
 
     return this._showBookmarkDialog(info);
@@ -475,11 +488,12 @@ var PlacesUIUtils = {
   showMinimalAddBookmarkUI:
   function PU_showMinimalAddBookmarkUI(aURI, aTitle, aDescription,
                                        aDefaultInsertionPoint, aShowPicker,
-                                       aLoadInSidebar, aKeyword, aPostData) {
+                                       aLoadInSidebar, aKeyword, aPostData,
+                                       aCharSet) {
     var info = {
       action: "add",
       type: "bookmark",
-      hiddenRows: ["location", "description", "load in sidebar"]
+      hiddenRows: ["location", "description", "loadInSidebar"]
     };
     if (aURI)
       info.uri = aURI;
@@ -504,6 +518,8 @@ var PlacesUIUtils = {
       info.keyword = aKeyword;
       if (typeof(aPostData) == "string")
         info.postData = aPostData;
+      if (typeof(aCharSet) == "string")
+        info.charSet = aCharSet;
     }
     else
       info.hiddenRows.push("keyword");
@@ -624,33 +640,19 @@ var PlacesUIUtils = {
   },
 
   /**
-   * Opens the bookmark properties panel for a given bookmark identifier.
+   * Opens the properties dialog for a given item identifier.
    *
-   * @param aId
-   *        bookmark identifier for which the properties are to be shown
+   * @param aItemId
+   *        item identifier for which the properties are to be shown
+   * @param aType
+   *        item type, either "bookmark" or "folder"
    * @return true if any transaction has been performed.
    */
-  showBookmarkProperties: function PU_showBookmarkProperties(aId) {
+  showItemProperties: function PU_showItemProperties(aItemId, aType) {
     var info = {
       action: "edit",
-      type: "bookmark",
-      bookmarkId: aId
-    };
-    return this._showBookmarkDialog(info);
-  },
-
-  /**
-   * Opens the folder properties panel for a given folder ID.
-   *
-   * @param aId
-   *        an integer representing the ID of the folder to edit
-   * @return true if any transaction has been performed.
-   */
-  showFolderProperties: function PU_showFolderProperties(aId) {
-    var info = {
-      action: "edit",
-      type: "folder",
-      folderId: aId
+      type: aType,
+      itemId: aItemId
     };
     return this._showBookmarkDialog(info);
   },
@@ -731,6 +733,13 @@ var PlacesUIUtils = {
    */
   getViewForNode: function PU_getViewForNode(aNode) {
     var node = aNode;
+
+    // the view for a <menu> of which its associated menupopup is a places view,
+    // is the menupopup
+    if (node.localName == "menu" && !node.node &&
+        node.firstChild.getAttribute("type") == "places")
+      return node.firstChild;
+
     while (node) {
       // XXXmano: Use QueryInterface(nsIPlacesView) once we implement it...
       if (node.getAttribute("type") == "places")
@@ -985,14 +994,18 @@ var PlacesUIUtils = {
         element = document.createElement("menu");
         element.setAttribute("container", "true");
 
-        if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY)
+        if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
           element.setAttribute("query", "true");
+          if (PlacesUtils.nodeIsTagQuery(aNode))
+            element.setAttribute("tagContainer", "true");
+          else if (PlacesUtils.nodeIsDay(aNode))
+            element.setAttribute("dayContainer", "true");
+          else if (PlacesUtils.nodeIsHost(aNode))
+            element.setAttribute("hostContainer", "true");
+        }
         else if (aNode.itemId != -1) {
           if (PlacesUtils.nodeIsLivemarkContainer(aNode))
             element.setAttribute("livemark", "true");
-          else if (PlacesUtils.bookmarks
-                              .getFolderIdForItem(aNode.itemId) == PlacesUtils.tagsFolderId)
-            element.setAttribute("tagContainer", "true");
         }
 
         var popup = document.createElement("menupopup");
@@ -1104,14 +1117,26 @@ var PlacesUIUtils = {
   get leftPaneFolderId() {
     var leftPaneRoot = -1;
     var allBookmarksId;
-    var items = PlacesUtils.annotations.getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
-    if (items.length != 0 && items[0] != -1)
+    var items = PlacesUtils.annotations
+                           .getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
+    if (items.length != 0 && items[0] != -1) {
       leftPaneRoot = items[0];
+      // check organizer left pane version
+      var version = PlacesUtils.annotations
+                               .getItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO);
+      if (version != ORGANIZER_LEFTPANE_VERSION) {
+        // If version is not valid we must rebuild the left pane.
+        PlacesUtils.bookmarks.removeFolder(leftPaneRoot);
+        leftPaneRoot = -1;
+      }
+    }
+
     if (leftPaneRoot != -1) {
       // Build the leftPaneQueries Map
       delete this.leftPaneQueries;
       this.leftPaneQueries = {};
-      var items = PlacesUtils.annotations.getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, { });
+      var items = PlacesUtils.annotations
+                             .getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, {});
       for (var i=0; i < items.length; i++) {
         var queryName = PlacesUtils.annotations
                                    .getItemAnnotation(items[i], ORGANIZER_QUERY_ANNO);
@@ -1130,6 +1155,8 @@ var PlacesUIUtils = {
 
         // Left Pane Root Folder
         leftPaneRoot = PlacesUtils.bookmarks.createFolder(PlacesUtils.placesRootId, "", -1);
+        // ensure immediate children can't be removed
+        PlacesUtils.bookmarks.setFolderReadonly(leftPaneRoot, true);
 
         // History Query
         let uri = PlacesUtils._uri("place:sort=4&");
@@ -1142,8 +1169,12 @@ var PlacesUIUtils = {
         // XXX: Downloads
 
         // Tags Query
-        uri = PlacesUtils._uri("place:folder=TAGS");
-        itemId = PlacesUtils.bookmarks.insertBookmark(leftPaneRoot, uri, -1, null);
+        uri = PlacesUtils._uri("place:type=" +
+                          Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY +
+                          "&sort=" +
+                          Ci.nsINavHistoryQueryOptions.SORT_BY_TITLE_ASCENDING);
+        title = PlacesUtils.bookmarks.getItemTitle(PlacesUtils.tagsFolderId);
+        itemId = PlacesUtils.bookmarks.insertBookmark(leftPaneRoot, uri, -1, title);
         PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
                                                   "Tags", 0, EXPIRE_NEVER);
         self.leftPaneQueries["Tags"] = itemId;
@@ -1186,8 +1217,10 @@ var PlacesUIUtils = {
       }
     };
     PlacesUtils.bookmarks.runInBatchMode(callback, null);
-    PlacesUtils.annotations.setItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO,
-                                              true, 0, EXPIRE_NEVER);
+    PlacesUtils.annotations.setItemAnnotation(leftPaneRoot,
+                                              ORGANIZER_FOLDER_ANNO,
+                                              ORGANIZER_LEFTPANE_VERSION,
+                                              0, EXPIRE_NEVER);
     delete this.leftPaneFolderId;
     return this.leftPaneFolderId = leftPaneRoot;
   },

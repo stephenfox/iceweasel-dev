@@ -109,7 +109,7 @@ public:
 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -213,12 +213,13 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLSharedObjectElement, nsGenericElement)
 NS_HTML_CONTENT_CC_INTERFACE_TABLE_AMBIGUOUS_HEAD(nsHTMLSharedObjectElement,
                                                   nsGenericHTMLElement,
                                                   nsIDOMHTMLAppletElement)
-  NS_INTERFACE_TABLE_INHERITED8(nsHTMLSharedObjectElement,
-                                imgIDecoderObserver,
+  NS_INTERFACE_TABLE_INHERITED9(nsHTMLSharedObjectElement,
                                 nsIRequestObserver,
                                 nsIStreamListener,
                                 nsIFrameLoaderOwner,
+                                imgIContainerObserver,
                                 nsIObjectLoadingContent,
+                                imgIDecoderObserver,
                                 nsIImageLoadingContent,
                                 nsIInterfaceRequestor,
                                 nsIChannelEventSink)
@@ -291,7 +292,8 @@ nsHTMLSharedObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
 }
 
 PRBool
-nsHTMLSharedObjectElement::IsFocusable(PRInt32 *aTabIndex)
+nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool *aIsFocusable,
+                                           PRInt32 *aTabIndex)
 {
   if (mNodeInfo->Equals(nsGkAtoms::embed) || Type() == eType_Plugin) {
     // Has plugin content: let the plugin decide what to do in terms of
@@ -299,11 +301,14 @@ nsHTMLSharedObjectElement::IsFocusable(PRInt32 *aTabIndex)
     if (aTabIndex) {
       GetTabIndex(aTabIndex);
     }
-  
+
+    *aIsFocusable = PR_TRUE;
+
+    // Let the plugin decide, so override.
     return PR_TRUE;
   }
 
-  return nsGenericHTMLElement::IsFocusable(aTabIndex);
+  return nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex);
 }
 
 PRUint32

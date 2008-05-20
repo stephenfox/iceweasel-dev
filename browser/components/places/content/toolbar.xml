@@ -193,7 +193,13 @@
             if (PlacesUtils.containerTypes.indexOf(type) != -1) {
               button.setAttribute("type", "menu");
               button.setAttribute("container", "true");
-              if (PlacesUtils.nodeIsLivemarkContainer(aChild))
+
+              if (PlacesUtils.nodeIsQuery(aChild)) {
+                button.setAttribute("query", "true");
+                if (PlacesUtils.nodeIsTagQuery(aChild))
+                  button.setAttribute("tagContainer", "true");
+              }
+              else if (PlacesUtils.nodeIsLivemarkContainer(aChild))
                 button.setAttribute("livemark", "true");
 
               var popup = document.createElement("menupopup");
@@ -365,6 +371,9 @@
         <getter><![CDATA[
           if (this._contextMenuShown) {
             var popupNode = document.popupNode;
+            if (popupNode == this)
+              return this.getResultNode();
+
             return popupNode.node || popupNode.parentNode._resultNode || null;
           }
           return null;
@@ -375,24 +384,28 @@
       <property name="insertionPoint">
         <getter><![CDATA[
           // By default, the insertion point is at the top level, at the end. 
-          var index = -1;
+          var index = PlacesUtils.bookmarks.DEFAULT_INDEX;
           var folderId = PlacesUtils.getConcreteItemId(this._result.root);
+          var orientation = Ci.nsITreeView.DROP_BEFORE;
+          var isTag = false;
 
           var selectedNode = this.selectedNode;
           if (selectedNode) {
-            if (PlacesUtils.nodeIsFolder(selectedNode)) {
-              // If there is a folder selected, the insertion point is the
-              // end of the folder.
+            var popupNode = document.popupNode;
+            if (!popupNode.node) {
+              // If a static menuitem is selected the insertion point
+              // is inside the folder, at the end.
               folderId = PlacesUtils.getConcreteItemId(selectedNode);
+              orientation = Ci.nsITreeView.DROP_ON;
             }
             else {
-              // If there is another type of node selected, the insertion point
-              // is after that node.
+              // In all other cases the insertion point is before that node.
               folderId = PlacesUtils.getConcreteItemId(selectedNode.parent);
               index = PlacesUtils.getIndexOfNode(selectedNode);
+              isTag = PlacesUtils.nodeIsTagQuery(selectedNode.parent);
             }
           }
-          return new InsertionPoint(folderId, index, 1);
+          return new InsertionPoint(folderId, index, orientation, isTag);
         ]]></getter>
       </property>
 
@@ -438,7 +451,7 @@
           if (this._self._result != val) {
             this._self._containerNodesMap = [];
             this._self._result = val;
-            if (val) // this calls _rebuild through invalidateContainer
+            if (val) // this calls _rebuild through invalidateContainer
               val.root.containerOpen = true;
           }
           return val;
@@ -641,8 +654,13 @@
             }
           }
 
-          if (popupToRebuild)
+          if (popupToRebuild) {
             popupToRebuild._built = false;
+
+            // if the menupopup is open we should live-update it
+            if (popupToRebuild.parentNode.open)
+              this._self._rebuildPopup(popupToRebuild);
+          }
         },
 
         invalidateAll: function TV_V_invalidateAll() {
@@ -905,6 +923,8 @@
           if (this._overFolder.node)
             this._overFolder.closeTimer = this._setTimer(this._overFolder.hoverTime);
           PlacesControllerDragHelper.currentDropTarget = null;
+
+          this._self._draggedNode = null;
         },
 
         getSupportedFlavours: function TBV_DO_getSupportedFlavours() {
@@ -947,7 +967,14 @@
         <body><![CDATA[
           this._contextMenuShown = true;
           this.focus();
-          return this.controller.buildContextMenu(aPopup);
+          var show = this.controller.buildContextMenu(aPopup);
+          if (show) {
+            // disable the Delete command if the selection isn't explicit
+            if (document.popupNode && document.popupNode.localName == "menupopup")
+              document.getElementById("cmd_delete").setAttribute("disabled", "true");
+            return true;
+          }
+          return false;
         ]]></body>
       </method>
 
@@ -1003,9 +1030,14 @@
       <method name="_containerPopupShowing">
         <parameter name="aPopup"/>
         <body><![CDATA[
-          if (aPopup._built)
-            return;
+          if (!aPopup._built)
+            this._rebuildPopup(aPopup);
+        ]]></body>
+      </method>
 
+      <method name="_rebuildPopup">
+        <parameter name="aPopup"/>
+        <body><![CDATA[
           PlacesUIUtils.cleanPlacesPopup(aPopup);
 
           var resultNode = aPopup._resultNode;

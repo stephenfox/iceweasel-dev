@@ -678,7 +678,9 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext,
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   HIThemeTrackDrawInfo tdi;
-  static SInt32 sPhase = 0;
+
+  PRInt32 stepsPerSecond = inIsIndeterminate ? 60 : 30;
+  PRInt32 milliSecondsPerStep = 1000 / stepsPerSecond;
 
   tdi.version = 0;
   tdi.kind = inIsIndeterminate ? kThemeMediumIndeterminateBar: kThemeMediumProgressBar;
@@ -688,7 +690,8 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext,
   tdi.value = inValue;
   tdi.attributes = inIsHorizontal ? kThemeTrackHorizontal : 0;
   tdi.enableState = kThemeTrackActive;
-  tdi.trackInfo.progress.phase = sPhase++; // animate for the next time we're called
+  tdi.trackInfo.progress.phase = PR_IntervalToMilliseconds(PR_IntervalNow()) /
+                                 milliSecondsPerStep % 16;
 
   HIThemeDrawTrack(&tdi, NULL, cgContext, HITHEME_ORIENTATION);
 
@@ -837,9 +840,10 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  PRInt32 curpos = CheckIntAttr(aFrame, nsWidgetAtoms::curpos);
-  PRInt32 minpos = CheckIntAttr(aFrame, nsWidgetAtoms::minpos);
-  PRInt32 maxpos = CheckIntAttr(aFrame, nsWidgetAtoms::maxpos);
+  PRInt32 curpos = CheckIntAttr(aFrame, nsWidgetAtoms::curpos, 0);
+  PRInt32 minpos = CheckIntAttr(aFrame, nsWidgetAtoms::minpos, 0);
+  PRInt32 maxpos = CheckIntAttr(aFrame, nsWidgetAtoms::maxpos, 100);
+  PRInt32 thumbSize = CheckIntAttr(aFrame, nsWidgetAtoms::pageincrement, 10);
 
   PRBool isHorizontal = aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::orient, 
                                                           nsWidgetAtoms::horizontal, eCaseMatters);
@@ -856,12 +860,12 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
   if (isHorizontal)
     aTdi.attributes |= kThemeTrackHorizontal;
 
-  PRInt32 longSideLength = (PRInt32)(isHorizontal ? (aRect.size.width) : (aRect.size.height));
-  aTdi.trackInfo.scrollbar.viewsize = (SInt32)longSideLength;
+  aTdi.trackInfo.scrollbar.viewsize = (SInt32)thumbSize;
 
   /* Only display features if we have enough room for them.
    * Gecko still maintains the scrollbar info; this is just a visual issue (bug 380185).
    */
+  PRInt32 longSideLength = (PRInt32)(isHorizontal ? (aRect.size.width) : (aRect.size.height));
   if (longSideLength >= (isSmall ? MIN_SMALL_SCROLLBAR_SIZE_WITH_THUMB : MIN_SCROLLBAR_SIZE_WITH_THUMB)) {
     aTdi.attributes |= kThemeTrackShowThumb;
   }
@@ -887,6 +891,7 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
       // It seems that unless all four buttons are showing, kThemeTopOutsideArrowPressed is the correct constant for
       // the up scrollbar button.
       aTdi.trackInfo.scrollbar.pressState = ConvertToPressState(buttonStates[0], kThemeTopOutsideArrowPressed) |
+                                            ConvertToPressState(buttonStates[1], kThemeBottomOutsideArrowPressed) |
                                             ConvertToPressState(buttonStates[2], kThemeTopOutsideArrowPressed) |
                                             ConvertToPressState(buttonStates[3], kThemeBottomOutsideArrowPressed);
     }
@@ -1240,9 +1245,9 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
 
     case NS_THEME_SCALE_HORIZONTAL:
     case NS_THEME_SCALE_VERTICAL: {
-      PRInt32 curpos = CheckIntAttr(aFrame, nsWidgetAtoms::curpos);
-      PRInt32 minpos = CheckIntAttr(aFrame, nsWidgetAtoms::minpos);
-      PRInt32 maxpos = CheckIntAttr(aFrame, nsWidgetAtoms::maxpos);
+      PRInt32 curpos = CheckIntAttr(aFrame, nsWidgetAtoms::curpos, 0);
+      PRInt32 minpos = CheckIntAttr(aFrame, nsWidgetAtoms::minpos, 0);
+      PRInt32 maxpos = CheckIntAttr(aFrame, nsWidgetAtoms::maxpos, 100);
       if (!maxpos)
         maxpos = 100;
 
@@ -1470,7 +1475,7 @@ nsNativeThemeCocoa::GetWidgetPadding(nsIDeviceContext* aContext,
 
 PRBool
 nsNativeThemeCocoa::GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFrame,
-                                      PRUint8 aWidgetType, nsRect* aResult)
+                                      PRUint8 aWidgetType, nsRect* aOverflowRect)
 {
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
@@ -1492,9 +1497,7 @@ nsNativeThemeCocoa::GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFra
                  NSIntPixelsToAppUnits(extraSize.top, p2a),
                  NSIntPixelsToAppUnits(extraSize.right, p2a),
                  NSIntPixelsToAppUnits(extraSize.bottom, p2a));
-      nsRect r(nsPoint(0, 0), aFrame->GetSize());
-      r.Inflate(m);
-      *aResult = r;
+      aOverflowRect->Inflate(m);
       return PR_TRUE;
     }
   }
@@ -1752,10 +1755,6 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
     case NS_THEME_STATUSBAR:
     case NS_THEME_STATUSBAR_PANEL:
     case NS_THEME_STATUSBAR_RESIZER_PANEL:
-    case NS_THEME_PROGRESSBAR_CHUNK:
-    case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
-    case NS_THEME_PROGRESSBAR:
-    case NS_THEME_PROGRESSBAR_VERTICAL:
     case NS_THEME_TOOLTIP:
     case NS_THEME_TAB_PANELS:
     case NS_THEME_TAB_PANEL:
@@ -1763,6 +1762,12 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType,
     case NS_THEME_MENUPOPUP:
     case NS_THEME_GROUPBOX:
       *aShouldRepaint = PR_FALSE;
+      return NS_OK;
+    case NS_THEME_PROGRESSBAR_CHUNK:
+    case NS_THEME_PROGRESSBAR_CHUNK_VERTICAL:
+    case NS_THEME_PROGRESSBAR:
+    case NS_THEME_PROGRESSBAR_VERTICAL:
+      *aShouldRepaint = (aAttribute == nsWidgetAtoms::step);
       return NS_OK;
   }
 

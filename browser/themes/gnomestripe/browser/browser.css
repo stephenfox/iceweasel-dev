@@ -138,6 +138,19 @@ menuitem.bookmark-item {
   -moz-padding-start: 0px;
 }
 
+/* Bookmark panel dropdown menu items */
+#editBMPanel_toolbarFolderItem {
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png") !important;  
+}
+
+#editBMPanel_bmRootItem {
+  list-style-image: url("chrome://browser/skin/places/bookmarksMenu.png") !important;  
+}
+
+#editBMPanel_unfiledRootItem {
+  list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png") !important;  
+}
+
 /* Bookmark drag and drop styles */
 .bookmark-item[dragover-into="true"] {
   background: Highlight !important;
@@ -196,14 +209,24 @@ menuitem.bookmark-item {
   list-style-image: url("chrome://browser/skin/places/livemark-item.png");
 }
 
-.bookmark-item[container][tagContainer] {
-  list-style-image: url("chrome://mozapps/skin/places/tagContainerIcon.png");
-  -moz-image-region: auto;
-}
-
 .bookmark-item[container][query] {
   list-style-image: url("chrome://browser/skin/places/query.png");
-  -moz-image-region: auto;
+}
+
+.bookmark-item[query][tagContainer] {
+  list-style-image: url("chrome://mozapps/skin/places/tagContainerIcon.png");
+}
+
+.bookmark-item[query][dayContainer] {
+  list-style-image: url("chrome://browser/skin/places/calendar.png");
+}
+
+.bookmark-item[query][hostContainer] {
+  list-style-image: url("moz-icon://stock/gtk-directory?size=menu");
+}
+
+.bookmark-item[query][hostContainer][open] {
+  list-style-image: url("moz-icon://stock/gtk-directory?size=menu");
 }
 
 /* Stock icons for the menu bar items */
@@ -211,6 +234,7 @@ menuitem:not([type]) {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem-iconic");
 }
 
+#placesContext_open\:newwindow,
 menuitem[command="cmd_newNavigator"],
 #context-openlink,
 #context-openframe {
@@ -218,6 +242,8 @@ menuitem[command="cmd_newNavigator"],
   -moz-image-region: rect(0px 80px 16px 64px);
 }
 
+#placesContext_open\:newtab,
+#placesContext_openContainer\:tabs,
 menuitem[command="cmd_newNavigatorTab"],
 #context-openlinkintab,
 #context-openframeintab {
@@ -341,6 +367,8 @@ menuitem[command="Browser:Stop"][disabled],
   list-style-image: url("moz-icon://stock/gtk-stop?size=menu&state=disabled");
 }
 
+#placesContext_reload,
+#placesContext_reloadMicrosummary,
 menuitem[command="Browser:Reload"],
 #context-reload,
 #context-reloadframe {
@@ -404,7 +432,7 @@ menuitem[key="goForwardKb"][disabled][chromedir="rtl"],
   list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu&state=disabled");
 }
 
-menuitem[command="Browser:Home"] {
+#historyMenuHome {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu");
 }
 
@@ -418,6 +446,10 @@ menuitem[command="Browser:ShowAllBookmarks"] {
   -moz-image-region: rect(0px 48px 16px 32px);
 }
 
+#bookmarksToolbarFolderMenu {
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");  
+}
+
 #menu_openDownloads {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 16px 16px 0px);
@@ -429,6 +461,7 @@ menuitem[command="View:PageInfo"],
   list-style-image: url("moz-icon://stock/gtk-info?size=menu");
 }
 
+#placesContext_show\:info,
 #context-metadata {
   list-style-image: url("moz-icon://stock/gtk-properties?size=menu");
 }
@@ -817,7 +850,6 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 /* Favicon */
-#page-proxy-stack,
 #page-proxy-favicon,
 #urlbar-throbber {
   width: 16px;
@@ -825,7 +857,10 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 #page-proxy-stack {
-  margin: 2px 3px;
+  width: 24px;
+  height: 20px;
+  padding: 2px 4px;
+  background: url(urlbar-favicon-glow.png) center center no-repeat;
 }
 
 #page-proxy-favicon:not([src]) {
@@ -838,7 +873,7 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 #urlbar-throbber {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
+  list-style-image: url("chrome://browser/skin/places/searching_16.png");
 }
 
 /* Identity indicator */
@@ -861,8 +896,14 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   display: none;
 }
 
+#identity-box.verifiedDomain > hbox {
+  background-color: rgba(30, 80, 170, 0.7);
+  color: white;
+}
+
 #identity-box.verifiedIdentity > hbox {
-  background-color: rgba(0, 255, 0, 0.25);
+  background-color: rgba(50, 150, 50, 0.8);
+  color: white;
 }
 
 /* Identity popup icons */
@@ -886,7 +927,6 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 #identity-popup-content-box > description,
 #identity-popup-encryption-label {
   white-space: pre-wrap;
-  color: black;
   padding-left: 15px;
   margin: 2px 0 4px;
 }
@@ -930,18 +970,8 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 /* Identity popup bounding box */
 #identity-popup-container {
   background-image: none;
-  background-color: white;
   min-width: 280px;
   padding: 10px;
-}
-
-/* Secure site coloring */
-#urlbar[level="high"][pageproxystate="valid"] > .autocomplete-textbox-container,
-#urlbar[level="low"][pageproxystate="valid"] > .autocomplete-textbox-container,
-#urlbar[level="high"][pageproxystate="valid"] #autocomplete-security-wrapper,
-#urlbar[level="low"][pageproxystate="valid"] #autocomplete-security-wrapper {
-  background-color: #F5F6BE; /* #F7F898; */
-  color: #000000;
 }
 
 #urlbar > .autocomplete-textbox-container {
@@ -1019,8 +1049,12 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   font-size: 1.15em;
 }
 
+.ac-extra > .ac-comment {
+  font-size: inherit;
+}
+
 .ac-url-text {
-  color: #336633;
+  color: GrayText;
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -1136,12 +1170,11 @@ statusbarpanel#statusbar-display {
   padding: 0px !important;
   min-width: 0;
   background-color: transparent;
-  list-style-image: url("chrome://browser/skin/Throbber-small.png");
+  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
 #navigator-throbber[busy="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.5;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
 #navigator-throbber > hbox {
@@ -1152,12 +1185,11 @@ statusbarpanel#statusbar-display {
 
 toolbar[mode="text"] #navigator-throbber,
 toolbar[iconsize="small"] #navigator-throbber {
-  list-style-image: url("chrome://browser/skin/Throbber-small.png");
+  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 toolbar[mode="text"] #navigator-throbber[busy="true"],
 toolbar[iconsize="small"] #navigator-throbber[busy="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.5;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
 tabpanels {
@@ -1173,7 +1205,6 @@ tabpanels {
 
 .tabbrowser-tab[selected="true"] {
   margin-bottom: 0px;
-  font-weight: bold;
 }
 
 .tab-icon-image {
@@ -1186,8 +1217,7 @@ tabpanels {
 }
 
 .tabbrowser-tab[busy] > .tab-icon-image {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif") !important;
-  opacity: 0.6;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png") !important;
 }
 
 .tabs-bottom {
@@ -1294,6 +1324,11 @@ tabpanels {
   margin: 0px;
 }
 
+.tabs-alltabs-box-animate {
+  background-color: Highlight;
+  opacity: 0.0;
+}
+
 /* All tabs menupopup */
 .alltabs-item > .menu-iconic-left > .menu-iconic-icon {
   list-style-image: url("chrome://global/skin/icons/folder-item.png");
@@ -1305,8 +1340,7 @@ tabpanels {
 }
 
 .alltabs-item[busy] > .menu-iconic-left > .menu-iconic-icon {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.6;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
 .tabs-alltabs-button > .toolbarbutton-icon {
@@ -1320,8 +1354,7 @@ tabpanels {
 }
 
 #sidebar-throbber[loading="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.5;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
   -moz-margin-end: 4px;
 }
 
@@ -1359,7 +1392,7 @@ toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
 }
 
 #checkForUpdates[loading="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
 #download-monitor {

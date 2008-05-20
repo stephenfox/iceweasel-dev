@@ -87,10 +87,6 @@ PlacesTreeView.prototype = {
 
     var qoInt = Ci.nsINavHistoryQueryOptions;
     var options = asQuery(this._result.root).queryOptions;
-    this._showQueryAsFolder = (options &&
-        (options.resultType == qoInt.RESULTS_AS_DATE_QUERY ||
-         options.resultType == qoInt.RESULTS_AS_SITE_QUERY ||
-         options.resultType == qoInt.RESULTS_AS_DATE_SITE_QUERY));
 
     // if there is no tree, BuildVisibleList will clear everything for us
     this._buildVisibleList();
@@ -144,6 +140,10 @@ PlacesTreeView.prototype = {
    * when a tree is detached to clear the list.
    */
   _buildVisibleList: function PTV__buildVisibleList() {
+    var selection = this.selection;
+    if (selection)
+      selection.selectEventsSuppressed = true;
+
     if (this._result) {
       // Any current visible elements need to be marked as invisible.
       for (var i = 0; i < this._visibleElements.length; i++) {
@@ -167,11 +167,12 @@ PlacesTreeView.prototype = {
         // this triggers containerOpened which then builds the visible
         // section
         rootNode.containerOpen = true;
-        return;
       }
-
-      this.invalidateContainer(rootNode);
+      else
+        this.invalidateContainer(rootNode);
     }
+    if (selection)
+      selection.selectEventsSuppressed = false;
   },
 
   /**
@@ -326,10 +327,9 @@ PlacesTreeView.prototype = {
     }
 
     // now update the number of elements
-    if (previouslySelectedNodes.length > 0)
-      selection.selectEventsSuppressed = true;
-
+    selection.selectEventsSuppressed = true;
     this._tree.beginUpdateBatch();
+
     if (replaceCount)
       this._tree.rowCountChanged(startReplacement, -replaceCount);
     if (newElements.length)
@@ -348,8 +348,8 @@ PlacesTreeView.prototype = {
         }
         // if we don't have a parent, we made it all the way to the root
         // and didn't find a match, so we can open our item
-        if (!parent)
-          item.containerOpen = !item.containerOpen;
+        if (!parent && !item.containerOpen)
+          item.containerOpen = true;
       }
     }
 
@@ -393,9 +393,8 @@ PlacesTreeView.prototype = {
         selection.rangedSelect(previouslySelectedNodes[0].oldIndex,
                                previouslySelectedNodes[0].oldIndex, true);
       }
-
-      selection.selectEventsSuppressed = false;
     }
+    selection.selectEventsSuppressed = false;
   },
 
   _convertPRTimeToString: function PTV__convertPRTimeToString(aTime) {
@@ -890,23 +889,38 @@ PlacesTreeView.prototype = {
       properties = new Array();
       var nodeType = node.type;
       if (PlacesUtils.containerTypes.indexOf(nodeType) != -1) {
+        var itemId = node.itemId;
         if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
           properties.push(this._getAtomFor("query"));
-          if (this._showQueryAsFolder)
-            properties.push(this._getAtomFor("folder"));
-        } 
+          if (PlacesUtils.nodeIsTagQuery(node))
+            properties.push(this._getAtomFor("tagContainer"));
+          else if (PlacesUtils.nodeIsDay(node))
+            properties.push(this._getAtomFor("dayContainer"));
+          else if (PlacesUtils.nodeIsHost(node))
+            properties.push(this._getAtomFor("hostContainer"));
+        }
         else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
                  nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
-          if (PlacesUtils.annotations.itemHasAnnotation(node.itemId,
+          if (PlacesUtils.annotations.itemHasAnnotation(itemId,
                                                         LMANNO_FEEDURI))
             properties.push(this._getAtomFor("livemark"));
-          else if (PlacesUtils.bookmarks.getFolderIdForItem(node.itemId) ==
-                   PlacesUtils.tagsFolderId)
-            properties.push(this._getAtomFor("tagContainer"));
+        }
+
+        if (itemId != -1) {
+          var oqAnno;
+          try {
+            oqAnno = PlacesUtils.annotations.getItemAnnotation(itemId, ORGANIZER_QUERY_ANNO);
+            properties.push(this._getAtomFor("OrganizerQuery_" + oqAnno));
+          }
+          catch (ex) { /* not a special query */ }
         }
       }
       else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR)
         properties.push(this._getAtomFor("separator"));
+      else if (itemId != -1) { // bookmark nodes
+        if (PlacesUtils.nodeIsLivemarkContainer(node.parent))
+          properties.push(this._getAtomFor("livemarkItem"));
+      }
 
       this._visibleElements[aRow].properties = properties;
     }
@@ -925,10 +939,13 @@ PlacesTreeView.prototype = {
       if (!node.parent)
         return true;
 
-      // treat non-expandable queries as non-containers
+      // treat non-expandable childless queries as non-containers
       if (PlacesUtils.nodeIsQuery(node)) {
-        asQuery(node);
-        return node.queryOptions.expandQueries;
+        var parent = node.parent;
+        if((PlacesUtils.nodeIsQuery(parent) ||
+            PlacesUtils.nodeIsFolder(parent)) &&
+           !node.hasChildren)
+          return asQuery(parent).queryOptions.expandQueries;
       }
       return true;
     }
@@ -983,8 +1000,6 @@ PlacesTreeView.prototype = {
       if (elt.localName == "tree" && elt.view == this &&
           this.selection.isSelected(aRow))
         return false;
-      if (node.parent && PlacesUtils.nodeIsReadOnly(node.parent))
-        return false;
     }
   
     var ip = this._getInsertionPoint(aRow, aOrientation);
@@ -995,6 +1010,9 @@ PlacesTreeView.prototype = {
   // either add a helper to PlacesUtils or keep it here and add insertionPoint
   // to the view interface.
   _disallowInsertion: function PTV__disallowInsertion(aContainer) {
+    // allow dropping into Tag containers
+    if (PlacesUtils.nodeIsTagQuery(aContainer))
+      return false;
     // Disallow insertion of items under readonly folders
     return (!PlacesUtils.nodeIsFolder(aContainer) ||
             PlacesUtils.nodeIsReadOnly(aContainer));
@@ -1002,6 +1020,7 @@ PlacesTreeView.prototype = {
 
   _getInsertionPoint: function PTV__getInsertionPoint(index, orientation) {
     var container = this._result.root;
+    var dropNearItemId = -1;
     // When there's no selection, assume the container is the container
     // the view is populated from (i.e. the result's itemId).
     if (index != -1) {
@@ -1014,7 +1033,8 @@ PlacesTreeView.prototype = {
       }
       else if (!this._disallowInsertion(lastSelected) &&
                lastSelected.containerOpen &&
-               orientation == Ci.nsITreeView.DROP_AFTER) {
+               orientation == Ci.nsITreeView.DROP_AFTER &&
+               lastSelected.hasChildren) {
         // If the last selected item is an open container and the user is
         // trying to drag into it as a first item, really insert into it.
         container = lastSelected;
@@ -1032,8 +1052,24 @@ PlacesTreeView.prototype = {
         if (this._disallowInsertion(container))
           return null;
 
-        var lsi = PlacesUtils.getIndexOfNode(lastSelected);
-        index = orientation == Ci.nsITreeView.DROP_BEFORE ? lsi : lsi + 1;
+        var queryOptions = asQuery(this._result.root).queryOptions;
+        if (queryOptions.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
+          // If we are within a sorted view, insert at the end
+          index = -1;
+        }
+        else if (queryOptions.excludeItems ||
+                 queryOptions.excludeQueries ||
+                 queryOptions.excludeReadOnlyFolders) {
+          // Some item may be invisible, insert near last selected one.
+          // We don't replace index here to avoid requests to the db,
+          // instead it will be calculated later by the controller.
+          index = -1;
+          dropNearItemId = lastSelected.itemId;
+        }
+        else {
+          var lsi = PlacesUtils.getIndexOfNode(lastSelected);
+          index = orientation == Ci.nsITreeView.DROP_BEFORE ? lsi : lsi + 1;
+        }
       }
     }
 
@@ -1041,7 +1077,9 @@ PlacesTreeView.prototype = {
       return null;
 
     return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
-                              index, orientation);
+                              index, orientation,
+                              PlacesUtils.nodeIsTagQuery(container),
+                              dropNearItemId);
   },
 
   drop: function PTV_drop(aRow, aOrientation) {
@@ -1103,18 +1141,10 @@ PlacesTreeView.prototype = {
       return "";
 
     var node = this._visibleElements[aRow].node;
-
-    // Containers may or may not have favicons. If not, we will return
-    // nothing as the image, and the style rule should pick up the
-    // default. Separator rows never have icons.
-    if (PlacesUtils.nodeIsSeparator(node) ||
-        (PlacesUtils.nodeIsContainer(node) && !node.icon))
-      return "";
-
-    // For consistency, we always return a favicon for non-containers,
-    // even if it is just the default one.
-    var icon = node.icon || PlacesUtils.favicons.defaultFavicon;
-    return icon ? icon.spec : "";
+    var icon = node.icon;
+    if (icon)
+      return icon.spec;
+    return "";
   },
 
   getProgressMode: function(aRow, aColumn) { },

@@ -59,6 +59,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsXPConnect,
 
 nsXPConnect* nsXPConnect::gSelf = nsnull;
 JSBool       nsXPConnect::gOnceAliveNowDead = JS_FALSE;
+PRUint32     nsXPConnect::gReportAllJSExceptions = 0;
 
 // Global cache of the default script security manager (QI'd to
 // nsIScriptSecurityManager)
@@ -119,7 +120,9 @@ nsXPConnect::nsXPConnect()
     }
   }
 #endif
-
+    char* reportableEnv = PR_GetEnv("MOZ_REPORT_ALL_JS_EXCEPTIONS");
+    if(reportableEnv && *reportableEnv)
+        gReportAllJSExceptions = 1;
 }
 
 nsXPConnect::~nsXPConnect()
@@ -533,13 +536,9 @@ nsXPConnect::Collect()
     return gCollected;
 }
 
-// JSTRACE_SCRIPTED_FUNCTION can hold on to a lot of objects, adding it to the
-// cycle collector reduces the number of edges to those objects.
 // JSTRACE_XML can recursively hold on to more JSTRACE_XML objects, adding it to
 // the cycle collector avoids stack overflow.
-#define ADD_TO_CC(_kind) \
-    ((_kind) == JSTRACE_OBJECT || (_kind) == JSTRACE_SCRIPTED_FUNCTION || \
-     (_kind) == JSTRACE_XML)
+#define ADD_TO_CC(_kind)    ((_kind) == JSTRACE_OBJECT || (_kind) == JSTRACE_XML)
 
 #ifdef DEBUG_CC
 struct NoteJSRootTracer : public JSTracer
@@ -893,7 +892,6 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
             "Object",
             "Double",
             "String",
-            "Function",
             "Namespace",
             "Qname",
             "Xml"
@@ -2316,6 +2314,16 @@ NS_IMETHODIMP
 nsXPConnect::RemoveJSHolder(void* aHolder)
 {
     return mRuntime->RemoveJSHolder(aHolder);
+}
+
+NS_IMETHODIMP
+nsXPConnect::SetReportAllJSExceptions(PRBool newval)
+{
+    // Ignore if the environment variable was set.
+    if (gReportAllJSExceptions != 1)
+        gReportAllJSExceptions = newval ? 2 : 0;
+
+    return NS_OK;
 }
 
 #ifdef DEBUG

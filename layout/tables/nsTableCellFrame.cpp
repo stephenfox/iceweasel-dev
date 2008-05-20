@@ -362,9 +362,9 @@ nsTableCellFrame::PaintCellBackground(nsIRenderingContext& aRenderingContext,
   PaintBackground(aRenderingContext, aDirtyRect, aPt);
 }
 
-class nsDisplayTableCellBackground : public nsDisplayItem {
+class nsDisplayTableCellBackground : public nsDisplayTableItem {
 public:
-  nsDisplayTableCellBackground(nsTableCellFrame* aFrame) : nsDisplayItem(aFrame) {
+  nsDisplayTableCellBackground(nsTableCellFrame* aFrame) : nsDisplayTableItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayTableCellBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -377,6 +377,8 @@ public:
                             HitTestState* aState) { return mFrame; }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
+
   NS_DISPLAY_DECL_NAME("TableCellBackground")
 };
 
@@ -385,6 +387,14 @@ void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
 {
   static_cast<nsTableCellFrame*>(mFrame)->
     PaintBackground(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
+}
+
+nsRect
+nsDisplayTableCellBackground::GetBounds(nsDisplayListBuilder* aBuilder)
+{
+  // revert from nsDisplayTableItem's implementation ... cell backgrounds
+  // don't overflow the cell
+  return nsDisplayItem::GetBounds(aBuilder);
 }
 
 static void
@@ -411,16 +421,24 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       (NS_STYLE_TABLE_EMPTY_CELLS_HIDE != emptyCellStyle)) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
 
+    PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
+    if (!isRoot) {
+      nsDisplayTableItem* currentItem = aBuilder->GetCurrentTableItem();
+      NS_ASSERTION(currentItem, "No current table item???");
+      currentItem->UpdateForFrameBackground(this);
+    }
+
     // display background if we need to.
     if (aBuilder->IsForEventDelivery() ||
-        (((!tableFrame->IsBorderCollapse() || aBuilder->IsAtRootOfPseudoStackingContext()) &&
+        (((!tableFrame->IsBorderCollapse() || isRoot) &&
         (!GetStyleBackground()->IsTransparent() || GetStyleDisplay()->mAppearance)))) {
       // The cell background was not painted by the nsTablePainter,
       // so we need to do it. We have special background processing here
       // so we need to duplicate some code from nsFrame::DisplayBorderBackgroundOutline
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-             nsDisplayTableCellBackground(this));
+      nsDisplayTableItem* item = new (aBuilder) nsDisplayTableCellBackground(this);
+      nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
       NS_ENSURE_SUCCESS(rv, rv);
+      item->UpdateForFrameBackground(this);
     }
     
     // display borders if we need to
@@ -893,7 +911,19 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*          aPresContext,
 
   // 0 dimensioned cells need to be treated specially in Standard/NavQuirks mode 
   // see testcase "emptyCells.html"
-  SetContentEmpty(0 == kidSize.height);
+  nsIFrame* prevInFlow = GetPrevInFlow();
+  PRBool isEmpty;
+  if (prevInFlow) {
+    isEmpty = static_cast<nsTableCellFrame*>(prevInFlow)->GetContentEmpty();
+  } else {
+    // XXX this is a bad way to check for empty content. There are various
+    // ways the cell could have content but the kid could end up with zero
+    // height. See
+    // http://www.w3.org/TR/CSS21/tables.html#empty-cells
+    // and bug 76331.
+    isEmpty = kidSize.height == 0;
+  }
+  SetContentEmpty(isEmpty);
 
   // Place the child
   FinishReflowChild(firstKid, aPresContext, &kidReflowState, kidSize,
@@ -932,6 +962,12 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*          aPresContext,
     if (NS_UNCONSTRAINEDSIZE == aReflowState.availableHeight) {
       aDesiredSize.height = mRect.height;
     }
+  }
+
+  // If our parent is in initial reflow, it'll handle invalidating our
+  // entire overflow rect.
+  if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
 
   // remember the desired size for this reflow

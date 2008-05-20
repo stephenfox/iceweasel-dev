@@ -66,6 +66,7 @@
 #include "nsContentUtils.h"
 #include "nsAttrName.h"
 #include "nsNodeUtils.h"
+#include "mozAutoDocUpdate.h"
 
 #include "jsapi.h"
 #include "pldhash.h"
@@ -262,7 +263,9 @@ protected:
      *
      * @param aElement element to generate content inside
      * @param aForceCreation true to force creation for closed items such as menus
-     * @param aContainer container content was added inside
+     * @param aContainer container content was added inside. This is an in/out
+     *        parameter and must point to null or a valid object before calling
+     *        this function.
      * @param aNewIndexInContainer index with container in which content was added
      */
     nsresult
@@ -279,7 +282,9 @@ protected:
      * @param aResult reference point for query
      * @param aForceCreation true to force creation for closed items such as menus
      * @param aNotify true to notify of DOM changes
-     * @param aContainer container content was added inside
+     * @param aContainer container content was added inside. This is an in/out
+     *        parameter and must point to null or a valid object before calling
+     *        this function.
      * @param aNewIndexInContainer index with container in which content was added
      */
     nsresult
@@ -1211,7 +1216,9 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
         return NS_OK;
 
     if (aContainer) {
-        *aContainer = nsnull;
+        // In case aContainer has already been initialized with a value go ahead
+        // and release it. 
+        NS_IF_RELEASE(*aContainer);
         *aNewIndexInContainer = -1;
     }
 
@@ -1623,7 +1630,8 @@ nsXULContentBuilder::CreateElement(PRInt32 aNameSpaceID,
     doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID,
                                         getter_AddRefs(nodeInfo));
 
-    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo);
+    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo,
+                       PR_FALSE);
     if (NS_FAILED(rv))
         return rv;
 

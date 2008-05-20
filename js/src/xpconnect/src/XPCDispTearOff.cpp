@@ -445,7 +445,7 @@ pre_call_clean_up:
 
         if(!JSVAL_IS_PRIMITIVE(fval))
         {
-            success = js_Invoke(cx, argc, stackbase, JSINVOKE_INTERNAL);
+            success = js_Invoke(cx, argc, stackbase, 0);
             result = stackbase[0];
         }
         else
@@ -471,9 +471,11 @@ pre_call_clean_up:
                 JS_smprintf_free(sz);
         }
 
-        if (!success)
+        if(!success)
         {
-            retval = nsXPCWrappedJSClass::CheckForException(ccx, name.get(), "IDispatch");
+            retval = nsXPCWrappedJSClass::CheckForException(ccx, name.get(),
+                                                            "IDispatch",
+                                                            PR_FALSE);
             goto done;
         }
 

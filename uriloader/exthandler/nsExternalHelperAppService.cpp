@@ -524,6 +524,7 @@ nsExternalHelperAppService::~nsExternalHelperAppService()
 NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeContentType,
                                                     nsIRequest *aRequest,
                                                     nsIInterfaceRequestor *aWindowContext,
+                                                    PRBool aForceSave,
                                                     nsIStreamListener ** aStreamListener)
 {
   nsAutoString fileName;
@@ -640,7 +641,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
                                                             buf,
                                                             aWindowContext,
                                                             fileName,
-                                                            reason);
+                                                            reason,
+                                                            aForceSave);
   if (!handler)
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(*aStreamListener = handler);
@@ -903,13 +905,16 @@ nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme,
     return NS_ERROR_FAILURE;
   }
   
-  rv = NS_ERROR_FAILURE;
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
-  if (handlerSvc)
-    rv = handlerSvc->FillHandlerInfo(*aHandlerInfo, EmptyCString());
-
-  if (NS_SUCCEEDED(rv))
-    return NS_OK;
+  if (handlerSvc) {
+    PRBool hasHandler = PR_FALSE;
+    (void) handlerSvc->Exists(*aHandlerInfo, &hasHandler);
+    if (hasHandler) {
+      rv = handlerSvc->FillHandlerInfo(*aHandlerInfo, EmptyCString());
+      if (NS_SUCCEEDED(rv))
+        return NS_OK;
+    }
+  }
   
   return SetProtocolHandlerDefaults(*aHandlerInfo, exists);
 }
@@ -991,11 +996,12 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
                                            const nsCSubstring& aTempFileExtension,
                                            nsIInterfaceRequestor* aWindowContext,
                                            const nsAString& aSuggestedFilename,
-                                           PRUint32 aReason)
+                                           PRUint32 aReason, PRBool aForceSave)
 : mMimeInfo(aMIMEInfo)
 , mWindowContext(aWindowContext)
 , mWindowToClose(nsnull)
 , mSuggestedFileName(aSuggestedFilename)
+, mForceSave(aForceSave)
 , mCanceled(PR_FALSE)
 , mShouldCloseWindow(PR_FALSE)
 , mReceivedDispositionInfo(PR_FALSE)
@@ -1470,6 +1476,13 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     alwaysAsk = (action != nsIMIMEInfo::saveToDisk);
   }
 
+  // if we were told that we _must_ save to disk without asking, all the stuff
+  // before this is irrelevant; override it
+  if (mForceSave) {
+    alwaysAsk = PR_FALSE;
+    action = nsIMIMEInfo::saveToDisk;
+  }
+  
   if (alwaysAsk)
   {
     // do this first! make sure we don't try to take an action until the user tells us what they want to do
@@ -1904,7 +1917,7 @@ nsresult nsExternalAppHandler::PromptForSaveToFile(nsILocalFile ** aNewFile, con
                                     mWindowContext,
                                     aDefaultFile.get(),
                                     aFileExtension.get(),
-                                    aNewFile);
+                                    mForceSave, aNewFile);
   return rv;
 }
 
@@ -2357,8 +2370,15 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
   nsresult rv;
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
   if (handlerSvc) {
-    rv = handlerSvc->FillHandlerInfo(*_retval, EmptyCString());
-    LOG(("Data source: Via type: retval 0x%08x\n", rv));
+    PRBool hasHandler = PR_FALSE;
+    (void) handlerSvc->Exists(*_retval, &hasHandler);
+    if (hasHandler) {
+      rv = handlerSvc->FillHandlerInfo(*_retval, EmptyCString());
+      LOG(("Data source: Via type: retval 0x%08x\n", rv));
+    } else {
+      rv = NS_ERROR_NOT_AVAILABLE;
+    }
+ 
     found = found || NS_SUCCEEDED(rv);
 
     if (!found || NS_FAILED(rv)) {
@@ -2366,7 +2386,10 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
       if (!aFileExt.IsEmpty()) {
         nsCAutoString overrideType;
         rv = handlerSvc->GetTypeFromExtension(aFileExt, overrideType);
-        if (NS_SUCCEEDED(rv)) {
+        if (NS_SUCCEEDED(rv) && !overrideType.IsEmpty()) {
+          // We can't check handlerSvc->Exists() here, because we have a
+          // overideType. That's ok, it just results in some console noise.
+          // (If there's no handler for the override type, it throws)
           rv = handlerSvc->FillHandlerInfo(*_retval, overrideType);
           LOG(("Data source: Via ext: retval 0x%08x\n", rv));
           found = found || NS_SUCCEEDED(rv);
@@ -2445,7 +2468,7 @@ NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromExtension(const nsACString&
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
   if (handlerSvc)
     rv = handlerSvc->GetTypeFromExtension(aFileExt, aContentType);
-  if (NS_SUCCEEDED(rv))
+  if (NS_SUCCEEDED(rv) && !aContentType.IsEmpty())
     return NS_OK;
 
   // Ask OS.

@@ -58,6 +58,7 @@ class nsIFontMetrics;
 #include "nsStyleSet.h"
 #include "nsIView.h"
 #include "nsIFrame.h"
+#include "nsThreadUtils.h"
 
 class nsBlockFrame;
 
@@ -419,9 +420,17 @@ public:
    * 
    * This function assumes that the caller will do a bitblt copy of aCopyRect
    * to aCopyRect+aPt. It computes a region that must be repainted in order
-   * for the resulting rendering to be correct.
+   * for the resulting rendering to be correct. Frame geometry must have
+   * already been adjusted for the scroll/copy operation.
    * 
-   * The region consists of:
+   * Conceptually it works by computing a display list in the before-state
+   * and a display list in the after-state and analyzing them to find the
+   * differences. In practice it is only feasible to build a display list
+   * in the after-state (plus building two display lists would be less
+   * efficient), so we use some unfortunately tricky techniques to get by
+   * with just the after-list.
+   * 
+   * The output region consists of:
    * a) any visible background-attachment:fixed areas in the after-move display
    * list
    * b) any visible areas of the before-move display list corresponding to
@@ -697,6 +706,16 @@ public:
   static PRBool GetLastLineBaseline(const nsIFrame* aFrame, nscoord* aResult);
 
   /**
+   * Returns a y coordinate relative to this frame's origin that represents
+   * the logical bottom of the frame or its visible content, whichever is lower.
+   * Relative positioning is ignored and margins and glyph bounds are not
+   * considered.
+   * This value will be >= mRect.height() and <= overflowRect.YMost() unless
+   * relative positioning is applied.
+   */
+  static nscoord CalculateContentBottom(nsIFrame* aFrame);
+
+  /**
    * Gets the closest frame (the frame passed in or one of its parents) that
    * qualifies as a "layer"; used in DOM0 methods that depends upon that
    * definition. This is the nearest frame that is either positioned or scrolled
@@ -805,6 +824,30 @@ public:
 private:
   PRBool mOldValue;
 #endif  
+};
+
+class nsSetAttrRunnable : public nsRunnable
+{
+public:
+  nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
+                    const nsAString& aValue);
+
+  NS_DECL_NSIRUNNABLE
+
+  nsCOMPtr<nsIContent> mContent;
+  nsCOMPtr<nsIAtom> mAttrName;
+  nsAutoString mValue;
+};
+
+class nsUnsetAttrRunnable : public nsRunnable
+{
+public:
+  nsUnsetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName);
+
+  NS_DECL_NSIRUNNABLE
+
+  nsCOMPtr<nsIContent> mContent;
+  nsCOMPtr<nsIAtom> mAttrName;
 };
 
 #endif // nsLayoutUtils_h__

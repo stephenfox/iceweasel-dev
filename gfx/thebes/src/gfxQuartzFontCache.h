@@ -102,7 +102,6 @@ protected:
     MacOSFamilyEntry *mFamily;
 
     ATSUFontID mATSUFontID;
-    std::bitset<128> mUnicodeRanges;
     gfxSparseBitSet mCharacterMap;
     
     PRPackedBool mCmapInitialized;
@@ -152,6 +151,14 @@ public:
     // search for a specific face using the Postscript name
     MacOSFontEntry* FindFont(const nsString& aPostscriptName);
 
+    // read in cmaps for all the faces
+    void ReadCMAP() {
+        PRUint32 i, numFonts = mAvailableFonts.Length();
+        for (i = 0; i < numFonts; i++)
+            mAvailableFonts[i]->ReadCMAP();
+    }
+
+
     // whether this font family is in "bad" underline offset blacklist.
     PRBool IsBadUnderlineFontFamily() { return mIsBadUnderlineFontFamily != 0; }
 
@@ -189,7 +196,7 @@ public:
     virtual void ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFunctor);
 };
 
-class gfxQuartzFontCache {
+class gfxQuartzFontCache : private gfxFontInfoLoader {
 public:
     static gfxQuartzFontCache* SharedFontCache() {
         return sSharedFontCache;
@@ -217,6 +224,7 @@ public:
     PRBool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
     void UpdateFontList() { InitFontList(); }
 
+    void GetFontFamilyList(nsTArray<nsRefPtr<MacOSFamilyEntry> >& aFamilyArray);
 
     MacOSFontEntry* FindFontForChar(const PRUint32 aCh, gfxAtsuiFont *aPrevFont);
 
@@ -261,10 +269,13 @@ private:
     // eliminate faces which have the same ATSUI id
     void EliminateDuplicateFaces(const nsAString& aFamilyName);
                                                              
+    // explicitly set font traits for all faces to fixed-pitch
+    void SetFixedPitch(const nsAString& aFamilyName);
+                                                             
     static PLDHashOperator PR_CALLBACK InitOtherFamilyNamesProc(nsStringHashKey::KeyType aKey,
                                                              nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
                                                              void* userArg);
-    
+
     void GenerateFontListKey(const nsAString& aKeyName, nsAString& aResult);
     static void ATSNotification(ATSFontNotificationInfoRef aInfo, void* aUserArg);
     static int PR_CALLBACK PrefChangedCallback(const char *aPrefName, void *closure);
@@ -273,6 +284,11 @@ private:
         HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
                                 nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
                                 void* aUserArg);
+
+    // gfxFontInfoLoader overrides, used to load in font cmaps
+    virtual void InitLoader();
+    virtual PRBool RunLoader();
+    virtual void FinishLoader();
 
     // canonical family name ==> family entry (unique, one name per family entry)
     nsRefPtrHashtable<nsStringHashKey, MacOSFamilyEntry> mFontFamilies;    
@@ -287,10 +303,15 @@ private:
 
     // when system-wide font lookup fails for a character, cache it to skip future searches
     gfxSparseBitSet mCodepointsWithNoFonts;
-    
+
     // flag set after InitOtherFamilyNames is called upon first name lookup miss
     PRPackedBool mOtherFamilyNamesInitialized;
 
+    // data used as part of the font cmap loading process
+    nsTArray<nsRefPtr<MacOSFamilyEntry> > mFontFamiliesToLoad;
+    PRUint32 mStartIndex;
+    PRUint32 mIncrement;
+    PRUint32 mNumFamilies;
 };
 
 #endif /* GFXQUARTZFONTCACHE_H_ */

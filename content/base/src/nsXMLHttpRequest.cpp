@@ -88,6 +88,8 @@
 #include "nsIMultiPartChannel.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIStorageStream.h"
+#include "nsIPromptFactory.h"
+#include "nsIWindowWatcher.h"
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
@@ -447,6 +449,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXMLHttpRequest)
   NS_INTERFACE_MAP_ENTRY(nsIXMLHttpRequest)
   NS_INTERFACE_MAP_ENTRY(nsIJSXMLHttpRequest)
   NS_INTERFACE_MAP_ENTRY(nsIDOMLoadListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
@@ -1266,23 +1269,13 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url)
       return NS_ERROR_FAILURE;
     }
 
-    rv = secMan->CheckConnect(cx, targetURI, "XMLHttpRequest", "open");
-    if (NS_FAILED(rv))
-    {
-      // Security check failed.
-      return NS_OK;
-    }
-
     // Find out if UniversalBrowserRead privileges are enabled
-    // we will need this in case of a redirect
-    PRBool crossSiteAccessEnabled;
-    rv = secMan->IsCapabilityEnabled("UniversalBrowserRead",
-                                     &crossSiteAccessEnabled);
-    if (NS_FAILED(rv)) return rv;
-    if (crossSiteAccessEnabled) {
+    if (nsContentUtils::IsCallerTrustedForRead()) {
       mState |= XML_HTTP_REQUEST_XSITEENABLED;
     } else {
       mState &= ~XML_HTTP_REQUEST_XSITEENABLED;
+      rv = mPrincipal->CheckMayLoad(targetURI, PR_TRUE);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     if (argc > 2) {
@@ -1421,7 +1414,18 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
   NS_ENSURE_TRUE(channel, NS_ERROR_UNEXPECTED);
 
-  channel->SetOwner(mPrincipal);
+  nsCOMPtr<nsIPrincipal> documentPrincipal = mPrincipal;
+  if (IsSystemPrincipal(documentPrincipal)) {
+    // Don't give this document the system principal.  We need to keep track of
+    // mPrincipal being system because we use it for various security checks
+    // that should be passing, but the document data shouldn't get a system
+    // principal.
+    nsresult rv;
+    documentPrincipal = do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  channel->SetOwner(documentPrincipal);
 
   mReadRequest = request;
   mContext = ctxt;
@@ -1430,13 +1434,20 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 
   nsIURI* uri = GetBaseURI();
 
-  // Create an empty document from it 
+  // Create an empty document from it.  Here we have to cheat a little bit...
+  // Setting the base URI to |uri| won't work if the document has a null
+  // principal, so use mPrincipal when creating the document, then reset the
+  // principal.
   const nsAString& emptyStr = EmptyString();
   nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(mOwner);
   nsresult rv = nsContentUtils::CreateDocument(emptyStr, emptyStr, nsnull, uri,
                                                uri, mPrincipal, global,
                                                getter_AddRefs(mDocument));
   NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+  if (doc) {
+    doc->SetPrincipal(documentPrincipal);
+  }
 
   // Reset responseBody
   mResponseBody.Truncate();
@@ -2231,23 +2242,26 @@ nsXMLHttpRequest::OnChannelRedirect(nsIChannel *aOldChannel,
   NS_PRECONDITION(aNewChannel, "Redirect without a channel?");
 
   nsresult rv;
+
+  if (!(mState & XML_HTTP_REQUEST_XSITEENABLED)) {
+    nsCOMPtr<nsIURI> oldURI;
+    rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIURI> newURI;
+    rv = aNewChannel->GetURI(getter_AddRefs(newURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = nsContentUtils::GetSecurityManager()->
+      CheckSameOriginURI(oldURI, newURI, PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   if (mChannelEventSink) {
     rv =
       mChannelEventSink->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  nsCOMPtr<nsIURI> oldURI;
-  rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIURI> newURI;
-  rv = aNewChannel->GetURI(getter_AddRefs(newURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = nsContentUtils::GetSecurityManager()->
-    CheckSameOriginURI(oldURI, newURI, PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   mChannel = aNewChannel;
 
@@ -2313,6 +2327,8 @@ nsXMLHttpRequest::OnStatus(nsIRequest *aRequest, nsISupports *aContext, nsresult
 NS_IMETHODIMP
 nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
 {
+  nsresult rv;
+
   // Make sure to return ourselves for the channel event sink interface and
   // progress event sink interface, no matter what.  We can forward these to
   // mNotificationCallbacks if it wants to get notifications for them.  But we
@@ -2332,7 +2348,7 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
   // Now give mNotificationCallbacks (if non-null) a chance to return the
   // desired interface.
   if (mNotificationCallbacks) {
-    nsresult rv = mNotificationCallbacks->GetInterface(aIID, aResult);
+    rv = mNotificationCallbacks->GetInterface(aIID, aResult);
     if (NS_SUCCEEDED(rv)) {
       NS_ASSERTION(*aResult, "Lying nsIInterfaceRequestor implementation!");
       return rv;
@@ -2340,7 +2356,6 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
   }
 
   if (mState & XML_HTTP_REQUEST_BACKGROUND) {
-    nsresult rv;
     nsCOMPtr<nsIInterfaceRequestor> badCertHandler(do_CreateInstance(NS_BADCERTHANDLER_CONTRACTID, &rv));
 
     // Ignore failure to get component, we may not have all its dependencies
@@ -2350,6 +2365,24 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
       if (NS_SUCCEEDED(rv))
         return rv;
     }
+  }
+  else if (aIID.Equals(NS_GET_IID(nsIAuthPrompt)) ||
+           aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
+    nsCOMPtr<nsIPromptFactory> wwatch =
+      do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Get the an auth prompter for our window so that the parenting
+    // of the dialogs works as it should when using tabs.
+
+    nsCOMPtr<nsIDOMWindow> window;
+    if (mOwner) {
+      window = mOwner->GetOuterWindow();
+    }
+
+    return wwatch->GetPrompt(window, aIID,
+                             reinterpret_cast<void**>(aResult));
+
   }
 
   return QueryInterface(aIID, aResult);

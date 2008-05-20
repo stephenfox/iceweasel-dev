@@ -110,6 +110,7 @@
 #include "nsEventDispatcher.h"
 #include "nsLayoutUtils.h"
 #include "nsContentCreatorFunctions.h"
+#include "mozAutoDocUpdate.h"
 
 class nsINodeInfo;
 class nsIDOMNodeList;
@@ -595,9 +596,8 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
 
   // Get the union of all rectangles in this and continuation frames.
   // It doesn't really matter what we use as aRelativeTo here, since
-  // we only care about the size. Using 'parent' might make things
-  // a bit faster by speeding up the internal GetOffsetTo operations.
-  nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, parent);
+  // we only care about the size. We just have to use something non-null.
+  nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, frame);
   aRect.width = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width);
   aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
 }
@@ -1358,7 +1358,13 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIEventListenerManager** a
     // override BindToTree for those classes and munge event listeners there?
     nsIDocument *document = GetOwnerDoc();
     nsresult rv = NS_OK;
-    if (document && (win = document->GetInnerWindow())) {
+
+    // FIXME (https://bugzilla.mozilla.org/show_bug.cgi?id=431767)
+    // nsDocument::GetInnerWindow can return an outer window in some cases,
+    // we don't want to stick an event listener on an outer window, so
+    // bail if it does.
+    if (document &&
+        (win = document->GetInnerWindow()) && win->IsInnerWindow()) {
       nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(win));
       NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
@@ -1917,17 +1923,24 @@ nsGenericHTMLFormElement::UpdateEditableFormControlState()
   }
 
   nsIContent *parent = GetParent();
-  PRBool editable = parent && parent->HasFlag(NODE_IS_EDITABLE);
 
-  if (!editable) {
-    // If not contentEditable we still need to check the readonly attribute.
-    PRBool roState;
-    GetBoolAttr(nsGkAtoms::readonly, &roState);
-
-    editable = !roState;
+  if (parent && parent->HasFlag(NODE_IS_EDITABLE)) {
+    SetEditableFlag(PR_TRUE);
+    return;
   }
 
-  SetEditableFlag(editable);
+  PRInt32 formType = GetType();
+  if (formType != NS_FORM_INPUT_PASSWORD && formType != NS_FORM_INPUT_TEXT &&
+      formType != NS_FORM_TEXTAREA) {
+    SetEditableFlag(PR_FALSE);
+    return;
+  }
+
+  // If not contentEditable we still need to check the readonly attribute.
+  PRBool roState;
+  GetBoolAttr(nsGkAtoms::readonly, &roState);
+
+  SetEditableFlag(!roState);
 }
 
 
@@ -2507,11 +2520,11 @@ nsGenericHTMLFormElement::IsNodeOfType(PRUint32 aFlags) const
 }
 
 void
-nsGenericHTMLFormElement::DestroyContent()
+nsGenericHTMLFormElement::SaveSubtreeState()
 {
   SaveState();
-  
-  nsGenericHTMLElement::DestroyContent();
+
+  nsGenericHTMLElement::SaveSubtreeState();
 }
 
 NS_IMETHODIMP
@@ -2582,10 +2595,11 @@ nsGenericHTMLFormElement::GetDesiredIMEState()
 }
 
 PRBool
-nsGenericHTMLFrameElement::IsFocusable(PRInt32 *aTabIndex)
+nsGenericHTMLFrameElement::IsHTMLFocusable(PRBool *aIsFocusable,
+                                           PRInt32 *aTabIndex)
 {
-  if (!nsGenericHTMLElement::IsFocusable(aTabIndex)) {
-    return PR_FALSE;
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
+    return PR_TRUE;
   }
 
   // If there is no subdocument, docshell or content viewer, it's not tabbable
@@ -2616,11 +2630,12 @@ nsGenericHTMLFrameElement::IsFocusable(PRInt32 *aTabIndex)
     }
   }
 
+  *aIsFocusable = isFocusable;
   if (!isFocusable && aTabIndex) {
     *aTabIndex = -1;
   }
 
-  return isFocusable;
+  return PR_FALSE;
 }
 
 nsresult
@@ -3114,7 +3129,7 @@ nsGenericHTMLElement::RemoveFocus(nsPresContext *aPresContext)
 }
 
 PRBool
-nsGenericHTMLElement::IsFocusable(PRInt32 *aTabIndex)
+nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
   nsIDocument *doc = GetCurrentDoc();
   if (!doc || doc->HasFlag(NODE_IS_EDITABLE)) {
@@ -3123,14 +3138,19 @@ nsGenericHTMLElement::IsFocusable(PRInt32 *aTabIndex)
       *aTabIndex = -1;
     }
 
-    return PR_FALSE;
+    *aIsFocusable = PR_FALSE;
+
+    return PR_TRUE;
   }
 
   PRInt32 tabIndex = 0;   // Default value for non HTML elements with -moz-user-focus
   GetTabIndex(&tabIndex);
 
-  PRBool disabled;
+  PRBool override, disabled;
   if (IsEditableRoot()) {
+    // Editable roots should always be focusable.
+    override = PR_TRUE;
+
     // Ignore the disabled attribute in editable contentEditable/designMode
     // roots.
     disabled = PR_FALSE;
@@ -3141,6 +3161,8 @@ nsGenericHTMLElement::IsFocusable(PRInt32 *aTabIndex)
     }
   }
   else {
+    override = PR_FALSE;
+
     // Just check for disabled attribute on all HTML elements
     disabled = HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
     if (disabled) {
@@ -3153,7 +3175,10 @@ nsGenericHTMLElement::IsFocusable(PRInt32 *aTabIndex)
   }
 
   // If a tabindex is specified at all, or the default tabindex is 0, we're focusable
-  return tabIndex >= 0 || (!disabled && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
+  *aIsFocusable = tabIndex >= 0 ||
+                  (!disabled && HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
+
+  return override;
 }
 
 void
