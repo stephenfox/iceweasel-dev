@@ -85,7 +85,9 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "licence", "chrome://global/content/license.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
+#ifndef MOZ_XUL_APP
     { "about", "chrome://global/content/aboutAbout.html", 0 },
+#endif
     { "neterror", "chrome://global/content/netError.xhtml",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT }
