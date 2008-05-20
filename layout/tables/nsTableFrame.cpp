@@ -1256,9 +1256,46 @@ nsTableFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   return nsnull;
 }
 
-class nsDisplayTableBorderBackground : public nsDisplayItem {
+nsRect
+nsDisplayTableItem::GetBounds(nsDisplayListBuilder* aBuilder) {
+  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
+}
+
+PRBool
+nsDisplayTableItem::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder)
+{
+  if (!mPartHasFixedBackground)
+    return PR_FALSE;
+
+  // aAncestorFrame is the frame that is going to be moved.
+  // Check if mFrame is equal to aAncestorFrame or aAncestorFrame is an
+  // ancestor of mFrame in the same document. If this is true, mFrame
+  // will move relative to its viewport, which means this display item will
+  // change when it is moved.  If they are in different documents, we do not
+  // want to return true because mFrame won't move relative to its viewport.
+  nsIFrame* rootMover = aBuilder->GetRootMovingFrame();
+  return mFrame == rootMover ||
+    nsLayoutUtils::IsProperAncestorFrame(rootMover, mFrame);
+}
+
+/* static */ void
+nsDisplayTableItem::UpdateForFrameBackground(nsIFrame* aFrame)
+{
+  PRBool isCanvas;
+  const nsStyleBackground* bg;
+  PRBool hasBG =
+    nsCSSRendering::FindBackground(aFrame->PresContext(), aFrame, &bg, &isCanvas);
+  if (!hasBG)
+    return;
+  if (!bg->HasFixedBackground())
+    return;
+
+  mPartHasFixedBackground = PR_TRUE;
+}
+
+class nsDisplayTableBorderBackground : public nsDisplayTableItem {
 public:
-  nsDisplayTableBorderBackground(nsTableFrame* aFrame) : nsDisplayItem(aFrame) {
+  nsDisplayTableBorderBackground(nsTableFrame* aFrame) : nsDisplayTableItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayTableBorderBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1269,13 +1306,6 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
-  // With collapsed borders, parts of the collapsed border can extend outside
-  // the table frame, so allow this display element to blow out to our
-  // overflow rect.
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
-    return static_cast<nsTableFrame*>(mFrame)->GetOverflowRect() +
-      aBuilder->ToReferenceFrame(mFrame);
-  }
   NS_DISPLAY_DECL_NAME("TableBorderBackground")
 };
 
@@ -1332,15 +1362,23 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
                                       nsFrame* aFrame,
                                       const nsRect& aDirtyRect,
                                       const nsDisplayListSet& aLists,
-                                      PRBool aIsRoot,
+                                      nsDisplayTableItem* aDisplayItem,
                                       DisplayGenericTablePartTraversal aTraversal)
 {
   nsDisplayList eventsBorderBackground;
   // If we need to sort the event backgrounds, then we'll put descendants'
   // display items into their own set of lists.
-  PRBool sortEventBackgrounds = aIsRoot && aBuilder->IsForEventDelivery();
+  PRBool sortEventBackgrounds = aDisplayItem && aBuilder->IsForEventDelivery();
   nsDisplayListCollection separatedCollection;
   const nsDisplayListSet* lists = sortEventBackgrounds ? &separatedCollection : &aLists;
+  
+  nsAutoPushCurrentTableItem pushTableItem;
+  if (aDisplayItem) {
+    pushTableItem.Push(aBuilder, aDisplayItem);
+  }
+  nsDisplayTableItem* currentItem = aBuilder->GetCurrentTableItem();
+  NS_ASSERTION(currentItem, "No current table item!");
+  currentItem->UpdateForFrameBackground(aFrame);
   
   // Create dedicated background display items per-frame when we're
   // handling events.
@@ -1381,11 +1419,11 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // This background is created regardless of whether this frame is
   // visible or not. Visibility decisions are delegated to the
   // table background painter.
-  nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-      nsDisplayTableBorderBackground(this));
+  nsDisplayTableItem* item = new (aBuilder) nsDisplayTableBorderBackground(this);
+  nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  return DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, PR_TRUE);
+  return DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, item);
 }
 
 // XXX We don't put the borders and backgrounds in tree order like we should.
@@ -2931,11 +2969,13 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
                                        -1, -1, PR_FALSE);
       InitChildReflowState(kidReflowState);
 
-      // If this isn't the first row group, then we can't be at the top of the page
-      // When a new page starts, a head row group may be added automatically.
-      // We also consider the row groups just after the head as the top of the page.
-      // That is to prevent the infinite loop in some circumstance. See bug 344883.
-      if (childX > (thead ? 1 : 0)) {
+      // If this isn't the first row group, and the previous row group has a
+      // nonzero YMost, then we can't be at the top of the page.
+      // We ignore the head row group in this check, because a head row group
+      // may be automatically added at the top of *every* page.  This prevents
+      // infinite loops in some circumstances - see bug 344883.
+      if (childX > (thead ? 1 : 0) &&
+          (rowGroups[childX - 1]->GetRect().YMost() > 0)) {
         kidReflowState.mFlags.mIsTopOfPage = PR_FALSE;
       }
       aReflowState.y += cellSpacingY;
@@ -6810,7 +6850,13 @@ nsTableFrame::InvalidateFrame(nsIFrame* aFrame,
   if (aIsFirstReflow ||
       aOrigRect.TopLeft() != aFrame->GetPosition() ||
       aOrigOverflowRect.TopLeft() != overflowRect.TopLeft()) {
-    aFrame->InvalidateOverflowRect();
+    // Invalidate the old and new overflow rects.  Note that if the
+    // frame moved, we can't just use aOrigOverflowRect, since it's in
+    // coordinates relative to the old position.  So invalidate via
+    // aFrame's parent, and reposition that overflow rect to the right
+    // place.
+    aFrame->Invalidate(overflowRect);
+    parent->Invalidate(aOrigOverflowRect + aOrigRect.TopLeft());
   } else {
     aFrame->InvalidateRectDifference(aOrigOverflowRect, overflowRect);
     parent->InvalidateRectDifference(aOrigRect, aFrame->GetRect());

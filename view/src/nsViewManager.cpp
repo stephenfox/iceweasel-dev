@@ -742,24 +742,18 @@ nsViewManager::UpdateViewAfterScroll(nsView *aView, const nsRegion& aUpdateRegio
     --RootViewManager()->mScrollCnt;
     return;
   }
-  nsPoint offset = ComputeViewOffset(aView);
+
+  nsView* displayRoot = GetDisplayRootFor(aView);
+  nsPoint offset = aView->GetOffsetTo(displayRoot);
   damageRect.MoveBy(offset);
 
-  // if this is a floating view, it isn't covered by any widgets other than
-  // its children, which are handled by the widget scroller.
-  if (aView->GetFloating()) {
-    // Don't forget to undo mScrollCnt!
-    --RootViewManager()->mScrollCnt;
-    return;
-  }
-
-  UpdateWidgetArea(RootViewManager()->GetRootView(), nsRegion(damageRect), aView);
+  UpdateWidgetArea(displayRoot, nsRegion(damageRect), aView);
   if (!aUpdateRegion.IsEmpty()) {
     // XXX We should update the region, not the bounds rect, but that requires
     // a little more work. Fix this when we reshuffle this code.
     nsRegion update(aUpdateRegion);
     update.MoveBy(offset);
-    UpdateWidgetArea(RootViewManager()->GetRootView(), update, nsnull);
+    UpdateWidgetArea(displayRoot, update, nsnull);
     // FlushPendingInvalidates();
   }
 
@@ -1434,7 +1428,8 @@ void nsViewManager::ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget)
     // to do for the view and its descendants
     nsIWidget* widget = aView->GetWidget();
     nsIWidget* parentWidget = widget->GetParent();
-    if (parentWidget != aNewWidget) {
+    // Toplevel widgets should not be reparented!
+    if (parentWidget && parentWidget != aNewWidget) {
 #ifdef DEBUG
       nsresult rv =
 #endif

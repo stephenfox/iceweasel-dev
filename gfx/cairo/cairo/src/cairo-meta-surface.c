@@ -658,8 +658,8 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     cairo_meta_surface_t *meta;
     cairo_command_t *command, **elements;
     int i, num_elements;
-    cairo_int_status_t status;
-    cairo_clip_t clip;
+    cairo_int_status_t status, status2;
+    cairo_clip_t clip, *old_clip;
     cairo_bool_t has_device_transform = _cairo_surface_has_device_transform (target);
     cairo_matrix_t *device_transform = &target->device_transform;
     cairo_path_fixed_t path_copy, *dev_path;
@@ -674,6 +674,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     status = CAIRO_STATUS_SUCCESS;
 
     _cairo_clip_init (&clip, target);
+    old_clip = _cairo_surface_get_clip (target);
 
     num_elements = meta->commands.num_elements;
     elements = _cairo_array_index (&meta->commands, 0);
@@ -743,7 +744,11 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 	{
 	    cairo_command_t *stroke_command;
 
-	    stroke_command = (i < num_elements - 1) ? elements[i + 1] : NULL;
+	    if (type != CAIRO_META_CREATE_REGIONS)
+		stroke_command = (i < num_elements - 1) ? elements[i + 1] : NULL;
+	    else
+		stroke_command = NULL;
+
 	    if (stroke_command != NULL &&
 		type == CAIRO_META_REPLAY && region != CAIRO_META_REGION_ALL)
 	    {
@@ -783,14 +788,6 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 						     stroke_command->stroke.tolerance,
 						     stroke_command->stroke.antialias);
 		i++;
-		if (type == CAIRO_META_CREATE_REGIONS) {
-		    if (status == CAIRO_STATUS_SUCCESS) {
-			stroke_command->header.region = CAIRO_META_REGION_NATIVE;
-		    } else if (status == CAIRO_INT_STATUS_IMAGE_FALLBACK) {
-			stroke_command->header.region = CAIRO_META_REGION_IMAGE_FALLBACK;
-			status = CAIRO_STATUS_SUCCESS;
-		    }
-		}
 	    } else
 		status = _cairo_surface_fill (target,
 					      command->fill.op,
@@ -871,6 +868,9 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     }
 
     _cairo_clip_reset (&clip);
+    status2 = _cairo_surface_set_clip (target, old_clip);
+    if (status == CAIRO_STATUS_SUCCESS)
+	status = status2;
 
     return _cairo_surface_set_error (surface, status);
 }

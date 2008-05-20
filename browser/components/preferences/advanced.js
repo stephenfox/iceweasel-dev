@@ -50,11 +50,17 @@ var gAdvancedPane = {
   {
     this._inited = true;
     var advancedPrefs = document.getElementById("advancedPrefs");
-    var preference = document.getElementById("browser.preferences.advanced.selectedTabIndex");
-    if (preference.value === null)
-      return;
-    advancedPrefs.selectedIndex = preference.value;
-    
+
+    var extraArgs = window.arguments[1];
+    if (extraArgs && extraArgs["advancedTab"]){
+      advancedPrefs.selectedTab = document.getElementById(extraArgs["advancedTab"]);
+    } else {
+      var preference = document.getElementById("browser.preferences.advanced.selectedTabIndex");
+      if (preference.value === null)
+        return;
+      advancedPrefs.selectedIndex = preference.value;
+    }
+
     this.updateAppUpdateItems();
     this.updateAutoItems();
     this.updateModeItems();
@@ -207,6 +213,24 @@ var gAdvancedPane = {
                                         "", params);
   },
 
+  // XXX: duplicated in browser.js
+  _getOfflineAppUsage: function (host)
+  {
+    var cacheService = Components.classes["@mozilla.org/network/cache-service;1"].
+                       getService(Components.interfaces.nsICacheService);
+    var cacheSession = cacheService.createSession("HTTP-offline",
+                                                  Components.interfaces.nsICache.STORE_OFFLINE,
+                                                  true).
+                       QueryInterface(Components.interfaces.nsIOfflineCacheSession);
+    var usage = cacheSession.getDomainUsage(host);
+
+    var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
+                         getService(Components.interfaces.nsIDOMStorageManager);
+    usage += storageManager.getUsage(host);
+
+    return usage;
+  },
+
   /**
    * Updates the list of offline applications
    */
@@ -233,7 +257,7 @@ var gAdvancedPane = {
         row.className = "offlineapp";
         row.setAttribute("host", perm.host);
         var converted = DownloadUtils.
-                        convertByteUnits(getOfflineAppUsage(perm.host));
+                        convertByteUnits(this._getOfflineAppUsage(perm.host));
         row.setAttribute("usage",
                          bundle.getFormattedString("offlineAppUsage",
                                                    converted));

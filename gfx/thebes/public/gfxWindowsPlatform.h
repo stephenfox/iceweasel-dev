@@ -39,6 +39,7 @@
 #ifndef GFX_WINDOWS_PLATFORM_H
 #define GFX_WINDOWS_PLATFORM_H
 
+#include "gfxFontUtils.h"
 #include "gfxWindowsSurface.h"
 #include "gfxWindowsFonts.h"
 #include "gfxPlatform.h"
@@ -48,7 +49,7 @@
 
 #include <windows.h>
 
-class THEBES_API gfxWindowsPlatform : public gfxPlatform {
+class THEBES_API gfxWindowsPlatform : public gfxPlatform, private gfxFontInfoLoader {
 public:
     gfxWindowsPlatform();
     virtual ~gfxWindowsPlatform();
@@ -64,6 +65,8 @@ public:
                          nsStringArray& aListOfFonts);
 
     nsresult UpdateFontList();
+
+    void GetFontFamilyList(nsTArray<nsRefPtr<FontFamily> >& aFamilyArray);
 
     nsresult ResolveFontName(const nsAString& aFontName,
                              FontResolverCallback aCallback,
@@ -81,12 +84,11 @@ public:
      * code points they support as well as looking at things like the font
      * family, style, weight, etc.
      */
-    FontEntry *FindFontForChar(PRUint32 aCh, gfxWindowsFont *aFont);
+    already_AddRefed<gfxWindowsFont> FindFontForChar(PRUint32 aCh, gfxWindowsFont *aFont);
 
     /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
     FontFamily *FindFontFamily(const nsAString& aName);
-    FontEntry *FindFontEntry(FontFamily *aFontFamily, const gfxFontStyle *aFontStyle);
-    FontEntry *FindFontEntry(const nsAString& aName, const gfxFontStyle *aFontStyle);
+    FontEntry *FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontStyle);
 
     PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *array);
     void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array);
@@ -101,6 +103,9 @@ private:
     static int CALLBACK FontEnumProc(const ENUMLOGFONTEXW *lpelfe,
                                      const NEWTEXTMETRICEXW *metrics,
                                      DWORD fontType, LPARAM data);
+    static int CALLBACK FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
+                                            const NEWTEXTMETRICEXW *nmetrics,
+                                            DWORD fontType, LPARAM data);
 
     static PLDHashOperator PR_CALLBACK FontGetStylesProc(nsStringHashKey::KeyType aKey,
                                                          nsRefPtr<FontFamily>& aFontFamily,
@@ -126,6 +131,11 @@ private:
 
     static int PR_CALLBACK PrefChangedCallback(const char*, void*);
 
+    // gfxFontInfoLoader overrides, used to load in font cmaps
+    virtual void InitLoader();
+    virtual PRBool RunLoader();
+    virtual void FinishLoader();
+
     FontTable mFonts;
     FontTable mFontAliases;
     FontTable mFontSubstitutes;
@@ -135,6 +145,12 @@ private:
     gfxSparseBitSet mCodepointsWithNoFonts;
     
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<FontEntry> > > mPrefFonts;
+
+    // data used as part of the font cmap loading process
+    nsTArray<nsRefPtr<FontFamily> > mFontFamilies;
+    PRUint32 mStartIndex;
+    PRUint32 mIncrement;
+    PRUint32 mNumFamilies;
 };
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

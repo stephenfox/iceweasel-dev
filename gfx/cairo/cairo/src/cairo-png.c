@@ -211,9 +211,8 @@ write_png (cairo_surface_t	*surface,
 		  PNG_COMPRESSION_TYPE_DEFAULT,
 		  PNG_FILTER_TYPE_DEFAULT);
 
-    white.red = 0xff;
-    white.blue = 0xff;
-    white.green = 0xff;
+    white.gray = (1 << depth) - 1;
+    white.red = white.blue = white.green = white.gray;
     png_set_bKGD (png, info, &white);
 
     png_convert_from_time_t (&pt, time (NULL));
@@ -285,6 +284,12 @@ cairo_surface_write_to_png (cairo_surface_t	*surface,
 {
     FILE *fp;
     cairo_status_t status;
+
+    if (surface->status)
+	return surface->status;
+
+    if (surface->finished)
+	return _cairo_error (CAIRO_STATUS_SURFACE_FINISHED);
 
     fp = fopen (filename, "wb");
     if (fp == NULL) {

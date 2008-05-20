@@ -278,18 +278,17 @@ LoginManager.prototype = {
             if (!(domDoc instanceof Ci.nsIDOMHTMLDocument))
                 return;
 
-            this._pwmgr.log("onStateChange accepted: req = " + (aRequest ?
-                        aRequest.name : "(null)") + ", flags = " + aStateFlags);
+            this._pwmgr.log("onStateChange accepted: req = " +
+                            (aRequest ?  aRequest.name : "(null)") +
+                            ", flags = 0x" + aStateFlags.toString(16));
 
-            // fastback navigation... We won't get a DOMContentLoaded
-            // event again, so process any forms now.
+            // Fastback doesn't fire DOMContentLoaded, so process forms now.
             if (aStateFlags & Ci.nsIWebProgressListener.STATE_RESTORING) {
                 this._pwmgr.log("onStateChange: restoring document");
                 return this._pwmgr._fillDocument(domDoc);
             }
 
             // Add event listener to process page when DOM is complete.
-            this._pwmgr.log("onStateChange: adding dom listeners");
             domDoc.addEventListener("DOMContentLoaded",
                                     this._domEventListener, false);
             return;
@@ -364,8 +363,19 @@ LoginManager.prototype = {
         if (login.password == null || login.password.length == 0)
             throw "Can't add a login with a null or empty password.";
 
-        if (!login.httpRealm && !login.formSubmitURL)
+        if (login.formSubmitURL || login.formSubmitURL == "") {
+            // We have a form submit URL. Can't have a HTTP realm.
+            if (login.httpRealm != null)
+                throw "Can't add a login with both a httpRealm and formSubmitURL.";
+        } else if (login.httpRealm) {
+            // We have a HTTP realm. Can't have a form submit URL.
+            if (login.formSubmitURL != null)
+                throw "Can't add a login with both a httpRealm and formSubmitURL.";
+        } else {
+            // Need one or the other!
             throw "Can't add a login without a httpRealm or formSubmitURL.";
+        }
+
 
         // Look for an existing entry.
         var logins = this.findLogins({}, login.hostname, login.formSubmitURL,
@@ -706,6 +716,20 @@ LoginManager.prototype = {
 
 
     /*
+     * _isAutoCompleteDisabled
+     *
+     * Returns true if the page requests autocomplete be disabled for the
+     * specified form input.
+     */
+    _isAutocompleteDisabled :  function (element) {
+        if (element && element.hasAttribute("autocomplete") &&
+            element.getAttribute("autocomplete").toLowerCase() == "off")
+            return true;
+
+        return false;
+    },
+
+    /*
      * _onFormSubmit
      *
      * Called by the our observer when notified of a form submission.
@@ -714,15 +738,6 @@ LoginManager.prototype = {
      * our stored password.
      */
     _onFormSubmit : function (form) {
-
-        // local helper function
-        function autocompleteDisabled(element) {
-            if (element && element.hasAttribute("autocomplete") &&
-                element.getAttribute("autocomplete").toLowerCase() == "off")
-                return true;
-
-           return false;
-        };
 
         // local helper function
         function getPrompter(aWindow) {
@@ -759,10 +774,10 @@ LoginManager.prototype = {
         // Check for autocomplete=off attribute. We don't use it to prevent
         // autofilling (for existing logins), but won't save logins when it's
         // present.
-        if (autocompleteDisabled(form) ||
-            autocompleteDisabled(usernameField) ||
-            autocompleteDisabled(newPasswordField) ||
-            autocompleteDisabled(oldPasswordField)) {
+        if (this._isAutocompleteDisabled(form) ||
+            this._isAutocompleteDisabled(usernameField) ||
+            this._isAutocompleteDisabled(newPasswordField) ||
+            this._isAutocompleteDisabled(oldPasswordField)) {
                 this.log("(form submission ignored -- autocomplete=off found)");
                 return;
         }
@@ -876,10 +891,13 @@ LoginManager.prototype = {
      *
      * Get the parts of the URL we want for identification.
      */
-    _getPasswordOrigin : function (uriString) {
+    _getPasswordOrigin : function (uriString, allowJS) {
         var realm = "";
         try {
             var uri = this._ioService.newURI(uriString, null, null);
+
+            if (allowJS && uri.scheme == "javascript")
+                return "javascript:"
 
             realm = uri.scheme + "://" + uri.host;
 
@@ -894,7 +912,7 @@ LoginManager.prototype = {
 
         } catch (e) {
             // bug 159484 - disallow url types that don't support a hostPort.
-            // (set null to cause throw in the JS above)
+            // (although we handle "javascript:..." as a special case above.)
             this.log("Couldn't parse origin for " + uriString);
             realm = null;
         }
@@ -909,7 +927,7 @@ LoginManager.prototype = {
         if (uriString == "")
             uriString = form.baseURI; // ala bug 297761
 
-        return this._getPasswordOrigin(uriString);
+        return this._getPasswordOrigin(uriString, true);
     },
 
 
@@ -958,12 +976,12 @@ LoginManager.prototype = {
                 var foundLogins =
                     this.findLogins({}, formOrigin, actionOrigin, null);
 
-                this.log("form[" + i + "]: got " +
-                         foundLogins.length + " logins.");
+                this.log("form[" + i + "]: found " + foundLogins.length +
+                        " matching logins.");
 
                 previousActionOrigin = actionOrigin;
             } else {
-                this.log("form[" + i + "]: using logins from last form.");
+                this.log("form[" + i + "]: reusing logins from last form.");
             }
 
 
@@ -1001,7 +1019,20 @@ LoginManager.prototype = {
             if (usernameField)
                 this._attachToInput(usernameField);
 
-            if (autofillForm) {
+            // If the form has an autocomplete=off attribute in play, don't
+            // fill in the login automatically. We check this after attaching
+            // the autocomplete stuff to the username field, so the user can
+            // still manually select a login to be filled in.
+            var isFormDisabled = false;
+            if (this._isAutocompleteDisabled(form) ||
+                this._isAutocompleteDisabled(usernameField) ||
+                this._isAutocompleteDisabled(passwordField)) {
+
+                isFormDisabled = true;
+                this.log("form[" + i + "]: not filled, has autocomplete=off");
+            }
+
+            if (autofillForm && !isFormDisabled) {
 
                 if (usernameField && usernameField.value) {
                     // If username was specified in the form, only fill in the
@@ -1016,6 +1047,9 @@ LoginManager.prototype = {
                                             });
                     if (found)
                         passwordField.value = matchingLogin.password;
+                    else
+                        this.log("Password not filled. None of the stored " +
+                                 "logins match the username already present.");
 
                 } else if (usernameField && logins.length == 2) {
                     // Special case, for sites which have a normal user+pass
@@ -1034,6 +1068,8 @@ LoginManager.prototype = {
                     if (usernameField)
                         usernameField.value = logins[0].username;
                     passwordField.value = logins[0].password;
+                } else {
+                    this.log("Multiple logins for form, so not filling any.");
                 }
             }
         } // foreach form

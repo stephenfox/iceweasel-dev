@@ -159,7 +159,10 @@ NS_IMETHODIMP nsDocAccessible::GetName(nsAString& aName)
     rv = nsAccessible::GetName(aName); // Allow name via aria-labelledby or title attribute
   }
   if (aName.IsEmpty()) {
-    rv = GetTitle(aName);   // Finally try title element
+    rv = GetTitle(aName);   // Try title element
+  }
+  if (aName.IsEmpty()) {   // Last resort: use URL
+    rv = GetURL(aName);
   }
 
   return rv;
@@ -254,6 +257,9 @@ nsDocAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     // which it should be if it is scrollable. A XUL document could be focusable.
     // See bug 376803.
     *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
+    if (gLastFocusedNode == mDOMNode) {
+      *aState |= nsIAccessibleStates::STATE_FOCUSED;
+    }
   }
 
   if (!mIsContentLoaded) {
@@ -851,8 +857,18 @@ NS_IMETHODIMP nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
       }
     }
   }
+
   if (sameTypeRoot == treeItem) {
     // Not a frame or iframe
+    if (!isFinished) {
+      // Fire state change event to set STATE_BUSY when document is loading. For
+      // example, Window-Eyes expects to get it.
+      nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
+        new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_BUSY,
+                                  PR_FALSE, PR_TRUE);
+      FireAccessibleEvent(accEvent);
+    }
+
     nsAccUtils::FireAccEvent(aEventType, this);
   }
   return NS_OK;
@@ -1559,9 +1575,12 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
       // wait to fire this here, instead of in InvalidateCacheSubtree(), where we wouldn't be able to calculate
       // the offset, length and text for the text change.
       if (domNode && domNode != mDOMNode) {
-        if (!containerAccessible)
+        if (!containerAccessible) {
           GetAccessibleInParentChain(domNode, PR_TRUE,
                                      getter_AddRefs(containerAccessible));
+          if (!containerAccessible)
+            containerAccessible = this;
+        }
 
         nsCOMPtr<nsIAccessibleTextChangeEvent> textChangeEvent =
           CreateTextChangeEventForNode(containerAccessible, domNode, accessible, PR_TRUE, PR_TRUE);
@@ -2063,10 +2082,10 @@ nsDocAccessible::FireShowHideEvents(nsIDOMNode *aDOMNode, PRBool aAvoidOnThisNod
 
   // Could not find accessible to show hide yet, so fire on any
   // accessible descendants in this subtree
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aDOMNode));
-  PRUint32 count = content->GetChildCount();
+  nsCOMPtr<nsINode> node(do_QueryInterface(aDOMNode));
+  PRUint32 count = node->GetChildCount();
   for (PRUint32 index = 0; index < count; index++) {
-    nsCOMPtr<nsIDOMNode> childNode = do_QueryInterface(content->GetChildAt(index));
+    nsCOMPtr<nsIDOMNode> childNode = do_QueryInterface(node->GetChildAt(index));
     nsresult rv = FireShowHideEvents(childNode, PR_FALSE, aEventType,
                                      aDelay, aForceIsFromUserInput);
     NS_ENSURE_SUCCESS(rv, rv);

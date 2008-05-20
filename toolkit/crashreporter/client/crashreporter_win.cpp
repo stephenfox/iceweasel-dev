@@ -539,7 +539,8 @@ static void UpdateEmail(HWND hwndDlg)
     wchar_t email[MAX_EMAIL_LENGTH];
     GetDlgItemText(hwndDlg, IDC_EMAILTEXT, email, sizeof(email));
     gQueryParameters[L"Email"] = email;
-    EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), true);
+    if (IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK))
+      EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), true);
   } else {
     gQueryParameters.erase(L"Email");
     EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), false);
@@ -711,7 +712,7 @@ static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
 
 // Resize a control to fit this text
 static int ResizeControl(HWND hwndButton, RECT& rect, wstring text,
-                         bool shiftLeft, int extraPadding)
+                         bool shiftLeft, int userDefinedPadding)
 {
   HDC hdc = GetDC(hwndButton);
   HFONT hfont = (HFONT)SendMessage(hwndButton, WM_GETFONT, 0, 0);
@@ -726,12 +727,23 @@ static int ResizeControl(HWND hwndButton, RECT& rect, wstring text,
   if (GetTextExtentPoint32(hdc, text.c_str(), text.length(), &size)
       // default text on the button
       && GetTextExtentPoint32(hdc, oldText, wcslen(oldText), &oldSize)) {
-    // We want the change in the text size, minus the existing empty 
-    // space on the control.
-    sizeDiff = (size.cx - oldSize.cx) -
-      ((rect.right - rect.left) - extraPadding - oldSize.cx);
-    if (sizeDiff <= 0)
+    /*
+     Expand control widths to accomidate wider text strings. For most
+     controls (including buttons) the text padding is defined by the
+     dialog's rc file. Some controls (such as checkboxes) have padding
+     that extends to the end of the dialog, in which case we ignore the
+     rc padding and rely on a user defined value passed in through
+     userDefinedPadding.
+    */
+    int textIncrease = size.cx - oldSize.cx;
+    if (textIncrease < 0)
       return 0;
+    int existingTextPadding;
+    if (userDefinedPadding == 0) 
+      existingTextPadding = (rect.right - rect.left) - oldSize.cx;
+    else 
+      existingTextPadding = userDefinedPadding;
+    sizeDiff = textIncrease + existingTextPadding;
 
     if (shiftLeft) {
       // shift left by the amount the button should grow
@@ -781,6 +793,19 @@ static void StretchControlsToFit(HWND hwndDlg)
   }
 }
 
+static void SubmitReportChecked(HWND hwndDlg)
+{
+  bool enabled = (IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK) != 0);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_VIEWREPORTBUTTON), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_COMMENTTEXT), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT),
+               enabled && (IsDlgButtonChecked(hwndDlg, IDC_EMAILMECHECK)
+                           != 0));
+  SetDlgItemVisible(hwndDlg, IDC_PROGRESSTEXT, enabled);
+}
+
 static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
                                              WPARAM wParam, LPARAM lParam)
 {
@@ -816,20 +841,13 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     SetDlgItemText(hwndDlg, IDC_SUBMITREPORTCHECK,
                    Str(ST_CHECKSUBMIT).c_str());
 
-    if (CheckBoolKey(gCrashReporterKey.c_str(),
-                     SUBMIT_REPORT_VALUE, &enabled) &&
-        !enabled) {
-      CheckDlgButton(hwndDlg, IDC_SUBMITREPORTCHECK, BST_UNCHECKED);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_VIEWREPORTBUTTON), enabled);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_COMMENTTEXT), enabled);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), enabled);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), enabled);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), enabled);
-      SetDlgItemVisible(hwndDlg, IDC_PROGRESSTEXT, enabled);
-    } else {
-      CheckDlgButton(hwndDlg, IDC_SUBMITREPORTCHECK, BST_CHECKED);
-    }
+    if (!CheckBoolKey(gCrashReporterKey.c_str(),
+                      SUBMIT_REPORT_VALUE, &enabled))
+      enabled = ShouldEnableSending();
 
+    CheckDlgButton(hwndDlg, IDC_SUBMITREPORTCHECK, enabled ? BST_CHECKED
+                                                           : BST_UNCHECKED);
+    SubmitReportChecked(hwndDlg);
 
     HWND hwndComment = GetDlgItem(hwndDlg, IDC_COMMENTTEXT);
     WNDPROC OldWndProc = (WNDPROC)SetWindowLongPtr(hwndComment,
@@ -1040,15 +1058,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
                        (DLGPROC)ViewReportDialogProc, 0);
         break;
       case IDC_SUBMITREPORTCHECK:
-        enabled = (IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK) != 0);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_VIEWREPORTBUTTON), enabled);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_COMMENTTEXT), enabled);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), enabled);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), enabled);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT),
-                     enabled && (IsDlgButtonChecked(hwndDlg, IDC_EMAILMECHECK)
-                                 != 0));
-        SetDlgItemVisible(hwndDlg, IDC_PROGRESSTEXT, enabled);
+        SubmitReportChecked(hwndDlg);
         break;
       case IDC_INCLUDEURLCHECK:
         UpdateURL(hwndDlg);

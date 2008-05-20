@@ -103,6 +103,15 @@ static style_prop_t style_prop_func;
 static gboolean have_arrow_scaling;
 static gboolean is_initialized;
 
+/* Because we have such an unconventional way of drawing widgets, signal to the GTK theme engine
+   that they are drawing for Mozilla instead of a conventional GTK app so they can do any specific
+   things they may want to do. */
+static void
+moz_gtk_set_widget_name(GtkWidget* widget)
+{
+    gtk_widget_set_name(widget, "MozillaGtkWidget");
+}
+
 gint
 moz_gtk_enable_style_props(style_prop_t styleGetProp)
 {
@@ -116,6 +125,7 @@ ensure_window_widget()
     if (!gProtoWindow) {
         gProtoWindow = gtk_window_new(GTK_WINDOW_POPUP);
         gtk_widget_realize(gProtoWindow);
+        moz_gtk_set_widget_name(gProtoWindow);
     }
     return MOZ_GTK_SUCCESS;
 }
@@ -299,10 +309,10 @@ moz_gtk_get_combo_box_button_inner_widgets(GtkWidget *widget,
 static gint
 ensure_combo_box_widgets()
 {
+    GtkWidget* buttonChild;
+
     if (gComboBoxButtonWidget && gComboBoxArrowWidget)
         return MOZ_GTK_SUCCESS;
-
-    GtkWidget* buttonChild;
 
     /* Create a ComboBox if needed */
     if (!gComboBoxWidget) {
@@ -398,12 +408,12 @@ moz_gtk_get_combo_box_entry_arrow(GtkWidget *widget, gpointer client_data)
 static gint
 ensure_combo_box_entry_widgets()
 {
+    GtkWidget* buttonChild;
+
     if (gComboBoxEntryTextareaWidget &&
             gComboBoxEntryButtonWidget &&
             gComboBoxEntryArrowWidget)
         return MOZ_GTK_SUCCESS;
-
-    GtkWidget* buttonChild;
 
     /* Create a ComboBoxEntry if needed */
     if (!gComboBoxEntryWidget) {
@@ -502,6 +512,7 @@ ensure_tooltip_widget()
     if (!gTooltipWidget) {
         gTooltipWidget = gtk_window_new(GTK_WINDOW_POPUP);
         gtk_widget_realize(gTooltipWidget);
+        moz_gtk_set_widget_name(gTooltipWidget);
     }
     return MOZ_GTK_SUCCESS;
 }
@@ -1691,6 +1702,8 @@ moz_gtk_combo_box_paint(GdkDrawable* drawable, GdkRectangle* rect,
     style = gComboBoxArrowWidget->style;
     TSOffsetStyleGCs(style, rect->x, rect->y);
 
+    gtk_widget_size_allocate(gComboBoxWidget, rect);
+
     gtk_paint_arrow(style, drawable, state_type, shadow_type, cliprect,
                     gComboBoxArrowWidget, "arrow",  GTK_ARROW_DOWN, TRUE,
                     real_arrow_rect.x, real_arrow_rect.y,
@@ -2758,6 +2771,7 @@ moz_gtk_get_widget_border(GtkThemeWidgetType widget, gint* left, gint* top,
     case MOZ_GTK_GRIPPER:
     case MOZ_GTK_PROGRESS_CHUNK:
     case MOZ_GTK_EXPANDER:
+    case MOZ_GTK_TREEVIEW_EXPANDER:
     case MOZ_GTK_TOOLBAR_SEPARATOR:
     case MOZ_GTK_MENUSEPARATOR:
     /* These widgets have no borders.*/

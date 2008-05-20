@@ -82,6 +82,7 @@ public:
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
+  virtual nsIWidget*      GetSheetWindowParent(void);
   virtual void            AddChild(nsIWidget* aChild);
   virtual void            RemoveChild(nsIWidget* aChild);
 
@@ -131,7 +132,7 @@ public:
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
   NS_IMETHOD              BeginSecureKeyboardInput();
   NS_IMETHOD              EndSecureKeyboardInput();
-  NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor);
+  NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
   virtual void            ConvertToDeviceCoordinates(nscoord  &aX,nscoord &aY) {}
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
@@ -154,6 +155,13 @@ protected:
   {
     return mLastRollup;
   }
+
+  virtual nsresult SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
+                                            PRInt32 aNativeKeyCode,
+                                            PRUint32 aModifierFlags,
+                                            const nsAString& aCharacters,
+                                            const nsAString& aUnmodifiedCharacters)
+  { return NS_ERROR_UNEXPECTED; }
 
 protected: 
   void*             mClientData;

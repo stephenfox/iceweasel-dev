@@ -64,6 +64,9 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsICaret.h"
+#include "nsIDocument.h"
+#include "nsPIDOMWindow.h"
 
 // See matching definitions in nsXULPopupManager.h
 nsNavigationDirection DirectionFromKeyCode_lr_tb [6] = {
@@ -123,8 +126,12 @@ void nsMenuChainItem::Detach(nsMenuChainItem** aRoot)
   }
 }
 
-NS_IMPL_ISUPPORTS4(nsXULPopupManager, nsIDOMKeyListener,
-                   nsIMenuRollup, nsIRollupListener, nsITimerCallback)
+NS_IMPL_ISUPPORTS5(nsXULPopupManager,
+                   nsIDOMKeyListener,
+                   nsIDOMEventListener,
+                   nsIMenuRollup,
+                   nsIRollupListener,
+                   nsITimerCallback)
 
 nsXULPopupManager::nsXULPopupManager() :
   mRangeOffset(0),
@@ -462,7 +469,7 @@ nsXULPopupManager::ShowPopupAtScreen(nsIContent* aPopup,
 
   SetTriggerEvent(aTriggerEvent, aPopup);
 
-  popupFrame->InitializePopupAtScreen(aXPos, aYPos);
+  popupFrame->InitializePopupAtScreen(aXPos, aYPos, aIsContextMenu);
 
   FirePopupShowingEvent(aPopup, nsnull, popupFrame->PresContext(),
                         popupFrame->PopupType(), aIsContextMenu, PR_FALSE);
@@ -487,6 +494,48 @@ nsXULPopupManager::ShowPopupWithAnchorAlign(nsIContent* aPopup,
 
   FirePopupShowingEvent(aPopup, nsnull, popupFrame->PresContext(),
                         popupFrame->PopupType(), aIsContextMenu, PR_FALSE);
+}
+
+static void
+CheckCaretDrawingState(nsIDocument *aDocument) {
+
+  // There is 1 caret per document, we need to find the focused
+  // document and erase its caret.
+  if (!aDocument)
+    return;
+
+  nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsPIDOMWindow> windowPrivate = do_GetInterface(container);
+  if (!windowPrivate)
+    return;
+
+  nsIFocusController *focusController =
+    windowPrivate->GetRootFocusController();
+  if (!focusController)
+    return;
+
+  nsCOMPtr<nsIDOMWindowInternal> windowInternal;
+  focusController->GetFocusedWindow(getter_AddRefs(windowInternal));
+  if (!windowInternal)
+    return;
+
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  nsCOMPtr<nsIDocument> focusedDoc;
+  windowInternal->GetDocument(getter_AddRefs(domDoc));
+  focusedDoc = do_QueryInterface(domDoc);
+  if (!focusedDoc)
+    return;
+
+  nsIPresShell* presShell = focusedDoc->GetPrimaryShell();
+  if (!presShell)
+    return;
+
+  nsCOMPtr<nsICaret> caret;
+  nsresult res = presShell->GetCaret(getter_AddRefs(caret));
+  if (!caret)
+    return;
+  caret->CheckCaretDrawingState();
+
 }
 
 void
@@ -555,6 +604,10 @@ nsXULPopupManager::ShowPopupCallback(nsIContent* aPopup,
     if (ismenu)
       UpdateMenuItems(aPopup);
   }
+
+  // Caret visibility may have been affected, ensure that
+  // the caret isn't now drawn when it shouldn't be.
+  CheckCaretDrawingState(aPopup->GetCurrentDoc());
 }
 
 void

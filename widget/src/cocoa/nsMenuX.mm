@@ -53,6 +53,7 @@
 #include "nsIMenuBar.h"
 #include "nsIMenuItem.h"
 #include "nsToolkit.h"
+#include "nsCocoaUtils.h"
 
 #include "nsString.h"
 #include "nsReadableUtils.h"
@@ -79,12 +80,16 @@ extern nsIWidget         * gRollupWidget;
 
 static PRBool gConstructingMenu = PR_FALSE;
 
+static PRBool gMenuMethodsSwizzled = PR_FALSE;
+
 // CIDs
 #include "nsWidgetsCID.h"
 static NS_DEFINE_CID(kMenuCID,     NS_MENU_CID);
 static NS_DEFINE_CID(kMenuItemCID, NS_MENUITEM_CID);
 
 NS_IMPL_ISUPPORTS1(nsMenuX, nsIMenu)
+
+PRInt32 nsMenuX::sIndexingMenuLevel = 0;
 
 
 nsMenuX::nsMenuX()
@@ -94,6 +99,17 @@ nsMenuX::nsMenuX()
   mConstructed(PR_FALSE), mVisible(PR_TRUE), mXBLAttached(PR_FALSE)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (nsToolkit::OnLeopardOrLater() && !gMenuMethodsSwizzled) {
+    nsToolkit::SwizzleMethods([NSMenu class], @selector(_addItem:toTable:),
+                              @selector(nsMenuX_NSMenu_addItem:toTable:), PR_TRUE);
+    nsToolkit::SwizzleMethods([NSMenu class], @selector(_removeItem:fromTable:),
+                              @selector(nsMenuX_NSMenu_removeItem:fromTable:), PR_TRUE);
+    Class SCTGRLIndexClass = ::NSClassFromString(@"SCTGRLIndex");
+    nsToolkit::SwizzleMethods(SCTGRLIndexClass, @selector(indexMenuBarDynamically),
+                              @selector(nsMenuX_SCTGRLIndex_indexMenuBarDynamically));
+    gMenuMethodsSwizzled = PR_TRUE;
+  }
 
   mMenuDelegate = [[MenuDelegate alloc] initWithGeckoMenu:this];
     
@@ -620,12 +636,12 @@ NS_IMETHODIMP nsMenuX::GetMenuContent(nsIContent ** aMenuContent)
 }
 
 
-NSMenu* nsMenuX::CreateMenuWithGeckoString(nsString& menuTitle)
+GeckoNSMenu* nsMenuX::CreateMenuWithGeckoString(nsString& menuTitle)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   NSString* title = [NSString stringWithCharacters:(UniChar*)menuTitle.get() length:menuTitle.Length()];
-  NSMenu* myMenu = [[NSMenu alloc] initWithTitle:title];
+  GeckoNSMenu* myMenu = [[GeckoNSMenu alloc] initWithTitle:title];
   [myMenu setDelegate:mMenuDelegate];
   
   // We don't want this menu to auto-enable menu items because then Cocoa
@@ -1122,6 +1138,16 @@ static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRe
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
+  // Don't do anything while the OS is (re)indexing our menus (on Leopard and
+  // higher).  This stops the Help menu from being able to search in our
+  // menus, but it also resolves many other problems -- including crashes and
+  // long delays while opening the Help menu.  Once we know better which
+  // operations are safe during (re)indexing, we can start allowing some
+  // operations here while it's happening.  This change resolves bmo bugs
+  // 426499 and 414699.
+  if (nsMenuX::sIndexingMenuLevel > 0)
+    return noErr;
+
   UInt32 kind = ::GetEventKind(event);
   if (kind == kEventMenuTargetItem) {
     // get the position of the menu item we want
@@ -1251,6 +1277,203 @@ static OSStatus InstallMyMenuEventHandler(MenuRef menuRef, void* userData, Event
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+@end
+
+
+// OS X Leopard (at least as of 10.5.2) has an obscure bug triggered by some
+// behavior that's present in Mozilla.org browsers but not (as best I can
+// tell) in Apple products like Safari.  (It's not yet clear exactly what this
+// behavior is.)
+//
+// The bug is that sometimes you crash on quit in nsMenuX::RemoveAll(), on a
+// call to [NSMenu removeItemAtIndex:].  The crash is caused by trying to
+// access a deleted NSMenuItem object (sometimes (perhaps always?) by trying
+// to send it a _setChangedFlags: message).  Though this object was deleted
+// some time ago, it remains registered as a potential target for a particular
+// key equivalent.  So when [NSMenu removeItemAtIndex:] removes the current
+// target for that same key equivalent, the OS tries to "activate" the
+// previous target.
+//
+// The underlying reason appears to be that NSMenu's _addItem:toTable: and
+// _removeItem:fromTable: methods (which are used to keep a hashtable of
+// registered key equivalents) don't properly "retain" and "release"
+// NSMenuItem objects as they are added to and removed from the hashtable.
+//
+// Our (hackish) workaround is to shadow the OS's hashtable with another
+// hastable of our own (gShadowKeyEquivDB), and use it to "retain" and
+// "release" NSMenuItem objects as needed.  This resolves bmo bugs 422287 and
+// 423669.  When (if) Apple fixes this bug, we can remove this workaround.
+
+static NSMutableDictionary *gShadowKeyEquivDB = nil;
+
+// Class for values in gShadowKeyEquivDB.
+
+@interface KeyEquivDBItem : NSObject
+{
+  NSMenuItem *mItem;
+  NSMutableSet *mTables;
+}
+
+- (id)initWithItem:(NSMenuItem *)aItem table:(NSMapTable *)aTable;
+- (BOOL)hasTable:(NSMapTable *)aTable;
+- (int)addTable:(NSMapTable *)aTable;
+- (int)removeTable:(NSMapTable *)aTable;
+
+@end
+
+@implementation KeyEquivDBItem
+
+- (id)initWithItem:(NSMenuItem *)aItem table:(NSMapTable *)aTable
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+  
+  if (!gShadowKeyEquivDB)
+    gShadowKeyEquivDB = [[NSMutableDictionary alloc] init];
+  self = [super init];
+  if (aItem && aTable) {
+    mTables = [[NSMutableSet alloc] init];
+    mItem = [aItem retain];
+    [mTables addObject:[NSValue valueWithPointer:aTable]];
+  } else {
+    mTables = nil;
+    mItem = nil;
+  }
+  return self;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+- (void)dealloc
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (mTables)
+    [mTables release];
+  if (mItem)
+    [mItem release];
+  [super dealloc];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+- (BOOL)hasTable:(NSMapTable *)aTable
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  return [mTables member:[NSValue valueWithPointer:aTable]] ? YES : NO;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
+}
+
+// Does nothing if aTable (its index value) is already present in mTables.
+- (int)addTable:(NSMapTable *)aTable
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  if (aTable)
+    [mTables addObject:[NSValue valueWithPointer:aTable]];
+  return [mTables count];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
+}
+
+- (int)removeTable:(NSMapTable *)aTable
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  if (aTable) {
+    NSValue *objectToRemove =
+      [mTables member:[NSValue valueWithPointer:aTable]];
+    if (objectToRemove)
+      [mTables removeObject:objectToRemove];
+  }
+  return [mTables count];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
+}
+
+@end
+
+
+@interface NSMenu (MethodSwizzling)
++ (void)nsMenuX_NSMenu_addItem:(NSMenuItem *)aItem toTable:(NSMapTable *)aTable;
++ (void)nsMenuX_NSMenu_removeItem:(NSMenuItem *)aItem fromTable:(NSMapTable *)aTable;
+@end
+
+@implementation NSMenu (MethodSwizzling)
+
++ (void)nsMenuX_NSMenu_addItem:(NSMenuItem *)aItem toTable:(NSMapTable *)aTable
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (aItem && aTable) {
+    NSValue *key = [NSValue valueWithPointer:aItem];
+    KeyEquivDBItem *shadowItem = [gShadowKeyEquivDB objectForKey:key];
+    if (shadowItem) {
+      [shadowItem addTable:aTable];
+    } else {
+      shadowItem = [[KeyEquivDBItem alloc] initWithItem:aItem table:aTable];
+      [gShadowKeyEquivDB setObject:shadowItem forKey:key];
+      // Release after [NSMutableDictionary setObject:forKey:] retains it (so
+      // that it will get dealloced when removeObjectForKey: is called).
+      [shadowItem release];
+    }
+  }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+
+  [self nsMenuX_NSMenu_addItem:aItem toTable:aTable];
+}
+
++ (void)nsMenuX_NSMenu_removeItem:(NSMenuItem *)aItem fromTable:(NSMapTable *)aTable
+{
+  [self nsMenuX_NSMenu_removeItem:aItem fromTable:aTable];
+
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if (aItem && aTable) {
+    NSValue *key = [NSValue valueWithPointer:aItem];
+    KeyEquivDBItem *shadowItem = [gShadowKeyEquivDB objectForKey:key];
+    if (shadowItem && [shadowItem hasTable:aTable]) {
+      if (![shadowItem removeTable:aTable])
+        [gShadowKeyEquivDB removeObjectForKey:key];
+    }
+  }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+@end
+
+// This class is needed to keep track of when the OS is (re)indexing all of
+// our menus.  This appears to only happen on Leopard and higher, and can
+// be triggered by opening the Help menu.  Some operations are unsafe while
+// this is happening -- notably the calls to [[NSImage alloc]
+// initWithSize:imageRect.size] and [newImage lockFocus] in nsMenuItemIconX::
+// OnStopFrame().  But we don't yet have a complete list, and Apple doesn't
+// yet have any documentation on this subject.  (Apple also doesn't yet have
+// any documented way to find the information we seek here.)  The "original"
+// of this class (the one whose indexMenuBarDynamically method we hook) is
+// defined in the Shortcut framework in /System/Library/PrivateFrameworks.
+@interface NSObject (SCTGRLIndexMethodSwizzling)
+- (void)nsMenuX_SCTGRLIndex_indexMenuBarDynamically;
+@end
+
+@implementation NSObject (SCTGRLIndexMethodSwizzling)
+
+- (void)nsMenuX_SCTGRLIndex_indexMenuBarDynamically
+{
+  // This method appears to be called (once) whenever the OS (re)indexes our
+  // menus.  sIndexingMenuLevel is a PRInt32 just in case it might be
+  // reentered.  As it's running, it spawns calls to two undocumented
+  // HIToolbox methods (_SimulateMenuOpening() and _SimulateMenuClosed()),
+  // which "simulate" the opening and closing of our menus without actually
+  // displaying them.
+  ++nsMenuX::sIndexingMenuLevel;
+  [self nsMenuX_SCTGRLIndex_indexMenuBarDynamically];
+  --nsMenuX::sIndexingMenuLevel;
 }
 
 @end

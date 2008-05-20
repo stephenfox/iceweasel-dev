@@ -3313,6 +3313,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(OfflineResourceList, nsIDOMOfflineResourceList)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMOfflineResourceList)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(LoadStatusList, nsIDOMLoadStatusList)
@@ -4785,10 +4786,19 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
 
   nsCOMPtr<nsIJSNativeInitializer> initializer(do_QueryInterface(native));
   if (initializer) {
+    // Initialize object using the current inner window, but only if
+    // the caller can access it.
     nsCOMPtr<nsPIDOMWindow> owner = do_QueryReferent(aWeakOwner);
-    NS_ENSURE_STATE(owner && owner->GetOuterWindow() &&
-                    owner->GetOuterWindow()->GetCurrentInnerWindow() == owner);
-    rv = initializer->Initialize(owner, cx, obj, argc, argv);
+    nsPIDOMWindow* outerWindow = owner ? owner->GetOuterWindow() : nsnull;
+    nsPIDOMWindow* currentInner =
+      outerWindow ? outerWindow->GetCurrentInnerWindow() : nsnull;
+    if (!currentInner ||
+        (owner != currentInner &&
+         !nsContentUtils::CanCallerAccess(currentInner))) {
+      return NS_ERROR_DOM_SECURITY_ERR;
+    }
+
+    rv = initializer->Initialize(currentInner, cx, obj, argc, argv);
     if (NS_FAILED(rv)) {
       return NS_ERROR_NOT_INITIALIZED;
     }
@@ -4999,14 +5009,19 @@ nsDOMConstructor::Create(const PRUnichar* aName,
                          nsDOMConstructor** aResult)
 {
   *aResult = nsnull;
-  if (!aOwner->IsOuterWindow()) {
-    *aResult = new nsDOMConstructor(aName, aNameStruct, aOwner);
-  } else if (!nsContentUtils::CanCallerAccess(aOwner)) {
+  // Prevent creating a constructor if
+  // - aOwner is inner window which doesn't have outer window or
+  // - outer window doesn't have inner window or
+  // - caller can't access outer window's inner window.
+  nsPIDOMWindow* outerWindow = aOwner->GetOuterWindow();
+  nsPIDOMWindow* currentInner =
+    outerWindow ? outerWindow->GetCurrentInnerWindow() : nsnull;
+  if (!currentInner ||
+      (aOwner != currentInner &&
+       !nsContentUtils::CanCallerAccess(currentInner))) {
     return NS_ERROR_DOM_SECURITY_ERR;
-  } else {
-    *aResult =
-      new nsDOMConstructor(aName, aNameStruct, aOwner->GetCurrentInnerWindow());
   }
+  *aResult = new nsDOMConstructor(aName, aNameStruct, currentInner);
   NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aResult);
   return NS_OK;
@@ -8858,11 +8873,22 @@ public:
 
   NS_IMETHOD Run()
   {
+    JSContext* cx = nsnull;
+    if (mContext) {
+      cx = (JSContext*)mContext->GetNativeContext();
+    } else {
+      nsCOMPtr<nsIThreadJSContextStack> stack =
+        do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+      NS_ENSURE_TRUE(stack, NS_OK);
+
+      stack->GetSafeJSContext(&cx);
+      NS_ENSURE_TRUE(cx, NS_OK);
+    }
+
     JSObject* obj = nsnull;
     mWrapper->GetJSObject(&obj);
     NS_ASSERTION(obj, "Should never be null");
-    nsHTMLPluginObjElementSH::SetupProtoChain(
-      mWrapper, (JSContext*)mContext->GetNativeContext(), obj);
+    nsHTMLPluginObjElementSH::SetupProtoChain(mWrapper, cx, obj);
     return NS_OK;
   }
 
@@ -8938,7 +8964,7 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
   if (pi_proto && JS_GET_CLASS(cx, pi_proto) != sObjectClass) {
     // The plugin wrapper has a proto that's not Object.prototype, set
     // 'pi.__proto__.__proto__' to the original 'this.__proto__'
-    if (!::JS_SetPrototype(cx, pi_proto, my_proto)) {
+    if (pi_proto != my_proto && !::JS_SetPrototype(cx, pi_proto, my_proto)) {
       return NS_ERROR_UNEXPECTED;
     }
   } else {
@@ -9010,15 +9036,24 @@ nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (nsContentUtils::IsSafeToRunScript()) {
-    return SetupProtoChain(wrapper, cx, obj);
+    rv = SetupProtoChain(wrapper, cx, obj);
+
+    // If SetupProtoChain failed then we're in real trouble. We're about to fail
+    // PostCreate but it's more than likely that we handed our (now invalid)
+    // wrapper to someone already. Bug 429442 is an example of the kind of crash
+    // that can result from such a situation. We'll return NS_OK for the time
+    // being and hope for the best.
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "SetupProtoChain failed!");
+    return NS_OK;
   }
 
-  nsCOMPtr<nsIScriptContext> scriptContext =
-    GetScriptContextFromJSContext(cx);
-  NS_ENSURE_TRUE(scriptContext, NS_ERROR_UNEXPECTED);
+  // This may be null if the JS context is not a DOM context. That's ok, we'll
+  // use the safe context from XPConnect in the runnable.
+  nsCOMPtr<nsIScriptContext> scriptContext = GetScriptContextFromJSContext(cx);
 
-  nsContentUtils::AddScriptRunner(
-      new nsPluginProtoChainInstallRunner(wrapper, scriptContext));
+  nsRefPtr<nsPluginProtoChainInstallRunner> runner =
+    new nsPluginProtoChainInstallRunner(wrapper, scriptContext);
+  nsContentUtils::AddScriptRunner(runner);
 
   return NS_OK;
 }

@@ -238,10 +238,12 @@ nsRootAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   if (privateDOMWindow) {
     nsIFocusController *focusController =
       privateDOMWindow->GetRootFocusController();
-    PRBool isActive = PR_FALSE;
-    focusController->GetActive(&isActive);
-    if (isActive) {
-      *aExtraState |= nsIAccessibleStates::EXT_STATE_ACTIVE;
+    if (focusController) {
+      PRBool isActive = PR_FALSE;
+      focusController->GetActive(&isActive);
+      if (isActive) {
+        *aExtraState |= nsIAccessibleStates::EXT_STATE_ACTIVE;
+      }
     }
   }
 #ifdef MOZ_XUL
@@ -649,7 +651,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIContent> treeContent = do_QueryInterface(aTargetNode);
     nsAccEvent::PrepareForEvent(aTargetNode, PR_TRUE);
     return accService->InvalidateSubtreeFor(eventShell, treeContent,
-                                            nsIAccessibleEvent::EVENT_ASYNCH_SIGNIFICANT_CHANGE);
+                                            nsIAccessibleEvent::EVENT_DOM_SIGNIFICANT_CHANGE);
   }
 #endif
 
@@ -660,16 +662,9 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     // inside of a combo box that closes. The real focus is on the combo box.
     // It's also the case when a popup gets focus in ATK -- when it closes
     // we need to fire an event to restore focus to where it was
-    if (!gLastFocusedNode) {
-      return NS_OK;
-    }
-    if (gLastFocusedNode != aTargetNode) {
-      // Was not focused on popup
-      nsCOMPtr<nsIDOMNode> parentOfFocus;
-      gLastFocusedNode->GetParentNode(getter_AddRefs(parentOfFocus));
-      if (parentOfFocus != aTargetNode) {
-        return NS_OK;  // And was not focused on an item inside the popup
-      }
+    if (!gLastFocusedNode ||
+        !nsAccUtils::IsAncestorOf(aTargetNode, gLastFocusedNode)) {
+      return NS_OK;  // And was not focused on an item inside the popup
     }
     // Focus was on or inside of a popup that's being hidden
     FireCurrentFocusEvent();

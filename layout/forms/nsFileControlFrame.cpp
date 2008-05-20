@@ -158,7 +158,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                       getter_AddRefs(nodeInfo));
 
   // Create the text content
-  NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo);
+  NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);
   if (!mTextContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -195,7 +195,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                            systemGroup);
 
   // Create the browse button
-  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo);
+  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo, PR_FALSE);
   if (!mBrowse)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -612,7 +612,9 @@ NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation
 
-NS_IMPL_ISUPPORTS1(nsFileControlFrame::MouseListener, nsIDOMMouseListener)
+NS_IMPL_ISUPPORTS2(nsFileControlFrame::MouseListener,
+                   nsIDOMMouseListener,
+                   nsIDOMEventListener)
 
 NS_IMETHODIMP
 nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)

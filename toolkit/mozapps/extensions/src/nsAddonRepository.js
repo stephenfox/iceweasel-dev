@@ -51,7 +51,7 @@ const PREF_GETADDONS_GETSEARCHRESULTS    = "extensions.getAddons.search.url";
 
 const XMLURI_PARSE_ERROR  = "http://www.mozilla.org/newlayout/xml/parsererror.xml";
 
-const API_VERSION = "1";
+const API_VERSION = "1.1";
 
 function AddonSearchResult() {
 }
@@ -79,7 +79,7 @@ function AddonRepository() {
 
 AddonRepository.prototype = {
   // The current set of results
-  _addons: [],
+  _addons: null,
 
   // Whether we are currently searching or not
   _searching: false,
@@ -130,6 +130,8 @@ AddonRepository.prototype = {
       this._request.abort();
       this._request = null;
     }
+    this._callback = null;
+    this._addons = null;
   },
 
   retrieveRecommendedAddons: function(aMaxResults, aCallback) {
@@ -179,15 +181,23 @@ AddonRepository.prototype = {
   _reportSuccess: function(aCount) {
     this._searching = false;
     this._request = null;
-    this._callback.searchSucceeded(this._addons, this._addons.length,
-                                   this._recommended ? -1 : aCount);
+    // The callback may want to trigger a new search so clear references early
+    var addons = this._addons;
+    var callback = this._callback;
+    this._callback = null;
+    this._addons = null;
+    callback.searchSucceeded(addons, addons.length, this._recommended ? -1 : aCount);
   },
 
   // Notifies the callback of a failure
   _reportFailure: function(aEvent) {
     this._searching = false;
     this._request = null;
-    this._callback.searchFailed();
+    // The callback may want to trigger a new search so clear references early
+    var callback = this._callback;
+    this._callback = null;
+    this._addons = null;
+    callback.searchFailed();
   },
 
   // Parses an add-on entry from an <addon> element
@@ -242,10 +252,10 @@ AddonRepository.prototype = {
       return;
     var vc = Cc["@mozilla.org/xpcom/version-comparator;1"].
              getService(Ci.nsIVersionComparator);
-    var apps = tags[0].getElementsByTagName("name");
+    var apps = tags[0].getElementsByTagName("appID");
     var i = 0;
     while (i < apps.length) {
-      if (apps[i].textContent.toLowerCase() == app.name.toLowerCase()) {
+      if (apps[i].textContent == app.ID) {
         var minversion = apps[i].parentNode.getElementsByTagName("min_version")[0].textContent;
         var maxversion = apps[i].parentNode.getElementsByTagName("max_version")[0].textContent;
         if ((vc.compare(minversion, app.version) > 0) ||

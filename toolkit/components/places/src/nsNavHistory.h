@@ -69,6 +69,7 @@
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIStringBundle.h"
+#include "nsITextToSubURI.h"
 #include "nsITimer.h"
 #ifdef MOZ_XUL
 #include "nsITreeSelection.h"
@@ -85,8 +86,13 @@
 #include "nsNavHistoryResult.h"
 #include "nsNavHistoryQuery.h"
 
+#include "nsICharsetResolver.h"
+
 // set to use more optimized (in-memory database) link coloring
 //#define IN_MEMORY_LINKS
+
+// define to maintain sqlite temporary tables in memory rather than on disk
+#define IN_MEMORY_SQLITE_TEMP_STORE
 
 // define to enable lazy link adding
 #define LAZY_ADD
@@ -102,7 +108,7 @@
 // see Bug #392399 for more details
 #define SQL_STR_FRAGMENT_MAX_VISIT_DATE( place_relation ) \
   "(SELECT visit_date FROM moz_historyvisits WHERE place_id = " place_relation \
-  " AND visit_type NOT IN (0,4) ORDER BY visit_date DESC LIMIT 1)"
+  " AND visit_type NOT IN (0,4,7) ORDER BY visit_date DESC LIMIT 1)"
 
 struct AutoCompleteIntermediateResult;
 class AutoCompleteResultComparator;
@@ -121,7 +127,8 @@ class nsNavHistory : public nsSupportsWeakReference,
                      public nsIObserver,
                      public nsIBrowserHistory,
                      public nsIGlobalHistory3,
-                     public nsIDownloadHistory
+                     public nsIDownloadHistory,
+                     public nsICharsetResolver
 #ifdef MOZ_XUL
                      , public nsIAutoCompleteSearch,
                      public nsIAutoCompleteSimpleResultListener
@@ -202,7 +209,7 @@ public:
   nsresult GetUrlIdFor(nsIURI* aURI, PRInt64* aEntryID,
                        PRBool aAutoCreate);
 
-  nsresult CalculateVisitCount(PRInt64 aPlaceId, PRBool aForFrecency, PRInt32 *aVisitCount);
+  nsresult CalculateFullVisitCount(PRInt64 aPlaceId, PRInt32 *aVisitCount);
 
   nsresult UpdateFrecency(PRInt64 aPageID, PRBool isBookmark);
 
@@ -398,6 +405,7 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBRecentVisitOfURL; // converts URL into most recent visit ID/session ID
   nsCOMPtr<mozIStorageStatement> mDBInsertVisit; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBGetPageVisitStats; // used by AddVisit
+  nsCOMPtr<mozIStorageStatement> mDBIsPageVisited; // used by IsURIStringVisited
   nsCOMPtr<mozIStorageStatement> mDBUpdatePageVisitStats; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBAddNewPage; // used by InternalAddNewPage
   nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by FilterResultSet
@@ -408,6 +416,9 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBVisitToVisitResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBUrlToUrlResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBBookmarkToUrlResult; // kGetInfoIndex_* results
+
+  // nsICharsetResolver
+  NS_DECL_NSICHARSETRESOLVER
 
   /**
    * Recalculates aCount frecencies.  If aRecalcOld, it will also calculate
@@ -429,8 +440,7 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBUpdateFrecencyAndHidden;
   nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;
   nsCOMPtr<mozIStorageStatement> mDBGetBookmarkParentsForPlace;
-  nsCOMPtr<mozIStorageStatement> mDBVisitCountForFrecency;
-  nsCOMPtr<mozIStorageStatement> mDBTrueVisitCount;
+  nsCOMPtr<mozIStorageStatement> mDBFullVisitCount;
 
   /**
    * Initializes the database file.  If the database does not exist, was
@@ -461,6 +471,7 @@ protected:
   nsresult InitDB(PRInt16 *aMadeChanges);
   nsresult InitFunctions();
   nsresult InitStatements();
+  nsresult CreateTriggers();
   nsresult ForceMigrateBookmarksDB(mozIStorageConnection *aDBConn);
   nsresult MigrateV3Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV6Up(mozIStorageConnection *aDBConn);
@@ -655,10 +666,20 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBAdaptiveQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;
 
+  /**
+   * AutoComplete word matching behavior to determine if words should match on
+   * word boundaries or not or both.
+   */
+  enum MatchType {
+    MATCH_ANYWHERE,
+    MATCH_BOUNDARY_ANYWHERE,
+    MATCH_BOUNDARY
+  };
+
   nsresult InitAutoComplete();
   nsresult CreateAutoCompleteQueries();
   PRBool mAutoCompleteOnlyTyped;
-  PRBool mAutoCompleteOnWordBoundary;
+  MatchType mAutoCompleteMatchBehavior;
   PRBool mAutoCompleteFilterJavascript;
   PRInt32 mAutoCompleteMaxResults;
   PRInt32 mAutoCompleteSearchChunkSize;
@@ -679,6 +700,8 @@ protected:
   nsCOMPtr<nsIAutoCompleteSimpleResult> mCurrentResult;
 #endif
 
+  MatchType mCurrentMatchType;
+  MatchType mPreviousMatchType;
   nsDataHashtable<nsStringHashKey, PRBool> mCurrentResultURLs;
   PRInt32 mCurrentChunkOffset;
   PRInt32 mPreviousChunkOffset;
@@ -709,6 +732,10 @@ protected:
 
   PRBool mAutoCompleteFinishedSearch;
   void DoneSearching(PRBool aFinished);
+
+  // Used to unescape encoded URI strings for searching
+  nsCOMPtr<nsITextToSubURI> mTextURIService;
+  nsString FixupURIText(const nsAString &aURIText);
 
   PRInt32 mExpireDaysMin;
   PRInt32 mExpireDaysMax;

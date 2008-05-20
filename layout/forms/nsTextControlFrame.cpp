@@ -579,9 +579,9 @@ public:
   NS_IMETHOD SetCaretEnabled(PRBool enabled);
   NS_IMETHOD SetCaretReadOnly(PRBool aReadOnly);
   NS_IMETHOD GetCaretEnabled(PRBool *_retval);
+  NS_IMETHOD GetCaretVisible(PRBool *_retval);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
-  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -602,7 +602,10 @@ private:
 };
 
 // Implement our nsISupports methods
-NS_IMPL_ISUPPORTS2(nsTextInputSelectionImpl, nsISelectionController, nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS3(nsTextInputSelectionImpl,
+                   nsISelectionController,
+                   nsISelectionDisplay,
+                   nsISupportsWeakReference)
 
 
 // BEGIN nsTextInputSelectionImpl
@@ -752,6 +755,12 @@ nsTextInputSelectionImpl::SetCaretReadOnly(PRBool aReadOnly)
 NS_IMETHODIMP
 nsTextInputSelectionImpl::GetCaretEnabled(PRBool *_retval)
 {
+  return GetCaretVisible(_retval);
+}
+
+NS_IMETHODIMP
+nsTextInputSelectionImpl::GetCaretVisible(PRBool *_retval)
+{
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsresult result;
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
@@ -797,13 +806,6 @@ nsTextInputSelectionImpl::CharacterMove(PRBool aForward, PRBool aExtend)
   return NS_ERROR_NULL_POINTER;
 }
 
-NS_IMETHODIMP
-nsTextInputSelectionImpl::CharacterExtendForDelete()
-{
-  if (mFrameSelection)
-    return mFrameSelection->CharacterExtendForDelete();
-  return NS_ERROR_NULL_POINTER;
-}
 
 NS_IMETHODIMP
 nsTextInputSelectionImpl::WordMove(PRBool aForward, PRBool aExtend)
@@ -1124,6 +1126,7 @@ nsTextControlFrame::PreDestroy()
   mSelCon = nsnull;
   if (mFrameSel) {
     mFrameSel->SetScrollableViewProvider(nsnull);
+    mFrameSel->DisconnectFromPresShell();
     mFrameSel = nsnull;
   }
 
@@ -1372,8 +1375,8 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
     CallQueryInterface(first, &scrollableFrame);
     NS_ASSERTION(scrollableFrame, "Child must be scrollable");
 
-    nsBoxLayoutState bls(PresContext(), aRenderingContext);
-    nsMargin scrollbarSizes = scrollableFrame->GetDesiredScrollbarSizes(&bls);
+    nsMargin scrollbarSizes =
+      scrollableFrame->GetDesiredScrollbarSizes(PresContext(), aRenderingContext);
 
     aIntrinsicSize.width  += scrollbarSizes.LeftRight();
     
@@ -1697,7 +1700,7 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                                     getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = NS_NewHTMLElement(getter_AddRefs(mAnonymousDiv), nodeInfo);
+  rv = NS_NewHTMLElement(getter_AddRefs(mAnonymousDiv), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the div native anonymous, so CSS will be its style language
@@ -2466,11 +2469,6 @@ nsTextControlFrame::GetText(nsString* aText)
   } else {
     nsCOMPtr<nsIDOMHTMLTextAreaElement> textArea = do_QueryInterface(mContent);
     if (textArea) {
-      if (mEditor) {
-        nsCOMPtr<nsIEditorIMESupport> imeSupport = do_QueryInterface(mEditor);
-        if (imeSupport)
-          imeSupport->ForceCompositionEnd();
-      }
       rv = textArea->GetValue(*aText);
     }
   }

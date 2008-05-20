@@ -920,6 +920,7 @@ public:
   NS_IMETHOD SetCaretReadOnly(PRBool aReadOnly);
   NS_IMETHOD GetCaretEnabled(PRBool *aOutEnabled);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
+  NS_IMETHOD GetCaretVisible(PRBool *_retval);
   virtual void SetCaret(nsICaret *aNewCaret);
   virtual void RestoreCaret();
 
@@ -929,7 +930,6 @@ public:
   // nsISelectionController
 
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
-  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -1181,8 +1181,6 @@ protected:
   ReflowCountMgr * mReflowCountMgr;
 #endif
 
-  nsresult CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool sScrollIntoView);
-  
 private:
 
   PRBool InZombieDocument(nsIContent *aContent);
@@ -1456,10 +1454,7 @@ PresShell::~PresShell()
 
   NS_IF_RELEASE(mPresContext);
   NS_IF_RELEASE(mDocument);
-  if (mSelection) {
-    mSelection->DisconnectFromPresShell();
-    NS_RELEASE(mSelection);
-  }
+  NS_IF_RELEASE(mSelection);
 }
 
 /**
@@ -1655,6 +1650,10 @@ PresShell::Destroy()
     mCaret = nsnull;
   }
   
+  if (mSelection) {
+    mSelection->DisconnectFromPresShell();
+  }
+
   // release our pref style sheet, if we have one still
   ClearPreferenceStyleRules();
 
@@ -2739,6 +2738,16 @@ NS_IMETHODIMP PresShell::SetCaretVisibilityDuringSelection(PRBool aVisibility)
   return NS_OK;
 }
 
+NS_IMETHODIMP PresShell::GetCaretVisible(PRBool *aOutIsVisible)
+{
+  *aOutIsVisible = PR_FALSE;
+  if (mCaret) {
+    nsresult rv = mCaret->GetCaretVisible(aOutIsVisible);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+  return NS_OK;
+}
+
 NS_IMETHODIMP PresShell::SetSelectionFlags(PRInt16 aInEnable)
 {
   mSelectionFlags = aInEnable;
@@ -2759,12 +2768,6 @@ NS_IMETHODIMP
 PresShell::CharacterMove(PRBool aForward, PRBool aExtend)
 {
   return mSelection->CharacterMove(aForward, aExtend);  
-}
-
-NS_IMETHODIMP
-PresShell::CharacterExtendForDelete()
-{
-  return mSelection->CharacterExtendForDelete();
 }
 
 NS_IMETHODIMP 
@@ -2893,12 +2896,7 @@ PresShell::CompleteMove(PRBool aForward, PRBool aExtend)
 {
   // Beware! This may flush notifications via synchronous
   // ScrollSelectionIntoView.
-  return CompleteMoveInner(aForward, aExtend, PR_TRUE);
-}
 
-nsresult
-PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollIntoView)
-{
   nsIContent* root = mSelection->GetAncestorLimiter();
   nsIDocument* doc;
   if (root && (doc = root->GetOwnerDoc()) && doc->GetRootContent() != root) {
@@ -2929,16 +2927,12 @@ PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollInto
     // HandleClick resets ancestorLimiter, so set it again.
     mSelection->SetAncestorLimiter(root);
 
-    if (aScrollIntoView) {
-      // After ScrollSelectionIntoView(), the pending notifications might be
-      // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-      return
-        ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
-                                nsISelectionController::SELECTION_FOCUS_REGION,
-                                PR_TRUE);
-    }
-
-    return NS_OK;
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
+    return
+      ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
+                              nsISelectionController::SELECTION_FOCUS_REGION,
+                              PR_TRUE);
   }
 
   nsIScrollableView *scrollableView;
@@ -2975,15 +2969,11 @@ PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollInto
 
   mSelection->HandleClick(pos.mResultContent ,pos.mContentOffset ,pos.mContentOffset/*End*/ ,aExtend, PR_FALSE, aForward);
 
-  if (aScrollIntoView) {
-    // After ScrollSelectionIntoView(), the pending notifications might be
-    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-    result = ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
-                                     nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
-    if (NS_FAILED(result)) 
-      return result;
-  }
-  return NS_OK;
+  // After ScrollSelectionIntoView(), the pending notifications might be
+  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
+  return ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
+                                 nsISelectionController::SELECTION_FOCUS_REGION,
+                                 PR_TRUE);
 }
 
 NS_IMETHODIMP 
@@ -4351,18 +4341,6 @@ PresShell::UnsuppressAndInvalidate()
 
   if (mViewManager)
     mViewManager->SynthesizeMouseMove(PR_FALSE);
-  
-  // If there is no selection, create a collapsed selection at the top of the document. 
-  if (mSelection) {
-    nsISelection* domSelection = mSelection->
-      GetSelection(nsISelectionController::SELECTION_NORMAL);
-    if (domSelection) {
-      PRInt32 rangeCount;
-      domSelection->GetRangeCount(&rangeCount);
-      if (rangeCount == 0)
-        CompleteMoveInner(PR_FALSE, PR_FALSE, PR_FALSE);
-    }
-  }
 }
 
 NS_IMETHODIMP
@@ -4508,8 +4486,7 @@ PresShell::IsSafeToFlush(PRBool& aIsSafeToFlush)
   // if any of the other flags are set.
   
   // Not safe if we are reflowing or in the middle of frame construction
-  aIsSafeToFlush = nsContentUtils::IsSafeToRunScript() &&
-                   !mIsReflowing &&
+  aIsSafeToFlush = !mIsReflowing &&
                    !mChangeNestCount;
 
   if (aIsSafeToFlush) {
@@ -5096,7 +5073,7 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
             // wrap the item in an nsDisplayClip so that it can be clipped to
             // the selection. If the allocation fails, fall through and delete
             // the item below.
-            itemToInsert = new (aBuilder)nsDisplayClip(frame, i, textRect);
+            itemToInsert = new (aBuilder)nsDisplayClip(frame, frame, i, textRect);
           }
         }
         else {
@@ -5574,10 +5551,9 @@ PresShell::HandleEvent(nsIView         *aView,
     return HandleEventInternal(aEvent, aView, aEventStatus);
   }
 #endif
-  if (!nsContentUtils::IsSafeToRunScript()) {
-    NS_ERROR("How did we get here if it's not safe to run scripts?");
-    return NS_OK;
-  }
+
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
+               "How did we get here if it's not safe to run scripts?");
 
   // Check for a theme change up front, since the frame type is irrelevant
   if (aEvent->message == NS_THEMECHANGED && mPresContext) {

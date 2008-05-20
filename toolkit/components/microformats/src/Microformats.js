@@ -1,7 +1,6 @@
 var EXPORTED_SYMBOLS = ["Microformats", "adr", "tag", "hCard", "hCalendar", "geo"];
 
 var Microformats = {
-  version: 0.8,
   /* When a microformat is added, the name is placed in this list */
   list: [],
   /* Custom iterator so that microformats can be enumerated as */
@@ -17,7 +16,8 @@ var Microformats = {
    * @param  name          The name of the microformat (required)
    * @param  rootElement   The DOM element at which to start searching (required)
    * @param  options       Literal object with the following options:
-   *                       recurseFrames - Whether or not to search child frames
+   *                       recurseExternalFrames - Whether or not to search child frames
+   *                       that reference external pages (with a src attribute)
    *                       for microformats (optional - defaults to true)
    *                       showHidden -  Whether or not to add hidden microformat
    *                       (optional - defaults to false)
@@ -28,18 +28,34 @@ var Microformats = {
    *         object array with the new objects added
    */
   get: function(name, rootElement, options, targetArray) {
-    if (!Microformats[name]) {
+    function isAncestor(haystack, needle) {
+      var parent = needle;
+      while (parent = parent.parentNode) {
+        /* We need to check parentNode because defaultView.frames[i].frameElement */
+        /* isn't a real DOM node */
+        if (parent == needle.parentNode) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (!Microformats[name] || !rootElement) {
       return;
     }
     targetArray = targetArray || [];
 
-    rootElement = rootElement || content.document;
+    /* Root element might not be the document - we need the document's default view */
+    /* to get frames and to check their ancestry */
+    var defaultView = rootElement.defaultView || rootElement.ownerDocument.defaultView;
+    var rootDocument = rootElement.ownerDocument || rootElement;
 
-    /* If recurseFrames is undefined or true, look through all child frames for microformats */
-    if (!options || !options.hasOwnProperty("recurseFrames") || options.recurseFrames) {
-      if (rootElement.defaultView && rootElement.defaultView.frames.length > 0) {
-        for (let i=0; i < rootElement.defaultView.frames.length; i++) {
-          Microformats.get(name, rootElement.defaultView.frames[i].document, options, targetArray);
+    /* If recurseExternalFrames is undefined or true, look through all child frames for microformats */
+    if (!options || !options.hasOwnProperty("recurseExternalFrames") || options.recurseExternalFrames) {
+      if (defaultView && defaultView.frames.length > 0) {
+        for (let i=0; i < defaultView.frames.length; i++) {
+          if (isAncestor(rootDocument, defaultView.frames[i].frameElement)) {
+            Microformats.get(name, defaultView.frames[i].document, options, targetArray);
+          }
         }
       }
     }
@@ -103,7 +119,8 @@ var Microformats = {
    * @param  name          The name of the microformat (required)
    * @param  rootElement   The DOM element at which to start searching (required)
    * @param  options       Literal object with the following options:
-   *                       recurseFrames - Whether or not to search child frames
+   *                       recurseExternalFrames - Whether or not to search child frames
+   *                       that reference external pages (with a src attribute)
    *                       for microformats (optional - defaults to true)
    *                       showHidden -  Whether or not to add hidden microformat
    *                       (optional - defaults to false)
@@ -267,16 +284,14 @@ var Microformats = {
   },
   add: function add(microformat, microformatDefinition) {
     /* We always replace an existing definition with the new one */
-    if (microformatDefinition.mfVersion == Microformats.version) {
-      if (!Microformats[microformat]) {
-        Microformats.list.push(microformat);
-      }
-      Microformats[microformat] = microformatDefinition;
-      microformatDefinition.mfObject.prototype.debug =
-        function(microformatObject) {
-          return Microformats.debug(microformatObject)
-        };
+    if (!Microformats[microformat]) {
+      Microformats.list.push(microformat);
     }
+    Microformats[microformat] = microformatDefinition;
+    microformatDefinition.mfObject.prototype.debug =
+      function(microformatObject) {
+        return Microformats.debug(microformatObject)
+      };
   },
   /* All parser specific functions are contained in this object */
   parser: {
@@ -539,7 +554,7 @@ var Microformats = {
             /* We can swallow this exception. If the creation of the */
             /* mf object fails, then the node isn't a microformat */
           }
-          if (result) {
+          if (result != undefined) {
             if (prop.microformat_property) {
               result = result[prop.microformat_property];
             }
@@ -551,12 +566,12 @@ var Microformats = {
       }
       /* This handles the case where one property implies another property */
       /* For instance, org by itself is actually org.organization-name */
-      if ((prop.implied) && (result)) {
+      if (prop.implied && (result != undefined)) {
         var temp = result;
         result = {};
         result[prop.implied] = temp;
       }
-      if (result && prop.values) {
+      if (prop.values && (result != undefined)) {
         var validType = false;
         for (let value in prop.values) {
           if (result.toLowerCase() == prop.values[value]) {
@@ -630,7 +645,7 @@ var Microformats = {
             subresult = Microformats.parser.getPropertyInternal(subpropnodes[i], propnode,
                                                                 subpropobj,
                                                                 subpropname, mfnode);
-            if (subresult) {
+            if (subresult != undefined) {
               resultArray.push(subresult);
               /* If we're not a plural property, don't bother getting more */
               if (!subpropobj.plural) {
@@ -642,7 +657,7 @@ var Microformats = {
             subresult = Microformats.parser.getPropertyInternal(propnode, null,
                                                                 subpropobj,
                                                                 subpropname, mfnode);
-            if (subresult) {
+            if (subresult != undefined) {
               resultArray.push(subresult);
             }
           }
@@ -748,7 +763,7 @@ var Microformats = {
                                                                   mfnode,
                                                                   propobj,
                                                                   propname);
-          if (subresult) {
+          if (subresult != undefined) {
             resultArray.push(subresult);
             /* If we're not a plural property, don't bother getting more */
             if (!propobj.plural) {
@@ -1136,7 +1151,6 @@ adr.prototype.toString = function() {
 }
 
 var adr_definition = {
-  mfVersion: 0.8,
   mfObject: adr,
   className: "adr",
   properties: {
@@ -1203,7 +1217,6 @@ hCard.prototype.toString = function() {
 }
 
 var hCard_definition = {
-  mfVersion: 0.8,
   mfObject: hCard,
   className: "vcard",
   required: ["fn"],
@@ -1268,11 +1281,13 @@ var hCard_definition = {
           plural: true
         },
         "given-name" : {
+          plural: true
         },
         "additional-name" : {
           plural: true
         },
         "family-name" : {
+          plural: true
         },
         "honorific-suffix" : {
           plural: true
@@ -1284,23 +1299,23 @@ var hCard_definition = {
       virtualGetter: function(mfnode) {
         var fn = Microformats.parser.getMicroformatProperty(mfnode, "hCard", "fn");
         var orgs = Microformats.parser.getMicroformatProperty(mfnode, "hCard", "org");
-        var given_name;
-        var family_name;
+        var given_name = [];
+        var family_name = [];
         if (fn && (!orgs || (orgs.length > 1) || (fn != orgs[0]["organization-name"]))) {
           var fns = fn.split(" ");
           if (fns.length === 2) {
             if (fns[0].charAt(fns[0].length-1) == ',') {
-              given_name = fns[1];
-              family_name = fns[0].substr(0, fns[0].length-1);
+              given_name[0] = fns[1];
+              family_name[0] = fns[0].substr(0, fns[0].length-1);
             } else if (fns[1].length == 1) {
-              given_name = fns[1];
-              family_name = fns[0];
+              given_name[0] = fns[1];
+              family_name[0] = fns[0];
             } else if ((fns[1].length == 2) && (fns[1].charAt(fns[1].length-1) == '.')) {
-              given_name = fns[1];
-              family_name = fns[0];
+              given_name[0] = fns[1];
+              family_name[0] = fns[0];
             } else {
-              given_name = fns[0];
-              family_name = fns[1];
+              given_name[0] = fns[0];
+              family_name[0] = fns[1];
             }
             return {"given-name" : given_name, "family-name" : family_name};
           }
@@ -1414,7 +1429,6 @@ hCalendar.prototype.toString = function() {
 }
 
 var hCalendar_definition = {
-  mfVersion: 0.8,
   mfObject: hCalendar,
   className: "vevent",
   required: ["summary", "dtstart"],
@@ -1623,7 +1637,6 @@ geo.prototype.toString = function() {
 }
 
 var geo_definition = {
-  mfVersion: 0.8,
   mfObject: geo,
   className: "geo",
   required: ["latitude","longitude"],
@@ -1696,7 +1709,6 @@ tag.prototype.toString = function() {
 }
 
 var tag_definition = {
-  mfVersion: 0.8,
   mfObject: tag,
   attributeName: "rel",
   attributeValues: "tag",

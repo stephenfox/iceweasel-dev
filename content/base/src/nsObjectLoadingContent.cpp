@@ -77,11 +77,13 @@
 #include "nsNetUtil.h"
 #include "nsPresShellIterator.h"
 #include "nsMimeTypes.h"
+#include "nsStyleUtil.h"
 
 // Concrete classes
 #include "nsFrameLoader.h"
 
 #include "nsObjectLoadingContent.h"
+#include "mozAutoDocUpdate.h"
 
 static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID);
 
@@ -352,7 +354,8 @@ nsObjectLoadingContent::~nsObjectLoadingContent()
 
 // nsIRequestObserver
 NS_IMETHODIMP
-nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
+nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
+                                       nsISupports *aContext)
 {
   if (aRequest != mChannel) {
     // This is a bit of an edge case - happens when a new load starts before the
@@ -408,6 +411,17 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
     mContentType = channelType;
   }
 
+  nsCOMPtr<nsIURI> uri;
+  chan->GetURI(getter_AddRefs(uri));
+
+  if (mContentType.EqualsASCII(APPLICATION_OCTET_STREAM)) {
+    nsCAutoString extType;
+    if (IsPluginEnabledByExtension(uri, extType)) {
+      mContentType = extType;
+      chan->SetContentType(extType);
+    }
+  }
+
   // Now find out what type the content is
   // UnloadContent will set our type to null; need to be sure to only set it to
   // the real value on success
@@ -429,8 +443,6 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest, nsISupports *aConte
       contentPolicyType = nsIContentPolicy::TYPE_OBJECT;
       break;
   }
-  nsCOMPtr<nsIURI> uri;
-  chan->GetURI(getter_AddRefs(uri));
   nsCOMPtr<nsIContent> thisContent = 
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
@@ -1063,11 +1075,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   nsCAutoString overrideType;
   if ((caps & eOverrideServerType) &&
-      (!aTypeHint.IsEmpty() ||
+      ((!aTypeHint.IsEmpty() && IsSupportedPlugin(aTypeHint)) ||
        (aURI && IsPluginEnabledByExtension(aURI, overrideType)))) {
-    NS_ASSERTION(aTypeHint.IsEmpty() ^ overrideType.IsEmpty(),
-                 "Exactly one of aTypeHint and overrideType should be empty!");
-
     ObjectType newType;
     if (overrideType.IsEmpty()) {
       newType = GetTypeOfContent(aTypeHint);
@@ -1193,8 +1202,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     rv = NS_ERROR_NOT_AVAILABLE;
 
     // We should only notify the UI if there is at least a type to go on for
-    // finding a plugin to use.
-    if (!aTypeHint.IsEmpty()) {
+    // finding a plugin to use, unless it's a supported image or document type.
+    if (!aTypeHint.IsEmpty() && GetTypeOfContent(aTypeHint) == eType_Null) {
       UpdateFallbackState(thisContent, fallback, aTypeHint);
     }
 
@@ -1657,6 +1666,15 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
 {
   NS_ASSERTION(aFrame, "Must have a frame here");
 
+  // We're instantiating now, invalidate any pending async instantiate
+  // calls.
+  mPendingInstantiateEvent = nsnull;
+
+  // Mark that we're instantiating now so that we don't end up
+  // re-entering instantiation code.
+  PRBool oldInstantiatingValue = mInstantiating;
+  mInstantiating = PR_TRUE;
+
   nsCString typeToUse(aMIMEType);
   if (typeToUse.IsEmpty() && aURI) {
     IsPluginEnabledByExtension(aURI, typeToUse);
@@ -1678,7 +1696,11 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
   NS_ASSERTION(aURI || !typeToUse.IsEmpty(), "Need a URI or a type");
   LOG(("OBJLC [%p]: Calling [%p]->Instantiate(<%s>, %p)\n", this, aFrame,
        typeToUse.get(), aURI));
-  return aFrame->Instantiate(typeToUse.get(), aURI);
+  nsresult rv = aFrame->Instantiate(typeToUse.get(), aURI);
+
+  mInstantiating = oldInstantiatingValue;
+
+  return rv;
 }
 
 nsresult
@@ -1725,6 +1747,8 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
     return GetPluginDisabledState(aContentType);
   }
 
+  PRBool hasAlternateContent = PR_FALSE;
+
   // Search for a child <param> with a pluginurl name
   PRUint32 count = aContent->GetChildCount();
   for (PRUint32 i = 0; i < count; ++i) {
@@ -1732,13 +1756,19 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
     NS_ASSERTION(child, "GetChildCount lied!");
 
     if (child->IsNodeOfType(nsINode::eHTML) &&
-        child->Tag() == nsGkAtoms::param &&
-        child->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                           NS_LITERAL_STRING("pluginurl"), eIgnoreCase)) {
-      return GetPluginDisabledState(aContentType);
+        child->Tag() == nsGkAtoms::param) {
+      if (child->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                             NS_LITERAL_STRING("pluginurl"), eIgnoreCase)) {
+        return GetPluginDisabledState(aContentType);
+      }
+    } else if (!hasAlternateContent) {
+      hasAlternateContent =
+        nsStyleUtil::IsSignificantChild(child, PR_TRUE, PR_FALSE);
     }
   }
-  return ePluginOtherState;
+
+  return hasAlternateContent ? ePluginOtherState :
+    GetPluginDisabledState(aContentType);
 }
 
 /* static */ nsObjectLoadingContent::PluginSupportState

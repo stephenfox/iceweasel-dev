@@ -80,7 +80,7 @@ pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LO
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/1/%APP_ID%/%APP_VERSION%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/2/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
 pref("extensions.blocklist.detailsURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
@@ -213,7 +213,10 @@ pref("browser.urlbar.doubleClickSelectsAll", false);
 #endif
 pref("browser.urlbar.autoFill", false);
 pref("browser.urlbar.matchOnlyTyped", false);
-pref("browser.urlbar.matchOnWordBoundary", true);
+// 0: Match anywhere (e.g., middle of words)
+// 1: Match on word boundaries and then try matching anywhere
+// 2: Match only on word boundaries (e.g., after / or .)
+pref("browser.urlbar.matchBehavior", 1);
 pref("browser.urlbar.filter.javascript", true);
 
 // the maximum number of results to show in autocomplete when doing richResults
@@ -223,6 +226,12 @@ pref("browser.urlbar.maxRichResults", 12);
 // be waiting on the timeout too often without many results.
 pref("browser.urlbar.search.chunkSize", 1000);
 pref("browser.urlbar.search.timeout", 100);
+
+// Number of milliseconds to wait for the http headers (and thus
+// the Content-Disposition filename) before giving up and falling back to 
+// picking a filename without that info in hand so that the user sees some
+// feedback from their action.
+pref("browser.download.saveLinkAsFilenameTimeout", 1000);
 
 pref("browser.download.useDownloadDir", true);
 pref("browser.download.folderList", 0);
@@ -329,6 +338,12 @@ pref("browser.bookmarks.sort.resource", "rdf:http://home.netscape.com/NC-rdf#Nam
 // be exported as HTML to the bookmarks.html file.
 pref("browser.bookmarks.autoExportHTML",          false);
 
+// The maximum number of daily bookmark backups to 
+// keep in {PROFILEDIR}/bookmarkbackups. Special values:
+// -1: unlimited
+//  0: no backups created (and deletes all existing backups)
+pref("browser.bookmarks.max_backups",             5);
+
 // Scripts & Windows prefs
 pref("dom.disable_open_during_load",              true);
 #ifdef DEBUG
@@ -430,6 +445,7 @@ pref("alerts.slideIncrementTime", 10);
 pref("alerts.totalOpenTime", 4000);
 
 pref("browser.xul.error_pages.enabled", true);
+pref("browser.xul.error_pages.expert_bad_cert", false);
 
 // We want to make sure mail URLs are handled externally...
 pref("network.protocol-handler.external.mailto", true); // for mail
@@ -611,16 +627,41 @@ pref("urlclassifier.alternate_error_page", "blocked");
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
 
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
+
+// If an urlclassifier table has not been updated in this number of seconds,
+// a gethash request will be forced to check that the result is still in
+// the database.
+pref("urlclassifier.confirm-age", 2700);
+
+// Maximum size of the sqlite3 cache during an update, in bytes
+#ifdef MOZ_WIDGET_GTK2
+pref("urlclassifier.updatecachemax", 104857600);
+#else
+pref("urlclassifier.updatecachemax", -1);
+#endif
+
 // URL for checking the reason for a malware warning.
-pref("browser.safebrowsing.malware.reportURL", "http://www.stopbadware.org/reports/container?source=@APP_UA_NAME@&version=@APP_VERSION@&reportname=");
+pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
 
 #endif
 
-// defaults to true
-pref("browser.EULA.2.accepted", true);
+// defaults to true on Windows and Mac, because the installer shows this
+#ifdef XP_MACOSX
+pref("browser.EULA.3.accepted", true);
+#elifdef XP_WIN
+pref("browser.EULA.3.accepted", true);
+#else
+pref("browser.EULA.3.accepted", false);
+#endif
 
 // if we rev the EULA again, we should bump this so users agree to the new EULA
-pref("browser.EULA.version", 2);
+pref("browser.EULA.version", 3);
+
+#ifdef DEBUG
+pref("browser.EULA.override", true);
+#endif
 
 pref("browser.sessionstore.enabled", true);
 pref("browser.sessionstore.resume_from_crash", true);
@@ -639,12 +680,6 @@ pref("browser.sessionstore.max_tabs_undo", 10);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
-
-// import bookmarks.html into Places bookmarks
-pref("browser.places.importBookmarksHTML", true);
-
-// if false, will add the "Smart Bookmarks" folder to the personal toolbar
-pref("browser.places.createdSmartBookmarks", false);
 
 // If true, will migrate uri post-data annotations to
 // bookmark post-data annotations (bug 398914)

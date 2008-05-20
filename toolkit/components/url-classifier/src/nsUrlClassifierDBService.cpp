@@ -48,6 +48,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsAutoLock.h"
 #include "nsCRT.h"
+#include "nsDataHashtable.h"
 #include "nsICryptoHash.h"
 #include "nsICryptoHMAC.h"
 #include "nsIDirectoryService.h"
@@ -127,7 +128,7 @@ static const PRLogModuleInfo *gUrlClassifierDbServiceLog = nsnull;
 // want to change schema, or to recover from updating bugs.  When an
 // implementation version change is detected, the database is scrapped
 // and we start over.
-#define IMPLEMENTATION_VERSION 3
+#define IMPLEMENTATION_VERSION 5
 
 #define MAX_HOST_COMPONENTS 5
 #define MAX_PATH_COMPONENTS 4
@@ -145,6 +146,27 @@ static const PRLogModuleInfo *gUrlClassifierDbServiceLog = nsnull;
 #define GETHASH_NOISE_PREF      "urlclassifier.gethashnoise"
 #define GETHASH_NOISE_DEFAULT   4
 
+#define GETHASH_TABLES_PREF     "urlclassifier.gethashtables"
+
+#define CONFIRM_AGE_PREF        "urlclassifier.confirm-age"
+#define CONFIRM_AGE_DEFAULT_SEC (45 * 60)
+
+#define UPDATE_CACHE_SIZE_PREF    "urlclassifier.updatecachemax"
+#define UPDATE_CACHE_SIZE_DEFAULT -1
+
+// Amount of time to spend updating before committing and delaying, in
+// seconds.  This is checked after each update stream, so the actual
+// time spent can be higher than this, depending on update stream size.
+#define UPDATE_WORKING_TIME         "urlclassifier.workingtime"
+#define UPDATE_WORKING_TIME_DEFAULT 5
+
+// The amount of time to delay after hitting UPDATE_WORKING_TIME, in
+// seconds.
+#define UPDATE_DELAY_TIME           "urlclassifier.updatetime"
+#define UPDATE_DELAY_TIME_DEFAULT   60
+
+#define PAGE_SIZE 4096
+
 class nsUrlClassifierDBServiceWorker;
 
 // Singleton instance.
@@ -156,6 +178,31 @@ static nsIThread* gDbBackgroundThread = nsnull;
 // Once we've committed to shutting down, don't do work in the background
 // thread.
 static PRBool gShuttingDownThread = PR_FALSE;
+
+static PRInt32 gFreshnessGuarantee = CONFIRM_AGE_DEFAULT_SEC;
+
+static PRInt32 gUpdateCacheSize = UPDATE_CACHE_SIZE_DEFAULT;
+
+static PRInt32 gWorkingTimeThreshold = UPDATE_WORKING_TIME_DEFAULT;
+static PRInt32 gDelayTime = UPDATE_DELAY_TIME_DEFAULT;
+
+static void
+SplitTables(const nsACString& str, nsTArray<nsCString>& tables)
+{
+  tables.Clear();
+
+  nsACString::const_iterator begin, iter, end;
+  str.BeginReading(begin);
+  str.EndReading(end);
+  while (begin != end) {
+    iter = begin;
+    FindCharInReadable(',', iter, end);
+    tables.AppendElement(Substring(begin, iter));
+    begin = iter;
+    if (begin != end)
+      begin++;
+  }
+}
 
 // -------------------------------------------------------------------------
 // Hash class implementation
@@ -199,6 +246,10 @@ struct nsUrlClassifierHash
     NS_ASSERTION(str.Length() >= sHashSize,
                  "string must be at least sHashSize characters long");
     memcpy(buf, str.BeginReading(), sHashSize);
+  }
+
+  void Clear() {
+    memset(buf, 0, sizeof(buf));
   }
 
   const PRBool operator==(const self_type& hash) const {
@@ -335,7 +386,9 @@ nsUrlClassifierEntry::Clear()
 class nsUrlClassifierLookupResult
 {
 public:
-  nsUrlClassifierLookupResult() : mConfirmed(PR_FALSE), mNoise(PR_FALSE) {}
+  nsUrlClassifierLookupResult() : mConfirmed(PR_FALSE), mNoise(PR_FALSE) {
+    mLookupFragment.Clear();
+  }
   ~nsUrlClassifierLookupResult() {}
 
   PRBool operator==(const nsUrlClassifierLookupResult &result) const {
@@ -1039,6 +1092,10 @@ private:
   // Flush the cached add/subtract lists to the database.
   nsresult FlushChunkLists();
 
+  // Inserts a chunk id into the list, sorted.  Returns TRUE if the
+  // number was successfully added, FALSE if the chunk already exists.
+  PRBool InsertChunkId(nsTArray<PRUint32>& chunks, PRUint32 chunkNum);
+
   // Add a list of entries to the database, merging with
   // existing entries as necessary
   nsresult AddChunk(PRUint32 tableId, PRUint32 chunkNum,
@@ -1058,6 +1115,12 @@ private:
   nsresult ProcessResponseLines(PRBool* done);
   // Handle chunk data from a stream update
   nsresult ProcessChunk(PRBool* done);
+
+  // Sets up a transaction and begins counting update time.
+  nsresult SetupUpdate();
+
+  // Applies the current transaction and resets the update/working times.
+  nsresult ApplyUpdate();
 
   // Reset the in-progress update stream
   void ResetStream();
@@ -1119,6 +1182,9 @@ private:
   nsCOMPtr<mozIStorageStatement> mGetTableNameStatement;
   nsCOMPtr<mozIStorageStatement> mInsertTableIdStatement;
 
+  // Stores the last time a given table was updated.
+  nsDataHashtable<nsCStringHashKey, PRInt64> mTableFreshness;
+
   // We receive data in small chunks that may be broken in the middle of
   // a line.  So we save the last partial line here.
   nsCString mPendingStreamUpdate;
@@ -1126,6 +1192,7 @@ private:
   PRInt32 mUpdateWait;
 
   PRBool mResetRequested;
+  PRBool mGrewCache;
 
   enum {
     STATE_LINE,
@@ -1140,6 +1207,9 @@ private:
   PRUint32 mChunkNum;
   PRUint32 mHashSize;
   PRUint32 mChunkLen;
+
+  // List of tables included in this update.
+  nsTArray<nsCString> mUpdateTables;
 
   nsCString mUpdateTable;
   PRUint32 mUpdateTableId;
@@ -1167,6 +1237,10 @@ private:
   // The MAC stated by the server.
   nsCString mServerMAC;
 
+  // Start time of the current update interval.  This will be reset
+  // every time we apply the update.
+  PRIntervalTime mUpdateStartTime;
+
   nsCOMPtr<nsICryptoHMAC> mHMAC;
   // The number of noise entries to add to the set of lookup results.
   PRInt32 mGethashNoise;
@@ -1185,12 +1259,14 @@ private:
   nsTArray<PendingLookup> mPendingLookups;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsUrlClassifierDBServiceWorker,
-                              nsIUrlClassifierDBServiceWorker)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsUrlClassifierDBServiceWorker,
+                              nsIUrlClassifierDBServiceWorker,
+                              nsIUrlClassifierDBService)
 
 nsUrlClassifierDBServiceWorker::nsUrlClassifierDBServiceWorker()
   : mUpdateWait(0)
   , mResetRequested(PR_FALSE)
+  , mGrewCache(PR_FALSE)
   , mState(STATE_LINE)
   , mChunkType(CHUNK_ADD)
   , mChunkNum(0)
@@ -1204,6 +1280,7 @@ nsUrlClassifierDBServiceWorker::nsUrlClassifierDBServiceWorker()
   , mCachedListsTable(PR_UINT32_MAX)
   , mHaveCachedAddChunks(PR_FALSE)
   , mHaveCachedSubChunks(PR_FALSE)
+  , mUpdateStartTime(0)
   , mGethashNoise(0)
   , mPendingLookupLock(nsnull)
 {
@@ -1245,6 +1322,8 @@ nsUrlClassifierDBServiceWorker::Init(PRInt32 gethashNoise)
     return NS_ERROR_OUT_OF_MEMORY;
 
   ResetUpdate();
+
+  mTableFreshness.Init();
 
   return NS_OK;
 }
@@ -1391,6 +1470,8 @@ nsUrlClassifierDBServiceWorker::CheckKey(const nsACString& spec,
     if (!mMainStore.ReadStatement(mMainStore.LookupStatement(), entry))
       return NS_ERROR_FAILURE;
 
+    PRInt64 now = (PR_Now() / PR_USEC_PER_SEC);
+
     for (PRUint32 i = 0; i < fragments.Length(); i++) {
       if (entry.Match(fragments[i])) {
         // If the entry doesn't contain a complete hash, we need to
@@ -1403,12 +1484,27 @@ nsUrlClassifierDBServiceWorker::CheckKey(const nsACString& spec,
 
         result->mLookupFragment = fragments[i];
         result->mEntry = entry;
-        // This is a confirmed result if we matched a complete
-        // fragment.
-        result->mConfirmed = entry.mHaveComplete;
 
         // Fill in the table name.
         GetTableName(entry.mTableId, result->mTableName);
+
+        PRBool fresh;
+        PRInt64 tableUpdateTime;
+        if (mTableFreshness.Get(result->mTableName, &tableUpdateTime)) {
+          LOG(("tableUpdateTime: %lld, now: %lld, freshnessGuarantee: %d\n",
+               tableUpdateTime, now, gFreshnessGuarantee));
+          fresh = ((now - tableUpdateTime) <= gFreshnessGuarantee);
+        } else {
+          LOG(("No expiration time for this table.\n"));
+          fresh = PR_FALSE;
+        }
+
+        // This is a confirmed result if we match a complete fragment in
+        // an up-to-date table.
+        result->mConfirmed = entry.mHaveComplete && fresh;
+
+        LOG(("Found a result.  complete=%d, fresh=%d",
+             entry.mHaveComplete, fresh));
         break;
       }
     }
@@ -2125,13 +2221,13 @@ nsUrlClassifierDBServiceWorker::JoinChunkList(nsTArray<PRUint32>& chunks,
     PRUint32 first = i;
     PRUint32 last = first;
     i++;
-    while (i < chunks.Length() && chunks[i] == chunks[i - 1] + 1) {
-      last = chunks[i++];
+    while (i < chunks.Length() && (chunks[i] == chunks[i - 1] + 1 || chunks[i] == chunks[i - 1])) {
+      last = i++;
     }
 
     if (last != first) {
       chunkStr.Append('-');
-      chunkStr.AppendInt(last);
+      chunkStr.AppendInt(chunks[last]);
     }
   }
 
@@ -2263,6 +2359,25 @@ nsUrlClassifierDBServiceWorker::ClearCachedChunkLists()
   mHaveCachedSubChunks = PR_FALSE;
 }
 
+PRBool
+nsUrlClassifierDBServiceWorker::InsertChunkId(nsTArray<PRUint32> &chunks,
+                                              PRUint32 chunkNum)
+{
+  PRUint32 low = 0, high = chunks.Length();
+  while (high > low) {
+    PRUint32 mid = (high + low) >> 1;
+    if (chunks[mid] == chunkNum)
+      return PR_FALSE;
+    if (chunks[mid] < chunkNum)
+      low = mid + 1;
+    else
+      high = mid;
+  }
+
+  PRUint32 *item = chunks.InsertElementAt(low, chunkNum);
+  return (item != nsnull);
+}
+
 nsresult
 nsUrlClassifierDBServiceWorker::AddChunk(PRUint32 tableId,
                                          PRUint32 chunkNum,
@@ -2275,11 +2390,15 @@ nsUrlClassifierDBServiceWorker::AddChunk(PRUint32 tableId,
   }
 #endif
 
-  LOG(("Adding %d entries to chunk %d", entries.Length(), chunkNum));
-
   nsresult rv = CacheChunkLists(tableId, PR_TRUE, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
-  mCachedAddChunks.AppendElement(chunkNum);
+
+  if (!InsertChunkId(mCachedAddChunks, chunkNum)) {
+    LOG(("Ignoring duplicate add chunk %d in table %d", chunkNum, tableId));
+    return NS_OK;
+  }
+
+  LOG(("Adding %d entries to chunk %d in table %d", entries.Length(), chunkNum, tableId));
 
   nsTArray<PRUint32> entryIDs;
 
@@ -2366,7 +2485,13 @@ nsUrlClassifierDBServiceWorker::SubChunk(PRUint32 tableId,
                                          nsTArray<nsUrlClassifierEntry>& entries)
 {
   nsresult rv = CacheChunkLists(tableId, PR_FALSE, PR_TRUE);
-  mCachedSubChunks.AppendElement(chunkNum);
+
+  if (!InsertChunkId(mCachedSubChunks, chunkNum)) {
+    LOG(("Ignoring duplicate sub chunk %d in table %d", chunkNum, tableId));
+    return NS_OK;
+  }
+
+  LOG(("Subbing %d entries in chunk %d in table %d", entries.Length(), chunkNum, tableId));
 
   nsAutoTArray<nsUrlClassifierEntry, 5> existingEntries;
   nsUrlClassifierDomainHash lastKey;
@@ -2618,6 +2743,7 @@ nsUrlClassifierDBServiceWorker::ResetUpdate()
   mUpdateObserver = nsnull;
   mUpdateClientKey.Truncate();
   mResetRequested = PR_FALSE;
+  mUpdateTables.Clear();
 }
 
 NS_IMETHODIMP
@@ -2629,6 +2755,7 @@ nsUrlClassifierDBServiceWorker::SetHashCompleter(const nsACString &tableName,
 
 NS_IMETHODIMP
 nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
+                                            const nsACString &tables,
                                             const nsACString &clientKey)
 {
   if (gShuttingDownThread)
@@ -2655,7 +2782,7 @@ nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *obse
     return rv;
   }
 
-  rv = mConnection->BeginTransaction();
+  rv = SetupUpdate();
   if (NS_FAILED(rv)) {
     mUpdateStatus = rv;
     return rv;
@@ -2672,6 +2799,8 @@ nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *obse
   // forwarded updates.
   mPrimaryStream = PR_TRUE;
 
+  SplitTables(tables, mUpdateTables);
+
   return NS_OK;
 }
 
@@ -2685,9 +2814,15 @@ nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table,
   NS_ENSURE_STATE(mUpdateObserver);
   NS_ENSURE_STATE(!mInStream);
 
-  mInStream = PR_TRUE;
+  // We may have committed the update in FinishStream, if so set it up
+  // again here.
+  nsresult rv = SetupUpdate();
+  if (NS_FAILED(rv)) {
+    mUpdateStatus = rv;
+    return rv;
+  }
 
-  nsresult rv;
+  mInStream = PR_TRUE;
 
   // If we're expecting a MAC, create the nsICryptoHMAC component now.
   if (!mUpdateClientKey.IsEmpty()) {
@@ -2825,6 +2960,8 @@ nsUrlClassifierDBServiceWorker::FinishStream()
   NS_ENSURE_STATE(mInStream);
   NS_ENSURE_STATE(mUpdateObserver);
 
+  PRInt32 nextStreamDelay = 0;
+
   if (NS_SUCCEEDED(mUpdateStatus) && mHMAC) {
     nsCAutoString clientMAC;
     mHMAC->Finish(PR_TRUE, clientMAC);
@@ -2835,11 +2972,76 @@ nsUrlClassifierDBServiceWorker::FinishStream()
            mServerMAC.get(), clientMAC.get()));
       mUpdateStatus = NS_ERROR_FAILURE;
     }
+    PRIntervalTime updateTime = PR_IntervalNow() - mUpdateStartTime;
+    if (PR_IntervalToSeconds(updateTime) >=
+        static_cast<PRUint32>(gWorkingTimeThreshold)) {
+      // We've spent long enough working that we should commit what we
+      // have and hold off for a bit.
+      ApplyUpdate();
+
+      nextStreamDelay = gDelayTime * 1000;
+    }
   }
 
-  mUpdateObserver->StreamFinished(mUpdateStatus);
+  mUpdateObserver->StreamFinished(mUpdateStatus,
+                                  static_cast<PRUint32>(nextStreamDelay));
 
   ResetStream();
+
+  return NS_OK;
+}
+
+nsresult
+nsUrlClassifierDBServiceWorker::SetupUpdate()
+{
+  LOG(("nsUrlClassifierDBServiceWorker::SetupUpdate"));
+  PRBool inProgress;
+  nsresult rv = mConnection->GetTransactionInProgress(&inProgress);
+  if (inProgress) {
+    return NS_OK;
+  }
+
+  mUpdateStartTime = PR_IntervalNow();
+
+  rv = mConnection->BeginTransaction();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (gUpdateCacheSize > 0) {
+    PRUint32 cachePages = gUpdateCacheSize / PAGE_SIZE;
+    nsCAutoString cacheSizePragma("PRAGMA cache_size=");
+    cacheSizePragma.AppendInt(cachePages);
+    rv = mConnection->ExecuteSimpleSQL(cacheSizePragma);
+    NS_ENSURE_SUCCESS(rv, rv);
+    mGrewCache = PR_TRUE;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsUrlClassifierDBServiceWorker::ApplyUpdate()
+{
+  LOG(("nsUrlClassifierDBServiceWorker::ApplyUpdate"));
+
+  if (NS_FAILED(mUpdateStatus)) {
+    mConnection->RollbackTransaction();
+  } else {
+    mUpdateStatus = FlushChunkLists();
+    if (NS_SUCCEEDED(mUpdateStatus)) {
+      mUpdateStatus = mConnection->CommitTransaction();
+    }
+  }
+
+  if (mGrewCache) {
+    // During the update we increased the page cache to bigger than we
+    // want to keep around.  At the moment, the only reliable way to make
+    // sure that the page cache is freed is to reopen the connection.
+    mGrewCache = PR_FALSE;
+    CloseDb();
+    OpenDb();
+  }
+
+  mUpdateStartTime = 0;
 
   return NS_OK;
 }
@@ -2847,27 +3049,34 @@ nsUrlClassifierDBServiceWorker::FinishStream()
 NS_IMETHODIMP
 nsUrlClassifierDBServiceWorker::FinishUpdate()
 {
+  LOG(("nsUrlClassifierDBServiceWorker::FinishUpdate()"));
   if (gShuttingDownThread)
     return NS_ERROR_NOT_INITIALIZED;
 
   NS_ENSURE_STATE(!mInStream);
   NS_ENSURE_STATE(mUpdateObserver);
 
-  if (NS_SUCCEEDED(mUpdateStatus)) {
-    mUpdateStatus = FlushChunkLists();
-  }
-
-  nsCAutoString arg;
-  if (NS_SUCCEEDED(mUpdateStatus)) {
-    mUpdateStatus = mConnection->CommitTransaction();
-  } else {
-    mConnection->RollbackTransaction();
-  }
+  ApplyUpdate();
 
   if (NS_SUCCEEDED(mUpdateStatus)) {
     mUpdateObserver->UpdateSuccess(mUpdateWait);
   } else {
     mUpdateObserver->UpdateError(mUpdateStatus);
+  }
+
+  if (!mResetRequested) {
+    if (NS_SUCCEEDED(mUpdateStatus)) {
+      PRInt64 now = (PR_Now() / PR_USEC_PER_SEC);
+      for (PRUint32 i = 0; i < mUpdateTables.Length(); i++) {
+        LOG(("Successfully updated %s", mUpdateTables[i].get()));
+        mTableFreshness.Put(mUpdateTables[i], now);
+      }
+    } else {
+      for (PRUint32 i = 0; i < mUpdateTables.Length(); i++) {
+        LOG(("Failed updating %s", mUpdateTables[i].get()));
+        mTableFreshness.Remove(mUpdateTables[i]);
+      }
+    }
   }
 
   // ResetUpdate() clears mResetRequested...
@@ -2891,6 +3100,8 @@ nsUrlClassifierDBServiceWorker::ResetDatabase()
   LOG(("nsUrlClassifierDBServiceWorker::ResetDatabase [%p]", this));
   ClearCachedChunkLists();
 
+  mTableFreshness.Clear();
+
   nsresult rv = CloseDb();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2911,6 +3122,11 @@ nsUrlClassifierDBServiceWorker::CancelUpdate()
     mConnection->RollbackTransaction();
     mUpdateObserver->UpdateError(mUpdateStatus);
 
+    for (PRUint32 i = 0; i < mUpdateTables.Length(); i++) {
+      LOG(("Failed updating %s", mUpdateTables[i].get()));
+      mTableFreshness.Remove(mUpdateTables[i]);
+    }
+
     ResetStream();
     ResetUpdate();
   }
@@ -2926,8 +3142,6 @@ NS_IMETHODIMP
 nsUrlClassifierDBServiceWorker::CloseDb()
 {
   if (mConnection) {
-    CancelUpdate();
-
     mMainStore.Close();
     mPendingSubStore.Close();
 
@@ -3025,19 +3239,18 @@ nsUrlClassifierDBServiceWorker::OpenDb()
     }
   }
 
-  if (newDB) {
-    rv = connection->SetSchemaVersion(IMPLEMENTATION_VERSION);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  nsCAutoString cacheSizePragma("PRAGMA page_size=");
+  cacheSizePragma.AppendInt(PAGE_SIZE);
+  rv = connection->ExecuteSimpleSQL(cacheSizePragma);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA synchronous=OFF"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA page_size=4096"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA default_page_size=4096"));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (newDB) {
+    rv = connection->SetSchemaVersion(IMPLEMENTATION_VERSION);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // Create the table
   rv = MaybeCreateTables(connection);
@@ -3211,24 +3424,36 @@ nsUrlClassifierLookupCallback::LookupComplete(nsTArray<nsUrlClassifierLookupResu
   mResults = results;
   mResults->Sort();
 
-  // Check the results for partial matches.  Partial matches will need to be
-  // completed.
+  // Check the results entries that need to be completed.
   for (PRUint32 i = 0; i < results->Length(); i++) {
     nsUrlClassifierLookupResult& result = results->ElementAt(i);
+
+    // We will complete partial matches and matches that are stale.
     if (!result.mConfirmed) {
       nsCOMPtr<nsIUrlClassifierHashCompleter> completer;
       if (mDBService->GetCompleter(result.mTableName,
                                    getter_AddRefs(completer))) {
         nsCAutoString partialHash;
-        partialHash.Assign(reinterpret_cast<char*>(result.mEntry.mPartialHash.buf),
-                           PARTIAL_LENGTH);
+        PRUint8 *buf =
+          result.mEntry.mHavePartial ? result.mEntry.mPartialHash.buf
+                                     : result.mEntry.mCompleteHash.buf;
+        partialHash.Assign(reinterpret_cast<char*>(buf), PARTIAL_LENGTH);
 
         nsresult rv = completer->Complete(partialHash, this);
         if (NS_SUCCEEDED(rv)) {
           mPendingCompletions++;
         }
       } else {
-        NS_WARNING("Partial match in a table without a valid completer, ignoring partial match.");
+        // For tables with no hash completer, a complete hash match is
+        // good enough, it doesn't need to be fresh. (we need the
+        // mLookupFragment comparison to weed out noise entries, which
+        // should never be confirmed).
+        if (result.mEntry.mHaveComplete
+            && (result.mLookupFragment == result.mEntry.mCompleteHash)) {
+          result.mConfirmed = PR_TRUE;
+        } else {
+          NS_WARNING("Partial match in a table without a valid completer, ignoring partial match.");
+        }
       }
     }
   }
@@ -3270,49 +3495,50 @@ nsUrlClassifierLookupCallback::Completion(const nsACString& completeHash,
                                           PRUint32 chunkId,
                                           PRBool verified)
 {
-  LOG(("nsUrlClassifierLookupCallback::Completion [%p, %d]", this, verified));
+  LOG(("nsUrlClassifierLookupCallback::Completion [%p, %s, %d, %d]",
+       this, PromiseFlatCString(tableName).get(), chunkId, verified));
   nsUrlClassifierCompleteHash hash;
   hash.Assign(completeHash);
 
   for (PRUint32 i = 0; i < mResults->Length(); i++) {
     nsUrlClassifierLookupResult& result = mResults->ElementAt(i);
 
-    if (!result.mEntry.mHaveComplete &&
+    // First, see if this result can be used to update an entry.
+    if (verified &&
+        !result.mEntry.mHaveComplete &&
         hash.StartsWith(result.mEntry.mPartialHash) &&
         result.mTableName == tableName &&
         result.mEntry.mChunkId == chunkId) {
       // We have a completion for this entry.  Fill it in...
       result.mEntry.SetHash(hash);
 
-      // ... and make sure that it was the entry we were looking for.
-      if (result.mLookupFragment == hash)
-        result.mConfirmed = PR_TRUE;
-
-      // If this result is guaranteed to come from our list provider,
-      // we can cache the results.
-      if (verified) {
-        if (!mCacheResults) {
-          mCacheResults = new nsTArray<nsUrlClassifierLookupResult>();
-          if (!mCacheResults)
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
-
-        mCacheResults->AppendElement(result);
+      if (!mCacheResults) {
+        mCacheResults = new nsTArray<nsUrlClassifierLookupResult>();
+        if (!mCacheResults)
+          return NS_ERROR_OUT_OF_MEMORY;
       }
-    } else if (result.mLookupFragment == hash) {
-      // The hash we got for this completion matches the hash we
-      // looked up, but doesn't match the table/chunk id.  This could
-      // happen in rare cases where a given URL was moved between
-      // lists or added/removed/re-added to the list in the time since
-      // we've updated.
-      //
-      // Update the lookup result, but don't update the entry or try
-      // caching the results of this completion, as it might confuse
-      // things.
-      result.mConfirmed = PR_TRUE;
-      result.mTableName = tableName;
 
-      NS_WARNING("Accepting a gethash with an invalid table name or chunk id");
+      mCacheResults->AppendElement(result);
+    }
+
+    // Now, see if it verifies a lookup
+    if (result.mLookupFragment == hash) {
+      result.mConfirmed = PR_TRUE;
+
+      if (result.mTableName != tableName ||
+          result.mEntry.mChunkId != chunkId) {
+        // The hash we got for this completion matches the hash we
+        // looked up, but doesn't match the table/chunk id.  This could
+        // happen in rare cases where a given URL was moved between
+        // lists or added/removed/re-added to the list in the time since
+        // we've updated.
+        //
+        // Update the lookup result, but don't update the entry or try
+        // cache the results of this completion, as it might confuse
+        // things.
+        result.mTableName = tableName;
+        NS_WARNING("Accepting a gethash with an invalid table name or chunk id");
+      }
     }
   }
 
@@ -3495,6 +3721,30 @@ nsUrlClassifierDBService::Init()
     if (NS_FAILED(prefs->GetIntPref(GETHASH_NOISE_PREF, &gethashNoise))) {
       gethashNoise = GETHASH_NOISE_DEFAULT;
     }
+
+    nsXPIDLCString tmpstr;
+    if (NS_SUCCEEDED(prefs->GetCharPref(GETHASH_TABLES_PREF, getter_Copies(tmpstr)))) {
+      SplitTables(tmpstr, mGethashWhitelist);
+    }
+
+    prefs->AddObserver(GETHASH_TABLES_PREF, this, PR_FALSE);
+
+    PRInt32 tmpint;
+    rv = prefs->GetIntPref(CONFIRM_AGE_PREF, &tmpint);
+    PR_AtomicSet(&gFreshnessGuarantee, NS_SUCCEEDED(rv) ? tmpint : CONFIRM_AGE_DEFAULT_SEC);
+
+    prefs->AddObserver(CONFIRM_AGE_PREF, this, PR_FALSE);
+
+    rv = prefs->GetIntPref(UPDATE_CACHE_SIZE_PREF, &tmpint);
+    PR_AtomicSet(&gUpdateCacheSize, NS_SUCCEEDED(rv) ? tmpint : UPDATE_CACHE_SIZE_DEFAULT);
+
+    rv = prefs->GetIntPref(UPDATE_WORKING_TIME, &tmpint);
+    PR_AtomicSet(&gWorkingTimeThreshold,
+                 NS_SUCCEEDED(rv) ? tmpint : UPDATE_WORKING_TIME_DEFAULT);
+
+    rv = prefs->GetIntPref(UPDATE_DELAY_TIME, &tmpint);
+    PR_AtomicSet(&gDelayTime,
+                 NS_SUCCEEDED(rv) ? tmpint : UPDATE_DELAY_TIME_DEFAULT);
   }
 
   // Start the background thread.
@@ -3655,6 +3905,7 @@ nsUrlClassifierDBService::SetHashCompleter(const nsACString &tableName,
 
 NS_IMETHODIMP
 nsUrlClassifierDBService::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
+                                      const nsACString &updateTables,
                                       const nsACString &clientKey)
 {
   NS_ENSURE_TRUE(gDbBackgroundThread, NS_ERROR_NOT_INITIALIZED);
@@ -3675,7 +3926,7 @@ nsUrlClassifierDBService::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
                             getter_AddRefs(proxyObserver));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return mWorkerProxy->BeginUpdate(proxyObserver, clientKey);
+  return mWorkerProxy->BeginUpdate(proxyObserver, updateTables, clientKey);
 }
 
 NS_IMETHODIMP
@@ -3748,6 +3999,10 @@ nsUrlClassifierDBService::GetCompleter(const nsACString &tableName,
     return PR_TRUE;
   }
 
+  if (!mGethashWhitelist.Contains(tableName)) {
+    return PR_FALSE;
+  }
+
   return NS_SUCCEEDED(CallGetService(NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID,
                                      completer));
 }
@@ -3768,6 +4023,30 @@ nsUrlClassifierDBService::Observe(nsISupports *aSubject, const char *aTopic,
       PRBool tmpbool;
       rv = prefs->GetBoolPref(CHECK_PHISHING_PREF, &tmpbool);
       mCheckPhishing = NS_SUCCEEDED(rv) ? tmpbool : CHECK_PHISHING_DEFAULT;
+    } else if (NS_LITERAL_STRING(GETHASH_TABLES_PREF).Equals(aData)) {
+      mGethashWhitelist.Clear();
+      nsXPIDLCString val;
+      if (NS_SUCCEEDED(prefs->GetCharPref(GETHASH_TABLES_PREF, getter_Copies(val)))) {
+        SplitTables(val, mGethashWhitelist);
+      }
+    } else if (NS_LITERAL_STRING(CONFIRM_AGE_PREF).Equals(aData)) {
+      PRInt32 tmpint;
+      rv = prefs->GetIntPref(CONFIRM_AGE_PREF, &tmpint);
+      PR_AtomicSet(&gFreshnessGuarantee, NS_SUCCEEDED(rv) ? tmpint : CONFIRM_AGE_DEFAULT_SEC);
+    } else if (NS_LITERAL_STRING(UPDATE_CACHE_SIZE_PREF).Equals(aData)) {
+      PRInt32 tmpint;
+      rv = prefs->GetIntPref(UPDATE_CACHE_SIZE_PREF, &tmpint);
+      PR_AtomicSet(&gUpdateCacheSize, NS_SUCCEEDED(rv) ? tmpint : UPDATE_CACHE_SIZE_DEFAULT);
+    } else if (NS_LITERAL_STRING(UPDATE_WORKING_TIME).Equals(aData)) {
+      PRInt32 tmpint;
+      rv = prefs->GetIntPref(UPDATE_WORKING_TIME, &tmpint);
+      PR_AtomicSet(&gWorkingTimeThreshold,
+                   NS_SUCCEEDED(rv) ? tmpint : UPDATE_WORKING_TIME_DEFAULT);
+    } else if (NS_LITERAL_STRING(UPDATE_DELAY_TIME).Equals(aData)) {
+      PRInt32 tmpint;
+      rv = prefs->GetIntPref(UPDATE_DELAY_TIME, &tmpint);
+      PR_AtomicSet(&gDelayTime,
+                 NS_SUCCEEDED(rv) ? tmpint : UPDATE_DELAY_TIME_DEFAULT);
     }
   } else if (!strcmp(aTopic, "profile-before-change") ||
              !strcmp(aTopic, "xpcom-shutdown-threads")) {
@@ -3794,11 +4073,15 @@ nsUrlClassifierDBService::Shutdown()
   if (prefs) {
     prefs->RemoveObserver(CHECK_MALWARE_PREF, this);
     prefs->RemoveObserver(CHECK_PHISHING_PREF, this);
+    prefs->RemoveObserver(GETHASH_TABLES_PREF, this);
+    prefs->RemoveObserver(CONFIRM_AGE_PREF, this);
   }
 
   nsresult rv;
   // First close the db connection.
   if (mWorker) {
+    rv = mWorkerProxy->CancelUpdate();
+    NS_ASSERTION(NS_SUCCEEDED(rv), "failed to post cancel udpate event");
     rv = mWorkerProxy->CloseDb();
     NS_ASSERTION(NS_SUCCEEDED(rv), "failed to post close db event");
   }

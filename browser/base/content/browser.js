@@ -233,18 +233,20 @@ function SetClickAndHoldHandlers()
 
   // Bug 414797: Clone the dropmarker's menu into both the back and
   // the forward buttons.
-  if (document.getElementById("unified-back-forward-button"))  {
+  var unifiedButton = document.getElementById("unified-back-forward-button");
+  if (unifiedButton && !unifiedButton._clickHandlersAttached)  {
     var popup = document.getElementById("back-forward-dropmarker")
                        .firstChild.cloneNode(true);
     var backButton = document.getElementById("back-button");
-    backButton.setAttribute("type", "menu");
+    backButton.setAttribute("type", "menu-button");
     backButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(backButton);
     var forwardButton = document.getElementById("forward-button");
     popup = popup.cloneNode(true);
-    forwardButton.setAttribute("type", "menu");
+    forwardButton.setAttribute("type", "menu-button");
     forwardButton.appendChild(popup);    
     _addClickAndHoldListenersOnElement(forwardButton);
+    unifiedButton._clickHandlersAttached = true;
   }
 }
 #endif
@@ -909,7 +911,7 @@ function delayedStartup()
 
   gBrowser.addEventListener("pageshow", function(evt) { setTimeout(pageShowEventHandlers, 0, evt); }, true);
 
-  window.addEventListener("keypress", ctrlNumberTabSelection, false);
+  window.addEventListener("keypress", onBrowserKeyPress, false);
 
   // Ensure login manager is up and running.
   Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
@@ -1164,7 +1166,7 @@ function BrowserShutdown()
 function nonBrowserWindowStartup()
 {
   // Disable inappropriate commands / submenus
-  var disabledItems = ['cmd_newNavigatorTab', 'Browser:SavePage', 'Browser:SendLink',
+  var disabledItems = ['Browser:SavePage', 'Browser:SendLink',
                        'cmd_pageSetup', 'cmd_print', 'cmd_find', 'cmd_findAgain', 'viewToolbarsMenu',
                        'cmd_toggleTaskbar', 'viewSidebarMenuMenu', 'Browser:Reload', 'Browser:ReloadSkipCache',
                        'viewFullZoomMenu', 'pageStyleMenu', 'charsetMenu', 'View:PageSource', 'View:FullScreen',
@@ -1211,6 +1213,9 @@ function nonBrowserWindowDelayedStartup()
   
   // Set up Sanitize Item
   gSanitizeListener = new SanitizeListener();
+
+  // "Bookmarks Toolbar" menu
+  initBookmarksToolbar();
 }
 
 function nonBrowserWindowShutdown()
@@ -1266,7 +1271,7 @@ function SanitizeListener()
     gPrefService.clearUserPref(this.didSanitizeDomain);
     // We need to persist this preference change, since we want to
     // check it at next app start even if the browser exits abruptly
-    gPrefService.savePrefFile(null);
+    gPrefService.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
   }
 }
 
@@ -1294,7 +1299,7 @@ SanitizeListener.prototype =
   }
 }
 
-function ctrlNumberTabSelection(event)
+function onBrowserKeyPress(event)
 {
   if (event.altKey && event.keyCode == KeyEvent.DOM_VK_RETURN) {
     // XXXblake Proper fix is to just check whether focus is in the urlbar. However, focus with the autocomplete widget is all
@@ -1306,38 +1311,10 @@ function ctrlNumberTabSelection(event)
       return;
     }
   }
+}
 
-#ifdef XP_MACOSX
-  // Mac: Cmd+number
-  if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
-#else
-#ifdef XP_UNIX
-  // Linux: Alt+number
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
-#else
-  // Windows: Ctrl+number
-  if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey)
-#endif
-#endif
-    return;
-
-  // \d in a RegExp will find any Unicode character with the "decimal digit"
-  // property (Nd)
-  var regExp = /\d/;
-  if (!regExp.test(String.fromCharCode(event.charCode)))
-    return;
-
-  // Some Unicode decimal digits are in the range U+xxx0 - U+xxx9 and some are
-  // in the range U+xxx6 - U+xxxF. Find the digit 1 corresponding to our
-  // character.
-  var digit1 = (event.charCode & 0xFFF0) | 1;
-  if (!regExp.test(String.fromCharCode(digit1)))
-    digit1 += 6;
-
-  var index = event.charCode - digit1;
-  if (index < 0)
-    return;
-
+function BrowserNumberTabSelection(event, index)
+{
   // [Ctrl]+[9] always selects the last tab
   if (index == 8)
     index = gBrowser.tabContainer.childNodes.length - 1;
@@ -1573,6 +1550,12 @@ function openLocationCallback()
 
 function BrowserOpenTab()
 {
+  if (!gBrowser) {
+    // If there are no open browser windows, open a new one
+    window.openDialog("chrome://browser/content/", "_blank",
+                      "chrome,all,dialog=no", "about:blank");
+    return;
+  }
   gBrowser.loadOneTab("about:blank", null, null, null, false, false);
   if (gURLBar)
     gURLBar.focus();
@@ -1748,7 +1731,12 @@ function getShortcutOrURI(aURL, aPostDataRef) {
     if (matches)
       [, shortcutURL, charset] = matches;
     else {
-      //XXX Bug 317472 will add lastCharset support to places.
+      // Try to get the saved character-set.
+      try {
+        // makeURI throws if URI is invalid.
+        // Will return an empty string if character-set is not found.
+        charset = PlacesUtils.history.getCharsetForURI(makeURI(shortcutURL));
+      } catch (e) {}
     }
 
     var encodedParam = "";
@@ -1950,11 +1938,11 @@ function checkForDirectoryListing()
   }
 }
 
-function URLBarSetURI(aURI, aMustUseURI) {
+function URLBarSetURI(aURI) {
   var value = getBrowser().userTypedValue;
   var state = "invalid";
 
-  if (!value || aMustUseURI) {
+  if (!value) {
     if (aURI) {
       // If the url has "wyciwyg://" as the protocol, strip it off.
       // Nobody wants to see it on the urlbar for dynamically generated
@@ -1969,39 +1957,42 @@ function URLBarSetURI(aURI, aMustUseURI) {
       aURI = getWebNavigation().currentURI;
     }
 
-    value = aURI.spec;
-    if (value == "about:blank") {
+    if (aURI.spec == "about:blank") {
       // Replace "about:blank" with an empty string
       // only if there's no opener (bug 370555).
-      if (!content.opener)
-        value = "";
+      value = content.opener ? aURI.spec : "";
     } else {
-      // Try to decode as UTF-8 if there's no encoding sequence that we would break.
-      if (!/%25(?:3B|2F|3F|3A|40|26|3D|2B|24|2C|23)/i.test(value))
-        try {
-          value = decodeURI(value)
-                    // 1. decodeURI decodes %25 to %, which creates unintended
-                    //    encoding sequences. Re-encode it, unless it's part of
-                    //    a sequence that survived decodeURI, i.e. one for:
-                    //    ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
-                    //    (RFC 3987 section 3.2)
-                    // 2. Re-encode whitespace so that it doesn't get eaten away
-                    //    by the location bar (bug 410726).
-                    .replace(/%(?!3B|2F|3F|3A|40|26|3D|2B|24|2C|23)|[\r\n\t]/ig,
-                             encodeURIComponent);
-        } catch (e) {}
-
-      // Encode bidirectional formatting characters.
-      // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-      value = value.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
-                            encodeURIComponent);
-
+      value = losslessDecodeURI(aURI);
       state = "valid";
     }
   }
 
   gURLBar.value = value;
   SetPageProxyState(state);
+}
+
+function losslessDecodeURI(aURI) {
+  var value = aURI.spec;
+  // Try to decode as UTF-8 if there's no encoding sequence that we would break.
+  if (!/%25(?:3B|2F|3F|3A|40|26|3D|2B|24|2C|23)/i.test(value))
+    try {
+      value = decodeURI(value)
+                // 1. decodeURI decodes %25 to %, which creates unintended
+                //    encoding sequences. Re-encode it, unless it's part of
+                //    a sequence that survived decodeURI, i.e. one for:
+                //    ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
+                //    (RFC 3987 section 3.2)
+                // 2. Re-encode whitespace so that it doesn't get eaten away
+                //    by the location bar (bug 410726).
+                .replace(/%(?!3B|2F|3F|3A|40|26|3D|2B|24|2C|23)|[\r\n\t]/ig,
+                         encodeURIComponent);
+    } catch (e) {}
+
+  // Encode bidirectional formatting characters.
+  // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
+  value = value.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
+                        encodeURIComponent);
+  return value;
 }
 
 // Replace the urlbar's value with the url of the page.
@@ -2305,12 +2296,15 @@ function BrowserOnCommand(event) {
         // This is the "Why is this site blocked" button.  For malware,
         // we can fetch a site-specific report, for phishing, we redirect
         // to the generic page describing phishing protection.
+        var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
+                       .getService(Components.interfaces.nsIURLFormatter);
+        
         if (/e=malwareBlocked/.test(errorDoc.documentURI)) {
           // Get the stop badware "why is this blocked" report url,
           // append the current url, and go there.
           try {
-            var reportURL = gPrefService.getCharPref("browser.safebrowsing.malware.reportURL");
-            reportURL += content.location.href;
+            var reportURL = formatter.formatURLPref("browser.safebrowsing.malware.reportURL");
+            reportURL += errorDoc.location.href;
             content.location = reportURL;
           } catch (e) {
             Components.utils.reportError("Couldn't get malware report URL: " + e);
@@ -2318,9 +2312,7 @@ function BrowserOnCommand(event) {
         }
         else if (/e=phishingBlocked/.test(errorDoc.documentURI)) {
           try {
-            content.location = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
-                              .getService(Components.interfaces.nsIURLFormatter)
-                              .formatURLPref("browser.safebrowsing.warning.infoURL");
+            content.location = formatter.formatURLPref("browser.safebrowsing.warning.infoURL");
           } catch (e) {
             Components.utils.reportError("Couldn't get phishing info URL: " + e);
           }
@@ -2936,8 +2928,13 @@ const BrowserSearch = {
    */
   updateSearchButton: function() {
     var searchBar = this.searchBar;
-    if (!searchBar)
+    
+    // The search bar binding might not be applied even though the element is
+    // in the document (e.g. when the navigation toolbar is hidden), so check
+    // for .searchButton specifically.
+    if (!searchBar || !searchBar.searchButton)
       return;
+
     var engines = gBrowser.mCurrentBrowser.engines;
     if (engines && engines.length > 0)
       searchBar.searchButton.setAttribute("addengines", "true");
@@ -3217,8 +3214,12 @@ function BrowserCustomizeToolbar()
   var sheetFrame = document.getElementById("customizeToolbarSheetIFrame");
   sheetFrame.hidden = false;
 
-  // The document might not have been loaded yet, if this is the first time
-  if (sheetFrame.getAttribute("src") != customizeURL)
+  // The document might not have been loaded yet, if this is the first time.
+  // If it is already loaded, reload it so that the onload initialization code
+  // re-runs.
+  if (sheetFrame.getAttribute("src") == customizeURL)
+    sheetFrame.contentWindow.location.reload()
+  else
     sheetFrame.setAttribute("src", customizeURL);
 
   // XXXmano: there's apparently no better way to get this when the iframe is
@@ -4128,13 +4129,15 @@ nsBrowserStatusHandler.prototype =
         this._tooltipText == gBrowser.securityUI.tooltipText &&
         !this._hostChanged) {
 #ifdef DEBUG
-      var contentHost = gBrowser.contentWindow.location.host;
-      if (this._host !== undefined && this._host != contentHost) {
-          Components.utils.reportError(
-            "ASSERTION: browser.js host is inconsistent. Content window has " + 
-            "<" + contentHost + "> but cached host is <" + this._host + ">.\n"
-          );
-      }
+      try {
+        var contentHost = gBrowser.contentWindow.location.host;
+        if (this._host !== undefined && this._host != contentHost) {
+            Components.utils.reportError(
+              "ASSERTION: browser.js host is inconsistent. Content window has " + 
+              "<" + contentHost + "> but cached host is <" + this._host + ">.\n"
+            );
+        }
+      } catch (ex) {}
 #endif
       return;
     }
@@ -4192,7 +4195,22 @@ nsBrowserStatusHandler.prototype =
       this.securityButton.removeAttribute("label");
 
     this.securityButton.setAttribute("tooltiptext", this._tooltipText);
-    getIdentityHandler().checkIdentity(this._state, gBrowser.contentWindow.location);
+
+    // Don't pass in the actual location object, since it can cause us to 
+    // hold on to the window object too long.  Just pass in the fields we
+    // care about. (bug 424829)
+    var location = gBrowser.contentWindow.location;
+    var locationObj = {};
+    try {
+      locationObj.host = location.host;
+      locationObj.hostname = location.hostname;
+      locationObj.port = location.port;
+    } catch (ex) {
+      // Can sometimes throw if the URL being visited has no host/hostname,
+      // e.g. about:blank. The _state for these pages means we won't need these
+      // properties anyways, though.
+    }
+    getIdentityHandler().checkIdentity(this._state, locationObj);
   },
 
   // simulate all change notifications after switching tabs
@@ -5055,6 +5073,8 @@ function BrowserSetForcedCharacterSet(aCharset)
   var docCharset = getBrowser().docShell.QueryInterface(
                             Components.interfaces.nsIDocCharset);
   docCharset.charset = aCharset;
+  // Save the forced character-set
+  PlacesUtils.history.setCharsetForURI(getWebNavigation().currentURI, aCharset);
   BrowserReloadWithFlags(nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
 }
 
@@ -5473,6 +5493,24 @@ var OfflineApps = {
            Ci.nsIOfflineCacheUpdateService.ALLOW_NO_WARN);
   },
 
+  // XXX: duplicated in preferences/advanced.js
+  _getOfflineAppUsage: function (host)
+  {
+    var cacheService = Components.classes["@mozilla.org/network/cache-service;1"].
+                       getService(Components.interfaces.nsICacheService);
+    var cacheSession = cacheService.createSession("HTTP-offline",
+                                                  Components.interfaces.nsICache.STORE_OFFLINE,
+                                                  true).
+                       QueryInterface(Components.interfaces.nsIOfflineCacheSession);
+    var usage = cacheSession.getDomainUsage(host);
+
+    var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
+                         getService(Components.interfaces.nsIDOMStorageManager);
+    usage += storageManager.getUsage(host);
+
+    return usage;
+  },
+
   _checkUsage: function(aURI) {
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
@@ -5480,7 +5518,7 @@ var OfflineApps = {
     // if the user has already allowed excessive usage, don't bother checking
     if (pm.testExactPermission(aURI, "offline-app") !=
         Ci.nsIOfflineCacheUpdateService.ALLOW_NO_WARN) {
-      var usage = getOfflineAppUsage(aURI.asciiHost);
+      var usage = this._getOfflineAppUsage(aURI.asciiHost);
       var warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
       if (usage >= warnQuota * 1024) {
         return true;
@@ -5705,11 +5743,13 @@ function AddKeywordForSearchField()
 {
   var node = document.popupNode;
 
+  var charset = node.ownerDocument.characterSet;
+
   var docURI = makeURI(node.ownerDocument.URL,
-                       node.ownerDocument.characterSet);
+                       charset);
 
   var formURI = makeURI(node.form.getAttribute("action"),
-                        node.ownerDocument.characterSet,
+                        charset,
                         docURI);
 
   var spec = formURI.spec;
@@ -5758,7 +5798,7 @@ function AddKeywordForSearchField()
 
   var description = PlacesUIUtils.getDescriptionFromDocument(node.ownerDocument);
   PlacesUIUtils.showMinimalAddBookmarkUI(makeURI(spec), "", description, null,
-                                         null, null, "", postData);
+                                         null, null, "", postData, charset);
 }
 
 function SwitchDocumentDirection(aWindow) {
@@ -5814,7 +5854,7 @@ missingPluginInstaller.prototype.installSinglePlugin = function(aEvent){
 
   if (missingPluginsArray) {
     window.openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
-                      "PFSWindow", "modal,chrome,resizable=yes",
+                      "PFSWindow", "chrome,centerscreen,resizable=yes",
                       {plugins: missingPluginsArray, browser: tabbrowser.selectedBrowser});
   }
 
@@ -5872,7 +5912,7 @@ missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
   var bundle_browser = document.getElementById("bundle_browser");
   var blockedNotification = notificationBox.getNotificationWithValue("blocked-plugins");
   const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-  const iconURL = "chrome://mozapps/skin/plugins/pluginGeneric.png";
+  const iconURL = "chrome://mozapps/skin/plugins/pluginGeneric-16.png";
 
   if (aEvent.type == "PluginBlocklisted" && !blockedNotification) {
     var messageString = bundle_browser.getString("blockedpluginsMessage.title");
@@ -5941,7 +5981,7 @@ function pluginsMissing()
   var missingPluginsArray = tabbrowser.selectedBrowser.missingPlugins;
   if (missingPluginsArray) {
     window.openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
-                      "PFSWindow", "modal,chrome,resizable=yes",
+                      "PFSWindow", "chrome,centerscreen,resizable=yes",
                       {plugins: missingPluginsArray, browser: tabbrowser.selectedBrowser});
   }
 }
@@ -6402,7 +6442,8 @@ IdentityHandler.prototype = {
    * be called by onSecurityChange
    * 
    * @param PRUint32 state
-   * @param Location location
+   * @param JS Object location that mirrors an nsLocation (i.e. has .host and
+   *                           .hostname and .port)
    */
   checkIdentity : function(state, location) {
     var currentStatus = gBrowser.securityUI
@@ -6495,7 +6536,14 @@ IdentityHandler.prototype = {
       // for certs that are trusted because of a security exception.
       var tooltip = this._stringBundle.getFormattedString("identity.identified.verifier",
                                                           [iData.caOrg]);
-      if (this._overrideService.hasMatchingOverride(lookupHost, iData.cert, {}, {}))
+      
+      // Check whether this site is a security exception. XPConnect does the right
+      // thing here in terms of converting _lastLocation.port from string to int, but
+      // the overrideService doesn't like undefined ports, so make sure we have
+      // something in the default case (bug 432241).
+      if (this._overrideService.hasMatchingOverride(this._lastLocation.hostname, 
+                                                    (this._lastLocation.port || 443),
+                                                    iData.cert, {}, {}))
         tooltip = this._stringBundle.getString("identity.identified.verified_by_you");
     }
     else if (newMode == this.IDENTITY_MODE_IDENTIFIED) {
@@ -6735,6 +6783,12 @@ let DownloadMonitorPanel = {
    */
   onDownloadStateChange: function() {
     this.updateStatus();
+  },
+
+  onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus, aDownload) {
+  },
+
+  onSecurityChange: function(aWebProgress, aRequest, aState, aDownload) {
   },
 
   //////////////////////////////////////////////////////////////////////////////

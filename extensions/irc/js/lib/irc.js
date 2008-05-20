@@ -763,8 +763,8 @@ function serv_flush()
 CIRCServer.prototype.login =
 function serv_login(nick, name, desc)
 {
-    nick = nick.replace(" ", "_");
-    name = name.replace(" ", "_");
+    nick = nick.replace(/ /g, "_");
+    name = name.replace(/ /g, "_");
 
     if (!nick)
         nick = "nick";
@@ -2801,7 +2801,7 @@ function chan_geturl()
     var target = this.encodedName;
     var flags = this.mode.key ? ["needkey"] : [];
 
-    if ((target[0] == "#") &&
+    if ((target[0] == "#") && (target.length > 1) && 
         arrayIndexOf(this.parent.channelTypes, target[1]) == -1)
     {
         /* First character is "#" (which we're allowed to omit), and the

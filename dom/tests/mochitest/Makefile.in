@@ -52,5 +52,9 @@ DIRS	+= \
 	whatwg \
 	$(NULL)
 
+# dom-level2-html disabled due to failures on multiple platforms
+# (bug 427878)
+#	dom-level2-html \
+
 include $(topsrcdir)/config/rules.mk
 
