@@ -164,6 +164,11 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
     },
 
     // about redirector
+    { "about:",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX,
+      nsAboutRedirector::Create
+    },
     { "about:config",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "config",
