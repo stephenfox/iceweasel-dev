@@ -40,7 +40,6 @@
 #include "nscore.h"
 #include "nsIComponentManager.h"
 #include "nsIWindowMediator.h"
-#include "nsAbout.h"
 #include "nsIGenericFactory.h"
 
 #include "nsIAppShellService.h"
@@ -63,11 +62,6 @@ static const nsModuleComponentInfo gAppShellModuleInfo[] =
     NS_WINDOWMEDIATOR_CID,
     NS_WINDOWMEDIATOR_CONTRACTID,
     nsWindowMediatorConstructor,
-  },
-  { "kAboutModuleCID",
-    NS_ABOUT_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX,
-    nsAbout::Create,
   }
 };
 
