@@ -1136,17 +1136,16 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
 
   nsCStringKey key(path);
   nsJAR* zip = static_cast<nsJAR*>(static_cast<nsIZipReader*>(mZips.Get(&key))); // AddRefs
-  if (zip && LL_EQ(Mtime, zip->GetMtime())) {
+  if (zip && (Mtime == zip->GetMtime())) {
 #ifdef ZIP_CACHE_HIT_RATE
     mZipCacheHits++;
 #endif
     zip->ClearReleaseTime();
   }
   else {
-    if (zip) {
-      ReleaseZip(zip);
+    if (zip)
       mZips.Remove(&key);
-    }
+
     zip = new nsJAR();
     if (zip == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
