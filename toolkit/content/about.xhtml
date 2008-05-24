@@ -61,7 +61,7 @@
   <div id="aboutLogoContainer">
     <a id="vendorURL" href="http://www.mozilla.org/">
       <img src="about:logo" alt="&brandShortName;"/>
-#expand <p id="version">&about.version; __MOZ_APP_VERSION__</p>
+      <p id="version"></p>
     </a>
   </div>
 
@@ -84,6 +84,10 @@
         var vendorURL = formatter.formatURLPref("app.vendorURL");
         var vendor = document.getElementById("vendorURL");
         vendor.setAttribute("href", vendorURL);
+
+        var versionNum = formatter.formatURL("%VERSION%");
+        var version = document.getElementById("version");
+        version.appendChild(document.createTextNode("&about.version; " + versionNum));
       }
       catch (ex) { /* no release notes and vendor URL for you without bug 349985 being fixed */ }
 
