@@ -50,7 +50,7 @@
     <menuitem id="menu_HelpPopup_reportPhishingtoolmenu"
               label="&reportPhishSiteMenu.title2;"
               accesskey="&reportPhishSiteMenu.accesskey;"
-              insertbefore="updateSeparator"
+              insertbefore="aboutSeparator"
               observes="reportPhishingBroadcaster"
               oncommand="openUILink(safebrowsing.getReportURL('Phish'), event);"
               onclick="checkForMiddleClick(this, event);"/>

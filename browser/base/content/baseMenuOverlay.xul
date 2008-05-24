@@ -92,11 +92,6 @@
                   accesskey="&helpForIEUsers.accesskey;"
                   oncommand="openHelpLink('ieusers');"/>
 #endif
-        <menuitem id="checkForUpdates"
-                  accesskey="&updateCmd.accesskey;"
-                  label="&updateCmd.label;"
-                  class="menuitem-iconic"
-                  oncommand="checkForUpdates();"/>
         <menuseparator id="aboutSeparator"/>
         <menuitem id="aboutName"
                   accesskey="&aboutCmd.accesskey;"

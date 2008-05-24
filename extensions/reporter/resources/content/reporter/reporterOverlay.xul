@@ -53,7 +53,7 @@
     <menuitem id="menu_HelpPopup_reportertoolmenu" 
               label="&reporterMenu2.title;" 
               accesskey="&reporterMenu.accesskey;"
-              insertafter="releaseNotes"
+              insertbefore="aboutSeparator"
               observes="reporterItemsBroadcaster"
               oncommand="loadReporterWizard()"/>
   </menupopup>
