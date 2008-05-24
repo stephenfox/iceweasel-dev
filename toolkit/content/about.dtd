@@ -1,0 +1,7 @@
+<!ENTITY about.readme.debian.beforeLink "Read the ">
+<!ENTITY about.readme.debian.linkTitle  "Debian README file">
+<!ENTITY about.readme.debian.afterLink  " for this package">
+
+<!ENTITY about.bugs.beforeLink "See the ">
+<!ENTITY about.bugs.linkTitle  "Debian bug reports">
+<!ENTITY about.bugs.afterLink  " for this package">
