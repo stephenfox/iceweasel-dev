@@ -42,7 +42,7 @@ CONFIGURE_OPTIONS = \
 	--disable-crashreporter
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CONFIGURE_OPTIONS += --disable-optim
+	CONFIGURE_OPTIONS += --disable-optimize
 endif
 
 ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))

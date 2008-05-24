@@ -17,6 +17,7 @@ iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
   * debian/about_debian.js: Removed, as this component will be provided by
     xulrunner.
   * debian/iceweasel.install: Don't install about_debian.js.
+  * debian/rules: Use proper flag to disable optimization.
 
  -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
 
