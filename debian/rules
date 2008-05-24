@@ -166,9 +166,13 @@ install-stamp: build-stamp
 # Remove unneeded configs
 	rm -f debian/iceweasel/$(SHARE_DIR)/defaults/pref/firefox-l10n.js
 
+# Install vendor preferences
+	install -m 644 debian/vendor.js \
+		debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
+
 # Add Debian package version to preferences
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(Debian-$(DEBIAN_VERSION))\");" \
-		> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
+		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
 	cp -f LICENSE MPL
 	touch install-stamp

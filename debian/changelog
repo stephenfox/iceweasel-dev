@@ -21,6 +21,11 @@ iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
   * debian/branding/branding.nsi, debian/branding/content/contents.rdf:
     Removed useless branding files.
   * debian/branding/locales/en-US/brand.dtd: Removed useless entity.
+  * debian/vendor.js:
+    - Add package name for debAbout.js component.
+    - Avoid displaying useless EULA at iceweasel startup.
+  * debian/rules: Install debian/vendor.js and append
+    general.useragent.extra.firefoxComment there.
 
  -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
 
