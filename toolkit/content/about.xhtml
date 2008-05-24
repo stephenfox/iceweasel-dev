@@ -8,6 +8,8 @@
 %aboutDTD;
 <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
 %globalDTD;
+<!ENTITY % aboutDTD2 SYSTEM "chrome://global/content/about.dtd">
+%aboutDTD2;
 ]>
 
 <!-- ***** BEGIN LICENSE BLOCK *****
@@ -70,6 +72,8 @@
     <li>&about.copy.beforeLink; <a href="about:credits">&about.copy.linkTitle;</a> &about.copy.afterLink;</li>
     <li>&about.license.beforeLink; <a href="about:license">&about.license.linkTitle;</a> &about.license.afterLink;</li>
     <li>&about.relnotes.beforeLink; <a id="releaseNotesURL" href="">&about.relnotes.linkTitle;</a> &about.relnotes.afterLink;</li>
+    <li id="readme.debian">&about.readme.debian.beforeLink;<a href="about:README.Debian">&about.readme.debian.linkTitle;</a>&about.readme.debian.afterLink;</li>
+    <li id ="bugs">&about.bugs.beforeLink;<a href="about:bugs">&about.bugs.linkTitle;</a>&about.bugs.afterLink;</li>
     <li>&about.buildconfig.beforeLink; <a href="about:buildconfig">&about.buildconfig.linkTitle;</a> &about.buildconfig.afterLink;</li>
     <script type="application/javascript">
       // get release notes URL from prefs
@@ -97,6 +101,13 @@
         version.appendChild(document.createTextNode("&about.version; " + versionNum));
       }
       catch (ex) { /* no release notes and vendor URL for you without bug 349985 being fixed */ }
+
+      ["readme.debian", "bugs"].forEach(function (name) {
+        var node = document.getElementById(name);
+        if (! Components.classes["@mozilla.org/network/protocol/about;1?what=" +  name]) {
+          node.style.display = "none";
+        }
+      });
 
       var ua = navigator.userAgent;
       if (ua) {
