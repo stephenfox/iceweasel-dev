@@ -18,6 +18,9 @@ iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
     xulrunner.
   * debian/iceweasel.install: Don't install about_debian.js.
   * debian/rules: Use proper flag to disable optimization.
+  * debian/branding/branding.nsi, debian/branding/content/contents.rdf:
+    Removed useless branding files.
+  * debian/branding/locales/en-US/brand.dtd: Removed useless entity.
 
  -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
 
