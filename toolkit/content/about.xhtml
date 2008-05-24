@@ -85,7 +85,11 @@
 
         var vendorURL = formatter.formatURLPref("app.vendorURL");
         var vendor = document.getElementById("vendorURL");
-        vendor.setAttribute("href", vendorURL);
+        if (vendorURL == "about:blank") {
+          vendor.setAttribute("href", "");
+        } else {
+          vendor.setAttribute("href", vendorURL);
+        }
 
         var versionNum = formatter.formatURL("%VERSION%");
         var version = document.getElementById("version");
