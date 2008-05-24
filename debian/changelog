@@ -1,3 +1,111 @@
+xulrunner (1.9~rc1-1) experimental; urgency=low
+
+  * New upstream Release Candidate release (taken from upstream CVS):
+    + Avoid non null terminated strings being considered as such, leading to
+      garbage at the end of drag&dropped content. Closes: #481021.
+  * debian/control: Turn libmozjs-dev into an arch-dependent package, so that
+    arch-dependent jsautocfg.h has the proper content on all architectures.
+    Closes: #480045.
+  * xpcom/reflect/xptcall/src/md/unix/xptcstubs_linux_m68k.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcstubs_mips.cpp: Add missing #include
+    in xptcstubs on m68k and mips. This should finally settle the FTBFSes on
+    these architectures. Closes: #479107.
+  * debian/xulrunner-1.9.postinst: Remove test for 'upgrade', it is not a
+    valid postinst argument.
+  * debian/xulrunner-dev-bin.install, debian/rules: Install mozilla-config.h
+    in arch-dependent xulrunner-dev-bin package.
+  * debian/pyversions: Removed. It is actually useless in our case.
+  * debian/rules:
+    + Fix mozilla-js.pc to provide the proper include directory.
+    + Add a test rule to try to detect xptc invoke/stubs breakages. An
+      xpcshell script should be enough for that purpose.
+    + Add -g to flags given to the assembler.
+    + Make DEB_BUILD_OPTIONS=noopt actually work.
+    + Use objdump -p instead of objdump -x.
+    + Bumped shlibs for libmozjs1d. Also add option for dh_makeshlibs to fail
+      when symbols file is not up-to-date.
+  * debian/libmozjs1d.symbols: Add symbols file for libmozjs1d.
+  * xpcom/reflect/xptcall/src/md/unix/Makefile.in, configure, configure.in:
+    Add -fPIC to flags given to the assembler, and clean-up the Makefile.
+    This will fix current xpcom brokenness on mips.
+  * debian/control:
+    + Added proper conflicts related to python-xpcom to xulrunner-1.9-dbg.
+      Closes:#482471.
+    + Build-Depend on libnspr4-dev >= 4.7.0 instead of wrong 3.7.0 (oops).
+    + Build-Depend on libstartup-notification0-dev.
+  * xpcom/build/nsXPComInit.cpp: Check for GRE_DIR/.autoreg to trigger
+    components auto-registration, so that we can have independent application
+    and xulrunner updates triggering it.
+  * debian/xulrunner-1.9.postinst, debian/postinstrm.in: Don't remove .autoreg
+    file, but create/refresh it.
+  * config/rules.mk: Avoid to remove source .s files on make clean, which
+    broke building again after make clean on architectures having .s source
+    files.
+  * xpcom/reflect/xptcall/src/md/unix/Makefile.in: Build xptcstubs with less
+    optimizations on hppa to avoid g++ outsmarting the assembly code.
+    Closes: #480905.
+  * debian/configure.in: disable mochitest.
+  * xulrunner/installer/Makefile.in, debian/rules: Revert previous change to
+    build as if we were version 1.9 instead of 1.9bn, since milestone is now
+    1.9.
+  * debian/postinstrm.in, debian/rules, debian/xulrunner-1.9.install,
+    debian/xulrunner-1.9.postinst: Don't ship regxpcom, as it is not supported
+    upstream anymore, and generate components registry by a void call to
+    xpcshell, which does the work.
+  * debian/control: Build depends on xvfb, xfonts-base and xauth to be able to
+    launch xulrunner tests.
+  * debian/rules, debian/test: Implement a test application and run it during
+    the test rule. Test both with and without libjemalloc, forcing memory
+    allocation libraries with LD_PRELOAD to avoid relying on what is linked
+    at build time, as it may change in the future. If we built against
+    libjemalloc and the test fails, automatically rebuild without.
+  * js/src/xpconnect/shell/xpcshell.cpp: Drop ancient code in xpcshell that
+    ended up making error messages not being included.
+  * debian/control, debian/rules: Insert carriage returns where lines are too
+    long. This will improve diff readability in the future.
+  * debian/mozconfig:
+    + Enable url-classifier component ; it is needed by iceweasel.
+    + Enable startup-notification.
+  * debian/xulrunner-1.9.install: Don't put nsXULAppInstall.js component in
+    the xulrunner-1.9 package.
+  * debian/control: Adapt conflicts accordingly.
+  * debian/xulrunner-1.9-common.install: Use wildcards to install typelibs
+    and javascript components, since we don't put any in another package.
+  * debian/python-xpcom.install: Add new pyabout.py component.
+  * docshell/base/nsAboutRedirector.cpp: Don't register about:about, which
+    doesn't exist, and register about:, giving it permission to run chrome
+    scripts.
+  * xpfe/appshell/src/Makefile.in, xpfe/appshell/src/nsAppShellFactory.cpp:
+    Remove nsAbout, from appshell, since we made nsAboutRedirector happily
+    replace it.
+  * debian/debAbout.js, debian/rules: Add a component to handle special
+    about:debian, about:bugs and about:readme.debian urls.
+  * modules/libjar/nsJAR.cpp: Apply suggestions from Christian Biesinger in
+    bz#368428. The patch will eventually be applied upstream.
+  * storage/src/mozStorageConnection.cpp,
+    storage/test/unit/test_storage_connection.js: Apply patch from bz#421482
+    to mitigate I/O issues with sqlite fsync()ing.
+  * toolkit/content/Makefile.in, toolkit/content/about.xhtml,
+    toolkit/content/jar.mn: Don't hardcode the XRE version number in the
+    about: page.
+  * toolkit/content/about.xhtml:
+    + Unhide release notes link, but only if app.releaseNotesURL is defined.
+    + Don't put an about:blank link when there is no vendorURL defined.
+    + Add links for about:bugs and about:README.Debian.
+  * toolkit/locales/en-US/chrome/global/about.dtd: Add corresponding en_US
+    strings.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 24 May 2008 19:24:54 +0200
+
+xulrunner (1.8.1.14-3) unstable; urgency=low
+
+  * debian/patches/38_mips_xpcom.dpatch: Add -fPIC to flags given to the
+    assembler, and clean-up the Makefile. This will fix current xpcom
+    brokenness on mips.
+  * debian/patches/99_configure.dpatch: Updated.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 12 May 2008 17:15:45 +0200
+
 xulrunner (1.9~b5-4) experimental; urgency=low
 
   * js/src/jsfun.h: use struct JSArenaPool instead of undefined opaque
