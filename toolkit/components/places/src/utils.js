@@ -49,9 +49,8 @@ var Ci = Components.interfaces;
 var Cc = Components.classes;
 var Cr = Components.results;
 
-Components.utils.import("resource://gre/modules/debug.js");
-
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
+const READ_ONLY_ANNO = "placesInternal/READ_ONLY";
 const LMANNO_FEEDURI = "livemark/feedURI";
 const LMANNO_SITEURI = "livemark/siteURI";
 
@@ -71,7 +70,6 @@ function QI_node(aNode, aIID) {
   }
   catch (e) {
   }
-  NS_ASSERT(result, "Node QI Failed");
   return result;
 }
 function asVisit(aNode)    { return QI_node(aNode, Ci.nsINavHistoryVisitResultNode);    }
@@ -154,7 +152,6 @@ var PlacesUtils = {
    * @returns A URI object for the spec.
    */
   _uri: function PU__uri(aSpec) {
-    NS_ASSERT(aSpec, "empty URL spec");
     return Cc["@mozilla.org/network/io-service;1"].
            getService(Ci.nsIIOService).
            newURI(aSpec, null, null);
@@ -187,7 +184,6 @@ var PlacesUtils = {
    * @returns true if the node is a Bookmark folder, false otherwise
    */
   nodeIsFolder: function PU_nodeIsFolder(aNode) {
-    NS_ASSERT(aNode, "null node");
     return (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
             aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT);
   },
@@ -199,7 +195,6 @@ var PlacesUtils = {
    * @returns true if the node represents a bookmarked URI, false otherwise
    */
   nodeIsBookmark: function PU_nodeIsBookmark(aNode) {
-    NS_ASSERT(aNode, "null node");
     return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_URI &&
            aNode.itemId != -1;
   },
@@ -211,7 +206,6 @@ var PlacesUtils = {
    * @returns true if the node is a Bookmark separator, false otherwise
    */
   nodeIsSeparator: function PU_nodeIsSeparator(aNode) {
-    NS_ASSERT(aNode, "null node");
 
     return (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR);
   },
@@ -223,8 +217,6 @@ var PlacesUtils = {
    * @returns true if the node is a visit item, false otherwise
    */
   nodeIsVisit: function PU_nodeIsVisit(aNode) {
-    NS_ASSERT(aNode, "null node");
-
     const NHRN = Ci.nsINavHistoryResultNode;
     var type = aNode.type;
     return type == NHRN.RESULT_TYPE_VISIT ||
@@ -241,7 +233,6 @@ var PlacesUtils = {
              Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT,
              Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT],
   nodeIsURI: function PU_nodeIsURI(aNode) {
-    NS_ASSERT(aNode, "null node");
     return this.uriTypes.indexOf(aNode.type) != -1;
   },
 
@@ -252,7 +243,6 @@ var PlacesUtils = {
    * @returns true if the node is a Query item, false otherwise
    */
   nodeIsQuery: function PU_nodeIsQuery(aNode) {
-    NS_ASSERT(aNode, "null node");
     return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY;
   },
 
@@ -264,12 +254,12 @@ var PlacesUtils = {
    * @returns true if the node is readonly, false otherwise
    */
   nodeIsReadOnly: function PU_nodeIsReadOnly(aNode) {
-    NS_ASSERT(aNode, "null node");
-
     if (this.nodeIsFolder(aNode))
       return this.bookmarks.getFolderReadonly(asQuery(aNode).folderItemId);
-    if (this.nodeIsQuery(aNode))
-      return asQuery(aNode).childrenReadOnly;
+    if (this.nodeIsQuery(aNode) &&
+        asQuery(aNode).queryOptions.resultType !=
+          Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_CONTENTS)
+      return aNode.childrenReadOnly;
     return false;
   },
 
@@ -280,7 +270,6 @@ var PlacesUtils = {
    * @returns true if the node is a host container, false otherwise
    */
   nodeIsHost: function PU_nodeIsHost(aNode) {
-    NS_ASSERT(aNode, "null node");
     return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY &&
            aNode.parent &&
            asQuery(aNode.parent).queryOptions.resultType ==
@@ -294,13 +283,24 @@ var PlacesUtils = {
    * @returns true if the node is a day container, false otherwise
    */
   nodeIsDay: function PU_nodeIsDay(aNode) {
-    NS_ASSERT(aNode, "null node");
     var resultType;
     return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY &&
            aNode.parent &&
            ((resultType = asQuery(aNode.parent).queryOptions.resultType) ==
                Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY ||
              resultType == Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY);
+  },
+
+  /**
+   * Determines whether or not a result-node is a tag container.
+   * @param   aNode
+   *          A result-node
+   * @returns true if the node is a tag container, false otherwise
+   */
+  nodeIsTagQuery: function PU_nodeIsTagQuery(aNode) {
+    return aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY &&
+           asQuery(aNode).queryOptions.resultType ==
+             Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_CONTENTS;
   },
 
   /**
@@ -314,8 +314,24 @@ var PlacesUtils = {
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY,
                    Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER],
   nodeIsContainer: function PU_nodeIsContainer(aNode) {
-    NS_ASSERT(aNode, "null node");
     return this.containerTypes.indexOf(aNode.type) != -1;
+  },
+
+  /**
+   * Determines whether or not a ResultNode is an history related container.
+   * @param   node
+   *          A result node
+   * @returns true if the node is an history related container, false otherwise
+   */
+  nodeIsHistoryContainer: function PU_nodeIsHistoryContainer(aNode) {
+    var resultType;
+    return this.nodeIsQuery(aNode) &&
+           ((resultType = asQuery(aNode).queryOptions.resultType) ==
+              Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY ||
+            resultType == Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY ||
+            resultType == Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY ||
+            this.nodeIsDay(aNode) ||
+            this.nodeIsHost(aNode));
   },
 
   /**
@@ -328,7 +344,6 @@ var PlacesUtils = {
    * @returns true if the node is a dynamic container item, false otherwise
    */
   nodeIsDynamicContainer: function PU_nodeIsDynamicContainer(aNode) {
-    NS_ASSERT(aNode, "null node");
     if (aNode.type == NHRN.RESULT_TYPE_DYNAMIC_CONTAINER)
       return true;
     return false;
@@ -365,8 +380,6 @@ var PlacesUtils = {
    * @returns true if the node is a readonly folder.
   */
   isReadonlyFolder: function(aNode) {
-    NS_ASSERT(aNode, "null node");
-
     return this.nodeIsFolder(aNode) &&
            this.bookmarks.getFolderReadonly(asQuery(aNode).folderItemId);
   },
@@ -378,6 +391,13 @@ var PlacesUtils = {
   getConcreteItemId: function PU_getConcreteItemId(aNode) {
     if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT)
       return asQuery(aNode).folderItemId;
+    else if (PlacesUtils.nodeIsTagQuery(aNode)) {
+      // RESULTS_AS_TAG_CONTENTS queries are similar to folder shortcuts
+      // so we can still get the concrete itemId for them.
+      var queries = aNode.getQueries({});
+      var folders = queries[0].getFolders({});
+      return folders[0];
+    }
     return aNode.itemId;
   },
 
@@ -389,8 +409,6 @@ var PlacesUtils = {
    *          node was not found or the node specified has no parent.
    */
   getIndexOfNode: function PU_getIndexOfNode(aNode) {
-    NS_ASSERT(aNode, "null node");
-
     var parent = aNode.parent;
     if (!parent)
       return -1;
@@ -422,9 +440,11 @@ var PlacesUtils = {
    *          Used instead of the node's URI if provided.
    *          This is useful for wrapping a container as TYPE_X_MOZ_URL,
    *          TYPE_HTML or TYPE_UNICODE.
+   * @param   aForceCopy
+   *          Does a full copy, resolving folder shortcuts.
    * @returns A string serialization of the node
    */
-  wrapNode: function PU_wrapNode(aNode, aType, aOverrideURI) {
+  wrapNode: function PU_wrapNode(aNode, aType, aOverrideURI, aForceCopy) {
     var self = this;
 
     // when wrapping a node, we want all the items, even if the original
@@ -432,8 +452,10 @@ var PlacesUtils = {
     // this can happen when copying from the left hand pane of the bookmarks
     // organizer
     function convertNode(cNode) {
-      if (self.nodeIsFolder(cNode) && asQuery(cNode).queryOptions.excludeItems)
-          return self.getFolderContents(cNode.itemId, false, true).root;
+      if (self.nodeIsFolder(cNode) && asQuery(cNode).queryOptions.excludeItems) {
+        var concreteId = self.getConcreteItemId(cNode);
+        return self.getFolderContents(concreteId, false, true).root;
+      }
       return cNode;
     }
 
@@ -447,7 +469,7 @@ var PlacesUtils = {
             this.value += aStr;
           }
         };
-        self.serializeNodeAsJSONToOutputStream(aNode, writer);
+        self.serializeNodeAsJSONToOutputStream(convertNode(aNode), writer, true, aForceCopy);
         return writer.value;
       case this.TYPE_X_MOZ_URL:
         function gatherDataUrl(bNode) {
@@ -473,7 +495,7 @@ var PlacesUtils = {
             return s;
           }
           // escape out potential HTML in the title
-          var escapedTitle = htmlEscape(bNode.title);
+          var escapedTitle = bNode.title ? htmlEscape(bNode.title) : "";
           if (self.nodeIsLivemarkContainer(bNode)) {
             var siteURI = self.livemarks.getSiteURI(bNode.itemId).spec;
             return "<A HREF=\"" + siteURI + "\">" + escapedTitle + "</A>" + NEWLINE;
@@ -549,12 +571,8 @@ var PlacesUtils = {
       case this.TYPE_X_MOZ_PLACE:
       case this.TYPE_X_MOZ_PLACE_SEPARATOR:
       case this.TYPE_X_MOZ_PLACE_CONTAINER:
-        try {
-          var JSON = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
-          nodes = JSON.decode("[" + blob + "]");
-        } catch(ex) {
-          LOG("unwrapNodes(): JSON.decode(): " + ex);
-        }
+        var JSON = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
+        nodes = JSON.decode("[" + blob + "]");
         break;
       case this.TYPE_X_MOZ_URL:
         var parts = blob.split("\n");
@@ -579,7 +597,8 @@ var PlacesUtils = {
           // note:  this._uri() will throw if uriString is not a valid URI
           if (this._uri(uriString)) {
             nodes.push({ uri: uriString,
-                         title: titleString ? titleString : uriString });
+                         title: titleString ? titleString : uriString ,
+                         type: this.TYPE_X_MOZ_URL });
           }
         }
         break;
@@ -589,7 +608,9 @@ var PlacesUtils = {
           var uriString = parts[i];
           // note: this._uri() will throw if uriString is not a valid URI
           if (uriString != "" && this._uri(uriString))
-            nodes.push({ uri: uriString, title: uriString });
+            nodes.push({ uri: uriString,
+                         title: uriString,
+                         type: this.TYPE_X_MOZ_URL });
         }
         break;
       default:
@@ -892,11 +913,44 @@ var PlacesUtils = {
     return -1;
   },
 
+  // Returns true if a container has uris in its first level
+  // Has better performances than checking getURLsForContainerNode(node).length
+  hasChildURIs: function PU_hasChildURIs(aNode) {
+    if (!this.nodeIsContainer(aNode))
+      return false;
+
+    // in the Library left pane we use excludeItems
+    if (this.nodeIsFolder(aNode) && asQuery(aNode).queryOptions.excludeItems) {
+      var itemId = PlacesUtils.getConcreteItemId(aNode);
+      var contents = this.getFolderContents(itemId, false, false).root;
+      for (var i = 0; i < contents.childCount; ++i) {
+        var child = contents.getChild(i);
+        if (this.nodeIsURI(child))
+          return true;
+      }
+      return false;
+    }
+
+    var wasOpen = aNode.containerOpen;
+    if (!wasOpen)
+      aNode.containerOpen = true;
+    var found = false;
+    for (var i = 0; i < aNode.childCount && !found; i++) {
+      var child = aNode.getChild(i);
+      if (this.nodeIsURI(child))
+        found = true;
+    }
+    if (!wasOpen)
+      aNode.containerOpen = false;
+    return found;
+  },
+
   getURLsForContainerNode: function PU_getURLsForContainerNode(aNode) {
     let urls = [];
     if (this.nodeIsFolder(aNode) && asQuery(aNode).queryOptions.excludeItems) {
       // grab manually
-      let contents = this.getFolderContents(aNode.itemId, false, false).root;
+      var itemId = this.getConcreteItemId(aNode);
+      let contents = this.getFolderContents(itemId, false, false).root;
       for (let i = 0; i < contents.childCount; ++i) {
         let child = contents.getChild(i);
         if (this.nodeIsURI(child))
@@ -944,34 +998,15 @@ var PlacesUtils = {
    * Restores bookmarks/tags from a JSON file.
    * WARNING: This method *removes* any bookmarks in the collection before
    * restoring from the file.
-   */
-  restoreBookmarksFromFile: function PU_restoreBookmarksFromFile(aFile) {
-    var ioSvc = Cc["@mozilla.org/network/io-service;1"].
-                 getService(Ci.nsIIOService);
-    var fileURL = ioSvc.newFileURI(aFile).QueryInterface(Ci.nsIURL);
-    var fileExtension = fileURL.fileExtension.toLowerCase();
-    if (fileExtension == "json")
-      this.restoreBookmarksFromJSONFile(aFile);
-    else {
-      const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
-      var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
-                           getService(Ci.nsIStringBundleService).
-                           createBundle(BRANDING_BUNDLE_URI).
-                           GetStringFromName("brandShortName");
-      var errorStr = this.getString("restoreFormatError");
-      Cc["@mozilla.org/embedcomp/prompt-service;1"].
-        getService(Ci.nsIPromptService).
-        alert(window, brandShortName, errorStr);
-    }
-  },
-
-  /**
-   * Restores bookmarks/tags from a JSON file.
-   * WARNING: This method *removes* any bookmarks in the collection before
-   * restoring from the file.
+   *
+   * @param aFile
+   *        nsIFile of bookmarks in JSON format to be restored.
+   * @param aExcludeItems
+   *        Array of root item ids (ie: children of the places root)
+   *        to not delete when restoring.
    */
   restoreBookmarksFromJSONFile:
-  function PU_restoreBookmarksFromJSONFile(aFile) {
+  function PU_restoreBookmarksFromJSONFile(aFile, aExcludeItems) {
     // open file stream
     var stream = Cc["@mozilla.org/network/file-input-stream;1"].
                  createInstance(Ci.nsIFileInputStream);
@@ -991,7 +1026,7 @@ var PlacesUtils = {
     if (jsonStr.length == 0)
       return; // empty file
 
-    this.restoreBookmarksFromJSONString(jsonStr, true);
+    this.restoreBookmarksFromJSONString(jsonStr, true, aExcludeItems);
   },
 
   /**
@@ -1001,17 +1036,14 @@ var PlacesUtils = {
    *        JSON string of serialized bookmark data.
    * @param aReplace
    *        Boolean if true, replace existing bookmarks, else merge.
+   * @param aExcludeItems
+   *        Array of root item ids (ie: children of the places root)
+   *        to not delete when restoring.
    */
   restoreBookmarksFromJSONString:
-  function PU_restoreBookmarksFromJSONString(aString, aReplace) {
+  function PU_restoreBookmarksFromJSONString(aString, aReplace, aExcludeItems) {
     // convert string to JSON
-    var nodes = null;
-    try {
-      nodes = this.unwrapNodes(aString, this.TYPE_X_MOZ_PLACE_CONTAINER);
-    } catch (ex) {
-      LOG("restoreBookmarksFromJSONString(): " + ex);
-      return;
-    }
+    var nodes = this.unwrapNodes(aString, this.TYPE_X_MOZ_PLACE_CONTAINER);
 
     if (nodes.length == 0 || !nodes[0].children ||
         nodes[0].children.length == 0)
@@ -1024,58 +1056,97 @@ var PlacesUtils = {
     });
 
     var batch = {
+      _utils: this,
       nodes: nodes[0].children,
       runBatched: function restore_runBatched() {
-        this.nodes.forEach(function(node) {
-          var root = node.root;
-          // FIXME support folders other than known roots
-          // restoring the library left pane, for example, breaks the library
-          if (!root)
-            return;
+        if (aReplace) {
+          var excludeItems = aExcludeItems || [];
+          // delete existing children of the root node, excepting:
+          // 1. special folders: delete the child nodes 
+          // 2. tags folder: untag via the tagging api
+          var query = this._utils.history.getNewQuery();
+          query.setFolders([this._utils.placesRootId], 1);
+          var options = this._utils.history.getNewQueryOptions();
+          options.expandQueries = false;
+          var root = this._utils.history.executeQuery(query, options).root;
+          root.containerOpen = true;
+          var childIds = [];
+          for (var i = 0; i < root.childCount; i++) {
+            var childId = root.getChild(i).itemId;
+            if (excludeItems.indexOf(childId) == -1)
+              childIds.push(childId);
+          }
+          root.containerOpen = false;
 
+          for (var i = 0; i < childIds.length; i++) {
+            var rootItemId = childIds[i];
+            if (rootItemId == this._utils.tagsFolderId) {
+              // remove tags via the tagging service
+              var tags = this._utils.tagging.allTags;
+              var uris = [];
+              for (let i in tags) {
+                var tagURIs = this._utils.tagging.getURIsForTag(tags[i]);
+                for (let j in tagURIs)
+                  this._utils.tagging.untagURI(tagURIs[j], [tags[i]]);
+              }
+            }
+            else if ([this._utils.toolbarFolderId,
+                      this._utils.unfiledBookmarksFolderId,
+                      this._utils.bookmarksMenuFolderId].indexOf(rootItemId) != -1)
+              this._utils.bookmarks.removeFolderChildren(rootItemId);
+            else
+              this._utils.bookmarks.removeItem(rootItemId);
+          }
+        }
+
+        var searchIds = [];
+        var folderIdMap = [];
+
+        this.nodes.forEach(function(node) {
           if (!node.children || node.children.length == 0)
             return; // nothing to restore for this root
 
-          var container = this.placesRootId; // default to places root
-          switch (root) {
-            case "bookmarksMenuFolder":
-              container = this.bookmarksMenuFolderId;
-              break;
-            case "tagsFolder":
-              container = this.tagsFolderId;
-              break;
-            case "unfiledBookmarksFolder":
-              container = this.unfiledBookmarksFolderId;
-              break;
-            case "toolbarFolder":
-              container = this.toolbarFolderId;
-              break;
-          }
-
-          if (aReplace) {
-            if (container != this.tagsFolderId)
-              this.bookmarks.removeFolderChildren(container);
-            else {
-                // remove tags via the tagging service
-                var tags = this.tagging.allTags;
-                var uris = [];
-                for (let i in tags) {
-                  var tagURIs = this.tagging.getURIsForTag(tags[i]);
-                  for (let i in tagURIs)
-                    this.tagging.untagURI(tagURIs[i], [tags[i]]);
-                }
+          if (node.root) {
+            var container = this.placesRootId; // default to places root
+            switch (node.root) {
+              case "bookmarksMenuFolder":
+                container = this.bookmarksMenuFolderId;
+                break;
+              case "tagsFolder":
+                container = this.tagsFolderId;
+                break;
+              case "unfiledBookmarksFolder":
+                container = this.unfiledBookmarksFolderId;
+                break;
+              case "toolbarFolder":
+                container = this.toolbarFolderId;
+                break;
             }
+ 
+            // insert the data into the db
+            node.children.forEach(function(child) {
+              var index = child.index;
+              var [folders, searches] = this.importJSONNode(child, container, index);
+              folderIdMap = folderIdMap.concat(folders);
+              searchIds = searchIds.concat(searches);
+            }, this);
           }
+          else
+            this.importJSONNode(node, this.placesRootId, node.index);
 
-          // insert the data into the db
-          node.children.forEach(function(child) {
-            var index = child.index;
-            this.importJSONNode(child, container, index);
-          }, this);
-        }, PlacesUtils);
+        }, this._utils);
+
+        // fixup imported place: uris that contain folders
+        searchIds.forEach(function(aId) {
+          var oldURI = this.bookmarks.getBookmarkURI(aId);
+          var uri = this._fixupQuery(this.bookmarks.getBookmarkURI(aId),
+                                     folderIdMap);
+          if (!uri.equals(oldURI))
+            this.bookmarks.changeBookmarkURI(aId, uri);
+        }, this._utils);
       }
     };
-    
+
     this.bookmarks.runInBatchMode(batch, null);
   },
 
@@ -1088,9 +1159,13 @@ var PlacesUtils = {
    *          The container the data was dropped or pasted into
    * @param   aIndex
    *          The index within the container the item was dropped or pasted at
+   * @returns an array containing of maps of old folder ids to new folder ids,
+   *          and an array of saved search ids that need to be fixed up.
+   *          eg: [[[oldFolder1, newFolder1]], [search1]]
    */
   importJSONNode: function PU_importJSONNode(aData, aContainer, aIndex) {
-    // create item
+    var folderIdMap = [];
+    var searchIds = [];
     var id = -1;
     switch (aData.type) {
       case this.TYPE_X_MOZ_PLACE_CONTAINER:
@@ -1099,7 +1174,7 @@ var PlacesUtils = {
             aData.children.forEach(function(aChild) {
               this.tagging.tagURI(this._uri(aChild.uri), [aData.title]);
             }, this);
-            return;
+            return [folderIdMap, searchIds];
           }
         }
         else if (aData.livemark && aData.annos) {
@@ -1123,10 +1198,13 @@ var PlacesUtils = {
         }
         else {
           id = this.bookmarks.createFolder(aContainer, aData.title, aIndex);
+          folderIdMap.push([aData.id, id]);
           // process children
           if (aData.children) {
             aData.children.every(function(aChild, aIndex) {
-              this.importJSONNode(aChild, id, aIndex);
+              var [folderIds, searches] = this.importJSONNode(aChild, id, aIndex);
+              folderIdMap = folderIdMap.concat(folderIds);
+              searchIds = searchIds.concat(searches);
               return true;
             }, this);
           }
@@ -1136,6 +1214,15 @@ var PlacesUtils = {
         id = this.bookmarks.insertBookmark(aContainer, this._uri(aData.uri), aIndex, aData.title);
         if (aData.keyword)
           this.bookmarks.setKeywordForBookmark(id, aData.keyword);
+        if (aData.tags) {
+          var tags = aData.tags.split(", ");
+          if (tags.length)
+            this.tagging.tagURI(this._uri(aData.uri), tags);
+        }
+        if (aData.charset)
+          this.history.setCharsetForURI(this._uri(aData.uri), aData.charset);
+        if (aData.uri.match(/^place:/))
+          searchIds.push(id);
         break;
       case this.TYPE_X_MOZ_PLACE_SEPARATOR:
         id = this.bookmarks.insertSeparator(aContainer, aIndex);
@@ -1150,23 +1237,73 @@ var PlacesUtils = {
       if (aData.annos)
         this.setAnnotationsForItem(id, aData.annos);
     }
+
+    return [folderIdMap, searchIds];
+  },
+
+  /**
+   * Replaces imported folder ids with their local counterparts in a place: URI.
+   *
+   * @param   aURI
+   *          A place: URI with folder ids.
+   * @param   aFolderIdMap
+   *          An array mapping old folder id to new folder ids.
+   * @returns the fixed up URI if all matched. If some matched, it returns
+   *          the URI with only the matching folders included. If none matched it
+   *          returns the input URI unchanged.
+   */
+  _fixupQuery: function PU__fixupQuery(aQueryURI, aFolderIdMap) {
+    var queries = {};
+    var options = {};
+    this.history.queryStringToQueries(aQueryURI.spec, queries, {}, options);
+
+    var fixedQueries = [];
+    queries.value.forEach(function(aQuery) {
+      var folders = aQuery.getFolders({});
+
+      var newFolders = [];
+      aFolderIdMap.forEach(function(aMapping) {
+        if (folders.indexOf(aMapping[0]) != -1)
+          newFolders.push(aMapping[1]);
+      });
+
+      if (newFolders.length)
+        aQuery.setFolders(newFolders, newFolders.length);
+      fixedQueries.push(aQuery);
+    });
+
+    var stringURI = this.history.queriesToQueryString(fixedQueries,
+                                                      fixedQueries.length,
+                                                      options.value);
+    return this._uri(stringURI);
   },
 
   /**
    * Serializes the given node (and all it's descendents) as JSON
    * and writes the serialization to the given output stream.
    * 
-   * @param aNode   - a nsINavHistoryResultNode
-   * @param aStream - a nsIOutputStream. NOTE: it only uses the write(str, len)
-   *                  method of nsIOutputStream. The caller is responsible for
-   *                  closing the stream.
+   * @param   aNode
+   *          An nsINavHistoryResultNode
+   * @param   aStream
+   *          An nsIOutputStream. NOTE: it only uses the write(str, len)
+   *          method of nsIOutputStream. The caller is responsible for
+   *          closing the stream.
+   * @param   aIsUICommand
+   *          Boolean - If true, modifies serialization so that each node self-contained.
+   *          For Example, tags are serialized inline with each bookmark.
+   * @param   aResolveShortcuts
+   *          Converts folder shortcuts into actual folders. 
+   * @param   aExcludeItems
+   *          An array of item ids that should not be written to the backup.
    */
   serializeNodeAsJSONToOutputStream:
-  function PU_serializeNodeAsJSONToOutputStream(aNode, aStream) {
+  function PU_serializeNodeAsJSONToOutputStream(aNode, aStream, aIsUICommand,
+                                                aResolveShortcuts,
+                                                aExcludeItems) {
     var self = this;
     
     function addGenericProperties(aPlacesNode, aJSNode) {
-      aJSNode.title = unescape(encodeURIComponent(aPlacesNode.title));
+      aJSNode.title = aPlacesNode.title;
       var id = aPlacesNode.itemId;
       if (id != -1) {
         aJSNode.id = id;
@@ -1189,8 +1326,12 @@ var PlacesUtils = {
             // backup/restore of non-whitelisted annos
             // XXX causes JSON encoding errors, so utf-8 encode
             //anno.value = unescape(encodeURIComponent(anno.value));
-            if (anno.name == "livemark/feedURI")
+            if (anno.name == LMANNO_FEEDURI)
               aJSNode.livemark = 1;
+            if (anno.name == READ_ONLY_ANNO && aResolveShortcuts) {
+              // When copying a read-only node, remove the read-only annotation.
+              return false;
+            }
             return anno.name != "placesInternal/GUID";
           });
         } catch(ex) {
@@ -1211,6 +1352,16 @@ var PlacesUtils = {
         if (keyword)
           aJSNode.keyword = keyword;
       }
+
+      var tags = aIsUICommand ? aPlacesNode.tags : null;
+      if (tags)
+        aJSNode.tags = tags;
+
+      // last character-set
+      var uri = self._uri(aPlacesNode.uri);
+      var lastCharset = self.history.getCharsetForURI(uri);
+      if (lastCharset)
+        aJSNode.charset = lastCharset;
     }
 
     function addSeparatorProperties(aPlacesNode, aJSNode) {
@@ -1219,13 +1370,19 @@ var PlacesUtils = {
 
     function addContainerProperties(aPlacesNode, aJSNode) {
       // saved queries
-      if (aJSNode.id != -1 &&
-          self.bookmarks.getItemType(aJSNode.id) == self.bookmarks.TYPE_BOOKMARK) {
+      var concreteId = PlacesUtils.getConcreteItemId(aPlacesNode);
+      if (aJSNode.id != -1 && (PlacesUtils.nodeIsQuery(aPlacesNode) ||
+          (concreteId != aPlacesNode.itemId && !aResolveShortcuts))) {
         aJSNode.type = self.TYPE_X_MOZ_PLACE;
         aJSNode.uri = aPlacesNode.uri;
+        // folder shortcut
+        if (aIsUICommand)
+          aJSNode.concreteId = concreteId;
         return;
       }
       else if (aJSNode.id != -1) { // bookmark folder
+        if (concreteId != aPlacesNode.itemId)
+        aJSNode.type = self.TYPE_X_MOZ_PLACE;
         aJSNode.type = self.TYPE_X_MOZ_PLACE_CONTAINER;
         // mark special folders
         if (aJSNode.id == self.bookmarks.placesRoot)
@@ -1249,14 +1406,15 @@ var PlacesUtils = {
     }
 
     function writeComplexNode(aStream, aNode, aSourceNode) {
+      var escJSONStringRegExp = /(["\\])/g;
       // write prefix
       var properties = [];
       for (let [name, value] in Iterator(aNode)) {
         if (name == "annos")
           value = self.toJSONString(value);
         else if (typeof value == "string")
-          value = "\"" + value + "\"";
-        properties.push("\"" + name + "\":" + value);
+          value = "\"" + value.replace(escJSONStringRegExp, '\\$1') + "\"";
+        properties.push("\"" + name.replace(escJSONStringRegExp, '\\$1') + "\":" + value);
       }
       var jStr = "{" + properties.join(",") + ",\"children\":[";
       aStream.write(jStr, jStr.length);
@@ -1264,14 +1422,20 @@ var PlacesUtils = {
       // write child nodes
       if (!aNode.livemark) {
         asContainer(aSourceNode);
-        aSourceNode.containerOpen = true;
+        var wasOpen = aSourceNode.containerOpen;
+        if (!wasOpen)
+          aSourceNode.containerOpen = true;
         var cc = aSourceNode.childCount;
         for (var i = 0; i < cc; ++i) {
+          var childNode = aSourceNode.getChild(i);
+          if (aExcludeItems && aExcludeItems.indexOf(childNode.itemId) != -1)
+            continue;
           if (i != 0)
             aStream.write(",", 1);
           serializeNodeToJSONStream(aSourceNode.getChild(i), i);
         }
-        aSourceNode.containerOpen = false;
+        if (!wasOpen)
+          aSourceNode.containerOpen = false;
       }
 
       // write suffix
@@ -1307,7 +1471,7 @@ var PlacesUtils = {
   },
 
   // XXX testing serializers
-  toJSONString: function PIO_toJSONString(aObj) {
+  toJSONString: function PU_toJSONString(aObj) {
     var JSON = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
     return JSON.encode(aObj);
   },
@@ -1315,14 +1479,27 @@ var PlacesUtils = {
   /**
    * Serializes bookmarks using JSON, and writes to the supplied file.
    */
-  backupBookmarksToFile: function PIO_backupBookmarksToFile(aFile) {
+  backupBookmarksToFile: function PU_backupBookmarksToFile(aFile, aExcludeItems) {
     if (aFile.exists() && !aFile.isWritable())
       return; // XXX
 
     // init stream
-    var stream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
+    var stream = Cc["@mozilla.org/network/file-output-stream;1"].
                  createInstance(Ci.nsIFileOutputStream);
     stream.init(aFile, 0x02 | 0x08 | 0x20, 0600, 0);
+
+    // utf-8 converter stream
+    var converter = Cc["@mozilla.org/intl/converter-output-stream;1"].
+                 createInstance(Ci.nsIConverterOutputStream);
+    converter.init(stream, "UTF-8", 0, 0x0000);
+
+    // weep over stream interface variance
+    var streamProxy = {
+      converter: converter,
+      write: function(aData, aLen) {
+        this.converter.writeString(aData);
+      }
+    };
 
     // query places root
     var options = this.history.getNewQueryOptions();
@@ -1332,14 +1509,13 @@ var PlacesUtils = {
     var result = this.history.executeQuery(query, options);
     result.root.containerOpen = true;
     // serialize as JSON, write to stream
-    this.serializeNodeAsJSONToOutputStream(result.root, stream);
+    this.serializeNodeAsJSONToOutputStream(result.root, streamProxy,
+                                           false, false, aExcludeItems);
     result.root.containerOpen = false;
 
-    // close stream
-    if (stream instanceof Ci.nsISafeOutputStream)
-      stream.finish();
-    else
-      stream.close();
+    // close converter and stream
+    converter.close();
+    stream.close();
   },
 
   /**
@@ -1387,19 +1563,30 @@ var PlacesUtils = {
         }
       }
 
-      if (aNumberOfBackups > 0 && backupFileNames.length >= aNumberOfBackups) {
-        var numberOfBackupsToDelete = backupFileNames.length - aNumberOfBackups;
+      var numberOfBackupsToDelete = 0;
+      if (aNumberOfBackups > -1)
+        numberOfBackupsToDelete = backupFileNames.length - aNumberOfBackups;
+
+      if (numberOfBackupsToDelete > 0) {
+        // If we don't have today's backup, remove one more so that
+        // the total backups after this operation does not exceed the
+        // number specified in the pref.
+        if (!backupFile)
+          numberOfBackupsToDelete++;
+
         backupFileNames.sort();
         while (numberOfBackupsToDelete--) {
-          backupFile = bookmarksBackupDir.clone();
+          let backupFile = bookmarksBackupDir.clone();
           backupFile.append(backupFileNames[0]);
           backupFile.remove(false);
           backupFileNames.shift();
         }
       }
 
-      if (backupFile)
-        return; // already have today's backup, job done
+      // do nothing if we either have today's backup already
+      // or the user has set the pref to zero.
+      if (backupFile || aNumberOfBackups == 0)
+        return;
     }
 
     backupFile = bookmarksBackupDir.clone();

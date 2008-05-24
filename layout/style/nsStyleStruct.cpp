@@ -272,10 +272,8 @@ nsStyleMargin::Destroy(nsPresContext* aContext) {
 void nsStyleMargin::RecalcData()
 {
   if (IsFixedData(mMargin, PR_FALSE)) {
-    nsStyleCoord coord;
     NS_FOR_CSS_SIDES(side) {
-      mCachedMargin.side(side) =
-        CalcCoord(mMargin.Get(side, coord), nsnull, 0);
+      mCachedMargin.side(side) = CalcCoord(mMargin.Get(side), nsnull, 0);
     }
     mHasCachedMargin = PR_TRUE;
   }
@@ -329,10 +327,8 @@ nsStylePadding::Destroy(nsPresContext* aContext) {
 void nsStylePadding::RecalcData()
 {
   if (IsFixedData(mPadding, PR_FALSE)) {
-    nsStyleCoord coord;
     NS_FOR_CSS_SIDES(side) {
-      mCachedPadding.side(side) =
-        CalcCoord(mPadding.Get(side, coord), nsnull, 0);
+      mCachedPadding.side(side) = CalcCoord(mPadding.Get(side), nsnull, 0);
     }
     mHasCachedPadding = PR_TRUE;
   }
@@ -1521,10 +1517,18 @@ nsStyleTextReset::~nsStyleTextReset(void) { }
 
 nsChangeHint nsStyleTextReset::CalcDifference(const nsStyleTextReset& aOther) const
 {
-  if (mVerticalAlign == aOther.mVerticalAlign &&
-      mUnicodeBidi == aOther.mUnicodeBidi &&
-      mTextDecoration == aOther.mTextDecoration)
+  if (mVerticalAlign == aOther.mVerticalAlign
+      && mUnicodeBidi == aOther.mUnicodeBidi) {
+    if (mTextDecoration != aOther.mTextDecoration) {
+      // Reflow for blink changes, repaint for others
+      return
+        (mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) ==
+        (aOther.mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) ?
+          NS_STYLE_HINT_VISUAL : NS_STYLE_HINT_REFLOW;
+    }
+
     return NS_STYLE_HINT_NONE;
+  }
   return NS_STYLE_HINT_REFLOW;
 }
 

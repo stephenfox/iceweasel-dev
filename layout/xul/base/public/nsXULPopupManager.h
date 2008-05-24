@@ -77,13 +77,6 @@ class nsIMenuParent;
 class nsIDOMKeyEvent;
 class nsIDocShellTreeItem;
 
-enum nsPopupType {
-  ePopupTypePanel,
-  ePopupTypeMenu,
-  ePopupTypeTooltip,
-  ePopupTypeAny = 0xF000 // used only to pass to GetTopPopup
-};
-
 // when a menu command is executed, the closemenu attribute may be used
 // to define how the menu should be closed up
 enum CloseMenuMode {
@@ -429,6 +422,10 @@ public:
    * measured in CSS pixels.
    *
    * This fires the popupshowing event synchronously.
+   * 
+   * If aIsContextMenu is true, the popup is positioned at a slight
+   * offset from aXPos/aYPos to ensure that it is not under the mouse
+   * cursor.
    */
   void ShowPopupAtScreen(nsIContent* aPopup,
                          PRInt32 aXPos, PRInt32 aYPos,

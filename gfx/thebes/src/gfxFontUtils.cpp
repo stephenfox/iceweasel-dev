@@ -220,7 +220,7 @@ static const struct UnicodeRangeTableEntry gUnicodeRanges[] = {
 
 
 nsresult
-gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRInt32 aLength, gfxSparseBitSet& aCharacterMap, std::bitset<128>& aUnicodeRanges) 
+gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRInt32 aLength, gfxSparseBitSet& aCharacterMap) 
 {
     enum {
         OffsetFormat = 0,
@@ -260,7 +260,7 @@ gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRInt32 aLength, gfxSparseBit
 }
 
 nsresult 
-gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRInt32 aLength, gfxSparseBitSet& aCharacterMap, std::bitset<128>& aUnicodeRanges)
+gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRInt32 aLength, gfxSparseBitSet& aCharacterMap)
 {
     enum {
         OffsetFormat = 0,
@@ -335,9 +335,13 @@ gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRInt32 aLength, gfxSparseBitS
     #define isSymbol(p,e)               ((e) == EncodingIDSymbol)
 #endif
 
+#define acceptableUCS4Encoding(p, e) \
+    ((platformID == PlatformIDMicrosoft && encodingID == EncodingIDUCS4ForMicrosoftPlatform) || \
+     (platformID == PlatformIDUnicode   && encodingID == EncodingIDUCS4ForUnicodePlatform))
+
 nsresult
-gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap, std::bitset<128>& aUnicodeRanges, 
-    PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont)
+gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap, 
+                       PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont)
 {
     enum {
         OffsetVersion = 0,
@@ -358,7 +362,8 @@ gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCha
     enum {
         EncodingIDSymbol = 0,
         EncodingIDMicrosoft = 1,
-        EncodingIDUCS4 = 10
+        EncodingIDUCS4ForUnicodePlatform = 3,
+        EncodingIDUCS4ForMicrosoftPlatform = 10
     };
 
     PRUint16 version = ReadShortAt(aBuf, OffsetVersion);
@@ -390,9 +395,13 @@ gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCha
             keepOffset = offset;
             break;
         } else if (format == 4 && acceptableFormat4(platformID, encodingID, keepFormat)) {
+            aUnicodeFont = PR_TRUE;
+            aSymbolFont = PR_FALSE;
             keepFormat = format;
             keepOffset = offset;
-        } else if (format == 12 && encodingID == EncodingIDUCS4) {
+        } else if (format == 12 && acceptableUCS4Encoding(platformID, encodingID)) {
+            aUnicodeFont = PR_TRUE;
+            aSymbolFont = PR_FALSE;
             keepFormat = format;
             keepOffset = offset;
             break; // we don't want to try anything else when this format is available.
@@ -402,9 +411,9 @@ gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCha
     nsresult rv = NS_ERROR_FAILURE;
 
     if (keepFormat == 12)
-        rv = ReadCMAPTableFormat12(aBuf + keepOffset, aBufLength - keepOffset, aCharacterMap, aUnicodeRanges);
+        rv = ReadCMAPTableFormat12(aBuf + keepOffset, aBufLength - keepOffset, aCharacterMap);
     else if (keepFormat == 4)
-        rv = ReadCMAPTableFormat4(aBuf + keepOffset, aBufLength - keepOffset, aCharacterMap, aUnicodeRanges);
+        rv = ReadCMAPTableFormat4(aBuf + keepOffset, aBufLength - keepOffset, aCharacterMap);
 
     return rv;
 }
@@ -419,7 +428,7 @@ PRUint8 gfxFontUtils::CharRangeBit(PRUint32 ch) {
     return NO_RANGE_FOUND;
 }
 
-void gfxFontUtils::GetPrefsFontList(const char *aPrefName, nsTArray<nsAutoString>& aFontList)
+void gfxFontUtils::GetPrefsFontList(const char *aPrefName, nsTArray<nsString>& aFontList)
 {
     const PRUnichar kComma = PRUnichar(',');
     

@@ -934,10 +934,14 @@ pkix_CheckChain(
                         PKIX_LISTGETITEMFAILED);
 
                 /* check if cert pointer is valid */
+                PORT_Assert(cert);
                 if (cert == NULL) {
-                        PKIX_ERROR_FATAL
-                                (PKIX_VALIDATIONFAILEDNULLCERTPOINTER);
+                    continue;
                 }
+
+#ifdef PR_LOGGING
+                pkix_trace_dump_cert("pkix_CheckChain", cert, plContext);
+#endif
 
                 if (revChecking == PKIX_FALSE) {
 
@@ -1026,7 +1030,7 @@ pkix_CheckChain(
         *pNBIOContext = NULL;
 
 cleanup:
-        if (PKIX_ERROR_RECEIVED) {
+        if (PKIX_ERROR_RECEIVED && cert) {
             pkixErrorReceived = PKIX_TRUE;
             pkixErrorCode = pkixErrorResult->errCode;
             checkCertError = pkixErrorResult;

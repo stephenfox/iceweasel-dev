@@ -149,6 +149,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsXULPopupManager.h"
 #include "nsIPermissionManager.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsIRunnable.h"
+#include "nsDOMJSUtils.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -159,6 +161,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIStringBundle.h"
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
+
+#include "mozAutoDocUpdate.h"
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -195,6 +199,10 @@ PRUint32 nsContentUtils::sJSGCThingRootCount;
 #ifdef IBMBIDI
 nsIBidiKeyboard *nsContentUtils::sBidiKeyboard = nsnull;
 #endif
+PRUint32 nsContentUtils::sScriptBlockerCount = 0;
+PRUint32 nsContentUtils::sRemovableScriptBlockerCount = 0;
+nsCOMArray<nsIRunnable>* nsContentUtils::sBlockedScriptRunners = nsnull;
+PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
 
 nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
 JSRuntime *nsAutoGCRoot::sJSScriptRuntime;
@@ -323,6 +331,9 @@ nsContentUtils::Init()
     }
   }
 
+  sBlockedScriptRunners = new nsCOMArray<nsIRunnable>;
+  NS_ENSURE_TRUE(sBlockedScriptRunners, NS_ERROR_OUT_OF_MEMORY);
+
   sInitialized = PR_TRUE;
 
   return NS_OK;
@@ -402,13 +413,10 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::ondragenter,                   { NS_DRAGDROP_ENTER, EventNameType_XUL }},
     { &nsGkAtoms::ondragover,                    { NS_DRAGDROP_OVER_SYNTH, EventNameType_XUL }},
     { &nsGkAtoms::ondragexit,                    { NS_DRAGDROP_EXIT_SYNTH, EventNameType_XUL }},
-    { &nsGkAtoms::ondragdrop,                    { NS_DRAGDROP_DRAGDROP, EventNameType_XUL }},
+    { &nsGkAtoms::ondragdrop,                    { NS_DRAGDROP_DROP, EventNameType_XUL }},
     { &nsGkAtoms::ondraggesture,                 { NS_DRAGDROP_GESTURE, EventNameType_XUL }},
     { &nsGkAtoms::ondrag,                        { NS_DRAGDROP_DRAG, EventNameType_XUL }},
     { &nsGkAtoms::ondragend,                     { NS_DRAGDROP_END, EventNameType_XUL }},
-    { &nsGkAtoms::ondragstart,                   { NS_DRAGDROP_START, EventNameType_XUL }},
-    { &nsGkAtoms::ondragleave,                   { NS_DRAGDROP_LEAVE_SYNTH, EventNameType_XUL }},
-    { &nsGkAtoms::ondrop,                        { NS_DRAGDROP_DROP, EventNameType_XUL }},
     { &nsGkAtoms::onoverflow,                    { NS_SCROLLPORT_OVERFLOW, EventNameType_XUL }},
     { &nsGkAtoms::onunderflow,                   { NS_SCROLLPORT_UNDERFLOW, EventNameType_XUL }}
 #ifdef MOZ_SVG
@@ -820,6 +828,12 @@ nsContentUtils::Shutdown()
       sEventListenerManagersHash.ops = nsnull;
     }
   }
+
+  NS_ASSERTION(!sBlockedScriptRunners ||
+               sBlockedScriptRunners->Count() == 0,
+               "How'd this happen?");
+  delete sBlockedScriptRunners;
+  sBlockedScriptRunners = nsnull;
 
   nsAutoGCRoot::Shutdown();
 }
@@ -2486,6 +2500,22 @@ nsContentUtils::UnregisterPrefCallback(const char *aPref,
     sPref->UnregisterCallback(aPref, aCallback, aClosure);
 }
 
+static int PR_CALLBACK
+BoolVarChanged(const char *aPref, void *aClosure)
+{
+  PRBool* cache = static_cast<PRBool*>(aClosure);
+  *cache = nsContentUtils::GetBoolPref(aPref, PR_FALSE);
+  
+  return 0;
+}
+
+void
+nsContentUtils::AddBoolPrefVarCache(const char *aPref,
+                                    PRBool* aCache)
+{
+  *aCache = GetBoolPref(aPref, PR_FALSE);
+  RegisterPrefCallback(aPref, BoolVarChanged, aCache);
+}
 
 static const char *gEventNames[] = {"event"};
 static const char *gSVGEventNames[] = {"evt"};
@@ -2588,17 +2618,41 @@ nsCxPusher::Push(nsISupports *aCurrentTarget)
 
   JSContext *cx = nsnull;
 
-  if (sgo) {
-    mScx = sgo->GetContext();
+  nsCOMPtr<nsIScriptContext> scx;
 
-    if (mScx) {
-      cx = (JSContext *)mScx->GetNativeContext();
+  if (sgo) {
+    scx = sgo->GetContext();
+
+    if (scx) {
+      cx = (JSContext *)scx->GetNativeContext();
     }
     // Bad, no JSContext from script global object!
     NS_ENSURE_TRUE(cx, PR_FALSE);
   }
 
+  // If there's no native context in the script context it must be
+  // in the process or being torn down. We don't want to notify the
+  // script context about scripts having been evaluated in such a
+  // case, calling with a null cx is fine in that case.
+  return Push(cx);
+}
+
+PRBool
+nsCxPusher::Push(JSContext *cx)
+{
+  if (mScx) {
+    NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
+
+    return PR_FALSE;
+  }
+
   if (cx) {
+    mScx = GetScriptContextFromJSContext(cx);
+    if (!mScx) {
+      // Should probably return PR_FALSE. See bug 416916.
+      return PR_TRUE;
+    }
+
     if (!mStack) {
       mStack = do_GetService(kJSStackContractID);
     }
@@ -2612,13 +2666,6 @@ nsCxPusher::Push(nsISupports *aCurrentTarget)
 
       mStack->Push(cx);
     }
-  } else {
-    // If there's no native context in the script context it must be
-    // in the process or being torn down. We don't want to notify the
-    // script context about scripts having been evaluated in such a
-    // case, so null out mScx.
-
-    mScx = nsnull;
   }
   return PR_TRUE;
 }
@@ -3163,14 +3210,21 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
     return PR_FALSE;
   }
 
-  doc->MayDispatchMutationEvent(aTargetForSubtreeModified);
-
   // global object will be null for documents that don't have windows.
   nsCOMPtr<nsPIDOMWindow> window;
   window = do_QueryInterface(doc->GetScriptGlobalObject());
+  // This relies on nsEventListenerManager::AddEventListener, which sets
+  // all mutation bits when there is a listener for DOMSubtreeModified event.
   if (window && !window->HasMutationListeners(aType)) {
     return PR_FALSE;
   }
+
+  if (aNode->IsNodeOfType(nsINode::eCONTENT) &&
+      static_cast<nsIContent*>(aNode)->IsInNativeAnonymousSubtree()) {
+    return PR_FALSE;
+  }
+
+  doc->MayDispatchMutationEvent(aTargetForSubtreeModified);
 
   // If we have a window, we can check it for mutation listeners now.
   nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(window));
@@ -3230,6 +3284,7 @@ nsContentUtils::TraverseListenerManager(nsINode *aNode,
                (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
                                         PL_DHASH_LOOKUP));
   if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[via hash] mListenerManager");
     cb.NoteXPCOMChild(entry->mListenerManager);
   }
 }
@@ -3354,6 +3409,7 @@ nsContentUtils::IsValidNodeName(nsIAtom *aLocalName, nsIAtom *aPrefix,
 nsresult
 nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
                                          const nsAString& aFragment,
+                                         PRBool aWillOwnFragment,
                                          nsIDOMDocumentFragment** aReturn)
 {
   NS_ENSURE_ARG(aContextNode);
@@ -3368,7 +3424,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   nsCOMPtr<nsIDocument> document = node->GetOwnerDoc();
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
 
-  nsAutoTArray<nsAutoString, 32> tagStack;
+  nsAutoTArray<nsString, 32> tagStack;
   nsAutoString uriStr, nameStr;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aContextNode);
   // just in case we have a text node
@@ -3376,7 +3432,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
     content = content->GetParent();
 
   while (content && content->IsNodeOfType(nsINode::eELEMENT)) {
-    nsAutoString& tagName = *tagStack.AppendElement();
+    nsString& tagName = *tagStack.AppendElement();
     NS_ENSURE_TRUE(&tagName, NS_ERROR_OUT_OF_MEMORY);
 
     content->NodeInfo()->GetQualifiedName(tagName);
@@ -3499,7 +3555,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   rv = parser->ParseFragment(aFragment, nsnull, tagStack,
                              !bHTML, contentType, mode);
   if (NS_SUCCEEDED(rv)) {
-    rv = sink->GetFragment(aReturn);
+    rv = sink->GetFragment(aWillOwnFragment, aReturn);
   }
 
   document->SetFragmentParser(parser);
@@ -3804,6 +3860,13 @@ nsContentUtils::CheckSecurityBeforeLoad(nsIURI* aURIToLoad,
                                         nsISupports* aExtra)
 {
   NS_PRECONDITION(aLoadingPrincipal, "Must have a loading principal here");
+
+  PRBool isSystemPrin = PR_FALSE;
+  if (NS_SUCCEEDED(sSecurityManager->IsSystemPrincipal(aLoadingPrincipal,
+                                                       &isSystemPrin)) &&
+      isSystemPrin) {
+    return NS_OK;
+  }
   
   // XXXbz do we want to fast-path skin stylesheets loading XBL here somehow?
   // CheckLoadURIWithPrincipal
@@ -3959,6 +4022,229 @@ nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMEvent* aDOMEvent,
   return PR_TRUE;
 }
 
+static PRBool
+HasASCIIDigit(const nsTArray<nsShortcutCandidate>& aCandidates)
+{
+  for (PRUint32 i = 0; i < aCandidates.Length(); ++i) {
+    PRUint32 ch = aCandidates[i].mCharCode;
+    if (ch >= '0' && ch <= '9')
+      return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+
+static PRBool
+CharsCaseInsensitiveEqual(PRUint32 aChar1, PRUint32 aChar2)
+{
+  return aChar1 == aChar2 ||
+         (IS_IN_BMP(aChar1) && IS_IN_BMP(aChar2) &&
+          ToLowerCase(PRUnichar(aChar1)) == ToLowerCase(PRUnichar(aChar2)));
+}
+
+static PRBool
+IsCaseChangeableChar(PRUint32 aChar)
+{
+  return IS_IN_BMP(aChar) &&
+         ToLowerCase(PRUnichar(aChar)) != ToUpperCase(PRUnichar(aChar));
+}
+
+/* static */
+void
+nsContentUtils::GetAccelKeyCandidates(nsIDOMEvent* aDOMEvent,
+                  nsTArray<nsShortcutCandidate>& aCandidates)
+{
+  NS_PRECONDITION(aCandidates.IsEmpty(), "aCandidates must be empty");
+
+  nsAutoString eventType;
+  aDOMEvent->GetType(eventType);
+  // Don't process if aDOMEvent is not a keypress event.
+  if (!eventType.EqualsLiteral("keypress"))
+    return;
+
+  nsKeyEvent* nativeKeyEvent =
+    static_cast<nsKeyEvent*>(GetNativeEvent(aDOMEvent));
+  if (nativeKeyEvent) {
+    // nsShortcutCandidate::mCharCode is a candidate charCode.
+    // nsShoftcutCandidate::mIgnoreShift means the mCharCode should be tried to
+    // execute a command with/without shift key state. If this is TRUE, the
+    // shifted key state should be ignored. Otherwise, don't ignore the state.
+    // the priority of the charCodes are (shift key is not pressed):
+    //   0: charCode/PR_FALSE,
+    //   1: unshiftedCharCodes[0]/PR_FALSE, 2: unshiftedCharCodes[1]/PR_FALSE...
+    // the priority of the charCodes are (shift key is pressed):
+    //   0: charCode/PR_FALSE,
+    //   1: shiftedCharCodes[0]/PR_FALSE, 2: shiftedCharCodes[0]/PR_TRUE,
+    //   3: shiftedCharCodes[1]/PR_FALSE, 4: shiftedCharCodes[1]/PR_TRUE...
+    if (nativeKeyEvent->charCode) {
+      nsShortcutCandidate key(nativeKeyEvent->charCode, PR_FALSE);
+      aCandidates.AppendElement(key);
+    }
+
+    PRUint32 len = nativeKeyEvent->alternativeCharCodes.Length();
+    if (!nativeKeyEvent->isShift) {
+      for (PRUint32 i = 0; i < len; ++i) {
+        PRUint32 ch =
+          nativeKeyEvent->alternativeCharCodes[i].mUnshiftedCharCode;
+        if (!ch || ch == nativeKeyEvent->charCode)
+          continue;
+
+        nsShortcutCandidate key(ch, PR_FALSE);
+        aCandidates.AppendElement(key);
+      }
+      // If unshiftedCharCodes doesn't have numeric but shiftedCharCode has it,
+      // this keyboard layout is AZERTY or similar layout, probably.
+      // In this case, Accel+[0-9] should be accessible without shift key.
+      // However, the priority should be lowest.
+      if (!HasASCIIDigit(aCandidates)) {
+        for (PRUint32 i = 0; i < len; ++i) {
+          PRUint32 ch =
+            nativeKeyEvent->alternativeCharCodes[i].mShiftedCharCode;
+          if (ch >= '0' && ch <= '9') {
+            nsShortcutCandidate key(ch, PR_FALSE);
+            aCandidates.AppendElement(key);
+            break;
+          }
+        }
+      }
+    } else {
+      for (PRUint32 i = 0; i < len; ++i) {
+        PRUint32 ch = nativeKeyEvent->alternativeCharCodes[i].mShiftedCharCode;
+        if (!ch)
+          continue;
+
+        if (ch != nativeKeyEvent->charCode) {
+          nsShortcutCandidate key(ch, PR_FALSE);
+          aCandidates.AppendElement(key);
+        }
+
+        // If the char is an alphabet, the shift key state should not be
+        // ignored. E.g., Ctrl+Shift+C should not execute Ctrl+C.
+
+        // And checking the charCode is same as unshiftedCharCode too.
+        // E.g., for Ctrl+Shift+(Plus of Numpad) should not run Ctrl+Plus.
+        PRUint32 unshiftCh =
+          nativeKeyEvent->alternativeCharCodes[i].mUnshiftedCharCode;
+        if (CharsCaseInsensitiveEqual(ch, unshiftCh))
+          continue;
+
+        // On the Hebrew keyboard layout on Windows, the unshifted char is a
+        // localized character but the shifted char is a Latin alphabet,
+        // then, we should not execute without the shift state. See bug 433192.
+        if (IsCaseChangeableChar(ch))
+          continue;
+
+        // Setting the alternative charCode candidates for retry without shift
+        // key state only when the shift key is pressed.
+        nsShortcutCandidate key(ch, PR_TRUE);
+        aCandidates.AppendElement(key);
+      }
+    }
+  } else {
+    nsCOMPtr<nsIDOMKeyEvent> key(do_QueryInterface(aDOMEvent));
+    PRUint32 charCode;
+    key->GetCharCode(&charCode);
+    if (charCode) {
+      nsShortcutCandidate key(charCode, PR_FALSE);
+      aCandidates.AppendElement(key);
+    }
+  }
+}
+
+/* static */
+void
+nsContentUtils::GetAccessKeyCandidates(nsKeyEvent* aNativeKeyEvent,
+                                       nsTArray<PRUint32>& aCandidates)
+{
+  NS_PRECONDITION(aCandidates.IsEmpty(), "aCandidates must be empty");
+
+  // return the lower cased charCode candidates for access keys.
+  // the priority of the charCodes are:
+  //   0: charCode, 1: unshiftedCharCodes[0], 2: shiftedCharCodes[0]
+  //   3: unshiftedCharCodes[1], 4: shiftedCharCodes[1],...
+  if (aNativeKeyEvent->charCode) {
+    PRUint32 ch = aNativeKeyEvent->charCode;
+    if (IS_IN_BMP(ch))
+      ch = ToLowerCase(PRUnichar(ch));
+    aCandidates.AppendElement(ch);
+  }
+  for (PRUint32 i = 0;
+       i < aNativeKeyEvent->alternativeCharCodes.Length(); ++i) {
+    PRUint32 ch[2] =
+      { aNativeKeyEvent->alternativeCharCodes[i].mUnshiftedCharCode,
+        aNativeKeyEvent->alternativeCharCodes[i].mShiftedCharCode };
+    for (PRUint32 j = 0; j < 2; ++j) {
+      if (!ch[j])
+        continue;
+      if (IS_IN_BMP(ch[j]))
+        ch[j] = ToLowerCase(PRUnichar(ch[j]));
+      // Don't append the charCode that was already appended.
+      if (aCandidates.IndexOf(ch[j]) == aCandidates.NoIndex)
+        aCandidates.AppendElement(ch[j]);
+    }
+  }
+  return;
+}
+
+/* static */
+void
+nsContentUtils::AddScriptBlocker()
+{
+  if (!sScriptBlockerCount) {
+    NS_ASSERTION(sRunnersCountAtFirstBlocker == 0,
+                 "Should not already have a count");
+    sRunnersCountAtFirstBlocker = sBlockedScriptRunners->Count();
+  }
+  ++sScriptBlockerCount;
+}
+
+/* static */
+void
+nsContentUtils::RemoveScriptBlocker()
+{
+  NS_ASSERTION(sScriptBlockerCount != 0, "Negative script blockers");
+  --sScriptBlockerCount;
+  if (sScriptBlockerCount) {
+    return;
+  }
+
+  PRUint32 firstBlocker = sRunnersCountAtFirstBlocker;
+  PRUint32 lastBlocker = sBlockedScriptRunners->Count();
+  sRunnersCountAtFirstBlocker = 0;
+  NS_ASSERTION(firstBlocker <= lastBlocker,
+               "bad sRunnersCountAtFirstBlocker");
+
+  while (firstBlocker < lastBlocker) {
+    nsCOMPtr<nsIRunnable> runnable = (*sBlockedScriptRunners)[firstBlocker];
+    sBlockedScriptRunners->RemoveObjectAt(firstBlocker);
+    --lastBlocker;
+
+    runnable->Run();
+    NS_ASSERTION(lastBlocker == sBlockedScriptRunners->Count() &&
+                 sRunnersCountAtFirstBlocker == 0,
+                 "Bad count");
+    NS_ASSERTION(!sScriptBlockerCount, "This is really bad");
+  }
+}
+
+
+/* static */
+PRBool
+nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
+{
+  if (!aRunnable) {
+    return PR_FALSE;
+  }
+
+  if (sScriptBlockerCount) {
+    return sBlockedScriptRunners->AppendObject(aRunnable);
+  }
+  
+  nsCOMPtr<nsIRunnable> run = aRunnable;
+  run->Run();
+
+  return PR_TRUE;
+}
+
 /* static */
 void
 nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
@@ -3974,6 +4260,19 @@ nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
       pm->HidePopupsInDocShell(docShellToHide);
   }
 #endif
+}
+
+/* static */
+PRBool
+nsContentUtils::URIIsLocalFile(nsIURI *aURI)
+{
+  PRBool isFile;
+  nsCOMPtr<nsINetUtil> util = do_QueryInterface(sIOService);
+
+  return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
+                                nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                                &isFile)) &&
+         isFile;
 }
 
 /* static */

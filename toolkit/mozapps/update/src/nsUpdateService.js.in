@@ -1022,16 +1022,24 @@ function UpdateService() {
     LOG("UpdateService", "XPCOM ABI unknown: updates are not possible.");
   }
 
+  var osVersion;
+  var sysInfo = Components.classes["@mozilla.org/system-info;1"]
+                          .getService(Components.interfaces.nsIPropertyBag2);
   try {
-    var sysInfo =
-      Components.classes["@mozilla.org/system-info;1"]
-                .getService(Components.interfaces.nsIPropertyBag2);
-
-    gOSVersion = encodeURIComponent(sysInfo.getProperty("name") + " " +
-                                    sysInfo.getProperty("version"));
+    osVersion = sysInfo.getProperty("name") + " " + sysInfo.getProperty("version");
   }
   catch (e) {
     LOG("UpdateService", "OS Version unknown: updates are not possible.");
+  }
+
+  if (osVersion) {
+    try {
+      osVersion += " (" + sysInfo.getProperty("secondaryLibrary") + ")";
+    }
+    catch (e) {
+      // Not all platforms have a secondary widget library, so an error is nothing to worry about.
+    }
+    gOSVersion = encodeURIComponent(osVersion);
   }
 
 #ifdef XP_MACOSX
@@ -3156,7 +3164,7 @@ function isCompatible(update) {
       Components.classes["@mozilla.org/extensions/manager;1"].
       getService(nsIExtensionManager);
   var items = em.getIncompatibleItemList("", update.extensionVersion,
-    update.platformVersion, nsIUpdateItem.TYPE_ADDON, false, { });
+    update.platformVersion, nsIUpdateItem.TYPE_ANY, false, { });
   return items.length == 0;
 #else
   return true;
@@ -3280,7 +3288,7 @@ function showPromptIfNoIncompatibilities(update) {
         Components.classes["@mozilla.org/extensions/manager;1"].
         getService(nsIExtensionManager);
     var items = em.getIncompatibleItemList("", update.extensionVersion,
-      update.platformVersion, nsIUpdateItem.TYPE_ADDON, false, { });
+      update.platformVersion, nsIUpdateItem.TYPE_ANY, false, { });
     var listener = new Listener(items);
     // See documentation on |mode| above.
     var mode = getPref("getIntPref", PREF_APP_UPDATE_INCOMPATIBLE_MODE,

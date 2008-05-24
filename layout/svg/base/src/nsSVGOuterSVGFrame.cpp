@@ -109,7 +109,7 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
     if (metrics) {
       nsSVGTextContainerFrame *containerFrame =
         static_cast<nsSVGTextContainerFrame *>(frame);
-      containerFrame->UpdateGraphic();
+      containerFrame->NotifyGlyphMetricsChange();
       continue;
     }
     // if not, are there text elements amongst its descendents
@@ -320,7 +320,8 @@ nsSVGOuterSVGFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
                                 PRBool aShrinkWrap)
 {
-  if (EmbeddedByReference()) {
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox) &&
+      EmbeddedByReference()) {
     // The embedding element has done the replaced element sizing, using our
     // intrinsic dimensions as necessary. We just need to fill the viewport.
     return aCBSize;
@@ -634,13 +635,29 @@ nsSVGOuterSVGFrame::GetType() const
 //----------------------------------------------------------------------
 // nsSVGOuterSVGFrame methods:
 
-nsresult
+void
+nsSVGOuterSVGFrame::InvalidateCoveredRegion(nsIFrame *aFrame)
+{
+  nsISVGChildFrame *svgFrame = nsnull;
+  CallQueryInterface(aFrame, &svgFrame);
+  if (!svgFrame)
+    return;
+
+  nsRect rect = nsSVGUtils::FindFilterInvalidation(aFrame);
+  if (rect.IsEmpty()) {
+    rect = svgFrame->GetCoveredRegion();
+  }
+
+  InvalidateRect(rect);
+}
+
+void
 nsSVGOuterSVGFrame::InvalidateRect(nsRect aRect)
 {
-  aRect.ScaleRoundOut(PresContext()->AppUnitsPerDevPixel());
-  Invalidate(aRect);
-
-  return NS_OK;
+  if (!aRect.IsEmpty()) {
+    aRect.ScaleRoundOut(PresContext()->AppUnitsPerDevPixel());
+    Invalidate(aRect);
+  }
 }
 
 PRBool

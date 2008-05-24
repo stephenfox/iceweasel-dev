@@ -23,6 +23,7 @@
  * Contributor(s):
  *   L. David Baron <dbaron@dbaron.org>
  *   Daniel Glazman <glazman@netscape.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -780,6 +781,11 @@ InitSystemMetrics()
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInMenus, metricResult);
   if (metricResult) {
     sSystemMetrics->AppendElement(do_GetAtom("images-in-menus"));
+  }
+
+  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
+  if (NS_SUCCEEDED(rv) && metricResult) {
+    sSystemMetrics->AppendElement(do_GetAtom("windows-default-theme"));
   }
 
   return PR_TRUE;
@@ -1620,10 +1626,15 @@ static PRBool SelectorMatchesTree(RuleProcessorData& aPrevData,
     }
     if (SelectorMatches(*data, selector, 0, nsnull)) {
       // to avoid greedy matching, we need to recur if this is a
-      // descendant combinator and the next combinator is not
+      // descendant or general sibling combinator and the next
+      // combinator is different, but we can make an exception for
+      // sibling, then parent, since a sibling's parent is always the
+      // same.
       if ((NS_IS_GREEDY_OPERATOR(selector->mOperator)) &&
           (selector->mNext) &&
-          (!NS_IS_GREEDY_OPERATOR(selector->mNext->mOperator))) {
+          (selector->mNext->mOperator != selector->mOperator) &&
+          !(selector->mOperator == '~' &&
+            selector->mNext->mOperator == PRUnichar(0))) {
 
         // pretend the selector didn't match, and step through content
         // while testing the same selector

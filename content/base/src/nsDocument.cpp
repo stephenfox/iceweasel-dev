@@ -160,6 +160,8 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 #include "nsFrameLoader.h"
 
+#include "mozAutoDocUpdate.h"
+
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
 #define FORCE_PR_LOG 1
@@ -831,6 +833,8 @@ nsDocument::~nsDocument()
   // links one by one
   DestroyLinkMap();
 
+  nsAutoScriptBlocker scriptBlocker;
+
   PRInt32 indx; // must be signed
   PRUint32 count = mChildren.ChildCount();
   for (indx = PRInt32(count) - 1; indx >= 0; --indx) {
@@ -879,11 +883,6 @@ nsDocument::~nsDocument()
   
   if (mStyleAttrStyleSheet) {
     mStyleAttrStyleSheet->SetOwningDocument(nsnull);
-  }
-
-  if (mBindingManager) {
-    mBindingManager->DropDocumentReference();
-    NS_RELEASE(mBindingManager);
   }
 
   delete mHeaderData;
@@ -960,7 +959,9 @@ SubDocTraverser(PLDHashTable *table, PLDHashEntryHdr *hdr, PRUint32 number,
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(arg);
 
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mSubDocuments entry->mKey");
   cb->NoteXPCOMChild(entry->mKey);
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mSubDocuments entry->mSubDocument");
   cb->NoteXPCOMChild(entry->mSubDocument);
 
   return PL_DHASH_NEXT;
@@ -972,10 +973,14 @@ RadioGroupsTraverser(const nsAString& aKey, nsAutoPtr<nsRadioGroupStruct>& aData
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
 
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
+                                   "mRadioGroups entry->mSelectedRadioButton");
   cb->NoteXPCOMChild(aData->mSelectedRadioButton);
 
   PRUint32 i, count = aData->mRadioButtons.Count();
   for (i = 0; i < count; ++i) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb,
+                                       "mRadioGroups entry->mRadioButtons[i]");
     cb->NoteXPCOMChild(aData->mRadioButtons[i]);
   }
 
@@ -988,6 +993,7 @@ BoxObjectTraverser(const void* key, nsPIBoxObject* boxObject, void* userArg)
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
  
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mBoxObjectTable entry");
   cb->NoteXPCOMChild(boxObject);
 
   return PL_DHASH_NEXT;
@@ -1008,6 +1014,7 @@ LinkMapTraverser(nsUint32ToContentHashEntry* aEntry, void* userArg)
 {
   LinkMapTraversalVisitor visitor;
   visitor.mCb = static_cast<nsCycleCollectionTraversalCallback*>(userArg);
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*visitor.mCb, "mLinkMap entry");
   aEntry->VisitContent(&visitor);
   return PL_DHASH_NEXT;
 }
@@ -1017,8 +1024,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
     return NS_OK;
   }
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
+
   // Traverse the mChildren nsAttrAndChildArray.
   for (PRInt32 indx = PRInt32(tmp->mChildren.ChildCount()); indx > 0; --indx) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChildren[i]");
     cb.NoteXPCOMChild(tmp->mChildren.ChildAt(indx - 1));
   }
 
@@ -1026,7 +1036,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
 
   // Traverse all nsIDocument pointer members.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCachedRootContent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mBindingManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
+                                                  nsNodeInfoManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSecurityInfo)
 
   // Traverse all nsDocument nsCOMPtrs.
@@ -1063,6 +1074,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mVisitednessChangedURIs)
 
   // Traverse any associated preserved wrapper.
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[preserved wrapper]");
   cb.NoteXPCOMChild(tmp->GetReference(tmp));
 
   if (tmp->mSubDocuments && tmp->mSubDocuments->ops) {
@@ -1076,6 +1088,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   // don't waste time removing links one by one as they are removed
   // from the doc.
   tmp->DestroyLinkMap();
+
+  nsAutoScriptBlocker scriptBlocker;
 
   // Unlink the mChildren nsAttrAndChildArray.
   for (PRInt32 indx = PRInt32(tmp->mChildren.ChildCount()) - 1; 
@@ -1106,7 +1120,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 nsresult
 nsDocument::Init()
 {
-  if (mBindingManager || mCSSLoader || mNodeInfoManager || mScriptLoader) {
+  if (mCSSLoader || mNodeInfoManager || mScriptLoader) {
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
@@ -1114,10 +1128,6 @@ nsDocument::Init()
   mRadioGroups.Init();
 
   // Force initialization.
-  nsBindingManager *bindingManager = new nsBindingManager(this);
-  NS_ENSURE_TRUE(bindingManager, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(mBindingManager = bindingManager);
-
   nsINode::nsSlots* slots = GetSlots();
   NS_ENSURE_TRUE(slots,NS_ERROR_OUT_OF_MEMORY);
 
@@ -2543,7 +2553,10 @@ nsDocument::GetScriptGlobalObject() const
    // ScriptGlobalObject.  We can, however, try to obtain it for the
    // caller through our docshell.
 
-   if (mIsGoingAway) {
+   // We actually need to start returning the docshell's script global
+   // object as soon as nsDocumentViewer::Close has called
+   // RemovedFromDocShell on us.
+   if (mRemovedFromDocShell) {
      nsCOMPtr<nsIInterfaceRequestor> requestor =
        do_QueryReferent(mDocumentContainer);
      if (requestor) {
@@ -2697,41 +2710,40 @@ void
 nsDocument::BeginUpdate(nsUpdateType aUpdateType)
 {
   if (mUpdateNestLevel == 0) {
-    mBindingManager->BeginOutermostUpdate();
+    BindingManager()->BeginOutermostUpdate();
   }
   
   ++mUpdateNestLevel;
-  if (mScriptLoader) {
-    mScriptLoader->AddExecuteBlocker();
-  }
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginUpdate, (this, aUpdateType));
+
+  if (aUpdateType == UPDATE_CONTENT_MODEL) {
+    nsContentUtils::AddRemovableScriptBlocker();
+  }
+  else {
+    nsContentUtils::AddScriptBlocker();
+  }
 }
 
 void
 nsDocument::EndUpdate(nsUpdateType aUpdateType)
 {
+  if (aUpdateType == UPDATE_CONTENT_MODEL) {
+    nsContentUtils::RemoveRemovableScriptBlocker();
+  }
+  else {
+    nsContentUtils::RemoveScriptBlocker();
+  }
   NS_DOCUMENT_NOTIFY_OBSERVERS(EndUpdate, (this, aUpdateType));
 
   --mUpdateNestLevel;
   if (mUpdateNestLevel == 0) {
     // This set of updates may have created XBL bindings.  Let the
     // binding manager know we're done.
-    mBindingManager->EndOutermostUpdate();
+    BindingManager()->EndOutermostUpdate();
   }
 
-  if (mScriptLoader) {
-    mScriptLoader->RemoveExecuteBlocker();
-  }
-
-  if (mUpdateNestLevel == 0) {
-    PRUint32 length = mFinalizableFrameLoaders.Length();
-    if (length > 0) {
-      nsTArray<nsRefPtr<nsFrameLoader> > loaders;
-      mFinalizableFrameLoaders.SwapElements(loaders);
-      for (PRInt32 i = 0; i < length; ++i) {
-        loaders[i]->Finalize();
-      }
-    }
+  if (mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization) {
+    InitializeFinalizeFrameLoaders();
   }
 }
 
@@ -2792,12 +2804,7 @@ nsDocument::DispatchContentLoadedEvents()
 
   if (target_frame) {
     nsCOMPtr<nsIDocument> parent = mParentDocument;
-    while (parent) {
-      parent = parent->GetParentDocument();
-      if (!parent) {
-        break;
-      }
-
+    do {
       nsCOMPtr<nsIDOMDocumentEvent> document_event =
         do_QueryInterface(parent);
 
@@ -2839,7 +2846,9 @@ nsDocument::DispatchContentLoadedEvents()
           }
         }
       }
-    }
+      
+      parent = parent->GetParentDocument();
+    } while (parent);
   }
 
   UnblockOnload(PR_TRUE);
@@ -3005,7 +3014,8 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIContent> content;
-  NS_NewElement(getter_AddRefs(content), nodeInfo->NamespaceID(), nodeInfo);
+  NS_NewElement(getter_AddRefs(content), nodeInfo->NamespaceID(), nodeInfo,
+                PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return CallQueryInterface(content, aReturn);
@@ -3481,7 +3491,7 @@ nsDocument::AddBinding(nsIDOMElement* aContent, const nsAString& aURI)
     subject = NodePrincipal();
   }
   
-  return mBindingManager->AddLayeredBinding(content, uri, subject);
+  return BindingManager()->AddLayeredBinding(content, uri, subject);
 }
 
 NS_IMETHODIMP
@@ -3501,7 +3511,7 @@ nsDocument::RemoveBinding(nsIDOMElement* aContent, const nsAString& aURI)
   }
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(aContent));
-  return mBindingManager->RemoveLayeredBinding(content, uri);
+  return BindingManager()->RemoveLayeredBinding(content, uri);
 }
 
 NS_IMETHODIMP
@@ -3527,7 +3537,7 @@ nsDocument::LoadBindingDocument(const nsAString& aURI)
     subject = NodePrincipal();
   }
   
-  mBindingManager->LoadBindingDocument(this, uri, subject);
+  BindingManager()->LoadBindingDocument(this, uri, subject);
 
   return NS_OK;
 }
@@ -3615,7 +3625,7 @@ nsDocument::GetAnonymousNodes(nsIDOMElement* aElement,
   *aResult = nsnull;
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(aElement));
-  return mBindingManager->GetAnonymousNodesFor(content, aResult);
+  return BindingManager()->GetAnonymousNodesFor(content, aResult);
 }
 
 NS_IMETHODIMP
@@ -3769,7 +3779,7 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
   }
 
   PRInt32 namespaceID;
-  nsCOMPtr<nsIAtom> tag = mBindingManager->ResolveTag(content, &namespaceID);
+  nsCOMPtr<nsIAtom> tag = BindingManager()->ResolveTag(content, &namespaceID);
 
   nsCAutoString contractID("@mozilla.org/layout/xul-boxobject");
   if (namespaceID == kNameSpaceID_XUL) {
@@ -3824,24 +3834,44 @@ nsDocument::ClearBoxObjectFor(nsIContent* aContent)
 nsresult
 nsDocument::GetXBLChildNodesFor(nsIContent* aContent, nsIDOMNodeList** aResult)
 {
-  return mBindingManager->GetXBLChildNodesFor(aContent, aResult);
+  return BindingManager()->GetXBLChildNodesFor(aContent, aResult);
 }
 
 nsresult
 nsDocument::GetContentListFor(nsIContent* aContent, nsIDOMNodeList** aResult)
 {
-  return mBindingManager->GetContentListFor(aContent, aResult);
+  return BindingManager()->GetContentListFor(aContent, aResult);
 }
 
 void
 nsDocument::FlushSkinBindings()
 {
-  mBindingManager->FlushSkinBindings();
+  BindingManager()->FlushSkinBindings();
+}
+
+nsresult
+nsDocument::InitializeFrameLoader(nsFrameLoader* aLoader)
+{
+  mInitializableFrameLoaders.RemoveElement(aLoader);
+  // Don't even try to initialize.
+  if (mInDestructor) {
+    NS_WARNING("Trying to initialize a frame loader while"
+               "document is being deleted");
+    return NS_ERROR_FAILURE;
+  }
+  if (mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization) {
+    nsRefPtr<nsFrameLoader> loader = aLoader;
+    return loader->ReallyStartLoading();
+  } else {
+    mInitializableFrameLoaders.AppendElement(aLoader);
+  }
+  return NS_OK;
 }
 
 nsresult
 nsDocument::FinalizeFrameLoader(nsFrameLoader* aLoader)
 {
+  mInitializableFrameLoaders.RemoveElement(aLoader);
   if (mInDestructor) {
     return NS_ERROR_FAILURE;
   }
@@ -3852,6 +3882,57 @@ nsDocument::FinalizeFrameLoader(nsFrameLoader* aLoader)
     mFinalizableFrameLoaders.AppendElement(aLoader);
   }
   return NS_OK;
+}
+
+void
+nsDocument::InitializeFinalizeFrameLoaders()
+{
+  NS_ASSERTION(mUpdateNestLevel == 0 && !mDelayFrameLoaderInitialization,
+               "Wrong time to call InitializeFinalizeFrameLoaders!");
+  // Don't use a temporary array for mInitializableFrameLoaders, because
+  // loading a frame may cause some other frameloader to be removed from the
+  // array. But be careful to keep the loader alive when starting the load!
+  while (mInitializableFrameLoaders.Length()) {
+    nsRefPtr<nsFrameLoader> loader = mInitializableFrameLoaders[0];
+    mInitializableFrameLoaders.RemoveElementAt(0);
+    NS_ASSERTION(loader, "null frameloader in the array?");
+    loader->ReallyStartLoading();
+  }
+
+  PRUint32 length = mFinalizableFrameLoaders.Length();
+  if (length > 0) {
+    nsTArray<nsRefPtr<nsFrameLoader> > loaders;
+    mFinalizableFrameLoaders.SwapElements(loaders);
+    for (PRUint32 i = 0; i < length; ++i) {
+      loaders[i]->Finalize();
+    }
+  }
+}
+
+void
+nsDocument::TryCancelFrameLoaderInitialization(nsIDocShell* aShell)
+{
+  PRUint32 length = mInitializableFrameLoaders.Length();
+  for (PRUint32 i = 0; i < length; ++i) {
+    if (mInitializableFrameLoaders[i]->GetExistingDocShell() == aShell) {
+      mInitializableFrameLoaders.RemoveElementAt(i);
+      return;
+    }
+  }
+}
+
+PRBool
+nsDocument::FrameLoaderScheduledToBeFinalized(nsIDocShell* aShell)
+{
+  if (aShell) {
+    PRUint32 length = mFinalizableFrameLoaders.Length();
+    for (PRUint32 i = 0; i < length; ++i) {
+      if (mFinalizableFrameLoaders[i]->GetExistingDocShell() == aShell) {
+        return PR_TRUE;
+      }
+    }
+  }
+  return PR_FALSE;
 }
 
 struct DirTable {
@@ -5328,7 +5409,7 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_NewElement(aResult, elementType, nodeInfo);
+  return NS_NewElement(aResult, elementType, nodeInfo, PR_FALSE);
 }
 
 PRBool
@@ -5526,6 +5607,8 @@ nsDocument::Destroy()
 
   mIsGoingAway = PR_TRUE;
 
+  RemovedFromDocShell();
+
   PRUint32 i, count = mChildren.ChildCount();
   for (i = 0; i < count; ++i) {
     mChildren.ChildAt(i)->DestroyContent();
@@ -5541,6 +5624,20 @@ nsDocument::Destroy()
   //     check for mScriptGlobalObject in AddReference.
   delete mContentWrapperHash;
   mContentWrapperHash = nsnull;
+}
+
+void
+nsDocument::RemovedFromDocShell()
+{
+  if (mRemovedFromDocShell)
+    return;
+
+  mRemovedFromDocShell = PR_TRUE;
+
+  PRUint32 i, count = mChildren.ChildCount();
+  for (i = 0; i < count; ++i) {
+    mChildren.ChildAt(i)->SaveSubtreeState();
+  }
 }
 
 already_AddRefed<nsILayoutHistoryState>
@@ -5791,9 +5888,6 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
       nsINode* possibleTarget = mSubtreeModifiedTargets[i];
       nsCOMPtr<nsIContent> content = do_QueryInterface(possibleTarget);
       if (content && content->IsInNativeAnonymousSubtree()) {
-        if (realTargets.IndexOf(possibleTarget) == -1) {
-          realTargets.AppendObject(possibleTarget);
-        }
         continue;
       }
 
@@ -5816,6 +5910,8 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
 
     PRInt32 realTargetCount = realTargets.Count();
     for (PRInt32 k = 0; k < realTargetCount; ++k) {
+      mozAutoRemovableBlockerRemover blockerRemover;
+
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_SUBTREEMODIFIED);
       nsEventDispatcher::Dispatch(realTargets[k], nsnull, &mutation);
     }

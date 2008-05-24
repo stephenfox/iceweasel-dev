@@ -427,7 +427,8 @@ nsXBLStreamListener::Load(nsIDOMEvent* aEvent)
 
 // Static member variable initialization
 PRUint32 nsXBLService::gRefCnt = 0;
- 
+PRBool nsXBLService::gAllowDataURIs = PR_FALSE;
+
 nsHashtable* nsXBLService::gClassTable = nsnull;
 
 JSCList  nsXBLService::gClassLRUList = JS_INIT_STATIC_CLIST(&nsXBLService::gClassLRUList);
@@ -446,6 +447,9 @@ nsXBLService::nsXBLService(void)
   if (gRefCnt == 1) {
     gClassTable = new nsHashtable();
   }
+  
+  nsContentUtils::AddBoolPrefVarCache("layout.debug.enable_data_xbl",
+                                      &gAllowDataURIs);
 }
 
 nsXBLService::~nsXBLService(void)
@@ -562,6 +566,13 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
 
   // Tell the binding to build the anonymous content.
   newBinding->GenerateAnonymousContent();
+
+  // Tell the binding to install event handlers
+  newBinding->InstallEventHandlers();
+
+  // Set up our properties
+  rv = newBinding->InstallImplementation();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Figure out if we have any scoped sheets.  If so, we do a second resolve.
   *aResolveStyle = newBinding->HasStyleSheets();
@@ -951,7 +962,7 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
     rv = nsContentUtils::
       CheckSecurityBeforeLoad(aBindingURI, aOriginPrincipal,
                               nsIScriptSecurityManager::ALLOW_CHROME,
-                              PR_TRUE,
+                              gAllowDataURIs,
                               nsIContentPolicy::TYPE_XBL,
                               aBoundDocument);
     NS_ENSURE_SUCCESS(rv, rv);

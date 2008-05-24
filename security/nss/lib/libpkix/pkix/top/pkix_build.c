@@ -46,6 +46,44 @@
 
 #include "pkix_build.h"
 
+extern PRLogModuleInfo *pkixLog;
+
+#ifdef PR_LOGGING
+void
+pkix_trace_dump_cert(const char *info, PKIX_PL_Cert *cert, void *plContext)
+{
+        PKIX_ENTER(FORWARDBUILDERSTATE, "pkix_trace_dump_cert");
+
+        if (pkixLog && PR_LOG_TEST(pkixLog, PR_LOG_DEBUG)) {
+            PKIX_PL_String *unString;
+            char *unAscii;
+            PKIX_UInt32 length;
+    
+            PKIX_TOSTRING
+                    ((PKIX_PL_Object*)cert,
+                    &unString,
+                    plContext,
+                    PKIX_OBJECTTOSTRINGFAILED);
+    
+            PKIX_PL_String_GetEncoded
+                        (unString,
+                        PKIX_ESCASCII,
+                        (void **)&unAscii,
+                        &length,
+                        plContext);
+    
+            PR_LOG(pkixLog, PR_LOG_DEBUG, ("====> %s\n", info));
+            PR_LOG(pkixLog, PR_LOG_DEBUG, ("====> cert: %s\n", unAscii));
+    
+            PKIX_DECREF(unString);
+            PKIX_FREE(unAscii);
+        }
+
+cleanup:
+return;
+}
+#endif
+
 /*
  * List of critical extension OIDs associate with what build chain has
  * checked. Those OIDs need to be removed from the unresolved critical
@@ -991,12 +1029,16 @@ cleanup:
 /* This local error check macro */
 #define ERROR_CHECK(errCode) \
     if (pkixErrorResult) { \
+        if (pkixLog) { \
+            PR_LOG(pkixLog, PR_LOG_DEBUG, ("====> ERROR_CHECK code %s\n", #errCode)); \
+        } \
         pkixTempErrorReceived = PKIX_TRUE; \
         pkixErrorClass = pkixErrorResult->errClass; \
         if (pkixErrorClass == PKIX_FATAL_ERROR) { \
             goto cleanup; \
         } \
         if (verifyNode) { \
+            PKIX_DECREF(verifyNode->error); \
             PKIX_INCREF(pkixErrorResult); \
             verifyNode->error = pkixErrorResult; \
         } \
@@ -1082,9 +1124,13 @@ pkix_Build_VerifyCertificate(
         PKIX_INCREF(state->candidateCert);
         candidateCert = state->candidateCert;
 
-        PKIX_CHECK(PKIX_PL_Cert_IsCertTrusted
-                (candidateCert, &trusted, plContext),
-                PKIX_CERTISCERTTRUSTEDFAILED);
+        /* If user defined trust anchor list is not empty, do not
+         * trust any certs except to the ones that are in the list */
+        if (!state->buildConstants.numAnchors) {
+            PKIX_CHECK(PKIX_PL_Cert_IsCertTrusted
+                       (candidateCert, &trusted, plContext),
+                       PKIX_CERTISCERTTRUSTEDFAILED);
+        }
 
         *pTrusted = trusted;
 
@@ -1198,11 +1244,6 @@ pkix_Build_VerifyCertificate(
                                 }
                             }
                         }
-
-                        pkixErrorResult = PKIX_PL_Cert_VerifyKeyUsage
-                                (candidateCert, PKIX_KEY_CERT_SIGN, plContext);
-
-                        ERROR_CHECK(PKIX_CERTVERIFYKEYUSAGEFAILED);
 
                         *pNeedsCRLChecking = PKIX_TRUE;
                 }
@@ -1500,6 +1541,7 @@ pkix_Build_ValidationCheckers(
 
 cleanup:
 
+        PKIX_DECREF(oid);
         PKIX_DECREF(reversedCertChain);
         PKIX_DECREF(buildCheckedCritExtOIDsList);
         PKIX_DECREF(checkers);
@@ -2348,6 +2390,7 @@ pkix_BuildForwardDepthFirstSearch(
         PKIX_PL_Cert *trustedCert = NULL;
         PKIX_VerifyNode *verifyNode = NULL;
         PKIX_Error *verifyError = NULL;
+        PKIX_Error *finalError = NULL;
         void *nbio = NULL;
 
         PKIX_ENTER(BUILD, "pkix_BuildForwardDepthFirstSearch");
@@ -2392,7 +2435,9 @@ pkix_BuildForwardDepthFirstSearch(
                                     verifyError,
                                     plContext),
                                     PKIX_VERIFYNODESETERRORFAILED);
-                                PKIX_DECREF(verifyError);
+                                PKIX_DECREF(finalError);
+                                finalError = verifyError;
+                                verifyError = NULL;
                         }
                         /* Even if we logged error, we still have to abort */
                         PKIX_ERROR(PKIX_TIMECONSUMEDEXCEEDSRESOURCELIMITS);
@@ -2597,7 +2642,6 @@ pkix_BuildForwardDepthFirstSearch(
 #endif
 
             if (state->status == BUILD_CERTVALIDATING) {
-
                     revocationCheckingExists =
                         (state->buildConstants.crlChecker != NULL);
 
@@ -2628,6 +2672,12 @@ pkix_BuildForwardDepthFirstSearch(
                                     plContext),
                                     PKIX_VERIFYNODECREATEFAILED);
                     }
+
+#ifdef PR_LOGGING
+                    pkix_trace_dump_cert(
+                      "pkix_BuildForwardDepthFirstSearch calling pkix_Build_VerifyCertificate",
+                      state->candidateCert, plContext);
+#endif
 
                     /* If failure, this function sets Error in verifyNode */
                     verifyError = pkix_Build_VerifyCertificate
@@ -2661,7 +2711,9 @@ pkix_BuildForwardDepthFirstSearch(
                                         PKIX_VERIFYNODEADDTOTREEFAILED);
                                 PKIX_DECREF(verifyNode);
                             }
-                            PKIX_DECREF(verifyError);
+                            PKIX_DECREF(finalError);
+                            finalError = verifyError;
+                            verifyError = NULL;
                             if (state->certLoopingDetected) {
                                 PKIX_ERROR
                                     (PKIX_LOOPDISCOVEREDDUPCERTSNOTALLOWED);
@@ -2740,7 +2792,9 @@ pkix_BuildForwardDepthFirstSearch(
                                     PKIX_VERIFYNODEADDTOTREEFAILED);
                             PKIX_DECREF(verifyNode);
                     }
-                    PKIX_DECREF(verifyError);
+                    PKIX_DECREF(finalError);
+                    finalError = verifyError;
+                    verifyError = NULL;
                     if (state->certLoopingDetected) {
                             PKIX_ERROR
                                 (PKIX_LOOPDISCOVEREDDUPCERTSNOTALLOWED);
@@ -2959,7 +3013,9 @@ pkix_BuildForwardDepthFirstSearch(
                                       plContext),
                                       PKIX_VERIFYNODESETERRORFAILED);
                               }
-                              PKIX_DECREF(verifyError);
+                              PKIX_DECREF(finalError);
+                              finalError = verifyError;
+                              verifyError = NULL;
                               /* try again with the next trust anchor */
                               state->status = BUILD_CHECKWITHANCHORS;
                       } else {
@@ -3041,7 +3097,9 @@ pkix_BuildForwardDepthFirstSearch(
                                     (state->verifyNode, verifyNode, plContext),
                                     PKIX_VERIFYNODEADDTOTREEFAILED);
                                 PKIX_DECREF(verifyNode);
-                                PKIX_DECREF(verifyError);
+                                PKIX_DECREF(finalError);
+                                finalError = verifyError;
+                                verifyError = NULL;
                         }
                         /* Even if error logged, still need to abort */
                         PKIX_ERROR(PKIX_DEPTHWOULDEXCEEDRESOURCELIMITS);
@@ -3160,7 +3218,9 @@ pkix_BuildForwardDepthFirstSearch(
                                             verifyError,
                                             plContext),
                                             PKIX_VERIFYNODESETERRORFAILED);
-                                        PKIX_DECREF(verifyError);
+                                        PKIX_DECREF(finalError);
+                                        finalError = verifyError;
+                                        verifyError = NULL;
                                 }
                                 /* Even if error logged, still need to abort */
                                 PKIX_ERROR
@@ -3292,10 +3352,21 @@ cleanup:
                 state->validityDate = validityDate;
                 validityDate = NULL;
         }
+        if (!*pValResult && !verifyError) {
+            if (finalError) {
+                pkixErrorResult = finalError;
+                pkixErrorCode = finalError->errCode;
+                finalError = NULL;
+                goto fatal;
+            }
+            pkixErrorCode = PKIX_SECERRORUNKNOWNISSUER;
+            pkixErrorReceived = PKIX_TRUE;
+        } else {
+            pkixErrorResult = verifyError;
+            verifyError = NULL;
+        }
         *pState = state;
         state = NULL;
-        pkixErrorResult = verifyError;
-        verifyError = NULL;
 
 fatal:
         PKIX_DECREF(state);
@@ -3303,6 +3374,7 @@ fatal:
         PKIX_DECREF(childState);
         PKIX_DECREF(valResult);
         PKIX_DECREF(verifyError);
+        PKIX_DECREF(finalError);
         PKIX_DECREF(verifyNode);
         PKIX_DECREF(candidatePubKey);
         PKIX_DECREF(trustedPubKey);

@@ -62,10 +62,6 @@
 #include "jsscript.h"
 #include "jsstr.h"
 
-#ifdef MOZ_SHARK
-#include <CHUD/CHUD.h>
-#endif
-
 typedef struct JSTrap {
     JSCList         links;
     JSScript        *script;
@@ -96,18 +92,42 @@ FindTrap(JSRuntime *rt, JSScript *script, jsbytecode *pc)
     return NULL;
 }
 
-void
-js_PatchOpcode(JSContext *cx, JSScript *script, jsbytecode *pc, JSOp op)
+jsbytecode *
+js_UntrapScriptCode(JSContext *cx, JSScript *script)
 {
+    jsbytecode *code;
+    JSRuntime *rt;
     JSTrap *trap;
 
-    DBG_LOCK(cx->runtime);
-    trap = FindTrap(cx->runtime, script, pc);
-    if (trap)
-        trap->op = op;
-    else
-        *pc = (jsbytecode)op;
-    DBG_UNLOCK(cx->runtime);
+    code = script->code;
+    rt = cx->runtime;
+    DBG_LOCK(rt);
+    for (trap = (JSTrap *)rt->trapList.next;
+         trap != (JSTrap *)&rt->trapList;
+         trap = (JSTrap *)trap->links.next) {
+        if (trap->script == script &&
+            (size_t)(trap->pc - script->code) < script->length) {
+            if (code == script->code) {
+                jssrcnote *sn, *notes;
+                size_t nbytes;
+
+                nbytes = script->length * sizeof(jsbytecode);
+                notes = SCRIPT_NOTES(script);
+                for (sn = notes; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
+                    continue;
+                nbytes += (sn - notes + 1) * sizeof *sn;
+
+                code = (jsbytecode *) JS_malloc(cx, nbytes);
+                if (!code)
+                    break;
+                memcpy(code, script->code, nbytes);
+                JS_CLEAR_GSN_CACHE(cx);
+            }
+            code[trap->pc - script->code] = trap->op;
+        }
+    }
+    DBG_UNLOCK(rt);
+    return code;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -118,6 +138,7 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
     JSRuntime *rt;
     uint32 sample;
 
+    JS_ASSERT((JSOp) *pc != JSOP_TRAP);
     junk = NULL;
     rt = cx->runtime;
     DBG_LOCK(rt);
@@ -129,9 +150,11 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         sample = rt->debuggerMutations;
         DBG_UNLOCK(rt);
         trap = (JSTrap *) JS_malloc(cx, sizeof *trap);
-        if (!trap || !js_AddRoot(cx, &trap->closure, "trap->closure")) {
-            if (trap)
-                JS_free(cx, trap);
+        if (!trap)
+            return JS_FALSE;
+        trap->closure = NULL;
+        if(!js_AddRoot(cx, &trap->closure, "trap->closure")) {
+            JS_free(cx, trap);
             return JS_FALSE;
         }
         DBG_LOCK(rt);
@@ -153,8 +176,10 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
     trap->handler = handler;
     trap->closure = closure;
     DBG_UNLOCK(rt);
-    if (junk)
+    if (junk) {
+        js_RemoveRoot(rt, &junk->closure);
         JS_free(cx, junk);
+    }
     return JS_TRUE;
 }
 
@@ -558,6 +583,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                 jsval smallv[5];
                 jsval *argv;
                 JSStackFrame frame;
+                JSFrameRegs regs;
 
                 closure = (JSObject *) wp->closure;
                 clasp = OBJ_GET_CLASS(cx, closure);
@@ -600,10 +626,13 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
                     memset(&frame, 0, sizeof(frame));
                     frame.script = script;
+                    frame.regs = NULL;
                     if (script) {
                         JS_ASSERT(script->length >= JSOP_STOP_LENGTH);
-                        frame.pc = script->code + script->length
-                                   - JSOP_STOP_LENGTH;
+                        regs.pc = script->code + script->length
+                                  - JSOP_STOP_LENGTH;
+                        regs.sp = NULL;
+                        frame.regs = &regs;
                     }
                     frame.callee = closure;
                     frame.fun = fun;
@@ -681,7 +710,7 @@ js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, JSPropertyOp setter)
                              atom);
     if (!wrapper)
         return NULL;
-    return (JSPropertyOp) wrapper->object;
+    return (JSPropertyOp) FUN_OBJECT(wrapper);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -956,7 +985,7 @@ JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsbytecode *)
 JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->pc;
+    return fp->regs ? fp->regs->pc : NULL;
 }
 
 JS_PUBLIC_API(JSStackFrame *)
@@ -979,7 +1008,7 @@ JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
         JSRuntime *rt = cx->runtime;
 
         if (rt->findObjectPrincipals) {
-            if (fp->fun->object != fp->callee)
+            if (FUN_OBJECT(fp->fun) != fp->callee)
                 return rt->findObjectPrincipals(cx, fp->callee);
             /* FALL THROUGH */
         }
@@ -1338,28 +1367,17 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
 
     pd->flags |= ((sprop->attrs & JSPROP_ENUMERATE) ? JSPD_ENUMERATE : 0)
               | ((sprop->attrs & JSPROP_READONLY)  ? JSPD_READONLY  : 0)
-              | ((sprop->attrs & JSPROP_PERMANENT) ? JSPD_PERMANENT : 0)
-              | ((sprop->getter == js_GetCallVariable) ? JSPD_VARIABLE  : 0);
-
-    /* for Call Object 'real' getter isn't passed in to us */
-    if (OBJ_GET_CLASS(cx, obj) == &js_CallClass &&
-        sprop->getter == js_CallClass.getProperty) {
-        /*
-         * Property of a heavyweight function's variable object having the
-         * class-default getter.  It's either an argument if permanent, or a
-         * nested function if impermanent.  Local variables have a special
-         * getter (js_GetCallVariable, tested above) and setter, and not the
-         * class default.
-         */
-        pd->flags |= (sprop->attrs & JSPROP_PERMANENT)
-                     ? JSPD_ARGUMENT
-                     : JSPD_VARIABLE;
-    }
-
+              | ((sprop->attrs & JSPROP_PERMANENT) ? JSPD_PERMANENT : 0);
     pd->spare = 0;
-    pd->slot = (pd->flags & (JSPD_ARGUMENT | JSPD_VARIABLE))
-               ? sprop->shortid
-               : 0;
+    if (sprop->getter == js_GetCallArg) {
+        pd->slot = sprop->shortid;
+        pd->flags |= JSPD_ARGUMENT;
+    } else if (sprop->getter == js_GetCallVar) {
+        pd->slot = sprop->shortid;
+        pd->flags |= JSPD_VARIABLE;
+    } else {
+        pd->slot = 0;
+    }
     pd->alias = JSVAL_VOID;
     scope = OBJ_SCOPE(obj);
     if (SPROP_HAS_VALID_SLOT(sprop, scope)) {
@@ -1549,8 +1567,7 @@ JS_GetFunctionTotalSize(JSContext *cx, JSFunction *fun)
     size_t nbytes;
 
     nbytes = sizeof *fun;
-    if (fun->object)
-        nbytes += JS_GetObjectTotalSize(cx, fun->object);
+    nbytes += JS_GetObjectTotalSize(cx, FUN_OBJECT(fun));
     if (FUN_INTERPRETED(fun))
         nbytes += JS_GetScriptTotalSize(cx, fun->u.i.script);
     if (fun->atom)
@@ -1663,7 +1680,7 @@ JS_NewSystemObject(JSContext *cx, JSClass *clasp, JSObject *proto,
 {
     JSObject *obj;
 
-    obj = js_NewObject(cx, clasp, proto, parent);
+    obj = js_NewObject(cx, clasp, proto, parent, 0);
     if (obj && system)
         STOBJ_SET_SYSTEM(obj);
     return obj;
@@ -1689,6 +1706,8 @@ JS_SetContextDebugHooks(JSContext *cx, JSDebugHooks *hooks)
 }
 
 #ifdef MOZ_SHARK
+
+#include <CHUD/CHUD.h>
 
 JS_PUBLIC_API(JSBool)
 JS_StartChudRemote()

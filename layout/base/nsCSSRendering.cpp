@@ -1053,8 +1053,7 @@ NumBorderPasses (PRUint8 *borderStyles,
       case NS_STYLE_BORDER_STYLE_OUTSET:
       case NS_STYLE_BORDER_STYLE_GROOVE:
       case NS_STYLE_BORDER_STYLE_RIDGE:
-        /* XXX See bug 397303 why this is 4 instead of 2; this could be optimized further */
-        numBorderPasses = 4;
+        numBorderPasses = 2;
         break;
 
       case NS_STYLE_BORDER_STYLE_SOLID:
@@ -1103,9 +1102,6 @@ GetBorderCornerDimensions(const gfxRect& oRect,
                           const gfxFloat *radii,
                           gfxSize *oDims)
 {
-  gfxFloat halfWidth = oRect.size.width / 2.0;
-  gfxFloat halfHeight = oRect.size.height / 2.0;
-
   gfxFloat topWidth = iRect.pos.y - oRect.pos.y;
   gfxFloat leftWidth = iRect.pos.x - oRect.pos.x;
   gfxFloat rightWidth = oRect.size.width - iRect.size.width - leftWidth;
@@ -1118,16 +1114,10 @@ GetBorderCornerDimensions(const gfxRect& oRect,
     bottomWidth = PR_MAX(bottomWidth, PR_MAX(radii[C_BR], radii[C_BL]));
   }
 
-  // Make sure that the computed corner size doesn't ever go beyond
-  // half of the full border width/height
-  oDims[C_TL] = gfxSize(PR_MIN(halfWidth, leftWidth * CORNER_FACTOR),
-                        PR_MIN(halfHeight, topWidth * CORNER_FACTOR));
-  oDims[C_TR] = gfxSize(PR_MIN(halfWidth, rightWidth * CORNER_FACTOR),
-                        PR_MIN(halfHeight, topWidth * CORNER_FACTOR));
-  oDims[C_BL] = gfxSize(PR_MIN(halfWidth, leftWidth * CORNER_FACTOR),
-                        PR_MIN(halfHeight, bottomWidth * CORNER_FACTOR));
-  oDims[C_BR] = gfxSize(PR_MIN(halfWidth, rightWidth * CORNER_FACTOR),
-                        PR_MIN(halfHeight, bottomWidth * CORNER_FACTOR));
+  oDims[C_TL] = gfxSize(leftWidth, topWidth);
+  oDims[C_TR] = gfxSize(rightWidth, topWidth);
+  oDims[C_BL] = gfxSize(leftWidth, bottomWidth);
+  oDims[C_BR] = gfxSize(rightWidth, bottomWidth);
 }
 
 /* Set up a path for rendering just the corners of the path.  Executed
@@ -2724,10 +2714,10 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   }
 
   // get the radius for our border
-  aBorderStyle.mBorderRadius.GetTop(bordStyleRadius[0]);      //topleft
-  aBorderStyle.mBorderRadius.GetRight(bordStyleRadius[1]);    //topright
-  aBorderStyle.mBorderRadius.GetBottom(bordStyleRadius[2]);   //bottomright
-  aBorderStyle.mBorderRadius.GetLeft(bordStyleRadius[3]);     //bottomleft
+  bordStyleRadius[0] = aBorderStyle.mBorderRadius.GetTop();    //topleft
+  bordStyleRadius[1] = aBorderStyle.mBorderRadius.GetRight();  //topright
+  bordStyleRadius[2] = aBorderStyle.mBorderRadius.GetBottom(); //bottomright
+  bordStyleRadius[3] = aBorderStyle.mBorderRadius.GetLeft();   //bottomleft
 
   // convert percentage values
   for(int i = 0; i < 4; i++) {
@@ -2772,15 +2762,6 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
   if (border.top + border.bottom > aBorderArea.height) {
     innerRect.y = outerRect.y;
     innerRect.height = outerRect.height;
-  }
-
-  // If the dirty rect is completely inside the border area (e.g., only the
-  // content is being painted), then we can skip out now
-  // XXX this isn't exactly true for rounded borders, where the inner curves may
-  // encroach into the content area.  A safer calculation would be to
-  // shorten innerRect by the radius one each side before performing this test.
-  if (innerRect.Contains(aDirtyRect)) {
-    return;
   }
 
   // we can assume that we're already clipped to aDirtyRect -- I think? (!?)
@@ -2890,10 +2871,10 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
     (aStyleContext, PR_FALSE);
 
   // get the radius for our outline
-  aOutlineStyle.mOutlineRadius.GetTop(bordStyleRadius[0]);      //topleft
-  aOutlineStyle.mOutlineRadius.GetRight(bordStyleRadius[1]);    //topright
-  aOutlineStyle.mOutlineRadius.GetBottom(bordStyleRadius[2]);   //bottomright
-  aOutlineStyle.mOutlineRadius.GetLeft(bordStyleRadius[3]);     //bottomleft
+  bordStyleRadius[0] = aOutlineStyle.mOutlineRadius.GetTop();    //topleft
+  bordStyleRadius[1] = aOutlineStyle.mOutlineRadius.GetRight();  //topright
+  bordStyleRadius[2] = aOutlineStyle.mOutlineRadius.GetBottom(); //bottomright
+  bordStyleRadius[3] = aOutlineStyle.mOutlineRadius.GetLeft();   //bottomleft
 
   // convert percentage values
   for (int i = 0; i < 4; i++) {
@@ -3737,10 +3718,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   nscoord borderRadii[4];
 
   // get the radius for our border
-  aBorder.mBorderRadius.GetTop(bordStyleRadius[NS_SIDE_TOP]);       // topleft
-  aBorder.mBorderRadius.GetRight(bordStyleRadius[NS_SIDE_RIGHT]);   // topright
-  aBorder.mBorderRadius.GetBottom(bordStyleRadius[NS_SIDE_BOTTOM]); // bottomright
-  aBorder.mBorderRadius.GetLeft(bordStyleRadius[NS_SIDE_LEFT]);     // bottomleft
+  bordStyleRadius[NS_SIDE_TOP] = aBorder.mBorderRadius.GetTop();       // topleft
+  bordStyleRadius[NS_SIDE_RIGHT] = aBorder.mBorderRadius.GetRight();   // topright
+  bordStyleRadius[NS_SIDE_BOTTOM] = aBorder.mBorderRadius.GetBottom(); // bottomright
+  bordStyleRadius[NS_SIDE_LEFT] = aBorder.mBorderRadius.GetLeft();     // bottomleft
 
   PRBool haveRadius = PR_FALSE;
   PRUint8 side = 0;
@@ -3913,12 +3894,23 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                  "Bogus y coord for draw rect");
     // Figure out whether we can get away with not tiling at all.
     nsRect sourceRect = drawRect - absTileRect.TopLeft();
+    // Compute the subimage rectangle that we expect to be sampled.
+    // This is the tile rectangle, clipped to the bgClipArea, and then
+    // passed in relative to the image top-left.
+    nsRect destRect; // The rectangle we would draw ignoring dirty-rect
+    destRect.IntersectRect(absTileRect, bgClipArea);
+    nsRect subimageRect = destRect - aBorderArea.TopLeft() - tileRect.TopLeft();
     if (sourceRect.XMost() <= tileWidth && sourceRect.YMost() <= tileHeight) {
       // The entire drawRect is contained inside a single tile; just
       // draw the corresponding part of the image once.
-      nsLayoutUtils::DrawImage(&aRenderingContext, image, absTileRect, drawRect);
+      nsLayoutUtils::DrawImage(&aRenderingContext, image,
+              destRect, drawRect, &subimageRect);
     } else {
-      aRenderingContext.DrawTile(image, absTileRect.x, absTileRect.y, &drawRect);
+      // Note that the subimage is in tile space so it may cover
+      // multiple tiles of the image.
+      subimageRect.ScaleRoundOutInverse(nsIDeviceContext::AppUnitsPerCSSPixel());
+      aRenderingContext.DrawTile(image, absTileRect.x, absTileRect.y,
+              &drawRect, &subimageRect);
     }
   }
 
@@ -3951,10 +3943,10 @@ nsCSSRendering::PaintBackgroundColor(nsPresContext* aPresContext,
   nsRect bgClipArea(aBgClipArea);
 
   // get the radius for our border
-  aBorder.mBorderRadius.GetTop(bordStyleRadius[NS_SIDE_TOP]);       // topleft
-  aBorder.mBorderRadius.GetRight(bordStyleRadius[NS_SIDE_RIGHT]);   // topright
-  aBorder.mBorderRadius.GetBottom(bordStyleRadius[NS_SIDE_BOTTOM]); // bottomright
-  aBorder.mBorderRadius.GetLeft(bordStyleRadius[NS_SIDE_LEFT]);     // bottomleft
+  bordStyleRadius[NS_SIDE_TOP] = aBorder.mBorderRadius.GetTop();       // topleft
+  bordStyleRadius[NS_SIDE_RIGHT] = aBorder.mBorderRadius.GetRight();   // topright
+  bordStyleRadius[NS_SIDE_BOTTOM] = aBorder.mBorderRadius.GetBottom(); // bottomright
+  bordStyleRadius[NS_SIDE_LEFT] = aBorder.mBorderRadius.GetLeft();     // bottomleft
 
   PRUint8 side = 0;
   for (; side < 4; ++side) {
@@ -4460,8 +4452,7 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
                                     const gfxFloat aAscent,
                                     const gfxFloat aOffset,
                                     const PRUint8 aDecoration,
-                                    const PRUint8 aStyle,
-                                    const PRBool aIsRTL)
+                                    const PRUint8 aStyle)
 {
   gfxRect rect =
     GetTextDecorationRectInternal(aPt, aLineSize, aAscent, aOffset,
@@ -4543,13 +4534,8 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
     case NS_STYLE_BORDER_STYLE_DOTTED:
     case NS_STYLE_BORDER_STYLE_DASHED:
       aGfxContext->NewPath();
-      if (aIsRTL) {
-        aGfxContext->MoveTo(rect.TopRight());
-        aGfxContext->LineTo(rect.TopLeft());
-      } else {
-        aGfxContext->MoveTo(rect.TopLeft());
-        aGfxContext->LineTo(rect.TopRight());
-      }
+      aGfxContext->MoveTo(rect.TopLeft());
+      aGfxContext->LineTo(rect.TopRight());
       aGfxContext->Stroke();
       break;
     default:
@@ -4596,7 +4582,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
                                               const PRUint8 aStyle)
 {
   gfxRect r;
-  r.pos.x = NS_round(aPt.x);
+  r.pos.x = NS_floor(aPt.x + 0.5);
   r.size.width = NS_round(aLineSize.width);
 
   gfxFloat basesize = NS_round(aLineSize.height);
@@ -4610,24 +4596,24 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
     r.size.height = basesize;
   }
 
-  gfxFloat baseline = NS_round(aPt.y + aAscent);
+  gfxFloat baseline = NS_floor(aPt.y + aAscent + 0.5);
   gfxFloat offset = 0;
   switch (aDecoration) {
     case NS_STYLE_TEXT_DECORATION_UNDERLINE:
-      offset = NS_round(aOffset);
+      offset = aOffset;
       break;
     case NS_STYLE_TEXT_DECORATION_OVERLINE:
-      offset = NS_round(aOffset - basesize + r.Height());
+      offset = aOffset - basesize + r.Height();
       break;
     case NS_STYLE_TEXT_DECORATION_LINE_THROUGH: {
-      gfxFloat extra = NS_round(r.Height() / 2.0);
+      gfxFloat extra = NS_floor(r.Height() / 2.0 + 0.5);
       extra = PR_MAX(extra, basesize);
-      offset = NS_round(aOffset - basesize + extra);
+      offset = aOffset - basesize + extra;
       break;
     }
     default:
       NS_ERROR("Invalid decoration value!");
   }
-  r.pos.y = baseline - NS_round(offset);
+  r.pos.y = baseline - NS_floor(offset + 0.5);
   return r;
 }

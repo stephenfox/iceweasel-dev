@@ -46,6 +46,7 @@
 #include "nsIPrefService.h"
 #include "nsNetUtil.h"
 #include "nsDeque.h"
+#include "nsIFileURL.h"
 
 /**
  * Code overview
@@ -259,6 +260,65 @@ nsDownloadScanner::ListCLSID()
   return 0;
 }
 
+// If IAttachementExecute is available, use the CheckPolicy call to find out
+// if this download should be prevented due to Security Zone Policy settings.
+AVCheckPolicyState
+nsDownloadScanner::CheckPolicy(nsIURI *aSource, nsIURI *aTarget)
+{
+  nsresult rv;
+
+  if (!aSource || !aTarget || !mHaveAttachmentExecute)
+    return AVPOLICY_DOWNLOAD;
+
+  nsCAutoString source;
+  rv = aSource->GetSpec(source);
+  if (NS_FAILED(rv))
+    return AVPOLICY_DOWNLOAD;
+
+  nsCOMPtr<nsIFileURL> fileUrl(do_QueryInterface(aTarget));
+  if (!fileUrl)
+    return AVPOLICY_DOWNLOAD;
+
+  nsCOMPtr<nsIFile> theFile;
+  nsAutoString aFileName;
+  if (NS_FAILED(fileUrl->GetFile(getter_AddRefs(theFile))) ||
+      NS_FAILED(theFile->GetLeafName(aFileName)))
+    return AVPOLICY_DOWNLOAD;
+
+  // IAttachementExecute prohibits src data: schemes by default but we
+  // support them. If this is a data src, skip off doing a policy check.
+  // (The file will still be scanned once it lands on the local system.)
+  PRBool isDataScheme(PR_FALSE);
+  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aSource);
+  if (innerURI)
+    (void)innerURI->SchemeIs("data", &isDataScheme);
+  if (isDataScheme)
+    return AVPOLICY_DOWNLOAD;
+
+  nsRefPtr<IAttachmentExecute> ae;
+  HRESULT hr;
+  hr = CoCreateInstance(CLSID_AttachmentServices, NULL, CLSCTX_INPROC,
+                        IID_IAttachmentExecute, getter_AddRefs(ae));
+  if (FAILED(hr))
+    return AVPOLICY_DOWNLOAD;
+
+  (void)ae->SetClientGuid(GUID_MozillaVirusScannerPromptGeneric);
+  (void)ae->SetSource(NS_ConvertUTF8toUTF16(source).get());
+  (void)ae->SetFileName(aFileName.get());
+
+  // Any failure means the file download/exec will be blocked by the system.
+  // S_OK or S_FALSE imply it's ok.
+  hr = ae->CheckPolicy();
+
+  if (hr == S_OK)
+    return AVPOLICY_DOWNLOAD;
+
+  if (hr == S_FALSE)
+    return AVPOLICY_PROMPT;
+
+  return AVPOLICY_BLOCKED;
+}
+
 #ifndef THREAD_MODE_BACKGROUND_BEGIN
 #define THREAD_MODE_BACKGROUND_BEGIN 0x00010000
 #endif
@@ -302,7 +362,8 @@ nsresult ReleaseDispatcher::Run() {
 
 nsDownloadScanner::Scan::Scan(nsDownloadScanner *scanner, nsDownload *download)
   : mDLScanner(scanner), mThread(NULL), 
-    mDownload(download), mStatus(AVSCAN_NOTSTARTED)
+    mDownload(download), mStatus(AVSCAN_NOTSTARTED),
+    mSkipSource(PR_FALSE)
 {
   InitializeCriticalSection(&mStateSync);
 }
@@ -362,10 +423,17 @@ nsDownloadScanner::Scan::Start()
   // We count https/ftp/http as an http download
   PRBool isHttp(PR_FALSE), isFtp(PR_FALSE), isHttps(PR_FALSE);
   nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(uri);
+  if (!innerURI) innerURI = uri;
   (void)innerURI->SchemeIs("http", &isHttp);
   (void)innerURI->SchemeIs("ftp", &isFtp);
   (void)innerURI->SchemeIs("https", &isHttps);
   mIsHttpDownload = isHttp || isFtp || isHttps;
+
+  // IAttachementExecute prohibits src data: schemes by default but we
+  // support them. Mark the download if it's a data scheme, so we
+  // can skip off supplying the src to IAttachementExecute when we scan
+  // the resulting file.
+  (void)innerURI->SchemeIs("data", &mSkipSource);
 
   // ResumeThread returns the previous suspend count
   if (1 != ::ResumeThread(mThread)) {
@@ -449,7 +517,9 @@ nsDownloadScanner::Scan::DoScanAES()
       __try {
         (void)ae->SetClientGuid(GUID_MozillaVirusScannerPromptGeneric);
         (void)ae->SetLocalPath(mPath.BeginWriting());
-        (void)ae->SetSource(mOrigin.BeginWriting());
+        // Provide the src for everything but data: schemes.
+        if (!mSkipSource)
+          (void)ae->SetSource(mOrigin.BeginWriting());
 
         // Save() will invoke the scanner
         hr = ae->Save();

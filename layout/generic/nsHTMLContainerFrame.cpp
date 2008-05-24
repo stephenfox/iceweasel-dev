@@ -38,6 +38,7 @@
 /* base class #2 for rendering objects that have child lists */
 
 #include "nsHTMLContainerFrame.h"
+#include "nsFirstLetterFrame.h"
 #include "nsIRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -62,6 +63,8 @@
 #include "nsCOMPtr.h"
 #include "nsIDeviceContext.h"
 #include "nsIFontMetrics.h"
+#include "nsIThebesFontMetrics.h"
+#include "gfxFont.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsDisplayList.h"
 #include "nsBlockFrame.h"
@@ -100,26 +103,45 @@ nsDisplayTextDecoration::Paint(nsDisplayListBuilder* aBuilder,
 {
   nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm));
+  nsIThebesFontMetrics* tfm = static_cast<nsIThebesFontMetrics*>(fm.get());
+  gfxFontGroup* fontGroup = tfm->GetThebesFontGroup();
+  gfxFont* firstFont = fontGroup->GetFontAt(0);
+  if (!firstFont)
+    return; // OOM
+  const gfxFont::Metrics& metrics = firstFont->GetMetrics();
+
+  gfxFloat ascent;
+  // The ascent of first-letter frame's text may not be the same as the ascent
+  // of the font metrics. Because that may use the tight box of the actual
+  // glyph.
+  if (mFrame->GetType() == nsGkAtoms::letterFrame) {
+    // Note that nsFirstLetterFrame::GetFirstLetterBaseline() returns
+    // |border-top + padding-top + ascent|. But we only need the ascent value.
+    // Because they will be added in PaintTextDecorationLine.
+    nsFirstLetterFrame* letterFrame = static_cast<nsFirstLetterFrame*>(mFrame);
+    nscoord tmp = letterFrame->GetFirstLetterBaseline();
+    tmp -= letterFrame->GetUsedBorderAndPadding().top;
+    ascent = letterFrame->PresContext()->AppUnitsToGfxUnits(tmp);
+  } else {
+    ascent = metrics.maxAscent;
+  }
 
   nsPoint pt = aBuilder->ToReferenceFrame(mFrame);
 
-  // REVIEW: From nsHTMLContainerFrame::PaintTextDecorations
-  nscoord ascent, offset, size;
   nsHTMLContainerFrame* f = static_cast<nsHTMLContainerFrame*>(mFrame);
-  fm->GetMaxAscent(ascent);
-  if (mDecoration != NS_STYLE_TEXT_DECORATION_LINE_THROUGH) {
-    fm->GetUnderline(offset, size);
-    if (mDecoration == NS_STYLE_TEXT_DECORATION_UNDERLINE) {
-      f->PaintTextDecorationLine(*aCtx, pt, mLine, mColor,
-                                 offset, ascent, size, mDecoration);
-    } else if (mDecoration == NS_STYLE_TEXT_DECORATION_OVERLINE) {
-      f->PaintTextDecorationLine(*aCtx, pt, mLine, mColor,
-                                 ascent, ascent, size, mDecoration);
-    }
-  } else {
-    fm->GetStrikeout(offset, size);
+  if (mDecoration == NS_STYLE_TEXT_DECORATION_UNDERLINE) {
+    gfxFloat underlineOffset = fontGroup->GetUnderlineOffset();
     f->PaintTextDecorationLine(*aCtx, pt, mLine, mColor,
-                               offset, ascent, size, mDecoration);
+                               underlineOffset, ascent,
+                               metrics.underlineSize, mDecoration);
+  } else if (mDecoration == NS_STYLE_TEXT_DECORATION_OVERLINE) {
+    f->PaintTextDecorationLine(*aCtx, pt, mLine, mColor,
+                               metrics.maxAscent, ascent,
+                               metrics.underlineSize, mDecoration);
+  } else {
+    f->PaintTextDecorationLine(*aCtx, pt, mLine, mColor,
+                               metrics.strikeoutOffset, ascent,
+                               metrics.strikeoutSize, mDecoration);
   }
 }
 
@@ -200,12 +222,12 @@ HasTextFrameDescendantOrInFlow(nsIFrame* aFrame);
 /*virtual*/ void
 nsHTMLContainerFrame::PaintTextDecorationLine(
                    nsIRenderingContext& aRenderingContext, 
-                   nsPoint aPt,
+                   const nsPoint& aPt,
                    nsLineBox* aLine,
                    nscolor aColor, 
-                   nscoord aOffset, 
-                   nscoord aAscent, 
-                   nscoord aSize,
+                   gfxFloat aOffset, 
+                   gfxFloat aAscent, 
+                   gfxFloat aSize,
                    const PRUint8 aDecoration) 
 {
   NS_ASSERTION(!aLine, "Should not have passed a linebox to a non-block frame");
@@ -216,18 +238,13 @@ nsHTMLContainerFrame::PaintTextDecorationLine(
       bp.side(side) = 0;
     }
   }
-  const nsStyleVisibility* visibility = GetStyleVisibility();
-  PRBool isRTL = visibility->mDirection == NS_STYLE_DIRECTION_RTL;
   nscoord innerWidth = mRect.width - bp.left - bp.right;
   nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
   gfxPoint pt(PresContext()->AppUnitsToGfxUnits(bp.left + aPt.x),
               PresContext()->AppUnitsToGfxUnits(bp.top + aPt.y));
-  gfxSize size(PresContext()->AppUnitsToGfxUnits(innerWidth),
-               PresContext()->AppUnitsToGfxUnits(aSize));
-  nsCSSRendering::PaintDecorationLine(
-    ctx, aColor, pt, size, PresContext()->AppUnitsToGfxUnits(aAscent),
-    PresContext()->AppUnitsToGfxUnits(aOffset),
-    aDecoration, NS_STYLE_BORDER_STYLE_SOLID, isRTL);
+  gfxSize size(PresContext()->AppUnitsToGfxUnits(innerWidth), aSize);
+  nsCSSRendering::PaintDecorationLine(ctx, aColor, pt, size, aAscent, aOffset,
+                                      aDecoration, NS_STYLE_BORDER_STYLE_SOLID);
 }
 
 void

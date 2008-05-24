@@ -485,20 +485,20 @@ nsProtocolProxyService::PrefsChanged(nsIPrefBranch *prefBranch,
         if (mProxyConfig == eProxyConfig_PAC) {
             prefBranch->GetCharPref(PROXY_PREF("autoconfig_url"),
                                     getter_Copies(tempString));
-        } else {
+        } else if (mProxyConfig == eProxyConfig_WPAD) {
             // We diverge from the WPAD spec here in that we don't walk the
             // hosts's FQDN, stripping components until we hit a TLD.  Doing so
             // is dangerous in the face of an incomplete list of TLDs, and TLDs
             // get added over time.  We could consider doing only a single
             // substitution of the first component, if that proves to help
             // compatibility.
-            if (mSystemProxySettings)
-                mSystemProxySettings->GetPACURI(tempString);
-            else
-                tempString.AssignLiteral(WPAD_URL);
+            tempString.AssignLiteral(WPAD_URL);
+        } else if (mSystemProxySettings) {
+            // Get System Proxy settings if available
+            mSystemProxySettings->GetPACURI(tempString);
         }
         if (!tempString.IsEmpty())
-            ConfigureFromPAC(tempString);
+            ConfigureFromPAC(tempString, PR_FALSE);
     }
 }
 
@@ -758,7 +758,8 @@ nsProtocolProxyService::IsProxyDisabled(nsProxyInfo *pi)
 }
 
 nsresult
-nsProtocolProxyService::ConfigureFromPAC(const nsCString &spec)
+nsProtocolProxyService::ConfigureFromPAC(const nsCString &spec,
+                                         PRBool forceReload)
 {
     if (!mPACMan) {
         mPACMan = new nsPACMan();
@@ -771,7 +772,7 @@ nsProtocolProxyService::ConfigureFromPAC(const nsCString &spec)
     if (NS_FAILED(rv))
         return rv;
 
-    if (mPACMan->IsPACURI(pacURI))
+    if (mPACMan->IsPACURI(pacURI) && !forceReload)
         return NS_OK;
 
     mFailedProxies.Clear();
@@ -826,7 +827,7 @@ nsProtocolProxyService::ReloadPAC()
         pacSpec.AssignLiteral(WPAD_URL);
 
     if (!pacSpec.IsEmpty())
-        ConfigureFromPAC(pacSpec);
+        ConfigureFromPAC(pacSpec, PR_TRUE);
     return NS_OK;
 }
 
@@ -1256,7 +1257,7 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
             !PACURI.IsEmpty()) {
             // Switch to new PAC file if that setting has changed. If the setting
             // hasn't changed, ConfigureFromPAC will exit early.
-            nsresult rv = ConfigureFromPAC(PACURI);
+            nsresult rv = ConfigureFromPAC(PACURI, PR_FALSE);
             if (NS_FAILED(rv))
                 return rv;
         } else {

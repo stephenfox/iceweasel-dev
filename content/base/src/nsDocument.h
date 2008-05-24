@@ -631,6 +631,7 @@ public:
 
   virtual NS_HIDDEN_(PRBool) CanSavePresentation(nsIRequest *aNewRequest);
   virtual NS_HIDDEN_(void) Destroy();
+  virtual NS_HIDDEN_(void) RemovedFromDocShell();
   virtual NS_HIDDEN_(already_AddRefed<nsILayoutHistoryState>) GetLayoutHistoryState() const;
 
   virtual NS_HIDDEN_(void) BlockOnload();
@@ -647,8 +648,11 @@ public:
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
   virtual NS_HIDDEN_(void) FlushSkinBindings();
-  
+
+  virtual NS_HIDDEN_(nsresult) InitializeFrameLoader(nsFrameLoader* aLoader);
   virtual NS_HIDDEN_(nsresult) FinalizeFrameLoader(nsFrameLoader* aLoader);
+  virtual NS_HIDDEN_(void) TryCancelFrameLoaderInitialization(nsIDocShell* aShell);
+  virtual NS_HIDDEN_(PRBool) FrameLoaderScheduledToBeFinalized(nsIDocShell* aShell);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
@@ -669,6 +673,8 @@ protected:
   static PRBool CheckGetElementByIdArg(const nsAString& aId);
 
   void DispatchContentLoadedEvents();
+
+  void InitializeFinalizeFrameLoaders();
 
   void RetrieveRelevantHeaders(nsIChannel *aChannel);
 
@@ -771,6 +777,10 @@ protected:
 
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
+  // True if our content viewer has been removed from the docshell
+  // (it may still be displayed, but in zombie state). Form control data
+  // has been saved.
+  PRPackedBool mRemovedFromDocShell:1;
   // True if the document is being destroyed.
   PRPackedBool mInDestructor:1;
   // True if the document "page" is not hidden
@@ -779,6 +789,8 @@ protected:
   PRPackedBool mHasHadScriptHandlingObject:1;
 
   PRPackedBool mHasWarnedAboutBoxObjects:1;
+
+  PRPackedBool mDelayFrameLoaderInitialization:1;
 
   PRUint8 mXMLDeclarationBits;
 
@@ -842,6 +854,7 @@ private:
   // Member to store out last-selected stylesheet set.
   nsString mLastStyleSheetSet;
 
+  nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
 };
 

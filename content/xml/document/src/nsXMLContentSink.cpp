@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 sw=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -96,6 +97,7 @@
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsEventDispatcher.h"
+#include "mozAutoDocUpdate.h"
 
 #ifdef MOZ_SVG
 #include "nsGUIEvent.h"
@@ -145,12 +147,6 @@ nsXMLContentSink::nsXMLContentSink()
 
 nsXMLContentSink::~nsXMLContentSink()
 {
-  if (mDocument) {
-    // Remove ourselves just to be safe, though we really should have
-    // been removed in DidBuildModel if everything worked right.
-    mDocument->RemoveObserver(this);
-  }
-
   NS_IF_RELEASE(mDocElement);
   if (mText) {
     PR_Free(mText);  //  Doesn't null out, unlike PR_FREEIF
@@ -189,9 +185,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXMLContentSink)
   NS_INTERFACE_MAP_ENTRY(nsIContentSink)
   NS_INTERFACE_MAP_ENTRY(nsIXMLContentSink)
   NS_INTERFACE_MAP_ENTRY(nsIExpatSink)
-  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
-  NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
-  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsITransformObserver)
 NS_INTERFACE_MAP_END_INHERITING(nsContentSink)
 
@@ -514,7 +507,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
-                     aNodeInfo);
+                     aNodeInfo, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
@@ -524,7 +517,9 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     ) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(content);
     sele->SetScriptLineNumber(aLineNumber);
-    sele->WillCallDoneAddingChildren();
+    if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)) {
+      sele->WillCallDoneAddingChildren();
+    }
     mConstrainSize = PR_FALSE;
   }
 
@@ -600,7 +595,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
       || nodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin
 #endif
       ) {
-    aContent->DoneAddingChildren(PR_FALSE);
+    aContent->DoneAddingChildren(HaveNotifiedForCurrentContent());
   }
   
   if (IsMonolithicContainer(nodeInfo)) {
@@ -712,23 +707,30 @@ nsXMLContentSink::AddContentAsLeaf(nsIContent *aContent)
 nsresult
 nsXMLContentSink::LoadXSLStyleSheet(nsIURI* aUrl)
 {
-  mXSLTProcessor =
+  nsCOMPtr<nsIDocumentTransformer> processor =
     do_CreateInstance("@mozilla.org/document-transformer;1?type=xslt");
-  if (!mXSLTProcessor) {
+  if (!processor) {
     // No XSLT processor available, continue normal document loading
     return NS_OK;
   }
 
-  mXSLTProcessor->Init(mDocument->NodePrincipal());
-  mXSLTProcessor->SetTransformObserver(this);
+  processor->Init(mDocument->NodePrincipal());
+  processor->SetTransformObserver(this);
 
   nsCOMPtr<nsILoadGroup> loadGroup = mDocument->GetDocumentLoadGroup();
   if (!loadGroup) {
-    mXSLTProcessor = nsnull;
     return NS_ERROR_FAILURE;
   }
 
-  return mXSLTProcessor->LoadStyleSheet(aUrl, loadGroup);
+  if (NS_SUCCEEDED(processor->LoadStyleSheet(aUrl, loadGroup))) {
+    mXSLTProcessor.swap(processor);
+  }
+
+  // Intentionally ignore errors here, we should continue loading the
+  // XML document whether we're able to load the XSLT stylesheet or
+  // not.
+
+  return NS_OK;
 }
 
 nsresult
@@ -908,6 +910,18 @@ nsXMLContentSink::PopContent()
   }
 
   mContentStack.RemoveElementAt(count - 1);
+}
+
+PRBool
+nsXMLContentSink::HaveNotifiedForCurrentContent() const
+{
+  PRUint32 stackLength = mContentStack.Length();
+  if (stackLength) {
+    const StackNode& stackNode = mContentStack[stackLength - 1];
+    nsIContent* parent = stackNode.mContent;
+    return stackNode.mNumFlushed == parent->GetChildCount();
+  }
+  return PR_TRUE;
 }
 
 void
@@ -1142,7 +1156,8 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
   DidAddContent();
 
 #ifdef MOZ_SVG
-  if (content->GetNameSpaceID() == kNameSpaceID_SVG &&
+  if (mDocument &&
+      content->GetNameSpaceID() == kNameSpaceID_SVG &&
       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload)) {
     FlushTags();
 

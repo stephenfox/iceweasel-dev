@@ -458,6 +458,10 @@ void nsHTMLSelectListAccessible::CacheChildren()
     return;
   }
 
+  if (mAccChildCount != eChildCountUninitialized) {
+    return;
+  }
+
   mAccChildCount = 0; // Avoid reentry
   PRInt32 childCount = 0;
   nsCOMPtr<nsIAccessible> lastGoodAccessible =
@@ -617,7 +621,7 @@ nsHTMLSelectOptionAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   // Upcall to nsAccessible, but skip nsHyperTextAccessible impl
   // because we don't want EXT_STATE_EDITABLE or EXT_STATE_SELECTABLE_TEXT
   nsresult rv = nsAccessible::GetState(aState, aExtraState);
-  NS_ENSURE_TRUE(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
 
@@ -1066,7 +1070,6 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::Shutdown()
 /**
   * As a nsHTMLComboboxAccessible we can have the following states:
   *     STATE_FOCUSED
-  *     STATE_READONLY
   *     STATE_FOCUSABLE
   *     STATE_HASPOPUP
   *     STATE_EXPANDED
@@ -1096,7 +1099,6 @@ nsHTMLComboboxAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   }
 
   *aState |= nsIAccessibleStates::STATE_HASPOPUP |
-             nsIAccessibleStates::STATE_READONLY |
              nsIAccessibleStates::STATE_FOCUSABLE;
 
   return NS_OK;

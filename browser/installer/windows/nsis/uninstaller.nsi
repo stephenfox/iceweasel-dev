@@ -104,12 +104,14 @@ VIAddVersionKey "FileDescription" "${BrandShortName} Helper"
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
+!insertmacro SetBrandNameVars
 !insertmacro UnloadUAC
 !insertmacro WriteRegDWORD2
 !insertmacro WriteRegStr2
 
 !insertmacro un.ChangeMUIHeaderImage
 !insertmacro un.CheckForFilesInUse
+!insertmacro un.CleanUpdatesDir
 !insertmacro un.CleanVirtualStore
 !insertmacro un.DeleteRelativeProfiles
 !insertmacro un.GetLongPath
@@ -216,6 +218,9 @@ Section "Uninstall"
   ${MUI_INSTALLOPTIONS_READ} $0 "unconfirm.ini" "Field 3" "State"
   ${If} "$0" == "1"
     ${un.DeleteRelativeProfiles} "Mozilla\Firefox"
+    RmDir "$APPDATA\Mozilla\Extensions\{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
+    RmDir "$APPDATA\Mozilla\Extensions"
+    RmDir "$APPDATA\Mozilla"
   ${EndIf}
 
   SetShellVarContext current  ; Set SHCTX to HKCU
@@ -312,6 +317,13 @@ Section "Uninstall"
     Delete /REBOOTOK "$INSTDIR\removed-files"
   ${EndIf}
 
+  ; Remove the updates directory for Vista and above
+  ${un.CleanUpdatesDir} "Mozilla\Firefox"
+
+  ; Remove files that may be left behind by the application in the
+  ; VirtualStore directory.
+  ${un.CleanVirtualStore}
+
   ; Parse the uninstall log to unregister dll's and remove all installed
   ; files / directories this install is responsible for.
   ${un.ParseUninstallLog}
@@ -321,10 +333,6 @@ Section "Uninstall"
 
   ; Remove the installation directory if it is empty
   ${RemoveDir} "$INSTDIR"
-
-  ; Remove files that may be left behind by the application in the
-  ; VirtualStore directory.
-  ${un.CleanVirtualStore}
 
   ; If firefox.exe was successfully deleted yet we still need to restart to
   ; remove other files create a dummy firefox.exe.moz-delete to prevent the

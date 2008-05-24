@@ -69,7 +69,7 @@ pref("browser.cache.check_doc_frequency",   3);
 
 pref("browser.cache.offline.enable",           true);
 // offline cache capacity in kilobytes
-pref("browser.cache.offline.capacity",         10240);
+pref("browser.cache.offline.capacity",         512000);
 
 // offline apps should be limited to this much data in global storage
 // (in kilobytes)
@@ -172,6 +172,9 @@ pref("accessibility.typeaheadfind.soundURL", "beep");
 pref("accessibility.typeaheadfind.enablesound", true);
 pref("accessibility.typeaheadfind.prefillwithselection", true);
 
+// use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
+pref("gfx.use_text_smoothing_setting", false);
+
 pref("browser.history_expire_days", 9);
 
 // loading and rendering of framesets and iframes
@@ -179,6 +182,9 @@ pref("browser.frames.enabled", true);
 
 // form submission
 pref("browser.forms.submit.backwards_compatible", true);
+
+// Number of characters to consider emphasizing for rich autocomplete results
+pref("toolkit.autocomplete.richBoundaryCutoff", 200);
 
 pref("toolkit.scrollbox.smoothScroll", true);
 pref("toolkit.scrollbox.scrollIncrement", 20);
@@ -245,12 +251,26 @@ pref("print.whileInPrintPreview", true);
 // Cache old Presentation when going into Print Preview
 pref("print.always_cache_old_pres", false);
 
-// Enables you to specify the gap from the edge of the paper to the margin
-// this is used by both Printing and Print Preview
-pref("print.print_edge_top", 0); // 1/100 of an inch
-pref("print.print_edge_left", 0); // 1/100 of an inch
-pref("print.print_edge_right", 0); // 1/100 of an inch
-pref("print.print_edge_bottom", 0); // 1/100 of an inch
+// Enables you to specify the amount of the paper that is to be treated
+// as unwriteable.  The print_edge_XXX and print_margin_XXX preferences
+// are treated as offsets that are added to this pref.
+// Default is "-1", which means "use the system default".  (If there is
+// no system default, then the -1 is treated as if it were 0.)
+// This is used by both Printing and Print Preview.
+// Units are in 1/100ths of an inch.
+pref("print.print_unwriteable_margin_top",    -1);
+pref("print.print_unwriteable_margin_left",   -1);
+pref("print.print_unwriteable_margin_right",  -1);
+pref("print.print_unwriteable_margin_bottom", -1);
+
+// Enables you to specify the gap from the edge of the paper's 
+// unwriteable area to the margin.
+// This is used by both Printing and Print Preview
+// Units are in 1/100ths of an inch.
+pref("print.print_edge_top", 0);
+pref("print.print_edge_left", 0);
+pref("print.print_edge_right", 0);
+pref("print.print_edge_bottom", 0);
 
 // Pref used by the spellchecker extension to control the 
 // maximum number of misspelled words that will be underlined
@@ -441,6 +461,7 @@ pref("capability.policy.default.Clipboard.paste", "noAccess");
 // Scripts & Windows prefs
 pref("dom.disable_image_src_set",           false);
 pref("dom.disable_window_flip",             false);
+pref("dom.disable_window_move_resize",      false);
 pref("dom.disable_window_status_change",    false);
 
 pref("dom.disable_window_open_feature.titlebar",    false);
@@ -482,8 +503,8 @@ pref("security.enable_java",                true);
 pref("advanced.mailftp",                    false);
 pref("image.animation_mode",                "normal");
 
-// Same-origin policy for file: URIs: 0=self, 1=samedir, 2=subdir, 3=anyfile
-pref("security.fileuri.origin_policy", 2);
+// Same-origin policy for file URIs, "false" is traditional
+pref("security.fileuri.strict_origin_policy", true);
 
 // If there is ever a security firedrill that requires
 // us to block certian ports global, this is the pref 
@@ -553,22 +574,22 @@ pref("network.http.proxy.keep-alive", true);
 pref("network.http.keep-alive.timeout", 300);
 
 // limit the absolute number of http connections.
-pref("network.http.max-connections", 24);
+pref("network.http.max-connections", 30);
 
 // limit the absolute number of http connections that can be established per
 // host.  if a http proxy server is enabled, then the "server" is the proxy
 // server.  Otherwise, "server" is the http origin server.
-pref("network.http.max-connections-per-server", 8);
+pref("network.http.max-connections-per-server", 15);
 
 // if network.http.keep-alive is true, and if NOT connecting via a proxy, then
 // a new connection will only be attempted if the number of active persistent
 // connections to the server is less then max-persistent-connections-per-server.
-pref("network.http.max-persistent-connections-per-server", 2);
+pref("network.http.max-persistent-connections-per-server", 6);
 
 // if network.http.keep-alive is true, and if connecting via a proxy, then a
 // new connection will only be attempted if the number of active persistent
 // connections to the proxy is less then max-persistent-connections-per-proxy.
-pref("network.http.max-persistent-connections-per-proxy", 4);
+pref("network.http.max-persistent-connections-per-proxy", 8);
 
 // amount of time (in seconds) to suspend pending requests, before spawning a
 // new connection, once the limit on the number of persistent connections per
@@ -592,7 +613,7 @@ pref("network.http.redirection-limit", 20);
 pref("network.http.accept-encoding" ,"gzip,deflate");
 
 pref("network.http.pipelining"      , false);
-pref("network.http.pipelining.ssl"  , true); // enable pipelining over SSL
+pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
@@ -643,6 +664,7 @@ pref("network.IDN.whitelist.li", true);
 pref("network.IDN.whitelist.lt", true);
 pref("network.IDN.whitelist.no", true);
 pref("network.IDN.whitelist.pl", true);
+pref("network.IDN.whitelist.pr", true);
 pref("network.IDN.whitelist.se", true);
 pref("network.IDN.whitelist.sh", true);
 pref("network.IDN.whitelist.th", true);
@@ -833,7 +855,11 @@ pref("intl.locale.matchOS",                 false);
 pref("intl.fallbackCharsetList.ISO-8859-1", "windows-1252");
 pref("font.language.group",                 "chrome://global/locale/intl.properties");
 
-pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Cambria Math, Standard Symbols L, DejaVu Sans");
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Standard Symbols L, DejaVu Sans, Cambria Math");
+
+// Some CJK fonts have bad underline offset, their CJK character glyphs are overlapped (or adjoined)  to its underline.
+// These fonts are ignored the underline offset, instead of it, the underline is lowered to bottom of its em descent.
+pref("font.blacklist.underline_offset", "FangSong,Gulim,GulimChe,MingLiU,MingLiU-ExtB,MingLiU_HKSCS,MingLiU-HKSCS-ExtB,MS Gothic,MS Mincho,MS PGothic,MS PMincho,MS UI Gothic,PMingLiU,PMingLiU-ExtB,SimHei,SimSun,SimSun-ExtB,Hei,Kai,Apple LiGothic,Apple LiSung,Osaka");
 
 pref("images.dither", "auto");
 pref("security.directory",              "");
@@ -1070,6 +1096,38 @@ pref("dom.max_script_run_time", 10);
 
 pref("svg.enabled", true);
 
+pref("font.minimum-size.ar", 0);
+pref("font.minimum-size.x-armn", 0);
+pref("font.minimum-size.x-beng", 0);
+pref("font.minimum-size.x-baltic", 0);
+pref("font.minimum-size.x-central-euro", 0);
+pref("font.minimum-size.zh-CN", 0);
+pref("font.minimum-size.zh-HK", 0);
+pref("font.minimum-size.zh-TW", 0);
+pref("font.minimum-size.x-cyrillic", 0);
+pref("font.minimum-size.x-devanagari", 0);
+pref("font.minimum-size.x-ethi", 0);
+pref("font.minimum-size.x-geor", 0);
+pref("font.minimum-size.el", 0);
+pref("font.minimum-size.x-gujr", 0);
+pref("font.minimum-size.x-guru", 0);
+pref("font.minimum-size.he", 0);
+pref("font.minimum-size.ja", 0);
+pref("font.minimum-size.x-knda", 0);
+pref("font.minimum-size.x-khmr", 0);
+pref("font.minimum-size.ko", 0);
+pref("font.minimum-size.x-mlym", 0);
+pref("font.minimum-size.x-orya", 0);
+pref("font.minimum-size.x-sinh", 0);
+pref("font.minimum-size.x-tamil", 0);
+pref("font.minimum-size.x-telu", 0);
+pref("font.minimum-size.th", 0);
+pref("font.minimum-size.tr", 0);
+pref("font.minimum-size.x-cans", 0);
+pref("font.minimum-size.x-western", 0);
+pref("font.minimum-size.x-unicode", 0);
+pref("font.minimum-size.x-user-def", 0);
+
 #ifdef XP_WIN
 pref("font.name.serif.ar", "Times New Roman");
 pref("font.name.sans-serif.ar", "Arial");
@@ -1191,11 +1249,12 @@ pref("font.name.monospace.x-armn", "Arial AMU");
 pref("font.name-list.serif.x-armn", "Sylfaen,Arial Unicode MS, Code2000");
 pref("font.name-list.monospace.x-armn", "Arial AMU, Arial Unicode MS, Code2000");
 
-pref("font.name.serif.x-beng", "Akaash");
-pref("font.name.sans-serif.x-beng", "Likhan");
+pref("font.name.serif.x-beng", "Vrinda");
+pref("font.name.sans-serif.x-beng", "Vrinda");
 pref("font.name.monospace.x-beng", "Mitra Mono");
-pref("font.name-list.serif.x-beng", "Akaash, Ekushey Punarbhaba, Code2000, Arial Unicode MS"); 
-pref("font.name-list.monospace.x-beng", "Likhan, Mukti Narrow, Code 2000, Arial Unicode MS");
+pref("font.name-list.serif.x-beng", "Vrinda, Akaash, Likhan, Ekushey Punarbhaba, Code2000, Arial Unicode MS"); 
+pref("font.name-list.sans-serif.x-beng", "Vrinda, Akaash, Likhan, Ekushey Punarbhaba, Code2000, Arial Unicode MS"); 
+pref("font.name-list.monospace.x-beng", "Likhan, Mukti Narrow, Code2000, Arial Unicode MS");
 
 pref("font.name.serif.x-cans", "Aboriginal Serif");
 pref("font.name.sans-serif.x-cans", "Aboriginal Sans");
@@ -1234,11 +1293,40 @@ pref("font.name.monospace.x-khmr", "Code2000");
 pref("font.name-list.serif.x-khmr", "PhnomPenh OT,.Mondulkiri U GR 1.5, Khmer OS");
 pref("font.name-list.monospace.x-khmr", "Code2000, Khmer OS, Khmer OS System");
 
-pref("font.name.serif.x-mlym", "Kartika");
-pref("font.name.sans-serif.x-mlym", "Anjali-Beta");
-pref("font.name.monospace.x-mlym", "Code2000");
-pref("font.name-list.serif.x-mlym", "Kartika, ThoolikaUnicode, Code2000, Arial Unicode MS");
-pref("font.name-list.monospace.x-mlym", "Code2000, Anjali-Beta");
+pref("font.name.serif.x-mlym", "Rachana_w01");
+pref("font.name.sans-serif.x-mlym", "Rachana_w01");
+pref("font.name.monospace.x-mlym", "Rachana_w01");
+pref("font.name-list.serif.x-mlym", "AnjaliOldLipi, Kartika, ThoolikaUnicode, Code2000, Arial Unicode MS");
+pref("font.name-list.sans-serif.x-mlym", "AnjaliOldLipi, Kartika, ThoolikaUnicode, Code2000, Arial Unicode MS");
+pref("font.name-list.monospace.x-mlym", "AnjaliOldLipi, Kartika, ThoolikaUnicode, Code2000, Arial Unicode MS");
+
+pref("font.name.serif.x-orya", "ori1Uni");
+pref("font.name.sans-serif.x-orya", "ori1Uni");
+pref("font.name.monospace.x-orya", "ori1Uni");
+pref("font.name-list.serif.x-orya", "Kalinga, ori1Uni, Code2000, Arial Unicode MS");
+pref("font.name-list.sans-serif.x-orya", "Kalinga, ori1Uni, Code2000, Arial Unicode MS");
+pref("font.name-list.monospace.x-orya", "Kalinga, ori1Uni, Code2000, Arial Unicode MS");
+
+pref("font.name.serif.x-telu", "Gautami");
+pref("font.name.sans-serif.x-telu", "Gautami");
+pref("font.name.monospace.x-telu", "Gautami");
+pref("font.name-list.serif.x-telu", "Gautami, Akshar Unicode, Code2000, Arial Unicode MS");
+pref("font.name-list.sans-serif.x-telu", "Gautami, Akshar Unicode, Code2000, Arial Unicode MS");
+pref("font.name-list.monospace.x-telu", "Gautami, Akshar Unicode, Code2000, Arial Unicode MS");
+
+pref("font.name.serif.x-knda", "Tunga");
+pref("font.name.sans-serif.x-knda", "Tunga");
+pref("font.name.monospace.x-knda", "Tunga");
+pref("font.name-list.serif.x-knda", "Tunga, AksharUnicode, Code2000, Arial Unicode MS");
+pref("font.name-list.sans-serif.x-knda", "Tunga, AksharUnicode, Code2000, Arial Unicode MS");
+pref("font.name-list.monospace.x-knda", "Tunga, AksharUnicode, Code2000, Arial Unicode MS");
+
+pref("font.name.serif.x-sinh", "Iskoola Pota");
+pref("font.name.sans-serif.x-sinh", "Iskoola Pota");
+pref("font.name.monospace.x-sinh", "Iskoola Pota");
+pref("font.name-list.serif.x-sinh", "Iskoola Pota, AksharUnicode");
+pref("font.name-list.sans-serif.x-sinh", "Iskoola Pota, AksharUnicode");
+pref("font.name-list.monospace.x-sinh", "Iskoola Pota, AksharUnicode");
 
 pref("font.default.ar", "sans-serif");
 pref("font.size.variable.ar", 16);
@@ -1324,6 +1412,22 @@ pref("font.default.x-mlym", "serif");
 pref("font.size.variable.x-mlym", 16);
 pref("font.size.fixed.x-mlym", 13);
 
+pref("font.default.x-orya", "serif");
+pref("font.size.variable.x-orya", 16);
+pref("font.size.fixed.x-orya", 13);
+
+pref("font.default.x-telu", "serif");
+pref("font.size.variable.x-telu", 16);
+pref("font.size.fixed.x-telu", 13);
+
+pref("font.default.x-knda", "serif");
+pref("font.size.variable.x-knda", 16);
+pref("font.size.fixed.x-knda", 13);
+
+pref("font.default.x-sinh", "serif");
+pref("font.size.variable.x-sinh", 16);
+pref("font.size.fixed.x-sinh", 13);
+
 pref("font.default.x-unicode", "serif");
 pref("font.size.variable.x-unicode", 16);
 pref("font.size.fixed.x-unicode", 13);
@@ -1343,6 +1447,9 @@ pref("font.size.fixed.zh-TW", 16);
 pref("font.default.zh-HK", "sans-serif");
 pref("font.size.variable.zh-HK", 16);
 pref("font.size.fixed.zh-HK", 16);
+
+// We have special support for Monotype Symbol on Windows.
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
@@ -1411,7 +1518,10 @@ pref("browser.drag_out_of_frame_style", 1);
 pref("ui.key.saveLink.shift", false); // true = shift, false = meta
 pref("ui.click_hold_context_menus", false);
 
-// default font name (in UTF8)
+// default fonts (in UTF8 and using canonical names)
+// to determine canonical font names, use a debug build and 
+// enable NSPR logging for module fontInfoLog:5
+// canonical names immediately follow '(fontinit) family:' in the log
 
 pref("font.name.serif.ar", "Al Bayan");
 pref("font.name.sans-serif.ar", "Geeza Pro");
@@ -1446,12 +1556,12 @@ pref("font.name-list.monospace.he", "Arial Hebrew");
 pref("font.name-list.cursive.he", "Corsiva Hebrew");
 pref("font.name-list.fantasy.he", "Corsiva Hebrew");
 
-pref("font.name.serif.ja", "ヒラギノ明朝 Pro"); 
-pref("font.name.sans-serif.ja", "ヒラギノ角ゴ Pro"); 
-pref("font.name.monospace.ja", "Osaka−等幅"); 
-pref("font.name-list.serif.ja", "ヒラギノ明朝 Pro"); 
-pref("font.name-list.sans-serif.ja", "ヒラギノ角ゴ Pro"); 
-pref("font.name-list.monospace.ja", "Osaka−等幅"); 
+pref("font.name.serif.ja", "Hiragino Mincho Pro"); 
+pref("font.name.sans-serif.ja", "Hiragino Kaku Gothic Pro"); 
+pref("font.name.monospace.ja", "Osaka-Mono"); 
+pref("font.name-list.serif.ja", "Hiragino Mincho Pro"); 
+pref("font.name-list.sans-serif.ja", "Hiragino Kaku Gothic Pro"); 
+pref("font.name-list.monospace.ja", "Osaka-Mono"); 
 
 pref("font.name.serif.ko", "AppleMyungjo"); 
 pref("font.name.sans-serif.ko", "AppleGothic"); 
@@ -1499,10 +1609,10 @@ pref("font.name-list.fantasy.x-baltic", "Papyrus");
 // no suitable fonts for bengali ship with mac os x
 // however two can be freely downloaded
 // SolaimanLipi, Rupali http://ekushey.org/?page/mac_download
-pref("font.name.serif.x-beng", "সোলাইমান লিপি");
+pref("font.name.serif.x-beng", "সোলাইমান লিপি");
 pref("font.name.sans-serif.x-beng", "রূপালী");
 pref("font.name.monospace.x-beng", "রূপালী");
-pref("font.name-list.serif.x-beng", "সোলাইমান লিপি");
+pref("font.name-list.serif.x-beng", "সোলাইমান লিপি");
 pref("font.name-list.sans-serif.x-beng", "রূপালী");
 pref("font.name-list.monospace.x-beng", "রূপালী");
 
@@ -1583,6 +1693,32 @@ pref("font.name-list.monospace.x-guru", "Gurmukhi MT");
 // no suitable fonts for malayalam ship with mac os x
 // add this section when fonts exist
 
+// no suitable fonts for oriya ship with mac os x
+// add this section when fonts exist
+
+// no suitable fonts for telugu ship with mac os x
+// however one can be freely downloaded
+// Pothana http://web.nickshanks.com/typography/telugu/
+pref("font.name.serif.x-telu", "Pothana");
+pref("font.name.sans-serif.x-telu", "Pothana");
+pref("font.name.monospace.x-telu", "Pothana");
+pref("font.name-list.serif.x-telu", "Pothana");
+pref("font.name-list.sans-serif.x-telu", "Pothana");
+pref("font.name-list.monospace.x-telu", "Pothana");
+
+// no suitable fonts for kannada ship with mac os x
+// however one can be freely downloaded
+// Kedage http://web.nickshanks.com/typography/kannada/
+pref("font.name.serif.x-knda", "Kedage");
+pref("font.name.sans-serif.x-knda", "Kedage");
+pref("font.name.monospace.x-knda", "Kedage");
+pref("font.name-list.serif.x-knda", "Kedage");
+pref("font.name-list.sans-serif.x-knda", "Kedage");
+pref("font.name-list.monospace.x-knda", "Kedage");
+
+// no suitable fonts for sinhala ship with mac os x
+// add this section when fonts exist
+
 pref("font.name.serif.x-tamil", "InaiMathi");
 pref("font.name.sans-serif.x-tamil", "InaiMathi");
 pref("font.name.monospace.x-tamil", "InaiMathi");
@@ -1612,12 +1748,12 @@ pref("font.name-list.monospace.x-western", "Courier");
 pref("font.name-list.cursive.x-western", "Apple Chancery");
 pref("font.name-list.fantasy.x-western", "Papyrus");
 
-pref("font.name.serif.zh-CN", "华文宋体");
-pref("font.name.sans-serif.zh-CN", "Hei");
-pref("font.name.monospace.zh-CN", "Hei");
-pref("font.name-list.serif.zh-CN", "华文宋体");
-pref("font.name-list.sans-serif.zh-CN", "Hei");
-pref("font.name-list.monospace.zh-CN", "Hei");
+pref("font.name.serif.zh-CN", "STSong");
+pref("font.name.sans-serif.zh-CN", "STHeiti");
+pref("font.name.monospace.zh-CN", "STHeiti");
+pref("font.name-list.serif.zh-CN", "STSong");
+pref("font.name-list.sans-serif.zh-CN", "STHeiti");
+pref("font.name-list.monospace.zh-CN", "STHeiti");
 
 pref("font.name.serif.zh-TW", "Apple LiSung"); 
 pref("font.name.sans-serif.zh-TW", "Apple LiGothic");  
@@ -1626,12 +1762,12 @@ pref("font.name-list.serif.zh-TW", "Apple LiSung");
 pref("font.name-list.sans-serif.zh-TW", "Apple LiGothic");  
 pref("font.name-list.monospace.zh-TW", "Apple LiGothic");  
 
-pref("font.name.serif.zh-HK", "儷宋 Pro");
-pref("font.name.sans-serif.zh-HK", "儷黑 Pro");
-pref("font.name.monospace.zh-HK", "儷黑 Pro");
-pref("font.name-list.serif.zh-HK", "儷宋 Pro");
-pref("font.name-list.sans-serif.zh-HK", "儷黑 Pro");
-pref("font.name-list.monospace.zh-HK", "儷黑 Pro");
+pref("font.name.serif.zh-HK", "LiSong Pro");
+pref("font.name.sans-serif.zh-HK", "LiHei Pro");
+pref("font.name.monospace.zh-HK", "LiHei Pro");
+pref("font.name-list.serif.zh-HK", "LiSong Pro");
+pref("font.name-list.sans-serif.zh-HK", "LiHei Pro");
+pref("font.name-list.monospace.zh-HK", "LiHei Pro");
 
 pref("font.default.ar", "sans-serif");
 pref("font.size.variable.ar", 16);
@@ -1717,6 +1853,22 @@ pref("font.default.x-tamil", "serif");
 pref("font.size.variable.x-tamil", 16);
 pref("font.size.fixed.x-tamil", 13);
 
+pref("font.default.x-orya", "serif");
+pref("font.size.variable.x-orya", 16);
+pref("font.size.fixed.x-orya", 13);
+
+pref("font.default.x-telu", "serif");
+pref("font.size.variable.x-telu", 16);
+pref("font.size.fixed.x-telu", 13);
+
+pref("font.default.x-knda", "serif");
+pref("font.size.variable.x-knda", 16);
+pref("font.size.fixed.x-knda", 13);
+
+pref("font.default.x-sinh", "serif");
+pref("font.size.variable.x-sinh", 16);
+pref("font.size.fixed.x-sinh", 13);
+
 pref("font.default.x-unicode", "serif");
 pref("font.size.variable.x-unicode", 16);
 pref("font.size.fixed.x-unicode", 13);
@@ -1738,7 +1890,7 @@ pref("font.size.variable.zh-HK", 15);
 pref("font.size.fixed.zh-HK", 16);
 
 // Apple's Symbol is Unicode so use it
-pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Cambria Math, Symbol, DejaVu Sans");
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
 
 // individual font faces to be treated as independent families
 // names are Postscript names of each face
@@ -1783,8 +1935,12 @@ pref("layout.css.dpi", -1); // max(96dpi, System setting)
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace");
 
-/* Fonts only needs lists if we have a default that might not be available. */
-/* Tms Rmn, Helv and Courier are ALWAYS available on OS/2 */
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, DejaVu Sans");
+
+// Languages only need lists if we have a default that might not be available.
+// Tms Rmn and Helv cannot be used by Thebes but the OS/2 version of FontConfig
+// maps them to Times New Roman and Helvetica, respectively. Those fonts and
+// Courier are available on OS/2 by default.
 
 pref("font.name.serif.ar", "Tms Rmn");
 pref("font.name.sans-serif.ar", "Helv");
@@ -1799,12 +1955,13 @@ pref("font.name.sans-serif.he", "Helv");
 pref("font.name.monospace.he", "Courier");
 
 pref("font.name.serif.ja", "Times New Roman WT J");
-pref("font.name-list.serif.ja", "Times New Roman WT J, Times New Roman MT 30, Tms Rmn");
+pref("font.name-list.serif.ja", "Times New Roman WT J, Times New Roman WT, Times New Roman MT 30, Tms Rmn");
 pref("font.name.sans-serif.ja", "Helv");
-pref("font.name.monospace.ja", "Courier");
+pref("font.name.monospace.ja", "Kochi Gothic");
+pref("font.name-list.monospace.ja", "Kochi Gothic, Kochi Mincho, Courier New, Courier");
 
 pref("font.name.serif.ko", "Times New Roman WT K");
-pref("font.name-list.serif.ko", "Times New Roman WT K, Times New Roman MT 30, Tms Rmn");
+pref("font.name-list.serif.ko", "Times New Roman WT K, Times New Roman WT, Times New Roman MT 30, Tms Rmn");
 pref("font.name.sans-serif.ko", "Helv");
 pref("font.name.monospace.ko", "Courier");
 
@@ -1821,48 +1978,52 @@ pref("font.name.sans-serif.x-baltic", "Helv");
 pref("font.name.monospace.x-baltic", "Courier");
 
 pref("font.name.serif.x-central-euro", "Tms Rmn");
-pref("font.name.sans-serif.x-central-euro", "Tms Rmn");
+pref("font.name.sans-serif.x-central-euro", "Helv");
 pref("font.name.monospace.x-central-euro", "Courier");
 
 pref("font.name.serif.x-cyrillic", "Tms Rmn");
-pref("font.name.sans-serif.x-cyrillic", "Tms Rmn");
+pref("font.name.sans-serif.x-cyrillic", "Helv");
 pref("font.name.monospace.x-cyrillic", "Courier");
 
-/* The unicode fonts must ALWAYS have a list with one valid font */
+// Unicode fonts
+// Fontconfig will match substrings, so that we only need to list e.g.
+// Times New Roman WT and it will search for the J, SC, TC, K variants.
+// The DejaVu fonts are shipped with eCS, so list them first but include all
+// fonts that OS/2 users are likely to have.
 pref("font.name.serif.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.serif.x-unicode", "Times New Roman MT 30, Times New Roman WT J, Times New Roman WT SC, Times New Roman WT TC, Times New Roman WT K, Tms Rmn");
-pref("font.name.sans-serif.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.sans-serif.x-unicode", "Times New Roman MT 30, Times New Roman WT J, Times New Roman WT SC, Times New Roman WT TC, Times New Roman WT K, Helv");
-pref("font.name.monospace.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.monospace.x-unicode", "Times New Roman MT 30, Times New Roman WT J, Times New Roman WT SC, Times New Roman WT TC, Times New Roman WT K, Courier");
+pref("font.name-list.serif.x-unicode", "Deja Vu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30, Gentium, Doulos SIL, TITUS Cyberbit Basic, Bitstream Cyberbit, Charis SIL, Georgia, Tms Rmn");
+pref("font.name.sans-serif.x-unicode", "Lucida Sans Unicode");
+pref("font.name-list.sans-serif.x-unicode", "Deja Vu Sans, FreeSans, Arial Unicode, Lucida Sans Unicode, Code2002, Code2001, Code2000, Arial, Helv");
+pref("font.name.monospace.x-unicode", "Deja Vu Sans Mono");
+pref("font.name-list.monospace.x-unicode", "Deja Vu Sans Mono, FreeMono, Andale Mono, Monotype Sans Duospace WT J, Courier New, Courier");
 pref("font.name.fantasy.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.fantasy.x-unicode", "Times New Roman MT 30, Times New Roman WT J, Times New Roman WT SC, Times New Roman WT TC, Times New Roman WT K, Helv");
+pref("font.name-list.fantasy.x-unicode", "Deja Vu Serif, FreeSerif, Junicode, Times New Roman WT, Times New Roman MT 30, Doulos SIL, TITUS Cyberbit Basic, Bitstream Cyberbit, Charis SIL, Arial Unicode, Lucida Sans Unicode, Code2002, Code2001, Code2000");
 pref("font.name.cursive.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.cursive.x-unicode", "Times New Roman MT 30, Times New Roman WT J, Times New Roman WT SC, Times New Roman WT TC, Times New Roman WT K, Helv");
+pref("font.name-list.cursive.x-unicode", "Deja Vu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30, Doulos SIL, TITUS Cyberbit Basic, Bitstream Cyberbit, Charis SIL, Arial Unicode, Lucida Sans Unicode, Code2002, Code2001, Code2000");
 
 pref("font.name.serif.x-western", "Tms Rmn");
 pref("font.name.sans-serif.x-western", "Helv");
 pref("font.name.monospace.x-western", "Courier");
 
 pref("font.name.serif.zh-CN", "Times New Roman WT SC");
-pref("font.name-list.serif.zh_CN", "Times New Roman WT SC, Times New Roman MT 30, Tms Rmn");
+pref("font.name-list.serif.zh_CN", "Times New Roman WT SC, Times New Roman MT 30, Times New Roman WT, Tms Rmn");
 pref("font.name.sans-serif.zh-CN", "Helv");
 pref("font.name.monospace.zh-CN", "Courier");
 
 pref("font.name.serif.zh-TW", "Times New Roman WT TC");
-pref("font.name-list.serif.zh-TW", "Times New Roman WT TC, Times New Roman MT 30, Tms Rmn");
+pref("font.name-list.serif.zh-TW", "Times New Roman WT TC, Times New Roman MT 30, Times New Roman WT, Tms Rmn");
 pref("font.name.sans-serif.zh-TW", "Helv");
 pref("font.name.monospace.zh-TW", "Courier");
 
-// XXX : just copied values for zh-TW. TO CHANGE if necessary
+// just copied values from zh-TW
 pref("font.name.serif.zh-HK", "Times New Roman WT TC");
-pref("font.name-list.serif.zh-HK", "Times New Roman WT TC, Times New Roman MT 30, Tms Rmn");
+pref("font.name-list.serif.zh-HK", "Times New Roman WT TC, Times New Roman MT 30, Times New Roman WT, Tms Rmn");
 pref("font.name.sans-serif.zh-HK", "Helv");
 pref("font.name.monospace.zh-HK", "Courier");
 
 pref("font.default", "serif");
 
-pref("font.default.ar", "sans-serif");
+pref("font.default.ar", "serif");
 pref("font.size.variable.ar", 16);
 pref("font.size.fixed.ar", 13);
 
@@ -1870,15 +2031,15 @@ pref("font.default.el", "serif");
 pref("font.size.variable.el", 16);
 pref("font.size.fixed.el", 13);
 
-pref("font.default.he", "sans-serif");
+pref("font.default.he", "serif");
 pref("font.size.variable.he", 16);
 pref("font.size.fixed.he", 13);
 
-pref("font.default.ja", "sans-serif");
+pref("font.default.ja", "serif");
 pref("font.size.variable.ja", 16);
 pref("font.size.fixed.ja", 16);
 
-pref("font.default.ko", "sans-serif");
+pref("font.default.ko", "serif");
 pref("font.size.variable.ko", 16);
 pref("font.size.fixed.ko", 16);
 
@@ -1918,15 +2079,15 @@ pref("font.default.x-western", "serif");
 pref("font.size.variable.x-western", 16);
 pref("font.size.fixed.x-western", 13);
 
-pref("font.default.zh-CN", "sans-serif");
+pref("font.default.zh-CN", "serif");
 pref("font.size.variable.zh-CN", 16);
 pref("font.size.fixed.zh-CN", 16);
 
-pref("font.default.zh-TW", "sans-serif");
+pref("font.default.zh-TW", "serif");
 pref("font.size.variable.zh-TW", 16);
 pref("font.size.fixed.zh-TW", 16);
 
-pref("font.default.zh-HK", "sans-serif");
+pref("font.default.zh-HK", "serif");
 pref("font.size.variable.zh-HK", 16);
 pref("font.size.fixed.zh-HK", 16);
 
@@ -2109,13 +2270,6 @@ pref("print.print_color", true);
 pref("print.print_landscape", false);
 pref("print.print_paper_size", 0);
 
-// Enables you to specify the gap from the edge of the paper to the margin
-// this is used by both Printing and Print Preview
-pref("print.print_edge_top", 4); // 1/100 of an inch
-pref("print.print_edge_left", 4); // 1/100 of an inch
-pref("print.print_edge_right", 4); // 1/100 of an inch
-pref("print.print_edge_bottom", 4); // 1/100 of an inch
-
 // print_extra_margin enables platforms to specify an extra gap or margin
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
@@ -2231,6 +2385,10 @@ pref("font.default.x-unicode", "serif");
 pref("font.size.variable.x-unicode", 16);
 pref("font.size.fixed.x-unicode", 12);
 
+pref("font.default.x-user-def", "serif");
+pref("font.size.variable.x-user-def", 16);
+pref("font.size.fixed.x-user-def", 12);
+
 pref("font.default.x-western", "serif");
 pref("font.size.variable.x-western", 16);
 pref("font.size.fixed.x-western", 12);
@@ -2246,6 +2404,66 @@ pref("font.size.fixed.zh-TW", 16);
 pref("font.default.zh-HK", "sans-serif");
 pref("font.size.variable.zh-HK", 16);
 pref("font.size.fixed.zh-HK", 16);
+
+pref("font.default.x-devanagari", "serif");
+pref("font.size.variable.x-devanagari", 16);
+pref("font.size.fixed.x-devanagari", 13);
+
+pref("font.default.x-tamil", "serif");
+pref("font.size.variable.x-tamil", 16);
+pref("font.size.fixed.x-tamil", 13);
+
+pref("font.default.x-armn", "serif");
+pref("font.size.variable.x-armn", 16);
+pref("font.size.fixed.x-armn", 13);
+
+pref("font.default.x-beng", "serif");
+pref("font.size.variable.x-beng", 16);
+pref("font.size.fixed.x-beng", 13);
+
+pref("font.default.x-cans", "serif");
+pref("font.size.variable.x-cans", 16);
+pref("font.size.fixed.x-cans", 13);
+
+pref("font.default.x-ethi", "serif");
+pref("font.size.variable.x-ethi", 16);
+pref("font.size.fixed.x-ethi", 13);
+
+pref("font.default.x-geor", "serif");
+pref("font.size.variable.x-geor", 16);
+pref("font.size.fixed.x-geor", 13);
+
+pref("font.default.x-gujr", "serif");
+pref("font.size.variable.x-gujr", 16);
+pref("font.size.fixed.x-gujr", 13);
+
+pref("font.default.x-guru", "serif");
+pref("font.size.variable.x-guru", 16);
+pref("font.size.fixed.x-guru", 13);
+
+pref("font.default.x-khmr", "serif");
+pref("font.size.variable.x-khmr", 16);
+pref("font.size.fixed.x-khmr", 13);
+
+pref("font.default.x-mlym", "serif");
+pref("font.size.variable.x-mlym", 16);
+pref("font.size.fixed.x-mlym", 13);
+
+pref("font.default.x-orya", "serif");
+pref("font.size.variable.x-orya", 16);
+pref("font.size.fixed.x-orya", 13);
+
+pref("font.default.x-telu", "serif");
+pref("font.size.variable.x-telu", 16);
+pref("font.size.fixed.x-telu", 13);
+
+pref("font.default.x-knda", "serif");
+pref("font.size.variable.x-knda", 16);
+pref("font.size.fixed.x-knda", 13);
+
+pref("font.default.x-sinh", "serif");
+pref("font.size.variable.x-sinh", 16);
+pref("font.size.fixed.x-sinh", 13);
 
 /* PostScript print module prefs */
 // pref("print.postscript.enabled",      true);
@@ -2390,6 +2608,6 @@ pref("signon.debug",                        false); // logs to Error Console
 
 // Zoom prefs
 pref("browser.zoom.full", false);
-pref("zoom.minPercent", 50);
+pref("zoom.minPercent", 30);
 pref("zoom.maxPercent", 300);
-pref("toolkit.zoomManager.zoomValues", ".5,.75,1,1.25,1.5,2,3");
+pref("toolkit.zoomManager.zoomValues", ".3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2,2.4,3");

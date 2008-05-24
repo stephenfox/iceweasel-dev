@@ -52,15 +52,14 @@ JS_BEGIN_EXTERN_C
 
 JS_STATIC_ASSERT(JSTRACE_STRING == 2);
 
-#define JSTRACE_FUNCTION    3
-#define JSTRACE_NAMESPACE   4
-#define JSTRACE_QNAME       5
-#define JSTRACE_XML         6
+#define JSTRACE_NAMESPACE   3
+#define JSTRACE_QNAME       4
+#define JSTRACE_XML         5
 
 /*
  * One past the maximum trace kind.
  */
-#define JSTRACE_LIMIT       7
+#define JSTRACE_LIMIT       6
 
 /*
  * We use the trace kinds as the types for all GC things except external
@@ -69,7 +68,6 @@ JS_STATIC_ASSERT(JSTRACE_STRING == 2);
 #define GCX_OBJECT              JSTRACE_OBJECT      /* JSObject */
 #define GCX_DOUBLE              JSTRACE_DOUBLE      /* jsdouble */
 #define GCX_STRING              JSTRACE_STRING      /* JSString */
-#define GCX_FUNCTION            JSTRACE_FUNCTION    /* JSFunction */
 #define GCX_NAMESPACE           JSTRACE_NAMESPACE   /* JSXMLNamespace */
 #define GCX_QNAME               JSTRACE_QNAME       /* JSXMLQName */
 #define GCX_XML                 JSTRACE_XML         /* JSXML */
@@ -204,12 +202,18 @@ extern void *
 js_NewGCThing(JSContext *cx, uintN flags, size_t nbytes);
 
 /*
- * Return a pointer to a new GC-allocated and weakly rooted jsdouble number
- * or null when the allocation fails. The caller must initialize the returned
- * double.
+ * Allocate a new double jsval and store the result in *vp. vp must be a root.
+ * The function does not copy the result into any weak root.
+ */
+extern JSBool
+js_NewDoubleInRootedValue(JSContext *cx, jsdouble d, jsval *vp);
+
+/*
+ * Return a pointer to a new GC-allocated and weakly-rooted jsdouble number,
+ * or null when the allocation fails.
  */
 extern jsdouble *
-js_NewDoubleGCThing(JSContext *cx);
+js_NewWeaklyRootedDouble(JSContext *cx, jsdouble d);
 
 extern JSBool
 js_LockGCThingRT(JSRuntime *rt, void *thing);
@@ -229,14 +233,14 @@ js_IsAboutToBeFinalized(JSContext *cx, void *thing);
 #if JS_HAS_XML_SUPPORT
 # define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_XML)
 #else
-# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_FUNCTION)
+# define JS_IS_VALID_TRACE_KIND(kind) ((uint32)(kind) <= JSTRACE_STRING)
 #endif
 
 /*
- * JS_IS_VALID_TRACE_KIND assumes that JSTRACE_FUNCTION is the last non-xml
+ * JS_IS_VALID_TRACE_KIND assumes that JSTRACE_STRING is the last non-xml
  * trace kind when JS_HAS_XML_SUPPORT is false.
  */
-JS_STATIC_ASSERT(JSTRACE_FUNCTION + 1 == JSTRACE_NAMESPACE);
+JS_STATIC_ASSERT(JSTRACE_STRING + 1 == JSTRACE_NAMESPACE);
 
 /*
  * Trace jsval when JSVAL_IS_OBJECT(v) can be an arbitrary GC thing casted as
@@ -320,7 +324,7 @@ JS_STATIC_ASSERT(sizeof(JSGCDoubleCell) == sizeof(double));
 
 typedef struct JSGCDoubleArenaList {
     JSGCArenaInfo   *first;             /* first allocated GC arena */
-    uint8           *nextDoubleFlags;   /* bitmask with flags to check for free
+    jsbitmap        *nextDoubleFlags;   /* bitmask with flags to check for free
                                            things */
 } JSGCDoubleArenaList;
 

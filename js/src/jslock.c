@@ -44,6 +44,7 @@
  */
 #include "jsstddef.h"
 #include <stdlib.h>
+#include <string.h>
 #include "jspubtd.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jstypes.h"
@@ -352,7 +353,7 @@ js_FinishSharingTitle(JSContext *cx, JSTitle *title)
     scope = (JSScope *)map;
 
     obj = scope->object;
-    nslots = LOCKED_OBJ_NSLOTS(obj);
+    nslots = scope->map.freeslot;
     for (i = 0; i != nslots; ++i) {
         v = STOBJ_GET_SLOT(obj, i);
         if (JSVAL_IS_STRING(v) &&

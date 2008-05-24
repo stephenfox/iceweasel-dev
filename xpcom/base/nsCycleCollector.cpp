@@ -143,8 +143,10 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsTPtrArray.h"
+#include "nsVoidArray.h" // for nsCStringArray
 
 #include <stdio.h>
+#include <string.h>
 #ifdef WIN32
 #include <io.h>
 #include <process.h>
@@ -431,6 +433,7 @@ public:
 
 struct ReversedEdge {
     PtrInfo *mTarget;
+    nsCString *mEdgeName;
     ReversedEdge *mNext;
 };
 
@@ -466,6 +469,9 @@ struct PtrInfo
     // expected to be garbage are black).
     ReversedEdge* mReversedEdges; // linked list
     PtrInfo* mShortestPathToExpectedGarbage;
+    nsCString* mShortestPathToExpectedGarbageEdgeName;
+
+    nsCStringArray mEdgeNames;
 #endif
 
     PtrInfo(void *aPointer, nsCycleCollectionParticipant *aParticipant
@@ -484,13 +490,23 @@ struct PtrInfo
           mLangID(aLangID),
           mSCCIndex(0),
           mReversedEdges(nsnull),
-          mShortestPathToExpectedGarbage(nsnull)
+          mShortestPathToExpectedGarbage(nsnull),
+          mShortestPathToExpectedGarbageEdgeName(nsnull)
 #endif
     {
     }
 
-    // Allow uninitialized values in large arrays.
-    PtrInfo() {}
+#ifdef DEBUG_CC
+    void Destroy() {
+        PL_strfree(mName);
+        mEdgeNames.~nsCStringArray();
+    }
+#endif
+
+    // Allow NodePool::Block's constructor to compile.
+    PtrInfo() {
+        NS_NOTREACHED("should never be called");
+    }
 };
 
 /**
@@ -503,10 +519,14 @@ private:
     enum { BlockSize = 32 * 1024 }; // could be int template parameter
 
     struct Block {
+        // We create and destroy Block using NS_Alloc/NS_Free rather
+        // than new and delete to avoid calling its constructor and
+        // destructor.
+        Block() { NS_NOTREACHED("should never be called"); }
+        ~Block() { NS_NOTREACHED("should never be called"); }
+
         Block* mNext;
         PtrInfo mEntries[BlockSize];
-
-        Block() : mNext(nsnull) {}
     };
 
 public:
@@ -527,14 +547,14 @@ public:
         {
             Enumerator queue(*this);
             while (!queue.IsDone()) {
-                PL_strfree(queue.GetNext()->mName);
+                queue.GetNext()->Destroy();
             }
         }
 #endif
         Block *b = mBlocks;
         while (b) {
             Block *n = b->mNext;
-            delete b;
+            NS_Free(b);
             b = n;
         }
 
@@ -560,10 +580,12 @@ public:
         {
             if (mNext == mBlockEnd) {
                 Block *block;
-                if (!(*mNextBlock = block = new Block()))
+                if (!(*mNextBlock = block =
+                        static_cast<Block*>(NS_Alloc(sizeof(Block)))))
                     return nsnull;
                 mNext = block->mEntries;
                 mBlockEnd = block->mEntries + BlockSize;
+                block->mNext = nsnull;
                 mNextBlock = &block->mNext;
             }
             return new (mNext++) PtrInfo(aPointer, aParticipant
@@ -1193,6 +1215,9 @@ private:
     PLDHashTable mPtrToNodeMap;
     PtrInfo *mCurrPi;
     nsCycleCollectionLanguageRuntime **mRuntimes; // weak, from nsCycleCollector
+#ifdef DEBUG_CC
+    nsCString mNextEdgeName;
+#endif
 
 public:
     GCGraphBuilder(GCGraph &aGraph,
@@ -1230,6 +1255,9 @@ private:
     NS_IMETHOD_(void) NoteNativeChild(void *child,
                                      nsCycleCollectionParticipant *participant);
     NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void *child);
+#ifdef DEBUG_CC
+    NS_IMETHOD_(void) NoteNextEdgeName(const char* name);
+#endif
 };
 
 GCGraphBuilder::GCGraphBuilder(GCGraph &aGraph,
@@ -1359,6 +1387,10 @@ GCGraphBuilder::DescribeNode(CCNodeType type, nsrefcnt refCount)
 NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteXPCOMChild(nsISupports *child) 
 {
+#ifdef DEBUG_CC
+    nsCString edgeName(mNextEdgeName);
+    mNextEdgeName.Truncate();
+#endif
     if (!child || !(child = canonicalize(child)))
         return; 
 
@@ -1374,6 +1406,9 @@ GCGraphBuilder::NoteXPCOMChild(nsISupports *child)
         if (!childPi)
             return;
         mEdgeBuilder.Add(childPi);
+#ifdef DEBUG_CC
+        mCurrPi->mEdgeNames.AppendCString(edgeName);
+#endif
         ++childPi->mInternalRefs;
     }
 }
@@ -1382,6 +1417,10 @@ NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteNativeChild(void *child,
                                 nsCycleCollectionParticipant *participant)
 {
+#ifdef DEBUG_CC
+    nsCString edgeName(mNextEdgeName);
+    mNextEdgeName.Truncate();
+#endif
     if (!child)
         return;
 
@@ -1391,12 +1430,19 @@ GCGraphBuilder::NoteNativeChild(void *child,
     if (!childPi)
         return;
     mEdgeBuilder.Add(childPi);
+#ifdef DEBUG_CC
+    mCurrPi->mEdgeNames.AppendCString(edgeName);
+#endif
     ++childPi->mInternalRefs;
 }
 
 NS_IMETHODIMP_(void)
 GCGraphBuilder::NoteScriptChild(PRUint32 langID, void *child) 
 {
+#ifdef DEBUG_CC
+    nsCString edgeName(mNextEdgeName);
+    mNextEdgeName.Truncate();
+#endif
     if (!child)
         return;
 
@@ -1413,8 +1459,19 @@ GCGraphBuilder::NoteScriptChild(PRUint32 langID, void *child)
     if (!childPi)
         return;
     mEdgeBuilder.Add(childPi);
+#ifdef DEBUG_CC
+    mCurrPi->mEdgeNames.AppendCString(edgeName);
+#endif
     ++childPi->mInternalRefs;
 }
+
+#ifdef DEBUG_CC
+NS_IMETHODIMP_(void)
+GCGraphBuilder::NoteNextEdgeName(const char* name)
+{
+    mNextEdgeName = name;
+}
+#endif
 
 static PRBool
 AddPurpleRoot(GCGraphBuilder &builder, nsISupports *root)
@@ -1573,11 +1630,6 @@ nsCycleCollector::RootWhite()
 
     mWhiteNodes->SetCapacity(mWhiteNodeCount);
 
-#if defined(DEBUG_CC) && !defined(__MINGW32__) && defined(WIN32)
-    struct _CrtMemState ms1, ms2;
-    _CrtMemCheckpoint(&ms1);
-#endif
-
     NodePool::Enumerator etor(mGraph.mNodes);
     while (!etor.IsDone())
     {
@@ -1596,6 +1648,12 @@ PRBool
 nsCycleCollector::CollectWhite()
 {
     nsresult rv;
+
+#if defined(DEBUG_CC) && !defined(__MINGW32__) && defined(WIN32)
+    struct _CrtMemState ms1, ms2;
+    _CrtMemCheckpoint(&ms1);
+#endif
+
     PRUint32 i, count = mWhiteNodes->Length();
     for (i = 0; i < count; ++i) {
         PtrInfo *pinfo = mWhiteNodes->ElementAt(i);
@@ -2020,6 +2078,7 @@ public:
     NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void *child) {}
     NS_IMETHOD_(void) NoteNativeChild(void *child,
                                      nsCycleCollectionParticipant *participant) {}
+    NS_IMETHOD_(void) NoteNextEdgeName(const char* name) {}
 };
 
 char *Suppressor::sSuppressionList = nsnull;
@@ -2452,6 +2511,25 @@ struct SetNonRootGreyWalker : public GraphWalker
     void VisitNode(PtrInfo *pi) { pi->mColor = grey; }
 };
 
+static void
+PrintPathToExpectedGarbage(PtrInfo *pi)
+{
+    printf("  An object expected to be garbage could be "
+           "reached from it by the path:\n");
+    for (PtrInfo *path = pi, *prev = nsnull; prev != path;
+         prev = path,
+         path = path->mShortestPathToExpectedGarbage) {
+        if (prev) {
+            nsCString *edgeName = prev
+                ->mShortestPathToExpectedGarbageEdgeName;
+            printf("        via %s\n",
+                   edgeName->IsEmpty() ? "<unknown edge>"
+                                       : edgeName->get());
+        }
+        printf("    %s %p\n", path->mName, path->mPointer);
+    }
+}
+
 void
 nsCycleCollector::ExplainLiveExpectedGarbage()
 {
@@ -2507,10 +2585,8 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
             }
         }
 
-        // The describeExtraRefcounts check isn't much use now that
-        // we're traversing from suspectCurrent roots too.  But it's
-        // just extra work, not extra output.
-        if (describeExtraRefcounts && CreateReversedEdges()) {
+        if ((describeExtraRefcounts || findCycleRoots) &&
+            CreateReversedEdges()) {
             // Note that the external references may have been external
             // to a different node in the cycle collection that just
             // happened, if that different node was purple and then
@@ -2543,8 +2619,11 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
                     if (e->mTarget->mSCCIndex == INDEX_UNREACHED) {
                         e->mTarget->mSCCIndex = INDEX_REACHED;
                         PtrInfo *target = e->mTarget;
-                        if (!target->mShortestPathToExpectedGarbage)
+                        if (!target->mShortestPathToExpectedGarbage) {
                             target->mShortestPathToExpectedGarbage = pi;
+                            target->mShortestPathToExpectedGarbageEdgeName =
+                                e->mEdgeName;
+                        }
                         queue.Push(target);
                     }
                 }
@@ -2566,12 +2645,7 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
                                pi->mRefCount, pi->mInternalRefs);
                     }
 
-                    printf("  An object expected to be garbage could be "
-                           "reached from it by the path:\n");
-                    for (PtrInfo *path = pi, *prev = nsnull; prev != path;
-                         prev = path,
-                         path = path->mShortestPathToExpectedGarbage)
-                        printf("    %s %p\n", path->mName, path->mPointer);
+                    PrintPathToExpectedGarbage(pi);
 
                     if (pi->mRefCount == PR_UINT32_MAX) {
                         printf("  The known references to it were from:\n");
@@ -2582,118 +2656,124 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
                     }
                     for (ReversedEdge *e = pi->mReversedEdges;
                          e; e = e->mNext) {
-                        printf("    %s %p\n",
+                        printf("    %s %p",
                                e->mTarget->mName, e->mTarget->mPointer);
+                        if (!e->mEdgeName->IsEmpty()) {
+                            printf(" via %s", e->mEdgeName->get());
+                        }
+                        printf("\n");
                     }
                     mRuntimes[pi->mLangID]->PrintAllReferencesTo(pi->mPointer);
                 }
             }
 
-            DestroyReversedEdges();
-        }
+            if (findCycleRoots) {
+                // NOTE: This code changes the white nodes that are not
+                // roots to gray.
 
-        if (findCycleRoots) {
-            // NOTE: This code changes the white nodes that are not
-            // roots to gray.
+                // Put the nodes in post-order traversal order from a
+                // depth-first search.
+                nsDeque DFSPostOrder;
 
-            // Put the nodes in post-order traversal order from a
-            // depth-first search.
-            nsDeque DFSPostOrder;
+                {
+                    // Use mSCCIndex temporarily to track the DFS numbering:
+                    const PRUint32 INDEX_UNREACHED = 0;
+                    const PRUint32 INDEX_TRAVERSING = 1;
+                    const PRUint32 INDEX_NUMBERED = 2;
 
-            {
-                // Use mSCCIndex temporarily to track the DFS numbering:
-                const PRUint32 INDEX_UNREACHED = 0;
-                const PRUint32 INDEX_TRAVERSING = 1;
-                const PRUint32 INDEX_NUMBERED = 2;
+                    NodePool::Enumerator etor_clear(mGraph.mNodes);
+                    while (!etor_clear.IsDone()) {
+                        PtrInfo *pi = etor_clear.GetNext();
+                        pi->mSCCIndex = INDEX_UNREACHED;
+                    }
 
-                NodePool::Enumerator etor_clear(mGraph.mNodes);
-                while (!etor_clear.IsDone()) {
-                    PtrInfo *pi = etor_clear.GetNext();
-                    pi->mSCCIndex = INDEX_UNREACHED;
+                    nsDeque stack;
+
+                    NodePool::Enumerator etor_roots(mGraph.mNodes);
+                    for (PRUint32 i = 0; i < mGraph.mRootCount; ++i) {
+                        PtrInfo *root_pi = etor_roots.GetNext();
+                        stack.Push(root_pi);
+                    }
+
+                    while (stack.GetSize() > 0) {
+                        PtrInfo *pi = (PtrInfo*)stack.Peek();
+                        if (pi->mSCCIndex == INDEX_UNREACHED) {
+                            pi->mSCCIndex = INDEX_TRAVERSING;
+                            for (EdgePool::Iterator child = pi->mFirstChild,
+                                                child_end = pi->mLastChild;
+                                 child != child_end; ++child) {
+                                stack.Push(*child);
+                            }
+                        } else {
+                            stack.Pop();
+                            // Somebody else might have numbered it already
+                            // (since this is depth-first, not breadth-first).
+                            // This happens if a node is pushed on the stack
+                            // a second time while it is on the stack in
+                            // UNREACHED state.
+                            if (pi->mSCCIndex == INDEX_TRAVERSING) {
+                                pi->mSCCIndex = INDEX_NUMBERED;
+                                DFSPostOrder.Push(pi);
+                            }
+                        }
+                    }
                 }
 
-                nsDeque stack;
+                // Put the nodes into strongly-connected components.
+                {
+                    NodePool::Enumerator etor_clear(mGraph.mNodes);
+                    while (!etor_clear.IsDone()) {
+                        PtrInfo *pi = etor_clear.GetNext();
+                        pi->mSCCIndex = 0;
+                    }
 
-                NodePool::Enumerator etor_roots(mGraph.mNodes);
-                for (PRUint32 i = 0; i < mGraph.mRootCount; ++i) {
-                    PtrInfo *root_pi = etor_roots.GetNext();
-                    stack.Push(root_pi);
+                    PRUint32 currentSCC = 1;
+
+                    while (DFSPostOrder.GetSize() > 0) {
+                        SetSCCWalker(currentSCC).Walk((PtrInfo*)DFSPostOrder.PopFront());
+                        ++currentSCC;
+                    }
                 }
 
-                while (stack.GetSize() > 0) {
-                    PtrInfo *pi = (PtrInfo*)stack.Peek();
-                    if (pi->mSCCIndex == INDEX_UNREACHED) {
-                        pi->mSCCIndex = INDEX_TRAVERSING;
+                // Mark any white nodes reachable from other components as
+                // grey.
+                {
+                    NodePool::Enumerator queue(mGraph.mNodes);
+                    while (!queue.IsDone()) {
+                        PtrInfo *pi = queue.GetNext();
+                        if (pi->mColor != white)
+                            continue;
                         for (EdgePool::Iterator child = pi->mFirstChild,
                                             child_end = pi->mLastChild;
                              child != child_end; ++child) {
-                            stack.Push(*child);
-                        }
-                    } else {
-                        stack.Pop();
-                        // Somebody else might have numbered it already
-                        // (since this is depth-first, not breadth-first).
-                        // This happens if a node is pushed on the stack
-                        // a second time while it is on the stack in
-                        // UNREACHED state.
-                        if (pi->mSCCIndex == INDEX_TRAVERSING) {
-                            pi->mSCCIndex = INDEX_NUMBERED;
-                            DFSPostOrder.Push(pi);
+                            if ((*child)->mSCCIndex != pi->mSCCIndex) {
+                                SetNonRootGreyWalker().Walk(*child);
+                            }
                         }
                     }
                 }
-            }
 
-            // Put the nodes into strongly-connected components.
-            {
-                NodePool::Enumerator etor_clear(mGraph.mNodes);
-                while (!etor_clear.IsDone()) {
-                    PtrInfo *pi = etor_clear.GetNext();
-                    pi->mSCCIndex = 0;
-                }
-
-                PRUint32 currentSCC = 1;
-
-                while (DFSPostOrder.GetSize() > 0) {
-                    SetSCCWalker(currentSCC).Walk((PtrInfo*)DFSPostOrder.PopFront());
-                    ++currentSCC;
-                }
-            }
-
-            // Mark any white nodes reachable from other components as
-            // grey.
-            {
-                NodePool::Enumerator queue(mGraph.mNodes);
-                while (!queue.IsDone()) {
-                    PtrInfo *pi = queue.GetNext();
-                    if (pi->mColor != white)
-                        continue;
-                    for (EdgePool::Iterator child = pi->mFirstChild,
-                                        child_end = pi->mLastChild;
-                         child != child_end; ++child) {
-                        if ((*child)->mSCCIndex != pi->mSCCIndex) {
-                            SetNonRootGreyWalker().Walk(*child);
+                {
+                    NodePool::Enumerator queue(mGraph.mNodes);
+                    while (!queue.IsDone()) {
+                        PtrInfo *pi = queue.GetNext();
+                        if (pi->mColor == white) {
+                            printf("nsCycleCollector: %s %p in component %d\n"
+                                   "  was not collected due to missing call to "
+                                   "suspect, failure to unlink,\n"
+                                   "  or deficiency in traverse that causes "
+                                   "cycles referenced only from other\n"
+                                   "  cycles to require multiple rounds of cycle "
+                                   "collection\n",
+                                   pi->mName, pi->mPointer, pi->mSCCIndex);
+                            if (pi->mShortestPathToExpectedGarbage)
+                                PrintPathToExpectedGarbage(pi);
                         }
                     }
                 }
             }
 
-            {
-                NodePool::Enumerator queue(mGraph.mNodes);
-                while (!queue.IsDone()) {
-                    PtrInfo *pi = queue.GetNext();
-                    if (pi->mColor == white) {
-                        printf("nsCycleCollector: %s %p in component %d\n"
-                               "  was not collected due to missing call to "
-                               "suspect, failure to unlink,\n"
-                               "  or deficiency in traverse that causes "
-                               "cycles referenced only from other\n"
-                               "  cycles to require multiple rounds of cycle "
-                               "collection\n",
-                               pi->mName, pi->mPointer, pi->mSCCIndex);
-                    }
-                }
-            }
+            DestroyReversedEdges();
         }
     }
 
@@ -2732,12 +2812,15 @@ nsCycleCollector::CreateReversedEdges()
     NodePool::Enumerator buildQueue(mGraph.mNodes);
     while (!buildQueue.IsDone()) {
         PtrInfo *pi = buildQueue.GetNext();
+        PRInt32 i = 0;
         for (EdgePool::Iterator e = pi->mFirstChild, e_end = pi->mLastChild;
              e != e_end; ++e) {
             current->mTarget = pi;
+            current->mEdgeName = pi->mEdgeNames.CStringAt(i);
             current->mNext = (*e)->mReversedEdges;
             (*e)->mReversedEdges = current;
             ++current;
+            ++i;
         }
     }
     NS_ASSERTION(current - mGraph.mReversedEdges == ptrdiff_t(edgeCount),

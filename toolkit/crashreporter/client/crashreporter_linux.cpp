@@ -50,8 +50,13 @@
 
 #include <signal.h>
 
+#ifdef MOZ_ENABLE_GCONF
+#include <gconf/gconf-client.h>
+#endif
+
 #include <gtk/gtk.h>
 #include <glib.h>
+#include <string.h>
 
 #include "common/linux/http_upload.h"
 
@@ -77,6 +82,8 @@ static bool gDidTrySend = false;
 static string gDumpFile;
 static StringTable gQueryParameters;
 static string gSendURL;
+static string gHttpProxy;
+static string gAuth;
 static vector<string> gRestartArgs;
 static string gURLParameter;
 
@@ -109,10 +116,13 @@ static void LoadSettings()
       gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gIncludeURLCheck),
                                    settings["IncludeURL"][0] != '0');
     }
-    if (settings.find("SubmitReport") != settings.end()) {
-      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gSubmitReportCheck),
-                                   settings["SubmitReport"][0] != '0');
-    }
+    bool enabled;
+    if (settings.find("SubmitReport") != settings.end())
+      enabled = settings["SubmitReport"][0] != '0';
+    else
+      enabled = ShouldEnableSending();
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(gSubmitReportCheck),
+                                 enabled);
   }
 }
 
@@ -184,15 +194,69 @@ static gboolean ReportCompleted(gpointer success)
   return FALSE;
 }
 
+#ifdef MOZ_ENABLE_GCONF
+#define HTTP_PROXY_DIR "/system/http_proxy"
+
+static void LoadProxyinfo()
+{
+  GConfClient *conf = gconf_client_get_default();
+
+  if (!getenv ("http_proxy") &&
+      gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_http_proxy", NULL)) {
+    gint port;
+    gchar *host = NULL, *httpproxy = NULL;
+
+    host = gconf_client_get_string(conf, HTTP_PROXY_DIR "/host", NULL);
+    port = gconf_client_get_int(conf, HTTP_PROXY_DIR "/port", NULL);
+
+    if (port && host && host != '\0') {
+      httpproxy = g_strdup_printf("http://%s:%d/", host, port);
+      gHttpProxy = httpproxy;
+    }
+
+    g_free(host);
+    g_free(httpproxy);
+
+    if(gconf_client_get_bool(conf, HTTP_PROXY_DIR "/use_authentication", NULL)) {
+      gchar *user, *password, *auth;
+
+      user = gconf_client_get_string(conf,
+                                     HTTP_PROXY_DIR "/authentication_user",
+                                     NULL);
+      password = gconf_client_get_string(conf,
+                                         HTTP_PROXY_DIR
+                                         "/authentication_password",
+                                         NULL);
+
+      if (user != "\0") {
+        auth = g_strdup_printf("%s:%s", user, password);
+        gAuth = auth;
+      }
+
+      g_free(user);
+      g_free(password);
+      g_free(auth);
+    }
+  }
+
+  g_object_unref(conf);
+}
+#endif
+
 static gpointer SendThread(gpointer args)
 {
   string response, error;
+
+#ifdef MOZ_ENABLE_GCONF
+  LoadProxyinfo();
+#endif
+
   bool success = google_breakpad::HTTPUpload::SendRequest
     (gSendURL,
      gQueryParameters,
      gDumpFile,
      "upload_file_minidump",
-     "", "",
+     gHttpProxy, gAuth,
      &response,
      &error);
   if (success) {
@@ -265,11 +329,21 @@ static gboolean WindowDeleted(GtkWidget* window,
   return TRUE;
 }
 
+static void MaybeSubmitReport()
+{
+  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gSubmitReportCheck))) {
+    gDidTrySend = true;
+    SendReport();
+  } else {
+    gtk_main_quit();
+  }
+}
+
 static void CloseClicked(GtkButton* button,
                          gpointer userData)
 {
   SaveSettings();
-  gtk_main_quit();
+  MaybeSubmitReport();
 }
 
 static void RestartClicked(GtkButton* button,
@@ -277,13 +351,7 @@ static void RestartClicked(GtkButton* button,
 {
   SaveSettings();
   RestartApplication();
-
-  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gSubmitReportCheck))) {
-    gDidTrySend = true;
-    SendReport();
-  } else {
-    gtk_main_quit();
-  }
+  MaybeSubmitReport();
 }
 
 static void UpdateSubmit()
@@ -352,7 +420,7 @@ static void CommentChanged(GtkTextBuffer* buffer, gpointer userData)
   gtk_text_buffer_get_start_iter(buffer, &start);
   gtk_text_buffer_get_end_iter(buffer, &end);
   const char* comment = gtk_text_buffer_get_text(buffer, &start, &end, TRUE);
-  if (comment[0] == '\0')
+  if (comment[0] == '\0' || gCommentFieldHint)
     gQueryParameters.erase("Comments");
   else
     gQueryParameters["Comments"] = comment;
@@ -443,13 +511,17 @@ static void UpdateURL()
 
 static void UpdateEmail()
 {
+  const char* email = gtk_entry_get_text(GTK_ENTRY(gEmailEntry));
   if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gEmailMeCheck))) {
-    gQueryParameters["Email"] = gtk_entry_get_text(GTK_ENTRY(gEmailEntry));
     gtk_widget_set_sensitive(gEmailEntry, TRUE);
   } else {
-    gQueryParameters.erase("Email");
+    email = "";
     gtk_widget_set_sensitive(gEmailEntry, FALSE);
   }
+  if (email[0] == '\0' || gEmailFieldHint)
+    gQueryParameters.erase("Email");
+  else
+    gQueryParameters["Email"] = email;
 }
 
 static void IncludeURLClicked(GtkButton* sender, gpointer userData)

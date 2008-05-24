@@ -40,6 +40,7 @@
 #include "nsIChannel.h"
 #include "nsICryptoHMAC.h"
 #include "nsIHttpChannel.h"
+#include "nsIKeyModule.h"
 #include "nsIObserverService.h"
 #include "nsIUploadChannel.h"
 #include "nsNetUtil.h"
@@ -62,6 +63,16 @@ static const PRLogModuleInfo *gUrlClassifierHashCompleterLog = nsnull;
 #define LOG_ENABLED() (PR_FALSE)
 #endif
 
+// Back off from making server requests if we have at least
+// gBackoffErrors errors
+static const PRUint32 gBackoffErrors = 2;
+// .. within gBackoffTime seconds
+static const PRUint32 gBackoffTime = 5 * 60;
+// ... and back off gBackoffInterval seconds, doubling seach time
+static const PRUint32 gBackoffInterval = 30 * 60;
+// ... up to a maximum of gBackoffMax.
+static const PRUint32 gBackoffMax = 8 * 60 * 60;
+
 NS_IMPL_ISUPPORTS3(nsUrlClassifierHashCompleterRequest,
                    nsIRequestObserver,
                    nsIStreamListener,
@@ -71,6 +82,13 @@ nsresult
 nsUrlClassifierHashCompleterRequest::Begin()
 {
   LOG(("nsUrlClassifierHashCompleterRequest::Begin [%p]", this));
+
+  if (PR_IntervalNow() < mCompleter->GetNextRequestTime()) {
+    NS_WARNING("Gethash server backed off, failing gethash request.");
+    NotifyFailure(NS_ERROR_ABORT);
+    return NS_ERROR_ABORT;
+  }
+
   nsCOMPtr<nsIObserverService> observerService =
     do_GetService("@mozilla.org/observer-service;1");
   if (observerService)
@@ -224,13 +242,21 @@ nsUrlClassifierHashCompleterRequest::HandleMAC(nsACString::const_iterator& begin
   nsUrlClassifierUtils::UnUrlsafeBase64(serverMAC);
 
   nsresult rv;
+
+  nsCOMPtr<nsIKeyObjectFactory> keyObjectFactory(
+    do_GetService("@mozilla.org/security/keyobjectfactory;1", &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIKeyObject> keyObject;
+  rv = keyObjectFactory->KeyFromString(nsIKeyObject::HMAC, mClientKey,
+      getter_AddRefs(keyObject));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsICryptoHMAC> hmac =
     do_CreateInstance(NS_CRYPTO_HMAC_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = hmac->Init(nsICryptoHMAC::SHA1,
-                  reinterpret_cast<const PRUint8*>(mClientKey.BeginReading()),
-                  mClientKey.Length());
+  rv = hmac->Init(nsICryptoHMAC::SHA1, keyObject);
   NS_ENSURE_SUCCESS(rv, rv);
 
   const nsCSubstring &remaining = Substring(begin, end);
@@ -460,6 +486,8 @@ nsUrlClassifierHashCompleterRequest::OnStopRequest(nsIRequest *request,
     }
   }
 
+  mCompleter->NoteServerResponse(NS_SUCCEEDED(status));
+
   if (NS_SUCCEEDED(status))
     status = HandleResponse();
 
@@ -530,8 +558,12 @@ nsUrlClassifierHashCompleter::Complete(const nsACString &partialHash,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    // Schedule ourselves to start this request on the main loop.
-    NS_DispatchToCurrentThread(this);
+    // If we don't have a gethash url yet, don't bother scheduling
+    // the request until we have one.
+    if (!mGethashUrl.IsEmpty()) {
+      // Schedule ourselves to start this request on the main loop.
+      NS_DispatchToCurrentThread(this);
+    }
   }
 
   return mRequest->Add(partialHash, c);
@@ -541,6 +573,12 @@ NS_IMETHODIMP
 nsUrlClassifierHashCompleter::SetGethashUrl(const nsACString &url)
 {
   mGethashUrl = url;
+
+  if (mRequest) {
+    // Schedule any pending request.
+    NS_DispatchToCurrentThread(this);
+  }
+
   return NS_OK;
 }
 
@@ -643,4 +681,42 @@ nsUrlClassifierHashCompleter::RekeyRequested()
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
+}
+
+void
+nsUrlClassifierHashCompleter::NoteServerResponse(PRBool success)
+{
+  LOG(("nsUrlClassifierHashCompleter::NoteServerResponse [%p, %d]",
+       this, success));
+
+  if (success) {
+    mBackoff = PR_FALSE;
+    mNextRequestTime = 0;
+    mBackoffTime = 0;
+    return;
+  }
+
+  PRIntervalTime now = PR_IntervalNow();
+
+  // Record the error time.
+  mErrorTimes.AppendElement(now);
+  if (mErrorTimes.Length() > gBackoffErrors) {
+    mErrorTimes.RemoveElementAt(0);
+  }
+
+  if (mBackoff) {
+    mBackoffTime *= 2;
+    LOG(("Doubled backoff time to %d seconds", mBackoffTime));
+  } else if (mErrorTimes.Length() == gBackoffErrors &&
+             PR_IntervalToSeconds(now - mErrorTimes[0]) <= gBackoffTime) {
+    mBackoff = PR_TRUE;
+    mBackoffTime = gBackoffInterval;
+    LOG(("Starting backoff, backoff time is %d seconds", mBackoffTime));
+  }
+
+  if (mBackoff) {
+    mBackoffTime = PR_MIN(mBackoffTime, gBackoffMax);
+    LOG(("Using %d for backoff time", mBackoffTime));
+    mNextRequestTime = now + PR_SecondsToInterval(mBackoffTime);
+  }
 }

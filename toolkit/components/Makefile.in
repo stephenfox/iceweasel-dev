@@ -52,6 +52,7 @@ DIRS += \
         urlformatter \
         contentprefs \
         microformats \
+        places \
         $(NULL)
 
 # These component dirs are built only for XUL apps
@@ -61,8 +62,10 @@ DIRS += \
 	apppicker \
 	filepicker \
 	console \
+	exthelper \
 	viewconfig \
 	typeaheadfind \
+	parentalcontrols \
 	$(NULL)
 
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))
@@ -75,8 +78,8 @@ ifdef MOZ_FEEDS
 DIRS += feeds
 endif
 
-ifdef MOZ_PLACES
-DIRS += places
+ifdef MOZ_HELP_VIEWER
+DIRS += help
 endif
 
 ifdef NS_PRINTING
@@ -111,10 +114,6 @@ DIRS +=	history
 endif # MOZ_PLACES
 endif # MOZ_SUITE
 endif # MOZ_THUNDERBIRD
-
-ifdef MOZ_XUL
-DIRS += help
-endif
 
 ifndef MOZ_SUITE
 # XXX Suite doesn't want these just yet

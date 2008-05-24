@@ -220,7 +220,7 @@ JS_STATIC_ASSERT(offsetof(JSScope, title) == sizeof(JSObjectMap));
 #define OBJ_SCOPE(obj)                  ((JSScope *)(obj)->map)
 
 #define SCOPE_MAKE_UNIQUE_SHAPE(cx,scope)                                     \
-    ((scope)->shape = js_GenerateShape(cx))
+    ((scope)->shape = js_GenerateShape((cx), JS_FALSE))
 
 #define SCOPE_EXTEND_SHAPE(cx,scope,sprop)                                    \
     JS_BEGIN_MACRO                                                            \
@@ -228,7 +228,7 @@ JS_STATIC_ASSERT(offsetof(JSScope, title) == sizeof(JSObjectMap));
             (scope)->shape == (scope)->lastProp->shape) {                     \
             (scope)->shape = (sprop)->shape;                                  \
         } else {                                                              \
-            (scope)->shape = js_GenerateShape(cx);                            \
+            (scope)->shape = js_GenerateShape((cx), JS_FALSE);                \
         }                                                                     \
     JS_END_MACRO
 
@@ -364,8 +364,6 @@ js_NewScope(JSContext *cx, jsrefcount nrefs, JSObjectOps *ops, JSClass *clasp,
 
 extern void
 js_DestroyScope(JSContext *cx, JSScope *scope);
-
-#define ID_TO_VALUE(id) ((jsval)(id))
 
 extern JS_FRIEND_API(JSScopeProperty **)
 js_SearchScope(JSScope *scope, jsid id, JSBool adding);

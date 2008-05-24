@@ -417,9 +417,20 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetSurfaceForPrinter(gfxASurface **aSurfac
 
   double width, height;
   mPrintSettings->GetEffectivePageSize(&width, &height);
+
+  // If we're in landscape mode, we'll be rotating the output --
+  // need to swap width & height.
+  PRInt32 orientation;
+  mPrintSettings->GetOrientation(&orientation);
+  if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+    double tmp = width;
+    width = height;
+    height = tmp;
+  }
+
   // convert twips to points
-  width /= 20;
-  height /= 20;
+  width  /= TWIPS_PER_POINT_FLOAT;
+  height /= TWIPS_PER_POINT_FLOAT;
 
   DO_PR_DEBUG_LOG(("\"%s\", %f, %f\n", path, width, height));
   nsresult rv;

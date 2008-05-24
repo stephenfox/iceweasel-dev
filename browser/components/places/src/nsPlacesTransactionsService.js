@@ -37,17 +37,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+let Ci = Components.interfaces;
+let Cc = Components.classes;
+let Cr = Components.results;
+
 const loadInSidebarAnno = "bookmarkProperties/loadInSidebar";
 const descriptionAnno = "bookmarkProperties/description";
 const CLASS_ID = Components.ID("c0844a84-5a12-4808-80a8-809cb002bb4f");
 const CONTRACT_ID = "@mozilla.org/browser/placesTransactionsService;1";
 
-var loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
-             getService(Components.interfaces.mozIJSSubScriptLoader);
-loader.loadSubScript("chrome://global/content/debug.js");
-loader.loadSubScript("chrome://browser/content/places/utils.js");
-
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
+__defineGetter__("PlacesUtils", function() {
+  delete this.PlacesUtils
+  var tmpScope = {};
+  Components.utils.import("resource://gre/modules/utils.js", tmpScope);
+  return this.PlacesUtils = tmpScope.PlacesUtils;
+});
 
 // The minimum amount of transactions we should tell our observers to begin
 // batching (rather than letting them do incremental drawing).
@@ -165,7 +171,7 @@ placesTransactionsService.prototype = {
     return new placesTagURITransaction(aURI, aTags);
   },
 
-  untagURI: function placesTagURI(aURI, aTags) {
+  untagURI: function placesUntagURI(aURI, aTags) {
     return new placesUntagURITransaction(aURI, aTags);
   },
 
@@ -335,11 +341,11 @@ placesCreateFolderTransactions.prototype = {
   },
 
   undoTransaction: function PCFT_undoTransaction() {
-    PlacesUtils.bookmarks.removeFolder(this._id);
     for (var i = 0; i < this._childItemsTransactions.length; ++i) {
-      var txn = this.childItemsTransactions[i];
+      var txn = this._childItemsTransactions[i];
       txn.undoTransaction();
     }
+    PlacesUtils.bookmarks.removeFolder(this._id);
   }
 };
 
@@ -398,7 +404,7 @@ placesCreateSeparatorTransactions.prototype = {
 
   // childItemsTransaction support
   get container() { return this._container; },
-  set container(val) { return this._container = val;clear },
+  set container(val) { return this._container = val; },
 
   doTransaction: function PCST_doTransaction() {
     this._id = PlacesUtils.bookmarks
@@ -406,7 +412,7 @@ placesCreateSeparatorTransactions.prototype = {
   },
 
   undoTransaction: function PCST_undoTransaction() {
-    PlacesUtils.bookmarks.removeChildAt(this.container, this._index);
+    PlacesUtils.bookmarks.removeItem(this._id);
   }
 };
 
@@ -442,11 +448,9 @@ placesCreateLivemarkTransactions.prototype = {
 };
 
 function placesMoveItemTransactions(aItemId, aNewContainer, aNewIndex) {
-  NS_ASSERT(aNewIndex >= -1, "invalid insertion index");
   this._id = aItemId;
   this._oldContainer = PlacesUtils.bookmarks.getFolderIdForItem(this._id);
   this._oldIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
-  NS_ASSERT(this._oldContainer > 0 && this._oldIndex >= 0, "invalid item");
   this._newContainer = aNewContainer;
   this._newIndex = aNewIndex;
   this.redoTransaction = this.doTransaction;
@@ -457,10 +461,19 @@ placesMoveItemTransactions.prototype = {
 
   doTransaction: function PMIT_doTransaction() {
     PlacesUtils.bookmarks.moveItem(this._id, this._newContainer, this._newIndex);
+    // if newIndex == DEFAULT_INDEX we append, so get correct index for undo
+    if (this._newIndex == PlacesUtils.bookmarks.DEFAULT_INDEX)
+      this._newIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
   },
 
   undoTransaction: function PMIT_undoTransaction() {
-    PlacesUtils.bookmarks.moveItem(this._id, this._oldContainer, this._oldIndex);
+    // moving down in the same container takes in count removal of the item
+    // so to revert positions we must move to oldIndex + 1
+    if (this._newContainer == this._oldContainer &&
+        this._oldIndex > this._newIndex)
+      PlacesUtils.bookmarks.moveItem(this._id, this._oldContainer, this._oldIndex + 1);
+    else
+      PlacesUtils.bookmarks.moveItem(this._id, this._oldContainer, this._oldIndex);
   }
 };
 
@@ -483,6 +496,8 @@ placesRemoveItemTransaction.prototype = {
     this._oldIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
     this._title = PlacesUtils.bookmarks.getItemTitle(this._id);
     this._annotations = PlacesUtils.getAnnotationsForItem(this._id);
+    this._dateAdded = PlacesUtils.bookmarks.getItemDateAdded(this._id);
+    this._lastModified = PlacesUtils.bookmarks.getItemLastModified(this._id);
 
     if (this._itemType == Ci.nsINavBookmarksService.TYPE_FOLDER) {
       this._saveFolderContents();
@@ -530,6 +545,9 @@ placesRemoveItemTransaction.prototype = {
 
     if (this._annotations.length > 0)
       PlacesUtils.setAnnotationsForItem(this._id, this._annotations);
+
+    PlacesUtils.bookmarks.setItemDateAdded(this._id, this._dateAdded);
+    PlacesUtils.bookmarks.setItemLastModified(this._id, this._lastModified);
   },
 
   /**
@@ -579,10 +597,25 @@ placesEditBookmarkURITransactions.prototype = {
   doTransaction: function PEBUT_doTransaction() {
     this._oldURI = PlacesUtils.bookmarks.getBookmarkURI(this._id);
     PlacesUtils.bookmarks.changeBookmarkURI(this._id, this._newURI);
+    // move tags from old URI to new URI
+    this._tags = PlacesUtils.tagging.getTagsForURI(this._oldURI, {});
+    if (this._tags.length != 0) {
+      // only untag the old URI if this is the only bookmark
+      if (PlacesUtils.getBookmarksForURI(this._oldURI, {}).length == 0)
+        PlacesUtils.tagging.untagURI(this._oldURI, this._tags);
+      PlacesUtils.tagging.tagURI(this._newURI, this._tags);
+    }
   },
 
   undoTransaction: function PEBUT_undoTransaction() {
     PlacesUtils.bookmarks.changeBookmarkURI(this._id, this._oldURI);
+    // move tags from new URI to old URI 
+    if (this._tags.length != 0) {
+      // only untag the new URI if this is the only bookmark
+      if (PlacesUtils.getBookmarksForURI(this._newURI, {}).length == 0)
+        PlacesUtils.tagging.untagURI(this._newURI, this._tags);
+      PlacesUtils.tagging.tagURI(this._oldURI, this._tags);
+    }
   }
 };
 
@@ -784,12 +817,12 @@ placesEditItemDateAddedTransaction.prototype = {
   get container() { return this.id; },
   set container(val) { return this.id = val; },
 
-  doTransaction: function PEITT_doTransaction() {
+  doTransaction: function PEIDA_doTransaction() {
     this._oldDateAdded = PlacesUtils.bookmarks.getItemDateAdded(this.id);
     PlacesUtils.bookmarks.setItemDateAdded(this.id, this._newDateAdded);
   },
 
-  undoTransaction: function PEITT_undoTransaction() {
+  undoTransaction: function PEIDA_undoTransaction() {
     PlacesUtils.bookmarks.setItemDateAdded(this.id, this._oldDateAdded);
   }
 };
@@ -808,12 +841,12 @@ placesEditItemLastModifiedTransaction.prototype = {
   get container() { return this.id; },
   set container(val) { return this.id = val; },
 
-  doTransaction: function PEITT_doTransaction() {
+  doTransaction: function PEILM_doTransaction() {
     this._oldLastModified = PlacesUtils.bookmarks.getItemLastModified(this.id);
     PlacesUtils.bookmarks.setItemLastModified(this.id, this._newLastModified);
   },
 
-  undoTransaction: function PEITT_undoTransaction() {
+  undoTransaction: function PEILM_undoTransaction() {
     PlacesUtils.bookmarks.setItemLastModified(this.id, this._oldLastModified);
   }
 };
@@ -886,21 +919,22 @@ placesTagURITransaction.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PTU_doTransaction() {
-    if (PlacesUtils.getBookmarksForURI(this._uri).length == 0) {
+    if (PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
       // Force an unfiled bookmark first
-      this.__unfiledItemId =
+      this._unfiledItemId =
         PlacesUtils.bookmarks
                    .insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                   this._uri, -1,
+                                   this._uri,
+                                   PlacesUtils.bookmarks.DEFAULT_INDEX,
                                    PlacesUtils.history.getPageTitle(this._uri));
     }
     PlacesUtils.tagging.tagURI(this._uri, this._tags);
   },
 
   undoTransaction: function PTU_undoTransaction() {
-    if (this.__unfiledItemId != -1) {
-      PlacesUtils.bookmarks.removeItem(this.__unfiledItemId);
-      this.__unfiledItemId = -1;
+    if (this._unfiledItemId != -1) {
+      PlacesUtils.bookmarks.removeItem(this._unfiledItemId);
+      this._unfiledItemId = -1;
     }
     PlacesUtils.tagging.untagURI(this._uri, this._tags);
   }
@@ -908,7 +942,19 @@ placesTagURITransaction.prototype = {
 
 function placesUntagURITransaction(aURI, aTags) {
   this._uri = aURI;
-  this._tags = aTags || PlacesUtils.tagging.getTagsForURI(this._uri, {});
+  if (aTags) {    
+    // Within this transaction, we cannot rely on tags given by itemId
+    // since the tag containers may be gone after we call untagURI.
+    // Thus, we convert each tag given by its itemId to name.
+    this._tags = aTags;
+    for (var i=0; i < aTags.length; i++) {
+      if (typeof(this._tags[i]) == "number")
+        this._tags[i] = PlacesUtils.bookmarks.getItemTitle(this._tags[i]);
+    }
+  }
+  else
+    this._tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
+
   this.redoTransaction = this.doTransaction;
 }
 

@@ -75,11 +75,7 @@ public:
 
   static nsUrlClassifierDBService* GetInstance(nsresult *result);
 
-#ifdef MOZILLA_1_8_BRANCH
-  NS_DEFINE_STATIC_IID_ACCESSOR(NS_URLCLASSIFIERDBSERVICE_CID)
-#else
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_URLCLASSIFIERDBSERVICE_CID)
-#endif
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIURLCLASSIFIERDBSERVICE
@@ -87,10 +83,7 @@ public:
   NS_DECL_NSIOBSERVER
 
   PRBool GetCompleter(const nsACString& tableName,
-                      nsIUrlClassifierHashCompleter** completer) {
-    return mCompleters.Get(tableName, completer);
-  }
-
+                      nsIUrlClassifierHashCompleter** completer);
   nsresult CacheCompletions(nsTArray<nsUrlClassifierLookupResult> *results);
 
 private:
@@ -126,6 +119,9 @@ private:
   // updates, not to determine whether an update is still being
   // processed.
   PRBool mInUpdate;
+
+  // The list of tables that can use the default hash completer object.
+  nsTArray<nsCString> mGethashWhitelist;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsUrlClassifierDBService, NS_URLCLASSIFIERDBSERVICE_CID)

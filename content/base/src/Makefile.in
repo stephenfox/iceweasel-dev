@@ -82,6 +82,7 @@ REQUIRES	= xpcom \
 		  appshell \
 		  shistory \
 		  editor \
+		  windowwatcher \
 		  $(NULL)
 
 ifdef ACCESSIBILITY
@@ -101,6 +102,7 @@ EXPORTS		= \
 		nsStubImageDecoderObserver.h \
 		nsStubMutationObserver.h \
 		nsTextFragment.h \
+		mozAutoDocUpdate.h \
 		$(NULL)
 
 CPPSRCS		= \
@@ -117,7 +119,6 @@ CPPSRCS		= \
 		nsContentSink.cpp \
 		nsContentUtils.cpp \
 		nsCopySupport.cpp \
-		nsCrossSiteListenerProxy.cpp \
 		nsDataDocumentContentPolicy.cpp \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
@@ -173,6 +174,8 @@ GQI_SRCS = contentbase.gqi
 # we don't want the shared lib, but we want to force the creation of a
 # static lib.
 FORCE_STATIC_LIB = 1
+
+EXTRA_COMPONENTS = $(srcdir)/nsBadCertHandler.js
 
 include $(topsrcdir)/config/rules.mk
 

@@ -760,6 +760,7 @@ struct nsCallbackEventRequest
 
 // ----------------------------------------------------------------------------
 class nsPresShellEventCB;
+class nsAutoCauseReflowNotifier;
 
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
@@ -919,6 +920,7 @@ public:
   NS_IMETHOD SetCaretReadOnly(PRBool aReadOnly);
   NS_IMETHOD GetCaretEnabled(PRBool *aOutEnabled);
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
+  NS_IMETHOD GetCaretVisible(PRBool *_retval);
   virtual void SetCaret(nsICaret *aNewCaret);
   virtual void RestoreCaret();
 
@@ -928,7 +930,6 @@ public:
   // nsISelectionController
 
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
-  NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -1009,8 +1010,14 @@ protected:
 
   void UnsuppressAndInvalidate();
 
-  void     WillCauseReflow() { ++mChangeNestCount; }
+
+  void WillCauseReflow() {
+    nsContentUtils::AddScriptBlocker();
+    ++mChangeNestCount;
+  }
   nsresult DidCauseReflow();
+  friend class nsAutoCauseReflowNotifier;
+
   void     WillDoReflow();
   void     DidDoReflow();
   nsresult ProcessReflowCommands(PRBool aInterruptible);
@@ -1174,8 +1181,6 @@ protected:
   ReflowCountMgr * mReflowCountMgr;
 #endif
 
-  nsresult CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool sScrollIntoView);
-  
 private:
 
   PRBool InZombieDocument(nsIContent *aContent);
@@ -1207,6 +1212,29 @@ private:
   void EnumeratePlugins(nsIDOMDocument *aDocument,
                         const nsString &aPluginTag,
                         nsPluginEnumCallback aCallback);
+};
+
+class nsAutoCauseReflowNotifier
+{
+public:
+  nsAutoCauseReflowNotifier(PresShell* aShell)
+    : mShell(aShell)
+  {
+    mShell->WillCauseReflow();
+  }
+  ~nsAutoCauseReflowNotifier()
+  {
+    // This check should not be needed. Currently the only place that seem
+    // to need it is the code that deals with bug 337586.
+    if (!mShell->mHaveShutDown) {
+      mShell->DidCauseReflow();
+    }
+    else {
+      nsContentUtils::RemoveScriptBlocker();
+    }
+  }
+
+  PresShell* mShell;
 };
 
 class nsPresShellEventCB : public nsDispatchingCallback
@@ -1426,10 +1454,7 @@ PresShell::~PresShell()
 
   NS_IF_RELEASE(mPresContext);
   NS_IF_RELEASE(mDocument);
-  if (mSelection) {
-    mSelection->DisconnectFromPresShell();
-    NS_RELEASE(mSelection);
-  }
+  NS_IF_RELEASE(mSelection);
 }
 
 /**
@@ -1625,6 +1650,10 @@ PresShell::Destroy()
     mCaret = nsnull;
   }
   
+  if (mSelection) {
+    mSelection->DisconnectFromPresShell();
+  }
+
   // release our pref style sheet, if we have one still
   ClearPreferenceStyleRules();
 
@@ -2383,30 +2412,34 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     MOZ_TIMER_RESET(mFrameCreationWatch);
     MOZ_TIMER_START(mFrameCreationWatch);
 
-    WillCauseReflow();
-    mFrameConstructor->BeginUpdate();
+    {
+      nsAutoCauseReflowNotifier reflowNotifier(this);
+      mFrameConstructor->BeginUpdate();
 
-    if (!rootFrame) {
-      // Have style sheet processor construct a frame for the
-      // precursors to the root content object's frame
-      mFrameConstructor->ConstructRootFrame(root, &rootFrame);
-      FrameManager()->SetRootFrame(rootFrame);
+      if (!rootFrame) {
+        // Have style sheet processor construct a frame for the
+        // precursors to the root content object's frame
+        mFrameConstructor->ConstructRootFrame(root, &rootFrame);
+        FrameManager()->SetRootFrame(rootFrame);
+      }
+
+      // Have the style sheet processor construct frame for the root
+      // content object down
+      mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull);
+      VERIFY_STYLE_TREE;
+      MOZ_TIMER_DEBUGLOG(("Stop: Frame Creation: PresShell::InitialReflow(), this=%p\n",
+                          (void*)this));
+      MOZ_TIMER_STOP(mFrameCreationWatch);
+
+      // Something in mFrameConstructor->ContentInserted may have caused
+      // Destroy() to get called, bug 337586.
+      NS_ENSURE_STATE(!mHaveShutDown);
+
+      mFrameConstructor->EndUpdate();
     }
 
-    // Have the style sheet processor construct frame for the root
-    // content object down
-    mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull);
-    VERIFY_STYLE_TREE;
-    MOZ_TIMER_DEBUGLOG(("Stop: Frame Creation: PresShell::InitialReflow(), this=%p\n",
-                        (void*)this));
-    MOZ_TIMER_STOP(mFrameCreationWatch);
-
-    // Something in mFrameConstructor->ContentInserted may have caused
-    // Destroy() to get called, bug 337586.
+    // DidCauseReflow may have killed us too
     NS_ENSURE_STATE(!mHaveShutDown);
-
-    mFrameConstructor->EndUpdate();
-    DidCauseReflow();
 
     // Run the XBL binding constructors for any new frames we've constructed
     mDocument->BindingManager()->ProcessAttachedQueue();
@@ -2489,14 +2522,17 @@ NS_IMETHODIMP
 PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
 {
   NS_PRECONDITION(!mIsReflowing, "Shouldn't be in reflow here!");
+  NS_PRECONDITION(aWidth != NS_UNCONSTRAINEDSIZE,
+                  "shouldn't use unconstrained widths anymore");
   
   // If we don't have a root frame yet, that means we haven't had our initial
   // reflow... If that's the case, and aWidth or aHeight is unconstrained,
   // ignore them altogether.
   nsIFrame* rootFrame = FrameManager()->GetRootFrame();
 
-  if (!rootFrame &&
-      (aWidth == NS_UNCONSTRAINEDSIZE || aHeight == NS_UNCONSTRAINEDSIZE)) {
+  if (!rootFrame && aHeight == NS_UNCONSTRAINEDSIZE) {
+    // We can't do the work needed for SizeToContent without a root
+    // frame, and we want to return before setting the visible area.
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -2522,10 +2558,10 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
       // XXX Do a full invalidate at the beginning so that invalidates along
       // the way don't have region accumulation issues?
 
-      WillCauseReflow();
-      WillDoReflow();
-
       {
+        nsAutoCauseReflowNotifier crNotifier(this);
+        WillDoReflow();
+
         // Kick off a top-down reflow
         AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
         mIsReflowing = PR_TRUE;
@@ -2535,11 +2571,15 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
         mIsReflowing = PR_FALSE;
       }
 
-      DidCauseReflow();
       DidDoReflow();
     }
 
     batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
+  }
+
+  if (aHeight == NS_UNCONSTRAINEDSIZE) {
+    mPresContext->SetVisibleArea(
+      nsRect(0, 0, aWidth, rootFrame->GetRect().height));
   }
 
   if (!mIsDestroying) {
@@ -2698,6 +2738,16 @@ NS_IMETHODIMP PresShell::SetCaretVisibilityDuringSelection(PRBool aVisibility)
   return NS_OK;
 }
 
+NS_IMETHODIMP PresShell::GetCaretVisible(PRBool *aOutIsVisible)
+{
+  *aOutIsVisible = PR_FALSE;
+  if (mCaret) {
+    nsresult rv = mCaret->GetCaretVisible(aOutIsVisible);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+  return NS_OK;
+}
+
 NS_IMETHODIMP PresShell::SetSelectionFlags(PRInt16 aInEnable)
 {
   mSelectionFlags = aInEnable;
@@ -2718,12 +2768,6 @@ NS_IMETHODIMP
 PresShell::CharacterMove(PRBool aForward, PRBool aExtend)
 {
   return mSelection->CharacterMove(aForward, aExtend);  
-}
-
-NS_IMETHODIMP
-PresShell::CharacterExtendForDelete()
-{
-  return mSelection->CharacterExtendForDelete();
 }
 
 NS_IMETHODIMP 
@@ -2852,12 +2896,7 @@ PresShell::CompleteMove(PRBool aForward, PRBool aExtend)
 {
   // Beware! This may flush notifications via synchronous
   // ScrollSelectionIntoView.
-  return CompleteMoveInner(aForward, aExtend, PR_TRUE);
-}
 
-nsresult
-PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollIntoView)
-{
   nsIContent* root = mSelection->GetAncestorLimiter();
   nsIDocument* doc;
   if (root && (doc = root->GetOwnerDoc()) && doc->GetRootContent() != root) {
@@ -2888,16 +2927,12 @@ PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollInto
     // HandleClick resets ancestorLimiter, so set it again.
     mSelection->SetAncestorLimiter(root);
 
-    if (aScrollIntoView) {
-      // After ScrollSelectionIntoView(), the pending notifications might be
-      // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-      return
-        ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
-                                nsISelectionController::SELECTION_FOCUS_REGION,
-                                PR_TRUE);
-    }
-
-    return NS_OK;
+    // After ScrollSelectionIntoView(), the pending notifications might be
+    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
+    return
+      ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
+                              nsISelectionController::SELECTION_FOCUS_REGION,
+                              PR_TRUE);
   }
 
   nsIScrollableView *scrollableView;
@@ -2934,15 +2969,11 @@ PresShell::CompleteMoveInner(PRBool aForward, PRBool aExtend, PRBool aScrollInto
 
   mSelection->HandleClick(pos.mResultContent ,pos.mContentOffset ,pos.mContentOffset/*End*/ ,aExtend, PR_FALSE, aForward);
 
-  if (aScrollIntoView) {
-    // After ScrollSelectionIntoView(), the pending notifications might be
-    // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
-    result = ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
-                                     nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
-    if (NS_FAILED(result)) 
-      return result;
-  }
-  return NS_OK;
+  // After ScrollSelectionIntoView(), the pending notifications might be
+  // flushed and PresShell/PresContext/Frames may be dead. See bug 418470.
+  return ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, 
+                                 nsISelectionController::SELECTION_FOCUS_REGION,
+                                 PR_TRUE);
 }
 
 NS_IMETHODIMP 
@@ -3078,6 +3109,7 @@ PresShell::RestoreRootScrollPosition()
   // we're scrolling to our restored position.  Entering reflow for the
   // scrollable frame will cause it to reenter ScrollToRestoredPosition(), and
   // it'll get all confused.
+  nsAutoScriptBlocker scriptBlocker;
   ++mChangeNestCount;
 
   if (historyState) {
@@ -3367,6 +3399,8 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   // Have to make sure that the content notifications are flushed before we
   // start messing with the frame model; otherwise we can get content doubling.
   mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
+
+  nsAutoScriptBlocker scriptBlocker;
 
   nsStyleChangeList changeList;
   changeList.AppendChange(nsnull, aContent, nsChangeHint_ReconstructFrame);
@@ -4307,18 +4341,6 @@ PresShell::UnsuppressAndInvalidate()
 
   if (mViewManager)
     mViewManager->SynthesizeMouseMove(PR_FALSE);
-  
-  // If there is no selection, create a collapsed selection at the top of the document. 
-  if (mSelection) {
-    nsISelection* domSelection = mSelection->
-      GetSelection(nsISelectionController::SELECTION_NORMAL);
-    if (domSelection) {
-      PRInt32 rangeCount;
-      domSelection->GetRangeCount(&rangeCount);
-      if (rangeCount == 0)
-        CompleteMoveInner(PR_FALSE, PR_FALSE, PR_FALSE);
-    }
-  }
 }
 
 NS_IMETHODIMP
@@ -4459,12 +4481,15 @@ PresShell::HandlePostedReflowCallbacks()
 NS_IMETHODIMP 
 PresShell::IsSafeToFlush(PRBool& aIsSafeToFlush)
 {
-  aIsSafeToFlush = PR_TRUE;
+  // XXX technically we don't need to check anything but
+  // nsContentUtils::IsSafeToRunScript here since that should be false
+  // if any of the other flags are set.
+  
+  // Not safe if we are reflowing or in the middle of frame construction
+  aIsSafeToFlush = !mIsReflowing &&
+                   !mChangeNestCount;
 
-  if (mIsReflowing || mChangeNestCount) {
-    // Not safe if we are reflowing or in the middle of frame construction
-    aIsSafeToFlush = PR_FALSE;
-  } else {
+  if (aIsSafeToFlush) {
     // Not safe if we are painting
     nsIViewManager* viewManager = GetViewManager();
     if (viewManager) {
@@ -4475,6 +4500,10 @@ PresShell::IsSafeToFlush(PRBool& aIsSafeToFlush)
       }
     }
   }
+
+  NS_ASSERTION(aIsSafeToFlush == nsContentUtils::IsSafeToRunScript(),
+               "Someone forgot to block scripts");
+
   return NS_OK;
 }
 
@@ -4578,7 +4607,8 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected CharacterDataChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
-  WillCauseReflow();
+  nsAutoCauseReflowNotifier crNotifier(this);
+
   if (mCaret) {
     // Invalidate the caret's current location before we call into the frame
     // constructor. It is important to do this now, and not wait until the
@@ -4607,7 +4637,6 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
 
   mFrameConstructor->CharacterDataChanged(aContent, aInfo->mAppend);
   VERIFY_STYLE_TREE;
-  DidCauseReflow();
 }
 
 void
@@ -4620,10 +4649,9 @@ PresShell::ContentStatesChanged(nsIDocument* aDocument,
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
   if (mDidInitialReflow) {
-    WillCauseReflow();
+    nsAutoCauseReflowNotifier crNotifier(this);
     mFrameConstructor->ContentStatesChanged(aContent1, aContent2, aStateMask);
     VERIFY_STYLE_TREE;
-    DidCauseReflow();
   }
 }
 
@@ -4643,11 +4671,10 @@ PresShell::AttributeChanged(nsIDocument* aDocument,
   // initial reflow to begin observing the document. That would
   // squelch any other inappropriate notifications as well.
   if (mDidInitialReflow) {
-    WillCauseReflow();
+    nsAutoCauseReflowNotifier crNotifier(this);
     mFrameConstructor->AttributeChanged(aContent, aNameSpaceID,
                                         aAttribute, aModType, aStateMask);
     VERIFY_STYLE_TREE;
-    DidCauseReflow();
   }
 }
 
@@ -4664,7 +4691,7 @@ PresShell::ContentAppended(nsIDocument *aDocument,
     return;
   }
   
-  WillCauseReflow();
+  nsAutoCauseReflowNotifier crNotifier(this);
   MOZ_TIMER_DEBUGLOG(("Start: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
   MOZ_TIMER_START(mFrameCreationWatch);
 
@@ -4678,7 +4705,6 @@ PresShell::ContentAppended(nsIDocument *aDocument,
 
   MOZ_TIMER_DEBUGLOG(("Stop: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
   MOZ_TIMER_STOP(mFrameCreationWatch);
-  DidCauseReflow();
 }
 
 void
@@ -4694,7 +4720,7 @@ PresShell::ContentInserted(nsIDocument* aDocument,
     return;
   }
   
-  WillCauseReflow();
+  nsAutoCauseReflowNotifier crNotifier(this);
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -4705,7 +4731,6 @@ PresShell::ContentInserted(nsIDocument* aDocument,
   mFrameConstructor->ContentInserted(aContainer, aChild,
                                      aIndexInContainer, nsnull);
   VERIFY_STYLE_TREE;
-  DidCauseReflow();
 }
 
 void
@@ -4726,7 +4751,7 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
   // it can clean up any state related to the content.
   mPresContext->EventStateManager()->ContentRemoved(aChild);
 
-  WillCauseReflow();
+  nsAutoCauseReflowNotifier crNotifier(this);
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -4739,18 +4764,14 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
                                     aIndexInContainer, &didReconstruct);
 
   VERIFY_STYLE_TREE;
-  DidCauseReflow();
 }
 
 nsresult
 PresShell::ReconstructFrames(void)
 {
-  nsresult rv = NS_OK;
-          
-  WillCauseReflow();
-  rv = mFrameConstructor->ReconstructDocElementHierarchy();
+  nsAutoCauseReflowNotifier crNotifier(this);
+  nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
   VERIFY_STYLE_TREE;
-  DidCauseReflow();
 
   return rv;
 }
@@ -5052,7 +5073,7 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
             // wrap the item in an nsDisplayClip so that it can be clipped to
             // the selection. If the allocation fails, fall through and delete
             // the item below.
-            itemToInsert = new (aBuilder)nsDisplayClip(frame, i, textRect);
+            itemToInsert = new (aBuilder)nsDisplayClip(frame, frame, i, textRect);
           }
         }
         else {
@@ -5525,9 +5546,14 @@ PresShell::HandleEvent(nsIView         *aView,
 
 #ifdef ACCESSIBILITY
   if (aEvent->eventStructType == NS_ACCESSIBLE_EVENT) {
+    // Accessibility events come through OS requests and not from scripts,
+    // so it is safe to handle here
     return HandleEventInternal(aEvent, aView, aEventStatus);
   }
 #endif
+
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
+               "How did we get here if it's not safe to run scripts?");
 
   // Check for a theme change up front, since the frame type is irrelevant
   if (aEvent->message == NS_THEMECHANGED && mPresContext) {
@@ -6161,6 +6187,8 @@ PresShell::DidCauseReflow()
     PostReflowEvent();
   }
 
+  nsContentUtils::RemoveScriptBlocker();
+
   return NS_OK;
 }
 
@@ -6338,6 +6366,7 @@ PresShell::ProcessReflowCommands(PRBool aInterruptible)
 
     // Scope for the reflow entry point
     {
+      nsAutoScriptBlocker scriptBlocker;
       AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
       mIsReflowing = PR_TRUE;
 
@@ -6367,7 +6396,10 @@ PresShell::ProcessReflowCommands(PRBool aInterruptible)
       mIsReflowing = PR_FALSE;
     }
 
-    DidDoReflow();
+    // Exiting the scriptblocker might have killed us
+    if (!mIsDestroying) {
+      DidDoReflow();
+    }
 
     // DidDoReflow might have killed us
     if (!mIsDestroying) {
@@ -6504,9 +6536,12 @@ PresShell::Observe(nsISupports* aSubject,
                                     ReframeImageBoxes, &changeList);
       // Mark ourselves as not safe to flush while we're doing frame
       // construction.
-      ++mChangeNestCount;
-      mFrameConstructor->ProcessRestyledFrames(changeList);
-      --mChangeNestCount;
+      {
+        nsAutoScriptBlocker scriptBlocker;
+        ++mChangeNestCount;
+        mFrameConstructor->ProcessRestyledFrames(changeList);
+        --mChangeNestCount;
+      }
 
       batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 #ifdef ACCESSIBILITY

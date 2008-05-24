@@ -68,7 +68,7 @@ public:
   virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame,
                                    PRUint8 aWidgetType,
-                                   nsRect* aResult);
+                                   nsRect* aOverflowRect);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
@@ -127,7 +127,7 @@ protected:
 
   PRInt32 StandardGetState(nsIFrame* aFrame, PRUint8 aWidgetType, PRBool wantFocused);
 
-  PRBool IsMenuActiveOrHover(nsIFrame* aFrame, PRUint8 aWidgetType);
+  PRBool IsMenuActive(nsIFrame* aFrame, PRUint8 aWidgetType);
 
 private:
   HMODULE mThemeDLL;
@@ -153,6 +153,7 @@ private:
   BOOL mFlatMenus;
   OSVERSIONINFO mOsVersion;
 
+  PRPackedBool mIsXPOrLater;
   PRPackedBool mIsVistaOrLater;
 };
 

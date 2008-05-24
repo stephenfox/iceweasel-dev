@@ -92,14 +92,6 @@ nsApplicationAccessible::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetDescription(nsAString& aDescription)
-{
-  GetName(aDescription);
-  aDescription.AppendLiteral(" Application Accessible");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsApplicationAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
@@ -177,6 +169,15 @@ nsApplicationAccessible::GetPreviousSibling(nsIAccessible **aPreviousSibling)
   NS_ENSURE_ARG_POINTER(aPreviousSibling);
 
   *aPreviousSibling = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetIndexInParent(PRInt32 *aIndexInParent)
+{
+  NS_ENSURE_ARG_POINTER(aIndexInParent);
+
+  *aIndexInParent = -1;
   return NS_OK;
 }
 

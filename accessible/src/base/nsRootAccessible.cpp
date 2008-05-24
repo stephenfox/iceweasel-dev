@@ -238,10 +238,12 @@ nsRootAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   if (privateDOMWindow) {
     nsIFocusController *focusController =
       privateDOMWindow->GetRootFocusController();
-    PRBool isActive = PR_FALSE;
-    focusController->GetActive(&isActive);
-    if (isActive) {
-      *aExtraState |= nsIAccessibleStates::EXT_STATE_ACTIVE;
+    if (focusController) {
+      PRBool isActive = PR_FALSE;
+      focusController->GetActive(&isActive);
+      if (isActive) {
+        *aExtraState |= nsIAccessibleStates::EXT_STATE_ACTIVE;
+      }
     }
   }
 #ifdef MOZ_XUL
@@ -408,8 +410,7 @@ void nsRootAccessible::TryFireEarlyLoadEvent(nsIDOMNode *aDocNode)
   NS_ASSERTION(rootContentTreeItem, "No root content tree item");
   if (rootContentTreeItem == treeItem) {
     // No frames or iframes, so we can fire the doc load finished event early
-    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_INTERNAL_LOAD, aDocNode,
-                            eRemoveDupes);
+    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_INTERNAL_LOAD, aDocNode);
   }
 }
 
@@ -448,12 +449,15 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
   // Check for aria-activedescendant, which changes which element has focus
   nsCOMPtr<nsIDOMNode> finalFocusNode = aNode;
   nsCOMPtr<nsIAccessible> finalFocusAccessible = aAccessible;
-  nsCOMPtr<nsIContent> finalFocusContent  = do_QueryInterface(aNode);
+  nsCOMPtr<nsIContent> finalFocusContent = GetRoleContent(finalFocusNode);
   if (finalFocusContent) {
     nsAutoString id;
     if (finalFocusContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_activedescendant, id)) {
       nsCOMPtr<nsIDOMDocument> domDoc;
       aNode->GetOwnerDocument(getter_AddRefs(domDoc));
+      if (!domDoc) {  // Maybe the passed-in node actually is a doc
+        domDoc = do_QueryInterface(aNode);
+      }
       if (!domDoc) {
         return PR_FALSE;
       }
@@ -461,21 +465,27 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
       domDoc->GetElementById(id, getter_AddRefs(relatedEl));
       finalFocusNode = do_QueryInterface(relatedEl);
       if (!finalFocusNode) {
-        return PR_FALSE;
+        // If aria-activedescendant is set to nonextistant ID, then treat as focus
+        // on the activedescendant container (which has real DOM focus)
+        finalFocusNode = aNode;
       }
-      GetAccService()->GetAccessibleFor(finalFocusNode, getter_AddRefs(finalFocusAccessible));      
-      // For activedescendant, the ARIA spec does not require that the user agent
-      // checks whether finalFocusNode is actually a descendant of the element with
-      // the activedescendant attribute.
-      if (!finalFocusAccessible) {
-        return PR_FALSE;
-      }
+      finalFocusAccessible = nsnull;
     }
   }
 
   // Fire focus only if it changes, but always fire focus events when aForceEvent == PR_TRUE
   if (gLastFocusedNode == finalFocusNode && !aForceEvent) {
     return PR_FALSE;
+  }
+
+  if (!finalFocusAccessible) {
+    GetAccService()->GetAccessibleFor(finalFocusNode, getter_AddRefs(finalFocusAccessible));      
+    // For activedescendant, the ARIA spec does not require that the user agent
+    // checks whether finalFocusNode is actually a descendant of the element with
+    // the activedescendant attribute.
+    if (!finalFocusAccessible) {
+      return PR_FALSE;
+    }
   }
 
   gLastFocusedAccessiblesState = State(finalFocusAccessible);
@@ -499,9 +509,10 @@ PRBool nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
   }
   else if (mCurrentARIAMenubar) {
     nsCOMPtr<nsIAccessibleEvent> menuEndEvent =
-      new nsAccEvent(nsIAccessibleEvent::EVENT_MENU_END, mCurrentARIAMenubar, PR_FALSE);
+      new nsAccEvent(nsIAccessibleEvent::EVENT_MENU_END, mCurrentARIAMenubar,
+                     PR_FALSE, nsAccEvent::eAllowDupes);
     if (menuEndEvent) {
-      FireDelayedAccessibleEvent(menuEndEvent, eAllowDupes);
+      FireDelayedAccessibleEvent(menuEndEvent);
     }
     mCurrentARIAMenubar = nsnull;
   }
@@ -532,7 +543,8 @@ return PR_FALSE;
   }
 
   FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                          finalFocusNode, eRemoveDupes, aIsAsynch);
+                          finalFocusNode, nsAccEvent::eRemoveDupes,
+                          aIsAsynch);
 
   return PR_TRUE;
 }
@@ -639,7 +651,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIContent> treeContent = do_QueryInterface(aTargetNode);
     nsAccEvent::PrepareForEvent(aTargetNode, PR_TRUE);
     return accService->InvalidateSubtreeFor(eventShell, treeContent,
-                                            nsIAccessibleEvent::EVENT_ASYNCH_SIGNIFICANT_CHANGE);
+                                            nsIAccessibleEvent::EVENT_DOM_SIGNIFICANT_CHANGE);
   }
 #endif
 
@@ -650,16 +662,9 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     // inside of a combo box that closes. The real focus is on the combo box.
     // It's also the case when a popup gets focus in ATK -- when it closes
     // we need to fire an event to restore focus to where it was
-    if (!gLastFocusedNode) {
-      return NS_OK;
-    }
-    if (gLastFocusedNode != aTargetNode) {
-      // Was not focused on popup
-      nsCOMPtr<nsIDOMNode> parentOfFocus;
-      gLastFocusedNode->GetParentNode(getter_AddRefs(parentOfFocus));
-      if (parentOfFocus != aTargetNode) {
-        return NS_OK;  // And was not focused on an item inside the popup
-      }
+    if (!gLastFocusedNode ||
+        !nsAccUtils::IsAncestorOf(aTargetNode, gLastFocusedNode)) {
+      return NS_OK;  // And was not focused on an item inside the popup
     }
     // Focus was on or inside of a popup that's being hidden
     FireCurrentFocusEvent();
@@ -914,7 +919,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     FireCurrentFocusEvent();
   }
   else if (eventType.EqualsLiteral("ValueChange")) {
-    nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, accessible);
+    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, aTargetNode, nsAccEvent::eRemoveDupes);
   }
 #ifdef DEBUG
   else if (eventType.EqualsLiteral("mouseover")) {

@@ -1009,9 +1009,12 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
   // Now that the document has loaded, we can tell the presshell
   // to unsuppress painting.
   if (mPresShell && !mStopped) {
-    nsCOMPtr<nsIPresShell> shellDeathGrip(mPresShell); // bug 378682
+    nsCOMPtr<nsIPresShell> shellDeathGrip(mPresShell);
     mPresShell->UnsuppressPainting();
-    mPresShell->ScrollToAnchor();
+    // mPresShell could have been removed now, see bug 378682/421432
+    if (mPresShell) {
+      mPresShell->ScrollToAnchor();
+    }
   }
 
   nsJSContext::LoadEnd();
@@ -1047,6 +1050,8 @@ DocumentViewerImpl::PermitUnload(PRBool *aPermitUnload)
     NS_WARNING("window not set for document!");
     return NS_OK;
   }
+
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "This is unsafe");
 
   // Now, fire an BeforeUnload event to the document and see if it's ok
   // to unload...
@@ -1314,7 +1319,7 @@ DocumentViewerImpl::Close(nsISHEntry *aSHEntry)
       mDocument->SetScriptGlobalObject(nsnull);
 
       if (!mSHEntry)
-        mDocument->Destroy();
+        mDocument->RemovedFromDocShell();
     }
 
   if (mFocusListener && mDocument) {
@@ -1423,23 +1428,6 @@ DocumentViewerImpl::Destroy()
       }
     }
 
-#ifdef NS_PRINTING
-  if (mPrintEngine) {
-    // This code was moved earlier to fix a crash when a document was
-    // destroyed while it was in print preview mode, see bug 396024
-#ifdef NS_PRINT_PREVIEW
-    PRBool doingPrintPreview;
-    mPrintEngine->GetDoingPrintPreview(&doingPrintPreview);
-    if (doingPrintPreview) {
-      mPrintEngine->FinishPrintPreview();
-    }
-#endif
-
-    mPrintEngine->Destroy();
-    mPrintEngine = nsnull;
-  }
-#endif
-
     Hide();
 
     // This is after Hide() so that the user doesn't see the inputs clear.
@@ -1498,6 +1486,21 @@ DocumentViewerImpl::Destroy()
   // references.  If we do this stuff in the destructor, the
   // destructor might never be called (especially if we're being
   // used from JS.
+
+#ifdef NS_PRINTING
+  if (mPrintEngine) {
+#ifdef NS_PRINT_PREVIEW
+    PRBool doingPrintPreview;
+    mPrintEngine->GetDoingPrintPreview(&doingPrintPreview);
+    if (doingPrintPreview) {
+      mPrintEngine->FinishPrintPreview();
+    }
+#endif
+
+    mPrintEngine->Destroy();
+    mPrintEngine = nsnull;
+  }
+#endif
 
   // Avoid leaking the old viewer.
   if (mPreviousViewer) {
@@ -2451,6 +2454,7 @@ NS_IMETHODIMP DocumentViewerImpl::GetCopyable(PRBool *aCopyable)
   NS_ENSURE_ARG_POINTER(aCopyable);
   *aCopyable = PR_FALSE;
 
+  NS_ENSURE_STATE(mPresShell);
   nsCOMPtr<nsISelection> selection;
   nsresult rv = mPresShell->GetSelectionForCopy(getter_AddRefs(selection));
   if (NS_FAILED(rv))
@@ -3083,11 +3087,10 @@ NS_IMETHODIMP DocumentViewerImpl::SizeToContent()
 
    // so how big is it?
    nsRect shellArea = presContext->GetVisibleArea();
-   if (shellArea.width == NS_UNCONSTRAINEDSIZE ||
-       shellArea.height == NS_UNCONSTRAINEDSIZE) {
-     // Protect against bogus returns here
-     return NS_ERROR_FAILURE;
-   }
+   // Protect against bogus returns here
+   NS_ENSURE_TRUE(shellArea.width != NS_UNCONSTRAINEDSIZE &&
+                  shellArea.height != NS_UNCONSTRAINEDSIZE,
+                  NS_ERROR_FAILURE);
    width = presContext->AppUnitsToDevPixels(shellArea.width);
    height = presContext->AppUnitsToDevPixels(shellArea.height);
 
@@ -3974,6 +3977,9 @@ DocumentViewerImpl::ReturnToGalleyPresentation()
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   ResetFocusState(docShell);
 
+  if (mPresContext)
+    mPresContext->RestoreImageAnimationMode();
+
   SetTextZoom(mTextZoom);
   SetFullZoom(mPageZoom);
   Show();
@@ -4052,6 +4058,8 @@ DocumentViewerImpl::OnDonePrinting()
       mClosingWhilePrinting = PR_FALSE;
       NS_RELEASE_THIS();
     }
+    if (mPresContext)
+      mPresContext->RestoreImageAnimationMode();
   }
 #endif // NS_PRINTING && NS_PRINT_PREVIEW
 }

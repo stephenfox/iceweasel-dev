@@ -113,13 +113,6 @@ JSBool gQuitting = JS_FALSE;
 FILE *gErrFile = NULL;
 FILE *gOutFile = NULL;
 
-#ifdef JSDEBUGGER
-static JSDContext *_jsdc;
-#ifdef JSDEBUGGER_JAVA_UI
-static JSDJContext *_jsdjc;
-#endif /* JSDEBUGGER_JAVA_UI */
-#endif /* JSDEBUGGER */
-
 static JSBool reportWarnings = JS_TRUE;
 static JSBool compileOnly = JS_FALSE;
 
@@ -765,7 +758,10 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         fprintf(gOutFile, "%s%s", i ? " " : "", bytes);
         JS_free(cx, bytes);
     }
+
     fputc('\n', gOutFile);
+    fflush(gOutFile);
+
     return JS_TRUE;
 }
 
@@ -941,7 +937,6 @@ CountHeap(JSContext *cx, uintN argc, jsval *vp)
         { "object",     JSTRACE_OBJECT      },
         { "double",     JSTRACE_DOUBLE      },
         { "string",     JSTRACE_STRING      },
-        { "function",   JSTRACE_FUNCTION    },
 #if JS_HAS_XML_SUPPORT
         { "namespace",  JSTRACE_NAMESPACE   },
         { "qname",      JSTRACE_QNAME       },
@@ -1379,9 +1374,9 @@ Disassemble(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
             if (fun && (fun->flags & JSFUN_FLAGS_MASK)) {
                 uint16 flags = fun->flags;
                 fputs("flags:", stdout);
-
+                
 #define SHOW_FLAG(flag) if (flags & JSFUN_##flag) fputs(" " #flag, stdout);
-
+                
                 SHOW_FLAG(LAMBDA);
                 SHOW_FLAG(SETTER);
                 SHOW_FLAG(GETTER);
@@ -1392,12 +1387,12 @@ Disassemble(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                 SHOW_FLAG(THISP_BOOLEAN);
                 SHOW_FLAG(EXPR_CLOSURE);
                 SHOW_FLAG(INTERPRETED);
-
+                
 #undef SHOW_FLAG
                 putchar('\n');
             }
         }
-
+        
         if (!js_Disassemble(cx, script, lines, stdout))
             return JS_FALSE;
         SrcNotes(cx, script);
@@ -2487,7 +2482,8 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         JS_ToggleOptions(scx, JSOPTION_DONT_REPORT_UNCAUGHT);
         ok = JS_EvaluateUCScript(scx, sobj, src, srclen,
                                  fp->script->filename,
-                                 JS_PCToLineNumber(cx, fp->script, fp->pc),
+                                 JS_PCToLineNumber(cx, fp->script,
+                                                   fp->regs->pc),
                                  rval);
         if (!ok) {
             if (JS_GetPendingException(scx, &v))
@@ -3419,13 +3415,15 @@ global_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                JSObject **objp)
 {
 #ifdef LAZY_STANDARD_CLASSES
-    JSBool resolved;
+    if ((flags & JSRESOLVE_ASSIGNING) == 0) {
+        JSBool resolved;
 
-    if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
-        return JS_FALSE;
-    if (resolved) {
-        *objp = obj;
-        return JS_TRUE;
+        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+            return JS_FALSE;
+        if (resolved) {
+            *objp = obj;
+            return JS_TRUE;
+        }
     }
 #endif
 
@@ -3805,9 +3803,16 @@ main(int argc, char **argv, char **envp)
 #ifdef LIVECONNECT
     JavaVM *java_vm = NULL;
 #endif
+#ifdef JSDEBUGGER
+    JSDContext *jsdc;
 #ifdef JSDEBUGGER_JAVA_UI
     JNIEnv *java_env;
+    JSDJContext *jsdjc;
 #endif
+#ifdef JSDEBUGGER_C_UI
+    JSBool jsdbc;
+#endif /* JSDEBUGGER_C_UI */
+#endif /* JSDEBUGGER */
 
     CheckHelpMessages();
     setlocale(LC_ALL, "");
@@ -3864,19 +3869,19 @@ main(int argc, char **argv, char **envp)
     /*
     * XXX A command line option to enable debugging (or not) would be good
     */
-    _jsdc = JSD_DebuggerOnForUser(rt, NULL, NULL);
-    if (!_jsdc)
+    jsdc = JSD_DebuggerOnForUser(rt, NULL, NULL);
+    if (!jsdc)
         return 1;
-    JSD_JSContextInUse(_jsdc, cx);
+    JSD_JSContextInUse(jsdc, cx);
 #ifdef JSD_LOWLEVEL_SOURCE
-    JS_SetSourceHandler(rt, SendSourceToJSDebugger, _jsdc);
+    JS_SetSourceHandler(rt, SendSourceToJSDebugger, jsdc);
 #endif /* JSD_LOWLEVEL_SOURCE */
 #ifdef JSDEBUGGER_JAVA_UI
-    _jsdjc = JSDJ_CreateContext();
-    if (! _jsdjc)
+    jsdjc = JSDJ_CreateContext();
+    if (! jsdjc)
         return 1;
-    JSDJ_SetJSDContext(_jsdjc, _jsdc);
-    java_env = JSDJ_CreateJavaVMAndStartDebugger(_jsdjc);
+    JSDJ_SetJSDContext(jsdjc, jsdc);
+    java_env = JSDJ_CreateJavaVMAndStartDebugger(jsdjc);
 #ifdef LIVECONNECT
     if (java_env)
         (*java_env)->GetJavaVM(java_env, &java_vm);
@@ -3888,7 +3893,7 @@ main(int argc, char **argv, char **envp)
     */
 #endif /* JSDEBUGGER_JAVA_UI */
 #ifdef JSDEBUGGER_C_UI
-    JSDB_InitDebugger(rt, _jsdc, 0);
+    jsdbc = JSDB_InitDebugger(rt, jsdc, 0);
 #endif /* JSDEBUGGER_C_UI */
 #endif /* JSDEBUGGER */
 
@@ -3926,8 +3931,13 @@ main(int argc, char **argv, char **envp)
     result = ProcessArgs(cx, glob, argv, argc);
 
 #ifdef JSDEBUGGER
-    if (_jsdc)
-        JSD_DebuggerOff(_jsdc);
+    if (jsdc) {
+#ifdef JSDEBUGGER_C_UI
+        if (jsdbc)
+            JSDB_TermDebugger(jsdc);
+#endif /* JSDEBUGGER_C_UI */
+        JSD_DebuggerOff(jsdc);
+    }
 #endif  /* JSDEBUGGER */
 
 #ifdef JS_THREADSAFE

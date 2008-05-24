@@ -117,7 +117,7 @@ GetUnitTypeForString(const char* unitStr)
                    
   nsCOMPtr<nsIAtom> unitAtom = do_GetAtom(unitStr);
 
-  for (int i = 0 ; i < NS_ARRAY_LENGTH(unitMap) ; i++) {
+  for (PRUint32 i = 0 ; i < NS_ARRAY_LENGTH(unitMap) ; i++) {
     if (unitMap[i] && *unitMap[i] == unitAtom) {
       return i;
     }
@@ -225,9 +225,9 @@ nsSVGLength2::GetUnitScaleFactor(nsSVGSVGElement *aCtx) const
   case nsIDOMSVGLength::SVG_LENGTHTYPE_IN:
     return GetMMPerPixel(aCtx) / 25.4f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PT:
-    return GetMMPerPixel(aCtx) * 72.0f / 25.4f;
+    return GetMMPerPixel(aCtx) * POINTS_PER_INCH_FLOAT / 25.4f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PC:
-    return GetMMPerPixel(aCtx) * 72.0f / 24.4f / 12.0f;
+    return GetMMPerPixel(aCtx) * POINTS_PER_INCH_FLOAT / 24.4f / 12.0f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE:
     return 100.0f / GetAxisLength(aCtx);
   case nsIDOMSVGLength::SVG_LENGTHTYPE_EMS:

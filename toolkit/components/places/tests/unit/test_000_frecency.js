@@ -1,4 +1,3 @@
-version(180);
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
@@ -51,12 +50,19 @@ Autocomplete Frecency Tests
 
 */
 
-var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-            getService(Ci.nsINavBookmarksService);
-var prefs = Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch);
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                getService(Ci.nsINavHistoryService);
+  var bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+  var ghist = Cc["@mozilla.org/browser/global-history;2"].
+              getService(Ci.nsIGlobalHistory2);
+  var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+              getService(Ci.nsINavBookmarksService);
+  var prefs = Cc["@mozilla.org/preferences-service;1"].
+              getService(Ci.nsIPrefBranch);
+} catch(ex) {
+  do_throw("Could not get services\n");
+}
 
 function add_visit(aURI, aVisitDate, aVisitType) {
   var isRedirect = aVisitType == histsvc.TRANSITION_REDIRECT_PERMANENT ||
@@ -132,7 +138,8 @@ bucketPrefs.every(function(bucket) {
         }
         else {
           matchTitle = searchTerm + "UnvisitedTyped";
-          histsvc.setPageDetails(calculatedURI, matchTitle, 1, false, true);
+          ghist.setPageTitle(calculatedURI, matchTitle);
+          bhist.markPageAsTyped(calculatedURI);
         }
       }
     }
@@ -140,7 +147,10 @@ bucketPrefs.every(function(bucket) {
       // visited
       var points = Math.ceil(1 * ((bonusValue / parseFloat(100.000000)).toFixed(6) * weight) / 1);
       if (!points) {
-        if (visitType == Ci.nsINavHistoryService.TRANSITION_EMBED || bonusName == "defaultVisitBonus")
+        if (!visitType ||
+            visitType == Ci.nsINavHistoryService.TRANSITION_EMBED ||
+            visitType == Ci.nsINavHistoryService.TRANSITION_DOWNLOAD ||
+            bonusName == "defaultVisitBonus")
           frecency = 0;
         else
           frecency = -1;

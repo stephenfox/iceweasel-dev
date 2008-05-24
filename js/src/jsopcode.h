@@ -98,7 +98,7 @@ typedef enum JSOpLength {
 #define JOF_PROP          (2U<<5) /* obj.prop operation */
 #define JOF_ELEM          (3U<<5) /* obj[index] operation */
 #define JOF_XMLNAME       (4U<<5) /* XML name: *, a::b, @a, @a::b, etc. */
-#define JOF_VARPROP       (5U<<5) /* x.prop for arg, var, or local x */
+#define JOF_VARPROP       (5U<<5) /* x.prop for this, arg, var, or local x */
 #define JOF_MODEMASK      (7U<<5) /* mask for above addressing modes */
 #define JOF_SET           (1U<<8) /* set (i.e., assignment) operation */
 #define JOF_DEL           (1U<<9) /* delete operation */
@@ -121,8 +121,12 @@ typedef enum JSOpLength {
                                      parenthesized statement head */
 #define JOF_INVOKE       (1U<<22) /* JSOP_CALL, JSOP_NEW, JSOP_EVAL */
 #define JOF_TMPSLOT      (1U<<23) /* interpreter uses extra temporary slot
-                                     to root intermediate objects */
+                                     to root intermediate objects besides
+                                     the slots opcode uses */
+#define JOF_TMPSLOT2     (2U<<23) /* interpreter uses extra 2 temporary slot
+                                     besides the slots opcode uses */
 #define JOF_TMPSLOT_SHIFT 23
+#define JOF_TMPSLOT_MASK  (JS_BITMASK(2) << JOF_TMPSLOT_SHIFT)
 
 /* Shorthands for type from format and type from opcode. */
 #define JOF_TYPE(fmt)   ((fmt) & JOF_TYPEMASK)
@@ -328,10 +332,10 @@ js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
         JS_GET_SCRIPT_OBJECT((script), index_, obj);                          \
     JS_END_MACRO
 
-#define GET_FUNCTION_FROM_BYTECODE(script, pc, pcoff, obj)                    \
+#define GET_FUNCTION_FROM_BYTECODE(script, pc, pcoff, fun)                    \
     JS_BEGIN_MACRO                                                            \
-        GET_OBJECT_FROM_BYTECODE(script, pc, pcoff, obj);                     \
-        JS_ASSERT(OBJ_GET_CLASS(cx, obj) == &js_FunctionClass);               \
+        uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
+        JS_GET_SCRIPT_FUNCTION((script), index_, fun);                        \
     JS_END_MACRO
 
 #define GET_REGEXP_FROM_BYTECODE(script, pc, pcoff, obj)                      \
@@ -357,10 +361,6 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
 /*
  * Decompilers, for script, function, and expression pretty-printing.
  */
-extern JSBool
-js_DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, uintN len,
-                 uintN pcdepth);
-
 extern JSBool
 js_DecompileScript(JSPrinter *jp, JSScript *script);
 

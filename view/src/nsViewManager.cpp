@@ -61,8 +61,10 @@
 #include "nsHashtable.h"
 #include "nsCOMArray.h"
 #include "nsThreadUtils.h"
-
+#include "nsContentUtils.h"
 #include "gfxContext.h"
+#define NS_STATIC_FOCUS_SUPPRESSOR
+#include "nsIFocusEventSuppressor.h"
 
 static NS_DEFINE_IID(kBlenderCID, NS_BLENDER_CID);
 static NS_DEFINE_IID(kRegionCID, NS_REGION_CID);
@@ -90,6 +92,10 @@ static NS_DEFINE_IID(kRenderingContextCID, NS_RENDERING_CONTEXT_CID);
 
 #ifdef NS_VM_PERF_METRICS
 #include "nsITimeRecorder.h"
+#endif
+
+#ifdef DEBUG_smaug
+#define DEBUG_FOCUS_SUPPRESSION
 #endif
 
 //-------------- Begin Invalidate Event Definition ------------------------
@@ -168,7 +174,9 @@ nsViewManager::nsViewManager()
 
   gViewManagers->AppendElement(this);
 
-  mVMCount++;
+  if (++mVMCount == 1) {
+    NS_AddFocusSuppressorCallback(&nsViewManager::SuppressFocusEvents);
+  }
   // NOTE:  we use a zeroing operator new, so all data members are
   // assumed to be cleared here.
   mDefaultBackgroundColor = NS_RGBA(0, 0, 0, 0);
@@ -452,47 +460,51 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
     RootViewManager()->mRecursiveRefreshPending = PR_TRUE;
     return;
   }  
-  SetPainting(PR_TRUE);
 
-  nsCOMPtr<nsIRenderingContext> localcx;
-  NS_ASSERTION(aView->GetWidget(),
-               "Must have a widget to calculate coordinates correctly");
-  if (nsnull == aContext)
-    {
-      localcx = CreateRenderingContext(*aView);
+  {
+    nsAutoScriptBlocker scriptBlocker;
+    SetPainting(PR_TRUE);
 
-      //couldn't get rendering context. this is ok at init time atleast
-      if (nsnull == localcx) {
-        SetPainting(PR_FALSE);
-        return;
+    nsCOMPtr<nsIRenderingContext> localcx;
+    NS_ASSERTION(aView->GetWidget(),
+                 "Must have a widget to calculate coordinates correctly");
+    if (nsnull == aContext)
+      {
+        localcx = CreateRenderingContext(*aView);
+
+        //couldn't get rendering context. this is ok at init time atleast
+        if (nsnull == localcx) {
+          SetPainting(PR_FALSE);
+          return;
+        }
+      } else {
+        // plain assignment grabs another reference.
+        localcx = aContext;
       }
-    } else {
-      // plain assignment grabs another reference.
-      localcx = aContext;
-    }
 
-  PRInt32 p2a = mContext->AppUnitsPerDevPixel();
+    PRInt32 p2a = mContext->AppUnitsPerDevPixel();
 
-  nsRefPtr<gfxContext> ctx = localcx->ThebesContext();
+    nsRefPtr<gfxContext> ctx = localcx->ThebesContext();
 
-  ctx->Save();
+    ctx->Save();
 
-  nsPoint vtowoffset = aView->ViewToWidgetOffset();
-  ctx->Translate(gfxPoint(gfxFloat(vtowoffset.x) / p2a,
-                          gfxFloat(vtowoffset.y) / p2a));
+    nsPoint vtowoffset = aView->ViewToWidgetOffset();
+    ctx->Translate(gfxPoint(gfxFloat(vtowoffset.x) / p2a,
+                            gfxFloat(vtowoffset.y) / p2a));
 
-  ctx->Translate(gfxPoint(-gfxFloat(viewRect.x) / p2a,
-                          -gfxFloat(viewRect.y) / p2a));
+    ctx->Translate(gfxPoint(-gfxFloat(viewRect.x) / p2a,
+                            -gfxFloat(viewRect.y) / p2a));
 
-  nsRegion opaqueRegion;
-  AddCoveringWidgetsToOpaqueRegion(opaqueRegion, mContext, aView);
-  damageRegion.Sub(damageRegion, opaqueRegion);
+    nsRegion opaqueRegion;
+    AddCoveringWidgetsToOpaqueRegion(opaqueRegion, mContext, aView);
+    damageRegion.Sub(damageRegion, opaqueRegion);
 
-  RenderViews(aView, *localcx, damageRegion);
+    RenderViews(aView, *localcx, damageRegion);
 
-  ctx->Restore();
+    ctx->Restore();
 
-  SetPainting(PR_FALSE);
+    SetPainting(PR_FALSE);
+  }
 
   if (RootViewManager()->mRecursiveRefreshPending) {
     // Unset this flag first, since if aUpdateFlags includes NS_VMREFRESH_IMMEDIATE
@@ -597,24 +609,8 @@ void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
     nsRegion damageRegion(aRegion);
     damageRegion.MoveBy(offsetToRoot);
 
-    gfxContext* ctx = aRC.ThebesContext();
-    nsCOMPtr<nsIDeviceContext> dc;
-    aRC.GetDeviceContext(*getter_AddRefs(dc));
-    double appPerDev = dc->AppUnitsPerDevPixel();
-    gfxRect r(-offsetToRoot.x/appPerDev, -offsetToRoot.y/appPerDev, 1.0, 1.0);
-
     aRC.PushState();
-    // Translate by the pixel-snapped offsetToRoot so that aRC's (0,0) will
-    // be aligned to pixel boundaries. We use gfx pixel-snapping here to
-    // ensure that the snapping we do here is consistent with other gfx
-    // snapping. For example if someone drew a border around the outside
-    // of aView, we want our (0,0) to be the inside top-left of that
-    // border.
-    if (ctx->UserToDevicePixelSnapped(r)) {
-      ctx->Translate(ctx->DeviceToUser(r).pos);
-    } else {
-      aRC.Translate(-offsetToRoot.x, -offsetToRoot.y);
-    }
+    aRC.Translate(-offsetToRoot.x, -offsetToRoot.y);
     mObserver->Paint(displayRoot, &aRC, damageRegion);
     aRC.PopState();
   }
@@ -746,24 +742,18 @@ nsViewManager::UpdateViewAfterScroll(nsView *aView, const nsRegion& aUpdateRegio
     --RootViewManager()->mScrollCnt;
     return;
   }
-  nsPoint offset = ComputeViewOffset(aView);
+
+  nsView* displayRoot = GetDisplayRootFor(aView);
+  nsPoint offset = aView->GetOffsetTo(displayRoot);
   damageRect.MoveBy(offset);
 
-  // if this is a floating view, it isn't covered by any widgets other than
-  // its children, which are handled by the widget scroller.
-  if (aView->GetFloating()) {
-    // Don't forget to undo mScrollCnt!
-    --RootViewManager()->mScrollCnt;
-    return;
-  }
-
-  UpdateWidgetArea(RootViewManager()->GetRootView(), nsRegion(damageRect), aView);
+  UpdateWidgetArea(displayRoot, nsRegion(damageRect), aView);
   if (!aUpdateRegion.IsEmpty()) {
     // XXX We should update the region, not the bounds rect, but that requires
     // a little more work. Fix this when we reshuffle this code.
     nsRegion update(aUpdateRegion);
     update.MoveBy(offset);
-    UpdateWidgetArea(RootViewManager()->GetRootView(), update, nsnull);
+    UpdateWidgetArea(displayRoot, update, nsnull);
     // FlushPendingInvalidates();
   }
 
@@ -953,24 +943,20 @@ void nsViewManager::UpdateViews(nsView *aView, PRUint32 aUpdateFlags)
 
 nsView *nsViewManager::sCurrentlyFocusView = nsnull;
 nsView *nsViewManager::sViewFocusedBeforeSuppression = nsnull;
-PRInt32 nsViewManager::sSuppressCount = 0;
+PRBool nsViewManager::sFocusSuppressed = PR_FALSE;
 
-void nsViewManager::SuppressFocusEvents()
+void nsViewManager::SuppressFocusEvents(PRBool aSuppress)
 {
-  sSuppressCount++;
-  if (sSuppressCount == 1) {
-    // We're turning on focus/blur suppression, remember what had
-    // the focus.
+  if (aSuppress) {
+    sFocusSuppressed = PR_TRUE;
     SetViewFocusedBeforeSuppression(GetCurrentlyFocusedView());
-  }  
-}
+    return;
+  }
 
-void nsViewManager::UnsuppressFocusEvents()
-{
-  sSuppressCount--;
-  if (sSuppressCount > 0 ||
-      GetCurrentlyFocusedView() == GetViewFocusedBeforeSuppression())
-  return;
+  sFocusSuppressed = PR_FALSE;
+  if (GetCurrentlyFocusedView() == GetViewFocusedBeforeSuppression()) {
+    return;
+  }
   
   // We're turning off suppression, synthesize LOSTFOCUS/GOTFOCUS.
   nsIWidget *widget = nsnull;
@@ -1442,7 +1428,8 @@ void nsViewManager::ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget)
     // to do for the view and its descendants
     nsIWidget* widget = aView->GetWidget();
     nsIWidget* parentWidget = widget->GetParent();
-    if (parentWidget != aNewWidget) {
+    // Toplevel widgets should not be reparented!
+    if (parentWidget && parentWidget != aNewWidget) {
 #ifdef DEBUG
       nsresult rv =
 #endif

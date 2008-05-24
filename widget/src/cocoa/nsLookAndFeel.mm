@@ -342,6 +342,14 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       // For inactive list selection
       res = GetMacBrushColor(kThemeBrushSecondaryHighlightColor, aColor, NS_RGB(0x00,0x00,0x00));
       break;
+    case eColor__moz_eventreerow:
+      // Background color of even list rows. Note that Apple's row index is different from ours.
+      res = GetMacBrushColor(kThemeBrushListViewOddRowBackground, aColor, NS_RGB(0xFF,0xFF,0xFF));
+      break;
+    case eColor__moz_oddtreerow:
+      // Background color of odd list rows.
+      res = GetMacBrushColor(kThemeBrushListViewEvenRowBackground, aColor, NS_RGB(0xF0,0xF0,0xF0));
+      break;
     default:
       NS_WARNING("Someone asked nsILookAndFeel for a color I don't know about");
       aColor = NS_RGB(0xff,0xff,0xff);
@@ -543,10 +551,14 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         case kThemeScrollBarArrowsSingle:
           aMetric = eMetric_ScrollArrowStyleSingle;
           break;
-        // This constant isn't selectable in System Preferences like the other two (don't know why) 
+        // These constants aren't selectable in System Preferences like the other two (don't know why) 
         // `defaults write -g AppleScrollBarVariant DoubleBoth` to enable it.
         case kThemeScrollBarArrowsBoth:
           aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
+          break;
+        // `defaults write -g AppleScrollBarVariant DoubleMin` to enable it.
+        case kThemeScrollBarArrowsUpperLeft:
+          aMetric = eMetric_ScrollArrowStyleBothAtTop;
           break;
         default:
           NS_WARNING("Not handling all possible ThemeScrollBarArrowStyle values");
@@ -583,6 +595,10 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       break;
     case eMetric_TreeScrollLinesMax:
       aMetric = 3;
+      break;
+    case eMetric_WindowsDefaultTheme:
+      aMetric = 0;
+      res = NS_ERROR_NOT_IMPLEMENTED;
       break;
     case eMetric_TabFocusModel:
     {

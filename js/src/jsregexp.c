@@ -62,6 +62,7 @@
 #include "jsopcode.h"
 #include "jsregexp.h"
 #include "jsscan.h"
+#include "jsscope.h"
 #include "jsstr.h"
 
 typedef enum REOp {
@@ -1054,15 +1055,9 @@ lexHex:
             localMax = *src++;
             break;
         }
-        if (state->flags & JSREG_FOLD) {
-            jschar uc = upcase(localMax);
-            jschar dc = downcase(localMax);
 
-            c = JS_MAX(uc, dc);
-            if (c > localMax)
-                localMax = c;
-        }
         if (inRange) {
+            /* Throw a SyntaxError here, per ECMA-262, 15.10.2.15. */
             if (rangeStart > localMax) {
                 JS_ReportErrorNumber(state->context,
                                      js_GetErrorMessage, NULL,
@@ -1079,7 +1074,24 @@ lexHex:
                     continue;
                 }
             }
+            if (state->flags & JSREG_FOLD)
+                rangeStart = localMax;   /* one run of the uc/dc loop below */
         }
+
+        if (state->flags & JSREG_FOLD) {
+            jschar maxch = localMax;
+
+            for (i = rangeStart; i <= localMax; i++) {
+                jschar uch, dch;
+            
+                uch = upcase(i);
+                dch = downcase(i);
+                maxch = JS_MAX(maxch, uch);
+                maxch = JS_MAX(maxch, dch);
+            }
+            localMax = maxch;
+        }
+
         if (localMax > max)
             max = localMax;
     }
@@ -2241,7 +2253,7 @@ AddCharacterRangeToCharSet(RECharSet *cs, uintN c1, uintN c2)
     uintN byteIndex1 = c1 >> 3;
     uintN byteIndex2 = c2 >> 3;
 
-    JS_ASSERT((c2 <= cs->length) && (c1 <= c2));
+    JS_ASSERT(c2 <= cs->length && c1 <= c2);
 
     c1 &= 0x7;
     c2 &= 0x7;
@@ -2432,13 +2444,19 @@ ProcessCharSet(REGlobalData *gData, RECharSet *charSet)
         }
         if (inRange) {
             if (gData->regexp->flags & JSREG_FOLD) {
-                if (upcase(rangeStart) < upcase(thisCh)) {
-                    AddCharacterRangeToCharSet(charSet, upcase(rangeStart),
-                                                        upcase(thisCh));
-                }
-                if (downcase(rangeStart) < downcase(thisCh)) {
-                    AddCharacterRangeToCharSet(charSet, downcase(rangeStart),
-                                                        downcase(thisCh));
+                int i;
+
+                JS_ASSERT(rangeStart <= thisCh);
+                for (i = rangeStart; i <= thisCh; i++) {
+                    jschar uch, dch;
+
+                    AddCharacterToCharSet(charSet, i);
+                    uch = upcase(i);
+                    dch = downcase(i);
+                    if (i != uch)
+                        AddCharacterToCharSet(charSet, uch);
+                    if (i != dch)
+                        AddCharacterToCharSet(charSet, dch);
                 }
             } else {
                 AddCharacterRangeToCharSet(charSet, rangeStart, thisCh);
@@ -3645,10 +3663,10 @@ regexp_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
         return ok;
     slot = JSVAL_TO_INT(id);
     if (slot == REGEXP_LAST_INDEX) {
-        if (!js_ValueToNumber(cx, *vp, &lastIndex))
+        if (!JS_ValueToNumber(cx, *vp, &lastIndex))
             return JS_FALSE;
         lastIndex = js_DoubleToInteger(lastIndex);
-        ok = js_NewNumberValue(cx, lastIndex, vp) &&
+        ok = JS_NewNumberValue(cx, lastIndex, vp) &&
              JS_SetReservedSlot(cx, obj, 0, *vp);
     }
     return ok;
@@ -3856,7 +3874,7 @@ regexp_xdrObject(JSXDRState *xdr, JSObject **objp)
         return JS_FALSE;
     }
     if (xdr->mode == JSXDR_DECODE) {
-        obj = js_NewObject(xdr->cx, &js_RegExpClass, NULL, NULL);
+        obj = js_NewObject(xdr->cx, &js_RegExpClass, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
         STOBJ_SET_PARENT(obj, NULL);
@@ -4224,7 +4242,7 @@ RegExp(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         }
 
         /* Otherwise, replace obj with a new RegExp object. */
-        obj = js_NewObject(cx, &js_RegExpClass, NULL, NULL);
+        obj = js_NewObject(cx, &js_RegExpClass, NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
 
@@ -4284,7 +4302,7 @@ js_NewRegExpObject(JSContext *cx, JSTokenStream *ts,
     if (!re)
         return NULL;
     JS_PUSH_TEMP_ROOT_STRING(cx, str, &tvr);
-    obj = js_NewObject(cx, &js_RegExpClass, NULL, NULL);
+    obj = js_NewObject(cx, &js_RegExpClass, NULL, NULL, 0);
     if (!obj || !JS_SetPrivate(cx, obj, re)) {
         js_DestroyRegExp(cx, re);
         obj = NULL;
@@ -4302,7 +4320,7 @@ js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *parent)
     JSRegExp *re;
 
     JS_ASSERT(OBJ_GET_CLASS(cx, obj) == &js_RegExpClass);
-    clone = js_NewObject(cx, &js_RegExpClass, NULL, parent);
+    clone = js_NewObject(cx, &js_RegExpClass, NULL, parent, 0);
     if (!clone)
         return NULL;
     re = (JSRegExp *) JS_GetPrivate(cx, obj);
@@ -4320,7 +4338,7 @@ js_GetLastIndex(JSContext *cx, JSObject *obj, jsdouble *lastIndex)
     jsval v;
 
     return JS_GetReservedSlot(cx, obj, 0, &v) &&
-           js_ValueToNumber(cx, v, lastIndex);
+           JS_ValueToNumber(cx, v, lastIndex);
 }
 
 JSBool
@@ -4328,7 +4346,7 @@ js_SetLastIndex(JSContext *cx, JSObject *obj, jsdouble lastIndex)
 {
     jsval v;
 
-    return js_NewNumberValue(cx, lastIndex, &v) &&
+    return JS_NewNumberValue(cx, lastIndex, &v) &&
            JS_SetReservedSlot(cx, obj, 0, v);
 }
 

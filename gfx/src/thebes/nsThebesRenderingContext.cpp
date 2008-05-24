@@ -348,6 +348,9 @@ NS_IMETHODIMP
 nsThebesRenderingContext::SetColor(nscolor aColor)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetColor 0x%08x\n", this, aColor));
+    /* This sets the color assuming the sRGB color space, since that's what all
+     * CSS colors are defined to be in by the spec.
+     */
     mThebes->SetColor(gfxRGBA(aColor));
     
     mColor = aColor;
@@ -720,6 +723,14 @@ nsThebesRenderingContext::GetNativeGraphicData(GraphicDataType aType)
         return static_cast<gfxWindowsSurface*>(static_cast<gfxASurface*>(surf.get()))->GetDC();
     }
 #endif
+#ifdef XP_OS2
+    if (aType == NATIVE_OS2_PS) {
+        nsRefPtr<gfxASurface> surf(mThebes->CurrentSurface());
+        if (!surf || surf->CairoStatus())
+            return nsnull;
+        return (void*)(static_cast<gfxOS2Surface*>(static_cast<gfxASurface*>(surf.get()))->GetPS());
+    }
+#endif
 
     return nsnull;
 }
@@ -770,7 +781,8 @@ nsThebesRenderingContext::PopFilter()
 NS_IMETHODIMP
 nsThebesRenderingContext::DrawTile(imgIContainer *aImage,
                                    nscoord twXOffset, nscoord twYOffset,
-                                   const nsRect *twTargetRect)
+                                   const nsRect *twTargetRect,
+                                   const nsIntRect *subimageRect)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::DrawTile %p %f %f [%f,%f,%f,%f]\n",
                                          this, aImage, FROM_TWIPS(twXOffset), FROM_TWIPS(twYOffset),
@@ -805,18 +817,34 @@ nsThebesRenderingContext::DrawTile(imgIContainer *aImage,
     PRInt32 xPadding = 0;
     PRInt32 yPadding = 0;
 
+    nsIntRect tmpSubimageRect;
+    if (subimageRect) {
+        tmpSubimageRect = *subimageRect;
+    } else {
+        tmpSubimageRect = nsIntRect(0, 0, containerWidth, containerHeight);
+    }
+
     if (imgFrameRect.width != containerWidth ||
         imgFrameRect.height != containerHeight)
     {
         xPadding = containerWidth - imgFrameRect.width;
         yPadding = containerHeight - imgFrameRect.height;
 
+        // XXXroc shouldn't we be adding to 'phase' here? it's tbe origin
+        // at which the image origin should be drawn, and ThebesDrawTile
+        // just draws the origin of its "frame" there, so we should be
+        // adding imgFrameRect.x/y. so that the imgFrame draws in the
+        // right place.
         phase.x -= imgFrameRect.x;
         phase.y -= imgFrameRect.y;
+
+        tmpSubimageRect.x -= imgFrameRect.x;
+        tmpSubimageRect.y -= imgFrameRect.y;
     }
 
     return thebesImage->ThebesDrawTile (mThebes, mDeviceContext, phase,
                                         GFX_RECT_FROM_TWIPS_RECT(*twTargetRect),
+                                        tmpSubimageRect,
                                         xPadding, yPadding);
 }
 

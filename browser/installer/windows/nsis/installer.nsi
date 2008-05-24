@@ -112,6 +112,7 @@ VIAddVersionKey "FileDescription" "${BrandShortName} Installer"
 !insertmacro AddDDEHandlerValues
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
+!insertmacro CleanUpdatesDir
 !insertmacro CloseApp
 !insertmacro CopyFilesFromDir
 !insertmacro CreateRegKey
@@ -254,6 +255,9 @@ Section "-InstallStartCleanup"
       RmDir /r "$INSTDIR\extensions\inspector@mozilla.org"
     ${EndIf}
   ${EndIf}
+
+  ; Remove the updates directory for Vista and above
+  ${CleanUpdatesDir} "Mozilla\Firefox"
 
   ${InstallStartCleanupCommon}
 SectionEnd
@@ -484,6 +488,13 @@ Section "-InstallEndCleanup"
   SetDetailsPrint both
   DetailPrint "$(STATUS_CLEANUP)"
   SetDetailsPrint none
+
+  ${MUI_INSTALLOPTIONS_READ} $0 "options.ini" "Field 6" "State"
+  ${If} "$0" == "1"
+    ${LogHeader} "Setting as the default browser"
+    ${SetAsDefaultAppUser}
+  ${EndIf}
+
   ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
 
   ; Refresh desktop icons
@@ -641,6 +652,20 @@ Function leaveOptions
   StrCpy $InstallType ${INSTALLTYPE_CUSTOM}
 
   ${If} $InstallType != ${INSTALLTYPE_CUSTOM}
+!ifndef NO_INSTDIR_FROM_REG
+    SetShellVarContext all      ; Set SHCTX to HKLM
+    ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
+
+    StrCmp "$R9" "false" +1 fix_install_dir
+
+    SetShellVarContext current  ; Set SHCTX to HKCU
+    ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
+
+    fix_install_dir:
+    StrCmp "$R9" "false" +2 +1
+    StrCpy $INSTDIR "$R9"
+!endif
+
     Call CheckExistingInstall
   ${EndIf}
 FunctionEnd
@@ -751,7 +776,7 @@ Function .onInit
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "components.ini"
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "shortcuts.ini"
   !insertmacro MUI_INSTALLOPTIONS_EXTRACT "summary.ini"
-  !insertmacro createBasicCustomOptionsINI
+  !insertmacro createBasicCustomSetAsDefaultOptionsINI
   !insertmacro createComponentsINI
   !insertmacro createShortcutsINI
 

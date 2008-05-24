@@ -194,6 +194,9 @@
 // The ticks for a slider.
 #define NS_THEME_SCALE_TICK                               117
 
+// A groupbox
+#define NS_THEME_GROUPBOX                                  149
+
 // A generic container that always repaints on state
 // changes.  This is a hack to make checkboxes and
 // radio buttons work.
@@ -232,6 +235,6 @@
 #define NS_THEME_MENUITEMTEXT                              220
 
 // Vista Rebars
-#define NS_THEME_COMMUNICATIONS_TOOLBOX                    221
-#define NS_THEME_MEDIA_TOOLBOX                             222
-#define NS_THEME_BROWSER_TAB_BAR_TOOLBOX                   223
+#define NS_THEME_WIN_COMMUNICATIONS_TOOLBOX                221
+#define NS_THEME_WIN_MEDIA_TOOLBOX                         222
+#define NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX               223

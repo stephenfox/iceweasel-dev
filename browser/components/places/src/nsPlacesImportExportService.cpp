@@ -110,6 +110,7 @@ static NS_DEFINE_CID(kParserCID, NS_PARSER_CID);
 
 #define KEY_TOOLBARFOLDER_LOWER "personal_toolbar_folder"
 #define KEY_BOOKMARKSMENU_LOWER "bookmarks_menu"
+#define KEY_UNFILEDFOLDER_LOWER "unfiled_bookmarks_folder"
 #define KEY_PLACESROOT_LOWER "places_root"
 #define KEY_HREF_LOWER "href"
 #define KEY_FEEDURL_LOWER "feedurl"
@@ -128,7 +129,6 @@ static NS_DEFINE_CID(kParserCID, NS_PARSER_CID);
 #define LOAD_IN_SIDEBAR_ANNO NS_LITERAL_CSTRING("bookmarkProperties/loadInSidebar")
 #define DESCRIPTION_ANNO NS_LITERAL_CSTRING("bookmarkProperties/description")
 #define POST_DATA_ANNO NS_LITERAL_CSTRING("bookmarkProperties/POSTData")
-#define LAST_CHARSET_ANNO NS_LITERAL_CSTRING("URIProperties/characterSet")
 #define STATIC_TITLE_ANNO NS_LITERAL_CSTRING("bookmarks/staticTitle")
 
 #define BOOKMARKS_MENU_ICON_URI "chrome://browser/skin/places/bookmarksMenu.png"
@@ -164,7 +164,8 @@ public:
   enum ContainerType { Container_Normal,
                        Container_Places,
                        Container_Menu,
-                       Container_Toolbar };
+                       Container_Toolbar,
+                       Container_Unfiled};
 
   PRInt64 mContainerID;
 
@@ -329,6 +330,8 @@ nsPlacesImportExportService::~nsPlacesImportExportService()
 class BookmarkContentSink : public nsIHTMLContentSink
 {
 public:
+  BookmarkContentSink();
+
   nsresult Init(PRBool aAllowRootChanges,
                 nsINavBookmarksService* bookmarkService,
                 PRInt64 aFolder,
@@ -381,10 +384,10 @@ protected:
   // importing bookmarks.html files.
   PRBool mAllowRootChanges;
 
-  // if set, this is an import of initial bookmarks.html content,
+  // If set, this is an import of initial bookmarks.html content,
   // so we don't want to kick off HTTP traffic
   // and we want the imported personal toolbar folder
-  // to be set as the personal toolbar folder.  (if not set
+  // to be set as the personal toolbar folder. (If not set
   // we will treat it as a normal folder.)
   PRBool mIsImportDefaults;
 
@@ -435,6 +438,10 @@ protected:
   }
 #endif
 };
+
+BookmarkContentSink::BookmarkContentSink() : mFrames(16)
+{
+}
 
 // BookmarkContentSink::Init
 //
@@ -750,6 +757,10 @@ BookmarkContentSink::HandleHeadBegin(const nsIParserNode& node)
         if (mIsImportDefaults)
           frame.mLastContainerType = BookmarkImportFrame::Container_Menu;
         break;
+      } else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_UNFILEDFOLDER_LOWER)) {
+        if (mIsImportDefaults)
+          frame.mLastContainerType = BookmarkImportFrame::Container_Unfiled;
+        break;
       } else if (node.GetKeyAt(i).LowerCaseEqualsLiteral(KEY_PLACESROOT_LOWER)) {
         if (mIsImportDefaults)
           frame.mLastContainerType = BookmarkImportFrame::Container_Places;
@@ -975,13 +986,8 @@ BookmarkContentSink::HandleLinkBegin(const nsIParserNode& node)
 
   // import last charset
   if (!lastCharset.IsEmpty()) {
-    PRBool hasCharset = PR_FALSE;
-    mAnnotationService->ItemHasAnnotation(frame.mPreviousId,
-                                          LAST_CHARSET_ANNO, &hasCharset);
-    if (!hasCharset)
-      mAnnotationService->SetItemAnnotationString(frame.mPreviousId, LAST_CHARSET_ANNO,
-                                                  lastCharset, 0,
-                                                  nsIAnnotationService::EXPIRE_NEVER);
+    rv = mHistoryService->SetCharsetForURI(frame.mPreviousLink,lastCharset);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "setCharsetForURI failed");
   }
 }
 
@@ -1161,8 +1167,15 @@ BookmarkContentSink::NewFrame()
       NS_ENSURE_SUCCESS(rv, rv);
       break;
     case BookmarkImportFrame::Container_Menu:
-      // menu root
+      // menu folder
       rv = mBookmarksService->GetBookmarksMenuFolder(&ourID);
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (mAllowRootChanges)
+        updateFolder = PR_TRUE;
+      break;
+    case BookmarkImportFrame::Container_Unfiled:
+      // unfiled bookmarks folder
+      rv = mBookmarksService->GetUnfiledBookmarksFolder(&ourID);
       NS_ENSURE_SUCCESS(rv, rv);
       if (mAllowRootChanges)
         updateFolder = PR_TRUE;
@@ -1222,9 +1235,11 @@ BookmarkContentSink::NewFrame()
     // don't clear last-modified, in case there's a description
   }
 
+  frame.mPreviousId = ourID;
+
   if (!mFrames.AppendElement(BookmarkImportFrame(ourID)))
     return NS_ERROR_OUT_OF_MEMORY;
-  frame.mPreviousId = ourID;
+
   return NS_OK;
 }
 
@@ -1430,6 +1445,7 @@ static const char kDescriptionClose[] = NS_LINEBREAK;
 static const char kPlacesRootAttribute[] = " PLACES_ROOT=\"true\"";
 static const char kBookmarksRootAttribute[] = " BOOKMARKS_MENU=\"true\"";
 static const char kToolbarFolderAttribute[] = " PERSONAL_TOOLBAR_FOLDER=\"true\"";
+static const char kUnfiledBookmarksFolderAttribute[] = " UNFILED_BOOKMARKS_FOLDER=\"true\"";
 static const char kIconAttribute[] = " ICON=\"";
 static const char kIconURIAttribute[] = " ICON_URI=\"";
 static const char kHrefAttribute[] = " HREF=\"";
@@ -1673,12 +1689,19 @@ nsPlacesImportExportService::WriteContainerHeader(nsINavHistoryResultNode* aFold
   rv = mBookmarksService->GetToolbarFolder(&toolbarFolder);
   NS_ENSURE_SUCCESS(rv,rv);
 
+  PRInt64 unfiledBookmarksFolder;
+  rv = mBookmarksService->GetUnfiledBookmarksFolder(&unfiledBookmarksFolder);
+  NS_ENSURE_SUCCESS(rv,rv);
+
   // " PERSONAL_TOOLBAR_FOLDER="true"", etc.
   if (folderId == placesRoot) {
     rv = aOutput->Write(kPlacesRootAttribute, sizeof(kPlacesRootAttribute)-1, &dummy);
     NS_ENSURE_SUCCESS(rv, rv);
   } else if (folderId == bookmarksMenuFolder) {
     rv = aOutput->Write(kBookmarksRootAttribute, sizeof(kBookmarksRootAttribute)-1, &dummy);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else if (folderId == unfiledBookmarksFolder) {
+    rv = aOutput->Write(kUnfiledBookmarksFolderAttribute, sizeof(kUnfiledBookmarksFolderAttribute)-1, &dummy);
     NS_ENSURE_SUCCESS(rv, rv);
   } else if (folderId == toolbarFolder) {
     rv = aOutput->Write(kToolbarFolderAttribute, sizeof(kToolbarFolderAttribute)-1, &dummy);
@@ -1906,15 +1929,9 @@ nsPlacesImportExportService::WriteItem(nsINavHistoryResultNode* aItem,
   }
 
   // last charset
-  PRBool hasLastCharset = PR_FALSE;
-  rv = mAnnotationService->ItemHasAnnotation(itemId, LAST_CHARSET_ANNO,
-                                             &hasLastCharset);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (hasLastCharset) {
-    nsAutoString lastCharset;
-    rv = mAnnotationService->GetItemAnnotationString(itemId, LAST_CHARSET_ANNO,
-                                                     lastCharset);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsAutoString lastCharset;
+  if (NS_SUCCEEDED(mHistoryService->GetCharsetForURI(pageURI, lastCharset)) &&
+      !lastCharset.IsEmpty()) {
     rv = aOutput->Write(kLastCharsetAttribute, sizeof(kLastCharsetAttribute)-1, &dummy);
     NS_ENSURE_SUCCESS(rv, rv);
     char* escapedLastCharset = nsEscapeHTML(NS_ConvertUTF16toUTF8(lastCharset).get());
@@ -2265,6 +2282,13 @@ nsPlacesImportExportService::RunBatched(nsISupports* aUserData)
     rv = mBookmarksService->RemoveFolderChildren(toolbarFolder);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    PRInt64 unfiledBookmarksFolder;
+    rv = mBookmarksService->GetUnfiledBookmarksFolder(&unfiledBookmarksFolder);
+    NS_ENSURE_SUCCESS(rv,rv);
+
+    rv = mBookmarksService->RemoveFolderChildren(unfiledBookmarksFolder);
+    NS_ENSURE_SUCCESS(rv,rv);
+
     // add the "Places" folder
     nsCOMPtr<nsIBrowserGlue> glue(do_GetService("@mozilla.org/browser/browserglue;1", &rv));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2358,6 +2382,10 @@ nsPlacesImportExportService::ExportHTMLToFile(nsILocalFile* aBookmarksFile)
   rv = mBookmarksService->GetToolbarFolder(&toolbarFolder);
   NS_ENSURE_SUCCESS(rv,rv);
 
+  PRInt64 unfiledBookmarksFolder;
+  rv = mBookmarksService->GetUnfiledBookmarksFolder(&unfiledBookmarksFolder);
+  NS_ENSURE_SUCCESS(rv,rv);
+
   // file header
   PRUint32 dummy;
   rv = strm->Write(kFileIntro, sizeof(kFileIntro)-1, &dummy);
@@ -2411,8 +2439,8 @@ nsPlacesImportExportService::ExportHTMLToFile(nsILocalFile* aBookmarksFile)
   rv = WriteContainerContents(rootNode, EmptyCString(), strm);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // write out the toolbar folder contents as a folder under the bookmarks-menu
-  // for backwards compatibility
+  // write out the toolbar folder and unfiled-bookmarks folder (if not empty)
+  // under the bookmarks-menu for backwards compatibility
   rv = query->SetFolders(&toolbarFolder, 1);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2425,6 +2453,29 @@ nsPlacesImportExportService::ExportHTMLToFile(nsILocalFile* aBookmarksFile)
 
   rv = WriteContainer(rootNode, nsDependentCString(kIndent), strm);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // unfiled bookmarks
+  rv = query->SetFolders(&unfiledBookmarksFolder, 1);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mHistoryService->ExecuteQuery(query, options, getter_AddRefs(result));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // get root (folder) node
+  rv = result->GetRoot(getter_AddRefs(rootNode));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = rootNode->SetContainerOpen(PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint32 childCount = 0;
+  rv = rootNode->GetChildCount(&childCount);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (childCount > 0) {
+    rv = WriteContainer(rootNode, nsDependentCString(kIndent), strm);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   // epilogue
   rv = WriteContainerEpilogue(EmptyCString(), strm);
@@ -2440,9 +2491,7 @@ nsPlacesImportExportService::ExportHTMLToFile(nsILocalFile* aBookmarksFile)
   return rv;
 }
 
-#define BROWSER_BOOKMARKS_OVERWRITE_PREF    "browser.bookmarks.overwrite"
 #define BROWSER_BOOKMARKS_MAX_BACKUPS_PREF  "browser.bookmarks.max_backups"
-#define POSTPLACES_BOOKMARKS_FILE           "bookmarks.postplaces.html"
 
 NS_IMETHODIMP
 nsPlacesImportExportService::BackupBookmarksFile()
@@ -2457,15 +2506,6 @@ nsPlacesImportExportService::BackupBookmarksFile()
   nsCOMPtr<nsIFile> bookmarksFileDir;
   rv = NS_GetSpecialDirectory(NS_APP_BOOKMARKS_50_FILE,
                               getter_AddRefs(bookmarksFileDir));
-
-  PRBool overwriteBookmarks;
-  rv = prefs->GetBoolPref(BROWSER_BOOKMARKS_OVERWRITE_PREF, &overwriteBookmarks);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!overwriteBookmarks) {
-    rv = bookmarksFileDir->SetLeafName(NS_LITERAL_STRING(POSTPLACES_BOOKMARKS_FILE));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsILocalFile> bookmarksFile(do_QueryInterface(bookmarksFileDir));
@@ -2483,147 +2523,5 @@ nsPlacesImportExportService::BackupBookmarksFile()
   rv = ExportHTMLToFile(bookmarksFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // archive if needed
-  PRInt32 numberOfBackups;
-  rv = prefs->GetIntPref(BROWSER_BOOKMARKS_MAX_BACKUPS_PREF, &numberOfBackups);
-  if (NS_FAILED(rv))
-    numberOfBackups = 5;
-
-  if (numberOfBackups > 0) {
-    rv = ArchiveBookmarksFile(numberOfBackups, PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   return NS_OK;
-}
-
-/**
- *  ArchiveBookmarksFile()
- *
- *  Creates a dated backup once a day in <profile>/bookmarkbackups
- *
- *  PRInt32 numberOfBackups - the maximum number of backups to keep
- *
- *  PRBool forceArchive - forces creating an archive even if one was 
- *                        already created that day (overwrites)
- */
-nsresult
-nsPlacesImportExportService::ArchiveBookmarksFile(PRInt32 numberOfBackups,
-                                         PRBool forceArchive)
-{
-  nsCOMPtr<nsIFile> bookmarksBackupDir;
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                                       getter_AddRefs(bookmarksBackupDir));
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  nsDependentCString dirName("bookmarkbackups");
-  rv = bookmarksBackupDir->AppendNative(dirName);
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  PRBool exists;
-  rv = bookmarksBackupDir->Exists(&exists);
-  if (NS_FAILED(rv) || !exists) {
-    rv = bookmarksBackupDir->Create(nsIFile::DIRECTORY_TYPE, 0700);
-    
-    // if there's no backup folder, there's no backup, fail
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // construct the new leafname
-  PRTime          now64 = PR_Now();
-  PRExplodedTime  nowInfo;
-  PR_ExplodeTime(now64, PR_LocalTimeParameters, &nowInfo);
-  PR_NormalizeTime(&nowInfo, PR_LocalTimeParameters);
-
-  char timeString[128];
-
-  // Use YYYY-MM-DD (ISO 8601) as it doesn't contain illegal characters
-  // and makes the alphabetical order of multiple backup files more useful.
-  PR_FormatTime(timeString, 128, "bookmarks-%Y-%m-%d.html", &nowInfo);
-
-  //nsCAutoString backupFilenameCString(timeString);
-  //nsAutoString backupFilenameString = NS_ConvertUTF8toUTF16(backupFilenameCString);
-  nsAutoString backupFilenameString = NS_ConvertUTF8toUTF16((timeString));
-
-  nsCOMPtr<nsIFile> backupFile;
-  if (forceArchive) {
-    // if we have a backup from today, nuke it
-    nsCOMPtr<nsIFile> currentBackup;
-    rv = bookmarksBackupDir->Clone(getter_AddRefs(currentBackup));
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = currentBackup->Append(backupFilenameString);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = currentBackup->Exists(&exists);
-    if (NS_SUCCEEDED(rv) && exists) {
-      rv = currentBackup->Remove(PR_FALSE);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  } else {
-    nsCOMPtr<nsISimpleEnumerator> existingBackups;
-    rv = bookmarksBackupDir->GetDirectoryEntries(getter_AddRefs(existingBackups));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsStringArray backupFileNames;
-
-    PRBool hasMoreElements = PR_FALSE;
-    PRBool hasCurrentBackup = PR_FALSE;
-    
-    while (NS_SUCCEEDED(existingBackups->HasMoreElements(&hasMoreElements)) &&
-           hasMoreElements)
-    {
-      rv = existingBackups->GetNext(getter_AddRefs(backupFile));
-      NS_ENSURE_SUCCESS(rv, rv);
-      nsAutoString backupName;
-      rv = backupFile->GetLeafName(backupName);
-      NS_ENSURE_SUCCESS(rv, rv);
-      
-      // the backup for today exists, do not create later
-      if (backupName == backupFilenameString) {
-        hasCurrentBackup = PR_TRUE;
-        continue;
-      }
-
-      // mark the rest for possible removal
-      if (Substring(backupName, 0, 10) == NS_LITERAL_STRING("bookmarks-"))
-        backupFileNames.AppendString(backupName);
-    }
-
-    if (numberOfBackups > 0 && backupFileNames.Count() >= numberOfBackups) {
-      PRInt32 numberOfBackupsToDelete = backupFileNames.Count() - numberOfBackups + 1;
-      backupFileNames.Sort();
-
-      while (numberOfBackupsToDelete--) {
-        (void)bookmarksBackupDir->Clone(getter_AddRefs(backupFile));
-        (void)backupFile->Append(*backupFileNames[0]);
-        (void)backupFile->Remove(PR_FALSE);
-        backupFileNames.RemoveStringAt(0);
-      }
-    }
-
-    if (hasCurrentBackup)
-      return NS_OK;
-  }
-
-  nsCOMPtr<nsIFile> bookmarksFile;
-  rv = NS_GetSpecialDirectory(NS_APP_BOOKMARKS_50_FILE,
-                              getter_AddRefs(bookmarksFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool overwriteBookmarks;
-  rv = prefs->GetBoolPref(BROWSER_BOOKMARKS_OVERWRITE_PREF, &overwriteBookmarks);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!overwriteBookmarks) {
-    rv = bookmarksFile->SetLeafName(NS_LITERAL_STRING(POSTPLACES_BOOKMARKS_FILE));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  
-  rv = bookmarksFile->CopyTo(bookmarksBackupDir, backupFilenameString);
-  // at least dump something out in case this fails in a debug build
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return rv;
 }

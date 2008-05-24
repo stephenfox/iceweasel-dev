@@ -110,8 +110,11 @@ script_toSource(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
 
     indent = 0;
-    if (argc != 0 && !js_ValueToECMAUint32(cx, vp[2], &indent))
-        return JS_FALSE;
+    if (argc != 0) {
+        indent = js_ValueToECMAUint32(cx, &vp[2]);
+        if (JSVAL_IS_NULL(vp[2]))
+            return JS_FALSE;
+    }
 
     script = (JSScript *) JS_GetPrivate(cx, obj);
 
@@ -166,8 +169,11 @@ script_toString(JSContext *cx, uintN argc, jsval *vp)
     JSString *str;
 
     indent = 0;
-    if (argc != 0 && !js_ValueToECMAUint32(cx, vp[2], &indent))
-        return JS_FALSE;
+    if (argc != 0) {
+        indent = js_ValueToECMAUint32(cx, &vp[2]);
+        if (JSVAL_IS_NULL(vp[2]))
+            return JS_FALSE;
+    }
 
     obj = JS_THIS_OBJECT(cx, vp);
     if (!JS_InstanceOf(cx, obj, &js_ScriptClass, vp + 2))
@@ -235,9 +241,8 @@ script_compile_sub(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
             fp->scopeChain = scopeobj;  /* for the compiler's benefit */
         }
 
-        file = caller->script->filename;
-        line = js_PCToLineNumber(cx, caller->script, caller->pc);
         principals = JS_EvalFramePrincipals(cx, fp, caller);
+        file = js_ComputeFilename(cx, caller, principals, &line);
     } else {
         file = NULL;
         line = 0;
@@ -413,6 +418,8 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
 {
     JSContext *cx;
     JSScript *script, *oldscript;
+    JSBool ok;
+    jsbytecode *code;
     uint32 length, lineno, depth, magic;
     uint32 natoms, nsrcnotes, ntrynotes, nobjects, nregexps, i;
     uint32 prologLength, version;
@@ -512,8 +519,20 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
      * DECODE case to destroy script.
      */
     oldscript = xdr->script;
+    code = script->code;
+    if (xdr->mode == JSXDR_ENCODE) {
+        code = js_UntrapScriptCode(cx, script);
+        if (!code)
+            goto error;
+    }
+
     xdr->script = script;
-    if (!JS_XDRBytes(xdr, (char *)script->code, length * sizeof(jsbytecode)))
+    ok = JS_XDRBytes(xdr, (char *) code, length * sizeof(jsbytecode));
+
+    if (code != script->code)
+        JS_free(cx, code);
+
+    if (!ok)
         goto error;
 
     if (!JS_XDRBytes(xdr, (char *)notes, nsrcnotes * sizeof(jssrcnote)) ||
@@ -1673,7 +1692,6 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 uintN
 js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
-    JSObject *obj;
     JSFunction *fun;
     uintN lineno;
     ptrdiff_t offset, target;
@@ -1691,9 +1709,7 @@ js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
     if (js_CodeSpec[*pc].format & JOF_INDEXBASE)
         pc += js_CodeSpec[*pc].length;
     if (*pc == JSOP_DEFFUN) {
-        GET_FUNCTION_FROM_BYTECODE(script, pc, 0, obj);
-        fun = GET_FUNCTION_PRIVATE(cx, obj);
-        JS_ASSERT(FUN_INTERPRETED(fun));
+        GET_FUNCTION_FROM_BYTECODE(script, pc, 0, fun);
         return fun->u.i.script->lineno;
     }
 

@@ -121,7 +121,7 @@
 #include "nsIPrincipal.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsStyleUtil.h"
-
+#include "nsIFocusEventSuppressor.h"
 #include "nsBox.h"
 
 #ifdef MOZ_XUL
@@ -378,23 +378,6 @@ static PRInt32 FFWC_slowSearchForText=0;
 static nsresult
 DeletingFrameSubtree(nsFrameManager* aFrameManager,
                      nsIFrame*       aFrame);
-
-void nsFocusEventSuppressor::Suppress(nsIPresShell *aPresShell)
-{
-  NS_ASSERTION(aPresShell, "Need non-null nsIPresShell!");
-  if (!mViewManager) {
-    nsFrameManager *frameManager = aPresShell->FrameManager();
-    mViewManager = frameManager->GetPresContext()->GetViewManager();
-    NS_ASSERTION(mViewManager, "We must have an mViewManager here");
-  }
-  mViewManager->SuppressFocusEvents();
-}
-
-void nsFocusEventSuppressor::Unsuppress()
-{
-  NS_ASSERTION(mViewManager, "We must have an mViewManager here");
-  mViewManager->UnsuppressFocusEvents();
-}
 
 #ifdef  MOZ_SVG
 
@@ -7506,6 +7489,13 @@ nsCSSFrameConstructor::ConstructSVGFrame(nsFrameConstructorState& aState,
 }
 #endif // MOZ_SVG
 
+// If page-break-before is set, this function constructs a page break frame,
+// EXCEPT for on these types of elements:
+//  * row groups, rows, cells (these are handled internally by tables)
+//  * fixed- and absolutely-positioned elements (currently, our positioning
+//    code doesn't expect positioned frames to have nsPageBreakFrame siblings)
+//
+// Returns true iff we should construct a page break frame after this element.
 PRBool
 nsCSSFrameConstructor::PageBreakBefore(nsFrameConstructorState& aState,
                                        nsIContent*              aContent,
@@ -7515,9 +7505,9 @@ nsCSSFrameConstructor::PageBreakBefore(nsFrameConstructorState& aState,
 {
   const nsStyleDisplay* display = aStyleContext->GetStyleDisplay();
 
-  // See if page-break-before is set for all elements except row groups, rows, cells 
-  // (these are handled internally by tables) and construct a page break frame if so.
   if (NS_STYLE_DISPLAY_NONE != display->mDisplay &&
+      NS_STYLE_POSITION_FIXED    != display->mPosition &&
+      NS_STYLE_POSITION_ABSOLUTE != display->mPosition &&
       (NS_STYLE_DISPLAY_TABLE == display->mDisplay ||
        !IsTableRelated(display->mDisplay, PR_TRUE))) { 
     if (display->mBreakBefore) {
@@ -8880,8 +8870,7 @@ PRBool NotifyListBoxBody(nsPresContext*    aPresContext,
   }
 
   PRInt32 namespaceID;
-  nsIAtom* tag =
-    aDocument->BindingManager()->ResolveTag(aContainer, &namespaceID);
+  aDocument->BindingManager()->ResolveTag(aContainer, &namespaceID);
 
   // XBL form control cruft... should that really be testing that the
   // namespace is XUL?  Seems odd...
@@ -10253,7 +10242,7 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
 
 void
 nsCSSFrameConstructor::BeginUpdate() {
-  mFocusSuppressor.Suppress(mPresShell);
+  NS_SuppressFocusEvent();
   ++mUpdateCount;
 }
 
@@ -10267,7 +10256,7 @@ nsCSSFrameConstructor::EndUpdate()
     RecalcQuotesAndCounters();
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
-  mFocusSuppressor.Unsuppress();
+  NS_UnsuppressFocusEvent();
   --mUpdateCount;
 }
 

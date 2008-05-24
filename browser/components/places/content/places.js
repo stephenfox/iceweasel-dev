@@ -43,12 +43,12 @@ var PlacesOrganizer = {
   _content: null,
 
   _initFolderTree: function() {
-    var leftPaneRoot = PlacesUtils.leftPaneFolderId;
+    var leftPaneRoot = PlacesUIUtils.leftPaneFolderId;
     this._places.place = "place:excludeItems=1&expandQueries=0&folder=" + leftPaneRoot;
   },
 
   selectLeftPaneQuery: function PO_selectLeftPaneQuery(aQueryName) {
-    var itemId = PlacesUtils.leftPaneQueries[aQueryName];
+    var itemId = PlacesUIUtils.leftPaneQueries[aQueryName];
     this._places.selectItems([itemId]);
     // Forcefully expand all-bookmarks
     if (aQueryName == "AllBookmarks")
@@ -78,8 +78,10 @@ var PlacesOrganizer = {
     // Set up the search UI.
     PlacesSearchBox.init();
 
+#ifdef PLACES_QUERY_BUILDER
     // Set up the advanced query builder UI
     PlacesQueryBuilder.init();
+#endif
 
     window.addEventListener("AppCommand", this, true);
 #ifdef XP_MACOSX
@@ -94,7 +96,18 @@ var PlacesOrganizer = {
     for (var i=0; i < elements.length; i++) {
       document.getElementById(elements[i]).setAttribute("disabled", "true");
     }
+    
+    // 3. Disable the keyboard shortcut for the History menu back/forward
+    // in order to support those in the Library
+    var historyMenuBack = document.getElementById("historyMenuBack");
+    historyMenuBack.removeAttribute("key");
+    var historyMenuForward = document.getElementById("historyMenuForward");
+    historyMenuForward.removeAttribute("key");
 #endif
+
+    // remove the "Properties" context-menu item, we've our own details pane
+    document.getElementById("placesContext")
+            .removeChild(document.getElementById("placesContext_show:info"));
   },
 
   QueryInterface: function PO_QueryInterface(aIID) {
@@ -199,13 +212,15 @@ var PlacesOrganizer = {
     options.excludeItems = false;
     var placeURI = PlacesUtils.history.queriesToQueryString(queries, queries.length, options);
 
-    // update the right-pane contents
-    if (this._content.place != placeURI)
+    // Update the right-pane contents.
+    // We must update also if the user clears the search box, in that case
+    // we are called with resetSearchBox == false.
+    if (this._content.place != placeURI || !resetSearchBox) {
       this._content.place = placeURI;
 
-    // This just updates the back/forward buttons, it doesn't call us back
-    // because node.uri is our current selection.
-    this.location = node.uri;
+      // Update the back/forward buttons.
+      this.location = node.uri;
+    }
 
     // Make sure the search UI is hidden.
     PlacesSearchBox.hideSearchUI();
@@ -214,14 +229,63 @@ var PlacesOrganizer = {
       searchFilter.reset();
     }
 
-    // Update the "Find in <current collection>" command and the gray text in
-    // the search box in the toolbar if the active collection is the current
-    // collection.
+    this._setSearchScopeForNode(node);
+    if (this._places.treeBoxObject.focused)
+      this._fillDetailsPane(node);
+  },
+
+  /**
+   * Sets the search scope based on node's properties
+   * @param   aNode
+   *          the node to set up scope from
+   */
+  _setSearchScopeForNode: function PO__setScopeForNode(aNode) {
+    var scopeBarFolder = document.getElementById("scopeBarFolder");
+    var itemId = aNode.itemId;
+    if (PlacesUtils.nodeIsHistoryContainer(aNode) ||
+        itemId == PlacesUIUtils.leftPaneQueries["History"]) {
+      scopeBarFolder.disabled = true;
+      var folders = [];
+      var filterCollection = "history";
+      var scopeButton = "scopeBarHistory";
+    }
+    else if (PlacesUtils.nodeIsFolder(aNode) &&
+             itemId != PlacesUIUtils.leftPaneQueries["AllBookmarks"] &&
+             itemId != PlacesUIUtils.leftPaneQueries["Tags"] &&
+             aNode.parent.itemId != PlacesUIUtils.leftPaneQueries["Tags"]) {
+      // enable folder scope
+      scopeBarFolder.disabled = false;
+      var folders = [PlacesUtils.getConcreteItemId(aNode)];
+      var filterCollection = "collection";
+      var scopeButton = "scopeBarFolder";
+    }
+    else {
+      // default to All Bookmarks
+      scopeBarFolder.disabled = true;
+      var folders = [];
+      var filterCollection = "bookmarks";
+      var scopeButton = "scopeBarAll";
+    }
+
+    // set search scope
+    PlacesSearchBox.folders = folders;
+    PlacesSearchBox.filterCollection = filterCollection;
+
+    // update scope bar active child
+    var scopeBar = document.getElementById("organizerScopeBar");
+    var child = scopeBar.firstChild;
+    while (child) {
+      if (child.getAttribute("id") != scopeButton)
+        child.removeAttribute("checked");
+      else
+        child.setAttribute("checked", "true");
+      child = child.nextSibling;
+    }
+
+    // Update the "Find in <current collection>" command
     var findCommand = document.getElementById("OrganizerCommand_find:current");
-    var findLabel = PlacesUtils.getFormattedString("findInPrefix", [node.title]);
+    var findLabel = PlacesUIUtils.getFormattedString("findInPrefix", [aNode.title]);
     findCommand.setAttribute("label", findLabel);
-    if (PlacesSearchBox.filterCollection == "collection")
-      PlacesSearchBox.updateCollectionTitle(node.title);
   },
 
   /**
@@ -239,14 +303,26 @@ var PlacesOrganizer = {
     var selectedNode = currentView.selectedNode;
     if (selectedNode && aEvent.button == 1) {
       if (PlacesUtils.nodeIsURI(selectedNode))
-        PlacesUtils.openNodeWithEvent(selectedNode, aEvent);
+        PlacesUIUtils.openNodeWithEvent(selectedNode, aEvent);
       else if (PlacesUtils.nodeIsContainer(selectedNode)) {
         // The command execution function will take care of seeing the
         // selection is a folder/container and loading its contents in
         // tabs for us.
-        PlacesUtils.openContainerNodeInTabs(selectedNode);
+        PlacesUIUtils.openContainerNodeInTabs(selectedNode);
       }
     }
+  },
+
+  /**
+   * Handle focus changes on the trees.
+   * When moving focus between panes we should update the details pane contents.
+   * @param   aEvent
+   *          The mouse event.
+   */
+  onTreeFocus: function PO_onTreeFocus(aEvent) {
+    var currentView = aEvent.currentTarget;
+    var selectedNode = currentView.selectedNode;
+    this._fillDetailsPane(selectedNode);
   },
 
   openFlatContainer: function PO_openFlatContainerFlatContainer(aContainer) {
@@ -257,7 +333,7 @@ var PlacesOrganizer = {
   },
 
   openSelectedNode: function PU_openSelectedNode(aEvent) {
-    PlacesUtils.openNodeWithEvent(this._content.selectedNode, aEvent);
+    PlacesUIUtils.openNodeWithEvent(this._content.selectedNode, aEvent);
   },
 
   /**
@@ -289,7 +365,7 @@ var PlacesOrganizer = {
     openDialog("chrome://browser/content/migration/migration.xul",
                "migration", features, "bookmarks");
     if (window.fromFile)
-    this.importFromFile();
+      this.importFromFile();
   },
 
   /**
@@ -298,9 +374,9 @@ var PlacesOrganizer = {
   importFromFile: function PO_importFromFile() {
     var fp = Cc["@mozilla.org/filepicker;1"].
              createInstance(Ci.nsIFilePicker);
-    fp.init(window, PlacesUtils.getString("SelectImport"),
+    fp.init(window, PlacesUIUtils.getString("SelectImport"),
             Ci.nsIFilePicker.modeOpen);
-    fp.appendFilters(Ci.nsIFilePicker.filterHTML | Ci.nsIFilePicker.filterAll);
+    fp.appendFilters(Ci.nsIFilePicker.filterHTML);
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
       if (fp.file) {
         var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
@@ -317,7 +393,7 @@ var PlacesOrganizer = {
   exportBookmarks: function PO_exportBookmarks() {
     var fp = Cc["@mozilla.org/filepicker;1"].
              createInstance(Ci.nsIFilePicker);
-    fp.init(window, PlacesUtils.getString("EnterExport"),
+    fp.init(window, PlacesUIUtils.getString("EnterExport"),
             Ci.nsIFilePicker.modeSave);
     fp.appendFilters(Ci.nsIFilePicker.filterHTML);
     fp.defaultString = "bookmarks.html";
@@ -339,26 +415,18 @@ var PlacesOrganizer = {
     while (restorePopup.childNodes.length > 1)
       restorePopup.removeChild(restorePopup.firstChild);
 
-    // get bookmarks backup dir
-    var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
-                 getService(Ci.nsIProperties);
-    var bookmarksBackupDir = dirSvc.get("ProfD", Ci.nsIFile);
-    bookmarksBackupDir.append("bookmarkbackups");
-    if (!bookmarksBackupDir.exists())
-      return; // no backup files
-
     // get list of files
     var fileList = [];
-    var files = bookmarksBackupDir.directoryEntries;
+    var files = this.bookmarksBackupDir.directoryEntries;
     while (files.hasMoreElements()) {
       var f = files.getNext().QueryInterface(Ci.nsIFile);
-      if (!f.isHidden() && f.leafName.match(/\.html?$/))
+      if (!f.isHidden() && f.leafName.match(/^bookmarks-.+json$/))
         fileList.push(f);
     }
 
     fileList.sort(function PO_fileList_compare(a, b) {
-        return b.lastModifiedTime - a.lastModifiedTime;
-      });
+      return b.lastModifiedTime - a.lastModifiedTime;
+    });
 
     if (fileList.length == 0)
       return;
@@ -369,7 +437,7 @@ var PlacesOrganizer = {
         (document.createElement("menuitem"),
          document.getElementById("restoreFromFile"));
       var dateStr = fileList[i].leafName.replace("bookmarks-", "").
-        replace(".html", "");
+        replace(/\.json$/, "");
       if (!dateStr.length)
         dateStr = fileList[i].leafName;
       m.setAttribute("label", dateStr);
@@ -392,27 +460,75 @@ var PlacesOrganizer = {
     bookmarksFile.append(aMenuItem.getAttribute("value"));
     if (!bookmarksFile.exists())
       return;
-
-    var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].
-                  getService(Ci.nsIPromptService);
-    if (!prompts.confirm(null,
-                         PlacesUtils.getString("bookmarksRestoreAlertTitle"),
-                         PlacesUtils.getString("bookmarksRestoreAlert")))
-      return;
-
-    var ieSvc = Cc["@mozilla.org/browser/places/import-export-service;1"].
-                getService(Ci.nsIPlacesImportExportService);
-    ieSvc.importHTMLFromFile(bookmarksFile, true);
+    this.restoreBookmarksFromFile(bookmarksFile);
   },
 
   /**
-   * Backup bookmarks to desktop, auto-generate a filename with a date
+   * Called when 'Choose File...' is selected from the restore menu.
+   * Prompts for a file and restores bookmarks to those in the file.
+   */
+  onRestoreBookmarksFromFile: function PO_onRestoreBookmarksFromFile() {
+    var fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
+    fp.init(window, PlacesUIUtils.getString("bookmarksRestoreTitle"),
+            Ci.nsIFilePicker.modeOpen);
+    fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
+                    PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
+
+    var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+                 getService(Ci.nsIProperties);
+    var backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
+    fp.displayDirectory = backupsDir;
+
+    if (fp.show() != Ci.nsIFilePicker.returnCancel)
+      this.restoreBookmarksFromFile(fp.file);
+  },
+
+  /**
+   * Restores bookmarks from a JSON file.
+   */
+  restoreBookmarksFromFile: function PO_restoreBookmarksFromFile(aFile) {
+    // check file extension
+    if (!aFile.leafName.match(/\.json$/)) {
+      this._showErrorAlert(PlacesUIUtils.getString("bookmarksRestoreFormatError"));
+      return;
+    }
+
+    // confirm ok to delete existing bookmarks
+    var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].
+                  getService(Ci.nsIPromptService);
+    if (!prompts.confirm(null,
+                         PlacesUIUtils.getString("bookmarksRestoreAlertTitle"),
+                         PlacesUIUtils.getString("bookmarksRestoreAlert")))
+      return;
+
+    try {
+      PlacesUtils.restoreBookmarksFromJSONFile(aFile, [PlacesUIUtils.leftPaneFolderId]);
+    }
+    catch(ex) {
+      this._showErrorAlert(PlacesUIUtils.getString("bookmarksRestoreParseError"));
+    }
+  },
+
+  _showErrorAlert: function PO__showErrorAlert(aMsg) {
+    var brandShortName = document.getElementById("brandStrings").
+                                  getString("brandShortName");
+
+    Cc["@mozilla.org/embedcomp/prompt-service;1"].
+      getService(Ci.nsIPromptService).
+      alert(window, brandShortName, aMsg);
+  },
+
+  /**
+   * Backup bookmarks to desktop, auto-generate a filename with a date.
+   * The file is a JSON serialization of bookmarks, tags and any annotations
+   * of those items.
    */
   backupBookmarks: function PO_backupBookmarks() {
     var fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    fp.init(window, PlacesUtils.getString("bookmarksBackupTitle"),
+    fp.init(window, PlacesUIUtils.getString("bookmarksBackupTitle"),
             Ci.nsIFilePicker.modeSave);
-    fp.appendFilters(Ci.nsIFilePicker.filterHTML);
+    fp.appendFilter(PlacesUIUtils.getString("bookmarksRestoreFilterName"),
+                    PlacesUIUtils.getString("bookmarksRestoreFilterExtension"));
 
     var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
                  getService(Ci.nsIProperties);
@@ -422,42 +538,33 @@ var PlacesOrganizer = {
     // Use YYYY-MM-DD (ISO 8601) as it doesn't contain illegal characters
     // and makes the alphabetical order of multiple backup files more useful.
     var date = (new Date).toLocaleFormat("%Y-%m-%d");
-    fp.defaultString = PlacesUtils.getFormattedString("bookmarksBackupFilename",
-                                                      [date]);
+    fp.defaultString = PlacesUIUtils.getFormattedString("bookmarksBackupFilenameJSON",
+                                                        [date]);
 
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
-      var ieSvc = Cc["@mozilla.org/browser/places/import-export-service;1"].
-                  getService(Ci.nsIPlacesImportExportService);
-      ieSvc.exportHTMLToFile(fp.file);
+      PlacesUtils.backupBookmarksToFile(fp.file, [PlacesUIUtils.leftPaneFolderId]);
+
+      // copy new backup to /backups dir (bug 424389)
+      var latestBackup = PlacesUtils.getMostRecentBackup();
+      if (!latestBackup || latestBackup != fp.file) {
+        latestBackup.remove(false);
+        var date = new Date().toLocaleFormat("%Y-%m-%d");
+        var name = PlacesUtils.getFormattedString("bookmarksArchiveFilename",
+                                                  [date]);
+        fp.file.copyTo(this.bookmarksBackupDir, name);
+      }
     }
   },
 
-  /**
-   * Called when 'Choose File...' is selected from the Revert menupopup
-   * Prompts for a file and reverts bookmarks to those in the file
-   */
-  restoreFromFile: function PO_restoreFromFile() {
-    var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].
-                  getService(Ci.nsIPromptService);
-    if (!prompts.confirm(null, PlacesUtils.getString("bookmarksRestoreAlertTitle"),
-                         PlacesUtils.getString("bookmarksRestoreAlert")))
-      return;
-
-    var fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-    fp.init(window, PlacesUtils.getString("bookmarksRestoreTitle"),
-            Ci.nsIFilePicker.modeOpen);
-    fp.appendFilters(Ci.nsIFilePicker.filterHTML);
-
+  get bookmarksBackupDir() {
+    delete this.bookmarksBackupDir;
     var dirSvc = Cc["@mozilla.org/file/directory_service;1"].
                  getService(Ci.nsIProperties);
-    var backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
-    fp.displayDirectory = backupsDir;
-
-    if (fp.show() != Ci.nsIFilePicker.returnCancel) {
-      var ieSvc = Cc["@mozilla.org/browser/places/import-export-service;1"].
-                  getService(Ci.nsIPlacesImportExportService);
-      ieSvc.importHTMLFromFile(fp.file, true);
-    }
+    var bookmarksBackupDir = dirSvc.get("ProfD", Ci.nsIFile);
+    bookmarksBackupDir.append("bookmarkbackups");
+    if (!bookmarksBackupDir.exists())
+      bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0700);
+    return this.bookmarksBackupDir = bookmarksBackupDir;
   },
 
   _paneDisabled: false,
@@ -477,27 +584,28 @@ var PlacesOrganizer = {
   function PO__detectAndSetDetailsPaneMinimalState(aNode) {
     /**
      * The details of simple folder-items (as opposed to livemarks) or the
-     * of livemark-children are not likely to fill the scrollbox anyway,
+     * of livemark-children are not likely to fill the infoBox anyway,
      * thus we remove the "More/Less" button and show all details.
      *
      * the wasminimal attribute here is used to persist the "more/less"
      * state in a bookmark->folder->bookmark scenario.
      */
-    var infoScrollbox = document.getElementById("infoScrollbox");
-    var scrollboxExpander = document.getElementById("infoScrollboxExpander");
-    if ((PlacesUtils.nodeIsFolder(aNode) &&
-         !PlacesUtils.nodeIsLivemarkContainer(aNode)) ||
-        PlacesUtils.nodeIsLivemarkItem(aNode)) {
-      if (infoScrollbox.getAttribute("minimal") == "true")
-        infoScrollbox.setAttribute("wasminimal", "true");
-      infoScrollbox.removeAttribute("minimal");
-      scrollboxExpander.hidden = true;
+    var infoBox = document.getElementById("infoBox");
+    var infoBoxExpander = document.getElementById("infoBoxExpander");
+    if (aNode.itemId != -1 &&
+        ((PlacesUtils.nodeIsFolder(aNode) &&
+          !PlacesUtils.nodeIsLivemarkContainer(aNode)) ||
+         PlacesUtils.nodeIsLivemarkItem(aNode))) {
+      if (infoBox.getAttribute("minimal") == "true")
+        infoBox.setAttribute("wasminimal", "true");
+      infoBox.removeAttribute("minimal");
+      infoBoxExpander.hidden = true;
     }
     else {
-      if (infoScrollbox.getAttribute("wasminimal") == "true")
-        infoScrollbox.setAttribute("minimal", "true");
-      infoScrollbox.removeAttribute("wasminimal");
-      scrollboxExpander.hidden = false;
+      if (infoBox.getAttribute("wasminimal") == "true")
+        infoBox.setAttribute("minimal", "true");
+      infoBox.removeAttribute("wasminimal");
+      infoBoxExpander.hidden = false;
     }
   },
 
@@ -512,6 +620,14 @@ var PlacesOrganizer = {
   },
 
   onContentTreeSelect: function PO_onContentTreeSelect() {
+    if (this._content.treeBoxObject.focused)
+      this._fillDetailsPane(this._content.selectedNode);
+  },
+
+  _fillDetailsPane: function PO__fillDetailsPane(aSelectedNode) {
+    var infoBox = document.getElementById("infoBox");
+    var detailsDeck = document.getElementById("detailsDeck");
+
     // If a textbox within a panel is focused, force-blur it so its contents
     // are saved
     if (gEditItemOverlay.itemId != -1) {
@@ -520,26 +636,32 @@ var PlacesOrganizer = {
            focusedElement instanceof HTMLTextAreaElement) &&
           /^editBMPanel.*/.test(focusedElement.parentNode.parentNode.id))
         focusedElement.blur();
-    }
 
-    var contentTree = document.getElementById("placeContent");
-    var detailsDeck = document.getElementById("detailsDeck");
-    detailsDeck.selectedIndex = 1;
-    var selectedNode = contentTree.selectedNode;
-    if (selectedNode) {
-      if (selectedNode.itemId != -1 &&
-          !PlacesUtils.nodeIsSeparator(selectedNode)) {
-        if (this._paneDisabled) {
-          this._setDetailsFieldsDisabledState(false);
-          this._paneDisabled = false;
-        }
-
-        gEditItemOverlay.initPanel(selectedNode.itemId,
-                                   { hiddenRows: ["folderPicker"] });
-
-        this._detectAndSetDetailsPaneMinimalState(selectedNode);
+      // don't update the panel if we are already editing this node
+      if (aSelectedNode && gEditItemOverlay.itemId == aSelectedNode.itemId &&
+          detailsDeck.selectedIndex == 1)
         return;
+    }
+ 
+    if (aSelectedNode && !PlacesUtils.nodeIsSeparator(aSelectedNode)) {
+      detailsDeck.selectedIndex = 1;
+      // Using the concrete itemId is arguably wrong. The bookmarks API
+      // does allow setting properties for folder shortcuts as well, but since
+      // the UI does not distinct between the couple, we better just show
+      // the concrete item properties.
+      if (aSelectedNode.type ==
+          Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
+        gEditItemOverlay.initPanel(asQuery(aSelectedNode).folderItemId,
+                                  { hiddenRows: ["folderPicker"],
+                                    forceReadOnly: true });
       }
+      else {
+        var itemId = PlacesUtils.getConcreteItemId(aSelectedNode);
+        gEditItemOverlay.initPanel(itemId != -1 ? itemId :
+                                   PlacesUtils._uri(aSelectedNode.uri),
+                                   { hiddenRows: ["folderPicker"] });
+      }
+      this._detectAndSetDetailsPaneMinimalState(aSelectedNode);
     }
     else {
       detailsDeck.selectedIndex = 0;
@@ -548,25 +670,18 @@ var PlacesOrganizer = {
       var rowCount = this._content.treeBoxObject.view.rowCount;
       if (rowCount == 0) {
         selectItemDesc.hidden = true;
-        itemsCountLabel.value = PlacesUtils.getString("detailsPane.noItems");
+        itemsCountLabel.value = PlacesUIUtils.getString("detailsPane.noItems");
       }
       else {
         selectItemDesc.hidden = false;
         if (rowCount == 1)
-          itemsCountLabel.value = PlacesUtils.getString("detailsPane.oneItem");
+          itemsCountLabel.value = PlacesUIUtils.getString("detailsPane.oneItem");
         else {
           itemsCountLabel.value =
-            PlacesUtils.getFormattedString("detailsPane.multipleItems",
-                                           [rowCount]);
+            PlacesUIUtils.getFormattedString("detailsPane.multipleItems",
+                                             [rowCount]);
         }
       }
-    }
-
-    // Nothing to do if the pane was already disabled
-    if (!this._paneDisabled) {
-      gEditItemOverlay.uninitPanel();
-      this._setDetailsFieldsDisabledState(true);
-      this._paneDisabled = true;
     }
   },
 
@@ -593,17 +708,17 @@ var PlacesOrganizer = {
   },
 
   toggleAdditionalInfoFields: function PO_toggleAdditionalInfoFields() {
-    var infoScrollbox = document.getElementById("infoScrollbox");
-    var scrollboxExpander = document.getElementById("infoScrollboxExpander");
-    if (infoScrollbox.getAttribute("minimal") == "true") {
-      infoScrollbox.removeAttribute("minimal");
-      scrollboxExpander.label = scrollboxExpander.getAttribute("lesslabel");
-      scrollboxExpander.accessKey = scrollboxExpander.getAttribute("lessaccesskey");
+    var infoBox = document.getElementById("infoBox");
+    var infoBoxExpander = document.getElementById("infoBoxExpander");
+    if (infoBox.getAttribute("minimal") == "true") {
+      infoBox.removeAttribute("minimal");
+      infoBoxExpander.label = infoBoxExpander.getAttribute("lesslabel");
+      infoBoxExpander.accessKey = infoBoxExpander.getAttribute("lessaccesskey");
     }
     else {
-      infoScrollbox.setAttribute("minimal", "true");
-      scrollboxExpander.label = scrollboxExpander.getAttribute("morelabel");
-      scrollboxExpander.accessKey = scrollboxExpander.getAttribute("moreaccesskey");
+      infoBox.setAttribute("minimal", "true");
+      infoBoxExpander.label = infoBoxExpander.getAttribute("morelabel");
+      infoBoxExpander.accessKey = infoBoxExpander.getAttribute("moreaccesskey");
     }
   },
 
@@ -613,23 +728,14 @@ var PlacesOrganizer = {
   saveSearch: function PO_saveSearch() {
     // Get the place: uri for the query.
     // If the advanced query builder is showing, use that.
-    var queries = [];
     var options = this.getCurrentOptions();
-    options.excludeQueries = true;
-    var searchUI = document.getElementById("searchModifiers");
-    if (!searchUI.hidden)
-      queries = PlacesQueryBuilder.queries;
-    else if (PlacesSearchBox.value && PlacesSearchBox.value.length > 0) {
-      // If not, use the value of the search box.
-      var query = PlacesUtils.history.getNewQuery();
-      query.searchTerms = PlacesSearchBox.value;
-      queries.push(query);
-    }
-    else {
-      // if there is no query, do nothing.
-      // XXX should probably have a dialog here to explain that the user needs to search first.
-     return;
-    }
+
+#ifdef PLACES_QUERY_BUILDER
+    var queries = PlacesQueryBuilder.queries;
+#else
+    var queries = this.getCurrentQueries();
+#endif
+
     var placeSpec = PlacesUtils.history.queriesToQueryString(queries,
                                                              queries.length,
                                                              options);
@@ -640,9 +746,9 @@ var PlacesOrganizer = {
     // Prompt the user for a name for the query.
     // XXX - using prompt service for now; will need to make
     // a real dialog and localize when we're sure this is the UI we want.
-    var title = PlacesUtils.getString("saveSearch.title");
-    var inputLabel = PlacesUtils.getString("saveSearch.inputLabel");
-    var defaultText = PlacesUtils.getString("saveSearch.defaultText");
+    var title = PlacesUIUtils.getString("saveSearch.title");
+    var inputLabel = PlacesUIUtils.getString("saveSearch.inputLabel");
+    var defaultText = PlacesUIUtils.getString("saveSearch.defaultText");
 
     var prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].
                   getService(Ci.nsIPromptService);
@@ -655,11 +761,11 @@ var PlacesOrganizer = {
      return;
 
     // Add the place: uri as a bookmark under the bookmarks root.
-    var txn = PlacesUtils.ptm.createItem(placeURI,
-                                         PlacesUtils.bookmarksMenuFolderId,
-                                         PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                         input.value);
-    PlacesUtils.ptm.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.createItem(placeURI,
+                                           PlacesUtils.bookmarksMenuFolderId,
+                                           PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                           input.value);
+    PlacesUIUtils.ptm.doTransaction(txn);
 
     // select and load the new query
     this._places.selectPlaceURI(placeSpec);
@@ -746,6 +852,9 @@ var PlacesSearchBox = {
 
     PlacesSearchBox.showSearchUI();
     this.searchFilter.setAttribute("filtered", "true");
+
+    // Update the details panel
+    PlacesOrganizer.onContentTreeSelect();
   },
 
   /**
@@ -770,10 +879,13 @@ var PlacesSearchBox = {
    *          The title of the current collection.
    */
   updateCollectionTitle: function PSB_updateCollectionTitle(title) {
-    this.searchFilter.emptyText =
-      title ?
-      PlacesUtils.getFormattedString("searchCurrentDefault", [title]) :
-      PlacesUtils.getString("searchBookmarks");
+    if (title)
+      this.searchFilter.emptyText =
+        PlacesUIUtils.getFormattedString("searchCurrentDefault", [title]);
+    else
+      this.searchFilter.emptyText = this.filterCollection == "history" ?
+                                    PlacesUIUtils.getString("searchHistory") :
+                                    PlacesUIUtils.getString("searchBookmarks");
   },
 
   /**
@@ -822,9 +934,11 @@ var PlacesSearchBox = {
     var searchModifiers = document.getElementById("searchModifiers");
     searchModifiers.hidden = false;
 
+#ifdef PLACES_QUERY_BUILDER
     // if new search, open builder with pre-populated text row
     if (PlacesQueryBuilder.numRows == 0)
       document.getElementById("OrganizerCommand_search:moreCriteria").doCommand();
+#endif
   },
 
   hideSearchUI: function PSB_hideSearchUI() {
@@ -841,6 +955,7 @@ var PlacesQueryBuilder = {
   queries: [],
   queryOptions: null,
 
+#ifdef PLACES_QUERY_BUILDER
   numRows: 0,
 
   /**
@@ -882,6 +997,7 @@ var PlacesQueryBuilder = {
   },
   _nextSearch: null,
   _queryBuilders: null,
+
 
   init: function PQB_init() {
     // Initialize advanced search
@@ -1297,7 +1413,11 @@ var PlacesQueryBuilder = {
 
     // XXXben - find some public way of doing this!
     PlacesOrganizer._content.load(this.queries, this.options);
+
+    // Update the details panel
+    PlacesOrganizer.onContentTreeSelect();
   },
+#endif
 
   onScopeSelected: function PQB_onScopeSelected(aButton) {
     var id = aButton.getAttribute("id");
@@ -1315,14 +1435,6 @@ var PlacesQueryBuilder = {
     // update collection type and get folders
     var folders = [];
     switch (id) {
-      case "scopeBarToolbar":
-        PlacesSearchBox.filterCollection = "collection";
-        folders.push(PlacesUtils.toolbarFolderId);
-        break;
-      case "scopeBarMenu":
-        PlacesSearchBox.filterCollection = "collection";
-        folders.push(PlacesUtils.bookmarksMenuFolderId);
-        break;
       case "scopeBarHistory":
         PlacesSearchBox.filterCollection = "history";
         folders = [];
@@ -1331,7 +1443,7 @@ var PlacesQueryBuilder = {
         var selectedFolder = PlacesOrganizer._places.selectedNode.itemId;
         // note "all bookmarks" isn't the concrete parent of the top-level
         // bookmark folders
-        if (selectedFolder != PlacesUtils.allBookmarksFolderId) {
+        if (selectedFolder != PlacesUIUtils.allBookmarksFolderId) {
           PlacesSearchBox.filterCollection = "collection";
           folders.push(PlacesOrganizer._places.selectedNode.itemId);
           break;
@@ -1443,8 +1555,8 @@ var ViewMenu = {
         // see bug #386287 for details
         var columnId = column.getAttribute("anonid");
         menuitemPrefix += columnId == "title" ? "name" : columnId;
-        label = PlacesUtils.getString(menuitemPrefix + ".label");
-        var accesskey = PlacesUtils.getString(menuitemPrefix + ".accesskey");
+        label = PlacesUIUtils.getString(menuitemPrefix + ".label");
+        var accesskey = PlacesUIUtils.getString(menuitemPrefix + ".accesskey");
         menuitem.setAttribute("accesskey", accesskey);
       }
       menuitem.setAttribute("label", label);
@@ -1516,7 +1628,7 @@ var ViewMenu = {
       splitter = null;
 
     if (element.getAttribute("checked") == "true") {
-      column.removeAttribute("hidden");
+      column.setAttribute("hidden", "false");
       if (splitter)
         splitter.removeAttribute("hidden");
     }

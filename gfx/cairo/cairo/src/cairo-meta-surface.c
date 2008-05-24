@@ -1,3 +1,4 @@
+/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2005 Red Hat, Inc
@@ -657,12 +658,11 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     cairo_meta_surface_t *meta;
     cairo_command_t *command, **elements;
     int i, num_elements;
-    cairo_int_status_t status;
-    cairo_clip_t clip;
+    cairo_int_status_t status, status2;
+    cairo_clip_t clip, *old_clip;
     cairo_bool_t has_device_transform = _cairo_surface_has_device_transform (target);
     cairo_matrix_t *device_transform = &target->device_transform;
     cairo_path_fixed_t path_copy, *dev_path;
-    double tolerance_multiplier = _cairo_matrix_transformed_circle_major_axis (device_transform, 1.0);
 
     if (surface->status)
 	return surface->status;
@@ -674,6 +674,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     status = CAIRO_STATUS_SUCCESS;
 
     _cairo_clip_init (&clip, target);
+    old_clip = _cairo_surface_get_clip (target);
 
     num_elements = meta->commands.num_elements;
     elements = _cairo_array_index (&meta->commands, 0);
@@ -735,7 +736,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 					    &command->stroke.style,
 					    &dev_ctm,
 					    &dev_ctm_inverse,
-					    command->stroke.tolerance * tolerance_multiplier,
+					    command->stroke.tolerance,
 					    command->stroke.antialias);
 	    break;
 	}
@@ -743,7 +744,11 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 	{
 	    cairo_command_t *stroke_command;
 
-	    stroke_command = (i < num_elements - 1) ? elements[i + 1] : NULL;
+	    if (type != CAIRO_META_CREATE_REGIONS)
+		stroke_command = (i < num_elements - 1) ? elements[i + 1] : NULL;
+	    else
+		stroke_command = NULL;
+
 	    if (stroke_command != NULL &&
 		type == CAIRO_META_REPLAY && region != CAIRO_META_REGION_ALL)
 	    {
@@ -772,7 +777,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 						     command->fill.op,
 						     &command->fill.source.base,
 						     command->fill.fill_rule,
-						     command->fill.tolerance * tolerance_multiplier,
+						     command->fill.tolerance,
 						     command->fill.antialias,
 						     dev_path,
 						     stroke_command->stroke.op,
@@ -780,45 +785,44 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 						     &stroke_command->stroke.style,
 						     &dev_ctm,
 						     &dev_ctm_inverse,
-						     stroke_command->stroke.tolerance * tolerance_multiplier,
+						     stroke_command->stroke.tolerance,
 						     stroke_command->stroke.antialias);
 		i++;
-		if (type == CAIRO_META_CREATE_REGIONS) {
-		    if (status == CAIRO_STATUS_SUCCESS) {
-			stroke_command->header.region = CAIRO_META_REGION_NATIVE;
-		    } else if (status == CAIRO_INT_STATUS_IMAGE_FALLBACK) {
-			stroke_command->header.region = CAIRO_META_REGION_IMAGE_FALLBACK;
-			status = CAIRO_STATUS_SUCCESS;
-		    }
-		}
 	    } else
 		status = _cairo_surface_fill (target,
 					      command->fill.op,
 					      &command->fill.source.base,
 					      dev_path,
 					      command->fill.fill_rule,
-					      command->fill.tolerance * tolerance_multiplier,
+					      command->fill.tolerance,
 					      command->fill.antialias);
 	    break;
 	}
 	case CAIRO_COMMAND_SHOW_GLYPHS:
 	{
 	    cairo_glyph_t *glyphs = command->show_glyphs.glyphs;
-	    cairo_glyph_t *dev_glyphs = glyphs;
+	    cairo_glyph_t *dev_glyphs;
 	    int i, num_glyphs = command->show_glyphs.num_glyphs;
 
+            /* show_glyphs is special because _cairo_surface_show_glyphs is allowed
+	     * to modify the glyph array that's passed in.  We must always
+	     * copy the array before handing it to the backend.
+	     */
+	    dev_glyphs = _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
+	    if (dev_glyphs == NULL) {
+		status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+		break;
+	    }
+
 	    if (has_device_transform) {
-		dev_glyphs = _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
-		if (dev_glyphs == NULL) {
-		    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-		    break;
-		}
 		for (i = 0; i < num_glyphs; i++) {
 		    dev_glyphs[i] = glyphs[i];
 		    cairo_matrix_transform_point (device_transform,
 						  &dev_glyphs[i].x,
 						  &dev_glyphs[i].y);
 		}
+	    } else {
+		memcpy (dev_glyphs, glyphs, sizeof (cairo_glyph_t) * num_glyphs);
 	    }
 
 	    status = _cairo_surface_show_glyphs	(target,
@@ -827,9 +831,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 						 dev_glyphs, num_glyphs,
 						 command->show_glyphs.scaled_font);
 
-	    if (dev_glyphs != glyphs)
-		free (dev_glyphs);
-
+	    free (dev_glyphs);
 	    break;
 	}
 	case CAIRO_COMMAND_INTERSECT_CLIP_PATH:
@@ -840,7 +842,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 	    else
 		status = _cairo_clip_clip (&clip, dev_path,
 					   command->intersect_clip_path.fill_rule,
-					   command->intersect_clip_path.tolerance * tolerance_multiplier,
+					   command->intersect_clip_path.tolerance,
 					   command->intersect_clip_path.antialias,
 					   target);
             assert (status == 0);
@@ -866,6 +868,9 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     }
 
     _cairo_clip_reset (&clip);
+    status2 = _cairo_surface_set_clip (target, old_clip);
+    if (status == CAIRO_STATUS_SUCCESS)
+	status = status2;
 
     return _cairo_surface_set_error (surface, status);
 }

@@ -116,6 +116,8 @@ ACCESSIBILITY_ATOM(label, "label")
 ACCESSIBILITY_ATOM(legend, "legend")
 ACCESSIBILITY_ATOM(li, "li")
 ACCESSIBILITY_ATOM(link, "link")
+ACCESSIBILITY_ATOM(listcols, "listcols") // XUL
+ACCESSIBILITY_ATOM(listcol, "listcol") // XUL
 ACCESSIBILITY_ATOM(listhead, "listhead") // XUL
 ACCESSIBILITY_ATOM(listheader, "listheader") // XUL
 ACCESSIBILITY_ATOM(map, "map")
@@ -155,6 +157,7 @@ ACCESSIBILITY_ATOM(anonid, "anonid") // Used for ID's in XBL
 ACCESSIBILITY_ATOM(contenteditable, "contenteditable")
 ACCESSIBILITY_ATOM(control, "control")
 ACCESSIBILITY_ATOM(disabled, "disabled")
+ACCESSIBILITY_ATOM(_class, "class")
 ACCESSIBILITY_ATOM(cycles, "cycles") // used for XUL cycler attribute
 ACCESSIBILITY_ATOM(curpos, "curpos") // XUL
 ACCESSIBILITY_ATOM(data, "data")
@@ -162,7 +165,7 @@ ACCESSIBILITY_ATOM(droppable, "droppable")   // XUL combo box
 ACCESSIBILITY_ATOM(editable, "editable")
 ACCESSIBILITY_ATOM(_for, "for")
 ACCESSIBILITY_ATOM(hidden, "hidden")   // XUL tree columns
-ACCESSIBILITY_ATOM(href, "href")
+ACCESSIBILITY_ATOM(href, "href") // XUL, XLink
 ACCESSIBILITY_ATOM(increment, "increment") // XUL
 ACCESSIBILITY_ATOM(lang, "lang")
 ACCESSIBILITY_ATOM(linkedPanel, "linkedpanel") // XUL
@@ -172,6 +175,7 @@ ACCESSIBILITY_ATOM(multiline, "multiline") // XUL
 ACCESSIBILITY_ATOM(name, "name")
 ACCESSIBILITY_ATOM(onclick, "onclick")
 ACCESSIBILITY_ATOM(readonly, "readonly")
+ACCESSIBILITY_ATOM(simple, "simple") // XLink
 ACCESSIBILITY_ATOM(src, "src")
 ACCESSIBILITY_ATOM(selected, "selected")
 ACCESSIBILITY_ATOM(summary, "summary")
@@ -227,7 +231,13 @@ ACCESSIBILITY_ATOM(aria_valuetext, "aria-valuetext")
 ACCESSIBILITY_ATOM(defaultLabel, "defaultLabel")
 
 // Object attributes
+ACCESSIBILITY_ATOM(tableCellIndex, "table-cell-index")
+ACCESSIBILITY_ATOM(containerAtomic, "container-atomic")
+ACCESSIBILITY_ATOM(containerBusy, "container-busy")
+ACCESSIBILITY_ATOM(containerChannel, "container-channel")
+ACCESSIBILITY_ATOM(containerLive, "container-live")
+ACCESSIBILITY_ATOM(containerRelevant, "container-relevant")
 ACCESSIBILITY_ATOM(level, "level")
+ACCESSIBILITY_ATOM(lineNumber, "line-number")
 ACCESSIBILITY_ATOM(posinset, "posinset") 
 ACCESSIBILITY_ATOM(setsize, "setsize")
-ACCESSIBILITY_ATOM(lineNumber, "line-number")

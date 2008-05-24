@@ -51,6 +51,9 @@ function run_test() {
   const prefSvc = Cc["@mozilla.org/preferences-service;1"].
                   getService(Ci.nsIPrefService);
                   
+  const ioService = Cc["@mozilla.org/network/io-service;1"].
+                    getService(Ci.nsIIOService);
+
   const rootPrefBranch = prefSvc.getBranch("");
   
   //**************************************************************************//
@@ -118,6 +121,17 @@ function run_test() {
   do_check_eq(handlerInfo.defaultDescription, "");
 
   // test some default protocol info properties
+  var haveDefaultHandlersVersion = false;
+  try { 
+    // If we have a defaultHandlersVersion pref, then assume that we're in the
+    // firefox tree and that we'll also have default handlers.
+    // Bug 395131 has been filed to make this test work more generically
+    // by providing our own prefs for this test rather than this icky
+    // special casing.
+    rootPrefBranch.getCharPref("gecko.handlerService.defaultHandlersVersion");
+    haveDefaultHandlersVersion = true;
+  } catch (ex) {}
+
   const kExternalWarningDefault = 
     "network.protocol-handler.warn-external-default";
   prefSvc.setBoolPref(kExternalWarningDefault, true);
@@ -129,17 +143,61 @@ function run_test() {
   do_check_eq(protoInfo.preferredAction, protoInfo.alwaysAsk);
   do_check_true(protoInfo.alwaysAskBeforeHandling);
   
-  // OS default exists, explicit warning pref: false
+  // OS default exists, injected default does not exist, 
+  // explicit warning pref: false
   const kExternalWarningPrefPrefix = "network.protocol-handler.warn-external.";
-  prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", false)
-  protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
+  prefSvc.setBoolPref(kExternalWarningPrefPrefix + "http", false);
+  protoInfo = protoSvc.getProtocolHandlerInfo("http");
+  do_check_eq(0, protoInfo.possibleApplicationHandlers.length);
   do_check_false(protoInfo.alwaysAskBeforeHandling);
   
-  // OS default exists, explicit warning pref: true
-  prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", true)
-  protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
+  // OS default exists, injected default does not exist, 
+  // explicit warning pref: true
+  prefSvc.setBoolPref(kExternalWarningPrefPrefix + "http", true);
+  protoInfo = protoSvc.getProtocolHandlerInfo("http");
+  // OS handler isn't included in possibleApplicationHandlers, so length is 0
+  // Once they become instances of nsILocalHandlerApp, this number will need
+  // to change.
+  do_check_eq(0, protoInfo.possibleApplicationHandlers.length);
   do_check_true(protoInfo.alwaysAskBeforeHandling);
-  
+
+  // OS default exists, injected default exists, explicit warning pref: false
+  prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", false);
+  protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
+  if (haveDefaultHandlersVersion)
+    do_check_eq(1, protoInfo.possibleApplicationHandlers.length);
+  else
+    do_check_eq(0, protoInfo.possibleApplicationHandlers.length);
+  do_check_false(protoInfo.alwaysAskBeforeHandling);
+
+  // OS default exists, injected default exists, explicit warning pref: true
+  prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", true);
+  protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
+  if (haveDefaultHandlersVersion) {
+    do_check_eq(1, protoInfo.possibleApplicationHandlers.length);
+    // alwaysAskBeforeHandling is expected to be false here, because although
+    // the pref is true, the value in RDF is false. The injected mailto handler
+    // carried over the default pref value, and so when we set the pref above
+    // to true it's ignored.
+    do_check_false(protoInfo.alwaysAskBeforeHandling);
+  } else {
+    do_check_eq(0, protoInfo.possibleApplicationHandlers.length);
+    do_check_true(protoInfo.alwaysAskBeforeHandling);
+  }
+
+  if (haveDefaultHandlersVersion) {
+    // Now set the value stored in RDF to true, and the pref to false, to make
+    // sure we still get the right value. (Basically, same thing as above but
+    // with the values reversed.)
+    prefSvc.setBoolPref(kExternalWarningPrefPrefix + "mailto", false);
+    protoInfo.alwaysAskBeforeHandling = true;
+    handlerSvc.store(protoInfo);
+    protoInfo = protoSvc.getProtocolHandlerInfo("mailto");
+    do_check_eq(1, protoInfo.possibleApplicationHandlers.length);
+    do_check_true(protoInfo.alwaysAskBeforeHandling);
+  }
+
+
   //**************************************************************************//
   // Test Round-Trip Data Integrity
 
@@ -172,15 +230,10 @@ function run_test() {
   var handlerInfo2 = mimeSvc.getFromTypeAndExtension("nonexistent/type2", null);
   handlerSvc.store(handlerInfo2);
   var handlerTypes = ["nonexistent/type", "nonexistent/type2"];
-  try { 
-    // If we have a defaultHandlersVersion pref, then assume that we're in the
-    // firefox tree and that we'll also have an added webcal handler.
-    // Bug 395131 has been filed to make this test work more generically
-    // by providing our own prefs for this test rather than this icky
-    // special casing.
-    rootPrefBranch.getCharPref("gecko.handlerService.defaultHandlersVersion");
+  if (haveDefaultHandlersVersion) {
     handlerTypes.push("webcal");
-  } catch (ex) {}   
+    handlerTypes.push("mailto");
+  }
   var handlers = handlerSvc.enumerate();
   while (handlers.hasMoreElements()) {
     var handler = handlers.getNext().QueryInterface(Ci.nsIHandlerInfo);
@@ -286,4 +339,48 @@ function run_test() {
 
   // FIXME: test round trip integrity for a protocol.
   // FIXME: test round trip integrity for a handler info with a web handler.
+
+  //**************************************************************************//
+  // getTypeFromExtension tests
+
+  // test non-existent extension
+  var lolType = handlerSvc.getTypeFromExtension("lolcat");
+  do_check_eq(lolType, "");
+
+
+  // add a handler for the extension
+  var lolHandler = mimeSvc.getFromTypeAndExtension("application/lolcat", null);
+
+  do_check_false(lolHandler.extensionExists("lolcat"));
+  lolHandler.preferredAction = Ci.nsIHandlerInfo.useHelperApp;
+  lolHandler.preferredApplicationHandler = localHandler;
+  lolHandler.alwaysAskBeforeHandling = false;
+
+  // store the handler
+  do_check_false(handlerSvc.exists(lolHandler));
+  handlerSvc.store(lolHandler);
+  do_check_true(handlerSvc.exists(lolHandler));
+
+  // Get a file:// string pointing to mimeTypes.rdf
+  var rdfFile = HandlerServiceTest._dirSvc.get("UMimTyp", Ci.nsIFile);
+  var fileHandler = ioService.getProtocolHandler("file").QueryInterface(Ci.nsIFileProtocolHandler);
+  var rdfFileURI = fileHandler.getURLSpecFromFile(rdfFile);
+
+  // Assign a file extenstion to the handler. handlerSvc.store() doesn't
+  // actually store any file extensions added with setFileExtensions(), you
+  // have to wade into RDF muck to do so.
+
+  // Based on toolkit/mozapps/downloads/content/helperApps.js :: addExtension()
+  var gRDF = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
+  var mimeSource    = gRDF.GetUnicodeResource("urn:mimetype:application/lolcat");
+  var valueProperty = gRDF.GetUnicodeResource("http://home.netscape.com/NC-rdf#fileExtensions");
+  var mimeLiteral   = gRDF.GetLiteral("lolcat");
+
+  var DS = gRDF.GetDataSourceBlocking(rdfFileURI);
+  DS.Assert(mimeSource, valueProperty, mimeLiteral, true);
+
+
+  // test now-existent extension
+  lolType = handlerSvc.getTypeFromExtension("lolcat");
+  do_check_eq(lolType, "application/lolcat");
 }

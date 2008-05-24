@@ -226,8 +226,16 @@ PKIX_PL_HashTable_Add(
         PKIX_UInt32 bucketSize = 0;
 
         PKIX_ENTER(HASHTABLE, "PKIX_PL_HashTable_Add");
-        PKIX_NULLCHECK_THREE(ht, key, value);
 
+#if !defined(PKIX_OBJECT_LEAK_TEST)
+        PKIX_NULLCHECK_THREE(ht, key, value);
+#else
+        PKIX_NULLCHECK_TWO(key, value);
+
+        if (ht == NULL) {
+            PKIX_RETURN(HASHTABLE);
+        }
+#endif
         /* Insert into primitive hashtable */
 
         PKIX_CHECK(PKIX_PL_Object_Hashcode(key, &hashCode, plContext),
@@ -236,6 +244,8 @@ PKIX_PL_HashTable_Add(
         PKIX_CHECK(pkix_pl_Object_RetrieveEqualsCallback
                     (key, &keyComp, plContext),
                     PKIX_OBJECTRETRIEVEEQUALSCALLBACKFAILED);
+
+        PKIX_MUTEX_LOCK(ht->tableLock);
 
         PKIX_CHECK(pkix_pl_PrimHashTable_GetBucketSize
                 (ht->primHash,
@@ -257,8 +267,6 @@ PKIX_PL_HashTable_Add(
                 PKIX_DECREF(deletedKey);
                 PKIX_DECREF(deletedValue);
         }
-
-        PKIX_MUTEX_LOCK(ht->tableLock);
 
         PKIX_CHECK(pkix_pl_PrimHashTable_Add
                 (ht->primHash,
@@ -296,12 +304,22 @@ PKIX_PL_HashTable_Remove(
         void *plContext)
 {
         PKIX_PL_Mutex  *lockedMutex = NULL;
-        PKIX_PL_Object *result = NULL;
+        PKIX_PL_Object *origKey = NULL;
+        PKIX_PL_Object *value = NULL;
         PKIX_UInt32 hashCode;
         PKIX_PL_EqualsCallback keyComp;
 
         PKIX_ENTER(HASHTABLE, "PKIX_PL_HashTable_Remove");
+
+#if !defined(PKIX_OBJECT_LEAK_TEST)
         PKIX_NULLCHECK_TWO(ht, key);
+#else
+        PKIX_NULLCHECK_ONE(key);
+
+        if (ht == NULL) {
+            PKIX_RETURN(HASHTABLE);
+        }
+#endif
 
         PKIX_CHECK(PKIX_PL_Object_Hashcode(key, &hashCode, plContext),
                     PKIX_OBJECTHASHCODEFAILED);
@@ -318,17 +336,15 @@ PKIX_PL_HashTable_Remove(
                 (void *)key,
                 hashCode,
                 keyComp,
-                (void **)&result,
+                (void **)&origKey,
+                (void **)&value,
                 plContext),
                 PKIX_PRIMHASHTABLEREMOVEFAILED);
 
         PKIX_MUTEX_UNLOCK(ht->tableLock);
 
-        if (result != NULL) {
-                PKIX_DECREF(result);
-        } else {
-                PKIX_ERROR(PKIX_ATTEMPTTOREMOVENONEXISTANTITEM);
-        }
+        PKIX_DECREF(origKey);
+        PKIX_DECREF(value);
 
         /*
          * we don't call PKIX_PL_InvalidateCache here b/c we have
@@ -358,7 +374,16 @@ PKIX_PL_HashTable_Lookup(
         PKIX_PL_Object *result = NULL;
 
         PKIX_ENTER(HASHTABLE, "PKIX_PL_HashTable_Lookup");
+
+#if !defined(PKIX_OBJECT_LEAK_TEST)
         PKIX_NULLCHECK_THREE(ht, key, pResult);
+#else
+        PKIX_NULLCHECK_TWO(key, pResult);
+
+        if (ht == NULL) {
+            PKIX_RETURN(HASHTABLE);
+        }
+#endif
 
         PKIX_CHECK(PKIX_PL_Object_Hashcode(key, &hashCode, plContext),
                     PKIX_OBJECTHASHCODEFAILED);
@@ -381,9 +406,7 @@ PKIX_PL_HashTable_Lookup(
 
         PKIX_MUTEX_UNLOCK(ht->tableLock);
 
-        if (result != NULL) {
-                PKIX_INCREF(result);
-        }
+        PKIX_INCREF(result);
         *pResult = result;
 
 cleanup:

@@ -81,10 +81,18 @@ libs:: $(WIN32_CUSTOM_CRT_DIR)/mozcrt19.dll
 endif
 
 else
-# for other platforms, just build jemalloc as a shared lib
 
 MODULE_OPTIMIZE_FLAGS = -O2
+ifeq ($(OS_ARCH),SunOS)
+ifndef GNU_CC
+MODULE_OPTIMIZE_FLAGS = -xO5
+endif
+endif
+
 LIBRARY_NAME	= jemalloc
+
+# Build jemalloc as a shared lib.  This is mandatory for Darwin, since a library
+# init function is used on that platform.
 FORCE_SHARED_LIB= 1
 
 CSRCS		= \

@@ -201,6 +201,7 @@ CONST_OID isoSHAWithRSASignature[]           = { ALGORITHM, 0x0f };
 CONST_OID desede[]                           = { ALGORITHM, 0x11 };
 CONST_OID sha1[]                             = { ALGORITHM, 0x1a };
 CONST_OID bogusDSASignaturewithSHA1Digest[]  = { ALGORITHM, 0x1b };
+CONST_OID isoSHA1WithRSASignature[]          = { ALGORITHM, 0x1d };
 
 CONST_OID pkcs1RSAEncryption[]         		= { PKCS1, 0x01 };
 CONST_OID pkcs1MD2WithRSAEncryption[]  		= { PKCS1, 0x02 };
@@ -831,13 +832,13 @@ const static SECOidData oids[] = {
 	CKM_INVALID_MECHANISM, FAKE_SUPPORTED_CERT_EXTENSION ),
     OD( x509CertificatePolicies, SEC_OID_X509_CERTIFICATE_POLICIES,
  	"Certificate Policies",
-        CKM_INVALID_MECHANISM, SUPPORTED_CERT_EXTENSION ),
+        CKM_INVALID_MECHANISM, FAKE_SUPPORTED_CERT_EXTENSION ),
     OD( x509PolicyMappings, SEC_OID_X509_POLICY_MAPPINGS, 
  	"Certificate Policy Mappings",
-        CKM_INVALID_MECHANISM, SUPPORTED_CERT_EXTENSION ),
+        CKM_INVALID_MECHANISM, UNSUPPORTED_CERT_EXTENSION ),
     OD( x509PolicyConstraints, SEC_OID_X509_POLICY_CONSTRAINTS, 
  	"Certificate Policy Constraints",
-        CKM_INVALID_MECHANISM, SUPPORTED_CERT_EXTENSION ),
+        CKM_INVALID_MECHANISM, FAKE_SUPPORTED_CERT_EXTENSION ),
     OD( x509AuthKeyID, SEC_OID_X509_AUTH_KEY_ID, 
 	"Certificate Authority Key Identifier",
 	CKM_INVALID_MECHANISM, SUPPORTED_CERT_EXTENSION ),
@@ -1568,6 +1569,10 @@ const static SECOidData oids[] = {
     OD( x509SIACaRepository,          SEC_OID_PKIX_CA_REPOSITORY,
         "SIA CA Repository",          CKM_INVALID_MECHANISM,
 	INVALID_CERT_EXTENSION ),
+
+    OD( isoSHA1WithRSASignature, SEC_OID_ISO_SHA1_WITH_RSA_SIGNATURE,
+	"ISO SHA1 with RSA Signature", 
+	CKM_INVALID_MECHANISM, INVALID_CERT_EXTENSION ),
 
 };
 

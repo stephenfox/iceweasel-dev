@@ -56,6 +56,8 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
+#include "nsTArray.h"
+#include "nsTraceRefcnt.h"
 
 class nsIRenderingContext;
 class nsIRegion;
@@ -249,15 +251,12 @@ class nsHashKey;
 #define NS_DRAGDROP_ENTER               (NS_DRAGDROP_EVENT_START)
 #define NS_DRAGDROP_OVER                (NS_DRAGDROP_EVENT_START + 1)
 #define NS_DRAGDROP_EXIT                (NS_DRAGDROP_EVENT_START + 2)
-#define NS_DRAGDROP_DRAGDROP            (NS_DRAGDROP_EVENT_START + 3)
+#define NS_DRAGDROP_DROP                (NS_DRAGDROP_EVENT_START + 3)
 #define NS_DRAGDROP_GESTURE             (NS_DRAGDROP_EVENT_START + 4)
 #define NS_DRAGDROP_DRAG                (NS_DRAGDROP_EVENT_START + 5)
 #define NS_DRAGDROP_END                 (NS_DRAGDROP_EVENT_START + 6)
-#define NS_DRAGDROP_START               (NS_DRAGDROP_EVENT_START + 7)
-#define NS_DRAGDROP_DROP                (NS_DRAGDROP_EVENT_START + 8)
 #define NS_DRAGDROP_OVER_SYNTH          (NS_DRAGDROP_EVENT_START + 1)
 #define NS_DRAGDROP_EXIT_SYNTH          (NS_DRAGDROP_EVENT_START + 2)
-#define NS_DRAGDROP_LEAVE_SYNTH         (NS_DRAGDROP_EVENT_START + 9)
 
 // Events for popups
 #define NS_XUL_EVENT_START            1500
@@ -396,6 +395,7 @@ protected:
       flags(isTrusted ? NS_EVENT_FLAG_TRUSTED : NS_EVENT_FLAG_NONE),
       userType(0)
   {
+    MOZ_COUNT_CTOR(nsEvent);
   }
 
 public:
@@ -407,6 +407,12 @@ public:
       flags(isTrusted ? NS_EVENT_FLAG_TRUSTED : NS_EVENT_FLAG_NONE),
       userType(0)
   {
+    MOZ_COUNT_CTOR(nsEvent);
+  }
+
+  ~nsEvent()
+  {
+    MOZ_COUNT_DTOR(nsEvent);
   }
 
   // See event struct types
@@ -649,12 +655,13 @@ public:
   enum buttonType  { eLeftButton = 0, eMiddleButton = 1, eRightButton = 2 };
   enum reasonType  { eReal, eSynthesized };
   enum contextType { eNormal, eContextMenuKey };
+  enum exitType    { eChild, eTopLevel };
 
   nsMouseEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w,
                reasonType aReason, contextType aContext = eNormal)
     : nsMouseEvent_base(isTrusted, msg, w, NS_MOUSE_EVENT),
       acceptActivation(PR_FALSE), reason(aReason), context(aContext),
-      clickCount(0)
+      exit(eChild), clickCount(0)
   {
     if (msg == NS_MOUSE_MOVE) {
       flags |= NS_EVENT_FLAG_CANT_CANCEL;
@@ -676,6 +683,7 @@ public:
   PRPackedBool acceptActivation;
   reasonType   reason : 4;
   contextType  context : 4;
+  exitType     exit;
 
   /// The number of mouse clicks
   PRUint32     clickCount;
@@ -701,6 +709,16 @@ public:
  * Keyboard event
  */
 
+struct nsAlternativeCharCode {
+  nsAlternativeCharCode(PRUint32 aUnshiftedCharCode,
+                        PRUint32 aShiftedCharCode) :
+    mUnshiftedCharCode(aUnshiftedCharCode), mShiftedCharCode(aShiftedCharCode)
+  {
+  }
+  PRUint32 mUnshiftedCharCode;
+  PRUint32 mShiftedCharCode;
+};
+
 class nsKeyEvent : public nsInputEvent
 {
 public:
@@ -714,6 +732,9 @@ public:
   PRUint32        keyCode;   
   /// OS translated Unicode char
   PRUint32        charCode;
+  // OS translated Unicode chars which are used for accesskey and accelkey
+  // handling. The handlers will try from first character to last character.
+  nsTArray<nsAlternativeCharCode> alternativeCharCodes;
   // indicates whether the event signifies a printable character
   PRBool          isChar;
 };
@@ -1244,7 +1265,7 @@ enum nsDragDropEventStatus {
 #define NS_TEXTRANGE_CONVERTEDTEXT				0x04
 #define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT		0x05
 
-static PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
+inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
 {
 #if defined(MOZ_X11) || defined(XP_MACOSX)
   // bug 52416 (MOZ_X11)

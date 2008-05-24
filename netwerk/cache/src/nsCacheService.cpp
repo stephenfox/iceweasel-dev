@@ -1465,8 +1465,10 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
 
     if (entry &&
         ((request->AccessRequested() == nsICache::ACCESS_WRITE) ||
-         (entry->mExpirationTime <= SecondsFromPRTime(PR_Now()) &&
-          request->WillDoomEntriesIfExpired())))
+         ((request->StoragePolicy() != nsICache::STORE_OFFLINE) &&
+          (entry->mExpirationTime <= SecondsFromPRTime(PR_Now()) &&
+           request->WillDoomEntriesIfExpired()))))
+
     {
         // this is FORCE-WRITE request or the entry has expired
         rv = DoomEntry_Internal(entry);
@@ -2139,8 +2141,7 @@ nsCacheService::ClearDoomList()
 void
 nsCacheService::ClearActiveEntries()
 {
-    // XXX really we want a different finalize callback for mActiveEntries
-    PL_DHashTableEnumerate(&mActiveEntries.table, DeactivateAndClearEntry, nsnull);
+    mActiveEntries.VisitEntries(DeactivateAndClearEntry, nsnull);
     mActiveEntries.Shutdown();
 }
 
@@ -2168,7 +2169,7 @@ nsCacheService::DoomActiveEntries()
 {
     nsAutoVoidArray array;
 
-    PL_DHashTableEnumerate(&mActiveEntries.table, RemoveActiveEntry, &array);
+    mActiveEntries.VisitEntries(RemoveActiveEntry, &array);
 
     PRUint32 count = array.Count();
     for (PRUint32 i=0; i < count; ++i)

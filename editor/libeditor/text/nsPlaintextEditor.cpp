@@ -79,6 +79,7 @@
 #include "nsAOLCiter.h"
 #include "nsInternetCiter.h"
 #include "nsEventDispatcher.h"
+#include "nsGkAtoms.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -417,7 +418,7 @@ NS_IMETHODIMP nsPlaintextEditor::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent)
 NS_IMETHODIMP nsPlaintextEditor::TypedText(const nsAString& aString,
                                       PRInt32 aAction)
 {
-  nsAutoPlaceHolderBatch batch(this, gTypingTxnName);
+  nsAutoPlaceHolderBatch batch(this, nsGkAtoms::TypingTxnName);
 
   switch (aAction)
   {
@@ -643,7 +644,7 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
   nsresult result;
 
   // delete placeholder txns merge.
-  nsAutoPlaceHolderBatch batch(this, gDeleteTxnName);
+  nsAutoPlaceHolderBatch batch(this, nsGkAtoms::DeleteTxnName);
   nsAutoRules beginRulesSniffing(this, kOpDeleteSelection, aAction);
 
   // pre-process
@@ -678,7 +679,6 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
   // This needs to happen inside selection batching,
   // otherwise the deleted text is autocopied to the clipboard.
   if (aAction == eNextWord || aAction == ePreviousWord
-      || (aAction == eNext && bCollapsed)
       || aAction == eToBeginningOfLine || aAction == eToEndOfLine)
   {
     nsCOMPtr<nsISelectionController> selCont (do_QueryReferent(mSelConWeak));
@@ -695,10 +695,6 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
           break;
         case ePreviousWord:
           result = selCont->WordExtendForDelete(PR_FALSE);
-          aAction = eNone;
-          break;
-        case eNext:
-          result = selCont->CharacterExtendForDelete();
           aAction = eNone;
           break;
         case eToBeginningOfLine:
@@ -1712,7 +1708,7 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
     // GetCaretCoordinates so the states in Frame system sync with content
     // therefore, we put the nsAutoPlaceHolderBatch into a inner block
     {
-      nsAutoPlaceHolderBatch batch(this, gIMETxnName);
+      nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
 
       SetIsIMEComposing(); // We set mIsIMEComposing properly.
 

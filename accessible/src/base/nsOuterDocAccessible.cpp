@@ -52,25 +52,6 @@ nsOuterDocAccessible::nsOuterDocAccessible(nsIDOMNode* aNode,
 {
 }
 
-  /* attribute wstring accName; */
-NS_IMETHODIMP nsOuterDocAccessible::GetName(nsAString& aName) 
-{
-  nsCOMPtr<nsIAccessible> accessible;
-  GetFirstChild(getter_AddRefs(accessible));
-  nsCOMPtr<nsIAccessibleDocument> accDoc(do_QueryInterface(accessible));
-  if (!accDoc) {
-    return NS_ERROR_FAILURE;
-  }
-  nsresult rv = accDoc->GetTitle(aName);
-  if (NS_FAILED(rv) || aName.IsEmpty()) {
-    rv = nsAccessible::GetName(aName);
-    if (aName.IsEmpty()) {
-      rv = accDoc->GetURL(aName);
-    }
-  }
-  return rv;
-}
-
 /* unsigned long getRole (); */
 NS_IMETHODIMP nsOuterDocAccessible::GetRole(PRUint32 *aRole)
 {
@@ -155,3 +136,15 @@ void nsOuterDocAccessible::CacheChildren()
   privateInnerAccessible->SetNextSibling(nsnull);
 }
 
+nsresult
+nsOuterDocAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
+{
+  nsAutoString tag;
+  aAttributes->GetStringProperty(NS_LITERAL_CSTRING("tag"), tag);
+  if (!tag.IsEmpty()) {
+    // We're overriding the ARIA attributes on an sub document, but we don't want to
+    // override the other attributes
+    return NS_OK;
+  }
+  return nsAccessible::GetAttributesInternal(aAttributes);
+}

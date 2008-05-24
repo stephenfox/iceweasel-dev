@@ -121,6 +121,7 @@
 #include "nsIElementObserver.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
+#include "mozAutoDocUpdate.h"
 
 #ifdef NS_DEBUG
 static PRLogModuleInfo* gSinkLogModuleInfo;
@@ -567,7 +568,8 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
 }
 
 nsresult
-NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo)
+NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
+                  PRBool aFromParser)
 {
   *aResult = nsnull;
 
@@ -589,7 +591,7 @@ NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo)
   
   *aResult = CreateHTMLElement(parserService->
                                  HTMLCaseSensitiveAtomTagToId(name),
-                               aNodeInfo, PR_FALSE).get();
+                               aNodeInfo, aFromParser).get();
   return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -1570,11 +1572,6 @@ HTMLContentSink::~HTMLContentSink()
   NS_IF_RELEASE(mBody);
   NS_IF_RELEASE(mRoot);
 
-  if (mDocument) {
-    // Remove ourselves just to be safe, though we really should have
-    // been removed in DidBuildModel if everything worked right.
-    mDocument->RemoveObserver(this);
-  }
   NS_IF_RELEASE(mHTMLDocument);
 
   if (mNotificationTimer) {
@@ -1615,22 +1612,16 @@ HTMLContentSink::~HTMLContentSink()
 }
 
 #if DEBUG
-NS_IMPL_ISUPPORTS_INHERITED6(HTMLContentSink,
+NS_IMPL_ISUPPORTS_INHERITED3(HTMLContentSink,
                              nsContentSink,
                              nsIContentSink,
                              nsIHTMLContentSink,
-                             nsITimerCallback,
-                             nsIDocumentObserver,
-                             nsIMutationObserver,
                              nsIDebugDumpContent)
 #else
-NS_IMPL_ISUPPORTS_INHERITED5(HTMLContentSink,
+NS_IMPL_ISUPPORTS_INHERITED2(HTMLContentSink,
                              nsContentSink,
                              nsIContentSink,
-                             nsIHTMLContentSink,
-                             nsITimerCallback,
-                             nsIDocumentObserver,
-                             nsIMutationObserver)
+                             nsIHTMLContentSink)
 #endif
 
 static PRBool
@@ -2945,7 +2936,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_None,
                                   getter_AddRefs(nodeInfo));
 
-    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo);
+    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(result, result);
 
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(element));

@@ -139,8 +139,6 @@ function runServer()
 
   server.registerPathHandler("/server/shutdown", serverShutdown);
 
-  server.registerPathHandler("/redirect", redirect);
-
   server.registerContentType("sjs", "sjs"); // .sjs == CGI-like functionality
 
   server.setIndexHandler(defaultDirHandler);
@@ -191,19 +189,13 @@ function runServer()
 function serverShutdown(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
-  response.setHeader("Content-type", "text/plain");
+  response.setHeader("Content-type", "text/plain", false);
 
   var body = "Server shut down.";
   response.bodyOutputStream.write(body, body.length);
 
   // Note: this doesn't disrupt the current request.
   server.stop();
-}
-
-function redirect(metadata, response)
-{
-  response.setStatusLine("1.1", 301, "Moved Permanently");
-  response.setHeader("Location", metadata.queryString);
 }
 
 //
@@ -216,9 +208,9 @@ function redirect(metadata, response)
  */
 function dirIter(dir)
 {
-  var enum = dir.directoryEntries;
-  while (enum.hasMoreElements()) {
-    var file = enum.getNext();
+  var en = dir.directoryEntries;
+  while (en.hasMoreElements()) {
+    var file = en.getNext();
     yield file.QueryInterface(Ci.nsILocalFile);
   }
 }
@@ -240,7 +232,7 @@ function list(requestPath, directory, recurse)
   
   // The SimpleTest directory is hidden
   var files = [file for (file in dirIter(dir))
-               if (file.path.indexOf("SimpleTest") == -1)];
+               if (file.exists() && file.path.indexOf("SimpleTest") == -1)];
   
   // Sort files by name, so that tests can be run in a pre-defined order inside
   // a given directory (see bug 384823)
@@ -442,7 +434,7 @@ function testListing(metadata, response)
           ),
           DIV({class: "clear"}),
           DIV({class: "frameholder"},
-            IFRAME({scrolling: "no", id: "testframe", width: "500"})
+            IFRAME({scrolling: "no", id: "testframe", width: "500", height: "300"})
           ),
           DIV({class: "clear"}),
           DIV({class: "toggle"},
@@ -475,7 +467,7 @@ function testListing(metadata, response)
 function defaultDirHandler(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
-  response.setHeader("Content-type", "text/html");
+  response.setHeader("Content-type", "text/html", false);
   try {
     if (metadata.path.indexOf("/tests") != 0) {
       regularListing(metadata, response);

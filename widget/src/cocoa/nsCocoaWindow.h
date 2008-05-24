@@ -50,16 +50,11 @@
 class nsCocoaWindow;
 class nsChildView;
 
-
-@interface NSApplication (Undocumented)
-
-// It's sometimes necessary to explicitly remove a window from the "window
-// cache" in order to deactivate it.  The "window cache" is an undocumented
-// subsystem, all of whose methods are included in the NSWindowCache category
-// of the NSApplication class (in header files generated using class-dump).
-- (void)_removeWindowFromCache:(NSWindow *)aWindow;
-
-@end
+typedef struct _nsCocoaWindowList {
+  _nsCocoaWindowList() : prev(NULL), window(NULL) {}
+  struct _nsCocoaWindowList *prev;
+  nsCocoaWindow *window; // Weak
+} nsCocoaWindowList;
 
 
 @interface NSWindow (Undocumented)
@@ -106,11 +101,19 @@ class nsChildView;
 @interface WindowDelegate : NSObject
 {
   nsCocoaWindow* mGeckoWindow; // [WEAK] (we are owned by the window)
+  // Used to avoid duplication when we send NS_ACTIVATE/NS_GOTFOCUS and
+  // NS_DEACTIVATE/NS_LOSTFOCUS to Gecko for toplevel widgets.  Starts out
+  // PR_FALSE.
+  PRBool mToplevelActiveState;
 }
++ (void)paintMenubarForWindow:(NSWindow*)aWindow;
 - (id)initWithGeckoWindow:(nsCocoaWindow*)geckoWind;
 - (void)windowDidResize:(NSNotification*)aNotification;
 - (void)sendFocusEvent:(PRUint32)eventType;
 - (nsCocoaWindow*)geckoWidget;
+- (PRBool)toplevelActiveState;
+- (void)sendToplevelActivateEvents;
+- (void)sendToplevelDeactivateEvents;
 @end
 
 
@@ -118,19 +121,22 @@ class nsChildView;
 // and for background of the window.
 @interface TitlebarAndBackgroundColor : NSColor
 {
-  NSColor *mTitlebarColor;
+  NSColor *mActiveTitlebarColor;
+  NSColor *mInactiveTitlebarColor;
   NSColor *mBackgroundColor;
   NSWindow *mWindow; // [WEAK] (we are owned by the window)
   float mTitlebarHeight;
 }
 
-- (id)initWithTitlebarColor:(NSColor*)aTitlebarColor 
-         andBackgroundColor:(NSColor*)aBackgroundColor
-                  forWindow:(NSWindow*)aWindow;
+- (id)initWithActiveTitlebarColor:(NSColor*)aActiveTitlebarColor
+            inactiveTitlebarColor:(NSColor*)aInactiveTitlebarColor
+                  backgroundColor:(NSColor*)aBackgroundColor
+                        forWindow:(NSWindow*)aWindow;
 
 // Pass nil here to get the default appearance.
-- (void)setTitlebarColor:(NSColor*)aColor;
-- (NSColor*)titlebarColor;
+- (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
+- (NSColor*)activeTitlebarColor;
+- (NSColor*)inactiveTitlebarColor;
 
 - (void)setBackgroundColor:(NSColor*)aColor;
 - (NSColor*)backgroundColor;
@@ -144,8 +150,9 @@ class nsChildView;
 {
   TitlebarAndBackgroundColor *mColor;
 }
-- (void)setTitlebarColor:(NSColor*)aColor;
-- (NSColor*)titlebarColor;
+- (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
+- (NSColor*)activeTitlebarColor;
+- (NSColor*)inactiveTitlebarColor;
 // This method is also available on NSWindows (via a category), and is the 
 // preferred way to check the background color of a window.
 - (NSColor*)windowBackgroundColor;
@@ -195,6 +202,7 @@ public:
                                     nsNativeWidget aNativeWindow = nsnull);
 
     NS_IMETHOD              Show(PRBool aState);
+    virtual nsIWidget*      GetSheetWindowParent(void);
     NS_IMETHOD              AddMouseListener(nsIMouseListener * aListener);
     NS_IMETHOD              AddEventListener(nsIEventListener * aListener);
     NS_IMETHOD              Enable(PRBool aState);
@@ -239,7 +247,7 @@ public:
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
     NS_IMETHOD GetHasTransparentBackground(PRBool& aTransparent);
     NS_IMETHOD SetHasTransparentBackground(PRBool aTransparent);
-    NS_IMETHOD SetWindowTitlebarColor(nscolor aColor);
+    NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
 
     virtual gfxASurface* GetThebesSurface();
 
@@ -250,7 +258,10 @@ public:
     PRBool IsResizing () const { return mIsResizing; }
     void StartResizing () { mIsResizing = PR_TRUE; }
     void StopResizing () { mIsResizing = PR_FALSE; }
-    
+
+    PRBool HasModalDescendents() { return mNumModalDescendents > 0; }
+    NSWindow *GetCocoaWindow() { return mWindow; }
+
     // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
     
@@ -273,6 +284,8 @@ protected:
   PRPackedBool         mSheetNeedsShow; // if this is a sheet, are we waiting to be shown?
                                         // this is used for sibling sheet contention only
   PRPackedBool         mModal;
+
+  PRInt32              mNumModalDescendents;
 };
 
 

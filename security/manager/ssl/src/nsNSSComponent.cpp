@@ -103,7 +103,7 @@
 #include "nsICRLManager.h"
 #include "nsNSSShutDown.h"
 #include "nsSmartCardEvent.h"
-#include "nsICryptoHash.h"
+#include "nsIKeyModule.h"
 
 #include "nss.h"
 #include "pk11func.h"
@@ -1684,6 +1684,7 @@ nsNSSComponent::ShutdownNSS()
     ShutdownSmartCardThreads();
     SSL_ClearSessionCache();
     UnloadLoadableRoots();
+    CleanupIdentityInfo();
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
     mShutdownObjectList->evaporateAllNSSResources();
     if (SECSuccess != ::NSS_Shutdown()) {
@@ -1693,8 +1694,6 @@ nsNSSComponent::ShutdownNSS()
     else {
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS shutdown =====>> OK <<=====\n"));
     }
-
-    CleanupIdentityInfo();
   }
 
   return rv;
@@ -1722,6 +1721,19 @@ nsNSSComponent::Init()
     PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to create pipnss bundle.\n"));
     return rv;
   }      
+
+  // Access our string bundles now, this prevents assertions from I/O
+  // - nsStandardURL not thread-safe
+  // - wrong thread: 'NS_IsMainThread()' in nsIOService.cpp
+  // when loading error strings on the SSL threads.
+  {
+    NS_NAMED_LITERAL_STRING(dummy_name, "dummy");
+    nsXPIDLString result;
+    mPIPNSSBundle->GetStringFromName(dummy_name.get(),
+                                     getter_Copies(result));
+    mNSSErrorsBundle->GetStringFromName(dummy_name.get(),
+                                        getter_Copies(result));
+  }
 
   if (!mPrefBranch) {
     mPrefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
@@ -2263,6 +2275,7 @@ nsNSSComponent::GetErrorClass(nsresult aXPCOMErrorCode, PRUint32 *aErrorClass)
     case SEC_ERROR_UNTRUSTED_ISSUER:
     case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
     case SEC_ERROR_UNTRUSTED_CERT:
+    case SEC_ERROR_INADEQUATE_KEY_USAGE:
     case SSL_ERROR_BAD_CERT_DOMAIN:
     case SEC_ERROR_EXPIRED_CERTIFICATE:
       *aErrorClass = ERROR_CLASS_BAD_CERT;
@@ -2557,8 +2570,8 @@ nsCryptoHMAC::~nsCryptoHMAC()
     PK11_DestroyContext(mHMACContext, PR_TRUE);
 }
 
-/* void init (in unsigned long aAlgorithm, in octet aKeyData, in long aKeyLength); */
-NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, const PRUint8 *aKeyData, PRUint32 aKeyLen)
+/* void init (in unsigned long aAlgorithm, in nsIKeyObject aKeyObject); */
+NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
 {
   if (mHMACContext)
   {
@@ -2585,25 +2598,26 @@ NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, const PRUint8 *aKeyData, P
     return NS_ERROR_INVALID_ARG;
   }
 
-  PK11SlotInfo *slot = PK11_GetBestSlot(HMACMechType, nsnull);
-  NS_ENSURE_TRUE(slot, NS_ERROR_FAILURE);
+  NS_ENSURE_ARG_POINTER(aKeyObject);
+
+  nsresult rv;
+
+  PRInt16 keyType;
+  rv = aKeyObject->GetType(&keyType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ENSURE_TRUE(keyType == nsIKeyObject::SYM_KEY, NS_ERROR_INVALID_ARG);
+
+  PK11SymKey* key;
+  // GetKeyObj doesn't addref the key
+  rv = aKeyObject->GetKeyObj((void**)&key);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   SECItem rawData;
-  rawData.data = const_cast<unsigned char*>(aKeyData);
-  rawData.len = aKeyLen;
-
-  PK11SymKey* key = PK11_ImportSymKey(
-      slot, HMACMechType, PK11_OriginUnwrap, CKA_SIGN, &rawData, nsnull);
-  PK11_FreeSlot(slot);
-
-  NS_ENSURE_TRUE(key, NS_ERROR_FAILURE);
-
   rawData.data = 0;
   rawData.len = 0;
   mHMACContext = PK11_CreateContextBySymKey(
       HMACMechType, CKA_SIGN, key, &rawData);
-  PK11_FreeSymKey(key);
-
   NS_ENSURE_TRUE(mHMACContext, NS_ERROR_FAILURE);
 
   SECStatus ss = PK11_DigestBegin(mHMACContext);

@@ -93,6 +93,8 @@ public:
   virtual void SetWriteOnly();
   NS_IMETHOD InvalidateFrame ();
   NS_IMETHOD InvalidateFrameSubrect (const nsRect& damageRect);
+  virtual PRInt32 CountContexts();
+  virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
@@ -330,7 +332,7 @@ nsHTMLCanvasElement::ToDataURL(nsAString& aDataURL)
 
   // 2-arg case; trusted only (checked above), convert to mime type with params
   if (argc == 2) {
-    if (!JSVAL_IS_STRING(argv[0]) && !JSVAL_IS_STRING(argv[1]))
+    if (!JSVAL_IS_STRING(argv[0]) || !JSVAL_IS_STRING(argv[1]))
       return NS_ERROR_DOM_SYNTAX_ERR;
 
     JSString *type, *params;
@@ -552,4 +554,22 @@ nsHTMLCanvasElement::InvalidateFrameSubrect(const nsRect& damageRect)
   }
 
   return NS_OK;
+}
+
+PRInt32
+nsHTMLCanvasElement::CountContexts()
+{
+  if (mCurrentContext)
+    return 1;
+
+  return 0;
+}
+
+nsICanvasRenderingContextInternal *
+nsHTMLCanvasElement::GetContextAtIndex (PRInt32 index)
+{
+  if (mCurrentContext && index == 0)
+    return mCurrentContext.get();
+
+  return NULL;
 }

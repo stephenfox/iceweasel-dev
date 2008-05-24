@@ -83,7 +83,7 @@ findbar {
 }
 
 .find-status-icon[status="notfound"] {
-  list-style-image: url("moz-icon://stock/gtk-stop?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-dialog-error?size=menu");
 }
 
 .findbar-textbox {
@@ -98,7 +98,7 @@ findbar {
   color: #FFFFFF;
 }
 
-findbar[flash="true"]  > .find-field-container > .findbar-textbox {
+findbar[flash="true"] > .findbar-container > .find-field-container > .findbar-textbox {
   background-color: yellow;
 }
 

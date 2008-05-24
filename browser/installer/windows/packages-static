@@ -60,6 +60,7 @@ bin\plugins\npnul32.dll
 bin\LICENSE
 bin\README.txt
 bin\sqlite3.dll
+bin\blocklist.xml
 
 ; [Components]
 bin\components\alerts.xpt
@@ -113,6 +114,7 @@ bin\components\downloads.xpt
 bin\components\editor.xpt
 bin\components\embed_base.xpt
 bin\components\exthandler.xpt
+bin\components\exthelper.xpt
 bin\components\fastfind.xpt
 bin\components\feeds.xpt
 bin\components\find.xpt
@@ -240,6 +242,7 @@ bin\components\nsContentPrefService.js
 bin\components\nsContentDispatchChooser.js
 bin\components\nsHandlerService.js
 bin\components\nsWebHandlerApp.js
+bin\components\aboutRobots.js
 
 ; Modules
 bin\modules\*

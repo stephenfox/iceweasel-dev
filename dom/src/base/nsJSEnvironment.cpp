@@ -503,7 +503,8 @@ NS_ScriptErrorReporter(JSContext *cx,
                 // URIs. See bug 387476.
                 sameOrigin =
                   NS_SUCCEEDED(sSecurityManager->
-                               CheckSameOriginURI(errorURI, codebase, PR_TRUE));
+                               CheckSameOriginURI(errorURI, codebase,
+                                                  PR_FALSE));
               }
             }
 
@@ -1529,11 +1530,11 @@ nsJSContext::EvaluateString(const nsAString& aScript,
                                               &val);
 
     if (!ok) {
-        // Tell XPConnect about any pending exceptions. This is needed
-        // to avoid dropping JS exceptions in case we got here through
-        // nested calls through XPConnect.
+      // Tell XPConnect about any pending exceptions. This is needed
+      // to avoid dropping JS exceptions in case we got here through
+      // nested calls through XPConnect.
 
-        nsContentUtils::NotifyXPCIfExceptionPending(mContext);
+      JS_ReportPendingException(mContext);
     }
   }
 
@@ -3316,7 +3317,7 @@ nsJSContext::SetGCOnDestruction(PRBool aGCOnDestruction)
 NS_IMETHODIMP
 nsJSContext::ScriptExecuted()
 {
-  ScriptEvaluated(PR_FALSE);
+  ScriptEvaluated(!::JS_IsRunning(mContext));
 
   return NS_OK;
 }
@@ -3398,7 +3399,7 @@ nsJSContext::MaybeCC(PRBool aHigherProbability)
     }
 #ifdef DEBUG_smaug
     else {
-      printf("Running cycle collector was delayed: NS_MIN_CC_INTERVAL\n");
+      printf("Running CC was delayed because of NS_MIN_CC_INTERVAL.\n");
     }
 #endif
   }
@@ -3549,6 +3550,14 @@ nsJSContext::DropScriptObject(void* aScriptObject)
   return NS_OK;
 }
 
+void
+nsJSContext::ReportPendingException()
+{
+  if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
+    ::JS_ReportPendingException(mContext);
+  }
+}
+
 /**********************************************************************
  * nsJSRuntime implementation
  *********************************************************************/
@@ -3650,6 +3659,14 @@ MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
   return 0;
 }
 
+static int PR_CALLBACK
+ReportAllJSExceptionsPrefChangedCallback(const char* aPrefName, void* aClosure)
+{
+  PRBool reportAll = nsContentUtils::GetBoolPref(aPrefName, PR_FALSE);
+  nsContentUtils::XPConnect()->SetReportAllJSExceptions(reportAll);
+  return 0;
+}
+
 JS_STATIC_DLL_CALLBACK(JSPrincipals *)
 ObjectPrincipalFinder(JSContext *cx, JSObject *obj)
 {
@@ -3722,6 +3739,12 @@ nsJSRuntime::Init()
                                        nsnull);
   MaxScriptRunTimePrefChangedCallback("dom.max_chrome_script_run_time",
                                       nsnull);
+
+  nsContentUtils::RegisterPrefCallback("dom.report_all_js_exceptions",
+                                       ReportAllJSExceptionsPrefChangedCallback,
+                                       nsnull);
+  ReportAllJSExceptionsPrefChangedCallback("dom.report_all_js_exceptions",
+                                           nsnull);
 
   nsCOMPtr<nsIObserverService> obs =
     do_GetService("@mozilla.org/observer-service;1", &rv);

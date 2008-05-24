@@ -43,6 +43,7 @@
 #define nsContentUtils_h___
 
 #include "jspubtd.h"
+#include "jsnum.h"
 #include "nsAString.h"
 #include "nsIStatefulFrame.h"
 #include "nsIPref.h"
@@ -56,6 +57,7 @@
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMEvent.h"
+#include "nsTArray.h"
 
 struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will force strange compilation error!
 
@@ -90,6 +92,7 @@ class nsIWordBreaker;
 class nsIJSRuntimeService;
 class nsIEventListenerManager;
 class nsIScriptContext;
+class nsIRunnable;
 template<class E> class nsCOMArray;
 class nsIPref;
 class nsVoidArray;
@@ -120,6 +123,15 @@ enum EventNameType {
 struct EventNameMapping {
   PRUint32  mId;
   PRInt32 mType;
+};
+
+struct nsShortcutCandidate {
+  nsShortcutCandidate(PRUint32 aCharCode, PRBool aIgnoreShift) :
+    mCharCode(aCharCode), mIgnoreShift(aIgnoreShift)
+  {
+  }
+  PRUint32 mCharCode;
+  PRBool   mIgnoreShift;
 };
 
 class nsContentUtils
@@ -534,6 +546,7 @@ public:
   static void UnregisterPrefCallback(const char *aPref,
                                      PrefChangedFunc aCallback,
                                      void * aClosure);
+  static void AddBoolPrefVarCache(const char* aPref, PRBool* aVariable);
   static nsIPrefBranch *GetPrefBranch()
   {
     return sPrefBranch;
@@ -901,10 +914,13 @@ public:
    *
    * @param aContextNode the node which is used to resolve namespaces
    * @param aFragment the string which is parsed to a DocumentFragment
+   * @param aWillOwnFragment is PR_TRUE if ownership of the fragment should be
+   *                         transferred to the caller.
    * @param aReturn [out] the created DocumentFragment
    */
   static nsresult CreateContextualFragment(nsIDOMNode* aContextNode,
                                            const nsAString& aFragment,
+                                           PRBool aWillOwnFragment,
                                            nsIDOMDocumentFragment** aReturn);
 
   /**
@@ -1154,10 +1170,35 @@ public:
                                          PRBool aGetCharCode);
 
   /**
+   * Get the candidates for accelkeys for aDOMEvent.
+   *
+   * @param aDOMEvent [in] the input event for accelkey handling.
+   * @param aCandidates [out] the candidate shortcut key combination list.
+   *                          the first item is most preferred.
+   */
+  static void GetAccelKeyCandidates(nsIDOMEvent* aDOMEvent,
+                                    nsTArray<nsShortcutCandidate>& aCandidates);
+
+  /**
+   * Get the candidates for accesskeys for aDOMEvent.
+   *
+   * @param aNativeKeyEvent [in] the input event for accesskey handling.
+   * @param aCandidates [out] the candidate access key list.
+   *                          the first item is most preferred.
+   */
+  static void GetAccessKeyCandidates(nsKeyEvent* aNativeKeyEvent,
+                                     nsTArray<PRUint32>& aCandidates);
+
+  /**
    * Hide any XUL popups associated with aDocument, including any documents
    * displayed in child frames.
    */
   static void HidePopupsInDocument(nsIDocument* aDocument);
+
+  /**
+   * Return true if aURI is a local file URI (i.e. file://).
+   */
+  static PRBool URIIsLocalFile(nsIURI *aURI);
 
   /**
    * Get the application manifest URI for this context.  The manifest URI
@@ -1173,6 +1214,68 @@ public:
    * Check whether an application should be allowed to use offline APIs.
    */
   static PRBool OfflineAppAllowed(nsIURI *aURI);
+
+  /**
+   * Increases the count of blockers preventing scripts from running.
+   * NOTE: You might want to use nsAutoScriptBlocker rather than calling
+   * this directly
+   */
+  static void AddScriptBlocker();
+
+  /**
+   * Decreases the count of blockers preventing scripts from running.
+   * NOTE: You might want to use nsAutoScriptBlocker rather than calling
+   * this directly
+   *
+   * WARNING! Calling this function could synchronously execute scripts.
+   */
+  static void RemoveScriptBlocker();
+
+  /**
+   * Add a runnable that is to be executed as soon as it's safe to execute
+   * scripts.
+   * NOTE: If it's currently safe to execute scripts, aRunnable will be run
+   *       synchronously before the function returns.
+   *
+   * @param aRunnable  The nsIRunnable to run as soon as it's safe to execute
+   *                   scripts. Passing null is allowed and results in nothing
+   *                   happening. It is also allowed to pass an object that
+   *                   has not yet been AddRefed.
+   */
+  static PRBool AddScriptRunner(nsIRunnable* aRunnable);
+
+  /**
+   * Returns true if it's safe to execute content script and false otherwise.
+   *
+   * The only known case where this lies is mutation events. They run, and can
+   * run anything else, when this function returns false, but this is ok.
+   */
+  static PRBool IsSafeToRunScript() {
+    return sScriptBlockerCount == 0;
+  }
+
+  /**
+   * Get/Set the current number of removable updates. Currently only
+   * UPDATE_CONTENT_MODEL updates are removable, and only when firing mutation
+   * events. These functions should only be called by mozAutoDocUpdateRemover.
+   * The count is also adjusted by the normal calls to BeginUpdate/EndUpdate.
+   */
+  static void AddRemovableScriptBlocker()
+  {
+    AddScriptBlocker();
+    ++sRemovableScriptBlockerCount;
+  }
+  static void RemoveRemovableScriptBlocker()
+  {
+    NS_ASSERTION(sRemovableScriptBlockerCount != 0,
+                "Number of removable blockers should never go below zero");
+    --sRemovableScriptBlockerCount;
+    RemoveScriptBlocker();
+  }
+  static PRUint32 GetRemovableScriptBlockerLevel()
+  {
+    return sRemovableScriptBlockerCount;
+  }
 
 private:
 
@@ -1246,6 +1349,10 @@ private:
 #endif
 
   static PRBool sInitialized;
+  static PRUint32 sScriptBlockerCount;
+  static PRUint32 sRemovableScriptBlockerCount;
+  static nsCOMArray<nsIRunnable>* sBlockedScriptRunners;
+  static PRUint32 sRunnersCountAtFirstBlocker;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
@@ -1264,6 +1371,7 @@ public:
 
   // Returns PR_FALSE if something erroneous happened.
   PRBool Push(nsISupports *aCurrentTarget);
+  PRBool Push(JSContext *cx);
   void Pop();
 
 private:
@@ -1314,6 +1422,42 @@ private:
   nsresult mResult;
 };
 
+class nsAutoScriptBlocker {
+public:
+  nsAutoScriptBlocker() {
+    nsContentUtils::AddScriptBlocker();
+  }
+  ~nsAutoScriptBlocker() {
+    nsContentUtils::RemoveScriptBlocker();
+  }
+};
+
+class mozAutoRemovableBlockerRemover
+{
+public:
+  mozAutoRemovableBlockerRemover()
+  {
+    mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
+    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+      nsContentUtils::RemoveRemovableScriptBlocker();
+    }
+
+    NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "killing mutation events");
+  }
+
+  ~mozAutoRemovableBlockerRemover()
+  {
+    NS_ASSERTION(nsContentUtils::GetRemovableScriptBlockerLevel() == 0,
+                 "Should have had none");
+    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+      nsContentUtils::AddRemovableScriptBlocker();
+    }
+  }
+
+private:
+  PRUint32 mNestingLevel;
+};
+
 #define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line
 #define NS_AUTO_GCROOT_PASTE(tok,line) \
   NS_AUTO_GCROOT_PASTE2(tok,line)
@@ -1332,5 +1476,58 @@ private:
       return NS_ERROR_OUT_OF_MEMORY;                                          \
     }                                                                         \
   } else
+
+/*
+ * Check whether a floating point number is finite (not +/-infinity and not a
+ * NaN value). We wrap JSDOUBLE_IS_FINITE in a function because it expects to
+ * take the address of its argument, and because the argument must be of type
+ * jsdouble to have the right size and layout of bits.
+ *
+ * Note: we could try to exploit the fact that |infinity - infinity == NaN|
+ * instead of using JSDOUBLE_IS_FINITE. This would produce more compact code
+ * and perform better by avoiding type conversions and bit twiddling.
+ * Unfortunately, some architectures don't guarantee that |f == f| evaluates
+ * to true (where f is any *finite* floating point number). See
+ * https://bugzilla.mozilla.org/show_bug.cgi?id=369418#c63 . To play it safe
+ * for gecko 1.9, we just reuse JSDOUBLE_IS_FINITE.
+ */
+inline NS_HIDDEN_(PRBool) NS_FloatIsFinite(jsdouble f) {
+  return JSDOUBLE_IS_FINITE(f);
+}
+
+/*
+ * In the following helper macros we exploit the fact that the result of a
+ * series of additions will not be finite if any one of the operands in the
+ * series is not finite.
+ */
+#define NS_ENSURE_FINITE(f, rv)                                               \
+  if (!NS_FloatIsFinite(f)) {                                                 \
+    return (rv);                                                              \
+  }
+
+#define NS_ENSURE_FINITE2(f1, f2, rv)                                         \
+  if (!NS_FloatIsFinite((f1)+(f2))) {                                         \
+    return (rv);                                                              \
+  }
+
+#define NS_ENSURE_FINITE3(f1, f2, f3, rv)                                     \
+  if (!NS_FloatIsFinite((f1)+(f2)+(f3))) {                                    \
+    return (rv);                                                              \
+  }
+
+#define NS_ENSURE_FINITE4(f1, f2, f3, f4, rv)                                 \
+  if (!NS_FloatIsFinite((f1)+(f2)+(f3)+(f4))) {                               \
+    return (rv);                                                              \
+  }
+
+#define NS_ENSURE_FINITE5(f1, f2, f3, f4, f5, rv)                             \
+  if (!NS_FloatIsFinite((f1)+(f2)+(f3)+(f4)+(f5))) {                          \
+    return (rv);                                                              \
+  }
+
+#define NS_ENSURE_FINITE6(f1, f2, f3, f4, f5, f6, rv)                         \
+  if (!NS_FloatIsFinite((f1)+(f2)+(f3)+(f4)+(f5)+(f6))) {                     \
+    return (rv);                                                              \
+  }
 
 #endif /* nsContentUtils_h___ */

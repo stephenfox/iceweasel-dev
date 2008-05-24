@@ -61,7 +61,9 @@ nsURLFormatterService.prototype = {
   _defaults: {
     get appInfo() {
       if (!this._appInfo)
-        this._appInfo = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo);
+        this._appInfo = Cc["@mozilla.org/xre/app-info;1"].
+                        getService(Ci.nsIXULAppInfo).
+                        QueryInterface(Ci.nsIXULRuntime);
       return this._appInfo;
     },
 
@@ -74,7 +76,9 @@ nsURLFormatterService.prototype = {
     APPBUILDID:       function() this.appInfo.appBuildID,
     PLATFORMVERSION:  function() this.appInfo.platformVersion,
     PLATFORMBUILDID:  function() this.appInfo.platformBuildID,
-    APP:              function() this.appInfo.name.toLowerCase().replace(/ /, "")
+    APP:              function() this.appInfo.name.toLowerCase().replace(/ /, ""),
+    OS:               function() this.appInfo.OS,
+    XPCOMABI:         function() this.appInfo.XPCOMABI
   },
 
   formatURL: function uf_formatURL(aFormat) {
@@ -83,7 +87,7 @@ nsURLFormatterService.prototype = {
       if (aKey in _this._defaults) // supported defaults
         return _this._defaults[aKey]();
       Cu.reportError("formatURL: Couldn't find value for key: " + aKey);
-      return '';
+      return aMatch;
     }
     return aFormat.replace(/%([A-Z]+)%/g, replacementCallback);
   },

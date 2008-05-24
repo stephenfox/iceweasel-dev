@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nss.h,v 1.51 2007/05/04 05:15:43 nelson%bolyard.com Exp $ */
+/* $Id: nss.h,v 1.56.2.1 2008/04/17 20:18:48 christophe.ravel.bugs%sun.com Exp $ */
 
 #ifndef __nss_h_
 #define __nss_h_
@@ -70,11 +70,11 @@ SEC_BEGIN_PROTOS
  * The format of the version string should be
  *     "<major version>.<minor version>[.<patch level>][ <ECC>][ <Beta>]"
  */
-#define NSS_VERSION  "3.12" _NSS_ECC_STRING " Beta" _NSS_CUSTOMIZED
+#define NSS_VERSION  "3.12.0.2" _NSS_ECC_STRING _NSS_CUSTOMIZED
 #define NSS_VMAJOR   3
 #define NSS_VMINOR   12
 #define NSS_VPATCH   0
-#define NSS_BETA     PR_TRUE
+#define NSS_BETA     PR_FALSE
 
 /*
  * Return a boolean that indicates whether the underlying library
@@ -196,6 +196,21 @@ extern SECStatus NSS_Initialize(const char *configdir,
 	const char *certPrefix, const char *keyPrefix, 
 	const char *secmodName, PRUint32 flags);
 
+/*
+ * same as NSS_Init, but checks to see if we need to merge an
+ * old database in.
+ *   updatedir is the directory where the old database lives.
+ *   updCertPrefix is the certPrefix for the old database.
+ *   updKeyPrefix is the keyPrefix for the old database.
+ *   updateID is a unique identifier chosen by the application for
+ *      the specific database.
+ *   updatName is the name the user will be prompted for when
+ *      asking to authenticate to the old database  */
+extern SECStatus NSS_InitWithMerge(const char *configdir, 
+	const char *certPrefix, const char *keyPrefix, const char *secmodName,
+	const char *updatedir,  const char *updCertPrefix, 
+	const char *updKeyPrefix, const char *updateID, 
+	const char *updateName, PRUint32 flags);
 /*
  * initialize NSS without a creating cert db's, key db's, or secmod db's.
  */

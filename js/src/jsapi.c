@@ -203,27 +203,27 @@ JS_ConvertArgumentsVA(JSContext *cx, uintN argc, jsval *argv,
             *va_arg(ap, JSBool *) = js_ValueToBoolean(*sp);
             break;
           case 'c':
-            if (!js_ValueToUint16(cx, *sp, va_arg(ap, uint16 *)))
+            if (!JS_ValueToUint16(cx, *sp, va_arg(ap, uint16 *)))
                 return JS_FALSE;
             break;
           case 'i':
-            if (!js_ValueToECMAInt32(cx, *sp, va_arg(ap, int32 *)))
+            if (!JS_ValueToECMAInt32(cx, *sp, va_arg(ap, int32 *)))
                 return JS_FALSE;
             break;
           case 'u':
-            if (!js_ValueToECMAUint32(cx, *sp, va_arg(ap, uint32 *)))
+            if (!JS_ValueToECMAUint32(cx, *sp, va_arg(ap, uint32 *)))
                 return JS_FALSE;
             break;
           case 'j':
-            if (!js_ValueToInt32(cx, *sp, va_arg(ap, int32 *)))
+            if (!JS_ValueToInt32(cx, *sp, va_arg(ap, int32 *)))
                 return JS_FALSE;
             break;
           case 'd':
-            if (!js_ValueToNumber(cx, *sp, va_arg(ap, jsdouble *)))
+            if (!JS_ValueToNumber(cx, *sp, va_arg(ap, jsdouble *)))
                 return JS_FALSE;
             break;
           case 'I':
-            if (!js_ValueToNumber(cx, *sp, &d))
+            if (!JS_ValueToNumber(cx, *sp, &d))
                 return JS_FALSE;
             *va_arg(ap, jsdouble *) = js_DoubleToInteger(d);
             break;
@@ -331,16 +331,21 @@ JS_PushArgumentsVA(JSContext *cx, void **markp, const char *format, va_list ap)
             break;
           case 'i':
           case 'j':
-            if (!js_NewNumberValue(cx, (jsdouble) va_arg(ap, int32), sp))
+            /*
+             * Use JS_New{Double,Number}Value here and in the next two cases,
+             * not js_New{Double,Number}InRootedValue, as sp may point to an
+             * unrooted location.
+             */
+            if (!JS_NewNumberValue(cx, (jsdouble) va_arg(ap, int32), sp))
                 goto bad;
             break;
           case 'u':
-            if (!js_NewNumberValue(cx, (jsdouble) va_arg(ap, uint32), sp))
+            if (!JS_NewNumberValue(cx, (jsdouble) va_arg(ap, uint32), sp))
                 goto bad;
             break;
           case 'd':
           case 'I':
-            if (!js_NewDoubleValue(cx, va_arg(ap, jsdouble), sp))
+            if (!JS_NewDoubleValue(cx, va_arg(ap, jsdouble), sp))
                 goto bad;
             break;
           case 's':
@@ -364,7 +369,7 @@ JS_PushArgumentsVA(JSContext *cx, void **markp, const char *format, va_list ap)
             break;
           case 'f':
             fun = va_arg(ap, JSFunction *);
-            *sp = fun ? OBJECT_TO_JSVAL(fun->object) : JSVAL_NULL;
+            *sp = fun ? OBJECT_TO_JSVAL(FUN_OBJECT(fun)) : JSVAL_NULL;
             break;
           case 'v':
             *sp = va_arg(ap, jsval);
@@ -487,9 +492,9 @@ JS_ConvertValue(JSContext *cx, jsval v, JSType type, jsval *vp)
             *vp = STRING_TO_JSVAL(str);
         break;
       case JSTYPE_NUMBER:
-        ok = js_ValueToNumber(cx, v, &d);
+        ok = JS_ValueToNumber(cx, v, &d);
         if (ok) {
-            dp = js_NewDouble(cx, d);
+            dp = js_NewWeaklyRootedDouble(cx, d);
             ok = (dp != NULL);
             if (ok)
                 *vp = DOUBLE_TO_JSVAL(dp);
@@ -541,36 +546,61 @@ JS_ValueToString(JSContext *cx, jsval v)
 JS_PUBLIC_API(JSBool)
 JS_ValueToNumber(JSContext *cx, jsval v, jsdouble *dp)
 {
+    JSTempValueRooter tvr;
+
     CHECK_REQUEST(cx);
-    return js_ValueToNumber(cx, v, dp);
+    JS_PUSH_SINGLE_TEMP_ROOT(cx, v, &tvr);
+    *dp = js_ValueToNumber(cx, &tvr.u.value);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return !JSVAL_IS_NULL(tvr.u.value);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_ValueToECMAInt32(JSContext *cx, jsval v, int32 *ip)
 {
+    JSTempValueRooter tvr;
+
     CHECK_REQUEST(cx);
-    return js_ValueToECMAInt32(cx, v, ip);
+    JS_PUSH_SINGLE_TEMP_ROOT(cx, v, &tvr);
+    *ip = js_ValueToECMAInt32(cx, &tvr.u.value);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return !JSVAL_IS_NULL(tvr.u.value);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_ValueToECMAUint32(JSContext *cx, jsval v, uint32 *ip)
 {
+    JSTempValueRooter tvr;
+
     CHECK_REQUEST(cx);
-    return js_ValueToECMAUint32(cx, v, ip);
+    JS_PUSH_SINGLE_TEMP_ROOT(cx, v, &tvr);
+    *ip = js_ValueToECMAUint32(cx, &tvr.u.value);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return !JSVAL_IS_NULL(tvr.u.value);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_ValueToInt32(JSContext *cx, jsval v, int32 *ip)
 {
+    JSTempValueRooter tvr;
+
     CHECK_REQUEST(cx);
-    return js_ValueToInt32(cx, v, ip);
+    JS_PUSH_SINGLE_TEMP_ROOT(cx, v, &tvr);
+    *ip = js_ValueToInt32(cx, &tvr.u.value);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return !JSVAL_IS_NULL(tvr.u.value);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_ValueToUint16(JSContext *cx, jsval v, uint16 *ip)
 {
+    JSTempValueRooter tvr;
+
     CHECK_REQUEST(cx);
-    return js_ValueToUint16(cx, v, ip);
+    JS_PUSH_SINGLE_TEMP_ROOT(cx, v, &tvr);
+    *ip = js_ValueToUint16(cx, &tvr.u.value);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return !JSVAL_IS_NULL(tvr.u.value);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -594,6 +624,12 @@ JS_TypeOfValue(JSContext *cx, jsval v)
         type = JSTYPE_OBJECT;           /* XXXbe JSTYPE_NULL for JS2 */
         obj = JSVAL_TO_OBJECT(v);
         if (obj) {
+            JSObject *wrapped;
+
+            wrapped = js_GetWrappedObject(cx, obj);
+            if (wrapped)
+                obj = wrapped;
+
             ops = obj->map->ops;
 #if JS_HAS_XML_SUPPORT
             if (ops == &js_XMLObjectOps.base) {
@@ -757,11 +793,15 @@ JS_DestroyRuntime(JSRuntime *rt)
     if (!JS_CLIST_IS_EMPTY(&rt->contextList)) {
         JSContext *cx, *iter = NULL;
         uintN cxcount = 0;
-        while ((cx = js_ContextIterator(rt, JS_TRUE, &iter)) != NULL)
+        while ((cx = js_ContextIterator(rt, JS_TRUE, &iter)) != NULL) {
+            fprintf(stderr,
+"JS API usage error: found live context at %p\n",
+                    cx);
             cxcount++;
+        }
         fprintf(stderr,
-"JS API usage error: %u contexts left in runtime upon JS_DestroyRuntime.\n",
-                cxcount);
+"JS API usage error: %u context%s left in runtime upon JS_DestroyRuntime.\n",
+                cxcount, (cxcount == 1) ? "" : "s");
     }
 #endif
 
@@ -1208,12 +1248,35 @@ js_InitFunctionAndObjectClasses(JSContext *cx, JSObject *obj)
     }
 
     /* Initialize the function class first so constructors can be made. */
-    fun_proto = js_InitFunctionClass(cx, obj);
-    if (!fun_proto)
+    if (!js_GetClassPrototype(cx, obj, INT_TO_JSID(JSProto_Function),
+                              &fun_proto)) {
+        fun_proto = NULL;
         goto out;
+    }
+    if (!fun_proto) {
+        fun_proto = js_InitFunctionClass(cx, obj);
+        if (!fun_proto)
+            goto out;
+    } else {
+        JSObject *ctor;
+
+        ctor = JS_GetConstructor(cx, fun_proto);
+        if (!ctor) {
+            fun_proto = NULL;
+            goto out;
+        }
+        OBJ_DEFINE_PROPERTY(cx, obj, ATOM_TO_JSID(CLASS_ATOM(cx, Function)),
+                            OBJECT_TO_JSVAL(ctor), 0, 0, 0, NULL);
+    }
 
     /* Initialize the object class next so Object.prototype works. */
-    obj_proto = js_InitObjectClass(cx, obj);
+    if (!js_GetClassPrototype(cx, obj, INT_TO_JSID(JSProto_Object),
+                              &obj_proto)) {
+        fun_proto = NULL;
+        goto out;
+    }
+    if (!obj_proto)
+        obj_proto = js_InitObjectClass(cx, obj);
     if (!obj_proto) {
         fun_proto = NULL;
         goto out;
@@ -1267,6 +1330,7 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj)
            js_InitNumberClass(cx, obj) &&
            js_InitRegExpClass(cx, obj) &&
            js_InitStringClass(cx, obj) &&
+           js_InitEval(cx, obj) &&
 #if JS_HAS_SCRIPT_OBJECT
            js_InitScriptClass(cx, obj) &&
 #endif
@@ -1355,7 +1419,7 @@ static JSStdName standard_class_atoms[] = {
  */
 static JSStdName standard_class_names[] = {
     /* ECMA requires that eval be a direct property of the global object. */
-    {js_InitObjectClass,        EAGER_ATOM(eval), NULL},
+    {js_InitEval,               EAGER_ATOM(eval), NULL},
 
     /* Global properties and functions defined by the Number class. */
     {js_InitNumberClass,        LAZY_ATOM(NaN), NULL},
@@ -1768,21 +1832,33 @@ JS_PUBLIC_API(jsdouble *)
 JS_NewDouble(JSContext *cx, jsdouble d)
 {
     CHECK_REQUEST(cx);
-    return js_NewDouble(cx, d);
+    return js_NewWeaklyRootedDouble(cx, d);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_NewDoubleValue(JSContext *cx, jsdouble d, jsval *rval)
 {
+    jsdouble *dp;
+
     CHECK_REQUEST(cx);
-    return js_NewDoubleValue(cx, d, rval);
+    dp = js_NewWeaklyRootedDouble(cx, d);
+    if (!dp)
+        return JS_FALSE;
+    *rval = DOUBLE_TO_JSVAL(dp);
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
 JS_NewNumberValue(JSContext *cx, jsdouble d, jsval *rval)
 {
+    jsint i;
+
     CHECK_REQUEST(cx);
-    return js_NewNumberValue(cx, d, rval);
+    if (JSDOUBLE_IS_INT(d, i) && INT_FITS_IN_JSVAL(i)) {
+        *rval = INT_TO_JSVAL(i);
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, d, rval);
 }
 
 #undef JS_AddRoot
@@ -1972,10 +2048,6 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
         name = "double";
         break;
 
-      case JSTRACE_FUNCTION:
-        name = "function";
-        break;
-
 #if JS_HAS_XML_SUPPORT
       case JSTRACE_NAMESPACE:
         name = "namespace";
@@ -2011,7 +2083,20 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
           {
             JSObject  *obj = (JSObject *)thing;
             JSClass *clasp = STOBJ_GET_CLASS(obj);
-            if (clasp->flags & JSCLASS_HAS_PRIVATE) {
+            if (clasp == &js_FunctionClass) {
+                JSFunction *fun = (JSFunction *)
+                                  JS_GetPrivate(trc->context, obj);
+
+                if (!fun) {
+                    JS_snprintf(buf, bufsize, "<newborn>");
+                } else if (FUN_OBJECT(fun) != obj) {
+                    JS_snprintf(buf, bufsize, "%p", fun);
+                } else {
+                    if (fun->atom && ATOM_IS_STRING(fun->atom))
+                        js_PutEscapedString(buf, bufsize,
+                                            ATOM_TO_STRING(fun->atom), 0);
+                }
+            } else if (clasp->flags & JSCLASS_HAS_PRIVATE) {
                 jsval     privateValue = STOBJ_GET_SLOT(obj, JSSLOT_PRIVATE);
                 void      *privateThing = JSVAL_IS_VOID(privateValue)
                                           ? NULL
@@ -2031,15 +2116,6 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc,
           case JSTRACE_DOUBLE:
             JS_snprintf(buf, bufsize, "%g", *(jsdouble *)thing);
             break;
-
-          case JSTRACE_FUNCTION:
-          {
-            JSFunction *fun = (JSFunction *)thing;
-
-            if (fun->atom && ATOM_IS_STRING(fun->atom))
-                js_PutEscapedString(buf, bufsize, ATOM_TO_STRING(fun->atom), 0);
-            break;
-          }
 
 #if JS_HAS_XML_SUPPORT
           case JSTRACE_NAMESPACE:
@@ -2656,7 +2732,7 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
     }
 
     /* Create a prototype object for this class. */
-    proto = js_NewObject(cx, clasp, parent_proto, obj);
+    proto = js_NewObject(cx, clasp, parent_proto, obj, 0);
     if (!proto)
         return NULL;
 
@@ -2678,9 +2754,7 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
             named = OBJ_DEFINE_PROPERTY(cx, obj, ATOM_TO_JSID(atom),
                                         OBJECT_TO_JSVAL(proto),
                                         NULL, NULL,
-                                        (clasp->flags &
-                                         (JSCLASS_IS_ANONYMOUS |
-                                          JSCLASS_FIXED_BINDING))
+                                        (clasp->flags & JSCLASS_IS_ANONYMOUS)
                                         ? JSPROP_READONLY | JSPROP_PERMANENT
                                         : 0,
                                         NULL);
@@ -2691,10 +2765,7 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
         ctor = proto;
     } else {
         /* Define the constructor function in obj's scope. */
-        fun = js_DefineFunction(cx, obj, atom, constructor, nargs,
-                                (clasp->flags & JSCLASS_FIXED_BINDING)
-                                ? JSPROP_READONLY | JSPROP_PERMANENT
-                                : 0);
+        fun = js_DefineFunction(cx, obj, atom, constructor, nargs, 0);
         named = (fun != NULL);
         if (!fun)
             goto bad;
@@ -2712,7 +2783,7 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
          * different object, as is done for operator new -- and as at least
          * XML support requires.
          */
-        ctor = fun->object;
+        ctor = FUN_OBJECT(fun);
         if (clasp->flags & JSCLASS_CONSTRUCT_PROTOTYPE) {
             cval = OBJECT_TO_JSVAL(ctor);
             if (!js_InternalConstruct(cx, proto, cval, 0, NULL, &rval))
@@ -2729,7 +2800,6 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
 
         /* Bootstrap Function.prototype (see also JS_InitStandardClasses). */
         if (OBJ_GET_CLASS(cx, ctor) == clasp) {
-            JS_ASSERT(!OBJ_GET_PROTO(cx, ctor));
             OBJ_SET_PROTO(cx, ctor, proto);
         }
     }
@@ -2844,6 +2914,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetPrototype(JSContext *cx, JSObject *obj, JSObject *proto)
 {
     CHECK_REQUEST(cx);
+    JS_ASSERT(obj != proto);
 #ifdef DEBUG
     /*
      * FIXME: bug 408416. The cycle-detection required for script-writeable
@@ -2887,6 +2958,7 @@ JS_PUBLIC_API(JSBool)
 JS_SetParent(JSContext *cx, JSObject *obj, JSObject *parent)
 {
     CHECK_REQUEST(cx);
+    JS_ASSERT(obj != parent);
 #ifdef DEBUG
     /* FIXME: bug 408416, see JS_SetPrototype just above. */
     if (obj->map->ops->setParent)
@@ -2929,7 +3001,7 @@ JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent)
     CHECK_REQUEST(cx);
     if (!clasp)
         clasp = &js_ObjectClass;    /* default class is Object */
-    return js_NewObject(cx, clasp, proto, parent);
+    return js_NewObject(cx, clasp, proto, parent, 0);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2939,7 +3011,7 @@ JS_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
     CHECK_REQUEST(cx);
     if (!clasp)
         clasp = &js_ObjectClass;    /* default class is Object */
-    return js_NewObjectWithGivenProto(cx, clasp, proto, parent);
+    return js_NewObjectWithGivenProto(cx, clasp, proto, parent, 0);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -2995,7 +3067,7 @@ JS_SealObject(JSContext *cx, JSObject *obj, JSBool deep)
         return JS_TRUE;
 
     /* Walk slots in obj and if any value is a non-null object, seal it. */
-    nslots = LOCKED_OBJ_NSLOTS(obj);
+    nslots = scope->map.freeslot;
     for (i = 0; i != nslots; ++i) {
         v = STOBJ_GET_SLOT(obj, i);
         if (JSVAL_IS_PRIMITIVE(v))
@@ -3083,7 +3155,7 @@ JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, JSClass *clasp,
     CHECK_REQUEST(cx);
     if (!clasp)
         clasp = &js_ObjectClass;    /* default class is Object */
-    nobj = js_NewObject(cx, clasp, proto, obj);
+    nobj = js_NewObject(cx, clasp, proto, obj, 0);
     if (!nobj)
         return NULL;
     if (!DefineProperty(cx, obj, name, OBJECT_TO_JSVAL(nobj), NULL, NULL, attrs,
@@ -3103,7 +3175,7 @@ JS_DefineConstDoubles(JSContext *cx, JSObject *obj, JSConstDoubleSpec *cds)
 
     CHECK_REQUEST(cx);
     for (ok = JS_TRUE; cds->name; cds++) {
-        ok = js_NewNumberValue(cx, cds->dval, &value);
+        ok = js_NewNumberInRootedValue(cx, cds->dval, &value);
         if (!ok)
             break;
         flags = cds->flags;
@@ -3962,7 +4034,7 @@ JS_NewPropertyIterator(JSContext *cx, JSObject *obj)
     JSIdArray *ida;
 
     CHECK_REQUEST(cx);
-    iterobj = js_NewObject(cx, &prop_iter_class, NULL, obj);
+    iterobj = js_NewObject(cx, &prop_iter_class, NULL, obj, 0);
     if (!iterobj)
         return NULL;
 
@@ -4181,13 +4253,13 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
         /* Indicate we cannot clone this object. */
         return funobj;
     }
-    return js_CloneFunctionObject(cx, funobj, parent);
+    return js_CloneFunctionObject(cx, GET_FUNCTION_PRIVATE(cx, funobj), parent);
 }
 
 JS_PUBLIC_API(JSObject *)
 JS_GetFunctionObject(JSFunction *fun)
 {
-    return fun->object;
+    return FUN_OBJECT(fun);
 }
 
 JS_PUBLIC_API(const char *)
@@ -4382,7 +4454,7 @@ JS_DefineFunctions(JSContext *cx, JSObject *obj, JSFunctionSpec *fs)
              * As jsapi.h notes, fs must point to storage that lives as long
              * as fun->object lives.
              */
-            if (!JS_SetReservedSlot(cx, fun->object, 0, PRIVATE_TO_JSVAL(fs)))
+            if (!JS_SetReservedSlot(cx, FUN_OBJECT(fun), 0, PRIVATE_TO_JSVAL(fs)))
                 return JS_FALSE;
         }
 
@@ -4598,10 +4670,10 @@ JS_NewScriptObject(JSContext *cx, JSScript *script)
     JSObject *obj;
 
     if (!script)
-        return js_NewObject(cx, &js_ScriptClass, NULL, NULL);
+        return js_NewObject(cx, &js_ScriptClass, NULL, NULL, 0);
 
     JS_PUSH_TEMP_ROOT_SCRIPT(cx, script, &tvr);
-    obj = js_NewObject(cx, &js_ScriptClass, NULL, NULL);
+    obj = js_NewObject(cx, &js_ScriptClass, NULL, NULL, 0);
     if (obj) {
         JS_SetPrivate(cx, obj, script);
         script->object = obj;
@@ -4706,7 +4778,7 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
         goto out2;
 
     /* From this point the control must flow through the label out. */
-    JS_PUSH_TEMP_ROOT_FUNCTION(cx, fun, &tvr);
+    JS_PUSH_TEMP_ROOT_OBJECT(cx, FUN_OBJECT(fun), &tvr);
     for (i = 0; i < nargs; i++) {
         argAtom = js_Atomize(cx, argnames[i], strlen(argnames[i]), 0);
         if (!argAtom) {
@@ -4728,7 +4800,7 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
     if (obj &&
         funAtom &&
         !OBJ_DEFINE_PROPERTY(cx, obj, ATOM_TO_JSID(funAtom),
-                             OBJECT_TO_JSVAL(fun->object),
+                             OBJECT_TO_JSVAL(FUN_OBJECT(fun)),
                              NULL, NULL, JSPROP_ENUMERATE, NULL)) {
         fun = NULL;
     }
@@ -4745,7 +4817,7 @@ JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
 #endif
 
   out:
-    cx->weakRoots.newborn[JSTRACE_FUNCTION] = fun;
+    cx->weakRoots.newborn[JSTRACE_OBJECT] = FUN_OBJECT(fun);
     JS_POP_TEMP_ROOT(cx, &tvr);
 
   out2:
@@ -4937,7 +5009,7 @@ JS_CallFunction(JSContext *cx, JSObject *obj, JSFunction *fun, uintN argc,
     JSBool ok;
 
     CHECK_REQUEST(cx);
-    ok = js_InternalCall(cx, obj, OBJECT_TO_JSVAL(fun->object), argc, argv,
+    ok = js_InternalCall(cx, obj, OBJECT_TO_JSVAL(FUN_OBJECT(fun)), argc, argv,
                          rval);
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
@@ -5076,13 +5148,12 @@ JS_FRIEND_API(JSBool)
 JS_IsAssigning(JSContext *cx)
 {
     JSStackFrame *fp;
-    jsbytecode *pc;
 
     for (fp = cx->fp; fp && !fp->script; fp = fp->down)
         continue;
-    if (!fp || !(pc = fp->pc))
+    if (!fp || !fp->regs)
         return JS_FALSE;
-    return (js_CodeSpec[*pc].format & JOF_ASSIGNING) != 0;
+    return (js_CodeSpec[*fp->regs->pc].format & JOF_ASSIGNING) != 0;
 }
 
 JS_PUBLIC_API(void)
@@ -5480,6 +5551,12 @@ JS_PUBLIC_API(void)
 JS_ReportOutOfMemory(JSContext *cx)
 {
     js_ReportOutOfMemory(cx);
+}
+
+JS_PUBLIC_API(void)
+JS_ReportAllocationOverflow(JSContext *cx)
+{
+    js_ReportAllocationOverflow(cx);
 }
 
 JS_PUBLIC_API(JSErrorReporter)

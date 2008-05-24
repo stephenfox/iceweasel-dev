@@ -115,13 +115,7 @@ FindPrincipals(JSContext *cx, JSObject *obj, nsIPrincipal **objectPrincipal,
   nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
 
   if (subjectPrincipal) {
-    nsCOMPtr<nsIPrincipal> tmp = ssm->GetCxSubjectPrincipal(cx);
-
-    if (!tmp) {
-      return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
-    }
-
-    tmp.swap(*subjectPrincipal);
+    NS_IF_ADDREF(*subjectPrincipal = ssm->GetCxSubjectPrincipal(cx));
   }
 
   ssm->GetObjectPrincipal(cx, obj, objectPrincipal);
@@ -143,6 +137,11 @@ CanCallerAccess(JSContext *cx, JSObject *unsafeObj)
                                getter_AddRefs(ssm));
   if (NS_FAILED(rv)) {
     return ThrowException(rv, cx);
+  }
+
+  // Assume that we're trusted if there's no running code.
+  if (!subjPrincipal) {
+    return PR_TRUE;
   }
 
   PRBool subsumes;
@@ -305,7 +304,7 @@ WrapJSValue(JSContext *cx, JSObject *obj, jsval val, jsval *rval)
 
       // If the subject can access both the source and object principals, then
       // don't bother forcing the principal below.
-      if (!subsumes) {
+      if (!subsumes && subjPrincipal) {
         PRBool subjSubsumes = PR_FALSE;
         rv = subjPrincipal->Subsumes(srcObjPrincipal, &subjSubsumes);
         if (NS_SUCCEEDED(rv) && subjSubsumes) {
@@ -496,7 +495,7 @@ XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_FALSE;
   }
 
-  return XPCWrapper::AddProperty(cx, unsafeObj, id, vp);
+  return XPCWrapper::AddProperty(cx, obj, unsafeObj, id, vp);
 }
 
 JS_STATIC_DLL_CALLBACK(JSBool)
@@ -617,6 +616,12 @@ XPC_SJOW_Enumerate(JSContext *cx, JSObject *obj)
   JSObject *unsafeObj = GetUnsafeObject(obj);
   if (!unsafeObj) {
     return JS_TRUE;
+  }
+
+  // Check that the caller can access the unsafe object.
+  if (!CanCallerAccess(cx, unsafeObj)) {
+    // CanCallerAccess() already threw for us.
+    return JS_FALSE;
   }
 
   // Since we enumerate using JS_Enumerate() on the unsafe object here
@@ -974,15 +979,26 @@ XPC_SJOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 JS_STATIC_DLL_CALLBACK(JSObject *)
 XPC_SJOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
 {
-  JSObject *innerObj = GetUnsafeObject(obj);
-  if (!innerObj) {
+  obj = FindSafeObject(obj);
+  NS_ASSERTION(obj != nsnull, "FindSafeObject() returned null in class hook!");
+
+  JSObject *unsafeObj = GetUnsafeObject(obj);
+  if (!unsafeObj) {
     ThrowException(NS_ERROR_INVALID_ARG, cx);
+
+    return nsnull;
+  }
+
+  // Check that the caller can access the unsafe object.
+  if (!CanCallerAccess(cx, unsafeObj)) {
+    // CanCallerAccess() already threw for us.
     return nsnull;
   }
 
   // Create our dummy SJOW.
   JSObject *wrapperIter =
-    ::JS_NewObjectWithGivenProto(cx, &sXPC_SJOW_JSClass.base, nsnull, innerObj);
+    ::JS_NewObjectWithGivenProto(cx, &sXPC_SJOW_JSClass.base, nsnull,
+                                 unsafeObj);
   if (!wrapperIter) {
     return nsnull;
   }
@@ -995,7 +1011,7 @@ XPC_SJOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
   JSAutoTempValueRooter tvr(cx, OBJECT_TO_JSVAL(wrapperIter));
 
   // Initialize the wrapper.
-  return XPCWrapper::CreateIteratorObj(cx, wrapperIter, obj, innerObj,
+  return XPCWrapper::CreateIteratorObj(cx, wrapperIter, obj, unsafeObj,
                                        keysonly);
 }
 

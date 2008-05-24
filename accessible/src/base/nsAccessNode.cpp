@@ -446,7 +446,8 @@ nsAccessNode::GetInnerHTML(nsAString& aInnerHTML)
 NS_IMETHODIMP
 nsAccessNode::ScrollTo(PRUint32 aScrollType)
 {
-  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIPresShell> shell(GetPresShell());
   NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
@@ -793,8 +794,11 @@ nsAccessNode::GetCacheEntry(nsAccessNodeHashtable& aCache,
 
 PLDHashOperator nsAccessNode::ClearCacheEntry(const void* aKey, nsCOMPtr<nsIAccessNode>& aAccessNode, void* aUserArg)
 {
-  nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(aAccessNode));
-  privateAccessNode->Shutdown();
+  NS_ASSERTION(aAccessNode, "Calling ClearCacheEntry with a NULL pointer!");
+  if (aAccessNode) {
+    nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(aAccessNode));
+    privateAccessNode->Shutdown();
+  }
 
   return PL_DHASH_REMOVE;
 }

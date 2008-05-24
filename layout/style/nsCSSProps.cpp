@@ -247,6 +247,7 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_scalethumbstart,        NS_THEME_SCALE_THUMB_START,
   eCSSKeyword_scalethumbend,          NS_THEME_SCALE_THUMB_END,
   eCSSKeyword_scalethumbtick,         NS_THEME_SCALE_TICK,
+  eCSSKeyword_groupbox,               NS_THEME_GROUPBOX,
   eCSSKeyword_checkboxcontainer,      NS_THEME_CHECKBOX_CONTAINER,
   eCSSKeyword_radiocontainer,         NS_THEME_RADIO_CONTAINER,
   eCSSKeyword_checkboxlabel,          NS_THEME_CHECKBOX_LABEL,
@@ -265,9 +266,9 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_menuarrow,              NS_THEME_MENUARROW,
   eCSSKeyword_menuimage,              NS_THEME_MENUIMAGE,
   eCSSKeyword_menuitemtext,           NS_THEME_MENUITEMTEXT,
-  eCSSKeyword_media_toolbox,          NS_THEME_MEDIA_TOOLBOX,
-  eCSSKeyword_communications_toolbox, NS_THEME_COMMUNICATIONS_TOOLBOX,
-  eCSSKeyword_browsertabbar_toolbox,  NS_THEME_BROWSER_TAB_BAR_TOOLBOX,
+  eCSSKeyword__moz_win_media_toolbox, NS_THEME_WIN_MEDIA_TOOLBOX,
+  eCSSKeyword__moz_win_communications_toolbox, NS_THEME_WIN_COMMUNICATIONS_TOOLBOX,
+  eCSSKeyword__moz_win_browsertabbar_toolbox,  NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -436,6 +437,7 @@ const PRInt32 nsCSSProps::kColorKTable[] = {
   eCSSKeyword__moz_buttonhovertext, nsILookAndFeel::eColor__moz_buttonhovertext,
   eCSSKeyword__moz_cellhighlight, nsILookAndFeel::eColor__moz_cellhighlight,
   eCSSKeyword__moz_cellhighlighttext, nsILookAndFeel::eColor__moz_cellhighlighttext,
+  eCSSKeyword__moz_eventreerow, nsILookAndFeel::eColor__moz_eventreerow,
   eCSSKeyword__moz_field, nsILookAndFeel::eColor__moz_field,
   eCSSKeyword__moz_fieldtext, nsILookAndFeel::eColor__moz_fieldtext,
   eCSSKeyword__moz_dialog, nsILookAndFeel::eColor__moz_dialog,
@@ -461,8 +463,11 @@ const PRInt32 nsCSSProps::kColorKTable[] = {
   eCSSKeyword__moz_menuhover, nsILookAndFeel::eColor__moz_menuhover,
   eCSSKeyword__moz_menuhovertext, nsILookAndFeel::eColor__moz_menuhovertext,
   eCSSKeyword__moz_menubarhovertext, nsILookAndFeel::eColor__moz_menubarhovertext,
+  eCSSKeyword__moz_oddtreerow, nsILookAndFeel::eColor__moz_oddtreerow,
   eCSSKeyword__moz_visitedhyperlinktext, NS_COLOR_MOZ_VISITEDHYPERLINKTEXT,
   eCSSKeyword_currentcolor, NS_COLOR_CURRENTCOLOR,
+  eCSSKeyword__moz_win_mediatext, nsILookAndFeel::eColor__moz_win_mediatext,
+  eCSSKeyword__moz_win_communicationstext, nsILookAndFeel::eColor__moz_win_communicationstext,
   eCSSKeyword_UNKNOWN,-1
 };
 

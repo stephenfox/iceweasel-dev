@@ -38,6 +38,7 @@
 #include "nsReadableUtils.h"
 #include "nsSimplePageSequence.h"
 #include "nsPresContext.h"
+#include "gfxContext.h"
 #include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsIDeviceContext.h"
@@ -198,12 +199,16 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   // now get out margins & edges
   if (mPageData->mPrintSettings) {
+    nsMargin unwriteableTwips;
+    mPageData->mPrintSettings->GetUnwriteableMarginInTwips(unwriteableTwips);
+    NS_ASSERTION(unwriteableTwips.left  >= 0 && unwriteableTwips.top >= 0 &&
+                 unwriteableTwips.right >= 0 && unwriteableTwips.bottom >= 0,
+                 "Unwriteable twips should be non-negative");
+
     nsMargin marginTwips;
     mPageData->mPrintSettings->GetMarginInTwips(marginTwips);
-    mMargin = nsMargin(aPresContext->TwipsToAppUnits(marginTwips.left),
-                       aPresContext->TwipsToAppUnits(marginTwips.top),
-                       aPresContext->TwipsToAppUnits(marginTwips.right),
-                       aPresContext->TwipsToAppUnits(marginTwips.bottom));
+    mMargin = aPresContext->TwipsToAppUnits(marginTwips + unwriteableTwips);
+
     PRInt16 printType;
     mPageData->mPrintSettings->GetPrintRange(&printType);
     mPrintRangeType = printType;
@@ -219,10 +224,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     edgeTwips.right = PR_MIN(PR_MAX(edgeTwips.right, 0), inchInTwips);
 
     mPageData->mEdgePaperMargin =
-      nsMargin(aPresContext->TwipsToAppUnits(edgeTwips.left),
-               aPresContext->TwipsToAppUnits(edgeTwips.top),
-               aPresContext->TwipsToAppUnits(edgeTwips.right),
-               aPresContext->TwipsToAppUnits(edgeTwips.bottom));
+      aPresContext->TwipsToAppUnits(edgeTwips + unwriteableTwips);
   }
 
   // *** Special Override ***
@@ -233,6 +235,12 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   nsSize pageSize = aPresContext->GetPageSize();
 
   mPageData->mReflowSize = pageSize;
+  // If we're printing a selection, we need to reflow with
+  // unconstrained height, to make sure we'll get to the selection
+  // even if it's beyond the first page of content.
+  if (nsIPrintSettings::kRangeSelection == mPrintRangeType) {
+    mPageData->mReflowSize.height = NS_UNCONSTRAINEDSIZE;
+  }
   mPageData->mReflowMargin = mMargin;
 
   // Compute the size of each page and the x coordinate that each page will
@@ -596,6 +604,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     nsIFrame* conFrame = mCurrentPageFrame->GetFirstChild(nsnull);
     if (mSelectionHeight >= 0) {
       conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -mYSelOffset));
+      nsContainerFrame::PositionChildViews(conFrame);
     }
 
     // cast the frame to be a page frame
@@ -618,6 +627,20 @@ nsSimplePageSequenceFrame::PrintNextPage()
       PresContext()->PresShell()->
               CreateRenderingContext(mCurrentPageFrame,
                                      getter_AddRefs(renderingContext));
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+      // On linux, need to rotate landscape-mode output on printed surfaces
+      PRInt32 orientation;
+      mPageData->mPrintSettings->GetOrientation(&orientation);
+      if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+        // Shift up by one landscape-page-height (in points) before we rotate.
+        float offset = POINTS_PER_INCH_FLOAT *
+           (mCurrentPageFrame->GetSize().height / float(dc->AppUnitsPerInch()));
+        renderingContext->ThebesContext()->Translate(gfxPoint(offset, 0));
+        renderingContext->ThebesContext()->Rotate(M_PI/2);
+      }
+#endif // XP_UNIX && !XP_MACOSX
+
       nsRect drawingRect(nsPoint(0, 0),
                          mCurrentPageFrame->GetSize());
       nsRegion drawingRegion(drawingRect);

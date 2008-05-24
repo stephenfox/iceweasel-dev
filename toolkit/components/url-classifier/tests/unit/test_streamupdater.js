@@ -8,11 +8,12 @@ function MAC(content, clientKey)
   var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                   createInstance(Ci.nsIScriptableUnicodeConverter);
   converter.charset = "UTF-8";
-  var result = {};
-  var data = converter.convertToByteArray(clientKey, result);
-  hmac.init(Ci.nsICryptoHMAC.SHA1, data, data.length);
 
-  result = {};
+  var keyObject = Cc["@mozilla.org/security/keyobjectfactory;1"]
+    .getService(Ci.nsIKeyObjectFactory).keyFromString(Ci.nsIKeyObject.HMAC, clientKey);
+  hmac.init(Ci.nsICryptoHMAC.SHA1, keyObject);
+
+  var result = {};
   data = converter.convertToByteArray(content, result);
   hmac.update(data, data.length);
   return hmac.finish(true);
@@ -99,12 +100,14 @@ function testInvalidUrlForward() {
        "urls" : add1Urls }]);
   update += "u:asdf://blah/blah\n";  // invalid URL scheme
 
+  // The first part of the update should have succeeded.
+
   var assertions = {
-    "tableData" : "",
-    "urlsDontExist" : add1Urls
+    "tableData" : "test-phish-simple;a:1",
+    "urlsExist" : add1Urls
   };
 
-  doTest([update], assertions, true);
+  doTest([update], assertions, false);
 }
 
 // A failed network request causes the update to fail.
@@ -116,12 +119,14 @@ function testErrorUrlForward() {
        "urls" : add1Urls }]);
   update += "u:http://test.invalid/asdf/asdf\n";  // invalid URL scheme
 
+  // The first part of the update should have succeeded
+
   var assertions = {
-    "tableData" : "",
-    "urlsDontExist" : add1Urls
+    "tableData" : "test-phish-simple;a:1",
+    "urlsExist" : add1Urls
   };
 
-  doTest([update], assertions, true);
+  doTest([update], assertions, false);
 }
 
 function testMultipleTables() {

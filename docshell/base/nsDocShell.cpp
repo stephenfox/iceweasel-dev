@@ -120,6 +120,7 @@
 #include "nsCDefaultURIFixup.h"
 #include "nsDocShellEnumerator.h"
 #include "nsSHistory.h"
+#include "nsDocShellEditorData.h"
 
 // Helper Classes
 #include "nsDOMError.h"
@@ -133,6 +134,7 @@
 #include "nsITimer.h"
 #include "nsISHistoryInternal.h"
 #include "nsIPrincipal.h"
+#include "nsIFileURL.h"
 #include "nsIHistoryEntry.h"
 #include "nsISHistoryListener.h"
 #include "nsIWindowWatcher.h"
@@ -201,6 +203,7 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #endif
 
 #include "nsContentErrors.h"
+#include "nsIFocusEventSuppressor.h"
 
 // Number of documents currently loading
 static PRInt32 gNumberOfDocumentsLoading = 0;
@@ -304,7 +307,6 @@ nsDocShell::nsDocShell():
     mDefaultScrollbarPref(Scrollbar_Auto, Scrollbar_Auto),
     mPreviousTransIndex(-1),
     mLoadedTransIndex(-1),
-    mEditorData(nsnull),
     mTreeOwner(nsnull),
     mChromeEventHandler(nsnull)
 #ifdef DEBUG
@@ -1009,12 +1011,9 @@ nsDocShell::FirePageHideNotification(PRBool aIsUnload)
                 kids[i]->FirePageHideNotification(aIsUnload);
             }
         }
-    }
-
-    // Now make sure our editor, if any, is torn down before we go
-    // any farther.
-    if (mEditorData && aIsUnload) {
-        mEditorData->TearDownEditor();
+        // Now make sure our editor, if any, is detached before we go
+        // any farther.
+        DetachEditorFromWindow();
     }
 
     return NS_OK;
@@ -1025,6 +1024,9 @@ nsDocShell::FirePageHideNotification(PRBool aIsUnload)
 //
 // This routine answers: 'Is origin's document from same domain as
 // target's document?'
+//
+// file: uris are considered the same domain for the purpose of
+// frame navigation regardless of script accessibility (bug 420425)
 //
 /* static */
 PRBool
@@ -1066,10 +1068,32 @@ nsDocShell::ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
     NS_ENSURE_TRUE(targetDocument, PR_FALSE);
 
     PRBool equal;
-    return
-        NS_SUCCEEDED(originDocument->NodePrincipal()->
-                       Equals(targetDocument->NodePrincipal(), &equal)) &&
-        equal;
+    rv = originDocument->NodePrincipal()->
+            Equals(targetDocument->NodePrincipal(), &equal);
+    if (NS_SUCCEEDED(rv) && equal) {
+        return PR_TRUE;
+    }
+
+    // Not strictly equal, special case if both are file: uris
+    PRBool originIsFile = PR_FALSE;
+    PRBool targetIsFile = PR_FALSE;
+    nsCOMPtr<nsIURI> originURI;
+    nsCOMPtr<nsIURI> targetURI;
+    nsCOMPtr<nsIURI> innerOriginURI;
+    nsCOMPtr<nsIURI> innerTargetURI;
+
+    rv = originDocument->NodePrincipal()->GetURI(getter_AddRefs(originURI));
+    if (NS_SUCCEEDED(rv) && originURI)
+        innerOriginURI = NS_GetInnermostURI(originURI);
+
+    rv = targetDocument->NodePrincipal()->GetURI(getter_AddRefs(targetURI));
+    if (NS_SUCCEEDED(rv) && targetURI)
+        innerTargetURI = NS_GetInnermostURI(targetURI);
+
+    return innerOriginURI && innerTargetURI &&
+        NS_SUCCEEDED(innerOriginURI->SchemeIs("file", &originIsFile)) &&
+        NS_SUCCEEDED(innerTargetURI->SchemeIs("file", &targetIsFile)) &&
+        originIsFile && targetIsFile;
 }
 
 NS_IMETHODIMP
@@ -1915,6 +1939,7 @@ nsDocShell::CanAccessItem(nsIDocShellTreeItem* aTargetItem,
     // Bug 13871:  Prevent frameset spoofing
     // Bug 103638: Targets with same name in different windows open in wrong
     //             window with javascript
+    // Bug 408052: Adopt "ancestor" frame navigation policy
 
     // Now do a security check
     //
@@ -2338,8 +2363,26 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
     // XXX in that case docshell hierarchy and SH hierarchy won't match.
     {
         nsCOMPtr<nsIDocShell> childDocShell = do_QueryInterface(aChild);
-        if (childDocShell)
-            childDocShell->SetChildOffset(mChildList.Count() - 1);
+        if (childDocShell) {
+            // If there are frameloaders in the finalization list, reduce
+            // the offset so that the SH hierarchy is more likely to match the
+            // docshell hierarchy
+            nsCOMPtr<nsIDOMDocument> domDoc =
+              do_GetInterface(GetAsSupports(this));
+            nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+            PRUint32 offset = mChildList.Count() - 1;
+            if (doc) {
+               PRUint32 oldChildCount = offset; // Current child count - 1
+               for (PRUint32 i = 0; i < oldChildCount; ++i) {
+                 nsCOMPtr<nsIDocShell> child = do_QueryInterface(ChildAt(i));
+                 if (doc->FrameLoaderScheduledToBeFinalized(child)) {
+                   --offset;
+                 }
+               }
+            }
+
+            childDocShell->SetChildOffset(offset);
+        }
     }
 
     /* Set the child's global history if the parent has one */
@@ -2908,9 +2951,10 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     NS_ENSURE_TRUE(prompter, NS_ERROR_FAILURE);
 
     nsAutoString error;
-    const PRUint32 kMaxFormatStrArgs = 2;
+    const PRUint32 kMaxFormatStrArgs = 3;
     nsAutoString formatStrs[kMaxFormatStrArgs];
     PRUint32 formatStrCount = 0;
+    PRBool addHostPort = PR_FALSE;
     nsresult rv = NS_OK;
     nsAutoString messageStr;
     nsCAutoString cssClass;
@@ -2930,29 +2974,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     }
     else if (NS_ERROR_FILE_NOT_FOUND == aError) {
         NS_ENSURE_ARG_POINTER(aURI);
-        nsCAutoString spec;
-        // displaying "file://" is aesthetically unpleasing and could even be
-        // confusing to the user
-        PRBool isFileURI = PR_FALSE;
-        rv = aURI->SchemeIs("file", &isFileURI);
-        if (NS_FAILED(rv))
-            return rv;
-        if (isFileURI)
-            aURI->GetPath(spec);
-        else
-            aURI->GetSpec(spec);
-        nsCAutoString charset;
-        // unescape and convert from origin charset
-        aURI->GetOriginCharset(charset);
-        nsCOMPtr<nsITextToSubURI> textToSubURI(
-                do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
-        if (NS_SUCCEEDED(rv))
-            // UnEscapeURIForUI always succeeds 
-            textToSubURI->UnEscapeURIForUI(charset, spec, formatStrs[0]);
-        else 
-            CopyUTF8toUTF16(spec, formatStrs[0]);
-        rv = NS_OK;
-        formatStrCount = 1;
         error.AssignLiteral("fileNotFound");
     }
     else if (NS_ERROR_UNKNOWN_HOST == aError) {
@@ -2967,20 +2988,12 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     }
     else if(NS_ERROR_CONNECTION_REFUSED == aError) {
         NS_ENSURE_ARG_POINTER(aURI);
-        // Build up the host:port string.
-        nsCAutoString hostport;
-        aURI->GetHostPort(hostport);
-        CopyUTF8toUTF16(hostport, formatStrs[0]);
-        formatStrCount = 1;
+        addHostPort = PR_TRUE;
         error.AssignLiteral("connectionFailure");
     }
     else if(NS_ERROR_NET_INTERRUPT == aError) {
         NS_ENSURE_ARG_POINTER(aURI);
-        // Build up the host:port string.
-        nsCAutoString hostport;
-        aURI->GetHostPort(hostport);
-        CopyUTF8toUTF16(hostport, formatStrs[0]);
-        formatStrCount = 1;
+        addHostPort = PR_TRUE;
         error.AssignLiteral("netInterrupt");
     }
     else if (NS_ERROR_NET_TIMEOUT == aError) {
@@ -3020,6 +3033,12 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         if (!messageStr.IsEmpty()) {
             if (errorClass == nsINSSErrorsService::ERROR_CLASS_BAD_CERT) {
                 error.AssignLiteral("nssBadCert");
+                PRBool expert = PR_FALSE;
+                mPrefs->GetBoolPref("browser.xul.error_pages.expert_bad_cert",
+                                    &expert);
+                if (expert) {
+                    cssClass.AssignLiteral("expertBadCert");
+                }
             } else {
                 error.AssignLiteral("nssFailure2");
             }
@@ -3065,7 +3084,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             error.AssignLiteral("netReset");
             break;
         case NS_ERROR_DOCUMENT_NOT_CACHED:
-            // Doc falied to load because we are offline and the cache does not
+            // Doc failed to load because we are offline and the cache does not
             // contain a copy of the document.
             error.AssignLiteral("netOffline");
             break;
@@ -3075,6 +3094,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             break;
         case NS_ERROR_PORT_ACCESS_NOT_ALLOWED:
             // Port blocked for security reasons
+            addHostPort = PR_TRUE;
             error.AssignLiteral("deniedPortAccess");
             break;
         case NS_ERROR_UNKNOWN_PROXY_HOST:
@@ -3105,7 +3125,46 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
     if (!messageStr.IsEmpty()) {
         // already obtained message
     }
-    else if (formatStrCount > 0) {
+    else {
+        if (addHostPort) {
+            // Build up the host:port string.
+            nsCAutoString hostport;
+            if (aURI) {
+                aURI->GetHostPort(hostport);
+            } else {
+                hostport.AssignLiteral("?");
+            }
+            CopyUTF8toUTF16(hostport, formatStrs[formatStrCount++]);
+        }
+
+        nsCAutoString spec;
+        rv = NS_ERROR_NOT_AVAILABLE;
+        if (aURI) {
+            // displaying "file://" is aesthetically unpleasing and could even be
+            // confusing to the user
+            PRBool isFileURI = PR_FALSE;
+            rv = aURI->SchemeIs("file", &isFileURI);
+            if (NS_SUCCEEDED(rv) && isFileURI)
+                aURI->GetPath(spec);
+            else
+                aURI->GetSpec(spec);
+
+            nsCAutoString charset;
+            // unescape and convert from origin charset
+            aURI->GetOriginCharset(charset);
+            nsCOMPtr<nsITextToSubURI> textToSubURI(
+                do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
+            if (NS_SUCCEEDED(rv)) {
+                rv = textToSubURI->UnEscapeURIForUI(charset, spec, formatStrs[formatStrCount]);
+            }
+        } else {
+            spec.AssignLiteral("?");
+        }
+        if (NS_FAILED(rv))
+            CopyUTF8toUTF16(spec, formatStrs[formatStrCount]);
+        rv = NS_OK;
+        ++formatStrCount;
+
         const PRUnichar *strs[kMaxFormatStrArgs];
         for (PRUint32 i = 0; i < formatStrCount; i++) {
             strs[i] = formatStrs[i].get();
@@ -3114,15 +3173,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         rv = stringBundle->FormatStringFromName(
             error.get(),
             strs, formatStrCount, getter_Copies(str));
-        NS_ENSURE_SUCCESS(rv, rv);
-        messageStr.Assign(str.get());
-    }
-    else
-    {
-        nsXPIDLString str;
-        rv = stringBundle->GetStringFromName(
-                error.get(),
-                getter_Copies(str));
         NS_ENSURE_SUCCESS(rv, rv);
         messageStr.Assign(str.get());
     }
@@ -3192,11 +3242,13 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
     if (mSessionHistory && !mLSHE) {
         PRInt32 idx;
         mSessionHistory->GetRequestedIndex(&idx);
+        if (idx == -1)
+            mSessionHistory->GetIndex(&idx);
+
         nsCOMPtr<nsIHistoryEntry> entry;
         mSessionHistory->GetEntryAtIndex(idx, PR_FALSE,
                                          getter_AddRefs(entry));
         mLSHE = do_QueryInterface(entry);
-
     }
 
     nsCAutoString url;
@@ -3321,6 +3373,7 @@ nsDocShell::Reload(PRUint32 aReloadFlags)
                           nsnull);        // No nsIRequest
     }
     
+
     return rv;
 }
 
@@ -3578,7 +3631,7 @@ nsDocShell::Create()
         const char* msg = mItemType == typeContent ?
             NS_WEBNAVIGATION_CREATE : NS_CHROME_WEBNAVIGATION_CREATE;
         serv->NotifyObservers(GetAsSupports(this), msg, nsnull);
-    }    
+    }
 
     return NS_OK;
 }
@@ -3617,6 +3670,13 @@ nsDocShell::Destroy()
     // Fire unload event before we blow anything away.
     (void) FirePageHideNotification(PR_TRUE);
 
+    // Clear pointers to any detached nsEditorData that's lying
+    // around in shistory entries. Breaks cycle. See bug 430921.
+    if (mOSHE)
+      mOSHE->SetEditorData(nsnull);
+    if (mLSHE)
+      mLSHE->SetEditorData(nsnull);
+      
     // Note: mContentListener can be null if Init() failed and we're being
     // called from the destructor.
     if (mContentListener) {
@@ -3632,8 +3692,7 @@ nsDocShell::Destroy()
     // Stop any URLs that are currently being loaded...
     Stop(nsIWebNavigation::STOP_ALL);
 
-    delete mEditorData;
-    mEditorData = 0;
+    mEditorData = nsnull;
 
     mTransferableHookData = nsnull;
 
@@ -3648,7 +3707,12 @@ nsDocShell::Destroy()
     if (docShellParentAsItem)
         docShellParentAsItem->RemoveChild(this);
 
+    nsCOMPtr<nsIFocusEventSuppressorService> suppressor;
     if (mContentViewer) {
+        suppressor =
+          do_GetService(NS_NSIFOCUSEVENTSUPPRESSORSERVICE_CONTRACTID);
+        NS_ENSURE_STATE(suppressor);
+        suppressor->Suppress();
         mContentViewer->Close(nsnull);
         mContentViewer->Destroy();
         mContentViewer = nsnull;
@@ -3675,7 +3739,9 @@ nsDocShell::Destroy()
     // Cancel any timers that were set for this docshell; this is needed
     // to break the cycle between us and the timers.
     CancelRefreshURITimers();
-
+    if (suppressor) {
+      suppressor->Unsuppress();
+    }
     return NS_OK;
 }
 
@@ -4818,8 +4884,13 @@ nsDocShell::Embed(nsIContentViewer * aContentViewer,
             SetBaseUrlForWyciwyg(aContentViewer);
     }
     // XXX What if SetupNewViewer fails?
-    if (mLSHE)
+    if (mLSHE) {
+        // Restore the editing state, if it's stored in session history.
+        if (mLSHE->HasDetachedEditor()) {
+            ReattachEditorToWindow(mLSHE);
+        }
         SetHistoryEntry(&mOSHE, mLSHE);
+    }
 
     PRBool updateHistory = PR_TRUE;
 
@@ -4958,12 +5029,7 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     // If this load is being checked by the URI classifier, we need to
     // query the classifier again for the new URI.
     if (mClassifier) {
-        mClassifier->SetChannel(aNewChannel);
-
-        // we call the nsClassifierCallback:Run() from the main loop to
-        // give the channel a chance to AsyncOpen() the channel before
-        // we suspend it.
-        NS_DispatchToCurrentThread(mClassifier);
+        mClassifier->OnRedirect(aOldChannel, aNewChannel);
     }
 
     nsCOMPtr<nsIGlobalHistory3> history3(do_QueryInterface(mGlobalHistory));
@@ -5270,6 +5336,62 @@ nsDocShell::CanSavePresentation(PRUint32 aLoadType,
     return PR_TRUE;
 }
 
+void
+nsDocShell::ReattachEditorToWindow(nsISHEntry *aSHEntry)
+{
+    NS_ASSERTION(!mEditorData,
+                 "Why reattach an editor when we already have one?");
+    NS_ASSERTION(aSHEntry && aSHEntry->HasDetachedEditor(),
+                 "Reattaching when there's not a detached editor.");
+
+    if (mEditorData || !aSHEntry)
+      return;
+
+    mEditorData = aSHEntry->ForgetEditorData();
+    if (mEditorData) {
+        nsresult res = mEditorData->ReattachToWindow(this);
+        NS_ASSERTION(NS_SUCCEEDED(res), "Failed to reattach editing session");
+    }
+}
+
+void
+nsDocShell::DetachEditorFromWindow(nsISHEntry *aSHEntry)
+{
+    if (!mEditorData)
+        return;
+
+    NS_ASSERTION(!aSHEntry || !aSHEntry->HasDetachedEditor(),
+                 "Detaching editor when it's already detached.");
+
+    nsresult res = mEditorData->DetachFromWindow();
+    NS_ASSERTION(NS_SUCCEEDED(res), "Failed to detach editor");
+
+    if (NS_SUCCEEDED(res)) {
+        // Make aSHEntry hold the owning ref to the editor data.
+        if (aSHEntry)
+            aSHEntry->SetEditorData(mEditorData.forget());
+        else
+            mEditorData = nsnull;
+    }
+
+#ifdef DEBUG
+    {
+        PRBool isEditable;
+        GetEditable(&isEditable);
+        NS_ASSERTION(!isEditable,
+                     "Window is still editable after detaching editor.");
+    }
+#endif // DEBUG
+
+}
+
+void
+nsDocShell::DetachEditorFromWindow()
+{
+    if (mOSHE)
+        DetachEditorFromWindow(mOSHE);
+}
+
 nsresult
 nsDocShell::CaptureState()
 {
@@ -5417,6 +5539,10 @@ nsDocShell::FinishRestore()
         if (child) {
             child->FinishRestore();
         }
+    }
+
+    if (mOSHE && mOSHE->HasDetachedEditor()) {
+      ReattachEditorToWindow(mOSHE);
     }
 
     if (mContentViewer) {
@@ -6780,6 +6906,18 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         return rv;
     }
 
+    // If this docshell is owned by a frameloader, make sure to cancel
+    // possible frameloader initialization before loading a new page.
+    nsCOMPtr<nsIDocShellTreeItem> parent;
+    GetParent(getter_AddRefs(parent));
+    if (parent) {
+      nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(parent);
+      nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+      if (doc) {
+        doc->TryCancelFrameLoaderInitialization(this);
+      }
+    }
+
     if (mFiredUnloadEvent) {
         if (IsOKToLoadURI(aURI)) {
             NS_PRECONDITION(!aWindowTarget || !*aWindowTarget,
@@ -7012,7 +7150,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     }
 
     mLoadType = aLoadType;
-    
+
     // mLSHE should be assigned to aSHEntry, only after Stop() has
     // been called. But when loading an error page, do not clear the
     // mLSHE for the real page.
@@ -7076,7 +7214,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         nsCOMPtr<nsIChannel> chan(do_QueryInterface(req));
         DisplayLoadError(rv, aURI, nsnull, chan);
     }
-    
+
     return rv;
 }
 
@@ -7313,6 +7451,20 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         channel->SetOwner(aOwner);
     }
 
+    //
+    // file: uri special-casing
+    //
+    // If this is a file: load opened from another file: then it may need
+    // to inherit the owner from the referrer so they can script each other.
+    // If we don't set the owner explicitly then each file: gets an owner
+    // based on its own codebase later.
+    //
+    nsCOMPtr<nsIPrincipal> ownerPrincipal(do_QueryInterface(aOwner));
+    if (URIIsLocalFile(aURI) && ownerPrincipal &&
+        NS_SUCCEEDED(ownerPrincipal->CheckMayLoad(aURI, PR_FALSE))) {
+        channel->SetOwner(aOwner);
+    }
+
     nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(channel);
     if (scriptChannel) {
         // Allow execution against our context if the principals match
@@ -7330,7 +7482,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     }
 
     rv = DoChannelLoad(channel, uriLoader, aBypassClassifier);
-    
+
     //
     // If the channel load failed, we failed and nsIWebProgress just ain't
     // gonna happen.
@@ -7503,8 +7655,7 @@ nsDocShell::CheckClassifier(nsIChannel *aChannel)
     nsRefPtr<nsClassifierCallback> classifier = new nsClassifierCallback();
     if (!classifier) return NS_ERROR_OUT_OF_MEMORY;
 
-    classifier->SetChannel(aChannel);
-    nsresult rv = classifier->Run();
+    nsresult rv = classifier->Start(aChannel);
     if (rv == NS_ERROR_FACTORY_NOT_REGISTERED ||
         rv == NS_ERROR_NOT_AVAILABLE) {
         // no URI classifier => ignored cases
@@ -8562,9 +8713,12 @@ nsDocShell::ShouldDiscardLayoutState(nsIHttpChannel * aChannel)
 NS_IMETHODIMP nsDocShell::GetEditor(nsIEditor * *aEditor)
 {
   NS_ENSURE_ARG_POINTER(aEditor);
-  nsresult rv = EnsureEditorData();
-  if (NS_FAILED(rv)) return rv;
-  
+
+  if (!mEditorData) {
+    *aEditor = nsnull;
+    return NS_OK;
+  }
+
   return mEditorData->GetEditor(aEditor);
 }
 
@@ -8870,10 +9024,13 @@ nsDocShell::EnsureScriptEnvironment()
 NS_IMETHODIMP
 nsDocShell::EnsureEditorData()
 {
-    if (!mEditorData && !mIsBeingDestroyed)
-    {
+    PRBool openDocHasDetachedEditor = mOSHE && mOSHE->HasDetachedEditor();
+    if (!mEditorData && !mIsBeingDestroyed && !openDocHasDetachedEditor) {
+        // We shouldn't recreate the editor data if it already exists, or
+        // we're shutting down, or we already have a detached editor data
+        // stored in the session history. We should only have one editordata
+        // per docshell.
         mEditorData = new nsDocShellEditorData(this);
-        if (!mEditorData) return NS_ERROR_OUT_OF_MEMORY;
     }
 
     return mEditorData ? NS_OK : NS_ERROR_NOT_AVAILABLE;
@@ -9287,6 +9444,19 @@ nsDocShell::URIInheritsSecurityContext(nsIURI* aURI, PRBool* aResult)
 
 /* static */
 PRBool
+nsDocShell::URIIsLocalFile(nsIURI *aURI)
+{
+    PRBool isFile;
+    nsCOMPtr<nsINetUtil> util = do_GetIOService();
+
+    return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
+                                    nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                                    &isFile)) &&
+           isFile;
+}
+
+/* static */
+PRBool
 nsDocShell::IsAboutBlank(nsIURI* aURI)
 {
     NS_PRECONDITION(aURI, "Must have URI");
@@ -9326,9 +9496,10 @@ nsDocShell::IsOKToLoadURI(nsIURI* aURI)
 // nsClassifierCallback
 //*****************************************************************************
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsClassifierCallback,
-                              nsIURIClassifierCallback,
-                              nsIRunnable)
+NS_IMPL_ISUPPORTS3(nsClassifierCallback,
+                   nsIChannelClassifier,
+                   nsIURIClassifierCallback,
+                   nsIRunnable)
 
 NS_IMETHODIMP
 nsClassifierCallback::Run()
@@ -9497,7 +9668,27 @@ nsClassifierCallback::OnClassifyComplete(nsresult aErrorCode)
     return NS_OK;
 }
 
-void
+NS_IMETHODIMP
+nsClassifierCallback::Start(nsIChannel *aChannel)
+{
+    mChannel = aChannel;
+    return Run();
+}
+
+NS_IMETHODIMP
+nsClassifierCallback::OnRedirect(nsIChannel *aOldChannel,
+                                nsIChannel *aNewChannel)
+{
+    mChannel = aNewChannel;
+
+    // we call the Run() from the main loop to give the channel a
+    // chance to AsyncOpen() before we suspend it.
+    NS_DispatchToCurrentThread(this);
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsClassifierCallback::Cancel()
 {
     if (mSuspendedChannel) {
@@ -9513,4 +9704,6 @@ nsClassifierCallback::Cancel()
     if (mChannel) {
         mChannel = nsnull;
     }
+
+    return NS_OK;
 }

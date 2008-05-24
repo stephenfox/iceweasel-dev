@@ -73,14 +73,14 @@ pref("extensions.getAddons.showPane", true);
 pref("extensions.getAddons.browseAddons", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%");
 pref("extensions.getAddons.maxResults", 5);
 pref("extensions.getAddons.recommended.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/recommended");
-pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/list/featured/all/10");
+pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
 pref("extensions.getAddons.search.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/search?q=%TERMS%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/search/%TERMS%");
+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/1/%APP_ID%/%APP_VERSION%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/2/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
 pref("extensions.blocklist.detailsURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
@@ -198,6 +198,8 @@ pref("browser.chrome.favicons", true);
 pref("browser.formfill.enable", true);
 pref("browser.warnOnQuit", true);
 pref("browser.warnOnRestart", true);
+pref("browser.fullscreen.autohide", true);
+pref("browser.fullscreen.animateUp", 1);
 
 #ifdef UNIX_BUT_NOT_MAC
 pref("browser.urlbar.clickSelectsAll", false);
@@ -211,15 +213,25 @@ pref("browser.urlbar.doubleClickSelectsAll", false);
 #endif
 pref("browser.urlbar.autoFill", false);
 pref("browser.urlbar.matchOnlyTyped", false);
+// 0: Match anywhere (e.g., middle of words)
+// 1: Match on word boundaries and then try matching anywhere
+// 2: Match only on word boundaries (e.g., after / or .)
+pref("browser.urlbar.matchBehavior", 1);
 pref("browser.urlbar.filter.javascript", true);
 
 // the maximum number of results to show in autocomplete when doing richResults
-pref("browser.urlbar.maxRichResults", 25);
+pref("browser.urlbar.maxRichResults", 12);
 // Size of "chunks" affects the number of places to process between each search
 // timeout (ms). Too big and the UI will be unresponsive; too small and we'll
 // be waiting on the timeout too often without many results.
 pref("browser.urlbar.search.chunkSize", 1000);
-pref("browser.urlbar.search.timeout", 50);
+pref("browser.urlbar.search.timeout", 100);
+
+// Number of milliseconds to wait for the http headers (and thus
+// the Content-Disposition filename) before giving up and falling back to 
+// picking a filename without that info in hand so that the user sees some
+// feedback from their action.
+pref("browser.download.saveLinkAsFilenameTimeout", 1000);
 
 pref("browser.download.useDownloadDir", true);
 pref("browser.download.folderList", 0);
@@ -235,6 +247,7 @@ pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.addToRecentDocs", true);
 pref("browser.download.manager.quitBehavior", 0);
 pref("browser.download.manager.scanWhenDone", true);
+pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
 // search engines URL
 pref("browser.search.searchEnginesURL",      "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/search-engines/");
@@ -320,9 +333,16 @@ pref("browser.tabs.selectOwnerOnClose", true);
 pref("browser.bookmarks.sort.direction", "descending");
 pref("browser.bookmarks.sort.resource", "rdf:http://home.netscape.com/NC-rdf#Name");
 
-// By default, do not overwrite bookmarks.html in the profile directory
-// See bug #381216 for details
-pref("browser.bookmarks.overwrite",               false);
+// By default, do not export HTML at shutdown.
+// If true, at shutdown the bookmarks in your menu and toolbar will
+// be exported as HTML to the bookmarks.html file.
+pref("browser.bookmarks.autoExportHTML",          false);
+
+// The maximum number of daily bookmark backups to 
+// keep in {PROFILEDIR}/bookmarkbackups. Special values:
+// -1: unlimited
+//  0: no backups created (and deletes all existing backups)
+pref("browser.bookmarks.max_backups",             5);
 
 // Scripts & Windows prefs
 pref("dom.disable_open_during_load",              true);
@@ -342,6 +362,8 @@ pref("dom.disable_window_open_feature.status",    true);
 // without it there isn't a really good way to prevent chrome spoofing, see bug 337344
 pref("dom.disable_window_open_feature.location",  true);
 pref("dom.disable_window_status_change",          true);
+// allow JS to move and resize existing windows
+pref("dom.disable_window_move_resize",            false);
 // prevent JS from monkeying with window focus, etc
 pref("dom.disable_window_flip",                   true);
 
@@ -423,6 +445,7 @@ pref("alerts.slideIncrementTime", 10);
 pref("alerts.totalOpenTime", 4000);
 
 pref("browser.xul.error_pages.enabled", true);
+pref("browser.xul.error_pages.expert_bad_cert", false);
 
 // We want to make sure mail URLs are handled externally...
 pref("network.protocol-handler.external.mailto", true); // for mail
@@ -603,13 +626,42 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
+
+// If an urlclassifier table has not been updated in this number of seconds,
+// a gethash request will be forced to check that the result is still in
+// the database.
+pref("urlclassifier.confirm-age", 2700);
+
+// Maximum size of the sqlite3 cache during an update, in bytes
+#ifdef MOZ_WIDGET_GTK2
+pref("urlclassifier.updatecachemax", 104857600);
+#else
+pref("urlclassifier.updatecachemax", -1);
 #endif
 
-// defaults to true
-pref("browser.EULA.2.accepted", true);
+// URL for checking the reason for a malware warning.
+pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
+
+#endif
+
+// defaults to true on Windows and Mac, because the installer shows this
+#ifdef XP_MACOSX
+pref("browser.EULA.3.accepted", true);
+#elifdef XP_WIN
+pref("browser.EULA.3.accepted", true);
+#else
+pref("browser.EULA.3.accepted", false);
+#endif
 
 // if we rev the EULA again, we should bump this so users agree to the new EULA
-pref("browser.EULA.version", 2);
+pref("browser.EULA.version", 3);
+
+#ifdef DEBUG
+pref("browser.EULA.override", true);
+#endif
 
 pref("browser.sessionstore.enabled", true);
 pref("browser.sessionstore.resume_from_crash", true);
@@ -625,17 +677,9 @@ pref("browser.sessionstore.postdata", 0);
 pref("browser.sessionstore.privacy_level", 1);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
-// maximum number of pages of back-history per tab to save
-pref("browser.sessionstore.max_tab_back_history", 10);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
-
-// import bookmarks.html into Places bookmarks
-pref("browser.places.importBookmarksHTML", true);
-
-// if false, will add the "Smart Bookmarks" folder to the personal toolbar
-pref("browser.places.createdSmartBookmarks", false);
 
 // If true, will migrate uri post-data annotations to
 // bookmark post-data annotations (bug 398914)
@@ -678,7 +722,7 @@ pref("places.frecency.defaultBucketWeight", 10);
 // bonus (in percent) for visit transition types for frecency calculations
 pref("places.frecency.embedVisitBonus", 0);
 pref("places.frecency.linkVisitBonus", 100);
-pref("places.frecency.typedVisitBonus", 500);
+pref("places.frecency.typedVisitBonus", 2000);
 pref("places.frecency.bookmarkVisitBonus", 150);
 pref("places.frecency.downloadVisitBonus", 0);
 pref("places.frecency.permRedirectVisitBonus", 0);
@@ -716,3 +760,6 @@ pref("editor.singleLine.pasteNewlines", 2);
 
 // The breakpad report server to link to in about:crashes
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
+
+// base URL for web-based support pages
+pref("app.support.baseURL", "http://support.mozilla.com/1/%APP%/%VERSION%/%OS%/%LOCALE%/");

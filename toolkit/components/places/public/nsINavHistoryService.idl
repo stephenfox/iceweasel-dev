@@ -842,6 +842,11 @@ interface nsINavHistoryQuery : nsISupports
                   [retval,array,size_is(count)] out long long folders);
   readonly attribute unsigned long folderCount;
 
+  /**
+   * For the special result type RESULTS_AS_TAG_CONTENTS we can define only
+   * one folder that must be a tag folder. This is not recursive so results
+   * will be returned from the first level of that folder.
+   */
   void setFolders([const,array, size_is(folderCount)] in long long folders,
                   in unsigned long folderCount);
 
@@ -936,6 +941,13 @@ interface nsINavHistoryQueryOptions : nsISupports
    * - list of bookmarks with the given tag will be loaded.
    */
   const unsigned short RESULTS_AS_TAG_QUERY = 6;
+
+  /**
+   * This is a container with an URI result type that contains the last
+   * modified bookmarks for the given tag.
+   * Tag folder id must be defined in the query.
+   */
+  const unsigned short RESULTS_AS_TAG_CONTENTS = 7;
 
   /**
    * The sorting mode to be used for this query.
@@ -1045,7 +1057,7 @@ interface nsINavHistoryQueryOptions : nsISupports
   nsINavHistoryQueryOptions clone();
 };
 
-[scriptable, uuid(a9bea2db-0a3e-4895-9ccc-24bac41a0674)]
+[scriptable, uuid(8b258ff6-b591-4da5-8b7c-0665b27d09cc)]
 interface nsINavHistoryService : nsISupports
 {
   /**
@@ -1104,7 +1116,6 @@ interface nsINavHistoryService : nsISupports
    */
   AString getPageTitle(in nsIURI aURI);
 
-
   /**
    * This is just like markPageAsTyped (in nsIBrowserHistory, also implemented
    * by the history service), but for bookmarks. It declares that the given URI
@@ -1115,6 +1126,25 @@ interface nsINavHistoryService : nsISupports
   void markPageAsFollowedBookmark(in nsIURI aURI);
 
   /**
+   * Gets the stored character-set for an URI.
+   *
+   * @param aURI
+   *        URI to retrieve character-set for
+   * @returns character-set, empty string if not found
+   */
+  AString getCharsetForURI(in nsIURI aURI);
+
+  /**
+   * Sets the character-set for an URI.
+   *
+   * @param aURI
+   *        URI to set the character-set for
+   * @param aCharset
+   *        character-set to be set
+   */
+  void setCharsetForURI(in nsIURI aURI, in AString aCharset);
+
+  /**
    * Returns true if this URI would be added to the history. You don't have to
    * worry about calling this, addPageToSession/addURI will always check before
    * actually adding the page. This function is public because some components
@@ -1122,25 +1152,6 @@ interface nsINavHistoryService : nsISupports
    * annotations).
    */
   boolean canAddURI(in nsIURI aURI);
-
-  /**
-   * Call to set the full information for a given page. If the page does not
-   * exist, it will be added to the database. If it does, the existing values
-   * WILL BE OVERWRITTEN. This is an updated version of addPageWithDetails
-   * for backup/restore type operations.
-   *
-   * @param aURI        Page to add/change.
-   * @param aTitle      Title as specified by the page.
-   * @param aVisitCount Number of times this page has been visited. Setting this
-   *                    to 0 may make the page invisible in some views.
-   * @param aHidden     Whether the page is hidden. If the page has only
-   *                    TRANSITION_EMBED visits, this will be true, otherwise
-   *                    false.
-   * @param aTyped      True if this URI has ever been typed.
-   */
-  void setPageDetails(in nsIURI aURI, in AString aTitle, 
-                      in unsigned long aVisitCount, in boolean aHidden,
-                      in boolean aTyped);
 
   /**
    * Call to manually add a visit for a specific page. This will probably not

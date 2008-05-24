@@ -1920,6 +1920,20 @@ nsWindow::OnEnterNotifyEvent(GtkWidget *aWidget, GdkEventCrossing *aEvent)
     DispatchEvent(&event, status);
 }
 
+static PRBool
+is_top_level_mouse_exit(GdkWindow* aWindow, GdkEventCrossing *aEvent)
+{
+    gint x = gint(aEvent->x_root);
+    gint y = gint(aEvent->y_root);
+    GdkDisplay* display = gdk_drawable_get_display(aWindow);
+    GdkWindow* winAtPt = gdk_display_get_window_at_pointer(display, &x, &y);
+    if (!winAtPt)
+        return PR_TRUE;
+    GdkWindow* topLevelAtPt = gdk_window_get_toplevel(winAtPt);
+    GdkWindow* topLevelWidget = gdk_window_get_toplevel(aWindow);
+    return topLevelAtPt != topLevelWidget;
+}
+
 void
 nsWindow::OnLeaveNotifyEvent(GtkWidget *aWidget, GdkEventCrossing *aEvent)
 {
@@ -1933,6 +1947,9 @@ nsWindow::OnLeaveNotifyEvent(GtkWidget *aWidget, GdkEventCrossing *aEvent)
     event.refPoint.y = nscoord(aEvent->y);
 
     event.time = aEvent->time;
+
+    event.exit = is_top_level_mouse_exit(mDrawingarea->inner_window, aEvent)
+        ? nsMouseEvent::eTopLevel : nsMouseEvent::eChild;
 
     LOG(("OnLeaveNotify: %p\n", (void *)this));
 
@@ -2090,7 +2107,28 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     case 3:
         domButton = nsMouseEvent::eRightButton;
         break;
-        // Map buttons 8-9 to back/forward
+    // These are mapped to horizontal scroll
+    case 6:
+    case 7:
+        {
+            nsMouseScrollEvent event(PR_TRUE, NS_MOUSE_SCROLL, this);
+            event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+            event.refPoint.x = nscoord(aEvent->x);
+            event.refPoint.y = nscoord(aEvent->y);
+            event.delta = (aEvent->button == 6) ? -2 : 2;
+
+            event.isShift   = (aEvent->state & GDK_SHIFT_MASK) != 0;
+            event.isControl = (aEvent->state & GDK_CONTROL_MASK) != 0;
+            event.isAlt     = (aEvent->state & GDK_MOD1_MASK) != 0;
+            event.isMeta    = (aEvent->state & GDK_MOD4_MASK) != 0;
+
+            event.time = aEvent->time;
+
+            nsEventStatus status;
+            DispatchEvent(&event, status);
+            return;
+        }
+    // Map buttons 8-9 to back/forward
     case 8:
         DispatchCommandEvent(nsWidgetAtoms::Back);
         return;
@@ -2238,14 +2276,6 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
 }
 
-inline PRBool
-is_latin_shortcut_key(guint aKeyval)
-{
-    return ((GDK_0 <= aKeyval && aKeyval <= GDK_9) ||
-            (GDK_A <= aKeyval && aKeyval <= GDK_Z) ||
-            (GDK_a <= aKeyval && aKeyval <= GDK_z));
-}
-
 PRBool
 nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 {
@@ -2253,6 +2283,45 @@ nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
     nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, aCommand, this);
     DispatchEvent(&event, status);
     return TRUE;
+}
+
+static PRUint32
+GetCharCodeFor(const GdkEventKey *aEvent, guint aShiftState,
+               gint aGroup)
+{
+    guint keyval;
+    if (gdk_keymap_translate_keyboard_state(NULL, aEvent->hardware_keycode,
+                                            GdkModifierType(aShiftState),
+                                            aGroup,
+                                            &keyval, NULL, NULL, NULL)) {
+        GdkEventKey tmpEvent = *aEvent;
+        tmpEvent.state = guint(aShiftState);
+        tmpEvent.keyval = keyval;
+        tmpEvent.group = aGroup;
+        return nsConvertCharCodeToUnicode(&tmpEvent);
+    }
+    return 0;
+}
+
+static gint
+GetKeyLevel(GdkEventKey *aEvent)
+{
+    gint level;
+    if (!gdk_keymap_translate_keyboard_state(NULL,
+                                             aEvent->hardware_keycode,
+                                             GdkModifierType(aEvent->state),
+                                             aEvent->group,
+                                             NULL, NULL, &level, NULL))
+        return -1;
+    return level;
+}
+
+static PRBool
+IsBasicLatinLetterOrNumeral(PRUint32 aChar)
+{
+    return (aChar >= 'a' && aChar <= 'z') ||
+           (aChar >= 'A' && aChar <= 'Z') ||
+           (aChar >= '0' && aChar <= '9');
 }
 
 gboolean
@@ -2344,91 +2413,79 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     event.charCode = nsConvertCharCodeToUnicode(aEvent);
     if (event.charCode) {
         event.keyCode = 0;
-        // if the control, meta, or alt key is down, then we should leave
-        // the isShift flag alone (probably not a printable character)
-        // if none of the other modifier keys are pressed then we need to
-        // clear isShift so the character can be inserted in the editor
-
-        if (event.isControl || event.isAlt || event.isMeta) {
-            GdkEventKey tmpEvent = *aEvent;
-
-            // Fix for bug 69230:
-            // if modifier key is pressed and key pressed is not latin character,
-            // we should try other keyboard layouts to find out correct latin
-            // character corresponding to pressed key;
-            // that way shortcuts like Ctrl+C will work no matter what
-            // keyboard layout is selected
-            // We don't try to fix up punctuation accelerators here,
-            // because their location differs between latin layouts
-            if (!is_latin_shortcut_key(event.charCode)) {
-                // We have a non-latin char, try other keyboard groups
-                GdkKeymapKey *keys;
-                guint *keyvals;
-                gint n_entries;
-                PRUint32 latinCharCode;
-                gint level;
-
-                if (gdk_keymap_translate_keyboard_state(NULL,
-                                                        tmpEvent.hardware_keycode,
-                                                        (GdkModifierType)tmpEvent.state,
-                                                        tmpEvent.group,
-                                                        NULL, NULL, &level, NULL)
-                    && gdk_keymap_get_entries_for_keycode(NULL,
-                                                          tmpEvent.hardware_keycode,
-                                                          &keys, &keyvals,
-                                                          &n_entries)) {
-                    gint n;
-                    for (n=0; n<n_entries; n++) {
-                        if (keys[n].group == tmpEvent.group) {
-                            // Skip keys from the same group
-                            continue;
-                        }
-                        if (keys[n].level != level) {
-                            // Allow only same level keys
-                            continue;
-                        }
-                        if (is_latin_shortcut_key(keyvals[n])) {
-                            // Latin character found
-                            if (event.isShift)
-                                tmpEvent.keyval = gdk_keyval_to_upper(keyvals[n]);
-                            else
-                                tmpEvent.keyval = gdk_keyval_to_lower(keyvals[n]);
-                            tmpEvent.group = keys[n].group;
-                            latinCharCode = nsConvertCharCodeToUnicode(&tmpEvent);
-                            if (latinCharCode) {
-                                event.charCode = latinCharCode;
-                                break;
-                            }
-                        }
-                    }
-                    g_free(keys);
-                    g_free(keyvals);
-                }
+        gint level = GetKeyLevel(aEvent);
+        if ((event.isControl || event.isAlt || event.isMeta) &&
+            (level == 0 || level == 1)) {
+            guint baseState =
+                aEvent->state & ~(GDK_SHIFT_MASK | GDK_CONTROL_MASK |
+                                  GDK_MOD1_MASK | GDK_MOD4_MASK);
+            // We shold send both shifted char and unshifted char,
+            // all keyboard layout users can use all keys.
+            // Don't change event.charCode. On some keyboard layouts,
+            // ctrl/alt/meta keys are used for inputting some characters.
+            nsAlternativeCharCode altCharCodes(0, 0);
+            // unshifted charcode of current keyboard layout.
+            altCharCodes.mUnshiftedCharCode =
+                GetCharCodeFor(aEvent, baseState, aEvent->group);
+            PRBool isLatin = (altCharCodes.mUnshiftedCharCode <= 0xFF);
+            // shifted charcode of current keyboard layout.
+            altCharCodes.mShiftedCharCode =
+                GetCharCodeFor(aEvent, baseState | GDK_SHIFT_MASK,
+                               aEvent->group);
+            isLatin = isLatin && (altCharCodes.mShiftedCharCode <= 0xFF);
+            if (altCharCodes.mUnshiftedCharCode ||
+                altCharCodes.mShiftedCharCode) {
+                event.alternativeCharCodes.AppendElement(altCharCodes);
             }
 
-           // make Ctrl+uppercase functional as same as Ctrl+lowercase
-           // when Ctrl+uppercase(eg.Ctrl+C) is pressed,convert the charCode
-           // from uppercase to lowercase(eg.Ctrl+c),so do Alt and Meta Key
-           // It is hack code for bug 61355, there is same code snip for
-           // Windows platform in widget/src/windows/nsWindow.cpp: See bug 16486
-           // Note: if Shift is pressed at the same time, do not to_lower()
-           // Because Ctrl+Shift has different function with Ctrl
-           if (!event.isShift &&
-               event.charCode >= GDK_A &&
-               event.charCode <= GDK_Z)
-            event.charCode = gdk_keyval_to_lower(event.charCode);
-
-           // Keep the characters unshifted for shortcuts and accesskeys and
-           // make sure that numbers are always passed as such (among others:
-           // bugs 50255 and 351310)
-           if (!event.isControl && event.isShift &&
-               (event.charCode < GDK_0 || event.charCode > GDK_9)) {
-               GdkKeymapKey k = { tmpEvent.hardware_keycode, tmpEvent.group, 0 };
-               tmpEvent.keyval = gdk_keymap_lookup_key(gdk_keymap_get_default(), &k);
-               PRUint32 unshiftedCharCode = nsConvertCharCodeToUnicode(&tmpEvent);
-               if (unshiftedCharCode)
-                   event.charCode = unshiftedCharCode;
-           }
+            if (!isLatin) {
+                // Next, find latin inputtable keyboard layout.
+                GdkKeymapKey *keys;
+                gint count;
+                gint minGroup = -1;
+                if (gdk_keymap_get_entries_for_keyval(NULL, GDK_a,
+                                                      &keys, &count)) {
+                    // find the minimum number group for latin inputtable layout
+                    for (gint i = 0; i < count && minGroup != 0; ++i) {
+                        if (keys[i].level != 0 && keys[i].level != 1)
+                            continue;
+                        if (minGroup >= 0 && keys[i].group > minGroup)
+                            continue;
+                        minGroup = keys[i].group;
+                    }
+                    g_free(keys);
+                }
+                if (minGroup >= 0) {
+                    PRUint32 unmodifiedCh =
+                               event.isShift ? altCharCodes.mShiftedCharCode :
+                                               altCharCodes.mUnshiftedCharCode;
+                    // unshifted charcode of found keyboard layout.
+                    PRUint32 ch =
+                        GetCharCodeFor(aEvent, baseState, minGroup);
+                    altCharCodes.mUnshiftedCharCode =
+                        IsBasicLatinLetterOrNumeral(ch) ? ch : 0;
+                    // shifted charcode of found keyboard layout.
+                    ch = GetCharCodeFor(aEvent, baseState | GDK_SHIFT_MASK,
+                                        minGroup);
+                    altCharCodes.mShiftedCharCode =
+                        IsBasicLatinLetterOrNumeral(ch) ? ch : 0;
+                    if (altCharCodes.mUnshiftedCharCode ||
+                        altCharCodes.mShiftedCharCode) {
+                        event.alternativeCharCodes.AppendElement(altCharCodes);
+                    }
+                    // If the charCode is not Latin, and the level is 0 or 1,
+                    // we should replace the charCode to Latin char if Alt and
+                    // Meta keys are not pressed. (Alt should be sent the
+                    // localized char for accesskey like handling of Web
+                    // Applications.)
+                    ch = event.isShift ? altCharCodes.mShiftedCharCode :
+                                         altCharCodes.mUnshiftedCharCode;
+                    if (ch && !(event.isAlt || event.isMeta) &&
+                        event.charCode == unmodifiedCh) {
+                        event.charCode = ch;
+                    }
+                }
+            }
         }
     }
 
@@ -2843,9 +2900,7 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
     // event and and that case is handled in that handler.
     dragSessionGTK->TargetSetLastContext(0, 0, 0);
 
-    // send our drag exit event
-    innerMostWidget->OnDragLeave();
-    // and clear the mLastDragMotion window
+    // clear the mLastDragMotion window
     mLastDragMotionWindow = 0;
 
     // Make sure to end the drag session. If this drag started in a
@@ -3116,6 +3171,20 @@ nsWindow::NativeCreate(nsIWidget        *aParent,
                 mShell = gtk_window_new(GTK_WINDOW_POPUP);
                 gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
             }
+
+            GdkWindowTypeHint gtkTypeHint;
+            switch (aInitData->mPopupHint) {
+                case ePopupTypeMenu:
+                    gtkTypeHint = GDK_WINDOW_TYPE_HINT_POPUP_MENU;
+                    break;
+                case ePopupTypeTooltip:
+                    gtkTypeHint = GDK_WINDOW_TYPE_HINT_TOOLTIP;
+                    break;
+                default:
+                    gtkTypeHint = GDK_WINDOW_TYPE_HINT_UTILITY;
+                    break;
+            }
+            gtk_window_set_type_hint(GTK_WINDOW(mShell), gtkTypeHint);
 
             if (topLevelParent) {
                 gtk_window_set_transient_for(GTK_WINDOW(mShell),
@@ -5413,6 +5482,12 @@ nsWindow::IMEDestroyContext(void)
         mIMEData->mContext = nsnull;
     }
 
+    if (mIMEData->mSimpleContext) {
+        gtk_im_context_set_client_window(mIMEData->mSimpleContext, nsnull);
+        g_object_unref(G_OBJECT(mIMEData->mSimpleContext));
+        mIMEData->mSimpleContext = nsnull;
+    }
+
     if (mIMEData->mDummyContext) {
         // mIMEData->mContext and mIMEData->mDummyContext have the same
         // slaveType and signal_data so no need for another
@@ -5438,7 +5513,7 @@ nsWindow::IMESetFocus(void)
     gtk_im_context_focus_in(im);
     gIMEFocusWindow = this;
 
-    if (!IMEIsEnabled()) {
+    if (!IMEIsEnabledState()) {
         // We should release IME focus for uim and scim.
         // These IMs are using snooper that is released at losing focus.
         IMELoseFocus();
@@ -5584,13 +5659,26 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-    return aState == nsIKBStateControl::IME_STATUS_ENABLED ? PR_TRUE : PR_FALSE;
+    return aState == nsIKBStateControl::IME_STATUS_ENABLED;
 }
 
 PRBool
-nsWindow::IMEIsEnabled(void)
+nsWindow::IMEIsEnabledState(void)
 {
     return mIMEData ? IsIMEEnabledState(mIMEData->mEnabled) : PR_FALSE;
+}
+
+static PRBool
+IsIMEEditableState(PRUint32 aState)
+{
+    return aState == nsIKBStateControl::IME_STATUS_ENABLED ||
+           aState == nsIKBStateControl::IME_STATUS_PASSWORD;
+}
+
+PRBool
+nsWindow::IMEIsEditableState(void)
+{
+    return mIMEData ? IsIMEEditableState(mIMEData->mEnabled) : PR_FALSE;
 }
 
 nsWindow*
@@ -5614,14 +5702,18 @@ nsWindow::IMECreateContext(void)
         return;
 
     mIMEData->mContext = gtk_im_multicontext_new();
+    mIMEData->mSimpleContext = gtk_im_context_simple_new();
     mIMEData->mDummyContext = gtk_im_multicontext_new();
-    if (!mIMEData->mContext || !mIMEData->mDummyContext) {
+    if (!mIMEData->mContext || !mIMEData->mSimpleContext ||
+        !mIMEData->mDummyContext) {
         NS_ERROR("failed to create IM context.");
         IMEDestroyContext();
         return;
     }
 
     gtk_im_context_set_client_window(mIMEData->mContext,
+                                     GTK_WIDGET(mContainer)->window);
+    gtk_im_context_set_client_window(mIMEData->mSimpleContext,
                                      GTK_WIDGET(mContainer)->window);
     gtk_im_context_set_client_window(mIMEData->mDummyContext,
                                      GTK_WIDGET(mContainer)->window);
@@ -5630,12 +5722,16 @@ nsWindow::IMECreateContext(void)
                      G_CALLBACK(IM_preedit_changed_cb), this);
     g_signal_connect(G_OBJECT(mIMEData->mContext), "commit",
                      G_CALLBACK(IM_commit_cb), this);
+    g_signal_connect(G_OBJECT(mIMEData->mSimpleContext), "preedit_changed",
+                     G_CALLBACK(IM_preedit_changed_cb), this);
+    g_signal_connect(G_OBJECT(mIMEData->mSimpleContext), "commit",
+                     G_CALLBACK(IM_commit_cb), this);
 }
 
 PRBool
 nsWindow::IMEFilterEvent(GdkEventKey *aEvent)
 {
-    if (!IMEIsEnabled())
+    if (!IMEIsEditableState())
         return FALSE;
 
     GtkIMContext *im = IMEGetContext();
@@ -5716,12 +5812,8 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
     if (!mIMEData)
         return NS_OK;
 
-    PRBool newState = IsIMEEnabledState(aState);
-    PRBool oldState = IsIMEEnabledState(mIMEData->mEnabled);
-    if (newState == oldState) {
-        mIMEData->mEnabled = aState;
+    if (aState == mIMEData->mEnabled)
         return NS_OK;
-    }
 
     GtkIMContext *focusedIm = nsnull;
     // XXX Don't we need to check gFocusWindow?
@@ -5731,7 +5823,7 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
 
     if (focusedIm && focusedIm == mIMEData->mContext) {
         // Release current IME focus if IME is enabled.
-        if (oldState) {
+        if (IsIMEEditableState(mIMEData->mEnabled)) {
             focusedWin->ResetInputState();
             focusedWin->IMELoseFocus();
         }
@@ -5742,7 +5834,7 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
         // Because some IMs are updating the status bar of them in this time.
         focusedWin->IMESetFocus();
     } else {
-        if (oldState)
+        if (IsIMEEditableState(mIMEData->mEnabled))
             ResetInputState();
         mIMEData->mEnabled = aState;
     }
@@ -6079,7 +6171,11 @@ IM_get_input_context(nsWindow *aWindow)
     nsWindow::nsIMEData *data = aWindow->mIMEData;
     if (!data)
         return nsnull;
-    return data->mEnabled ? data->mContext : data->mDummyContext;
+    if (data->mEnabled == nsIKBStateControl::IME_STATUS_ENABLED)
+        return data->mContext;
+    if (data->mEnabled == nsIKBStateControl::IME_STATUS_PASSWORD)
+        return data->mSimpleContext;
+    return data->mDummyContext;
 }
 
 #endif
@@ -6095,9 +6191,17 @@ nsWindow::GetThebesSurface()
     mThebesSurface = nsnull;
 
     if (!mThebesSurface) {
-        GdkDrawable* d = GDK_DRAWABLE(mDrawingarea->inner_window);
+        GdkDrawable* d;
+        gint x_offset, y_offset;
+        gdk_window_get_internal_paint_info(mDrawingarea->inner_window,
+                &d, &x_offset, &y_offset);
+
         gint width, height;
         gdk_drawable_get_size(d, &width, &height);
+        // Owen Taylor says this is the right thing to do!
+        width = PR_MIN(32767, width);
+        height = PR_MIN(32767, height);
+
         if (!gfxPlatform::UseGlitz()) {
             mThebesSurface = new gfxXlibSurface
                 (GDK_WINDOW_XDISPLAY(d),
@@ -6145,6 +6249,10 @@ nsWindow::GetThebesSurface()
             //fprintf (stderr, "## nsThebesDrawingSurface::Init Glitz DRAWABLE %p (DC: %p)\n", aWidget, aDC);
             mThebesSurface = new gfxGlitzSurface (gdraw, gsurf, PR_TRUE);
 #endif
+        }
+
+        if (mThebesSurface) {
+            mThebesSurface->SetDeviceOffset(gfxPoint(-x_offset, -y_offset));
         }
     }
 

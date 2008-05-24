@@ -22,6 +22,7 @@
  *   Joe Hughes <jhughes@google.com>
  *   Dietrich Ayala <dietrich@mozilla.com>
  *   Asaf Romano <mano@mozilla.com>
+ *   Marco Bonardo <mak77@supereva.it>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -70,9 +71,9 @@
  *     - "edit" - for editing a bookmark item or a folder.
  *       @ type (String). Possible values:
  *         - "bookmark"
- *           @ bookmarkId (Integer) - the id of the bookmark item.
+ *           @ itemId (Integer) - the id of the bookmark item.
  *         - "folder" (also applies to livemarks)
- *           @ folderId (Integer) - the id of the folder.
+ *           @ itemId (Integer) - the id of the folder.
  *   @ hiddenRows (Strings array) - optional, list of rows to be hidden
  *     regardless of the item edited or added by the dialog.
  *     Possible values:
@@ -80,7 +81,7 @@
  *     - "location"
  *     - "description"
  *     - "keyword"
- *     - "load in sidebar"
+ *     - "loadInSidebar"
  *     - "feedURI"
  *     - "siteURI"
  *     - "folder picker" - hides both the tree and the menu.
@@ -115,15 +116,15 @@ var BookmarkPropertiesPanel = {
 
   _action: null,
   _itemType: null,
-  _folderId: null,
-  _bookmarkId: -1,
-  _bookmarkURI: null,
+  _itemId: -1,
+  _uri: null,
   _loadBookmarkInSidebar: false,
   _itemTitle: "",
   _itemDescription: "",
   _microsummaries: null,
   _URIList: null,
   _postData: null,
+  _charSet: "",
 
   // sizeToContent is not usable due to bug 90276, so we'll use resizeTo
   // instead and cache the bookmarks tree view size. See WSucks in the legacy
@@ -200,14 +201,14 @@ var BookmarkPropertiesPanel = {
           if ("uri" in dialogInfo) {
             NS_ASSERT(dialogInfo.uri instanceof Ci.nsIURI,
                       "uri property should be a uri object");
-            this._bookmarkURI = dialogInfo.uri;
+            this._uri = dialogInfo.uri;
           }
           if (typeof(this._itemTitle) != "string") {
-            if (this._bookmarkURI) {
+            if (this._uri) {
               this._itemTitle =
-                this._getURITitleFromHistory(this._bookmarkURI);
+                this._getURITitleFromHistory(this._uri);
               if (!this._itemTitle)
-                this._itemTitle = this._bookmarkURI.spec;
+                this._itemTitle = this._uri.spec;
             }
             else
               this._itemTitle = this._strings.getString("newBookmarkDefault");
@@ -220,6 +221,8 @@ var BookmarkPropertiesPanel = {
             this._bookmarkKeyword = dialogInfo.keyword;
             if ("postData" in dialogInfo)
               this._postData = dialogInfo.postData;
+            if ("charSet" in dialogInfo)
+              this._charSet = dialogInfo.charSet;
           }
 
           break;
@@ -265,47 +268,45 @@ var BookmarkPropertiesPanel = {
 
       switch (dialogInfo.type) {
         case "bookmark":
-          NS_ASSERT("bookmarkId" in dialogInfo);
+          NS_ASSERT("itemId" in dialogInfo);
 
           this._action = ACTION_EDIT;
           this._itemType = BOOKMARK_ITEM;
-          this._bookmarkId = dialogInfo.bookmarkId;
+          this._itemId = dialogInfo.itemId;
 
-          this._bookmarkURI = bookmarks.getBookmarkURI(this._bookmarkId);
-          this._itemTitle = bookmarks.getItemTitle(this._bookmarkId);
+          this._uri = bookmarks.getBookmarkURI(this._itemId);
+          this._itemTitle = bookmarks.getItemTitle(this._itemId);
 
           // keyword
           this._bookmarkKeyword =
-            bookmarks.getKeywordForBookmark(this._bookmarkId);
+            bookmarks.getKeywordForBookmark(this._itemId);
 
           // Load In Sidebar
           this._loadBookmarkInSidebar =
-            annos.itemHasAnnotation(this._bookmarkId, LOAD_IN_SIDEBAR_ANNO);
+            annos.itemHasAnnotation(this._itemId, LOAD_IN_SIDEBAR_ANNO);
 
           break;
         case "folder":
-          NS_ASSERT("folderId" in dialogInfo);
+          NS_ASSERT("itemId" in dialogInfo);
 
           this._action = ACTION_EDIT;
-          this._folderId = dialogInfo.folderId;
+          this._itemId = dialogInfo.itemId;
 
           const livemarks = PlacesUtils.livemarks;
-          if (livemarks.isLivemark(this._folderId)) {
+          if (livemarks.isLivemark(this._itemId)) {
             this._itemType = LIVEMARK_CONTAINER;
-            this._feedURI = livemarks.getFeedURI(this._folderId);
-            this._siteURI = livemarks.getSiteURI(this._folderId);
+            this._feedURI = livemarks.getFeedURI(this._itemId);
+            this._siteURI = livemarks.getSiteURI(this._itemId);
           }
           else
             this._itemType = BOOKMARK_FOLDER;
-          this._itemTitle = bookmarks.getItemTitle(this._folderId);
+          this._itemTitle = bookmarks.getItemTitle(this._itemId);
           break;
       }
 
       // Description
-      // XXXmano: unify the two id fields
-      var itemId = dialogInfo.type == "bookmark" ? this._bookmarkId : this._folderId;
-      if (annos.itemHasAnnotation(itemId, DESCRIPTION_ANNO)) {
-        this._itemDescription = annos.getItemAnnotation(itemId,
+      if (annos.itemHasAnnotation(this._itemId, DESCRIPTION_ANNO)) {
+        this._itemDescription = annos.getItemAnnotation(this._itemId,
                                                         DESCRIPTION_ANNO);
       }
     }
@@ -336,7 +337,6 @@ var BookmarkPropertiesPanel = {
   onDialogLoad: function BPP_onDialogLoad() {
     this._determineItemInfo();
     this._populateProperties();
-    this._forceHideRows();
     this.validateChanges();
 
     this._folderMenuList = this._element("folderMenuList");
@@ -439,7 +439,7 @@ var BookmarkPropertiesPanel = {
 
   QueryInterface: function BPP_QueryInterface(aIID) {
     if (aIID.equals(Ci.nsIMicrosummaryObserver) ||
-        aIID.eqauls(Ci.nsISupports))
+        aIID.equals(Ci.nsISupports))
       return this;
 
     throw Cr.NS_ERROR_NO_INTERFACE;
@@ -450,30 +450,34 @@ var BookmarkPropertiesPanel = {
   },
 
   /**
-   * Hides fields which were explicitly set hidden by the the dialog opener
-   * (see documentation at the top of this file).
+   * Show or hides fields based on item type.
    */
-  _forceHideRows: function BPP__forceHideRows() {
-    var hiddenRows = window.arguments[0].hiddenRows;
-    if (!hiddenRows)
-      return;
+  _showHideRows: function BPP__showHideRows() {
+    var hiddenRows = window.arguments[0].hiddenRows || new Array();
 
-    if (hiddenRows.indexOf("title") != -1)
-      this._element("namePicker").hidden = true;
-    if (hiddenRows.indexOf("location") != -1)
-      this._element("locationRow").hidden = true;
-    if (hiddenRows.indexOf("keyword") != -1)
-      this._element("keywordRow").hidden = true;
-    if (hiddenRows.indexOf("description")!= -1)
-      this._element("descriptionRow").hidden = true;
-    if (hiddenRows.indexOf("folder picker") != -1)
-      this._element("folderRow").hidden = true;
-    if (hiddenRows.indexOf("feedURI") != -1)
-      this._element("livemarkFeedLocationRow").hidden = true;
-    if (hiddenRows.indexOf("siteURI") != -1)
-      this._element("livemarkSiteLocationRow").hidden = true;
-    if (hiddenRows.indexOf("load in sidebar") != -1)
-      this._element("loadInSidebarCheckbox").hidden = true;
+    var isBookmark = this._itemType == BOOKMARK_ITEM;
+    var isLivemark = this._itemType == LIVEMARK_CONTAINER;
+
+    var isQuery = false;
+    if (this._uri)
+      isQuery = this._uri.schemeIs("place");
+
+    this._element("namePicker").hidden =
+      hiddenRows.indexOf("title") != -1;
+    this._element("locationRow").hidden =
+      hiddenRows.indexOf("location") != -1 || isQuery || !isBookmark;
+    this._element("keywordRow").hidden =
+      hiddenRows.indexOf("keyword") != -1 || isQuery || !isBookmark;
+    this._element("descriptionRow").hidden =
+      hiddenRows.indexOf("description")!= -1
+    this._element("folderRow").hidden =
+      hiddenRows.indexOf("folder picker") != -1 || this._action == ACTION_EDIT;
+    this._element("livemarkFeedLocationRow").hidden =
+      hiddenRows.indexOf("feedURI") != -1 || !isLivemark;
+    this._element("livemarkSiteLocationRow").hidden =
+      hiddenRows.indexOf("siteURI") != -1 || !isLivemark;
+    this._element("loadInSidebarCheckbox").hidden =
+      hiddenRows.indexOf("loadInSidebar") != -1 || isQuery || !isBookmark;
   },
 
   /**
@@ -487,19 +491,14 @@ var BookmarkPropertiesPanel = {
     this._element("descriptionTextfield").value = this._itemDescription;
 
     if (this._itemType == BOOKMARK_ITEM) {
-      if (this._bookmarkURI)
-        this._element("editURLBar").value = this._bookmarkURI.spec;
+      if (this._uri)
+        this._element("editURLBar").value = this._uri.spec;
 
       if (typeof(this._bookmarkKeyword) == "string")
         this._element("keywordTextfield").value = this._bookmarkKeyword;
 
       if (this._loadBookmarkInSidebar)
         this._element("loadInSidebarCheckbox").checked = true;
-    }
-    else {
-      this._element("locationRow").hidden = true;
-      this._element("keywordRow").hidden = true;
-      this._element("loadInSidebarCheckbox").hidden = true;
     }
 
     if (this._itemType == LIVEMARK_CONTAINER) {
@@ -508,13 +507,8 @@ var BookmarkPropertiesPanel = {
       if (this._siteURI)
         this._element("feedSiteLocationTextfield").value = this._siteURI.spec;
     }
-    else {
-      this._element("livemarkFeedLocationRow").hidden = true;
-      this._element("livemarkSiteLocationRow").hidden = true;
-    }
 
-    if (this._action == ACTION_EDIT)
-      this._element("folderRow").hidden = true;
+    this._showHideRows();
   },
 
   _createMicrosummaryMenuItem:
@@ -551,15 +545,15 @@ var BookmarkPropertiesPanel = {
     var namePicker = this._element("namePicker");
     const annos = PlacesUtils.annotations;
 
-    if (annos.itemHasAnnotation(this._bookmarkId, STATIC_TITLE_ANNO)) {
-      userEnteredNameField.label = annos.getItemAnnotation(this._bookmarkId,
+    if (annos.itemHasAnnotation(this._itemId, STATIC_TITLE_ANNO)) {
+      userEnteredNameField.label = annos.getItemAnnotation(this._itemId,
                                                            STATIC_TITLE_ANNO);
     }
     else
       userEnteredNameField.label = this._itemTitle;
 
     // Non-bookmark items always use the item-title itself
-    if (this._itemType != BOOKMARK_ITEM || !this._bookmarkURI) {
+    if (this._itemType != BOOKMARK_ITEM || !this._uri) {
       namePicker.selectedItem = userEnteredNameField;
       return;
     }
@@ -567,8 +561,8 @@ var BookmarkPropertiesPanel = {
     var itemToSelect = userEnteredNameField;
     try {
       this._microsummaries =
-        PlacesUtils.microsummaries.getMicrosummaries(this._bookmarkURI,
-                                                     this._bookmarkId);
+        PlacesUIUtils.microsummaries.getMicrosummaries(this._uri,
+                                                       this._itemId);
     }
     catch(ex) {
       // getMicrosummaries will throw an exception if the page to which the URI
@@ -590,8 +584,8 @@ var BookmarkPropertiesPanel = {
           var menuItem = this._createMicrosummaryMenuItem(microsummary);
 
           if (this._action == ACTION_EDIT &&
-              PlacesUtils.microsummaries
-                         .isMicrosummary(this._bookmarkId, microsummary))
+              PlacesUIUtils.microsummaries
+                           .isMicrosummary(this._itemId, microsummary))
             itemToSelect = menuItem;
 
           menupopup.appendChild(menuItem);
@@ -713,7 +707,7 @@ var BookmarkPropertiesPanel = {
     try {
       var value = this._element(aTextboxID).value;
       if (value) {
-        var uri = PlacesUtils.createFixedURI(value);
+        var uri = PlacesUIUtils.createFixedURI(value);
         return true;
       }
     } catch (e) { }
@@ -725,7 +719,7 @@ var BookmarkPropertiesPanel = {
    */
   _getEditTitleTransaction:
   function BPP__getEditTitleTransaction(aItemId, aNewTitle) {
-    return PlacesUtils.ptm.editItemTitle(aItemId, aNewTitle);
+    return PlacesUIUtils.ptm.editItemTitle(aItemId, aNewTitle);
   },
 
   /**
@@ -797,11 +791,7 @@ var BookmarkPropertiesPanel = {
    * was open.
    */
   _saveChanges: function BPP__saveChanges() {
-    var itemId;
-    if (this._itemType == BOOKMARK_ITEM)
-      itemId = this._bookmarkId;
-    else
-      itemId = this._folderId;
+    var itemId = this._itemId;
 
     var transactions = [];
 
@@ -813,21 +803,21 @@ var BookmarkPropertiesPanel = {
     // description
     var description = this._element("descriptionTextfield").value;
     if (description != this._itemDescription) {
-      transactions.push(PlacesUtils.ptm.
+      transactions.push(PlacesUIUtils.ptm.
                         editItemDescription(itemId, description,
                         this._itemType != BOOKMARK_ITEM));
     }
 
     if (this._itemType == BOOKMARK_ITEM) {
       // location
-      var url = PlacesUtils.createFixedURI(this._element("editURLBar").value);
-      if (!this._bookmarkURI.equals(url))
-        transactions.push(PlacesUtils.ptm.editBookmarkURI(itemId, url));
+      var url = PlacesUIUtils.createFixedURI(this._element("editURLBar").value);
+      if (!this._uri.equals(url))
+        transactions.push(PlacesUIUtils.ptm.editBookmarkURI(itemId, url));
 
       // keyword transactions
       var newKeyword = this._element("keywordTextfield").value;
       if (newKeyword != this._bookmarkKeyword) {
-        transactions.push(PlacesUtils.ptm.
+        transactions.push(PlacesUIUtils.ptm.
                           editBookmarkKeyword(itemId, newKeyword));
       }
 
@@ -841,39 +831,39 @@ var BookmarkPropertiesPanel = {
       // selected a microsummary which is not the one the bookmark previously
       // had.
       if ((newMicrosummary == null &&
-           PlacesUtils.microsummaries.hasMicrosummary(itemId)) ||
+           PlacesUIUtils.microsummaries.hasMicrosummary(itemId)) ||
           (newMicrosummary != null &&
-           !PlacesUtils.microsummaries
-                       .isMicrosummary(itemId, newMicrosummary))) {
+           !PlacesUIUtils.microsummaries
+                         .isMicrosummary(itemId, newMicrosummary))) {
         transactions.push(
-          PlacesUtils.ptm.editBookmarkMicrosummary(itemId, newMicrosummary));
+          PlacesUIUtils.ptm.editBookmarkMicrosummary(itemId, newMicrosummary));
       }
 
       // load in sidebar
       var loadInSidebarChecked = this._element("loadInSidebarCheckbox").checked;
       if (loadInSidebarChecked != this._loadBookmarkInSidebar) {
         transactions.push(
-          PlacesUtils.ptm.setLoadInSidebar(itemId, loadInSidebarChecked));
+          PlacesUIUtils.ptm.setLoadInSidebar(itemId, loadInSidebarChecked));
       }
     }
     else if (this._itemType == LIVEMARK_CONTAINER) {
       var feedURIString = this._element("feedLocationTextfield").value;
-      var feedURI = PlacesUtils.createFixedURI(feedURIString);
+      var feedURI = PlacesUIUtils.createFixedURI(feedURIString);
       if (!this._feedURI.equals(feedURI)) {
         transactions.push(
-          PlacesUtils.ptm.editLivemarkFeedURI(this._folderId, feedURI));
+          PlacesUIUtils.ptm.editLivemarkFeedURI(this._itemId, feedURI));
       }
 
       // Site Location is empty, we can set its URI to null
       var newSiteURIString = this._element("feedSiteLocationTextfield").value;
       var newSiteURI = null;
       if (newSiteURIString)
-        newSiteURI = PlacesUtils.createFixedURI(newSiteURIString);
+        newSiteURI = PlacesUIUtils.createFixedURI(newSiteURIString);
 
       if ((!newSiteURI && this._siteURI)  ||
           (newSiteURI && (!this._siteURI || !this._siteURI.equals(newSiteURI)))) {
         transactions.push(
-          PlacesUtils.ptm.editLivemarkSiteURI(this._folderId, newSiteURI));
+          PlacesUIUtils.ptm.editLivemarkSiteURI(this._itemId, newSiteURI));
       }
     }
 
@@ -882,8 +872,8 @@ var BookmarkPropertiesPanel = {
     if (transactions.length > 0) {
       window.arguments[0].performed = true;
       var aggregate =
-        PlacesUtils.ptm.aggregateTransactions(this._getDialogTitle(), transactions);
-      PlacesUtils.ptm.doTransaction(aggregate);
+        PlacesUIUtils.ptm.aggregateTransactions(this._getDialogTitle(), transactions);
+      PlacesUIUtils.ptm.doTransaction(aggregate);
     }
   },
 
@@ -912,7 +902,7 @@ var BookmarkPropertiesPanel = {
    */
   _getCreateNewBookmarkTransaction:
   function BPP__getCreateNewBookmarkTransaction(aContainer, aIndex) {
-    var uri = PlacesUtils.createFixedURI(this._element("editURLBar").value);
+    var uri = PlacesUIUtils.createFixedURI(this._element("editURLBar").value);
     var title = this._element("userEnteredName").label;
     var keyword = this._element("keywordTextfield").value;
     var annotations = [];
@@ -928,20 +918,23 @@ var BookmarkPropertiesPanel = {
     var microsummary = this._element("namePicker").selectedItem.microsummary;
     if (microsummary) {
       childTransactions.push(
-        PlacesUtils.ptm.editBookmarkMicrosummary(-1, microsummary));
+        PlacesUIUtils.ptm.editBookmarkMicrosummary(-1, microsummary));
     }
 
     if (this._postData) {
       childTransactions.push(
-        PlacesUtils.ptm.editBookmarkPostData(-1, this._postData));
+        PlacesUIUtils.ptm.editBookmarkPostData(-1, this._postData));
     }
 
-    var transactions = [PlacesUtils.ptm.createItem(uri, aContainer, aIndex,
-                                                   title, keyword,
-                                                   annotations,
-                                                   childTransactions)];
+    if (this._charSet)
+      PlacesUtils.history.setCharsetForURI(this._uri, this._charSet);
 
-    return PlacesUtils.ptm.aggregateTransactions(this._getDialogTitle(), transactions);
+    var transactions = [PlacesUIUtils.ptm.createItem(uri, aContainer, aIndex,
+                                                     title, keyword,
+                                                     annotations,
+                                                     childTransactions)];
+
+    return PlacesUIUtils.ptm.aggregateTransactions(this._getDialogTitle(), transactions);
   },
 
   /**
@@ -953,7 +946,7 @@ var BookmarkPropertiesPanel = {
     for (var i = 0; i < this._URIList.length; ++i) {
       var uri = this._URIList[i];
       var title = this._getURITitleFromHistory(uri);
-      transactions.push(PlacesUtils.ptm.createItem(uri, -1, -1, title));
+      transactions.push(PlacesUIUtils.ptm.createItem(uri, -1, -1, title));
     }
     return transactions; 
   },
@@ -973,8 +966,8 @@ var BookmarkPropertiesPanel = {
     if (description)
       annotations.push(this._getDescriptionAnnotation(description));
 
-    return PlacesUtils.ptm.createFolder(folderName, aContainer, aIndex,
-                                        annotations, childItemsTransactions);
+    return PlacesUIUtils.ptm.createFolder(folderName, aContainer, aIndex,
+                                          annotations, childItemsTransactions);
   },
 
   /**
@@ -984,16 +977,16 @@ var BookmarkPropertiesPanel = {
   _getCreateNewLivemarkTransaction:
   function BPP__getCreateNewLivemarkTransaction(aContainer, aIndex) {
     var feedURIString = this._element("feedLocationTextfield").value;
-    var feedURI = PlacesUtils.createFixedURI(feedURIString);
+    var feedURI = PlacesUIUtils.createFixedURI(feedURIString);
 
     var siteURIString = this._element("feedSiteLocationTextfield").value;
     var siteURI = null;
     if (siteURIString)
-      siteURI = PlacesUtils.createFixedURI(siteURIString);
+      siteURI = PlacesUIUtils.createFixedURI(siteURIString);
 
     var name = this._element("namePicker").value;
-    return PlacesUtils.ptm.createLivemark(feedURI, siteURI, name,
-                                          aContainer, aIndex);
+    return PlacesUIUtils.ptm.createLivemark(feedURI, siteURI, name,
+                                            aContainer, aIndex);
   },
 
   /**
@@ -1018,7 +1011,7 @@ var BookmarkPropertiesPanel = {
     // perfrom our transaction do via the transaction manager passed by the
     // opener so it can be undone.
     window.arguments[0].performed = true;
-    PlacesUtils.ptm.doTransaction(createTxn);
+    PlacesUIUtils.ptm.doTransaction(createTxn);
   },
 
   onNamePickerInput: function BPP_onNamePickerInput() {
@@ -1049,7 +1042,7 @@ var BookmarkPropertiesPanel = {
       if (!this._folderTree.place) {
         const FOLDER_TREE_PLACE_URI =
           "place:excludeItems=1&excludeQueries=1&excludeReadOnlyFolders=1&folder=" +
-          PlacesUtils.allBookmarksFolderId;
+          PlacesUIUtils.allBookmarksFolderId;
         this._folderTree.place = FOLDER_TREE_PLACE_URI;
       }
 
@@ -1105,14 +1098,8 @@ var BookmarkPropertiesPanel = {
     if (!selectedNode)
       return;
 
-    var folderId = selectedNode.itemId;
-    // Don't set the selected item if the static item for the folder is
-    // already selected
-    var oldSelectedItem = this._folderMenuList.selectedItem;
-    if ((oldSelectedItem.id == "toolbarFolderItem" &&
-         folderId == PlacesUtils.toolbarFolderId) ||
-        (oldSelectedItem.id == "bookmarksRootItem" &&
-         folderId == PlacesUtils.bookmarksMenuFolderId))
+    var folderId = PlacesUtils.getConcreteItemId(selectedNode);
+    if (this._getFolderIdFromMenuList() == folderId)
       return;
 
     var folderItem = this._getFolderMenuItem(folderId);

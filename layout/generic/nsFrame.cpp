@@ -1034,13 +1034,13 @@ public:
     // We are not a stacking context root. There is no valid underlying
     // frame for the whole list. These items are all in-flow descendants so
     // we can safely just clip them.
-    return new (aBuilder) nsDisplayClip(nsnull, aList, mRect);
+    return new (aBuilder) nsDisplayClip(nsnull, mContainer, aList, mRect);
   }
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
     nsIFrame* f = aItem->GetUnderlyingFrame();
     if (mClipAll || nsLayoutUtils::IsProperAncestorFrame(mContainer, f, nsnull))
-      return new (aBuilder) nsDisplayClip(f, aItem, mRect);
+      return new (aBuilder) nsDisplayClip(f, mContainer, aItem, mRect);
     return aItem;
   }
 protected:
@@ -1053,20 +1053,22 @@ protected:
 class nsAbsPosClipWrapper : public nsDisplayWrapper
 {
 public:
-  nsAbsPosClipWrapper(const nsRect& aRect)
-    : mRect(aRect) {}
+  nsAbsPosClipWrapper(nsIFrame* aContainer, const nsRect& aRect)
+    : mContainer(aContainer), mRect(aRect) {}
   virtual nsDisplayItem* WrapList(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame, nsDisplayList* aList) {
     // We are not a stacking context root. There is no valid underlying
     // frame for the whole list.
-    return new (aBuilder) nsDisplayClip(nsnull, aList, mRect);
+    return new (aBuilder) nsDisplayClip(nsnull, mContainer, aList, mRect);
   }
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
-    return new (aBuilder) nsDisplayClip(aItem->GetUnderlyingFrame(), aItem, mRect);
+    return new (aBuilder) nsDisplayClip(aItem->GetUnderlyingFrame(),
+            mContainer, aItem, mRect);
   }
 protected:
-  nsRect mRect;
+  nsIFrame* mContainer;
+  nsRect    mRect;
 };
 
 nsresult
@@ -1087,7 +1089,7 @@ nsIFrame::Clip(nsDisplayListBuilder*   aBuilder,
                const nsDisplayListSet& aToSet,
                const nsRect&           aClipRect)
 {
-  nsAbsPosClipWrapper wrapper(aClipRect);
+  nsAbsPosClipWrapper wrapper(this, aClipRect);
   return wrapper.WrapLists(aBuilder, this, aFromSet, aToSet);
 }
 
@@ -1236,7 +1238,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   resultList.AppendToTop(set.PositionedDescendants());
 
   if (applyAbsPosClipping) {
-    nsAbsPosClipWrapper wrapper(absPosClip);
+    nsAbsPosClipWrapper wrapper(this, absPosClip);
     nsDisplayItem* item = wrapper.WrapList(aBuilder, this, &resultList);
     if (!item)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -1251,6 +1253,34 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   }
   
   return rv;
+}
+
+class nsDisplaySummary : public nsDisplayItem
+{
+public:
+  nsDisplaySummary(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
+    MOZ_COUNT_CTOR(nsDisplaySummary);
+  }
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplaySummary() {
+    MOZ_COUNT_DTOR(nsDisplaySummary);
+  }
+#endif
+
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
+  NS_DISPLAY_DECL_NAME("Summary")
+};
+
+nsRect
+nsDisplaySummary::GetBounds(nsDisplayListBuilder* aBuilder) {
+  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
+}
+
+static void
+AddSummaryFrameToList(nsDisplayListBuilder* aBuilder,
+                      nsIFrame* aFrame, nsDisplayList* aList)
+{
+  aList->AppendNewToTop(new (aBuilder) nsDisplaySummary(aFrame));
 }
 
 nsresult
@@ -1336,7 +1366,17 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       // No position-varying content has been rendered in this prescontext.
       // Therefore there is no need to descend into analyzing the moving frame's
       // descendants looking for such content, because any bitblit will
-      // not be copying position-varying graphics.
+      // not be copying position-varying graphics. However, to keep things
+      // sane we still need display items representing the frame subtree.
+      // We need to add these summaries to every list that the child could
+      // contribute to. This avoids display list optimizations optimizing
+      // away entire lists because they appear to be empty.
+      AddSummaryFrameToList(aBuilder, aChild, aLists.BlockBorderBackgrounds());
+      AddSummaryFrameToList(aBuilder, aChild, aLists.BorderBackground());
+      AddSummaryFrameToList(aBuilder, aChild, aLists.Content());
+      AddSummaryFrameToList(aBuilder, aChild, aLists.Floats());
+      AddSummaryFrameToList(aBuilder, aChild, aLists.PositionedDescendants());      
+      AddSummaryFrameToList(aBuilder, aChild, aLists.Outlines());
       return NS_OK;
     }
   }
@@ -1427,7 +1467,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     
     if (NS_SUCCEEDED(rv)) {
       if (isPositioned && applyAbsPosClipping) {
-        nsAbsPosClipWrapper wrapper(clipRect);
+        nsAbsPosClipWrapper wrapper(aChild, clipRect);
         rv = wrapper.WrapListsInPlace(aBuilder, aChild, pseudoStack);
       }
     }
@@ -1748,18 +1788,19 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   isEditor = isEditor == nsISelectionDisplay::DISPLAY_ALL;
 
   nsInputEvent* keyEvent = (nsInputEvent*)aEvent;
-  if (!isEditor && !keyEvent->isAlt) {
+  if (!keyEvent->isAlt) {
     
     for (nsIContent* content = mContent; content;
          content = content->GetParent()) {
-      if ( nsContentUtils::ContentIsDraggable(content) ) {
+      if (nsContentUtils::ContentIsDraggable(content) &&
+          !content->IsEditable()) {
         // coordinate stuff is the fix for bug #55921
         if ((mRect - GetPosition()).Contains(
                nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this)))
           return NS_OK;
       }
     }
-  } // if browser, not editor
+  }
 
   // check whether style allows selection
   // if not, don't tell selection the mouse event even occurred.  
@@ -2859,7 +2900,8 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext
       if (floatDisp->mBreakType == NS_STYLE_CLEAR_LEFT ||
           floatDisp->mBreakType == NS_STYLE_CLEAR_RIGHT ||
           floatDisp->mBreakType == NS_STYLE_CLEAR_LEFT_AND_RIGHT) {
-        nscoord floats_cur = floats_cur_left + floats_cur_right;
+        nscoord floats_cur = NSCoordSaturatingAdd(floats_cur_left,
+                                                  floats_cur_right);
         if (floats_cur > floats_done)
           floats_done = floats_cur;
         if (floatDisp->mBreakType != NS_STYLE_CLEAR_RIGHT)
@@ -2870,12 +2912,18 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext
 
       nscoord &floats_cur = floatDisp->mFloats == NS_STYLE_FLOAT_LEFT
                               ? floats_cur_left : floats_cur_right;
-      floats_cur +=
-        nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
-                      floatFrame, nsLayoutUtils::PREF_WIDTH);
+      nscoord floatWidth =
+          nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
+                                               floatFrame,
+                                               nsLayoutUtils::PREF_WIDTH);
+      // Negative-width floats don't change the available space so they
+      // shouldn't change our intrinsic line width either.
+      floats_cur =
+        NSCoordSaturatingAdd(floats_cur, PR_MAX(0, floatWidth));
     }
 
-    nscoord floats_cur = floats_cur_left + floats_cur_right;
+    nscoord floats_cur =
+      NSCoordSaturatingAdd(floats_cur_left, floats_cur_right);
     if (floats_cur > floats_done)
       floats_done = floats_cur;
 
@@ -2884,7 +2932,8 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext
     floats.Clear();
   }
 
-  currentLine = NSCoordSaturatingSubtract(currentLine, trailingWhitespace, nscoord_MAX);
+  currentLine =
+    NSCoordSaturatingSubtract(currentLine, trailingWhitespace, nscoord_MAX);
   prevLines = PR_MAX(prevLines, currentLine);
   currentLine = trailingWhitespace = 0;
   skipWhitespace = PR_TRUE;
@@ -2917,18 +2966,17 @@ AddCoord(const nsStyleCoord& aStyle,
 nsFrame::IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext)
 {
   IntrinsicWidthOffsetData result;
-  nsStyleCoord tmp;
 
   const nsStyleMargin *styleMargin = GetStyleMargin();
-  AddCoord(styleMargin->mMargin.GetLeft(tmp), aRenderingContext, this,
+  AddCoord(styleMargin->mMargin.GetLeft(), aRenderingContext, this,
            &result.hMargin, &result.hPctMargin);
-  AddCoord(styleMargin->mMargin.GetRight(tmp), aRenderingContext, this,
+  AddCoord(styleMargin->mMargin.GetRight(), aRenderingContext, this,
            &result.hMargin, &result.hPctMargin);
 
   const nsStylePadding *stylePadding = GetStylePadding();
-  AddCoord(stylePadding->mPadding.GetLeft(tmp), aRenderingContext, this,
+  AddCoord(stylePadding->mPadding.GetLeft(), aRenderingContext, this,
            &result.hPadding, &result.hPctPadding);
-  AddCoord(stylePadding->mPadding.GetRight(tmp), aRenderingContext, this,
+  AddCoord(stylePadding->mPadding.GetRight(), aRenderingContext, this,
            &result.hPadding, &result.hPctPadding);
 
   const nsStyleBorder *styleBorder = GetStyleBorder();
@@ -3647,6 +3695,19 @@ static nsRect ComputeOutlineRect(const nsIFrame* aFrame, PRBool* aAnyOutline,
     }
   }
   return r;
+}
+
+nsPoint
+nsIFrame::GetRelativeOffset(const nsStyleDisplay* aDisplay) const
+{
+  if (!aDisplay || NS_STYLE_POSITION_RELATIVE == aDisplay->mPosition) {
+    nsPoint *offsets = static_cast<nsPoint*>
+                         (GetProperty(nsGkAtoms::computedOffsetProperty));
+    if (offsets) {
+      return *offsets;
+    }
+  }
+  return nsPoint(0,0);
 }
 
 nsRect
@@ -5289,6 +5350,14 @@ nsIFrame::GetOverflowAreaProperty(PRBool aCreateIfNecessary)
   return nsnull;
 }
 
+inline PRBool
+IsInlineFrame(nsIFrame *aFrame)
+{
+  nsIAtom *type = aFrame->GetType();
+  return type == nsGkAtoms::inlineFrame ||
+         type == nsGkAtoms::positionedInlineFrame;
+}
+
 void 
 nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
 {
@@ -5303,7 +5372,7 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
 
   const nsStyleDisplay *disp = GetStyleDisplay();
   if (!IsBoxWrapped() && IsThemed(disp)) {
-    nsRect r;
+    nsRect r(nsPoint(0, 0), aNewSize);
     nsPresContext *presContext = PresContext();
     if (presContext->GetTheme()->
           GetWidgetOverflow(presContext->DeviceContext(), this,
@@ -5314,8 +5383,11 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
   
   // Overflow area must always include the frame's top-left and bottom-right,
   // even if the frame rect is empty.
-  aOverflowArea->UnionRectIncludeEmpty(*aOverflowArea,
-                                       nsRect(nsPoint(0, 0), aNewSize));
+  // Pending a real fix for bug 426879, don't do this for inline frames
+  // with zero width.
+  if (aNewSize.width != 0 || !IsInlineFrame(this))
+    aOverflowArea->UnionRectIncludeEmpty(*aOverflowArea,
+                                         nsRect(nsPoint(0, 0), aNewSize));
 
   PRBool geometricOverflow =
     aOverflowArea->x < 0 || aOverflowArea->y < 0 ||
@@ -6180,6 +6252,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     // messes up dimensions.
     reflowState.parentReflowState = &parentReflowState;
     reflowState.mCBReflowState = &parentReflowState;
+    reflowState.mReflowDepth = aState.GetReflowDepth();
 
     // mComputedWidth and mComputedHeight are content-box, not
     // border-box

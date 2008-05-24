@@ -76,7 +76,7 @@ endif
 # New code for Linux, et. al., with gcc
 # Migrate other platforms here after testing
 #
-ifneq (,$(filter Linux,$(OS_ARCH)))
+ifneq (,$(filter Linux GNU_%,$(OS_ARCH)))
 # Linux/x86-64
 ifeq (x86_64,$(OS_TEST))
 CPPSRCS		:= xptcinvoke_x86_64_linux.cpp xptcstubs_x86_64_linux.cpp
@@ -420,6 +420,11 @@ else
 ASFILES		:= xptcinvoke_asm_sparc_solaris_GCC.s xptcstubs_asm_sparc_solaris.s
 endif
 else
+
+# disable PGO for this directory with Sun Studio on SPARC
+# because compiling with xprofile=collect will insert code into nsXPTCStubBase::Stub##n
+NO_PROFILE_GUIDED_OPTIMIZE = 1
+
 ifdef HAVE_64BIT_OS
 ASFILES		:= xptcinvoke_asm_sparcv9_solaris_SUNW.s xptcstubs_asm_sparcv9_solaris.s
 else

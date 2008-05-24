@@ -136,6 +136,10 @@ public:
     eColor__moz_menuhover,                                   //used to menu item background, when mouse is over
     eColor__moz_menuhovertext,                               //used to menu item text, when mouse is over
     eColor__moz_menubarhovertext,                            //used to menu bar item text, when mouse is over
+    // On platforms where these colors are the same as
+    // -moz-field, use -moz-fieldtext as foreground color
+    eColor__moz_eventreerow,
+    eColor__moz_oddtreerow,
 
     //colours needed by Mac Classic skin
     eColor__moz_mac_focusring,				//ring around text fields and lists
@@ -156,7 +160,11 @@ public:
     //new in 10.2
     eColor__moz_mac_alternateprimaryhighlight, //active list highlight
     eColor__moz_mac_secondaryhighlight,        //inactive light hightlight
-  
+
+    // vista rebars
+    eColor__moz_win_mediatext,                     // media rebar text
+    eColor__moz_win_communicationstext,            // communications rebar text
+
     // keep this one last, please
     eColor_LAST_COLOR
   } nsColorID;
@@ -211,6 +219,15 @@ public:
     eMetric_TreeScrollDelay,                              // delay for scrolling the tree
     eMetric_TreeScrollLinesMax,                           // the maximum number of lines to be scrolled at ones
     eMetric_TabFocusModel,                                // What type of tab-order to use
+
+    /*
+     * A Boolean value to determine whether the Windows default theme is
+     * being used.
+     *
+     * The value of this metric is not used on other platforms. These platforms
+     * should return NS_ERROR_NOT_IMPLEMENTED when queried for this metric.
+     */
+    eMetric_WindowsDefaultTheme,
 
     /*
      * eMetric_AlertNotificationOrigin indicates from which corner of the

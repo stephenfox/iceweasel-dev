@@ -260,13 +260,11 @@ HandlerService.prototype = {
       let protoInfo = protoSvc.getProtocolHandlerInfoFromOS(scheme, 
                                osDefaultHandlerFound);
       
-      try {
+      if (this.exists(protoInfo))
         this.fillHandlerInfo(protoInfo, null);
-      } catch (ex) {
-        // pick some sane defaults
+      else
         protoSvc.setProtocolHandlerDefaults(protoInfo, 
                                             osDefaultHandlerFound.value);
-      }
 
       // cache the possible handlers to avoid extra xpconnect traversals.      
       let possibleHandlers = protoInfo.possibleApplicationHandlers;
@@ -355,14 +353,28 @@ HandlerService.prototype = {
                                aHandlerInfo.possibleApplicationHandlers,
                                aHandlerInfo.preferredApplicationHandler);
 
-    // Retrieve the "always ask" flag.
-    // Note: we only set the flag to false if we are absolutely sure the user
-    // does not want to be asked.  Any sort of bogus data should mean we ask.
-    // So there must be an "alwaysAsk" property in the datastore for the handler
-    // info object, and it must be set to "false", in order for us not to ask.
-    aHandlerInfo.alwaysAskBeforeHandling =
-      !this._hasValue(infoID, NC_ALWAYS_ASK) ||
-      this._getValue(infoID, NC_ALWAYS_ASK) != "false";
+    // If we have an "always ask" flag stored in the RDF, always use its
+    // value. Otherwise, use the default value stored in the pref service.
+    var alwaysAsk;
+    if (this._hasValue(infoID, NC_ALWAYS_ASK)) {
+      alwaysAsk = (this._getValue(infoID, NC_ALWAYS_ASK) != "false");
+    } else {
+      var prefSvc = Cc["@mozilla.org/preferences-service;1"].
+                    getService(Ci.nsIPrefService);
+      var prefBranch = prefSvc.getBranch("network.protocol-handler.");
+      try {
+        alwaysAsk = prefBranch.getBoolPref("warn-external." + type);
+      } catch (e) {
+        // will throw if pref didn't exist.
+        try {
+          alwaysAsk = prefBranch.getBoolPref("warn-external-default");
+        } catch (e) {
+          // Nothing to tell us what to do, so be paranoid and prompt.
+          alwaysAsk = true;
+        }
+      }
+    }
+    aHandlerInfo.alwaysAskBeforeHandling = alwaysAsk;
 
     // If the object represents a MIME type handler, then also retrieve
     // any file extensions.
@@ -390,8 +402,17 @@ HandlerService.prototype = {
   },
 
   exists: function HS_exists(aHandlerInfo) {
-    var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
-    return this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
+    var found;
+
+    try {
+      var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
+      found = this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
+    } catch (e) {
+      // If the RDF threw (eg, corrupt file), treat as non-existent.
+      found = false;
+    }
+
+    return found;
   },
 
   remove: function HS_remove(aHandlerInfo) {
@@ -456,7 +477,7 @@ HandlerService.prototype = {
       return type;
     }
 
-    throw Cr.NS_ERROR_NOT_AVAILABLE;
+    return "";
   },
 
 

@@ -49,6 +49,11 @@
 
 JS_BEGIN_EXTERN_C
 
+typedef struct JSFrameRegs {
+    jsbytecode      *pc;            /* program counter */
+    jsval           *sp;            /* stack pointer */
+} JSFrameRegs;
+
 /*
  * JS stack frame, may be allocated on the C stack by native callers.  Always
  * allocated on cx->stackPool for calls from the interpreter to an interpreted
@@ -60,6 +65,8 @@ JS_BEGIN_EXTERN_C
  * with well-known slots, if possible.
  */
 struct JSStackFrame {
+    JSFrameRegs     *regs;
+    jsval           *spbase;        /* operand stack base */
     JSObject        *callobj;       /* lazily created Call object */
     JSObject        *argsobj;       /* lazily created arguments object */
     JSObject        *varobj;        /* variables object, where vars go */
@@ -75,9 +82,6 @@ struct JSStackFrame {
     JSStackFrame    *down;          /* previous frame */
     void            *annotation;    /* used by Java security */
     JSObject        *scopeChain;    /* scope chain */
-    jsbytecode      *pc;            /* program counter */
-    jsval           *sp;            /* stack pointer */
-    jsval           *spbase;        /* operand stack base */
     uintN           sharpDepth;     /* array/object initializer depth */
     JSObject        *sharpArray;    /* scope for #n= initializer vars */
     uint32          flags;          /* frame flags -- see below */
@@ -91,7 +95,7 @@ struct JSStackFrame {
 
 typedef struct JSInlineFrame {
     JSStackFrame    frame;          /* base struct */
-    jsval           *rvp;           /* ptr to caller's return value slot */
+    JSFrameRegs     callerRegs;     /* parent's frame registers */
     void            *mark;          /* mark before inline frame */
     void            *hookData;      /* debugger call hook data */
     JSVersion       callerVersion;  /* dynamic version of calling script */
@@ -99,7 +103,7 @@ typedef struct JSInlineFrame {
 
 /* JS stack frame flags. */
 #define JSFRAME_CONSTRUCTING   0x01 /* frame is for a constructor invocation */
-#define JSFRAME_INTERNAL       0x02 /* internal call, not invoked by a script */
+#define JSFRAME_COMPUTED_THIS  0x02 /* frame.thisp was computed already */
 #define JSFRAME_ASSIGNING      0x04 /* a complex (not simplex JOF_ASSIGNING) op
                                        is currently assigning to a property */
 #define JSFRAME_DEBUGGER       0x08 /* frame for JS_EvaluateInStackFrame */
@@ -110,7 +114,6 @@ typedef struct JSInlineFrame {
 #define JSFRAME_POP_BLOCKS    0x100 /* scope chain contains blocks to pop */
 #define JSFRAME_GENERATOR     0x200 /* frame belongs to generator-iterator */
 #define JSFRAME_ROOTED_ARGV   0x400 /* frame.argv is rooted by the caller */
-#define JSFRAME_COMPUTED_THIS 0x800 /* frame.thisp was computed already */
 
 #define JSFRAME_OVERRIDE_SHIFT 24   /* override bit-set params; see jsfun.c */
 #define JSFRAME_OVERRIDE_BITS  8
@@ -160,7 +163,7 @@ typedef struct JSInlineFrame {
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
 extern uint32
-js_GenerateShape(JSContext *cx);
+js_GenerateShape(JSContext *cx, JSBool gcLocked);
 
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
@@ -186,6 +189,7 @@ typedef struct JSPropertyCache {
     uint32              modfills;       /* fill that rehashed to a new entry */
     uint32              brandfills;     /* scope brandings to type structural
                                            method fills */
+    uint32              noprotos;       /* resolve-returned non-proto pobj */
     uint32              longchains;     /* overlong scope and/or proto chain */
     uint32              recycles;       /* cache entries recycled by fills */
     uint32              pcrecycles;     /* pc-keyed entries recycled by atom-
@@ -332,6 +336,12 @@ js_AllocStack(JSContext *cx, uintN nslots, void **markp);
 extern JS_FRIEND_API(void)
 js_FreeStack(JSContext *cx, void *mark);
 
+extern jsval *
+js_AllocRawStack(JSContext *cx, uintN nslots, void **markp);
+
+extern void
+js_FreeRawStack(JSContext *cx, void *mark);
+
 /*
  * Refresh and return fp->scopeChain.  It may be stale if block scopes are
  * active but not yet reflected by objects in the scope chain.  If a block
@@ -365,6 +375,31 @@ extern JSObject *
 js_ComputeThis(JSContext *cx, JSBool lazy, jsval *argv);
 
 /*
+ * ECMA requires "the global object", but in embeddings such as the browser,
+ * which have multiple top-level objects (windows, frames, etc. in the DOM),
+ * we prefer fun's parent.  An example that causes this code to run:
+ *
+ *   // in window w1
+ *   function f() { return this }
+ *   function g() { return f }
+ *
+ *   // in window w2
+ *   var h = w1.g()
+ *   alert(h() == w1)
+ *
+ * The alert should display "true".
+ */
+JSObject *
+js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv);
+
+extern const uint16 js_PrimitiveTestFlags[];
+
+#define PRIMITIVE_THIS_TEST(fun,thisv)                                        \
+    (JS_ASSERT(thisv != JSVAL_VOID),                                          \
+     JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
+                      js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
+
+/*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp
  * is non-null), and that vp points to the callee, |this| parameter, and
  * actual arguments of the call. [vp .. vp + 2 + argc) must belong to the last
@@ -390,7 +425,6 @@ js_Invoke(JSContext *cx, uintN argc, jsval *vp, uintN flags);
  * See jsfun.h for the latter four and flag renaming macros.
  */
 #define JSINVOKE_CONSTRUCT      JSFRAME_CONSTRUCTING
-#define JSINVOKE_INTERNAL       JSFRAME_INTERNAL
 #define JSINVOKE_ITERATOR       JSFRAME_ITERATOR
 
 /*
@@ -421,6 +455,14 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
            JSStackFrame *down, uintN flags, jsval *result);
 
 extern JSBool
+js_InvokeConstructor(JSContext *cx, uintN argc, jsval *vp);
+
+extern JSBool
+js_Interpret(JSContext *cx);
+
+#define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
+
+extern JSBool
 js_CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
                       JSObject **objp, JSProperty **propp);
 
@@ -428,10 +470,51 @@ extern JSBool
 js_StrictlyEqual(JSContext *cx, jsval lval, jsval rval);
 
 extern JSBool
-js_InvokeConstructor(JSContext *cx, jsval *vp, uintN argc);
+js_EnterWith(JSContext *cx, jsint stackIndex);
+
+extern void
+js_LeaveWith(JSContext *cx);
+
+extern JSClass *
+js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
+
+extern jsint
+js_CountWithBlocks(JSContext *cx, JSStackFrame *fp);
+
+/*
+ * Unwind block and scope chains to match the given depth. The function sets
+ * fp->sp on return to stackDepth.
+ */
+extern JSBool
+js_UnwindScope(JSContext *cx, JSStackFrame *fp, jsint stackDepth,
+               JSBool normalUnwind);
 
 extern JSBool
-js_Interpret(JSContext *cx, jsbytecode *pc, jsval *result);
+js_InternNonIntElementId(JSContext *cx, JSObject *obj, jsval idval, jsid *idp);
+
+extern JSBool
+js_ImportProperty(JSContext *cx, JSObject *obj, jsid id);
+
+extern JSBool
+js_OnUnknownMethod(JSContext *cx, jsval *vp);
+
+/*
+ * Find the results of incrementing or decrementing *vp. For pre-increments,
+ * both *vp and *vp2 will contain the result on return. For post-increments,
+ * vp will contain the original value converted to a number and vp2 will get
+ * the result. Both vp and vp2 must be roots.
+ */
+extern JSBool
+js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2);
+
+/*
+ * JS_OPMETER helper functions.
+ */
+extern void
+js_MeterOpcodePair(JSOp op1, JSOp op2);
+
+extern void
+js_MeterSlotOpcode(JSOp op, uint32 slot);
 
 JS_END_EXTERN_C
 

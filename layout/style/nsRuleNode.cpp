@@ -3599,7 +3599,6 @@ nsRuleNode::ComputeMarginData(void* aStartStruct,
 
   // margin: length, percent, auto, inherit
   nsStyleCoord  coord;
-  nsStyleCoord  parentCoord;
   nsCSSRect ourMargin(marginData.mMargin);
   AdjustLogicalBoxProp(aContext,
                        marginData.mMarginLeftLTRSource,
@@ -3612,7 +3611,7 @@ nsRuleNode::ComputeMarginData(void* aStartStruct,
                        marginData.mMarginEnd, marginData.mMarginStart,
                        NS_SIDE_RIGHT, ourMargin, inherited);
   NS_FOR_CSS_SIDES(side) {
-    parentMargin->mMargin.Get(side, parentCoord);
+    nsStyleCoord parentCoord = parentMargin->mMargin.Get(side);
     if (SetCoord(ourMargin.*(nsCSSRect::sides[side]),
                  coord, parentCoord, SETCOORD_LPAH | SETCOORD_INITIAL_ZERO,
                  aContext, mPresContext, inherited)) {
@@ -3636,7 +3635,6 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
 
   // border-width, border-*-width: length, enum, inherit
   nsStyleCoord  coord;
-  nsStyleCoord  parentCoord;
   nsCSSRect ourBorderWidth(marginData.mBorderWidth);
   AdjustLogicalBoxProp(aContext,
                        marginData.mBorderLeftWidthLTRSource,
@@ -3669,8 +3667,9 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
         border->SetBorderWidth(side,
                                (mPresContext->GetBorderWidthTable())[value.GetIntValue()]);
       }
-      else if (SetCoord(value, coord, parentCoord, SETCOORD_LENGTH, aContext,
-                        mPresContext, inherited)) {
+      // OK to pass bad aParentCoord since we're not passing SETCOORD_INHERIT
+      else if (SetCoord(value, coord, nsStyleCoord(), SETCOORD_LENGTH,
+                        aContext, mPresContext, inherited)) {
         if (coord.GetUnit() == eStyleUnit_Coord) {
           border->SetBorderWidth(side, coord.GetCoordValue());
         }
@@ -3807,7 +3806,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
   // -moz-border-radius: length, percent, inherit
   { // scope for compilers with broken |for| loop scoping
     NS_FOR_CSS_SIDES(side) {
-      parentBorder->mBorderRadius.Get(side, parentCoord);
+      nsStyleCoord parentCoord = parentBorder->mBorderRadius.Get(side);
       if (SetCoord(marginData.mBorderRadius.*(nsCSSRect::sides[side]), coord,
                    parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                    aContext, mPresContext, inherited))
@@ -3840,7 +3839,6 @@ nsRuleNode::ComputePaddingData(void* aStartStruct,
 
   // padding: length, percent, inherit
   nsStyleCoord  coord;
-  nsStyleCoord  parentCoord;
   nsCSSRect ourPadding(marginData.mPadding);
   AdjustLogicalBoxProp(aContext,
                        marginData.mPaddingLeftLTRSource,
@@ -3853,7 +3851,7 @@ nsRuleNode::ComputePaddingData(void* aStartStruct,
                        marginData.mPaddingEnd, marginData.mPaddingStart,
                        NS_SIDE_RIGHT, ourPadding, inherited);
   NS_FOR_CSS_SIDES(side) {
-    parentPadding->mPadding.Get(side, parentCoord);
+    nsStyleCoord parentCoord = parentPadding->mPadding.Get(side);
     if (SetCoord(ourPadding.*(nsCSSRect::sides[side]),
                  coord, parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                  aContext, mPresContext, inherited)) {
@@ -3925,10 +3923,9 @@ nsRuleNode::ComputeOutlineData(void* aStartStruct,
 
   // -moz-outline-radius: length, percent, inherit
   nsStyleCoord  coord;
-  nsStyleCoord  parentCoord;
   { // scope for compilers with broken |for| loop scoping
     NS_FOR_CSS_SIDES(side) {
-      parentOutline->mOutlineRadius.Get(side, parentCoord);
+      nsStyleCoord parentCoord = parentOutline->mOutlineRadius.Get(side);
       if (SetCoord(marginData.mOutlineRadius.*(nsCSSRect::sides[side]), coord,
                    parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                    aContext, mPresContext, inherited))
@@ -4049,9 +4046,8 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
 
   // box offsets: length, percent, auto, inherit
   nsStyleCoord  coord;
-  nsStyleCoord  parentCoord;
   NS_FOR_CSS_SIDES(side) {
-    parentPos->mOffset.Get(side, parentCoord);
+    nsStyleCoord parentCoord = parentPos->mOffset.Get(side);
     if (SetCoord(posData.mOffset.*(nsCSSRect::sides[side]),
                  coord, parentCoord, SETCOORD_LPAH | SETCOORD_INITIAL_AUTO,
                  aContext, mPresContext, inherited)) {
@@ -5163,20 +5159,35 @@ nsRuleNode::Sweep()
 }
 
 /* static */ PRBool
-nsRuleNode::HasAuthorSpecifiedBorderOrBackground(nsStyleContext* aStyleContext)
+nsRuleNode::HasAuthorSpecifiedRules(nsStyleContext* aStyleContext,
+                                    PRUint32 ruleTypeMask)
 {
   nsRuleDataColor colorData;
   nsRuleDataMargin marginData;
+  PRUint32 nValues = 0;
+
+  PRUint32 inheritBits = 0;
+  if (ruleTypeMask & NS_AUTHOR_SPECIFIED_BACKGROUND)
+    inheritBits |= NS_STYLE_INHERIT_BIT(Background);
+
+  if (ruleTypeMask & NS_AUTHOR_SPECIFIED_BORDER)
+    inheritBits |= NS_STYLE_INHERIT_BIT(Border);
+
+  if (ruleTypeMask & NS_AUTHOR_SPECIFIED_PADDING)
+    inheritBits |= NS_STYLE_INHERIT_BIT(Padding);
+
   /* We're relying on the use of |aStyleContext| not mutating it! */
-  nsRuleData ruleData(NS_STYLE_INHERIT_BIT(Background) |
-                        NS_STYLE_INHERIT_BIT(Border),
+  nsRuleData ruleData(inheritBits,
                       aStyleContext->PresContext(), aStyleContext);
   ruleData.mColorData = &colorData;
   ruleData.mMarginData = &marginData;
 
-  nsCSSValue* values[] = {
+  nsCSSValue* backgroundValues[] = {
     &colorData.mBackColor,
-    &colorData.mBackImage,
+    &colorData.mBackImage
+  };
+
+  nsCSSValue* borderValues[] = {
     &marginData.mBorderColor.mTop,
     &marginData.mBorderStyle.mTop,
     &marginData.mBorderWidth.mTop,
@@ -5189,7 +5200,36 @@ nsRuleNode::HasAuthorSpecifiedBorderOrBackground(nsStyleContext* aStyleContext)
     &marginData.mBorderColor.mLeft,
     &marginData.mBorderStyle.mLeft,
     &marginData.mBorderWidth.mLeft
+    // XXX add &marginData.mBorder{Start,End}{Width,Color,Style}
   };
+
+  nsCSSValue* paddingValues[] = {
+    &marginData.mPadding.mTop,
+    &marginData.mPadding.mRight,
+    &marginData.mPadding.mBottom,
+    &marginData.mPadding.mLeft,
+    &marginData.mPaddingStart,
+    &marginData.mPaddingEnd
+  };
+
+  nsCSSValue* values[NS_ARRAY_LENGTH(backgroundValues) +
+                     NS_ARRAY_LENGTH(borderValues) +
+                     NS_ARRAY_LENGTH(paddingValues)];
+
+  if (ruleTypeMask & NS_AUTHOR_SPECIFIED_BACKGROUND) {
+    memcpy(&values[nValues], backgroundValues, NS_ARRAY_LENGTH(backgroundValues) * sizeof(nsCSSValue*));
+    nValues += NS_ARRAY_LENGTH(backgroundValues);
+  }
+
+  if (ruleTypeMask & NS_AUTHOR_SPECIFIED_BORDER) {
+    memcpy(&values[nValues], borderValues, NS_ARRAY_LENGTH(borderValues) * sizeof(nsCSSValue*));
+    nValues += NS_ARRAY_LENGTH(borderValues);
+  }
+
+  if (ruleTypeMask & NS_AUTHOR_SPECIFIED_PADDING) {
+    memcpy(&values[nValues], paddingValues, NS_ARRAY_LENGTH(paddingValues) * sizeof(nsCSSValue*));
+    nValues += NS_ARRAY_LENGTH(paddingValues);
+  }
 
   // We need to be careful not to count styles covered up by
   // user-important or UA-important declarations.
@@ -5205,13 +5245,13 @@ nsRuleNode::HasAuthorSpecifiedBorderOrBackground(nsStyleContext* aStyleContext)
         // This is a rule whose effect we want to ignore, so if any of
         // the properties we care about were set, set them to the dummy
         // value that they'll never otherwise get.
-        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(values); ++i)
+        for (PRUint32 i = 0; i < nValues; ++i)
           if (values[i]->GetUnit() != eCSSUnit_Null)
             values[i]->SetDummyValue();
       } else {
         // If any of the values we care about was set by the above rule,
         // we have author style.
-        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(values); ++i)
+        for (PRUint32 i = 0; i < nValues; ++i)
           if (values[i]->GetUnit() != eCSSUnit_Null &&
               values[i]->GetUnit() != eCSSUnit_Dummy) // see above
             return PR_TRUE;

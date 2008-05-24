@@ -531,7 +531,13 @@ __try {
 
   nsAutoString innerHTML;
   domNSElement->GetInnerHTML(innerHTML);
-  *aInnerHTML = ::SysAllocString(innerHTML.get());
+  if (innerHTML.IsEmpty())
+    return S_FALSE;
+
+  *aInnerHTML = ::SysAllocStringLen(innerHTML.get(), innerHTML.Length());
+  if (!*aInnerHTML)
+    return E_OUTOFMEMORY;
+
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -541,13 +547,20 @@ STDMETHODIMP
 nsAccessNodeWrap::get_language(BSTR __RPC_FAR *aLanguage)
 {
 __try {
-  *aLanguage = nsnull;
+  *aLanguage = NULL;
 
   nsAutoString language;
   if (NS_FAILED(GetLanguage(language))) {
     return E_FAIL;
   }
-  *aLanguage = ::SysAllocString(language.get());
+
+  if (language.IsEmpty())
+    return S_FALSE;
+
+  *aLanguage = ::SysAllocStringLen(language.get(), language.Length());
+  if (!*aLanguage)
+    return E_OUTOFMEMORY;
+
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -620,3 +633,25 @@ int nsAccessNodeWrap::FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTER
   }
   return EXCEPTION_CONTINUE_SEARCH;
 }
+
+HRESULT
+GetHRESULT(nsresult aResult)
+{
+  switch (aResult) {
+    case NS_OK:
+      return S_OK;
+
+    case NS_ERROR_INVALID_ARG: case NS_ERROR_INVALID_POINTER:
+      return E_INVALIDARG;
+
+    case NS_ERROR_OUT_OF_MEMORY:
+      return E_OUTOFMEMORY;
+
+    case NS_ERROR_NOT_IMPLEMENTED:
+      return E_NOTIMPL;
+
+    default:
+      return E_FAIL;
+  }
+}
+

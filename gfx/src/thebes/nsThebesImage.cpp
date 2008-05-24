@@ -259,13 +259,6 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
 
                 mSinglePixel = PR_TRUE;
 
-                // XXX we can't do this until we either teach anyone
-                // who calls GetSurface() about single-color stuff,
-                // or until we make GetSurface() create a new temporary
-                // surface to return (and that callers understand that
-                // modifying that surface won't modify the image).
-                // Current users are drag & drop and clipboard.
-#if 0
                 // blow away the older surfaces, to release data
 
                 mImageSurface = nsnull;
@@ -275,7 +268,6 @@ nsThebesImage::Optimize(nsIDeviceContext* aContext)
 #endif
 #ifdef XP_MACOSX
                 mQuartzSurface = nsnull;
-#endif
 #endif
                 return NS_OK;
             }
@@ -387,11 +379,19 @@ nsThebesImage::LockImagePixels(PRBool aMaskPixels)
         gfxContext context(mImageSurface);
         context.SetOperator(gfxContext::OPERATOR_SOURCE);
         if (mSinglePixel)
-            context.SetColor(mSinglePixelColor);
+            context.SetDeviceColor(mSinglePixelColor);
         else
             context.SetSource(mOptSurface);
         context.Paint();
+
+#ifdef XP_WIN
+        mWinSurface = nsnull;
+#endif
+#ifdef XP_MACOSX
+        mQuartzSurface = nsnull;
+#endif
     }
+
     return NS_OK;
 }
 
@@ -412,6 +412,7 @@ nsThebesImage::UnlockImagePixels(PRBool aMaskPixels)
 NS_IMETHODIMP
 nsThebesImage::Draw(nsIRenderingContext &aContext,
                     const gfxRect &aSourceRect,
+                    const gfxRect &aSubimageRect,
                     const gfxRect &aDestRect)
 {
     if (NS_UNLIKELY(aDestRect.IsEmpty())) {
@@ -440,7 +441,7 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
         if (op == gfxContext::OPERATOR_OVER && mSinglePixelColor.a == 1.0)
             ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
 
-        ctx->SetColor(mSinglePixelColor);
+        ctx->SetDeviceColor(mSinglePixelColor);
         ctx->NewPath();
         ctx->Rectangle(aDestRect, PR_TRUE);
         ctx->Fill();
@@ -452,21 +453,24 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
     gfxFloat yscale = aDestRect.size.height / aSourceRect.size.height;
 
     gfxRect srcRect(aSourceRect);
+    gfxRect subimageRect(aSubimageRect);
     gfxRect destRect(aDestRect);
 
     if (!GetIsImageComplete()) {
-      srcRect = srcRect.Intersect(gfxRect(mDecoded.x, mDecoded.y,
-                                          mDecoded.width, mDecoded.height));
+        gfxRect decoded = gfxRect(mDecoded.x, mDecoded.y,
+                                  mDecoded.width, mDecoded.height);
+        srcRect = srcRect.Intersect(decoded);
+        subimageRect = subimageRect.Intersect(decoded);
 
-      // This happens when mDecoded.width or height is zero. bug 368427.
-      if (NS_UNLIKELY(srcRect.size.width == 0 || srcRect.size.height == 0))
-          return NS_OK;
+        // This happens when mDecoded.width or height is zero. bug 368427.
+        if (NS_UNLIKELY(srcRect.size.width == 0 || srcRect.size.height == 0))
+            return NS_OK;
 
-      destRect.pos.x += (srcRect.pos.x - aSourceRect.pos.x)*xscale;
-      destRect.pos.y += (srcRect.pos.y - aSourceRect.pos.y)*yscale;
+        destRect.pos.x += (srcRect.pos.x - aSourceRect.pos.x)*xscale;
+        destRect.pos.y += (srcRect.pos.y - aSourceRect.pos.y)*yscale;
 
-      destRect.size.width  = srcRect.size.width * xscale;
-      destRect.size.height = srcRect.size.height * yscale;
+        destRect.size.width  = srcRect.size.width * xscale;
+        destRect.size.height = srcRect.size.height * yscale;
     }
 
     // if either rectangle is empty now (possibly after the image complete check)
@@ -477,7 +481,39 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
     if (!AllowedImageSize(destRect.size.width + 1, destRect.size.height + 1))
         return NS_ERROR_FAILURE;
 
+    // Expand the subimageRect to place its edges on integer coordinates.
+    // Basically, if we're allowed to sample part of a pixel we can
+    // sample the whole pixel.
+    subimageRect.RoundOut();
+
     nsRefPtr<gfxPattern> pat;
+    PRBool ctxHasNonTranslation = ctx->CurrentMatrix().HasNonTranslation();
+    if ((xscale == 1.0 && yscale == 1.0 && !ctxHasNonTranslation) ||
+        subimageRect == gfxRect(0, 0, mWidth, mHeight))
+    {
+        // No need to worry about sampling outside the subimage rectangle,
+        // so no need for a temporary
+        // XXX should we also check for situations where the source rect
+        // is well inside the subimage so we can't sample outside?
+        pat = new gfxPattern(ThebesSurface());
+    } else {
+        // Because of the RoundOut above, the subimageRect has
+        // integer width and height.
+        gfxIntSize size(PRInt32(subimageRect.Width()),
+                        PRInt32(subimageRect.Height()));
+        nsRefPtr<gfxASurface> temp =
+            gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, mFormat);
+        if (!temp || temp->CairoStatus() != 0)
+            return NS_ERROR_FAILURE;
+
+        gfxContext tempctx(temp);
+        tempctx.SetSource(ThebesSurface(), -subimageRect.pos);
+        tempctx.SetOperator(gfxContext::OPERATOR_SOURCE);
+        tempctx.Paint();
+
+        pat = new gfxPattern(temp);
+        srcRect.MoveBy(-subimageRect.pos);
+    }
 
     /* See bug 364968 to understand the necessity of this goop; we basically
      * have to pre-downscale any image that would fall outside of a scaled 16-bit
@@ -500,13 +536,12 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
 
         gfxContext tempctx(temp);
 
-        gfxPattern srcpat(ThebesSurface());
         gfxMatrix mat;
         mat.Translate(srcRect.pos);
         mat.Scale(1.0 / xscale, 1.0 / yscale);
-        srcpat.SetMatrix(mat);
+        pat->SetMatrix(mat);
 
-        tempctx.SetPattern(&srcpat);
+        tempctx.SetPattern(pat);
         tempctx.SetOperator(gfxContext::OPERATOR_SOURCE);
         tempctx.NewPath();
         tempctx.Rectangle(gfxRect(0.0, 0.0, dim.width, dim.height));
@@ -523,10 +558,6 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
         yscale = 1.0;
     }
 
-    if (!pat) {
-        pat = new gfxPattern(ThebesSurface());
-    }
-
     gfxMatrix mat;
     mat.Translate(srcRect.pos);
     mat.Scale(1.0/xscale, 1.0/yscale);
@@ -538,25 +569,36 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
 
     pat->SetMatrix(mat);
 
-#if !defined(XP_MACOSX) && !defined(XP_WIN) && !defined(XP_OS2)
-    // See bug 324698.  This is a workaround.
-    //
-    // Set the filter to CAIRO_FILTER_FAST if we're scaling up -- otherwise,
-    // pixman's sampling will sample transparency for the outside edges and we'll
-    // get blurry edges.  CAIRO_EXTEND_PAD would also work here, if
-    // available
-    //
-    // This effectively disables smooth upscaling for images.
-    if (xscale > 1.0 || yscale > 1.0)
-        pat->SetFilter(0);
-#endif
+    nsRefPtr<gfxASurface> target = ctx->CurrentSurface();
+    switch (target->GetType()) {
+    case gfxASurface::SurfaceTypeXlib:
+    case gfxASurface::SurfaceTypeXcb:
+        // See bug 324698.  This is a workaround for EXTEND_PAD not being
+        // implemented correctly on linux in the X server.
+        //
+        // Set the filter to CAIRO_FILTER_FAST if we're scaling up -- otherwise,
+        // pixman's sampling will sample transparency for the outside edges and we'll
+        // get blurry edges.  CAIRO_EXTEND_PAD would also work here, if
+        // available
+        //
+        // This effectively disables smooth upscaling for images.
+        if (xscale > 1.0 || yscale > 1.0 || ctxHasNonTranslation)
+            pat->SetFilter(0);
+        break;
 
-#if defined(XP_WIN) || defined(XP_OS2)
-    // turn on EXTEND_PAD only for win32, and only when scaling;
-    // it's not implemented correctly on linux in the X server.
-    if (xscale != 1.0 || yscale != 1.0)
-        pat->SetExtend(gfxPattern::EXTEND_PAD);
-#endif
+    case gfxASurface::SurfaceTypeQuartz:
+    case gfxASurface::SurfaceTypeQuartzImage:
+        // Do nothing, Mac seems to be OK. Really?
+        break;
+
+    default:
+        // turn on EXTEND_PAD.
+        // This is what we really want for all surface types, if the
+        // implementation was universally good.
+        if (xscale != 1.0 || yscale != 1.0 || ctxHasNonTranslation)
+            pat->SetExtend(gfxPattern::EXTEND_PAD);
+        break;
+    }
 
     gfxContext::GraphicsOperator op = ctx->CurrentOperator();
     if (op == gfxContext::OPERATOR_OVER && mFormat == gfxASurface::ImageFormatRGB24)
@@ -568,7 +610,7 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
     ctx->Fill();
 
     ctx->SetOperator(op);
-    ctx->SetColor(gfxRGBA(0,0,0,0));
+    ctx->SetDeviceColor(gfxRGBA(0,0,0,0));
 
     return NS_OK;
 }
@@ -578,6 +620,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
                               nsIDeviceContext* dx,
                               const gfxPoint& offset,
                               const gfxRect& targetRect,
+                              const nsIntRect& aSubimageRect,
                               const PRInt32 xPadding,
                               const PRInt32 yPadding)
 {
@@ -592,11 +635,12 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
 
     PRBool doSnap = !(thebesContext->CurrentMatrix().HasNonTranslation());
     PRBool hasPadding = ((xPadding != 0) || (yPadding != 0));
-
-    nsRefPtr<gfxASurface> tmpSurfaceGrip;
+    gfxImageSurface::gfxImageFormat format = mFormat;
+    
+    gfxPoint tmpOffset = offset;
 
     if (mSinglePixel && !hasPadding) {
-        thebesContext->SetColor(mSinglePixelColor);
+        thebesContext->SetDeviceColor(mSinglePixelColor);
     } else {
         nsRefPtr<gfxASurface> surface;
         PRInt32 width, height;
@@ -611,17 +655,16 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
             if (!AllowedImageSize(width, height))
                 return NS_ERROR_FAILURE;
 
-            surface = new gfxImageSurface(gfxIntSize(width, height),
-                                          gfxASurface::ImageFormatARGB32);
+            format = gfxASurface::ImageFormatARGB32;
+            surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface(
+                    gfxIntSize(width, height), format);
             if (!surface || surface->CairoStatus()) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
 
-            tmpSurfaceGrip = surface;
-
             gfxContext tmpContext(surface);
             if (mSinglePixel) {
-                tmpContext.SetColor(mSinglePixelColor);
+                tmpContext.SetDeviceColor(mSinglePixelColor);
             } else {
                 tmpContext.SetSource(ThebesSurface());
             }
@@ -633,17 +676,105 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
             height = mHeight;
             surface = ThebesSurface();
         }
-
-        gfxMatrix patMat;
-        gfxPoint p0;
-
-        p0.x = - floor(offset.x + 0.5);
-        p0.y = - floor(offset.y + 0.5);
+        
         // Scale factor to account for CSS pixels; note that the offset (and 
         // therefore p0) is in device pixels, while the width and height are in
         // CSS pixels.
         gfxFloat scale = gfxFloat(dx->AppUnitsPerDevPixel()) /
                          gfxFloat(nsIDeviceContext::AppUnitsPerCSSPixel());
+
+        if ((aSubimageRect.width < width || aSubimageRect.height < height) &&
+            (thebesContext->CurrentMatrix().HasNonTranslation() || scale != 1.0)) {
+            // Some of the source image should not be drawn, and we're going
+            // to be doing more than just translation, so we might accidentally
+            // sample the non-drawn pixels. Avoid that by creating a
+            // temporary image representing the portion that will be drawn,
+            // with built-in padding since we can't use EXTEND_PAD and
+            // EXTEND_REPEAT at the same time for different axes.
+            PRInt32 padX = aSubimageRect.width < width ? 1 : 0;
+            PRInt32 padY = aSubimageRect.height < height ? 1 : 0;
+            PRInt32 tileWidth = PR_MIN(aSubimageRect.width, width);
+            PRInt32 tileHeight = PR_MIN(aSubimageRect.height, height);
+            
+            // This tmpSurface will contain a snapshot of the repeated
+            // tile image at (aSubimageRect.x, aSubimageRect.y,
+            // tileWidth, tileHeight), with padX padding added to the left
+            // and right sides and padY padding added to the top and bottom
+            // sides.
+            nsRefPtr<gfxASurface> tmpSurface;
+            tmpSurface = gfxPlatform::GetPlatform()->CreateOffscreenSurface(
+                    gfxIntSize(tileWidth + 2*padX, tileHeight + 2*padY), format);
+            if (!tmpSurface || tmpSurface->CairoStatus()) {
+                return NS_ERROR_OUT_OF_MEMORY;
+            }
+
+            gfxContext tmpContext(tmpSurface);
+            tmpContext.SetOperator(gfxContext::OPERATOR_SOURCE);
+            gfxPattern pat(surface);
+            pat.SetExtend(gfxPattern::EXTEND_REPEAT);
+            
+            // Copy the needed portion of the source image to the temporary
+            // surface. We also copy over horizontal and/or vertical padding
+            // strips one pixel wide, plus the corner pixels if necessary.
+            // So in the most general case the temporary surface ends up
+            // looking like
+            //     P P P ... P P P
+            //     P X X ... X X P
+            //     P X X ... X X P
+            //     ...............
+            //     P X X ... X X P
+            //     P X X ... X X P
+            //     P P P ... P P P
+            // Where each P pixel has the color of its nearest source X
+            // pixel. We implement this as a loop over all nine possible
+            // areas, [padding, body, padding] x [padding, body, padding].
+            // Note that we will not need padding on both axes unless
+            // we are painting just a single tile, in which case this
+            // will hardly ever get called since nsCSSRendering converts
+            // the single-tile case to nsLayoutUtils::DrawImage. But this
+            // could be called on other paths (XUL trees?) and it's simpler
+            // and clearer to do it the general way.
+            PRInt32 destY = 0;
+            for (PRInt32 y = -1; y <= 1; ++y) {
+                PRInt32 stripHeight = y == 0 ? tileHeight : padY;
+                if (stripHeight == 0)
+                    continue;
+                PRInt32 srcY = y == 1 ? aSubimageRect.YMost() - padY : aSubimageRect.y;
+                
+                PRInt32 destX = 0;
+                for (PRInt32 x = -1; x <= 1; ++x) {
+                    PRInt32 stripWidth = x == 0 ? tileWidth : padX;
+                    if (stripWidth == 0)
+                        continue;
+                    PRInt32 srcX = x == 1 ? aSubimageRect.XMost() - padX : aSubimageRect.x;
+
+                    gfxMatrix patMat;
+                    patMat.Translate(gfxPoint(srcX - destX, srcY - destY));
+                    pat.SetMatrix(patMat);
+                    tmpContext.SetPattern(&pat);
+                    tmpContext.Rectangle(gfxRect(destX, destY, stripWidth, stripHeight));
+                    tmpContext.Fill();
+                    tmpContext.NewPath();
+                    
+                    destX += stripWidth;
+                }
+                destY += stripHeight;
+            }
+
+            // tmpOffset was the top-left of the old tile image. Make it
+            // the top-left of the new tile image. Note that tmpOffset is
+            // in destination coordinate space so we have to scale our
+            // CSS pixels.
+            tmpOffset += gfxPoint(aSubimageRect.x - padX, aSubimageRect.y - padY)/scale;
+            
+            surface = tmpSurface;
+        }
+
+        gfxMatrix patMat;
+        gfxPoint p0;
+
+        p0.x = - floor(tmpOffset.x + 0.5);
+        p0.y = - floor(tmpOffset.y + 0.5);
         patMat.Scale(scale, scale);
         patMat.Translate(p0);
 
@@ -663,7 +794,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     }
 
     gfxContext::GraphicsOperator op = thebesContext->CurrentOperator();
-    if (op == gfxContext::OPERATOR_OVER && mFormat == gfxASurface::ImageFormatRGB24)
+    if (op == gfxContext::OPERATOR_OVER && format == gfxASurface::ImageFormatRGB24)
         thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
 
     thebesContext->NewPath();
@@ -671,7 +802,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     thebesContext->Fill();
 
     thebesContext->SetOperator(op);
-    thebesContext->SetColor(gfxRGBA(0,0,0,0));
+    thebesContext->SetDeviceColor(gfxRGBA(0,0,0,0));
 
     return NS_OK;
 }

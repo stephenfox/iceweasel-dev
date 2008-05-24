@@ -169,16 +169,12 @@ ServiceInfo.prototype = {
 function WebContentConverterRegistrar() {}
 
 WebContentConverterRegistrar.prototype = {
-  _stringBundle: null,
-
   get stringBundle() {
-    if (!this._stringBundle) {
-      this._stringBundle = Cc["@mozilla.org/intl/stringbundle;1"].
-                            getService(Ci.nsIStringBundleService).
-                            createBundle(STRING_BUNDLE_URI);
-    }
-
-    return this._stringBundle;
+    var sb = Cc["@mozilla.org/intl/stringbundle;1"].
+              getService(Ci.nsIStringBundleService).
+              createBundle(STRING_BUNDLE_URI);
+    delete WebContentConverterRegistrar.prototype.stringBundle;
+    return WebContentConverterRegistrar.prototype.stringBundle = sb;
   },
 
   _getFormattedString: function WCCR__getFormattedString(key, params) {
@@ -370,7 +366,7 @@ WebContentConverterRegistrar.prototype = {
     if ((!pb.prefHasUserValue(PREF_ALLOW_DIFFERENT_HOST) ||
          !pb.getBoolPref(PREF_ALLOW_DIFFERENT_HOST)) &&
         aContentWindow.location.hostname != uri.host)
-      throw("Permision denied to add " + uri.spec + " as a content or protocol handler");
+      throw("Permission denied to add " + uri.spec + " as a content or protocol handler");
 
     // If the uri doesn't contain '%s', it won't be a good handler
     if (uri.spec.indexOf("%s") < 0)

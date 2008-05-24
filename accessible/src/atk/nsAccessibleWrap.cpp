@@ -802,12 +802,6 @@ GetAttributeSet(nsIAccessible* aAccessible)
           attributes->SetStringProperty(NS_LITERAL_CSTRING("haspopup"), NS_LITERAL_STRING("true"),
                                         oldValueUnused);
         }
-        if (state & nsIAccessibleStates::STATE_CHECKABLE) {
-          // There is no ATK state for haspopup, must use object attribute to expose the same info
-          nsAutoString oldValueUnused;
-          attributes->SetStringProperty(NS_LITERAL_CSTRING("checkable"), NS_LITERAL_STRING("true"),
-                                        oldValueUnused);
-        }
 
         nsCOMPtr<nsISimpleEnumerator> propEnum;
         nsresult rv = attributes->Enumerate(getter_AddRefs(propEnum));
@@ -879,7 +873,7 @@ getChildCountCB(AtkObject *aAtkObj)
     accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperText), getter_AddRefs(hyperText));
     if (hyperText) {
         // If HyperText, then number of links matches number of children
-        hyperText->GetLinks(&count);
+        hyperText->GetLinkCount(&count);
     }
     else {
         nsCOMPtr<nsIAccessibleText> accText;

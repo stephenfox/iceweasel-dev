@@ -697,7 +697,7 @@ pkix_pl_Cert_GetNssSubjectAltNames(
                                 (DER_DEFAULT_CHUNKSIZE));
 
                         if (arena == NULL) {
-                            PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                            PKIX_ERROR(PKIX_OUTOFMEMORY);
                         }
                         cert->arenaNameConstraints = arena;
                     }
@@ -1432,7 +1432,7 @@ pkix_pl_Cert_CreateWithNSSCert(
 {
         PKIX_PL_Cert *cert = NULL;
 
-        PKIX_ENTER(CERT, "PKIX_PL_Cert_CreateWithNSSCert");
+        PKIX_ENTER(CERT, "pkix_pl_Cert_CreateWithNSSCert");
         PKIX_NULLCHECK_TWO(pCert, nssCert);
 
         /* create a PKIX_PL_Cert object */
@@ -1534,25 +1534,26 @@ pkix_pl_Cert_CreateToList(
         PKIX_ENTER(CERT, "pkix_pl_Cert_CreateToList");
         PKIX_NULLCHECK_TWO(derCertItem, certList);
 
-        PKIX_PL_NSSCALLRV(CERT, nssCert, CERT_DecodeDERCertificate,
-                (derCertItem, PR_TRUE, NULL));
-
-        if (nssCert) {
-                PKIX_CHECK_ONLY_FATAL(pkix_pl_Cert_CreateWithNSSCert
-                        (nssCert, &cert, plContext),
-                        PKIX_CERTCREATEWITHNSSCERTFAILED);
-
-                /* skip bad certs and append good ones */
-                if (!PKIX_ERROR_RECEIVED) {
-                        PKIX_CHECK(PKIX_List_AppendItem
-                                (certList, (PKIX_PL_Object *) cert, plContext),
-                                PKIX_LISTAPPENDITEMFAILED);
-                }
-
-                PKIX_DECREF(cert);
+        nssCert = CERT_DecodeDERCertificate(derCertItem, PR_TRUE, NULL);
+        if (!nssCert) {
+            goto cleanup;
         }
 
+        PKIX_CHECK(pkix_pl_Cert_CreateWithNSSCert
+                   (nssCert, &cert, plContext),
+                   PKIX_CERTCREATEWITHNSSCERTFAILED);
+
+        nssCert = NULL;
+
+        PKIX_CHECK(PKIX_List_AppendItem
+                   (certList, (PKIX_PL_Object *) cert, plContext),
+                   PKIX_LISTAPPENDITEMFAILED);
+
 cleanup:
+        if (nssCert) {
+            CERT_DestroyCertificate(nssCert);
+        }
+
         PKIX_DECREF(cert);
         PKIX_RETURN(CERT);
 }
@@ -1590,7 +1591,7 @@ PKIX_PL_Cert_Create(
 
         derCertItem = SECITEM_AllocItem(NULL, NULL, derLength);
         if (derCertItem == NULL){
-                PKIX_ERROR(PKIX_UNABLETOALLOCATESECITEM);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         (void) PORT_Memcpy(derCertItem->data, derBytes, derLength);
@@ -1691,13 +1692,15 @@ PKIX_PL_Cert_GetVersion(
         void *plContext)
 {
         CERTCertificate *nssCert = NULL;
-        PKIX_UInt32 myVersion;
+        PKIX_UInt32 myVersion = 1;
 
         PKIX_ENTER(CERT, "PKIX_PL_Cert_GetVersion");
         PKIX_NULLCHECK_THREE(cert, cert->nssCert, pVersion);
 
         nssCert = cert->nssCert;
-        myVersion = *(nssCert->version.data);
+        if (nssCert->version.data) {
+                myVersion = *(nssCert->version.data);
+        }
 
         if (myVersion > 2){
                 PKIX_ERROR(PKIX_VERSIONVALUEMUSTBEV1V2ORV3);
@@ -1977,7 +1980,7 @@ PKIX_PL_Cert_GetAllSubjectNames(
 
                 arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                 if (arena == NULL) {
-                        PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
                 /* This NSS call returns both Subject and  Subject Alt Names */
@@ -2163,7 +2166,7 @@ PKIX_PL_Cert_GetSubjectPublicKey(
                         toItem->data =
                                 (unsigned char*) PORT_ZAlloc(fromItem->len);
                         if (!toItem->data){
-                                PKIX_ERROR(PKIX_PORTZALLOCFAILED);
+                                PKIX_ERROR(PKIX_OUTOFMEMORY);
                         }
 
                         (void) PORT_Memcpy(toItem->data,
@@ -2182,9 +2185,10 @@ PKIX_PL_Cert_GetSubjectPublicKey(
         *pPublicKey = cert->publicKey;
 
 cleanup:
-	PKIX_OBJECT_UNLOCK(lockedObject);
-        if (PKIX_ERROR_RECEIVED){
+
+        if (PKIX_ERROR_RECEIVED && pkixPubKey){
                 PKIX_DECREF(pkixPubKey);
+                cert->publicKey = NULL;
         }
         PKIX_RETURN(CERT);
 }
@@ -2275,7 +2279,7 @@ PKIX_PL_Cert_GetAuthorityKeyIdentifier(
 
                         arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                         if (arena == NULL) {
-                                PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                                PKIX_ERROR(PKIX_OUTOFMEMORY);
                         }
 
                         nssCert = cert->nssCert;
@@ -2348,7 +2352,7 @@ PKIX_PL_Cert_GetSubjectKeyIdentifier(
 
                         retItem = SECITEM_AllocItem(NULL, NULL, 0);
                         if (retItem == NULL){
-                                PKIX_ERROR(PKIX_UNABLETOALLOCATESECITEM);
+                                PKIX_ERROR(PKIX_OUTOFMEMORY);
                         }
 
                         nssCert = cert->nssCert;
@@ -2925,7 +2929,7 @@ PKIX_PL_Cert_VerifySignature(
         status = CERT_VerifySignedDataWithPublicKey(tbsCert, nssPubKey, NULL);
 
         if (status != SECSuccess) {
-                PKIX_ERROR(PKIX_SIGNATUREDIDNOTVERIFYWITHTHISPUBLICKEY);
+                PKIX_ERROR(PKIX_SIGNATUREDIDNOTVERIFYWITHTHEPUBLICKEY);
         }
 
         if (certInHash == PKIX_FALSE) {
@@ -2964,6 +2968,8 @@ PKIX_PL_Cert_CheckValidity(
 {
         SECCertTimeValidity val;
         PRTime timeToCheck;
+        PKIX_Boolean allowOverride;
+        SECCertificateUsage requiredUsages;
 
         PKIX_ENTER(CERT, "PKIX_PL_Cert_CheckValidity");
         PKIX_NULLCHECK_ONE(cert);
@@ -2977,8 +2983,11 @@ PKIX_PL_Cert_CheckValidity(
                 timeToCheck = PR_Now();
         }
 
-        PKIX_CERT_DEBUG("\t\tCalling CERT_CheckCertValidTimes).\n");
-        val = CERT_CheckCertValidTimes(cert->nssCert, timeToCheck, PKIX_FALSE);
+        requiredUsages = ((PKIX_PL_NssContext*)plContext)->certificateUsage;
+        allowOverride =
+            (PRBool)((requiredUsages & certificateUsageSSLServer) ||
+                     (requiredUsages & certificateUsageSSLServerWithStepUp));
+        val = CERT_CheckCertValidTimes(cert->nssCert, timeToCheck, allowOverride);
         if (val != secCertTimeValid){
                 PKIX_ERROR(PKIX_CERTCHECKCERTVALIDTIMESFAILED);
         }
@@ -3153,7 +3162,7 @@ PKIX_PL_Cert_CheckNameConstraints(
 
                 arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                 if (arena == NULL) {
-                        PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
                 /* This NSS call returns both Subject and  Subject Alt Names */
@@ -3394,7 +3403,7 @@ PKIX_PL_Cert_GetAuthorityInfoAccess(
                         (NULL, NULL, 0));
 
                     if (encodedAIA == NULL) {
-                        goto cleanup;
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                     }
 
                     PKIX_PL_NSSCALLRV(CERT, rv, CERT_FindCertExtension,
@@ -3410,7 +3419,7 @@ PKIX_PL_Cert_GetAuthorityInfoAccess(
                         (DER_DEFAULT_CHUNKSIZE));
 
                     if (arena == NULL) {
-                        goto cleanup;
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                     }
 
                     PKIX_PL_NSSCALLRV
@@ -3484,7 +3493,7 @@ PKIX_PL_Cert_GetSubjectInfoAccess(
 
                     encodedSubjInfoAccess = SECITEM_AllocItem(NULL, NULL, 0);
                     if (encodedSubjInfoAccess == NULL) {
-                        goto cleanup;
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                     }
 
                     PKIX_CERT_DEBUG
@@ -3498,7 +3507,7 @@ PKIX_PL_Cert_GetSubjectInfoAccess(
 
                     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                     if (arena == NULL) {
-                        goto cleanup;
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                     }
 
                     /* XXX

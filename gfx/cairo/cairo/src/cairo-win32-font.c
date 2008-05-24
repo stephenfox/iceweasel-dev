@@ -490,6 +490,26 @@ _cairo_win32_scaled_font_select_unscaled_font (cairo_scaled_font_t *scaled_font,
     return CAIRO_STATUS_SUCCESS;
 }
 
+cairo_bool_t
+_cairo_win32_scaled_font_is_type1 (cairo_scaled_font_t *scaled_font)
+{
+    cairo_win32_scaled_font_t *win32_scaled_font;
+
+    win32_scaled_font = (cairo_win32_scaled_font_t *) scaled_font;
+
+    return win32_scaled_font->is_type1;
+}
+
+cairo_bool_t
+_cairo_win32_scaled_font_is_bitmap (cairo_scaled_font_t *scaled_font)
+{
+    cairo_win32_scaled_font_t *win32_scaled_font;
+
+    win32_scaled_font = (cairo_win32_scaled_font_t *) scaled_font;
+
+    return win32_scaled_font->is_bitmap;
+}
+
 static void
 _cairo_win32_scaled_font_done_unscaled_font (cairo_scaled_font_t *scaled_font)
 {
@@ -913,9 +933,9 @@ _cairo_win32_scaled_font_init_glyph_metrics (cairo_win32_scaled_font_t *scaled_f
 	cairo_win32_scaled_font_done_font (&scaled_font->base);
 
 	extents.x_bearing = 0;
-	extents.y_bearing = -font_extents.ascent / scaled_font->y_scale;
+	extents.y_bearing = scaled_font->base.ctm.yy * (-font_extents.ascent / scaled_font->y_scale);
 	extents.width = width / scaled_font->x_scale;
-	extents.height = (font_extents.ascent + font_extents.descent) / scaled_font->y_scale;
+	extents.height = scaled_font->base.ctm.yy * (font_extents.ascent + font_extents.descent) / scaled_font->y_scale;
 	extents.x_advance = extents.width;
 	extents.y_advance = 0;
     } else if (scaled_font->preserve_axes && scaled_font->base.options.hint_style != CAIRO_HINT_METRICS_OFF) {
@@ -1907,7 +1927,7 @@ cairo_font_face_t *
 cairo_win32_font_face_create_for_hfont (HFONT font)
 {
     LOGFONTW logfont;
-    GetObject (font, sizeof(logfont), &logfont);
+    GetObjectW (font, sizeof(logfont), &logfont);
 
     if (logfont.lfEscapement != 0 || logfont.lfOrientation != 0 ||
         logfont.lfWidth != 0) {

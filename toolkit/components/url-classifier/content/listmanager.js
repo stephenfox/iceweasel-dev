@@ -96,16 +96,22 @@ function PROT_ListManager() {
                                           BindToObject(this.cookieChanged_, this),
                                           false);
 
-  this.requestBackoff_ = new RequestBackoff(3 /* num errors */,
-                                   10*60*1000 /* error time, 10min */,
-                                   60*60*1000 /* backoff interval, 60min */,
-                                   6*60*60*1000 /* max backoff, 6hr */);
+  /* Backoff interval should be between 30 and 60 minutes. */
+  var backoffInterval = 30 * 60 * 1000;
+  backoffInterval += Math.floor(Math.random() * (30 * 60 * 1000));
+
+  this.requestBackoff_ = new RequestBackoff(2 /* max errors */,
+                                      60*1000 /* retry interval, 1 min */,
+                                            4 /* num requests */,
+                                   60*60*1000 /* request time, 60 min */,
+                              backoffInterval /* backoff interval, 60 min */,
+                                 8*60*60*1000 /* max backoff, 8hr */);
 
   this.dbService_ = Cc["@mozilla.org/url-classifier/dbservice;1"]
                    .getService(Ci.nsIUrlClassifierDBService);
 
   this.hashCompleter_ = Cc["@mozilla.org/url-classifier/hashcompleter;1"]
-                        .createInstance(Ci.nsIUrlClassifierHashCompleter);
+                        .getService(Ci.nsIUrlClassifierHashCompleter);
 }
 
 /**
@@ -178,7 +184,6 @@ PROT_ListManager.prototype.registerTable = function(tableName,
                                                     opt_requireMac) {
   this.tablesData[tableName] = {};
   this.tablesData[tableName].needsUpdate = false;
-  this.dbService_.setHashCompleter(tableName, this.hashCompleter_);
 
   return true;
 }
@@ -409,10 +414,16 @@ PROT_ListManager.prototype.makeUpdateRequest_ = function(tableData) {
     return;
   }
 
+  var tableList;
   var tableNames = {};
   for (var tableName in this.tablesData) {
     if (this.tablesData[tableName].needsUpdate)
       tableNames[tableName] = true;
+    if (!tableList) {
+      tableList = tableName;
+    } else {
+      tableList += "," + tableName;
+    }
   }
 
   var request = "";
@@ -445,7 +456,10 @@ PROT_ListManager.prototype.makeUpdateRequest_ = function(tableData) {
     return;
   }
 
-  if (!streamer.downloadUpdates(request,
+  this.requestBackoff_.noteRequest();
+
+  if (!streamer.downloadUpdates(tableList,
+                                request,
                                 this.keyManager_.getClientKey(),
                                 BindToObject(this.updateSuccess_, this),
                                 BindToObject(this.updateError_, this),
@@ -468,6 +482,9 @@ PROT_ListManager.prototype.updateSuccess_ = function(waitForUpdate) {
     if (delay >= (5 * 60) && this.updateChecker_)
       this.updateChecker_.setDelay(delay * 1000);
   }
+
+  // Let the backoff object know that we completed successfully.
+  this.requestBackoff_.noteServerResponse(200);
 }
 
 /**
@@ -493,9 +510,12 @@ PROT_ListManager.prototype.downloadError_ = function(status) {
   status = parseInt(status, 10);
   this.requestBackoff_.noteServerResponse(status);
 
-  // Try again in a minute
-  this.currentUpdateChecker_ =
-    new G_Alarm(BindToObject(this.checkForUpdates, this), 60000);
+  if (this.requestBackoff_.isErrorStatus(status)) {
+    // Schedule an update for when our backoff is complete
+    this.currentUpdateChecker_ =
+      new G_Alarm(BindToObject(this.checkForUpdates, this),
+                  this.requestBackoff_.nextRequestDelay());
+  }
 }
 
 /**

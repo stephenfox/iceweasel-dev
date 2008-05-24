@@ -141,6 +141,7 @@ class nsXBLInsertionPointEntry {
 public:
   ~nsXBLInsertionPointEntry() {
     if (mDefaultContent) {
+      nsAutoScriptBlocker scriptBlocker;
       // mDefaultContent is a sort of anonymous content within the XBL
       // document, and we own and manage it.  Unhook it here, since we're going
       // away.
@@ -248,6 +249,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLInsertionPointEntry)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLInsertionPointEntry)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mInsertionParent)
   if (tmp->mDefaultContent) {
+    nsAutoScriptBlocker scriptBlocker;
     // mDefaultContent is a sort of anonymous content within the XBL
     // document, and we own and manage it.  Unhook it here, since we're going
     // away.
@@ -338,7 +340,8 @@ TraverseInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
   nsXBLInsertionPointEntry* entry =
     static_cast<nsXBLInsertionPointEntry*>(aData);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(entry,
-                                               nsXBLInsertionPointEntry)
+                                               nsXBLInsertionPointEntry,
+                                               "[insertion point table] value")
   return kHashEnumerateNext;
 }
 
@@ -569,7 +572,9 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
                                                       element);
 
     if (realElement) {
-      nsIAtom* dstAttr = xblAttr->GetDstAttribute();
+      // Hold a strong reference here so that the atom doesn't go away during
+      // UnsetAttr.
+      nsCOMPtr<nsIAtom> dstAttr = xblAttr->GetDstAttribute();
       PRInt32 dstNs = xblAttr->GetDstNameSpace();
 
       if (aRemoveFlag)
@@ -1282,6 +1287,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
     // in situations where no content ends up being placed at the insertion point.
     PRUint32 defaultCount = child->GetChildCount();
     if (defaultCount > 0) {
+      nsAutoScriptBlocker scriptBlocker;
       // Annotate the insertion point with our default content.
       xblIns->SetDefaultContent(child);
 

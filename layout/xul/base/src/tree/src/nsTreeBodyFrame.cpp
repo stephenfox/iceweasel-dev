@@ -742,12 +742,6 @@ nsTreeBodyFrame::InvalidateRange(PRInt32 aStart, PRInt32 aEnd)
   if (aStart == aEnd)
     return InvalidateRow(aStart);
 
-#ifdef ACCESSIBILITY
-  nsIPresShell *presShell = PresContext()->PresShell();
-  if (presShell->IsAccessibilityActive())
-    FireInvalidateEvent(aStart, aEnd, nsnull, nsnull);
-#endif
-
   PRInt32 last = GetLastVisibleRow();
   if (aStart > aEnd || aEnd < mTopRowIndex || aStart > last)
     return NS_OK;
@@ -757,6 +751,15 @@ nsTreeBodyFrame::InvalidateRange(PRInt32 aStart, PRInt32 aEnd)
 
   if (aEnd > last)
     aEnd = last;
+
+#ifdef ACCESSIBILITY
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive()) {
+    PRInt32 end =
+      mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
+    FireInvalidateEvent(aStart, end, nsnull, nsnull);
+  }
+#endif
 
   nsRect rangeRect(mInnerBox.x, mInnerBox.y+mRowHeight*(aStart-mTopRowIndex), mInnerBox.width, mRowHeight*(aEnd-aStart+1));
   nsIFrame::Invalidate(rangeRect, PR_FALSE);
@@ -777,12 +780,6 @@ nsTreeBodyFrame::InvalidateColumnRange(PRInt32 aStart, PRInt32 aEnd, nsITreeColu
   if (aStart == aEnd)
     return InvalidateCell(aStart, col);
 
-#ifdef ACCESSIBILITY
-  nsIPresShell *presShell = PresContext()->PresShell();
-  if (presShell->IsAccessibilityActive())
-    FireInvalidateEvent(aStart, aEnd, aCol, aCol);
-#endif
-
   PRInt32 last = GetLastVisibleRow();
   if (aStart > aEnd || aEnd < mTopRowIndex || aStart > last)
     return NS_OK;
@@ -792,6 +789,15 @@ nsTreeBodyFrame::InvalidateColumnRange(PRInt32 aStart, PRInt32 aEnd, nsITreeColu
 
   if (aEnd > last)
     aEnd = last;
+
+#ifdef ACCESSIBILITY
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive()) {
+    PRInt32 end =
+      mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
+    FireInvalidateEvent(aStart, end, aCol, aCol);
+  }
+#endif
 
   nsRect rangeRect;
   nsresult rv = col->GetRect(this, 
@@ -1109,15 +1115,14 @@ nsTreeBodyFrame::GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn* aCol, const n
   *aWidth = 0;
   *aHeight = 0;
 
-  nscoord currX = mInnerBox.x;
+  nscoord currX = mInnerBox.x - mHorzPosition;
 
   // The Rect for the requested item. 
   nsRect theRect;
 
   nsPresContext* presContext = PresContext();
 
-  for (nsTreeColumn* currCol = mColumns->GetFirstColumn(); currCol && currX < mInnerBox.x + mInnerBox.width;
-       currCol = currCol->GetNext()) {
+  for (nsTreeColumn* currCol = mColumns->GetFirstColumn(); currCol; currCol = currCol->GetNext()) {
 
     // The Rect for the current cell.
     nscoord colWidth;
@@ -1133,7 +1138,6 @@ nsTreeBodyFrame::GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn* aCol, const n
       currX += cellRect.width;
       continue;
     }
-
     // Now obtain the properties for our cell.
     PrefillPropertyArray(aRow, currCol);
     mView->GetCellProperties(aRow, currCol, mScratchArray);
@@ -3659,7 +3663,7 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
     nsCOMPtr<imgIContainer> image;
     GetImage(aRowIndex, aColumn, PR_TRUE, meterContext, useImageRegion, getter_AddRefs(image));
     if (image)
-      aRenderingContext.DrawTile(image, 0, 0, &meterRect);
+      aRenderingContext.DrawTile(image, 0, 0, &meterRect, nsnull);
     else
       aRenderingContext.FillRect(meterRect);
   }
@@ -3671,7 +3675,7 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
     nsCOMPtr<imgIContainer> image;
     GetImage(aRowIndex, aColumn, PR_TRUE, meterContext, useImageRegion, getter_AddRefs(image));
     if (image)
-      aRenderingContext.DrawTile(image, 0, 0, &meterRect);
+      aRenderingContext.DrawTile(image, 0, 0, &meterRect, nsnull);
   }
 }
 
@@ -3848,9 +3852,6 @@ NS_IMETHODIMP nsTreeBodyFrame::EnsureCellIsVisible(PRInt32 aRow, nsITreeColumn* 
   nscoord columnWidth;
   rv = col->GetWidthInTwips(this, &columnWidth);
   if(NS_FAILED(rv)) return rv;
-
-  if (col->IsLastVisible(this))
-    columnWidth -= mAdjustWidth; // this is one case we don't want to adjust
 
   // If the start of the column is before the
   // start of the horizontal view, then scroll

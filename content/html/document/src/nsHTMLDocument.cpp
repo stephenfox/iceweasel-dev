@@ -140,6 +140,7 @@
 #include "nsIEditorStyleSheets.h"
 #include "nsIInlineSpellChecker.h"
 #include "nsRange.h"
+#include "mozAutoDocUpdate.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
@@ -649,7 +650,7 @@ nsHTMLDocument::TryBookmarkCharset(nsIDocShell* aDocShell,
                                                   &wantCharset,
                                                   getter_AddRefs(closure),
                                                   charset);
-  // FIXME: Bug 337790
+  // FIXME: Bug 337970
   NS_ASSERTION(!wantCharset, "resolved charset notification not implemented!");
 
   if (NS_SUCCEEDED(rv) && !charset.IsEmpty()) {
@@ -1987,10 +1988,6 @@ nsHTMLDocument::GetCookie(nsAString& aCookie)
   aCookie.Truncate(); // clear current cookie in case service fails;
                       // no cookie isn't an error condition.
 
-  if (mDisableCookieAccess) {
-    return NS_OK;
-  }
-
   // not having a cookie service isn't an error
   nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
   if (service) {
@@ -2017,10 +2014,6 @@ nsHTMLDocument::GetCookie(nsAString& aCookie)
 NS_IMETHODIMP
 nsHTMLDocument::SetCookie(const nsAString& aCookie)
 {
-  if (mDisableCookieAccess) {
-    return NS_OK;
-  }
-
   // not having a cookie service isn't an error
   nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
   if (service && mDocumentURI) {
@@ -2224,7 +2217,10 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     // Remove all attributes from the root element
     while (count-- > 0) {
       const nsAttrName* name = root->GetAttrNameAt(count);
-      root->UnsetAttr(name->NamespaceID(), name->LocalName(), PR_FALSE);
+      // Hold a strong reference here so that the atom doesn't go away during
+      // UnsetAttr.
+      nsCOMPtr<nsIAtom> localName = name->LocalName();
+      root->UnsetAttr(name->NamespaceID(), localName, PR_FALSE);
     }
 
     // Remove the root from the childlist
@@ -3966,8 +3962,19 @@ static PRBool HasPresShell(nsPIDOMWindow *aWindow)
 }
 
 nsresult
+nsHTMLDocument::SetEditingState(EditingState aState)
+{
+  mEditingState = aState;
+  return NS_OK;
+}
+
+nsresult
 nsHTMLDocument::EditingStateChanged()
 {
+  if (mRemovedFromDocShell) {
+    return NS_OK;
+  }
+
   if (mEditingState == eSettingUp || mEditingState == eTearingDown) {
     // XXX We shouldn't recurse.
     return NS_OK;

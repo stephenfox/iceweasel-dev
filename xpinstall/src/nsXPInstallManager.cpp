@@ -122,6 +122,7 @@ NS_INTERFACE_MAP_BEGIN(nsXPInstallManager)
   NS_INTERFACE_MAP_ENTRY(nsIXPInstallManager)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
+  NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
   NS_INTERFACE_MAP_ENTRY(nsIProgressEventSink)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
   NS_INTERFACE_MAP_ENTRY(nsPICertNotification)
@@ -956,7 +957,6 @@ void nsXPInstallManager::Shutdown(PRInt32 status)
         // tell the dialog it can go away
         mDlg->OnStateChange(0, nsIXPIProgressDialog::DIALOG_CLOSE, 0 );
         mDlg = nsnull;
-        mDialogOpen = PR_FALSE;
     }
 
     if (mNeedsShutdown)

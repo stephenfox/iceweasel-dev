@@ -1,6 +1,6 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-    <title>Tests Cross Origin Wrappers</title>
+    <title>Tests XPConnect Wrappers</title>
     <script type="text/javascript" src="/MochiKit/packed.js"></script>
     <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
     <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -57,6 +57,11 @@
     ok(new XPCSafeJSObjectWrapper(window) == window,
        'SJOWs equality hook returns true correctly against XOW');
 
+    is(typeof(new XPCSafeJSObjectWrapper(function(){})), 'function',
+       'SJOWs look like functions when they wrap functions');
+    is(typeof(new XPCSafeJSObjectWrapper({})), 'object',
+       'SJOWs look like objects when they wrap objects');
+
     var origProto = window.__proto__;
     try {
         window.__proto__ = window;
@@ -74,9 +79,6 @@
     } catch (e) {
         ok(false, 'window.eval does not throw an exception');
     }
-
-    is(Object.prototype.toString.call(Object.__parent__),
-       '[object XPCCrossOriginWrapper]', '__parent__ returns an XOW');
 
     try {
         window.__proto__ = null;

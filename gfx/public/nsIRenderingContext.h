@@ -541,7 +541,8 @@ public:
     NATIVE_GDK_DRAWABLE = 2,
     NATIVE_WINDOWS_DC = 3,
     NATIVE_MAC_THING = 4,
-    NATIVE_THEBES_CONTEXT = 5
+    NATIVE_THEBES_CONTEXT = 5,
+    NATIVE_OS2_PS = 6
   };
   /**
    * Retrieve the native graphic data given by aType. Return
@@ -597,11 +598,14 @@ public:
    * @param aXImageStart x location where the origin (0,0) of the image starts
    * @param aYImageStart y location where the origin (0,0) of the image starts
    * @param aTargetRect  area to draw to
+   * @param aSubimageRect the subimage (in tile space) which we expect to
+   * sample from; may be null to indicate that the whole image is
+   * OK to sample from
    */
   NS_IMETHOD DrawTile(imgIContainer *aImage,
                       nscoord aXImageStart, nscoord aYImageStart,
-                      const nsRect * aTargetRect) = 0;
-
+                      const nsRect * aTargetRect,
+                      const nsIntRect * aSubimageRect) = 0;
 
   /**
    * Get cluster details for a chunk of text.

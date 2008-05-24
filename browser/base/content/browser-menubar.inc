@@ -36,19 +36,31 @@
 #
 # ***** END LICENSE BLOCK *****
 
-       <menubar id="main-menubar" statusbar="statusbar-display"
+       <menubar id="main-menubar"
                 style="border:0px;padding:0px;margin:0px;-moz-appearance:none">
             <menu id="file-menu" label="&fileMenu.label;"
                   accesskey="&fileMenu.accesskey;">
               <menupopup id="menu_FilePopup" onpopupshowing="getContentAreaFrameCount();">
-                <menuitem label="&newNavigatorCmd.label;"
+                <menuitem id="menu_newNavigator"
+                          label="&newNavigatorCmd.label;"
                           accesskey="&newNavigatorCmd.accesskey;"
                           key="key_newNavigator"
                           command="cmd_newNavigator"/>
-                <menuitem command="cmd_newNavigatorTab" key="key_newNavigatorTab"
-                          label="&tabCmd.label;" accesskey="&tabCmd.accesskey;"/>
-                <menuitem label="&openLocationCmd.label;" accesskey="&openLocationCmd.accesskey;" key="focusURLBar" command="Browser:OpenLocation"/>
-                <menuitem label="&openFileCmd.label;" accesskey="&openFileCmd.accesskey;" key="openFileKb" command="Browser:OpenFile"/>
+                <menuitem id="menu_newNavigatorTab"
+                          label="&tabCmd.label;"
+                          command="cmd_newNavigatorTab"
+                          key="key_newNavigatorTab"
+                          accesskey="&tabCmd.accesskey;"/>
+                <menuitem id="menu_openLocation"
+                          label="&openLocationCmd.label;"
+                          command="Browser:OpenLocation"
+                          key="focusURLBar"
+                          accesskey="&openLocationCmd.accesskey;"/>
+                <menuitem id="menu_openFile"
+                          label="&openFileCmd.label;"
+                          command="Browser:OpenFile"
+                          key="openFileKb"
+                          accesskey="&openFileCmd.accesskey;"/>
                 <menuitem id="menu_closeWindow" hidden="true" command="cmd_closeWindow" key="key_closeWindow" label="&closeWindow.label;" accesskey="&closeWindow.accesskey;"/>
                 <menuitem id="menu_close" label="&closeCmd.label;" key="key_close" accesskey="&closeCmd.accesskey;" command="cmd_close"/>
                 <menuseparator/>
@@ -76,13 +88,15 @@
 #else
 #ifdef XP_MACOSX
         label="&quitApplicationCmdMac.label;"
-        key="key_quitApplicationCmdMac"
 #else
         label="&quitApplicationCmd.label;"
         accesskey="&quitApplicationCmd.accesskey;"
 #endif
+#ifdef XP_UNIX
+        key="key_quitApplication"
 #endif
-        oncommand="goQuitApplication();"/>
+#endif
+        command="cmd_quitApplication"/>
               </menupopup>
             </menu>
   
@@ -117,7 +131,8 @@
                           accesskey="&deleteCmd.accesskey;"
                           command="cmd_delete"/>
                 <menuseparator/>
-                <menuitem label="&selectAllCmd.label;"
+                <menuitem id="menu_selectAll"
+                          label="&selectAllCmd.label;"
                           key="key_selectAll"
                           accesskey="&selectAllCmd.accesskey;"
                           command="cmd_selectAll"/>
@@ -329,7 +344,7 @@
             </menu>
 
             <menu id="history-menu"
-                  oncommand="var url = event.target.getAttribute('statustext'); if (url) { PlacesUtils.markPageAsTyped(url); openUILink(url, event, false, true); }"
+                  oncommand="var node = event.target.node; if (node) { PlacesUIUtils.markPageAsTyped(node.uri); openUILink(node.uri, event, false, true); }"
                   onclick="checkForMiddleClick(this, event);"
                   label="&historyMenu.label;"
                   accesskey="&historyMenu.accesskey;">
@@ -337,7 +352,8 @@
                          type="places"
                          onpopupshowing="HistoryMenu.onPopupShowing(this);"
                          place="place:type=0&amp;sort=4&amp;maxResults=10">
-                <menuitem label="&backCmd.label;"
+                <menuitem id="historyMenuBack"
+                          label="&backCmd.label;"
 #ifdef XP_MACOSX
                           key="goBackKb2"
 #else
@@ -348,7 +364,8 @@
                           onclick="checkForMiddleClick(this, event);">
                   <observes element="Browser:Back" attribute="disabled" />
                 </menuitem>
-                <menuitem label="&forwardCmd.label;" 
+                <menuitem id="historyMenuForward"
+                          label="&forwardCmd.label;"
 #ifdef XP_MACOSX
                           key="goForwardKb2"
 #else
@@ -360,11 +377,12 @@
                   <observes element="Browser:Forward" attribute="disabled" />
                 </menuitem>
 
-                <menuitem label="&historyHomeCmd.label;"
+                <menuitem id="historyMenuHome"
+                          label="&historyHomeCmd.label;"
                           oncommand="BrowserGoHome(event);"
                           onclick="checkForMiddleClick(this, event);"
                           key="goHome"/>
-                <menuitem label="&showAllHistoryCmd.label;"
+                <menuitem label="&showAllHistoryCmd2.label;"
 #ifndef XP_MACOSX
                           key="showAllHistoryKb"
 #endif
@@ -383,14 +401,14 @@
         ondragdrop="nsDragAndDrop.drop(event, BookmarksMenuDropHandler);"
         ondragover="nsDragAndDrop.dragOver(event, BookmarksMenuDropHandler);">
     <menupopup id="bookmarksMenuPopup"
-               type="places" asyncinit="true"
-               place="place:folder=2&amp;expandQueries=1"
+               type="places"
+               place="place:folder=BOOKMARKS_MENU&amp;expandQueries=1"
                context="placesContext"
                openInTabs="children"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);">
-      <menuitem label="&bookmarkThisPageCmd.label;" 
+      <menuitem label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs" key="addBookmarkAsKb"/>
       <menuitem id="subscribeToPageMenuitem"
                 label="&subscribeToPageMenuitem.label;"
@@ -401,23 +419,34 @@
             label="&subscribeToPageMenupopup.label;"
             hidden="true">
         <menupopup id="subscribeToPageSubmenuMenupopup" 
-                   onpopupshowing="return FeedHandler.buildFeedList(event.target);" 
+                   onpopupshowing="return FeedHandler.buildFeedList(event.target);"
                    oncommand="return FeedHandler.subscribeToFeed(null, event);"
                    onclick="checkForMiddleClick(this, event);"/>
       </menu>
-      <menuitem label="&addCurPagesCmd.label;" 
+      <menuitem label="&addCurPagesCmd.label;"
                 command="Browser:BookmarkAllTabs" key="bookmarkAllTabsKb"/>
-      <menuitem label="&showAllBookmarksCmd.label;" 
-                command="Browser:ShowAllBookmarks" key="manBookmarkKb"/>
+      <menuitem id="bookmarksShowAll"
+                label="&organizeBookmarks.label;"
+                command="Browser:ShowAllBookmarks"
+                key="manBookmarkKb"/>
+      <menuseparator id="organizeBookmarksSeparator"/>
+      <menu id="bookmarksToolbarFolderMenu"
+            class="menu-iconic bookmark-item"
+            container="true">
+        <menupopup id="bookmarksToolbarFolderPopup"
+                   type="places"
+                   context="placesContext"
+                   onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"/>
+      </menu>
       <menuseparator builder="start"/>
     </menupopup>
   </menu>
-        
+
             <menu id="tools-menu" label="&toolsMenu.label;" accesskey="&toolsMenu.accesskey;">
               <menupopup id="menu_ToolsPopup">
               <menuitem label="&search.label;" accesskey="&search.accesskey;" 
                         key="key_search" command="Tools:Search"/>
-              <menuseparator/>
+              <menuseparator id="browserToolsSeparator"/>
               <menuitem id="menu_openDownloads" label="&downloads.label;"
                         accesskey="&downloads.accesskey;"
                         key="key_openDownloads" command="Tools:Downloads"/>

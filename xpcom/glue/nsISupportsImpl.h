@@ -433,18 +433,18 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
 
 #define NS_INTERFACE_TABLE_ENTRY(_class, _interface)                          \
   { &_interface::COMTypeInfo<int>::kIID,                                      \
-    reinterpret_cast<char*>(                                                  \
+    PROffset32(reinterpret_cast<char*>(                                       \
                         static_cast<_interface*>((_class*) 0x1000)) -         \
-    reinterpret_cast<char*>((_class*) 0x1000)                                 \
+               reinterpret_cast<char*>((_class*) 0x1000))                     \
   },
 
 #define NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, _interface, _implClass)    \
   { &_interface::COMTypeInfo<int>::kIID,                                      \
-    reinterpret_cast<char*>(                                                  \
+    PROffset32(reinterpret_cast<char*>(                                       \
                         static_cast<_interface*>(                             \
                                        static_cast<_implClass*>(              \
                                                       (_class*) 0x1000))) -   \
-    reinterpret_cast<char*>((_class*) 0x1000)                                 \
+               reinterpret_cast<char*>((_class*) 0x1000))                     \
   },
 
 #define NS_INTERFACE_TABLE_END_WITH_PTR(_ptr)                                 \
@@ -914,6 +914,69 @@ NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
     NS_INTERFACE_TABLE_ENTRY(Class, i7)                                       \
     NS_INTERFACE_TABLE_ENTRY(Class, i8)                                       \
     NS_INTERFACE_TABLE_ENTRY(Class, i9)                                       \
+  NS_INTERFACE_TABLE_END
+
+#define NS_INTERFACE_TABLE_INHERITED10(Class, i1, i2, i3, i4, i5, i6, i7,     \
+                                      i8, i9, i10)                            \
+  NS_INTERFACE_TABLE_BEGIN                                                    \
+    NS_INTERFACE_TABLE_ENTRY(Class, i1)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i2)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i3)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i4)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i5)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i6)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i7)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i8)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i9)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i10)                                      \
+  NS_INTERFACE_TABLE_END
+
+#define NS_INTERFACE_TABLE_INHERITED11(Class, i1, i2, i3, i4, i5, i6, i7,     \
+                                      i8, i9, i10, i11)                       \
+  NS_INTERFACE_TABLE_BEGIN                                                    \
+    NS_INTERFACE_TABLE_ENTRY(Class, i1)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i2)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i3)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i4)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i5)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i6)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i7)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i8)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i9)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i10)                                      \
+    NS_INTERFACE_TABLE_ENTRY(Class, i11)                                      \
+  NS_INTERFACE_TABLE_END
+
+#define NS_INTERFACE_TABLE_INHERITED12(Class, i1, i2, i3, i4, i5, i6, i7,     \
+                                      i8, i9, i10, i11, i12)                  \
+  NS_INTERFACE_TABLE_BEGIN                                                    \
+    NS_INTERFACE_TABLE_ENTRY(Class, i1)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i2)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i3)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i4)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i5)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i6)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i7)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i8)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i9)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i10)                                      \
+    NS_INTERFACE_TABLE_ENTRY(Class, i11)                                      \
+    NS_INTERFACE_TABLE_ENTRY(Class, i12)                                      \
+  NS_INTERFACE_TABLE_END
+
+#define NS_INTERFACE_TABLE_INHERITED10(Class, i1, i2, i3, i4, i5, i6, i7,     \
+                                       i8, i9, i10)                           \
+  NS_INTERFACE_TABLE_BEGIN                                                    \
+    NS_INTERFACE_TABLE_ENTRY(Class, i1)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i2)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i3)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i4)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i5)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i6)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i7)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i8)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i9)                                       \
+    NS_INTERFACE_TABLE_ENTRY(Class, i10)                                      \
   NS_INTERFACE_TABLE_END
 
 #define NS_IMPL_QUERY_INTERFACE_INHERITED0(Class, Super)                      \

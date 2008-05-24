@@ -93,6 +93,7 @@
 #include "nsThreadUtils.h"
 #include "nsPresShellIterator.h"
 #include "nsPIDOMWindow.h"
+#include "mozAutoDocUpdate.h"
 
 PRLogModuleInfo* gContentSinkLogModuleInfo;
 
@@ -154,10 +155,28 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsContentSink)
   NS_INTERFACE_MAP_ENTRY(nsICSSLoaderObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIScriptLoaderObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptLoaderObserver)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_2(nsContentSink, mDocument, mParser)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsContentSink)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsContentSink)
+  if (tmp->mDocument) {
+    tmp->mDocument->RemoveObserver(tmp);
+  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParser)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNodeInfoManager)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsContentSink)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParser)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
+                                                  nsNodeInfoManager)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
 
 nsContentSink::nsContentSink()
 {
@@ -181,6 +200,11 @@ nsContentSink::nsContentSink()
 
 nsContentSink::~nsContentSink()
 {
+  if (mDocument) {
+    // Remove ourselves just to be safe, though we really should have
+    // been removed in DidBuildModel if everything worked right.
+    mDocument->RemoveObserver(this);
+  }
 }
 
 nsresult

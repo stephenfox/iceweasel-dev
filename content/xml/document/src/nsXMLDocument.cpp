@@ -83,7 +83,6 @@
 #include "nsThreadUtils.h"
 #include "nsJSUtils.h"
 #include "nsCRT.h"
-#include "nsIWindowWatcher.h"
 #include "nsIAuthPrompt.h"
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIJSContextStack.h"
@@ -91,6 +90,8 @@
 #include "nsIDOMUserDataHandler.h"
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
+#include "nsIConsoleService.h"
+#include "nsIScriptError.h"
 
 
 // ==================================================================
@@ -242,27 +243,6 @@ nsXMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 NS_IMETHODIMP
 nsXMLDocument::GetInterface(const nsIID& aIID, void** aSink)
 {
-  if (aIID.Equals(NS_GET_IID(nsIAuthPrompt))) {
-    NS_ENSURE_ARG_POINTER(aSink);
-    *aSink = nsnull;
-
-    nsresult rv;
-    nsCOMPtr<nsIWindowWatcher> ww(do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv));
-    if (NS_FAILED(rv))
-      return rv;
-
-    nsCOMPtr<nsIAuthPrompt> prompt;
-    rv = ww->GetNewAuthPrompter(nsnull, getter_AddRefs(prompt));
-    if (NS_FAILED(rv))
-      return rv;
-
-    nsIAuthPrompt *p = prompt.get();
-    NS_ADDREF(p);
-    *aSink = p;
-    return NS_OK;
-  }
-
-
   return QueryInterface(aIID, aSink);
 }
 
@@ -296,13 +276,6 @@ nsXMLDocument::OnChannelRedirect(nsIChannel *aOldChannel,
     return rv;
   }
 
-  // XXXbz Shouldn't we look at the owner on the new channel at some point?
-  // It's not gonna be right here, but eventually it will....
-  nsCOMPtr<nsIPrincipal> principal;
-  rv = secMan->GetCodebasePrincipal(newLocation, getter_AddRefs(principal));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  SetPrincipal(principal);
   return NS_OK;
 }
 
@@ -368,42 +341,50 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
     return rv;
   }
 
+  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
   nsCOMPtr<nsIURI> codebase;
-  NodePrincipal()->GetURI(getter_AddRefs(codebase));
+  principal->GetURI(getter_AddRefs(codebase));
 
-  // Get security manager, check to see whether the current document
-  // is allowed to load this URI. It's important to use the current
-  // document's principal for this check so that we don't end up in a
-  // case where code with elevated privileges is calling us and
-  // changing the principal of this document.
-  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+  // Check to see whether the current document is allowed to load this URI.
+  // It's important to use the current document's principal for this check so
+  // that we don't end up in a case where code with elevated privileges is
+  // calling us and changing the principal of this document.
 
   // Enforce same-origin even for chrome loaders to avoid someone accidentally
   // using a document that content has a reference to and turn that into a
   // chrome document.
   if (codebase) {
-    rv = secMan->CheckSameOriginURI(codebase, uri, PR_FALSE);
-
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
+    rv = principal->CheckMayLoad(uri, PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
   } else {
     // We're called from chrome, check to make sure the URI we're
     // about to load is also chrome.
 
     PRBool isChrome = PR_FALSE;
     if (NS_FAILED(uri->SchemeIs("chrome", &isChrome)) || !isChrome) {
+      nsCAutoString spec;
+      if (mDocumentURI)
+        mDocumentURI->GetSpec(spec);
+
+      nsAutoString error;
+      error.AssignLiteral("Cross site loading using document.load is no "
+                          "longer supported. Use XMLHttpRequest instead.");
+      nsCOMPtr<nsIScriptError> errorObject =
+          do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+      rv = errorObject->Init(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
+                             nsnull, 0, 0, nsIScriptError::warningFlag,
+                             "DOM");
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      nsCOMPtr<nsIConsoleService> consoleService =
+        do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+      if (consoleService) {
+        consoleService->LogMessage(errorObject);
+      }
+
       return NS_ERROR_DOM_SECURITY_ERR;
     }
-  }
-
-  rv = secMan->CheckConnect(nsnull, uri, "XMLDocument", "load");
-  if (NS_FAILED(rv)) {
-    // We need to return success here so that JS will get a proper
-    // exception thrown later. Native calls should always result in
-    // CheckConnect() succeeding, but in case JS calls C++ which calls
-    // this code the exception might be lost.
-    return NS_OK;
   }
 
   // Partial Reset, need to restore principal for security reasons and
@@ -413,7 +394,6 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   // be loaded.  Note that we need to hold a strong ref to |principal|
   // here, because ResetToURI will null out our node principal before
   // setting the new one.
-  nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
   nsCOMPtr<nsIEventListenerManager> elm(mListenerManager);
   mListenerManager = nsnull;
 
@@ -440,23 +420,6 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   if (NS_FAILED(rv)) {
     return rv;
   }
-
-  // Set a principal for this document
-  // XXXbz StartDocumentLoad should handle that.... And we shouldn't be calling
-  // StartDocumentLoad until we get an OnStartRequest from this channel!
-  nsCOMPtr<nsISupports> channelOwner;
-  rv = channel->GetOwner(getter_AddRefs(channelOwner));
-
-  // We don't care if GetOwner() succeeded here, if it failed,
-  // channelOwner will be null, which is what we want in that case.
-  principal = do_QueryInterface(channelOwner);
-
-  if (NS_FAILED(rv) || !principal) {
-    rv = secMan->GetCodebasePrincipal(uri, getter_AddRefs(principal));
-    NS_ENSURE_TRUE(principal, rv);
-  }
-
-  SetPrincipal(principal);
 
   // Prepare for loading the XML document "into oneself"
   nsCOMPtr<nsIStreamListener> listener;

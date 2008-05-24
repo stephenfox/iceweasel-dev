@@ -137,6 +137,11 @@ enum nsLayoutPhase {
 };
 #endif
 
+/* Used by nsPresContext::HasAuthorSpecifiedRules */
+#define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
+#define NS_AUTHOR_SPECIFIED_BORDER          (1 << 1)
+#define NS_AUTHOR_SPECIFIED_PADDING         (1 << 2)
+
 // An interface for presentation contexts. Presentation contexts are
 // objects that provide an outer context for a presentation shell.
 
@@ -220,6 +225,7 @@ public:
    * Access the image animation mode for this context
    */
   PRUint16     ImageAnimationMode() const { return mImageAnimationMode; }
+  void RestoreImageAnimationMode() { SetImageAnimationMode(mImageAnimationModePref); }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(PRUint16 aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(PRUint16 aMode);
 #ifdef _IMPL_NS_LAYOUT
@@ -518,15 +524,23 @@ public:
   { return NSToCoordRound(NS_TWIPS_TO_INCHES(aTwips) *
                           mDeviceContext->AppUnitsPerInch()); }
 
+  // Margin-specific version, since they often need TwipsToAppUnits
+  nsMargin TwipsToAppUnits(const nsMargin &marginInTwips) const
+  { return nsMargin(TwipsToAppUnits(marginInTwips.left), 
+                    TwipsToAppUnits(marginInTwips.top),
+                    TwipsToAppUnits(marginInTwips.right),
+                    TwipsToAppUnits(marginInTwips.bottom)); }
+
   PRInt32 AppUnitsToTwips(nscoord aTwips) const
   { return NS_INCHES_TO_TWIPS((float)aTwips /
                               mDeviceContext->AppUnitsPerInch()); }
 
   nscoord PointsToAppUnits(float aPoints) const
   { return NSToCoordRound(aPoints * mDeviceContext->AppUnitsPerInch() /
-                          72.0f); }
+                          POINTS_PER_INCH_FLOAT); }
   float AppUnitsToPoints(nscoord aAppUnits) const
-  { return (float)aAppUnits / mDeviceContext->AppUnitsPerInch() * 72.0f; }
+  { return (float)aAppUnits / mDeviceContext->AppUnitsPerInch() *
+      POINTS_PER_INCH_FLOAT; }
 
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const
   { return DevPixelsToAppUnits(AppUnitsToDevPixels(aAppUnits)); }
@@ -732,7 +746,7 @@ public:
   PRBool IsChrome() const;
 
   // Public API for native theme code to get style internals.
-  virtual PRBool HasAuthorSpecifiedBorderOrBackground(nsIFrame *aFrame) const;
+  virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const;
 
   // Is it OK to let the page specify colors and backgrounds?
   PRBool UseDocumentColors() const {

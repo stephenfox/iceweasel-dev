@@ -669,6 +669,7 @@ NS_INTERFACE_MAP_BEGIN(nsXFormsModelElement)
   NS_INTERFACE_MAP_ENTRY(nsISVSchemaErrorHandler)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
   NS_INTERFACE_MAP_ENTRY(nsIXFormsContextControl)
+  NS_INTERFACE_MAP_ENTRY(nsIXFormsControlBase)
 NS_INTERFACE_MAP_END_INHERITING(nsXFormsStubElement)
 
 NS_IMPL_ADDREF_INHERITED(nsXFormsModelElement, nsXFormsStubElement)
@@ -1578,7 +1579,8 @@ nsXFormsModelElement::InstanceLoadStarted()
 }
 
 NS_IMETHODIMP
-nsXFormsModelElement::InstanceLoadFinished(PRBool aSuccess)
+nsXFormsModelElement::InstanceLoadFinished(PRBool aSuccess,
+                                           const nsAString& aURI)
 {
   if (!aSuccess) {
     // This will leave mPendingInstanceCount in an invalid state, which is
@@ -1586,7 +1588,17 @@ nsXFormsModelElement::InstanceLoadFinished(PRBool aSuccess)
     // should stop. If we decrease mPendingInstanceCount, the model would
     // finish construction, which is wrong.
     nsXFormsUtils::ReportError(NS_LITERAL_STRING("instanceLoadError"), mElement);
-    nsXFormsUtils::DispatchEvent(mElement, eEvent_LinkException);
+    if (!aURI.IsEmpty()) {
+      // Context Info: 'resource-uri'
+      // The resource URI of the link that failed.
+      nsCOMPtr<nsXFormsContextInfo> contextInfo =
+        new nsXFormsContextInfo(mElement);
+      NS_ENSURE_TRUE(contextInfo, NS_ERROR_OUT_OF_MEMORY);
+      contextInfo->SetStringValue("resource-uri", aURI);
+      mContextInfo.AppendObject(contextInfo);
+    }
+    nsXFormsUtils::DispatchEvent(mElement, eEvent_LinkException, nsnull,
+                                 nsnull, &mContextInfo);
     return NS_OK;
   }
 

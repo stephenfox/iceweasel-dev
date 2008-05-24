@@ -76,6 +76,9 @@ ifdef MOZ_MEMORY
 ifneq ($(OS_ARCH),WINNT)
 LIBS += -ljemalloc
 endif
+ifeq ($(OS_ARCH),SunOS)
+SOLARIS_JEMALLOC_LDFLAGS = -L$(LIBXUL_DIST)/bin -lxul
+endif
 endif
 
 ifdef LIBXUL_SDK
@@ -362,6 +365,9 @@ libs::
 
 libs:: $(srcdir)/profile/prefs.js
 	$(INSTALL) $^ $(DIST)/bin/defaults/profile
+
+libs:: $(srcdir)/blocklist.xml
+	$(INSTALL) $^ $(DIST)/bin
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 

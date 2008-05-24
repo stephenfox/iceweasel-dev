@@ -74,6 +74,8 @@
 #define OBJECT_TO_JSID(obj)         ((jsid)OBJECT_TO_JSVAL(obj))
 #define OBJECT_JSVAL_TO_JSID(v)     ((jsid)v)
 
+#define ID_TO_VALUE(id)             ((jsval)(id))
+
 /*
  * Convenience constants.
  */
@@ -235,9 +237,9 @@ typedef union JSTempValueUnion {
     jsval               value;
     JSObject            *object;
     JSString            *string;
-    JSFunction          *function;
     JSXML               *xml;
     JSXMLQName          *qname;
+    JSXMLNamespace      *nspace;
     JSTempValueTrace    trace;
     JSScopeProperty     *sprop;
     JSWeakRoots         *weakRoots;

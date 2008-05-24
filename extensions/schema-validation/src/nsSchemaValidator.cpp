@@ -2409,7 +2409,8 @@ nsSchemaValidator::ValidateBuiltinTypeTime(const nsAString & aValue,
     sprintf(fulldate, "22-AUG-1993 %d:%d:%d.%u", time.hour, time.minute,
             time.second, time.millisecond);
 
-    PR_ParseTimeString(fulldate, PR_TRUE, aResult);
+    PRBool isGMT = nsSchemaValidatorUtils::IsGMT(aValue);
+    PR_ParseTimeString(fulldate, isGMT ? PR_TRUE : PR_FALSE, aResult);
   } else {
     *aResult = nsnull;
     rv = NS_ERROR_ILLEGAL_VALUE;
@@ -2535,7 +2536,8 @@ nsSchemaValidator::ValidateBuiltinTypeDate(const nsAString & aValue,
     sprintf(fulldate, "%d-%s-%u 00:00:00", date.day,
             monthShorthand.get(), date.year);
 
-    PR_ParseTimeString(fulldate, PR_TRUE, aResult);
+    PRBool isGMT = nsSchemaValidatorUtils::IsGMT(aValue);
+    PR_ParseTimeString(fulldate, isGMT ? PR_TRUE : PR_FALSE, aResult);
   } else {
     *aResult = nsnull;
     rv = NS_ERROR_ILLEGAL_VALUE;
@@ -2622,7 +2624,8 @@ nsSchemaValidator::ValidateBuiltinTypeDateTime(const nsAString & aValue,
       dateTime.time.second,
       dateTime.time.millisecond);
 
-    PR_ParseTimeString(fulldate, PR_TRUE, aResult);
+    PRBool isGMT = nsSchemaValidatorUtils::IsGMT(aValue);
+    PR_ParseTimeString(fulldate, isGMT ? PR_TRUE : PR_FALSE, aResult);
   } else {
     *aResult = nsnull;
     rv = NS_ERROR_ILLEGAL_VALUE;
@@ -2656,15 +2659,13 @@ nsSchemaValidator::IsValidSchemaDate(const nsAString & aNodeValue,
 
  /*
     http://www.w3.org/TR/xmlschema-2/#date
-    (-)CCYY-MM-DDT
-      then either: Z
-      or [+/-]hh:mm
+    (-)CCYY-MM-DD
+      then optionally either: 
+        Z
+        or [+/-]hh:mm
   */
 
-  // append 'T' to end to make ParseSchemaDate happy.
-  dateString.Append('T');
-
-  isValid = nsSchemaValidatorUtils::ParseSchemaDate(dateString, aResult);
+  isValid = nsSchemaValidatorUtils::ParseSchemaDate(dateString, PR_TRUE, aResult);
 
   return isValid;
 }

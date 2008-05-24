@@ -125,6 +125,7 @@
 #include "nsEditorUtils.h"
 #include "nsWSRunObject.h"
 #include "nsHTMLObjectResizer.h"
+#include "nsGkAtoms.h"
 
 #include "nsIFrame.h"
 #include "nsIView.h"
@@ -1345,7 +1346,7 @@ NS_IMETHODIMP nsHTMLEditor::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent)
 NS_IMETHODIMP nsHTMLEditor::TypedText(const nsAString& aString,
                                       PRInt32 aAction)
 {
-  nsAutoPlaceHolderBatch batch(this, gTypingTxnName);
+  nsAutoPlaceHolderBatch batch(this, nsGkAtoms::TypingTxnName);
 
   switch (aAction)
   {
@@ -4599,7 +4600,8 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 
     // get the prev sibling of the right node, and see if it's leftTextNode
     nsCOMPtr<nsIDOMNode> prevSibOfRightNode;
-    result = GetPriorHTMLSibling(rightTextNode, address_of(prevSibOfRightNode));
+    result =
+      rightTextNode->GetPreviousSibling(getter_AddRefs(prevSibOfRightNode));
     if (NS_FAILED(result)) return result;
     if (prevSibOfRightNode && (prevSibOfRightNode == leftTextNode))
     {

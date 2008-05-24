@@ -76,12 +76,14 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSettingsGTK,
 nsPrintSettingsGTK::nsPrintSettingsGTK() :
   mPageSetup(NULL),
   mPrintSettings(NULL),
-  mGTKPrinter(NULL)
+  mGTKPrinter(NULL),
+  mPrintSelectionOnly(PR_FALSE)
 {
   // The aim here is to set up the objects enough that silent printing works well.
   // These will be replaced anyway if the print dialog is used.
   mPrintSettings = gtk_print_settings_new();
   mPageSetup = gtk_page_setup_new();
+  InitUnwriteableMargin();
 
   SetOutputFormat(nsIPrintSettings::kOutputFormatNative);
 
@@ -134,6 +136,9 @@ nsPrintSettingsGTK& nsPrintSettingsGTK::operator=(const nsPrintSettingsGTK& rhs)
   if (mPageSetup)
     g_object_unref(mPageSetup);
   mPageSetup = gtk_page_setup_copy(rhs.mPageSetup);
+  // NOTE: No need to re-initialize mUnwriteableMargin here (even
+  // though mPageSetup is changing). It'll be copied correctly by
+  // nsPrintSettings::operator=.
 
   if (mPrintSettings)
     g_object_unref(mPrintSettings);
@@ -185,6 +190,7 @@ nsPrintSettingsGTK::SetGtkPageSetup(GtkPageSetup *aPageSetup)
     g_object_unref(mPageSetup);
   
   mPageSetup = (GtkPageSetup*) g_object_ref(aPageSetup);
+  InitUnwriteableMargin();
 
   // We make a custom copy of the GtkPaperSize so it can be mutable. If a
   // GtkPaperSize wasn't made as custom, its properties are immutable.
@@ -412,15 +418,20 @@ nsPrintSettingsGTK::GetToFileName(PRUnichar * *aToFileName)
 
   // Convert to an nsIFile
   nsCOMPtr<nsIFile> file;
-  NS_GetFileFromURLSpec(nsDependentCString(gtk_output_uri), getter_AddRefs(file));
+  nsresult rv = NS_GetFileFromURLSpec(nsDependentCString(gtk_output_uri),
+                                      getter_AddRefs(file));
+  if (NS_FAILED(rv))
+    return rv;
 
   // Extract the path
   nsAutoString path;
-  file->GetPath(path);
+  rv = file->GetPath(path);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aToFileName = ToNewUnicode(path);
   return NS_OK;
 }
+
 NS_IMETHODIMP
 nsPrintSettingsGTK::SetToFileName(const PRUnichar * aToFileName)
 {
@@ -437,11 +448,14 @@ nsPrintSettingsGTK::SetToFileName(const PRUnichar * aToFileName)
   }
 
   nsCOMPtr<nsILocalFile> file;
-  NS_NewLocalFile(nsDependentString(aToFileName), PR_TRUE, getter_AddRefs(file));
+  nsresult rv = NS_NewLocalFile(nsDependentString(aToFileName), PR_TRUE,
+                                getter_AddRefs(file));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Convert the nsIFile to a URL
   nsCAutoString url;
-  NS_GetURLSpecFromFile(file, url);
+  rv = NS_GetURLSpecFromFile(file, url);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   gtk_print_settings_set(mPrintSettings, GTK_PRINT_SETTINGS_OUTPUT_URI, url.get());
   mToFileName = aToFileName;
@@ -472,11 +486,6 @@ nsPrintSettingsGTK::SetPrinterName(const PRUnichar * aPrinter)
 {
   NS_ConvertUTF16toUTF8 gtkPrinter(aPrinter);
 
-  if (StringBeginsWith(gtkPrinter, NS_LITERAL_CSTRING("PostScript/"))) {
-    // Don't bother importing this name
-    gtkPrinter.AssignLiteral("");
-  }
-
   if (StringBeginsWith(gtkPrinter, NS_LITERAL_CSTRING("CUPS/"))) {
     // Strip off "CUPS/"; GTK might recognize the rest
     gtkPrinter.Cut(0, strlen("CUPS/"));
@@ -503,66 +512,6 @@ NS_IMETHODIMP
 nsPrintSettingsGTK::SetNumCopies(PRInt32 aNumCopies)
 {
   gtk_print_settings_set_n_copies(mPrintSettings, aNumCopies);
-  return NS_OK;
-}
-
-/* attribute double edgeTop; */
-NS_IMETHODIMP
-nsPrintSettingsGTK::GetEdgeTop(double *aEdgeTop)
-{
-  NS_ENSURE_ARG_POINTER(aEdgeTop);
-  *aEdgeTop = gtk_page_setup_get_top_margin(mPageSetup, GTK_UNIT_INCH);
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsPrintSettingsGTK::SetEdgeTop(double aEdgeTop)
-{
-  gtk_page_setup_set_top_margin(mPageSetup, aEdgeTop, GTK_UNIT_INCH);
-  return NS_OK;
-}
-
-/* attribute double edgeLeft; */
-NS_IMETHODIMP
-nsPrintSettingsGTK::GetEdgeLeft(double *aEdgeLeft)
-{
-  NS_ENSURE_ARG_POINTER(aEdgeLeft);
-  *aEdgeLeft = gtk_page_setup_get_left_margin(mPageSetup, GTK_UNIT_INCH);
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsPrintSettingsGTK::SetEdgeLeft(double aEdgeLeft)
-{
-  gtk_page_setup_set_left_margin(mPageSetup, aEdgeLeft, GTK_UNIT_INCH);
-  return NS_OK;
-}
-
-/* attribute double edgeBottom; */
-NS_IMETHODIMP
-nsPrintSettingsGTK::GetEdgeBottom(double *aEdgeBottom)
-{
-  NS_ENSURE_ARG_POINTER(aEdgeBottom);
-  *aEdgeBottom = gtk_page_setup_get_bottom_margin(mPageSetup, GTK_UNIT_INCH);
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsPrintSettingsGTK::SetEdgeBottom(double aEdgeBottom)
-{
-  gtk_page_setup_set_bottom_margin(mPageSetup, aEdgeBottom, GTK_UNIT_INCH);
-  return NS_OK;
-}
-
-/* attribute double edgeRight; */
-NS_IMETHODIMP
-nsPrintSettingsGTK::GetEdgeRight(double *aEdgeRight)
-{
-  NS_ENSURE_ARG_POINTER(aEdgeRight);
-  *aEdgeRight = gtk_page_setup_get_right_margin(mPageSetup, GTK_UNIT_INCH);
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsPrintSettingsGTK::SetEdgeRight(double aEdgeRight)
-{
-  gtk_page_setup_set_right_margin(mPageSetup, aEdgeRight, GTK_UNIT_INCH);
   return NS_OK;
 }
 
@@ -633,6 +582,84 @@ nsPrintSettingsGTK::SaveNewPageSize()
   gtk_page_setup_set_paper_size(mPageSetup, mPaperSize);
 }
 
+void
+nsPrintSettingsGTK::InitUnwriteableMargin()
+{
+  mUnwriteableMargin.SizeTo(
+   NS_INCHES_TO_TWIPS(gtk_page_setup_get_left_margin(mPageSetup, GTK_UNIT_INCH)),
+   NS_INCHES_TO_TWIPS(gtk_page_setup_get_top_margin(mPageSetup, GTK_UNIT_INCH)),
+   NS_INCHES_TO_TWIPS(gtk_page_setup_get_right_margin(mPageSetup, GTK_UNIT_INCH)),
+   NS_INCHES_TO_TWIPS(gtk_page_setup_get_bottom_margin(mPageSetup, GTK_UNIT_INCH))
+  );
+}
+
+/**
+ * NOTE: Need a custom set of SetUnwriteableMargin functions, because
+ * whenever we change mUnwriteableMargin, we must pass the change
+ * down to our GTKPageSetup object.  (This is needed in order for us
+ * to give the correct default values in nsPrintDialogGTK.)
+ *
+ * It's important that the following functions pass 
+ * mUnwriteableMargin values rather than aUnwriteableMargin values
+ * to gtk_page_setup_set_[blank]_margin, because the two may not be
+ * the same.  (Specifically, negative values of aUnwriteableMargin
+ * are ignored by the nsPrintSettings::SetUnwriteableMargin functions.)
+ */
+NS_IMETHODIMP 
+nsPrintSettingsGTK::SetUnwriteableMarginInTwips(nsMargin& aUnwriteableMargin)
+{
+  nsPrintSettings::SetUnwriteableMarginInTwips(aUnwriteableMargin);
+  gtk_page_setup_set_top_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.top), GTK_UNIT_INCH);
+  gtk_page_setup_set_left_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.left), GTK_UNIT_INCH);
+  gtk_page_setup_set_bottom_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.bottom), GTK_UNIT_INCH);
+  gtk_page_setup_set_right_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.right), GTK_UNIT_INCH);
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginTop; */
+NS_IMETHODIMP
+nsPrintSettingsGTK::SetUnwriteableMarginTop(double aUnwriteableMarginTop)
+{
+  nsPrintSettings::SetUnwriteableMarginTop(aUnwriteableMarginTop);
+  gtk_page_setup_set_top_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.top), GTK_UNIT_INCH);
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginLeft; */
+NS_IMETHODIMP
+nsPrintSettingsGTK::SetUnwriteableMarginLeft(double aUnwriteableMarginLeft)
+{
+  nsPrintSettings::SetUnwriteableMarginLeft(aUnwriteableMarginLeft);
+  gtk_page_setup_set_left_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.left), GTK_UNIT_INCH);
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginBottom; */
+NS_IMETHODIMP
+nsPrintSettingsGTK::SetUnwriteableMarginBottom(double aUnwriteableMarginBottom)
+{
+  nsPrintSettings::SetUnwriteableMarginBottom(aUnwriteableMarginBottom);
+  gtk_page_setup_set_bottom_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.bottom), GTK_UNIT_INCH);
+  return NS_OK;
+}
+
+/* attribute double unwriteableMarginRight; */
+NS_IMETHODIMP
+nsPrintSettingsGTK::SetUnwriteableMarginRight(double aUnwriteableMarginRight)
+{
+  nsPrintSettings::SetUnwriteableMarginRight(aUnwriteableMarginRight);
+  gtk_page_setup_set_right_margin(mPageSetup,
+           NS_TWIPS_TO_INCHES(mUnwriteableMargin.right), GTK_UNIT_INCH);
+  return NS_OK;
+}
+
 /* attribute double paperWidth; */
 NS_IMETHODIMP
 nsPrintSettingsGTK::GetPaperWidth(double *aPaperWidth)
@@ -683,27 +710,6 @@ nsPrintSettingsGTK::SetPaperSizeUnit(PRInt16 aPaperSizeUnit)
   SaveNewPageSize();
 
   mPaperSizeUnit = aPaperSizeUnit;
-  return NS_OK;
-}
-
-// Get/Set our margins as an nsMargin
-NS_IMETHODIMP
-nsPrintSettingsGTK::SetEdgeInTwips(nsMargin& aEdge)
-{
-  gtk_page_setup_set_top_margin(mPageSetup, NS_TWIPS_TO_INCHES(aEdge.top), GTK_UNIT_INCH);
-  gtk_page_setup_set_left_margin(mPageSetup, NS_TWIPS_TO_INCHES(aEdge.left), GTK_UNIT_INCH);
-  gtk_page_setup_set_bottom_margin(mPageSetup, NS_TWIPS_TO_INCHES(aEdge.bottom), GTK_UNIT_INCH);
-  gtk_page_setup_set_right_margin(mPageSetup, NS_TWIPS_TO_INCHES(aEdge.right), GTK_UNIT_INCH);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPrintSettingsGTK::GetEdgeInTwips(nsMargin& aEdge)
-{
-  aEdge.SizeTo(NS_INCHES_TO_TWIPS(gtk_page_setup_get_left_margin(mPageSetup, GTK_UNIT_INCH)),
-               NS_INCHES_TO_TWIPS(gtk_page_setup_get_top_margin(mPageSetup, GTK_UNIT_INCH)),
-               NS_INCHES_TO_TWIPS(gtk_page_setup_get_right_margin(mPageSetup, GTK_UNIT_INCH)),
-               NS_INCHES_TO_TWIPS(gtk_page_setup_get_bottom_margin(mPageSetup, GTK_UNIT_INCH)));
   return NS_OK;
 }
 

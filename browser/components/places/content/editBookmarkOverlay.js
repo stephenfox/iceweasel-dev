@@ -62,24 +62,30 @@ var gEditItemOverlay = {
       this._hiddenRows = aInfo.hiddenRows;
     else
       this._hiddenRows.splice(0);
+    // force-read-only
+    this._readOnly = aInfo && aInfo.forceReadOnly;
   },
 
   _showHideRows: function EIO__showHideRows() {
-    var isBookmark = this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK;
+    var isBookmark = this._itemId != -1 &&
+                     this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK;
+    var isQuery = false;
+    if (this._uri)
+      isQuery = this._uri.schemeIs("place");
 
     this._element("nameRow").collapsed = this._hiddenRows.indexOf("name") != -1;
     this._element("folderRow").collapsed =
-      this._hiddenRows.indexOf("folderPicker") != -1;
-    this._element("tagsRow").collapsed = !isBookmark ||
-      this._hiddenRows.indexOf("tags") != -1;
+      this._hiddenRows.indexOf("folderPicker") != -1 || this._readOnly;
+
+    this._element("tagsRow").collapsed = !this._uri ||
+      this._hiddenRows.indexOf("tags") != -1 || isQuery;
     this._element("descriptionRow").collapsed =
-      this._hiddenRows.indexOf("description") != -1 ||
-      this._readOnly;
+      this._hiddenRows.indexOf("description") != -1 || this._readOnly;
     this._element("keywordRow").collapsed = !isBookmark || this._readOnly ||
-      this._hiddenRows.indexOf("keyword") != -1;
-    this._element("locationRow").collapsed = !isBookmark ||
+      this._hiddenRows.indexOf("keyword") != -1 || isQuery;
+    this._element("locationRow").collapsed = !isBookmark || isQuery ||
       this._hiddenRows.indexOf("location") != -1;
-    this._element("loadInSidebarCheckbox").collapsed = !isBookmark ||
+    this._element("loadInSidebarCheckbox").collapsed = !isBookmark || isQuery ||
       this._readOnly || this._hiddenRows.indexOf("loadInSidebar") != -1;
     this._element("feedLocationRow").collapsed = !this._isLivemark ||
       this._hiddenRows.indexOf("feedLocation") != -1;
@@ -89,24 +95,71 @@ var gEditItemOverlay = {
 
   /**
    * Initialize the panel
+   * @param aFor
+   *        Either a places-itemId (of a bookmark, folder or a live bookmark),
+   *        or a URI object (in which case, the panel would be initialized in
+   *        read-only mode).
+   * @param [optional] aInfo
+   *        JS object which stores additional info for the panel
+   *        initialization. The following properties may bet set:
+   *        * hiddenRows (Strings array): list of rows to be hidden regardless
+   *          of the item edited. Possible values: "title", "location",
+   *          "description", "keyword", "loadInSidebar", "feedLocation",
+   *          "siteLocation", folderPicker"
+   *        * forceReadOnly - set this flag to initialize the panel to its
+   *          read-only (view) mode even if the given item is editable.
    */
-  initPanel: function EIO_initPanel(aItemId, aInfo) {
-    const bms = PlacesUtils.bookmarks;
-
+  initPanel: function EIO_initPanel(aFor, aInfo) {
     this._folderMenuList = this._element("folderMenuList");
     this._folderTree = this._element("folderTree");
-    this._itemId = aItemId;
-    this._itemType = bms.getItemType(this._itemId);
-    this._determineInfo(aInfo);
 
-    var container = bms.getFolderIdForItem(this._itemId);
-    if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK) {
-      this._uri = bms.getBookmarkURI(this._itemId);
+    this._determineInfo(aInfo);
+    if (aFor instanceof Ci.nsIURI) {
+      this._itemId = -1;
+      this._uri = aFor;
+      this._readOnly = true;
+    }
+    else {
+      this._itemId = aFor;
+      var container =  PlacesUtils.bookmarks.getFolderIdForItem(this._itemId);
+      this._itemType = PlacesUtils.bookmarks.getItemType(this._itemId);
+      if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK) {
+        this._uri = PlacesUtils.bookmarks.getBookmarkURI(this._itemId);
+        if (!this._readOnly) // If readOnly wasn't forced through aInfo
+          this._readOnly = PlacesUtils.livemarks.isLivemark(container);
+        this._initTextField("keywordField",
+                            PlacesUtils.bookmarks
+                                       .getKeywordForBookmark(this._itemId));
+        // Load In Sidebar checkbox
+        this._element("loadInSidebarCheckbox").checked =
+          PlacesUtils.annotations.itemHasAnnotation(this._itemId,
+                                                    LOAD_IN_SIDEBAR_ANNO);
+      }
+      else {
+        if (!this._readOnly) // If readOnly wasn't forced through aInfo
+          this._readOnly = false;
+
+        this._uri = null;
+        this._isLivemark = PlacesUtils.livemarks.isLivemark(this._itemId);
+        if (this._isLivemark) {
+          var feedURI = PlacesUtils.livemarks.getFeedURI(this._itemId);
+          var siteURI = PlacesUtils.livemarks.getSiteURI(this._itemId);
+          this._initTextField("feedLocationField", feedURI.spec);
+          this._initTextField("siteLocationField", siteURI ? siteURI.spec : "");
+        }
+      }
+
+      // folder picker
+      this._initFolderMenuList(container);
+
+      // description field
+      this._initTextField("descriptionField", 
+                          PlacesUIUtils.getItemDescription(this._itemId));
+    }
+
+    if (this._itemId == -1 ||
+        this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK) {
       this._isLivemark = false;
-      if (PlacesUtils.livemarks.isLivemark(container))
-        this._readOnly = true;
-      else
-        this._readOnly = false;
 
       this._initTextField("locationField", this._uri.spec);
       this._initTextField("tagsField",
@@ -116,42 +169,17 @@ var gEditItemOverlay = {
 
       // tags selector
       this._rebuildTagsSelectorList();
-
-      this._initTextField("keywordField",
-                          bms.getKeywordForBookmark(this._itemId));
-
-      // Load In Sidebar checkbox
-      this._element("loadInSidebarCheckbox").checked =
-        PlacesUtils.annotations.itemHasAnnotation(this._itemId,
-                                                  LOAD_IN_SIDEBAR_ANNO);
     }
-    else {
-      this._readOnly = false;
-      this._isLivemark = PlacesUtils.livemarks.isLivemark(this._itemId);
-      if (this._isLivemark) {
-        var feedURI = PlacesUtils.livemarks.getFeedURI(this._itemId);
-        var siteURI = PlacesUtils.livemarks.getSiteURI(this._itemId);
-        this._initTextField("feedLocationField", feedURI.spec);
-        this._initTextField("siteLocationField", siteURI ? siteURI.spec : "");
-      }
-      this._uri = null;
-    }
-
-    // folder picker
-    this._initFolderMenuList(container);
 
     // name picker
     this._initNamePicker();
-
-    // description field
-    this._initTextField("descriptionField", 
-                        PlacesUtils.getItemDescription(this._itemId));
     
     this._showHideRows();
 
     // observe changes
     if (!this._observersAdded) {
-      PlacesUtils.bookmarks.addObserver(this, false);
+      if (this._itemId != -1)
+        PlacesUtils.bookmarks.addObserver(this, false);
       window.addEventListener("unload", this, false);
       this._observersAdded = true;
     }
@@ -257,7 +285,7 @@ var gEditItemOverlay = {
     if (aIID.equals(Ci.nsIMicrosummaryObserver) ||
         aIID.equals(Ci.nsIDOMEventListener) ||
         aIID.equals(Ci.nsINavBookmarkObserver) ||
-        aIID.eqauls(Ci.nsISupports))
+        aIID.equals(Ci.nsISupports))
       return this;
 
     throw Cr.NS_ERROR_NO_INTERFACE;
@@ -297,9 +325,13 @@ var gEditItemOverlay = {
   },
 
   _getItemStaticTitle: function EIO__getItemStaticTitle() {
+    if (this._itemId == -1)
+      return PlacesUtils.history.getPageTitle(this._uri);
+
     const annos = PlacesUtils.annotations;
     if (annos.itemHasAnnotation(this._itemId, STATIC_TITLE_ANNO))
       return annos.getItemAnnotation(this._itemId, STATIC_TITLE_ANNO);
+
     return PlacesUtils.bookmarks.getItemTitle(this._itemId);
   },
 
@@ -322,10 +354,11 @@ var gEditItemOverlay = {
 
     var itemToSelect = userEnteredNameField;
     try {
-      if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK &&
+      if (this._itemId != -1 &&
+          this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK &&
           !this._readOnly)
-        this._microsummaries = PlacesUtils.microsummaries
-                                          .getMicrosummaries(this._uri, -1);
+        this._microsummaries = PlacesUIUtils.microsummaries
+                                            .getMicrosummaries(this._uri, -1);
     }
     catch(ex) {
       // getMicrosummaries will throw an exception in at least two cases:
@@ -346,8 +379,8 @@ var gEditItemOverlay = {
           var microsummary = enumerator.getNext()
                                        .QueryInterface(Ci.nsIMicrosummary);
           var menuItem = this._createMicrosummaryMenuItem(microsummary);
-          if (PlacesUtils.microsummaries
-                         .isMicrosummary(this._itemId, microsummary))
+          if (PlacesUIUtils.microsummaries
+                           .isMicrosummary(this._itemId, microsummary))
             itemToSelect = menuItem;
 
           menupopup.appendChild(menuItem);
@@ -418,7 +451,9 @@ var gEditItemOverlay = {
     }
 
     if (this._observersAdded) {
-      PlacesUtils.bookmarks.removeObserver(this);
+      if (this._itemId != -1)
+        PlacesUtils.bookmarks.removeObserver(this);
+
       this._observersAdded = false;
     }
     if (this._microsummaries) {
@@ -426,6 +461,7 @@ var gEditItemOverlay = {
       this._microsummaries = null;
     }
     this._itemId = -1;
+    this._uri = null;
   },
 
   onTagsFieldBlur: function EIO_onTagsFieldBlur() {
@@ -449,12 +485,12 @@ var gEditItemOverlay = {
       }
 
       if (tagsToAdd.length > 0) {
-        var tagTxn = PlacesUtils.ptm.tagURI(this._uri, tagsToAdd);
-        PlacesUtils.ptm.doTransaction(tagTxn);
+        var tagTxn = PlacesUIUtils.ptm.tagURI(this._uri, tagsToAdd);
+        PlacesUIUtils.ptm.doTransaction(tagTxn);
       }
       if (tagsToRemove.length > 0) {
-        var untagTxn = PlacesUtils.ptm.untagURI(this._uri, tagsToRemove);
-        PlacesUtils.ptm.doTransaction(untagTxn);
+        var untagTxn = PlacesUIUtils.ptm.untagURI(this._uri, tagsToRemove);
+        PlacesUIUtils.ptm.doTransaction(untagTxn);
       }
     }
   },
@@ -470,12 +506,12 @@ var gEditItemOverlay = {
 
     var namePicker = this._element("namePicker")
     var txns = [];
-    const ptm = PlacesUtils.ptm;
+    const ptm = PlacesUIUtils.ptm;
 
     // Here we update either the item title or its cached static title
     var newTitle = this._element("userEnteredName").label;
     if (this._getItemStaticTitle() != newTitle) {
-      if (PlacesUtils.microsummaries.hasMicrosummary(this._itemId)) {
+      if (PlacesUIUtils.microsummaries.hasMicrosummary(this._itemId)) {
         // Note: this implicitly also takes care of the microsummary->static
         // title case, the removeMicorosummary method in the service will set
         // the item-title to the value of this annotation.
@@ -496,10 +532,10 @@ var gEditItemOverlay = {
     // bookmark previously had one, or the user selected a microsummary which
     // is not the one the bookmark previously had
     if ((newMicrosummary == null &&
-         PlacesUtils.microsummaries.hasMicrosummary(this._itemId)) ||
+         PlacesUIUtils.microsummaries.hasMicrosummary(this._itemId)) ||
         (newMicrosummary != null &&
-         !PlacesUtils.microsummaries
-                     .isMicrosummary(this._itemId, newMicrosummary))) {
+         !PlacesUIUtils.microsummaries
+                       .isMicrosummary(this._itemId, newMicrosummary))) {
       txns.push(ptm.editBookmarkMicrosummary(this._itemId, newMicrosummary));
     }
 
@@ -509,68 +545,68 @@ var gEditItemOverlay = {
 
   onDescriptionFieldBlur: function EIO_onDescriptionFieldInput() {
     var description = this._element("descriptionField").value;
-    if (description != PlacesUtils.getItemDescription(this._itemId)) {
-      var txn = PlacesUtils.ptm
-                           .editItemDescription(this._itemId, description);
-      PlacesUtils.ptm.doTransaction(txn);
+    if (description != PlacesUIUtils.getItemDescription(this._itemId)) {
+      var txn = PlacesUIUtils.ptm
+                             .editItemDescription(this._itemId, description);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
   onLocationFieldBlur: function EIO_onLocationFieldBlur() {
     var uri;
     try {
-      uri = PlacesUtils.createFixedURI(this._element("locationField").value);
+      uri = PlacesUIUtils.createFixedURI(this._element("locationField").value);
     }
     catch(ex) { return; }
 
     if (!this._uri.equals(uri)) {
-      var txn = PlacesUtils.ptm.editBookmarkURI(this._itemId, uri);
-      PlacesUtils.ptm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.editBookmarkURI(this._itemId, uri);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
   onKeywordFieldBlur: function EIO_onKeywordFieldBlur() {
     var keyword = this._element("keywordField").value;
     if (keyword != PlacesUtils.bookmarks.getKeywordForBookmark(this._itemId)) {
-      var txn = PlacesUtils.ptm.editBookmarkKeyword(this._itemId, keyword);
-      PlacesUtils.ptm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.editBookmarkKeyword(this._itemId, keyword);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
   onFeedLocationFieldBlur: function EIO_onFeedLocationFieldBlur() {
     var uri;
     try {
-      uri = PlacesUtils.createFixedURI(this._element("feedLocationField").value);
+      uri = PlacesUIUtils.createFixedURI(this._element("feedLocationField").value);
     }
     catch(ex) { return; }
 
     var currentFeedURI = PlacesUtils.livemarks.getFeedURI(this._itemId);
     if (!currentFeedURI.equals(uri)) {
-      var txn = PlacesUtils.ptm.editLivemarkFeedURI(this._itemId, uri);
-      PlacesUtils.ptm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.editLivemarkFeedURI(this._itemId, uri);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
   onSiteLocationFieldBlur: function EIO_onSiteLocationFieldBlur() {
     var uri = null;
     try {
-      uri = PlacesUtils.createFixedURI(this._element("siteLocationField").value);
+      uri = PlacesUIUtils.createFixedURI(this._element("siteLocationField").value);
     }
     catch(ex) {  }
 
     var currentSiteURI = PlacesUtils.livemarks.getSiteURI(this._itemId);
     if (!uri || !currentSiteURI.equals(uri)) {
-      var txn = PlacesUtils.ptm.editLivemarkSiteURI(this._itemId, uri);
-      PlacesUtils.ptm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.editLivemarkSiteURI(this._itemId, uri);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
   onLoadInSidebarCheckboxCommand:
   function EIO_onLoadInSidebarCheckboxCommand() {
     var loadInSidebarChecked = this._element("loadInSidebarCheckbox").checked;
-    var txn = PlacesUtils.ptm.setLoadInSidebar(this._itemId,
-                                               loadInSidebarChecked);
-    PlacesUtils.ptm.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.setLoadInSidebar(this._itemId,
+                                                 loadInSidebarChecked);
+    PlacesUIUtils.ptm.doTransaction(txn);
   },
 
   toggleFolderTreeVisibility: function EIO_toggleFolderTreeVisibility() {
@@ -579,7 +615,8 @@ var gEditItemOverlay = {
       expander.className = "expander-down";
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextdown"));
-      this._folderTree.collapsed = true;
+      this._folderTree.collapsed =
+        this._element("newFolderBox").collapsed = true;
       this._element("chooseFolderSeparator").hidden =
         this._element("chooseFolderMenuItem").hidden = false;
     }
@@ -587,13 +624,16 @@ var gEditItemOverlay = {
       expander.className = "expander-up"
       expander.setAttribute("tooltiptext",
                             expander.getAttribute("tooltiptextup"));
-      this._folderTree.collapsed = false;
-      if (!this._folderTree.place) {
-        const FOLDER_TREE_PLACE_URI =
-          "place:excludeItems=1&excludeQueries=1&excludeReadOnlyFolders=1&folder=" +
-          window.top.PlacesUtils.allBookmarksFolderId;
-        this._folderTree.place = FOLDER_TREE_PLACE_URI;
-      }
+      this._folderTree.collapsed =
+        this._element("newFolderBox").collapsed = false;
+
+      // XXXmano: Ideally we would only do this once, but for some odd reason,
+      // the editable mode set on this tree, together with its collapsed state
+      // breaks the view.
+      const FOLDER_TREE_PLACE_URI =
+        "place:excludeItems=1&excludeQueries=1&excludeReadOnlyFolders=1&folder=" +
+        window.top.PlacesUIUtils.allBookmarksFolderId;
+      this._folderTree.place = FOLDER_TREE_PLACE_URI;
 
       this._element("chooseFolderSeparator").hidden =
         this._element("chooseFolderMenuItem").hidden = true;
@@ -651,8 +691,8 @@ var gEditItemOverlay = {
     // Move the item
     var container = this._getFolderIdFromMenuList();
     if (PlacesUtils.bookmarks.getFolderIdForItem(this._itemId) != container) {
-      var txn = PlacesUtils.ptm.moveItem(this._itemId, container, -1);
-      PlacesUtils.ptm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.moveItem(this._itemId, container, -1);
+      PlacesUIUtils.ptm.doTransaction(txn);
 
       // Mark the containing folder as recently-used if it isn't in the
       // static list
@@ -754,6 +794,27 @@ var gEditItemOverlay = {
     return tags;
   },
 
+  newFolder: function EIO_newFolder() {
+    var ip = this._folderTree.insertionPoint;
+
+    // default to the bookmarks menu folder
+    if (!ip ||
+        ip.itemId == PlacesUIUtils.allBookmarksFolderId ||
+        ip.itemId == PlacesUIUtils.unfiledBookmarksFolderId) {
+      ip.itemId = PlacesUtils.bookmarksMenuFolderId;
+      ip.index = -1;
+    }
+
+    // XXXmano: add a separate "New Folder" string at some point...
+    var defaultLabel = this._element("newFolderButton").label;
+    var txn = PlacesUIUtils.ptm.createFolder(defaultLabel, ip.itemId, ip.index);
+    PlacesUIUtils.ptm.doTransaction(txn);
+    this._folderTree.focus();
+    this._folderTree.selectItems([this._lastNewItem]);
+    this._folderTree.startEditing(this._folderTree.view.selection.currentIndex,
+                                  this._folderTree.columns.getFirstColumn());
+  },
+
   // nsIDOMEventListener
   handleEvent: function EIO_nsIDOMEventListener(aEvent) {
     switch (aEvent.type) {
@@ -780,8 +841,22 @@ var gEditItemOverlay = {
   // nsINavBookmarkObserver
   onItemChanged: function EIO_onItemChanged(aItemId, aProperty,
                                             aIsAnnotationProperty, aValue) {
-    if (this._itemId != aItemId)
+    if (this._itemId != aItemId) {
+      if (aProperty == "title") {
+        // If the title of a folder which is listed within the folders
+        // menulist has been changed, we need to update the label of its
+        // representing element.
+        var menupopup = this._folderMenuList.menupopup;
+        for (var i=0; i < menupopup.childNodes.length; i++) {
+          if (menupopup.childNodes[i].folderId == aItemId) {
+            menupopup.childNodes[i].label = aValue;
+            break;
+          }
+        }
+      }
+
       return;
+    }
 
     switch (aProperty) {
     case "title":
@@ -823,7 +898,7 @@ var gEditItemOverlay = {
       break;
     case DESCRIPTION_ANNO:
       this._initTextField("descriptionField",
-                          PlacesUtils.getItemDescription(this._itemId));
+                          PlacesUIUtils.getItemDescription(this._itemId));
       break;
     case LOAD_IN_SIDEBAR_ANNO:
       this._element("loadInSidebarCheckbox").checked =
@@ -857,9 +932,12 @@ var gEditItemOverlay = {
     this._folderMenuList.selectedItem = folderItem;
   },
 
+  onItemAdded: function EIO_onItemAdded(aItemId, aFolder, aIndex) {
+    this._lastNewItem = aItemId;
+  },
+
   onBeginUpdateBatch: function() { },
   onEndUpdateBatch: function() { },
-  onItemAdded: function() { },
   onItemRemoved: function() { },
   onItemVisited: function() { },
 };

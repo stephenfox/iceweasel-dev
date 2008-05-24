@@ -209,7 +209,8 @@
       <stylesheet src="chrome://global/skin/findBar.css"/>
     </resources>
 
-    <content align="center" hidden="true">
+    <content hidden="true">
+    <xul:hbox anonid="findbar-container" class="findbar-container" flex="1" align="center">
       <xul:toolbarbutton anonid="find-closebutton"
                          class="findbar-closebutton"
                          tooltiptext="&findCloseButton.tooltip;"
@@ -259,6 +260,7 @@
                        control="findbar-textbox">
       <!-- Do not use value, first child is used because it provides a11y with text change events -->
       </xul:description>
+    </xul:hbox>
     </content>
 
     <implementation implements="nsIDOMEventListener">
@@ -910,12 +912,16 @@
         -
         - @param aMimeType
         -        The MIME type to check.
+        -
+        - if adding types to this function, please see the similar function
+        - in browser/base/content/browser.js
         -->
       <method name="_mimeTypeIsTextBased">
         <parameter name="aMimeType"/>
         <body><![CDATA[
           return /^text\/|\+xml$/.test(aMimeType) ||
                  aMimeType == "application/x-javascript" ||
+                 aMimeType == "application/javascript" ||
                  aMimeType == "application/xml";
         ]]></body>
       </method>
@@ -1074,7 +1080,7 @@
         <body><![CDATA[
           var showMinimalUI = this._findMode != this.FIND_NORMAL;
 
-          var nodes = document.getAnonymousNodes(this);
+          var nodes = this.getElement("findbar-container").childNodes;
           for (var i = 0; i < nodes.length; i++) {
             if (nodes[i].className.indexOf("findbar-find-fast") != -1)
                continue;

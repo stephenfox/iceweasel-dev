@@ -149,6 +149,13 @@ public:
                               nsIDOMNode *aPossibleDescendantNode);
 
   /**
+   * Are the first node and the second siblings?
+   * @return PR_TRUE if aDOMNode1 and aDOMNode2 have same parent
+   */
+   static PRBool AreSiblings(nsIDOMNode *aDOMNode1,
+                             nsIDOMNode *aDOMNode2);
+
+  /**
     * If an ancestor in this document exists with the given role, return it
     * @param aDescendant Descendant to start search with
     * @param aRole Role to find matching ancestor for
@@ -288,6 +295,14 @@ public:
   static PRBool GetID(nsIContent *aContent, nsAString& aID);
 
   /**
+   * Check if the given element is XLink.
+   *
+   * @param aContent  the given element
+   * @return          PR_TRUE if the given element is XLink
+   */
+  static PRBool IsXLink(nsIContent *aContent);
+
+  /**
    * Get the role map entry for a given DOM node. This will use the first
    * ARIA role if the role attribute provides a space delimited list of roles.
    * @param aNode  The DOM node to get the role map entry for
@@ -363,6 +378,19 @@ public:
                                                     PRUint32 aAttrNum = 1,
                                                     nsIContent *aExcludeContent = nsnull,
                                                     nsIAtom *aTagType = nsAccessibilityAtoms::label);
+  
+  // Return PR_TRUE if the ARIA property should always be exposed as an object attribute
+  static PRBool IsARIAPropForObjectAttr(nsIAtom *aAtom);
+
+
+  /**
+   * Get container-foo live region attributes for the given node
+   * @param aAttributes     Where to store the attributes
+   * @param aStartContent   Node to start from
+   * @param aTopContent     Node to end at
+   */
+  static void GetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
+                                         nsIContent *aStartContent, nsIContent *aTopContent);
 };
 
 #endif

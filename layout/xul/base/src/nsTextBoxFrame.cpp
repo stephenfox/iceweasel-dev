@@ -447,7 +447,6 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
     nscoord size;
     nscoord ascent;
     fontMet->GetMaxAscent(ascent);
-    PRBool isRTL = vis->mDirection == NS_STYLE_DIRECTION_RTL;
 
     nscoord baseline =
       presContext->RoundAppUnitsToNearestDevPixels(textRect.y + ascent);
@@ -465,16 +464,14 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
                                             pt, gfxSize(width, sizePixel),
                                             ascentPixel, ascentPixel,
                                             NS_STYLE_TEXT_DECORATION_OVERLINE,
-                                            NS_STYLE_BORDER_STYLE_SOLID,
-                                            isRTL);
+                                            NS_STYLE_BORDER_STYLE_SOLID);
       }
       if (decorations & NS_FONT_DECORATION_UNDERLINE) {
         nsCSSRendering::PaintDecorationLine(ctx, underColor,
                                             pt, gfxSize(width, sizePixel),
                                             ascentPixel, offsetPixel,
                                             NS_STYLE_TEXT_DECORATION_UNDERLINE,
-                                            NS_STYLE_BORDER_STYLE_SOLID,
-                                            isRTL);
+                                            NS_STYLE_BORDER_STYLE_SOLID);
       }
     }
     if (decorations & NS_FONT_DECORATION_LINE_THROUGH) {
@@ -485,8 +482,7 @@ nsTextBoxFrame::PaintTitle(nsIRenderingContext& aRenderingContext,
                                           pt, gfxSize(width, sizePixel),
                                           ascentPixel, offsetPixel,
                                           NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
-                                          NS_STYLE_BORDER_STYLE_SOLID,
-                                          isRTL);
+                                          NS_STYLE_BORDER_STYLE_SOLID);
     }
 
     aRenderingContext.SetFont(fontMet);
@@ -609,17 +605,8 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
     if (mTitleWidth <= aWidth) {
         mCroppedTitle = mTitle;
 #ifdef IBMBIDI
-        PRInt32 length = mTitle.Length();
-        for (PRInt32 i = 0; i < length; i++) {
-          if ((UCS2_CHAR_IS_BIDI(mTitle.CharAt(i)) ) ||
-              ((NS_IS_HIGH_SURROGATE(mTitle.CharAt(i))) &&
-               (++i < length) &&
-               (NS_IS_LOW_SURROGATE(mTitle.CharAt(i))) &&
-               (UTF32_CHAR_IS_BIDI(SURROGATE_TO_UCS4(mTitle.CharAt(i-1),
-                                                     mTitle.CharAt(i)))))) {
+        if (HasRTLChars(mTitle)) {
             mState |= NS_FRAME_IS_BIDI;
-            break;
-          }
         }
 #endif // IBMBIDI
         return;  // fits, done.

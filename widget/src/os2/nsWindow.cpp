@@ -44,8 +44,6 @@
 
 #include "nsWindow.h"
 #include "nsIAppShell.h"
-#include "nsIFontMetrics.h"
-#include "nsFont.h"
 #include "nsGUIEvent.h"
 #include "nsIRenderingContext.h"
 #include "nsIDeviceContext.h"
@@ -220,7 +218,6 @@ nsWindow::nsWindow() : nsBaseWidget()
     mWindowState        = nsWindowState_ePrecreate;
     mWindowType         = eWindowType_child;
     mBorderStyle        = eBorderStyle_default;
-    mFont               = nsnull;
     mOS2Toolkit         = nsnull;
     mIsScrollBar         = FALSE;
     mInSetFocus         = FALSE;
@@ -1188,22 +1185,24 @@ void nsWindow::NS2PM( RECTL &rcl)
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Show(PRBool bState)
 {
-   // doesn't seem to require a message queue.
-   if( mWnd)
-   {
-      HWND hwnd = GetMainWindow();
-      if( bState == PR_TRUE)
-      {
-        // don't try to show new windows (e.g. the Bookmark menu)
-        // during a native dragover because they'll remain invisible;
-      if (CheckDragStatus(ACTION_SHOW, 0))
-          WinShowWindow( hwnd, TRUE);
+  // doesn't seem to require a message queue.
+  if (mWnd) {
+    if (bState) {
+      // don't try to show new windows (e.g. the Bookmark menu)
+      // during a native dragover because they'll remain invisible;
+      if (CheckDragStatus(ACTION_SHOW, 0)) {
+        PRBool bVisible;
+        IsVisible(bVisible);
+        if (!bVisible)
+          PlaceBehind(eZPlacementTop, NULL, PR_FALSE);
+        WinShowWindow(mWnd, PR_TRUE);
       }
-      else
-         WinShowWindow( hwnd, FALSE);
-   }
+    } else {
+      WinShowWindow(mWnd, PR_FALSE);
+    }
+  }
 
-   return NS_OK;
+  return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -1226,12 +1225,29 @@ NS_METHOD nsWindow::IsVisible(PRBool & bState)
 NS_METHOD nsWindow::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                                 nsIWidget *aWidget, PRBool aActivate)
 {
-  HWND behind = aWidget ? (HWND)aWidget->GetNativeData(NS_NATIVE_WINDOW) : HWND_TOP;
+  HWND behind = HWND_TOP;
+  if (aPlacement == eZPlacementBottom)
+    behind = HWND_BOTTOM;
+  else if (aPlacement == eZPlacementBelow && aWidget)
+    behind = (HWND)aWidget->GetNativeData(NS_NATIVE_WINDOW);
   UINT flags = SWP_ZORDER;
   if (aActivate)
     flags |= SWP_ACTIVATE;
 
   WinSetWindowPos(mWnd, behind, 0, 0, 0, 0, flags);
+  return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
+// Sets widget's position within its parent child list.
+//
+//-------------------------------------------------------------------------
+NS_METHOD nsWindow::SetZIndex(PRInt32 aZIndex)
+{
+  // nsBaseWidget::SetZIndex() never has done anything sensible but has
+  // randomly placed widgets behind others (see bug 117730#c25).
+  // To get bug #353011 solved simply override it here to do nothing.
   return NS_OK;
 }
 
@@ -1595,73 +1611,6 @@ void nsWindow::GetNonClientBounds(nsRect &aRect)
   } else {
       aRect.SetRect(0,0,0,0);
   }
-}
-
-//-------------------------------------------------------------------------
-//
-// Get this component font
-//
-//-------------------------------------------------------------------------
-nsIFontMetrics *nsWindow::GetFont(void)
-{
-   nsIFontMetrics *metrics = nsnull;
-
-   if( mToolkit)
-   {
-      char fontNameSize[FACESIZE+5]; // FACESIZE + decimal + up to three digits for font size + null terminator
-      char fontName[FACESIZE];
-      int  ptSize;
-   
-      WinQueryPresParam( mWnd, PP_FONTNAMESIZE, 0, 0, FACESIZE+5, fontNameSize, 0);
-   
-      // FACESIZE = 32, hence the 31 here
-      if( 2 == sscanf( fontNameSize, "%d.%31s", &ptSize, fontName))
-      {
-         nscoord appSize = NSToCoordRound(float(ptSize) * mContext->AppUnitsPerInch() / 72);
-   
-         nsFont font( fontName, NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
-                      NS_FONT_WEIGHT_NORMAL, 0 /*decoration*/, appSize);
-   
-         mContext->GetMetricsFor( font, metrics);
-      }
-   }
-
-   return metrics;
-}
-
-//-------------------------------------------------------------------------
-//
-// Set this component font
-//
-//-------------------------------------------------------------------------
-NS_METHOD nsWindow::SetFont(const nsFont &aFont)
-{
-   if( mToolkit) // called from print-routine (XXX check)
-   {
-      // jump through hoops to convert the size in the font (in app units)
-      // into points. 
-      int points = aFont.size * 72 / mContext->AppUnitsPerInch();
-
-      nsAutoCharBuffer fontname;
-      PRInt32 fontnameLength;
-      WideCharToMultiByte(0, aFont.name.get(), aFont.name.Length(),
-                          fontname, fontnameLength);
-
-      char *buffer = new char[fontnameLength + 6];
-      if (buffer) {
-        sprintf(buffer, "%d.%s", points, fontname.Elements());
-        ::WinSetPresParam(mWnd, PP_FONTNAMESIZE,
-                          strlen(buffer) + 1, buffer);
-        delete [] buffer;
-      }
-   }
-
-   if( !mFont)
-      mFont = new nsFont( aFont);
-   else
-      *mFont = aFont;
-
-   return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -2255,6 +2204,47 @@ NS_METHOD nsWindow::SetColorMap(nsColorMap *aColorMap)
 
 //-------------------------------------------------------------------------
 //
+// Notify a child window of a coming move by sending it a WM_VRNDISABLED
+// message. Only do that if it's not one of ours like e.g. plugin windows.
+//
+//-------------------------------------------------------------------------
+BOOL nsWindow::NotifyForeignChildWindows(HWND aWnd)
+{
+  HENUM hEnum = WinBeginEnumWindows(aWnd);
+  HWND hwnd;
+
+  while ((hwnd = WinGetNextWindow(hEnum)) != NULLHANDLE) {
+    char className[19];
+    WinQueryClassName(hwnd, 19, className);
+    if (strcmp(className, WindowClass()) != 0) {
+      // This window is not one of our windows so notify it (and wait for
+      // the call to return so that the plugin has time to react)
+      WinSendMsg(hwnd, WM_VRNDISABLED, MPVOID, MPVOID);
+    } else {
+      // Recurse starting at this Mozilla child window.
+      NotifyForeignChildWindows(hwnd);
+    }
+  }
+  return WinEndEnumWindows(hEnum);
+}
+
+//-------------------------------------------------------------------------
+//
+// Force a resize of child windows after a scroll to reset hover positions.
+//
+//-------------------------------------------------------------------------
+void nsWindow::ScrollChildWindows(PRInt32 aX, PRInt32 aY)
+{
+  nsIWidget *child = GetFirstChild();
+  while (child) {
+    nsRect rect;
+    child->GetBounds(rect);
+    child->Resize(rect.x + aX, rect.y + aY, rect.width, rect.height, PR_FALSE);
+    child = child->GetNextSibling();
+  }
+}
+//-------------------------------------------------------------------------
+//
 // Scroll the bits of a window
 //
 //-------------------------------------------------------------------------
@@ -2269,18 +2259,20 @@ NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect)
     rcl.yBottom = aClipRect->y + aClipRect->height;
     rcl.xRight = rcl.xLeft + aClipRect->width;
     rcl.yTop = rcl.yBottom + aClipRect->height;
-    NS2PM( rcl);
+    NS2PM(rcl);
     // this rect is inex
   }
 
-    // this prevents screen corruption while scrolling during a
-    // Moz-originated drag - during a native drag, the screen
-    // isn't updated until the drag ends. so there's no corruption
+  // this prevents screen corruption while scrolling during a
+  // Moz-originated drag - during a native drag, the screen
+  // isn't updated until the drag ends. so there's no corruption
   HPS hps = 0;
   CheckDragStatus(ACTION_SCROLL, &hps);
 
-  WinScrollWindow( mWnd, aDx, -aDy, aClipRect ? &rcl : 0, 0, 0,
-                   0, SW_SCROLLCHILDREN | SW_INVALIDATERGN);
+  NotifyForeignChildWindows(mWnd);
+  WinScrollWindow(mWnd, aDx, -aDy, aClipRect ? &rcl : 0, 0, 0,
+                  0, SW_SCROLLCHILDREN | SW_INVALIDATERGN);
+  ScrollChildWindows(aDx, aDy);
   Update();
 
   if (hps)
@@ -2777,10 +2769,14 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
           break;
 
         case WM_BUTTON3DOWN:
+          if (!mIsScrollBar)
+            WinSetCapture( HWND_DESKTOP, mWnd);
           result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2, PR_FALSE,
                                       nsMouseEvent::eMiddleButton);
           break;
         case WM_BUTTON3UP:
+          if (!mIsScrollBar)
+            WinSetCapture( HWND_DESKTOP, 0); // release
           result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, mp1, mp2, PR_FALSE,
                                       nsMouseEvent::eMiddleButton);
           break;
@@ -3014,9 +3010,6 @@ void nsWindow::OnDestroy()
 
    // release references to context, toolkit, appshell, children
    nsBaseWidget::OnDestroy();
-
-   // kill font
-   delete mFont;
 
    // dispatching of the event may cause the reference count to drop to 0
    // and result in this object being deleted. To avoid that, add a
