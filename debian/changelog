@@ -1,4 +1,4 @@
-iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
+iceweasel (3.0~rc1-1) experimental; urgency=low
 
   * configure.in, configure: Fix LIBXUL_SDK_DIR variable use. Closes: #479041.
   * debian/iceweasel-runner: Work around problems with aoss and libjemalloc by
@@ -33,7 +33,7 @@ iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
     extensions/reporter/resources/content/reporter/reporterOverlay.xul:
     Arrange menu overlays so that nothing ends up after "About Iceweasel".
 
- -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
+ -- Mike Hommey <glandium@debian.org>  Sat, 24 May 2008 22:48:48 +0200
 
 iceweasel (3.0~b5-4) experimental; urgency=low
 
