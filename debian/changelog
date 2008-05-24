@@ -26,6 +26,12 @@ iceweasel (3.0~rc1-1) UNRELEASED; urgency=low
     - Avoid displaying useless EULA at iceweasel startup.
   * debian/rules: Install debian/vendor.js and append
     general.useragent.extra.firefoxComment there.
+  * configure.in, configure: Don't build libjemalloc when building against
+    libxul-sdk.
+  * browser/base/content/baseMenuOverlay.xul,
+    browser/components/safebrowsing/content/report-phishing-overlay.xul,
+    extensions/reporter/resources/content/reporter/reporterOverlay.xul:
+    Arrange menu overlays so that nothing ends up after "About Iceweasel".
 
  -- Mike Hommey <glandium@debian.org>  Sun, 11 May 2008 18:21:29 +0200
 
