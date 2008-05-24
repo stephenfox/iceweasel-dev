@@ -167,9 +167,14 @@ var StarUI = {
 
     var bundle = this._element("bundle_browser");
 
-    // "Page Bookmarked" title
+    // Set panel title:
+    // if we are batching, i.e. the bookmark has been added now,
+    // then show Page Bookmarked, else if the bookmark did already exist,
+    // we are about editing it, then use Edit This Bookmark.
     this._element("editBookmarkPanelTitle").value =
-      bundle.getString("editBookmarkPanel.pageBookmarkedTitle");
+      this._batching ?
+        bundle.getString("editBookmarkPanel.pageBookmarkedTitle") :
+        bundle.getString("editBookmarkPanel.editBookmarkTitle");
 
     // No description; show the Done, Cancel;
     // hide the Edit, Undo buttons
@@ -383,9 +388,11 @@ var PlacesCommandHook = {
       var url = webNav.currentURI;
       var title;
       var description;
+      var charset;
       try {
         title = webNav.document.title || url.spec;
         description = PlacesUIUtils.getDescriptionFromDocument(webNav.document);
+        charset = webNav.document.characterSet;
       }
       catch (e) { }
 
@@ -402,8 +409,14 @@ var PlacesCommandHook = {
       var txn = PlacesUIUtils.ptm.createItem(uri, parent, -1,
                                              title, null, [descAnno]);
       PlacesUIUtils.ptm.doTransaction(txn);
+      // Set the character-set
+      if (charset)
+        PlacesUtils.history.setCharsetForURI(uri, charset);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
     }
+
+    // Revert the contents of the location bar
+    handleURLBarRevert();
 
     // dock the panel to the star icon when possible, otherwise dock
     // it to the content area
@@ -901,6 +914,7 @@ var PlacesMenuDNDController = {
       delete this._timers.loadTime;
     if (event.target.id == "bookmarksMenu") {
       // If this is the bookmarks menu, tell its menupopup child to show.
+      event.target.lastChild.setAttribute("autoopened", "true");
       event.target.lastChild.showPopup(event.target.lastChild);
     }  
   },

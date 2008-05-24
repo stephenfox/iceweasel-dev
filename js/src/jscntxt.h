@@ -104,14 +104,14 @@ struct JSThread {
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
     jsword              id;
 
-    /* Thread-local gc free lists array. */
-    JSGCThing           *gcFreeLists[GC_NUM_FREELISTS];
-
     /*
      * Thread-local version of JSRuntime.gcMallocBytes to avoid taking
      * locks on each JS_malloc.
      */
     uint32              gcMallocBytes;
+
+    /* Thread-local gc free lists array. */
+    JSGCThing           *gcFreeLists[GC_NUM_FREELISTS];
 
     /*
      * Store the GSN cache in struct JSThread, not struct JSContext, both to
@@ -619,11 +619,11 @@ JS_STATIC_ASSERT(sizeof(JSTempValueUnion) == sizeof(void *));
 #define JS_PUSH_TEMP_ROOT_STRING(cx,str,tvr)                                  \
     JS_PUSH_TEMP_ROOT_COMMON(cx, str, tvr, JSTVU_SINGLE, string)
 
-#define JS_PUSH_TEMP_ROOT_FUNCTION(cx,fun,tvr)                                \
-    JS_PUSH_TEMP_ROOT_COMMON(cx, fun, tvr, JSTVU_SINGLE, function)
-
 #define JS_PUSH_TEMP_ROOT_QNAME(cx,qn,tvr)                                    \
     JS_PUSH_TEMP_ROOT_COMMON(cx, qn, tvr, JSTVU_SINGLE, qname)
+
+#define JS_PUSH_TEMP_ROOT_NAMESPACE(cx,ns,tvr)                                \
+    JS_PUSH_TEMP_ROOT_COMMON(cx, ns, tvr, JSTVU_SINGLE, nspace)
 
 #define JS_PUSH_TEMP_ROOT_XML(cx,xml_,tvr)                                    \
     JS_PUSH_TEMP_ROOT_COMMON(cx, xml_, tvr, JSTVU_SINGLE, xml)
@@ -818,8 +818,10 @@ class JSAutoTempValueRooter
     }
 
   private:
+#ifndef AIX
     static void *operator new(size_t);
     static void operator delete(void *, size_t);
+#endif
 
     JSContext *mContext;
     JSTempValueRooter mTvr;

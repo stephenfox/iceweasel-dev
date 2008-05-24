@@ -757,7 +757,7 @@ _cairo_win32_printing_surface_paint_linear_pattern (cairo_win32_surface_t *surfa
 	}
 
 	stop = i%num_rects + 1;
-	vert[i*2+1].x = (LONG)(d*(range_start + i/num_rects + _cairo_fixed_to_double (pattern->base.stops[stop].x)));
+	vert[i*2+1].x = (LONG)(d*(range_start + i/num_rects + pattern->base.stops[stop].offset));
 	vert[i*2+1].y = (LONG) clip.bottom;
 	if (extend == CAIRO_EXTEND_REFLECT && (range_start+(i/num_rects))%2)
 	    stop = num_rects - stop;
@@ -1311,7 +1311,22 @@ _cairo_win32_printing_surface_show_glyphs (void                 *abstract_surfac
     }
 
     if (surface->paginated_mode == CAIRO_PAGINATED_MODE_ANALYZE) {
+	/* Calling ExtTextOutW() with ETO_GLYPH_INDEX and a Type 1 or
+	 * bitmap font on a printer DC prints garbled text. The text
+	 * displays correctly on a display DC. It appears that when
+	 * using a printer DC. ExtTextOutW() only works with
+	 * characters and not glyph indices.
+	 *
+	 * For now we don't use ExtTextOutW for Type 1 or bitmap
+	 * fonts. These fonts will go through the fallback path for
+	 * non Windows fonts. ie filled outlines for Type 1 fonts and
+	 * fallback images for bitmap fonts.
+	 */
+	if (_cairo_win32_scaled_font_is_bitmap (scaled_font))
+	    return CAIRO_INT_STATUS_UNSUPPORTED;
+
 	if (!(cairo_scaled_font_get_type (scaled_font) == CAIRO_FONT_TYPE_WIN32 &&
+	      ! _cairo_win32_scaled_font_is_type1 (scaled_font) &&
 	      source->type == CAIRO_PATTERN_TYPE_SOLID)) {
 	    for (i = 0; i < num_glyphs; i++) {
 		status = _cairo_scaled_glyph_lookup (scaled_font,
@@ -1341,6 +1356,7 @@ _cairo_win32_printing_surface_show_glyphs (void                 *abstract_surfac
     }
 
     if (cairo_scaled_font_get_type (scaled_font) == CAIRO_FONT_TYPE_WIN32 &&
+	! _cairo_win32_scaled_font_is_type1 (scaled_font) &&
 	source->type == CAIRO_PATTERN_TYPE_SOLID)
     {
 	cairo_matrix_t ctm;
@@ -1419,6 +1435,9 @@ _cairo_win32_printing_surface_start_page (void *abstract_surface)
 {
     cairo_win32_surface_t *surface = abstract_surface;
     XFORM xform;
+    double x_res, y_res;
+    cairo_matrix_t inverse_ctm;
+    cairo_status_t status;
 
     SaveDC (surface->dc); /* Save application context first, before doing MWT */
 
@@ -1431,6 +1450,17 @@ _cairo_win32_printing_surface_start_page (void *abstract_surface)
     surface->ctm.x0 = xform.eDx;
     surface->ctm.y0 = xform.eDy;
     surface->has_ctm = !_cairo_matrix_is_identity (&surface->ctm);
+
+    inverse_ctm = surface->ctm;
+    status = cairo_matrix_invert (&inverse_ctm);
+    if (status)
+	return status;
+
+    x_res = (double) GetDeviceCaps(surface->dc, LOGPIXELSX);
+    y_res = (double) GetDeviceCaps(surface->dc, LOGPIXELSY);
+    cairo_matrix_transform_distance (&inverse_ctm, &x_res, &y_res);
+    _cairo_surface_set_resolution (&surface->base, x_res, y_res);
+
     if (!ModifyWorldTransform (surface->dc, NULL, MWT_IDENTITY))
 	return _cairo_win32_print_gdi_error ("_cairo_win32_printing_surface_start_page:ModifyWorldTransform");
 
@@ -1468,7 +1498,6 @@ cairo_surface_t *
 cairo_win32_printing_surface_create (HDC hdc)
 {
     cairo_win32_surface_t *surface;
-    int xr, yr;
     RECT rect;
 
     surface = malloc (sizeof (cairo_win32_surface_t));
@@ -1503,10 +1532,6 @@ cairo_win32_printing_surface_create (HDC hdc)
     _cairo_win32_printing_surface_init_ps_mode (surface);
     _cairo_surface_init (&surface->base, &cairo_win32_printing_surface_backend,
                          CAIRO_CONTENT_COLOR_ALPHA);
-
-    xr = GetDeviceCaps(hdc, LOGPIXELSX);
-    yr = GetDeviceCaps(hdc, LOGPIXELSY);
-    _cairo_surface_set_resolution (&surface->base, (double) xr, (double) yr);
 
     return _cairo_paginated_surface_create (&surface->base,
                                             CAIRO_CONTENT_COLOR_ALPHA,

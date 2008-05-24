@@ -75,6 +75,8 @@
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
 
+#include <dlfcn.h>
+
 #undef DEBUG_IME
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
@@ -98,6 +100,16 @@ extern "C" {
   CG_EXTERN void CGContextSetCTM(CGContextRef, CGAffineTransform);
   CG_EXTERN void CGContextResetClip(CGContextRef);
 }
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_4
+struct __TISInputSource;
+typedef __TISInputSource* TISInputSourceRef;
+#endif
+TISInputSourceRef (*Leopard_TISCopyCurrentKeyboardLayoutInputSource)() = NULL;
+void* (*Leopard_TISGetInputSourceProperty)(TISInputSourceRef inputSource, CFStringRef propertyKey) = NULL;
+CFArrayRef (*Leopard_TISCreateInputSourceList)(CFDictionaryRef properties, Boolean includeAllInstalled) = NULL;
+CFStringRef kOurTISPropertyUnicodeKeyLayoutData = NULL;
+CFStringRef kOurTISPropertyInputSourceID = NULL;
 
 extern PRBool gCocoaWindowMethodsSwizzled; // Defined in nsCocoaWindow.mm
 
@@ -157,9 +169,13 @@ nsIWidget         * gRollupWidget   = nsnull;
 
 - (void)processPendingRedraws;
 
+- (PRBool)processKeyDownEvent:(NSEvent*)theEvent keyEquiv:(BOOL)isKeyEquiv;
+
 - (BOOL)ensureCorrectMouseEventTarget:(NSEvent *)anEvent;
 
 - (void)maybeInitContextMenuTracking;
+
++ (NSEvent*)makeNewCocoaEventWithType:(NSEventType)type fromEvent:(NSEvent*)theEvent;
 
 #if USE_CLICK_HOLD_CONTEXTMENU
  // called on a timer two seconds after a mouse down to see if we should display
@@ -172,23 +188,6 @@ nsIWidget         * gRollupWidget   = nsnull;
 #endif
 
 @end
-
-
-// Used to retain an NSView for the remainder of a method's execution.
-class nsAutoRetainView {
-public:
-  nsAutoRetainView(NSView *aView)
-  {
-    mView = NS_OBJC_TRY_EXPR_ABORT([aView retain]);
-  }
-  ~nsAutoRetainView()
-  {
-    NS_OBJC_TRY_ABORT([mView release]);
-  }
-
-private:
-  NSView *mView;  // [STRONG]
-};
 
 
 #pragma mark -
@@ -378,12 +377,42 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mInSetFocus(PR_FALSE)
 {
 #ifdef PR_LOGGING
-  if (!sCocoaLog)
+  if (!sCocoaLog) {
     sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
+    CFIndex idx;
+    KLGetKeyboardLayoutCount(&idx);
+    PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
+    for (CFIndex i = 0; i < idx; ++i) {
+      KeyboardLayoutRef curKL;
+      if (KLGetKeyboardLayoutAtIndex(i, &curKL) == noErr) {
+        CFStringRef name;
+        if (KLGetKeyboardLayoutProperty(curKL, kKLName, (const void**)&name) == noErr) {
+          int idn;
+          KLGetKeyboardLayoutProperty(curKL, kKLIdentifier, (const void**)&idn);
+          int kind;
+          KLGetKeyboardLayoutProperty(curKL, kKLKind, (const void**)&kind);
+          char buf[256];
+          CFStringGetCString(name, buf, 256, kCFStringEncodingASCII);
+          PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("  %d,%s,%d\n", idn, buf, kind));
+        }
+      }
+    }
+  }
 #endif
 
   SetBackgroundColor(NS_RGB(255, 255, 255));
   SetForegroundColor(NS_RGB(0, 0, 0));
+
+  if (nsToolkit::OnLeopardOrLater() && !Leopard_TISCopyCurrentKeyboardLayoutInputSource) {
+    void* hitoolboxHandle = dlopen("/System/Library/Frameworks/Carbon.framework/Frameworks/HIToolbox.framework/Versions/A/HIToolbox", RTLD_LAZY);
+    if (hitoolboxHandle) {
+      *(void **)(&Leopard_TISCopyCurrentKeyboardLayoutInputSource) = dlsym(hitoolboxHandle, "TISCopyCurrentKeyboardLayoutInputSource");
+      *(void **)(&Leopard_TISGetInputSourceProperty) = dlsym(hitoolboxHandle, "TISGetInputSourceProperty");
+      *(void **)(&Leopard_TISCreateInputSourceList) = dlsym(hitoolboxHandle, "TISCreateInputSourceList");
+      kOurTISPropertyUnicodeKeyLayoutData = *static_cast<CFStringRef*>(dlsym(hitoolboxHandle, "kTISPropertyUnicodeKeyLayoutData"));
+      kOurTISPropertyInputSourceID = *static_cast<CFStringRef*>(dlsym(hitoolboxHandle, "kTISPropertyInputSourceID"));
+    }
+  }
 }
 
 
@@ -766,6 +795,49 @@ NS_IMETHODIMP nsChildView::IsVisible(PRBool& outState)
 }
 
 
+void nsChildView::HidePlugin()
+{
+  NS_ASSERTION(mIsPluginView, "HidePlugin called on non-plugin view");
+
+  if (mPluginInstanceOwner && !mPluginIsCG) {
+    nsPluginWindow* window;
+    mPluginInstanceOwner->GetWindow(window);
+    nsCOMPtr<nsIPluginInstance> instance;
+    mPluginInstanceOwner->GetInstance(*getter_AddRefs(instance));
+    if (window && instance) {
+       window->clipRect.top = 0;
+       window->clipRect.left = 0;
+       window->clipRect.bottom = 0;
+       window->clipRect.right = 0;
+       instance->SetWindow(window);
+    }
+  }
+}
+
+
+static void HideChildPluginViews(NSView* aView)
+{
+  NSArray* subviews = [aView subviews];
+
+  for (unsigned int i = 0; i < [subviews count]; ++i) {
+    NSView* view = [subviews objectAtIndex: i];
+
+    if (![view isKindOfClass:[ChildView class]])
+      continue;
+
+    ChildView* childview = static_cast<ChildView*>(view);
+    if ([childview isPluginView]) {
+      nsChildView* widget = static_cast<nsChildView*>([childview widget]);
+      if (widget) {
+        widget->HidePlugin();
+      }
+    } else {
+      HideChildPluginViews(view);
+    }
+  }
+}
+
+
 // Hide or show this component
 NS_IMETHODIMP nsChildView::Show(PRBool aState)
 {
@@ -774,6 +846,8 @@ NS_IMETHODIMP nsChildView::Show(PRBool aState)
   if (aState != mVisible) {
     [mView setHidden:!aState];
     mVisible = aState;
+    if (!mVisible)
+      HideChildPluginViews(mView);
   }
   return NS_OK;
 
@@ -838,7 +912,7 @@ NS_IMETHODIMP nsChildView::SetFocus(PRBool aRaise)
   mInSetFocus = PR_TRUE;
   NSWindow* window = [mView window];
   if (window) {
-    nsAutoRetainView kungFuDeathGrip(mView);
+    nsAutoRetainCocoaObject kungFuDeathGrip(mView);
     // For reasons that aren't yet clear, focus changes within a window (as
     // opposed to those between windows or between apps) should only trigger
     // NS_LOSTFOCUS and NS_GOTFOCUS events (sent to Gecko) in the context of
@@ -1131,13 +1205,6 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   if (mPluginDrawing)
     return NS_ERROR_FAILURE;
 
-  // If this is a CoreGraphics plugin, nothing to do but prevent being
-  // reentered.
-  if (mPluginIsCG) {
-    mPluginDrawing = PR_TRUE;
-    return NS_OK;
-  }
-
   NSWindow* window = [mView nativeWindow];
   if (!window)
     return NS_ERROR_FAILURE;
@@ -1148,16 +1215,22 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   // we don't know here if we're being drawn inside a BeginUpdate/EndUpdate pair
   // (which seem to occur in [NSWindow display]), and we don't want to have the burden
   // of correctly doing Carbon invalidates of the plugin rect, we manually set the
-  // visible region to be the entire port every time.
+  // visible region to be the entire port every time. It is necessary to set up our
+  // window's port even for CoreGraphics plugins, because they may still use Carbon
+  // internally (see bug #420527 for details).
+  CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
+  if (!mPluginIsCG)
+    port = mPluginPort.qdPort.port;
+
   RgnHandle pluginRegion = ::NewRgn();
   if (pluginRegion) {
-    PRBool portChanged = (mPluginPort.qdPort.port != CGrafPtr(GetQDGlobalsThePort()));
+    PRBool portChanged = (port != CGrafPtr(GetQDGlobalsThePort()));
     CGrafPtr oldPort;
     GDHandle oldDevice;
 
     if (portChanged) {
       ::GetGWorld(&oldPort, &oldDevice);
-      ::SetGWorld(mPluginPort.qdPort.port, ::IsPortOffscreen(mPluginPort.qdPort.port) ? nsnull : ::GetMainDevice());
+      ::SetGWorld(port, ::IsPortOffscreen(port) ? nsnull : ::GetMainDevice());
     }
 
     ::SetOrigin(0, 0);
@@ -1172,8 +1245,8 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
     ConvertGeckoRectToMacRect(clipRect, pluginRect);
     
     ::RectRgn(pluginRegion, &pluginRect);
-    ::SetPortVisibleRegion(mPluginPort.qdPort.port, pluginRegion);
-    ::SetPortClipRegion(mPluginPort.qdPort.port, pluginRegion);
+    ::SetPortVisibleRegion(port, pluginRegion);
+    ::SetPortClipRegion(port, pluginRegion);
     
     // now set up the origin for the plugin
     ::SetOrigin(origin.x, origin.y);
@@ -1201,6 +1274,14 @@ NS_IMETHODIMP nsChildView::EndDrawPlugin()
 }
 
 
+NS_IMETHODIMP nsChildView::SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner)
+{
+  mPluginInstanceOwner = aInstanceOwner;
+
+  return NS_OK;
+}
+
+
 void nsChildView::LiveResizeStarted()
 {
   // XXX todo. Use this to disable Java async redraw during resize
@@ -1213,6 +1294,73 @@ void nsChildView::LiveResizeEnded()
   mLiveResizeInProgress = PR_FALSE;
 }
 
+static NSString* ToNSString(const nsAString& aString)
+{
+  return [NSString stringWithCharacters:aString.BeginReading()
+                                 length:aString.Length()];
+}
+
+struct KeyboardLayoutOverride {
+  PRInt32 mKeyboardLayout;
+  PRBool mOverrideEnabled;
+};
+
+static KeyboardLayoutOverride gOverrideKeyboardLayout;
+
+static const PRUint32 sModifierFlagMap[][2] = {
+  { nsIWidget::CAPS_LOCK, NSAlphaShiftKeyMask },
+  { nsIWidget::SHIFT_L, NSShiftKeyMask },
+  { nsIWidget::CTRL_L, NSControlKeyMask },
+  { nsIWidget::ALT_L, NSAlternateKeyMask },
+  { nsIWidget::COMMAND, NSCommandKeyMask },
+  { nsIWidget::NUMERIC_KEY_PAD, NSNumericPadKeyMask },
+  { nsIWidget::HELP, NSHelpKeyMask },
+  { nsIWidget::FUNCTION, NSFunctionKeyMask }
+};
+nsresult nsChildView::SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
+                                               PRInt32 aNativeKeyCode,
+                                               PRUint32 aModifierFlags,
+                                               const nsAString& aCharacters,
+                                               const nsAString& aUnmodifiedCharacters)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+  
+  PRUint32 modifierFlags = 0;
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sModifierFlagMap); ++i) {
+    if (aModifierFlags & sModifierFlagMap[i][0]) {
+      modifierFlags |= sModifierFlagMap[i][1];
+    }
+  }
+  int windowNumber = [[mView window] windowNumber];
+  NSEvent* downEvent = [NSEvent keyEventWithType:NSKeyDown
+                                        location:NSMakePoint(0,0)
+                                   modifierFlags:modifierFlags
+                                       timestamp:0
+                                    windowNumber:windowNumber
+                                         context:[NSGraphicsContext currentContext]
+                                      characters:ToNSString(aCharacters)
+                     charactersIgnoringModifiers:ToNSString(aUnmodifiedCharacters)
+                                       isARepeat:NO
+                                         keyCode:aNativeKeyCode];
+
+  NSEvent* upEvent = [ChildView makeNewCocoaEventWithType:NSKeyUp
+                                                fromEvent:downEvent];
+
+  if (downEvent && upEvent) {
+    KeyboardLayoutOverride currentLayout = gOverrideKeyboardLayout;
+    gOverrideKeyboardLayout.mKeyboardLayout = aNativeKeyboardLayout;
+    gOverrideKeyboardLayout.mOverrideEnabled = PR_TRUE;
+    [NSApp sendEvent:downEvent];
+    [NSApp sendEvent:upEvent];
+    // processKeyDownEvent and keyUp block exceptions so we're sure to
+    // reach here to restore gOverrideKeyboardLayout
+    gOverrideKeyboardLayout = currentLayout;
+  }
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
 
 #pragma mark -
 
@@ -2014,8 +2162,10 @@ NSEvent* gLastDragEvent = nil;
     mMarkedRange.location = NSNotFound;
     mMarkedRange.length = 0;
 
-    mLastMenuForEventEvent = nil;
+    mLastMouseDownEvent = nil;
     mDragService = nsnull;
+
+    mPluginTSMDoc = nil;
   }
   
   // register for things we'll take from other applications
@@ -2041,7 +2191,9 @@ NSEvent* gLastDragEvent = nil;
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   [mPendingDirtyRects release];
-  [mLastMenuForEventEvent release];
+  [mLastMouseDownEvent release];
+  if (mPluginTSMDoc)
+    ::DeleteTSMDocument(mPluginTSMDoc);
   
   if (sLastViewEntered == self)
     sLastViewEntered = nil;
@@ -2557,7 +2709,7 @@ NSEvent* gLastDragEvent = nil;
   paintEvent.rect = &fullRect;
   paintEvent.region = rgn;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(paintEvent);
   if (!mGeckoChild)
     return;
@@ -2749,9 +2901,6 @@ NSEvent* gLastDragEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  if (mLastMenuForEventEvent == theEvent)
-    return PR_FALSE;
-
   PRBool retVal = PR_FALSE;
   if (gRollupWidget && gRollupListener) {
     NSWindow* currentPopup = static_cast<NSWindow*>(gRollupWidget->GetNativeData(NS_NATIVE_WINDOW));
@@ -2767,7 +2916,7 @@ NSEvent* gLastDragEvent = nil;
         retVal = PR_TRUE;
       }
       // if we're dealing with menus, we probably have submenus and
-      // we don't want to rollup if the clickis in a parent menu of
+      // we don't want to rollup if the click is in a parent menu of
       // the current submenu
       nsCOMPtr<nsIMenuRollup> menuRollup;
       menuRollup = (do_QueryInterface(gRollupListener));
@@ -2802,10 +2951,22 @@ NSEvent* gLastDragEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  // If we've already seen this event due to direct dispatch from menuForEvent:
+  // just bail; if not, remember it.
+  if (mLastMouseDownEvent == theEvent) {
+    [mLastMouseDownEvent release];
+    mLastMouseDownEvent = nil;
+    return;
+  }
+  else {
+    [mLastMouseDownEvent release];
+    mLastMouseDownEvent = [theEvent retain];
+  }
+
   if (![self ensureCorrectMouseEventTarget:theEvent])
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if ([self maybeRollup:theEvent])
     return;
@@ -2918,6 +3079,14 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 
   nsEventStatus status;
   widget->DispatchEvent(&event, status);
+
+  // After the cursor exits a view set it to a visible regular arrow cursor.
+  // This lets us recover from plugins that mess with it.
+  if (msg == NS_MOUSE_EXIT) {
+    [NSCursor unhide];
+    [[NSCursor arrowCursor] set];
+  }
+
   return status;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsEventStatus_eIgnore);
@@ -2958,7 +3127,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
       nsIWidget* lastViewEnteredWidget = [(NSView<mozView>*)sLastViewEntered widget];
       NSPoint exitEventLocation = [sLastViewEntered convertPoint:windowEventLocation fromView:nil];
       SendGeckoMouseEnterOrExitEvent(PR_TRUE, NS_MOUSE_EXIT, lastViewEnteredWidget, nsMouseEvent::eReal,
-                                     &exitEventLocation, nsMouseEvent::eChild);
+                                     &exitEventLocation, nsMouseEvent::eTopLevel);
       sLastViewEntered = nil;
     }
     return;
@@ -2994,7 +3163,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if (!mGeckoChild)
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   if (sLastViewEntered != self) {
     if (sLastViewEntered) {
       NSPoint exitEventLocation = [sLastViewEntered convertPoint:windowEventLocation fromView:nil];
@@ -3098,7 +3267,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if (![self ensureCorrectMouseEventTarget:theEvent])
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   [self maybeRollup:theEvent];
   if (!mGeckoChild)
@@ -3154,13 +3323,8 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.modifiers = controlKey;  // fake a context menu click
   geckoEvent.nativeMsg = &macEvent;
 
-  nsAutoRetainView kungFuDeathGrip(self);
-  PRBool handled = mGeckoChild->DispatchMouseEvent(geckoEvent);
-  if (!mGeckoChild)
-    return;
-
-  if (!handled)
-    [super rightMouseUp:theEvent];
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
+  mGeckoChild->DispatchMouseEvent(geckoEvent);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3191,7 +3355,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if (![self ensureCorrectMouseEventTarget:theEvent])
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if ([self maybeRollup:theEvent])
     return;
@@ -3272,7 +3436,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   else
     geckoEvent.delta = (PRInt32)ceilf(scrollDelta);
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(geckoEvent);
   if (!mGeckoChild)
     return;
@@ -3327,7 +3491,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if ([self maybeRollup:theEvent])
     return;
@@ -3355,14 +3519,21 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   if (!mGeckoChild || [self isPluginView])
     return nil;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   [self maybeRollup:theEvent];
   if (!mGeckoChild)
     return nil;
 
-  [mLastMenuForEventEvent release];
-  mLastMenuForEventEvent = [theEvent retain];
+  // Cocoa doesn't always dispatch a mouseDown: for a control-click event,
+  // depends on what we return from menuForEvent:. Gecko always expects one
+  // and expects the mouse down event before the context menu event, so
+  // get that event sent first if this is a left mouse click.
+  if ([theEvent type] == NSLeftMouseDown) {
+    [self mouseDown:theEvent];
+    if (!mGeckoChild)
+      return nil;
+  }
 
   nsMouseEvent geckoEvent(PR_TRUE, NS_CONTEXTMENU, nsnull, nsMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
@@ -3795,6 +3966,20 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 }
 
 
+static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
+{
+  // this is not character inputting event, simply.
+  if (!aEvent.isChar || !aEvent.charCode)
+    return PR_FALSE;
+  // if this is unicode char inputting event, we don't need to check
+  // ctrl/alt/command keys
+  if (aEvent.charCode > 0x7F)
+    return PR_TRUE;
+  // ASCII chars should be inputted without ctrl/alt/command keys
+  return !aEvent.isControl && !aEvent.isAlt && !aEvent.isMeta;
+}
+
+
 // Basic conversion for cocoa to gecko events, common to all conversions.
 // Note that it is OK for inEvent to be nil.
 - (void) convertGenericCocoaEvent:(NSEvent*)inEvent toGeckoEvent:(nsInputEvent*)outGeckoEvent
@@ -3840,6 +4025,191 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 }
 
 
+#define CHARCODE_MASK_1 0x00FF0000
+#define CHARCODE_MASK_2 0x000000FF
+#define CHARCODE_MASK   0x00FF00FF
+//#define DEBUG_KB 1
+
+static PRUint32
+KeyTranslateToUnicode(Handle aHandle, UInt32 aKeyCode, UInt32 aModifiers,
+                      TextEncoding aEncoding)
+{
+#ifdef DEBUG_KB
+  NSLog(@"****  KeyTranslateToUnicode: aHandle: %p, aKeyCode: %X, aModifiers: %X, aEncoding: %X",
+        aHandle, aKeyCode, aModifiers, aEncoding);
+  PRBool isShift = aModifiers & shiftKey;
+  PRBool isCtrl = aModifiers & controlKey;
+  PRBool isOpt = aModifiers & optionKey;
+  PRBool isCmd = aModifiers & cmdKey;
+  PRBool isCL = aModifiers & alphaLock;
+  PRBool isNL = aModifiers & kEventKeyModifierNumLockMask;
+  NSLog(@"        Shift: %s, Ctrl: %s, Opt: %s, Cmd: %s, CapsLock: %s, NumLock: %s",
+        isShift ? "ON" : "off", isCtrl ? "ON" : "off", isOpt ? "ON" : "off",
+        isCmd ? "ON" : "off", isCL ? "ON" : "off", isNL ? "ON" : "off");
+#endif
+  UInt32 state = 0;
+  UInt32 val =
+    ::KeyTranslate(aHandle, aKeyCode | aModifiers, &state) & CHARCODE_MASK;
+  // If state is not zero, it is in dead key state. Then, we need to recall
+  // KeyTranslate for getting the actual character.
+  if (state) {
+    val =
+      ::KeyTranslate(aHandle, aKeyCode | aModifiers, &state) & CHARCODE_MASK;
+  }
+  PRUint32 ch = 0;
+  UInt8 buf[2];
+  CFIndex len = 0;
+  if (val & CHARCODE_MASK_1)
+    buf[len++] = (val & CHARCODE_MASK_1) >> 16;
+  buf[len++] = val & CHARCODE_MASK_2;
+
+  CFStringRef str =
+    ::CFStringCreateWithBytes(kCFAllocatorDefault, buf, len,
+                              (CFStringEncoding)aEncoding, false);
+  ch = ::CFStringGetLength(str) == 1 ?
+         ::CFStringGetCharacterAtIndex(str, 0) : 0;
+  ::CFRelease(str);
+#ifdef DEBUG_KB
+  NSLog(@"       result: %X(%C)", ch, ch > ' ' ? ch : ' ');
+#endif
+  return ch;
+}
+
+static PRUint32
+UCKeyTranslateToUnicode(const UCKeyboardLayout* aHandle, UInt32 aKeyCode, UInt32 aModifiers,
+                        UInt32 aKbType)
+{
+#ifdef DEBUG_KB
+  NSLog(@"**** UCKeyTranslateToUnicode: aHandle: %p, aKeyCode: %X, aModifiers: %X, aKbType: %X",
+        aHandle, aKeyCode, aModifiers, aKbType);
+  PRBool isShift = aModifiers & shiftKey;
+  PRBool isCtrl = aModifiers & controlKey;
+  PRBool isOpt = aModifiers & optionKey;
+  PRBool isCmd = aModifiers & cmdKey;
+  PRBool isCL = aModifiers & alphaLock;
+  PRBool isNL = aModifiers & kEventKeyModifierNumLockMask;
+  NSLog(@"        Shift: %s, Ctrl: %s, Opt: %s, Cmd: %s, CapsLock: %s, NumLock: %s",
+        isShift ? "ON" : "off", isCtrl ? "ON" : "off", isOpt ? "ON" : "off",
+        isCmd ? "ON" : "off", isCL ? "ON" : "off", isNL ? "ON" : "off");
+#endif
+  UInt32 deadKeyState = 0;
+  UniCharCount len;
+  UniChar chars[5];
+  OSStatus err = ::UCKeyTranslate(aHandle, aKeyCode,
+                                  kUCKeyActionDown, aModifiers >> 8,
+                                  aKbType, kUCKeyTranslateNoDeadKeysMask,
+                                  &deadKeyState, 5, &len, chars);
+  PRUint32 ch = (err == noErr && len == 1) ? PRUint32(chars[0]) : 0;
+#ifdef DEBUG_KB
+  NSLog(@"       result: %X(%C)", ch, ch > ' ' ? ch : ' ');
+#endif
+  return ch;
+}
+
+struct KeyTranslateData {
+  KeyTranslateData() {
+    mUchr.mLayout = nsnull;
+    mUchr.mKbType = 0;
+    mKchr.mHandle = nsnull;
+    mKchr.mEncoding = nsnull;
+  }
+
+  SInt16 mScript;
+  SInt32 mLayoutID;
+
+  struct {
+    const UCKeyboardLayout* mLayout;
+    UInt32 mKbType;
+  } mUchr;
+  struct {
+    Handle mHandle;
+    TextEncoding mEncoding;
+  } mKchr;
+};
+
+static PRUint32
+GetUniCharFromKeyTranslate(KeyTranslateData& aData,
+                           UInt32 aKeyCode, UInt32 aModifiers)
+{
+  if (aData.mUchr.mLayout) {
+    return UCKeyTranslateToUnicode(aData.mUchr.mLayout, aKeyCode, aModifiers,
+                                   aData.mUchr.mKbType);
+  }
+  if (aData.mKchr.mHandle) {
+    return KeyTranslateToUnicode(aData.mKchr.mHandle, aKeyCode, aModifiers,
+                                 aData.mKchr.mEncoding);
+  }
+  return 0;
+}
+
+static SInt32
+GetScriptFromKeyboardLayout(SInt32 aLayoutID)
+{
+  switch (aLayoutID) {
+    case 3:                      // German
+    case -2:     return smRoman; // US-Extended
+    case -18944: return smGreek; // Greek
+    default: NS_NOTREACHED("unknown keyboard layout");
+  }
+  return smRoman;
+}
+
+static CFStringRef
+GetInputSourceIDFromKeyboardLayout(SInt32 aLayoutID)
+{
+  NS_ASSERTION(nsToolkit::OnLeopardOrLater() &&
+               Leopard_TISCopyCurrentKeyboardLayoutInputSource &&
+               Leopard_TISGetInputSourceProperty &&
+               Leopard_TISCreateInputSourceList &&
+               kOurTISPropertyUnicodeKeyLayoutData &&
+               kOurTISPropertyInputSourceID,
+               "GetInputSourceIDFromKeyboardLayout should only be used on Leopard or later.");
+
+  KeyboardLayoutRef keylayout;
+  if (KLGetKeyboardLayoutWithIdentifier(aLayoutID, &keylayout) != noErr)
+    return nsnull;
+
+  const void* uchrFromID;
+  if (KLGetKeyboardLayoutProperty(keylayout, kKLuchrData, &uchrFromID) != noErr)
+    return nsnull;
+
+  CFDictionaryRef dict = CFDictionaryCreate(kCFAllocatorDefault, NULL, NULL, 0, NULL, NULL);
+  CFArrayRef inputSources = Leopard_TISCreateInputSourceList(dict, true);
+  CFRelease(dict);
+
+  CFStringRef sourceID = nsnull;
+  for (CFIndex i = 0; i < CFArrayGetCount(inputSources); ++i) {
+    TISInputSourceRef tis = static_cast<TISInputSourceRef>(const_cast<void *>(CFArrayGetValueAtIndex(inputSources, i)));
+    CFDataRef data = static_cast<CFDataRef>(Leopard_TISGetInputSourceProperty(tis, kOurTISPropertyUnicodeKeyLayoutData));
+    if (!data)
+      continue;
+
+    const UCKeyboardLayout* uchr = reinterpret_cast<const UCKeyboardLayout*>(CFDataGetBytePtr(data));
+    if (uchr == uchrFromID) {
+      sourceID = static_cast<CFStringRef>(Leopard_TISGetInputSourceProperty(tis, kOurTISPropertyInputSourceID));
+      break;
+    }
+  }
+
+  CFRelease(inputSources);
+
+  return sourceID;
+}
+
+static PRUint32
+GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
+{
+  KeyTranslateData kt;
+  Handle handle = ::GetResource('uchr', kKLUSKeyboard); // US keyboard layout
+  if (!handle || !(*handle)) {
+    NS_ERROR("US keyboard layout doesn't have uchr resource");
+    return 0;
+  }
+  UInt32 kbType = 40; // ANSI, don't use actual layout
+  return UCKeyTranslateToUnicode((UCKeyboardLayout*)(*handle), aKeyCode,
+                                 aModifiers, kbType);
+}
+
 - (void) convertCocoaKeyEvent:(NSEvent*)aKeyEvent toGeckoEvent:(nsKeyEvent*)outGeckoEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -3864,17 +4234,193 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
     outGeckoEvent->charCode = 0;
     outGeckoEvent->keyCode  = 0; // not set for key press events
     
-    NSString* unmodifiedChars = [aKeyEvent charactersIgnoringModifiers];
-    if ([unmodifiedChars length] > 0)
-      outGeckoEvent->charCode = [unmodifiedChars characterAtIndex:0];
+    NSString* chars = [aKeyEvent characters];
+    if ([chars length] > 0)
+      outGeckoEvent->charCode = [chars characterAtIndex:0];
     
     // convert control-modified charCode to raw charCode (with appropriate case)
     if (outGeckoEvent->isControl && outGeckoEvent->charCode <= 26)
       outGeckoEvent->charCode += (outGeckoEvent->isShift) ? ('A' - 1) : ('a' - 1);
     
-    // gecko also wants charCode to be in the appropriate case
-    if (outGeckoEvent->isShift && (outGeckoEvent->charCode >= 'a' && outGeckoEvent->charCode <= 'z'))
-      outGeckoEvent->charCode -= 32; // convert to uppercase
+    // If Ctrl or Command or Alt is pressed, we should set shiftCharCode and
+    // unshiftCharCode for accessKeys and accelKeys.
+    if (outGeckoEvent->isControl || outGeckoEvent->isMeta ||
+        outGeckoEvent->isAlt) {
+      KeyTranslateData kt;
+
+      if (gOverrideKeyboardLayout.mOverrideEnabled) {
+        kt.mLayoutID = gOverrideKeyboardLayout.mKeyboardLayout;
+        kt.mScript = GetScriptFromKeyboardLayout(kt.mLayoutID);
+      } else {
+        kt.mScript = ::GetScriptManagerVariable(smKeyScript);
+        kt.mLayoutID = ::GetScriptVariable(kt.mScript, smScriptKeys);
+      }
+
+      CFDataRef uchr = NULL;
+      if (nsToolkit::OnLeopardOrLater() &&
+          Leopard_TISCopyCurrentKeyboardLayoutInputSource &&
+          Leopard_TISGetInputSourceProperty &&
+          Leopard_TISCreateInputSourceList &&
+          kOurTISPropertyUnicodeKeyLayoutData &&
+          kOurTISPropertyInputSourceID) {
+        if (gOverrideKeyboardLayout.mOverrideEnabled) {
+          CFStringRef sourceID = GetInputSourceIDFromKeyboardLayout(kt.mLayoutID);
+          NS_ASSERTION(sourceID, "unable to map keyboard layout ID to input source ID");
+          const void* keys[] = { kOurTISPropertyInputSourceID };
+          const void* vals[] = { sourceID };
+          CFDictionaryRef dict = CFDictionaryCreate(kCFAllocatorDefault, keys, vals, 1, NULL, NULL);
+          CFArrayRef inputSources = Leopard_TISCreateInputSourceList(dict, true);
+          CFRelease(dict);
+          if (CFArrayGetCount(inputSources) == 1) {
+            TISInputSourceRef tis = static_cast<TISInputSourceRef>(const_cast<void *>(CFArrayGetValueAtIndex(inputSources, 0)));
+            uchr = static_cast<CFDataRef>(Leopard_TISGetInputSourceProperty(tis, kOurTISPropertyUnicodeKeyLayoutData));
+          }
+          CFRelease(inputSources);
+        } else {
+          TISInputSourceRef tis = Leopard_TISCopyCurrentKeyboardLayoutInputSource();
+          uchr = static_cast<CFDataRef>(Leopard_TISGetInputSourceProperty(tis, kOurTISPropertyUnicodeKeyLayoutData));
+        }
+      }
+
+      Handle handle = ::GetResource('uchr', kt.mLayoutID);
+      if (uchr) {
+        kt.mUchr.mLayout = reinterpret_cast<const UCKeyboardLayout*>
+          (CFDataGetBytePtr(uchr));
+      } else if (handle) {
+        kt.mUchr.mLayout = *((UCKeyboardLayout**)handle);
+      } else {
+        kt.mKchr.mHandle = ::GetResource('kchr', kt.mLayoutID);
+        if (!kt.mKchr.mHandle && !gOverrideKeyboardLayout.mOverrideEnabled)
+          kt.mKchr.mHandle = (char**)::GetScriptManagerVariable(smKCHRCache);
+        if (kt.mKchr.mHandle) {
+          OSStatus err =
+            ::GetTextEncodingFromScriptInfo(kt.mScript, kTextLanguageDontCare,
+                                            kTextRegionDontCare,
+                                            &kt.mKchr.mEncoding);
+          if (err != noErr)
+            kt.mKchr.mHandle = nsnull;
+        }
+      }
+
+      // If a keyboard layout override is set, we also need to force the
+      // keyboard type to something ANSI to avoid test failures on machines
+      // with JIS keyboards (since the pair of keyboard layout and physical
+      // keyboard type form the actual key layout).  This assumes that the
+      // test setting the override was written assuming an ANSI keyboard.
+      if (kt.mUchr.mLayout)
+        kt.mUchr.mKbType = gOverrideKeyboardLayout.mOverrideEnabled ? 40 : ::LMGetKbdType();
+
+      UInt32 key = [aKeyEvent keyCode];
+
+      // Caps lock and num lock modifier state:
+      UInt32 lockState = 0;
+      if ([aKeyEvent modifierFlags] & NSAlphaShiftKeyMask)
+        lockState |= alphaLock;
+      if ([aKeyEvent modifierFlags] & NSNumericPadKeyMask)
+        lockState |= kEventKeyModifierNumLockMask;
+
+      // normal chars
+      PRUint32 unshiftedChar = GetUniCharFromKeyTranslate(kt, key, lockState);
+      UInt32 shiftLockMod = shiftKey | lockState;
+      PRUint32 shiftedChar = GetUniCharFromKeyTranslate(kt, key, shiftLockMod);
+
+      // characters generated with Cmd key
+      // XXX we should remove CapsLock state, which changes characters from
+      //     Latin to Cyrillic with Russian layout on 10.4 only when Cmd key
+      //     is pressed.
+      UInt32 numState = (lockState & ~alphaLock); // only num lock state
+      PRUint32 uncmdedChar = GetUniCharFromKeyTranslate(kt, key, numState);
+      UInt32 shiftNumMod = numState | shiftKey;
+      PRUint32 uncmdedShiftChar =
+                 GetUniCharFromKeyTranslate(kt, key, shiftNumMod);
+      PRUint32 uncmdedUSChar = GetUSLayoutCharFromKeyTranslate(key, numState);
+      UInt32 cmdNumMod = cmdKey | numState;
+      PRUint32 cmdedChar = GetUniCharFromKeyTranslate(kt, key, cmdNumMod);
+      UInt32 cmdShiftNumMod = shiftKey | cmdNumMod;
+      PRUint32 cmdedShiftChar =
+        GetUniCharFromKeyTranslate(kt, key, cmdShiftNumMod);
+
+      // Is the keyboard layout changed by Cmd key?
+      // E.g., Arabic, Russian, Hebrew, Greek and Dvorak-QWERTY.
+      PRBool isCmdSwitchLayout = uncmdedChar != cmdedChar;
+      // Is the keyboard layout for Latin, but Cmd key switches the layout?
+      // I.e., Dvorak-QWERTY
+      PRBool isDvorakQWERTY = isCmdSwitchLayout && kt.mScript == smRoman;
+
+      // If the current keyboard is not Dvorak-QWERTY or Cmd is not pressed,
+      // we should append unshiftedChar and shiftedChar for handling the
+      // normal characters.
+      if ((unshiftedChar || shiftedChar) &&
+          (!outGeckoEvent->isMeta || !isDvorakQWERTY)) {
+        nsAlternativeCharCode altCharCodes(unshiftedChar, shiftedChar);
+        outGeckoEvent->alternativeCharCodes.AppendElement(altCharCodes);
+      }
+
+
+      // On a German layout, the OS gives us '/' with Cmd+Shift+SS(eszett)
+      // even though Cmd+SS is 'SS' and Shift+'SS' is '?'.  This '/' seems
+      // like a hack to make the Cmd+"?" event look the same as the Cmd+"?"
+      // event on a US keyboard.  The user thinks they are typing Cmd+"?", so
+      // we'll prefer the "?" character, replacing charCode with shiftedChar
+      // when Shift is pressed.  However, in case there is a layout where the
+      // character unique to Cmd+Shift is the character that the user expects,
+      // we'll send it as an alternative char.
+      PRBool hasCmdShiftOnlyChar =
+        cmdedChar != cmdedShiftChar && uncmdedShiftChar != cmdedShiftChar;
+      PRUint32 originalCmdedShiftChar = cmdedShiftChar;
+
+      // Cleaning up cmdedShiftChar with CapsLocked characters.
+      if (!isCmdSwitchLayout) {
+        if (unshiftedChar)
+          cmdedChar = unshiftedChar;
+        if (shiftedChar)
+          cmdedShiftChar = shiftedChar;
+      } else if (uncmdedUSChar == cmdedChar) {
+        PRUint32 ch = GetUSLayoutCharFromKeyTranslate(key, lockState);
+        if (ch)
+          cmdedChar = ch;
+        ch = GetUSLayoutCharFromKeyTranslate(key, shiftLockMod);
+        if (ch)
+          cmdedShiftChar = ch;
+      }
+
+      // XXX We should do something similar when Control is down (bug 429510).
+      if (outGeckoEvent->isMeta &&
+           !(outGeckoEvent->isControl || outGeckoEvent->isAlt)) {
+
+        // The character to use for charCode.
+        PRUint32 preferredCharCode = 0;
+        preferredCharCode = outGeckoEvent->isShift ? cmdedShiftChar : cmdedChar;
+
+        if (preferredCharCode) {
+#ifdef DEBUG_KB
+          if (outGeckoEvent->charCode != preferredCharCode) {
+            NSLog(@"      charCode replaced: %X(%C) to %X(%C)",
+                  outGeckoEvent->charCode,
+                  outGeckoEvent->charCode > ' ' ? outGeckoEvent->charCode : ' ',
+                  preferredCharCode,
+                  preferredCharCode > ' ' ? preferredCharCode : ' ');
+          }
+#endif
+          outGeckoEvent->charCode = preferredCharCode;
+        }
+      }
+
+      // If the current keyboard layout is switched by the Cmd key,
+      // we should append cmdedChar and shiftedCmdChar that are
+      // Latin char for the key. But don't append at Dvorak-QWERTY.
+      if ((cmdedChar || cmdedShiftChar) &&
+          isCmdSwitchLayout && !isDvorakQWERTY) {
+        nsAlternativeCharCode altCharCodes(cmdedChar, cmdedShiftChar);
+        outGeckoEvent->alternativeCharCodes.AppendElement(altCharCodes);
+      }
+      // Special case for 'SS' key of German layout. See the comment of
+      // hasCmdShiftOnlyChar definition for the detail.
+      if (hasCmdShiftOnlyChar && originalCmdedShiftChar) {
+        nsAlternativeCharCode altCharCodes(0, originalCmdedShiftChar);
+        outGeckoEvent->alternativeCharCodes.AppendElement(altCharCodes);
+      }
+    }
   }
   else {
     NSString* characters = nil;
@@ -3887,6 +4433,71 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 
   if (outGeckoEvent->message == NS_KEY_PRESS && !outGeckoEvent->isMeta)
     [NSCursor setHiddenUntilMouseMoves:YES];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+
+// Called from PluginKeyEventsHandler() (a handler for Carbon TSM events) to
+// process a Carbon key event for the currently focused plugin.  Both Unicode
+// characters and "Mac encoding characters" (in the MBCS or "multibyte
+// character system") are (or should be) available from aKeyEvent, but here we
+// use the MCBS characters.  This is how the WebKit does things, and seems to
+// be what plugins expect.
+- (void) processPluginKeyEvent:(EventRef)aKeyEvent
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  UInt32 numCharCodes;
+  OSStatus status = ::GetEventParameter(aKeyEvent, kEventParamKeyMacCharCodes,
+                                        typeChar, NULL, 0, &numCharCodes, NULL);
+  if (status != noErr)
+    return;
+
+  nsAutoTArray<unsigned char, 3> charCodes;
+  charCodes.SetLength(numCharCodes);
+  status = ::GetEventParameter(aKeyEvent, kEventParamKeyMacCharCodes,
+                              typeChar, NULL, numCharCodes, NULL, charCodes.Elements());
+  if (status != noErr)
+    return;
+
+  EventRef cloneEvent = ::CopyEvent(aKeyEvent);
+  for (unsigned int i = 0; i < numCharCodes; ++i) {
+    status = ::SetEventParameter(cloneEvent, kEventParamKeyMacCharCodes,
+                                 typeChar, 1, charCodes.Elements() + i);
+    if (status != noErr)
+      return;
+
+    EventRecord eventRec;
+    if (::ConvertEventRefToEventRecord(cloneEvent, &eventRec)) {
+      PRUint32 keyCode(GetGeckoKeyCodeFromChar((PRUnichar)charCodes.ElementAt(i)));
+      PRUint32 charCode(charCodes.ElementAt(i));
+
+      // For some reason we must send just an NS_KEY_PRESS to Gecko here:  If
+      // we send an NS_KEY_DOWN plus an NS_KEY_PRESS, or just an NS_KEY_DOWN,
+      // the plugin receives two events.
+      nsKeyEvent keyPressEvent(PR_TRUE, NS_KEY_PRESS, mGeckoChild);
+      keyPressEvent.time      = PR_IntervalNow();
+      keyPressEvent.nativeMsg = &eventRec;
+      if (IsSpecialGeckoKey(keyCode)) {
+        keyPressEvent.keyCode  = keyCode;
+      } else {
+        keyPressEvent.charCode = charCode;
+        keyPressEvent.isChar   = PR_TRUE;
+      }
+      mGeckoChild->DispatchWindowEvent(keyPressEvent);
+
+      // PluginKeyEventsHandler() never sends us keyUp events, so we need to
+      // synthesize them for Gecko.
+      nsKeyEvent keyUpEvent(PR_TRUE, NS_KEY_UP, mGeckoChild);
+      keyUpEvent.time      = PR_IntervalNow();
+      keyUpEvent.keyCode   = keyCode;
+      keyUpEvent.nativeMsg = &eventRec;
+      mGeckoChild->DispatchWindowEvent(keyUpEvent);
+    }
+  }
+
+  ::ReleaseEvent(cloneEvent);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3952,18 +4563,15 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   if (!mGeckoChild)
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
-  id arp = [[NSAutoreleasePool alloc] init];
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if (![insertString isKindOfClass:[NSAttributedString class]])
     insertString = [[[NSAttributedString alloc] initWithString:insertString] autorelease];
 
   NSString *tmpStr = [insertString string];
   unsigned int len = [tmpStr length];
-  if (!nsTSMManager::IsComposing() && len == 0) {
-    [arp release];
+  if (!nsTSMManager::IsComposing() && len == 0)
     return; // nothing to do
-  }
   PRUnichar buffer[MAX_BUFFER_SIZE];
   PRUnichar *bufPtr = (len >= MAX_BUFFER_SIZE) ? new PRUnichar[len + 1] : buffer;
   [tmpStr getCharacters:bufPtr];
@@ -4044,8 +4652,6 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   if (bufPtr != buffer)
     delete[] bufPtr;
 
-  [arp release];
-
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -4081,8 +4687,7 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   NSLog(@" aString = '%@'", aString);
 #endif
 
-  nsAutoRetainView kungFuDeathGrip(self);
-  id arp = [[NSAutoreleasePool alloc] init];
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if (![aString isKindOfClass:[NSAttributedString class]])
     aString = [[[NSAttributedString alloc] initWithString:aString] autorelease];
@@ -4106,7 +4711,7 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 
   mMarkedRange.length = len;
 
-  if (!nsTSMManager::IsComposing()) {
+  if (!nsTSMManager::IsComposing() && len > 0) {
     nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, mGeckoChild);
     mGeckoChild->DispatchWindowEvent(selection);
     mMarkedRange.location = selection.mSucceeded ? selection.mReply.mOffset : 0;
@@ -4116,23 +4721,24 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
     // Note: mGeckoChild might have become null here. Don't count on it from here on.
   }
 
-  nsTSMManager::UpdateComposing(tmpStr);
+  if (nsTSMManager::IsComposing()) {
+    nsTSMManager::UpdateComposing(tmpStr);
 
-  [self sendTextEvent:bufPtr attributedString:aString
-                             selectedRange:selRange
-                             markedRange:mMarkedRange
-                             doCommit:NO];
-  // Note: mGeckoChild might have become null here. Don't count on it from here on.
-
-  if (nsTSMManager::IsComposing() && len == 0) {
-    nsTSMManager::CommitIME();    
+    BOOL commit = len == 0;
+    [self sendTextEvent:bufPtr attributedString:aString
+                                  selectedRange:selRange
+                                    markedRange:mMarkedRange
+                                       doCommit:commit];
     // Note: mGeckoChild might have become null here. Don't count on it from here on.
+
+    if (commit) {
+      [self sendCompositionEvent:NS_COMPOSITION_END];
+      nsTSMManager::EndComposing();
+    }
   }
-  
+
   if (bufPtr != buffer)
     delete[] bufPtr;
-
-  [arp release];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -4197,9 +4803,7 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   if (!textContent.mSucceeded || textContent.mReply.mString.IsEmpty())
     return nil;
 
-  NSString* nsstr =
-    [NSString stringWithCharacters:textContent.mReply.mString.get()
-                            length:textContent.mReply.mString.Length()];
+  NSString* nsstr = ToNSString(textContent.mReply.mString);
   NSAttributedString* result =
     [[[NSAttributedString alloc] initWithString:nsstr
                                      attributes:nil] autorelease];
@@ -4363,6 +4967,20 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
+#ifdef PR_LOGGING
+static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
+{
+  for (PRUint32 i = 0; i < [aString length]; ++i) {
+    unichar ch = [aString characterAtIndex:i];
+    if (ch >= 32 && ch < 128) {
+      aBuf.Append(char(ch));
+    } else {
+      aBuf += nsPrintfCString("\\u%04x", ch);
+    }
+  }
+  return aBuf.get();
+}
+#endif
 
 // Returns PR_TRUE if Gecko claims to have handled the event, PR_FALSE otherwise.
 - (PRBool)processKeyDownEvent:(NSEvent*)theEvent keyEquiv:(BOOL)isKeyEquiv
@@ -4372,7 +4990,17 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   if (!mGeckoChild)
     return NO;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+#ifdef PR_LOGGING
+  nsCAutoString str1;
+  nsCAutoString str2;
+#endif
+  PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
+         ("ChildView processKeyDownEvent: keycode=%d,modifiers=%x,chars=%s,charsIgnoringModifiers=%s\n",
+          [theEvent keyCode], [theEvent modifierFlags],
+          ToEscapedString([theEvent characters], str1),
+          ToEscapedString([theEvent charactersIgnoringModifiers], str2)));
+
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mCurKeyEvent = theEvent;
 
   BOOL nonDeadKeyPress = [[theEvent characters] length] > 0;
@@ -4444,8 +5072,12 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   // We don't do it if this came from performKeyEquivalent because
   // interpretKeyEvents isn't set up to handle those key combinations.
   PRBool wasComposing = nsTSMManager::IsComposing();
-  if (!isKeyEquiv && nsTSMManager::IsIMEEnabled())
+  PRBool interpretKeyEventsCalled = PR_FALSE;
+  if (!isKeyEquiv &&
+      (nsTSMManager::IsIMEEnabled() || nsTSMManager::IsRomanKeyboardsOnly())) {
     [super interpretKeyEvents:[NSArray arrayWithObject:theEvent]];
+    interpretKeyEventsCalled = PR_TRUE;
+  }
 
   if (!mGeckoChild)
     return (mKeyDownHandled || mKeyPressHandled);;
@@ -4453,15 +5085,21 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
   if (!mKeyPressSent && nonDeadKeyPress && !wasComposing && !nsTSMManager::IsComposing()) {
     nsKeyEvent geckoEvent(PR_TRUE, NS_KEY_PRESS, nsnull);
     [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
-    if (mKeyDownHandled)
-      geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
-    // create native EventRecord for use by plugins
-    EventRecord macEvent;
-    ConvertCocoaKeyEventToMacEvent(theEvent, macEvent);
-    geckoEvent.nativeMsg = &macEvent;
+    // If we called interpretKeyEvents and this isn't normal character input
+    // then IME probably ate the event for some reason. We do not want to
+    // send a key press event in that case.
+    if (!(interpretKeyEventsCalled && IsNormalCharInputtingEvent(geckoEvent))) {
+      if (mKeyDownHandled)
+        geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
-    mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
+      // create native EventRecord for use by plugins
+      EventRecord macEvent;
+      ConvertCocoaKeyEventToMacEvent(theEvent, macEvent);
+      geckoEvent.nativeMsg = &macEvent;
+
+      mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
+    }
   }
 
   // Note: mGeckoChild might have become null here. Don't count on it from here on.
@@ -4480,9 +5118,63 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 }
 
 
+// Create a TSM document for use with plugins, so that we can support IME in
+// them.  Once it's created, if need be (re)activate it.  Some plugins (e.g.
+// the Flash plugin running in Camino) don't create their own TSM document --
+// without which IME can't work.  Others (e.g. the Flash plugin running in
+// Firefox) create a TSM document that (somehow) makes the input window behave
+// badly when it contains more than one kind of input (say Hiragana and
+// Romaji).  (We can't just use the per-NSView TSM documents that Cocoa
+// provices (those created and managed by the NSTSMInputContext class) -- for
+// some reason TSMProcessRawKeyEvent() doesn't work with them.)
+- (void)activatePluginTSMDoc
+{
+  if (!mPluginTSMDoc) {
+    // Create a TSM document that supports both non-Unicode and Unicode input.
+    // Though [ChildView processPluginKeyEvent:] only sends Mac char codes to
+    // the plugin, this makes the input window behave better when it contains
+    // more than one kind of input (say Hiragana and Romaji).  This is what
+    // the OS does when it creates a TSM document for use by an
+    // NSTSMInputContext class.
+    InterfaceTypeList supportedServices;
+    supportedServices[0] = kTextServiceDocumentInterfaceType;
+    supportedServices[1] = kUnicodeDocumentInterfaceType;
+    ::NewTSMDocument(2, supportedServices, &mPluginTSMDoc, 0);
+    // We'll need to use the "input window".
+    ::UseInputWindow(mPluginTSMDoc, YES);
+    ::ActivateTSMDocument(mPluginTSMDoc);
+  } else if (::TSMGetActiveDocument() != mPluginTSMDoc) {
+    ::ActivateTSMDocument(mPluginTSMDoc);
+  }
+}
+
+
 - (void)keyDown:(NSEvent*)theEvent
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  // If a plugin has the focus, we need to use an alternate method for
+  // handling NSKeyDown and NSKeyUp events (otherwise Carbon-based IME won't
+  // work in plugins like the Flash plugin).  The same strategy is used by the
+  // WebKit.  See PluginKeyEventsHandler() and [ChildView processPluginKeyEvent:]
+  // for more info.
+  if (mGeckoChild && mIsPluginView) {
+    [self activatePluginTSMDoc];
+    // We use the active TSM document to pass a pointer to ourselves (the
+    // currently focused ChildView) to PluginKeyEventsHandler().  Because this
+    // pointer is weak, we should retain and release ourselves around the call
+    // to TSMProcessRawKeyEvent().
+    nsAutoRetainCocoaObject kungFuDeathGrip(self);
+    ::TSMSetDocumentProperty(mPluginTSMDoc, kFocusedChildViewTSMDocPropertyTag,
+                             sizeof(ChildView *), &self);
+    ::TSMProcessRawKeyEvent([theEvent _eventRef]);
+    ::TSMRemoveDocumentProperty(mPluginTSMDoc, kFocusedChildViewTSMDocPropertyTag);
+    return;
+  }
+
   [self processKeyDownEvent:theEvent keyEquiv:NO];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 
@@ -4492,11 +5184,30 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+#ifdef PR_LOGGING
+  nsCAutoString str1;
+  nsCAutoString str2;
+#endif
+  PR_LOG(sCocoaLog, PR_LOG_ALWAYS,
+         ("ChildView keyUp: keycode=%d,modifiers=%x,chars=%s,charsIgnoringModifiers=%s\n",
+          [theEvent keyCode], [theEvent modifierFlags],
+          ToEscapedString([theEvent characters], str1),
+          ToEscapedString([theEvent charactersIgnoringModifiers], str2)));
+
+  if (mGeckoChild && mIsPluginView) {
+    // I'm not sure the call to TSMProcessRawKeyEvent() is needed here (though
+    // WebKit makes one).  But we definitely need to short-circuit NSKeyUp
+    // handling when a plugin has the focus -- since we synthesize keyUp events
+    // in [ChildView processPluginKeyEvent:].
+    ::TSMProcessRawKeyEvent([theEvent _eventRef]);
+    return;
+  }
+
   // if we don't have any characters we can't generate a keyUp event
   if (!mGeckoChild || [[theEvent characters] length] == 0)
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // Cocoa doesn't send an NSKeyDown event for control-tab on 10.4, so if this
   // is an NSKeyUp event for control-tab, send a down event to gecko first.
@@ -4573,47 +5284,62 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (!mGeckoChild)
     return NO;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // if we aren't the first responder, pass the event on
-  if ([[self window] firstResponder] != self)
-    return [super performKeyEquivalent:theEvent];
+  id firstResponder = [[self window] firstResponder];
+  if (firstResponder != self) {
+    if ([firstResponder isKindOfClass:[ChildView class]])
+      return [(ChildView *)firstResponder performKeyEquivalent:theEvent];
+    else
+      return [super performKeyEquivalent:theEvent];
+  }
 
   // don't process if we're composing, but don't consume the event
   if (nsTSMManager::IsComposing())
     return NO;
 
-  unsigned int modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
-
-  // see if the menu system will handle the event
-  if ([[NSApp mainMenu] performKeyEquivalent:theEvent]) {
-    return YES;
+  // Perform native menu UI feedback even if we stop the event from propagating to it normally.
+  // Recall that the menu system won't actually execute any commands for keyboard command invocations.
+  //
+  // If this is a plugin, we do actually perform the action on keyboard commands. See bug 428047.
+  // If the action on plugins here changes the first responder, don't continue.
+  NSMenu* mainMenu = [NSApp mainMenu];
+  if (mIsPluginView) {
+    if ([mainMenu isKindOfClass:[GeckoNSMenu class]])
+      [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
+    else
+      [mainMenu performKeyEquivalent:theEvent];
+    if ([[self window] firstResponder] != self)
+      return YES;
   }
   else {
-    // On Mac OS X 10.5 NSMenu's performKeyEquivalent: method returns NO for disabled menu
-    // items that have a matching key equiv. We need to know if that was the case so we can
-    // stop here like we would on 10.4 (it returns YES in that case). Since we want to eat
-    // the event if that happens the system won't give the disabled command beep, do it here
-    // manually.
-    if (nsToolkit::OnLeopardOrLater()) {
-      id delegate = [[self window] delegate];
-      if (delegate && [delegate isKindOfClass:[WindowDelegate class]]) {
-        nsCocoaWindow* toplevelWindow = [delegate geckoWidget];
-        if (toplevelWindow) {
-          nsMenuBarX* menuBar = static_cast<nsMenuBarX*>(toplevelWindow->GetMenuBar());
-          if (menuBar && menuBar->ContainsKeyEquiv(modifierFlags, [theEvent characters])) {
-            NSBeep();
-            return YES;
-          }
-        }
-      }
-    }
+    if ([mainMenu isKindOfClass:[GeckoNSMenu class]])
+      [(GeckoNSMenu*)mainMenu performMenuUserInterfaceEffectsForEvent:theEvent];
   }
+
+  // With Cmd key or Ctrl+Tab or Ctrl+Esc, keyDown will be never called.
+  // Therefore, we need to call processKeyDownEvent from performKeyEquivalent.
+  UInt32 modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
+  UInt32 keyCode = [theEvent keyCode];
+  PRBool keyDownNeverFiredEvent = (modifierFlags & NSCommandKeyMask) ||
+           ((modifierFlags & NSControlKeyMask) &&
+            (keyCode == kEscapeKeyCode || keyCode == kTabKeyCode));
 
   // don't handle this if certain modifiers are down - those should
   // be sent as normal key up/down events and cocoa will do so automatically
   // if we reject here
-  if ((modifierFlags & NSFunctionKeyMask) || (modifierFlags & NSNumericPadKeyMask))
+  if (!keyDownNeverFiredEvent &&
+      (modifierFlags & (NSFunctionKeyMask| NSNumericPadKeyMask)))
+    return NO;
+
+  // Control and option modifiers are used when changing input sources in the
+  // input menu. We need to send such key events via "keyDown:", which will
+  // happen if we return NO here. This only applies to Mac OS X 10.5 and higher,
+  // previous OS versions just call "keyDown:" and not "performKeyEquivalent:"
+  // for such events.
+  if (!keyDownNeverFiredEvent &&
+      (modifierFlags & (NSControlKeyMask | NSAlternateKeyMask)))
     return NO;
 
   if ([theEvent type] == NSKeyDown) {
@@ -4637,7 +5363,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (!mGeckoChild)
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // Fire key up/down events for the modifier keys (shift, alt, ctrl, command).
   if ([theEvent type] == NSFlagsChanged) {
@@ -4705,7 +5431,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (!mGeckoChild)
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // check to see if the window implements the mozWindow protocol. This
   // allows embedders to avoid re-entrant calls to -makeKeyAndOrderFront,
@@ -4730,7 +5456,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (!mGeckoChild)
     return;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   [self sendFocusEvent:NS_DEACTIVATE];
   [self sendFocusEvent:NS_LOSTFOCUS];
@@ -4826,7 +5552,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   geckoEvent.refPoint.x = static_cast<nscoord>(localPoint.x);
   geckoEvent.refPoint.y = static_cast<nscoord>(localPoint.y);
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(geckoEvent);
   if (!mGeckoChild)
     return YES;
@@ -4885,7 +5611,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 {
   PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("ChildView draggingExited: entered\n"));
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   [self doDragAction:NS_DRAGDROP_EXIT sender:sender];
   NS_IF_RELEASE(mDragService);
 }
@@ -4893,7 +5619,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
 {
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   BOOL handled = [self doDragAction:NS_DRAGDROP_DROP sender:sender];
   NS_IF_RELEASE(mDragService);
   return handled;
@@ -5013,7 +5739,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   id<mozAccessible> nativeAccessible = nil;
 
-  nsAutoRetainView kungFuDeathGrip(self);
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   nsCOMPtr<nsIWidget> kungFuDeathGrip2(mGeckoChild);
   nsCOMPtr<nsIAccessible> accessible;
   mGeckoChild->GetDocumentAccessible(getter_AddRefs(accessible));
@@ -5152,8 +5878,9 @@ nsTSMManager::UpdateComposing(NSString* aComposingString)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  sComposingString = aComposingString;
-  [sComposingString retain];
+  if (sComposingString)
+    [sComposingString release];
+  sComposingString = [aComposingString retain];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -5264,4 +5991,73 @@ nsTSMManager::CancelIME()
   [str release];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+
+// Target for text services events sent as the result of calls made to
+// TSMProcessRawKeyEvent() in [ChildView keyDown:] (above) when a plugin has
+// the focus.  The calls to TSMProcessRawKeyEvent() short-circuit Cocoa-based
+// IME (which would otherwise interfere with our efforts) and allow Carbon-
+// based IME to work in plugins (via the NPAPI).  This strategy doesn't cause
+// trouble for plugins that (like the Java Embedding Plugin) bypass the NPAPI
+// to get their keyboard events and do their own Cocoa-based IME.
+OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
+                                EventRef inEvent, void *userData)
+{
+  id arp = [[NSAutoreleasePool alloc] init];
+
+  TSMDocumentID activeDoc = ::TSMGetActiveDocument();
+  if (!activeDoc) {
+    [arp release];
+    return eventNotHandledErr;
+  }
+
+  ChildView *target = nil;
+  OSStatus status = ::TSMGetDocumentProperty(activeDoc, kFocusedChildViewTSMDocPropertyTag,
+                                             sizeof(ChildView *), nil, &target);
+  if (status != noErr)
+    target = nil;
+  if (!target) {
+    [arp release];
+    return eventNotHandledErr;
+  }
+
+  EventRef keyEvent = NULL;
+  status = ::GetEventParameter(inEvent, kEventParamTextInputSendKeyboardEvent,
+                               typeEventRef, NULL, sizeof(EventRef), NULL, &keyEvent);
+  if ((status != noErr) || !keyEvent) {
+    [arp release];
+    return eventNotHandledErr;
+  }
+
+  [target processPluginKeyEvent:keyEvent];
+
+  [arp release];
+  return noErr;
+}
+
+static EventHandlerRef gPluginKeyEventsHandler = NULL;
+
+// Called from nsAppShell::Init()
+void NS_InstallPluginKeyEventsHandler()
+{
+  if (gPluginKeyEventsHandler)
+    return;
+  static const EventTypeSpec sTSMEvents[] =
+    { { kEventClassTextInput, kEventTextInputUnicodeForKeyEvent } };
+  ::InstallEventHandler(::GetEventDispatcherTarget(),
+                        ::NewEventHandlerUPP(PluginKeyEventsHandler),
+                        GetEventTypeCount(sTSMEvents),
+                        sTSMEvents,
+                        NULL,
+                        &gPluginKeyEventsHandler);
+}
+
+// Called from nsAppShell::Exit()
+void NS_RemovePluginKeyEventsHandler()
+{
+  if (!gPluginKeyEventsHandler)
+    return;
+  ::RemoveEventHandler(gPluginKeyEventsHandler);
+  gPluginKeyEventsHandler = NULL;
 }

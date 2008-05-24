@@ -61,6 +61,8 @@
 #include "nsCOMArray.h"
 #include "nsNodeUtils.h"
 #include "nsBindingManager.h"
+#include "nsCCUncollectableMarker.h"
+#include "mozAutoDocUpdate.h"
 
 #include "pldhash.h"
 #include "prprf.h"
@@ -79,6 +81,19 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
+  nsIDocument* currentDoc = tmp->GetCurrentDoc();
+  if (currentDoc && nsCCUncollectableMarker::InGeneration(
+                      currentDoc->GetMarkedCCGeneration())) {
+    return NS_OK;
+  }
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
+
+  nsIDocument* ownerDoc = tmp->GetOwnerDoc();
+  if (ownerDoc) {
+    ownerDoc->BindingManager()->Traverse(tmp, cb);
+  }
+
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
@@ -483,6 +498,8 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     nsNodeUtils::CharacterDataChanged(this, &info);
 
     if (haveMutationListeners) {
+      mozAutoRemovableBlockerRemover blockerRemover;
+
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_CHARACTERDATAMODIFIED);
 
       mutation.mPrevAttrValue = oldValue;
@@ -491,8 +508,6 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
         mText.AppendTo(val);
         mutation.mNewAttrValue = do_GetAtom(val);
       }
-
-      mozAutoDocUpdateContentUnnest updateUnnest(document);
 
       mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
       nsEventDispatcher::Dispatch(this, nsnull, &mutation);
@@ -590,7 +605,15 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     nsDataSlots *slots = GetDataSlots();
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
+    NS_ASSERTION(IsNativeAnonymous() || !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
+                 aBindingParent->IsInNativeAnonymousSubtree(),
+                 "Trying to re-bind content from native anonymous subtree to"
+                 "non-native anonymous parent!");
     slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
+    if (IsNativeAnonymous() ||
+        aBindingParent->IsInNativeAnonymousSubtree()) {
+      SetFlags(NODE_IS_IN_ANONYMOUS_SUBTREE);
+    }
   }
 
   // Set parent
@@ -815,6 +838,11 @@ PRBool
 nsGenericDOMDataNode::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eDATA_NODE));
+}
+
+void
+nsGenericDOMDataNode::SaveSubtreeState()
+{
 }
 
 void

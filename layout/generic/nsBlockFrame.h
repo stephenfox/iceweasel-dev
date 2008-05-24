@@ -297,10 +297,17 @@ public:
 
   /**
    * Returns the width that needs to be cleared past floats for blocks
-   * that cannot intersect floats.
+   * that cannot intersect floats.  aState must already have
+   * GetAvailableSpace called on it for the vertical position that we
+   * care about (which need not be its current mY)
    */
-  static nscoord WidthToClearPastFloats(nsBlockReflowState& aState,
-                                        nsIFrame* aFrame);
+  struct ReplacedElementWidthToClear {
+    nscoord marginLeft, borderBoxWidth, marginRight;
+    nscoord MarginBoxWidth() const
+      { return marginLeft + borderBoxWidth + marginRight; }
+  };
+  static ReplacedElementWidthToClear
+    WidthToClearPastFloats(nsBlockReflowState& aState, nsIFrame* aFrame);
 
   /**
    * Walks up the frame tree, starting with aCandidate, and returns the first
@@ -706,6 +713,13 @@ public:
   PRBool IsLastLineInList();
   nsBlockFrame* GetContainer() { return mFrame; }
   PRBool GetInOverflow() { return mInOverflowLines != nsnull; }
+
+
+  /**
+   * Returns the end-iterator of whatever line list we're in.
+   */
+  line_iterator End();
+
   /**
    * Returns false if there are no more lines. After this has returned false,
    * don't call any methods on this object again.

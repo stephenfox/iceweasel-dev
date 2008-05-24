@@ -110,7 +110,9 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*          aPresContext,
                     avHeight);
     float scale = aPresContext->GetPageScale();
     maxSize.width = NSToCoordCeil(maxSize.width / scale);
-    maxSize.height = NSToCoordCeil(maxSize.height / scale);
+    if (maxSize.height != NS_UNCONSTRAINEDSIZE) {
+      maxSize.height = NSToCoordCeil(maxSize.height / scale);
+    }
     // Get the number of Twips per pixel from the PresContext
     nscoord onePixelInTwips = nsPresContext::CSSPixelsToAppUnits(1);
     // insurance against infinite reflow, when reflowing less than a pixel
@@ -537,18 +539,30 @@ nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
   nsRect rect = aDirtyRect;
   float scale = PresContext()->GetPageScale();
   aRenderingContext.PushState();
-  // Make sure we don't draw where we aren't supposed to draw, especially
-  // when printing selection
-  nsRect clipRect(nsPoint(0, 0), GetSize());
-  clipRect.Deflate(mPD->mReflowMargin);
-  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
-  // aPt translates to coords relative to this, then margins translate to
-  // pageContentFrame's coords
   nsPoint framePos = aPt + pageContentFrame->GetOffsetTo(this);
   aRenderingContext.Translate(framePos.x, framePos.y);
+  // aPt translates to coords relative to this, then margins translate to
+  // pageContentFrame's coords
   rect -= framePos;
   aRenderingContext.Scale(scale, scale);
   rect.ScaleRoundOut(1.0f / scale);
+  // Make sure we don't draw where we aren't supposed to draw, especially
+  // when printing selection
+  nsRect clipRect(nsPoint(0, 0), pageContentFrame->GetSize());
+  // Note: this computation matches how we compute maxSize.height
+  // in nsPageFrame::Reflow
+  nscoord expectedPageContentHeight = 
+    NSToCoordCeil((GetSize().height - mPD->mReflowMargin.TopBottom()) / scale);
+  if (clipRect.height > expectedPageContentHeight) {
+    // We're doing print-selection, with one long page-content frame.
+    // Clip to the appropriate page-content slice for the current page.
+    NS_ASSERTION(mPageNum > 0, "page num should be positive");
+    clipRect.y =  expectedPageContentHeight * (mPageNum - 1);
+    clipRect.height = expectedPageContentHeight;
+    NS_ASSERTION(clipRect.y < pageContentFrame->GetSize().height,
+                 "Should be clipping to region inside the page content bounds");
+  }
+  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
 
   const nsStyleBorder* border = GetStyleBorder();
   const nsStylePadding* padding = GetStylePadding();
@@ -598,6 +612,12 @@ nscoord
 nsPageBreakFrame::GetIntrinsicWidth()
 {
   return nsPresContext::CSSPixelsToAppUnits(1);
+}
+
+nscoord
+nsPageBreakFrame::GetIntrinsicHeight()
+{
+  return 0;
 }
 
 nsresult 

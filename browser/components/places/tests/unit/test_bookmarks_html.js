@@ -81,7 +81,6 @@ try {
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
-const LAST_CHARSET_ANNO = "URIProperties/characterSet";
 
 // main
 function run_test() {
@@ -90,7 +89,7 @@ function run_test() {
 
   // avoid creating the places smart folder during tests
   Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch).
-  setBoolPref("browser.places.createdSmartBookmarks", true);
+  setIntPref("browser.places.smartBookmarksVersion", -1);
 
   // file pointer to legacy bookmarks file
   var bookmarksFileOld = do_get_file("browser/components/places/tests/unit/bookmarks.preplaces.html");
@@ -127,7 +126,8 @@ function run_test() {
   try {
     importer.importHTMLFromFile(bookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
-  testCanonicalBookmarks(bmsvc.bookmarksMenuFolder); 
+  testCanonicalBookmarks(bmsvc.bookmarksMenuFolder);
+
   /*
   // XXX import-to-folder tests disabled due to bug 363634
   // Test importing a pre-Places canonical bookmarks file to a specific folder.
@@ -194,8 +194,8 @@ function testCanonicalBookmarks(aFolder) {
   var rootNode = result.root;
   rootNode.containerOpen = true;
 
-  // 6-2: the toolbar contents are imported to the places-toolbar folder,
-  // the separator above it is removed.
+  // 6-2: the toolbar folder and unfiled bookmarks folder imported to the
+  // corresponding places folders
   do_check_eq(rootNode.childCount, 4);
 
   // get test folder
@@ -246,10 +246,9 @@ function testCanonicalBookmarks(aFolder) {
               annosvc.getItemAnnotation(testBookmark1.itemId, POST_DATA_ANNO));
 
   // last charset
-  do_check_true(annosvc.itemHasAnnotation(testBookmark1.itemId,
-                                          LAST_CHARSET_ANNO));
-  do_check_eq("ISO-8859-1", annosvc.getItemAnnotation(testBookmark1.itemId,
-                                                      LAST_CHARSET_ANNO));
+  var testURI = uri(testBookmark1.uri);
+  do_check_eq("ISO-8859-1", histsvc.getCharsetForURI(testURI));
+
   // description
   do_check_true(annosvc.itemHasAnnotation(testBookmark1.itemId,
                                           DESCRIPTION_ANNO));
@@ -299,4 +298,12 @@ function testCanonicalBookmarks(aFolder) {
               livemarksvc.getFeedURI(livemark.itemId).spec);
 
   toolbar.containerOpen = false;
+  
+  // unfiled bookmarks
+  query.setFolders([bmsvc.unfiledBookmarksFolder], 1);
+  result = histsvc.executeQuery(query, histsvc.getNewQueryOptions());
+  var unfiledBookmarks = result.root;
+  unfiledBookmarks.containerOpen = true;
+  do_check_eq(unfiledBookmarks.childCount, 1);
+  unfiledBookmarks.containerOpen = false;
 }

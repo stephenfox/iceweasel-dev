@@ -565,8 +565,14 @@ nsXFormsUtils::EvaluateXPath(const nsAString        &aExpression,
                                                                aContextNode);
   NS_ENSURE_TRUE(state, NS_ERROR_OUT_OF_MEMORY);
 
+  // If the XPath expression contains a function name that differs from its
+  // internal name, translate the external name to the internal name.
+  nsAutoString expr;
+  rv = TranslateExpression(aExpression, expr);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIDOMXPathExpression> expression;
-  rv = CreateExpression(evalInternal, aExpression, resolver, state,
+  rv = CreateExpression(evalInternal, expr, resolver, state,
                         getter_AddRefs(expression));
 
   PRBool throwException = PR_FALSE;
@@ -600,7 +606,7 @@ nsXFormsUtils::EvaluateXPath(const nsAString        &aExpression,
         rv = analyzer.Analyze(aContextNode,
                               xNode,
                               nsExpr,
-                              &aExpression,
+                              &expr,
                               aSet,
                               aContextPosition,
                               aContextSize,
@@ -662,9 +668,15 @@ nsXFormsUtils::EvaluateXPath(nsIXPathEvaluatorInternal  *aEvaluator,
                              nsIDOMXPathResult          *aInResult,
                              nsIDOMXPathResult         **aResult)
 {
+  // If the XPath expression contains a function name that differs from its
+  // internal name, translate the external name to the internal name.
+  nsAutoString expr;
+  nsresult rv = TranslateExpression(aExpression, expr);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIDOMXPathExpression> expression;
-  nsresult rv = CreateExpression(aEvaluator, aExpression, aResolver, aState,
-                                 getter_AddRefs(expression));
+  rv = CreateExpression(aEvaluator, expr, aResolver, aState,
+                        getter_AddRefs(expression));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMNSXPathExpression> nsExpression =
@@ -2870,7 +2882,7 @@ nsXFormsUtils::GetTime(nsAString & aResult, PRBool aUTC)
 
     PR_FormatTime(ctime, sizeof(ctime), "%Y-%m-%dT%H:%M:%S\0", &time);
 
-    aResult.AssignLiteral(ctime);
+    aResult.Assign(NS_ConvertASCIItoUTF16(ctime));
 
     if (aUTC) {
       aResult.AppendLiteral("Z");
@@ -3155,3 +3167,60 @@ nsXFormsUtils::GetNewURI(nsIDocument* aDoc, const nsAString& aSrc,
   NS_ADDREF(*aURI = uri);
   return rv;
 }
+
+/* static */ PRBool
+nsXFormsUtils::IsCardNumber(const nsAString& aNumber)
+{
+  nsXFormsSchemaValidator validator;
+  if (!validator.ValidateString(aNumber,
+                                NS_LITERAL_STRING("card-number"),
+                                NS_LITERAL_STRING(NS_NAMESPACE_XFORMS)))
+    return PR_FALSE;
+
+  // Now check if the card number is a valid Luhn number.
+  PRInt32 sum = 0;
+  PRBool alt = false;
+  for (PRInt32 i = aNumber.Length() - 1; i >= 0; --i) {
+    PRUnichar currentChar = aNumber[i];
+    PRInt32 digit = abs(currentChar - '0');
+
+    if (alt) {
+      digit *= 2;
+      if (digit > 9) {
+        digit -= 9;
+      }
+    }
+    sum += digit;
+    alt = !alt;
+  }
+
+  return sum % 10 == 0;
+}
+
+/* static */ nsresult
+nsXFormsUtils::TranslateExpression(const nsAString& aExpression, nsAString& aResult)
+{
+  aResult.Truncate();
+
+  // context() is a valid XPath function but context is a reserved word
+  // in .idl so we rename it to contextNode() if it exists.
+  NS_NAMED_LITERAL_STRING(contextExpr, "context()");
+  PRInt32 start = aExpression.Find(contextExpr);
+
+  if (start != kNotFound) {
+    if (start > 0) {
+      // Append any part of the expression before 'context()'
+      aResult.Append(Substring(aExpression, 0, start));
+    }
+    // Replace 'context()' with 'contextNode()'
+    aResult.AppendLiteral("contextNode()");
+    if (start + contextExpr.Length() < aExpression.Length()) {
+      // Append any remaining part of the expression after 'context()'
+      aResult.Append(Substring(aExpression, start + contextExpr.Length()));
+    }
+  } else {
+    aResult = aExpression;
+  }
+  return NS_OK;
+}
+

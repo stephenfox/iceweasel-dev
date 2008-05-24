@@ -55,6 +55,8 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsObjCExceptions.h"
+#include "nsCocoaUtils.h"
+#include "nsChildView.h"
 
 // defined in nsChildView.mm
 extern nsIRollupListener * gRollupListener;
@@ -62,14 +64,6 @@ extern nsIWidget         * gRollupWidget;
 
 // defined in nsCocoaWindow.mm
 extern PRInt32             gXULModalLevel;
-
-@interface NSApplication (Undocumented)
-
-// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
-- (BOOL)_isRunningModal;
-- (BOOL)_isRunningAppModal;
-
-@end
 
 // AppShellDelegate
 //
@@ -242,6 +236,8 @@ nsAppShell::Init()
   ::CFRunLoopAddSource(mCFRunLoop, mCFRunLoopSource, kCFRunLoopCommonModes);
 
   rv = nsBaseAppShell::Init();
+
+  NS_InstallPluginKeyEventsHandler();
 
   [localPool release];
 
@@ -614,6 +610,8 @@ nsAppShell::Exit(void)
 
   mTerminated = PR_TRUE;
 
+  NS_RemovePluginKeyEventsHandler();
+
   // Quoting from Apple's doc on the [NSApplication stop:] method (from their
   // doc on the NSApplication class):  "If this method is invoked during a
   // modal event loop, it will break that loop but not the main event loop."
@@ -695,7 +693,9 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 // AppShellDelegate implementation
+
 
 @implementation AppShellDelegate
 // initWithAppShell:

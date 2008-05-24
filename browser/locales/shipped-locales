@@ -1,5 +1,5 @@
 af
-ar linux win32
+ar
 be
 ca
 cs
@@ -14,13 +14,14 @@ eu
 fi
 fr
 fy-NL
-gu-IN
-he linux win32
+ga-IE
+gu-IN linux win32
+he
 hu
 id
 it
+ja linux win32
 ja-JP-mac osx
-ja win32 linux
 ka
 ko
 ku

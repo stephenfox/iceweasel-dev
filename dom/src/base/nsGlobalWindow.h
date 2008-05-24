@@ -122,6 +122,7 @@ class nsGlobalWindow;
 #ifdef OJI
 class nsDummyJavaPluginOwner;
 #endif
+class PostMessageEvent;
 
 class nsDOMOfflineResourceList;
 class nsDOMOfflineLoadStatusList;
@@ -584,6 +585,9 @@ protected:
   nsresult GetScrollXY(PRInt32* aScrollX, PRInt32* aScrollY,
                        PRBool aDoFlush);
   nsresult GetScrollMaxXY(PRInt32* aScrollMaxX, PRInt32* aScrollMaxY);
+  
+  nsresult GetOuterSize(nsIntSize* aSizeCSSPixels);
+  nsresult SetOuterSize(PRInt32 aLengthCSSPixels, PRBool aIsWidth);
 
   PRBool IsFrame()
   {
@@ -731,6 +735,7 @@ protected:
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;
   PRUint32 mSerial;
+  nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
 
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
@@ -739,6 +744,7 @@ protected:
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
+  friend class PostMessageEvent;
   static nsIFactory *sComputedDOMStyleFactory;
 };
 

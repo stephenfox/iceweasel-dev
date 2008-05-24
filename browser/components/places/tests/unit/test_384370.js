@@ -39,7 +39,6 @@
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
-const LAST_CHARSET_ANNO = "URIProperties/characterSet";
 
 Components.utils.import("resource://gre/modules/utils.js");
 do_check_eq(typeof PlacesUtils, "object");
@@ -63,7 +62,7 @@ function run_test() {
 
   // avoid creating the places smart folder during tests
   Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch).
-  setBoolPref("browser.places.createdSmartBookmarks", true);
+  setIntPref("browser.places.smartBookmarksVersion", -1);
 
   // file pointer to legacy bookmarks file
   //var bookmarksFileOld = do_get_file("browser/components/places/tests/unit/bookmarks.large.html");
@@ -99,7 +98,7 @@ function run_test() {
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
   LOG("exported json"); 
   try {
-    PlacesUtils.restoreBookmarksFromFile(jsonFile);
+    PlacesUtils.restoreBookmarksFromJSONFile(jsonFile);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
   LOG("imported json"); 
   validate();
@@ -209,10 +208,10 @@ function testCanonicalBookmarks() {
   do_check_eq("hidden1%3Dbar&text1%3D%25s",
               PlacesUtils.annotations.getItemAnnotation(testBookmark1.itemId, POST_DATA_ANNO));
 
-  // last charset 
-  do_check_true(PlacesUtils.annotations.itemHasAnnotation(testBookmark1.itemId, LAST_CHARSET_ANNO));
-  do_check_eq("ISO-8859-1", PlacesUtils.annotations.getItemAnnotation(testBookmark1.itemId,
-                                                                      LAST_CHARSET_ANNO));
+  // last charset
+  var testURI = PlacesUtils._uri(testBookmark1.uri);
+  do_check_eq("ISO-8859-1", PlacesUtils.history.getCharsetForURI(testURI));
+
   // description 
   do_check_true(PlacesUtils.annotations.itemHasAnnotation(testBookmark1.itemId,
                                                           DESCRIPTION_ANNO));
@@ -284,12 +283,13 @@ function testUnfiledBookmarks() {
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
   var rootNode = result.root;
   rootNode.containerOpen = true;
-  do_check_eq(rootNode.childCount, bookmarkData.length);
-  for (var i = 0; i < rootNode.childCount; i++) {
+  // child count (add 1 for pre-existing item)
+  do_check_eq(rootNode.childCount, bookmarkData.length + 1);
+  for (var i = 1; i < rootNode.childCount; i++) {
     var child = rootNode.getChild(i);
-    dump(bookmarkData[i].uri.spec + " == " + child.uri + "?\n");
-    do_check_true(bookmarkData[i].uri.equals(uri(child.uri)));
-    do_check_eq(child.title, bookmarkData[i].title);
+    dump(bookmarkData[i - 1].uri.spec + " == " + child.uri + "?\n");
+    do_check_true(bookmarkData[i - 1].uri.equals(uri(child.uri)));
+    do_check_eq(child.title, bookmarkData[i - 1].title);
     /* WTF
     if (child.tags)
       do_check_eq(child.tags, bookmarkData[i].title);

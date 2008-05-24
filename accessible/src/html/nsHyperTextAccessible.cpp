@@ -1271,9 +1271,11 @@ nsHyperTextAccessible::GetOffsetAtPoint(PRInt32 aX, PRInt32 aY,
 }
 
 // ------- nsIAccessibleHyperText ---------------
-NS_IMETHODIMP nsHyperTextAccessible::GetLinks(PRInt32 *aLinks)
+NS_IMETHODIMP
+nsHyperTextAccessible::GetLinkCount(PRInt32 *aLinkCount)
 {
-  *aLinks = 0;
+  NS_ENSURE_ARG_POINTER(aLinkCount);
+  *aLinkCount = 0;
   if (!mDOMNode) {
     return NS_ERROR_FAILURE;
   }
@@ -1282,33 +1284,36 @@ NS_IMETHODIMP nsHyperTextAccessible::GetLinks(PRInt32 *aLinks)
 
   while (NextChild(accessible)) {
     if (IsEmbeddedObject(accessible)) {
-      ++*aLinks;
+      ++*aLinkCount;
     }
   }
   return NS_OK;
 }
 
 
-NS_IMETHODIMP nsHyperTextAccessible::GetLink(PRInt32 aIndex, nsIAccessibleHyperLink **aLink)
+NS_IMETHODIMP
+nsHyperTextAccessible::GetLink(PRInt32 aLinkIndex, nsIAccessibleHyperLink **aLink)
 {
+  NS_ENSURE_ARG_POINTER(aLink);
   *aLink = nsnull;
-  if (!mDOMNode) {
+
+  if (IsDefunct())
     return NS_ERROR_FAILURE;
-  }
 
+  PRInt32 linkIndex = aLinkIndex;
   nsCOMPtr<nsIAccessible> accessible;
-
   while (NextChild(accessible)) {
-    if (IsEmbeddedObject(accessible) && aIndex-- == 0) {
-      CallQueryInterface(accessible, aLink);
-      return NS_OK;
-    }
+    if (IsEmbeddedObject(accessible) && linkIndex-- == 0)
+      return CallQueryInterface(accessible, aLink);
   }
-  return NS_OK;
+
+  return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP nsHyperTextAccessible::GetLinkIndex(PRInt32 aCharIndex, PRInt32 *aLinkIndex)
+NS_IMETHODIMP
+nsHyperTextAccessible::GetLinkIndex(PRInt32 aCharIndex, PRInt32 *aLinkIndex)
 {
+  NS_ENSURE_ARG_POINTER(aLinkIndex);
   *aLinkIndex = -1; // API says this magic value means 'not found'
 
   PRInt32 characterCount = 0;

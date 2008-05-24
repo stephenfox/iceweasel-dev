@@ -111,6 +111,8 @@
 #include "nsImageLoadingContent.h"
 #include "nsIDOMWindowInternal.h"
 
+#include "mozAutoDocUpdate.h"
+
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
@@ -196,7 +198,7 @@ public:
 
   // nsIContent
   virtual void SetFocus(nsPresContext* aPresContext);
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -410,16 +412,17 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLInputElement, nsGenericElement)
 // QueryInterface implementation for nsHTMLInputElement
 NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLInputElement,
                                         nsGenericHTMLFormElement)
-  NS_INTERFACE_TABLE_INHERITED9(nsHTMLInputElement,
-                                nsIDOMHTMLInputElement,
-                                nsIDOMNSHTMLInputElement,
-                                nsITextControlElement,
-                                nsIFileControlElement,
-                                nsIRadioControlElement,
-                                nsIPhonetic,
-                                imgIDecoderObserver,
-                                nsIImageLoadingContent,
-                                nsIDOMNSEditableElement)
+  NS_INTERFACE_TABLE_INHERITED10(nsHTMLInputElement,
+                                 nsIDOMHTMLInputElement,
+                                 nsIDOMNSHTMLInputElement,
+                                 nsITextControlElement,
+                                 nsIFileControlElement,
+                                 nsIRadioControlElement,
+                                 nsIPhonetic,
+                                 imgIDecoderObserver,
+                                 nsIImageLoadingContent,
+                                 imgIContainerObserver,
+                                 nsIDOMNSEditableElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLInputElement)
 
 
@@ -562,7 +565,9 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       // now.
       nsIDocument* document = GetCurrentDoc();
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, aNotify);
-      
+
+      UpdateEditableState();
+
       if (!aValue) {
         // We're now a text input.  Note that we have to handle this manually,
         // since removing an attribute (which is what happened, since aValue is
@@ -612,7 +617,9 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                        NS_EVENT_STATE_BROKEN |
                                        NS_EVENT_STATE_USERDISABLED |
                                        NS_EVENT_STATE_SUPPRESSED |
-                                       NS_EVENT_STATE_LOADING);
+                                       NS_EVENT_STATE_LOADING |
+                                       NS_EVENT_STATE_MOZ_READONLY |
+                                       NS_EVENT_STATE_MOZ_READWRITE);
       }
     }
 
@@ -2895,14 +2902,15 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
 }
 
 PRBool
-nsHTMLInputElement::IsFocusable(PRInt32 *aTabIndex)
+nsHTMLInputElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (!nsGenericHTMLElement::IsFocusable(aTabIndex)) {
-    return PR_FALSE;
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
+    return PR_TRUE;
   }
 
   if (mType == NS_FORM_INPUT_TEXT || mType == NS_FORM_INPUT_PASSWORD) {
-    return PR_TRUE;
+    *aIsFocusable = PR_TRUE;
+    return PR_FALSE;
   }
 
   if (mType == NS_FORM_INPUT_HIDDEN || mType == NS_FORM_INPUT_FILE) {
@@ -2910,12 +2918,14 @@ nsHTMLInputElement::IsFocusable(PRInt32 *aTabIndex)
     if (aTabIndex) {
       *aTabIndex = -1;
     }
+    *aIsFocusable = PR_FALSE;
     return PR_FALSE;
   }
 
   if (!aTabIndex) {
     // The other controls are all focusable
-    return PR_TRUE;
+    *aIsFocusable = PR_TRUE;
+    return PR_FALSE;
   }
 
   // We need to set tabindex to -1 if we're not tabbable
@@ -2925,14 +2935,16 @@ nsHTMLInputElement::IsFocusable(PRInt32 *aTabIndex)
   }
 
   if (mType != NS_FORM_INPUT_RADIO) {
-    return PR_TRUE;
+    *aIsFocusable = PR_TRUE;
+    return PR_FALSE;
   }
 
   PRBool checked;
   GetChecked(&checked);
   if (checked) {
     // Selected radio buttons are tabbable
-    return PR_TRUE;
+    *aIsFocusable = PR_TRUE;
+    return PR_FALSE;
   }
 
   // Current radio button is not selected.
@@ -2940,7 +2952,8 @@ nsHTMLInputElement::IsFocusable(PRInt32 *aTabIndex)
   nsCOMPtr<nsIRadioGroupContainer> container = GetRadioGroupContainer();
   nsAutoString name;
   if (!container || !GetNameIfExists(name)) {
-    return PR_TRUE;
+    *aIsFocusable = PR_TRUE;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIDOMHTMLInputElement> currentRadio;
@@ -2948,7 +2961,8 @@ nsHTMLInputElement::IsFocusable(PRInt32 *aTabIndex)
   if (currentRadio) {
     *aTabIndex = -1;
   }
-  return PR_TRUE;
+  *aIsFocusable = PR_TRUE;
+  return PR_FALSE;
 }
 
 nsresult
