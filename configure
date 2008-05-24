@@ -16623,7 +16623,7 @@ if test "${enable_jemalloc+set}" = set; then
 fi
 
 
-if test "$NS_TRACE_MALLOC"; then
+if test "$NS_TRACE_MALLOC" || test "$LIBXUL_SDK"; then
     MOZ_MEMORY=
 fi
 

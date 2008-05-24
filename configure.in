@@ -6261,7 +6261,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
     MOZ_MEMORY=1,
     MOZ_MEMORY=)
 
-if test "$NS_TRACE_MALLOC"; then
+if test "$NS_TRACE_MALLOC" || test "$LIBXUL_SDK"; then
     MOZ_MEMORY=
 fi
 
