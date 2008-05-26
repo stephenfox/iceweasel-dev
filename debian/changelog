@@ -1,3 +1,19 @@
+xulrunner (1.9~rc1-2) experimental; urgency=low
+
+  * toolkit/content/about.xhtml: Remove unintendly left debugging message.
+  * xpcom/reflect/xptcall/src/md/unix/Makefile.in: Use -O0 instead of -O1 for
+    xptcstubs on hppa, it seems -O1 is still too much.
+  * debian/control: Ensure xulrunner-1.9 depends on libmozjs1d >= 1.9~rc1.
+    Closes: #482824.
+  * debian/rules: Workaround libgnome exitting when it can't create its
+    configuration directory when user home doesn't exist (as it happens on
+    buildds) despite $HOME being set, by setting GNOME22_USER_DIR.
+    Closes: #482812.
+  * debian/xulrunner-dev-bin.install, debian/rules: Install xpcom-config.h
+    in arch-dependent xulrunner-dev-bin package.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 27 May 2008 00:12:49 +0200
+
 xulrunner (1.9~rc1-1) experimental; urgency=low
 
   * New upstream Release Candidate release (taken from upstream CVS):
