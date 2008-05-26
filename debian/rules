@@ -87,6 +87,7 @@ build-stamp:  config.status
 
 TEST =	( if ( \
 		cd dist/bin; \
+		GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 		HOME="$(CURDIR)/dist" \
 		xvfb-run -a sh -c "LD_PRELOAD=$(strip $(1)) ./xulrunner '$(CURDIR)/debian/test/application.ini' 2> /dev/null" || \
 			echo "xulrunner test exited with code $$?" >&2; \
