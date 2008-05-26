@@ -41,6 +41,7 @@ Section: devel
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+         libmozjs1d (>= 1.9~rc1),
          xulrunner-1.9-common (>= ${source:Upstream-Version})
 Suggests: xulrunner-1.9-gnome-support
 Description: XUL + XPCOM application runner
