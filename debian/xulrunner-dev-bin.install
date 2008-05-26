@@ -8,3 +8,6 @@ usr/lib/xulrunner-1.9/xpt_dump
 usr/lib/xulrunner-1.9/xpt_link
 usr/lib/xulrunner-1.9/xpidl
 usr/include/xulrunner-1.9/unstable/mozilla-config.h
+usr/include/xulrunner-1.9/stable/xpcom-config.h
+usr/include/xulrunner-1.9/unstable/xpcom-config.h
+usr/lib/xulrunner-devel-1.9/xpcom-config.h
