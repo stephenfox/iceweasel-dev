@@ -1,3 +1,9 @@
+iceweasel (3.0~rc2-1) unstable; urgency=low
+
+  * New upstream release candidate.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 07 Jun 2008 12:46:43 +0200
+
 iceweasel (3.0~rc1-1) experimental; urgency=low
 
   * configure.in, configure: Fix LIBXUL_SDK_DIR variable use. Closes: #479041.
