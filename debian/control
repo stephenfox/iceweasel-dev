@@ -44,8 +44,8 @@ Depends: ${shlibs:Depends},
          libmozjs1d (>= 1.9~rc1),
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>> 3.12.0~rc3-1),
-         xulrunner-1.9-common (>= ${source:Upstream-Version})
 Suggests: xulrunner-1.9-gnome-support
+Replaces: xulrunner-1.9-common
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
  multiple XUL + XPCOM applications that are as rich as Firefox and
@@ -139,33 +139,16 @@ Description: standalone JavaScript/ECMAScript (ECMA-262) interpreter
  first introduced by Netscape and now led by the Mozilla project.
 Homepage: http://www.mozilla.org/js/
 
-Package: xulrunner-1.9-common
-Section: libs
-Architecture: all
-Depends: ${misc:Depends}
-Conflicts: xulrunner-1.9 (<< ${source:Upstream-Version})
-Description: Gecko engine library - common files
- This library provides an API for XUL applications and Gecko embedders.
- The Gecko engine is the core of the mozilla.org applications such as
- Firefox, Thunderbird or SeaMonkey.
- .
- Gecko features include XPCOM, networking, DOM editing and transaction
- support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
- Web Services (SOAP), accessibility support, IPC services, gtkmozembed,
- JavaXPCOM, etc.
- .
- This package provides all architecture independent files for xulrunner-1.9.
-Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
-
 Package: xulrunner-dev
 Section: libdevel
-Architecture: all
-Depends: ${misc:Depends},
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
          xulrunner-1.9 (>= ${source:Upstream-Version}),
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${source:Version}),
-         xulrunner-dev-bin (>= ${source:Upstream-Version})
+Replaces: xulrunner-dev-bin
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -182,27 +165,6 @@ Description: Development files for the Gecko engine library
  same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
  .
  It also contains the JavaXPCOM interfaces and their sources.
-Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
-
-Package: xulrunner-dev-bin
-Section: libdevel
-Architecture: any
-Depends: ${shlibs:Depends},
-         ${misc:Depends}
-Description: Static libraries for the Gecko engine
- This library provides an API for XUL applications and Gecko embedders.
- The Gecko engine is the core of the mozilla.org applications such as
- Firefox, Thunderbird or SeaMonkey.
- .
- Gecko features include XPCOM, networking, DOM editing and transaction
- support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
- Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
- .
- Install this package if you wish to embed the Gecko engine in your
- program or want to develop XPCOM components.
- .
- It contains the XPCOM dependent and standalone glues, a few other static
- libraries and the xpidl, xpt_link and xpt_dump utilities.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: xulrunner-1.9-dbg

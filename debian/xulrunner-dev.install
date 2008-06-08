@@ -1,19 +1,6 @@
 usr/include/xulrunner-1.9
 usr/share/idl
-usr/lib/xulrunner-devel-1.9/idl
-usr/lib/xulrunner-devel-1.9/xpcom-config.h
-usr/lib/xulrunner-devel-1.9/include
-usr/lib/xulrunner-devel-1.9/bin
-usr/lib/xulrunner-devel-1.9/lib
-usr/lib/xulrunner-devel-1.9/sdk/idl
-usr/lib/xulrunner-devel-1.9/sdk/include
-usr/lib/xulrunner-devel-1.9/sdk/lib/libmozjs.so
-usr/lib/xulrunner-devel-1.9/sdk/lib/libxul.so
-usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces.jar
-usr/lib/xulrunner-devel-1.9/sdk/lib/libxpcom.so
-usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaInterfaces-src.jar
-usr/lib/xulrunner-devel-1.9/sdk/lib/MozillaGlue.jar
-
+usr/lib/xulrunner-devel-1.9
 usr/lib/pkgconfig/libxul-unstable.pc
 usr/lib/pkgconfig/libxul-embedding-unstable.pc
 usr/lib/pkgconfig/libxul.pc
@@ -21,3 +8,6 @@ usr/lib/pkgconfig/libxul-embedding.pc
 usr/lib/pkgconfig/mozilla-gtkmozembed.pc
 usr/lib/pkgconfig/mozilla-gtkmozembed-embedding.pc
 usr/lib/pkgconfig/mozilla-plugin.pc
+usr/lib/xulrunner-1.9/xpt_dump
+usr/lib/xulrunner-1.9/xpt_link
+usr/lib/xulrunner-1.9/xpidl

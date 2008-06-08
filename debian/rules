@@ -231,7 +231,7 @@ binary-indep: build-jars install
 	dh_installchangelogs -i
 	dh_installdocs -A -i MPL
 	dh_installexamples -i
-	dh_install -i --sourcedir=debian/tmp -Xmozilla-config.h -Xxpcom-config.h
+	dh_install -i --sourcedir=debian/tmp
 	dh_link -i
 	dh_compress -i
 	dh_fixperms -i
