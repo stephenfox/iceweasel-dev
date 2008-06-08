@@ -1,3 +1,29 @@
+xulrunner (1.9~rc2-1) unstable; urgency=low
+
+  * modules/libjar/nsJAR.cpp: Apply patch from Alexander Sack to avoid
+    deadlocks.
+  * debian/xulrunner-1.9.links: Don't create links for nspr libraries,
+    since nspr now has them.
+  * debian/control: Since we don't ship neither nspr nor nss so links, force
+    dependencies onto versions of nspr and nss that ship them, to avoid
+    partial upgrade surprises to our testing or unstable users.
+  * toolkit/components/url-classifier/src/nsUrlClassifierDBService.cpp:
+    Fix unaligned word access. Thanks Martin Guy to have tracked this down.
+    Closes: #483949.
+  * debian/control: Remove xulrunner-dev-bin and xulrunner-1.9-common
+    packages, adapt xulrunner-dev and xulrunner-1.9 for transition.
+  * debian/xulrunner-1.9-common.*, debian/xulrunner-dev-bin.*: Removed.
+  * debian/xulrunner-1.9.*, debian/xulrunner-dev.*: Install files that
+    previously were in xulrunner-1.9-common and xulrunner-dev-bin.
+  * debian/rules:
+    + Don't filter-out mozilla-config and xpcom-config files when
+      installing arch-indep files.
+    + Don't install the buildconfig.html override, it is not needed anymore.
+  * toolkit/content/jar.mn: Do include content/global/buildconfig.html in
+    toolkit.jar.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 08 Jun 2008 10:41:19 +0200
+
 xulrunner (1.9~rc1-2) experimental; urgency=low
 
   * toolkit/content/about.xhtml: Remove unintendly left debugging message.
