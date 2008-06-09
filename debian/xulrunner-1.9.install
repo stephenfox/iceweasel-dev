@@ -19,8 +19,6 @@ usr/lib/xulrunner-1.9/xulrunner-stub
 
 usr/lib/xulrunner-1.9/plugins
 
-usr/lib/xulrunner-1.9/javaxpcom.jar
-
 usr/lib/xulrunner-1.9/icons usr/share/xulrunner-1.9
 usr/lib/xulrunner-1.9/chrome usr/share/xulrunner-1.9
 

@@ -163,8 +163,6 @@ Description: Development files for the Gecko engine library
  .
  This package also provides the Xulrunner Software Development Kit in the
  same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
- .
- It also contains the JavaXPCOM interfaces and their sources.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: xulrunner-1.9-dbg
@@ -205,10 +203,10 @@ Description: XPCOM bindings for Java
  application. JavaXPCOM is very similar to XPConnect (JavaScript-XPCOM
  bridge), and uses XPIDL
  .
- Install this package if you wish to access XPCOM objects from Java.
- The counterpart is built in xulrunner.
+ Install this package if you wish to access XPCOM objects from Java or
+ the other way around.
  .
- This package also provides the Java interfaces sources.
+ This package also provides the JavaXPCOM interfaces sources.
 Homepage: http://developer.mozilla.org/en/docs/JavaXPCOM
 
 Package: python-xpcom

@@ -243,7 +243,7 @@ binary-arch: build test install $(COMPONENT_SCRIPTS)
 	dh_installdocs -A -a -XREADME.txt MPL
 	dh_installexamples -a
 	dh_installmenu -pspidermonkey-bin
-	dh_install -a --sourcedir=debian/tmp
+	dh_install -a --sourcedir=debian/tmp -XMozillaInterfaces
 	dh_pysupport -ppython-xpcom
 	dh_installman -pspidermonkey-bin debian/smjs.1
 	dh_link -a
