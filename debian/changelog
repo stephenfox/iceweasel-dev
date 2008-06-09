@@ -1,3 +1,16 @@
+xulrunner (1.9~rc2-2) unstable; urgency=low
+
+  * debian/libmozillainterfaces-java.install, debian/xulrunner-1.9.install:
+    Move javaxpcom.jar into the libmozillainterfaces-java package.
+    Closes: #485284.
+  * debian/control: Small description changes to fit this move.
+  * debian/libmozillainterfaces-java.install: Move MozillaGlue.jar into the
+    libmozillainterfaces-java package.
+  * debian/rules: Don't install MozillaInterfaces and MozillaGlue files in
+    xulrunner-dev.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 09 Jun 2008 08:15:35 +0200
+
 xulrunner (1.9~rc2-1) unstable; urgency=low
 
   * modules/libjar/nsJAR.cpp: Apply patch from Alexander Sack to avoid
