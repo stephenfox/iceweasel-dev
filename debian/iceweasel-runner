@@ -289,7 +289,8 @@ echo_vars ICEWEASEL_DSP APPLICATION_ID CMDLINE_DISPLAY DISPLAY \
 if type "${ICEWEASEL_DSP}" > /dev/null 2>&1; then
     MOZ_PROGRAM="${ICEWEASEL_DSP} ${MOZ_PROGRAM}"
     if [ "${ICEWEASEL_DSP}" = aoss ]; then
-        MOZ_PROGRAM="LD_PRELOAD=/lib/libc.so.6 ${MOZ_PROGRAM}"
+        LD_PRELOAD=/lib/libc.so.6
+        export LD_PRELOAD
     fi
 fi
 
