@@ -60,6 +60,7 @@ SDK_XPIDLSRCS = \
 
 XPIDLSRCS = \
     nsISSLCertErrorDialog.idl \
+    nsIBadCertListener.idl \
     nsIBadCertListener2.idl \
     nsISSLErrorListener.idl \
     nsIIdentityInfo.idl \
