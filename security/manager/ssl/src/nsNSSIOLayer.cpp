@@ -60,6 +60,7 @@
 #include "nsIClientAuthDialogs.h"
 #include "nsClientAuthRemember.h"
 #include "nsICertOverrideService.h"
+#include "nsIBadCertListener.h"
 #include "nsIBadCertListener2.h"
 #include "nsISSLErrorListener.h"
 #include "nsIObjectInputStream.h"
@@ -809,6 +810,20 @@ void nsNSSSocketInfo::SetHandshakeInProgress(PRBool aIsIn)
   }
 }
 
+void nsNSSSocketInfo::SetBadCertUIStatus(nsNSSSocketInfo::BadCertUIStatusType aNewStatus)
+{
+  if (mBadCertUIStatus == bcuis_active &&
+      aNewStatus == bcuis_was_shown)
+  {
+    // we were blocked and going back to unblocked,
+    // so let's reset the handshake start time, in order to ensure
+    // we do not count the amount of time while the UI was shown.
+    mHandshakeStartTime = PR_IntervalNow();
+  }
+
+  mBadCertUIStatus = aNewStatus;
+}
+
 void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(PRBool aAllow)
 {
   mAllowTLSIntoleranceTimeout = aAllow;
@@ -818,7 +833,8 @@ void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(PRBool aAllow)
 
 PRBool nsNSSSocketInfo::HandshakeTimeout()
 {
-  if (!mHandshakeInProgress || !mAllowTLSIntoleranceTimeout)
+  if (!mHandshakeInProgress || !mAllowTLSIntoleranceTimeout ||
+      mBadCertUIStatus == bcuis_active)
     return PR_FALSE;
 
   return ((PRIntervalTime)(PR_IntervalNow() - mHandshakeStartTime)
@@ -1846,6 +1862,37 @@ isTLSIntoleranceError(PRInt32 err, PRBool withInitialCleartext)
   return PR_FALSE;
 }
 
+static PRBool
+isClosedConnectionAfterBadCertUIWasShown(PRInt32 bytesTransfered,
+                                         PRBool wasReading,
+                                         PRInt32 err,
+                                         nsNSSSocketInfo::BadCertUIStatusType aBadCertUIStatus)
+{
+  if (aBadCertUIStatus != nsNSSSocketInfo::bcuis_not_shown)
+  {
+    // Bad cert UI was shown for this socket.
+    // Server timeout possible.
+    // Retry on a simple connection close.
+
+    if (wasReading && 0 == bytesTransfered)
+      return PR_TRUE;
+
+    if (0 > bytesTransfered)
+    {
+      switch (err)
+      {
+        case PR_CONNECT_RESET_ERROR:
+        case PR_END_OF_FILE_ERROR:
+          return PR_TRUE;
+        default:
+          break;
+      }
+    }
+  }
+
+  return PR_FALSE;
+}
+
 PRInt32
 nsSSLThread::checkHandshake(PRInt32 bytesTransfered, 
                             PRBool wasReading,
@@ -1897,6 +1944,12 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
         return bytesTransfered;
       }
 
+      wantRetry =
+        isClosedConnectionAfterBadCertUIWasShown(bytesTransfered,
+                                                 wasReading,
+                                                 err,
+                                                 socketInfo->GetBadCertUIStatus());
+
       if (!wantRetry // no decision yet
           && isTLSIntoleranceError(err, socketInfo->GetHasCleartextPhase()))
       {
@@ -1914,6 +1967,12 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
   {
     if (handleHandshakeResultNow)
     {
+      wantRetry =
+        isClosedConnectionAfterBadCertUIWasShown(bytesTransfered,
+                                                 wasReading,
+                                                 0,
+                                                 socketInfo->GetBadCertUIStatus());
+
       if (!wantRetry // no decision yet
           && !socketInfo->GetHasCleartextPhase()) // mirror PR_CONNECT_RESET_ERROR treament
       {
@@ -3430,6 +3489,48 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
         nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(infoObject);
         rv = proxy_bcl->NotifyCertProblem(csi, status, hostWithPortString, 
                                           &suppressMessage);
+      }
+    } else {
+      nsCOMPtr<nsIBadCertListener> handler = do_GetInterface(callbacks);
+      nsIBadCertListener *badCertHandler = nsnull;
+      if (handler) {
+        NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                             NS_GET_IID(nsIBadCertListener),
+                             handler,
+                             NS_PROXY_SYNC,
+                             (void**)&badCertHandler);
+      }
+      if (!badCertHandler) {
+        getNSSDialogs((void**)&badCertHandler,
+                      NS_GET_IID(nsIBadCertListener),
+                      NS_BADCERTLISTENER_CONTRACTID);
+      }
+      if (badCertHandler) {
+        PRBool retVal = PR_TRUE;
+        PRInt16 addType = nsIBadCertListener::UNINIT_ADD_FLAG;
+        nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(infoObject);
+        infoObject->SetBadCertUIStatus(nsNSSSocketInfo::bcuis_active);
+        if (remaining_display_errors & nsICertOverrideService::ERROR_UNTRUSTED) {
+          rv = badCertHandler->ConfirmUnknownIssuer(csi, ix509, &addType, &retVal);
+          if (NS_FAILED(rv)) retVal = PR_FALSE;
+        }
+        if (retVal && (remaining_display_errors & nsICertOverrideService::ERROR_MISMATCH)) {
+          rv = badCertHandler->ConfirmMismatchDomain(csi, hostString, ix509, &retVal);
+          if (NS_FAILED(rv)) retVal = PR_FALSE;
+        }
+        if (retVal && (remaining_display_errors & nsICertOverrideService::ERROR_TIME)) {
+          rv = badCertHandler->ConfirmCertExpired(csi, ix509, &retVal);
+          if (NS_FAILED(rv)) retVal = PR_FALSE;
+        }
+        if (overrideService && retVal && addType != nsIBadCertListener::UNINIT_ADD_FLAG) {
+          overrideService->RememberValidityOverride(hostString, port, ix509,
+                                    nsICertOverrideService::ERROR_UNTRUSTED,
+                                    addType == nsIBadCertListener::ADD_TRUSTED_FOR_SESSION);
+        }
+        infoObject->SetBadCertUIStatus(nsNSSSocketInfo::bcuis_was_shown);
+        if (retVal)
+          return SECSuccess;
+        suppressMessage = PR_TRUE;
       }
     }
   }
