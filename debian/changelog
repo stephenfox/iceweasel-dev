@@ -1,3 +1,27 @@
+xulrunner (1.9~rc2-3) unstable; urgency=low
+
+  * config/autoconf.mk.in, configure, configure.in,
+    xulrunner/installer/Makefile.in,
+    xulrunner/installer/libxul-embedding-unstable.pc.in,
+    xulrunner/installer/libxul-embedding.pc.in,
+    xulrunner/installer/libxul-unstable.pc.in,
+    xulrunner/installer/libxul.pc.in: Don't hardcode -fshort-wchar in the .pc
+    files. Thanks Riku Voipio. Closes: #485618.
+  * xpcom/glue/nsTextFormatter.cpp: Fixed bad certificate error message
+    displaying (null) as common name at least on amd64, due to the way
+    va_lists are being used in nsTextFormatter.
+  * security/manager/ssl/public/Makefile.in,
+    security/manager/ssl/public/nsIBadCertListener.idl,
+    security/manager/ssl/src/nsNSSIOLayer.*: Fore-port nsIBadCertListener from
+    1.8, to allow embedding applications to use the same dialogs as before,
+    instead of the new ssl alert pages from Firefox, which have several
+    problems in embedding applications.
+  * debian/control: Make -dbg packages less a hassle for manual installations
+    with dpkg.
+  * debian/debAbout.js: Removed last debugging message.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 15 Jun 2008 22:11:16 +0200
+
 xulrunner (1.9~rc2-2) unstable; urgency=low
 
   * debian/libmozillainterfaces-java.install, debian/xulrunner-1.9.install:
