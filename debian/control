@@ -107,9 +107,7 @@ Section: libdevel
 Priority: extra
 Architecture: any
 Depends: libmozjs1d (= ${binary:Version})
-Suggests: spidermonkey-bin
-Conflicts: spidermonkey-bin (<< ${source:Version}),
-           spidermonkey-bin (>= ${source:Version}.1~)
+         | spidermonkey-bin (= ${binary:Version})
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
@@ -170,12 +168,9 @@ Section: libdevel
 Priority: extra
 Architecture: any
 Depends: xulrunner-1.9 (= ${binary:Version})
-Suggests: xulrunner-1.9-gnome-support
-Conflicts: xulrunner-1.9-gnome-support (<< ${source:Version}),
-           xulrunner-1.9-gnome-support (>= ${source:Version}.1~),
-           python-xpcom (<< ${binary:Version}),
-           python-xpcom (>> ${binary:Version}),
-           libxul0d-dbg
+         | xulrunner-1.9-gnome-support (= ${binary:Version})
+         | python-xpcom (= ${binary:Version})
+Conflicts: libxul0d-dbg
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
