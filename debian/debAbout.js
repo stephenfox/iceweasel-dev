@@ -137,7 +137,6 @@ var debAboutModule = {
 
     aCompMgr = aCompMgr.QueryInterface(Ci.nsIComponentRegistrar);
     for (var key in debAboutURLs.urls) {
-      dump("Registering about:"+key+" to "+debAboutURLs.urls[key]+"\n");
       aCompMgr.registerFactoryLocation(CLASS_ID, CLASS_NAME, CONTRACT_ID_PREFIX + key, aFileSpec, aLocation, aType);
     }
   },
