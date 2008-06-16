@@ -36,7 +36,7 @@
 #
 # ***** END LICENSE BLOCK *****
 
-MOZ_APP_NAME=firefox
+MOZ_APP_NAME=iceweasel
 MOZ_UPDATER=1
 MOZ_PHOENIX=1
 
