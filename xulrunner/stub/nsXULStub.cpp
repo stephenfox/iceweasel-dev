@@ -322,6 +322,52 @@ main(int argc, char **argv)
   DosSetExtLIBPATH(tmpPath, BEGIN_LIBPATH);
 #endif
 
+  const char *env;
+  env = getenv("MOZILLA_JEMALLOC");
+  if (env && env[0]) {
+    // Fill tmpPath with location to the jemalloc library
+    strcpy(tmpPath, greDir);
+    lastSlash = strrchr(tmpPath, PATH_SEPARATOR_CHAR);
+    if (lastSlash)
+      lastSlash++;
+    else
+      lastSlash = tmpPath;
+    *lastSlash = '\0';
+    strncpy(lastSlash, JEMALLOC_LIB, MAXPATHLEN - (lastSlash - tmpPath) - 1);
+
+    // Don't do anything if libjemalloc doesn't exist
+    struct stat st;
+    if (stat(tmpPath, &st) == 0 && S_ISREG(st.st_mode)) {
+      // Avoid infinite loop
+      unsetenv("MOZILLA_JEMALLOC");
+
+      // Keep previously set LD_PRELOAD
+      char *ldpreload;
+      env = getenv("LD_PRELOAD");
+      setenv("MOZILLA_OLD_PRELOAD", env ? env : "", 1);
+      if (env && env[0]) {
+        int len = strlen(env);
+        ldpreload = (char *) malloc(len + strlen(tmpPath) + 2);
+        strcpy(ldpreload, env);
+        ldpreload[len] = ':';
+        ldpreload[len + 1] = '\0';
+      } else {
+        ldpreload = (char *) malloc(strlen(tmpPath) + 1);
+        *ldpreload = '\0';
+      }
+      // Add jemalloc to LD_PRELOAD
+      strcat(ldpreload, tmpPath);
+      setenv("LD_PRELOAD", ldpreload, 1);
+      execv(argv[0], argv);
+    }
+  }
+  // Even if execv fails we want to do this cleanup
+  env = getenv("MOZILLA_OLD_PRELOAD");
+  if (env) {
+    setenv("LD_PRELOAD", env, 1);
+    unsetenv("MOZILLA_OLD_PRELOAD");
+  }
+
   rv = XPCOMGlueStartup(greDir);
   if (NS_FAILED(rv)) {
     Output(PR_TRUE, "Couldn't load XPCOM.\n");
