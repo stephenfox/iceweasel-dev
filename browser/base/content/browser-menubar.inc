@@ -131,7 +131,8 @@
                           accesskey="&deleteCmd.accesskey;"
                           command="cmd_delete"/>
                 <menuseparator/>
-                <menuitem label="&selectAllCmd.label;"
+                <menuitem id="menu_selectAll"
+                          label="&selectAllCmd.label;"
                           key="key_selectAll"
                           accesskey="&selectAllCmd.accesskey;"
                           command="cmd_selectAll"/>
@@ -376,7 +377,8 @@
                   <observes element="Browser:Forward" attribute="disabled" />
                 </menuitem>
 
-                <menuitem label="&historyHomeCmd.label;"
+                <menuitem id="historyMenuHome"
+                          label="&historyHomeCmd.label;"
                           oncommand="BrowserGoHome(event);"
                           onclick="checkForMiddleClick(this, event);"
                           key="goHome"/>
@@ -406,7 +408,7 @@
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);">
-      <menuitem label="&bookmarkThisPageCmd.label;" 
+      <menuitem label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs" key="addBookmarkAsKb"/>
       <menuitem id="subscribeToPageMenuitem"
                 label="&subscribeToPageMenuitem.label;"
@@ -417,17 +419,17 @@
             label="&subscribeToPageMenupopup.label;"
             hidden="true">
         <menupopup id="subscribeToPageSubmenuMenupopup" 
-                   onpopupshowing="return FeedHandler.buildFeedList(event.target);" 
+                   onpopupshowing="return FeedHandler.buildFeedList(event.target);"
                    oncommand="return FeedHandler.subscribeToFeed(null, event);"
                    onclick="checkForMiddleClick(this, event);"/>
       </menu>
-      <menuitem label="&addCurPagesCmd.label;" 
+      <menuitem label="&addCurPagesCmd.label;"
                 command="Browser:BookmarkAllTabs" key="bookmarkAllTabsKb"/>
-      <menuseparator id="organizeBookmarksSeparator"/>
       <menuitem id="bookmarksShowAll"
-                label="&showAllBookmarksCmd2.label;"
+                label="&organizeBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
+      <menuseparator id="organizeBookmarksSeparator"/>
       <menu id="bookmarksToolbarFolderMenu"
             class="menu-iconic bookmark-item"
             container="true">

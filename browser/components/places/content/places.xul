@@ -86,6 +86,11 @@
   <script type="application/javascript"
           src="chrome://browser/content/places/editBookmarkOverlay.js"/>
 
+  <stringbundleset id="placesStringSet">
+    <stringbundle id="brandStrings" src="chrome://branding/locale/brand.properties"/>
+  </stringbundleset>
+
+
 #ifdef XP_MACOSX
 #include ../../../base/content/browserMountPoints.inc
 #else
@@ -176,10 +181,13 @@
 
   <popupset id="placesPopupset">
     <popup id="placesContext"/>
+    <popup id="placesColumnsContext"
+           onpopupshowing="ViewMenu.fillWithColumns(event, null, null, 'checkbox', null);"
+           oncommand="ViewMenu.showHideColumn(event.target); event.stopPropagation();"/>
   </popupset>
 
   <toolbox id="placesToolbox">
-    <toolbar class="chromeclass-toolbar" id="placesToolbar" align="center">
+    <toolbar class="chromeclass-toolbar" id="placesToolbar" align="center" chromedir="&locale.dir;">
       <toolbarbutton id="back-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      command="OrganizerCommand:Back"
                      tooltiptext="&backButton.tooltip;"
@@ -346,21 +354,12 @@
 #endif
               id="maintenanceButton" label="&maintenance.label;">
           <menupopup id="maintenanceButtonPopup">
-            <menuitem id="fileImport"
-                      command="OrganizerCommand_import"
-                      label="&cmd.import.label;"
-                      accesskey="&cmd.import.accesskey;"/>
-            <menuitem id="fileExport"
-                      command="OrganizerCommand_export"
-                      label="&cmd.export.label;"
-                      accesskey="&cmd.export.accesskey;"/>
-            <menuseparator/>
             <menuitem id="backupBookmarks"
                       command="OrganizerCommand_backup"
                       label="&cmd.backup.label;"
                       accesskey="&cmd.backup.accesskey;"/>
-            <menu id="fileRestoreMenu" label="&cmd.restore.label;"
-                      accesskey="&cmd.restore.accesskey;">
+            <menu id="fileRestoreMenu" label="&cmd.restore2.label;"
+                      accesskey="&cmd.restore2.accesskey;">
               <menupopup id="fileRestorePopup" onpopupshowing="PlacesOrganizer.populateRestoreMenu();">
                 <menuitem id="restoreFromFile"
                           command="OrganizerCommand_restoreFromFile"
@@ -368,6 +367,15 @@
                           accesskey="&cmd.restoreFromFile.accesskey;"/>
               </menupopup>
             </menu>
+            <menuseparator/>
+            <menuitem id="fileImport"
+                      command="OrganizerCommand_import"
+                      label="&cmd.importHTML.label;"
+                      accesskey="&cmd.importHTML.accesskey;"/>
+            <menuitem id="fileExport"
+                      command="OrganizerCommand_export"
+                      label="&cmd.exportHTML.label;"
+                      accesskey="&cmd.exportHTML.accesskey;"/>
           </menupopup>
 #ifdef XP_MACOSX
         </toolbarbutton>
@@ -393,17 +401,18 @@
           hidecolumnpicker="true" context="placesContext"
           onselect="PlacesOrganizer.onPlaceSelected(true);"
           onclick="PlacesOrganizer.onTreeClick(event);"
+          onfocus="PlacesOrganizer.onTreeFocus(event);"          
           seltype="single"
           persist="width"
-          width="200">
+          width="200"
+          minwidth="100"
+          maxwidth="400">
       <treecols>
         <treecol anonid="title" flex="1" primary="true" hideheader="true"/>
       </treecols>
       <treechildren flex="1"/>
     </tree>
-    <splitter id="splitter" collapse="before" persist="state">
-      <grippy/>
-    </splitter>
+    <splitter collapse="none" persist="state"></splitter>
     <vbox id="contentView" flex="4">
       <deck id="contentDeck" flex="1">
         <vbox id="defaultView" flex="1">
@@ -417,12 +426,6 @@
                              oncommand="PlacesQueryBuilder.onScopeSelected(this);"
                              label="&search.scopeAll.label;"
                              checked="true"/>
-              <toolbarbutton id="scopeBarMenu" type="radio" group="scopeBar"
-                             oncommand="PlacesQueryBuilder.onScopeSelected(this);"
-                             label="&search.scopeMenu.label;"/>
-              <toolbarbutton id="scopeBarToolbar" type="radio" group="scopeBar"
-                             oncommand="PlacesQueryBuilder.onScopeSelected(this);"
-                             label="&search.scopeToolbar.label;"/>
               <!--
               <toolbarbutton id="scopeBarDownloads" type="radio" group="scopeBar"
                              oncommand="PlacesQueryBuilder.onScopeSelected(this);"
@@ -435,6 +438,7 @@
               <button id="saveSearch" class="small" 
                        label="&saveSearch.label;" accesskey="&saveSearch.accesskey;"
                        command="OrganizerCommand_search:save"/>
+#ifdef PLACES_QUERY_BUILDER
               <button id="organizerScopeBarExpander"
                       class="expander-down"
                       tooltiptext="&search.scopeBarExpanderDown.tooltip;"
@@ -443,9 +447,13 @@
                       oncommand="PlacesQueryBuilder.toggleVisibility();"/>
             </toolbar>
 #include advancedSearch.inc
+#else
+            </toolbar>
+#endif
           </vbox>
           <vbox flex="1">
-            <tree id="placeContent" class="placesTree" context="placesContext" 
+            <tree id="placeContent" class="placesTree" context="placesContext"
+                  hidecolumnpicker="true"
                   flex="1" type="places"
                   flatList="true"
                   enableColumnDrag="true"
@@ -453,8 +461,9 @@
                   ondblclick="PlacesOrganizer.openSelectedNode(event);"
                   onopenflatcontainer="PlacesOrganizer.openFlatContainer(aContainer);"
                   onselect="PlacesOrganizer.onContentTreeSelect();"
+                  onfocus="PlacesOrganizer.onTreeFocus(event);"
                   onclick="PlacesOrganizer.onTreeClick(event);">
-              <treecols id="placeContentColumns">
+              <treecols id="placeContentColumns" context="placesColumnsContext">
                 <treecol label="&col.name.label;" id="placesContentTitle" anonid="title" flex="5" primary="true" ordinal="1" 
                          persist="width hidden ordinal sortActive sortDirection"/>
                 <splitter class="tree-splitter"/>
@@ -484,12 +493,9 @@
               </treecols>
               <treechildren flex="1"/>
             </tree>
-            <splitter id="contentSplitter" collapse="after" persist="state">
-              <grippy/>
-            </splitter>
-            <hbox persist="height" id="infoPane">
+            <hbox id="infoPaneBox" style="height: 11em;">
               <deck flex="1" id="detailsDeck">
-                <vbox align="center">
+                <vbox id="itemsCountBox" align="center">
                   <spacer flex="3"/>
                   <label id="itemsCountText"/>
                   <spacer flex="1"/>
@@ -498,10 +504,11 @@
                   </description>
                   <spacer flex="3"/>
                 </vbox>
-                <scrollbox id="infoScrollbox" minimal="true" orient="vertical" flex="1" style='overflow: auto;'>
+                <vbox id="infoBox" minimal="true">
                   <vbox id="editBookmarkPanelContent"/>
+                  <spacer flex="1"/>
                   <hbox>
-                    <button type="image" id="infoScrollboxExpander"
+                    <button type="image" id="infoBoxExpander"
                             lesslabel="&detailsPane.less.label;"
                             lessaccesskey="&detailsPane.less.accesskey;"
                             morelabel="&detailsPane.more.label;"
@@ -512,7 +519,7 @@
                             observes="paneElementsBroadcaster"/>
                     <spacer flex="1"/>
                   </hbox>
-                </scrollbox>
+                </vbox>
               </deck>
             </hbox>
           </vbox>

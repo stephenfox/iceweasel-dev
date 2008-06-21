@@ -64,8 +64,8 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="BrowserStartup()" onunload="BrowserShutdown()" onclose="return WindowIsClosing();"
         contenttitlesetting="true"
-        title="&mainWindow.title; 3 Beta 5"
-        titlemodifier="&mainWindow.title; 3 Beta 5"
+        title="&mainWindow.title;"
+        titlemodifier="&mainWindow.title;"
         titlemenuseparator="&mainWindow.titlemodifiermenuseparator;"
         windowtype="navigator:browser"
         screenX="4" screenY="4"
@@ -191,7 +191,8 @@
     <!-- Popup for site identity information -->
     <panel id="identity-popup" position="after_start" hidden="true" noautofocus="true"
            onpopupshown="document.getElementById('identity-popup-more-info-button').focus();"
-           onpopuphidden="focusAndSelectUrlBar();" norestorefocus="true">
+           onpopuphidden="focusAndSelectUrlBar();" norestorefocus="true"
+           chromedir="&locale.dir;">
       <hbox id="identity-popup-container" align="top">
         <image id="identity-popup-icon"/>
         <vbox id="identity-popup-content-box">
@@ -232,8 +233,8 @@
   <tooltip id="btTooltip" noautohide="true"
            onpopupshowing="return BookmarksEventHandler.fillInBTTooltip(document.tooltipNode)">
     <vbox id="btTooltipTextBox" flex="1">
-      <label id="btTitleText" />
-      <label id="btUrlText" />
+      <label id="btTitleText" class="tooltip-label" />
+      <label id="btUrlText" class="tooltip-label" />
     </vbox>
   </tooltip>
 
@@ -279,7 +280,7 @@
           <observes element="Browser:Forward" attribute="disabled"/>
         </toolbarbutton>
         <toolbarbutton id="back-forward-dropmarker" type="menu" chromedir="&locale.dir;"
-                       disabled="true">
+                       disabled="true" tooltiptext="&backForwardMenu.tooltip;">
           <!-- bug 415444: event.stopPropagation is here for the cloned version of
                this menupopup -->
           <menupopup context=""
@@ -321,7 +322,6 @@
                  showcommentcolumn="true"
                  showimagecolumn="true"
                  enablehistory="true"
-                 timeout="100"
                  maxrows="6"
                  newlines="stripsurroundingwhitespace"
                  oninput="URLBarOnInput(event);"
@@ -337,6 +337,7 @@
                We only add the identity-box button to the tab order when the location bar
                has focus, otherwise pressing F6 focuses it instead of the location bar -->
           <box id="identity-box" role="button"
+               chromedir="&locale.dir;"
                onclick="getIdentityHandler().handleIdentityButtonEvent(event);"
                onkeypress="getIdentityHandler().handleIdentityButtonEvent(event);">
             <hbox align="center">
@@ -502,7 +503,7 @@
         <image id="sidebar-throbber"/>
         <toolbarbutton class="tabs-closebutton" tooltiptext="&sidebarCloseButton.tooltip;" oncommand="toggleSidebar();"/>
       </sidebarheader>
-      <browser id="sidebar" flex="1" autoscroll="false"
+      <browser id="sidebar" flex="1" autoscroll="false" disablehistory="true"
                 style="min-width: 14em; width: 18em; max-width: 36em;"/>
     </vbox>
 

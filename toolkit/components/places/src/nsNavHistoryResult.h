@@ -189,7 +189,7 @@ public:
 
   nsTArray<nsNavHistoryQueryResultNode*> mHistoryObservers;
   nsTArray<nsNavHistoryQueryResultNode*> mAllBookmarksObservers;
-  typedef nsTArray<nsNavHistoryFolderResultNode*> FolderObserverList;
+  typedef nsTArray<nsRefPtr<nsNavHistoryFolderResultNode> > FolderObserverList;
   nsDataHashtable<nsTrimInt64HashKey, FolderObserverList* > mBookmarkFolderObservers;
   FolderObserverList* BookmarkFolderObserversForId(PRInt64 aFolderId, PRBool aCreate);
 
@@ -383,7 +383,7 @@ public:
     return reinterpret_cast<nsNavHistoryQueryResultNode*>(this);
   }
 
-  nsNavHistoryContainerResultNode* mParent;
+  nsRefPtr<nsNavHistoryContainerResultNode> mParent;
   nsCString mURI; // not necessarily valid for containers, call GetUri
   nsCString mTitle;
   nsString mTags;
@@ -706,6 +706,7 @@ public:
   NS_DECL_NSINAVHISTORYQUERYRESULTNODE
 
   PRBool CanExpand();
+  PRBool IsContainersQuery();
 
   virtual nsresult OpenContainer();
 
@@ -723,6 +724,9 @@ public:
   PRUint32 mLiveUpdate; // one of QUERYUPDATE_* in nsNavHistory.h
   PRBool mHasSearchTerms;
   nsresult VerifyQueriesParsed();
+
+  // safe options getter, ensures queries are parsed
+  nsNavHistoryQueryOptions* Options();
 
   // this indicates whether the query contents are valid, they don't go away
   // after the container is closed until a notification comes in
@@ -752,6 +756,8 @@ public:
                                nsNavHistoryQueryOptions* options,
                                PRInt64 aFolderId,
                                const nsACString& aDynamicContainerType);
+
+  virtual ~nsNavHistoryFolderResultNode();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_COMMON_RESULTNODE_TO_BASE_NO_GETITEMMID
@@ -798,6 +804,10 @@ public:
 
   nsNavHistoryResultNode* FindChildById(PRInt64 aItemId,
                                         PRUint32* aNodeIndex);
+
+private:
+
+  PRBool mIsRegisteredFolderObserver;
 };
 
 // nsNavHistorySeparatorResultNode

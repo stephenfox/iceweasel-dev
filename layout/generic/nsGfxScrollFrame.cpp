@@ -253,7 +253,9 @@ struct ScrollReflowState {
   ScrollReflowState(nsIScrollableFrame* aFrame,
                     const nsHTMLReflowState& aState) :
     mReflowState(aState),
-    mBoxState(aState.frame->PresContext(), aState.rendContext),
+    // mBoxState is just used for scrollbars so we don't need to
+    // worry about the reflow depth here
+    mBoxState(aState.frame->PresContext(), aState.rendContext, 0),
     mStyles(aFrame->GetScrollbarStyles()) {
   }
 };
@@ -380,13 +382,14 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
                                                                                 
   if (!aForce) {
     nsRect scrolledRect = mInner.GetScrolledRect(scrollPortSize);
+    nscoord oneDevPixel = aState->mBoxState.PresContext()->DevPixelsToAppUnits(1);
 
     // If the style is HIDDEN then we already know that aAssumeHScroll is PR_FALSE
     if (aState->mStyles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN) {
       PRBool wantHScrollbar =
         aState->mStyles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
-        scrolledRect.XMost() > scrollPortSize.width ||
-        scrolledRect.x < 0;
+        scrolledRect.XMost() >= scrollPortSize.width + oneDevPixel ||
+        scrolledRect.x <= -oneDevPixel;
       if (aState->mInsideBorderSize.height < hScrollbarMinSize.height ||
           scrollPortSize.width < hScrollbarMinSize.width)
         wantHScrollbar = PR_FALSE;
@@ -398,8 +401,8 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
     if (aState->mStyles.mVertical != NS_STYLE_OVERFLOW_HIDDEN) {
       PRBool wantVScrollbar =
         aState->mStyles.mVertical == NS_STYLE_OVERFLOW_SCROLL ||
-        scrolledRect.YMost() > scrollPortSize.height ||
-        scrolledRect.y < 0;
+        scrolledRect.YMost() >= scrollPortSize.height + oneDevPixel ||
+        scrolledRect.y <= -oneDevPixel;
       if (aState->mInsideBorderSize.width < vScrollbarMinSize.width ||
           scrollPortSize.height < vScrollbarMinSize.height)
         wantVScrollbar = PR_FALSE;
@@ -706,7 +709,9 @@ nsHTMLScrollFrame::GetIntrinsicVScrollbarWidth(nsIRenderingContext *aRenderingCo
   if (ss.mVertical != NS_STYLE_OVERFLOW_SCROLL || !mInner.mVScrollbarBox)
     return 0;
 
-  nsBoxLayoutState bls(PresContext(), aRenderingContext);
+  // Don't need to worry about reflow depth here since it's
+  // just for scrollbars
+  nsBoxLayoutState bls(PresContext(), aRenderingContext, 0);
   nsSize vScrollbarPrefSize(0, 0);
   GetScrollbarMetrics(bls, mInner.mVScrollbarBox,
                       nsnull, &vScrollbarPrefSize, PR_TRUE);
@@ -1697,7 +1702,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   if (canHaveHorizontal) {
     rv = NS_NewElement(getter_AddRefs(mHScrollbarContent),
-                       kNameSpaceID_XUL, nodeInfo);
+                       kNameSpaceID_XUL, nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orient,
                                 NS_LITERAL_STRING("horizontal"), PR_FALSE);
@@ -1707,7 +1712,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   if (canHaveVertical) {
     rv = NS_NewElement(getter_AddRefs(mVScrollbarContent),
-                       kNameSpaceID_XUL, nodeInfo);
+                       kNameSpaceID_XUL, nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orient,
                                 NS_LITERAL_STRING("vertical"), PR_FALSE);
@@ -1719,7 +1724,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     nodeInfoManager->GetNodeInfo(nsGkAtoms::scrollcorner, nsnull,
                                  kNameSpaceID_XUL, getter_AddRefs(nodeInfo));
     rv = NS_NewElement(getter_AddRefs(mScrollCornerContent),
-                       kNameSpaceID_XUL, nodeInfo);
+                       kNameSpaceID_XUL, nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     if (!aElements.AppendElement(mScrollCornerContent))
       return NS_ERROR_OUT_OF_MEMORY;

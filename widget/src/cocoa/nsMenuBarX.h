@@ -44,7 +44,6 @@
 #include "nsIMutationObserver.h"
 #include "nsCOMArray.h"
 #include "nsHashtable.h"
-#include "nsTHashtable.h"
 #include "nsWeakReference.h"
 #include "nsIContent.h"
 
@@ -66,7 +65,21 @@ namespace MenuHelpersX
   NSString* CreateTruncatedCocoaLabel(const nsString& itemLabel);
   PRUint8 GeckoModifiersForNodeAttribute(const nsString& modifiersAttribute);
   unsigned int MacModifiersForGeckoModifiers(PRUint8 geckoModifiers);
+  nsIMenuBar* GetHiddenWindowMenuBar();
+  NSMenuItem* GetStandardEditMenuItem();
 }
+
+
+// Objective-C class used to allow us to have keyboard commands
+// look like they are doing something but actually do nothing.
+// We allow mouse actions to work normally.
+@interface GeckoNSMenu : NSMenu
+{
+}
+- (BOOL)performKeyEquivalent:(NSEvent *)theEvent;
+- (void)actOnKeyEquivalent:(NSEvent *)theEvent;
+- (void)performMenuUserInterfaceEffectsForEvent:(NSEvent*)theEvent;
+@end
 
 
 // Objective-C class used as action target for menu items
@@ -75,84 +88,6 @@ namespace MenuHelpersX
 }
 -(IBAction)menuItemHit:(id)sender;
 @end
-
-
-struct CocoaKeyEquivContainer {
-  CocoaKeyEquivContainer(const unsigned int modifiers, const NSString* string)
-  {
-    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-    mModifiers = modifiers;
-    mString = [string retain];
-
-    NS_OBJC_END_TRY_ABORT_BLOCK;
-  }
-  
-  ~CocoaKeyEquivContainer()
-  {
-    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-    [mString release];
-
-    NS_OBJC_END_TRY_ABORT_BLOCK;
-  }
-  
-  CocoaKeyEquivContainer(const CocoaKeyEquivContainer& other)
-  {
-    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-    mModifiers = other.mModifiers;
-    mString = [other.mString retain];
-
-    NS_OBJC_END_TRY_ABORT_BLOCK;
-  }
-  
-  CocoaKeyEquivContainer& operator=(CocoaKeyEquivContainer& other)
-  {
-    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-    mModifiers = other.mModifiers;
-    if (mString)
-      [mString release];
-    mString = [other.mString retain];
-    return *this;
-
-    NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(*this);
-  }
-  
-  unsigned int mModifiers;
-  NSString* mString;
-};
-
-
-struct CocoaKeyEquivKey : public PLDHashEntryHdr {
-  typedef const CocoaKeyEquivContainer& KeyType;
-  typedef const CocoaKeyEquivContainer* KeyTypePointer;
-  
-  CocoaKeyEquivKey(KeyTypePointer aObj) : mObj(*aObj) { }
-  CocoaKeyEquivKey(const CocoaKeyEquivKey& other) : mObj(other.mObj) { }
-  ~CocoaKeyEquivKey() { }
-  
-  KeyType GetKey() const { return mObj; }
-  
-  PRBool KeyEquals(KeyTypePointer aKey) const {
-    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-    return aKey->mModifiers == mObj.mModifiers &&
-    [aKey->mString isEqualToString:mObj.mString];
-
-    NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(PR_FALSE);
-  }
-  
-  static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
-  static PLDHashNumber HashKey(KeyTypePointer aKey) {
-    return [aKey->mString hash] ^ aKey->mModifiers;
-  }
-  enum { ALLOW_MEMMOVE = PR_FALSE };
-private:
-  const CocoaKeyEquivContainer mObj;
-};
-
 
 
 //
@@ -170,7 +105,7 @@ public:
     // |NSMenuItem|s target Objective-C objects
     static NativeMenuItemTarget* sNativeEventTarget;
     
-    static NSWindow* sEventTargetWindow;
+    static nsMenuBarX* sLastGeckoMenuBarPainted;
     
     NS_DECL_ISUPPORTS
 
@@ -191,52 +126,37 @@ public:
     NS_IMETHOD Paint();
     NS_IMETHOD SetNativeData(void* aData);
     NS_IMETHOD MenuConstruct(const nsMenuEvent & aMenuEvent, nsIWidget * aParentWindow, void * aMenuNode);
-    PRBool ContainsKeyEquiv(unsigned int modifiers, NSString* string);
 
     PRUint32 RegisterForCommand(nsIMenuItem* aItem);
     void UnregisterCommand(PRUint32 aCommandID);
+    nsIMenuItem* GetMenuItemForCommandID(PRUint32 inCommandID);
 
     void RegisterForContentChanges(nsIContent* aContent, nsChangeObserver* aMenuObject);
     void UnregisterForContentChanges(nsIContent* aContent);
     nsChangeObserver* LookupContentChangeObserver(nsIContent* aContent);
 
-    void RegisterKeyEquivalent(unsigned int modifiers, NSString* string);
-    void UnregisterKeyEquivalent(unsigned int modifiers, NSString* string);
+    nsCOMPtr<nsIContent>    mAboutItemContent;    // holds the content node for the about item that has
+                                                  //   been removed from the menubar
+    nsCOMPtr<nsIContent>    mPrefItemContent;     // as above, but for prefs
+    nsCOMPtr<nsIContent>    mQuitItemContent;     // as above, but for quit
 protected:
     // Make our menubar conform to Aqua UI guidelines
     void AquifyMenuBar();
     void HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsIContent** outHiddenNode);
-    OSStatus InstallCommandEventHandler();
 
-    // command handler for some special menu items (prefs/quit/etc)
-    pascal static OSStatus CommandEventHandler(EventHandlerCallRef inHandlerChain, 
-                                               EventRef inEvent, void* userData);
-    nsEventStatus ExecuteCommand(nsIContent* inDispatchTo);
-    
     // build the Application menu shared by all menu bars.
     NSMenuItem* CreateNativeAppMenuItem(nsIMenu* inMenu, const nsAString& nodeID, SEL action,
                                                     int tag, NativeMenuItemTarget* target);
     nsresult CreateApplicationMenu(nsIMenu* inMenu);
 
-    nsHashtable             mObserverTable;       // stores observers for content change notification
-
     nsCOMArray<nsIMenu>     mMenusArray;          // holds refs
     nsCOMPtr<nsIContent>    mMenuBarContent;      // menubar content node, strong ref
-    nsCOMPtr<nsIContent>    mAboutItemContent;    // holds the content node for the about item that has
-                                                  //   been removed from the menubar
-    nsCOMPtr<nsIContent>    mPrefItemContent;     // as above, but for prefs
-    nsCOMPtr<nsIContent>    mQuitItemContent;     // as above, but for quit
     nsIWidget*              mParent;              // weak ref
     PRBool                  mIsMenuBarAdded;
     PRUint32                mCurrentCommandID;    // unique command id (per menu-bar) to give to next item that asks
-
     nsIDocument*            mDocument;            // pointer to document
-
-    NSMenu*                 mRootMenu;            // root menu, representing entire menu bar
-
-    nsTHashtable<CocoaKeyEquivKey> mKeyEquivTable;
-
-    static EventHandlerUPP  sCommandEventHandler; // carbon event handler for commands, shared
+    GeckoNSMenu*            mRootMenu;            // root menu, representing entire menu bar
+    nsHashtable             mObserverTable;       // stores observers for content change notification
 };
 
 #endif // nsMenuBarX_h_

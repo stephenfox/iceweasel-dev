@@ -39,7 +39,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.50 2008/02/13 15:29:12 kaie%kuix.de Exp $
+ * $Id: ocsp.c,v 1.50.6.1 2008/05/28 18:03:11 kaie%kuix.de Exp $
  */
 
 #include "prerror.h"
@@ -1516,10 +1516,11 @@ loser:
 SECStatus
 CERT_DestroyOCSPCertID(CERTOCSPCertID* certID)
 {
-    if (certID->poolp) {
+    if (certID && certID->poolp) {
 	PORT_FreeArena(certID->poolp, PR_FALSE);
 	return SECSuccess;
     }
+    PORT_SetError(SEC_ERROR_INVALID_ARGS);
     return SECFailure;
 }
 

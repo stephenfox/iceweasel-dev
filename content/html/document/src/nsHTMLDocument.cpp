@@ -140,6 +140,7 @@
 #include "nsIEditorStyleSheets.h"
 #include "nsIInlineSpellChecker.h"
 #include "nsRange.h"
+#include "mozAutoDocUpdate.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
@@ -649,7 +650,7 @@ nsHTMLDocument::TryBookmarkCharset(nsIDocShell* aDocShell,
                                                   &wantCharset,
                                                   getter_AddRefs(closure),
                                                   charset);
-  // FIXME: Bug 337790
+  // FIXME: Bug 337970
   NS_ASSERTION(!wantCharset, "resolved charset notification not implemented!");
 
   if (NS_SUCCEEDED(rv) && !charset.IsEmpty()) {
@@ -3961,8 +3962,19 @@ static PRBool HasPresShell(nsPIDOMWindow *aWindow)
 }
 
 nsresult
+nsHTMLDocument::SetEditingState(EditingState aState)
+{
+  mEditingState = aState;
+  return NS_OK;
+}
+
+nsresult
 nsHTMLDocument::EditingStateChanged()
 {
+  if (mRemovedFromDocShell) {
+    return NS_OK;
+  }
+
   if (mEditingState == eSettingUp || mEditingState == eTearingDown) {
     // XXX We shouldn't recurse.
     return NS_OK;

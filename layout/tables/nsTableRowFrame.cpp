@@ -545,9 +545,9 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
  * Table row backgrounds can extend beyond the row frame bounds, when
  * the row contains row-spanning cells.
  */
-class nsDisplayTableRowBackground : public nsDisplayItem {
+class nsDisplayTableRowBackground : public nsDisplayTableItem {
 public:
-  nsDisplayTableRowBackground(nsTableRowFrame* aFrame) : nsDisplayItem(aFrame) {
+  nsDisplayTableRowBackground(nsTableRowFrame* aFrame) : nsDisplayTableItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayTableRowBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -556,13 +556,6 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
-    // the overflow rect contains any row-spanning cells, so it contains
-    // our background. Note that this means we may not be opaque even if
-    // the background style is a solid color.
-    return static_cast<nsTableRowFrame*>(mFrame)->GetOverflowRect() +
-      aBuilder->ToReferenceFrame(mFrame);
-  }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("TableRowBackground")
@@ -590,6 +583,7 @@ nsTableRowFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
+  nsDisplayTableItem* item = nsnull;
   if (isRoot) {
     // This background is created regardless of whether this frame is
     // visible or not. Visibility decisions are delegated to the
@@ -597,12 +591,12 @@ nsTableRowFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // We would use nsDisplayGeneric for this rare case except that we
     // need the background to be larger than the row frame in some
     // cases.
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayTableRowBackground(this));
+    item = new (aBuilder) nsDisplayTableRowBackground(this);
+    nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   
-  return nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, isRoot);
+  return nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, item);
 }
 
 PRIntn
@@ -804,7 +798,8 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
   PRInt32 prevColIndex  = firstPrevColIndex;
   nscoord x = 0; // running total of children x offset
 
-  nscoord paginatedHeight = 0;
+  // This computes the max of all cell heights
+  nscoord cellMaxHeight = 0;
 
   // Reflow each of our existing cell frames
   for (nsIFrame* kidFrame = iter.First(); kidFrame; kidFrame = iter.Next()) {
@@ -952,10 +947,10 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         UpdateHeight(desiredSize.height, ascent, descent, &aTableFrame, cellFrame);
       }
       else {
-        paginatedHeight = PR_MAX(paginatedHeight, desiredSize.height);
+        cellMaxHeight = PR_MAX(cellMaxHeight, desiredSize.height);
         PRInt32 rowSpan = aTableFrame.GetEffectiveRowSpan((nsTableCellFrame&)*kidFrame);
         if (1 == rowSpan) {
-          SetContentHeight(paginatedHeight);
+          SetContentHeight(cellMaxHeight);
         }
       }
 
@@ -1016,12 +1011,14 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
     }
   }
   else { // constrained height, paginated
-    aDesiredSize.height = paginatedHeight;
-    if (aDesiredSize.height <= aReflowState.availableHeight) {
-      nscoord height = CalcHeightFromUnpaginatedHeight(aPresContext, *this);
-      aDesiredSize.height = PR_MAX(aDesiredSize.height, height);
-      aDesiredSize.height = PR_MIN(aDesiredSize.height, aReflowState.availableHeight);
+    // Compute the height we should have from style (subtracting the
+    // height from our prev-in-flows from the style height)
+    nscoord styleHeight = CalcHeightFromUnpaginatedHeight(aPresContext, *this);
+    if (styleHeight > aReflowState.availableHeight) {
+      styleHeight = aReflowState.availableHeight;
+      NS_FRAME_SET_INCOMPLETE(aStatus);
     }
+    aDesiredSize.height = PR_MAX(cellMaxHeight, styleHeight);
   }
   nsRect rowRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   aDesiredSize.mOverflowArea.UnionRect(aDesiredSize.mOverflowArea, rowRect);
@@ -1066,7 +1063,7 @@ nsTableRowFrame::Reflow(nsPresContext*          aPresContext,
 
   // If our parent is in initial reflow, it'll handle invalidating our
   // entire overflow rect.
-  if (!GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW) {
+  if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     CheckInvalidateSizeChange(aPresContext, aDesiredSize, aReflowState);
   }
 

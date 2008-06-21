@@ -204,10 +204,10 @@ pkix_OcspChecker_Check(
                         }
                         goto cleanup;
                 }
-
                 PKIX_INCREF(cert);
+                PKIX_DECREF(checker->cert);
                 checker->cert = cert;
-                
+
                 /* create request */
                 PKIX_CHECK(pkix_pl_OcspRequest_Create
                         (cert,
@@ -288,7 +288,11 @@ pkix_OcspChecker_Check(
                 PKIX_OCSPRESPONSEGETSTATUSFORCERTFAILED);
 
 cleanup:
-        if (!passed && cid) {
+        if (!passed && cid && cid->certID && !cid->certIDWasConsumed) {
+                /* We still own the certID object, which means that 
+                 * it did not get consumed to create a cache entry.
+                 * Let's make sure we create one.
+                 */
                 PKIX_Error *err;
                 err = PKIX_PL_OcspCertID_RememberOCSPProcessingFailure(
                         cid, plContext);
@@ -301,7 +305,9 @@ cleanup:
 
         PKIX_DECREF(cid);
         PKIX_DECREF(request);
-        PKIX_DECREF(checker->response);
+        if (checker) {
+            PKIX_DECREF(checker->response);
+        }
 
         PKIX_RETURN(OCSPCHECKER);
 

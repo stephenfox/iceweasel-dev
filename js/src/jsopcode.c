@@ -617,7 +617,7 @@ struct JSPrinter {
     JSScript        *script;        /* script being printed */
     jsbytecode      *dvgfence;      /* DecompileExpression fencepost */
     jsbytecode      **pcstack;      /* DecompileExpression modelled stack */
-    JSScriptedFunction *fun;        /* interpreted function */
+    JSFunction      *fun;           /* interpreted function */
     jsuword         *localNames;    /* argument and variable names */
 };
 
@@ -630,7 +630,8 @@ struct JSPrinter {
 #define JS_IN_GROUP_CONTEXT 0x10000
 
 JSPrinter *
-JS_NEW_PRINTER(JSContext *cx, const char *name, uintN indent, JSBool pretty)
+JS_NEW_PRINTER(JSContext *cx, const char *name,  JSFunction *fun,
+               uintN indent, JSBool pretty)
 {
     JSPrinter *jp;
 
@@ -645,8 +646,15 @@ JS_NEW_PRINTER(JSContext *cx, const char *name, uintN indent, JSBool pretty)
     jp->script = NULL;
     jp->dvgfence = NULL;
     jp->pcstack = NULL;
+    jp->fun = fun;
     jp->localNames = NULL;
-    jp->fun = NULL;
+    if (fun && FUN_INTERPRETED(fun) && JS_GET_LOCAL_NAME_COUNT(fun)) {
+        jp->localNames = js_GetLocalNameArray(cx, fun, &jp->pool);
+        if (!jp->localNames) {
+            js_DestroyPrinter(jp);
+            return NULL;
+        }
+    }
     return jp;
 }
 
@@ -655,21 +663,6 @@ js_DestroyPrinter(JSPrinter *jp)
 {
     JS_FinishArenaPool(&jp->pool);
     JS_free(jp->sprinter.context, jp);
-}
-
-static JSBool
-InitFunctionPrinter(JSPrinter *jp, JSScriptedFunction *fun)
-{
-    JS_ASSERT(!jp->fun);
-    JS_ASSERT(!jp->localNames);
-    if (JS_GET_LOCAL_NAME_COUNT(fun) != 0) {
-        jp->localNames = js_GetLocalNameArray(jp->sprinter.context, fun,
-                                              &jp->pool);
-        if (!jp->localNames)
-            return JS_FALSE;
-    }
-    jp->fun = fun;
-    return JS_TRUE;
 }
 
 JSString *
@@ -796,7 +789,7 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *pc,
  * decompiled string on success.
  */
 static char *
-DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
+DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
                     jsbytecode *pc);
 
 /*
@@ -1136,15 +1129,17 @@ DecompileSwitch(SprintStack *ss, TableEntry *table, uintN tableLength,
 static JSAtom *
 GetSlotAtom(JSPrinter *jp, JSBool argument, uintN slot)
 {
+    JSFunction *fun;
     JSAtom *name;
 
+    fun = jp->fun;
     LOCAL_ASSERT_RV(jp->fun, NULL);
     LOCAL_ASSERT_RV(jp->localNames, NULL);
     if (argument) {
-        LOCAL_ASSERT_RV(slot < jp->fun->nargs, NULL);
+        LOCAL_ASSERT_RV(slot < fun->nargs, NULL);
     } else {
-        LOCAL_ASSERT_RV(slot < jp->fun->nvars, NULL);
-        slot += jp->fun->nargs;
+        LOCAL_ASSERT_RV(slot < fun->u.i.nvars, NULL);
+        slot += fun->nargs;
     }
     name = JS_LOCAL_NAME_TO_ATOM(jp->localNames[slot]);
 #if !JS_HAS_DESTRUCTURING
@@ -1636,7 +1631,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
     char **argv;
     JSAtom *atom;
     JSObject *obj;
-    JSScriptedFunction *fun;
+    JSFunction *fun;
     JSString *str;
     JSBool ok;
 #if JS_HAS_XML_SUPPORT
@@ -1705,7 +1700,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
     GET_OBJECT_FROM_BYTECODE(jp->script, pc, PCOFF, obj)
 
 #define LOAD_FUNCTION(PCOFF)                                                  \
-    GET_FUNCTION_FROM_BYTECODE(jp->script, pc, PCOFF, obj)
+    GET_FUNCTION_FROM_BYTECODE(jp->script, pc, PCOFF, fun)
 
 #define LOAD_REGEXP(PCOFF)                                                    \
     GET_REGEXP_FROM_BYTECODE(jp->script, pc, PCOFF, obj)
@@ -1835,9 +1830,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                                      : JSOP_GETELEM);
                     } else {
                         /*
-                         * Zero mode means precisely that op is uncategorized
-                         * for our purposes, so we must write per-op special
-                         * case code here.
+                         * Unknown mode (including mode 0) means that op is
+                         * uncategorized for our purposes, so we must write
+                         * per-op special case code here.
                          */
                         switch (op) {
                           case JSOP_ENUMELEM:
@@ -1849,6 +1844,22 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                             op = JSOP_CALL;
                             break;
 #endif
+                          case JSOP_GETTHISPROP:
+                            /*
+                             * NB: JSOP_GETTHISPROP can't fail due to |this|
+                             * being null or undefined at runtime (beware that
+                             * this may change for ES4). Therefore any error
+                             * resulting from this op must be due to the value
+                             * of the property accessed via |this|, so do not
+                             * rewrite op to JSOP_THIS.
+                             *
+                             * The next three cases should not change op if
+                             * js_DecompileValueGenerator was called from the
+                             * the property getter. They should rewrite only
+                             * if the base object in the arg/var/local is null
+                             * or undefined. FIXME: bug 431569.
+                             */
+                            break;
                           case JSOP_GETARGPROP:
                             op = JSOP_GETARG;
                             break;
@@ -2021,16 +2032,16 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     break;
 
                   case SRC_FUNCDEF:
-                    JS_GET_SCRIPT_OBJECT(jp->script, js_GetSrcNoteOffset(sn, 0),
-                                         obj);
+                    JS_GET_SCRIPT_FUNCTION(jp->script,
+                                           js_GetSrcNoteOffset(sn, 0),
+                                           fun);
                   do_function:
                     js_puts(jp, "\n");
-                    jp2 = JS_NEW_PRINTER(cx, "nested_function",
+                    jp2 = JS_NEW_PRINTER(cx, "nested_function", fun,
                                          jp->indent, jp->pretty);
                     if (!jp2)
                         return NULL;
-                    fun = FUN_TO_SCRIPTED(OBJ_TO_FUNCTION(obj));
-                    ok = js_DecompileFunction(jp2, fun);
+                    ok = js_DecompileFunction(jp2);
                     if (ok && jp2->sprinter.base)
                         js_puts(jp, jp2->sprinter.base);
                     js_DestroyPrinter(jp2);
@@ -3772,8 +3783,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     SprintStack ss2;
 
                     LOAD_FUNCTION(0);
-                    fun = FUN_TO_SCRIPTED(OBJ_TO_FUNCTION(obj));
-                    inner = fun->script;
+                    inner = fun->u.i.script;
 
                     /*
                      * All allocation when decompiling is LIFO, using malloc
@@ -3888,11 +3898,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      * parenthesization without confusing getter/setter code
                      * that checks for JSOP_ANONFUNOBJ and JSOP_NAMEDFUNOBJ.
                      */
-                    fun = FUN_TO_SCRIPTED(OBJ_TO_FUNCTION(obj));
                     if (!(fun->flags & JSFUN_EXPR_CLOSURE))
                         indent |= JS_IN_GROUP_CONTEXT;
-                    str = JS_DecompileFunction(cx, OBJ_TO_FUNCTION(obj),
-                                               indent);
+                    str = JS_DecompileFunction(cx, fun, indent);
                     if (!str)
                         return NULL;
                 }
@@ -4569,6 +4577,7 @@ DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, uintN len,
     void *mark;
     JSBool ok;
     JSScript *oldscript;
+    jsbytecode *oldcode, *oldmain, *code;
     char *last;
 
     depth = script->depth;
@@ -4603,11 +4612,25 @@ DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, uintN len,
     /* Call recursive subroutine to do the hard work. */
     oldscript = jp->script;
     jp->script = script;
+    oldcode = jp->script->code;
+    oldmain = jp->script->main;
+    code = js_UntrapScriptCode(cx, jp->script);
+    if (code != oldcode) {
+        jp->script->code = code;
+        jp->script->main = code + (oldmain - oldcode);
+        pc = code + (pc - oldcode);
+    }
+
     ok = Decompile(&ss, pc, len, JSOP_NOP) != NULL;
+    if (code != oldcode) {
+        JS_free(cx, jp->script->code);
+        jp->script->code = oldcode;
+        jp->script->main = oldmain;
+    }
     jp->script = oldscript;
 
     /* If the given code didn't empty the stack, do it now. */
-    if (ss.top) {
+    if (ok && ss.top) {
         do {
             last = OFF2STR(&ss.sprinter, PopOff(&ss, JSOP_POP));
         } while (ss.top > pcdepth);
@@ -4620,83 +4643,55 @@ out:
     return ok;
 }
 
-static const char native_code_str[] = "\t[native code]\n";
-
-JSBool
-js_DecompileNativeFunction(JSPrinter *jp, JSNativeFunction *fun)
-{
-    if (jp->pretty)
-        js_printf(jp, "\t");
-    if (JSFUN_GETTER_TEST(fun->flags))
-        js_printf(jp, "%s ", js_getter_str);
-    else if (JSFUN_SETTER_TEST(fun->flags))
-        js_printf(jp, "%s ", js_setter_str);
-
-    js_printf(jp, "%s ", js_function_str);
-    if (fun->atom && !QuoteString(&jp->sprinter, ATOM_TO_STRING(fun->atom), 0))
-        return JS_FALSE;
-    js_printf(jp, "() {\n");
-    jp->indent += 4;
-    js_printf(jp, native_code_str);
-    jp->indent -= 4;
-    js_printf(jp, "\t}");
-
-    return JS_TRUE;
-}
-
-JSBool
-js_DecompileNativeFunctionBody(JSPrinter *jp, JSNativeFunction *fun)
-{
-    js_printf(jp, native_code_str);
-    return JS_TRUE;
-}
-
 JSBool
 js_DecompileScript(JSPrinter *jp, JSScript *script)
 {
     return DecompileCode(jp, script, script->code, (uintN)script->length, 0);
 }
 
+static const char native_code_str[] = "\t[native code]\n";
+
 JSBool
-js_DecompileFunctionBody(JSPrinter *jp, JSScriptedFunction *fun)
+js_DecompileFunctionBody(JSPrinter *jp)
 {
     JSScript *script;
 
+    JS_ASSERT(jp->fun);
     JS_ASSERT(!jp->script);
-    JS_ASSERT(!jp->fun);
-    if (!InitFunctionPrinter(jp, fun))
-        return JS_FALSE;
-    script = fun->script;
+    if (!FUN_INTERPRETED(jp->fun)) {
+        js_printf(jp, native_code_str);
+        return JS_TRUE;
+    }
+
+    script = jp->fun->u.i.script;
     return DecompileCode(jp, script, script->code, (uintN)script->length, 0);
 }
 
 JSBool
-js_DecompileFunction(JSPrinter *jp, JSScriptedFunction *fun)
+js_DecompileFunction(JSPrinter *jp)
 {
+    JSFunction *fun;
     uintN i;
     JSAtom *param;
     jsbytecode *pc, *endpc;
     ptrdiff_t len;
     JSBool ok;
-#ifdef JS_HAS_DESTRUCTURING
-    SprintStack ss;
-    void *mark;
-#endif
 
+    fun = jp->fun;
+    JS_ASSERT(fun);
     JS_ASSERT(!jp->script);
-    if (!InitFunctionPrinter(jp, fun))
-        return JS_FALSE;
 
     /*
      * If pretty, conform to ECMA-262 Edition 3, 15.3.4.2, by decompiling a
      * FunctionDeclaration.  Otherwise, check the JSFUN_LAMBDA flag and force
      * an expression by parenthesizing.
      */
-    if (jp->pretty)
+    if (jp->pretty) {
         js_printf(jp, "\t");
-    else if (!jp->grouped && (fun->flags & JSFUN_LAMBDA))
-        js_puts(jp, "(");
-
+    } else {
+        if (!jp->grouped && (fun->flags & JSFUN_LAMBDA))
+            js_puts(jp, "(");
+    }
     if (JSFUN_GETTER_TEST(fun->flags))
         js_printf(jp, "%s ", js_getter_str);
     else if (JSFUN_SETTER_TEST(fun->flags))
@@ -4707,89 +4702,102 @@ js_DecompileFunction(JSPrinter *jp, JSScriptedFunction *fun)
         return JS_FALSE;
     js_puts(jp, "(");
 
-    /* Print the parameters. */
-    pc = fun->script->main;
-    endpc = pc + fun->script->length;
-    ok = JS_TRUE;
-
+    if (!FUN_INTERPRETED(fun)) {
+        js_printf(jp, ") {\n");
+        jp->indent += 4;
+        js_printf(jp, native_code_str);
+        jp->indent -= 4;
+        js_printf(jp, "\t}");
+    } else {
 #ifdef JS_HAS_DESTRUCTURING
-    /* Skip JSOP_GENERATOR in case of destructuring parameters. */
-    if (*pc == JSOP_GENERATOR)
-        pc += JSOP_GENERATOR_LENGTH;
-
-    ss.printer = NULL;
-    jp->script = fun->script;
-    mark = JS_ARENA_MARK(&jp->sprinter.context->tempPool);
+        SprintStack ss;
+        void *mark;
 #endif
 
-    for (i = 0; i < fun->nargs; i++) {
-        if (i > 0)
-            js_puts(jp, ", ");
+        /* Print the parameters. */
+        pc = fun->u.i.script->main;
+        endpc = pc + fun->u.i.script->length;
+        ok = JS_TRUE;
 
-        param = GetSlotAtom(jp, JS_TRUE, i);
+#ifdef JS_HAS_DESTRUCTURING
+        /* Skip JSOP_GENERATOR in case of destructuring parameters. */
+        if (*pc == JSOP_GENERATOR)
+            pc += JSOP_GENERATOR_LENGTH;
+
+        ss.printer = NULL;
+        jp->script = fun->u.i.script;
+        mark = JS_ARENA_MARK(&jp->sprinter.context->tempPool);
+#endif
+
+        for (i = 0; i < fun->nargs; i++) {
+            if (i > 0)
+                js_puts(jp, ", ");
+
+            param = GetSlotAtom(jp, JS_TRUE, i);
 
 #if JS_HAS_DESTRUCTURING
 #define LOCAL_ASSERT(expr)      LOCAL_ASSERT_RV(expr, JS_FALSE)
 
-        if (!param) {
-            ptrdiff_t todo;
-            const char *lval;
+            if (!param) {
+                ptrdiff_t todo;
+                const char *lval;
 
-            LOCAL_ASSERT(*pc == JSOP_GETARG);
-            pc += JSOP_GETARG_LENGTH;
-            LOCAL_ASSERT(*pc == JSOP_DUP);
-            if (!ss.printer) {
-                ok = InitSprintStack(jp->sprinter.context, &ss, jp,
-                                     fun->script->depth);
-                if (!ok)
+                LOCAL_ASSERT(*pc == JSOP_GETARG);
+                pc += JSOP_GETARG_LENGTH;
+                LOCAL_ASSERT(*pc == JSOP_DUP);
+                if (!ss.printer) {
+                    ok = InitSprintStack(jp->sprinter.context, &ss, jp,
+                                         fun->u.i.script->depth);
+                    if (!ok)
+                        break;
+                }
+                pc = DecompileDestructuring(&ss, pc, endpc);
+                if (!pc) {
+                    ok = JS_FALSE;
                     break;
+                }
+                LOCAL_ASSERT(*pc == JSOP_POP);
+                pc += JSOP_POP_LENGTH;
+                lval = PopStr(&ss, JSOP_NOP);
+                todo = SprintCString(&jp->sprinter, lval);
+                if (todo < 0) {
+                    ok = JS_FALSE;
+                    break;
+                }
+                continue;
             }
-            pc = DecompileDestructuring(&ss, pc, endpc);
-            if (!pc) {
-                ok = JS_FALSE;
-                break;
-            }
-            LOCAL_ASSERT(*pc == JSOP_POP);
-            pc += JSOP_POP_LENGTH;
-            lval = PopStr(&ss, JSOP_NOP);
-            todo = SprintCString(&jp->sprinter, lval);
-            if (todo < 0) {
-                ok = JS_FALSE;
-                break;
-            }
-            continue;
-        }
 
 #undef LOCAL_ASSERT
 #endif
 
-        if (!QuoteString(&jp->sprinter, ATOM_TO_STRING(param), 0)) {
-            ok = JS_FALSE;
-            break;
+            if (!QuoteString(&jp->sprinter, ATOM_TO_STRING(param), 0)) {
+                ok = JS_FALSE;
+                break;
+            }
         }
-    }
 
 #ifdef JS_HAS_DESTRUCTURING
-    jp->script = NULL;
-    JS_ARENA_RELEASE(&jp->sprinter.context->tempPool, mark);
+        jp->script = NULL;
+        JS_ARENA_RELEASE(&jp->sprinter.context->tempPool, mark);
 #endif
-    if (!ok)
-        return JS_FALSE;
-    if (fun->flags & JSFUN_EXPR_CLOSURE) {
-        js_printf(jp, ") ");
-    } else {
-        js_printf(jp, ") {\n");
-        jp->indent += 4;
-    }
+        if (!ok)
+            return JS_FALSE;
+        if (fun->flags & JSFUN_EXPR_CLOSURE) {
+            js_printf(jp, ") ");
+        } else {
+            js_printf(jp, ") {\n");
+            jp->indent += 4;
+        }
 
-    len = fun->script->code + fun->script->length - pc;
-    ok = DecompileCode(jp, fun->script, pc, (uintN)len, 0);
-    if (!ok)
-        return JS_FALSE;
+        len = fun->u.i.script->code + fun->u.i.script->length - pc;
+        ok = DecompileCode(jp, fun->u.i.script, pc, (uintN)len, 0);
+        if (!ok)
+            return JS_FALSE;
 
-    if (!(fun->flags & JSFUN_EXPR_CLOSURE)) {
-        jp->indent -= 4;
-        js_printf(jp, "\t}");
+        if (!(fun->flags & JSFUN_EXPR_CLOSURE)) {
+            jp->indent -= 4;
+            js_printf(jp, "\t}");
+        }
     }
 
     if (!jp->pretty && !jp->grouped && (fun->flags & JSFUN_LAMBDA))
@@ -4881,9 +4889,7 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
             goto do_fallback;
     }
 
-    name = DecompileExpression(cx, script,
-                               fp->fun ? FUN_TO_SCRIPTED(fp->fun) : NULL,
-                               pc);
+    name = DecompileExpression(cx, script, fp->fun, pc);
     if (name != FAILED_EXPRESSION_DECOMPILER)
         return name;
 
@@ -4898,9 +4904,10 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
 }
 
 static char *
-DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
+DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
                     jsbytecode *pc)
 {
+    jsbytecode *code, *oldcode, *oldmain;
     JSOp op;
     const JSCodeSpec *cs;
     jsbytecode *begin, *end;
@@ -4912,9 +4919,20 @@ DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
     char *name;
 
     JS_ASSERT(script->main <= pc && pc < script->code + script->length);
+
+    pcstack = NULL;
+    oldcode = script->code;
+    oldmain = script->main;
+
+    /* From this point the control must flow through the label out. */
+    code = js_UntrapScriptCode(cx, script);
+    if (code != oldcode) {
+        script->code = code;
+        script->main = code + (oldmain - oldcode);
+        pc = code + (pc - oldcode);
+    }
+
     op = (JSOp) *pc;
-    if (op == JSOP_TRAP)
-        op = JS_GetTrapOpcode(cx, script, pc);
 
     /* None of these stack-writing ops generates novel values. */
     JS_ASSERT(op != JSOP_CASE && op != JSOP_CASEX &&
@@ -4925,8 +4943,10 @@ DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
      * |this| could convert to a very long object initialiser, so cite it by
      * its keyword name instead.
      */
-    if (op == JSOP_THIS)
-        return JS_strdup(cx, js_this_str);
+    if (op == JSOP_THIS) {
+        name = JS_strdup(cx, js_this_str);
+        goto out;
+    }
 
     /*
      * JSOP_BINDNAME is special: it generates a value, the base object of a
@@ -4934,8 +4954,10 @@ DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
      * js_DecompileValueGenerator, the name being bound is irrelevant.  Just
      * fall back to the base object.
      */
-    if (op == JSOP_BINDNAME)
-        return FAILED_EXPRESSION_DECOMPILER;
+    if (op == JSOP_BINDNAME) {
+        name = FAILED_EXPRESSION_DECOMPILER;
+        goto out;
+    }
 
     /* NAME ops are self-contained, others require left or right context. */
     cs = &js_CodeSpec[op];
@@ -4947,8 +4969,10 @@ DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
       case JOF_XMLNAME:
       case 0:
         sn = js_GetSrcNote(script, pc);
-        if (!sn)
-            return FAILED_EXPRESSION_DECOMPILER;
+        if (!sn) {
+            name = FAILED_EXPRESSION_DECOMPILER;
+            goto out;
+        }
         switch (SN_TYPE(sn)) {
           case SRC_PCBASE:
             begin -= js_GetSrcNoteOffset(sn, 0);
@@ -4958,18 +4982,23 @@ DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
             begin += cs->length;
             break;
           default:
-            return FAILED_EXPRESSION_DECOMPILER;
+            name = FAILED_EXPRESSION_DECOMPILER;
+            goto out;
         }
         break;
       default:;
     }
     len = PTRDIFF(end, begin, jsbytecode);
-    if (len <= 0)
-        return FAILED_EXPRESSION_DECOMPILER;
+    if (len <= 0) {
+        name = FAILED_EXPRESSION_DECOMPILER;
+        goto out;
+    }
 
     pcstack = (jsbytecode **) JS_malloc(cx, script->depth * sizeof *pcstack);
-    if (!pcstack)
-        return NULL;
+    if (!pcstack) {
+        name = NULL;
+        goto out;
+    }
 
     /* From this point the control must flow through the label out. */
     pcdepth = ReconstructPCStack(cx, script, begin, pcstack);
@@ -4979,21 +5008,24 @@ DecompileExpression(JSContext *cx, JSScript *script, JSScriptedFunction *fun,
     }
 
     name = NULL;
-    jp = JS_NEW_PRINTER(cx, "js_DecompileValueGenerator", 0, JS_FALSE);
+    jp = JS_NEW_PRINTER(cx, "js_DecompileValueGenerator", fun, 0, JS_FALSE);
     if (jp) {
-        if (!fun || InitFunctionPrinter(jp, fun)) {
-            jp->dvgfence = end;
-            jp->pcstack = pcstack;
-            if (DecompileCode(jp, script, begin, (uintN) len,
-                              (uintN) pcdepth)) {
-                name = (jp->sprinter.base) ? jp->sprinter.base : (char *) "";
-                name = JS_strdup(cx, name);
-            }
+        jp->dvgfence = end;
+        jp->pcstack = pcstack;
+        if (DecompileCode(jp, script, begin, (uintN) len, (uintN) pcdepth)) {
+            name = (jp->sprinter.base) ? jp->sprinter.base : (char *) "";
+            name = JS_strdup(cx, name);
         }
         js_DestroyPrinter(jp);
     }
 
   out:
+    if (code != oldcode) {
+        JS_free(cx, script->code);
+        script->code = oldcode;
+        script->main = oldmain;
+    }
+
     JS_free(cx, pcstack);
     return name;
 }
@@ -5195,7 +5227,10 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *pc,
             JS_ASSERT(ndefs == 0);
             LOCAL_ASSERT(pcdepth >= 1);
             LOCAL_ASSERT(nuses == 0 ||
-                         *pcstack[pcdepth - 1] == JSOP_ENTERBLOCK);
+                         *pcstack[pcdepth - 1] == JSOP_ENTERBLOCK ||
+                         (*pcstack[pcdepth - 1] == JSOP_TRAP &&
+                          JS_GetTrapOpcode(cx, script, pcstack[pcdepth - 1])
+                          == JSOP_ENTERBLOCK));
             pcstack[pcdepth - 1] = pc;
             break;
         }

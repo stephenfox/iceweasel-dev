@@ -100,11 +100,18 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_menu.xul \
 		test_menu_hide.xul \
 		test_focus.xul \
+		test_tabindex.xul \
+		test_scrollbar.xul \
+		test_sorttemplate.xul \
 		$(NULL)
 
 ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 _TEST_FILES += test_menubar.xul \
                window_menubar.xul
+endif
+
+ifeq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
+_TEST_FILES += test_contextmenu_list.xul 
 endif
 
 libs:: $(_TEST_FILES)

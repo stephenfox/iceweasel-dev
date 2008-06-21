@@ -48,6 +48,7 @@
 #include "nsAutoPtr.h"
 #include "nsISupports.h"
 #include "nsBaseWidget.h"
+#include "nsIPluginInstanceOwner.h"
 #include "nsIPluginWidget.h"
 #include "nsIScrollableView.h"
 #include "nsWeakPtr.h"
@@ -112,8 +113,8 @@ union nsPluginPort;
   NSPoint mHandScrollStartMouseLoc;
   nscoord mHandScrollStartScrollX, mHandScrollStartScrollY;
   
-  // when menuForEvent: is called, we store its event here (strong)
-  NSEvent* mLastMenuForEventEvent;
+  // when mouseDown: is called, we store its event here (strong)
+  NSEvent* mLastMouseDownEvent;
   
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
@@ -308,6 +309,7 @@ public:
   NS_IMETHOD        GetPluginClipRect(nsRect& outClipRect, nsPoint& outOrigin, PRBool& outWidgetVisible);
   NS_IMETHOD        StartDrawPlugin();
   NS_IMETHOD        EndDrawPlugin();
+  NS_IMETHOD        SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner);
   
   NS_IMETHOD        GetHasTransparentBackground(PRBool& aTransparent);
   NS_IMETHOD        SetHasTransparentBackground(PRBool aTransparent);
@@ -329,6 +331,8 @@ public:
   NS_IMETHOD BeginSecureKeyboardInput();
   NS_IMETHOD EndSecureKeyboardInput();
 
+  void              HidePlugin();
+
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -343,6 +347,12 @@ protected:
   // caller must retain.
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
+
+  virtual nsresult SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
+                                            PRInt32 aNativeKeyCode,
+                                            PRUint32 aModifierFlags,
+                                            const nsAString& aCharacters,
+                                            const nsAString& aUnmodifiedCharacters);
 
 protected:
 
@@ -369,6 +379,7 @@ protected:
   PRPackedBool          mInSetFocus;
 
   nsPluginPort          mPluginPort;
+  nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 };
 
 

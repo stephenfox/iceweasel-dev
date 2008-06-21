@@ -154,7 +154,9 @@ function checkCert() {
     // We *expect* exceptions if there are problems with the certificate
     // presented by the site.  Log it, just in case, but we can proceed here,
     // with appropriate sanity checks
-    Components.utils.reportError(e);
+    Components.utils.reportError("Attempted to connect to a site with a bad certificate in the add exception dialog. " +
+                                 "This results in a (mostly harmless) exception being thrown. " +
+                                 "Logged for information purposes only: " + e);
   } finally {
     gChecking = false;
   }
@@ -340,8 +342,9 @@ function addException() {
   
   var permanentCheckbox = document.getElementById("permanent");
 
+  var uri = getURI();
   overrideService.rememberValidityOverride(
-    getURI().hostPort,
+    uri.asciiHost, uri.port,
     gCert,
     flags,
     !permanentCheckbox.checked);

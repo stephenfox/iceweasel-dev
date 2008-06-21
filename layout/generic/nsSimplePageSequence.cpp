@@ -38,6 +38,7 @@
 #include "nsReadableUtils.h"
 #include "nsSimplePageSequence.h"
 #include "nsPresContext.h"
+#include "gfxContext.h"
 #include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsIDeviceContext.h"
@@ -234,6 +235,12 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   nsSize pageSize = aPresContext->GetPageSize();
 
   mPageData->mReflowSize = pageSize;
+  // If we're printing a selection, we need to reflow with
+  // unconstrained height, to make sure we'll get to the selection
+  // even if it's beyond the first page of content.
+  if (nsIPrintSettings::kRangeSelection == mPrintRangeType) {
+    mPageData->mReflowSize.height = NS_UNCONSTRAINEDSIZE;
+  }
   mPageData->mReflowMargin = mMargin;
 
   // Compute the size of each page and the x coordinate that each page will
@@ -597,6 +604,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     nsIFrame* conFrame = mCurrentPageFrame->GetFirstChild(nsnull);
     if (mSelectionHeight >= 0) {
       conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -mYSelOffset));
+      nsContainerFrame::PositionChildViews(conFrame);
     }
 
     // cast the frame to be a page frame
@@ -619,6 +627,20 @@ nsSimplePageSequenceFrame::PrintNextPage()
       PresContext()->PresShell()->
               CreateRenderingContext(mCurrentPageFrame,
                                      getter_AddRefs(renderingContext));
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+      // On linux, need to rotate landscape-mode output on printed surfaces
+      PRInt32 orientation;
+      mPageData->mPrintSettings->GetOrientation(&orientation);
+      if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+        // Shift up by one landscape-page-height (in points) before we rotate.
+        float offset = POINTS_PER_INCH_FLOAT *
+           (mCurrentPageFrame->GetSize().height / float(dc->AppUnitsPerInch()));
+        renderingContext->ThebesContext()->Translate(gfxPoint(offset, 0));
+        renderingContext->ThebesContext()->Rotate(M_PI/2);
+      }
+#endif // XP_UNIX && !XP_MACOSX
+
       nsRect drawingRect(nsPoint(0, 0),
                          mCurrentPageFrame->GetSize());
       nsRegion drawingRegion(drawingRect);

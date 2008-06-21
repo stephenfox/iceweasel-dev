@@ -537,8 +537,12 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     return NS_ERROR_FAILURE;
   }
 
-  nsIScriptGlobalObject *globalObject = mDocument->GetScriptGlobalObject();
-  NS_ENSURE_TRUE(globalObject, NS_ERROR_FAILURE);
+  nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
+  if (!pwin || !pwin->IsInnerWindow()) {
+    return NS_ERROR_FAILURE;
+  }
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(pwin);
+  NS_ASSERTION(globalObject, "windows must be global objects");
 
   // Get the script-type to be used by this element.
   nsCOMPtr<nsIContent> scriptContent(do_QueryInterface(aRequest->mElement));
@@ -891,9 +895,9 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 
   NS_ASSERTION(channelPrincipal, "Gotta have a principal here!");
 
-  // If the document principal is a cert principal and is not the same
-  // as the channel principal, then we don't execute the script.
-  PRBool equal;
-  rv = docPrincipal->Equals(channelPrincipal, &equal);
-  return NS_SUCCEEDED(rv) && equal;
+  // If the channel principal isn't at least as powerful as the
+  // document principal, then we don't execute the script.
+  PRBool subsumes;
+  rv = channelPrincipal->Subsumes(docPrincipal, &subsumes);
+  return NS_SUCCEEDED(rv) && subsumes;
 }

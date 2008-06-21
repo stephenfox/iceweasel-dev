@@ -80,7 +80,7 @@ public:
                            nsIAtom *aPrefix, const nsAString &aValue,
                            PRBool aNotify);
 
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
   // Overriden nsIFormControl methods
@@ -168,16 +168,17 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, nsGenericElement)
 
 NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLObjectElement,
                                         nsGenericHTMLFormElement)
-  NS_INTERFACE_TABLE_INHERITED9(nsHTMLObjectElement,
-                                nsIDOMHTMLObjectElement,
-                                imgIDecoderObserver,
-                                nsIRequestObserver,
-                                nsIStreamListener,
-                                nsIFrameLoaderOwner,
-                                nsIObjectLoadingContent,
-                                nsIImageLoadingContent,
-                                nsIInterfaceRequestor,
-                                nsIChannelEventSink)
+  NS_INTERFACE_TABLE_INHERITED10(nsHTMLObjectElement,
+                                 nsIDOMHTMLObjectElement,
+                                 imgIDecoderObserver,
+                                 nsIRequestObserver,
+                                 nsIStreamListener,
+                                 nsIFrameLoaderOwner,
+                                 nsIObjectLoadingContent,
+                                 nsIImageLoadingContent,
+                                 imgIContainerObserver,
+                                 nsIInterfaceRequestor,
+                                 nsIChannelEventSink)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLObjectElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLObjectElement)
@@ -246,7 +247,7 @@ nsHTMLObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
 }
 
 PRBool
-nsHTMLObjectElement::IsFocusable(PRInt32 *aTabIndex)
+nsHTMLObjectElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
   if (Type() == eType_Plugin) {
     // Has plugin content: let the plugin decide what to do in terms of
@@ -255,10 +256,12 @@ nsHTMLObjectElement::IsFocusable(PRInt32 *aTabIndex)
       GetTabIndex(aTabIndex);
     }
   
-    return PR_TRUE;
+    *aIsFocusable = PR_TRUE;
+
+    return PR_FALSE;
   }
 
-  return nsGenericHTMLFormElement::IsFocusable(aTabIndex);
+  return nsGenericHTMLFormElement::IsHTMLFocusable(aIsFocusable, aTabIndex);
 }
 
 PRUint32

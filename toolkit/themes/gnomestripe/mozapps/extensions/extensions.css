@@ -1,6 +1,6 @@
 #extensionsBox {
   margin: 10px 8px 0 8px;
-  min-width:1px;
+  min-width: 1px;
 }
 
 /* Addons notification */
@@ -19,7 +19,7 @@ notification {
   -moz-border-right-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
-  margin: 0 !important;
+  margin: 0;
 }
 
 #resizerBox {
@@ -207,7 +207,7 @@ richlistitem[loading="true"] .updateBadge {
   height: 16px;
   margin-bottom: -3px;
   -moz-margin-end: -2px;
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
   -moz-image-region: auto;
 }
 
@@ -215,7 +215,7 @@ richlistitem[loading="true"] .updateBadge {
   -moz-margin-start: 5px;
   width: 16px;
   height: 16px;
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
 .selectedStatusMsgs > hbox {
@@ -340,7 +340,7 @@ vbox[typeName="status"][type="header-recommended"] {
 
 .searchbox-search, .searchbox-cancel {
   -moz-appearance: none;
-  cursor: pointer;
+  cursor: default;
   background-color: transparent;
   margin: 0;
   border: 0;

@@ -48,12 +48,14 @@ ifndef MOZ_PKG_FORMAT
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 MOZ_PKG_FORMAT  = DMG
 else
-ifeq (,$(filter-out OS2 WINNT, $(OS_ARCH)))
+ifeq (,$(filter-out OS2 WINNT BeOS, $(OS_ARCH)))
 MOZ_PKG_FORMAT  = ZIP
 ifeq ($(OS_ARCH),OS2)
 INSTALLER_DIR   = os2
 else
+ifeq ($(OS_ARCH), WINNT)
 INSTALLER_DIR   = windows
+endif
 endif
 else
 ifeq (,$(filter-out SunOS, $(OS_ARCH)))
@@ -175,6 +177,7 @@ UNMAKE_PACKAGE	= \
 # The plst and blkx resources are skipped because they belong to each
 # individual dmg and are created by hdiutil.
 SDK_SUFFIX = .tar.bz2
+SDK = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).$(AB_CD).mac-$(TARGET_CPU).sdk$(SDK_SUFFIX)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
 
@@ -184,20 +187,23 @@ ifneq (1_,$(if $(CROSS_COMPILE),1,0)_$(UNIVERSAL_BINARY))
 ifdef MOZ_PSM
 SIGN_NSS		= @echo signing nss libraries;
 
+NSS_DLL_SUFFIX	= $(DLL_SUFFIX)
 ifdef UNIVERSAL_BINARY
 NATIVE_ARCH	= $(shell uname -p | sed -e s/powerpc/ppc/)
 NATIVE_DIST	= $(DIST)/../../$(NATIVE_ARCH)/dist
 SIGN_CMD	= $(NATIVE_DIST)/bin/run-mozilla.sh $(NATIVE_DIST)/bin/shlibsign -v -i
 else
 ifeq ($(OS_ARCH),OS2)
+# uppercase extension to get the correct output file from shlibsign
+NSS_DLL_SUFFIX	= .DLL
 SIGN_CMD	= $(topsrcdir)/toolkit/mozapps/installer/os2/sign.cmd $(DIST)
 else
 SIGN_CMD	= $(RUN_TEST_PROGRAM) $(DIST)/bin/shlibsign -v -i
 endif
 endif
 
-SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)softokn3$(DLL_SUFFIX)
-FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl3$(DLL_SUFFIX)
+SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)softokn3$(NSS_DLL_SUFFIX)
+FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl3$(NSS_DLL_SUFFIX)
 FREEBL_32FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32fpu_3$(DLL_SUFFIX)
 FREEBL_32INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32int_3$(DLL_SUFFIX)
 FREEBL_32INT64	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_APPNAME)$(_BINPATH)/$(DLL_PREFIX)freebl_32int64_3$(DLL_SUFFIX)
@@ -238,6 +244,7 @@ NO_PKG_FILES += \
 	res/samples \
 	res/throbber \
 	shlibsign* \
+	ssltunnel* \
 	winEmbed.exe \
 	os2Embed.exe \
 	chrome/chrome.rdf \
@@ -403,8 +410,8 @@ make-package: stage-package
 # dist/sdk/lib -> prefix/lib/appname-devel-version/lib
 # prefix/lib/appname-devel-version/* symlinks to the above directories
 install:: stage-package
-ifeq (WINNT,$(OS_ARCH))
-	$(error "make install" is not supported on Windows. Use "make package" instead.)
+ifneq (,$(filter WINNT Darwin,$(OS_ARCH)))
+	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)
 	(cd $(DIST)/$(MOZ_PKG_APPNAME) && tar $(TAR_CREATE_FLAGS) - .) | \
@@ -443,12 +450,15 @@ ifdef INSTALL_SDK # Here comes the hard part
 endif # INSTALL_SDK
 
 make-sdk:
-	$(MAKE) stage-package STAGE_SDK=1 MOZ_PKG_APPNAME=sdk-stage
+	$(MAKE) stage-package UNIVERSAL_BINARY= STAGE_SDK=1 MOZ_PKG_APPNAME=sdk-stage
 	@echo "Packaging SDK..."
 	$(RM) -rf $(DIST)/$(MOZ_APP_NAME)-sdk
 	$(NSINSTALL) -D $(DIST)/$(MOZ_APP_NAME)-sdk/bin
 	(cd $(DIST)/sdk-stage && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/$(MOZ_APP_NAME)-sdk/bin && tar -xf -)
+	$(NSINSTALL) -D $(DIST)/$(MOZ_APP_NAME)-sdk/host/bin
+	(cd $(DIST)/host/bin && tar $(TAR_CREATE_FLAGS) - .) | \
+	  (cd $(DIST)/$(MOZ_APP_NAME)-sdk/host/bin && tar -xf -)
 	$(NSINSTALL) -D $(DIST)/$(MOZ_APP_NAME)-sdk/sdk
 	(cd $(DIST)/sdk && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/$(MOZ_APP_NAME)-sdk/sdk && tar -xf -)

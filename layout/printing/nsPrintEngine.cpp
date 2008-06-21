@@ -1837,7 +1837,20 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   } else {
     nscoord pageWidth, pageHeight;
     mPrt->mPrintDC->GetDeviceSurfaceDimensions(pageWidth, pageHeight);
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+    // If we're in landscape mode on Linux, the device surface will have 
+    // been rotated, so for the purposes of reflowing content, we'll 
+    // treat device's height as our width and its width as our height, 
+    PRInt32 orientation;
+    mPrt->mPrintSettings->GetOrientation(&orientation);
+    if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+      adjSize = nsSize(pageHeight, pageWidth);
+    } else {
+      adjSize = nsSize(pageWidth, pageHeight);
+    }
+#else
     adjSize = nsSize(pageWidth, pageHeight);
+#endif // XP_UNIX && !XP_MACOSX
     documentIsTopLevel = PR_TRUE;
   }
 
@@ -1883,20 +1896,6 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
 
   PR_PL(("In DV::ReflowPrintObject PO: %p (%9s) Setting w,h to %d,%d\n", aPO,
          gFrameTypesStr[aPO->mFrameType], adjSize.width, adjSize.height));
-
-  // XXX - Hack Alert
-  // OK, so there is a selection, we will print the entire selection
-  // on one page and then crop the page.
-  // This means you can never print any selection that is longer than
-  // one page put it keeps it from page breaking in the middle of your
-  // print of the selection (see also nsSimplePageSequence.cpp)
-  PRInt16 printRangeType = nsIPrintSettings::kRangeAllPages;
-  mPrt->mPrintSettings->GetPrintRange(&printRangeType);
-
-  if (printRangeType == nsIPrintSettings::kRangeSelection &&
-      IsThereARangeSelection(mPrt->mCurrentFocusWin)) {
-    adjSize.height = NS_UNCONSTRAINEDSIZE;
-  }
 
   // Here we decide whether we need scrollbars and
   // what the parent will be of the widget
@@ -2193,23 +2192,47 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
             mPrt->mPrintSettings->SetStartPageRange(startPageNum);
             mPrt->mPrintSettings->SetEndPageRange(endPageNum);
             nsMargin marginTwips(0,0,0,0);
+            nsMargin unwrtMarginTwips(0,0,0,0);
             mPrt->mPrintSettings->GetMarginInTwips(marginTwips);
-            nsMargin margin = poPresContext->TwipsToAppUnits(marginTwips);
-
+            mPrt->mPrintSettings->GetUnwriteableMarginInTwips(unwrtMarginTwips);
+            nsMargin totalMargin = poPresContext->TwipsToAppUnits(marginTwips + 
+                                                              unwrtMarginTwips);
             if (startPageNum == endPageNum) {
               {
-                startRect.y -= margin.top;
-                endRect.y   -= margin.top;
+                startRect.y -= totalMargin.top;
+                endRect.y   -= totalMargin.top;
+
+                // Clip out selection regions above the top of the first page
+                if (startRect.y < 0) {
+                  // Reduce height to be the height of the positive-territory
+                  // region of original rect
+                  startRect.height = PR_MAX(0, startRect.YMost());
+                  startRect.y = 0;
+                }
+                if (endRect.y < 0) {
+                  // Reduce height to be the height of the positive-territory
+                  // region of original rect
+                  endRect.height = PR_MAX(0, endRect.YMost());
+                  endRect.y = 0;
+                }
+                NS_ASSERTION(endRect.y >= startRect.y,
+                             "Selection end point should be after start point");
+                NS_ASSERTION(startRect.height >= 0,
+                             "rect should have non-negative height.");
+                NS_ASSERTION(endRect.height >= 0,
+                             "rect should have non-negative height.");
+
+                nscoord selectionHgt = endRect.y + endRect.height - startRect.y;
                 // XXX This is temporary fix for printing more than one page of a selection
-                pageSequence->SetSelectionHeight(startRect.y, endRect.y+endRect.height-startRect.y);
+                pageSequence->SetSelectionHeight(startRect.y * aPO->mZoomRatio,
+                                                 selectionHgt * aPO->mZoomRatio);
 
                 // calc total pages by getting calculating the selection's height
                 // and then dividing it by how page content frames will fit.
-                nscoord selectionHgt = endRect.y + endRect.height - startRect.y;
                 nscoord pageWidth, pageHeight;
                 mPrt->mPrintDC->GetDeviceSurfaceDimensions(pageWidth, pageHeight);
-                pageHeight -= margin.top + margin.bottom;
-                PRInt32 totalPages = NSToIntCeil(float(selectionHgt) / float(pageHeight));
+                pageHeight -= totalMargin.top + totalMargin.bottom;
+                PRInt32 totalPages = NSToIntCeil(float(selectionHgt) * aPO->mZoomRatio / float(pageHeight));
                 pageSequence->SetTotalNumPages(totalPages);
               }
             }
@@ -3064,6 +3087,11 @@ nsPrintEngine::FinishPrintPreview()
   nsresult rv = NS_OK;
 
 #ifdef NS_PRINT_PREVIEW
+
+  if (!mPrt) {
+    /* we're already finished with print preview */
+    return rv;
+  }
 
   rv = DocumentReadyForPrinting();
 
