@@ -11,6 +11,8 @@ iceweasel (3.0~rc2-2) UNRELEASED; urgency=low
     shell service use the proper path when setting the default browser.
     Closes: #399632.
   * configure, configure.in: Force to not use -fshort-wchar. Closes: #474281.
+  * debian/control: Depend on version of xulrunner-1.9 implementing
+    MOZILLA_NO_JEMALLOC and lockPref in preferences.
 
  -- Mike Hommey <glandium@debian.org>  Tue, 10 Jun 2008 22:02:44 +0200
 
