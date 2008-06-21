@@ -207,7 +207,8 @@ void PREF_ReaderCallback( void *closure,
                           const char *pref,
                           PrefValue   value,
                           PrefType    type,
-                          PRBool      isDefault);
+                          PRBool      isDefault,
+                          PRBool      isLocked);
 
 NSPR_END_EXTERN_C
 #endif
