@@ -1,4 +1,4 @@
-iceweasel (3.0~rc2-2) UNRELEASED; urgency=low
+iceweasel (3.0~rc2-2) unstable; urgency=low
 
   * debian/iceweasel-runner:
     - Fix startup with aoss as ICEWEASEL_DSP. Closes: #485623.
@@ -28,7 +28,7 @@ iceweasel (3.0~rc2-2) UNRELEASED; urgency=low
     point to a proper location, and install missing 64x64 icon. Thanks
     Franklin PIAT. Closes: #486521.
 
- -- Mike Hommey <glandium@debian.org>  Tue, 10 Jun 2008 22:02:44 +0200
+ -- Mike Hommey <glandium@debian.org>  Sat, 21 Jun 2008 15:57:49 +0200
 
 iceweasel (3.0~rc2-1) unstable; urgency=low
 
