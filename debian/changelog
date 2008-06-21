@@ -21,6 +21,10 @@ iceweasel (3.0~rc2-2) UNRELEASED; urgency=low
     mistakenly not being set.
   * debian/iceweasel.js: Fixed preferences location in /usr/lib/iceweasel and
     added a note about lockPref.
+  * debian/rules, debian/iceweasel.install: Now that we don't have flat
+    chrome, we can't use icons from chrome/browser/content. Change links to
+    point to a proper location, and install missing 64x64 icon. Thanks
+    Franklin PIAT. Closes: #486521.
 
  -- Mike Hommey <glandium@debian.org>  Tue, 10 Jun 2008 22:02:44 +0200
 
