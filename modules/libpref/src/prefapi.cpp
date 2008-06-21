@@ -976,7 +976,10 @@ void PREF_ReaderCallback(void       *closure,
                          const char *pref,
                          PrefValue   value,
                          PrefType    type,
-                         bool        isDefault)
+                         bool        isDefault,
+                         bool        isLocked)
 {
     pref_HashPref(pref, value, type, isDefault);
+    if (isLocked)
+        PREF_LockPref(pref, true);
 }
