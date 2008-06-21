@@ -1,7 +1,8 @@
 iceweasel (3.0~rc2-2) UNRELEASED; urgency=low
 
-  * debian/iceweasel-runner: Fix startup with aoss as ICEWEASEL_DSP.
-    Closes: #485623.
+  * debian/iceweasel-runner:
+    - Fix startup with aoss as ICEWEASEL_DSP. Closes: #485623.
+    - Use MOZILLA_NO_JEMALLOC instead of LD_PRELOAD to disable jemalloc.
   * browser/components/preferences/applications.js: Avoid failure to
     initialize the applications preferences pane when the shell service is not
     loaded, which happens when xulrunner-1.9-gnome-support is not installed.
