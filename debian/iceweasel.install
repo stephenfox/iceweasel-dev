@@ -25,7 +25,6 @@ debian/branding/mozicon128.png usr/share/iceweasel/icons/
 debian/branding/document.png usr/share/iceweasel/icons/
 
 debian/iceweasel.js etc/iceweasel/pref
-debian/iceweasel.cfg usr/lib/iceweasel
 
 debian/debsearch.png usr/share/iceweasel/searchplugins
 
