@@ -1,3 +1,40 @@
+xulrunner (1.9~rc2-4) unstable; urgency=low
+
+  * xulrunner/stub/nsXULStub.cpp: Refactored the previous change allowing
+    xulrunner-stub to be symlinked, so that it works properly in more cases.
+  * xpcom/io/nsAppFileLocationProvider.cpp: Add /usr/lib/mozilla/plugins as
+    global location to find plugins.
+  * configure, configure.in: Force to not use -fshort-wchar. Closes: #485876.
+  * uriloader/exthandler/unix/nsOSHelperAppService.cpp: Avoid thread wait
+    catching system() child process termination, which can make mailcap
+    entries with tests ignored (since tests end up failing). Closes: #473557.
+  * uriloader/exthandler/unix/nsOSHelperAppService.cpp: Ignore mailcap entries
+    with "needsterminal". Closes: #467612.
+  * toolkit/content/about.dtd, toolkit/content/about.xhtml,
+    toolkit/content/jar.mn, toolkit/locales/en-US/chrome/global/about.dtd:
+    Avoid the about: page to be broken when l10n chrome doesn't include the
+    debian specific strings, which will stay in english.
+  * modules/libpref/src/prefapi.*, modules/libpref/src/prefread.*: Allow .js
+    preference files to set locked prefs with lockPref(). Closes: #469020.
+  * toolkit/xre/nsXREDirProvider.cpp: Add another preferences directory for
+    applications: preferences/syspref. It was existing in previous versions of
+    iceweasel as a symlink to /etc/iceweasel/pref. This has the side effect to
+    make these preferences there work again, and to disable the "set as
+    default browser" dialog. Closes: #485662.
+  * xulrunner/app/Makefile.in: Don't link xulrunner-bin against libjemalloc
+    anymore.
+  * build/unix/run-mozilla.sh, xulrunner/stub/Makefile.in,
+    xulrunner/stub/nsXULStub.cpp: Load libjemalloc through LD_PRELOAD in both
+    stub (which happened to not be linked against libjemalloc, so iceweasel
+    should get a performance boost) and xulrunner-bin. This can be disabled
+    by setting the MOZILLA_NO_JEMALLOC environment variable to some value.
+  * debian/xulrunner-1.9.install: Don't install libjemalloc by default.
+    Closes: #486663.
+  * debian/rules: Refactored tests to use MOZILLA_NO_JEMALLOC, and install
+    libjemalloc if the corresponding test succeeded.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 21 Jun 2008 14:28:44 +0200
+
 xulrunner (1.9~rc2-3) unstable; urgency=low
 
   * config/autoconf.mk.in, configure, configure.in,
