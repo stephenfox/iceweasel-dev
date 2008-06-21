@@ -102,3 +102,5 @@ include $(topsrcdir)/config/rules.mk
 ifeq ($(OS_ARCH),WINNT)
 OS_LIBS += $(call EXPAND_LIBNAME,shell32)
 endif
+
+nsXULStub.o: DEFINES += -DJEMALLOC_LIB=\"$(DLL_PREFIX)jemalloc$(DLL_SUFFIX)\"
