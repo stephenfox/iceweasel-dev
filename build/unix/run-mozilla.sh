@@ -163,7 +163,13 @@ moz_run_program()
 	##
 	## Run the program
 	##
-	"$prog" ${1+"$@"}
+	if [ -z "$MOZILLA_NO_JEMALLOC" ] &&
+	   [ -f "$MOZILLA_FIVE_HOME/libjemalloc.so" ]; then
+		LD_PRELOAD="${LD_PRELOAD+$LD_PRELOAD:}$MOZILLA_FIVE_HOME/libjemalloc.so" "$prog" ${1+"$@"}
+	else
+		"$prog" ${1+"$@"}
+	fi
+
 	exitcode=$?
 	if [ "$DEBUG_CORE_FILES" ]
 	then
