@@ -19,6 +19,8 @@ iceweasel (3.0~rc2-2) UNRELEASED; urgency=low
     now that can be done here with newest xulrunner-1.9. Note that
     iceweasel.cfg was not taken into account due to general.config.filename
     mistakenly not being set.
+  * debian/iceweasel.js: Fixed preferences location in /usr/lib/iceweasel and
+    added a note about lockPref.
 
  -- Mike Hommey <glandium@debian.org>  Tue, 10 Jun 2008 22:02:44 +0200
 
