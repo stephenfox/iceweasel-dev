@@ -1,4 +1,5 @@
 classic.jar:
+%  override chrome://global/skin/icons/loading_16.png chrome://global/skin/icons/loading_16_grey.gif
 +  skin/classic/global/autocomplete.css
 +  skin/classic/global/popup.css
 +  skin/classic/global/menu.css
@@ -39,6 +40,7 @@ classic.jar:
 +  skin/classic/global/icons/find.png                          (icons/find.png)
 +  skin/classic/global/icons/folder-item.png                   (icons/folder-item.png)
 +  skin/classic/global/icons/informationGhosted-64.png         (icons/informationGhosted-64.png)
++  skin/classic/global/icons/loading_16_grey.gif               (../../pinstripe/global/icons/loading_16_grey.gif)
 +  skin/classic/global/icons/loading_16.png                    (icons/loading_16.png)
 +  skin/classic/global/icons/notloading_16.png                 (icons/notloading_16.png)
 +  skin/classic/global/icons/notfound.png                      (icons/notfound.png)
