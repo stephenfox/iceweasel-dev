@@ -2827,6 +2827,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           PR_fprintf(PR_STDERR, "Error: no display specified\n");
           return 1;
         }
+      } else {
+	SaveWordToEnv("DISPLAY", nsDependentCString(display_name));
       }
       display = gdk_display_open(display_name);
       if (!display) {
