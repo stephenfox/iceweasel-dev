@@ -69,7 +69,8 @@ Package: xulrunner-1.9-gnome-support
 Section: devel
 Architecture: any
 Depends: ${shlibs:Depends},
-         ${misc:Depends}
+         ${misc:Depends},
+         xulrunner-1.9
 Description: Support for GNOME in xulrunner applications
  This is an extension to xulrunner that allows XUL applications to use
  protocol handlers from GnomeVFS, such as smb or sftp, and other GNOME
