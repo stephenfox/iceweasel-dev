@@ -9,7 +9,7 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-install" ] ||
     rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
     cd /usr/lib/xulrunner-1.9
-    ./run-mozilla.sh ./xpcshell -e ""
+    MOZILLA_NO_JEMALLOC=1 ./run-mozilla.sh ./xpcshell -e ""
 fi
 
 #DEBHELPER#
