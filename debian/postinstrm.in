@@ -2,17 +2,14 @@
 
 set -e
 
-if ! dpkg-trigger --check-supported > /dev/null 2>&1; then
-
-if [ "$1" = "configure" ] || [ "$1" = "upgrade" ] ||
+dpkg-trigger --check-supported > /dev/null 2>&1 ||
+if [ "$1" = "configure" ] || [ "$1" = "abort-install" ] ||
    [ "$1" = "abort-upgrade" ]; then
     touch /usr/lib/xulrunner-1.9/.autoreg
     rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
     cd /usr/lib/xulrunner-1.9
     ./run-mozilla.sh ./xpcshell -e ""
-fi
-
 fi
 
 #DEBHELPER#
