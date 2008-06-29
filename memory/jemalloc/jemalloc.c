@@ -569,6 +569,7 @@ typedef malloc_spinlock_t malloc_mutex_t;
 
 /* Set to true once the allocator has been initialized. */
 static bool malloc_initialized = false;
+static bool malloc_initializing = false;
 
 #if defined(MOZ_MEMORY_WINDOWS)
 /* No init lock for Windows. */
@@ -3718,9 +3719,27 @@ arena_malloc(arena_t *arena, size_t size, bool zero)
 		return (arena_malloc_large(arena, size, zero));
 }
 
+#define STATIC_BUFFER_SIZE (64 * 1024)
+static char static_buffer[STATIC_BUFFER_SIZE];
+
+static inline void *
+static_alloc(size_t size)
+{
+	static char *next_buf = static_buffer;
+	char *ret = next_buf;
+
+	next_buf = &next_buf[size];
+	if (next_buf <= &static_buffer[STATIC_BUFFER_SIZE])
+		return ret;
+
+	return NULL;
+}
+
 static inline void *
 imalloc(size_t size)
 {
+	if (malloc_initializing)
+		goto static_alloc;
 
 	assert(size != 0);
 
@@ -3728,16 +3747,22 @@ imalloc(size_t size)
 		return (arena_malloc(choose_arena(), size, false));
 	else
 		return (huge_malloc(size, false));
+static_alloc:
+	return static_alloc(size);
 }
 
 static inline void *
 icalloc(size_t size)
 {
+	if (malloc_initializing)
+		goto static_alloc;
 
 	if (size <= arena_maxclass)
 		return (arena_malloc(choose_arena(), size, true));
 	else
 		return (huge_malloc(size, true));
+static_alloc:
+	return static_alloc(size);
 }
 
 /* Only handles large allocations that require more than page alignment. */
@@ -4212,11 +4237,16 @@ idalloc(void *ptr)
 
 	assert(ptr != NULL);
 
+	if ((ptr >= (void *)static_buffer) && (ptr < (void *)&static_buffer[STATIC_BUFFER_SIZE]))
+		goto end;
+
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
 		arena_dalloc(chunk->arena, chunk, ptr);
 	else
 		huge_dalloc(ptr);
+end:
+	return;
 }
 
 static void
@@ -5200,6 +5230,10 @@ malloc_init_hard(void)
 	int linklen;
 #endif
 
+	/* Recursive malloc_init(), it means we still need to allocate memory */
+	if (malloc_initializing)
+		return(false);
+
 #ifndef MOZ_MEMORY_WINDOWS
 	malloc_mutex_lock(&init_lock);
 #endif
@@ -5214,6 +5248,7 @@ malloc_init_hard(void)
 #endif
 		return (false);
 	}
+	malloc_initializing = true;
 
 #ifdef MOZ_MEMORY_WINDOWS
 	/* get a thread local storage index */
@@ -5656,6 +5691,7 @@ MALLOC_OUT:
 	/* Allocate and initialize arenas. */
 	arenas = (arena_t **)base_alloc(sizeof(arena_t *) * narenas);
 	if (arenas == NULL) {
+		malloc_initializing = false;
 #ifndef MOZ_MEMORY_WINDOWS
 		malloc_mutex_unlock(&init_lock);
 #endif
@@ -5673,6 +5709,7 @@ MALLOC_OUT:
 	 */
 	arenas_extend(0);
 	if (arenas[0] == NULL) {
+		malloc_initializing = false;
 #ifndef MOZ_MEMORY_WINDOWS
 		malloc_mutex_unlock(&init_lock);
 #endif
@@ -5701,6 +5738,7 @@ MALLOC_OUT:
 
 	malloc_spin_init(&arenas_lock);
 
+	malloc_initializing = false;
 	malloc_initialized = true;
 #ifndef MOZ_MEMORY_WINDOWS
 	malloc_mutex_unlock(&init_lock);
