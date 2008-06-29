@@ -1,3 +1,39 @@
+xulrunner (1.9~rc2-5) unstable; urgency=low
+
+  * debian/control: Add a dependency on xulrunner-1.9 to
+    xulrunner-1.9-gnome-support.
+  * uriloader/exthandler/unix/nsOSHelperAppService.cpp: Properly catch test
+    process exit code. This avoids mailcap entries where the test fails to be
+    chosen.
+  * toolkit/xre/nsAppRunner.cpp: Set DISPLAY with the value passed to
+    --display. This avoids surprises when running DISPLAY=:0 iceweasel
+    --display=:1, and some other problems.
+  * toolkit/themes/gnomestripe/global/jar.mn: Install loading_16_grey.gif in
+    classic.jar, and add an override to replace loading16.png, which happens
+    to be an APNG file, with it. Closes: #487556.
+  * toolkit/xre/nsAppRunner.cpp: Don't use static strings when setting
+    environment, since there are situations where libxul.so gets dlclose()d,
+    making these strings unavailable and leading to strange segfaults.
+    Closes: #487785.
+  * build/unix/run-mozilla.sh: Allow to debug with LD_PRELOADed libraries.
+  * debian/rules, debian/postinstrm.in: Generate xulrunner-1.9.postinst from
+    template, too. Also replace handling of upgrade by handling of
+    abort-install.
+  * debian/xulrunner-1.9.postinst: Removed.
+  * debian/postinstrm.in:
+    + Avoid xpcshell to use libjemalloc, avoiding install to hang while using
+      libtrash or other LD_PRELOADed library conflicting with libjemalloc.
+      Closes: #488349.
+    + Catch xpcshell crashes in postinst/rm so that install can proceed
+      properly. Remove possibly incomplete components registries it could
+      have generated, then. Closes: #488350.
+  * xpcom/glue/nsThreadUtils.cpp:
+    + Tentatively fix crashes when epiphany exits.  This will require an
+      epihany rebuild. Closes: #481925.
+    + Also add a failsafe in NS_ProcessPendingEvents.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 29 Jun 2008 10:32:32 +0200
+
 xulrunner (1.9~rc2-4) unstable; urgency=low
 
   * xulrunner/stub/nsXULStub.cpp: Refactored the previous change allowing
