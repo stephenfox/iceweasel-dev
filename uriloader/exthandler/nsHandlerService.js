@@ -645,24 +645,23 @@ HandlerService.prototype = {
 
     try {
       file.initWithPath(aPath);
-
-      if (file.exists())
-        return file;
     }
     catch(ex) {
       // Note: for historical reasons, we don't actually check to see
       // if the exception is NS_ERROR_FILE_UNRECOGNIZED_PATH, which is what
       // nsILocalFile::initWithPath throws when a path is relative.
-
       file = this._dirSvc.get("XCurProcD", Ci.nsIFile);
 
       try {
         file.append(aPath);
-        if (file.exists())
-          return file;
       }
       catch(ex) {}
     }
+
+    if (file && file.exists() &&
+        file.isExecutable() &&
+        file.isFile())
+      return file;
 
     return null;
   },

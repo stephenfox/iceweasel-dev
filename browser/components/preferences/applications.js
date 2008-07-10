@@ -1362,6 +1362,7 @@ var gApplicationsPane = {
     return aExecutable &&
            aExecutable.exists() &&
            aExecutable.isExecutable() &&
+           aExecutable.isFile() &&
 // XXXben - we need to compare this with the running instance executable
 //          just don't know how to do that via script...
 // XXXmano TBD: can probably add this to nsIShellService
