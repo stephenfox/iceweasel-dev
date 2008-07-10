@@ -51,18 +51,19 @@ NS_IMETHODIMP
 nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
   *_retval = PR_FALSE;
-  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  if (vfs) {
-    nsCOMPtr<nsIGnomeVFSMimeApp> app;
-    if (NS_SUCCEEDED(vfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
+  if (mClass == eMIMEInfo) {
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (vfs) {
+      nsCOMPtr<nsIGnomeVFSMimeApp> app;
+      if (NS_SUCCEEDED(vfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
+        *_retval = PR_TRUE;
+    }
+  } else {
+    if (nsGNOMERegistry::HandlerExists(mType.get()))
       *_retval = PR_TRUE;
   }
 
-  if (*_retval)
-    return NS_OK;
-
-  // If we didn't find a VFS handler, fallback.
-  return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
+  return NS_OK;
 }
 
 nsresult
@@ -79,8 +80,5 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
       return app->Launch(nativePath);
   }
 
-  if (!mDefaultApplication)
-    return NS_ERROR_FILE_NOT_FOUND;
-
-  return LaunchWithIProcess(mDefaultApplication, nativePath);
+  return NS_ERROR_FILE_NOT_FOUND;
 }
