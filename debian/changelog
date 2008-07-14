@@ -1,3 +1,54 @@
+xulrunner (1.9.0.1-1) unstable; urgency=low
+
+  * New upstream release.
+    + Fix urlclassifier so that its black list is properly updated.
+      Closes: #486311.
+  * memory/jemalloc/jemalloc.c: Allow memory to be allocated from a small pool
+    of static memory during initialization. Some LD_PRELOADed libraries such
+    as libaoss and libtrash can divert some functions used by jemalloc
+    initialization, themselves needing malloc or calloc. This used to lead to
+    a deadlock. Closes: #487614.
+  * uriloader/exthandler/nsHandlerService.js: Avoid spurious "Run" items in
+    application handlers configuration pane.
+  * uriloader/exthandler/nsMIMEInfoImpl.h,
+    uriloader/exthandler/unix/nsMIMEInfoUnix.cpp,
+    uriloader/exthandler/unix/nsOSHelperAppService.cpp,
+    uriloader/exthandler/unix/nsOSHelperAppService.h: Properly launch
+    applications set in $HOME/.mailcap. Closes: #488971.
+  * uriloader/exthandler/unix/nsOSHelperAppService.cpp: Apply small changes
+    asked by upstream in bz#440840 so that we have what will be applied
+    upstream.
+  * xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h,
+    xpcom/reflect/xptcall/src/md/unix/Makefile.in: Fix FTBFS on Hurd-i386.
+    Closes: #490390.
+  * debian/control:
+    + libmozjs1d-dbg conflicts with libmozjs0d-dbg.  Closes: #490296.
+    + Conflict with j2re1.4. Even when solving the infinite loop issue, new
+      issues were showing up one after another with this old and obviously
+      broken plugin. Closes: #481407.
+  * debian/rules:
+    + Don't fail to build with DEB_BUILD_OPTIONS=debug, which adds symbols to
+      libmozjs1d.
+    + Add symbolic links for nss headers in the SDK directories.
+      Closes: #490747.
+    + Avoid breaking current iceweasel that doesn't have a broad enough
+      version range in application.ini.
+  * debian/remove.nonfree: Don't remove files that don't exist anymore, and
+    synchronize with the remove.nonfree file from iceweasel.
+  * modules/libpref/src/init/all.js: Disable network manager authority over
+    online/offline. Closes: #483167.
+  * xpcom/io/nsLocalFileUnix.cpp, xpcom/io/nsLocalFileUnix.h: Use stat64()
+    where supported, so that directory listing doesn't choke on 2GB+ files.
+    Closes: #489733.
+  * debian/test/application.ini: Allow our testcase to work with versions up
+    to 2.0.
+  * config/autoconf.mk.in, xulrunner/installer/Makefile.in: Don't use the full
+    version (1.9.0.1) in install paths.
+  * extensions/pref/autoconfig/src/nsReadConfig.cpp: Read autoconfig files
+    from GRE directory instead of application directory. Closes: #490814.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 14 Jul 2008 22:15:18 +0200
+
 xulrunner (1.9~rc2-5) unstable; urgency=low
 
   * debian/control: Add a dependency on xulrunner-1.9 to
