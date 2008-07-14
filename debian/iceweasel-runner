@@ -288,10 +288,6 @@ echo_vars ICEWEASEL_DSP APPLICATION_ID CMDLINE_DISPLAY DISPLAY \
 
 if type "${ICEWEASEL_DSP}" > /dev/null 2>&1; then
     MOZ_PROGRAM="${ICEWEASEL_DSP} ${MOZ_PROGRAM}"
-    if [ "${ICEWEASEL_DSP}" = aoss ]; then
-        MOZILLA_NO_JEMALLOC=1
-        export MOZILLA_NO_JEMALLOC
-    fi
 fi
 
 exec_verbose ${MOZ_PROGRAM} "$@"
