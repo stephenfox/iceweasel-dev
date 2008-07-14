@@ -209,7 +209,7 @@ install-stamp: build-stamp
 		rm $$file; \
 		ln -s /usr/include/mozjs/$$(basename $$f) $$file; \
 	done
-	for f in /usr/include/nspr/*; do \
+	for f in /usr/include/nspr/* /usr/include/nss/*; do \
 		ln -s $$f debian/tmp/usr/include/xulrunner-1.9/stable/$$(basename $$f); \
 		ln -s $$f debian/tmp/usr/include/xulrunner-1.9/unstable/$$(basename $$f); \
 	done
