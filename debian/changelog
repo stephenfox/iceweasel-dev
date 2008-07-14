@@ -1,8 +1,9 @@
 iceweasel (3.0.1-1) UNRELEASED; urgency=low
 
   * New upstream release.
-  * debian/rules: Install the 64x64 icon into the proper place.
-    Closes: #479032.
+  * debian/rules:
+    - Install the 64x64 icon into the proper place. Closes: #479032.
+    - Broaden version range for the GRE in application.ini.
   * browser/components/preferences/applications.js: Avoid spurious "Run" items
     in application handlers configuration pane.
   * browser/components/preferences/applicationManager.xul: Fix breakage of the
