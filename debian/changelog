@@ -1,5 +1,6 @@
-iceweasel (3.0~rc2-3) UNRELEASED; urgency=low
+iceweasel (3.0.1-1) UNRELEASED; urgency=low
 
+  * New upstream release.
   * debian/rules: Install the 64x64 icon into the proper place.
     Closes: #479032.
   * browser/components/preferences/applications.js: Avoid spurious "Run" items
