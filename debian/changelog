@@ -1,4 +1,4 @@
-iceweasel (3.0.1-1) UNRELEASED; urgency=low
+iceweasel (3.0.1-1) unstable; urgency=low
 
   * New upstream release.
   * debian/rules:
@@ -17,7 +17,7 @@ iceweasel (3.0.1-1) UNRELEASED; urgency=low
   * debian/iceweasel.links: /usr/share/icons/hicolor/64x64/apps/iceweasel.png
     is not a link anymore.
 
- -- Mike Hommey <glandium@debian.org>  Mon, 14 Jul 2008 10:00:20 +0200
+ -- Mike Hommey <glandium@debian.org>  Mon, 14 Jul 2008 22:51:39 +0200
 
 iceweasel (3.0~rc2-2) unstable; urgency=low
 
