@@ -376,6 +376,12 @@
         document.getAnonymousElementByAttribute(this, "anonid", "input");
       ]]></field>
 
+      <field name="mMenuAccessKey"><![CDATA[
+        Components.classes["@mozilla.org/preferences-service;1"]
+                 .getService(Components.interfaces.nsIPrefBranch)
+                 .getIntPref("ui.key.menuAccessKey");
+      ]]></field>
+
       <!-- =================== PUBLIC METHODS =================== -->
 
       <!-- get the result object from the autocomplete results from a specific session -->
@@ -526,7 +532,9 @@
         <body><![CDATA[
           for (var name in this.mLastResults) {
             var results = this.mLastResults[name];
-            if (results && results.items.Count() > 0)
+            var status = this.mLastStatus[name];
+            if (results && results.items.Count() > 0 && status !=
+                Components.interfaces.nsIAutoCompleteStatus.failureItems)
               return name;
           }
           return null;
@@ -643,18 +651,16 @@
           {
             this.mLastResults[aSessionName] = null;
             if (firstReturn)
-              this.clearResults(false);
+              this.clearResultElements(false);
             this.searchFailed();
             return;
-          } else if (aStatus == 
-                     Components.interfaces.nsIAutoCompleteStatus.failureItems){
+          if (aStatus == Components.interfaces.nsIAutoCompleteStatus.failureItems)
             ++this.mFailureItems;
-          }
           
           if (firstReturn) {
             if (this.view.mTree)
               this.view.mTree.beginUpdateBatch();
-            this.clearResults(false); // clear results, but don't repaint yet
+            this.clearResultElements(false); // clear results, but don't repaint yet
           }
           this.mLastResults[aSessionName] = aResults;
 
@@ -912,6 +918,18 @@
           this.removeAttribute("noMatchesFound");
           
           this.mAutoCompleteTimer = setTimeout(this.callListener, this.timeout, this, "startLookup");
+        ]]></body>
+      </method>
+
+      <!--  -->
+      <method name="processKeyDown">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          if (aEvent.keyCode && aEvent.keyCode == this.mMenuAccessKey) {
+              this.finishAutoComplete(false, false, aEvent);
+              this.clearTimer();
+              this.closeResultPopup();
+          }
         ]]></body>
       </method>
 
@@ -1386,6 +1404,9 @@
     <handlers>
       <handler event="input"
                action="this.processInput();"/>
+
+      <handler event="keydown" phase="capturing"
+                action="return this.processKeyDown(event);"/>
 
       <handler event="keypress" phase="capturing"
                 action="return this.processKeyPress(event);"/>
