@@ -10,6 +10,8 @@ iceweasel (3.0~rc2-3) UNRELEASED; urgency=low
   * debian/control:
     - Depend on a version of xulrunner with a fixed jemalloc.
     - Updated Standards-Version to 3.8.0.1. No changes required.
+  * debian/remove.nonfree: Don't remove files that don't exist anymore, and
+    properly remove some files with spaces in their name.
 
  -- Mike Hommey <glandium@debian.org>  Mon, 14 Jul 2008 10:00:20 +0200
 
