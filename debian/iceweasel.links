@@ -10,7 +10,6 @@
 /usr/share/iceweasel/chrome/icons/default/default48.png /usr/share/pixmaps/iceweasel.png
 /usr/share/iceweasel/chrome/icons/default/default48.png /usr/share/pixmaps/firefox.png
 /usr/share/iceweasel/chrome/icons/default/default48.png /usr/share/pixmaps/mozilla-firefox.png
-/usr/share/iceweasel/chrome/icons/default/default64.png /usr/share/icons/hicolor/64x64/apps/iceweasel.png
 /etc/iceweasel/pref /usr/share/iceweasel/defaults/syspref
 /etc/iceweasel/profile /usr/share/iceweasel/defaults/profile
 

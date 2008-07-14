@@ -14,6 +14,8 @@ iceweasel (3.0.1-1) UNRELEASED; urgency=low
     - Updated Standards-Version to 3.8.0.1. No changes required.
   * debian/remove.nonfree: Don't remove files that don't exist anymore, and
     properly remove some files with spaces in their name.
+  * debian/iceweasel.links: /usr/share/icons/hicolor/64x64/apps/iceweasel.png
+    is not a link anymore.
 
  -- Mike Hommey <glandium@debian.org>  Mon, 14 Jul 2008 10:00:20 +0200
 
