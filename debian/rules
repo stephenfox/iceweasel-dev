@@ -88,6 +88,7 @@ config.status:
 
 	rsvg-convert -w 64 -h 64 -o debian/branding/default64.png \
 		debian/iceweasel_icon.svg
+	cp -f debian/branding/default64.png debian/branding/content/icon64.png
 
 	rsvg-convert -w 48 -h 48 -o debian/branding/default48.png \
 		debian/iceweasel_icon.svg
