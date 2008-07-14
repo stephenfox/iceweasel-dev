@@ -88,8 +88,6 @@ config.status:
 
 	rsvg-convert -w 64 -h 64 -o debian/branding/default64.png \
 		debian/iceweasel_icon.svg
-	cp -f debian/branding/default64.png debian/branding/content/icon64.png
-
 
 	rsvg-convert -w 48 -h 48 -o debian/branding/default48.png \
 		debian/iceweasel_icon.svg
@@ -161,6 +159,9 @@ install-stamp: build-stamp
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
 	install -m 644 debian/iceweasel.png \
 		debian/iceweasel/usr/share/icons/hicolor/32x32/apps/iceweasel.png
+	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/64x64/apps
+	install -m 644 debian/branding/default64.png \
+		debian/iceweasel/usr/share/icons/hicolor/64x64/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/scalable/apps
 	install -m 644 debian/iceweasel_icon.svg \
 		debian/iceweasel/usr/share/icons/hicolor/scalable/apps/iceweasel.svg
