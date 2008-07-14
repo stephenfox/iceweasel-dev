@@ -2,6 +2,10 @@ iceweasel (3.0~rc2-3) UNRELEASED; urgency=low
 
   * debian/rules: Install the 64x64 icon into the proper place.
     Closes: #479032.
+  * browser/components/preferences/applications.js: Avoid spurious "Run" items
+    in application handlers configuration pane.
+  * browser/components/preferences/applicationManager.xul: Fix breakage of the
+    application manager by change to applications.js in 3.0~rc2-2.
 
  -- Mike Hommey <glandium@debian.org>  Mon, 14 Jul 2008 10:00:20 +0200
 
