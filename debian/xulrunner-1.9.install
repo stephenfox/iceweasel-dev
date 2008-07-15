@@ -1,6 +1,5 @@
 etc/gre.d/1.9.system.conf
 
-usr/lib/xulrunner-1.9/dependentlibs.list
 usr/lib/xulrunner-1.9/platform.ini
 
 usr/lib/xulrunner-1.9/libxul.so
