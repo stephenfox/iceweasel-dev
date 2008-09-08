@@ -169,7 +169,7 @@ for arg in "$@"; do
     fi
 
     case "${arg}" in
-        -a | --display | -contentLocale | -UILocale | -remote | --debugger | -height | -width | -chrome | -P | -CreateProfile)
+        -a | --display | -contentLocale | -UILocale | -remote | --debugger | -height | -width | -chrome | -P | -CreateProfile | -profile | -install-global-extension)
             prev=${arg}
             continue
         ;;

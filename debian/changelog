@@ -6,6 +6,9 @@ iceweasel (3.0.1-2) UNRELEASED; urgency=low
     the group leader window name. (Closes: #428836)
   * browser/app/application.ini: Set the profile path explicitely now that
     we have a different application name.
+  * debian/iceweasel-runner: Add the -profile and
+    -install-global-extension to the list of single arg flags for
+    iceweasel. (Closes: #425874, #440455)
 
  -- Eric Dorland <eric@debian.org>  Mon, 08 Sep 2008 02:42:48 -0400
 
