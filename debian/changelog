@@ -9,8 +9,10 @@ iceweasel (3.0.1-2) UNRELEASED; urgency=low
   * debian/iceweasel-runner: Add the -profile and
     -install-global-extension to the list of single arg flags for
     iceweasel. (Closes: #425874, #440455)
+  * debian/iceweasel.desktop: Fixed Finnish desktop file
+    translation. Thanks Timo Jyrinki. (Closes: #483941)
 
- -- Eric Dorland <eric@debian.org>  Mon, 08 Sep 2008 02:42:48 -0400
+ -- Eric Dorland <eric@debian.org>  Mon, 08 Sep 2008 02:59:27 -0400
 
 iceweasel (3.0.1-1) unstable; urgency=low
 
