@@ -962,8 +962,6 @@ function delayedStartup()
   else
     focusElement(content);
 
-  SetPageProxyState("invalid");
-
   var navToolbox = getNavToolbox();
   navToolbox.customizeDone = BrowserToolboxCustomizeDone;
   navToolbox.customizeChange = BrowserToolboxCustomizeChange;
@@ -4834,26 +4832,6 @@ function asyncOpenWebPanel(event)
          event.preventDefault();
          return false;
        }
-       else if (target == "_search") {
-         // Used in WinIE as a way of transiently loading pages in a sidebar.  We
-         // mimic that WinIE functionality here and also load the page transiently.
-
-         // DISALLOW_INHERIT_PRINCIPAL is used here in order to also
-         // block javascript and data: links targeting the sidebar.
-         try {
-           const nsIScriptSecurityMan = Ci.nsIScriptSecurityManager;
-           urlSecurityCheck(wrapper.href,
-                            wrapper.ownerDocument.nodePrincipal,
-                            nsIScriptSecurityMan.DISALLOW_INHERIT_PRINCIPAL);
-         }
-         catch(ex) {
-           return false;
-         } 
-
-         openWebPanel(gNavigatorBundle.getString("webPanels"), wrapper.href);
-         event.preventDefault();
-         return false;
-       }
      }
      else {
        handleLinkClick(event, wrapper.href, linkNode);
@@ -5107,21 +5085,19 @@ function BrowserSetForcedDetector(doReload)
 
 function UpdateCurrentCharset()
 {
-    var menuitem = null;
-
-    // exctract the charset from DOM
+    // extract the charset from DOM
     var wnd = document.commandDispatcher.focusedWindow;
     if ((window == wnd) || (wnd == null)) wnd = window.content;
-    menuitem = document.getElementById('charset.' + wnd.document.characterSet);
 
+    // Uncheck previous item
+    if (gPrevCharset) {
+        var pref_item = document.getElementById('charset.' + gPrevCharset);
+        if (pref_item)
+          pref_item.setAttribute('checked', 'false');
+    }
+
+    var menuitem = document.getElementById('charset.' + wnd.document.characterSet);
     if (menuitem) {
-        // uncheck previously checked item to workaround Mac checkmark problem
-        // bug 98625
-        if (gPrevCharset) {
-            var pref_item = document.getElementById('charset.' + gPrevCharset);
-            if (pref_item)
-              pref_item.setAttribute('checked', 'false');
-        }
         menuitem.setAttribute('checked', 'true');
     }
 }
