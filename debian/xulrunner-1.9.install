@@ -30,3 +30,4 @@ usr/lib/xulrunner-1.9/modules usr/share/xulrunner-1.9
 usr/lib/xulrunner-1.9/components/*.js
 usr/lib/xulrunner-1.9/components/*.xpt
 usr/lib/xulrunner-1.9/components/libimgicon.so
+usr/lib/xulrunner-1.9/libjemalloc.so

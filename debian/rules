@@ -95,7 +95,7 @@ TEST =	( if ( \
 		cd dist/bin; \
 		GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 		HOME="$(CURDIR)/dist" \
-		xvfb-run -a sh -c "MOZILLA_NO_JEMALLOC=$(strip $(1)) ./xulrunner '$(CURDIR)/debian/test/application.ini' 2> /dev/null" || \
+		xvfb-run -a sh -c "./xulrunner '$(CURDIR)/debian/test/application.ini' 2> /dev/null" || \
 			echo "xulrunner test exited with code $$?" >&2; \
 	) | grep -q '^unload$$'; then \
 		echo "xulrunner test successful" >&2; \
@@ -115,17 +115,8 @@ test: build-stamp
 		 f.initWithPath('/'); \
 		 dump('xpcshell test ' + (f.isDirectory() ? 'successful' : 'failed') + '\n');"
 
-	# basic test that can trigger failures with libjemalloc.
-	@if [ -f dist/bin/libjemalloc.so ]; then \
-		$(call TEST) && \
-			echo usr/lib/xulrunner-1.9/libjemalloc.so >> debian/xulrunner-1.9.install || \
-			echo Not installing libjemalloc >&2; \
-	else \
-		echo libjemalloc not built, skipping test >&2; \
-	fi
-
-	# same test, without libjemalloc
-	@$(call TEST, 1)
+	# basic test
+	$(call TEST)
 
 build-jars: build-jars-stamp
 
