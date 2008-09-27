@@ -188,6 +188,7 @@ install-stamp: build-stamp
 		for f in *; do \
 			rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; \
 		done
+	ln -s ../../xulrunner-1.9 debian/tmp/usr/lib/xulrunner-devel-1.9/sdk/bin
 
 	find dist/bin -printf %P\\n | sort -u > debian/dist.list
 	find debian/tmp/usr/lib/xulrunner-1.9 -printf %P\\n | sort -u > debian/tmp.list
