@@ -1,3 +1,28 @@
+xulrunner (1.9.0.3-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2008-{40-44}, also known as
+    CVE-2007-3837, CVE-2008-4058, CVE-2008-4059, CVE-2008-4060,
+    CVE-2008-4065, CVE-2008-4066, CVE-2008-4066, CVE-2008-4067.
+  * debian/xulrunner-1.9.install: Don't install dependentlibs.list. It's
+    causing problems with gdb and is not necessary on our builds.
+  * debian/control: Bumped Standards-Version to 3.8.0.1. No changes.
+  * xulrunner/app/Makefile.in: Use browser/app/mozilla.in instead of
+    xulrunner/app/mozilla.in. The browser version has received more love
+    upstream, and properly remove the xremote code, which has been handled
+    by the binary itself for a while, and causes some problems on PPC at
+    least.
+  * build/unix/run-mozilla.sh, debian/postinstrm.in, debian/rules,
+    xulrunner/stub/nsXULStub.cpp: Disable jemalloc by default, because of all
+    the kinds of random problems it causes, but let advanced users load it by
+    setting the MOZILLA_JEMALLOC environment variable. Closes: #490360.
+  * debian/rules: Create sdk/bin as a symlink to /usr/lib/xulrunner-1.9.
+    Closes: #491693
+  * modules/plugin/base/src/nsPluginHostImpl.cpp: Don't register plugins if
+    the MOZILLA_DISABLE_PLUGINS environment variable is set.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 28 Sep 2008 16:30:37 +0200
+
 xulrunner (1.9.0.1-1) unstable; urgency=low
 
   * New upstream release.
