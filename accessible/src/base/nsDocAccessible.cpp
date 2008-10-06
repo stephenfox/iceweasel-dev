@@ -85,7 +85,8 @@ nsIAtom *nsDocAccessible::gLastFocusedFrameType = nsnull;
 //-----------------------------------------------------
 nsDocAccessible::nsDocAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
   nsHyperTextAccessibleWrap(aDOMNode, aShell), mWnd(nsnull),
-  mScrollPositionChangedTicks(0), mIsContentLoaded(PR_FALSE), mIsLoadCompleteFired(PR_FALSE)
+  mScrollPositionChangedTicks(0), mIsContentLoaded(PR_FALSE),
+  mIsLoadCompleteFired(PR_FALSE), mInFlushPendingEvents(PR_FALSE)
 {
   // For GTK+ native window, we do nothing here.
   if (!mDOMNode)
@@ -516,8 +517,20 @@ NS_IMETHODIMP nsDocAccessible::GetCachedAccessNode(void *aUniqueID, nsIAccessNod
   return NS_OK;
 }
 
-NS_IMETHODIMP nsDocAccessible::CacheAccessNode(void *aUniqueID, nsIAccessNode *aAccessNode)
+NS_IMETHODIMP
+nsDocAccessible::CacheAccessNode(void *aUniqueID, nsIAccessNode *aAccessNode)
 {
+  // If there is an access node for the given unique ID then let's shutdown it.
+  // The unique ID may be presented in the cache if originally we created
+  // access node object and then we want to create accessible object when
+  // DOM node is changed.
+  nsCOMPtr<nsIAccessNode> accessNode;
+  GetCacheEntry(mAccessNodeCache, aUniqueID, getter_AddRefs(accessNode));
+  if (accessNode) {
+    nsCOMPtr<nsPIAccessNode> prAccessNode = do_QueryInterface(accessNode);
+    prAccessNode->Shutdown();
+  }
+
   PutCacheEntry(mAccessNodeCache, aUniqueID, aAccessNode);
   return NS_OK;
 }
@@ -589,7 +602,10 @@ NS_IMETHODIMP nsDocAccessible::Shutdown()
       mEventsToFire.Clear();
       // Make sure we release the kung fu death grip which is always
       // there when there are still events left to be fired
-      NS_RELEASE_THIS();
+      // If FlushPendingEvents() is in call stack,
+      // kung fu death grip will be released there.
+      if (!mInFlushPendingEvents)
+        NS_RELEASE_THIS();
     }
   }
 
@@ -1505,6 +1521,7 @@ nsDocAccessible::FireDelayedAccessibleEvent(nsIAccessibleEvent *aEvent)
 
 NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 {
+  mInFlushPendingEvents = PR_TRUE;
   PRUint32 length = mEventsToFire.Count();
   NS_ASSERTION(length, "How did we get here without events to fire?");
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
@@ -1625,7 +1642,8 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 #endif
           nsCOMPtr<nsIAccessibleCaretMoveEvent> caretMoveEvent =
             new nsAccCaretMoveEvent(accessible, caretOffset);
-          NS_ENSURE_TRUE(caretMoveEvent, NS_ERROR_OUT_OF_MEMORY);
+          if (!caretMoveEvent)
+            break; // Out of memory, break out to release kung fu death grip
 
           FireAccessibleEvent(caretMoveEvent);
 
@@ -1661,6 +1679,7 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
   // After a flood of events, reset so that user input flag is off
   nsAccEvent::ResetLastInputState();
 
+  mInFlushPendingEvents = PR_FALSE;
   return NS_OK;
 }
 
@@ -1983,17 +2002,14 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
 
   FireValueChangeForTextFields(containerAccessible);
 
-  if (!isShowing) {
-    // Fire an event so the assistive technology knows the children have changed
-    // This is only used by older MSAA clients. Newer ones should derive this
-    // from SHOW and HIDE so that they don't fetch extra objects
-    if (childAccessible) {
-      nsCOMPtr<nsIAccessibleEvent> reorderEvent =
-        new nsAccEvent(nsIAccessibleEvent::EVENT_REORDER, containerAccessible,
-                       isAsynch, nsAccEvent::eCoalesceFromSameSubtree);
-      NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
-      FireDelayedAccessibleEvent(reorderEvent);
-    }
+  if (childAccessible) {
+    // Fire an event so the MSAA clients know the children have changed. Also
+    // the event is used internally by MSAA part.
+    nsCOMPtr<nsIAccessibleEvent> reorderEvent =
+      new nsAccEvent(nsIAccessibleEvent::EVENT_REORDER, containerAccessible,
+                     isAsynch, nsAccEvent::eCoalesceFromSameSubtree);
+    NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
+    FireDelayedAccessibleEvent(reorderEvent);
   }
 
   return NS_OK;

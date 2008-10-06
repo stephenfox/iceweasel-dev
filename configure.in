@@ -128,7 +128,7 @@ LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
 LCMS_VERSION=1.17
-SQLITE_VERSION=3.5.4
+SQLITE_VERSION=3.5.9
 
 MSMANIFEST_TOOL=
 
@@ -201,6 +201,23 @@ MOZ_ARG_ENABLE_BOOL(compile-environment,
                            Disable compiler/library checks.],
     COMPILE_ENVIRONMENT=1,
     COMPILE_ENVIRONMENT= )
+
+MOZ_ARG_WITH_STRING(l10n-base,
+[  --with-l10nbase=DIR     path to l10n repositories],
+    L10NBASEDIR=$withval)
+if test ! -z "$L10NBASEDIR"; then
+    if test "$L10NBASEDIR" = "yes" -o "$L10NBASEDIR" = "no"; then
+        AC_MSG_ERROR([--with-l10n-base must specify a path])
+    elif test -d "$L10NBASEDIR"; then
+        L10NBASEDIR=`cd "$L10NBASEDIR" && pwd`
+    else
+        AC_MSG_ERROR([Invalid value --with-l10n-base, $L10NBASEDIR doesn't exist])
+    fi
+else
+    dnl default to $(topsrcdir)/../l10n for 1.9
+    L10NBASEDIR='$(topsrcdir)/../l10n'
+fi
+AC_SUBST(L10NBASEDIR)
 
 dnl ========================================================
 dnl Checks for compilers.
@@ -483,6 +500,7 @@ case "$target" in
         elif test "$_CC_MAJOR_VERSION" = "15"; then
             _CC_SUITE=9
             CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
+            LDFLAGS="$LDFLAGS -MANIFESTUAC:NO"
             _USE_DYNAMICBASE=1
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
@@ -5973,6 +5991,9 @@ if test -n "$MOZ_HELP_VIEWER"; then
      AC_DEFINE(MOZ_HELP_VIEWER)
 fi
 AC_SUBST(MOZ_HELP_VIEWER)
+if test "$MOZ_BUILD_APP" = "browser" -a -n "$MOZ_HELP_VIEWER"; then
+    AC_MSG_ERROR([Cannot build Firefox with --enable-help-viewer.])
+fi
 
 dnl ========================================================
 dnl = Enable safe browsing (anti-phishing)

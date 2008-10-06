@@ -673,7 +673,13 @@ function BrowserStartup()
   gBrowser = document.getElementById("content");
 
   var uriToLoad = null;
-  // Check for window.arguments[0]. If present, use that for uriToLoad.
+
+  // window.arguments[0]: URI to load (string), or an nsISupportsArray of
+  //                      nsISupportsStrings to load
+  //                 [1]: character set (string)
+  //                 [2]: referrer (nsIURI)
+  //                 [3]: postData (nsIInputStream)
+  //                 [4]: allowThirdPartyFixup (bool)
   if ("arguments" in window && window.arguments[0])
     uriToLoad = window.arguments[0];
 
@@ -686,9 +692,26 @@ function BrowserStartup()
 #else
 # only load url passed in when we're not page cycling
   if (uriToLoad && !gIsLoadingBlank) {
-    if (window.arguments.length >= 3)
+    if (uriToLoad instanceof Components.interfaces.nsISupportsArray) {
+      var count = uriToLoad.Count();
+      var specs = [];
+      for (var i = 0; i < count; i++) {
+        var urisstring = uriToLoad.GetElementAt(i).QueryInterface(Components.interfaces.nsISupportsString);
+        specs.push(urisstring.data);
+      }
+
+      // This function throws for certain malformed URIs, so use exception handling
+      // so that we don't disrupt startup
+      try {
+        gBrowser.loadTabs(specs, false, true);
+      } catch (e) {}
+    }
+    else if (window.arguments.length >= 3) {
       loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
               window.arguments[4] || false);
+    }
+    // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
+    // Such callers expect that window.arguments[0] is handled as a single URI.
     else
       loadOneOrMoreURIs(uriToLoad);
   }
@@ -938,8 +961,6 @@ function delayedStartup()
     focusElement(gURLBar);
   else
     focusElement(content);
-
-  SetPageProxyState("invalid");
 
   var navToolbox = getNavToolbox();
   navToolbox.customizeDone = BrowserToolboxCustomizeDone;
@@ -4310,7 +4331,9 @@ nsBrowserAccess.prototype =
         // FIXME: Bug 408379. So how come this doesn't send the
         // referrer like the other loads do?
         var url = aURI ? aURI.spec : "about:blank";
-        newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url);
+        // Pass all params to openDialog to ensure that "url" isn't passed through
+        // loadOneOrMoreURIs, which splits based on "|"
+        newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
         var win = this._getMostRecentBrowserWindow();
@@ -4809,26 +4832,6 @@ function asyncOpenWebPanel(event)
          event.preventDefault();
          return false;
        }
-       else if (target == "_search") {
-         // Used in WinIE as a way of transiently loading pages in a sidebar.  We
-         // mimic that WinIE functionality here and also load the page transiently.
-
-         // DISALLOW_INHERIT_PRINCIPAL is used here in order to also
-         // block javascript and data: links targeting the sidebar.
-         try {
-           const nsIScriptSecurityMan = Ci.nsIScriptSecurityManager;
-           urlSecurityCheck(wrapper.href,
-                            wrapper.ownerDocument.nodePrincipal,
-                            nsIScriptSecurityMan.DISALLOW_INHERIT_PRINCIPAL);
-         }
-         catch(ex) {
-           return false;
-         } 
-
-         openWebPanel(gNavigatorBundle.getString("webPanels"), wrapper.href);
-         event.preventDefault();
-         return false;
-       }
      }
      else {
        handleLinkClick(event, wrapper.href, linkNode);
@@ -5082,21 +5085,19 @@ function BrowserSetForcedDetector(doReload)
 
 function UpdateCurrentCharset()
 {
-    var menuitem = null;
-
-    // exctract the charset from DOM
+    // extract the charset from DOM
     var wnd = document.commandDispatcher.focusedWindow;
     if ((window == wnd) || (wnd == null)) wnd = window.content;
-    menuitem = document.getElementById('charset.' + wnd.document.characterSet);
 
+    // Uncheck previous item
+    if (gPrevCharset) {
+        var pref_item = document.getElementById('charset.' + gPrevCharset);
+        if (pref_item)
+          pref_item.setAttribute('checked', 'false');
+    }
+
+    var menuitem = document.getElementById('charset.' + wnd.document.characterSet);
     if (menuitem) {
-        // uncheck previously checked item to workaround Mac checkmark problem
-        // bug 98625
-        if (gPrevCharset) {
-            var pref_item = document.getElementById('charset.' + gPrevCharset);
-            if (pref_item)
-              pref_item.setAttribute('checked', 'false');
-        }
         menuitem.setAttribute('checked', 'true');
     }
 }

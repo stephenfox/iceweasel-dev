@@ -371,7 +371,9 @@ nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
       return; // bail if couldn't find the correct length
     }
     
-    PresContext()->SetBidiEnabled(HasRTLChars(str));
+    if (HasRTLChars(str)) {
+      PresContext()->SetBidiEnabled();
+    }
 
     // cacl the x and y positions of the text
     nscoord x = GetXPosition(aRenderingContext, aRect, aJust, str);
@@ -557,7 +559,12 @@ nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
     // We're doing print-selection, with one long page-content frame.
     // Clip to the appropriate page-content slice for the current page.
     NS_ASSERTION(mPageNum > 0, "page num should be positive");
-    clipRect.y =  expectedPageContentHeight * (mPageNum - 1);
+    // Note: The pageContentFrame's y-position has been set such that a zero
+    // y-value matches the top edge of the current page.  So, to clip to the
+    // current page's content (in coordinates *relative* to the page content
+    // frame), we just negate its y-position and add the top margin.
+    clipRect.y = NSToCoordCeil((-pageContentFrame->GetRect().y + 
+                                mPD->mReflowMargin.top) / scale);
     clipRect.height = expectedPageContentHeight;
     NS_ASSERTION(clipRect.y < pageContentFrame->GetSize().height,
                  "Should be clipping to region inside the page content bounds");
