@@ -156,7 +156,7 @@ run_verbose () {
 # OK, here's where all the real work gets done
 
 # parse command line
-APPLICATION_ID=firefox
+APPLICATION_ID=iceweasel
 VERBOSE=
 DEBUG=0
 DEBUGGER=
@@ -182,8 +182,8 @@ for arg in "$@"; do
                 ;;
             -P|-CreateProfile)
                 case "${arg}" in
-                default)    APPLICATION_ID=firefox ;;
-                *)          APPLICATION_ID=firefox--"${arg}" ;;
+                default)    APPLICATION_ID=iceweasel ;;
+                *)          APPLICATION_ID=iceweasel--"${arg}" ;;
                 esac
                 MOZ_NO_REMOTE=1
                 export MOZ_NO_REMOTE

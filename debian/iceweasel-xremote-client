@@ -11,4 +11,4 @@ else
 fi
  export LD_LIBRARY_PATH
 
-/usr/lib/iceweasel/firefox-bin -a firefox -remote "$1"
+/usr/lib/iceweasel/firefox-bin -a iceweasel -remote "$1"
