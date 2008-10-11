@@ -9,9 +9,11 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-install" ] ||
     rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
     cd /usr/lib/xulrunner-1.9
+    export HOME=`mktemp -d`
     ./run-mozilla.sh ./xpcshell -e "" ||
     rm -f /usr/lib/xulrunner-1.9/components/compreg.dat \
           /usr/lib/xulrunner-1.9/components/xpti.dat
+    rm -rf "$HOME"
 fi
 
 #DEBHELPER#
