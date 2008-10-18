@@ -70,12 +70,12 @@ pref("extensions.hideInstallButton", true);
 
 // Preferences for the Get Add-ons pane
 pref("extensions.getAddons.showPane", true);
-pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/%APP%");
+pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/firefox");
 pref("extensions.getAddons.maxResults", 5);
-pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/recommended");
-pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
+pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/recommended");
+pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
+pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/search?q=%TERMS%");
+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -165,7 +165,7 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
-pref("extensions.getMoreThemesURL", "https://addons.mozilla.org/%LOCALE%/%APP%/getpersonas");
+pref("extensions.getMoreThemesURL", "https://addons.mozilla.org/%LOCALE%/firefox/getpersonas");
 pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
 pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                 // restart.
@@ -853,7 +853,7 @@ pref("editor.singleLine.pasteNewlines", 2);
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
-pref("app.support.baseURL", "http://support.mozilla.com/1/%APP%/%VERSION%/%OS%/%LOCALE%/");
+pref("app.support.baseURL", "http://support.mozilla.com/1/firefox/%VERSION%/%OS%/%LOCALE%/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");
