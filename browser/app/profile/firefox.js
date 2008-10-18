@@ -236,7 +236,6 @@ pref("keyword.enabled", true);
 // "use the search service's default engine"
 pref("keyword.URL", "");
 
-pref("general.useragent.locale", "@AB_CD@");
 pref("general.skins.selectedSkin", "classic/1.0");
 
 pref("general.smoothScroll", true);
