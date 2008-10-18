@@ -4,6 +4,8 @@ iceweasel (3.0.3-3) UNRELEASED; urgency=low
     Closes: #501540, #502450.
   * browser/branding/unofficial/locales/browserconfig.properties: Change the
     homepage to about:. Closes: #499346.
+  * browser/app/profile/firefox.js, browser/locales/en-US/firefox-l10n.js:
+    Remove general.useragent.locale prefs from firefox*.js. Closes: #495381.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 18 Oct 2008 13:59:35 +0200
 
