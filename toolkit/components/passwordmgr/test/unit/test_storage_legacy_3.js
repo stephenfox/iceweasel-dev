@@ -502,6 +502,75 @@ nullUser.username = "username";
 nullUser.password = "password";
 
 
+/*
+ * ---------------------- Bug 451155 ----------------------
+ * Ensure that we don't mangle strings when then contain
+ * UCS2 characters above U+00FF.
+ */
+
+/* ========== 14 ========== */
+testnum++;
+testdesc = "ensure UCS2 strings don't get mangled."
+
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
+                               OUTDIR, "output-451155.txt");
+LoginTest.checkStorageData(storage, [], []);
+
+var testString = String.fromCharCode(355, 277, 349, 357, 533, 537, 101, 345, 185);
+
+var utfHost = "http://" + testString + ".org";
+var utfUser1 = Cc["@mozilla.org/login-manager/loginInfo;1"].
+               createInstance(Ci.nsILoginInfo);
+var utfUser2 = Cc["@mozilla.org/login-manager/loginInfo;1"].
+               createInstance(Ci.nsILoginInfo);
+
+utfUser1.init("http://" + testString + ".org",
+    "http://" + testString + ".org", null,
+    testString, testString, testString, testString);
+utfUser2.init("http://realm.check.net", null, "realm " + testString + " test",
+    "user", "pass", "", "");
+
+storage.addLogin(utfUser1);
+storage.addLogin(utfUser2);
+storage.setLoginSavingEnabled(utfHost, false);
+
+LoginTest.checkStorageData(storage, [utfHost], [utfUser1, utfUser2]);
+
+testdesc = "[flush and reload for verification]"
+LoginTest.initStorage(storage, OUTDIR, "output-451155.txt");
+LoginTest.checkStorageData(storage, [utfHost], [utfUser1, utfUser2]);
+
+
+/*
+ * ---------------------- Bug 454708 ----------------------
+ * Check that previous saved entries that are not valid UTF8
+ * are read without blowing up.
+ */
+
+/* ========== 15 ========== */
+testnum++;
+testdesc = "ensure bogus UTF8 strings don't cause failures."
+
+var badHost = "https://FcK" + String.fromCharCode(0x8a) + ".jp";
+var bad8User = Cc["@mozilla.org/login-manager/loginInfo;1"].
+               createInstance(Ci.nsILoginInfo);
+bad8User.init(badHost, badHost, null,
+              "dummydude", "itsasecret", "put_user_here", "put_pw_here");
+
+LoginTest.initStorage(storage,
+                      INDIR, "signons-454708.txt",
+                      OUTDIR, "output-454708.txt");
+LoginTest.checkStorageData(storage, [], [bad8User]);
+
+// The output file should contain valid UTF8 now, but the resulting
+// JS string value remains the same.
+
+testdesc = "[flush and reload for verification]"
+LoginTest.initStorage(storage, OUTDIR, "output-454708.txt");
+LoginTest.checkStorageData(storage, [], [bad8User]);
+
+
+
 
 /* ========== end ========== */
 } catch (e) {
