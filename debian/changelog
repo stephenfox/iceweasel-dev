@@ -8,6 +8,10 @@ iceweasel (3.0.3-3) UNRELEASED; urgency=low
     Remove general.useragent.locale prefs from firefox*.js. Closes: #495381.
   * browser/components/feeds/src/FeedConverter.js: Allow external web feed
     application to work without gnome libraries. Closes: #406380.
+  * debian/presubj: Minor changes and add a note about MOZILLA_DISABLE_PLUGINS
+    environment variable.
+  * debian/control: Depend on a version of xulrunner-1.9 that handles the
+    MOZILLA_DISABLE_PLUGINS environment variable.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 18 Oct 2008 13:59:35 +0200
 

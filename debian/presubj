@@ -12,18 +12,17 @@ any bugs.  If your bug disappears with a clean user or in safe mode,
 you might want to find which extension is responsible for it and file
 a bug to the appropriate package, bug tracking system, or author.
 
-If your previous Iceweasel installation pre-dates 1.0, you might have
-had problems since upgrading from one release to another lacks clean
-support.  Please try moving your ~/.mozilla/firefox directory out of
-the way to see if it helps with your issue.
+If your previous Iceweasel installation pre-dates 3.0, you might have
+had problems since upgrading from one release to another can lack clean
+support for some features.  Please try moving your ~/.mozilla/firefox
+directory out of the way to see if it helps with your issue.
 
 Iceweasel requires the loopback interface (lo) to be up and unfiltered
 to accept keyboard input and function correctly. Please make sure this
 is the case before filing any bugs.
 
-If you get crashes and none of the above hints helped, please first
-try to remove plugins from the /usr/lib/iceweasel/plugins and
-~/.mozilla/plugins directories.
+If you get crashes and none of the above hints helped, please also
+try to run "MOZILLA_DISABLE_PLUGINS=1 iceweasel".
 
 If Iceweasel still crashes, please install the iceweasel-dbg package
 and run gdb with the "iceweasel -g" command line. At the gdb prompt,
@@ -37,4 +36,3 @@ And attach the resulting backtrace to your bug report.
 
 If you see XML parsing errors, please make sure you kill all running
 Iceweasels and reload before filing any bugs.
-
