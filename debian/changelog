@@ -1,4 +1,4 @@
-iceweasel (3.0.3-3) UNRELEASED; urgency=low
+iceweasel (3.0.3-3) unstable; urgency=low
 
   * browser/app/profile/firefox.js: Replace %APP% with firefox in some places.
     Closes: #501540, #502450.
@@ -13,7 +13,7 @@ iceweasel (3.0.3-3) UNRELEASED; urgency=low
   * debian/control: Depend on a version of xulrunner-1.9 that handles the
     MOZILLA_DISABLE_PLUGINS environment variable.
 
- -- Mike Hommey <glandium@debian.org>  Sat, 18 Oct 2008 13:59:35 +0200
+ -- Mike Hommey <glandium@debian.org>  Fri, 24 Oct 2008 08:16:02 +0200
 
 iceweasel (3.0.3-2) unstable; urgency=low
 
