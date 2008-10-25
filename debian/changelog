@@ -1,3 +1,11 @@
+iceweasel (3.0.3-4) UNRELEASED; urgency=low
+
+  * debian/iceweasel-gnome-support.postinst,
+    debian/iceweasel-gnome-support.prerm: Handle gnome-www-browser alternative.
+    Restored from 3.0~b5-3. Closes: #492286.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 25 Oct 2008 10:02:21 +0200
+
 iceweasel (3.0.3-3) unstable; urgency=low
 
   * browser/app/profile/firefox.js: Replace %APP% with firefox in some places.
