@@ -1,5 +1,6 @@
 Name: Iceweasel restart required
 Name-fr: Relancement de Iceweasel requis
+Name-ja: Iceweasel の再起動が必要です
 Priority: High
 Terminal: False
 DontShowAfterReboot: True
@@ -7,3 +8,5 @@ Description: Iceweasel has been upgraded (or reinstalled) and must be restarted.
  Please quit and restart your web browser now.
 Description-fr: Iceweasel a été mis à jour (ou réinstallé) et doit être relancé.
  Veuillez quitter et redémarrer for navigateur.
+Description-ja: Iceweasel が更新 (あるいは再インストール) されたので再起動が必要です。
+ すぐにブラウザを終了して再起動してください。

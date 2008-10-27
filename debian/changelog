@@ -9,6 +9,8 @@ iceweasel (3.0.3-4) UNRELEASED; urgency=low
     previous change, this is not the installed file.
   * debian/homepagereset.js: Force homepage reset if it was previously set to
     the granparadiso homepage.
+  * debian/iceweasel-restart-required.update-notifier: Added japanese
+    translation. Thanks Hideki Yamane. Closes: #503595.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 25 Oct 2008 10:02:21 +0200
 
