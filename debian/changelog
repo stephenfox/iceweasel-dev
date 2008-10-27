@@ -3,6 +3,12 @@ iceweasel (3.0.3-4) UNRELEASED; urgency=low
   * debian/iceweasel-gnome-support.postinst,
     debian/iceweasel-gnome-support.prerm: Handle gnome-www-browser alternative.
     Restored from 3.0~b5-3. Closes: #492286.
+  * debian/branding/locales/browserconfig.properties: Change the homepage to
+    about:. Closes: #499346
+  * browser/branding/unofficial/locales/browserconfig.properties: Revert
+    previous change, this is not the installed file.
+  * debian/homepagereset.js: Force homepage reset if it was previously set to
+    the granparadiso homepage.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 25 Oct 2008 10:02:21 +0200
 

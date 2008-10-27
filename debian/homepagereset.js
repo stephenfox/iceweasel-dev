@@ -77,7 +77,8 @@ HomePageReset.prototype = {
 
       var homepage = prefs.getCharPref("browser.startup.homepage");
 
-      if (homepage == "file:///usr/share/doc/mozilla-browser/localstart.html")
+      if ((homepage == "file:///usr/share/doc/mozilla-browser/localstart.html") ||
+          (homepage == "http://www.mozilla.org/projects/granparadiso/"))
         prefs.clearUserPref("browser.startup.homepage");
     }
   }
