@@ -1334,6 +1334,9 @@ malloc_spin_unlock(malloc_spinlock_t *lock)
 #endif
 }
 
+void		_malloc_prefork(void);
+void		_malloc_postfork(void);
+
 /*
  * End mutex.
  */
