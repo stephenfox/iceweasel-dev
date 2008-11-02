@@ -21,6 +21,7 @@ UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)-.*
 PYVER := $(shell pyversions -d)
 
 CFLAGS := -g
+LDFLAGS := -Wl,--as-needed
 
 AUTOCONF_DIRS := build/autoconf
 
@@ -35,7 +36,7 @@ ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 endif
 
 ifeq ($(DEB_BUILD_ARCH),alpha)
-	CFLAGS += -Wl,--no-relax
+	LDFLAGS += -Wl,--no-relax
 endif
 
 ifeq ($(DEB_BUILD_ARCH),ppc64)
@@ -90,7 +91,7 @@ build-stamp:  config.status
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
 		DEB_NO_JAR=1 \
-		OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
+		OS_LDFLAGS="$(LDFLAGS) $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
