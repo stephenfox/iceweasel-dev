@@ -11,6 +11,8 @@ iceweasel (3.0.3-4) UNRELEASED; urgency=low
     the granparadiso homepage.
   * debian/iceweasel-restart-required.update-notifier: Added japanese
     translation. Thanks Hideki Yamane. Closes: #503595.
+  * browser/components/shell/src/nsGNOMEShellService.cpp: Fix various problems
+    in the handling of GNOME background color. Closes: #495897.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 25 Oct 2008 10:02:21 +0200
 
