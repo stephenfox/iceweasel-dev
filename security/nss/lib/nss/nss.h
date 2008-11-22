@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nss.h,v 1.58.2.1 2008/09/05 18:06:17 reed%reedloden.com Exp $ */
+/* $Id: nss.h,v 1.58.4.1 2008/09/05 17:02:49 kaie%kuix.de Exp $ */
 
 #ifndef __nss_h_
 #define __nss_h_
