@@ -1,3 +1,41 @@
+xulrunner (1.9.0.4-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2008-{47,51-58}, also known as
+    CVE-2008-0017, CVE-2008-4582, CVE-2008-5015, CVE-2008-5016,
+    CVE-2008-5017, CVE-2008-5018, CVE-2008-5019, CVE-2008-5021,
+    CVE-2008-5022, CVE-2008-5023, CVE-2008-5024.
+  * debian/postinst.in: Use a temporary directory as $HOME when running
+    xpcshell. Thanks Theppitak Karoonboonyanan. Closes: #495311.
+  * debian/rules:
+    + Exclude jemalloc from kfreebsd packages, as it is not built.
+      Thanks Petr Salinger. Closes: #501476.
+    + Use LDFLAGS instead of CFLAGS to set -Wl,--no-relax on alpha.
+  * modules/libpr0n/src/imgRequest.cpp: Apply patch from bz#373701 to
+    properly close streaming HTTP connections and avoid sucking bandwidth.
+    Closes: #491144.
+  * browser/app/mozilla.in: Do exec instead of uselessly forking.
+    Closes: #496626.
+  * memory/jemalloc/jemalloc.c: Apply patch from bz#460933 to avoid
+    possible deadlock on fork with jemalloc enabled.
+  * xpcom/glue/nsThreadUtils.cpp: Better fix to avoid crashes such as bug
+    #481925. Might fix bug #503926, too.
+  * debian/xulrunner-1.9.preinst: If /usr/lib/xulrunner-1.9/chrome is an
+    empty directory, remove it. This will allow dpkg to create the symbolic
+    link correctly. Closes: #482415, #486334, #486354, #492488.
+  * toolkit/components/url-classifier/src/Makefile.in: Disable optimization
+    on alpha as it leads to crashes when using this component.
+  * uriloader/exthandler/nsMIMEInfoImpl.h,
+    uriloader/exthandler/unix/nsMIMEInfoUnix.cpp,
+    uriloader/exthandler/unix/nsOSHelperAppService.cpp,
+    uriloader/exthandler/unix/nsOSHelperAppService.h: Revert change from
+    release 1.9.0.1-1.
+  * uriloader/exthandler/unix/nsMIMEInfoUnix.cpp: Properly launch
+    applications set in $HOME/.mailcap. Replaces the previous patch in
+    a much simpler way.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 22 Nov 2008 12:50:09 +0100
+
 xulrunner (1.9.0.3-1) unstable; urgency=low
 
   * New upstream release.
