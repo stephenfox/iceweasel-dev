@@ -74,6 +74,12 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 NS_IMETHODIMP
 nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
+  // if mDefaultApplication is set, it means the application has been set from
+  // either /etc/mailcap or ${HOME}/.mailcap, in which case we don't want to
+  // give the GNOME answer.
+  if (mDefaultApplication)
+    return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
+
   *_retval = PR_FALSE;
   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mType);
   if (!mimeInfo) {
@@ -95,14 +101,19 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
     return NS_OK;
   }
 #endif
-
-  // If we didn't find a VFS handler, fallback.
-  return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
+  
+  return NS_OK;
 }
 
 nsresult
 nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 {
+  // if mDefaultApplication is set, it means the application has been set from
+  // either /etc/mailcap or ${HOME}/.mailcap, in which case we don't want to
+  // give the GNOME answer.
+  if (mDefaultApplication)
+    return nsMIMEInfoImpl::LaunchDefaultWithFile(aFile);
+
   nsCAutoString nativePath;
   aFile->GetNativePath(nativePath);
 
