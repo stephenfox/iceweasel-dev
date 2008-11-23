@@ -1,5 +1,8 @@
-iceweasel (3.0.3-4) UNRELEASED; urgency=low
+iceweasel (3.0.4-1) unstable; urgency=low
 
+  * New upstream release. (Closes: #505557)
+  
+  [ Mike Hommey ]
   * debian/iceweasel-gnome-support.postinst,
     debian/iceweasel-gnome-support.prerm: Handle gnome-www-browser alternative.
     Restored from 3.0~b5-3. Closes: #492286.
@@ -14,7 +17,7 @@ iceweasel (3.0.3-4) UNRELEASED; urgency=low
   * browser/components/shell/src/nsGNOMEShellService.cpp: Fix various problems
     in the handling of GNOME background color. Closes: #495897.
 
- -- Mike Hommey <glandium@debian.org>  Sat, 25 Oct 2008 10:02:21 +0200
+ -- Eric Dorland <eric@debian.org>  Sun, 23 Nov 2008 01:32:40 -0500
 
 iceweasel (3.0.3-3) unstable; urgency=low
 
