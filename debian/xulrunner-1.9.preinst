@@ -3,7 +3,8 @@
 set -e
 
 if [ "$1" = "install" ] || [ "$1" = "upgrade" ]; then
-    if [ ! -L /usr/lib/xulrunner-1.9/chrome ]; then
+    if [ -d /usr/lib/xulrunner-1.9/chrome ] &&
+       [ ! -L /usr/lib/xulrunner-1.9/chrome ]; then
         rmdir /usr/lib/xulrunner-1.9/chrome
     fi
 fi
