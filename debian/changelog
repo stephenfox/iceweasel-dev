@@ -17,6 +17,11 @@ iceweasel (3.0.4-1) unstable; urgency=low
   * browser/components/shell/src/nsGNOMEShellService.cpp: Fix various problems
     in the handling of GNOME background color. Closes: #495897.
 
+  [ Eric Dorland ]
+  * debian/iceweasel.desktop: Just specify "iceweasel" as the icon, so it
+    can pick the scalable one under certain circumstances. (Closes:
+    #451943)
+
  -- Eric Dorland <eric@debian.org>  Sun, 23 Nov 2008 01:32:40 -0500
 
 iceweasel (3.0.3-3) unstable; urgency=low
