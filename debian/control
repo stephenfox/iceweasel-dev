@@ -46,7 +46,8 @@ Depends: ${shlibs:Depends},
          libnss3-1d (>> 3.12.0~rc3-1),
 Suggests: xulrunner-1.9-gnome-support
 Replaces: xulrunner-1.9-common
-Conflicts: j2re1.4
+Conflicts: j2re1.4,
+           pango-graphite
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
  multiple XUL + XPCOM applications that are as rich as Firefox and
