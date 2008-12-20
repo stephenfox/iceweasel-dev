@@ -2,6 +2,8 @@ iceweasel (3.0.5-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Fixes mfsa-2008-{63,69}, also known as CVE-2008-5505 and CVE-2008-5513.
+  * debian/vendor.js: Remove EULA override, since the EULA was removed
+    upstream, and its replacement has been made hidden to unofficial builds.
 
  -- Mike Hommey <glandium@debian.org>  Sat, 20 Dec 2008 13:00:14 +0100
 
