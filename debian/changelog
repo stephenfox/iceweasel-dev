@@ -1,3 +1,15 @@
+xulrunner (1.9.0.5-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2008-{60,63-68}, also known as
+    CVE-2008-5500, CVE-2008-5501, CVE-2008-5502, CVE-2008-5505,
+    CVE-2008-5506, CVE-2008-5507, CVE-2008-5508, CVE-2008-5510,
+    CVE-2008-5511, CVE-2008-5512.
+  * debian/control: conflict with pango-graphite, to avoid all problems
+    it causes.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 20 Dec 2008 10:55:24 +0100
+
 xulrunner (1.9.0.4-2) unstable; urgency=low
 
   * debian/xulrunner-1.9.preinst: Brown paper bag fix to avoid failure on
