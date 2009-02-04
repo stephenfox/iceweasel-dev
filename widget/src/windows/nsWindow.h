@@ -208,7 +208,12 @@ public:
 
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
-  nsWindow*               GetTopLevelWindow();
+
+  // Note that the result of GetTopLevelWindow method can be different from the
+  // result of GetTopLevelHWND method.  The result can be non-floating window.
+  // Because our top level window may be contained in another window which is
+  // not managed by us.
+  nsWindow*               GetTopLevelWindow(PRBool aStopOnDialogOrPopup);
 
   gfxASurface             *GetThebesSurface();
 
@@ -286,7 +291,7 @@ protected:
 
   static nsWindow*        GetNSWindowPtr(HWND aWnd);
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
-  nsWindow*               GetParent(PRBool aStopOnFirstTopLevel);
+  nsWindow*               GetParentWindow();
 
   void                    DispatchPendingEvents();
   virtual PRBool          ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT *aRetValue);
@@ -318,7 +323,7 @@ protected:
   UINT                    MapFromNativeToDOM(UINT aNativeKeyCode);
 
 
-  BOOL                    OnInputLangChange(HKL aHKL, LRESULT *oResult);
+  BOOL                    OnInputLangChange(HKL aHKL);
   BOOL                    OnIMEChar(BYTE aByte1, BYTE aByte2, LPARAM aKeyState);
   BOOL                    OnIMEComposition(LPARAM  aGCS);
   BOOL                    OnIMECompositionFull();
@@ -335,6 +340,9 @@ protected:
   void                    ResolveIMECaretPos(nsWindow* aClient,
                                              nsRect&   aEventResult,
                                              nsRect&   aResult);
+  PRBool                  ConvertToANSIString(const nsAFlatString& aStr,
+                                              UINT aCodePage,
+                                              nsACString& aANSIStr);
 
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                             const nsTArray<nsAlternativeCharCode>* aAlternativeChars,
@@ -391,7 +399,6 @@ protected:
   static PRBool     sIMEIsComposing;
   static PRBool     sIMEIsStatusChanged;
 
-  static DWORD      sIMEProperty;
   static nsString*  sIMECompUnicode;
   static PRUint8*   sIMEAttributeArray;
   static PRInt32    sIMEAttributeArrayLength;
@@ -461,7 +468,6 @@ protected:
   HIMC          mOldIMC;
   PRUint32      mIMEEnabled;
 
-  static HKL    gKeyboardLayout;
   static PRBool gSwitchKeyboardLayout;
 
   HKL           mLastKeyboardLayout;
@@ -509,7 +515,12 @@ protected:
 
 public:
   static void GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  static HWND GetTopLevelHWND(HWND aWnd, PRBool aStopOnFirstTopLevel = PR_FALSE);
+  // Note that the result of GetTopLevelHWND can be different from the result
+  // of GetTopLevelWindow method.  Because this is checking whether the window
+  // is top level only in Win32 window system.  Therefore, the result window
+  // may not be managed by us.
+  static HWND GetTopLevelHWND(HWND aWnd,
+                              PRBool aStopOnDialogOrPopup = PR_FALSE);
 };
 
 //

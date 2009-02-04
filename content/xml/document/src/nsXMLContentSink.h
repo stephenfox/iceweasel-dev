@@ -133,13 +133,14 @@ protected:
                                nsIContent *aContent);
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                 nsIContent** aResult, PRBool* aAppendContent);
+                                 nsIContent** aResult, PRBool* aAppendContent,
+                                 PRBool aFromParser);
 
   // aParent is allowed to be null here if this is the root content
   // being closed
   virtual nsresult CloseElement(nsIContent* aContent);
 
-  virtual nsresult FlushText();
+  virtual nsresult FlushText(PRBool aReleaseTextNode = PR_TRUE);
 
   nsresult AddContentAsLeaf(nsIContent *aContent);
 
@@ -149,7 +150,7 @@ protected:
   void PopContent();
   PRBool HaveNotifiedForCurrentContent() const;
 
-  nsresult ProcessBASETag(nsIContent* aContent);
+  void ProcessBASETag(nsIContent* aContent);
 
   nsresult FlushTags();
 
@@ -198,6 +199,8 @@ protected:
   PRInt32 mTextSize;
   
   PRInt32 mNotifyLevel;
+  nsCOMPtr<nsIContent> mLastTextNode;
+  PRInt32 mLastTextNodeSize;
 
   PRUint8 mConstrainSize : 1;
   PRUint8 mPrettyPrintXML : 1;

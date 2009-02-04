@@ -153,9 +153,20 @@ PRUint32 VirtualKey::GetUniChars (PRUint8 aShiftState, PRUint16* aUniChars, PRUi
 
     if (numOfChars)
     {
-      if (!(numOfChars == numOfUnshiftedChars &&
-            memcmp (aUniChars, unshiftedChars, numOfChars * sizeof (PRUint16)) == 0))
+      if ((aShiftState & (eAlt | eCtrl)) == (eAlt | eCtrl)) {
+        // Even if the shifted chars and the unshifted chars are same, we
+        // should consume the Alt key state and the Ctrl key state when
+        // AltGr key is pressed. Because if we don't consume them, the input
+        // events are ignored on nsEditor. (I.e., Users cannot input the
+        // characters with this key combination.)
         *aFinalShiftState &= ~(eAlt | eCtrl);
+      } else if (!(numOfChars == numOfUnshiftedChars &&
+                   memcmp (aUniChars, unshiftedChars,
+                           numOfChars * sizeof (PRUint16)) == 0)) {
+        // Otherwise, we should consume the Alt key state and the Ctrl key state
+        // only when the shifted chars and unshifted chars are different.
+        *aFinalShiftState &= ~(eAlt | eCtrl);
+      }
     } else
     {
       if (numOfUnshiftedChars)
@@ -198,7 +209,8 @@ PRUint32 VirtualKey::GetNativeUniChars (PRUint8 aShiftState, PRUint16* aUniChars
 
 
 
-KeyboardLayout::KeyboardLayout ()
+KeyboardLayout::KeyboardLayout () :
+  mKeyboardLayout(0), mCodePage(0)
 {
 #ifndef WINCE
   mDeadKeyTableListHead = nsnull;
@@ -350,7 +362,18 @@ KeyboardLayout::GetUniCharsWithShiftState(PRUint8 aVirtualKey,
 
 void KeyboardLayout::LoadLayout (HKL aLayout)
 {
+  if (mKeyboardLayout == aLayout)
+    return;
+
+  mKeyboardLayout = aLayout;
+  mIMEProperty = ::ImmGetProperty(aLayout, IGP_PROPERTY);
+
 #ifndef WINCE
+  WORD langID = LOWORD(aLayout);
+  ::GetLocaleInfoA(MAKELCID(langID, SORT_DEFAULT),
+                   LOCALE_IDEFAULTANSICODEPAGE | LOCALE_RETURN_NUMBER,
+                   (PSTR)&mCodePage, sizeof(mCodePage));
+
   PRUint32 shiftState;
   BYTE kbdState [256];
   BYTE originalKbdState [256];
@@ -361,7 +384,6 @@ void KeyboardLayout::LoadLayout (HKL aLayout)
 
   mActiveDeadKey = -1;
   mNumOfChars = 0;
-  mKeyboardLayout = aLayout;
 
   ReleaseDeadKeyTables ();
 
@@ -441,6 +463,8 @@ void KeyboardLayout::LoadLayout (HKL aLayout)
   }
 
   ::SetKeyboardState (originalKbdState);
+#else
+  mCodePage = ::GetACP();
 #endif
 }
 

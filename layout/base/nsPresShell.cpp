@@ -2377,6 +2377,8 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     return NS_OK;
   }
 
+  NS_ASSERTION(!mDidInitialReflow, "Why are we being called?");
+
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
   mDidInitialReflow = PR_TRUE;
 
@@ -5305,9 +5307,15 @@ PresShell::RenderNode(nsIDOMNode* aNode,
   nsRect area;
   nsTArray<nsAutoPtr<RangePaintInfo> > rangeItems;
 
+  // nothing to draw if the node isn't in a document
+  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
+  if (!node->IsInDoc())
+    return nsnull;
+
   nsCOMPtr<nsIDOMRange> range;
   NS_NewRange(getter_AddRefs(range));
-  range->SelectNode(aNode);
+  if (NS_FAILED(range->SelectNode(aNode)))
+    return nsnull;
 
   RangePaintInfo* info = CreateRangePaintInfo(range, area);
   if (info && !rangeItems.AppendElement(info)) {
@@ -5418,6 +5426,10 @@ PresShell::Paint(nsIView*             aView,
 nsIFrame*
 PresShell::GetCurrentEventFrame()
 {
+  if (NS_UNLIKELY(mIsDestroying)) {
+    return nsnull;
+  }
+    
   if (!mCurrentEventFrame && mCurrentEventContent) {
     // Make sure the content still has a document reference. If not,
     // then we assume it is no longer in the content tree and the

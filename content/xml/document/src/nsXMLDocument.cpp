@@ -133,6 +133,10 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   doc->SetPrincipal(aPrincipal);
   doc->SetBaseURI(aBaseURI);
 
+  // XMLDocuments and documents "created in memory" get to be UTF-8 by default,
+  // unlike the legacy HTML mess
+  doc->SetDocumentCharacterSet(NS_LITERAL_CSTRING("UTF-8"));
+  
   if (aDoctype) {
     nsCOMPtr<nsIDOMNode> tmpNode;
     rv = doc->AppendChild(aDoctype, getter_AddRefs(tmpNode));
@@ -271,6 +275,19 @@ nsXMLDocument::OnChannelRedirect(nsIChannel *aOldChannel,
 
   rv = nsContentUtils::GetSecurityManager()->
     CheckSameOriginURI(oldURI, newURI, PR_TRUE);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  nsCOMPtr<nsIURI> newOrigURI;
+  rv = aNewChannel->GetOriginalURI(getter_AddRefs(newOrigURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (newOrigURI != newURI) {
+    rv = nsContentUtils::GetSecurityManager()->
+      CheckSameOriginURI(oldURI, newOrigURI, PR_TRUE);
+  }
 
   if (NS_FAILED(rv)) {
     return rv;

@@ -52,6 +52,8 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMDocumentXBL.h"
+#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMHTMLElement.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMXULContainerElement.h"
@@ -486,6 +488,78 @@ nsAccUtils::GetARIATreeItemParent(nsIAccessible *aStartTreeItem, nsIContent *aSt
     // Previous sibling of parent group is a tree item -- this is the conceptual tree item parent
     NS_ADDREF(*aTreeItemParentResult = prevAccessible);
   }
+}
+
+already_AddRefed<nsIAccessibleText>
+nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
+                                           nsIDOMNode **aNode)
+{
+  // Get accessible from selection's focus DOM point (the DOM point where
+  // selection is ended).
+  
+  nsCOMPtr<nsIDOMNode> resultNode;
+  aSelection->GetFocusNode(getter_AddRefs(resultNode));
+  if (!resultNode)
+    return nsnull;
+  
+  // Get DOM node that focus DOM point points to.
+  nsCOMPtr<nsIContent> content(do_QueryInterface(resultNode));
+  if (content && content->IsNodeOfType(nsINode::eELEMENT)) {
+    PRInt32 offset = 0;
+    aSelection->GetFocusOffset(&offset);
+    
+    PRInt32 childCount = static_cast<PRInt32>(content->GetChildCount());
+    NS_ASSERTION(offset >= 0 && offset <= childCount,
+                 "Wrong focus offset in selection!");
+    
+    // The offset can be after last child of container node that means DOM point
+    // is placed immediately after the last child. In this case use focusNode
+    // as result node.
+    if (offset != childCount) {
+      nsCOMPtr<nsIContent> child = content->GetChildAt(offset);
+      resultNode = do_QueryInterface(child);
+    }
+  }
+  
+  nsIAccessibilityService *accService = nsAccessNode::GetAccService();
+  
+  // Get text accessible containing the result node.
+  while (resultNode) {
+    // Make sure to get the correct starting node for selection events inside
+    // XBL content trees.
+    nsCOMPtr<nsIDOMNode> relevantNode;
+    nsresult rv = accService->
+    GetRelevantContentNodeFor(resultNode, getter_AddRefs(relevantNode));
+    if (NS_FAILED(rv))
+      return nsnull;
+    
+    if (relevantNode)
+      resultNode.swap(relevantNode);
+    
+    nsCOMPtr<nsIContent> content = do_QueryInterface(resultNode);
+    if (!content || !content->IsNodeOfType(nsINode::eTEXT)) {
+      nsCOMPtr<nsIAccessible> accessible;
+      accService->GetAccessibleFor(resultNode, getter_AddRefs(accessible));
+      if (accessible) {
+        nsIAccessibleText *textAcc = nsnull;
+        CallQueryInterface(accessible, &textAcc);
+        if (textAcc) {
+          if (aNode)
+            NS_ADDREF(*aNode = resultNode);
+          
+          return textAcc;
+        }
+      }
+    }
+    
+    nsCOMPtr<nsIDOMNode> parentNode;
+    resultNode->GetParentNode(getter_AddRefs(parentNode));
+    resultNode.swap(parentNode);
+  }
+  
+  NS_NOTREACHED("No nsIAccessibleText for selection change event!");
+  
+  return nsnull;
 }
 
 nsresult
@@ -1030,4 +1104,38 @@ void nsAccUtils::GetLiveContainerAttributes(nsIPersistentProperties *aAttributes
       ancestor = aTopContent; // Use <body>/<frameset>
     }
   }
+}
+
+already_AddRefed<nsIDOMElement>
+nsAccUtils::GetDOMElementFor(nsIDOMNode *aNode)
+{
+  nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
+  nsIDOMElement *element = nsnull;
+
+  if (node->IsNodeOfType(nsINode::eELEMENT))
+    CallQueryInterface(node, &element);
+
+  else if (node->IsNodeOfType(nsINode::eTEXT)) {
+    nsCOMPtr<nsINode> nodeParent = node->GetNodeParent();
+    NS_ASSERTION(nodeParent, "Text node has no parent!");
+    if (nodeParent)
+      CallQueryInterface(nodeParent, &element);
+  }
+
+  else if (node->IsNodeOfType(nsINode::eDOCUMENT)) {
+    nsCOMPtr<nsIDOMHTMLDocument> htmlDoc(do_QueryInterface(node));
+    if (htmlDoc) {
+      nsCOMPtr<nsIDOMHTMLElement> bodyElement;
+      htmlDoc->GetBody(getter_AddRefs(bodyElement));
+      if (bodyElement) {
+        CallQueryInterface(bodyElement, &element);
+        return element;
+      }
+    }
+
+    nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(node));
+    domDoc->GetDocumentElement(&element);
+  }
+
+  return element;
 }
