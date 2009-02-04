@@ -299,8 +299,13 @@ js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj)
     JS_LOCK_GC(rt);
     ssr.next = rt->setSlotRequests;
     rt->setSlotRequests = &ssr;
-    js_GC(cx, GC_SET_SLOT_REQUEST);
-    JS_UNLOCK_GC(rt);
+    for (;;) {
+        js_GC(cx, GC_SET_SLOT_REQUEST);
+        JS_UNLOCK_GC(rt);
+        if (!rt->setSlotRequests)
+            break;
+        JS_LOCK_GC(rt);
+    }
 
     if (ssr.errnum != JSMSG_NOT_AN_ERROR) {
         if (ssr.errnum == JSMSG_OUT_OF_MEMORY) {
@@ -1247,7 +1252,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
             }
             if (obj != callerScopeChain) {
                 ok = js_CheckPrincipalsAccess(cx, obj,
-                                              caller->script->principals,
+                                              JS_StackFramePrincipals(cx, caller),
                                               cx->runtime->atomState.evalAtom);
                 if (!ok)
                     goto out;

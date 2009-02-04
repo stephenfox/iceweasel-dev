@@ -654,7 +654,16 @@ gfxAtsuiFontGroup::GuessMaximumStringLength()
     // but we need to be a bit careful to avoid math errors.
     PRUint32 maxAdvance = PRUint32(GetFontAt(0)->GetMetrics().maxAdvance);
     PRUint32 chars = 0x7FFF/PR_MAX(1, maxAdvance);
-    return PR_MAX(1, chars);
+    
+    PRUint32 realGuessMax = PR_MAX(1, chars);
+    
+    // bug 436663 - ATSUI crashes on 10.5.3 with certain character sequences 
+    // at around 512 characters, so for safety sake max out at 500 characters
+    if (gfxPlatformMac::GetPlatform()->OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX) {
+        realGuessMax = PR_MIN(500, realGuessMax);
+    }
+
+    return realGuessMax;
 }
 
 /*
@@ -1174,16 +1183,26 @@ PostLayoutCallback(ATSULineRef aLine, gfxTextRun *aRun,
         while (glyphCount < numGlyphs) {
             ATSLayoutRecord *glyph = &glyphRecords[glyphIndex + direction*glyphCount];
             PRUint32 glyphOffset = glyph->originalOffset;
+            PRUint32 nextIndex = isRTL ? glyphIndex - 1 : glyphIndex + 1;
+            PRUint32 nextOffset;
+            if (nextIndex >= 0 && nextIndex < numGlyphs) {
+                ATSLayoutRecord *nextGlyph = &glyphRecords[nextIndex + direction*glyphCount];
+                nextOffset = nextGlyph->originalOffset;
+            }
+            else
+                nextOffset = glyphOffset;
             allFlags |= glyph->flags;
-            if (glyphOffset <= lastOffset) {
+            if (glyphOffset <= lastOffset || nextOffset <= lastOffset) {
                 // Always add the current glyph to the ligature group if it's for the same
                 // character as a character whose glyph is already in the group,
                 // or an earlier character. The latter can happen because ATSUI
-                // sometimes visually reorders glyphs; e.g. DEVANAGARI VOWEL I
-                // can have its glyph displayed before the glyph for the consonant that's
-                // it's logically after (even though this is all left-to-right text).
-                // In this case we need to make sure the glyph for the consonant
-                // is added to the group containing the vowel.
+                // sometimes visually reorders glyphs. One case of this is that DEVANAGARI
+                // VOWEL I can have its glyph displayed before the glyph for the consonant
+                // that it's logically after (even though this is all left-to-right text).
+                // Another case is that a sequence of RA; VIRAMA; <consonant> ; <vowel> is
+                // reordered to <consonant> ; <vowel> ; RA; VIRAMA.
+                // In these case we need to make sure that the whole sequence of glyphs is
+                // processed as a single cluster.
             } else {
                 // We could be at the end of a character group
                 if (glyph->glyphID != ATSUI_SPECIAL_GLYPH_ID) {

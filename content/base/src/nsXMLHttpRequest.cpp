@@ -275,7 +275,8 @@ GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
 /////////////////////////////////////////////
 
 nsXMLHttpRequest::nsXMLHttpRequest()
-  : mState(XML_HTTP_REQUEST_UNINITIALIZED)
+  : mState(XML_HTTP_REQUEST_UNINITIALIZED),
+    mDenyResponseDataAccess(PR_FALSE)
 {
   nsLayoutStatics::AddRef();
 }
@@ -650,7 +651,8 @@ nsXMLHttpRequest::GetResponseXML(nsIDOMDocument **aResponseXML)
 {
   NS_ENSURE_ARG_POINTER(aResponseXML);
   *aResponseXML = nsnull;
-  if ((XML_HTTP_REQUEST_COMPLETED & mState) && mDocument) {
+  if (!mDenyResponseDataAccess &&
+      (XML_HTTP_REQUEST_COMPLETED & mState) && mDocument) {
     *aResponseXML = mDocument;
     NS_ADDREF(*aResponseXML);
   }
@@ -787,7 +789,8 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponseText(nsAString& aResponseText)
 
   aResponseText.Truncate();
 
-  if (mState & (XML_HTTP_REQUEST_COMPLETED |
+  if (!mDenyResponseDataAccess &&
+      mState & (XML_HTTP_REQUEST_COMPLETED |
                 XML_HTTP_REQUEST_INTERACTIVE)) {
     rv = ConvertBodyToText(aResponseText);
   }
@@ -876,6 +879,12 @@ nsXMLHttpRequest::GetAllResponseHeaders(char **_retval)
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = nsnull;
 
+  if (mDenyResponseDataAccess) {
+    *_retval = ToNewCString(EmptyCString());
+    
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
 
   if (httpChannel) {
@@ -904,9 +913,20 @@ nsXMLHttpRequest::GetResponseHeader(const nsACString& header,
   nsresult rv = NS_OK;
   _retval.Truncate();
 
+  // See bug #380418. Hide "Set-Cookie" headers from non-chrome scripts.
+  PRBool chrome = PR_FALSE; // default to false in case IsCapabilityEnabled fails
+  IsCapabilityEnabled("UniversalXPConnect", &chrome);
+  if (!chrome &&
+       (header.LowerCaseEqualsASCII("set-cookie") ||
+        header.LowerCaseEqualsASCII("set-cookie2"))) {
+    NS_WARNING("blocked access to response header");
+    _retval.SetIsVoid(PR_TRUE);
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
 
-  if (httpChannel) {
+  if (!mDenyResponseDataAccess && httpChannel) {
     rv = httpChannel->GetResponseHeader(header, _retval);
   }
 
@@ -1215,6 +1235,8 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
   rv = NS_NewChannel(getter_AddRefs(mChannel), uri, nsnull, loadGroup, nsnull,
                      loadFlags);
   if (NS_FAILED(rv)) return rv;
+
+  mDenyResponseDataAccess = PR_FALSE;
 
   // Check if we're doing a cross-origin request.
   if (IsSystemPrincipal(mPrincipal)) {
@@ -2267,7 +2289,22 @@ nsXMLHttpRequest::OnChannelRedirect(nsIChannel *aOldChannel,
 
     rv = nsContentUtils::GetSecurityManager()->
       CheckSameOriginURI(oldURI, newURI, PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (NS_SUCCEEDED(rv)) {
+      nsCOMPtr<nsIURI> newOrigURI;
+      rv = aNewChannel->GetOriginalURI(getter_AddRefs(newOrigURI));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if (newOrigURI != newURI) {
+        rv = nsContentUtils::GetSecurityManager()->
+          CheckSameOriginURI(oldURI, newOrigURI, PR_TRUE);
+      }
+    }
+
+    if (NS_FAILED(rv)) {
+      mDenyResponseDataAccess = PR_TRUE;
+      return rv;
+    }
   }
 
   if (mChannelEventSink) {
@@ -2407,10 +2444,19 @@ NS_IMPL_ISUPPORTS1(nsXMLHttpRequest::nsHeaderVisitor, nsIHttpHeaderVisitor)
 NS_IMETHODIMP nsXMLHttpRequest::
 nsHeaderVisitor::VisitHeader(const nsACString &header, const nsACString &value)
 {
-    mHeaders.Append(header);
-    mHeaders.Append(": ");
-    mHeaders.Append(value);
-    mHeaders.Append('\n');
+    // See bug #380418. Hide "Set-Cookie" headers from non-chrome scripts.
+    PRBool chrome = PR_FALSE; // default to false in case IsCapabilityEnabled fails
+    IsCapabilityEnabled("UniversalXPConnect", &chrome);
+    if (!chrome &&
+         (header.LowerCaseEqualsASCII("set-cookie") ||
+          header.LowerCaseEqualsASCII("set-cookie2"))) {
+        NS_WARNING("blocked access to response header");
+    } else {
+        mHeaders.Append(header);
+        mHeaders.Append(": ");
+        mHeaders.Append(value);
+        mHeaders.Append('\n');
+    }
     return NS_OK;
 }
 

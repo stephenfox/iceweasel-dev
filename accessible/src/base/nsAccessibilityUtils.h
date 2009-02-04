@@ -51,6 +51,7 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsPoint.h"
 #include "nsIAccessibleDocument.h"
+#include "nsIAccessibleText.h"
 
 class nsAccUtils
 {
@@ -144,6 +145,17 @@ public:
   static PRUint32 GetAccessKeyFor(nsIContent *aContent);
 
   /**
+   * Return DOM element related with the given node, i.e.
+   * a) itself if it is DOM element
+   * b) parent element if it is text node
+   * c) body element if it is HTML document node
+   * d) document element if it is document node.
+   *
+   * @param aNode  [in] the given DOM node
+   */
+  static already_AddRefed<nsIDOMElement> GetDOMElementFor(nsIDOMNode *aNode);
+
+  /**
    * Fire accessible event of the given type for the given accessible.
    */
   static nsresult FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
@@ -187,6 +199,18 @@ public:
      GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
                            nsIContent *aStartTreeItemContent,
                            nsIAccessible **aTreeItemParent);
+
+  /**
+   * Return text accessible containing focus point of the given selection.
+   * Used for normal and misspelling selection changes processing.
+   *
+   * @param aSelection  [in] the given selection
+   * @param aNode       [out, optional] the DOM node of text accessible
+   * @return            text accessible
+   */
+  static already_AddRefed<nsIAccessibleText>
+  GetTextAccessibleFromSelection(nsISelection *aSelection,
+                                 nsIDOMNode **aNode = nsnull);
 
   /**
    * Helper method to scroll range into view, used for implementation of

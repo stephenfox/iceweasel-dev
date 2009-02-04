@@ -180,6 +180,18 @@ _TEST_FILES = 	test_bug5141.html \
 		file_bug428847-2.xhtml \
 		test_bug425201.html \
 		test_bug431833.html \
+		bug461735-redirect1.sjs \
+		bug461735-redirect2.sjs \
+		bug461735-post-redirect.js \
+		test_bug461735.html \
+		test_bug458248.html \
+		file_bug458248.xml \
+		file_bug458248.xml^headers^ \
+		test_bug380418.html \
+		test_bug380418.html^headers^ \
+		test_bug444322.html \
+		bug444322.txt \
+		bug444322.js \
 	$(NULL)
 
 libs:: $(_TEST_FILES)
