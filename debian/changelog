@@ -1,3 +1,10 @@
+iceweasel (3.0.6-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2009-03, also known as CVE-2009-0355.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 04 Feb 2009 08:19:24 +0100
+
 iceweasel (3.0.5-1) unstable; urgency=low
 
   * New upstream release.
