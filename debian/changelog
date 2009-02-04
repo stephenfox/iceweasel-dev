@@ -1,3 +1,12 @@
+xulrunner (1.9.0.6-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2009-{01,02,04-06}, also known as
+    CVE-2009-0352, CVE-2009-0353, CVE-2009-0354, CVE-2009-0356,
+    CVE-2009-0357, CVE-2009-0358.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 04 Feb 2009 08:00:40 +0100
+
 xulrunner (1.9.0.5-1) unstable; urgency=low
 
   * New upstream release.
