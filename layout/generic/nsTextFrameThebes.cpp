@@ -161,6 +161,9 @@
 // This bit is set while the frame is registered as a blinking frame.
 #define TEXT_BLINK_ON              0x80000000
 
+// Set when this text frame is mentioned in the userdata for a textrun
+#define TEXT_IN_TEXTRUN_USER_DATA  0x40000000
+
 /*
  * Some general notes
  * 
@@ -310,7 +313,10 @@ DestroyUserData(void* aUserData)
 static void
 ClearAllTextRunReferences(nsTextFrame* aFrame, gfxTextRun* aTextRun)
 {
+  aFrame->RemoveStateBits(TEXT_IN_TEXTRUN_USER_DATA);
   while (aFrame) {
+    NS_ASSERTION(aFrame->GetType() == nsGkAtoms::textFrame,
+                 "Bad frame");
     if (aFrame->GetTextRun() != aTextRun)
       break;
     aFrame->SetTextRun(nsnull);
@@ -1835,6 +1841,9 @@ BuildTextRunsScanner::AssignTextRun(gfxTextRun* aTextRun)
       f->ClearTextRun();
       f->SetTextRun(aTextRun);
     }
+    // Set this bit now; we can't set it any earlier because
+    // f->ClearTextRun() might clear it out.
+    startFrame->AddStateBits(TEXT_IN_TEXTRUN_USER_DATA);
     // BuildTextRunForFrames mashes together mapped flows for the same element,
     // so we do that here too.
     lastContent = startFrame->GetContent();
@@ -3314,7 +3323,12 @@ nsContinuingTextFrame::Destroy()
   // we need to wipe out the text run for the text.
   // Note that mPrevContinuation can be null if we're destroying the whole
   // frame chain from the start to the end.
-  if (!mPrevContinuation ||
+  // If this frame is mentioned in the userData for a textrun (say
+  // because there's a direction change at the start of this frame), then
+  // we have to clear the textrun because we're going away and the
+  // textrun had better not keep a dangling reference to us.
+  if ((GetStateBits() & TEXT_IN_TEXTRUN_USER_DATA) ||
+      !mPrevContinuation ||
       mPrevContinuation->GetStyleContext() != GetStyleContext()) {
     ClearTextRun();
   }
@@ -5504,10 +5518,10 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   PRBool completedFirstLetter = PR_FALSE;
   // Layout dependent styles are a problem because we need to reconstruct
   // the gfxTextRun based on our layout.
-  if (lineLayout.GetFirstLetterStyleOK() || lineLayout.GetInFirstLine()) {
+  if (lineLayout.GetInFirstLetter() || lineLayout.GetInFirstLine()) {
     SetLength(maxContentLength);
 
-    if (lineLayout.GetFirstLetterStyleOK()) {
+    if (lineLayout.GetInFirstLetter()) {
       // floating first-letter boundaries are significant in textrun
       // construction, so clear the textrun out every time we hit a first-letter
       // and have changed our length (which controls the first-letter boundary)
@@ -5517,7 +5531,18 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
         EnsureTextRun(ctx, lineContainer, lineLayout.GetLine(), &flowEndInTextRun);
 
       if (mTextRun) {
-        completedFirstLetter = FindFirstLetterRange(frag, mTextRun, offset, iter, &length);
+        if (lineLayout.GetFirstLetterStyleOK()) {
+          completedFirstLetter =
+            FindFirstLetterRange(frag, mTextRun, offset, iter, &length);
+        } else {
+          // We're in a first-letter frame's first in flow, so if there
+          // was a first-letter, we'd be it. However, for one reason
+          // or another (e.g., preformatted line break before this text),
+          // we're not actually supposed to have first-letter style. So
+          // just make a zero-length first-letter.
+          length = 0;
+          completedFirstLetter = PR_TRUE;
+        }
         if (length) {
           AddStateBits(TEXT_FIRST_LETTER);
         }
@@ -5782,9 +5807,6 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
     } else {
       lineLayout.NotifyOptionalBreakPosition(mContent, offset + length, PR_TRUE);
     }
-  }
-  if (completedFirstLetter) {
-    lineLayout.SetFirstLetterStyleOK(PR_FALSE);
   }
 
   // Compute reflow status
