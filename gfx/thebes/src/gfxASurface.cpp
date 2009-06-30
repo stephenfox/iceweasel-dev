@@ -56,7 +56,9 @@
 #endif
 
 #ifdef CAIRO_HAS_DIRECTFB_SURFACE
+#ifdef MOZ_DFB
 #include "gfxDirectFBSurface.h"
+#endif
 #endif
 
 #ifdef CAIRO_HAS_QPAINTER_SURFACE
@@ -172,9 +174,11 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
     }
 #endif
 #ifdef CAIRO_HAS_DIRECTFB_SURFACE
+#ifdef MOZ_DFB
     else if (stype == CAIRO_SURFACE_TYPE_DIRECTFB) {
         result = new gfxDirectFBSurface(csurf);
     }
+#endif
 #endif
 #ifdef CAIRO_HAS_QPAINTER_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_QPAINTER) {
