@@ -725,7 +725,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             JS_ToggleOptions(cx, JSOPTION_JIT);
 #if defined(JS_TRACER) && defined(DEBUG)
 extern struct JSClass jitstats_class;
-extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
+extern JS_FRIEND_API(void) js_InitJITStatsClass(JSContext *cx, JSObject *glob);
             js_InitJITStatsClass(cx, JS_GetGlobalObject(cx));
             JS_DefineObject(cx, JS_GetGlobalObject(cx), "tracemonkey",
                             &jitstats_class, NULL, 0);
