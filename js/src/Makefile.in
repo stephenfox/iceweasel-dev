@@ -55,6 +55,11 @@ LIBS		= -L. $(MOZ_JS_LIBS) $(NSPR_LIBS)
 # Make sure the library is built before the js binary
 $(SIMPLE_PROGRAMS): $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
 
+ifdef HAVE_READLINE
+DEFINES	+= -DEDITLINE
+LIBS	+= $(READLINE_LIBS)
+endif
+
 ifdef WINCE
 EXTRA_LIBS += $(JEMALLOC_LIBS)
 endif
