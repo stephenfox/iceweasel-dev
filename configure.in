@@ -4357,6 +4357,29 @@ fi
 
 AC_SUBST(SYSTEM_HUNSPELL)
 
+dnl readline Support
+dnl ========================================================
+READLINE_DIR=no
+MOZ_ARG_WITH_STRING(readline,
+[  --with-readline[=PFX]
+                          Use libreadline [installed at prefix PFX]],
+    READLINE_DIR=$withval)
+
+if test -n "${READLINE_DIR}" -a "${READLINE_DIR}" != "no"; then
+    _SAVE_LDFLAGS=$LDFLAGS
+    LDFLAGS="-L${READLINE_DIR}/lib $LDFLAGS"
+    AC_CHECK_LIB(readline, readline, [HAVE_READLINE=1 READLINE_LIBS="-lreadline"],
+          [HAVE_READLINE= READLINE_LIBS=])
+    LDFLAGS=$_SAVE_LDFLAGS
+fi
+
+if test "${READLINE_DIR}" -a -d "${READLINE_DIR}" -a "$HAVE_READLINE" = 1; then
+    READLINE_LIBS="-L${READLINE_DIR}/lib ${READLINE_LIBS}"
+fi
+
+AC_SUBST(HAVE_READLINE)
+AC_SUBST(READLINE_LIBS)
+
 dnl ========================================================
 dnl Java SDK support
 dnl ========================================================
