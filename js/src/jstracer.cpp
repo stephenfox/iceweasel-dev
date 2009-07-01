@@ -238,7 +238,11 @@ JSClass jitstats_class = {
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
+#ifdef DEBUG
+JS_FRIEND_API(void)
+#else
 void
+#endif
 js_InitJITStatsClass(JSContext *cx, JSObject *glob)
 {
     JS_InitClass(cx, glob, NULL, &jitstats_class, NULL, 0, jitstats_props, NULL, NULL, NULL);
