@@ -650,7 +650,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             JS_ToggleOptions(cx, JSOPTION_JIT);
 #if defined(JS_TRACER) && defined(DEBUG)
 extern struct JSClass jitstats_class;
-extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
+extern JS_FRIEND_API(void) js_InitJITStatsClass(JSContext *cx, JSObject *glob);
             js_InitJITStatsClass(cx, JS_GetGlobalObject(cx));
             JS_DefineObject(cx, JS_GetGlobalObject(cx), "tracemonkey",
                             &jitstats_class, NULL, 0);
@@ -1017,7 +1017,7 @@ AssertEq(JSContext *cx, uintN argc, jsval *vp)
     }
 
     jsval *argv = JS_ARGV(cx, vp);
-    if (!js_StrictlyEqual(cx, argv[0], argv[1])) {
+    if (!JS_StrictlyEqual(cx, argv[0], argv[1])) {
         const char *actual = ToSource(cx, &argv[0]);
         const char *expected = ToSource(cx, &argv[1]);
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_ASSERT_EQ_FAILED,
