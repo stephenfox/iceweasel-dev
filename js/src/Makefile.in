@@ -50,12 +50,10 @@ MODULE		= js
 LIBRARY_NAME	= mozjs
 GRE_MODULE	= 1
 
-PROGRAM         = js$(BIN_SUFFIX)
-# The shell uses some 'HIDDEN' symbols to produce statistics, so we
-# link directly against the .o files, not against the JS shared
-# library.
-PROGOBJS	= js.$(OBJ_SUFFIX) $(OBJS)
-LIBS		= $(NSPR_LIBS)
+SIMPLE_PROGRAMS	= js$(BIN_SUFFIX)
+LIBS		= $(NSPR_LIBS) -L. $(MOZ_JS_LIBS)
+# Make sure the library is built before the js binary
+$(SIMPLE_PROGRAMS): $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
 
 ifdef WINCE
 EXTRA_LIBS += $(JEMALLOC_LIBS)
