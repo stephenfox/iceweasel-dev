@@ -1,4 +1,4 @@
-usr/lib/xulrunner-1.9/libpyxpcom.so
-usr/lib/xulrunner-1.9/components/libpyloader.so
-usr/lib/xulrunner-1.9/components/pyabout.py
+usr/lib/xulrunner-1.9.1/libpyxpcom.so
+usr/lib/xulrunner-1.9.1/components/libpyloader.so
+usr/lib/xulrunner-1.9.1/components/pyabout.py
 usr/lib/python*/site-packages

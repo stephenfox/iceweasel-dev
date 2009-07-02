@@ -17,7 +17,7 @@ DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)$$/\1/ p')
 UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)-.*$$/\1/ p')
-BASE_VERSION := 1.9
+BASE_VERSION := 1.9.1
 
 PYVER := $(shell pyversions -d)
 

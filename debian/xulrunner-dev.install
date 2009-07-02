@@ -1,6 +1,6 @@
-usr/include/xulrunner-1.9
+usr/include/xulrunner-1.9.1
 usr/share/idl
-usr/lib/xulrunner-devel-1.9
+usr/lib/xulrunner-devel-1.9.1
 usr/lib/pkgconfig/libxul-unstable.pc
 usr/lib/pkgconfig/libxul-embedding-unstable.pc
 usr/lib/pkgconfig/libxul.pc
@@ -8,6 +8,6 @@ usr/lib/pkgconfig/libxul-embedding.pc
 usr/lib/pkgconfig/mozilla-gtkmozembed.pc
 usr/lib/pkgconfig/mozilla-gtkmozembed-embedding.pc
 usr/lib/pkgconfig/mozilla-plugin.pc
-usr/lib/xulrunner-1.9/xpt_dump
-usr/lib/xulrunner-1.9/xpt_link
-usr/lib/xulrunner-1.9/xpidl
+usr/lib/xulrunner-1.9.1/xpt_dump
+usr/lib/xulrunner-1.9.1/xpt_link
+usr/lib/xulrunner-1.9.1/xpidl

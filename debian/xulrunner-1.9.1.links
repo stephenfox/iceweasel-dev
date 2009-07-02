@@ -1,0 +1,8 @@
+usr/lib/libmozjs.so.1d usr/lib/xulrunner-1.9.1/libmozjs.so
+usr/share/myspell/dicts usr/lib/xulrunner-1.9.1/dictionaries
+usr/share/xulrunner-1.9.1/icons usr/lib/xulrunner-1.9.1/icons
+usr/share/xulrunner-1.9.1/greprefs usr/lib/xulrunner-1.9.1/greprefs
+usr/share/xulrunner-1.9.1/res usr/lib/xulrunner-1.9.1/res
+usr/share/xulrunner-1.9.1/defaults usr/lib/xulrunner-1.9.1/defaults
+usr/share/xulrunner-1.9.1/chrome usr/lib/xulrunner-1.9.1/chrome
+usr/share/xulrunner-1.9.1/modules usr/lib/xulrunner-1.9.1/modules

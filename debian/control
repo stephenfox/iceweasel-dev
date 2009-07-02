@@ -36,7 +36,7 @@ Build-Depends: debhelper (>= 5.0.59),
 Build-Depends-Indep: java-gcj-compat-dev (>= 1.0.56)
 Standards-Version: 3.8.0.1
 
-Package: xulrunner-1.9
+Package: xulrunner-1.9.1
 Section: devel
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -44,8 +44,7 @@ Depends: ${shlibs:Depends},
          libmozjs1d (>= 1.9~rc1),
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>> 3.12.0~rc3-1),
-Suggests: xulrunner-1.9-gnome-support
-Replaces: xulrunner-1.9-common
+Suggests: xulrunner-1.9.1-gnome-support
 Conflicts: j2re1.4,
            pango-graphite
 Description: XUL + XPCOM application runner
@@ -67,12 +66,12 @@ Description: XUL + XPCOM application runner
  This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
 
-Package: xulrunner-1.9-gnome-support
+Package: xulrunner-1.9.1-gnome-support
 Section: devel
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         xulrunner-1.9
+         xulrunner-1.9.1
 Description: Support for GNOME in xulrunner applications
  This is an extension to xulrunner that allows XUL applications to use
  protocol handlers from GnomeVFS, such as smb or sftp, and other GNOME
@@ -146,7 +145,7 @@ Section: libdevel
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         xulrunner-1.9 (>= ${source:Upstream-Version}),
+         xulrunner-1.9.1 (>= ${source:Upstream-Version}),
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${source:Version}),
@@ -167,14 +166,13 @@ Description: Development files for the Gecko engine library
  same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
-Package: xulrunner-1.9-dbg
+Package: xulrunner-1.9.1-dbg
 Section: libdevel
 Priority: extra
 Architecture: any
-Depends: xulrunner-1.9 (= ${binary:Version})
-         | xulrunner-1.9-gnome-support (= ${binary:Version})
+Depends: xulrunner-1.9.1 (= ${binary:Version})
+         | xulrunner-1.9.1-gnome-support (= ${binary:Version})
          | python-xpcom (= ${binary:Version})
-Conflicts: libxul0d-dbg
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
@@ -192,7 +190,7 @@ Package: libmozillainterfaces-java
 Section: libdevel
 Priority: extra
 Architecture: all
-Depends: xulrunner-1.9,
+Depends: xulrunner-1.9.1,
          gij | java2-runtime
 Description: XPCOM bindings for Java
  JavaXPCOM allows for communication between Java and XPCOM, such that a
@@ -216,7 +214,7 @@ Provides: ${python:Provides}
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${python:Depends},
-         xulrunner-1.9
+         xulrunner-1.9.1
 Conflicts: epiphany-browser
 XB-Python-Version: ${python:Versions}
 Description: XPCOM bindings for Python

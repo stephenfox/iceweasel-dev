@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "install" ] || [ "$1" = "upgrade" ]; then
+    if [ -d /usr/lib/xulrunner-1.9.1/chrome ] &&
+       [ ! -L /usr/lib/xulrunner-1.9.1/chrome ]; then
+        rmdir /usr/lib/xulrunner-1.9.1/chrome
+    fi
+fi
+
+#DEBHELPER#
