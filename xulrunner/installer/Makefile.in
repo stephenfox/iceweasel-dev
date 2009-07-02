@@ -67,7 +67,7 @@ INSTALL_SDK = 1
 
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
 
-1.9.system.conf: $(topsrcdir)/config/milestone.txt Makefile
+$(MOZ_BASE_VERSION).system.conf: $(topsrcdir)/config/milestone.txt Makefile
 	printf "[%s]\nGRE_PATH=%s\nxulrunner=true\nabi=%s" \
 	  $(MOZILLA_VERSION) $(installdir) $(TARGET_XPCOM_ABI)> $@
 
@@ -75,7 +75,7 @@ ifndef SKIP_GRE_REGISTRATION
 # to register xulrunner per-user, override this with $HOME/.gre.d
 regdir = /etc/gre.d
 
-install:: 1.9.system.conf
+install:: $(MOZ_BASE_VERSION).system.conf
 	$(NSINSTALL) -D $(DESTDIR)$(regdir)
 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(regdir)
 endif
