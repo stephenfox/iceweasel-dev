@@ -1817,7 +1817,7 @@ js_PropertyIsEnumerable(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 }
 
 #if JS_HAS_GETTER_SETTER
-JS_FRIEND_API(JSBool)
+static JSBool
 js_obj_defineGetter(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval fval, junk;
@@ -1852,7 +1852,7 @@ js_obj_defineGetter(JSContext *cx, uintN argc, jsval *vp)
                                NULL);
 }
 
-JS_FRIEND_API(JSBool)
+static JSBool
 js_obj_defineSetter(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval fval, junk;
