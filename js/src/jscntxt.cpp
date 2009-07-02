@@ -953,7 +953,7 @@ resolving_HashKey(JSDHashTable *table, const void *ptr)
     return ((JSDHashNumber)JS_PTR_TO_UINT32(key->obj) >> JSVAL_TAGBITS) ^ key->id;
 }
 
-JS_PUBLIC_API(JSBool)
+static JSBool
 resolving_MatchEntry(JSDHashTable *table,
                      const JSDHashEntryHdr *hdr,
                      const void *ptr)
