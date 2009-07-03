@@ -252,11 +252,11 @@ binary-arch: build test install $(GENERATED_FILES)
 	dh_pysupport -ppython-xpcom
 	dh_installman -pspidermonkey-bin debian/smjs.1
 	dh_link -a
-	dh_strip -a -Nlibmozjs1d -Nspidermonkey-bin --dbg-package=xulrunner-$(BASE_VERSION)-dbg
-	dh_strip -plibmozjs1d -pspidermonkey-bin --dbg-package=libmozjs1d-dbg
+	dh_strip -a -Nlibmozjs2d -Nspidermonkey-bin --dbg-package=xulrunner-$(BASE_VERSION)-dbg
+	dh_strip -plibmozjs2d -pspidermonkey-bin --dbg-package=libmozjs2d-dbg
 	dh_compress -a
 	dh_fixperms -a
-	dh_makeshlibs -plibmozjs1d -V 'libmozjs1d (>= 1.9~rc1)' -- $(GENSYMBOLS_FLAGS)
+	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1)' -- $(GENSYMBOLS_FLAGS)
 	dh_installdeb -a
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
 	dh_gencontrol -a
