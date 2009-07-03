@@ -50,18 +50,14 @@ else
 	GENSYMBOLS_FLAGS := -c4
 endif
 
-DH_INSTALL_FILES := $(foreach arch, kfreebsd-i386 kfreebsd-amd64, debian/xulrunner-$(BASE_VERSION).install.$(arch))
 COMPONENT_PACKAGES := python-xpcom xulrunner-$(BASE_VERSION)-gnome-support
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
-GENERATED_FILES := $(COMPONENT_SCRIPTS) $(DH_INSTALL_FILES) debian/xulrunner-$(BASE_VERSION).postinst
+GENERATED_FILES := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
 $(COMPONENT_SCRIPTS): %: debian/postinstrm.in
 	cp $^ $@
 
 debian/xulrunner-$(BASE_VERSION).postinst: debian/postinstrm.in
 	sed 's/abort-install/triggered/;/^dpkg-trigger/d' $^ > $@
-
-$(DH_INSTALL_FILES): debian/xulrunner-$(BASE_VERSION).install
-	grep -v jemalloc $< > $@
 
 config.status: ./configure debian/mozconfig
 	dh_testdir
@@ -252,7 +248,6 @@ binary-arch: build test install $(GENERATED_FILES)
 	dh_installexamples -a
 	dh_installmenu -pspidermonkey-bin
 	dh_install -a --sourcedir=debian/tmp -XMozillaInterfaces -XMozillaGlue
-	sed -i '/^usr\/lib\/xulrunner-$(BASE_VERSION)\/libjemalloc.so$$/ d' debian/xulrunner-$(BASE_VERSION).install
 	dh_pysupport -ppython-xpcom
 	dh_installman -pspidermonkey-bin debian/smjs.1
 	dh_link -a
