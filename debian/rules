@@ -158,6 +158,7 @@ install-stamp: build-stamp
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
+	install -m 755 dist/bin/js debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
 
 	# Fixup permissions
 	find debian/tmp -type f -print0 | xargs -0 chmod 644
