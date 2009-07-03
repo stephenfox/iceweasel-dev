@@ -1,8 +1,56 @@
-xulrunner (1.9.1-1) UNRELEASED; urgency=low
+xulrunner (1.9.1-1) experimental; urgency=low
 
-  *
+  * New upstream release.
+  * debian/control: Build-Depend on libhunspell-dev >= 1.2.
+  * config/config.mk: Revert previous fix for FTBFS because of internal
+    version of hunspell, which is okay now.
+  * content/svg/content/src/Makefile.in,
+  * gfx/thebes/src/gfxASurface.cpp: Fix FTBFS when system cairo provides
+    directfb surfaces. bz#501239.
+  * js/src/xpconnect/shell/xpcshell.cpp: Fix FTBFS of xpcshell when
+    EDITLINE is set. bz#501241.
+  * js/src/jsdate.{h,cpp}: Make js_IntervalNow part of the friendly API.
+    bz#491617.
+  * js/src/jsapi.{h,cpp}: Expose js_StrictlyEqual() to consumers. bz#491646.
+  * config/autoconf.mk.in, configure.in, configure, js/src/Makefile.in:
+    Revert changes to allow to build a standalone js binary, as it is now
+    built by default upstream.
+  * js/src/Makefile.in, js/src/js.cpp, js/src/jstracer.cpp: Allow to build
+    the js shell against the libmozjs shared library. bz#501300.
+  * config/autoconf.mk.in, configure.in, configure, js/src/Makefile.in,
+    js/src/config/autoconf.mk.in, js/src/configure.in, js/src/configure:
+    Build js shell and xpcshell against libreadline.
+  * js/src/jsobj.cpp, js/src/jscntxt.cpp: Don't export some functions that
+    are not defined in headers. This way, they don't end up being C++
+    mangled as well.
+  * config/autoconf.mk.in, debian/rules,
+    extensions/python/xpcom/src/loader/Makefile.in,
+    extensions/python/xpcom/src/module/Makefile.in,
+    xulrunner/installer/Makefile.in: Use a variable for xulrunner base
+    version in various places.
+  * config/autoconf.mk.in, debian/*: s/1.9/1.9.1/g.
+  * build/unix/run-mozilla.sh, debian/rules, debian/xulrunner-1.9.1.install,
+    xulrunner/stub/Makefile.in, xulrunner/stub/nsXULStub.cpp: Remove
+    libjemalloc and workarounds as it is now statically linked.
+  * config/rules.mk, js/src/config/rules.mk: Move SO_VERSION handling in
+    js/src's copy of config/rules.mk.
+  * js/src/jsobj.{h,cpp}, js/src/xpconnect/src/xpcquickstubs.cpp: Make
+    js_obj_defineGetter and js_obj_defineSetter friend API.
+  * debian/control: Add build dependency on libasound2-dev.
+  * debian/rules: Properly install js shell binary:
+  * debian/control, debian/libmozjs*, debian/rules,
+    debian/xulrunner-1.9.1.links, js/src/Makefile.in: Update symbols,
+    and bump soname.
+  * js/src/jsbuiltins.h: Don't export js_SetTraceableNativeFailed, which
+    is only used internally. Otherwise, this is one more different symbol
+    between JIT and non-JIT builds.
+  * debian/libmozjs2d.symbols.jit, debian/rules: Add missing symbol for
+    JIT-enabled builds.
+  * js/src/nanojit/Assembler.cpp: Implement sync_instruction_memory for
+    sparc linux. bz#502369.
+  * debian/copyright: Update copyright information.
 
- -- Mike Hommey <glandium@debian.org>  Fri, 03 Jul 2009 14:36:21 +0200
+ -- Mike Hommey <glandium@debian.org>  Wed, 08 Jul 2009 00:07:55 +0200
 
 xulrunner (1.9.0.11-1) unstable; urgency=low
 
