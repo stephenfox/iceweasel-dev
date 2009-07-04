@@ -47,7 +47,7 @@
 #include "nsIStreamConverterService.h"
 #include "nsIContentSniffer.h"
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 CopyProperties(const nsAString &key, nsIVariant *data, void *closure)
 {
   nsIWritablePropertyBag *bag =
@@ -257,7 +257,8 @@ nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
   NS_ASSERTION(!mPump, "Shouldn't have gotten here");
   PRBool doNotify = PR_TRUE;
   if (NS_SUCCEEDED(mStatus)) {
-      nsresult rv = Redirect(newChannel, nsIChannelEventSink::REDIRECT_INTERNAL,
+      nsresult rv = Redirect(newChannel,
+                             nsIChannelEventSink::REDIRECT_TEMPORARY,
                              PR_TRUE);
       if (NS_FAILED(rv))
           Cancel(rv);
@@ -391,13 +392,14 @@ NS_IMETHODIMP
 nsBaseChannel::GetOriginalURI(nsIURI **aURI)
 {
   *aURI = OriginalURI();
-  NS_IF_ADDREF(*aURI);
+  NS_ADDREF(*aURI);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsBaseChannel::SetOriginalURI(nsIURI *aURI)
 {
+  NS_ENSURE_ARG_POINTER(aURI);
   mOriginalURI = aURI;
   return NS_OK;
 }

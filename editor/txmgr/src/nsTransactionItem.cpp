@@ -77,6 +77,31 @@ nsTransactionItem::Release() {
   return mRefCnt;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsTransactionItem)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsTransactionItem)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTransaction)
+  if (tmp->mRedoStack) {
+    tmp->mRedoStack->DoUnlink();
+  }
+  if (tmp->mUndoStack) {
+    tmp->mUndoStack->DoUnlink();
+  }
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTransactionItem)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTransaction)
+  if (tmp->mRedoStack) {
+    tmp->mRedoStack->DoTraverse(cb);
+  }
+  if (tmp->mUndoStack) {
+    tmp->mUndoStack->DoTraverse(cb);
+  }
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTransactionItem, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTransactionItem, Release)
+
 nsresult
 nsTransactionItem::AddChild(nsTransactionItem *aTransactionItem)
 {
@@ -247,7 +272,7 @@ nsTransactionItem::UndoChildren(nsTransactionManager *aTxMgr)
     while (sz-- > 0) {
       result = mUndoStack->Peek(getter_AddRefs(item));
 
-      if (NS_FAILED(result)) {
+      if (NS_FAILED(result) || !item) {
         return result;
       }
 
@@ -339,7 +364,7 @@ nsTransactionItem::RedoChildren(nsTransactionManager *aTxMgr)
   while (sz-- > 0) {
     result = mRedoStack->Peek(getter_AddRefs(item));
 
-    if (NS_FAILED(result)) {
+    if (NS_FAILED(result) || !item) {
       return result;
     }
 

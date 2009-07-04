@@ -62,6 +62,10 @@ SDK_XPIDLSRCS   = \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsIApplicationCache.idl \
+		nsIApplicationCacheChannel.idl \
+		nsIApplicationCacheContainer.idl \
+		nsIApplicationCacheService.idl \
 		nsIAuthInformation.idl \
 		nsIAuthPrompt.idl \
 		nsIAuthPrompt2.idl \
@@ -86,6 +90,7 @@ XPIDLSRCS	= \
 		nsIPasswordManagerInternal.idl \
 		nsIPermission.idl \
 		nsIPermissionManager.idl \
+		nsIPrivateBrowsingService.idl \
 		nsIProgressEventSink.idl \
 		nsIPrompt.idl \
 		nsIProtocolProxyService.idl \
@@ -101,6 +106,7 @@ XPIDLSRCS	= \
 		nsIServerSocket.idl \
 		nsIResumableChannel.idl \
 		nsIRequestObserverProxy.idl \
+		nsISecurityInfoProvider.idl \
 		nsIStreamListenerTee.idl \
 		nsISimpleStreamListener.idl \
 		nsIStreamTransportService.idl \

@@ -94,19 +94,18 @@ class nsICharsetConverterManager;
 class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
-class nsIProgressEventSink;
+class nsSpeculativeScriptThread;
+class nsIThreadPool;
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4275 )
 #endif
 
 
-class nsParser : public nsIParser_1_9_0_BRANCH,
-                 public nsIStreamListener{
-
-  
+class nsParser : public nsIParser,
+                 public nsIStreamListener
+{
   public:
-    friend class CTokenHandler;
     /**
      * Called on module init
      */
@@ -340,7 +339,7 @@ class nsParser : public nsIParser_1_9_0_BRANCH,
      *  @return PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
      *  @update  kmcclusk 5/18/98
      */
-    PRBool CanInterrupt(void);
+    virtual PRBool CanInterrupt();
 
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
@@ -386,18 +385,13 @@ class nsParser : public nsIParser_1_9_0_BRANCH,
       Initialize();
     }
 
-    /**
-     * Tells the parser that a script is now executing. The only data we
-     * should resume parsing for is document.written data. We'll deal with any
-     * data that comes in over the network later.
-     */
-    virtual void ScriptExecuting();
+    nsIThreadPool* ThreadPool() {
+      return sSpeculativeThreadPool;
+    }
 
-    /**
-     * Tells the parser that the script is done executing. We should now
-     * continue the regular parsing process.
-     */
-    virtual void ScriptDidExecute();
+    PRBool IsScriptExecuting() {
+      return mSink && mSink->IsScriptExecuting();
+    }
 
  protected:
 
@@ -419,7 +413,9 @@ class nsParser : public nsIParser_1_9_0_BRANCH,
      * @return
      */
     nsresult DidBuildModel(nsresult anErrorCode);
-    
+
+    void SpeculativelyParse();
+
 private:
 
     /*******************************************
@@ -459,7 +455,6 @@ private:
      */
     PRBool DidTokenize(PRBool aIsFinalChunk = PR_FALSE);
 
-  
 protected:
     //*********************************************
     // And now, some data members...
@@ -470,6 +465,7 @@ protected:
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref
+    nsRefPtr<nsSpeculativeScriptThread> mSpeculativeScriptThread;
    
     nsCOMPtr<nsIParserFilter> mParserFilter;
     nsTokenAllocator          mTokenAllocator;
@@ -480,7 +476,6 @@ protected:
     PRInt32             mCharsetSource;
     
     PRUint16            mFlags;
-    PRUint32            mScriptsExecuting;
 
     nsString            mUnusedInput;
     nsCString           mCharset;
@@ -488,7 +483,14 @@ protected:
 
     static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;
-   
+    static nsIThreadPool*              sSpeculativeThreadPool;
+
+    enum {
+      kSpeculativeThreadLimit = 15,
+      kIdleThreadLimit = 0,
+      kIdleThreadTimeout = 50
+    };
+
 public:  
    
     MOZ_TIMER_DECLARE(mParseTime)
