@@ -77,7 +77,7 @@ ifndef WINCE
 REQUIRES += migration
 LOCAL_INCLUDES += -I$(srcdir)/../migration/src
 SHARED_LIBRARY_LIBS += ../migration/src/$(LIB_PREFIX)migration_s.$(LIB_SUFFIX)
-EXTRA_DSO_LDOPTS += $(LIBXUL_DIST)/lib/$(LIB_PREFIX)mozreg_s.$(LIB_SUFFIX)
+EXTRA_DSO_LDOPTS += $(LIBXUL_DIST)/lib/$(LIB_PREFIX)mozreg_s.$(LIB_SUFFIX) $(NSPR_LIBS)
 endif
 
 # Mac: Need to link with CoreFoundation for Mac Migrators (PList reading code)
