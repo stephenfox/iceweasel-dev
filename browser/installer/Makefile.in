@@ -88,6 +88,8 @@ MOZ_PKG_MANIFEST = packages-static
 
 $(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P)
 	$(PERL) $(topsrcdir)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) $< > $@
+
+GARBAGE += $(MOZ_PKG_MANIFEST)
 endif
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
@@ -102,6 +104,11 @@ INSTALL_SDK = 1
 endif
 
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
+
+libs::
+	$(MAKE) -C $(DEPTH)/browser/locales langpack PKG_LANGPACK_PATH=
+
+UPLOAD_EXTRA_FILES += $(PKG_LANGPACK_BASENAME).xpi
 
 installer: removed-files
 ifdef INSTALLER_DIR

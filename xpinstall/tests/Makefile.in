@@ -55,6 +55,11 @@ _BROWSER_FILES = harness.js \
                  browser_hash.js \
                  browser_badhash.js \
                  browser_badhashtype.js \
+                 browser_signed_url.js \
+                 browser_signed_trigger.js \
+                 browser_signed_untrusted.js \
+                 browser_signed_tampered.js \
+                 browser_signed_multiple.js \
                  browser_empty.js \
                  browser_corrupt.js \
                  browser_cookies.js \
@@ -78,6 +83,10 @@ _BROWSER_FILES = harness.js \
                  browser_navigateaway.js \
                  browser_navigateaway2.js \
                  unsigned.xpi \
+                 signed.xpi \
+                 signed2.xpi \
+                 signed-untrusted.xpi \
+                 signed-tampered.xpi \
                  empty.xpi \
                  corrupt.xpi \
                  enabled.html \

@@ -41,14 +41,8 @@ var tests = [];
 
 // Get database connection
 try {
-  var store = Cc["@mozilla.org/storage/service;1"].
-    getService(Ci.mozIStorageService);
-  // get db file
-  var file = Cc["@mozilla.org/file/directory_service;1"].
-    getService(Ci.nsIProperties).
-    get("ProfD", Ci.nsILocalFile);
-  file.append("places.sqlite");
-  var mDBConn = store.openDatabase(file);
+  var mDBConn = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
+                                   .DBConnection;
 }
 catch(ex) {
   do_throw("Could not get database connection\n");

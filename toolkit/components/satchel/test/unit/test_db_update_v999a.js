@@ -50,7 +50,7 @@ function run_test()
   var testnum = 0;
 
   // ===== test init =====
-  var testfile = do_get_file("toolkit/components/satchel/test/unit/formhistory_v999a.sqlite");
+  var testfile = do_get_file("formhistory_v999a.sqlite");
   var profileDir = dirSvc.get("ProfD", Ci.nsIFile);
 
   // Cleanup from any previous tests or failures.
@@ -76,8 +76,7 @@ function run_test()
   do_check_true(fh.entryExists("name-C", "value-C2"));
   do_check_true(fh.entryExists("name-E", "value-E"));
   // check for downgraded schema.
-  // 1.9.0 can't directly check fh.DBConnection.schemaVersion, so look at the file
-  do_check_eq(CURRENT_SCHEMA, getDBVersion(destFile));
+  do_check_eq(CURRENT_SCHEMA, fh.DBConnection.schemaVersion);
 
   // ===== 2 =====
   testnum++;

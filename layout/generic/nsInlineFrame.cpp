@@ -133,8 +133,8 @@ nsInlineFrame::IsSelfEmpty()
   // XXX Top and bottom removed, since they shouldn't affect things, but this
   // doesn't really match with nsLineLayout.cpp's setting of
   // ZeroEffectiveSpanBox, anymore, so what should this really be?
-  if (border->GetBorderWidth(NS_SIDE_RIGHT) != 0 ||
-      border->GetBorderWidth(NS_SIDE_LEFT) != 0 ||
+  if (border->GetActualBorderWidth(NS_SIDE_RIGHT) != 0 ||
+      border->GetActualBorderWidth(NS_SIDE_LEFT) != 0 ||
       !IsPaddingZero(padding->mPadding.GetRightUnit(),
                      padding->mPadding.GetRight()) ||
       !IsPaddingZero(padding->mPadding.GetLeftUnit(),
@@ -258,12 +258,10 @@ nsInlineFrame::ReparentFloatsForInlineChild(nsIFrame* aOurLineContainer,
   if (ancestor == aOurLineContainer)
     return;
 
-  nsBlockFrame* ourBlock;
-  nsresult rv = aOurLineContainer->QueryInterface(kBlockFrameCID, (void**)&ourBlock);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "Not a block, but broke vertically?");
-  nsBlockFrame* frameBlock;
-  rv = ancestor->QueryInterface(kBlockFrameCID, (void**)&frameBlock);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "ancestor not a block");
+  nsBlockFrame* ourBlock = nsLayoutUtils::GetAsBlock(aOurLineContainer);
+  NS_ASSERTION(ourBlock, "Not a block, but broke vertically?");
+  nsBlockFrame* frameBlock = nsLayoutUtils::GetAsBlock(ancestor);
+  NS_ASSERTION(frameBlock, "ancestor not a block");
 
   nsFrameList blockChildren(ancestor->GetFirstChild(nsnull));
   PRBool isOverflow = !blockChildren.ContainsFrame(ancestorBlockChild);
@@ -316,14 +314,19 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
       nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, prevOverflowFrames,
                                                   prevInFlow, this);
 
-      if (GetStateBits() & NS_FRAME_FIRST_REFLOW) {
-        // If it's the initial reflow, then our child list must be empty, so
-        // just set the child list rather than calling InsertFrame(). This avoids
-        // having to get the last child frame in the list.
+      // Check if we should do the lazilySetParentPointer optimization.
+      // Only do it in simple cases where we're being reflowed for the
+      // first time, nothing (e.g. bidi resolution) has already given
+      // us children, and there's no next-in-flow, so all our frames
+      // will be taken from prevOverflowFrames.
+      if ((GetStateBits() & NS_FRAME_FIRST_REFLOW) && mFrames.IsEmpty() &&
+          !GetNextInFlow()) {
+        // If our child list is empty, just set the child list rather than
+        // calling InsertFrame(). This avoids having to get the last child
+        // frame in the list.
         // Note that we don't set the parent pointer for the new frames. Instead wait
         // to do this until we actually reflow the frame. If the overflow list contains
         // thousands of frames this is a big performance issue (see bug #5588)
-        NS_ASSERTION(mFrames.IsEmpty(), "child list is not empty for initial reflow");
         mFrames.SetFrames(prevOverflowFrames);
         lazilySetParentPointer = PR_TRUE;
       } else {
@@ -1104,11 +1107,8 @@ nsPositionedInlineFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 nsIFrame*
 nsPositionedInlineFrame::GetFirstChild(nsIAtom* aListName) const
 {
-  if (nsGkAtoms::absoluteList == aListName) {
-    nsIFrame* result = nsnull;
-    mAbsoluteContainer.FirstChild(this, aListName, &result);
-    return result;
-  }
+  if (nsGkAtoms::absoluteList == aListName)
+    return mAbsoluteContainer.GetFirstChild();
 
   return nsInlineFrame::GetFirstChild(aListName);
 }

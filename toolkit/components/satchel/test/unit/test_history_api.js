@@ -43,7 +43,7 @@ function run_test()
   try {
 
   // ===== test init =====
-  var testfile = do_get_file("toolkit/components/satchel/test/unit/formhistory_apitest.sqlite");
+  var testfile = do_get_file("formhistory_apitest.sqlite");
   var profileDir = dirSvc.get("ProfD", Ci.nsIFile);
 
   // Cleanup from any previous tests or failures.
@@ -109,8 +109,6 @@ function run_test()
   // ===== 5 =====
   // Test removing by time range (single entry, not surrounding entries)
   testnum++;
-/*
-  // XXX This API does not exist on the 1.9.0 branch.
   do_check_true(fh.nameExists("time-A")); // firstUsed=1000, lastUsed=1000
   do_check_true(fh.nameExists("time-B")); // firstUsed=1000, lastUsed=1099
   do_check_true(fh.nameExists("time-C")); // firstUsed=1099, lastUsed=1099
@@ -120,19 +118,15 @@ function run_test()
   do_check_true(fh.nameExists("time-B"));
   do_check_false(fh.nameExists("time-C"));
   do_check_true(fh.nameExists("time-D"));
-*/
 
   // ===== 6 =====
   // Test removing by time range (multiple entries)
   testnum++;
-/*
-  // XXX This API does not exist on the 1.9.0 branch.
   fh.removeEntriesByTimeframe(1000, 2000);
   do_check_false(fh.nameExists("time-A"));
   do_check_false(fh.nameExists("time-B"));
   do_check_false(fh.nameExists("time-C"));
   do_check_true(fh.nameExists("time-D"));
-*/
 
   // ===== 7 =====
   // test removeAllEntries

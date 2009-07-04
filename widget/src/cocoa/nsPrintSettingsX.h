@@ -1,6 +1,5 @@
-/* -*- Mode: IDL; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -42,22 +41,17 @@
 #include "nsPrintSettingsImpl.h"  
 #include "nsIPrintSettingsX.h"  
 
-//*****************************************************************************
-//***    nsPrintSettingsX
-//*****************************************************************************
 
 class nsPrintSettingsX : public nsPrintSettings,
-                         public nsIPrintSettingsX,
-                         public nsIPrintSettingsX_MOZILLA_1_9_BRANCH
+                         public nsIPrintSettingsX
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIPRINTSETTINGSX
-  NS_DECL_NSIPRINTSETTINGSX_MOZILLA_1_9_BRANCH
 
   nsPrintSettingsX();
   virtual ~nsPrintSettingsX();
-  
+
   nsresult Init();
 
 protected:
@@ -66,11 +60,9 @@ protected:
 
   nsresult _Clone(nsIPrintSettings **_retval);
   nsresult _Assign(nsIPrintSettings *aPS);
-  
-  /**
-   * Re-initialize mUnwriteableMargin with values from mPageFormat.
-   * Should be called whenever mPageFormat is initialized or overwritten.
-   */
+
+  // Re-initialize mUnwriteableMargin with values from mPageFormat.
+  // Should be called whenever mPageFormat is initialized or overwritten.
   nsresult InitUnwriteableMargin();
 
   // The out param has a ref count of 1 on return so caller needs to PMRelase() when done.

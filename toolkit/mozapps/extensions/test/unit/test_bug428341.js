@@ -39,7 +39,7 @@
 // Use the internal webserver for regular update pings, will just return an error
 gPrefs.setCharPref("extensions.update.url", "http://localhost:4444/");
 
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 // This allows the EM to attempt to display errors to the user without failing
@@ -238,8 +238,7 @@ var installListener = {
 
 function installNextAddon() {
   if (gIndex >= ADDONS.length) {
-    testserver.stop();
-    do_test_finished();
+    testserver.stop(do_test_finished);
     return;
   }
 

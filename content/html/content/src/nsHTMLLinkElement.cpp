@@ -147,12 +147,14 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLLinkElement
-NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLLinkElement, nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED4(nsHTMLLinkElement,
-                                nsIDOMHTMLLinkElement,
-                                nsIDOMLinkStyle,
-                                nsILink,
-                                nsIStyleSheetLinkingElement)
+NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLLinkElement,
+                                   nsIDOMHTMLLinkElement,
+                                   nsIDOMLinkStyle,
+                                   nsILink,
+                                   nsIStyleSheetLinkingElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLinkElement,
+                                               nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLinkElement)
 
 
@@ -207,7 +209,9 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  UpdateStyleSheetInternal(nsnull);
+  nsContentUtils::AddScriptRunner(
+    new nsRunnableMethod<nsHTMLLinkElement>(this,
+                                            &nsHTMLLinkElement::UpdateStyleSheetInternal));
 
   CreateAndDispatchEvent(aDocument, NS_LITERAL_STRING("DOMLinkAdded"));
 
@@ -322,6 +326,14 @@ nsresult
 nsHTMLLinkElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+    SetLinkState(eLinkState_Unknown);
+  }
+
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
   if (NS_SUCCEEDED(rv)) {

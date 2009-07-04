@@ -218,10 +218,12 @@ class nsXULPopupShowingEvent : public nsRunnable
 public:
   nsXULPopupShowingEvent(nsIContent *aPopup,
                          nsIContent *aMenu,
+                         nsPopupType aPopupType,
                          PRBool aIsContextMenu,
                          PRBool aSelectFirstItem)
     : mPopup(aPopup),
       mMenu(aMenu),
+      mPopupType(aPopupType),
       mIsContextMenu(aIsContextMenu),
       mSelectFirstItem(aSelectFirstItem)
   {
@@ -234,6 +236,7 @@ public:
 private:
   nsCOMPtr<nsIContent> mPopup;
   nsCOMPtr<nsIContent> mMenu;
+  nsPopupType mPopupType;
   PRBool mIsContextMenu;
   PRBool mSelectFirstItem;
 };

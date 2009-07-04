@@ -40,14 +40,13 @@ Components.utils.import("resource://gre/modules/utils.js");
 var tests = [];
 
 // Get database connection
-var dirService = Cc["@mozilla.org/file/directory_service;1"].
-                 getService(Ci.nsIProperties);
-var dbFile = dirService.get("ProfD", Ci.nsIFile);
-dbFile.append("places.sqlite");
-
-var dbService = Cc["@mozilla.org/storage/service;1"].
-                getService(Ci.mozIStorageService);
-var mDBConn = dbService.openDatabase(dbFile);
+try {
+  var mDBConn = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
+                                   .DBConnection;
+}
+catch(ex) {
+  do_throw("Could not get database connection\n");
+}
 
 /*
   This test is:

@@ -4,6 +4,16 @@ return \'\
 window.parent.postMessage("Able to access private: " +\
   window.parent.private, "*");\
 </script>\'');
+dataURL = "data:text/html," + escape('<!DOCTYPE HTML>\
+<script>\
+try {\
+  window.parent.postMessage("Able to access private: " +\
+    window.parent.private, "*");\
+}\
+catch (e) {\
+  window.parent.postMessage("pass", "*");\
+}\
+</script>');
 
 tests = [
 // Plain document should work as normal
@@ -26,6 +36,16 @@ catch (e) {\
 '<!DOCTYPE HTML>\
 <head>\
   <meta http-equiv="refresh" content="0; url=file_bug475636.sjs?1">\
+</head>',
+
+// refresh to data url
+{ refresh: dataURL,
+  doc: '<!DOCTYPE HTML>' },
+
+// meta-refresh to data url
+'<!DOCTYPE HTML>\
+<head>\
+  <meta http-equiv="refresh" content="0; url=' + dataURL + '">\
 </head>',
 
 // refresh to js url should not be followed
@@ -53,6 +73,7 @@ setTimeout(function() {\
 
 function handleRequest(request, response)
 {
+  dump("@@@@@@@@@hi there: " + request.queryString + "\n");
   test = tests[parseInt(request.queryString, 10) - 1];
   response.setHeader("Content-Type", "text/html");
 

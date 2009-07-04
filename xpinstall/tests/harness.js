@@ -5,14 +5,6 @@ const XPINSTALL_URL = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PROMPT_URL = "chrome://global/content/commonDialog.xul";
 const ADDONS_URL = "chrome://mozapps/content/extensions/extensions.xul";
 
-var JSON = {
-  stringify: function(obj) {
-    return Components.classes["@mozilla.org/dom/json;1"]
-                     .createInstance(Components.interfaces.nsIJSON)
-                     .encode(obj);
-  }
-}
-
 /**
  * This is a test harness designed to handle responding to UI during the process
  * of installing an XPI. A test can set callbacks to hear about specific parts

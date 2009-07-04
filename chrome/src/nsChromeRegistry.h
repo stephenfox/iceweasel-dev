@@ -57,7 +57,7 @@
 
 struct PRFileDesc;
 class nsIAtom;
-class nsICSSLoader_1_9_0_BRANCH;
+class nsICSSLoader;
 class nsICSSStyleSheet;
 class nsIDOMWindowInternal;
 class nsILocalFile;
@@ -116,7 +116,7 @@ protected:
 
 private:
   static nsresult RefreshWindow(nsIDOMWindowInternal* aWindow,
-                                nsICSSLoader_1_9_0_BRANCH* aCSSLoader);
+                                nsICSSLoader* aCSSLoader);
   static nsresult GetProviderAndPath(nsIURL* aChromeURL,
                                      nsACString& aProvider, nsACString& aPath);
 

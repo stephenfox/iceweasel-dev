@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessNodeWrap.h"
-#include <tchar.h> 
 #include "ISimpleDOMNode_i.c"
 #include "nsAccessibilityAtoms.h"
 #include "nsIAccessibilityService.h"
@@ -71,6 +70,10 @@ PRBool nsAccessNodeWrap::gIsEnumVariantSupportDisabled = 0;
 PRBool nsAccessNodeWrap::gIsIA2Disabled = PR_FALSE;
 
 nsIAccessibleTextChangeEvent *nsAccessNodeWrap::gTextEvent = nsnull;
+
+// Pref to disallow CtrlTab preview functionality if JAWS or Window-Eyes are
+// running.
+#define CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF "browser.ctrlTab.disallowForScreenReaders"
 
 
 /* For documentation of the accessibility architecture, 
@@ -320,7 +323,8 @@ __try{
     return E_FAIL;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  GetComputedStyleDeclaration(EmptyString(), mDOMNode, getter_AddRefs(cssDecl));
+  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mDOMNode,
+                                           getter_AddRefs(cssDecl));
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 length;
@@ -355,7 +359,8 @@ __try {
     return E_FAIL;
  
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  GetComputedStyleDeclaration(EmptyString(), mDOMNode, getter_AddRefs(cssDecl));
+  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mDOMNode,
+                                           getter_AddRefs(cssDecl));
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 index;
@@ -598,7 +603,7 @@ void nsAccessNodeWrap::InitAccessibility()
   }
 
   if (!gmUserLib) {
-    gmUserLib =::LoadLibrary("USER32.DLL");
+    gmUserLib =::LoadLibraryW(L"USER32.DLL");
   }
 
   if (gmUserLib) {
@@ -668,7 +673,7 @@ GetHRESULT(nsresult aResult)
 
 PRBool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
 {
-  HMODULE jhookhandle = ::GetModuleHandleW(NS_LITERAL_STRING("jhook").get());
+  HMODULE jhookhandle = ::GetModuleHandleW(L"jhook");
   if (!jhookhandle)
     return PR_FALSE;  // No JAWS, or some other screen reader, use IA2
 
@@ -679,9 +684,6 @@ PRBool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
   DWORD length = ::GetFileVersionInfoSizeW(fileName, &dummy);
 
   LPBYTE versionInfo = new BYTE[length];
-  if (!versionInfo)
-    return PR_FALSE;
-
   ::GetFileVersionInfoW(fileName, 0, length, versionInfo);
 
   UINT uLen;
@@ -700,9 +702,44 @@ PRBool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
           || (dwLeftMost == 8 && dwSecondRight < 2173));
 }
 
+void nsAccessNodeWrap::TurnOffNewTabSwitchingForJawsAndWE()
+{
+  HMODULE srHandle = ::GetModuleHandleW(L"jhook");
+  if (!srHandle) {
+    // No JAWS, try Window-Eyes
+    srHandle = ::GetModuleHandleW(L"gwm32inc");
+    if (!srHandle) {
+      // no screen reader we're interested in. Bail out.
+      return;
+    }
+  }
+
+  // Check to see if the pref for disallowing CtrlTab is already set.
+  // If so, bail out.
+  // If not, set it.
+  nsCOMPtr<nsIPrefBranch> prefs (do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs) {
+    PRBool hasDisallowNewCtrlTabPref = PR_FALSE;
+    nsresult rv = prefs->PrefHasUserValue(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF,
+             &hasDisallowNewCtrlTabPref);
+    if (NS_SUCCEEDED(rv) && hasDisallowNewCtrlTabPref) {
+      // This pref has been set before. There is no default for it.
+      // Do nothing further, respect the setting that's there.
+      // That way, if noone touches it, it'll stay on after toggled once.
+      // If someone decided to turn it off, we respect that, too.
+      return;
+    }
+    
+    // Value has never been set, set it.
+    prefs->SetBoolPref(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF, PR_TRUE);
+  }
+}
+
 void nsAccessNodeWrap::DoATSpecificProcessing()
 {
   if (IsOnlyMsaaCompatibleJawsPresent())
     // All versions below 8.0.2173 are not compatible
     gIsIA2Disabled  = PR_TRUE;
+
+  TurnOffNewTabSwitchingForJawsAndWE();
 }

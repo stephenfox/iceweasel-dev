@@ -111,14 +111,14 @@ nsFirstLetterFrame::SetInitialChildList(nsIAtom*  aListName,
 }
 
 NS_IMETHODIMP
-nsFirstLetterFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread)
+nsFirstLetterFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType)
 {
   if (aSelected && ParentDisablesSelection())
     return NS_OK;
   nsIFrame *child = GetFirstChild(nsnull);
   while (child)
   {
-    child->SetSelected(aPresContext, aRange, aSelected, aSpread);
+    child->SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
     // don't worry about result. there are more frames to come
     child = child->GetNextSibling();
   }
@@ -238,7 +238,8 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     nsLineLayout* ll = aReflowState.mLineLayout;
     PRBool        pushedFrame;
 
-    ll->SetInFirstLetter(GetPrevContinuation() == nsnull);
+    ll->SetInFirstLetter(
+      mStyleContext->GetPseudoType() == nsCSSPseudoElements::firstLetter);
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);
@@ -272,7 +273,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     if (kidNextInFlow) {
       // Remove all of the childs next-in-flows
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
     }
   }
   else {

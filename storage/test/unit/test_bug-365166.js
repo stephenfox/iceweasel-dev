@@ -5,13 +5,6 @@
 // mozIStorageStatement::getColumnName of a statement created with
 // "PRAGMA user_version" or "PRAGMA schema_version"
 function run_test() {
-  var file = Components.classes["@mozilla.org/file/directory_service;1"]
-                       .getService(Components.interfaces.nsIProperties)
-                       .get("TmpD", Components.interfaces.nsIFile);
-  file.append("bug-365166.sqlite");
-  if (file.exists())
-    file.remove(false);
-
   test('user');
   test('schema');
 
@@ -20,6 +13,7 @@ function run_test() {
     var colName = param + "_version";
     var sql = "PRAGMA " + colName;
 
+    var file = getTestDB();
     var storageService = Components.classes["@mozilla.org/storage/service;1"].
                          getService(Components.interfaces.mozIStorageService);
     var conn = storageService.openDatabase(file); 
