@@ -5464,7 +5464,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
 dnl ========================================================
 
 dnl If using sydneyaudio with Linux, ensure that the alsa library is available
-if test "$COMPILE_ENVIRONMENT"; then
+if test "$COMPILE_ENVIRONMENT" && test -z "$LIBXUL_SDK"; then
 if test -n "$MOZ_SYDNEYAUDIO"; then
    case "$target_os" in
 linux*)
