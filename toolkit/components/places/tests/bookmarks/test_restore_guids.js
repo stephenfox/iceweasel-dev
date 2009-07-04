@@ -66,6 +66,8 @@ var test = {
     this._testBookmarkGUID = PlacesUtils.bookmarks.getItemGUID(this._testBookmarkId);
   },
 
+  clean: function () {},
+
   validate: function validate() {
     var guid = PlacesUtils.bookmarks.getItemGUID(this._testBookmarkId);
     do_check_eq(this._testBookmarkGUID, guid);
@@ -96,6 +98,11 @@ function run_test() {
   try {
     PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
+
+  // clean
+  tests.forEach(function(aTest) {
+    aTest.clean();
+  });
 
   // restore json file
   try {

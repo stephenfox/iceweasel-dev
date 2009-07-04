@@ -136,6 +136,7 @@ public:
                 PRBool aSyncLoad,
                 PRBool aAllowUnsafeRules,
                 PRBool aUseSystemPrincipal,
+                const nsCString& aCharset,
                 nsICSSLoaderObserver* aObserver,
                 nsIPrincipal* aLoaderPrincipal);
 
@@ -223,6 +224,10 @@ public:
 
   // The principal that identifies who started loading us.
   nsCOMPtr<nsIPrincipal> mLoaderPrincipal;
+
+  // The charset to use if the transport and sheet don't indicate one.
+  // May be empty.  Must be empty if mOwningElement is non-null.
+  nsCString mCharsetHint;
 };
 
 class nsURIAndPrincipalHashKey : public nsURIHashKey
@@ -268,7 +273,7 @@ public:
        
     PRBool eq;
     return !mPrincipal ||
-      NS_SUCCEEDED(mPrincipal->Equals(aKey->mPrincipal, &eq)) && eq;
+      (NS_SUCCEEDED(mPrincipal->Equals(aKey->mPrincipal, &eq)) && eq);
   }
  
   static const nsURIAndPrincipalHashKey*
@@ -299,7 +304,7 @@ enum StyleSheetState {
  * Loader Declaration *
  **********************/
 
-class CSSLoaderImpl : public nsICSSLoader_1_9_0_BRANCH
+class CSSLoaderImpl : public nsICSSLoader
 {
 public:
   CSSLoaderImpl(void);
@@ -345,19 +350,18 @@ public:
                             nsICSSImportRule* aRule);
 
   NS_IMETHOD LoadSheetSync(nsIURI* aURL, PRBool aAllowUnsafeRules,
-                           nsICSSStyleSheet** aSheet);
-
-  NS_IMETHOD LoadSheetSync(nsIURI* aURL, PRBool aAllowUnsafeRules,
                            PRBool aUseSystemPrincipal,
                            nsICSSStyleSheet** aSheet);
 
   NS_IMETHOD LoadSheet(nsIURI* aURL,
                        nsIPrincipal* aOriginPrincipal,
+                       const nsCString& aCharset,
                        nsICSSLoaderObserver* aObserver,
                        nsICSSStyleSheet** aSheet);
 
   NS_IMETHOD LoadSheet(nsIURI* aURL,
                        nsIPrincipal* aOriginPrincipal,
+                       const nsCString& aCharset,
                        nsICSSLoaderObserver* aObserver);
 
   // stop loading all sheets
@@ -427,6 +431,7 @@ private:
                                         PRBool aAllowUnsafeRules,
                                         PRBool aUseSystemPrincipal,
                                         nsIPrincipal* aOriginPrincipal,
+                                        const nsCString& aCharset,
                                         nsICSSStyleSheet** aSheet,
                                         nsICSSLoaderObserver* aObserver);
 

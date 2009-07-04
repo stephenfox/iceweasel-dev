@@ -177,8 +177,6 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
         return NS_ERROR_UNEXPECTED;
 
     nsIPrincipal *docPrincipal = doc->NodePrincipal();
-    nsCOMPtr<nsIURI> uri2;
-    docPrincipal->GetURI(getter_AddRefs(uri2));
 
     PRBool hasHadScriptObject = PR_TRUE;
     nsIScriptGlobalObject* scriptObject =
@@ -193,7 +191,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(scriptObject);
-    req->Init(docPrincipal, context, owner);
+    req->Init(docPrincipal, context, owner, nsnull);
 
     rv = req->OpenRequest(NS_LITERAL_CSTRING("GET"), uriStr, PR_TRUE,
                           EmptyString(), EmptyString());

@@ -7,7 +7,7 @@
 #undef WIN32_LEAN_AND_MEAN
 #endif
 #define INITGUID
-#include <Windows.h>
+#include <windows.h>
 #define AVVENDOR
 #include <msoav.h>
 // To cope with both msvs8 header and sdk6 header
@@ -103,7 +103,6 @@ private:
     // Also true if it is an ftp download
     PRBool mIsHttpDownload;
     PRBool mSkipSource;
-    PRBool mIsReadOnlyRequest;
 
     /* @summary Sets the Scan's state to newState if the current state is
                 expectedState

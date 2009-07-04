@@ -44,15 +44,13 @@
  * Part B tests this when the columns do *not* match, so the DB is reset.
  */
 
-var DBConnection;
-
 function run_test()
 {
   try {
   var testnum = 0;
 
   // ===== test init =====
-  var testfile = do_get_file("toolkit/components/satchel/test/unit/formhistory_v999b.sqlite");
+  var testfile = do_get_file("formhistory_v999b.sqlite");
   var profileDir = dirSvc.get("ProfD", Ci.nsIFile);
 
   // Cleanup from any previous tests or failures.
@@ -77,7 +75,6 @@ function run_test()
            getService(Ci.nsIFormHistory2);
   do_check_true(bakFile.exists());
   bakFile.remove(false);
-  DBConnection = getDBConnection(destFile);
 
   // ===== 2 =====
   testnum++;
@@ -85,7 +82,7 @@ function run_test()
   do_check_false(fh.hasEntries);
   do_check_false(fh.entryExists("name-A", "value-A"));
   // check for current schema.
-  do_check_eq(CURRENT_SCHEMA, DBConnection.schemaVersion);
+  do_check_eq(CURRENT_SCHEMA, fh.DBConnection.schemaVersion);
 
   // ===== 3 =====
   testnum++;

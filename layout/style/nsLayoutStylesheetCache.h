@@ -44,7 +44,6 @@
 
 class nsIFile;
 class nsICSSLoader;
-class nsICSSLoader_1_9_0_BRANCH;
 
 class nsLayoutStylesheetCache
  : public nsIObserver
@@ -56,6 +55,8 @@ class nsLayoutStylesheetCache
   static nsICSSStyleSheet* FormsSheet();
   static nsICSSStyleSheet* UserContentSheet();
   static nsICSSStyleSheet* UserChromeSheet();
+  static nsICSSStyleSheet* UASheet();
+  static nsICSSStyleSheet* QuirkSheet();
 
   static void Shutdown();
 
@@ -70,11 +71,13 @@ private:
                         PRBool aEnableUnsafeRules);
 
   static nsLayoutStylesheetCache* gStyleCache;
-  static nsICSSLoader_1_9_0_BRANCH* gCSSLoader;
+  static nsICSSLoader* gCSSLoader;
   nsCOMPtr<nsICSSStyleSheet> mScrollbarsSheet;
   nsCOMPtr<nsICSSStyleSheet> mFormsSheet;
   nsCOMPtr<nsICSSStyleSheet> mUserContentSheet;
   nsCOMPtr<nsICSSStyleSheet> mUserChromeSheet;
+  nsCOMPtr<nsICSSStyleSheet> mUASheet;
+  nsCOMPtr<nsICSSStyleSheet> mQuirkSheet;
 };
 
 #endif

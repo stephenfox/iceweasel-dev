@@ -74,6 +74,7 @@
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsLayoutUtils.h"
+#include "nsContentUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsIEventStateManager.h"
 #include "nsIBoxLayout.h"
@@ -82,11 +83,12 @@
 #include "nsBindingManager.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIBaseWindow.h"
-#ifdef XP_WIN
 #include "nsISound.h"
-#endif
+#include "nsIRootBox.h"
 
 const PRInt32 kMaxZ = 0x7fffffff; //XXX: Shouldn't there be a define somewhere for MaxInt for PRInt32
+
+PRInt8 nsMenuPopupFrame::sDefaultLevelParent = -1;
 
 // NS_NewMenuPopupFrame
 //
@@ -118,6 +120,10 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mInContentShell(PR_TRUE),
   mPrefSize(-1, -1)
 {
+  if (sDefaultLevelParent >= 0)
+    return;
+  sDefaultLevelParent =
+    nsContentUtils::GetBoolPref("ui.panel.default_level_parent", PR_FALSE);
 } // ctor
 
 
@@ -189,6 +195,31 @@ nsMenuPopupFrame::IsNoAutoHide()
                                  nsGkAtoms::_true, eIgnoreCase));
 }
 
+PRBool
+nsMenuPopupFrame::IsTopMost()
+{
+  // If this panel is not a panel, this is always a top-most popup
+  if (mPopupType != ePopupTypePanel)
+    return PR_TRUE;
+
+  // If this panel is a noautohide panel, it should appear just above the parent
+  // window.
+  if (IsNoAutoHide())
+    return PR_FALSE;
+
+  // Otherwise, check the topmost attribute.
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::level,
+                            nsGkAtoms::top, eIgnoreCase))
+    return PR_TRUE;
+
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::level,
+                            nsGkAtoms::parent, eIgnoreCase))
+    return PR_FALSE;
+
+  // Otherwise, the result depends on the platform.
+  return sDefaultLevelParent ? PR_TRUE : PR_FALSE;
+}
+
 void
 nsMenuPopupFrame::EnsureWidget()
 {
@@ -210,19 +241,21 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   widgetData.clipSiblings = PR_TRUE;
   widgetData.mPopupHint = mPopupType;
 
+  nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(this);
   PRBool viewHasTransparentContent = !mInContentShell &&
-                                     nsLayoutUtils::FrameHasTransparency(this);
+                                     (eTransparencyTransparent ==
+                                      mode);
   nsIContent* parentContent = GetContent()->GetParent();
   nsIAtom *tag = nsnull;
   if (parentContent)
     tag = parentContent->Tag();
   widgetData.mDropShadow = !(viewHasTransparentContent || tag == nsGkAtoms::menulist);
 
-  // panels which don't auto-hide need a parent widget. This allows them
-  // to always appear in front of the parent window but behind other windows
-  // that should be in front of it.
+  // panels which are not topmost need a parent widget. This allows them to
+  // always appear in front of the parent window but behind other windows that
+  // should be in front of it.
   nsCOMPtr<nsIWidget> parentWidget;
-  if (IsNoAutoHide()) {
+  if (!IsTopMost()) {
     nsCOMPtr<nsISupports> cont = PresContext()->GetContainer();
     nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(cont);
     if (!dsti)
@@ -246,7 +279,9 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   aView->CreateWidget(kCChildCID, &widgetData, nsnull, PR_TRUE, PR_TRUE,
                       eContentTypeInherit, parentWidget);
 #endif
-  aView->GetWidget()->SetHasTransparentBackground(viewHasTransparentContent);
+  nsIWidget* widget = aView->GetWidget();
+  widget->SetTransparencyMode(mode);
+  widget->SetWindowShadowStyle(GetStyleUIReset()->mWindowShadow);
   return NS_OK;
 }
 
@@ -526,7 +561,7 @@ nsMenuPopupFrame::InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
   }
 }
 
-void PR_CALLBACK
+void
 LazyGeneratePopupDone(nsIContent* aPopup, nsIFrame* aFrame, void* aArg)
 {
   // be safe and check the frame type
@@ -589,6 +624,11 @@ nsMenuPopupFrame::ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem)
         FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                          NS_FRAME_HAS_DIRTY_CHILDREN);
     }
+    if (mPopupType == ePopupTypeMenu) {
+      nsCOMPtr<nsISound> sound(do_CreateInstance("@mozilla.org/sound;1"));
+      if (sound)
+        sound->PlaySystemSound(NS_SYSSOUND_MENU_POPUP);
+    }
   }
 
   mShouldAutoPosition = PR_TRUE;
@@ -650,9 +690,9 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
 void
 nsMenuPopupFrame::InvalidateInternal(const nsRect& aDamageRect,
                                      nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                     PRBool aImmediate)
+                                     PRUint32 aFlags)
 {
-  InvalidateRoot(aDamageRect, aX, aY, aImmediate);
+  InvalidateRoot(aDamageRect + nsPoint(aX, aY), aFlags);
 }
 
 void
@@ -883,6 +923,9 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
 
   nsPresContext* presContext = PresContext();
   nsIFrame* rootFrame = presContext->PresShell()->FrameManager()->GetRootFrame();
+  NS_ASSERTION(rootFrame->GetView() && GetView() &&
+               rootFrame->GetView() == GetView()->GetParent(),
+               "rootFrame's view is not our view's parent???");
 
   // if the frame is not specified, use the anchor node passed to ShowPopup. If
   // that wasn't specified either, use the root frame. Note that mAnchorContent
@@ -1235,11 +1278,9 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
   presContext->GetViewManager()->MoveViewTo(GetView(), xpos, ypos); 
 
   // Now that we've positioned the view, sync up the frame's origin.
-  nsPoint frameOrigin = GetPosition();
-  nsPoint offsetToView;
-  GetOriginToViewOffset(offsetToView, nsnull);
-  frameOrigin -= offsetToView;
-  nsBoxFrame::SetPosition(frameOrigin);
+  // Note that (xpos,ypos) is the position relative to rootFrame.
+  nsBoxFrame::SetPosition(nsPoint(xpos, ypos) -
+                          GetParent()->GetOffsetTo(rootFrame));
 
   if (sizedToPopup) {
     nsBoxLayoutState state(PresContext());
@@ -1340,11 +1381,11 @@ void nsMenuPopupFrame::EnsureMenuItemIsVisible(nsMenuFrame* aMenuItem)
   
       // scroll down
       if ( itemRect.y + itemRect.height > scrollY + viewRect.height )
-        scrollableView->ScrollTo(scrollX, itemRect.y + itemRect.height - viewRect.height, NS_SCROLL_PROPERTY_ALWAYS_BLIT);
+        scrollableView->ScrollTo(scrollX, itemRect.y + itemRect.height - viewRect.height, 0);
       
       // scroll up
       else if ( itemRect.y < scrollY )
-        scrollableView->ScrollTo(scrollX, itemRect.y, NS_SCROLL_PROPERTY_ALWAYS_BLIT);
+        scrollableView->ScrollTo(scrollX, itemRect.y, 0);
     }
   }
 }
@@ -1660,6 +1701,12 @@ nsMenuPopupFrame::Destroy()
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
     pm->PopupDestroyed(this);
+
+  nsIRootBox* rootBox =
+    nsIRootBox::GetRootBox(PresContext()->GetPresShell());
+  if (rootBox && rootBox->GetDefaultTooltip() == mContent) {
+    rootBox->SetDefaultTooltip(nsnull);
+  }
 
   nsBoxFrame::Destroy();
 }

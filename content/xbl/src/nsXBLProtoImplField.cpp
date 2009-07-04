@@ -71,7 +71,7 @@ nsXBLProtoImplField::~nsXBLProtoImplField()
   if (mFieldText)
     nsMemory::Free(mFieldText);
   NS_Free(mName);
-  delete mNext;
+  NS_CONTENT_DELETE_LIST_MEMBER(nsXBLProtoImplField, this, mNext);
 }
 
 void 
@@ -135,13 +135,6 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                         (void*) &result, &undefined);
   if (NS_FAILED(rv))
     return rv;
-
-  // If EvaluateStringWithValue() threw an exception, just report it now.
-  // Failure to evaluate a field should stop neither the get of the field value
-  // nor an enumeration attempt.
-  if (::JS_IsExceptionPending(cx)) {
-    ::JS_ReportPendingException(cx);
-  }
 
   if (undefined) {
     result = JSVAL_VOID;

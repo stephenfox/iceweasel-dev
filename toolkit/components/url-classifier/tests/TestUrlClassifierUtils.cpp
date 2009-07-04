@@ -41,6 +41,7 @@
 #include "nsUrlClassifierUtils.h"
 #include "nsNetUtil.h"
 #include "stdlib.h"
+#include "TestHarness.h"
 
 static int gTotalTests = 0;
 static int gPassedTests = 0;
@@ -53,8 +54,7 @@ static char int_to_hex_digit(PRInt32 i) {
 static void CheckEquals(nsCString & expected, nsCString & actual)
 {
   if (!(expected).Equals((actual))) {
-    fprintf(stderr, "FAILED: expected |%s| but got |%s|", (expected).get(),
-            (actual).get());
+    fail("expected |%s| but got |%s|", (expected).get(), (actual).get());
   } else {
     gPassedTests++;
   }
@@ -306,9 +306,39 @@ void TestLongHostname()
          PR_IntervalToMilliseconds(clockEnd - clockStart));
 }
 
+void TestFragmentSet()
+{
+  nsUrlClassifierFragmentSet set;
+  set.Init(3);
+
+  set.Put(NS_LITERAL_CSTRING("a"));
+  set.Put(NS_LITERAL_CSTRING("b"));
+  set.Put(NS_LITERAL_CSTRING("c"));
+
+  // At this point, adding a fourth element would push "a" off.
+  // Make sure that set.Has("a") moves it to the front of the list
+  set.Has(NS_LITERAL_CSTRING("a"));
+
+  // Now add a new item.  This should now push "b" off the list,
+  // but leave "a"
+  set.Put(NS_LITERAL_CSTRING("d"));
+
+  gTotalTests++;
+  if (set.Has(NS_LITERAL_CSTRING("a")))
+    gPassedTests++;
+  else
+    fail("set.Has(\"a\") failed.");
+
+  gTotalTests++;
+  if (!set.Has(NS_LITERAL_CSTRING("b")))
+    gPassedTests++;
+  else
+    fail("!set.Has(\"b\") failed.");
+}
+
 int main(int argc, char **argv)
 {
-  NS_LogInit();
+  ScopedXPCOM xpcom("URLClassiferUtils");
 
   TestUnescape();
   TestEnc();
@@ -317,7 +347,10 @@ int main(int argc, char **argv)
   TestParseIPAddress();
   TestHostname();
   TestLongHostname();
+  TestFragmentSet();
 
+  if (gPassedTests == gTotalTests)
+    passed(__FILE__);
   printf("%d of %d tests passed\n", gPassedTests, gTotalTests);
   // Non-zero return status signals test failure to build system.
 

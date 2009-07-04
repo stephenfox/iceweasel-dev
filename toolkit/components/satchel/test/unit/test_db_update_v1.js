@@ -45,14 +45,13 @@ function is_about_now(timestamp) {
 var testnum = 0;
 var fh;
 var timesUsed, firstUsed, lastUsed;
-var DBConnection;
 
 function run_test()
 {
   try {
 
   // ===== test init =====
-  var testfile = do_get_file("toolkit/components/satchel/test/unit/formhistory_v0.sqlite");
+  var testfile = do_get_file("formhistory_v0.sqlite");
   var profileDir = dirSvc.get("ProfD", Ci.nsIFile);
 
   // Cleanup from any previous tests or failures.
@@ -66,7 +65,6 @@ function run_test()
 
   fh = Cc["@mozilla.org/satchel/form-history;1"].
        getService(Ci.nsIFormHistory2);
-  DBConnection = getDBConnection(destFile);
 
 
   // ===== 1 =====
@@ -77,7 +75,7 @@ function run_test()
   do_check_true(fh.entryExists("name-C", "value-C1"));
   do_check_true(fh.entryExists("name-C", "value-C2"));
   // check for upgraded schema.
-  do_check_eq(CURRENT_SCHEMA, DBConnection.schemaVersion);
+  do_check_eq(CURRENT_SCHEMA, fh.DBConnection.schemaVersion);
 
 
   // ===== 2 =====
@@ -86,13 +84,12 @@ function run_test()
 
   var query = "SELECT timesUsed, firstUsed, lastUsed " +
               "FROM moz_formhistory WHERE fieldname = 'name-A'";
-  var stmt = DBConnection.createStatement(query);
+  var stmt = fh.DBConnection.createStatement(query);
   stmt.executeStep();
 
   timesUsed = stmt.getInt32(0);
   firstUsed = stmt.getInt64(1);
   lastUsed  = stmt.getInt64(2);
-  stmt.reset();
 
   do_check_eq(1, timesUsed);
   do_check_true(firstUsed == lastUsed);
@@ -109,6 +106,7 @@ function run_test()
   fh.removeEntry("name-D", "value-D");
   do_check_false(fh.entryExists("name-D", "value-D"));
 
+
   // ===== 4 =====
   testnum++;
   // Add a new entry, check expected properties
@@ -118,13 +116,12 @@ function run_test()
 
   query = "SELECT timesUsed, firstUsed, lastUsed " +
           "FROM moz_formhistory WHERE fieldname = 'name-E'";
-  stmt = DBConnection.createStatement(query);
+  stmt = fh.DBConnection.createStatement(query);
   stmt.executeStep();
 
   timesUsed = stmt.getInt32(0);
   firstUsed = stmt.getInt64(1);
   lastUsed  = stmt.getInt64(2);
-  stmt.reset();
 
   do_check_eq(1, timesUsed);
   do_check_true(firstUsed == lastUsed);
@@ -155,13 +152,12 @@ function delayed_test() {
 
   var query = "SELECT timesUsed, firstUsed, lastUsed " +
               "FROM moz_formhistory WHERE fieldname = 'name-E'";
-  var stmt = DBConnection.createStatement(query);
+  var stmt = fh.DBConnection.createStatement(query);
   stmt.executeStep();
 
   timesUsed = stmt.getInt32(0);
   var firstUsed2 = stmt.getInt64(1);
   var lastUsed2  = stmt.getInt64(2);
-  stmt.reset();
 
   do_check_eq(2, timesUsed);
   do_check_true(is_about_now(lastUsed2));

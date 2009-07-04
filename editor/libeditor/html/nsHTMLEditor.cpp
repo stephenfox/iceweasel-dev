@@ -36,7 +36,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#include "nsICaret.h"
 #include "nsCRT.h"
 
 #include "nsReadableUtils.h"
@@ -853,7 +852,8 @@ nsHTMLEditor::GetBlockSectionsForRange(nsIDOMRange *aRange,
     iter->Init(aRange);
     while (iter->IsDone())
     {
-      nsCOMPtr<nsIContent> currentContent = iter->GetCurrentNode();
+      nsCOMPtr<nsIContent> currentContent =
+        do_QueryInterface(iter->GetCurrentNode());
 
       nsCOMPtr<nsIDOMNode>currentNode = do_QueryInterface(currentContent);
       if (currentNode)
@@ -3557,7 +3557,7 @@ nsHTMLEditor::ReplaceStyleSheet(const nsAString& aURL)
   rv = NS_NewURI(getter_AddRefs(uaURI), aURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = cssLoader->LoadSheet(uaURI, nsnull, this);
+  rv = cssLoader->LoadSheet(uaURI, nsnull, EmptyCString(), this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -3599,8 +3599,6 @@ nsHTMLEditor::AddOverrideStyleSheet(const nsAString& aURL)
   nsCOMPtr<nsICSSLoader> cssLoader;
   nsresult rv = GetCSSLoader(aURL, getter_AddRefs(cssLoader));
   NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsICSSLoader_1_9_0_BRANCH> cssLoaderBranch =
-    do_QueryInterface(cssLoader);
 
   nsCOMPtr<nsIURI> uaURI;
   rv = NS_NewURI(getter_AddRefs(uaURI), aURL);
@@ -3611,8 +3609,7 @@ nsHTMLEditor::AddOverrideStyleSheet(const nsAString& aURL)
   // synchronously, of course..
   nsCOMPtr<nsICSSStyleSheet> sheet;
   // Editor override style sheets may want to style Gecko anonymous boxes
-  rv = cssLoaderBranch->LoadSheetSync(uaURI, PR_TRUE, PR_TRUE,
-                                      getter_AddRefs(sheet));
+  rv = cssLoader->LoadSheetSync(uaURI, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
 
   // Synchronous loads should ALWAYS return completed
   if (!sheet)
@@ -3704,8 +3701,7 @@ nsHTMLEditor::EnableExistingStyleSheet(const nsAString &aURL)
 {
   nsCOMPtr<nsICSSStyleSheet> sheet;
   nsresult rv = GetStyleSheetForURL(aURL, getter_AddRefs(sheet));
-  if (NS_FAILED(rv))
-    return PR_FALSE;
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Enable sheet if already loaded.
   if (sheet)
@@ -3713,8 +3709,7 @@ nsHTMLEditor::EnableExistingStyleSheet(const nsAString &aURL)
     // Ensure the style sheet is owned by our document.
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocWeak);
     rv = sheet->SetOwningDocument(doc);
-    if (NS_FAILED(rv))
-      return PR_FALSE;
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDOMStyleSheet> domSheet(do_QueryInterface(sheet));
     NS_ASSERTION(domSheet, "Sheet not implementing nsIDOMStyleSheet!");
@@ -3856,8 +3851,7 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
     // loop through the content iterator for each content node
     while (!iter->IsDone())
     {
-      nsIContent *content = iter->GetCurrentNode();
-      nsCOMPtr<nsIDOMNode> node (do_QueryInterface(content));
+      nsCOMPtr<nsIDOMNode> node (do_QueryInterface(iter->GetCurrentNode()));
       if (node)
       {
         nsAutoString tagName;
@@ -4282,32 +4276,6 @@ nsHTMLEditor::SelectAll()
 #pragma mark -
 #endif
 
-
-NS_IMETHODIMP nsHTMLEditor::GetLayoutObject(nsIDOMNode *aNode, nsISupports **aLayoutObject)
-{
-  nsresult result = NS_ERROR_FAILURE;  // we return an error unless we get the index
-  if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
-  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  if (!ps) return NS_ERROR_NOT_INITIALIZED;
-
-  if ((nsnull!=aNode))
-  { // get the content interface
-    nsCOMPtr<nsIContent> nodeAsContent( do_QueryInterface(aNode) );
-    if (nodeAsContent)
-    { // get the frame from the content interface
-      //Note: frames are not ref counted, so don't use an nsCOMPtr
-      *aLayoutObject = nsnull;
-      result = ps->GetLayoutObjectFor(nodeAsContent, aLayoutObject);
-    }
-  }
-  else {
-    result = NS_ERROR_NULL_POINTER;
-  }
-
-  return result;
-}
-
-
 // this will NOT find aAttribute unless aAttribute has a non-null value
 // so singleton attributes like <Table border> will not be matched!
 void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
@@ -4588,13 +4556,10 @@ nsHTMLEditor::CollapseAdjacentTextNodes(nsIDOMRange *aInRange)
 
   while (!iter->IsDone())
   {
-    nsIContent *content = iter->GetCurrentNode();  
-
-    nsCOMPtr<nsIDOMCharacterData> text = do_QueryInterface(content);
-    nsCOMPtr<nsIDOMNode>          node = do_QueryInterface(content);
-    if (text && node && IsEditable(node))
+    nsCOMPtr<nsIDOMCharacterData> text = do_QueryInterface(iter->GetCurrentNode());
+    if (text && IsEditable(text))
     {
-      textNodes.AppendElement(node.get());
+      textNodes.AppendElement(text);
     }
 
     iter->Next();
@@ -5905,7 +5870,8 @@ nsHTMLEditor::GetSelectionContainer(nsIDOMElement ** aReturn)
         res = selection->GetRangeAt(i, getter_AddRefs(range));
         if (NS_FAILED(res)) return res;
         nsCOMPtr<nsIDOMNode> startContainer;
-        range->GetStartContainer(getter_AddRefs(startContainer));
+        res = range->GetStartContainer(getter_AddRefs(startContainer));
+        if (NS_FAILED(res)) continue;
         if (!focusNode)
           focusNode = startContainer;
         else if (focusNode != startContainer) {
@@ -5940,7 +5906,7 @@ nsHTMLEditor::IsAnonymousElement(nsIDOMElement * aElement, PRBool * aReturn)
 {
   NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  *aReturn = content->IsNativeAnonymous();
+  *aReturn = content->IsRootOfNativeAnonymousSubtree();
   return NS_OK;
 }
 

@@ -69,6 +69,7 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsWidgetsCID.h"
+#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXULAppAPI.h"
 #include "nsTextFormatter.h"
@@ -250,6 +251,16 @@ LanguagesMatch(const nsACString& a, const nsACString& b)
   }
 
   return PR_FALSE;
+}
+
+static PRBool
+CanLoadResource(nsIURI* aResourceURI)
+{
+  PRBool isLocalResource = PR_FALSE;
+  (void)NS_URIChainHasFlags(aResourceURI,
+                            nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
+                            &isLocalResource);
+  return isLocalResource;
 }
 
 nsChromeRegistry::ProviderEntry*
@@ -750,8 +761,8 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
 
   PackageEntry* entry =
     static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
-                                                       & (nsACString&) package,
-                                                       PL_DHASH_LOOKUP));
+                                                    & (nsACString&) package,
+                                                    PL_DHASH_LOOKUP));
 
   if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     if (!mInitialized)
@@ -882,8 +893,7 @@ static void FlushSkinBindingsForWindow(nsIDOMWindowInternal* aWindow)
 // XXXbsmedberg: move this to nsIWindowMediator
 NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
 {
-  nsCOMPtr<nsICSSLoader_1_9_0_BRANCH> cssLoader =
-    do_CreateInstance(kCSSLoaderCID);
+  nsCOMPtr<nsICSSLoader> cssLoader(do_CreateInstance(kCSSLoaderCID));
   if (!cssLoader)
     return NS_OK;
 
@@ -946,7 +956,7 @@ static PRBool IsChromeURI(nsIURI* aURI)
 
 // XXXbsmedberg: move this to windowmediator
 nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
-                                         nsICSSLoader_1_9_0_BRANCH* aCSSLoader)
+                                         nsICSSLoader* aCSSLoader)
 {
   // Deal with our subframes first.
   nsCOMPtr<nsIDOMWindowCollection> frames;
@@ -1326,6 +1336,32 @@ nsChromeRegistry::CheckForNewChrome()
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP_(PRBool)
+nsChromeRegistry::WrappersEnabled(nsIURI *aURI)
+{
+  nsCOMPtr<nsIURL> chromeURL (do_QueryInterface(aURI));
+  if (!chromeURL)
+    return PR_FALSE;
+
+  PRBool isChrome = PR_FALSE;
+  nsresult rv = chromeURL->SchemeIs("chrome", &isChrome);
+  if (NS_FAILED(rv) || !isChrome)
+    return PR_FALSE;
+
+  nsCAutoString package;
+  rv = chromeURL->GetHostPort(package);
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+
+  PackageEntry* entry =
+    static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                    & (nsACString&) package,
+                                                    PL_DHASH_LOOKUP));
+
+  return PL_DHASH_ENTRY_IS_LIVE(entry) &&
+         entry->flags & PackageEntry::XPCNATIVEWRAPPERS;
 }
 
 nsresult
@@ -2310,6 +2346,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       if (NS_FAILED(rv))
         continue;
 
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as content.",
+                              uri);
+        continue;
+      }
+
       PackageEntry* entry =
         static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
                                                             & (const nsACString&) nsDependentCString(package),
@@ -2385,6 +2428,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       if (NS_FAILED(rv))
         continue;
 
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a locale.",
+                              uri);
+        continue;
+      }
+
       PackageEntry* entry =
         static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
                                                             & (const nsACString&) nsDependentCString(package),
@@ -2439,6 +2489,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a skin.",
+                              uri);
+        continue;
+      }
 
       PackageEntry* entry =
         static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
@@ -2501,6 +2558,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         continue;
       }
 
+      if (!CanLoadResource(overlayuri)) {
+        LogMessageWithContext(overlayuri, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as an overlay.",
+                              overlay);
+        continue;
+      }
+
       mOverlayHash.Add(baseuri, overlayuri);
     }
     else if (!strcmp(token, "style")) {
@@ -2547,6 +2611,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                        getter_AddRefs(overlayuri));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(overlayuri)) {
+        LogMessageWithContext(overlayuri, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a style overlay.",
+                              overlay);
+        continue;
+      }
 
       mStyleHash.Add(baseuri, overlayuri);
     }
@@ -2600,6 +2671,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                        getter_AddRefs(resolveduri));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(resolveduri)) {
+        LogMessageWithContext(resolveduri, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as an override.",
+                              resolved);
+        continue;
+      }
 
       mOverrideTable.Put(chromeuri, resolveduri);
     }
@@ -2665,6 +2743,13 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
+
+      if (!CanLoadResource(resolved)) {
+        LogMessageWithContext(resolved, line, nsIScriptError::warningFlag,
+                              "Warning: cannot register non-local URI '%s' as a resource.",
+                              uri);
+        continue;
+      }
 
       rv = rph->SetSubstitution(host, resolved);
       NS_ENSURE_SUCCESS(rv, rv);

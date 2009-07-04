@@ -179,11 +179,8 @@ ViewportFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 nsIFrame*
 ViewportFrame::GetFirstChild(nsIAtom* aListName) const
 {
-  if (nsGkAtoms::fixedList == aListName) {
-    nsIFrame* result = nsnull;
-    mFixedContainer.FirstChild(this, aListName, &result);
-    return result;
-  }
+  if (nsGkAtoms::fixedList == aListName)
+    return mFixedContainer.GetFirstChild();
 
   return nsContainerFrame::GetFirstChild(aListName);
 }
@@ -219,7 +216,7 @@ ViewportFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 }
 
 nsPoint
- ViewportFrame::AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) const
+ViewportFrame::AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) const
 {
   // Calculate how much room is available for fixed frames. That means
   // determining if the viewport is scrollable and whether the vertical and/or
@@ -242,7 +239,7 @@ nsPoint
 }
 
 NS_IMETHODIMP
-ViewportFrame::Reflow(nsPresContext*          aPresContext,
+ViewportFrame::Reflow(nsPresContext*           aPresContext,
                       nsHTMLReflowMetrics&     aDesiredSize,
                       const nsHTMLReflowState& aReflowState,
                       nsReflowStatus&          aStatus)
@@ -308,8 +305,7 @@ ViewportFrame::Reflow(nsPresContext*          aPresContext,
   nsPoint offset = AdjustReflowStateForScrollbars(&reflowState);
   
 #ifdef DEBUG
-  nsIFrame* f;
-  mFixedContainer.FirstChild(this, nsGkAtoms::fixedList, &f);
+  nsIFrame* f = mFixedContainer.GetFirstChild();
   NS_ASSERTION(!f || (offset.x == 0 && offset.y == 0),
                "We don't handle correct positioning of fixed frames with "
                "scrollbars in odd positions");
@@ -324,7 +320,7 @@ ViewportFrame::Reflow(nsPresContext*          aPresContext,
   // If we were dirty then do a repaint
   if (GetStateBits() & NS_FRAME_IS_DIRTY) {
     nsRect damageRect(0, 0, aDesiredSize.width, aDesiredSize.height);
-    Invalidate(damageRect, PR_FALSE);
+    Invalidate(damageRect);
   }
 
   // XXX Should we do something to clip our children to this?
@@ -351,15 +347,19 @@ ViewportFrame::IsContainingBlock() const
 void
 ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate)
+                                  PRUint32 aFlags)
 {
+  nsRect r = aDamageRect + nsPoint(aX, aY);
+  PresContext()->NotifyInvalidation(r, (aFlags & INVALIDATE_CROSS_DOC) != 0);
+
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
     nsPoint pt = GetOffsetTo(parent);
-    parent->InvalidateInternal(aDamageRect, aX + pt.x, aY + pt.y, this, aImmediate);
+    parent->InvalidateInternal(r, pt.x, pt.y, this,
+                               aFlags | INVALIDATE_CROSS_DOC);
     return;
   }
-  InvalidateRoot(aDamageRect, aX, aY, aImmediate);
+  InvalidateRoot(r, aFlags);
 }
 
 #ifdef DEBUG

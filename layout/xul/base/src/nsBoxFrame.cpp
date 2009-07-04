@@ -72,12 +72,10 @@
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
-#include "nsSpaceManager.h"
 #include "nsHTMLParts.h"
 #include "nsIViewManager.h"
 #include "nsIView.h"
 #include "nsIPresShell.h"
-#include "nsFrameNavigator.h"
 #include "nsCSSRendering.h"
 #include "nsIServiceManager.h"
 #include "nsIBoxLayout.h"
@@ -179,14 +177,14 @@ nsBoxFrame::SetInitialChildList(nsIAtom*        aListName,
   return r;
 }
 
-NS_IMETHODIMP
-nsBoxFrame::DidSetStyleContext()
+/* virtual */ void
+nsBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
+  nsContainerFrame::DidSetStyleContext(aOldStyleContext);
+
   // The values that CacheAttributes() computes depend on our style,
   // so we need to recompute them here...
   CacheAttributes();
-
-  return NS_OK;
 }
 
 /**
@@ -199,13 +197,6 @@ nsBoxFrame::Init(nsIContent*      aContent,
 {
   nsresult  rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // record that children that are ignorable whitespace should be excluded 
-  // (When content was loaded via the XUL content sink, it's already
-  // been excluded, but we need this for when the XUL namespace is used
-  // in other MIME types or when the XUL CSS display types are used with
-  // non-XUL elements.)
-  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
 
   MarkIntrinsicWidthsDirty();
 
@@ -650,6 +641,7 @@ nsBoxFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = minSize.width - bp.LeftRight();
+  result = PR_MAX(result, 0);
 
   return result;
 }
@@ -671,6 +663,7 @@ nsBoxFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = prefSize.width - bp.LeftRight();
+  result = PR_MAX(result, 0);
 
   return result;
 }
@@ -687,7 +680,8 @@ nsBoxFrame::Reflow(nsPresContext*          aPresContext,
   DO_GLOBAL_REFLOW_COUNT("nsBoxFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
-  NS_ASSERTION(aReflowState.ComputedWidth() >=0 && aReflowState.ComputedWidth() >= 0, "Computed Size < 0");
+  NS_ASSERTION(aReflowState.ComputedWidth() >=0 &&
+               aReflowState.ComputedHeight() >= 0, "Computed Size < 0");
 
 #ifdef DO_NOISY_REFLOW
   printf("\n-------------Starting BoxFrame Reflow ----------------------------\n");
@@ -1935,6 +1929,12 @@ nsBoxFrame::FireDOMEventSynch(const nsAString& aDOMEventName, nsIContent *aConte
   }
 }
 
+PRBool
+nsBoxFrame::SupportsOrdinalsInChildren()
+{
+  return PR_TRUE;
+}
+
 static nsIFrame*
 SortedMerge(nsBoxLayoutState& aState, nsIFrame *aLeft, nsIFrame *aRight)
 {
@@ -2030,6 +2030,9 @@ nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
   if (!child)
     return;
 
+  if (!SupportsOrdinalsInChildren())
+    return;
+
   // Run through our list of children and check whether we
   // need to sort them.
   PRUint32 maxOrdinal = child->GetOrdinal(aState);
@@ -2081,6 +2084,9 @@ nsBoxFrame::LayoutChildAt(nsBoxLayoutState& aState, nsIBox* aBox, const nsRect& 
 NS_IMETHODIMP
 nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)
 {
+  if (!SupportsOrdinalsInChildren())
+    return NS_OK;
+
   PRUint32 ord = aChild->GetOrdinal(aState);
   
   nsIFrame *child = mFrames.FirstChild();

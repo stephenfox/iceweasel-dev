@@ -71,7 +71,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
   },
   {
     "alertdialog",
-    nsIAccessibleRole::ROLE_ALERT,
+    nsIAccessibleRole::ROLE_DIALOG,
     eNameOkFromChildren,
     eNoValue,
     eNoAction,
@@ -93,7 +93,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNameLabelOrTitle,
     eNoValue,
     eNoAction,
-    kNoReqStates,
+    nsIAccessibleStates::STATE_READONLY,
     kEndEntry
   },
   {
@@ -103,8 +103,8 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eClickAction,
     kNoReqStates,
-    {&nsAccessibilityAtoms::aria_pressed, kBoolState, nsIAccessibleStates::STATE_PRESSED},
-    {&nsAccessibilityAtoms::aria_pressed, "mixed", nsIAccessibleStates::STATE_MIXED},
+    {&nsAccessibilityAtoms::aria_pressed, kBoolState, nsIAccessibleStates::STATE_PRESSED | nsIAccessibleStates::STATE_CHECKABLE},
+    {&nsAccessibilityAtoms::aria_pressed, "mixed", nsIAccessibleStates::STATE_MIXED | nsIAccessibleStates::STATE_CHECKABLE},
     kEndEntry
   },
   {
@@ -140,16 +140,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     nsIAccessibleStates::STATE_COLLAPSED | nsIAccessibleStates::STATE_HASPOPUP,
     // Manually map EXT_STATE_SUPPORTS_AUTOCOMPLETION aria-autocomplete
     {&nsAccessibilityAtoms::aria_readonly, kBoolState, nsIAccessibleStates::STATE_READONLY},
-    {&nsAccessibilityAtoms::aria_expanded, kBoolState, nsIAccessibleStates::STATE_EXPANDED},
-    kEndEntry
-  },
-  {
-    "description",
-    nsIAccessibleRole::ROLE_TEXT_CONTAINER,
-    eNameOkFromChildren,
-    eNoValue,
-    eNoAction,
-    kNoReqStates,
     kEndEntry
   },
   {
@@ -167,7 +157,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNameLabelOrTitle,
     eNoValue,
     eNoAction,
-    kNoReqStates,
+    nsIAccessibleStates::STATE_READONLY,
     kEndEntry
   },
   {
@@ -188,8 +178,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eNoAction,
     kNoReqStates,
-    {&nsAccessibilityAtoms::aria_expanded, kBoolState, nsIAccessibleStates::STATE_EXPANDED},
-    {&nsAccessibilityAtoms::aria_expanded, "false", nsIAccessibleStates::STATE_COLLAPSED},
     {&nsAccessibilityAtoms::aria_selected, kBoolState, nsIAccessibleStates::STATE_SELECTED | nsIAccessibleStates::STATE_SELECTABLE},
     {&nsAccessibilityAtoms::aria_selected, "false", nsIAccessibleStates::STATE_SELECTABLE},
     {&nsAccessibilityAtoms::aria_readonly, kBoolState, nsIAccessibleStates::STATE_READONLY},
@@ -374,7 +362,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNameOkFromChildren,
     eNoValue,
     eSelectAction,
-    kNoReqStates,
+    nsIAccessibleStates::STATE_CHECKABLE,
     {&nsAccessibilityAtoms::aria_checked, kBoolState, nsIAccessibleStates::STATE_CHECKED},
     kEndEntry
   },
@@ -405,8 +393,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     kNoReqStates,
     {&nsAccessibilityAtoms::aria_selected, kBoolState, nsIAccessibleStates::STATE_SELECTED | nsIAccessibleStates::STATE_SELECTABLE},
     {&nsAccessibilityAtoms::aria_selected, "false", nsIAccessibleStates::STATE_SELECTABLE},
-    {&nsAccessibilityAtoms::aria_expanded, kBoolState, nsIAccessibleStates::STATE_EXPANDED},
-    {&nsAccessibilityAtoms::aria_expanded, "false", nsIAccessibleStates::STATE_COLLAPSED},
     kEndEntry
   },
   {
@@ -543,15 +529,15 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     nsIAccessibleRole::ROLE_TREE_TABLE,
     eNameLabelOrTitle,
     eNoValue,
-     eNoAction,
+    eNoAction,
     kNoReqStates,
     {&nsAccessibilityAtoms::aria_readonly, kBoolState, nsIAccessibleStates::STATE_READONLY},
     {&nsAccessibilityAtoms::aria_multiselectable, kBoolState, nsIAccessibleStates::STATE_MULTISELECTABLE | nsIAccessibleStates::STATE_EXTSELECTABLE},
     kEndEntry
   },
-   {
+  {
     "treeitem",
-     nsIAccessibleRole::ROLE_OUTLINEITEM,
+    nsIAccessibleRole::ROLE_OUTLINEITEM,
     eNameOkFromChildren,
     eNoValue,
     eActivateAction, // XXX: should expose second 'expand/collapse' action based
@@ -559,8 +545,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     kNoReqStates,
     {&nsAccessibilityAtoms::aria_selected, kBoolState, nsIAccessibleStates::STATE_SELECTED | nsIAccessibleStates::STATE_SELECTABLE},
     {&nsAccessibilityAtoms::aria_selected, "false", nsIAccessibleStates::STATE_SELECTABLE},
-    {&nsAccessibilityAtoms::aria_expanded, kBoolState, nsIAccessibleStates::STATE_EXPANDED},
-    {&nsAccessibilityAtoms::aria_expanded, "false", nsIAccessibleStates::STATE_COLLAPSED},
     {&nsAccessibilityAtoms::aria_checked, kBoolState, nsIAccessibleStates::STATE_CHECKED | nsIAccessibleStates::STATE_CHECKABLE},
     {&nsAccessibilityAtoms::aria_checked, "mixed", nsIAccessibleStates::STATE_MIXED | nsIAccessibleStates::STATE_CHECKABLE},
     {&nsAccessibilityAtoms::aria_checked, "false", nsIAccessibleStates::STATE_CHECKABLE},
@@ -601,6 +585,46 @@ nsStateMapEntry nsARIAMap::gWAIUnivStateMap[] = {
   {&nsAccessibilityAtoms::aria_busy,     "true",     nsIAccessibleStates::STATE_BUSY},
   {&nsAccessibilityAtoms::aria_busy,     "error",    nsIAccessibleStates::STATE_INVALID},
   {&nsAccessibilityAtoms::aria_disabled, kBoolState, nsIAccessibleStates::STATE_UNAVAILABLE},
+  {&nsAccessibilityAtoms::aria_expanded, kBoolState, nsIAccessibleStates::STATE_EXPANDED},
+  {&nsAccessibilityAtoms::aria_expanded, "false", nsIAccessibleStates::STATE_COLLAPSED},
   kEndEntry
 };
 
+
+/**
+ * ARIA attribute map for attribute characteristics
+ * 
+ * @note ARIA attributes that don't have any flags are not included here
+ */
+nsAttributeCharacteristics nsARIAMap::gWAIUnivAttrMap[] = {
+  {&nsAccessibilityAtoms::aria_activedescendant,  ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_atomic,                             ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_busy,                               ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_checked,           ATTR_BYPASSOBJ | ATTR_VALTOKEN }, /* exposes checkable  obj attr */
+  {&nsAccessibilityAtoms::aria_controls,          ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_describedby,       ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_disabled,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_dropeffect,                         ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_expanded,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_flowto,            ATTR_BYPASSOBJ                 },  
+  {&nsAccessibilityAtoms::aria_grabbed,                            ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_haspopup,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_invalid,           ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_labelledby,        ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_live,                               ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_multiline,         ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_multiselectable,   ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_owns,              ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_pressed,           ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_readonly,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_relevant,          ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_required,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_selected,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_sort,                               ATTR_VALTOKEN },
+  {&nsAccessibilityAtoms::aria_valuenow,          ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_valuemin,          ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_valuemax,          ATTR_BYPASSOBJ                 },
+  {&nsAccessibilityAtoms::aria_valuetext,         ATTR_BYPASSOBJ                 }
+};
+
+PRUint32 nsARIAMap::gWAIUnivAttrMapLength = NS_ARRAY_LENGTH(nsARIAMap::gWAIUnivAttrMap);

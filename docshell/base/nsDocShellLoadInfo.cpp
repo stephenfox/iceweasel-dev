@@ -69,7 +69,6 @@ NS_IMPL_RELEASE(nsDocShellLoadInfo)
 NS_INTERFACE_MAP_BEGIN(nsDocShellLoadInfo)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDocShellLoadInfo)
    NS_INTERFACE_MAP_ENTRY(nsIDocShellLoadInfo)
-   NS_INTERFACE_MAP_ENTRY(nsIDocShellLoadInfo_1_9_0_BRANCH)
 NS_INTERFACE_MAP_END     
 
 //*****************************************************************************

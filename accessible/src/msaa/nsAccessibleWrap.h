@@ -296,6 +296,8 @@ class nsAccessibleWrap : public nsAccessible,
   // Helper methods
   static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
   static HWND GetHWNDFor(nsIAccessible *aAccessible);
+  static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
+                                        BSTR *aIA2Attributes);
 
   /**
    * System caret support: update the Windows caret position. 
@@ -324,10 +326,12 @@ class nsAccessibleWrap : public nsAccessible,
   void UnattachIEnumVariant();
 
 protected:
+  virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent);
+
   // mEnumVARIANTPosition not the current accessible's position, but a "cursor" of 
   // where we are in the current list of children, with respect to
   // nsIEnumVariant::Reset(), Skip() and Next().
-  PRInt16 mEnumVARIANTPosition;
+  PRInt32 mEnumVARIANTPosition;
 
   enum navRelations {
     NAVRELATION_CONTROLLED_BY = 0x1000,

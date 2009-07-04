@@ -43,7 +43,7 @@ function runTest() {
       gen.next();
     }
   };
-  xhr.send(null);
+  xhr.send();
   yield;
 
 
@@ -54,9 +54,34 @@ function runTest() {
     if (xhr.readyState == 4)
       gen.next();
   };
-  xhr.send(null);
+  xhr.send();
   yield;
 
+  xhr = new XMLHttpRequest;
+  xhr.open("GET", "http://example.com/tests/content/base/test/file_XHRDocURI.xml");
+  xhr.onreadystatechange = function(e) {
+    if (!xhr.responseXML)
+      return;
+    is(xhr.responseXML.documentURI, document.documentURI,
+       "wrong url");
+    is(xhr.responseXML.baseURI, document.baseURI,
+       "wrong base");
+    if (xhr.readyState == 4)
+      gen.next();
+  };
+  xhr.send();
+  yield;
+
+  xhr = new XMLHttpRequest;
+  xhr.open("GET", "http://example.com/tests/content/base/test/file_XHRDocURI.text");
+  xhr.onreadystatechange = function(e) {
+    is(xhr.responseXML, null, "should not have document");
+    if (xhr.readyState == 4)
+      gen.next();
+  };
+  xhr.send();
+  yield;
+  
   SimpleTest.finish();
   yield;
 }
