@@ -224,8 +224,7 @@ Report.prototype.getReport = function(format) {
   } else if (format == "tinderbox") {
     report = "__start_tp_report\n";
     report += "_x_x_mozilla_page_load,"+avgmed+",NaN,NaN\n";  // max and min are just 0, ignored
-    report += "_x_x_mozilla_page_load_details,avgmedian|"+avgmed+"|average|"+avg.toFixed(2)+"|minimum|NaN|maximum|NaN|stddev|NaN\n";
-    report += "|i|pagename|median|mean|min|max|runs|\n";
+    report += "_x_x_mozilla_page_load_details,avgmedian|"+avgmed+"|average|"+avg.toFixed(2)+"|minimum|NaN|maximum|NaN|stddev|NaN";
 
     for (var i = 0; i < this.timeVals.length; i++) {
       var r = getArrayStats(this.timeVals[i]);

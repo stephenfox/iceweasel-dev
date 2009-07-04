@@ -215,6 +215,12 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // the background/border display item won't do anything, and if it isn't empty,
   // we need to paint the outline
   if (IsVisibleForPainting(aBuilder)) {
+    if (GetStyleBorder()->mBoxShadow) {
+      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+          nsDisplayBoxShadowOuter(this));
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+
     // don't bother checking to see if we really have a border or background.
     // we usually will have a border.
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
@@ -260,9 +266,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
 {
   PRIntn skipSides = GetSkipSides();
   const nsStyleBorder* borderStyle = GetStyleBorder();
-  const nsStylePadding* paddingStyle = GetStylePadding();
        
-  nscoord topBorder = borderStyle->GetBorderWidth(NS_SIDE_TOP);
+  nscoord topBorder = borderStyle->GetActualBorderWidth(NS_SIDE_TOP);
   nscoord yoff = 0;
   nsPresContext* presContext = PresContext();
      
@@ -274,8 +279,10 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y + yoff, mRect.width, mRect.height - yoff);
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, *borderStyle,
-                                  *paddingStyle, PR_TRUE);
+                                  aDirtyRect, rect, 0);
+
+  nsCSSRendering::PaintBoxShadowInner(presContext, aRenderingContext,
+                                      this, rect, aDirtyRect);
 
    if (mLegendFrame) {
 
@@ -294,7 +301,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyle, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -308,7 +316,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyle, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
 
@@ -321,7 +330,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
     aRenderingContext.PushState();
     aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
     nsCSSRendering::PaintBorder(presContext, aRenderingContext, this,
-                                aDirtyRect, rect, *borderStyle, mStyleContext, skipSides);
+                                aDirtyRect, rect, *borderStyle, mStyleContext,
+                                skipSides);
 
     aRenderingContext.PopState();
   } else {
@@ -421,7 +431,9 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     reflowLegend = mLegendFrame && NS_SUBTREE_DIRTY(mLegendFrame);
   }
 
-  nsSize availSize(aReflowState.ComputedWidth(), aReflowState.availableHeight);
+  // We don't allow fieldsets to break vertically. If we did, we'd
+  // need logic here to push and pull overflow frames.
+  nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
   NS_ASSERTION(!mContentFrame ||
       nsLayoutUtils::IntrinsicForContainer(aReflowState.rendContext,
                                            mContentFrame,
@@ -476,12 +488,6 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
       reflowContent = PR_TRUE;
     }
 
-    // if we are contrained then remove the legend from our available height.
-    if (NS_INTRINSICSIZE != availSize.height) {
-      availSize.height -= mLegendSpace;
-      availSize.height = PR_MAX(availSize.height, 0);
-    }
-
     FinishReflowChild(mLegendFrame, aPresContext, &legendReflowState, 
                       legendDesiredSize, 0, 0, NS_FRAME_NO_MOVE_FRAME);    
   } else if (!mLegendFrame) {
@@ -502,6 +508,14 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // height is unconstrained (in which case the child's will be too).
     if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
       kidReflowState.SetComputedHeight(PR_MAX(0, aReflowState.ComputedHeight() - mLegendSpace));
+    }
+
+    kidReflowState.mComputedMinHeight =
+      PR_MAX(0, aReflowState.mComputedMinHeight - mLegendSpace);
+
+    if (aReflowState.mComputedMaxHeight != NS_UNCONSTRAINEDSIZE) {
+      kidReflowState.mComputedMaxHeight =
+        PR_MAX(0, aReflowState.mComputedMaxHeight - mLegendSpace);
     }
 
     nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);

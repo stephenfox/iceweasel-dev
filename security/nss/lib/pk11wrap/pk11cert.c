@@ -257,14 +257,18 @@ static CERTCertificate
 			CK_ATTRIBUTE *privateLabel, char **nickptr)
 {
     NSSCertificate *c;
-    nssCryptokiObject *co;
+    nssCryptokiObject *co = NULL;
     nssPKIObject *pkio;
     NSSToken *token;
     NSSTrustDomain *td = STAN_GetDefaultTrustDomain();
 
     /* Get the cryptoki object from the handle */
     token = PK11Slot_GetNSSToken(slot);
-    co = nssCryptokiObject_Create(token, token->defaultSession, certID);
+    if (token->defaultSession) {
+	co = nssCryptokiObject_Create(token, token->defaultSession, certID);
+    } else {
+	PORT_SetError(SEC_ERROR_NO_TOKEN);
+    }
     if (!co) {
 	return NULL;
     }
@@ -918,8 +922,11 @@ PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
     SECITEM_FreeItem(keyID,PR_TRUE);
     return SECSuccess;
 loser:
+    CERT_MapStanError();
     SECITEM_FreeItem(keyID,PR_TRUE);
-    PORT_SetError(SEC_ERROR_ADDING_CERT);
+    if (PORT_GetError() != SEC_ERROR_TOKEN_NOT_LOGGED_IN) {
+	PORT_SetError(SEC_ERROR_ADDING_CERT);
+    }
     return SECFailure;
 }
 
