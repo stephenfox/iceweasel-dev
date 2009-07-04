@@ -25,7 +25,7 @@ CFLAGS := -g
 
 CONFIGURE_OPTIONS = \
 	--with-distribution-id=org.debian \
-	--with-libxul-sdk=/usr/lib/xulrunner-devel-1.9 \
+	--with-libxul-sdk=/usr/lib/xulrunner-devel-1.9.1 \
 	--with-user-appdir=.mozilla \
 	--disable-installer \
 	--disable-strip \
@@ -178,7 +178,7 @@ install-stamp: build-stamp
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(Debian-$(DEBIAN_VERSION))\");" \
 		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
-	sed -i 's/\(MinVersion=1.9\).*/\1/;s/\(MaxVersion=1.9\).*/\1.0.*/' debian/tmp/usr/lib/iceweasel/application.ini
+	sed -i 's/\(MinVersion=1.9.1\).*/\1/;s/\(MaxVersion=1.9.1\).*/\1.0.*/' debian/tmp/usr/lib/iceweasel/application.ini
 
 	cp -f LICENSE MPL
 	touch install-stamp

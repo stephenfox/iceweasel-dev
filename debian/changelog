@@ -1,3 +1,11 @@
+iceweasel (3.5-0) UNRELEASED; urgency=low
+
+  * New upstream release.
+  * debian/control, debian/rules, debian/iceweasel.links: Build against and
+    depend on xulrunner 1.9.1.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 04 Jul 2009 10:44:49 +0200
+
 iceweasel (3.0.11-1) unstable; urgency=low
 
   * New upstream release.
