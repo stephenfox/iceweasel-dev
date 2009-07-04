@@ -241,6 +241,9 @@ nsresult nsPluginNativeWindowGtk2::CreateXtWindow() {
   if (!mSocketWidget)
     return NS_ERROR_FAILURE;
 
+  g_signal_connect(mSocketWidget, "destroy",
+                   G_CALLBACK(gtk_widget_destroyed), &mSocketWidget);
+
   gtk_widget_set_size_request(mSocketWidget, width, height);
 
 #ifdef NS_DEBUG
@@ -286,9 +289,12 @@ PRBool nsPluginNativeWindowGtk2::CanGetValueFromPlugin(nsCOMPtr<nsIPluginInstanc
 
           rv = pluginHost->GetPluginFactory("application/x-java-vm", &pluginFactory);
           if (NS_SUCCEEDED(rv) && pluginFactory) {
-            const char * jpiDescription;
+            const char * jpiDescription = NULL;
 
             pluginFactory->GetValue(nsPluginVariable_DescriptionString, (void*)&jpiDescription);
+            if (!jpiDescription)
+              return PR_FALSE;
+
             /** 
              * "Java(TM) Plug-in" is Sun's Java Plugin Trademark,
              * so we are sure that this is Sun 's Java Plugin if 

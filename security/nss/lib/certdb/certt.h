@@ -36,7 +36,7 @@
 /*
  * certt.h - public data structures for the certificate library
  *
- * $Id: certt.h,v 1.40 2007/11/20 21:05:55 rrelyea%redhat.com Exp $
+ * $Id: certt.h,v 1.49 2009/03/21 01:40:34 nelson%bolyard.com Exp $
  */
 #ifndef _CERTT_H_
 #define _CERTT_H_
@@ -62,11 +62,7 @@ typedef struct CERTAttributeStr                  CERTAttribute;
 typedef struct CERTAuthInfoAccessStr             CERTAuthInfoAccess;
 typedef struct CERTAuthKeyIDStr                  CERTAuthKeyID;
 typedef struct CERTBasicConstraintsStr           CERTBasicConstraints;
-#ifdef NSS_CLASSIC
-typedef struct CERTCertDBHandleStr               CERTCertDBHandle;
-#else
 typedef struct NSSTrustDomainStr                 CERTCertDBHandle;
-#endif
 typedef struct CERTCertExtensionStr              CERTCertExtension;
 typedef struct CERTCertKeyStr                    CERTCertKey;
 typedef struct CERTCertListStr                   CERTCertList;
@@ -127,7 +123,7 @@ struct CERTRDNStr {
 ** An X.500 name object
 */
 struct CERTNameStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTRDN **rdns;
 };
 
@@ -135,7 +131,7 @@ struct CERTNameStr {
 ** An X.509 validity object
 */
 struct CERTValidityStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECItem notBefore;
     SECItem notAfter;
 };
@@ -162,7 +158,7 @@ struct CERTSignedDataStr {
 ** An X.509 subject-public-key-info object
 */
 struct CERTSubjectPublicKeyInfoStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECAlgorithmID algorithm;
     SECItem subjectPublicKey;
 };
@@ -210,7 +206,7 @@ struct CERTSubjectNodeStr {
 };
 
 struct CERTSubjectListStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     int ncerts;
     char *emailAddr;
     CERTSubjectNode *head;
@@ -228,7 +224,7 @@ struct CERTCertificateStr {
      * cert is decoded, destroyed, and at some times when it changes
      * state
      */
-    PRArenaPool *arena;
+    PLArenaPool *arena;
 
     /* The following fields are static after the cert has been decoded */
     char *subjectName;
@@ -331,7 +327,7 @@ struct CERTCertificateStr {
 #define SEC_CERT_CLASS_EMAIL	4
 
 struct CERTDERCertsStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     int numcerts;
     SECItem *rawCerts;
 };
@@ -350,7 +346,7 @@ struct CERTAttributeStr {
 ** A PKCS#10 certificate-request object (the unsigned form)
 */
 struct CERTCertificateRequestStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECItem version;
     CERTName subject;
     CERTSubjectPublicKeyInfo subjectPublicKeyInfo;
@@ -365,7 +361,7 @@ struct CERTCertificateRequestStr {
 struct CERTCertificateListStr {
     SECItem *certs;
     int len;					/* number of certs */
-    PRArenaPool *arena;
+    PLArenaPool *arena;
 };
 
 struct CERTCertListNodeStr {
@@ -376,7 +372,7 @@ struct CERTCertListNodeStr {
 
 struct CERTCertListStr {
     PRCList list;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
 };
 
 #define CERT_LIST_HEAD(l) ((CERTCertListNode *)PR_LIST_HEAD(&l->list))
@@ -391,7 +387,7 @@ struct CERTCrlEntryStr {
 };
 
 struct CERTCrlStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECItem version;
     SECAlgorithmID signatureAlg;
     SECItem derName;
@@ -412,7 +408,7 @@ struct CERTCrlKeyStr {
 };
 
 struct CERTSignedCrlStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTCrl crl;
     void *reserved1;
     PRBool reserved2;
@@ -430,7 +426,7 @@ struct CERTSignedCrlStr {
 
 
 struct CERTCrlHeadNodeStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTCertDBHandle *dbhandle;
     CERTCrlNode *first;
     CERTCrlNode *last;
@@ -448,7 +444,7 @@ struct CERTCrlNodeStr {
  * Array of X.500 Distinguished Names
  */
 struct CERTDistNamesStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     int nnames;
     SECItem  *names;
     void *head; /* private */
@@ -555,7 +551,7 @@ typedef enum CERTCompareValidityStatusEnum
 #define SEC_CERT_NICKNAMES_CA		4
 
 struct CERTCertNicknamesStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     void *head;
     int numnicknames;
     char **nicknames;
@@ -681,7 +677,7 @@ struct CERTGeneralNameStr {
 };
 
 struct CERTGeneralNameListStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTGeneralName *name;
     int refCount;
     int len;
@@ -709,7 +705,7 @@ struct CERTNameConstraintsStr {
 struct CERTPrivKeyUsagePeriodStr {
     SECItem notBefore;
     SECItem notAfter;
-    PRArenaPool *arena;
+    PLArenaPool *arena;
 };
 
 /* X.509 v3 Authority Key Identifier extension.  For the authority certificate
@@ -773,7 +769,7 @@ struct CERTVerifyLogNodeStr {
 
 
 struct CERTVerifyLogStr {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     unsigned int count;
     struct CERTVerifyLogNodeStr *head;
     struct CERTVerifyLogNodeStr *tail;
@@ -788,7 +784,7 @@ struct CERTOKDomainNameStr {
 
 typedef SECStatus (PR_CALLBACK *CERTStatusChecker) (CERTCertDBHandle *handle,
 						    CERTCertificate *cert,
-						    int64 time,
+						    PRTime time,
 						    void *pwArg);
 
 typedef SECStatus (PR_CALLBACK *CERTStatusDestroy) (CERTStatusConfig *handle);
@@ -837,7 +833,7 @@ typedef struct {
 } CERTPolicyInfo;
 
 typedef struct {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTPolicyInfo **policyInfos;
 } CERTCertificatePolicies;
 
@@ -847,14 +843,14 @@ typedef struct {
 } CERTNoticeReference;
 
 typedef struct {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTNoticeReference noticeReference;
     SECItem derNoticeReference;
     SECItem displayText;
 } CERTUserNotice;
 
 typedef struct {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     SECItem **oids;
 } CERTOidSequence;
 
@@ -867,7 +863,7 @@ typedef struct {
 } CERTPolicyMap;
 
 typedef struct {
-    PRArenaPool *arena;
+    PLArenaPool *arena;
     CERTPolicyMap **policyMaps;
 } CERTCertificatePolicyMappings;
 
@@ -940,10 +936,16 @@ typedef enum {
 				 * value '0' indicates 'now'. default is '0' */
    cert_pi_revocationFlags = 9, /* Specify what revocation checking to do.
 				 * See CERT_REV_FLAG_* macros below
-				 * Set in value.scalar.ul */
+				 * Set in value.pointer.revocation */
    cert_pi_certStores      = 10,/* Bitmask of Cert Store flags (see below)
 				 * Set in value.scalar.ui */
-   
+   cert_pi_trustAnchors    = 11,/* Specify the list of trusted roots to 
+				 * validate against. If the list in NULL all
+				 * default trusted roots are used.
+				 * Specified in value.pointer.chain */
+   cert_pi_useAIACertFetch = 12, /* Enables cert fetching using AIA extension.
+				 * Default is off.
+                                     * Value is in value.scalar.b */
    cert_pi_max                  /* SPECIAL: signifies maximum allowed value,
 				 *  can increase in future releases */
 } CERTValParamInType;
@@ -993,6 +995,181 @@ typedef enum {
 
 } CERTValParamOutType;
 
+typedef enum {
+    cert_revocation_method_crl = 0,
+    cert_revocation_method_ocsp,
+    cert_revocation_method_count
+} CERTRevocationMethodIndex;
+
+
+/*
+ * The following flags are supposed to be used to control bits in
+ * each integer contained in the array pointed to be:
+ *     CERTRevocationTests.cert_rev_flags_per_method
+ * All Flags are prefixed by CERT_REV_M_, where _M_ indicates
+ * this is a method dependent flag.
+ */
+
+/*
+ * Whether or not to use a method for revocation testing.
+ * If set to "do not test", then all other flags are ignored.
+ */
+#define CERT_REV_M_DO_NOT_TEST_USING_THIS_METHOD     0L
+#define CERT_REV_M_TEST_USING_THIS_METHOD            1L
+
+/*
+ * Whether or not NSS is allowed to attempt to fetch fresh information
+ *         from the network.
+ * (Although fetching will never happen if fresh information for the
+ *           method is already locally available.)
+ */
+#define CERT_REV_M_ALLOW_NETWORK_FETCHING            0L
+#define CERT_REV_M_FORBID_NETWORK_FETCHING           2L
+
+/*
+ * Example for an implicit default source:
+ *         The globally configured default OCSP responder.
+ * IGNORE means:
+ *        ignore the implicit default source, whether it's configured or not.
+ * ALLOW means:
+ *       if an implicit default source is configured, 
+ *          then it overrides any available or missing source in the cert.
+ *       if no implicit default source is configured,
+ *          then we continue to use what's available (or not available) 
+ *          in the certs.
+ */ 
+#define CERT_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE     0L
+#define CERT_REV_M_IGNORE_IMPLICIT_DEFAULT_SOURCE    4L
+
+/*
+ * Defines the behavior if no fresh information is available,
+ *   fetching from the network is allowed, but the source of revocation
+ *   information is unknown (even after considering implicit sources,
+ *   if allowed by other flags).
+ * SKIPT_TEST means:
+ *          We ignore that no fresh information is available and 
+ *          skip this test.
+ * REQUIRE_INFO means:
+ *          We still require that fresh information is available.
+ *          Other flags define what happens on missing fresh info.
+ */
+#define CERT_REV_M_SKIP_TEST_ON_MISSING_SOURCE       0L
+#define CERT_REV_M_REQUIRE_INFO_ON_MISSING_SOURCE    8L
+
+/*
+ * Defines the behavior if we are unable to obtain fresh information.
+ * INGORE means:
+ *      Return "cert status unknown"
+ * FAIL means:
+ *      Return "cert revoked".
+ */
+#define CERT_REV_M_IGNORE_MISSING_FRESH_INFO         0L
+#define CERT_REV_M_FAIL_ON_MISSING_FRESH_INFO        16L
+
+/*
+ * What should happen if we were able to find fresh information using
+ * this method, and the data indicated the cert is good?
+ * STOP_TESTING means:
+ *              Our success is sufficient, do not continue testing
+ *              other methods.
+ * CONTINUE_TESTING means:
+ *                  We will continue and test the next allowed
+ *                  specified method.
+ */
+#define CERT_REV_M_STOP_TESTING_ON_FRESH_INFO        0L
+#define CERT_REV_M_CONTINUE_TESTING_ON_FRESH_INFO    32L
+
+/*
+ * The following flags are supposed to be used to control bits in
+ *     CERTRevocationTests.cert_rev_method_independent_flags
+ * All Flags are prefixed by CERT_REV_M_, where _M_ indicates
+ * this is a method independent flag.
+ */
+
+/*
+ * This defines the order to checking.
+ * EACH_METHOD_SEPARATELY means:
+ *      Do all tests related to a particular allowed method
+ *      (both local information and network fetching) in a single step.
+ *      Only after testing for a particular method is done,
+ *      then switching to the next method will happen.
+ * ALL_LOCAL_INFORMATION_FIRST means:
+ *      Start by testing the information for all allowed methods
+ *      which are already locally available. Only after that is done
+ *      consider to fetch from the network (as allowed by other flags).
+ */
+#define CERT_REV_MI_TEST_EACH_METHOD_SEPARATELY       0L
+#define CERT_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST  1L
+
+/*
+ * Use this flag to specify that it's necessary that fresh information
+ * is available for at least one of the allowed methods, but it's
+ * irrelevant which of the mechanisms succeeded.
+ * NO_OVERALL_INFO_REQUIREMENT means:
+ *     We strictly follow the requirements for each individual method.
+ * REQUIRE_SOME_FRESH_INFO_AVAILABLE means:
+ *     After the individual tests have been executed, we must have
+ *     been able to find fresh information using at least one method.
+ *     If we were unable to find fresh info, it's a failure.
+ */
+#define CERT_REV_MI_NO_OVERALL_INFO_REQUIREMENT       0L
+#define CERT_REV_MI_REQUIRE_SOME_FRESH_INFO_AVAILABLE 2L
+
+
+typedef struct {
+    /*
+     * The size of the array that cert_rev_flags_per_method points to,
+     * meaning, the number of methods that are known and defined
+     * by the caller.
+     */
+    PRUint32 number_of_defined_methods;
+
+    /*
+     * A pointer to an array of integers.
+     * Each integer defines revocation checking for a single method,
+     *      by having individual CERT_REV_M_* bits set or not set.
+     * The meaning of index numbers into this array are defined by 
+     *     enum CERTRevocationMethodIndex
+     * The size of the array must be specified by the caller in the separate
+     *     variable number_of_defined_methods.
+     * The size of the array may be smaller than 
+     *     cert_revocation_method_count, it can happen if a caller
+     *     is not yet aware of the latest revocation methods
+     *     (or does not want to use them).
+     */ 
+    PRUint64 *cert_rev_flags_per_method;
+
+    /*
+     * How many preferred methods are specified?
+     * This is equivalent to the size of the array that 
+     *      preferred_revocation_methods points to.
+     * It's allowed to set this value to zero,
+     *      then NSS will decide which methods to prefer.
+     */
+    PRUint32 number_of_preferred_methods;
+
+    /* Array that may specify an optional order of preferred methods.
+     * Each array entry shall contain a method identifier as defined
+     *   by CERTRevocationMethodIndex.
+     * The entry at index [0] specifies the method with highest preferrence.
+     * These methods will be tested first for locally available information.
+     * Methods allowed for downloading will be attempted in the same order.
+     */
+    CERTRevocationMethodIndex *preferred_methods;
+
+    /*
+     * An integer which defines certain aspects of revocation checking
+     * (independent of individual methods) by having individual
+     * CERT_REV_MI_* bits set or not set.
+     */
+    PRUint64 cert_rev_method_independent_flags;
+} CERTRevocationTests;
+
+typedef struct {
+    CERTRevocationTests leafTests;
+    CERTRevocationTests chainTests;
+} CERTRevocationFlags;
+
 typedef struct CERTValParamInValueStr {
     union {
         PRBool   b;
@@ -1006,14 +1183,15 @@ typedef struct CERTValParamInValueStr {
         const void*    p;
         const char*    s;
         const CERTCertificate* cert;
-	const CERTCertList *chain;
+        const CERTCertList *chain;
+        const CERTRevocationFlags *revocation;
     } pointer;
     union {
         const PRInt32  *pi;
         const PRUint32 *pui;
         const PRInt64  *pl;
         const PRUint64 *pul;
-	const SECOidTag *oids;
+        const SECOidTag *oids;
     } array;
     int arraySize;
 } CERTValParamInValue;
@@ -1031,13 +1209,13 @@ typedef struct CERTValParamOutValueStr {
     union {
         void*    p;
         char*    s;
-	CERTVerifyLog *log;
+        CERTVerifyLog *log;
         CERTCertificate* cert;
-	CERTCertList *chain;
+        CERTCertList *chain;
     } pointer;
     union {
-	void 	  *p;
-	SECOidTag *oids;
+        void 	  *p;
+        SECOidTag *oids;
     } array;
     int arraySize;
 } CERTValParamOutValue;
@@ -1053,6 +1231,16 @@ typedef struct {
 } CERTValOutParam;
 
 /*
+ * Levels of standards conformance strictness for CERT_NameToAsciiInvertible
+ */
+typedef enum CertStrictnessLevels {
+    CERT_N2A_READABLE   =  0, /* maximum human readability */
+    CERT_N2A_STRICT     = 10, /* strict RFC compliance    */
+    CERT_N2A_INVERTIBLE = 20  /* maximum invertibility,
+                                 all DirectoryStrings encoded in hex */
+} CertStrictnessLevel;
+
+/*
  * policy flag defines
  */
 #define CERT_POLICY_FLAG_NO_MAPPING    1
@@ -1060,24 +1248,16 @@ typedef struct {
 #define CERT_POLICY_FLAG_NO_ANY        4
 
 /*
- * revocation flags 
- */
-#define CERT_REV_FLAG_OCSP              1
-#define CERT_REV_FLAG_OCSP_LEAF_ONLY    2
-#define CERT_REV_FLAG_CRL               4
-#define CERT_REV_FLAG_CRL_LEAF_ONLY     8
-/* set if we don't want to fail because we were unable to get revocation
- * data */
-#define CERT_REV_FAIL_SOFT_OCSP         0x10
-#define CERT_REV_FAIL_SOFT_CRL          0x20
-/* REV_NIST is CRL and !CRL_LEAF_ONLY and !FAIL_SOFT_CRL */
-#define CERT_REV_NIST		   (CERT_REV_FLAG_CRL)
-
-/*
  * CertStore flags
  */
 #define CERT_ENABLE_LDAP_FETCH          1
 #define CERT_ENABLE_HTTP_FETCH          2
+
+/* This functin pointer type may be used for any function that takes
+ * a CERTCertificate * and returns an allocated string, which must be
+ * freed by a call to PORT_Free.
+ */
+typedef char * (*CERT_StringFromCertFcn)(CERTCertificate *cert);
 
 /* XXX Lisa thinks the template declarations belong in cert.h, not here? */
 

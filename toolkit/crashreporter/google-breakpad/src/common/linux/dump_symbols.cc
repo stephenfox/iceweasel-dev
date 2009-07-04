@@ -40,9 +40,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <algorithm>
 
 #include <functional>
+#include <list>
 #include <vector>
+#include <string.h>
 
 #include "common/linux/dump_symbols.h"
 #include "common/linux/file_id.h"
@@ -54,6 +57,10 @@ namespace {
 
 // Infomation of a line.
 struct LineInfo {
+  // The index into string table for the name of the source file which
+  // this line belongs to.
+  // Load from stab symbol.
+  uint32_t source_name_index;
   // Offset from start of the function.
   // Load from stab symbol.
   ElfW(Off) rva_to_func;
@@ -65,7 +72,11 @@ struct LineInfo {
   uint32_t size;
   // Line number.
   uint32_t line_num;
+  // Id of the source file for this line.
+  int source_id;
 };
+
+typedef std::list<struct LineInfo> LineInfoList;
 
 // Information of a function.
 struct FuncInfo {
@@ -82,14 +93,18 @@ struct FuncInfo {
   uint32_t size;
   // Total size of stack parameters.
   uint32_t stack_param_size;
-  // Is the function defined in included function?
-  bool is_sol;
+  // Is there any lines included from other files?
+  bool has_sol;
   // Line information array.
-  std::vector<struct LineInfo> line_info;
+  LineInfoList line_info;
 };
+
+typedef std::list<struct FuncInfo> FuncInfoList;
 
 // Information of a source file.
 struct SourceFileInfo {
+  // Name string index into the string table.
+  uint32_t name_index;
   // Name of the source file.
   const char *name;
   // Starting address of the source file.
@@ -97,24 +112,26 @@ struct SourceFileInfo {
   // Id of the source file.
   int source_id;
   // Functions information.
-  std::vector<struct FuncInfo> func_info;
+  FuncInfoList func_info;
 };
+
+typedef std::list<struct SourceFileInfo> SourceFileInfoList;
 
 // Information of a symbol table.
 // This is the root of all types of symbol.
 struct SymbolInfo {
-  std::vector<struct SourceFileInfo> source_file_info;
+  SourceFileInfoList source_file_info;
+
+  // The next source id for newly found source file.
+  int next_source_id;
 };
 
 // Stab section name.
-const char *kStabName = ".stab";
-
-// Stab str section name.
-const char *kStabStrName = ".stabstr";
+static const char *kStabName = ".stab";
 
 // Demangle using abi call.
 // Older GCC may not support it.
-std::string Demangle(const char *mangled) {
+static std::string Demangle(const char *mangled) {
   int status = 0;
   char *demangled = abi::__cxa_demangle(mangled, NULL, NULL, &status);
   if (status == 0 && demangled != NULL) {
@@ -127,7 +144,7 @@ std::string Demangle(const char *mangled) {
 
 // Fix offset into virtual address by adding the mapped base into offsets.
 // Make life easier when want to find something by offset.
-void FixAddress(void *obj_base) {
+static void FixAddress(void *obj_base) {
   ElfW(Word) base = reinterpret_cast<ElfW(Word)>(obj_base);
   ElfW(Ehdr) *elf_header = static_cast<ElfW(Ehdr) *>(obj_base);
   elf_header->e_phoff += base;
@@ -138,7 +155,8 @@ void FixAddress(void *obj_base) {
 }
 
 // Find the prefered loading address of the binary.
-ElfW(Addr) GetLoadingAddress(const ElfW(Phdr) *program_headers, int nheader) {
+static ElfW(Addr) GetLoadingAddress(const ElfW(Phdr) *program_headers,
+                                    int nheader) {
   for (int i = 0; i < nheader; ++i) {
     const ElfW(Phdr) &header = program_headers[i];
     // For executable, it is the PT_LOAD segment with offset to zero.
@@ -150,7 +168,7 @@ ElfW(Addr) GetLoadingAddress(const ElfW(Phdr) *program_headers, int nheader) {
   return 0;
 }
 
-bool WriteFormat(int fd, const char *fmt, ...) {
+static bool WriteFormat(int fd, const char *fmt, ...) {
   va_list list;
   char buffer[4096];
   ssize_t expected, written;
@@ -162,14 +180,14 @@ bool WriteFormat(int fd, const char *fmt, ...) {
   return expected == written;
 }
 
-bool IsValidElf(const ElfW(Ehdr) *elf_header) {
+static bool IsValidElf(const ElfW(Ehdr) *elf_header) {
   return memcmp(elf_header, ELFMAG, SELFMAG) == 0;
 }
 
-const ElfW(Shdr) *FindSectionByName(const char *name,
-                                    const ElfW(Shdr) *sections,
-                                    const ElfW(Shdr) *strtab,
-                                    int nsection) {
+static const ElfW(Shdr) *FindSectionByName(const char *name,
+                                           const ElfW(Shdr) *sections,
+                                           const ElfW(Shdr) *strtab,
+                                           int nsection) {
   assert(name != NULL);
   assert(sections != NULL);
   assert(nsection > 0);
@@ -190,9 +208,9 @@ const ElfW(Shdr) *FindSectionByName(const char *name,
 // TODO(liuli): Computer the stack parameter size.
 // Expect parameter variables are immediately following the N_FUN symbol.
 // Will need to parse the type information to get a correct size.
-int LoadStackParamSize(struct nlist *list,
-                       struct nlist *list_end,
-                       struct FuncInfo *func_info) {
+static int LoadStackParamSize(struct nlist *list,
+                              struct nlist *list_end,
+                              struct FuncInfo *func_info) {
   struct nlist *cur_list = list;
   assert(cur_list->n_type == N_FUN);
   ++cur_list;
@@ -205,26 +223,45 @@ int LoadStackParamSize(struct nlist *list,
   return step;
 }
 
-int LoadLineInfo(struct nlist *list,
-                 struct nlist *list_end,
-                 struct FuncInfo *func_info) {
+static int LoadLineInfo(struct nlist *list,
+                        struct nlist *list_end,
+                        const struct SourceFileInfo &source_file_info,
+                        struct FuncInfo *func_info) {
   struct nlist *cur_list = list;
-  func_info->is_sol = false;
+  func_info->has_sol = false;
+  // Records which source file the following lines belongs. Default
+  // to the file we are handling. This helps us handling inlined source.
+  // When encountering N_SOL, we will change this to the source file
+  // specified by N_SOL.
+  int current_source_name_index = source_file_info.name_index;
   do {
     // Skip non line information.
     while (cur_list < list_end && cur_list->n_type != N_SLINE) {
       // Only exit when got another function, or source file.
       if (cur_list->n_type == N_FUN || cur_list->n_type == N_SO)
         return cur_list - list;
-      if (cur_list->n_type == N_SOL)
-        func_info->is_sol = true;
+      // N_SOL means source lines following it will be from
+      // another source file.
+      if (cur_list->n_type == N_SOL) {
+        func_info->has_sol = true;
+
+        if (cur_list->n_un.n_strx > 0 &&
+            cur_list->n_un.n_strx != current_source_name_index) {
+          // The following lines will be from this source file.
+          current_source_name_index = cur_list->n_un.n_strx;
+        }
+      }
       ++cur_list;
     }
     struct LineInfo line;
     while (cur_list < list_end && cur_list->n_type == N_SLINE) {
+      line.source_name_index = current_source_name_index;
       line.rva_to_func = cur_list->n_value;
       // n_desc is a signed short
       line.line_num = (unsigned short)cur_list->n_desc;
+      // Don't set it here.
+      // Will be processed in later pass.
+      line.source_id = -1;
       func_info->line_info.push_back(line);
       ++cur_list;
     }
@@ -233,14 +270,13 @@ int LoadLineInfo(struct nlist *list,
   return cur_list - list;
 }
 
-int LoadFuncSymbols(struct nlist *list,
-                    struct nlist *list_end,
-                    const ElfW(Shdr) *stabstr_section,
-                    struct SourceFileInfo *source_file_info) {
+static int LoadFuncSymbols(struct nlist *list,
+                           struct nlist *list_end,
+                           const ElfW(Shdr) *stabstr_section,
+                           struct SourceFileInfo *source_file_info) {
   struct nlist *cur_list = list;
   assert(cur_list->n_type == N_SO);
   ++cur_list;
-
   source_file_info->func_info.clear();
   while (cur_list < list_end) {
     // Go until the function symbol.
@@ -253,15 +289,23 @@ int LoadFuncSymbols(struct nlist *list,
     }
     if (cur_list->n_type == N_FUN) {
       struct FuncInfo func_info;
-      memset(&func_info, 0, sizeof(func_info));
       func_info.name =
         reinterpret_cast<char *>(cur_list->n_un.n_strx +
                                  stabstr_section->sh_offset);
       func_info.addr = cur_list->n_value;
+      func_info.rva_to_base = 0;
+      func_info.size = 0;
+      func_info.stack_param_size = 0;
+      func_info.has_sol = 0;
+
       // Stack parameter size.
       cur_list += LoadStackParamSize(cur_list, list_end, &func_info);
       // Line info.
-      cur_list += LoadLineInfo(cur_list, list_end, &func_info);
+      cur_list += LoadLineInfo(cur_list,
+                               list_end,
+                               *source_file_info,
+                               &func_info);
+
       // Functions in this module should have address bigger than the module
       // startring address.
       // There maybe a lot of duplicated entry for a function in the symbol,
@@ -277,19 +321,22 @@ int LoadFuncSymbols(struct nlist *list,
 // Comapre the address.
 // The argument should have a memeber named "addr"
 template<class T1, class T2>
-bool CompareAddress(T1 *a, T2 *b) {
+static bool CompareAddress(T1 *a, T2 *b) {
   return a->addr < b->addr;
 }
 
 // Sort the array into increasing ordered array based on the virtual address.
 // Return vector of pointers to the elements in the incoming array. So caller
 // should make sure the returned vector lives longer than the incoming vector.
-template<class T>
-std::vector<T *> SortByAddress(std::vector<T> *array) {
+template<class Container>
+static std::vector<typename Container::value_type *> SortByAddress(
+    Container *container) {
+  typedef typename Container::iterator It;
+  typedef typename Container::value_type T;
   std::vector<T *> sorted_array_ptr;
-  sorted_array_ptr.reserve(array->size());
-  for (size_t i = 0; i < array->size(); ++i)
-    sorted_array_ptr.push_back(&(array->at(i)));
+  sorted_array_ptr.reserve(container->size());
+  for (It it = container->begin(); it != container->end(); it++)
+    sorted_array_ptr.push_back(&(*it));
   std::sort(sorted_array_ptr.begin(),
             sorted_array_ptr.end(),
             std::ptr_fun(CompareAddress<T, T>));
@@ -299,9 +346,10 @@ std::vector<T *> SortByAddress(std::vector<T> *array) {
 
 // Find the address of the next function or source file symbol in the symbol
 // table. The address should be bigger than the current function's address.
-ElfW(Addr) NextAddress(std::vector<struct FuncInfo *> *sorted_functions,
-                       std::vector<struct SourceFileInfo *> *sorted_files,
-                       const struct FuncInfo &func_info) {
+static ElfW(Addr) NextAddress(
+    std::vector<struct FuncInfo *> *sorted_functions,
+    std::vector<struct SourceFileInfo *> *sorted_files,
+    const struct FuncInfo &func_info) {
   std::vector<struct FuncInfo *>::iterator next_func_iter =
     std::find_if(sorted_functions->begin(),
                  sorted_functions->end(),
@@ -331,8 +379,74 @@ ElfW(Addr) NextAddress(std::vector<struct FuncInfo *> *sorted_functions,
   return 0;
 }
 
+static int FindFileByNameIdx(uint32_t name_index,
+                             SourceFileInfoList &files) {
+  for (SourceFileInfoList::iterator it = files.begin();
+       it != files.end(); it++) {
+    if (it->name_index == name_index)
+      return it->source_id;
+  }
+
+  return -1;
+}
+
+// Add included file information.
+// Also fix the source id for the line info.
+static void AddIncludedFiles(struct SymbolInfo *symbols,
+                             const ElfW(Shdr) *stabstr_section) {
+  for (SourceFileInfoList::iterator source_file_it =
+	 symbols->source_file_info.begin();
+       source_file_it != symbols->source_file_info.end();
+       ++source_file_it) {
+    struct SourceFileInfo &source_file = *source_file_it;
+
+    for (FuncInfoList::iterator func_info_it = source_file.func_info.begin(); 
+	 func_info_it != source_file.func_info.end();
+	 ++func_info_it) {
+      struct FuncInfo &func_info = *func_info_it;
+
+      for (LineInfoList::iterator line_info_it = func_info.line_info.begin(); 
+	   line_info_it != func_info.line_info.end(); ++line_info_it) {
+        struct LineInfo &line_info = *line_info_it;
+
+        assert(line_info.source_name_index > 0);
+        assert(source_file.name_index > 0);
+
+        // Check if the line belongs to the source file by comparing the
+        // name index into string table.
+        if (line_info.source_name_index != source_file.name_index) {
+          // This line is not from the current source file, check if this
+          // source file has been added before.
+          int found_source_id = FindFileByNameIdx(line_info.source_name_index,
+                                                  symbols->source_file_info);
+          if (found_source_id < 0) {
+            // Got a new included file.
+            // Those included files don't have address or line information.
+            SourceFileInfo new_file;
+            new_file.name_index = line_info.source_name_index;
+            new_file.name = reinterpret_cast<char *>(new_file.name_index +
+                                                     stabstr_section->sh_offset);
+            new_file.addr = 0;
+            new_file.source_id = symbols->next_source_id++;
+            line_info.source_id = new_file.source_id;
+            symbols->source_file_info.push_back(new_file);
+          } else {
+            // The file has been added.
+            line_info.source_id = found_source_id;
+          }
+        } else {
+          // The line belongs to the file.
+          line_info.source_id = source_file.source_id;
+        }
+      }  // for each line.
+    }  // for each function.
+  } // for each source file.
+
+}
+
 // Compute size and rva information based on symbols loaded from stab section.
-bool ComputeSizeAndRVA(ElfW(Addr) loading_addr, struct SymbolInfo *symbols) {
+static bool ComputeSizeAndRVA(ElfW(Addr) loading_addr,
+                              struct SymbolInfo *symbols) {
   std::vector<struct SourceFileInfo *> sorted_files =
     SortByAddress(&(symbols->source_file_info));
   for (size_t i = 0; i < sorted_files.size(); ++i) {
@@ -382,12 +496,15 @@ bool ComputeSizeAndRVA(ElfW(Addr) loading_addr, struct SymbolInfo *symbols) {
         func_info.size = kDefaultSize;
       }
       // Compute line size.
-      for (size_t k = 0; k < func_info.line_info.size(); ++k) {
-        struct LineInfo &line_info = func_info.line_info[k];
+      for (LineInfoList::iterator line_info_it = func_info.line_info.begin(); 
+	   line_info_it != func_info.line_info.end(); line_info_it++) {
+        struct LineInfo &line_info = *line_info_it;
+	LineInfoList::iterator next_line_info_it = line_info_it;
+	next_line_info_it++;
         line_info.size = 0;
-        if (k + 1 < func_info.line_info.size()) {
+        if (next_line_info_it != func_info.line_info.end()) {
           line_info.size =
-            func_info.line_info[k + 1].rva_to_func - line_info.rva_to_func;
+            next_line_info_it->rva_to_func - line_info.rva_to_func;
         } else {
           // The last line in the function.
           // If we can find a function or source file symbol immediately
@@ -410,17 +527,16 @@ bool ComputeSizeAndRVA(ElfW(Addr) loading_addr, struct SymbolInfo *symbols) {
   return true;
 }
 
-bool LoadSymbols(const ElfW(Shdr) *stab_section,
-                 const ElfW(Shdr) *stabstr_section,
-                 ElfW(Addr) loading_addr,
-                 struct SymbolInfo *symbols) {
+static bool LoadSymbols(const ElfW(Shdr) *stab_section,
+                        const ElfW(Shdr) *stabstr_section,
+                        ElfW(Addr) loading_addr,
+                        struct SymbolInfo *symbols) {
   if (stab_section == NULL || stabstr_section == NULL)
     return false;
 
   struct nlist *lists =
     reinterpret_cast<struct nlist *>(stab_section->sh_offset);
   int nstab = stab_section->sh_size / sizeof(struct nlist);
-  int source_id = 0;
   // First pass, load all symbols from the object file.
   for (int i = 0; i < nstab; ) {
     int step = 1;
@@ -428,11 +544,12 @@ bool LoadSymbols(const ElfW(Shdr) *stab_section,
     if (cur_list->n_type == N_SO) {
       // FUNC <address> <length> <param_stack_size> <function>
       struct SourceFileInfo source_file_info;
+      source_file_info.name_index = cur_list->n_un.n_strx;
       source_file_info.name = reinterpret_cast<char *>(cur_list->n_un.n_strx +
                                  stabstr_section->sh_offset);
       source_file_info.addr = cur_list->n_value;
       if (strchr(source_file_info.name, '.'))
-        source_file_info.source_id = source_id++;
+        source_file_info.source_id = symbols->next_source_id++;
       else
         source_file_info.source_id = -1;
       step = LoadFuncSymbols(cur_list, lists + nstab,
@@ -441,11 +558,19 @@ bool LoadSymbols(const ElfW(Shdr) *stab_section,
     }
     i += step;
   }
+
   // Second pass, compute the size of functions and lines.
-  return ComputeSizeAndRVA(loading_addr, symbols);
+  if (ComputeSizeAndRVA(loading_addr, symbols)) {
+    // Third pass, check for included source code, especially for header files.
+    // Until now, we only have compiling unit information, but they can
+    // have code from include files, add them here.
+    AddIncludedFiles(symbols, stabstr_section);
+    return true;
+  }
+  return false;
 }
 
-bool LoadSymbols(ElfW(Ehdr) *elf_header, struct SymbolInfo *symbols) {
+static bool LoadSymbols(ElfW(Ehdr) *elf_header, struct SymbolInfo *symbols) {
   // Translate all offsets in section headers into address.
   FixAddress(elf_header);
   ElfW(Addr) loading_addr = GetLoadingAddress(
@@ -467,7 +592,9 @@ bool LoadSymbols(ElfW(Ehdr) *elf_header, struct SymbolInfo *symbols) {
   return LoadSymbols(stab_section, stabstr_section, loading_addr, symbols);
 }
 
-bool WriteModuleInfo(int fd, ElfW(Half) arch, const std::string &obj_file) {
+static bool WriteModuleInfo(int fd,
+                            ElfW(Half) arch,
+                            const std::string &obj_file) {
   const char *arch_name = NULL;
   if (arch == EM_386)
     arch_name = "x86";
@@ -494,26 +621,27 @@ bool WriteModuleInfo(int fd, ElfW(Half) arch, const std::string &obj_file) {
     size_t slash_pos = obj_file.find_last_of("/");
     if (slash_pos != std::string::npos)
       filename = obj_file.substr(slash_pos + 1);
-    return WriteFormat(fd, "MODULE linux %s %s %s\n", arch_name,
+    return WriteFormat(fd, "MODULE Linux %s %s %s\n", arch_name,
                        id_no_dash, filename.c_str());
   }
   return false;
 }
 
-bool WriteSourceFileInfo(int fd, const struct SymbolInfo &symbols) {
-  for (size_t i = 0; i < symbols.source_file_info.size(); ++i) {
-    if (symbols.source_file_info[i].source_id != -1) {
-      const char *name = symbols.source_file_info[i].name;
-      if (!WriteFormat(fd, "FILE %d %s\n",
-                       symbols.source_file_info[i].source_id, name))
+static bool WriteSourceFileInfo(int fd, const struct SymbolInfo &symbols) {
+  for (SourceFileInfoList::const_iterator it =
+	 symbols.source_file_info.begin();
+       it != symbols.source_file_info.end(); it++) {
+    if (it->source_id != -1) {
+      const char *name = it->name;
+      if (!WriteFormat(fd, "FILE %d %s\n", it->source_id, name))
         return false;
     }
   }
   return true;
 }
 
-bool WriteOneFunction(int fd, int source_id,
-                      const struct FuncInfo &func_info){
+static bool WriteOneFunction(int fd,
+                             const struct FuncInfo &func_info){
   // Discard the ending part of the name.
   std::string func_name(func_info.name);
   std::string::size_type last_colon = func_name.find_last_of(':');
@@ -529,13 +657,14 @@ bool WriteOneFunction(int fd, int source_id,
                   func_info.size,
                   func_info.stack_param_size,
                   func_name.c_str())) {
-    for (size_t i = 0; i < func_info.line_info.size(); ++i) {
-      const struct LineInfo &line_info = func_info.line_info[i];
+    for (LineInfoList::const_iterator it = func_info.line_info.begin();
+	 it != func_info.line_info.end(); it++) {
+      const struct LineInfo &line_info = *it;
       if (!WriteFormat(fd, "%lx %lx %d %d\n",
                        line_info.rva_to_base,
                        line_info.size,
                        line_info.line_num,
-                       source_id))
+                       line_info.source_id))
         return false;
     }
     return true;
@@ -543,19 +672,22 @@ bool WriteOneFunction(int fd, int source_id,
   return false;
 }
 
-bool WriteFunctionInfo(int fd, const struct SymbolInfo &symbols) {
-  for (size_t i = 0; i < symbols.source_file_info.size(); ++i) {
-    const struct SourceFileInfo &file_info = symbols.source_file_info[i];
-    for (size_t j = 0; j < file_info.func_info.size(); ++j) {
-      const struct FuncInfo &func_info = file_info.func_info[j];
-      if (!WriteOneFunction(fd, file_info.source_id, func_info))
+static bool WriteFunctionInfo(int fd, const struct SymbolInfo &symbols) {
+  for (SourceFileInfoList::const_iterator it =
+	 symbols.source_file_info.begin();
+       it != symbols.source_file_info.end(); it++) {
+    const struct SourceFileInfo &file_info = *it;
+    for (FuncInfoList::const_iterator fiIt = file_info.func_info.begin(); 
+	 fiIt != file_info.func_info.end(); fiIt++) {
+      const struct FuncInfo &func_info = *fiIt;
+      if (!WriteOneFunction(fd, func_info))
         return false;
     }
   }
   return true;
 }
 
-bool DumpStabSymbols(int fd, const struct SymbolInfo &symbols) {
+static bool DumpStabSymbols(int fd, const struct SymbolInfo &symbols) {
   return WriteSourceFileInfo(fd, symbols) &&
     WriteFunctionInfo(fd, symbols);
 }
@@ -617,7 +749,7 @@ class MmapWrapper {
 namespace google_breakpad {
 
 bool DumpSymbols::WriteSymbolFile(const std::string &obj_file,
-				  int sym_fd) {
+                                  int sym_fd) {
   int obj_fd = open(obj_file.c_str(), O_RDONLY);
   if (obj_fd < 0)
     return false;
@@ -634,6 +766,8 @@ bool DumpSymbols::WriteSymbolFile(const std::string &obj_file,
   if (!IsValidElf(elf_header))
     return false;
   struct SymbolInfo symbols;
+  symbols.next_source_id = 0;
+
   if (!LoadSymbols(elf_header, &symbols))
      return false;
   // Write to symbol file.

@@ -38,6 +38,7 @@
 #include "nsReadableUtils.h"
 #include "nsSimplePageSequence.h"
 #include "nsPresContext.h"
+#include "gfxContext.h"
 #include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsIDeviceContext.h"
@@ -179,8 +180,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // it right in paginated mode.
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     // Return our desired size
-    aDesiredSize.height  = mSize.height;
-    aDesiredSize.width   = mSize.width;
+    aDesiredSize.height  = mSize.height * PresContext()->GetPrintPreviewScale();
+    aDesiredSize.width   = mSize.width * PresContext()->GetPrintPreviewScale();
     aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width,
                                         aDesiredSize.height);
     FinishAndStoreOverflow(&aDesiredSize);
@@ -198,12 +199,16 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   // now get out margins & edges
   if (mPageData->mPrintSettings) {
+    nsMargin unwriteableTwips;
+    mPageData->mPrintSettings->GetUnwriteableMarginInTwips(unwriteableTwips);
+    NS_ASSERTION(unwriteableTwips.left  >= 0 && unwriteableTwips.top >= 0 &&
+                 unwriteableTwips.right >= 0 && unwriteableTwips.bottom >= 0,
+                 "Unwriteable twips should be non-negative");
+
     nsMargin marginTwips;
     mPageData->mPrintSettings->GetMarginInTwips(marginTwips);
-    mMargin = nsMargin(aPresContext->TwipsToAppUnits(marginTwips.left),
-                       aPresContext->TwipsToAppUnits(marginTwips.top),
-                       aPresContext->TwipsToAppUnits(marginTwips.right),
-                       aPresContext->TwipsToAppUnits(marginTwips.bottom));
+    mMargin = aPresContext->TwipsToAppUnits(marginTwips + unwriteableTwips);
+
     PRInt16 printType;
     mPageData->mPrintSettings->GetPrintRange(&printType);
     mPrintRangeType = printType;
@@ -211,18 +216,15 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     nsMargin edgeTwips;
     mPageData->mPrintSettings->GetEdgeInTwips(edgeTwips);
 
-    // sanity check the values. an inch is still probably excessive
-    nscoord inchInTwips = NS_INCHES_TO_TWIPS(1.0);
+    // sanity check the values. three inches are sometimes needed
+    nscoord inchInTwips = NS_INCHES_TO_TWIPS(3.0);
     edgeTwips.top = PR_MIN(PR_MAX(edgeTwips.top, 0), inchInTwips);
     edgeTwips.bottom = PR_MIN(PR_MAX(edgeTwips.bottom, 0), inchInTwips);
     edgeTwips.left = PR_MIN(PR_MAX(edgeTwips.left, 0), inchInTwips);
     edgeTwips.right = PR_MIN(PR_MAX(edgeTwips.right, 0), inchInTwips);
 
     mPageData->mEdgePaperMargin =
-      nsMargin(aPresContext->TwipsToAppUnits(edgeTwips.left),
-               aPresContext->TwipsToAppUnits(edgeTwips.top),
-               aPresContext->TwipsToAppUnits(edgeTwips.right),
-               aPresContext->TwipsToAppUnits(edgeTwips.bottom));
+      aPresContext->TwipsToAppUnits(edgeTwips + unwriteableTwips);
   }
 
   // *** Special Override ***
@@ -233,6 +235,12 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   nsSize pageSize = aPresContext->GetPageSize();
 
   mPageData->mReflowSize = pageSize;
+  // If we're printing a selection, we need to reflow with
+  // unconstrained height, to make sure we'll get to the selection
+  // even if it's beyond the first page of content.
+  if (nsIPrintSettings::kRangeSelection == mPrintRangeType) {
+    mPageData->mReflowSize.height = NS_UNCONSTRAINEDSIZE;
+  }
   mPageData->mReflowMargin = mMargin;
 
   // Compute the size of each page and the x coordinate that each page will
@@ -246,8 +254,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   nscoord  deadSpaceGap = 0;
   if (isPrintPreview) {
-    nscoord deadSpaceGapTwips;
-    GetDeadSpaceValue(&deadSpaceGapTwips);
+    GetDeadSpaceValue(&gapInTwips);
     deadSpaceGap = aPresContext->TwipsToAppUnits(gapInTwips);
   }
 
@@ -272,6 +279,10 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // Tile the pages vertically
   nsHTMLReflowMetrics kidSize;
   for (nsIFrame* kidFrame = mFrames.FirstChild(); nsnull != kidFrame; ) {
+    // Set the shared data into the page frame before reflow
+    nsPageFrame * pf = static_cast<nsPageFrame*>(kidFrame);
+    pf->SetSharedPageData(mPageData);
+
     // Reflow the page
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, kidFrame,
                                      availSize);
@@ -280,10 +291,6 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     kidReflowState.SetComputedWidth(kidReflowState.availableWidth);
     //kidReflowState.SetComputedHeight(kidReflowState.availableHeight);
     PR_PL(("AV W: %d   H: %d\n", kidReflowState.availableWidth, kidReflowState.availableHeight));
-
-    // Set the shared data into the page frame before reflow
-    nsPageFrame * pf = static_cast<nsPageFrame*>(kidFrame);
-    pf->SetSharedPageData(mPageData);
 
     // Place and size the page. If the page is narrower than our
     // max width then center it horizontally
@@ -338,7 +345,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   // Create current Date/Time String
   if (!mDateFormatter)
     mDateFormatter = do_CreateInstance(NS_DATETIMEFORMAT_CONTRACTID);
-#ifndef WINCE
+
   NS_ENSURE_TRUE(mDateFormatter, NS_ERROR_FAILURE);
 
   nsAutoString formattedDateString;
@@ -352,13 +359,13 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     PRUnichar * uStr = ToNewUnicode(formattedDateString);
     SetDateTimeStr(uStr); // memory will be freed
   }
-#endif
 
   // Return our desired size
   // Adjustr the reflow size by PrintPreviewScale so the scrollbars end up the
   // correct size
+  nscoord w = (x + availSize.width + deadSpaceGap);
   aDesiredSize.height  = y * PresContext()->GetPrintPreviewScale(); // includes page heights and dead space
-  aDesiredSize.width   = (x + availSize.width + deadSpaceGap) * PresContext()->GetPrintPreviewScale();
+  aDesiredSize.width   = w * PresContext()->GetPrintPreviewScale();
 
   aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width,
                                       aDesiredSize.height);
@@ -366,8 +373,8 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
   // cache the size so we can set the desired size 
   // for the other reflows that happen
-  mSize.width  = aDesiredSize.width;
-  mSize.height = aDesiredSize.height;
+  mSize.width  = w;
+  mSize.height = y;
 
   NS_FRAME_TRACE_REFLOW_OUT("nsSimplePageSequeceFrame::Reflow", aStatus);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
@@ -597,6 +604,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     nsIFrame* conFrame = mCurrentPageFrame->GetFirstChild(nsnull);
     if (mSelectionHeight >= 0) {
       conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -mYSelOffset));
+      nsContainerFrame::PositionChildViews(conFrame);
     }
 
     // cast the frame to be a page frame
@@ -619,6 +627,20 @@ nsSimplePageSequenceFrame::PrintNextPage()
       PresContext()->PresShell()->
               CreateRenderingContext(mCurrentPageFrame,
                                      getter_AddRefs(renderingContext));
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+      // On linux, need to rotate landscape-mode output on printed surfaces
+      PRInt32 orientation;
+      mPageData->mPrintSettings->GetOrientation(&orientation);
+      if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+        // Shift up by one landscape-page-height (in points) before we rotate.
+        float offset = POINTS_PER_INCH_FLOAT *
+           (mCurrentPageFrame->GetSize().height / float(dc->AppUnitsPerInch()));
+        renderingContext->ThebesContext()->Translate(gfxPoint(offset, 0));
+        renderingContext->ThebesContext()->Rotate(M_PI/2);
+      }
+#endif // XP_UNIX && !XP_MACOSX
+
       nsRect drawingRect(nsPoint(0, 0),
                          mCurrentPageFrame->GetSize());
       nsRegion drawingRegion(drawingRect);
@@ -630,6 +652,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
         printedPageNum++;
         pf->SetPageNumInfo(printedPageNum, mTotalPages);
         conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -height));
+        nsContainerFrame::PositionChildViews(conFrame);
 
         PR_PL(("***************** End Page (PrintNextPage) *****************\n"));
         rv = dc->EndPage();

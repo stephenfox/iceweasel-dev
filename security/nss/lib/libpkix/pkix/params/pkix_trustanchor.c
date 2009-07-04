@@ -354,6 +354,8 @@ pkix_TrustAnchor_RegisterSelf(void *plContext)
         PKIX_ENTER(TRUSTANCHOR, "pkix_TrustAnchor_RegisterSelf");
 
         entry.description = "TrustAnchor";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_TrustAnchor);
         entry.destructor = pkix_TrustAnchor_Destroy;
         entry.equalsFunction = pkix_TrustAnchor_Equals;
         entry.hashcodeFunction = pkix_TrustAnchor_Hashcode;
@@ -391,6 +393,10 @@ PKIX_TrustAnchor_CreateWithCert(
                     PKIX_COULDNOTCREATETRUSTANCHOROBJECT);
 
         /* initialize fields */
+        PKIX_CHECK(
+            PKIX_PL_Cert_SetAsTrustAnchor(cert, plContext),
+            PKIX_CERTSETASTRUSTANCHORFAILED);
+
         PKIX_INCREF(cert);
         anchor->trustedCert = cert;
 
@@ -399,8 +405,11 @@ PKIX_TrustAnchor_CreateWithCert(
         anchor->nameConstraints = NULL;
 
         *pAnchor = anchor;
+        anchor = NULL;
 
 cleanup:
+
+        PKIX_DECREF(anchor);
 
         PKIX_RETURN(TRUSTANCHOR);
 
@@ -421,6 +430,16 @@ PKIX_TrustAnchor_CreateWithNameKeyPair(
         PKIX_TrustAnchor *anchor = NULL;
 
         PKIX_ENTER(TRUSTANCHOR, "PKIX_TrustAnchor_CreateWithNameKeyPair");
+
+#ifndef BUILD_LIBPKIX_TESTS
+        /* Nss creates trust anchors by using PKIX_TrustAnchor_CreateWithCert
+         * function as the complete trusted cert structure, and not only cert
+         * public key, is required for chain building and validation processes. 
+         * Restricting this function for been used only in libpkix unit
+         * tests. */
+        PKIX_ERROR(PKIX_FUNCTIONMUSTNOTBEUSED);
+#endif
+
         PKIX_NULLCHECK_THREE(name, pubKey, pAnchor);
 
         PKIX_CHECK(PKIX_PL_Object_Alloc
@@ -443,8 +462,10 @@ PKIX_TrustAnchor_CreateWithNameKeyPair(
         anchor->nameConstraints = nameConstraints;
 
         *pAnchor = anchor;
-
+        anchor = NULL;
 cleanup:
+
+        PKIX_DECREF(anchor);
 
         PKIX_RETURN(TRUSTANCHOR);
 }
@@ -465,6 +486,7 @@ PKIX_TrustAnchor_GetTrustedCert(
 
         *pCert = anchor->trustedCert;
 
+cleanup:
         PKIX_RETURN(TRUSTANCHOR);
 
 }
@@ -485,6 +507,7 @@ PKIX_TrustAnchor_GetCAName(
 
         *pCAName = anchor->caName;
 
+cleanup:
         PKIX_RETURN(TRUSTANCHOR);
 
 }
@@ -505,6 +528,7 @@ PKIX_TrustAnchor_GetCAPublicKey(
 
         *pPubKey = anchor->caPubKey;
 
+cleanup:
         PKIX_RETURN(TRUSTANCHOR);
 }
 
@@ -525,5 +549,6 @@ PKIX_TrustAnchor_GetNameConstraints(
 
         *pNameConstraints = anchor->nameConstraints;
 
+cleanup:
         PKIX_RETURN(TRUSTANCHOR);
 }

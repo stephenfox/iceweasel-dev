@@ -41,8 +41,16 @@
 interface nsIURI;
 interface nsIChannel;
 
-
-[scriptable, uuid(0b8a9b32-713f-4c39-bea0-6cacec46f385)]
+/**
+ * WARNING!! The JEP needs to call GetSubjectPrincipal()
+ * to support JavaScript-to-Java LiveConnect.  So every change to the
+ * nsIScriptSecurityManager interface (big enough to change its IID) also
+ * breaks JavaScript-to-Java LiveConnect on mac.
+ *
+ * If you REALLY have to change this interface, please mark your bug as
+ * blocking bug 293973.
+ */
+[scriptable, uuid(f8e350b9-9f31-451a-8c8f-d10fea26b780)]
 interface nsIScriptSecurityManager : nsIXPCSecurityManager
 {
     ///////////////// Security Checks //////////////////
@@ -292,13 +300,6 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
                             in boolean reportError);
 
     /**
-     * Returns OK if aSourcePrincipal and aTargetPrincipal
-     * have the same "origin" (scheme, host, and port).
-     */
-    void checkSameOriginPrincipal(in nsIPrincipal aSourcePrincipal,
-                                  in nsIPrincipal aTargetPrincipal);
-
-    /**
      * Returns the principal of the global object of the given context, or null
      * if no global or no principal.
      */
@@ -317,6 +318,16 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
      * script to check whether a given principal is system.
      */
     boolean isSystemPrincipal(in nsIPrincipal aPrincipal);
+
+    /**
+     * Same as getSubjectPrincipal(), only faster. cx must *never* be
+     * passed null, and it must be the context on the top of the
+     * context stack. Does *not* reference count the returned
+     * principal.
+     */
+    [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipal(in JSContextPtr cx);
+    [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipalAndFrame(in JSContextPtr cx,
+                                                                   out JSStackFramePtr fp);
 };
 
 %{C++

@@ -44,7 +44,6 @@
 #include "nsXPCOMGlue.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
-#include "nsValueArray.h"
 #include "nsIAtom.h"
 #include "nsFixedSizeAllocator.h"
 #include "nsRecyclingAllocator.h"
@@ -100,7 +99,7 @@
 #include "nsThreadUtils.h"
 #include "nsTObserverArray.h"
 
-#if !defined(WINCE) && !defined(XP_OS2)
+#if !defined(XP_OS2)
 #include "nsWindowsRegKey.h"
 #endif
 
@@ -127,8 +126,8 @@ void XXXNeverCalled()
     {
       nsTObserverArray<PRBool> dummyObserverArray;
       PRBool a = PR_FALSE;
-      dummyObserverArray.AppendObserver(&a);
-      dummyObserverArray.RemoveObserver(&a);
+      dummyObserverArray.AppendElement(a);
+      dummyObserverArray.RemoveElement(a);
       dummyObserverArray.Clear();
     }
     nsStringHashSet();
@@ -137,7 +136,6 @@ void XXXNeverCalled()
     nsVoidHashSet();
     nsCheapStringSet();
     nsCheapInt32Set();
-    nsValueArray(0);
     nsSupportsArray();
     NS_GetNumberOfAtoms();
     NS_NewPipe(nsnull, nsnull, 0, 0, PR_FALSE, PR_FALSE, nsnull);
@@ -283,7 +281,7 @@ void XXXNeverCalled()
     nsXPCOMCycleCollectionParticipant();
     nsCycleCollector_collect();
 
-#if !defined(WINCE) && !defined(XP_OS2)
+#if !defined(XP_OS2)
     NS_NewWindowsRegKey(nsnull);
 #endif
 

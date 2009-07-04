@@ -398,7 +398,7 @@
             for (var i = this.selectedItems.length - 1; i >= 0; --i)
               this.selectedItems[i].selected = false;
 
-            this.selectedItems.splice(0, this.selectedItems.length);
+            this.selectedItems.length = 0;
           }
 
           this._selectionStart = null;
@@ -545,9 +545,12 @@
         <parameter name="aEvent"/>
         <body>
         <![CDATA[
-          this._userSelecting = true;
-          this.moveByOffset(aOffset, !aEvent.ctrlKey, aEvent.shiftKey);
-          this._userSelecting = false;
+          if (!aEvent.getPreventDefault()) {
+            this._userSelecting = true;
+            this.moveByOffset(aOffset, !aEvent.ctrlKey, aEvent.shiftKey);
+            this._userSelecting = false;
+            aEvent.preventDefault();
+          }
         ]]>
         </body>
       </method>
@@ -580,22 +583,22 @@
     <handlers>
       <handler event="keypress" keycode="VK_UP" modifiers="control shift any"
                action="this._moveByOffsetFromUserEvent(-1, event);"
-               phase="target" preventdefault="true"/>
+               group="system"/>
       <handler event="keypress" keycode="VK_DOWN" modifiers="control shift any"
                action="this._moveByOffsetFromUserEvent(1, event);"
-               phase="target" preventdefault="true"/>
+               group="system"/>
       <handler event="keypress" keycode="VK_HOME" modifiers="control shift any"
                action="this._moveByOffsetFromUserEvent(-this.currentIndex, event);"
-               phase="target" preventdefault="true"/>
+               group="system"/>
       <handler event="keypress" keycode="VK_END" modifiers="control shift any"
                action="this._moveByOffsetFromUserEvent(this.getRowCount() - this.currentIndex - 1, event);"
-               phase="target" preventdefault="true"/>
+               group="system"/>
       <handler event="keypress" keycode="VK_PAGE_UP" modifiers="control shift any"
                action="this._moveByOffsetFromUserEvent(this.scrollOnePage(-1), event);"
-               phase="target" preventdefault="true"/>
+               group="system"/>
       <handler event="keypress" keycode="VK_PAGE_DOWN" modifiers="control shift any"
                action="this._moveByOffsetFromUserEvent(this.scrollOnePage(1), event);"
-               phase="target" preventdefault="true"/>
+               group="system"/>
       <handler event="keypress" key=" " modifiers="control" phase="target">
       <![CDATA[
         if (this.currentItem && this.selType == "multiple")
@@ -604,8 +607,13 @@
       </handler>
       <handler event="focus">
       <![CDATA[
-        if (this.currentIndex == -1 && this.getRowCount() > 0) {
-          this.currentIndex = this.getIndexOfFirstVisibleRow();
+        if (this.getRowCount() > 0) {
+          if (this.currentIndex == -1) {
+            this.currentIndex = this.getIndexOfFirstVisibleRow();
+          }
+          else {
+            this.currentItem._fireEvent("DOMMenuItemActive");
+          }
         }
         this._lastKeyTime = 0;
       ]]>
@@ -838,8 +846,10 @@
           if (this.currentItem) {
             if (this.currentItem.getAttribute("type") != "checkbox")
               this.addItemToSelection(this.currentItem);
-            else if (!this.currentItem.disabled)
+            else if (!this.currentItem.disabled) {
               this.currentItem.checked = !this.currentItem.checked;
+              this.currentItem.doCommand();
+            }
           }
         ]]>
       </handler>
@@ -855,6 +865,9 @@
     <handlers>
       <handler event="DOMMouseScroll" phase="capturing">
       <![CDATA[
+        if (event.axis == event.HORIZONTAL_AXIS)
+          return;
+
         var listBox = this.parentNode.listBoxObject;
         var rows = event.detail;
         if (rows == NSUIEvent.SCROLL_PAGE_UP)
@@ -954,7 +967,11 @@
         var control = this.control;
         if (!control || control.disabled)
           return;
-        if (!event.ctrlKey && !event.shiftKey && !event.metaKey) {
+        if ((!event.ctrlKey
+#ifdef XP_MACOSX
+             || event.button == 2
+#endif
+            ) && !event.shiftKey && !event.metaKey) {
           if (!this.selected) {
             control.selectItem(this);
           }
@@ -1034,8 +1051,10 @@
     <handlers> 
       <handler event="mousedown" button="0">
       <![CDATA[
-        if (!this.disabled && !this.control.disabled)
+        if (!this.disabled && !this.control.disabled) {
           this.checked = !this.checked;
+          this.doCommand();
+        }
       ]]>
       </handler>
     </handlers>
@@ -1062,6 +1081,38 @@
         <xul:label class="listcell-label" xbl:inherits="value=label,flex=flexlabel,crop,disabled" flex="1" crop="right"/>
       </children>
     </content>
+
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+        <![CDATA[
+          // Don't expose xul:listcell as cell accessible until listbox is
+          // multicolumn.
+          const Ci = Components.interfaces;
+          const kNoAccessible = Ci.nsIAccessibleProvider.NoAccessible;
+          const kListCellAccessible = Ci.nsIAccessibleProvider.XULListCell;
+
+          var listitem = this.parentNode;
+          if (!(listitem instanceof Ci.nsIDOMXULSelectControlItemElement))
+            return kNoAccessible;
+
+          var list = listitem.control;
+          if (!list)
+            return kNoAccessible;
+
+          var listhead = list.getElementsByTagName("listhead")[0];
+          if (!listhead)
+            return kNoAccessible;
+
+          var listheaders = listhead.getElementsByTagName("listheader");
+          if (listheaders.length <= 1)
+            return kNoAccessible;
+
+          return kListCellAccessible;
+        ]]>
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
   <binding id="listcell-iconic"

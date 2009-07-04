@@ -58,9 +58,14 @@ SDK_XPIDLSRCS   = \
 		nsIFileURL.idl \
 		nsIUploadChannel.idl \
 		nsIUnicharStreamListener.idl \
+		nsITraceableChannel.idl \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsIApplicationCache.idl \
+		nsIApplicationCacheChannel.idl \
+		nsIApplicationCacheContainer.idl \
+		nsIApplicationCacheService.idl \
 		nsIAuthInformation.idl \
 		nsIAuthPrompt.idl \
 		nsIAuthPrompt2.idl \
@@ -71,6 +76,7 @@ XPIDLSRCS	= \
 		nsIBufferedStreams.idl \
 		nsICancelable.idl \
 		nsICryptoHash.idl \
+		nsICryptoHMAC.idl \
 		nsIDownloader.idl \
 		nsIEncodedChannel.idl \
 		nsIFileStreams.idl \
@@ -84,6 +90,7 @@ XPIDLSRCS	= \
 		nsIPasswordManagerInternal.idl \
 		nsIPermission.idl \
 		nsIPermissionManager.idl \
+		nsIPrivateBrowsingService.idl \
 		nsIProgressEventSink.idl \
 		nsIPrompt.idl \
 		nsIProtocolProxyService.idl \
@@ -99,11 +106,13 @@ XPIDLSRCS	= \
 		nsIServerSocket.idl \
 		nsIResumableChannel.idl \
 		nsIRequestObserverProxy.idl \
+		nsISecurityInfoProvider.idl \
 		nsIStreamListenerTee.idl \
 		nsISimpleStreamListener.idl \
 		nsIStreamTransportService.idl \
 		nsIStreamLoader.idl \
 		nsISyncStreamListener.idl \
+		nsISystemProxySettings.idl \
 		nsIUnicharStreamLoader.idl \
 		nsIStandardURL.idl \
 		nsINestedURI.idl \
@@ -125,7 +134,6 @@ XPIDLSRCS	= \
 		nsIChannelEventSink.idl \
 		nsINetUtil.idl \
 		nsIProxiedChannel.idl \
-		nsIScriptableIO.idl \
 		nsIRandomGenerator.idl \
 		$(NULL)
 
@@ -139,6 +147,7 @@ EXPORTS		= \
 		nsReadLine.h \
 		nsCPasswordManager.h \
 		nsCPasswordManagerInternal.h \
+		nsASocketHandler.h \
 		$(NULL)
 
 PREF_JS_EXPORTS = $(srcdir)/security-prefs.js

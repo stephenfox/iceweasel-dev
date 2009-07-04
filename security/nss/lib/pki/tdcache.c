@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: tdcache.c,v $ $Revision: 1.46 $ $Date: 2007/07/11 04:47:42 $";
+static const char CVS_ID[] = "@(#) $RCSfile: tdcache.c,v $ $Revision: 1.48 $ $Date: 2008/11/19 16:08:05 $";
 #endif /* DEBUG */
 
 #ifndef PKIM_H
@@ -62,11 +62,9 @@ static const char CVS_ID[] = "@(#) $RCSfile: tdcache.c,v $ $Revision: 1.46 $ $Da
 #include "base.h"
 #endif /* BASE_H */
 
-#ifdef NSS_3_4_CODE
 #include "cert.h"
 #include "dev.h"
 #include "pki3hack.h"
-#endif
 
 #ifdef DEBUG_CACHE
 static PRLogModuleInfo *s_log = NULL;
@@ -835,6 +833,9 @@ add_cert_to_cache (
 	    goto loser;
 	}
 #endif
+    } else {
+    	/* A new subject entry was not created.  arena is unused. */
+	nssArena_Destroy(arena);
     }
     rvCert = cert;
     PZ_Unlock(td->cache->lock);
@@ -1076,7 +1077,6 @@ nssTrustDomain_GetCertForIssuerAndSNFromCache (
     return rvCert;
 }
 
-#ifdef NSS_3_4_CODE
 static PRStatus
 issuer_and_serial_from_encoding (
   NSSBER *encoding, 
@@ -1102,7 +1102,6 @@ issuer_and_serial_from_encoding (
     serial->size = derSerial.len;
     return PR_SUCCESS;
 }
-#endif
 
 /*
  * Look for a specific cert in the cache
@@ -1116,9 +1115,7 @@ nssTrustDomain_GetCertByDERFromCache (
     PRStatus nssrv = PR_FAILURE;
     NSSDER issuer, serial;
     NSSCertificate *rvCert;
-#ifdef NSS_3_4_CODE
     nssrv = issuer_and_serial_from_encoding(der, &issuer, &serial);
-#endif
     if (nssrv != PR_SUCCESS) {
 	return NULL;
     }
@@ -1127,10 +1124,8 @@ nssTrustDomain_GetCertByDERFromCache (
 #endif
     rvCert = nssTrustDomain_GetCertForIssuerAndSNFromCache(td, 
                                                            &issuer, &serial);
-#ifdef NSS_3_4_CODE
     PORT_Free(issuer.data);
     PORT_Free(serial.data);
-#endif
     return rvCert;
 }
 

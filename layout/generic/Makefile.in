@@ -41,7 +41,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS		+= test
 endif
 
@@ -54,7 +54,6 @@ REQUIRES	= xpcom \
 		  dom \
 		  content \
 		  thebes \
-		  cairo \
 		  gfx \
 		  widget \
 		  locale \
@@ -67,28 +66,20 @@ REQUIRES	= xpcom \
 		  webshell \
 		  plugin \
 		  docshell \
-		  uriloader \
-		  mimetype \
 		  webbrwsr \
 		  oji \
 		  unicharutil \
 		  lwbrk \
 		  imglib2 \
-		  accessibility \
 		  xpconnect \
 		  java \
-		  exthandler \
 		  intl \
-		  uconv \
+		  thebes \
+		  cairo \
 		  $(NULL)
 
-# Sun's Complex Text Layout support
-ifdef SUNCTL
-REQUIRES	+= ctl
-endif
-
-ifdef MOZ_ENABLE_CAIRO_GFX
-REQUIRES	+= thebes cairo
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
 endif
 
 EXPORTS		= \
@@ -123,7 +114,6 @@ CPPSRCS		= \
 		nsAbsoluteContainingBlock.cpp \
 		nsAreaFrame.cpp \
 		nsBRFrame.cpp \
-		nsBlockBandData.cpp \
 		nsBlockFrame.cpp \
 		nsBlockReflowContext.cpp \
 		nsBlockReflowState.cpp \
@@ -131,6 +121,7 @@ CPPSRCS		= \
 		nsColumnSetFrame.cpp \
 		nsContainerFrame.cpp \
 		nsFirstLetterFrame.cpp \
+		nsFloatManager.cpp \
 		nsFrame.cpp \
 		nsFrameFrame.cpp \
 		nsFrameList.cpp \
@@ -154,7 +145,6 @@ CPPSRCS		= \
 		nsPlaceholderFrame.cpp \
 		nsSelection.cpp \
 		nsSimplePageSequence.cpp \
-		nsSpaceManager.cpp \
 		nsSpacerFrame.cpp \
 		nsSplittableFrame.cpp \
 		nsTextFrameThebes.cpp \
@@ -162,6 +152,12 @@ CPPSRCS		= \
 		nsTextRunTransformations.cpp \
 		nsViewportFrame.cpp \
 		$(NULL)
+
+ifdef MOZ_MEDIA
+CPPSRCS		+= \
+		nsVideoFrame.cpp \
+		$(NULL)
+endif
 
 ifdef IBMBIDI
 CPPSRCS		+= \
@@ -185,16 +181,22 @@ include $(topsrcdir)/config/rules.mk
 LOCAL_INCLUDES += \
 		-I$(srcdir) \
 		-I$(srcdir)/../base \
+		-I$(srcdir)/../forms \
 		-I$(srcdir)/../tables \
 		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/xul/content/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
+		-I$(srcdir)/../../dom/src/base \
 		$(MOZ_CAIRO_CFLAGS) \
 		$(NULL)
 
 ifdef MOZ_ENABLE_GTK2
 CXXFLAGS += $(MOZ_GTK2_CFLAGS)
+endif
+
+ifdef MOZ_ENABLE_QT
+CXXFLAGS += $(MOZ_QT_CFLAGS)
 endif
 
 libs::

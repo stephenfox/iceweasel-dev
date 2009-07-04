@@ -37,8 +37,8 @@
  * test suite to test a mythical backend that uses nothing but
  * fallbacks.
  *
- * The defining feature of this backend is that it has as many NULL
- * backend function entries as possible. The ones that aren't NULL are
+ * The defining feature of this backend is that it has as many %NULL
+ * backend function entries as possible. The ones that aren't %NULL are
  * simply those that must be implemented to have working fallbacks.
  * (Except for create_similar---fallbacks would work fine without
  * that---I implemented it here in order to create as many surfaces as
@@ -76,13 +76,12 @@ _cairo_test_fallback_surface_create (cairo_content_t	content,
 
     backing = _cairo_image_surface_create_with_content (content, width, height);
     if (cairo_surface_status (backing))
-	return (cairo_surface_t*) &_cairo_surface_nil;
+	return backing;
 
     surface = malloc (sizeof (test_fallback_surface_t));
     if (surface == NULL) {
 	cairo_surface_destroy (backing);
-	_cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
-	return (cairo_surface_t*) &_cairo_surface_nil;
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
     }
 
     _cairo_surface_init (&surface->base, &test_fallback_surface_backend,
@@ -177,11 +176,15 @@ _test_fallback_surface_clone_similar (void		  *abstract_surface,
 				      int                  src_y,
 				      int                  width,
 				      int                  height,
+				      int                 *clone_offset_x,
+				      int                 *clone_offset_y,
 				      cairo_surface_t    **clone_out)
 {
     test_fallback_surface_t *surface = abstract_surface;
 
     if (src->backend == surface->base.backend) {
+	*clone_offset_x = 0;
+	*clone_offset_y = 0;
 	*clone_out = cairo_surface_reference (src);
 
 	return CAIRO_STATUS_SUCCESS;

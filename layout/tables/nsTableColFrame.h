@@ -69,16 +69,14 @@ public:
     */
   friend nsTableColFrame* NS_NewTableColFrame(nsIPresShell* aPresShell,
                                               nsStyleContext*  aContext);
-
+  /** @see nsIFrame::DidSetStyleContext */
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  
   PRInt32 GetColIndex() const;
   
   void SetColIndex (PRInt32 aColIndex);
 
   nsTableColFrame* GetNextCol() const;
-
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -91,6 +89,12 @@ public:
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists) { return NS_OK; }
+
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  {
+    return nsSplittableFrame::IsFrameOfType(aFlags &
+      ~(nsIFrame::eExcludesIgnorableWhitespace));
+  }
 
   /**
    * Get the "type" of the frame
@@ -165,7 +169,6 @@ public:
     mSpanMinCoord = 0;
     mSpanPrefCoord = 0;
     mSpanPrefPercent = 0.0f;
-    mSpanHasSpecifiedCoord = PR_FALSE;
   }
 
   /**
@@ -249,11 +252,7 @@ public:
     NS_ASSERTION(aSpanMinCoord <= aSpanPrefCoord,
                  "intrinsic widths out of order");
 
-    if (aSpanHasSpecifiedCoord && !mSpanHasSpecifiedCoord) {
-      mSpanPrefCoord = mSpanMinCoord;
-      mSpanHasSpecifiedCoord = PR_TRUE;
-    }
-    if (!aSpanHasSpecifiedCoord && mSpanHasSpecifiedCoord) {
+    if (!aSpanHasSpecifiedCoord && mHasSpecifiedCoord) {
       aSpanPrefCoord = aSpanMinCoord; // NOTE: modifying argument
     }
 
@@ -279,7 +278,7 @@ public:
    * the primary variables.
    */
   void AccumulateSpanIntrinsics() {
-    AddCoords(mSpanMinCoord, mSpanPrefCoord, mHasSpecifiedCoord && mSpanHasSpecifiedCoord);
+    AddCoords(mSpanMinCoord, mSpanPrefCoord, mHasSpecifiedCoord);
     AddPrefPercent(mSpanPrefPercent);
   }
 
@@ -322,7 +321,6 @@ protected:
   BCPixelSize mBottomContBorderWidth;
 
   PRPackedBool mHasSpecifiedCoord;
-  PRPackedBool mSpanHasSpecifiedCoord; // XXX...
   nscoord mMinCoord;
   nscoord mPrefCoord;
   nscoord mSpanMinCoord; // XXX...

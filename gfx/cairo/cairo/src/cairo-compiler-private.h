@@ -38,7 +38,11 @@
 #ifndef CAIRO_COMPILER_PRIVATE_H
 #define CAIRO_COMPILER_PRIVATE_H
 
-CAIRO_BEGIN_DECLS
+#include "cairo.h"
+
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #if __GNUC__ >= 3 && defined(__ELF__) && !defined(__sun)
 # define slim_hidden_proto(name)		slim_hidden_proto1(name, slim_hidden_int_name(name)) cairo_private
@@ -70,12 +74,14 @@ CAIRO_BEGIN_DECLS
 #endif
 
 /* slim_internal.h */
+#define CAIRO_HAS_HIDDEN_SYMBOLS 1
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)) && defined(__ELF__) && !defined(__sun)
 #define cairo_private_no_warn	__attribute__((__visibility__("hidden")))
 #elif defined(__SUNPRO_C) && (__SUNPRO_C >= 0x550)
 #define cairo_private_no_warn	__hidden
 #else /* not gcc >= 3.3 and not Sun Studio >= 8 */
 #define cairo_private_no_warn
+#undef CAIRO_HAS_HIDDEN_SYMBOLS
 #endif
 
 #ifndef WARN_UNUSED_RESULT
@@ -105,11 +111,52 @@ CAIRO_BEGIN_DECLS
 # define CAIRO_FUNCTION_ALIAS(old, new)
 #endif
 
+/*
+ * Cairo uses the following function attributes in order to improve the
+ * generated code (effectively by manual inter-procedural analysis).
+ *
+ *   'cairo_pure': The function is only allowed to read from its arguments
+ *                 and global memory (i.e. following a pointer argument or
+ *                 accessing a shared variable). The return value should
+ *                 only depend on its arguments, and for an identical set of
+ *                 arguments should return the same value.
+ *
+ *   'cairo_const': The function is only allowed to read from its arguments.
+ *                  It is not allowed to access global memory. The return
+ *                  value should only depend its arguments, and for an
+ *                  identical set of arguments should return the same value.
+ *                  This is currently the most strict function attribute.
+ *
+ * Both these function attributes allow gcc to perform CSE and
+ * constant-folding, with 'cairo_const 'also guaranteeing that pointer contents
+ * do not change across the function call.
+ */
+#if __GNUC__ >= 3
+#define cairo_pure __attribute__((pure))
+#define cairo_const __attribute__((const))
+#else
+#define cairo_pure
+#define cairo_const
+#endif
+
 #ifndef __GNUC__
+#undef __attribute__
 #define __attribute__(x)
 #endif
 
+#if (defined(__WIN32__) && !defined(__WINE__)) || defined(_MSC_VER)
+#define snprintf _snprintf
+#define popen _popen
+#endif
 
-CAIRO_END_DECLS
+#ifdef _MSC_VER
+#undef inline
+#define inline __inline
+#endif
+
+#ifdef __STRICT_ANSI__
+#undef inline
+#define inline __inline__
+#endif
 
 #endif

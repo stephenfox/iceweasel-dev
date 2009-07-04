@@ -196,10 +196,8 @@ _cairo_xcb_surface_create_similar (void		       *abstract_src,
 	cairo_xcb_surface_create_with_xrender_format (dpy, pixmap, src->screen,
 						      xrender_format,
 						      width, height);
-    if (surface->base.status) {
-	_cairo_error (CAIRO_STATUS_NO_MEMORY);
-	return (cairo_surface_t*) &_cairo_surface_nil;
-    }
+    if (surface->base.status)
+	return &surface->base;
 
     surface->owns_pixmap = TRUE;
 
@@ -315,7 +313,7 @@ _get_image_surface (cairo_xcb_surface_t     *surface,
     y2 = surface->height;
 
     if (interest_rect) {
-	cairo_rectangle_int16_t rect;
+	cairo_rectangle_int_t rect;
 
 	rect.x = interest_rect->x;
 	rect.y = interest_rect->y;
@@ -697,6 +695,8 @@ _cairo_xcb_surface_clone_similar (void			*abstract_surface,
 				  int                    src_y,
 				  int                    width,
 				  int                    height,
+				  int                   *clone_offset_x,
+				  int                   *clone_offset_y,
 				  cairo_surface_t     **clone_out)
 {
     cairo_xcb_surface_t *surface = abstract_surface;
@@ -706,6 +706,8 @@ _cairo_xcb_surface_clone_similar (void			*abstract_surface,
 	cairo_xcb_surface_t *xcb_src = (cairo_xcb_surface_t *)src;
 
 	if (_cairo_xcb_surface_same_screen(surface, xcb_src)) {
+	    *clone_offset_x = 0;
+	    *clone_offset_y = 0;
 	    *clone_out = cairo_surface_reference (src);
 
 	    return CAIRO_STATUS_SUCCESS;
@@ -713,19 +715,29 @@ _cairo_xcb_surface_clone_similar (void			*abstract_surface,
     } else if (_cairo_surface_is_image (src)) {
 	cairo_image_surface_t *image_src = (cairo_image_surface_t *)src;
 	cairo_content_t content = _cairo_content_from_format (image_src->format);
+	cairo_status_t status;
 
 	if (surface->base.status)
 	    return surface->base.status;
 
 	clone = (cairo_xcb_surface_t *)
-	    _cairo_xcb_surface_create_similar (surface, content,
-					       image_src->width, image_src->height);
+	    _cairo_xcb_surface_create_similar (surface, content, width, height);
+	if (clone == NULL)
+	    return CAIRO_INT_STATUS_UNSUPPORTED;
 	if (clone->base.status)
 	    return clone->base.status;
 
-	_draw_image_surface (clone, image_src, src_x, src_y,
-			     width, height, src_x, src_y);
+	status = _draw_image_surface (clone, image_src,
+		                      src_x, src_y,
+		                      width, height,
+				      0, 0);
+	if (status) {
+	    cairo_surface_destroy (&clone->base);
+	    return status;
+	}
 
+	*clone_offset_x = src_x;
+	*clone_offset_y = src_y;
 	*clone_out = &clone->base;
 
 	return CAIRO_STATUS_SUCCESS;
@@ -881,7 +893,9 @@ _surfaces_compatible (cairo_xcb_surface_t *dst,
 	return FALSE;
 
     /* if Render is supported, match picture formats */
-    if (src->xrender_format.id != XCB_NONE && src->xrender_format.id == dst->xrender_format.id)
+    if (src->xrender_format.id != dst->xrender_format.id)
+	return FALSE;
+    else if (src->xrender_format.id != XCB_NONE)
 	return TRUE;
 
     /* Without Render, match visuals instead */
@@ -1113,6 +1127,7 @@ _cairo_xcb_surface_composite (cairo_operator_t		op,
     cairo_int_status_t		status;
     composite_operation_t       operation;
     int				itx, ity;
+    cairo_bool_t                is_integer_translation;
 
     if (!CAIRO_SURFACE_RENDER_HAS_COMPOSITE (dst))
 	return CAIRO_INT_STATUS_UNSUPPORTED;
@@ -1202,7 +1217,9 @@ _cairo_xcb_surface_composite (cairo_operator_t		op,
 	 */
 
 	_cairo_xcb_surface_ensure_gc (dst);
-	_cairo_matrix_is_integer_translation (&src_attr.matrix, &itx, &ity);
+	is_integer_translation =
+	    _cairo_matrix_is_integer_translation (&src_attr.matrix, &itx, &ity);
+	assert (is_integer_translation == TRUE);
 	{
 	    uint32_t mask = XCB_GC_FILL_STYLE | XCB_GC_TILE
 	                  | XCB_GC_TILE_STIPPLE_ORIGIN_X
@@ -1321,7 +1338,7 @@ _create_a8_picture (cairo_xcb_surface_t *surface,
 /* Creates a temporary mask for the trapezoids covering the area
  * [@dst_x, @dst_y, @width, @height] of the destination surface.
  */
-static xcb_render_picture_t
+static cairo_status_t
 _create_trapezoid_mask (cairo_xcb_surface_t *dst,
 			cairo_trapezoid_t    *traps,
 			int                   num_traps,
@@ -1329,7 +1346,8 @@ _create_trapezoid_mask (cairo_xcb_surface_t *dst,
 			int                   dst_y,
 			int                   width,
 			int                   height,
-			xcb_render_pictforminfo_t *pict_format)
+			xcb_render_pictforminfo_t *pict_format,
+			xcb_render_picture_t *mask_picture_out)
 {
     xcb_render_color_t transparent = { 0, 0, 0, 0 };
     xcb_render_color_t solid = { 0xffff, 0xffff, 0xffff, 0xffff };
@@ -1348,10 +1366,8 @@ _create_trapezoid_mask (cairo_xcb_surface_t *dst,
     solid_picture = _create_a8_picture (dst, &solid, width, height, TRUE);
 
     offset_traps = _cairo_malloc_ab (num_traps, sizeof (xcb_render_trapezoid_t));
-    if (!offset_traps) {
-	_cairo_error (CAIRO_STATUS_NO_MEMORY);
-	return XCB_NONE;
-    }
+    if (offset_traps == NULL)
+	return	_cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     for (i = 0; i < num_traps; i++) {
 	offset_traps[i].top = _cairo_fixed_to_16_16(traps[i].top) - 0x10000 * dst_y;
@@ -1375,7 +1391,8 @@ _create_trapezoid_mask (cairo_xcb_surface_t *dst,
     xcb_render_free_picture (dst->dpy, solid_picture);
     free (offset_traps);
 
-    return mask_picture;
+    *mask_picture_out = mask_picture;
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static cairo_int_status_t
@@ -1462,13 +1479,14 @@ _cairo_xcb_surface_composite_trapezoids (cairo_operator_t	op,
 	 * bounds and clip. (xcb_render_add_traps() could be used to make creating
 	 * the mask somewhat cheaper.)
 	 */
-	xcb_render_picture_t mask_picture = _create_trapezoid_mask (dst, traps, num_traps,
-						       dst_x, dst_y, width, height,
-						       render_format);
-	if (!mask_picture) {
-	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	xcb_render_picture_t mask_picture = 0; /* silence compiler */
+
+	status = _create_trapezoid_mask (dst, traps, num_traps,
+		                         dst_x, dst_y, width, height,
+					 render_format,
+					 &mask_picture);
+	if (status)
 	    goto BAIL;
-	}
 
 	xcb_render_composite (dst->dpy,
 			  _render_operator (op),
@@ -1629,7 +1647,8 @@ _cairo_xcb_surface_show_glyphs (void                *abstract_dst,
 				 cairo_pattern_t     *src_pattern,
 				 cairo_glyph_t       *glyphs,
 				 int		      num_glyphs,
-				 cairo_scaled_font_t *scaled_font);
+				 cairo_scaled_font_t *scaled_font,
+				 int		     *remaining_glyphs);
 
 static cairo_bool_t
 _cairo_xcb_surface_is_similar (void *surface_a,
@@ -1639,6 +1658,12 @@ _cairo_xcb_surface_is_similar (void *surface_a,
     cairo_xcb_surface_t *a = surface_a;
     cairo_xcb_surface_t *b = surface_b;
     xcb_render_pictforminfo_t *xrender_format;
+
+    /* XXX: disable caching by the solid pattern cache until we implement
+     * display notification to avoid issuing xcb calls from the wrong thread
+     * or accessing the surface after the Display has been closed.
+     */
+    return FALSE;
 
     if (! _cairo_xcb_surface_same_screen (a, b))
 	return FALSE;
@@ -1730,10 +1755,8 @@ _cairo_xcb_surface_create_internal (xcb_connection_t	     *dpy,
     const xcb_render_query_version_reply_t *r;
 
     surface = malloc (sizeof (cairo_xcb_surface_t));
-    if (surface == NULL) {
-	_cairo_error (CAIRO_STATUS_NO_MEMORY);
-	return (cairo_surface_t*) &_cairo_surface_nil;
-    }
+    if (surface == NULL)
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 
     if (xrender_format) {
 	depth = xrender_format->depth;
@@ -1858,8 +1881,8 @@ _cairo_xcb_screen_from_visual (xcb_connection_t *c, xcb_visualtype_t *visual)
  * The way that colors are represented in the drawable is specified
  * by the provided visual.
  *
- * NOTE: If @drawable is a window, then the function
- * cairo_xcb_surface_set_size must be called whenever the size of the
+ * Note: If @drawable is a window, then the function
+ * cairo_xcb_surface_set_size() must be called whenever the size of the
  * window changes.
  *
  * Return value: the newly created surface
@@ -1873,10 +1896,8 @@ cairo_xcb_surface_create (xcb_connection_t *c,
 {
     xcb_screen_t	*screen = _cairo_xcb_screen_from_visual (c, visual);
 
-    if (screen == NULL) {
-	_cairo_error (CAIRO_STATUS_INVALID_VISUAL);
-	return (cairo_surface_t*) &_cairo_surface_nil;
-    }
+    if (screen == NULL)
+	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_INVALID_VISUAL));
 
     return _cairo_xcb_surface_create_internal (c, drawable, screen,
 					       visual, NULL,
@@ -1892,7 +1913,7 @@ cairo_xcb_surface_create (xcb_connection_t *c,
  * @height: the current height of @bitmap
  *
  * Creates an XCB surface that draws to the given bitmap.
- * This will be drawn to as a CAIRO_FORMAT_A1 object.
+ * This will be drawn to as a %CAIRO_FORMAT_A1 object.
  *
  * Return value: the newly created surface
  **/
@@ -1922,8 +1943,8 @@ cairo_xcb_surface_create_for_bitmap (xcb_connection_t     *c,
  * The way that colors are represented in the drawable is specified
  * by the provided picture format.
  *
- * NOTE: If @drawable is a Window, then the function
- * cairo_xcb_surface_set_size must be called whenever the size of the
+ * Note: If @drawable is a Window, then the function
+ * cairo_xcb_surface_set_size() must be called whenever the size of the
  * window changes.
  *
  * Return value: the newly created surface.
@@ -1964,9 +1985,10 @@ cairo_xcb_surface_set_size (cairo_surface_t *abstract_surface,
 			     int              height)
 {
     cairo_xcb_surface_t *surface = (cairo_xcb_surface_t *) abstract_surface;
+    cairo_status_t status_ignored;
 
     if (! _cairo_surface_is_xcb (abstract_surface)) {
-	_cairo_surface_set_error (abstract_surface,
+	status_ignored = _cairo_surface_set_error (abstract_surface,
 				  CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
 	return;
     }
@@ -2310,70 +2332,43 @@ typedef cairo_status_t (*cairo_xcb_surface_show_glyphs_func_t)
     (cairo_xcb_surface_t *, cairo_operator_t, cairo_xcb_surface_t *, int, int,
      const cairo_glyph_t *, int, cairo_scaled_font_t *);
 
-static cairo_int_status_t
-_cairo_xcb_surface_show_glyphs (void                *abstract_dst,
-				 cairo_operator_t     op,
-				 cairo_pattern_t     *src_pattern,
-				 cairo_glyph_t       *glyphs,
-				 int		      num_glyphs,
-				 cairo_scaled_font_t *scaled_font)
+static cairo_bool_t
+_cairo_xcb_surface_owns_font (cairo_xcb_surface_t *dst,
+			      cairo_scaled_font_t *scaled_font)
 {
-    cairo_int_status_t status = CAIRO_STATUS_SUCCESS;
-    cairo_xcb_surface_t *dst = abstract_dst;
-
-    composite_operation_t operation;
-    cairo_surface_attributes_t attributes;
-    cairo_xcb_surface_t *src = NULL;
-
-    cairo_glyph_t *output_glyphs;
-    const cairo_glyph_t *glyphs_chunk;
-    int glyphs_remaining, chunk_size, max_chunk_size;
-    cairo_scaled_glyph_t *scaled_glyph;
     cairo_xcb_surface_font_private_t *font_private;
-
-    int i, o;
-    unsigned long max_index = 0;
-
-    cairo_xcb_surface_show_glyphs_func_t show_glyphs_func;
-
-    cairo_pattern_union_t solid_pattern;
-
-    if (!CAIRO_SURFACE_RENDER_HAS_COMPOSITE_TEXT (dst) || dst->xrender_format.id == XCB_NONE)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    /* Just let unbounded operators go through the fallback code
-     * instead of trying to do the fixups here */
-    if (!_cairo_operator_bounded_by_mask (op))
-        return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    /* Render <= 0.10 seems to have a bug with PictOpSrc and glyphs --
-     * the solid source seems to be multiplied by the glyph mask, and
-     * then the entire thing is copied to the destination surface,
-     * including the fully transparent "background" of the rectangular
-     * glyph surface. */
-    if (op == CAIRO_OPERATOR_SOURCE &&
-        !CAIRO_SURFACE_RENDER_AT_LEAST(dst, 0, 11))
-        return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    /* We can only use our code if we either have no clip or
-     * have a real native clip region set.  If we're using
-     * fallback clip masking, we have to go through the full
-     * fallback path.
-     */
-    if (dst->base.clip &&
-        (dst->base.clip->mode != CAIRO_CLIP_MODE_REGION ||
-         dst->base.clip->surface != NULL))
-        return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    operation = _categorize_composite_operation (dst, op, src_pattern, TRUE);
-    if (operation == DO_UNSUPPORTED)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
 
     font_private = scaled_font->surface_private;
     if ((scaled_font->surface_backend != NULL &&
 	 scaled_font->surface_backend != &cairo_xcb_surface_backend) ||
 	(font_private != NULL && font_private->dpy != dst->dpy))
-	return CAIRO_INT_STATUS_UNSUPPORTED;
+    {
+	return FALSE;
+    }
+
+    return TRUE;
+}
+
+
+
+static cairo_status_t
+_cairo_xcb_surface_emit_glyphs (cairo_xcb_surface_t *dst,
+				cairo_glyph_t       *glyphs,
+				int                  num_glyphs,
+				cairo_scaled_font_t *scaled_font,
+				cairo_operator_t     op,
+				cairo_xcb_surface_t *src,
+				cairo_surface_attributes_t *attributes,
+				int                 *remaining_glyphs)
+{
+    cairo_scaled_glyph_t *scaled_glyph;
+    int i, o;
+    unsigned long max_index = 0;
+    cairo_status_t status;
+    cairo_glyph_t *output_glyphs;
+    const cairo_glyph_t *glyphs_chunk;
+    int glyphs_remaining, chunk_size, max_chunk_size;
+    cairo_xcb_surface_show_glyphs_func_t show_glyphs_func;
 
     /* We make a copy of the glyphs so that we can elide any size-zero
      * glyphs to workaround an X server bug, (present in at least Xorg
@@ -2382,65 +2377,6 @@ _cairo_xcb_surface_show_glyphs (void                *abstract_dst,
     if (output_glyphs == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    /* After passing all those tests, we're now committed to rendering
-     * these glyphs or to fail trying. We first upload any glyphs to
-     * the X server that it doesn't have already, then we draw
-     * them. We tie into the scaled_font's glyph cache and remove
-     * glyphs from the X server when they are ejected from the
-     * scaled_font cache. Because of this we first freeze the
-     * scaled_font's cache so that we don't cause any of our glyphs to
-     * be ejected and removed from the X server before we have a
-     * chance to render them. */
-    _cairo_scaled_font_freeze_cache (scaled_font);
-
-    /* PictOpClear doesn't seem to work with CompositeText; it seems to ignore
-     * the mask (the glyphs).  This code below was executed as a side effect
-     * of going through the _clip_and_composite fallback code for old_show_glyphs,
-     * so PictOpClear was never used with CompositeText before.
-     */
-    if (op == CAIRO_OPERATOR_CLEAR) {
-	_cairo_pattern_init_solid (&solid_pattern.solid, CAIRO_COLOR_WHITE,
-				   CAIRO_CONTENT_COLOR);
-	src_pattern = &solid_pattern.base;
-	op = CAIRO_OPERATOR_DEST_OUT;
-    }
-
-    if (src_pattern->type == CAIRO_PATTERN_TYPE_SOLID) {
-        status = _cairo_pattern_acquire_surface (src_pattern, &dst->base,
-                                                 0, 0, 1, 1,
-                                                 (cairo_surface_t **) &src,
-                                                 &attributes);
-    } else {
-        cairo_rectangle_int16_t glyph_extents;
-
-        status = _cairo_scaled_font_glyph_device_extents (scaled_font,
-                                                          glyphs,
-                                                          num_glyphs,
-                                                          &glyph_extents);
-        if (status)
-	    goto BAIL;
-
-        status = _cairo_pattern_acquire_surface (src_pattern, &dst->base,
-                                                 glyph_extents.x, glyph_extents.y,
-                                                 glyph_extents.width, glyph_extents.height,
-                                                 (cairo_surface_t **) &src,
-                                                 &attributes);
-    }
-
-    if (status)
-        goto BAIL;
-
-    operation = _recategorize_composite_operation (dst, op, src, &attributes, TRUE);
-    if (operation == DO_UNSUPPORTED) {
-	status = CAIRO_INT_STATUS_UNSUPPORTED;
-	goto BAIL;
-    }
-
-    status = _cairo_xcb_surface_set_attributes (src, &attributes);
-    if (status)
-        goto BAIL;
-
-    /* Send all unsent glyphs to the server, and count the max of the glyph indices */
     for (i = 0, o = 0; i < num_glyphs; i++) {
 	if (glyphs[i].index > max_index)
 	    max_index = glyphs[i].index;
@@ -2448,8 +2384,11 @@ _cairo_xcb_surface_show_glyphs (void                *abstract_dst,
 					     glyphs[i].index,
 					     CAIRO_SCALED_GLYPH_INFO_SURFACE,
 					     &scaled_glyph);
-	if (status != CAIRO_STATUS_SUCCESS)
-	    goto BAIL;
+	if (status) {
+	    free (output_glyphs);
+	    return status;
+	}
+
 	/* Don't put any size-zero glyphs into output_glyphs to avoid
 	 * an X server bug which stops rendering glyphs after the
 	 * first size-zero glyph. */
@@ -2489,16 +2428,140 @@ _cairo_xcb_surface_show_glyphs (void                *abstract_dst,
 	chunk_size = MIN (glyphs_remaining, max_chunk_size);
 
 	status = show_glyphs_func (dst, op, src,
-                                   attributes.x_offset, attributes.y_offset,
+                                   attributes->x_offset, attributes->y_offset,
                                    glyphs_chunk, chunk_size, scaled_font);
-	if (status != CAIRO_STATUS_SUCCESS)
-	    break;
+	if (status) {
+	    free (output_glyphs);
+	    return status;
+	}
     }
 
-  BAIL:
-    _cairo_scaled_font_thaw_cache (scaled_font);
-    free (output_glyphs);
+    return CAIRO_STATUS_SUCCESS;
+}
 
+static cairo_int_status_t
+_cairo_xcb_surface_show_glyphs (void                *abstract_dst,
+				cairo_operator_t     op,
+				cairo_pattern_t     *src_pattern,
+				cairo_glyph_t       *glyphs,
+				int		      num_glyphs,
+				cairo_scaled_font_t *scaled_font,
+				int		     *remaining_glyphs)
+{
+    cairo_int_status_t status = CAIRO_STATUS_SUCCESS;
+    cairo_xcb_surface_t *dst = abstract_dst;
+
+    composite_operation_t operation;
+    cairo_surface_attributes_t attributes;
+    cairo_xcb_surface_t *src = NULL;
+
+    cairo_solid_pattern_t solid_pattern;
+
+    if (!CAIRO_SURFACE_RENDER_HAS_COMPOSITE_TEXT (dst) || dst->xrender_format.id == XCB_NONE)
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    /* Just let unbounded operators go through the fallback code
+     * instead of trying to do the fixups here */
+    if (!_cairo_operator_bounded_by_mask (op))
+        return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    /* Render <= 0.10 seems to have a bug with PictOpSrc and glyphs --
+     * the solid source seems to be multiplied by the glyph mask, and
+     * then the entire thing is copied to the destination surface,
+     * including the fully transparent "background" of the rectangular
+     * glyph surface. */
+    if (op == CAIRO_OPERATOR_SOURCE &&
+        !CAIRO_SURFACE_RENDER_AT_LEAST(dst, 0, 11))
+        return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    /* We can only use our code if we either have no clip or
+     * have a real native clip region set.  If we're using
+     * fallback clip masking, we have to go through the full
+     * fallback path.
+     */
+    if (dst->base.clip &&
+        (dst->base.clip->mode != CAIRO_CLIP_MODE_REGION ||
+         dst->base.clip->surface != NULL))
+        return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    operation = _categorize_composite_operation (dst, op, src_pattern, TRUE);
+    if (operation == DO_UNSUPPORTED)
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    if (! _cairo_xcb_surface_owns_font (dst, scaled_font))
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+
+    /* After passing all those tests, we're now committed to rendering
+     * these glyphs or to fail trying. We first upload any glyphs to
+     * the X server that it doesn't have already, then we draw
+     * them. We tie into the scaled_font's glyph cache and remove
+     * glyphs from the X server when they are ejected from the
+     * scaled_font cache.
+     */
+
+    /* PictOpClear doesn't seem to work with CompositeText; it seems to ignore
+     * the mask (the glyphs).  This code below was executed as a side effect
+     * of going through the _clip_and_composite fallback code for old_show_glyphs,
+     * so PictOpClear was never used with CompositeText before.
+     */
+    if (op == CAIRO_OPERATOR_CLEAR) {
+	_cairo_pattern_init_solid (&solid_pattern, CAIRO_COLOR_WHITE,
+				   CAIRO_CONTENT_COLOR);
+	src_pattern = &solid_pattern.base;
+	op = CAIRO_OPERATOR_DEST_OUT;
+    }
+
+    if (src_pattern->type == CAIRO_PATTERN_TYPE_SOLID) {
+        status = _cairo_pattern_acquire_surface (src_pattern, &dst->base,
+                                                 0, 0, 1, 1,
+                                                 (cairo_surface_t **) &src,
+                                                 &attributes);
+    } else {
+        cairo_rectangle_int_t glyph_extents;
+
+        status = _cairo_scaled_font_glyph_device_extents (scaled_font,
+                                                          glyphs,
+                                                          num_glyphs,
+                                                          &glyph_extents);
+        if (status)
+	    goto BAIL;
+
+        status = _cairo_pattern_acquire_surface (src_pattern, &dst->base,
+                                                 glyph_extents.x, glyph_extents.y,
+                                                 glyph_extents.width, glyph_extents.height,
+                                                 (cairo_surface_t **) &src,
+                                                 &attributes);
+    }
+
+    if (status)
+        goto BAIL;
+
+    operation = _recategorize_composite_operation (dst, op, src, &attributes, TRUE);
+    if (operation == DO_UNSUPPORTED) {
+	status = CAIRO_INT_STATUS_UNSUPPORTED;
+	goto BAIL;
+    }
+
+    status = _cairo_xcb_surface_set_attributes (src, &attributes);
+    if (status)
+        goto BAIL;
+
+    /* Send all unsent glyphs to the server, and count the max of the glyph indices */
+    _cairo_scaled_font_freeze_cache (scaled_font);
+
+    if (_cairo_xcb_surface_owns_font (dst, scaled_font))
+	status = _cairo_xcb_surface_emit_glyphs (dst,
+						 glyphs, num_glyphs,
+						 scaled_font,
+						 op,
+						 src,
+						 &attributes,
+						 remaining_glyphs);
+    else
+	status = CAIRO_INT_STATUS_UNSUPPORTED;
+    _cairo_scaled_font_thaw_cache (scaled_font);
+
+  BAIL:
     if (src)
         _cairo_pattern_release_surface (src_pattern, &src->base, &attributes);
     if (src_pattern == &solid_pattern.base)

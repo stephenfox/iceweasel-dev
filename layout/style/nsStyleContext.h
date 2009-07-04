@@ -99,8 +99,6 @@ public:
 
   nsStyleContext* GetParent() const { return mParent; }
 
-  nsStyleContext* GetFirstChild() const { return mChild; }
-
   nsIAtom* GetPseudoType() const { return mPseudoTag; }
 
   NS_HIDDEN_(already_AddRefed<nsStyleContext>)
@@ -109,7 +107,7 @@ public:
   NS_HIDDEN_(PRBool)    Equals(const nsStyleContext* aOther) const;
   PRBool    HasTextDecorations() { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATIONS); }
 
-  NS_HIDDEN_(void) SetStyle(nsStyleStructID aSID, nsStyleStruct* aStruct);
+  NS_HIDDEN_(void) SetStyle(nsStyleStructID aSID, void* aStruct);
 
   nsRuleNode* GetRuleNode() { return mRuleNode; }
   void AddStyleBit(const PRUint32& aBit) { mBits |= aBit; }
@@ -134,11 +132,8 @@ public:
    *
    * The typesafe functions below are preferred to the use of this
    * function.
-   *
-   * See also |nsIFrame::GetStyleData| and the other global
-   * |GetStyleData| in nsIFrame.h.
    */
-  NS_HIDDEN_(const nsStyleStruct*) NS_FASTCALL GetStyleData(nsStyleStructID aSID);
+  NS_HIDDEN_(const void*) NS_FASTCALL GetStyleData(nsStyleStructID aSID);
 
   /**
    * Define typesafe getter functions for each style struct by
@@ -154,9 +149,9 @@ public:
   #undef STYLE_STRUCT
 
 
-  NS_HIDDEN_(const nsStyleStruct*) PeekStyleData(nsStyleStructID aSID);
+  NS_HIDDEN_(const void*) PeekStyleData(nsStyleStructID aSID);
 
-  NS_HIDDEN_(nsStyleStruct*) GetUniqueStyleData(const nsStyleStructID& aSID);
+  NS_HIDDEN_(void*) GetUniqueStyleData(const nsStyleStructID& aSID);
 
   NS_HIDDEN_(nsChangeHint) CalcStyleDifference(nsStyleContext* aOther);
 
@@ -173,7 +168,7 @@ protected:
 
   NS_HIDDEN_(void) ApplyStyleFixups(nsPresContext* aPresContext);
 
-  nsStyleContext* mParent;
+  nsStyleContext* const mParent;
 
   // Children are kept in two circularly-linked lists.  The list anchor
   // is not part of the list (null for empty), and we point to the first

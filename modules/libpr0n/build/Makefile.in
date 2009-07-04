@@ -50,8 +50,6 @@ MODULE_NAME	= nsImageLib2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
-PACKAGE_FILE = imglib2.pkg
-
 REQUIRES	= xpcom \
 		  string \
 		  thebes \
@@ -59,12 +57,10 @@ REQUIRES	= xpcom \
 		  nkcache \
 		  gfx \
 		  caps \
-		  xpconnect \
-		  js \
 		  $(JPEG_REQUIRES) \
 		  $(PNG_REQUIRES) \
 		  $(ZLIB_REQUIRES) \
-		  $(LCMS_REQUIRES) \
+		  qcms \
 		  $(NULL)
 
 CPPSRCS = \
@@ -90,17 +86,14 @@ SHARED_LIBRARY_LIBS = \
 
 EXTRA_DSO_LIBS	= \
 		gkgfx \
+		thebes \
 		$(NULL)
-
-ifdef MOZ_ENABLE_CAIRO_GFX
-EXTRA_DSO_LIBS	+= thebes
-endif
 
 EXTRA_DSO_LDOPTS = \
 		$(LIBS_DIR) \
 		$(JPEG_LIBS) \
 		$(PNG_LIBS) $(ZLIB_LIBS) \
-		$(LCMS_LIBS) \
+		$(QCMS_LIBS) \
 		$(EXTRA_DSO_LIBS) \
 		$(MOZ_COMPONENT_LIBS) \
 		$(NULL)

@@ -51,17 +51,13 @@ protected:
   nsSVGTextFrame(nsStyleContext* aContext)
     : nsSVGTextFrameBase(aContext),
       mMetricsState(unsuspended),
-      mPropagateTransform(PR_TRUE),
-      mPositioningDirty(PR_FALSE) {}
+      mPositioningDirty(PR_TRUE) {}
 
 public:
   // nsIFrame:
-  NS_IMETHOD  SetInitialChildList(nsIAtom*  aListName,
-                                  nsIFrame* aChildList);
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
-  NS_IMETHOD DidSetStyleContext();
 
   /**
    * Get the "type" of the frame
@@ -78,12 +74,16 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
-  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
-  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
-  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation);
+  virtual void NotifySVGChanged(PRUint32 aFlags);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
+  // Override these four to ensure that UpdateGlyphPositioning is called
+  // to bring glyph positions up to date
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
+                      const nsIntRect *aDirtyRect);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint & aPoint);
+  NS_IMETHOD UpdateCoveredRegion();
+  NS_IMETHOD InitialUpdate();
   NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   
   // nsSVGContainerFrame methods:
@@ -103,15 +103,18 @@ public:
   void NotifyGlyphMetricsChange();
 
 private:
-  void UpdateGlyphPositioning();
+  /**
+   * @param aForceGlobalTransform passed down to nsSVGGlyphFrames to
+   * control whether they should use the global transform even when
+   * NS_STATE_NONDISPLAY_CHILD
+   */
+  void UpdateGlyphPositioning(PRBool aForceGlobalTransform);
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
-  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
 
   enum UpdateState { unsuspended, suspended };
   UpdateState mMetricsState;
 
-  PRPackedBool mPropagateTransform;
   PRPackedBool mPositioningDirty;
 };
 

@@ -95,7 +95,7 @@ public:
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus aStatus);
 
-  nsIFrame* GetFrameForPoint(const nsPoint& aPoint);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint& aPoint);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -104,6 +104,8 @@ public:
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
+
+  virtual nsSplittableType GetSplittableType() const;
 
   /**
    * Get the "type" of the frame
@@ -128,8 +130,13 @@ public:
 
   // nsSVGOuterSVGFrame methods:
 
-  /* Invalidate takes a nsRect in screen pixel coordinates */
-  nsresult InvalidateRect(nsRect aRect);
+  void InvalidateCoveredRegion(nsIFrame *aFrame);
+  // Calls aSVG->UpdateCoveredRegion and returns true if the covered
+  // region actually changed. If it changed, invalidates the old and new
+  // covered regions, taking filters into account, like
+  // InvalidateCoveredRegion.
+  PRBool UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame);
+
   PRBool IsRedrawSuspended();
 
   // nsISVGSVGFrame interface:
@@ -171,6 +178,9 @@ protected:
   float mFullZoom;
 
   PRPackedBool mViewportInitialized;
+#ifdef XP_MACOSX
+  PRPackedBool mEnableBitmapFallback;
+#endif
 };
 
 #endif

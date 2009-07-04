@@ -328,9 +328,9 @@ EnsureImageHlpInitialized()
 
     ::InitializeCriticalSection(&gDbgHelpCS);
 
-    HMODULE module = ::LoadLibrary("DBGHELP.DLL");
+    HMODULE module = ::LoadLibraryW(L"DBGHELP.DLL");
     if (!module) {
-        module = ::LoadLibrary("IMAGEHLP.DLL");
+        module = ::LoadLibraryW(L"IMAGEHLP.DLL");
         if (!module) return PR_FALSE;
     }
 
@@ -712,8 +712,8 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
 
 
 static BOOL CALLBACK callbackEspecial(
-  LPSTR aModuleName,
-  DWORD aModuleBase,
+  PCSTR aModuleName,
+  ULONG aModuleBase,
   ULONG aModuleSize,
   PVOID aUserContext)
 {
@@ -734,7 +734,7 @@ static BOOL CALLBACK callbackEspecial(
        ? (addr >= aModuleBase && addr <= (aModuleBase + aModuleSize))
        : (addr <= aModuleBase && addr >= (aModuleBase - aModuleSize))
         ) {
-        retval = _SymLoadModule(GetCurrentProcess(), NULL, aModuleName, NULL, aModuleBase, aModuleSize);
+        retval = _SymLoadModule(GetCurrentProcess(), NULL, (PSTR)aModuleName, NULL, aModuleBase, aModuleSize);
         if (!retval)
             PrintError("SymLoadModule");
     }
@@ -743,7 +743,7 @@ static BOOL CALLBACK callbackEspecial(
 }
 
 static BOOL CALLBACK callbackEspecial64(
-  PTSTR aModuleName,
+  PCSTR aModuleName,
   DWORD64 aModuleBase,
   ULONG aModuleSize,
   PVOID aUserContext)
@@ -766,7 +766,7 @@ static BOOL CALLBACK callbackEspecial64(
        ? (addr >= aModuleBase && addr <= (aModuleBase + aModuleSize))
        : (addr <= aModuleBase && addr >= (aModuleBase - aModuleSize))
         ) {
-        retval = _SymLoadModule64(GetCurrentProcess(), NULL, aModuleName, NULL, aModuleBase, aModuleSize);
+        retval = _SymLoadModule64(GetCurrentProcess(), NULL, (PSTR)aModuleName, NULL, aModuleBase, aModuleSize);
         if (!retval)
             PrintError("SymLoadModule64");
     }
@@ -811,8 +811,11 @@ BOOL SymGetModuleInfoEspecial(HANDLE aProcess, DWORD aAddr, PIMAGEHLP_MODULE aMo
          * Not loaded, here's the magic.
          * Go through all the modules.
          */
-        // Need to cast to PENUMLOADED_MODULES_CALLBACK for some compiler
-        // or platform SDK; see bug 391848.
+        // Need to cast to PENUMLOADED_MODULES_CALLBACK because the
+        // constness of the first parameter of
+        // PENUMLOADED_MODULES_CALLBACK varies over SDK versions (from
+        // non-const to const over time).  See bug 391848 and bug
+        // 415426.
         enumRes = _EnumerateLoadedModules(aProcess, (PENUMLOADED_MODULES_CALLBACK)callbackEspecial, (PVOID)&aAddr);
         if (FALSE != enumRes)
         {
@@ -880,8 +883,11 @@ BOOL SymGetModuleInfoEspecial64(HANDLE aProcess, DWORD64 aAddr, PIMAGEHLP_MODULE
          * Not loaded, here's the magic.
          * Go through all the modules.
          */
-        // Need to cast to PENUMLOADED_MODULES_CALLBACK for some compiler
-        // or platform SDK; see bug 391848.
+        // Need to cast to PENUMLOADED_MODULES_CALLBACK64 because the
+        // constness of the first parameter of
+        // PENUMLOADED_MODULES_CALLBACK64 varies over SDK versions (from
+        // non-const to const over time).  See bug 391848 and bug
+        // 415426.
         enumRes = _EnumerateLoadedModules64(aProcess, (PENUMLOADED_MODULES_CALLBACK64)callbackEspecial64, (PVOID)&aAddr);
         if (FALSE != enumRes)
         {
@@ -903,6 +909,10 @@ BOOL SymGetModuleInfoEspecial64(HANDLE aProcess, DWORD64 aAddr, PIMAGEHLP_MODULE
         DWORD displacement = 0;
         BOOL lineRes = FALSE;
         lineRes = _SymGetLineFromAddr64(aProcess, aAddr, &displacement, aLineInfo);
+        if (!lineRes) {
+            // Clear out aLineInfo to indicate that it's not valid
+            memset(aLineInfo, 0, sizeof(*aLineInfo));
+        }
     }
 
     return retval;
@@ -978,9 +988,12 @@ NS_DescribeCodeAddress(void *aPC, nsCodeAddressDetails *aDetails)
             PL_strncpyz(aDetails->library, modInfo.ModuleName,
                         sizeof(aDetails->library));
             aDetails->loffset = (char*) aPC - (char*) modInfo.BaseOfImage;
-            PL_strncpyz(aDetails->filename, lineInfo.FileName,
-                        sizeof(aDetails->filename));
-            aDetails->lineno = lineInfo.LineNumber;
+            
+            if (lineInfo.FileName) {
+                PL_strncpyz(aDetails->filename, lineInfo.FileName,
+                            sizeof(aDetails->filename));
+                aDetails->lineno = lineInfo.LineNumber;
+            }
         }
 
         ULONG64 buffer[(sizeof(SYMBOL_INFO) +
@@ -1393,11 +1406,58 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
 extern void *__libc_stack_end; // from ld-linux.so
 #endif
 
+#ifdef XP_MACOSX
+struct AddressRange {
+  void* mStart;
+  void* mEnd;
+};
+// Addresses in this range must stop the stack walk
+static AddressRange gCriticalRange;
+
+static void FindFunctionAddresses(const char* aName, AddressRange* aRange)
+{
+  aRange->mStart = dlsym(RTLD_DEFAULT, aName);
+  if (!aRange->mStart)
+    return;
+  aRange->mEnd = aRange->mStart;
+  while (PR_TRUE) {
+    Dl_info info;
+    if (!dladdr(aRange->mEnd, &info))
+      break;
+    if (strcmp(info.dli_sname, aName))
+      break;
+    aRange->mEnd = (char*)aRange->mEnd + 1;
+  }
+}
+
+static void InitCriticalRanges()
+{
+  if (gCriticalRange.mStart)
+    return;
+  // We must not do work when 'new_sem_from_pool' calls realloc, since
+  // it holds a non-reentrant spin-lock and we will quickly deadlock.
+  // new_sem_from_pool is not directly accessible using dladdr but its
+  // code is bundled with pthread_cond_wait$UNIX2003 (on
+  // Leopard anyway).
+  FindFunctionAddresses("pthread_cond_wait$UNIX2003", &gCriticalRange);
+}
+
+static PRBool InCriticalRange(void* aPC)
+{
+  return gCriticalRange.mStart &&
+    gCriticalRange.mStart <= aPC && aPC < gCriticalRange.mEnd;
+}
+#else
+static void InitCriticalRanges() {}
+static PRBool InCriticalRange(void* aPC) { return PR_FALSE; }
+#endif
+
 EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
              void *aClosure)
 {
   // Stack walking code courtesy Kipp's "leaky".
+  InitCriticalRanges();
 
   // Get the frame pointer
   void **bp;
@@ -1430,6 +1490,10 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
 #else // i386 or powerpc32 linux
     void *pc = *(bp+1);
 #endif
+    if (InCriticalRange(pc)) {
+      printf("Aborting stack trace, PC in critical range\n");
+      return NS_ERROR_UNEXPECTED;
+    }
     if (--skip < 0) {
       (*aCallback)(pc, aClosure);
     }

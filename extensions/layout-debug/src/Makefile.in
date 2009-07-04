@@ -63,8 +63,6 @@ REQUIRES	= xpcom \
 		  locale \
 		  view \
 		  pref \
-		  appshell \
-		  appcomps \
 		  toolkitcomps \
 		  $(NULL)
 

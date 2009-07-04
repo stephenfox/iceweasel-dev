@@ -51,6 +51,7 @@
 #include "nsITreeColumns.h"
 #include "nsIDOMXULTreeElement.h"
 #include "nsDisplayList.h"
+#include "nsTreeBodyFrame.h"
 
 //
 // NS_NewTreeColFrame
@@ -115,13 +116,14 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   NS_DISPLAY_DECL_NAME("XULTreeColSplitterTarget")
 };
 
 nsIFrame* 
 nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder,
-                                           nsPoint aPt)
+                                           nsPoint aPt, HitTestState* aState)
 {
   nsPoint pt = aPt - aBuilder->ToReferenceFrame(mFrame);
   // If we are in either the first 4 pixels or the last 4 pixels, we're going to
@@ -230,8 +232,7 @@ nsTreeColFrame::InvalidateColumns(PRBool aCanWalkFrameTree)
     if (aCanWalkFrameTree) {
       treeBoxObject->GetColumns(getter_AddRefs(columns));
     } else {
-      nsITreeBoxObject* body =
-        static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
+      nsTreeBodyFrame* body = static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
       if (body) {
         body->GetColumns(getter_AddRefs(columns));
       }

@@ -208,77 +208,31 @@ BAIL:
  * the general tessellator when drawing very common rectangles.
  *
  * If the path described anything but a device-axis aligned rectangle,
- * this function will return CAIRO_INT_STATUS_UNSUPPORTED.
+ * this function will return %CAIRO_INT_STATUS_UNSUPPORTED.
  */
 static cairo_int_status_t
 _cairo_path_fixed_fill_rectangle (cairo_path_fixed_t	*path,
 				  cairo_traps_t		*traps)
 {
-    cairo_path_buf_t *buf = &path->buf_head.base;
-    int final;
+    if (_cairo_path_fixed_is_box (path, NULL)) {
+	cairo_point_t *p = path->buf_head.base.points;
+	cairo_point_t *top_left, *bot_right;
 
-    /* Ensure the path has the operators we expect for a rectangular path.
-     */
-    if (buf == NULL || buf->num_ops < 5)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
+	top_left = &p[0];
+	bot_right = &p[2];
+	if (top_left->x > bot_right->x || top_left->y > bot_right->y) {
+	    int n;
 
-    if (buf->op[0] != CAIRO_PATH_OP_MOVE_TO ||
-	buf->op[1] != CAIRO_PATH_OP_LINE_TO ||
-	buf->op[2] != CAIRO_PATH_OP_LINE_TO ||
-	buf->op[3] != CAIRO_PATH_OP_LINE_TO)
-    {
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-    }
-
-    /* Now, there are choices. The rectangle might end with a LINE_TO
-     * (to the original point), but this isn't required. If it
-     * doesn't, then it must end with a CLOSE_PATH. */
-    if (buf->op[4] == CAIRO_PATH_OP_LINE_TO) {
-	if (buf->points[4].x != buf->points[0].x ||
-	    buf->points[4].y != buf->points[0].y)
-	{
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
+	    /* not a simple cairo_rectangle() */
+	    for (n = 0; n < 4; n++) {
+		if (p[n].x <= top_left->x && p[n].y <= top_left->y)
+		    top_left = &p[n];
+		if (p[n].x >= bot_right->x && p[n].y >= bot_right->y)
+		    bot_right = &p[n];
+	    }
 	}
-    } else if (buf->op[4] != CAIRO_PATH_OP_CLOSE_PATH) {
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-    }
 
-    /* Finally, a trailing CLOSE_PATH or MOVE_TO after the rectangle
-     * is fine. But anything more than that means we must return
-     * unsupported. */
-    final = 5;
-    if (final < buf->num_ops &&
-	buf->op[final] == CAIRO_PATH_OP_CLOSE_PATH)
-    {
-	final++;
-    }
-    if (final < buf->num_ops &&
-	buf->op[final] == CAIRO_PATH_OP_MOVE_TO)
-    {
-	final++;
-    }
-    if (final < buf->num_ops)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    /* Now that we've verified the operators, we must ensure that the
-     * path coordinates are consistent with a rectangle. There are two
-     * choices here. */
-    if (buf->points[0].y == buf->points[1].y &&
-	buf->points[1].x == buf->points[2].x &&
-	buf->points[2].y == buf->points[3].y &&
-	buf->points[3].x == buf->points[0].x)
-    {
-	return _cairo_traps_tessellate_convex_quad (traps,
-						    buf->points);
-    }
-
-    if (buf->points[0].x == buf->points[1].x &&
-	buf->points[1].y == buf->points[2].y &&
-	buf->points[2].x == buf->points[3].x &&
-	buf->points[3].y == buf->points[0].y)
-    {
-	return _cairo_traps_tessellate_convex_quad (traps,
-						    buf->points);
+	return _cairo_traps_tessellate_rectangle (traps, top_left, bot_right);
     }
 
     return CAIRO_INT_STATUS_UNSUPPORTED;

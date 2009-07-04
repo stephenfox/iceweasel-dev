@@ -14,9 +14,11 @@ REQUIRES	= cairo \
 
 EXPORTS		= 	gfxASurface.h \
 			gfxAlphaRecovery.h \
+			gfxBlur.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \
+			gfxFontUtils.h \
 			gfxImageSurface.h \
 			gfxMatrix.h \
 			gfxPath.h \
@@ -28,36 +30,52 @@ EXPORTS		= 	gfxASurface.h \
 			gfxTypes.h \
 			gfxTextRunCache.h \
 			gfxTextRunWordCache.h \
+			gfxUtils.h \
+			gfxUserFontSet.h \
 			$(NULL)
 
 EXPORTS += gfxFontTest.h
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitz
-EXPORTS +=	gfxGlitzSurface.h
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-EXPORTS	+=	gfxWindowsFonts.h \
-		gfxWindowsPlatform.h \
+EXPORTS	+=	gfxWindowsPlatform.h \
 		gfxWindowsSurface.h \
 		gfxWindowsNativeDrawing.h \
 		$(NULL)
 EXPORTS +=	gfxPDFSurface.h
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitzwgl
+ifdef WINCE
+EXPORTS +=	gfxFT2Fonts.h 
+else
+EXPORTS +=	gfxWindowsFonts.h 
 endif
+
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
-EXPORTS +=      gfxXlibSurface.h gfxPlatformGtk.h gfxXlibNativeRenderer.h
-EXPORTS +=	gfxPangoFonts.h
+
+ifdef MOZ_X11
+EXPORTS += gfxXlibSurface.h
+endif
+
+ifdef MOZ_PANGO 
+EXPORTS += gfxPangoFonts.h
+else
+EXPORTS += gfxFT2Fonts.h
+endif
+
+ifdef MOZ_DFB
+EXPORTS += gfxDirectFBSurface.h
+endif
+
+EXPORTS +=  gfxPlatformGtk.h gfxGdkNativeRenderer.h
 EXPORTS +=	gfxPDFSurface.h gfxPSSurface.h
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitzglx
 endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+EXPORTS += gfxQtPlatform.h gfxQPainterSurface.h
+EXPORTS += gfxXlibSurface.h gfxQtNativeRenderer.h
+EXPORTS += gfxFT2Fonts.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -65,6 +83,7 @@ EXPORTS	+=	gfxOS2Surface.h \
 		gfxOS2Platform.h \
 		gfxOS2Fonts.h \
 		$(NULL)
+EXPORTS +=	gfxPDFSurface.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
@@ -76,13 +95,12 @@ endif
 ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
 EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
+		gfxQuartzImageSurface.h \
 		gfxQuartzPDFSurface.h \
 		gfxAtsuiFonts.h \
+		gfxQuartzNativeDrawing.h \
 		$(NULL)
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitzagl
-endif
 endif
 
 include $(topsrcdir)/config/rules.mk

@@ -50,8 +50,6 @@ struct nsSVGEnumMapping {
 
 class nsSVGEnum
 {
-friend class nsSVGMarkerElement;
-
 public:
   void Init(PRUint8 aAttrEnum, PRUint16 aValue) {
     mAnimVal = mBaseVal = PRUint8(aValue);
@@ -83,13 +81,10 @@ private:
 
   nsSVGEnumMapping *GetMapping(nsSVGElement *aSVGElement);
 
-  nsresult SetBaseValue(PRUint16 aValue)
-  { mAnimVal = mBaseVal = PRUint8(aValue);
-    return NS_OK; }
-
   struct DOMAnimatedEnum : public nsIDOMSVGAnimatedEnumeration
   {
-    NS_DECL_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedEnum)
 
     DOMAnimatedEnum(nsSVGEnum* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -106,4 +101,4 @@ private:
   };
 };
 
-#endif //__NS_SVGENUM2_H__
+#endif //__NS_SVGENUM_H__

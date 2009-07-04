@@ -88,7 +88,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "nsBoxLayoutState.h"
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
 
@@ -153,7 +152,9 @@ class nsComboButtonListener: public nsIDOMMouseListener
   nsComboboxControlFrame* mComboBox;
 };
 
-NS_IMPL_ISUPPORTS1(nsComboButtonListener, nsIDOMMouseListener)
+NS_IMPL_ISUPPORTS2(nsComboButtonListener,
+                   nsIDOMMouseListener,
+                   nsIDOMEventListener)
 
 // static class data member for Bug 32920
 nsComboboxControlFrame * nsComboboxControlFrame::mFocused = nsnull;
@@ -359,7 +360,7 @@ nsComboboxControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   // This is needed on a temporary basis. It causes the focus
   // rect to be drawn. This is much faster than ReResolvingStyle
   // Bug 32920
-  Invalidate(nsRect(0,0,mRect.width,mRect.height), PR_FALSE);
+  Invalidate(nsRect(0,0,mRect.width,mRect.height));
 
   // Make sure the content area gets updated for where the dropdown was
   // This is only needed for embedding, the focus may go to 
@@ -478,7 +479,7 @@ nsComboboxControlFrame::ReflowDropdown(nsPresContext*  aPresContext,
   
   // Allow the child to move/size/change-visibility its view if it's currently
   // dropped down
-  PRInt32 flags = NS_FRAME_NO_MOVE_VIEW | NS_FRAME_NO_VISIBILITY | NS_FRAME_NO_SIZE_VIEW;
+  PRInt32 flags = NS_FRAME_NO_MOVE_FRAME | NS_FRAME_NO_VISIBILITY | NS_FRAME_NO_SIZE_VIEW;
   if (mDroppedDown) {
     flags = 0;
   }
@@ -572,8 +573,8 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
     nsIScrollableFrame* scrollable;
     CallQueryInterface(mListControlFrame, &scrollable);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    nsBoxLayoutState bls(presContext, aRenderingContext);
-    scrollbarWidth = scrollable->GetDesiredScrollbarSizes(&bls).LeftRight();
+    scrollbarWidth =
+      scrollable->GetDesiredScrollbarSizes(presContext, aRenderingContext).LeftRight();
   }
 
   nscoord displayWidth = 0;
@@ -591,7 +592,9 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
       NS_ASSERTION(aType == nsLayoutUtils::PREF_WIDTH, "Unexpected type");
       dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext);
     }
-    dropdownContentWidth -= scrollbarWidth;
+    dropdownContentWidth = NSCoordSaturatingSubtract(dropdownContentWidth, 
+                                                     scrollbarWidth,
+                                                     nscoord_MAX);
   
     displayWidth = PR_MAX(dropdownContentWidth, displayWidth);
   }
@@ -676,8 +679,9 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
     nsIScrollableFrame* scrollable;
     CallQueryInterface(mListControlFrame, &scrollable);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    nsBoxLayoutState bls(PresContext(), aReflowState.rendContext);
-    buttonWidth = scrollable->GetDesiredScrollbarSizes(&bls).LeftRight();
+    buttonWidth =
+      scrollable->GetDesiredScrollbarSizes(PresContext(), 
+                                           aReflowState.rendContext).LeftRight();
     if (buttonWidth > aReflowState.ComputedWidth()) {
       buttonWidth = 0;
     }
@@ -1041,11 +1045,10 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None,
-                     getter_AddRefs(nodeInfo));
+  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None);
 
   // create button which drops the list down
-  NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo);
+  NS_NewHTMLElement(getter_AddRefs(mButtonContent), nodeInfo, PR_FALSE);
   if (!mButtonContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1395,7 +1398,13 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
-                                        nsPoint aPt) {
+                                        nsPoint aPt)
+{
+  /* Do we need to do anything? */
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
+      mFocused != this)
+    return;
+
   aRenderingContext.PushState();
   nsRect clipRect = mDisplayFrame->GetRect() + aPt;
   aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
@@ -1406,16 +1415,12 @@ void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
 
   /////////////////////
   // draw focus
-  // XXX This is only temporary
-  if (!mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) &&
-      mFocused == this) {
-    aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
-    aRenderingContext.SetColor(GetStyleColor()->mColor);
-  } else {
-    aRenderingContext.SetColor(GetStyleBackground()->mBackgroundColor);
-    aRenderingContext.SetLineStyle(nsLineStyle_kSolid);
-  }
+
+  aRenderingContext.SetLineStyle(nsLineStyle_kDotted);
+  aRenderingContext.SetColor(GetStyleColor()->mColor);
+
   //aRenderingContext.DrawRect(clipRect);
+
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
   clipRect.width -= onePixel;
   clipRect.height -= onePixel;

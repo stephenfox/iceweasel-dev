@@ -114,13 +114,13 @@
                         oncommand="PlacesQueryBuilder.showSearch(this.getAttribute('rowid'), PlacesQueryBuilder._timeInLastSearch);"/>
             </menupopup>
           </menulist>
-          <textbox type="timed"
+          <textbox type="search"
                    timeout="50"
                    id="advancedSearch0Textbox"
                    flex="1"
                    oncommand="PlacesQueryBuilder.doSearch();"/>
 
-          <textbox type="timed"
+          <textbox type="search"
                    timeout="50"
                    id="advancedSearch0TimePicker"
                    hidden="true" flex="1"
@@ -153,11 +153,11 @@
         </hbox>              
         <button id="advancedSearch0Minus"
                 label="&advancedSearch.minus.label;"
-                class="small"
+                class="small advancedSearchMinus"
                 oncommand="PlacesQueryBuilder.removeRow(event.target.parentNode);"/>
         <button id="advancedSearch0Plus"
                 label="&advancedSearch.plus.label;"
-                class="small"
+                class="small advancedSearchPlus"
                 command="OrganizerCommand_search:moreCriteria"/>
       </row>
     </rows>

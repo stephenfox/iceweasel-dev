@@ -130,13 +130,7 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
     // make sure our cached transform matrix gets (lazily) updated
     mCanvasTM = nsnull;
     
-    for (nsIFrame* kid = mFrames.FirstChild(); kid;
-         kid = kid->GetNextSibling()) {
-      nsISVGChildFrame* SVGFrame = nsnull;
-      CallQueryInterface(kid, &SVGFrame);
-      if (SVGFrame)
-        SVGFrame->NotifyCanvasTMChanged(PR_FALSE);
-    }
+    nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
     return NS_OK;
   }
 
@@ -159,14 +153,9 @@ nsSVGUseFrame::Destroy()
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGUseFrame::GetCanvasTM()
 {
-  if (!mPropagateTransform) {
+  if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    if (mOverrideCTM) {
-      retval = mOverrideCTM;
-      NS_ADDREF(retval);
-    } else {
-      NS_NewSVGMatrix(&retval);
-    }
+    NS_NewSVGMatrix(&retval);
     return retval;
   }
 

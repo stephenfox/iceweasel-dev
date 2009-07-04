@@ -92,7 +92,7 @@ function run_test() {
   do_check_true(didThrow);
  
   // try to create a component
-  do_load_module("/js/src/xpconnect/tests/unit/component_import.js");
+  do_load_module("component_import.js");
   const contractID = "@mozilla.org/tests/module-importer;";
   do_check_true((contractID + "1") in Components.classes);
   var foo = Components.classes[contractID + "1"]
@@ -103,6 +103,13 @@ function run_test() {
   //     already registered. Need to figure out a way to force registration
   //     (to manually force it, delete compreg.dat before running the test)
   // do_check_true(foo.wrappedJSObject.postRegisterCalled);
+
+  // Call getInterfaces to test line numbers in JS components.  But as long as
+  // we're doing that, why not test what it returns too?
+  // Kind of odd that this is not returning an array containing the
+  // number... Or for that matter not returning an array containing an object?
+  var interfaces = foo.getInterfaces({});
+  do_check_eq(interfaces, Components.interfaces.nsIClassInfo.number);
 
   // try to create a component by CID
   const cid = "{6b933fe6-6eba-4622-ac86-e4f654f1b474}";

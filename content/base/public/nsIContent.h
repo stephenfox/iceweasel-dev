@@ -62,42 +62,28 @@ class nsIDocShell;
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0xe0c5d967, 0x2c15, 0x4097, \
-  { 0xb0, 0xdc, 0x75, 0xa3, 0xa7, 0xfc, 0xcd, 0x1a } }
-
-// hack to make egcs / gcc 2.95.2 happy
-class nsIContent_base : public nsINode {
-public:
-#ifdef MOZILLA_INTERNAL_API
-  // If you're using the external API, the only thing you can know about
-  // nsIContent is that it exists with an IID
-
-  nsIContent_base(nsINodeInfo *aNodeInfo)
-    : nsINode(aNodeInfo)
-  {
-  }
-#endif
-
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENT_IID)
-};
+{ 0x2813b1d9, 0x7fe1, 0x496f, \
+ { 0x85, 0x52, 0xa2, 0xc1, 0xc5, 0x6b, 0x15, 0x40 } }
 
 /**
  * A node of content in a document's content model. This interface
  * is supported by all content objects.
  */
-class nsIContent : public nsIContent_base {
+class nsIContent : public nsINode {
 public:
 #ifdef MOZILLA_INTERNAL_API
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
 
   nsIContent(nsINodeInfo *aNodeInfo)
-    : nsIContent_base(aNodeInfo)
+    : nsINode(aNodeInfo)
   {
     NS_ASSERTION(aNodeInfo,
                  "No nsINodeInfo passed to nsIContent, PREPARE TO CRASH!!!");
   }
 #endif // MOZILLA_INTERNAL_API
+
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENT_IID)
 
   /**
    * Bind this content node to a tree.  If this method throws, the caller must
@@ -160,26 +146,59 @@ public:
    * @see nsIAnonymousContentCreator
    * @return whether this content is anonymous
    */
-  PRBool IsNativeAnonymous() const
+  PRBool IsRootOfNativeAnonymousSubtree() const
   {
+    NS_ASSERTION(!HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT) ||
+                 (HasFlag(NODE_IS_ANONYMOUS) &&
+                  HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)),
+                 "Some flags seem to be missing!");
+    return HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT);
+  }
+
+  /**
+   * Makes this content anonymous
+   * @see nsIAnonymousContentCreator
+   */
+  void SetNativeAnonymous()
+  {
+    SetFlags(NODE_IS_ANONYMOUS | NODE_IS_IN_ANONYMOUS_SUBTREE |
+             NODE_IS_NATIVE_ANONYMOUS_ROOT);
+  }
+
+  /**
+   * Returns |this| if it is not native anonymous, otherwise
+   * first non native anonymous ancestor.
+   */
+  virtual nsIContent* FindFirstNonNativeAnonymous() const;
+
+  /**
+   * Returns true if and only if this node has a parent, but is not in
+   * its parent's child list.
+   */
+  PRBool IsRootOfAnonymousSubtree() const
+  {
+    NS_ASSERTION(!IsRootOfNativeAnonymousSubtree() ||
+                 (GetParent() && GetBindingParent() == GetParent()),
+                 "root of native anonymous subtree must have parent equal "
+                 "to binding parent");
+    NS_ASSERTION(!GetParent() ||
+                 ((GetBindingParent() == GetParent()) ==
+                  HasFlag(NODE_IS_ANONYMOUS)),
+                 "For nodes with parent, flag and GetBindingParent() check "
+                 "should match");
     return HasFlag(NODE_IS_ANONYMOUS);
   }
 
   /**
-   * Returns PR_TRUE if this content is anonymous for event handling.
+   * Returns true if and only if there is NOT a path through child lists
+   * from the top of this node's parent chain back to this node.
    */
-  PRBool IsAnonymousForEvents() const
+  PRBool IsInAnonymousSubtree() const
   {
-    return HasFlag(NODE_IS_ANONYMOUS_FOR_EVENTS);
+    NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent(),
+                 "must have binding parent when in native anonymous subtree");
+    return GetBindingParent() != nsnull;
   }
-
-  /**
-   * Set whether this content is anonymous
-   * This is virtual and non-inlined due to nsXULElement::SetNativeAnonymous
-   * @see nsIAnonymousContentCreator
-   * @param aAnonymous whether this content is anonymous
-   */
-  virtual void SetNativeAnonymous(PRBool aAnonymous);
 
   /**
    * Get the namespace that this element's tag is defined in
@@ -525,29 +544,47 @@ public:
    *         IME_STATUS_PASSWORD should be returned only from password editor,
    *         this value has a special meaning. It is used as alternative of
    *         IME_STATUS_DISABLED.
+   *         IME_STATUS_PLUGIN should be returned only when plug-in has focus.
+   *         When a plug-in is focused content, we should send native events
+   *         directly. Because we don't process some native events, but they may
+   *         be needed by the plug-in.
    */
   enum {
     IME_STATUS_NONE     = 0x0000,
     IME_STATUS_ENABLE   = 0x0001,
     IME_STATUS_DISABLE  = 0x0002,
     IME_STATUS_PASSWORD = 0x0004,
-    IME_STATUS_OPEN     = 0x0008,
-    IME_STATUS_CLOSE    = 0x0010
+    IME_STATUS_PLUGIN   = 0x0008,
+    IME_STATUS_OPEN     = 0x0010,
+    IME_STATUS_CLOSE    = 0x0020
   };
   enum {
     IME_STATUS_MASK_ENABLED = IME_STATUS_ENABLE | IME_STATUS_DISABLE |
-                              IME_STATUS_PASSWORD,
+                              IME_STATUS_PASSWORD | IME_STATUS_PLUGIN,
     IME_STATUS_MASK_OPENED  = IME_STATUS_OPEN | IME_STATUS_CLOSE
   };
   virtual PRUint32 GetDesiredIMEState()
   {
-    return IME_STATUS_DISABLE;
+    if (!IsEditableInternal())
+      return IME_STATUS_DISABLE;
+    nsIContent *editableAncestor = nsnull;
+    for (nsIContent* parent = GetParent();
+         parent && parent->HasFlag(NODE_IS_EDITABLE);
+         parent = parent->GetParent())
+      editableAncestor = parent;
+    // This is in another editable content, use the result of it.
+    if (editableAncestor)
+      return editableAncestor->GetDesiredIMEState();
+    return IME_STATUS_ENABLE;
   }
 
   /**
-   * Gets content node with the binding responsible for our construction (and
-   * existence).  Used by anonymous content (XBL-generated). null for all
-   * explicit content.
+   * Gets content node with the binding (or native code, possibly on the
+   * frame) responsible for our construction (and existence).  Used by
+   * anonymous content (both XBL-generated and native-anonymous).
+   *
+   * null for all explicit content (i.e., content reachable from the top
+   * of its GetParent() chain via child lists).
    *
    * @return the binding parent
    */
@@ -738,10 +775,15 @@ public:
   /**
    * Get the class list of this content node (this corresponds to the
    * value of the null-namespace attribute whose name is given by
-   * GetClassAttributeName().  This may be null if there are no
+   * GetClassAttributeName()).  This may be null if there are no
    * classes, but that's not guaranteed.
    */
-  virtual const nsAttrValue* GetClasses() const = 0;
+  const nsAttrValue* GetClasses() const {
+    if (HasFlag(NODE_MAY_HAVE_CLASS)) {
+      return DoGetClasses();
+    }
+    return nsnull;
+  }
 
   /**
    * Walk aRuleWalker over the content style rules (presentational
@@ -793,11 +835,24 @@ public:
   virtual void UpdateEditableState();
 
   /**
-   * Destroy this node and it's children. Ideally this shouldn't be needed
+   * Destroy this node and its children. Ideally this shouldn't be needed
    * but for now we need to do it to break cycles.
    */
   virtual void DestroyContent() = 0;
 
+  /**
+   * Saves the form state of this node and its children.
+   */
+  virtual void SaveSubtreeState() = 0;
+
+private:
+  /**
+   * Hook for implementing GetClasses.  This is guaranteed to only be
+   * called if the NODE_MAY_HAVE_CLASS flag is set.
+   */
+  virtual const nsAttrValue* DoGetClasses() const = 0;
+
+public:
 #ifdef DEBUG
   /**
    * List the content (and anything it contains) out to the given
@@ -838,14 +893,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIContent, NS_ICONTENT_IID)
     nsContentUtils::TraverseListenerManager(tmp, cb);     \
   }
 
-#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER      \
-  {                                                              \
-    nsISupports *preservedWrapper = nsnull;                      \
-    if (tmp->GetOwnerDoc())                                      \
-      preservedWrapper = tmp->GetOwnerDoc()->GetReference(tmp);  \
-    cb.NoteXPCOMChild(preservedWrapper);                         \
-  }
-
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA \
   if (tmp->HasProperties()) {                      \
     nsNodeUtils::TraverseUserData(tmp, cb);        \
@@ -856,10 +903,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIContent, NS_ICONTENT_IID)
     nsContentUtils::RemoveListenerManager(tmp);         \
     tmp->UnsetFlags(NODE_HAS_LISTENERMANAGER);          \
   }
-
-#define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
-  if (tmp->GetOwnerDoc())                                 \
-    tmp->GetOwnerDoc()->RemoveReference(tmp);
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA \
   if (tmp->HasProperties()) {                    \

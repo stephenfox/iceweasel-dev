@@ -84,6 +84,8 @@ NS_IMETHODIMP nsIconDecoder::Init(imgILoad *aLoad)
 
 NS_IMETHODIMP nsIconDecoder::Close()
 {
+  mImage->DecodingComplete();
+
   if (mObserver) 
   {
     mObserver->OnStopFrame(nsnull, mFrame);
@@ -96,7 +98,7 @@ NS_IMETHODIMP nsIconDecoder::Close()
 
 NS_IMETHODIMP nsIconDecoder::Flush()
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsIconDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
@@ -141,7 +143,10 @@ NS_IMETHODIMP nsIconDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PR
   // Notify the image...
   nsIntRect r(0, 0, w, h);
   nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-  img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+  rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+  if (NS_FAILED(rv))
+    return rv;
+
   mObserver->OnDataAvailable(nsnull, mFrame, &r);
 
   return NS_OK;

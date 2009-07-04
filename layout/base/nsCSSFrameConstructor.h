@@ -52,6 +52,7 @@
 #include "nsHashKeys.h"
 #include "nsThreadUtils.h"
 #include "nsPageContentFrame.h"
+#include "nsIViewManager.h"
 
 class nsIDocument;
 struct nsFrameItems;
@@ -66,6 +67,7 @@ class nsIDOMHTMLSelectElement;
 class nsPresContext;
 class nsStyleChangeList;
 class nsIFrame;
+struct nsGenConInitializer;
 
 struct nsFindFrameHint
 {
@@ -73,7 +75,7 @@ struct nsFindFrameHint
   nsFindFrameHint() : mPrimaryFrameForPrevSibling(nsnull) { }
 };
 
-typedef void (PR_CALLBACK nsLazyFrameConstructionCallback)
+typedef void (nsLazyFrameConstructionCallback)
              (nsIContent* aContent, nsIFrame* aFrame, void* aArg);
 
 class nsFrameConstructorState;
@@ -132,6 +134,8 @@ public:
   // aCallback will be called with three arguments, the first is the value
   // of aContent, the second is aContent's primary frame, and the third is
   // the value of aArg.
+  // aCallback will always be called even if the children of aContent had
+  // been generated earlier.
   nsresult AddLazyChildren(nsIContent* aContent,
                            nsLazyFrameConstructionCallback* aCallback,
                            void* aArg, PRBool aIsSynch = PR_FALSE);
@@ -146,20 +150,27 @@ public:
                             PRInt32     aModType,
                             PRUint32    aStateMask);
 
-  void BeginUpdate() { ++mUpdateCount; }
+  void BeginUpdate();
   void EndUpdate();
   void RecalcQuotesAndCounters();
 
+  // Gets called when the presshell is destroying itself and also
+  // when we tear down our frame tree to reconstruct it
   void WillDestroyFrameTree();
 
+  // Get an integer that increments every time there is a style change
+  // as a result of a change to the :hover content state.
+  PRUint32 GetHoverGeneration() const { return mHoverGeneration; }
+
   // Note: It's the caller's responsibility to make sure to wrap a
-  // ProcessRestyledFrames call in a view update batch.
+  // ProcessRestyledFrames call in a view update batch and a script blocker.
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
   nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray);
 
 private:
+
   // Note: It's the caller's responsibility to make sure to wrap a
   // ProcessOneRestyle call in a view update batch.
   // This function does not call ProcessAttachedQueue() on the binding manager.
@@ -169,15 +180,51 @@ private:
                          nsChangeHint aChangeHint);
 
 public:
+  // Restyling for a ContentInserted (notification after insertion) or
+  // for a CharacterDataChanged.  |aContainer| must be non-null; when
+  // the container is null, no work is needed.
+  void RestyleForInsertOrChange(nsIContent* aContainer,
+                                nsIContent* aChild);
+  // This would be the same as RestyleForInsertOrChange if we got the
+  // notification before the removal.  However, we get it after, so we
+  // have to use the index.  |aContainer| must be non-null; when the
+  // container is null, no work is needed.
+  void RestyleForRemove(nsIContent* aContainer, nsIContent* aOldChild,
+                        PRInt32 aIndexInContainer);
+  // Same for a ContentAppended.  |aContainer| must be non-null; when
+  // the container is null, no work is needed.
+  void RestyleForAppend(nsIContent* aContainer,
+                        PRInt32 aNewIndexInContainer);
+
   // Note: It's the caller's responsibility to make sure to wrap a
-  // ProcessPendingRestyles call in a view update batch.
+  // ProcessPendingRestyles call in a view update batch and a script blocker.
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
   void ProcessPendingRestyles();
+  
+  // Rebuilds all style data by throwing out the old rule tree and
+  // building a new one, and additionally applying aExtraHint (which
+  // must not contain nsChangeHint_ReconstructFrame) to the root frame.
+  void RebuildAllStyleData(nsChangeHint aExtraHint);
 
   void PostRestyleEvent(nsIContent* aContent, nsReStyleHint aRestyleHint,
                         nsChangeHint aMinChangeHint);
+private:
+  void PostRestyleEventInternal();
+public:
+
+  /**
+   * Asynchronously clear style data from the root frame downwards and ensure
+   * it will all be rebuilt. This is safe to call anytime; it will schedule
+   * a restyle and take effect next time style changes are flushed.
+   * This method is used to recompute the style data when some change happens
+   * outside of any style rules, like a color preference change or a change
+   * in a system font size, or to fix things up when an optimization in the
+   * style data has become invalid. We assume that the root frame will not
+   * need to be reframed.
+   */
+  void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
 
   // Request to create a continuing frame
   nsresult CreateContinuingFrame(nsPresContext* aPresContext,
@@ -214,8 +261,18 @@ public:
 
   nsresult RemoveMappingsForFrameSubtree(nsIFrame* aRemovedFrame);
 
+  // This is misnamed! This returns the outermost frame for the root element
   nsIFrame* GetInitialContainingBlock() { return mInitialContainingBlock; }
+  // This returns the outermost frame for the root element
+  nsIFrame* GetRootElementFrame() { return mInitialContainingBlock; }
+  // This returns the frame for the root element that does not
+  // have a psuedo-element style
+  nsIFrame* GetRootElementStyleFrame() { return mRootElementStyleFrame; }
   nsIFrame* GetPageSequenceFrame() { return mPageSequenceFrame; }
+
+  // Get the frame that is the parent of the root element.
+  nsIFrame* GetDocElementContainingBlock()
+    { return mDocElementContainingBlock; }
 
 private:
 
@@ -229,7 +286,7 @@ private:
                               nsIFrame*      aParentFrame,
                               nsIFrame*      aPrevPageFrame,
                               nsIFrame*&     aPageFrame,
-                              nsIFrame*&     aPageContentFrame);
+                              nsIFrame*&     aCanvasFrame);
 
   void DoContentStateChanged(nsIContent*     aContent,
                              PRInt32         aStateMask);
@@ -289,21 +346,34 @@ private:
                                   nsCOMArray<nsIContent>& aGeneratedContent,
                                   nsIContent** aNewContent,
                                   nsIFrame** aNewFrame);
-  
-  nsresult CreateGeneratedFrameFor(nsIFrame*             aParentFrame,
-                                   nsIContent*           aContent,
-                                   nsStyleContext*       aStyleContext,
-                                   const nsStyleContent* aStyleContent,
-                                   PRUint32              aContentIndex,
-                                   nsCOMArray<nsIContent>& aGeneratedContent,
-                                   nsIFrame**            aFrame);
 
-  PRBool CreateGeneratedContentFrame(nsFrameConstructorState& aState,
-                                     nsIFrame*                aFrame,
-                                     nsIContent*              aContent,
-                                     nsStyleContext*          aStyleContext,
-                                     nsIAtom*                 aPseudoElement,
-                                     nsIFrame**               aResult);
+  /**
+   * Create a text node containing the given string. If aText is non-null
+   * then we also set aText to the returned node.
+   */
+  already_AddRefed<nsIContent> CreateGenConTextNode(const nsString& aString,  
+                                                    nsCOMPtr<nsIDOMCharacterData>* aText,
+                                                    nsGenConInitializer* aInitializer);
+
+  /**
+   * Create a content node for the given generated content style.
+   * The caller takes care of making it SetNativeAnonymous, binding it
+   * to the document, and creating frames for it.
+   * @param aParentContent is the node that has the before/after style
+   * @param aStyleContext is the 'before' or 'after' pseudo-element
+   * style context
+   * @param aContentIndex is the index of the content item to create
+   */
+  already_AddRefed<nsIContent> CreateGeneratedContent(nsIContent*     aParentContent,
+                                                      nsStyleContext* aStyleContext,
+                                                      PRUint32        aContentIndex);
+
+  void CreateGeneratedContentFrame(nsFrameConstructorState& aState,
+                                   nsIFrame*                aFrame,
+                                   nsIContent*              aContent,
+                                   nsStyleContext*          aStyleContext,
+                                   nsIAtom*                 aPseudoElement,
+                                   nsFrameItems&            aFrameItems);
 
   // This method can change aFrameList: it can chop off the end and
   // put it in a special sibling of aParentFrame.  It can also change
@@ -322,8 +392,7 @@ private:
    * to create into aChildItems.  The newly-created outer frame will either be
    * in aChildItems or a descendant of a pseudo in aChildItems (unless it's
    * positioned or floated, in which case its placeholder will be in
-   * aChildItems).  If aAllowOutOfFlow is false, the table frame will be forced
-   * to be in-flow no matter what its float or position values are.
+   * aChildItems).
    */ 
   nsresult ConstructTableFrame(nsFrameConstructorState& aState,
                                nsIContent*              aContent,
@@ -332,7 +401,6 @@ private:
                                PRInt32                  aNameSpaceID,
                                PRBool                   aIsPseudo,
                                nsFrameItems&            aChildItems,
-                               PRBool                   aAllowOutOfFlow,
                                nsIFrame*&               aNewOuterFrame,
                                nsIFrame*&               aNewInnerFrame);
 
@@ -641,16 +709,6 @@ private:
 
 // SVG - rods
 #ifdef MOZ_SVG
-  nsresult TestSVGConditions(nsIContent* aContent,
-                             PRBool&     aHasRequiredExtensions,
-                             PRBool&     aHasRequiredFeatures,
-                             PRBool&     aHasSystemLanguage);
- 
-  nsresult SVGSwitchProcessChildren(nsFrameConstructorState& aState,
-                                    nsIContent*              aContent,
-                                    nsIFrame*                aFrame,
-                                    nsFrameItems&            aFrameItems);
-
   nsresult ConstructSVGFrame(nsFrameConstructorState& aState,
                              nsIContent*              aContent,
                              nsIFrame*                aParentFrame,
@@ -709,14 +767,16 @@ private:
   nsIFrame* GetFrameFor(nsIContent* aContent);
 
   /**
-   * These functions are used when we start frame creation from a non-root
+   * These two functions are used when we start frame creation from a non-root
    * element. They should recreate the same state that we would have
    * arrived at if we had built frames from the root frame to aFrame.
    * Therefore, any calls to PushFloatContainingBlock and
    * PushAbsoluteContainingBlock during frame construction should get
    * corresponding logic in these functions.
    */
+public:
   nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
+private:
   nsIFrame* GetFloatContainingBlock(nsIFrame* aFrame);
 
   nsIContent* PropagateScrollToViewport();
@@ -768,15 +828,15 @@ private:
   nsresult RecreateFramesForContent(nsIContent*      aContent);
 
   // If removal of aFrame from the frame tree requires reconstruction of some
-  // containing block (either of aFrame or of its parent) due to {ib} splits,
-  // recreate the relevant containing block.  The return value indicates
-  // whether this happened.  If this method returns true, *aResult is the
-  // return value of ReframeContainingBlock.  If this method returns false, the
-  // value of *aResult is no affected.  aFrame and aResult must not be null.
-  // aFrame must be the result of a GetPrimaryFrameFor() call (which means its
-  // parent is also not null).
-  PRBool MaybeRecreateContainerForIBSplitterFrame(nsIFrame* aFrame,
-                                                  nsresult* aResult);
+  // containing block (either of aFrame or of its parent) due to {ib} splits or
+  // table pseudo-frames, recreate the relevant frame subtree.  The return value
+  // indicates whether this happened.  If this method returns true, *aResult is
+  // the return value of ReframeContainingBlock or RecreateFramesForContent.
+  // If this method returns false, the value of *aResult is no affected.
+  // aFrame and aResult must not be null.  aFrame must be the result of a
+  // GetPrimaryFrameFor() call (which means its parent is also not null).
+  PRBool MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
+                                               nsresult* aResult);
 
   nsresult CreateContinuingOuterTableFrame(nsIPresShell*    aPresShell, 
                                            nsPresContext*  aPresContext,
@@ -931,29 +991,25 @@ private:
                                  nsStyleContext*          aStyleContext,
                                  nsFrameItems&            aResult);
 
-  nsresult CreateLetterFrame(nsFrameConstructorState& aState,
-                             nsIFrame*                aBlockFrame,
+  nsresult CreateLetterFrame(nsIFrame*                aBlockFrame,
                              nsIContent*              aTextContent,
                              nsIFrame*                aParentFrame,
                              nsFrameItems&            aResult);
 
-  nsresult WrapFramesInFirstLetterFrame(nsFrameConstructorState& aState,
-                                        nsIContent*              aBlockContent,
-                                        nsIFrame*                aBlockFrame,
-                                        nsFrameItems&            aBlockFrames);
+  nsresult WrapFramesInFirstLetterFrame(nsIContent*   aBlockContent,
+                                        nsIFrame*     aBlockFrame,
+                                        nsFrameItems& aBlockFrames);
 
-  nsresult WrapFramesInFirstLetterFrame(nsFrameConstructorState& aState,
-                                        nsIFrame*                aBlockFrame,
-                                        nsIFrame*                aParentFrame,
-                                        nsIFrame*                aParentFrameList,
-                                        nsIFrame**               aModifiedParent,
-                                        nsIFrame**               aTextFrame,
-                                        nsIFrame**               aPrevFrame,
-                                        nsFrameItems&            aLetterFrame,
-                                        PRBool*                  aStopLooking);
+  nsresult WrapFramesInFirstLetterFrame(nsIFrame*     aBlockFrame,
+                                        nsIFrame*     aParentFrame,
+                                        nsIFrame*     aParentFrameList,
+                                        nsIFrame**    aModifiedParent,
+                                        nsIFrame**    aTextFrame,
+                                        nsIFrame**    aPrevFrame,
+                                        nsFrameItems& aLetterFrame,
+                                        PRBool*       aStopLooking);
 
-  nsresult RecoverLetterFrames(nsFrameConstructorState& aState,
-                               nsIFrame*                aBlockFrame);
+  nsresult RecoverLetterFrames(nsIFrame* aBlockFrame);
 
   // 
   nsresult RemoveLetterFrames(nsPresContext*  aPresContext,
@@ -1005,7 +1061,8 @@ private:
                                  nsIFrame*                aPrevSibling,
                                  nsFrameItems&            aFrameItems);
 
-  nsresult RemoveFixedItems(const nsFrameConstructorState& aState);
+  nsresult RemoveFixedItems(const nsFrameConstructorState& aState,
+                            nsIFrame*                      aRootElementFrame);
 
   // Find the right frame to use for aContent when looking for sibling
   // frames for aTargetContent.  If aPrevSibling is true, this
@@ -1099,6 +1156,7 @@ private:
   class LazyGenerateChildrenEvent;
   friend class LazyGenerateChildrenEvent;
 
+  // See comments of nsCSSFrameConstructor::AddLazyChildren()
   class LazyGenerateChildrenEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
@@ -1119,18 +1177,33 @@ private:
   nsIDocument*        mDocument;  // Weak ref
   nsIPresShell*       mPresShell; // Weak ref
 
+  // See the comment at the start of ConstructRootFrame for more details
+  // about the following frames.
+  
+  // This is not the real CSS 2.1 "initial containing block"! It is just
+  // the outermost frame for the root element.
   nsIFrame*           mInitialContainingBlock;
+  // This is the frame for the root element that has no pseudo-element style.
+  nsIFrame*           mRootElementStyleFrame;
+  // This is the containing block for fixed-pos frames --- the viewport
   nsIFrame*           mFixedContainingBlock;
+  // This is the containing block that contains the root element ---
+  // the real "initial containing block" according to CSS 2.1.
   nsIFrame*           mDocElementContainingBlock;
   nsIFrame*           mGfxScrollFrame;
   nsIFrame*           mPageSequenceFrame;
   nsQuoteList         mQuoteList;
   nsCounterManager    mCounterManager;
   PRUint16            mUpdateCount;
+  PRUint32            mFocusSuppressCount;
   PRPackedBool        mQuotesDirty : 1;
   PRPackedBool        mCountersDirty : 1;
-  PRPackedBool        mInitialContainingBlockIsAbsPosContainer : 1;
   PRPackedBool        mIsDestroyingFrameTree : 1;
+  PRPackedBool        mRebuildAllStyleData : 1;
+  // This is true if mDocElementContainingBlock supports absolute positioning
+  PRPackedBool        mHasRootAbsPosContainingBlock : 1;
+  PRUint32            mHoverGeneration;
+  nsChangeHint        mRebuildAllExtraHint;
 
   nsRevocableEventPtr<RestyleEvent> mRestyleEvent;
 

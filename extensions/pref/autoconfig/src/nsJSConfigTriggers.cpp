@@ -94,7 +94,7 @@ AutoConfigSecMan::CanGetService(JSContext *aJSContext, const nsCID & aCID)
 
 NS_IMETHODIMP 
 AutoConfigSecMan::CanAccess(PRUint32 aAction, 
-                            nsIXPCNativeCallContext *aCallContext, 
+                            nsAXPCNativeCallContext *aCallContext, 
                             JSContext *aJSContext, JSObject *aJSObject, 
                             nsISupports *aObj, nsIClassInfo *aClassInfo, 
                             jsval aName, void **aPolicy)
@@ -113,7 +113,7 @@ static JSClass global_class = {
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub
 };
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 autoConfigErrorReporter(JSContext *cx, const char *message, 
                         JSErrorReport *report)
 {

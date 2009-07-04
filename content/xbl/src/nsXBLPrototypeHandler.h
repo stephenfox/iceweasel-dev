@@ -91,14 +91,19 @@ public:
 
   ~nsXBLPrototypeHandler();
 
-  PRBool KeyEventMatched(nsIDOMKeyEvent* aKeyEvent);
+  // if aCharCode is not zero, it is used instead of the charCode of aKeyEvent.
+  PRBool KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
+                         PRUint32 aCharCode = 0,
+                         PRBool aIgnoreShiftKey = PR_FALSE);
   inline PRBool KeyEventMatched(nsIAtom* aEventType,
-                                nsIDOMKeyEvent* aEvent)
+                                nsIDOMKeyEvent* aEvent,
+                                PRUint32 aCharCode = 0,
+                                PRBool aIgnoreShiftKey = PR_FALSE)
   {
     if (aEventType != mEventName)
       return PR_FALSE;
 
-    return KeyEventMatched(aEvent);
+    return KeyEventMatched(aEvent, aCharCode, aIgnoreShiftKey);
   }
 
   PRBool MouseEventMatched(nsIDOMMouseEvent* aMouseEvent);
@@ -153,10 +158,6 @@ public:
     return (mType & NS_HANDLER_ALLOW_UNTRUSTED) != 0;
   }
 
-  void Traverse(nsCycleCollectionTraversalCallback &cb) const;
-  void Trace(TraceCallback aCallback, void *aClosure) const;
-  void Unlink();
-	
 public:
   static PRUint32 gRefCnt;
   
@@ -175,17 +176,13 @@ protected:
 
   void ReportKeyConflict(const PRUnichar* aKey, const PRUnichar* aModifiers, nsIContent* aElement, const char *aMessageName);
   void GetEventType(nsAString& type);
-  PRBool ModifiersMatchMask(nsIDOMUIEvent* aEvent);
+  PRBool ModifiersMatchMask(nsIDOMUIEvent* aEvent,
+                            PRBool aIgnoreShiftKey = PR_FALSE);
   nsresult DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEvent* aEvent);
   nsresult DispatchXULKeyCommand(nsIDOMEvent* aEvent);
   nsresult EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                               nsIScriptContext *aBoundContext, nsIAtom *aName,
                               nsScriptObjectHolder &aHandler);
-  void ForgetCachedHandler()
-  {
-    mCachedHandler = nsnull;
-    mGlobalForCachedHandler = nsnull;
-  }
   static PRInt32 KeyToMask(PRInt32 key);
   
   static PRInt32 kAccelKey;
@@ -230,10 +227,6 @@ protected:
   // The primary filter information for mouse/key events.
   PRInt32 mDetail;           // For key events, contains a charcode or keycode. For
                              // mouse events, stores the button info.
-
-  // cache a handler to avoid compiling each time
-  void *mCachedHandler;
-  nsCOMPtr<nsIScriptGlobalObject> mGlobalForCachedHandler;
 
   // Prototype handlers are chained. We own the next handler in the chain.
   nsXBLPrototypeHandler* mNextHandler;

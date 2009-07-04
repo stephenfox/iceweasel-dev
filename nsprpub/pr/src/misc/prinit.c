@@ -163,10 +163,6 @@ static void _pr_SetNativeThreadsOnlyMode(void)
 }
 #endif
 
-#if !defined(_PR_INET6) || defined(_PR_INET6_PROBE)
-extern PRStatus _pr_init_ipv6(void);
-#endif
-
 static void _PR_InitStuff(void)
 {
 
@@ -237,20 +233,16 @@ static void _PR_InitStuff(void)
     _PR_InitCMon();
     _PR_InitIO();
     _PR_InitNet();
+    _PR_InitTime();
     _PR_InitLog();
     _PR_InitLinker();
     _PR_InitCallOnce();
     _PR_InitDtoa();
-    _PR_InitTime();
     _PR_InitMW();
     _PR_InitRWLocks();
 
     nspr_InitializePRErrorTable();
 
-#if !defined(_PR_INET6) || defined(_PR_INET6_PROBE)
-	_pr_init_ipv6();
-#endif
-	
     _PR_MD_FINAL_INIT();
 }
 
@@ -303,20 +295,12 @@ PR_IMPLEMENT(void) PR_UnblockClockInterrupts(void)
 PR_IMPLEMENT(void) PR_Init(
     PRThreadType type, PRThreadPriority priority, PRUintn maxPTDs)
 {
-#if defined(XP_MAC)
-#pragma unused (type, priority, maxPTDs)
-#endif
-
     _PR_ImplicitInitialization();
 }
 
 PR_IMPLEMENT(PRIntn) PR_Initialize(
     PRPrimordialFn prmain, PRIntn argc, char **argv, PRUintn maxPTDs)
 {
-#if defined(XP_MAC)
-#pragma unused (maxPTDs)
-#endif
-
     PRIntn rv;
     _PR_ImplicitInitialization();
     rv = prmain(argc, argv);
@@ -410,6 +394,11 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
         while (_pr_userActive > _pr_primordialExitCount) {
             PR_WaitCondVar(_pr_primordialExitCVar, PR_INTERVAL_NO_TIMEOUT);
         }
+        if (me->flags & _PR_SYSTEM) {
+            _pr_systemActive--;
+        } else {
+            _pr_userActive--;
+        }
         PR_Unlock(_pr_activeLock);
 
 #ifdef IRIX
@@ -425,6 +414,8 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
         _PR_CleanupDtoa();
         _PR_CleanupCallOnce();
 		_PR_ShutdownLinker();
+        _PR_CleanupNet();
+        _PR_CleanupIO();
         /* Release the primordial thread's private data, etc. */
         _PR_CleanupThread(me);
 
@@ -454,12 +445,11 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup()
          * Ideally, for each _PR_InitXXX(), there should be a corresponding
          * _PR_XXXCleanup() that we can call here.
          */
-        _PR_CleanupNet();
-        _PR_CleanupIO();
 #ifdef WINNT
         _PR_CleanupCPUs();
 #endif
         _PR_CleanupThreads();
+        _PR_CleanupCMon();
         PR_DestroyLock(_pr_sleeplock);
         _pr_sleeplock = NULL;
         _PR_CleanupLayerCache();
@@ -864,13 +854,9 @@ PR_IMPLEMENT(PRStatus) PR_CallOnceWithArg(
 PRBool _PR_Obsolete(const char *obsolete, const char *preferred)
 {
 #if defined(DEBUG)
-#ifndef XP_MAC
     PR_fprintf(
         PR_STDERR, "'%s' is obsolete. Use '%s' instead.\n",
         obsolete, (NULL == preferred) ? "something else" : preferred);
-#else
-#pragma unused (obsolete, preferred)
-#endif
 #endif
     return PR_FALSE;
 }  /* _PR_Obsolete */

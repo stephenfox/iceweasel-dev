@@ -98,9 +98,11 @@ public:
   enum {
     direct_db, host_port_override
   } mTypeOfEntry;
-  nsString mHostWithPort;
+  nsCString mAsciiHost;
+  PRInt32 mPort;
   nsCertOverride::OverrideBits mOverrideBits;
   PRBool mIsTemporary;
+  nsCOMPtr<nsIX509Cert> mCert;
 };
 
 class nsCertTree : public nsICertTree

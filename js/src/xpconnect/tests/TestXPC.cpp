@@ -68,7 +68,7 @@
 FILE *gOutFile = NULL;
 FILE *gErrFile = NULL;
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i, n;
@@ -86,7 +86,7 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     uintN i;
@@ -127,7 +127,7 @@ static JSClass global_class = {
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub
 };
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 {
     printf(message);
@@ -282,7 +282,7 @@ MySecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
 
 /* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in JSVal aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP 
-MySecMan::CanAccess(PRUint32 aAction, nsIXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsval aName, void * *aPolicy)
+MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsval aName, void * *aPolicy)
 {
     switch(mMode)
     {
@@ -771,7 +771,6 @@ int main()
         JS_GC(jscontext);
         JS_GC(jscontext);
         JS_DestroyContext(jscontext);
-        xpc->SyncJSContexts();
         xpc->DebugDump(4);
 
         cxstack = nsnull;   // release service held by nsCOMPtr

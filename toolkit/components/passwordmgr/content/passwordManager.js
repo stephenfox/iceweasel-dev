@@ -25,6 +25,7 @@
 #   Ben "Count XULula" Goodger
 #   Brian Ryner <bryner@brianryner.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Ronny Perinke <ronny.perinke@gmx.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,8 +48,22 @@ var kSignonBundle;
 function SignonsStartup() {
   kSignonBundle = document.getElementById("signonBundle");
   document.getElementById("togglePasswords").label = kSignonBundle.getString("showPasswords");
+  document.getElementById("togglePasswords").accessKey = kSignonBundle.getString("showPasswordsAccessKey");
+  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielAll");
   LoadSignons();
+
+  // filter the table if requested by caller
+  if (window.arguments &&
+      window.arguments[0] &&
+      window.arguments[0].filterString)
+    setFilter(window.arguments[0].filterString);
+
   FocusFilterBox();
+}
+
+function setFilter(aFilterString) {
+  document.getElementById("filter").value = aFilterString;
+  _filterPasswords();
 }
 
 var signonsTreeView = {
@@ -82,13 +97,20 @@ var signonsTreeView = {
   cycleHeader : function(column) {},
   getRowProperties : function(row,prop) {},
   getColumnProperties : function(column,prop) {},
-  getCellProperties : function(row,column,prop) {}
+  getCellProperties : function(row,column,prop) {
+    if (column.element.getAttribute("id") == "siteCol")
+      prop.AppendElement(kLTRAtom);
+  }
  };
 
 
 function LoadSignons() {
   // loads signons into table
-  signons = passwordmanager.getAllLogins({});
+  try {
+    signons = passwordmanager.getAllLogins({});
+  } catch (e) {
+    signons = [];
+  }
   signonsTreeView.rowCount = signons.length;
 
   // sort and display the table
@@ -117,10 +139,11 @@ function SignonSelected() {
 }
 
 function DeleteSignon() {
+  var syncNeeded = (signonsTreeView._filterSet.length != 0);
   DeleteSelectedItemFromTree(signonsTree, signonsTreeView,
                              signonsTreeView._filterSet.length ? signonsTreeView._filterSet : signons,
                              deletedSignons, "removeSignon", "removeAllSignons");
-  FinalizeSignonDeletions();
+  FinalizeSignonDeletions(syncNeeded);
 }
 
 function DeleteAllSignons() {
@@ -136,20 +159,27 @@ function DeleteAllSignons() {
                          null, null, null, null, dummy) == 1) // 1 == "No" button
     return;
 
+  var syncNeeded = (signonsTreeView._filterSet.length != 0);
   DeleteAllFromTree(signonsTree, signonsTreeView,
                         signonsTreeView._filterSet.length ? signonsTreeView._filterSet : signons,
                         deletedSignons, "removeSignon", "removeAllSignons");
-  FinalizeSignonDeletions();
+  FinalizeSignonDeletions(syncNeeded);
 }
 
 function TogglePasswordVisible() {
-  if (!showingPasswords && !ConfirmShowPasswords())
-    return;
+  if (showingPasswords || ConfirmShowPasswords()) {
+    showingPasswords = !showingPasswords;
+    document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
+    document.getElementById("togglePasswords").accessKey = kSignonBundle.getString(showingPasswords ? "hidePasswordsAccessKey" : "showPasswordsAccessKey");
+    document.getElementById("passwordCol").hidden = !showingPasswords;
+    _filterPasswords();
+  }
 
-  showingPasswords = !showingPasswords;
-  document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
-  document.getElementById("passwordCol").hidden = !showingPasswords;
-  _filterPasswords();
+  // Notify observers that the password visibility toggling is
+  // completed.  (Mostly useful for tests)
+  Components.classes["@mozilla.org/observer-service;1"]
+            .getService(Components.interfaces.nsIObserverService)
+            .notifyObservers(null, "passwordmgr-password-toggle-complete", null);
 }
 
 function AskUserShowPasswords() {
@@ -186,9 +216,18 @@ function ConfirmShowPasswords() {
   return token.isLoggedIn();
 }
 
-function FinalizeSignonDeletions() {
+function FinalizeSignonDeletions(syncNeeded) {
   for (var s=0; s<deletedSignons.length; s++) {
     passwordmanager.removeLogin(deletedSignons[s]);
+  }
+  // If the deletion has been performed in a filtered view, reflect the deletion in the unfiltered table.
+  // See bug 405389.
+  if (syncNeeded) {
+    try {
+      signons = passwordmanager.getAllLogins({});
+    } catch (e) {
+      signons = [];
+    }
   }
   deletedSignons.length = 0;
 }
@@ -213,8 +252,7 @@ function SignonColumnSort(column) {
 function SignonClearFilter() {
   var singleSelection = (signonsTreeView.selection.count == 1);
 
-  // Clear the Filter and the Tree Display
-  document.getElementById("filter").value = "";
+  // Clear the Tree Display
   signonsTreeView.rowCount = 0;
   signonsTree.treeBoxObject.rowCountChanged(0, -signonsTreeView._filterSet.length);
   signonsTreeView._filterSet = [];
@@ -227,7 +265,7 @@ function SignonClearFilter() {
   // Restore selection
   if (singleSelection) {
     signonsTreeView.selection.clearSelection();
-    for (i = 0; i < signonsTreeView._lastSelectedRanges.length; ++i) {
+    for (let i = 0; i < signonsTreeView._lastSelectedRanges.length; ++i) {
       var range = signonsTreeView._lastSelectedRanges[i];
       signonsTreeView.selection.rangedSelect(range.min, range.max, true);
     }
@@ -236,32 +274,33 @@ function SignonClearFilter() {
   }
   signonsTreeView._lastSelectedRanges = [];
 
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("passwordsAll");
-  document.getElementById("clearFilter").disabled = true;
-  FocusFilterBox();
+  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielAll");
 }
 
-function FocusFilterBox()
-{
-  if (document.getElementById("filter").getAttribute("focused") != "true")
-    document.getElementById("filter").focus();
+function FocusFilterBox() {
+  var filterBox = document.getElementById("filter");
+  if (filterBox.getAttribute("focused") != "true")
+    filterBox.focus();
 }
 
 function SignonMatchesFilter(aSignon, aFilterValue) {
-  if (aSignon.hostname.indexOf(aFilterValue) != -1)
+  if (aSignon.hostname.toLowerCase().indexOf(aFilterValue) != -1)
     return true;
-  if (aSignon.username && aSignon.username.indexOf(aFilterValue) != -1)
+  if (aSignon.username &&
+      aSignon.username.toLowerCase().indexOf(aFilterValue) != -1)
     return true;
-  if (aSignon.httpRealm && aSignon.httpRealm.indexOf(aFilterValue) != -1)
+  if (aSignon.httpRealm &&
+      aSignon.httpRealm.toLowerCase().indexOf(aFilterValue) != -1)
     return true;
   if (showingPasswords && aSignon.password &&
-           aSignon.password.indexOf(aFilterValue) != -1)
+      aSignon.password.toLowerCase().indexOf(aFilterValue) != -1)
     return true;
 
   return false;
 }
 
 function FilterPasswords(aFilterValue, view) {
+  aFilterValue = aFilterValue.toLowerCase();
   return signons.filter(function (s) SignonMatchesFilter(s, aFilterValue));
 }
 
@@ -294,7 +333,9 @@ function _filterPasswords()
   signonsTreeView._filterSet = newFilterSet;
 
   // Clear the display
-  signonsTree.treeBoxObject.rowCountChanged(0, -signonsTreeView.rowCount);
+  let oldRowCount = signonsTreeView.rowCount;
+  signonsTreeView.rowCount = 0;
+  signonsTree.treeBoxObject.rowCountChanged(0, -oldRowCount);
   // Set up the filtered display
   signonsTreeView.rowCount = signonsTreeView._filterSet.length;
   signonsTree.treeBoxObject.rowCountChanged(0, signonsTreeView.rowCount);
@@ -303,11 +344,5 @@ function _filterPasswords()
   if (signonsTreeView.rowCount > 0)
     signonsTreeView.selection.select(0);
 
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("passwordsFiltered");
-  document.getElementById("clearFilter").disabled = false;
-}
-
-function HandleSignonFilterKeyPress(aEvent) {
-  if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE)
-    SignonClearFilter();
+  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielFiltered");
 }

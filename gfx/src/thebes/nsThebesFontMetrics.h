@@ -57,7 +57,8 @@ public:
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLangGroup,
-                     nsIDeviceContext *aContext);
+                     nsIDeviceContext *aContext, 
+                     gfxUserFontSet *aUserFontSet = nsnull);
     NS_IMETHOD  Destroy();
     NS_IMETHOD  GetXHeight(nscoord& aResult);
     NS_IMETHOD  GetSuperscriptOffset(nscoord& aResult);
@@ -78,8 +79,6 @@ public:
     NS_IMETHOD  GetFontHandle(nsFontHandle &aHandle);
     NS_IMETHOD  GetAveCharWidth(nscoord& aAveCharWidth);
     NS_IMETHOD  GetSpaceWidth(nscoord& aSpaceCharWidth);
-    NS_IMETHOD  GetLeading(nscoord& aLeading);
-    NS_IMETHOD  GetNormalLineHeight(nscoord& aLineHeight);
     virtual PRInt32 GetMaxStringLength();
 
 
@@ -142,6 +141,8 @@ public:
     virtual void SetTextRunRTL(PRBool aIsRTL) { mTextRunRTL = aIsRTL; }
 
     virtual gfxFontGroup* GetThebesFontGroup() { return mFontGroup; }
+
+    virtual gfxUserFontSet* GetUserFontSet();
     
     PRBool GetRightToLeftTextRunMode() {
         return mTextRunRTL;
@@ -157,8 +158,7 @@ protected:
                     const char* aString, PRInt32 aLength) {
             mTextRun = gfxTextRunCache::MakeTextRun(
                 reinterpret_cast<const PRUint8*>(aString), aLength,
-                aMetrics->mFontGroup,
-                static_cast<gfxContext*>(aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
+                aMetrics->mFontGroup, aRC->ThebesContext(),
                 aMetrics->mP2A,
                 ComputeFlags(aMetrics));
         }
@@ -166,7 +166,7 @@ protected:
                     const PRUnichar* aString, PRInt32 aLength) {
             mTextRun = gfxTextRunCache::MakeTextRun(
                 aString, aLength, aMetrics->mFontGroup,
-                static_cast<gfxContext*>(aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
+                aRC->ThebesContext(),
                 aMetrics->mP2A,
                 ComputeFlags(aMetrics));
         }

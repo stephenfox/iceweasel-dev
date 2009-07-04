@@ -37,7 +37,7 @@
 /*
  * Permanent Certificate database handling code 
  *
- * $Id: pcertdb.c,v 1.5 2007/06/15 20:37:56 rrelyea%redhat.com Exp $
+ * $Id: pcertdb.c,v 1.7 2009/02/03 05:34:44 julien.pierre.boogz%sun.com Exp $
  */
 #include "lowkeyti.h"
 #include "pcert.h"
@@ -46,7 +46,6 @@
 #include "secitem.h"
 #include "secder.h"
 
-#include "nsslocks.h"
 #include "secerr.h"
 #include "lgdb.h"
 
@@ -87,7 +86,7 @@ void
 certdb_InitDBLock(NSSLOWCERTCertDBHandle *handle)
 {
     if (dbLock == NULL) {
-	nss_InitLock(&dbLock, nssILockCertDB);
+	dbLock = PZ_NewLock(nssILockCertDB);
 	PORT_Assert(dbLock != NULL);
     }
 }
@@ -96,19 +95,19 @@ SECStatus
 nsslowcert_InitLocks(void)
 {
     if (freeListLock == NULL) {
-	nss_InitLock(&freeListLock, nssILockRefLock);
+	freeListLock = PZ_NewLock(nssILockRefLock);
 	if (freeListLock == NULL) {
 	    return SECFailure;
 	}
     }
     if (certRefCountLock == NULL) {
-	nss_InitLock(&certRefCountLock, nssILockRefLock);
+	certRefCountLock = PZ_NewLock(nssILockRefLock);
 	if (certRefCountLock == NULL) {
 	    return SECFailure;
 	}
     }
     if (certTrustLock == NULL ) {
-	nss_InitLock(&certTrustLock, nssILockCertDB);
+	certTrustLock = PZ_NewLock(nssILockCertDB);
 	if (certTrustLock == NULL) {
 	    return SECFailure;
 	}
@@ -224,7 +223,7 @@ nsslowcert_LockFreeList(void)
 {
     PORT_Assert(freeListLock != NULL);
     
-    PZ_Lock(freeListLock);
+    SKIP_AFTER_FORK(PZ_Lock(freeListLock));
     return;
 }
 
@@ -234,11 +233,11 @@ nsslowcert_LockFreeList(void)
 static void
 nsslowcert_UnlockFreeList(void)
 {
-    PRStatus prstat;
+    PRStatus prstat = PR_SUCCESS;
 
     PORT_Assert(freeListLock != NULL);
     
-    prstat = PZ_Unlock(freeListLock);
+    SKIP_AFTER_FORK(prstat = PZ_Unlock(freeListLock));
     
     PORT_Assert(prstat == PR_SUCCESS);
 
@@ -345,14 +344,14 @@ certdb_Seq(DB *db, DBT *key, DBT *data, unsigned int flags)
 static void
 certdb_Close(DB *db)
 {
-    PRStatus prstat;
+    PRStatus prstat = PR_SUCCESS;
 
     PORT_Assert(dbLock != NULL);
-    PZ_Lock(dbLock);
+    SKIP_AFTER_FORK(PZ_Lock(dbLock));
 
     (* db->close)(db);
     
-    prstat = PZ_Unlock(dbLock);
+    SKIP_AFTER_FORK(prstat = PZ_Unlock(dbLock));
 
     return;
 }
@@ -5270,7 +5269,7 @@ nsslowcert_DestroyFreeLists(void)
     DestroyCertEntryFreeList();
     DestroyTrustFreeList();
     DestroyCertFreeList();
-    PZ_DestroyLock(freeListLock);
+    SKIP_AFTER_FORK(PZ_DestroyLock(freeListLock));
     freeListLock = NULL;
 }
 
@@ -5278,15 +5277,15 @@ void
 nsslowcert_DestroyGlobalLocks(void)
 {
     if (dbLock) {
-	PZ_DestroyLock(dbLock);
+	SKIP_AFTER_FORK(PZ_DestroyLock(dbLock));
 	dbLock = NULL;
     }
     if (certRefCountLock) {
-	PZ_DestroyLock(certRefCountLock);
+	SKIP_AFTER_FORK(PZ_DestroyLock(certRefCountLock));
 	certRefCountLock = NULL;
     }
     if (certTrustLock) {
-	PZ_DestroyLock(certTrustLock);
+	SKIP_AFTER_FORK(PZ_DestroyLock(certTrustLock));
 	certTrustLock = NULL;
     }
 }

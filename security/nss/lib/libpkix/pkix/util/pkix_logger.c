@@ -42,6 +42,9 @@
  */
 
 #include "pkix_logger.h"
+#ifndef PKIX_ERROR_DESCRIPTION
+#include "prprf.h"
+#endif
 
 /* Global variable to keep PKIX_Logger List */
 PKIX_List *pkixLoggers = NULL;
@@ -293,6 +296,32 @@ cleanup:
         return(NULL);
 }
 
+PKIX_Error *
+pkix_Logger_CheckWithCode(
+        PKIX_List *pkixLoggersList,
+        PKIX_UInt32 errorCode,
+        const char *message2,
+        PKIX_ERRORCLASS logComponent,
+        PKIX_UInt32 currentLevel,
+        void *plContext)
+{
+    char error[32];
+    char *errorString = NULL;
+
+    PKIX_ENTER(LOGGER, "pkix_Logger_CheckWithCode");
+#if defined PKIX_ERROR_DESCRIPTION
+    errorString = PKIX_ErrorText[errorCode];
+#else
+    PR_snprintf(error, 32, "Error code: %d", errorCode);
+    errorString = error;
+#endif /* PKIX_ERROR_DESCRIPTION */
+
+    pkixErrorResult = pkix_Logger_Check(pkixLoggersList, errorString,
+                                        message2, logComponent,
+                                        currentLevel, plContext);
+    PKIX_RETURN(LOGGER);
+}
+
 /*
  * FUNCTION: pkix_Logger_Destroy
  * (see comments for PKIX_PL_DestructorCallback in pkix_pl_system.h)
@@ -410,7 +439,6 @@ pkix_Logger_Equals(
         PKIX_Boolean cmpResult;
         PKIX_Logger *firstLogger = NULL;
         PKIX_Logger *secondLogger = NULL;
-        PKIX_UInt32 i = 0;
 
         PKIX_ENTER(LOGGER, "pkix_Logger_Equals");
         PKIX_NULLCHECK_THREE(first, second, pResult);
@@ -579,6 +607,8 @@ pkix_Logger_RegisterSelf(void *plContext)
         PKIX_ENTER(LOGGER, "pkix_Logger_RegisterSelf");
 
         entry.description = "Logger";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_Logger);
         entry.destructor = pkix_Logger_Destroy;
         entry.equalsFunction = pkix_Logger_Equals;
         entry.hashcodeFunction = pkix_Logger_Hashcode;
@@ -623,8 +653,11 @@ PKIX_Logger_Create(
         logger->context = loggerContext;
 
         *pLogger = logger;
+        logger = NULL;
 
 cleanup:
+
+        PKIX_DECREF(logger);
 
         PKIX_RETURN(LOGGER);
 }
@@ -661,6 +694,7 @@ PKIX_Logger_GetLoggerContext(
         PKIX_INCREF(logger->context);
         *pLoggerContext = logger->context;
 
+cleanup:
         PKIX_RETURN(LOGGER);
 }
 

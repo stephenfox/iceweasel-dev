@@ -91,6 +91,8 @@ pkix_pl_RWLock_RegisterSelf(
         PKIX_ENTER(RWLOCK, "pkix_pl_RWLock_RegisterSelf");
 
         entry.description = "RWLock";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_RWLock);
         entry.destructor = pkix_pl_RWLock_Destroy;
         entry.equalsFunction = NULL;
         entry.hashcodeFunction = NULL;
@@ -127,7 +129,7 @@ PKIX_PL_RWLock_Create(
 
         if (rwLock->lock == NULL) {
                 PKIX_DECREF(rwLock);
-                PKIX_ERROR(PKIX_ERRORALLOCATINGPRRWLOCK);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         rwLock->readCount = 0;

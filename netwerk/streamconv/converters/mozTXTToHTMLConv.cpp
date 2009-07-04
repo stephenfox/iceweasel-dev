@@ -38,6 +38,7 @@
 #include "mozTXTToHTMLConv.h"
 #include "nsIServiceManager.h"
 #include "nsNetCID.h"
+#include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
@@ -64,7 +65,8 @@ static inline PRBool IsSpace(const PRUnichar aChar)
 // Escape Char will take ch, escape it and append the result to 
 // aStringToAppendTo
 void
-mozTXTToHTMLConv::EscapeChar(const PRUnichar ch, nsString& aStringToAppendTo)
+mozTXTToHTMLConv::EscapeChar(const PRUnichar ch, nsString& aStringToAppendTo,
+                             PRBool inAttribute)
 {
     switch (ch)
     {
@@ -77,6 +79,13 @@ mozTXTToHTMLConv::EscapeChar(const PRUnichar ch, nsString& aStringToAppendTo)
     case '&':
       aStringToAppendTo.AppendLiteral("&amp;");
       break;
+    case '"':
+      if (inAttribute)
+      {
+        aStringToAppendTo.AppendLiteral("&quot;");
+        break;
+      }
+      // else fall through
     default:
       aStringToAppendTo += ch;
     }
@@ -86,8 +95,8 @@ mozTXTToHTMLConv::EscapeChar(const PRUnichar ch, nsString& aStringToAppendTo)
 
 // EscapeStr takes the passed in string and
 // escapes it IN PLACE.
-void 
-mozTXTToHTMLConv::EscapeStr(nsString& aInString)
+void
+mozTXTToHTMLConv::EscapeStr(nsString& aInString, PRBool inAttribute)
 {
   // the replace substring routines
   // don't seem to work if you have a character
@@ -115,6 +124,15 @@ mozTXTToHTMLConv::EscapeStr(nsString& aInString)
       aInString.Insert(NS_LITERAL_STRING("&amp;"), i);
       i += 5; // skip past the integers we just added
       break;
+    case '"':
+      if (inAttribute)
+      {
+        aInString.Cut(i, 1);
+        aInString.Insert(NS_LITERAL_STRING("&quot;"), i);
+        i += 6;
+        break;
+      }
+      // else fall through
     default:
       i++;
     }
@@ -145,6 +163,11 @@ mozTXTToHTMLConv::UnescapeStr(const PRUnichar * aInString, PRInt32 aStartPos, PR
       {
         aOutString.Append(PRUnichar('&'));
         i += 5;
+      }
+      else if (!nsCRT::strncmp(subString, NS_LITERAL_STRING("&quot;").get(), MinInt(6, aLength - remainingChars)))
+      {
+        aOutString.Append(PRUnichar('"'));
+        i += 6;
       }
       else
       {
@@ -383,7 +406,7 @@ mozTXTToHTMLConv::CalculateURLBoundaries(const PRUnichar * aInString, PRInt32 aI
   default: break;
   } //switch
 
-  EscapeStr(desc);
+  EscapeStr(desc, PR_FALSE);
 
   txtURL.Append(&aInString[start], end - start + 1);
   txtURL.StripWhitespace();
@@ -412,7 +435,7 @@ PRBool mozTXTToHTMLConv::ShouldLinkify(const nsCString& aURL)
     return PR_FALSE;
 
   // Is it an external protocol handler? If not, linkify it.
-  nsCOMPtr<nsIExternalProtocolHandler> externalHandler = do_QueryInterface(handler, &rv);
+  nsCOMPtr<nsIExternalProtocolHandler> externalHandler = do_QueryInterface(handler);
   if (!externalHandler)
    return PR_TRUE; // handler is built-in, linkify it!
 
@@ -429,12 +452,15 @@ mozTXTToHTMLConv::CheckURLAndCreateHTML(
 {
   // Create *uri from txtURL
   nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_OK;
+  nsresult rv;
+  // Lazily initialize mIOService
   if (!mIOService)
-    mIOService = do_GetService(kIOServiceCID, &rv);
-  
-  if (NS_FAILED(rv) || !mIOService)
-    return PR_FALSE;
+  {
+    mIOService = do_GetIOService();
+
+    if (!mIOService)
+      return PR_FALSE;
+  }
 
   // See if the url should be linkified.
   NS_ConvertUTF16toUTF8 utf8URL(txtURL);
@@ -465,8 +491,11 @@ mozTXTToHTMLConv::CheckURLAndCreateHTML(
       break;
     default: break;
     }
+    nsAutoString escapedURL(txtURL);
+    EscapeStr(escapedURL, PR_TRUE);
+
     outputHTML.AppendLiteral("\" href=\"");
-    outputHTML += txtURL;
+    outputHTML += escapedURL;
     outputHTML.AppendLiteral("\">");
     outputHTML += desc;
     outputHTML.AppendLiteral("</a>");
@@ -1012,7 +1041,11 @@ mozTXTToHTMLConv::~mozTXTToHTMLConv()
 {
 }
 
-NS_IMPL_ISUPPORTS1(mozTXTToHTMLConv, mozITXTToHTMLConv)
+NS_IMPL_ISUPPORTS4(mozTXTToHTMLConv,
+                   mozITXTToHTMLConv,
+                   nsIStreamConverter,
+                   nsIStreamListener,
+                   nsIRequestObserver)
 
 PRInt32
 mozTXTToHTMLConv::CiteLevelTXT(const PRUnichar *line,
@@ -1080,9 +1113,9 @@ mozTXTToHTMLConv::CiteLevelTXT(const PRUnichar *line,
 void
 mozTXTToHTMLConv::ScanTXT(const PRUnichar * aInString, PRInt32 aInStringLength, PRUint32 whattodo, nsString& aOutString)
 {
-  PRBool doURLs = whattodo & kURLs;
-  PRBool doGlyphSubstitution = whattodo & kGlyphSubstitution;
-  PRBool doStructPhrase = whattodo & kStructPhrase;
+  PRBool doURLs = 0 != (whattodo & kURLs);
+  PRBool doGlyphSubstitution = 0 != (whattodo & kGlyphSubstitution);
+  PRBool doStructPhrase = 0 != (whattodo & kStructPhrase);
 
   PRUint32 structPhrase_strong = 0;  // Number of currently open tags
   PRUint32 structPhrase_underline = 0;
@@ -1192,7 +1225,7 @@ mozTXTToHTMLConv::ScanTXT(const PRUnichar * aInString, PRInt32 aInStringLength, 
     case '<':
     case '>':
     case '&':
-      EscapeChar(aInString[i], aOutString);
+      EscapeChar(aInString[i], aOutString, PR_FALSE);
       i++;
       break;
     // Normal characters

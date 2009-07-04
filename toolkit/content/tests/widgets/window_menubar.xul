@@ -154,13 +154,15 @@ var popupTests = [
       // next item needs to be selected
       "popupshowing editpopup", "DOMMenuItemInactive item1",
       // not sure why the menu inactivated event is firing so late
-      "DOMMenuInactive filepopup",
-      // finally, the first item is activated and popupshown is fired
-      "DOMMenuItemActive copy", "popupshown editpopup"
+      "DOMMenuInactive filepopup"
     ];
-    // don't skip disabled items on Windows
+    // finally, the first item is activated and popupshown is fired.
+    // On Windows, don't skip disabled items.
     if (navigator.platform.indexOf("Win") == 0)
-      elist[elist.length - 2] = "DOMMenuItemActive cut";
+      elist.push("DOMMenuItemActive cut");
+    else
+      elist.push("DOMMenuItemActive copy");
+    elist.push("popupshown editpopup");
     return elist;
   },
   test: function() { synthesizeKey("VK_RIGHT", { }); },
@@ -195,14 +197,9 @@ var popupTests = [
   // pressing Alt + a key should open the corresponding menu
   testname: "open with accelerator",
   events: function() {
-    var elist = ["DOMMenuBarActive menubar",
-                 "popupshowing viewpopup", "DOMMenuItemActive viewmenu"];
-    // XXXndeakin not sure why, but windows fires these in a different order
-    if (navigator.platform.indexOf("Win") == 0)
-      elist.push("popupshown viewpopup", "DOMMenuItemActive toolbar");
-    else
-      elist.push("DOMMenuItemActive toolbar", "popupshown viewpopup");
-    return elist;
+    return [ "DOMMenuBarActive menubar",
+             "popupshowing viewpopup", "DOMMenuItemActive viewmenu",
+             "DOMMenuItemActive toolbar", "popupshown viewpopup" ];
   },
   test: function() { synthesizeKey("V", { altKey: true }); },
   result: function(testname) { checkOpen("viewmenu", testname); }
@@ -319,7 +316,7 @@ var popupTests = [
   condition: function() { return (navigator.platform.indexOf("Win") == 0) },
   events: [ "popupshowing helppopup",
             "DOMMenuItemInactive filemenu", "DOMMenuItemActive helpmenu",
-            "popupshown helppopup", "DOMMenuItemActive contents" ],
+            "DOMMenuItemActive contents", "popupshown helppopup" ],
   test: function() { synthesizeKey("H", { }); },
   result: function(testname) { checkOpen("helpmenu", testname); },
 },

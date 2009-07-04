@@ -46,9 +46,10 @@
 class nsIRenderingContext;
 class nsGUIEvent;
 
+// cb03e6e3-9d14-4018-85f8-7d46af878c98
 #define NS_IVIEWOBSERVER_IID   \
-{ 0x0f4bc34a, 0xc93b, 0x4699, \
-{ 0xb6, 0xc2, 0xb3, 0xca, 0x9e, 0xe4, 0x6c, 0x95 } }
+{ 0xcb03e6e3, 0x9d14, 0x4018, \
+  { 0x85, 0xf8, 0x7d, 0x46, 0xaf, 0x87, 0x8c, 0x98 } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -59,7 +60,10 @@ public:
   /* called when the observer needs to paint. This paints the entire
    * frame subtree rooted at the view, including frame subtrees from
    * subdocuments.
-   * @param aRenderingContext rendering context to paint to
+   * @param aRenderingContext rendering context to paint to; the origin
+   * of the view is painted at (0,0) in the rendering context's current
+   * transform. For best results this should transform to pixel-aligned
+   * coordinates.
    * @param aDirtyRegion the region to be painted, in the coordinates of aRootView
    * @return error status
    */
@@ -111,6 +115,20 @@ public:
    * and geometry changes if it wants to.
    */
   NS_IMETHOD_(void) WillPaint() = 0;
+
+  /**
+   * Notify the observer that it should invalidate the frame bounds for
+   * the frame associated with this view.
+   */
+  NS_IMETHOD_(void) InvalidateFrameForView(nsIView *aView) = 0;
+
+  /**
+   * Dispatch the given synthesized mouse move event, and if
+   * aFlushOnHoverChange is true, flush layout if :hover changes cause
+   * any restyles.
+   */
+  NS_IMETHOD_(void) DispatchSynthMouseMove(nsGUIEvent *aEvent,
+                                           PRBool aFlushOnHoverChange) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewObserver, NS_IVIEWOBSERVER_IID)

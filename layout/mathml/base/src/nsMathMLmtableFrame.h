@@ -60,30 +60,16 @@ public:
   InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  UpdatePresentationData(PRInt32  aScriptLevelIncrement,
-                         PRUint32 aFlagsValues,
+  UpdatePresentationData(PRUint32 aFlagsValues,
                          PRUint32 aWhichFlags);
 
   NS_IMETHOD
   UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
                                     PRInt32         aLastIndex,
-                                    PRInt32         aScriptLevelIncrement,
                                     PRUint32        aFlagsValues,
                                     PRUint32        aWhichFlags);
 
-  NS_IMETHOD
-  ReResolveScriptStyle(PRInt32 aParentScriptLevel)
-  {
-    nsMathMLContainerFrame::PropagateScriptStyleFor(this, aParentScriptLevel);
-    return NS_OK;
-  }
-
   // overloaded nsTableOuterFrame methods
-
-  NS_IMETHOD
-  Init(nsIContent*      aContent,
-       nsIFrame*        aParent,
-       nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
@@ -98,7 +84,8 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsTableOuterFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
+    return nsTableOuterFrame::IsFrameOfType(aFlags &
+      ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
 protected:
@@ -158,7 +145,8 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsTableFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
+    return nsTableFrame::IsFrameOfType(aFlags &
+      ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
   // helper to restyle and reflow the table when a row is changed -- since MathML
@@ -181,11 +169,6 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // overloaded nsTableRowFrame methods
-
-  NS_IMETHOD
-  Init(nsIContent* aContent,
-       nsIFrame*   aParent,
-       nsIFrame*   aPrevInFlow);
 
   NS_IMETHOD
   AttributeChanged(PRInt32  aNameSpaceID,
@@ -222,7 +205,8 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsTableRowFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
+    return nsTableRowFrame::IsFrameOfType(aFlags &
+      ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
   // helper to restyle and reflow the table -- @see nsMathMLmtableFrame.
@@ -252,11 +236,6 @@ public:
   // overloaded nsTableCellFrame methods
 
   NS_IMETHOD
-  Init(nsIContent* aContent,
-       nsIFrame*   aParent,
-       nsIFrame*   aPrevInFlow);
-
-  NS_IMETHOD
   AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
                    PRInt32  aModType);
@@ -265,7 +244,8 @@ public:
   virtual PRInt32 GetColSpan();
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsTableCellFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
+    return nsTableCellFrame::IsFrameOfType(aFlags &
+      ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
 protected:
@@ -287,28 +267,13 @@ public:
   NS_IMETHOD
   UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
                                     PRInt32         aLastIndex,
-                                    PRInt32         aScriptLevelIncrement,
                                     PRUint32        aFlagsValues,
                                     PRUint32        aFlagsToUpdate)
   {
     nsMathMLContainerFrame::PropagatePresentationDataFromChildAt(this,
-      aFirstIndex, aLastIndex, aScriptLevelIncrement, aFlagsValues, aFlagsToUpdate);
+      aFirstIndex, aLastIndex, aFlagsValues, aFlagsToUpdate);
     return NS_OK;
   }
-
-  NS_IMETHOD
-  ReResolveScriptStyle(PRInt32 aParentScriptLevel)
-  {
-    nsMathMLContainerFrame::PropagateScriptStyleFor(this, aParentScriptLevel);
-    return NS_OK;
-  }
-
-  // overloaded nsBlockFrame methods
-
-  NS_IMETHOD
-  Init(nsIContent*      aContent,
-       nsIFrame*        aParent,
-       nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
@@ -318,7 +283,8 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsBlockFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
+    return nsBlockFrame::IsFrameOfType(aFlags &
+      ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
 protected:

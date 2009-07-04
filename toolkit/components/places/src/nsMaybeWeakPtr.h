@@ -43,10 +43,6 @@
 #include "nsWeakReference.h"
 #include "nsTArray.h"
 
-#ifdef MOZILLA_1_8_BRANCH
-#define NS_GET_TEMPLATE_IID NS_GET_IID
-#endif
-
 // nsMaybeWeakPtr is a helper object to hold a strong-or-weak reference
 // to the template class.  It's pretty minimal, but sufficient.
 
@@ -72,6 +68,8 @@ public:
   }
 
   operator const nsCOMPtr<T>() const { return GetValue(); }
+  template <typename Q>
+  operator const nsCOMPtr<Q>() const { return do_QueryInterface(GetValue()); }
 
 protected:
   const nsCOMPtr<T> GetValue() const {

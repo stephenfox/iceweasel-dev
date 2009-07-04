@@ -19,7 +19,7 @@
         <xul:image class="menulist-icon" xbl:inherits="src=image,src"/>
         <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
       </xul:hbox>
-      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
       <children includes="menupopup"/>
     </content>
 
@@ -36,9 +36,9 @@
         ]]>
       </handler>
 
-      <handler event="keypress" modifiers="shift any">
+      <handler event="keypress" modifiers="shift any" group="system">
         <![CDATA[
-          if (event.originalTarget == this && 
+          if (!event.getPreventDefault() &&
               (event.keyCode == KeyEvent.DOM_VK_UP ||
                event.keyCode == KeyEvent.DOM_VK_DOWN ||
                event.keyCode == KeyEvent.DOM_VK_PAGE_UP ||
@@ -49,8 +49,10 @@
                event.charCode > 0)) {
             // Moving relative to an item: start from the currently selected item
             this.menuBoxObject.activeChild = this.mSelectedInternal;
-            if (this.menuBoxObject.handleKeyPress(event))
+            if (this.menuBoxObject.handleKeyPress(event)) {
               this.menuBoxObject.activeChild.doCommand();
+              event.preventDefault();
+            }
           }
         ]]>
       </handler>
@@ -85,6 +87,10 @@
       <property name="value" onget="return this.getAttribute('value');">
         <setter>
           <![CDATA[
+            // if the new value is null, we still need to remove the old value
+            if (val == null)
+              return this.selectedItem = val;
+
             var arr = null;
             var popup = this.menupopup;
             if (popup)
@@ -92,8 +98,10 @@
 
             if (arr && arr.item(0))
               this.selectedItem = arr[0];
-            else
+            else {
+              this.selectedItem = null;
               this.setAttribute('value', val);
+            }
 
             return val;
           ]]>
@@ -399,11 +407,12 @@
 
   <binding id="menulist-editable" extends="chrome://global/content/bindings/menulist.xml#menulist">
     <content sizetopopup="pref">
-      <xul:hbox class="menulist-editable-box textbox-input-box" xbl:inherits="context,disabled,readonly" flex="1">
+      <xul:hbox class="menulist-editable-box textbox-input-box" xbl:inherits="context,disabled,readonly,focused" flex="1">
         <html:input class="menulist-editable-input" flex="1" anonid="input" allowevents="true"
                     xbl:inherits="value=label,value,disabled,tabindex,readonly"/>
       </xul:hbox>
-      <xul:dropmarker class="menulist-dropmarker" type="menu"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu"
+                      xbl:inherits="open,disabled,parentfocused=focused"/>
       <children includes="menupopup"/>
     </content>
 
@@ -598,7 +607,7 @@
   <binding id="menulist-compact" display="xul:menu"
            extends="chrome://global/content/bindings/menulist.xml#menulist">
     <content sizetopopup="false">
-      <xul:dropmarker class="menulist-dropmarker" type="menu"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
       <xul:image class="menulist-icon" xbl:inherits="src=image,src"/>
       <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
       <children includes="menupopup"/>
@@ -613,7 +622,7 @@
         <xul:label class="menulist-label" xbl:inherits="value=label,crop,accesskey" crop="right" flex="1"/>
         <xul:label class="menulist-label menulist-description" xbl:inherits="value=description" crop="right" flex="10000"/>
       </xul:hbox>
-      <xul:dropmarker class="menulist-dropmarker" type="menu"/>
+      <xul:dropmarker class="menulist-dropmarker" type="menu" xbl:inherits="disabled,open"/>
       <children includes="menupopup"/>
     </content>
   </binding>

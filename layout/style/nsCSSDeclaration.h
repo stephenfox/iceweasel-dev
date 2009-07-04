@@ -51,7 +51,7 @@
 #include "nsCoord.h"
 #include "nsCSSValue.h"
 #include "nsCSSProps.h"
-#include "nsValueArray.h"
+#include "nsTArray.h"
 #include "nsCSSDataBlock.h"
 #include "nsCSSStruct.h"
 
@@ -77,13 +77,14 @@ public:
   nsresult RemoveProperty(nsCSSProperty aProperty);
 
   nsresult GetValue(nsCSSProperty aProperty, nsAString& aValue) const;
-  nsresult GetValue(const nsAString& aProperty, nsAString& aValue) const;
 
   PRBool HasImportantData() const { return mImportantData != nsnull; }
   PRBool GetValueIsImportant(nsCSSProperty aProperty) const;
   PRBool GetValueIsImportant(const nsAString& aProperty) const;
 
-  PRUint32 Count() const;
+  PRUint32 Count() const {
+    return mOrder.Length(); 
+  }
   nsresult GetNthProperty(PRUint32 aIndex, nsAString& aReturn) const;
 
   nsresult ToString(nsAString& aString) const;
@@ -148,6 +149,11 @@ public:
   void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
   
+  // return whether there was a value in |aValue| (i.e., it had a non-null unit)
+  static PRBool AppendCSSValueToString(nsCSSProperty aProperty,
+                                       const nsCSSValue& aValue,
+                                       nsAString& aResult);
+
 private:
   // Not implemented, and not supported.
   nsCSSDeclaration& operator=(const nsCSSDeclaration& aCopy);
@@ -156,11 +162,6 @@ private:
   static void AppendImportanceToString(PRBool aIsImportant, nsAString& aString);
   // return whether there was a value in |aValue| (i.e., it had a non-null unit)
   PRBool   AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const;
-  // return whether there was a value in |aValue| (i.e., it had a non-null unit)
-  static PRBool AppendCSSValueToString(nsCSSProperty aProperty,
-                                       const nsCSSValue& aValue,
-                                       nsAString& aResult);
-
   // May be called only for properties whose type is eCSSType_Value.
   nsresult GetValueOrImportantValue(nsCSSProperty aProperty, nsCSSValue& aValue) const;
 
@@ -247,12 +248,12 @@ private:
   // Block everyone, except us or a derivative, from deleting us.
   ~nsCSSDeclaration(void);
     
-  nsCSSProperty OrderValueAt(nsValueArrayIndex aValue) const {
-    return nsCSSProperty(mOrder.ValueAt(aValue));
+  nsCSSProperty OrderValueAt(PRUint32 aValue) const {
+    return nsCSSProperty(mOrder.ElementAt(aValue));
   }
 
 private:
-    nsValueArray mOrder;
+    nsAutoTArray<PRUint8, 8> mOrder;
     nsAutoRefCnt mRefCnt;
     nsCSSCompressedDataBlock *mData; // never null, except while expanded
     nsCSSCompressedDataBlock *mImportantData; // may be null

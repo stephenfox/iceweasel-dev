@@ -51,7 +51,6 @@
 #include "prenv.h"
 
 #include "nsRuleNode.h"
-#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "imgIRequest.h"
 
@@ -81,6 +80,14 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
   if (mParent) {
     mParent->AddRef();
     mParent->AddChild(this);
+#ifdef DEBUG
+    nsRuleNode *r1 = mParent->GetRuleNode(), *r2 = aRuleNode;
+    while (r1->GetParent())
+      r1 = r1->GetParent();
+    while (r2->GetParent())
+      r2 = r2->GetParent();
+    NS_ASSERTION(r1 == r2, "must be in the same rule tree as parent");
+#endif
   }
 
   ApplyStyleFixups(aPresContext);
@@ -215,9 +222,9 @@ PRBool nsStyleContext::Equals(const nsStyleContext* aOther) const
 
 //=========================================================================================================
 
-const nsStyleStruct* nsStyleContext::GetStyleData(nsStyleStructID aSID)
+const void* nsStyleContext::GetStyleData(nsStyleStructID aSID)
 {
-  const nsStyleStruct* cachedData = mCachedStyleData.GetStyleData(aSID); 
+  const void* cachedData = mCachedStyleData.GetStyleData(aSID); 
   if (cachedData)
     return cachedData; // We have computed data stored on this node in the context tree.
   return mRuleNode->GetStyleData(aSID, this, PR_TRUE); // Our rule node will take care of it for us.
@@ -236,9 +243,9 @@ const nsStyleStruct* nsStyleContext::GetStyleData(nsStyleStructID aSID)
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT
 
-inline const nsStyleStruct* nsStyleContext::PeekStyleData(nsStyleStructID aSID)
+const void* nsStyleContext::PeekStyleData(nsStyleStructID aSID)
 {
-  const nsStyleStruct* cachedData = mCachedStyleData.GetStyleData(aSID); 
+  const void* cachedData = mCachedStyleData.GetStyleData(aSID); 
   if (cachedData)
     return cachedData; // We have computed data stored on this node in the context tree.
   return mRuleNode->GetStyleData(aSID, this, PR_FALSE); // Our rule node will take care of it for us.
@@ -247,7 +254,7 @@ inline const nsStyleStruct* nsStyleContext::PeekStyleData(nsStyleStructID aSID)
 // This is an evil evil function, since it forces you to alloc your own separate copy of
 // style data!  Do not use this function unless you absolutely have to!  You should avoid
 // this at all costs! -dwh
-nsStyleStruct* 
+void* 
 nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 {
   // If we already own the struct and no kids could depend on it, then
@@ -255,13 +262,13 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
   // function really shouldn't be called for style contexts that could
   // have kids depending on the data.  ClearStyleData would be OK, but
   // this test for no mChild or mEmptyChild doesn't catch that case.)
-  const nsStyleStruct *current = GetStyleData(aSID);
+  const void *current = GetStyleData(aSID);
   if (!mChild && !mEmptyChild &&
       !(mBits & nsCachedStyleData::GetBitForSID(aSID)) &&
       mCachedStyleData.GetStyleData(aSID))
-    return const_cast<nsStyleStruct*>(current);
+    return const_cast<void*>(current);
 
-  nsStyleStruct* result;
+  void* result;
   nsPresContext *presContext = PresContext();
   switch (aSID) {
 
@@ -284,9 +291,9 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
   }
 
   if (!result) {
-    NS_WARNING("Ran out of memory while trying to allocate memory for a unique nsStyleStruct! "
+    NS_WARNING("Ran out of memory while trying to allocate memory for a unique style struct! "
                "Returning the non-unique data.");
-    return const_cast<nsStyleStruct*>(current);
+    return const_cast<void*>(current);
   }
 
   SetStyle(aSID, result);
@@ -296,7 +303,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 }
 
 void
-nsStyleContext::SetStyle(nsStyleStructID aSID, nsStyleStruct* aStruct)
+nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
 {
   // This method should only be called from nsRuleNode!  It is not a public
   // method!
@@ -326,7 +333,7 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, nsStyleStruct* aStruct)
     }
   }
   char* dataSlot = resetOrInherit + info.mInheritResetOffset;
-  *reinterpret_cast<nsStyleStruct**>(dataSlot) = aStruct;
+  *reinterpret_cast<void**>(dataSlot) = aStruct;
 }
 
 void
@@ -392,7 +399,11 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // We must always ensure that we populate the structs on the new style
   // context that are filled in on the old context, so that if we get
   // two style changes in succession, the second of which causes a real
-  // style change, the PeekStyleData doesn't fail.
+  // style change, the PeekStyleData doesn't return null (implying that
+  // nobody ever looked at that struct's data).  In other words, we
+  // can't skip later structs if we get a big change up front, because
+  // we could later get a small change in one of those structs that we
+  // don't want to miss.
 
   // If our rule nodes are the same, then we are looking at the same
   // style data.  We know this because CalcStyleDifference is always
@@ -444,6 +455,12 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // a framechange here and a reflow should be sufficient.  See bug 35768.
   DO_STRUCT_DIFFERENCE(Quotes);
 
+#ifdef MOZ_SVG
+  maxHint = nsChangeHint(NS_STYLE_HINT_REFLOW | nsChangeHint_UpdateEffects);
+  DO_STRUCT_DIFFERENCE(SVGReset);
+  DO_STRUCT_DIFFERENCE(SVG);
+#endif
+
   // At this point, we know that the worst kind of damage we could do is
   // a reflow.
   maxHint = NS_STYLE_HINT_REFLOW;
@@ -467,9 +484,6 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // re-render to occur.  VISUAL Structs: Color, Background
   DO_STRUCT_DIFFERENCE(Color);
   DO_STRUCT_DIFFERENCE(Background);
-#ifdef MOZ_SVG
-  DO_STRUCT_DIFFERENCE(SVG);
-#endif
 
 #undef DO_STRUCT_DIFFERENCE
 
@@ -601,7 +615,7 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
           NS_ConvertUTF16toUTF8(font->mFont.name).get(),
           font->mFont.size,
           font->mSize,
-          font->mFlags);
+          font->mGenericID);
 
   // COLOR
   IndentBy(out,aIndent);
@@ -641,10 +655,10 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
   const char format [] = "top: %dtw right: %dtw bottom: %dtw left: %dtw";
 #endif
   nsPrintfCString output(format,
-                         border->GetBorderWidth(NS_SIDE_TOP),
-                         border->GetBorderWidth(NS_SIDE_RIGHT),
-                         border->GetBorderWidth(NS_SIDE_BOTTOM),
-                         border->GetBorderWidth(NS_SIDE_LEFT));
+                         border->GetActualBorderWidth(NS_SIDE_TOP),
+                         border->GetActualBorderWidth(NS_SIDE_RIGHT),
+                         border->GetActualBorderWidth(NS_SIDE_BOTTOM),
+                         border->GetActualBorderWidth(NS_SIDE_LEFT));
   fprintf(out, "%s ", output.get());
   border->mBorderRadius.ToString(str);
   fprintf(out, "%s ", NS_ConvertUTF16toUTF8(str).get());
@@ -691,10 +705,11 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
   // TEXT
   IndentBy(out,aIndent);
   const nsStyleText* text = GetStyleText();
-  fprintf(out, "<text data=\"%d %d %d ",
+  fprintf(out, "<text data=\"%d %d %d %d",
     (int)text->mTextAlign,
     (int)text->mTextTransform,
-    (int)text->mWhiteSpace);
+    (int)text->mWhiteSpace,
+    (int)text->mWordWrap);
   text->mLetterSpacing.ToString(str);
   fprintf(out, "%s ", NS_ConvertUTF16toUTF8(str).get());
   text->mLineHeight.ToString(str);
@@ -758,13 +773,10 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
   // TABLEBORDER
   IndentBy(out,aIndent);
   const nsStyleTableBorder* tableBorder = GetStyleTableBorder();
-  fprintf(out, "<tableborder data=\"%d ",
-    (int)tableBorder->mBorderCollapse);
-  tableBorder->mBorderSpacingX.ToString(str);
-  fprintf(out, "%s ", NS_ConvertUTF16toUTF8(str).get());
-  tableBorder->mBorderSpacingY.ToString(str);
-  fprintf(out, "%s ", NS_ConvertUTF16toUTF8(str).get());
-  fprintf(out, "%d %d ",
+  fprintf(out, "<tableborder data=\"%d %d %d %d %d ",
+    (int)tableBorder->mBorderCollapse,
+    (int)tableBorder->mBorderSpacingX,
+    (int)tableBorder->mBorderSpacingY,
     (int)tableBorder->mCaptionSide,
     (int)tableBorder->mEmptyCells);
   fprintf(out, "\" />\n");
@@ -801,9 +813,10 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
   // UIReset
   IndentBy(out,aIndent);
   const nsStyleUIReset* uiReset = GetStyleUIReset();
-  fprintf(out, "<uireset data=\"%d %d\" />\n",
+  fprintf(out, "<uireset data=\"%d %d %d\" />\n",
     (int)uiReset->mUserSelect,
-    (int)uiReset->mIMEMode);
+    (int)uiReset->mIMEMode,
+    (int)uiReset->mWindowShadow);
 
   // Column
   IndentBy(out,aIndent);
@@ -813,7 +826,11 @@ void nsStyleContext::DumpRegressionData(nsPresContext* aPresContext, FILE* out, 
   column->mColumnWidth.ToString(str);
   fprintf(out, "%s ", NS_ConvertUTF16toUTF8(str).get());
   column->mColumnGap.ToString(str);
-  fprintf(out, "%s", NS_ConvertUTF16toUTF8(str).get());
+  fprintf(out, "%s ", NS_ConvertUTF16toUTF8(str).get());
+  fprintf(out, "%d %d %ld",
+    (int)column->GetComputedColumnRuleWidth(),
+    (int)column->mColumnRuleStyle,
+    (long)column->mColumnRuleColor);
   fprintf(out, "\" />\n");
 
   // XUL

@@ -97,13 +97,17 @@ nsScanner::nsScanner(const nsAString& anHTMLString, const nsACString& aCharset,
   mSlidingBuffer = nsnull;
   mCountRemaining = 0;
   mFirstNonWhitespacePosition = -1;
-  AppendToBuffer(anHTMLString);
-  mSlidingBuffer->BeginReading(mCurrentPosition);
+  if (AppendToBuffer(anHTMLString)) {
+    mSlidingBuffer->BeginReading(mCurrentPosition);
+  } else {
+    /* XXX see hack below, re: bug 182067 */
+    memset(&mCurrentPosition, 0, sizeof(mCurrentPosition));
+    mEndPosition = mCurrentPosition;
+  }
   mMarkPosition = mCurrentPosition;
   mIncremental = PR_FALSE;
   mUnicodeDecoder = 0;
   mCharsetSource = kCharsetUninitialized;
-  SetDocumentCharset(aCharset, aSource);
 }
 
 /**
@@ -142,50 +146,46 @@ nsScanner::nsScanner(nsString& aFilename,PRBool aCreateStream,
   SetDocumentCharset(aCharset, aSource);
 }
 
-nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , PRInt32 aSource) {
+nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , PRInt32 aSource)
+{
+  if (aSource < mCharsetSource) // priority is lower the the current one , just
+    return NS_OK;
+
+  nsICharsetAlias* calias = nsParser::GetCharsetAliasService();
+  NS_ASSERTION(calias, "Must have the charset alias service!");
 
   nsresult res = NS_OK;
-
-  if( aSource < mCharsetSource) // priority is lower the the current one , just
-    return res;
-
-  nsCOMPtr<nsICharsetAlias> calias(do_GetService(NS_CHARSETALIAS_CONTRACTID, &res));
-  NS_ASSERTION( nsnull != calias, "cannot find charset alias");
-  if( NS_SUCCEEDED(res) && (nsnull != calias))
+  if (!mCharset.IsEmpty())
   {
-    PRBool same = PR_FALSE;
+    PRBool same;
     res = calias->Equals(aCharset, mCharset, &same);
     if(NS_SUCCEEDED(res) && same)
     {
       return NS_OK; // no difference, don't change it
     }
-    // different, need to change it
-    nsCAutoString charsetName;
-    res = calias->GetPreferred(aCharset, charsetName);
-
-    if(NS_FAILED(res) && (kCharsetUninitialized == mCharsetSource) )
-    {
-       // failed - unknown alias , fallback to ISO-8859-1
-      charsetName.AssignLiteral("ISO-8859-1");
-    }
-    mCharset = charsetName;
-    mCharsetSource = aSource;
-
-    nsCOMPtr<nsICharsetConverterManager> ccm = 
-             do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &res);
-    if(NS_SUCCEEDED(res) && (nsnull != ccm))
-    {
-      nsIUnicodeDecoder * decoder = nsnull;
-      res = ccm->GetUnicodeDecoderRaw(mCharset.get(), &decoder);
-      if(NS_SUCCEEDED(res) && (nsnull != decoder))
-      {
-         NS_IF_RELEASE(mUnicodeDecoder);
-
-         mUnicodeDecoder = decoder;
-      }    
-    }
   }
-  return res;
+
+  // different, need to change it
+  nsCString charsetName;
+  res = calias->GetPreferred(aCharset, charsetName);
+
+  if(NS_FAILED(res) && (mCharsetSource == kCharsetUninitialized))
+  {
+     // failed - unknown alias , fallback to ISO-8859-1
+    mCharset.AssignLiteral("ISO-8859-1");
+  }
+  else
+  {
+    mCharset.Assign(charsetName);
+  }
+
+  mCharsetSource = aSource;
+
+  NS_ASSERTION(nsParser::GetCharsetConverterManager(),
+               "Must have the charset converter manager!");
+
+  return nsParser::GetCharsetConverterManager()->
+    GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
 }
 
 
@@ -203,8 +203,6 @@ nsScanner::~nsScanner() {
   }
 
   MOZ_COUNT_DTOR(nsScanner);
-
-  NS_IF_RELEASE(mUnicodeDecoder);
 }
 
 /**
@@ -234,14 +232,21 @@ void nsScanner::RewindToMark(void){
  *  @param   
  *  @return  
  */
-void nsScanner::Mark() {
+PRInt32 nsScanner::Mark() {
+  PRInt32 distance = 0;
   if (mSlidingBuffer) {
+    nsScannerIterator oldStart;
+    mSlidingBuffer->BeginReading(oldStart);
+
+    distance = Distance(oldStart, mCurrentPosition);
+
     mSlidingBuffer->DiscardPrefix(mCurrentPosition);
     mSlidingBuffer->BeginReading(mCurrentPosition);
     mMarkPosition = mCurrentPosition;
   }
+
+  return distance;
 }
- 
 
 /** 
  * Insert data to our underlying input buffer as
@@ -272,7 +277,8 @@ PRBool nsScanner::UngetReadable(const nsAString& aBuffer) {
  * @return  error code 
  */
 nsresult nsScanner::Append(const nsAString& aBuffer) {
-  AppendToBuffer(aBuffer);
+  if (!AppendToBuffer(aBuffer))
+    return NS_ERROR_OUT_OF_MEMORY;
   return NS_OK;
 }
 
@@ -334,12 +340,12 @@ nsresult nsScanner::Append(const char* aBuffer, PRUint32 aLen,
     } while (NS_FAILED(res) && (aLen > 0));
 
     buffer->SetDataLength(totalChars);
-    AppendToBuffer(buffer, aRequest);
-
     // Don't propagate return code of unicode decoder
     // since it doesn't reflect on our success or failure
     // - Ref. bug 87110
     res = NS_OK; 
+    if (!AppendToBuffer(buffer, aRequest))
+      res = NS_ERROR_OUT_OF_MEMORY;
   }
   else {
     NS_WARNING("No decoder found.");
@@ -460,7 +466,6 @@ nsresult nsScanner::SkipWhitespace(PRInt32& aNewlinesSkipped) {
       case '\n':
       case '\r': ++aNewlinesSkipped;
       case ' ' :
-      case '\b':
       case '\t':
         {
           skipped = PR_TRUE;
@@ -565,7 +570,6 @@ nsresult nsScanner::ReadTagIdentifier(nsScannerSharedSubstring& aString) {
       case '\n':
       case '\r':
       case ' ' :
-      case '\b':
       case '\t':
       case '\v':
       case '\f':
@@ -768,7 +772,6 @@ nsresult nsScanner::ReadWhitespace(nsScannerSharedSubstring& aString,
         }
         break;
       case ' ' :
-      case '\b':
       case '\t':
         theChar = (++current != end) ? *current : '\0';
         break;
@@ -818,7 +821,6 @@ nsresult nsScanner::ReadWhitespace(nsScannerIterator& aStart,
       case '\n':
       case '\r': ++aNewlinesSkipped;
       case ' ' :
-      case '\b':
       case '\t':
         {
           PRUnichar thePrevChar = theChar;
@@ -1140,19 +1142,21 @@ void nsScanner::ReplaceCharacter(nsScannerIterator& aPosition,
   }
 }
 
-void nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
-                               nsIRequest *aRequest)
+PRBool nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
+                                 nsIRequest *aRequest)
 {
   if (nsParser::sParserDataListeners && mParser &&
       NS_FAILED(mParser->DataAdded(Substring(aBuf->DataStart(),
                                              aBuf->DataEnd()), aRequest))) {
     // Don't actually append on failure.
 
-    return;
+    return mSlidingBuffer != nsnull;
   }
 
   if (!mSlidingBuffer) {
     mSlidingBuffer = new nsScannerString(aBuf);
+    if (!mSlidingBuffer)
+      return PR_FALSE;
     mSlidingBuffer->BeginReading(mCurrentPosition);
     mMarkPosition = mCurrentPosition;
     mSlidingBuffer->EndReading(mEndPosition);
@@ -1181,6 +1185,7 @@ void nsScanner::AppendToBuffer(nsScannerString::Buffer* aBuf,
       ++iter;
     }
   }
+  return PR_TRUE;
 }
 
 /**

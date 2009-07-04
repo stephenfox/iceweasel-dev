@@ -49,7 +49,11 @@
 #include "nsIDOMClassInfo.h"
 #include "nsIView.h"
 #include "nsIWidget.h"
+#ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
+#else
+#include "nsIDOMElement.h"
+#endif
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsISupportsPrimitives.h"
@@ -169,9 +173,6 @@ nsBoxObject::GetOffsetRect(nsRect& aRect)
     // Get its origin
     nsPoint origin = frame->GetPositionIgnoringScrolling();
 
-    // Get the union of all rectangles in this and continuation frames
-    nsRect rcFrame = nsLayoutUtils::GetAllInFlowBoundingRect(frame);
-        
     // Find the frame parent whose content is the document element.
     nsIContent *docElement = mContent->GetCurrentDoc()->GetRootContent();
     nsIFrame* parent = frame->GetParent();
@@ -196,20 +197,26 @@ nsBoxObject::GetOffsetRect(nsRect& aRect)
   
     // For the origin, add in the border for the frame
     const nsStyleBorder* border = frame->GetStyleBorder();
-    origin.x += border->GetBorderWidth(NS_SIDE_LEFT);
-    origin.y += border->GetBorderWidth(NS_SIDE_TOP);
+    origin.x += border->GetActualBorderWidth(NS_SIDE_LEFT);
+    origin.y += border->GetActualBorderWidth(NS_SIDE_TOP);
 
     // And subtract out the border for the parent
     const nsStyleBorder* parentBorder = parent->GetStyleBorder();
-    origin.x -= parentBorder->GetBorderWidth(NS_SIDE_LEFT);
-    origin.y -= parentBorder->GetBorderWidth(NS_SIDE_TOP);
+    origin.x -= parentBorder->GetActualBorderWidth(NS_SIDE_LEFT);
+    origin.y -= parentBorder->GetActualBorderWidth(NS_SIDE_TOP);
 
     aRect.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
     aRect.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+    
+    // Get the union of all rectangles in this and continuation frames.
+    // It doesn't really matter what we use as aRelativeTo here, since
+    // we only care about the size. Using 'parent' might make things
+    // a bit faster by speeding up the internal GetOffsetTo operations.
+    nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, parent);
     aRect.width = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width);
     aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
   }
- 
+
   return NS_OK;
 }
 

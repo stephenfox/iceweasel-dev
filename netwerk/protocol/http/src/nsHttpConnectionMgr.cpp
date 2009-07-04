@@ -236,8 +236,8 @@ nsHttpConnectionMgr::AddTransactionToPipeline(nsHttpPipeline *pipeline)
 
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
-    nsHttpConnectionInfo *ci = nsnull;
-    pipeline->GetConnectionInfo(&ci);
+    nsRefPtr<nsHttpConnectionInfo> ci;
+    pipeline->GetConnectionInfo(getter_AddRefs(ci));
     if (ci) {
         nsCStringKey key(ci->HashKey());
         nsConnectionEntry *ent = (nsConnectionEntry *) mCT.Get(&key);
@@ -293,7 +293,7 @@ nsHttpConnectionMgr::ProcessPendingQ(nsHttpConnectionInfo *ci)
 //-----------------------------------------------------------------------------
 // enumeration callbacks
 
-PRIntn PR_CALLBACK
+PRIntn
 nsHttpConnectionMgr::ProcessOneTransactionCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
@@ -305,7 +305,7 @@ nsHttpConnectionMgr::ProcessOneTransactionCB(nsHashKey *key, void *data, void *c
     return kHashEnumerateNext;
 }
 
-PRIntn PR_CALLBACK
+PRIntn
 nsHttpConnectionMgr::PurgeOneIdleConnectionCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
@@ -323,7 +323,7 @@ nsHttpConnectionMgr::PurgeOneIdleConnectionCB(nsHashKey *key, void *data, void *
     return kHashEnumerateNext;
 }
 
-PRIntn PR_CALLBACK
+PRIntn
 nsHttpConnectionMgr::PruneDeadConnectionsCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
@@ -371,7 +371,7 @@ nsHttpConnectionMgr::PruneDeadConnectionsCB(nsHashKey *key, void *data, void *cl
     return kHashEnumerateNext;
 }
 
-PRIntn PR_CALLBACK
+PRIntn
 nsHttpConnectionMgr::ShutdownPassCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;

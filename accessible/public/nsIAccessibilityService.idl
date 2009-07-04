@@ -44,8 +44,9 @@ interface nsIDocument;
 interface nsIFrame;
 interface nsObjectFrame;
 interface nsIContent;
+interface nsITimer;
 
-[uuid(933f7472-cbe3-4d95-a77a-ce7ea3812b32)]
+[uuid(8160457f-7b1a-4779-a0ca-cea07d17194d)]
 interface nsIAccessibilityService : nsIAccessibleRetrieval
 {
   nsIAccessible createOuterDocAccessible(in nsIDOMNode aNode);
@@ -85,7 +86,7 @@ interface nsIAccessibilityService : nsIAccessibleRetrieval
 
   /**
    * Invalidate the accessibility cache associated with aPresShell, for accessibles
-   * that were generated for aContainerContent and it's subtree.
+   * that were generated for aContainerContent and its subtree.
    * The container content node for the change is passed in, rather than the
    * changed presentation for the content node itself.
    * @param aPresShell         The presShell where changes occured
@@ -100,6 +101,26 @@ interface nsIAccessibilityService : nsIAccessibleRetrieval
   void invalidateSubtreeFor(in nsIPresShell aPresShell,
                             in nsIContent aChangedContent,
                             in PRUint32 aEvent);
+
+  /**
+   *  An internal doc load event has occured. Handle the event and remove it from the list.
+   *  @param aTimer      The timer created to handle this doc load event
+   *  @param aClosure    The nsIWebProgress* for the load event
+   *  @param aEventType  The type of load event, one of: nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START,
+   *                                                     nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE or
+   *                                                     nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED
+   */
+  void processDocLoadEvent(in nsITimer aTimer, in voidPtr aClosure, in PRUint32 aEventType);
+
+  /**
+   * Fire accessible event of the given type for the given target.
+   *
+   * @param aEvent   [in] accessible event type
+   * @param aTarget  [in] target of accessible event
+   */
+  void fireAccessibleEvent(in unsigned long aEvent, in nsIAccessible aTarget);
+
+  nsIAccessible createHTMLMediaAccessible(in nsISupports aFrame);
 };
 
 

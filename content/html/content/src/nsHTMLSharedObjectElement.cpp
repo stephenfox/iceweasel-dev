@@ -44,6 +44,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAppletElement.h"
 #include "nsIDOMHTMLEmbedElement.h"
+#include "nsThreadUtils.h"
 #ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
@@ -51,7 +52,7 @@
 
 // XXX this is to get around conflicts with windows.h defines
 // introduced through jni.h
-#if defined (XP_WIN) && ! defined (WINCE)
+#ifdef XP_WIN
 #undef GetClassName
 #undef GetObject
 #endif
@@ -109,7 +110,7 @@ public:
 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -128,6 +129,8 @@ public:
   virtual PRUint32 GetCapabilities() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSharedObjectElement,
                                                      nsGenericHTMLElement)
@@ -172,10 +175,12 @@ nsHTMLSharedObjectElement::nsHTMLSharedObjectElement(nsINodeInfo *aNodeInfo,
   : nsGenericHTMLElement(aNodeInfo),
     mIsDoneAddingChildren(aNodeInfo->Equals(nsGkAtoms::embed) || !aFromParser)
 {
+  RegisterFreezableElement();
 }
 
 nsHTMLSharedObjectElement::~nsHTMLSharedObjectElement()
 {
+  UnregisterFreezableElement();
   DestroyImageLoadingContent();
 }
 
@@ -210,19 +215,22 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLSharedObjectElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLSharedObjectElement, nsGenericElement) 
 
-NS_HTML_CONTENT_CC_INTERFACE_TABLE_AMBIGUOUS_HEAD(nsHTMLSharedObjectElement,
-                                                  nsGenericHTMLElement,
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSharedObjectElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(nsHTMLSharedObjectElement,
                                                   nsIDOMHTMLAppletElement)
-  NS_INTERFACE_TABLE_INHERITED8(nsHTMLSharedObjectElement,
-                                imgIDecoderObserver,
-                                nsIRequestObserver,
-                                nsIStreamListener,
-                                nsIFrameLoaderOwner,
-                                nsIObjectLoadingContent,
-                                nsIImageLoadingContent,
-                                nsIInterfaceRequestor,
-                                nsIChannelEventSink)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIRequestObserver)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIStreamListener)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIFrameLoaderOwner)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, imgIContainerObserver)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIObjectLoadingContent)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, imgIDecoderObserver)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIImageLoadingContent)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIInterfaceRequestor)
+    NS_INTERFACE_TABLE_ENTRY(nsHTMLSharedObjectElement, nsIChannelEventSink)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE_AMBIGUOUS(nsHTMLSharedObjectElement,
+                                                         nsGenericHTMLElement,
+                                                         nsIDOMHTMLAppletElement)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLAppletElement, applet)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLEmbedElement, embed)
 #ifdef MOZ_SVG
@@ -247,9 +255,9 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    // Don't need to notify: We have no frames yet, since we weren't in a
-    // document
-    StartObjectLoad(PR_FALSE);
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLSharedObjectElement>(this,
+                                                      &nsHTMLSharedObjectElement::StartObjectLoad));
   }
 
   return NS_OK;
@@ -291,7 +299,8 @@ nsHTMLSharedObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
 }
 
 PRBool
-nsHTMLSharedObjectElement::IsFocusable(PRInt32 *aTabIndex)
+nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool *aIsFocusable,
+                                           PRInt32 *aTabIndex)
 {
   if (mNodeInfo->Equals(nsGkAtoms::embed) || Type() == eType_Plugin) {
     // Has plugin content: let the plugin decide what to do in terms of
@@ -299,18 +308,21 @@ nsHTMLSharedObjectElement::IsFocusable(PRInt32 *aTabIndex)
     if (aTabIndex) {
       GetTabIndex(aTabIndex);
     }
-  
+
+    *aIsFocusable = PR_TRUE;
+
+    // Let the plugin decide, so override.
     return PR_TRUE;
   }
 
-  return nsGenericHTMLElement::IsFocusable(aTabIndex);
+  return nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex);
 }
 
 PRUint32
 nsHTMLSharedObjectElement::GetDesiredIMEState()
 {
   if (Type() == eType_Plugin) {
-    return nsIContent::IME_STATUS_ENABLE;
+    return nsIContent::IME_STATUS_PLUGIN;
   }
    
   return nsGenericHTMLElement::GetDesiredIMEState();
@@ -333,7 +345,7 @@ NS_IMPL_STRING_ATTR(nsHTMLSharedObjectElement, Width, width)
 
 #ifdef MOZ_SVG
 NS_IMETHODIMP
-nsHTMLSharedObjectElement::GetSVGDocument(nsIDOMSVGDocument **aResult)
+nsHTMLSharedObjectElement::GetSVGDocument(nsIDOMDocument **aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 

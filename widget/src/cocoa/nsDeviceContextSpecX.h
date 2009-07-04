@@ -72,7 +72,7 @@ public:
      */
     NS_IMETHOD Init(nsIWidget *aWidget, nsIPrintSettings* aPS, PRBool aIsPrintPreview);
     
-    void GetPageRect(double* aTop, double* aLeft, double* aBottom, double* aRight);
+    void GetPaperRect(double* aTop, double* aLeft, double* aBottom, double* aRight);
 
 protected:
 /**

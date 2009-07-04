@@ -123,7 +123,7 @@ nsPermissionManager::Init()
   // ignore failure here, since it's non-fatal (we can run fine without
   // persistent storage - e.g. if there's no profile).
   // XXX should we tell the user about this?
-  InitDB();
+  InitDB(PR_FALSE);
 
   mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
   if (NS_SUCCEEDED(rv)) {
@@ -135,7 +135,7 @@ nsPermissionManager::Init()
 }
 
 nsresult
-nsPermissionManager::InitDB()
+nsPermissionManager::InitDB(PRBool aRemoveFile)
 {
   nsCOMPtr<nsIFile> permissionsFile;
   NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(permissionsFile));
@@ -145,20 +145,38 @@ nsPermissionManager::InitDB()
   nsresult rv = permissionsFile->AppendNative(NS_LITERAL_CSTRING(kPermissionsFileName));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (aRemoveFile) {
+    PRBool exists = PR_FALSE;
+    rv = permissionsFile->Exists(&exists);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (exists) {
+      rv = permissionsFile->Remove(PR_FALSE);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
+
   nsCOMPtr<mozIStorageService> storage = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
   if (!storage)
     return NS_ERROR_UNEXPECTED;
 
   // cache a connection to the hosts database
   rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
-  if (rv == NS_ERROR_FILE_CORRUPTED) {
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool ready;
+  mDBConn->GetConnectionReady(&ready);
+  if (!ready) {
     // delete and try again
     rv = permissionsFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mDBConn->GetConnectionReady(&ready);
+    if (!ready)
+      return NS_ERROR_UNEXPECTED;
   }
-  NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool tableExists = PR_FALSE;
   mDBConn->TableExists(NS_LITERAL_CSTRING("moz_hosts"), &tableExists);
@@ -444,7 +462,11 @@ nsPermissionManager::RemoveAllInternal()
   if (mDBConn) {
     nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("DELETE FROM moz_hosts"));
     if (NS_FAILED(rv)) {
-      NS_WARNING("db delete failed");
+      mStmtInsert = nsnull;
+      mStmtDelete = nsnull;
+      mStmtUpdate = nsnull;
+      mDBConn = nsnull;
+      rv = InitDB(PR_TRUE);
       return rv;
     }
   }
@@ -538,7 +560,7 @@ struct nsGetEnumeratorData
   const nsTArray<nsCString> *types;
 };
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 AddPermissionsToList(nsHostEntry *entry, void *arg)
 {
   nsGetEnumeratorData *data = static_cast<nsGetEnumeratorData *>(arg);
@@ -581,7 +603,7 @@ NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aT
   }  
   else if (!nsCRT::strcmp(aTopic, "profile-do-change")) {
     // the profile has already changed; init the db from the new location
-    InitDB();
+    InitDB(PR_FALSE);
   }
 
   return NS_OK;
@@ -704,7 +726,7 @@ nsPermissionManager::Import()
 
   nsCOMPtr<nsIFile> permissionsFile;
   rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(permissionsFile));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   rv = permissionsFile->AppendNative(NS_LITERAL_CSTRING(kHostpermFileName));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -712,7 +734,7 @@ nsPermissionManager::Import()
   nsCOMPtr<nsIInputStream> fileInputStream;
   rv = NS_NewLocalFileInputStream(getter_AddRefs(fileInputStream),
                                   permissionsFile);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsILineInputStream> lineInputStream = do_QueryInterface(fileInputStream, &rv);
   NS_ENSURE_SUCCESS(rv, rv);

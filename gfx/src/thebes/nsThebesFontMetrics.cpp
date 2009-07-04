@@ -44,6 +44,7 @@
 
 #include "gfxTextRunCache.h"
 #include "gfxPlatform.h"
+#include "gfxUserFontSet.h"
 
 NS_IMPL_ISUPPORTS1(nsThebesFontMetrics, nsIFontMetrics)
 
@@ -63,7 +64,8 @@ nsThebesFontMetrics::~nsThebesFontMetrics()
 
 NS_IMETHODIMP
 nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
-                          nsIDeviceContext *aContext)
+                          nsIDeviceContext *aContext, 
+                          gfxUserFontSet *aUserFontSet)
 {
     mFont = aFont;
     mLangGroup = aLangGroup;
@@ -81,12 +83,17 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
         langGroup.Assign(lg);
     }
 
+    PRBool printerFont = mDeviceContext->IsPrinterSurface();
     mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, size, langGroup,
                                   aFont.sizeAdjust, aFont.systemFont,
-                                  aFont.familyNameQuirks);
+                                  aFont.familyNameQuirks,
+                                  printerFont);
 
     mFontGroup =
-        gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle);
+        gfxPlatform::GetPlatform()->CreateFontGroup(aFont.name, mFontStyle, 
+                                                    aUserFontSet);
+    if (mFontGroup->FontListLength() < 1) 
+        return NS_ERROR_UNEXPECTED;
 
     return NS_OK;
 }
@@ -138,17 +145,36 @@ nsThebesFontMetrics::GetStrikeout(nscoord& aOffset, nscoord& aSize)
 NS_IMETHODIMP
 nsThebesFontMetrics::GetUnderline(nscoord& aOffset, nscoord& aSize)
 {
-    aOffset = ROUND_TO_TWIPS(GetMetrics().underlineOffset);
+    aOffset = ROUND_TO_TWIPS(mFontGroup->GetUnderlineOffset());
     aSize = ROUND_TO_TWIPS(GetMetrics().underlineSize);
 
     return NS_OK;
 }
 
+// GetHeight/GetMaxAscent/GetMaxDescent/GetMaxHeight must contain the
+// text-decoration lines drawable area. See bug 421353.
+// BE CAREFUL for rounding each values. The logic MUST be same as
+// nsCSSRendering::GetTextDecorationRectInternal's.
+
+static gfxFloat ComputeMaxDescent(const gfxFont::Metrics& aMetrics,
+                                  gfxFontGroup* aFontGroup)
+{
+    gfxFloat offset = NS_floor(-aFontGroup->GetUnderlineOffset() + 0.5);
+    gfxFloat size = NS_round(aMetrics.underlineSize);
+    gfxFloat minDescent = NS_floor(offset + size + 0.5);
+    return PR_MAX(minDescent, aMetrics.maxDescent);
+}
+
+static gfxFloat ComputeMaxAscent(const gfxFont::Metrics& aMetrics)
+{
+    return NS_floor(aMetrics.maxAscent + 0.5);
+}
+
 NS_IMETHODIMP
 nsThebesFontMetrics::GetHeight(nscoord &aHeight)
 {
-    aHeight = CEIL_TO_TWIPS(GetMetrics().maxAscent) +
-        CEIL_TO_TWIPS(GetMetrics().maxDescent);
+    aHeight = CEIL_TO_TWIPS(ComputeMaxAscent(GetMetrics())) +
+        CEIL_TO_TWIPS(ComputeMaxDescent(GetMetrics(), mFontGroup));
     return NS_OK;
 }
 
@@ -190,22 +216,22 @@ nsThebesFontMetrics::GetEmDescent(nscoord &aDescent)
 NS_IMETHODIMP
 nsThebesFontMetrics::GetMaxHeight(nscoord &aHeight)
 {
-    aHeight = CEIL_TO_TWIPS(GetMetrics().maxAscent) +
-        CEIL_TO_TWIPS(GetMetrics().maxDescent);
+    aHeight = CEIL_TO_TWIPS(ComputeMaxAscent(GetMetrics())) +
+        CEIL_TO_TWIPS(ComputeMaxDescent(GetMetrics(), mFontGroup));
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsThebesFontMetrics::GetMaxAscent(nscoord &aAscent)
 {
-    aAscent = CEIL_TO_TWIPS(GetMetrics().maxAscent);
+    aAscent = CEIL_TO_TWIPS(ComputeMaxAscent(GetMetrics()));
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsThebesFontMetrics::GetMaxDescent(nscoord &aDescent)
 {
-    aDescent = CEIL_TO_TWIPS(GetMetrics().maxDescent);
+    aDescent = CEIL_TO_TWIPS(ComputeMaxDescent(GetMetrics(), mFontGroup));
     return NS_OK;
 }
 
@@ -233,30 +259,15 @@ nsThebesFontMetrics::GetFontHandle(nsFontHandle &aHandle)
 NS_IMETHODIMP
 nsThebesFontMetrics::GetAveCharWidth(nscoord& aAveCharWidth)
 {
-    aAveCharWidth = ROUND_TO_TWIPS(GetMetrics().aveCharWidth);
+    // Use CEIL instead of ROUND for consistency with GetMaxAdvance
+    aAveCharWidth = CEIL_TO_TWIPS(GetMetrics().aveCharWidth);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsThebesFontMetrics::GetSpaceWidth(nscoord& aSpaceCharWidth)
 {
-    aSpaceCharWidth = ROUND_TO_TWIPS(GetMetrics().spaceWidth);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesFontMetrics::GetLeading(nscoord& aLeading)
-{
-    aLeading = ROUND_TO_TWIPS(GetMetrics().internalLeading);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesFontMetrics::GetNormalLineHeight(nscoord& aLineHeight)
-{
-    const gfxFont::Metrics& m = GetMetrics();
-    aLineHeight = ROUND_TO_TWIPS(m.emHeight + m.internalLeading);
+    aSpaceCharWidth = CEIL_TO_TWIPS(GetMetrics().spaceWidth);
     return NS_OK;
 }
 
@@ -388,7 +399,7 @@ nsThebesFontMetrics::DrawString(const char *aString, PRUint32 aLength,
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->Thebes(), pt, 0, aLength,
+    textRun->Draw(aContext->ThebesContext(), pt, 0, aLength,
                   nsnull, &provider, nsnull);
     return NS_OK;
 }
@@ -412,7 +423,7 @@ nsThebesFontMetrics::DrawString(const PRUnichar* aString, PRUint32 aLength,
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->Thebes(), pt, 0, aLength,
+    textRun->Draw(aContext->ThebesContext(), pt, 0, aLength,
                   nsnull, &provider, nsnull);
     return NS_OK;
 }
@@ -426,7 +437,7 @@ GetTextRunBoundingMetrics(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aLengt
 {
     StubPropertyProvider provider;
     gfxTextRun::Metrics theMetrics =
-        aTextRun->MeasureText(aStart, aLength, PR_TRUE, aContext->Thebes(), &provider);
+        aTextRun->MeasureText(aStart, aLength, PR_TRUE, aContext->ThebesContext(), &provider);
 
     aBoundingMetrics.leftBearing = NSToCoordFloor(theMetrics.mBoundingBox.X());
     aBoundingMetrics.rightBearing = NSToCoordCeil(theMetrics.mBoundingBox.XMost());
@@ -486,4 +497,10 @@ PRBool
 nsThebesFontMetrics::GetRightToLeftText()
 {
     return mIsRightToLeft;
+}
+
+/* virtual */ gfxUserFontSet*
+nsThebesFontMetrics::GetUserFontSet()
+{
+    return mFontGroup->GetUserFontSet();
 }

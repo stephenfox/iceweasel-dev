@@ -94,10 +94,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLTableCaptionElement
-NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLTableCaptionElement,
-                                     nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableCaptionElement,
-                                nsIDOMHTMLTableCaptionElement)
+NS_INTERFACE_TABLE_HEAD(nsHTMLTableCaptionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableCaptionElement,
+                                   nsIDOMHTMLTableCaptionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableCaptionElement,
+                                               nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableCaptionElement)
 
 
@@ -108,10 +109,10 @@ NS_IMPL_STRING_ATTR(nsHTMLTableCaptionElement, Align, align)
 
 
 static const nsAttrValue::EnumTable kCaptionAlignTable[] = {
-  { "left",  NS_SIDE_LEFT },
-  { "right", NS_SIDE_RIGHT },
-  { "top",   NS_SIDE_TOP},
-  { "bottom",NS_SIDE_BOTTOM},
+  { "left",   NS_STYLE_CAPTION_SIDE_LEFT },
+  { "right",  NS_STYLE_CAPTION_SIDE_RIGHT },
+  { "top",    NS_STYLE_CAPTION_SIDE_TOP },
+  { "bottom", NS_STYLE_CAPTION_SIDE_BOTTOM },
   { 0 }
 };
 

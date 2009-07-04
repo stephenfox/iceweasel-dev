@@ -82,6 +82,7 @@
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsIReflowCallback.h"
+#include "nsISound.h"
 
 #define NS_MENU_POPUP_LIST_INDEX 0
 
@@ -392,6 +393,10 @@ nsMenuFrame::Destroy()
   // doesn't try to interact with a deallocated frame.
   mTimerMediator->ClearFrame();
 
+  // if the menu content is just being hidden, it may be made visible again
+  // later, so make sure to clear the highlighting.
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::menuactive, PR_FALSE);
+
   // are we our menu parent's current menu item?
   if (mMenuParent && mMenuParent->GetCurrentMenuItem() == this) {
     // yes; tell it that we're going away
@@ -437,13 +442,17 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
 #ifdef XP_MACOSX
     // On mac, open menulist on either up/down arrow or space (w/o Cmd pressed)
     if (!IsOpen() && ((keyEvent->charCode == NS_VK_SPACE && !keyEvent->isMeta) ||
-        (keyCode == NS_VK_UP || keyCode == NS_VK_DOWN)))
+        (keyCode == NS_VK_UP || keyCode == NS_VK_DOWN))) {
+      *aEventStatus = nsEventStatus_eConsumeNoDefault;
       OpenMenu(PR_FALSE);
+    }
 #else
     // On other platforms, toggle menulist on unmodified F4 or Alt arrow
     if ((keyCode == NS_VK_F4 && !keyEvent->isAlt) ||
-        ((keyCode == NS_VK_UP || keyCode == NS_VK_DOWN) && keyEvent->isAlt))
+        ((keyCode == NS_VK_UP || keyCode == NS_VK_DOWN) && keyEvent->isAlt)) {
+      *aEventStatus = nsEventStatus_eConsumeNoDefault;
       ToggleMenuState();
+    }
 #endif
   }
   else if (aEvent->eventStructType == NS_MOUSE_EVENT &&
@@ -452,12 +461,15 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
            !IsDisabled() && IsMenu()) {
     // The menu item was selected. Bring up the menu.
     // We have children.
+    // Don't prevent the default action here, since that will also cancel
+    // potential drag starts.
     if (!mMenuParent || mMenuParent->IsMenuBar()) {
       ToggleMenuState();
     }
     else {
-      if (!IsOpen())
+      if (!IsOpen()) {
         OpenMenu(PR_FALSE);
+      }
     }
   }
   else if (
@@ -490,6 +502,7 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
            static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
            !IsMenu() && !IsDisabled()) {
     // Execute the execute event handler.
+    *aEventStatus = nsEventStatus_eConsumeNoDefault;
     Execute(aEvent);
   }
   else if (aEvent->message == NS_MOUSE_EXIT_SYNTH) {
@@ -582,7 +595,8 @@ void
 nsMenuFrame::PopupClosed(PRBool aDeselectMenu)
 {
   nsWeakFrame weakFrame(this);
-  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::open, PR_TRUE);
+  nsContentUtils::AddScriptRunner(
+    new nsUnsetAttrRunnable(mContent, nsGkAtoms::open));
   if (!weakFrame.IsAlive())
     return;
 
@@ -710,7 +724,7 @@ nsMenuFrame::IsSizedToPopup(nsIContent* aContent, PRBool aRequireAlways)
     nsAutoString sizedToPopup;
     aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::sizetopopup, sizedToPopup);
     sizeToPopup = sizedToPopup.EqualsLiteral("always") ||
-                  !aRequireAlways && sizedToPopup.EqualsLiteral("pref");
+                  (!aRequireAlways && sizedToPopup.EqualsLiteral("pref"));
   }
   
   return sizeToPopup;
@@ -742,15 +756,15 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
     nsSize minSize = mPopupFrame->GetMinSize(aState); 
     nsSize maxSize = mPopupFrame->GetMaxSize(aState);
 
-    BoundsCheck(minSize, prefSize, maxSize);
+    prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
     if (sizeToPopup)
         prefSize.width = mRect.width;
 
     // if the pref size changed then set bounds to be the pref size
-    PRBool sizeChanged = (mPopupFrame->GetRect().Size() != prefSize);
+    PRBool sizeChanged = (mPopupFrame->PreferredSize() != prefSize);
     if (sizeChanged) {
-      mPopupFrame->SetBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
+      mPopupFrame->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
     }
 
     // if the menu has just been opened, or its size changed, position
@@ -1167,6 +1181,10 @@ nsMenuFrame::Execute(nsGUIEvent *aEvent)
     }
   }
 
+  nsCOMPtr<nsISound> sound(do_CreateInstance("@mozilla.org/sound;1"));
+  if (sound)
+    sound->PlaySystemSound(NS_SYSSOUND_MENU_EXECUTE);
+
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mMenuParent)
     pm->ExecuteMenu(mContent, aEvent);
@@ -1286,7 +1304,7 @@ nsMenuFrame::GetPrefSize(nsBoxLayoutState& aState)
     // We now need to ensure that size is within the min - max range.
     nsSize minSize = nsBoxFrame::GetMinSize(aState);
     nsSize maxSize = GetMaxSize(aState);
-    BoundsCheck(minSize, size, maxSize);
+    size = BoundsCheck(minSize, size, maxSize);
   }
 
   return size;

@@ -283,14 +283,24 @@ function run_test() {
   do_check_eq(observer._itemChangedProperty, "title");
 
   // insert query item
-  var newId6 = bmsvc.insertBookmark(testRoot, uri("place:domain=google.com&group=1"),
-                                    bmsvc.DEFAULT_INDEX, "");
+  var uri6 = uri("place:domain=google.com&type="+
+                 Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY);
+  var newId6 = bmsvc.insertBookmark(testRoot, uri6, bmsvc.DEFAULT_INDEX, "");
   do_check_eq(observer._itemAddedParent, testRoot);
   do_check_eq(observer._itemAddedIndex, 3);
 
   // change item
   bmsvc.setItemTitle(newId6, "Google Sites");
   do_check_eq(observer._itemChangedProperty, "title");
+
+  // test getIdForItemAt
+  do_check_eq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
+  // wrong parent, should return -1
+  do_check_eq(bmsvc.getIdForItemAt(1337, 0), -1);
+  // wrong index, should return -1
+  do_check_eq(bmsvc.getIdForItemAt(testRoot, 1337), -1);
+  // wrong parent and index, should return -1
+  do_check_eq(bmsvc.getIdForItemAt(1337, 1337), -1);
 
   // move folder, appending, to different folder
   var oldParentCC = getChildCount(testRoot);
@@ -305,15 +315,17 @@ function run_test() {
   do_check_eq(bmsvc.getItemIndex(workFolder), 1);
   do_check_eq(bmsvc.getFolderIdForItem(workFolder), homeFolder);
 
-  // try to get index of the folder from it's ex-parent
-  // XXX expose getItemAtIndex(folder, idx) to test that the item was *removed* from the old parent?
-  // XXX or expose FolderCount, and check that the old parent has one less kids?
+  // try to get index of the item from within the old parent folder
+  // check that it has been really removed from there
+  do_check_neq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
+  // check the last item from within the old parent folder
+  do_check_neq(bmsvc.getIdForItemAt(testRoot, -1), workFolder);
+  // check the index of the item within the new parent folder
+  do_check_eq(bmsvc.getIdForItemAt(homeFolder, 1), workFolder);
+  // try to get index of the last item within the new parent folder
+  do_check_eq(bmsvc.getIdForItemAt(homeFolder, -1), workFolder);
+  // XXX expose FolderCount, and check that the old parent has one less child?
   do_check_eq(getChildCount(testRoot), oldParentCC-1);
-
-  // XXX move folder, specified index, to different folder
-  // XXX move folder, specified index, within the same folder
-  // XXX move folder, specify same index, within the same folder
-  // XXX move folder, appending, within the same folder
 
   // move item, appending, to different folder
   bmsvc.moveItem(newId5, testRoot, bmsvc.DEFAULT_INDEX);
@@ -323,34 +335,6 @@ function run_test() {
   do_check_eq(observer._itemMovedNewParent, testRoot);
   do_check_eq(observer._itemMovedNewIndex, 3);
 
-  // XXX move item, specified index, to different folder 
-  // XXX move item, specified index, within the same folder 
-  // XXX move item, specify same index, within the same folder
-  // XXX move item, appending, within the same folder 
-
-  // Test expected failure of moving a folder to be its own parent
-  try {
-    bmsvc.moveItem(workFolder, workFolder, bmsvc.DEFAULT_INDEX);
-    do_throw("moveItem() allowed moving a folder to be its own parent.");
-  } catch (e) {}
-
-  // Test expected failure of moving a folder to be a child of its child
-  // or of its grandchild.  see bug #383678 
-  var childFolder = bmsvc.createFolder(workFolder, "childFolder", bmsvc.DEFAULT_INDEX);
-  do_check_eq(observer._itemAddedId, childFolder);
-  do_check_eq(observer._itemAddedParent, workFolder);
-  var grandchildFolder = bmsvc.createFolder(childFolder, "grandchildFolder", bmsvc.DEFAULT_INDEX);
-  do_check_eq(observer._itemAddedId, grandchildFolder);
-  do_check_eq(observer._itemAddedParent, childFolder);
-  try {
-    bmsvc.moveItem(workFolder, childFolder, bmsvc.DEFAULT_INDEX);
-    do_throw("moveItem() allowed moving a folder to be a child of its child");
-  } catch (e) {}
-  try {
-    bmsvc.moveItem(workFolder, grandchildFolder, bmsvc.DEFAULT_INDEX);
-    do_throw("moveItem() allowed moving a folder to be a child of its grandchild");
-  } catch (e) {}
-  
   // test insertSeparator and removeChildAt
   // XXX - this should also query bookmarks for the folder children
   // and then test the node type at our index
@@ -664,7 +648,7 @@ function run_test() {
   // bug 378820
   var uri1 = uri("http://foo.tld/a");
   bmsvc.insertBookmark(testRoot, uri1, bmsvc.DEFAULT_INDEX, "");
-  histsvc.addVisit(uri1, Date.now(), 0, histsvc.TRANSITION_TYPED, false, 0);
+  histsvc.addVisit(uri1, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
 
   testSimpleFolderResult();
 }

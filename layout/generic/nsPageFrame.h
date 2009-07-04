@@ -140,9 +140,14 @@ class nsPageBreakFrame : public nsLeafFrame {
 
   virtual nsIAtom* GetType() const;
 
+#ifdef NS_DEBUG
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
+#endif
+
 protected:
 
   virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
     PRBool mHaveReflowed;
 

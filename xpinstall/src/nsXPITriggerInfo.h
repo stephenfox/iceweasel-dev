@@ -57,7 +57,6 @@ struct XPITriggerEvent : public nsRunnable {
     nsString    URL;
     PRInt32     status;
     JSContext*  cx;
-    jsval       global;
     jsval       cbval;
     nsCOMPtr<nsISupports> ref;
     nsCOMPtr<nsIPrincipal> princ;
@@ -114,7 +113,7 @@ class nsXPITriggerInfo
     nsXPITriggerInfo();
     ~nsXPITriggerInfo();
 
-    void                Add( nsXPITriggerItem *aItem ) 
+    void                Add( nsXPITriggerItem *aItem )
                         { if ( aItem ) mItems.AppendElement( (void*)aItem ); }
 
     nsXPITriggerItem*   Get( PRUint32 aIndex )
@@ -132,7 +131,7 @@ class nsXPITriggerInfo
   private:
     nsVoidArray mItems;
     JSContext   *mCx;
-    nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobalWrapper;
+    nsCOMPtr<nsISupports> mContextWrapper;
     jsval       mCbval;
     nsCOMPtr<nsIThread> mThread;
 

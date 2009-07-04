@@ -43,12 +43,10 @@
 #ifndef nsBlockReflowState_h__
 #define nsBlockReflowState_h__
 
-#include "nsBlockBandData.h"
+#include "nsFloatManager.h"
 #include "nsLineBox.h"
 #include "nsFrameList.h"
-#include "nsContainerFrame.h"
-
-class nsBlockFrame;
+#include "nsBlockFrame.h"
 
   // block reflow state flags
 #define BRS_UNCONSTRAINEDHEIGHT   0x00000001
@@ -58,8 +56,11 @@ class nsBlockFrame;
 #define BRS_ISFIRSTINFLOW         0x00000010
 // Set when mLineAdjacentToTop is valid
 #define BRS_HAVELINEADJACENTTOTOP 0x00000020
-// Set when the block has the equivalent of NS_BLOCK_SPACE_MGR
-#define BRS_SPACE_MGR             0x00000040
+// Set when the block has the equivalent of NS_BLOCK_FLOAT_MGR
+#define BRS_FLOAT_MGR             0x00000040
+// Set when nsLineLayout::LineIsEmpty was true at the end of reflowing
+// the current line
+#define BRS_LINE_LAYOUT_EMPTY     0x00000080
 #define BRS_ISOVERFLOWCONTAINER   0x00000100
 #define BRS_LASTFLAG              BRS_ISOVERFLOWCONTAINER
 
@@ -70,7 +71,7 @@ public:
                      nsBlockFrame* aFrame,
                      const nsHTMLReflowMetrics& aMetrics,
                      PRBool aTopMarginRoot, PRBool aBottomMarginRoot,
-                     PRBool aBlockNeedsSpaceManager);
+                     PRBool aBlockNeedsFloatManager);
 
   ~nsBlockReflowState();
 
@@ -96,10 +97,12 @@ public:
    */
   PRBool InitFloat(nsLineLayout&       aLineLayout,
                    nsPlaceholderFrame* aPlaceholderFrame,
+                   nscoord             aAvailableWidth,
                    nsReflowStatus&     aReflowStatus);
   PRBool AddFloat(nsLineLayout&       aLineLayout,
                   nsPlaceholderFrame* aPlaceholderFrame,
                   PRBool              aInitialReflow,
+                  nscoord             aAvailableWidth,
                   nsReflowStatus&     aReflowStatus);
   PRBool CanPlaceFloat(const nsSize& aFloatSize, PRUint8 aFloats, PRBool aForceFit);
   PRBool FlowAndPlaceFloat(nsFloatCache*   aFloatCache,
@@ -109,8 +112,10 @@ public:
   PRBool PlaceBelowCurrentLineFloats(nsFloatCacheFreeList& aFloats, PRBool aForceFit);
 
   // Returns the first coordinate >= aY that clears the
-  // indicated floats.
-  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType);
+  // floats indicated by aBreakType and has enough width between floats
+  // (or no floats remaining) to accomodate aReplacedBlock.
+  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType,
+                      nsIFrame *aReplacedBlock = nsnull);
 
   PRBool IsAdjacentWithTop() const {
     return mY ==
@@ -140,8 +145,19 @@ public:
   // Reconstruct the previous bottom margin that goes above |aLine|.
   void ReconstructMarginAbove(nsLineList::iterator aLine);
 
+  // Caller must have called GetAvailableSpace for the correct position
+  // (which need not be the current mY).  Callers need only pass
+  // aReplacedWidth for outer table frames.
+  void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
+                                            nscoord& aLeftResult,
+                                            nscoord& aRightResult,
+                                       nsBlockFrame::ReplacedElementWidthToClear
+                                                      *aReplacedWidth = nsnull);
+
+  // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,
                               const nsStyleDisplay* aDisplay,
+                              PRBool aBlockAvoidsFloats,
                               nsRect& aResult);
 
 protected:
@@ -151,7 +167,11 @@ public:
   void RecoverStateFrom(nsLineList::iterator aLine, nscoord aDeltaY);
 
   void AdvanceToNextLine() {
-    mLineNumber++;
+    if (GetFlag(BRS_LINE_LAYOUT_EMPTY)) {
+      SetFlag(BRS_LINE_LAYOUT_EMPTY, PR_FALSE);
+    } else {
+      mLineNumber++;
+    }
   }
 
   PRBool IsImpactedByFloat() const;
@@ -172,17 +192,24 @@ public:
 
   const nsHTMLReflowState& mReflowState;
 
-  nsSpaceManager* mSpaceManager;
+  nsFloatManager* mFloatManager;
 
-  // The coordinates within the spacemanager where the block is being
+  // The coordinates within the float manager where the block is being
   // placed <b>after</b> taking into account the blocks border and
   // padding. This, therefore, represents the inner "content area" (in
   // spacemanager coordinates) where child frames will be placed,
   // including child blocks and floats.
-  nscoord mSpaceManagerX, mSpaceManagerY;
+  nscoord mFloatManagerX, mFloatManagerY;
 
   // XXX get rid of this
   nsReflowStatus mReflowStatus;
+
+  // The x-position we should place an outside bullet relative to.
+  // This is the border-box edge of the principal box.  However, if a line box
+  // would be displaced by floats, we want to displace it by the same amount.
+  // That is, we act as though the edge of the floats is the content-edge of
+  // the block, displaced by the block's padding and border.
+  nscoord mOutsideBulletX;
 
   nscoord mBottomEdge;
 
@@ -224,6 +251,7 @@ public:
   nscoord mY;
 
   // The available space within the current band.
+  // (relative to the *content*-rect of the block)
   nsRect mAvailSpaceRect;
 
   // The combined area of all floats placed so far
@@ -243,9 +271,6 @@ public:
   // pull from. When a next-in-flow is emptied of lines, we advance
   // this to the next next-in-flow.
   nsBlockFrame* mNextInFlow;
-
-  // The current band data for the current Y coordinate
-  nsBlockBandData mBand;
 
   //----------------------------------------
 
@@ -270,6 +295,11 @@ public:
   PRInt16 mFlags;
  
   PRUint8 mFloatBreakType;
+
+  // The number of floats on the sides of mAvailSpaceRect, including
+  // floats that do not reduce mAvailSpaceRect because they are in the
+  // margins.
+  PRPackedBool mBandHasFloats;
 
   void SetFlag(PRUint32 aFlag, PRBool aValue)
   {

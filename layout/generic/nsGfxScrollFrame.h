@@ -51,6 +51,7 @@
 #include "nsIScrollableView.h"
 #include "nsIView.h"
 #include "nsIReflowCallback.h"
+#include "nsBoxLayoutState.h"
 
 class nsPresContext;
 class nsIPresShell;
@@ -91,9 +92,6 @@ public:
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
 
-  virtual void InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
-                                  nsIFrame* aForChild, PRBool aImmediate);
-
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
   virtual void ReflowCallbackCanceled();
@@ -101,6 +99,7 @@ public:
   // nsIScrollPositionListener
 
   NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
+  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable);
   NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
 
   // This gets called when the 'curpos' attribute on one of the scrollbars changes
@@ -230,6 +229,7 @@ public:
   PRPackedBool mHorizontalOverflow:1;
   PRPackedBool mVerticalOverflow:1;
   PRPackedBool mPostedReflowCallback:1;
+  PRPackedBool mMayHaveDirtyFixedChildren:1;
 };
 
 /**
@@ -265,6 +265,7 @@ public:
                    nsHTMLReflowMetrics* aKidMetrics,
                    PRBool aAssumeVScroll, PRBool aAssumeHScroll,
                    PRBool aForce, nsresult* aResult);
+  PRBool ScrolledContentDependsOnHeight(ScrollReflowState* aState);
   nsresult ReflowScrolledFrame(ScrollReflowState* aState,
                                PRBool aAssumeHScroll,
                                PRBool aAssumeVScroll,
@@ -273,6 +274,7 @@ public:
   nsresult ReflowContents(ScrollReflowState* aState,
                           const nsHTMLReflowMetrics& aDesiredSize);
   void PlaceScrollArea(const ScrollReflowState& aState);
+  nscoord GetIntrinsicVScrollbarWidth(nsIRenderingContext *aRenderingContext);
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -311,9 +313,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate) {
-    mInner.InvalidateInternal(aDamageRect, aX, aY, aForChild, aImmediate);
-  }
+                                  PRUint32 aFlags);
 
   virtual PRBool NeedsView() { return PR_TRUE; }
   virtual PRBool DoesClipChildren() { return PR_TRUE; }
@@ -361,6 +361,11 @@ public:
     return mInner.GetActualScrollbarSizes();
   }
   virtual nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
+  virtual nsMargin GetDesiredScrollbarSizes(nsPresContext* aPresContext,
+          nsIRenderingContext* aRC) {
+    nsBoxLayoutState bls(aPresContext, aRC, 0);
+    return GetDesiredScrollbarSizes(&bls);
+  }
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const;
 
   /**
@@ -387,6 +392,7 @@ protected:
   void SetSuppressScrollbarUpdate(PRBool aSuppress) {
     mInner.mSupppressScrollbarUpdate = aSuppress;
   }
+  PRBool GuessHScrollbarNeeded(const ScrollReflowState& aState);
   PRBool GuessVScrollbarNeeded(const ScrollReflowState& aState);
   nsSize GetScrollPortSize() const
   {
@@ -472,9 +478,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate) {
-    mInner.InvalidateInternal(aDamageRect, aX, aY, aForChild, aImmediate);
-  }
+                                  PRUint32 aFlags);
 
   virtual PRBool NeedsView() { return PR_TRUE; }
   virtual PRBool DoesClipChildren() { return PR_TRUE; }
@@ -557,6 +561,11 @@ public:
     return mInner.GetActualScrollbarSizes();
   }
   virtual nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
+  virtual nsMargin GetDesiredScrollbarSizes(nsPresContext* aPresContext,
+          nsIRenderingContext* aRC) {
+    nsBoxLayoutState bls(aPresContext, aRC, 0);
+    return GetDesiredScrollbarSizes(&bls);
+  }
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const;
 
   /**

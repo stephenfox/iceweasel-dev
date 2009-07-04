@@ -50,6 +50,8 @@
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
 
+#define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
+
 class nsIPrincipal;
 
 // Popup control state enum. The values in this enum must go from most
@@ -70,10 +72,12 @@ class nsIDocument;
 class nsIScriptTimeoutHandler;
 class nsPresContext;
 struct nsTimeout;
+class nsScriptObjectHolder;
+class nsXBLPrototypeHandler;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x51316cbc, 0x595e, 0x40b1, \
-  { 0xab, 0x07, 0x21, 0xbf, 0xe0, 0x92, 0x62, 0xa9 } }
+{ 0x80dd53b6, 0x8c61, 0x4dd6, \
+  { 0xb4, 0x51, 0xf7, 0xd7, 0x5c, 0xfc, 0x51, 0x96 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -91,6 +95,8 @@ public:
   {
     return mChromeEventHandler;
   }
+
+  virtual void SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler) = 0;
 
   PRBool HasMutationListeners(PRUint32 aMutationEventType) const
   {
@@ -265,12 +271,20 @@ public:
   // Restore the window state from aState.
   virtual nsresult RestoreWindowState(nsISupports *aState) = 0;
 
+  // Suspend timeouts in this window and in child windows.
+  virtual void SuspendTimeouts(PRUint32 aIncrease = 1,
+                               PRBool aFreezeChildren = PR_TRUE) = 0;
+
   // Resume suspended timeouts in this window and in child windows.
-  virtual nsresult ResumeTimeouts() = 0;
-  
+  virtual nsresult ResumeTimeouts(PRBool aThawChildren = PR_TRUE) = 0;
+
+  virtual PRUint32 TimeoutSuspendCount() = 0;
+
   // Fire any DOM notification events related to things that happened while
   // the window was frozen.
   virtual nsresult FireDelayedDOMEvents() = 0;
+
+  virtual PRBool IsFrozen() const = 0;
 
   // Add a timeout to this window.
   virtual nsresult SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
@@ -372,10 +386,32 @@ public:
   }
 
   /**
+   * Call this to indicate that some node (this window, its document,
+   * or content in that document) has a paint event listener.
+   */
+  void SetHasPaintEventListeners()
+  {
+    mMayHavePaintEventListener = PR_TRUE;
+  }
+
+  /**
+   * Call this to check whether some node (this window, its document,
+   * or content in that document) has a paint event listener.
+   */
+  PRBool HasPaintEventListeners()
+  {
+    return mMayHavePaintEventListener;
+  }
+  
+  /**
    * Initialize window.java and window.Packages, and start LiveConnect
    * if we're running with a non-NPRuntime enabled Java plugin.
    */
   virtual void InitJavaProperties() = 0;
+
+  virtual void* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
+  virtual void CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
+                                        nsScriptObjectHolder& aHandler) = 0;
 
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
@@ -386,9 +422,14 @@ protected:
     : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
       mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
       mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
+      mMayHavePaintEventListener(PR_FALSE),
       mIsModalContentWindow(PR_FALSE), mInnerWindow(nsnull),
       mOuterWindow(aOuterWindow)
   {
+  }
+
+  void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
+    mChromeEventHandler = aChromeEventHandler;
   }
 
   // These two variables are special in that they're set to the same
@@ -398,7 +439,7 @@ protected:
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
 
   // These members are only used on outer windows.
-  nsIDOMElement *mFrameElement; // weak
+  nsCOMPtr<nsIDOMElement> mFrameElement;
   nsIDocShell           *mDocShell;  // Weak Reference
 
   PRUint32               mModalStateDepth;
@@ -411,6 +452,7 @@ protected:
   PRPackedBool           mIsDocumentLoaded;
   PRPackedBool           mIsHandlingResizeEvent;
   PRPackedBool           mIsInnerWindow;
+  PRPackedBool           mMayHavePaintEventListener;
 
   // This variable is used on both inner and outer windows (and they
   // should match).

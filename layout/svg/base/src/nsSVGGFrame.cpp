@@ -69,48 +69,23 @@ nsSVGGFrame::GetType() const
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods
 
-NS_IMETHODIMP
-nsSVGGFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
+void
+nsSVGGFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  // make sure our cached transform matrix gets (lazily) updated
-  mCanvasTM = nsnull;
+  if (aFlags & TRANSFORM_CHANGED) {
+    // make sure our cached transform matrix gets (lazily) updated
+    mCanvasTM = nsnull;
+  }
 
-  return nsSVGGFrameBase::NotifyCanvasTMChanged(suppressInvalidation);
-}
-
-NS_IMETHODIMP
-nsSVGGFrame::SetMatrixPropagation(PRBool aPropagate)
-{
-  mPropagateTransform = aPropagate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGGFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
-{
-  mOverrideCTM = aCTM;
-  return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGMatrix>
-nsSVGGFrame::GetOverrideCTM()
-{
-  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
-  NS_IF_ADDREF(matrix);
-  return matrix;
+  nsSVGGFrameBase::NotifySVGChanged(aFlags);
 }
 
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGGFrame::GetCanvasTM()
 {
-  if (!mPropagateTransform) {
+  if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    if (mOverrideCTM) {
-      retval = mOverrideCTM;
-      NS_ADDREF(retval);
-    } else {
-      NS_NewSVGMatrix(&retval);
-    }
+    NS_NewSVGMatrix(&retval);
     return retval;
   }
 
@@ -139,13 +114,6 @@ nsSVGGFrame::GetCanvasTM()
 }
 
 NS_IMETHODIMP
-nsSVGGFrame::DidSetStyleContext()
-{
-  nsSVGUtils::StyleEffects(this);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsSVGGFrame::AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
                               PRInt32         aModType)
@@ -155,13 +123,7 @@ nsSVGGFrame::AttributeChanged(PRInt32         aNameSpaceID,
     // make sure our cached transform matrix gets (lazily) updated
     mCanvasTM = nsnull;
 
-    for (nsIFrame* kid = mFrames.FirstChild(); kid;
-         kid = kid->GetNextSibling()) {
-      nsISVGChildFrame* SVGFrame = nsnull;
-      CallQueryInterface(kid, &SVGFrame);
-      if (SVGFrame)
-        SVGFrame->NotifyCanvasTMChanged(PR_FALSE);
-    }  
+    nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
   }
   
   return NS_OK;

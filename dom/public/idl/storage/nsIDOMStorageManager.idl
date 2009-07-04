@@ -37,7 +37,10 @@
 
 #include "nsISupports.idl"
 
-[scriptable, uuid(74dc93d1-8cdf-43b1-a52c-776dcb873475)]
+interface nsIDOMStorage2;
+interface nsIPrincipal;
+
+[scriptable, uuid(9efc2081-218f-4622-837b-40bdb870a1c8)]
 interface nsIDOMStorageManager : nsISupports
 {
   /**
@@ -49,4 +52,17 @@ interface nsIDOMStorageManager : nsISupports
    * @returns the space usage of the domain, in bytes.
    */
   long getUsage(in AString aOwnerDomain);
+
+  /**
+   * Clear keys owned by offline applications.  All data owned by a domain
+   * with the "offline-app" permission will be removed from the database.
+   */
+  void clearOfflineApps();
+
+  /**
+   * Returns instance of localStorage object for aURI's origin.
+   * This method ensures there is always only a single instance
+   * for a single origin.
+   */
+  nsIDOMStorage2 getLocalStorageForPrincipal(in nsIPrincipal aPrincipal);
 };

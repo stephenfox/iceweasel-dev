@@ -50,8 +50,12 @@ REQUIRES = \
   xpcom \
   string \
   necko \
-  xulapp \
   intl \
+  js \
+  xpconnect \
+  dom \
+  content \
+  widget \
   $(NULL)
 
 CMMSRCS = \
@@ -80,9 +84,9 @@ SHARED_LIBRARY_LIBS = \
 
 EXTRA_DSO_LDOPTS += \
   -framework Carbon \
-  -framework Cocoa \
   $(XPCOM_GLUE_LDOPTS) \
   $(NSPR_LIBS) \
+  $(MOZ_JS_LIBS) \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

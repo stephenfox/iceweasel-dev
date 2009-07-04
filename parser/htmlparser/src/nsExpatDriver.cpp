@@ -56,6 +56,9 @@
 #include "nsCRT.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
+#include "nsIContentPolicy.h"
+#include "nsContentPolicyUtils.h"
+#include "nsContentErrors.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsUnicharInputStream.h"
 
@@ -70,7 +73,7 @@ static PRLogModuleInfo *gExpatDriverLog = PR_NewLogModule("expatdriver");
 /***************************** EXPAT CALL BACKS ******************************/
 // The callback handlers that get called from the expat parser.
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleXMLDeclaration(void *aUserData,
                             const XML_Char *aVersion,
                             const XML_Char *aEncoding,
@@ -83,7 +86,7 @@ Driver_HandleXMLDeclaration(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleStartElement(void *aUserData,
                           const XML_Char *aName,
                           const XML_Char **aAtts)
@@ -95,7 +98,7 @@ Driver_HandleStartElement(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleEndElement(void *aUserData,
                         const XML_Char *aName)
 {
@@ -105,7 +108,7 @@ Driver_HandleEndElement(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleCharacterData(void *aUserData,
                            const XML_Char *aData,
                            int aLength)
@@ -117,7 +120,7 @@ Driver_HandleCharacterData(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleComment(void *aUserData,
                      const XML_Char *aName)
 {
@@ -127,7 +130,7 @@ Driver_HandleComment(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleProcessingInstruction(void *aUserData,
                                    const XML_Char *aTarget,
                                    const XML_Char *aData)
@@ -139,7 +142,7 @@ Driver_HandleProcessingInstruction(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleDefault(void *aUserData,
                      const XML_Char *aData,
                      int aLength)
@@ -151,7 +154,7 @@ Driver_HandleDefault(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleStartCdataSection(void *aUserData)
 {
   NS_ASSERTION(aUserData, "expat driver should exist");
@@ -160,7 +163,7 @@ Driver_HandleStartCdataSection(void *aUserData)
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleEndCdataSection(void *aUserData)
 {
   NS_ASSERTION(aUserData, "expat driver should exist");
@@ -169,7 +172,7 @@ Driver_HandleEndCdataSection(void *aUserData)
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleStartDoctypeDecl(void *aUserData,
                               const XML_Char *aDoctypeName,
                               const XML_Char *aSysid,
@@ -179,11 +182,11 @@ Driver_HandleStartDoctypeDecl(void *aUserData,
   NS_ASSERTION(aUserData, "expat driver should exist");
   if (aUserData) {
     static_cast<nsExpatDriver*>(aUserData)->
-      HandleStartDoctypeDecl(aDoctypeName, aSysid, aPubid, aHasInternalSubset);
+      HandleStartDoctypeDecl(aDoctypeName, aSysid, aPubid, !!aHasInternalSubset);
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleEndDoctypeDecl(void *aUserData)
 {
   NS_ASSERTION(aUserData, "expat driver should exist");
@@ -192,7 +195,7 @@ Driver_HandleEndDoctypeDecl(void *aUserData)
   }
 }
 
-PR_STATIC_CALLBACK(int)
+static int
 Driver_HandleExternalEntityRef(void *aExternalEntityRefHandler,
                                const XML_Char *aOpenEntityNames,
                                const XML_Char *aBase,
@@ -211,7 +214,7 @@ Driver_HandleExternalEntityRef(void *aExternalEntityRefHandler,
                                          aPublicId);
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleStartNamespaceDecl(void *aUserData,
                                 const XML_Char *aPrefix,
                                 const XML_Char *aUri)
@@ -223,7 +226,7 @@ Driver_HandleStartNamespaceDecl(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleEndNamespaceDecl(void *aUserData,
                               const XML_Char *aPrefix)
 {
@@ -234,7 +237,7 @@ Driver_HandleEndNamespaceDecl(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleNotationDecl(void *aUserData,
                           const XML_Char *aNotationName,
                           const XML_Char *aBase,
@@ -248,7 +251,7 @@ Driver_HandleNotationDecl(void *aUserData,
   }
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 Driver_HandleUnparsedEntityDecl(void *aUserData,
                                 const XML_Char *aEntityName,
                                 const XML_Char *aBase,
@@ -378,15 +381,23 @@ IsLoadableDTD(const nsCatalogData* aCatalogData, nsIURI* aDTD,
 
 /***************************** END CATALOG UTILS *****************************/
 
-NS_IMPL_ISUPPORTS2(nsExpatDriver,
-                   nsITokenizer,
-                   nsIDTD)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsExpatDriver)
+  NS_INTERFACE_MAP_ENTRY(nsITokenizer)
+  NS_INTERFACE_MAP_ENTRY(nsIDTD)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDTD)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsExpatDriver)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsExpatDriver)
+
+NS_IMPL_CYCLE_COLLECTION_2(nsExpatDriver, mSink, mExtendedSink)
 
 nsExpatDriver::nsExpatDriver()
   : mExpatParser(nsnull),
     mInCData(PR_FALSE),
     mInInternalSubset(PR_FALSE),
     mInExternalDTD(PR_FALSE),
+    mMadeFinalCallToExpat(PR_FALSE),
     mIsFinalChunk(PR_FALSE),
     mInternalState(NS_OK),
     mExpatBuffered(0),
@@ -649,6 +660,9 @@ nsExpatDriver::HandleStartDoctypeDecl(const PRUnichar* aDoctypeName,
     // setting mInternalSubset's capacity to be 1K ( just a guesstimate! ).
     mInInternalSubset = PR_TRUE;
     mInternalSubset.SetCapacity(1024);
+  } else {
+    // Distinguish missing internal subset from an empty one
+    mInternalSubset.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
@@ -787,6 +801,24 @@ nsExpatDriver::OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
     }
 
     localURI.swap(uri);
+  }
+
+  nsCOMPtr<nsIContentSink> sink = do_QueryInterface(mSink);
+  nsCOMPtr<nsIDocument> doc;
+  if (sink)
+    doc = do_QueryInterface(sink->GetTarget());
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
+  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_DTD,
+                                uri,
+                                (doc ? doc->NodePrincipal() : nsnull),
+                                doc,
+                                EmptyCString(), //mime guess
+                                nsnull,         //extra
+                                &shouldLoad);
+  if (NS_FAILED(rv)) return rv;
+  if (NS_CP_REJECTED(shouldLoad)) {
+    // Disallowed by content policy
+    return NS_ERROR_CONTENT_BLOCKED;
   }
 
   rv = NS_OpenURI(aStream, uri);
@@ -1040,20 +1072,13 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, PRBool& aFlushTokens)
          ("Remaining in expat's buffer: %i, remaining in scanner: %i.",
           mExpatBuffered, Distance(start, end)));
 
-  PRBool flush = mIsFinalChunk;
-
   // We want to call Expat if we have more buffers, or if we know there won't
   // be more buffers (and so we want to flush the remaining data), or if we're
   // currently blocked and there's data in Expat's buffer.
-  while (start != end || flush ||
+  while (start != end || (mIsFinalChunk && !mMadeFinalCallToExpat) ||
          (BlockedOrInterrupted() && mExpatBuffered > 0)) {
     PRBool noMoreBuffers = start == end && mIsFinalChunk;
     PRBool blocked = BlockedOrInterrupted();
-
-    // If we're resuming and we know there won't be more data we want to
-    // flush the remaining data after we resumed the parser (so loop once
-    // more).
-    flush = blocked && noMoreBuffers;
 
     const PRUnichar *buffer;
     PRUint32 length;
@@ -1063,6 +1088,7 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, PRBool& aFlushTokens)
       buffer = nsnull;
       length = 0;
 
+#if defined(PR_LOGGING) || defined (DEBUG)
       if (blocked) {
         PR_LOG(gExpatDriverLog, PR_LOG_DEBUG,
                ("Resuming Expat, will parse data remaining in Expat's "
@@ -1079,6 +1105,7 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, PRBool& aFlushTokens)
                 NS_ConvertUTF16toUTF8(currentExpatPosition.get(),
                                       mExpatBuffered).get()));
       }
+#endif
     }
     else {
       buffer = start.get();
@@ -1132,6 +1159,10 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, PRBool& aFlushTokens)
       aScanner.Mark();
 
       return mInternalState;
+    }
+
+    if (noMoreBuffers && mExpatBuffered == 0) {
+      mMadeFinalCallToExpat = PR_TRUE;
     }
 
     if (NS_FAILED(mInternalState)) {

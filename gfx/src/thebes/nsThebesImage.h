@@ -44,8 +44,11 @@
 #include "gfxColor.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
-#ifdef XP_WIN
+#include "gfxPattern.h"
+#if defined(XP_WIN)
 #include "gfxWindowsSurface.h"
+#elif defined(XP_MACOSX)
+#include "gfxQuartzImageSurface.h"
 #endif
 
 class nsThebesImage : public nsIImage
@@ -68,20 +71,15 @@ public:
     virtual PRUint8 *GetAlphaBits();
     virtual PRInt32 GetAlphaLineStride();
     virtual PRBool GetIsImageComplete();
-    virtual void ImageUpdated(nsIDeviceContext *aContext, PRUint8 aFlags, nsRect *aUpdateRect);
+    virtual nsresult ImageUpdated(nsIDeviceContext *aContext, PRUint8 aFlags, nsRect *aUpdateRect);
     virtual nsresult Optimize(nsIDeviceContext* aContext);
     virtual nsColorMap *GetColorMap();
 
-    NS_IMETHOD Draw(nsIRenderingContext &aContext,
-                    const gfxRect &aSourceRect,
-                    const gfxRect &aDestRect);
-
-    nsresult ThebesDrawTile(gfxContext *thebesContext,
-                            nsIDeviceContext* dx,
-                            const gfxPoint& aOffset,
-                            const gfxRect& aTileRect,
-                            const PRInt32 aXPadding,
-                            const PRInt32 aYPadding);
+    virtual void Draw(gfxContext*        aContext,
+                      const gfxMatrix&   aUserSpaceToImageSpace,
+                      const gfxRect&     aFill,
+                      const nsIntMargin& aPadding,
+                      const nsIntRect&   aSubimage);
 
     virtual PRInt8 GetAlphaDepth();
     virtual void* GetBitInfo();
@@ -94,14 +92,32 @@ public:
         return NS_OK;
     }
 
+    NS_IMETHOD GetPattern(gfxPattern **aPattern) {
+        if (mSinglePixel)
+            *aPattern = new gfxPattern(mSinglePixelColor);
+        else
+            *aPattern = new gfxPattern(ThebesSurface());
+        NS_ADDREF(*aPattern);
+        return NS_OK;
+    }
+
     gfxASurface* ThebesSurface() {
         if (mOptSurface)
             return mOptSurface;
-
+#if defined(XP_WIN)
+        if (mWinSurface)
+            return mWinSurface;
+#elif defined(XP_MACOSX)
+        if (mQuartzSurface)
+            return mQuartzSurface;
+#endif
         return mImageSurface;
     }
 
     void SetHasNoAlpha();
+
+    NS_IMETHOD Extract(const nsIntRect& aSubimage,
+                       nsIImage** aResult NS_OUTPARAM);
 
 protected:
     static PRBool AllowedImageSize(PRInt32 aWidth, PRInt32 aHeight) {
@@ -143,6 +159,7 @@ protected:
     PRPackedBool mImageComplete;
     PRPackedBool mSinglePixel;
     PRPackedBool mFormatChanged;
+    PRPackedBool mNeverUseDeviceSurface;
 #ifdef XP_WIN
     PRPackedBool mIsDDBSurface;
 #endif
@@ -151,8 +168,10 @@ protected:
 
     nsRefPtr<gfxImageSurface> mImageSurface;
     nsRefPtr<gfxASurface> mOptSurface;
-#ifdef XP_WIN
+#if defined(XP_WIN)
     nsRefPtr<gfxWindowsSurface> mWinSurface;
+#elif defined(XP_MACOSX)
+    nsRefPtr<gfxQuartzImageSurface> mQuartzSurface;
 #endif
 
     PRUint8 mAlphaDepth;

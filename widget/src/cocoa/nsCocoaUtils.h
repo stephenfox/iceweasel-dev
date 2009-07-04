@@ -44,6 +44,65 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsRect.h"
+#include "nsIWidget.h"
+#include "nsObjCExceptions.h"
+
+// "Borrowed" in part from the QTKit framework's QTKitDefines.h.  This is
+// needed when building on OS X Tiger (10.4.X) or with a 10.4 SDK.  It won't
+// be used when building on Leopard (10.5.X) or higher (or with a 10.5 or
+// higher SDK).
+//
+// These definitions for NSInteger and NSUInteger are the 32-bit ones -- since
+// we assume we'll always be building 32-bit binaries when building on Tiger
+// (or with a 10.4 SDK).
+#ifndef NSINTEGER_DEFINED
+
+typedef int NSInteger;
+typedef unsigned int NSUInteger;
+
+#define NSIntegerMax    LONG_MAX
+#define NSIntegerMin    LONG_MIN
+#define NSUIntegerMax   ULONG_MAX
+
+#define NSINTEGER_DEFINED 1
+
+#endif  /* NSINTEGER_DEFINED */
+
+
+// Used to retain a Cocoa object for the remainder of a method's execution.
+class nsAutoRetainCocoaObject {
+public:
+nsAutoRetainCocoaObject(id anObject)
+{
+  mObject = NS_OBJC_TRY_EXPR_ABORT([anObject retain]);
+}
+~nsAutoRetainCocoaObject()
+{
+  NS_OBJC_TRY_ABORT([mObject release]);
+}
+private:
+  id mObject;  // [STRONG]
+};
+
+
+@interface NSApplication (Undocumented)
+
+// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
+- (BOOL)_isRunningModal;
+- (BOOL)_isRunningAppModal;
+
+// It's sometimes necessary to explicitly remove a window from the "window
+// cache" in order to deactivate it.  The "window cache" is an undocumented
+// subsystem, all of whose methods are included in the NSWindowCache category
+// of the NSApplication class (in header files generated using class-dump).
+// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
+- (void)_removeWindowFromCache:(NSWindow *)aWindow;
+
+// Send an event to the current Cocoa app-modal session.  Present in all
+// versions of OS X from (at least) 10.2.8 through 10.5.
+- (void)_modalSession:(NSModalSession)aSession sendEvent:(NSEvent *)theEvent;
+
+@end
 
 class nsCocoaUtils
 {
@@ -81,7 +140,18 @@ class nsCocoaUtils
   static NSPoint EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow);
   
   // Finds the foremost window that is under the mouse for the current application.
-  static NSWindow* FindWindowUnderPoint(NSPoint aPoint);  
+  static NSWindow* FindWindowUnderPoint(NSPoint aPoint);
+
+  static nsIWidget* GetHiddenWindowWidget();
+
+  static void PrepareForNativeAppModalDialog();
+  static void CleanUpAfterNativeAppModalDialog();
+
+  // Wrap calls to [theEvent keyCode] and [theEvent modifierFlags].  Needed to
+  // work around an Apple bug (on OS X 10.4.X) that causes ctrl-ESC key events
+  // sent via performKeyEquivalent: to return 0 on these calls.
+  static unsigned short GetCocoaEventKeyCode(NSEvent *theEvent);
+  static NSUInteger GetCocoaEventModifierFlags(NSEvent *theEvent);
 };
 
 #endif // nsCocoaUtils_h_

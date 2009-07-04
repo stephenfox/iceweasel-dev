@@ -53,12 +53,20 @@ public:
   NS_IMETHOD GetValue(float* aResult)
     { *aResult = mVal.GetBaseValue(); return NS_OK; }
   NS_IMETHOD SetValue(float aValue)
-    { mVal.SetBaseValue(aValue, nsnull); return NS_OK; }
+    {
+      NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
+      mVal.SetBaseValue(aValue, nsnull);
+      return NS_OK;
+    }
 
   NS_IMETHOD GetValueInSpecifiedUnits(float* aResult)
     { *aResult = mVal.mBaseVal; return NS_OK; }
   NS_IMETHOD SetValueInSpecifiedUnits(float aValue)
-    { mVal.mBaseVal = aValue; return NS_OK; }
+    {
+      NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
+      mVal.mBaseVal = aValue;
+      return NS_OK;
+    }
 
   NS_IMETHOD SetValueAsString(const nsAString& aValue)
     { return mVal.SetBaseValueString(aValue, nsnull, PR_FALSE); }
@@ -67,8 +75,11 @@ public:
 
   NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                     float valueInSpecifiedUnits)
-    { mVal.NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits, nsnull);
-      return NS_OK; }
+    {
+      NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
+      mVal.NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits, nsnull);
+      return NS_OK;
+    }
 
   NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
     { mVal.ConvertToSpecifiedUnits(unitType, nsnull); return NS_OK; }
@@ -77,31 +88,37 @@ private:
   nsSVGAngle mVal;
 };
 
-NS_IMPL_ADDREF(nsSVGAngle::DOMBaseVal)
-NS_IMPL_RELEASE(nsSVGAngle::DOMBaseVal)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGAngle::DOMBaseVal, mSVGElement)
 
-NS_IMPL_ADDREF(nsSVGAngle::DOMAnimVal)
-NS_IMPL_RELEASE(nsSVGAngle::DOMAnimVal)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGAngle::DOMAnimVal, mSVGElement)
 
-NS_IMPL_ADDREF(nsSVGAngle::DOMAnimatedAngle)
-NS_IMPL_RELEASE(nsSVGAngle::DOMAnimatedAngle)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGAngle::DOMAnimatedAngle, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGAngle::DOMBaseVal)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGAngle::DOMBaseVal)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGAngle::DOMAnimVal)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGAngle::DOMAnimVal)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGAngle::DOMAnimatedAngle)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGAngle::DOMAnimatedAngle)
 
 NS_IMPL_ADDREF(DOMSVGAngle)
 NS_IMPL_RELEASE(DOMSVGAngle)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGAngle::DOMBaseVal)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAngle)
 NS_INTERFACE_MAP_END
 
-NS_INTERFACE_MAP_BEGIN(nsSVGAngle::DOMAnimVal)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMAnimVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAngle)
 NS_INTERFACE_MAP_END
 
-NS_INTERFACE_MAP_BEGIN(nsSVGAngle::DOMAnimatedAngle)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMAnimatedAngle)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedAngle)
@@ -156,7 +173,7 @@ GetUnitTypeForString(const char* unitStr)
                    
   nsCOMPtr<nsIAtom> unitAtom = do_GetAtom(unitStr);
 
-  for (int i = 0 ; i < NS_ARRAY_LENGTH(unitMap) ; i++) {
+  for (PRUint32 i = 0 ; i < NS_ARRAY_LENGTH(unitMap) ; i++) {
     if (unitMap[i] && *unitMap[i] == unitAtom) {
       return i;
     }

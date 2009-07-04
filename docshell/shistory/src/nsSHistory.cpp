@@ -118,7 +118,7 @@ nsSHistoryObserver::Observe(nsISupports *aSubject, const char *aTopic,
     nsSHistory::EvictGlobalContentViewer();
   } else if (!strcmp(aTopic, NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID) ||
              !strcmp(aTopic, "memory-pressure")) {
-    nsSHistory::EvictAllContentViewers();
+    nsSHistory::EvictAllContentViewersGlobally();
   }
 
   return NS_OK;
@@ -220,14 +220,23 @@ nsSHistory::Startup()
 {
   nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
-    // Session history size is only taken from the default prefs branch.
-    // This means that it's only configurable on a per-application basis.
+    nsCOMPtr<nsIPrefBranch> sesHBranch;
+    prefs->GetBranch(nsnull, getter_AddRefs(sesHBranch));
+    if (sesHBranch) {
+      sesHBranch->GetIntPref(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
+    }
+
     // The goal of this is to unbreak users who have inadvertently set their
-    // session history size to -1.
+    // session history size to less than the default value.
+    PRInt32  defaultHistoryMaxSize = 50;
     nsCOMPtr<nsIPrefBranch> defaultBranch;
     prefs->GetDefaultBranch(nsnull, getter_AddRefs(defaultBranch));
     if (defaultBranch) {
-      defaultBranch->GetIntPref(PREF_SHISTORY_SIZE, &gHistoryMaxSize);
+      defaultBranch->GetIntPref(PREF_SHISTORY_SIZE, &defaultHistoryMaxSize);
+    }
+
+    if (gHistoryMaxSize < defaultHistoryMaxSize) {
+      gHistoryMaxSize = defaultHistoryMaxSize;
     }
     
     // Allow the user to override the max total number of cached viewers,
@@ -655,6 +664,17 @@ nsSHistory::EvictContentViewers(PRInt32 aPreviousIndex, PRInt32 aIndex)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSHistory::EvictAllContentViewers()
+{
+  // XXXbz we don't actually do a good job of evicting things as we should, so
+  // we might have viewers quite far from mIndex.  So just evict everything.
+  EvictContentViewersInRange(0, mLength);
+  return NS_OK;
+}
+
+
+
 //*****************************************************************************
 //    nsSHistory: nsIWebNavigation
 //*****************************************************************************
@@ -776,6 +796,11 @@ nsSHistory::EvictWindowContentViewers(PRInt32 aFromIndex, PRInt32 aToIndex)
 
   // This can happen on the first load of a page in a particular window
   if (aFromIndex < 0 || aToIndex < 0) {
+    return;
+  }
+  NS_ASSERTION(aFromIndex < mLength, "aFromIndex is out of range");
+  NS_ASSERTION(aToIndex < mLength, "aToIndex is out of range");
+  if (aFromIndex >= mLength || aToIndex >= mLength) {
     return;
   }
 
@@ -1024,7 +1049,7 @@ nsSHistory::EvictExpiredContentViewerForEntry(nsISHEntry *aEntry)
 
 //static
 void
-nsSHistory::EvictAllContentViewers()
+nsSHistory::EvictAllContentViewersGlobally()
 {
   PRInt32 maxViewers = sHistoryMaxTotalViewers;
   sHistoryMaxTotalViewers = 0;
@@ -1040,6 +1065,7 @@ nsSHistory::UpdateIndex()
     mIndex = mRequestedIndex;
   }
 
+  mRequestedIndex = -1;
   return NS_OK;
 }
 

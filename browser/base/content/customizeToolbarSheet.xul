@@ -105,13 +105,14 @@
               icon="add"/>
       <button label="&restoreDefaultSet.label;"
               oncommand="restoreDefaultSet();"
-              icon="refresh"/>
+              icon="revert"/>
     </box>
 
     <separator class="groove"/>
 
     <hbox align="center" pack="end">
       <button label="&saveChanges.label;"
+              id="donebutton"
               oncommand="finishToolbarCustomization();"
               default="true"
               icon="close"/>

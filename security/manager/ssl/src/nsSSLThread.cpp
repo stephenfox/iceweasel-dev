@@ -489,7 +489,7 @@ PRInt32 nsSSLThread::requestRead(nsNSSSocketInfo *si, void *buf, PRInt32 amount,
 
   PRBool this_socket_is_busy = PR_FALSE;
   PRBool some_other_socket_is_busy = PR_FALSE;
-  nsSSLSocketThreadData::ssl_state my_ssl_state;
+  nsSSLSocketThreadData::ssl_state my_ssl_state = nsSSLSocketThreadData::ssl_invalid;
   PRFileDesc *blockingFD = nsnull;
 
   {
@@ -716,7 +716,7 @@ PRInt32 nsSSLThread::requestWrite(nsNSSSocketInfo *si, const void *buf, PRInt32 
 
   PRBool this_socket_is_busy = PR_FALSE;
   PRBool some_other_socket_is_busy = PR_FALSE;
-  nsSSLSocketThreadData::ssl_state my_ssl_state;
+  nsSSLSocketThreadData::ssl_state my_ssl_state = nsSSLSocketThreadData::ssl_invalid;
   PRFileDesc *blockingFD = nsnull;
   
   {
@@ -1120,28 +1120,14 @@ void nsSSLThread::Run(void)
   }
 }
 
-void nsSSLThread::rememberPendingHTTPRequest(nsIRequest *aRequest)
+PRBool nsSSLThread::exitRequested()
 {
   if (!ssl_thread_singleton)
-    return;
+    return PR_FALSE;
 
-  nsAutoLock threadLock(ssl_thread_singleton->mMutex);
+  // no lock
 
-  ssl_thread_singleton->mPendingHTTPRequest = aRequest;
-}
-
-void nsSSLThread::cancelPendingHTTPRequest()
-{
-  if (!ssl_thread_singleton)
-    return;
-
-  nsAutoLock threadLock(ssl_thread_singleton->mMutex);
-
-  if (ssl_thread_singleton->mPendingHTTPRequest)
-  {
-    ssl_thread_singleton->mPendingHTTPRequest->Cancel(NS_ERROR_ABORT);
-    ssl_thread_singleton->mPendingHTTPRequest = nsnull;
-  }
+  return ssl_thread_singleton->mExitRequested;
 }
 
 nsSSLThread *nsSSLThread::ssl_thread_singleton = nsnull;

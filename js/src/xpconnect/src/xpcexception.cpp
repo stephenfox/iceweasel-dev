@@ -42,6 +42,7 @@
 /* An implementaion of nsIException. */
 
 #include "xpcprivate.h"
+#include "nsNetError.h"
 
 /***************************************************************************/
 /* Quick and dirty mapping of well known result codes to strings. We only
@@ -150,6 +151,24 @@ nsXPCException::~nsXPCException()
     Reset();
 }
 
+PRBool
+nsXPCException::StealThrownJSVal(jsval *vp)
+{
+    if(mThrownJSVal.IsHeld())
+    {
+        *vp = mThrownJSVal.Release();
+        return PR_TRUE;
+    }
+    return PR_FALSE;
+}
+
+void
+nsXPCException::StowThrownJSVal(JSContext *cx, jsval v)
+{
+    if (mThrownJSVal.Hold(cx))
+        mThrownJSVal = v;
+}
+
 void
 nsXPCException::Reset()
 {
@@ -176,7 +195,7 @@ nsXPCException::Reset()
 
 /* readonly attribute string message; */
 NS_IMETHODIMP
-nsXPCException::GetMessage(char * *aMessage)
+nsXPCException::GetMessageMoz(char * *aMessage)
 {
     if(!mInitialized)
         return NS_ERROR_NOT_INITIALIZED;

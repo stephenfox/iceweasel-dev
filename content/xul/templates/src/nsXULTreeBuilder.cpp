@@ -179,7 +179,7 @@ protected:
     /**
      * A sorting callback for NS_QuickSort().
      */
-    static int PR_CALLBACK
+    static int
     Compare(const void* aLeft, const void* aRight, void* aClosure);
 
     /**
@@ -319,6 +319,9 @@ nsXULTreeBuilder::Uninit(PRBool aIsFinal)
     if (mBoxObject) {
         mBoxObject->BeginUpdateBatch();
         mBoxObject->RowCountChanged(0, -count);
+        if (mBoxObject) {
+            mBoxObject->EndUpdateBatch();
+        }
     }
 
     nsXULTemplateBuilder::Uninit(aIsFinal);
@@ -757,8 +760,6 @@ nsXULTreeBuilder::GetCellText(PRInt32 aRow, nsITreeColumn* aCol, nsAString& aRes
 NS_IMETHODIMP
 nsXULTreeBuilder::SetTree(nsITreeBoxObject* aTree)
 {
-    NS_PRECONDITION(mRoot, "not initialized");
-
     mBoxObject = aTree;
 
     // If this is teardown time, then we're done.
@@ -766,6 +767,7 @@ nsXULTreeBuilder::SetTree(nsITreeBoxObject* aTree)
         Uninit(PR_FALSE);
         return NS_OK;
     }
+    NS_ENSURE_TRUE(mRoot, NS_ERROR_NOT_INITIALIZED);
 
     // Is our root's principal trusted?
     PRBool isTrusted = PR_FALSE;
@@ -1339,9 +1341,7 @@ nsXULTreeBuilder::EnsureSortVariables()
 nsresult
 nsXULTreeBuilder::RebuildAll()
 {
-    NS_PRECONDITION(mRoot != nsnull, "not initialized");
-    if (! mRoot)
-        return NS_ERROR_NOT_INITIALIZED;
+    NS_ENSURE_TRUE(mRoot, NS_ERROR_NOT_INITIALIZED);
 
     nsCOMPtr<nsIDocument> doc = mRoot->GetDocument();
 
@@ -1352,40 +1352,35 @@ nsXULTreeBuilder::RebuildAll()
     if (! mQueryProcessor)
         return NS_OK;
 
+    if (mBoxObject) {
+        mBoxObject->BeginUpdateBatch();
+    }
+
     if (mQueriesCompiled) {
         Uninit(PR_FALSE);
     }
     else if (mBoxObject) {
         PRInt32 count = mRows.Count();
         mRows.Clear();
-        mBoxObject->BeginUpdateBatch();
         mBoxObject->RowCountChanged(0, -count);
     }
 
     nsresult rv = CompileQueries();
-    if (NS_FAILED(rv))
-        return rv;
+    if (NS_SUCCEEDED(rv) && mQuerySets.Length() > 0) {
+        // Seed the rule network with assignments for the tree row variable
+        nsAutoString ref;
+        mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::ref, ref);
+        if (!ref.IsEmpty()) {
+            rv = mQueryProcessor->TranslateRef(mDataSource, ref,
+                                               getter_AddRefs(mRootResult));
+            if (NS_SUCCEEDED(rv) && mRootResult) {
+                OpenContainer(-1, mRootResult);
 
-    if (mQuerySets.Length() == 0)
-        return NS_OK;
+                nsCOMPtr<nsIRDFResource> rootResource;
+                GetResultResource(mRootResult, getter_AddRefs(rootResource));
 
-    // Seed the rule network with assignments for the tree row variable
-    nsAutoString ref;
-    mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::ref, ref);
-
-    if (! ref.IsEmpty()) {
-        rv = mQueryProcessor->TranslateRef(mDataSource, ref,
-                                           getter_AddRefs(mRootResult));
-        if (NS_FAILED(rv))
-            return rv;
-
-        if (mRootResult) {
-            OpenContainer(-1, mRootResult);
-
-            nsCOMPtr<nsIRDFResource> rootResource;
-            GetResultResource(mRootResult, getter_AddRefs(rootResource));
-
-            mRows.SetRootResource(rootResource);
+                mRows.SetRootResource(rootResource);
+            }
         }
     }
 
@@ -1393,7 +1388,7 @@ nsXULTreeBuilder::RebuildAll()
         mBoxObject->EndUpdateBatch();
     }
 
-    return NS_OK;
+    return rv;
 }
 
 nsresult

@@ -33,6 +33,7 @@
  * Contributor(s):
  *	Carl D. Worth <cworth@cworth.org>
  *	Kristian Høgsberg <krh@redhat.com>
+ *	Chris Wilson <chris@chris-wilson.co.uk>
  */
 
 #include "cairoint.h"
@@ -84,7 +85,7 @@ convert_data_to_bytes (png_structp png, png_row_infop row_info, png_bytep data)
 }
 
 /* Use a couple of simple error callbacks that do not print anything to
- * stderr and rely on the user to check for errors via the cairo_status_t
+ * stderr and rely on the user to check for errors via the #cairo_status_t
  * return.
  */
 static void
@@ -108,8 +109,22 @@ static void
 png_simple_warning_callback (png_structp png,
 	                     png_const_charp error_msg)
 {
+    cairo_status_t *error = png_get_error_ptr (png);
+
+    /* default to the most likely error */
+    if (*error == CAIRO_STATUS_SUCCESS)
+	*error = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+
+    /* png does not expect to abort and will try to tidy up after a warning */
 }
 
+
+/* Starting with libpng-1.2.30, we must explicitly specify an output_flush_fn.
+ * Otherwise, we will segfault if we are writing to a stream. */
+static void
+png_simple_output_flush_fn (png_structp png_ptr)
+{
+}
 
 static cairo_status_t
 write_png (cairo_surface_t	*surface,
@@ -122,7 +137,6 @@ write_png (cairo_surface_t	*surface,
     void *image_extra;
     png_struct *png;
     png_info *info;
-    png_time pt;
     png_byte **volatile rows = NULL;
     png_color_16 white;
     int png_color_type;
@@ -132,21 +146,25 @@ write_png (cairo_surface_t	*surface,
 						  &image,
 						  &image_extra);
 
-    if (status == CAIRO_STATUS_NO_MEMORY)
-        return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    else if (status != CAIRO_STATUS_SUCCESS)
+    if (status == CAIRO_INT_STATUS_UNSUPPORTED)
 	return _cairo_error (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
+    else if (status)
+        return status;
 
-    if (image->height && image->width) {
-	rows = _cairo_malloc_ab (image->height, sizeof (png_byte*));
-	if (rows == NULL) {
-	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	    goto BAIL1;
-	}
-
-	for (i = 0; i < image->height; i++)
-	    rows[i] = (png_byte *) image->data + i * image->stride;
+    /* PNG complains about "Image width or height is zero in IHDR" */
+    if (image->width == 0 || image->height == 0) {
+	status = _cairo_error (CAIRO_STATUS_WRITE_ERROR);
+	goto BAIL1;
     }
+
+    rows = _cairo_malloc_ab (image->height, sizeof (png_byte*));
+    if (rows == NULL) {
+	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	goto BAIL1;
+    }
+
+    for (i = 0; i < image->height; i++)
+	rows[i] = (png_byte *) image->data + i * image->stride;
 
     png = png_create_write_struct (PNG_LIBPNG_VER_STRING, &status,
 	                           png_simple_error_callback,
@@ -167,7 +185,7 @@ write_png (cairo_surface_t	*surface,
 	goto BAIL3;
 #endif
 
-    png_set_write_fn (png, closure, write_func, NULL);
+    png_set_write_fn (png, closure, write_func, png_simple_output_flush_fn);
 
     switch (image->format) {
     case CAIRO_FORMAT_ARGB32:
@@ -185,6 +203,9 @@ write_png (cairo_surface_t	*surface,
     case CAIRO_FORMAT_A1:
 	depth = 1;
 	png_color_type = PNG_COLOR_TYPE_GRAY;
+#ifndef WORDS_BIGENDIAN
+	png_set_packswap (png);
+#endif
 	break;
     default:
 	status = _cairo_error (CAIRO_STATUS_INVALID_FORMAT);
@@ -199,13 +220,16 @@ write_png (cairo_surface_t	*surface,
 		  PNG_COMPRESSION_TYPE_DEFAULT,
 		  PNG_FILTER_TYPE_DEFAULT);
 
-    white.red = 0xff;
-    white.blue = 0xff;
-    white.green = 0xff;
+    white.gray = (1 << depth) - 1;
+    white.red = white.blue = white.green = white.gray;
     png_set_bKGD (png, info, &white);
 
-    png_convert_from_time_t (&pt, time (NULL));
-    png_set_tIME (png, info, &pt);
+    if (0) { /* XXX extract meta-data from surface (i.e. creation date) */
+	png_time pt;
+
+	png_convert_from_time_t (&pt, time (NULL));
+	png_set_tIME (png, info, &pt);
+    }
 
     /* We have to call png_write_info() before setting up the write
      * transformation, since it stores data internally in 'png'
@@ -220,8 +244,7 @@ write_png (cairo_surface_t	*surface,
     if (image->format == CAIRO_FORMAT_RGB24)
 	png_set_filler (png, 0, PNG_FILLER_AFTER);
 
-    if (rows)
-	png_write_image (png, rows);
+    png_write_image (png, rows);
     png_write_end (png, info);
 
 BAIL3:
@@ -246,7 +269,8 @@ stdio_write_func (png_structp png, png_bytep data, png_size_t size)
 	data += ret;
 	if (size && ferror (fp)) {
 	    cairo_status_t *error = png_get_error_ptr (png);
-	    *error = _cairo_error (CAIRO_STATUS_WRITE_ERROR);
+	    if (*error == CAIRO_STATUS_SUCCESS)
+		*error = _cairo_error (CAIRO_STATUS_WRITE_ERROR);
 	    png_error (png, NULL);
 	}
     }
@@ -260,11 +284,11 @@ stdio_write_func (png_structp png, png_bytep data, png_size_t size)
  * Writes the contents of @surface to a new file @filename as a PNG
  * image.
  *
- * Return value: CAIRO_STATUS_SUCCESS if the PNG file was written
- * successfully. Otherwise, CAIRO_STATUS_NO_MEMORY if memory could not
+ * Return value: %CAIRO_STATUS_SUCCESS if the PNG file was written
+ * successfully. Otherwise, %CAIRO_STATUS_NO_MEMORY if memory could not
  * be allocated for the operation or
- * CAIRO_STATUS_SURFACE_TYPE_MISMATCH if the surface does not have
- * pixel contents, or CAIRO_STATUS_WRITE_ERROR if an I/O error occurs
+ * %CAIRO_STATUS_SURFACE_TYPE_MISMATCH if the surface does not have
+ * pixel contents, or %CAIRO_STATUS_WRITE_ERROR if an I/O error occurs
  * while attempting to write the file.
  **/
 cairo_status_t
@@ -274,9 +298,21 @@ cairo_surface_write_to_png (cairo_surface_t	*surface,
     FILE *fp;
     cairo_status_t status;
 
+    if (surface->status)
+	return surface->status;
+
+    if (surface->finished)
+	return _cairo_error (CAIRO_STATUS_SURFACE_FINISHED);
+
     fp = fopen (filename, "wb");
-    if (fp == NULL)
-	return _cairo_error (CAIRO_STATUS_WRITE_ERROR);
+    if (fp == NULL) {
+	switch (errno) {
+	case ENOMEM:
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	default:
+	    return _cairo_error (CAIRO_STATUS_WRITE_ERROR);
+	}
+    }
 
     status = write_png (surface, stdio_write_func, fp);
 
@@ -287,7 +323,7 @@ cairo_surface_write_to_png (cairo_surface_t	*surface,
 }
 
 struct png_write_closure_t {
-    cairo_write_func_t	write_func;
+    cairo_write_func_t		 write_func;
     void			*closure;
 };
 
@@ -301,7 +337,8 @@ stream_write_func (png_structp png, png_bytep data, png_size_t size)
     status = png_closure->write_func (png_closure->closure, data, size);
     if (status) {
 	cairo_status_t *error = png_get_error_ptr (png);
-	*error = status;
+	if (*error == CAIRO_STATUS_SUCCESS)
+	    *error = status;
 	png_error (png, NULL);
     }
 }
@@ -314,10 +351,10 @@ stream_write_func (png_structp png, png_bytep data, png_size_t size)
  *
  * Writes the image surface to the write function.
  *
- * Return value: CAIRO_STATUS_SUCCESS if the PNG file was written
- * successfully.  Otherwise, CAIRO_STATUS_NO_MEMORY is returned if
+ * Return value: %CAIRO_STATUS_SUCCESS if the PNG file was written
+ * successfully.  Otherwise, %CAIRO_STATUS_NO_MEMORY is returned if
  * memory could not be allocated for the operation,
- * CAIRO_STATUS_SURFACE_TYPE_MISMATCH if the surface does not have
+ * %CAIRO_STATUS_SURFACE_TYPE_MISMATCH if the surface does not have
  * pixel contents.
  **/
 cairo_status_t
@@ -326,6 +363,12 @@ cairo_surface_write_to_png_stream (cairo_surface_t	*surface,
 				   void			*closure)
 {
     struct png_write_closure_t png_closure;
+
+    if (surface->status)
+	return surface->status;
+
+    if (surface->finished)
+	return _cairo_error (CAIRO_STATUS_SURFACE_FINISHED);
 
     png_closure.write_func = write_func;
     png_closure.closure = closure;
@@ -350,21 +393,21 @@ premultiply_data (png_structp   png,
     unsigned int i;
 
     for (i = 0; i < row_info->rowbytes; i += 4) {
-	uint8_t *base = &data[i];
+	uint8_t *base  = &data[i];
 	uint8_t  alpha = base[3];
 	uint32_t p;
 
 	if (alpha == 0) {
 	    p = 0;
 	} else {
-	    uint8_t  red = base[0];
+	    uint8_t  red   = base[0];
 	    uint8_t  green = base[1];
-	    uint8_t  blue = base[2];
+	    uint8_t  blue  = base[2];
 
 	    if (alpha != 0xff) {
-		red = multiply_alpha (alpha, red);
+		red   = multiply_alpha (alpha, red);
 		green = multiply_alpha (alpha, green);
-		blue = multiply_alpha (alpha, blue);
+		blue  = multiply_alpha (alpha, blue);
 	    }
 	    p = (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
 	}
@@ -372,19 +415,37 @@ premultiply_data (png_structp   png,
     }
 }
 
+/* Converts RGBx bytes to native endian xRGB */
+static void
+convert_bytes_to_data (png_structp png, png_row_infop row_info, png_bytep data)
+{
+    unsigned int i;
+
+    for (i = 0; i < row_info->rowbytes; i += 4) {
+	uint8_t *base  = &data[i];
+	uint8_t  red   = base[0];
+	uint8_t  green = base[1];
+	uint8_t  blue  = base[2];
+	uint32_t pixel;
+
+	pixel = (0xff << 24) | (red << 16) | (green << 8) | (blue << 0);
+	memcpy (base, &pixel, sizeof (uint32_t));
+    }
+}
+
 static cairo_surface_t *
 read_png (png_rw_ptr	read_func,
 	  void		*closure)
 {
-    cairo_surface_t *surface = (cairo_surface_t*) &_cairo_surface_nil;
+    cairo_surface_t *surface;
     png_struct *png = NULL;
     png_info *info;
     png_byte *data = NULL;
     png_byte **row_pointers = NULL;
-    png_uint_32 png_width, png_height, stride;
-    int depth, color_type, interlace;
+    png_uint_32 png_width, png_height;
+    int depth, color_type, interlace, stride;
     unsigned int i;
-    unsigned int pixel_size;
+    cairo_format_t format;
     cairo_status_t status;
 
     /* XXX: Perhaps we'll want some other error handlers? */
@@ -392,20 +453,23 @@ read_png (png_rw_ptr	read_func,
                                   &status,
 	                          png_simple_error_callback,
 	                          png_simple_warning_callback);
-    if (png == NULL)
+    if (png == NULL) {
+	surface = _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 	goto BAIL;
+    }
 
     info = png_create_info_struct (png);
-    if (info == NULL)
+    if (info == NULL) {
+	surface = _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 	goto BAIL;
+    }
 
     png_set_read_fn (png, closure, read_func);
 
     status = CAIRO_STATUS_SUCCESS;
 #ifdef PNG_SETJMP_SUPPORTED
     if (setjmp (png_jmpbuf (png))) {
-	if (status != CAIRO_STATUS_NO_MEMORY)
-	    surface = (cairo_surface_t*) &_cairo_surface_nil_read_error;
+	surface = _cairo_surface_create_in_error (status);
 	goto BAIL;
     }
 #endif
@@ -415,19 +479,24 @@ read_png (png_rw_ptr	read_func,
     png_get_IHDR (png, info,
                   &png_width, &png_height, &depth,
                   &color_type, &interlace, NULL, NULL);
-    stride = 4 * png_width;
+    if (status) { /* catch any early warnings */
+	surface = _cairo_surface_create_in_error (status);
+	goto BAIL;
+    }
 
     /* convert palette/gray image to rgb */
     if (color_type == PNG_COLOR_TYPE_PALETTE)
         png_set_palette_to_rgb (png);
 
     /* expand gray bit depth if needed */
-    if (color_type == PNG_COLOR_TYPE_GRAY && depth < 8)
+    if (color_type == PNG_COLOR_TYPE_GRAY) {
 #if PNG_LIBPNG_VER >= 10209
         png_set_expand_gray_1_2_4_to_8 (png);
 #else
         png_set_gray_1_2_4_to_8 (png);
 #endif
+    }
+
     /* transform transparency to alpha */
     if (png_get_valid (png, info, PNG_INFO_tRNS))
         png_set_tRNS_to_alpha (png);
@@ -439,37 +508,78 @@ read_png (png_rw_ptr	read_func,
         png_set_packing (png);
 
     /* convert grayscale to RGB */
-    if (color_type == PNG_COLOR_TYPE_GRAY
-        || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
-        png_set_gray_to_rgb (png);
+    if (color_type == PNG_COLOR_TYPE_GRAY ||
+	color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+    {
+	png_set_gray_to_rgb (png);
+    }
 
     if (interlace != PNG_INTERLACE_NONE)
         png_set_interlace_handling (png);
 
     png_set_filler (png, 0xff, PNG_FILLER_AFTER);
 
-    png_set_read_user_transform_fn (png, premultiply_data);
-
+    /* recheck header after setting EXPAND options */
     png_read_update_info (png, info);
-
-    pixel_size = 4;
-    data = _cairo_malloc_abc (png_height, png_width, pixel_size);
-    if (data == NULL)
+    png_get_IHDR (png, info,
+                  &png_width, &png_height, &depth,
+                  &color_type, &interlace, NULL, NULL);
+    if (depth != 8 ||
+	! (color_type == PNG_COLOR_TYPE_RGB ||
+	   color_type == PNG_COLOR_TYPE_RGB_ALPHA))
+    {
+	surface = _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_READ_ERROR));
 	goto BAIL;
+    }
+
+    switch (color_type) {
+	default:
+	    ASSERT_NOT_REACHED;
+	    /* fall-through just in case ;-) */
+
+	case PNG_COLOR_TYPE_RGB_ALPHA:
+	    format = CAIRO_FORMAT_ARGB32;
+	    png_set_read_user_transform_fn (png, premultiply_data);
+	    break;
+
+	case PNG_COLOR_TYPE_RGB:
+	    format = CAIRO_FORMAT_RGB24;
+	    png_set_read_user_transform_fn (png, convert_bytes_to_data);
+	    break;
+    }
+
+    stride = cairo_format_stride_for_width (format, png_width);
+    if (stride < 0) {
+	surface = _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_INVALID_STRIDE));
+	goto BAIL;
+    }
+
+    data = _cairo_malloc_ab (png_height, stride);
+    if (data == NULL) {
+	surface = _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
+	goto BAIL;
+    }
 
     row_pointers = _cairo_malloc_ab (png_height, sizeof (char *));
-    if (row_pointers == NULL)
+    if (row_pointers == NULL) {
+	surface = _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
 	goto BAIL;
+    }
 
     for (i = 0; i < png_height; i++)
-        row_pointers[i] = &data[i * png_width * pixel_size];
+        row_pointers[i] = &data[i * stride];
 
     png_read_image (png, row_pointers);
     png_read_end (png, info);
 
-    surface = cairo_image_surface_create_for_data (data,
-						   CAIRO_FORMAT_ARGB32,
-						   png_width, png_height, stride);
+    if (status) { /* catch any late warnings - probably hit an error already */
+	surface = _cairo_surface_create_in_error (status);
+	goto BAIL;
+    }
+
+    surface = cairo_image_surface_create_for_data (data, format,
+						   png_width, png_height,
+						   stride);
     if (surface->status)
 	goto BAIL;
 
@@ -483,9 +593,6 @@ read_png (png_rw_ptr	read_func,
 	free (data);
     if (png)
 	png_destroy_read_struct (&png, &info, NULL);
-
-    if (surface->status)
-	_cairo_error_throw (surface->status);
 
     return surface;
 }
@@ -502,7 +609,8 @@ stdio_read_func (png_structp png, png_bytep data, png_size_t size)
 	data += ret;
 	if (size && (feof (fp) || ferror (fp))) {
 	    cairo_status_t *error = png_get_error_ptr (png);
-	    *error = _cairo_error (CAIRO_STATUS_READ_ERROR);
+	    if (*error == CAIRO_STATUS_SUCCESS)
+		*error = _cairo_error (CAIRO_STATUS_READ_ERROR);
 	    png_error (png, NULL);
 	}
     }
@@ -520,9 +628,9 @@ stdio_read_func (png_structp png, png_bytep data, png_size_t size)
  * surface can be checked for with cairo_surface_status(surface) which
  * may return one of the following values:
  *
- *	CAIRO_STATUS_NO_MEMORY
- *	CAIRO_STATUS_FILE_NOT_FOUND
- *	CAIRO_STATUS_READ_ERROR
+ *	%CAIRO_STATUS_NO_MEMORY
+ *	%CAIRO_STATUS_FILE_NOT_FOUND
+ *	%CAIRO_STATUS_READ_ERROR
  **/
 cairo_surface_t *
 cairo_image_surface_create_from_png (const char *filename)
@@ -532,17 +640,19 @@ cairo_image_surface_create_from_png (const char *filename)
 
     fp = fopen (filename, "rb");
     if (fp == NULL) {
+	cairo_status_t status;
 	switch (errno) {
 	case ENOMEM:
-	    _cairo_error_throw (CAIRO_STATUS_NO_MEMORY);
-	    return (cairo_surface_t*) &_cairo_surface_nil;
+	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	    break;
 	case ENOENT:
-	    _cairo_error_throw (CAIRO_STATUS_FILE_NOT_FOUND);
-	    return (cairo_surface_t*) &_cairo_surface_nil_file_not_found;
+	    status = _cairo_error (CAIRO_STATUS_FILE_NOT_FOUND);
+	    break;
 	default:
-	    _cairo_error_throw (CAIRO_STATUS_READ_ERROR);
-	    return (cairo_surface_t*) &_cairo_surface_nil_read_error;
+	    status = _cairo_error (CAIRO_STATUS_READ_ERROR);
+	    break;
 	}
+	return _cairo_surface_create_in_error (status);
     }
 
     surface = read_png (stdio_read_func, fp);
@@ -553,7 +663,7 @@ cairo_image_surface_create_from_png (const char *filename)
 }
 
 struct png_read_closure_t {
-    cairo_read_func_t	read_func;
+    cairo_read_func_t		 read_func;
     void			*closure;
 };
 
@@ -567,7 +677,8 @@ stream_read_func (png_structp png, png_bytep data, png_size_t size)
     status = png_closure->read_func (png_closure->closure, data, size);
     if (status) {
 	cairo_status_t *error = png_get_error_ptr (png);
-	*error = status;
+	if (*error == CAIRO_STATUS_SUCCESS)
+	    *error = status;
 	png_error (png, NULL);
     }
 }

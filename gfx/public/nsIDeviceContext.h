@@ -52,6 +52,7 @@ class nsIFontMetrics;
 class nsIWidget;
 class nsIDeviceContextSpec;
 class nsIAtom;
+class gfxUserFontSet;
 
 struct nsFont;
 
@@ -168,10 +169,10 @@ const PRUint8 kUseAltDCFor_CREATERC_PAINT  = 0x04; // Use when creating Renderin
 const PRUint8 kUseAltDCFor_SURFACE_DIM     = 0x08; // Use it for getting the Surface Dimensions
 #endif
 
-// 4dd372b6-ef19-4995-a7ac-ba3efd3f656f
+// eca27eb2-ef6f-4142-bf77-89c14e595171
 #define NS_IDEVICE_CONTEXT_IID   \
-{ 0x4dd372b6, 0xef19, 0x4995, \
- { 0xa7, 0xac, 0xba, 0x3e, 0xfd, 0x3f, 0x65, 0x6f } }
+{ 0xeca27eb2, 0xef6f, 0x4142, \
+  { 0xbf, 0x77, 0x89, 0xc1, 0x4e, 0x59, 0x51, 0x71 } }
 
 //a cross platform way of specifying a native palette handle
 typedef void * nsPalette;
@@ -295,7 +296,14 @@ public:
   PRInt32 AppUnitsPerDevPixel() const { return mAppUnitsPerDevPixel; }
 
   /**
-   * Convert app units to device pixels which is used in gfx/thebes.
+   * Convert device pixels which is used for gfx/thebes to nearest (rounded)
+   * app units
+   */
+  nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
+  { return nscoord(NS_round(aGfxUnits * AppUnitsPerDevPixel())); }
+
+  /**
+   * Convert app units to device pixels which is used for gfx/thebes.
    */
   gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const
   { return gfxFloat(aAppUnits) / AppUnitsPerDevPixel(); }
@@ -323,9 +331,11 @@ public:
    * @param aFont font description to obtain metrics for
    * @param aLangGroup the language group of the document
    * @param aMetrics out parameter for font metrics
+   * @param aUserFontSet user font set
    * @return error status
    */
   NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
+                            gfxUserFontSet* aUserFontSet,
                             nsIFontMetrics*& aMetrics) = 0;
 
   /**
@@ -333,9 +343,11 @@ public:
    * an nsFont.
    * @param aFont font description to obtain metrics for
    * @param aMetrics out parameter for font metrics
+   * @param aUserFontSet user font set
    * @return error status
    */
-  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIFontMetrics*& aMetrics) = 0;
+  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, gfxUserFontSet* aUserFontSet,
+                            nsIFontMetrics*& aMetrics) = 0;
 
   /**
    * Check to see if a particular named font exists.

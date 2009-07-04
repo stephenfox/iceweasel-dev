@@ -37,6 +37,7 @@
  * The following handles the loading, unloading and management of
  * various PCKS #11 modules
  */
+#define FORCE_PR_LOG 1
 #include "seccomon.h"
 #include "pkcs11.h"
 #include "secmod.h"
@@ -48,9 +49,7 @@
 #include "secerr.h"
 #include "prenv.h"
 
-#ifdef DEBUG
 #define DEBUG_MODULE 1
-#endif
 
 #ifdef DEBUG_MODULE
 static char *modToDBG = NULL;
@@ -445,9 +444,7 @@ fail2:
     }
 fail:
     mod->functionList = NULL;
-#ifdef DEBUG
     disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
-#endif
     if (library && !disableUnload) {
         PR_UnloadLibrary(library);
     }
@@ -474,9 +471,7 @@ SECMOD_UnloadModule(SECMODModule *mod) {
     if (mod->internal) {
         if (0 == PR_AtomicDecrement(&softokenLoadCount)) {
           if (softokenLib) {
-#ifdef DEBUG
               disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
-#endif
               if (!disableUnload) {
                   PRStatus status = PR_UnloadLibrary(softokenLib);
                   PORT_Assert(PR_SUCCESS == status);
@@ -494,9 +489,7 @@ SECMOD_UnloadModule(SECMODModule *mod) {
 	return SECFailure;
     }
 
-#ifdef DEBUG
     disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
-#endif
     if (!disableUnload) {
         PR_UnloadLibrary(library);
     }

@@ -43,6 +43,8 @@
 #include "gfxTypes.h"
 #include "gfxFont.h"
 
+#include "nsAutoRef.h"
+
 #include <pango/pango.h>
 
 // Control when we bypass Pango
@@ -54,68 +56,16 @@
 // anything other than simple Latin work though!
 //#define ENABLE_FAST_PATH_ALWAYS
 
-#include "nsDataHashtable.h"
-#include "nsClassHashtable.h"
-
-class FontSelector;
-
-class gfxPangoTextRun;
-
-class gfxPangoFont : public gfxFont {
-public:
-    gfxPangoFont (const nsAString& aName,
-                  const gfxFontStyle *aFontStyle);
-    virtual ~gfxPangoFont ();
-
-    static void Shutdown();
-
-    virtual const gfxFont::Metrics& GetMetrics();
-
-    PangoFontDescription *GetPangoFontDescription() { if (!mPangoFontDesc) RealizeFont(); return mPangoFontDesc; }
-    PangoContext *GetPangoContext() { if (!mPangoFontDesc) RealizeFont(); return mPangoCtx; }
-
-    void GetMozLang(nsACString &aMozLang);
-    void GetActualFontFamily(nsACString &aFamily);
-
-    PangoFont *GetPangoFont() { if (!mPangoFont) RealizePangoFont(); return mPangoFont; }
-    gfxFloat GetAdjustedSize() { if (!mPangoFontDesc) RealizeFont(); return mAdjustedSize; }
-
-    PRUint32 GetGlyph(const PRUint32 aChar);
-
-    virtual nsString GetUniqueName();
-
-    // Get the glyphID of a space
-    virtual PRUint32 GetSpaceGlyph() {
-        GetMetrics();
-        return mSpaceGlyph;
-    }
-
-protected:
-    PangoFontDescription *mPangoFontDesc;
-    PangoContext *mPangoCtx;
-
-    PangoFont *mPangoFont;
-    cairo_scaled_font_t *mCairoFont;
-
-    PRBool   mHasMetrics;
-    PRUint32 mSpaceGlyph;
-    Metrics  mMetrics;
-    gfxFloat mAdjustedSize;
-
-    void RealizeFont(PRBool force = PR_FALSE);
-    void RealizePangoFont(PRBool aForce = PR_FALSE);
-    void GetCharSize(const char aChar, gfxSize& aInkSize, gfxSize& aLogSize,
-                     PRUint32 *aGlyphID = nsnull);
-
-    virtual PRBool SetupCairoFont(gfxContext *aContext);
-};
-
-class FontSelector;
+class gfxFcPangoFontSet;
+class gfxProxyFontEntry;
+typedef struct _FcPattern FcPattern;
+typedef struct FT_FaceRec_* FT_Face;
 
 class THEBES_API gfxPangoFontGroup : public gfxFontGroup {
 public:
     gfxPangoFontGroup (const nsAString& families,
-                       const gfxFontStyle *aStyle);
+                       const gfxFontStyle *aStyle,
+                       gfxUserFontSet *aUserFontSet);
     virtual ~gfxPangoFontGroup ();
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
@@ -126,12 +76,48 @@ public:
     virtual gfxTextRun *MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
                                     const Parameters *aParams, PRUint32 aFlags);
 
-    gfxPangoFont *GetFontAt(PRInt32 i) {
-        return static_cast<gfxPangoFont*>(static_cast<gfxFont*>(mFonts[i]));
-    }
+    virtual gfxFont *GetFontAt(PRInt32 i);
+
+    virtual void UpdateFontList();
+
+    static void Shutdown();
+
+    // Used for @font-face { src: local(); }
+    static gfxFontEntry *NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                      const nsAString &aFullname);
+    // Used for @font-face { src: url(); }
+    static gfxFontEntry *NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                      nsISupports *aLoader,
+                                      const PRUint8 *aFontData,
+                                      PRUint32 aLength);
+
+    // Interfaces used internally
+    // (but public so that they can be accessed from non-member functions):
+
+    // The FontGroup holds the reference to the PangoFont (through the FontSet).
+    PangoFont *GetBasePangoFont();
+
+    // A language guessed from the gfxFontStyle
+    PangoLanguage *GetPangoLanguage() { return mPangoLanguage; }
+
+    // @param aLang [in] language to use for pref fonts and system default font
+    //        selection, or NULL for the language guessed from the gfxFontStyle.
+    // The FontGroup holds a reference to this set.
+    gfxFcPangoFontSet *GetFontSet(PangoLanguage *aLang = NULL);
 
 protected:
-    friend class FontSelector;
+    class FontSetByLangEntry {
+    public:
+        FontSetByLangEntry(PangoLanguage *aLang, gfxFcPangoFontSet *aFontSet);
+        PangoLanguage *mLang;
+        nsRefPtr<gfxFcPangoFontSet> mFontSet;
+    };
+    // There is only one of entry in this array unless characters from scripts
+    // of other languages are measured.
+    nsAutoTArray<FontSetByLangEntry,1> mFontSets;
+
+    gfxFloat mSizeAdjustFactor;
+    PangoLanguage *mPangoLanguage;
 
     // ****** Textrun glyph conversion helpers ******
 
@@ -146,7 +132,7 @@ protected:
                      PRBool aTake8BitPath);
 
     // Returns NS_ERROR_FAILURE if there's a missing glyph
-    nsresult SetGlyphs(gfxTextRun *aTextRun, gfxPangoFont *aFont,
+    nsresult SetGlyphs(gfxTextRun *aTextRun,
                        const gchar *aUTF8, PRUint32 aUTF8Length,
                        PRUint32 *aUTF16Offset, PangoGlyphString *aGlyphs,
                        PangoGlyphUnit aOverrideSpaceWidth,
@@ -163,51 +149,24 @@ protected:
                                  const gchar *aUTF8, PRUint32 aUTF8Length);
 #endif
 
-    static PRBool FontCallback (const nsAString& fontName,
-                                const nsACString& genericName,
-                                void *closure);
+    void GetFcFamilies(nsTArray<nsString> *aFcFamilyList,
+                       const nsACString& aLangGroup);
 
-private:
-    nsTArray<gfxFontStyle> mAdditionalStyles;
-};
+    // @param aLang [in] language to use for pref fonts and system font
+    //        resolution, or NULL to guess a language from the gfxFontStyle.
+    // @param aMatchPattern [out] if non-NULL, will return the pattern used.
+    already_AddRefed<gfxFcPangoFontSet>
+    MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
+                nsAutoRef<FcPattern> *aMatchPattern = NULL);
 
-class gfxPangoFontWrapper {
-public:
-    gfxPangoFontWrapper(PangoFont *aFont) {
-        mFont = aFont;
-        g_object_ref(mFont);
+    gfxFcPangoFontSet *GetBaseFontSet();
+
+    gfxFloat GetSizeAdjustFactor()
+    {
+        if (mFontSets.Length() == 0)
+            GetBaseFontSet();
+        return mSizeAdjustFactor;
     }
-    ~gfxPangoFontWrapper() {
-        if (mFont)
-            g_object_unref(mFont);
-    }
-    PangoFont* Get() { return mFont; }
-private:
-    PangoFont *mFont;
-};
-
-class gfxPangoFontCache
-{
-public:
-    gfxPangoFontCache();
-    ~gfxPangoFontCache();
-
-    static gfxPangoFontCache* GetPangoFontCache() {
-        if (!sPangoFontCache)
-            sPangoFontCache = new gfxPangoFontCache();
-        return sPangoFontCache;
-    }
-    static void Shutdown() {
-        if (sPangoFontCache)
-            delete sPangoFontCache;
-        sPangoFontCache = nsnull;
-    }
-
-    void Put(const PangoFontDescription *aFontDesc, PangoFont *aPangoFont);
-    PangoFont* Get(const PangoFontDescription *aFontDesc);
-private:
-    static gfxPangoFontCache *sPangoFontCache;
-    nsClassHashtable<nsUint32HashKey,  gfxPangoFontWrapper> mPangoFonts;
 };
 
 #endif /* GFX_PANGOFONTS_H */

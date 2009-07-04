@@ -26,6 +26,7 @@
  *   Christian Biesinger <cbiesinger@web.de>
  *   Dan Mosedale <dmose@mozilla.org>
  *   Myk Melez <myk@mozilla.org>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -123,6 +124,20 @@
 #include "nsIRandomGenerator.h"
 #include "plbase64.h"
 #include "prmem.h"
+
+#include "nsIPrivateBrowsingService.h"
+
+// Buffer file writes in 32kb chunks
+#define BUFFERED_OUTPUT_SIZE (1024 * 32)
+
+// Download Folder location constants
+#define NS_PREF_DOWNLOAD_DIR        "browser.download.dir"
+#define NS_PREF_DOWNLOAD_FOLDERLIST "browser.download.folderList"
+enum {
+  NS_FOLDER_VALUE_DESKTOP = 0
+, NS_FOLDER_VALUE_DOWNLOADS = 1
+, NS_FOLDER_VALUE_CUSTOM = 2
+};
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* nsExternalHelperAppService::mLog = nsnull;
@@ -304,17 +319,14 @@ static PRBool GetFilenameAndExtensionFromChannel(nsIChannel* aChannel,
     // XXXbz this code is duplicated in nsDocumentOpenInfo::DispatchContent.
     // Factor it out!  Maybe store it in the nsDocumentOpenInfo?
     if (NS_FAILED(rv) || 
-        (// Some broken sites just send
-         // Content-Disposition: ; filename="file"
-         // screen those out here.
-         !dispToken.IsEmpty() &&
+        (!dispToken.IsEmpty() &&
          !dispToken.LowerCaseEqualsLiteral("inline") &&
-        // Broken sites just send
-        // Content-Disposition: filename="file"
-        // without a disposition token... screen those out.
-        !dispToken.EqualsIgnoreCase("filename", 8)) &&
-        // Also in use is Content-Disposition: name="file"
-        !dispToken.EqualsIgnoreCase("name", 4)) 
+         // Broken sites just send
+         // Content-Disposition: filename="file"
+         // without a disposition token... screen those out.
+         !dispToken.EqualsIgnoreCase("filename", 8) &&
+         // Also in use is Content-Disposition: name="file"
+         !dispToken.EqualsIgnoreCase("name", 4)))
     {
       // We have a content-disposition of "attachment" or unknown
       handleExternally = PR_TRUE;
@@ -374,6 +386,66 @@ static PRBool GetFilenameAndExtensionFromChannel(nsIChannel* aChannel,
 
 
   return handleExternally;
+}
+
+/**
+ * Obtains the download directory to use.  This tends to vary per platform, and
+ * needs to be consistent throughout our codepaths.
+ */
+static nsresult GetDownloadDirectory(nsIFile **_directory)
+{
+  nsCOMPtr<nsIFile> dir;
+#ifdef XP_MACOSX
+  // On OS X, we first try to get the users download location, if it's set.
+  nsCOMPtr<nsIPrefBranch> prefs =
+    do_GetService(NS_PREFSERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(prefs, NS_ERROR_UNEXPECTED);
+
+  PRInt32 folderValue = -1;
+  (void) prefs->GetIntPref(NS_PREF_DOWNLOAD_FOLDERLIST, &folderValue);
+  switch (folderValue) {
+    case NS_FOLDER_VALUE_DESKTOP:
+      (void) NS_GetSpecialDirectory(NS_OS_DESKTOP_DIR, getter_AddRefs(dir));
+      break;
+    case NS_FOLDER_VALUE_CUSTOM:
+      {
+        (void) prefs->GetComplexValue(NS_PREF_DOWNLOAD_DIR,
+                                      NS_GET_IID(nsILocalFile),
+                                      getter_AddRefs(dir));
+        if (!dir) break;
+
+        // We have the directory, and now we need to make sure it exists
+        PRBool dirExists = PR_FALSE;
+        (void) dir->Exists(&dirExists);
+        if (dirExists) break;
+
+        nsresult rv = dir->Create(nsIFile::DIRECTORY_TYPE, 0755);
+        if (NS_FAILED(rv)) {
+          dir = nsnull;
+          break;
+        }
+      }
+      break;
+    case NS_FOLDER_VALUE_DOWNLOADS:
+      // This is just the OS default location, so fall out
+      break;
+  }
+
+  if (!dir) {
+    // If not, we default to the OS X default download location.
+    nsresult rv = NS_GetSpecialDirectory(NS_OSX_DEFAULT_DOWNLOAD_DIR,
+                                         getter_AddRefs(dir));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+#else
+  // On all other platforms, we default to the systems temporary directory.
+  nsresult rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dir));
+  NS_ENSURE_SUCCESS(rv, rv);
+#endif
+
+  NS_ASSERTION(dir, "Somehow we didn't get a download directory!");
+  dir.forget(_directory);
+  return NS_OK;
 }
 
 /**
@@ -466,6 +538,11 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { TEXT_XUL, "xul", "XML-Based User Interface Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
   { TEXT_XML, "xml,xsl,xbl", "Extensible Markup Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
   { TEXT_CSS, "css", "Style Sheet", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { VIDEO_OGG, "ogv", "Ogg Video", 0, 0 },
+  { VIDEO_OGG, "ogg", "Ogg Video", 0, 0 },
+  { APPLICATION_OGG, "ogg", "Ogg Video", 0, 0},
+  { AUDIO_OGG, "oga", "Ogg Audio", 0, 0 },
+  { AUDIO_WAV, "wav", "Waveform Audio", 0, 0 }
 };
 
 #undef MAC_TYPE
@@ -491,12 +568,19 @@ NS_IMPL_ISUPPORTS6(
   nsIObserver,
   nsISupportsWeakReference)
 
-nsExternalHelperAppService::nsExternalHelperAppService()
+nsExternalHelperAppService::nsExternalHelperAppService() :
+  mInPrivateBrowsing(PR_FALSE)
 {
   gExtProtSvc = this;
 }
 nsresult nsExternalHelperAppService::Init()
 {
+  nsCOMPtr<nsIPrivateBrowsingService> pbs =
+    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (pbs) {
+    pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
+  }
+
   // Add an observer for profile change
   nsresult rv = NS_OK;
   nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1", &rv);
@@ -510,7 +594,9 @@ nsresult nsExternalHelperAppService::Init()
   }
 #endif
 
-  return obs->AddObserver(this, "profile-before-change", PR_TRUE);
+  rv = obs->AddObserver(this, "profile-before-change", PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return obs->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
 }
 
 nsExternalHelperAppService::~nsExternalHelperAppService()
@@ -521,6 +607,7 @@ nsExternalHelperAppService::~nsExternalHelperAppService()
 NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeContentType,
                                                     nsIRequest *aRequest,
                                                     nsIInterfaceRequestor *aWindowContext,
+                                                    PRBool aForceSave,
                                                     nsIStreamListener ** aStreamListener)
 {
   nsAutoString fileName;
@@ -637,7 +724,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
                                                             buf,
                                                             aWindowContext,
                                                             fileName,
-                                                            reason);
+                                                            reason,
+                                                            aForceSave);
   if (!handler)
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(*aStreamListener = handler);
@@ -703,8 +791,8 @@ NS_IMETHODIMP nsExternalHelperAppService::ExternalProtocolHandlerExists(const ch
                                                                         PRBool * aHandlerExists)
 {
   nsCOMPtr<nsIHandlerInfo> handlerInfo;
-  nsresult rv = GetProtocolHandlerInfo(
-      nsDependentCString(aProtocolScheme), getter_AddRefs(handlerInfo));
+  nsresult rv = GetProtocolHandlerInfo(nsDependentCString(aProtocolScheme), 
+                                       getter_AddRefs(handlerInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // See if we have any known possible handler apps for this
@@ -852,7 +940,10 @@ NS_IMETHODIMP nsExternalHelperAppService::DeleteTemporaryFileOnExit(nsIFile * aT
   localFile->IsFile(&isFile);
   if (!isFile) return NS_OK;
 
-  mTemporaryFilesList.AppendObject(localFile);
+  if (mInPrivateBrowsing)
+    mTemporaryPrivateFilesList.AppendObject(localFile);
+  else
+    mTemporaryFilesList.AppendObject(localFile);
 
   return NS_OK;
 }
@@ -862,20 +953,31 @@ void nsExternalHelperAppService::FixFilePermissions(nsILocalFile* aFile)
   // This space intentionally left blank
 }
 
-nsresult nsExternalHelperAppService::ExpungeTemporaryFiles()
+void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsILocalFile> &fileList)
 {
-  PRInt32 numEntries = mTemporaryFilesList.Count();
+  PRInt32 numEntries = fileList.Count();
   nsILocalFile* localFile;
   for (PRInt32 index = 0; index < numEntries; index++)
   {
-    localFile = mTemporaryFilesList[index];
-    if (localFile)
+    localFile = fileList[index];
+    if (localFile) {
+      // First make the file writable, since the temp file is probably readonly.
+      localFile->SetPermissions(0600);
       localFile->Remove(PR_FALSE);
+    }
   }
 
-  mTemporaryFilesList.Clear();
+  fileList.Clear();
+}
 
-  return NS_OK;
+void nsExternalHelperAppService::ExpungeTemporaryFiles()
+{
+  ExpungeTemporaryFilesHelper(mTemporaryFilesList);
+}
+
+void nsExternalHelperAppService::ExpungeTemporaryPrivateFiles()
+{
+  ExpungeTemporaryFilesHelper(mTemporaryPrivateFilesList);
 }
 
 static const char kExternalWarningPrefPrefix[] = 
@@ -884,54 +986,75 @@ static const char kExternalWarningDefaultPref[] =
   "network.protocol-handler.warn-external-default";
 
 NS_IMETHODIMP
-nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme, 
+nsExternalHelperAppService::GetProtocolHandlerInfo(const nsACString &aScheme,
                                                    nsIHandlerInfo **aHandlerInfo)
 {
   // XXX enterprise customers should be able to turn this support off with a
   // single master pref (maybe use one of the "exposed" prefs here?)
 
   PRBool exists;
-  *aHandlerInfo = GetProtocolInfoFromOS(aScheme, &exists).get();
-  if (!(*aHandlerInfo)) {
+  nsresult rv = GetProtocolHandlerInfoFromOS(aScheme, &exists, aHandlerInfo);
+  if (NS_FAILED(rv)) {
     // Either it knows nothing, or we ran out of memory
     return NS_ERROR_FAILURE;
   }
-
-  nsresult rv = NS_ERROR_FAILURE;
-  nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
-  if (handlerSvc)
-    rv = handlerSvc->FillHandlerInfo(*aHandlerInfo, EmptyCString());
   
+  nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
+  if (handlerSvc) {
+    PRBool hasHandler = PR_FALSE;
+    (void) handlerSvc->Exists(*aHandlerInfo, &hasHandler);
+    if (hasHandler) {
+      rv = handlerSvc->FillHandlerInfo(*aHandlerInfo, EmptyCString());
+      if (NS_SUCCEEDED(rv))
+        return NS_OK;
+    }
+  }
+  
+  return SetProtocolHandlerDefaults(*aHandlerInfo, exists);
+}
+
+NS_IMETHODIMP
+nsExternalHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
+                                                         PRBool *found,
+                                                         nsIHandlerInfo **aHandlerInfo)
+{
+  // intended to be implemented by the subclass
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsExternalHelperAppService::SetProtocolHandlerDefaults(nsIHandlerInfo *aHandlerInfo,
+                                                       PRBool aOSHandlerExists)
+{
   // this type isn't in our database, so we've only got an OS default handler,
   // if one exists
-  if (NS_FAILED(rv)) {
+
+  if (aOSHandlerExists) {
+    // we've got a default, so use it
+    aHandlerInfo->SetPreferredAction(nsIHandlerInfo::useSystemDefault);
+
+    // whether or not to ask the user depends on the warning preference
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (!prefs)
+      return NS_OK; // deny if we can't check prefs
+
+    nsCAutoString scheme;
+    aHandlerInfo->GetType(scheme);
     
-    if (exists) {
-      // we've got a default, so use it
-      (*aHandlerInfo)->SetPreferredAction(nsIHandlerInfo::useSystemDefault);
-
-      // whether or not to ask the user depends on the warning preference
-
-      nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-      if (!prefs)
-        return NS_OK; // deny if we can't check prefs
-
-      nsCAutoString warningPref(kExternalWarningPrefPrefix);
-      warningPref += aScheme;
-      PRBool warn = PR_TRUE;
-      rv = prefs->GetBoolPref(warningPref.get(), &warn);
-      if (NS_FAILED(rv))
-      {
-        // no scheme-specific value, check the default
-        prefs->GetBoolPref(kExternalWarningDefaultPref, &warn);
-      }
-      (*aHandlerInfo)->SetAlwaysAskBeforeHandling(warn);
-    } else {
-      // If no OS default existed, we set the preferred action to alwaysAsk. 
-      // This really means not initialized (i.e. there's no available handler)
-      // to all the code...
-      (*aHandlerInfo)->SetPreferredAction(nsIHandlerInfo::alwaysAsk);
+    nsCAutoString warningPref(kExternalWarningPrefPrefix);
+    warningPref += scheme;
+    PRBool warn = PR_TRUE;
+    nsresult rv = prefs->GetBoolPref(warningPref.get(), &warn);
+    if (NS_FAILED(rv)) {
+      // no scheme-specific value, check the default
+      prefs->GetBoolPref(kExternalWarningDefaultPref, &warn);
     }
+    aHandlerInfo->SetAlwaysAskBeforeHandling(warn);
+  } else {
+    // If no OS default existed, we set the preferred action to alwaysAsk. 
+    // This really means not initialized (i.e. there's no available handler)
+    // to all the code...
+    aHandlerInfo->SetPreferredAction(nsIHandlerInfo::alwaysAsk);
   }
 
   return NS_OK;
@@ -943,6 +1066,13 @@ nsExternalHelperAppService::Observe(nsISupports *aSubject, const char *aTopic, c
 {
   if (!strcmp(aTopic, "profile-before-change")) {
     ExpungeTemporaryFiles();
+  } else if (!strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC)) {
+    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(someData))
+      mInPrivateBrowsing = PR_TRUE;
+    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(someData)) {
+      mInPrivateBrowsing = PR_FALSE;
+      ExpungeTemporaryPrivateFiles();
+    }
   }
   return NS_OK;
 }
@@ -967,11 +1097,12 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
                                            const nsCSubstring& aTempFileExtension,
                                            nsIInterfaceRequestor* aWindowContext,
                                            const nsAString& aSuggestedFilename,
-                                           PRUint32 aReason)
+                                           PRUint32 aReason, PRBool aForceSave)
 : mMimeInfo(aMIMEInfo)
 , mWindowContext(aWindowContext)
 , mWindowToClose(nsnull)
 , mSuggestedFileName(aSuggestedFilename)
+, mForceSave(aForceSave)
 , mCanceled(PR_FALSE)
 , mShouldCloseWindow(PR_FALSE)
 , mReceivedDispositionInfo(PR_FALSE)
@@ -1055,6 +1186,12 @@ NS_IMETHODIMP nsExternalAppHandler::GetTimeDownloadStarted(PRTime* aTime)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsExternalAppHandler::GetContentLength(PRInt64 *aContentLength)
+{
+  *aContentLength = mContentLength;
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsExternalAppHandler::CloseProgressWindow()
 {
   // release extra state...
@@ -1134,18 +1271,9 @@ void nsExternalAppHandler::EnsureSuggestedFileName()
 
 nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
 {
-  nsresult rv;
-
-#ifdef XP_MACOSX
- // create a temp file for the data...and open it for writing.
- // use NS_MAC_DEFAULT_DOWNLOAD_DIR which gets download folder from InternetConfig
- // if it can't get download folder pref, then it uses desktop folder
-  rv = NS_GetSpecialDirectory(NS_MAC_DEFAULT_DOWNLOAD_DIR,
-                              getter_AddRefs(mTempFile));
-#else
-  // create a temp file for the data...and open it for writing.
-  rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(mTempFile));
-#endif
+  // First we need to try to get the destination directory for the temporary
+  // file.
+  nsresult rv = GetDownloadDirectory(getter_AddRefs(mTempFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // At this point, we do not have a filename for the temp file.  For security
@@ -1191,6 +1319,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   nsCAutoString ext;
   mMimeInfo->GetPrimaryExtension(ext);
   if (!ext.IsEmpty()) {
+    ext.ReplaceChar(FILE_PATH_SEPARATOR FILE_ILLEGAL_CHARACTERS, '_');
     if (ext.First() != '.')
       tempLeafName.Append('.');
     tempLeafName.Append(ext);
@@ -1205,8 +1334,10 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the file name without .part
-  dummyFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
-  dummyFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  rv = dummyFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = dummyFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Store executable-ness then delete
   dummyFile->IsExecutable(&mTempFileIsExecutable);
@@ -1217,9 +1348,11 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   // default application.
   tempLeafName.Append(NS_LITERAL_CSTRING(".part"));
 
-  mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
+  rv = mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
   // make this file unique!!!
-  mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
+  NS_ENSURE_SUCCESS(rv, rv);
 
 #ifndef XP_WIN
   // On other platforms, the file permission bits are used, so we can just call
@@ -1240,12 +1373,15 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   }
 #endif
 
-  rv = NS_NewLocalFileOutputStream(getter_AddRefs(mOutStream), mTempFile,
+  nsCOMPtr<nsIOutputStream> outputStream;
+  rv = NS_NewLocalFileOutputStream(getter_AddRefs(outputStream), mTempFile,
                                    PR_WRONLY | PR_CREATE_FILE, 0600);
   if (NS_FAILED(rv)) {
     mTempFile->Remove(PR_FALSE);
     return rv;
   }
+
+  mOutStream = NS_BufferOutputStream(outputStream, BUFFERED_OUTPUT_SIZE);
 
 #ifdef XP_MACOSX
     nsCAutoString contentType;
@@ -1438,6 +1574,13 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     alwaysAsk = (action != nsIMIMEInfo::saveToDisk);
   }
 
+  // if we were told that we _must_ save to disk without asking, all the stuff
+  // before this is irrelevant; override it
+  if (mForceSave) {
+    alwaysAsk = PR_FALSE;
+    action = nsIMIMEInfo::saveToDisk;
+  }
+  
   if (alwaysAsk)
   {
     // do this first! make sure we don't try to take an action until the user tells us what they want to do
@@ -1769,7 +1912,10 @@ nsresult nsExternalAppHandler::ExecuteDesiredAction()
       {
         mWebProgressListener->OnProgressChange64(nsnull, nsnull, mProgress, mContentLength, mProgress, mContentLength);
       }
-      mWebProgressListener->OnStateChange(nsnull, nsnull, nsIWebProgressListener::STATE_STOP, NS_OK);
+      mWebProgressListener->OnStateChange(nsnull, nsnull,
+        nsIWebProgressListener::STATE_STOP |
+        nsIWebProgressListener::STATE_IS_REQUEST |
+        nsIWebProgressListener::STATE_IS_NETWORK, NS_OK);
     }
   }
   
@@ -1827,7 +1973,9 @@ nsresult nsExternalAppHandler::CreateProgressListener()
     InitializeDownload(tr);
 
   if (tr)
-    tr->OnStateChange(nsnull, mRequest, nsIWebProgressListener::STATE_START, NS_OK);
+    tr->OnStateChange(nsnull, mRequest, nsIWebProgressListener::STATE_START |
+      nsIWebProgressListener::STATE_IS_REQUEST |
+      nsIWebProgressListener::STATE_IS_NETWORK, NS_OK);
 
   // note we might not have a listener here if the QI() failed, or if
   // there is no nsITransfer object, but we still call
@@ -1867,7 +2015,7 @@ nsresult nsExternalAppHandler::PromptForSaveToFile(nsILocalFile ** aNewFile, con
                                     mWindowContext,
                                     aDefaultFile.get(),
                                     aFileExtension.get(),
-                                    aNewFile);
+                                    mForceSave, aNewFile);
   return rv;
 }
 
@@ -1995,8 +2143,10 @@ NS_IMETHODIMP nsExternalAppHandler::SaveToDisk(nsIFile * aNewFileLocation, PRBoo
       rv = mTempFile->MoveTo(dir, name);
       if (NS_SUCCEEDED(rv)) // if it failed, we just continue with $TEMP
         mTempFile = movedFile;
-      rv = NS_NewLocalFileOutputStream(getter_AddRefs(mOutStream), mTempFile,
-                                         PR_WRONLY | PR_APPEND, 0600);
+
+      nsCOMPtr<nsIOutputStream> outputStream;
+      rv = NS_NewLocalFileOutputStream(getter_AddRefs(outputStream), mTempFile,
+                                       PR_WRONLY | PR_APPEND, 0600);
       if (NS_FAILED(rv)) { // (Re-)opening the output stream failed. bad luck.
         nsAutoString path;
         mTempFile->GetPath(path);
@@ -2004,6 +2154,8 @@ NS_IMETHODIMP nsExternalAppHandler::SaveToDisk(nsIFile * aNewFileLocation, PRBoo
         Cancel(rv);
         return NS_OK;
       }
+
+      mOutStream = NS_BufferOutputStream(outputStream, BUFFERED_OUTPUT_SIZE);
     }
   }
 
@@ -2032,8 +2184,25 @@ nsresult nsExternalAppHandler::OpenWithApplication()
   // if a stop request was already issued then proceed with launching the application.
   if (mStopRequestIssued)
   {
+    PRBool deleteTempFileOnExit;
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (!prefs || NS_FAILED(prefs->GetBoolPref(
+        "browser.helperApps.deleteTempFileOnExit", &deleteTempFileOnExit))) {
+      // No prefservice or no pref set; use default value
+#if !defined(XP_MACOSX)
+      // Mac users have been very verbal about temp files being deleted on
+      // app exit - they don't like it - but we'll continue to do this on
+      // other platforms for now.
+      deleteTempFileOnExit = PR_TRUE;
+#else
+      deleteTempFileOnExit = PR_FALSE;
+#endif
+    }
+
     // make the tmp file readonly so users won't edit it and lose the changes
-    mFinalFileDestination->SetPermissions(0400);
+    // only if we're going to delete the file
+    if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing())
+      mFinalFileDestination->SetPermissions(0400);
 
     rv = mMimeInfo->LaunchWithFile(mFinalFileDestination);        
     if (NS_FAILED(rv))
@@ -2044,30 +2213,11 @@ nsresult nsExternalAppHandler::OpenWithApplication()
       SendStatusChange(kLaunchError, rv, nsnull, path);
       Cancel(rv); // Cancel, and clean up temp file.
     }
-    else
-    {
-      PRBool deleteTempFileOnExit;
-      nsresult result = NS_ERROR_NOT_AVAILABLE;  // don't return this!
-      nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-      if (prefs) {
-        result = prefs->GetBoolPref("browser.helperApps.deleteTempFileOnExit",
-                                    &deleteTempFileOnExit);
-      }
-      if (NS_FAILED(result)) {
-        // No pref set; use default value
-#if !defined(XP_MACOSX)
-          // Mac users have been very verbal about temp files being deleted on
-          // app exit - they don't like it - but we'll continue to do this on
-          // other platforms for now.
-        deleteTempFileOnExit = PR_TRUE;
-#else
-        deleteTempFileOnExit = PR_FALSE;
-#endif
-      }
-      if (deleteTempFileOnExit) {
-        NS_ASSERTION(gExtProtSvc, "Service gone away!?");
-        gExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
-      }
+    // Always schedule files to be deleted at the end of the private browsing
+    // mode, regardless of the value of the pref.
+    else if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing()) {
+      NS_ASSERTION(gExtProtSvc, "Service gone away!?");
+      gExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
     }
   }
 
@@ -2122,17 +2272,9 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication
   // download is done prior to launching the helper app.  So that any existing file of that name won't
   // be overwritten we call CreateUnique() before calling MoveFile().  Also note that we use the same
   // directory as originally downloaded to so that MoveFile() just does an in place rename.
-   
+
   nsCOMPtr<nsIFile> fileToUse;
-  
-  // The directories specified here must match those specified in SetUpTempFile().  This avoids
-  // having to do a copy of the file when it finishes downloading and the potential for errors
-  // that would introduce
-#ifdef XP_MACOSX
-  NS_GetSpecialDirectory(NS_MAC_DEFAULT_DOWNLOAD_DIR, getter_AddRefs(fileToUse));
-#else
-  NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(fileToUse));
-#endif
+  (void) GetDownloadDirectory(getter_AddRefs(fileToUse));
 
   if (mSuggestedFileName.IsEmpty())
   {
@@ -2303,6 +2445,9 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
       return NS_ERROR_NOT_AVAILABLE;
   }
 
+  // We promise to only send lower case mime types to the OS
+  ToLowerCase(typeToUse);
+
   // (1) Ask the OS for a mime info
   PRBool found;
   *_retval = GetMIMEInfoFromOS(typeToUse, aFileExt, &found).get();
@@ -2317,8 +2462,15 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
   nsresult rv;
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
   if (handlerSvc) {
-    rv = handlerSvc->FillHandlerInfo(*_retval, EmptyCString());
-    LOG(("Data source: Via type: retval 0x%08x\n", rv));
+    PRBool hasHandler = PR_FALSE;
+    (void) handlerSvc->Exists(*_retval, &hasHandler);
+    if (hasHandler) {
+      rv = handlerSvc->FillHandlerInfo(*_retval, EmptyCString());
+      LOG(("Data source: Via type: retval 0x%08x\n", rv));
+    } else {
+      rv = NS_ERROR_NOT_AVAILABLE;
+    }
+ 
     found = found || NS_SUCCEEDED(rv);
 
     if (!found || NS_FAILED(rv)) {
@@ -2326,7 +2478,10 @@ NS_IMETHODIMP nsExternalHelperAppService::GetFromTypeAndExtension(const nsACStri
       if (!aFileExt.IsEmpty()) {
         nsCAutoString overrideType;
         rv = handlerSvc->GetTypeFromExtension(aFileExt, overrideType);
-        if (NS_SUCCEEDED(rv)) {
+        if (NS_SUCCEEDED(rv) && !overrideType.IsEmpty()) {
+          // We can't check handlerSvc->Exists() here, because we have a
+          // overideType. That's ok, it just results in some console noise.
+          // (If there's no handler for the override type, it throws)
           rv = handlerSvc->FillHandlerInfo(*_retval, overrideType);
           LOG(("Data source: Via ext: retval 0x%08x\n", rv));
           found = found || NS_SUCCEEDED(rv);
@@ -2405,7 +2560,7 @@ NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromExtension(const nsACString&
   nsCOMPtr<nsIHandlerService> handlerSvc = do_GetService(NS_HANDLERSERVICE_CONTRACTID);
   if (handlerSvc)
     rv = handlerSvc->GetTypeFromExtension(aFileExt, aContentType);
-  if (NS_SUCCEEDED(rv))
+  if (NS_SUCCEEDED(rv) && !aContentType.IsEmpty())
     return NS_OK;
 
   // Ask OS.

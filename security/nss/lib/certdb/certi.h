@@ -36,7 +36,7 @@
 /*
  * certi.h - private data structures for the certificate library
  *
- * $Id: certi.h,v 1.21 2007/08/29 17:53:19 alexei.volkov.bugs%sun.com Exp $
+ * $Id: certi.h,v 1.28 2009/03/17 07:30:11 nelson%bolyard.com Exp $
  */
 #ifndef _CERTI_H_
 #define _CERTI_H_
@@ -249,6 +249,10 @@ extern int cert_AVAOidTagToMaxLen(SECOidTag tag);
 extern CERTAVA * CERT_CreateAVAFromRaw(PRArenaPool *pool, 
                                const SECItem * OID, const SECItem * value);
 
+/* Make an AVA from binary input specified by SECItem */
+extern CERTAVA * CERT_CreateAVAFromSECItem(PRArenaPool *arena, SECOidTag kind, 
+                                           int valueType, SECItem *value);
+
 /*
  * get a DPCache object for the given issuer subject and dp
  * Automatically creates the cache object if it doesn't exist yet.
@@ -256,6 +260,10 @@ extern CERTAVA * CERT_CreateAVAFromRaw(PRArenaPool *pool,
 SECStatus AcquireDPCache(CERTCertificate* issuer, SECItem* subject,
                          SECItem* dp, int64 t, void* wincx,
                          CRLDPCache** dpcache, PRBool* writeLocked);
+
+/* check if a particular SN is in the CRL cache and return its entry */
+SECStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
+                         CERTCrlEntry** returned);
 
 /* release a DPCache object that was previously acquired */
 void ReleaseDPCache(CRLDPCache* dpcache, PRBool writeLocked);
@@ -276,24 +284,36 @@ SECStatus DPCache_GetCRLEntry(CRLDPCache* cache, PRBool readlocked,
  */
 void CERT_MapStanError();
 
-/* Programatical interface to switch to and from libpkix cert
- * validation engine. */
-SECStatus cert_SetPKIXValidation(PRBool enable);
-
-/* The function return PR_TRUE if cert validation should go
- * through libpkix cert validation engine. */
-PRBool cert_UsePKIXValidation();
-
 /* Interface function for libpkix cert validation engine:
  * cert_verify wrapper. */
 SECStatus
 cert_VerifyCertChainPkix(CERTCertificate *cert,
                          PRBool checkSig,
                          SECCertUsage     requiredUsage,
-                         PRUint64         time,
+                         PRTime           time,
                          void            *wincx,
                          CERTVerifyLog   *log,
                          PRBool          *sigError,
                          PRBool          *revoked);
+
+SECStatus cert_InitLocks(void);
+
+SECStatus cert_DestroyLocks(void);
+
+/*
+ * fill in nsCertType field of the cert based on the cert extension
+ */
+extern SECStatus cert_GetCertType(CERTCertificate *cert);
+
+/*
+ * compute and return the value of nsCertType for cert, but do not 
+ * update the CERTCertificate.
+ */
+extern PRUint32 cert_ComputeCertType(CERTCertificate *cert);
+
+void cert_AddToVerifyLog(CERTVerifyLog *log,CERTCertificate *cert,
+                         unsigned long errorCode, unsigned int depth,
+                         void *arg);
+
 #endif /* _CERTI_H_ */
 

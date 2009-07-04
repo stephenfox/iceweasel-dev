@@ -106,7 +106,7 @@ static CERTSignedCrl *FindCRL
     return (crl);
 }
 
-static void DisplayCRL (CERTCertDBHandle *certHandle, char *nickName, int crlType)
+static SECStatus DisplayCRL (CERTCertDBHandle *certHandle, char *nickName, int crlType)
 {
     CERTSignedCrl *crl = NULL;
 
@@ -115,7 +115,9 @@ static void DisplayCRL (CERTCertDBHandle *certHandle, char *nickName, int crlTyp
     if (crl) {
 	SECU_PrintCRLInfo (stdout, &crl->crl, "CRL Info:\n", 0);
 	SEC_DestroyCrl (crl);
+	return SECSuccess;
     }
+    return SECFailure;
 }
 
 static void ListCRLNames (CERTCertDBHandle *certHandle, int crlType, PRBool deletecrls)
@@ -211,12 +213,14 @@ static void ListCRLNames (CERTCertDBHandle *certHandle, int crlType, PRBool dele
     PORT_FreeArena (arena, PR_FALSE);
 }
 
-static void ListCRL (CERTCertDBHandle *certHandle, char *nickName, int crlType)
+static SECStatus ListCRL (CERTCertDBHandle *certHandle, char *nickName, int crlType)
 {
-    if (nickName == NULL)
+    if (nickName == NULL) {
 	ListCRLNames (certHandle, crlType, PR_FALSE);
-    else
-	DisplayCRL (certHandle, nickName, crlType);
+	return SECSuccess;
+    } 
+
+    return DisplayCRL (certHandle, nickName, crlType);
 }
 
 
@@ -250,7 +254,7 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
     SECItem crlDER;
     PK11SlotInfo* slot = NULL;
     int rv;
-#if defined(DEBUG_jpierre)
+#if defined(DEBUG_jp96085)
     PRIntervalTime starttime, endtime, elapsed;
     PRUint32 mins, secs, msecs;
 #endif
@@ -269,12 +273,12 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
 
     slot = PK11_GetInternalKeySlot();
  
-#if defined(DEBUG_jpierre)
+#if defined(DEBUG_jp96085)
     starttime = PR_IntervalNow();
 #endif
     crl = PK11_ImportCRL(slot, &crlDER, url, type,
           NULL, importOptions, NULL, decodeOptions);
-#if defined(DEBUG_jpierre)
+#if defined(DEBUG_jp96085)
     endtime = PR_IntervalNow();
     elapsed = endtime - starttime;
     mins = PR_IntervalToSeconds(elapsed) / 60;
@@ -356,15 +360,14 @@ CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
                 PRFileDesc *inFile, PRInt32 decodeOptions,
                 PRInt32 importOptions)
 {
-    SECItem crlDER;
+    SECItem crlDER = {0, NULL, 0};
     CERTSignedCrl *signCrl = NULL;
     CERTSignedCrl *modCrl = NULL;
     PRArenaPool *modArena = NULL;
     SECStatus rv = SECSuccess;
 
-    PORT_Assert(arena != NULL && certHandle != NULL &&
-                certNickName != NULL);
     if (!arena || !certHandle || !certNickName) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
         SECU_PrintError(progName, "CreateModifiedCRLCopy: invalid args\n");
         return NULL;
     }
@@ -440,7 +443,9 @@ CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
     signCrl->arena = arena;
 
   loser:
-    SECITEM_FreeItem(&crlDER, PR_FALSE);
+    if (crlDER.data) {
+        SECITEM_FreeItem(&crlDER, PR_FALSE);
+    }
     if (modCrl)
         SEC_DestroyCrl(modCrl);
     if (rv != SECSuccess && signCrl) {
@@ -462,8 +467,8 @@ CreateNewCrl(PRArenaPool *arena, CERTCertDBHandle *certHandle,
 
     /* if the CERTSignedCrl structure changes, this function will need to be
        updated as well */
-    PORT_Assert(cert != NULL);
     if (!cert || !arena) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
         SECU_PrintError(progName, "invalid args for function "
                         "CreateNewCrl\n");
         return NULL;
@@ -527,8 +532,8 @@ UpdateCrl(CERTSignedCrl *signCrl, PRFileDesc *inCrlInitFile)
     CRLGENGeneratorData *crlGenData = NULL;
     SECStatus rv;
     
-    PORT_Assert(signCrl != NULL && inCrlInitFile != NULL);
     if (!signCrl || !inCrlInitFile) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
         SECU_PrintError(progName, "invalid args for function "
                         "CreateNewCrl\n");
         return SECFailure;
@@ -1041,7 +1046,7 @@ int main(int argc, char **argv)
 	if (deleteCRL) 
 	    DeleteCRL (certHandle, nickName, crlType);
 	else if (listCRL) {
-	    ListCRL (certHandle, nickName, crlType);
+	    rv = ListCRL (certHandle, nickName, crlType);
 	}
 	else if (importCRL) {
 	    rv = ImportCRL (certHandle, url, crlType, inFile, importOptions,

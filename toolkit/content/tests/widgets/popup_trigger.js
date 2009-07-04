@@ -5,6 +5,10 @@ var gScreenX = -1, gScreenY = -1;
 
 function runTests()
 {
+  if (screen.height < 768) {
+    ok(false, "popup tests are likely to fail for screen heights less than 768 pixels");
+  }
+
   gMenuPopup = document.getElementById("thepopup");
   gTrigger = document.getElementById("trigger");
 
@@ -295,11 +299,11 @@ var popupTests = [
   testname: "open context popup at screen",
   events: [ "popupshowing thepopup", "popupshown thepopup" ],
   test: function(testname, step) {
-    gMenuPopup.openPopupAtScreen(gScreenX + 8, gScreenY + 16, false);
+    gMenuPopup.openPopupAtScreen(gScreenX + 8, gScreenY + 16, true);
   },
   result: function(testname, step) {
     var rect = gMenuPopup.getBoundingClientRect();
-    ok(rect.left == 8 && rect.top == 16 && rect.right && rect.bottom, testname);
+    ok(rect.left == 10 && rect.top == 18 && rect.right && rect.bottom, testname);
   }
 },
 {
@@ -450,7 +454,6 @@ var popupTests = [
   }
 },
 {
-  end: true,
   testname: "hidePopup hides entire chain",
   events: [ "popuphiding submenupopup", "popuphidden submenupopup",
             "popuphiding thepopup", "popuphidden thepopup",

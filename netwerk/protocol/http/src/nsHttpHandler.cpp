@@ -168,11 +168,13 @@ nsHttpHandler::nsHttpHandler()
     , mMaxPipelinedRequests(2)
     , mRedirectionLimit(10)
     , mPhishyUserPassLength(1)
+    , mPipeliningOverSSL(PR_FALSE)
     , mLastUniqueID(NowInSeconds())
     , mSessionStartTime(0)
     , mProduct("Gecko")
     , mUserAgentIsDirty(PR_TRUE)
     , mUseCache(PR_TRUE)
+    , mPromptTempRedirect(PR_TRUE)
     , mSendSecureXSiteReferrer(PR_TRUE)
     , mEnablePersistentHttpsCaching(PR_FALSE)
 {
@@ -269,6 +271,8 @@ nsHttpHandler::Init()
         do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo)
         appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
     // Startup the http category
     // Bring alive the objects in the http-protocol-startup category
@@ -280,7 +284,6 @@ nsHttpHandler::Init()
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", PR_TRUE);
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
-        mObserverService->AddObserver(this, "session-logout", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
     }
  
@@ -1019,6 +1022,12 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    if (PREF_CHANGED(HTTP_PREF("pipelining.ssl"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("pipelining.ssl"), &cVar);
+        if (NS_SUCCEEDED(rv))
+            mPipeliningOverSSL = cVar;
+    }
+
     if (PREF_CHANGED(HTTP_PREF("proxy.pipelining"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("proxy.pipelining"), &cVar);
         if (NS_SUCCEEDED(rv)) {
@@ -1068,8 +1077,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             else {
                 // verify that this socket type is actually valid
                 nsCOMPtr<nsISocketProviderService> sps(
-                        do_GetService(kSocketProviderServiceCID, &rv));
-                if (NS_SUCCEEDED(rv)) {
+                        do_GetService(kSocketProviderServiceCID));
+                if (sps) {
                     nsCOMPtr<nsISocketProvider> sp;
                     rv = sps->GetSocketProvider(sval, getter_AddRefs(sp));
                     if (NS_SUCCEEDED(rv)) {
@@ -1078,6 +1087,13 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
                     }
                 }
             }
+        }
+    }
+
+    if (PREF_CHANGED(HTTP_PREF("prompt-temp-redirect"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("prompt-temp-redirect"), &cVar);
+        if (NS_SUCCEEDED(rv)) {
+            mPromptTempRedirect = cVar;
         }
     }
 
@@ -1136,8 +1152,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         // UI thread, and so do all the methods in nsHttpChannel.cpp
         // (mIDNConverter is used by nsHttpChannel)
         if (enableIDN && !mIDNConverter) {
-            mIDNConverter = do_GetService(NS_IDNSERVICE_CONTRACTID, &rv);
-            NS_ASSERTION(NS_SUCCEEDED(rv), "idnSDK not installed");
+            mIDNConverter = do_GetService(NS_IDNSERVICE_CONTRACTID);
+            NS_ASSERTION(mIDNConverter, "idnSDK not installed");
         }
         else if (!enableIDN && mIDNConverter)
             mIDNConverter = nsnull;
@@ -1495,6 +1511,10 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
         caps = mCapabilities;
 
     if (https) {
+        // enable pipelining over SSL if requested
+        if (mPipeliningOverSSL)
+            caps |= NS_HTTP_ALLOW_PIPELINING;
+
         // HACK: make sure PSM gets initialized on the main thread.
         nsCOMPtr<nsISocketProviderService> spserv =
                 do_GetService(kSocketProviderServiceCID);
@@ -1694,14 +1714,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         // ensure connection manager is shutdown
         if (mConnMgr)
             mConnMgr->Shutdown();
-
-        // need to reset the session start time since cache validation may
-        // depend on this value.
-        mSessionStartTime = NowInSeconds();
-    }
-    else if (strcmp(topic, "session-logout") == 0) {
-        // clear cache of all authentication credentials.
-        mAuthCache.ClearAll();
 
         // need to reset the session start time since cache validation may
         // depend on this value.

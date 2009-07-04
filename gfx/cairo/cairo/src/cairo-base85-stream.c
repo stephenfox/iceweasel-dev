@@ -1,4 +1,5 @@
-/* cairo_output_stream.c: Output stream abstraction
+/* -*- Mode: c; c-basic-offset: 4; indent-tabs-mode: t; tab-width: 8; -*- */
+/* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2005 Red Hat, Inc
  *
@@ -25,8 +26,7 @@
  * OF ANY KIND, either express or implied. See the LGPL or the MPL for
  * the specific language governing rights and limitations.
  *
- * The Original Code is cairo_output_stream.c as distributed with the
- *   cairo graphics library.
+ * The Original Code is the cairo graphics library.
  *
  * The Initial Developer of the Original Code is Red Hat, Inc.
  *
@@ -112,6 +112,9 @@ cairo_output_stream_t *
 _cairo_base85_stream_create (cairo_output_stream_t *output)
 {
     cairo_base85_stream_t *stream;
+
+    if (output->status)
+	return _cairo_output_stream_create_in_error (output->status);
 
     stream = malloc (sizeof (cairo_base85_stream_t));
     if (stream == NULL) {

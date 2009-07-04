@@ -96,7 +96,7 @@ public:
                                  nsAString& aStr);
 
   // nsIContentSink
-  NS_IMETHOD WillTokenize(void) { return NS_OK; }
+  NS_IMETHOD WillParse(void) { return NS_OK; }
   NS_IMETHOD WillBuildModel(void) { return NS_OK; }
   NS_IMETHOD DidBuildModel(void) { return NS_OK; }
   NS_IMETHOD WillInterrupt(void) { return NS_OK; }
@@ -160,7 +160,7 @@ protected:
 
   inline PRBool DoOutput()
   {
-    return !mInHead;
+    return mHeadLevel == 0;
   }
 
   // Stack handling functions
@@ -171,8 +171,7 @@ protected:
   
 protected:
   nsString         mCurrentLine;
-
-  PRPackedBool     mInHead;
+  PRUint32         mHeadLevel;
   PRPackedBool     mAtFirstColumn;
 
   // Handling of quoted text (for mail):

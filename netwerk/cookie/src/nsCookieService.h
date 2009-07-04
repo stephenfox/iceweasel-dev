@@ -22,6 +22,8 @@
  * Contributor(s):
  *   Daniel Witte (dwitte@stanford.edu)
  *   Michiel van Leeuwen (mvl@exedo.nl)
+ *   Michael Ventnor <m.ventnor@gmail.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,9 +56,6 @@ struct nsCookieAttributes;
 struct nsListIter;
 struct nsEnumerationData;
 
-class nsAutoVoidArray;
-
-class nsIPrefBranch;
 class nsICookiePermission;
 class nsIEffectiveTLDService;
 class nsIPrefBranch;
@@ -165,11 +164,11 @@ class nsCookieService : public nsICookieService
 
   protected:
     void                          PrefChanged(nsIPrefBranch *aPrefBranch);
-    nsresult                      InitDB();
+    nsresult                      InitDB(PRBool aDeleteExistingDB = PR_FALSE);
     nsresult                      CreateTable();
     nsresult                      Read();
-    void                          GetCookieInternal(nsIURI *aHostURI, nsIURI *aFirstURI, nsIChannel *aChannel, PRBool aHttpBound, char **aCookie);
-    nsresult                      SetCookieStringInternal(nsIURI *aHostURI, nsIURI *aFirstURI, nsIPrompt *aPrompt, const char *aCookieHeader, const char *aServerTime, nsIChannel *aChannel, PRBool aFromHttp);
+    void                          GetCookieInternal(nsIURI *aHostURI, nsIChannel *aChannel, PRBool aHttpBound, char **aCookie);
+    nsresult                      SetCookieStringInternal(nsIURI *aHostURI, nsIPrompt *aPrompt, const char *aCookieHeader, const char *aServerTime, nsIChannel *aChannel, PRBool aFromHttp);
     PRBool                        SetCookieInternal(nsIURI *aHostURI, nsIChannel *aChannel, nsDependentCString &aCookieHeader, PRInt64 aServerTime, PRBool aFromHttp);
     void                          AddInternal(nsCookie *aCookie, PRInt64 aCurrentTime, nsIURI *aHostURI, const char *aCookieHeader, PRBool aFromHttp);
     void                          RemoveCookieFromList(nsListIter &aIter);
@@ -178,13 +177,13 @@ class nsCookieService : public nsICookieService
     static PRBool                 GetTokenValue(nsASingleFragmentCString::const_char_iterator &aIter, nsASingleFragmentCString::const_char_iterator &aEndIter, nsDependentCSubstring &aTokenString, nsDependentCSubstring &aTokenValue, PRBool &aEqualsFound);
     static PRBool                 ParseAttributes(nsDependentCString &aCookieHeader, nsCookieAttributes &aCookie);
     PRBool                        IsForeign(nsIURI *aHostURI, nsIURI *aFirstURI);
-    PRUint32                      CheckPrefs(nsIURI *aHostURI, nsIURI *aFirstURI, nsIChannel *aChannel, const char *aCookieHeader);
+    PRUint32                      CheckPrefs(nsIURI *aHostURI, nsIChannel *aChannel, const char *aCookieHeader);
     PRBool                        CheckDomain(nsCookieAttributes &aCookie, nsIURI *aHostURI);
     static PRBool                 CheckPath(nsCookieAttributes &aCookie, nsIURI *aHostURI);
     static PRBool                 GetExpiry(nsCookieAttributes &aCookie, PRInt64 aServerTime, PRInt64 aCurrentTime);
     void                          RemoveAllFromMemory();
     void                          RemoveExpiredCookies(PRInt64 aCurrentTime);
-    PRBool                        FindCookie(const nsAFlatCString &aHost, const nsAFlatCString &aName, const nsAFlatCString &aPath, nsListIter &aIter);
+    PRBool                        FindCookie(const nsAFlatCString &aHost, const nsAFlatCString &aName, const nsAFlatCString &aPath, nsListIter &aIter, PRInt64 aCurrentTime);
     void                          FindOldestCookie(nsEnumerationData &aData);
     PRUint32                      CountCookiesFromHostInternal(const nsACString &aHost, nsEnumerationData &aData);
     void                          NotifyRejected(nsIURI *aHostURI);
@@ -201,7 +200,9 @@ class nsCookieService : public nsICookieService
     nsCOMPtr<nsIEffectiveTLDService> mTLDService;
 
     // impl members
-    nsTHashtable<nsCookieEntry>   mHostTable;
+    nsTHashtable<nsCookieEntry>  *mHostTable;
+    nsTHashtable<nsCookieEntry>   mDefaultHostTable;
+    nsTHashtable<nsCookieEntry>   mPrivateHostTable;
     PRUint32                      mCookieCount;
 
     // cached prefs
@@ -214,7 +215,7 @@ class nsCookieService : public nsICookieService
     static nsCookieService        *gCookieService;
 
     // this callback needs access to member functions
-    friend PLDHashOperator PR_CALLBACK removeExpiredCallback(nsCookieEntry *aEntry, void *aArg);
+    friend PLDHashOperator removeExpiredCallback(nsCookieEntry *aEntry, void *aArg);
 };
 
 #endif // nsCookieService_h__

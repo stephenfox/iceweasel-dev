@@ -81,11 +81,6 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  void PrintPlugin(nsIRenderingContext& aRenderingContext,
-                   const nsRect& aDirtyRect);
-  void PaintPlugin(nsIRenderingContext& aRenderingContext,
-                   const nsRect& aDirtyRect);
-
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
                           nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
@@ -107,7 +102,7 @@ public:
 
   virtual void Destroy();
 
-  NS_IMETHOD DidSetStyleContext();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   NS_IMETHOD GetPluginInstance(nsIPluginInstance*& aPluginInstance);
   virtual nsresult Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamListener);
@@ -149,7 +144,7 @@ protected:
   NS_IMETHOD_(nsrefcnt) AddRef(void);
   NS_IMETHOD_(nsrefcnt) Release(void);
 
-  nsObjectFrame(nsStyleContext* aContext) : nsObjectFrameSuper(aContext) {}
+  nsObjectFrame(nsStyleContext* aContext);
   virtual ~nsObjectFrame();
 
   // NOTE:  This frame class does not inherit from |nsLeafFrame|, so
@@ -182,6 +177,17 @@ protected:
 
   nsPoint GetWindowOriginInPixels(PRBool aWindowless);
 
+  static void PaintPrintPlugin(nsIFrame* aFrame,
+                               nsIRenderingContext* aRenderingContext,
+                               const nsRect& aDirtyRect, nsPoint aPt);
+  static void PaintPlugin(nsIFrame* aFrame,
+                               nsIRenderingContext* aRenderingContext,
+                               const nsRect& aDirtyRect, nsPoint aPt);
+  void PrintPlugin(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect);
+  void PaintPlugin(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, const nsPoint& aFramePt);
+
   /**
    * Makes sure that mInstanceOwner is valid and without a current plugin
    * instance. Essentially, this prepares the frame to receive a new plugin.
@@ -190,13 +196,13 @@ protected:
 
   friend class nsPluginInstanceOwner;
 private:
-  nsPluginInstanceOwner *mInstanceOwner;
+  nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
   nsRect                mWindowlessRect;
 
   // For assertions that make it easier to determine if a crash is due
   // to the underlying problem described in bug 136927, and to prevent
   // reentry into instantiation.
-  PRBool mInstantiating;
+  PRBool mPreventInstantiation;
 };
 
 

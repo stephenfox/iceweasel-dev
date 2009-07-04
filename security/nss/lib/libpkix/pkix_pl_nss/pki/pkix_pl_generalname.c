@@ -127,7 +127,7 @@ pkix_pl_OtherName_Create(
         rv = SECITEM_CopyItem
                 (NULL, &otherName->name, &nssAltName->name.OthName.name);
         if (rv != SECSuccess) {
-                PKIX_ERROR(PKIX_SECITEMCOPYITEMFAILED);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         /* make a copy of the oid field */
@@ -135,7 +135,7 @@ pkix_pl_OtherName_Create(
         rv = SECITEM_CopyItem
                 (NULL, &otherName->oid, &nssAltName->name.OthName.oid);
         if (rv != SECSuccess) {
-                PKIX_ERROR(PKIX_SECITEMCOPYITEMFAILED);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         *pOtherName = otherName;
@@ -189,7 +189,6 @@ pkix_pl_DirectoryName_Create(
         CERTName *dirName = NULL;
         PKIX_PL_String *pkixDNString = NULL;
         char *utf8String = NULL;
-        PKIX_UInt32 utf8Length;
 
         PKIX_ENTER(GENERALNAME, "pkix_pl_DirectoryName_Create");
         PKIX_NULLCHECK_TWO(nssAltName, pX500Name);
@@ -329,13 +328,13 @@ pkix_pl_GeneralName_Create(
                 PKIX_GENERALNAME_DEBUG("\t\tCalling SECITEM_AllocItem).\n");
                 secItem = SECITEM_AllocItem(NULL, NULL, 0);
                 if (secItem == NULL){
-                        PKIX_ERROR(PKIX_SECITEMALLOCITEMFAILED);
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
                 PKIX_GENERALNAME_DEBUG("\t\tCalling SECITEM_CopyItem).\n");
                 rv = SECITEM_CopyItem(NULL, secItem, &nssAltName->name.other);
                 if (rv != SECSuccess) {
-                        PKIX_ERROR(PKIX_SECITEMCOPYITEMFAILED);
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
                 genName->other = secItem;
@@ -781,6 +780,8 @@ pkix_pl_GeneralName_RegisterSelf(void *plContext)
         PKIX_ENTER(GENERALNAME, "pkix_pl_GeneralName_RegisterSelf");
 
         entry.description = "GeneralName";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_GeneralName);
         entry.destructor = pkix_pl_GeneralName_Destroy;
         entry.equalsFunction = pkix_pl_GeneralName_Equals;
         entry.hashcodeFunction = pkix_pl_GeneralName_Hashcode;
@@ -838,7 +839,7 @@ PKIX_PL_GeneralName_Create(
         PKIX_CERT_DEBUG("\t\tCalling PORT_NewArena).\n");
         arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
         if (arena == NULL) {
-                PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
         PKIX_GENERALNAME_DEBUG("\t\tCalling CERT_NewGeneralName).\n");
         nssGenName = CERT_NewGeneralName(arena, nameType);

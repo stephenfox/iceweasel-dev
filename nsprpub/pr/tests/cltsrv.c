@@ -82,14 +82,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #if defined(XP_UNIX)
 #include <math.h>
-#endif
-
-#ifdef XP_MAC
-#include "prlog.h"
-#define printf PR_LogPrint
 #endif
 
 /*
@@ -214,10 +208,8 @@ PRLogModuleInfo *cltsrv_log_file = NULL;
 static void _MY_Assert(const char *s, const char *file, PRIntn ln)
 {
     PL_PrintError(NULL);
-#if DEBUG
     PR_Assert(s, file, ln);
-#endif
-}  /* _MW_Assert */
+}  /* _MY_Assert */
 
 static PRBool Aborted(PRStatus rv)
 {
@@ -230,7 +222,7 @@ static void TimeOfDayMessage(const char *msg, PRThread* me)
     char buffer[100];
     PRExplodedTime tod;
     PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &tod);
-    (void)PR_FormatTime(buffer, sizeof(buffer), "%T", &tod);
+    (void)PR_FormatTime(buffer, sizeof(buffer), "%H:%M:%S", &tod);
 
     TEST_LOG(
         cltsrv_log_file, TEST_LOG_ALWAYS,
@@ -923,7 +915,7 @@ static Verbosity IncrementVerbosity(void)
     return (Verbosity)verboge;
 }  /* IncrementVerbosity */
 
-PRIntn main(PRIntn argc, char** argv)
+int main(int argc, char** argv)
 {
     PRUintn index;
     PRBool boolean;
@@ -1034,10 +1026,6 @@ PRIntn main(PRIntn argc, char** argv)
     MY_ASSERT(NULL != cltsrv_log_file);
     boolean = PR_SetLogFile("cltsrv.log");
     MY_ASSERT(boolean);
-
-#ifdef XP_MAC
-    debug_mode = PR_TRUE;
-#endif
 
     rv = PR_SetFDCacheSize(low, high);
     PR_ASSERT(PR_SUCCESS == rv);

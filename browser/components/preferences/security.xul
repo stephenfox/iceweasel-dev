@@ -47,8 +47,9 @@
 <overlay id="SecurityPaneOverlay"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <prefpane id="paneSecurity" onpaneload="gSecurityPane.init();"
-            helpTopic="prefs-security" helpURI="chrome://browser/locale/help/help.rdf">
+  <prefpane id="paneSecurity"
+            onpaneload="gSecurityPane.init();"
+            helpTopic="prefs-security">
 
     <preferences id="securityPreferences">
       <!-- XXX buttons -->
@@ -68,14 +69,7 @@
                   type="bool"/>
       <preference id="browser.safebrowsing.enabled"
                   name="browser.safebrowsing.enabled"
-                  type="bool"
-                  onchange="gSecurityPane.onSBChange();"/>
-      <preference id="browser.safebrowsing.remoteLookups"
-                  name="browser.safebrowsing.remoteLookups"
                   type="bool"/>
-      <preference id="browser.safebrowsing.dataProvider"
-                  name="browser.safebrowsing.dataProvider"
-                  type="int"/>
 
       <!-- Passwords -->
       <preference id="signon.rememberSignons" name="signon.rememberSignons" type="bool"/>
@@ -102,35 +96,14 @@
       </hbox>
 
       <separator class="thin"/>
-      <checkbox id="tellMaybeAttackSite"
-                label="&tellMaybeAttackSite.label;"
-                accesskey="&tellMaybeAttackSite.accesskey;"
+      <checkbox id="blockAttackSites"
+                label="&blockAttackSites.label;"
+                accesskey="&blockAttackSites.accesskey;"
                 preference="browser.safebrowsing.malware.enabled" />
-      <checkbox id="tellMaybeForgery"
-                label="&tellMaybeForgery.label;"
-                accesskey="&tellMaybeForgery.accesskey;"
-                preference="browser.safebrowsing.enabled"
-                onsyncfrompreference="return gSecurityPane.readCheckPhish();"/>
-      <radiogroup id="checkPhishChoice" class="indent"
-                  preference="browser.safebrowsing.remoteLookups"
-                  onsynctopreference="return gSecurityPane.writePhishChoice();">
-        <radio id="cachedRadio"
-               label="&useDownloadedList.label;"
-               accesskey="&useDownloadedList.accesskey;"
-               value="false"/>
-        <hbox align="center">
-          <radio id="onloadRadio"
-                 label="&askThirdParty.label;"
-                 accesskey="&askThirdParty.accesskey;"
-                 value="true" aaa:labelledby="onloadRadio onloadProvider onloadAfter"/>
-          <menulist id="onloadProvider"
-                    preference="browser.safebrowsing.dataProvider"
-                    onsyncfrompreference="return gSecurityPane.readOnloadPhishProvider();"
-                    aaa:labelledby="onloadRadio onloadProvider onloadAfter"/>
-          <label id="onloadAfter">&askThirdPartyAfter.label;</label>
-        </hbox>
-      </radiogroup>
-
+      <checkbox id="blockWebForgeries"
+                label="&blockWebForgeries.label;"
+                accesskey="&blockWebForgeries.accesskey;"
+                preference="browser.safebrowsing.enabled" />
     </groupbox>
 
     <!-- Passwords -->
@@ -162,7 +135,7 @@
       <hbox id="showPasswordsBox">
         <spacer flex="1"/>
         <button id="showPasswords"
-                label="&showPasswords.label;" accesskey="&showPasswords.accesskey;"
+                label="&savedPasswords.label;" accesskey="&savedPasswords.accesskey;"
                 oncommand="gSecurityPane.showPasswords();"
                 preference="pref.privacy.disable_button.view_passwords"/>
       </hbox>
@@ -170,7 +143,8 @@
 
     <!-- Warning Messages -->
     <hbox class="bottomBox">
-      <groupbox id="warningMessagesGroup" orient="horizontal" flex="1">
+      <groupbox id="warningMessagesGroup" orient="horizontal" flex="1"
+                align="center">
         <caption label="&warnings.label;"/>
 
         <description control="warningSettings" flex="1">&chooseWarnings.label;</description>

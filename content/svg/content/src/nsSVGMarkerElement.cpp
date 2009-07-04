@@ -78,20 +78,58 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Marker)
 //----------------------------------------------------------------------
 // nsISupports methods
 
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGOrientType::DOMAnimatedEnum)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedEnumeration)
+NS_INTERFACE_MAP_END
+
 NS_IMPL_ADDREF_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGMarkerElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFitToViewBox)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGMarkerElement)
+NS_INTERFACE_TABLE_HEAD(nsSVGMarkerElement)
+  NS_NODE_INTERFACE_TABLE5(nsSVGMarkerElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
+                           nsIDOMSVGMarkerElement)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGMarkerElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGMarkerElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
+
+nsresult
+nsSVGOrientType::SetBaseValue(PRUint16 aValue,
+                              nsSVGElement *aSVGElement)
+{
+  if (aValue == nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_AUTO ||
+      aValue == nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_ANGLE) {
+    SetBaseValue(aValue);
+    aSVGElement->SetAttr(
+      kNameSpaceID_None, nsGkAtoms::orient, nsnull,
+      (aValue ==nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_AUTO ?
+        NS_LITERAL_STRING("auto") : NS_LITERAL_STRING("0")),
+      PR_TRUE);
+    return NS_OK;
+  }
+  return NS_ERROR_FAILURE;
+}
+
+nsresult
+nsSVGOrientType::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
+                                   nsSVGElement *aSVGElement)
+{
+  *aResult = new DOMAnimatedEnum(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(*aResult);
+  return NS_OK;
+}
 
 nsSVGMarkerElement::nsSVGMarkerElement(nsINodeInfo *aNodeInfo)
   : nsSVGMarkerElementBase(aNodeInfo), mCoordCtx(nsnull)
@@ -103,11 +141,6 @@ nsSVGMarkerElement::Init()
 {
   nsresult rv = nsSVGMarkerElementBase::Init();
   NS_ENSURE_SUCCESS(rv,rv);
-
-  // derived (non-attrib) DOM properties
-
-  // DOM property: orientType
-  mOrientType.Init(ORIENTTYPE, SVG_MARKER_ORIENT_ANGLE);
 
   // Create mapped properties:
 
@@ -401,7 +434,7 @@ nsSVGMarkerElement::GetMarkerTransform(float aStrokeWidth,
 nsresult
 nsSVGMarkerElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
 {
-  nsresult rv = NS_OK;
+  *_retval = nsnull;
 
   if (!mViewBoxToViewportTransform) {
     float viewportWidth =
@@ -419,10 +452,8 @@ nsSVGMarkerElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
       vb->GetWidth(&viewboxWidth);
       vb->GetHeight(&viewboxHeight);
     }
-    if (viewboxWidth==0.0f || viewboxHeight==0.0f) {
-      NS_ERROR("XXX. We shouldn't get here. Viewbox width/height is set to 0. Need to disable display of element as per specs.");
-      viewboxWidth = 1.0f;
-      viewboxHeight = 1.0f;
+    if (viewboxWidth <= 0.0f || viewboxHeight <= 0.0f) {
+      return NS_ERROR_FAILURE; // invalid - don't paint element
     }
 
     float refX =
@@ -448,7 +479,7 @@ nsSVGMarkerElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
 
   *_retval = mViewBoxToViewportTransform;
   NS_IF_ADDREF(*_retval);
-  return rv;
+  return NS_OK;
 }
 
 

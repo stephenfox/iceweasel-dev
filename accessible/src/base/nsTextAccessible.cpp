@@ -50,7 +50,11 @@ nsLinkableAccessible(aDOMNode, aShell)
 { 
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsTextAccessible, nsLinkableAccessible)
+// Make sure we don't support text or other irrelevant interfaces.
+// We have nsLinkableAccessible in our inheritance chain as a convenience in order to
+// get link actions and states on the text accessibles. Windows screen readers expect that.
+NS_IMPL_ISUPPORTS_INHERITED3(nsTextAccessible, nsAccessNode,
+                             nsAccessible, nsIAccessible, nsPIAccessible)
 
 /**
   * We are text

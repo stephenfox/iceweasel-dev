@@ -45,7 +45,6 @@
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
-#include "nsIKBStateControl.h"
 
 #include "nsIAtom.h"
 #include "nsIDOMDocument.h"
@@ -65,11 +64,12 @@
 #include "nsIInlineSpellChecker.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsStubMutationObserver.h"
+#include "nsIViewManager.h"
+#include "nsCycleCollectionParticipant.h"
 
 class nsIDOMCharacterData;
 class nsIDOMRange;
 class nsIPresShell;
-class nsIViewManager;
 class ChangeAttributeTxn;
 class CreateElementTxn;
 class InsertElementTxn;
@@ -139,7 +139,9 @@ public:
 
 //Interfaces for addref and release and queryinterface
 //NOTE: Use   NS_DECL_ISUPPORTS_INHERITED in any class inherited from nsEditor
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEditor,
+                                           nsIEditor)
 
   /* ------------ utility methods   -------------- */
   NS_IMETHOD GetPresShell(nsIPresShell **aPS);
@@ -339,8 +341,8 @@ protected:
                            nsCOMPtr<nsIDOMNode> *aResultNode,
                            PRBool       bNoBlockCrossing = PR_FALSE);
 
-  // Get nsIKBStateControl interface
-  nsresult GetKBStateControl(nsIKBStateControl **aKBSC);
+  // Get nsIWidget interface
+  nsresult GetWidget(nsIWidget **aWidget);
 
 
   // install the event listeners for the editor 
@@ -581,13 +583,6 @@ public:
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
 
-public:
-  // Argh!  These transaction names are used by PlaceholderTxn and
-  // nsPlaintextEditor.  They should be localized to those classes.
-  static nsIAtom *gTypingTxnName;
-  static nsIAtom *gIMETxnName;
-  static nsIAtom *gDeleteTxnName;
-
 protected:
 
   PRUint32        mModCount;		// number of modifications (for undo/redo stack)
@@ -597,6 +592,7 @@ protected:
   nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
   nsIViewManager *mViewManager;
   PRInt32         mUpdateCount;
+  nsIViewManager::UpdateViewBatch mBatch;
 
   // Spellchecking
   enum Tristate {

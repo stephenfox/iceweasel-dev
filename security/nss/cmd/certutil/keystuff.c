@@ -83,7 +83,7 @@ static int
 UpdateRNG(void)
 {
     char           randbuf[RAND_BUF_SIZE];
-    int            fd, i, count;
+    int            fd,  count;
     int            c;
     int            rv		= 0;
 #ifdef XP_UNIX
@@ -604,12 +604,12 @@ CERTUTIL_GeneratePrivateKey(KeyType keytype, PK11SlotInfo *slot, int size,
 				pwdata /*wincx*/);
     /* free up the params */
     switch (keytype) {
-    case rsaKey: /* nothing to free */                        break;
     case dsaKey: if (dsaparams) CERTUTIL_DestroyParamsPQG(dsaparams); 
 	                                                      break;
 #ifdef NSS_ENABLE_ECC
     case ecKey: SECITEM_FreeItem((SECItem *)params, PR_TRUE); break;
 #endif
+    default: /* nothing to free */                            break;
     }
     return privKey;
 }

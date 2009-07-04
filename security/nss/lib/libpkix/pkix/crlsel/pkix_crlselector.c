@@ -589,6 +589,8 @@ pkix_CRLSelector_RegisterSelf(void *plContext)
         PKIX_ENTER(CRLSELECTOR, "pkix_CRLSelector_RegisterSelf");
 
         entry.description = "CRLSelector";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_CRLSelector);
         entry.destructor = pkix_CRLSelector_Destroy;
         entry.equalsFunction = pkix_CRLSelector_Equals;
         entry.hashcodeFunction = pkix_CRLSelector_Hashcode;
@@ -602,12 +604,8 @@ pkix_CRLSelector_RegisterSelf(void *plContext)
 }
 
 /* --CRLSelector-Public-Functions---------------------------------------- */
-
-/*
- * FUNCTION: PKIX_CRLSelector_Create (see comments in pkix_crlsel.h)
- */
 PKIX_Error *
-PKIX_CRLSelector_Create(
+pkix_CRLSelector_Create(
         PKIX_CRLSelector_MatchCallback callback,
         PKIX_PL_Object *crlSelectorContext,
         PKIX_CRLSelector **pSelector,
@@ -643,14 +641,81 @@ PKIX_CRLSelector_Create(
         selector->context = crlSelectorContext;
 
         *pSelector = selector;
+        selector = NULL;
 
 cleanup:
 
-        if (PKIX_ERROR_RECEIVED){
-                PKIX_DECREF(selector);
-        }
+        PKIX_DECREF(selector);
 
         PKIX_RETURN(CRLSELECTOR);
+}
+
+/*
+ * FUNCTION: PKIX_CRLSelector_Create (see comments in pkix_crlsel.h)
+ */
+PKIX_Error *
+PKIX_CrlSelector_Create(
+        PKIX_PL_Cert *issuer,
+        PKIX_PL_Date *date,
+        PKIX_CRLSelector **pCrlSelector,
+        void *plContext)
+{
+    PKIX_PL_X500Name *issuerName = NULL;
+    PKIX_PL_Date *nowDate = NULL;
+    PKIX_ComCRLSelParams *comCrlSelParams = NULL;
+    PKIX_CRLSelector *crlSelector = NULL;
+
+    PKIX_ENTER(CERTCHAINCHECKER, "PKIX_CrlSelector_Create");
+    PKIX_NULLCHECK_ONE(issuer);
+
+    PKIX_CHECK( 
+        PKIX_PL_Cert_GetSubject(issuer, &issuerName, plContext),
+        PKIX_CERTGETISSUERFAILED);
+
+    if (date != NULL) {
+            PKIX_INCREF(date);
+            nowDate = date;
+    } else {
+        PKIX_CHECK(
+                PKIX_PL_Date_Create_UTCTime(NULL, &nowDate, plContext),
+                PKIX_DATECREATEUTCTIMEFAILED);
+    }
+
+    PKIX_CHECK(
+        PKIX_ComCRLSelParams_Create(&comCrlSelParams, plContext),
+            PKIX_COMCRLSELPARAMSCREATEFAILED);
+
+    PKIX_CHECK(
+        PKIX_ComCRLSelParams_AddIssuerName(comCrlSelParams, issuerName,
+                                           plContext),
+        PKIX_COMCRLSELPARAMSADDISSUERNAMEFAILED);
+
+    PKIX_CHECK(
+        PKIX_ComCRLSelParams_SetDateAndTime(comCrlSelParams, nowDate,
+                                            plContext),
+        PKIX_COMCRLSELPARAMSSETDATEANDTIMEFAILED);
+
+    PKIX_CHECK(
+        pkix_CRLSelector_Create(NULL, NULL, &crlSelector, plContext),
+        PKIX_CRLSELECTORCREATEFAILED);
+
+    PKIX_CHECK(
+        PKIX_CRLSelector_SetCommonCRLSelectorParams(crlSelector,
+                                                    comCrlSelParams,
+                                                    plContext),
+        PKIX_CRLSELECTORSETCOMMONCRLSELECTORPARAMSFAILED);
+
+    *pCrlSelector = crlSelector;
+    crlSelector = NULL;
+
+cleanup:
+
+    PKIX_DECREF(issuerName);
+    PKIX_DECREF(nowDate);
+    PKIX_DECREF(comCrlSelParams);
+    PKIX_DECREF(crlSelector);
+
+    PKIX_RETURN(CERTCHAINCHECKER);
 }
 
 /*
@@ -688,6 +753,7 @@ PKIX_CRLSelector_GetCRLSelectorContext(
 
         *pCrlSelectorContext = selector->context;
 
+cleanup:
         PKIX_RETURN(CRLSELECTOR);
 }
 
@@ -708,6 +774,7 @@ PKIX_CRLSelector_GetCommonCRLSelectorParams(
 
         *pParams = selector->params;
 
+cleanup:
         PKIX_RETURN(CRLSELECTOR);
 }
 
@@ -776,7 +843,7 @@ pkix_CRLSelector_Select(
 	PKIX_Boolean match = PKIX_FALSE;
 	PKIX_UInt32 numBefore = 0;
 	PKIX_UInt32 i = 0;
-        PKIX_List *filtered = NULL;
+	PKIX_List *filtered = NULL;
 	PKIX_PL_CRL *candidate = NULL;
 
         PKIX_ENTER(CRLSELECTOR, "PKIX_CRLSelector_Select");
@@ -798,7 +865,7 @@ pkix_CRLSelector_Select(
                         (selector, candidate, &match, plContext),
                         PKIX_CRLSELECTORMATCHCALLBACKFAILED);
 
-                if ((!(PKIX_ERROR_RECEIVED)) && (match == PKIX_TRUE)) {
+                if (!(PKIX_ERROR_RECEIVED) && match == PKIX_TRUE) {
 
                         PKIX_CHECK_ONLY_FATAL(PKIX_List_AppendItem
                                 (filtered,
@@ -818,9 +885,11 @@ pkix_CRLSelector_Select(
         pkixTempErrorReceived = PKIX_FALSE;
 
         *pAfter = filtered;
+        filtered = NULL;
 
 cleanup:
 
+        PKIX_DECREF(filtered);
         PKIX_DECREF(candidate);
 
         PKIX_RETURN(CRLSELECTOR);

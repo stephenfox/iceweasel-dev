@@ -143,6 +143,7 @@ public:
   nsIFrame* LastChild() const;
 
   nsIFrame* FrameAt(PRInt32 aIndex) const;
+  PRInt32 IndexOf(nsIFrame* aFrame) const;
 
   PRBool IsEmpty() const {
     return nsnull == mFirstChild;
@@ -153,6 +154,7 @@ public:
   }
 
   PRBool ContainsFrame(const nsIFrame* aFrame) const;
+  PRBool ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const;
 
   PRInt32 GetLength() const;
 

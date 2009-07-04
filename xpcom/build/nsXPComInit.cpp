@@ -51,7 +51,6 @@
 #include "nsIProperties.h"
 #include "nsPersistentProperties.h"
 #include "nsScriptableInputStream.h"
-#include "nsScriptableOutputStream.h"
 #include "nsBinaryStream.h"
 #include "nsStorageStream.h"
 #include "nsPipe.h"
@@ -86,6 +85,7 @@
 
 #include "nsTimerImpl.h"
 #include "TimerThread.h"
+#include "nsTimeStamp.h"
 
 #include "nsThread.h"
 #include "nsProcess.h"
@@ -128,7 +128,7 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 
 #include "SpecialSystemDirectory.h"
 
-#if defined(XP_WIN) && !defined(WINCE)
+#if defined(XP_WIN)
 #include "nsWindowsRegKey.h"
 #endif
 
@@ -137,8 +137,13 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 #endif
 
 #include "nsSystemInfo.h"
+#include "nsMemoryReporterManager.h"
 
 #include <locale.h>
+
+#include "nsXPCOM.h"
+
+using mozilla::TimeStamp;
 
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
@@ -161,7 +166,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsProcess)
 
 #define NS_ENVIRONMENT_CLASSNAME "Environment Service"
 
-#include "nsXPCOM.h"
 // ds/nsISupportsPrimitives
 #define NS_SUPPORTS_ID_CLASSNAME "Supports ID"
 #define NS_SUPPORTS_CSTRING_CLASSNAME "Supports String"
@@ -230,6 +234,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacUtilsImpl)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSystemInfo, Init)
 
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsMemoryReporterManager)
+
 static NS_METHOD
 nsThreadManagerGetSingleton(nsISupports* outer,
                             const nsIID& aIID,
@@ -244,9 +250,6 @@ NS_DECL_CLASSINFO(nsThreadManager)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsThreadPool)
 NS_DECL_CLASSINFO(nsThreadPool)
-
-NS_DECL_CLASSINFO(nsScriptableInputStream)
-NS_DECL_CLASSINFO(nsScriptableOutputStream)
 
 static NS_METHOD
 nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
@@ -265,7 +268,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
 }
 
 
-PR_STATIC_CALLBACK(nsresult)
+static nsresult
 RegisterGenericFactory(nsIComponentRegistrar* registrar,
                        const nsModuleComponentInfo *info)
 {
@@ -290,6 +293,21 @@ RegisterGenericFactory(nsIComponentRegistrar* registrar,
 static PRBool CheckUpdateFile()
 {
     nsresult rv;
+    nsCOMPtr<nsIFile> compregFile;
+    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
+                                           NS_GET_IID(nsIFile),
+                                           getter_AddRefs(compregFile));
+
+    if (NS_FAILED(rv)) {
+        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
+        return PR_FALSE;
+    }
+
+    PRInt64 compregModTime;
+    rv = compregFile->GetLastModifiedTime(&compregModTime);
+    if (NS_FAILED(rv))
+        return PR_TRUE;
+    
     nsCOMPtr<nsIFile> file;
     rv = nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
                                            NS_GET_IID(nsIFile), 
@@ -301,31 +319,49 @@ static PRBool CheckUpdateFile()
     }
 
     file->AppendNative(nsDependentCString(".autoreg"));
-    
-    PRBool exists;
-    file->Exists(&exists);
-    if (!exists)
-        return PR_FALSE;
 
-    nsCOMPtr<nsIFile> compregFile;
-    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
+    // superfluous cast
+    PRInt64 nowTime = PR_Now() / PR_USEC_PER_MSEC;
+    PRInt64 autoregModTime;
+    rv = file->GetLastModifiedTime(&autoregModTime);
+    if (NS_FAILED(rv))
+        goto next;
+
+    if (autoregModTime > compregModTime) {
+        if (autoregModTime < nowTime) {
+            return PR_TRUE;
+        } else {
+            NS_WARNING("Screwy timestamps, ignoring .autoreg");
+        }
+    }
+
+next:
+    nsCOMPtr<nsIFile> greFile;
+    rv = nsDirectoryService::gService->Get(NS_GRE_DIR,
                                            NS_GET_IID(nsIFile),
-                                           getter_AddRefs(compregFile));
+                                           getter_AddRefs(greFile));
 
-    
     if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
+        NS_WARNING("Getting NS_GRE_DIR failed");
         return PR_FALSE;
     }
 
-    if (NS_FAILED(compregFile->Exists(&exists)) || !exists)
-        return PR_TRUE;
+    greFile->AppendNative(nsDependentCString(".autoreg"));
 
-    PRInt64 compregModTime, autoregModTime;
-    compregFile->GetLastModifiedTime(&compregModTime);
-    file->GetLastModifiedTime(&autoregModTime);
+    PRBool equals;
+    rv = greFile->Equals(file, &equals);
+    if (NS_SUCCEEDED(rv) && equals)
+        return PR_FALSE;
 
-    return LL_CMP(autoregModTime, >, compregModTime);
+    rv = greFile->GetLastModifiedTime(&autoregModTime);
+    if (NS_FAILED(rv))
+        return PR_FALSE;
+
+    if (autoregModTime > nowTime) {
+        NS_WARNING("Screwy timestamps, ignoring .autoreg");
+        return PR_FALSE;
+    }
+    return autoregModTime > compregModTime; 
 }
 
 
@@ -355,10 +391,7 @@ static const nsModuleComponentInfo components[] = {
     COMPONENT(ERRORSERVICE, nsErrorService::Create),
 
     COMPONENT(BYTEBUFFER, ByteBufferImpl::Create),
-    COMPONENT_CI(SCRIPTABLEINPUTSTREAM, nsScriptableInputStream::Create,
-                 nsScriptableInputStream),
-    COMPONENT_CI(SCRIPTABLEOUTPUTSTREAM, nsScriptableOutputStream::Create,
-                 nsScriptableOutputStream),
+    COMPONENT(SCRIPTABLEINPUTSTREAM, nsScriptableInputStream::Create),
     COMPONENT(BINARYINPUTSTREAM, nsBinaryInputStreamConstructor),
     COMPONENT(BINARYOUTPUTSTREAM, nsBinaryOutputStreamConstructor),
     COMPONENT(STORAGESTREAM, nsStorageStreamConstructor),
@@ -442,7 +475,7 @@ static const nsModuleComponentInfo components[] = {
 
     COMPONENT(UUID_GENERATOR, nsUUIDGeneratorConstructor),
 
-#if defined(XP_WIN) && !defined(WINCE)
+#if defined(XP_WIN)
     COMPONENT(WINDOWSREGKEY, nsWindowsRegKeyConstructor),
 #endif
 
@@ -451,6 +484,8 @@ static const nsModuleComponentInfo components[] = {
 #endif
 
     COMPONENT(SYSTEMINFO, nsSystemInfoConstructor),
+#define NS_MEMORY_REPORTER_MANAGER_CLASSNAME "Memory Reporter Manager"
+    COMPONENT(MEMORY_REPORTER_MANAGER, nsMemoryReporterManagerConstructor),
 };
 
 #undef COMPONENT
@@ -511,6 +546,10 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     gXPCOMShuttingDown = PR_FALSE;
 
     NS_LogInit();
+
+    // Set up TimeStamp
+    rv = TimeStamp::Startup();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Establish the main thread here.
     rv = nsThreadManager::get()->Init();
@@ -666,7 +705,7 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     nsMemoryImpl::InitFlusher();
 
     // Notify observers of xpcom autoregistration start
-    NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_OBSERVER_ID, 
+    NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY, 
                                   nsnull,
                                   NS_XPCOM_STARTUP_OBSERVER_ID);
     
@@ -844,6 +883,8 @@ NS_ShutdownXPCOM(nsIServiceManager* servMgr)
 
     NS_IF_RELEASE(gDebug);
 
+    TimeStamp::Shutdown();
+    
     NS_LogTerm();
 
 #ifdef GC_LEAK_DETECTOR

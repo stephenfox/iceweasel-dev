@@ -53,7 +53,7 @@ memText=""
 ########################################################################
 libpkix_init()
 {
-  SCRIPTNAME="libpkixs.sh"
+  SCRIPTNAME="libpkix.sh"
   if [ -z "${CLEANUP}" ] ; then     # if nobody else is responsible for
       CLEANUP="${SCRIPTNAME}"       # cleaning this script will do it
   fi
@@ -65,26 +65,7 @@ libpkix_init()
   fi
   cd ${LIBPKIX_CURDIR}
 
-  # test at libpkix is written in ksh and hence cannot be sourced "."
-  # by this sh script. While we want to provide each libpkix test script the
-  # ability to be executed alone, we will need to use common/init.sh
-  # to set up bin etc. Since variable values can not be passed to sub-directory
-  # script for checking ($INIT_SOURCED), log is recreated and old data lost.
-  # The cludge way provided here is not ideal, but works (for now) :
-  # We save the log up to this point then concatenate it with libpkix log
-  # as the final one.
-  LOGFILE_ALL=${LOGFILE}
-  if [ ! -z ${LOGFILE_ALL} ] ; then
-       mv ${LOGFILE_ALL} ${LOGFILE_ALL}.tmp
-       touch ${LOGFILE_ALL}
-  fi
-
-  SCRIPTNAME="libpkixs.sh"
-  LIBPKIX_LOG=${HOSTDIR}/libpkix.log    #we don't want all the errormessages 
-         # in the output.log, otherwise we can't tell what's a real error
-
-  html_head "LIBPKIX Tests"
-
+  SCRIPTNAME="libpkix.sh"
 }
 
 ############################## libpkix_cleanup ############################
@@ -93,17 +74,14 @@ libpkix_init()
 ########################################################################
 libpkix_cleanup()
 {
-  if [ ! -z ${LOGFILE_ALL} ] ; then
-       rm ${LOGFILE_ALL}
-       cat ${LOGFILE_ALL}.tmp ${LIBPKIX_LOG} > ${LOGFILE_ALL}
-       rm ${LOGFILE_ALL}.tmp
-  fi
-
   html "</TABLE><BR>" 
   cd ${QADIR}
   . common/cleanup.sh
 }
 
+############################## libpkix_UT_main ############################
+# local shell function to run libpkix unit tests
+########################################################################
 ParseArgs ()
 {
     while [ $# -gt 0 ]; do
@@ -119,8 +97,10 @@ ParseArgs ()
     done
 }
 
-libpkix_main()
+libpkix_UT_main()
 {
+
+html_head "LIBPKIX Unit Tests"
 
 ParseArgs 
 
@@ -178,10 +158,15 @@ return 1
 fi
 }
 
+libpkix_run_tests()
+{
+    if [ -n "${BUILD_LIBPKIX_TESTS}" ]; then
+         libpkix_UT_main 
+    fi
+}
+
 ################## main #################################################
 
 libpkix_init 
-libpkix_main  | tee ${LIBPKIX_LOG}
+libpkix_run_tests
 libpkix_cleanup
-
-

@@ -42,13 +42,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-include $(topsrcdir)/config/config.mk
-
-default alldep all::
-	$(RM) -rf $(DIST)/sdk
-	$(RM) -rf $(DIST)/include
-	$(RM) -rf _tests
-	$(MAKE) -C config export
+default::
 
 TIERS += base
 
@@ -61,27 +55,46 @@ tier_base_dirs = \
 	probes \
 	$(NULL)
 
+ifdef MOZ_MEMORY
+tier_base_dirs += memory/jemalloc
+endif
+
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
 
 TIERS += testharness
 
 # test harnesses
 ifdef ENABLE_TESTS
-tier_testharness_dirs += tools/test-harness
+tier_testharness_dirs += testing/xpcshell
 endif
 
-GARBAGE_DIRS += dist
+include $(topsrcdir)/config/config.mk
+
+GARBAGE_DIRS += dist _javagen _profile _tests staticlib
 DIST_GARBAGE = config.cache config.log config.status config-defs.h \
    dependencies.beos config/autoconf.mk config/myrules.mk config/myconfig.mk \
    unallmakefiles mozilla-config.h \
-   gfx/gfx-config.h netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
+   netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
+
+default alldep all::
+	$(RM) -rf $(DIST)/sdk
+	$(RM) -rf $(DIST)/include
+	$(RM) -rf $(DIST)/private
+	$(RM) -rf $(DIST)/public
+	$(RM) -rf $(DIST)/bin/components
+	$(RM) -rf _tests
 
 # Build pseudo-external modules first when export is explicitly called
 export::
 	$(RM) -rf $(DIST)/sdk
 	$(MAKE) -C config export
 	$(MAKE) tier_nspr
+
+ifdef ENABLE_TESTS
+# Additional makefile targets to call automated test suites
+include $(topsrcdir)/testing/testsuite-targets.mk
+endif
 
 include $(topsrcdir)/config/rules.mk
 
@@ -135,6 +148,9 @@ endif # WINNT
 ifeq ($(OS_ARCH),WINNT)
 # we want to copy PDB files on Windows
 MAKE_SYM_STORE_ARGS := -c
+ifdef PDBSTR_PATH
+MAKE_SYM_STORE_ARGS += -i
+endif
 ifeq (,$(CYGWIN_WRAPPER))
 # this doesn't work with Cygwin Python
 MAKE_SYM_STORE_ARGS += --vcs-info
@@ -154,39 +170,45 @@ MAKE_SYM_STORE_PATH := $(DIST)/bin
 endif
 DUMP_SYMS_BIN ?= $(DIST)/host/bin/dump_syms
 endif
-ifeq ($(OS_ARCH),Linux)
+ifeq (,$(filter-out Linux SunOS,$(OS_ARCH)))
 MAKE_SYM_STORE_ARGS := --vcs-info
 DUMP_SYMS_BIN ?= $(DIST)/host/bin/dump_syms
 MAKE_SYM_STORE_PATH := $(DIST)/bin
 endif
 
+SYM_STORE_SOURCE_DIRS := $(topsrcdir)
+
+include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
+
 ifdef MOZ_SYMBOLS_EXTRA_BUILDID
 EXTRA_BUILDID := -$(MOZ_SYMBOLS_EXTRA_BUILDID)
 endif
 
-SYMBOL_ARCHIVE_BASENAME = \
-  $(MOZ_APP_NAME)-$(MOZ_APP_VERSION)-$(OS_ARCH)-$(BUILDID)$(EXTRA_BUILDID)
+SYMBOL_INDEX_NAME = \
+  $(MOZ_APP_NAME)-$(MOZ_APP_VERSION)-$(OS_ARCH)-$(BUILDID)$(EXTRA_BUILDID)-symbols.txt
 
 buildsymbols:
 ifdef MOZ_CRASHREPORTER
 	echo building symbol store
-	mkdir -p $(DIST)/crashreporter-symbols/$(BUILDID)
-	$(PYTHON) $(topsrcdir)/toolkit/crashreporter/tools/symbolstore.py    \
-	  $(MAKE_SYM_STORE_ARGS) -s $(topsrcdir) $(DUMP_SYMS_BIN)     \
-	  $(DIST)/crashreporter-symbols/$(BUILDID)                    \
-	  $(MAKE_SYM_STORE_PATH) >                                    \
-	  $(DIST)/crashreporter-symbols/$(BUILDID)/$(SYMBOL_ARCHIVE_BASENAME)-symbols.txt
+	$(RM) -rf $(DIST)/crashreporter-symbols
+	$(RM) -f "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
+	$(NSINSTALL) -D $(DIST)/crashreporter-symbols
+	$(PYTHON) $(topsrcdir)/toolkit/crashreporter/tools/symbolstore.py \
+	  $(MAKE_SYM_STORE_ARGS)                                          \
+	  $(foreach dir,$(SYM_STORE_SOURCE_DIRS),-s $(dir))               \
+	  $(DUMP_SYMS_BIN)                                                \
+	  $(DIST)/crashreporter-symbols                                   \
+	  $(MAKE_SYM_STORE_PATH) >                                        \
+	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
 	echo packing symbols
 	mkdir -p $(topsrcdir)/../$(BUILDID)
-	cd $(DIST)/crashreporter-symbols/$(BUILDID) && \
-          zip -r9D ../crashreporter-symbols-$(SYMBOL_ARCHIVE_BASENAME).zip .
-	mv $(DIST)/crashreporter-symbols/crashreporter-symbols-$(SYMBOL_ARCHIVE_BASENAME).zip \
-          $(topsrcdir)/../$(BUILDID)
+	cd $(DIST)/crashreporter-symbols && \
+          zip -r9D ../"$(SYMBOL_ARCHIVE_BASENAME).zip" .
 endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
 ifdef MOZ_CRASHREPORTER
-	$(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh $(topsrcdir)/../$(BUILDID)/crashreporter-symbols-$(SYMBOL_ARCHIVE_BASENAME).zip
+	$(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
 endif
 
 ifeq ($(OS_ARCH),WINNT)
@@ -206,3 +228,18 @@ BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/a
 else
 BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
+
+#XXX: this is a hack, since we don't want to clobber for MSVC
+# PGO support, but we can't do this test in client.mk
+ifneq ($(OS_ARCH)_$(GNU_CC), WINNT_)
+# No point in clobbering if PGO has been explicitly disabled.
+ifndef NO_PROFILE_GUIDED_OPTIMIZE
+maybe_clobber_profiledbuild: clobber_all
+else
+maybe_clobber_profiledbuild:
+endif
+else
+maybe_clobber_profiledbuild:
+endif
+
+.PHONY: maybe_clobber_profiledbuild

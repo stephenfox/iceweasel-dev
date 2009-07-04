@@ -52,6 +52,13 @@
 #include <string.h>
 #include <signal.h>
 
+#ifdef SYMBIAN
+/* In Open C sched_get_priority_min/max do not work properly, so we undefine
+ * _POSIX_THREAD_PRIORITY_SCHEDULING here.
+ */
+#undef _POSIX_THREAD_PRIORITY_SCHEDULING
+#endif
+
 /*
  * Record whether or not we have the privilege to set the scheduling
  * policy and priority of threads.  0 means that privilege is available.
@@ -257,6 +264,8 @@ static void *_pt_root(void *arg)
     */
     if (PR_FALSE == detached)
     {
+        /* Call TPD destructors on this thread. */
+        _PR_DestroyThreadPrivate(thred);
         rv = pthread_setspecific(pt_book.key, NULL);
         PR_ASSERT(0 == rv);
     }
@@ -597,7 +606,11 @@ PR_IMPLEMENT(PRStatus) PR_JoinThread(PRThread *thred)
             rv = pthread_detach(&id);
             PR_ASSERT(0 == rv);
 #endif
-            _pt_thread_death(thred);
+            /*
+             * PR_FALSE, because the thread already called the TPD
+             * destructors before exiting _pt_root.
+             */
+            _pt_thread_death_internal(thred, PR_FALSE);
         }
         else
         {
@@ -1027,6 +1040,10 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup(void)
         PR_Lock(pt_book.ml);
         while (pt_book.user > pt_book.this_many)
             PR_WaitCondVar(pt_book.cv, PR_INTERVAL_NO_TIMEOUT);
+        if (me->state & PT_THREAD_SYSTEM)
+            pt_book.system -= 1;
+        else
+            pt_book.user -= 1;
         PR_Unlock(pt_book.ml);
 
         _PR_CleanupMW();
@@ -1038,6 +1055,7 @@ PR_IMPLEMENT(PRStatus) PR_Cleanup(void)
         _PR_CleanupNet();
         /* Close all the fd's before calling _PR_CleanupIO */
         _PR_CleanupIO();
+        _PR_CleanupCMon();
 
         _pt_thread_death(me);
         rv = pthread_setspecific(pt_book.key, NULL);
@@ -1145,6 +1163,7 @@ static void null_signal_handler(PRIntn sig);
  */
 static void init_pthread_gc_support(void)
 {
+#ifndef SYMBIAN
     PRIntn rv;
 
 #if defined(_PR_DCETHREADS)
@@ -1181,6 +1200,7 @@ static void init_pthread_gc_support(void)
     }
 #endif  /* defined(PT_NO_SIGTIMEDWAIT) */
 #endif /* defined(_PR_DCETHREADS) */
+#endif /* SYMBIAN */
 }
 
 PR_IMPLEMENT(void) PR_SetThreadGCAble(void)
@@ -1208,7 +1228,12 @@ PR_IMPLEMENT(PRStatus) PR_EnumerateThreads(PREnumerator func, void *arg)
     PRIntn count = 0;
     PRStatus rv = PR_SUCCESS;
     PRThread* thred = pt_book.first;
+
+#if defined(DEBUG) || defined(FORCE_PR_ASSERT)
+#if !defined(_PR_DCETHREADS)
     PRThread *me = PR_GetCurrentThread();
+#endif
+#endif
 
     PR_LOG(_pr_gc_lm, PR_LOG_ALWAYS, ("Begin PR_EnumerateThreads\n"));
     /*
@@ -1326,8 +1351,9 @@ static void suspend_signal_handler(PRIntn sig)
 	while (me->suspend & PT_THREAD_SUSPENDED)
 	{
 #if !defined(FREEBSD) && !defined(NETBSD) && !defined(OPENBSD) \
-    && !defined(BSDI) && !defined(VMS) && !defined(UNIXWARE) \
-    && !defined(DARWIN) && !defined(RISCOS) /*XXX*/
+    && !defined(BSDI) && !defined(UNIXWARE) \
+    && !defined(DARWIN) && !defined(RISCOS) \
+    && !defined(SYMBIAN) /*XXX*/
         PRIntn rv;
 	    sigwait(&sigwait_set, &rv);
 #endif
@@ -1371,8 +1397,9 @@ static void pt_SuspendSet(PRThread *thred)
     PR_LOG(_pr_gc_lm, PR_LOG_ALWAYS, 
 	   ("doing pthread_kill in pt_SuspendSet thred %p tid = %X\n",
 	   thred, thred->id));
-#if defined(VMS)
-    rv = thread_suspend(thred);
+#if defined(SYMBIAN)
+    /* All signal group functions are not implemented in Symbian OS */
+    rv = 0;
 #else
     rv = pthread_kill (thred->id, SIGUSR2);
 #endif
@@ -1427,8 +1454,8 @@ static void pt_ResumeSet(PRThread *thred)
     thred->suspend &= ~PT_THREAD_SUSPENDED;
 
 #if defined(PT_NO_SIGTIMEDWAIT)
-#if defined(VMS)
-	thread_resume(thred);
+#if defined(SYMBIAN) 
+	/* All signal group functions are not implemented in Symbian OS */
 #else
 	pthread_kill(thred->id, SIGUSR1);
 #endif

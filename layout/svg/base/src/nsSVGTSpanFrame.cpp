@@ -93,35 +93,10 @@ nsSVGTSpanFrame::AttributeChanged(PRInt32         aNameSpaceID,
        aAttribute == nsGkAtoms::y ||
        aAttribute == nsGkAtoms::dx ||
        aAttribute == nsGkAtoms::dy)) {
-    UpdateGraphic();
+    NotifyGlyphMetricsChange();
   }
 
   return NS_OK;
-}
-
-//----------------------------------------------------------------------
-// nsISVGChildFrame methods
-
-NS_IMETHODIMP
-nsSVGTSpanFrame::SetMatrixPropagation(PRBool aPropagate)
-{
-  mPropagateTransform = aPropagate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGTSpanFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
-{
-  mOverrideCTM = aCTM;
-  return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGMatrix>
-nsSVGTSpanFrame::GetOverrideCTM()
-{
-  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
-  NS_IF_ADDREF(matrix);
-  return matrix;
 }
 
 //----------------------------------------------------------------------
@@ -130,14 +105,9 @@ nsSVGTSpanFrame::GetOverrideCTM()
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGTSpanFrame::GetCanvasTM()
 {
-  if (!mPropagateTransform) {
+  if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    if (mOverrideCTM) {
-      retval = mOverrideCTM;
-      NS_ADDREF(retval);
-    } else {
-      NS_NewSVGMatrix(&retval);
-    }
+    NS_NewSVGMatrix(&retval);
     return retval;
   }
 

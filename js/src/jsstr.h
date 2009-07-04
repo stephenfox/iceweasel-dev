@@ -64,16 +64,23 @@ JS_BEGIN_EXTERN_C
  * purely a backstop, in case the chars pointer flows out to native code that
  * requires \u0000 termination.
  *
- * A flat string with JSSTRFLAG_MUTABLE set means the string is accessible
+ * A flat string with JSSTRFLAG_MUTABLE set means that the string is accessible
  * only from one thread and it is possible to turn it into a dependent string
- * of the same length to optimize js_ConcatStrings. It also possible to grow
- * such string but extreme care must be taken to ensure that no other code
+ * of the same length to optimize js_ConcatStrings. It is also possible to grow
+ * such a string, but extreme care must be taken to ensure that no other code
  * relies on the original length of the string.
  *
- * When JSSTRFLAG_DEPENDENT is set, the string depends on characters of
- * another string strongly referenced by the u.base field. The base member may
- * point to another dependent string if JSSTRING_CHARS has not been called
- * yet.
+ * A flat string with JSSTRFLAG_ATOMIZED set means that the string is hashed as
+ * an atom. This flag is used to avoid re-hashing the already-atomized string.
+ *
+ * Any string with JSSTRFLAG_DEFLATED set means that the string has an entry
+ * in the deflated string cache. The GC uses this flag to optimize string 
+ * finalization and avoid an expensive cache lookup for strings that were 
+ * never deflated.
+ *
+ * When JSSTRFLAG_DEPENDENT is set, the string depends on characters of another
+ * string strongly referenced by the u.base field. The base member may point to
+ * another dependent string if JSSTRING_CHARS has not been called yet.
  *
  * JSSTRFLAG_PREFIX determines the kind of the dependent string. When the flag
  * is unset, the length field encodes both starting position relative to the
@@ -81,9 +88,9 @@ JS_BEGIN_EXTERN_C
  * JSSTRDEP_START_MASK and JSSTRDEP_LENGTH_MASK macros below for details.
  *
  * When JSSTRFLAG_PREFIX is set, the dependent string is a prefix of the base
- * string. The number of characters in the prefix is encoded using all
- * non-flag bits of the length field and spans the same 0 .. SIZE_T_MAX/4
- * range as the length of the flat string.
+ * string. The number of characters in the prefix is encoded using all non-flag
+ * bits of the length field and spans the same 0 .. SIZE_T_MAX/4 range as the
+ * length of the flat string.
  *
  * NB: Always use the JSSTRING_LENGTH and JSSTRING_CHARS accessor macros.
  */
@@ -99,59 +106,119 @@ struct JSString {
  * Definitions for flags stored in the high order bits of JSString.length.
  * JSSTRFLAG_PREFIX and JSSTRFLAG_MUTABLE are two aliases for the same value.
  * JSSTRFLAG_PREFIX should be used only if JSSTRFLAG_DEPENDENT is set and
- * JSSTRFLAG_MUTABLE should be used only if JSSTRFLAG_DEPENDENT is unset.
+ * JSSTRFLAG_MUTABLE should be used only if the string is flat.
+ * JSSTRFLAG_ATOMIZED is used only with the flat immutable strings.
  */
-#define JSSTRFLAG_BITS              2
-#define JSSTRFLAG_SHIFT(flg)        ((size_t)(flg) << JSSTRING_LENGTH_BITS)
-#define JSSTRFLAG_MASK              JSSTRFLAG_SHIFT(JS_BITMASK(JSSTRFLAG_BITS))
-#define JSSTRFLAG_DEPENDENT         JSSTRFLAG_SHIFT(1)
-#define JSSTRFLAG_PREFIX            JSSTRFLAG_SHIFT(2)
-#define JSSTRFLAG_MUTABLE           JSSTRFLAG_SHIFT(2)
+#define JSSTRFLAG_DEPENDENT         JSSTRING_BIT(JS_BITS_PER_WORD - 1)
+#define JSSTRFLAG_PREFIX            JSSTRING_BIT(JS_BITS_PER_WORD - 2)
+#define JSSTRFLAG_MUTABLE           JSSTRFLAG_PREFIX
+#define JSSTRFLAG_ATOMIZED          JSSTRING_BIT(JS_BITS_PER_WORD - 3)
+#define JSSTRFLAG_DEFLATED          JSSTRING_BIT(JS_BITS_PER_WORD - 4)
+
+#define JSSTRING_LENGTH_BITS        (JS_BITS_PER_WORD - 4)
+#define JSSTRING_LENGTH_MASK        JSSTRING_BITMASK(JSSTRING_LENGTH_BITS)
 
 /* Universal JSString type inquiry and accessor macros. */
 #define JSSTRING_BIT(n)             ((size_t)1 << (n))
 #define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
 #define JSSTRING_HAS_FLAG(str,flg)  ((str)->length & (flg))
 #define JSSTRING_IS_DEPENDENT(str)  JSSTRING_HAS_FLAG(str, JSSTRFLAG_DEPENDENT)
-#define JSSTRING_IS_MUTABLE(str)    (((str)->length & JSSTRFLAG_MASK) ==      \
+#define JSSTRING_IS_FLAT(str)       (!JSSTRING_IS_DEPENDENT(str))
+#define JSSTRING_IS_MUTABLE(str)    (((str)->length & (JSSTRFLAG_DEPENDENT |  \
+                                                       JSSTRFLAG_MUTABLE)) == \
                                      JSSTRFLAG_MUTABLE)
+#define JSSTRING_IS_ATOMIZED(str)   (((str)->length & (JSSTRFLAG_DEPENDENT |  \
+                                                       JSSTRFLAG_ATOMIZED)) ==\
+                                     JSSTRFLAG_ATOMIZED)
 
 #define JSSTRING_CHARS(str)         (JSSTRING_IS_DEPENDENT(str)               \
                                      ? JSSTRDEP_CHARS(str)                    \
-                                     : (str)->u.chars)
+                                     : JSFLATSTR_CHARS(str))
 #define JSSTRING_LENGTH(str)        (JSSTRING_IS_DEPENDENT(str)               \
                                      ? JSSTRDEP_LENGTH(str)                   \
-                                     : ((str)->length &  ~JSSTRFLAG_MUTABLE))
+                                     : JSFLATSTR_LENGTH(str))
+
+JS_STATIC_ASSERT(sizeof(size_t) == sizeof(jsword));
+
+#define JSSTRING_IS_DEFLATED(str)   ((str)->length & JSSTRFLAG_DEFLATED)
+
+#define JSSTRING_SET_DEFLATED(str)                                            \
+    JS_ATOMIC_SET_MASK((jsword*)&(str)->length, JSSTRFLAG_DEFLATED)
 
 #define JSSTRING_CHARS_AND_LENGTH(str, chars_, length_)                       \
     ((void)(JSSTRING_IS_DEPENDENT(str)                                        \
             ? ((length_) = JSSTRDEP_LENGTH(str),                              \
                (chars_) = JSSTRDEP_CHARS(str))                                \
-            : ((length_) = (str)->length & ~JSSTRFLAG_MUTABLE,                \
-               (chars_) = (str)->u.chars)))
+            : ((length_) = JSFLATSTR_LENGTH(str),                             \
+               (chars_) = JSFLATSTR_CHARS(str))))
 
 #define JSSTRING_CHARS_AND_END(str, chars_, end)                              \
     ((void)((end) = JSSTRING_IS_DEPENDENT(str)                                \
                   ? JSSTRDEP_LENGTH(str) + ((chars_) = JSSTRDEP_CHARS(str))   \
-                  : ((str)->length & ~JSSTRFLAG_MUTABLE) +                    \
-                    ((chars_) = (str)->u.chars)))
+                  : JSFLATSTR_LENGTH(str) + ((chars_) = JSFLATSTR_CHARS(str))))
 
-#define JSSTRING_LENGTH_BITS        (sizeof(size_t) * JS_BITS_PER_BYTE        \
-                                     - JSSTRFLAG_BITS)
-#define JSSTRING_LENGTH_MASK        JSSTRING_BITMASK(JSSTRING_LENGTH_BITS)
-
-#define JSSTRING_INIT(str, chars_, length_)                                   \
-    ((void)(JS_ASSERT(((length_) & JSSTRFLAG_MASK) == 0),                     \
+/* Specific flat string initializer and accessor macros. */
+#define JSFLATSTR_INIT(str, chars_, length_)                                  \
+    ((void)(JS_ASSERT(((length_) & ~JSSTRING_LENGTH_MASK) == 0),              \
             (str)->length = (length_), (str)->u.chars = (chars_)))
 
-/* Specific mutable string manipulation macros. */
-#define JSSTRING_SET_MUTABLE(str)                                             \
-    ((void)(JS_ASSERT(!JSSTRING_IS_DEPENDENT(str)),                           \
+#define JSFLATSTR_LENGTH(str)                                                 \
+    (JS_ASSERT(JSSTRING_IS_FLAT(str)), (str)->length & JSSTRING_LENGTH_MASK)
+
+#define JSFLATSTR_CHARS(str)                                                  \
+    (JS_ASSERT(JSSTRING_IS_FLAT(str)), (str)->u.chars)
+
+/* 
+ * Special flat string initializer that preserves the JSSTR_DEFLATED flag.
+ * Use this macro when reinitializing an existing string (which may be
+ * hashed to its deflated bytes. Newborn strings must use JSFLATSTR_INIT.
+ */
+#define JSFLATSTR_REINIT(str, chars_, length_)                                \
+    ((void)(JS_ASSERT(((length_) & ~JSSTRING_LENGTH_MASK) == 0),              \
+            (str)->length = ((str)->length & JSSTRFLAG_DEFLATED) |            \
+                             (length_ & ~JSSTRFLAG_DEFLATED),                 \
+            (str)->u.chars = (chars_)))
+
+/*
+ * Macros to manipulate atomized and mutable flags of flat strings. It is safe
+ * to use these without extra locking due to the following properties:
+ *
+ *   * We do not have a macro like JSFLATSTR_CLEAR_ATOMIZED as a string
+ *     remains atomized until the GC collects it.
+ *
+ *   * A thread may call JSFLATSTR_SET_MUTABLE only when it is the only thread
+ *     accessing the string until a later call to JSFLATSTR_CLEAR_MUTABLE.
+ *
+ *   * Multiple threads can call JSFLATSTR_CLEAR_MUTABLE but the macro
+ *     actually clears the mutable flag only when the flag is set -- in which
+ *     case only one thread can access the string (see previous property).
+ *
+ * Thus, when multiple threads access the string, JSFLATSTR_SET_ATOMIZED is
+ * the only macro that can update the length field of the string by changing
+ * the mutable bit from 0 to 1. We call the macro only after the string has
+ * been hashed. When some threads in js_ValueToStringId see that the flag is
+ * set, it knows that the string was atomized.
+ *
+ * On the other hand, if the thread sees that the flag is unset, it could be
+ * seeing a stale value when another thread has just atomized the string and
+ * set the flag. But this can lead only to an extra call to js_AtomizeString.
+ * This function would find that the string was already hashed and return it
+ * with the atomized bit set.
+ */
+#define JSFLATSTR_SET_ATOMIZED(str)                                           \
+    JS_BEGIN_MACRO                                                            \
+        JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_MUTABLE(str));        \
+        JS_ATOMIC_SET_MASK((jsword*) &(str)->length, JSSTRFLAG_ATOMIZED);     \
+    JS_END_MACRO
+
+#define JSFLATSTR_SET_MUTABLE(str)                                            \
+    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_ATOMIZED(str)),   \
             (str)->length |= JSSTRFLAG_MUTABLE))
 
-#define JSSTRING_CLEAR_MUTABLE(str)                                           \
-    ((void)(JS_ASSERT(!JSSTRING_IS_DEPENDENT(str)),                           \
-            (str)->length &= ~JSSTRFLAG_MUTABLE))
+#define JSFLATSTR_CLEAR_MUTABLE(str)                                          \
+    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str)),                                 \
+            JSSTRING_HAS_FLAG(str, JSSTRFLAG_MUTABLE) &&                      \
+            ((str)->length &= ~JSSTRFLAG_MUTABLE)))
 
 /* Specific dependent string shift/mask accessor and mutator macros. */
 #define JSSTRDEP_START_BITS         (JSSTRING_LENGTH_BITS-JSSTRDEP_LENGTH_BITS)
@@ -177,8 +244,22 @@ struct JSString {
                    | (len),                                                   \
      (str)->u.base = (bstr))
 
+/* See JSFLATSTR_INIT. */
+#define JSSTRDEP_REINIT(str,bstr,off,len)                                     \
+    ((str)->length = JSSTRFLAG_DEPENDENT                                      \
+                   | ((str->length) & JSSTRFLAG_DEFLATED)                     \
+                   | ((off) << JSSTRDEP_START_SHIFT)                          \
+                   | (len),                                                   \
+     (str)->u.base = (bstr))
+
 #define JSPREFIX_INIT(str,bstr,len)                                           \
     ((str)->length = JSSTRFLAG_DEPENDENT | JSSTRFLAG_PREFIX | (len),          \
+     (str)->u.base = (bstr))
+
+/* See JSFLATSTR_INIT. */
+#define JSPREFIX_REINIT(str,bstr,len)                                         \
+    ((str)->length = JSSTRFLAG_DEPENDENT | JSSTRFLAG_PREFIX |                 \
+                     ((str->length) & JSSTRFLAG_DEFLATED) | (len),            \
      (str)->u.base = (bstr))
 
 #define JSSTRDEP_BASE(str)          ((str)->u.base)
@@ -188,7 +269,7 @@ struct JSString {
 #define JSSTRDEP_CHARS(str)                                                   \
     (JSSTRING_IS_DEPENDENT(JSSTRDEP_BASE(str))                                \
      ? js_GetDependentStringChars(str)                                        \
-     : JSSTRDEP_BASE(str)->u.chars + JSSTRDEP_START(str))
+     : JSFLATSTR_CHARS(JSSTRDEP_BASE(str)) + JSSTRDEP_START(str))
 
 extern size_t
 js_MinimizeDependentStrings(JSString *str, int level, JSString **basep);
@@ -199,7 +280,7 @@ js_GetDependentStringChars(JSString *str);
 extern const jschar *
 js_GetStringChars(JSContext *cx, JSString *str);
 
-extern JSString *
+extern JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
 
 extern const jschar *
@@ -207,6 +288,12 @@ js_UndependString(JSContext *cx, JSString *str);
 
 extern JSBool
 js_MakeStringImmutable(JSContext *cx, JSString *str);
+
+extern JSString* JS_FASTCALL
+js_toLowerCase(JSContext *cx, JSString *str);
+
+extern JSString* JS_FASTCALL
+js_toUpperCase(JSContext *cx, JSString *str);
 
 typedef struct JSCharBuffer {
     size_t          length;
@@ -364,14 +451,21 @@ js_InitDeflatedStringCache(JSRuntime *rt);
 #define UNIT_STRING_LIMIT 256U
 
 /*
- * Get the independent string containing only character code c (backstopped
- * with a NUL as usual for independent strings).
- *
- * This function must be called only for c < UNIT_STRING_LIMIT. It asserts to
- * insist on this requirement in DEBUG builds.
+ * Get the independent string containing only character code at index in str
+ * (backstopped with a zero character as usual for independent strings).
  */
 extern JSString *
-js_GetUnitString(JSContext *cx, jschar c);
+js_GetUnitString(JSContext *cx, JSString *str, size_t index);
+
+/*
+ * Get the independent string containing only the character code c, which must
+ * be less than UNIT_STRING_LIMIT.
+ */
+extern JSString *
+js_GetUnitStringForChar(JSContext *cx, jschar c);
+
+extern void
+js_FinishUnitStrings(JSRuntime *rt);
 
 extern void
 js_FinishRuntimeStringState(JSContext *cx);
@@ -458,14 +552,14 @@ js_HashString(JSString *str);
  * Test if strings are equal. The caller can call the function even if str1
  * or str2 are not GC-allocated things.
  */
-extern JSBool
+extern JSBool JS_FASTCALL
 js_EqualStrings(JSString *str1, JSString *str2);
 
 /*
  * Return less than, equal to, or greater than zero depending on whether
  * str1 is less than, equal to, or greater than str2.
  */
-extern intN
+extern int32 JS_FASTCALL
 js_CompareStrings(JSString *str1, JSString *str2);
 
 /*
@@ -558,9 +652,14 @@ js_GetStringBytes(JSContext *cx, JSString *str);
 extern void
 js_PurgeDeflatedStringCache(JSRuntime *rt, JSString *str);
 
-JSBool
+/* Export a few natives and a helper to other files in SpiderMonkey. */
+extern JSBool
 js_str_escape(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval);
+
+extern JSBool
+js_StringReplaceHelper(JSContext *cx, uintN argc, JSObject *lambda,
+                       JSString *repstr, jsval *vp);
 
 /*
  * Convert one UCS-4 char and write it into a UTF-8 buffer, which must be at
@@ -594,6 +693,9 @@ js_OneUcs4ToUtf8Char(uint8 *utf8Buffer, uint32 ucs4Char);
 extern JS_FRIEND_API(size_t)
 js_PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp,
                         JSString *str, uint32 quote);
+
+extern JSBool
+js_String(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
 
 JS_END_EXTERN_C
 

@@ -144,14 +144,7 @@ function getManifestProperty(id, property) {
  */
 function do_get_addon(name)
 {
-  var lf = gTestRoot.clone();
-  lf.append("unit");
-  lf.append("addons");
-  lf.append(name + ".xpi");
-  if (!lf.exists())
-    do_throw("Addon "+name+" does not exist.");
-
-  return lf;
+  return do_get_file("addons/" + name + ".xpi");
 }
 
 /**
@@ -216,22 +209,23 @@ function startupEM()
                   .getService(Components.interfaces.nsIExtensionManager);
   
   gEM.QueryInterface(Components.interfaces.nsIObserver);
-  gEM.observe(null, "app-startup", null);
   gEM.observe(null, "profile-after-change", "startup");
-  
+
+  // First run is a new profile which nsAppRunner would consider as an update
+  // (no existing compatibility.ini)
+  var upgraded = true;
   var needsRestart = false;
   try {
     needsRestart = gEM.checkForMismatches();
   }
   catch (e) {
-    needsRestart = gEM.start(null);
+    dump("checkForMismatches threw an exception: " + e + "\n");
+    needsRestart = false;
+    upgraded = false;
   }
-  
-  if (needsRestart)
-    gEM.start(null);
 
-  // Make sure extension manager datasource is initialized by requesting it
-  var dummy = gEM.datasource;
+  if (!upgraded || !needsRestart)
+    needsRestart = gEM.start(null);
 }
 
 /**
@@ -251,25 +245,6 @@ function shutdownEM()
  */
 function restartEM()
 {
-  // We must unregister any datasources that may have been read from addons.
-  var extensions = gProfD.clone();
-  extensions.append("extensions");
-  if (extensions.exists()) {
-    var ioServ = Components.classes["@mozilla.org/network/io-service;1"]
-                           .getService(Components.interfaces.nsIIOService);
-    var addons = extensions.directoryEntries;
-    while (addons.hasMoreElements()) {
-      var addon = addons.getNext().QueryInterface(Components.interfaces.nsIFile);
-      if (addon.isDirectory() && addon.leafName != "staged-xpis") {
-        addon.append("install.rdf");
-        if (addon.exists()) {
-          var ds = gRDF.GetDataSource(ioServ.newFileURI(addon).spec);
-          gRDF.UnregisterDataSource(ds);
-        }
-      }
-    }
-  }
-  
   var needsRestart = gEM.start(null);
   if (needsRestart)
     gEM.start(null);
@@ -277,14 +252,9 @@ function restartEM()
 
 var gDirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
                         .getService(Components.interfaces.nsIProperties);
-var gTestRoot = gDirSvc.get("CurProcD", Components.interfaces.nsILocalFile);
-gTestRoot = gTestRoot.parent.parent;
-gTestRoot.append("_tests");
-gTestRoot.append("xpcshell-simple");
-gTestRoot.append("test_extensionmanager");
 
 // Need to create and register a profile folder.
-var gProfD = gTestRoot.clone();
+var gProfD = do_get_cwd();
 gProfD.append("profile");
 if (gProfD.exists())
   gProfD.remove(true);

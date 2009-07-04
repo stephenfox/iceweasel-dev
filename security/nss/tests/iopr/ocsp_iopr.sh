@@ -90,7 +90,7 @@ ocsp_get_cert_status() {
     
     if [ -n "$respUrl" -o -n "$defRespCert" ]; then
         if [ -z "$respUrl" -o -z "$defRespCert" ]; then
-            html_failed "<TR><TD>Incorrect test params" 
+            html_failed "Incorrect test params" 
             return 1
         fi
         clntParam="-l $respUrl -t $defRespCert"
@@ -99,7 +99,7 @@ ocsp_get_cert_status() {
     if [ -z "${MEMLEAK_DBG}" ]; then
         outFile=$dbDir/ocsptest.out.$$
         echo "ocspclnt -d $dbDir -S $cert $clntParam"
-        ocspclnt -d $dbDir -S $cert $clntParam >$outFile 2>&1
+        ${BINDIR}/ocspclnt -d $dbDir -S $cert $clntParam >$outFile 2>&1
         ret=$?
         echo "ocspclnt output:"
         cat $outFile
@@ -110,7 +110,7 @@ ocsp_get_cert_status() {
     fi
 
     OCSP_ATTR="-d $dbDir -S $cert $clntParam"
-    ${RUN_COMMAND_DBG} ocspclnt ${OCSP_ATTR}
+    ${RUN_COMMAND_DBG} ${BINDIR}/ocspclnt ${OCSP_ATTR}
 }
 
 ########################################################################
@@ -170,7 +170,7 @@ ocsp_iopr() {
         for certName in $testValidCertNames $testRevokedCertNames \
             $testStatUnknownCertName; do
             ocsp_get_cert_status $dbDir $certName "$responderUrl" \
-                "$testResponder" 2>&1
+                "$testResponder" 
         done
     fi
 }
@@ -235,8 +235,7 @@ ocsp_iopr_run() {
             fi
             if [ -n "${MEMLEAK_DBG}" ]; then
                 ocsp_iopr $ocspTestType ${IOPR_HOSTADDR} \
-                    ${IOPR_OCSP_CLIENTDIR}_${IOPR_HOSTADDR} 2>&1 | 
-                    tee -a ${LOGFILE}
+                    ${IOPR_OCSP_CLIENTDIR}_${IOPR_HOSTADDR} 2>> ${LOGFILE}
             else
                 ocsp_iopr $ocspTestType ${IOPR_HOSTADDR} \
                     ${IOPR_OCSP_CLIENTDIR}_${IOPR_HOSTADDR}
@@ -244,7 +243,7 @@ ocsp_iopr_run() {
         done
 
         if [ -n "${MEMLEAK_DBG}" ]; then
-            log_parse >> ${FOUNDLEAKS}
+            log_parse
             ret=$?
             html_msg ${ret} 0 "${LOGNAME}" \
                 "produced a returncode of $ret, expected is 0"

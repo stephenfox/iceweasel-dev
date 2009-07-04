@@ -37,7 +37,7 @@
 /*
  * Moved from secpkcs7.c
  *
- * $Id: crl.c,v 1.56 2007/05/25 07:28:31 alexei.volkov.bugs%sun.com Exp $
+ * $Id: crl.c,v 1.62 2009/02/05 20:31:26 nelson%bolyard.com Exp $
  */
  
 #include "cert.h"
@@ -103,12 +103,15 @@ static const SEC_ASN1Template cert_KrlEntryTemplate[] = {
     { 0 }
 };
 
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
+SEC_ASN1_MKSUB(CERT_TimeChoiceTemplate)
+
 static const SEC_ASN1Template cert_KrlTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	  0, NULL, sizeof(CERTCrl) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTCrl,signatureAlg),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_SAVE,
 	  offsetof(CERTCrl,derName) },
     { SEC_ASN1_INLINE,
@@ -132,9 +135,9 @@ static const SEC_ASN1Template cert_SignedKrlTemplate[] = {
     { SEC_ASN1_INLINE,
 	  offsetof(CERTSignedCrl,crl),
 	  cert_KrlTemplate },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTSignedCrl,signatureWrap.signatureAlgorithm),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_BIT_STRING,
 	  offsetof(CERTSignedCrl,signatureWrap.signature) },
     { 0 }
@@ -155,8 +158,9 @@ static const SEC_ASN1Template cert_CrlEntryTemplate[] = {
 	  0, NULL, sizeof(CERTCrlEntry) },
     { SEC_ASN1_INTEGER,
 	  offsetof(CERTCrlEntry,serialNumber) },
-    { SEC_ASN1_INLINE,
-	  offsetof(CERTCrlEntry,revocationDate), CERT_TimeChoiceTemplate },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+	  offsetof(CERTCrlEntry,revocationDate),
+          SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_SEQUENCE_OF,
 	  offsetof(CERTCrlEntry, extensions),
 	  SEC_CERTExtensionTemplate},
@@ -167,18 +171,20 @@ const SEC_ASN1Template CERT_CrlTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	  0, NULL, sizeof(CERTCrl) },
     { SEC_ASN1_INTEGER | SEC_ASN1_OPTIONAL, offsetof (CERTCrl, version) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTCrl,signatureAlg),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate)},
     { SEC_ASN1_SAVE,
 	  offsetof(CERTCrl,derName) },
     { SEC_ASN1_INLINE,
 	  offsetof(CERTCrl,name),
 	  CERT_NameTemplate },
-    { SEC_ASN1_INLINE,
-	  offsetof(CERTCrl,lastUpdate), CERT_TimeChoiceTemplate },
-    { SEC_ASN1_INLINE | SEC_ASN1_OPTIONAL,
-	  offsetof(CERTCrl,nextUpdate), CERT_TimeChoiceTemplate },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+	  offsetof(CERTCrl,lastUpdate),
+          SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
+    { SEC_ASN1_INLINE | SEC_ASN1_OPTIONAL | SEC_ASN1_XTRN,
+	  offsetof(CERTCrl,nextUpdate),
+          SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_SEQUENCE_OF,
 	  offsetof(CERTCrl,entries),
 	  cert_CrlEntryTemplate },
@@ -193,18 +199,20 @@ const SEC_ASN1Template CERT_CrlTemplateNoEntries[] = {
     { SEC_ASN1_SEQUENCE,
 	  0, NULL, sizeof(CERTCrl) },
     { SEC_ASN1_INTEGER | SEC_ASN1_OPTIONAL, offsetof (CERTCrl, version) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTCrl,signatureAlg),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_SAVE,
 	  offsetof(CERTCrl,derName) },
     { SEC_ASN1_INLINE,
 	  offsetof(CERTCrl,name),
 	  CERT_NameTemplate },
-    { SEC_ASN1_INLINE,
-	  offsetof(CERTCrl,lastUpdate), CERT_TimeChoiceTemplate },
-    { SEC_ASN1_INLINE | SEC_ASN1_OPTIONAL,
-	  offsetof(CERTCrl,nextUpdate), CERT_TimeChoiceTemplate },
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+	  offsetof(CERTCrl,lastUpdate),
+          SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
+    { SEC_ASN1_INLINE | SEC_ASN1_OPTIONAL | SEC_ASN1_XTRN,
+	  offsetof(CERTCrl,nextUpdate),
+          SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_SEQUENCE_OF |
       SEC_ASN1_SKIP }, /* skip entries */
     { SEC_ASN1_OPTIONAL | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC |
@@ -220,10 +228,12 @@ const SEC_ASN1Template CERT_CrlTemplateEntriesOnly[] = {
     { SEC_ASN1_SKIP | SEC_ASN1_INTEGER | SEC_ASN1_OPTIONAL },
     { SEC_ASN1_SKIP },
     { SEC_ASN1_SKIP },
-    { SEC_ASN1_SKIP | SEC_ASN1_INLINE,
-        offsetof(CERTCrl,lastUpdate), CERT_TimeChoiceTemplate },
-    { SEC_ASN1_SKIP | SEC_ASN1_INLINE | SEC_ASN1_OPTIONAL,
-        offsetof(CERTCrl,nextUpdate), CERT_TimeChoiceTemplate },
+    { SEC_ASN1_SKIP | SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+        offsetof(CERTCrl,lastUpdate),
+        SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
+    { SEC_ASN1_SKIP | SEC_ASN1_INLINE | SEC_ASN1_OPTIONAL | SEC_ASN1_XTRN,
+        offsetof(CERTCrl,nextUpdate),
+        SEC_ASN1_SUB(CERT_TimeChoiceTemplate) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_SEQUENCE_OF,
 	  offsetof(CERTCrl,entries),
 	  cert_CrlEntryTemplate }, /* decode entries */
@@ -239,9 +249,9 @@ const SEC_ASN1Template CERT_SignedCrlTemplate[] = {
     { SEC_ASN1_INLINE,
 	  offsetof(CERTSignedCrl,crl),
 	  CERT_CrlTemplate },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN ,
 	  offsetof(CERTSignedCrl,signatureWrap.signatureAlgorithm),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_BIT_STRING,
 	  offsetof(CERTSignedCrl,signatureWrap.signature) },
     { 0 }
@@ -255,9 +265,9 @@ static const SEC_ASN1Template cert_SignedCrlTemplateNoEntries[] = {
     { SEC_ASN1_INLINE,
 	  offsetof(CERTSignedCrl,crl),
 	  CERT_CrlTemplateNoEntries },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTSignedCrl,signatureWrap.signatureAlgorithm),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_BIT_STRING,
 	  offsetof(CERTSignedCrl,signatureWrap.signature) },
     { 0 }
@@ -722,6 +732,10 @@ crl_storeCRL (PK11SlotInfo *slot,char *url,
 	    crl = newCrl;
 	    crl->slot = PK11_ReferenceSlot(slot);
 	    crl->pkcs11ID = oldCrl->pkcs11ID;
+	    if (oldCrl->url && !url)
+	        url = oldCrl->url;
+	    if (url)
+		crl->url = PORT_ArenaStrdup(crl->arena, url);
 	    goto done;
 	}
         if (!SEC_CrlIsNewer(&newCrl->crl,&oldCrl->crl)) {
@@ -744,7 +758,7 @@ crl_storeCRL (PK11SlotInfo *slot,char *url,
         }
 
         /* if we have a url in the database, use that one */
-        if (oldCrl->url) {
+        if (oldCrl->url && !url) {
 	    url = oldCrl->url;
         }
 
@@ -935,10 +949,6 @@ static SECStatus DPCache_AddCRL(CRLDPCache* cache, CachedCrl* crl,
 /* fetch the CRL for this DP from the PKCS#11 tokens */
 static SECStatus DPCache_FetchFromTokens(CRLDPCache* cache, PRTime vfdate,
                                          void* wincx);
-
-/* check if a particular SN is in the CRL cache and return its entry */
-static SECStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
-                                CERTCrlEntry** returned);
 
 /* update the content of the CRL cache, including fetching of CRLs, and
    reprocessing with specified issuer and date */
@@ -1638,7 +1648,7 @@ static SECStatus DPCache_FetchFromTokens(CRLDPCache* cache, PRTime vfdate,
                     rv = CachedCrl_Destroy(returned);
                     returned = NULL;
                 }
-                else
+                else if (vfdate)
                 {
                     rv = CachedCrl_Verify(cache, returned, vfdate, wincx);
                 }
@@ -1703,7 +1713,7 @@ static SECStatus CachedCrl_GetEntry(CachedCrl* crl, SECItem* sn,
 }
 
 /* check if a particular SN is in the CRL cache and return its entry */
-static SECStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
+SECStatus DPCache_Lookup(CRLDPCache* cache, SECItem* sn,
                                 CERTCrlEntry** returned)
 {
     if (!cache || !sn || !returned)
@@ -2310,6 +2320,7 @@ static CERTSignedCrl* GetBestCRL(CRLDPCache* cache, PRBool entries)
     if (0 == cache->ncrls)
     {
         /* empty cache*/
+        PORT_SetError(SEC_ERROR_CRL_NOT_FOUND);
         return NULL;
     }    
 
@@ -2335,6 +2346,7 @@ static CERTSignedCrl* GetBestCRL(CRLDPCache* cache, PRBool entries)
         }
     }
 
+    PORT_SetError(SEC_ERROR_CRL_NOT_FOUND);
     return NULL;
 }
 

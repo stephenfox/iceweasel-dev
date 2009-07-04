@@ -37,7 +37,6 @@
 #include "prtime.h"
 
 #include "cert.h"
-#include "mcom_db.h"
 #include "certdb.h"
 #include "secitem.h"
 #include "secder.h"
@@ -48,15 +47,11 @@
 #include "secerr.h"
 #include "nssilock.h"
 #include "prmon.h"
-#include "nsslocks.h"
 #include "base64.h"
 #include "sechash.h"
 #include "plhash.h"
 #include "pk11func.h" /* sigh */
 
-#ifndef NSS_3_4_CODE
-#define NSS_3_4_CODE
-#endif /* NSS_3_4_CODE */
 #include "nsspki.h"
 #include "pki.h"
 #include "pkim.h"
@@ -312,7 +307,6 @@ __CERT_AddTempCertToPerm(CERTCertificate *cert, char *nickname,
     nssCertificateStore_Lock(context->certStore, &lockTrace);
     nssCertificateStore_RemoveCertLOCKED(context->certStore, c);
     nssCertificateStore_Unlock(context->certStore, &lockTrace, &unlockTrace);
-    nssCertificateStore_Check(&lockTrace, &unlockTrace);
     c->object.cryptoContext = NULL;
     /* Import the perm instance onto the internal token */
     slot = PK11_GetInternalKeySlot();
@@ -365,8 +359,8 @@ CERT_AddTempCertToPerm(CERTCertificate *cert, char *nickname,
 }
 
 CERTCertificate *
-__CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
-			  char *nickname, PRBool isperm, PRBool copyDER)
+CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
+			char *nickname, PRBool isperm, PRBool copyDER)
 {
     NSSCertificate *c;
     CERTCertificate *cc;
@@ -484,12 +478,13 @@ loser:
     return NULL;
 }
 
+/* This symbol is exported for backward compatibility. */
 CERTCertificate *
-CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
-			char *nickname, PRBool isperm, PRBool copyDER)
+__CERT_NewTempCertificate(CERTCertDBHandle *handle, SECItem *derCert,
+			  char *nickname, PRBool isperm, PRBool copyDER)
 {
-    return( __CERT_NewTempCertificate(handle, derCert, nickname,
-                                      isperm, copyDER) );
+    return CERT_NewTempCertificate(handle, derCert, nickname,
+                                   isperm, copyDER);
 }
 
 /* maybe all the wincx's should be some const for internal token login? */
@@ -983,7 +978,7 @@ CERT_FindSMimeProfile(CERTCertificate *cert)
 }
 
 /*
- * depricated functions that are now just stubs.
+ * deprecated functions that are now just stubs.
  */
 /*
  * Close the database
@@ -991,7 +986,7 @@ CERT_FindSMimeProfile(CERTCertificate *cert)
 void
 __CERT_ClosePermCertDB(CERTCertDBHandle *handle)
 {
-    PORT_Assert("CERT_ClosePermCertDB is Depricated" == NULL);
+    PORT_Assert("CERT_ClosePermCertDB is Deprecated" == NULL);
     return;
 }
 
@@ -999,14 +994,16 @@ SECStatus
 CERT_OpenCertDBFilename(CERTCertDBHandle *handle, char *certdbname,
                         PRBool readOnly)
 {
-    PORT_Assert("CERT_OpenCertDBFilename is Depricated" == NULL);
+    PORT_Assert("CERT_OpenCertDBFilename is Deprecated" == NULL);
+    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
     return SECFailure;
 }
 
 SECItem *
 SECKEY_HashPassword(char *pw, SECItem *salt)
 {
-    PORT_Assert("SECKEY_HashPassword is Depricated" == NULL);
+    PORT_Assert("SECKEY_HashPassword is Deprecated" == NULL);
+    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
     return NULL;
 }
 
@@ -1015,7 +1012,8 @@ __CERT_TraversePermCertsForSubject(CERTCertDBHandle *handle,
                                  SECItem *derSubject,
                                  void *cb, void *cbarg)
 {
-    PORT_Assert("CERT_TraversePermCertsForSubject is Depricated" == NULL);
+    PORT_Assert("CERT_TraversePermCertsForSubject is Deprecated" == NULL);
+    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
     return SECFailure;
 }
 
@@ -1024,7 +1022,8 @@ SECStatus
 __CERT_TraversePermCertsForNickname(CERTCertDBHandle *handle, char *nickname,
                                   void *cb, void *cbarg)
 {
-    PORT_Assert("CERT_TraversePermCertsForNickname is Depricated" == NULL);
+    PORT_Assert("CERT_TraversePermCertsForNickname is Deprecated" == NULL);
+    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
     return SECFailure;
 }
 

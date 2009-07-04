@@ -55,6 +55,12 @@ class nsNativeTheme
 {
  protected:
 
+  enum ScrollbarButtonType {
+    eScrollbarButton_UpTop   = 0,
+    eScrollbarButton_Down    = 1 << 0,
+    eScrollbarButton_Bottom  = 1 << 1
+  };
+
   enum TreeSortDirection {
     eTreeSortDirection_Descending,
     eTreeSortDirection_Natural,
@@ -79,6 +85,9 @@ class nsNativeTheme
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::disabled);
   }
 
+  // RTL chrome direction
+  PRBool IsFrameRTL(nsIFrame* aFrame);
+
   // button:
   PRBool IsDefaultButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::_default);
@@ -97,30 +106,54 @@ class nsNativeTheme
   PRBool IsFocused(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::focused);
   }
+  
+  // scrollbar button:
+  PRInt32 GetScrollbarButtonType(nsIFrame* aFrame);
 
   // tab:
   PRBool IsSelectedTab(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
   }
+  
+  PRBool IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset);
+  
+  PRBool IsBeforeSelectedTab(nsIFrame* aFrame) {
+    return IsNextToSelectedTab(aFrame, -1);
+  }
+  
+  PRBool IsAfterSelectedTab(nsIFrame* aFrame) {
+    return IsNextToSelectedTab(aFrame, 1);
+  }
 
-  // toolbarbutton:
+  // button / toolbarbutton:
   PRBool IsCheckedButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
   }
-  
+
+  PRBool IsOpenButton(nsIFrame* aFrame) {
+    return CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
+  }
+
   // treeheadercell:
   TreeSortDirection GetTreeSortDirection(nsIFrame* aFrame);
+  PRBool IsLastTreeHeaderCell(nsIFrame* aFrame);
 
   // tab:
   PRBool IsBottomTab(nsIFrame* aFrame);
   PRBool IsFirstTab(nsIFrame* aFrame);
   PRBool IsLastTab(nsIFrame* aFrame);
+  
+  PRBool IsHorizontal(nsIFrame* aFrame);
 
   // progressbar:
   PRBool IsIndeterminateProgress(nsIFrame* aFrame);
 
   PRInt32 GetProgressValue(nsIFrame* aFrame) {
-    return CheckIntAttr(aFrame, nsWidgetAtoms::value);
+    return CheckIntAttr(aFrame, nsWidgetAtoms::value, 0);
+  }
+  
+  PRInt32 GetProgressMaxValue(nsIFrame* aFrame) {
+    return PR_MAX(CheckIntAttr(aFrame, nsWidgetAtoms::max, 100), 1);
   }
 
   // textfield:
@@ -128,9 +161,11 @@ class nsNativeTheme
       return CheckBooleanAttr(aFrame, nsWidgetAtoms::readonly);
   }
 
-  // These are used by nsNativeThemeGtk
+  // menupopup:
+  PRBool IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent);
+
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
-  PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom);
+  PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);
   PRBool CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom);
 
   PRBool GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected);

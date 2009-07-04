@@ -60,10 +60,10 @@ enum nsRectVisibility {
   nsRectVisibility_kZeroAreaRect
 }; 
 
-// 5a1e80e1-b51c-4f43-8950-1064bd1f39ee
+// 7eae119d-9fc8-482d-92ec-145eef228a4a
 #define NS_IVIEWMANAGER_IID   \
-{ 0x5a1e80e1, 0xb51c, 0x4f43, \
-  { 0x89, 0x50, 0x10, 0x64, 0xbd, 0x1f, 0x39, 0xee } }
+{ 0x7eae119d, 0x9fc8, 0x482d, \
+  { 0x92, 0xec, 0x14, 0x5e, 0xef, 0x22, 0x8a, 0x4a } }
 
 class nsIViewManager : public nsISupports
 {
@@ -137,6 +137,11 @@ public:
    * @param aHeight of window in twips
    */
   NS_IMETHOD  SetWindowDimensions(nscoord aWidth, nscoord aHeight) = 0;
+
+  /**
+   * Do any resizes that are pending.
+   */
+  NS_IMETHOD  FlushDelayedResize() = 0;
 
   /**
    * Called to force a redrawing of any dirty areas.
@@ -322,13 +327,34 @@ public:
    */
   NS_IMETHOD EnableRefresh(PRUint32 aUpdateFlags) = 0;
 
+  class NS_STACK_CLASS UpdateViewBatch {
+  public:
+    UpdateViewBatch() {}
   /**
    * prevents the view manager from refreshing. allows UpdateView()
    * to notify widgets of damaged regions that should be repainted
-   * when the batch is ended.
+   * when the batch is ended. Call EndUpdateViewBatch on this object
+   * before it is destroyed
    * @return error status
    */
-  NS_IMETHOD BeginUpdateViewBatch(void) = 0;
+    UpdateViewBatch(nsIViewManager* aVM) {
+      if (aVM) {
+        mRootVM = aVM->BeginUpdateViewBatch();
+      }
+    }
+    ~UpdateViewBatch() {
+      NS_ASSERTION(!mRootVM, "Someone forgot to call EndUpdateViewBatch!");
+    }
+    
+    /**
+     * See the constructor, this lets you "fill in" a blank UpdateViewBatch.
+     */
+    void BeginUpdateViewBatch(nsIViewManager* aVM) {
+      NS_ASSERTION(!mRootVM, "already started a batch!");
+      if (aVM) {
+        mRootVM = aVM->BeginUpdateViewBatch();
+      }
+    }
 
   /**
    * allow the view manager to refresh any damaged areas accumulated
@@ -352,7 +378,27 @@ public:
    * @param aUpdateFlags see bottom of nsIViewManager.h for
    * description @return error status
    */
+    void EndUpdateViewBatch(PRUint32 aUpdateFlags) {
+      if (!mRootVM)
+        return;
+      mRootVM->EndUpdateViewBatch(aUpdateFlags);
+      mRootVM = nsnull;
+    }
+
+  private:
+    UpdateViewBatch(const UpdateViewBatch& aOther);
+    const UpdateViewBatch& operator=(const UpdateViewBatch& aOther);
+
+    nsCOMPtr<nsIViewManager> mRootVM;
+  };
+  
+private:
+  friend class UpdateViewBatch;
+
+  virtual nsIViewManager* BeginUpdateViewBatch(void) = 0;
   NS_IMETHOD EndUpdateViewBatch(PRUint32 aUpdateFlags) = 0;
+
+public:
 
   /**
    * set the view that is is considered to be the root scrollable
@@ -440,6 +486,7 @@ public:
    * (aFromScroll is false) or scrolled (aFromScroll is true).
    */
   NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll)=0;
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewManager, NS_IVIEWMANAGER_IID)

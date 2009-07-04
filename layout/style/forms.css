@@ -55,6 +55,13 @@ legend {
   border: none;
   position: static ! important;
   float: none ! important;
+  width: -moz-fit-content ! important;
+  min-width: 0 ! important;
+  max-width: none ! important;
+  height: auto ! important;
+  min-height: 0 ! important;
+  max-height: none ! important;
+  white-space: nowrap;
 }
 
 fieldset {
@@ -94,10 +101,12 @@ input {
   -moz-binding: url("chrome://global/content/platformHTMLBindings.xml#inputFields");
   text-indent: 0;
   -moz-user-select: text;
+  text-shadow: none;
 }
 
 input > .anonymous-div {
   white-space: pre;
+  word-wrap: normal !important;
 }
 
 textarea {
@@ -117,6 +126,8 @@ textarea {
   -moz-appearance: textfield-multiline;
   text-indent: 0;
   -moz-user-select: text;
+  text-shadow: none;
+  word-wrap: break-word;
 }
 
 textarea > scrollbar {
@@ -149,6 +160,7 @@ select {
   font: -moz-list;
   line-height: normal !important;
   white-space: nowrap !important;
+  word-wrap: normal !important;
   text-align: start; 
   cursor: default;
   -moz-box-sizing: border-box;
@@ -158,6 +170,7 @@ select {
   border-style: inset;
   text-indent: 0;
   overflow: -moz-hidden-unscrollable;
+  text-shadow: none;
 }
 
 /* Need the "select[size][multiple]" selector to override the settings on
@@ -207,7 +220,7 @@ select > input[type="button"]:active {
 }
 
 select:empty {
-  min-width: 2.5em;
+  width: 2.5em;
 }
 
 *|*::-moz-display-comboboxcontrol-frame {
@@ -241,6 +254,7 @@ option {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
+  word-wrap: normal !important;
 }
 
 select > option {
@@ -251,6 +265,12 @@ select > option {
 }
 
 option:checked {
+  background-color: -moz-html-cellhighlight !important;
+  color: -moz-html-cellhighlighttext !important;
+}
+
+select:focus > option:checked,
+select:focus > optgroup > option:checked {
   background-color: Highlight ! important;
   color: HighlightText ! important;
 }
@@ -267,6 +287,7 @@ optgroup {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
+  word-wrap: normal !important;
 }
 
 optgroup > option {
@@ -375,37 +396,34 @@ input[type="file"] > input[type="button"] {
 
 /* radio buttons */
 input[type="radio"] {
-  -moz-appearance: radio-small;
-  width: 13px;
-  height: 13px;
+  -moz-appearance: radio;
   margin: 3px 3px 0px 5px;
-  padding: 0 !important;
-  cursor: default;
-  -moz-binding: none;
-
   -moz-border-radius: 100% !important;
 }
 
 /* check boxes */
 input[type="checkbox"] {
-  -moz-appearance: checkbox-small;
-  width: 13px;
-  height: 13px;
+  -moz-appearance: checkbox;
   margin: 3px 3px 3px 4px;
-  padding: 0 !important;
-  vertical-align: text-bottom;
-  cursor: default;
-  -moz-binding: none;
-
   -moz-border-radius: 0 !important;
 }
 
 /* common features of radio buttons and check boxes */
 
+/* NOTE: The width, height, border-width, and padding here must all
+   add up the way nsFormControlFrame::GetIntrinsic(Width|Height)
+   expects them to, or they will not come out with total width equal
+   to total height on sites that set their 'width' or 'height' to 'auto'.
+   (Should we maybe set !important on width and height, then?)  */
 input[type="radio"],
 input[type="checkbox"] {
-  /* same colors as |input| rule, but |!important| this time. */
   -moz-box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  cursor: default;
+  padding: 0 !important;
+  -moz-binding: none;
+  /* same colors as |input| rule, but |!important| this time. */
   background-color: -moz-Field ! important;
   color: -moz-FieldText ! important;
   border: 2px inset ThreeDFace ! important;
@@ -438,13 +456,6 @@ input[type="radio"]:hover:active {
   border-style: inset !important;
 }
 
-*|*::-moz-radio {
-  width: 4px;
-  height: 4px;
-  background-color: -moz-FieldText ! important;
-  -moz-border-radius: 3px;
-}
-
 /* buttons */
 
 /* Note: Values in nsNativeTheme IsWidgetStyled function 
@@ -470,16 +481,25 @@ input[type="submit"] {
   -moz-user-select: none;
   -moz-binding: none;
   text-align: center;
+  text-shadow: none;
 }
 
 button {
   /* Buttons should lay out like "normal" html, mostly */
-  white-space: normal;  
+  white-space: inherit;
   text-indent: 0;
 }
 
 *|*::-moz-button-content {
   display: block;
+}
+
+button:hover,
+input[type="reset"]:hover,
+input[type="button"]:hover,
+input[type="submit"]:hover {
+  background-color: -moz-buttonhoverface;
+  color: -moz-buttonhovertext;
 }
 
 button:active:hover,
@@ -488,6 +508,8 @@ input[type="button"]:active:hover,
 input[type="submit"]:active:hover {
   padding: 0px 5px 0px 7px;
   border-style: inset;
+  background-color: ButtonFace;
+  color: ButtonText;
 }
 
 button::-moz-focus-inner,

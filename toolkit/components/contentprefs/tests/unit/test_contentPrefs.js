@@ -35,10 +35,116 @@
  * ***** END LICENSE BLOCK ***** */
 
 function run_test() {
+  //**************************************************************************//
+  // Database Creation, Schema Migration, and Backup
+
+  // Note: in these tests we use createInstance instead of getService
+  // so we can instantiate the service multiple times and make it run
+  // its database initialization code each time.
+
+  // Create a new database.
+  {
+    ContentPrefTest.deleteDatabase();
+
+    // Get the service and make sure it has a ready database connection.
+    let cps = Cc["@mozilla.org/content-pref/service;1"].
+              createInstance(Ci.nsIContentPrefService);
+    do_check_true(cps.DBConnection.connectionReady);
+    cps.DBConnection.close();
+  }
+
+  // Open an existing database.
+  {
+    let dbFile = ContentPrefTest.deleteDatabase();
+
+    let cps = Cc["@mozilla.org/content-pref/service;1"].
+               createInstance(Ci.nsIContentPrefService);
+    cps.DBConnection.close();
+    do_check_true(dbFile.exists());
+
+    // Get the service and make sure it has a ready database connection.
+    cps = Cc["@mozilla.org/content-pref/service;1"].
+          createInstance(Ci.nsIContentPrefService);
+    do_check_true(cps.DBConnection.connectionReady);
+    cps.DBConnection.close();
+  }
+
+  // Open an empty database.
+  {
+    let dbFile = ContentPrefTest.deleteDatabase();
+
+    // Create an empty database.
+    let dbService = Cc["@mozilla.org/storage/service;1"].
+                    getService(Ci.mozIStorageService);
+    let dbConnection = dbService.openDatabase(dbFile);
+    do_check_eq(dbConnection.schemaVersion, 0);
+    dbConnection.close();
+    do_check_true(dbFile.exists());
+
+    // Get the service and make sure it has created the schema.
+    let cps = Cc["@mozilla.org/content-pref/service;1"].
+              createInstance(Ci.nsIContentPrefService);
+    do_check_neq(cps.DBConnection.schemaVersion, 0);
+    cps.DBConnection.close();
+  }
+
+  // Open a corrupted database.
+  {
+    let dbFile = ContentPrefTest.deleteDatabase();
+    let backupDBFile = ContentPrefTest.deleteBackupDatabase();
+
+    // Create a corrupted database.
+    let foStream = Cc["@mozilla.org/network/file-output-stream;1"].
+                   createInstance(Ci.nsIFileOutputStream);
+    foStream.init(dbFile, 0x02 | 0x08 | 0x20, 0666, 0);
+    let garbageData = "garbage that makes SQLite think the file is corrupted";
+    foStream.write(garbageData, garbageData.length);
+    foStream.close();
+
+    // Get the service and make sure it backs up and recreates the database.
+    let cps = Cc["@mozilla.org/content-pref/service;1"].
+              createInstance(Ci.nsIContentPrefService);
+    do_check_true(backupDBFile.exists());
+    do_check_true(cps.DBConnection.connectionReady);
+
+    cps.DBConnection.close();
+  }
+
+  // Open a database with a corrupted schema.
+  {
+    let dbFile = ContentPrefTest.deleteDatabase();
+    let backupDBFile = ContentPrefTest.deleteBackupDatabase();
+
+    // Create an empty database and set the schema version to a number
+    // that will trigger a schema migration that will fail.
+    let dbService = Cc["@mozilla.org/storage/service;1"].
+                    getService(Ci.mozIStorageService);
+    let dbConnection = dbService.openDatabase(dbFile);
+    dbConnection.schemaVersion = -1;
+    dbConnection.close();
+    do_check_true(dbFile.exists());
+
+    // Get the service and make sure it backs up and recreates the database.
+    let cps = Cc["@mozilla.org/content-pref/service;1"].
+              createInstance(Ci.nsIContentPrefService);
+    do_check_true(backupDBFile.exists());
+    do_check_true(cps.DBConnection.connectionReady);
+
+    cps.DBConnection.close();
+  }
+
+
+  // Now get the content pref service for real for use by the rest of the tests.
   var cps = Cc["@mozilla.org/content-pref/service;1"].
             getService(Ci.nsIContentPrefService);
+
   var uri = ContentPrefTest.getURI("http://www.example.com/");
-  
+
+  // Make sure disk synchronization checking is turned off by default.
+  var statement = cps.DBConnection.createStatement("PRAGMA synchronous");
+  statement.executeStep();
+  do_check_eq(0, statement.getInt32(0));
+
   //**************************************************************************//
   // Nonexistent Pref
 
@@ -241,4 +347,59 @@ function run_test() {
   do_check_eq(genericObserver.numTimesSetCalled, 2);
   do_check_eq(specificObserver.numTimesRemovedCalled, 1);
   do_check_eq(genericObserver.numTimesRemovedCalled, 2);
+
+
+  //**************************************************************************//
+  // Clear Private Data Pref Removal
+
+  {
+    let uri1 = ContentPrefTest.getURI("http://www.domain1.com/");
+    let uri2 = ContentPrefTest.getURI("http://www.domain2.com/");
+    let uri3 = ContentPrefTest.getURI("http://www.domain3.com/");
+
+    let dbConnection = cps.DBConnection;
+
+    let prefCount = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                    createInstance(Ci.mozIStorageStatementWrapper);
+    prefCount.initialize(dbConnection.createStatement("SELECT COUNT(*) AS count FROM prefs"));
+
+    let groupCount = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                     createInstance(Ci.mozIStorageStatementWrapper);
+    groupCount.initialize(dbConnection.createStatement("SELECT COUNT(*) AS count FROM groups"));
+
+    // Add some prefs for multiple domains.
+    cps.setPref(uri1, "test.removeAllGroups", 1);
+    cps.setPref(uri2, "test.removeAllGroups", 2);
+    cps.setPref(uri3, "test.removeAllGroups", 3);
+
+    // Add a global pref.
+    cps.setPref(null, "test.removeAllGroups", 1);
+
+    // Make sure there are some prefs and groups in the database.
+    prefCount.step();
+    do_check_true(prefCount.row.count > 0);
+    prefCount.reset();
+    groupCount.step();
+    do_check_true(groupCount.row.count > 0);
+    groupCount.reset();
+
+    // Remove all prefs and groups from the database using the same routine
+    // the Clear Private Data dialog uses.
+    cps.removeGroupedPrefs();
+
+    // Make sure there are no longer any groups in the database and the only pref
+    // is the global one.
+    prefCount.step();
+    do_check_true(prefCount.row.count == 1);
+    prefCount.reset();
+    groupCount.step();
+    do_check_true(groupCount.row.count == 0);
+    groupCount.reset();
+    let globalPref = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                     createInstance(Ci.mozIStorageStatementWrapper);
+    globalPref.initialize(dbConnection.createStatement("SELECT groupID FROM prefs"));
+    globalPref.step();
+    do_check_true(globalPref.row.groupID == null);
+    globalPref.reset();
+  }
 }

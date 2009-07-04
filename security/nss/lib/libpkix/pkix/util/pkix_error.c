@@ -45,12 +45,22 @@
 
 #undef PKIX_ERRORENTRY
 
-#define PKIX_ERRORENTRY(name,desc) #desc
+#define PKIX_ERRORENTRY(name,desc,nsserr) #desc
+
+#if defined PKIX_ERROR_DESCRIPTION
 
 const char * const PKIX_ErrorText[] =
 {
 #include "pkix_errorstrings.h"
 };
+
+#else
+
+#include "prprf.h"
+
+#endif /* PKIX_ERROR_DESCRIPTION */
+
+extern const int PKIX_PLErrorIndex[];
 
 /* --Private-Functions-------------------------------------------- */
 
@@ -164,6 +174,10 @@ pkix_Error_Equals(
 
         /* Compare descs */
         if (firstError->errCode != secondError->errCode) {
+                unequalFlag = PKIX_TRUE;
+        }
+
+        if (firstError->plErr != secondError->plErr) {
                 unequalFlag = PKIX_TRUE;
         }
 
@@ -320,6 +334,7 @@ pkix_Error_ToString(
 
 cleanup:
 
+        PKIX_DECREF(desc);
         PKIX_DECREF(causeString);
         PKIX_DECREF(formatString);
         PKIX_DECREF(optCauseString);
@@ -391,6 +406,8 @@ pkix_Error_RegisterSelf(void *plContext)
         PKIX_ENTER(ERROR, "pkix_Error_RegisterSelf");
 
         entry.description = "Error";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_Error);
         entry.destructor = pkix_Error_Destroy;
         entry.equalsFunction = pkix_Error_Equals;
         entry.hashcodeFunction = pkix_Error_Hashcode;
@@ -444,7 +461,7 @@ PKIX_Error_Create(
             tempCause = tempCause->cause) {
                 /* If we detect a loop, throw a new error */
                 if (tempCause == error) {
-                        PKIX_THROW(ERROR, PKIX_LOOPOFERRORCAUSEDETECTED);
+                        PKIX_ERROR(PKIX_LOOPOFERRORCAUSEDETECTED);
                 }
         }
 
@@ -456,7 +473,14 @@ PKIX_Error_Create(
 
         error->errCode = errCode;
 
+        error->plErr = PKIX_PLErrorIndex[error->errCode];
+
         *pError = error;
+        error = NULL;
+
+cleanup:
+        /* PKIX-XXX Fix for leak during error creation */
+        PKIX_DECREF(error);
 
         PKIX_RETURN(ERROR);
 }
@@ -513,6 +537,7 @@ PKIX_Error_GetCause(
 
         *pCause = error->cause;
 
+cleanup:
         PKIX_RETURN(ERROR);
 }
 
@@ -532,6 +557,7 @@ PKIX_Error_GetSupplementaryInfo(
 
         *pInfo = error->info;
 
+cleanup:
         PKIX_RETURN(ERROR);
 }
 
@@ -545,12 +571,23 @@ PKIX_Error_GetDescription(
         void *plContext)
 {
         PKIX_PL_String *descString = NULL;
+#ifndef PKIX_ERROR_DESCRIPTION
+        char errorStr[32];
+#endif
 
         PKIX_ENTER(ERROR, "PKIX_Error_GetDescription");
         PKIX_NULLCHECK_TWO(error, pDesc);
 
+#ifndef PKIX_ERROR_DESCRIPTION
+        PR_snprintf(errorStr, 32, "Error code: %d", error->errCode);
+#endif
+
         PKIX_PL_String_Create(PKIX_ESCASCII,
+#if defined PKIX_ERROR_DESCRIPTION
                               (void *)PKIX_ErrorText[error->errCode],
+#else
+                              errorStr,
+#endif
                               0,
                               &descString,
                               plContext);

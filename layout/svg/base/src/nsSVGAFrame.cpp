@@ -65,8 +65,6 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  NS_IMETHOD DidSetStyleContext();
-
   /**
    * Get the "type" of the frame
    *
@@ -81,7 +79,7 @@ public:
   }
 #endif
   // nsISVGChildFrame interface:
-  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation);
+  virtual void NotifySVGChanged(PRUint32 aFlags);
   
   // nsSVGContainerFrame methods:
   virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
@@ -123,25 +121,10 @@ nsSVGAFrame::AttributeChanged(PRInt32         aNameSpaceID,
     // make sure our cached transform matrix gets (lazily) updated
     mCanvasTM = nsnull;
     
-    nsIFrame* kid = mFrames.FirstChild();
-    while (kid) {
-      nsISVGChildFrame* SVGFrame = nsnull;
-      CallQueryInterface(kid, &SVGFrame);
-      if (SVGFrame)
-        SVGFrame->NotifyCanvasTMChanged(PR_FALSE);
-      kid = kid->GetNextSibling();
-    }
+    nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
   }
 
  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGAFrame::DidSetStyleContext()
-{
-  nsSVGUtils::StyleEffects(this);
-
-  return NS_OK;
 }
 
 nsIAtom *
@@ -153,13 +136,15 @@ nsSVGAFrame::GetType() const
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods
 
-NS_IMETHODIMP
-nsSVGAFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
+void
+nsSVGAFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  // make sure our cached transform matrix gets (lazily) updated
-  mCanvasTM = nsnull;
+  if (aFlags & TRANSFORM_CHANGED) {
+    // make sure our cached transform matrix gets (lazily) updated
+    mCanvasTM = nsnull;
+  }
 
-  return nsSVGAFrameBase::NotifyCanvasTMChanged(suppressInvalidation);
+  nsSVGAFrameBase::NotifySVGChanged(aFlags);
 }
 
 //----------------------------------------------------------------------
@@ -168,14 +153,9 @@ nsSVGAFrame::NotifyCanvasTMChanged(PRBool suppressInvalidation)
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGAFrame::GetCanvasTM()
 {
-  if (!mPropagateTransform) {
+  if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    if (mOverrideCTM) {
-      retval = mOverrideCTM;
-      NS_ADDREF(retval);
-    } else {
-      NS_NewSVGMatrix(&retval);
-    }
+    NS_NewSVGMatrix(&retval);
     return retval;
   }
 

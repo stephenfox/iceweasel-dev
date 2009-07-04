@@ -34,6 +34,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// include nsSVGUtils.h first to ensure definition of M_SQRT1_2 is picked up
+#include "nsSVGUtils.h"
 #include "nsSVGLength.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMSVGElement.h"
@@ -48,7 +50,6 @@
 #include "nsIURI.h"
 #include "nsStyleStruct.h"
 #include "nsIPresShell.h"
-#include "nsSVGUtils.h"
 #include "nsISVGGlyphFragmentLeaf.h"
 #include "nsNetUtil.h"
 #include "nsIDOMSVGRect.h"
@@ -62,6 +63,7 @@
 #include "nsSVGPoint.h"
 #include "nsDOMError.h"
 #include "nsSVGOuterSVGFrame.h"
+#include "nsSVGInnerSVGFrame.h"
 #include "nsIDOMSVGAnimPresAspRatio.h"
 #include "nsIDOMSVGPresAspectRatio.h"
 #include "nsSVGMatrix.h"
@@ -77,291 +79,17 @@
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "gfxImageSurface.h"
-#include "nsStubMutationObserver.h"
 #include "gfxPlatform.h"
 #include "nsSVGForeignObjectFrame.h"
 #include "nsIFontMetrics.h"
 #include "nsIDOMSVGUnitTypes.h"
+#include "nsSVGRect.h"
+#include "nsSVGEffects.h"
+#include "nsSVGIntegrationUtils.h"
+#include "nsSVGFilterPaintCallback.h"
+#include "nsSVGGeometryFrame.h"
 
-static void AddEffectProperties(nsIFrame *aFrame);
-
-class nsSVGPropertyBase : public nsStubMutationObserver {
-public:
-  nsSVGPropertyBase(nsIContent *aContent, nsIFrame *aFrame, nsIAtom *aName);
-  virtual ~nsSVGPropertyBase();
-
-  // nsISupports
-  NS_DECL_ISUPPORTS
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
-
-protected:
-  virtual void DoUpdate() = 0;
-
-  nsWeakPtr mObservedContent;
-  nsIFrame *mFrame;
-};
-
-NS_IMPL_ISUPPORTS1(nsSVGPropertyBase, nsIMutationObserver)
-
-nsSVGPropertyBase::nsSVGPropertyBase(nsIContent *aContent,
-                                     nsIFrame *aFrame,
-                                     nsIAtom *aName)
-  : mFrame(aFrame)
-{
-  mObservedContent = do_GetWeakReference(aContent);
-  aContent->AddMutationObserver(this);
-
-  NS_ADDREF(this); // addref to allow QI - SupportsDtorFunc releases
-  mFrame->SetProperty(aName,
-                      static_cast<nsISupports*>(this),
-                      nsPropertyTable::SupportsDtorFunc);
-}
-
-nsSVGPropertyBase::~nsSVGPropertyBase()
-{
-  nsCOMPtr<nsIContent> content = do_QueryReferent(mObservedContent);
-  if (content)
-    content->RemoveMutationObserver(this);
-}
-
-void
-nsSVGPropertyBase::AttributeChanged(nsIDocument *aDocument,
-                                    nsIContent *aContent,
-                                    PRInt32 aNameSpaceID,
-                                    nsIAtom *aAttribute,
-                                    PRInt32 aModType,
-                                    PRUint32 aStateMask)
-{
-  DoUpdate();
-}
-
-void
-nsSVGPropertyBase::ContentAppended(nsIDocument *aDocument,
-                                   nsIContent *aContainer,
-                                   PRInt32 aNewIndexInContainer)
-{
-  DoUpdate();
-}
-
-void
-nsSVGPropertyBase::ContentInserted(nsIDocument *aDocument,
-                                   nsIContent *aContainer,
-                                   nsIContent *aChild,
-                                   PRInt32 aIndexInContainer)
-{
-  DoUpdate();
-}
-
-void
-nsSVGPropertyBase::ContentRemoved(nsIDocument *aDocument,
-                                  nsIContent *aContainer,
-                                  nsIContent *aChild,
-                                  PRInt32 aIndexInContainer)
-{
-  DoUpdate();
-}
-
-class nsSVGFilterProperty : public nsSVGPropertyBase {
-public:
-  nsSVGFilterProperty(nsIContent *aFilter, nsIFrame *aFilteredFrame);
-  virtual ~nsSVGFilterProperty() {
-    mFrame->RemoveStateBits(NS_STATE_SVG_FILTERED);
-  }
-
-  nsRect GetRect() { return mFilterRect; }
-  nsSVGFilterFrame *GetFilterFrame();
-  void UpdateRect();
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
-
-private:
-  // nsSVGPropertyBase
-  virtual void DoUpdate();
-
-  nsRect mFilterRect;
-};
-
-nsSVGFilterProperty::nsSVGFilterProperty(nsIContent *aFilter,
-                                         nsIFrame *aFilteredFrame)
-  : nsSVGPropertyBase(aFilter, aFilteredFrame, nsGkAtoms::filter)
-{
-  nsSVGFilterFrame *filterFrame = GetFilterFrame();
-  if (filterFrame)
-    mFilterRect = filterFrame->GetInvalidationRegion(mFrame);
-
-  mFrame->AddStateBits(NS_STATE_SVG_FILTERED);
-}
-
-nsSVGFilterFrame *
-nsSVGFilterProperty::GetFilterFrame()
-{
-  nsCOMPtr<nsIContent> filter = do_QueryReferent(mObservedContent);
-  if (filter) {
-    nsIFrame *frame =
-      static_cast<nsGenericElement*>(filter.get())->GetPrimaryFrame();
-    if (frame && frame->GetType() == nsGkAtoms::svgFilterFrame)
-      return static_cast<nsSVGFilterFrame*>(frame);
-  }
-
-  return nsnull;
-}
-
-void
-nsSVGFilterProperty::UpdateRect()
-{
-  nsSVGFilterFrame *filter = GetFilterFrame();
-  if (filter)
-    mFilterRect = filter->GetInvalidationRegion(mFrame);
-}
-
-void
-nsSVGFilterProperty::DoUpdate()
-{
-  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-  if (outerSVGFrame) {
-    outerSVGFrame->InvalidateRect(mFilterRect);
-    UpdateRect();
-    outerSVGFrame->InvalidateRect(mFilterRect);
-  }
-}
-
-void
-nsSVGFilterProperty::ParentChainChanged(nsIContent *aContent)
-{
-  if (aContent->IsInDoc())
-    return;
-
-  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-  if (outerSVGFrame)
-    outerSVGFrame->InvalidateRect(mFilterRect);
-
-  mFrame->DeleteProperty(nsGkAtoms::filter);
-}
-
-class nsSVGClipPathProperty : public nsSVGPropertyBase {
-public:
-  nsSVGClipPathProperty(nsIContent *aClipPath, nsIFrame *aClippedFrame)
-    : nsSVGPropertyBase(aClipPath, aClippedFrame, nsGkAtoms::clipPath) {
-    mFrame->AddStateBits(NS_STATE_SVG_CLIPPED);
-  }
-  virtual ~nsSVGClipPathProperty() {
-    mFrame->RemoveStateBits(NS_STATE_SVG_CLIPPED);
-  }
-
-  nsSVGClipPathFrame *GetClipPathFrame();
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
-
-private:
-  virtual void DoUpdate();
-};
-
-nsSVGClipPathFrame *
-nsSVGClipPathProperty::GetClipPathFrame()
-{
-  nsCOMPtr<nsIContent> clipPath = do_QueryReferent(mObservedContent);
-  if (clipPath) {
-    nsIFrame *frame =
-      static_cast<nsGenericElement*>(clipPath.get())->GetPrimaryFrame();
-    if (frame && frame->GetType() == nsGkAtoms::svgClipPathFrame)
-      return static_cast<nsSVGClipPathFrame*>(frame);
-  }
-
-  return nsnull;
-}
-
-void
-nsSVGClipPathProperty::DoUpdate()
-{
-  nsISVGChildFrame *svgChildFrame;
-  CallQueryInterface(mFrame, &svgChildFrame);
-
-  if (!svgChildFrame)
-    return;
-
-  if (svgChildFrame->HasValidCoveredRect()) {
-    nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-    if (outerSVGFrame)
-      outerSVGFrame->InvalidateRect(mFrame->GetRect());
-  }
-}
-
-void
-nsSVGClipPathProperty::ParentChainChanged(nsIContent *aContent)
-{
-  if (aContent->IsInDoc())
-    return;
-
-  mFrame->DeleteProperty(nsGkAtoms::clipPath);
-}
-
-
-class nsSVGMaskProperty : public nsSVGPropertyBase {
-public:
-  nsSVGMaskProperty(nsIContent *aMask, nsIFrame *aMaskedFrame)
-    : nsSVGPropertyBase(aMask, aMaskedFrame, nsGkAtoms::mask) {
-    mFrame->AddStateBits(NS_STATE_SVG_MASKED);
-  }
-  virtual ~nsSVGMaskProperty() {
-    mFrame->RemoveStateBits(NS_STATE_SVG_MASKED);
-  }
-
-  nsSVGMaskFrame *GetMaskFrame();
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
-
-private:
-  virtual void DoUpdate();
-};
-
-nsSVGMaskFrame *
-nsSVGMaskProperty::GetMaskFrame()
-{
-  nsCOMPtr<nsIContent> mask = do_QueryReferent(mObservedContent);
-  if (mask) {
-    nsIFrame *frame =
-      static_cast<nsGenericElement*>(mask.get())->GetPrimaryFrame();
-    if (frame && frame->GetType() == nsGkAtoms::svgMaskFrame)
-      return static_cast<nsSVGMaskFrame*>(frame);
-  }
-
-  return nsnull;
-}
-
-void
-nsSVGMaskProperty::DoUpdate()
-{
-  nsISVGChildFrame *svgChildFrame;
-  CallQueryInterface(mFrame, &svgChildFrame);
-
-  if (!svgChildFrame)
-    return;
-
-  if (svgChildFrame->HasValidCoveredRect()) {
-    nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-    if (outerSVGFrame)
-      outerSVGFrame->InvalidateRect(mFrame->GetRect());
-  }
-}
-
-void
-nsSVGMaskProperty::ParentChainChanged(nsIContent *aContent)
-{
-  if (aContent->IsInDoc())
-    return;
-
-  mFrame->DeleteProperty(nsGkAtoms::mask);
-}
-
-gfxASurface     *nsSVGUtils::mThebesComputationalSurface = nsnull;
+gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
 
 // c = n / 255
 // (c <= 0.0031308 ? c * 12.92 : 1.055 * pow(c, 1 / 2.4) - 0.055) * 255 + 0.5
@@ -440,7 +168,7 @@ static const PRUint8 gsRGBToLinearRGBMap[256] = {
 static PRBool gSVGEnabled;
 static const char SVG_PREF_STR[] = "svg.enabled";
 
-PR_STATIC_CALLBACK(int)
+static int
 SVGPrefChanged(const char *aPref, void *aClosure)
 {
   PRBool prefVal = nsContentUtils::GetBoolPref(SVG_PREF_STR);
@@ -494,8 +222,14 @@ nsSVGUtils::GetFontSize(nsIContent *aContent)
     return 1.0f;
   }
 
-  return nsPresContext::AppUnitsToFloatCSSPixels(frame->GetStyleFont()->mSize) /
-         frame->PresContext()->TextZoom();
+  return GetFontSize(frame);
+}
+
+float
+nsSVGUtils::GetFontSize(nsIFrame *aFrame)
+{
+  return nsPresContext::AppUnitsToFloatCSSPixels(aFrame->GetStyleFont()->mSize) /
+         aFrame->PresContext()->TextZoom();
 }
 
 float
@@ -507,8 +241,14 @@ nsSVGUtils::GetFontXHeight(nsIContent *aContent)
     return 1.0f;
   }
 
+  return GetFontXHeight(frame);
+}
+  
+float
+nsSVGUtils::GetFontXHeight(nsIFrame *aFrame)
+{
   nsCOMPtr<nsIFontMetrics> fontMetrics;
-  nsLayoutUtils::GetFontMetricsForFrame(frame, getter_AddRefs(fontMetrics));
+  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fontMetrics));
 
   if (!fontMetrics) {
     NS_WARNING("no FontMetrics in GetFontXHeight()");
@@ -518,13 +258,13 @@ nsSVGUtils::GetFontXHeight(nsIContent *aContent)
   nscoord xHeight;
   fontMetrics->GetXHeight(xHeight);
   return nsPresContext::AppUnitsToFloatCSSPixels(xHeight) /
-         frame->PresContext()->TextZoom();
+         aFrame->PresContext()->TextZoom();
 }
 
 void
 nsSVGUtils::UnPremultiplyImageDataAlpha(PRUint8 *data, 
                                         PRInt32 stride,
-                                        const nsRect &rect)
+                                        const nsIntRect &rect)
 {
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
     for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
@@ -550,7 +290,7 @@ nsSVGUtils::UnPremultiplyImageDataAlpha(PRUint8 *data,
 void
 nsSVGUtils::PremultiplyImageDataAlpha(PRUint8 *data, 
                                       PRInt32 stride,
-                                      const nsRect &rect)
+                                      const nsIntRect &rect)
 {
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
     for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
@@ -573,7 +313,7 @@ nsSVGUtils::PremultiplyImageDataAlpha(PRUint8 *data,
 void
 nsSVGUtils::ConvertImageDataToLinearRGB(PRUint8 *data, 
                                         PRInt32 stride,
-                                        const nsRect &rect)
+                                        const nsIntRect &rect)
 {
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
     for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
@@ -592,7 +332,7 @@ nsSVGUtils::ConvertImageDataToLinearRGB(PRUint8 *data,
 void
 nsSVGUtils::ConvertImageDataFromLinearRGB(PRUint8 *data, 
                                           PRInt32 stride,
-                                          const nsRect &rect)
+                                          const nsIntRect &rect)
 {
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
     for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
@@ -662,22 +402,132 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
   return val;
 }
 
-nsresult nsSVGUtils::GetReferencedFrame(nsIFrame **aRefFrame, nsIURI* aURI, nsIContent *aContent, 
-                                        nsIPresShell *aPresShell)
+nsresult
+nsSVGUtils::GetNearestViewportElement(nsIContent *aContent,
+                                      nsIDOMSVGElement * *aNearestViewportElement)
 {
-  *aRefFrame = nsnull;
+  *aNearestViewportElement = nsnull;
 
-  nsIContent* content = nsContentUtils::GetReferencedElement(aURI, aContent);
-  if (!content)
-    return NS_ERROR_FAILURE;
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
 
-  // Get the Primary Frame
-  NS_ASSERTION(aPresShell, "Get referenced SVG frame -- no pres shell provided");
-  if (!aPresShell)
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIContent> element = aContent;
+  nsCOMPtr<nsIContent> ancestor;
+  unsigned short ancestorCount = 0;
 
-  *aRefFrame = aPresShell->GetPrimaryFrameFor(content);
-  if (!(*aRefFrame)) return NS_ERROR_FAILURE;
+  while (1) {
+
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
+
+    nsCOMPtr<nsIDOMSVGFitToViewBox> fitToViewBox = do_QueryInterface(element);
+
+    if (fitToViewBox && (ancestor || ancestorCount)) {
+      // right interface and not the outermost SVG element
+      nsCOMPtr<nsIDOMSVGElement> SVGElement = do_QueryInterface(element);
+      SVGElement.swap(*aNearestViewportElement);
+      return NS_OK;
+    }
+
+    if (!ancestor) {
+      // reached the top of our parent chain
+      break;
+    }
+
+    element = ancestor;
+    ancestorCount++;
+  }
+
+  return NS_OK;
+}
+
+nsSVGDisplayContainerFrame*
+nsSVGUtils::GetNearestSVGViewport(nsIFrame *aFrame)
+{
+  NS_ASSERTION(aFrame->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
+  if (aFrame->GetType() == nsGkAtoms::svgOuterSVGFrame) {
+    return nsnull;
+  }
+  while ((aFrame = aFrame->GetParent())) {
+    NS_ASSERTION(aFrame->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
+    if (aFrame->GetType() == nsGkAtoms::svgInnerSVGFrame ||
+        aFrame->GetType() == nsGkAtoms::svgOuterSVGFrame) {
+      return static_cast<nsSVGDisplayContainerFrame*>(aFrame);
+    }
+  }
+  NS_NOTREACHED("This is not reached. It's only needed to compile.");
+  return nsnull;
+}
+
+nsresult
+nsSVGUtils::GetFarthestViewportElement(nsIContent *aContent,
+                                       nsIDOMSVGElement * *aFarthestViewportElement)
+{
+  *aFarthestViewportElement = nsnull;
+
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsCOMPtr<nsIContent> element = aContent;
+  nsCOMPtr<nsIContent> ancestor;
+  nsCOMPtr<nsIDOMSVGElement> SVGElement;
+  unsigned short ancestorCount = 0;
+
+  while (1) {
+
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
+
+    nsCOMPtr<nsIDOMSVGFitToViewBox> fitToViewBox = do_QueryInterface(element);
+
+    if (fitToViewBox) {
+      // right interface
+      SVGElement = do_QueryInterface(element);
+    }
+
+    if (!ancestor) {
+      // reached the top of our parent chain
+      break;
+    }
+
+    element = ancestor;
+    ancestorCount++;
+  }
+
+  if (ancestorCount == 0 || !SVGElement) {
+    // outermost SVG element or no viewport found
+    return NS_OK;
+  }
+
+  SVGElement.swap(*aFarthestViewportElement);
   return NS_OK;
 }
 
@@ -734,41 +584,141 @@ nsSVGUtils::GetBBox(nsFrameList *aFrames, nsIDOMSVGRect **_retval)
 }
 
 nsRect
-nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame)
+nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
 {
-  nsRect rect = aFrame->GetRect();
+  PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+  nsRect rect = aRect;
+  rect.ScaleRoundOutInverse(appUnitsPerDevPixel);
 
   while (aFrame) {
     if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
       break;
 
-    if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
-      nsSVGFilterProperty *property;
-      property = static_cast<nsSVGFilterProperty *>
-                            (aFrame->GetProperty(nsGkAtoms::filter));
-      rect = property->GetRect();
+    nsSVGFilterFrame *filter = nsSVGEffects::GetFilterFrame(aFrame);
+    if (filter) {
+      // When we are under AttributeChanged, we can no longer get the old bbox
+      // by calling GetBBox(), and we need that to set up the filter region
+      // with the correct position. :-(
+      //rect = filter->GetInvalidationBBox(aFrame, rect);
+
+      // XXX [perf] As a horrible workaround, for now we just invalidate the
+      // entire area of the nearest viewport establishing frame that doesnt
+      // have overflow:visible. See bug 463939.
+      nsSVGDisplayContainerFrame* viewportFrame = GetNearestSVGViewport(aFrame);
+      while (viewportFrame && !viewportFrame->GetStyleDisplay()->IsScrollableOverflow()) {
+        viewportFrame = GetNearestSVGViewport(viewportFrame);
+      }
+      if (!viewportFrame) {
+        viewportFrame = GetOuterSVGFrame(aFrame);
+      }
+      if (viewportFrame->GetType() == nsGkAtoms::svgOuterSVGFrame) {
+        nsRect r = viewportFrame->GetOverflowRect();
+        // GetOverflowRect is relative to our border box, but we need it
+        // relative to our content box.
+        nsMargin bp = viewportFrame->GetUsedBorderAndPadding();
+        viewportFrame->ApplySkipSides(bp);
+        r.MoveBy(-bp.left, -bp.top);
+        return r;
+      }
+      NS_ASSERTION(viewportFrame->GetType() == nsGkAtoms::svgInnerSVGFrame,
+                   "Wrong frame type");
+      if (viewportFrame->GetType() != nsGkAtoms::svgInnerSVGFrame) {
+		return nsRect(0,0,0,0);
+      }
+      nsSVGInnerSVGFrame* innerSvg = static_cast<nsSVGInnerSVGFrame*>(static_cast<nsIFrame*>(viewportFrame));
+      float x, y, width, height;
+      static_cast<nsSVGSVGElement*>(innerSvg->GetContent())->
+        GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
+      nsCOMPtr<nsIDOMSVGMatrix> domctm = nsSVGUtils::GetCanvasTM(viewportFrame->GetParent());
+      gfxMatrix ctm = nsSVGUtils::ConvertSVGMatrixToThebes(domctm);
+      gfxRect bounds = ctm.TransformBounds(gfxRect(x, y, width, height));
+      bounds.RoundOut();
+      nsIntRect r;
+      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(bounds, &r))) {
+        rect = r;
+      } else {
+        NS_NOTREACHED("Not going to invalidate the correct area");
+      }
+      aFrame = viewportFrame;
     }
     aFrame = aFrame->GetParent();
   }
 
+  rect.ScaleRoundOut(appUnitsPerDevPixel);
   return rect;
 }
 
 void
-nsSVGUtils::UpdateFilterRegion(nsIFrame *aFrame)
+nsSVGUtils::InvalidateCoveredRegion(nsIFrame *aFrame)
 {
-  AddEffectProperties(aFrame);
+  if (aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+    return;
 
-  if (aFrame->GetStateBits() & NS_STATE_SVG_FILTERED) {
-    nsSVGFilterProperty *property;
-    property = static_cast<nsSVGFilterProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::filter));
-    property->UpdateRect();
+  nsSVGOuterSVGFrame* outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(aFrame);
+  NS_ASSERTION(outerSVGFrame, "no outer svg frame");
+  if (outerSVGFrame)
+    outerSVGFrame->InvalidateCoveredRegion(aFrame);
+}
+
+void
+nsSVGUtils::UpdateGraphic(nsISVGChildFrame *aSVGFrame)
+{
+  nsIFrame *frame;
+  CallQueryInterface(aSVGFrame, &frame);
+
+  nsSVGEffects::InvalidateRenderingObservers(frame);
+
+  if (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+    return;
+
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(frame);
+  if (!outerSVGFrame) {
+    NS_ERROR("null outerSVGFrame");
+    return;
+  }
+
+  if (outerSVGFrame->IsRedrawSuspended()) {
+    frame->AddStateBits(NS_STATE_SVG_DIRTY);
+  } else {
+    frame->RemoveStateBits(NS_STATE_SVG_DIRTY);
+
+    PRBool changed = outerSVGFrame->UpdateAndInvalidateCoveredRegion(frame);
+    if (changed) {
+      NotifyAncestorsOfFilterRegionChange(frame);
+    }
   }
 }
 
+void
+nsSVGUtils::NotifyAncestorsOfFilterRegionChange(nsIFrame *aFrame)
+{
+  if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG) {
+    // It would be better if we couldn't get here
+    return;
+  }
+
+  aFrame = aFrame->GetParent();
+
+  while (aFrame) {
+    if (aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)
+      return;
+
+    nsSVGFilterProperty *property = nsSVGEffects::GetFilterProperty(aFrame);
+    if (property) {
+      property->Invalidate();
+    }
+    aFrame = aFrame->GetParent();
+  }
+}
+
+double
+nsSVGUtils::ComputeNormalizedHypotenuse(double aWidth, double aHeight)
+{
+  return sqrt((aWidth*aWidth + aHeight*aHeight)/2);
+}
+
 float
-nsSVGUtils::ObjectSpace(nsIDOMSVGRect *aRect, nsSVGLength2 *aLength)
+nsSVGUtils::ObjectSpace(nsIDOMSVGRect *aRect, const nsSVGLength2 *aLength)
 {
   float fraction, axis;
 
@@ -784,12 +734,11 @@ nsSVGUtils::ObjectSpace(nsIDOMSVGRect *aRect, nsSVGLength2 *aLength)
     float width, height;
     aRect->GetWidth(&width);
     aRect->GetHeight(&height);
-    axis = sqrt(width * width + height * height)/sqrt(2.0f);
+    axis = float(ComputeNormalizedHypotenuse(width, height));
   }
   }
 
-  if (aLength->GetSpecifiedUnitType() ==
-      nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
+  if (aLength->IsPercentage()) {
     fraction = aLength->GetAnimValInSpecifiedUnits() / 100;
   } else
     fraction = aLength->GetAnimValue(static_cast<nsSVGSVGElement*>
@@ -799,9 +748,15 @@ nsSVGUtils::ObjectSpace(nsIDOMSVGRect *aRect, nsSVGLength2 *aLength)
 }
 
 float
-nsSVGUtils::UserSpace(nsSVGElement *aSVGElement, nsSVGLength2 *aLength)
+nsSVGUtils::UserSpace(nsSVGElement *aSVGElement, const nsSVGLength2 *aLength)
 {
   return aLength->GetAnimValue(aSVGElement);
+}
+
+float
+nsSVGUtils::UserSpace(nsIFrame *aNonSVGContext, const nsSVGLength2 *aLength)
+{
+  return aLength->GetAnimValue(aNonSVGContext);
 }
 
 void
@@ -869,6 +824,9 @@ nsSVGUtils::GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
                                 nsIDOMSVGAnimatedPreserveAspectRatio *aPreserveAspectRatio,
                                 PRBool aIgnoreAlign)
 {
+  NS_ASSERTION(aViewboxWidth > 0, "viewBox width must be greater than zero!");
+  NS_ASSERTION(aViewboxHeight > 0, "viewBox height must be greater than zero!");
+
   PRUint16 align, meetOrSlice;
   {
     nsCOMPtr<nsIDOMSVGPreserveAspectRatio> par;
@@ -896,10 +854,10 @@ nsSVGUtils::GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
 
   if (align != nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_NONE &&
       a != d) {
-    if (meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET &&
-        a < d ||
-        meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_SLICE &&
-        d < a) {
+    if ((meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET &&
+        a < d) ||
+        (meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_SLICE &&
+        d < a)) {
       d = a;
       switch (align) {
       case nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMINYMIN:
@@ -921,10 +879,10 @@ nsSVGUtils::GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
       }
     }
     else if (
-      meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET &&
-      d < a ||
-      meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_SLICE &&
-      a < d) {
+      (meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET &&
+      d < a) ||
+      (meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_SLICE &&
+      a < d)) {
       a = d;
       switch (align) {
       case nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMINYMIN:
@@ -962,6 +920,9 @@ nsSVGUtils::GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
 {
+  if (!aFrame->IsFrameOfType(nsIFrame::eSVG))
+    return nsSVGIntegrationUtils::GetInitialMatrix(aFrame);
+
   if (!aFrame->IsLeaf()) {
     // foreignObject is the one non-leaf svg frame that isn't a SVGContainer
     if (aFrame->GetType() == nsGkAtoms::svgForeignObjectFrame) {
@@ -982,6 +943,26 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
   retval = matrix.get();
   NS_IF_ADDREF(retval);
   return retval;
+}
+
+void 
+nsSVGUtils::NotifyChildrenOfSVGChange(nsIFrame *aFrame, PRUint32 aFlags)
+{
+  nsIFrame *aKid = aFrame->GetFirstChild(nsnull);
+
+  while (aKid) {
+    nsISVGChildFrame* SVGFrame = nsnull;
+    CallQueryInterface(aKid, &SVGFrame);
+    if (SVGFrame) {
+      SVGFrame->NotifySVGChanged(aFlags); 
+    } else {
+      NS_ASSERTION(aKid->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
+      // recurse into the children of container frames e.g. <clipPath>, <mask>
+      // in case they have child frames with transformation matrices
+      nsSVGUtils::NotifyChildrenOfSVGChange(aKid, aFlags);
+    }
+    aKid = aKid->GetNextSibling();
+  }
 }
 
 void
@@ -1007,82 +988,42 @@ nsSVGUtils::RemoveObserver(nsISupports *aObserver, nsISupports *aTarget)
 }
 
 // ************************************************************
-// Effect helper functions
 
-static void
-AddEffectProperties(nsIFrame *aFrame)
+class SVGPaintCallback : public nsSVGFilterPaintCallback
 {
-  const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
+public:
+  virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
+                     const nsIntRect* aDirtyRect)
+  {
+    nsISVGChildFrame *svgChildFrame;
+    CallQueryInterface(aTarget, &svgChildFrame);
+    NS_ASSERTION(svgChildFrame, "Expected SVG frame here");
 
-  if (style->mFilter && !(aFrame->GetStateBits() & NS_STATE_SVG_FILTERED)) {
-    nsIContent *filter = NS_GetSVGFilterElement(style->mFilter,
-                                                aFrame->GetContent());
-    if (filter && !new nsSVGFilterProperty(filter, aFrame)) {
-      NS_ERROR("Could not create filter property");
-      return;
+    nsIntRect* dirtyRect = nsnull;
+    nsIntRect tmpDirtyRect;
+
+    // aDirtyRect is in user-space pixels, we need to convert to
+    // outer-SVG-frame-relative device pixels.
+    if (aDirtyRect) {
+      nsCOMPtr<nsIDOMSVGMatrix> ctm = nsSVGUtils::GetCanvasTM(aTarget);
+      NS_ASSERTION(ctm, "graphic source didn't specify a ctm");
+
+      gfxMatrix userToDeviceSpace = nsSVGUtils::ConvertSVGMatrixToThebes(ctm);
+      gfxRect dirtyBounds = userToDeviceSpace.TransformBounds(
+        gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
+      dirtyBounds.RoundOut();
+      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
+        dirtyRect = &tmpDirtyRect;
+      }
     }
-  }
 
-  if (style->mClipPath && !(aFrame->GetStateBits() & NS_STATE_SVG_CLIPPED)) {
-    nsIContent *clipPath = NS_GetSVGClipPathElement(style->mClipPath,
-                                                    aFrame->GetContent());
-    if (clipPath && !new nsSVGClipPathProperty(clipPath, aFrame)) {
-      NS_ERROR("Could not create clipPath property");
-      return;
-    }
+    svgChildFrame->PaintSVG(aContext, dirtyRect);
   }
-
-  if (style->mMask && !(aFrame->GetStateBits() & NS_STATE_SVG_MASKED)) {
-    nsIContent *mask = NS_GetSVGMaskElement(style->mMask,
-                                            aFrame->GetContent());
-    if (mask && !new nsSVGMaskProperty(mask, aFrame)) {
-      NS_ERROR("Could not create mask property");
-      return;
-    }
-  }
-}
-
-static nsSVGFilterFrame *
-GetFilterFrame(nsFrameState aState, nsIFrame *aFrame)
-{
-  if (aState & NS_STATE_SVG_FILTERED) {
-    nsSVGFilterProperty *property;
-    property = static_cast<nsSVGFilterProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::filter));
-    return property->GetFilterFrame();
-  }
-  return nsnull;
-}
-
-static nsSVGClipPathFrame *
-GetClipPathFrame(nsFrameState aState, nsIFrame *aFrame)
-{
-  if (aState & NS_STATE_SVG_CLIPPED) {
-    nsSVGClipPathProperty *property;
-    property = static_cast<nsSVGClipPathProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::clipPath));
-    return property->GetClipPathFrame();
-  }
-  return nsnull;
-}
-
-static nsSVGMaskFrame *
-GetMaskFrame(nsFrameState aState, nsIFrame *aFrame)
-{
-  if (aState & NS_STATE_SVG_MASKED) {
-    nsSVGMaskProperty *property;
-    property = static_cast<nsSVGMaskProperty *>
-                          (aFrame->GetProperty(nsGkAtoms::mask));
-    return property->GetMaskFrame();
-  }
-  return nsnull;
-}
-
-// ************************************************************
+};
 
 void
-nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
-                                  nsRect *aDirtyRect,
+nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
+                                  const nsIntRect *aDirtyRect,
                                   nsIFrame *aFrame)
 {
   nsISVGChildFrame *svgChildFrame;
@@ -1098,16 +1039,24 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   /* Properties are added lazily and may have been removed by a restyle,
      so make sure all applicable ones are set again. */
 
-  AddEffectProperties(aFrame);
-  nsFrameState state = aFrame->GetStateBits();
+  nsSVGEffects::EffectProperties effectProperties =
+    nsSVGEffects::GetEffectProperties(aFrame);
 
-  /* Check if we need to draw anything */
-  if (aDirtyRect) {
-    if (state & NS_STATE_SVG_FILTERED) {
-      if (!aDirtyRect->Intersects(FindFilterInvalidation(aFrame)))
+  PRBool isOK = PR_TRUE;
+  nsSVGFilterFrame *filterFrame = effectProperties.GetFilterFrame(&isOK);
+
+  /* Check if we need to draw anything. HasValidCoveredRect only returns
+   * true for path geometry and glyphs, so basically we're traversing
+   * all containers and we can only skip leaves here.
+   */
+  if (aDirtyRect && svgChildFrame->HasValidCoveredRect()) {
+    if (filterFrame) {
+      if (!aDirtyRect->Intersects(filterFrame->GetFilterBBox(aFrame, nsnull)))
         return;
-    } else if (svgChildFrame->HasValidCoveredRect()) {
-      if (!aDirtyRect->Intersects(aFrame->GetRect()))
+    } else {
+      nsRect rect = *aDirtyRect;
+      rect.ScaleRoundOut(aFrame->PresContext()->AppUnitsPerDevPixel());
+      if (!rect.Intersects(aFrame->GetRect()))
         return;
     }
   }
@@ -1132,11 +1081,16 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   gfxContext *gfx = aContext->GetGfxContext();
   PRBool complexEffects = PR_FALSE;
 
-  nsSVGClipPathFrame *clipPathFrame = GetClipPathFrame(state, aFrame);
+  nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
+  nsSVGMaskFrame *maskFrame = effectProperties.GetMaskFrame(&isOK);
+
   PRBool isTrivialClip = clipPathFrame ? clipPathFrame->IsTrivial() : PR_TRUE;
 
-  nsSVGMaskFrame *maskFrame = GetMaskFrame(state, aFrame);
-
+  if (!isOK) {
+    // Some resource is missing. We shouldn't paint anything.
+    return;
+  }
+  
   nsCOMPtr<nsIDOMSVGMatrix> matrix =
     (clipPathFrame || maskFrame) ? GetCanvasTM(aFrame) : nsnull;
 
@@ -1153,13 +1107,13 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
    */
   if (clipPathFrame && isTrivialClip) {
     gfx->Save();
-    clipPathFrame->ClipPaint(aContext, svgChildFrame, matrix);
+    clipPathFrame->ClipPaint(aContext, aFrame, matrix);
   }
 
   /* Paint the child */
-  nsSVGFilterFrame *filterFrame = GetFilterFrame(state, aFrame);
   if (filterFrame) {
-    filterFrame->FilterPaint(aContext, svgChildFrame);
+    SVGPaintCallback paintCallback;
+    filterFrame->FilterPaint(aContext, aFrame, &paintCallback, aDirtyRect);
   } else {
     svgChildFrame->PaintSVG(aContext, aDirtyRect);
   }
@@ -1175,14 +1129,14 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   gfx->PopGroupToSource();
 
   nsRefPtr<gfxPattern> maskSurface =
-    maskFrame ? maskFrame->ComputeMaskAlpha(aContext, svgChildFrame,
+    maskFrame ? maskFrame->ComputeMaskAlpha(aContext, aFrame,
                                             matrix, opacity) : nsnull;
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 
-    nsresult rv = clipPathFrame->ClipPaint(aContext, svgChildFrame, matrix);
+    nsresult rv = clipPathFrame->ClipPaint(aContext, aFrame, matrix);
     clipMaskSurface = gfx->PopGroup();
 
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {
@@ -1206,46 +1160,27 @@ nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
   gfx->Restore();
 }
 
-void
-nsSVGUtils::StyleEffects(nsIFrame *aFrame)
-{
-  nsFrameState state = aFrame->GetStateBits();
-
-  /* clear out all effects */
-
-  if (state & NS_STATE_SVG_CLIPPED) {
-    aFrame->DeleteProperty(nsGkAtoms::clipPath);
-  }
-
-  if (state & NS_STATE_SVG_FILTERED) {
-    aFrame->DeleteProperty(nsGkAtoms::filter);
-  }
-
-  if (state & NS_STATE_SVG_MASKED) {
-    aFrame->DeleteProperty(nsGkAtoms::mask);
-  }
-}
-
 PRBool
-nsSVGUtils::HitTestClip(nsIFrame *aFrame, float x, float y)
+nsSVGUtils::HitTestClip(nsIFrame *aFrame, const nsPoint &aPoint)
 {
-  nsSVGClipPathFrame *clipPathFrame =
-    GetClipPathFrame(aFrame->GetStateBits(), aFrame);
+  nsSVGEffects::EffectProperties props =
+    nsSVGEffects::GetEffectProperties(aFrame);
+  if (!props.mClipPath)
+    return PR_TRUE;
 
-  if (clipPathFrame) {
-    nsISVGChildFrame* SVGFrame;
-    CallQueryInterface(aFrame, &SVGFrame);
-
-    nsCOMPtr<nsIDOMSVGMatrix> matrix = GetCanvasTM(aFrame);
-    return clipPathFrame->ClipHitTest(SVGFrame, matrix, x, y);
+  nsSVGClipPathFrame *clipPathFrame = props.GetClipPathFrame(nsnull);
+  if (!clipPathFrame) {
+    // clipPath is not a valid resource, so nothing gets painted, so
+    // hit-testing must fail.
+    return PR_FALSE;
   }
 
-  return PR_TRUE;
+  nsCOMPtr<nsIDOMSVGMatrix> matrix = GetCanvasTM(aFrame);
+  return clipPathFrame->ClipHitTest(aFrame, matrix, aPoint);
 }
 
-void
-nsSVGUtils::HitTestChildren(nsIFrame *aFrame, float x, float y,
-                            nsIFrame **aResult)
+nsIFrame *
+nsSVGUtils::HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint)
 {
   // XXX: The frame's children are linked in a singly-linked list in document
   // order. If we were to hit test the children in this order we would need to
@@ -1259,10 +1194,10 @@ nsSVGUtils::HitTestChildren(nsIFrame *aFrame, float x, float y,
   // Note: While the child list pointers are reversed, any method which walks
   // the list would only encounter a single child!
 
-  *aResult = nsnull;
-
   nsIFrame* current = nsnull;
   nsIFrame* next = aFrame->GetFirstChild(nsnull);
+
+  nsIFrame* result = nsnull;
 
   // reverse sibling pointers
   while (next) {
@@ -1277,9 +1212,9 @@ nsSVGUtils::HitTestChildren(nsIFrame *aFrame, float x, float y,
     nsISVGChildFrame* SVGFrame;
     CallQueryInterface(current, &SVGFrame);
     if (SVGFrame) {
-      if (NS_SUCCEEDED(SVGFrame->GetFrameForPointSVG(x, y, aResult)) &&
-          *aResult)
-          break;
+       result = SVGFrame->GetFrameForPoint(aPoint);
+       if (result)
+         break;
     }
     // restore current frame's sibling pointer
     nsIFrame* temp = current->GetNextSibling();
@@ -1296,8 +1231,10 @@ nsSVGUtils::HitTestChildren(nsIFrame *aFrame, float x, float y,
     current = temp;
   }
 
-  if (*aResult && !HitTestClip(aFrame, x, y))
-    *aResult = nsnull;
+  if (result && !HitTestClip(aFrame, aPoint))
+    result = nsnull;
+
+  return result;
 }
 
 nsRect
@@ -1320,22 +1257,21 @@ nsSVGUtils::GetCoveredRegion(const nsFrameList &aFrames)
 }
 
 nsRect
-nsSVGUtils::ToBoundingPixelRect(double xmin, double ymin,
-                                double xmax, double ymax)
+nsSVGUtils::ToAppPixelRect(nsPresContext *aPresContext,
+                           double xmin, double ymin,
+                           double xmax, double ymax)
 {
-  return nsRect(nscoord(floor(xmin)),
-                nscoord(floor(ymin)),
-                nscoord(ceil(xmax) - floor(xmin)),
-                nscoord(ceil(ymax) - floor(ymin)));
+  return ToAppPixelRect(aPresContext,
+                        gfxRect(xmin, ymin, xmax - xmin, ymax - ymin));
 }
 
 nsRect
-nsSVGUtils::ToBoundingPixelRect(const gfxRect& rect)
+nsSVGUtils::ToAppPixelRect(nsPresContext *aPresContext, const gfxRect& rect)
 {
-  return nsRect(nscoord(floor(rect.X())),
-                nscoord(floor(rect.Y())),
-                nscoord(ceil(rect.XMost()) - floor(rect.X())),
-                nscoord(ceil(rect.YMost()) - floor(rect.Y())));
+  return nsRect(aPresContext->DevPixelsToAppUnits(NSToIntFloor(rect.X())),
+                aPresContext->DevPixelsToAppUnits(NSToIntFloor(rect.Y())),
+                aPresContext->DevPixelsToAppUnits(NSToIntCeil(rect.XMost()) - NSToIntFloor(rect.X())),
+                aPresContext->DevPixelsToAppUnits(NSToIntCeil(rect.YMost()) - NSToIntFloor(rect.Y())));
 }
 
 gfxIntSize
@@ -1431,6 +1367,27 @@ nsSVGUtils::CompositeSurfaceMatrix(gfxContext *aContext,
 }
 
 void
+nsSVGUtils::CompositePatternMatrix(gfxContext *aContext,
+                                   gfxPattern *aPattern,
+                                   nsIDOMSVGMatrix *aCTM, float aWidth, float aHeight, float aOpacity)
+{
+  gfxMatrix matrix = ConvertSVGMatrixToThebes(aCTM);
+  if (matrix.IsSingular())
+    return;
+
+  aContext->Save();
+
+  SetClipRect(aContext, aCTM, 0, 0, aWidth, aHeight);
+
+  aContext->Multiply(matrix);
+
+  aContext->SetPattern(aPattern);
+  aContext->Paint(aOpacity);
+
+  aContext->Restore();
+}
+
+void
 nsSVGUtils::SetClipRect(gfxContext *aContext,
                         nsIDOMSVGMatrix *aCTM, float aX, float aY,
                         float aWidth, float aHeight)
@@ -1445,16 +1402,89 @@ nsSVGUtils::SetClipRect(gfxContext *aContext,
   aContext->SetMatrix(oldMatrix);
 }
 
+void
+nsSVGUtils::ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect)
+{
+  gfxRect r = aGfxRect;
+  r.RoundOut();
+  gfxRect r2(aRect->x, aRect->y, aRect->width, aRect->height);
+  r = r.Intersect(r2);
+  *aRect = nsIntRect(PRInt32(r.X()), PRInt32(r.Y()),
+                     PRInt32(r.Width()), PRInt32(r.Height()));
+}
+
+nsresult
+nsSVGUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
+{
+  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
+                    PRInt32(aIn.Width()), PRInt32(aIn.Height()));
+  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn
+    ? NS_OK : NS_ERROR_FAILURE;
+}
+
+already_AddRefed<nsIDOMSVGRect>
+nsSVGUtils::GetBBox(nsIFrame *aFrame)
+{
+  nsISVGChildFrame *svg;
+  CallQueryInterface(aFrame, &svg);
+  if (!svg) {
+    nsIDOMSVGRect *rect = nsnull;
+    gfxRect r = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
+    NS_NewSVGRect(&rect, r);
+    return rect;
+  }
+
+  PRBool needToDisablePropagation = svg->GetMatrixPropagation();
+  if (needToDisablePropagation) {
+    svg->SetMatrixPropagation(PR_FALSE);
+    svg->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                          nsISVGChildFrame::TRANSFORM_CHANGED);
+  }
+  
+  nsCOMPtr<nsIDOMSVGRect> bbox;
+  svg->GetBBox(getter_AddRefs(bbox));
+  
+  if (needToDisablePropagation) {
+    svg->SetMatrixPropagation(PR_TRUE);
+    svg->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                          nsISVGChildFrame::TRANSFORM_CHANGED);
+  }
+
+  return bbox.forget();
+}
+
+gfxRect
+nsSVGUtils::GetRelativeRect(PRUint16 aUnits, const nsSVGLength2 *aXYWH,
+                            nsIDOMSVGRect *aBBox, nsIFrame *aFrame)
+{
+  float x, y, width, height;
+  if (aUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
+    aBBox->GetX(&x);
+    x += ObjectSpace(aBBox, &aXYWH[0]);
+    aBBox->GetY(&y);
+    y += ObjectSpace(aBBox, &aXYWH[1]);
+    width = ObjectSpace(aBBox, &aXYWH[2]);
+    height = ObjectSpace(aBBox, &aXYWH[3]);
+  } else {
+    x = nsSVGUtils::UserSpace(aFrame, &aXYWH[0]);
+    y = nsSVGUtils::UserSpace(aFrame, &aXYWH[1]);
+    width = nsSVGUtils::UserSpace(aFrame, &aXYWH[2]);
+    height = nsSVGUtils::UserSpace(aFrame, &aXYWH[3]);
+  }
+  return gfxRect(x, y, width, height);
+}
+
 PRBool
 nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
 {
-  if (!(aFrame->GetStateBits() & NS_STATE_SVG_FILTERED)) {
+  if (!aFrame->GetStyleSVGReset()->mFilter) {
     nsIAtom *type = aFrame->GetType();
     if (type == nsGkAtoms::svgImageFrame)
       return PR_TRUE;
     if (type == nsGkAtoms::svgPathGeometryFrame) {
-      nsSVGGeometryFrame *geom = static_cast<nsSVGGeometryFrame*>(aFrame);
-      if (!(geom->HasFill() && geom->HasStroke()))
+      const nsStyleSVG *style = aFrame->GetStyleSVG();
+      if (style->mFill.mType == eStyleSVGPaintType_None &&
+          style->mStroke.mType == eStyleSVGPaintType_None)
         return PR_TRUE;
     }
   }
@@ -1481,33 +1511,34 @@ nsSVGUtils::MaxExpansion(nsIDOMSVGMatrix *aMatrix)
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGUtils::AdjustMatrixForUnits(nsIDOMSVGMatrix *aMatrix,
                                  nsSVGEnum *aUnits,
-                                 nsISVGChildFrame *aFrame)
+                                 nsIFrame *aFrame)
 {
   nsCOMPtr<nsIDOMSVGMatrix> fini = aMatrix;
 
   if (aFrame &&
       aUnits->GetAnimValue() == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    nsCOMPtr<nsIDOMSVGRect> rect;
-    nsresult rv = aFrame->GetBBox(getter_AddRefs(rect));
+    float minx, miny, width, height;
 
-    if (NS_SUCCEEDED(rv)) {
-      float minx, miny, width, height;
-      rect->GetX(&minx);
-      rect->GetY(&miny);
-      rect->GetWidth(&width);
-      rect->GetHeight(&height);
+    PRBool gotRect = PR_FALSE;
+    if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
+      nsCOMPtr<nsIDOMSVGRect> rect = GetBBox(aFrame);
+      if (rect) {
+        gotRect = PR_TRUE;
+        rect->GetX(&minx);
+        rect->GetY(&miny);
+        rect->GetWidth(&width);
+        rect->GetHeight(&height);
+      }
+    } else {
+      gotRect = PR_TRUE;
+      gfxRect r = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
+      minx = r.X();
+      miny = r.Y();
+      width = r.Width();
+      height = r.Height();
+    }
 
-      // Correct for scaling in outersvg CTM
-      nsIFrame *frame;
-      CallQueryInterface(aFrame, &frame);
-      nsPresContext *presCtx = frame->PresContext();
-      float cssPxPerDevPx =
-        presCtx->AppUnitsToFloatCSSPixels(presCtx->AppUnitsPerDevPixel());
-      minx *= cssPxPerDevPx;
-      miny *= cssPxPerDevPx;
-      width *= cssPxPerDevPx;
-      height *= cssPxPerDevPx;
-
+    if (gotRect) {
       nsCOMPtr<nsIDOMSVGMatrix> tmp;
       aMatrix->Translate(minx, miny, getter_AddRefs(tmp));
       tmp->ScaleNonUniform(width, height, getter_AddRefs(fini));
@@ -1542,16 +1573,70 @@ nsSVGUtils::WritePPM(const char *fname, gfxImageSurface *aSurface)
 }
 #endif
 
+/*static*/ gfxRect
+nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
+                                          nsSVGGeometryFrame* aFrame)
+{
+  if (aPathExtents.Width() == 0 && aPathExtents.Height() == 0) {
+    return gfxRect(0, 0, 0, 0);
+  }
+
+  // The logic here comes from _cairo_stroke_style_max_distance_from_path
+
+  double style_expansion = 0.5;
+
+  const nsStyleSVG* style = aFrame->GetStyleSVG();
+
+  if (style->mStrokeLinecap == NS_STYLE_STROKE_LINECAP_SQUARE) {
+    style_expansion = M_SQRT1_2;
+  }
+
+  if (style->mStrokeLinejoin == NS_STYLE_STROKE_LINEJOIN_MITER &&
+      style_expansion < style->mStrokeMiterlimit) {
+    style_expansion = style->mStrokeMiterlimit;
+  }
+
+  style_expansion *= aFrame->GetStrokeWidth();
+
+  float a, b, c, d;
+  nsCOMPtr<nsIDOMSVGMatrix> ctm;
+  aFrame->GetCanvasTM(getter_AddRefs(ctm));
+  ctm->GetA(&a);
+  ctm->GetB(&b);
+  ctm->GetC(&c);
+  ctm->GetD(&d);
+
+  double dx = style_expansion * (fabs(a) + fabs(c));
+  double dy = style_expansion * (fabs(d) + fabs(b));
+
+  gfxRect strokeExtents = aPathExtents;
+  strokeExtents.Outset(dy, dx, dy, dx);
+  return strokeExtents;
+}
+
 // ----------------------------------------------------------------------
 
 nsSVGRenderState::nsSVGRenderState(nsIRenderingContext *aContext) :
   mRenderMode(NORMAL), mRenderingContext(aContext)
 {
-  mGfxContext = static_cast<gfxContext*>
-                           (aContext->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT));
+  mGfxContext = aContext->ThebesContext();
 }
 
-nsSVGRenderState::nsSVGRenderState(gfxContext *aContext) :
-  mRenderMode(NORMAL), mRenderingContext(nsnull), mGfxContext(aContext)
+nsSVGRenderState::nsSVGRenderState(gfxASurface *aSurface) :
+  mRenderMode(NORMAL)
 {
+  mGfxContext = new gfxContext(aSurface);
+}
+
+nsIRenderingContext*
+nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
+{
+  if (!mRenderingContext) {
+    nsIDeviceContext* devCtx = aFrame->PresContext()->DeviceContext();
+    devCtx->CreateRenderingContextInstance(*getter_AddRefs(mRenderingContext));
+    if (!mRenderingContext)
+      return nsnull;
+    mRenderingContext->Init(devCtx, mGfxContext);
+  }
+  return mRenderingContext;
 }

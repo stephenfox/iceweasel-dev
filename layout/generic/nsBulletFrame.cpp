@@ -52,9 +52,6 @@
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "prprf.h"
-#ifdef IBMBIDI
-#include "nsBidiPresUtils.h"
-#endif // IBMBIDI
 #include "nsDisplayList.h"
 
 #include "imgILoader.h"
@@ -98,7 +95,7 @@ nsBulletFrame::Destroy()
 {
   // Stop image loading first
   if (mImageRequest) {
-    mImageRequest->Cancel(NS_ERROR_FAILURE);
+    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
 
@@ -123,9 +120,23 @@ nsBulletFrame::GetType() const
   return nsGkAtoms::bulletFrame;
 }
 
-NS_IMETHODIMP
-nsBulletFrame::DidSetStyleContext()
+PRBool
+nsBulletFrame::IsEmpty()
 {
+  return IsSelfEmpty();
+}
+
+PRBool
+nsBulletFrame::IsSelfEmpty() 
+{
+  return GetStyleList()->mListStyleType == NS_STYLE_LIST_STYLE_NONE;
+}
+
+/* virtual */ void
+nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+{
+  nsFrame::DidSetStyleContext(aOldStyleContext);
+
   imgIRequest *newRequest = GetStyleList()->mListStyleImage;
 
   if (newRequest) {
@@ -170,8 +181,6 @@ nsBulletFrame::DidSetStyleContext()
       mImageRequest = nsnull;
     }
   }
-
-  return NS_OK;
 }
 
 class nsDisplayBullet : public nsDisplayItem {
@@ -185,7 +194,8 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt) { return mFrame; }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("Bullet")
@@ -229,8 +239,8 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
         nsRect dest(mPadding.left, mPadding.top,
                     mRect.width - (mPadding.left + mPadding.right),
                     mRect.height - (mPadding.top + mPadding.bottom));
-        nsLayoutUtils::DrawImage(&aRenderingContext, imageCon,
-                                 dest + aPt, aDirtyRect);
+        nsLayoutUtils::DrawSingleImage(&aRenderingContext, imageCon,
+             dest + aPt, aDirtyRect);
         return;
       }
     }
@@ -241,13 +251,7 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.SetColor(myColor->mColor);
 
-#ifdef IBMBIDI
-  nsCharType charType = eCharType_LeftToRight;
-  PRUint8 level = 0;
-  PRBool isBidiSystem = PR_FALSE;
-  const nsStyleVisibility* vis = GetStyleVisibility();
-  PRUint32 hints = 0;
-#endif // IBMBIDI
+  mTextIsRTL = PR_FALSE;
 
   nsAutoString text;
   switch (listStyleType) {
@@ -276,38 +280,6 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   case NS_STYLE_LIST_STYLE_DECIMAL:
   case NS_STYLE_LIST_STYLE_OLD_DECIMAL:
   case NS_STYLE_LIST_STYLE_DECIMAL_LEADING_ZERO:
-#ifdef IBMBIDI
-    GetListItemText(*myList, text);
-    charType = eCharType_EuropeanNumber;
-    break;
-
-  case NS_STYLE_LIST_STYLE_MOZ_ARABIC_INDIC:
-    if (GetListItemText(*myList, text))
-      charType = eCharType_ArabicNumber;
-    else
-      charType = eCharType_EuropeanNumber;
-    break;
-
-  case NS_STYLE_LIST_STYLE_HEBREW:
-    aRenderingContext.GetHints(hints);
-    isBidiSystem = !!(hints & NS_RENDERING_HINT_BIDI_REORDERING);
-    if (!isBidiSystem) {
-      if (GetListItemText(*myList, text)) {
-         charType = eCharType_RightToLeft;
-        level = 1;
-      } else {
-        charType = eCharType_EuropeanNumber;
-      }
-
-      if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
-        text.Cut(0, 1);
-        text.AppendLiteral(".");
-      }
-      break;
-    }
-    // else fall through
-#endif // IBMBIDI
-
   case NS_STYLE_LIST_STYLE_LOWER_ROMAN:
   case NS_STYLE_LIST_STYLE_UPPER_ROMAN:
   case NS_STYLE_LIST_STYLE_LOWER_ALPHA:
@@ -317,9 +289,7 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   case NS_STYLE_LIST_STYLE_OLD_LOWER_ALPHA:
   case NS_STYLE_LIST_STYLE_OLD_UPPER_ALPHA:
   case NS_STYLE_LIST_STYLE_LOWER_GREEK:
-#ifndef IBMBIDI
   case NS_STYLE_LIST_STYLE_HEBREW:
-#endif
   case NS_STYLE_LIST_STYLE_ARMENIAN:
   case NS_STYLE_LIST_STYLE_GEORGIAN:
   case NS_STYLE_LIST_STYLE_CJK_IDEOGRAPHIC:
@@ -335,9 +305,7 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   case NS_STYLE_LIST_STYLE_MOZ_JAPANESE_FORMAL: 
   case NS_STYLE_LIST_STYLE_MOZ_CJK_HEAVENLY_STEM:
   case NS_STYLE_LIST_STYLE_MOZ_CJK_EARTHLY_BRANCH:
-#ifndef IBMBIDI
   case NS_STYLE_LIST_STYLE_MOZ_ARABIC_INDIC:
-#endif
   case NS_STYLE_LIST_STYLE_MOZ_PERSIAN:
   case NS_STYLE_LIST_STYLE_MOZ_URDU:
   case NS_STYLE_LIST_STYLE_MOZ_DEVANAGARI:
@@ -361,57 +329,15 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ER:
   case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ET:
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-#ifdef IBMBIDI
-    // If we can't render our numeral using the chars in the numbering
-    // system, we'll be using "decimal"...
-    PRBool usedChars =
-#endif // IBMBIDI
     GetListItemText(*myList, text);
-#ifdef IBMBIDI
-    if (!usedChars)
-      charType = eCharType_EuropeanNumber;
-#endif
     aRenderingContext.SetFont(fm);
     nscoord ascent;
     fm->GetMaxAscent(ascent);
-    aRenderingContext.SetTextRunRTL(PR_FALSE);
+    aRenderingContext.SetTextRunRTL(mTextIsRTL);
     aRenderingContext.DrawString(text, mPadding.left + aPt.x,
                                  mPadding.top + aPt.y + ascent);
     break;
   }
-#ifdef IBMBIDI
-  if (charType != eCharType_LeftToRight) {
-    nsPresContext* presContext = PresContext();
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-    aRenderingContext.SetFont(fm);
-    nscoord ascent;
-    fm->GetMaxAscent(ascent);
-
-    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
-    if (bidiUtils) {
-      const PRUnichar* buffer = text.get();
-      PRInt32 textLength = text.Length();
-      PRUint32 hints = 0;
-      aRenderingContext.GetHints(hints);
-      PRBool isNewTextRunSystem = (hints & NS_RENDERING_HINT_NEW_TEXT_RUNS) != 0;
-      if (eCharType_RightToLeft == charType) {
-        bidiUtils->FormatUnicodeText(presContext, (PRUnichar*)buffer, textLength,
-                                     charType, level, PR_FALSE, isNewTextRunSystem);
-      }
-      else {
-//Mohamed
-        aRenderingContext.GetHints(hints);
-        isBidiSystem = !!(hints & NS_RENDERING_HINT_ARABIC_SHAPING);
-        bidiUtils->FormatUnicodeText(presContext, (PRUnichar*)buffer, textLength,
-                                     charType, level, isBidiSystem, isNewTextRunSystem);//Mohamed
-      }
-    }
-    // XXX is this right?
-    aRenderingContext.SetTextRunRTL(level);
-    aRenderingContext.DrawString(text, mPadding.left + aPt.x,
-                                 mPadding.top + aPt.y + ascent);
-  }
-#endif // IBMBIDI
 }
 
 PRInt32
@@ -842,9 +768,7 @@ static const PRBool CJKIdeographicToText(PRInt32 ordinal, nsString& result,
   return PR_TRUE;
 }
 
-#define HEBREW_THROSAND_SEP 0x0020
 #define HEBREW_GERESH       0x05F3
-#define HEBREW_GERSHAYIM    0x05F4
 static const PRUnichar gHebrewDigit[22] = 
 {
 //   1       2       3       4       5       6       7       8       9
@@ -857,73 +781,22 @@ static const PRUnichar gHebrewDigit[22] =
 
 static PRBool HebrewToText(PRInt32 ordinal, nsString& result)
 {
-  if (ordinal < 0) {
+  if (ordinal < 1 || ordinal > 999999) {
     DecimalToText(ordinal, result);
     return PR_FALSE;
   }
-  if (ordinal == 0) {
-    // This one is treated specially
-#ifdef IBMBIDI
-    static const PRUnichar hebrewZero[] = { 0x05D0, 0x05E4, 0x05E1 };
-#else
-    static const PRUnichar hebrewZero[] = { 0x05E1, 0x05E4, 0x05D0 };
-#endif // IBMBIDI
-    result.Append(hebrewZero);
-    return PR_TRUE;
-  }
   PRBool outputSep = PR_FALSE;
-  PRUnichar buf[NUM_BUF_SIZE];
-#ifdef IBMBIDI
-  // Changes: 1) don't reverse the text; 2) don't insert geresh/gershayim.
-  PRInt32 idx = 0;
-#else
-  PRInt32 idx = NUM_BUF_SIZE;
-#endif // IBMBIDI
-  PRUnichar digit;
+  nsAutoString allText, thousandsGroup;
   do {
+    thousandsGroup.Truncate();
     PRInt32 n3 = ordinal % 1000;
-    if(outputSep)
-#ifdef IBMBIDI
-      buf[idx++] = HEBREW_THROSAND_SEP; // output thousand separator
-#else
-      buf[--idx] = HEBREW_THROSAND_SEP; // output thousand separator
-#endif // IBMBIDI
-    outputSep = ( n3 > 0); // request to output thousand separator next time.
-
-    PRInt32 d = 0; // we need to keep track of digit got output per 3 digits,
-    // so we can handle Gershayim and Gersh correctly
-
     // Process digit for 100 - 900
     for(PRInt32 n1 = 400; n1 > 0; )
     {
       if( n3 >= n1)
       {
         n3 -= n1;
-
-        digit = gHebrewDigit[(n1/100)-1+18];
-        if( n3 > 0)
-        {
-#ifdef IBMBIDI
-          buf[idx++] = digit;
-#else
-          buf[--idx] = digit;
-#endif // IBMBIDI
-          ++d;
-        } else { 
-          // if this is the last digit
-#ifdef IBMBIDI
-          buf[idx++] = digit;
-#else
-          if (d > 0)
-          {
-            buf[--idx] = HEBREW_GERSHAYIM; 
-            buf[--idx] = digit;
-          } else {
-            buf[--idx] = digit;    
-            buf[--idx] = HEBREW_GERESH;
-          } // if
-#endif // IBMBIDI
-        } // if
+        thousandsGroup.Append(gHebrewDigit[(n1/100)-1+18]);
       } else {
         n1 -= 100;
       } // if
@@ -939,63 +812,28 @@ static PRBool HebrewToText(PRInt32 ordinal, nsString& result)
         // 15 is represented by 9 and 6, not 10 and 5
         // 16 is represented by 9 and 7, not 10 and 6
         n2 = 9;
-        digit = gHebrewDigit[ n2 - 1];    
+        thousandsGroup.Append(gHebrewDigit[ n2 - 1]);
       } else {
         n2 = n3 - (n3 % 10);
-        digit = gHebrewDigit[(n2/10)-1+9];
+        thousandsGroup.Append(gHebrewDigit[(n2/10)-1+9]);
       } // if
-
       n3 -= n2;
-
-      if( n3  > 0) {
-#ifdef IBMBIDI
-        buf[idx++] = digit;
-#else
-        buf[--idx] = digit;
-#endif // IBMBIDI
-        ++d;
-      } else {
-        // if this is the last digit
-#ifdef IBMBIDI
-        buf[idx++] = digit;
-#else
-        if (d > 0)
-        {
-          buf[--idx] = HEBREW_GERSHAYIM;  
-          buf[--idx] = digit;
-        } else {
-          buf[--idx] = digit;    
-          buf[--idx] = HEBREW_GERESH;
-        } // if
-#endif // IBMBIDI
-      } // if
     } // if
   
     // Process digit for 1 - 9 
     if ( n3 > 0)
-    {
-      digit = gHebrewDigit[n3-1];
-      // must be the last digit
-#ifdef IBMBIDI
-      buf[idx++] = digit;
-#else
-      if (d > 0)
-      {
-        buf[--idx] = HEBREW_GERSHAYIM; 
-        buf[--idx] = digit;
-      } else {
-        buf[--idx] = digit;    
-        buf[--idx] = HEBREW_GERESH;
-      } // if
-#endif // IBMBIDI
-    } // if
+      thousandsGroup.Append(gHebrewDigit[n3-1]);
+    if (outputSep) 
+      thousandsGroup.Append((PRUnichar)HEBREW_GERESH);
+    if (allText.IsEmpty())
+      allText = thousandsGroup;
+    else
+      allText = thousandsGroup + allText;
     ordinal /= 1000;
+    outputSep = PR_TRUE;
   } while (ordinal >= 1);
-#ifdef IBMBIDI
-  result.Append(buf, idx);
-#else
-  result.Append(buf+idx,NUM_BUF_SIZE-idx);
-#endif // IBMBIDI
+
+  result.Append(allText);
   return PR_TRUE;
 }
 
@@ -1383,15 +1221,7 @@ PRBool
 nsBulletFrame::GetListItemText(const nsStyleList& aListStyle,
                                nsString& result)
 {
-#ifdef IBMBIDI
   const nsStyleVisibility* vis = GetStyleVisibility();
-
-  // XXX For some of these systems, "." is wrong!  This should really be
-  // pushed down into the individual cases!
-  if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
-    result.AppendLiteral(".");
-  }
-#endif // IBMBIDI
 
   NS_ASSERTION(aListStyle.mListStyleType != NS_STYLE_LIST_STYLE_NONE &&
                aListStyle.mListStyleType != NS_STYLE_LIST_STYLE_DISC &&
@@ -1400,13 +1230,20 @@ nsBulletFrame::GetListItemText(const nsStyleList& aListStyle,
                "we should be using specialized code for these types");
   PRBool success =
     AppendCounterText(aListStyle.mListStyleType, mOrdinal, result);
+  if (success && aListStyle.mListStyleType == NS_STYLE_LIST_STYLE_HEBREW)
+    mTextIsRTL = PR_TRUE;
 
   // XXX For some of these systems, "." is wrong!  This should really be
-  // pushed up into the cases...
-#ifdef IBMBIDI
-  if (NS_STYLE_DIRECTION_RTL != vis->mDirection)
-#endif // IBMBIDI
-  result.AppendLiteral(".");
+  // pushed down into the individual cases!
+  nsString suffix = NS_LITERAL_STRING(".");
+
+  // We're not going to do proper Bidi reordering on the list item marker, but
+  // just display the whole thing as RTL or LTR, so we fake reordering by
+  // appending the suffix to the end of the list item marker if the
+  // directionality of the characters is the same as the style direction or
+  // prepending it to the beginning if they are different.
+  result = (mTextIsRTL == (vis->mDirection == NS_STYLE_DIRECTION_RTL)) ?
+          result + suffix : suffix + result;
   return success;
 }
 
@@ -1432,17 +1269,6 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
       // auto size the image
       mComputedSize.width = mIntrinsicSize.width;
       mComputedSize.height = mIntrinsicSize.height;
-
-#if 0 // don't do scaled images in bullets
-      if (mComputedSize == mIntrinsicSize) {
-        mTransform.SetToIdentity();
-      } else {
-        if (mComputedSize.width != 0 && mComputedSize.height != 0) {
-          mTransform.SetToScale(float(mIntrinsicSize.width) / float(mComputedSize.width),
-                                float(mIntrinsicSize.height) / float(mComputedSize.height));
-        }
-      }
-#endif
 
       aMetrics.width = mComputedSize.width;
       aMetrics.ascent = aMetrics.height = mComputedSize.height;
@@ -1641,7 +1467,7 @@ NS_IMETHODIMP nsBulletFrame::OnDataAvailable(imgIRequest *aRequest,
   // The image has changed.
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct, and I'll be a stunned mullet if it ever matters for performance
-  Invalidate(nsRect(0, 0, mRect.width, mRect.height), PR_FALSE);
+  Invalidate(nsRect(0, 0, mRect.width, mRect.height));
 
   return NS_OK;
 }
@@ -1671,7 +1497,7 @@ NS_IMETHODIMP nsBulletFrame::FrameChanged(imgIContainer *aContainer,
 {
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct.
-  Invalidate(nsRect(0, 0, mRect.width, mRect.height), PR_FALSE);
+  Invalidate(nsRect(0, 0, mRect.width, mRect.height));
 
   return NS_OK;
 }

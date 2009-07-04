@@ -76,7 +76,7 @@ endif
 # New code for Linux, et. al., with gcc
 # Migrate other platforms here after testing
 #
-ifneq (,$(filter Linux,$(OS_ARCH)))
+ifneq (,$(filter Linux GNU_%,$(OS_ARCH)))
 # Linux/x86-64
 ifeq (x86_64,$(OS_TEST))
 CPPSRCS		:= xptcinvoke_x86_64_linux.cpp xptcstubs_x86_64_linux.cpp
@@ -92,6 +92,12 @@ ifneq (,$(findstring ia64,$(OS_TEST)))
 CPPSRCS		:= xptcinvoke_ipf64.cpp xptcstubs_ipf64.cpp
 ASFILES		:= xptcstubs_asm_ipf64.s xptcinvoke_asm_ipf64.s
 endif
+endif
+#
+# OpenBSD/amd64
+#
+ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDx86_64)
+CPPSRCS		:= xptcinvoke_amd64_openbsd.cpp xptcstubs_amd64_openbsd.cpp
 endif
 #
 # BeOS/Intel (uses the same unixish_x86 code)
@@ -150,6 +156,12 @@ ifneq (,$(filter Linuxalpha FreeBSDalpha NetBSDalpha,$(OS_ARCH)$(OS_TEST)))
 CPPSRCS		:= xptcinvoke_linux_alpha.cpp xptcstubs_linux_alpha.cpp
 endif
 #
+# OpenBSD/Alpha
+#
+ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDalpha)
+CPPSRCS		:= xptcinvoke_alpha_openbsd.cpp xptcstubs_alpha_openbsd.cpp
+endif
+#
 # OpenVMS/Alpha
 #
 ifeq ($(OS_ARCH)$(CPU_ARCH),OpenVMSAlpha)
@@ -177,6 +189,12 @@ ifneq (,$(filter arm% sa110,$(OS_TEST)))
 CPPSRCS		:= xptcinvoke_arm_netbsd.cpp xptcstubs_arm_netbsd.cpp
 endif
 endif
+#
+# OpenBSD/ARM
+#
+ifneq (,$(filter OpenBSDarmish OpenBSDzaurus,$(OS_ARCH)$(OS_TEST)))
+CPPSRCS		:= xptcinvoke_arm_openbsd.cpp xptcstubs_arm_openbsd.cpp
+endif
 
 ######################################################################
 # HPPA
@@ -199,6 +217,21 @@ endif
 CXXFLAGS 	:=  $(filter-out $(MOZ_OPTIMIZE_FLAGS), $(CXXFLAGS))
 endif
 endif
+
+#
+# Linux/HPPA/gcc
+#
+ifeq ($(OS_ARCH),Linux)
+ifneq (,$(filter hppa2.0 hppa1.1,$(OS_TEST)))
+ifndef GNU_CXX
+$(error Unknown C++ compiler, xptcall assembly will probably be incorrect.)
+else
+CPPSRCS		:= xptcinvoke_pa32.cpp xptcstubs_pa32.cpp
+ASFILES		:= xptcstubs_asm_parisc_linux.s xptcinvoke_asm_parisc_linux.s
+endif
+endif
+endif
+
 
 ######################################################################
 # M68k
@@ -243,11 +276,7 @@ ifeq ($(OS_ARCH),Linux)
 ifneq (,$(findstring mips, $(OS_TEST)))
 CPPSRCS		:= xptcinvoke_mips.cpp xptcstubs_mips.cpp
 ASFILES		:= xptcinvoke_asm_mips.s xptcstubs_asm_mips.s
-#xptcstubs_mips.cpp
-# xptcstubs_asm_mips.s
-ifdef GNU_CC
-ASFLAGS		+= $(INCLUDES) -x assembler-with-cpp -D__GNUC__
-endif
+ASFLAGS		+= -I$(PUBLIC) -x assembler-with-cpp
 endif
 endif
 
@@ -285,11 +314,28 @@ AS		:= $(CC) -c -x assembler-with-cpp
 endif
 
 #
+# Linux/PPC64
+#
+ifeq ($(OS_ARCH)$(OS_TEST),Linuxpowerpc64)
+CPPSRCS                := xptcinvoke_ppc64_linux.cpp xptcstubs_ppc64_linux.cpp
+ASFILES                := xptcinvoke_asm_ppc64_linux.s xptcstubs_asm_ppc64_linux.s
+AS             := $(CC) -c -x assembler-with-cpp
+endif
+
+#
 # NetBSD/PPC
 #
 ifneq (,$(filter NetBSDmacppc NetBSDbebox NetBSDofppc NetBSDprep NetBSDamigappc,$(OS_ARCH)$(OS_TEST)))                           
 CPPSRCS		:= xptcinvoke_ppc_netbsd.cpp xptcstubs_ppc_netbsd.cpp
 ASFILES		:= xptcinvoke_asm_ppc_netbsd.s xptcstubs_asm_ppc_netbsd.s
+endif
+
+#
+# OpenBSD/PPC
+#
+ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDpowerpc)
+CPPSRCS		:= xptcinvoke_ppc_openbsd.cpp xptcstubs_ppc_openbsd.cpp
+ASFILES		:= xptcinvoke_asm_ppc_openbsd.s xptcstubs_asm_ppc_openbsd.s
 endif
 
 #
@@ -339,6 +385,20 @@ CPPSRCS		:= xptcinvoke_sparc_netbsd.cpp xptcstubs_sparc_netbsd.cpp
 ASFILES		:= xptcinvoke_asm_sparc_netbsd.s xptcstubs_asm_sparc_netbsd.s
 endif
 #
+# OpenBSD/SPARC
+#
+ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDsparc)
+CPPSRCS		:= xptcinvoke_sparc_openbsd.cpp xptcstubs_sparc_openbsd.cpp
+ASFILES		:= xptcinvoke_asm_sparc_openbsd.s xptcstubs_asm_sparc_openbsd.s
+endif
+#
+# OpenBSD/SPARC64
+#
+ifeq ($(OS_ARCH)$(OS_TEST),OpenBSDsparc64)
+CPPSRCS		:= xptcinvoke_sparc64_openbsd.cpp xptcstubs_sparc64_openbsd.cpp
+ASFILES		:= xptcinvoke_asm_sparc64_openbsd.s xptcstubs_asm_sparc64_openbsd.s
+endif
+#
 # Solaris/SPARC
 #
 ifeq ($(OS_ARCH),SunOS)
@@ -356,6 +416,11 @@ else
 ASFILES		:= xptcinvoke_asm_sparc_solaris_GCC.s xptcstubs_asm_sparc_solaris.s
 endif
 else
+
+# disable PGO for this directory with Sun Studio on SPARC
+# because compiling with xprofile=collect will insert code into nsXPTCStubBase::Stub##n
+NO_PROFILE_GUIDED_OPTIMIZE = 1
+
 ifdef HAVE_64BIT_OS
 ASFILES		:= xptcinvoke_asm_sparcv9_solaris_SUNW.s xptcstubs_asm_sparcv9_solaris.s
 else
@@ -397,10 +462,7 @@ LOCAL_INCLUDES += \
 
 ifeq ($(OS_ARCH),Linux)
 ifneq (,$(findstring mips, $(OS_TEST)))
-xptcstubs_asm_mips.o: xptcstubs_asm_mips.s.m4 $(PUBLIC)/xptcstubsdef.inc
-	m4 $(INCLUDES) $< > ./xptcstubs_asm_mips.s && \
-	$(AS) -o $@ $(ASFLAGS) $(AS_DASH_C_FLAG) ./xptcstubs_asm_mips.s
-	$(RM) -f ./xptcstubs_asm_mips.s
+xptcstubs_asm_mips.o: $(PUBLIC)/xptcstubsdef.inc
 endif
 endif
 
@@ -409,6 +471,20 @@ xptcstubs_asm_ppc_darwin.o: xptcstubs_asm_ppc_darwin.s.m4 $(PUBLIC)/xptcstubsdef
 	gm4 $(INCLUDES) $< > ./xptcstubs_asm_ppc_darwin.s && \
 	$(AS) -o $@ $(ASFLAGS) $(AS_DASH_C_FLAG) ./xptcstubs_asm_ppc_darwin.s
 	$(RM) -f ./xptcstubs_asm_ppc_darwin.s
+endif
+
+ifeq ($(OS_ARCH),AIX)
+ifdef HAVE_64BIT_OS
+xptcstubs_asm_ppc_aix64.o: xptcstubs_asm_ppc_aix64.s.m4 $(PUBLIC)/xptcstubsdef.inc Makefile
+	m4 -DAIX_OBJMODEL=$(AIX_OBJMODEL) $(INCLUDES) -I. $< > ./xptcstubs_asm_ppc_aix64.s && \
+	$(AS) -o $@ $(ASFLAGS) $(AS_DASH_C_FLAG) ./xptcstubs_asm_ppc_aix64.s
+	$(RM) ./xptcstubs_asm_ppc_aix64.s
+else
+xptcstubs_asm_ppc_aix.o: xptcstubs_asm_ppc_aix.s.m4 $(PUBLIC)/xptcstubsdef.inc Makefile
+	m4 -DAIX_OBJMODEL=$(AIX_OBJMODEL) $(INCLUDES) -I. $< > ./xptcstubs_asm_ppc_aix.s && \
+	$(AS) -o $@ $(ASFLAGS) $(AS_DASH_C_FLAG) ./xptcstubs_asm_ppc_aix.s
+	$(RM) ./xptcstubs_asm_ppc_aix.s
+endif
 endif
 
 ifeq ($(OS_ARCH),IRIX)

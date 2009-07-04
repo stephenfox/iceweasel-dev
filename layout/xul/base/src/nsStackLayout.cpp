@@ -76,88 +76,91 @@ nsStackLayout::nsStackLayout()
 {
 }
 
-NS_IMETHODIMP
-nsStackLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aState, nsSize& aSize)
-{
-  aSize.width = 0;
-  aSize.height = 0;
+/*
+ * Sizing: we are as wide as the widest child plus its left offset
+ * we are tall as the tallest child plus its top offset.
+ *
+ * Only children which have -moz-stack-sizing set to stretch-to-fit
+ * (the default) will be included in the size computations.
+ */
 
-  // we are as wide as the widest child plus its left offset
-  // we are tall as the tallest child plus its top offset
+nsSize
+nsStackLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aState)
+{
+  nsSize prefSize (0, 0);
 
   nsIBox* child = aBox->GetChildBox();
-  while (child) {  
-    nsSize pref = child->GetPrefSize(aState);
+  while (child) {
+    if (child->GetStyleXUL()->mStretchStack) {
+      nsSize pref = child->GetPrefSize(aState);
 
-    AddMargin(child, pref);
-    AddOffset(aState, child, pref);
-    AddLargestSize(aSize, pref);
+      AddMargin(child, pref);
+      AddOffset(aState, child, pref);
+      AddLargestSize(prefSize, pref);
+    }
 
     child = child->GetNextBox();
   }
 
-  // now add our border and padding
-  AddBorderAndPadding(aBox, aSize);
+  AddBorderAndPadding(aBox, prefSize);
 
-  return NS_OK;
+  return prefSize;
 }
 
-NS_IMETHODIMP
-nsStackLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aState, nsSize& aSize)
+nsSize
+nsStackLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aState)
 {
-  aSize.width = 0;
-  aSize.height = 0;
-   
-  // run through all the children and get their min, max, and preferred sizes
+  nsSize minSize (0, 0);
 
   nsIBox* child = aBox->GetChildBox();
-  while (child) {  
-    nsSize min = child->GetMinSize(aState);
-    AddMargin(child, min);
-    AddOffset(aState, child, min);
-    AddLargestSize(aSize, min);
+  while (child) {
+    if (child->GetStyleXUL()->mStretchStack) {
+      nsSize min = child->GetMinSize(aState);
+
+      AddMargin(child, min);
+      AddOffset(aState, child, min);
+      AddLargestSize(minSize, min);
+    }
 
     child = child->GetNextBox();
   }
 
-  // now add our border and padding
-  AddBorderAndPadding(aBox, aSize);
+  AddBorderAndPadding(aBox, minSize);
 
-  return NS_OK;
+  return minSize;
 }
 
-NS_IMETHODIMP
-nsStackLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aState, nsSize& aSize)
+nsSize
+nsStackLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aState)
 {
-  aSize.width = NS_INTRINSICSIZE;
-  aSize.height = NS_INTRINSICSIZE;
-
-  // run through all the children and get their min, max, and preferred sizes
+  nsSize maxSize (NS_INTRINSICSIZE, NS_INTRINSICSIZE);
 
   nsIBox* child = aBox->GetChildBox();
-  while (child) {  
-    nsSize max = child->GetMaxSize(aState);
-    nsSize min = child->GetMinSize(aState);
-    nsBox::BoundsCheckMinMax(min, max);
+  while (child) {
+    if (child->GetStyleXUL()->mStretchStack) {
+      nsSize min = child->GetMinSize(aState);
+      nsSize max = child->GetMaxSize(aState);
 
-    AddMargin(child, max);
-    AddOffset(aState, child, max);
-    AddSmallestSize(aSize, max);
+      max = nsBox::BoundsCheckMinMax(min, max);
+
+      AddMargin(child, max);
+      AddOffset(aState, child, max);
+      AddSmallestSize(maxSize, max);
+    }
 
     child = child->GetNextBox();
   }
 
-  // now add our border and padding
-  AddBorderAndPadding(aBox, aSize);
+  AddBorderAndPadding(aBox, maxSize);
 
-  return NS_OK;
+  return maxSize;
 }
 
 
-NS_IMETHODIMP
-nsStackLayout::GetAscent(nsIBox* aBox, nsBoxLayoutState& aState, nscoord& aAscent)
+nscoord
+nsStackLayout::GetAscent(nsIBox* aBox, nsBoxLayoutState& aState)
 {
-  aAscent = 0;
+  nscoord vAscent = 0;
 
   nsIBox* child = aBox->GetChildBox();
   while (child) {  
@@ -165,13 +168,13 @@ nsStackLayout::GetAscent(nsIBox* aBox, nsBoxLayoutState& aState, nscoord& aAscen
     nsMargin margin;
     child->GetMargin(margin);
     ascent += margin.top + margin.bottom;
-    if (ascent > aAscent)
-      aAscent = ascent;
+    if (ascent > vAscent)
+      vAscent = ascent;
 
     child = child->GetNextBox();
   }
 
-  return NS_OK;
+  return vAscent;
 }
 
 PRBool
@@ -190,16 +193,12 @@ nsStackLayout::AddOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsSize& aSize
   PRBool offsetSpecified = PR_FALSE;
   const nsStylePosition* pos = aChild->GetStylePosition();
   if (eStyleUnit_Coord == pos->mOffset.GetLeftUnit()) {
-     nsStyleCoord left = 0;
-     pos->mOffset.GetLeft(left);
-     offset.width = left.GetCoordValue();
+     offset.width = pos->mOffset.GetLeft().GetCoordValue();
      offsetSpecified = PR_TRUE;
   }
 
   if (eStyleUnit_Coord == pos->mOffset.GetTopUnit()) {
-     nsStyleCoord top = 0;
-     pos->mOffset.GetTop(top);
-     offset.height = top.GetCoordValue();
+     offset.height = pos->mOffset.GetTop().GetCoordValue();
      offsetSpecified = PR_TRUE;
   }
 
@@ -300,15 +299,17 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
           childRectNoMargin = childRect = child->GetRect();
           childRect.Inflate(margin);
 
-          // Did the child push back on us and get bigger?
-          if (offset.width + childRect.width > clientRect.width) {
-            clientRect.width = childRect.width + offset.width;
-            grow = PR_TRUE;
-          }
+          if (child->GetStyleXUL()->mStretchStack) {
+            // Did the child push back on us and get bigger?
+            if (offset.width + childRect.width > clientRect.width) {
+              clientRect.width = childRect.width + offset.width;
+              grow = PR_TRUE;
+            }
 
-          if (offset.height + childRect.height > clientRect.height) {
-            clientRect.height = childRect.height + offset.height;
-            grow = PR_TRUE;
+            if (offset.height + childRect.height > clientRect.height) {
+              clientRect.height = childRect.height + offset.height;
+              grow = PR_TRUE;
+            }
           }
 
           if (childRectNoMargin != oldRect)

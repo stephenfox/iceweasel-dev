@@ -67,7 +67,6 @@
 #include "nsPIWindowRoot.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIServiceManager.h"
-#include "nsContentUtils.h"
 #include "nsIScriptError.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -118,7 +117,6 @@ nsXBLPrototypeHandler::nsXBLPrototypeHandler(const PRUnichar* aEvent,
                                              PRUint32 aLineNumber)
   : mHandlerText(nsnull),
     mLineNumber(aLineNumber),
-    mCachedHandler(nsnull),
     mNextHandler(nsnull),
     mPrototypeBinding(aBinding)
 {
@@ -135,7 +133,6 @@ nsXBLPrototypeHandler::nsXBLPrototypeHandler(const PRUnichar* aEvent,
 nsXBLPrototypeHandler::nsXBLPrototypeHandler(nsIContent* aHandlerElement)
   : mHandlerElement(nsnull),
     mLineNumber(0),
-    mCachedHandler(nsnull),
     mNextHandler(nsnull),
     mPrototypeBinding(nsnull)
 {
@@ -158,26 +155,7 @@ nsXBLPrototypeHandler::~nsXBLPrototypeHandler()
   }
 
   // We own the next handler in the chain, so delete it now.
-  delete mNextHandler;
-}
-
-void
-nsXBLPrototypeHandler::Traverse(nsCycleCollectionTraversalCallback &cb) const
-{
-  cb.NoteXPCOMChild(mGlobalForCachedHandler);
-}
-
-void
-nsXBLPrototypeHandler::Trace(TraceCallback aCallback, void *aClosure) const
-{
-  if (mCachedHandler)
-    aCallback(nsIProgrammingLanguage::JAVASCRIPT, mCachedHandler, aClosure);
-}
-
-void
-nsXBLPrototypeHandler::Unlink()
-{
-  ForgetCachedHandler();
+  NS_CONTENT_DELETE_LIST_MEMBER(nsXBLPrototypeHandler, this, mNextHandler);
 }
 
 already_AddRefed<nsIContent>
@@ -202,11 +180,9 @@ nsXBLPrototypeHandler::AppendHandlerText(const nsAString& aText)
     mHandlerText = ToNewUnicode(nsDependentString(temp) + aText);
     nsMemory::Free(temp);
   }
-  else
+  else {
     mHandlerText = ToNewUnicode(aText);
-
-  // Remove our cached handler
-  ForgetCachedHandler();
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -252,8 +228,8 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
     return rv;
 
   // See if our event receiver is a content node (and not us).
-  PRBool isXULKey = (mType & NS_HANDLER_TYPE_XUL);
-  PRBool isXBLCommand = (mType & NS_HANDLER_TYPE_XBL_COMMAND);
+  PRBool isXULKey = !!(mType & NS_HANDLER_TYPE_XUL);
+  PRBool isXBLCommand = !!(mType & NS_HANDLER_TYPE_XBL_COMMAND);
   NS_ASSERTION(!(isXULKey && isXBLCommand),
                "can't be both a key and xbl command handler");
 
@@ -325,11 +301,9 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
         return NS_OK;
     }
 
-    boundGlobal = boundDocument->GetScriptGlobalObject();
+    boundGlobal = boundDocument->GetScopeObject();
   }
 
-  // If we still don't have a 'boundGlobal', we're doomed. bug 95465.
-  NS_ASSERTION(boundGlobal, "failed to get the nsIScriptGlobalObject. bug 95465?");
   if (!boundGlobal)
     return NS_OK;
 
@@ -375,12 +349,13 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                                           nsScriptObjectHolder &aHandler)
 {
   // Check to see if we've already compiled this
-  if (mCachedHandler && mGlobalForCachedHandler == aGlobal) {
-    aHandler.set(mCachedHandler);
-    if (!aHandler)
-      return NS_ERROR_FAILURE;
-
-    return NS_OK;
+  nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(aGlobal);
+  if (pWindow) {
+    void* cachedHandler = pWindow->GetCachedXBLPrototypeHandler(this);
+    if (cachedHandler) {
+      aHandler.set(cachedHandler);
+      return aHandler ? NS_OK : NS_ERROR_FAILURE;
+    }
   }
 
   // Ensure that we have something to compile
@@ -396,12 +371,15 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   nsContentUtils::GetEventArgNames(kNameSpaceID_XBL, aName, &argCount,
                                    &argNames);
   nsresult rv = aBoundContext->CompileEventHandler(aName, argCount, argNames,
-                                                   handlerText, bindingURI.get(), 
-                                                   mLineNumber, aHandler);
+                                                   handlerText,
+                                                   bindingURI.get(), 
+                                                   mLineNumber,
+                                                   JSVERSION_LATEST, aHandler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mCachedHandler = aHandler;
-  mGlobalForCachedHandler = aGlobal;
+  if (pWindow) {
+    pWindow->CacheXBLPrototypeHandler(this, aHandler);
+  }
 
   return NS_OK;
 }
@@ -423,8 +401,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(aEvent);
   if (privateEvent) {
-    PRBool dispatchStopped;
-    privateEvent->IsDispatchStopped(&dispatchStopped);
+    PRBool dispatchStopped = privateEvent->IsDispatchStopped();
     if (dispatchStopped)
       return NS_OK;
   }
@@ -615,25 +592,30 @@ nsXBLPrototypeHandler::GetController(nsPIDOMEventTarget* aTarget)
 }
 
 PRBool
-nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent)
+nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
+                                       PRUint32 aCharCode,
+                                       PRBool aIgnoreShiftKey)
 {
-  if (mDetail == -1)
-    return PR_TRUE; // No filters set up. It's generic.
+  if (mDetail != -1) {
+    // Get the keycode or charcode of the key event.
+    PRUint32 code;
 
-  // Get the keycode or charcode of the key event.
-  PRUint32 code;
+    if (mMisc) {
+      if (aCharCode)
+        code = aCharCode;
+      else
+        aKeyEvent->GetCharCode(&code);
+      if (IS_IN_BMP(code))
+        code = ToLowerCase(PRUnichar(code));
+    }
+    else
+      aKeyEvent->GetKeyCode(&code);
 
-  if (mMisc) {
-    aKeyEvent->GetCharCode(&code);
-    code = ToLowerCase(PRUnichar(code));
+    if (code != PRUint32(mDetail))
+      return PR_FALSE;
   }
-  else
-    aKeyEvent->GetKeyCode(&code);
 
-  if (code != PRUint32(mDetail))
-    return PR_FALSE;
-
-  return ModifiersMatchMask(aKeyEvent);
+  return ModifiersMatchMask(aKeyEvent, aIgnoreShiftKey);
 }
 
 PRBool
@@ -873,7 +855,6 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
   mMisc = 0;
   mKeyMask = 0;
   mPhase = NS_PHASE_BUBBLING;
-  ForgetCachedHandler();
 
   if (aAction)
     mHandlerText = ToNewUnicode(nsDependentString(aAction));
@@ -958,13 +939,13 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
     const PRUint8 GTK2Modifiers = cShift | cControl | cShiftMask | cControlMask;
     if ((mKeyMask & GTK2Modifiers) == GTK2Modifiers &&
         modifiers.First() != PRUnichar(',') &&
-        (('0' <= mDetail && mDetail <= '9') ||
-         ('a' <= mDetail && mDetail <= 'f')))
+        (mDetail == 'u' || mDetail == 'U'))
       ReportKeyConflict(key.get(), modifiers.get(), aKeyElement, "GTK2Conflict");
     const PRUint8 WinModifiers = cControl | cAlt | cControlMask | cAltMask;
     if ((mKeyMask & WinModifiers) == WinModifiers &&
         modifiers.First() != PRUnichar(',') &&
-        'a' <= mDetail && mDetail <= 'f')
+        (('A' <= mDetail && mDetail <= 'Z') ||
+         ('a' <= mDetail && mDetail <= 'z')))
       ReportKeyConflict(key.get(), modifiers.get(), aKeyElement, "WinConflict");
   }
   else {
@@ -1012,7 +993,8 @@ nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar*
 }
 
 PRBool
-nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent)
+nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
+                                          PRBool aIgnoreShiftKey)
 {
   nsCOMPtr<nsIDOMKeyEvent> key(do_QueryInterface(aEvent));
   nsCOMPtr<nsIDOMMouseEvent> mouse(do_QueryInterface(aEvent));
@@ -1024,7 +1006,7 @@ nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent)
       return PR_FALSE;
   }
 
-  if (mKeyMask & cShiftMask) {
+  if (mKeyMask & cShiftMask && !aIgnoreShiftKey) {
     key ? key->GetShiftKey(&keyPresent) : mouse->GetShiftKey(&keyPresent);
     if (keyPresent != ((mKeyMask & cShift) != 0))
       return PR_FALSE;

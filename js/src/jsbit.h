@@ -50,12 +50,15 @@ JS_BEGIN_EXTERN_C
 typedef JSUword     jsbitmap_t;     /* NSPR name, a la Unix system types */
 typedef jsbitmap_t  jsbitmap;       /* JS-style scalar typedef name */
 
-#define JS_TEST_BIT(_map,_bit) \
-    ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] & (1L << ((_bit) & (JS_BITS_PER_WORD-1))))
-#define JS_SET_BIT(_map,_bit) \
-    ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] |= (1L << ((_bit) & (JS_BITS_PER_WORD-1))))
-#define JS_CLEAR_BIT(_map,_bit) \
-    ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] &= ~(1L << ((_bit) & (JS_BITS_PER_WORD-1))))
+#define JS_BITMAP_SIZE(bits)    (JS_HOWMANY(bits, JS_BITS_PER_WORD) *         \
+                                 sizeof(jsbitmap))
+
+#define JS_TEST_BIT(_map,_bit)  ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] &      \
+                                 ((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
+#define JS_SET_BIT(_map,_bit)   ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] |=     \
+                                 ((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
+#define JS_CLEAR_BIT(_map,_bit) ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] &=     \
+                                 ~((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
 
 /*
 ** Compute the log of the least power of 2 greater than or equal to n
@@ -84,18 +87,18 @@ unsigned char _BitScanReverse(unsigned long * Index, unsigned long Mask);
 __forceinline static int
 __BitScanForward32(unsigned int val)
 {
-   unsigned long idx;
+    unsigned long idx;
 
-   _BitScanForward(&idx, (unsigned long)val);
-   return (int)idx;
+    _BitScanForward(&idx, (unsigned long)val);
+    return (int)idx;
 }
 __forceinline static int
 __BitScanReverse32(unsigned int val)
 {
-   unsigned long idx;
+    unsigned long idx;
 
-   _BitScanReverse(&idx, (unsigned long)val);
-   return (int)(31-idx);
+    _BitScanReverse(&idx, (unsigned long)val);
+    return (int)(31-idx);
 }
 # define js_bitscan_ctz32(val)  __BitScanForward32(val)
 # define js_bitscan_clz32(val)  __BitScanReverse32(val)
@@ -126,7 +129,6 @@ __BitScanReverse32(unsigned int val)
  */
 # define JS_CEILING_LOG2(_log2,_n)                                            \
     JS_BEGIN_MACRO                                                            \
-        JS_STATIC_ASSERT(sizeof(unsigned int) == sizeof(JSUint32));           \
         unsigned int j_ = (unsigned int)(_n);                                 \
         (_log2) = (j_ <= 1 ? 0 : 32 - js_bitscan_clz32(j_ - 1));              \
     JS_END_MACRO
@@ -164,7 +166,6 @@ __BitScanReverse32(unsigned int val)
  */
 # define JS_FLOOR_LOG2(_log2,_n)                                              \
     JS_BEGIN_MACRO                                                            \
-        JS_STATIC_ASSERT(sizeof(unsigned int) == sizeof(JSUint32));           \
         (_log2) = 31 - js_bitscan_clz32(((unsigned int)(_n)) | 1);            \
     JS_END_MACRO
 #else
@@ -204,9 +205,8 @@ __BitScanReverse32(unsigned int val)
 #if JS_BYTES_PER_WORD == 4
 
 # ifdef JS_HAS_BUILTIN_BITSCAN32
-JS_STATIC_ASSERT(sizeof(unsigned) == sizeof(JSUword));
 #  define js_FloorLog2wImpl(n)                                                \
-   ((JSUword)(JS_BITS_PER_WORD - 1 - js_bitscan_clz32(n)))
+    ((JSUword)(JS_BITS_PER_WORD - 1 - js_bitscan_clz32(n)))
 # else
 #  define js_FloorLog2wImpl(n) ((JSUword)JS_FloorLog2(n))
 #endif
@@ -214,9 +214,8 @@ JS_STATIC_ASSERT(sizeof(unsigned) == sizeof(JSUword));
 #elif JS_BYTES_PER_WORD == 8
 
 # ifdef JS_HAS_BUILTIN_BITSCAN64
-JS_STATIC_ASSERT(sizeof(unsigned long long) == sizeof(JSUword));
 #  define js_FloorLog2wImpl(n)                                                \
-   ((JSUword)(JS_BITS_PER_WORD - 1 - js_bitscan_clz64(n)))
+    ((JSUword)(JS_BITS_PER_WORD - 1 - js_bitscan_clz64(n)))
 # else
 extern JSUword js_FloorLog2wImpl(JSUword n);
 # endif
@@ -227,6 +226,24 @@ extern JSUword js_FloorLog2wImpl(JSUword n);
 
 #endif
 
+/*
+ * Macros for rotate left. There is no rotate operation in the C Language so
+ * the construct (a << 4) | (a >> 28) is used instead. Most compilers convert
+ * this to a rotate instruction but some versions of MSVC don't without a
+ * little help.  To get MSVC to generate a rotate instruction, we have to use
+ * the _rotl intrinsic and use a pragma to make _rotl inline.
+ *
+ * MSVC in VS2005 will do an inline rotate instruction on the above construct.
+ */
+
+#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64) || \
+    defined(_M_X64))
+#include <stdlib.h>
+#pragma intrinsic(_rotl)
+#define JS_ROTATE_LEFT32(a, bits) _rotl(a, bits)
+#else
+#define JS_ROTATE_LEFT32(a, bits) (((a) << (bits)) | ((a) >> (32 - (bits))))
+#endif
 
 JS_END_EXTERN_C
 #endif /* jsbit_h___ */

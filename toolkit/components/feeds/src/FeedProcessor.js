@@ -22,6 +22,7 @@
  *   Ben Goodger <beng@google.com>
  *   Myk Melez <myk@mozilla.org>
  *   Michael Ventnor <m.ventnor@gmail.com>
+ *   Will Guaraldi <will.guaraldi@pculture.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -78,9 +79,7 @@ const SAX_CONTRACTID = "@mozilla.org/saxparser/xmlreader;1";
 const UNESCAPE_CONTRACTID = "@mozilla.org/feed-unescapehtml;1";
 
 
-var gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
-var gUnescapeHTML = Cc[UNESCAPE_CONTRACTID].
-                    getService(Ci.nsIScriptableUnescapeHTML);
+var gIoService = null;
 
 const XMLNS = "http://www.w3.org/XML/1998/namespace";
 const RSS090NS = "http://my.netscape.com/rdf/simple/0.9/";
@@ -89,6 +88,8 @@ const WAIROLE_NS = "http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#";
 /***** Some general utils *****/
 function strToURI(link, base) {
   var base = base || null;
+  if (!gIoService)
+    gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
   try {
     return gIoService.newURI(link, null, base);
   }
@@ -220,7 +221,9 @@ var gNamespaces = {
   "http://my.netscape.com/rdf/simple/0.9/":"rss1",
   "http://wellformedweb.org/CommentAPI/":"wfw",                              
   "http://purl.org/rss/1.0/modules/wiki/":"wiki", 
-  "http://www.w3.org/XML/1998/namespace":"xml"
+  "http://www.w3.org/XML/1998/namespace":"xml",
+  "http://search.yahoo.com/mrss/":"media",
+  "http://search.yahoo.com/mrss":"media"
 }
 
 // We allow a very small set of namespaces in XHTML content,
@@ -264,6 +267,8 @@ function Feed() {
   this.authors = Cc[ARRAY_CONTRACTID].createInstance(Ci.nsIMutableArray);
   this.contributors = Cc[ARRAY_CONTRACTID].createInstance(Ci.nsIMutableArray);
   this.baseURI = null;
+  this.enclosureCount = 0;
+  this.type = Ci.nsIFeed.TYPE_FEED;
 }
 
 Feed.prototype = {
@@ -303,12 +308,75 @@ Feed.prototype = {
     if (bagHasKey(this.fields, "links"))
       this._atomLinksToURI();
 
+    this._calcEnclosureCountAndFeedType();
+
     // Resolve relative image links
     if (this.image && bagHasKey(this.image, "url"))
       this._resolveImageLink();
 
     this._resetBagMembersToRawText([this.searchLists.subtitle, 
                                     this.searchLists.title]);
+  },
+
+  _calcEnclosureCountAndFeedType: function Feed_calcEnclosureCountAndFeedType() {
+    var entries_with_enclosures = 0;
+    var audio_count = 0;
+    var image_count = 0;
+    var video_count = 0;
+    var other_count = 0;
+
+    for (var i = 0; i < this.items.length; ++i) {
+      var entry = this.items.queryElementAt(i, Ci.nsIFeedEntry);
+      entry.QueryInterface(Ci.nsIFeedContainer);
+
+      if (entry.enclosures && entry.enclosures.length > 0) {
+        ++entries_with_enclosures;
+
+        for (var e = 0; e < entry.enclosures.length; ++e) {
+          var enc = entry.enclosures.queryElementAt(e, Ci.nsIWritablePropertyBag2);
+          if (enc.hasKey("type")) {
+            var enctype = enc.get("type");
+
+            if (/^audio/.test(enctype)) {
+              ++audio_count;
+            } else if (/^image/.test(enctype)) {
+              ++image_count;
+            } else if (/^video/.test(enctype)) {
+              ++video_count;
+            } else {
+              ++other_count;
+            }
+          } else {
+            ++other_count;
+          }
+        }
+      }
+    }
+
+    var feedtype = Ci.nsIFeed.TYPE_FEED;
+
+    // For a feed to be marked as TYPE_VIDEO, TYPE_AUDIO and TYPE_IMAGE, 
+    // we enforce two things:
+    //
+    //    1. all entries must have at least one enclosure
+    //    2. all enclosures must be video for TYPE_VIDEO, audio for TYPE_AUDIO or image
+    //       for TYPE_IMAGE
+    //
+    // Otherwise it's a TYPE_FEED.
+    if (entries_with_enclosures == this.items.length && other_count == 0) {
+      if (audio_count > 0 && !video_count && !image_count) {
+        feedtype = Ci.nsIFeed.TYPE_AUDIO;
+
+      } else if (image_count > 0 && !audio_count && !video_count) {
+        feedtype = Ci.nsIFeed.TYPE_IMAGE;
+
+      } else if (video_count > 0 && !audio_count && !image_count) {
+        feedtype = Ci.nsIFeed.TYPE_VIDEO;
+      }
+    }
+
+    this.type = feedtype;
+    this.enclosureCount = other_count + video_count + audio_count + image_count;
   },
 
   _atomLinksToURI: function Feed_linkToURI() {
@@ -396,7 +464,7 @@ Entry.prototype = {
               "atom03:summary", "atom:summary"],
     content: ["content:encoded","atom03:content","atom:content"],
     rights: ["atom03:rights","atom:rights"],
-    published: ["atom03:issued", "dcterms:issued", "atom:published"],
+    published: ["pubDate", "atom03:issued", "dcterms:issued", "atom:published"],
     updated: ["pubDate", "atom03:modified", "dc:date", "dcterms:modified",
               "atom:updated"]
   },
@@ -407,7 +475,10 @@ Entry.prototype = {
     // Assign Atom link if needed
     if (bagHasKey(this.fields, "links"))
       this._atomLinksToURI();
- 
+
+    // Populate enclosures array
+    this._populateEnclosures();
+
     // The link might be a guid w/ permalink=true
     if (!this.link && bagHasKey(this.fields, "guid")) {
       var guid = this.fields.getProperty("guid");
@@ -430,6 +501,144 @@ Entry.prototype = {
                                     this.searchLists.title]);
   },
 
+  _populateEnclosures: function Entry_populateEnclosures() {
+    if (bagHasKey(this.fields, "links"))
+      this._atomLinksToEnclosures();
+
+    // Add RSS2 enclosure to enclosures
+    if (bagHasKey(this.fields, "enclosure"))
+      this._enclosureToEnclosures();
+
+    // Add media:content to enclosures
+    if (bagHasKey(this.fields, "mediacontent"))
+      this._mediacontentToEnclosures();
+
+    // Add media:content in media:group to enclosures
+    if (bagHasKey(this.fields, "mediagroup"))
+      this._mediagroupToEnclosures();
+  },
+
+  __enclosure_map: null,
+
+  _addToEnclosures: function Entry_addToEnclosures(new_enc) {
+    // items we add to the enclosures array get displayed in the FeedWriter and
+    // they must have non-empty urls.
+    if (!bagHasKey(new_enc, "url") || new_enc.getPropertyAsAString("url") == "")
+      return;
+
+    if (this.__enclosure_map == null)
+      this.__enclosure_map = {};
+
+    var previous_enc = this.__enclosure_map[new_enc.getPropertyAsAString("url")];
+
+    if (previous_enc != undefined) {
+      previous_enc.QueryInterface(Ci.nsIWritablePropertyBag2);
+
+      if (!bagHasKey(previous_enc, "type") && bagHasKey(new_enc, "type"))
+        previous_enc.setPropertyAsAString("type", new_enc.getPropertyAsAString("type"));
+
+      if (!bagHasKey(previous_enc, "length") && bagHasKey(new_enc, "length"))
+        previous_enc.setPropertyAsAString("length", new_enc.getPropertyAsAString("length"));
+      
+      return;
+    }
+
+    if (this.enclosures == null) {
+      this.enclosures = Cc[ARRAY_CONTRACTID].createInstance(Ci.nsIMutableArray);
+      this.enclosures.QueryInterface(Ci.nsIMutableArray);
+    }
+
+    this.enclosures.appendElement(new_enc, false);
+    this.__enclosure_map[new_enc.getPropertyAsAString("url")] = new_enc;
+  },
+
+  _atomLinksToEnclosures: function Entry_linkToEnclosure() {
+    var links = this.fields.getPropertyAsInterface("links", Ci.nsIArray);
+    var enc_links = findAtomLinks("enclosure", links);
+    if (enc_links.length == 0)
+      return;
+
+    for (var i = 0; i < enc_links.length; ++i) {
+      var link = enc_links[i];
+
+      // an enclosure must have an href
+      if (!(link.getProperty("href")))
+        return;
+
+      var enc = Cc[BAG_CONTRACTID].createInstance(Ci.nsIWritablePropertyBag2);
+
+      // copy Atom bits over to equivalent enclosure bits
+      enc.setPropertyAsAString("url", link.getPropertyAsAString("href"));
+      if (bagHasKey(link, "type"))
+        enc.setPropertyAsAString("type", link.getPropertyAsAString("type"));
+      if (bagHasKey(link, "length"))
+        enc.setPropertyAsAString("length", link.getPropertyAsAString("length"));
+
+      this._addToEnclosures(enc);
+    }
+  },
+
+  _enclosureToEnclosures: function Entry_enclosureToEnclosures() {
+    var enc = this.fields.getPropertyAsInterface("enclosure", Ci.nsIPropertyBag2);
+
+    if (!(enc.getProperty("url")))
+      return;
+
+    this._addToEnclosures(enc);
+  },
+
+  _mediacontentToEnclosures: function Entry_mediacontentToEnclosures() {
+    var mediacontent = this.fields.getPropertyAsInterface("mediacontent", Ci.nsIArray);
+
+    for (var i = 0; i < mediacontent.length; ++i) {
+      var contentElement = mediacontent.queryElementAt(i, Ci.nsIWritablePropertyBag2);
+
+      // media:content don't require url, but if it's not there, we should
+      // skip it.
+      if (!bagHasKey(contentElement, "url"))
+        continue;
+
+      var enc = Cc[BAG_CONTRACTID].createInstance(Ci.nsIWritablePropertyBag2);
+
+      // copy media:content bits over to equivalent enclosure bits
+      enc.setPropertyAsAString("url", contentElement.getPropertyAsAString("url"));
+      if (bagHasKey(contentElement, "type")) {
+        enc.setPropertyAsAString("type", contentElement.getPropertyAsAString("type"));
+      }
+      if (bagHasKey(contentElement, "fileSize")) {
+        enc.setPropertyAsAString("length", contentElement.getPropertyAsAString("fileSize"));
+      }
+
+      this._addToEnclosures(enc);
+    }
+  },
+
+  _mediagroupToEnclosures: function Entry_mediagroupToEnclosures() {
+    var group = this.fields.getPropertyAsInterface("mediagroup", Ci.nsIPropertyBag2);
+
+    var content = group.getPropertyAsInterface("mediacontent", Ci.nsIArray);
+    for (var i = 0; i < content.length; ++i) {
+      var contentElement = content.queryElementAt(i, Ci.nsIWritablePropertyBag2);
+      // media:content don't require url, but if it's not there, we should
+      // skip it.
+      if (!bagHasKey(contentElement, "url"))
+        continue;
+
+      var enc = Cc[BAG_CONTRACTID].createInstance(Ci.nsIWritablePropertyBag2);
+
+      // copy media:content bits over to equivalent enclosure bits
+      enc.setPropertyAsAString("url", contentElement.getPropertyAsAString("url"));
+      if (bagHasKey(contentElement, "type")) {
+        enc.setPropertyAsAString("type", contentElement.getPropertyAsAString("type"));
+      }
+      if (bagHasKey(contentElement, "fileSize")) {
+        enc.setPropertyAsAString("length", contentElement.getPropertyAsAString("fileSize"));
+      }
+
+      this._addToEnclosures(enc);
+    }
+  },
+
   // XPCOM stuff
   classDescription: ENTRY_CLASSNAME,
   classID: ENTRY_CLASSID,
@@ -450,12 +659,14 @@ function TextConstruct() {
   this.base = null;
   this.type = "text";
   this.text = null;
+  this.unescapeHTML = Cc[UNESCAPE_CONTRACTID].
+                      getService(Ci.nsIScriptableUnescapeHTML);
 }
 
 TextConstruct.prototype = {
   plainText: function TC_plainText() {
     if (this.type != "text") {
-      return gUnescapeHTML.unescape(stripTags(this.text));
+      return this.unescapeHTML.unescape(stripTags(this.text));
     }
     return this.text;
   },
@@ -476,7 +687,8 @@ TextConstruct.prototype = {
     else
       return null;
 
-    return gUnescapeHTML.parseFragment(this.text, isXML, this.base, element);
+    return this.unescapeHTML.parseFragment(this.text, isXML,
+                                           this.base, element);
   },
  
   // XPCOM stuff
@@ -1063,7 +1275,9 @@ function FeedProcessor() {
       "dc:contributor": new ElementInfo("contributors", Cc[PERSON_CONTRACTID],
                                          rssAuthor, true),
       "category": new ElementInfo("categories", null, rssCatTerm, true),
-      "enclosure": new ElementInfo("enclosure", null, null, true),
+      "enclosure": new ElementInfo("enclosure", null, null, false),
+      "media:content": new ElementInfo("mediacontent", null, null, true),
+      "media:group": new ElementInfo("mediagroup", null, null, false),
       "guid": new ElementInfo("guid", null, rssGuid, false)
     },
 
@@ -1075,6 +1289,10 @@ function FeedProcessor() {
       "hour": new ElementInfo("hours", null, rssArrayElement, true)
     },
 
+    "IN_MEDIAGROUP": {
+      "media:content": new ElementInfo("mediacontent", null, null, true)
+    },
+ 
     /********* RSS1 **********/
     "IN_RDF": {
       // If we hit a rss1:channel, we can verify that we have RSS1
@@ -1217,6 +1435,9 @@ FeedProcessor.prototype = {
   // The XMLReader will throw sensible exceptions if these get called
   // out of order.
   onStartRequest: function FP_onStartRequest(request, context) {
+    // this will throw if the request is not a channel, but so will nsParser.
+    var channel = request.QueryInterface(Ci.nsIChannel);
+    channel.contentType = "application/vnd.mozilla.maybe.feed";
     this._reader.onStartRequest(request, context);
   },
 
@@ -1423,8 +1644,7 @@ FeedProcessor.prototype = {
     if (target == "xml-stylesheet") {
       var hrefAttribute = data.match(/href=[\"\'](.*?)[\"\']/);
       if (hrefAttribute && hrefAttribute.length == 2) 
-        this._result.stylesheet = gIoService.newURI(hrefAttribute[1], null,
-                                                    this._result.uri);
+        this._result.stylesheet = strToURI(hrefAttribute[1], this._result.uri);
     }
   },
 

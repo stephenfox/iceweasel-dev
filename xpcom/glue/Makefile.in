@@ -55,6 +55,10 @@ REQUIRES = \
 		string \
 		$(NULL)
 
+ifdef NS_TRACE_MALLOC
+REQUIRES += tracemalloc
+endif
+
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../build \
 		$(NULL)
@@ -144,4 +148,8 @@ ifdef _MSC_VER
 OS_COMPILE_CXXFLAGS += -Zl
 OS_COMPILE_CFLAGS += -Zl
 DEFINES += -D_USE_ANSI_CPP
+endif
+
+ifdef TARGET_XPCOM_ABI
+DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
 endif

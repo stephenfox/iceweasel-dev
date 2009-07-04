@@ -75,13 +75,7 @@ class nsMenuPopupFrame;
 class nsMenuBarFrame;
 class nsIMenuParent;
 class nsIDOMKeyEvent;
-
-enum nsPopupType {
-  ePopupTypePanel,
-  ePopupTypeMenu,
-  ePopupTypeTooltip,
-  ePopupTypeAny = 0xF000 // used only to pass to GetTopPopup
-};
+class nsIDocShellTreeItem;
 
 // when a menu command is executed, the closemenu attribute may be used
 // to define how the menu should be closed up
@@ -224,10 +218,12 @@ class nsXULPopupShowingEvent : public nsRunnable
 public:
   nsXULPopupShowingEvent(nsIContent *aPopup,
                          nsIContent *aMenu,
+                         nsPopupType aPopupType,
                          PRBool aIsContextMenu,
                          PRBool aSelectFirstItem)
     : mPopup(aPopup),
       mMenu(aMenu),
+      mPopupType(aPopupType),
       mIsContextMenu(aIsContextMenu),
       mSelectFirstItem(aSelectFirstItem)
   {
@@ -240,6 +236,7 @@ public:
 private:
   nsCOMPtr<nsIContent> mPopup;
   nsCOMPtr<nsIContent> mMenu;
+  nsPopupType mPopupType;
   PRBool mIsContextMenu;
   PRBool mSelectFirstItem;
 };
@@ -323,8 +320,10 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIROLLUPLISTENER
-  NS_DECL_NSIMENUROLLUP
   NS_DECL_NSITIMERCALLBACK
+
+  virtual void GetSubmenuWidgetChain(nsTArray<nsIWidget*> *_retval);
+  virtual void AdjustPopupsOnWindowChange(void);
 
   static nsXULPopupManager* sInstance;
 
@@ -426,6 +425,10 @@ public:
    * measured in CSS pixels.
    *
    * This fires the popupshowing event synchronously.
+   * 
+   * If aIsContextMenu is true, the popup is positioned at a slight
+   * offset from aXPos/aYPos to ensure that it is not under the mouse
+   * cursor.
    */
   void ShowPopupAtScreen(nsIContent* aPopup,
                          PRInt32 aXPos, PRInt32 aYPos,
@@ -471,10 +474,10 @@ public:
   void HidePopupAfterDelay(nsMenuPopupFrame* aPopup);
 
   /**
-   * Hide all of the popups from a given document. This should be called when the
+   * Hide all of the popups from a given docshell. This should be called when the
    * document is hidden.
    */
-  void HidePopupsInDocument(nsIDocument* aDocument);
+  void HidePopupsInDocShell(nsIDocShellTreeItem* aDocShellToHide);
 
   /**
    * Execute a menu command from the triggering event aEvent.
@@ -503,10 +506,10 @@ public:
   nsIFrame* GetTopPopup(nsPopupType aType);
 
   /**
-   * Return an array of all the open popup frames for menus, in order from
-   * top to bottom.
+   * Return an array of all the open and visible popup frames for
+   * menus, in order from top to bottom.
    */
-  nsTArray<nsIFrame *> GetOpenPopups();
+  nsTArray<nsIFrame *> GetVisiblePopups();
 
   /**
    * Return false if a popup may not be opened. This will return false if the
@@ -709,6 +712,11 @@ protected:
    * so that keyboard navigation between menus on the menubar may be done.
    */
   void UpdateKeyboardListeners();
+
+  /*
+   * Returns true if the docshell for aDoc is aExpected or a child of aExpected.
+   */
+  PRBool IsChildOfDocShell(nsIDocument* aDoc, nsIDocShellTreeItem* aExpected);
 
   // the document the key event listener is attached to
   nsCOMPtr<nsIDOMEventTarget> mKeyListener;

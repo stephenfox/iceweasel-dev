@@ -65,7 +65,50 @@ extern int pkix_cRemoveCount;
 extern int pkix_ceAddCount;
 extern int pkix_ceLookupCount;
 
+#ifdef PKIX_OBJECT_LEAK_TEST
+/* Following variables are used for object leak test */
+char *nonNullValue = "Non Empty Value";
+PKIX_Boolean noErrorState = PKIX_TRUE;
+PKIX_Boolean runningLeakTest;
+PKIX_Boolean errorGenerated;
+PKIX_UInt32 stackPosition;
+PKIX_UInt32 *fnStackInvCountArr;
+char **fnStackNameArr;
+PLHashTable *fnInvTable;
+PKIX_UInt32 testStartFnStackPosition;
+char *errorFnStackString;
+#endif /* PKIX_OBJECT_LEAK_TEST */
+
 /* --Private-Functions-------------------------------------------- */
+
+#ifdef PKIX_OBJECT_LEAK_TEST
+/*
+ * FUNCTION: pkix_ErrorGen_Hash
+ * DESCRIPTION:
+ *
+ * Hash function to be used in object leak test hash table.
+ *
+ */
+PLHashNumber PR_CALLBACK
+pkix_ErrorGen_Hash (const void *key)
+{
+    char *str = NULL;
+    PLHashNumber rv = (*(PRUint8*)key) << 5;
+    PRUint32 i, counter = 0;
+    PRUint8 *rvc = (PRUint8 *)&rv;
+
+    while ((str = fnStackNameArr[counter++]) != NULL) {
+        PRUint32 len = strlen(str);
+        for( i = 0; i < len; i++ ) {
+            rvc[ i % sizeof(rv) ] ^= *str;
+            str++;
+        }
+    }
+
+    return rv;
+}
+
+#endif /* PKIX_OBJECT_LEAK_TEST */
 
 /*
  * FUNCTION: pkix_IsCertSelfIssued
@@ -100,7 +143,7 @@ pkix_IsCertSelfIssued(
         PKIX_PL_X500Name *subject = NULL;
         PKIX_PL_X500Name *issuer = NULL;
 
-        PKIX_ENTER(CERT, "pkix_isCertSelfIssued");
+        PKIX_ENTER(CERT, "pkix_IsCertSelfIssued");
         PKIX_NULLCHECK_TWO(cert, pSelfIssued);
 
         PKIX_CHECK(PKIX_PL_Cert_GetSubject(cert, &subject, plContext),
@@ -121,6 +164,7 @@ pkix_IsCertSelfIssued(
 cleanup:
         PKIX_DECREF(subject);
         PKIX_DECREF(issuer);
+
         PKIX_RETURN(CERT);
 }
 
@@ -162,36 +206,75 @@ pkix_Throw(
         PKIX_ERRORCLASS errorClass,
         const char *funcName,
         PKIX_ERRORCODE errorCode,
+        PKIX_ERRORCLASS overrideClass,
         PKIX_Error *cause,
         PKIX_Error **pError,
         void *plContext)
 {
-        PKIX_ERRORCLASS causeClass;
+        PKIX_Error *error = NULL;
 
         PKIX_ENTER(ERROR, "pkix_Throw");
         PKIX_NULLCHECK_TWO(funcName, pError);
 
         *pError = NULL;
 
+#ifdef PKIX_OBJECT_LEAK_TEST        
+        noErrorState = PKIX_TRUE;
+        if (pkixLog) {
+#ifdef PKIX_ERROR_DESCRIPTION            
+            PR_LOG(pkixLog, 4, ("Error in function \"%s\":\"%s\" with cause \"%s\"\n",
+                                funcName, PKIX_ErrorText[errorCode],
+                                (cause ? PKIX_ErrorText[cause->errCode] : "null")));
+#else
+            PR_LOG(pkixLog, 4, ("Error in function \"%s\": error code \"%d\"\n",
+                                funcName, errorCode));
+#endif /* PKIX_ERROR_DESCRIPTION */
+            PORT_Assert(strcmp(funcName, "PKIX_PL_Object_DecRef"));
+        }
+#endif /* PKIX_OBJECT_LEAK_TEST */
+
         /* if cause has error class of PKIX_FATAL_ERROR, return immediately */
         if (cause) {
-                pkixTempResult = PKIX_Error_GetErrorClass
-                        (cause, &causeClass, plContext);
-                if (pkixTempResult) goto cleanup;
-
-                if (causeClass == PKIX_FATAL_ERROR){
+                if (cause->errClass == PKIX_FATAL_ERROR){
+                        PKIX_INCREF(cause);
                         *pError = cause;
                         goto cleanup;
                 }
         }
+        
+        if (overrideClass == PKIX_FATAL_ERROR){
+                errorClass = overrideClass;
+        }
 
        pkixTempResult = PKIX_Error_Create(errorClass, cause, NULL,
-                                           errorCode, pError, plContext);
+                                           errorCode, &error, plContext);
+       
+       if (!pkixTempResult) {
+           /* Setting plErr error code:
+            *    get it from PORT_GetError if it is a leaf error and
+            *    default error code does not exist(eq 0)               */
+           if (!cause && !error->plErr) {
+               error->plErr = PKIX_PL_GetPLErrorCode();
+           }
+       }
+
+       *pError = error;
 
 cleanup:
 
         PKIX_DEBUG_EXIT(ERROR);
         pkixErrorClass = 0;
+#ifdef PKIX_OBJECT_LEAK_TEST        
+        noErrorState = PKIX_FALSE;
+
+        if (runningLeakTest && fnStackNameArr) {
+            PR_LOG(pkixLog, 5,
+                   ("%s%*s<- %s(%d) - %s\n", (errorGenerated ? "*" : " "),
+                    stackPosition, " ", fnStackNameArr[stackPosition],
+                    stackPosition, myFuncName));
+            fnStackNameArr[stackPosition--] = NULL;
+        }
+#endif /* PKIX_OBJECT_LEAK_TEST */
         return (pkixTempResult);
 }
 
@@ -376,6 +459,7 @@ pkix_duplicateImmutable(
 
         *pNewObject = object;
 
+cleanup:
         PKIX_RETURN(OBJECT);
 }
 
@@ -756,7 +840,6 @@ pkix_CacheCertChain_Add(
         PKIX_List *cachedValues = NULL;
         PKIX_List *cachedKeys = NULL;
         PKIX_Error *cachedCertChainError = NULL;
-        PKIX_PL_Date *date = NULL;
         PKIX_PL_Date *cacheValidUntilDate = NULL;
 
         PKIX_ENTER(BUILD, "pkix_CacheCertChain_Add");
@@ -816,7 +899,6 @@ cleanup:
         PKIX_DECREF(cachedKeys);
         PKIX_DECREF(cachedCertChainError);
         PKIX_DECREF(cacheValidUntilDate);
-        PKIX_DECREF(date);
 
         PKIX_RETURN(BUILD);
 }
@@ -1393,3 +1475,80 @@ cleanup:
 
         PKIX_RETURN(BUILD);
 }
+
+#ifdef PKIX_OBJECT_LEAK_TEST
+
+/* TEST_START_FN and testStartFnStackPosition define at what state
+ * of the stack the object leak testing should begin. The condition
+ * in pkix_CheckForGeneratedError works the following way: do leak
+ * testing if at position testStartFnStackPosition in stack array
+ * (fnStackNameArr) we have called function TEST_START_FN.
+ * Note, that stack array get filled only when executing libpkix
+ * functions.
+ * */
+#define TEST_START_FN "PKIX_BuildChain"
+
+PKIX_Error*
+pkix_CheckForGeneratedError(PKIX_StdVars * stdVars, 
+                            PKIX_ERRORCLASS errClass, 
+                            char * fnName,
+                            PKIX_Boolean *errSetFlag,
+                            void * plContext)
+{
+    PKIX_Error *genErr = NULL;
+    PKIX_UInt32 pos = 0;
+    PKIX_UInt32 strLen = 0;
+
+    if (fnName) { 
+        if (fnStackNameArr[testStartFnStackPosition] == NULL ||
+            strcmp(fnStackNameArr[testStartFnStackPosition], TEST_START_FN)
+            ) {
+            /* return with out error if not with in boundary */
+            return NULL;
+        }
+        if (!strcmp(fnName, TEST_START_FN)) {
+            *errSetFlag = PKIX_TRUE;
+            noErrorState = PKIX_FALSE;
+            errorGenerated = PKIX_FALSE;
+        }
+    }   
+
+    if (noErrorState || errorGenerated)  return NULL;
+
+    if (fnName && (
+        !strcmp(fnName, "PKIX_PL_Object_DecRef") ||
+        !strcmp(fnName, "PKIX_PL_Object_Unlock") ||
+        !strcmp(fnName, "pkix_UnlockObject") ||
+        !strcmp(fnName, "pkix_Throw") ||
+        !strcmp(fnName, "pkix_trace_dump_cert") ||
+        !strcmp(fnName, "PKIX_PL_Free"))) {
+        /* do not generate error for this functions */
+        noErrorState = PKIX_TRUE;
+        *errSetFlag = PKIX_TRUE;
+        return NULL;
+    }
+
+    if (PL_HashTableLookup(fnInvTable, &fnStackInvCountArr[stackPosition - 1])) {
+        return NULL;
+    }
+
+    PL_HashTableAdd(fnInvTable, &fnStackInvCountArr[stackPosition - 1], nonNullValue);
+    errorGenerated = PKIX_TRUE;
+    noErrorState = PKIX_TRUE;
+    genErr = PKIX_DoThrow(stdVars, errClass, PKIX_MEMLEAKGENERATEDERROR,
+                          errClass, plContext);
+    while(fnStackNameArr[pos]) {
+        strLen += PORT_Strlen(fnStackNameArr[pos++]) + 1;
+    }
+    strLen += 1; /* end of line. */
+    pos = 0;
+    errorFnStackString = PORT_ZAlloc(strLen);
+    while(fnStackNameArr[pos]) {
+        strcat(errorFnStackString, "/");
+        strcat(errorFnStackString, fnStackNameArr[pos++]);
+    }
+    noErrorState = PKIX_FALSE;
+    
+    return genErr;
+}
+#endif /* PKIX_OBJECT_LEAK_TEST */

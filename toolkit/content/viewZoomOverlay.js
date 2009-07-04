@@ -42,69 +42,107 @@
 
 /** Document Zoom Management Code
  *
- * To use this, you'll need to have a getBrowser() function.
+ * To use this, you'll need to have a getBrowser() function or use the methods
+ * that accept a browser to be modified.
  **/
 
 var ZoomManager = {
   get _prefBranch ZoomManager_get__prefBranch() {
-    return Components.classes["@mozilla.org/preferences-service;1"]
-                     .getService(Components.interfaces.nsIPrefBranch);
+    delete this._prefBranch;
+    return this._prefBranch = Components.classes["@mozilla.org/preferences-service;1"]
+                                        .getService(Components.interfaces.nsIPrefBranch);
   },
 
   get MIN ZoomManager_get_MIN() {
     delete this.MIN;
-    return this.MIN = this._prefBranch.getIntPref("fullZoom.minPercent") / 100;
+    return this.MIN = this._prefBranch.getIntPref("zoom.minPercent") / 100;
   },
 
   get MAX ZoomManager_get_MAX() {
     delete this.MAX;
-    return this.MAX = this._prefBranch.getIntPref("fullZoom.maxPercent") / 100;
+    return this.MAX = this._prefBranch.getIntPref("zoom.maxPercent") / 100;
   },
 
-  get fullZoom ZoomManager_get_fullZoom() {
-    return getBrowser().markupDocumentViewer.fullZoom;
+  get useFullZoom ZoomManager_get_useFullZoom() {
+    return this._prefBranch.getBoolPref("browser.zoom.full");
   },
 
-  set fullZoom ZoomManager_set_fullZoom(aVal) {
+  set useFullZoom ZoomManager_set_useFullZoom(aVal) {
+    this._prefBranch.setBoolPref("browser.zoom.full", aVal);
+    return aVal;
+  },
+
+  get zoom ZoomManager_get_zoom() {
+    return this.getZoomForBrowser(getBrowser());
+  },
+
+  getZoomForBrowser: function ZoomManager_getZoomForBrowser(aBrowser) {
+    var markupDocumentViewer = aBrowser.markupDocumentViewer;
+
+    return this.useFullZoom ? markupDocumentViewer.fullZoom
+                            : markupDocumentViewer.textZoom;
+  },
+
+  set zoom ZoomManager_set_zoom(aVal) {
+    this.setZoomForBrowser(getBrowser(), aVal);
+    return aVal;
+  },
+
+  setZoomForBrowser: function ZoomManager_setZoomForBrowser(aBrowser, aVal) {
     if (aVal < this.MIN || aVal > this.MAX)
       throw Components.results.NS_ERROR_INVALID_ARG;
 
-    return (getBrowser().markupDocumentViewer.fullZoom = aVal);
+    var markupDocumentViewer = aBrowser.markupDocumentViewer;
+
+    if (this.useFullZoom) {
+      markupDocumentViewer.textZoom = 1;
+      markupDocumentViewer.fullZoom = aVal;
+    } else {
+      markupDocumentViewer.textZoom = aVal;
+      markupDocumentViewer.fullZoom = 1;
+    }
   },
 
-  get fullZoomValues ZoomManager_get_fullZoomValues() {
-    var fullZoomValues = this._prefBranch.getCharPref("toolkit.zoomManager.fullZoomValues")
-                                         .split(",").map(parseFloat);
-    fullZoomValues.sort();
+  get zoomValues ZoomManager_get_zoomValues() {
+    var zoomValues = this._prefBranch.getCharPref("toolkit.zoomManager.zoomValues")
+                                     .split(",").map(parseFloat);
+    zoomValues.sort(function (a, b) a - b);
 
-    while (fullZoomValues[0] < this.MIN)
-      fullZoomValues.shift();
+    while (zoomValues[0] < this.MIN)
+      zoomValues.shift();
 
-    while (fullZoomValues[fullZoomValues.length - 1] > this.MAX)
-      fullZoomValues.pop();
+    while (zoomValues[zoomValues.length - 1] > this.MAX)
+      zoomValues.pop();
 
-    delete this.fullZoomValues;
-    return this.fullZoomValues = fullZoomValues;
+    delete this.zoomValues;
+    return this.zoomValues = zoomValues;
   },
 
   enlarge: function ZoomManager_enlarge() {
-    var i = this.fullZoomValues.indexOf(this.snap(this.fullZoom)) + 1;
-    if (i < this.fullZoomValues.length)
-      this.fullZoom = this.fullZoomValues[i];
+    var i = this.zoomValues.indexOf(this.snap(this.zoom)) + 1;
+    if (i < this.zoomValues.length)
+      this.zoom = this.zoomValues[i];
   },
 
   reduce: function ZoomManager_reduce() {
-    var i = this.fullZoomValues.indexOf(this.snap(this.fullZoom)) - 1;
+    var i = this.zoomValues.indexOf(this.snap(this.zoom)) - 1;
     if (i >= 0)
-      this.fullZoom = this.fullZoomValues[i];
+      this.zoom = this.zoomValues[i];
   },
 
   reset: function ZoomManager_reset() {
-    this.fullZoom = 1;
+    this.zoom = 1;
+  },
+
+  toggleZoom: function ZoomManager_toggleZoom() {
+    var zoomLevel = this.zoom;
+
+    this.useFullZoom = !this.useFullZoom;
+    this.zoom = zoomLevel;
   },
 
   snap: function ZoomManager_snap(aVal) {
-    var values = this.fullZoomValues;
+    var values = this.zoomValues;
     for (var i = 0; i < values.length; i++) {
       if (values[i] >= aVal) {
         if (i > 0 && aVal - values[i - 1] < values[i] - aVal)

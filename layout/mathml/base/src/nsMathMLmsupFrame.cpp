@@ -41,7 +41,6 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
-#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsIRenderingContext.h"
@@ -75,14 +74,14 @@ nsMathMLmsupFrame::TransmitAutomaticData()
   // "false", within superscript, but leaves both attributes unchanged within base.
   // 2. The TeXbook (Ch 17. p.141) says the superscript *inherits* the compression,
   // so we don't set the compression flag. Our parent will propagate its own.
-  UpdatePresentationDataFromChildAt(1, -1, 1,
+  UpdatePresentationDataFromChildAt(1, -1,
     ~NS_MATHML_DISPLAYSTYLE,
      NS_MATHML_DISPLAYSTYLE);
 
   return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ nsresult
 nsMathMLmsupFrame::Place(nsIRenderingContext& aRenderingContext,
                          PRBool               aPlaceOrigin,
                          nsHTMLReflowMetrics& aDesiredSize)
@@ -138,9 +137,7 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
     supScriptFrame = baseFrame->GetNextSibling();
   if (!baseFrame || !supScriptFrame || supScriptFrame->GetNextSibling()) {
     // report an error, encourage people to get their markups in order
-    NS_WARNING("invalid markup");
-    return static_cast<nsMathMLContainerFrame*>(aFrame)->ReflowError(aRenderingContext, 
-                                               aDesiredSize);
+    return aFrame->ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
   GetReflowAndBoundingMetricsFor(supScriptFrame, supScriptSize, bmSupScript);
@@ -191,7 +188,7 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   nscoord supScriptShift;
   nsPresentationData presentationData;
   aFrame->GetPresentationData (presentationData);
-  if ( presentationData.scriptLevel == 0 && 
+  if ( aFrame->GetStyleFont()->mScriptLevel == 0 && 
        NS_MATHML_IS_DISPLAYSTYLE(presentationData.flags) &&
       !NS_MATHML_IS_COMPRESSED(presentationData.flags)) {
     // Style D in TeXbook

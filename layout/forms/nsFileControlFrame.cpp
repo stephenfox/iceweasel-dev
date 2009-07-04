@@ -70,6 +70,9 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
+#include "nsIDOMNSUIEvent.h"
+#include "nsIDOMEventGroup.h"
+#include "nsIDOM3EventTarget.h"
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
 #endif
@@ -117,15 +120,25 @@ void
 nsFileControlFrame::Destroy()
 {
   mTextFrame = nsnull;
+  ENSURE_TRUE(mContent);
+
   // remove mMouseListener as a mouse event listener (bug 40533, bug 355931)
-  if (mBrowse) {
-    mBrowse->RemoveEventListenerByIID(mMouseListener,
-                                       NS_GET_IID(nsIDOMMouseListener));
+  NS_NAMED_LITERAL_STRING(click, "click");
+
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
+
+  nsCOMPtr<nsIDOM3EventTarget> dom3Browse = do_QueryInterface(mBrowse);
+  if (dom3Browse) {
+    dom3Browse->RemoveGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                           systemGroup);
     nsContentUtils::DestroyAnonymousContent(&mBrowse);
   }
-  if (mTextContent) {
-    mTextContent->RemoveEventListenerByIID(mMouseListener,
-                                           NS_GET_IID(nsIDOMMouseListener));
+  nsCOMPtr<nsIDOM3EventTarget> dom3TextContent =
+    do_QueryInterface(mTextContent);
+  if (dom3TextContent) {
+    dom3TextContent->RemoveGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                                systemGroup);
     nsContentUtils::DestroyAnonymousContent(&mTextContent);
   }
 
@@ -140,12 +153,11 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
-                                      kNameSpaceID_None,
-                                      getter_AddRefs(nodeInfo));
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
+                                                 kNameSpaceID_None);
 
   // Create the text content
-  NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo);
+  NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);
   if (!mTextContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -170,12 +182,19 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!aElements.AppendElement(mTextContent))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // register as an event listener of the textbox to open file dialog on mouse click
-  mTextContent->AddEventListenerByIID(mMouseListener,
-                                      NS_GET_IID(nsIDOMMouseListener));
+  NS_NAMED_LITERAL_STRING(click, "click");
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> dom3TextContent =
+    do_QueryInterface(mTextContent);
+  NS_ENSURE_STATE(dom3TextContent);
+  // Register as an event listener of the textbox
+  // to open file dialog on mouse click
+  dom3TextContent->AddGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                           systemGroup);
 
   // Create the browse button
-  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo);
+  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo, PR_FALSE);
   if (!mBrowse)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -196,9 +215,12 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!aElements.AppendElement(mBrowse))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // register as an event listener of the button to open file dialog on mouse click
-  mBrowse->AddEventListenerByIID(mMouseListener,
-                                 NS_GET_IID(nsIDOMMouseListener));
+  nsCOMPtr<nsIDOM3EventTarget> dom3Browse = do_QueryInterface(mBrowse);
+  NS_ENSURE_STATE(dom3Browse);
+  // Register as an event listener of the button
+  // to open file dialog on mouse click
+  dom3Browse->AddGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                      systemGroup);
 
   SyncAttr(kNameSpaceID_None, nsGkAtoms::size,     SYNC_TEXT);
   SyncAttr(kNameSpaceID_None, nsGkAtoms::disabled, SYNC_BOTH);
@@ -239,25 +261,35 @@ nsFileControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 /**
  * This is called when our browse button is clicked
  */
-nsresult 
-nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
+NS_IMETHODIMP
+nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 {
+  NS_ASSERTION(mFrame, "We should have been unregistered");
+
   // only allow the left button
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
-  if (mouseEvent) {
-    PRUint16 whichButton;
-    if (NS_SUCCEEDED(mouseEvent->GetButton(&whichButton))) {
-      if (whichButton != 0) {
-        return NS_OK;
-      }
-    }
+  nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
+  NS_ENSURE_STATE(uiEvent);
+  PRBool defaultPrevented = PR_FALSE;
+  uiEvent->GetPreventDefault(&defaultPrevented);
+  if (defaultPrevented) {
+    return NS_OK;
   }
 
+  PRUint16 whichButton;
+  if (NS_FAILED(mouseEvent->GetButton(&whichButton)) || whichButton != 0) {
+    return NS_OK;
+  }
+
+  PRInt32 clickCount;
+  if (NS_FAILED(mouseEvent->GetDetail(&clickCount)) || clickCount > 1) {
+    return NS_OK;
+  }
 
   nsresult result;
 
   // Get parent nsIDOMWindowInternal object.
-  nsIContent* content = GetContent();
+  nsIContent* content = mFrame->GetContent();
   if (!content)
     return NS_ERROR_FAILURE;
 
@@ -274,7 +306,12 @@ nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
   if (!filePicker)
     return NS_ERROR_FAILURE;
 
-  result = filePicker->Init(doc->GetWindow(), title, nsIFilePicker::modeOpen);
+  nsPIDOMWindow* win = doc->GetWindow();
+  if (!win) {
+    return NS_ERROR_FAILURE;
+  }
+
+  result = filePicker->Init(win, title, nsIFilePicker::modeOpen);
   if (NS_FAILED(result))
     return result;
 
@@ -283,7 +320,7 @@ nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
 
   // Set default directry and filename
   nsAutoString defaultName;
-  GetFormProperty(nsGkAtoms::value, defaultName);
+  mFrame->GetFormProperty(nsGkAtoms::value, defaultName);
 
   nsCOMPtr<nsILocalFile> currentFile = do_CreateInstance("@mozilla.org/file/local;1");
   if (currentFile && !defaultName.IsEmpty()) {
@@ -307,7 +344,7 @@ nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
   }
 
   // Tell our textframe to remember the currently focused value
-  mTextFrame->InitFocusedValue();
+  mFrame->mTextFrame->InitFocusedValue();
 
   // Open dialog
   PRInt16 mode;
@@ -317,8 +354,11 @@ nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
   if (mode == nsIFilePicker::returnCancel)
     return NS_OK;
 
-  if (!mTextFrame) {
-    // We got destroyed while the filepicker was up.  Don't do anything here.
+  if (!mFrame) {
+    // The frame got destroyed while the filepicker was up.  Don't do
+    // anything here.
+    // (This listener itself can't be destroyed because the event listener
+    // manager holds a strong reference to us while it fires the event.)
     return NS_OK;
   }
   
@@ -332,16 +372,16 @@ nsFileControlFrame::MouseClick(nsIDOMEvent* aMouseEvent)
       // Tell mTextFrame that this update of the value is a user initiated
       // change. Otherwise it'll think that the value is being set by a script
       // and not fire onchange when it should.
-      PRBool oldState = mTextFrame->GetFireChangeEventState();
-      mTextFrame->SetFireChangeEventState(PR_TRUE);
-      nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(mContent);
+      PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
+      mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
+      nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
       if (fileControl) {
         fileControl->SetFileName(unicodePath);
       }
       
-      mTextFrame->SetFireChangeEventState(oldState);
+      mFrame->mTextFrame->SetFireChangeEventState(oldState);
       // May need to fire an onchange here
-      mTextFrame->CheckFireOnChange();
+      mFrame->mTextFrame->CheckFireOnChange();
       return NS_OK;
     }
   }
@@ -531,6 +571,13 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
+  // box-shadow
+  if (GetStyleBorder()->mBoxShadow) {
+    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayBoxShadowOuter(this));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   // Our background is inherited to the text input, and we don't really want to
   // paint it or out padding and borders (which we never have anyway, per
   // styles in forms.css) -- doing it just makes us look ugly in some cases and
@@ -542,8 +589,10 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   tempList.BorderBackground()->DeleteAll();
 
-  rv = OverflowClip(aBuilder, tempList, aLists,
-                    nsRect(aBuilder->ToReferenceFrame(this), GetSize()));
+  // Clip height only
+  nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
+  clipRect.width = GetOverflowRect().XMost();
+  rv = OverflowClip(aBuilder, tempList, aLists, clipRect);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Disabled file controls don't pass mouse events to their children, so we
@@ -579,14 +628,6 @@ NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation
 
-NS_IMPL_ISUPPORTS1(nsFileControlFrame::MouseListener, nsIDOMMouseListener)
-
-NS_IMETHODIMP
-nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
-{
-  if (mFrame) {
-    return mFrame->MouseClick(aMouseEvent);
-  }
-
-  return NS_OK;
-}
+NS_IMPL_ISUPPORTS2(nsFileControlFrame::MouseListener,
+                   nsIDOMMouseListener,
+                   nsIDOMEventListener)

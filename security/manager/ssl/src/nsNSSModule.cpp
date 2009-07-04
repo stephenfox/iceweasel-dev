@@ -79,26 +79,6 @@
 #include "nsSSLStatus.h"
 #include "nsNSSIOLayer.h"
 
-// We must ensure that the nsNSSComponent has been loaded before
-// creating any other components.
-static void EnsureNSSInitialized(PRBool triggeredByNSSComponent)
-{
-  static PRBool haveLoaded = PR_FALSE;
-  if (haveLoaded)
-    return;
-
-  haveLoaded = PR_TRUE;
-  
-  if (triggeredByNSSComponent) {
-    // We must prevent a recursion, as nsNSSComponent creates
-    // additional instances
-    return;
-  }
-  
-  nsCOMPtr<nsISupports> nssComponent 
-    = do_GetService(PSM_COMPONENT_CONTRACTID);
-}
-
 // These two macros are ripped off from nsIGenericFactory.h and slightly
 // modified.
 #define NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(triggeredByNSSComponent,           \
@@ -110,22 +90,41 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
     nsresult rv;                                                              \
     _InstanceClass * inst;                                                    \
                                                                               \
-    EnsureNSSInitialized(triggeredByNSSComponent);                            \
-                                                                              \
     *aResult = NULL;                                                          \
     if (NULL != aOuter) {                                                     \
         rv = NS_ERROR_NO_AGGREGATION;                                         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
+    if (triggeredByNSSComponent)                                              \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssLoading))                                \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
+    else                                                                      \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssEnsure))                                 \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
+                                                                              \
     NS_NEWXPCOM(inst, _InstanceClass);                                        \
     if (NULL == inst) {                                                       \
+        if (triggeredByNSSComponent)                                          \
+            EnsureNSSInitialized(nssInitFailed);                              \
         rv = NS_ERROR_OUT_OF_MEMORY;                                          \
         return rv;                                                            \
     }                                                                         \
     NS_ADDREF(inst);                                                          \
     rv = inst->QueryInterface(aIID, aResult);                                 \
     NS_RELEASE(inst);                                                         \
+                                                                              \
+    if (triggeredByNSSComponent)                                              \
+    {                                                                         \
+        if (NS_SUCCEEDED(rv))                                                 \
+            EnsureNSSInitialized(nssInitSucceeded);                           \
+        else                                                                  \
+            EnsureNSSInitialized(nssInitFailed);                              \
+    }                                                                         \
                                                                               \
     return rv;                                                                \
 }                                                                             \
@@ -140,16 +139,27 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
     nsresult rv;                                                              \
     _InstanceClass * inst;                                                    \
                                                                               \
-    EnsureNSSInitialized(triggeredByNSSComponent);                            \
-                                                                              \
     *aResult = NULL;                                                          \
     if (NULL != aOuter) {                                                     \
         rv = NS_ERROR_NO_AGGREGATION;                                         \
         return rv;                                                            \
     }                                                                         \
                                                                               \
+    if (triggeredByNSSComponent)                                              \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssLoading))                                \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
+    else                                                                      \
+    {                                                                         \
+        if (!EnsureNSSInitialized(nssEnsure))                                 \
+            return NS_ERROR_FAILURE;                                          \
+    }                                                                         \
+                                                                              \
     NS_NEWXPCOM(inst, _InstanceClass);                                        \
     if (NULL == inst) {                                                       \
+        if (triggeredByNSSComponent)                                          \
+            EnsureNSSInitialized(nssInitFailed);                              \
         rv = NS_ERROR_OUT_OF_MEMORY;                                          \
         return rv;                                                            \
     }                                                                         \
@@ -159,6 +169,14 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
         rv = inst->QueryInterface(aIID, aResult);                             \
     }                                                                         \
     NS_RELEASE(inst);                                                         \
+                                                                              \
+    if (triggeredByNSSComponent)                                              \
+    {                                                                         \
+        if (NS_SUCCEEDED(rv))                                                 \
+            EnsureNSSInitialized(nssInitSucceeded);                           \
+        else                                                                  \
+            EnsureNSSInitialized(nssInitFailed);                              \
+    }                                                                         \
                                                                               \
     return rv;                                                                \
 }                                                                             \
@@ -194,6 +212,7 @@ NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCRLManager)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCipherInfoService)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(PR_FALSE, nsNTLMAuthModule, InitTest)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCryptoHash)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsCryptoHMAC)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsStreamCipher)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsKeyObject)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(PR_FALSE, nsKeyObjectFactory)
@@ -394,6 +413,13 @@ static const nsModuleComponentInfo components[] =
     NS_CRYPTO_HASH_CID,
     NS_CRYPTO_HASH_CONTRACTID,
     nsCryptoHashConstructor
+  },
+
+  {
+    NS_CRYPTO_HMAC_CLASSNAME,
+    NS_CRYPTO_HMAC_CID,
+    NS_CRYPTO_HMAC_CONTRACTID,
+    nsCryptoHMACConstructor
   },
 
   {

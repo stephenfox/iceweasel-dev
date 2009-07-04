@@ -1,4 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=2 sts=2 expandtab
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -45,6 +47,8 @@
 #include "nsIObserverService.h"
 #include "nsAutoPtr.h"
 #include "nsNotificationsList.h"
+#include "nsObjCExceptions.h"
+#include "nsPIDOMWindow.h"
 
 #import "mozGrowlDelegate.h"
 #import "GrowlApplicationBridge.h"
@@ -58,12 +62,20 @@ struct GrowlDelegateWrapper
 
   GrowlDelegateWrapper()
   {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
     delegate = [[mozGrowlDelegate alloc] init];
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
   }
 
   ~GrowlDelegateWrapper()
   {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
     [delegate release];
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
   }
 };
 
@@ -78,10 +90,12 @@ DispatchNamedNotification(const nsAString &aName,
                           const nsAString &aCookie,
                           nsIObserver *aListener)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   if ([GrowlApplicationBridge isGrowlInstalled] == NO ||
       [GrowlApplicationBridge isGrowlRunning] == NO)
     return NS_ERROR_NOT_AVAILABLE;
-  
+
   mozGrowlDelegate *delegate =
     static_cast<mozGrowlDelegate *>([GrowlApplicationBridge growlDelegate]);
   if (!delegate)
@@ -111,6 +125,8 @@ DispatchNamedNotification(const nsAString &aName,
 
   nsCOMPtr<nsIStreamLoader> loader;
   return NS_NewStreamLoader(getter_AddRefs(loader), uri, listener);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +144,8 @@ NS_INTERFACE_MAP_END_THREADSAFE
 nsresult
 nsAlertsService::Init()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   if ([GrowlApplicationBridge isGrowlInstalled] == NO)
     return NS_ERROR_SERVICE_NOT_AVAILABLE;
 
@@ -136,15 +154,22 @@ nsAlertsService::Init()
     do_GetService("@mozilla.org/observer-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return os->AddObserver(this, "final-ui-startup", PR_FALSE);
+  rv = os->AddObserver(this, "final-ui-startup", PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  (void)os->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, PR_FALSE);
+  (void)os->AddObserver(this, "profile-before-change", PR_FALSE);
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 nsAlertsService::nsAlertsService() : mDelegate(nsnull) {}
 
 nsAlertsService::~nsAlertsService()
 {
-  if (mDelegate)
-    delete mDelegate;
+  delete mDelegate;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,18 +184,20 @@ nsAlertsService::ShowAlertNotification(const nsAString& aImageUrl,
                                        nsIObserver* aAlertListener,
                                        const nsAString& aAlertName)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   NS_ASSERTION(mDelegate->delegate == [GrowlApplicationBridge growlDelegate],
                "Growl Delegate was not registered properly.");
 
   if (!aAlertName.IsEmpty()) {
-    return DispatchNamedNotification(aAlertTitle, aImageUrl, aAlertTitle,
+    return DispatchNamedNotification(aAlertName, aImageUrl, aAlertTitle,
                                      aAlertText, aAlertCookie, aAlertListener);
   }
 
   nsresult rv;
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService("@mozilla.org/intl/stringbundle;1", &rv);
-  
+
   // We don't want to fail just yet if we can't get the alert name
   nsString name = NS_LITERAL_STRING("General Notification");
   if (NS_SUCCEEDED(rv)) {
@@ -187,6 +214,8 @@ nsAlertsService::ShowAlertNotification(const nsAString& aImageUrl,
 
   return DispatchNamedNotification(name, aImageUrl, aAlertTitle,
                                    aAlertText, aAlertCookie, aAlertListener);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +225,8 @@ NS_IMETHODIMP
 nsAlertsService::Observe(nsISupports* aSubject, const char* aTopic,
                          const PRUnichar* aData)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   if (strcmp(aTopic, "final-ui-startup") == 0) {
     NS_ASSERTION([GrowlApplicationBridge growlDelegate] == nil,
                  "We already registered with Growl!");
@@ -216,7 +247,16 @@ nsAlertsService::Observe(nsISupports* aSubject, const char* aTopic,
     // registers with Growl
     [GrowlApplicationBridge setGrowlDelegate: mDelegate->delegate];
   }
+  else if (strcmp(aTopic, DOM_WINDOW_DESTROYED_TOPIC) == 0 && mDelegate) {
+    nsCOMPtr<nsIDOMWindow> window(do_QueryInterface(aSubject));
+    if (window)
+      [mDelegate->delegate forgetObserversForWindow:window];
+  }
+  else if (strcmp(aTopic, "profile-before-change") == 0 && mDelegate) {
+    [mDelegate->delegate forgetObservers];
+  }
 
   return NS_OK;
-}
 
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}

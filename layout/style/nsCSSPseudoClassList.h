@@ -78,6 +78,13 @@ CSS_PSEUDO_CLASS(firstNode, ":-moz-first-node")
 CSS_PSEUDO_CLASS(lastChild, ":last-child")
 CSS_PSEUDO_CLASS(lastNode, ":-moz-last-node")
 CSS_PSEUDO_CLASS(onlyChild, ":only-child")
+CSS_PSEUDO_CLASS(firstOfType, ":first-of-type")
+CSS_PSEUDO_CLASS(lastOfType, ":last-of-type")
+CSS_PSEUDO_CLASS(onlyOfType, ":only-of-type")
+CSS_PSEUDO_CLASS(nthChild, ":nth-child")
+CSS_PSEUDO_CLASS(nthLastChild, ":nth-last-child")
+CSS_PSEUDO_CLASS(nthOfType, ":nth-of-type")
+CSS_PSEUDO_CLASS(nthLastOfType, ":nth-last-of-type")
 
 // Image, object, etc state pseudo-classes
 CSS_PSEUDO_CLASS(mozBroken, ":-moz-broken")
@@ -85,6 +92,8 @@ CSS_PSEUDO_CLASS(mozUserDisabled, ":-moz-user-disabled")
 CSS_PSEUDO_CLASS(mozSuppressed, ":-moz-suppressed")
 CSS_PSEUDO_CLASS(mozLoading, ":-moz-loading")
 CSS_PSEUDO_CLASS(mozTypeUnsupported, ":-moz-type-unsupported")
+CSS_PSEUDO_CLASS(mozHandlerDisabled, ":-moz-handler-disabled")
+CSS_PSEUDO_CLASS(mozHandlerBlocked, ":-moz-handler-blocked")
 
 CSS_PSEUDO_CLASS(mozHasHandlerRef, ":-moz-has-handlerref")
 
@@ -93,6 +102,10 @@ CSS_PSEUDO_CLASS(mozIsHTML, ":-moz-is-html")
 
 // Matches anything when the specified look-and-feel metric is set
 CSS_PSEUDO_CLASS(mozSystemMetric, ":-moz-system-metric")
+
+#ifdef MOZ_MATHML
+CSS_PSEUDO_CLASS(mozMathIncrementScriptLevel, ":-moz-math-increment-script-level")
+#endif
 
 // CSS 3 UI
 // http://www.w3.org/TR/2004/CR-css3-ui-20040511/#pseudo-classes

@@ -39,7 +39,6 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
-#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
@@ -75,9 +74,13 @@
 #define NS_MATHML_ACTION_TYPE_TOOLTIP      3 // unsupported
 #define NS_MATHML_ACTION_TYPE_RESTYLE      4
 
-NS_IMPL_ADDREF_INHERITED(nsMathMLmactionFrame, nsMathMLContainerFrame)
-NS_IMPL_RELEASE_INHERITED(nsMathMLmactionFrame, nsMathMLContainerFrame)
-NS_IMPL_QUERY_INTERFACE_INHERITED1(nsMathMLmactionFrame, nsMathMLContainerFrame, nsIDOMMouseListener)
+// Frames are not refcounted objects, so use the non-logging addref/release macros.
+NS_IMPL_NONLOGGING_ADDREF_INHERITED(nsMathMLmactionFrame, nsMathMLContainerFrame)
+NS_IMPL_NONLOGGING_RELEASE_INHERITED(nsMathMLmactionFrame, nsMathMLContainerFrame)
+NS_IMPL_QUERY_INTERFACE_INHERITED2(nsMathMLmactionFrame,
+                                   nsMathMLContainerFrame,
+                                   nsIDOMMouseListener,
+                                   nsIDOMEventListener)
 
 nsIFrame*
 NS_NewMathMLmactionFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -284,14 +287,13 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
   mBoundingMetrics.Clear();
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
-    nsSize availSize(aReflowState.ComputedWidth(),
-                     aReflowState.ComputedHeight());
+    nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
     rv = ReflowChild(childFrame, aPresContext, aDesiredSize,
                      childReflowState, aStatus);
-    childFrame->SetRect(nsRect(0,aDesiredSize.ascent,
-                        aDesiredSize.width,aDesiredSize.height));
+    SaveReflowAndBoundingMetricsFor(childFrame, aDesiredSize,
+                                    aDesiredSize.mBoundingMetrics);
     mBoundingMetrics = aDesiredSize.mBoundingMetrics;
   }
   FinalizeReflow(*aReflowState.rendContext, aDesiredSize);
@@ -300,7 +302,7 @@ nsMathMLmactionFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 // Only place the selected child ...
-NS_IMETHODIMP
+/* virtual */ nsresult
 nsMathMLmactionFrame::Place(nsIRenderingContext& aRenderingContext,
                             PRBool               aPlaceOrigin,
                             nsHTMLReflowMetrics& aDesiredSize)

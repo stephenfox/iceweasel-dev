@@ -58,6 +58,7 @@
 #include "nsParserUtils.h"
 #include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
+#include "nsPLDOMEvent.h"
 
 class nsHTMLLinkElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLLinkElement,
@@ -146,12 +147,14 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLLinkElement
-NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLLinkElement, nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED4(nsHTMLLinkElement,
-                                nsIDOMHTMLLinkElement,
-                                nsIDOMLinkStyle,
-                                nsILink,
-                                nsIStyleSheetLinkingElement)
+NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLLinkElement,
+                                   nsIDOMHTMLLinkElement,
+                                   nsIDOMLinkStyle,
+                                   nsILink,
+                                   nsIStyleSheetLinkingElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLinkElement,
+                                               nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLinkElement)
 
 
@@ -161,7 +164,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLinkElement)
 NS_IMETHODIMP
 nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -176,7 +179,7 @@ nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 NS_IMETHODIMP 
 nsHTMLLinkElement::SetDisabled(PRBool aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -206,12 +209,10 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  UpdateStyleSheetInternal(nsnull);
+  nsContentUtils::AddScriptRunner(
+    new nsRunnableMethod<nsHTMLLinkElement>(this,
+                                            &nsHTMLLinkElement::UpdateStyleSheetInternal));
 
-  // XXXbz we really shouldn't fire the event until after we've finished with
-  // the outermost BindToTree...  In particular, this can effectively cause us
-  // to reenter this code, or for some part of the document to become unbound
-  // inside the event!
   CreateAndDispatchEvent(aDocument, NS_LITERAL_STRING("DOMLinkAdded"));
 
   return rv;  
@@ -242,10 +243,8 @@ nsHTMLLinkElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     mLinkState = eLinkState_Unknown;
   }
 
-  // XXXbz we really shouldn't fire the event until after we've finished with
-  // the outermost UnbindFromTree...  In particular, this can effectively cause
-  // us to reenter this code, or to be bound to a different tree inside the
-  // event!
+  // Once we have XPCOMGC we shouldn't need to call UnbindFromTree during Unlink
+  // and so this messy event dispatch can go away.
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMLinkRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
   UpdateStyleSheetInternal(oldDoc);
@@ -273,9 +272,16 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
                       strings, eIgnoreCase) != ATTR_VALUE_NO_MATCH)
     return;
 
-  nsContentUtils::DispatchTrustedEvent(aDoc,
-                                       static_cast<nsIContent*>(this),
-                                       aEventName, PR_TRUE, PR_TRUE);
+  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName);
+  if (event) {
+    // If we have script blockers on the stack then we want to run as soon as
+    // they are removed. Otherwise punt the runable to the event loop as we
+    // don't know when it will be safe to run script.
+    if (nsContentUtils::IsSafeToRunScript())
+      event->PostDOMEvent();
+    else
+      event->RunDOMEventWhenSafe();
+  }
 }
 
 nsresult
@@ -299,7 +305,7 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (NS_SUCCEEDED(rv)) {
     PRBool dropSheet = PR_FALSE;
     if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::rel &&
-        mStyleSheet) {
+        GetStyleSheet()) {
       nsStringArray linkTypes(4);
       nsStyleLinkElement::ParseLinkTypes(aValue, linkTypes);
       dropSheet = linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0;
@@ -320,6 +326,14 @@ nsresult
 nsHTMLLinkElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+    SetLinkState(eLinkState_Unknown);
+  }
+
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
   if (NS_SUCCEEDED(rv)) {

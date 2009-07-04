@@ -82,8 +82,13 @@ REQUIRES	= xpcom \
 		  util \
 		  appshell \
 		  shistory \
-		  accessibility \
+		  editor \
+		  windowwatcher \
 		  $(NULL)
+
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 EXPORTS		= \
 		nsAtomListUtils.h \
@@ -98,6 +103,7 @@ EXPORTS		= \
 		nsStubImageDecoderObserver.h \
 		nsStubMutationObserver.h \
 		nsTextFragment.h \
+		mozAutoDocUpdate.h \
 		$(NULL)
 
 CPPSRCS		= \
@@ -129,24 +135,26 @@ CPPSRCS		= \
 		nsFrameLoader.cpp \
 		nsGenConImageContent.cpp \
 		nsGenericDOMDataNode.cpp \
-		nsGenericDOMNodeList.cpp \
 		nsGenericElement.cpp \
 		nsGkAtoms.cpp \
 		nsHTMLContentSerializer.cpp \
 		nsImageLoadingContent.cpp \
 		nsLineBreaker.cpp \
 		nsLoadListenerProxy.cpp \
+		nsMappedAttributeElement.cpp \
 		nsMappedAttributes.cpp \
 		nsNameSpaceManager.cpp \
 		nsNoDataProtocolContentPolicy.cpp \
 		nsNodeInfo.cpp \
 		nsNodeInfoManager.cpp \
+		nsNodeIterator.cpp \
 		nsNodeUtils.cpp \
 		nsObjectLoadingContent.cpp \
 		nsParserUtils.cpp \
 		nsPlainTextSerializer.cpp \
 		nsPropertyTable.cpp \
 		nsRange.cpp \
+		nsReferencedElement.cpp \
 		nsScriptElement.cpp \
 		nsScriptEventManager.cpp \
 		nsScriptLoader.cpp \
@@ -158,15 +166,20 @@ CPPSRCS		= \
 		nsSyncLoadService.cpp \
 		nsTextFragment.cpp \
 		nsTextNode.cpp \
+		nsTraversal.cpp \
 		nsTreeWalker.cpp \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
 		$(NULL)
 
+GQI_SRCS = contentbase.gqi
+
 # we don't want the shared lib, but we want to force the creation of a
 # static lib.
 FORCE_STATIC_LIB = 1
+
+EXTRA_COMPONENTS = $(srcdir)/nsBadCertHandler.js
 
 include $(topsrcdir)/config/rules.mk
 

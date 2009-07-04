@@ -38,7 +38,7 @@
 #ifndef nsGenericHTMLElement_h___
 #define nsGenericHTMLElement_h___
 
-#include "nsStyledElement.h"
+#include "nsMappedAttributeElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsINameSpaceManager.h"  // for kNameSpaceID_None
 #include "nsIFormControl.h"
@@ -50,7 +50,6 @@ class nsIDOMAttr;
 class nsIDOMEventListener;
 class nsIDOMNodeList;
 class nsIFrame;
-class nsMappedAttributes;
 class nsIStyleRule;
 class nsChildContentList;
 class nsDOMCSSDeclaration;
@@ -59,17 +58,12 @@ class nsIURI;
 class nsIFormControlFrame;
 class nsIForm;
 class nsPresState;
-class nsIScrollableView;
 class nsILayoutHistoryState;
 class nsIEditor;
 struct nsRect;
 struct nsSize;
-struct nsRuleData;
 
-typedef void (*nsMapRuleToAttributesFunc)(const nsMappedAttributes* aAttributes, 
-                                          nsRuleData* aData);
-
-typedef nsStyledElement nsGenericHTMLElementBase;
+typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
 /**
  * A common superclass for HTML elements
@@ -150,54 +144,20 @@ public:
   nsresult GetOffsetParent(nsIDOMElement** aOffsetParent);
   virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
   virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
-  nsresult GetScrollTop(PRInt32* aScrollTop);
-  nsresult SetScrollTop(PRInt32 aScrollTop);
-  nsresult GetScrollLeft(PRInt32* aScrollLeft);
-  nsresult SetScrollLeft(PRInt32 aScrollLeft);
-  nsresult GetScrollHeight(PRInt32* aScrollHeight);
-  nsresult GetScrollWidth(PRInt32* aScrollWidth);
-  nsresult GetClientTop(PRInt32* aLength);
-  nsresult GetClientLeft(PRInt32* aLength);
-  nsresult GetClientHeight(PRInt32* aClientHeight);
-  nsresult GetClientWidth(PRInt32* aClientWidth);
   nsresult ScrollIntoView(PRBool aTop);
-  // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetSpellcheck() and
-  // SetSpellcheck() such that classes that inherit interfaces with those 
-  // methods properly override them
+  // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetSpellcheck(),
+  // SetSpellcheck(), and GetDraggable() such that classes that inherit interfaces
+  // with those methods properly override them
   NS_IMETHOD Focus();
   NS_IMETHOD Blur();
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
   NS_IMETHOD GetSpellcheck(PRBool* aSpellcheck);
   NS_IMETHOD SetSpellcheck(PRBool aSpellcheck);
+  NS_IMETHOD GetDraggable(PRBool* aDraggable);
+  NS_IMETHOD SetDraggable(PRBool aDraggable);
   nsresult GetContentEditable(nsAString &aContentEditable);
   nsresult SetContentEditable(const nsAString &aContentEditable);
-
-  /**
-   * Get the frame's offset information for offsetTop/Left/Width/Height.
-   * @note This method flushes pending notifications (Flush_Layout).
-   * @param aRect the offset information [OUT]
-   * @param aOffsetParent the parent the offset is relative to (offsetParent)
-   *        [OUT]
-   */
-  void GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent);
-  /**
-   * Get the element's styled frame (the primary frame or, for tables, the inner
-   * table frame) and closest scrollable view.
-   * @note This method flushes pending notifications (Flush_Layout).
-   * @param aScrollableView the scrollable view [OUT]
-   * @param aFrame (optional) the frame [OUT]
-   */
-  void GetScrollInfo(nsIScrollableView **aScrollableView,
-                     nsIFrame **aFrame = nsnull);
-
-  /**
-   * Get this element's client area dimensions in app units.
-   * The rect x, y, width, height are the clientLeft, clientTop, clientWidth,
-   * clientHeight values.
-   * @return the frame's client dimensions
-   */
-  nsRect GetClientAreaRect();
 
   // Implementation for nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -217,7 +177,17 @@ public:
                              PRBool aNotify);
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual void RemoveFocus(nsPresContext *aPresContext);
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull)
+  {
+    PRBool isFocusable = PR_FALSE;
+    IsHTMLFocusable(&isFocusable, aTabIndex);
+    return isFocusable;
+  }
+  /**
+   * Returns PR_TRUE if a subclass is not allowed to override the value returned
+   * in aIsFocusable.
+   */
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual void PerformAccesskey(PRBool aKeyCausesActivation,
                                 PRBool aIsTrustedEvent);
 
@@ -240,11 +210,9 @@ public:
   {
     return mAttrsAndChildren.GetAttr(aAttr);
   }
-  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   virtual void UpdateEditableState();
 
-  NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
   already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -253,10 +221,7 @@ public:
                                 nsAttrValue& aResult);
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
-  virtual PRBool SetMappedAttribute(nsIDocument* aDocument,
-                                    nsIAtom* aName,
-                                    nsAttrValue& aValue,
-                                    nsresult* aRetval);
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
   /**
    * Get the base target for any links within this piece
@@ -715,6 +680,28 @@ protected:
   NS_HIDDEN_(nsresult) SetIntAttr(nsIAtom* aAttr, PRInt32 aValue);
 
   /**
+   * Helper method for NS_IMPL_FLOAT_ATTR macro.
+   * Gets the float-value of an attribute, returns specified default value
+   * if the attribute isn't set or isn't set to a float. Only works for
+   * attributes in null namespace.
+   *
+   * @param aAttr    name of attribute.
+   * @param aDefault default-value to return if attribute isn't set.
+   * @param aResult  result value [out]
+   */
+  NS_HIDDEN_(nsresult) GetFloatAttr(nsIAtom* aAttr, float aDefault, float* aValue);
+
+  /**
+   * Helper method for NS_IMPL_FLOAT_ATTR macro.
+   * Sets value of attribute to specified float. Only works for attributes
+   * in null namespace.
+   *
+   * @param aAttr    name of attribute.
+   * @param aValue   Float value of attribute.
+   */
+  NS_HIDDEN_(nsresult) SetFloatAttr(nsIAtom* aAttr, float aValue);
+
+  /**
    * Helper method for NS_IMPL_URI_ATTR macro.
    * Gets the absolute URI value of an attribute, by resolving any relative
    * URIs in the attribute against the baseuri of the element. If the attribute
@@ -756,6 +743,15 @@ protected:
    * node.
    */
   virtual already_AddRefed<nsIEditor> GetAssociatedEditor();
+
+  /**
+   * Get the frame's offset information for offsetTop/Left/Width/Height.
+   * @note This method flushes pending notifications (Flush_Layout).
+   * @param aRect the offset information [OUT]
+   * @param aOffsetParent the parent the offset is relative to (offsetParent)
+   *        [OUT]
+   */
+  virtual void GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent);
 
   /**
    * Returns true if this is the current document's body element
@@ -824,18 +820,18 @@ public:
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
 
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-  virtual void DestroyContent();
+  virtual void SaveSubtreeState();
 
   // nsIFormControl
   NS_IMETHOD GetForm(nsIDOMHTMLFormElement** aForm);
-  NS_IMETHOD SetForm(nsIDOMHTMLFormElement* aForm,
-                     PRBool aRemoveFromForm,
-                     PRBool aNotify);
+  virtual void SetForm(nsIDOMHTMLFormElement* aForm);
+  virtual void ClearForm(PRBool aRemoveFromForm, PRBool aNotify);
 
   NS_IMETHOD SaveState()
   {
     return NS_OK;
   }
+  
   virtual PRBool RestoreState(nsPresState* aState)
   {
     return PR_FALSE;
@@ -871,6 +867,22 @@ protected:
   void UpdateEditableFormControlState();
 
   void SetFocusAndScrollIntoView(nsPresContext* aPresContext);
+
+  // A sane SetFocus implementation for focusable form controls
+  void DoSetFocus(nsPresContext* aPresContext);
+
+  // The focusability state of this form control.  eUnfocusable means that it
+  // shouldn't be focused at all, eInactiveWindow means it's in an inactive
+  // window, eActiveWindow means it's in an active window.
+  enum FocusTristate {
+    eUnfocusable,
+    eInactiveWindow,
+    eActiveWindow
+  };
+
+  // Get our focus state.  If this returns eInactiveWindow, it will set this
+  // element as the focused element for that window.
+  FocusTristate FocusState();
 
   /** The form that contains this control */
   nsIForm* mForm;
@@ -918,7 +930,7 @@ public:
   NS_DECL_NSIFRAMELOADEROWNER
 
   // nsIContent
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -1043,6 +1055,26 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
   }
 
 /**
+ * A macro to implement the getter and setter for a given float
+ * valued content property. The method uses the generic GetAttr and
+ * SetAttr methods.
+ */
+#define NS_IMPL_FLOAT_ATTR(_class, _method, _atom)                    \
+  NS_IMPL_FLOAT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0.0)
+
+#define NS_IMPL_FLOAT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
+  NS_IMETHODIMP                                                             \
+  _class::Get##_method(float* aValue)                                   \
+  {                                                                         \
+    return GetFloatAttr(nsGkAtoms::_atom, _default, aValue);                \
+  }                                                                         \
+  NS_IMETHODIMP                                                             \
+  _class::Set##_method(float aValue)                                    \
+  {                                                                         \
+    return SetFloatAttr(nsGkAtoms::_atom, aValue);                          \
+  }
+
+/**
  * A macro to implement the getter and setter for a given content
  * property that needs to return a URI in string form.  The method
  * uses the generic GetAttr and SetAttr methods.  This macro is much
@@ -1077,63 +1109,35 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
  * QueryInterface() implementation helper macros
  */
 
-#define NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGOUS_HEAD(_class, _base,          \
-                                                      _base_if)               \
-  NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)    \
-  {                                                                           \
-    NS_PRECONDITION(aInstancePtr, "null out param");                          \
-                                                                              \
-    nsresult rv;                                                              \
-                                                                              \
-    rv = _base::QueryInterface(aIID, aInstancePtr);                           \
-                                                                              \
-    if (NS_SUCCEEDED(rv))                                                     \
-      return rv;                                                              \
-                                                                              \
-    rv = DOMQueryInterface(static_cast<_base_if *>(this), aIID,               \
-                           aInstancePtr);                                     \
-                                                                              \
-    if (NS_SUCCEEDED(rv))                                                     \
-      return rv;
+#define NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(_class, _base)        \
+  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
+    NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, _base)             \
+    NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMElement, _base)          \
+    NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMHTMLElement, _base)
 
+#define NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                         \
+  NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(_class, nsIDOMHTMLElement)
 
-#define NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(_class, _base)                   \
-  NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGOUS_HEAD(_class, _base,                \
-                                                nsIDOMHTMLElement)
+#define NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE_AMBIGUOUS(_class, _base, \
+                                                               _base_if)      \
+  rv = _base::QueryInterface(aIID, aInstancePtr);                             \
+  if (NS_SUCCEEDED(rv))                                                       \
+    return rv;                                                                \
+                                                                              \
+  rv = DOMQueryInterface(static_cast<_base_if *>(this), aIID, aInstancePtr);  \
+  if (NS_SUCCEEDED(rv))                                                       \
+    return rv;                                                                \
+                                                                              \
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
 
-#define NS_HTML_CONTENT_CC_INTERFACE_TABLE_AMBIGUOUS_HEAD(_class, _base,      \
-                                                          _base_if)           \
-  NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(_class)                  \
-                                                                              \
-    rv = _base::QueryInterface(aIID, aInstancePtr);                           \
-                                                                              \
-    if (NS_SUCCEEDED(rv))                                                     \
-      return rv;                                                              \
-                                                                              \
-    rv = DOMQueryInterface(static_cast<_base_if *>(this), aIID,               \
-                           aInstancePtr);                                     \
-                                                                              \
-    if (NS_SUCCEEDED(rv))                                                     \
-      return rv;
-
-#define NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(_class, _base)                \
-  NS_HTML_CONTENT_CC_INTERFACE_TABLE_AMBIGUOUS_HEAD(_class, _base,            \
-                                                    nsIDOMHTMLElement)
+#define NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(_class, _base)           \
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE_AMBIGUOUS(_class, _base,       \
+                                                         nsIDOMHTMLElement)
 
 #define NS_HTML_CONTENT_INTERFACE_MAP_END                                     \
-    {                                                                         \
-      return PostQueryInterface(aIID, aInstancePtr);                          \
-    }                                                                         \
-                                                                              \
-    NS_ADDREF(foundInterface);                                                \
-                                                                              \
-    *aInstancePtr = foundInterface;                                           \
-                                                                              \
-    return NS_OK;                                                             \
-  }
+  NS_ELEMENT_INTERFACE_MAP_END
 
 #define NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(_class)                \
-    NS_INTERFACE_TABLE_TO_MAP_SEGUE                                           \
     NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(_class)                          \
   NS_HTML_CONTENT_INTERFACE_MAP_END
 
@@ -1152,6 +1156,84 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
     }                                                                         \
   } else
 
+#define NS_HTML_CONTENT_INTERFACE_TABLE0(_class)                              \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE1(_class, _i1)                         \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE2(_class, _i1, _i2)                    \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE3(_class, _i1, _i2, _i3)          \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE4(_class, _i1, _i2, _i3, _i4)          \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE5(_class, _i1, _i2, _i3, _i4, _i5)     \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE6(_class, _i1, _i2, _i3, _i4, _i5,     \
+                                         _i6)                                 \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE9(_class, _i1, _i2, _i3, _i4, _i5,     \
+                                         _i6, _i7, _i8, _i9)                  \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i7)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i8)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i9)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
+#define NS_HTML_CONTENT_INTERFACE_TABLE10(_class, _i1, _i2, _i3, _i4, _i5,    \
+                                          _i6, _i7, _i8, _i9, _i10)           \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i7)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i8)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i9)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i10)                                    \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
 
 
 // Element class factory methods
@@ -1167,6 +1249,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedObject)
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Anchor)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Area)
+#if defined(MOZ_MEDIA)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Audio)
+#endif
 NS_DECLARE_NS_NEW_HTML_ELEMENT(BR)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Body)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Button)
@@ -1198,6 +1283,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Paragraph)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Select)
+#if defined(MOZ_MEDIA)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Source)
+#endif
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Span)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Style)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(TableCaption)
@@ -1212,5 +1300,8 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Tfoot)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Thead)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Title)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Unknown)
+#if defined(MOZ_MEDIA)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Video)
+#endif
 
 #endif /* nsGenericHTMLElement_h___ */

@@ -136,20 +136,13 @@ PKIX_Error *
 pkix_pl_AIAMgr_RegisterSelf(void *plContext)
 {
         extern pkix_ClassTable_Entry systemClasses[PKIX_NUMTYPES];
-        pkix_ClassTable_Entry entry;
+        pkix_ClassTable_Entry *entry = &systemClasses[PKIX_AIAMGR_TYPE];
 
-        PKIX_ENTER(AIAMGR,
-                "pkix_pl_AIAMgr_RegisterSelf");
+        PKIX_ENTER(AIAMGR, "pkix_pl_AIAMgr_RegisterSelf");
 
-        entry.description = "AIAMgr";
-        entry.destructor = pkix_pl_AIAMgr_Destroy;
-        entry.equalsFunction = NULL;
-        entry.hashcodeFunction = NULL;
-        entry.toStringFunction = NULL;
-        entry.comparator = NULL;
-        entry.duplicateFunction = NULL;
-
-        systemClasses[PKIX_AIAMGR_TYPE] = entry;
+        entry->description = "AIAMgr";
+        entry->typeObjectSize = sizeof(PKIX_PL_AIAMgr);
+        entry->destructor = pkix_pl_AIAMgr_Destroy;
 
         PKIX_RETURN(AIAMGR);
 }
@@ -213,7 +206,10 @@ pkix_pl_AiaMgr_FindLDAPClient(
                 /* No, create a connection (and cache it) */
                 PKIX_CHECK(PKIX_PL_LdapDefaultClient_CreateByName
                         (domainName,
-                        PR_INTERVAL_NO_WAIT, /* PR_INTERVAL_NO_TIMEOUT, */
+                         /* Do not use NBIO until we verify, that
+                          * it is working. For now use 1 min timeout. */
+                        PR_SecondsToInterval(
+                            ((PKIX_PL_NssContext*)plContext)->timeoutSeconds),
                         NULL,
                         &client,
                         plContext),
@@ -261,7 +257,6 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 	PRUint16 responseCode = 0;
 	const char *responseContentType = NULL;
 	const char *responseData = NULL;
-	PRUint32 responseDataLen = 0;
 
         PKIX_ENTER(AIAMGR, "pkix_pl_AIAMgr_GetHTTPCerts");
         PKIX_NULLCHECK_FOUR(aiaMgr, ia, pNBIOContext, pCerts);
@@ -282,6 +277,9 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 
 		if (httpClient->version == 1) {
 
+                        PKIX_UInt32 timeout =
+                             ((PKIX_PL_NssContext*)plContext)->timeoutSeconds;
+
 			hcv1 = &(httpClient->fcnTable.ftable1);
 
 			/* create server session */
@@ -296,20 +294,16 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 				plContext),
 				PKIX_STRINGGETENCODEDFAILED);
 
-			PKIX_PL_NSSCALLRV
-				(AIAMGR, rv, CERT_ParseURL,
-				(locationAscii, &hostname, &port, &path));
-
+                        rv = CERT_ParseURL(locationAscii, &hostname, &port,
+                                            &path);
 			if ((rv != SECSuccess) ||
 			    (hostname == NULL) ||
 			    (path == NULL)) {
 				PKIX_ERROR(PKIX_URLPARSINGFAILED);
 			}
 
-			PKIX_PL_NSSCALLRV
-                        	(AIAMGR, rv, hcv1->createSessionFcn,
-                        	(hostname, port, &serverSession));
-
+                        rv = (*hcv1->createSessionFcn)(hostname, port, 
+                                                       &serverSession);
 	                if (rv != SECSuccess) {
 				PKIX_ERROR(PKIX_HTTPCLIENTCREATESESSIONFAILED);
 			}
@@ -317,19 +311,10 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 			aiaMgr->client.hdata.serverSession = serverSession;
 
 			/* create request session */
-			PKIX_PL_NSSCALLRV
-                        	(AIAMGR, rv, hcv1->createFcn,
-                        	(serverSession,
-                        	"http",
-                        	path,
-                        	"GET",
-                        	PR_TicksPerSecond() * 60,
-                        	&requestSession));
-
+                        rv = (*hcv1->createFcn)(serverSession, "http", path,
+                        	"GET", PR_SecondsToInterval(timeout),
+                                 &requestSession);
                 	if (rv != SECSuccess) {
-                        	if (path != NULL) {
-                                	PORT_Free(path);
-                        	}
                         	PKIX_ERROR(PKIX_HTTPSERVERERROR);
                 	}
 
@@ -342,20 +327,20 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 	httpClient = aiaMgr->client.hdata.httpClient;
 
 	if (httpClient->version == 1) {
+                PRUint32 responseDataLen = 
+                   ((PKIX_PL_NssContext*)plContext)->maxResponseLength;
 
 		hcv1 = &(httpClient->fcnTable.ftable1);
 		requestSession = aiaMgr->client.hdata.requestSession;
 
 		/* trySendAndReceive */
-		PKIX_PL_NSSCALLRV
-                        (AIAMGR, rv, hcv1->trySendAndReceiveFcn,
-                        (requestSession,
-                        (PRPollDesc **)&nbio,
-                        &responseCode,
-                        (const char **)&responseContentType,
-                        NULL, /* &responseHeaders */
-                        (const char **)&responseData,
-                        &responseDataLen));
+                rv = (*hcv1->trySendAndReceiveFcn)(requestSession,
+                                 (PRPollDesc **)&nbio,
+                                 &responseCode,
+                                 (const char **)&responseContentType,
+                                 NULL, /* &responseHeaders */
+                                 (const char **)&responseData,
+                                 &responseDataLen);
 
                 if (rv != SECSuccess) {
                         PKIX_ERROR(PKIX_HTTPSERVERERROR);
@@ -374,21 +359,49 @@ pkix_pl_AIAMgr_GetHTTPCerts(
 	                pCerts,
 	                plContext),
 	                PKIX_HTTPCERTSTOREPROCESSCERTRESPONSEFAILED);
-
-		PKIX_DECREF(aiaMgr->client.hdata.requestSession);
-		PKIX_DECREF(aiaMgr->client.hdata.serverSession);
-		aiaMgr->client.hdata.httpClient = 0; /* not an object */
+                
+                /* Session and request cleanup in case of success */
+                if (aiaMgr->client.hdata.requestSession != NULL) {
+                    (*hcv1->freeFcn)(aiaMgr->client.hdata.requestSession);
+                    aiaMgr->client.hdata.requestSession = NULL;
+                }
+                if (aiaMgr->client.hdata.serverSession != NULL) {
+                    (*hcv1->freeSessionFcn)(aiaMgr->client.hdata.serverSession);
+                    aiaMgr->client.hdata.serverSession = NULL;
+                }
+                aiaMgr->client.hdata.httpClient = 0; /* callback fn */
 
         } else  {
 		PKIX_ERROR(PKIX_UNSUPPORTEDVERSIONOFHTTPCLIENT);
 	}
 
 cleanup:
-	if (PKIX_ERROR_RECEIVED) {
-		PKIX_DECREF(aiaMgr->client.hdata.requestSession);
-		PKIX_DECREF(aiaMgr->client.hdata.serverSession);
-		aiaMgr->client.hdata.httpClient = 0; /* not an object */
-	}
+        /* Session and request cleanup in case of error. Passing through without cleanup
+         * if interrupted by blocked IO. */
+        if (PKIX_ERROR_RECEIVED && aiaMgr) {
+            if (aiaMgr->client.hdata.requestSession != NULL) {
+                (*hcv1->freeFcn)(aiaMgr->client.hdata.requestSession);
+                aiaMgr->client.hdata.requestSession = NULL;
+            }
+            if (aiaMgr->client.hdata.serverSession != NULL) {
+                (*hcv1->freeSessionFcn)(aiaMgr->client.hdata.serverSession);
+                aiaMgr->client.hdata.serverSession = NULL;
+            }
+            aiaMgr->client.hdata.httpClient = 0; /* callback fn */
+        }
+
+        PKIX_DECREF(location);
+        PKIX_DECREF(locationString);
+
+        if (locationAscii) {
+            PORT_Free(locationAscii);
+        }
+        if (hostname) {
+            PORT_Free(hostname);
+        }
+        if (path) {
+            PORT_Free(path);
+        }
 
         PKIX_RETURN(AIAMGR);
 }
@@ -433,9 +446,7 @@ pkix_pl_AIAMgr_GetLDAPCerts(
                  * Get a short-lived arena. We'll be done with
                  * this space once the request is encoded.
                  */
-                PKIX_PL_NSSCALLRV(AIAMGR, arena, PORT_NewArena,
-                        (DER_DEFAULT_CHUNKSIZE));
-
+                arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                 if (!arena) {
                         PKIX_ERROR_FATAL(PKIX_OUTOFMEMORY);
                 }
@@ -686,6 +697,7 @@ cleanup:
                 PKIX_DECREF(aiaMgr->client.ldapClient);
         }
 
+        PKIX_DECREF(certs);
         PKIX_DECREF(ia);
 
         PKIX_RETURN(AIAMGR);

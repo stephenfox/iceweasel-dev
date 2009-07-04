@@ -70,11 +70,10 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "plugins", "chrome://global/content/plugins.html", 0 },
     { "config", "chrome://global/content/config.xul", 0 },
-#ifdef MOZ_XUL_APP
-    { "logo", "chrome://branding/content/about.png",
-#else
-    { "logo", "chrome://global/content/logo.gif",
+#ifdef MOZ_CRASHREPORTER
+    { "crashes", "chrome://global/content/crashes.xhtml", 0 },
 #endif
+    { "logo", "chrome://branding/content/about.png",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT},
     { "buildconfig", "chrome://global/content/buildconfig.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
@@ -82,7 +81,6 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "licence", "chrome://global/content/license.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
-    { "about", "chrome://global/content/aboutAbout.html", 0 },
     { "neterror", "chrome://global/content/netError.xhtml",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT }

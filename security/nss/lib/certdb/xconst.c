@@ -39,7 +39,6 @@
  */
 
 #include "prtypes.h"
-#include "mcom_db.h"
 #include "seccomon.h"
 #include "secdert.h"
 #include "secoidt.h"
@@ -63,16 +62,17 @@ static const SEC_ASN1Template CERTIA5TypeTemplate[] = {
     { SEC_ASN1_IA5_STRING }
 };
 
+SEC_ASN1_MKSUB(SEC_GeneralizedTimeTemplate)
 
 static const SEC_ASN1Template CERTPrivateKeyUsagePeriodTemplate[] = {
     { SEC_ASN1_SEQUENCE,
       0, NULL, sizeof(CERTPrivKeyUsagePeriod) },
-    { SEC_ASN1_OPTIONAL | SEC_ASN1_CONTEXT_SPECIFIC  | 0,	
+    { SEC_ASN1_OPTIONAL | SEC_ASN1_CONTEXT_SPECIFIC  | SEC_ASN1_XTRN | 0,
 	  offsetof(CERTPrivKeyUsagePeriod, notBefore), 
-	  SEC_GeneralizedTimeTemplate},
-    { SEC_ASN1_OPTIONAL | SEC_ASN1_CONTEXT_SPECIFIC  | 1,
+	  SEC_ASN1_SUB(SEC_GeneralizedTimeTemplate) },
+    { SEC_ASN1_OPTIONAL | SEC_ASN1_CONTEXT_SPECIFIC  | SEC_ASN1_XTRN | 1,
 	  offsetof(CERTPrivKeyUsagePeriod, notAfter), 
-	  SEC_GeneralizedTimeTemplate},
+	  SEC_ASN1_SUB(SEC_GeneralizedTimeTemplate)},
     { 0, } 
 };
 
@@ -98,19 +98,16 @@ const SEC_ASN1Template CERTAuthInfoAccessTemplate[] = {
 
 
 SECStatus 
-CERT_EncodeSubjectKeyID(PRArenaPool *arena, char *value, int len, SECItem *encodedValue)
+CERT_EncodeSubjectKeyID(PRArenaPool *arena, const SECItem* srcString,
+                        SECItem *encodedValue)
 {
-    SECItem encodeContext;
     SECStatus rv = SECSuccess;
 
-
-    PORT_Memset (&encodeContext, 0, sizeof (encodeContext));
-    
-    if (value != NULL) {
-	encodeContext.data = (unsigned char *)value;
-	encodeContext.len = len;
+    if (!srcString) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
     }
-    if (SEC_ASN1EncodeItem (arena, encodedValue, &encodeContext,
+    if (SEC_ASN1EncodeItem (arena, encodedValue, srcString,
 			    CERTSubjectKeyIDTemplate) == NULL) {
 	rv = SECFailure;
     }

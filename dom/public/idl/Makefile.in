@@ -58,7 +58,10 @@ DIRS =						\
 	ls					\
 	xul                                     \
 	storage                                 \
-	offline
+	json                                    \
+	offline                                 \
+	geolocation                             \
+	threads
 
 ifdef MOZ_SVG
 DIRS += svg

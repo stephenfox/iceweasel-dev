@@ -99,7 +99,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTableSectionElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTableSectionElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRows,
-                                                       nsBaseContentList)
+                                                       nsIDOMNodeList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLTableSectionElement, nsGenericElement) 
@@ -107,10 +107,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLTableSectionElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLTableSectionElement
-NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLTableSectionElement,
-                                        nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableSectionElement,
-                                nsIDOMHTMLTableSectionElement)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableSectionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableSectionElement,
+                                   nsIDOMHTMLTableSectionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableSectionElement,
+                                               nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableSectionElement)
 
 
@@ -248,7 +249,7 @@ nsHTMLTableSectionElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseIntWithBounds(aValue, 0);
     }
     if (aAttribute == nsGkAtoms::height) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
     }
     if (aAttribute == nsGkAtoms::align) {
       return ParseTableCellHAlignValue(aValue, aResult);

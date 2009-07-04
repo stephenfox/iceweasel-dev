@@ -60,6 +60,9 @@
 #define NS_FRAME_NO_MOVE_FRAME        (0x0002 | NS_FRAME_NO_MOVE_VIEW)
 #define NS_FRAME_NO_SIZE_VIEW         0x0004
 #define NS_FRAME_NO_VISIBILITY        0x0008
+// Only applies to ReflowChild: if true, invalidate the child if it's
+// being moved
+#define NS_FRAME_INVALIDATE_ON_MOVE   0x0010 
 
 class nsOverflowContinuationTracker;
 
@@ -97,8 +100,16 @@ public:
 #endif  
 
   // nsContainerFrame methods
+
+  /**
+   * Delete aNextInFlow and its next-in-flows.
+   * @param aDeletingEmptyFrames if set, then the reflow for aNextInFlow's
+   * content was complete before aNextInFlow, so aNextInFlow and its
+   * next-in-flows no longer map any real content.
+   */
   virtual void DeleteNextInFlowChild(nsPresContext* aPresContext,
-                                     nsIFrame*       aNextInFlow);
+                                     nsIFrame*      aNextInFlow,
+                                     PRBool         aDeletingEmptyFrames);
 
   static PRInt32 LengthOf(nsIFrame* aFrameList) {
     nsFrameList tmp(aFrameList);
@@ -189,13 +200,13 @@ public:
    *    don't want to automatically sync the frame and view
    * NS_FRAME_NO_SIZE_VIEW - don't size the frame's view
    */
-  static nsresult FinishReflowChild(nsIFrame*                 aKidFrame,
-                                    nsPresContext*            aPresContext,
-                                    const nsHTMLReflowState*  aReflowState,
-                                    nsHTMLReflowMetrics&      aDesiredSize,
-                                    nscoord                   aX,
-                                    nscoord                   aY,
-                                    PRUint32                  aFlags);
+  static nsresult FinishReflowChild(nsIFrame*                  aKidFrame,
+                                    nsPresContext*             aPresContext,
+                                    const nsHTMLReflowState*   aReflowState,
+                                    const nsHTMLReflowMetrics& aDesiredSize,
+                                    nscoord                    aX,
+                                    nscoord                    aY,
+                                    PRUint32                   aFlags);
 
   
   static void PositionChildViews(nsIFrame* aFrame);
@@ -268,6 +279,13 @@ public:
                                            nsRect&                  aOverflowRect,
                                            PRUint32                 aFlags,
                                            nsReflowStatus&          aStatus);
+
+  /**
+   * Inserts aFrameList's frames into our main child list--without reparenting
+   * or requesting reflow.
+   */
+  virtual nsresult AddFrames(nsIFrame* aFrameList,
+                             nsIFrame* aPrevSibling);
 
   /**
    * Removes aChild without destroying it and without requesting reflow.
@@ -515,8 +533,7 @@ public:
     NS_PRECONDITION(aChild, "null ptr");
     if (aChild == mSentry) {
       StepForward();
-      aReflowStatus = NS_FRAME_MERGE_INCOMPLETE(aReflowStatus,
-                                                NS_FRAME_OVERFLOW_INCOMPLETE);
+      NS_MergeReflowStatusInto(&aReflowStatus, NS_FRAME_OVERFLOW_INCOMPLETE);
     }
   }
 

@@ -20,6 +20,7 @@
  *
  * Contributor(s):
  *   Johnathan Nightingale <johnath@mozilla.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -78,9 +79,22 @@ function initExceptionDialog() {
 
   var brandName = gBundleBrand.GetStringFromName("brandShortName");
   
-  setText("warningText", gPKIBundle.formatStringFromName("addExceptionBrandedWarning",
+  setText("warningText", gPKIBundle.formatStringFromName("addExceptionBrandedWarning2",
                                                          [brandName], 1));
   gDialog.getButton("extra1").disabled = true;
+  
+  // If the Private Browsing service is available and the mode is active,
+  // don't store permanent exceptions, since they would persist after
+  // private browsing mode was disabled.
+  try {
+    var pb = Components.classes["@mozilla.org/privatebrowsing;1"].
+             getService(Components.interfaces.nsIPrivateBrowsingService);
+    if (pb.privateBrowsingEnabled) {
+      var permanentCheckbox = document.getElementById("permanent");
+      permanentCheckbox.setAttribute("disabled", "true");
+      permanentCheckbox.removeAttribute("checked");
+    }
+  } catch (ex) {}
   
   var args = window.arguments;
   if (args && args[0]) {
@@ -89,9 +103,24 @@ function initExceptionDialog() {
       document.getElementById("locationTextBox").value = args[0].location;
       document.getElementById('checkCertButton').disabled = false;
       
-      // We can optionally pre-fetch the certificate too
-      if (args[0].prefetchCert)
-        checkCert();
+      // We can optionally pre-fetch the certificate too.  Don't do this
+      // synchronously, since it would prevent the window from appearing
+      // until the fetch is completed, which could be multiple seconds.
+      // Instead, let's use a timer to spawn the actual fetch, but update
+      // the dialog to "checking..." state right away, so that the UI
+      // is appropriately responsive.  We could include a very short lag
+      // and there would still be time for the window to draw, but bringing
+      // it up to a couple seconds still feels responsive, while also giving
+      // users who are unfamiliar with the dialog a chance to read the preamble
+      // before the dialog fills up with details about the certificate
+      // problems.  Bug 453855
+      if (args[0].prefetchCert) {
+        
+        gChecking = true;
+        updateCertStatus();
+        
+        window.setTimeout(checkCert, 2000);
+      }
     }
     
     // Set out parameter to false by default
@@ -154,7 +183,9 @@ function checkCert() {
     // We *expect* exceptions if there are problems with the certificate
     // presented by the site.  Log it, just in case, but we can proceed here,
     // with appropriate sanity checks
-    Components.utils.reportError(e);
+    Components.utils.reportError("Attempted to connect to a site with a bad certificate in the add exception dialog. " +
+                                 "This results in a (mostly harmless) exception being thrown. " +
+                                 "Logged for information purposes only: " + e);
   } finally {
     gChecking = false;
   }
@@ -340,8 +371,9 @@ function addException() {
   
   var permanentCheckbox = document.getElementById("permanent");
 
+  var uri = getURI();
   overrideService.rememberValidityOverride(
-    getURI().hostPort,
+    uri.asciiHost, uri.port,
     gCert,
     flags,
     !permanentCheckbox.checked);

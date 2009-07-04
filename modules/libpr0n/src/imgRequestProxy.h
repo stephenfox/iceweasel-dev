@@ -39,6 +39,7 @@
 
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
+#include "nsISecurityInfoProvider.h"
 
 #include "imgIContainer.h"
 #include "imgIDecoder.h"
@@ -48,6 +49,7 @@
 #include "nsISupportsPriority.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
+#include "nsThreadUtils.h"
 
 #include "imgRequest.h"
 
@@ -59,13 +61,14 @@
     {0x8f, 0x65, 0x9c, 0x46, 0x2e, 0xe2, 0xbc, 0x95} \
 }
 
-class imgRequestProxy : public imgIRequest, public nsISupportsPriority
+class imgRequestProxy : public imgIRequest, public nsISupportsPriority, public nsISecurityInfoProvider
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IMGIREQUEST
   NS_DECL_NSIREQUEST
   NS_DECL_NSISUPPORTSPRIORITY
+  NS_DECL_NSISECURITYINFOPROVIDER
 
   imgRequestProxy();
   virtual ~imgRequestProxy();
@@ -82,6 +85,28 @@ public:
 
 protected:
   friend class imgRequest;
+
+  class imgCancelRunnable;
+  friend class imgCancelRunnable;
+
+  class imgCancelRunnable : public nsRunnable
+  {
+    public:
+      imgCancelRunnable(imgRequestProxy* owner, nsresult status)
+        : mOwner(owner), mStatus(status)
+      {}
+
+      NS_IMETHOD Run() {
+        mOwner->DoCancel(mStatus);
+        return NS_OK;
+      }
+
+    private:
+      nsRefPtr<imgRequestProxy> mOwner;
+      nsresult mStatus;
+  };
+
+
 
   /* non-virtual imgIDecoderObserver methods */
   void OnStartDecode   ();
@@ -102,6 +127,12 @@ protected:
   inline PRBool HasObserver() const {
     return mListener != nsnull;
   }
+
+  /* Finish up canceling ourselves */
+  void DoCancel(nsresult status);
+
+  /* Do the proper refcount management to null out mListener */
+  void NullOutListener();
   
 private:
   friend class imgCacheValidator;
@@ -114,10 +145,14 @@ private:
   // means that imgRequest::mObservers will not have any stale pointers in it.
   nsRefPtr<imgRequest> mOwner;
 
-  imgIDecoderObserver* mListener;  // Weak ref; see imgILoader.idl
+  // mListener is only promised to be a weak ref (see imgILoader.idl),
+  // but we actually keep a strong ref to it until we've seen our
+  // first OnStopRequest.
+  imgIDecoderObserver* mListener;
   nsCOMPtr<nsILoadGroup> mLoadGroup;
 
   nsLoadFlags mLoadFlags;
   PRPackedBool mCanceled;
   PRPackedBool mIsInLoadGroup;
+  PRPackedBool mListenerIsStrongRef;
 };

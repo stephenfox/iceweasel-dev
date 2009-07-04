@@ -40,7 +40,10 @@
 #define __nsAccessibilityService_h__
 
 #include "nsIAccessibilityService.h"
+#include "nsCOMArray.h"
 #include "nsIObserver.h"
+#include "nsITimer.h"
+#include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 
@@ -135,6 +138,11 @@ private:
    * @return PR_TRUE if there is a universal ARIA property set on the node
    */
   PRBool HasUniversalAriaProperty(nsIContent *aContent, nsIWeakReference *aWeakShell);
+
+  static void StartLoadCallback(nsITimer *aTimer, void *aClosure);
+  static void EndLoadCallback(nsITimer *aTimer, void *aClosure);
+  static void FailedLoadCallback(nsITimer *aTimer, void *aClosure);
+  nsCOMArray<nsITimer> mLoadTimers;
 };
 
 /**
@@ -152,7 +160,7 @@ static const char kRoleNames[][20] = {
   "caret",               //ROLE_CARET
   "alert",               //ROLE_ALERT
   "window",              //ROLE_WINDOW
-  "client",              //ROLE_CLIENT
+  "internal frame",      //ROLE_INTERNAL_FRAME
   "menupopup",           //ROLE_MENUPOPUP
   "menuitem",            //ROLE_MENUITEM
   "tooltip",             //ROLE_TOOLTIP
@@ -258,7 +266,11 @@ static const char kRoleNames[][20] = {
   "calendar",            //ROLE_CALENDAR
   "combobox list",       //ROLE_COMBOBOX_LIST
   "combobox option",     //ROLE_COMBOBOX_OPTION
-  "image map"            //ROLE_IMAGE_MAP
+  "image map",           //ROLE_IMAGE_MAP
+  "listbox option",      //ROLE_OPTION
+  "listbox rich option", //ROLE_RICH_OPTION
+  "listbox",             //ROLE_LISTBOX
+  "flat equation"        //ROLE_FLAT_EQUATION  
 };
 
 /**

@@ -41,6 +41,8 @@
 #   Simon Bünzli <zeniko@gmail.com>
 #   Gijs Kruitbosch <gijskruitbosch@gmail.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Dan Mosedale <dmose@mozilla.org>
+#   Justin Dolske <dolske@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -65,7 +67,10 @@ function nsContextMenu(aXulMenu, aBrowser) {
   this.onKeywordField    = false;
   this.onImage           = false;
   this.onLoadedImage     = false;
+  this.onCompletedImage  = false;
   this.onCanvas          = false;
+  this.onVideo           = false;
+  this.onAudio           = false;
   this.onLink            = false;
   this.onMailtoLink      = false;
   this.onSaveableLink    = false;
@@ -79,10 +84,14 @@ function nsContextMenu(aXulMenu, aBrowser) {
   this.hasBGImage        = false;
   this.isTextSelected    = false;
   this.isContentSelected = false;
-  this.inDirList         = false;
   this.shouldDisplay     = true;
   this.isDesignMode      = false;
   this.possibleSpellChecking = false;
+  this.ellipsis = "\u2026";
+  try {
+    this.ellipsis = gPrefService.getComplexValue("intl.ellipsis",
+                                                 Ci.nsIPrefLocalizedString).data;
+  } catch (e) { }
 
   // Initialize new menu.
   this.initMenu(aXulMenu, aBrowser);
@@ -121,11 +130,20 @@ nsContextMenu.prototype = {
     this.initSaveItems();
     this.initClipboardItems();
     this.initMetadataItems();
+    this.initMediaPlayerItems();
   },
 
   initOpenItems: function CM_initOpenItems() {
-    var shouldShow = this.onSaveableLink ||
-                     (this.inDirList && this.onLink);
+    var isMailtoInternal = false;
+    if (this.onMailtoLink) {
+      var mailtoHandler = Cc["@mozilla.org/uriloader/external-protocol-service;1"].
+                          getService(Ci.nsIExternalProtocolService).
+                          getProtocolHandlerInfo("mailto");
+      isMailtoInternal = (!mailtoHandler.alwaysAskBeforeHandling &&
+                          mailtoHandler.preferredAction == Ci.nsIHandlerInfo.useHelperApp &&
+                          (mailtoHandler.preferredApplicationHandler instanceof Ci.nsIWebHandlerApp));
+    }
+    var shouldShow = this.onSaveableLink || isMailtoInternal;
     this.showItem("context-openlink", shouldShow);
     this.showItem("context-openlinkintab", shouldShow);
     this.showItem("context-sep-open", shouldShow);
@@ -133,7 +151,8 @@ nsContextMenu.prototype = {
 
   initNavigationItems: function CM_initNavigationItems() {
     var shouldShow = !(this.isContentSelected || this.onLink || this.onImage ||
-                       this.onCanvas || this.onTextInput);
+                       this.onCanvas || this.onVideo || this.onAudio ||
+                       this.onTextInput);
     this.showItem("context-back", shouldShow);
     this.showItem("context-forward", shouldShow);
     this.showItem("context-reload", shouldShow);
@@ -145,8 +164,9 @@ nsContextMenu.prototype = {
   },
 
   initSaveItems: function CM_initSaveItems() {
-    var shouldShow = !(this.inDirList || this.onTextInput || this.onLink ||
-                       this.isContentSelected || this.onImage || this.onCanvas);
+    var shouldShow = !(this.onTextInput || this.onLink ||
+                       this.isContentSelected || this.onImage ||
+                       this.onCanvas || this.onVideo || this.onAudio);
     this.showItem("context-savepage", shouldShow);
     this.showItem("context-sendpage", shouldShow);
 
@@ -154,10 +174,14 @@ nsContextMenu.prototype = {
     this.showItem("context-savelink", this.onSaveableLink);
     this.showItem("context-sendlink", this.onSaveableLink);
 
-    // Save image depends on whether we're on a loaded image, or a canvas.
+    // Save image depends on having loaded its content, video and audio don't.
     this.showItem("context-saveimage", this.onLoadedImage || this.onCanvas);
-    // We can send an image (even unloaded), but not a canvas:
+    this.showItem("context-savevideo", this.onVideo);
+    this.showItem("context-saveaudio", this.onAudio);
+    // Send media URL (but not for canvas, since it's a big data: URL)
     this.showItem("context-sendimage", this.onImage);
+    this.showItem("context-sendvideo", this.onVideo);
+    this.showItem("context-sendaudio", this.onAudio);
   },
 
   initViewItems: function CM_initViewItems() {
@@ -167,14 +191,17 @@ nsContextMenu.prototype = {
     this.showItem("context-viewpartialsource-mathml",
                   this.onMathML && !this.isContentSelected);
 
-    var shouldShow = !(this.inDirList || this.isContentSelected ||
-                       this.onImage || this.onLink || this.onTextInput);
+    var shouldShow = !(this.isContentSelected ||
+                       this.onImage || this.onCanvas ||
+                       this.onVideo || this.onAudio ||
+                       this.onLink || this.onTextInput);
     this.showItem("context-viewsource", shouldShow);
     this.showItem("context-viewinfo", shouldShow);
 
     this.showItem("context-sep-properties",
-                  !(this.inDirList || this.isContentSelected ||
-                    this.onTextInput));
+                  !(this.isContentSelected ||
+                    this.onTextInput || this.onCanvas ||
+                    this.onVideo || this.onAudio));
 
     // Set as Desktop background depends on whether an image was clicked on,
     // and only works if we have a shell service.
@@ -193,10 +220,15 @@ nsContextMenu.prototype = {
               .disabled = this.disableSetDesktopBackground();
     }
 
+    // Reload image depends on an image that's not fully loaded
+    this.showItem("context-reloadimage", (this.onImage && !this.onCompletedImage));
+
     // View image depends on having an image that's not standalone
     // (or is in a frame), or a canvas.
     this.showItem("context-viewimage", (this.onImage &&
                   (!this.onStandaloneImage || this.inFrame)) || this.onCanvas);
+
+    this.showItem("context-viewvideo", this.onVideo);
 
     // View background image depends on whether there is one.
     this.showItem("context-viewbgimage", shouldShow);
@@ -208,8 +240,8 @@ nsContextMenu.prototype = {
   initMiscItems: function CM_initMiscItems() {
     // Use "Bookmark This Link" if on a link.
     this.showItem("context-bookmarkpage",
-                  !(this.isContentSelected || this.onTextInput ||
-                    this.onLink || this.onImage));
+                  !(this.isContentSelected || this.onTextInput || this.onLink ||
+                    this.onImage || this.onVideo || this.onAudio));
     this.showItem("context-bookmarklink", this.onLink && !this.onMailtoLink);
     this.showItem("context-searchselect", this.isTextSelected);
     this.showItem("context-keywordfield",
@@ -249,7 +281,7 @@ nsContextMenu.prototype = {
       if (hostLabel) {
         var shortenedUriHost = hostLabel.replace(/^www\./i,"");
         if (shortenedUriHost.length > 15)
-          shortenedUriHost = shortenedUriHost.substr(0,15) + "...";
+          shortenedUriHost = shortenedUriHost.substr(0,15) + this.ellipsis;
         blockImage.label = gNavigatorBundle.getFormattedString("blockImages", [shortenedUriHost]);
 
         if (this.isImageBlocked())
@@ -260,7 +292,8 @@ nsContextMenu.prototype = {
     }
 
     // Only show the block image item if the image can be blocked
-    this.showItem("context-blockimage", this.onImage && hostLabel);
+    this.showItem("context-blockimage", this.onImage && hostLabel &&
+      !gPrivateBrowsingUI.privateBrowsingEnabled);
   },
 
   initSpellingItems: function() {
@@ -320,8 +353,8 @@ nsContextMenu.prototype = {
     this.showItem("context-paste", this.onTextInput);
     this.showItem("context-delete", this.onTextInput);
     this.showItem("context-sep-paste", this.onTextInput);
-    this.showItem("context-selectall",
-                  !(this.onLink || this.onImage) || this.isDesignMode);
+    this.showItem("context-selectall", !(this.onLink || this.onImage ||
+                  this.onVideo || this.onAudio) || this.isDesignMode);
     this.showItem("context-sep-selectall", this.isContentSelected );
 
     // XXX dr
@@ -332,9 +365,10 @@ nsContextMenu.prototype = {
     // Copy email link depends on whether we're on an email link.
     this.showItem("context-copyemail", this.onMailtoLink);
 
-    // Copy link location depends on whether we're on a link.
-    this.showItem("context-copylink", this.onLink);
-    this.showItem("context-sep-copylink", this.onLink && this.onImage);
+    // Copy link location depends on whether we're on a non-mailto link.
+    this.showItem("context-copylink", this.onLink && !this.onMailtoLink);
+    this.showItem("context-sep-copylink", this.onLink &&
+                  (this.onImage || this.onVideo || this.onAudio));
 
 #ifdef CONTEXT_COPY_IMAGE_CONTENTS
     // Copy image contents depends on whether we're on an image.
@@ -342,7 +376,10 @@ nsContextMenu.prototype = {
 #endif
     // Copy image location depends on whether we're on an image.
     this.showItem("context-copyimage", this.onImage);
-    this.showItem("context-sep-copyimage", this.onImage);
+    this.showItem("context-copyvideourl", this.onVideo);
+    this.showItem("context-copyaudiourl", this.onAudio);
+    this.showItem("context-sep-copyimage", this.onImage ||
+                  this.onVideo || this.onAudio);
   },
 
   initMetadataItems: function() {
@@ -350,23 +387,38 @@ nsContextMenu.prototype = {
     this.showItem("context-metadata", this.onMetaDataItem);
   },
 
+  initMediaPlayerItems: function() {
+    var onMedia = (this.onVideo || this.onAudio);
+    // Several mutually exclusive items... play/pause, mute/unmute, show/hide
+    this.showItem("context-media-play",  onMedia && this.target.paused);
+    this.showItem("context-media-pause", onMedia && !this.target.paused);
+    this.showItem("context-media-mute",   onMedia && !this.target.muted);
+    this.showItem("context-media-unmute", onMedia && this.target.muted);
+    this.showItem("context-media-showcontrols", onMedia && !this.target.controls)
+    this.showItem("context-media-hidecontrols", onMedia && this.target.controls)
+    this.showItem("context-media-sep-commands",  onMedia);
+  },
+
   // Set various context menu attributes based on the state of the world.
   setTarget: function (aNode, aRangeParent, aRangeOffset) {
     const xulNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-    if (aNode.namespaceURI == xulNS) {
+    if (aNode.namespaceURI == xulNS ||
+        this.isTargetAFormControl(aNode)) {
       this.shouldDisplay = false;
-      return;
     }
 
     // Initialize contextual info.
     this.onImage           = false;
     this.onLoadedImage     = false;
+    this.onCompletedImage  = false;
     this.onStandaloneImage = false;
     this.onCanvas          = false;
+    this.onVideo           = false;
+    this.onAudio           = false;
     this.onMetaDataItem    = false;
     this.onTextInput       = false;
     this.onKeywordField    = false;
-    this.imageURL          = "";
+    this.mediaURL          = "";
     this.onLink            = false;
     this.linkURL           = "";
     this.linkURI           = null;
@@ -402,13 +454,23 @@ nsContextMenu.prototype = {
           this.target.getRequest(Ci.nsIImageLoadingContent.CURRENT_REQUEST);
         if (request && (request.imageStatus & request.STATUS_SIZE_AVAILABLE))
           this.onLoadedImage = true;
+        if (request && (request.imageStatus & request.STATUS_LOAD_COMPLETE))
+          this.onCompletedImage = true;
 
-        this.imageURL = this.target.currentURI.spec;
+        this.mediaURL = this.target.currentURI.spec;
         if (this.target.ownerDocument instanceof ImageDocument)
           this.onStandaloneImage = true;
       }
       else if (this.target instanceof HTMLCanvasElement) {
         this.onCanvas = true;
+      }
+      else if (this.target instanceof HTMLVideoElement) {
+        this.onVideo = true;
+        this.mediaURL = this.target.currentSrc;
+      }
+      else if (this.target instanceof HTMLAudioElement) {
+        this.onAudio = true;
+        this.mediaURL = this.target.currentSrc;
       }
       else if (this.target instanceof HTMLInputElement ) {
         this.onTextInput = this.isTargetATextBox(this.target);
@@ -440,40 +502,6 @@ nsContextMenu.prototype = {
           }
         }
       }
-      else if ("HTTPIndex" in content &&
-               content.HTTPIndex instanceof Ci.nsIHTTPIndex) {
-        this.inDirList = true;
-        // Bubble outward till we get to an element with URL attribute
-        // (which should be the href).
-        var root = this.target;
-        while (root && !this.link) {
-          if (root.tagName == "tree") {
-            // Hit root of tree; must have clicked in empty space;
-            // thus, no link.
-            break;
-          }
-
-          if (root.getAttribute("URL")) {
-            // Build pseudo link object so link-related functions work.
-            this.onLink = true;
-            this.link = { href : root.getAttribute("URL"),
-                          getAttribute: function (aAttr) {
-                            if (aAttr == "title") {
-                              return root.firstChild.firstChild
-                                         .getAttribute("label");
-                            }
-                            else
-                              return "";
-                           }
-                         };
-
-            // If element is a directory, then you can't save it.
-            this.onSaveableLink = root.getAttribute("container") != "true";
-          }
-          else
-            root = root.parentNode;
-        }
-      }
     }
 
     // Second, bubble out, looking for items of interest that can have childen.
@@ -497,8 +525,9 @@ nsContextMenu.prototype = {
           // we're going to walk up the DOM looking for a parent link node,
           // this shouldn't be necessary, but we're matching the existing behaviour for left click
           var realLink = elem;
-          var parent = elem.parentNode;
-          while (parent) {
+          var parent = elem;
+          while ((parent = parent.parentNode) &&
+                 (parent.nodeType == Node.ELEMENT_NODE)) {
             try {
               if ((parent instanceof HTMLAnchorElement && parent.href) ||
                   (parent instanceof HTMLAreaElement && parent.href) ||
@@ -506,7 +535,6 @@ nsContextMenu.prototype = {
                   parent.getAttributeNS("http://www.w3.org/1999/xlink", "type") == "simple")
                 realLink = parent;
             } catch (e) { }
-            parent = parent.parentNode;
           }
           
           // Remember corresponding element.
@@ -585,6 +613,7 @@ nsContextMenu.prototype = {
         this.onKeywordField    = false;
         this.onImage           = false;
         this.onLoadedImage     = false;
+        this.onCompletedImage  = false;
         this.onMetaDataItem    = false;
         this.onMathML          = false;
         this.inFrame           = false;
@@ -640,11 +669,11 @@ nsContextMenu.prototype = {
   // Open frame in a new tab.
   openFrameInTab: function() {
     var doc = this.target.ownerDocument;
-    var frameURL = doc.documentURIObject.spec;
+    var frameURL = doc.location.href;
     var referrer = doc.referrer;
 
-    openNewTabWith(frameURL, null, null, null, false,
-                   referrer ? makeURI(referrer) : null);
+    return openNewTabWith(frameURL, null, null, null, false,
+                          referrer ? makeURI(referrer) : null);
   },
 
   // Reload clicked-in frame.
@@ -655,17 +684,17 @@ nsContextMenu.prototype = {
   // Open clicked-in frame in its own window.
   openFrame: function() {
     var doc = this.target.ownerDocument;
-    var frameURL = doc.documentURIObject.spec;
+    var frameURL = doc.location.href;
     var referrer = doc.referrer;
 
-    openNewWindowWith(frameURL, null, null, false,
-                      referrer ? makeURI(referrer) : null);
+    return openNewWindowWith(frameURL, null, null, false,
+                             referrer ? makeURI(referrer) : null);
   },
 
   // Open clicked-in frame in the same window.
   showOnlyThisFrame: function() {
     var doc = this.target.ownerDocument;
-    var frameURL = doc.documentURIObject.spec;
+    var frameURL = doc.location.href;
 
     urlSecurityCheck(frameURL, this.browser.contentPrincipal,
                      Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
@@ -714,14 +743,23 @@ nsContextMenu.prototype = {
     BrowserPageInfo(this.target.ownerDocument);
   },
 
-  // Change current window to the URL of the image.
-  viewImage: function(e) {
+  reloadImage: function(e) {
+    urlSecurityCheck(this.mediaURL,
+                     this.browser.contentPrincipal,
+                     Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
+
+    if (this.target instanceof Ci.nsIImageLoadingContent)
+      this.target.forceReload();
+  },
+
+  // Change current window to the URL of the image, video, or audio.
+  viewMedia: function(e) {
     var viewURL;
 
     if (this.onCanvas)
       viewURL = this.target.toDataURL();
     else {
-      viewURL = this.imageURL;
+      viewURL = this.mediaURL;
       urlSecurityCheck(viewURL,
                        this.browser.contentPrincipal,
                        Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
@@ -803,10 +841,123 @@ nsContextMenu.prototype = {
 
   // Save URL of clicked-on link.
   saveLink: function() {
+    // canonical def in nsURILoader.h
+    const NS_ERROR_SAVE_LINK_AS_TIMEOUT = 0x805d0020;
+    
     var doc =  this.target.ownerDocument;
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-    saveURL(this.linkURL, this.linkText(), null, true, false,
-            doc.documentURIObject);
+    var linkText = this.linkText();
+    var linkURL = this.linkURL;
+
+
+    // an object to proxy the data through to
+    // nsIExternalHelperAppService.doContent, which will wait for the
+    // appropriate MIME-type headers and then prompt the user with a
+    // file picker
+    function saveAsListener() {}
+    saveAsListener.prototype = {
+      extListener: null, 
+
+      onStartRequest: function saveLinkAs_onStartRequest(aRequest, aContext) {
+
+        // if the timer fired, the error status will have been caused by that,
+        // and we'll be restarting in onStopRequest, so no reason to notify
+        // the user
+        if (aRequest.status == NS_ERROR_SAVE_LINK_AS_TIMEOUT)
+          return;
+
+        timer.cancel();
+
+        // some other error occured; notify the user...
+        if (!Components.isSuccessCode(aRequest.status)) {
+          try {
+            const sbs = Cc["@mozilla.org/intl/stringbundle;1"].
+                        getService(Ci.nsIStringBundleService);
+            const bundle = sbs.createBundle(
+                    "chrome://mozapps/locale/downloads/downloads.properties");
+            
+            const title = bundle.GetStringFromName("downloadErrorAlertTitle");
+            const msg = bundle.GetStringFromName("downloadErrorGeneric");
+            
+            const promptSvc = Cc["@mozilla.org/embedcomp/prompt-service;1"].
+                              getService(Ci.nsIPromptService);
+            promptSvc.alert(doc.defaultView, title, msg);
+          } catch (ex) {}
+          return;
+        }
+
+        var extHelperAppSvc = 
+          Cc["@mozilla.org/uriloader/external-helper-app-service;1"].
+          getService(Ci.nsIExternalHelperAppService);
+        var channel = aRequest.QueryInterface(Ci.nsIChannel);
+        this.extListener = 
+          extHelperAppSvc.doContent(channel.contentType, aRequest, 
+                                    doc.defaultView, true);
+        this.extListener.onStartRequest(aRequest, aContext);
+      }, 
+
+      onStopRequest: function saveLinkAs_onStopRequest(aRequest, aContext, 
+                                                       aStatusCode) {
+        if (aStatusCode == NS_ERROR_SAVE_LINK_AS_TIMEOUT) {
+          // do it the old fashioned way, which will pick the best filename
+          // it can without waiting.
+          saveURL(linkURL, linkText, null, true, false, doc.documentURIObject);
+        }
+        if (this.extListener)
+          this.extListener.onStopRequest(aRequest, aContext, aStatusCode);
+      },
+       
+      onDataAvailable: function saveLinkAs_onDataAvailable(aRequest, aContext,
+                                                           aInputStream,
+                                                           aOffset, aCount) {
+        this.extListener.onDataAvailable(aRequest, aContext, aInputStream,
+                                         aOffset, aCount);
+      }
+    }
+
+    // in case we need to prompt the user for authentication
+    function callbacks() {}
+    callbacks.prototype = {
+      getInterface: function sLA_callbacks_getInterface(aIID) {
+        if (aIID.equals(Ci.nsIAuthPrompt) || aIID.equals(Ci.nsIAuthPrompt2)) {
+          var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+                   getService(Ci.nsIPromptFactory);
+          return ww.getPrompt(doc.defaultView, aIID);
+        }
+        throw Cr.NS_ERROR_NO_INTERFACE;
+      } 
+    }
+
+    // if it we don't have the headers after a short time, the user 
+    // won't have received any feedback from their click.  that's bad.  so
+    // we give up waiting for the filename. 
+    function timerCallback() {}
+    timerCallback.prototype = {
+      notify: function sLA_timer_notify(aTimer) {
+        channel.cancel(NS_ERROR_SAVE_LINK_AS_TIMEOUT);
+        return;
+      }
+    }
+
+    // set up a channel to do the saving
+    var ioService = Cc["@mozilla.org/network/io-service;1"].
+                    getService(Ci.nsIIOService);
+    var channel = ioService.newChannelFromURI(this.getLinkURI());
+    channel.notificationCallbacks = new callbacks();
+    channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE |
+                         Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS;
+    if (channel instanceof Ci.nsIHttpChannel)
+      channel.referrer = doc.documentURIObject;
+
+    // fallback to the old way if we don't see the headers quickly 
+    var timeToWait = 
+      gPrefService.getIntPref("browser.download.saveLinkAsFilenameTimeout");
+    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    timer.initWithCallback(new timerCallback(), timeToWait,
+                           timer.TYPE_ONE_SHOT);
+
+    // kick off the channel with our proxy object as the listener
+    channel.asyncOpen(new saveAsListener(), null);
   },
 
   sendLink: function() {
@@ -814,23 +965,41 @@ nsContextMenu.prototype = {
     MailIntegration.sendMessage( this.linkURL, "" );
   },
 
-  // Save URL of clicked-on image.
-  saveImage: function() {
+  // Backwards-compatability wrapper
+  saveImage : function() {
+    if (this.onCanvas || this.onImage)
+        this.saveMedia();
+  },
+
+  // Save URL of the clicked upon image, video, or audio.
+  saveMedia: function() {
     var doc =  this.target.ownerDocument;
     if (this.onCanvas) {
       // Bypass cache, since it's a data: URL.
       saveImageURL(this.target.toDataURL(), "canvas.png", "SaveImageTitle",
                    true, false, doc.documentURIObject);
     }
-    else {
-      urlSecurityCheck(this.imageURL, doc.nodePrincipal);
-      saveImageURL(this.imageURL, null, "SaveImageTitle", false,
+    else if (this.onImage) {
+      urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
+      saveImageURL(this.mediaURL, null, "SaveImageTitle", false,
                    false, doc.documentURIObject);
+    }
+    else if (this.onVideo || this.onAudio) {
+      urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
+      var dialogTitle = this.onVideo ? "SaveVideoTitle" : "SaveAudioTitle";
+      saveURL(this.mediaURL, null, dialogTitle, false,
+              false, doc.documentURIObject);
     }
   },
 
-  sendImage: function() {
-    MailIntegration.sendMessage(this.imageURL, "");
+  // Backwards-compatability wrapper
+  sendImage : function() {
+    if (this.onCanvas || this.onImage)
+        this.sendMedia();
+  },
+
+  sendMedia: function() {
+    MailIntegration.sendMessage(this.mediaURL, "");
   },
 
   toggleImageBlocking: function(aBlock) {
@@ -839,9 +1008,10 @@ nsContextMenu.prototype = {
 
     var uri = this.target.QueryInterface(Ci.nsIImageLoadingContent).currentURI;
 
-    permissionmanager.add(uri, "image",
-                          aBlock ? Ci.nsIPermissionManager.DENY_ACTION :
-                                   Ci.nsIPermissionManager.ALLOW_ACTION);
+    if (aBlock)
+      permissionmanager.add(uri, "image", Ci.nsIPermissionManager.DENY_ACTION);
+    else
+      permissionmanager.remove(uri.host, "image");
 
     var brandBundle = document.getElementById("bundle_brand");
     var app = brandBundle.getString("brandShortName");
@@ -1035,7 +1205,7 @@ nsContextMenu.prototype = {
       return false;
 
     if (selectedText.length > 15)
-      selectedText = selectedText.substr(0,15) + "...";
+      selectedText = selectedText.substr(0,15) + this.ellipsis;
 
     // Use the current engine if the search bar is visible, the default
     // engine otherwise.
@@ -1052,6 +1222,8 @@ nsContextMenu.prototype = {
                                                         [engineName,
                                                          selectedText]);
     document.getElementById("context-searchselect").label = menuLabel;
+    document.getElementById("context-searchselect").accessKey =
+             gNavigatorBundle.getString("contextMenuSearchText.accesskey"); 
 
     return true;
   },
@@ -1070,6 +1242,19 @@ nsContextMenu.prototype = {
            "contextMenu.hasBGImage = " + this.hasBGImage + "\n";
   },
 
+  // Returns true if aNode is a from control (except text boxes and images).
+  // This is used to disable the context menu for form controls.
+  isTargetAFormControl: function(aNode) {
+    if (aNode instanceof HTMLInputElement)
+      return (aNode.type != "text" && aNode.type != "password" &&
+              aNode.type != "image");
+
+    return (aNode instanceof HTMLButtonElement) ||
+           (aNode instanceof HTMLSelectElement) ||
+           (aNode instanceof HTMLOptionElement) ||
+           (aNode instanceof HTMLOptGroupElement);
+  },
+
   isTargetATextBox: function(node) {
     if (node instanceof HTMLInputElement)
       return (node.type == "text" || node.type == "password")
@@ -1078,8 +1263,11 @@ nsContextMenu.prototype = {
   },
 
   isTargetAKeywordField: function(aNode) {
+    if (!(aNode instanceof HTMLInputElement))
+      return false;
+
     var form = aNode.form;
-    if (!form)
+    if (!form || aNode.type == "password")
       return false;
 
     var method = form.method.toUpperCase();
@@ -1155,16 +1343,18 @@ nsContextMenu.prototype = {
     var itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
     if (itemId == -1) {
       var title = doc.title;
-      var description = PlacesUtils.getDescriptionFromDocument(doc);
+      var description = PlacesUIUtils.getDescriptionFromDocument(doc);
 
       var descAnno = { name: DESCRIPTION_ANNO, value: description };
-      var txn = PlacesUtils.ptm.createItem(uri, PlacesUtils.bookmarksRootId, -1,
-                                           title, null, [descAnno]);
-      PlacesUtils.ptm.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.createItem(uri, 
+                                           PlacesUtils.bookmarksMenuFolderId,
+                                           -1, title, null, [descAnno]);
+      PlacesUIUtils.ptm.doTransaction(txn);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
+      StarUI.beginBatch();
     }
 
-    window.top.PlacesCommandHook.showEditBookmarkPopup(itemId, this.browser, "overlap");
+    window.top.StarUI.showEditBookmarkPopup(itemId, this.browser, "overlap");
   },
 
   savePageAs: function CM_savePageAs() {
@@ -1181,5 +1371,42 @@ nsContextMenu.prototype = {
 
   switchPageDirection: function CM_switchPageDirection() {
     SwitchDocumentDirection(this.browser.contentWindow);
+  },
+
+  mediaCommand : function CM_mediaCommand(command) {
+    var media = this.target;
+
+    switch (command) {
+      case "play":
+        media.play();
+        break;
+      case "pause":
+        media.pause();
+        break;
+      case "mute":
+        media.muted = true;
+        break;
+      case "unmute":
+        media.muted = false;
+        break;
+      case "hidecontrols":
+        media.removeAttribute("controls");
+        break;
+      case "showcontrols":
+        media.setAttribute("controls", "true");
+        break;
+    }
+  },
+
+  copyMediaLocation : function () {
+    var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
+                    getService(Ci.nsIClipboardHelper);
+    clipboard.copyString(this.mediaURL);
+  },
+
+  get imageURL() {
+    if (this.onImage)
+      return this.mediaURL;
+    return "";
   }
 };

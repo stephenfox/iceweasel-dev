@@ -16,6 +16,7 @@
 #
 # The Initial Developer of the Original Code is
 #   Vladimir Vukicevic <vladimir@pobox.com>
+#
 # Portions created by the Initial Developer are Copyright (C) 2005
 # the Initial Developer. All Rights Reserved.
 #
@@ -42,9 +43,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS		= public src
+PARALLEL_DIRS	= public src
 
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS		+= test
 endif
 

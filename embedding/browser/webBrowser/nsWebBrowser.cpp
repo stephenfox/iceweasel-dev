@@ -123,7 +123,7 @@ nsWebBrowser::~nsWebBrowser()
    InternalDestroy();
 }
 
-PRBool PR_CALLBACK deleteListener(void *aElement, void *aData) {
+PRBool deleteListener(void *aElement, void *aData) {
     nsWebBrowserListenerState *state = (nsWebBrowserListenerState*)aElement;
     NS_DELETEXPCOM(state);
     return PR_TRUE;
@@ -132,8 +132,11 @@ PRBool PR_CALLBACK deleteListener(void *aElement, void *aData) {
 NS_IMETHODIMP nsWebBrowser::InternalDestroy()
 {
 
-  if (mInternalWidget)
-    mInternalWidget->SetClientData(0);
+   if (mInternalWidget) {
+     mInternalWidget->SetClientData(0);
+     mInternalWidget->Destroy();
+     mInternalWidget = nsnull; // Force release here.
+   }
 
    SetDocShell(nsnull);
 
@@ -173,6 +176,7 @@ NS_INTERFACE_MAP_BEGIN(nsWebBrowser)
     NS_INTERFACE_MAP_ENTRY(nsIScrollable)
     NS_INTERFACE_MAP_ENTRY(nsITextScroll)
     NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeItem)
+    NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeNode)
     NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
     NS_INTERFACE_MAP_ENTRY(nsIWebBrowserSetup)
     NS_INTERFACE_MAP_ENTRY(nsIWebBrowserPersist)
@@ -762,6 +766,15 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(PRUint32 aId, PRUint32 aValue)
            mDocShell->SetAllowImages(!!aValue);
         }
         break;
+    case nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH:
+        {
+            NS_ENSURE_STATE(mDocShell);
+            NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
+            nsCOMPtr<nsIDocShell_MOZILLA_1_9_1_dns> dnsShell =
+                do_QueryInterface(mDocShell);
+            NS_ENSURE_STATE(dnsShell);
+            dnsShell->SetAllowDNSPrefetch(!!aValue);
+        }
     case nsIWebBrowserSetup::SETUP_USE_GLOBAL_HISTORY:
         {
            NS_ENSURE_STATE(mDocShell);
@@ -1607,6 +1620,14 @@ NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
          mDocShellAsScrollable = scrollable;
          mDocShellAsTextScroll = textScroll;
          mWebProgress = progress;
+
+         // By default, do not allow DNS prefetch, so we don't break our frozen
+         // API.  Embeddors who decide to enable it should do so manually.
+         nsCOMPtr<nsIDocShell_MOZILLA_1_9_1_dns> dnsShell =
+             do_QueryInterface(mDocShell);
+         if (dnsShell) {
+             dnsShell->SetAllowDNSPrefetch(PR_FALSE);
+         }
      }
      else
      {
@@ -1643,18 +1664,17 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
 }
 
 /* static */
-nsEventStatus PR_CALLBACK nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
+nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
-  nsEventStatus  result = nsEventStatus_eIgnore;
   nsWebBrowser  *browser = nsnull;
   void          *data = nsnull;
 
   if (!aEvent->widget)
-    return result;
+    return nsEventStatus_eIgnore;
 
   aEvent->widget->GetClientData(data);
   if (!data)
-    return result;
+    return nsEventStatus_eIgnore;
 
   browser = static_cast<nsWebBrowser *>(data);
 
@@ -1694,16 +1714,14 @@ nsEventStatus PR_CALLBACK nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
           rc->FillRect(r);
       }
       rc->SetColor(oldColor);
-      break;
+      return nsEventStatus_eConsumeDoDefault;
     }
 
   default:
     break;
   }
 
-  return result;
-    
-  
+  return nsEventStatus_eIgnore;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindowInternal **aDOMWindow)

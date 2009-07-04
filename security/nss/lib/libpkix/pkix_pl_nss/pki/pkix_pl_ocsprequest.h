@@ -55,7 +55,6 @@ struct PKIX_PL_OcspRequestStruct{
         PKIX_PL_Date *validity;
         PKIX_Boolean addServiceLocator;
         PKIX_PL_Cert *signerCert;
-        CERTCertList *certList;
         CERTOCSPRequest *decoded;
         SECItem *encoded;
         char *location;
@@ -66,9 +65,10 @@ struct PKIX_PL_OcspRequestStruct{
 PKIX_Error *
 pkix_pl_OcspRequest_Create(
         PKIX_PL_Cert *cert,
+        PKIX_PL_OcspCertID *cid,
         PKIX_PL_Date *validity,
-        PKIX_Boolean addServiceLocator,
         PKIX_PL_Cert *signerCert,
+        PKIX_UInt32 methodFlags,
         PKIX_Boolean *pURIFound,
         PKIX_PL_OcspRequest **pRequest,
         void *plContext);
@@ -83,12 +83,6 @@ PKIX_Error *
 pkix_pl_OcspRequest_GetLocation(
         PKIX_PL_OcspRequest *request,
         char **pLocation,
-        void *plContext);
-
-PKIX_Error *
-pkix_pl_OcspRequest_GetCertID(
-        PKIX_PL_OcspRequest *request,
-        CERTOCSPCertID **pCertID,
         void *plContext);
 
 PKIX_Error *pkix_pl_OcspRequest_RegisterSelf(void *plContext);

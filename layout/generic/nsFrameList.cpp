@@ -172,6 +172,8 @@ nsFrameList::InsertFrame(nsIFrame* aParent,
 {
   NS_PRECONDITION(nsnull != aNewFrame, "null ptr");
   if (nsnull != aNewFrame) {
+    NS_ASSERTION(!aNewFrame->GetNextSibling(), 
+      "the pointer to this sibling will be overwritten");
     if (aParent) {
       aNewFrame->SetParent(aParent);
     }
@@ -282,12 +284,41 @@ nsFrameList::FrameAt(PRInt32 aIndex) const
   return frame;
 }
 
+PRInt32
+nsFrameList::IndexOf(nsIFrame* aFrame) const
+{
+  PRInt32 count = 0;
+  for (nsIFrame* f = mFirstChild; f; f = f->GetNextSibling()) {
+    if (f == aFrame)
+      return count;
+    ++count;
+  }
+  return -1;
+}
+
 PRBool
 nsFrameList::ContainsFrame(const nsIFrame* aFrame) const
 {
   NS_PRECONDITION(nsnull != aFrame, "null ptr");
   nsIFrame* frame = mFirstChild;
   while (frame) {
+    if (frame == aFrame) {
+      return PR_TRUE;
+    }
+    frame = frame->GetNextSibling();
+  }
+  return PR_FALSE;
+}
+
+PRBool
+nsFrameList::ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const
+{
+  NS_PRECONDITION(nsnull != aFrame, "null ptr");
+  nsIFrame* frame = mFirstChild;
+  while (frame) {
+    if (frame == aEnd) {
+      return PR_FALSE;
+    }
     if (frame == aFrame) {
       return PR_TRUE;
     }
@@ -308,8 +339,7 @@ nsFrameList::GetLength() const
   return count;
 }
 
-static int PR_CALLBACK CompareByContentOrder(const void* aF1, const void* aF2,
-                                             void* aDummy)
+static int CompareByContentOrder(const void* aF1, const void* aF2, void* aDummy)
 {
   const nsIFrame* f1 = static_cast<const nsIFrame*>(aF1);
   const nsIFrame* f2 = static_cast<const nsIFrame*>(aF2);
@@ -409,8 +439,6 @@ nsFrameList::List(FILE* out) const
 nsIFrame*
 nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 {
-  nsILineIterator* iter;
-
   if (!mFirstChild)
     return nsnull;
   
@@ -421,8 +449,8 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
 
-  nsresult result = parent->QueryInterface(NS_GET_IID(nsILineIterator), (void**)&iter);
-  if (NS_FAILED(result) || !iter) { 
+  nsAutoLineIterator iter = parent->GetLineIterator();
+  if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
@@ -447,11 +475,11 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 
   PRInt32 thisLine;
   if (aFrame) {
-    result = iter->FindLineContaining(aFrame, &thisLine);
-    if (NS_FAILED(result) || thisLine < 0)
+    thisLine = iter->FindLineContaining(aFrame);
+    if (thisLine < 0)
       return nsnull;
   } else {
-    iter->GetNumLines(&thisLine);
+    thisLine = iter->GetNumLines();
   }
 
   nsIFrame* frame = nsnull;
@@ -486,8 +514,6 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 nsIFrame*
 nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 {
-  nsILineIterator* iter;
-
   if (!mFirstChild)
     return nsnull;
   
@@ -498,8 +524,8 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
   
-  nsresult result = parent->QueryInterface(NS_GET_IID(nsILineIterator), (void**)&iter);
-  if (NS_FAILED(result) || !iter) { 
+  nsAutoLineIterator iter = parent->GetLineIterator();
+  if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
@@ -524,8 +550,8 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   
   PRInt32 thisLine;
   if (aFrame) {
-    result = iter->FindLineContaining(aFrame, &thisLine);
-    if (NS_FAILED(result) || thisLine < 0)
+    thisLine = iter->FindLineContaining(aFrame);
+    if (thisLine < 0)
       return nsnull;
   } else {
     thisLine = -1;
@@ -547,8 +573,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     }
   }
   
-  PRInt32 numLines;
-  iter->GetNumLines(&numLines);
+  PRInt32 numLines = iter->GetNumLines();
   if (!frame && thisLine < numLines - 1) {
     // Get the first frame of the next line
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);

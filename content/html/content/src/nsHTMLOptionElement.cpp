@@ -69,6 +69,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsContentCreatorFunctions.h"
+#include "mozAutoDocUpdate.h"
 
 /**
  * Implementation of &lt;option&gt;
@@ -102,8 +103,8 @@ public:
   NS_IMETHOD SetText(const nsAString & aText); 
 
   // nsIJSNativeInitializer
-  NS_IMETHOD Initialize(JSContext* aContext, JSObject *aObj, 
-                        PRUint32 argc, jsval *argv);
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
+                        JSObject *aObj, PRUint32 argc, jsval *argv);
 
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                               PRInt32 aModType) const;
@@ -144,17 +145,15 @@ NS_NewHTMLOptionElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
    * if someone says "var opt = new Option();" in JavaScript, in a case like
    * that we request the nsINodeInfo from the document's nodeinfo list.
    */
-  nsresult rv;
   nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
   if (!nodeInfo) {
     nsCOMPtr<nsIDocument> doc =
       do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
     NS_ENSURE_TRUE(doc, nsnull);
 
-    rv = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nsnull,
-                                             kNameSpaceID_None,
-                                             getter_AddRefs(nodeInfo));
-    NS_ENSURE_SUCCESS(rv, nsnull);
+    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nsnull,
+                                                   kNameSpaceID_None);
+    NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
   return new nsHTMLOptionElement(nodeInfo);
@@ -180,13 +179,14 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLOptionElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLOptionElement
-NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLOptionElement,
-                                     nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED4(nsHTMLOptionElement,
-                                nsIDOMHTMLOptionElement,
-                                nsIDOMNSHTMLOptionElement,
-                                nsIJSNativeInitializer,
-                                nsIOptionElement)
+NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLOptionElement,
+                                   nsIDOMHTMLOptionElement,
+                                   nsIDOMNSHTMLOptionElement,
+                                   nsIJSNativeInitializer,
+                                   nsIOptionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptionElement,
+                                               nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptionElement)
 
 
@@ -455,7 +455,8 @@ nsHTMLOptionElement::GetSelect()
 }
 
 NS_IMETHODIMP    
-nsHTMLOptionElement::Initialize(JSContext* aContext, 
+nsHTMLOptionElement::Initialize(nsISupports* aOwner,
+                                JSContext* aContext,
                                 JSObject *aObj,
                                 PRUint32 argc, 
                                 jsval *argv)
@@ -490,25 +491,27 @@ nsHTMLOptionElement::Initialize(JSContext* aContext,
     if (argc > 1) {
       // The second (optional) parameter is the value of the option
       jsstr = JS_ValueToString(aContext, argv[1]);
-      if (nsnull != jsstr) {
-        // Set the value attribute for this element
-        nsAutoString value(reinterpret_cast<const PRUnichar*>
-                                           (JS_GetStringChars(jsstr)));
+      if (!jsstr) {
+        return NS_ERROR_FAILURE;
+      }
 
-        result = SetAttr(kNameSpaceID_None, nsGkAtoms::value, value,
-                         PR_FALSE);
-        if (NS_FAILED(result)) {
-          return result;
-        }
+      // Set the value attribute for this element
+      nsAutoString value(reinterpret_cast<const PRUnichar*>
+                                         (JS_GetStringChars(jsstr)));
+
+      result = SetAttr(kNameSpaceID_None, nsGkAtoms::value, value,
+                       PR_FALSE);
+      if (NS_FAILED(result)) {
+        return result;
       }
 
       if (argc > 2) {
         // The third (optional) parameter is the defaultSelected value
         JSBool defaultSelected;
-        if ((JS_TRUE == JS_ValueToBoolean(aContext,
-                                          argv[2],
-                                          &defaultSelected)) &&
-            (JS_TRUE == defaultSelected)) {
+        if (!JS_ValueToBoolean(aContext, argv[2], &defaultSelected)) {
+            return NS_ERROR_FAILURE;
+        }
+        if (defaultSelected) {
           result = SetAttr(kNameSpaceID_None, nsGkAtoms::selected,
                            EmptyString(), PR_FALSE);
           NS_ENSURE_SUCCESS(result, result);
@@ -517,11 +520,11 @@ nsHTMLOptionElement::Initialize(JSContext* aContext,
         // XXX This is *untested* behavior.  Should work though.
         if (argc > 3) {
           JSBool selected;
-          if (JS_TRUE == JS_ValueToBoolean(aContext,
-                                           argv[3],
-                                           &selected)) {
-            return SetSelected(selected);
+          if (!JS_ValueToBoolean(aContext, argv[3], &selected)) {
+            return NS_ERROR_FAILURE;
           }
+
+          return SetSelected(selected);
         }
       }
     }

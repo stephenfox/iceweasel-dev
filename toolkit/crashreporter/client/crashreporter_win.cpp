@@ -49,6 +49,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <math.h>
 #include <set>
 #include "resource.h"
 #include "client/windows/sender/crash_report_sender.h"
@@ -83,24 +84,44 @@ typedef struct {
   wstring serverResponse;
 } SendThreadData;
 
+/*
+ * Per http://msdn2.microsoft.com/en-us/library/ms645398(VS.85).aspx
+ * "The DLGTEMPLATEEX structure is not defined in any standard header file.
+ * The structure definition is provided here to explain the format of an
+ * extended template for a dialog box.
+*/
+typedef struct {
+    WORD dlgVer;
+    WORD signature;
+    DWORD helpID;
+    DWORD exStyle;
+  // There's more to this struct, but it has weird variable-length
+  // members, and I only actually need to touch exStyle on an existing
+  // instance, so I've omitted the rest.
+} DLGTEMPLATEEX;
+
 static HANDLE               gThreadHandle;
 static SendThreadData       gSendData = { 0, };
 static vector<string>       gRestartArgs;
 static map<wstring,wstring> gQueryParameters;
 static wstring              gCrashReporterKey(L"Software\\Mozilla\\Crash Reporter");
 static wstring              gURLParameter;
+static int                  gCheckboxPadding = 6;
+static bool                 gRTLlayout = false;
 
 // When vertically resizing the dialog, these items should move down
 static set<UINT> gAttachedBottom;
 
 // Default set of items for gAttachedBottom
 static const UINT kDefaultAttachedBottom[] = {
-  IDC_VIEWREPORTCHECK,
-  IDC_VIEWREPORTTEXT,
-  IDC_SUBMITCRASHCHECK,
+  IDC_SUBMITREPORTCHECK,
+  IDC_VIEWREPORTBUTTON,
+  IDC_COMMENTTEXT,
   IDC_INCLUDEURLCHECK,
   IDC_EMAILMECHECK,
   IDC_EMAILTEXT,
+  IDC_PROGRESSTEXT,
+  IDC_THROBBER,
   IDC_CLOSEBUTTON,
   IDC_RESTARTBUTTON,
 };
@@ -260,24 +281,63 @@ static string FormatLastError()
   return message;
 }
 
+#define TS_DRAW 2
+#define BP_CHECKBOX  3
+
+typedef  HANDLE (WINAPI*OpenThemeDataPtr)(HWND hwnd, LPCWSTR pszClassList);
+typedef  HRESULT (WINAPI*CloseThemeDataPtr)(HANDLE hTheme);
+typedef  HRESULT (WINAPI*GetThemePartSizePtr)(HANDLE hTheme, HDC hdc, int iPartId,
+                                              int iStateId, RECT* prc, int ts,
+                                              SIZE* psz);
+typedef HRESULT (WINAPI*GetThemeContentRectPtr)(HANDLE hTheme, HDC hdc, int iPartId,
+                                                int iStateId, const RECT* pRect,
+                                                RECT* pContentRect);
+
+
+static void GetThemeSizes(HWND hwnd)
+{
+  HMODULE themeDLL = LoadLibrary(L"uxtheme.dll");
+
+  if (!themeDLL)
+    return;
+
+  OpenThemeDataPtr openTheme = 
+    (OpenThemeDataPtr)GetProcAddress(themeDLL, "OpenThemeData");
+  CloseThemeDataPtr closeTheme =
+    (CloseThemeDataPtr)GetProcAddress(themeDLL, "CloseThemeData");
+  GetThemePartSizePtr getThemePartSize = 
+    (GetThemePartSizePtr)GetProcAddress(themeDLL, "GetThemePartSize");
+
+  if (!openTheme || !closeTheme || !getThemePartSize) {
+    FreeLibrary(themeDLL);
+    return;
+  }
+
+  HANDLE buttonTheme = openTheme(hwnd, L"Button");
+  if (!buttonTheme) {
+    FreeLibrary(themeDLL);
+    return;
+  }
+  HDC hdc = GetDC(hwnd);
+  SIZE s;
+  getThemePartSize(buttonTheme, hdc, BP_CHECKBOX, 0, NULL, TS_DRAW, &s);
+  gCheckboxPadding = s.cx;
+  closeTheme(buttonTheme);
+  FreeLibrary(themeDLL);
+}
+
 // Gets the position of a window relative to another window's client area
 static void GetRelativeRect(HWND hwnd, HWND hwndParent, RECT* r)
 {
   GetWindowRect(hwnd, r);
-  ScreenToClient(hwndParent, (POINT*)&(r->left));
-  ScreenToClient(hwndParent, (POINT*)&(r->right));
+  MapWindowPoints(NULL, hwndParent, (POINT*)r, 2);
 }
 
 static void SetDlgItemVisible(HWND hwndDlg, UINT item, bool visible)
 {
   HWND hwnd = GetDlgItem(hwndDlg, item);
-  LONG style = GetWindowLong(hwnd, GWL_STYLE);
-  if (visible)
-    style |= WS_VISIBLE;
-  else
-    style &= ~WS_VISIBLE;
 
-  SetWindowLong(hwnd, GWL_STYLE, style);
+  ShowWindow(hwnd, visible ? SW_SHOW : SW_HIDE);
 }
 
 static void SetDlgItemDisabled(HWND hwndDlg, UINT item, bool disabled)
@@ -368,6 +428,50 @@ static void EndCrashReporterDialog(HWND hwndDlg, int code)
   EndDialog(hwndDlg, code);
 }
 
+static void MaybeResizeProgressText(HWND hwndDlg)
+{
+  HWND hwndProgress = GetDlgItem(hwndDlg, IDC_PROGRESSTEXT);
+  HDC hdc = GetDC(hwndProgress);
+  HFONT hfont = (HFONT)SendMessage(hwndProgress, WM_GETFONT, 0, 0);
+  if (hfont)
+    SelectObject(hdc, hfont);
+  SIZE size;
+  RECT rect;
+  GetRelativeRect(hwndProgress, hwndDlg, &rect);
+
+  wchar_t text[1024];
+  GetWindowText(hwndProgress, text, 1024);
+
+  if (!GetTextExtentPoint32(hdc, text, wcslen(text), &size))
+    return;
+
+  if (size.cx < (rect.right - rect.left))
+    return;
+
+  // Figure out how much we need to resize things vertically
+  // This is sort of a fudge, but it should be good enough.
+  int wantedHeight = size.cy *
+    (int)ceil((float)size.cx / (float)(rect.right - rect.left));
+  int diff = wantedHeight - (rect.bottom - rect.top);
+  if (diff <= 0)
+    return;
+
+  MoveWindow(hwndProgress, rect.left, rect.top,
+             rect.right - rect.left,
+             wantedHeight,
+             TRUE);
+
+  gAttachedBottom.clear();
+  gAttachedBottom.insert(IDC_CLOSEBUTTON);
+  gAttachedBottom.insert(IDC_RESTARTBUTTON);
+
+  StretchDialog(hwndDlg, diff);
+
+  for (int i = 0; i < sizeof(kDefaultAttachedBottom) / sizeof(UINT); i++) {
+    gAttachedBottom.insert(kDefaultAttachedBottom[i]);
+  }
+}
+
 static void MaybeSendReport(HWND hwndDlg)
 {
   if (!IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK)) {
@@ -375,6 +479,22 @@ static void MaybeSendReport(HWND hwndDlg)
     return;
   }
 
+  // disable all the form controls
+  EnableWindow(GetDlgItem(hwndDlg, IDC_SUBMITREPORTCHECK), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_VIEWREPORTBUTTON), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_COMMENTTEXT), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_CLOSEBUTTON), false);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_RESTARTBUTTON), false);
+
+  SetDlgItemText(hwndDlg, IDC_PROGRESSTEXT, Str(ST_REPORTDURINGSUBMIT).c_str());
+  MaybeResizeProgressText(hwndDlg);
+  // start throbber
+  // play entire AVI, and loop
+  Animate_Play(GetDlgItem(hwndDlg, IDC_THROBBER), 0, -1, -1);
+  SetDlgItemVisible(hwndDlg, IDC_THROBBER, true);
   gThreadHandle = NULL;
   gSendData.hDlg = hwndDlg;
   gSendData.queryParameters = gQueryParameters;
@@ -425,32 +545,6 @@ static void ShowReportInfo(HWND hwndDlg)
   SetDlgItemText(hwndDlg, IDC_VIEWREPORTTEXT, description.c_str());
 }
 
-static void ShowHideReport(HWND hwndDlg)
-{
-  // When resizing the dialog to show the report, these items should
-  // stay put
-  gAttachedBottom.erase(IDC_VIEWREPORTCHECK);
-  gAttachedBottom.erase(IDC_VIEWREPORTTEXT);
-
-  RECT r;
-  HWND hwnd = GetDlgItem(hwndDlg, IDC_VIEWREPORTTEXT);
-
-  GetWindowRect(hwnd, &r);
-  int diff = (r.bottom - r.top) + 10;
-  if (IsDlgButtonChecked(hwndDlg, IDC_VIEWREPORTCHECK)) {
-    SetDlgItemVisible(hwndDlg, IDC_VIEWREPORTTEXT, true);
-  } else {
-    SetDlgItemVisible(hwndDlg, IDC_VIEWREPORTTEXT, false);
-    diff = -diff;
-  }
-
-  StretchDialog(hwndDlg, diff);
-
-  // set these back to normal
-  gAttachedBottom.insert(IDC_VIEWREPORTCHECK);
-  gAttachedBottom.insert(IDC_VIEWREPORTTEXT);
-}
-
 static void UpdateURL(HWND hwndDlg)
 {
   if (IsDlgButtonChecked(hwndDlg, IDC_INCLUDEURLCHECK)) {
@@ -466,10 +560,307 @@ static void UpdateEmail(HWND hwndDlg)
     wchar_t email[MAX_EMAIL_LENGTH];
     GetDlgItemText(hwndDlg, IDC_EMAILTEXT, email, sizeof(email));
     gQueryParameters[L"Email"] = email;
+    if (IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK))
+      EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), true);
   } else {
     gQueryParameters.erase(L"Email");
+    EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), false);
   }
 }
+
+static void UpdateComment(HWND hwndDlg)
+{
+  wchar_t comment[MAX_COMMENT_LENGTH + 1];
+  GetDlgItemText(hwndDlg, IDC_COMMENTTEXT, comment, sizeof(comment));
+  if (wcslen(comment) > 0)
+    gQueryParameters[L"Comments"] = comment;
+  else
+    gQueryParameters.erase(L"Comments");
+}
+
+/*
+ * Dialog procedure for the "view report" dialog.
+ */
+static BOOL CALLBACK ViewReportDialogProc(HWND hwndDlg, UINT message,
+                                          WPARAM wParam, LPARAM lParam)
+{
+  switch (message) {
+  case WM_INITDIALOG: {
+    SetWindowText(hwndDlg, Str(ST_VIEWREPORTTITLE).c_str());    
+    SetDlgItemText(hwndDlg, IDOK, Str(ST_OK).c_str());
+    SendDlgItemMessage(hwndDlg, IDC_VIEWREPORTTEXT,
+                       EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
+    ShowReportInfo(hwndDlg);
+    SetFocus(GetDlgItem(hwndDlg, IDOK));
+    return FALSE;
+  }
+
+  case WM_COMMAND: {
+    if (HIWORD(wParam) == BN_CLICKED && LOWORD(wParam) == IDOK)
+      EndDialog(hwndDlg, 0);
+    return FALSE;
+  }
+  }
+  return FALSE;
+}
+
+// Return the number of bytes this string will take encoded
+// in UTF-8
+static inline int BytesInUTF8(wchar_t* str)
+{
+  // Just count size of buffer for UTF-8, minus one
+  // (we don't need to count the null terminator)
+  return WideCharToMultiByte(CP_UTF8, 0, str, -1, NULL, 0, NULL, NULL) - 1;
+}
+
+// Calculate the length of the text in this edit control (in bytes,
+// in the UTF-8 encoding) after replacing the current selection
+// with |insert|.
+static int NewTextLength(HWND hwndEdit, wchar_t* insert)
+{
+  wchar_t current[MAX_COMMENT_LENGTH + 1];
+
+  GetWindowText(hwndEdit, current, MAX_COMMENT_LENGTH + 1);
+  DWORD selStart, selEnd;
+  SendMessage(hwndEdit, EM_GETSEL, (WPARAM)&selStart, (LPARAM)&selEnd);
+
+  int selectionLength = 0;
+  if (selEnd - selStart > 0) {
+    wchar_t selection[MAX_COMMENT_LENGTH + 1];
+    google_breakpad::WindowsStringUtils::safe_wcsncpy(selection,
+                                                      MAX_COMMENT_LENGTH + 1,
+                                                      current + selStart,
+                                                      selEnd - selStart);
+    selection[selEnd - selStart] = '\0';
+    selectionLength = BytesInUTF8(selection);
+  }
+
+  // current string length + replacement text length
+  // - replaced selection length
+  return BytesInUTF8(current) + BytesInUTF8(insert) - selectionLength;
+}
+
+// Window procedure for subclassing edit controls
+static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
+                                         LPARAM lParam)
+{
+  static WNDPROC super = NULL;
+
+  if (super == NULL)
+    super = (WNDPROC)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+  switch (uMsg) {
+  case WM_PAINT: {
+    HDC hdc;
+    PAINTSTRUCT ps;
+    RECT r;
+    wchar_t windowText[1024];
+
+    GetWindowText(hwnd, windowText, 1024);
+    // if the control contains text or is focused, draw it normally
+    if (GetFocus() == hwnd || windowText[0] != '\0')
+      return CallWindowProc(super, hwnd, uMsg, wParam, lParam);
+    
+    GetClientRect(hwnd, &r);
+    hdc = BeginPaint(hwnd, &ps);
+    FillRect(hdc, &r, GetSysColorBrush(IsWindowEnabled(hwnd)
+                                       ? COLOR_WINDOW : COLOR_BTNFACE));
+    SetTextColor(hdc, GetSysColor(COLOR_GRAYTEXT));
+    SelectObject(hdc, (HFONT)GetStockObject(DEFAULT_GUI_FONT));
+    SetBkMode(hdc, TRANSPARENT);
+    wchar_t* txt = (wchar_t*)GetProp(hwnd, L"PROP_GRAYTEXT");
+    // Get the actual edit control rect
+    CallWindowProc(super, hwnd, EM_GETRECT, 0, (LPARAM)&r);
+    UINT format = DT_EDITCONTROL | DT_NOPREFIX | DT_WORDBREAK | DT_INTERNAL;
+    if (gRTLlayout)
+      format |= DT_RIGHT;
+    if (txt)
+      DrawText(hdc, txt, wcslen(txt), &r, format);
+    EndPaint(hwnd, &ps);
+    return 0;
+  }
+
+    // We handle WM_CHAR and WM_PASTE to limit the comment box to 500
+    // bytes in UTF-8.
+  case WM_CHAR: {
+    // Leave accelerator keys and non-printing chars (except LF) alone
+    if (wParam & (1<<24) || wParam & (1<<29) ||
+        (wParam < ' ' && wParam != '\n'))
+      break;
+  
+    wchar_t ch[2] = { (wchar_t)wParam, 0 };
+    if (NewTextLength(hwnd, ch) > MAX_COMMENT_LENGTH)
+      return 0;
+
+    break;
+  }
+
+  case WM_PASTE: {
+    if (IsClipboardFormatAvailable(CF_UNICODETEXT) &&
+        OpenClipboard(hwnd)) {
+      HGLOBAL hg = GetClipboardData(CF_UNICODETEXT); 
+      wchar_t* pastedText = (wchar_t*)GlobalLock(hg);
+      int newSize = 0;
+
+      if (pastedText)
+        newSize = NewTextLength(hwnd, pastedText);
+
+      GlobalUnlock(hg);
+      CloseClipboard();
+
+      if (newSize > MAX_COMMENT_LENGTH)
+        return 0;
+    }
+    break;
+  }
+
+  case WM_SETFOCUS:
+  case WM_KILLFOCUS: {
+    RECT r;
+    GetClientRect(hwnd, &r);
+    InvalidateRect(hwnd, &r, TRUE);
+    break;
+  }
+
+  case WM_DESTROY: {
+    // cleanup our property
+    HGLOBAL hData = RemoveProp(hwnd, L"PROP_GRAYTEXT");
+    if (hData)
+      GlobalFree(hData);
+  }
+  }
+
+  return CallWindowProc(super, hwnd, uMsg, wParam, lParam);
+}
+
+// Resize a control to fit this text
+static int ResizeControl(HWND hwndButton, RECT& rect, wstring text,
+                         bool shiftLeft, int userDefinedPadding)
+{
+  HDC hdc = GetDC(hwndButton);
+  HFONT hfont = (HFONT)SendMessage(hwndButton, WM_GETFONT, 0, 0);
+  if (hfont)
+    SelectObject(hdc, hfont);
+  SIZE size, oldSize;
+  int sizeDiff = 0;
+
+  wchar_t oldText[1024];
+  GetWindowText(hwndButton, oldText, 1024);
+
+  if (GetTextExtentPoint32(hdc, text.c_str(), text.length(), &size)
+      // default text on the button
+      && GetTextExtentPoint32(hdc, oldText, wcslen(oldText), &oldSize)) {
+    /*
+     Expand control widths to accomidate wider text strings. For most
+     controls (including buttons) the text padding is defined by the
+     dialog's rc file. Some controls (such as checkboxes) have padding
+     that extends to the end of the dialog, in which case we ignore the
+     rc padding and rely on a user defined value passed in through
+     userDefinedPadding.
+    */
+    int textIncrease = size.cx - oldSize.cx;
+    if (textIncrease < 0)
+      return 0;
+    int existingTextPadding;
+    if (userDefinedPadding == 0) 
+      existingTextPadding = (rect.right - rect.left) - oldSize.cx;
+    else 
+      existingTextPadding = userDefinedPadding;
+    sizeDiff = textIncrease + existingTextPadding;
+
+    if (shiftLeft) {
+      // shift left by the amount the button should grow
+      rect.left -= sizeDiff;
+    }
+    else {
+      // grow right instead
+      rect.right += sizeDiff;
+    }
+    MoveWindow(hwndButton, rect.left, rect.top,
+               rect.right - rect.left,
+               rect.bottom - rect.top,
+               TRUE);
+  }
+  return sizeDiff;
+}
+
+// The window was resized horizontally, so widen some of our
+// controls to make use of the space
+static void StretchControlsToFit(HWND hwndDlg)
+{
+  int controls[] = {
+    IDC_DESCRIPTIONTEXT,
+    IDC_SUBMITREPORTCHECK,
+    IDC_COMMENTTEXT,
+    IDC_INCLUDEURLCHECK,
+    IDC_EMAILMECHECK,
+    IDC_EMAILTEXT,
+    IDC_PROGRESSTEXT
+  };
+
+  RECT dlgRect;
+  GetClientRect(hwndDlg, &dlgRect);
+
+  for (int i=0; i<sizeof(controls)/sizeof(controls[0]); i++) {
+    RECT r;
+    HWND hwndControl = GetDlgItem(hwndDlg, controls[i]);
+    GetRelativeRect(hwndControl, hwndDlg, &r);
+    // 6 pixel spacing on the right
+    if (r.right + 6 != dlgRect.right) {
+      r.right = dlgRect.right - 6;
+      MoveWindow(hwndControl, r.left, r.top,
+                 r.right - r.left,
+                 r.bottom - r.top,
+                 TRUE);
+    }
+  }
+}
+
+static void SubmitReportChecked(HWND hwndDlg)
+{
+  bool enabled = (IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK) != 0);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_VIEWREPORTBUTTON), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_COMMENTTEXT), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), enabled);
+  EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT),
+               enabled && (IsDlgButtonChecked(hwndDlg, IDC_EMAILMECHECK)
+                           != 0));
+  SetDlgItemVisible(hwndDlg, IDC_PROGRESSTEXT, enabled);
+}
+
+static INT_PTR DialogBoxParamMaybeRTL(UINT idd, HWND hwndParent,
+                                      DLGPROC dlgProc, LPARAM param)
+{
+  INT_PTR rv = 0;
+  if (gRTLlayout) {
+    // We need to toggle the WS_EX_LAYOUTRTL style flag on the dialog
+    // template.
+    HRSRC hDialogRC = FindResource(NULL, MAKEINTRESOURCE(idd),
+                                   RT_DIALOG);
+    HGLOBAL  hDlgTemplate = LoadResource(NULL, hDialogRC);
+    DLGTEMPLATEEX* pDlgTemplate = (DLGTEMPLATEEX*)LockResource(hDlgTemplate);
+    unsigned long sizeDlg = SizeofResource(NULL, hDialogRC);
+    HGLOBAL hMyDlgTemplate = GlobalAlloc(GPTR, sizeDlg);
+     DLGTEMPLATEEX* pMyDlgTemplate =
+      (DLGTEMPLATEEX*)GlobalLock(hMyDlgTemplate);
+    memcpy(pMyDlgTemplate, pDlgTemplate, sizeDlg);
+
+    pMyDlgTemplate->exStyle |= WS_EX_LAYOUTRTL;
+
+    rv = DialogBoxIndirectParam(NULL, (LPCDLGTEMPLATE)pMyDlgTemplate,
+                                hwndParent, dlgProc, param);
+    GlobalUnlock(hMyDlgTemplate);
+    GlobalFree(hMyDlgTemplate);
+  }
+  else {
+    rv = DialogBoxParam(NULL, MAKEINTRESOURCE(idd), hwndParent,
+                        dlgProc, param);
+  }
+
+  return rv;
+}
+
 
 static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
                                              WPARAM wParam, LPARAM lParam)
@@ -481,15 +872,161 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
 
   switch (message) {
   case WM_INITDIALOG: {
+    GetThemeSizes(hwndDlg);
     RECT r;
     GetClientRect(hwndDlg, &r);
     sHeight = r.bottom - r.top;
 
     SetWindowText(hwndDlg, Str(ST_CRASHREPORTERTITLE).c_str());
+    HICON hIcon = LoadIcon(GetModuleHandle(NULL),
+                           MAKEINTRESOURCE(IDI_MAINICON));
+    SendMessage(hwndDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+    SendMessage(hwndDlg, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
 
+    // resize the "View Report" button based on the string length
+    RECT rect;
+    HWND hwnd = GetDlgItem(hwndDlg, IDC_VIEWREPORTBUTTON);
+    GetRelativeRect(hwnd, hwndDlg, &rect);
+    ResizeControl(hwnd, rect, Str(ST_VIEWREPORT), false, 0);
+    SetDlgItemText(hwndDlg, IDC_VIEWREPORTBUTTON, Str(ST_VIEWREPORT).c_str());
+
+    hwnd = GetDlgItem(hwndDlg, IDC_SUBMITREPORTCHECK);
+    GetRelativeRect(hwnd, hwndDlg, &rect);
+    int maxdiff = ResizeControl(hwnd, rect, Str(ST_CHECKSUBMIT), false,
+                                gCheckboxPadding);
+    SetDlgItemText(hwndDlg, IDC_SUBMITREPORTCHECK,
+                   Str(ST_CHECKSUBMIT).c_str());
+
+    if (!CheckBoolKey(gCrashReporterKey.c_str(),
+                      SUBMIT_REPORT_VALUE, &enabled))
+      enabled = ShouldEnableSending();
+
+    CheckDlgButton(hwndDlg, IDC_SUBMITREPORTCHECK, enabled ? BST_CHECKED
+                                                           : BST_UNCHECKED);
+    SubmitReportChecked(hwndDlg);
+
+    HWND hwndComment = GetDlgItem(hwndDlg, IDC_COMMENTTEXT);
+    WNDPROC OldWndProc = (WNDPROC)SetWindowLongPtr(hwndComment,
+                                                   GWLP_WNDPROC,
+                                                   (LONG_PTR)EditSubclassProc);
+
+    // Subclass comment edit control to get placeholder text
+    SetWindowLongPtr(hwndComment, GWLP_USERDATA, (LONG_PTR)OldWndProc);
+    wstring commentGrayText = Str(ST_COMMENTGRAYTEXT);
+    wchar_t* hMem = (wchar_t*)GlobalAlloc(GPTR, (commentGrayText.length() + 1)*sizeof(wchar_t));
+    wcscpy(hMem, commentGrayText.c_str());
+    SetProp(hwndComment, L"PROP_GRAYTEXT", hMem);
+
+    hwnd = GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK);
+    GetRelativeRect(hwnd, hwndDlg, &rect);
+    int diff = ResizeControl(hwnd, rect, Str(ST_CHECKURL), false,
+                             gCheckboxPadding);
+    maxdiff = max(diff, maxdiff);
+    SetDlgItemText(hwndDlg, IDC_INCLUDEURLCHECK, Str(ST_CHECKURL).c_str());
+
+    // want this on by default
+    if (CheckBoolKey(gCrashReporterKey.c_str(), INCLUDE_URL_VALUE, &enabled) &&
+        !enabled) {
+      CheckDlgButton(hwndDlg, IDC_INCLUDEURLCHECK, BST_UNCHECKED);
+    } else {
+      CheckDlgButton(hwndDlg, IDC_INCLUDEURLCHECK, BST_CHECKED);
+    }
+
+    hwnd = GetDlgItem(hwndDlg, IDC_EMAILMECHECK);
+    GetRelativeRect(hwnd, hwndDlg, &rect);
+    diff = ResizeControl(hwnd, rect, Str(ST_CHECKEMAIL), false,
+                         gCheckboxPadding);
+    maxdiff = max(diff, maxdiff);
+    SetDlgItemText(hwndDlg, IDC_EMAILMECHECK, Str(ST_CHECKEMAIL).c_str());
+
+    if (CheckBoolKey(gCrashReporterKey.c_str(), EMAIL_ME_VALUE, &enabled) &&
+        enabled) {
+      CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_CHECKED);
+    } else {
+      CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_UNCHECKED);
+    }
+
+    wstring email;
+    if (GetStringKey(gCrashReporterKey.c_str(), EMAIL_VALUE, email)) {
+      SetDlgItemText(hwndDlg, IDC_EMAILTEXT, email.c_str());
+    }
+
+    // Subclass email edit control to get placeholder text
+    HWND hwndEmail = GetDlgItem(hwndDlg, IDC_EMAILTEXT);
+    OldWndProc = (WNDPROC)SetWindowLongPtr(hwndEmail,
+                                           GWLP_WNDPROC,
+                                           (LONG_PTR)EditSubclassProc);
+    SetWindowLongPtr(hwndEmail, GWLP_USERDATA, (LONG_PTR)OldWndProc);
+    wstring emailGrayText = Str(ST_EMAILGRAYTEXT);
+    hMem = (wchar_t*)GlobalAlloc(GPTR, (emailGrayText.length() + 1)*sizeof(wchar_t));
+    wcscpy(hMem, emailGrayText.c_str());
+    SetProp(hwndEmail, L"PROP_GRAYTEXT", hMem);
+
+    SetDlgItemText(hwndDlg, IDC_PROGRESSTEXT, Str(ST_REPORTPRESUBMIT).c_str());
+
+    RECT closeRect;
+    HWND hwndClose = GetDlgItem(hwndDlg, IDC_CLOSEBUTTON);
+    GetRelativeRect(hwndClose, hwndDlg, &closeRect);
+
+    RECT restartRect;
+    HWND hwndRestart = GetDlgItem(hwndDlg, IDC_RESTARTBUTTON);
+    GetRelativeRect(hwndRestart, hwndDlg, &restartRect);
+
+    // set the close button text and shift the buttons around
+    // since the size may need to change
+    int sizeDiff = ResizeControl(hwndClose, closeRect, Str(ST_QUIT),
+                                 true, 0);
+    restartRect.left -= sizeDiff;
+    restartRect.right -= sizeDiff;
+    SetDlgItemText(hwndDlg, IDC_CLOSEBUTTON, Str(ST_QUIT).c_str());
+
+    if (gRestartArgs.size() > 0) {
+      // Resize restart button to fit text
+      ResizeControl(hwndRestart, restartRect, Str(ST_RESTART), true, 0);
+      SetDlgItemText(hwndDlg, IDC_RESTARTBUTTON, Str(ST_RESTART).c_str());
+    } else {
+      // No restart arguments, so just hide the restart button
+      SetDlgItemVisible(hwndDlg, IDC_RESTARTBUTTON, false);
+    }
+    // See if we need to widen the window
+    // Leave 6 pixels on either side + 6 pixels between the buttons
+    int neededSize = closeRect.right - closeRect.left +
+      restartRect.right - restartRect.left + 6 * 3;
+    GetClientRect(hwndDlg, &r);
+    // We may already have resized one of the checkboxes above
+    maxdiff = max(maxdiff, neededSize - (r.right - r.left));
+
+    if (maxdiff > 0) {
+      // widen window
+      GetWindowRect(hwndDlg, &r);
+      r.right += maxdiff;
+      MoveWindow(hwndDlg, r.left, r.top,
+                 r.right - r.left, r.bottom - r.top, TRUE);
+      // shift both buttons right
+      if (restartRect.left + maxdiff < 6)
+        maxdiff += 6;
+      closeRect.left += maxdiff;
+      closeRect.right += maxdiff;
+      restartRect.left += maxdiff;
+      restartRect.right += maxdiff;
+      MoveWindow(hwndClose, closeRect.left, closeRect.top,
+                 closeRect.right - closeRect.left,
+                 closeRect.bottom - closeRect.top,
+                 TRUE);
+      StretchControlsToFit(hwndDlg);
+    }
+    // need to move the restart button regardless
+    MoveWindow(hwndRestart, restartRect.left, restartRect.top,
+               restartRect.right - restartRect.left,
+               restartRect.bottom - restartRect.top,
+               TRUE);
+
+    // Resize the description text last, in case the window was resized
+    // before this.
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
                        EM_SETEVENTMASK, (WPARAM)NULL,
                        ENM_REQUESTRESIZE);
+    
     wstring description = Str(ST_CRASHREPORTERHEADER);
     description += L"\n\n";
     description += Str(ST_CRASHREPORTERDESCRIPTION);
@@ -505,108 +1042,9 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETCHARFORMAT,
                        SCF_SELECTION, (LPARAM)&fmt);
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETSEL, 0, 0);
+
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
                        EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
-
-    // resize the "View Report" button based on the string length
-    RECT viewRect;
-    HWND hwndView = GetDlgItem(hwndDlg, IDC_VIEWREPORTCHECK);
-    GetRelativeRect(hwndView, hwndDlg, &viewRect);
-    HDC hdc = GetDC(hwndView);
-    const wstring viewButtonText = Str(ST_VIEWREPORT);
-    SIZE size;
-    if (GetTextExtentPoint32(hdc, viewButtonText.c_str(),
-                             viewButtonText.length(), &size)) {
-      // shift right by the amount the button should grow
-      int sizeDiff = size.cx - (viewRect.right - viewRect.left);
-      viewRect.right += sizeDiff;
-      MoveWindow(hwndView, viewRect.left, viewRect.top,
-                 viewRect.right - viewRect.left,
-                 viewRect.bottom - viewRect.top,
-                 TRUE);
-    }
-    SetDlgItemText(hwndDlg, IDC_VIEWREPORTCHECK, viewButtonText.c_str());
-    SendDlgItemMessage(hwndDlg, IDC_VIEWREPORTTEXT,
-                       EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
-
-
-    SetDlgItemText(hwndDlg, IDC_SUBMITREPORTCHECK,
-                   Str(ST_CHECKSUBMIT).c_str());
-    if (CheckBoolKey(gCrashReporterKey.c_str(),
-                     SUBMIT_REPORT_VALUE, &enabled) &&
-        !enabled) {
-      CheckDlgButton(hwndDlg, IDC_SUBMITREPORTCHECK, BST_UNCHECKED);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), enabled);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), enabled);
-      EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), enabled);
-    } else {
-      CheckDlgButton(hwndDlg, IDC_SUBMITREPORTCHECK, BST_CHECKED);
-    }
-
-    SetDlgItemText(hwndDlg, IDC_INCLUDEURLCHECK, Str(ST_CHECKURL).c_str());
-    // want this on by default
-    if (CheckBoolKey(gCrashReporterKey.c_str(), INCLUDE_URL_VALUE, &enabled) &&
-        !enabled) {
-      CheckDlgButton(hwndDlg, IDC_INCLUDEURLCHECK, BST_UNCHECKED);
-    } else {
-      CheckDlgButton(hwndDlg, IDC_INCLUDEURLCHECK, BST_CHECKED);
-    }
-
-    SetDlgItemText(hwndDlg, IDC_EMAILMECHECK, Str(ST_CHECKEMAIL).c_str());
-    if (CheckBoolKey(gCrashReporterKey.c_str(), EMAIL_ME_VALUE, &enabled) &&
-        enabled) {
-      CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_CHECKED);
-    } else {
-      CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_UNCHECKED);
-    }
-
-    wstring email;
-    if (GetStringKey(gCrashReporterKey.c_str(), EMAIL_VALUE, email)) {
-      SetDlgItemText(hwndDlg, IDC_EMAILTEXT, email.c_str());
-    }
-
-    SetDlgItemText(hwndDlg, IDC_CLOSEBUTTON, Str(ST_CLOSE).c_str());
-
-    RECT closeRect;
-    HWND hwndClose = GetDlgItem(hwndDlg, IDC_CLOSEBUTTON);
-    GetRelativeRect(hwndClose, hwndDlg, &closeRect);
-
-    RECT restartRect;
-    HWND hwndRestart = GetDlgItem(hwndDlg, IDC_RESTARTBUTTON);
-    GetRelativeRect(hwndRestart, hwndDlg, &restartRect);
-
-    if (gRestartArgs.size() > 0) {
-      // set the restart button text and shift the buttons around
-      // since the size may need to change
-      hdc = GetDC(hwndRestart);
-      const wstring restartButtonText = Str(ST_RESTART);
-      if (GetTextExtentPoint32(hdc, restartButtonText.c_str(),
-                               restartButtonText.length(), &size)) {
-        // shift left by the amount the button should grow
-        int sizeDiff = size.cx - (restartRect.right - restartRect.left);
-        restartRect.left -= sizeDiff;
-        closeRect.left -= sizeDiff;
-        closeRect.right -= sizeDiff;
-        MoveWindow(hwndRestart, restartRect.left, restartRect.top,
-                   restartRect.right - restartRect.left,
-                   restartRect.bottom - restartRect.top,
-                   TRUE);
-      }
-      SetDlgItemText(hwndDlg, IDC_RESTARTBUTTON, restartButtonText.c_str());
-    } else {
-      // No restart arguments, move the close button over to the side
-      // and hide the restart button
-      SetDlgItemVisible(hwndDlg, IDC_RESTARTBUTTON, false);
-
-      int size = closeRect.right - closeRect.left;
-      closeRect.right = restartRect.right;
-      closeRect.left = closeRect.right - size;
-    }
-    // need to move the close button regardless
-    MoveWindow(hwndClose, closeRect.left, closeRect.top,
-               closeRect.right - closeRect.left,
-               closeRect.bottom - closeRect.top,
-               TRUE);
 
     // if no URL was given, hide the URL checkbox
     if (gQueryParameters.find(L"URL") == gQueryParameters.end()) {
@@ -616,22 +1054,27 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
 
       SetDlgItemVisible(hwndDlg, IDC_INCLUDEURLCHECK, false);
 
-      gAttachedBottom.erase(IDC_VIEWREPORTCHECK);
-      gAttachedBottom.erase(IDC_VIEWREPORTTEXT);
+      gAttachedBottom.erase(IDC_VIEWREPORTBUTTON);
       gAttachedBottom.erase(IDC_SUBMITREPORTCHECK);
+      gAttachedBottom.erase(IDC_COMMENTTEXT);
 
       StretchDialog(hwndDlg, urlCheckRect.top - emailCheckRect.top);
 
-      gAttachedBottom.insert(IDC_VIEWREPORTCHECK);
-      gAttachedBottom.insert(IDC_VIEWREPORTTEXT);
+      gAttachedBottom.insert(IDC_VIEWREPORTBUTTON);
       gAttachedBottom.insert(IDC_SUBMITREPORTCHECK);
+      gAttachedBottom.insert(IDC_COMMENTTEXT);
     }
+
+    MaybeResizeProgressText(hwndDlg);
+
+    // Open the AVI resource for the throbber
+    Animate_Open(GetDlgItem(hwndDlg, IDC_THROBBER),
+                 MAKEINTRESOURCE(IDR_THROBBER));
 
     UpdateURL(hwndDlg);
     UpdateEmail(hwndDlg);
-    ShowReportInfo(hwndDlg);
 
-    SetFocus(GetDlgItem(hwndDlg, IDC_EMAILTEXT));
+    SetFocus(GetDlgItem(hwndDlg, IDC_SUBMITREPORTCHECK));
     return FALSE;
   }
   case WM_SIZE: {
@@ -662,33 +1105,23 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
   case WM_COMMAND: {
     if (HIWORD(wParam) == BN_CLICKED) {
       switch(LOWORD(wParam)) {
-      case IDC_VIEWREPORTCHECK:
-        ShowHideReport(hwndDlg);
+      case IDC_VIEWREPORTBUTTON:
+        DialogBoxParamMaybeRTL(IDD_VIEWREPORTDIALOG, hwndDlg,
+                       (DLGPROC)ViewReportDialogProc, 0);
         break;
       case IDC_SUBMITREPORTCHECK:
-        enabled = (IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK) != 0);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK), enabled);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILMECHECK), enabled);
-        EnableWindow(GetDlgItem(hwndDlg, IDC_EMAILTEXT), enabled);
+        SubmitReportChecked(hwndDlg);
         break;
       case IDC_INCLUDEURLCHECK:
         UpdateURL(hwndDlg);
-        ShowReportInfo(hwndDlg);
         break;
       case IDC_EMAILMECHECK:
         UpdateEmail(hwndDlg);
-        ShowReportInfo(hwndDlg);
         break;
       case IDC_CLOSEBUTTON:
-        // Hide the dialog after "closing", but leave it around to coordinate
-        // with the upload thread
-        ShowWindow(hwndDlg, SW_HIDE);
         MaybeSendReport(hwndDlg);
         break;
       case IDC_RESTARTBUTTON:
-        // Hide the dialog after "closing", but leave it around to coordinate
-        // with the upload thread
-        ShowWindow(hwndDlg, SW_HIDE);
         RestartApplication();
         MaybeSendReport(hwndDlg);
         break;
@@ -696,13 +1129,10 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     } else if (HIWORD(wParam) == EN_CHANGE) {
       switch(LOWORD(wParam)) {
       case IDC_EMAILTEXT:
-        wchar_t email[MAX_EMAIL_LENGTH];
-        if (GetDlgItemText(hwndDlg, IDC_EMAILTEXT, email, sizeof(email)) > 0)
-          CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_CHECKED);
-        else
-          CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_UNCHECKED);
         UpdateEmail(hwndDlg);
-        ShowReportInfo(hwndDlg);
+        break;
+      case IDC_COMMENTTEXT:
+        UpdateComment(hwndDlg);
       }
     }
 
@@ -712,15 +1142,44 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     WaitForSingleObject(gThreadHandle, INFINITE);
     success = (wParam == 1);
     SendCompleted(success, WideToUTF8(gSendData.serverResponse));
-    if (!success) {
-      MessageBox(hwndDlg,
-                 Str(ST_SUBMITFAILED).c_str(),
-                 Str(ST_CRASHREPORTERTITLE).c_str(),
-                 MB_OK | MB_ICONERROR);
-    }
-    EndCrashReporterDialog(hwndDlg, success ? 1 : 0);
+    // hide throbber
+    Animate_Stop(GetDlgItem(hwndDlg, IDC_THROBBER));
+    SetDlgItemVisible(hwndDlg, IDC_THROBBER, false);
+
+    SetDlgItemText(hwndDlg, IDC_PROGRESSTEXT,
+                   success ?
+                   Str(ST_REPORTSUBMITSUCCESS).c_str() :
+                   Str(ST_SUBMITFAILED).c_str());
+    MaybeResizeProgressText(hwndDlg);
+    // close dialog after 5 seconds
+    SetTimer(hwndDlg, 0, 5000, NULL);
+    //
     return TRUE;
   }
+
+  case WM_LBUTTONDOWN: {
+    HWND hwndEmail = GetDlgItem(hwndDlg, IDC_EMAILTEXT);
+    POINT p = { LOWORD(lParam), HIWORD(lParam) };
+    // if the email edit control is clicked, enable it,
+    // check the email checkbox, and focus the email edit control
+    if (ChildWindowFromPoint(hwndDlg, p) == hwndEmail &&
+        IsWindowEnabled(GetDlgItem(hwndDlg, IDC_RESTARTBUTTON)) &&
+        !IsWindowEnabled(hwndEmail) &&
+        IsDlgButtonChecked(hwndDlg, IDC_SUBMITREPORTCHECK) != 0) {
+      CheckDlgButton(hwndDlg, IDC_EMAILMECHECK, BST_CHECKED);
+      UpdateEmail(hwndDlg);
+      SetFocus(hwndEmail);
+    }
+    break;
+  }
+
+  case WM_TIMER: {
+    // The "1" gets used down in UIShowCrashUI to indicate that we at least
+    // tried to send the report.
+    EndCrashReporterDialog(hwndDlg, 1);
+    return FALSE;
+  }
+
   case WM_CLOSE: {
     EndCrashReporterDialog(hwndDlg, 0);
     return FALSE;
@@ -796,6 +1255,7 @@ bool UIInit()
   }
 
   DoInitCommonControls();
+
   return true;
 }
 
@@ -810,7 +1270,7 @@ void UIShowDefaultUI()
              MB_OK | MB_ICONSTOP);
 }
 
-void UIShowCrashUI(const string& dumpFile,
+bool UIShowCrashUI(const string& dumpFile,
                    const StringTable& queryParameters,
                    const string& sendURL,
                    const vector<string>& restartArgs)
@@ -830,16 +1290,20 @@ void UIShowCrashUI(const string& dumpFile,
     if (!gQueryParameters[L"Vendor"].empty()) {
       gCrashReporterKey += gQueryParameters[L"Vendor"] + L"\\";
     }
-    gCrashReporterKey += gQueryParameters[L"Name"] + L"\\Crash Reporter";
-  }  
+    gCrashReporterKey += gQueryParameters[L"ProductName"] + L"\\Crash Reporter";
+  }
 
   if (gQueryParameters.find(L"URL") != gQueryParameters.end())
     gURLParameter = gQueryParameters[L"URL"];
 
   gRestartArgs = restartArgs;
 
-  DialogBoxParam(NULL, MAKEINTRESOURCE(IDD_SENDDIALOG), NULL,
-                 (DLGPROC)CrashReporterDialogProc, 0);
+  if (gStrings.find("isRTL") != gStrings.end() &&
+      gStrings["isRTL"] == "yes")
+    gRTLlayout = true;
+
+  return 1 == DialogBoxParamMaybeRTL(IDD_SENDDIALOG, NULL,
+                                     (DLGPROC)CrashReporterDialogProc, 0);
 }
 
 void UIError_impl(const string& message)

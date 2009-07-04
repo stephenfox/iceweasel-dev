@@ -60,6 +60,7 @@
 #include "lgglue.h"
 #include "sftkpars.h"
 #include "secerr.h"
+#include "softoken.h"
 
 /*
  * We want all databases to have the same binary representation independent of
@@ -76,11 +77,18 @@ static PRBool
 sftkdb_isULONGAttribute(CK_ATTRIBUTE_TYPE type) 
 {
     switch(type) {
-    case CKA_CLASS:
-    case CKA_CERTIFICATE_TYPE:
     case CKA_CERTIFICATE_CATEGORY:
-    case CKA_KEY_TYPE:
+    case CKA_CERTIFICATE_TYPE:
+    case CKA_CLASS:
     case CKA_JAVA_MIDP_SECURITY_DOMAIN:
+    case CKA_KEY_GEN_MECHANISM:
+    case CKA_KEY_TYPE:
+    case CKA_MECHANISM_TYPE:
+    case CKA_MODULUS_BITS:
+    case CKA_PRIME_BITS:
+    case CKA_SUBPRIME_BITS:
+    case CKA_VALUE_BITS:
+    case CKA_VALUE_LEN:
 
     case CKA_TRUST_DIGITAL_SIGNATURE:
     case CKA_TRUST_NON_REPUDIATION:
@@ -163,6 +171,22 @@ sftk_ULong2SDBULong(unsigned char *data, CK_ULONG value)
 }
 
 /*
+ * convert a database ulong back to a native ULONG. (reverse of the above
+ * function.
+ */
+static CK_ULONG
+sftk_SDBULong2ULong(unsigned char *data)
+{
+    int i;
+    CK_ULONG value = 0;
+
+    for (i=0; i < SDB_ULONG_SIZE; i++) {
+	value |= (((CK_ULONG)data[i]) << (SDB_ULONG_SIZE-1-i)*BBP);
+    }
+    return value;
+}
+
+/*
  * fix up the input templates. Our fixed up ints are stored in data and must
  * be freed by the caller. The new template must also be freed. If there are no
  * CK_ULONG attributes, the orignal template is passed in as is.
@@ -232,6 +256,15 @@ sftkdb_fixupTemplateIn(const CK_ATTRIBUTE *template, int count,
 static const char SFTKDB_META_SIG_TEMPLATE[] = "sig_%s_%08x_%08x";
 
 /*
+ * return a string describing the database type (key or cert)
+ */
+const char *
+sftkdb_TypeString(SFTKDBHandle *handle)
+{
+   return (handle->type == SFTK_KEYDB_TYPE) ? "key" : "cert";
+}
+
+/*
  * Some attributes are signed with an Hmac and a pbe key generated from
  * the password. This signature is stored indexed by object handle and
  * attribute type in the meta data table in the key database.
@@ -255,7 +288,7 @@ sftkdb_getAttributeSignature(SFTKDBHandle *handle, SFTKDBHandle *keyHandle,
     db = SFTK_GET_SDB(keyHandle);
 
     sprintf(id, SFTKDB_META_SIG_TEMPLATE,
-	handle->type == SFTK_KEYDB_TYPE ? "key":"cert",
+	sftkdb_TypeString(handle),
 	(unsigned int)objectID, (unsigned int)type);
 
     crv = (*db->sdb_GetMetaData)(db, id, signText, NULL);
@@ -281,7 +314,7 @@ sftkdb_PutAttributeSignature(SFTKDBHandle *handle, SDB *keyTarget,
     CK_RV crv;
 
     sprintf(id, SFTKDB_META_SIG_TEMPLATE,
-	handle->type == SFTK_KEYDB_TYPE ? "key":"cert", 
+	sftkdb_TypeString(handle),
 	(unsigned int)objectID, (unsigned int)type);
 
     crv = (*keyTarget->sdb_PutMetaData)(keyTarget, id, signText, NULL);
@@ -296,7 +329,7 @@ static CK_RV
 sftkdb_fixupTemplateOut(CK_ATTRIBUTE *template, CK_OBJECT_HANDLE objectID,
 		CK_ATTRIBUTE *ntemplate, int count, SFTKDBHandle *handle)
 {
-    int i,j;
+    int i;
     CK_RV crv = CKR_OK;
     SFTKDBHandle *keyHandle;
     PRBool checkSig = PR_TRUE;
@@ -324,13 +357,11 @@ sftkdb_fixupTemplateOut(CK_ATTRIBUTE *template, CK_OBJECT_HANDLE objectID,
 	if (ntemplate[i].ulValueLen == SDB_ULONG_SIZE) {
 	    if (sftkdb_isULONGAttribute(template[i].type)) {
 		if (template[i].pValue) {
-		    CK_ULONG value = 0;
+		    CK_ULONG value;
 		    unsigned char *data;
 
 		    data = (unsigned char *)ntemplate[i].pValue;
-		    for (j=0; j < SDB_ULONG_SIZE; j++) {
-			value |= (((CK_ULONG)data[j]) << (SDB_ULONG_SIZE-1-j)*BBP);
-		    }
+		    value = sftk_SDBULong2ULong(ntemplate[i].pValue);
 		    if (length < sizeof(CK_ULONG)) {
 			template[i].ulValueLen = -1;
 			crv = CKR_BUFFER_TOO_SMALL;
@@ -474,7 +505,7 @@ sftkdb_fixupTemplateOut(CK_ATTRIBUTE *template, CK_OBJECT_HANDLE objectID,
 static CK_RV
 sftk_signTemplate(PLArenaPool *arena, SFTKDBHandle *handle, 
 		  PRBool mayBeUpdateDB,
-		  CK_OBJECT_HANDLE objectID, CK_ATTRIBUTE *template,
+		  CK_OBJECT_HANDLE objectID, const CK_ATTRIBUTE *template,
 		  CK_ULONG count)
 {
     int i;
@@ -542,32 +573,16 @@ sftkdb_CreateObject(PRArenaPool *arena, SFTKDBHandle *handle,
     PRBool inTransaction = PR_FALSE;
     CK_RV crv;
 
-    crv = (*db->sdb_Begin)(db);
-    if (crv != CKR_OK) {
-	goto loser;
-    }
     inTransaction = PR_TRUE;
+    
     crv = (*db->sdb_CreateObject)(db, objectID, template, count);
     if (crv != CKR_OK) {
 	goto loser;
     }
     crv = sftk_signTemplate(arena, handle, (db == handle->update),
 					*objectID, template, count);
-    if (crv != CKR_OK) {
-	goto loser;
-    }
-    crv = (*db->sdb_Commit)(db);
-    inTransaction = PR_FALSE;
-
 loser:
-    if (inTransaction) {
-	(*handle->db->sdb_Abort)(handle->db);
-	/* It is trivial to show the following code cannot
-	 * happen unless something is horribly wrong with our compilier or
-	 * hardware */
-	PORT_Assert(crv != CKR_OK);
-	if (crv == CKR_OK) crv = CKR_GENERAL_ERROR;
-    }
+
     return crv;
 }
 
@@ -676,6 +691,404 @@ sftk_ExtractTemplate(PLArenaPool *arena, SFTKObject *object,
 
 }
 
+/*
+ * return a pointer to the attribute in the give template.
+ * The return value is not const, as the caller may modify
+ * the given attribute value, but such modifications will
+ * modify the actual value in the template.
+ */
+static CK_ATTRIBUTE *
+sftkdb_getAttributeFromTemplate(CK_ATTRIBUTE_TYPE attribute, 
+			    CK_ATTRIBUTE *ptemplate, CK_ULONG len)
+{
+    CK_ULONG i;
+
+    for (i=0; i < len; i++) {
+	if (attribute == ptemplate[i].type) {
+	    return &ptemplate[i];
+	}
+    }
+    return NULL;
+}
+
+static const CK_ATTRIBUTE *
+sftkdb_getAttributeFromConstTemplate(CK_ATTRIBUTE_TYPE attribute, 
+				const CK_ATTRIBUTE *ptemplate, CK_ULONG len)
+{
+    CK_ULONG i;
+
+    for (i=0; i < len; i++) {
+	if (attribute == ptemplate[i].type) {
+	    return &ptemplate[i];
+	}
+    }
+    return NULL;
+}
+
+
+/*
+ * fetch a template which identifies 'unique' entries based on object type
+ */
+static CK_RV
+sftkdb_getFindTemplate(CK_OBJECT_CLASS objectType, unsigned char *objTypeData,
+			CK_ATTRIBUTE *findTemplate, CK_ULONG *findCount,
+			CK_ATTRIBUTE *ptemplate, int len)
+{
+    CK_ATTRIBUTE *attr;
+    CK_ULONG count = 1;
+
+    sftk_ULong2SDBULong(objTypeData, objectType);
+    findTemplate[0].type = CKA_CLASS;
+    findTemplate[0].pValue = objTypeData;
+    findTemplate[0].ulValueLen = SDB_ULONG_SIZE;
+
+    switch (objectType) {
+    case CKO_CERTIFICATE:
+    case CKO_NSS_TRUST:
+	attr = sftkdb_getAttributeFromTemplate(CKA_ISSUER, ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[1] = *attr;
+	attr = sftkdb_getAttributeFromTemplate(CKA_SERIAL_NUMBER, 
+					ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[2] = *attr;
+	count = 3;
+	break;
+	
+    case CKO_PRIVATE_KEY:
+    case CKO_PUBLIC_KEY:
+    case CKO_SECRET_KEY:
+	attr = sftkdb_getAttributeFromTemplate(CKA_ID, ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[1] = *attr;
+	count = 2;
+	break;
+
+    case CKO_NSS_CRL:
+	attr = sftkdb_getAttributeFromTemplate(CKA_SUBJECT, ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[1] = *attr;
+	count = 2;
+	break;
+
+    case CKO_NSS_SMIME:
+	attr = sftkdb_getAttributeFromTemplate(CKA_SUBJECT, ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[1] = *attr;
+	attr = sftkdb_getAttributeFromTemplate(CKA_NSS_EMAIL, ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[2] = *attr;
+	count = 3;
+	break;
+    default:
+	attr = sftkdb_getAttributeFromTemplate(CKA_VALUE, ptemplate, len);
+	if (attr == NULL) {
+	    return CKR_TEMPLATE_INCOMPLETE;
+	}
+	findTemplate[1] = *attr;
+	count = 2;
+	break;
+    }
+    *findCount = count;
+
+    return CKR_OK;
+}
+
+/*
+ * look to see if this object already exists and return it's object ID if
+ * it does.
+ */
+static CK_RV
+sftkdb_lookupObject(SDB *db, CK_OBJECT_CLASS objectType, 
+		 CK_OBJECT_HANDLE *id, CK_ATTRIBUTE *ptemplate, CK_ULONG len)
+{
+    CK_ATTRIBUTE findTemplate[3];
+    CK_ULONG count = 1;
+    CK_ULONG objCount = 0;
+    SDBFind *find = NULL;
+    unsigned char objTypeData[SDB_ULONG_SIZE];
+    CK_RV crv;
+
+    *id = CK_INVALID_HANDLE;
+    if (objectType == CKO_NSS_CRL) {
+	return CKR_OK;
+    }
+    crv = sftkdb_getFindTemplate(objectType, objTypeData,
+			findTemplate, &count, ptemplate, len);
+    if (crv != CKR_OK) {
+	return crv;
+    }
+
+    /* use the raw find, so we get the correct database */
+    crv = (*db->sdb_FindObjectsInit)(db, findTemplate, count, &find);
+    if (crv != CKR_OK) {
+	return crv;
+    }
+    (*db->sdb_FindObjects)(db, find, id, 1, &objCount);
+    (*db->sdb_FindObjectsFinal)(db, find);
+
+    if (objCount == 0) {
+	*id = CK_INVALID_HANDLE;
+    }
+    return CKR_OK;
+}
+
+
+/*
+ * check to see if this template conflicts with others in our current database.
+ */
+static CK_RV
+sftkdb_checkConflicts(SDB *db, CK_OBJECT_CLASS objectType, 
+			const CK_ATTRIBUTE *ptemplate, CK_ULONG len, 
+			CK_OBJECT_HANDLE sourceID)
+{
+    CK_ATTRIBUTE findTemplate[2];
+    unsigned char objTypeData[SDB_ULONG_SIZE];
+    /* we may need to allocate some temporaries. Keep track of what was 
+     * allocated so we can free it in the end */
+    unsigned char *temp1 = NULL; 
+    unsigned char *temp2 = NULL;
+    CK_ULONG objCount = 0;
+    SDBFind *find = NULL;
+    CK_OBJECT_HANDLE id;
+    const CK_ATTRIBUTE *attr, *attr2;
+    CK_RV crv;
+    CK_ATTRIBUTE subject;
+
+    /* Currently the only conflict is with nicknames pointing to the same 
+     * subject when creating or modifying a certificate. */
+    /* If the object is not a cert, no problem. */
+    if (objectType != CKO_CERTIFICATE) {
+	return CKR_OK;
+    }
+    /* if not setting a nickname then there's still no problem */
+    attr = sftkdb_getAttributeFromConstTemplate(CKA_LABEL, ptemplate, len);
+    if ((attr == NULL) || (attr->ulValueLen == 0)) {
+	return CKR_OK;
+    }
+    /* fetch the subject of the source. For creation and merge, this should
+     * be found in the template */
+    attr2 = sftkdb_getAttributeFromConstTemplate(CKA_SUBJECT, ptemplate, len);
+    if (sourceID == CK_INVALID_HANDLE) {
+	if ((attr2 == NULL) || ((CK_LONG)attr2->ulValueLen < 0)) {
+	    crv = CKR_TEMPLATE_INCOMPLETE; 
+	    goto done;
+	}
+    } else if ((attr2 == NULL) || ((CK_LONG)attr2->ulValueLen <= 0)) {
+	/* sourceID is set if we are trying to modify an existing entry instead
+	 * of creating a new one. In this case the subject may not be (probably
+	 * isn't) in the template, we have to read it from the database */
+    	subject.type = CKA_SUBJECT;
+    	subject.pValue = NULL;
+    	subject.ulValueLen = 0;
+    	crv = (*db->sdb_GetAttributeValue)(db, sourceID, &subject, 1);
+	if (crv != CKR_OK) {
+	    goto done;
+	}
+	if ((CK_LONG)subject.ulValueLen < 0) {
+	    crv = CKR_DEVICE_ERROR; /* closest pkcs11 error to corrupted DB */
+	    goto done;
+	}
+	temp1 = subject.pValue = PORT_Alloc(++subject.ulValueLen);
+	if (temp1 == NULL) {
+	    crv = CKR_HOST_MEMORY;
+	    goto done;
+	}
+    	crv = (*db->sdb_GetAttributeValue)(db, sourceID, &subject, 1);
+	if (crv != CKR_OK) {
+	    goto done;
+	}
+	attr2 = &subject;
+    }
+    
+    /* check for another cert in the database with the same nickname */
+    sftk_ULong2SDBULong(objTypeData, objectType);
+    findTemplate[0].type = CKA_CLASS;
+    findTemplate[0].pValue = objTypeData;
+    findTemplate[0].ulValueLen = SDB_ULONG_SIZE;
+    findTemplate[1] = *attr;
+
+    crv = (*db->sdb_FindObjectsInit)(db, findTemplate, 2, &find);
+    if (crv != CKR_OK) {
+	goto done;
+    }
+    (*db->sdb_FindObjects)(db, find, &id, 1, &objCount);
+    (*db->sdb_FindObjectsFinal)(db, find);
+
+    /* object count == 0 means no conflicting certs found, 
+     * go on with the operation */
+    if (objCount == 0) {
+	crv = CKR_OK;
+	goto done;
+    }
+
+    /* There is a least one cert that shares the nickname, make sure it also
+     * matches the subject. */
+    findTemplate[0] = *attr2;
+    /* we know how big the source subject was. Use that length to create the 
+     * space for the target. If it's not enough space, then it means the 
+     * source subject is too big, and therefore not a match. GetAttributeValue 
+     * will return CKR_BUFFER_TOO_SMALL. Otherwise it should be exactly enough 
+     * space (or enough space to be able to compare the result. */
+    temp2 = findTemplate[0].pValue = PORT_Alloc(++findTemplate[0].ulValueLen);
+    if (temp2 == NULL) {
+	crv = CKR_HOST_MEMORY;
+	goto done;
+    }
+    crv = (*db->sdb_GetAttributeValue)(db, id, findTemplate, 1);
+    if (crv != CKR_OK) {
+	if (crv == CKR_BUFFER_TOO_SMALL) {
+	    /* if our buffer is too small, then the Subjects clearly do 
+	     * not match */
+	    crv = CKR_ATTRIBUTE_VALUE_INVALID;
+	    goto loser;
+	}
+	/* otherwise we couldn't get the value, just fail */
+	goto done;
+    }
+	
+    /* Ok, we have both subjects, make sure they are the same. 
+     * Compare the subjects */
+    if ((findTemplate[0].ulValueLen != attr2->ulValueLen) || 
+	(attr2->ulValueLen > 0 &&
+	 PORT_Memcmp(findTemplate[0].pValue, attr2->pValue, attr2->ulValueLen) 
+	 != 0)) {
+    	crv = CKR_ATTRIBUTE_VALUE_INVALID; 
+	goto loser;
+    }
+    crv = CKR_OK;
+    
+done:
+    /* If we've failed for some other reason than a conflict, make sure we 
+     * return an error code other than CKR_ATTRIBUTE_VALUE_INVALID. 
+     * (NOTE: neither sdb_FindObjectsInit nor sdb_GetAttributeValue should 
+     * return CKR_ATTRIBUTE_VALUE_INVALID, so the following is paranoia).
+     */
+    if (crv == CKR_ATTRIBUTE_VALUE_INVALID) {
+	crv = CKR_GENERAL_ERROR; /* clearly a programming error */
+    }
+
+    /* exit point if we found a conflict */
+loser:
+    PORT_Free(temp1);
+    PORT_Free(temp2);
+    return crv;
+}
+
+/*
+ * try to update the template to fix any errors. This is only done 
+ * during update.
+ *
+ * NOTE: we must update the template or return an error, or the update caller 
+ * will loop forever!
+ *
+ * Two copies of the source code for this algorithm exist in NSS.  
+ * Changes must be made in both copies.
+ * The other copy is in pk11_IncrementNickname() in pk11wrap/pk11merge.c.
+ *
+ */
+static CK_RV
+sftkdb_resolveConflicts(PRArenaPool *arena, CK_OBJECT_CLASS objectType, 
+			CK_ATTRIBUTE *ptemplate, CK_ULONG *plen)
+{
+    CK_ATTRIBUTE *attr;
+    char *nickname, *newNickname;
+    int end, digit;
+
+    /* sanity checks. We should never get here with these errors */
+    if (objectType != CKO_CERTIFICATE) {
+	return CKR_GENERAL_ERROR; /* shouldn't happen */
+    }
+    attr = sftkdb_getAttributeFromTemplate(CKA_LABEL, ptemplate, *plen);
+    if ((attr == NULL) || (attr->ulValueLen == 0)) {
+	return CKR_GENERAL_ERROR; /* shouldn't happen */
+    }
+
+    /* update the nickname */
+    /* is there a number at the end of the nickname already?
+     * if so just increment that number  */
+    nickname = (char *)attr->pValue;
+
+    /* does nickname end with " #n*" ? */
+    for (end = attr->ulValueLen - 1; 
+         end >= 2 && (digit = nickname[end]) <= '9' &&  digit >= '0'; 
+	 end--)  /* just scan */ ;
+    if (attr->ulValueLen >= 3 &&
+        end < (attr->ulValueLen - 1) /* at least one digit */ &&
+	nickname[end]     == '#'  && 
+	nickname[end - 1] == ' ') {
+    	/* Already has a suitable suffix string */
+    } else {
+	/* ... append " #2" to the name */
+	static const char num2[] = " #2";
+	newNickname = PORT_ArenaAlloc(arena, attr->ulValueLen + sizeof(num2));
+	if (!newNickname) {
+	    return CKR_HOST_MEMORY;
+	}
+	PORT_Memcpy(newNickname, nickname, attr->ulValueLen);
+	PORT_Memcpy(&newNickname[attr->ulValueLen], num2, sizeof(num2));
+	attr->pValue = newNickname; /* modifies ptemplate */
+	attr->ulValueLen += 3;      /* 3 is strlen(num2)  */
+	return CKR_OK;
+    }
+
+    for (end = attr->ulValueLen - 1; 
+	 end >= 0 && (digit = nickname[end]) <= '9' &&  digit >= '0'; 
+	 end--) {
+	if (digit < '9') {
+	    nickname[end]++;
+	    return CKR_OK;
+	}
+	nickname[end] = '0';
+    }
+
+    /* we overflowed, insert a new '1' for a carry in front of the number */
+    newNickname = PORT_ArenaAlloc(arena, attr->ulValueLen + 1);
+    if (!newNickname) {
+	return CKR_HOST_MEMORY;
+    }
+    /* PORT_Memcpy should handle len of '0' */
+    PORT_Memcpy(newNickname, nickname, ++end);
+    newNickname[end] = '1';
+    PORT_Memset(&newNickname[end+1],'0',attr->ulValueLen - end);
+    attr->pValue = newNickname;
+    attr->ulValueLen++;
+    return CKR_OK;
+}
+
+/*
+ * set an attribute and sign it if necessary
+ */
+static CK_RV
+sftkdb_setAttributeValue(PRArenaPool *arena, SFTKDBHandle *handle, 
+	SDB *db, CK_OBJECT_HANDLE objectID, const CK_ATTRIBUTE *template, 
+	CK_ULONG count)
+{
+    CK_RV crv;
+    crv = (*db->sdb_SetAttributeValue)(db, objectID, template, count);
+    if (crv != CKR_OK) {
+	return crv;
+    }
+    crv = sftk_signTemplate(arena, handle, db == handle->update, 
+				objectID, template, count);
+    return crv;
+}
+
+/*
+ * write a softoken object out to the database.
+ */
 CK_RV
 sftkdb_write(SFTKDBHandle *handle, SFTKObject *object, 
 	     CK_OBJECT_HANDLE *objectID)
@@ -685,6 +1098,8 @@ sftkdb_write(SFTKDBHandle *handle, SFTKObject *object,
     CK_ULONG count;
     CK_RV crv;
     SDB *db;
+    PRBool inTransaction = PR_FALSE;
+    CK_OBJECT_HANDLE id;
 
     *objectID = CK_INVALID_HANDLE;
 
@@ -692,6 +1107,17 @@ sftkdb_write(SFTKDBHandle *handle, SFTKObject *object,
 	return  CKR_TOKEN_WRITE_PROTECTED;
     }
     db = SFTK_GET_SDB(handle);
+
+    /*
+     * we have opened a new database, but we have not yet updated it. We are
+     * still running pointing to the old database (so the application can 
+     * still read). We don't want to write to the old database at this point,
+     * however, since it leads to user confusion. So at this point we simply
+     * require a user login. Let NSS know this so it can prompt the user.
+     */
+    if (db == handle->update) {
+	return CKR_USER_NOT_LOGGED_IN;
+    }
 
     arena = PORT_NewArena(256);
     if (arena ==  NULL) {
@@ -703,9 +1129,62 @@ sftkdb_write(SFTKDBHandle *handle, SFTKObject *object,
 	goto loser;
     }
 
-    crv = sftkdb_CreateObject(arena, handle, db, objectID, template, count);
+    crv = (*db->sdb_Begin)(db);
+    if (crv != CKR_OK) {
+	goto loser;
+    }
+    inTransaction = PR_TRUE;
+
+    /*
+     * We want to make the base database as free from object specific knowledge
+     * as possible. To maintain compatibility, keep some of the desirable
+     * object specific semantics of the old database.
+     * 
+     * These were 2 fold:
+     *  1) there were certain conflicts (like trying to set the same nickname 
+     * on two different subjects) that would return an error.
+     *  2) Importing the 'same' object would silently update that object.
+     *
+     * The following 2 functions mimic the desirable effects of these two
+     * semantics without pushing any object knowledge to the underlying database
+     * code.
+     */
+
+    /* make sure we don't have attributes that conflict with the existing DB */
+    crv = sftkdb_checkConflicts(db, object->objclass, template, count,
+				 CK_INVALID_HANDLE);
+    if (crv != CKR_OK) {
+	goto loser;
+    }
+    /* Find any copies that match this particular object */
+    crv = sftkdb_lookupObject(db, object->objclass, &id, template, count);
+    if (crv != CKR_OK) {
+	goto loser;
+    }
+    if (id == CK_INVALID_HANDLE) {
+        crv = sftkdb_CreateObject(arena, handle, db, objectID, template, count);
+    } else {
+	/* object already exists, modify it's attributes */
+	*objectID = id;
+        crv = sftkdb_setAttributeValue(arena, handle, db, id, template, count);
+    }
+    if (crv != CKR_OK) {
+	goto loser;
+    }
+
+    crv = (*db->sdb_Commit)(db);
+    inTransaction = PR_FALSE;
 
 loser:
+    if (inTransaction) {
+	(*db->sdb_Abort)(db);
+	/* It is trivial to show the following code cannot
+	 * happen unless something is horribly wrong with our compilier or
+	 * hardware */
+	PORT_Assert(crv != CKR_OK);
+	if (crv == CKR_OK) crv = CKR_GENERAL_ERROR;
+    }
+
     if (arena) {
 	PORT_FreeArena(arena,PR_FALSE);
     }
@@ -714,8 +1193,6 @@ loser:
     } 
     return crv;
 }
-
-
 
 
 CK_RV 
@@ -848,13 +1325,14 @@ sftkdb_GetAttributeValue(SFTKDBHandle *handle, CK_OBJECT_HANDLE objectID,
 }
 
 CK_RV
-sftkdb_SetAttributeValue(SFTKDBHandle *handle, CK_OBJECT_HANDLE objectID,
+sftkdb_SetAttributeValue(SFTKDBHandle *handle, SFTKObject *object,
                                 const CK_ATTRIBUTE *template, CK_ULONG count)
 {
     CK_RV crv = CKR_OK;
     CK_ATTRIBUTE *ntemplate;
     unsigned char *data = NULL;
     PLArenaPool *arena = NULL;
+    CK_OBJECT_HANDLE objectID = (object->handle & SFTK_OBJ_ID_MASK);
     SDB *db;
 
     if (handle == NULL) {
@@ -866,10 +1344,26 @@ sftkdb_SetAttributeValue(SFTKDBHandle *handle, CK_OBJECT_HANDLE objectID,
     if (count == 0) {
 	return CKR_OK;
     }
+    /*
+     * we have opened a new database, but we have not yet updated it. We are
+     * still running  pointing to the old database (so the application can 
+     * still read). We don't want to write to the old database at this point,
+     * however, since it leads to user confusion. So at this point we simply
+     * require a user login. Let NSS know this so it can prompt the user.
+     */
+    if (db == handle->update) {
+	return CKR_USER_NOT_LOGGED_IN;
+    }
 
     ntemplate = sftkdb_fixupTemplateIn(template, count, &data);
     if (ntemplate == NULL) {
 	return CKR_HOST_MEMORY;
+    }
+
+    /* make sure we don't have attributes that conflict with the existing DB */
+    crv = sftkdb_checkConflicts(db, object->objclass, template, count, objectID);
+    if (crv != CKR_OK) {
+	return crv;
     }
 
     arena = PORT_NewArena(256);
@@ -877,16 +1371,12 @@ sftkdb_SetAttributeValue(SFTKDBHandle *handle, CK_OBJECT_HANDLE objectID,
 	return CKR_HOST_MEMORY;
     }
 
-    objectID &= SFTK_OBJ_ID_MASK;
     crv = (*db->sdb_Begin)(db);
     if (crv != CKR_OK) {
 	goto loser;
     }
-    crv = (*db->sdb_SetAttributeValue)(db, objectID, ntemplate, count);
-    if (crv != CKR_OK) {
-	goto loser;
-    }
-    crv = sftk_signTemplate(arena, handle, PR_TRUE, objectID, ntemplate, count);
+    crv = sftkdb_setAttributeValue(arena, handle, db, 
+				   objectID, template, count);
     if (crv != CKR_OK) {
 	goto loser;
     }
@@ -933,17 +1423,32 @@ loser:
 CK_RV
 sftkdb_CloseDB(SFTKDBHandle *handle)
 {
+#ifdef NO_FORK_CHECK
+    PRBool parentForkedAfterC_Initialize = PR_FALSE;
+#endif
     if (handle == NULL) {
 	return CKR_OK;
     }
     if (handle->update) {
+        if (handle->db->sdb_SetForkState) {
+            (*handle->db->sdb_SetForkState)(parentForkedAfterC_Initialize);
+        }
 	(*handle->update->sdb_Close)(handle->update);
     }
     if (handle->db) {
+        if (handle->db->sdb_SetForkState) {
+            (*handle->db->sdb_SetForkState)(parentForkedAfterC_Initialize);
+        }
 	(*handle->db->sdb_Close)(handle->db);
     }
     if (handle->passwordLock) {
-	PZ_DestroyLock(handle->passwordLock);
+	SKIP_AFTER_FORK(PZ_DestroyLock(handle->passwordLock));
+    }
+    if (handle->updatePasswordKey) {
+	SECITEM_FreeItem(handle->updatePasswordKey, PR_TRUE);
+    }
+    if (handle->updateID) {
+	PORT_Free(handle->updateID);
     }
     PORT_Free(handle);
     return CKR_OK;
@@ -1025,6 +1530,11 @@ sftkdb_Abort(SFTKDBHandle *handle)
     }
     return crv;
 }
+
+
+/*
+ * functions to update the database from an old database
+ */
 
 /*
  * known attributes
@@ -1110,31 +1620,529 @@ sftkdb_GetObjectTemplate(SDB *source, CK_OBJECT_HANDLE id,
     return CKR_OK;
 }
 
-#ifdef notdef
-static void
-dump_attribute(CK_ATTRIBUTE *attr)
-{
-  unsigned char *buf = attr->pValue;
-  int count,i;
+static const char SFTKDB_META_UPDATE_TEMPLATE[] = "upd_%s_%s";
 
-  printf("%08x: (%d) ",attr->type, attr->ulValueLen);
-  count = attr->ulValueLen;
-  if (count > 10) count = 10;
-  for (i=0; i < count; i++) {
-	printf("%02x",buf[i]);
-  }
-  printf("\n");
+/*
+ * check to see if we have already updated this database.
+ * a NULL updateID means we are trying to do an in place 
+ * single database update. In that case we have already
+ * determined that an update was necessary.
+ */
+static PRBool 
+sftkdb_hasUpdate(const char *typeString, SDB *db, const char *updateID)
+{
+    char *id;
+    CK_RV crv;
+    SECItem dummy = { 0, NULL, 0 };
+    unsigned char dummyData[SDB_MAX_META_DATA_LEN];
+
+    if (!updateID) {
+	return PR_FALSE;
+    }
+    id = PR_smprintf(SFTKDB_META_UPDATE_TEMPLATE, typeString, updateID);
+    if (id == NULL) {
+	return PR_FALSE;
+    }
+    dummy.data = dummyData;
+    dummy.len = sizeof(dummyData);
+
+    crv = (*db->sdb_GetMetaData)(db, id, &dummy, NULL);
+    PR_smprintf_free(id);
+    return crv == CKR_OK ? PR_TRUE : PR_FALSE;
 }
-#endif
+
+/*
+ * we just completed an update, store the update id
+ * so we don't need to do it again. If non was given,
+ * there is nothing to do.
+ */
+static CK_RV
+sftkdb_putUpdate(const char *typeString, SDB *db, const char *updateID)
+{
+    char *id;
+    CK_RV crv;
+    SECItem dummy = { 0, NULL, 0 };
+
+    /* if no id was given, nothing to do */
+    if (updateID == NULL) {
+	return CKR_OK;
+    }
+
+    dummy.data = (unsigned char *)updateID;
+    dummy.len = PORT_Strlen(updateID);
+
+    id = PR_smprintf(SFTKDB_META_UPDATE_TEMPLATE, typeString, updateID);
+    if (id == NULL) {
+	return PR_FALSE;
+    }
+
+    crv = (*db->sdb_PutMetaData)(db, id, &dummy, NULL);
+    PR_smprintf_free(id);
+    return crv;
+}
+
+/*
+ * get a ULong attribute from a template:
+ * NOTE: this is a raw templated stored in database order!
+ */
+static CK_ULONG
+sftkdb_getULongFromTemplate(CK_ATTRIBUTE_TYPE type, 
+			CK_ATTRIBUTE *ptemplate, CK_ULONG len)
+{
+    CK_ATTRIBUTE *attr = sftkdb_getAttributeFromTemplate(type,
+					ptemplate, len);
+
+    if (attr && attr->pValue && attr->ulValueLen == SDB_ULONG_SIZE) {
+	return sftk_SDBULong2ULong(attr->pValue);
+    }
+    return (CK_ULONG)-1;
+}
+
+/*
+ * we need to find a unique CKA_ID.
+ *  The basic idea is to just increment the lowest byte.
+ *  This code also handles the following corner cases:
+ *   1) the single byte overflows. On overflow we increment the next byte up 
+ *    and so forth until we have overflowed the entire CKA_ID.
+ *   2) If we overflow the entire CKA_ID we expand it by one byte.
+ *   3) the CKA_ID is non-existant, we create a new one with one byte.
+ *    This means no matter what CKA_ID is passed, the result of this function 
+ *    is always a new CKA_ID, and this function will never return the same 
+ *    CKA_ID the it has returned in the passed.
+ */
+static CK_RV
+sftkdb_incrementCKAID(PRArenaPool *arena, CK_ATTRIBUTE *ptemplate)
+{
+    unsigned char *buf = ptemplate->pValue;
+    CK_ULONG len = ptemplate->ulValueLen;
+
+    if (buf == NULL || len == (CK_ULONG)-1) {
+	/* we have no valid CKAID, we'll create a basic one byte CKA_ID below */
+	len = 0;
+    } else {
+	CK_ULONG i;
+
+	/* walk from the back to front, incrementing
+	 * the CKA_ID until we no longer have a carry,
+	 * or have hit the front of the id. */
+	for (i=len; i != 0; i--) {
+	    buf[i-1]++;
+	    if (buf[i-1] != 0) {
+		/* no more carries, the increment is complete */
+		return CKR_OK;
+	     }
+	}
+	/* we've now overflowed, fall through and expand the CKA_ID by 
+	 * one byte */
+    } 
+    buf = PORT_ArenaAlloc(arena, len+1);
+    if (!buf) {
+	return CKR_HOST_MEMORY;
+    }
+    if (len > 0) {
+	 PORT_Memcpy(buf, ptemplate->pValue, len);
+    }
+    buf[len] = 0;
+    ptemplate->pValue = buf;
+    ptemplate->ulValueLen = len+1;
+    return CKR_OK;
+}
+
+/*
+ * drop an attribute from a template.
+ */
+void
+sftkdb_dropAttribute(CK_ATTRIBUTE *attr, CK_ATTRIBUTE *ptemplate, 
+			CK_ULONG *plen)
+{
+   CK_ULONG count = *plen;
+   CK_ULONG i;
+
+   for (i=0; i < count; i++) {
+	if (attr->type == ptemplate[i].type) {
+	    break;
+	}
+   }
+
+   if (i == count) {
+	/* attribute not found */
+	return;
+   }
+
+   /* copy the remaining attributes up */
+   for ( i++; i < count; i++) {
+	ptemplate[i-1] = ptemplate[i];
+   }
+
+   /* decrement the template size */
+   *plen = count -1;
+}
+
+/*
+ * create some defines for the following functions to document the meaning
+ * of true/false. (make's it easier to remember what means what.
+ */
+typedef enum {
+	SFTKDB_DO_NOTHING = 0,
+	SFTKDB_ADD_OBJECT,
+	SFTKDB_MODIFY_OBJECT,
+	SFTKDB_DROP_ATTRIBUTE
+} sftkdbUpdateStatus;
+
+/*
+ * helper function to reconcile a single trust entry.
+ *   Identify which trust entry we want to keep.
+ *   If we don't need to do anything (the records are already equal).
+ *       return SFTKDB_DO_NOTHING.
+ *   If we want to use the source version,
+ *       return SFTKDB_MODIFY_OBJECT
+ *   If we want to use the target version,
+ *       return SFTKDB_DROP_ATTRIBUTE
+ *
+ *   In the end the caller will remove any attributes in the source
+ *   template when SFTKDB_DROP_ATTRIBUTE is specified, then use do a 
+ *   set attributes with that template on the target if we received 
+ *   any SFTKDB_MODIFY_OBJECT returns.
+ */
+sftkdbUpdateStatus
+sftkdb_reconcileTrustEntry(PRArenaPool *arena, CK_ATTRIBUTE *target, 
+			   CK_ATTRIBUTE *source)
+{
+    CK_ULONG targetTrust = sftkdb_getULongFromTemplate(target->type,
+			target, 1);
+    CK_ULONG sourceTrust = sftkdb_getULongFromTemplate(target->type,
+			source, 1);
+
+    /*
+     * try to pick the best solution between the source and the
+     * target. Update the source template if we want the target value
+     * to win out. Prefer cases where we don't actually update the
+     * trust entry.
+     */
+
+    /* they are the same, everything is already kosher */
+    if (targetTrust == sourceTrust) {
+	return SFTKDB_DO_NOTHING;
+    }
+
+    /* handle the case where the source Trust attribute may be a bit
+     * flakey */
+    if (sourceTrust == (CK_ULONG)-1) {
+	/*
+	 * The source Trust is invalid. We know that the target Trust
+	 * must be valid here, otherwise the above 
+	 * targetTrust == sourceTrust check would have succeeded.
+	 */
+	return SFTKDB_DROP_ATTRIBUTE;
+    }
+
+    /* target is invalid, use the source's idea of the trust value */
+    if (targetTrust == (CK_ULONG)-1) {
+	/* overwriting the target in this case is OK */
+	return SFTKDB_MODIFY_OBJECT;
+    }
+
+    /* at this point we know that both attributes exist and have the
+     * appropriate length (SDB_ULONG_SIZE). We no longer need to check
+     * ulValueLen for either attribute.
+     */
+    if (sourceTrust == CKT_NSS_TRUST_UNKNOWN) {
+	return SFTKDB_DROP_ATTRIBUTE;
+    }
+
+    /* target has no idea, use the source's idea of the trust value */
+    if (targetTrust == CKT_NSS_TRUST_UNKNOWN) {
+	/* overwriting the target in this case is OK */
+	return SFTKDB_MODIFY_OBJECT;
+    }
+
+    /* so both the target and the source have some idea of what this 
+     * trust attribute should be, and neither agree exactly. 
+     * At this point, we prefer 'hard' attributes over 'soft' ones. 
+     * 'hard' ones are CKT_NSS_TRUSTED, CKT_NSS_TRUSTED_DELEGATOR, and
+     * CKT_NSS_UNTRUTED. Soft ones are ones which don't change the
+     * actual trust of the cert (CKT_MUST_VERIFY, CKT_NSS_VALID,
+     * CKT_NSS_VALID_DELEGATOR).
+     */
+    if ((sourceTrust == CKT_NSS_MUST_VERIFY) 
+	|| (sourceTrust == CKT_NSS_VALID)
+	|| (sourceTrust == CKT_NSS_VALID_DELEGATOR)) {
+	return SFTKDB_DROP_ATTRIBUTE;
+    }
+    if ((targetTrust == CKT_NSS_MUST_VERIFY) 
+	|| (targetTrust == CKT_NSS_VALID)
+	|| (targetTrust == CKT_NSS_VALID_DELEGATOR)) {
+	/* again, overwriting the target in this case is OK */
+	return SFTKDB_MODIFY_OBJECT;
+    }
+
+    /* both have hard attributes, we have a conflict, let the target win. */
+    return SFTKDB_DROP_ATTRIBUTE;
+}
+
+const CK_ATTRIBUTE_TYPE sftkdb_trustList[] =
+	{ CKA_TRUST_SERVER_AUTH, CKA_TRUST_CLIENT_AUTH,
+	  CKA_TRUST_CODE_SIGNING, CKA_TRUST_EMAIL_PROTECTION,
+	  CKA_TRUST_IPSEC_TUNNEL, CKA_TRUST_IPSEC_USER,
+	  CKA_TRUST_TIME_STAMPING };
+
+#define SFTK_TRUST_TEMPLATE_COUNT \
+		(sizeof(sftkdb_trustList)/sizeof(sftkdb_trustList[0]))
+/*
+ * Run through the list of known trust types, and reconcile each trust
+ * entry one by one. Keep track of we really need to write out the source
+ * trust object (overwriting the existing one).
+ */
+static sftkdbUpdateStatus
+sftkdb_reconcileTrust(PRArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id, 
+		      CK_ATTRIBUTE *ptemplate, CK_ULONG *plen)
+{
+    CK_ATTRIBUTE trustTemplate[SFTK_TRUST_TEMPLATE_COUNT];
+    unsigned char trustData[SFTK_TRUST_TEMPLATE_COUNT*SDB_ULONG_SIZE];
+    sftkdbUpdateStatus update = SFTKDB_DO_NOTHING;
+    CK_ULONG i;
+    CK_RV crv;
+
+
+    for (i=0; i < SFTK_TRUST_TEMPLATE_COUNT;  i++) {
+	trustTemplate[i].type = sftkdb_trustList[i];
+	trustTemplate[i].pValue = &trustData[i*SDB_ULONG_SIZE];
+	trustTemplate[i].ulValueLen = SDB_ULONG_SIZE;
+    }
+    crv = (*db->sdb_GetAttributeValue)(db, id, 
+				trustTemplate, SFTK_TRUST_TEMPLATE_COUNT);
+    if ((crv != CKR_OK) && (crv != CKR_ATTRIBUTE_TYPE_INVALID)) {
+	/* target trust has some problems, update it */
+	update = SFTKDB_MODIFY_OBJECT;
+	goto done;
+    }
+
+    for (i=0; i < SFTK_TRUST_TEMPLATE_COUNT; i++) {
+	CK_ATTRIBUTE *attr = sftkdb_getAttributeFromTemplate(
+			trustTemplate[i].type, ptemplate, *plen);
+	sftkdbUpdateStatus status;
+
+
+	/* if target trust value doesn't exist, nothing to merge */
+	if (trustTemplate[i].ulValueLen == (CK_ULONG)-1) {
+	    /* if the source exists, then we want the source entry,
+	     * go ahead and update */
+	    if (attr && attr->ulValueLen != (CK_ULONG)-1) {
+		update = SFTKDB_MODIFY_OBJECT;
+	    }
+	    continue;
+	}
+
+	/*
+	 * the source doesn't have the attribute, go to the next attribute
+	 */
+	if (attr == NULL) {
+	    continue;
+		
+	}
+	status = sftkdb_reconcileTrustEntry(arena, &trustTemplate[i], attr);
+	if (status == SFTKDB_MODIFY_OBJECT) {
+	    update = SFTKDB_MODIFY_OBJECT;
+	} else if (status == SFTKDB_DROP_ATTRIBUTE) {
+	    /* drop the source copy of the attribute, we are going with
+	     * the target's version */
+	    sftkdb_dropAttribute(attr, ptemplate, plen);
+	}
+    }
+
+    /* finally manage stepup */
+    if (update == SFTKDB_MODIFY_OBJECT) {
+	CK_BBOOL stepUpBool = CK_FALSE;
+	/* if we are going to write from the source, make sure we don't
+	 * overwrite the stepup bit if it's on*/
+	trustTemplate[0].type = CKA_TRUST_STEP_UP_APPROVED;
+	trustTemplate[0].pValue = &stepUpBool;
+	trustTemplate[0].ulValueLen = sizeof(stepUpBool);
+    	crv = (*db->sdb_GetAttributeValue)(db, id, trustTemplate, 1);
+	if ((crv == CKR_OK) && (stepUpBool == CK_TRUE)) {
+	    sftkdb_dropAttribute(trustTemplate, ptemplate, plen);
+	}
+    } else {
+	/* we currently aren't going to update. If the source stepup bit is
+	 * on however, do an update so the target gets it as well */
+	CK_ATTRIBUTE *attr;
+
+	attr = sftkdb_getAttributeFromTemplate(CKA_TRUST_STEP_UP_APPROVED,
+			ptemplate, *plen);
+	if (attr && (attr->ulValueLen == sizeof(CK_BBOOL)) &&  
+			(*(CK_BBOOL *)(attr->pValue) == CK_TRUE)) {
+		update = SFTKDB_MODIFY_OBJECT;
+	}
+    }
+    
+done:
+    return update;
+}
+
+static sftkdbUpdateStatus
+sftkdb_handleIDAndName(PRArenaPool *arena, SDB *db, CK_OBJECT_HANDLE id, 
+		      CK_ATTRIBUTE *ptemplate, CK_ULONG *plen)
+{
+    sftkdbUpdateStatus update = SFTKDB_DO_NOTHING;
+    CK_ATTRIBUTE *attr1, *attr2;
+    CK_ATTRIBUTE ttemplate[2] = {
+	{CKA_ID, NULL, 0},
+	{CKA_LABEL, NULL, 0}
+    };
+    CK_RV crv;
+
+    attr1 = sftkdb_getAttributeFromTemplate(CKA_LABEL, ptemplate, *plen);
+    attr2 = sftkdb_getAttributeFromTemplate(CKA_ID, ptemplate, *plen);
+
+    /* if the source has neither an id nor label, don't bother updating */
+    if ( (!attr1 || attr1->ulValueLen == 0) &&
+	 (! attr2 ||  attr2->ulValueLen == 0) ) {
+	return SFTKDB_DO_NOTHING;
+    }
+
+    /* the source has either an id or a label, see what the target has */
+    crv = (*db->sdb_GetAttributeValue)(db, id, ttemplate, 2);
+
+    /* if the target has neither, update from the source */
+    if ( ((ttemplate[0].ulValueLen == 0) || 
+	  (ttemplate[0].ulValueLen == (CK_ULONG)-1))  &&
+         ((ttemplate[1].ulValueLen == 0) || 
+	  (ttemplate[1].ulValueLen == (CK_ULONG)-1)) ) {
+	return SFTKDB_MODIFY_OBJECT;
+    }
+
+    /* check the CKA_ID */
+    if ((ttemplate[0].ulValueLen != 0) && 
+	(ttemplate[0].ulValueLen != (CK_ULONG)-1)) {
+	/* we have a CKA_ID in the target, don't overwrite
+	 * the target with an empty CKA_ID from the source*/
+	if (attr1 && attr1->ulValueLen == 0) {
+	    sftkdb_dropAttribute(attr1, ptemplate, plen);
+	}
+    } else if (attr1 && attr1->ulValueLen != 0) {
+	/* source has a CKA_ID, but the target doesn't, update the target */
+	update = SFTKDB_MODIFY_OBJECT;
+    }
+
+
+    /* check the nickname */
+    if ((ttemplate[1].ulValueLen != 0) && 
+	(ttemplate[1].ulValueLen != (CK_ULONG)-1)) {
+
+	/* we have a nickname in the target, and we don't have to update
+	 * the CKA_ID. We are done. NOTE: if we add addition attributes
+	 * in this check, this shortcut can only go on the last of them. */
+	if (update == SFTKDB_DO_NOTHING) {
+	    return update;
+	}
+	/* we have a nickname in the target, don't overwrite
+	 * the target with an empty nickname from the source */
+	if (attr2 && attr2->ulValueLen == 0) {
+	    sftkdb_dropAttribute(attr2, ptemplate, plen);
+	}
+    } else if (attr2 && attr2->ulValueLen != 0) {
+	/* source has a nickname, but the target doesn't, update the target */
+	update = SFTKDB_MODIFY_OBJECT;
+    }
+
+    return update;
+}
+
+
+		
+/*
+ * This function updates the template before we write the object out.
+ *
+ * If we are going to skip updating this object, return PR_FALSE.
+ * If it should be updated we return PR_TRUE.
+ * To help readability, these have been defined 
+ * as SFTK_DONT_UPDATE and SFTK_UPDATE respectively.
+ */
+static PRBool
+sftkdb_updateObjectTemplate(PRArenaPool *arena, SDB *db, 
+		    CK_OBJECT_CLASS objectType, 
+		    CK_ATTRIBUTE *ptemplate, CK_ULONG *plen,
+		    CK_OBJECT_HANDLE *targetID)
+{
+    PRBool done; /* should we repeat the loop? */
+    CK_OBJECT_HANDLE id;
+    CK_RV crv = CKR_OK;
+
+    do {
+ 	crv = sftkdb_checkConflicts(db, objectType, ptemplate, 
+						*plen, CK_INVALID_HANDLE);
+	if (crv != CKR_ATTRIBUTE_VALUE_INVALID) {
+	    break;
+	}
+	crv = sftkdb_resolveConflicts(arena, objectType, ptemplate, plen);
+    } while (crv == CKR_OK);
+
+    if (crv != CKR_OK) {
+	return SFTKDB_DO_NOTHING;
+    }
+
+    do {
+	done = PR_TRUE;
+	crv = sftkdb_lookupObject(db, objectType, &id, ptemplate, *plen);
+	if (crv != CKR_OK) {
+	    return SFTKDB_DO_NOTHING;
+	}
+
+	/* This object already exists, merge it, don't update */
+	if (id != CK_INVALID_HANDLE) {
+    	    CK_ATTRIBUTE *attr = NULL;
+	    /* special post processing for attributes */
+	    switch (objectType) {
+	    case CKO_CERTIFICATE:
+	    case CKO_PUBLIC_KEY:
+	    case CKO_PRIVATE_KEY:
+		/* update target's CKA_ID and labels if they don't already 
+		 * exist */
+		*targetID = id;
+		return sftkdb_handleIDAndName(arena, db, id, ptemplate, plen);
+	    case CKO_NSS_TRUST:
+		/* if we have conflicting trust object types,
+		 * we need to reconcile them */
+		*targetID = id;
+		return sftkdb_reconcileTrust(arena, db, id, ptemplate, plen);
+	    case CKO_SECRET_KEY:
+		/* secret keys in the old database are all sdr keys, 
+		 * unfortunately they all appear to have the same CKA_ID, 
+		 * even though they are truly different keys, so we always 
+		 * want to update these keys, but we need to 
+		 * give them a new CKA_ID */
+		/* NOTE: this changes ptemplate */
+		attr = sftkdb_getAttributeFromTemplate(CKA_ID,ptemplate,*plen);
+		crv = sftkdb_incrementCKAID(arena, attr); 
+		/* in the extremely rare event that we needed memory and
+		 * couldn't get it, just drop the key */
+		if (crv != CKR_OK) {
+		    return SFTKDB_DO_NOTHING;
+		}
+		done = PR_FALSE; /* repeat this find loop */
+		break;
+	    default:
+		/* for all other objects, if we found the equivalent object,
+		 * don't update it */
+	        return SFTKDB_DO_NOTHING;
+	    }
+	}
+    } while (!done);
+
+    /* this object doesn't exist, update it */
+    return SFTKDB_ADD_OBJECT;
+}
 
 
 #define MAX_ATTRIBUTES 500
 static CK_RV
-sftkdb_copyObject(SFTKDBHandle *handle, CK_OBJECT_HANDLE id, SECItem *key)
+sftkdb_mergeObject(SFTKDBHandle *handle, CK_OBJECT_HANDLE id, 
+		   SECItem *key)
 {
     CK_ATTRIBUTE template[MAX_ATTRIBUTES];
     CK_ATTRIBUTE *ptemplate;
     CK_ULONG max_attributes = MAX_ATTRIBUTES;
+    CK_OBJECT_CLASS objectType;
     SDB *source = handle->update;
     SDB *target = handle->db;
     int i;
@@ -1175,8 +2183,35 @@ sftkdb_copyObject(SFTKDBHandle *handle, CK_OBJECT_HANDLE id, SECItem *key)
 	goto loser;
     }
 
-    crv = sftkdb_CreateObject(arena, handle, target, &id, 
+    objectType = sftkdb_getULongFromTemplate(CKA_CLASS, ptemplate,
+							 max_attributes);
+
+    /*
+     * Update Object updates the object template if necessary then returns 
+     * whether or not we need to actually write the object out to our target 
+     * database.
+     */
+    if (!handle->updateID) {
+	    crv = sftkdb_CreateObject(arena, handle, target, &id, 
 				ptemplate, max_attributes);
+    } else {
+	sftkdbUpdateStatus update_status;
+	update_status  = sftkdb_updateObjectTemplate(arena, target, 
+			objectType, ptemplate, &max_attributes, &id);
+	switch (update_status) {
+	case SFTKDB_ADD_OBJECT:
+	    crv = sftkdb_CreateObject(arena, handle, target, &id, 
+				ptemplate, max_attributes);
+	    break;
+	case SFTKDB_MODIFY_OBJECT:
+    	    crv = sftkdb_setAttributeValue(arena, handle, target, 
+				   id, ptemplate, max_attributes);
+	    break;
+	case SFTKDB_DO_NOTHING:
+	case SFTKDB_DROP_ATTRIBUTE:
+	    break;
+	}
+    } 
 
 loser:
     if (arena) {
@@ -1196,6 +2231,7 @@ sftkdb_Update(SFTKDBHandle *handle, SECItem *key)
     SDBFind *find = NULL;
     CK_ULONG idCount = MAX_IDS;
     CK_OBJECT_HANDLE ids[MAX_IDS];
+    SECItem *updatePasswordKey = NULL;
     CK_RV crv, crv2;
     PRBool inTransaction = PR_FALSE;
     int i;
@@ -1205,6 +2241,30 @@ sftkdb_Update(SFTKDBHandle *handle, SECItem *key)
     }
     if (handle->update == NULL) {
 	return CKR_OK;
+    }
+
+    /*
+     * put the whole update under a transaction. This allows us to handle
+     * any possible race conditions between with the updateID check.
+     */
+    crv = (*handle->db->sdb_Begin)(handle->db);
+    if (crv != CKR_OK) {
+	goto loser;
+    }
+    inTransaction = PR_TRUE;
+    
+    /* some one else has already updated this db */
+    if (sftkdb_hasUpdate(sftkdb_TypeString(handle), 
+			 handle->db, handle->updateID)) {
+	crv = CKR_OK;
+	goto done;
+    }
+
+    updatePasswordKey = sftkdb_GetUpdatePasswordKey(handle);
+    if (updatePasswordKey) {
+	/* pass the source DB key to the legacy code, 
+	 * so it can decrypt things */
+	handle->oldKey = updatePasswordKey;
     }
     
     /* find all the objects */
@@ -1216,47 +2276,76 @@ sftkdb_Update(SFTKDBHandle *handle, SECItem *key)
     while ((crv == CKR_OK) && (idCount == MAX_IDS)) {
 	crv = sftkdb_FindObjects(handle, find, ids, MAX_IDS, &idCount);
 	for (i=0; (crv == CKR_OK) && (i < idCount); i++) {
-	    crv = sftkdb_copyObject(handle, ids[i], key);
+	    crv = sftkdb_mergeObject(handle, ids[i], key);
 	}
     }
     crv2 = sftkdb_FindObjectsFinal(handle, find);
     if (crv == CKR_OK) crv = crv2;
 
 loser:
-    /* update Meta data - even if we didn't update objects */
+    /* no longer need the old key value */
+    handle->oldKey = NULL;
+
+    /* update the password - even if we didn't update objects */
     if (handle->type == SFTK_KEYDB_TYPE) {
 	SECItem item1, item2;
 	unsigned char data1[SDB_MAX_META_DATA_LEN];
 	unsigned char data2[SDB_MAX_META_DATA_LEN];
 
-	crv = (*handle->db->sdb_Begin)(handle->db);
-	if (crv != CKR_OK) {
-	    goto loser2;
-	}
-	inTransaction = PR_TRUE;
 	item1.data = data1;
+ 	item1.len = sizeof(data1);
 	item2.data = data2;
+ 	item2.len = sizeof(data2);
+
+	/* if the target db already has a password, skip this. */
+	crv = (*handle->db->sdb_GetMetaData)(handle->db, "password",
+			&item1, &item2);
+	if (crv == CKR_OK) {
+	    goto done;
+	}
+
+
+	/* nope, update it from the source */
 	crv = (*handle->update->sdb_GetMetaData)(handle->update, "password",
 			&item1, &item2);
 	if (crv != CKR_OK) {
-	    goto loser2;
+	    goto done;
 	}
 	crv = (*handle->db->sdb_PutMetaData)(handle->db, "password", &item1,
 						&item2);
 	if (crv != CKR_OK) {
-	    goto loser2;
+	    goto done;
 	}
-	crv = (*handle->db->sdb_Commit)(handle->db);
-	inTransaction = PR_FALSE;
     }
-loser2:
+
+done:
+    /* finally mark this up to date db up to date */
+    /* some one else has already updated this db */
+    if (crv == CKR_OK) {
+	crv = sftkdb_putUpdate(sftkdb_TypeString(handle), 
+				handle->db, handle->updateID);
+    }
+
     if (inTransaction) {
-	(*handle->db->sdb_Abort)(handle->db);
+	if (crv == CKR_OK) {
+	    crv = (*handle->db->sdb_Commit)(handle->db);
+	} else {
+	    (*handle->db->sdb_Abort)(handle->db);
+	}
     }
     if (handle->update) {
 	(*handle->update->sdb_Close)(handle->update);
 	handle->update = NULL;
     }
+    if (handle->updateID) {
+	PORT_Free(handle->updateID);
+	handle->updateID = NULL;
+    }
+    sftkdb_FreeUpdatePasswordKey(handle);
+    if (updatePasswordKey) {
+	SECITEM_ZfreeItem(updatePasswordKey, PR_TRUE);
+    }
+    handle->updateDBIsInit = PR_FALSE;
     return crv;
 }
 
@@ -1266,6 +2355,12 @@ loser2:
  * These functions are called by softoken to initialize, acquire,
  * and release database handles.
  */
+
+const char *
+sftkdb_GetUpdateID(SFTKDBHandle *handle)
+{
+    return handle->updateID;
+}
 
 /* release a database handle */
 void
@@ -1309,12 +2404,12 @@ sftk_getKeyDB(SFTKSlot *slot)
 {
     SFTKDBHandle *dbHandle;
 
-    PZ_Lock(slot->slotLock);
+    SKIP_AFTER_FORK(PZ_Lock(slot->slotLock));
     dbHandle = slot->keyDB;
     if (dbHandle) {
         PR_AtomicIncrement(&dbHandle->ref);
     }
-    PZ_Unlock(slot->slotLock);
+    SKIP_AFTER_FORK(PZ_Unlock(slot->slotLock));
     return dbHandle;
 }
 
@@ -1348,12 +2443,15 @@ sftk_NewDBHandle(SDB *sdb, int type)
    handle->update = NULL;
    handle->peerDB = NULL;
    handle->newKey = NULL;
+   handle->oldKey = NULL;
+   handle->updatePasswordKey = NULL;
+   handle->updateID = NULL;
    handle->type = type;
    handle->passwordKey.data = NULL;
    handle->passwordKey.len = 0;
    handle->passwordLock = NULL;
    if (type == SFTK_KEYDB_TYPE) {
-	handle->passwordLock = PZ_NewLock();
+	handle->passwordLock = PZ_NewLock(nssILockAttribute);
    }
    sdb->app_private = handle;
    return handle;
@@ -1408,6 +2506,14 @@ sftk_hasLegacyDB(const char *confdir, const char *certPrefix,
     char *dir;
     PRBool exists;
 
+    if (certPrefix == NULL) {
+	certPrefix = "";
+    }
+
+    if (keyPrefix == NULL) {
+	keyPrefix = "";
+    }
+
     dir= PR_smprintf("%s/%scert", confdir, certPrefix);
     if (dir == NULL) {
 	return PR_FALSE;
@@ -1438,7 +2544,9 @@ sftk_hasLegacyDB(const char *confdir, const char *certPrefix,
  */
 CK_RV 
 sftk_DBInit(const char *configdir, const char *certPrefix,
-                const char *keyPrefix, PRBool readOnly, PRBool noCertDB,
+                const char *keyPrefix, const char *updatedir,
+		const char *updCertPrefix, const char *updKeyPrefix, 
+		const char *updateID, PRBool readOnly, PRBool noCertDB,
                 PRBool noKeyDB, PRBool forceOpen,
                 SFTKDBHandle **certDB, SFTKDBHandle **keyDB)
 {
@@ -1484,20 +2592,43 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
 	 * if we failed to open the DB's read only, use the old ones if
 	 * the exists.
 	 */
-	if (crv != CKR_OK && (flags == SDB_RDONLY)) {
-	    if (sftk_hasLegacyDB(confdir, certPrefix, keyPrefix, 8, 3)) {
+	if (crv != CKR_OK) {
+	    if ((flags == SDB_RDONLY)  &&
+	         sftk_hasLegacyDB(confdir, certPrefix, keyPrefix, 8, 3)) {
 	    /* we have legacy databases, if we failed to open the new format 
 	     * DB's read only, just use the legacy ones */
 		crv = sftkdbCall_open(confdir, certPrefix, 
 			keyPrefix, 8, 3, flags, noCertDB? NULL : &certSDB,
 			noKeyDB ? NULL : &keySDB);
 	    }
-	} else if (newInit && crv == CKR_OK) {
+	/* Handle the database merge case.
+         *
+         * For the merge case, we need help from the application. Only
+         * the application knows where the old database is, and what unique
+         * identifier it has associated with it.
+         *
+         * If the client supplies these values, we use them to determine
+         * if we need to update.
+         */
+	} else if (
+	      /* both update params have been supplied */
+	      updatedir  && *updatedir && updateID  && *updateID
+	      /* old dbs exist? */
+	      && sftk_hasLegacyDB(updatedir, updCertPrefix, updKeyPrefix, 8, 3) 
+	      /* and they have not yet been updated? */
+	      && ((noKeyDB || !sftkdb_hasUpdate("key", keySDB, updateID)) 
+	      || (noCertDB || !sftkdb_hasUpdate("cert", certSDB, updateID)))) {
+	    /* we need to update */
+	    confdir = updatedir;
+	    certPrefix = updCertPrefix;
+	    keyPrefix = updKeyPrefix;
+	    needUpdate = PR_TRUE;
+	} else if (newInit) {
 	    /* if the new format DB was also a newly created DB, and we
 	     * succeeded, then need to update that new database with data
 	     * from the existing legacy DB */
 	    if (sftk_hasLegacyDB(confdir, certPrefix, keyPrefix, 8, 3)) {
-		needUpdate = 1;
+		needUpdate = PR_TRUE;
 	    }
 	}
 	break;
@@ -1507,7 +2638,7 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
 				  * specified. */
     }
     if (crv != CKR_OK) {
-	goto loser;
+	goto done;
     }
     if (!noCertDB) {
 	*certDB = sftk_NewDBHandle(certSDB, SFTK_CERTDB_TYPE);
@@ -1528,6 +2659,10 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
 	(*keyDB)->peerDB = *certDB;
     }
 
+    /*
+     * if we need to update, open the legacy database and
+     * mark the handle as needing update.
+     */
     if (needUpdate) {
 	SDB *updateCert = NULL;
 	SDB *updateKey = NULL;
@@ -1538,18 +2673,30 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
 	if (crv2 == CKR_OK) {
 	    if (*certDB) {
 		(*certDB)->update = updateCert;
+		(*certDB)->updateID = updateID && *updateID 
+				? PORT_Strdup(updateID) : NULL;
 		updateCert->app_private = (*certDB);
 	    }
 	    if (*keyDB) {
+		PRBool tokenRemoved = PR_FALSE;
 		(*keyDB)->update = updateKey;
+		(*keyDB)->updateID = updateID && *updateID ? 
+					PORT_Strdup(updateID) : NULL;
 		updateKey->app_private = (*keyDB);
+		(*keyDB)->updateDBIsInit = PR_TRUE;
+		(*keyDB)->updateDBIsInit = 
+			(sftkdb_HasPasswordSet(*keyDB) == SECSuccess) ?
+			 PR_TRUE : PR_FALSE;
+		/* if the password on the key db is NULL, kick off our update
+		 * chain of events */
+		sftkdb_CheckPassword((*keyDB), "", &tokenRemoved);
 	    } else {
 		/* we don't have a key DB, update the certificate DB now */
 		sftkdb_Update(*certDB, NULL);
 	    }
 	}
     }
-loser:
+done:
     if (appName) {
 	PORT_Free(appName);
     }

@@ -199,6 +199,9 @@ public:
 
   nsIViewManager* GetPrintPreviewViewManager() {return mPrtPreview->mPrintObject->mViewManager;}
 
+  float GetPrintPreviewScale() { return mPrtPreview->mPrintObject->
+                                        mPresContext->GetPrintPreviewScale(); }
+  
   static nsIPresShell* GetPresShellFor(nsIDocShell* aDocShell);
 
   // These calls also update the DocViewer
@@ -277,7 +280,7 @@ protected:
   PRPackedBool mIsDoingPrintPreview; // per DocumentViewer
   PRPackedBool mProgressDialogIsShown;
 
-  nsIDocumentViewerPrint* mDocViewerPrint; // [WEAK] it owns me!
+  nsCOMPtr<nsIDocumentViewerPrint> mDocViewerPrint;
   nsISupports*            mContainer;      // [WEAK] it owns me!
   nsIDeviceContext*       mDeviceContext;  // not ref counted
   

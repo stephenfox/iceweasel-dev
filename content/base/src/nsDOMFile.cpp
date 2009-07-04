@@ -337,6 +337,8 @@ nsDOMFile::ConvertStream(nsIInputStream *aStream,
                          const char *aCharset,
                          nsAString &aResult)
 {
+  aResult.Truncate();
+
   nsCOMPtr<nsIConverterInputStream> converterStream =
     do_CreateInstance("@mozilla.org/intl/converter-input-stream;1");
   if (!converterStream) return NS_ERROR_FAILURE;
@@ -352,7 +354,14 @@ nsDOMFile::ConvertStream(nsIInputStream *aStream,
   if (!unicharStream) return NS_ERROR_FAILURE;
 
   PRUint32 numChars;
-  return unicharStream->ReadString(PR_UINT32_MAX, aResult, &numChars);
+  nsString result;
+  rv = unicharStream->ReadString(8192, result, &numChars);
+  while (NS_SUCCEEDED(rv) && numChars > 0) {
+    aResult.Append(result);
+    rv = unicharStream->ReadString(8192, result, &numChars);
+  }
+
+  return rv;
 }
 
 // nsDOMFileList implementation
@@ -377,7 +386,7 @@ nsDOMFileList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsDOMFileList::Item(PRUint32 aIndex, nsIDOMFile **aFile)
 {
-  NS_IF_ADDREF(*aFile = mFiles.SafeObjectAt(aIndex));
+  NS_IF_ADDREF(*aFile = GetItemAt(aIndex));
 
   return NS_OK;
 }

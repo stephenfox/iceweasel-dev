@@ -80,7 +80,7 @@
 //
 //-------------------------------------------------------------------------
 nsDragService::nsDragService()
-  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull)
+  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull), mSentLocalDropEvent(PR_FALSE)
 {
 }
 
@@ -111,9 +111,10 @@ nsDragService::CreateDragImage(nsIDOMNode *aDOMNode,
   // Prepare the drag image
   nsRect dragRect;
   nsRefPtr<gfxASurface> surface;
+  nsPresContext* pc;
   DrawDrag(aDOMNode, aRegion,
            mScreenX, mScreenY,
-           &dragRect, getter_AddRefs(surface));
+           &dragRect, getter_AddRefs(surface), &pc);
   if (!surface)
     return PR_FALSE;
 
@@ -169,10 +170,10 @@ nsDragService::CreateDragImage(nsIDOMNode *aDOMNode,
       psdi->ptOffset.x = (PRUint32)((float)bmWidth/2.0f);
       psdi->ptOffset.y = (PRUint32)((float)bmHeight/2.0f);
     } else {
-      PRInt32 xOffset = mScreenX - dragRect.x;
-      PRInt32 yOffset = mScreenY - dragRect.y;
-      psdi->ptOffset.x = xOffset;
-      psdi->ptOffset.y = yOffset;
+      PRInt32 sx = mScreenX, sy = mScreenY;
+      ConvertToUnscaledDevPixels(pc, &sx, &sy);
+      psdi->ptOffset.x = sx - dragRect.x;
+      psdi->ptOffset.y = sy - dragRect.y;
     }
 
     DeleteDC(hdcSrc);
@@ -188,9 +189,11 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                  nsIScriptableRegion *aRegion,
                                  PRUint32 aActionType)
 {
-  nsBaseDragService::InvokeDragSession(aDOMNode, anArrayTransferables, aRegion,
-                                       aActionType);
-  nsresult rv;
+  nsresult rv = nsBaseDragService::InvokeDragSession(aDOMNode,
+                                                     anArrayTransferables,
+                                                     aRegion,
+                                                     aActionType);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Try and get source URI of the items that are being dragged
   nsIURI *uri = nsnull;
@@ -267,15 +270,16 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 {
   // To do the drag we need to create an object that
   // implements the IDataObject interface (for OLE)
-  NS_IF_RELEASE(mNativeDragSrc);
-  mNativeDragSrc = (IDropSource *)new nsNativeDragSource();
-  if (!mNativeDragSrc)
+  nsNativeDragSource* nativeDragSource = new nsNativeDragSource(mDataTransfer);
+  if (!nativeDragSource)
     return NS_ERROR_OUT_OF_MEMORY;
 
+  NS_IF_RELEASE(mNativeDragSrc);
+  mNativeDragSrc = (IDropSource *)nativeDragSource;
   mNativeDragSrc->AddRef();
 
   // Now figure out what the native drag effect should be
-  DWORD dropRes;
+  DWORD winDropRes;
   DWORD effects = DROPEFFECT_SCROLL;
   if (aActionType & DRAGDROP_ACTION_COPY) {
     effects |= DROPEFFECT_COPY;
@@ -291,6 +295,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   // the drag
   mDragAction = aActionType;
   mDoingDrag  = PR_TRUE;
+  mSentLocalDropEvent = PR_FALSE;
 
   // Start dragging
   StartDragSession();
@@ -304,11 +309,11 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     // do async drag
     if (SUCCEEDED(aDataObj->QueryInterface(IID_IAsyncOperation,
                                           (void**)&pAsyncOp)))
-      pAsyncOp->SetAsyncMode(TRUE);
+      pAsyncOp->SetAsyncMode(VARIANT_TRUE);
   }
 
   // Call the native D&D method
-  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &dropRes);
+  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &winDropRes);
 
   if (isAsyncAvailable)
   {
@@ -323,7 +328,37 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     }
   }
 
-  // We're done dragging
+  // In  cases where the drop operation completed outside the application, update
+  // the source node's nsIDOMNSDataTransfer dropEffect value so it is up to date.  
+  if (!mSentLocalDropEvent) {
+    PRUint32 dropResult;
+    // Order is important, since multiple flags can be returned.
+    if (winDropRes & DROPEFFECT_COPY)
+        dropResult = DRAGDROP_ACTION_COPY;
+    else if (winDropRes & DROPEFFECT_LINK)
+        dropResult = DRAGDROP_ACTION_LINK;
+    else if (winDropRes & DROPEFFECT_MOVE)
+        dropResult = DRAGDROP_ACTION_MOVE;
+    else
+        dropResult = DRAGDROP_ACTION_NONE;
+    
+    nsCOMPtr<nsIDOMNSDataTransfer> dataTransfer =
+      do_QueryInterface(mDataTransfer);
+
+    if (dataTransfer) {
+      if (res == DRAGDROP_S_DROP) // Success 
+        dataTransfer->SetDropEffectInt(dropResult);
+      else
+        dataTransfer->SetDropEffectInt(DRAGDROP_ACTION_NONE);
+    }
+  }
+
+  mUserCancelled = nativeDragSource->UserCancelled();
+
+  // We're done dragging, get the cursor position and end the drag
+  POINT pos;
+  GetCursorPos(&pos);
+  SetDragEndPoint(nsIntPoint(pos.x, pos.y));
   EndDragSession(PR_TRUE);
 
   // For some drag/drop interactions, IDataObject::SetData doesn't get
@@ -463,6 +498,16 @@ nsDragService::SetIDataObject(IDataObject * aDataObj)
   NS_IF_ADDREF(mDataObject);
 
   return NS_OK;
+}
+
+//---------------------------------------------------------
+void
+nsDragService::SetDroppedLocal()
+{
+  // Sent from the native drag handler, letting us know
+  // a drop occured within the application vs. outside of it.
+  mSentLocalDropEvent = PR_TRUE;
+  return;
 }
 
 //-------------------------------------------------------------------------

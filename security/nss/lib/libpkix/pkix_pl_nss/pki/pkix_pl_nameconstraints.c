@@ -325,11 +325,7 @@ pkix_pl_CertNameConstraints_CheckNameSpaceNssNames(
         PKIX_CERTNAMECONSTRAINTS_DEBUG("\t\tCalling PORT_NewArena\n");
         arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
         if (arena == NULL) {
-                PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
-        }
-
-        if (nssSubjectNames == NULL) {
-                PKIX_ERROR(PKIX_CERTGETCERTIFICATENAMESRETURNNULL);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         nssMatchName = nssSubjectNames;
@@ -729,6 +725,8 @@ pkix_pl_CertNameConstraints_RegisterSelf(void *plContext)
                     "pkix_pl_CertNameConstraints_RegisterSelf");
 
         entry.description = "CertNameConstraints";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_CertNameConstraints);
         entry.destructor = pkix_pl_CertNameConstraints_Destroy;
         entry.equalsFunction = pkix_pl_CertNameConstraints_Equals;
         entry.hashcodeFunction = pkix_pl_CertNameConstraints_Hashcode;
@@ -850,7 +848,7 @@ pkix_pl_CertNameConstraints_Create(
         PKIX_CERTNAMECONSTRAINTS_DEBUG("\t\tCalling PORT_NewArena).\n");
         arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
         if (arena == NULL) {
-                PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         PKIX_CERTNAMECONSTRAINTS_DEBUG
@@ -932,13 +930,13 @@ pkix_pl_CertNameConstraints_CreateByMerge(
         PKIX_CERTNAMECONSTRAINTS_DEBUG("\t\tCalling PORT_NewArena).\n");
         arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
         if (arena == NULL) {
-                PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         PKIX_CERTNAMECONSTRAINTS_DEBUG("\t\tCalling PORT_ArenaZNew).\n");
         nssNameConstraints = PORT_ArenaZNew(arena, CERTNameConstraints);
         if (nssNameConstraints == NULL) {
-                PKIX_ERROR(PKIX_ALLOCATESPACEFORCERTNAMECONSTRAINTSFAILED);
+                PKIX_ERROR(PKIX_PORTARENAALLOCFAILED);
         }
 
         nssNameConstraints->permited = NULL;
@@ -1015,7 +1013,7 @@ pkix_pl_CertNameConstraints_CopyNssNameConstraints(
         PKIX_CERTNAMECONSTRAINTS_DEBUG("\t\tCalling PORT_ArenaZNew).\n");
         nssNameConstraints = PORT_ArenaZNew(arena, CERTNameConstraints);
         if (nssNameConstraints == NULL) {
-                PKIX_ERROR(PKIX_ALLOCATESPACEFORCERTNAMECONSTRAINTSFAILED);
+                PKIX_ERROR(PKIX_PORTARENAALLOCFAILED);
         }
 
         if (srcNC->permited) {
@@ -1244,7 +1242,7 @@ PKIX_PL_CertNameConstraints_CheckNamesInNameSpace(
                 PKIX_CERTNAMECONSTRAINTS_DEBUG("\t\tCalling PORT_NewArena\n");
                 arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                 if (arena == NULL) {
-                        PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
                 nssNameConstraintsList =

@@ -114,6 +114,7 @@ char * PK11_GetSlotName(PK11SlotInfo *slot);
 PRBool PK11_NeedLogin(PK11SlotInfo *slot);
 PRBool PK11_IsFriendly(PK11SlotInfo *slot);
 PRBool PK11_IsHW(PK11SlotInfo *slot);
+PRBool PK11_IsRemovable(PK11SlotInfo *slot);
 PRBool PK11_NeedUserInit(PK11SlotInfo *slot);
 PRBool PK11_ProtectedAuthenticationPath(PK11SlotInfo *slot);
 int PK11_GetSlotSeries(PK11SlotInfo *slot);
@@ -183,6 +184,7 @@ PK11SlotInfo *PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, int count,
 PK11SlotInfo *PK11_GetBestSlot(CK_MECHANISM_TYPE type, void *wincx);
 CK_MECHANISM_TYPE PK11_GetBestWrapMechanism(PK11SlotInfo *slot);
 int PK11_GetBestKeyLength(PK11SlotInfo *slot, CK_MECHANISM_TYPE type);
+
 /*
  * Open a new database using the softoken. The caller is responsible for making
  * sure the module spec is correct and usable. The caller should ask for one
@@ -235,6 +237,20 @@ int PK11_GetBestKeyLength(PK11SlotInfo *slot, CK_MECHANISM_TYPE type);
 PK11SlotInfo *SECMOD_OpenUserDB(const char *moduleSpec);
 SECStatus SECMOD_CloseUserDB(PK11SlotInfo *slot);
 
+/*
+ * merge the permanent objects from on token to another 
+ */
+SECStatus PK11_MergeTokens(PK11SlotInfo *targetSlot, PK11SlotInfo *sourceSlot,
+                PK11MergeLog *log, void *targetPwArg, void *sourcePwArg);
+
+/*
+ * create and destroy merge logs needed by PK11_MergeTokens
+ */
+PK11MergeLog * PK11_CreateMergeLog(void);
+void PK11_DestroyMergeLog(PK11MergeLog *log);
+
+
+
 /*********************************************************************
  *       Mechanism Mapping functions
  *********************************************************************/
@@ -253,11 +269,14 @@ CK_MECHANISM_TYPE PK11_AlgtagToMechanism(SECOidTag algTag);
 SECOidTag PK11_MechanismToAlgtag(CK_MECHANISM_TYPE type);
 SECOidTag PK11_FortezzaMapSig(SECOidTag algTag);
 SECStatus PK11_ParamToAlgid(SECOidTag algtag, SECItem *param,
-                                   PRArenaPool *arena, SECAlgorithmID *algid);
+                                   PLArenaPool *arena, SECAlgorithmID *algid);
 SECStatus PK11_SeedRandom(PK11SlotInfo *,unsigned char *data,int len);
 SECStatus PK11_GenerateRandomOnSlot(PK11SlotInfo *,unsigned char *data,int len);
 SECStatus PK11_RandomUpdate(void *data, size_t bytes);
 SECStatus PK11_GenerateRandom(unsigned char *data,int len);
+
+/* warning: cannot work with pkcs 5 v2
+ * use algorithm ID s instead of pkcs #11 mechanism pointers */
 CK_RV PK11_MapPBEMechanismToCryptoMechanism(CK_MECHANISM_PTR pPBEMechanism,
 					    CK_MECHANISM_PTR pCryptoMechanism,
 					    SECItem *pbe_pwd, PRBool bad3DES);
@@ -285,6 +304,15 @@ PK11SymKey *PK11_GetWrapKey(PK11SlotInfo *slot, int wrap,
  */
 void PK11_SetWrapKey(PK11SlotInfo *slot, int wrap, PK11SymKey *wrapKey);
 CK_MECHANISM_TYPE PK11_GetMechanism(PK11SymKey *symKey);
+/*
+ * import a public key into the desired slot
+ *  
+ * This function takes a public key structure and creates a public key in a 
+ * given slot. If isToken is set, then a persistant public key is created.
+ *
+ * Note: it is possible for this function to return a handle for a key which
+ * is persistant, even if isToken is not set.
+ */
 CK_OBJECT_HANDLE PK11_ImportPublicKey(PK11SlotInfo *slot, 
 				SECKEYPublicKey *pubKey, PRBool isToken);
 PK11SymKey *PK11_KeyGen(PK11SlotInfo *slot,CK_MECHANISM_TYPE type,
@@ -300,6 +328,8 @@ PK11SymKey * PK11_ListFixedKeysInSlot(PK11SlotInfo *slot, char *nickname,
 								void *wincx);
 PK11SymKey *PK11_GetNextSymKey(PK11SymKey *symKey);
 CK_KEY_TYPE PK11_GetSymKeyType(PK11SymKey *key);
+CK_OBJECT_HANDLE PK11_GetSymKeyHandle(PK11SymKey *symKey);
+
 
 /*
  * PK11_SetSymKeyUserData
@@ -542,7 +572,7 @@ SECKEYPrivateKeyList* PK11_ListPrivKeysInSlot(PK11SlotInfo *slot,
 SECKEYPublicKeyList* PK11_ListPublicKeysInSlot(PK11SlotInfo *slot,
 							char *nickname);
 SECKEYPQGParams *PK11_GetPQGParamsFromPrivateKey(SECKEYPrivateKey *privKey);
-/* depricated */
+/* deprecated */
 SECKEYPrivateKeyList* PK11_ListPrivateKeysInSlot(PK11SlotInfo *slot);
 
 PK11SymKey *PK11_ConvertSessionSymKeyToTokenSymKey(PK11SymKey *symk,
@@ -563,11 +593,12 @@ CERTCertificate * PK11_FindCertFromNickname(const char *nickname, void *wincx);
 CERTCertList * PK11_FindCertsFromNickname(const char *nickname, void *wincx);
 CERTCertificate *PK11_GetCertFromPrivateKey(SECKEYPrivateKey *privKey);
 SECStatus PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
-                CK_OBJECT_HANDLE key, char *nickname, PRBool includeTrust);
+                CK_OBJECT_HANDLE key, const char *nickname, 
+                PRBool includeTrust);
 SECStatus PK11_ImportDERCert(PK11SlotInfo *slot, SECItem *derCert,
                 CK_OBJECT_HANDLE key, char *nickname, PRBool includeTrust);
-PK11SlotInfo *PK11_ImportCertForKey(CERTCertificate *cert, char *nickname,
-								void *wincx);
+PK11SlotInfo *PK11_ImportCertForKey(CERTCertificate *cert, 
+                                    const char *nickname, void *wincx);
 PK11SlotInfo *PK11_ImportDERCertForKey(SECItem *derCert, char *nickname,
 								void *wincx);
 PK11SlotInfo *PK11_KeyForCertExists(CERTCertificate *cert,
@@ -586,6 +617,8 @@ SECStatus PK11_TraverseCertsForSubjectInSlot(CERTCertificate *cert,
 	void *arg);
 CERTCertificate *PK11_FindCertFromDERCert(PK11SlotInfo *slot, 
 					  CERTCertificate *cert, void *wincx);
+CERTCertificate *PK11_FindCertFromDERCertItem(PK11SlotInfo *slot,
+                                          SECItem *derCert, void *wincx);
 SECStatus PK11_ImportCertForKeyToSlot(PK11SlotInfo *slot, CERTCertificate *cert,
 					char *nickname, PRBool addUsage,
 					void *wincx);
@@ -599,7 +632,7 @@ SECStatus PK11_TraverseCertsForNicknameInSlot(SECItem *nickname,
 CERTCertList * PK11_ListCerts(PK11CertListType type, void *pwarg);
 CERTCertList * PK11_ListCertsInSlot(PK11SlotInfo *slot);
 CERTSignedCrl* PK11_ImportCRL(PK11SlotInfo * slot, SECItem *derCRL, char *url,
-    int type, void *wincx, PRInt32 importOptions, PRArenaPool* arena, PRInt32 decodeOptions);
+    int type, void *wincx, PRInt32 importOptions, PLArenaPool* arena, PRInt32 decodeOptions);
 
 /**********************************************************************
  *                   Sign/Verify 
@@ -682,14 +715,31 @@ void PK11_DestroyPBEParams(SECItem *params);
 
 SECAlgorithmID *
 PK11_CreatePBEAlgorithmID(SECOidTag algorithm, int iteration, SECItem *salt);
+
+/* use to create PKCS5 V2 algorithms with finder control than that provided
+ * by PK11_CreatePBEAlgorithmID. */
+SECAlgorithmID *
+PK11_CreatePBEV2AlgorithmID(SECOidTag pbeAlgTag, SECOidTag cipherAlgTag,
+                            SECOidTag prfAlgTag, int keyLength, int iteration,
+                            SECItem *salt);
 PK11SymKey *
 PK11_PBEKeyGen(PK11SlotInfo *slot, SECAlgorithmID *algid,  SECItem *pwitem,
 	       PRBool faulty3DES, void *wincx);
+
+/* warning: cannot work with PKCS 5 v2 use PK11_PBEKeyGen instead */
 PK11SymKey *
 PK11_RawPBEKeyGen(PK11SlotInfo *slot, CK_MECHANISM_TYPE type, SECItem *params,
 		SECItem *pwitem, PRBool faulty3DES, void *wincx);
 SECItem *
 PK11_GetPBEIV(SECAlgorithmID *algid, SECItem *pwitem);
+/*
+ * Get the Mechanism and parameter of the base encryption or mac scheme from
+ * a PBE algorithm ID.
+ *  Caller is responsible for freeing the return parameter (param).
+ */
+CK_MECHANISM_TYPE
+PK11_GetPBECryptoMechanism(SECAlgorithmID *algid, 
+			   SECItem **param, SECItem *pwd);
 
 /**********************************************************************
  * Functions to manage secmod flags
@@ -710,12 +760,43 @@ SECStatus PK11_LinkGenericObject(PK11GenericObject *list,
 				 PK11GenericObject *object);
 SECStatus PK11_DestroyGenericObjects(PK11GenericObject *object);
 SECStatus PK11_DestroyGenericObject(PK11GenericObject *object);
+PK11GenericObject *PK11_CreateGenericObject(PK11SlotInfo *slot, 
+				   const CK_ATTRIBUTE *pTemplate, 
+				   int count, PRBool token);
+
+/*
+ * PK11_ReadRawAttribute and PK11_WriteRawAttribute are generic
+ * functions to read and modify the actual PKCS #11 attributes of
+ * the underlying pkcs #11 object.
+ * 
+ * object is a pointer to an NSS object that represents the underlying
+ *  PKCS #11 object. It's type must match the type of PK11ObjectType
+ *  as follows:
+ *
+ *     type                           object
+ *   PK11_TypeGeneric            PK11GenericObject *
+ *   PK11_TypePrivKey            SECKEYPrivateKey *
+ *   PK11_TypePubKey             SECKEYPublicKey *
+ *   PK11_TypeSymKey             PK11SymKey *
+ *
+ *  All other types are considered invalid. If type does not match the object
+ *  passed, unpredictable results will occur.
+ */
 SECStatus PK11_ReadRawAttribute(PK11ObjectType type, void *object, 
 				CK_ATTRIBUTE_TYPE attr, SECItem *item);
+SECStatus PK11_WriteRawAttribute(PK11ObjectType type, void *object, 
+				CK_ATTRIBUTE_TYPE attr, SECItem *item);
 
+/*
+ * PK11_GetAllSlotsForCert returns all the slots that a given certificate
+ * exists on, since it's possible for a cert to exist on more than one
+ * PKCS#11 token.
+ */
+PK11SlotList *
+PK11_GetAllSlotsForCert(CERTCertificate *cert, void *arg);
 
 /**********************************************************************
- * New fucntions which are already depricated....
+ * New functions which are already deprecated....
  **********************************************************************/
 SECItem *
 PK11_GetLowLevelKeyIDForCert(PK11SlotInfo *slot,

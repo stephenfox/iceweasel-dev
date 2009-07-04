@@ -48,18 +48,8 @@
 #include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsPrimitiveHelpers.h"
-#include "nsUnitConversion.h"
 #include "nsWidgetsCID.h"
 #include "nsCRT.h"
-
-// if we want to do Image-dragging, also need to change Makefile.in
-// to add
-// 		-I$(topsrcdir)/gfx/src/beos \
-// in INCLUDES
-// and bug 294234 to be done.
-// #include "nsIImage.h"
-// #include "nsIImageBeOS.h"
-//#include <Bitmap.h>
 
 #include <AppDefs.h>
 #include <TypeConstants.h>
@@ -152,8 +142,11 @@ nsDragService::InvokeDragSession (nsIDOMNode *aDOMNode,
                                   PRUint32 aActionType)
 {
     PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::InvokeDragSession"));
-    nsBaseDragService::InvokeDragSession (aDOMNode, aArrayTransferables,
-                                         aRegion, aActionType);
+    nsresult rv = nsBaseDragService::InvokeDragSession(aDOMNode,
+                                                       aArrayTransferables,
+                                                       aRegion, aActionType);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     ResetDragInfo();       
     // make sure that we have an array of transferables to use
     if (nsnull == aArrayTransferables)

@@ -45,6 +45,7 @@
 #include "nsIAccessible.h"
 #include "nsIAccessibleImage.h"
 #include "nsIAccessibleTypes.h"
+#include "nsAccessNodeWrap.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -74,6 +75,9 @@ CAccessibleImage::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 CAccessibleImage::get_description(BSTR *aDescription)
 {
+__try {
+  *aDescription = NULL;
+
   nsCOMPtr<nsIAccessible> acc(do_QueryInterface(this));
   if (!acc)
     return E_FAIL;
@@ -81,11 +85,16 @@ CAccessibleImage::get_description(BSTR *aDescription)
   nsAutoString description;
   nsresult rv = acc->GetName(description);
   if (NS_FAILED(rv))
-    return E_FAIL;
+    return GetHRESULT(rv);
 
-  INT result = ::SysReAllocStringLen(aDescription, description.get(),
-                                     description.Length());
-  return result ? NS_OK : E_OUTOFMEMORY;
+  if (description.IsEmpty())
+    return S_FALSE;
+
+  *aDescription = ::SysAllocStringLen(description.get(), description.Length());
+  return *aDescription ? S_OK : E_OUTOFMEMORY;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -93,6 +102,7 @@ CAccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordType,
                                     long *aX,
                                     long *aY)
 {
+__try {
   *aX = 0;
   *aY = 0;
 
@@ -107,17 +117,21 @@ CAccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordType,
   PRInt32 x = 0, y = 0;
   nsresult rv = imageAcc->GetImagePosition(geckoCoordType, &x, &y);
   if (NS_FAILED(rv))
-    return E_FAIL;
+    return GetHRESULT(rv);
 
   *aX = x;
   *aY = y;
-
   return S_OK;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 CAccessibleImage::get_imageSize(long *aHeight, long *aWidth)
 {
+__try {
   *aHeight = 0;
   *aWidth = 0;
 
@@ -128,11 +142,13 @@ CAccessibleImage::get_imageSize(long *aHeight, long *aWidth)
   PRInt32 x = 0, y = 0, width = 0, height = 0;
   nsresult rv = imageAcc->GetImageSize(&width, &height);
   if (NS_FAILED(rv))
-    return E_FAIL;
+    return GetHRESULT(rv);
 
   *aHeight = width;
   *aWidth = height;
-
   return S_OK;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 

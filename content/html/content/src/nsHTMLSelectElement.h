@@ -49,10 +49,11 @@
 #include "nsIDOMNSXBLFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLOptionElement.h"
-#include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMNSHTMLOptionCollectn.h"
 #include "nsISelectControlFrame.h"
+#include "nsContentUtils.h"
+#include "nsIHTMLCollection.h"
 
 // PresState
 #include "nsXPCOM.h"
@@ -70,7 +71,7 @@ class nsHTMLSelectElement;
  */
 class nsHTMLOptionCollection: public nsIDOMHTMLOptionsCollection,
                               public nsIDOMNSHTMLOptionCollection,
-                              public nsIDOMHTMLCollection
+                              public nsIHTMLCollection
 {
 public:
   nsHTMLOptionCollection(nsHTMLSelectElement* aSelect);
@@ -87,8 +88,16 @@ public:
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
+  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
+  {
+    *aResult = NS_OK;
+
+    return mElements.SafeObjectAt(aIndex);
+  }
+  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
+
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
-                                           nsIDOMNSHTMLOptionCollection)
+                                           nsIHTMLCollection)
 
   // Helpers for nsHTMLSelectElement
   /**
@@ -190,7 +199,7 @@ private:
   nsCheapInt32Set mIndices;
 };
 
-class nsSafeOptionListMutation
+class NS_STACK_CLASS nsSafeOptionListMutation
 {
 public:
   /**
@@ -257,7 +266,7 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   virtual void SetFocus(nsPresContext* aPresContext);
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
   virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
@@ -348,11 +357,6 @@ protected:
    * @param aNewSelected the state string to restore to
    */
   void RestoreStateTo(nsSelectState* aNewSelected);
-
-#ifdef DEBUG_john
-  // Don't remove these, por favor.  They're very useful in debugging
-  nsresult PrintOptions(nsIContent* aOptions, PRInt32 tabs);
-#endif
 
   // Adding options
   /**

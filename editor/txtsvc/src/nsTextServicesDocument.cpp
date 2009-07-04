@@ -417,8 +417,8 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
     return NS_OK;
   }
 
-  nsIContent *firstTextContent = iter->GetCurrentNode();
-  NS_ENSURE_TRUE(firstTextContent, NS_ERROR_FAILURE);
+  nsINode *firstText = iter->GetCurrentNode();
+  NS_ENSURE_TRUE(firstText, NS_ERROR_FAILURE);
 
   // Find the last text node in the range.
 
@@ -433,12 +433,12 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
     return NS_ERROR_FAILURE;
   }
 
-  nsIContent *lastTextContent = iter->GetCurrentNode();
-  NS_ENSURE_TRUE(lastTextContent, NS_ERROR_FAILURE);
+  nsINode *lastText = iter->GetCurrentNode();
+  NS_ENSURE_TRUE(lastText, NS_ERROR_FAILURE);
 
   // Now make sure our end points are in terms of text nodes in the range!
 
-  nsCOMPtr<nsIDOMNode> firstTextNode = do_QueryInterface(firstTextContent);
+  nsCOMPtr<nsIDOMNode> firstTextNode = do_QueryInterface(firstText);
   NS_ENSURE_TRUE(firstTextNode, NS_ERROR_FAILURE);
 
   if (rngStartNode != firstTextNode)
@@ -448,7 +448,7 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
     rngStartOffset = 0;
   }
 
-  nsCOMPtr<nsIDOMNode> lastTextNode = do_QueryInterface(lastTextContent);
+  nsCOMPtr<nsIDOMNode> lastTextNode = do_QueryInterface(lastText);
   NS_ENSURE_TRUE(lastTextNode, NS_ERROR_FAILURE);
 
   if (rngEndNode != lastTextNode)
@@ -470,7 +470,7 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
   // Grab all the text in the block containing our
   // first text node.
 
-  result = docIter->PositionAt(firstTextContent);
+  result = docIter->PositionAt(firstText);
   NS_ENSURE_SUCCESS(result, result);
 
   iterStatus = nsTextServicesDocument::eValid;
@@ -504,7 +504,7 @@ nsTextServicesDocument::ExpandRangeToWordBoundaries(nsIDOMRange *aRange)
   // Grab all the text in the block containing our
   // last text node.
 
-  result = docIter->PositionAt(lastTextContent);
+  result = docIter->PositionAt(lastText);
   NS_ENSURE_SUCCESS(result, result);
 
   iterStatus = nsTextServicesDocument::eValid;
@@ -859,10 +859,10 @@ nsTextServicesDocument::FirstSelectedBlock(TSDBlockSelectionStatus *aSelStatus, 
 
       iter->Last();
 
-      nsIContent *content = nsnull;
+      nsCOMPtr<nsIContent> content;
       while (!iter->IsDone())
       {
-        content = iter->GetCurrentNode();
+        content = do_QueryInterface(iter->GetCurrentNode());
 
         if (IsTextNode(content))
           break;
@@ -972,7 +972,7 @@ nsTextServicesDocument::FirstSelectedBlock(TSDBlockSelectionStatus *aSelStatus, 
 
     while (!iter->IsDone())
     {
-      nsIContent *content = iter->GetCurrentNode();
+      nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
       if (IsTextNode(content))
       {
@@ -1097,7 +1097,7 @@ nsTextServicesDocument::FirstSelectedBlock(TSDBlockSelectionStatus *aSelStatus, 
 
   while (!iter->IsDone())
   {
-    nsIContent *content = iter->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -1337,10 +1337,10 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
 
       iter->First();
 
-      nsIContent *content = nsnull;
+      nsCOMPtr<nsIContent> content;
       while (!iter->IsDone())
       {
-        content = iter->GetCurrentNode();
+        content = do_QueryInterface(iter->GetCurrentNode());
 
         if (IsTextNode(content))
           break;
@@ -1450,7 +1450,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
 
     while (!iter->IsDone())
     {
-      nsIContent *content = iter->GetCurrentNode();
+      nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
       if (IsTextNode(content))
       {
@@ -1575,7 +1575,7 @@ nsTextServicesDocument::LastSelectedBlock(TSDBlockSelectionStatus *aSelStatus,
 
   while (!iter->IsDone())
   {
-    nsIContent *content = iter->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -1831,6 +1831,8 @@ nsTextServicesDocument::ScrollSelectionIntoView()
 
   LOCK_DOC(this);
 
+  // After ScrollSelectionIntoView(), the pending notifications might be flushed
+  // and PresShell/PresContext/Frames may be dead. See bug 418470.
   result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 
   UNLOCK_DOC(this);
@@ -2043,7 +2045,7 @@ nsTextServicesDocument::DeleteSelection()
       // The range has changed, so we need to create a new content
       // iterator based on the new range.
 
-      nsIContent *curContent = nsnull;
+      nsCOMPtr<nsIContent> curContent;
 
       if (mIteratorStatus != nsTextServicesDocument::eIsDone)
       {
@@ -2051,7 +2053,7 @@ nsTextServicesDocument::DeleteSelection()
         // so get it's current node so we can restore it after we
         // create the new iterator!
 
-        curContent = mIterator->GetCurrentNode();
+        curContent = do_QueryInterface(mIterator->GetCurrentNode());
       }
 
       // Create the new iterator.
@@ -2626,9 +2628,9 @@ nsTextServicesDocument::JoinNodes(nsIDOMNode  *aLeftNode,
 
   if (!leftHasEntry)
   {
-    // XXX: Not sure if we should be throwing an error here!
-    NS_ASSERTION(0, "JoinNode called with node not listed in offset table.");
-    return NS_ERROR_FAILURE;
+    // It's okay if the node isn't in the offset table, the
+    // editor could be cleaning house.
+    return NS_OK;
   }
 
   result = NodeHasOffsetEntry(&mOffsetTable, aRightNode, &rightHasEntry, &rightIndex);
@@ -2638,7 +2640,9 @@ nsTextServicesDocument::JoinNodes(nsIDOMNode  *aLeftNode,
 
   if (!rightHasEntry)
   {
-    return NS_ERROR_FAILURE;
+    // It's okay if the node isn't in the offset table, the
+    // editor could be cleaning house.
+    return NS_OK;
   }
 
   NS_ASSERTION(leftIndex < rightIndex, "Indexes out of order.");
@@ -3591,7 +3595,7 @@ nsTextServicesDocument::GetCollapsedSelection(nsITextServicesDocument::TSDBlockS
 
   while (!iter->IsDone())
   {
-    nsIContent *content = iter->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -3640,7 +3644,7 @@ nsTextServicesDocument::GetCollapsedSelection(nsITextServicesDocument::TSDBlockS
 
     while (!iter->IsDone())
     {
-      nsIContent *content = iter->GetCurrentNode();
+      nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
       if (IsTextNode(content))
       {
@@ -3879,7 +3883,7 @@ nsTextServicesDocument::GetUncollapsedSelection(nsITextServicesDocument::TSDBloc
   // Find the first text node in the range.
   
   PRBool found;
-  nsIContent *content;
+  nsCOMPtr<nsIContent> content;
 
   iter->First();
 
@@ -3889,7 +3893,7 @@ nsTextServicesDocument::GetUncollapsedSelection(nsITextServicesDocument::TSDBloc
 
     while (!iter->IsDone())
     {
-      content = iter->GetCurrentNode();
+      content = do_QueryInterface(iter->GetCurrentNode());
 
       if (IsTextNode(content))
       {
@@ -3921,7 +3925,7 @@ nsTextServicesDocument::GetUncollapsedSelection(nsITextServicesDocument::TSDBloc
 
     while (!iter->IsDone())
     {
-      content = iter->GetCurrentNode();
+      content = do_QueryInterface(iter->GetCurrentNode());
 
       if (IsTextNode(content))
       {
@@ -4117,7 +4121,7 @@ nsTextServicesDocument::FirstTextNode(nsIContentIterator *aIterator,
 
   while (!aIterator->IsDone())
   {
-    nsIContent *content = aIterator->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aIterator->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -4143,7 +4147,7 @@ nsTextServicesDocument::LastTextNode(nsIContentIterator *aIterator,
 
   while (!aIterator->IsDone())
   {
-    nsIContent *content = aIterator->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aIterator->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -4173,7 +4177,7 @@ nsTextServicesDocument::FirstTextNodeInCurrentBlock(nsIContentIterator *iter)
 
   while (!iter->IsDone())
   {
-    nsIContent *content = iter->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -4247,7 +4251,7 @@ nsTextServicesDocument::FirstTextNodeInNextBlock(nsIContentIterator *aIterator)
 
   while (!aIterator->IsDone())
   {
-    nsIContent *content = aIterator->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aIterator->GetCurrentNode());
 
     if (IsTextNode(content))
     {
@@ -4281,25 +4285,26 @@ nsTextServicesDocument::GetFirstTextNodeInPrevBlock(nsIContent **aContent)
   // Save the iterator's current content node so we can restore
   // it when we are done:
 
-  nsIContent *content = mIterator->GetCurrentNode();
+  nsINode* node = mIterator->GetCurrentNode();
 
   result = FirstTextNodeInPrevBlock(mIterator);
 
   if (NS_FAILED(result))
   {
     // Try to restore the iterator before returning.
-    mIterator->PositionAt(content);
+    mIterator->PositionAt(node);
     return result;
   }
 
   if (!mIterator->IsDone())
   {
-    NS_ADDREF(*aContent = mIterator->GetCurrentNode());
+    nsCOMPtr<nsIContent> current = do_QueryInterface(mIterator->GetCurrentNode());
+    current.swap(*aContent);
   }
 
   // Restore the iterator:
 
-  return mIterator->PositionAt(content);
+  return mIterator->PositionAt(node);
 }
 
 nsresult
@@ -4315,24 +4320,25 @@ nsTextServicesDocument::GetFirstTextNodeInNextBlock(nsIContent **aContent)
   // Save the iterator's current content node so we can restore
   // it when we are done:
 
-  nsIContent *content = mIterator->GetCurrentNode();
+  nsINode* node = mIterator->GetCurrentNode();
 
   result = FirstTextNodeInNextBlock(mIterator);
 
   if (NS_FAILED(result))
   {
     // Try to restore the iterator before returning.
-    mIterator->PositionAt(content);
+    mIterator->PositionAt(node);
     return result;
   }
 
   if (!mIterator->IsDone())
   {
-    NS_ADDREF(*aContent = mIterator->GetCurrentNode());
+    nsCOMPtr<nsIContent> current = do_QueryInterface(mIterator->GetCurrentNode());
+    current.swap(*aContent);
   }
 
   // Restore the iterator:
-  return mIterator->PositionAt(content);
+  return mIterator->PositionAt(node);
 }
 
 nsresult
@@ -4389,7 +4395,7 @@ nsTextServicesDocument::CreateOffsetTable(nsVoidArray *aOffsetTable,
 
   while (!aIterator->IsDone())
   {
-    nsIContent *content = aIterator->GetCurrentNode();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aIterator->GetCurrentNode());
 
     if (IsTextNode(content))
     {

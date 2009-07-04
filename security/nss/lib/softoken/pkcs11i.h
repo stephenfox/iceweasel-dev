@@ -376,7 +376,8 @@ struct SFTKSlotStr {
     SFTKSession		**head;			/* variable -reset */
     unsigned int	sessHashSize;		/* invariant */
     char		tokDescription[33];	/* per load */
-    char		slotDescription[64];	/* invariant */
+    char		updateTokDescription[33]; /* per load */
+    char		slotDescription[65];	/* invariant */
 };
 
 /*
@@ -530,8 +531,13 @@ typedef struct sftk_token_parametersStr {
     char *configdir;
     char *certPrefix;
     char *keyPrefix;
+    char *updatedir;
+    char *updCertPrefix;
+    char *updKeyPrefix;
+    char *updateID;
     char *tokdes;
     char *slotdes;
+    char *updtokdes;
     int minPW; 
     PRBool readOnly;
     PRBool noCertDB;
@@ -543,6 +549,8 @@ typedef struct sftk_token_parametersStr {
 
 typedef struct sftk_parametersStr {
     char *configdir;
+    char *updatedir;
+    char *updateID;
     char *secmodName;
     char *man;
     char *libdes; 
@@ -576,16 +584,19 @@ SEC_BEGIN_PROTOS
 extern PRBool nsf_init;
 extern CK_RV nsc_CommonInitialize(CK_VOID_PTR pReserved, PRBool isFIPS);
 extern CK_RV nsc_CommonFinalize(CK_VOID_PTR pReserved, PRBool isFIPS);
+extern PRBool sftk_ForkReset(CK_VOID_PTR pReserved, CK_RV* crv);
 extern CK_RV nsc_CommonGetSlotList(CK_BBOOL tokPresent, 
 	CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount, int moduleIndex);
 
 /* slot initialization, reinit, shutdown and destruction */
-extern CK_RV SFTK_SlotInit(char *configdir,
+extern CK_RV SFTK_SlotInit(char *configdir, char *updatedir, char *updateID,
 			sftk_token_parameters *params, int moduleIndex);
 extern CK_RV SFTK_SlotReInit(SFTKSlot *slot, char *configdir,
+			char *updatedir, char *updateID,
 			sftk_token_parameters *params, int moduleIndex);
 extern CK_RV SFTK_DestroySlotData(SFTKSlot *slot);
 extern CK_RV SFTK_ShutdownSlot(SFTKSlot *slot);
+extern CK_RV sftk_CloseAllSessions(SFTKSlot *slot, PRBool logout);
 
 
 /* internal utility functions used by pkcs11.c */

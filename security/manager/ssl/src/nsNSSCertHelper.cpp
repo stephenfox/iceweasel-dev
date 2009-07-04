@@ -47,6 +47,7 @@
 #include "nsNSSCertificate.h"
 #include "cert.h"
 #include "keyhi.h"
+#include "secder.h"
 #include "nsNSSCertValidity.h"
 #include "nsNSSASN1Object.h"
 #include "nsNSSComponent.h"
@@ -612,10 +613,18 @@ ProcessRawBytes(nsINSSComponent *nssComponent, SECItem *data,
 {
   // This function is used to display some DER bytes
   // that we have not added support for decoding.
-  // It prints the value of the byte out into a 
-  // string that can later be displayed as a byte
-  // string.  We place a new line after 24 bytes
-  // to break up extermaly long sequence of bytes.
+  // If it's short, let's display as an integer, no size header.
+
+  if (data->len <= 4) {
+    int i_pv = DER_GetInteger(data);
+    nsAutoString value;
+    value.AppendInt(i_pv);
+    text.Append(value);
+    text.Append(NS_LITERAL_STRING(SEPARATOR).get());
+    return NS_OK;
+  }
+
+  // Else produce a hex dump.
 
   if (wantHeader) {
     nsAutoString bytelen, bitlen;
@@ -630,6 +639,11 @@ ProcessRawBytes(nsINSSComponent *nssComponent, SECItem *data,
 
     text.Append(NS_LITERAL_STRING(SEPARATOR).get());
   }
+
+  // This prints the value of the byte out into a 
+  // string that can later be displayed as a byte
+  // string.  We place a new line after 24 bytes
+  // to break up extermaly long sequence of bytes.
 
   PRUint32 i;
   char buffer[5];
@@ -985,6 +999,8 @@ ProcessGeneralName(PRArenaPool *arena,
 		   nsAString &text,
 		   nsINSSComponent *nssComponent)
 {
+  NS_ENSURE_ARG_POINTER(current);
+
   nsAutoString key;
   nsXPIDLString value;
   nsresult rv = NS_OK;
@@ -1064,17 +1080,20 @@ ProcessGeneralName(PRArenaPool *arena,
   case certIPAddress:
     {
       char buf[INET6_ADDRSTRLEN];
+      PRStatus status = PR_FAILURE;
       PRNetAddr addr;
+      memset(&addr, 0, sizeof(addr));
       nssComponent->GetPIPNSSBundleString("CertDumpIPAddress", key);
       if (current->name.other.len == 4) {
         addr.inet.family = PR_AF_INET;
         memcpy(&addr.inet.ip, current->name.other.data, current->name.other.len);
-        PR_NetAddrToString(&addr, buf, sizeof(buf));
-        value.AssignASCII(buf);
+        status = PR_NetAddrToString(&addr, buf, sizeof(buf));
       } else if (current->name.other.len == 16) {
         addr.ipv6.family = PR_AF_INET6;
         memcpy(&addr.ipv6.ip, current->name.other.data, current->name.other.len);
-        PR_NetAddrToString(&addr, buf, sizeof(buf));
+        status = PR_NetAddrToString(&addr, buf, sizeof(buf));
+      }
+      if (status == PR_SUCCESS) {
         value.AssignASCII(buf);
       } else {
         /* invalid IP address */
@@ -1215,102 +1234,70 @@ ProcessAuthKeyId(SECItem  *extData,
   return rv;
 }
 
-enum DisplayTextForm { VisibleForm, BMPForm, UTF8Form };
-
-struct DisplayText {
-  DisplayTextForm variant;
-  SECItem value;
-};
-
-const SEC_ASN1Template DisplayTextTemplate[] = {
-    { SEC_ASN1_CHOICE,
-      offsetof(DisplayText, variant), NULL,
-      sizeof(DisplayText) },
-    { SEC_ASN1_IA5_STRING, 
-      offsetof(DisplayText, value), NULL, VisibleForm },
-    { SEC_ASN1_VISIBLE_STRING, 
-      offsetof(DisplayText, value), NULL, VisibleForm },
-    { SEC_ASN1_BMP_STRING, 
-      offsetof(DisplayText, value), NULL, BMPForm },
-    { SEC_ASN1_UTF8_STRING, 
-      offsetof(DisplayText, value), NULL, UTF8Form },
-    { 0 }
-};
-
 static nsresult
 ProcessUserNotice(SECItem *der_notice,
 		  nsAString &text,
 		  nsINSSComponent *nssComponent)
 {
-  nsresult rv = NS_OK;
   CERTUserNotice *notice = NULL;
   SECItem **itemList;
-  DisplayText display;
   PRArenaPool *arena;
-  char *buf;
 
   arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
   if (!arena)
     return NS_ERROR_FAILURE;
 
   notice = CERT_DecodeUserNotice(der_notice);
-  /* XXX: currently, polcyxtn.c assumes that organization
-     is an IA5String, whereas it really ought to be a
-     choice of VisibleString, BMPString, and UTF8String.
-     So if decoding of the user notice fails, it is most likely
-     that the organization was encoded in an unexpected way.
-     Make this function return "something" in this case,
-     instead letting the decode for the entire certificate
-     fail.
-  */
   if (notice == NULL) {
-    text.Append(NS_LITERAL_STRING("<implementation limitation>"));
+    ProcessRawBytes(nssComponent, der_notice, text);
     goto finish;
   }
 
   if (notice->noticeReference.organization.len != 0) {
-    rv = ProcessIA5String(&notice->noticeReference.organization,
-			  text, nssComponent);
-    if (NS_FAILED(rv))
-      goto finish;
-
+    switch (notice->noticeReference.organization.type) {
+    case siAsciiString:
+    case siVisibleString:
+    case siUTF8String:
+      text.Append(NS_ConvertUTF8toUTF16(
+                  (const char *)notice->noticeReference.organization.data,
+                  notice->noticeReference.organization.len));
+      break;
+    case siBMPString:
+      AppendBMPtoUTF16(arena, notice->noticeReference.organization.data,
+                       notice->noticeReference.organization.len, text);
+      break;
+    default:
+      break;
+    }
+    text.Append(NS_LITERAL_STRING(" - "));
     itemList = notice->noticeReference.noticeNumbers;
     while (*itemList) {
       unsigned long number;
       char buffer[60];
-      if (SEC_ASN1DecodeInteger(*itemList, &number) != SECSuccess) {
-	rv = NS_ERROR_FAILURE;
-	goto finish;
+      if (SEC_ASN1DecodeInteger(*itemList, &number) == SECSuccess) {
+        PR_snprintf(buffer, sizeof(buffer), "#%d", number);
+        if (itemList != notice->noticeReference.noticeNumbers)
+          text.Append(NS_LITERAL_STRING(", "));
+        AppendASCIItoUTF16(buffer, text);
       }
-      PR_snprintf(buffer, sizeof(buffer), "%d ", number);
-      AppendASCIItoUTF16(buffer, text);
       itemList++;
     }
   }
   if (notice->displayText.len != 0) {
-    if (SEC_QuickDERDecodeItem(arena, &display,
-			       DisplayTextTemplate,
-			       &notice->displayText) != SECSuccess) {
-      rv = NS_ERROR_FAILURE;
-      goto finish;
-    }
-    switch (display.variant) {
-    case VisibleForm:
-      /* Need to null-terminate string before appending it. */
-      buf = (char*)PORT_ArenaAlloc(arena, display.value.len+1);
-      PORT_Memcpy(buf, display.value.data, display.value.len);
-      buf[display.value.len] = '\0';
-      text.AppendASCII(buf);
+    text.Append(NS_LITERAL_STRING(SEPARATOR));
+    text.Append(NS_LITERAL_STRING("    "));
+    switch (notice->displayText.type) {
+    case siAsciiString:
+    case siVisibleString:
+    case siUTF8String:
+      text.Append(NS_ConvertUTF8toUTF16((const char *)notice->displayText.data,
+                                        notice->displayText.len));
       break;
-    case BMPForm:
-      AppendBMPtoUTF16(arena, display.value.data, display.value.len,
+    case siBMPString:
+      AppendBMPtoUTF16(arena, notice->displayText.data, notice->displayText.len,
 		       text);
       break;
-    case UTF8Form:
-      buf = (char*)PORT_ArenaAlloc(arena, display.value.len+1);
-      PORT_Memcpy(buf, display.value.data, display.value.len);
-      buf[display.value.len] = '\0';
-      AppendUTF8toUTF16(buf, text);
+    default:
       break;
     }
   }
@@ -1318,7 +1305,7 @@ ProcessUserNotice(SECItem *der_notice,
   if (notice)
     CERT_DestroyUserNotice(notice);
   PORT_FreeArena(arena, PR_FALSE);
-  return rv;
+  return NS_OK;
 }
 
 static nsresult
@@ -1831,11 +1818,32 @@ ProcessSubjectPublicKeyInfo(CERTSubjectPublicKeyInfo *spki,
                                                      params, 4, text);
          break;
       }
+      case ecKey: {
+        displayed = true;
+        SECKEYECPublicKey &ecpk = key->u.ec;
+        int fieldSizeLenAsBits = 
+              SECKEY_ECParamsToKeySize(&ecpk.DEREncodedParams);
+        int basePointOrderLenAsBits = 
+              SECKEY_ECParamsToBasePointOrderLen(&ecpk.DEREncodedParams);
+        nsAutoString s_fsl, s_bpol, s_pv;
+        s_fsl.AppendInt(fieldSizeLenAsBits);
+        s_bpol.AppendInt(basePointOrderLenAsBits);
+
+        if (ecpk.publicValue.len > 4) {
+          ProcessRawBytes(nssComponent, &ecpk.publicValue, s_pv, PR_FALSE);
+        } else {
+          int i_pv = DER_GetInteger(&ecpk.publicValue);
+          s_pv.AppendInt(i_pv);
+        }
+        const PRUnichar *params[] = {s_fsl.get(), s_bpol.get(), s_pv.get()};
+        nssComponent->PIPBundleFormatStringFromName("CertDumpECTemplate",
+                                                    params, 3, text);
+        break;
+      }
       case dhKey:
       case dsaKey:
       case fortezzaKey:
       case keaKey:
-      case ecKey:
          /* Too many parameters, to rarely used to bother displaying it */
          break;
       case nullKey:

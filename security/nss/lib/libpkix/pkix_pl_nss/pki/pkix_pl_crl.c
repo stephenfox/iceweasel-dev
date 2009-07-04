@@ -129,7 +129,7 @@ PKIX_PL_CRL_GetCRLNumber(
                 PKIX_CRL_DEBUG("\t\tCalling PORT_NewArena).\n");
                 arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
                 if (arena == NULL) {
-                        PKIX_ERROR(PKIX_PORTNEWARENAFAILED);
+                        PKIX_ERROR(PKIX_OUTOFMEMORY);
                 }
 
                 PKIX_CRL_DEBUG("\t\tCalling CERT_FindCRLNumberExten\n");
@@ -249,7 +249,6 @@ pkix_pl_CRL_GetSignatureAlgId(
         }
 
         PKIX_INCREF(crl->signatureAlgId);
-
         *pSignatureAlgId = crl->signatureAlgId;
 
 cleanup:
@@ -685,6 +684,8 @@ pkix_pl_CRL_RegisterSelf(void *plContext)
         PKIX_ENTER(CRL, "pkix_pl_CRL_RegisterSelf");
 
         entry.description = "CRL";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_CRL);
         entry.destructor = pkix_pl_CRL_Destroy;
         entry.equalsFunction = pkix_pl_CRL_Equals;
         entry.hashcodeFunction = pkix_pl_CRL_Hashcode;
@@ -863,25 +864,25 @@ pkix_pl_CRL_CreateToList(
         PKIX_ENTER(CRL, "pkix_pl_CRL_CreateToList");
         PKIX_NULLCHECK_TWO(derCrlItem, crlList);
 
-        PKIX_PL_NSSCALLRV(CRL, nssCrl, CERT_DecodeDERCrl,
-                (NULL, derCrlItem, SEC_CRL_TYPE));
-
-        if (nssCrl) {
-                PKIX_CHECK_ONLY_FATAL(pkix_pl_CRL_CreateWithSignedCRL
-                        (nssCrl, &crl, plContext),
-                        PKIX_CRLCREATEWITHSIGNEDCRLFAILED);
-
-                /* skip bad crls and append good ones */
-                if (!PKIX_ERROR_RECEIVED) {
-                        PKIX_CHECK(PKIX_List_AppendItem
-                                (crlList, (PKIX_PL_Object *) crl, plContext),
-                                PKIX_LISTAPPENDITEMFAILED);
-                }
-
-                PKIX_DECREF(crl);
-
+        nssCrl = CERT_DecodeDERCrl(NULL, derCrlItem, SEC_CRL_TYPE);
+        if (nssCrl == NULL) {
+            goto cleanup;
         }
+
+        PKIX_CHECK(pkix_pl_CRL_CreateWithSignedCRL
+                   (nssCrl, &crl, plContext),
+                   PKIX_CRLCREATEWITHSIGNEDCRLFAILED);
+        
+        nssCrl = NULL;
+
+        PKIX_CHECK(PKIX_List_AppendItem
+                   (crlList, (PKIX_PL_Object *) crl, plContext),
+                   PKIX_LISTAPPENDITEMFAILED);
+
 cleanup:
+        if (nssCrl) {
+            SEC_DestroyCrl(nssCrl);
+        }
 
         PKIX_DECREF(crl);
 
@@ -923,7 +924,7 @@ PKIX_PL_CRL_Create(
         PKIX_CRL_DEBUG("\t\tCalling SECITEM_AllocItem\n");
         derCrlItem = SECITEM_AllocItem(NULL, NULL, derLength);
         if (derCrlItem == NULL){
-                PKIX_ERROR(PKIX_SECITEMALLOCITEMFORCRLDERRETURNNULL);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         PKIX_CRL_DEBUG("\t\tCalling PORT_Memcpy\n");
@@ -1152,6 +1153,7 @@ PKIX_PL_CRL_VerifySignature(
         CERTSignedCrl *nssSignedCrl = NULL;
         SECKEYPublicKey *nssPubKey = NULL;
         CERTSignedData *tbsCrl = NULL;
+        void* wincx = NULL;
         SECStatus status;
 
         PKIX_ENTER(CRL, "PKIX_PL_CRL_VerifySignature");
@@ -1183,8 +1185,12 @@ PKIX_PL_CRL_VerifySignature(
                 PKIX_ERROR(PKIX_SECKEYEXTRACTPUBLICKEYFAILED);
         }
 
+        PKIX_CHECK(pkix_pl_NssContext_GetWincx
+                   ((PKIX_PL_NssContext *)plContext, &wincx),
+                   PKIX_NSSCONTEXTGETWINCXFAILED);
+
         PKIX_CRL_DEBUG("\t\tCalling CERT_VerifySignedDataWithPublicKey\n");
-        status = CERT_VerifySignedDataWithPublicKey(tbsCrl, nssPubKey, NULL);
+        status = CERT_VerifySignedDataWithPublicKey(tbsCrl, nssPubKey, wincx);
 
         if (status != SECSuccess) {
                 PKIX_ERROR(PKIX_SIGNATUREDIDNOTVERIFYWITHTHEPUBLICKEY);

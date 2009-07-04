@@ -34,6 +34,8 @@
 #define CAIRO_XLIB_SURFACE_PRIVATE_H
 
 #include "cairo-xlib.h"
+#include "cairo-xlib-private.h"
+#include "cairo-xlib-xrender-private.h"
 
 #include "cairo-surface-private.h"
 
@@ -43,7 +45,9 @@ struct _cairo_xlib_surface {
     cairo_surface_t base;
 
     Display *dpy;
+    cairo_xlib_display_t *display;
     cairo_xlib_screen_info_t *screen_info;
+    cairo_xlib_hook_t close_display_hook;
 
     GC gc;
     Drawable drawable;
@@ -89,6 +93,11 @@ struct _cairo_xlib_surface {
     cairo_filter_t filter;
     int repeat;
     XTransform xtransform;
+
+    uint32_t a_mask;
+    uint32_t r_mask;
+    uint32_t g_mask;
+    uint32_t b_mask;
 };
 
 enum {

@@ -184,10 +184,16 @@ public:
   PRBool ShouldBuildChildFrames(nsIContent* aContent);
 
   // Style rule methods
-  nsresult WalkRules(nsStyleSet* aStyleSet, 
-                     nsIStyleRuleProcessor::EnumFunc aFunc,
+  nsresult WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
                      RuleProcessorData* aData,
                      PRBool* aCutOffInheritance);
+  /**
+   * Do any processing that needs to happen as a result of a change in
+   * the characteristics of the medium, and return whether this rule
+   * processor's rules have changed (e.g., because of media queries).
+   */
+  nsresult MediumFeaturesChanged(nsPresContext* aPresContext,
+                                 PRBool* aRulesChanged);
 
   NS_HIDDEN_(void) Traverse(nsIContent *aContent,
                             nsCycleCollectionTraversalCallback &cb);
@@ -241,7 +247,9 @@ protected:
   // A mapping from nsIContent* to an nsIDOMNodeList*
   // (nsAnonymousContentList*).  This list contains an accurate
   // reflection of our *explicit* children (once intermingled with
-  // insertion points) in the altered DOM.
+  // insertion points) in the altered DOM.  There is an entry for a
+  // content node in this table only if that content node has some
+  // <children> kids.
   PLDHashTable mContentListTable;
 
   // A mapping from nsIContent* to an nsIDOMNodeList*
@@ -250,7 +258,10 @@ protected:
   // intermingled with insertion points) in the altered DOM.  This
   // table is not used if no insertion points were defined directly
   // underneath a <content> tag in a binding.  The NodeList from the
-  // <content> is used instead as a performance optimization.
+  // <content> is used instead as a performance optimization.  There
+  // is an entry for a content node in this table only if that content
+  // node has a binding with a <content> attached and this <content>
+  // contains <children> elements directly.
   PLDHashTable mAnonymousNodesTable;
 
   // A mapping from nsIContent* to nsIContent*.  The insertion parent
@@ -285,7 +296,7 @@ protected:
 
   // Our posted event to process the attached queue, if any
   friend class nsRunnableMethod<nsBindingManager>;
-  nsCOMPtr<nsIRunnable> mProcessAttachedQueueEvent;
+  nsRefPtr< nsRunnableMethod<nsBindingManager> > mProcessAttachedQueueEvent;
 
   // Our document.  This is a weak ref; the document owns us
   nsIDocument* mDocument; 

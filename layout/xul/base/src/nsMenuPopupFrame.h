@@ -174,11 +174,15 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRBool aImmediate);
+                                  PRUint32 aFlags);
 
   // returns true if the popup is a panel with the noautohide attribute set to
   // true. These panels do not roll up automatically.
   PRBool IsNoAutoHide();
+
+  // returns true if the popup is a top-most window. Otherwise, the
+  // panel appears in front of the parent window.
+  PRBool IsTopMost();
 
   void EnsureWidget();
 
@@ -228,7 +232,13 @@ public:
                        PRInt32 aXPos, PRInt32 aYPos,
                        PRBool aAttributesOverride);
 
-  void InitializePopupAtScreen(PRInt32 aXPos, PRInt32 aYPos);
+  /**
+   * @param aIsContextMenu if true, then the popup is
+   * positioned at a slight offset from aXPos/aYPos to ensure the
+   * (presumed) mouse position is not over the menu.
+   */
+  void InitializePopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
+                               PRBool aIsContextMenu);
 
   void InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
                                       nsAString& aAnchor,
@@ -271,7 +281,15 @@ public:
   void SetConsumeRollupEvent(PRUint32 aConsumeMode);
 
   nsIScrollableView* GetScrollableView(nsIFrame* aStart);
-  
+
+  // same as SetBounds except the preferred size mPrefSize is also set.
+  void SetPreferredBounds(nsBoxLayoutState& aState, const nsRect& aRect);
+
+  // retrieve the last preferred size
+  nsSize PreferredSize() { return mPrefSize; }
+  // set the last preferred size
+  void SetPreferredSize(nsSize aSize) { mPrefSize = aSize; }
+
 protected:
   // Move without updating attributes.                                          
   void MoveToInternal(PRInt32 aLeft, PRInt32 aTop);                             
@@ -319,6 +337,8 @@ protected:
 
   PRPackedBool mIsOpenChanged; // true if the open state changed since the last layout
   PRPackedBool mIsContextMenu; // true for context menus
+  // true if we need to offset the popup to ensure it's not under the mouse
+  PRPackedBool mAdjustOffsetForContextMenu;
   PRPackedBool mGeneratedChildren; // true if the contents have been created
 
   PRPackedBool mMenuCanOverlapOSBar;    // can we appear over the taskbar/menubar?
@@ -328,6 +348,16 @@ protected:
 
   nsString     mIncrementalString;  // for incremental typing navigation
 
+  // A popup's preferred size may be different than its actual size stored in
+  // mRect in the case where the popup was resized because it was too large
+  // for the screen. The preferred size mPrefSize holds the full size the popup
+  // would be before resizing. Computations are performed using this size.
+  // The parent frame is responsible for setting the preferred size using
+  // SetPreferredBounds or SetPreferredSize before positioning the popup with
+  // SetPopupPosition.
+  nsSize mPrefSize;
+
+  static PRInt8 sDefaultLevelParent;
 }; // class nsMenuPopupFrame
 
 #endif

@@ -20,6 +20,7 @@
  *
  * Contributor(s):
  *   Sun Microsystems, Inc.
+ *   Red Hat, Inc.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -48,6 +49,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include "secport.h"
+#include "prlong.h"
 
 /* private PKIX system headers */
 #include "pkix_basicconstraintschecker.h"
@@ -57,20 +59,20 @@
 #include "pkix_comcertselparams.h"
 #include "pkix_comcrlselparams.h"
 #include "pkix_crlselector.h"
-#include "pkix_defaultcrlchecker.h"
-#include "pkix_defaultrevchecker.h"
 #include "pkix_error.h"
 #include "pkix_expirationchecker.h"
 #include "pkix_list.h"
 #include "pkix_logger.h"
 #include "pkix_namechainingchecker.h"
 #include "pkix_nameconstraintschecker.h"
-#include "pkix_ocspchecker.h"
 #include "pkix_policychecker.h"
 #include "pkix_policynode.h"
 #include "pkix_procparams.h"
 #include "pkix_resourcelimits.h"
+#include "pkix_revocationmethod.h"
 #include "pkix_revocationchecker.h"
+#include "pkix_crlchecker.h"
+#include "pkix_ocspchecker.h"
 #include "pkix_signaturechecker.h"
 #include "pkix_store.h"
 #include "pkix_targetcertchecker.h"
@@ -88,58 +90,68 @@ typedef struct pkixStdVarsStr {
     PKIX_Error        *aPkixTempResult;
     PKIX_Error        *aPkixReturnResult;
     PKIX_ERRORCODE     aPkixErrorCode;
-    const char        *aPkixErrorMsg;
     PKIX_Boolean       aPkixErrorReceived;
     PKIX_Boolean       aPkixTempErrorReceived;
     PKIX_ERRORCLASS    aPkixErrorClass;
     PKIX_UInt32        aPkixType;
     PKIX_PL_Object    *aLockedObject;
-    PKIX_PL_Mutex     *aLockedMutex;
+    PKIX_List         *aPkixErrorList;
 } PKIX_StdVars;
 
 #ifdef PKIX_STDVARS_POINTER
-#define myFuncName              stdVars->aMyFuncName
-#define pkixErrorResult		stdVars->aPkixErrorResult
-#define pkixTempResult		stdVars->aPkixTempResult
-#define pkixReturnResult	stdVars->aPkixReturnResult
-#define pkixErrorCode		stdVars->aPkixErrorCode
-#define pkixErrorMsg		stdVars->aPkixErrorMsg
-#define pkixErrorReceived	stdVars->aPkixErrorReceived
-#define pkixTempErrorReceived 	stdVars->aPkixTempErrorReceived 
-#define pkixErrorClass		stdVars->aPkixErrorClass
-#define pkixType		stdVars->aPkixType
-#define lockedObject		stdVars->aLockedObject
-#define lockedMutex		stdVars->aLockedMutex
+#define myFuncName                  stdVars->aMyFuncName
+#define pkixErrorResult             stdVars->aPkixErrorResult
+#define pkixTempResult              stdVars->aPkixTempResult
+#define pkixReturnResult            stdVars->aPkixReturnResult
+#define pkixErrorCode               stdVars->aPkixErrorCode
+#define pkixErrorReceived           stdVars->aPkixErrorReceived
+#define pkixTempErrorReceived       stdVars->aPkixTempErrorReceived 
+#define pkixErrorClass              stdVars->aPkixErrorClass
+#define pkixType                    stdVars->aPkixType
+#define lockedObject                stdVars->aLockedObject
+#define pkixErrorList               stdVars->aPkixErrorList
+#define stdVarsPtr                  stdVars
 #else
-#define myFuncName              stdVars.aMyFuncName
-#define pkixErrorResult		stdVars.aPkixErrorResult
-#define pkixTempResult		stdVars.aPkixTempResult
-#define pkixReturnResult	stdVars.aPkixReturnResult
-#define pkixErrorCode		stdVars.aPkixErrorCode
-#define pkixErrorMsg		stdVars.aPkixErrorMsg
-#define pkixErrorReceived	stdVars.aPkixErrorReceived
-#define pkixTempErrorReceived 	stdVars.aPkixTempErrorReceived 
-#define pkixErrorClass		stdVars.aPkixErrorClass
-#define pkixType		stdVars.aPkixType
-#define lockedObject		stdVars.aLockedObject
-#define lockedMutex		stdVars.aLockedMutex
+#define myFuncName                  stdVars.aMyFuncName
+#define pkixErrorResult             stdVars.aPkixErrorResult
+#define pkixTempResult              stdVars.aPkixTempResult
+#define pkixReturnResult            stdVars.aPkixReturnResult
+#define pkixErrorCode               stdVars.aPkixErrorCode
+#define pkixErrorReceived           stdVars.aPkixErrorReceived
+#define pkixTempErrorReceived       stdVars.aPkixTempErrorReceived 
+#define pkixErrorClass              stdVars.aPkixErrorClass
+#define pkixType                    stdVars.aPkixType
+#define lockedObject                stdVars.aLockedObject
+#define pkixErrorList               stdVars.aPkixErrorList
+#define stdVarsPtr                  &stdVars
 #endif
 
 extern PKIX_Error * PKIX_DoReturn(PKIX_StdVars * stdVars, 
                                   PKIX_ERRORCLASS errClass, 
                                   PKIX_Boolean doLogger,
-				  void * plContext);
+                                  void * plContext);
 
 extern PKIX_Error * PKIX_DoThrow(PKIX_StdVars * stdVars, 
                                  PKIX_ERRORCLASS errClass, 
-			         PKIX_ERRORCODE errCode,
+                                 PKIX_ERRORCODE errCode,
+                                 PKIX_ERRORCLASS overrideClass, 
                                  void * plContext);
 
-extern PKIX_Error * PKIX_DoCheck(PKIX_StdVars * stdVars, 
-			         PKIX_ERRORCODE errCode,
-                                 void * plContext);
+extern void PKIX_DoAddError(PKIX_StdVars * stdVars, 
+                            PKIX_Error * error,
+                            void * plContext);
+
+#ifdef PKIX_OBJECT_LEAK_TEST
+extern PKIX_Error * pkix_CheckForGeneratedError(PKIX_StdVars * stdVars, 
+                                                PKIX_ERRORCLASS errClass, 
+                                                char * fnName,
+                                                PKIX_Boolean *errorStateSet,
+                                                void * plContext);
+#endif /* PKIX_OBJECT_LEAK_TEST */
 
 extern const PKIX_StdVars zeroStdVars;
+
+extern PRLogModuleInfo *pkixLog;
 
 /*
  * UTILITY MACROS
@@ -154,10 +166,63 @@ extern const PKIX_StdVars zeroStdVars;
  * not reached"), so we just use "{<body>}" to group the statements together.
  */
 
+#if !defined (PKIX_OBJECT_LEAK_TEST)
+
 #define PKIX_STD_VARS(funcName) \
     static const char cMyFuncName[] = {funcName}; \
     PKIX_StdVars      stdVars = zeroStdVars; \
     myFuncName = cMyFuncName
+
+
+#else /* PKIX_OBJECT_LEAK_TEST */
+
+extern char **fnStackNameArr;
+extern PKIX_UInt32 *fnStackInvCountArr;
+extern PKIX_UInt32  stackPosition;
+extern PKIX_Boolean noErrorState;
+extern PKIX_Boolean errorGenerated;
+extern PKIX_Boolean runningLeakTest;
+extern PLHashTable *fnInvTable;
+extern PKIX_UInt32 testStartFnStackPosition;
+extern char *errorFnStackString;
+
+extern PLHashNumber PR_CALLBACK pkix_ErrorGen_Hash (const void *key);
+
+#define PKIX_STD_VARS(funcName) \
+    static const char cMyFuncName[] = {funcName}; \
+    PKIX_StdVars      stdVars = zeroStdVars; \
+    PKIX_Boolean      errorSetFlag = PKIX_FALSE; \
+    myFuncName = cMyFuncName; \
+    if (runningLeakTest) { \
+        if (fnStackNameArr) { \
+            fnStackInvCountArr[stackPosition] += 1; \
+            stackPosition += 1; \
+            fnStackInvCountArr[stackPosition] = 0; \
+            fnStackNameArr[stackPosition] = (char*)myFuncName; \
+            fnStackNameArr[stackPosition + 1] = NULL; \
+            PR_LOG(pkixLog, 5, \
+                    ("%s%*s+> %s(%d) - %s\n", (errorGenerated ? "*" : " "), \
+                             stackPosition, " ", fnStackNameArr[stackPosition], \
+                             stackPosition, myFuncName)); \
+        } \
+        do { \
+            pkixErrorResult = pkix_CheckForGeneratedError(&stdVars, PKIX_MEM_ERROR, \
+                                                          funcName, &errorSetFlag, \
+                                                          plContext); \
+            if (pkixErrorResult) { \
+                 PR_LOG(pkixLog, 5, \
+                    ("%s%*s<- %s(%d) - %s\n", (errorGenerated ? "*" : " "), \
+                              stackPosition, " ", fnStackNameArr[stackPosition], \
+                              stackPosition, myFuncName)); \
+                 fnStackNameArr[stackPosition--] = NULL; \
+                 if (errorSetFlag) { \
+                       noErrorState = (noErrorState) ? PKIX_FALSE : PKIX_TRUE; \
+                 } \
+                 return pkixErrorResult; \
+            } \
+        } while (0); \
+    }
+#endif /* PKIX_OBJECT_LEAK_TEST */
 
 #ifdef DEBUG
 #define _PKIX_DEBUG_TRACE(cond, prefix, level) \
@@ -171,10 +236,10 @@ extern const PKIX_StdVars zeroStdVars;
 #define _PKIX_DEBUG_TRACE(cond, prefix, level) 
 #endif
 
-#define _PKIX_LOG_ERROR(msg, level) \
+#define _PKIX_LOG_ERROR(code, level) \
     { \
 	if (pkixLoggersErrors) { \
-	    pkix_Logger_Check(pkixLoggersErrors, msg, \
+	    pkix_Logger_CheckWithCode(pkixLoggersErrors, code, \
 	                      NULL, pkixType, level, plContext); \
 	} \
     }
@@ -196,30 +261,19 @@ extern const PKIX_StdVars zeroStdVars;
 #define PKIX_DEBUG_EXIT(type) \
     PKIX_ ## type ## _DEBUG_ARG("( Exiting %s).\n", myFuncName)
 
-
-
 #define PKIX_OBJECT_UNLOCK(obj) \
     do { \
-	if (obj){ \
-	    PORT_Assert(lockedObject == (PKIX_PL_Object *)(obj)); \
+	if (obj && lockedObject == (PKIX_PL_Object *)(obj)){ \
 	    pkixTempResult = \
 		    PKIX_PL_Object_Unlock \
 		    ((PKIX_PL_Object *)(obj), plContext); \
-	    if (pkixTempResult) \
-		return pkixTempResult; \
+	    if (pkixTempResult) { \
+		PKIX_DoAddError(stdVarsPtr, pkixTempResult, plContext); \
+		pkixTempResult = NULL; \
+	    } \
 	    lockedObject = NULL; \
-	} \
-    } while (0)
-
-#define PKIX_MUTEX_UNLOCK(mutex) \
-    do { \
-	if (mutex){ \
-	    PORT_Assert(lockedMutex == (PKIX_PL_Mutex *)(mutex)); \
-	    pkixTempResult = \
-		    PKIX_PL_Mutex_Unlock((mutex), plContext); \
-	    if (pkixTempResult) \
-		return pkixTempResult; \
-	    lockedMutex = NULL; \
+	} else { \
+	    PORT_Assert(lockedObject == NULL); \
 	} \
     } while (0)
 
@@ -228,52 +282,40 @@ extern const PKIX_StdVars zeroStdVars;
 	if (obj){ \
 	    pkixTempResult = PKIX_PL_Object_DecRef \
 			((PKIX_PL_Object *)(obj), plContext); \
-	    if (pkixTempResult) \
-		return pkixTempResult; \
+	    if (pkixTempResult) { \
+		PKIX_DoAddError(stdVarsPtr, pkixTempResult, plContext); \
+		pkixTempResult = NULL; \
+	    } \
 	    obj = NULL; \
 	} \
     } while (0)
 
-#if defined(DEBUG) && !defined(DEBUG_nb95248)
 #define PKIX_THROW(type, descNum) \
-    { \
-	pkixTempResult = (PKIX_Error*)pkix_Throw \
-		(PKIX_ ## type ## _ERROR, myFuncName, descNum, \
-		pkixErrorResult, &pkixReturnResult, plContext); \
-	if (pkixErrorResult != PKIX_ALLOC_ERROR()) \
-	    PKIX_DECREF(pkixErrorResult); \
-	if (pkixTempResult) \
-	    return pkixTempResult; \
-	return pkixReturnResult; \
-    }
-#else
-#define PKIX_THROW(type, descNum) \
-    return PKIX_DoThrow(&stdVars, (PKIX_ ## type ## _ERROR), descNum, plContext);
-#endif
+    return PKIX_DoThrow(&stdVars, (PKIX_ ## type ## _ERROR), descNum, \
+                        pkixErrorClass, plContext);
 
-
-#if defined(DEBUG) && !defined(DEBUG_nb95248)
+#ifdef PKIX_OBJECT_LEAK_TEST
 #define PKIX_RETURN(type) \
-    { \
-	PKIX_OBJECT_UNLOCK(lockedObject); \
-	PKIX_MUTEX_UNLOCK(lockedMutex); \
-	if ((pkixErrorReceived) || (pkixErrorResult)) \
-	    PKIX_THROW(type, pkixErrorCode); \
-	PKIX_DEBUG_EXIT(type); \
-	_PKIX_DEBUG_TRACE(pkixLoggersDebugTrace, "<<<", PKIX_LOGGER_LEVEL_TRACE); \
-	return NULL; \
-    }
+    if (runningLeakTest && fnStackNameArr) { \
+        PR_LOG(pkixLog, 5, \
+               ("%s%*s<- %s(%d) - %s\n", (errorGenerated ? "*" : " "), \
+               stackPosition, " ", fnStackNameArr[stackPosition], \
+               stackPosition, myFuncName)); \
+        fnStackNameArr[stackPosition--] = NULL; \
+        if (errorSetFlag) noErrorState = (noErrorState) ? PKIX_FALSE : PKIX_TRUE; \
+    } \
+    return PKIX_DoReturn(&stdVars, (PKIX_ ## type ## _ERROR), PKIX_TRUE, plContext);
 #else
 #define PKIX_RETURN(type) \
     return PKIX_DoReturn(&stdVars, (PKIX_ ## type ## _ERROR), PKIX_TRUE, plContext);
-#endif
+#endif /* PKIX_OBJECT_LEAK_TEST */
+
 
 #if defined(DEBUG) && !defined(DEBUG_nb95248)
 #define PKIX_RETURN_NO_LOGGER(type) \
     { \
 	PKIX_OBJECT_UNLOCK(lockedObject); \
-	PKIX_MUTEX_UNLOCK(lockedMutex); \
-	if ((pkixErrorReceived) || (pkixErrorResult)) \
+	if ((pkixErrorReceived) || (pkixErrorResult) || pkixErrorList) \
 	    PKIX_THROW(type, pkixErrorCode); \
 	PKIX_DEBUG_EXIT(type); \
 	return NULL; \
@@ -283,102 +325,110 @@ extern const PKIX_StdVars zeroStdVars;
     return PKIX_DoReturn(&stdVars, (PKIX_ ## type ## _ERROR), PKIX_FALSE, plContext);
 #endif
 
+/* disable to disable ;-) */
+/* #define WANT_TRACE_CHECK_FAILURES */
 
-
-#if defined(DEBUG) && !defined(DEBUG_nb95248)
-#define PKIX_CHECK(func, descNum) \
-    do { \
-	pkixErrorResult = (func); \
-	if (pkixErrorResult) { \
-	    pkixTempResult = PKIX_Error_GetErrorClass \
-		    (pkixErrorResult, &pkixErrorClass, plContext); \
-	    if (pkixTempResult) \
-	    	return pkixTempResult; \
-	    pkixErrorCode = descNum; \
-	    pkixErrorMsg = PKIX_ErrorText[descNum]; \
-	    if (pkixErrorClass == PKIX_FATAL_ERROR) \
-		PKIX_RETURN(FATAL); \
-	    goto cleanup; \
-	} \
-    } while (0)
+#ifdef WANT_TRACE_CHECK_FAILURES
+#define TRACE_CHECK_FAILURE(what, errorstring) \
+    if (pkixLog) { \
+      PR_LOG(pkixLog, PR_LOG_DEBUG, \
+        ("====> [%s] failed: %s\n", #what, errorstring)); \
+    }
 #else
+#define TRACE_CHECK_FAILURE(what, errorstring)
+#endif
+
 #define PKIX_CHECK(func, descNum) \
     do { \
 	pkixErrorResult = (func); \
 	if (pkixErrorResult) { \
-	    pkixTempResult = PKIX_DoCheck(&stdVars, descNum, plContext); \
-	    if (pkixTempResult) \
-	    	return pkixTempResult; \
+            TRACE_CHECK_FAILURE((func), PKIX_ErrorText[descNum]) \
+	    pkixErrorClass = pkixErrorResult->errClass; \
+	    pkixErrorCode = descNum; \
 	    goto cleanup; \
 	} \
     } while (0)
-#endif
 
 #define PKIX_CHECK_ONLY_FATAL(func, descNum) \
     do { \
 	pkixTempErrorReceived = PKIX_FALSE; \
 	pkixErrorResult = (func); \
 	if (pkixErrorResult) { \
+            TRACE_CHECK_FAILURE((func), PKIX_ErrorText[descNum]) \
 	    pkixTempErrorReceived = PKIX_TRUE; \
-	    pkixTempResult = PKIX_Error_GetErrorClass \
-		    (pkixErrorResult, &pkixErrorClass, plContext); \
-	    if (pkixTempResult)  \
-	    	return pkixTempResult; \
-	    if (pkixErrorClass == PKIX_FATAL_ERROR){ \
-	         pkixErrorCode = descNum; \
-		pkixErrorMsg = PKIX_ErrorText[descNum]; \
-		PKIX_RETURN(FATAL); \
+	    pkixErrorClass = pkixErrorResult->errClass; \
+            if (pkixErrorClass == PKIX_FATAL_ERROR) { \
+	         goto cleanup; \
 	    } \
 	    PKIX_DECREF(pkixErrorResult); \
 	} \
     } while (0)
 
 #define PKIX_LOG_ERROR(descNum) \
-    _PKIX_LOG_ERROR(PKIX_ErrorText[descNum], PKIX_LOGGER_LEVEL_ERROR)
+    _PKIX_LOG_ERROR(descNum, PKIX_LOGGER_LEVEL_ERROR)
 
 #define PKIX_ERROR(descNum) \
     { \
 	PKIX_LOG_ERROR(descNum) \
 	pkixErrorReceived = PKIX_TRUE; \
 	pkixErrorCode = descNum; \
-	pkixErrorMsg = PKIX_ErrorText[descNum]; \
+	goto cleanup; \
+    }
+
+#define PKIX_ERROR_ALLOC_ERROR() \
+    { \
+	PKIX_LOG_ERROR(PKIX_ALLOCERROR) \
+	pkixErrorReceived = PKIX_TRUE; \
+	pkixErrorResult = PKIX_ALLOC_ERROR(); \
 	goto cleanup; \
     }
 
 #define PKIX_ERROR_FATAL(descNum) \
     { \
 	pkixErrorReceived = PKIX_TRUE; \
-	pkixErrorMsg = PKIX_ErrorText[descNum]; \
-	_PKIX_LOG_ERROR(pkixErrorMsg, PKIX_LOGGER_LEVEL_FATALERROR); \
-	PKIX_RETURN(FATAL); \
+	pkixErrorCode = descNum; \
+	pkixErrorClass = PKIX_FATAL_ERROR; \
+	_PKIX_LOG_ERROR(pkixErrorCode, PKIX_LOGGER_LEVEL_FATALERROR); \
+	goto cleanup; \
     }
 
 #define PKIX_CHECK_FATAL(func, descNum) \
     do { \
-	pkixTempResult = (func); \
-	if (pkixTempResult) { \
-	    PKIX_ERROR_FATAL(descNum); \
+	pkixErrorResult = (func); \
+	if (pkixErrorResult) { \
+                TRACE_CHECK_FAILURE((func), PKIX_ErrorText[descNum]) \
+		pkixErrorReceived = PKIX_TRUE; \
+		pkixErrorCode = descNum; \
+		pkixErrorClass = PKIX_FATAL_ERROR; \
+		_PKIX_LOG_ERROR(pkixErrorCode, PKIX_LOGGER_LEVEL_FATALERROR); \
+		goto fatal; \
 	} \
     } while (0)
 
 #define PKIX_NULLCHECK_ONE(a) \
     do { \
 	if ((a) == NULL){ \
-	    PKIX_ERROR_FATAL(PKIX_NULLARGUMENT); \
+	    pkixErrorReceived = PKIX_TRUE; \
+	    pkixErrorCode = PKIX_NULLARGUMENT; \
+	    PKIX_RETURN(FATAL); \
 	} \
     } while (0)
 
 #define PKIX_NULLCHECK_TWO(a, b) \
     do { \
 	if (((a) == NULL) || ((b) == NULL)){ \
-	    PKIX_ERROR_FATAL(PKIX_NULLARGUMENT); \
+	    pkixErrorReceived = PKIX_TRUE; \
+	    pkixErrorCode = PKIX_NULLARGUMENT; \
+	    PKIX_RETURN(FATAL); \
 	} \
     } while (0)
 
 #define PKIX_NULLCHECK_THREE(a, b, c) \
     do { \
 	if (((a) == NULL) || ((b) == NULL) || ((c) == NULL)){ \
-	    PKIX_ERROR_FATAL(PKIX_NULLARGUMENT); \
+	    pkixErrorReceived = PKIX_TRUE; \
+	    pkixErrorCode = PKIX_NULLARGUMENT; \
+	    PKIX_RETURN(FATAL); \
 	} \
     } while (0)
 
@@ -386,26 +436,24 @@ extern const PKIX_StdVars zeroStdVars;
     do { \
 	if (((a) == NULL) || ((b) == NULL) || \
 	    ((c) == NULL) || ((d) == NULL)){ \
-	    PKIX_ERROR_FATAL(PKIX_NULLARGUMENT); \
+	    pkixErrorReceived = PKIX_TRUE; \
+	    pkixErrorCode = PKIX_NULLARGUMENT; \
+	    PKIX_RETURN(FATAL); \
 	} \
     } while (0)
 
 #define PKIX_OBJECT_LOCK(obj) \
     do { \
-	if (obj){ \
-	    PKIX_CHECK(PKIX_PL_Object_Lock \
-		    ((PKIX_PL_Object*)(obj), plContext), \
-		    PKIX_OBJECTLOCKFAILED); \
+	if (obj) { \
+	    pkixTempResult = \
+		PKIX_PL_Object_Lock((PKIX_PL_Object*)(obj), plContext); \
+	    if (pkixTempResult) { \
+		PKIX_DoAddError(stdVarsPtr, pkixTempResult, plContext); \
+		pkixTempResult = NULL; \
+		pkixErrorCode = PKIX_OBJECTLOCKFAILED; \
+		goto cleanup; \
+	    } \
 	    lockedObject = (PKIX_PL_Object *)(obj); \
-	} \
-    } while (0)
-
-#define PKIX_MUTEX_LOCK(obj) \
-    do { \
-	if (obj){ \
-	    PKIX_CHECK(PKIX_PL_Mutex_Lock((obj), plContext), \
-		    PKIX_MUTEXLOCKFAILED); \
-	    lockedMutex = (obj); \
 	} \
     } while (0)
 
@@ -413,22 +461,29 @@ extern const PKIX_StdVars zeroStdVars;
     { \
 	pkixTempResult = (PKIX_Error*)pkix_Throw \
 		(PKIX_ ## type ## _ERROR,  myFuncName, \
-		descNum, NULL, &error, plContext); \
-	if (pkixTempResult)  \
+		descNum, PKIX_ ## type ## _ERROR, pkixErrorResult, \
+		&error, plContext); \
+	if (pkixTempResult) { \
 	    error = pkixTempResult; \
+	    pkixTempResult = NULL; \
+	} \
     }
 		
 
 #define PKIX_ERROR_RECEIVED \
-    (pkixErrorReceived || pkixErrorResult || pkixTempErrorReceived)
+    (pkixErrorReceived || pkixErrorResult || pkixTempErrorReceived || \
+     pkixErrorList)
 
 #define PKIX_INCREF(obj) \
     do { \
 	if (obj){ \
 	    pkixTempResult = PKIX_PL_Object_IncRef \
 			((PKIX_PL_Object *)(obj), plContext); \
-	    if (pkixTempResult)  \
-		return pkixTempResult; \
+	    if (pkixTempResult) { \
+		PKIX_DoAddError(&stdVars, pkixTempResult, plContext); \
+		pkixTempResult = NULL; \
+		goto cleanup; \
+	    } \
 	} \
     } while (0)
 
@@ -436,6 +491,10 @@ extern const PKIX_StdVars zeroStdVars;
     do { \
 	if (obj) { \
 	    pkixTempResult = PKIX_PL_Free((obj), plContext); \
+	    if (pkixTempResult) { \
+		PKIX_DoAddError(&stdVars, pkixTempResult, plContext); \
+		pkixTempResult = NULL; \
+	    } \
 	    obj = NULL; \
 	} \
     } while (0)
@@ -884,6 +943,16 @@ extern const PKIX_StdVars zeroStdVars;
 #define PKIX_REVOCATIONCHECKER_DEBUG_ARG(expr, arg)
 #endif
 
+#if PKIX_REVOCATIONMETHODDEBUG
+#define PKIX_REVOCATIONMETHOD_DEBUG(expr) \
+        PKIX_DEBUG(expr)
+#define PKIX_REVOCATIONMETHOD_DEBUG_ARG(expr, arg) \
+        PKIX_DEBUG_ARG(expr, arg)
+#else
+#define PKIX_REVOCATIONMETHOD_DEBUG(expr)
+#define PKIX_REVOCATIONMETHOD_DEBUG_ARG(expr, arg)
+#endif
+
 #if PKIX_CERTSELECTORDEBUG
 #define PKIX_CERTSELECTOR_DEBUG(expr) \
         PKIX_DEBUG(expr)
@@ -1094,14 +1163,14 @@ extern const PKIX_StdVars zeroStdVars;
 #define PKIX_COLLECTIONCERTSTORECONTEXT_DEBUG_ARG(expr, arg)
 #endif
 
-#if PKIX_DEFAULTCRLCHECKERSTATEDEBUG
-#define PKIX_DEFAULTCRLCHECKERSTATE_DEBUG(expr) \
+#if PKIX_CRLCHECKERDEBUG
+#define PKIX_CRLCHECKER_DEBUG(expr) \
         PKIX_DEBUG(expr)
-#define PKIX_DEFAULTCRLCHECKERSTATE_DEBUG_ARG(expr, arg) \
+#define PKIX_CRLCHECKER_DEBUG_ARG(expr, arg) \
         PKIX_DEBUG_ARG(expr, arg)
 #else
-#define PKIX_DEFAULTCRLCHECKERSTATE_DEBUG(expr)
-#define PKIX_DEFAULTCRLCHECKERSTATE_DEBUG_ARG(expr, arg)
+#define PKIX_CRLCHECKER_DEBUG(expr)
+#define PKIX_CRLCHECKER_DEBUG_ARG(expr, arg)
 #endif
 
 #if PKIX_CERTPOLICYMAPDEBUG
@@ -1164,14 +1233,14 @@ extern const PKIX_StdVars zeroStdVars;
 #define PKIX_CONTEXT_DEBUG_ARG(expr, arg)
 #endif
 
-#if PKIX_DEFAULTREVOCATIONCHECKERDEBUG
-#define PKIX_DEFAULTREVOCATIONCHECKER_DEBUG(expr) \
+#if PKIX_REVOCATIONCHECKERDEBUG
+#define PKIX_REVOCATIONCHECKER_DEBUG(expr) \
         PKIX_DEBUG(expr)
-#define PKIX_DEFAULTREVOCATIONCHECKER_DEBUG_ARG(expr, arg) \
+#define PKIX_REVOCATIONCHECKER_DEBUG_ARG(expr, arg) \
         PKIX_DEBUG_ARG(expr, arg)
 #else
-#define PKIX_DEFAULTREVOCATIONCHECKER_DEBUG(expr)
-#define PKIX_DEFAULTREVOCATIONCHECKER_DEBUG_ARG(expr, arg)
+#define PKIX_REVOCATIONCHECKER_DEBUG(expr)
+#define PKIX_REVOCATIONCHECKER_DEBUG_ARG(expr, arg)
 #endif
 
 #if PKIX_LDAPREQUESTDEBUG
@@ -1284,6 +1353,16 @@ extern const PKIX_StdVars zeroStdVars;
 #define PKIX_OCSPCHECKER_DEBUG_ARG(expr, arg)
 #endif
 
+#if PKIX_OCSPCERTIDDEBUG
+#define PKIX_OCSPCERTID_DEBUG(expr) \
+        PKIX_DEBUG(expr)
+#define PKIX_OCSPCERTID_DEBUG_ARG(expr, arg) \
+        PKIX_DEBUG_ARG(expr, arg)
+#else
+#define PKIX_OCSPCERTID_DEBUG(expr)
+#define PKIX_OCSPCERTID_DEBUG_ARG(expr, arg)
+#endif
+
 #if PKIX_OCSPREQUESTDEBUG
 #define PKIX_OCSPREQUEST_DEBUG(expr) \
         PKIX_DEBUG(expr)
@@ -1334,6 +1413,16 @@ extern const PKIX_StdVars zeroStdVars;
 #define PKIX_VERIFYNODE_DEBUG_ARG(expr, arg)
 #endif
 
+#if PKIX_EKUCHECKER
+#define PKIX_EKUCHECKER_DEBUG(expr) \
+        PKIX_DEBUG(expr)
+#define PKIX_EKUCHECKER_DEBUG_ARG(expr, arg) \
+        PKIX_DEBUG_ARG(expr, arg)
+#else
+#define PKIX_EKUCHECKER_DEBUG(expr)
+#define PKIX_EKUCHECKER_DEBUG_ARG(expr, arg)
+#endif
+
 #if PKIX_CERTVFYPKIXDEBUG
 #define PKIX_CERTVFYPKIX_DEBUG(expr) \
         PKIX_DEBUG(expr)
@@ -1357,6 +1446,8 @@ extern const PKIX_StdVars zeroStdVars;
 typedef struct pkix_ClassTable_EntryStruct pkix_ClassTable_Entry;
 struct pkix_ClassTable_EntryStruct {
         char *description;
+        PKIX_Int32 objCounter;
+        PKIX_Int32 typeObjectSize;
         PKIX_PL_DestructorCallback destructor;
         PKIX_PL_EqualsCallback equalsFunction;
         PKIX_PL_HashcodeCallback hashcodeFunction;
@@ -1372,7 +1463,12 @@ struct pkix_ClassTable_EntryStruct {
  */
 extern const char *PKIX_ERRORCLASSNAMES[PKIX_NUMERRORCLASSES];
 
-#define PKIX_MAGIC_HEADER       (PKIX_UInt32) 0xBEEFC0DE
+#define MAX_STACK_DEPTH         1000
+
+extern PRLogModuleInfo *pkixLog;
+
+#define PKIX_MAGIC_HEADER           LL_INIT(0xFEEDC0FF, 0xEEFACADE)
+#define PKIX_MAGIC_HEADER_DESTROYED LL_INIT(0xBAADF00D, 0xDEADBEEF)
 
 /* see source file for function documentation */
 
@@ -1387,6 +1483,7 @@ pkix_Throw(
         PKIX_ERRORCLASS errClass,
         const char *funcName,
         PKIX_ERRORCODE errorTextCode,
+        PKIX_ERRORCLASS overrideClass,
         PKIX_Error *cause,
         PKIX_Error **pError,
         void *plContext);
@@ -1484,6 +1581,14 @@ pkix_CacheCrlEntry_Add(
         PKIX_PL_BigInt *certSerialNumber,
         PKIX_List* crlEntryList,
         void *plContext);
+
+#ifdef PR_LOGGING
+void
+pkix_trace_dump_cert(
+        const char *info, 
+        PKIX_PL_Cert *cert, 
+        void *plContext);
+#endif
 
 #ifdef __cplusplus
 }

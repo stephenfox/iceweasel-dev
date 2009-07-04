@@ -1,5 +1,9 @@
-<!ENTITY places.organizer.title  "Places Organizer">
-<!ENTITY organize.label          "Organize">
+<!-- LOCALIZATION NOTE (places.library.title): use "Library", "Archive" or "Repository" -->
+<!ENTITY places.library.title  "Library">
+<!ENTITY places.library.width  "700">
+<!ENTITY places.library.height "500">
+<!ENTITY organize.label        "Organize">
+<!ENTITY organize.accesskey    "O">
 
 <!ENTITY file.accesskey                 "F">
 <!ENTITY file.close.label               "Close">
@@ -8,7 +12,7 @@
 <!ENTITY edit.label                     "Edit">
 <!ENTITY edit.accesskey                 "E">
 <!ENTITY views.label                    "Views">
-<!ENTITY view.accesskey                 "V">
+<!ENTITY views.accesskey                "V">
 <!ENTITY view.toolbar.label             "Toolbar">
 <!ENTITY view.toolbar.accesskey         "o">
 <!ENTITY view.columns.label             "Show Columns">
@@ -33,15 +37,15 @@
 <!ENTITY cmd.findCurrent.label          "Find in Current Collection…">
 <!ENTITY cmd.findCurrent.accesskey      "i">
 
-<!ENTITY cmd.export.label      "Export…">
-<!ENTITY cmd.export.accesskey  "E">
-<!ENTITY cmd.import.label      "Import…">
-<!ENTITY cmd.import.accesskey  "I">
+<!ENTITY cmd.exportHTML.label           "Export HTML…">
+<!ENTITY cmd.exportHTML.accesskey       "E">
+<!ENTITY cmd.importHTML.label           "Import HTML…">
+<!ENTITY cmd.importHTML.accesskey       "I">
 
 <!ENTITY cmd.backup.label               "Backup…">
 <!ENTITY cmd.backup.accesskey           "B">
-<!ENTITY cmd.restore.label              "Restore…">
-<!ENTITY cmd.restore.accesskey          "R">
+<!ENTITY cmd.restore2.label             "Restore">
+<!ENTITY cmd.restore2.accesskey         "R">
 <!ENTITY cmd.restoreFromFile.label      "Choose File…">
 <!ENTITY cmd.restoreFromFile.accesskey  "C">
 
@@ -66,6 +70,11 @@
 <!ENTITY cmd.edit_redo.label        "Redo">
 <!ENTITY cmd.edit_redo.accesskey    "R">
 <!ENTITY cmd.edit_redo.key          "y">
+
+<!ENTITY cmd.delete.label               "Delete This Page">
+<!ENTITY cmd.delete.accesskey           "D">
+<!ENTITY cmd.deleteDomainData.label     "Forget About This Site">
+<!ENTITY cmd.deleteDomainData.accesskey "F">
 
 <!ENTITY cmd.open.label                  "Open">
 <!ENTITY cmd.open.accesskey              "O">
@@ -127,22 +136,14 @@
 
 <!ENTITY search.label                              "Search:">
 <!ENTITY search.accesskey                          "S">
-<!ENTITY search.collection.label                   "Current Collection Only">
-<!ENTITY search.collection.accesskey               "C">
-<!ENTITY search.allBookmarks.label                 "All Bookmarks">
-<!ENTITY search.allBookmarks.accesskey             "A">
 <!ENTITY search.scopeFolder.label                  "Selected Folder">
-<!ENTITY search.scopeFolder.accesskey              "F">
-<!ENTITY search.scopeAll.label                     "All Bookmarks">
-<!ENTITY search.scopeAll.accesskey                 "A">
-<!ENTITY search.scopeMenu.label                    "Bookmarks Menu">
-<!ENTITY search.scopeMenu.accesskey                "M">
-<!ENTITY search.scopeToolbar.label                 "Bookmarks Toolbar">
-<!ENTITY search.scopeToolbar.accesskey             "T">
+<!ENTITY search.scopeFolder.accesskey              "r">
+<!ENTITY search.scopeBookmarks.label               "Bookmarks">
+<!ENTITY search.scopeBookmarks.accesskey           "k">
 <!ENTITY search.scopeDownloads.label               "Downloads">
 <!ENTITY search.scopeDownloads.accesskey           "D">
 <!ENTITY search.scopeHistory.label                 "History">
-<!ENTITY search.scopeHistory.accesskey             "A">
+<!ENTITY search.scopeHistory.accesskey             "H">
 <!ENTITY search.scopeBarExpanderDown.tooltip       "Show search builder">
 <!ENTITY search.scopeBarExpanderUp.tooltip         "Hide search builder">
 <!ENTITY saveSearch.label                          "Save">
@@ -192,7 +193,8 @@
 
 <!ENTITY view.addons.label   "Get View Add-ons">
 
-<!ENTITY maintenance.label   "Import and Backup">
+<!ENTITY maintenance.label      "Import and Backup">
+<!ENTITY maintenance.accesskey  "I">
 
 <!ENTITY backCmd.label       "Back">
 <!ENTITY backCmd.accesskey   "B">
@@ -203,6 +205,8 @@
 <!ENTITY forwardButton.tooltip  "Go forward">
 
 <!ENTITY detailsPane.more.label "More">
+<!ENTITY detailsPane.more.accesskey "e">
 <!ENTITY detailsPane.less.label "Less">
+<!ENTITY detailsPane.less.accesskey "e">
 <!ENTITY detailsPane.noPreviewAvailable.label "Preview">
 <!ENTITY detailsPane.selectAnItemText.description "Select an item to view and edit its properties">

@@ -53,16 +53,14 @@ class nsICSSImportRule;
 class nsIPrincipal;
 
 // IID for the nsICSSStyleSheet interface
-// 74fa10f3-fab7-425a-a7dd-e2afd1ba7a07
+// ee0270c7-5581-4165-92a5-a83ff691f60d
 #define NS_ICSS_STYLE_SHEET_IID     \
-{ 0x74fa10f3, 0xfab7, 0x425a, \
- { 0xa7, 0xdd, 0xe2, 0xaf, 0xd1, 0xba, 0x7a, 0x07 } }
+{ 0xee0270c7, 0x5581, 0x4165, \
+ { 0x92, 0xa5, 0xa8, 0x3f, 0xf6, 0x91, 0xf6, 0x0d } }
 
 class nsICSSStyleSheet : public nsIStyleSheet {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICSS_STYLE_SHEET_IID)
-
-  NS_IMETHOD  ContainsStyleSheet(nsIURI* aURL, PRBool& aContains, nsIStyleSheet** aTheChild=nsnull) = 0;
 
   NS_IMETHOD  AppendStyleSheet(nsICSSStyleSheet* aSheet) = 0;
   NS_IMETHOD  InsertStyleSheetAt(nsICSSStyleSheet* aSheet, PRInt32 aIndex) = 0;
@@ -121,6 +119,12 @@ public:
 
   NS_IMETHOD  AddRuleProcessor(nsCSSRuleProcessor* aProcessor) = 0;
   NS_IMETHOD  DropRuleProcessor(nsCSSRuleProcessor* aProcessor) = 0;
+
+  /**
+   * Like the DOM insertRule() method, but doesn't do any security checks
+   */
+  NS_IMETHOD InsertRuleInternal(const nsAString& aRule,
+                                PRUint32 aIndex, PRUint32* aReturn) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICSSStyleSheet, NS_ICSS_STYLE_SHEET_IID)

@@ -39,7 +39,11 @@
 #ifndef GFX_PLATFORM_MAC_H
 #define GFX_PLATFORM_MAC_H
 
+#include "nsTArray.h"
 #include "gfxPlatform.h"
+
+#define MAC_OS_X_VERSION_10_4_HEX 0x00001040
+#define MAC_OS_X_VERSION_10_5_HEX 0x00001050
 
 class THEBES_API gfxPlatformMac : public gfxPlatform {
 public:
@@ -52,20 +56,56 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxImageFormat imageFormat);
 
+    already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
+                                                gfxASurface::gfxImageFormat format);
+
     nsresult ResolveFontName(const nsAString& aFontName,
                              FontResolverCallback aCallback,
                              void *aClosure, PRBool& aAborted);
 
+    nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
+
     gfxFontGroup *CreateFontGroup(const nsAString &aFamilies,
-                                  const gfxFontStyle *aStyle);
+                                  const gfxFontStyle *aStyle,
+                                  gfxUserFontSet *aUserFontSet);
+
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
+
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
+
+    PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsStringArray& aListOfFonts);
     nsresult UpdateFontList();
 
+    // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
+    void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+    
+    // Returns the OS X version as returned from Gestalt(gestaltSystemVersion, ...)
+    // Ex: Mac OS X 10.4.x ==> 0x104x 
+    PRInt32 OSXVersion();
+
+    // lower threshold on font anti-aliasing
+    PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
+    
 private:
-    virtual cmsHPROFILE GetPlatformCMSOutputProfile();
+    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
+                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+                                               
+    virtual qcms_profile* GetPlatformCMSOutputProfile();
+    
+    // read in the pref value for the lower threshold on font anti-aliasing
+    static PRUint32 ReadAntiAliasingThreshold();    
+    
+    nsTArray<PRUint32> mCJKPrefLangs;
+    PRInt32 mOSXVersion;
+    PRUint32 mFontAntiAliasingThreshold;
 };
 
 #endif /* GFX_PLATFORM_MAC_H */

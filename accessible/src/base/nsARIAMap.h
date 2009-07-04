@@ -43,12 +43,6 @@
 #include "prtypes.h"
 #include "nsAccessibilityAtoms.h"
 
-#define ARIA_PROPERTY(atom) eAria_##atom,
-enum EAriaProperty {
-#include "nsARIAPropertyList.h"
-  eAria_none };
-#undef ARIA_PROPERTY
-
 // Name mapping rule: can the name be computed from descendants?
 enum ENameRule
 {
@@ -73,8 +67,37 @@ enum ENameRule
 enum EValueRule
 {
   eNoValue,
-  eHasValueMinMax    // Supports value, min and max from aaa:valuenow, valuemin and valuemax
+  eHasValueMinMax    // Supports value, min and max from aria-valuenow, aria-valuemin and aria-valuemax
 };
+
+// Should we expose action based on the ARIA role?
+enum EActionRule
+{
+  eNoAction,
+  eActivateAction,
+  eClickAction,
+  eCheckUncheckAction,
+  eJumpAction,
+  eOpenCloseAction,
+  eSelectAction,
+  eSwitchAction
+};
+
+// ARIA attribute characteristic masks, grow as needed
+
+/**
+ * This mask indicates the attribute should not be exposed as an object
+ * attribute via the catch-all logic in nsAccessible::GetAttributes.
+ * This means it either isn't mean't to be exposed as an object attribute, or
+ * that it should, but is already handled in other code.
+ */
+const PRUint8 ATTR_BYPASSOBJ  = 0x0001;
+
+/**
+ * This mask indicates the attribute is expected to have an NMTOKEN or bool value.
+ * (See for example usage in nsAccessible::GetAttributes)
+ */
+const PRUint8 ATTR_VALTOKEN   = 0x0010;
 
 // Used for an nsStateMapEntry if a given state attribute supports "true" and "false"
 #define kBoolState 0
@@ -86,9 +109,16 @@ enum EValueRule
 // nsStateMapEntry.state
 struct nsStateMapEntry
 {
-  EAriaProperty attributeName;  // eARIA_none indicates last entry in map
+  nsIAtom** attributeName;  // nsnull indicates last entry in map
   const char* attributeValue; // magic value of kBoolState (0) means supports "true" and "false"
   PRUint32 state;             // If match, this is the nsIAccessibleStates to map to
+};
+
+// Small footprint storage of persistent aria attribute characteristics
+struct nsAttributeCharacteristics
+{
+  nsIAtom** attributeName;
+  const PRUint8 characteristics;
 };
 
 // For each ARIA role, this maps the nsIAccessible information
@@ -105,12 +135,15 @@ struct nsRoleMapEntry
   
   // Value mapping rule: how to compute nsIAccessible value
   EValueRule valueRule;
-  
+
+  // Action mapping rule, how to expose nsIAccessible action
+  EActionRule actionRule;
+
   // Automatic state mapping rule: always include in nsIAccessibleStates
   PRUint32 state;   // or kNoReqStates if no nsIAccessibleStates are automatic for this role.
   
   // ARIA properties supported for this role
-  // (in other words, the aaa:foo attribute to nsIAccessibleStates mapping rules)
+  // (in other words, the aria-foo attribute to nsIAccessibleStates mapping rules)
   // Currently you cannot have unlimited mappings, because
   // a variable sized array would not allow the use of
   // C++'s struct initialization feature.
@@ -131,12 +164,36 @@ struct nsRoleMapEntry
  */
 struct nsARIAMap
 {
-  static nsIAtom** gAriaAtomPtrsNS[eAria_none];
-  static nsIAtom** gAriaAtomPtrsHyphenated[eAria_none];
+  /**
+   * Array of supported ARIA role map entries and its length.
+   */
   static nsRoleMapEntry gWAIRoleMap[];
   static PRUint32 gWAIRoleMapLength;
+
+  /**
+   * Landmark role map entry. Used when specified ARIA role isn't mapped to
+   * accessibility API.
+   */
   static nsRoleMapEntry gLandmarkRoleMap;
+
+  /**
+   * Empty role map entry. Used by accessibility service to create an accessible
+   * if the accessible can't use role of used accessible class. For example,
+   * it is used for table cells that aren't contained by table.
+   */
+  static nsRoleMapEntry gEmptyRoleMap;
+
+  /**
+   * State map of ARIA states applied to any accessible not depending on
+   * the role.
+   */
   static nsStateMapEntry gWAIUnivStateMap[];
+  
+  /**
+   * Map of attribute to attribute characteristics.
+   */
+  static nsAttributeCharacteristics gWAIUnivAttrMap[];
+  static PRUint32 gWAIUnivAttrMapLength;
 };
 
 #endif

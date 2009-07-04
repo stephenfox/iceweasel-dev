@@ -51,7 +51,14 @@ public:
     nsMIMEInfoImpl(aType, aClass) {}
 
 protected:
+  NS_IMETHOD GetHasDefaultHandler(PRBool *_retval);
+
   virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI);
+
+  virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile *aFile);
+#ifdef MOZ_PLATFORM_HILDON
+  NS_IMETHOD GetPossibleApplicationHandlers(nsIMutableArray * *aPossibleAppHandlers);
+#endif
 };
 
 #endif // nsMIMEInfoUnix_h_

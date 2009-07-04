@@ -57,7 +57,7 @@ public:
   NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,
                                   const nsRect& aRect,
-                                  const nsRect& aClipRect);
+                                  const nsRect& aDirtyRect);
 
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
                              PRUint8 aWidgetType, nsMargin* aResult);
@@ -70,7 +70,7 @@ public:
   virtual NS_HIDDEN_(PRBool) GetWidgetOverflow(nsIDeviceContext* aContext,
                                                nsIFrame* aFrame,
                                                PRUint8 aWidgetType,
-                                               nsRect* aResult);
+                                               nsRect* aOverflowRect);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,
@@ -91,6 +91,8 @@ public:
                                                nsIFrame* aFrame, PRUint8 aWidgetType);
 
   PRBool ThemeNeedsComboboxDropmarker();
+
+  virtual nsTransparencyMode GetWidgetTransparency(PRUint8 aWidgetType);
 
   nsNativeThemeGTK();
   virtual ~nsNativeThemeGTK();

@@ -109,7 +109,7 @@ nsHTMLStyleSheet::GenericTableRule::List(FILE* out, PRInt32 aIndent) const
 }
 #endif
 
-static void PostResolveCallback(nsStyleStruct* aStyleStruct, nsRuleData* aRuleData)
+static void PostResolveCallback(void* aStyleStruct, nsRuleData* aRuleData)
 {
   nsStyleText* text = (nsStyleText*)aStyleStruct;
   if (text->mTextAlign == NS_STYLE_TEXT_ALIGN_DEFAULT) {
@@ -135,13 +135,13 @@ nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
 }
 
 static void 
-ProcessTableRulesAttribute(nsStyleStruct* aStyleStruct, 
-                           nsRuleData*    aRuleData,
-                           PRUint8        aSide,
-                           PRBool         aGroup,
-                           PRUint8        aRulesArg1,
-                           PRUint8        aRulesArg2,
-                           PRUint8        aRulesArg3)
+ProcessTableRulesAttribute(void*       aStyleStruct, 
+                           nsRuleData* aRuleData,
+                           PRUint8     aSide,
+                           PRBool      aGroup,
+                           PRUint8     aRulesArg1,
+                           PRUint8     aRulesArg2,
+                           PRUint8     aRulesArg3)
 {
   if (!aStyleStruct || !aRuleData || !aRuleData->mPresContext) return;
 
@@ -187,13 +187,14 @@ ProcessTableRulesAttribute(nsStyleStruct* aStyleStruct,
       borderData->SetBorderStyle(aSide, bStyle);
 
       nscolor borderColor;
-      PRBool transparent, foreground;
-      borderData->GetBorderColor(aSide, borderColor, transparent, foreground);
-      if (transparent || foreground) {
+      PRBool foreground;
+      borderData->GetBorderColor(aSide, borderColor, foreground);
+      if (foreground || NS_GET_A(borderColor) == 0) {
         // use the table's border color if it is set, otherwise use black
         nscolor tableBorderColor;
-        tableBorderData->GetBorderColor(aSide, tableBorderColor, transparent, foreground);
-        borderColor = (transparent || foreground) ? NS_RGB(0,0,0) : tableBorderColor;
+        tableBorderData->GetBorderColor(aSide, tableBorderColor, foreground);
+        borderColor = (foreground || NS_GET_A(tableBorderColor) == 0)
+                        ? NS_RGB(0,0,0) : tableBorderColor;
         borderData->SetBorderColor(aSide, borderColor);
       }
       // set the border width to be 1 pixel
@@ -202,7 +203,7 @@ ProcessTableRulesAttribute(nsStyleStruct* aStyleStruct,
   }
 }
 
-static void TbodyPostResolveCallback(nsStyleStruct* aStyleStruct, nsRuleData* aRuleData)
+static void TbodyPostResolveCallback(void* aStyleStruct, nsRuleData* aRuleData)
 {
   ::ProcessTableRulesAttribute(aStyleStruct, aRuleData, NS_SIDE_TOP, PR_TRUE, NS_STYLE_TABLE_RULES_ALL,
                                NS_STYLE_TABLE_RULES_GROUPS, NS_STYLE_TABLE_RULES_ROWS);
@@ -221,7 +222,7 @@ nsHTMLStyleSheet::TableTbodyRule::MapRuleInfoInto(nsRuleData* aRuleData)
 }
 // -----------------------------------------------------------
 
-static void RowPostResolveCallback(nsStyleStruct* aStyleStruct, nsRuleData* aRuleData)
+static void RowPostResolveCallback(void* aStyleStruct, nsRuleData* aRuleData)
 {
   ::ProcessTableRulesAttribute(aStyleStruct, aRuleData, NS_SIDE_TOP, PR_FALSE, NS_STYLE_TABLE_RULES_ALL,
                                NS_STYLE_TABLE_RULES_ROWS, NS_STYLE_TABLE_RULES_ROWS);
@@ -239,7 +240,7 @@ nsHTMLStyleSheet::TableRowRule::MapRuleInfoInto(nsRuleData* aRuleData)
   return NS_OK;
 }
 
-static void ColgroupPostResolveCallback(nsStyleStruct* aStyleStruct, nsRuleData* aRuleData)
+static void ColgroupPostResolveCallback(void* aStyleStruct, nsRuleData* aRuleData)
 {
   ::ProcessTableRulesAttribute(aStyleStruct, aRuleData, NS_SIDE_LEFT, PR_TRUE, NS_STYLE_TABLE_RULES_ALL,
                                NS_STYLE_TABLE_RULES_GROUPS, NS_STYLE_TABLE_RULES_COLS);
@@ -257,7 +258,7 @@ nsHTMLStyleSheet::TableColgroupRule::MapRuleInfoInto(nsRuleData* aRuleData)
   return NS_OK;
 }
 
-static void ColPostResolveCallback(nsStyleStruct* aStyleStruct, nsRuleData* aRuleData)
+static void ColPostResolveCallback(void* aStyleStruct, nsRuleData* aRuleData)
 {
   ::ProcessTableRulesAttribute(aStyleStruct, aRuleData, NS_SIDE_LEFT, PR_FALSE, NS_STYLE_TABLE_RULES_ALL,
                                NS_STYLE_TABLE_RULES_COLS, NS_STYLE_TABLE_RULES_COLS);
@@ -265,7 +266,7 @@ static void ColPostResolveCallback(nsStyleStruct* aStyleStruct, nsRuleData* aRul
                                NS_STYLE_TABLE_RULES_COLS, NS_STYLE_TABLE_RULES_COLS);
 }
 
-static void UngroupedColPostResolveCallback(nsStyleStruct* aStyleStruct,
+static void UngroupedColPostResolveCallback(void* aStyleStruct,
                                             nsRuleData* aRuleData)
 {
   // Pass PR_TRUE for aGroup, so that we find the table's style
@@ -301,7 +302,7 @@ struct MappedAttrTableEntry : public PLDHashEntryHdr {
   nsMappedAttributes *mAttributes;
 };
 
-PR_STATIC_CALLBACK(PLDHashNumber)
+static PLDHashNumber
 MappedAttrTable_HashKey(PLDHashTable *table, const void *key)
 {
   nsMappedAttributes *attributes =
@@ -310,7 +311,7 @@ MappedAttrTable_HashKey(PLDHashTable *table, const void *key)
   return attributes->HashValue();
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 MappedAttrTable_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
 {
   MappedAttrTableEntry *entry = static_cast<MappedAttrTableEntry*>(hdr);
@@ -319,7 +320,7 @@ MappedAttrTable_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   memset(entry, 0, sizeof(MappedAttrTableEntry));
 }
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 MappedAttrTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                            const void *key)
 {
@@ -562,6 +563,14 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
+                                        PRBool* aRulesChanged)
+{
+  *aRulesChanged = PR_FALSE;
+  return NS_OK;
+}
+
 
 NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(PseudoRuleProcessorData* aData)
@@ -606,12 +615,6 @@ nsHTMLStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/html");
   return NS_OK;
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLStyleSheet::UseForMedium(nsPresContext* aPresContext) const
-{
-  return PR_TRUE; // works for all media
 }
 
 NS_IMETHODIMP_(PRBool)

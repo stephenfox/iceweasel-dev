@@ -43,11 +43,11 @@ ifdef MOZILLA_SECURITY_BUILD
 	CRYPTODIR=../crypto
 endif
 
-EXTRA_LIBS += \
-	$(CRYPTOLIB) \
-	$(DIST)/lib/$(LIB_PREFIX)secutil.$(LIB_SUFFIX) \
-	$(DIST)/lib/$(LIB_PREFIX)dbm.$(LIB_SUFFIX) \
-	$(NULL)
+EXTRA_LIBS +=	$(CRYPTOLIB) 
+
+ifndef NSS_DISABLE_DBM
+EXTRA_LIBS +=	$(DIST)/lib/$(LIB_PREFIX)dbm.$(LIB_SUFFIX) 
+endif
 
 # can't do this in manifest.mn because OS_TARGET isn't defined there.
 ifeq (,$(filter-out WIN%,$(OS_TARGET)))
@@ -61,6 +61,8 @@ RESNAME = $(LIBRARY_NAME).rc
 
 ifdef NS_USE_GCC
 EXTRA_SHARED_LIBS += \
+	-L$(DIST)/lib \
+	-lnssutil3 \
 	-L$(NSPR_LIB_DIR) \
 	-lplc4 \
 	-lplds4 \
@@ -72,6 +74,7 @@ EXTRA_SHARED_LIBS += \
 	$(NSPR_LIB_DIR)/$(NSPR31_LIB_PREFIX)plc4.lib \
 	$(NSPR_LIB_DIR)/$(NSPR31_LIB_PREFIX)plds4.lib \
 	$(NSPR_LIB_DIR)/$(NSPR31_LIB_PREFIX)nspr4.lib \
+	$(DIST)/lib/nssutil3.lib \
 	$(NULL)
 endif # NS_USE_GCC
 
@@ -80,6 +83,8 @@ else
 # $(PROGRAM) has NO explicit dependencies on $(EXTRA_SHARED_LIBS)
 # $(EXTRA_SHARED_LIBS) come before $(OS_LIBS), except on AIX.
 EXTRA_SHARED_LIBS += \
+	-L$(DIST)/lib \
+	-lnssutil3 \
 	-L$(NSPR_LIB_DIR) \
 	-lplc4 \
 	-lplds4 \
@@ -94,9 +99,15 @@ MKSHLIB += -R '$$ORIGIN'
 OS_LIBS += -lbsm 
 endif
 
+ifeq ($(OS_ARCH), HP-UX) 
+ifneq ($(OS_TEST), ia64)
+# pa-risc
+ifeq ($(USE_64), 1)
+MKSHLIB += +b '$$ORIGIN'
+endif
+endif
+endif
+
 ifeq ($(OS_TARGET),WINCE)
 DEFINES += -DDBM_USING_NSPR
 endif
-
-# indicates dependency on freebl static lib
-$(SHARED_LIBRARY): $(CRYPTOLIB)

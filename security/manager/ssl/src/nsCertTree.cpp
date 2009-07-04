@@ -143,6 +143,7 @@ NS_IMPL_ISUPPORTS1(nsCertTreeDispInfo, nsICertTreeItem)
 nsCertTreeDispInfo::nsCertTreeDispInfo()
 :mAddonInfo(nsnull)
 ,mTypeOfEntry(direct_db)
+,mPort(-1)
 ,mOverrideBits(nsCertOverride::ob_None)
 ,mIsTemporary(PR_TRUE)
 {
@@ -152,9 +153,11 @@ nsCertTreeDispInfo::nsCertTreeDispInfo(nsCertTreeDispInfo &other)
 {
   mAddonInfo = other.mAddonInfo;
   mTypeOfEntry = other.mTypeOfEntry;
-  mHostWithPort = other.mHostWithPort;
+  mAsciiHost = other.mAsciiHost;
+  mPort = other.mPort;
   mOverrideBits = other.mOverrideBits;
   mIsTemporary = other.mIsTemporary;
+  mCert = other.mCert;
 }
 
 nsCertTreeDispInfo::~nsCertTreeDispInfo()
@@ -165,6 +168,12 @@ NS_IMETHODIMP
 nsCertTreeDispInfo::GetCert(nsIX509Cert **_cert)
 {
   NS_ENSURE_ARG(_cert);
+  if (mCert) {
+    // we may already have the cert for temporary overrides
+    *_cert = mCert;
+    NS_IF_ADDREF(*_cert);
+    return NS_OK;
+  }
   if (mAddonInfo) {
     *_cert = mAddonInfo->mCert.get();
     NS_IF_ADDREF(*_cert);
@@ -178,7 +187,9 @@ nsCertTreeDispInfo::GetCert(nsIX509Cert **_cert)
 NS_IMETHODIMP
 nsCertTreeDispInfo::GetHostPort(nsAString &aHostPort)
 {
-  aHostPort = mHostWithPort;
+  nsCAutoString hostPort;
+  nsCertOverrideService::GetHostWithPort(mAsciiHost, mPort, hostPort);
+  aHostPort = NS_ConvertUTF8toUTF16(hostPort);
   return NS_OK;
 }
 
@@ -302,10 +313,12 @@ nsCertTree::GetCertAtIndex(PRInt32 index, PRInt32 *outAbsoluteCertOffset)
     return nsnull;
 
   nsIX509Cert *rawPtr = nsnull;
-  if (certdi->mAddonInfo) {
+  if (certdi->mCert) {
+    rawPtr = certdi->mCert;
+  } else if (certdi->mAddonInfo) {
     rawPtr = certdi->mAddonInfo->mCert;
-    NS_IF_ADDREF(rawPtr);
   }
+  NS_IF_ADDREF(rawPtr);
   return rawPtr;
 }
 
@@ -389,9 +402,11 @@ MatchingCertOverridesCallback(const nsCertOverride &aSettings,
       cap->certai->mUsageCount++;
     certdi->mAddonInfo = cap->certai;
     certdi->mTypeOfEntry = nsCertTreeDispInfo::host_port_override;
-    certdi->mHostWithPort = NS_ConvertUTF8toUTF16(aSettings.mHostWithPortUTF8);
+    certdi->mAsciiHost = aSettings.mAsciiHost;
+    certdi->mPort = aSettings.mPort;
     certdi->mOverrideBits = aSettings.mOverrideBits;
     certdi->mIsTemporary = aSettings.mIsTemporary;
+    certdi->mCert = aSettings.mCert;
     cap->array->InsertElementAt(cap->position, certdi);
     cap->position++;
     cap->counter++;
@@ -399,7 +414,9 @@ MatchingCertOverridesCallback(const nsCertOverride &aSettings,
 
   // this entry is now associated to a displayed cert, remove
   // it from the list of remaining entries
-  cap->tracker->RemoveEntry(aSettings.mHostWithPortUTF8);
+  nsCAutoString hostPort;
+  nsCertOverrideService::GetHostWithPort(aSettings.mAsciiHost, aSettings.mPort, hostPort);
+  cap->tracker->RemoveEntry(hostPort);
 }
 
 // Used to collect a list of the (unique) host:port keys
@@ -413,7 +430,9 @@ CollectAllHostPortOverridesCallback(const nsCertOverride &aSettings,
   if (!collectorTable)
     return;
 
-  collectorTable->PutEntry(aSettings.mHostWithPortUTF8);
+  nsCAutoString hostPort;
+  nsCertOverrideService::GetHostWithPort(aSettings.mAsciiHost, aSettings.mPort, hostPort);
+  collectorTable->PutEntry(hostPort);
 }
 
 struct nsArrayAndPositionAndCounterAndTracker
@@ -435,7 +454,9 @@ AddRemaningHostPortOverridesCallback(const nsCertOverride &aSettings,
   if (!cap)
     return;
 
-  if (!cap->tracker->GetEntry(aSettings.mHostWithPortUTF8))
+  nsCAutoString hostPort;
+  nsCertOverrideService::GetHostWithPort(aSettings.mAsciiHost, aSettings.mPort, hostPort);
+  if (!cap->tracker->GetEntry(hostPort))
     return;
 
   // This entry is not associated to any stored cert,
@@ -445,9 +466,11 @@ AddRemaningHostPortOverridesCallback(const nsCertOverride &aSettings,
   if (certdi) {
     certdi->mAddonInfo = nsnull;
     certdi->mTypeOfEntry = nsCertTreeDispInfo::host_port_override;
-    certdi->mHostWithPort = NS_ConvertUTF8toUTF16(aSettings.mHostWithPortUTF8);
+    certdi->mAsciiHost = aSettings.mAsciiHost;
+    certdi->mPort = aSettings.mPort;
     certdi->mOverrideBits = aSettings.mOverrideBits;
     certdi->mIsTemporary = aSettings.mIsTemporary;
+    certdi->mCert = aSettings.mCert;
     cap->array->InsertElementAt(cap->position, certdi);
     cap->position++;
     cap->counter++;
@@ -609,7 +632,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
         certdi->mAddonInfo = certai;
         certai->mUsageCount++;
         certdi->mTypeOfEntry = nsCertTreeDispInfo::direct_db;
-        // not necessary: certdi->mHostWithPort.Clear();
+        // not necessary: certdi->mAsciiHost.Clear(); certdi->mPort = -1;
         certdi->mOverrideBits = nsCertOverride::ob_None;
         certdi->mIsTemporary = PR_FALSE;
         mDispInfo.InsertElementAt(InsertPosition, certdi);
@@ -798,7 +821,7 @@ nsCertTree::DeleteEntryObject(PRUint32 index)
       PRBool canRemoveEntry = PR_FALSE;
 
       if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
-        mOverrideService->ClearValidityOverride(certdi->mHostWithPort);
+        mOverrideService->ClearValidityOverride(certdi->mAsciiHost, certdi->mPort);
         if (certdi->mAddonInfo) {
           certdi->mAddonInfo->mUsageCount--;
           if (certdi->mAddonInfo->mUsageCount == 0) {
@@ -1120,8 +1143,8 @@ nsCertTree::GetCellText(PRInt32 row, nsITreeColumn* col,
   if (!certdi)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIX509Cert> cert = nsnull;
-  if (certdi->mAddonInfo) {
+  nsCOMPtr<nsIX509Cert> cert = certdi->mCert;
+  if (!cert && certdi->mAddonInfo) {
     cert = certdi->mAddonInfo->mCert;
   }
 
@@ -1238,7 +1261,9 @@ nsCertTree::GetCellText(PRInt32 row, nsITreeColumn* col,
     _retval = NS_ConvertUTF8toUTF16(temp);
   } else if (NS_LITERAL_STRING("sitecol").Equals(colID)) {
     if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
-      _retval = certdi->mHostWithPort;
+      nsCAutoString hostPort;
+      nsCertOverrideService::GetHostWithPort(certdi->mAsciiHost, certdi->mPort, hostPort);
+      _retval = NS_ConvertUTF8toUTF16(hostPort);
     }
     else {
       _retval = NS_LITERAL_STRING("*");

@@ -49,7 +49,6 @@
 #include "nsFilePicker.h"
 #include "nsILocalFile.h"
 #include "nsIURL.h"
-#include "nsIFileURL.h"
 #include "nsIStringBundle.h"
 #include "nsEnumeratorUtils.h"
 #include "nsCRT.h"
@@ -266,8 +265,11 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         result = ::GetSaveFileNameW(&ofn);
         if (!result) {
           // Error, find out what kind.
-          if (::GetLastError() == ERROR_INVALID_PARAMETER ||
-              ::CommDlgExtendedError() == FNERR_INVALIDFILENAME) {
+          if (::GetLastError() == ERROR_INVALID_PARAMETER 
+#ifndef WINCE
+              || ::CommDlgExtendedError() == FNERR_INVALIDFILENAME
+#endif
+              ) {
             // probably the default file name is too long or contains illegal characters!
             // Try again, without a starting file name.
             ofn.lpstrFile[0] = 0;
@@ -281,10 +283,10 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 #ifndef WINCE
     }
     catch(...) {
-      MessageBox(ofn.hwndOwner,
-                 0,
-                 "The filepicker was unexpectedly closed by Windows.",
-                 MB_ICONERROR);
+      MessageBoxW(ofn.hwndOwner,
+                  0,
+                  L"The filepicker was unexpectedly closed by Windows.",
+                  MB_ICONERROR);
       result = PR_FALSE;
     }
 #endif
@@ -406,6 +408,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *aReturnVal)
 NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 {
   NS_ENSURE_ARG_POINTER(aFile);
+  *aFile = nsnull;
 
   if (mUnicodeFile.IsEmpty())
       return NS_OK;
@@ -422,20 +425,15 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 }
 
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsFilePicker::GetFileURL(nsIFileURL **aFileURL)
+NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
 {
-  nsCOMPtr<nsILocalFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
-  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
-  file->InitWithPath(mUnicodeFile);
+  *aFileURL = nsnull;
+  nsCOMPtr<nsILocalFile> file;
+  nsresult rv = GetFile(getter_AddRefs(file));
+  if (!file)
+    return rv;
 
-  nsCOMPtr<nsIURI> uri;
-  NS_NewFileURI(getter_AddRefs(uri), file);
-  nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(uri));
-  NS_ENSURE_TRUE(fileURL, NS_ERROR_FAILURE);
-
-  NS_ADDREF(*aFileURL = fileURL);
-
-  return NS_OK;
+  return NS_NewFileURI(aFileURL, file);
 }
 
 NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
@@ -462,13 +460,13 @@ NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
     nameIndex ++;
   nameLength = mDefault.Length() - nameIndex;
   
-  if (nameLength > _MAX_FNAME) {
+  if (nameLength > MAX_PATH) {
     PRInt32 extIndex = mDefault.RFind(".");
     if (extIndex == kNotFound)
       extIndex = mDefault.Length();
 
     //Let's try to shave the needed characters from the name part
-    PRInt32 charsToRemove = nameLength - _MAX_FNAME;
+    PRInt32 charsToRemove = nameLength - MAX_PATH;
     if (extIndex - nameIndex >= charsToRemove) {
       mDefault.Cut(extIndex - charsToRemove, charsToRemove);
     }

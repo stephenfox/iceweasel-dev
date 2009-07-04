@@ -89,16 +89,15 @@ CurrentAppDirMatchesPersistentDescriptor(xptiInterfaceInfoManager* aMgr,
     return NS_SUCCEEDED(rv) && matches;
 }
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 xpti_InterfaceWriter(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      PRUint32 number, void *arg)
 {
     xptiInterfaceEntry* entry = ((xptiHashEntry*)hdr)->value;
     PRFileDesc* fd = (PRFileDesc*)  arg;
 
-    char* iidStr = entry->GetTheIID()->ToString();
-    if(!iidStr)
-        return PL_DHASH_STOP;
+    char iidStr[NSID_LENGTH];
+    entry->GetTheIID()->ToProvidedString(iidStr);
 
     const xptiTypelib& typelib = entry->GetTypelibRecord();
 
@@ -110,8 +109,6 @@ xpti_InterfaceWriter(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                    (int) (typelib.IsZip() ? 
                                    typelib.GetZipItemIndex() : -1),
                                    (int) entry->GetScriptableFlag());
-
-    nsCRT::free(iidStr);
 
     return success ? PL_DHASH_NEXT : PL_DHASH_STOP;
 }

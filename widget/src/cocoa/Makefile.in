@@ -60,23 +60,18 @@ REQUIRES = xpcom \
 		  content \
 		  layout \
 		  view \
-		  xul \
 		  necko \
 		  locale \
 		  pref \
 		  intl \
 		  exthandler \
 		  appshell \
+		  qcms \
 		  thebes \
-		  cairo \
 		  js \
 		  xpconnect \
 		  imglib2 \
 		  $(NULL)
-
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitz glitzagl
-endif
 
 ifdef ACCESSIBILITY
 REQUIRES += accessibility
@@ -84,6 +79,7 @@ endif
 
 EXPORTS = \
 		mozView.h \
+		nsChangeObserver.h \
 		$(NULL)
 
 CMMSRCS = \
@@ -93,6 +89,7 @@ CMMSRCS = \
 		nsMenuBarX.mm \
 		nsMenuItemX.mm \
 		nsMenuItemIconX.mm \
+		nsMenuUtilsX.mm \
 		nsFilePicker.mm \
 		nsDragService.mm \
 		nsToolkit.mm \
@@ -117,8 +114,6 @@ CMMSRCS = \
 		$(NULL)
 
 XPIDLSRCS	+= \
-		nsIChangeManager.idl \
-		nsIMenuCommandDispatcher.idl \
 		nsPIWidgetCocoa.idl \
 		$(NULL)
 
@@ -130,7 +125,7 @@ EXTRA_DSO_LDOPTS += \
 		$(call EXPAND_LIBNAME_PATH,gkgfx,$(DEPTH)/gfx/src) \
 		$(MOZ_COMPONENT_LIBS) \
 		-lthebes \
-		$(LCMS_LIBS) \
+		$(QCMS_LIBS) \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
@@ -165,6 +160,8 @@ export::
 $(RESOURCE): nsMacWidget.r
 	/Developer/Tools/Rez -i /Developer/Headers/FlatCarbon -useDF $< -o $@
 
+GARBAGE += $(RESOURCE)
+
 libs:: $(RESOURCE)
 	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin
 
@@ -176,11 +173,4 @@ LOCAL_INCLUDES	= \
 LDFLAGS	+= \
 	-framework QuickTime \
 	-framework IOKit \
-	-framework Cocoa \
-	-framework Foundation \
-	$(NULL)
-
-CXXFLAGS += \
-	-DUSE_COCOA \
-	-fobjc-exceptions \
 	$(NULL)

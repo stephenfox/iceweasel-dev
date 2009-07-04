@@ -75,6 +75,7 @@
 #include "nsIContent.h"
 #include "nsDisplayList.h"
 #include "nsNodeUtils.h"
+#include "mozAutoDocUpdate.h"
 
 // masks for mEdgeVisibility
 #define LEFT_VIS   0x0001
@@ -161,6 +162,7 @@ protected:
   nsHTMLFramesetBorderFrame(nsStyleContext* aContext, PRInt32 aWidth, PRBool aVertical, PRBool aVisible);
   virtual ~nsHTMLFramesetBorderFrame();
   virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
   PRInt32 mWidth;
   PRPackedBool mVertical;
@@ -197,6 +199,7 @@ protected:
   nsHTMLFramesetBlankFrame(nsStyleContext* aContext) : nsLeafFrame(aContext) {}
   virtual ~nsHTMLFramesetBlankFrame();
   virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
   friend class nsHTMLFramesetFrame;
   friend class nsHTMLFrameset;
@@ -1627,6 +1630,12 @@ nscoord nsHTMLFramesetBorderFrame::GetIntrinsicWidth()
   return 0;
 }
 
+nscoord nsHTMLFramesetBorderFrame::GetIntrinsicHeight()
+{
+  // No intrinsic height
+  return 0;
+}
+
 void nsHTMLFramesetBorderFrame::SetVisibility(PRBool aVisibility)
 { 
   mVisibility = aVisibility; 
@@ -1671,7 +1680,8 @@ public:
 
   // REVIEW: see old GetFrameForPoint
   // Receives events in its bounds
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt) { return mFrame; }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("FramesetBorder")
@@ -1834,6 +1844,12 @@ nsHTMLFramesetBlankFrame::~nsHTMLFramesetBlankFrame()
 nscoord nsHTMLFramesetBlankFrame::GetIntrinsicWidth()
 {
   // No intrinsic width
+  return 0;
+}
+
+nscoord nsHTMLFramesetBlankFrame::GetIntrinsicHeight()
+{
+  // No intrinsic height
   return 0;
 }
 

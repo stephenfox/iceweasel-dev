@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -63,6 +63,8 @@
 #define _PR_SI_ARCHITECTURE "x86-64"
 #elif defined(__mc68000__)
 #define _PR_SI_ARCHITECTURE "m68k"
+#elif defined(__sparc__) && defined(__arch64__)
+#define _PR_SI_ARCHITECTURE "sparc64"
 #elif defined(__sparc__)
 #define _PR_SI_ARCHITECTURE "sparc"
 #elif defined(__i386__)
@@ -77,6 +79,8 @@
 #define _PR_SI_ARCHITECTURE "s390x"
 #elif defined(__s390__)
 #define _PR_SI_ARCHITECTURE "s390"
+#elif defined(__sh__)
+#define _PR_SI_ARCHITECTURE "sh"
 #else
 #error "Unknown CPU architecture"
 #endif
@@ -138,6 +142,19 @@ extern PRInt32 _PR_x86_64_AtomicSet(PRInt32 *val, PRInt32 newval);
 #define _MD_ATOMIC_SET                _PR_x86_64_AtomicSet
 #endif
 
+#if defined(__powerpc__) && !defined(__powerpc64__)
+#define _PR_HAVE_ATOMIC_OPS
+#define _MD_INIT_ATOMIC()
+extern PRInt32 _PR_ppc_AtomicIncrement(PRInt32 *val);
+#define _MD_ATOMIC_INCREMENT          _PR_ppc_AtomicIncrement
+extern PRInt32 _PR_ppc_AtomicDecrement(PRInt32 *val);
+#define _MD_ATOMIC_DECREMENT          _PR_ppc_AtomicDecrement
+extern PRInt32 _PR_ppc_AtomicAdd(PRInt32 *ptr, PRInt32 val);
+#define _MD_ATOMIC_ADD                _PR_ppc_AtomicAdd
+extern PRInt32 _PR_ppc_AtomicSet(PRInt32 *val, PRInt32 newval);
+#define _MD_ATOMIC_SET                _PR_ppc_AtomicSet
+#endif
+
 #if defined(__alpha)
 #define _PR_HAVE_ATOMIC_OPS
 #define _MD_INIT_ATOMIC()
@@ -192,6 +209,50 @@ extern PRInt32 _PR_x86_64_AtomicSet(PRInt32 *val, PRInt32 newval);
     : [newval] "Ir" (n), "m" (*ptr));           \
     __atomic_ret;                               \
 })
+#endif
+
+#if defined(__arm__) && defined(_PR_ARM_KUSER)
+#define _PR_HAVE_ATOMIC_OPS
+#define _MD_INIT_ATOMIC()
+
+/*
+ * The kernel provides this helper function at a fixed address with a fixed
+ * ABI signature, directly callable from user space.
+ *
+ * Definition:
+ * Atomically store newval in *ptr if *ptr is equal to oldval.
+ * Return zero if *ptr was changed or non-zero if no exchange happened.
+ */
+typedef int (__kernel_cmpxchg_t)(int oldval, int newval, volatile int *ptr);
+#define __kernel_cmpxchg (*(__kernel_cmpxchg_t *)0xffff0fc0)
+
+#define _MD_ATOMIC_INCREMENT(ptr) _MD_ATOMIC_ADD(ptr, 1)
+#define _MD_ATOMIC_DECREMENT(ptr) _MD_ATOMIC_ADD(ptr, -1)
+
+static inline PRInt32 _MD_ATOMIC_ADD(PRInt32 *ptr, PRInt32 n)
+{
+    PRInt32 ov, nv;
+    volatile PRInt32 *vp = ptr;
+
+    do {
+        ov = *vp;
+        nv = ov + n;
+    } while (__kernel_cmpxchg(ov, nv, vp));
+
+    return nv;
+}
+
+static inline PRInt32 _MD_ATOMIC_SET(PRInt32 *ptr, PRInt32 nv)
+{
+    PRInt32 ov;
+    volatile PRInt32 *vp = ptr;
+
+    do {
+        ov = *vp;
+    } while (__kernel_cmpxchg(ov, nv, vp));
+
+    return ov;
+}
 #endif
 
 #define USE_SETJMP
@@ -358,13 +419,35 @@ extern void _MD_CleanupBeforeExit(void);
 #elif defined(__arm__)
 /* ARM/Linux */
 #if defined(__GLIBC__) && __GLIBC__ >= 2
+#ifdef __ARM_EABI__
+/* EABI */
+#define _MD_GET_SP(_t) (_t)->md.context[0].__jmpbuf[8]
+#define _MD_SET_FP(_t, val) ((_t)->md.context[0].__jmpbuf[7] = (val))
+#define _MD_GET_SP_PTR(_t) &(_MD_GET_SP(_t))
+#define _MD_GET_FP_PTR(_t) (&(_t)->md.context[0].__jmpbuf[7])
+#define _MD_SP_TYPE __ptr_t
+#else /* __ARM_EABI__ */
+/* old ABI */
 #define _MD_GET_SP(_t) (_t)->md.context[0].__jmpbuf[20]
 #define _MD_SET_FP(_t, val) ((_t)->md.context[0].__jmpbuf[19] = (val))
 #define _MD_GET_SP_PTR(_t) &(_MD_GET_SP(_t))
 #define _MD_GET_FP_PTR(_t) (&(_t)->md.context[0].__jmpbuf[19])
 #define _MD_SP_TYPE __ptr_t
+#endif /* __ARM_EABI__ */
 #else
 #error "ARM/Linux pre-glibc2 not supported yet"
+#endif /* defined(__GLIBC__) && __GLIBC__ >= 2 */
+
+#elif defined(__sh__)
+/* SH/Linux */
+#if defined(__GLIBC__) && __GLIBC__ >= 2
+#define _MD_GET_SP(_t) (_t)->md.context[0].__jmpbuf[7]
+#define _MD_SET_FP(_t, val) ((_t)->md.context[0].__jmpbuf[6] = (val))
+#define _MD_GET_SP_PTR(_t) &(_MD_GET_SP(_t))
+#define _MD_GET_FP_PTR(_t) (&(_t)->md.context[0].__jmpbuf[6])
+#define _MD_SP_TYPE __ptr_t
+#else
+#error "SH/Linux pre-glibc2 not supported yet"
 #endif /* defined(__GLIBC__) && __GLIBC__ >= 2 */
 
 #else
@@ -385,8 +468,8 @@ extern void _MD_CleanupBeforeExit(void);
         _main();  \
     }  \
     _MD_GET_SP(_thread) = (unsigned char*) ((_sp) - 128); \
-	_thread->md.sp = _MD_GET_SP_PTR(_thread); \
-	_thread->md.fp = _MD_GET_FP_PTR(_thread); \
+    _thread->md.sp = _MD_GET_SP_PTR(_thread); \
+    _thread->md.fp = _MD_GET_FP_PTR(_thread); \
     _MD_SET_FP(_thread, 0); \
 }
 
@@ -412,8 +495,8 @@ extern void _MD_CleanupBeforeExit(void);
         _main();  \
     }  \
     _MD_GET_SP(_thread) = (_MD_SP_TYPE) ((_sp) - 64); \
-	_thread->md.sp = _MD_GET_SP_PTR(_thread); \
-	_thread->md.fp = _MD_GET_FP_PTR(_thread); \
+    _thread->md.sp = _MD_GET_SP_PTR(_thread); \
+    _thread->md.fp = _MD_GET_FP_PTR(_thread); \
     _MD_SET_FP(_thread, 0); \
 }
 
@@ -439,8 +522,8 @@ extern void _MD_CleanupBeforeExit(void);
 
 struct _MDThread {
     PR_CONTEXT_TYPE context;
-	void *sp;
-	void *fp;
+    void *sp;
+    void *fp;
     int id;
     int errcode;
 };
@@ -479,10 +562,10 @@ struct _MDCPU_Unix {
 #ifndef _PR_USE_POLL
     fd_set fd_read_set, fd_write_set, fd_exception_set;
     PRInt16 fd_read_cnt[_PR_MD_MAX_OSFD],fd_write_cnt[_PR_MD_MAX_OSFD],
-				fd_exception_cnt[_PR_MD_MAX_OSFD];
+            fd_exception_cnt[_PR_MD_MAX_OSFD];
 #else
-	struct pollfd *ioq_pollfds;
-	int ioq_pollfds_size;
+    struct pollfd *ioq_pollfds;
+    int ioq_pollfds_size;
 #endif	/* _PR_USE_POLL */
 };
 
@@ -503,7 +586,7 @@ struct _MDCPU_Unix {
 #define _PR_IOQ_MIN_POLLFDS_SIZE(_cpu)	32
 
 struct _MDCPU {
-	struct _MDCPU_Unix md_unix;
+    struct _MDCPU_Unix md_unix;
 };
 
 #define _MD_INIT_LOCKS()
@@ -543,7 +626,7 @@ extern PRIntervalTime _PR_UNIX_GetInterval(void);
 extern PRIntervalTime _PR_UNIX_TicksPerSecond(void);
 
 #define _MD_EARLY_INIT                  _MD_EarlyInit
-#define _MD_FINAL_INIT					_PR_UnixInit
+#define _MD_FINAL_INIT                  _PR_UnixInit
 #define _MD_GET_INTERVAL                _PR_UNIX_GetInterval
 #define _MD_INTERVAL_PER_SEC            _PR_UNIX_TicksPerSecond
 

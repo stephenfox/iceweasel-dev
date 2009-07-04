@@ -22,6 +22,7 @@
  *
  * Contributor(s):
  *   Ryan Jones <sciguyryan@gmail.com>
+ *   Laurent Jouanneau <laurent.jouanneau@disruptive-innovations.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -67,6 +68,7 @@
 #include "nsLWBrkCIID.h"
 #include "nsIScriptElement.h"
 #include "nsAttrName.h"
+#include "nsILineBreaker.h"
 
 #define kIndentStr NS_LITERAL_STRING("  ")
 #define kLessThan NS_LITERAL_STRING("<")
@@ -89,13 +91,11 @@ nsresult NS_NewHTMLContentSerializer(nsIContentSerializer** aSerializer)
 
 nsHTMLContentSerializer::nsHTMLContentSerializer()
 : mIndent(0),
-  mColPos(0),
-  mInBody(PR_FALSE),
+  mInBody(0),
   mAddSpace(PR_FALSE),
   mMayIgnoreLineBreakSequence(PR_FALSE),
   mIsWholeDocument(PR_FALSE),
-  mInCDATA(PR_FALSE),
-  mNeedLineBreaker(PR_TRUE)
+  mInCDATA(PR_FALSE)
 {
 }
 
@@ -116,7 +116,10 @@ nsHTMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                               const char* aCharSet, PRBool aIsCopying,
                               PRBool aIsWholeDocument)
 {
-  mFlags = aFlags;
+  nsresult rv;
+  rv = nsXMLContentSerializer::Init(aFlags, aWrapColumn, aCharSet, aIsCopying, aIsWholeDocument);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (!aWrapColumn) {
     mMaxColumn = 72;
   }
@@ -131,24 +134,8 @@ nsHTMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                                                              : PR_FALSE;
   mBodyOnly = (mFlags & nsIDocumentEncoder::OutputBodyOnly) ? PR_TRUE
                                                             : PR_FALSE;
-  // Set the line break character:
-  if ((mFlags & nsIDocumentEncoder::OutputCRLineBreak)
-      && (mFlags & nsIDocumentEncoder::OutputLFLineBreak)) { // Windows
-    mLineBreak.AssignLiteral("\r\n");
-  }
-  else if (mFlags & nsIDocumentEncoder::OutputCRLineBreak) { // Mac
-    mLineBreak.AssignLiteral("\r");
-  }
-  else if (mFlags & nsIDocumentEncoder::OutputLFLineBreak) { // Unix/DOM
-    mLineBreak.AssignLiteral("\n");
-  }
-  else {
-    mLineBreak.AssignLiteral(NS_LINEBREAK);         // Platform/default
-  }
 
   mPreLevel = 0;
-
-  mCharset = aCharSet;
 
   // set up entity converter if we are going to need it
   if (mFlags & nsIDocumentEncoder::OutputEncodeW3CEntities) {
@@ -165,14 +152,6 @@ nsHTMLContentSerializer::AppendText(nsIDOMText* aText,
                                     nsAString& aStr)
 {
   NS_ENSURE_ARG(aText);
-
-  if (mNeedLineBreaker) {
-    mNeedLineBreaker = PR_FALSE;
-
-    nsCOMPtr<nsIDOMDocument> domDoc;
-    aText->GetOwnerDocument(getter_AddRefs(domDoc));
-    nsCOMPtr<nsIDocument> document = do_QueryInterface(domDoc);
-  }
 
   nsAutoString data;
 
@@ -596,6 +575,18 @@ nsHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
         valueStr = tempURI;
     }
 
+    if (mIsWholeDocument && aTagName == nsGkAtoms::meta &&
+        attrName == nsGkAtoms::content) {
+      // If we're serializing a <meta http-equiv="content-type">,
+      // use the proper value, rather than what's in the document.
+      nsAutoString header;
+      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, header);
+      if (header.LowerCaseEqualsLiteral("content-type")) {
+        valueStr = NS_LITERAL_STRING("text/html; charset=") +
+          NS_ConvertASCIItoUTF16(mCharset);
+      }
+    }
+
     attrName->ToString(nameStr);
     
     /*If we already crossed the MaxColumn limit or 
@@ -637,16 +628,6 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
 
   nsIAtom *name = content->Tag();
 
-  // We need too skip any meta tags that set the content type
-  // becase we set our own later.
-  if (mIsWholeDocument && name == nsGkAtoms::meta) {
-    nsAutoString header;
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, header);
-    if (header.LowerCaseEqualsLiteral("content-type")) {
-      return NS_OK;
-    }
-  }
-
   if (name == nsGkAtoms::br && mPreLevel > 0
       && (mFlags & nsIDocumentEncoder::OutputNoFormattingInPre)) {
     AppendToString(mLineBreak, aStr);
@@ -656,7 +637,7 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
   }
 
   if (name == nsGkAtoms::body) {
-    mInBody = PR_TRUE;
+    ++mInBody;
   }
 
   if (LineBreakBeforeOpen(name, hasDirtyAttr)) {
@@ -742,12 +723,34 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
   }
 
   if (mIsWholeDocument && name == nsGkAtoms::head) {
-    AppendToString(mLineBreak, aStr);
-    AppendToString(NS_LITERAL_STRING("<meta http-equiv=\"content-type\""),
-                   aStr);
-    AppendToString(NS_LITERAL_STRING(" content=\"text/html; charset="), aStr);
-    AppendToString(NS_ConvertASCIItoUTF16(mCharset), aStr);
-    AppendToString(NS_LITERAL_STRING("\">"), aStr);
+    // Check if there already are any content-type meta children.
+    // If there are, they will be modified to use the correct charset.
+    // If there aren't, we'll insert one here.
+    PRBool hasMeta = PR_FALSE;
+    PRUint32 i, childCount = content->GetChildCount();
+    for (i = 0; i < childCount; ++i) {
+      nsIContent* child = content->GetChildAt(i);
+      if (child->IsNodeOfType(nsINode::eHTML) &&
+          child->Tag() == nsGkAtoms::meta &&
+          child->HasAttr(kNameSpaceID_None, nsGkAtoms::content)) {
+        nsAutoString header;
+        child->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, header);
+
+        if (header.LowerCaseEqualsLiteral("content-type")) {
+          hasMeta = PR_TRUE;
+          break;
+        }
+      }
+    }
+
+    if (!hasMeta) {
+      AppendToString(mLineBreak, aStr);
+      AppendToString(NS_LITERAL_STRING("<meta http-equiv=\"content-type\""),
+                     aStr);
+      AppendToString(NS_LITERAL_STRING(" content=\"text/html; charset="), aStr);
+      AppendToString(NS_ConvertASCIItoUTF16(mCharset), aStr);
+      AppendToString(NS_LITERAL_STRING("\">"), aStr);
+    }
   }
 
   return NS_OK;
@@ -766,15 +769,6 @@ nsHTMLContentSerializer::AppendElementEnd(nsIDOMElement *aElement,
                                          nsGkAtoms::mozdirty);
 
   nsIAtom *name = content->Tag();
-
-  // So that we don't mess up the line breaks.
-  if (mIsWholeDocument && name == nsGkAtoms::meta) {
-    nsAutoString header;
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, header);
-    if (header.LowerCaseEqualsLiteral("content-type")) {
-      return NS_OK;
-    }
-  }
 
   if (name == nsGkAtoms::script) {
     nsCOMPtr<nsIScriptElement> script = do_QueryInterface(aElement);
@@ -841,6 +835,10 @@ nsHTMLContentSerializer::AppendElementEnd(nsIDOMElement *aElement,
   }
   else {
     MaybeFlagNewline(aElement);
+  }
+
+  if (name == nsGkAtoms::body) {
+    --mInBody;
   }
 
   mInCDATA = PR_FALSE;
@@ -1019,31 +1017,6 @@ nsHTMLContentSerializer::AppendToString(const nsAString& aStr,
   }
 
   aOutputStr.Append(aStr);
-}
-
-void
-nsHTMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
-                                                 nsAString& aOutputStr)
-{
-  // Convert line-endings to mLineBreak
-  PRUint32 start = 0;
-  PRUint32 theLen = aStr.Length();
-  while (start < theLen) {
-    PRInt32 eol = aStr.FindChar('\n', start);
-    if (eol == kNotFound) {
-      nsDependentSubstring dataSubstring(aStr, start, theLen - start);
-      AppendToString(dataSubstring, aOutputStr);
-      start = theLen;
-    }
-    else {
-      nsDependentSubstring dataSubstring(aStr, start, eol - start);
-      AppendToString(dataSubstring, aOutputStr);
-      AppendToString(mLineBreak, aOutputStr);
-      start = eol + 1;
-      if (start == theLen)
-        mColPos = 0;
-    }
-  }
 }
 
 PRBool
@@ -1264,9 +1237,8 @@ nsHTMLContentSerializer::SerializeLIValueAttribute(nsIDOMElement* aElement,
   // We are copying and we are at the "first" LI node of OL in selected range.
   // It may not be the first LI child of OL but it's first in the selected range.
   // Note that we get into this condition only once per a OL.
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aElement);
   PRBool found = PR_FALSE;
-  nsIDOMNode* currNode = node;
+  nsCOMPtr<nsIDOMNode> currNode = do_QueryInterface(aElement);
   nsAutoString valueStr;
   PRInt32 offset = 0;
   olState defaultOLState(0, PR_FALSE);
@@ -1299,7 +1271,9 @@ nsHTMLContentSerializer::SerializeLIValueAttribute(nsIDOMElement* aElement,
         }
       }
     }
-    currNode->GetPreviousSibling(&currNode);
+    nsCOMPtr<nsIDOMNode> tmp;
+    currNode->GetPreviousSibling(getter_AddRefs(tmp));
+    currNode.swap(tmp);
   }
   // If LI was not having "value", Set the "value" attribute for it.
   // Note that We are at the first LI in the selected range of OL.

@@ -26,7 +26,7 @@
  *   Dean Tessman (dean_tessman@hotmail.com)
  *   Blake Ross (blake@cs.stanford.edu)
  *   Pamela Greene (pamg.bugs@gmail.com)
- *   Dao Gottwald (dao@design-noir.de)
+ *   Dão Gottwald (dao@mozilla.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -60,27 +60,6 @@
   min-height: 26px;
 }
 
-/* ..... fix searchbar "add engine" padding issue ..... */
-
-.searchbar-popup .open-engine-manager { 
-  -moz-padding-start: 4px; 
-}
-
-#searchbar[empty="true"] > .searchbar-textbox {
-  color: GrayText;
-  direction: ltr !important;
-}
-
-#searchbar[empty="true"] > .searchbar-textbox > hbox > hbox > html|input {
-  direction: ltr !important;
-  text-align: left !important;
-}
-
-#searchbar[chromedir="rtl"][empty="true"] > .searchbar-textbox > hbox > hbox > html|input {
-  direction: rtl !important;
-  text-align: right !important;
-}
-
 #wrapper-search-container #searchbar html|*.textbox-input {
   visibility: hidden;
 }
@@ -88,6 +67,7 @@
 #navigator-toolbox[inFullscreen="true"],
 #navigator-toolbox[inFullscreen="true"] > #nav-bar {
   border-top: none;
+  padding-top: 0;
 }
 
 /* Places toolbar */
@@ -120,21 +100,13 @@ toolbarbutton.bookmark-item[open="true"] {
   display: none;
 }
 
+/* Dropmarker for folder bookmarks */
+.bookmark-item[container] > .toolbarbutton-menu-dropmarker {
+  display: -moz-box !important;
+}
+
 .bookmarks-toolbar-customize {
-  display: none;
   max-width: 15em !important;
-}
-
-toolbarpaletteitem[place="toolbar"] .bookmarks-toolbar-customize {
-  display: -moz-box;
-}
-
-toolbarpaletteitem[place="toolbar"] .bookmarks-toolbar-items {
-  visibility: hidden;
-}
-
-toolbarpaletteitem[place="toolbar"] .places-toolbar-items {
-  display: none;
 }
 
 /* Bookmark menus */
@@ -154,43 +126,38 @@ menuitem.bookmark-item {
 }
 
 /* Bookmark drag and drop styles */
-.bookmark-item[dragover-left="true"] {
-  -moz-border-left-colors: #000000;
-}
-.bookmark-item[dragover-right="true"] {
-  -moz-border-right-colors: #000000;
-}
-.bookmark-item[dragover-top="true"] {
-  -moz-border-top-colors: #000000;
-}
-.bookmark-item[dragover-bottom="true"] {
-  -moz-border-bottom-colors: #000000;
-}
 .bookmark-item[dragover-into="true"] {
   background: Highlight !important;
   color: HighlightText !important;
 }
-.bookmark-item[dragover="true"][open="true"] {
-  -moz-appearance: none;
-  background: Highlight !important;
-  color: HighlightText !important;
-  list-style-image: url("chrome://browser/skin/places/folderDragOver.png") !important;
-  -moz-image-region: rect(0px, 16px, 16px, 0px) !important;
+
+/* rules for menupopup drop indicators */
+.menupopup-drop-indicator-bar {
+  position: relative;
+  /* these two margins must together compensate the indicator's height */
+  margin-top: -1px;
+  margin-bottom: -1px;
+}
+
+.menupopup-drop-indicator {
+  list-style-image: none;
+  height: 2px;
+  -moz-margin-end: -4em;
+  background-color: Highlight;
 }
 
 .toolbar-drop-indicator {
-  height: 16px;
-  width: 5px;
-  margin-bottom: -8px;
+  width: 9px;
+  height: 18px;
+  margin-bottom: -6px;
   position: relative;
   background: url("chrome://browser/skin/places/toolbarDropMarker.png") 50% 50% no-repeat;
 }
 
 .toolbar-drop-indicator-bar {
   visibility: hidden;
-  height: 16px;
-  margin-bottom: -16px;
-  margin-left: 4px;
+  height: 18px;
+  margin-bottom: -18px;
   position: relative;
 }
 
@@ -208,41 +175,32 @@ menuitem.bookmark-item {
   list-style-image: url("moz-icon://stock/gtk-directory?size=menu");
 }
 
-/* livemarks have the same layout as folder-item, but in the browser-only livemark-item.png */
-/* only the folder icon has any effect for now, item icon is unused */
 .bookmark-item[container][livemark] { 
-  list-style-image: url("chrome://browser/skin/places/livemark-folder.png");
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
+  list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
 }
 
-.bookmark-item[container][livemark][chromedir="rtl"] { 
-  list-style-image: url("chrome://browser/skin/places/livemark-folder-rtl.png");
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-
-.bookmark-item[container][livemark][open],
-.bookmark-item[container][livemark][open][chromedir="rtl"] { 
-  -moz-image-region: rect(16px, 16px, 32px, 0px);
-}
-
-.bookmark-item[type="menu"][livemark],
-.bookmark-item[type="menu"][livemark][chromedir="rtl"] { 
-  -moz-image-region: rect(0px, 32px, 16px, 16px) !important;
-}
-
-.bookmark-item[type="menu"][livemark][open],
-.bookmark-item[type="menu"][livemark][open][chromedir="rtl"] { 
-  -moz-image-region: rect(16px, 32px, 32px, 16px) !important;
-}
-
-.bookmark-item[container][tagContainer] {
-  list-style-image: url("chrome://mozapps/skin/places/tagContainerIcon.png");
-  -moz-image-region: auto;
+.bookmark-item[container][livemark] .bookmark-item {
+  list-style-image: url("chrome://browser/skin/places/livemark-item.png");
 }
 
 .bookmark-item[container][query] {
   list-style-image: url("chrome://browser/skin/places/query.png");
-  -moz-image-region: auto;
+}
+
+.bookmark-item[query][tagContainer] {
+  list-style-image: url("chrome://mozapps/skin/places/tagContainerIcon.png");
+}
+
+.bookmark-item[query][dayContainer] {
+  list-style-image: url("chrome://browser/skin/places/calendar.png");
+}
+
+.bookmark-item[query][hostContainer] {
+  list-style-image: url("moz-icon://stock/gtk-directory?size=menu");
+}
+
+.bookmark-item[query][hostContainer][open] {
+  list-style-image: url("moz-icon://stock/gtk-directory?size=menu");
 }
 
 /* Stock icons for the menu bar items */
@@ -250,38 +208,57 @@ menuitem:not([type]) {
   -moz-binding: url("chrome://global/content/bindings/menu.xml#menuitem-iconic");
 }
 
-menuitem[command="cmd_newNavigator"],
-#context-openlink {
+#placesContext_open\:newwindow,
+#menu_newNavigator,
+#context-openlink,
+#context-openframe {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 80px 16px 64px);
 }
 
-menuitem[command="cmd_newNavigatorTab"],
-#context-openlinkintab {
+#placesContext_open\:newtab,
+#placesContext_openContainer\:tabs,
+#menu_newNavigatorTab,
+#context-openlinkintab,
+#context-openframeintab {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 64px 16px 48px);
 }
 
-menuitem[command="Browser:OpenFile"] {
+#menu_openFile {
   list-style-image: url("moz-icon://stock/gtk-open?size=menu");
 }
 
 #menu_close {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
+        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
+  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
 }
 
-menuitem[command="Browser:SavePage"],
+#context-media-play {
+  list-style-image: url("moz-icon://stock/gtk-media-play?size=menu");
+}
+
+#context-media-pause {
+  list-style-image: url("moz-icon://stock/gtk-media-pause?size=menu");
+}
+
+#menu_savePage,
 #context-savelink,
 #context-saveimage,
-#context-savepage {
+#context-savevideo,
+#context-saveaudio,
+#context-savepage,
+#context-saveframe {
   list-style-image: url("moz-icon://stock/gtk-save-as?size=menu");
 }
 
-menuitem[command="cmd_printPreview"] {
+#menu_printPreview {
   list-style-image: url("moz-icon://stock/gtk-print-preview?size=menu");
 }
 
-menuitem[command="cmd_print"] {
+#menu_print,
+#context-printframe {
   list-style-image: url("moz-icon://stock/gtk-print?size=menu");
 }
 
@@ -289,67 +266,81 @@ menuitem[command="cmd_print"] {
   list-style-image: url("moz-icon://stock/gtk-quit?size=menu");
 }
 
-menuitem[command="cmd_undo"],
+#menu_undo,
 #context-undo {
   list-style-image: url("moz-icon://stock/gtk-undo?size=menu");
 }
 
-menuitem[command="cmd_undo"][disabled],
+#menu_undo[disabled],
 #context-undo[disabled] {
   list-style-image: url("moz-icon://stock/gtk-undo?size=menu&state=disabled");
 }
 
-menuitem[command="cmd_redo"] {
+#menu_redo {
   list-style-image: url("moz-icon://stock/gtk-redo?size=menu");
 }
 
-menuitem[command="cmd_redo"][disabled] {
+#menu_redo[disabled] {
   list-style-image: url("moz-icon://stock/gtk-redo?size=menu&state=disabled");
 }
 
-menuitem[command="cmd_cut"],
+#menu_cut,
+#placesContext_cut,
 #context-cut {
   list-style-image: url("moz-icon://stock/gtk-cut?size=menu");
 }
 
-menuitem[command="cmd_cut"][disabled],
+#menu_cut[disabled],
+#placesContext_cut[disabled],
 #context-cut[disabled] {
   list-style-image: url("moz-icon://stock/gtk-cut?size=menu&state=disabled");
 }
 
-menuitem[command="cmd_copy"],
+#menu_copy,
+#placesContext_copy,
 #context-copy,
 #context-copyimage,
-#context-copylink {
+#context-copyvideourl,
+#context-copyaudiourl,
+#context-copylink,
+#context-copyemail {
   list-style-image: url("moz-icon://stock/gtk-copy?size=menu");
 }
 
-menuitem[command="cmd_copy"][disabled],
+#menu_copy[disabled],
+#placesContext_copy[disabled],
 #context-copy[disabled] {
   list-style-image: url("moz-icon://stock/gtk-copy?size=menu&state=disabled");
 }
 
-menuitem[command="cmd_paste"],
+#menu_paste,
+#placesContext_paste,
 #context-paste {
   list-style-image: url("moz-icon://stock/gtk-paste?size=menu");
 }
 
-menuitem[command="cmd_paste"][disabled],
+#menu_paste[disabled],
+#placesContext_paste[disabled],
 #context-paste[disabled] {
   list-style-image: url("moz-icon://stock/gtk-paste?size=menu&state=disabled");
 }
 
-menuitem[command="cmd_delete"],
+#menu_delete,
+#placesContext_delete,
+#placesContext_delete_history,
 #context-delete {
   list-style-image: url("moz-icon://stock/gtk-delete?size=menu");
 }
 
-menuitem[command="cmd_delete"][disabled],
+#menu_delete[disabled],
+#placesContext_delete[disabled],
+#placesContext_delete_history[disabled],
 #context-delete[disabled] {
   list-style-image: url("moz-icon://stock/gtk-delete?size=menu&state=disabled");
 }
 
-menuitem[command="cmd_selectAll"] {
+#menu_selectAll,
+#context-selectall {
   list-style-image: url("moz-icon://stock/gtk-select-all?size=menu");
 }
 
@@ -365,66 +356,97 @@ menuitem[command="cmd_selectAll"] {
   list-style-image: url("moz-icon://stock/gtk-preferences?size=menu");
 }
 
-menuitem[command="Browser:Stop"],
-#context-stop,
-#javascriptConsole {
+#menu_stop,
+#context-stop {
   list-style-image: url("moz-icon://stock/gtk-stop?size=menu");
 }
 
-menuitem[command="Browser:Stop"][disabled],
+#menu_stop[disabled],
 #context-stop[disabled] {
   list-style-image: url("moz-icon://stock/gtk-stop?size=menu&state=disabled");
 }
 
-menuitem[command="Browser:Reload"],
-#context-reload {
+#menu_reload,
+#placesContext_reload,
+#placesContext_reloadMicrosummary,
+#context-reload,
+#context-reloadframe {
   list-style-image: url("moz-icon://stock/gtk-refresh?size=menu");
 }
 
-menuitem[command="cmd_fullZoomEnlarge"] {
+#menu_reload[disabled],
+#context-reload[disabled] {
+  list-style-image: url("moz-icon://stock/gtk-refresh?size=menu&state=disabled");
+}
+
+#menu_zoomEnlarge {
   list-style-image: url("moz-icon://stock/gtk-zoom-in?size=menu");
 }
 
-menuitem[command="cmd_fullZoomReduce"] {
+#menu_zoomReduce {
   list-style-image: url("moz-icon://stock/gtk-zoom-out?size=menu");
 }
 
-menuitem[command="cmd_fullZoomReset"] {
+#menu_zoomReset {
   list-style-image: url("moz-icon://stock/gtk-zoom-100?size=menu");
 }
 
-menuitem[key="goBackKb"],
+#historyMenuBack,
 #context-back {
-  list-style-image: url("moz-icon://stock/gtk-go-back?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu");
 }
 
-menuitem[key="goBackKb"][disabled],
+#historyMenuBack[disabled],
 #context-back[disabled] {
-  list-style-image: url("moz-icon://stock/gtk-go-back?size=menu&state=disabled");
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu&state=disabled");
 }
 
-menuitem[key="goForwardKb"],
+#historyMenuBack[chromedir="rtl"],
+#context-back[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu");
+}
+
+#historyMenuBack[disabled][chromedir="rtl"],
+#context-back[disabled][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu&state=disabled");
+}
+
+#historyMenuForward,
 #context-forward {
-  list-style-image: url("moz-icon://stock/gtk-go-forward?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu");
 }
 
-menuitem[key="goForwardKb"][disabled],
+#historyMenuForward[disabled],
 #context-forward[disabled] {
-  list-style-image: url("moz-icon://stock/gtk-go-forward?size=menu&state=disabled");
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu&state=disabled");
 }
 
-menuitem[command="Browser:Home"] {
+#historyMenuForward[chromedir="rtl"],
+#context-forward[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu");
+}
+
+#historyMenuForward[disabled][chromedir="rtl"],
+#context-forward[disabled][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu&state=disabled");
+}
+
+#historyMenuHome {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu");
 }
 
-menuitem[command="Browser:ShowAllHistory"] {
+#menu_showAllHistory {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
-menuitem[command="Browser:ShowAllBookmarks"] {
+#bookmarksShowAll {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 48px 16px 32px);
+}
+
+#bookmarksToolbarFolderMenu {
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");  
 }
 
 #menu_openDownloads {
@@ -432,11 +454,13 @@ menuitem[command="Browser:ShowAllBookmarks"] {
   -moz-image-region: rect(0px 16px 16px 0px);
 }
 
-menuitem[command="View:PageInfo"],
-#context-viewinfo {
+#menu_pageInfo,
+#context-viewinfo,
+#context-viewframeinfo {
   list-style-image: url("moz-icon://stock/gtk-info?size=menu");
 }
 
+#placesContext_show\:info,
 #context-metadata {
   list-style-image: url("moz-icon://stock/gtk-properties?size=menu");
 }
@@ -445,12 +469,16 @@ menuitem[command="View:PageInfo"],
   list-style-image: url("moz-icon://stock/gtk-clear?size=menu");
 }
 
-menuitem[key="key_openHelp"] {
+#menu_openHelp {
   list-style-image: url("moz-icon://stock/gtk-help?size=menu");
 }
 
 #aboutName {
   list-style-image: url("moz-icon://stock/gtk-about?size=menu");
+}
+
+#javascriptConsole {
+  list-style-image: url("chrome://global/skin/console/console.png");
 }
 
 /* Primary toolbar buttons */
@@ -460,7 +488,7 @@ menuitem[key="key_openHelp"] {
   list-style-image: url("chrome://browser/skin/Toolbar.png");
 }
 
-.toolbarbutton-1 .toolbarbutton-icon {
+.toolbarbutton-1 > .toolbarbutton-icon {
   -moz-margin-end: 0px;
 }
 
@@ -477,20 +505,42 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
   padding: 5px !important;
 }
 
-/* 24px primary toolbar buttons */
-#back-button {
-  list-style-image: url("moz-icon://stock/gtk-go-back?size=toolbar");
-}
-#back-button[disabled="true"] {
-  list-style-image: url("moz-icon://stock/gtk-go-back?size=toolbar&state=disabled");
+/* Put the unified dropdown button on a diet */
+#back-forward-dropmarker {
+  width: 24px;
 }
 
-/* GTK takes care of the RTL for us. Yay for libraries! */
+#back-forward-dropmarker > .toolbarbutton-menu-dropmarker {
+  width: 12px;
+}
+
+/* 24px primary toolbar buttons */
+#back-button {
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=toolbar");
+}
+#back-button[disabled="true"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=toolbar&state=disabled");
+}
+
+#back-button[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=toolbar");
+}
+#back-button[disabled="true"][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=toolbar&state=disabled");
+}
+
 #forward-button {
-  list-style-image: url("moz-icon://stock/gtk-go-forward?size=toolbar");
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=toolbar");
 }
 #forward-button[disabled="true"] {
-  list-style-image: url("moz-icon://stock/gtk-go-forward?size=toolbar&state=disabled");
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=toolbar&state=disabled");
+}
+
+#forward-button[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=toolbar");
+}
+#forward-button[disabled="true"][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=toolbar&state=disabled");
 }
 
 #reload-button {
@@ -584,26 +634,48 @@ toolbar[iconsize="small"] .toolbarbutton-1 {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
 }
 
-toolbar[iconsize="small"] .toolbarbutton-1 .toolbarbutton-icon {
-  -moz-margin-end: 0px;
-}
-
 toolbar[iconsize="small"] .toolbarbutton-1[type="menu-button"] {
   border: 0 !important;
 }
 
 toolbar[iconsize="small"] #back-button {
-  list-style-image: url("moz-icon://stock/gtk-go-back?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu");
+}
+.unified-nav-back[_moz-menuactive] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu") !important;
 }
 toolbar[iconsize="small"] #back-button[disabled="true"] {
-  list-style-image: url("moz-icon://stock/gtk-go-back?size=menu&state=disabled");
+  list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu&state=disabled");
+}
+
+toolbar[iconsize="small"] #back-button[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu");
+}
+menupopup[chromedir="rtl"] > .unified-nav-back[_moz-menuactive] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu") !important;
+}
+toolbar[iconsize="small"] #back-button[disabled="true"][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu&state=disabled");
 }
 
 toolbar[iconsize="small"] #forward-button {
-  list-style-image: url("moz-icon://stock/gtk-go-forward?size=menu");
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu");
+}
+.unified-nav-forward[_moz-menuactive] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu") !important;
 }
 toolbar[iconsize="small"] #forward-button[disabled="true"] {
-  list-style-image: url("moz-icon://stock/gtk-go-forward?size=menu&state=disabled");
+  list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu&state=disabled");
+}
+
+toolbar[iconsize="small"] #forward-button[chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu");
+}
+menupopup[chromedir="rtl"] > .unified-nav-forward[_moz-menuactive] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu") !important;
+}
+toolbar[iconsize="small"] #forward-button[disabled="true"][chromedir="rtl"] {
+  list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu&state=disabled");
 }
 
 toolbar[iconsize="small"] #stop-button {
@@ -620,10 +692,12 @@ toolbar[iconsize="small"] #reload-button[disabled="true"] {
   list-style-image: url("moz-icon://stock/gtk-refresh?size=menu&state=disabled");
 }
 
-toolbar[iconsize="small"] #home-button {
+toolbar[iconsize="small"] #home-button ,
+#home-button.bookmark-item {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu");
 }
-toolbar[iconsize="small"] #home-button[disabled="true"] {
+toolbar[iconsize="small"] #home-button[disabled="true"] ,
+#home-button.bookmark-item[disabled="true"] {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu&state=disabled");
 }
 
@@ -712,6 +786,17 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 #urlbar {
   width: 7em;
   min-width: 7em;
+  -moz-appearance: textfield;
+}
+
+#urlbar > .autocomplete-textbox-container {
+  -moz-appearance: none;
+  /* keep the URL bar content LTR */
+  direction: ltr;
+}
+
+#urlbar > .autocomplete-history-dropmarker {
+  -moz-appearance: toolbarbutton-dropdown;
 }
 
 #urlbar-container {
@@ -725,29 +810,26 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   -moz-padding-end: 2px;
 }
 
-#urlbar[pageproxystate="invalid"] > #urlbar-icons > :not(#go-button) ,
-#urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button {
-  visibility: collapse;
+.urlbar-icon {
+  cursor: pointer;
 }
 
-#wrapper-urlbar-container #urlbar {
-  -moz-user-input: disabled;
-  cursor: -moz-grab;
+#urlbar-search-splitter {
+  -moz-appearance: none;
+  width: 8px;
+  -moz-margin-start: -4px;
+}
+
+#urlbar-search-splitter + #urlbar-container > #urlbar ,
+#urlbar-search-splitter + #search-container > #searchbar > .searchbar-textbox {
+  -moz-margin-start: 0;
 }
 
 #wrapper-urlbar-container #urlbar > .autocomplete-history-dropmarker {
   display: none;
 }
 
-/* Keep the URL bar LTR */
-#urlbar .autocomplete-textbox-container {
-  direction: ltr;
-}
-
-#PopupAutoComplete {
-  direction: ltr !important;
-}
-
+#PopupAutoComplete,
 #PopupAutoCompleteRichResult {
   direction: ltr !important;
 }
@@ -761,34 +843,54 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 /* Favicon */
-#page-proxy-deck,
 #page-proxy-favicon,
-#page-proxy-button {
+#urlbar-throbber {
   width: 16px;
   height: 16px;
 }
 
-#page-proxy-deck {
-  margin: 2px 3px;
+#page-proxy-stack {
+  width: 24px;
+  height: 20px;
+  padding: 2px 4px;
+  background: url(urlbar-favicon-glow.png) center center no-repeat;
 }
 
-#page-proxy-favicon {
-  list-style-image: none;
+#page-proxy-favicon:not([src]) {
+  list-style-image: url("chrome://global/skin/icons/folder-item.png");
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
 
-#page-proxy-button {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png") !important;
-  -moz-image-region: rect(0px, 16px, 16px, 0px);}
+#page-proxy-favicon[pageproxystate="invalid"] {
+  -moz-image-region: rect(16px, 16px, 32px, 0px);
+}
 
-#page-proxy-button[pageproxystate="invalid"] {
-  cursor: default;
-  -moz-image-region: rect(32px, 16px, 48px, 0px) !important;
+#urlbar-throbber {
+  list-style-image: url("chrome://browser/skin/places/searching_16.png");
 }
 
 /* Identity indicator */
 #identity-box {
   background-color: -moz-dialog;
+  color: -moz-dialogtext;
   -moz-border-end: 1px solid ThreeDShadow;
+}
+
+#identity-box[chromedir="rtl"] {
+  -moz-border-start: 1px solid ThreeDShadow;
+}
+
+#identity-box:focus {
+  outline: 1px dotted -moz-DialogText;
+}
+
+#identity-box:hover > hbox {
+  background-color: rgba(255, 255, 255, .2);
+}
+
+#identity-box:hover:active > hbox,
+#identity-box[open="true"] > hbox {
+  background-color: rgba(0, 0, 0, .1);
 }
 
 #identity-icon-label {
@@ -796,8 +898,18 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   margin: 0;
 }
 
-.unknownIdentity > #identity-icon-label {
+#identity-icon-label[value=""] {
   display: none;
+}
+
+#identity-box.verifiedDomain {
+  background-color: rgba(30, 80, 170, 0.7);
+  color: white;
+}
+
+#identity-box.verifiedIdentity {
+  background-color: rgba(50, 150, 50, 0.8);
+  color: white;
 }
 
 /* Identity popup icons */
@@ -805,92 +917,67 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   height: 64px;
   width: 64px;
   padding: 0;
-  margin: 10px 0 0;
   list-style-image: url("chrome://browser/skin/identity.png");
   -moz-image-region: rect(0px, 64px, 64px, 0px);
 }
 
-.verifiedDomain > #identity-popup-container > #identity-popup-icon {
+#identity-popup.verifiedDomain > #identity-popup-container > #identity-popup-icon {
   -moz-image-region: rect(64px, 64px, 128px, 0px);
 }
 
-.verifiedIdentity > #identity-popup-container > #identity-popup-icon {
+#identity-popup.verifiedIdentity > #identity-popup-container > #identity-popup-icon {
   -moz-image-region: rect(128px, 64px, 192px, 0px);
-}
-
-/* Identity popup title */
-#identity-popup-title {
-  font-size: 120%;
-  font-weight: bold;
-}
-
-.verifiedIdentity > #identity-popup-title {
-  color: #6A6;
-}
-
-.unknownIdentity > #identity-popup-title {
-  color: #999;
-}
-
-.verifiedDomain > #identity-popup-title {
-  color: black;
 }
 
 /* Identity popup body text */
 #identity-popup-content-box > description,
 #identity-popup-encryption-label {
-  white-space: -moz-pre-wrap;
-  color: black;
-  padding-left: 10px;
+  white-space: pre-wrap;
+  padding-left: 15px;
+  margin: 2px 0 4px;
 }
 
-#identity-popup-content {
-  padding-top: 5px;
-  margin-bottom: 0;
-  max-width: 200px;
+#identity-popup-content-box > label {
+  white-space: pre-wrap;
+  padding-left: 15px;
+  margin: 0;
 }
 
-.verifiedIdentity > #identity-popup-content,
-.verifiedDomain > #identity-popup-content {
-  font-size: 140%;
+#identity-popup-content-host ,
+#identity-popup-content-owner {
   font-weight: bold;
   max-width: 300px;
 }
 
-#identity-popup-encryption {
-  margin: 10px 0;
+#identity-popup-content-host ,
+#identity-popup-content-box.verifiedIdentity > #identity-popup-content-owner {
+  font-size: 140%;
 }
 
-.verifiedIdentity > #identity-popup-encryption > * > #identity-popup-encryption-icon,
-.verifiedDomain > #identity-popup-encryption > * > #identity-popup-encryption-icon {
+#identity-popup-content-owner {
+  margin-bottom: 0 !important;
+}
+
+#identity-popup-content-verifier {
+  margin: 4px 0 2px;
+}
+
+#identity-popup-content-box.verifiedIdentity > #identity-popup-encryption ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-encryption {
+  margin-top: 10px;
+  margin-left: -18px;
+}
+
+#identity-popup-content-box.verifiedIdentity > #identity-popup-encryption > vbox > #identity-popup-encryption-icon ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-encryption > vbox > #identity-popup-encryption-icon {
   list-style-image: url("chrome://browser/skin/Secure.png");
-  -moz-image-region: rect(0px, 18px, 18px, 0px);
 }
 
 /* Identity popup bounding box */
 #identity-popup-container {
   background-image: none;
-  background-color: white;
   min-width: 280px;
   padding: 10px;
-}
-
-/* Secure site coloring */
-#urlbar[level="high"][pageproxystate="valid"] > .autocomplete-textbox-container,
-#urlbar[level="low"][pageproxystate="valid"] > .autocomplete-textbox-container,
-#urlbar[level="high"][pageproxystate="valid"] #autocomplete-security-wrapper,
-#urlbar[level="low"][pageproxystate="valid"] #autocomplete-security-wrapper,
-#urlbar[level="broken"][pageproxystate="valid"] #autocomplete-security-wrapper {
-  background-color: #F5F6BE; /* #F7F898; */
-  color: #000000;
-}
-
-#urlbar > .autocomplete-textbox-container {
-  -moz-binding: url(chrome://browser/skin/browser.xml#autocomplete-security-wrapper);
-}
-
-#autocomplete-security-wrapper {
-  -moz-box-align: center;
 }
 
 /* Feed icon */
@@ -903,41 +990,15 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   background-color: transparent;
 }
 
-#feed-button > hbox > .button-menu-dropmarker,
-#feed-button > hbox > .button-text {
+#feed-button > .button-box > .button-menu-dropmarker {
   display: none;
 }
 
 #feed-button {
-  -moz-binding: url("chrome://global/content/bindings/button.xml#menu");
   -moz-appearance: none; 
   min-width: 0px; 
   margin-right: 1px !important;
-}
-
-#feed-button[feeds] {
-  -moz-image-region: rect(0px, 36px, 18px, 18px);
-  list-style-image: url("chrome://browser/skin/places/livemark-item.png");
-}
-
-#feed-button[feeds]:hover {
-  -moz-image-region: rect(18px, 36px, 36px, 18px);
-}
-
-#feed-button[feeds]:active {
-  -moz-image-region: rect(54px, 36px, 72px, 18px);
-}
-
-/* Autocomplete */
-#urlbar .autocomplete-textbox-container {
-  -moz-box-align: stretch;
-}
-
-.autocomplete-treebody::-moz-tree-image(tag, treecolAutoCompleteValue),
-.autocomplete-treebody::-moz-tree-image(favicon, treecolAutoCompleteValue),
-.autocomplete-treebody::-moz-tree-image(bookmark, treecolAutoCompleteValue) {
-  width: 16px;
-  height: 16px;
+  list-style-image: url("chrome://browser/skin/page-livemarks.png");
 }
 
 #treecolAutoCompleteImage {
@@ -951,6 +1012,13 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   height: 16px;
 }
 
+.ac-result-type-keyword,
+.autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage) {
+  list-style-image: url(chrome://browser/skin/Search-glass.png);
+  width: 16px;
+  height: 16px;
+}
+
 .ac-result-type-tag,
 .autocomplete-treebody::-moz-tree-image(tag, treecolAutoCompleteImage) {
   list-style-image: url("chrome://browser/skin/places/tag.png");
@@ -959,11 +1027,15 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 }
 
 .ac-comment {
-  font-size: larger;
+  font-size: 1.15em;
+}
+
+.ac-extra > .ac-comment {
+  font-size: inherit;
 }
 
 .ac-url-text {
-  color: #336633;
+  color: -moz-nativehyperlinktext;
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -988,23 +1060,6 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 #go-button {
   padding: 3px 2px 2px 2px;
   list-style-image: url("chrome://browser/skin/Go-arrow.png");
-  -moz-image-region: rect(0px 11px 13px 0px);
-}
-
-#go-button[chromedir="rtl"] {
-  list-style-image: url("chrome://browser/skin/Go-arrow-rtl.png");
-}
-
-#go-button:hover {
-  -moz-image-region: rect(0px 22px 13px 11px);
-}
-
-#go-button:hover:active {
-  -moz-image-region: rect(0px 44px 13px 33px);
-}
-
-#go-button[disabled="true"] {
-  -moz-image-region: rect(0px 33px 13px 22px);
 }
 
 /* Star button */
@@ -1015,6 +1070,35 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 
 #star-button[starred="true"] {
   list-style-image: url("chrome://browser/skin/places/pageStarred.png");
+}
+
+/* Bookmarking panel */
+#editBookmarkPanel {
+  padding: 4px;
+}
+
+#editBookmarkPanelStarIcon {
+  list-style-image: url("chrome://browser/skin/places/starred48.png");
+  width: 48px;
+  height: 48px;
+}
+
+#editBookmarkPanelStarIcon[unstarred] {
+  list-style-image: url("chrome://browser/skin/places/unstarred48.png");
+}
+
+#editBookmarkPanelTitle {
+  font-size: 130%;
+}
+
+#editBookmarkPanelHeader,
+#editBookmarkPanelContent {
+  margin-bottom: .5em;
+}
+
+/* Implements editBookmarkPanel resizing on folderTree un-collapse. */
+#editBMPanel_folderTree {
+  min-width: 27em;
 }
 
 /* Content area */
@@ -1031,28 +1115,17 @@ statusbarpanel#statusbar-display {
 }
 
 #security-button {
-  list-style-image: none;
   min-width: 20px;
   -moz-box-direction: reverse;
-  display: none;
 }
 
-#security-button[level="high"] {
-  list-style-image: url("chrome://browser/skin/Secure.png");
-  -moz-image-region: rect(36px, 18px, 54px, 0px);
-  display: -moz-box;
-}
-
+#security-button[level="high"],
 #security-button[level="low"] {
   list-style-image: url("chrome://browser/skin/Secure.png");
-  -moz-image-region: rect(36px, 18px, 54px, 0px);
-  display: -moz-box;
 }
 
 #security-button[level="broken"] {
   list-style-image: url("chrome://browser/skin/Security-broken.png");
-  -moz-image-region: rect(36px, 18px, 54px, 0px);
-  display: -moz-box;
 }
 
 /* XXXsw prevent margins of a value-less label from shifting the image */
@@ -1061,48 +1134,22 @@ statusbarpanel#statusbar-display {
 }
 
 #page-report-button {
-  list-style-image: none;
   width: 20px;
-  display: none;
-}
-
-#page-report-button[blocked] {
   list-style-image: url("chrome://browser/skin/Info.png");
-  display: -moz-box;
 }
 
 /* Throbber */
 #navigator-throbber {
-  -moz-appearance: none;
-  -moz-user-focus: ignore;
-  margin: 0 !important;
-  border: none !important;
-  padding: 0px !important;
-  min-width: 0;
-  background-color: transparent;
-  list-style-image: url("chrome://browser/skin/Throbber-small.png");
+  width: 16px;
+  min-height: 16px;
+  margin: 0 3px;
+  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
 #navigator-throbber[busy="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.5;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
 
-#navigator-throbber > hbox {
-  border-top: 0px;
-  border-bottom: 0px;
-  padding-bottom: 1px;
-}
-
-toolbar[mode="text"] #navigator-throbber,
-toolbar[iconsize="small"] #navigator-throbber {
-  list-style-image: url("chrome://browser/skin/Throbber-small.png");
-}
-toolbar[mode="text"] #navigator-throbber[busy="true"],
-toolbar[iconsize="small"] #navigator-throbber[busy="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.5;
-}
 
 tabpanels {
   -moz-appearance: none;
@@ -1117,7 +1164,6 @@ tabpanels {
 
 .tabbrowser-tab[selected="true"] {
   margin-bottom: 0px;
-  font-weight: bold;
 }
 
 .tab-icon-image {
@@ -1130,12 +1176,42 @@ tabpanels {
 }
 
 .tabbrowser-tab[busy] > .tab-icon-image {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif") !important;
-  opacity: 0.6;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png") !important;
 }
 
 .tabs-bottom {
   border-bottom: 1px solid threedshadow;
+}
+
+#context_newTab {
+  list-style-image: url("chrome://browser/skin/Toolbar-small.png");
+  -moz-image-region: rect(0px 64px 16px 48px);
+}
+
+#context_newTab[disabled] {
+  -moz-image-region: rect(16px 64px 32px 48px);
+}
+
+#context_reloadTab {
+  list-style-image: url("moz-icon://stock/gtk-refresh?size=menu");
+}
+
+#context_closeOtherTabs {
+  list-style-image: url("moz-icon://stock/gtk-clear?size=menu");
+}
+
+#context_closeOtherTabs[disabled] {
+  list-style-image: url("moz-icon://stock/gtk-clear?size=menu&state=disabled");
+}
+
+#context_undoCloseTab {
+  list-style-image: url("moz-icon://stock/gtk-undelete?size=menu");
+}
+
+#context_closeTab {
+  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
+        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
+  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
 }
 
 /* tabbrowser-tab focus ring */
@@ -1143,7 +1219,7 @@ tabpanels {
   border: 1px dotted transparent;
 }
 
-.tabbrowser-tab:focus > .tab-text {
+.tabbrowser-tab[selected="true"]:focus > .tab-text {
   border: 1px dotted -moz-DialogText;
 }
 
@@ -1166,11 +1242,12 @@ tabpanels {
 
 /* In-tab close button */
 .tab-close-button > .toolbarbutton-icon {
-  -moz-margin-end: 0px !important;
+  /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
+     use evil CSS to give the impression of smaller content */
+  margin: -3px !important;
 }
 
 .tab-close-button {
-  -moz-appearance: none;
   -moz-margin-end: 6px;
   padding: 0px;
   border: none;
@@ -1187,12 +1264,50 @@ tabpanels {
   outline: none !important;
 }
 
+/* Tabstrip new tab button */
+.tabs-newtab-button {
+  list-style-image: url("moz-icon://stock/gtk-add?size=menu");
+  border: none;
+  margin-bottom: 1px;
+}
+
+.tabbrowser-arrowscrollbox > .tabs-newtab-button {
+  width: 32px;
+}
+
+.tabs-newtab-button > .toolbarbutton-icon {
+  margin-top: -2px;
+  margin-bottom: -2px;
+}
+
 /* Tabstrip close button */
 .tabs-closebutton {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
   border: none;
+  margin-bottom: 1px;
 }
 
+.tabs-closebutton > .toolbarbutton-icon {
+  margin: 0;
+}
+
+/* Tabbrowser arrowscrollbox arrows */
+.tabbrowser-arrowscrollbox > .scrollbutton-up {
+  -moz-appearance: tab-scroll-arrow-back;
+  margin: 0px;
+}
+
+.tabbrowser-arrowscrollbox > .scrollbutton-down {
+  -moz-appearance: tab-scroll-arrow-forward;
+  margin: 0px;
+}
+
+.tabs-alltabs-box-animate {
+  background-color: Highlight;
+  opacity: 0.0;
+}
+
+%ifndef USE_TAB_PREVIEWS
 /* All tabs menupopup */
 .alltabs-item > .menu-iconic-left > .menu-iconic-icon {
   list-style-image: url("chrome://global/skin/icons/folder-item.png");
@@ -1204,9 +1319,28 @@ tabpanels {
 }
 
 .alltabs-item[busy] > .menu-iconic-left > .menu-iconic-icon {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.6;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
+
+.tabs-alltabs-button {
+  margin-bottom: 1px;
+}
+
+.tabs-alltabs-button > .toolbarbutton-menu-dropmarker {
+  margin-bottom: -1px;
+}
+
+.tabs-alltabs-button > .toolbarbutton-icon {
+  display: none;
+}
+
+%else
+
+.tabs-alltabs-button > .toolbarbutton-icon {
+  list-style-image: url("chrome://browser/skin/tabbrowser/alltabs.png");
+  margin: 2px 0 2px;
+}
+%endif
 
 /* Sidebar */
 #sidebar-box .tabs-closebutton {
@@ -1215,8 +1349,7 @@ tabpanels {
 }
 
 #sidebar-throbber[loading="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
-  opacity: 0.5;
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
   -moz-margin-end: 4px;
 }
 
@@ -1228,12 +1361,13 @@ toolbarbutton.chevron[chromedir="rtl"] {
   list-style-image: url("chrome://global/skin/toolbar/chevron-rtl.gif") !important;
 }
 
-toolbarbutton.chevron > .toolbarbutton-text {
-  display: none; /* hide chevron label */
-}
-
+toolbarbutton.chevron > .toolbarbutton-text,
 toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   display: none;
+}
+
+toolbarbutton.chevron > .toolbarbutton-icon {
+  margin: 0;
 }
 
 toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
@@ -1254,5 +1388,52 @@ toolbar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
 }
 
 #checkForUpdates[loading="true"] {
-  list-style-image: url("chrome://global/skin/throbber/Throbber-small.gif");
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
 }
+
+#download-monitor {
+  list-style-image: url("chrome://browser/skin/Toolbar-small.png");
+  -moz-image-region: rect(0px 16px 16px 0px);
+}
+
+%ifdef USE_TAB_PREVIEWS
+/* ::::: Ctrl-Tab Panel ::::: */
+#ctrlTab-panel {
+  padding-top: 15px;
+}
+
+#ctrlTab-search {
+  margin: 0 0 15px;
+}
+
+.ctrlTab-thumbnail {
+  margin-bottom: 15px;
+  cursor: pointer;
+}
+
+.ctrlTab-thumbnail > html|canvas {
+  border: 1px solid ThreeDShadow;
+  margin: -1px;
+}
+
+.ctrlTab-thumbnail[selected="true"] ,
+.ctrlTab-thumbnail:hover {
+  background: Highlight;
+  color: HighlightText;
+  -moz-box-shadow: 0 0 2px Highlight, 0 0 2px Highlight, 0 0 3px Highlight, 0 0 4px Highlight, 0 0 10px Highlight, 0 0 15px Highlight;
+}
+ 
+.ctrlTab-pagePointer {
+  margin: 0 1em 1em;
+  width: 1.5em;
+  height: 1.5em;
+  -moz-border-radius: .75em;
+  background: ThreeDShadow;
+  cursor: pointer;
+}
+
+.ctrlTab-pagePointer[selected="true"] {
+  background: ThreeDDarkShadow;
+  cursor: default;
+}
+%endif

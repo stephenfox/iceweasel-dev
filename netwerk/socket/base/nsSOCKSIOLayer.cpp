@@ -591,7 +591,7 @@ ConnectSOCKS4(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout)
 }
 
 
-static PRStatus PR_CALLBACK
+static PRStatus
 nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*timeout*/)
 {
 
@@ -612,20 +612,14 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
 
     // Sync resolve the proxy hostname.
     PRNetAddr proxyAddr;
+    nsCOMPtr<nsIDNSRecord> rec;
+    nsresult rv;
     {
-        nsCOMPtr<nsIDNSService> dns;
-        nsCOMPtr<nsIDNSRecord> rec; 
-        nsresult rv;
-
-        dns = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
-        if (NS_FAILED(rv))
+        nsCOMPtr<nsIDNSService> dns = do_GetService(NS_DNSSERVICE_CONTRACTID);
+        if (!dns)
             return PR_FAILURE;
 
         rv = dns->Resolve(proxyHost, 0, getter_AddRefs(rec));
-        if (NS_FAILED(rv))
-            return PR_FAILURE;
-
-        rv = rec->GetNextAddr(info->ProxyPort(), &proxyAddr);
         if (NS_FAILED(rv))
             return PR_FAILURE;
     }
@@ -663,21 +657,29 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     sockopt.option = PR_SockOpt_Nonblocking;
     sockopt.value.non_blocking = nonblocking;
 
-
     // This connectWait should be long enough to connect to local proxy
     // servers, but not much longer. Since this protocol negotiation
     // uses blocking network calls, the app can appear to hang for a maximum
     // of this time if the user presses the STOP button during the SOCKS
-    // connection negotiation. Note that this value only applies to the 
+    // connection negotiation. Note that this value only applies to the
     // connecting to the SOCKS server: once the SOCKS connection has been
     // established, the value is not used anywhere else.
     PRIntervalTime connectWait = PR_SecondsToInterval(10);
 
     // Connect to the proxy server.
-    status = fd->lower->methods->connect(fd->lower, &proxyAddr, connectWait);
+    PRInt32 addresses = 0;
+    do {
+        rv = rec->GetNextAddr(info->ProxyPort(), &proxyAddr);
+        if (NS_FAILED(rv)) {
+            status = PR_FAILURE;
+            break;
+        }
+        ++addresses;
+        status = fd->lower->methods->connect(fd->lower, &proxyAddr, connectWait);
+    } while (PR_SUCCESS != status);
 
     if (PR_SUCCESS != status) {
-        LOGERROR(("Failed to TCP connect to the proxy server (%s): timeout = %d, status = %x.",proxyHost.get(), connectWait, status));
+        LOGERROR(("Failed to TCP connect to the proxy server (%s): timeout = %d, status = %x, tried %d addresses.", proxyHost.get(), connectWait, status, addresses));
         PR_SetSocketOption(fd, &sockopt);
         return status;
     }
@@ -687,14 +689,10 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     // Now we will negotiate a connection to the desired server.
 
     // External IP address returned from ConnectSOCKS5(). Not supported in SOCKS4.
-    PRNetAddr extAddr;	
+    PRNetAddr extAddr;
     PR_InitializeNetAddr(PR_IpAddrNull, 0, &extAddr);
 
- 
-
     NS_ASSERTION((socksVersion == 4) || (socksVersion == 5), "SOCKS Version must be selected");
-
-    nsresult rv;
 
     // Try to connect via SOCKS 5.
     if (socksVersion == 5) {
@@ -702,7 +700,7 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
 
         if (NS_FAILED(rv)) {
             PR_SetSocketOption(fd, &sockopt);
-            return PR_FAILURE;	
+            return PR_FAILURE;
         }
 
     }
@@ -713,7 +711,7 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
 
         if (NS_FAILED(rv)) {
             PR_SetSocketOption(fd, &sockopt);
-            return PR_FAILURE;	
+            return PR_FAILURE;
         }
 
     }
@@ -725,13 +723,13 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     // restore non-blocking option
     PR_SetSocketOption(fd, &sockopt);
 
-    // we're set-up and connected. 
+    // we're set-up and connected.
     // this socket can be used as normal now.
 
     return PR_SUCCESS;
 }
 
-static PRStatus PR_CALLBACK
+static PRStatus
 nsSOCKSIOLayerClose(PRFileDesc *fd)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -746,28 +744,28 @@ nsSOCKSIOLayerClose(PRFileDesc *fd)
     return fd->lower->methods->close(fd->lower);
 }
 
-static PRFileDesc* PR_CALLBACK
+static PRFileDesc*
 nsSOCKSIOLayerAccept(PRFileDesc *fd, PRNetAddr *addr, PRIntervalTime timeout)
 {
     // TODO: implement SOCKS support for accept
     return fd->lower->methods->accept(fd->lower, addr, timeout);
 }
 
-static PRInt32 PR_CALLBACK
+static PRInt32
 nsSOCKSIOLayerAcceptRead(PRFileDesc *sd, PRFileDesc **nd, PRNetAddr **raddr, void *buf, PRInt32 amount, PRIntervalTime timeout)
 {
     // TODO: implement SOCKS support for accept, then read from it
     return sd->lower->methods->acceptread(sd->lower, nd, raddr, buf, amount, timeout);
 }
 
-static PRStatus PR_CALLBACK
+static PRStatus
 nsSOCKSIOLayerBind(PRFileDesc *fd, const PRNetAddr *addr)
 {
     // TODO: implement SOCKS support for bind (very similar to connect)
     return fd->lower->methods->bind(fd->lower, addr);
 }
 
-static PRStatus PR_CALLBACK
+static PRStatus
 nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -780,7 +778,7 @@ nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
     return PR_FAILURE;
 }
 
-static PRStatus PR_CALLBACK
+static PRStatus
 nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -793,7 +791,7 @@ nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
     return PR_FAILURE;
 }
 
-static PRStatus PR_CALLBACK
+static PRStatus
 nsSOCKSIOLayerListen(PRFileDesc *fd, PRIntn backlog)
 {
     // TODO: implement SOCKS support for listen

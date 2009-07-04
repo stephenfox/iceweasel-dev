@@ -76,10 +76,8 @@
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
 
-#ifdef MOZ_CAIRO_GFX
 #include "gfxBeOSSurface.h"
 #include "gfxContext.h"
-#endif
 
 // See comments in nsWindow.h as to why we override these calls from nsBaseWidget
 NS_IMPL_THREADSAFE_ADDREF(nsWindow)
@@ -292,6 +290,10 @@ nsWindow::nsWindow() : nsBaseWidget()
 	mPreferredWidth     = 0;
 	mPreferredHeight    = 0;
 	mFontMetrics        = nsnull;
+	mIsShiftDown        = PR_FALSE;
+	mIsControlDown      = PR_FALSE;
+	mIsAltDown          = PR_FALSE;
+	mIsDestroying       = PR_FALSE;
 	mIsVisible          = PR_FALSE;
 	mEnabled            = PR_TRUE;
 	mIsScrolling        = PR_FALSE;
@@ -647,7 +649,6 @@ NS_METHOD nsWindow::Create(nsNativeWidget aParent,
 	                            aParent));
 }
 
-#ifdef MOZ_CAIRO_GFX
 gfxASurface*
 nsWindow::GetThebesSurface()
 {
@@ -657,7 +658,6 @@ nsWindow::GetThebesSurface()
 	}
 	return mThebesSurface;
 }
-#endif
 
 //-------------------------------------------------------------------------
 //
@@ -885,28 +885,18 @@ nsWindow::DealWithPopups(uint32 methodID, nsPoint pos)
 			nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
 			if ( menuRollup ) 
 			{
-				nsCOMPtr<nsISupportsArray> widgetChain;
-				menuRollup->GetSubmenuWidgetChain ( getter_AddRefs(widgetChain) );
-				if ( widgetChain ) 
+				nsAutoTArray<nsIWidget*, 5> widgetChain;
+				menuRollup->GetSubmenuWidgetChain(&widgetChain);
+
+				for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) 
 				{
-					PRUint32 count = 0;
-					widgetChain->Count(&count);
-					for ( PRUint32 i = 0; i < count; ++i ) 
+					nsIWidget* widget = widgetChain[i];
+					if ( nsWindow::EventIsInsideWindow((nsWindow*)widget, pos) ) 
 					{
-						nsCOMPtr<nsISupports> genericWidget;
-						widgetChain->GetElementAt ( i, getter_AddRefs(genericWidget) );
-						nsCOMPtr<nsIWidget> widget ( do_QueryInterface(genericWidget) );
-						if ( widget ) 
-						{
-							nsIWidget* temp = widget.get();
-							if ( nsWindow::EventIsInsideWindow((nsWindow*)temp, pos) ) 
-							{
-								rollup = PR_FALSE;
-								break;
-							}
-						}
-					} // foreach parent menu widget
-				} // if widgetChain
+						rollup = PR_FALSE;
+						break;
+					}
+				} // foreach parent menu widget
 			} // if rollup listener knows about menus
 		} // if rollup
 
@@ -1269,6 +1259,8 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 	if (aCursor != mCursor) 
 	{
 		BCursor const *newCursor = B_CURSOR_SYSTEM_DEFAULT;
+		if (be_app->IsCursorHidden())
+			be_app->ShowCursor();
 		
 		// Check to see if the array has been loaded, if not, do it.
 		if (gCursorArray.Count() == 0) 
@@ -1428,6 +1420,10 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 
 			case eCursor_ew_resize:
 				newCursor = (BCursor *)gCursorArray.SafeElementAt(1);
+				break;
+
+			case eCursor_none:
+				be_app->HideCursor();
 				break;
 
 			default:
@@ -1945,7 +1941,7 @@ bool nsWindow::CallMethod(MethodInfo *info)
 		{
 			NS_ASSERTION(info->nArgs == 4, "Wrong number of arguments to CallMethod");
 
-			nsMouseEvent event(PR_TRUE, (int32)  info->args[0], this, nsMouseEvent::eReal);
+			nsDragEvent event(PR_TRUE, (int32)  info->args[0], this);
 			nsPoint point(((int32 *)info->args)[1], ((int32 *)info->args)[2]);
 			InitEvent (event, &point);
 			uint32 mod = (uint32) info->args[3];
@@ -2552,9 +2548,7 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 	}
 
 	// Double buffering for cairo builds is done here
-#ifdef MOZ_CAIRO_GFX
-	nsRefPtr<gfxContext> ctx =
-		(gfxContext*)rc->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT);
+	nsRefPtr<gfxContext> ctx = rc->ThebesContext();
 	ctx->Save();
 
 	// Clip
@@ -2569,7 +2563,6 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 
 	// double buffer
 	ctx->PushGroup(gfxContext::CONTENT_COLOR);
-#endif
 
 	nsPaintEvent event(PR_TRUE, NS_PAINT, this);
 
@@ -2591,7 +2584,6 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 
 	NS_RELEASE(event.widget);
 
-#ifdef MOZ_CAIRO_GFX
 	// The second half of double buffering
 	if (rv == NS_OK) {
 		ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -2603,7 +2595,6 @@ nsresult nsWindow::OnPaint(BRegion *breg)
 	}
 
 	ctx->Restore();
-#endif
 
 	return rv;
 }
@@ -2643,7 +2634,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, nsPoint aPoint, PRUint3
                                     PRUint16 aButton)
 {
 	PRBool result = PR_FALSE;
-	if (nsnull != mEventCallback || nsnull != mMouseListener)
+	if (nsnull != mEventCallback)
 	{
 		nsMouseEvent event(PR_TRUE, aEventType, this, nsMouseEvent::eReal);
 		InitEvent (event, &aPoint);
@@ -2655,31 +2646,9 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, nsPoint aPoint, PRUint3
 		event.button = aButton;
 
 		// call the event callback
-		if (nsnull != mEventCallback)
-		{
-			result = DispatchWindowEvent(&event);
-			NS_RELEASE(event.widget);
-			return result;
-		}
-		else
-		{
-			switch(aEventType)
-			{
-			case NS_MOUSE_MOVE :
-				result = ConvertStatus(mMouseListener->MouseMoved(event));
-				break;
-
-			case NS_MOUSE_BUTTON_DOWN :
-				result = ConvertStatus(mMouseListener->MousePressed(event));
-				break;
-
-			case NS_MOUSE_BUTTON_UP :
-				result = ConvertStatus(mMouseListener->MouseReleased(event)) && ConvertStatus(mMouseListener->MouseClicked(event));
-				break;
-			}
-			NS_RELEASE(event.widget);
-			return result;
-		}
+    result = DispatchWindowEvent(&event);
+    NS_RELEASE(event.widget);
+    return result;
 	}
 
 	return PR_FALSE;

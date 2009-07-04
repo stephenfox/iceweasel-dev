@@ -180,7 +180,7 @@ struct PropertyPolicy : public PLDHashEntryHdr
     SecurityLevel  mSet;
 };
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 InitPropertyPolicyEntry(PLDHashTable *table,
                      PLDHashEntryHdr *entry,
                      const void *key)
@@ -192,7 +192,7 @@ InitPropertyPolicyEntry(PLDHashTable *table,
     return PR_TRUE;
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 ClearPropertyPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PropertyPolicy* pp = (PropertyPolicy*)entry;
@@ -212,7 +212,7 @@ struct ClassPolicy : public PLDHashEntryHdr
     DomainPolicy* mDomainWeAreWildcardFor;
 };
 
-PR_STATIC_CALLBACK(void)
+static void
 ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     ClassPolicy* cp = (ClassPolicy *)entry;
@@ -226,12 +226,12 @@ ClearClassPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 
 // Note: actual impl is going to be after the DomainPolicy class definition,
 // since we need to access members of DomainPolicy in the impl
-PR_STATIC_CALLBACK(void)
+static void
 MoveClassPolicyEntry(PLDHashTable *table,
                      const PLDHashEntryHdr *from,
                      PLDHashEntryHdr *to);
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 InitClassPolicyEntry(PLDHashTable *table,
                      PLDHashEntryHdr *entry,
                      const void *key)
@@ -344,7 +344,7 @@ private:
 
 };
 
-PR_STATIC_CALLBACK(void)
+static void
 MoveClassPolicyEntry(PLDHashTable *table,
                      const PLDHashEntryHdr *from,
                      PLDHashEntryHdr *to)
@@ -395,13 +395,39 @@ public:
 
     JSContext* GetSafeJSContext();
 
+    /**
+     * Utility method for comparing two URIs.  For security purposes, two URIs
+     * are equivalent if their schemes, hosts, and ports (if any) match.  This
+     * method returns true if aSubjectURI and aObjectURI have the same origin,
+     * false otherwise.
+     */
+    static PRBool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
+    static PRUint32 SecurityHashURI(nsIURI* aURI);
+
+    static nsresult 
+    ReportError(JSContext* cx, const nsAString& messageTag,
+                nsIURI* aSource, nsIURI* aTarget);
+
+    static nsresult
+    CheckSameOriginPrincipal(nsIPrincipal* aSubject,
+                             nsIPrincipal* aObject,
+                             PRBool aIsCheckConnect);
+    static PRUint32
+    HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
+
+    static PRBool
+    GetStrictFileOriginPolicy()
+    {
+        return sStrictFileOriginPolicy;
+    }
+
 private:
 
     // GetScriptSecurityManager is the only call that can make one
     nsScriptSecurityManager();
     virtual ~nsScriptSecurityManager();
 
-    static JSBool JS_DLL_CALLBACK
+    static JSBool
     CheckObjectAccess(JSContext *cx, JSObject *obj,
                       jsval id, JSAccessMode mode,
                       jsval *vp);
@@ -409,31 +435,25 @@ private:
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.
     static nsIPrincipal*
-    doGetObjectPrincipal(JSContext *cx, JSObject *obj,
-                         PRBool aAllowShortCircuit = PR_FALSE);
+    doGetObjectPrincipal(JSObject *obj
+#ifdef DEBUG
+                         , PRBool aAllowShortCircuit = PR_TRUE
+#endif
+                         );
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no JS running.
     nsIPrincipal*
     doGetSubjectPrincipal(nsresult* rv);
     
-    static nsresult 
-    ReportError(JSContext* cx, const nsAString& messageTag,
-                nsIURI* aSource, nsIURI* aTarget);
-
     nsresult
     CheckPropertyAccessImpl(PRUint32 aAction,
-                            nsIXPCNativeCallContext* aCallContext,
+                            nsAXPCNativeCallContext* aCallContext,
                             JSContext* cx, JSObject* aJSObject,
                             nsISupports* aObj, nsIURI* aTargetURI,
                             nsIClassInfo* aClassInfo,
                             const char* aClassName, jsval aProperty,
                             void** aCachedClassPolicy);
-
-    nsresult
-    CheckSameOriginPrincipalInternal(nsIPrincipal* aSubject,
-                                     nsIPrincipal* aObject,
-                                     PRBool aIsCheckConnect);
 
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
@@ -509,13 +529,36 @@ private:
     nsresult
     SavePrincipal(nsIPrincipal* aToSave);
 
+    /**
+     * Check capability levels for an |aObj| that implements
+     * nsISecurityCheckedComponent.
+     *
+     * NB: This function also checks to see if aObj is a plugin and the user
+     * has set the "security.xpconnect.plugin.unrestricted" pref to allow
+     * anybody to script plugin objects from anywhere.
+     *
+     * @param aObj The nsISupports representation of the object in question
+     *             object, possibly null.
+     * @param aJSObject The JSObject representation of the object in question.
+     *                  Only used if |aObjectSecurityLevel| is "sameOrigin".
+     * @param aSubjectPrincipal The nominal subject principal used when
+     *                          aObjectSecurityLevel is "sameOrigin".
+     * @param aObjectSecurityLevel Can be one of three values:
+     *                  - allAccess: Allow access no matter what.
+     *                  - noAccess: Deny access no matter what.
+     *                  - sameOrigin: If both a subject principal and JS
+     *                                object have been passed in, returns
+     *                                true if the subject subsumes the object,
+     *                                otherwise, behaves like noAccess.
+     */
     nsresult
-    CheckXPCPermissions(nsISupports* aObj,
+    CheckXPCPermissions(nsISupports* aObj, JSObject* aJSObject,
+                        nsIPrincipal* aSubjectPrincipal,
                         const char* aObjectSecurityLevel);
 
     nsresult
     Init();
-    
+
     nsresult
     InitPrefs();
 
@@ -537,17 +580,6 @@ private:
                    nsISecurityPref* securityPref);
 
 
-    /**
-     * Utility method for comparing two URIs.  For security purposes, two URIs
-     * are equivalent if their schemes, hosts, and ports (if any) match.  This
-     * method returns true if aSubjectURI and aObjectURI have the same origin,
-     * false otherwise.
-     */
-    PRBool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
-
-    /* encapsulate the file comparison rules */
-    PRBool SecurityCompareFileURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
-
 #ifdef XPC_IDISPATCH_SUPPORT
     // While this header is included outside of caps, this class isn't 
     // referenced so this should be fine.
@@ -566,7 +598,6 @@ private:
     ScriptSecurityPrefChanged();
 
     static const char sJSEnabledPrefName[];
-    static const char sJSMailEnabledPrefName[];
     static const char sFileOriginPolicyPrefName[];
 
     nsObjectHashtable* mOriginToPolicyMap;
@@ -578,33 +609,21 @@ private:
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
     nsInterfaceHashtable<PrincipalKey, nsIPrincipal> mPrincipals;
-    nsCOMPtr<nsIThreadJSContextStack> mJSContextStack;
     PRPackedBool mIsJavaScriptEnabled;
-    PRPackedBool mIsMailJavaScriptEnabled;
     PRPackedBool mIsWritingPrefs;
     PRPackedBool mPolicyPrefsChanged;
 #ifdef XPC_IDISPATCH_SUPPORT    
     PRPackedBool mXPCDefaultGrantAll;
     static const char sXPCDefaultGrantAllName[];
 #endif
-    PRInt32 mFileURIOriginPolicy;
+
+    static PRBool sStrictFileOriginPolicy;
 
     static nsIIOService    *sIOService;
     static nsIXPConnect    *sXPConnect;
+    static nsIThreadJSContextStack* sJSContextStack;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
 };
-
-// Levels for file: URI same-origin policy:
-//   self:        same-origin only with itself
-//   samedir:     same-origin with files having the same path
-//   subdir:      same-origin with files having longer paths (asymetric)
-//   anyfile:     same-origin with any other file: URI (but not directories)
-//   traditional: any local file, any directory
-#define FILEURI_SOP_SELF        0
-#define FILEURI_SOP_SAMEDIR     1
-#define FILEURI_SOP_SUBDIR      2
-#define FILEURI_SOP_ANYFILE     3
-#define FILEURI_SOP_TRADITIONAL 4
 
 #endif // nsScriptSecurityManager_h__

@@ -148,7 +148,6 @@ nsLocation::~nsLocation()
 
 // QueryInterface implementation for nsLocation
 NS_INTERFACE_MAP_BEGIN(nsLocation)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNSLocation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMLocation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMLocation)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Location)
@@ -245,7 +244,9 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 
 // Walk up the docshell hierarchy and find a usable base URI. Basically 
 // anything that would allow a relative uri.
-
+// XXXbz we don't need this for javascript: URIs anymore.  Do we need
+// it for about:blank?  I would think that we don't, and that we can
+// nuke this code.
 nsresult
 nsLocation::FindUsableBaseURI(nsIURI * aBaseURI, nsIDocShell * aParent,
                               nsIURI ** aUsableURI)
@@ -430,7 +431,11 @@ nsLocation::SetHash(const nsAString& aHash)
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (url) {
-    rv = url->SetRef(NS_ConvertUTF16toUTF8(aHash));
+    NS_ConvertUTF16toUTF8 hash(aHash);
+    if (hash.IsEmpty() || hash.First() != PRUnichar('#')) {
+      hash.Insert(PRUnichar('#'), 0);
+    }
+    rv = url->SetRef(hash);
     if (NS_SUCCEEDED(rv)) {
       SetURI(url);
     }
@@ -842,6 +847,27 @@ nsLocation::Reload(PRBool aForceget)
   nsresult rv;
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
   nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(docShell));
+  nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(docShell));
+
+  if (window && window->IsHandlingResizeEvent()) {
+    // location.reload() was called on a window that is handling a
+    // resize event. Sites do this since Netscape 4.x needed it, but
+    // we don't, and it's a horrible experience for nothing. In stead
+    // of reloading the page, just clear style data and reflow the
+    // page since some sites may use this trick to work around gecko
+    // reflow bugs, and this should have the same effect.
+
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
+
+    nsIPresShell *shell;
+    nsPresContext *pcx;
+    if (doc && (shell = doc->GetPrimaryShell()) &&
+        (pcx = shell->GetPresContext())) {
+      pcx->RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+    }
+
+    return NS_OK;
+  }
 
   if (webNav) {
     PRUint32 reloadFlags = nsIWebNavigation::LOAD_FLAGS_NONE;
@@ -862,64 +888,6 @@ nsLocation::Reload(PRBool aForceget)
   }
 
   return rv;
-}
-
-NS_IMETHODIMP
-nsLocation::Reload()
-{
-  nsCOMPtr<nsIXPCNativeCallContext> ncc;
-  nsresult rv = nsContentUtils::XPConnect()->
-    GetCurrentNativeCallContext(getter_AddRefs(ncc));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!ncc)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
-  nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(docShell));
-
-  if (window && window->IsHandlingResizeEvent()) {
-    // location.reload() was called on a window that is handling a
-    // resize event. Sites do this since Netscape 4.x needed it, but
-    // we don't, and it's a horrible experience for nothing. In stead
-    // of reloading the page, just clear style data and reflow the
-    // page since some sites may use this trick to work around gecko
-    // reflow bugs, and this should have the same effect.
-
-    nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
-
-    nsIPresShell *shell;
-    nsPresContext *pcx;
-    if (doc && (shell = doc->GetPrimaryShell()) &&
-        (pcx = shell->GetPresContext())) {
-      pcx->ClearStyleDataAndReflow();
-    }
-
-    return NS_OK;
-  }
-
-  PRBool force_get = PR_FALSE;
-
-  PRUint32 argc;
-
-  ncc->GetArgc(&argc);
-
-  if (argc > 0) {
-    jsval *argv = nsnull;
-
-    ncc->GetArgvPtr(&argv);
-    NS_ENSURE_TRUE(argv, NS_ERROR_UNEXPECTED);
-
-    JSContext *cx = nsnull;
-
-    rv = ncc->GetJSContext(&cx);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    JSAutoRequest ar(cx);
-    JS_ValueToBoolean(cx, argv[0], &force_get);
-  }
-
-  return Reload(force_get);
 }
 
 NS_IMETHODIMP

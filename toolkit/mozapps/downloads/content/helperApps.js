@@ -175,7 +175,7 @@ HelperApps.prototype = {
         entry.appPath = "";
       }
     } 
-    else {
+    else if (aMIMEInfo.preferredApplicationHandler instanceof Components.interfaces.nsILocalHandlerApp) {
       entry.saveToDisk       = false;
       entry.useSystemDefault = false;
       entry.handleInternal   = false;
@@ -597,7 +597,13 @@ HandlerOverride.prototype = {
   
   set appDisplayName(aDisplayName)
   {
-    this.changeMIMEStuff(APP_URI(this.mimeType), "prettyName", aDisplayName);
+    if (aDisplayName)
+      this.changeMIMEStuff(APP_URI(this.mimeType), "prettyName", aDisplayName);
+    else {
+      var currentValue = this.getLiteralForContentType(APP_URI(this.mimeType), "prettyName");
+      this.unassertMIMEStuff(APP_URI(this.mimeType), "prettyName", currentValue);
+    }
+
     return aDisplayName;
   },
   
@@ -608,7 +614,13 @@ HandlerOverride.prototype = {
   
   set appPath(aAppPath)
   {
-    this.changeMIMEStuff(APP_URI(this.mimeType), "path", aAppPath);
+    if (aAppPath)
+      this.changeMIMEStuff(APP_URI(this.mimeType), "path", aAppPath);
+    else {
+      var currentValue = this.getLiteralForContentType(APP_URI(this.mimeType), "path");
+      this.unassertMIMEStuff(APP_URI(this.mimeType), "path", currentValue);
+    }
+
     return aAppPath;
   },
 

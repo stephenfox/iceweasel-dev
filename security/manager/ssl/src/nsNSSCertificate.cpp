@@ -23,6 +23,7 @@
  *   Ian McGreer <mcgreer@netscape.com>
  *   Javier Delgadillo <javi@netscape.com>
  *   Kai Engert <kengert@redhat.com>
+ *   Jesper Kristensen <mail@jesperkristensen.dk>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -101,6 +102,7 @@ NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 NSSCleanupAutoPtrClass(NSSCMSMessage, NSS_CMSMessage_Destroy)
 NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, PR_FALSE)
 NSSCleanupAutoPtrClass(NSSCMSSignedData, NSS_CMSSignedData_Destroy)
+NSSCleanupAutoPtrClass(PK11SlotList, PK11_FreeSlotList)
 
 // This is being stored in an PRUint32 that can otherwise
 // only take values from nsIX509Cert's list of cert types.
@@ -157,7 +159,8 @@ nsNSSCertificate::InitFromDER(char *certDER, int derLen)
 nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) : 
                                            mCert(nsnull),
                                            mPermDelete(PR_FALSE),
-                                           mCertType(CERT_TYPE_NOT_YET_INITIALIZED)
+                                           mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
+                                           mCachedEVStatus(ev_status_unknown)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -170,7 +173,8 @@ nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) :
 nsNSSCertificate::nsNSSCertificate() : 
   mCert(nsnull),
   mPermDelete(PR_FALSE),
-  mCertType(CERT_TYPE_NOT_YET_INITIALIZED)
+  mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
+  mCachedEVStatus(ev_status_unknown)
 {
 }
 
@@ -891,6 +895,58 @@ done:
 }
 
 NS_IMETHODIMP
+nsNSSCertificate::GetAllTokenNames(PRUint32 *aLength, PRUnichar*** aTokenNames)
+{
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown())
+    return NS_ERROR_NOT_AVAILABLE;
+
+  NS_ENSURE_ARG(aLength);
+  NS_ENSURE_ARG(aTokenNames);
+  *aLength = 0;
+  *aTokenNames = NULL;
+
+  /* Get the slots from NSS */
+  PK11SlotList *slots = NULL;
+  PK11SlotListCleaner slotCleaner(slots);
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Getting slots for \"%s\"\n", mCert->nickname));
+  slots = PK11_GetAllSlotsForCert(mCert, NULL);
+  if (!slots) {
+    if (PORT_GetError() == SEC_ERROR_NO_TOKEN)
+      return NS_OK; // List of slots is empty, return empty array
+    else
+      return NS_ERROR_FAILURE;
+  }
+
+  /* read the token names from slots */
+  PK11SlotListElement *le;
+
+  for (le = slots->head; le; le = le->next) {
+    ++(*aLength);
+  }
+
+  *aTokenNames = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * (*aLength));
+  if (!*aTokenNames) {
+    *aLength = 0;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  PRUint32 iToken;
+  for (le = slots->head, iToken = 0; le; le = le->next, ++iToken) {
+    char *token = PK11_GetTokenName(le->slot);
+    (*aTokenNames)[iToken] = ToNewUnicode(NS_ConvertUTF8toUTF16(token));
+    if (!(*aTokenNames)[iToken]) {
+      NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(iToken, *aTokenNames);
+      *aLength = 0;
+      *aTokenNames = NULL;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsNSSCertificate::GetSubjectName(nsAString &_subjectName)
 {
   nsNSSShutDownPreventionLock locker;
@@ -1503,8 +1559,27 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
   char* servername = nsnull;
   
   servername = CERT_GetCommonName(&cert->subject);
-  if (servername == NULL) {
-    return nsnull;
+  if (!servername) {
+    // Certs without common names are strange, but they do exist...
+    // Let's try to use another string for the nickname
+    servername = CERT_GetOrgUnitName(&cert->subject);
+    if (!servername) {
+      servername = CERT_GetOrgName(&cert->subject);
+      if (!servername) {
+        servername = CERT_GetLocalityName(&cert->subject);
+        if (!servername) {
+          servername = CERT_GetStateName(&cert->subject);
+          if (!servername) {
+            servername = CERT_GetCountryName(&cert->subject);
+            if (!servername) {
+              // We tried hard, there is nothing more we can do.
+              // A cert without any names doesn't really make sense.
+              return nsnull;
+            }
+          }
+        }
+      }
+    }
   }
    
   count = 1;
@@ -1521,7 +1596,7 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
 
     conflict = SEC_CertNicknameConflict(nickname, &cert->derSubject,
                                         cert->dbhandle);
-    if (conflict == PR_SUCCESS) {
+    if (!conflict) {
       break;
     }
     PR_Free(nickname);

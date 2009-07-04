@@ -359,6 +359,26 @@ class nsTArray : public nsTArray_base {
     // Search methods
     //
 
+    // This method searches for the first element in this array that is equal
+    // to the given element.
+    // @param item   The item to search for.
+    // @param comp   The Comparator used to determine element equality.
+    // @return       PR_TRUE if the element was found.
+    template<class Item, class Comparator>
+    PRBool Contains(const Item& item, const Comparator& comp) const {
+      return IndexOf(item, 0, comp) != NoIndex;
+    }
+
+    // This method searches for the first element in this array that is equal
+    // to the given element.  This method assumes that 'operator==' is defined
+    // for elem_type.
+    // @param item   The item to search for.
+    // @return       PR_TRUE if the element was found.
+    template<class Item>
+    PRBool Contains(const Item& item) const {
+      return IndexOf(item) != NoIndex;
+    }
+
     // This method searches for the offset of the first element in this
     // array that is equal to the given element.
     // @param item   The item to search for.
@@ -368,7 +388,7 @@ class nsTArray : public nsTArray_base {
     template<class Item, class Comparator>
     index_type IndexOf(const Item& item, index_type start,
                        const Comparator& comp) const {
-      const elem_type* iter = Elements() + start, *end = iter + Length();
+      const elem_type* iter = Elements() + start, *end = Elements() + Length();
       for (; iter != end; ++iter) {
         if (comp.Equals(*iter, item))
           return iter - Elements();
@@ -418,6 +438,36 @@ class nsTArray : public nsTArray_base {
     index_type LastIndexOf(const Item& item,
                            index_type start = NoIndex) const {
       return LastIndexOf(item, start, nsDefaultComparator<elem_type, Item>());
+    }
+
+    // This method searches for the offset for the element in this array
+    // that is equal to the given element. The array is assumed to be sorted.
+    // @param item   The item to search for.
+    // @param comp   The Comparator used.
+    // @return       The index of the found element or NoIndex if not found.
+    template<class Item, class Comparator>
+    index_type BinaryIndexOf(const Item& item, const Comparator& comp) const {
+      index_type low = 0, high = Length();
+      while (high > low) {
+        index_type mid = (high + low) >> 1;
+        if (comp.Equals(ElementAt(mid), item))
+          return mid;
+        if (comp.LessThan(ElementAt(mid), item))
+          low = mid + 1;
+        else
+          high = mid;
+      }
+      return NoIndex;
+    }
+
+    // This method searches for the offset for the element in this array
+    // that is equal to the given element. The array is assumed to be sorted.
+    // This method assumes that 'operator==' and 'operator<' are defined.
+    // @param item   The item to search for.
+    // @return       The index of the found element or NoIndex if not found.
+    template<class Item>
+    index_type BinaryIndexOf(const Item& item) const {
+      return BinaryIndexOf(item, nsDefaultComparator<elem_type, Item>());
     }
 
     //
@@ -610,14 +660,29 @@ class nsTArray : public nsTArray_base {
     // removes elements from the array (see also RemoveElementsAt).
     // @param newLen  The desired length of this array.
     // @return        True if the operation succeeded; false otherwise.
+    // See also TruncateLength if the new length is guaranteed to be
+    // smaller than the old.
     PRBool SetLength(size_type newLen) {
       size_type oldLen = Length();
       if (newLen > oldLen) {
         return InsertElementsAt(oldLen, newLen - oldLen) != nsnull;
       }
       
-      RemoveElementsAt(newLen, oldLen - newLen);
+      TruncateLength(newLen);
       return PR_TRUE;
+    }
+
+    // This method modifies the length of the array, but may only be
+    // called when the new length is shorter than the old.  It can
+    // therefore be called when elem_type has no default constructor,
+    // unlike SetLength.  It removes elements from the array (see also
+    // RemoveElementsAt).
+    // @param newLen  The desired length of this array.
+    void TruncateLength(size_type newLen) {
+      size_type oldLen = Length();
+      NS_ABORT_IF_FALSE(newLen <= oldLen,
+                        "caller should use SetLength instead");
+      RemoveElementsAt(newLen, oldLen - newLen);
     }
 
     // This method inserts elements into the array, constructing
@@ -733,6 +798,14 @@ class nsAutoTArray : public nsTArray<E> {
 
   protected:
     char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
+};
+
+// specialization for N = 0. this makes the inheritance model easier for
+// templated users of nsAutoTArray.
+template<class E>
+class nsAutoTArray<E, 0> : public nsTArray<E> {
+  public:
+    nsAutoTArray() {}
 };
 
 #endif  // nsTArray_h__

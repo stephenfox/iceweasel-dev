@@ -47,7 +47,8 @@ LoginManagerStorage_legacy.prototype = {
     classDescription  : "LoginManagerStorage_legacy",
     contractID : "@mozilla.org/login-manager/storage/legacy;1",
     classID : Components.ID("{e09e4ca6-276b-4bb4-8b71-0635a3a2a007}"),
-    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage]),
+    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage,
+                                    Ci.nsILoginManagerIEMigrationHelper]),
 
     __logService : null, // Console logging service, used for debugging.
     get _logService() {
@@ -73,11 +74,49 @@ LoginManagerStorage_legacy.prototype = {
         return this.__decoderRing;
     },
 
+    __utfConverter : null, // UCS2 <--> UTF8 string conversion
+    get _utfConverter() {
+        if (!this.__utfConverter) {
+            this.__utfConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                                  createInstance(Ci.nsIScriptableUnicodeConverter);
+            this.__utfConverter.charset = "UTF-8";
+        }
+        return this.__utfConverter;
+    },
+
+    _utfConverterReset : function() {
+        this.__utfConverter = null;
+    },
+
+    __profileDir: null,  // nsIFile for the user's profile dir
+    get _profileDir() {
+        if (!this.__profileDir) {
+            var dirService = Cc["@mozilla.org/file/directory_service;1"].
+                             getService(Ci.nsIProperties);
+            this.__profileDir = dirService.get("ProfD", Ci.nsIFile);
+        }
+        return this.__profileDir;
+    },
+
+    __nsLoginInfo: null,  // Constructor for nsILoginInfo implementation
+    get _nsLoginInfo() {
+        if (!this.__nsLoginInfo)
+            this.__nsLoginInfo = new Components.Constructor(
+                "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo);
+        return this.__nsLoginInfo;
+    },
+
     _prefBranch : null,  // Preferences service
 
     _signonsFile : null,  // nsIFile for "signons3.txt" (or whatever pref is)
     _debug       : false, // mirrors signon.debug
 
+    /*
+     * A list of prefs that have been used to specify the filename for storing
+     * logins. (We've used a number over time due to compatibility issues.)
+     * This list is also used by _removeOldSignonsFile() to clean up old files.
+     */
+    _filenamePrefs : ["SignonFileName3", "SignonFileName2", "SignonFileName"],
 
     /*
      * Core datastructures
@@ -130,8 +169,8 @@ LoginManagerStorage_legacy.prototype = {
         this._disabledHosts = {};
 
         // Connect to the correct preferences branch.
-        this._prefBranch = Cc["@mozilla.org/preferences-service;1"]
-                                .getService(Ci.nsIPrefService);
+        this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                           getService(Ci.nsIPrefService);
         this._prefBranch = this._prefBranch.getBranch("signon.");
         this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
 
@@ -139,8 +178,8 @@ LoginManagerStorage_legacy.prototype = {
 
         // Check to see if the internal PKCS#11 token has been initialized.
         // If not, set a blank password.
-        var tokenDB = Cc["@mozilla.org/security/pk11tokendb;1"]
-                            .getService(Ci.nsIPK11TokenDB);
+        var tokenDB = Cc["@mozilla.org/security/pk11tokendb;1"].
+                      getService(Ci.nsIPK11TokenDB);
 
         var token = tokenDB.getInternalKeyToken();
         if (token.needsUserInit) {
@@ -177,22 +216,22 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     addLogin : function (login) {
-        // We rely on using login.wrappedJSObject. addLogin is the
-        // only entry point where we might get a nsLoginInfo object
-        // that wasn't created by us (and so might not be a JS
-        // implementation being wrapped)
-        if (!login.wrappedJSObject) {
-            var clone = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                        createInstance(Ci.nsILoginInfo);
-            clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
-                       login.username,      login.password,
-                       login.usernameField, login.passwordField);
-            login = clone;
-        }
+        // Throws if there are bogus values.
+        this._checkLoginValues(login);
+
+        // Clone the input. This ensures changes made by the caller to the
+        // login (after calling addLogin) do no change the login we have.
+        // Also, we rely on using login.wrappedJSObject, but can't rely on the
+        // thing provided by the caller to support that.
+        var clone = new this._nsLoginInfo();
+        clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
+                   login.username,      login.password,
+                   login.usernameField, login.passwordField);
+        login = clone;
 
         var key = login.hostname;
 
-        // If first entry for key, create an Array to hold it's logins.
+        // If first entry for key, create an Array to hold its logins.
         var rollback;
         if (!this._logins[key]) {
             this._logins[key] = [];
@@ -272,6 +311,12 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     modifyLogin : function (oldLogin, newLogin) {
+        if (newLogin instanceof Ci.nsIPropertyBag)
+            throw "legacy modifyLogin with propertybag not implemented.";
+        newLogin.QueryInterface(Ci.nsILoginInfo);
+        // Throws if there are bogus values.
+        this._checkLoginValues(newLogin);
+
         this.removeLogin(oldLogin);
         this.addLogin(newLogin);
     },
@@ -293,8 +338,50 @@ LoginManagerStorage_legacy.prototype = {
         // decrypt entries for caller.
         [result, userCanceled] = this._decryptLogins(result);
 
+        if (userCanceled)
+            throw "User canceled Master Password entry";
+
         count.value = result.length; // needed for XPCOM
         return result;
+    },
+
+
+    /*
+     * getAllEncryptedLogins
+     *
+     * Returns an array of nsAccountInfo, each in the encrypted state.
+     */
+    getAllEncryptedLogins : function (count) {
+        var result = [];
+
+        // Each entry is an array -- append the array entries to |result|.
+        for each (var hostLogins in this._logins) {
+            // Return copies to the caller. Prevents callers from modifying
+            // our internal storage
+            for each (var login in hostLogins) {
+                var clone = new this._nsLoginInfo();
+                clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
+                           login.wrappedJSObject.encryptedUsername,
+                           login.wrappedJSObject.encryptedPassword,
+                           login.usernameField, login.passwordField);
+                result.push(clone);
+            }
+        }
+
+        count.value = result.length; // needed for XPCOM
+        return result;
+    },
+
+
+    /*
+     * searchLogins
+     *
+     * Not implemented. This interface was added to perform arbitrary searches.
+     * Since the legacy storage module is no longer used, there is no need to
+     * implement it here.
+     */
+    searchLogins : function (count, matchData) {
+        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     },
 
 
@@ -304,9 +391,11 @@ LoginManagerStorage_legacy.prototype = {
      * Removes all logins from storage.
      */
     removeAllLogins : function () {
-        this._logins = {};
-        // Disabled hosts kept, as one presumably doesn't want to erase those.
+        // Delete any old, unused files.
+        this._removeOldSignonsFiles();
 
+        // Disabled hosts kept, as one presumably doesn't want to erase those.
+        this._logins = {};
         this._writeFile();
     },
 
@@ -341,6 +430,14 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     setLoginSavingEnabled : function (hostname, enabled) {
+        // File format prohibits certain values. Also, nulls
+        // won't round-trip with getAllDisabledHosts().
+        if (hostname == "." ||
+            hostname.indexOf("\r") != -1 ||
+            hostname.indexOf("\n") != -1 ||
+            hostname.indexOf("\0") != -1)
+            throw "Invalid hostname";
+
         if (enabled)
             delete this._disabledHosts[hostname];
         else
@@ -377,10 +474,27 @@ LoginManagerStorage_legacy.prototype = {
      * countLogins
      *
      */
-    countLogins : function (hostname, formSubmitURL, httpRealm) {
-        var logins = this._searchLogins(hostname, formSubmitURL, httpRealm);
+    countLogins : function (aHostname, aFormSubmitURL, aHttpRealm) {
+        var logins;
 
-        return logins.length;
+        // Normal case: return direct results for the specified host.
+        if (aHostname) {
+            logins = this._searchLogins(aHostname, aFormSubmitURL, aHttpRealm);
+            return logins.length
+        } 
+
+        // For consistency with how aFormSubmitURL and aHttpRealm work
+        if (aHostname == null)
+            return 0;
+
+        // aHostname == "", so loop through each known host to match with each.
+        var count = 0;
+        for (var hostname in this._logins) {
+            logins = this._searchLogins(hostname, aFormSubmitURL, aHttpRealm);
+            count += logins.length;
+        }
+
+        return count;
     },
 
 
@@ -440,6 +554,53 @@ LoginManagerStorage_legacy.prototype = {
 
 
     /*
+     * _checkLoginValues
+     *
+     * Due to the way the signons2.txt file is formatted, we need to make
+     * sure certain field values or characters do not cause the file to
+     * be parse incorrectly. Reject logins that we can't store correctly.
+     */
+    _checkLoginValues : function (aLogin) {
+        function badCharacterPresent(l, c) {
+            return ((l.formSubmitURL && l.formSubmitURL.indexOf(c) != -1) ||
+                    (l.httpRealm     && l.httpRealm.indexOf(c)     != -1) ||
+                                        l.hostname.indexOf(c)      != -1  ||
+                                        l.usernameField.indexOf(c) != -1  ||
+                                        l.passwordField.indexOf(c) != -1);
+        }
+
+        // Nulls are invalid, as they don't round-trip well.
+        // Mostly not a formatting problem, although ".\0" can be quirky.
+        if (badCharacterPresent(aLogin, "\0"))
+            throw "login values can't contain nulls";
+
+        // In theory these nulls should just be rolled up into the encrypted
+        // values, but nsISecretDecoderRing doesn't use nsStrings, so the
+        // nulls cause truncation. Check for them here just to avoid
+        // unexpected round-trip surprises.
+        if (aLogin.username.indexOf("\0") != -1 ||
+            aLogin.password.indexOf("\0") != -1)
+            throw "login values can't contain nulls";
+
+        // Newlines are invalid for any field stored as plaintext.
+        if (badCharacterPresent(aLogin, "\r") ||
+            badCharacterPresent(aLogin, "\n"))
+            throw "login values can't contain newlines";
+
+        // A line with just a "." can have special meaning.
+        if (aLogin.usernameField == "." ||
+            aLogin.formSubmitURL == ".")
+            throw "login values can't be periods";
+
+        // A hostname with "\ \(" won't roundtrip.
+        // eg host="foo (", realm="bar" --> "foo ( (bar)"
+        // vs host="foo", realm=" (bar" --> "foo ( (bar)"
+        if (aLogin.hostname.indexOf(" (") != -1)
+            throw "bad parens in hostname";
+    },
+
+
+    /*
      * _getSignonsFile
      *
      * Determines what file to use based on prefs. Returns it as a
@@ -449,26 +610,16 @@ LoginManagerStorage_legacy.prototype = {
     _getSignonsFile : function() {
         var destFile = null, importFile = null;
 
-        // Get the location of the user's profile.
-        var DIR_SERVICE = new Components.Constructor(
-                "@mozilla.org/file/directory_service;1", "nsIProperties");
-        var pathname = (new DIR_SERVICE()).get("ProfD", Ci.nsIFile).path;
-
         // We've used a number of prefs over time due to compatibility issues.
         // Use the filename specified in the newest pref, but import from
         // older files if needed.
-        var prefs = ["SignonFileName3", "SignonFileName2", "SignonFileName"];
-        for (var i = 0; i < prefs.length; i++) {
-            var prefName = prefs[i];
-
-            var filename = this._prefBranch.getCharPref(prefName);
-
-            this.log("Checking file " + filename + " (" + prefName + ")");
-
-            var file = Cc["@mozilla.org/file/local;1"].
-                       createInstance(Ci.nsILocalFile);
-            file.initWithPath(pathname);
+        for (var i = 0; i < this._filenamePrefs.length; i++) {
+            var prefname = this._filenamePrefs[i];
+            var filename = this._prefBranch.getCharPref(prefname);
+            var file = this._profileDir.clone();
             file.append(filename);
+
+            this.log("Checking file " + filename + " (" + prefname + ")");
 
             // First loop through, save the preferred filename.
             if (!destFile)
@@ -482,6 +633,32 @@ LoginManagerStorage_legacy.prototype = {
 
         // If we can't find any existing file, use the preferred file.
         return [destFile, null];
+    },
+
+
+    /*
+     * _removeOldSignonsFiles
+     *
+     * Deletes any storage files that we're not using any more.
+     */
+    _removeOldSignonsFiles : function() {
+        // We've used a number of prefs over time due to compatibility issues.
+        // Skip the first entry (the newest) and delete the others.
+        for (var i = 1; i < this._filenamePrefs.length; i++) {
+            var prefname = this._filenamePrefs[i];
+            var filename = this._prefBranch.getCharPref(prefname);
+            var file = this._profileDir.clone();
+            file.append(filename);
+
+            if (file.exists()) {
+                this.log("Deleting old " + filename + " (" + prefname + ")");
+                try {
+                    file.remove(false);
+                } catch (e) {
+                    this.log("NOTICE: Couldn't delete " + filename + ": " + e);
+                }
+            }
+        }
     },
 
 
@@ -512,6 +689,14 @@ LoginManagerStorage_legacy.prototype = {
         if (aLogin.hostname.indexOf("://") == -1) {
             var oldHost = aLogin.hostname;
 
+            // Check for a trailing port number, EG "site.com:80". If there's
+            // no port, it wasn't saved by the browser and is probably some
+            // arbitrary string picked by an extension.
+            if (!/:\d+$/.test(aLogin.hostname)) {
+                this.log("2E upgrade: no port, skipping " + aLogin.hostname);
+                return upgradedLogins;
+            }
+
             // Parse out "host:port".
             try {
                 // Small hack: Need a scheme for nsIURI, so just prepend http.
@@ -539,13 +724,12 @@ LoginManagerStorage_legacy.prototype = {
 
                 aLogin.hostname = "http://" + host + ":" + port;
 
-                var extraLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                                 createInstance(Ci.nsILoginInfo);
+                var extraLogin = new this._nsLoginInfo();
                 extraLogin.init("https://" + host + ":" + port,
                                 null, aLogin.httpRealm,
-                                null, null, "", "");
-                // We don't have decrypted values, so clone the encrypted
-                // bits into the new entry.
+                                aLogin.username, aLogin.password, "", "");
+                // We don't have decrypted values, unless we're importing from IE,
+                // so clone the encrypted bits into the new entry.
                 extraLogin.wrappedJSObject.encryptedPassword = 
                     aLogin.wrappedJSObject.encryptedPassword;
                 extraLogin.wrappedJSObject.encryptedUsername = 
@@ -587,13 +771,16 @@ LoginManagerStorage_legacy.prototype = {
         var ioService = this._ioService;
         var log = this.log;
 
-        function cleanupURL(aURL) {
-            var newURL, username = null;
+        function cleanupURL(aURL, allowJS) {
+            var newURL, username = null, pathname = "";
 
             try {
                 var uri = ioService.newURI(aURL, null, null);
-
                 var scheme = uri.scheme;
+
+                if (allowJS && scheme == "javascript")
+                    return ["javascript:", null, ""];
+
                 newURL = scheme + "://" + uri.host;
 
                 // If the URL explicitly specified a port, only include it when
@@ -608,29 +795,40 @@ LoginManagerStorage_legacy.prototype = {
                 // Could be a channel login with a username. 
                 if (scheme != "http" && scheme != "https" && uri.username)
                     username = uri.username;
-                
+
+                if (uri.path != "/")
+                    pathname = uri.path;
+
             } catch (e) {
-                log("Can't cleanup URL: " + aURL);
+                log("Can't cleanup URL: " + aURL + " e: " + e);
                 newURL = aURL;
             }
 
             if (newURL != aURL)
                 log("2E upgrade: " + aURL + " ---> " + newURL);
 
-            return [newURL, username];
+            return [newURL, username, pathname];
         }
 
+        const isMailNews = /^(ldaps?|smtp|imap|news|mailbox):\/\//;
+
+        // Old mailnews logins were protocol logins with a username/password
+        // field name set.
         var isFormLogin = (aLogin.formSubmitURL ||
                            aLogin.usernameField ||
-                           aLogin.passwordField);
+                           aLogin.passwordField) &&
+                          !isMailNews.test(aLogin.hostname);
 
-        var [hostname, username] = cleanupURL(aLogin.hostname);
+        var [hostname, username, pathname] = cleanupURL(aLogin.hostname);
         aLogin.hostname = hostname;
 
         // If a non-HTTP URL contained a username, it wasn't stored in the
         // encrypted username field (which contains an encrypted empty value)
         // (Don't do this if it's a form login, though.)
         if (username && !isFormLogin) {
+            if (isMailNews.test(aLogin.hostname))
+                username = decodeURIComponent(username);
+
             var [encUsername, userCanceled] = this._encrypt(username);
             if (!userCanceled)
                 aLogin.wrappedJSObject.encryptedUsername = encUsername;
@@ -638,7 +836,8 @@ LoginManagerStorage_legacy.prototype = {
 
 
         if (aLogin.formSubmitURL) {
-            [hostname, username] = cleanupURL(aLogin.formSubmitURL);
+            [hostname, username, pathname] = cleanupURL(aLogin.formSubmitURL,
+                                                        true);
             aLogin.formSubmitURL = hostname;
             // username, if any, ignored.
         }
@@ -654,15 +853,27 @@ LoginManagerStorage_legacy.prototype = {
          * Form logins have field names, so only update the realm if there are
          * no field names set. [Any login with a http[s]:// hostname is always
          * a form login, so explicitly ignore those just to be safe.]
-         *
-         * Bug 403790: mail entries (imap://, ldaps://, mailbox:// smtp:// have
-         * fieldnames set to "\=username=\" and "\=password=\" (non-escaping
-         * backslash). More work is needed to upgrade these properly.
          */
         const isHTTP = /^https?:\/\//;
+        const isLDAP = /^ldaps?:\/\//;
+        const isNews = /^news?:\/\//;
         if (!isHTTP.test(aLogin.hostname) && !isFormLogin) {
-            aLogin.httpRealm = aLogin.hostname;
+            // LDAP and News logins need to keep the path.
+            if (isLDAP.test(aLogin.hostname) ||
+                isNews.test(aLogin.hostname))
+                aLogin.httpRealm = aLogin.hostname + pathname;
+            else
+                aLogin.httpRealm = aLogin.hostname;
+
             aLogin.formSubmitURL = null;
+
+            // Null out the form items because mailnews will no longer treat
+            // or expect these as form logins
+            if (isMailNews.test(aLogin.hostname)) {
+                aLogin.usernameField = "";
+                aLogin.passwordField = "";
+            }
+
             this.log("2E upgrade: set empty realm to " + aLogin.httpRealm);
         }
 
@@ -679,15 +890,14 @@ LoginManagerStorage_legacy.prototype = {
 
         this.log("Reading passwords from " + this._signonsFile.path);
 
-        // If it doesn't exist, just create an empty file and bail out.
+        // If it doesn't exist, just bail out.
         if (!this._signonsFile.exists()) {
-            this.log("Creating new signons file...");
-            this._writeFile();
+            this.log("No existing signons file found.");
             return;
         }
 
-        var inputStream = Cc["@mozilla.org/network/file-input-stream;1"]
-                                .createInstance(Ci.nsIFileInputStream);
+        var inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
+                          createInstance(Ci.nsIFileInputStream);
         // init the stream as RD_ONLY, -1 == default permissions.
         inputStream.init(this._signonsFile, 0x01, -1, null);
         var lineStream = inputStream.QueryInterface(Ci.nsILineInputStream);
@@ -699,12 +909,17 @@ LoginManagerStorage_legacy.prototype = {
                         FILLER : 8 };
         var parseState = STATE.HEADER;
 
-        var nsLoginInfo = new Components.Constructor(
-                "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo);
         var processEntry = false;
+        var discardEntry = false;
 
         do {
             var hasMore = lineStream.readLine(line);
+            try {
+              line.value = this._utfConverter.ConvertToUnicode(line.value);
+            } catch (e) {
+              this.log("Bad UTF8 conversion: " + line.value);
+              this._utfConverterReset();
+            }
 
             switch (parseState) {
                 // Check file header
@@ -766,11 +981,17 @@ LoginManagerStorage_legacy.prototype = {
                 // (or "." to indicate end of hostrealm)
                 case STATE.USERFIELD:
                     if (line.value == ".") {
+                        discardEntry = false;
                         parseState = STATE.REALM;
                         break;
                     }
 
-                    var entry = new nsLoginInfo();
+                    // If we're discarding the entry, keep looping in this
+                    // state until we hit the "." marking the end of the entry.
+                    if (discardEntry)
+                        break;
+
+                    var entry = new this._nsLoginInfo();
                     entry.hostname  = hostname;
                     entry.httpRealm = httpRealm;
 
@@ -787,6 +1008,12 @@ LoginManagerStorage_legacy.prototype = {
                 // Line is the HTML 'name' attribute for the password field,
                 // with a leading '*' character
                 case STATE.PASSFIELD:
+                    if (line.value.charAt(0) != '*') {
+                        discardEntry = true;
+                        entry = null;
+                        parseState = STATE.USERFIELD;
+                        break;
+                    }
                     entry.passwordField = line.value.substr(1);
                     parseState++;
                     break;
@@ -874,19 +1101,26 @@ LoginManagerStorage_legacy.prototype = {
      * master password if prompted).
      */
     _writeFile : function () {
+        var converter = this._utfConverter;
         function writeLine(data) {
+            data = converter.ConvertFromUnicode(data);
+            data += converter.Finish();
             data += "\r\n";
             outputStream.write(data, data.length);
         }
 
         this.log("Writing passwords to " + this._signonsFile.path);
 
-        var outputStream = Cc["@mozilla.org/network/safe-file-output-stream;1"]
-                                .createInstance(Ci.nsIFileOutputStream);
-        outputStream.QueryInterface(Ci.nsISafeOutputStream);
-
+        var safeStream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
+                         createInstance(Ci.nsIFileOutputStream);
         // WR_ONLY|CREAT|TRUNC
-        outputStream.init(this._signonsFile, 0x02 | 0x08 | 0x20, 0600, null);
+        safeStream.init(this._signonsFile, 0x02 | 0x08 | 0x20, 0600, null);
+
+        var outputStream = Cc["@mozilla.org/network/buffered-output-stream;1"].
+                           createInstance(Ci.nsIBufferedOutputStream);
+        outputStream.init(safeStream, 8192);
+        outputStream.QueryInterface(Ci.nsISafeOutputStream); // for .finish()
+
 
         // write file version header
         writeLine("#2e");
@@ -1016,57 +1250,58 @@ LoginManagerStorage_legacy.prototype = {
         var result = [], userCanceled = false;
 
         for each (var login in logins) {
-            var username, password;
+            var decryptedUsername, decryptedPassword;
 
-            [username, userCanceled] =
+            [decryptedUsername, userCanceled] =
                 this._decrypt(login.wrappedJSObject.encryptedUsername);
 
             if (userCanceled)
                 break;
 
-            [password, userCanceled] =
+            [decryptedPassword, userCanceled] =
                 this._decrypt(login.wrappedJSObject.encryptedPassword);
 
             // Probably can't hit this case, but for completeness...
             if (userCanceled)
                 break;
 
-            // If decryption failed (corrupt entry?) skip it.
-            // Note that we allow password-only logins, so username con be "".
-            if (username == null || !password)
+            // If decryption failed (corrupt entry?) skip it. Note that we
+            // allow password-only logins, so decryptedUsername can be "".
+            if (decryptedUsername == null || !decryptedPassword)
                 continue;
 
-            // We could set the decrypted values on a copy of the object, to
-            // try to prevent the decrypted values from sitting around in
-            // memory if they're not needed. But thanks to GC that's happening
-            // anyway, so meh.
-            login.username = username;
-            login.password = password;
+            // Return copies to the caller. Prevents callers from modifying
+            // our internal stoage, and helps avoid keeping decrypted data in
+            // memory (although this is fuzzy, because of GC issues).
+            var clone = new this._nsLoginInfo();
+            clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
+                       decryptedUsername, decryptedPassword,
+                       login.usernameField, login.passwordField);
 
-            // Old mime64-obscured entries need to be reencrypted in the new
-            // format.
+            // Old mime64-obscured entries should be opportunistically
+            // reencrypted in the new format.
+            var recrypted;
             if (login.wrappedJSObject.encryptedUsername &&
                 login.wrappedJSObject.encryptedUsername.charAt(0) == '~') {
-                  [username, userCanceled] = this._encrypt(login.username);
+                  [recrypted, userCanceled] = this._encrypt(decryptedUsername);
 
                   if (userCanceled)
                     break;
 
-                  login.wrappedJSObject.encryptedUsername = username;
+                  login.wrappedJSObject.encryptedUsername = recrypted;
             }
 
             if (login.wrappedJSObject.encryptedPassword &&
                 login.wrappedJSObject.encryptedPassword.charAt(0) == '~') {
-
-                  [password, userCanceled] = this._encrypt(login.password);
+                  [recrypted, userCanceled] = this._encrypt(decryptedPassword);
 
                   if (userCanceled)
                     break;
 
-                  login.wrappedJSObject.encryptedPassword = password;
+                  login.wrappedJSObject.encryptedPassword = recrypted;
             }
 
-            result.push(login);
+            result.push(clone);
         }
 
         return [result, userCanceled];
@@ -1091,11 +1326,8 @@ LoginManagerStorage_legacy.prototype = {
         var cipherText = null, userCanceled = false;
 
         try {
-            var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                            createInstance(Ci.nsIScriptableUnicodeConverter);
-            converter.charset = "UTF-8";
-            var plainOctet = converter.ConvertFromUnicode(plainText);
-            plainOctet += converter.Finish();
+            var plainOctet = this._utfConverter.ConvertFromUnicode(plainText);
+            plainOctet += this._utfConverter.Finish();
             cipherText = this._decoderRing.encryptString(plainOctet);
         } catch (e) {
             this.log("Failed to encrypt string. (" + e.name + ")");
@@ -1136,13 +1368,13 @@ LoginManagerStorage_legacy.prototype = {
             } else {
                 plainOctet = this._decoderRing.decryptString(cipherText);
             }
-            var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                              .createInstance(Ci.nsIScriptableUnicodeConverter);
-            converter.charset = "UTF-8";
-            plainText = converter.ConvertToUnicode(plainOctet);
+            plainText = this._utfConverter.ConvertToUnicode(plainOctet);
         } catch (e) {
             this.log("Failed to decrypt string: " + cipherText +
                 " (" + e.name + ")");
+
+            // In the unlikely event the converter threw, reset it.
+            this._utfConverterReset();
 
             // If the user clicks Cancel, we get NS_ERROR_NOT_AVAILABLE.
             // If the cipherText is bad / wrong key, we get NS_ERROR_FAILURE
@@ -1155,6 +1387,89 @@ LoginManagerStorage_legacy.prototype = {
         return [plainText, userCanceled];
     },
 
+
+
+
+    /* ================== nsILoginManagerIEMigratorHelper ================== */
+
+
+
+
+    _migrationLoginManager : null,
+
+    /*
+     * migrateAndAddLogin
+     *
+     * Given a login with IE6-formatted fields, migrates it to the new format
+     * and adds it to the login manager.
+     *
+     * Experimentally derived format of IE6 logins, see:
+     *     https://bugzilla.mozilla.org/attachment.cgi?id=319346
+     *
+     * HTTP AUTH:
+     * - hostname is always "example.com:123"
+     *   * "example.com", "http://example.com", "http://example.com:80" all
+     *     end up as just "example.com:80"
+     *   * Entering "example.com:80" in the URL bar isn't recognized as a
+     *     valid URL by IE6.
+     *   * "https://example.com" is saved as "example.com:443"
+     *   * "https://example.com:666" is saved as "example.com:666". Thus, for
+     *     non-standard ports we don't know the right scheme, so create both.
+     *
+     * - an empty or missing "realm" in the WWW-Authenticate reply is stored
+     *   as just an empty string by IE6.
+     *
+     * - IE6 will store logins where one or both (!) of the username/password
+     *   is left blank. We don't support logins without a password, so these
+     *   logins won't be added [addLogin() will throw].
+     *
+     * - IE6 won't recognize a URL with and embedded username/password (eg
+     *   http://user@example.com, http://user:pass@example.com), so these
+     *   shouldn't be encountered.
+     *
+     * - Our migration code doesn't extract non-HTTP logins (eg, FTP). So
+     *   they shouldn't be encountered here. (Verified by saving FTP logins
+     *   in IE and then importing in Firefox.)
+     *
+     *
+     * FORM LOGINS:
+     * - hostname is "http://site.com" or "https://site.com".
+     *   * scheme always included
+     *   * default port not included
+     * - port numbers, even for non-standard posts, are never present!
+     *   unfortunately, this means logins will only work on the default
+     *   port, because we don't know what the original was (or even that
+     *   it wasn't originally stored for the original port).
+     * - Logins are stored without a field name by IE, but we look one up
+     *   in the migrator for the username. The password field name will
+     *   always be empty-string.
+     */
+    migrateAndAddLogin : function (aLogin) {
+        // Initialize outself on the first call
+        if (!this._migrationLoginManager) {
+            // Connect to the correct preferences branch.
+            this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                               getService(Ci.nsIPrefService);
+            this._prefBranch = this._prefBranch.getBranch("signon.");
+            this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
+
+            this._debug = this._prefBranch.getBoolPref("debug");
+
+            this._migrationLoginManager = Cc["@mozilla.org/login-manager;1"].
+                                          getService(Ci.nsILoginManager);
+        }
+
+        this.log("Migrating login for " + aLogin.hostname);
+
+        // The IE login is in the same format as the old password
+        // manager entries, so just reuse that code.
+        var logins = this._upgrade_entry_to_2E(aLogin);
+
+        // Add logins via the login manager (and not this.addLogin),
+        // lest an alternative storage module be in use.
+        for each (var login in logins)
+            this._migrationLoginManager.addLogin(login);
+    }
 }; // end of nsLoginManagerStorage_legacy implementation
 
 var component = [LoginManagerStorage_legacy];

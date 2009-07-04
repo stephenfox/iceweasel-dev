@@ -62,6 +62,7 @@ class nsSVGAngle;
 class nsSVGBoolean;
 class nsSVGEnum;
 struct nsSVGEnumMapping;
+class nsSVGString;
 
 typedef nsStyledElement nsSVGElementBase;
 
@@ -79,10 +80,19 @@ public:
 
   // nsIContent interface methods
 
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
 
+  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
+                                              PRInt32 aModType) const;
+
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
+
+  virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
 
@@ -117,6 +127,9 @@ public:
   // nsISupportsWeakReference
   // implementation inherited from nsSupportsWeakReference
 
+  // Gets the element that establishes the rectangular viewport against which
+  // we should resolve percentage lengths (our "coordinate context"). Returns
+  // nsnull for outer <svg> or SVG without an <svg> parent (invalid SVG).
   nsSVGSVGElement* GetCtx();
 
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
@@ -125,6 +138,7 @@ public:
   virtual void DidChangeAngle(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeBoolean(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
@@ -270,32 +284,50 @@ protected:
     void Reset(PRUint8 aAttrEnum);
   };
 
+  struct StringInfo {
+    nsIAtom**    mName;
+    PRInt32      mNamespaceID;
+  };
+
+  struct StringAttributesInfo {
+    nsSVGString*  mStrings;
+    StringInfo*   mStringInfo;
+    PRUint32      mStringCount;
+
+    StringAttributesInfo(nsSVGString *aStrings,
+                         StringInfo *aStringInfo,
+                         PRUint32 aStringCount) :
+      mStrings(aStrings), mStringInfo(aStringInfo), mStringCount(aStringCount)
+      {}
+
+    void Reset(PRUint8 aAttrEnum);
+  };
+
   virtual LengthAttributesInfo GetLengthInfo();
   virtual NumberAttributesInfo GetNumberInfo();
   virtual IntegerAttributesInfo GetIntegerInfo();
   virtual AngleAttributesInfo GetAngleInfo();
   virtual BooleanAttributesInfo GetBooleanInfo();
   virtual EnumAttributesInfo GetEnumInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
   static nsSVGEnumMapping sSVGUnitTypesMap[];
 
+private:
   /* read <number-optional-number> */
-  PRBool
-  ParseNumberOptionalNumber(nsIAtom* aAttribute, const nsAString& aValue,
-                            PRUint32 aIndex1, PRUint32 aIndex2,
-                            nsAttrValue& aResult);
+  nsresult
+  ParseNumberOptionalNumber(const nsAString& aValue,
+                            PRUint32 aIndex1, PRUint32 aIndex2);
 
   /* read <integer-optional-integer> */
-  PRBool
-  ParseIntegerOptionalInteger(nsIAtom* aAttribute, const nsAString& aValue,
-                              PRUint32 aIndex1, PRUint32 aIndex2,
-                              nsAttrValue& aResult);
+  nsresult
+  ParseIntegerOptionalInteger(const nsAString& aValue,
+                              PRUint32 aIndex1, PRUint32 aIndex2);
 
   static nsresult ReportAttributeParseFailure(nsIDocument* aDocument,
                                               nsIAtom* aAttribute,
                                               const nsAString& aValue);
 
-private:
   void ResetOldStyleBaseType(nsISVGValue *svg_value);
 
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
@@ -330,5 +362,15 @@ NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
                                                                              \
   return rv;                                                                 \
 }
+
+// No unlinking, we'd need to null out the value pointer (the object it
+// points to is held by the element) and null-check it everywhere.
+#define NS_SVG_VAL_IMPL_CYCLE_COLLECTION(_val, _element)                     \
+NS_IMPL_CYCLE_COLLECTION_CLASS(_val)                                         \
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(_val)                                \
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(_element, nsIContent) \
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END                                        \
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(_val)
+
 
 #endif // __NS_SVGELEMENT_H__

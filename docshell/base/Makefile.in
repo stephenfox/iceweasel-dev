@@ -84,8 +84,8 @@ REQUIRES	= xpcom \
 		  editor \
 		  windowwatcher \
 		  imglib2 \
-		  mimetype \
 		  jar \
+		  prefetch \
 		  $(NULL)
 
 SDK_XPIDLSRCS = \
@@ -115,7 +115,9 @@ XPIDLSRCS	= \
 		nsIEditorDocShell.idl		\
 		nsIWebPageDescriptor.idl	\
 		nsIURIClassifier.idl		\
-		nsIDownloadHistory.idl \
+		nsIChannelClassifier.idl	\
+		nsIDownloadHistory.idl          \
+		nsILoadContext.idl              \
 		$(NULL)
 
 EXPORTS		= nsDocShellLoadTypes.h

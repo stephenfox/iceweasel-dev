@@ -70,7 +70,6 @@ components\xpconnect.xpt
 ; XP widgets/graphics
 ; 
 gkgfx.dll
-components\gkgfxwin.dll      
 components\gkgfxthebes.dll
 components\gkwidget.dll   
 components\widget.xpt
@@ -181,6 +180,7 @@ components\dom_core.xpt
 components\dom_css.xpt
 components\dom_events.xpt
 components\dom_html.xpt
+components\dom_geolocation.xpt
 components\dom_loadsave.xpt
 components\dom_offline.xpt
 components\dom_range.xpt
@@ -238,6 +238,7 @@ components\pipboot.dll
 components\pipboot.xpt
 components\pipnss.dll
 components\pipnss.xpt
+nssutil3.dll
 nss3.dll
 smime3.dll
 softokn3.chk
@@ -291,7 +292,3 @@ res\html\folder.png
 ; res\fonts\mathfontMTExtra.properties
 ; res\fonts\mathfontPUA.properties
 ; res\fonts\mathfontSymbol.properties
-
-
-; Effective TLD
-res\effective_tld_names.dat

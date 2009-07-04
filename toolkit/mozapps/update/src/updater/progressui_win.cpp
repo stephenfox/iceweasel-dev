@@ -43,11 +43,12 @@
 #include <process.h>
 #include <io.h>
 #include "resource.h"
+#include "progressui.h"
+#include "readstrings.h"
+#include "errors.h"
 
 #define TIMER_ID 1
 #define TIMER_INTERVAL 100
-
-#define MAX_INFO_LENGTH 512
 
 #define RESIZE_WINDOW(hwnd, extrax, extray) \
   { \
@@ -69,19 +70,18 @@
 
 static float sProgress;  // between 0 and 100
 static BOOL  sQuit = FALSE;
-static HFONT sSystemFont = 0;
 
 static BOOL
-GetStringsFile(char filename[MAX_PATH])
+GetStringsFile(WCHAR filename[MAX_PATH])
 {
-  if (!GetModuleFileName(NULL, filename, MAX_PATH))
+  if (!GetModuleFileNameW(NULL, filename, MAX_PATH))
+    return FALSE;
+ 
+  WCHAR *dot = wcsrchr(filename, '.');
+  if (!dot || wcsicmp(dot + 1, L"exe"))
     return FALSE;
 
-  char *dot = strrchr(filename, '.');
-  if (!dot || stricmp(dot + 1, "exe"))
-    return FALSE;
-
-  strcpy(dot + 1, "ini");
+  wcscpy(dot + 1, L"ini");
   return TRUE;
 }
 
@@ -95,7 +95,7 @@ UpdateDialog(HWND hDlg)
 static void
 ResizeDialogToFit(HWND hDlg)
 {
-  char text[MAX_INFO_LENGTH];
+  WCHAR text[MAX_TEXT_LEN];
   RECT infoSize, textSize;
   HFONT hInfoFont, hOldFont;
 
@@ -173,38 +173,26 @@ CenterDialog(HWND hDlg)
 }
 
 static void
-SetItemText(HWND hwnd, const char *key, const char *ini)
-{
-  char text[MAX_INFO_LENGTH];
-  if (!GetPrivateProfileString("Strings", key, NULL, text, sizeof(text), ini))
-    return;
-  SetWindowText(hwnd, text);
-}
-
-static void
 InitDialog(HWND hDlg)
 {
-  char filename[MAX_PATH];
+  WCHAR filename[MAX_PATH];
   if (!GetStringsFile(filename))
     return;
 
-  SetItemText(hDlg, "Title", filename);
-  SetItemText(GetDlgItem(hDlg, IDC_INFO), "Info", filename);
+  StringTable uiStrings;
+  if (ReadStrings(filename, &uiStrings) != OK)
+    return;
 
-  // On Win9x, we need to send WM_SETFONT for l10n builds.  Yes, we shouldn't
-  // use the system font.  For example, if the text has Japanese characters on
-  // Win98-en, then the text may not be displayed correctly.  We should perhaps
-  // support loading a font named in updater.ini; however, even then there are
-  // cases where it might not work properly.
-  if (!sSystemFont) {
-    NONCLIENTMETRICS ncm;
-    memset(&ncm, 0, sizeof(ncm));
-    ncm.cbSize = sizeof(ncm);
-    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, 0, &ncm, 0);
-    sSystemFont = CreateFontIndirect(&ncm.lfMessageFont);
-  }
-  if (sSystemFont)
-    SendDlgItemMessage(hDlg, IDC_INFO, WM_SETFONT, (WPARAM)sSystemFont, 0L);
+  WCHAR szwTitle[MAX_TEXT_LEN];
+  WCHAR szwInfo[MAX_TEXT_LEN];
+
+  MultiByteToWideChar(CP_UTF8, 0, uiStrings.title, strlen(uiStrings.title) + 1,
+                      szwTitle, sizeof(szwTitle)/sizeof(szwTitle[0]));
+  MultiByteToWideChar(CP_UTF8, 0, uiStrings.info, strlen(uiStrings.info) + 1,
+                      szwInfo, sizeof(szwInfo)/sizeof(szwInfo[0]));
+
+  SetWindowTextW(hDlg, szwTitle);
+  SetWindowTextW(GetDlgItem(hDlg, IDC_INFO), szwInfo);
 
   // Set dialog icon
   HICON hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_DIALOG));
@@ -234,10 +222,6 @@ DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
   case WM_TIMER:
     if (sQuit) {
       EndDialog(hDlg, 0);
-      if (sSystemFont) {
-        DeleteObject(sSystemFont);
-        sSystemFont = 0;
-      }
     } else {
       UpdateDialog(hDlg);
     }
@@ -250,7 +234,7 @@ DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 int
-InitProgressUI(int *argc, char ***argv)
+InitProgressUI(int *argc, NS_tchar ***argv)
 {
   return 0;
 }
@@ -267,10 +251,10 @@ ShowProgressUI()
     return 0;
 
   // If we do not have updater.ini, then we should not bother showing UI.
-  char filename[MAX_PATH];
+  WCHAR filename[MAX_PATH];
   if (!GetStringsFile(filename))
     return -1;
-  if (_access(filename, 04))
+  if (_waccess(filename, 04))
     return -1;
 
   INITCOMMONCONTROLSEX icc = {

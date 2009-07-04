@@ -51,6 +51,7 @@
 #include "nsHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMScriptObjectHolder.h"
 
 // Interfaces Needed
 #include "nsDOMWindowList.h"
@@ -64,7 +65,8 @@
 #include "nsIDOM3EventTarget.h"
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNavigator.h"
-#include "nsIDOMNSLocation.h"
+#include "nsIDOMNavigatorGeolocation.h"
+#include "nsIDOMLocation.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -82,7 +84,6 @@
 #include "nsIEventListenerManager.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMCrypto.h"
-#include "nsIDOMPkcs11.h"
 #include "nsIPrincipal.h"
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
@@ -94,6 +95,7 @@
 #include "nsIDOMStorage.h"
 #include "nsIDOMStorageList.h"
 #include "nsIDOMStorageWindow.h"
+#include "nsIDOMStorageWindow_1_9_1.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
@@ -118,12 +120,11 @@ class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
 class nsGlobalWindow;
-#ifdef OJI
 class nsDummyJavaPluginOwner;
-#endif
+class PostMessageEvent;
 
 class nsDOMOfflineResourceList;
-class nsDOMOfflineLoadStatusList;
+class nsGeolocation;
 
 // permissible values for CheckOpenAllow
 enum OpenAllowValue {
@@ -133,7 +134,7 @@ enum OpenAllowValue {
 };
 
 extern nsresult
-NS_CreateJSTimeoutHandler(nsIScriptContext *aContext,
+NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
                           PRBool *aIsInterval,
                           PRInt32 *aInterval,
                           nsIScriptTimeoutHandler **aRet);
@@ -147,6 +148,8 @@ struct nsTimeout : PRCList
 {
   nsTimeout();
   ~nsTimeout();
+
+  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsTimeout)
 
   nsrefcnt Release();
   nsrefcnt AddRef();
@@ -198,7 +201,7 @@ struct nsTimeout : PRCList
 
 private:
   // reference count for shared usage
-  PRInt32 mRefCnt;
+  nsAutoRefCnt mRefCnt;
 };
 
 //*****************************************************************************
@@ -211,7 +214,7 @@ private:
 // jst@netscape.com
 
 // nsGlobalWindow inherits PRCList for maintaining a list of all inner
-// widows still in memory for any given outer window. This list is
+// windows still in memory for any given outer window. This list is
 // needed to ensure that mOuterWindow doesn't end up dangling. The
 // nature of PRCList means that the window itself is always in the
 // list, and an outer window's list will also contain all inner window
@@ -230,6 +233,7 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMNSEventTarget,
                        public nsIDOMViewCSS,
                        public nsIDOMStorageWindow,
+                       public nsIDOMStorageWindow_1_9_1,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
                        public PRCListStr
@@ -288,6 +292,7 @@ public:
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(nsresult) Activate();
   virtual NS_HIDDEN_(nsresult) Deactivate();
+  virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
   virtual NS_HIDDEN_(nsIFocusController*) GetRootFocusController();
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
@@ -299,8 +304,15 @@ public:
 
   virtual NS_HIDDEN_(nsresult) SaveWindowState(nsISupports **aState);
   virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
-  virtual NS_HIDDEN_(nsresult) ResumeTimeouts();
+  virtual NS_HIDDEN_(void) SuspendTimeouts(PRUint32 aIncrease = 1,
+                                           PRBool aFreezeChildren = PR_TRUE);
+  virtual NS_HIDDEN_(nsresult) ResumeTimeouts(PRBool aThawChildren = PR_TRUE);
+  virtual NS_HIDDEN_(PRUint32) TimeoutSuspendCount();
   virtual NS_HIDDEN_(nsresult) FireDelayedDOMEvents();
+  virtual NS_HIDDEN_(PRBool) IsFrozen() const
+  {
+    return mIsFrozen;
+  }
 
   virtual NS_HIDDEN_(PRBool) WouldReuseInnerWindow(nsIDocument *aNewDocument);
 
@@ -325,6 +337,7 @@ public:
   virtual NS_HIDDEN_(nsresult) RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                                         const nsIID& aIID);
   virtual NS_HIDDEN_(nsresult) GetSystemEventGroup(nsIDOMEventGroup** aGroup);
+  virtual NS_HIDDEN_(nsresult) GetContextForEventHandlers(nsIScriptContext** aContext);
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
@@ -345,6 +358,7 @@ public:
 
   // nsIDOMStorageWindow
   NS_DECL_NSIDOMSTORAGEWINDOW
+  NS_DECL_NSIDOMSTORAGEWINDOW_1_9_1
 
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
@@ -392,11 +406,6 @@ public:
     return static_cast<nsGlobalWindow *>(EnsureInnerWindow());
   }
 
-  PRBool IsFrozen() const
-  {
-    return mIsFrozen;
-  }
-
   PRBool IsCreatingInnerWindow() const
   {
     return  mCreatingInnerWindow;
@@ -411,6 +420,7 @@ public:
                    const PRUnichar* aData);
 
   static void ShutDown();
+  static void CleanupCachedXBLHandlers(nsGlobalWindow* aWindow);
   static PRBool IsCallerChrome();
   static void CloseBlockScriptTerminationFunc(nsISupports *aRef);
 
@@ -419,10 +429,19 @@ public:
 
   friend class WindowStateHolder;
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGlobalWindow,
-                                           nsIScriptGlobalObject)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsGlobalWindow,
+                                                         nsIScriptGlobalObject)
 
   void InitJavaProperties();
+
+  virtual NS_HIDDEN_(void*)
+    GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
+
+  virtual NS_HIDDEN_(void)
+    CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
+                             nsScriptObjectHolder& aHandler);
+
+  static PRBool DOMWindowDumpEnabled();
 
 protected:
   // Object Management
@@ -431,6 +450,7 @@ protected:
   void ClearControllers();
 
   void FreeInnerObjects(PRBool aClearScope);
+  nsGlobalWindow *CallerInnerWindow();
 
   nsresult SetNewDocument(nsIDocument *aDocument,
                           nsISupports *aState,
@@ -557,13 +577,7 @@ protected:
 
   static void MakeScriptDialogTitle(nsAString &aOutTitle);
 
-  // Helper for window.find()
-  nsresult FindInternal(const nsAString& aStr, PRBool caseSensitive,
-                       PRBool backwards, PRBool wrapAround, PRBool wholeWord, 
-                       PRBool searchInFrames, PRBool showDialog, 
-                       PRBool *aReturn);
-
-  nsresult ConvertCharset(const nsAString& aStr, char** aDest);
+  static PRBool CanMoveResizeWindows();
 
   PRBool   GetBlurSuppression();
 
@@ -572,6 +586,9 @@ protected:
   nsresult GetScrollXY(PRInt32* aScrollX, PRInt32* aScrollY,
                        PRBool aDoFlush);
   nsresult GetScrollMaxXY(PRInt32* aScrollMaxX, PRInt32* aScrollMaxY);
+  
+  nsresult GetOuterSize(nsIntSize* aSizeCSSPixels);
+  nsresult SetOuterSize(PRInt32 aLengthCSSPixels, PRBool aIsWidth);
 
   PRBool IsFrame()
   {
@@ -586,8 +603,6 @@ protected:
   PRBool WindowExists(const nsAString& aName, PRBool aLookForCallerOnJSStack);
 
   already_AddRefed<nsIWidget> GetMainWidget();
-
-  void SuspendTimeouts();
 
   void Freeze()
   {
@@ -615,6 +630,16 @@ protected:
   PRBool IsTimeout(PRCList* aList) {
     return aList != &mTimeouts;
   }
+
+  // Convenience functions for the many methods that need to scale
+  // from device to CSS pixels or vice versa.  Note: if a presentation
+  // context is not available, they will assume a 1:1 ratio.
+  PRInt32 DevToCSSIntPixels(PRInt32 px);
+  PRInt32 CSSToDevIntPixels(PRInt32 px);
+  nsIntSize DevToCSSIntPixels(nsIntSize px);
+  nsIntSize CSSToDevIntPixels(nsIntSize px);
+
+  static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -661,7 +686,7 @@ protected:
   PRPackedBool                  mIsChrome : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
-  nsCOMPtr<nsIDOMWindowInternal> mOpener;
+  nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
   nsCOMPtr<nsIArray>            mArguments;
   nsCOMPtr<nsIArray>            mArgumentsLast;
@@ -685,10 +710,8 @@ protected:
   nsGlobalWindowObserver*       mObserver;
 
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
-  nsCOMPtr<nsIDOMPkcs11>        mPkcs11;
 
-
-  nsCOMPtr<nsIDOMStorageList>   gGlobalStorageList;
+  nsCOMPtr<nsIDOMStorage2>      mLocalStorage;
 
   nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
@@ -703,9 +726,9 @@ protected:
   PRUint32                      mTimeoutFiringDepth;
   nsCOMPtr<nsIDOMStorage>       mSessionStorage;
 
-#ifdef OJI
+  // Holder of the dummy java plugin, used to expose window.java and
+  // window.packages.
   nsRefPtr<nsDummyJavaPluginOwner> mDummyJavaPluginOwner;
-#endif
 
   // These member variables are used on both inner and the outer windows.
   nsCOMPtr<nsIPrincipal> mDocumentPrincipal;
@@ -714,13 +737,25 @@ protected:
 
   nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEvents;
 
+  PRUint32 mTimeoutsSuspendDepth;
+
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;
+  PRUint32 mSerial;
+  nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
+
+  nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
+
+  nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
+
+  nsCOMPtr<nsIDocument> mSuspendedDoc;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
+  friend class PostMessageEvent;
   static nsIFactory *sComputedDOMStyleFactory;
+  static nsIDOMStorageList* sGlobalStorageList;
 };
 
 /*
@@ -781,7 +816,8 @@ protected:
 
 class nsNavigator : public nsIDOMNavigator,
                     public nsIDOMJSNavigator,
-                    public nsIDOMClientInformation
+                    public nsIDOMClientInformation,
+                    public nsIDOMNavigatorGeolocation
 {
 public:
   nsNavigator(nsIDocShell *aDocShell);
@@ -791,6 +827,7 @@ public:
   NS_DECL_NSIDOMNAVIGATOR
   NS_DECL_NSIDOMJSNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
+  NS_DECL_NSIDOMNAVIGATORGEOLOCATION
   
   void SetDocShell(nsIDocShell *aDocShell);
   nsIDocShell *GetDocShell()
@@ -804,8 +841,7 @@ public:
 protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
-  nsRefPtr<nsDOMOfflineResourceList> mOfflineResources;
-  nsRefPtr<nsDOMOfflineLoadStatusList> mPendingOfflineLoads;
+  nsRefPtr<nsGeolocation> mGeolocation;
   nsIDocShell* mDocShell; // weak reference
 
   static jsval       sPrefInternal_id;
@@ -817,8 +853,7 @@ class nsIURI;
 // nsLocation: Script "location" object
 //*****************************************************************************
 
-class nsLocation : public nsIDOMLocation,
-                   public nsIDOMNSLocation
+class nsLocation : public nsIDOMLocation
 {
 public:
   nsLocation(nsIDocShell *aDocShell);
@@ -831,9 +866,6 @@ public:
 
   // nsIDOMLocation
   NS_DECL_NSIDOMLOCATION
-
-  // nsIDOMNSLocation
-  NS_DECL_NSIDOMNSLOCATION
 
 protected:
   // In the case of jar: uris, we sometimes want the place the jar was

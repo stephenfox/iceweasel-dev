@@ -46,6 +46,9 @@
 #include "nsCRT.h"
 #include "nsCOMPtr.h"
 #include "prlink.h"
+#include "prclist.h"
+#include "npapi.h"
+#include "nsNPAPIPluginInstance.h"
 
 #include "nsIPlugin.h"
 #include "nsIPluginTag.h"
@@ -55,7 +58,7 @@
 #include "nsIFileUtilities.h"
 #include "nsICookieStorage.h"
 #include "nsPluginsDir.h"
-#include "nsVoidArray.h"  // array for holding "active" streams
+#include "nsVoidArray.h"
 #include "nsPluginDirServiceProvider.h"
 #include "nsAutoPtr.h"
 #include "nsWeakPtr.h"
@@ -64,11 +67,11 @@
 #include "nsPluginNativeWindow.h"
 #include "nsIPrefBranch.h"
 #include "nsWeakReference.h"
-
-// XXX this file really doesn't think this is possible, but ...
+#include "nsThreadUtils.h"
+#include "nsTArray.h"
 #include "nsIFactory.h"
 
-class ns4xPlugin;
+class nsNPAPIPlugin;
 class nsIComponentManager;
 class nsIFile;
 class nsIChannel;
@@ -76,7 +79,7 @@ class nsIRegistry;
 class nsPluginHostImpl;
 
 #define NS_PLUGIN_FLAG_ENABLED      0x0001    // is this plugin enabled?
-#define NS_PLUGIN_FLAG_OLDSCHOOL    0x0002    // is this a pre-xpcom plugin?
+#define NS_PLUGIN_FLAG_NPAPI        0x0002    // is this an NPAPI plugin?
 #define NS_PLUGIN_FLAG_FROMCACHE    0x0004    // this plugintag info was loaded from cache
 #define NS_PLUGIN_FLAG_UNWANTED     0x0008    // this is an unwanted plugin
 #define NS_PLUGIN_FLAG_BLOCKLISTED  0x0010    // this is a blocklisted plugin
@@ -99,36 +102,45 @@ public:
               const char* aDescription,
               const char* aFileName,
               const char* aFullPath,
+              const char* aVersion,
               const char* const* aMimeTypes,
               const char* const* aMimeDescriptions,
               const char* const* aExtensions,
               PRInt32 aVariants,
               PRInt64 aLastModifiedTime = 0,
-              PRBool aCanUnload = PR_TRUE);
+              PRBool aCanUnload = PR_TRUE,
+              PRBool aArgsAreUTF8 = PR_FALSE);
 
   ~nsPluginTag();
 
   void SetHost(nsPluginHostImpl * aHost);
   void TryUnloadPlugin(PRBool aForceShutdown = PR_FALSE);
   void Mark(PRUint32 mask) {
+    PRBool wasEnabled = IsEnabled();
     mFlags |= mask;
-    // Add mime types to the category manager only if we were made
-    // 'active' by setting the host
-    if ((mask & NS_PLUGIN_FLAG_ENABLED) && mPluginHost) {
-      RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginRegister);
+    // Update entries in the category manager if necessary.
+    if (mPluginHost && wasEnabled != IsEnabled()) {
+      if (wasEnabled)
+        RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
+      else
+        RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginRegister);
     }
   }
   void UnMark(PRUint32 mask) {
+    PRBool wasEnabled = IsEnabled();
     mFlags &= ~mask;
-    // Remove mime types added to the category manager only if we were
-    // made 'active' by setting the host
-    if ((mask & NS_PLUGIN_FLAG_ENABLED) && mPluginHost) {
-      RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
+    // Update entries in the category manager if necessary.
+    if (mPluginHost && wasEnabled != IsEnabled()) {
+      if (wasEnabled)
+        RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
+      else
+        RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginRegister);
     }
   }
   PRBool HasFlag(PRUint32 flag) { return (mFlags & flag) != 0; }
   PRUint32 Flags() { return mFlags; }
   PRBool Equals(nsPluginTag* aPluginTag);
+  PRBool IsEnabled() { return HasFlag(NS_PLUGIN_FLAG_ENABLED) && !HasFlag(NS_PLUGIN_FLAG_BLOCKLISTED); }
 
   enum nsRegisterType {
     ePluginRegister,
@@ -139,11 +151,11 @@ public:
 
   nsRefPtr<nsPluginTag>   mNext;
   nsPluginHostImpl *mPluginHost;
-  char          *mName;
-  char          *mDescription;
+  nsCString     mName; // UTF-8
+  nsCString     mDescription; // UTF-8
   PRInt32       mVariants;
   char          **mMimeTypeArray;
-  char          **mMimeDescriptionArray;
+  nsTArray<nsCString> mMimeDescriptionArray; // UTF-8
   char          **mExtensionsArray;
   PRLibrary     *mLibrary;
   nsIPlugin     *mEntryPoint;
@@ -151,11 +163,14 @@ public:
   PRPackedBool  mXPConnected;
   PRPackedBool  mIsJavaPlugin;
   PRPackedBool  mIsNPRuntimeEnabledJavaPlugin;
-  char          *mFileName;
-  char          *mFullPath;
+  nsCString     mFileName; // UTF-8
+  nsCString     mFullPath; // UTF-8
+  nsCString     mVersion;  // UTF-8
   PRInt64       mLastModifiedTime;
 private:
   PRUint32      mFlags;
+
+  nsresult EnsureMembersAreUTF8();
 };
 
 struct nsActivePlugin
@@ -169,7 +184,7 @@ struct nsActivePlugin
   PRPackedBool           mStopped;
   PRPackedBool           mDefaultPlugin;
   PRPackedBool           mXPConnected;
-  //Array holding all opened stream listeners for this entry
+  // Array holding all opened stream listeners for this entry
   nsCOMPtr <nsISupportsArray>  mStreams; 
 
   nsActivePlugin(nsPluginTag* aPluginTag,
@@ -405,10 +420,6 @@ private:
   // in the plugin list but found in some different place
   PRBool IsDuplicatePlugin(nsPluginTag * aPluginTag);
 
-  // checks whether the given plugin is an unwanted Java plugin
-  // (e.g. no OJI support is compiled in)
-  PRBool IsUnwantedJavaPlugin(nsPluginTag * aPluginTag);
-
   nsresult EnsurePrivateDirServiceProvider();
 
   nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
@@ -457,6 +468,42 @@ private:
   // We need to hold a global ptr to ourselves because we register for
   // two different CIDs for some reason...
   static nsPluginHostImpl* sInst;
+};
+
+class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
+{
+public:
+  PluginDestructionGuard(nsIPluginInstance *aInstance)
+    : mInstance(aInstance)
+  {
+    Init();
+  }
+
+  PluginDestructionGuard(NPP npp)
+    : mInstance(npp ? static_cast<nsNPAPIPluginInstance*>(npp->ndata) : nsnull)
+  {
+    Init();
+  }
+
+  ~PluginDestructionGuard();
+
+  static PRBool DelayDestroy(nsIPluginInstance *aInstance);
+
+protected:
+  void Init()
+  {
+    NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread");
+
+    mDelayedDestroy = PR_FALSE;
+
+    PR_INIT_CLIST(this);
+    PR_INSERT_BEFORE(this, &sListHead);
+  }
+
+  nsCOMPtr<nsIPluginInstance> mInstance;
+  PRBool mDelayedDestroy;
+
+  static PRCList sListHead;
 };
 
 #endif

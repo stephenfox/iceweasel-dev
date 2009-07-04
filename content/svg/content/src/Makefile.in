@@ -49,14 +49,11 @@ LIBXUL_LIBRARY	= 1
 REQUIRES	= xpcom \
 		  string \
 		  layout \
-		  content \
 		  widget \
 		  gfx \
 		  dom \
 		  js \
 		  locale \
-		  htmlparser \
-		  view \
 		  pref \
 		  necko \
 		  xpconnect \
@@ -76,11 +73,9 @@ CPPSRCS		= \
 		nsSVGAnimatedNumberList.cpp \
 		nsSVGAnimatedRect.cpp \
 		nsSVGAnimatedPreserveAspectRatio.cpp \
-		nsSVGAnimatedString.cpp \
 		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGCircleElement.cpp \
-		nsSVGClassValue.cpp \
 		nsSVGClipPathElement.cpp \
 		nsSVGDataParser.cpp \
 		nsSVGDefsElement.cpp \
@@ -92,6 +87,7 @@ CPPSRCS		= \
 		nsSVGFeatures.cpp \
 		nsSVGFilterElement.cpp \
 		nsSVGFilters.cpp \
+		nsSVGForeignObjectElement.cpp \
 		nsSVGGElement.cpp \
 		nsSVGGradientElement.cpp \
 		nsSVGGraphicElement.cpp \
@@ -121,6 +117,7 @@ CPPSRCS		= \
 		nsSVGPolylineElement.cpp \
 		nsSVGPreserveAspectRatio.cpp \
 		nsSVGScriptElement.cpp \
+		nsSVGString.cpp \
 		nsSVGStringProxyValue.cpp \
 		nsSVGStylableElement.cpp \
 		nsSVGRect.cpp \
@@ -141,10 +138,6 @@ CPPSRCS		= \
 		nsSVGValue.cpp \
 		$(NULL)
 
-ifdef MOZ_SVG_FOREIGNOBJECT
-CPPSRCS += nsSVGForeignObjectElement.cpp
-endif
-
 include $(topsrcdir)/config/config.mk
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -153,7 +146,6 @@ FORCE_STATIC_LIB = 1
 EXPORTS =  			\
 	nsIDOMSVGListener.h \
 	nsIDOMSVGZoomListener.h \
-	nsISVGFilter.h             \
 	nsISVGTextContentMetrics.h \
 	nsISVGValue.h              \
 	nsISVGValueObserver.h      \

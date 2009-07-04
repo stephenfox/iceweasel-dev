@@ -388,9 +388,11 @@ pkix_pl_helperBytes2Ascii(
         outputString[outputLen-1] = '\0';
 
         *pAscii = outputString;
+        outputString = NULL;
 
 cleanup:
-
+        
+        PKIX_FREE(outputString);
         PKIX_FREE(tempString);
 
         PKIX_RETURN(OBJECT);
@@ -635,7 +637,7 @@ cleanup:
  */
 PKIX_Error *
 pkix_UTF16_to_EscASCII(
-        void *utf16String,
+        const void *utf16String,
         PKIX_UInt32 utf16Length,
         PKIX_Boolean debug,
         char **pDest,
@@ -724,7 +726,7 @@ pkix_UTF16_to_EscASCII(
                         PKIX_STRING_DEBUG("\tCalling PR_snprintf).\n");
                         if (PR_snprintf(destPtr, 13, "&#x%08X;", z) ==
                             (PKIX_UInt32)(-1)) {
-                                PKIX_ERROR(PKIX_ERRORINSNPRINTF);
+                                PKIX_ERROR(PKIX_PRSNPRINTFFAILED);
                         }
                         i += 2;
                         destPtr += 12;
@@ -738,7 +740,7 @@ pkix_UTF16_to_EscASCII(
                             utf16Char[i],
                             utf16Char[i+1]) ==
                             (PKIX_UInt32)(-1)) {
-                                PKIX_ERROR(PKIX_ERRORINSNPRINTF);
+                                PKIX_ERROR(PKIX_PRSNPRINTFFAILED);
                         }
                         destPtr += 8;
                 }
@@ -786,7 +788,7 @@ cleanup:
  */
 PKIX_Error *
 pkix_EscASCII_to_UTF16(
-        char *escAsciiString,
+        const char *escAsciiString,
         PKIX_UInt32 escAsciiLen,
         PKIX_Boolean debug,
         void **pDest,
@@ -982,7 +984,7 @@ cleanup:
  */
 PKIX_Error *
 pkix_UTF16_to_UTF8(
-        void *utf16String,
+        const void *utf16String,
         PKIX_UInt32 utf16Length,
         PKIX_Boolean null_term,
         void **pDest,
@@ -1064,7 +1066,7 @@ cleanup:
  */
 PKIX_Error *
 pkix_UTF8_to_UTF16(
-        void *utf8String,
+        const void *utf8String,
         PKIX_UInt32 utf8Length,
         void **pDest,
         PKIX_UInt32 *pLength,

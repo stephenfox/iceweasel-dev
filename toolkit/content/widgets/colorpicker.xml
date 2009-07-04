@@ -409,7 +409,8 @@
     </handlers>
   </binding>
 
-  <binding id="colorpicker-button" extends="xul:menu">
+  <binding id="colorpicker-button" display="xul:menu"
+           extends="chrome://global/content/bindings/general.xml#basecontrol">
     <resources>
       <stylesheet src="chrome://global/skin/colorpicker.css"/>
     </resources>
@@ -418,7 +419,7 @@
       <xul:hbox class="colorpicker-button-colorbox" anonid="colorbox" flex="1" xbl:inherits="disabled"/>
 
       <xul:panel class="colorpicker-button-menupopup"
-                 anonid="colorpopup" noautofocus="true"
+                 anonid="colorpopup" noautofocus="true" level="top"
                  onmousedown="event.stopPropagation()"
                  onpopupshowing="this._colorPicker.onPopupShowing()"
                  onpopuphiding="this._colorPicker.onPopupHiding()"
@@ -427,7 +428,7 @@
       </xul:panel>
     </content>
     
-    <implementation implements="nsIAccessibleProvider, nsIDOMXULControlElement">
+    <implementation implements="nsIAccessibleProvider">
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[

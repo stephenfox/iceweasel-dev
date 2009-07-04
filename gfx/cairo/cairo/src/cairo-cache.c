@@ -92,12 +92,13 @@ _cairo_cache_fini (cairo_cache_t *cache)
  * @keys_equal: a function to return %TRUE if two keys are equal
  * @entry_destroy: destroy notifier for cache entries
  * @max_size: the maximum size for this cache
+ * Returns: the newly created #cairo_cache_t
  *
  * Creates a new cache using the keys_equal() function to determine
  * the equality of entries.
  *
  * Data is provided to the cache in the form of user-derived version
- * of cairo_cache_entry_t. A cache entry must be able to hold hash
+ * of #cairo_cache_entry_t. A cache entry must be able to hold hash
  * code, a size, and the key/value pair being stored in the
  * cache. Sometimes only the key will be necessary, (as in
  * _cairo_cache_lookup()), and in these cases the value portion of the
@@ -119,8 +120,6 @@ _cairo_cache_fini (cairo_cache_t *cache)
  * _cairo_cache_freeze() and _cairo_cache_thaw() calls can be
  * used to establish a window during which no automatic removal of
  * entries will occur.
- *
- * Return value:
  **/
 cairo_cache_t *
 _cairo_cache_create (cairo_cache_keys_equal_func_t keys_equal,
@@ -172,7 +171,7 @@ _cairo_cache_destroy (cairo_cache_t *cache)
  * add new entries to the cache regardless of how large the cache
  * grows. See _cairo_cache_thaw().
  *
- * NOTE: Multiple calls to _cairo_cache_freeze() will stack, in that
+ * Note: Multiple calls to _cairo_cache_freeze() will stack, in that
  * the cache will remain "frozen" until a corresponding number of
  * calls are made to _cairo_cache_thaw().
  **/
@@ -239,22 +238,21 @@ _cairo_cache_lookup (cairo_cache_t	  *cache,
  *
  * Remove a random entry from the cache.
  *
- * Return value: CAIRO_STATUS_SUCCESS if an entry was successfully
- * removed. CAIRO_INT_STATUS_CACHE_EMPTY if there are no entries that
- * can be removed.
+ * Return value: %TRUE if an entry was successfully removed.
+ * %FALSE if there are no entries that can be removed.
  **/
-static cairo_int_status_t
+static cairo_bool_t
 _cairo_cache_remove_random (cairo_cache_t *cache)
 {
     cairo_cache_entry_t *entry;
 
     entry = _cairo_hash_table_random_entry (cache->hash_table, NULL);
     if (entry == NULL)
-	return CAIRO_INT_STATUS_CACHE_EMPTY;
+	return FALSE;
 
     _cairo_cache_remove (cache, entry);
 
-    return CAIRO_STATUS_SUCCESS;
+    return TRUE;
 }
 
 /**
@@ -269,20 +267,14 @@ _cairo_cache_remove_random (cairo_cache_t *cache)
  **/
 static void
 _cairo_cache_shrink_to_accommodate (cairo_cache_t *cache,
-				   unsigned long  additional)
+				    unsigned long  additional)
 {
-    cairo_int_status_t status;
-
     if (cache->freeze_count)
 	return;
 
     while (cache->size + additional > cache->max_size) {
-	status = _cairo_cache_remove_random (cache);
-	if (status) {
-	    if (status == CAIRO_INT_STATUS_CACHE_EMPTY)
-		return;
-	    ASSERT_NOT_REACHED;
-	}
+	if (! _cairo_cache_remove_random (cache))
+	    return;
     }
 }
 
@@ -295,8 +287,8 @@ _cairo_cache_shrink_to_accommodate (cairo_cache_t *cache,
  * a matching key, then the old entry will be removed first, (and the
  * entry_destroy() callback will be called on it).
  *
- * Return value: CAIRO_STATUS_SUCCESS if successful or
- * CAIRO_STATUS_NO_MEMORY if insufficient memory is available.
+ * Return value: %CAIRO_STATUS_SUCCESS if successful or
+ * %CAIRO_STATUS_NO_MEMORY if insufficient memory is available.
  **/
 cairo_status_t
 _cairo_cache_insert (cairo_cache_t	 *cache,
@@ -323,7 +315,7 @@ _cairo_cache_insert (cairo_cache_t	 *cache,
  *
  * Remove an existing entry from the cache.
  *
- * (NOTE: If any caller wanted access to a non-static version of this
+ * (Note: If any caller wanted access to a non-static version of this
  * function, an improved version would require only a key rather than
  * an entry. Fixing that would require fixing _cairo_hash_table_remove
  * to return (a copy of?) the entry being removed.)

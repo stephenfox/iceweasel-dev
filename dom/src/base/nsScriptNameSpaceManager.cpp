@@ -68,7 +68,7 @@ public:
 };
 
 
-PR_STATIC_CALLBACK(PLDHashNumber)
+static PLDHashNumber
 GlobalNameHashHashKey(PLDHashTable *table, const void *key)
 {
   const nsAString *str = static_cast<const nsAString *>(key);
@@ -76,7 +76,7 @@ GlobalNameHashHashKey(PLDHashTable *table, const void *key)
   return HashString(*str);
 }
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 GlobalNameHashMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *entry,
                          const void *key)
 {
@@ -87,7 +87,7 @@ GlobalNameHashMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *entry,
   return str->Equals(e->mKey);
 }
 
-PR_STATIC_CALLBACK(void)
+static void
 GlobalNameHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
   GlobalNameMapEntry *e = static_cast<GlobalNameMapEntry *>(entry);
@@ -116,7 +116,7 @@ GlobalNameHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   memset(&e->mGlobalName, 0, sizeof(nsGlobalNameStruct));
 }
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
                         const void *key)
 {
@@ -135,6 +135,7 @@ GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
 nsScriptNameSpaceManager::nsScriptNameSpaceManager()
   : mIsInitialized(PR_FALSE)
 {
+  MOZ_COUNT_CTOR(nsScriptNameSpaceManager);
 }
 
 nsScriptNameSpaceManager::~nsScriptNameSpaceManager()
@@ -143,6 +144,7 @@ nsScriptNameSpaceManager::~nsScriptNameSpaceManager()
     // Destroy the hash
     PL_DHashTableFinish(&mGlobalNames);
   }
+  MOZ_COUNT_DTOR(nsScriptNameSpaceManager);
 }
 
 nsGlobalNameStruct *
@@ -311,7 +313,7 @@ nsScriptNameSpaceManager::FillHashWithDOMInterfaces()
 
   PRBool found_old;
   nsCOMPtr<nsIInterfaceInfo> if_info;
-  nsXPIDLCString if_name;
+  const char *if_name = nsnull;
   const nsIID *iid;
 
   for ( ; domInterfaces->IsDone() == NS_ENUMERATOR_FALSE; domInterfaces->Next()) {
@@ -319,9 +321,9 @@ nsScriptNameSpaceManager::FillHashWithDOMInterfaces()
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIInterfaceInfo> if_info(do_QueryInterface(entry));
-    if_info->GetName(getter_Copies(if_name));
+    if_info->GetNameShared(&if_name);
     if_info->GetIIDShared(&iid);
-    rv = RegisterInterface(if_name.get() + sizeof(NS_DOM_INTERFACE_PREFIX) - 1,
+    rv = RegisterInterface(if_name + sizeof(NS_DOM_INTERFACE_PREFIX) - 1,
                            iid, &found_old);
 
 #ifdef DEBUG
@@ -449,6 +451,8 @@ nsScriptNameSpaceManager::RegisterInterface(const char* aIfName,
   return NS_OK;
 }
 
+#define GLOBALNAME_HASHTABLE_INITIAL_SIZE	1024
+
 nsresult
 nsScriptNameSpaceManager::Init()
 {
@@ -465,7 +469,8 @@ nsScriptNameSpaceManager::Init()
   };
 
   mIsInitialized = PL_DHashTableInit(&mGlobalNames, &hash_table_ops, nsnull,
-                                     sizeof(GlobalNameMapEntry), 128);
+                                     sizeof(GlobalNameMapEntry), 
+                                     GLOBALNAME_HASHTABLE_INITIAL_SIZE);
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_OK;
@@ -505,7 +510,7 @@ struct NameSetClosure {
   nsresult rv;
 };
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 NameSetInitCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
                     PRUint32 number, void *arg)
 {

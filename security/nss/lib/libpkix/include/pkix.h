@@ -46,7 +46,6 @@
 
 #include "pkixt.h"
 #include "pkix_util.h"
-#include "pkix_params.h"
 #include "pkix_results.h"
 #include "pkix_certstore.h"
 #include "pkix_certsel.h"
@@ -55,6 +54,7 @@
 #include "pkix_revchecker.h"
 #include "pkix_pl_system.h"
 #include "pkix_pl_pki.h"
+#include "pkix_params.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,9 +116,6 @@ extern "C" {
  *  "platformInitNeeded"
  *      Boolean indicating whether the platform layer initialization code
  *      has previously been run, or should be called from this function.
- *  "useArenas"
- *      Boolean indicating whether allocation is to be done using arenas or
- *      individual allocation (malloc).
  *  "desiredMajorVersion"
  *      The major version of the libpkix API the application wishes to use.
  *  "minDesiredMinorVersion"
@@ -142,7 +139,6 @@ extern "C" {
 PKIX_Error *
 PKIX_Initialize(
         PKIX_Boolean platformInitNeeded,
-        PKIX_Boolean useArenas,
         PKIX_UInt32 desiredMajorVersion,
         PKIX_UInt32 minDesiredMinorVersion,
         PKIX_UInt32 maxDesiredMinorVersion,

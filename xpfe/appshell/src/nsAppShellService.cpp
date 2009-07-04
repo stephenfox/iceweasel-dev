@@ -312,8 +312,14 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
 
 #ifdef XP_MACOSX
   // Mac OS X sheet support
+  // Adding CHROME_OPENAS_CHROME to sheetMask makes modal windows opened from
+  // nsGlobalWindow::ShowModalDialog() be dialogs (not sheets), while modal
+  // windows opened from nsPromptService::DoDialog() still are sheets.  This
+  // fixes bmo bug 395465 (see nsCocoaWindow::StandardCreate() and
+  // nsCocoaWindow::SetModal()).
   PRUint32 sheetMask = nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
-    nsIWebBrowserChrome::CHROME_MODAL;
+                       nsIWebBrowserChrome::CHROME_MODAL |
+                       nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
   if (aParent && ((aChromeMask & sheetMask) == sheetMask))
     widgetInitData.mWindowType = eWindowType_sheet;
 #endif
@@ -542,12 +548,6 @@ nsAppShellService::UnregisterTopLevelWindow(nsIXULWindow* aWindow)
   return NS_OK;
 }
 
-/* Old function, needs to be removed... it was only used on Mac OS9 */
-NS_IMETHODIMP
-nsAppShellService::TopLevelWindowIsModal(nsIXULWindow *aWindow, PRBool aModal)
-{
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,

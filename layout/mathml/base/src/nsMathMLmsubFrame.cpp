@@ -42,7 +42,6 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsPresContext.h"
-#include "nsUnitConversion.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsIRenderingContext.h"
@@ -75,14 +74,14 @@ nsMathMLmsubFrame::TransmitAutomaticData()
   // The <msub> element increments scriptlevel by 1, and sets displaystyle to
   // "false", within subscript, but leaves both attributes unchanged within base.
   // 2. The TeXbook (Ch 17. p.141) says the subscript is compressed
-  UpdatePresentationDataFromChildAt(1, -1, 1,
+  UpdatePresentationDataFromChildAt(1, -1,
     ~NS_MATHML_DISPLAYSTYLE | NS_MATHML_COMPRESSED,
      NS_MATHML_DISPLAYSTYLE | NS_MATHML_COMPRESSED);
 
   return NS_OK;
 }
 
-NS_IMETHODIMP
+/* virtual */ nsresult
 nsMathMLmsubFrame::Place (nsIRenderingContext& aRenderingContext,
                           PRBool               aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
@@ -137,9 +136,7 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
     subScriptFrame = baseFrame->GetNextSibling();
   if (!baseFrame || !subScriptFrame || subScriptFrame->GetNextSibling()) {
     // report an error, encourage people to get their markups in order
-    NS_WARNING("invalid markup");
-    return static_cast<nsMathMLContainerFrame*>(aFrame)->ReflowError(aRenderingContext, 
-                                               aDesiredSize);
+    return aFrame->ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
   GetReflowAndBoundingMetricsFor(subScriptFrame, subScriptSize, bmSubScript);

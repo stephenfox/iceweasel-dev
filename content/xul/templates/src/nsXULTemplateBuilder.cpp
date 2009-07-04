@@ -70,6 +70,7 @@
 #include "nsBindingManager.h"
 #include "nsIDOMNodeList.h"
 #include "nsINameSpaceManager.h"
+#include "nsIObserverService.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFInferDataSource.h"
 #include "nsIRDFContainerUtils.h"
@@ -98,6 +99,7 @@
 #include "pldhash.h"
 #include "plhash.h"
 #include "nsIDOMClassInfo.h"
+#include "nsPIDOMWindow.h"
 
 #include "nsNetUtil.h"
 #include "nsXULTemplateBuilder.h"
@@ -120,6 +122,7 @@ nsIRDFService*            nsXULTemplateBuilder::gRDFService;
 nsIRDFContainerUtils*     nsXULTemplateBuilder::gRDFContainerUtils;
 nsIScriptSecurityManager* nsXULTemplateBuilder::gScriptSecurityManager;
 nsIPrincipal*             nsXULTemplateBuilder::gSystemPrincipal;
+nsIObserverService*       nsXULTemplateBuilder::gObserverService;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gXULTemplateLog;
@@ -135,7 +138,8 @@ PRLogModuleInfo* gXULTemplateLog;
 nsXULTemplateBuilder::nsXULTemplateBuilder(void)
     : mQueriesCompiled(PR_FALSE),
       mFlags(0),
-      mTop(nsnull)
+      mTop(nsnull),
+      mObservedDocument(nsnull)
 {
 }
 
@@ -161,6 +165,7 @@ nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
         NS_IF_RELEASE(gRDFContainerUtils);
         NS_IF_RELEASE(gSystemPrincipal);
         NS_IF_RELEASE(gScriptSecurityManager);
+        NS_IF_RELEASE(gObserverService);
     }
 
     Uninit(PR_TRUE);
@@ -191,6 +196,10 @@ nsXULTemplateBuilder::InitGlobals()
         rv = gScriptSecurityManager->GetSystemPrincipal(&gSystemPrincipal);
         if (NS_FAILED(rv))
             return rv;
+
+        rv = CallGetService(NS_OBSERVERSERVICE_CONTRACTID, &gObserverService);
+        if (NS_FAILED(rv))
+            return rv;
     }
 
 #ifdef PR_LOGGING
@@ -209,6 +218,12 @@ nsXULTemplateBuilder::InitGlobals()
 void
 nsXULTemplateBuilder::Uninit(PRBool aIsFinal)
 {
+    if (mObservedDocument && aIsFinal) {
+        gObserverService->RemoveObserver(this, DOM_WINDOW_DESTROYED_TOPIC);
+        mObservedDocument->RemoveObserver(this);
+        mObservedDocument = nsnull;
+    }
+
     if (mQueryProcessor)
         mQueryProcessor->Done();
 
@@ -286,6 +301,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(XULTemplateBuilder)
 NS_INTERFACE_MAP_END
@@ -298,7 +314,30 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsXULTemplateBuilder::GetRoot(nsIDOMElement** aResult)
 {
-    return CallQueryInterface(mRoot, aResult);
+    if (mRoot) {
+        return CallQueryInterface(mRoot, aResult);
+    }
+    *aResult = nsnull;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULTemplateBuilder::GetDatasource(nsISupports** aResult)
+{
+    if (mCompDB)
+        NS_ADDREF(*aResult = mCompDB);
+    else
+        NS_IF_ADDREF(*aResult = mDataSource);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULTemplateBuilder::SetDatasource(nsISupports* aResult)
+{
+    mDataSource = aResult;
+    mCompDB = do_QueryInterface(mDataSource);
+
+    return Rebuild();
 }
 
 NS_IMETHODIMP
@@ -395,7 +434,7 @@ nsXULTemplateBuilder::Refresh()
 NS_IMETHODIMP
 nsXULTemplateBuilder::Init(nsIContent* aElement)
 {
-    NS_PRECONDITION(aElement, "null ptr");
+    NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
     mRoot = aElement;
 
     nsCOMPtr<nsIDocument> doc = mRoot->GetDocument();
@@ -409,13 +448,17 @@ nsXULTemplateBuilder::Init(nsIContent* aElement)
     if (NS_SUCCEEDED(rv)) {
         // Add ourselves as a document observer
         doc->AddObserver(this);
+
+        mObservedDocument = doc;
+        gObserverService->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC,
+                                      PR_FALSE);
     }
 
     return rv;
 }
 
 NS_IMETHODIMP
-nsXULTemplateBuilder::CreateContents(nsIContent* aElement)
+nsXULTemplateBuilder::CreateContents(nsIContent* aElement, PRBool aForceCreation)
 {
     return NS_OK;
 }
@@ -1029,6 +1072,24 @@ nsXULTemplateBuilder::RemoveListener(nsIXULBuilderListener* aListener)
     return NS_OK;
 }
 
+NS_IMETHODIMP
+nsXULTemplateBuilder::Observe(nsISupports* aSubject,
+                              const char* aTopic,
+                              const PRUnichar* aData)
+{
+    // Uuuuber hack to clean up circular references that the cycle collector
+    // doesn't know about. See bug 394514.
+    if (!strcmp(aTopic, DOM_WINDOW_DESTROYED_TOPIC)) {
+        nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aSubject);
+        if (window) {
+            nsCOMPtr<nsIDocument> doc =
+                do_QueryInterface(window->GetExtantDocument());
+            if (doc && doc == mObservedDocument)
+                NodeWillBeDestroyed(doc);
+        }
+    }
+    return NS_OK;
+}
 //----------------------------------------------------------------------
 //
 // nsIDocumentOberver interface
@@ -1050,8 +1111,10 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
             Rebuild();
 
         // Check for a change to the 'datasources' attribute. If so, setup
-        // mDB by parsing the vew value and rebuild.
+        // mDB by parsing the new value and rebuild.
         else if (aAttribute == nsGkAtoms::datasources) {
+            Uninit(PR_FALSE);  // Reset results
+            
             PRBool shouldDelay;
             LoadDataSources(aDocument, &shouldDelay);
             if (!shouldDelay)
@@ -1081,13 +1144,11 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
         if (xuldoc)
             xuldoc->SetTemplateBuilderFor(mRoot, nsnull);
 
-        // clear the lazy state when removing content so that it will be
-        // regenerated again if the content is reinserted
+        // clear the template state when removing content so that template
+        // content will be regenerated again if the content is reinserted
         nsXULElement *xulcontent = nsXULElement::FromContent(mRoot);
-        if (xulcontent) {
-            xulcontent->ClearLazyState(nsXULElement::eTemplateContentsBuilt);
-            xulcontent->ClearLazyState(nsXULElement::eContainerContentsBuilt);
-        }
+        if (xulcontent)
+            xulcontent->ClearTemplateGenerated();
 
         mDB = nsnull;
         mCompDB = nsnull;
@@ -1262,27 +1323,10 @@ nsXULTemplateBuilder::LoadDataSourceUrls(nsIDocument* aDocument,
         if (NS_FAILED(rv) || !uri)
             continue; // Necko will barf if our URI is weird
 
-        nsCOMPtr<nsIPrincipal> principal;
-        if (!isTrusted) {
-            // Our document is untrusted, so check to see if we can
-            // load the datasource that they've asked for.
-
-            rv = gScriptSecurityManager->GetCodebasePrincipal(uri, getter_AddRefs(principal));
-            NS_ASSERTION(NS_SUCCEEDED(rv), "unable to get codebase principal");
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            PRBool same;
-            rv = docPrincipal->Equals(principal, &same);
-            NS_ASSERTION(NS_SUCCEEDED(rv), "unable to test same origin");
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            if (! same)
-                continue;
-
-            // If we get here, we've run the gauntlet, and the
-            // datasource's URI has the same origin as our
-            // document. Let it load!
-        }
+        // don't add the uri to the list if the document is not allowed to
+        // load it
+        if (!isTrusted && NS_FAILED(docPrincipal->CheckMayLoad(uri, PR_TRUE)))
+          continue;
 
         uriList->AppendElement(uri, PR_FALSE);
     }
@@ -1295,7 +1339,6 @@ nsXULTemplateBuilder::LoadDataSourceUrls(nsIDocument* aDocument,
                                         aShouldDelayBuilding,
                                         getter_AddRefs(mDataSource));
     NS_ENSURE_SUCCESS(rv, rv);
-
 
     if (aIsRDFQuery && mDataSource) {  
         // check if we were given an inference engine type
@@ -1519,7 +1562,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
 }
 
 
-struct SubstituteTextClosure {
+struct NS_STACK_CLASS SubstituteTextClosure {
     SubstituteTextClosure(nsIXULTemplateResult* aResult, nsAString& aString)
         : result(aResult), str(aString) {}
 

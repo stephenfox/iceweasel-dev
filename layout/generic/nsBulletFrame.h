@@ -62,7 +62,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
   virtual nsIAtom* GetType() const;
-  NS_IMETHOD DidSetStyleContext();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -101,6 +101,9 @@ public:
                          
   void PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
                    const nsRect& aDirtyRect);
+  
+  virtual PRBool IsEmpty();
+  virtual PRBool IsSelfEmpty();
 
 protected:
   void GetDesiredSize(nsPresContext* aPresContext,
@@ -116,6 +119,7 @@ protected:
 
   nsSize mIntrinsicSize;
   nsSize mComputedSize;
+  PRBool mTextIsRTL;
 };
 
 #endif /* nsBulletFrame_h___ */

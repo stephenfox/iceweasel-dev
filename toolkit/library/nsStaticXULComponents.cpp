@@ -73,29 +73,7 @@
 #define MATHML_MODULES
 #endif
 
-#ifdef MOZ_IPCD
-#define IPC_MODULE MODULE(ipcdclient)
-#else
-#define IPC_MODULE
-#endif
-
-#ifdef MOZ_CAIRO_GFX
-#  define GFX_MODULES MODULE(nsGfxModule)
-#else
-#  if defined(MOZ_WIDGET_PHOTON)
-#    define GFX_MODULES MODULE(nsGfxPhModule)
-#  elif defined(XP_WIN)
-#    define GFX_MODULES MODULE(nsGfxModule)
-#  elif defined(XP_MACOSX)
-#    define GFX_MODULES MODULE(nsGfxMacModule)
-#  elif defined(XP_BEOS)
-#    define GFX_MODULES MODULE(nsGfxBeOSModule)
-#  elif defined(XP_OS2)
-#    define GFX_MODULES MODULE(nsGfxOS2Module)
-#  else
-#    error Unknown GFX module.
-#  endif
-#endif
+#define GFX_MODULES MODULE(nsGfxModule)
 
 #ifdef XP_WIN
 #  define WIDGET_MODULES MODULE(nsWidgetModule)
@@ -109,6 +87,8 @@
 #  define WIDGET_MODULES MODULE(nsWidgetGtk2Module)
 #elif defined(MOZ_WIDGET_PHOTON)
 #  define WIDGET_MODULES MODULE(nsWidgetPhModule)
+#elif defined(MOZ_WIDGET_QT)
+#  define WIDGET_MODULES MODULE(nsWidgetQtModule)
 #else
 #  error Unknown widget module.
 #endif
@@ -149,12 +129,13 @@
 #define XREMOTE_MODULES
 #endif
 
-#ifdef MOZ_ENABLE_GTK2
 #ifdef MOZ_PREF_EXTENSIONS
-#define SYSTEMPREF_MODULES MODULE(nsSystemPrefModule) \
+#ifdef MOZ_ENABLE_GTK2
+#define SYSTEMPREF_MODULES \
+    MODULE(nsSystemPrefModule) \
     MODULE(nsAutoConfigModule)
 #else
-#define SYSTEMPREF_MODULES
+#define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
 #endif
 #else
 #define SYSTEMPREF_MODULES
@@ -234,8 +215,7 @@
 #else
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
 #define PLACES_MODULES \
-    MODULE(nsMorkModule)                     \
-    MODULE(nsToolkitHistory)
+    MODULE(nsMorkModule)
 #else
 #define PLACES_MODULES
 #endif
@@ -262,6 +242,24 @@
 #define XMLEXTRAS_MODULE
 #endif
 
+#ifdef MOZ_XUL
+#ifdef MOZ_ENABLE_GTK2
+#define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
+#endif
+#if defined(MOZ_WIDGET_QT)
+#define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
+#endif
+#endif
+#ifndef UNIXPROXY_MODULE
+#define UNIXPROXY_MODULE
+#endif
+
+#if defined(XP_MACOSX)
+#define OSXPROXY_MODULE MODULE(nsOSXProxyModule)
+#else
+#define OSXPROXY_MODULE
+#endif
+
 #define XUL_MODULES                          \
     MODULE(xpconnect)                        \
     MATHML_MODULES                           \
@@ -272,7 +270,6 @@
     MODULE(necko)                            \
     PERMISSIONS_MODULES                      \
     AUTH_MODULE                              \
-    IPC_MODULE                               \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
     MODULE(nsPrefModule)                     \
@@ -313,6 +310,8 @@
     SPELLCHECK_MODULE                        \
     XMLEXTRAS_MODULE                         \
     LAYOUT_DEBUG_MODULE                      \
+    UNIXPROXY_MODULE                         \
+    OSXPROXY_MODULE                          \
     /* end of list */
 
 #define MODULE(_name) \

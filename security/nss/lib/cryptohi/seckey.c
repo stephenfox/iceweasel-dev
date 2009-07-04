@@ -50,12 +50,14 @@
 #include "ec.h"
 #include "keyi.h"
 
+SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
+
 const SEC_ASN1Template CERT_SubjectPublicKeyInfoTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	  0, NULL, sizeof(CERTSubjectPublicKeyInfo) },
-    { SEC_ASN1_INLINE,
+    { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
 	  offsetof(CERTSubjectPublicKeyInfo,algorithm),
-	  SECOID_AlgorithmIDTemplate },
+	  SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
     { SEC_ASN1_BIT_STRING,
 	  offsetof(CERTSubjectPublicKeyInfo,subjectPublicKey), },
     { 0, }
@@ -451,7 +453,7 @@ done:
 static SECStatus
 seckey_UpdateCertPQGChain(CERTCertificate * subjectCert, int count)
 {
-    SECStatus rv, rvCompare;
+    SECStatus rv;
     SECOidData *oid=NULL;
     int tag;
     CERTSubjectPublicKeyInfo * subjectSpki=NULL;
@@ -500,9 +502,7 @@ seckey_UpdateCertPQGChain(CERTCertificate * subjectCert, int count)
     }
 
     /* check if the cert is self-signed */
-    rvCompare = (SECStatus)SECITEM_CompareItem(&subjectCert->derSubject,
-				    &subjectCert->derIssuer);
-    if (rvCompare == SECEqual) {
+    if (subjectCert->isRoot) {
       /* fail since cert is self-signed and has no pqg params. */
 	return SECFailure;     
     }

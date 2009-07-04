@@ -54,18 +54,23 @@ public:
                      const nsHTMLReflowState& aMaxSize,
                      nsReflowStatus&      aStatus);
 
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
-
   virtual PRBool IsContainingBlock() const;
 
   virtual void SetSharedPageData(nsSharedPageData* aPD) { mPD = aPD; }
 
   /**
+   *  Computes page size based on shared page data; SetSharedPageData must be
+   *  given valid data first.
+   */
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             PRBool aShrinkWrap);
+
+  /**
    * Get the "type" of the frame
    *
-   * @see nsGkAtoms::pageFrame
+   * @see nsGkAtoms::pageContentFrame
    */
   virtual nsIAtom* GetType() const;
   

@@ -89,6 +89,7 @@ private:                                                                    \
         NS_IMETHOD_(nsrefcnt) AddRef(void);                                 \
         NS_IMETHOD_(nsrefcnt) Release(void);                                \
                                                                             \
+        NS_DECL_OWNINGTHREAD                                                \
     };                                                                      \
                                                                             \
     friend class Internal;                                                  \
@@ -138,6 +139,7 @@ _class::Internal::AddRef(void)                                              \
 {                                                                           \
     _class* agg = (_class*)((char*)(this) - offsetof(_class, fAggregated)); \
     NS_PRECONDITION(PRInt32(agg->mRefCnt) >= 0, "illegal refcnt");          \
+    NS_ASSERT_OWNINGTHREAD(_class);                                         \
     ++agg->mRefCnt;                                                         \
     NS_LOG_ADDREF(this, agg->mRefCnt, #_class, sizeof(*this));              \
     return agg->mRefCnt;                                                    \
@@ -148,6 +150,7 @@ _class::Internal::Release(void)                                             \
 {                                                                           \
     _class* agg = (_class*)((char*)(this) - offsetof(_class, fAggregated)); \
     NS_PRECONDITION(0 != agg->mRefCnt, "dup release");                      \
+    NS_ASSERT_OWNINGTHREAD(_class);                                         \
     --agg->mRefCnt;                                                         \
     NS_LOG_RELEASE(this, agg->mRefCnt, #_class);                            \
     if (agg->mRefCnt == 0) {                                                \
@@ -306,7 +309,7 @@ _class::AggregatedQueryInterface(REFNSIID aIID, void** aInstancePtr)        \
                  "not the nsISupports pointer we expect");                  \
     _class *tmp = static_cast<_class*>(Downcast(s));                        \
     if (!tmp->IsPartOfAggregated())                                         \
-        NS_IMPL_CYCLE_COLLECTION_DESCRIBE(_class)
+        NS_IMPL_CYCLE_COLLECTION_DESCRIBE(_class, tmp->mRefCnt.get())
 
 #define NS_GENERIC_AGGREGATED_CONSTRUCTOR(_InstanceClass)                   \
 static NS_METHOD                                                            \

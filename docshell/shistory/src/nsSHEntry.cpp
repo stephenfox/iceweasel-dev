@@ -54,6 +54,8 @@
 #include "nsIWebNavigation.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
+#include "nsDocShellEditorData.h"
+#include "nsIDocShell.h"
 
 // Hardcode this to time out unused content viewers after 30 minutes
 #define CONTENT_VIEWER_TIMEOUT_SECONDS 30*60
@@ -137,7 +139,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
 {
 }
 
-PR_STATIC_CALLBACK(PRBool)
+static PRBool
 ClearParentPtr(nsISHEntry* aEntry, void* /* aData */)
 {
   if (aEntry) {
@@ -160,6 +162,8 @@ nsSHEntry::~nsSHEntry()
   if (viewer) {
     viewer->Destroy();
   }
+
+  mEditorData = nsnull;
 
 #ifdef DEBUG
   // This is not happening as far as I can tell from breakpad as of early November 2007
@@ -346,8 +350,10 @@ NS_IMETHODIMP nsSHEntry::GetLayoutHistoryState(nsILayoutHistoryState** aResult)
 
 NS_IMETHODIMP nsSHEntry::SetLayoutHistoryState(nsILayoutHistoryState* aState)
 {
-  NS_ENSURE_STATE(mSaveLayoutState || !aState);
   mLayoutHistoryState = aState;
+  if (mLayoutHistoryState)
+    mLayoutHistoryState->SetScrollPositionOnly(!mSaveLayoutState);
+
   return NS_OK;
 }
 
@@ -421,11 +427,8 @@ NS_IMETHODIMP nsSHEntry::GetSaveLayoutStateFlag(PRBool * aFlag)
 NS_IMETHODIMP nsSHEntry::SetSaveLayoutStateFlag(PRBool  aFlag)
 {
   mSaveLayoutState = aFlag;
-
-  // if we are not allowed to hold layout history state, then make sure
-  // that we are not holding it!
-  if (!mSaveLayoutState)
-    mLayoutHistoryState = nsnull;
+  if (mLayoutHistoryState)
+    mLayoutHistoryState->SetScrollPositionOnly(!aFlag);
 
   return NS_OK;
 }
@@ -833,3 +836,25 @@ nsSHEntry::DocumentMutated()
   // Warning! The call to DropPresentationState could have dropped the last
   // reference to this nsSHEntry, so no accessing members beyond here.
 }
+
+nsDocShellEditorData*
+nsSHEntry::ForgetEditorData()
+{
+  return mEditorData.forget();
+}
+
+void
+nsSHEntry::SetEditorData(nsDocShellEditorData* aData)
+{
+  NS_ASSERTION(!(aData && mEditorData),
+               "We're going to overwrite an owning ref!");
+  if (mEditorData != aData)
+    mEditorData = aData;
+}
+
+PRBool
+nsSHEntry::HasDetachedEditor()
+{
+  return mEditorData != nsnull;
+}
+

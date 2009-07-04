@@ -3,6 +3,7 @@ pref("general.useragent.security",       "U");
 pref("security.enable_ssl2",             false);
 pref("security.enable_ssl3",             true);
 pref("security.enable_tls",		 true);
+pref("security.enable_tls_session_tickets", true);
 
 pref("security.ssl2.rc4_128", false);
 pref("security.ssl2.rc2_128", false);
@@ -59,7 +60,8 @@ pref("security.ssl3.dhe_dss_des_sha", false);
 pref("security.ssl3.rsa_null_sha", false);
 pref("security.ssl3.rsa_null_md5", false);
 
-pref("security.default_personal_cert",   "Select Automatically");
+pref("security.default_personal_cert",   "Ask Every Time");
+pref("security.remember_cert_checkbox_default_setting", true);
 pref("security.ask_for_password",        0);
 pref("security.password_lifetime",       30);
 pref("security.warn_entering_secure",    false);

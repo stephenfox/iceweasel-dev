@@ -83,8 +83,7 @@
 #endif
 
 class NS_COM nsLocalFile : public nsILocalFile,
-                           public nsIHashable,
-                           public nsIClassInfo
+                           public nsIHashable
 {
 public:
     NS_DEFINE_STATIC_CID_ACCESSOR(NS_LOCAL_FILE_CID)
@@ -105,9 +104,6 @@ public:
     // nsIHashable
     NS_DECL_NSIHASHABLE
 
-    // nsIClassInfo
-    NS_DECL_NSICLASSINFO
-
 public:
     static void GlobalInit();
     static void GlobalShutdown();
@@ -117,9 +113,14 @@ private:
     ~nsLocalFile() {}
 
 protected:
+// This stat cache holds the *last stat* - it does not invalidate.
+// Call "FillStatCache" whenever you want to stat our file.
+#ifdef HAVE_STAT64
+    struct stat64 mCachedStat;
+#else
     struct stat  mCachedStat;
+#endif
     nsCString    mPath;
-    PRPackedBool mHaveCachedStat;
 
     void LocateNativeLeafName(nsACString::const_iterator &,
                               nsACString::const_iterator &);
@@ -130,10 +131,7 @@ protected:
                                      const nsACString &newName,
                                      nsACString &_retval);
 
-    void InvalidateCache() {
-        mHaveCachedStat = PR_FALSE;
-    }
-    nsresult FillStatCache();
+    PRBool FillStatCache();
 
     nsresult CreateAndKeepOpen(PRUint32 type, PRIntn flags,
                                PRUint32 permissions, PRFileDesc **_retval);

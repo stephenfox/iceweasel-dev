@@ -61,7 +61,6 @@
 #include "gfxOS2Surface.h"
 #include "gfxContext.h"
 
-class nsIMenuBar;
 class imgIContainer;
 
 //#define DEBUG_FOCUS
@@ -75,12 +74,9 @@ class imgIContainer;
 // Base widget class.
 // This is abstract.  Controls (labels, radio buttons, listboxen) derive
 // from here.  A thing called a child window derives from here, and the
-// frame window class derives from the child.  The content-displaying
-// classes are off on their own branch to avoid creating a palette for
-// every window we create.  This may turn out to be what's required, in
-// which case the paint & palette code from nsChildWindow needs to be
-// munged in here.  nsFrameWindow is separate because work needs to be done
-// there to decide whether methods apply to frame or client.
+// frame window class derives from the child.
+// nsFrameWindow is separate because work needs to be done there to decide
+// whether methods apply to frame or client.
 
 /* Possible states of the window, used to emulate windows better... */
    // default state; Create() not called 
@@ -107,7 +103,7 @@ class nsWindow : public nsBaseWidget,
    nsWindow();
    virtual ~nsWindow();
 
-  static void ReleaseGlobals();
+   static void ReleaseGlobals();
 
    // nsIWidget
 
@@ -132,7 +128,7 @@ class nsWindow : public nsBaseWidget,
    // Hierarchy: only interested in widget children (it seems)
    virtual nsIWidget *GetParent();
 
-    NS_IMETHOD              SetSizeMode(PRInt32 aMode);
+   NS_IMETHOD SetSizeMode(PRInt32 aMode);
 
    // Physical properties
    NS_IMETHOD Show( PRBool bState);
@@ -154,6 +150,7 @@ class nsWindow : public nsBaseWidget,
    NS_IMETHOD IsVisible( PRBool &aState);
    NS_IMETHOD PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                           nsIWidget *aWidget, PRBool aActivate);
+   NS_IMETHOD SetZIndex(PRInt32 aZIndex);
 
    NS_IMETHOD CaptureMouse(PRBool aCapture);
 
@@ -171,10 +168,9 @@ class nsWindow : public nsBaseWidget,
    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
 
    NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
+   virtual PRBool          HasPendingInputEvent();
 
    // Widget appearance
-   virtual nsIFontMetrics *GetFont();
-   NS_IMETHOD              SetFont( const nsFont &aFont);
    NS_IMETHOD              SetColorMap( nsColorMap *aColorMap);
    NS_IMETHOD              SetCursor( nsCursor aCursor);
    NS_IMETHOD              SetCursor(imgIContainer* aCursor,
@@ -182,7 +178,7 @@ class nsWindow : public nsBaseWidget,
    NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
    NS_IMETHOD              SetTitle( const nsAString& aTitle); 
    NS_IMETHOD              SetIcon(const nsAString& aIconSpec); 
-   NS_IMETHOD              SetMenuBar(nsIMenuBar * aMenuBar) { return NS_ERROR_FAILURE; } 
+   NS_IMETHOD              SetMenuBar(void * aMenuBar) { return NS_ERROR_FAILURE; } 
    NS_IMETHOD              ShowMenuBar(PRBool aShow)         { return NS_ERROR_FAILURE; } 
    NS_IMETHOD              Invalidate( PRBool aIsSynchronous);
    NS_IMETHOD              Invalidate( const nsRect & aRect, PRBool aIsSynchronous);
@@ -191,6 +187,7 @@ class nsWindow : public nsBaseWidget,
    NS_IMETHOD              Scroll( PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect);
    NS_IMETHOD              ScrollWidgets(PRInt32 aDx, PRInt32 aDy);
    NS_IMETHOD              ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy);
+   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
 
    // Get a HWND or a HPS.
    virtual void  *GetNativeData( PRUint32 aDataType);
@@ -198,7 +195,7 @@ class nsWindow : public nsBaseWidget,
    virtual HWND   GetMainWindow() const           { return mWnd; }
 
    // nsSwitchToPMThread interface
-    virtual BOOL            CallMethod(MethodInfo *info);
+   virtual BOOL CallMethod(MethodInfo *info);
 
    // PM methods which need to be public (menus, etc)
    ULONG  GetNextID()    { return mNextID++; }
@@ -207,12 +204,12 @@ class nsWindow : public nsBaseWidget,
    void   NS2PM( RECTL &rcl);
 
 protected:
-    static  BOOL            DealWithPopups ( ULONG inMsg, MRESULT* outResult ) ;
+   static  BOOL            DealWithPopups ( ULONG inMsg, MRESULT* outResult ) ;
 
-    static  PRBool          EventIsInsideWindow(nsWindow* aWindow); 
+   static  PRBool          EventIsInsideWindow(nsWindow* aWindow); 
 
-    static  nsWindow *      GetNSWindowPtr(HWND aWnd);
-    static  BOOL            SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
+   static  nsWindow *      GetNSWindowPtr(HWND aWnd);
+   static  BOOL            SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
 
    static  nsWindow*   gCurrentWindow;
    // nsWindow methods subclasses must provide for creation to work
@@ -234,7 +231,7 @@ protected:
                                   long cx, long cy, unsigned long flags);
 
    // Message handlers - may wish to override.  Default implementation for
-   // palette, control, paint & scroll is to do nothing.
+   // control, paint & scroll is to do nothing.
 
    // Return whether message has been processed.
    virtual PRBool ProcessMessage( ULONG m, MPARAM p1, MPARAM p2, MRESULT &r);
@@ -244,7 +241,6 @@ protected:
    virtual PRBool OnResize( PRInt32 aX, PRInt32 aY);
    virtual PRBool OnMove( PRInt32 aX, PRInt32 aY);
    virtual PRBool OnKey( MPARAM mp1, MPARAM mp2);
-   virtual PRBool OnRealizePalette();
    virtual PRBool DispatchFocus( PRUint32 aEventType, PRBool isMozWindowTakingFocus);
    virtual PRBool OnScroll( ULONG msgid, MPARAM mp1, MPARAM mp2);
    virtual PRBool OnVScroll( MPARAM mp1, MPARAM mp2);
@@ -270,6 +266,7 @@ protected:
    QMSG      mQmsg;
    PRBool    mIsTopWidgetWindow;
    BOOL      mIsScrollBar;
+   BOOL      mIsDestroying;
    BOOL      mInSetFocus;
    BOOL      mChromeHidden;
    nsContentType mContentType;
@@ -286,8 +283,6 @@ protected:
    PRInt32        mPreferredHeight;
    PRInt32        mPreferredWidth;
    nsToolkit     *mOS2Toolkit;
-   nsFont        *mFont;
-   nsIMenuBar    *mMenuBar;
    PRInt32        mWindowState;
    nsRefPtr<gfxOS2Surface> mThebesSurface;
 
@@ -336,6 +331,9 @@ protected:
    HBITMAP CreateTransparencyMask(PRInt32  format, PRUint8* aImageData,
                                   PRUint32 aWidth, PRUint32 aHeight);
 
+   BOOL NotifyForeignChildWindows(HWND aWnd);
+   void ScrollChildWindows(PRInt32 aX, PRInt32 aY);
+
    // Enumeration of the methods which are accessible on the PM thread
    enum {
       CREATE,
@@ -382,29 +380,5 @@ protected:
 extern PRUint32 WMChar2KeyCode( MPARAM mp1, MPARAM mp2);
 
 extern nsWindow *NS_HWNDToWindow( HWND hwnd);
-
-#define NSCANVASCLASS "WarpzillaCanvas"
-
-#if 0
-
-// Need to do this because the cross-platform widgets (toolbars) assume
-// that the name of the NS_CHILD_CID is ChildWindow and that it gets
-// defined in "nsWindow.h".
-//
-// However, if we've included this header *from nsCanvas.h*, then we
-// get a lovely circular dependency, and so special-case this.
-//
-// Yes, I suppose I'm just being perverse by having three separate classes
-// here, but I just baulk at naming a class 'ChildWindow'.
-//
-// (and don't tell me there's a JLib class called JMother.  Believe me,
-//  I know, and I regret it at least twice a week...)
-//
-#ifndef _nscanvas_h
-#include "nsCanvas.h"
-typedef nsCanvas ChildWindow;
-#endif
-
-#endif
 
 #endif

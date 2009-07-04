@@ -109,10 +109,9 @@ nsCommentNode::~nsCommentNode()
 
 
 // QueryInterface implementation for nsCommentNode
-NS_INTERFACE_MAP_BEGIN(nsCommentNode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCharacterData)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMComment)
+NS_INTERFACE_TABLE_HEAD(nsCommentNode)
+  NS_NODE_INTERFACE_TABLE3(nsCommentNode, nsIDOMNode, nsIDOMCharacterData,
+                           nsIDOMComment)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Comment)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
@@ -178,7 +177,7 @@ nsCommentNode::List(FILE* out, PRInt32 aIndent) const
   PRInt32 indx;
   for (indx = aIndent; --indx >= 0; ) fputs("  ", out);
 
-  fprintf(out, "Comment@%p refcount=%d<!--", this, mRefCnt.get());
+  fprintf(out, "Comment@%p refcount=%d<!--", (void*)this, mRefCnt.get());
 
   nsAutoString tmp;
   ToCString(tmp, 0, mText.GetLength());

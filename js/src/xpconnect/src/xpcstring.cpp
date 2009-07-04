@@ -57,7 +57,7 @@
 
 static int sDOMStringFinalizerIndex = -1;
 
-static void JS_DLL_CALLBACK
+static void
 DOMStringFinalizer(JSContext *cx, JSString *str)
 {
     nsStringBuffer::FromData(JS_GetStringChars(str))->Release();
@@ -132,10 +132,8 @@ XPCStringConvert::ReadableToJSString(JSContext *cx,
 
 // static
 XPCReadableJSStringWrapper *
-XPCStringConvert::JSStringToReadable(JSString *str)
+XPCStringConvert::JSStringToReadable(XPCCallContext& ccx, JSString *str)
 {
-    return new
-        XPCReadableJSStringWrapper(reinterpret_cast<PRUnichar *>
-                                                   (JS_GetStringChars(str)),
-                                   JS_GetStringLength(str));
+    return ccx.NewStringWrapper(reinterpret_cast<PRUnichar *>(JS_GetStringChars(str)),
+                                JS_GetStringLength(str));
 }

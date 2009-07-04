@@ -75,9 +75,7 @@
 #include "prprf.h"
 #include "prrng.h"
 #include "bzlib.h"
-#ifndef MOZILLA_1_8_BRANCH
 #include "nsIClassInfoImpl.h"
-#endif
 #include "nsIDocShellTreeItem.h"
 #include "nsDocShellCID.h"
 #include "nsMemory.h"
@@ -206,7 +204,7 @@ nsMetricsService::nsMetricsService()
   sMetricsService = this;
 }
 
-/* static */ PLDHashOperator PR_CALLBACK
+/* static */ PLDHashOperator
 nsMetricsService::DetachCollector(const nsAString &key,
                                   nsIMetricsCollector *value, void *userData)
 {
@@ -775,7 +773,7 @@ struct DisabledCollectorsClosure
   nsTArray< nsCOMPtr<nsIMetricsCollector> > disabledCollectors;
 };
 
-/* static */ PLDHashOperator PR_CALLBACK
+/* static */ PLDHashOperator
 nsMetricsService::PruneDisabledCollectors(const nsAString &key,
                                           nsCOMPtr<nsIMetricsCollector> &value,
                                           void *userData)
@@ -799,7 +797,7 @@ nsMetricsService::PruneDisabledCollectors(const nsAString &key,
   return PL_DHASH_REMOVE;
 }
 
-/* static */ PLDHashOperator PR_CALLBACK
+/* static */ PLDHashOperator
 nsMetricsService::NotifyNewLog(const nsAString &key,
                                nsIMetricsCollector *value, void *userData)
 {

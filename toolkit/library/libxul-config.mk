@@ -41,16 +41,20 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
+ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
 REQUIRES += libreg widget gfx
+CPPSRCS += \
+	nsDllMain.cpp \
+	$(NULL)
+endif
 
+ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 CPPSRCS += \
 	dlldeps.cpp \
 	nsGFXDeps.cpp \
-	nsDllMain.cpp \
 	$(NULL)
 
-RESFILE = xulrunner.res
+RCINCLUDE = xulrunner.rc
 
 ifndef MOZ_NATIVE_ZLIB
 CPPSRCS += dlldeps-zlib.cpp
@@ -147,6 +151,28 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
+ifdef MOZ_XUL
+ifdef MOZ_ENABLE_GTK2
+COMPONENT_LIBS += \
+	unixproxy \
+	$(NULL)
+endif
+endif
+
+ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+COMPONENT_LIBS += \
+	osxproxy \
+	$(NULL)
+endif
+
+ifdef MOZ_XUL
+ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
+COMPONENT_LIBS += \
+        unixproxy \
+        $(NULL)
+endif
+endif
+
 ifdef MOZ_PERF_METRICS
 EXTRA_DSO_LIBS  += mozutil_s
 endif
@@ -212,7 +238,7 @@ COMPONENT_LIBS += \
 endif
 endif
 
-ifeq (,$(filter beos os2 mac photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 mac photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 ifdef MOZ_XPFE_COMPONENTS
 COMPONENT_LIBS += fileview
@@ -223,7 +249,7 @@ endif
 
 ifdef MOZ_STORAGE
 COMPONENT_LIBS += storagecomps
-EXTRA_DSO_LIBS += sqlite3
+EXTRA_DSO_LDOPTS += $(SQLITE_LIBS)
 endif
 
 ifdef MOZ_PLACES
@@ -237,7 +263,6 @@ ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
-	tkhstory \
 	$(NULL)
 endif
 endif
@@ -263,12 +288,9 @@ endif
 endif
 
 ifdef MOZ_ENABLE_GTK2
+ifdef MOZ_X11
 STATIC_LIBS += gtkxtbin
 endif
-
-ifdef MOZ_IPCD
-DEFINES += -DMOZ_IPCD
-COMPONENT_LIBS += ipcdc
 endif
 
 ifdef MOZ_ENABLE_POSTSCRIPT
@@ -283,27 +305,8 @@ COMPONENT_LIBS += imgicon
 endif
 endif
 
-ifdef MOZ_ENABLE_CAIRO_GFX
 STATIC_LIBS += thebes
 COMPONENT_LIBS += gkgfxthebes
-
-else # Platform-specific GFX layer
-  ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gkgfxwin
-  endif
-  ifeq (beos,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gfx_beos
-  endif
-  ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
-  COMPONENT_LIBS += gfx_os2
-  endif
-  ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-  COMPONENT_LIBS += gfx_mac
-  endif
-  ifdef MOZ_ENABLE_PHOTON
-  COMPONENT_LIBS += gfx_photon
-  endif
-endif
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += gkwidget
@@ -316,6 +319,9 @@ COMPONENT_LIBS += wdgtos2
 endif
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 COMPONENT_LIBS += widget_mac
+endif
+ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
+COMPONENT_LIBS += widget_qt
 endif
 
 ifdef MOZ_ENABLE_PHOTON
@@ -351,8 +357,4 @@ endif
 
 ifdef GC_LEAK_DETECTOR
 EXTRA_DSO_LIBS += boehm
-endif
-
-ifdef NS_TRACE_MALLOC
-STATIC_LIBS += tracemalloc
 endif

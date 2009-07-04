@@ -46,6 +46,7 @@
 #include "prenv.h"
 #include "lgglue.h"
 #include "secerr.h"
+#include "softoken.h"
 
 static LGOpenFunc legacy_glue_open = NULL;
 static LGReadSecmodFunc legacy_glue_readSecmod = NULL;
@@ -205,7 +206,7 @@ sftkdb_encrypt_stub(PRArenaPool *arena, SDB *sdb, SECItem *plainText,
 	return SECFailure;
     }
 
-    /* if we aren't th handle, try the other handle */
+    /* if we aren't the key handle, try the other handle */
     if (handle->type != SFTK_KEYDB_TYPE) {
 	handle = handle->peerDB;
     }
@@ -239,12 +240,14 @@ sftkdb_decrypt_stub(SDB *sdb, SECItem *cipherText, SECItem **plainText)
 {
     SFTKDBHandle *handle = sdb->app_private;
     SECStatus rv;
+    SECItem *oldKey = NULL;
 
     if (handle == NULL) {
 	return SECFailure;
     }
 
     /* if we aren't th handle, try the other handle */
+    oldKey = handle->oldKey;
     if (handle->type != SFTK_KEYDB_TYPE) {
 	handle = handle->peerDB;
     }
@@ -260,7 +263,8 @@ sftkdb_decrypt_stub(SDB *sdb, SECItem *cipherText, SECItem **plainText)
 	/* PORT_SetError */
 	return SECFailure;
     }
-    rv = sftkdb_DecryptAttribute(&handle->passwordKey, cipherText, plainText);
+    rv = sftkdb_DecryptAttribute( oldKey ? oldKey : &handle->passwordKey,
+		cipherText, plainText);
     PZ_Unlock(handle->passwordLock);
 
     return rv;
@@ -408,11 +412,12 @@ sftkdbCall_Shutdown(void)
 	return CKR_OK;
     }
     if (legacy_glue_shutdown) {
-	crv = (*legacy_glue_shutdown)();
-    }
-#ifdef DEBUG
-    disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
+#ifdef NO_FORK_CHECK
+	PRBool parentForkedAfterC_Initialize = PR_FALSE;
 #endif
+	crv = (*legacy_glue_shutdown)(parentForkedAfterC_Initialize);
+    }
+    disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
     if (!disableUnload) {
         PR_UnloadLibrary(legacy_glue_lib);
     }

@@ -170,9 +170,9 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
       nsSize minSize = popupChild->GetMinSize(aState);
       nsSize maxSize = popupChild->GetMaxSize(aState);
 
-      BoundsCheck(minSize, prefSize, maxSize);
+      prefSize = BoundsCheck(minSize, prefSize, maxSize);
 
-      popupChild->SetBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
+      popupChild->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
       popupChild->SetPopupPosition(nsnull);
 
       // is the new size too small? Make sure we handle scrollbars correctly
@@ -204,8 +204,12 @@ nsPopupSetFrame::DoLayout(nsBoxLayoutState& aState)
       // real height for its inline element, but does once it is laid out.
       // This is bug 228673 which doesn't have a simple fix.
       if (popupChild->GetRect().width > bounds.width ||
-          popupChild->GetRect().height > bounds.height)
+          popupChild->GetRect().height > bounds.height) {
+        // the size after layout was larger than the preferred size,
+        // so set the preferred size accordingly
+        popupChild->SetPreferredSize(popupChild->GetSize());
         popupChild->SetPopupPosition(nsnull);
+      }
       popupChild->AdjustView();
     }
 
@@ -325,10 +329,10 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsPopupSetFrame* f = const_cast<nsPopupSetFrame*>(this);
-  nsRect* overflowArea = f->GetOverflowAreaProperty(PR_FALSE);
-  if (overflowArea) {
-    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea->x, overflowArea->y,
-            overflowArea->width, overflowArea->height);
+  if (f->GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN) {
+    nsRect overflowArea = f->GetOverflowRect();
+    fprintf(out, " [overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
   }
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   nsIAtom* pseudoTag = mStyleContext->GetPseudoType();

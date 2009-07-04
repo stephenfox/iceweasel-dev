@@ -65,8 +65,6 @@ XPIDLSRCS =					\
 	nsIDOMLocation.idl			\
 	nsIDOMMimeType.idl			\
 	nsIDOMMimeTypeArray.idl			\
-	nsIDOMNSHistory.idl			\
-	nsIDOMNSLocation.idl			\
 	nsIDOMNavigator.idl			\
 	nsIDOMPkcs11.idl			\
 	nsIDOMPlugin.idl			\
@@ -77,8 +75,8 @@ XPIDLSRCS =					\
 	nsIDOMModalContentWindow.idl		\
 	nsIDOMChromeWindow.idl			\
 	nsIDOMNSFeatureFactory.idl		\
-        nsIDOMTextRectangle.idl			\
-        nsIDOMTextRectangleList.idl		\
+        nsIDOMClientRect.idl			\
+        nsIDOMClientRectList.idl		\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

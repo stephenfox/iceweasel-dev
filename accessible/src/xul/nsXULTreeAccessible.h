@@ -44,10 +44,10 @@
 #include "nsXULSelectAccessible.h"
 #include "nsIAccessibleTreeCache.h"
 
-
 /*
  * A class the represents the XUL Tree widget.
  */
+const PRUint32 kMaxTreeColumns = 100;
 const PRUint32 kDefaultTreeCacheSize = 256;
 
 class nsXULTreeAccessible : public nsXULSelectableAccessible,
@@ -61,19 +61,25 @@ public:
   nsXULTreeAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsXULTreeAccessible() {}
 
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD Shutdown();
+  // nsIAccessible
   NS_IMETHOD GetRole(PRUint32 *_retval);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetValue(nsAString& _retval);
 
   NS_IMETHOD GetFirstChild(nsIAccessible **_retval);
   NS_IMETHOD GetLastChild(nsIAccessible **_retval);
   NS_IMETHOD GetChildCount(PRInt32 *_retval);
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
-  NS_IMETHOD GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                             nsIAccessible **aAccessible);
 
+  NS_IMETHOD GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                    nsIAccessible **aAccessible);
+
+  // nsAccessNode
+  virtual nsresult Shutdown();
+
+  // nsAccessible
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+
+  // nsXULTreeAccessible
   static void GetTreeBoxObject(nsIDOMNode* aDOMNode, nsITreeBoxObject** aBoxObject);
   static nsresult GetColumnCount(nsITreeBoxObject* aBoxObject, PRInt32 *aCount);
 
@@ -93,22 +99,21 @@ protected:
 /**
   * Treeitems -- used in Trees
   */
-class nsXULTreeitemAccessible : public nsLeafAccessible
+class nsXULTreeitemAccessible : public nsLeafAccessible,
+                                public nsPIAccessibleTreeItem
 {
 public:
   enum { eAction_Click = 0, eAction_Expand = 1 };
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSPIACCESSIBLETREEITEM
 
   nsXULTreeitemAccessible(nsIAccessible *aParent, nsIDOMNode *aDOMNode, nsIWeakReference *aShell, PRInt32 aRow, nsITreeColumn* aColumn = nsnull);
   virtual ~nsXULTreeitemAccessible() {}
 
-  NS_IMETHOD Shutdown();
-
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetName(nsAString& _retval);
+  // nsIAccessible
+  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetRole(PRUint32 *_retval);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
@@ -123,8 +128,17 @@ public:
   NS_IMETHOD TakeFocus(void); 
 
   NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated);
-  /* ------ nsIAccessNode ----- */
+
+  // nsIAccessNode
   NS_IMETHOD GetUniqueID(void **aUniqueID);
+
+  // nsAccessNode
+  virtual PRBool IsDefunct();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
+
+  // nsAccessible
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
   PRBool IsExpandable();
@@ -132,6 +146,7 @@ protected:
   nsCOMPtr<nsITreeView> mTreeView;
   PRInt32 mRow;
   nsCOMPtr<nsITreeColumn> mColumn;
+  nsString mCachedName;
 };
 
 class nsXULTreeColumnsAccessible : public nsXULColumnsAccessible

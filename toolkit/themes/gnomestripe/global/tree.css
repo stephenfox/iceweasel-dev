@@ -76,7 +76,7 @@ treechildren::-moz-tree-row {
 }
 
 treechildren::-moz-tree-row(selected) {
-  background-color: -moz-Dialog;
+  background-color: -moz-cellhighlight;
 }
 
 treechildren::-moz-tree-row(selected, focus) {
@@ -110,7 +110,7 @@ treechildren::-moz-tree-cell-text {
 }
 
 treechildren::-moz-tree-cell-text(selected) {
-  color: -moz-DialogText;
+  color: -moz-cellhighlighttext;
 }
 
 tree[seltype="cell"] > treechildren::-moz-tree-cell {
@@ -124,15 +124,15 @@ tree[seltype="text"] > treechildren::-moz-tree-cell-text {
 }
 
 tree[seltype="cell"] > treechildren::-moz-tree-cell(active, selected) {
-  background-color: -moz-Dialog;
+  background-color: -moz-cellhighlight;
 }
 tree[seltype="cell"] > treechildren::-moz-tree-cell-text(active, selected) {
-  color: -moz-DialogText;
+  color: -moz-cellhighlighttext;
 }
 
 tree[seltype="text"] > treechildren::-moz-tree-cell-text(active, selected) {
-  background-color: -moz-Dialog;
-  color: -moz-DialogText;
+  background-color: -moz-cellhighlight;
+  color: -moz-cellhighlighttext;
 }
 
 treechildren::-moz-tree-cell-text(selected, focus) {
@@ -173,9 +173,17 @@ tree[seltype="text"] > treechildren::-moz-tree-cell-text(active, selected, curre
 
 /* ::::: lines connecting cells ::::: */
 
+tree[seltype="cell"] > treechildren::-moz-tree-line,
+tree[seltype="text"] > treechildren::-moz-tree-line,
 treechildren::-moz-tree-line {
-  visibility: hidden;
+  border: 1px dotted ThreeDShadow;
 }
+
+tree[seltype="cell"] > treechildren::-moz-tree-line(active, selected, focus),
+treechildren::-moz-tree-line(selected, focus) {
+  border: 1px dotted HighlightText;
+}
+
 
 /* ::::: tree separator ::::: */
 
@@ -198,7 +206,7 @@ treechildren::-moz-tree-drop-feedback {
   background-color: Highlight;
   width: 50px;
   height: 2px;
-  margin-left: 5px;
+  -moz-margin-start: 5px;
 }
 
 /* ::::: tree progress meter ::::: */
@@ -239,6 +247,11 @@ treecolpicker {
   padding: 0px 2px;
 }
 
+treecol:hover,
+treecolpicker:hover {
+  color: -moz-buttonhovertext;
+}
+
 .treecol-image {
   padding: 0px 1px;
 }
@@ -257,16 +270,21 @@ treecol[hideheader="true"] {
 
 treecol:hover:active,
 treecolpicker:hover:active {
+  color: ButtonText;
   border: 2px solid;
   -moz-border-top-colors: ThreeDShadow -moz-Dialog;
   -moz-border-right-colors: ThreeDShadow transparent;
   -moz-border-bottom-colors: ThreeDShadow transparent;
   -moz-border-left-colors: ThreeDShadow -moz-Dialog;
-  padding: 0px 1px 0px 3px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  -moz-padding-start: 3px;
+  -moz-padding-end: 1px;
 }
 
 .treecol-image:hover:active {
-  padding: 0px 0px 0px 2px;
+  padding: 0px;
+  -moz-padding-start: 2px;
 }
 
 treecol:hover:active .treecol-text {
@@ -316,7 +334,7 @@ treechildren::-moz-tree-column(insertafter) {
 
 treechildren::-moz-tree-twisty {
   -moz-appearance: treetwisty;
-  padding-right: 4px;
+  -moz-padding-end: 4px;
   padding-top: 1px;
   width: 9px; /* The image's width is 9 pixels */
   list-style-image: url("chrome://global/skin/tree/twisty-clsd.png");
@@ -343,40 +361,6 @@ treechildren.gridlines::-moz-tree-row {
   border: none;
 }
 
-treechildren::-moz-tree-image(Name) {
-  padding-right: 2px;
-}
-
-treechildren::-moz-tree-image(Name) {
-  margin: 0px 2px;
-  list-style-image: url("chrome://global/skin/icons/folder-item.png") !important;
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-
-treechildren::-moz-tree-image(Name, container) {
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
-}
-
-treechildren::-moz-tree-image(Name, open) {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
-}
-
-treechildren::-moz-tree-image(Name, separator) {
-  list-style-image: none;
-  width: 0px !important;
-  height: 0px !important;
-  margin: 0px 0px;
-}
-
-treechildren::-moz-tree-cell-text(Name, separator) {
-  color: ThreeDShadow;
-  margin: 0px 5px 0px 5px;
-}
-
-treechildren::-moz-tree-cell-text(Name, separator, selected, focus) {
-  color: HighlightText;
-}
-
 /* ::::: editable tree ::::: */
 
 treechildren::-moz-tree-row(selected, editing) {
@@ -395,6 +379,7 @@ treechildren::-moz-tree-cell-text(selected, editing) {
   -moz-border-bottom-colors: Highlight;
   -moz-border-left-colors: Highlight;
   -moz-border-right-colors: Highlight;
-  margin: 0 0 0 -4px;
+  margin: 0;
+  -moz-margin-start: -4px;
   padding: 1px;
 }

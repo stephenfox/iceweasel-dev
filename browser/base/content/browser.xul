@@ -1,3 +1,4 @@
+#filter substitution
 <?xml version="1.0"?>
 # -*- Mode: HTML -*-
 #
@@ -29,6 +30,8 @@
 #   Pierre Chanial <chanial@noos.fr>
 #   Dean Tessman <dean_tessman@hotmail.com>
 #   Johnathan Nightingale <johnath@mozilla.com>
+#   Dão Gottwald <dao@mozilla.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -61,14 +64,27 @@
 
 <window id="main-window"
         xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        xmlns:svg="http://www.w3.org/2000/svg"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         onload="BrowserStartup()" onunload="BrowserShutdown()" onclose="return WindowIsClosing();"
-        contenttitlesetting="true"
-        title="&mainWindow.title; 3 Beta 2"
-        titlemodifier="&mainWindow.title; 3 Beta 2"
+        title="&mainWindow.title;@PRE_RELEASE_SUFFIX@"
+        title_normal="&mainWindow.title;@PRE_RELEASE_SUFFIX@"
+#ifdef XP_MACOSX
+        title_privatebrowsing="&mainWindow.title;@PRE_RELEASE_SUFFIX@&mainWindow.titlemodifiermenuseparator;&mainWindow.titlePrivateBrowsingSuffix;"
+        titledefault="&mainWindow.title;@PRE_RELEASE_SUFFIX@"
+        titlemodifier=""
+        titlemodifier_normal=""
+        titlemodifier_privatebrowsing="&mainWindow.titlePrivateBrowsingSuffix;"
+#else
+        title_privatebrowsing="&mainWindow.titlemodifier;@PRE_RELEASE_SUFFIX@ &mainWindow.titlePrivateBrowsingSuffix;"
+        titlemodifier="&mainWindow.titlemodifier;@PRE_RELEASE_SUFFIX@"
+        titlemodifier_normal="&mainWindow.titlemodifier;@PRE_RELEASE_SUFFIX@"
+        titlemodifier_privatebrowsing="&mainWindow.titlemodifier;@PRE_RELEASE_SUFFIX@ &mainWindow.titlePrivateBrowsingSuffix;"
+#endif
         titlemenuseparator="&mainWindow.titlemodifiermenuseparator;"
         windowtype="navigator:browser"
         screenX="4" screenY="4"
+        browsingmode="normal"
         persist="screenX screenY width height sizemode"> 
 
 # All JS files which are not content (only) dependent that browser.xul
@@ -82,21 +98,18 @@
 #endif
 <script type="application/x-javascript" src="chrome://global/content/contentAreaUtils.js"/>
 
+<script type="application/javascript" src="chrome://browser/content/places/editBookmarkOverlay.js"/>
+
 # All sets except for popupsets (commands, keys, stringbundles and broadcasters) *must* go into the 
 # browser-sets.inc file for sharing with hiddenWindow.xul.
 #include browser-sets.inc
 
   <popupset id="mainPopupSet">
-    <popup id="backMenu" 
-           position="after_start" 
-           onpopupshowing="return BrowserBackMenu(event);"
-           oncommand="gotoHistoryIndex(event);"
-           onclick="checkForMiddleClick(this, event);"/>
-    <popup id="forwardMenu"
-           position="after_start"
-           onpopupshowing="return BrowserForwardMenu(event);"
-           oncommand="gotoHistoryIndex(event);"
-           onclick="checkForMiddleClick(this, event);"/>
+    <menupopup id="backForwardMenu"
+               chromedir="&locale.dir;"
+               onpopupshowing="return FillHistoryMenu(event.target);"
+               oncommand="gotoHistoryIndex(event);"
+               onclick="checkForMiddleClick(this, event);"/>
     <tooltip id="aHTMLTooltip" onpopupshowing="return FillInHTMLTooltip(document.tooltipNode);"/>
 
     <!-- for search and content formfill/pw manager -->
@@ -105,18 +118,54 @@
     <!-- for url bar autocomplete -->
     <panel type="autocomplete-richlistbox" chromedir="&locale.dir;" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
 
-    <panel id="editBookmarkPanel" orient="vertical" hidden="true"
-           onpopupshown="PlacesCommandHook.editBookmarkPanelShown();">
-      <vbox id="editBookmarkPanelContent" flex="1"/>
-      <hbox flex="1">
-        <spacer flex="1"/>
-        <button id="editBookmarkPanelDeleteButton"
-                label="&editBookmark.delete.label;"
-                oncommand="PlacesCommandHook.deleteButtonOnCommand();"/>
+    <panel id="editBookmarkPanel"
+           orient="vertical"
+           ignorekeys="true"
+           hidden="true"
+           onpopupshown="StarUI.panelShown(event);"
+           aria-labelledby="editBookmarkPanelTitle">
+      <row id="editBookmarkPanelHeader" align="center" hidden="true">
+        <vbox align="center">
+          <image id="editBookmarkPanelStarIcon"/>
+        </vbox>
+        <vbox>
+          <label id="editBookmarkPanelTitle"/>
+          <description id="editBookmarkPanelDescription"/>
+          <hbox>
+            <button id="editBookmarkPanelUndoRemoveButton"
+                    hidden="true"
+                    oncommand="StarUI.undoRemoveBookmarkCommand();"
+                    label="&editBookmark.undo.label;"
+                    accesskey="&editBookmark.undo.accessKey;"/>
+            <button id="editBookmarkPanelRemoveButton"
+                    oncommand="StarUI.removeBookmarkButtonCommand();"
+                    accesskey="&editBookmark.removeBookmark.accessKey;"/>
+            <button id="editBookmarkPanelEditButton"
+                    oncommand="StarUI.editButtonCommand();"
+                    label="&editBookmark.edit.label;"
+                    accesskey="&editBookmark.edit.accessKey;"/>
+          </hbox>
+        </vbox>
+      </row>
+      <vbox id="editBookmarkPanelContent" flex="1" hidden="true"/>
+      <hbox id="editBookmarkPanelBottomButtons" pack="end">
+#ifndef XP_UNIX
         <button id="editBookmarkPanelDoneButton"
                 label="&editBookmark.done.label;"
                 default="true"
-                oncommand="PlacesCommandHook.doneButtonOnCommand();"/>
+                oncommand="StarUI.panel.hidePopup();"/>
+        <button id="editBookmarkPanelDeleteButton"
+                label="&editBookmark.cancel.label;"
+                oncommand="StarUI.cancelButtonOnCommand();"/>
+#else
+        <button id="editBookmarkPanelDeleteButton"
+                label="&editBookmark.cancel.label;"
+                oncommand="StarUI.cancelButtonOnCommand();"/>
+        <button id="editBookmarkPanelDoneButton"
+                label="&editBookmark.done.label;"
+                default="true"
+                oncommand="StarUI.panel.hidePopup();"/>
+#endif
       </hbox>
     </panel>
 
@@ -136,23 +185,39 @@
       <menuseparator observes="blockedPopupsSeparator"/>
     </popup>
 
+    <menupopup id="autohide-context"
+           onpopupshowing="FullScreen.getAutohide(this.firstChild);">
+      <menuitem type="checkbox" label="&fullScreenAutohide.label;"
+                accesskey="&fullScreenAutohide.accesskey;"
+                oncommand="FullScreen.setAutohide();"/>
+      <menuseparator/>
+      <menuitem label="&fullScreenExit.label;"
+                accesskey="&fullScreenExit.accesskey;"
+                oncommand="BrowserFullScreen();"/>
+    </menupopup>
+
     <popup id="contentAreaContextMenu"
-           onpopupshowing="if (event.target != this) return true; gContextMenu = new nsContextMenu(this, window.getBrowser()); return gContextMenu.shouldDisplay;"
-           onpopuphiding="if (event.target == this) { gContextMenu = null; }">
+           onpopupshowing="if (event.target != this) return true; updateEditUIVisibility(); gContextMenu = new nsContextMenu(this, window.getBrowser()); return gContextMenu.shouldDisplay;"
+           onpopuphiding="if (event.target == this) { gContextMenu = null; updateEditUIVisibility(); }">
 #include browser-context.inc
     </popup>
 
     <popup id="placesContext"/>
 
     <!-- Popup for site identity information -->
-    <panel id="identity-popup" position="after_start" hidden="true" noautofocus="true">
+    <panel id="identity-popup" position="after_start" hidden="true" noautofocus="true"
+           onpopupshown="document.getElementById('identity-popup-more-info-button').focus();"
+           level="top"
+           chromedir="&locale.dir;">
       <hbox id="identity-popup-container" align="top">
         <image id="identity-popup-icon"/>
         <vbox id="identity-popup-content-box">
-          <!-- Title Bar -->
-          <label id="identity-popup-title"/>
-          <!-- Content area -->
-          <description id="identity-popup-content"/>
+          <label id="identity-popup-connectedToLabel" value="&identity.connectedTo;"/>
+          <label id="identity-popup-connectedToLabel2"
+                 value="&identity.unverifiedsite2;"/>
+          <description id="identity-popup-content-host"/>
+          <label id="identity-popup-runByLabel" value="&identity.runBy;"/>
+          <description id="identity-popup-content-owner"/>
           <description id="identity-popup-content-supplemental"/>
           <description id="identity-popup-content-verifier"/>
           <hbox id="identity-popup-encryption" flex="1">
@@ -163,26 +228,56 @@
             <description id="identity-popup-encryption-label" flex="1"/>
           </hbox>
           <spacer flex="1"/>
-          <!-- Footer link to page info -->
-          <label id="identity-popup-more-info-link"
-                 class="text-link plain"
-                 value="&identity.moreInfoLinkText;"
-                 onclick="getIdentityHandler().handleMoreInfoClick(event);"/>
+          <!-- Footer button to open security page info -->
+          <hbox>
+            <spacer flex="1"/>
+            <button id="identity-popup-more-info-button"
+                    label="&identity.moreInfoLinkText;"
+                    onblur="gIdentityHandler.hideIdentityPopup();"
+                    oncommand="gIdentityHandler.handleMoreInfoClick(event);"/>
+          </hbox>
         </vbox>
       </hbox>
     </panel>
 
     <tooltip id="urlTooltip">
-      <label crop="center" flex="1"/>
+      <label crop="center" flex="1" class="tooltip-label"/>
     </tooltip>
+#ifdef USE_TAB_PREVIEWS
+    <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" norestorefocus="true" ignorekeys="true">
+      <hbox pack="center">
+        <textbox id="ctrlTab-search"
+                 type="search"
+                 emptytext="&ctrlTab.search.emptyText;"
+                 oncommand="ctrlTab.search();"
+                 onfocus="ctrlTab.sticky = true;"/>
+      </hbox>
+      <hbox class="ctrlTab-row">
+        <hbox flex="1" pack="center"><vbox class="ctrlTab-thumbnail"/></hbox>
+        <vbox class="ctrlTab-thumbnail"/>
+        <hbox flex="1" pack="center"><vbox class="ctrlTab-thumbnail"/></hbox>
+      </hbox>
+      <hbox class="ctrlTab-row">
+        <hbox flex="1" pack="center"><vbox class="ctrlTab-thumbnail"/></hbox>
+        <vbox class="ctrlTab-thumbnail"/>
+        <hbox flex="1" pack="center"><vbox class="ctrlTab-thumbnail"/></hbox>
+      </hbox>
+      <hbox class="ctrlTab-row">
+        <hbox flex="1" pack="center"><vbox class="ctrlTab-thumbnail"/></hbox>
+        <vbox class="ctrlTab-thumbnail"/>
+        <hbox flex="1" pack="center"><vbox class="ctrlTab-thumbnail"/></hbox>
+      </hbox>
+      <hbox id="ctrlTab-pages"/>
+    </panel>
+#endif
   </popupset>
 
   <!-- bookmarks toolbar tooltip -->
   <tooltip id="btTooltip" noautohide="true"
            onpopupshowing="return BookmarksEventHandler.fillInBTTooltip(document.tooltipNode)">
     <vbox id="btTooltipTextBox" flex="1">
-      <label id="btTitleText" />
-      <label id="btUrlText" />
+      <label id="btTitleText" class="tooltip-label" />
+      <label id="btUrlText" crop="center" class="tooltip-label" />
     </vbox>
   </tooltip>
 
@@ -190,12 +285,9 @@
            defaultmode="icons">
     <!-- Menu -->
     <toolbar type="menubar" id="toolbar-menubar" class="chromeclass-menubar" customizable="true"
-#ifdef XP_MACOSX
              defaultset="menubar-items"
-#else
-             defaultset="menubar-items,spring,throbber-box"
-#endif
-             mode="icons" context="toolbar-context-menu">
+             mode="icons" iconsize="small" defaulticonsize="small"
+             context="toolbar-context-menu">
       <toolbaritem id="menubar-items" align="center">
 # The entire main menubar is placed into browser-menubar.inc, so that it can be shared by 
 # hiddenWindow.xul.
@@ -204,37 +296,43 @@
     </toolbar>
 
     <toolbarpalette id="BrowserToolbarPalette">
-      <toolbarbutton id="back-button" type="menu-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     chromedir="&locale.dir;"
-                     label="&backCmd.label;"
-                     oncommand="BrowserBack(event)"
-                     onclick="checkForMiddleClick(this, event);"
-                     context="backMenu"
-                     tooltiptext="&backButton.tooltip;">
-        <observes element="Browser:Back" attribute="disabled"/>
-        <menupopup context=""
-                   onpopupshowing="BrowserBackMenu(event);"
-                   oncommand="gotoHistoryIndex(event); event.stopPropagation();"
-                   onclick="checkForMiddleClick(this, event);"/>
-      </toolbarbutton>
 
-      <toolbarbutton id="forward-button" type="menu-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
+      <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
+                   context="backForwardMenu">
+        <toolbarbutton id="back-button" class="toolbarbutton-1"
+                       chromedir="&locale.dir;"
+                       label="&backCmd.label;"
+                       command="Browser:BackOrBackDuplicate"
+                       onclick="checkForMiddleClick(this, event);"
+                       tooltiptext="&backButton.tooltip;"/>
+        <toolbarbutton id="forward-button" class="toolbarbutton-1"
+                       chromedir="&locale.dir;"
+                       label="&forwardCmd.label;"
+                       command="Browser:ForwardOrForwardDuplicate"
+                       onclick="checkForMiddleClick(this, event);"
+                       tooltiptext="&forwardButton.tooltip;"/>
+        <toolbarbutton id="back-forward-dropmarker" type="menu" chromedir="&locale.dir;"
+                       disabled="true" tooltiptext="&backForwardMenu.tooltip;"
+                       onbroadcast="if (this.disabled) this.disabled =
+                                      document.getElementById('Browser:Back').hasAttribute('disabled') &amp;&amp;
+                                      document.getElementById('Browser:Forward').hasAttribute('disabled');">
+          <!-- bug 415444: event.stopPropagation is here for the cloned version of
+               this menupopup -->
+          <menupopup context=""
                      chromedir="&locale.dir;"
-                     label="&forwardCmd.label;"
-                     oncommand="BrowserForward(event)"
-                     onclick="checkForMiddleClick(this, event);"
-                     context="forwardMenu"
-                     tooltiptext="&forwardButton.tooltip;">
-        <observes element="Browser:Forward" attribute="disabled"/>
-        <menupopup context=""
-                   onpopupshowing="BrowserForwardMenu(event);"
-                   oncommand="gotoHistoryIndex(event); event.stopPropagation()"
-                   onclick="checkForMiddleClick(this, event);"/>
-      </toolbarbutton>
+                     position="after_start"
+                     onpopupshowing="return FillHistoryMenu(event.target);"
+                     oncommand="gotoHistoryIndex(event); event.stopPropagation();"
+                     onclick="checkForMiddleClick(this, event);"/>
+          <observes element="Browser:Back" attribute="disabled"/>
+          <observes element="Browser:Forward" attribute="disabled"/>
+        </toolbarbutton>
+      </toolbaritem>
 
       <toolbarbutton id="reload-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&reloadCmd.label;"
-                     command="Browser:Reload"
+                     command="Browser:ReloadOrDuplicate"
+                     onclick="checkForMiddleClick(this, event);"
                      tooltiptext="&reloadButton.tooltip;"/>
 
       <toolbarbutton id="stop-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
@@ -243,51 +341,63 @@
                      tooltiptext="&stopButton.tooltip;"/>
 
       <toolbarbutton id="home-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
+                     persist="class"
                      label="&homeButton.label;"
                      ondragover="nsDragAndDrop.dragOver(event, homeButtonObserver);"
                      ondragdrop="nsDragAndDrop.drop(event, homeButtonObserver);"
                      ondragexit="nsDragAndDrop.dragExit(event, homeButtonObserver);"
-                     onclick="BrowserHomeClick(event);"/>
+                     onclick="BrowserGoHome(event);"/>
 
       <toolbaritem id="urlbar-container" align="center" flex="400" persist="width"
                    title="&locationItem.title;" class="chromeclass-location">
         <textbox id="urlbar" flex="1"
+                 bookmarkhistoryemptytext="&urlbar.bookmarkhistory.emptyText;"
+                 bookmarkemptytext="&urlbar.bookmark.emptyText;"
+                 historyemptytext="&urlbar.history.emptyText;"
+                 noneemptytext="&urlbar.none.emptyText;"
                  chromedir="&locale.dir;"
                  type="autocomplete"
                  autocompletesearch="history"
-                 autocompletepopup="PopupAutoComplete"
+                 autocompletepopup="PopupAutoCompleteRichResult"
                  completeselectedindex="true"
                  tabscrolling="true"
                  showcommentcolumn="true"
                  showimagecolumn="true"
                  enablehistory="true"
-                 maxrows="10"
+                 maxrows="6"
                  newlines="stripsurroundingwhitespace"
-                 oninput="URLBarOnInput(event);"
-                 ontextentered="return handleURLBarCommand(param);"
-                 ontextreverted="return handleURLBarRevert();">
+                 oninput="gBrowser.userTypedValue = this.value;"
+                 ontextentered="this.handleCommand(param);"
+                 ontextreverted="return this.handleRevert();"
+                 pageproxystate="invalid"
+                 onsearchbegin="LocationBarHelpers._searchBegin();"
+                 onsearchcomplete="LocationBarHelpers._searchComplete();"
+                 onfocus="document.getElementById('identity-box').style.MozUserFocus= 'normal'"
+                 onblur="document.getElementById('identity-box').style.MozUserFocus = 'ignore';">
           <!-- Use onclick instead of normal popup= syntax since the popup
-               code fires onmousedown, and hence eats our favicon drag events -->
-          <box id="identity-box" align="center" 
-               onclick="getIdentityHandler().handleIdentityClick(event);">
-            <deck id="page-proxy-deck" onclick="PageProxyClickHandler(event);">
-              <image id="page-proxy-button"
-                     ondraggesture="PageProxyDragGesture(event);"
-                     tooltiptext="&proxyIcon.tooltip;"/>
-              <image id="page-proxy-favicon" validate="never"
-                     ondraggesture="PageProxyDragGesture(event);"
-                     onload="this.parentNode.selectedIndex = 1;
-                             event.stopPropagation();"
-                     onerror="this.removeAttribute('src');
-                              this.parentNode.selectedIndex = 0;"
-                     tooltiptext="&proxyIcon.tooltip;"/>
-            </deck>
-            <label id="identity-icon-label"/>
+               code fires onmousedown, and hence eats our favicon drag events.
+               We only add the identity-box button to the tab order when the location bar
+               has focus, otherwise pressing F6 focuses it instead of the location bar -->
+          <box id="identity-box" role="button"
+               chromedir="&locale.dir;"
+               onclick="gIdentityHandler.handleIdentityButtonEvent(event);"
+               onkeypress="gIdentityHandler.handleIdentityButtonEvent(event);">
+            <hbox align="center">
+              <stack id="page-proxy-stack"
+                     onclick="PageProxyClickHandler(event);">
+                <image id="urlbar-throbber" busy="false"/>
+                <image id="page-proxy-favicon" validate="never"
+                       pageproxystate="invalid"
+                       ondraggesture="PageProxyDragGesture(event);"
+                       onerror="this.removeAttribute('src');"/>
+              </stack>
+              <label id="identity-icon-label" crop="center" flex="1"/>
+            </hbox>
           </box>
           <hbox id="urlbar-icons">
             <button type="menu"
                     style="-moz-user-focus: none"
-                    class="plain"
+                    class="plain urlbar-icon"
                     id="feed-button"
                     chromedir="&locale.dir;"
                     onclick="return FeedHandler.onFeedButtonClick(event);">
@@ -296,16 +406,14 @@
                          oncommand="return FeedHandler.subscribeToFeed(null, event);"
                          onclick="checkForMiddleClick(this, event);"/>
             </button>
-#ifdef MOZ_SAFE_BROWSING
-            <image id="safebrowsing-urlbar-icon" tooltiptext="&safeb.urlbaricon.tooltip;"
-                   level="safe"
-                   onclick="goDoCommand('safebrowsing-show-warning')"/>
-#endif
-          <image id="star-button"
-                 onclick="PlacesStarButton.onClick(event);"/>
-          <image id="go-button" chromedir="&locale.dir;"
-                 tooltiptext="&goEndCap.tooltip;"
-                 onclick="handleURLBarCommand(event);"/>
+            <image id="star-button"
+                   class="urlbar-icon"
+                   onclick="PlacesStarButton.onClick(event);"/>
+            <image id="go-button"
+                   chromedir="&locale.dir;"
+                   class="urlbar-icon"
+                   tooltiptext="&goEndCap.tooltip;"
+                   onclick="gURLBar.handleCommand(event);"/>
           </hbox>
         </textbox>
       </toolbaritem>
@@ -313,25 +421,26 @@
       <toolbaritem id="search-container" title="&searchItem.title;"
                    align="center" class="chromeclass-toolbar-additional"
                    flex="100" persist="width">
-        <searchbar id="searchbar" flex="1" chromedir="&locale.dir;"
-                   newlines="replacewithspaces"/>
+        <searchbar id="searchbar" flex="1" chromedir="&locale.dir;"/>
       </toolbaritem>
 
       <toolbarbutton id="print-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&printButton.label;" command="cmd_print"
                      tooltiptext="&printButton.tooltip;"/>
 
-      <toolbaritem id="throbber-box" title="&throbberItem.title;" align="center" pack="center">
-        <button id="navigator-throbber" disabled="true"/>
+      <toolbaritem id="navigator-throbber" title="&throbberItem.title;" align="center" pack="center"
+                   mousethrough="always">
+        <image/>
       </toolbaritem>
 
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;">
-         <hbox id="bookmarksBarContent" flex="1" type="places"
-               context="placesContext" asyncinit="true"
+         <hbox id="bookmarksBarContent" flex="1"
+               type="places"
+               place="place:folder=TOOLBAR"
+               context="placesContext"
                onclick="BookmarksEventHandler.onClick(event);"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
-               ondragexit="PlacesMenuDNDController.onDragExit(event);"
                tooltip="btTooltip"/>
       </toolbaritem>
 
@@ -358,7 +467,6 @@
         <toolbarbutton id="new-tab-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                        label="&tabCmd.label;"
                        command="cmd_newNavigatorTab"
-                       tooltiptext="&newTabButton.tooltip;"
                        ondragover="nsDragAndDrop.dragOver(event, newTabButtonObserver);"
                        ondragdrop="nsDragAndDrop.drop(event, newTabButtonObserver);"
                        ondragexit="nsDragAndDrop.dragExit(event, newTabButtonObserver);"/>
@@ -390,12 +498,12 @@
 
     <toolbar id="nav-bar" class="toolbar-primary chromeclass-toolbar"
              toolbarname="&navbarCmd.label;" accesskey="&navbarCmd.accesskey;"
-             fullscreentoolbar="true" mode="icons"
+             fullscreentoolbar="true" mode="icons" iconsize="large"
              customizable="true"
 #ifdef XP_MACOSX
-             defaultset="back-button,forward-button,reload-button,stop-button,home-button,urlbar-container,splitter,search-container,throbber-box"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container"
 #else
-             defaultset="back-button,forward-button,reload-button,stop-button,home-button,urlbar-container,splitter,search-container,fullscreenflex,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,fullscreenflex,window-controls"
 #endif
              context="toolbar-context-menu">
 #ifndef XP_MACOSX
@@ -418,10 +526,11 @@
 
     <toolbarset id="customToolbars" context="toolbar-context-menu"/>
 
-    <toolbar id="PersonalToolbar" mode="icons"  iconsize="small"
+    <toolbar id="PersonalToolbar"
+             mode="icons" iconsize="small" defaulticonsize="small"
              class="chromeclass-directories"
              context="toolbar-context-menu"
-             defaultset="bookmarksBarShowPlaces,personal-bookmarks"
+             defaultset="personal-bookmarks"
              toolbarname="&personalbarCmd.label;" accesskey="&personalbarCmd.accesskey;"
              customizable="true"/>
   </toolbox>
@@ -433,7 +542,7 @@
         <image id="sidebar-throbber"/>
         <toolbarbutton class="tabs-closebutton" tooltiptext="&sidebarCloseButton.tooltip;" oncommand="toggleSidebar();"/>
       </sidebarheader>
-      <browser id="sidebar" flex="1" autoscroll="false"
+      <browser id="sidebar" flex="1" autoscroll="false" disablehistory="true"
                 style="min-width: 14em; width: 18em; max-width: 36em;"/>
     </vbox>
 
@@ -444,7 +553,7 @@
                   contentcontextmenu="contentAreaContextMenu"
                   onnewtab="BrowserOpenTab();"
                   autocompletepopup="PopupAutoComplete"
-                  ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);"
+                  ondrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);"
                   onclick="return contentAreaClick(event, false);"/>
     </vbox>
   </hbox>
@@ -452,31 +561,36 @@
   <panel id="customizeToolbarSheetPopup" noautohide="true">
     <iframe id="customizeToolbarSheetIFrame"
             style="&dialog.style;"
-            src="chrome://global/content/customizeToolbar.xul"
+            chromedir="&locale.dir;"
             hidden="true"/>
   </panel>
 #endif
 
-  <findbar browserid="content" id="FindToolbar"/>
-
-  <statusbar class="chromeclass-status" id="status-bar"
-             ondragdrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
-    <statusbarpanel id="statusbar-display" label="" flex="1"/>
-    <statusbarpanel class="statusbarpanel-progress" collapsed="true" id="statusbar-progresspanel">
-      <progressmeter class="progressmeter-statusbar" id="statusbar-icon" mode="normal" value="0"/>
-    </statusbarpanel>
-    <statusbarpanel id="security-button" class="statusbarpanel-iconic-text"
-                    ondblclick="if (event.button == 0) displaySecurityInfo();"/>
-    <statusbarpanel id="page-report-button" type="menu"
-                    class="statusbarpanel-menu-iconic"
-                    tooltiptext="&pageReportIcon.tooltip;">
-      <menupopup onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
-        <menuitem observes="blockedPopupAllowSite"/>
-        <menuitem observes="blockedPopupEditSettings"/>
-        <menuitem observes="blockedPopupDontShowMessage"/>
-        <menuseparator observes="blockedPopupsSeparator"/>
-      </menupopup>
-    </statusbarpanel>
-  </statusbar>
+  <vbox id="browser-bottombox">
+    <findbar browserid="content" id="FindToolbar"/>
+  
+    <statusbar class="chromeclass-status" id="status-bar"
+               ondrop="nsDragAndDrop.drop(event, contentAreaDNDObserver);">
+      <statusbarpanel id="statusbar-display" label="" flex="1"/>
+      <statusbarpanel class="statusbarpanel-progress" collapsed="true" id="statusbar-progresspanel">
+        <progressmeter class="progressmeter-statusbar" id="statusbar-icon" mode="normal" value="0"/>
+      </statusbarpanel>
+      <statusbarpanel id="download-monitor" class="statusbarpanel-iconic-text"
+                      tooltiptext="&downloadMonitor2.tooltip;" hidden="true"
+                      command="Tools:Downloads"/>
+      <statusbarpanel id="security-button" class="statusbarpanel-iconic-text"
+                      hidden="true"
+                      ondblclick="if (event.button == 0) displaySecurityInfo();"/>
+      <statusbarpanel id="page-report-button" type="menu"
+                      class="statusbarpanel-menu-iconic"
+                      tooltiptext="&pageReportIcon.tooltip;">
+        <menupopup onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
+          <menuitem observes="blockedPopupAllowSite"/>
+          <menuitem observes="blockedPopupEditSettings"/>
+          <menuitem observes="blockedPopupDontShowMessage"/>
+          <menuseparator observes="blockedPopupsSeparator"/>
+        </menupopup>
+      </statusbarpanel>
+    </statusbar>
+  </vbox>
 </window>
-

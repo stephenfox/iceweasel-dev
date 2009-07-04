@@ -48,9 +48,9 @@ NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRUint32 
   nsSelectsAreaFrame* it = new (aShell) nsSelectsAreaFrame(aContext);
 
   if (it) {
-    // We need NS_BLOCK_SPACE_MGR to ensure that the options inside the select
+    // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
     // aren't expanded by right floats outside the select.
-    it->SetFlags(aFlags | NS_BLOCK_SPACE_MGR);
+    it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
   }
 
   return it;
@@ -94,7 +94,8 @@ public:
     : nsDisplayWrapList(aFrame, aItem) {}
   nsDisplayOptionEventGrabber(nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aFrame, aList) {}
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   NS_DISPLAY_DECL_NAME("OptionEventGrabber")
 
   virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
@@ -102,9 +103,9 @@ public:
 };
 
 nsIFrame* nsDisplayOptionEventGrabber::HitTest(nsDisplayListBuilder* aBuilder,
-    nsPoint aPt)
+    nsPoint aPt, HitTestState* aState)
 {
-  nsIFrame* frame = mList.HitTest(aBuilder, aPt);
+  nsIFrame* frame = mList.HitTest(aBuilder, aPt, aState);
 
   if (frame) {
     nsIFrame* selectedFrame = frame;

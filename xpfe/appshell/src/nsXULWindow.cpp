@@ -91,6 +91,7 @@
 #include "nsAppShellCID.h"
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
@@ -107,6 +108,22 @@
 #define HEIGHT_ATTRIBUTE   NS_LITERAL_STRING("height")
 #define MODE_ATTRIBUTE     NS_LITERAL_STRING("sizemode")
 #define ZLEVEL_ATTRIBUTE   NS_LITERAL_STRING("zlevel")
+
+// Unit conversion helpers
+static PRInt32
+CSSToDevPixels(PRInt32 aPixels, PRInt32 aAppPerDev)
+{
+  return NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aPixels),
+                               aAppPerDev);
+}
+
+static PRInt32
+DevToCSSPixels(PRInt32 aPixels, PRInt32 aAppPerDev)
+{
+  return nsPresContext::AppUnitsToIntCSSPixels(
+    NSIntPixelsToAppUnits(aPixels, aAppPerDev));
+}
+
 
 //*****************************************************************************
 //***    nsXULWindow: Object Management
@@ -129,7 +146,9 @@ nsXULWindow::nsXULWindow()
     mBlurSuppressionLevel(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
-    mChromeFlags(nsIWebBrowserChrome::CHROME_ALL)
+    mChromeFlags(nsIWebBrowserChrome::CHROME_ALL),
+    // best guess till we have a widget
+    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel()) 
 {
 }
 
@@ -176,6 +195,9 @@ NS_IMETHODIMP nsXULWindow::GetInterface(const nsIID& aIID, void** aSink)
     if (NS_FAILED(rv)) return rv;
     return mAuthPrompter->QueryInterface(aIID, aSink);
   }
+  if (aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) {
+    return GetWindowDOMWindow(reinterpret_cast<nsIDOMWindowInternal**>(aSink));
+  }   
   if (aIID.Equals(NS_GET_IID(nsIWebBrowserChrome)) && 
     NS_SUCCEEDED(EnsureContentTreeOwner()) &&
     NS_SUCCEEDED(mContentTreeOwner->QueryInterface(aIID, aSink)))
@@ -386,11 +408,6 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
   mContinueModalLoop = PR_TRUE;
   EnableParent(PR_FALSE);
 
-  nsCOMPtr<nsIAppShellService> appShellService(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
-  if (appShellService)
-      appShellService->TopLevelWindowIsModal(
-                         static_cast<nsIXULWindow*>(this), PR_TRUE);
-
   nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
   if (stack && NS_SUCCEEDED(stack->Push(nsnull))) {
     nsIThread *thread = NS_GetCurrentThread();
@@ -405,9 +422,6 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
 
   mContinueModalLoop = PR_FALSE;
   window->SetModal(PR_FALSE);
-  if (appShellService)
-      appShellService->TopLevelWindowIsModal(
-                         static_cast<nsIXULWindow*>(this), PR_FALSE);
   /*   Note there's no EnableParent(PR_TRUE) here to match the PR_FALSE one
      above. That's done in ExitModalLoop. It's important that the parent
      be re-enabled before this window is made invisible; to do otherwise
@@ -475,23 +489,31 @@ NS_IMETHODIMP nsXULWindow::Destroy()
     mWindow->Show(PR_FALSE);
 
 #if defined(XP_WIN) || defined(XP_OS2)
-  // We need to explicitly set the focus on Windows
+  // We need to explicitly set the focus on Windows, but 
+  // only if the parent is visible.
   nsCOMPtr<nsIBaseWindow> parent(do_QueryReferent(mParentWindow));
   if (parent) {
-    nsCOMPtr<nsIBaseWindow> baseHiddenWindow;
-    if (appShell) {
-      nsCOMPtr<nsIXULWindow> hiddenWindow;
-      appShell->GetHiddenWindow(getter_AddRefs(hiddenWindow));
-      if (hiddenWindow)
-        baseHiddenWindow = do_GetInterface(hiddenWindow);
-    }
-    // somebody screwed up somewhere. hiddenwindow shouldn't be anybody's
-    // parent. still, when it happens, skip activating it.
-    if (baseHiddenWindow != parent) {
-      nsCOMPtr<nsIWidget> parentWidget;
-      parent->GetMainWidget(getter_AddRefs(parentWidget));
-      if (parentWidget)
-        parentWidget->PlaceBehind(eZPlacementTop, 0, PR_TRUE);
+    PRBool parentVisible = PR_TRUE;
+    nsCOMPtr<nsIWidget> parentWidget;
+    parent->GetMainWidget(getter_AddRefs(parentWidget));
+    if (parentWidget)
+      parentWidget->IsVisible(parentVisible);
+    if (parentVisible) {
+      nsCOMPtr<nsIBaseWindow> baseHiddenWindow;
+      if (appShell) {
+        nsCOMPtr<nsIXULWindow> hiddenWindow;
+        appShell->GetHiddenWindow(getter_AddRefs(hiddenWindow));
+        if (hiddenWindow)
+          baseHiddenWindow = do_GetInterface(hiddenWindow);
+      }
+      // somebody screwed up somewhere. hiddenwindow shouldn't be anybody's
+      // parent. still, when it happens, skip activating it.
+      if (baseHiddenWindow != parent) {
+        nsCOMPtr<nsIWidget> parentWidget;
+        parent->GetMainWidget(getter_AddRefs(parentWidget));
+        if (parentWidget)
+          parentWidget->PlaceBehind(eZPlacementTop, 0, PR_TRUE);
+      }
     }
   }
 #endif
@@ -1035,12 +1057,13 @@ PRBool nsXULWindow::LoadPositionFromXUL()
   PRInt32 specX = currX;
   PRInt32 specY = currY;
   nsAutoString posString;
+  PRInt32 appPerDev = AppUnitsPerDevPixel();
 
   rv = windowElement->GetAttribute(NS_LITERAL_STRING("screenX"), posString);
   if (NS_SUCCEEDED(rv)) {
     temp = posString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode)) {
-      specX = temp;
+      specX = CSSToDevPixels(temp, appPerDev);
       gotPosition = PR_TRUE;
     }
   }
@@ -1048,7 +1071,7 @@ PRBool nsXULWindow::LoadPositionFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = posString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode)) {
-      specY = temp;
+      specY = CSSToDevPixels(temp, appPerDev);
       gotPosition = PR_TRUE;
     }
   }
@@ -1101,12 +1124,13 @@ PRBool nsXULWindow::LoadSizeFromXUL()
   PRInt32 specWidth = currWidth;
   PRInt32 specHeight = currHeight;
   nsAutoString sizeString;
+  PRInt32 appPerDev = AppUnitsPerDevPixel();
 
   rv = windowElement->GetAttribute(NS_LITERAL_STRING("width"), sizeString);
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specWidth = temp > 100 ? temp : 100;
+      specWidth = CSSToDevPixels(PR_MAX(temp, 100), appPerDev);
       gotSize = PR_TRUE;
     }
   }
@@ -1114,7 +1138,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specHeight = temp > 100 ? temp : 100;
+      specHeight = CSSToDevPixels(PR_MAX(temp, 100), appPerDev);
       gotSize = PR_TRUE;
     }
   }
@@ -1131,6 +1155,8 @@ PRBool nsXULWindow::LoadSizeFromXUL()
         PRInt32 screenHeight;
         screen->GetAvailWidth(&screenWidth);
         screen->GetAvailHeight(&screenHeight);
+        screenWidth = CSSToDevPixels(screenWidth, appPerDev);
+        screenHeight = CSSToDevPixels(screenHeight, appPerDev);
         if (specWidth > screenWidth)
           specWidth = screenWidth;
         if (specHeight > screenHeight)
@@ -1441,6 +1467,7 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   nsAutoString                sizeString;
   nsAutoString                windowElementId;
   nsCOMPtr<nsIDOMXULDocument> ownerXULDoc;
+  PRInt32 appPerDev = AppUnitsPerDevPixel();
 
   { // fetch docShellElement's ID and XUL owner document
     nsCOMPtr<nsIDOMDocument> ownerDoc;
@@ -1455,14 +1482,16 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   if ((mPersistentAttributesDirty & PAD_POSITION) &&
       sizeMode == nsSizeMode_Normal) {
     if(persistString.Find("screenX") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld", (long)x);
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld",
+                  (long)DevToCSSPixels(x, appPerDev));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(SCREENX_ATTRIBUTE, sizeString);
       if (ownerXULDoc) // force persistence in case the value didn't change
         ownerXULDoc->Persist(windowElementId, SCREENX_ATTRIBUTE);
     }
     if(persistString.Find("screenY") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld", (long)y);
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld",
+                  (long)DevToCSSPixels(y, appPerDev));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(SCREENY_ATTRIBUTE, sizeString);
       if (ownerXULDoc)
@@ -1473,14 +1502,16 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   if ((mPersistentAttributesDirty & PAD_SIZE) &&
       sizeMode == nsSizeMode_Normal) {
     if(persistString.Find("width") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld", (long)cx);
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld",
+                  (long)DevToCSSPixels(cx, appPerDev));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(WIDTH_ATTRIBUTE, sizeString);
       if (ownerXULDoc)
         ownerXULDoc->Persist(windowElementId, WIDTH_ATTRIBUTE);
     }
     if(persistString.Find("height") >= 0) {
-      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld", (long)cy);
+      PR_snprintf(sizeBuf, sizeof(sizeBuf), "%ld",
+                  (long)DevToCSSPixels(cy, appPerDev));
       sizeString.AssignWithConversion(sizeBuf);
       docShellElement->SetAttribute(HEIGHT_ATTRIBUTE, sizeString);
       if (ownerXULDoc)
@@ -1632,8 +1663,23 @@ nsresult nsXULWindow::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
     }
 #endif
     
-    NS_ENSURE_TRUE(mTargetableShells.AppendObject(contentShellWeak),
-                   NS_ERROR_OUT_OF_MEMORY);
+    // put the new shell at the start of the targetable shells list if either
+    // it's the new primary shell or there is no existing primary shell (which
+    // means that chances are this one just stopped being primary).  If we
+    // really cared, we could keep track of the "last no longer primary shell"
+    // explicitly, but it probably doesn't matter enough: the difference would
+    // only be felt in a situation where all shells were non-primary, which
+    // doesn't happen much.  In a situation where there is one and only one
+    // primary shell, and in which shells get unmarked as primary before some
+    // other shell gets marked as primary, this effectively stores the list of
+    // targetable shells in "most recently primary first" order.
+    PRBool inserted;
+    if (aPrimary || !mPrimaryContentShell) {
+      inserted = mTargetableShells.InsertObjectAt(contentShellWeak, 0);
+    } else {
+      inserted = mTargetableShells.AppendObject(contentShellWeak);
+    }
+    NS_ENSURE_TRUE(inserted, NS_ERROR_OUT_OF_MEMORY);
   }
 
   return NS_OK;
@@ -1691,7 +1737,13 @@ NS_IMETHODIMP nsXULWindow::SizeShellTo(nsIDocShellTreeItem* aShellItem,
     PRInt32 winCY = 0;
 
     GetSize(&winCX, &winCY);
-    SetSize(winCX + widthDelta, winCY + heightDelta, PR_TRUE);
+    // There's no point in trying to make the window smaller than the
+    // desired docshell size --- that's not likely to work. This whole
+    // function assumes that the outer docshell is adding some constant
+    // "border" chrome to aShellItem.
+    winCX = PR_MAX(winCX + widthDelta, aCX);
+    winCY = PR_MAX(winCY + heightDelta, aCY);
+    SetSize(winCX, winCY, PR_TRUE);
   }
 
   return NS_OK;
@@ -1877,8 +1929,7 @@ PRBool nsXULWindow::ConstrainToZLevel(
        to the foreground. */
     if (altered &&
         (position == nsIWindowMediator::zLevelTop ||
-         position == nsIWindowMediator::zLevelBelow && aReqBelow == 0))
-
+         (position == nsIWindowMediator::zLevelBelow && aReqBelow == 0)))
       PlaceWindowLayersBehind(zLevel+1, nsIXULWindow::highestZ, 0);
 
     if (*aPlacement != nsWindowZBottom &&
@@ -2086,6 +2137,17 @@ NS_IMETHODIMP nsXULWindow::SetXULBrowserWindow(nsIXULBrowserWindow * aXULBrowser
 //*****************************************************************************
 // nsXULWindow: Accessors
 //*****************************************************************************
+
+PRInt32 nsXULWindow::AppUnitsPerDevPixel()
+{
+  if (mWindow && mWindow->GetDeviceContext()) {
+    mAppPerDev = mWindow->GetDeviceContext()->AppUnitsPerDevPixel();
+  } else {
+    NS_ERROR("nsXULWindow::AppUnitsPerDevPixel called with no window "
+             "or no dev context");
+  }
+  return mAppPerDev;
+}
 
 //*****************************************************************************
 //*** nsContentShellInfo: Object Management

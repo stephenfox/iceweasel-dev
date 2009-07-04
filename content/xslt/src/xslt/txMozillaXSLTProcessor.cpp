@@ -1258,8 +1258,8 @@ txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
 }
 
 NS_IMETHODIMP
-txMozillaXSLTProcessor::Initialize(JSContext* cx, JSObject* obj,
-                                   PRUint32 argc, jsval* argv)
+txMozillaXSLTProcessor::Initialize(nsISupports* aOwner, JSContext* cx,
+                                   JSObject* obj, PRUint32 argc, jsval* argv)
 {
     nsCOMPtr<nsIPrincipal> prin;
     nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
@@ -1446,17 +1446,8 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
             nsCOMPtr<nsIXPConnectJSObjectHolder> holder =
                 do_QueryInterface(supports);
             if (holder) {
-                nsCOMPtr<nsIXPConnect> xpc =
-                    do_GetService(nsIXPConnect::GetCID(), &rv);
-                NS_ENSURE_SUCCESS(rv, rv);
-                
-                nsCOMPtr<nsIXPCNativeCallContext> cc;
-                rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
-                NS_ENSURE_SUCCESS(rv, rv);
-
-                JSContext* cx;
-                rv = cc->GetJSContext(&cx);
-                NS_ENSURE_SUCCESS(rv, rv);
+                JSContext* cx = nsContentUtils::GetCurrentJSContext();
+                NS_ENSURE_TRUE(cx, NS_ERROR_NOT_AVAILABLE);
 
                 JSObject *jsobj;
                 rv = holder->GetJSObject(&jsobj);

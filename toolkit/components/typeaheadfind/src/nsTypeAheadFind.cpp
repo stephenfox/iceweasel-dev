@@ -82,7 +82,6 @@
 #include "nsIDOMNSHTMLElement.h"
 #include "nsIEditor.h"
 
-#include "nsICaret.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIWebNavigation.h"
 #include "nsIInterfaceRequestor.h"
@@ -575,6 +574,8 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, PRBool aIsLinksOnly,
       // ATTENTION, or when we MoveFocusToCaret() and the selection is not on a
       // link, we'll blur, which will lose the ATTENTION.
       if (selectionController) {
+        // Beware! This may flush notifications via synchronous
+        // ScrollSelectionIntoView.
         SetSelectionModeAndRepaint(nsISelectionController::SELECTION_ATTENTION);
         selectionController->ScrollSelectionIntoView(
           nsISelectionController::SELECTION_NORMAL, 
@@ -901,6 +902,8 @@ nsTypeAheadFind::FindAgain(PRBool aFindBackwards, PRBool aLinksOnly,
 
   mLinksOnly = aLinksOnly;
   if (!mTypeAheadBuffer.IsEmpty())
+    // Beware! This may flush notifications via synchronous
+    // ScrollSelectionIntoView.
     FindItNow(nsnull, mLinksOnly, PR_FALSE, aFindBackwards, aResult);
 
   return NS_OK;
@@ -1024,6 +1027,8 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, PRBool aLinksOnly,
   }
 
   // ----------- Find the text! ---------------------
+  // Beware! This may flush notifications via synchronous
+  // ScrollSelectionIntoView.
   nsresult rv = FindItNow(nsnull, mLinksOnly, isFirstVisiblePreferred,
                           PR_FALSE, aResult);
 
@@ -1085,10 +1090,8 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
                                 nsIDOMRange **aFirstVisibleRange,
                                 PRBool *aUsesIndependentSelection)
 {
-  NS_ENSURE_ARG_POINTER(aPresShell);
-  NS_ENSURE_ARG_POINTER(aPresContext);
-  NS_ENSURE_ARG_POINTER(aRange);
-  NS_ENSURE_ARG_POINTER(aFirstVisibleRange);
+  NS_ASSERTION(aPresShell && aPresContext && aRange && aFirstVisibleRange, 
+               "params are invalid");
 
   // We need to know if the range start is visible.
   // Otherwise, return a the first visible range start 
@@ -1172,7 +1175,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
   // We know that the target range isn't usable because it's not in the
   // view port. Move range forward to first visible point,
   // this speeds us up a lot in long documents
-  nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
+  nsCOMPtr<nsIFrameEnumerator> frameTraversal;
   nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID));
   if (trav)
     trav->NewFrameTraversal(getter_AddRefs(frameTraversal),
@@ -1188,9 +1191,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
 
   while (rectVisibility == nsRectVisibility_kAboveViewport || rectVisibility == nsRectVisibility_kZeroAreaRect) {
     frameTraversal->Next();
-    nsISupports* currentItem;
-    frameTraversal->CurrentItem(&currentItem);
-    frame = static_cast<nsIFrame*>(currentItem);
+    frame = frameTraversal->CurrentItem();
     if (!frame)
       return PR_FALSE;
 

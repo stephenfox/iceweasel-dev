@@ -80,7 +80,7 @@ class nsIPageSequenceFrame;
 class nsString;
 class nsAString;
 class nsStringArray;
-class nsICaret;
+class nsCaret;
 class nsStyleContext;
 class nsFrameSelection;
 class nsFrameManager;
@@ -98,14 +98,15 @@ class nsWeakFrame;
 class nsIScrollableFrame;
 class gfxASurface;
 class gfxContext;
+class nsPIDOMEventTarget;
 
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// ff2bdd39-75ed-4392-92b8-8b650c4db574
+// fa1bf801-9fb6-4d19-8d33-698e9961fc10
 #define NS_IPRESSHELL_IID \
-{ 0xff2bdd39, 0x75ed, 0x4392, \
-  { 0x92, 0xb8, 0x8b, 0x65, 0x0c, 0x4d, 0xb5, 0x74 } }
+{ 0xfa1bf801, 0x9fb6, 0x4d19, \
+  { 0x8d, 0x33, 0x69, 0x8e, 0x99, 0x61, 0xfc, 0x10 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -123,8 +124,7 @@ typedef PRUint32 nsFrameState;
 #define VERIFY_REFLOW_DUMP_COMMANDS   0x08
 #define VERIFY_REFLOW_NOISY_RC        0x10
 #define VERIFY_REFLOW_REALLY_NOISY_RC 0x20
-#define VERIFY_REFLOW_INCLUDE_SPACE_MANAGER 0x40
-#define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x80
+#define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x40
 
 /**
  * Presentation shell interface. Presentation shells are the
@@ -164,6 +164,8 @@ public:
    * times to make form controls behave nicely when printed.
    */
   NS_IMETHOD Destroy() = 0;
+  
+  PRBool IsDestroying() { return mIsDestroying; }
 
   // All frames owned by the shell are allocated from an arena.  They are also recycled
   // using free lists (separate free lists being maintained for each size_t).
@@ -332,19 +334,18 @@ public:
    * being scrolled). The primary frame is always the first-in-flow.
    *
    * In the case of absolutely positioned elements and floated elements,
-   * the primary frame is the frame that is out of the flow and not the
-   * placeholder frame.
+   * the primary frame is the placeholder frame.
    */
   virtual NS_HIDDEN_(nsIFrame*) GetPrimaryFrameFor(nsIContent* aContent) const = 0;
 
   /**
-   * Returns a layout object associated with the primary frame for the content object.
+   * Gets the real primary frame associated with the content object.
    *
-   * @param aContent   the content object for which we seek a layout object
-   * @param aResult    the resulting layout object as an nsISupports, if found.  Refcounted.
+   * In the case of absolutely positioned elements and floated elements,
+   * the real primary frame is the frame that is out of the flow and not the
+   * placeholder frame.
    */
-  NS_IMETHOD GetLayoutObjectFor(nsIContent*   aContent,
-                                nsISupports** aResult) const = 0;
+  virtual NS_HIDDEN_(nsIFrame*) GetRealPrimaryFrameFor(nsIContent* aContent) const = 0;
 
   /**
    * Gets the placeholder frame associated with the specified frame. This is
@@ -377,6 +378,8 @@ public:
    */
   NS_IMETHOD RecreateFramesFor(nsIContent* aContent) = 0;
 
+  void PostRecreateFramesFor(nsIContent* aContent);
+  
   /**
    * Determine if it is safe to flush all pending notifications
    * @param aIsSafeToFlush PR_TRUE if it is safe, PR_FALSE otherwise.
@@ -420,6 +423,16 @@ public:
    * be false.
    */
   NS_IMETHOD GoToAnchor(const nsAString& aAnchorName, PRBool aScroll) = 0;
+
+  /**
+   * Tells the presshell to scroll again to the last anchor scrolled to by
+   * GoToAnchor, if any. This scroll only happens if the scroll
+   * position has not changed since the last GoToAnchor. This is called
+   * by nsDocumentViewer::LoadComplete. This clears the last anchor
+   * scrolled to by GoToAnchor (we don't want to keep it alive if it's
+   * removed from the DOM), so don't call this more than once.
+   */
+  NS_IMETHOD ScrollToAnchor() = 0;
 
   /**
    * Scrolls the view of the document so that the primary frame of the content
@@ -491,7 +504,7 @@ public:
   /**
    * Get the caret, if it exists. AddRefs it.
    */
-  NS_IMETHOD GetCaret(nsICaret **aOutCaret) = 0;
+  NS_IMETHOD GetCaret(nsCaret **aOutCaret) = 0;
 
   /**
    * Invalidate the caret's current position if it's outside of its frame's
@@ -503,7 +516,7 @@ public:
   /**
    * Set the current caret to a new caret. To undo this, call RestoreCaret.
    */
-  virtual void SetCaret(nsICaret *aNewCaret) = 0;
+  virtual void SetCaret(nsCaret *aNewCaret) = 0;
 
   /**
    * Restore the caret to the original caret that this pres shell was created
@@ -645,6 +658,8 @@ public:
    */
   static PRInt32 GetVerifyReflowFlags();
 
+  virtual nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
+
 #ifdef MOZ_REFLOW_PERF
   NS_IMETHOD DumpReflows() = 0;
   NS_IMETHOD CountReflows(const char * aName, nsIFrame * aFrame) = 0;
@@ -680,6 +695,9 @@ public:
    * presentations of subdocuments, then do a full invalidate of the content area.
    */
   virtual void Thaw() = 0;
+
+  virtual void NeedsFocusOrBlurAfterSuppression(nsPIDOMEventTarget* aTarget, PRUint32 aEventType) = 0;
+  virtual void FireOrClearDelayedEvents(PRBool aFireEvents) = 0;
 
   /**
    * When this shell is disconnected from its containing docshell, we
@@ -754,6 +772,20 @@ public:
   nsIFrame* GetDrawEventTargetFrame() { return mDrawEventTargetFrame; }
 #endif
 
+  /* Use the current frame tree (if it exists) to update the background
+   * color of the most recent canvas.
+   */
+  virtual void UpdateCanvasBackground() = 0;
+
+  void ObserveNativeAnonMutationsForPrint(PRBool aObserve)
+  {
+    mObservesMutationsForPrint = aObserve;
+  }
+  PRBool ObservesNativeAnonMutationsForPrint()
+  {
+    return mObservesMutationsForPrint;
+  }
+
 protected:
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -789,6 +821,8 @@ protected:
   // Set to true when the accessibility service is being used to mirror
   // the dom/layout trees
   PRPackedBool              mIsAccessibilityActive;
+
+  PRPackedBool              mObservesMutationsForPrint;
 
   // A list of weak frames. This is a pointer to the last item in the list.
   nsWeakFrame*              mWeakFrames;

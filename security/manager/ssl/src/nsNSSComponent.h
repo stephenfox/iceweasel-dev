@@ -64,10 +64,12 @@
 #include "nsHashtable.h"
 #include "prlock.h"
 #include "nsICryptoHash.h"
+#include "nsICryptoHMAC.h"
 #include "hasht.h"
 #include "nsNSSCallbacks.h"
 
 #include "nsNSSHelper.h"
+#include "nsClientAuthRemember.h"
 
 #define NS_NSSCOMPONENT_CID \
 {0xa277189c, 0x1dd1, 0x11b2, {0xa8, 0xc9, 0xe4, 0xe8, 0xbf, 0xb1, 0x33, 0x8e}}
@@ -86,8 +88,22 @@
 #define NS_PSMCONTENTLISTEN_CID {0xc94f4a30, 0x64d7, 0x11d4, {0x99, 0x60, 0x00, 0xb0, 0xd0, 0x23, 0x54, 0xa0}}
 #define NS_PSMCONTENTLISTEN_CONTRACTID "@mozilla.org/security/psmdownload;1"
 
-#define NS_CRYPTO_HASH_CLASSNAME "Mozilla Cryto Hash Function Component"
+#define NS_CRYPTO_HASH_CLASSNAME "Mozilla Crypto Hash Function Component"
 #define NS_CRYPTO_HASH_CID {0x36a1d3b3, 0xd886, 0x4317, {0x96, 0xff, 0x87, 0xb0, 0x00, 0x5c, 0xfe, 0xf7}}
+
+#define NS_CRYPTO_HMAC_CLASSNAME "Mozilla Crypto HMAC Function Component"
+#define NS_CRYPTO_HMAC_CID {0xa496d0a2, 0xdff7, 0x4e23, {0xbd, 0x65, 0x1c, 0xa7, 0x42, 0xfa, 0x17, 0x8a}}
+
+enum EnsureNSSOperator
+{
+  nssLoading = 0,
+  nssInitSucceeded = 1,
+  nssInitFailed = 2,
+  nssShutdown = 3,
+  nssEnsure = 4
+};
+
+extern PRBool EnsureNSSInitialized(EnsureNSSOperator op);
 
 //--------------------------------------------
 // Now we need a content listener to register 
@@ -118,7 +134,7 @@ protected:
   PRInt32 mBufferSize;
   PRUint32 mType;
   PRBool mDoSilentDownload;
-  nsAutoString mCrlAutoDownloadKey;
+  nsString mCrlAutoDownloadKey;
   nsCOMPtr<nsIURI> mURI;
   nsresult handleContentDownloadError(nsresult errCode);
 };
@@ -167,6 +183,8 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
 
   NS_IMETHOD DispatchEvent(const nsAString &eventType, const nsAString &token) = 0;
   
+  NS_IMETHOD GetClientAuthRememberService(nsClientAuthRememberService **cars) = 0;
+
   NS_IMETHOD EnsureIdentityInfoLoaded() = 0;
 };
 
@@ -183,6 +201,20 @@ public:
 private:
   ~nsCryptoHash();
   HASHContext* mHashContext;
+};
+
+class nsCryptoHMAC : public nsICryptoHMAC
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSICRYPTOHMAC
+
+  nsCryptoHMAC();
+
+private:
+  ~nsCryptoHMAC();
+
+  PK11Context* mHMACContext;
 };
 
 struct PRLock;
@@ -241,6 +273,7 @@ public:
   NS_IMETHOD ShutdownSmartCardThread(SECMODModule *module);
   NS_IMETHOD PostEvent(const nsAString &eventType, const nsAString &token);
   NS_IMETHOD DispatchEvent(const nsAString &eventType, const nsAString &token);
+  NS_IMETHOD GetClientAuthRememberService(nsClientAuthRememberService **cars);
   NS_IMETHOD EnsureIdentityInfoLoaded();
 
 private:
@@ -269,6 +302,7 @@ private:
   nsresult ConfigureInternalPKCS11Token();
   nsresult RegisterPSMContentListener();
   nsresult RegisterObservers();
+  nsresult DeregisterObservers();
   nsresult DownloadCrlSilently();
   nsresult PostCRLImportEvent(const nsCSubstring &urlString, nsIStreamListener *psmDownloader);
   nsresult getParamsForNextCrlToDownload(nsAutoString *url, PRTime *time, nsAutoString *key);
@@ -306,6 +340,7 @@ private:
   nsSSLThread *mSSLThread;
   nsCertVerificationThread *mCertVerificationThread;
   nsNSSHttpInterface mHttpForNSS;
+  nsRefPtr<nsClientAuthRememberService> mClientAuthRememberService;
 
   static PRStatus PR_CALLBACK IdentityInfoInit(void);
   PRCallOnceType mIdentityInfoCallOnce;

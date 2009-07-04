@@ -111,7 +111,7 @@ public:
   
   // nsIContent overrides...
   virtual void SetFocus(nsPresContext* aPresContext);
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
@@ -161,11 +161,12 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLButtonElement
-NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLButtonElement,
-                                     nsGenericHTMLFormElement)
-  NS_INTERFACE_TABLE_INHERITED2(nsHTMLButtonElement,
-                                nsIDOMHTMLButtonElement,
-                                nsIDOMNSHTMLButtonElement)
+NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLButtonElement,
+                                   nsIDOMHTMLButtonElement,
+                                   nsIDOMNSHTMLButtonElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLButtonElement,
+                                               nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLButtonElement)
 
 // nsIDOMHTMLButtonElement
@@ -244,29 +245,24 @@ nsHTMLButtonElement::Click()
 }
 
 PRBool
-nsHTMLButtonElement::IsFocusable(PRInt32 *aTabIndex)
+nsHTMLButtonElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (!nsGenericHTMLElement::IsFocusable(aTabIndex)) {
-    return PR_FALSE;
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
+    return PR_TRUE;
   }
   if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
     *aTabIndex = -1;
   }
-  return PR_TRUE;
+
+  *aIsFocusable = PR_TRUE;
+
+  return PR_FALSE;
 }
 
 void
 nsHTMLButtonElement::SetFocus(nsPresContext* aPresContext)
 {
-  if (!aPresContext)
-    return;
-
-  // first see if we are disabled or not. If disabled then do nothing.
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
-    return;
-  }
-
-  SetFocusAndScrollIntoView(aPresContext);
+  DoSetFocus(aPresContext);
 }
 
 static const nsAttrValue::EnumTable kButtonTypeTable[] = {

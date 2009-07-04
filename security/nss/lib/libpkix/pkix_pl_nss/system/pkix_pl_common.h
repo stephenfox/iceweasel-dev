@@ -60,7 +60,6 @@
 #include "keyhi.h"
 #include "ocsp.h"
 #include "ocspt.h"
-#include "ocspti.h"
 #include "pk11pub.h"
 #include "pkcs11.h"
 #include "pkcs11t.h"
@@ -152,7 +151,7 @@ pkix_pl_oidBytes2Ascii(
 
 PKIX_Error *
 pkix_UTF16_to_EscASCII(
-        void *utf16String,
+        const void *utf16String,
         PKIX_UInt32 utf16Length,
         PKIX_Boolean debug,
         char **pDest,
@@ -161,7 +160,7 @@ pkix_UTF16_to_EscASCII(
 
 PKIX_Error *
 pkix_EscASCII_to_UTF16(
-        char *escAsciiString,
+        const char *escAsciiString,
         PKIX_UInt32 escAsciiLen,
         PKIX_Boolean debug,
         void **pDest,
@@ -170,7 +169,7 @@ pkix_EscASCII_to_UTF16(
 
 PKIX_Error *
 pkix_UTF16_to_UTF8(
-        void *utf16String,
+        const void *utf16String,
         PKIX_UInt32 utf16Length,
         PKIX_Boolean null_Term,
         void **pDest,
@@ -179,7 +178,7 @@ pkix_UTF16_to_UTF8(
 
 PKIX_Error *
 pkix_UTF8_to_UTF16(
-        void *utf8Source,
+        const void *utf8Source,
         PKIX_UInt32 utf8Length,
         void **pDest,
         PKIX_UInt32 *pLength,

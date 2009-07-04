@@ -270,6 +270,8 @@ pkix_ValidateParams_RegisterSelf(void *plContext)
         PKIX_ENTER(VALIDATEPARAMS, "pkix_ValidateParams_RegisterSelf");
 
         entry.description = "ValidateParams";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_ValidateParams);
         entry.destructor = pkix_ValidateParams_Destroy;
         entry.equalsFunction = pkix_ValidateParams_Equals;
         entry.hashcodeFunction = pkix_ValidateParams_Hashcode;
@@ -314,8 +316,11 @@ PKIX_ValidateParams_Create(
         params->chain = chain;
 
         *pParams = params;
+        params = NULL;
 
 cleanup:
+
+        PKIX_DECREF(params);
 
         PKIX_RETURN(VALIDATEPARAMS);
 
@@ -338,6 +343,7 @@ PKIX_ValidateParams_GetProcessingParams(
 
         *pProcParams = valParams->procParams;
 
+cleanup:
         PKIX_RETURN(VALIDATEPARAMS);
 }
 
@@ -357,5 +363,6 @@ PKIX_ValidateParams_GetCertChain(
 
         *pChain = valParams->chain;
 
+cleanup:
         PKIX_RETURN(VALIDATEPARAMS);
 }

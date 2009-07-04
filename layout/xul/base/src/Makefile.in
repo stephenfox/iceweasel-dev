@@ -51,7 +51,6 @@ REQUIRES	= xpcom \
 		  dom \
 		  locale \
 		  content \
-		  xul \
 		  gfx \
 		  thebes \
 		  widget \
@@ -65,6 +64,7 @@ REQUIRES	= xpcom \
 		  unicharutil \
 		  xpconnect \
 		  js \
+		  xultmpl \
 		  $(NULL)
 
 ifdef MOZ_ENABLE_CANVAS
@@ -75,7 +75,7 @@ REQUIRES        += \
 endif
 
 ifdef MOZ_XUL
-DIRS		= tree grid
+PARALLEL_DIRS = tree/public tree/src grid
 endif
 
 EXPORTS		= nsIMenuParent.h
@@ -111,7 +111,6 @@ CPPSRCS		+= \
 		nsLeafBoxFrame.cpp \
 		nsTextBoxFrame.cpp \
 		nsGroupBoxFrame.cpp \
-		nsFrameNavigator.cpp \
 		nsSplitterFrame.cpp \
 		nsDeckFrame.cpp \
 		nsProgressMeterFrame.cpp \

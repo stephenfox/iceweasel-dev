@@ -38,7 +38,7 @@
 #define BASE_H
 
 #ifdef DEBUG
-static const char BASE_CVS_ID[] = "@(#) $RCSfile: base.h,v $ $Revision: 1.18 $ $Date: 2005/12/19 17:53:28 $";
+static const char BASE_CVS_ID[] = "@(#) $RCSfile: base.h,v $ $Revision: 1.20 $ $Date: 2008/05/10 01:03:14 $";
 #endif /* DEBUG */
 
 /*
@@ -520,6 +520,13 @@ extern const NSSError NSS_ERROR_INVALID_ARENA;
 #endif /* DEBUG */
 
 /*
+ * Private function to be called by NSS_Shutdown to cleanup nssArena 
+ * bookkeeping.
+ */
+extern PRStatus
+nssArena_Shutdown(void);
+
+/*
  * nssArenaHashAllocOps
  *
  * This constant structure contains allocation callbacks designed for
@@ -563,6 +570,18 @@ nss_SetError
 
 NSS_EXTERN void
 nss_ClearErrorStack
+(
+  void
+);
+
+/*
+ * nss_DestroyErrorStack
+ *
+ * This routine frees the calling thread's error stack.
+ */
+
+NSS_EXTERN void
+nss_DestroyErrorStack
 (
   void
 );

@@ -42,7 +42,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_MOCHITEST
+ifdef ENABLE_TESTS
 DIRS		+= tests
 endif
 
@@ -56,7 +56,6 @@ REQUIRES	= xpcom \
 		  string \
 		  dom \
 		  content \
-		  xul \
 		  xuldoc \
 		  gfx \
 		  widget \
@@ -76,13 +75,15 @@ REQUIRES	= xpcom \
 		  htmlparser \
 		  util \
 		  windowwatcher \
-		  accessibility \
 		  shistory \
 		  caps \
 		  thebes \
-		  cairo \
+		  qcms \
 		  $(NULL)
 
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 XPIDLSRCS	= \
 		nsIStyleSheetService.idl	\
@@ -91,6 +92,7 @@ XPIDLSRCS	= \
 EXPORTS		= \
 		nsBidi.h \
 		nsBidiPresUtils.h \
+		nsCaret.h \
 		nsCSSFrameConstructor.h \
 		nsChangeHint.h \
 		nsCompatibility.h \
@@ -98,7 +100,6 @@ EXPORTS		= \
 		nsFrameManager.h \
 		nsFrameManagerBase.h \
 		nsFrameTraversal.h \
-		nsICaret.h \
 		nsIDocumentViewer.h \
 		nsIFrameTraversal.h \
 		nsIImageMap.h \
@@ -109,6 +110,7 @@ EXPORTS		= \
 		nsIReflowCallback.h \
 		nsLayoutErrors.h \
 		nsLayoutUtils.h \
+		nsIFocusEventSuppressor.h \
 		nsPresContext.h \
 		nsPresState.h \
 		nsStyleChangeList.h \
@@ -119,10 +121,11 @@ CPPSRCS		= \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \
+		nsCSSRenderingBorders.cpp \
 		nsCaret.cpp \
 		nsChildIterator.cpp \
 		nsCounterManager.cpp \
-                nsDisplayList.cpp \
+		nsDisplayList.cpp \
 		nsDocumentViewer.cpp \
 		nsFrameManager.cpp \
 		nsFrameTraversal.cpp \
@@ -137,7 +140,20 @@ CPPSRCS		= \
 		nsQuoteList.cpp \
 		nsStyleChangeList.cpp \
 		nsStyleSheetService.cpp \
+		nsFocusEventSuppressor.cpp \
 		$(NULL)
+
+ifndef MOZ_XUL
+XPIDLSRCS  += \
+		nsIBoxObject.idl \
+		$(NULL)
+EXPORTS    += \
+		nsPIBoxObject.h \
+		$(NULL)
+CPPSRCS    += \
+		nsBoxObject.cpp \
+		$(NULL)
+endif
 
 ifdef IBMBIDI
 CPPSRCS		+= \
@@ -152,11 +168,13 @@ include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
 		-I$(srcdir) \
+		-I$(srcdir)/../style \
 		-I$(srcdir)/../generic \
 		-I$(srcdir)/../forms \
 		-I$(srcdir)/../tables \
 		-I$(srcdir)/../printing \
 		-I$(srcdir)/../xul/base/src \
+		-I$(srcdir)/../xul/base/src/tree/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/events/src \
 		-I$(srcdir)/../../content/xbl/src \
@@ -176,6 +194,22 @@ LOCAL_INCLUDES += \
         -I$(srcdir)/../svg/base/src
 endif
 
+ifdef MOZ_MEDIA
+LOCAL_INCLUDES += \
+        -I$(srcdir)/../../content/html/content/src
+endif
+
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS)
 
 DEFINES += -D_IMPL_NS_LAYOUT
+
+ifndef MOZ_XUL
+nsIBoxObject.idl: %: $(topsrcdir)/layout/xul/base/public/%
+	$(INSTALL) $^ .
+nsPIBoxObject.h: %: $(topsrcdir)/layout/xul/base/public/%
+	$(INSTALL) $^ .
+nsBoxObject.cpp: %: $(topsrcdir)/layout/xul/base/src/%
+	$(INSTALL) $^ .
+
+GARBAGE    += nsIBoxObject.idl nsPIBoxObject.h nsBoxObject.cpp
+endif

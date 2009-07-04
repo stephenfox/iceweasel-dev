@@ -50,23 +50,19 @@ EXPORTS		= \
 		widgetCore.h \
 		nsStringUtil.h \
 		nsIWidget.h \
-		nsIKBStateControl.h \
 		nsGUIEvent.h \
 		nsEvent.h \
-		nsIMouseListener.h \
 		nsIEventListener.h \
 		nsWidgetsCID.h \
 		nsILookAndFeel.h \
 		nsIPluginWidget.h \
 		nsINativeKeyBindings.h \
 		nsIDeviceContextSpec.h \
+		nsIMenuRollup.h \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-EXPORTS		+= \
-		nsIMenuBar.h \
-		nsIMenu.h \
-		nsIMenuItem.h
+EXPORTS		+= nsINativeMenuService.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -77,8 +73,11 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 EXPORTS		+= nsIDragSessionBeOS.h
 endif
 
-ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
-EXPORTS		+= nsIDragSessionGTK.h
+ifneq (,$(filter qt gtk2,$(MOZ_WIDGET_TOOLKIT)))
+EXPORTS		+= \
+		nsIDragSessionGTK.h \
+		nsIPrintDialogService.h \
+		$(NULL)
 endif
 
 XPIDLSRCS	= \
@@ -96,7 +95,6 @@ XPIDLSRCS	= \
 		nsIClipboardHelper.idl \
 		nsIClipboardOwner.idl \
 		nsIRollupListener.idl \
-		nsIMenuRollup.idl \
 		nsIBaseWindow.idl \
 		nsIBidiKeyboard.idl \
 		nsIFullScreen.idl \
@@ -116,6 +114,10 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 XPIDLSRCS	+= nsIPrintSettingsX.idl \
 		nsIPrintSessionX.idl
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
+XPIDLSRCS	+= nsIRwsService.idl
 endif
 
 EXPORTS		:= $(addprefix $(srcdir)/, $(EXPORTS))

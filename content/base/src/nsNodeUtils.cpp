@@ -53,6 +53,7 @@
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif
+#include "nsBindingManager.h"
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
@@ -235,6 +236,13 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     aNode->UnsetFlags(NODE_HAS_LISTENERMANAGER);
   }
 
+  if (aNode->IsNodeOfType(nsINode::eELEMENT)) {
+    nsIDocument* ownerDoc = aNode->GetOwnerDoc();
+    if (ownerDoc) {
+      ownerDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
+    }
+  }
+
   delete aNode;
 }
 
@@ -316,10 +324,11 @@ nsNodeUtils::GetUserData(nsINode *aNode, const nsAString &aKey,
   return NS_OK;
 }
 
-struct nsHandlerData
+struct NS_STACK_CLASS nsHandlerData
 {
   PRUint16 mOperation;
-  nsCOMPtr<nsIDOMNode> mSource, mDest;
+  nsCOMPtr<nsIDOMNode> mSource;
+  nsCOMPtr<nsIDOMNode> mDest;
 };
 
 static void
@@ -383,6 +392,7 @@ NoteUserData(void *aObject, nsIAtom *aKey, void *aXPCOMChild, void *aData)
 {
   nsCycleCollectionTraversalCallback* cb =
     static_cast<nsCycleCollectionTraversalCallback*>(aData);
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "[user data (or handler)]");
   cb->NoteXPCOMChild(static_cast<nsISupports*>(aXPCOMChild));
 }
 
@@ -448,7 +458,7 @@ public:
   nsCOMArray<nsINode> &mNodesWithProperties;
 };
 
-PLDHashOperator PR_CALLBACK
+PLDHashOperator
 AdoptFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg)
 {
   nsCOMPtr<nsIAttribute> attr = do_QueryInterface(aData);
@@ -506,11 +516,25 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   nsINodeInfo *nodeInfo = aNode->mNodeInfo;
   nsCOMPtr<nsINodeInfo> newNodeInfo;
   if (nodeInfoManager) {
-    rv = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
-                                      nodeInfo->GetPrefixAtom(),
-                                      nodeInfo->NamespaceID(),
-                                      getter_AddRefs(newNodeInfo));
-    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Don't allow importing/adopting nodes from non-privileged "scriptable"
+    // documents to "non-scriptable" documents.
+    nsIDocument* newDoc = nodeInfoManager->GetDocument();
+    NS_ENSURE_STATE(newDoc);
+    PRBool hasHadScriptHandlingObject = PR_FALSE;
+    if (!newDoc->GetScriptHandlingObject(hasHadScriptHandlingObject) &&
+        !hasHadScriptHandlingObject) {
+      nsIDocument* currentDoc = aNode->GetOwnerDoc();
+      NS_ENSURE_STATE(currentDoc &&
+                      (nsContentUtils::IsChromeDoc(currentDoc) ||
+                       (!currentDoc->GetScriptHandlingObject(hasHadScriptHandlingObject) &&
+                        !hasHadScriptHandlingObject)));
+    }
+
+    newNodeInfo = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
+                                               nodeInfo->GetPrefixAtom(),
+                                               nodeInfo->NamespaceID());
+    NS_ENSURE_TRUE(newNodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
     nodeInfo = newNodeInfo;
   }
@@ -541,21 +565,20 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     }
   }
   else if (nodeInfoManager) {
-    nsCOMPtr<nsISupports> oldRef;
     nsIDocument* oldDoc = aNode->GetOwnerDoc();
-    if (oldDoc) {
-      oldRef = oldDoc->GetReference(aNode);
-      if (oldRef) {
-        oldDoc->RemoveReference(aNode);
-      }
+    PRBool wasRegistered = PR_FALSE;
+    if (oldDoc && aNode->IsNodeOfType(nsINode::eELEMENT)) {
+      nsIContent* content = static_cast<nsIContent*>(aNode);
+      oldDoc->ClearBoxObjectFor(content);
+      wasRegistered = oldDoc->UnregisterFreezableElement(content);
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
 
     nsIDocument* newDoc = aNode->GetOwnerDoc();
     if (newDoc) {
-      if (oldRef) {
-        newDoc->AddReference(aNode, oldRef);
+      if (wasRegistered) {
+        newDoc->RegisterFreezableElement(static_cast<nsIContent*>(aNode));
       }
 
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
@@ -564,6 +587,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
         aNode->GetListenerManager(PR_FALSE, getter_AddRefs(elm));
         if (elm) {
           window->SetMutationListeners(elm->MutationListenerBits());
+          if (elm->MayHavePaintEventListener()) {
+            window->SetHasPaintEventListeners();
+          }
         }
       }
     }

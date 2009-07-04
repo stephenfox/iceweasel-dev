@@ -12,6 +12,7 @@
 
 <!ENTITY reportForm.description                     "Tell us a little about the problem you encountered:">
 <!ENTITY reportForm.url.title                       "Web site URL:">
+<!ENTITY reportForm.url.accesskey                   "U">
 
 <!ENTITY reportForm.behind_login.title              "Web site is password-protected"><!-- No ":" at the end -->
 <!ENTITY reportForm.behind_login.accesskey          "P">
@@ -30,6 +31,7 @@
 <!ENTITY reportForm.problem_type.item6.title        "Appearance wrong">
 <!ENTITY reportForm.problem_type.item7.title        "Other problem">
 <!ENTITY reportForm.problem_type.item8.title        "Disability access">
+<!ENTITY reportForm.problem_type.item9.title        "Printed output is wrong">
 
 <!ENTITY reportForm.describe.title                  "Describe Problem:">
 <!ENTITY reportForm.describe.accesskey              "D">

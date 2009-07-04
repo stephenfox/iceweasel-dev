@@ -229,6 +229,17 @@ nsLeafBoxFrame::GetIntrinsicWidth()
   return 0;
 }
 
+nsSize
+nsLeafBoxFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
+                                nsSize aCBSize, nscoord aAvailableWidth,
+                                nsSize aMargin, nsSize aBorder,
+                                nsSize aPadding, PRBool aShrinkWrap)
+{
+  // Important: NOT calling our direct superclass here!
+  return nsFrame::ComputeAutoSize(aRenderingContext, aCBSize, aAvailableWidth,
+                                  aMargin, aBorder, aPadding, aShrinkWrap);
+}
+
 NS_IMETHODIMP
 nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
                      nsHTMLReflowMetrics&     aDesiredSize,
@@ -298,7 +309,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
      prefSize = GetPrefSize(state);
      nsSize minSize = GetMinSize(state);
      nsSize maxSize = GetMaxSize(state);
-     BoundsCheck(minSize, prefSize, maxSize);
+     prefSize = BoundsCheck(minSize, prefSize, maxSize);
   }
 
   // get our desiredSize
@@ -341,13 +352,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   aDesiredSize.ascent = GetBoxAscent(state);
 
   // NS_FRAME_OUTSIDE_CHILDREN is set in SetBounds() above
-  if (mState & NS_FRAME_OUTSIDE_CHILDREN) {
-    nsRect* overflowArea = GetOverflowAreaProperty();
-    NS_ASSERTION(overflowArea, "Failed to set overflow area property");
-    aDesiredSize.mOverflowArea = *overflowArea;
-  } else {
-    aDesiredSize.mOverflowArea = nsRect(nsPoint(0, 0), GetSize());
-  }
+  aDesiredSize.mOverflowArea = GetOverflowRect();
 
 #ifdef DO_NOISY_REFLOW
   {

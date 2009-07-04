@@ -85,6 +85,9 @@
 #include "nsIMutableArray.h"
 #include "nsISupportsArray.h"
 #include "nsIDeviceContext.h"
+#include "nsIDOMStorage.h"
+#include "nsIDOMStorage2.h"
+#include "nsPIDOMStorage.h"
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
@@ -268,7 +271,7 @@ void nsWatcherWindowEnumerator::WindowRemoved(nsWatcherWindowEntry *inInfo) {
  ********************** JSContextAutoPopper *********************
  ****************************************************************/
 
-class JSContextAutoPopper {
+class NS_STACK_CLASS JSContextAutoPopper {
 public:
   JSContextAutoPopper();
   ~JSContextAutoPopper();
@@ -556,9 +559,14 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
                                      aDialog, uriToLoadIsChrome,
                                      !aParent || chromeParent);
 
-  if ((chromeFlags & nsIWebBrowserChrome::CHROME_MODAL) &&
-      !(chromeFlags & nsIWebBrowserChrome::CHROME_OPENAS_CHROME)) {
+  // If we're not called through our JS version of the API, and we got
+  // our internal modal option, treat the window we're opening as a
+  // modal content window (and set the modal chrome flag).
+  if (!aCalledFromJS && argv &&
+      WinHasOption(features.get(), "-moz-internal-modal", 0, nsnull)) {
     windowIsModalContentDialog = PR_TRUE;
+
+    chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL;
   }
 
   SizeSpec sizeSpec;
@@ -637,6 +645,23 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
       // in case we added this because weAreModal
       chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL |
         nsIWebBrowserChrome::CHROME_DEPENDENT;
+    }
+
+    // Make sure to not create modal windows if our parent is invisible and
+    // isn't a chrome window.  Otherwise we can end up in a bizarre situation
+    // where we can't shut down because an invisible window is open.  If
+    // someone tries to do this, throw.
+    if (!chromeParent && (chromeFlags & nsIWebBrowserChrome::CHROME_MODAL)) {
+      PRBool parentVisible = PR_TRUE;
+      nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(parentTreeOwner));
+      nsCOMPtr<nsIWidget> parentWidget;
+      if (parentWindow)
+        parentWindow->GetMainWidget(getter_AddRefs(parentWidget));
+      if (parentWidget)
+        parentWidget->IsVisible(parentVisible);
+      if (!parentVisible) {
+        return NS_ERROR_NOT_AVAILABLE;
+      }
     }
 
     NS_ASSERTION(mWindowCreator,
@@ -738,11 +763,10 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   /* allow a window that we found by name to keep its name (important for cases
      like _self where the given name is different (and invalid)).  Also, _blank
-     and _new are not window names. */
+     is not a window name. */
   if (windowNeedsName)
     newDocShellItem->SetName(nameSpecified &&
-                             !name.LowerCaseEqualsLiteral("_blank") &&
-                             !name.LowerCaseEqualsLiteral("_new") ?
+                             !name.LowerCaseEqualsLiteral("_blank") ?
                              name.get() : nsnull);
 
 
@@ -905,9 +929,32 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
                     nsIWebNavigation::LOAD_FLAGS_NONE, PR_TRUE);
   }
 
+  // Copy the current session storage for the current domain.
+  nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aParent);
+  nsCOMPtr<nsIDocShell_MOZILLA_1_9_1_SessionStorage> parentDocShell;
+  if (piWindow)
+    parentDocShell = do_QueryInterface(piWindow->GetDocShell());
+
+  if (subjectPrincipal && parentDocShell) {
+    nsCOMPtr<nsIDOMStorage2> storage;
+    parentDocShell->GetSessionStorageForPrincipal(subjectPrincipal, PR_FALSE,
+                                                  getter_AddRefs(storage));
+    nsCOMPtr<nsPIDOMStorage> piStorage =
+      do_QueryInterface(storage);
+    if (piStorage){
+      storage = piStorage->Clone();
+      nsCOMPtr<nsIDocShell_MOZILLA_1_9_1_SessionStorage> newDocShell191 =
+        do_QueryInterface(newDocShell);
+      newDocShell191->AddSessionStorage(
+        piStorage->Principal(),
+        storage);
+    }
+  }
+
   if (isNewToplevelWindow)
     SizeOpenedDocShellItem(newDocShellItem, aParent, sizeSpec);
 
+  // XXXbz isn't windowIsModal always true when windowIsModalContentDialog?
   if (windowIsModal || windowIsModalContentDialog) {
     nsCOMPtr<nsIDocShellTreeOwner> newTreeOwner;
     newDocShellItem->GetTreeOwner(getter_AddRefs(newTreeOwner));
@@ -1542,7 +1589,8 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
        prevents untrusted script from opening modal windows in general
        while still allowing alerts and the like. */
     if (!aChromeURL)
-      chromeFlags &= ~nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
+      chromeFlags &= ~(nsIWebBrowserChrome::CHROME_MODAL |
+                       nsIWebBrowserChrome::CHROME_OPENAS_CHROME);
   }
 
   if (!(chromeFlags & nsIWebBrowserChrome::CHROME_OPENAS_CHROME)) {

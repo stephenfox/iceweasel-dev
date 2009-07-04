@@ -61,7 +61,7 @@
 #include "nsIScrollableView.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIPresShell.h"
-#include "nsFrameNavigator.h"
+#include "nsFrameList.h"
 #include "nsHTMLParts.h"
 #include "nsILookAndFeel.h"
 #include "nsStyleContext.h"
@@ -180,7 +180,13 @@ public:
 };
 
 
-NS_IMPL_ISUPPORTS2(nsSplitterFrameInner, nsIDOMMouseListener, nsIDOMMouseMotionListener)
+NS_IMPL_ADDREF(nsSplitterFrameInner)
+NS_IMPL_RELEASE(nsSplitterFrameInner)
+NS_INTERFACE_MAP_BEGIN(nsSplitterFrameInner)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener,nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
+NS_INTERFACE_MAP_END
 
 nsSplitterFrameInner::ResizeType
 nsSplitterFrameInner::GetResizeBefore()
@@ -520,6 +526,8 @@ nsSplitterFrameInner::MouseUp(nsPresContext* aPresContext, nsGUIEvent* aEvent)
   delete[] mChildInfosAfter;
   mChildInfosBefore = nsnull;
   mChildInfosAfter = nsnull;
+  mChildInfosBeforeCount = 0;
+  mChildInfosAfterCount = 0;
 }
 
 void
@@ -735,15 +743,17 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
   mParentBox = mOuter->GetParentBox();
   if (!mParentBox)
     return NS_OK;
-  
+
   // get our index
   nsPresContext* outerPresContext = mOuter->PresContext();
-  nscoord childIndex = nsFrameNavigator::IndexOf(outerPresContext, mParentBox, mOuter);
-  // if it's 0 then stop right here.
-  if (childIndex == 0)
+  nsFrameList siblingList(mParentBox->GetFirstChild(nsnull));
+  PRInt32 childIndex = siblingList.IndexOf(mOuter);
+  // if it's 0 (or not found) then stop right here.
+  // It might be not found if we're not in the parent's primary frame list.
+  if (childIndex <= 0)
     return NS_OK;
 
-  PRInt32 childCount = nsFrameNavigator::CountFrames(outerPresContext, mParentBox);
+  PRInt32 childCount = siblingList.GetLength();
   // if it's the last index then we need to allow for resizeafter="grow"
   if (childIndex == childCount - 1 && GetResizeAfter() != Grow)
     return NS_OK;
@@ -792,8 +802,8 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
     if (atom != nsGkAtoms::splitter) { 
         nsSize prefSize = childBox->GetPrefSize(state);
         nsSize minSize = childBox->GetMinSize(state);
-        nsSize maxSize = childBox->GetMaxSize(state);
-        nsBox::BoundsCheck(minSize, prefSize, maxSize);
+        nsSize maxSize = nsBox::BoundsCheckMinMax(minSize, childBox->GetMaxSize(state));
+        prefSize = nsBox::BoundsCheck(minSize, prefSize, maxSize);
 
         mOuter->AddMargin(childBox, minSize);
         mOuter->AddMargin(childBox, prefSize);
@@ -968,13 +978,17 @@ nsSplitterFrameInner::UpdateState()
     return;
   }
 
-  if (SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) {
-    nsIBox* splitter = mOuter;
+  if ((SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) &&
+      mOuter->GetParent()->IsBoxFrame()) {
     // Find the splitter's immediate sibling.
-    nsIBox* splitterSibling =
-      nsFrameNavigator::GetChildBeforeAfter(mOuter->PresContext(), splitter,
-                                            (newState == CollapsedBefore ||
-                                             mState == CollapsedBefore));
+    nsIFrame* splitterSibling;
+    if (newState == CollapsedBefore || mState == CollapsedBefore) {
+      splitterSibling =
+        nsFrameList(mOuter->GetParent()->GetFirstChild(nsnull)).GetPrevSiblingFor(mOuter);
+    } else {
+      splitterSibling = mOuter->GetNextSibling();
+    }
+
     if (splitterSibling) {
       nsCOMPtr<nsIContent> sibling = splitterSibling->GetContent();
       if (sibling) {
@@ -983,15 +997,16 @@ nsSplitterFrameInner::UpdateState()
           // CollapsedBefore -> Dragging
           // CollapsedAfter -> Open
           // CollapsedAfter -> Dragging
-          sibling->UnsetAttr(kNameSpaceID_None, nsGkAtoms::collapsed,
-                             PR_TRUE);
+          nsContentUtils::AddScriptRunner(
+            new nsUnsetAttrRunnable(sibling, nsGkAtoms::collapsed));
         } else if ((mState == Open || mState == Dragging)
                    && (newState == CollapsedBefore ||
                        newState == CollapsedAfter)) {
           // Open -> CollapsedBefore / CollapsedAfter
           // Dragging -> CollapsedBefore / CollapsedAfter
-          sibling->SetAttr(kNameSpaceID_None, nsGkAtoms::collapsed,
-                           NS_LITERAL_STRING("true"), PR_TRUE);
+          nsContentUtils::AddScriptRunner(
+            new nsSetAttrRunnable(sibling, nsGkAtoms::collapsed,
+                                  NS_LITERAL_STRING("true")));
         }
       }
     }

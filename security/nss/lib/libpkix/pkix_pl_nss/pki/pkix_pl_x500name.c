@@ -80,9 +80,8 @@ pkix_pl_X500Name_ToString_Helper(
         PKIX_NULLCHECK_TWO(name, pString);
         nssDN = &name->nssDN;
 
-        PKIX_X500NAME_DEBUG("\t\tCalling CERT_NameToAscii).\n");
         /* this should really be called CERT_NameToUTF8 */
-        utf8String = CERT_NameToAscii(nssDN);
+        utf8String = CERT_NameToAsciiInvertible(nssDN, CERT_N2A_INVERTIBLE);
         if (!utf8String){
                 PKIX_ERROR(PKIX_CERTNAMETOASCIIFAILED);
         }
@@ -142,8 +141,9 @@ pkix_pl_X500Name_ToString(
         PKIX_PL_String **pString,
         void *plContext)
 {
-        PKIX_PL_String *nameString = NULL;
         PKIX_PL_X500Name *name = NULL;
+        char *string = NULL;
+        PKIX_UInt32 strLength = 0;
 
         PKIX_ENTER(X500NAME, "pkix_pl_X500Name_toString");
         PKIX_NULLCHECK_TWO(object, pString);
@@ -152,12 +152,15 @@ pkix_pl_X500Name_ToString(
                     PKIX_OBJECTNOTANX500NAME);
 
         name = (PKIX_PL_X500Name *)object;
+        string = CERT_NameToAscii(&name->nssDN);
+        if (!string){
+                PKIX_ERROR(PKIX_CERTNAMETOASCIIFAILED);
+        }
+        strLength = PL_strlen(string);
 
-        PKIX_CHECK(pkix_pl_X500Name_ToString_Helper
-                    (name, &nameString, plContext),
-                    PKIX_X500NAMETOSTRINGHELPERFAILED);
-
-        *pString = nameString;
+        PKIX_CHECK(PKIX_PL_String_Create
+                    (PKIX_ESCASCII, string, strLength, pString, plContext),
+                    PKIX_STRINGCREATEFAILED);
 
 cleanup:
 
@@ -273,6 +276,8 @@ pkix_pl_X500Name_RegisterSelf(void *plContext)
         PKIX_ENTER(X500NAME, "pkix_pl_X500Name_RegisterSelf");
 
         entry.description = "X500Name";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_X500Name);
         entry.destructor = pkix_pl_X500Name_Destroy;
         entry.equalsFunction = pkix_pl_X500Name_Equals;
         entry.hashcodeFunction = pkix_pl_X500Name_Hashcode;
@@ -436,7 +441,7 @@ PKIX_PL_X500Name_CreateFromCERTName(
 
         arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
         if (arena == NULL) {
-            PKIX_ERROR(PKIX_PORTARENAALLOCFAILED);
+            PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
         
         PKIX_CHECK(PKIX_PL_Object_Alloc
@@ -452,7 +457,7 @@ PKIX_PL_X500Name_CreateFromCERTName(
         if (derName != NULL) {
             rv = SECITEM_CopyItem(arena, &x500Name->derName, derName);
             if (rv == SECFailure) {
-                PKIX_ERROR(PKIX_SECITEMCOPYITEMFAILED);
+                PKIX_ERROR(PKIX_OUTOFMEMORY);
             }
         }            
 
@@ -620,7 +625,7 @@ pkix_pl_X500Name_GetDERName(
 
         derName = SECITEM_ArenaDupItem(arena, &xname->derName);
         if (derName == NULL) {
-            PKIX_ERROR(PKIX_SECITEMCOPYITEMFAILED);
+            PKIX_ERROR(PKIX_OUTOFMEMORY);
         }
 
         *pDERName = derName;

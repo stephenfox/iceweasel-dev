@@ -2,10 +2,10 @@
 
 .findbar-closebutton {
   border: 1px solid transparent;
-  padding: 3px 2px 4px 2px !important;
-  list-style-image: url("chrome://global/skin/icons/close.png");
+  padding: 2px !important;
+  list-style-image: url("chrome://global/skin/icons/closeSidebar.png");
   -moz-appearance: none;
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
+  -moz-image-region: rect(0px, 14px, 14px, 0px);
 }
 
 .findbar-closebutton > .toolbarbutton-icon {
@@ -15,19 +15,17 @@
 }
 
 .findbar-closebutton:hover {
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
+  -moz-image-region: rect(0px, 28px, 14px, 14px);
 }
 
 .findbar-closebutton:hover:active {
-  -moz-image-region: rect(0px, 48px, 16px, 32px);
+  -moz-image-region: rect(0px, 42px, 14px, 28px);
 }
 
 findbar {
-  -moz-appearance: none !important;
   border-top: 2px solid;
-  -moz-border-top-colors: ThreeDShadow ThreeDHighlight !important;
-  border-bottom: 1px solid;
-  -moz-border-bottom-colors: transparent;
+  -moz-border-top-colors: ThreeDShadow ThreeDHighlight;
+  padding-bottom: 1px;
   min-width: 1px;
 }
 
@@ -118,7 +116,7 @@ findbar {
   color: #FFFFFF;
 }
 
-findbar[flash="true"]  > .find-field-container > .findbar-textbox {
+findbar[flash="true"] > .findbar-container > .find-field-container > .findbar-textbox {
   background-color: yellow;
 }
 
@@ -128,4 +126,12 @@ findbar[flash="true"]  > .find-field-container > .findbar-textbox {
 
 .find-field-container {
   -moz-appearance: textfield;
+}
+
+/* XXX workaround bug 479957, disable bug 69710 in findbar */
+checkbox:-moz-system-metric(windows-classic) {
+  text-shadow: none;
+}
+checkbox:-moz-system-metric(windows-classic) > .checkbox-label-box > .checkbox-label {
+  margin-bottom: 0 !important;
 }

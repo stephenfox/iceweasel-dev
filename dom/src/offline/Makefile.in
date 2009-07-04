@@ -59,13 +59,13 @@ REQUIRES       = xpcom         \
 		 nkcache       \
 		 pref          \
 		 prefetch      \
+		 docshell      \
 		 widget        \
 		 xpconnect     \
 		 $(NULL)
 
 CPPSRCS =                              \
 	nsDOMOfflineResourceList.cpp   \
-	nsDOMOfflineLoadStatusList.cpp \
 	$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -73,6 +73,7 @@ FORCE_STATIC_LIB = 1
 
 LOCAL_INCLUDES = \
 		-I$(srcdir)/../base \
+		-I$(topsrcdir)/content/base/src \
 		-I$(topsrcdir)/content/events/src
 
 DEFINES += -D_IMPL_NS_LAYOUT

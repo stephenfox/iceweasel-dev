@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: loader.c,v 1.35 2007/07/24 14:36:57 slavomir.katuscak%sun.com Exp $ */
+/* $Id: loader.c,v 1.44 2009/03/29 03:45:32 wtc%google.com Exp $ */
 
 #include "loader.h"
 #include "prmem.h"
@@ -87,6 +87,11 @@ getLibName(void)
     buflen = sysinfo(SI_ISALIST, buf, sizeof buf);
     if (buflen <= 0) 
 	return NULL;
+    /* sysinfo output is always supposed to be NUL terminated, but ... */
+    if (buflen < sizeof buf) 
+    	buf[buflen] = '\0';
+    else
+    	buf[(sizeof buf) - 1] = '\0';
     /* The ISA list is a space separated string of names of ISAs and
      * ISA extensions, in order of decreasing performance.
      * There are two different ISAs with which NSS's crypto code can be
@@ -193,6 +198,13 @@ freebl_RunLoaderOnce( void )
   return status;
 }
 
+SECStatus 
+BL_Init(void)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return SECFailure;
+  return (vector->p_BL_Init)();
+}
 
 RSAPrivateKey * 
 RSA_NewKey(int keySizeInBits, SECItem * publicExponent)
@@ -479,6 +491,44 @@ DES_Decrypt(DESContext *cx, unsigned char *output, unsigned int *outputLen,
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
   return (vector->p_DES_Decrypt)(cx, output, outputLen, maxOutputLen, input, 
+	                         inputLen);
+}
+SEEDContext *
+SEED_CreateContext(const unsigned char *key, const unsigned char *iv,
+		  int mode, PRBool encrypt)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return NULL;
+  return (vector->p_SEED_CreateContext)(key, iv, mode, encrypt);
+}
+
+void 
+SEED_DestroyContext(SEEDContext *cx, PRBool freeit)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return;
+  (vector->p_SEED_DestroyContext)(cx, freeit);
+}
+
+SECStatus 
+SEED_Encrypt(SEEDContext *cx, unsigned char *output, unsigned int *outputLen, 
+	    unsigned int maxOutputLen, const unsigned char *input, 
+	    unsigned int inputLen)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return SECFailure;
+  return (vector->p_SEED_Encrypt)(cx, output, outputLen, maxOutputLen, input, 
+	                         inputLen);
+}
+
+SECStatus 
+SEED_Decrypt(SEEDContext *cx, unsigned char *output, unsigned int *outputLen, 
+	    unsigned int maxOutputLen, const unsigned char *input, 
+	    unsigned int inputLen)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return SECFailure;
+  return (vector->p_SEED_Decrypt)(cx, output, outputLen, maxOutputLen, input, 
 	                         inputLen);
 }
 
@@ -834,6 +884,22 @@ PQG_VerifyParams(const PQGParams *params, const PQGVerify *vfy,
   return (vector->p_PQG_VerifyParams)(params, vfy, result);
 }
 
+void   
+PQG_DestroyParams(PQGParams *params)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return;
+  (vector->p_PQG_DestroyParams)(params);
+}
+
+void   
+PQG_DestroyVerify(PQGVerify *vfy)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return;
+  (vector->p_PQG_DestroyVerify)(vfy);
+}
+
 void 
 BL_Cleanup(void)
 {
@@ -855,9 +921,7 @@ BL_Unload(void)
    * never does a handshake on it, BL_Unload will be called even though freebl
    * was never loaded. So, don't assert blLib. */
   if (blLib) {
-#ifdef DEBUG
       disableUnload = PR_GetEnv("NSS_DISABLE_UNLOAD");
-#endif
       if (!disableUnload) {
           PRStatus status = PR_UnloadLibrary(blLib);
           PORT_Assert(PR_SUCCESS == status);
@@ -1341,6 +1405,16 @@ DES_InitContext(DESContext *cx, const unsigned char *key,
 }
 
 SECStatus 
+SEED_InitContext(SEEDContext *cx, const unsigned char *key, 
+		unsigned int keylen, const unsigned char *iv, int mode,
+		unsigned int encrypt, unsigned int xtra)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return SECFailure;
+  return (vector->p_SEED_InitContext)(cx, key, keylen, iv, mode, encrypt, xtra);
+}
+
+SECStatus 
 RC2_InitContext(RC2Context *cx, const unsigned char *key, 
 		unsigned int keylen, const unsigned char *iv, int mode,
 		unsigned int effectiveKeyLen, unsigned int xtra)
@@ -1574,3 +1648,52 @@ Camellia_Decrypt(CamelliaContext *cx, unsigned char *output,
     return (vector->p_Camellia_Decrypt)(cx, output, outputLen, maxOutputLen, 
 					input, inputLen);
 }
+
+void BL_SetForkState(PRBool forked)
+{
+    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+	return;
+    (vector->p_BL_SetForkState)(forked);
+}
+
+SECStatus
+PRNGTEST_Instantiate(const PRUint8 *entropy, unsigned int entropy_len, 
+		const PRUint8 *nonce, unsigned int nonce_len,
+		const PRUint8 *personal_string, unsigned int ps_len)
+{
+    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+	return SECFailure;
+    return (vector->p_PRNGTEST_Instantiate)(entropy, entropy_len, 
+					   nonce,  nonce_len,
+					   personal_string,  ps_len);
+}
+
+SECStatus
+PRNGTEST_Reseed(const PRUint8 *entropy, unsigned int entropy_len, 
+		  const PRUint8 *additional, unsigned int additional_len)
+{
+    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+	return SECFailure;
+    return (vector->p_PRNGTEST_Reseed)(entropy, entropy_len, 
+				       additional, additional_len);
+}
+
+SECStatus
+PRNGTEST_Generate(PRUint8 *bytes, unsigned int bytes_len, 
+		  const PRUint8 *additional, unsigned int additional_len)
+{
+    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+	return SECFailure;
+    return (vector->p_PRNGTEST_Generate)(bytes, bytes_len, 
+					 additional, additional_len);
+}
+
+SECStatus
+PRNGTEST_Uninstantiate()
+{
+    if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+	return SECFailure;
+    return (vector->p_PRNGTEST_Uninstantiate)();
+}
+
+

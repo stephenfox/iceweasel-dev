@@ -52,11 +52,21 @@
 #include "nsIChannelEventSink.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIRunnable.h"
+#include "nsIChannelClassifier.h"
 
-struct nsAsyncInstantiateEvent;
-class  AutoNotifier;
-class  AutoFallback;
-class  AutoSetInstantiatingToFalse;
+class nsAsyncInstantiateEvent;
+class AutoNotifier;
+class AutoFallback;
+class AutoSetInstantiatingToFalse;
+
+enum PluginSupportState {
+  ePluginUnsupported,  // The plugin is not supported (not installed, say)
+  ePluginDisabled,     // The plugin has been explicitly disabled by the
+                       // user.
+  ePluginBlocklisted,  // The plugin is blocklisted and disabled
+  ePluginOtherState    // Something else (e.g. not a plugin at all as far
+                       // as we can tell).
+};
 
 /**
  * INVARIANTS OF THIS CLASS
@@ -251,7 +261,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Fires the "Plugin not found" event. This function doesn't do any checks
      * whether it should be fired, the caller should do that.
      */
-    static void FirePluginError(nsIContent* thisContent, PRBool blocklisted);
+    static void FirePluginError(nsIContent* thisContent, PluginSupportState state);
 
     ObjectType GetTypeOfContent(const nsCString& aMIMEType);
 
@@ -270,14 +280,27 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      */
     void GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI);
 
+
     /**
      * Gets the frame that's associated with this content node in
-     * presentation 0.  If aFlushLayout is true, this function will
-     * flush layout before trying to get the frame.  This is needed
-     * in some cases by plug-ins to ensure that NPP_SetWindow() gets
-     * called (from nsObjectFrame::DidReflow).
+     * presentation 0. Always returns null if the node doesn't currently
+     * have a frame.
+     *
+     * @param aFlush When eFlushContent will flush content notifications
+     *               before returning a non-null value.
+     *               When eFlushLayout will flush layout and content
+     *               notifications before returning a non-null value.
+     *               When eDontFlush will never flush.
+     *         
+     *   eFlushLayout is needed in some cases by plug-ins to ensure
+     *   that NPP_SetWindow() gets called (from nsObjectFrame::DidReflow).
      */
-    nsIObjectFrame* GetFrame(PRBool aFlushLayout);
+    enum FlushType {
+      eFlushContent,
+      eFlushLayout,
+      eDontFlush
+    };
+    nsIObjectFrame* GetExistingFrame(FlushType aFlushType);
 
     /**
      * Handle being blocked by a content policy.  aStatus is the nsresult
@@ -288,17 +311,27 @@ class nsObjectLoadingContent : public nsImageLoadingContent
                                            PRInt16 aRetval);
 
     /**
-     * Checks if we have a frame that's ready for instantiation, and if so,
-     * calls Instantiate().
+     * Checks if we have a frame that's ready for instantiation, and
+     * if so, calls Instantiate(). Note that this can cause the frame
+     * to be deleted while we're instantiating the plugin.
      */
     nsresult TryInstantiate(const nsACString& aMIMEType, nsIURI* aURI);
 
     /**
-     * Instantiates the plugin. This differs from GetFrame()->Instantiate() in
-     * that it ensures that the URI will be non-null, and that a MIME type
-     * will be passed.
+     * Instantiates the plugin. This differs from
+     * GetFrame()->Instantiate() in that it ensures that the URI will
+     * be non-null, and that a MIME type will be passed. Note that
+     * this can cause the frame to be deleted while we're
+     * instantiating the plugin.
      */
     nsresult Instantiate(nsIObjectFrame* aFrame, const nsACString& aMIMEType, nsIURI* aURI);
+
+    /**
+     * Check the channel load against the URI classifier service (if it
+     * exists).  The channel will be suspended until the classification is
+     * complete.
+     */
+    nsresult CheckClassifier(nsIChannel *aChannel);
 
     /**
      * Whether to treat this content as a plugin, even though we can't handle
@@ -307,15 +340,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      */
     static PRBool ShouldShowDefaultPlugin(nsIContent* aContent,
                                           const nsCString& aContentType);
-
-    enum PluginSupportState {
-      ePluginUnsupported,  // The plugin is not supported (not installed, say)
-      ePluginDisabled,     // The plugin has been explicitly disabled by the
-                           // user.
-      ePluginBlocklisted,  // The plugin is blocklisted and disabled
-      ePluginOtherState    // Something else (e.g. not a plugin at all as far
-                           // as we can tell).
-    };
 
     /**
      * Get the plugin support state for the given content node and MIME type.
@@ -337,6 +361,15 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      */
     static PluginSupportState
       GetPluginDisabledState(const nsCString& aContentType);
+
+    /**
+     * When there is no usable plugin available this will send UI events and
+     * update the AutoFallback object appropriate to the reason for there being
+     * no plugin available.
+     */
+    static void
+      UpdateFallbackState(nsIContent* aContent, AutoFallback& fallback,
+                          const nsCString& aTypeHint);
 
     /**
      * The final listener to ship the data to (imagelib, uriloader, etc)
@@ -368,6 +401,11 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     nsCOMPtr<nsIURI>            mURI;
 
     /**
+     * Suspends/resumes channels based on the URI classifier.
+     */
+    nsCOMPtr<nsIChannelClassifier> mClassifier;
+
+    /**
      * Type of the currently-loaded content.
      */
     ObjectType                  mType          : 16;
@@ -380,10 +418,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     // Blocking status from content policy
     PRBool                      mUserDisabled  : 1;
     PRBool                      mSuppressed    : 1;
-    // Whether we fell back because of an unsupported type
-    PRBool                      mTypeUnsupported:1;
+    // A specific state that caused us to fallback
+    PluginSupportState          mPluginState;
 
-    friend struct nsAsyncInstantiateEvent;
+    friend class nsAsyncInstantiateEvent;
 };
 
 

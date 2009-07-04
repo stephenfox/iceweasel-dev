@@ -25,6 +25,7 @@
  *   Shawn Wilsher <me@shawnwilsher.com>
  *   Srirang G Doddihal <brahmana@doddihal.com>
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -61,26 +62,31 @@
 #include "nsIMIMEInfo.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
+#include "mozStorageHelper.h"
 #include "nsCOMArray.h"
 #include "nsArrayEnumerator.h"
 #include "nsAutoPtr.h"
+#include "nsINavHistoryService.h"
 #include "nsIObserverService.h"
+#include "nsITimer.h"
 
 typedef PRInt16 DownloadState;
 typedef PRInt16 DownloadType;
 
 class nsDownload;
 
-#ifdef XP_WIN
-class nsDownloadScanner;
+#ifdef DOWNLOAD_SCANNER
+#include "nsDownloadScanner.h"
 #endif
 
 class nsDownloadManager : public nsIDownloadManager,
+                          public nsINavHistoryObserver,
                           public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOWNLOADMANAGER
+  NS_DECL_NSINAVHISTORYOBSERVER
   NS_DECL_NSIOBSERVER
 
   nsresult Init();
@@ -88,14 +94,25 @@ public:
   static nsDownloadManager *GetSingleton();
 
   virtual ~nsDownloadManager();
-#ifdef XP_WIN
-  nsDownloadManager() : mScanner(nsnull) { };
-private:
-  nsDownloadScanner *mScanner;
-#endif
+  nsDownloadManager() :
+      mDBType(DATABASE_DISK)
+    , mInPrivateBrowsing(PR_FALSE)
+  {
+  }
 
 protected:
-  nsresult InitDB(PRBool *aDoImport);
+  enum DatabaseType
+  {
+    DATABASE_DISK = 0, // default
+    DATABASE_MEMORY
+  };
+
+  nsresult InitDB();
+  nsresult InitFileDB(PRBool *aDoImport);
+  nsresult InitMemoryDB();
+  already_AddRefed<mozIStorageConnection> GetFileDBConnection(nsIFile *dbFile) const;
+  already_AddRefed<mozIStorageConnection> GetMemoryDBConnection() const;
+  nsresult SwitchDatabaseTypeTo(enum DatabaseType aType);
   nsresult CreateTable();
   nsresult ImportDownloadHistory();
 
@@ -188,6 +205,25 @@ protected:
    */
   nsresult RemoveAllDownloads();
 
+  /**
+   * Find all downloads from a source URI and delete them.
+   *
+   * @param aURI
+   *        The source URI to remove downloads
+   */
+  nsresult RemoveDownloadsForURI(nsIURI *aURI);
+
+  /**
+   * Callback used for resuming downloads after getting a wake notification.
+   *
+   * @param aTimer
+   *        Timer object fired after some delay after a wake notification
+   * @param aClosure
+   *        nsDownloadManager object used to resume downloads
+   */
+  static void ResumeOnWakeCallback(nsITimer *aTimer, void *aClosure);
+  nsCOMPtr<nsITimer> mResumeOnWakeTimer;
+
   void ConfirmCancelDownloads(PRInt32 aCount,
                               nsISupportsPRBool *aCancelDownloads,
                               const PRUnichar *aTitle,
@@ -197,6 +233,36 @@ protected:
 
   PRInt32 GetRetentionBehavior();
 
+  /**
+   * Type to indicate possible behaviors for active downloads across sessions.
+   *
+   * Possible values are:
+   *  QUIT_AND_RESUME  - downloads should be auto-resumed
+   *  QUIT_AND_PAUSE   - downloads should be paused
+   *  QUIT_AND_CANCEL  - downloads should be cancelled
+   */
+  enum QuitBehavior {
+    QUIT_AND_RESUME = 0, 
+    QUIT_AND_PAUSE = 1, 
+    QUIT_AND_CANCEL = 2
+  };
+
+  /**
+   * Indicates user-set behavior for active downloads across sessions,
+   *
+   * @return value of user-set pref for active download behavior
+   */
+  enum QuitBehavior GetQuitBehavior();
+
+  void OnEnterPrivateBrowsingMode();
+  void OnLeavePrivateBrowsingMode();
+
+  // Virus scanner for windows
+#ifdef DOWNLOAD_SCANNER
+private:
+  nsRefPtr<nsDownloadScanner> mScanner;
+#endif
+
 private:
   nsCOMArray<nsIDownloadProgressListener> mListeners;
   nsCOMPtr<nsIStringBundle> mBundle;
@@ -204,6 +270,11 @@ private:
   nsCOMArray<nsDownload> mCurrentDownloads;
   nsCOMPtr<nsIObserverService> mObserverService;
   nsCOMPtr<mozIStorageStatement> mUpdateDownloadStatement;
+  nsCOMPtr<mozIStorageStatement> mGetIdsForURIStatement;
+  nsAutoPtr<mozStorageTransaction> mHistoryTransaction;
+
+  enum DatabaseType mDBType;
+  PRBool mInPrivateBrowsing;
 
   static nsDownloadManager *gDownloadManagerService;
 
@@ -276,14 +347,9 @@ protected:
   nsresult Cancel();
 
   /**
-   * Resume the download. Works for both real-paused and fake-paused.
+   * Resume the download.
    */
   nsresult Resume();
-
-  /**
-   * Resume the real-paused download. Let Resume decide if this should get used.
-   */
-  nsresult RealResume();
 
   /**
    * Download is not transferring?
@@ -299,11 +365,6 @@ protected:
    * Download was resumed?
    */
   PRBool WasResumed();
-
-  /**
-   * Download is real-paused? (not fake-paused by stalling the channel)
-   */
-  PRBool IsRealPaused();
 
   /**
    * Indicates if the download should try to automatically resume or not.
@@ -377,6 +438,8 @@ private:
   PRTime mLastUpdate;
   PRInt64 mResumedAt;
   double mSpeed;
+
+  PRBool mHasMultipleFiles;
 
   /**
    * Track various states of the download trying to auto-resume when starting

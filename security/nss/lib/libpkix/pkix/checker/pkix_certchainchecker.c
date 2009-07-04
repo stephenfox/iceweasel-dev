@@ -155,6 +155,8 @@ pkix_CertChainChecker_RegisterSelf(void *plContext)
         PKIX_ENTER(CERTCHAINCHECKER, "pkix_CertChainChecker_RegisterSelf");
 
         entry.description = "CertChainChecker";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_CertChainChecker);
         entry.destructor = pkix_CertChainChecker_Destroy;
         entry.equalsFunction = NULL;
         entry.hashcodeFunction = NULL;
@@ -207,8 +209,10 @@ PKIX_CertChainChecker_Create(
         checker->state = initialState;
 
         *pChecker = checker;
-
+        checker = NULL;
 cleanup:
+        
+        PKIX_DECREF(checker);
 
         PKIX_RETURN(CERTCHAINCHECKER);
 
@@ -291,6 +295,7 @@ PKIX_CertChainChecker_GetCertChainCheckerState(
 
         *pCertChainCheckerState = checker->state;
 
+cleanup:
         PKIX_RETURN(CERTCHAINCHECKER);
 
 }
@@ -344,6 +349,7 @@ PKIX_CertChainChecker_GetSupportedExtensions(
 
         *pExtensions = checker->extensions;
 
+cleanup:
         PKIX_RETURN(CERTCHAINCHECKER);
 
 }

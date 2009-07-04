@@ -41,7 +41,7 @@
 
 interface nsIURI;
 
-[scriptable, uuid(b07cb0f0-3394-572e-6260-dbaed0a292ba)]
+[scriptable, uuid(6852369e-baa9-4c9a-bbcd-5123fc54a297)]
 interface nsIEffectiveTLDService : nsISupports
 {
     /**
@@ -53,8 +53,11 @@ interface nsIEffectiveTLDService : nsISupports
      *
      * The public suffix will be returned encoded in ASCII/ACE and will be normalized
      * according to RFC 3454, i.e. the same encoding returned by nsIURI::GetAsciiHost().
+     * If consumers wish to compare the result of this method against the host from
+     * another nsIURI, the host should be obtained using nsIURI::GetAsciiHost().
+     * In the case of nested URIs, the innermost URI will be used.
      *
-     * @param   aURI               The URI to be analyzed
+     * @param   aURI   The URI to be analyzed
      *
      * @returns the public suffix
      *
@@ -65,7 +68,7 @@ interface nsIEffectiveTLDService : nsISupports
      *         if the host is a numeric IPv4 or IPv6 address (as determined by
      *         the success of a call to PR_StringToNetAddr()).
      */
-    AUTF8String getPublicSuffix(in nsIURI aURI);
+    ACString getPublicSuffix(in nsIURI aURI);
 
     /**
      * Returns the base domain of a URI; that is, the public suffix with a given
@@ -74,16 +77,20 @@ interface nsIEffectiveTLDService : nsISupports
      * be:
      *
      *    0 (default) -> bbc.co.uk
-     *    1           -> news.bbc.co.uk
+     *    1           -> www.bbc.co.uk
      *
-     * Similarly, the public suffix for "developer.mozilla.org" is "org", and the base
+     * Similarly, the public suffix for "www.developer.mozilla.org" is "org", and the base
      * domain will be:
      *
      *    0 (default) -> mozilla.org
      *    1           -> developer.mozilla.org
+     *    2           -> www.developer.mozilla.org
      *
      * The base domain will be returned encoded in ASCII/ACE and will be normalized
      * according to RFC 3454, i.e. the same encoding returned by nsIURI::GetAsciiHost().
+     * If consumers wish to compare the result of this method against the host from
+     * another nsIURI, the host should be obtained using nsIURI::GetAsciiHost().
+     * In the case of nested URIs, the innermost URI will be used.
      *
      * @param   aURI               The URI to be analyzed
      * @param   aAdditionalParts   Number of domain name parts to be
@@ -103,20 +110,36 @@ interface nsIEffectiveTLDService : nsISupports
      *
      * @see    getPublicSuffix()
      */
-    AUTF8String getBaseDomain(in nsIURI aURI, [optional] in PRUint32 aAdditionalParts);
+    ACString getBaseDomain(in nsIURI aURI, [optional] in PRUint32 aAdditionalParts);
 
     /**
+     * NOTE: It is strongly recommended to use getPublicSuffix() above if a suitable
+     * nsIURI is available. Only use this method if this is not the case.
+     *
      * Returns the public suffix of a host string. Otherwise identical to getPublicSuffix().
+     *
+     * @param   aHost   The host to be analyzed. Any additional parts (e.g. scheme,
+     *                  port, or path) will cause this method to throw. ASCII/ACE and
+     *                  UTF8 encodings are acceptable as input; normalization will
+     *                  be performed as specified in getBaseDomain().
      *
      * @see     getPublicSuffix()
      */
-    AUTF8String getPublicSuffixFromHost(in AUTF8String aHost);
+    ACString getPublicSuffixFromHost(in AUTF8String aHost);
 
     /**
+     * NOTE: It is strongly recommended to use getBaseDomain() above if a suitable
+     * nsIURI is available. Only use this method if this is not the case.
+     *
      * Returns the base domain of a host string. Otherwise identical to getBaseDomain().
+     *
+     * @param   aHost   The host to be analyzed. Any additional parts (e.g. scheme,
+     *                  port, or path) will cause this method to throw. ASCII/ACE and
+     *                  UTF8 encodings are acceptable as input; normalization will
+     *                  be performed as specified in getBaseDomain().
      *
      * @see     getBaseDomain()
      */
-    AUTF8String getBaseDomainFromHost(in AUTF8String aHost, [optional] in PRUint32 aAdditionalParts);
+    ACString getBaseDomainFromHost(in AUTF8String aHost, [optional] in PRUint32 aAdditionalParts);
 };
 

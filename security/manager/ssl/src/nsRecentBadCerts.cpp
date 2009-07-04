@@ -94,9 +94,9 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
   foundDER.len = 0;
   foundDER.data = nsnull;
 
-  PRBool isDomainMismatch;
-  PRBool isNotValidAtThisTime;
-  PRBool isUntrusted;
+  PRBool isDomainMismatch = PR_FALSE;
+  PRBool isNotValidAtThisTime = PR_FALSE;
+  PRBool isUntrusted = PR_FALSE;
 
   {
     nsAutoMonitor lock(monitor);
@@ -131,7 +131,7 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
     status->mServerCert = new nsNSSCertificate(nssCert);
     CERT_DestroyCertificate(nssCert);
 
-    status->mHaveCertStatus = PR_TRUE;
+    status->mHaveCertErrorBits = PR_TRUE;
     status->mIsDomainMismatch = isDomainMismatch;
     status->mIsNotValidAtThisTime = isNotValidAtThisTime;
     status->mIsUntrusted = isUntrusted;

@@ -74,6 +74,7 @@
 #define SAFARI_COOKIES_FILE_NAME          NS_LITERAL_STRING("Cookies.plist")
 #define SAFARI_COOKIE_BEHAVIOR_FILE_NAME  NS_LITERAL_STRING("com.apple.WebFoundation.plist")
 #define SAFARI_DATE_OFFSET                978307200
+#define SAFARI_HOME_PAGE_PREF             "HomePage"
 #define MIGRATION_BUNDLE                  "chrome://browser/locale/migration/migration.properties"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -207,33 +208,6 @@ nsSafariProfileMigrator::GetSourceProfiles(nsISupportsArray** aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSafariProfileMigrator::GetSourceHomePageURL(nsACString& aResult)
-{
-  aResult.Truncate();
-
-  ICInstance internetConfig;
-  OSStatus error = ::ICStart(&internetConfig, 'FRFX');
-  if (error != noErr)
-    return NS_ERROR_FAILURE;
-
-  ICAttr dummy;
-  Str255 homePagePValue;
-  long prefSize = sizeof(homePagePValue);
-  error = ::ICGetPref(internetConfig, kICWWWHomePage, &dummy,
-                      homePagePValue, &prefSize);
-  if (error != noErr)
-    return NS_ERROR_FAILURE;
-
-  char homePageValue[256] = "";
-  CopyPascalStringToC((ConstStr255Param)homePagePValue, homePageValue);
-  aResult.Assign(homePageValue);
-
-  ::ICStop(internetConfig);
-
-  return NS_OK;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // nsSafariProfileMigrator
 
@@ -282,7 +256,7 @@ CFDictionaryRef CopySafariPrefs()
 
   safariPrefsFile->Append(SAFARI_PREFERENCES_FILE_NAME);
 
-  return (CFDictionaryRef)CopyPListFromFile(safariPrefsFile);
+  return static_cast<CFDictionaryRef>(CopyPListFromFile(safariPrefsFile));
 }
 
 char*
@@ -756,7 +730,7 @@ nsSafariProfileMigrator::CopyPreferences(PRBool aReplace)
   safariWebFoundationPrefsFile->Append(SAFARI_COOKIE_BEHAVIOR_FILE_NAME);
 
   CFDictionaryRef safariWebFoundationPrefs =
-                  (CFDictionaryRef)CopyPListFromFile(safariWebFoundationPrefsFile);
+    static_cast<CFDictionaryRef>(CopyPListFromFile(safariWebFoundationPrefsFile));
   if (safariWebFoundationPrefs) {
     // Mapping of Safari preference values to Firefox preference values:
     //
@@ -830,18 +804,58 @@ nsSafariProfileMigrator::CopyCookies(PRBool aReplace)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
+{
+  PRUint8 batchAction;
+  nsCOMPtr<nsISupportsPRUint8> strWrapper(do_QueryInterface(aUserData));
+  NS_ASSERTION(strWrapper, "Unable to create nsISupportsPRUint8 wrapper!");
+  nsresult rv = strWrapper->GetData(&batchAction);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  switch (batchAction) {
+    case BATCH_ACTION_HISTORY:
+      rv = CopyHistoryBatched(PR_FALSE);
+      break;
+    case BATCH_ACTION_HISTORY_REPLACE:
+      rv = CopyHistoryBatched(PR_TRUE);
+      break;
+    case BATCH_ACTION_BOOKMARKS:
+      rv = CopyBookmarksBatched(PR_FALSE);
+      break;
+    case BATCH_ACTION_BOOKMARKS_REPLACE:
+      rv = CopyBookmarksBatched(PR_TRUE);
+      break;
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
 nsresult
 nsSafariProfileMigrator::CopyHistory(PRBool aReplace)
 {
   nsresult rv;
-  nsCOMPtr<nsINavHistoryService> history = do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID, &rv);
+  nsCOMPtr<nsINavHistoryService> history =
+    do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
- 
-  return history->RunInBatchMode(this, nsnull);
+
+  PRUint8 batchAction = aReplace ? BATCH_ACTION_HISTORY_REPLACE
+                                 : BATCH_ACTION_HISTORY;
+  nsCOMPtr<nsISupportsPRUint8> supports =
+    do_CreateInstance(NS_SUPPORTS_PRUINT8_CONTRACTID);
+  NS_ENSURE_TRUE(supports, NS_ERROR_OUT_OF_MEMORY);
+  rv = supports->SetData(batchAction);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = history->RunInBatchMode(this, supports);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return rv;
 }
  
-NS_IMETHODIMP
-nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
+nsresult
+nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
 {
   nsCOMPtr<nsIProperties> fileLocator(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
   nsCOMPtr<nsILocalFile> safariHistoryFile;
@@ -850,7 +864,8 @@ nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
   safariHistoryFile->Append(NS_LITERAL_STRING("Safari"));
   safariHistoryFile->Append(SAFARI_HISTORY_FILE_NAME);
 
-  CFDictionaryRef safariHistory = (CFDictionaryRef)CopyPListFromFile(safariHistoryFile);
+  CFDictionaryRef safariHistory =
+    static_cast<CFDictionaryRef>(CopyPListFromFile(safariHistoryFile));
   if (!safariHistory)
     return NS_OK;
 
@@ -898,36 +913,64 @@ nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
 nsresult
 nsSafariProfileMigrator::CopyBookmarks(PRBool aReplace)
 {
+  nsresult rv;
+  nsCOMPtr<nsINavBookmarksService> bookmarks =
+    do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint8 batchAction = aReplace ? BATCH_ACTION_BOOKMARKS_REPLACE
+                                 : BATCH_ACTION_BOOKMARKS;
+  nsCOMPtr<nsISupportsPRUint8> supports =
+    do_CreateInstance(NS_SUPPORTS_PRUINT8_CONTRACTID);
+  NS_ENSURE_TRUE(supports, NS_ERROR_OUT_OF_MEMORY);
+  rv = supports->SetData(batchAction);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = bookmarks->RunInBatchMode(this, supports);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+nsresult
+nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
+{
   // If "aReplace" is true, merge into the root level of bookmarks. Otherwise, create
   // a folder called "Imported Safari Favorites" and place all the Bookmarks there.
   nsresult rv;
 
-  nsCOMPtr<nsINavBookmarksService> bms(do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv));
+  nsCOMPtr<nsINavBookmarksService> bms =
+    do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  PRInt64 root;
-  rv = bms->GetBookmarksMenuFolder(&root);
+  PRInt64 bookmarksMenuFolderId;
+  rv = bms->GetBookmarksMenuFolder(&bookmarksMenuFolderId);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt64 folder;
   if (!aReplace) {
-    nsCOMPtr<nsIStringBundleService> bundleService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) return rv;
-
+    nsCOMPtr<nsIStringBundleService> bundleService =
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIStringBundle> bundle;
-    bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
+    rv = bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsString sourceNameSafari;
-    bundle->GetStringFromName(NS_LITERAL_STRING("sourceNameSafari").get(),
-                              getter_Copies(sourceNameSafari));
+    rv = bundle->GetStringFromName(NS_LITERAL_STRING("sourceNameSafari").get(),
+                                   getter_Copies(sourceNameSafari));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     const PRUnichar* sourceNameStrings[] = { sourceNameSafari.get() };
     nsString importedSafariBookmarksTitle;
-    bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
-                                 sourceNameStrings, 1,
-                                 getter_Copies(importedSafariBookmarksTitle));
+    rv = bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
+                                      sourceNameStrings, 1,
+                                      getter_Copies(importedSafariBookmarksTitle));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    bms->CreateFolder(root, importedSafariBookmarksTitle, nsINavBookmarksService::DEFAULT_INDEX,
-                      &folder);
+    rv = bms->CreateFolder(bookmarksMenuFolderId,
+                           NS_ConvertUTF16toUTF8(importedSafariBookmarksTitle),
+                           nsINavBookmarksService::DEFAULT_INDEX, &folder);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
     nsCOMPtr<nsIFile> profile;
@@ -935,7 +978,7 @@ nsSafariProfileMigrator::CopyBookmarks(PRBool aReplace)
     rv = InitializeBookmarks(profile);
     NS_ENSURE_SUCCESS(rv, rv);
     // In replace mode we are merging at the top level.
-    folder = root;
+    folder = bookmarksMenuFolderId;
   }
 
   nsCOMPtr<nsIProperties> fileLocator(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
@@ -945,7 +988,8 @@ nsSafariProfileMigrator::CopyBookmarks(PRBool aReplace)
   safariBookmarksFile->Append(NS_LITERAL_STRING("Safari"));
   safariBookmarksFile->Append(SAFARI_BOOKMARKS_FILE_NAME);
 
-  CFDictionaryRef safariBookmarks = (CFDictionaryRef)CopyPListFromFile(safariBookmarksFile);
+  CFDictionaryRef safariBookmarks =
+    static_cast<CFDictionaryRef>(CopyPListFromFile(safariBookmarksFile));
   if (!safariBookmarks)
     return NS_OK;
 
@@ -968,15 +1012,6 @@ nsSafariProfileMigrator::CopyBookmarks(PRBool aReplace)
         (CFArrayRef)::CFDictionaryGetValue(safariBookmarks, CFSTR("Children"));
       if (children) {
         rv = ParseBookmarksFolder(children, folder, bms, PR_TRUE);
-        if (NS_SUCCEEDED(rv)) {
-          // after importing the favorites, 
-          // we need to set this pref so that on startup
-          // we don't blow away what we just imported
-          nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
-          NS_ENSURE_TRUE(pref, NS_ERROR_FAILURE);
-          rv = pref->SetBoolPref("browser.places.importBookmarksHTML", PR_FALSE);
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
       }
     }
   }
@@ -1035,7 +1070,7 @@ nsSafariProfileMigrator::ParseBookmarksFolder(CFArrayRef aChildren,
         // Encountered a Folder, so create one in our Bookmarks DataSource and then
         // parse the contents of the Safari one into it...
         PRInt64 folder;
-        rv |= aBookmarksService->CreateFolder(aParentFolder, title,
+        rv |= aBookmarksService->CreateFolder(aParentFolder, NS_ConvertUTF16toUTF8(title),
                                               nsINavBookmarksService::DEFAULT_INDEX,
                                               &folder);
         rv |= ParseBookmarksFolder(children,
@@ -1048,15 +1083,18 @@ nsSafariProfileMigrator::ParseBookmarksFolder(CFArrayRef aChildren,
       // Encountered a Bookmark, so add it to the current folder...
       CFDictionaryRef URIDictionary = (CFDictionaryRef)
                       ::CFDictionaryGetValue(entry, CFSTR("URIDictionary"));
-      nsAutoString title, url;
+      nsAutoString title;
+      nsCAutoString url;
       if (GetDictionaryStringValue(URIDictionary, CFSTR("title"), title) &&
-          GetDictionaryStringValue(entry, CFSTR("URLString"), url)) {
+          GetDictionaryCStringValue(entry, CFSTR("URLString"), url, kCFStringEncodingUTF8)) {
         nsCOMPtr<nsIURI> uri;
-        PRInt64 id;
-        rv |= NS_NewURI(getter_AddRefs(uri), url);
-        rv |= aBookmarksService->InsertBookmark(aParentFolder, uri,
-                                                nsINavBookmarksService::DEFAULT_INDEX,
-                                                title, &id);
+        rv = NS_NewURI(getter_AddRefs(uri), url);
+        if (NS_SUCCEEDED(rv)) {
+          PRInt64 id;
+          rv = aBookmarksService->InsertBookmark(aParentFolder, uri,
+                                                 nsINavBookmarksService::DEFAULT_INDEX,
+                                                 NS_ConvertUTF16toUTF8(title), &id);
+        }
       }
     }
   }
@@ -1206,5 +1244,45 @@ nsSafariProfileMigrator::CopyOtherData(PRBool aReplace)
 
     stylesheetFile->CopyTo(userChromeDir, NS_LITERAL_STRING("userContent.css"));
   }
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsSafariProfileMigrator::GetSourceHomePageURL(nsACString& aResult)
+{
+  aResult.Truncate();
+
+  // Let's first check if there's a home page key in the com.apple.safari file...
+  CFDictionaryRef safariPrefs = CopySafariPrefs();
+  if (GetDictionaryCStringValue(safariPrefs,
+                                CFSTR(SAFARI_HOME_PAGE_PREF),
+                                aResult, kCFStringEncodingUTF8)) {
+    ::CFRelease(safariPrefs);
+    return NS_OK;
+  }
+
+  ::CFRelease(safariPrefs);
+
+  // Couldn't find the home page in com.apple.safai, time to check
+  // com.apple.internetconfig for this key!
+  ICInstance internetConfig;
+  OSStatus error = ::ICStart(&internetConfig, 'FRFX');
+  if (error != noErr)
+    return NS_ERROR_FAILURE;
+
+  ICAttr dummy;
+  Str255 homePagePValue;
+  long prefSize = sizeof(homePagePValue);
+  error = ::ICGetPref(internetConfig, kICWWWHomePage, &dummy,
+                      homePagePValue, &prefSize);
+  if (error != noErr)
+    return NS_ERROR_FAILURE;
+
+  char homePageValue[256] = "";
+  CopyPascalStringToC((ConstStr255Param)homePagePValue, homePageValue);
+  aResult.Assign(homePageValue);
+  ::ICStop(internetConfig);
+
   return NS_OK;
 }

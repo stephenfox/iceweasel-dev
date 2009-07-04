@@ -64,7 +64,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   nsIDocument* document = aBoundElement->GetOwnerDoc();
   if (!document) return NS_OK;
 
-  nsIScriptGlobalObject *global = document->GetScriptGlobalObject();
+  nsIScriptGlobalObject *global = document->GetScopeObject();
   if (!global) return NS_OK;
 
   nsCOMPtr<nsIScriptContext> context = global->GetContext();
@@ -83,12 +83,18 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   JSObject * targetScriptObject;
   holder->GetJSObject(&targetScriptObject);
 
+  JSContext *cx = (JSContext *)context->GetNativeContext();
+  // Set version up front so we don't thrash it
+  JSVersion oldVersion = ::JS_SetVersion(cx, JSVERSION_LATEST);
+  
   // Walk our member list and install each one in turn.
   for (nsXBLProtoImplMember* curr = mMembers;
        curr;
        curr = curr->GetNext())
     curr->InstallMember(context, aBoundElement, targetScriptObject,
                         targetClassObject, mClassName);
+
+  ::JS_SetVersion(cx, oldVersion);
   return NS_OK;
 }
 
@@ -116,9 +122,7 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
   nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!ownerDoc || !(sgo = ownerDoc->GetScriptGlobalObject())) {
-    NS_ERROR("Can't find global object for bound content!");
-
+  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -145,13 +149,7 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
   if (NS_FAILED(rv))
     return rv;
 
-  // Root ourselves in the document.
-  nsIDocument* doc = aBoundElement->GetOwnerDoc();
-  if (doc) {
-    nsCOMPtr<nsIXPConnectWrappedNative> nativeWrapper(do_QueryInterface(wrapper));
-    if (nativeWrapper)
-      doc->AddReference(aBoundElement, nativeWrapper);
-  }
+  aBoundElement->PreserveWrapper();
 
   wrapper.swap(*aScriptObjectHolder);
   
@@ -171,12 +169,13 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
 
   nsIScriptContext *context = globalObject->GetContext();
   NS_ENSURE_TRUE(context, NS_ERROR_OUT_OF_MEMORY);
+
+  JSContext *cx = (JSContext *)context->GetNativeContext();
   JSObject *global = globalObject->GetGlobalJSObject();
+  
 
   void* classObject;
-  nsresult rv = aBinding->InitClass(mClassName,
-                                    (JSContext *)context->GetNativeContext(),
-                                    global, global,
+  nsresult rv = aBinding->InitClass(mClassName, cx, global, global,
                                     &classObject);
   if (NS_FAILED(rv))
     return rv;
@@ -185,6 +184,9 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
   if (!mClassObject)
     return NS_ERROR_FAILURE;
 
+  // Set version up front so we don't thrash it
+  JSVersion oldVersion = ::JS_SetVersion(cx, JSVERSION_LATEST);
+
   // Now that we have a class object installed, we walk our member list and compile each of our
   // properties and methods in turn.
   for (nsXBLProtoImplMember* curr = mMembers;
@@ -192,10 +194,13 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
        curr = curr->GetNext()) {
     nsresult rv = curr->CompileMember(context, mClassName, mClassObject);
     if (NS_FAILED(rv)) {
-      DestroyMembers(curr);
+      DestroyMembers();
+      ::JS_SetVersion(cx, oldVersion);
       return rv;
     }
   }
+
+  ::JS_SetVersion(cx, oldVersion);
   return NS_OK;
 }
 
@@ -216,10 +221,10 @@ nsXBLProtoImpl::Trace(TraceCallback aCallback, void *aClosure) const
 }
 
 void
-nsXBLProtoImpl::Unlink()
+nsXBLProtoImpl::UnlinkJSObjects()
 {
   if (mClassObject) {
-    DestroyMembers(nsnull);
+    DestroyMembers();
   }
 }
 
@@ -238,6 +243,8 @@ nsXBLProtoImpl::FindField(const nsString& aFieldName) const
 PRBool
 nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JSObject *obj) const
 {
+  // Set version up front so we don't thrash it
+  JSVersion oldVersion = ::JS_SetVersion(cx, JSVERSION_LATEST);  
   for (nsXBLProtoImplField* f = mFields; f; f = f->GetNext()) {
     // Using OBJ_LOOKUP_PROPERTY is a pain, since what we have is a
     // PRUnichar* for the property name.  Let's just use the public API and
@@ -247,10 +254,12 @@ nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JSObject *obj) const
     if (!::JS_LookupUCProperty(cx, obj,
                                reinterpret_cast<const jschar*>(name.get()),
                                name.Length(), &dummy)) {
+      ::JS_SetVersion(cx, oldVersion);
       return PR_FALSE;
     }
   }
 
+  ::JS_SetVersion(cx, oldVersion);
   return PR_TRUE;
 }
 
@@ -272,18 +281,10 @@ nsXBLProtoImpl::UndefineFields(JSContext *cx, JSObject *obj) const
 }
 
 void
-nsXBLProtoImpl::DestroyMembers(nsXBLProtoImplMember* aBrokenMember)
+nsXBLProtoImpl::DestroyMembers()
 {
   NS_ASSERTION(mClassObject, "This should never be called when there is no class object");
-  PRBool compiled = PR_TRUE;
-  for (nsXBLProtoImplMember* curr = mMembers; curr; curr = curr->GetNext()) {
-    if (curr == aBrokenMember) {
-      compiled = PR_FALSE;
-    }
-    curr->Destroy(compiled);
-  }
 
-  // Now clear out mMembers so we don't try to call Destroy() on them again
   delete mMembers;
   mMembers = nsnull;
   mConstructor = nsnull;

@@ -75,7 +75,7 @@
 /* --Private-Socket-Functions---------------------------------- */
 
 #ifdef PKIX_SOCKETTRACE
-static PKIX_Boolean socketTraceFlag = PKIX_TRUE;
+static PKIX_Boolean socketTraceFlag = PKIX_FALSE;
 
 /*
  * FUNCTION: pkix_pl_socket_timestamp
@@ -779,6 +779,8 @@ pkix_pl_Socket_RegisterSelf(void *plContext)
         PKIX_ENTER(SOCKET, "pkix_pl_Socket_RegisterSelf");
 
         entry.description = "Socket";
+        entry.objCounter = 0;
+        entry.typeObjectSize = sizeof(PKIX_PL_Socket);
         entry.destructor = pkix_pl_Socket_Destroy;
         entry.equalsFunction = pkix_pl_Socket_Equals;
         entry.hashcodeFunction = pkix_pl_Socket_Hashcode;
@@ -1604,7 +1606,6 @@ pkix_pl_Socket_CreateByHostAndPort(
         PRIntn hostenum;
         PRStatus prstatus = PR_FAILURE;
         char buf[PR_NETDB_BUF_SIZE];
-        char *localCopyName = NULL;
 
         PKIX_ENTER(SOCKET, "pkix_pl_Socket_CreateByHostAndPort");
         PKIX_NULLCHECK_THREE(hostname, pStatus, pSocket);

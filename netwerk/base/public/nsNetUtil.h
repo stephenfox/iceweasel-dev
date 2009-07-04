@@ -48,6 +48,7 @@
 #include "nsCOMPtr.h"
 #include "prio.h" // for read/write flags, permissions, etc.
 
+#include "nsCRT.h"
 #include "nsIURI.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -61,6 +62,7 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "nsIChannel.h"
+#include "nsChannelProperties.h"
 #include "nsIInputStreamChannel.h"
 #include "nsITransport.h"
 #include "nsIStreamTransportService.h"
@@ -74,6 +76,7 @@
 #include "nsIStringStream.h"
 #include "nsILocalFile.h"
 #include "nsIFileStreams.h"
+#include "nsIFileURL.h"
 #include "nsIProtocolProxyService.h"
 #include "nsIProxyInfo.h"
 #include "nsIFileStreams.h"
@@ -93,6 +96,8 @@
 #include "nsINestedURI.h"
 #include "nsIMutable.h"
 #include "nsIPropertyBag2.h"
+#include "nsIIDNService.h"
+#include "nsIChannelEventSink.h"
 
 // Helper, to simplify getting the I/O service.
 inline const nsGetServiceByContractIDWithError
@@ -188,6 +193,19 @@ NS_NewChannel(nsIChannel           **result,
         }
     }
     return rv;
+}
+
+// For now, works only with JARChannel.  Future: with all channels that may
+// have Content-Disposition header (JAR, nsIHttpChannel, and nsIMultiPartChannel).
+inline nsresult
+NS_GetContentDisposition(nsIRequest     *channel,
+                         nsACString     &result)
+{
+    nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(channel));
+    if (props)
+        return props->GetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION,
+                                            result);
+    return NS_ERROR_NOT_AVAILABLE;
 }
 
 // Use this function with CAUTION. It creates a stream that blocks when you
@@ -300,6 +318,46 @@ NS_MakeAbsoluteURI(nsAString       &result,
 }
 
 /**
+ * This function is a helper function to get a scheme's default port.
+ */
+inline PRInt32
+NS_GetDefaultPort(const char *scheme,
+                  nsIIOService* ioService = nsnull)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIIOService> grip;
+  net_EnsureIOService(&ioService, grip);
+  if (!ioService)
+      return -1;
+ 
+  nsCOMPtr<nsIProtocolHandler> handler;
+  rv = ioService->GetProtocolHandler(scheme, getter_AddRefs(handler));
+  if (NS_FAILED(rv))
+    return -1;
+  PRInt32 port;
+  rv = handler->GetDefaultPort(&port);
+  return NS_SUCCEEDED(rv) ? port : -1;
+}
+
+/**
+ * This function is a helper function to apply the ToAscii conversion
+ * to a string
+ */
+inline PRBool
+NS_StringToACE(const nsACString &idn, nsACString &result)
+{
+  nsCOMPtr<nsIIDNService> idnSrv = do_GetService(NS_IDNSERVICE_CONTRACTID);
+  if (!idnSrv)
+    return PR_FALSE;
+  nsresult rv = idnSrv->ConvertUTF8toACE(idn, result);
+  if (NS_FAILED(rv))
+    return PR_FALSE;
+  
+  return PR_TRUE;
+}
+
+/**
  * This function is a helper function to get a protocol's default port if the
  * URI does not specify a port explicitly. Returns -1 if this protocol has no
  * concept of ports or if there was an error getting the port.
@@ -324,19 +382,7 @@ NS_GetRealPort(nsIURI* aURI,
     if (NS_FAILED(rv))
         return -1;
 
-    nsCOMPtr<nsIIOService> grip;
-    rv = net_EnsureIOService(&ioService, grip);
-    if (!ioService)
-        return -1;
-
-    nsCOMPtr<nsIProtocolHandler> handler;
-    rv = ioService->GetProtocolHandler(scheme.get(), getter_AddRefs(handler));
-    if (NS_FAILED(rv))
-        return -1;
-
-    NS_ASSERTION(handler, "IO Service lied");
-    rv = handler->GetDefaultPort(&port);
-    return NS_SUCCEEDED(rv) ? port : -1;
+    return NS_GetDefaultPort(scheme.get());
 }
 
 inline nsresult
@@ -947,6 +993,33 @@ NS_NewBufferedOutputStream(nsIOutputStream **result,
     return rv;
 }
 
+/**
+ * Attempts to buffer a given output stream.  If this fails, it returns the
+ * passed-in output stream.
+ *
+ * @param aOutputStream
+ *        The output stream we want to buffer.  This cannot be null.
+ * @param aBufferSize
+ *        The size of the buffer for the buffered output stream.
+ * @returns an nsIOutputStream that is buffered with the specified buffer size,
+ *          or is aOutputStream if creating the new buffered stream failed.
+ */
+inline already_AddRefed<nsIOutputStream>
+NS_BufferOutputStream(nsIOutputStream *aOutputStream,
+                      PRUint32 aBufferSize)
+{
+    NS_ASSERTION(aOutputStream, "No output stream given!");
+
+    nsCOMPtr<nsIOutputStream> bos;
+    nsresult rv = NS_NewBufferedOutputStream(getter_AddRefs(bos), aOutputStream,
+                                             aBufferSize);
+    if (NS_SUCCEEDED(rv))
+        return bos.forget();
+
+    NS_ADDREF(aOutputStream);
+    return aOutputStream;
+}
+
 // returns an input stream compatible with nsIUploadChannel::SetUploadStream()
 inline nsresult
 NS_NewPostDataStream(nsIInputStream  **result,
@@ -1383,6 +1456,165 @@ NS_GetFinalChannelURI(nsIChannel* channel, nsIURI** uri)
     }
     
     return channel->GetOriginalURI(uri);
+}
+
+// NS_SecurityHashURI must return the same hash value for any two URIs that
+// compare equal according to NS_SecurityCompareURIs.  Unfortunately, in the
+// case of files, it's not clear we can do anything better than returning
+// the schemeHash, so hashing files degenerates to storing them in a list.
+inline PRUint32
+NS_SecurityHashURI(nsIURI* aURI)
+{
+    nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
+
+    nsCAutoString scheme;
+    PRUint32 schemeHash = 0;
+    if (NS_SUCCEEDED(baseURI->GetScheme(scheme)))
+        schemeHash = nsCRT::HashCode(scheme.get());
+
+    // TODO figure out how to hash file:// URIs
+    if (scheme.EqualsLiteral("file"))
+        return schemeHash; // sad face
+
+    if (scheme.EqualsLiteral("imap") ||
+        scheme.EqualsLiteral("mailbox") ||
+        scheme.EqualsLiteral("news"))
+    {
+        nsCAutoString spec;
+        PRUint32 specHash = baseURI->GetSpec(spec);
+        if (NS_SUCCEEDED(specHash))
+            specHash = nsCRT::HashCode(spec.get());
+        return specHash;
+    }
+
+    nsCAutoString host;
+    PRUint32 hostHash = 0;
+    if (NS_SUCCEEDED(baseURI->GetHost(host)))
+        hostHash = nsCRT::HashCode(host.get());
+
+    // XOR to combine hash values
+    return schemeHash ^ hostHash ^ NS_GetRealPort(baseURI);
+}
+
+inline PRBool
+NS_SecurityCompareURIs(nsIURI* aSourceURI,
+                       nsIURI* aTargetURI,
+                       PRBool aStrictFileOriginPolicy)
+{
+    // Note that this is not an Equals() test on purpose -- for URIs that don't
+    // support host/port, we want equality to basically be object identity, for
+    // security purposes.  Otherwise, for example, two javascript: URIs that
+    // are otherwise unrelated could end up "same origin", which would be
+    // unfortunate.
+    if (aSourceURI && aSourceURI == aTargetURI)
+    {
+        return PR_TRUE;
+    }
+
+    if (!aTargetURI || !aSourceURI)
+    {
+        return PR_FALSE;
+    }
+
+    // If either URI is a nested URI, get the base URI
+    nsCOMPtr<nsIURI> sourceBaseURI = NS_GetInnermostURI(aSourceURI);
+    nsCOMPtr<nsIURI> targetBaseURI = NS_GetInnermostURI(aTargetURI);
+
+    if (!sourceBaseURI || !targetBaseURI)
+        return PR_FALSE;
+
+    // Compare schemes
+    nsCAutoString targetScheme;
+    PRBool sameScheme = PR_FALSE;
+    if (NS_FAILED( targetBaseURI->GetScheme(targetScheme) ) ||
+        NS_FAILED( sourceBaseURI->SchemeIs(targetScheme.get(), &sameScheme) ) ||
+        !sameScheme)
+    {
+        // Not same-origin if schemes differ
+        return PR_FALSE;
+    }
+
+    // special handling for file: URIs
+    if (targetScheme.EqualsLiteral("file"))
+    {
+        // in traditional unsafe behavior all files are the same origin
+        if (!aStrictFileOriginPolicy)
+            return PR_TRUE;
+
+        nsCOMPtr<nsIFileURL> sourceFileURL(do_QueryInterface(sourceBaseURI));
+        nsCOMPtr<nsIFileURL> targetFileURL(do_QueryInterface(targetBaseURI));
+
+        if (!sourceFileURL || !targetFileURL)
+            return PR_FALSE;
+
+        nsCOMPtr<nsIFile> sourceFile, targetFile;
+
+        sourceFileURL->GetFile(getter_AddRefs(sourceFile));
+        targetFileURL->GetFile(getter_AddRefs(targetFile));
+
+        if (!sourceFile || !targetFile)
+            return PR_FALSE;
+
+        // Otherwise they had better match
+        PRBool filesAreEqual = PR_FALSE;
+        nsresult rv = sourceFile->Equals(targetFile, &filesAreEqual);
+        return NS_SUCCEEDED(rv) && filesAreEqual;
+    }
+
+    // Special handling for mailnews schemes
+    if (targetScheme.EqualsLiteral("imap") ||
+        targetScheme.EqualsLiteral("mailbox") ||
+        targetScheme.EqualsLiteral("news"))
+    {
+        // Each message is a distinct trust domain; use the
+        // whole spec for comparison
+        nsCAutoString targetSpec;
+        nsCAutoString sourceSpec;
+        return ( NS_SUCCEEDED( targetBaseURI->GetSpec(targetSpec) ) &&
+                 NS_SUCCEEDED( sourceBaseURI->GetSpec(sourceSpec) ) &&
+                 targetSpec.Equals(sourceSpec) );
+    }
+
+    // Compare hosts
+    nsCAutoString targetHost;
+    nsCAutoString sourceHost;
+    if (NS_FAILED( targetBaseURI->GetAsciiHost(targetHost) ) ||
+        NS_FAILED( sourceBaseURI->GetAsciiHost(sourceHost) ))
+    {
+        return PR_FALSE;
+    }
+
+#ifdef MOZILLA_INTERNAL_API
+    if (!targetHost.Equals(sourceHost, nsCaseInsensitiveCStringComparator() ))
+#else
+    if (!targetHost.Equals(sourceHost, CaseInsensitiveCompare))
+#endif
+    {
+        return PR_FALSE;
+    }
+
+    return NS_GetRealPort(targetBaseURI) == NS_GetRealPort(sourceBaseURI);
+}
+
+inline PRBool
+NS_IsInternalSameURIRedirect(nsIChannel *aOldChannel,
+                             nsIChannel *aNewChannel,
+                             PRUint32 aFlags)
+{
+  if (!(aFlags & nsIChannelEventSink::REDIRECT_INTERNAL)) {
+    return PR_FALSE;
+  }
+
+  nsCOMPtr<nsIURI> oldURI, newURI;
+  aOldChannel->GetURI(getter_AddRefs(oldURI));
+  aNewChannel->GetURI(getter_AddRefs(newURI));
+
+  if (!oldURI || !newURI) {
+    return PR_FALSE;
+  }
+
+  PRBool res;
+  return NS_SUCCEEDED(oldURI->Equals(newURI, &res)) && res;
 }
 
 #endif // !nsNetUtil_h__

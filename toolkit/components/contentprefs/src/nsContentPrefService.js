@@ -19,6 +19,7 @@
  *
  * Contributor(s):
  *   Myk Melez <myk@mozilla.org>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -83,6 +84,15 @@ ContentPrefService.prototype = {
     return this.__consoleSvc;
   },
 
+  // Preferences Service
+  __prefSvc: null,
+  get _prefSvc ContentPrefService_get__prefSvc() {
+    if (!this.__prefSvc)
+      this.__prefSvc = Cc["@mozilla.org/preferences-service;1"].
+                       getService(Ci.nsIPrefBranch2);
+    return this.__prefSvc;
+  },
+
 
   //**************************************************************************//
   // Destruction
@@ -129,8 +139,21 @@ ContentPrefService.prototype = {
   setPref: function ContentPrefService_setPref(aURI, aName, aValue) {
     // If the pref is already set to the value, there's nothing more to do.
     var currentValue = this.getPref(aURI, aName);
-    if (typeof currentValue != "undefined" && currentValue == aValue)
-      return;
+    if (typeof currentValue != "undefined") {
+      if (currentValue == aValue)
+        return;
+    }
+    else {
+      // If we are in private browsing mode, refuse to set new prefs
+      var inPrivateBrowsing = false;
+      try { // The Private Browsing service might not be available.
+        var pbs = Cc["@mozilla.org/privatebrowsing;1"].
+                  getService(Ci.nsIPrivateBrowsingService);
+        inPrivateBrowsing = pbs.privateBrowsingEnabled;
+      } catch (e) {}
+      if (inPrivateBrowsing)
+        return;
+    }
 
     var settingID = this._selectSettingID(aName) || this._insertSetting(aName);
     var group, groupID, prefID;
@@ -202,6 +225,19 @@ ContentPrefService.prototype = {
     }
   },
 
+  removeGroupedPrefs: function ContentPrefService_removeGroupedPrefs() {
+    this._dbConnection.beginTransaction();
+    try {
+      this._dbConnection.executeSimpleSQL("DELETE FROM prefs WHERE groupID IS NOT NULL");
+      this._dbConnection.executeSimpleSQL("DELETE FROM groups");
+      this._dbConnection.commitTransaction();
+    }
+    catch(ex) {
+      this._dbConnection.rollbackTransaction();
+      throw ex;
+    }
+  },
+
   getPrefs: function ContentPrefService_getPrefs(aURI) {
     if (aURI) {
       var group = this.grouper.group(aURI);
@@ -268,6 +304,10 @@ ContentPrefService.prototype = {
       this._grouper = Cc["@mozilla.org/content-pref/hostname-grouper;1"].
                       getService(Ci.nsIContentURIGrouper);
     return this._grouper;
+  },
+
+  get DBConnection ContentPrefService_get_DBConnection() {
+    return this._dbConnection;
   },
 
 
@@ -693,43 +733,75 @@ ContentPrefService.prototype = {
     else {
       try {
         dbConnection = dbService.openDatabase(dbFile);
-
-        // Get the version of the database in the file.
-        var version = dbConnection.schemaVersion;
-
-        if (version != this._dbVersion)
-          this._dbMigrate(dbConnection, version, this._dbVersion);
       }
-      catch (ex) {
-        // If the database file is corrupted, I'm not sure whether we should
-        // just delete the corrupted file or back it up.  For now I'm just
-        // deleting it, but here's some code that backs it up (but doesn't limit
-        // the number of backups, which is probably necessary, thus I'm not
-        // using this code):
-        //var backup = this._dbFile.clone();
-        //backup.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
-        //backup.remove(false);
-        //this._dbFile.moveTo(null, backup.leafName);
-        if (ex.result == Cr.NS_ERROR_FILE_CORRUPTED) {
-          // Remove the corrupted file, then recreate it.
-          dbFile.remove(false);
-          dbConnection = this._dbCreate(dbService, dbFile);
+      // If the connection isn't ready after we open the database, that means
+      // the database has been corrupted, so we back it up and then recreate it.
+      catch (e if e.result == Cr.NS_ERROR_FILE_CORRUPTED) {
+        dbConnection = this._dbBackUpAndRecreate(dbService, dbFile,
+                                                 dbConnection);
+      }
+
+      // Get the version of the schema in the file.
+      var version = dbConnection.schemaVersion;
+
+      // Try to migrate the schema in the database to the current schema used by
+      // the service.  If migration fails, back up the database and recreate it.
+      if (version != this._dbVersion) {
+        try {
+          this._dbMigrate(dbConnection, version, this._dbVersion);
         }
-        else
-          throw ex;
+        catch(ex) {
+          Cu.reportError("error migrating DB: " + ex + "; backing up and recreating");
+          dbConnection = this._dbBackUpAndRecreate(dbService, dbFile, dbConnection);
+        }
       }
     }
+
+    // Turn off disk synchronization checking to reduce disk churn and speed up
+    // operations when prefs are changed rapidly (such as when a user repeatedly
+    // changes the value of the browser zoom setting for a site).
+    //
+    // Note: this could cause database corruption if the OS crashes or machine
+    // loses power before the data gets written to disk, but this is considered
+    // a reasonable risk for the not-so-critical data stored in this database.
+    //
+    // If you really don't want to take this risk, however, just set the
+    // toolkit.storage.synchronous pref to 1 (NORMAL synchronization) or 2
+    // (FULL synchronization), in which case mozStorageConnection::Initialize
+    // will use that value, and we won't override it here.
+    if (!this._prefSvc.prefHasUserValue("toolkit.storage.synchronous"))
+      dbConnection.executeSimpleSQL("PRAGMA synchronous = OFF");
 
     this._dbConnection = dbConnection;
   },
 
   _dbCreate: function ContentPrefService__dbCreate(aDBService, aDBFile) {
     var dbConnection = aDBService.openDatabase(aDBFile);
-    for (let name in this._dbSchema.tables)
-      dbConnection.createTable(name, this._dbSchema.tables[name]);
-    this._dbCreateIndices(dbConnection);
-    dbConnection.schemaVersion = this._dbVersion;
+
+    try {
+      this._dbCreateSchema(dbConnection);
+      dbConnection.schemaVersion = this._dbVersion;
+    }
+    catch(ex) {
+      // If we failed to create the database (perhaps because the disk ran out
+      // of space), then remove the database file so we don't leave it in some
+      // half-created state from which we won't know how to recover.
+      dbConnection.close();
+      aDBFile.remove(false);
+      throw ex;
+    }
+
     return dbConnection;
+  },
+
+  _dbCreateSchema: function ContentPrefService__dbCreateSchema(aDBConnection) {
+    this._dbCreateTables(aDBConnection);
+    this._dbCreateIndices(aDBConnection);
+  },
+
+  _dbCreateTables: function ContentPrefService__dbCreateTables(aDBConnection) {
+    for (let name in this._dbSchema.tables)
+      aDBConnection.createTable(name, this._dbSchema.tables[name]);
   },
 
   _dbCreateIndices: function ContentPrefService__dbCreateIndices(aDBConnection) {
@@ -739,6 +811,23 @@ ContentPrefService.prototype = {
                       "(" + index.columns.join(", ") + ")";
       aDBConnection.executeSimpleSQL(statement);
     }
+  },
+
+  _dbBackUpAndRecreate: function ContentPrefService__dbBackUpAndRecreate(aDBService,
+                                                                         aDBFile,
+                                                                         aDBConnection) {
+    aDBService.backupDatabaseFile(aDBFile, "content-prefs.sqlite.corrupt");
+
+    // Close the database, ignoring the "already closed" exception, if any.
+    // It'll be open if we're here because of a migration failure but closed
+    // if we're here because of database corruption.
+    try { aDBConnection.close() } catch(ex) {}
+
+    aDBFile.remove(false);
+
+    let dbConnection = this._dbCreate(aDBService, aDBFile);
+
+    return dbConnection;
   },
 
   _dbMigrate: function ContentPrefService__dbMigrate(aDBConnection, aOldVersion, aNewVersion) {
@@ -755,34 +844,19 @@ ContentPrefService.prototype = {
       }
     }
     else
-      throw("can't migrate database from v" + aOldVersion +
-            " to v" + aNewVersion + ": no migrator function");
+      throw("no migrator function from version " + aOldVersion +
+            " to version " + aNewVersion);
   },
 
+  /**
+   * If the schema version is 0, that means it was never set, which means
+   * the database was somehow created without the schema being applied, perhaps
+   * because the system ran out of disk space (although we check for this
+   * in _createDB) or because some other code created the database file without
+   * applying the schema.  In any case, recover by simply reapplying the schema.
+   */
   _dbMigrate0To3: function ContentPrefService___dbMigrate0To3(aDBConnection) {
-    aDBConnection.createTable("groups", this._dbSchema.tables.groups);
-    aDBConnection.executeSimpleSQL(
-      "INSERT INTO groups (id, name) SELECT id, name FROM sites"
-    );
-
-    aDBConnection.createTable("settings", this._dbSchema.tables.settings);
-    aDBConnection.executeSimpleSQL(
-      "INSERT INTO settings (id, name) SELECT id, name FROM keys"
-    );
-
-    aDBConnection.executeSimpleSQL("ALTER TABLE prefs RENAME TO prefsOld");
-    aDBConnection.createTable("prefs", this._dbSchema.tables.prefs);
-    aDBConnection.executeSimpleSQL(
-      "INSERT INTO prefs (id, groupID, settingID, value) " +
-      "SELECT id, site_id, key_id, value FROM prefsOld"
-    );
-
-    // Drop obsolete tables.
-    aDBConnection.executeSimpleSQL("DROP TABLE prefsOld");
-    aDBConnection.executeSimpleSQL("DROP TABLE keys");
-    aDBConnection.executeSimpleSQL("DROP TABLE sites");
-
-    this._dbCreateIndices(aDBConnection);
+    this._dbCreateSchema(aDBConnection);
   },
 
   _dbMigrate1To3: function ContentPrefService___dbMigrate1To3(aDBConnection) {

@@ -39,7 +39,6 @@
 
 #include "nsRect.h"
 #include "nsIWidget.h"
-#include "nsIMouseListener.h"
 #include "nsIEventListener.h"
 #include "nsIToolkit.h"
 #include "nsIAppShell.h"
@@ -61,7 +60,7 @@ class nsAutoRollup;
  * class, but it gives them a head start.)
  */
 
-class nsBaseWidget : public nsIWidget
+class nsBaseWidget : public nsIWidget_1_9_1_BRANCH
 {
   friend class nsAutoRollup;
 
@@ -82,6 +81,8 @@ public:
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
+  virtual nsIWidget*      GetTopLevelWidget(PRInt32* aLevelsUp = NULL);
+  virtual nsIWidget*      GetSheetWindowParent(void);
   virtual void            AddChild(nsIWidget* aChild);
   virtual void            RemoveChild(nsIWidget* aChild);
 
@@ -103,24 +104,20 @@ public:
                                     PRUint32 aHotspotX, PRUint32 aHotspotY);
   NS_IMETHOD              GetWindowType(nsWindowType& aWindowType);
   NS_IMETHOD              SetWindowType(nsWindowType aWindowType);
-  NS_IMETHOD              SetWindowTranslucency(PRBool aTranslucent);
-  NS_IMETHOD              GetWindowTranslucency(PRBool& aTranslucent);
-  NS_IMETHOD              UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas);
+  virtual void            SetTransparencyMode(nsTransparencyMode aMode);
+  virtual nsTransparencyMode GetTransparencyMode();
+  NS_IMETHOD              SetWindowShadowStyle(PRInt32 aStyle);
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
-  nsresult                MakeFullScreenInternal(PRBool aFullScreen);
   virtual nsIRenderingContext* GetRenderingContext();
   virtual nsIDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();  
-#ifdef MOZ_CAIRO_GFX
   virtual gfxASurface*    GetThebesSurface();
-#endif
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              ModalEventFilter(PRBool aRealEvent, void *aEvent,
                             PRBool *aForWindow);
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
   NS_IMETHOD              SetBorderStyle(nsBorderStyle aBorderStyle); 
-  NS_IMETHOD              AddMouseListener(nsIMouseListener * aListener);
   NS_IMETHOD              AddEventListener(nsIEventListener * aListener);
   NS_IMETHOD              SetBounds(const nsRect &aRect);
   NS_IMETHOD              GetBounds(nsRect &aRect);
@@ -132,12 +129,24 @@ public:
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
+  virtual PRBool          HasPendingInputEvent();
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
   NS_IMETHOD              BeginSecureKeyboardInput();
   NS_IMETHOD              EndSecureKeyboardInput();
-  NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor);
+  NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
+  virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            ConvertToDeviceCoordinates(nscoord  &aX,nscoord &aY) {}
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
+  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+  virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              ResetInputState() { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              SetIMEOpenState(PRBool aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetIMEOpenState(PRBool* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              CancelIMEComposition() { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
 
 protected:
 
@@ -158,22 +167,24 @@ protected:
     return mLastRollup;
   }
 
+  virtual nsresult SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
+                                            PRInt32 aNativeKeyCode,
+                                            PRUint32 aModifierFlags,
+                                            const nsAString& aCharacters,
+                                            const nsAString& aUnmodifiedCharacters)
+  { return NS_ERROR_UNEXPECTED; }
+
 protected: 
   void*             mClientData;
   EVENT_CALLBACK    mEventCallback;
   nsIDeviceContext  *mContext;
   nsIToolkit        *mToolkit;
-  nsIMouseListener  *mMouseListener;
   nsIEventListener  *mEventListener;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
-  PRPackedBool      mIsShiftDown;
-  PRPackedBool      mIsControlDown;
-  PRPackedBool      mIsAltDown;
-  PRPackedBool      mIsDestroying;
   PRPackedBool      mOnDestroyCalled;
   nsRect            mBounds;
   nsRect*           mOriginalBounds;

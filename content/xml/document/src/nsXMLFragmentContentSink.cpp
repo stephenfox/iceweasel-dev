@@ -60,6 +60,7 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
+#include "nsCycleCollectionParticipant.h"
 
 class nsXMLFragmentContentSink : public nsXMLContentSink,
                                  public nsIFragmentContentSink
@@ -72,6 +73,8 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsXMLFragmentContentSink,
+                                                     nsXMLContentSink)
 
   // nsIExpatSink
   NS_IMETHOD HandleDoctypeDecl(const nsAString & aSubset, 
@@ -99,7 +102,8 @@ public:
   // nsIXMLContentSink
 
   // nsIFragmentContentSink
-  NS_IMETHOD GetFragment(nsIDOMDocumentFragment** aFragment);
+  NS_IMETHOD GetFragment(PRBool aWillOwnFragment,
+                         nsIDOMDocumentFragment** aFragment);
   NS_IMETHOD SetTargetDocument(nsIDocument* aDocument);
   NS_IMETHOD WillBuildContent();
   NS_IMETHOD DidBuildContent();
@@ -111,7 +115,8 @@ protected:
                                nsIContent *aContent);
   virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                  nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                 nsIContent** aResult, PRBool* aAppendContent);
+                                 nsIContent** aResult, PRBool* aAppendContent,
+                                 PRBool aFromParser);
   virtual nsresult CloseElement(nsIContent* aContent);
 
   virtual void MaybeStartLayout(PRBool aIgnorePendingSheets);
@@ -169,9 +174,20 @@ nsXMLFragmentContentSink::~nsXMLFragmentContentSink()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsXMLFragmentContentSink,
-                             nsXMLContentSink,
-                             nsIFragmentContentSink)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXMLFragmentContentSink)
+  NS_INTERFACE_MAP_ENTRY(nsIFragmentContentSink)
+NS_INTERFACE_MAP_END_INHERITING(nsXMLContentSink)
+
+NS_IMPL_ADDREF_INHERITED(nsXMLFragmentContentSink, nsXMLContentSink)
+NS_IMPL_RELEASE_INHERITED(nsXMLFragmentContentSink, nsXMLContentSink)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLFragmentContentSink)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLFragmentContentSink,
+                                                  nsXMLContentSink)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTargetDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMETHODIMP 
 nsXMLFragmentContentSink::WillBuildModel(void)
@@ -241,11 +257,15 @@ nsXMLFragmentContentSink::SetDocElement(PRInt32 aNameSpaceID,
 nsresult
 nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                         nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                                        nsIContent** aResult, PRBool* aAppendContent)
+                                        nsIContent** aResult, PRBool* aAppendContent,
+                                        PRBool aFromParser)
 {
+  // Claim to not be coming from parser, since we don't do any of the
+  // fancy CloseElement stuff.
   nsresult rv = nsXMLContentSink::CreateElement(aAtts, aAttsCount,
-                                aNodeInfo, aLineNumber,
-                                aResult, aAppendContent);
+                                                aNodeInfo, aLineNumber,
+                                                aResult, aAppendContent,
+                                                PR_FALSE);
 
   // When we aren't grabbing all of the content we, never open a doc
   // element, we run into trouble on the first element, so we don't append,
@@ -386,14 +406,19 @@ nsXMLFragmentContentSink::StartLayout()
 ////////////////////////////////////////////////////////////////////////
 
 NS_IMETHODIMP 
-nsXMLFragmentContentSink::GetFragment(nsIDOMDocumentFragment** aFragment)
+nsXMLFragmentContentSink::GetFragment(PRBool aWillOwnFragment,
+                                      nsIDOMDocumentFragment** aFragment)
 {
   *aFragment = nsnull;
   if (mParseError) {
     //XXX PARSE_ERR from DOM3 Load and Save would be more appropriate
     return NS_ERROR_DOM_SYNTAX_ERR;
   } else if (mRoot) {
-    return CallQueryInterface(mRoot, aFragment);
+    nsresult rv = CallQueryInterface(mRoot, aFragment);
+    if (NS_SUCCEEDED(rv) && aWillOwnFragment) {
+      mRoot = nsnull;
+    }
+    return rv;
   } else {
     return NS_OK;
   }
@@ -601,9 +626,8 @@ nsXHTMLParanoidFragmentSink::AddAttributes(const PRUnichar** aAtts,
   while (*aAtts) {
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
-    rv = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                       getter_AddRefs(nodeInfo));
-    NS_ENSURE_SUCCESS(rv, rv);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+    NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     // check the attributes we allow that contain URIs
     if (IsAttrURI(nodeInfo->NameAtom())) {
       if (!aAtts[1])
@@ -650,9 +674,8 @@ nsXHTMLParanoidFragmentSink::HandleStartElement(const PRUnichar *aName,
     return NS_OK;
   
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  rv = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                     getter_AddRefs(nodeInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
   
   // bounce it if it's not on the whitelist or we're inside
   // <script> or <style>
@@ -672,18 +695,14 @@ nsXHTMLParanoidFragmentSink::HandleStartElement(const PRUnichar *aName,
   for (PRUint32 i = 0; i < aAttsCount; i += 2) {
     nsContentUtils::SplitExpatName(aAtts[i], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
-    rv = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                       getter_AddRefs(nodeInfo));
-    NS_ENSURE_SUCCESS(rv, rv);
+    nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+    NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     
     name = nodeInfo->NameAtom();
-    // Add if it's xmlns, xml:, aaa:, xhtml2:role, or on the HTML whitelist
+    // Add if it's xmlns, xml: or on the HTML whitelist
     if (nameSpaceID == kNameSpaceID_XMLNS ||
         nameSpaceID == kNameSpaceID_XML ||
-        nameSpaceID == kNameSpaceID_WAIProperties ||
-        (nameSpaceID == kNameSpaceID_XHTML2_Unofficial &&
-         name == nsGkAtoms::role) ||
-        sAllowedAttributes && sAllowedAttributes->GetEntry(name)) {
+        (sAllowedAttributes && sAllowedAttributes->GetEntry(name))) {
       allowedAttrs.AppendElement(aAtts[i]);
       allowedAttrs.AppendElement(aAtts[i + 1]);
     }
@@ -700,7 +719,6 @@ nsXHTMLParanoidFragmentSink::HandleStartElement(const PRUnichar *aName,
 NS_IMETHODIMP 
 nsXHTMLParanoidFragmentSink::HandleEndElement(const PRUnichar *aName)
 {
-  nsresult rv;
   PRInt32 nameSpaceID;
   nsCOMPtr<nsIAtom> prefix, localName;
   nsContentUtils::SplitExpatName(aName, getter_AddRefs(prefix),
@@ -712,9 +730,8 @@ nsXHTMLParanoidFragmentSink::HandleEndElement(const PRUnichar *aName)
   }
   
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  rv = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
-                                     getter_AddRefs(nodeInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
   
   nsCOMPtr<nsIAtom> name = nodeInfo->NameAtom();
   if (mSkipLevel != 0) {

@@ -62,7 +62,7 @@ var gUpdateWizard = {
     var em = Components.classes["@mozilla.org/extensions/manager;1"]
                         .getService(nsIExtensionManager);
     // Retrieve all items in order to sync their app compatibility information
-    this.items = em.getItemList(nsIUpdateItem.TYPE_ADDON, { });
+    this.items = em.getItemList(nsIUpdateItem.TYPE_ANY, { });
     var pref =
         Components.classes["@mozilla.org/preferences-service;1"].
         getService(Components.interfaces.nsIPrefBranch);
@@ -127,7 +127,7 @@ var gUpdateWizard = {
   errorItems: [],
   showErrors: function (aState, aErrors)
   {
-    openDialog("chrome://mozapps/content/update/errors.xul", "",
+    openDialog("chrome://mozapps/content/extensions/errors.xul", "",
                "modal", { state: aState, errors: aErrors });
   },
 
@@ -201,7 +201,7 @@ var gVersionInfoPage = {
                        .getService(nsIExtensionManager);
     // Retrieve the remaining incompatible items.
     gUpdateWizard.items = em.getIncompatibleItemList(null, null, null,
-                                                     nsIUpdateItem.TYPE_ADDON,
+                                                     nsIUpdateItem.TYPE_ANY,
                                                      true, { });
     if (gUpdateWizard.items.length > 0) {
       // There are still incompatible addons, inform the user.
@@ -391,7 +391,7 @@ var gFoundPage = {
 
     var oneChecked = false;
     var foundUpdates = document.getElementById("found.updates");
-    var updates = foundUpdates.getElementsByTagName("listitem");;
+    var updates = foundUpdates.getElementsByTagName("listitem");
     for (var i = 0; i < updates.length; ++i) {
       if (!updates[i].checked)
         continue;
@@ -426,7 +426,7 @@ var gInstallingPage = {
     this._errors = [];
 
     var foundUpdates = document.getElementById("found.updates");
-    var updates = foundUpdates.getElementsByTagName("listitem");;
+    var updates = foundUpdates.getElementsByTagName("listitem");
     for (var i = 0; i < updates.length; ++i) {
       if (!updates[i].checked)
         continue;

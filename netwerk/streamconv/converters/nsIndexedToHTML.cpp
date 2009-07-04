@@ -23,6 +23,7 @@
  *   Bradley Baetz <bbaetz@cs.mcgill.ca>
  *   Christopher A. Aillon <christopher@aillon.com>
  *   Dão Gottwald <dao@design-noir.de>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,6 +51,9 @@
 #include "nsURLHelper.h"
 #include "nsCRT.h"
 #include "nsIPlatformCharset.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefLocalizedString.h"
 
 NS_IMPL_ISUPPORTS4(nsIndexedToHTML,
                    nsIDirIndexListener,
@@ -93,11 +97,29 @@ nsIndexedToHTML::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult) {
 
 nsresult
 nsIndexedToHTML::Init(nsIStreamListener* aListener) {
+
+    nsXPIDLString ellipsis;
+    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    if (prefs) {
+      nsCOMPtr<nsIPrefLocalizedString> prefVal;
+      prefs->GetComplexValue("intl.ellipsis",
+                           NS_GET_IID(nsIPrefLocalizedString),
+                           getter_AddRefs(prefVal));
+      if (prefVal)
+        prefVal->ToString(getter_Copies(ellipsis));
+    }
+    if (ellipsis.IsEmpty())
+      mEscapedEllipsis.AppendLiteral("&#8230;");
+    else
+      mEscapedEllipsis.Adopt(nsEscapeHTML2(ellipsis.get(), ellipsis.Length()));
+
     nsresult rv = NS_OK;
 
     mListener = aListener;
 
     mDateTime = do_CreateInstance(NS_DATETIMEFORMAT_CONTRACTID, &rv);
+    if (NS_FAILED(rv))
+      return rv;
 
     nsCOMPtr<nsIStringBundleService> sbs =
         do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
@@ -135,7 +157,7 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
     rv = channel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv)) return rv;
 
-    channel->SetContentType(NS_LITERAL_CSTRING("text/html"));
+    channel->SetContentType(NS_LITERAL_CSTRING("application/xhtml+xml"));
 
     mParser = do_CreateInstance("@mozilla.org/dirIndexParser;1",&rv);
     if (NS_FAILED(rv)) return rv;
@@ -254,9 +276,7 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
     }
 
     nsString buffer;
-    buffer.AppendLiteral("<!DOCTYPE html>\n"
-                         "<html>\n<head>\n"
-                         "<meta http-equiv=\"content-type\" content=\"text/html; charset=");
+    buffer.AppendLiteral("<?xml version=\"1.0\" encoding=\"");
     
     // Get the encoding from the parser
     // XXX - this won't work for any encoding set via a 301: line in the
@@ -268,8 +288,13 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
     if (NS_FAILED(rv)) return rv;
 
     AppendASCIItoUTF16(encoding, buffer);
-    buffer.AppendLiteral("\">\n"
-                         "<style type=\"text/css\">\n"
+    buffer.AppendLiteral("\"?>\n"
+                         "<!DOCTYPE html ["
+                         " <!ENTITY % globalDTD SYSTEM \"chrome://global/locale/global.dtd\">\n"
+                         " %globalDTD;\n"
+                         "]>\n"
+                         "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n"
+                         "<style type=\"text/css\"><![CDATA[\n"
                          ":root {\n"
                          "  font-family: sans-serif;\n"
                          "}\n"
@@ -280,6 +305,11 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                          "  text-align: left;\n"
                          "  white-space: nowrap;\n"
                          "}\n"
+                         // Bug 475986 makes this necessary, otherwise
+                         // "text-align: start" would be fine
+                         "body[dir=\"rtl\"] th {\n"
+                         "  text-align: right;\n"
+                         "}\n"
                          "th > a {\n"
                          "  color: inherit;\n"
                          "}\n"
@@ -289,8 +319,12 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                          "table[order] > thead > tr > th::after {\n"
                          "  display: none;\n"
                          "  width: .8em;\n"
-                         "  margin-right: -.8em;\n"
+                         "  -moz-margin-end: -.8em;\n"
                          "  text-align: right;\n"
+                         "}\n"
+                         // Bug 299837 will enable us to use "text-align: end" here
+                         "body[dir=\"rtl\"] table[order] > thead > tr > th::after {\n"
+                         "  text-align: left;\n"
                          "}\n"
                          "table[order=\"asc\"] > thead > tr > th::after {\n"
                          "  content: \"\\2193\"; /* DOWNWARDS ARROW (U+2193) */\n"
@@ -298,9 +332,9 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                          "table[order=\"desc\"] > thead > tr > th::after {\n"
                          "  content: \"\\2191\"; /* UPWARDS ARROW (U+2191) */\n"
                          "}\n"
-                         "table[order][order-by=\"0\"] > thead > tr > th:first-child ,\n"
-                         "table[order][order-by=\"1\"] > thead > tr > th:first-child + th ,\n"
-                         "table[order][order-by=\"2\"] > thead > tr > th:first-child + th + th {\n"
+                         "table[order][order-by=\"0\"] > thead > tr > th:first-child > a ,\n"
+                         "table[order][order-by=\"1\"] > thead > tr > th:first-child + th > a ,\n"
+                         "table[order][order-by=\"2\"] > thead > tr > th:first-child + th + th > a {\n"
                          "  text-decoration: underline;\n"
                          "}\n"
                          "table[order][order-by=\"0\"] > thead > tr > th:first-child::after ,\n"
@@ -312,27 +346,42 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                          "  display: none;\n"
                          "}\n"
                          "td > a {\n"
-                         "  display: block;\n"
+                         "  display: inline-block;\n"
+                         "}\n"
+                         "/* name */\n"
+                         "th:first-child {\n"
+                         "  -moz-padding-end: 2em;\n"
                          "}\n"
                          "/* size */\n"
+                         "th:first-child + th {\n"
+                         "  -moz-padding-end: 1em;\n"
+                         "}\n"
                          "td:first-child + td {\n"
                          "  text-align: right;\n"
-                         "  padding-right: 2em;\n"
+                         "  -moz-padding-end: 1em;\n"
                          "  white-space: nowrap;\n"
+                         "}\n"
+                         "body[dir=\"rtl\"] td:first-child + td {\n"
+                         "  text-align: left;\n"
                          "}\n"
                          "/* date */\n"
                          "td:first-child + td + td {\n"
-                         "  padding-right: 1em;\n"
+                         "  -moz-padding-start: 1em;\n"
+                         "  -moz-padding-end: .5em;\n"
                          "  white-space: nowrap;\n"
                          "}\n"
                          "/* time */\n"
                          "td:last-child {\n"
+                         "  -moz-padding-start: .5em;\n"
                          "  white-space: nowrap;\n"
                          "}\n"
                          "@-moz-document url-prefix(gopher://) {\n"
                          "  td {\n"
                          "    white-space: pre !important;\n"
                          "    font-family: monospace;\n"
+                         "  }\n"
+                         "  table {\n"
+                         "    direction: ltr;\n"
                          "  }\n"
                          "}\n"
                          ".symlink {\n"
@@ -341,24 +390,23 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                          ".dir ,\n"
                          ".symlink ,\n"
                          ".file {\n"
-                         "  padding: 0 .5em;\n"
-                         "  margin-left: 20px;\n"
+                         "  -moz-margin-start: 20px;\n"
                          "}\n"
                          ".dir::before ,\n"
                          ".file > img {\n"
-                         "  margin-right: 4px;\n"
-                         "  margin-left: -20px;\n"
+                         "  -moz-margin-end: 4px;\n"
+                         "  -moz-margin-start: -20px;\n"
                          "  vertical-align: middle;\n"
                          "}\n"
                          ".dir::before {\n"
                          "  content: url(resource://gre/res/html/folder.png);\n"
                          "}\n"
-                         "</style>\n"
+                         "]]></style>\n"
                          "<link rel=\"stylesheet\" media=\"screen, projection\" type=\"text/css\""
-                         " href=\"chrome://global/skin/dirListing/dirListing.css\">\n");
+                         " href=\"chrome://global/skin/dirListing/dirListing.css\" />\n");
 
     if (!isSchemeGopher) {
-        buffer.AppendLiteral("<script type=\"application/javascript\">\n"
+        buffer.AppendLiteral("<script type=\"application/javascript\"><![CDATA[\n"
                              "var gTable, gOrderBy, gTBody, gRows, gUI_showHidden;\n"
                              "document.addEventListener(\"DOMContentLoaded\", function() {\n"
                              "  gTable = document.getElementsByTagName(\"table\")[0];\n"
@@ -436,7 +484,7 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                              "                     \"\" :\n"
                              "                     \"remove-hidden\";\n"
                              "}\n"
-                             "</script>\n");
+                             "]]></script>\n");
     }
     buffer.AppendLiteral("<link rel=\"icon\" type=\"image/png\" href=\"");
     nsCOMPtr<nsIURI> innerUri = NS_GetInnermostURI(uri);
@@ -447,47 +495,47 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
     if (fileURL) {
         //buffer.AppendLiteral("chrome://global/skin/dirListing/local.png");
         buffer.AppendLiteral("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB"
-                             "AAAAAQCAYAAAAf8/9hAAAABGd BTUEAANbY1E9YMgAAAfRJR"
-                             "EFUeNrFUk1IVFEU/t7MfU2pMRiGLVxYhGCgEoIbyZVGtFJXt"
-                             "hIDQ7BlgtvQpQs1NWgTA5YbscjZZLQNZkRpnEBFRR0sf9FG5"
-                             "zne9969z/PuvAHHEN114Xv33nfP+c453znA/15a9C1qhPS3c"
-                             "S4cYaPQtgHCmmlhvqkHo2QjLyP4WN44+azgTk3Ow9Rg/URyK"
-                             "y7hIOiRwrawTMSLHe/wJkvMHAdF/uB9wOzPIXj8cqQZvrLzA"
-                             "RsGnhdP0P6ekHJJmGGgIcB8kKaZa2p9/jffay9Q+QDNdOokG"
-                             "CoD109a9EnzKyhmwotzneAjCEUgrBOAp5GIRZD6Sy8sCEEVC"
-                             "pGBdHd17wArrMXUkLaaTu1id30RHgHHn1gUvhsVePjU1Sd5Q"
-                             "Qp+wLFI1zxsLU3jS1/jBuOU+fHhAZI7e6hq6aVwUTK0LyghA"
-                             "Meh0rVqzIZ7EE+gW2WwGQ+htPYVmJ4ggt+5TlKJRJGFapxEC"
-                             "ZZnx5yVXzPfh7/iB9N1qtlewK17r0n5cdVsUEng1CXBM47Zx"
-                             "Ypw4q9D5FP70bc5ULo4ZjfzgbuPuqDxeaJ/kjHUPZxbUhj4G"
-                             "R7G5s5hKDyDVfp1xKisWGS0tSqge9PmwVX/7D2L7X2Euj+g3"
-                             "5sDrrmJEW4TAq5Mlw+DGmHDa5WVdWBXdD5LosQ5BeW364651"
-                             "CZwAAAAAElFTkSuQmCC");
+                             "AAAAAQCAYAAAAf8%2F9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9i"
+                             "ZSBJbWFnZVJlYWR5ccllPAAAAjFJREFUeNqsU8uOElEQPffR"
+                             "3XQ3ONASdBJCSBxHos5%2B3Bg3rvkCv8PElS78gPkO%2FATj"
+                             "QoUdO2ftrJiRh6aneTb9sOpC4weMN6lcuFV16pxDIfI8x12O"
+                             "YIDhcPiu2Wx%2B%2FHF5CW1Z6Jyegt%2FTNEWSJIjjGFEUIQ"
+                             "xDrFYrWFSzXC4%2FdLvd95pRKpXKy%2BpRFZ7nwaWo1%2BsG"
+                             "nQG2260BKJfLKJVKGI1GEEJw7ateryd0v993W63WEwjgxfn5"
+                             "obGYzgCbzcaEbdsIggDj8Riu6z6iUk9SYZMSx8W0LMsM%2FS"
+                             "KK75xnJlIq80anQXdbEp0OhcPJ0eiaJnGRMEyyPDsAKKUM9c"
+                             "lkYoDo3SZJzzSdp0VSKYmfV1co%2Bz580kw5KDIM8RbRfEnU"
+                             "f1HzxtQyMAGcaGruTKczMzEIaqhKifV6jd%2BzGQQB5llunF"
+                             "%2FM52BizC2K5sYPYvZcu653tjOM9O93wnYc08gmkgg4VAxi"
+                             "xfqFUJT36AYBZGd6PJkFCZnnlBxMp38gqIgLpZB0y4Nph18l"
+                             "yWh5FFbrOSxbl3V4G%2BVB7T4ajYYxTyuLtO%2BCvWGgJE1M"
+                             "c7JNsJEhvgw%2FQV4fo%2F24nbEsX2u1d5sVyn8sJO0ZAQiI"
+                             "YnFh%2BxrfLz%2Fj29cBS%2FO14zg3i8XigW3ZkErDtmKoeM"
+                             "%2BAJGRMnXeEPGKf0nCD1ydvkDzU9Jbc6OpR7WIw6L8lQ%2B"
+                             "4pQ1%2FlPF0RGM9Ns91Wmptk0GfB4EJkt77vXYj%2F8m%2B8"
+                             "y%2FkrwABHbz2H9V68DQAAAABJRU5ErkJggg%3D%3D");
     } else {
         //buffer.AppendLiteral("chrome://global/skin/dirListing/remote.png");
         buffer.AppendLiteral("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB"
-                             "AAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAohJRE"
-                             "FUeNqFU0tPE2EUPTMtr5G2DBCNYrVKxAXgKwgLNlYCiWGhG3"
-                             "eICxNZuXBl/AEQggsNO4Jxb0gwokYxGmNgIRuMSRcGbMAoVV"
-                             "NgBqSveX3e+01LwEicyZ37Te/cc859VMF/rrm5uWvkOm3bhu"
-                             "M4YM9mWZaRyWTeKXslJhKJi5FIpL1QKMQqKjQUKAmeB8FBIa"
-                             "DrNZiefmkE90i+Qq6DGPVwOIyl5RXJ7nkCnvAISMAlMALXgz"
-                             "MzM1fpY42smixEFjEMQ+eEVCq1U7L06+sGAXno7rkkfwum0+"
-                             "lMPN7VZZobkl3wLVilkMYvxIlaPYJnU0/R3HJWsnOMFIBLqO"
-                             "LkOw/n6ahAoa4o/kN6tt+bmxi5eV4yfpz/ANd1cbD3sq+gxM"
-                             "of6rV1UFUVCplaND4zgPB8xpZTbfIs/B5A5frpnQBUBAKBXa"
-                             "YWPV/cPGZMh5bwyHwgyyopqODxKKqCQDC4zS49l6Cqfm8I4P"
-                             "uhqYHlRWrmVppVjDEAR3VuCJfAjMcP7ENsv4aj9ZWI1lVKMF"
-                             "8Br4GN7ubryFsFCchTYQWeWqyTLbnw78UKqAFYngOXS/EsOa"
-                             "lSCfmysiCGb5yR47FtB9msz1BeXkZlCLl9qkKJtBuu5yLvWH"
-                             "KMUoGu6yvJ5KJGi9PI4zFNkwCycvPW1tbkyNLHpgfyjo2G2h"
-                             "PgZW6sb8attxcGclEqfafM0dHRjqamprYqrbo1FKrBi+dPkM"
-                             "vlJil0OnlkciRadxKthzvx/ssbpMxfOPejt//v/0K8oSEaqw"
-                             "6FSIGLvr5+jI+PxYeGhu5S7F7PfVNsWTnMfp7FwmBWeYVP2A"
-                             "Wwurr6bWLicay0/1SGoWna11L89e2fSvvwhlgYzG0r/wN/4X"
-                             "tnm2x4eQAAAABJRU5ErkJggg==");
+                             "AAAAAQCAYAAAAf8%2F9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9i"
+                             "ZSBJbWFnZVJlYWR5ccllPAAAAeBJREFUeNqcU81O20AQ%2Ft"
+                             "Z2AgQSYQRqL1UPVG2hAUQkxLEStz4DrXpLpD5Drz31Cajax%"
+                             "2Bghhx6qHIJURBTxIwQRwopCBbZjHMcOTrzermPipsSt1Iw0"
+                             "3p3ZmW%2B%2B2R0TxhgOD34wjCHZlQ0iDYz9yvEfhxMTCYhE"
+                             "QDIZhkxKd2sqzX2TOD2vBQCQhpPefng1ZP2dVPlLLdpL8SEM"
+                             "cxng%2Fbs0RIHhtgs4twxOh%2BHjZxvzDx%2F3GQQiDFISiR"
+                             "BLFMPKTRMollzcWECrDVhtxtdRVsL9youPxGj%2FbdfFlUZh"
+                             "tDyYbYqWRUdai1oQRZ5oHeHl2gNM%2B01Uqio8RlH%2Bnsaz"
+                             "JzNwXcq1B%2BiXPHprlEEymeBfXs1w8XxxihfyuXqoHqpoGj"
+                             "ZM04bddgG%2F9%2B8WGj87qDdsrK9m%2BoA%2BpbhQTDh2l1"
+                             "%2Bi2weNbSHMZyjvNXmVbqh9Fj5Oz27uEoP%2BSTxANruJs9"
+                             "L%2FT6P0ewqPx5nmiAG5f6AoCtN1PbJzuRyJAyDBzzSQYvEr"
+                             "f06yYxhGXlEa8H2KVGoasjwLx3Ewk858opQWXm%2B%2Fib9E"
+                             "QrBzclLLLy89xYvlpchvtixcX6uo1y%2FzsiwHrkIsgKbp%2"
+                             "BYWFOWicuqppoNTnStHzPFCPQhBEBOyGAX4JMADFetubi4BS"
+                             "YAAAAABJRU5ErkJggg%3D%3D");
     }
-    buffer.AppendLiteral("\">\n<title>");
+    buffer.AppendLiteral("\" />\n<title>");
 
     // Anything but a gopher url needs to end in a /,
     // otherwise we end up linking to file:///foo/dirfile
@@ -552,15 +600,18 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
         // will prematurely close the string.  Go ahead an
         // add a base href.
         buffer.AppendLiteral("<base href=\"");
-        AppendASCIItoUTF16(baseUri, buffer);
-        buffer.AppendLiteral("\">\n");
+        NS_ConvertUTF8toUTF16 utf16BaseURI(baseUri);
+        nsString htmlEscapedUri;
+        htmlEscapedUri.Adopt(nsEscapeHTML2(utf16BaseURI.get(), utf16BaseURI.Length()));
+        buffer.Append(htmlEscapedUri);
+        buffer.AppendLiteral("\" />\n");
     }
     else
     {
         NS_ERROR("broken protocol handler didn't escape double-quote.");
     }
 
-    buffer.AppendLiteral("</head>\n<body>\n<h1>");
+    buffer.AppendLiteral("</head>\n<body dir=\"&locale.dir;\">\n<h1>");
     
     const PRUnichar* formatHeading[] = {
         htmlEscSpec.get()
@@ -582,7 +633,11 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
         if (NS_FAILED(rv)) return rv;
 
         buffer.AppendLiteral("<p id=\"UI_goUp\"><a class=\"up\" href=\"");
-        AppendASCIItoUTF16(parentStr, buffer);
+
+        NS_ConvertUTF8toUTF16 utf16ParentStr(parentStr);
+        nsString htmlParentStr;
+        htmlParentStr.Adopt(nsEscapeHTML2(utf16ParentStr.get(), utf16ParentStr.Length()));
+        buffer.Append(htmlParentStr);
         buffer.AppendLiteral("\">");
         AppendNonAsciiToNCR(parentText, buffer);
         buffer.AppendLiteral("</a></p>\n");
@@ -594,7 +649,7 @@ nsIndexedToHTML::OnStartRequest(nsIRequest* request, nsISupports *aContext) {
                                         getter_Copies(showHiddenText));
         if (NS_FAILED(rv)) return rv;
 
-        buffer.AppendLiteral("<p id=\"UI_showHidden\" style=\"display:none\"><label><input type=\"checkbox\" checked onchange=\"updateHidden()\">");
+        buffer.AppendLiteral("<p id=\"UI_showHidden\" style=\"display:none\"><label><input type=\"checkbox\" checked=\"checked\" onchange=\"updateHidden()\" />");
         AppendNonAsciiToNCR(showHiddenText, buffer);
         buffer.AppendLiteral("</label></p>\n");
     }
@@ -816,8 +871,10 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
                 description.Truncate(description.Length() - 1);
 
             escapedShort.Adopt(nsEscapeHTML2(description.get(), description.Length()));
-            // add HORIZONTAL ELLIPSIS (U+2026)
-            escapedShort.AppendLiteral("&#8230;");
+
+            escapedShort.Append(mEscapedEllipsis);
+            // add ZERO WIDTH SPACE (U+200B) for wrapping
+            escapedShort.AppendLiteral("&#8203;");
             nsString tmp;
             tmp.Adopt(nsEscapeHTML2(descriptionAffix.get(), descriptionAffix.Length()));
             escapedShort.Append(tmp);
@@ -873,8 +930,10 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
         escFlags = esc_Forced | esc_OnlyASCII | esc_AlwaysCopy | esc_FileBaseName | esc_Colon | esc_Directory;
     }
     NS_EscapeURL(utf8UnEscapeSpec.get(), utf8UnEscapeSpec.Length(), escFlags, escapeBuf);
-
-    AppendUTF8toUTF16(escapeBuf, pushBuffer);
+    NS_ConvertUTF8toUTF16 utf16URI(escapeBuf);
+    nsString htmlEscapedURL;
+    htmlEscapedURL.Adopt(nsEscapeHTML2(utf16URI.get(), utf16URI.Length()));
+    pushBuffer.Append(htmlEscapedURL);
 
     pushBuffer.AppendLiteral("\">");
 
@@ -894,7 +953,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
                                         getter_Copies(altText));
         if (NS_FAILED(rv)) return rv;
         AppendNonAsciiToNCR(altText, pushBuffer);
-        pushBuffer.AppendLiteral("\">");
+        pushBuffer.AppendLiteral("\" />");
     }
 
     pushBuffer.Append(escapedShort);

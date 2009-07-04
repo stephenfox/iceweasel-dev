@@ -62,12 +62,12 @@ try {
 }
 
 // get bookmarks root index
-var root = bmsvc.bookmarksRoot;
+var root = bmsvc.bookmarksMenuFolder;
 
 // main
 function run_test() {
   var livemarkId = 
-    lmsvc.createLivemarkFolderOnly(bmsvc, root, "foo",
+    lmsvc.createLivemarkFolderOnly(root, "foo",
                                    uri("http://example.com/"),
                                    uri("http://example.com/rss.xml"), -1);
 
