@@ -1,0 +1,34 @@
+# Branding Makefile
+#  - jars chrome artwork
+#  - copies artwork to appropriate places in objdir for bundling into app 
+#    resources
+
+DEPTH = ../..
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+DIRS = \
+	content \
+	locales \
+	$(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+BROWSER_APP_FILES = \
+        default16.png \
+        default32.png \
+        default48.png \
+        mozicon128.png \
+        mozicon16.xpm \
+        mozicon50.xpm \
+        firefox.ico \
+        document.ico \
+        $(NULL)
+
+export::
+	$(NSINSTALL) -D $(DIST)/branding
+	cp $(addprefix $(srcdir)/, $(BROWSER_APP_FILES)) $(DIST)/branding/
+	cp $(srcdir)/document.png  $(DIST)/branding/document.png

@@ -1,0 +1,6 @@
+browser.jar:
+% content branding %content/branding/ xpcnativewrappers=yes
+  content/branding/about.png                     (about.png)
+  content/branding/aboutCredits.png              (aboutCredits.png)
+  content/branding/icon48.png                    (icon48.png)
+  content/branding/icon64.png                    (icon64.png)

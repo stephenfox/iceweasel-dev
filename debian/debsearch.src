@@ -1,0 +1,25 @@
+# Mozilla Firebird plugin file
+#
+# Debian package lookup
+# by Fergus McKenzie-Kay copying code 
+# by Spencer Wysinger <http://wysinger.com/>
+#
+# Last updated: August 12, 2003
+
+<search 
+	name="Deb Search"
+	description="Perform a search for Debian packages"
+	action="http://packages.debian.org/search"
+	searchForm="http://packages.debian.org/"
+	queryEncoding="utf-8"
+	queryCharset="utf-8"
+	method="GET"
+>
+
+<input name="keywords" user="">
+<input name="searchon" value="names">
+<input name="suite" value="all">
+<input name="section" value="all">
+<input name="sourceid" value="mozilla-search">
+
+</search>
