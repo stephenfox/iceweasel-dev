@@ -132,7 +132,7 @@ clean:
 	dh_testdir
 	dh_testroot
 	rm -f build*-stamp install*-stamp mozilla MPL debian/*.shlibs.local
-	rm -rf debian/include
+	rm -rf debian/include debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 
 	# Add here commands to clean up after the build process.
@@ -256,6 +256,9 @@ binary-arch: build test install $(GENERATED_FILES)
 	dh_strip -plibmozjs2d -pspidermonkey-bin --dbg-package=libmozjs2d-dbg
 	dh_compress -a
 	dh_fixperms -a
+	if [ "`$(MAKE) -s -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
+		echo '#include "libmozjs2d.symbols.jit"' > debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH); \
+	fi
 	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1)' -- $(GENSYMBOLS_FLAGS)
 	dh_installdeb -a
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
