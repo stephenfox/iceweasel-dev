@@ -68,7 +68,7 @@ using namespace nanojit;
 
 extern jsdouble js_NaN;
 
-JS_FRIEND_API(void)
+void
 js_SetTraceableNativeFailed(JSContext *cx)
 {
     js_SetBuiltinError(cx);
