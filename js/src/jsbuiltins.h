@@ -397,7 +397,7 @@ js_Int32ToId(JSContext* cx, int32 index, jsid* id)
 }
 
 /* Extern version of js_SetBuiltinError. */
-extern JS_FRIEND_API(void)
+extern void
 js_SetTraceableNativeFailed(JSContext *cx);
 
 #else
