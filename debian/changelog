@@ -1,10 +1,13 @@
-iceweasel (3.5-0) UNRELEASED; urgency=low
+iceweasel (3.5-1) experimental; urgency=low
 
   * New upstream release.
   * debian/control, debian/rules, debian/iceweasel.links: Build against and
     depend on xulrunner 1.9.1.
+  * configure.in, configure: Don't check for libasound.
+  * debian/branding/locales/en-US/brand.dtd: Add missing entity.
+  * browser/components/build/Makefile.in: Link against nspr.
 
- -- Mike Hommey <glandium@debian.org>  Sat, 04 Jul 2009 10:44:49 +0200
+ -- Mike Hommey <glandium@debian.org>  Wed, 08 Jul 2009 07:59:42 +0200
 
 iceweasel (3.0.11-1) unstable; urgency=low
 
