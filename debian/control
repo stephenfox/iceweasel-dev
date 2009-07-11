@@ -105,7 +105,7 @@ Description: Development files for the Mozilla SpiderMonkey JavaScript library
 Homepage: http://www.mozilla.org/js/
 
 Package: libmozjs2d-dbg
-Section: libdevel
+Section: debug
 Priority: extra
 Architecture: any
 Depends: libmozjs2d (= ${binary:Version})
@@ -167,7 +167,7 @@ Description: Development files for the Gecko engine library
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: xulrunner-1.9.1-dbg
-Section: libdevel
+Section: debug
 Priority: extra
 Architecture: any
 Depends: xulrunner-1.9.1 (= ${binary:Version})
@@ -187,7 +187,7 @@ Description: Development files for the Gecko engine library
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: libmozillainterfaces-java
-Section: libdevel
+Section: java
 Priority: extra
 Architecture: all
 Depends: xulrunner-1.9.1,
