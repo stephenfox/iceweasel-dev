@@ -107,6 +107,7 @@ TEST =	( if ( \
 	fi )
 
 test: build-stamp
+ifneq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
 	# xpcshell should be enough to trigger xptc invoke/stubs breakages
@@ -119,6 +120,7 @@ test: build-stamp
 
 	# basic test
 	$(call TEST)
+endif
 
 build-jars: build-jars-stamp
 
