@@ -1,9 +1,21 @@
-xulrunner (1.9.1.1-1) UNRELEASED; urgency=low
+xulrunner (1.9.1.1-1) experimental; urgency=low
 
   * New upstream release. Fixes 0-day JIT flaw.
-  * 
+  * js/src/jsbuiltins.cpp: Really don't export js_SetTraceableNativeFailed.
+    Closes: #536530.
+  * configure.in, configure, debian/control: Build against sqlite 3.6.x.
+  * debian/control:
+    + Build-depend on nspr 4.8.
+    + Change section for libmozjs2d-dbg, xulrunner-1.9.1-dbg and
+      libmozillainterfaces-java.
+  * debian/rules: Add support for DEB_BUILD_OPTIONS's nocheck.
+  * debian/control: Bump Standards-Version to 3.8.2.0.
+  * debian/copyright: Fix GPL and LGPL text location.
+  * debian/copyright, debian/xulrunner-1.9.1.README.Debian: Fix typos.
+  * toolkit/mozapps/downloads/src/nsHelperAppDlg.js.in: Fix bad application
+    message. Closes: #494694.
 
- -- Mike Hommey <glandium@debian.org>  Fri, 17 Jul 2009 19:59:09 +0200
+ -- Mike Hommey <glandium@debian.org>  Fri, 17 Jul 2009 23:31:38 +0200
 
 xulrunner (1.9.1-1) experimental; urgency=low
 
