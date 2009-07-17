@@ -244,7 +244,7 @@ gTests.push({
             tagsField.popup.selectedIndex = 0;
             is(tree.view.selection.count, 1,
                "We have selected a tag from the autocomplete popup");
-            dump("About to focus the autocomplete results tree\n");
+            info("About to focus the autocomplete results tree");
             tree.focus();
             EventUtils.synthesizeKey("VK_RETURN", {}, self.window);
             break;
@@ -258,7 +258,7 @@ gTests.push({
     tagsField.popup.addEventListener("popuphidden", popupListener, true);
 
     // Open tags autocomplete popup.
-    dump("About to focus the tagsField\n");
+    info("About to focus the tagsField");
     tagsField.focus();
     tagsField.value = "";
     EventUtils.synthesizeKey("t", {}, this.window);
@@ -316,7 +316,7 @@ gTests.push({
       }, false);
     namePicker.value = "n";
     userEnteredName.label = "n";
-    dump("About to focus the namePicker field\n");
+    info("About to focus the namePicker field");
     namePicker.focus();
     EventUtils.synthesizeKey("VK_RETURN", {}, this.window);
   },
@@ -402,7 +402,7 @@ gTests.push({
             tagsField.popup.selectedIndex = 0;
             is(tree.view.selection.count, 1,
                "We have selected a tag from the autocomplete popup");
-            dump("About to focus the autocomplete results tree\n");
+            info("About to focus the autocomplete results tree");
             tree.focus();
             EventUtils.synthesizeKey("VK_ESCAPE", {}, self.window);
             break;
@@ -416,7 +416,7 @@ gTests.push({
     tagsField.popup.addEventListener("popuphidden", popupListener, true);
 
     // Open tags autocomplete popup.
-    dump("About to focus the tagsField\n");
+    info("About to focus the tagsField");
     tagsField.focus();
     tagsField.value = "";
     EventUtils.synthesizeKey("t", {}, this.window);
@@ -442,7 +442,6 @@ gTests.push({
 //------------------------------------------------------------------------------
 
 function test() {
-  dump("Starting test browser_bookmarksProperties.js\n");
   waitForExplicitFinish();
   // Sanity checks.
   ok(PlacesUtils, "PlacesUtils in context");
@@ -456,14 +455,13 @@ function runNextTest() {
   // Cleanup from previous test.
   if (gCurrentTest) {
     gCurrentTest.cleanup();
-    ok(true, "*** FINISHED TEST ***");
+    info("End of test: " + gCurrentTest.desc);
   }
 
   if (gTests.length > 0) {
     // Goto next tests.
     gCurrentTest = gTests.shift();
-    ok(true, "*** TEST: " + gCurrentTest.desc);
-    dump("*** TEST: " + gCurrentTest.desc + "\n");
+    info("Start of test: " + gCurrentTest.desc);
     gCurrentTest.setup();
     execute_test_in_sidebar();
   }

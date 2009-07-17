@@ -164,8 +164,7 @@ function startAUS() {
   if (POST_UPDATE_CONTRACTID in AUS_Cc) {
     var registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
     registrar.registerFactory(Components.ID("{d15b970b-5472-40df-97e8-eb03a04baa82}"),
-                              "Fake nsPostUpdateWin",
-                              "@mozilla.org/updates/post-update;1",
+                              "Fake nsPostUpdateWin", POST_UPDATE_CONTRACTID,
                                nsPostUpdateWinFactory);
   }
 
