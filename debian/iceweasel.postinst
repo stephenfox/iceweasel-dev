@@ -17,10 +17,6 @@ if [ "$1" = "configure" ] ; then
           /usr/lib/iceweasel/components/xpti.dat
 fi
 
-if [ -x /usr/sbin/update-desktop-database ]; then
-    /usr/sbin/update-desktop-database
-fi
-
 #DEBHELPER#
 
 if pgrep firefox-bin >/dev/null 2>&1 ; then 

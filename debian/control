@@ -7,13 +7,13 @@ Build-Depends: autotools-dev, debhelper (>= 5.0), imagemagick,
 	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
 	zip, xulrunner-dev (>= 1.9.1)
 Build-Conflicts: graphicsmagick-imagemagick-compat
-Standards-Version: 3.8.0.1
+Standards-Version: 3.8.2.0
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
 Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 
 Package: iceweasel
 Architecture: any
-Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, xulrunner-1.9.1
+Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9.1
 Suggests: xulrunner-1.9.1-gnome-support, latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
 Provides: www-browser
 Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1), iceweasel-dom-inspector (<< 3.0~b4)
@@ -30,7 +30,7 @@ Description: lightweight web browser based on Mozilla
 Package: iceweasel-gnome-support
 Architecture: all
 Section: gnome
-Depends: iceweasel, xulrunner-1.9.1-gnome-support
+Depends: ${misc:Depends}, iceweasel, xulrunner-1.9.1-gnome-support
 Provides: gnome-www-browser
 Description: Support for GNOME in Iceweasel
  This is an Iceweasel component that allows it to use protocol
@@ -40,8 +40,8 @@ Description: Support for GNOME in Iceweasel
 Package: iceweasel-dbg
 Architecture: any
 Priority: extra
-Section: devel
-Depends: iceweasel (= ${binary:Version}), xulrunner-1.9.1-dbg
+Section: debug
+Depends: ${misc:Depends}, iceweasel (= ${binary:Version}), xulrunner-1.9.1-dbg
 Replaces: firefox-dbg
 Conflicts: firefox-dbg
 Description: debugging symbols for iceweasel
