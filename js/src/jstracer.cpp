@@ -3280,6 +3280,19 @@ TraceRecorder::emitTreeCall(Fragment* inner, VMSideExit* exit)
               !memchr(getStackTypeMap(exit), JSVAL_BOXED, exit->numStackSlots));
     import(ti, inner_sp_ins, exit->numStackSlots, exit->numGlobalSlots,
            exit->calldepth, getFullTypeMap(exit));
+    /* bug 502604 - It is illegal to extend from the outer typemap without first extending from the
+     * inner. Make a new typemap here.
+     */
+    TypeMap fullMap;
+    fullMap.add(getStackTypeMap(exit), exit->numStackSlots);
+    fullMap.add(getGlobalTypeMap(exit), exit->numGlobalSlots);
+    TreeInfo* innerTree = (TreeInfo*)exit->from->root->vmprivate;
+    if (exit->numGlobalSlots < innerTree->nGlobalTypes()) {
+        fullMap.add(innerTree->globalTypeMap() + exit->numGlobalSlots,
+                    innerTree->nGlobalTypes() - exit->numGlobalSlots);
+    }
+    import(ti, inner_sp_ins, exit->numStackSlots, fullMap.length() - exit->numStackSlots,
+           exit->calldepth, fullMap.data());
 
     /* Restore sp and rp to their original values (we still have them in a register). */
     if (callDepth > 0) {
@@ -4080,9 +4093,31 @@ js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom
             fullMap.add(getStackTypeMap(e2), e2->numStackSlots);
             stackSlots = fullMap.length();
             fullMap.add(getGlobalTypeMap(e2), e2->numGlobalSlots);
-            if (e1->numGlobalSlots >= e2->numGlobalSlots) {
-                fullMap.add(getGlobalTypeMap(e1) + e2->numGlobalSlots,
-                            e1->numGlobalSlots - e2->numGlobalSlots);
+            if (e2->numGlobalSlots < e1->numGlobalSlots) {
+                /* Watch out for an extremely rare case (bug 502714). The sequence of events is:
+                 * 
+                 * 1) Inner tree compiles not knowing about global X (which has type A).
+                 * 2) Inner tree learns about global X and specializes it to a different type
+                 *    (type B).
+                 * 3) Outer tree records inner tree with global X as type A, exiting as B.
+                 * 4) Outer tree now has a nesting guard with typeof(X)=B.
+                 * 5) Inner tree takes its original exit that does not know about X.
+                 * 
+                 * In this case, the nesting guard fails, and now it is illegal to use the nested
+                 * typemap entry for X. The correct entry is in the inner guard's TreeInfo,
+                 * analogous to the solution for bug 476653.
+                 */
+                TreeInfo* innerTree = (TreeInfo*)e2->from->root->vmprivate;
+                unsigned slots = e2->numGlobalSlots;
+                if (innerTree->nGlobalTypes() > slots) {
+                    unsigned addSlots = JS_MIN(innerTree->nGlobalTypes() - slots,
+                                               e1->numGlobalSlots - slots);
+                    fullMap.add(innerTree->globalTypeMap() + e2->numGlobalSlots, addSlots);
+                    slots += addSlots;
+                }
+                if (slots < e1->numGlobalSlots)
+                    fullMap.add(getGlobalTypeMap(e1) + slots, e1->numGlobalSlots - slots);
+                JS_ASSERT(slots == e1->numGlobalSlots);
             }
             ngslots = e1->numGlobalSlots;
             typeMap = fullMap.data();
@@ -4622,10 +4657,18 @@ LeaveTree(InterpState& state, VMSideExit* lr)
              * but we have it now. Box it.
              */
             uint8* typeMap = getStackTypeMap(innermost);
+
+            /*
+             * If there's a tree call around the point that we deep exited at,
+             * then state.sp and state.rp were restored to their original
+             * values before the tree call and sp might be less than deepBailSp,
+             * which we sampled when we were told to deep bail.
+             */
+            JS_ASSERT(state.deepBailSp >= state.stackBase && state.sp <= state.deepBailSp);
             NativeToValue(cx,
                           cx->fp->regs->sp[-1],
                           typeMap[innermost->numStackSlots - 1],
-                          (jsdouble *) state.sp + innermost->sp_adj / sizeof(jsdouble) - 1);
+                          (jsdouble *) state.deepBailSp + innermost->sp_adj / sizeof(jsdouble) - 1);
         }
         JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
         if (tm->prohibitFlush && --tm->prohibitFlush == 0 && tm->needFlush)
@@ -5476,7 +5519,10 @@ js_DeepBail(JSContext *cx)
     debug_only_v(printf("Deep bail.\n");)
     LeaveTree(*tracecx->interpState, tracecx->bailExit);
     tracecx->bailExit = NULL;
-    tracecx->interpState->builtinStatus |= JSBUILTIN_BAILED;
+
+    InterpState* state = tracecx->interpState;
+    state->builtinStatus |= JSBUILTIN_BAILED;
+    state->deepBailSp = state->sp;
 }
 
 JS_REQUIRES_STACK jsval&
@@ -9018,8 +9064,18 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
     const JSCodeSpec& cs = js_CodeSpec[*cx->fp->regs->pc];
     if (PCVAL_IS_NULL(pcval)) {
         /*
+         * We could specialize to guard on just JSClass.getProperty, but a mere
+         * class guard is simpler and slightly faster.
+         */
+        if (OBJ_GET_CLASS(cx, obj)->getProperty != JS_PropertyStub) {
+            ABORT_TRACE("can't trace through access to undefined property if "
+                        "JSClass.getProperty hook isn't stubbed");
+        }
+        guardClass(obj, obj_ins, OBJ_GET_CLASS(cx, obj), snapshot(MISMATCH_EXIT));
+
+        /*
          * This trace will be valid as long as neither the object nor any object
-         * on its prototype chain change shape.
+         * on its prototype chain changes shape.
          */
         VMSideExit* exit = snapshot(BRANCH_EXIT);
         do {
@@ -9725,6 +9781,8 @@ TraceRecorder::record_JSOP_IN()
     bool cond = prop != NULL;
     if (prop)
         OBJ_DROP_PROPERTY(cx, obj2, prop);
+    if (wasDeepAborted())
+        ABORT_TRACE("deep abort from property lookup");
 
     /* The interpreter fuses comparisons and the following branch,
        so we have to do that here as well. */

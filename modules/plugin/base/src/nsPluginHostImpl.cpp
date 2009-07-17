@@ -373,7 +373,7 @@ nsActivePlugin::~nsActivePlugin()
       if (owner)
         owner->SetInstance(nsnull);
 
-      nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
+      nsCOMPtr<nsIPluginInstancePeer2_1_9_1_BRANCH> peer2(do_QueryInterface(peer));
 
       if (peer2) {
         peer2->InvalidateOwner();
