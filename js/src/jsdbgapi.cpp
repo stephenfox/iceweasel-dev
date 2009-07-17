@@ -1242,7 +1242,6 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
                           const char *filename, uintN lineno,
                           jsval *rval)
 {
-    JS_ASSERT(cx->fp);
     JS_ASSERT_NOT_ON_TRACE(cx);
 
     JSObject *scobj;
