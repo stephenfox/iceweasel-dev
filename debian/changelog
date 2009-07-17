@@ -1,3 +1,20 @@
+iceweasel (3.5.1-1) experimental; urgency=low
+
+  * New upstream release.
+  * debian/copyright:
+    - Fix GPL and LGPL text location.
+    - Update copyright information.
+  * debian/control:
+    - Add ${misc:Depends} in all binary packages dependencies.
+    - Set iceweasel-dbg's section to debug.
+    - Bumped Standards-Version to 3.8.2.0.
+  * debian/rules: Removed call to deprecated dh_desktop.
+  * debian/iceweasel.postinst: Remove call to update-desktop-database, which
+    is not in /usr/sbin anyways, and is called automatically (was added by
+    dh_desktop before, and run by desktop-file-utils triggers now).
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 17 Jul 2009 20:49:41 +0200
+
 iceweasel (3.5-1) experimental; urgency=low
 
   * New upstream release.
