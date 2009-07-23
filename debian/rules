@@ -17,6 +17,7 @@ DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)$$/\1/ p')
 UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\(.*\)-.*$$/\1/ p')
+GCC_4_4_OR_MORE := $(shell gcc -dumpversion | awk -F . '$$1 > 4 || ($$1 == 4 && $$2 > 3) {print $$0}')
 BASE_VERSION := 1.9.1
 
 PYVER := $(shell pyversions -d)
@@ -50,6 +51,11 @@ else
 	GENSYMBOLS_FLAGS := -c4
 endif
 
+JS_LDFLAGS := $(LDFLAGS)
+ifeq ($(DEB_BUILD_ARCH)$(GCC_4_4_OR_MORE),armel)
+	JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
+endif
+
 COMPONENT_PACKAGES := python-xpcom xulrunner-$(BASE_VERSION)-gnome-support
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
 GENERATED_FILES := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
@@ -76,6 +82,8 @@ config.status: ./configure debian/mozconfig
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	            $(CONFIGURE_FLAGS)
+	sed -i 's|^OS_LDFLAGS.*|& $(LDFLAGS)|' config/autoconf.mk
+	sed -i 's|^OS_LDFLAGS.*|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
 build: build-stamp
 
@@ -87,8 +95,7 @@ build-stamp:  config.status
 	$(MAKE) \
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
-		DEB_NO_JAR=1 \
-		OS_LDFLAGS="$(LDFLAGS) $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
+		DEB_NO_JAR=1
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp

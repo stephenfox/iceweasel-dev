@@ -1,0 +1,6 @@
+{
+local:
+_ZTV10FuncFilter;
+_ZTV15SoftFloatFilter;
+_ZTVN7nanojit*;
+};
