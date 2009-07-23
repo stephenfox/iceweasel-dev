@@ -51,7 +51,7 @@ LIBRARY_NAME	= mozjs
 GRE_MODULE	= 1
 
 SIMPLE_PROGRAMS	= js$(BIN_SUFFIX)
-LIBS		= $(NSPR_LIBS) -L. $(MOZ_JS_LIBS)
+LIBS		= -L. $(MOZ_JS_LIBS) $(NSPR_LIBS)
 # Make sure the library is built before the js binary
 $(SIMPLE_PROGRAMS): $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
 
