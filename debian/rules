@@ -47,7 +47,8 @@ endif
 
 ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --enable-debug
-else
+endif
+ifeq (,$(filter debug noopt,$(DEB_BUILD_OPTIONS)))
 	GENSYMBOLS_FLAGS := -c4
 endif
 
