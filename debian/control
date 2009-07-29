@@ -1,7 +1,8 @@
 Source: xulrunner
 Section: devel
 Priority: optional
-Maintainer: Mike Hommey <glandium@debian.org>
+Maintainer: Maintainers of Mozilla-related packages <pkg-mozilla-maintainers@lists.alioth.debian.org>
+Uploaders: Mike Hommey <glandium@debian.org>, Antonio Jose Lopez Morillo <antoniojlopez@gmail.com>
 Build-Depends: debhelper (>= 5.0.59),
                autotools-dev,
                libx11-dev,
