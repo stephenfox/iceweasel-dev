@@ -23,7 +23,7 @@ BASE_VERSION := 1.9.1
 PYVER := $(shell pyversions -d)
 
 CFLAGS := -g
-LDFLAGS := -Wl,--as-needed
+MAIN_LDFLAGS := -Wl,--as-needed
 
 AUTOCONF_DIRS := build/autoconf
 
@@ -38,7 +38,7 @@ ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 endif
 
 ifeq ($(DEB_BUILD_ARCH),alpha)
-	LDFLAGS += -Wl,--no-relax
+	MAIN_LDFLAGS += -Wl,--no-relax
 endif
 
 ifeq ($(DEB_BUILD_ARCH),ppc64)
@@ -52,7 +52,7 @@ ifeq (,$(filter debug noopt,$(DEB_BUILD_OPTIONS)))
 	GENSYMBOLS_FLAGS := -c4
 endif
 
-JS_LDFLAGS := $(LDFLAGS)
+JS_LDFLAGS := $(MAIN_LDFLAGS)
 ifeq ($(DEB_BUILD_ARCH)$(GCC_4_4_OR_MORE),armel)
 	JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 endif
@@ -83,7 +83,7 @@ config.status: ./configure debian/mozconfig
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	            $(CONFIGURE_FLAGS)
-	sed -i 's|^OS_LDFLAGS.*|& $(LDFLAGS)|' config/autoconf.mk
+	sed -i 's|^OS_LDFLAGS.*|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i 's|^OS_LDFLAGS.*|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
 build: build-stamp
