@@ -1381,6 +1381,9 @@ UpdateService.prototype = {
     var vc = Cc["@mozilla.org/xpcom/version-comparator;1"].
              getService(Ci.nsIVersionComparator);
     for (var i = 0; i < updates.length; ++i) {
+      // Ignore updates for older versions of the application
+      if (vc.compare(updates[i].extensionVersion, gApp.version) < 0)
+        continue;
       if (updates[i].type == "major" &&
           vc.compare(newestMajor.version, updates[i].version) <= 0)
         majorUpdate = newestMajor = updates[i];
@@ -1811,9 +1814,9 @@ UpdateService.prototype = {
              getService(Ci.nsIVersionComparator);
     // Don't download the update if the update's version is less than the
     // current application's version.
-    if (update.version && vc.compare(update.version, ai.version) < 0) {
+    if (update.extensionVersion && vc.compare(update.extensionVersion, ai.version) < 0) {
       LOG("UpdateService", "downloadUpdate - removing update for previous " +
-          "application version " + update.version);
+          "application version " + update.extensionVersion);
       cleanupActiveUpdate();
       return STATE_NONE;
     }
@@ -2762,7 +2765,8 @@ Downloader.prototype = {
       um.activeUpdate = null;
     }
     else {
-      um.activeUpdate.state = state;
+      if (um.activeUpdate)
+        um.activeUpdate.state = state;
     }
     um.saveUpdates();
 

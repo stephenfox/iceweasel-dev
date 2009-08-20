@@ -1181,14 +1181,14 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   PRBool contentEditable = PR_FALSE;
   PRInt32 contentEditableChange;
 
-  if (aNameSpaceID == kNameSpaceID_None) {
-    contentEditable = PR_TRUE;
-    contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
-  }
-
   // Check for event handlers
   if (aNameSpaceID == kNameSpaceID_None) {
-    if (nsContentUtils::IsEventAttributeName(aAttribute, EventNameType_HTML)) {
+    if (aAttribute == nsGkAtoms::contenteditable) {
+      contentEditable = PR_TRUE;
+      contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
+    }
+    else if (nsContentUtils::IsEventAttributeName(aAttribute,
+                                                  EventNameType_HTML)) {
       nsCOMPtr<nsIEventListenerManager> manager;
       GetListenerManager(PR_FALSE, getter_AddRefs(manager));
 
