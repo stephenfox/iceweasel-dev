@@ -178,10 +178,14 @@ nsContextMenu.prototype = {
     this.showItem("context-saveimage", this.onLoadedImage || this.onCanvas);
     this.showItem("context-savevideo", this.onVideo);
     this.showItem("context-saveaudio", this.onAudio);
+    this.setItemAttr("context-savevideo", "disabled", !this.mediaURL);
+    this.setItemAttr("context-saveaudio", "disabled", !this.mediaURL);
     // Send media URL (but not for canvas, since it's a big data: URL)
     this.showItem("context-sendimage", this.onImage);
     this.showItem("context-sendvideo", this.onVideo);
     this.showItem("context-sendaudio", this.onAudio);
+    this.setItemAttr("context-sendvideo", "disabled", !this.mediaURL);
+    this.setItemAttr("context-sendaudio", "disabled", !this.mediaURL);
   },
 
   initViewItems: function CM_initViewItems() {
@@ -229,6 +233,7 @@ nsContextMenu.prototype = {
                   (!this.onStandaloneImage || this.inFrame)) || this.onCanvas);
 
     this.showItem("context-viewvideo", this.onVideo);
+    this.setItemAttr("context-viewvideo",  "disabled", !this.mediaURL);
 
     // View background image depends on whether there is one.
     this.showItem("context-viewbgimage", shouldShow);
@@ -378,6 +383,8 @@ nsContextMenu.prototype = {
     this.showItem("context-copyimage", this.onImage);
     this.showItem("context-copyvideourl", this.onVideo);
     this.showItem("context-copyaudiourl", this.onAudio);
+    this.setItemAttr("context-copyvideourl",  "disabled", !this.mediaURL);
+    this.setItemAttr("context-copyaudiourl",  "disabled", !this.mediaURL);
     this.showItem("context-sep-copyimage", this.onImage ||
                   this.onVideo || this.onAudio);
   },
@@ -396,6 +403,16 @@ nsContextMenu.prototype = {
     this.showItem("context-media-unmute", onMedia && this.target.muted);
     this.showItem("context-media-showcontrols", onMedia && !this.target.controls)
     this.showItem("context-media-hidecontrols", onMedia && this.target.controls)
+    // Disable them when there isn't a valid media source loaded.
+    if (onMedia) {
+      var hasError = (this.target.error != null);
+      this.setItemAttr("context-media-play",  "disabled", hasError);
+      this.setItemAttr("context-media-pause", "disabled", hasError);
+      this.setItemAttr("context-media-mute",   "disabled", hasError);
+      this.setItemAttr("context-media-unmute", "disabled", hasError);
+      this.setItemAttr("context-media-showcontrols", "disabled", hasError);
+      this.setItemAttr("context-media-hidecontrols", "disabled", hasError);
+    }
     this.showItem("context-media-sep-commands",  onMedia);
   },
 
@@ -466,11 +483,11 @@ nsContextMenu.prototype = {
       }
       else if (this.target instanceof HTMLVideoElement) {
         this.onVideo = true;
-        this.mediaURL = this.target.currentSrc;
+        this.mediaURL = this.target.currentSrc || this.target.src;
       }
       else if (this.target instanceof HTMLAudioElement) {
         this.onAudio = true;
-        this.mediaURL = this.target.currentSrc;
+        this.mediaURL = this.target.currentSrc || this.target.src;
       }
       else if (this.target instanceof HTMLInputElement ) {
         this.onTextInput = this.isTargetATextBox(this.target);

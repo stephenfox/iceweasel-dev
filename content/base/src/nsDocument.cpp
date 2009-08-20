@@ -152,6 +152,7 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsIDOMXPathEvaluator.h"
 #include "nsDOMCID.h"
 
+#include "jsapi.h"
 #include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
 #include "nsCycleCollector.h"
@@ -3561,6 +3562,33 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
     // Go back to using the docshell for the layout history state
     mLayoutHistoryState = nsnull;
     mScopeObject = do_GetWeakReference(aScriptGlobalObject);
+
+#ifdef DEBUG
+    // We really shouldn't have a wrapper here but if we do we need to make sure
+    // it has the correct parent.
+    nsIXPConnectWrappedNative *wrapper =
+      static_cast<nsIXPConnectWrappedNative*>(GetWrapper());
+    if (wrapper) {
+      JSObject *obj = nsnull;
+      wrapper->GetJSObject(&obj);
+      if (obj) {
+        JSObject *newScope = aScriptGlobalObject->GetGlobalJSObject();
+        nsIScriptContext *scx = aScriptGlobalObject->GetContext();
+        JSContext *cx = scx ? (JSContext *)scx->GetNativeContext() : nsnull;
+        if (!cx) {
+          nsContentUtils::ThreadJSContextStack()->Peek(&cx);
+          if (!cx) {
+            nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
+            NS_ASSERTION(cx, "Uhoh, no context, this is bad!");
+          }
+        }
+        if (cx) {
+          NS_ASSERTION(JS_GetGlobalForObject(cx, obj) == newScope,
+                       "Wrong scope, this is really bad!");
+        }
+      }
+    }
+#endif
 
     if (mAllowDNSPrefetch) {
       nsCOMPtr<nsIDocShell_MOZILLA_1_9_1_dns> docShell =
