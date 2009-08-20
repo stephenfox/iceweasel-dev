@@ -1,0 +1,28 @@
+Author: xiphmont <xiphmont@0101bb08-14d6-0310-b084-bc0e0c8e3800>
+Date:   Thu Jun 25 03:39:41 2009 +0000
+
+    First half of fix for Mozilla BZ #500254
+    
+    Residue code was not checking that its partition books were books with
+    specified/populated value mappings.  Fuzzer twiddled the book table suck that a valid codebook was being swapped out for a codebook with no value mapping.
+    
+    
+    
+    git-svn-id: http://svn.xiph.org/trunk/vorbis@16181 0101bb08-14d6-0310-b084-bc0e0c8e3800
+
+diff --git a/lib/vorbis_res0.c b/lib/vorbis_res0.c
+index b4a7469..48caa27 100644
+--- a/lib/vorbis_res0.c
++++ b/lib/vorbis_res0.c
+@@ -220,8 +220,10 @@ vorbis_info_residue *res0_unpack(vorbis_info *vi,oggpack_buffer *opb){
+     info->booklist[j]=oggpack_read(opb,8);
+ 
+   if(info->groupbook>=ci->books)goto errout;
+-  for(j=0;j<acc;j++)
++  for(j=0;j<acc;j++){
+     if(info->booklist[j]>=ci->books)goto errout;
++    if(ci->book_param[info->booklist[j]]->maptype==0)goto errout;
++  }
+ 
+   /* verify the phrasebook is not specifying an impossible or
+      inconsistent partitioning scheme. */
