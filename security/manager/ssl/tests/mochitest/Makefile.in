@@ -51,3 +51,12 @@ include $(topsrcdir)/config/rules.mk
 
 # libs:: $(_CHROME_FILES)
 #	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+
+_TEST_FILES = \
+        test_bug480509.html \
+        test_bug483440.html \
+        test_bug484111.html \
+        $(NULL)
+
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir) 

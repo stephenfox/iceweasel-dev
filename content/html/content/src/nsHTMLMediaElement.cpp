@@ -1116,7 +1116,7 @@ NS_IMETHODIMP
 nsHTMLMediaElement::CanPlayType(const nsAString& aType, nsAString& aResult)
 {
   switch (GetCanPlay(aType)) {
-  case CANPLAY_NO: aResult.AssignLiteral("no"); break;
+  case CANPLAY_NO: aResult.AssignLiteral(""); break;
   case CANPLAY_YES: aResult.AssignLiteral("probably"); break;
   default:
   case CANPLAY_MAYBE: aResult.AssignLiteral("maybe"); break;

@@ -2468,7 +2468,9 @@ TraceRecorder::snapshot(ExitType exitType)
     /* Capture the type map into a temporary location. */
     unsigned ngslots = treeInfo->globalSlots->length();
     unsigned typemap_size = (stackSlots + ngslots) * sizeof(uint8);
-    uint8* typemap = (uint8*)alloca(typemap_size);
+    void *mark = JS_ARENA_MARK(&cx->tempPool);
+    uint8* typemap;
+    JS_ARENA_ALLOCATE_CAST(typemap, uint8*, &cx->tempPool, typemap_size);
     uint8* m = typemap;
 
     /* Determine the type of a store by looking at the current type of the actual value the
@@ -2513,6 +2515,7 @@ TraceRecorder::snapshot(ExitType exitType)
                 ngslots == e->numGlobalSlots &&
                 !memcmp(getFullTypeMap(exits[n]), typemap, typemap_size)) {
                 AUDIT(mergedLoopExits);
+                JS_ARENA_RELEASE(&cx->tempPool, mark);
                 return e;
             }
         }
@@ -2529,6 +2532,7 @@ TraceRecorder::snapshot(ExitType exitType)
          */
         stackSlots = 0;
         ngslots = 0;
+        typemap_size = 0;
         trashSelf = true;
     }
 
@@ -2553,6 +2557,8 @@ TraceRecorder::snapshot(ExitType exitType)
     exit->rp_adj = exit->calldepth * sizeof(FrameInfo*);
     exit->nativeCalleeWord = 0;
     memcpy(getFullTypeMap(exit), typemap, typemap_size);
+
+    JS_ARENA_RELEASE(&cx->tempPool, mark);
     return exit;
 }
 
@@ -3278,8 +3284,6 @@ TraceRecorder::emitTreeCall(Fragment* inner, VMSideExit* exit)
     /* Read back all registers, in case the called tree changed any of them. */
     JS_ASSERT(!memchr(getGlobalTypeMap(exit), JSVAL_BOXED, exit->numGlobalSlots) &&
               !memchr(getStackTypeMap(exit), JSVAL_BOXED, exit->numStackSlots));
-    import(ti, inner_sp_ins, exit->numStackSlots, exit->numGlobalSlots,
-           exit->calldepth, getFullTypeMap(exit));
     /* bug 502604 - It is illegal to extend from the outer typemap without first extending from the
      * inner. Make a new typemap here.
      */
@@ -3619,6 +3623,10 @@ js_TrashTree(JSContext* cx, Fragment* f)
     f->releaseCode(fragmento);
     Fragment** data = ti->dependentTrees.data();
     unsigned length = ti->dependentTrees.length();
+    for (unsigned n = 0; n < length; ++n)
+        js_TrashTree(cx, data[n]);
+    data = ti->linkedTrees.data();
+    length = ti->linkedTrees.length();
     for (unsigned n = 0; n < length; ++n)
         js_TrashTree(cx, data[n]);
     delete ti;
@@ -6859,16 +6867,26 @@ TraceRecorder::getThis(LIns*& this_ins)
      * global object obtained throught the scope chain.
      */
     JSObject* obj = js_GetWrappedObject(cx, JSVAL_TO_OBJECT(thisv));
-    OBJ_TO_INNER_OBJECT(cx, obj);
+    JSObject* inner = obj;
+    OBJ_TO_INNER_OBJECT(cx, inner);
     if (!obj)
         return JSRS_ERROR;
 
-    JS_ASSERT(original == thisv || original == OBJECT_TO_JSVAL(obj));
-    this_ins = lir->ins_choose(lir->ins2(LIR_eq,
-                                         this_ins,
-                                         INS_CONSTPTR(obj)),
-                               INS_CONSTPTR(JSVAL_TO_OBJECT(thisv)),
-                               this_ins);
+    JS_ASSERT(original == thisv ||
+              original == OBJECT_TO_JSVAL(inner) ||
+              original == OBJECT_TO_JSVAL(obj));
+
+    // If the returned this object is the unwrapped inner or outer object,
+    // then we need to use the wrapped outer object.
+    LIns* is_inner = lir->ins2(LIR_eq, this_ins, INS_CONSTPTR(inner));
+    LIns* is_outer = lir->ins2(LIR_eq, this_ins, INS_CONSTPTR(obj));
+    LIns* wrapper = INS_CONSTPTR(JSVAL_TO_OBJECT(thisv));
+
+    this_ins = lir->ins_choose(is_inner,
+                               wrapper,
+                               lir->ins_choose(is_outer,
+                                               wrapper,
+                                               this_ins));
 
     return JSRS_CONTINUE;
 }
@@ -8170,6 +8188,15 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
     if (!isValidSlot(scope, sprop))
         return JSRS_STOP;
 
+    /*
+     * Setting a function-valued property might need to rebrand the object; we
+     * don't trace that case. There's no need to guard on that, though, because
+     * separating functions into the trace-time type JSVAL_TFUN will save the
+     * day!
+     */
+    if (VALUE_IS_FUNCTION(cx, r))
+        ABORT_TRACE("can't trace function-valued property set");
+
     if (obj == globalObj) {
         JS_ASSERT(SPROP_HAS_VALID_SLOT(sprop, scope));
         uint32 slot = sprop->slot;
@@ -8177,15 +8204,6 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
             ABORT_TRACE("lazy import of global slot failed");
 
         LIns* r_ins = get(&r);
-
-        /*
-         * Writing a function into the global object might rebrand it; we don't
-         * trace that case.  There's no need to guard on that, though, because
-         * separating functions into the trace-time type JSVAL_TFUN will save
-         * the day!
-         */
-        if (VALUE_IS_FUNCTION(cx, r))
-            ABORT_TRACE("potential rebranding of the global object");
         set(&STOBJ_GET_SLOT(obj, slot), r_ins);
 
         JS_ASSERT(*pc != JSOP_INITPROP);

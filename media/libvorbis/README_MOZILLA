@@ -16,3 +16,5 @@ bug487519.patch: fix for bug 487519.
 bug498827.patch: fix for bug 498827
 bug498855.patch: fix for bug 498855
 bug498853.patch: fix for bug 498853
+r16181.patch: cherrypick from libvorbis svn r16181 for bug 500254.
+r16182.patch: cherrypick from libvorbis svn r16182 for bug 500254.

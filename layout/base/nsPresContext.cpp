@@ -1592,9 +1592,9 @@ nsPresContext::IsChrome() const
 nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const
 {
   return
-    UseDocumentColors() &&
     nsRuleNode::HasAuthorSpecifiedRules(aFrame->GetStyleContext(),
-                                        ruleTypeMask);
+                                        ruleTypeMask,
+                                        UseDocumentColors());
 }
 
 static void

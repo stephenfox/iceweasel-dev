@@ -465,6 +465,7 @@ extern const uint16 js_PrimitiveTestFlags[];
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
 
+#ifdef __cplusplus /* Aargh, libgjs, bug 492720. */
 static JS_INLINE JSObject *
 js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
 {
@@ -478,6 +479,7 @@ js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
     fp->flags |= JSFRAME_COMPUTED_THIS;
     return obj;
 }
+#endif
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp
