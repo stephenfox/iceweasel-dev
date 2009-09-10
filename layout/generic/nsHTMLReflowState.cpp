@@ -374,7 +374,7 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
                         mComputedHeight + mComputedBorderPadding.TopBottom();
   }
 
-  const PRBool dependsOnCBHeight =
+  PRBool dependsOnCBHeight =
     mStylePosition->mHeight.GetUnit() == eStyleUnit_Percent ||
     mStylePosition->mMinHeight.GetUnit() == eStyleUnit_Percent ||
     mStylePosition->mMaxHeight.GetUnit() == eStyleUnit_Percent ||
@@ -383,6 +383,17 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
     frame->IsBoxFrame() ||
     (mStylePosition->mHeight.GetUnit() == eStyleUnit_Auto &&
      frame->GetIntrinsicSize().height.GetUnit() == eStyleUnit_Percent);
+
+  if (mStyleText->mLineHeight.GetUnit() == eStyleUnit_Enumerated) {
+    NS_ASSERTION(mStyleText->mLineHeight.GetIntValue() ==
+                 NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT,
+                 "bad line-height value");
+
+    // line-height depends on block height
+    frame->AddStateBits(NS_FRAME_CONTAINS_RELATIVE_HEIGHT);
+    // but only on containing blocks if this frame is not a suitable block
+    dependsOnCBHeight |= !frame->IsContainingBlock();
+  }
 
   // If we're the descendant of a table cell that performs special height
   // reflows and we could be the child that requires them, always set
@@ -2028,7 +2039,8 @@ GetNormalLineHeight(nsIFontMetrics* aFontMetrics)
 }
 
 static nscoord
-ComputeLineHeight(nsStyleContext* aStyleContext)
+ComputeLineHeight(nsStyleContext* aStyleContext,
+                  nscoord aBlockHeight)
 {
   const nsStyleCoord& lhCoord = aStyleContext->GetStyleText()->mLineHeight;
 
@@ -2042,8 +2054,17 @@ ComputeLineHeight(nsStyleContext* aStyleContext)
     return NSToCoordRound(lhCoord.GetFactorValue() *
                           aStyleContext->GetStyleFont()->mFont.size);
 
+  NS_ASSERTION(lhCoord.GetUnit() == eStyleUnit_Normal ||
+               lhCoord.GetUnit() == eStyleUnit_Enumerated,
+               "bad line-height unit");
   
-  NS_ASSERTION(eStyleUnit_Normal == lhCoord.GetUnit(), "bad unit");
+  if (lhCoord.GetUnit() == eStyleUnit_Enumerated) {
+    NS_ASSERTION(lhCoord.GetIntValue() == NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT,
+                 "bad line-height value");
+    if (aBlockHeight != NS_AUTOHEIGHT)
+      return aBlockHeight;
+  }
+
   nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fm));
@@ -2051,11 +2072,22 @@ ComputeLineHeight(nsStyleContext* aStyleContext)
 }
 
 nscoord
-nsHTMLReflowState::CalcLineHeight(nsStyleContext* aStyleContext)
+nsHTMLReflowState::CalcLineHeight() const
+{
+  nscoord blockHeight =
+    frame->IsContainingBlock() ? mComputedHeight :
+    (mCBReflowState ? mCBReflowState->mComputedHeight : NS_AUTOHEIGHT);
+
+  return CalcLineHeight(frame->GetStyleContext(), blockHeight);
+}
+
+/* static */ nscoord
+nsHTMLReflowState::CalcLineHeight(nsStyleContext* aStyleContext,
+                                  nscoord aBlockHeight)
 {
   NS_PRECONDITION(aStyleContext, "Must have a style context");
   
-  nscoord lineHeight = ComputeLineHeight(aStyleContext);
+  nscoord lineHeight = ComputeLineHeight(aStyleContext, aBlockHeight);
 
   NS_ASSERTION(lineHeight >= 0, "ComputeLineHeight screwed up");
 

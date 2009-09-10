@@ -6010,24 +6010,24 @@ TraceRecorder::incElem(jsint incr, bool pre)
 }
 
 static bool
-evalCmp(LOpcode op, double result)
+evalCmp(LOpcode op, double l, double r)
 {
     bool cond;
     switch (op) {
       case LIR_feq:
-        cond = (result == 0);
+        cond = (l == r);
         break;
       case LIR_flt:
-        cond = result < 0;
+        cond = l < r;
         break;
       case LIR_fgt:
-        cond = result > 0;
+        cond = l > r;
         break;
       case LIR_fle:
-        cond = result <= 0;
+        cond = l <= r;
         break;
       case LIR_fge:
-        cond = result >= 0;
+        cond = l >= r;
         break;
       default:
         JS_NOT_REACHED("unexpected comparison op");
@@ -6037,17 +6037,11 @@ evalCmp(LOpcode op, double result)
 }
 
 static bool
-evalCmp(LOpcode op, double l, double r)
-{
-    return evalCmp(op, l - r);
-}
-
-static bool
 evalCmp(LOpcode op, JSString* l, JSString* r)
 {
     if (op == LIR_feq)
         return js_EqualStrings(l, r);
-    return evalCmp(op, js_CompareStrings(l, r));
+    return evalCmp(op, js_CompareStrings(l, r), 0);
 }
 
 JS_REQUIRES_STACK void
@@ -8763,7 +8757,7 @@ TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc,
     if (callDepth >= treeInfo->maxCallDepth)
         treeInfo->maxCallDepth = callDepth + 1;
     if (callDepth == 0)
-        fi->spoffset = 2 /*callee,this*/ + argc - fi->spdist;
+        fi->spoffset = -fp->script->nfixed;
 
     lir->insStorei(INS_CONSTPTR(fi), lirbuf->rp, callDepth * sizeof(FrameInfo*));
 
