@@ -219,7 +219,6 @@ protected:
    // hooks subclasses may wish to override!
    virtual void     PostCreateWidget()            {}
    virtual PRInt32  GetClientHeight()             { return mBounds.height; }
-   virtual ULONG    GetSWPFlags( ULONG flags)     { return flags; }
    virtual void     SetupForPrint( HWND /*hwnd*/) {}
 
    // Useful functions for subclasses to use, threaded as necessary.
