@@ -2043,7 +2043,7 @@ MicrosummaryResource.prototype = {
                      getService(Ci.nsICharsetResolver);
       if (resolver) {
         var charset = resolver.requestCharset(null, request.channel, {}, {});
-        if (charset != "");
+        if (charset != "")
           request.channel.contentCharset = charset;
       }
     }

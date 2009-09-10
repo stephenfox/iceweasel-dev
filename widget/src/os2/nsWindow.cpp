@@ -1483,9 +1483,11 @@ NS_METHOD nsWindow::Resize(PRInt32 aX,
          ptl.y = WinQuerySysValue(HWND_DESKTOP, SV_CYSCREEN) - h - 1 - aY;
       }
 
-      if( !SetWindowPos( 0, ptl.x, ptl.y, w, h, SWP_MOVE | SWP_SIZE))
-         if( aRepaint)
+      if (!SetWindowPos(0, ptl.x, ptl.y, w, h, SWP_MOVE | SWP_SIZE)) {
+         if (aRepaint) {
             Invalidate(PR_FALSE);
+         }
+      }
 
 #if DEBUG_sobotka
       printf("+++++++++++Resized 0x%lx at %ld, %ld to %d x %d (%d,%d)\n",
@@ -3592,19 +3594,20 @@ nsWindow::HasPendingInputEvent()
 
 BOOL nsWindow::SetWindowPos( HWND ib, long x, long y, long cx, long cy, ULONG flags)
 {
-   BOOL bDeferred = FALSE;
+   BOOL result = FALSE;
 
    if( mParent && mParent->mSWPs) // XXX bit implicit...
    {
       mParent->DeferPosition( GetMainWindow(), ib, x, y, cx, cy, flags);
-      bDeferred = TRUE;
+      result = TRUE;
    }
-   else // WinSetWindowPos appears not to need msgq (hmm)
-      WinSetWindowPos( GetMainWindow(), ib, x, y, cx, cy, GetSWPFlags(flags));
+   else { // WinSetWindowPos appears not to need msgq (hmm)
+      result = WinSetWindowPos( GetMainWindow(), ib, x, y, cx, cy, flags);
+   }
 
    // When the window is actually sized, mBounds will be updated in the fnwp.
 
-   return bDeferred;
+   return result;
 }
 
 nsresult nsWindow::GetWindowText( nsString &aStr, PRUint32 *rc)

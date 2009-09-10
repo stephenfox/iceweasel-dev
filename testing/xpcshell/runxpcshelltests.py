@@ -77,6 +77,9 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
     print >>sys.stderr, "Error: No test dirs or test manifest specified!"
     return False
 
+  passCount = 0
+  failCount = 0
+
   testharnessdir = os.path.dirname(os.path.abspath(__file__))
   xpcshell = os.path.abspath(xpcshell)
   # we assume that httpd.js lives in components/ relative to xpcshell
@@ -169,7 +172,6 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
     testdirs = readManifest(os.path.abspath(manifest))
 
   # Process each test directory individually.
-  success = True
   for testdir in testdirs:
     if testPath and not testdir.endswith(testPath):
       continue
@@ -223,9 +225,10 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
   >>>>>>>
   %s
   <<<<<<<""" % (test, proc.returncode, stdout)
-        success = False
+        failCount += 1
       else:
         print "TEST-PASS | %s | test passed" % test
+        passCount += 1
 
       leakReport = processLeakLog(leakLogFile)
 
@@ -244,7 +247,15 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
       if os.path.exists(leakLogFile):
         os.remove(leakLogFile)
 
-  return success
+  if passCount == 0 and failCount == 0:
+    print "TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?"
+    failCount = 1
+
+  print """INFO | Result summary:
+INFO | Passed: %d
+INFO | Failed: %d""" % (passCount, failCount)
+
+  return failCount == 0
 
 def main():
   """Process command line arguments and call runTests() to do the real work."""

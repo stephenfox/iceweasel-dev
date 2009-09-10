@@ -759,6 +759,11 @@ nsDownloadManager::ImportDownloadHistory()
     if (NS_FAILED(rv)) continue;
     rv = rdfInt->GetValue(&state);
     if (NS_FAILED(rv)) continue;
+    // If the state of the download is NOTSTARTED change it to CANCELED
+    // as importing entries with NOTSTARTED from the xpfe/ download manager
+    // causes problems (see Bug 495680)
+    if (state == nsIDownloadManager::DOWNLOAD_NOTSTARTED)
+      state = nsIDownloadManager::DOWNLOAD_CANCELED;
 
     (void)AddDownloadToDB(name, source, target, EmptyString(), startTime,
                           endTime, state, EmptyCString(), EmptyCString(),

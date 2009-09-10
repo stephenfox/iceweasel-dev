@@ -480,3 +480,13 @@ function check_no_bookmarks() {
   do_check_eq(root.childCount, 0);
   root.containerOpen = false;
 }
+
+/**
+ * Flushes any events in the event loop of the main thread.
+ */
+function flush_main_thread_events()
+{
+  let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
+  while (tm.mainThread.hasPendingEvents())
+    tm.mainThread.processNextEvent(false);
+}
