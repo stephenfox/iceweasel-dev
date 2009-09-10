@@ -1332,7 +1332,8 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   NS_ENSURE_SUCCESS(rv, rv);
   aRenderingContext->SetFont(fontMet);
 
-  lineHeight = nsHTMLReflowState::CalcLineHeight(this);
+  lineHeight =
+    nsHTMLReflowState::CalcLineHeight(GetStyleContext(), NS_AUTOHEIGHT);
   fontMet->GetAveCharWidth(charWidth);
   fontMet->GetMaxAdvance(charMaxAdvance);
 

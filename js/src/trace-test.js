@@ -3619,6 +3619,18 @@ function testComparisons()
 testComparisons.expected = "no failures reported!";
 test(testComparisons);
 
+function testBug504520() {
+    // A bug involving comparisons.
+    var arr = [1/0, 1/0, 1/0, 1/0, 1/0, 0];
+    assertEq(arr.length > RUNLOOP, true);
+
+    var x = 0;
+    for (var i = 0; i < arr.length; i++)
+        arr[i] >= 1/0 ? null : ++x;
+    assertEq(x, 1);
+}
+test(testBug504520);
+
 function testCaseAbort()
 {
   var four = "4";
@@ -5181,9 +5193,6 @@ function testEliminatedGuardWithinAnchor() {
     return "ok";
 }
 testEliminatedGuardWithinAnchor.expected = "ok";
-testOwnPropertyWithInOperator.jitstats = {
-  sideExitIntoInterpreter: 3
-};
 test(testEliminatedGuardWithinAnchor);
 
 /*****************************************************************************

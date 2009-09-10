@@ -705,8 +705,12 @@ nsAccessNode::GetDocAccessibleFor(nsIDocShellTreeItem *aContainer,
     return nsnull;
   }
 
+  nsCOMPtr<nsIAccessibilityService> accService = GetAccService();
+  if (!accService)
+    return nsnull;
+  
   nsCOMPtr<nsIAccessible> accessible;
-  GetAccService()->GetAccessibleFor(node, getter_AddRefs(accessible));
+  accService->GetAccessibleFor(node, getter_AddRefs(accessible));
   nsIAccessibleDocument *docAccessible = nsnull;
   if (accessible) {
     CallQueryInterface(accessible, &docAccessible);

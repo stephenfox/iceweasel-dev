@@ -279,6 +279,9 @@ _TEST_FILES = 	test_bug5141.html \
 		file_XHRSendData_doc.xml^headers^ \
 		test_bug461555.html \
 		test_sync_xhr_timer.xhtml \
+		file_htmlserializer_ipv6.html \
+		file_htmlserializer_ipv6_out.html \
+		test_bug498433.html \
 		test_bug498897.html \
 		file_bug498897.html \
 		file_bug498897.html^headers^ \
