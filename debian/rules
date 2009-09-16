@@ -66,6 +66,14 @@ $(COMPONENT_SCRIPTS): %: debian/postinstrm.in
 debian/xulrunner-$(BASE_VERSION).postinst: debian/postinstrm.in
 	sed 's/abort-install/triggered/;/^dpkg-trigger/d' $^ > $@
 
+GENERATED_FILES += debian/dh/dh_xulrunner debian/dh/dh_xulrunner.1
+
+debian/dh/dh_xulrunner.1: debian/dh/dh_xulrunner
+	pod2man -c Debhelper -r $(BASE_VERSION) $^ > $@
+
+debian/dh/dh_xulrunner: debian/dh/dh_xulrunner.in
+	sed 's/##BASE_VERSION##/$(BASE_VERSION)/' $^ > $@
+
 config.status: ./configure debian/mozconfig
 	dh_testdir
 
@@ -261,6 +269,7 @@ binary-arch: build test install $(GENERATED_FILES)
 	dh_install -a --sourcedir=debian/tmp -XMozillaInterfaces -XMozillaGlue
 	dh_pysupport -ppython-xpcom
 	dh_installman -pspidermonkey-bin debian/smjs.1
+	dh_installman -pxulrunner-dev debian/dh/dh_xulrunner.1
 	dh_link -a
 	dh_strip -a -Nlibmozjs2d -Nspidermonkey-bin --dbg-package=xulrunner-$(BASE_VERSION)-dbg
 	dh_strip -plibmozjs2d -pspidermonkey-bin --dbg-package=libmozjs2d-dbg

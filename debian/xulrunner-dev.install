@@ -1,3 +1,5 @@
+../dh/dh_xulrunner usr/bin
+../dh/xulrunner.pm usr/share/perl5/Debian/Debhelper/Sequence
 usr/include/xulrunner-1.9.1
 usr/share/idl
 usr/lib/xulrunner-devel-1.9.1
