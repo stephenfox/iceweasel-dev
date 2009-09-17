@@ -10,6 +10,7 @@ usr/bin/xulrunner-1.9.1
 usr/lib/xulrunner-1.9.1/run-mozilla.sh
 usr/lib/xulrunner-1.9.1/xpcshell
 usr/lib/xulrunner-1.9.1/mozilla-xremote-client
+usr/lib/xulrunner-1.9.1/update.locale
 usr/lib/xulrunner-1.9.1/updater
 usr/lib/xulrunner-1.9.1/xulrunner
 usr/lib/xulrunner-1.9.1/xulrunner-bin
