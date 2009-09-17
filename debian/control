@@ -175,6 +175,7 @@ Architecture: any
 Depends: xulrunner-1.9.1 (= ${binary:Version})
          | xulrunner-1.9.1-gnome-support (= ${binary:Version})
          | python-xpcom (= ${binary:Version})
+Conflicts: xulrunner-1.9-dbg
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
