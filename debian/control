@@ -36,7 +36,7 @@ Build-Depends: debhelper (>= 5.0.59),
                xvfb,
                xfonts-base,
                xauth
-Build-Depends-Indep: java-gcj-compat-dev (>= 1.0.56)
+Build-Depends-Indep: default-jdk | java-gcj-compat-dev (>= 1.0.56)
 Standards-Version: 3.8.2.0
 
 Package: xulrunner-1.9.1
