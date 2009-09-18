@@ -74,7 +74,7 @@
  * @retval non-zero on error 
  */
 
-#if defined(linux) || defined(SOLARIS)
+#if defined(linux) || defined(SOLARIS) || defined(__GLIBC__)
 #include <semaphore.h>
 #define SEM_CREATE(p,s) sem_init(&(p), 1, s)
 #define SEM_SIGNAL(p)   sem_post(&(p))
