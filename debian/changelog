@@ -1,3 +1,21 @@
+xulrunner (1.9.1.3-2) experimental; urgency=low
+
+  * debian/xulrunner-dev.install, debian/rules, debian/dh/*: Add a
+    dh_xulrunner (deb)helper and a "xulrunner" dh sequence to add the
+    "proper" xulrunner dependency to shlibs:Depends.
+  * debian/xulrunner-1.9.1.install: Install the update.locale file.
+    Closes: #540784.
+  * debian/control, debian/rules: Build against default-jdk, but keep
+    support for java-gcj-compat-dev. Closes: #526305.
+  * debian/control: xulrunner-1.9.1-dbg conflicts with xulrunner-1.9-dbg.
+    Closes: #537628.
+  * js/src/Makefile.in: Properly build twice in a row (picked from upstream
+    mercurial repo). Closes: #546770.
+  * Don't build oss and wireless geoloc support on *bsd and hurd.
+    Thanks Petr Salinger. Closes: #547269.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 16 Sep 2009 17:54:36 +0200
+
 xulrunner (1.9.1.3-1) experimental; urgency=low
 
   * New upstream release.
