@@ -1,3 +1,12 @@
+iceweasel (3.5.3-2) unstable; urgency=low
+
+  * debian/iceweasel-runner: Set the MOZ_APP_LAUNCHER in the runner script to
+    register the proper name with XSMP. Closes: #437999.
+  * debian/watch: Fix to fit new upstream tarball names.
+    Thanks Yan Morin <progysm@gmail.com>. Closes: #550482.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 10 Oct 2009 16:03:21 +0200
+
 iceweasel (3.5.3-1) experimental; urgency=low
 
   * New upstream release.
