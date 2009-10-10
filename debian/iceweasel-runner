@@ -40,6 +40,8 @@ fi
 ##
 MOZ_DIST_BIN="/usr/lib/iceweasel"
 MOZ_PROGRAM="${MOZ_DIST_BIN}/firefox-bin"
+MOZ_APP_LAUNCHER=/usr/bin/iceweasel
+export MOZ_APP_LAUNCHER
 
 ##
 ## Load system and user properties
