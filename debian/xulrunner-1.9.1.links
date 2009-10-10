@@ -1,5 +1,5 @@
 usr/lib/libmozjs.so.2d usr/lib/xulrunner-1.9.1/libmozjs.so
-usr/share/myspell/dicts usr/lib/xulrunner-1.9.1/dictionaries
+usr/share/hunspell usr/lib/xulrunner-1.9.1/dictionaries
 usr/share/xulrunner-1.9.1/icons usr/lib/xulrunner-1.9.1/icons
 usr/share/xulrunner-1.9.1/greprefs usr/lib/xulrunner-1.9.1/greprefs
 usr/share/xulrunner-1.9.1/res usr/lib/xulrunner-1.9.1/res
