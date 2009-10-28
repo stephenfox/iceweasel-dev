@@ -278,7 +278,7 @@ binary-arch: build test install $(GENERATED_FILES)
 	if [ "`$(MAKE) -s -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
 		echo '#include "libmozjs2d.symbols.jit"' > debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH); \
 	fi
-	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1)' -- $(GENSYMBOLS_FLAGS)
+	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1.4)' -- $(GENSYMBOLS_FLAGS)
 	dh_installdeb -a
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
 	dh_gencontrol -a

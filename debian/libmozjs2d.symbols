@@ -508,7 +508,7 @@ libmozjs.so.2d libmozjs2d #MINVER#
  js_QNameClass@Base 1.9.1
  js_ReportErrorAgain@Base 1.9.1
  js_RestoreRegExpStatics@Base 1.9.1
- js_SaveRegExpStatics@Base 1.9.1
+ js_SaveAndClearRegExpStatics@Base 1.9.1.4
  js_ScriptClass@Base 1.9.1
  js_SearchScope@Base 1.9.1
  js_SrcNoteLength@Base 1.9.1
