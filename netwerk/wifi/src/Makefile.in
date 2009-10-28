@@ -58,7 +58,8 @@ CPPSRCS	=	nsWifiMonitor.cpp \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-CPPSRCS	+= nsWifiScannerMac.cpp
+CPPSRCS += nsWifiScannerMac.cpp
+CMMSRCS = osx_corewlan.mm
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS	+= nsWifiScannerWin.cpp

@@ -58,6 +58,8 @@ nsThebesFontMetrics::nsThebesFontMetrics()
 
 nsThebesFontMetrics::~nsThebesFontMetrics()
 {
+    if (mDeviceContext)
+        mDeviceContext->FontMetricsDeleted(this);
     delete mFontStyle;
     //delete mFontGroup;
 }
@@ -101,6 +103,7 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
 NS_IMETHODIMP
 nsThebesFontMetrics::Destroy()
 {
+    mDeviceContext = nsnull;
     return NS_OK;
 }
 

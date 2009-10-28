@@ -173,9 +173,11 @@ function test() {
             let testCounter = 0;
 
             function setFilter(string) {
-                filter.focus();
                 filter.value = string;
-                EventUtils.synthesizeKey("VK_RETURN", {}, win);
+                // dispatch the command event to the filter textbox
+                let event = doc.createEvent("Events");
+                event.initEvent("command", true, true);
+                filter.dispatchEvent(event);
             }
 
             function runOneTest(test) {

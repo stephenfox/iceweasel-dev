@@ -65,7 +65,7 @@
  * periods of time, and dispatching many small events to the calling thread will
  * end up blocking it.
  */
-#define MAX_MILLISECONDS_BETWEEN_RESULTS 100
+#define MAX_MILLISECONDS_BETWEEN_RESULTS 75
 #define MAX_ROWS_PER_RESULT 15
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,7 +224,7 @@ public:
     , mTransactionManager(nsnull)
     , mCallback(aCallback)
     , mCallingThread(do_GetCurrentThread())
-    , mMaxIntervalWait(PR_MicrosecondsToInterval(MAX_MILLISECONDS_BETWEEN_RESULTS))
+    , mMaxIntervalWait(PR_MillisecondsToInterval(MAX_MILLISECONDS_BETWEEN_RESULTS))
     , mIntervalStart(PR_IntervalNow())
     , mState(PENDING)
     , mCancelRequested(PR_FALSE)
