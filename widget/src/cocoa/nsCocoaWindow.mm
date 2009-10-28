@@ -149,16 +149,20 @@ nsCocoaWindow::~nsCocoaWindow()
 
   // Notify the children that we're gone.  Popup windows (e.g. tooltips) can
   // have nsChildView children.  'kid' is an nsChildView object if and only if
-  // its 'type' is 'eWindowType_child'.
-  for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
+  // its 'type' is 'eWindowType_child'.  childView->ResetParent() can change
+  // our list of children while it's being iterated, so the way we iterate the
+  // list must allow for this.
+  for (nsIWidget* kid = mLastChild; kid;) {
     nsWindowType kidType;
     kid->GetWindowType(kidType);
     if (kidType == eWindowType_child) {
       nsChildView* childView = static_cast<nsChildView*>(kid);
+      kid = kid->GetPrevSibling();
       childView->ResetParent();
     } else {
       nsCocoaWindow* childWindow = static_cast<nsCocoaWindow*>(kid);
       childWindow->mParent = nsnull;
+      kid = kid->GetPrevSibling();
     }
   }
 
@@ -1794,7 +1798,6 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
     [super setBackgroundColor:mColor];
 
     mUnifiedToolbarHeight = 0.0f;
-    mSuppressPainting = NO;
 
     // setBottomCornerRounded: is a private API call, so we check to make sure
     // we respond to it just in case.
@@ -1875,11 +1878,6 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 {
   NSRect frameRect = [self frame];
   return frameRect.size.height - [self contentRectForFrameRect:frameRect].size.height;
-}
-
-- (BOOL)isPaintingSuppressed
-{
-  return mSuppressPainting;
 }
 
 // Always show the toolbar pill button.
@@ -1964,14 +1962,16 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 
 @implementation ToolbarWindow(Private)
 
-// [self display] seems to be the only way to repaint a window's titlebar.
-// The bad thing about it is that it repaints all the window's subviews as well.
-// So we use a guard to prevent unnecessary redrawing.
 - (void)redrawTitlebar
 {
-  mSuppressPainting = YES;
-  [self display];
-  mSuppressPainting = NO;
+  NSView* borderView = [[self contentView] superview];
+  if (!borderView)
+    return;
+
+  NSRect rect = NSMakeRect(0, [[self contentView] bounds].size.height,
+                           [borderView bounds].size.width, [self titlebarHeight]);
+  // setNeedsDisplayInRect doesn't have any effect here, but displayRect does.
+  [borderView displayRect:rect];
 }
 
 @end
@@ -2051,8 +2051,8 @@ void patternDraw(void* aInfo, CGContextRef aContext)
 
     // Draw the one pixel border at the bottom of the titlebar.
     if ([window unifiedToolbarHeight] == 0) {
-      [NativeGreyColorAsNSColor(headerBorderGrey, isMain) set];
-      NSRectFill(NSMakeRect(0.0f, titlebarOrigin, sPatternWidth, 1.0f));
+      CGRect borderRect = CGRectMake(0.0f, titlebarOrigin, sPatternWidth, 1.0f);
+      DrawNativeGreyColorInRect(aContext, headerBorderGrey, borderRect, isMain);
     }
   } else {
     // if the titlebar color is not nil, just set and draw it normally.

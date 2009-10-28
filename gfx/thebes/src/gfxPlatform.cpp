@@ -633,7 +633,7 @@ gfxPlatform::GetCMSsRGBProfile()
 {
     if (!gCMSsRGBProfile) {
 
-        /* Create the profile using lcms. */
+        /* Create the profile using qcms. */
         gCMSsRGBProfile = qcms_profile_sRGB();
     }
     return gCMSsRGBProfile;

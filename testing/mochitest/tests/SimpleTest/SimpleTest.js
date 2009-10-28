@@ -8,6 +8,10 @@
  *  * Support the Test.Simple API used by MochiKit, to be able to test MochiKit
  * itself against IE 5.5
  *
+ * NOTE: Pay attention to cross-browser compatibility in this file. For
+ * instance, do not use const or JS > 1.5 features which are not yet
+ * implemented everywhere.
+ *
 **/
 
 if (typeof(SimpleTest) == "undefined") {
@@ -34,7 +38,7 @@ SimpleTest._stopOnLoad = true;
  * Something like assert.
 **/
 SimpleTest.ok = function (condition, name, diag) {
-    var test = {'result': !!condition, 'name': name, 'diag': diag || ""};
+    var test = {'result': !!condition, 'name': name, 'diag': diag};
     if (SimpleTest._logEnabled)
         SimpleTest._logResult(test, "TEST-PASS", "TEST-UNEXPECTED-FAIL");
     SimpleTest._tests.push(test);
@@ -56,7 +60,7 @@ SimpleTest.isnot = function (a, b, name) {
 //  --------------- Test.Builder/Test.More todo() -----------------
 
 SimpleTest.todo = function(condition, name, diag) {
-  var test = {'result': !!condition, 'name': name, 'diag': diag || "", todo: true};
+  var test = {'result': !!condition, 'name': name, 'diag': diag, todo: true};
   if (SimpleTest._logEnabled)
       SimpleTest._logResult(test, "TEST-UNEXPECTED-PASS", "TEST-KNOWN-FAIL");
   SimpleTest._tests.push(test);
@@ -68,9 +72,7 @@ SimpleTest._logResult = function(test, passString, failString) {
   if (parentRunner.currentTestURL)
     msg += parentRunner.currentTestURL;
   msg += " | " + test.name;
-  var diag = "";
-  if (test.diag)
-    diag = " - " + test.diag;
+  var diag = test.diag ? " - " + test.diag : "";
   if (test.result) {
       if (test.todo)
           parentRunner.logger.error(msg + diag);
@@ -116,18 +118,19 @@ SimpleTest.report = function () {
     var results = MochiKit.Base.map(
         function (test) {
             var cls, msg;
+            var diag = test.diag ? " - " + test.diag : "";
             if (test.todo && !test.result) {
                 todo++;
                 cls = "test_todo";
-                msg = "todo - " + test.name + " " + test.diag;
+                msg = "todo | " + test.name + diag;
             } else if (test.result && !test.todo) {
                 passed++;
                 cls = "test_ok";
-                msg = "ok - " + test.name;
+                msg = "passed | " + test.name;
             } else {
                 failed++;
                 cls = "test_not_ok";
-                msg = "not ok - " + test.name + " " + test.diag;
+                msg = "failed | " + test.name + diag;
             }
             return DIV({"class": cls}, msg);
         },
@@ -465,18 +468,25 @@ var todo_is = SimpleTest.todo_is;
 var todo_isnot = SimpleTest.todo_isnot;
 var isDeeply = SimpleTest.isDeeply;
 
-const oldOnError = window.onerror;
-window.onerror = function (ev) {
-  // Log the error.
-  ok(false, "[SimpleTest/SimpleTest.js, window.onerror] An error occurred: [ " + ev + " ]");
+var gOldOnError = window.onerror;
+window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
+  var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror] ";
+
+  // Log the message.
+  ok(false, funcIdentifier + "An error occurred", errorMsg);
+  // There is no Components.stack.caller to log. (See bug 511888.)
 
   // Call previous handler.
-  if (oldOnError) {
+  if (gOldOnError) {
     try {
-      oldOnError(ev);
+      // Ignore return value: always run default handler.
+      gOldOnError(errorMsg, url, lineNumber);
     } catch (e) {
-      // Log the exception.
-      ok(false, "[SimpleTest/SimpleTest.js, window.onerror] Exception thrown by oldOnError(): [ " + e + " ]");
+      // Log the error.
+      ok(false, funcIdentifier + "Exception thrown by gOldOnError()", e);
+      // Log its stack.
+      if (e.stack)
+        ok(false, funcIdentifier + "JavaScript error stack:\n" + e.stack);
     }
   }
 

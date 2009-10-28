@@ -60,10 +60,6 @@
 #undef max
 #endif
 
-#include <bitset>
-
-// code from gfxWindowsFonts.h
-
 class gfxSparseBitSet {
 private:
     enum { BLOCK_SIZE = 32 };   // ==> 256 codepoints per block
@@ -292,6 +288,14 @@ public:
 
 #define TRUETYPE_TAG(a, b, c, d) ((a) << 24 | (b) << 16 | (c) << 8 | (d))
 
+// used for overlaying name changes without touching original font data
+struct FontDataOverlay {
+    // overlaySrc != 0 ==> use overlay
+    PRUint32  overlaySrc;    // src offset from start of font data
+    PRUint32  overlaySrcLen; // src length
+    PRUint32  overlayDest;   // dest offset from start of font data
+};
+    
 class THEBES_API gfxFontUtils {
 
 public:
@@ -332,6 +336,7 @@ public:
              PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont);
 
 #ifdef XP_WIN
+
     // given a TrueType/OpenType data file, produce a EOT-format header
     // for use with Windows T2Embed API AddFontResource type API's
     // effectively hide existing fonts with matching names aHeaderLen is
@@ -339,7 +344,7 @@ public:
     // EOT header on output
     static nsresult
     MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
-                  nsTArray<PRUint8> *aHeader);
+                  nsTArray<PRUint8> *aHeader, FontDataOverlay *aOverlay);
 #endif
 
     // checks for valid SFNT table structure, returns true if valid
@@ -370,7 +375,9 @@ public:
         NAME_ID_FULL = 4,  // used as key to GDI CreateFontIndirect
         NAME_ID_VERSION = 5,
         NAME_ID_POSTSCRIPT = 6,
-        NAME_ID_PREFERRED_FAMILY = 16       
+        NAME_ID_PREFERRED_FAMILY = 16,
+        
+        CMAP_MAX_CODEPOINT = 0x10ffff     // maximum possible Unicode codepoint 
     };
 
     // read all names matching aNameID, returning in aNames array

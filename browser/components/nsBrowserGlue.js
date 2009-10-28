@@ -1069,8 +1069,9 @@ GeolocationPrompt.prototype = {
       var buttons = [{
               label: browserBundle.GetStringFromName("geolocation.shareLocation"),
               accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-              callback: function(notification) {                  
-                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
+              callback: function(notification) {
+                  var elements = notification.getElementsByClassName("rememberChoice");
+                  if (elements.length && elements[0].checked)
                       setPagePermission(request.requestingURI, true);
                   request.allow(); 
               },
@@ -1079,7 +1080,8 @@ GeolocationPrompt.prototype = {
               label: browserBundle.GetStringFromName("geolocation.dontShareLocation"),
               accessKey: browserBundle.GetStringFromName("geolocation.dontShareLocation.accesskey"),
               callback: function(notification) {
-                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
+                  var elements = notification.getElementsByClassName("rememberChoice");
+                  if (elements.length && elements[0].checked)
                       setPagePermission(request.requestingURI, false);
                   request.cancel();
               },
@@ -1100,10 +1102,16 @@ GeolocationPrompt.prototype = {
       // bar.
       function geolocation_hacks_to_notification () {
 
-        var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
-        checkbox.className = "rememberChoice";
-        checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
-        newBar.appendChild(checkbox);
+        // Never show a remember checkbox inside the private browsing mode
+        var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                                getService(Ci.nsIPrivateBrowsingService).
+                                privateBrowsingEnabled;
+        if (!inPrivateBrowsing) {
+          var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
+          checkbox.className = "rememberChoice";
+          checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
+          newBar.appendChild(checkbox);
+        }
 
         var link = newBar.ownerDocument.createElementNS(XULNS, "label");
         link.className = "text-link";
