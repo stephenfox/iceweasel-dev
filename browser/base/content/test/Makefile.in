@@ -58,6 +58,11 @@ _TEST_FILES =	test_feed_discovery.html \
 		offlineChild2.html \
 		offlineChild2.cacheManifest \
 		offlineChild2.cacheManifest^headers^ \
+		test_offline_gzip.html \
+		gZipOfflineChild.html \
+		gZipOfflineChild.html^headers^ \
+		gZipOfflineChild.cacheManifest \
+		gZipOfflineChild.cacheManifest^headers^ \
 		$(NULL)
 
 # The following tests are disabled because they are unreliable:

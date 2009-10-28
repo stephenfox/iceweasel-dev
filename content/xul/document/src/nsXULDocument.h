@@ -734,7 +734,8 @@ protected:
 
     nsTArray<nsDelayedBroadcastUpdate> mDelayedBroadcasters;
     nsTArray<nsDelayedBroadcastUpdate> mDelayedAttrChangeBroadcasts;
-    PRBool                             mHandlingDelayedAttrChange;
+    PRPackedBool                       mHandlingDelayedAttrChange;
+    PRPackedBool                       mHandlingDelayedBroadcasters;
 
     void MaybeBroadcast();
 private:
