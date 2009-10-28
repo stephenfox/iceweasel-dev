@@ -1,3 +1,9 @@
+iceweasel (3.5.4-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 28 Oct 2009 16:36:06 +0100
+
 iceweasel (3.5.3-2) unstable; urgency=low
 
   * debian/iceweasel-runner: Set the MOZ_APP_LAUNCHER in the runner script to
