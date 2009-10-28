@@ -43,6 +43,7 @@ srcdir		= @srcdir@
 
 DIRS		= config
 
+run_for_side_effects := $(shell echo "MAKE: $(MAKE)")
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= js

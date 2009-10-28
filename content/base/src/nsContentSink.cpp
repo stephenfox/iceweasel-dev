@@ -1760,7 +1760,7 @@ nsContentSink::ReadyToCallDidBuildModelImpl(PRBool aTerminated)
 {
   if (!mDidGetReadyToCallDidBuildModelCall) {
     if (mScriptLoader) {
-      mScriptLoader->EndDeferringScripts(aTerminated);
+      mScriptLoader->ParsingComplete(aTerminated);
     }
   }
 

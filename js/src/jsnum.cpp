@@ -207,7 +207,11 @@ ParseIntDouble(jsdouble d)
 {
     if (!JSDOUBLE_IS_FINITE(d))
         return js_NaN;
-    return floor(d);
+    if (d > 0)
+        return floor(d);
+    if (d < 0)
+    	return -floor(-d);
+    return 0;
 }
 #endif
 

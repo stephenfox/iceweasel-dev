@@ -2239,6 +2239,11 @@ nsresult PyXPCOM_GatewayVariantHelper::BackFillVariant( PyObject *val, int index
 	nsXPTType typ = pi->GetType();
 	PyObject* val_use = NULL;
 
+	// Ignore out params backed by a NULL pointer. The caller isn't
+	// interested in them, see:
+	// https://bugzilla.mozilla.org/show_bug.cgi?id=495441
+	if (pi->IsOut() && !ns_v.val.p) return NS_OK;
+
 	NS_ABORT_IF_FALSE(pi->IsDipper() || ns_v.val.p, "No space for result!");
 	if (!pi->IsDipper() && !ns_v.val.p) return NS_ERROR_INVALID_POINTER;
 

@@ -145,8 +145,6 @@ ifdef MOZ_MAKE_COMPLETE_MAR
 	  MOZ_PKG_PRETTYNAMES=$(MOZ_PKG_PRETTYNAMES) \
 	  PACKAGE_BASE_DIR="$(_ABS_DIST)/l10n-stage" \
 	  DIST="$(_ABS_DIST)"
-# XXX switch this back on once bug 496196's generate-snippet lands on 1.9.1
-#	$(MAKE) generate-snippet-$(AB_CD)  
 endif
 # packaging done, undo l10n stuff
 ifneq (en,$(AB))

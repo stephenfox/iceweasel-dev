@@ -15,7 +15,7 @@
  * The Original Code is thebes gfx code.
  *
  * The Initial Developer of the Original Code is Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2007
+ * Portions created by the Initial Developer are Copyright (C) 2007-2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -227,7 +227,6 @@ static const struct UnicodeRangeTableEntry gUnicodeRanges[] = {
     { 111, 0x1D360, 0x1D37F, "Counting Rod Numerals" }
 };
 
-
 nsresult
 gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBitSet& aCharacterMap) 
 {
@@ -244,25 +243,35 @@ gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBi
         GroupOffsetStartCode = 0,
         GroupOffsetEndCode = 4
     };
-    NS_ENSURE_TRUE(aLength >= 16, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(aLength >= 16, NS_ERROR_GFX_CMAP_MALFORMED);
 
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 12, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetReserved) == 0, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 12, 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
+    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetReserved) == 0, 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
 
     PRUint32 tablelen = ReadLongAt(aBuf, OffsetTableLength);
-    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(tablelen >= 16, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_GFX_CMAP_MALFORMED);
+    NS_ENSURE_TRUE(tablelen >= 16, NS_ERROR_GFX_CMAP_MALFORMED);
 
-    NS_ENSURE_TRUE(ReadLongAt(aBuf, OffsetLanguage) == 0, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(ReadLongAt(aBuf, OffsetLanguage) == 0, 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
 
     const PRUint32 numGroups  = ReadLongAt(aBuf, OffsetNumberGroups);
-    NS_ENSURE_TRUE(tablelen >= 16 + (12 * numGroups), NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(tablelen >= 16 + (12 * numGroups), 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
 
     const PRUint8 *groups = aBuf + OffsetGroups;
+    PRUint32 prevEndCharCode = 0;
     for (PRUint32 i = 0; i < numGroups; i++, groups += SizeOfGroup) {
         const PRUint32 startCharCode = ReadLongAt(groups, GroupOffsetStartCode);
         const PRUint32 endCharCode = ReadLongAt(groups, GroupOffsetEndCode);
+        NS_ENSURE_TRUE((prevEndCharCode < startCharCode || i == 0) &&
+                       startCharCode <= endCharCode &&
+                       endCharCode <= CMAP_MAX_CODEPOINT, 
+                       NS_ERROR_GFX_CMAP_MALFORMED);
         aCharacterMap.SetRange(startCharCode, endCharCode);
+        prevEndCharCode = endCharCode;
     }
 
     return NS_OK;
@@ -278,18 +287,21 @@ gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBit
         OffsetSegCountX2 = 6
     };
 
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 4, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 4, 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
     PRUint16 tablelen = ReadShortAt(aBuf, OffsetLength);
-    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(tablelen > 16, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_GFX_CMAP_MALFORMED);
+    NS_ENSURE_TRUE(tablelen > 16, NS_ERROR_GFX_CMAP_MALFORMED);
     
     // some buggy fonts on Mac OS report lang = English (e.g. Arial Narrow Bold, v. 1.1 (Tiger))
 #if defined(XP_WIN)
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetLanguage) == 0, NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetLanguage) == 0, 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
 #endif
 
     PRUint16 segCountX2 = ReadShortAt(aBuf, OffsetSegCountX2);
-    NS_ENSURE_TRUE(tablelen >= 16 + (segCountX2 * 4), NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(tablelen >= 16 + (segCountX2 * 4), 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
 
     const PRUint16 segCount = segCountX2 / 2;
 
@@ -297,10 +309,18 @@ gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBit
     const PRUint16 *startCounts = endCounts + 1 /* skip one uint16 for reservedPad */ + segCount;
     const PRUint16 *idDeltas = startCounts + segCount;
     const PRUint16 *idRangeOffsets = idDeltas + segCount;
+    PRUint16 prevEndCount = 0;
     for (PRUint16 i = 0; i < segCount; i++) {
         const PRUint16 endCount = ReadShortAt16(endCounts, i);
         const PRUint16 startCount = ReadShortAt16(startCounts, i);
         const PRUint16 idRangeOffset = ReadShortAt16(idRangeOffsets, i);
+        
+        // sanity-check range
+        NS_ENSURE_TRUE((startCount > prevEndCount || i == 0) && 
+                       startCount <= endCount,
+                       NS_ERROR_GFX_CMAP_MALFORMED);
+        prevEndCount = endCount;
+        
         if (idRangeOffset == 0) {
             aCharacterMap.SetRange(startCount, endCount);
         } else {
@@ -313,7 +333,9 @@ gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBit
                                          + (c - startCount)
                                          + &idRangeOffsets[i]);
 
-                NS_ENSURE_TRUE((PRUint8*)gdata > aBuf && (PRUint8*)gdata < aBuf + aLength, NS_ERROR_FAILURE);
+                NS_ENSURE_TRUE((PRUint8*)gdata > aBuf && 
+                               (PRUint8*)gdata < aBuf + aLength, 
+                               NS_ERROR_GFX_CMAP_MALFORMED);
 
                 // make sure we have a glyph
                 if (*gdata != 0) {
@@ -388,7 +410,7 @@ gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCha
         const PRUint32 offset = ReadLongAt(table, TableOffsetOffset);
 
         NS_ASSERTION(offset < aBufLength, "cmap table offset is longer than table size");
-        NS_ENSURE_TRUE(offset < aBufLength, NS_ERROR_FAILURE);
+        NS_ENSURE_TRUE(offset < aBufLength, NS_ERROR_GFX_CMAP_MALFORMED);
 
         const PRUint8 *subtable = aBuf + offset;
         const PRUint16 format = ReadShortAt(subtable, SubtableOffsetFormat);
@@ -1392,13 +1414,15 @@ DumpEOTHeader(PRUint8 *aHeader, PRUint32 aHeaderLen)
 
 nsresult
 gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
-                            nsTArray<PRUint8> *aHeader)
+                            nsTArray<PRUint8> *aHeader, FontDataOverlay *aOverlay)
 {
-
     NS_ASSERTION(aFontData && aFontDataLength != 0, "null font data");
     NS_ASSERTION(aHeader, "null header");
     NS_ASSERTION(aHeader->Length() == 0, "non-empty header passed in");
+    NS_ASSERTION(aOverlay, "null font overlay struct passed in");
 
+    aOverlay->overlaySrc = 0;
+    
     if (!aHeader->AppendElements(sizeof(EOTFixedHeader)))
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1501,6 +1525,7 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
 
     // -- first, read name table header
     const NameHeader *nameHeader = reinterpret_cast<const NameHeader*>(aFontData + nameOffset);
+    PRUint32 nameStringsBase = PRUint32(nameHeader->stringOffset);
 
     PRUint32 nameCount = nameHeader->count;
 
@@ -1562,7 +1587,7 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
     if (needNames != 0) 
     {
         return NS_ERROR_FAILURE;
-    }        
+    }
 
     // -- expand buffer if needed to include variable-length portion
     PRUint32 eotVariableLength = 0;
@@ -1586,10 +1611,12 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
         PRUint32 nameoff = names[i].offset;  // offset from base of string storage
 
         // sanity check the name string location
-        if (PRUint64(nameOffset) + PRUint64(PRUint32(nameHeader->stringOffset)) + PRUint64(nameoff) + PRUint64(namelen) > dataLength)
+        if (PRUint64(nameOffset) + PRUint64(nameStringsBase) + PRUint64(nameoff) 
+            + PRUint64(namelen) > dataLength) {
             return NS_ERROR_FAILURE;
+        }
     
-        strOffset = nameOffset + PRUint32(nameHeader->stringOffset) + nameoff + namelen;
+        strOffset = nameOffset + nameStringsBase + nameoff + namelen;
 
         // output 2-byte str size   
         strLen = namelen & (~1);  // UTF-16 string len must be even
@@ -1619,6 +1646,23 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
     NS_ASSERTION(eotEnd == aHeader->Elements() + aHeader->Length(), 
                  "header length calculation incorrect");
                  
+    // bug 496573 -- fonts with a fullname that does not begin with the 
+    // family name cause the EOT font loading API to hiccup
+    PRUint32 famOff = names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].offset;
+    PRUint32 famLen = names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].length;
+    PRUint32 fullOff = names[EOTFixedHeader::EOT_FULL_NAME_INDEX].offset;
+    PRUint32 fullLen = names[EOTFixedHeader::EOT_FULL_NAME_INDEX].length;
+    
+    const PRUint8 *nameStrings = aFontData + nameOffset + nameStringsBase;
+
+    // assure that the start of the fullname matches the family name
+    if (famLen <= fullLen 
+        && memcmp(nameStrings + famOff, nameStrings + fullOff, famLen)) {
+        aOverlay->overlaySrc = nameOffset + nameStringsBase + famOff;
+        aOverlay->overlaySrcLen = famLen;
+        aOverlay->overlayDest = nameOffset + nameStringsBase + fullOff;
+    }
+
     // -- OS/2 table data
     const OS2Table *os2Data = reinterpret_cast<const OS2Table*>(aFontData + os2Offset);
 
