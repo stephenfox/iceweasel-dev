@@ -96,7 +96,7 @@ Package: libmozjs-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libmozjs2d (>= ${source:Upstream-Version}),
+         libmozjs2d (= ${binary:Version}),
          libnspr4-dev
 Conflicts: mozilla-browser (<< 2:1.8)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
