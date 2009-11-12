@@ -1,3 +1,12 @@
+iceweasel (3.5.5-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+  * debian/remove.nonfree: Synchronize with Iceape 2.0.
+  * debian/copyright: Update with missing information, and remove lcms
+    licensing as it was dropped in 3.5.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 14:58:58 +0100
+
 iceweasel (3.5.4-1) unstable; urgency=low
 
   * New upstream release.
