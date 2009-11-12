@@ -178,7 +178,7 @@ install-stamp: build-stamp
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(Debian-$(DEBIAN_VERSION))\");" \
 		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
-	sed -i 's/\(MinVersion=1.9.1\).*/\1/;s/\(MaxVersion=1.9.1\).*/\1.0.*/' debian/tmp/usr/lib/iceweasel/application.ini
+	sed -i 's/\(MinVersion=1.9.1\).*/\1/;s/\(MaxVersion=1.9.1\).*/\1.*/' debian/iceweasel/usr/lib/iceweasel/application.ini
 
 	cp -f LICENSE MPL
 	touch install-stamp

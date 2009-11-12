@@ -10,6 +10,7 @@ iceweasel (3.5.5-1) UNRELEASED; urgency=low
     - Output less variables when running verbosely.
   * debian/README.Debian: Point to the proper file containing the
     app.update.enabled setting.
+  * debian/rules: Properly modify {Min,Max}Version in application.ini.
 
  -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 14:58:58 +0100
 
