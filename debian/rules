@@ -91,8 +91,8 @@ config.status: ./configure debian/mozconfig
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	            $(CONFIGURE_FLAGS)
-	sed -i 's|^OS_LDFLAGS.*|& $(MAIN_LDFLAGS)|' config/autoconf.mk
-	sed -i 's|^OS_LDFLAGS.*|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
 build: build-stamp
 
