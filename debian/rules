@@ -25,7 +25,7 @@ PYVER := $(shell pyversions -d)
 CFLAGS := -g
 MAIN_LDFLAGS := -Wl,--as-needed
 
-AUTOCONF_DIRS := build/autoconf
+AUTOCONF_DIRS := build/autoconf js/src/build/autoconf
 
 JAVA_VARS := \
 	MOZ_JAVAXPCOM=1 \
