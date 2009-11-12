@@ -1,4 +1,4 @@
-iceweasel (3.5.5-1) UNRELEASED; urgency=low
+iceweasel (3.5.5-1) unstable; urgency=low
 
   * New upstream release.
   * debian/remove.nonfree: Synchronize with Iceape 2.0.
@@ -18,8 +18,11 @@ iceweasel (3.5.5-1) UNRELEASED; urgency=low
   * debian/control:
     - Set the pkg-mozilla team as maintainer.
     - Bump Standards-Version to 3.8.3.0.
+  * browser/components/sessionstore/src/nsSessionStore.js: Avoid wrong
+    sessionstore data to keep windows out of user sight.
+    Closes: #552426, #553453.
 
- -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 14:58:58 +0100
+ -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 17:32:42 +0100
 
 iceweasel (3.5.4-1) unstable; urgency=low
 
