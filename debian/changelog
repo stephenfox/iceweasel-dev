@@ -1,3 +1,29 @@
+iceweasel (3.5.5-1) unstable; urgency=low
+
+  * New upstream release.
+  * debian/remove.nonfree: Synchronize with Iceape 2.0.
+  * debian/copyright: Update with missing information, and remove lcms
+    licensing as it was dropped in 3.5.
+  * debian/iceweasel-runner: Synchronize with Iceape 2.0's iceape-runner:
+    - Remove obsolete (and commented) Xprint support.
+    - Only handle --verbose, -V, -g and --debugger options.
+    - Output less variables when running verbosely.
+  * debian/README.Debian: Point to the proper file containing the
+    app.update.enabled setting.
+  * debian/rules: Properly modify {Min,Max}Version in application.ini.
+  * debian/control, debian/iceweasel.preinst: Removed upgrade path from
+    old firefox packages.
+  * debian/rules: Add a "like Firefox/version" string to the UA.
+    Closes: #399633.
+  * debian/control:
+    - Set the pkg-mozilla team as maintainer.
+    - Bump Standards-Version to 3.8.3.0.
+  * browser/components/sessionstore/src/nsSessionStore.js: Avoid wrong
+    sessionstore data to keep windows out of user sight.
+    Closes: #552426, #553453.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 17:32:42 +0100
+
 iceweasel (3.5.4-1) unstable; urgency=low
 
   * New upstream release.

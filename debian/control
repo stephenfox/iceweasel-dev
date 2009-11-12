@@ -1,13 +1,13 @@
 Source: iceweasel
 Section: web
 Priority: optional
-Maintainer: Eric Dorland <eric@debian.org>
-Uploaders: Mike Hommey <glandium@debian.org>
+Maintainer: Maintainers of Mozilla-related packages <pkg-mozilla-maintainers@lists.alioth.debian.org>
+Uploaders: Mike Hommey <glandium@debian.org>, Eric Dorland <eric@debian.org>
 Build-Depends: autotools-dev, debhelper (>= 5.0), imagemagick,
 	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
 	zip, xulrunner-dev (>= 1.9.1)
 Build-Conflicts: graphicsmagick-imagemagick-compat
-Standards-Version: 3.8.2.0
+Standards-Version: 3.8.3.0
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
 Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 
@@ -16,8 +16,8 @@ Architecture: any
 Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9.1
 Suggests: xulrunner-1.9.1-gnome-support, latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
 Provides: www-browser
-Conflicts: mozilla-firefox (<< 1.5.dfsg-1), firefox (<< 2.0+dfsg-1), iceweasel-dom-inspector (<< 3.0~b4)
-Replaces: mozilla-firefox, firefox (<< 2.0+dfsg-1), iceweasel-gnome-support (<= 3.0~b5-2)
+Conflicts: iceweasel-dom-inspector (<< 3.0~b4)
+Replaces: iceweasel-gnome-support (<= 3.0~b5-2)
 Description: lightweight web browser based on Mozilla
  Iceweasel is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface
@@ -42,8 +42,6 @@ Architecture: any
 Priority: extra
 Section: debug
 Depends: ${misc:Depends}, iceweasel (= ${binary:Version}), xulrunner-1.9.1-dbg
-Replaces: firefox-dbg
-Conflicts: firefox-dbg
 Description: debugging symbols for iceweasel
  Iceweasel is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface

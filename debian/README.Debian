@@ -22,7 +22,7 @@ Application Update
 
 From version 1.5beta1 onwards, the automatic application update has been
 disabled through the app.update.enabled preference, which is locked to
-'false' by /usr/lib/iceweasel/greprefs/iceweasel.cfg.
+'false' in /usr/lib/iceweasel/defaults/preferences/vendor.js.
 
 Automatic extensions update, which used to be disabled; has been re-enabled,
 since the Extensions Manager has a correct behaviour with system-wide
