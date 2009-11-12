@@ -237,8 +237,6 @@ install-stamp: build-stamp
 
 	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
-	sed -i 's/\(Milestone=$(BASE_VERSION)\).*/\1/' debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/platform.ini
-
 	cp -f LICENSE MPL
 	touch install-stamp
 

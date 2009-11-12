@@ -47,6 +47,7 @@ Depends: ${shlibs:Depends},
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>> 3.12.0~rc3-1),
 Suggests: xulrunner-1.9.1-gnome-support
+Breaks: iceweasel (<< 3.5.5-1)
 Conflicts: j2re1.4,
            pango-graphite
 Description: XUL + XPCOM application runner
