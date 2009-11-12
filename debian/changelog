@@ -13,6 +13,8 @@ iceweasel (3.5.5-1) UNRELEASED; urgency=low
   * debian/rules: Properly modify {Min,Max}Version in application.ini.
   * debian/control, debian/iceweasel.preinst: Removed upgrade path from
     old firefox packages.
+  * debian/rules: Add a "like Firefox/version" string to the UA.
+    Closes: #399633.
 
  -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 14:58:58 +0100
 
