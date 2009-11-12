@@ -70,8 +70,6 @@ public:
   
   NS_DECL_ISUPPORTS
   
-  NS_IMETHOD              PreCreateWidget(nsWidgetInitData *aWidgetInitData) { return NS_OK;}
-  
   // nsIWidget interface
   NS_IMETHOD              CaptureMouse(PRBool aCapture);
   NS_IMETHOD              Validate();
@@ -102,7 +100,6 @@ public:
   NS_IMETHOD              SetCursor(imgIContainer* aCursor,
                                     PRUint32 aHotspotX, PRUint32 aHotspotY);
   NS_IMETHOD              GetWindowType(nsWindowType& aWindowType);
-  NS_IMETHOD              SetWindowType(nsWindowType aWindowType);
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void            GetWindowClipRegion(nsTArray<nsIntRect>* aRects);

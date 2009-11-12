@@ -130,7 +130,7 @@ GCONF_VERSION=1.2.1
 LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.6.16
+SQLITE_VERSION=3.6.16.1
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -4110,7 +4110,15 @@ if test "$ac_cv_trouble_comparing_to_zero" = yes ; then
   AC_DEFINE(HAVE_CPP_TROUBLE_COMPARING_TO_ZERO)
 fi
 
-
+AC_CACHE_CHECK(for __thread keyword for TLS variables,
+               ac_cv_thread_keyword,
+               [AC_TRY_LINK([__thread bool tlsIsMainThread = false;],
+                            [return tlsIsMainThread;],
+                            ac_cv_thread_keyword=yes,
+                            ac_cv_thread_keyword=no)])
+if test "$ac_cv_thread_keyword" = yes; then
+  AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
+fi
 
 dnl End of C++ language/feature checks
 AC_LANG_C
@@ -6315,6 +6323,12 @@ fi
 AC_SUBST(LIBOSSO_CFLAGS)
 AC_SUBST(LIBOSSO_LIBS)
 
+PKG_CHECK_MODULES(LIBHILDONFM,hildon-fm-2,
+                  NS_HILDONFM=1,
+                  NS_HILDONFM)
+AC_SUBST(LIBHILDONFM_CFLAGS)
+AC_SUBST(LIBHILDONFM_LIBS)
+
 dnl ========================================================
 dnl = faststripe theme
 dnl ========================================================
@@ -8048,6 +8062,7 @@ AC_SUBST(OGLES_SDK_DIR)
 AC_SUBST(MOZ_APP_NAME)
 AC_SUBST(MOZ_APP_DISPLAYNAME)
 AC_SUBST(MOZ_APP_VERSION)
+AC_SUBST(MOZ_APP_UA_EXTRA)
 AC_SUBST(FIREFOX_VERSION)
 
 AC_SUBST(MOZ_PKG_SPECIAL)

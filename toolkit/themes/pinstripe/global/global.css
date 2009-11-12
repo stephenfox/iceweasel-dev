@@ -104,10 +104,7 @@ window.dialog {
 
 /* ::::: alert icons :::::*/
 
-.message-icon {
-  display: none;
-}
-
+.message-icon,
 .alert-icon,
 .error-icon,
 .question-icon {
@@ -115,6 +112,10 @@ window.dialog {
   height: 64px;
   margin: 6px;
   -moz-margin-end: 20px;
+}
+
+.message-icon {
+  list-style-image: url("chrome://global/skin/icons/information-64.png");
 }
 
 .alert-icon {
@@ -306,7 +307,7 @@ notification > button {
   -moz-appearance: none;
   border: 1px solid rgba(0, 0, 0, .4);
   -moz-border-radius: 100%;
-  background: -moz-linear-gradient(top, bottom, from(#FFF), to(#CACACA)) repeat-x;
+  background: -moz-linear-gradient(top, #FFF, #CACACA) repeat-x;
   text-shadow: 0 1px rgba(255, 255, 255, .4);
   -moz-box-shadow: 0 1px 0 rgba(255, 255, 255, .4);
 }

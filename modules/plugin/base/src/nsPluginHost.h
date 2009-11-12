@@ -249,6 +249,9 @@ public:
   NS_IMETHOD DeallocateMenuID(nsIEventHandler* handler, PRInt16 menuID);
   NS_IMETHOD HasAllocatedMenuID(nsIEventHandler* handler, PRInt16 menuID, PRBool *result);
 
+  // Helper method
+  static nsresult NewForOldPluginInstance(nsIPluginInstanceOld* aInstanceOld, nsIPluginInstance** aInstance);
+
 #endif
 
   NS_IMETHOD

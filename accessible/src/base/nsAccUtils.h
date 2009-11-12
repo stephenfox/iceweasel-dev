@@ -58,7 +58,6 @@ class nsHTMLTableAccessible;
 class nsDocAccessible;
 #ifdef MOZ_XUL
 class nsXULTreeAccessible;
-class nsXULTreeitemAccessible;
 #endif
 
 class nsAccUtils
@@ -181,6 +180,12 @@ public:
                            nsIAccessible **aTreeItemParent);
 
   /**
+   * Return true if the DOM node of given accessible has aria-selected="true"
+   * attribute.
+   */
+  static PRBool IsARIASelected(nsIAccessible *aAccessible);
+
+  /**
    * Return text accessible containing focus point of the given selection.
    * Used for normal and misspelling selection changes processing.
    *
@@ -275,6 +280,19 @@ public:
   }
 
   /**
+   * Return the extended state for the given accessible.
+   */
+  static PRUint32 ExtendedState(nsIAccessible *aAcc)
+  {
+    PRUint32 state = 0;
+    PRUint32 extstate = 0;
+    if (aAcc)
+      aAcc->GetState(&state, &extstate);
+
+    return extstate;
+  }
+
+  /**
    * Get the ARIA attribute characteristics for a given ARIA attribute.
    * 
    * @param aAtom  ARIA attribute
@@ -293,6 +311,28 @@ public:
    * @return         true if object attribute should be exposed
    */
   static PRBool GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
+
+  /**
+   * Query DestinationType from the given SourceType.
+   */
+  template<class DestinationType, class SourceType> static inline
+    already_AddRefed<DestinationType> QueryObject(SourceType *aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject, &object);
+
+    return object;
+  }
+  template<class DestinationType, class SourceType> static inline
+    already_AddRefed<DestinationType> QueryObject(nsCOMPtr<SourceType>& aObject)
+  {
+    DestinationType* object = nsnull;
+    if (aObject)
+      CallQueryInterface(aObject, &object);
+
+    return object;
+  }
 
   /**
    * Query nsAccessNode from the given nsIAccessible.
@@ -369,12 +409,6 @@ public:
    */
   static already_AddRefed<nsXULTreeAccessible>
     QueryAccessibleTree(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsXULTreeitemAccessible from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsXULTreeitemAccessible>
-    QueryAccessibleTreeitem(nsIAccessNode *aAccessNode);
 #endif
 
 #ifdef DEBUG_A11Y
@@ -437,6 +471,32 @@ public:
    * Return multiselectable parent for the given selectable accessible if any.
    */
   static already_AddRefed<nsIAccessible> GetMultiSelectFor(nsIDOMNode *aNode);
+
+  /**
+   * Search hint enum constants. Used by GetHeaderCellsFor() method.
+   */
+  enum {
+    // search for row header cells, left direction
+    eRowHeaderCells,
+    // search for column header cells, top direction
+    eColumnHeaderCells
+  };
+
+  /**
+   * Return an array of row or column header cells for the given cell.
+   *
+   * @param aTable                [in] table accessible
+   * @param aCell                 [in] cell accessible within the given table to
+   *                               get header cells
+   * @param aRowOrColHeaderCells  [in] specifies whether column or row header
+   *                               cells are returned (see enum constants
+   *                               above)
+   * @param aCells                [out] array of header cell accessibles
+   */
+  static nsresult GetHeaderCellsFor(nsIAccessibleTable *aTable,
+                                    nsIAccessibleTableCell *aCell,
+                                    PRInt32 aRowOrColHeaderCells,
+                                    nsIArray **aCells);
 };
 
 #endif

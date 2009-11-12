@@ -44,7 +44,7 @@ interface nsIDocument;
 
 [ref] native nsIPluginInstanceRef(nsIPluginInstance *);
 
-[uuid(2e6cc23b-7d4e-4b0a-ad45-f2281c937f5c)]
+[uuid(c4ed03f3-498b-4045-97c7-0b05838f886c)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**

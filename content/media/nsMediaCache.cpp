@@ -465,6 +465,8 @@ nsMediaCacheStream::BlockList::NotifyBlockSwapped(PRInt32 aBlockIndex1,
     e1Prev = e1->mPrevBlock;
     e1Next = e1->mNextBlock;
     mEntries.RemoveEntry(aBlockIndex1);
+    // Refresh pointer after hashtable mutation.
+    e2 = mEntries.GetEntry(aBlockIndex2);
   }
   if (e2) {
     e2Prev = e2->mPrevBlock;
@@ -675,7 +677,7 @@ nsMediaCache::BlockIsReusable(PRInt32 aBlockIndex)
   Block* block = &mIndex[aBlockIndex];
   for (PRUint32 i = 0; i < block->mOwners.Length(); ++i) {
     nsMediaCacheStream* stream = block->mOwners[i].mStream;
-    if (stream->mPinCount >= 0 ||
+    if (stream->mPinCount > 0 ||
         stream->mStreamOffset/BLOCK_SIZE == block->mOwners[i].mStreamBlock) {
       return PR_FALSE;
     }

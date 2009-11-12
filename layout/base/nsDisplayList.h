@@ -191,7 +191,8 @@ public:
    * recorded region of visible moving content.
    */
   void AccumulateVisibleRegionOfMovingContent(const nsRegion& aMovingContent,
-                                              const nsRegion& aVisibleRegion);
+                                              const nsRegion& aVisibleRegionBeforeMove,
+                                              const nsRegion& aVisibleRegionAfterMove);
 
   /**
    * @return PR_TRUE if aFrame is, or is a descendant of, the hypothetical
@@ -530,19 +531,27 @@ public:
    * On entry, aVisibleRegion contains the region (relative to ReferenceFrame())
    * which may be visible. If the display item opaquely covers an area, it
    * can remove that area from aVisibleRegion before returning.
+   * If we're doing scroll analysis with moving frames, then
+   * aVisibleRegionBeforeMove will be non-null and contains the region that
+   * would have been visible before the move. aVisibleRegion contains the
+   * region that is visible after the move.
    * nsDisplayList::ComputeVisibility automatically subtracts the bounds
    * of items that return true from IsOpaque(), and automatically
    * removes items whose bounds do not intersect the visible area,
    * so implementations of nsDisplayItem::ComputeVisibility do not
    * need to do these things.
    * nsDisplayList::ComputeVisibility will already have set mVisibleRect on
-   * this item to the intersection of *aVisibleRegion and this item's bounds.
+   * this item to the intersection of *aVisibleRegion (unioned with
+   * *aVisibleRegionBeforeMove, if that's non-null) and this item's bounds.
    * 
    * @return PR_TRUE if the item is visible, PR_FALSE if no part of the item
    * is visible
    */
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion) { return PR_TRUE; }
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove)
+  { return PR_TRUE; }
+
   /**
    * Try to merge with the other item (which is below us in the display
    * list). This gets used by nsDisplayClip to coalesce clipping operations
@@ -766,7 +775,9 @@ public:
    * @param aVisibleRegion the area that is visible, relative to the
    * reference frame; on return, this contains the area visible under the list
    */
-  void ComputeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
+  void ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                         nsRegion* aVisibleRegion,
+                         nsRegion* aVisibleRegionBeforeMove);
   /**
    * Paint the list to the rendering context. We assume that (0,0) in aCtx
    * corresponds to the origin of the reference frame. For best results,
@@ -1086,7 +1097,9 @@ public:
 
   virtual Type GetType() { return TYPE_BORDER; }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
-  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
+  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
   NS_DISPLAY_DECL_NAME("Border")
 };
 
@@ -1173,7 +1186,9 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
+  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
   NS_DISPLAY_DECL_NAME("BoxShadowOuter")
 };
 
@@ -1212,7 +1227,9 @@ public:
   virtual Type GetType() { return TYPE_OUTLINE; }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
-  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
+  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
   NS_DISPLAY_DECL_NAME("Outline")
 };
 
@@ -1269,7 +1286,8 @@ public:
   virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
   virtual PRBool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) {
     NS_WARNING("This list should already have been flattened!!!");
     return PR_FALSE;
@@ -1337,7 +1355,8 @@ public:
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);  
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);  
   virtual PRBool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("Opacity")
 
@@ -1374,7 +1393,8 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
   virtual PRBool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("Clip")
   
@@ -1415,7 +1435,8 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);  
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);  
   virtual PRBool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("SVGEffects")
 
@@ -1472,7 +1493,8 @@ public:
   virtual void   Paint(nsDisplayListBuilder *aBuilder,
                        nsIRenderingContext *aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder *aBuilder,
-                                   nsRegion *aVisibleRegion);
+                                   nsRegion *aVisibleRegion,
+                                   nsRegion *aVisibleRegionBeforeMove);
   virtual PRBool TryMerge(nsDisplayListBuilder *aBuilder, nsDisplayItem *aItem);
 
   /**

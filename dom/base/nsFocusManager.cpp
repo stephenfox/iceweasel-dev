@@ -957,7 +957,7 @@ nsFocusManager::EnsureCurrentWidgetFocused()
         nsCOMPtr<nsIWidget> widget;
         vm->GetRootWidget(getter_AddRefs(widget));
         if (widget)
-          widget->SetFocus(PR_TRUE);
+          widget->SetFocus(PR_FALSE);
       }
     }
   }
@@ -1371,7 +1371,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
           nsCOMPtr<nsIWidget> widget;
           vm->GetRootWidget(getter_AddRefs(widget));
           if (widget)
-            widget->SetFocus(PR_TRUE);
+            widget->SetFocus(PR_FALSE);
         }
       }
     }
@@ -1454,7 +1454,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
   if (!aWindow)
     return;
 
-  if (aContent && aContent == mFirstFocusEvent)
+  if (aContent && (aContent == mFirstFocusEvent || aContent == mFirstBlurEvent))
     return;
 
   // Keep a reference to the presShell since dispatching the DOM event may
@@ -1518,7 +1518,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     nsCOMPtr<nsIWidget> widget;
     vm->GetRootWidget(getter_AddRefs(widget));
     if (widget)
-      widget->SetFocus(PR_TRUE);
+      widget->SetFocus(PR_FALSE);
   }
 
   // if switching to a new document, first fire the focus event on the
@@ -1560,7 +1560,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       if (objectFrame) {
         nsIWidget* widget = objectFrame->GetWidget();
         if (widget)
-          widget->SetFocus(PR_TRUE);
+          widget->SetFocus(PR_FALSE);
       }
 
       nsIMEStateManager::OnChangeFocus(presContext, aContent);
@@ -1661,7 +1661,7 @@ nsFocusManager::RaiseWindow(nsPIDOMWindow* aWindow)
   if (!aWindow || aWindow == mActiveWindow || aWindow == mWindowBeingLowered)
     return;
 
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(XP_OS2)
   // Windows would rather we focus the child widget, otherwise, the toplevel
   // widget will always end up being focused. Fortunately, focusing the child
   // widget will also have the effect of raising the window this widget is in.

@@ -330,7 +330,6 @@ function showView(aView) {
                         ["description", "?description"],
                         ["downloadURL", "?downloadURL"],
                         ["isDisabled", "?isDisabled"],
-                        ["hidden", "?hidden"],
                         ["homepageURL", "?homepageURL"],
                         ["iconURL", "?iconURL"],
                         ["internalName", "?internalName"],
@@ -449,7 +448,6 @@ function showView(aView) {
                         ["downloadURL", "?downloadURL"],
                         ["incompatibleUpdate", "?incompatibleUpdate"],
                         ["isDisabled", "?isDisabled"],
-                        ["hidden", "?hidden"],
                         ["homepageURL", "?homepageURL"],
                         ["iconURL", "?iconURL"],
                         ["internalName", "?internalName"],
@@ -2477,7 +2475,8 @@ function checkUpdatesAll() {
     var listener = new UpdateCheckListener();
     gExtensionManager.update(items, items.length,
                              nsIExtensionManager.UPDATE_CHECK_NEWVERSION,
-                             listener);
+                             listener,
+                             nsIExtensionManager.UPDATE_WHEN_USER_REQUESTED);
   }
   if (gExtensionsView.selectedItem)
     gExtensionsView.selectedItem.focus();
@@ -2873,7 +2872,8 @@ var gExtensionsViewController = {
       var listener = new UpdateCheckListener();
       gExtensionManager.update(items, items.length,
                                nsIExtensionManager.UPDATE_CHECK_NEWVERSION,
-                               listener);
+                               listener,
+                               nsIExtensionManager.UPDATE_WHEN_USER_REQUESTED);
     },
 
     cmd_installUpdate: function (aSelectedItem)

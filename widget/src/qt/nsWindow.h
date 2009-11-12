@@ -168,10 +168,7 @@ public:
                               const nsIntRect&,
                               const nsTArray<nsIWidget::Configuration>&);
 
-    NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
-
     virtual void*      GetNativeData(PRUint32 aDataType);
-    NS_IMETHOD         SetBorderStyle(nsBorderStyle aBorderStyle);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     virtual nsIntPoint WidgetToScreenOffset();

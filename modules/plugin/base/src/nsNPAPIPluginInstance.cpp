@@ -887,6 +887,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsIPluginInstanceOld *aShadow)
 #endif
 #endif
     mWindowless(PR_FALSE),
+    mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
     mStarted(PR_FALSE),
     mCached(PR_FALSE),
@@ -1616,6 +1617,12 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValue(nsPluginInstanceVariable variable,
       break;
 #endif
 
+#ifdef MOZ_PLATFORM_HILDON
+     case nsPluginInstanceVariable_WindowlessLocalBool:
+      *(PRBool *)value = mWindowlessLocal;
+      break;
+#endif
+
     default:
       res = GetValueInternal((NPPVariable)variable, value);
   }
@@ -1646,6 +1653,12 @@ nsresult nsNPAPIPluginInstance::GetCallbacks(const NPPluginFuncs ** aCallbacks)
 NPError nsNPAPIPluginInstance::SetWindowless(PRBool aWindowless)
 {
   mWindowless = aWindowless;
+  return NPERR_NO_ERROR;
+}
+
+NPError nsNPAPIPluginInstance::SetWindowlessLocal(PRBool aWindowlessLocal)
+{
+  mWindowlessLocal = aWindowlessLocal;
   return NPERR_NO_ERROR;
 }
 

@@ -161,7 +161,7 @@ pref("app.update.incompatible.mode", 0);
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%");
+pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -262,8 +262,7 @@ pref("browser.download.useDownloadDir", true);
 
 #ifdef WINCE
 pref("browser.download.folderList", 2);
-// Bug 499807: use Hard Disk filesystem because Desktop is short on space.
-pref("browser.download.dir", "\\Hard Disk");
+pref("browser.download.dir", "\\Storage Card");
 #else
 pref("browser.download.folderList", 1);
 #endif
@@ -759,7 +758,11 @@ pref("browser.rights.3.shown", false);
 pref("browser.rights.override", true);
 #endif
 
+#ifdef WINCE
+pref("browser.sessionstore.resume_from_crash", false);
+#else
 pref("browser.sessionstore.resume_from_crash", true);
+#endif
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds

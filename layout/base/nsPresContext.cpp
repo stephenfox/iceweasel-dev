@@ -1452,6 +1452,9 @@ nsPresContext::ThemeChangedInternal()
   // This will force the system metrics to be generated the next time they're used
   nsCSSRuleProcessor::FreeSystemMetrics();
 
+  // Changes to system metrics can change media queries on them.
+  MediaFeatureValuesChanged(PR_TRUE);
+
   // Changes in theme can change system colors (whose changes are
   // properly reflected in computed style data), system fonts (whose
   // changes are not), and -moz-appearance (whose changes likewise are
@@ -2359,7 +2362,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
 #endif
   
     nsRegion visibleRegion(bounds);
-    list.ComputeVisibility(&builder, &visibleRegion);
+    list.ComputeVisibility(&builder, &visibleRegion, nsnull);
 
 #ifdef DEBUG
     if (gDumpPluginList) {
@@ -2383,8 +2386,8 @@ nsRootPresContext::UpdatePluginGeometry(nsIFrame* aChangedSubtree)
   GetPluginGeometryUpdates(aChangedSubtree, &configurations);
   if (configurations.IsEmpty())
     return;
-  nsIWidget* widget = configurations[0].mChild->GetParent();
-  NS_ASSERTION(widget, "Plugin must have a parent");
+  nsIWidget* widget = FrameManager()->GetRootFrame()->GetWindow();
+  NS_ASSERTION(widget, "Plugins must have a parent window");
   widget->ConfigureChildren(configurations);
   DidApplyPluginGeometryUpdates();
 }

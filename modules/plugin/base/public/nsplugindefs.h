@@ -204,6 +204,7 @@ enum nsPluginInstanceVariable {
 #ifdef XP_MACOSX
     , nsPluginInstanceVariable_DrawingModel          = 20
 #endif
+    , nsPluginInstanceVariable_WindowlessLocalBool   = 21
 };
 
 #ifdef OJI

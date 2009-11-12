@@ -132,6 +132,10 @@ richlistitem[lwtheme] .addonIcon > image {
   list-style-image: url("chrome://mozapps/skin/extensions/themeGeneric.png");
 }
 
+richlistitem[plugin] .addonIcon > image {
+  list-style-image: url("chrome://mozapps/skin/plugins/pluginGeneric.png");
+}
+
 .updateBadge,
 .notifyBadge {
   width: 16px;

@@ -500,7 +500,6 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mVisible(PR_FALSE)
 , mDrawing(PR_FALSE)
 , mLiveResizeInProgress(PR_FALSE)
-, mIsPluginView(PR_FALSE)
 , mPluginDrawing(PR_FALSE)
 , mPluginIsCG(PR_FALSE)
 {
@@ -767,7 +766,6 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
       aDataType = NS_NATIVE_PLUGIN_PORT_CG;
 #endif
       mPluginIsCG = (aDataType == NS_NATIVE_PLUGIN_PORT_CG);
-      mIsPluginView = PR_TRUE;
       if ([mView isKindOfClass:[ChildView class]])
         [(ChildView*)mView setIsPluginView:YES];
 
@@ -863,8 +861,8 @@ NS_IMETHODIMP nsChildView::IsVisible(PRBool& outState)
 
 void nsChildView::HidePlugin()
 {
-  NS_ASSERTION(mIsPluginView, "HidePlugin called on non-plugin view");
-
+  NS_ASSERTION(mWindowType == eWindowType_plugin,
+               "HidePlugin called on non-plugin view");
   if (mPluginInstanceOwner && !mPluginIsCG) {
     nsPluginWindow* window;
     mPluginInstanceOwner->GetWindow(window);
@@ -882,7 +880,8 @@ void nsChildView::HidePlugin()
 
 void nsChildView::UpdatePluginPort()
 {
-  NS_ASSERTION(mIsPluginView, "UpdatePluginPort called on non-plugin view");
+  NS_ASSERTION(mWindowType == eWindowType_plugin,
+               "UpdatePluginPort called on non-plugin view");
 
   NSWindow* window = [mView nativeWindow];
   WindowRef topLevelWindow = window ? (WindowRef)[window windowRef] : nil;
@@ -1215,9 +1214,10 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NS_ASSERTION(mIsPluginView, "GetPluginClipRect must only be called on a plugin widget");
-  if (!mIsPluginView) return NS_ERROR_FAILURE;
-  
+  NS_ASSERTION(mWindowType == eWindowType_plugin,
+               "GetPluginClipRect must only be called on a plugin widget");
+  if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
+
   NSWindow* window = [mView nativeWindow];
   if (!window) return NS_ERROR_FAILURE;
   
@@ -1272,8 +1272,9 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NS_ASSERTION(mIsPluginView, "StartDrawPlugin must only be called on a plugin widget");
-  if (!mIsPluginView) return NS_ERROR_FAILURE;
+  NS_ASSERTION(mWindowType == eWindowType_plugin,
+               "StartDrawPlugin must only be called on a plugin widget");
+  if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
 
   // Prevent reentrant "drawing" (or in fact reentrant handling of any plugin
   // event).  Doing this for both CoreGraphics and QuickDraw plugins restores
@@ -1342,8 +1343,9 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
 
 NS_IMETHODIMP nsChildView::EndDrawPlugin()
 {
-  NS_ASSERTION(mIsPluginView, "EndDrawPlugin must only be called on a plugin widget");
-  if (!mIsPluginView) return NS_ERROR_FAILURE;
+  NS_ASSERTION(mWindowType == eWindowType_plugin,
+               "EndDrawPlugin must only be called on a plugin widget");
+  if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
 
   mPluginDrawing = PR_FALSE;
   return NS_OK;
@@ -1681,8 +1683,8 @@ void nsChildView::ApplyConfiguration(nsIWidget* aExpectedParent,
   nsWindowType kidType;
   aConfiguration.mChild->GetWindowType(kidType);
 #endif
-  NS_ASSERTION(kidType == eWindowType_child,
-               "Configured widget is not a child type");
+  NS_ASSERTION(kidType == eWindowType_plugin || kidType == eWindowType_child,
+               "Configured widget is not a child or plugin type");
   NS_ASSERTION(aConfiguration.mChild->GetParent() == aExpectedParent,
                "Configured widget is not a child of the right widget");
   aConfiguration.mChild->Resize(
@@ -1703,6 +1705,19 @@ nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigur
   return NS_OK;
 }  
 
+static PRInt32
+PickValueForSign(PRInt32 aSign, PRInt32 aLessThanZero, PRInt32 aZero,
+                 PRInt32 aGreaterThanZero)
+{
+  if (aSign < 0) {
+    return aLessThanZero;
+  }
+  if (aSign > 0) {
+    return aGreaterThanZero;
+  }
+  return aZero;
+}
+
 void nsChildView::Scroll(const nsIntPoint& aDelta,
                          const nsTArray<nsIntRect>& aDestRects,
                          const nsTArray<Configuration>& aConfigurations)
@@ -1714,7 +1729,7 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
     return;
 
   BOOL viewWasDirty = NO;
-  if (mVisible) {
+  if (mVisible && !aDestRects.IsEmpty()) {
     viewWasDirty = [mView needsDisplay];
 
     for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
@@ -1723,6 +1738,22 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
       NSSize scrollVector = {aDelta.x, aDelta.y};
       [mView scrollRect:rect by:scrollVector];
     }
+
+    // Leopard, at least, has a nasty bug where calling scrollRect:by: doesn't
+    // actually trigger a window update. A window update is only triggered
+    // if you actually paint something. In some cases Gecko might optimize
+    // scrolling in such a way that nothing actually gets repainted.
+    // So let's invalidate one pixel. We'll pick a pixel on the trailing edge
+    // of the last destination rectangle, since in most situations that's going
+    // to be invalidated anyway.
+    nsIntRect lastRect = aDestRects[aDestRects.Length() - 1] + aDelta;
+    nsIntPoint pointToInvalidate(
+      PickValueForSign(aDelta.x, lastRect.XMost(), lastRect.x, lastRect.x - 1),
+      PickValueForSign(aDelta.y, lastRect.YMost(), lastRect.y, lastRect.y - 1));
+    if (!nsIntRect(0,0,mBounds.width,mBounds.height).Contains(pointToInvalidate)) {
+      pointToInvalidate = nsIntPoint(0, 0);
+    }
+    Invalidate(nsIntRect(pointToInvalidate, nsIntSize(1,1)), PR_FALSE);
   }
 
   // Don't force invalidation of the child if it's moving by the scroll
@@ -2027,7 +2058,7 @@ NS_IMETHODIMP nsChildView::GetToggledKeyState(PRUint32 aKeyCode,
     default:
       return NS_ERROR_NOT_IMPLEMENTED;
   }
-  PRUint32 modifierFlags = ::GetCurrentEventKeyModifiers();
+  PRUint32 modifierFlags = ::GetCurrentKeyModifiers();
   *aLEDState = (modifierFlags & key) != 0;
   return NS_OK;
 
@@ -3075,7 +3106,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
+  macEvent.modifiers = ::GetCurrentKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3108,7 +3139,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
+  macEvent.modifiers = ::GetCurrentKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3138,7 +3169,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
+  macEvent.modifiers = ::GetCurrentKeyModifiers();
   event.nativeMsg = &macEvent;
 
   event.exit = type;
@@ -3266,7 +3297,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = ::GetCurrentEventKeyModifiers();
+  macEvent.modifiers = ::GetCurrentKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3296,7 +3327,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
-  macEvent.modifiers = btnState | ::GetCurrentEventKeyModifiers();
+  macEvent.modifiers = btnState | ::GetCurrentKeyModifiers();
   geckoEvent.nativeMsg = &macEvent;
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3719,7 +3750,7 @@ static void ConvertCocoaKeyEventToCarbonEvent(NSEvent* cocoaEvent, EventRecord& 
     pluginEvent.message = (charCode & 0x00FF) | (nsCocoaUtils::GetCocoaEventKeyCode(cocoaEvent) << 8);
     pluginEvent.when = ::TickCount();
     ::GetGlobalMouse(&pluginEvent.where);
-    pluginEvent.modifiers = ::GetCurrentEventKeyModifiers();
+    pluginEvent.modifiers = ::GetCurrentKeyModifiers();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -3961,7 +3992,6 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
 
   outGeckoEvent->widget = [self widget];
   outGeckoEvent->time = PR_IntervalNow();
-  outGeckoEvent->nativeMsg = inEvent;
 
   if (inEvent) {
     unsigned int modifiers = nsCocoaUtils::GetCocoaEventModifierFlags(inEvent);
@@ -5390,6 +5420,9 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (nsTSMManager::IsComposing())
     return NO;
 
+  UInt32 modifierFlags =
+    nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
+
   // Set to true if embedding menus handled the event when a plugin has focus.
   // We give menus a crack at handling commands before Gecko in the plugin case.
   BOOL handledByEmbedding = NO;
@@ -5402,7 +5435,24 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NSMenu* mainMenu = [NSApp mainMenu];
   if (mIsPluginView) {
     if ([mainMenu isKindOfClass:[GeckoNSMenu class]]) {
-      [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
+      // Maintain a list of cmd+key combinations that we never act on (in the
+      // browser) when the keyboard focus is in a plugin.  What a particular
+      // cmd+key combo means here (to the browser) is governed by browser.dtd,
+      // which "contains the browser main menu items".
+      PRBool dontActOnKeyEquivalent = PR_FALSE;
+      if (modifierFlags == NSCommandKeyMask) {
+        NSString *unmodchars = [theEvent charactersIgnoringModifiers];
+        if ([unmodchars length] == 1) {
+          if ([unmodchars characterAtIndex:0] ==
+              nsMenuBarX::GetLocalizedAccelKey("key_selectAll"))
+            dontActOnKeyEquivalent = PR_TRUE;
+        }
+      }
+      if (dontActOnKeyEquivalent) {
+        [(GeckoNSMenu*)mainMenu performMenuUserInterfaceEffectsForEvent:theEvent];
+      } else {
+        [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
+      }
     }
     else {
       // This is probably an embedding situation. If the native menu handle the event
@@ -5419,8 +5469,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // With Cmd key or Ctrl+Tab or Ctrl+Esc, keyDown will be never called.
   // Therefore, we need to call processKeyDownEvent from performKeyEquivalent.
-  UInt32 modifierFlags =
-    nsCocoaUtils::GetCocoaEventModifierFlags(theEvent) & NSDeviceIndependentModifierFlagsMask;
   UInt32 keyCode = nsCocoaUtils::GetCocoaEventKeyCode(theEvent);
   PRBool keyDownNeverFiredEvent = (modifierFlags & NSCommandKeyMask) ||
            ((modifierFlags & NSControlKeyMask) &&

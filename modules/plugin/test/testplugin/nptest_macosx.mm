@@ -209,6 +209,7 @@ pluginDraw(InstanceData* instanceData)
 
     // restore the cgcontext gstate
     CGContextRestoreGState(cgContext);
+    break;
   }
   case DM_SOLID_COLOR: {
     // save the cgcontext gstate
@@ -231,6 +232,8 @@ pluginDraw(InstanceData* instanceData)
     break;
   }
   }
+
+  ++instanceData->paintCount;
 }
 
 int16_t
@@ -299,4 +302,8 @@ int32_t pluginGetClipRegionRectEdge(InstanceData* instanceData,
     return w->clipRect.bottom + COCOA_TITLEBAR_HEIGHT;
   }
   return NPTEST_INT32_ERROR;
+}
+
+void pluginDoInternalConsistencyCheck(InstanceData* instanceData, string& error)
+{
 }

@@ -129,6 +129,7 @@
 @BINPATH@/components/commandlines.xpt
 @BINPATH@/components/composer.xpt
 @BINPATH@/components/content_base.xpt
+@BINPATH@/components/content_events.xpt
 @BINPATH@/components/content_htmldoc.xpt
 @BINPATH@/components/content_html.xpt
 @BINPATH@/components/content_xmldoc.xpt
@@ -311,7 +312,11 @@
 @BINPATH@/components/nsSidebar.js
 @BINPATH@/components/nsExtensionManager.js
 @BINPATH@/components/nsBlocklistService.js
+#ifdef MOZ_UPDATER
 @BINPATH@/components/nsUpdateService.js
+@BINPATH@/components/nsUpdateServiceStub.js
+#endif
+@BINPATH@/components/nsUpdateTimerManager.js
 @BINPATH@/components/pluginGlue.js
 @BINPATH@/components/nsSessionStartup.js
 @BINPATH@/components/nsSessionStore.js

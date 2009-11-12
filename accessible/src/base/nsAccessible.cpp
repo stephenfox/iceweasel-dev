@@ -1896,6 +1896,9 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
 
+/* Commenting out as a stop gap fix for bug 525579
+ * We should not flush layout and potentially cause frames deallocation
+ * while tree walking (nsAccessibleTreeWalker)
   if (!IsDefunct()) {
     // Flush layout so that all the frame construction, reflow, and styles are
     // up-to-date since we rely on frames, and styles when calculating state.
@@ -1903,6 +1906,7 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     nsCOMPtr<nsIPresShell> presShell = GetPresShell();
     presShell->FlushPendingNotifications(Flush_Layout);
   }
+*/
 
   nsresult rv = GetStateInternal(aState, aExtraState);
   NS_ENSURE_A11Y_SUCCESS(rv, rv);
@@ -2485,13 +2489,16 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
       if (rv != NS_OK_NO_RELATION_TARGET)
         return NS_OK; // XXX bug 381599, avoid performance problems
 
+      // This is an ARIA tree or treegrid that doesn't use owns, so we need to
+      // get the parent the hard way.
       if (mRoleMapEntry &&
-          mRoleMapEntry->role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
-        // This is an ARIA tree that doesn't use owns, so we need to get
-        // the parent the hard way.
+          (mRoleMapEntry->role == nsIAccessibleRole::ROLE_OUTLINEITEM ||
+           mRoleMapEntry->role == nsIAccessibleRole::ROLE_ROW)) {
+
         nsCOMPtr<nsIAccessible> accTarget;
         nsAccUtils::GetARIATreeItemParent(this, content,
                                           getter_AddRefs(accTarget));
+
         return nsRelUtils::AddTarget(aRelationType, aRelation, accTarget);
       }
 
@@ -2700,48 +2707,9 @@ NS_IMETHODIMP nsAccessible::GetNativeInterface(void **aOutAccessible)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void nsAccessible::DoCommandCallback(nsITimer *aTimer, void *aClosure)
+nsresult
+nsAccessible::DoCommand(nsIContent *aContent, PRUint32 aActionIndex)
 {
-  NS_ASSERTION(gDoCommandTimer,
-               "How did we get here if there was no gDoCommandTimer?");
-  NS_RELEASE(gDoCommandTimer);
-
-  nsCOMPtr<nsIContent> content =
-    reinterpret_cast<nsIContent*>(aClosure);
-
-  nsIDocument *doc = content->GetDocument();
-  if (!doc)
-    return;
-
-  nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
-
-  // Scroll into view.
-  presShell->ScrollContentIntoView(content, NS_PRESSHELL_SCROLL_ANYWHERE,
-                                   NS_PRESSHELL_SCROLL_ANYWHERE);
-
-  // Fire mouse down and mouse up events.
-  PRBool res = nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, presShell,
-                                               content);
-  if (!res)
-    return;
-
-  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, content);
-}
-
-/*
- * Use Timer to execute "Click" command of XUL/HTML element (e.g. menuitem, button...).
- *
- * When "Click" is to open a "modal" dialog/window, it won't return untill the
- * dialog/window is closed. If executing "Click" command directly in
- * nsXXXAccessible::DoAction, it will block AT-Tools(e.g. GOK) that invoke
- * "action" of mozilla accessibles direclty.
- */
-nsresult nsAccessible::DoCommand(nsIContent *aContent)
-{
-  nsCOMPtr<nsIContent> content = aContent;
-  if (!content) {
-    content = do_QueryInterface(mDOMNode);
-  }
   if (gDoCommandTimer) {
     // Already have timer going for another command
     NS_WARNING("Doubling up on do command timers doesn't work. This wasn't expected.");
@@ -2749,14 +2717,55 @@ nsresult nsAccessible::DoCommand(nsIContent *aContent)
   }
 
   nsCOMPtr<nsITimer> timer = do_CreateInstance("@mozilla.org/timer;1");
-  if (!timer) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  } 
+  NS_ENSURE_TRUE(timer, NS_ERROR_OUT_OF_MEMORY);
+
+  nsCOMPtr<nsIContent> content = aContent;
+  if (!content)
+    content = do_QueryInterface(mDOMNode);
+
+  // Command closure object memory will be free in DoCommandCallback().
+  nsCommandClosure *closure =
+    new nsCommandClosure(this, content, aActionIndex);
+  NS_ENSURE_TRUE(closure, NS_ERROR_OUT_OF_MEMORY);
 
   NS_ADDREF(gDoCommandTimer = timer);
   return gDoCommandTimer->InitWithFuncCallback(DoCommandCallback,
-                                               (void*)content, 0,
-                                               nsITimer::TYPE_ONE_SHOT);
+                                               static_cast<void*>(closure),
+                                               0, nsITimer::TYPE_ONE_SHOT);
+}
+
+void
+nsAccessible::DoCommandCallback(nsITimer *aTimer, void *aClosure)
+{
+  NS_ASSERTION(gDoCommandTimer,
+               "How did we get here if there was no gDoCommandTimer?");
+  NS_RELEASE(gDoCommandTimer);
+
+  nsCommandClosure *closure = static_cast<nsCommandClosure*>(aClosure);
+  closure->accessible->DispatchClickEvent(closure->content,
+                                          closure->actionIndex);
+  delete closure;
+}
+
+void
+nsAccessible::DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex)
+{
+  if (IsDefunct())
+    return;
+
+  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+
+  // Scroll into view.
+  presShell->ScrollContentIntoView(aContent, NS_PRESSHELL_SCROLL_ANYWHERE,
+                                   NS_PRESSHELL_SCROLL_ANYWHERE);
+
+  // Fire mouse down and mouse up events.
+  PRBool res = nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, presShell,
+                                               aContent);
+  if (!res)
+    return;
+
+  nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, aContent);
 }
 
 already_AddRefed<nsIAccessible>
