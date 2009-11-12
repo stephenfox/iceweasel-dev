@@ -8,6 +8,8 @@ iceweasel (3.5.5-1) UNRELEASED; urgency=low
     - Remove obsolete (and commented) Xprint support.
     - Only handle --verbose, -V, -g and --debugger options.
     - Output less variables when running verbosely.
+  * debian/README.Debian: Point to the proper file containing the
+    app.update.enabled setting.
 
  -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 14:58:58 +0100
 
