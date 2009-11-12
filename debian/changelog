@@ -1,15 +1,43 @@
+xulrunner (1.9.1.5-1) unstable; urgency=low
+
+  * New upstream release.
+  * debian/remove.nonfree: Synchronize with Iceape 2.0.
+  * debian/copyright: Update with missing information, and remove lcms
+    licensing as it was dropped in 1.9.1.4.
+  * debian/mozconfig: Remove obsolete options.
+  * debian/rules:
+    + Put -Wl,--as-needed in front of OS_LDFLAGS.
+    + Update config.{guess,sub} in js/src/build/autoconf, too.
+    + Don't modify platform.ini.
+  * debian/control:
+    + xulrunner-1.9.1 breaks iceweasel versions earlier than 3.5.5-1, as
+      their GRE version range is not broad enough.
+    + Build depend on libreadline-dev before libreadline5-dev.
+      Closes: #553873.
+    + Force a runtime dependency on libcairo2 >= 1.8.8 for @font-face
+      support. Closes: #537350.
+    + Bump Standards-Version to 3.8.3.0.
+    + Tighten libmozjs-dev dependency on libmozjs2d.
+  * memory/jemalloc/jemalloc.c: Remove remainings of an old patch that was
+    applied upstream in jemalloc.
+  * extensions/python/xpcom/src/loader/Makefile.in,
+    extensions/python/xpcom/src/module/Makefile.in: Fix rpath in the
+    pyxpcom components.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 12 Nov 2009 21:22:29 +0100
+
 xulrunner (1.9.1.4-1) unstable; urgency=low
 
-   * New upstream release.
-   * Fixes mfsa-2009-{52,53-57,59,61-64}, also known as
-     CVE-2009-3370, CVE-2009-3274, CVE-2009-3371, CVE-2009-3372,
-     CVE-2009-3373, CVE-2009-3374, CVE-2009-1563, CVE-2009-3375,
-     CVE-2009-3376, CVE-2009-3377, CVE-2009-3378, CVE-2009-3379,
-     CVE-2009-3380, CVE-2009-3381, CVE-2009-3383.
-   * debian/control:
-     + Bump sqlite build dependency to 3.6.16.
-     + libmozjs2d-dbg conflicts with libmozjs1d-dbg. Closes: #550626.
-   * debian/libmozjs1d.symbols, debian/rules: Add new symbols and bump shlibs.
+  * New upstream release.
+  * Fixes mfsa-2009-{52,53-57,59,61-64}, also known as
+    CVE-2009-3370, CVE-2009-3274, CVE-2009-3371, CVE-2009-3372,
+    CVE-2009-3373, CVE-2009-3374, CVE-2009-1563, CVE-2009-3375,
+    CVE-2009-3376, CVE-2009-3377, CVE-2009-3378, CVE-2009-3379,
+    CVE-2009-3380, CVE-2009-3381, CVE-2009-3383.
+  * debian/control:
+    + Bump sqlite build dependency to 3.6.16.
+    + libmozjs2d-dbg conflicts with libmozjs1d-dbg. Closes: #550626.
+  * debian/libmozjs1d.symbols, debian/rules: Add new symbols and bump shlibs.
 
  -- Mike Hommey <glandium@debian.org>  Wed, 28 Oct 2009 16:15:45 +0100
 
