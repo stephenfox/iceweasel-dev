@@ -118,17 +118,6 @@ fi
 
 export MOZ_PLUGIN_PATH
 
-# Set XPSERVERLIST if not set yet for XPrint support, or complain.
-
-#if [ -z "${XPSERVERLIST}" ]; then
-#    if [ -x /etc/init.d/xprint ]; then
-#        XPSERVERLIST=`/etc/init.d/xprint get_xpserverlist`
-#        export XPSERVERLIST
-#    else
-#        echo -e "Warning: \${XPSERVERLIST} not set and /etc/init.d/xprint not found;\nprinting will not work.\nPlease install the xprt-xprintorg package" >&2
-#    fi  
-#fi
-
 verbose () {
     if [ "${VERBOSE}" ]; then
         echo $@
@@ -158,111 +147,45 @@ run_verbose () {
 # OK, here's where all the real work gets done
 
 # parse command line
-APPLICATION_ID=iceweasel
 VERBOSE=
 DEBUG=0
 DEBUGGER=
 first=1
-opt=
+prev=
 for arg in "$@"; do
     if [ ${first} -eq 1 ]; then
-        set --
+        set dummy
         first=0
     fi
 
-    case "${arg}" in
-        -a | --display | -contentLocale | -UILocale | -remote | --debugger | -height | -width | -chrome | -P | -CreateProfile | -profile | -install-global-extension)
-            prev=${arg}
-            continue
-        ;;
-    esac
-    
-    if [ "${prev}" ]; then
-        case "${prev}" in
-            -a)
-                APPLICATION_ID="${arg}"
-                ;;
-            -P|-CreateProfile)
-                case "${arg}" in
-                default)    APPLICATION_ID=iceweasel ;;
-                *)          APPLICATION_ID=iceweasel--"${arg}" ;;
-                esac
-                MOZ_NO_REMOTE=1
-                export MOZ_NO_REMOTE
-                set -- "$@" "${prev}" "${arg}"
-                ;;
-            --display)
-                CMDLINE_DISPLAY="${arg}"
-                set -- "$@" --display "${arg}"
-                ;;
-            -remote)
-                set -- "$@" -remote "${arg}"
-                ;;
-            --debugger)
-                DEBUGGER="${arg}"
-                DEBUG=1
-                ;;
-            *)
-                set -- "$@" "${prev}" "${arg}"
-                ;;
-        esac
+    if [ "${prev}" ]; then # That can only be --debugger
+        DEBUGGER="${arg}"
         prev=
-    elif [ "${arg}" ]; then
+    else
         case "$arg" in
             --verbose | -V)
                 VERBOSE=1
                 ;;
-            --display=*)
-                CMDLINE_DISPLAY=`echo ${arg} | sed 's/^--display=//'`
-                set -- "$@" "${arg}"
-                ;;
             -g | -debug)
                 DEBUG=1
                 ;;
-            -no-remote)
-                MOZ_NO_REMOTE=1
-                export MOZ_NO_REMOTE
-                ;;
-            -ProfileManager)
-                MOZ_NO_REMOTE=1
-                export MOZ_NO_REMOTE
-                APPLICATION_ID="unique--`uname -n`--$$"
-                set -- "$@" "${arg}"
-                ;;
-            -*)
-                set -- "$@" "${arg}"
+            --debugger)
+                DEBUG=1
+                prev=${arg}
                 ;;
             *)
-                if [ -z "${opt}" ]; then
-                    opt="${arg}"
-                    # check to make sure that the url contains at least a :/ in it.
-                    echo ${opt} | grep -e ':/' 2>/dev/null > /dev/null
-                    RETURN_VAL=$?
-                    if [ "${RETURN_VAL}" -eq 1 ]; then
-                    # if it doesn't begin with a '/' and it exists when the pwd is
-                    # prepended to it then append the full path
-                        echo ${opt} | grep -e '^/' 2>/dev/null > /dev/null
-                        if [ "$?" -ne "0" ] && [ -e "`pwd`/${opt}" ]; then
-                            opt="`pwd`/${opt}"
-                        fi
-                        # Make it percent-encoded and prepend file:// if it is a valid file
-                        if [ -e "${opt}" ]; then
-                          opt="file://$( echo -n "${opt}" | perl -pe "s/([^a-zA-Z0-9-._~\!\\\$&'()*+,=:@\/])/'%'.unpack('H2',\$1)/ge" )"
-                        fi
-                    fi
-                    set -- "$@" "${opt}"
-                else
-                    set -- "$@" "${arg}"
-                fi
+                set "$@" "${arg}"
                 ;;
         esac
     fi
 done
 
-if [ -n "$prev" ]; then set -- "$@" "$prev"; fi
-set -- "-a" "${APPLICATION_ID}" "$@"
-
+if [ $# -ne 0 ]; then
+    shift
+fi
 OPTIONS="$@"
+
+echo_vars ICEWEASEL_DSP OPTIONS DEBUG DEBUGGER
 
 if [ ${DEBUG} -eq 1 ]; then
     if [ "${DEBUGGER}" = "" ]; then
@@ -284,9 +207,6 @@ if [ ${DEBUG} -eq 1 ]; then
     rm ${TMPFILE}
     exit
 fi
-
-echo_vars ICEWEASEL_DSP APPLICATION_ID CMDLINE_DISPLAY DISPLAY \
-          OPTIONS DEBUG DEBUGGER MOZ_DISABLE_PANGO MOZ_NO_REMOTE
 
 if type "${ICEWEASEL_DSP}" > /dev/null 2>&1; then
     MOZ_PROGRAM="${ICEWEASEL_DSP} ${MOZ_PROGRAM}"
