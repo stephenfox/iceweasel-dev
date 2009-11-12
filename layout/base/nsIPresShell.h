@@ -110,6 +110,10 @@ typedef PRUint32 nsFrameState;
 { 0xeed2ef56, 0x133f, 0x4696, \
   { 0x9e, 0xee, 0x5f, 0xc4, 0x5d, 0x81, 0x6b, 0xe8 } }
 
+#define NS_IPRESSHELL_MOZILLA_1_9_2_IID     \
+{ 0xfab5d6f6, 0xdce0, 0x405e,                    \
+  { 0xa4, 0x35, 0xb4, 0xb4, 0xa7, 0x01, 0x31, 0x36 } }
+
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
 #define NS_PRESSHELL_SCROLL_BOTTOM   100
@@ -129,6 +133,20 @@ typedef PRUint32 nsFrameState;
 #define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x40
 
 #undef NOISY_INTERRUPTIBLE_REFLOW
+
+class nsIPresShell_MOZILLA_1_9_2 : public nsISupports {
+public:  
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IPRESSHELL_MOZILLA_1_9_2_IID)
+  
+  /*
+   * The same as GetRootScrollFrame, but returns an nsIScrollableFrame.
+   * Can be called by code not linked into gklayout.
+   */
+  virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_MOZILLA_1_9_2, 
+                              NS_IPRESSHELL_MOZILLA_1_9_2_IID)
 
 /**
  * Presentation shell interface. Presentation shells are the

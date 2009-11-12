@@ -46,6 +46,8 @@
 #include "nsMutationEvent.h"
 #include NEW_H
 #include "nsFixedSizeAllocator.h"
+#include "nsINode.h"
+#include "nsPIDOMWindow.h"
 
 #define NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH  (1 << 0)
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
@@ -427,11 +429,35 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                             nsEvent* aEvent,
                             nsIDOMEvent* aDOMEvent,
                             nsEventStatus* aEventStatus,
-                            nsDispatchingCallback* aCallback)
+                            nsDispatchingCallback* aCallback,
+                            nsCOMArray<nsPIDOMEventTarget>* aTargets)
 {
   NS_ASSERTION(aEvent, "Trying to dispatch without nsEvent!");
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
                  NS_ERROR_ILLEGAL_VALUE);
+  NS_ASSERTION(!aTargets || !aEvent->message, "Wrong parameters!");
+
+  if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
+    nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
+    if (!node) {
+      nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aTarget);
+      if (win) {
+        node = do_QueryInterface(win->GetExtantDocument());
+      }
+    }
+
+    NS_ENSURE_STATE(node);
+    nsIDocument* doc = node->GetOwnerDoc();
+    if (!nsContentUtils::IsChromeDoc(doc)) {
+      nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
+      // If we can't dispatch the event to chrome, do nothing.
+      NS_ENSURE_TRUE(win && win->GetChromeEventHandler(), NS_OK);
+      // Set the target to be the original dispatch target,
+      aEvent->target = aTarget;
+      // but use chrome event handler for event target chain.
+      aTarget = win->GetChromeEventHandler();
+    }
+  }
 
   nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 #ifdef DEBUG
@@ -530,18 +556,27 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
       }
     }
     if (NS_SUCCEEDED(rv)) {
-      // Event target chain is created. Handle the chain.
-      nsEventChainPostVisitor postVisitor(preVisitor);
-      rv = topEtci->HandleEventTargetChain(postVisitor,
-                                           NS_EVENT_FLAG_BUBBLE |
-                                           NS_EVENT_FLAG_CAPTURE,
-                                           aCallback,
-                                           PR_TRUE);
-
-      preVisitor.mEventStatus = postVisitor.mEventStatus;
-      // If the DOM event was created during event flow.
-      if (!preVisitor.mDOMEvent && postVisitor.mDOMEvent) {
-        preVisitor.mDOMEvent = postVisitor.mDOMEvent;
+      if (aTargets) {
+        aTargets->Clear();
+        nsEventTargetChainItem* item = targetEtci;
+        while(item) {
+          aTargets->AppendObject(item->CurrentTarget()->GetTargetForDOMEvent());
+          item = item->mParent;
+        }
+      } else {
+        // Event target chain is created. Handle the chain.
+        nsEventChainPostVisitor postVisitor(preVisitor);
+        rv = topEtci->HandleEventTargetChain(postVisitor,
+                                             NS_EVENT_FLAG_BUBBLE |
+                                             NS_EVENT_FLAG_CAPTURE,
+                                             aCallback,
+                                             PR_TRUE);
+  
+        preVisitor.mEventStatus = postVisitor.mEventStatus;
+        // If the DOM event was created during event flow.
+        if (!preVisitor.mDOMEvent && postVisitor.mDOMEvent) {
+          preVisitor.mDOMEvent = postVisitor.mDOMEvent;
+        }
       }
     }
   }

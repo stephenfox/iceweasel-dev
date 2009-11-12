@@ -1049,6 +1049,23 @@ const PRInt32 nsCSSProps::kPositionKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kRadialGradientShapeKTable[] = {
+  eCSSKeyword_circle,  NS_STYLE_GRADIENT_SHAPE_CIRCULAR,
+  eCSSKeyword_ellipse, NS_STYLE_GRADIENT_SHAPE_ELLIPTICAL,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kRadialGradientSizeKTable[] = {
+  eCSSKeyword_closest_side,    NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE,
+  eCSSKeyword_closest_corner,  NS_STYLE_GRADIENT_SIZE_CLOSEST_CORNER,
+  eCSSKeyword_farthest_side,   NS_STYLE_GRADIENT_SIZE_FARTHEST_SIDE,
+  eCSSKeyword_farthest_corner, NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER,
+  // synonyms
+  eCSSKeyword_contain,         NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE,
+  eCSSKeyword_cover,           NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kSpeakKTable[] = {
   eCSSKeyword_spell_out, NS_STYLE_SPEAK_SPELL_OUT,
   eCSSKeyword_UNKNOWN,-1

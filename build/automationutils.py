@@ -74,11 +74,19 @@ def checkForCrashes(dumpDir, symbolsPath, testName=None):
   dumps = glob.glob(os.path.join(dumpDir, '*.dmp'))
   for d in dumps:
     log.info("TEST-UNEXPECTED-FAIL | %s | application crashed (minidump found)", testName)
-    if symbolsPath and stackwalkPath:
+    if symbolsPath and stackwalkPath and os.path.exists(stackwalkPath):
       nullfd = open(os.devnull, 'w')
       # eat minidump_stackwalk errors
       subprocess.call([stackwalkPath, d, symbolsPath], stderr=nullfd)
       nullfd.close()
+    else:
+      if not symbolsPath:
+        print "No symbols path given, can't process dump."
+      if not stackwalkPath:
+        print "MINIDUMP_STACKWALK not set, can't process dump."
+      else:
+        if not os.path.exists(stackwalkPath):
+          print "MINIDUMP_STACKWALK binary not found: %s" % stackwalkPath
     os.remove(d)
     extra = os.path.splitext(d)[0] + ".extra"
     if os.path.exists(extra):

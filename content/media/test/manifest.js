@@ -14,6 +14,8 @@ var gSmallTests = [
   { name:"bug498855-3.ogv", type:"video/ogg", duration:0.2 },
   { name:"bug504644.ogv", type:"video/ogg", duration:1.56 },
   { name:"chain.ogv", type:"video/ogg", duration:Number.NaN },
+  // Actual duration is ~200ms, we have X-Content-Duration lie about it.
+  { name:"bug520908.ogv", type:"video/ogg", duration:9000 },
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 
@@ -37,12 +39,19 @@ var gPlayTests = [
   { name:"bug500311.ogv", type:"video/ogg", duration:1.96 },
   // Small audio file
   { name:"small-shot.ogg", type:"video/ogg" },
+  // More audio in file than video.
+  { name: "short-video.ogv", type:"video/ogg", duration:1.081 },
   // First Theora data packet is zero bytes.
   { name:"bug504613.ogv", type:"video/ogg" },
   // Multiple audio streams.
   { name:"bug516323.ogv", type:"video/ogg", duration:4.424 },
   // Encoded with vorbis beta1, includes unusually sized codebooks
   { name:"beta-phrasebook.ogg", type:"audio/ogg", duration:4 },
+  // Small file, only 1 frame with audio only.
+  { name:"bug520493.ogg", type:"audio/ogg", duration:0.458 },
+  // Small file with vorbis comments with 0 length values and names.
+  { name:"bug520500.ogg", type:"audio/ogg", duration:0.123 },
+  { name:"bug523816.ogv", type:"video/ogg", duration:0.5 },
 
   { name:"bogus.duh", type:"bogus/duh" }
 ];
@@ -59,6 +68,7 @@ var gErrorTests = [
   { name:"448636.ogv", type:"video/ogg" },
   { name:"bug495129.ogv", type:"video/ogg", duration:2.52 },
   { name:"bug504843.ogv", type:"video/ogg", duration:1.233 },
+  { name:"bug498380.ogv", type:"video/ogg" },
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 
@@ -66,6 +76,7 @@ var gErrorTests = [
 var gSeekTests = [
   { name:"r11025_s16_c1.wav", type:"audio/x-wav", duration:1.0 },
   { name:"seek.ogv", type:"video/ogg", duration:3.966 },
+  { name:"320x240.ogv", type:"video/ogg", duration:0.233 },
   { name:"bogus.duh", type:"bogus/duh", duration:123 }
 ];
 

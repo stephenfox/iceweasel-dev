@@ -3060,6 +3060,16 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
       if (!dragSession)
         break;
 
+      // Reset the flag.
+      nsCOMPtr<nsIDragSession_1_9_2> drag192 = do_QueryInterface(dragSession);
+      if (drag192) {
+        drag192->SetOnlyChromeDrop(PR_FALSE);
+      }
+      if (mPresContext) {
+        EnsureDocument(mPresContext);
+      }
+      PRBool isChromeDoc = nsContentUtils::IsChromeDoc(mDocument);
+
       // the initial dataTransfer is the one from the dragstart event that
       // was set on the dragSession when the drag began.
       nsCOMPtr<nsIDOMNSDataTransfer> dataTransfer;
@@ -3130,6 +3140,17 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // inform the drag session that a drop is allowed on this node.
         dragSession->SetDragAction(action);
         dragSession->SetCanDrop(action != nsIDragService::DRAGDROP_ACTION_NONE);
+
+        // For now, do this only for dragover.
+        //XXXsmaug dragenter needs some more work.
+        if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc && drag192) {
+          // Someone has called preventDefault(), check whether is was content.
+          drag192->SetOnlyChromeDrop(
+            !(aEvent->flags & NS_EVENT_FLAG_NO_DEFAULT_CALLED_IN_CONTENT));
+        }
+      } else if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc && drag192) {
+        // No one called preventDefault(), so handle drop only in chrome.
+        drag192->SetOnlyChromeDrop(PR_TRUE);
       }
 
       // now set the drop effect in the initial dataTransfer. This ensures

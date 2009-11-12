@@ -6126,7 +6126,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
     // in the current document.
 
     PRBool okToUnload;
-    rv = mContentViewer->PermitUnload(&okToUnload);
+    rv = mContentViewer->PermitUnload(PR_FALSE, &okToUnload);
 
     if (NS_SUCCEEDED(rv) && !okToUnload) {
       // The user chose not to unload the page, interrupt the load.
@@ -6934,6 +6934,16 @@ nsDocShell::RestoreFromHistory()
                    newBounds.y, newBounds.width, newBounds.height);
 #endif
             mContentViewer->SetBounds(newBounds);
+        } else {
+            nsCOMPtr<nsIPresShell_MOZILLA_1_9_2> shell_1_9_2 = 
+                do_QueryInterface(shell);
+            if (shell_1_9_2) {
+                nsIScrollableFrame *rootScrollFrame = do_QueryFrame(
+                    shell_1_9_2->GetRootScrollFrameAsScrollableExternal());
+                if (rootScrollFrame) {
+                    rootScrollFrame->PostScrolledAreaEventForCurrentArea();
+                }
+            }
         }
     }
 
@@ -7916,7 +7926,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     // protocol handler deals with this for javascript: URLs.
     if (!bIsJavascript && mContentViewer) {
         PRBool okToUnload;
-        rv = mContentViewer->PermitUnload(&okToUnload);
+        rv = mContentViewer->PermitUnload(PR_FALSE, &okToUnload);
 
         if (NS_SUCCEEDED(rv) && !okToUnload) {
             // The user chose not to unload the page, interrupt the

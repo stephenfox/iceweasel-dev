@@ -226,6 +226,7 @@ members = [
     'nsIDOMNSElement.clientHeight',
     'nsIDOMNSElement.clientWidth',
     'nsIDOMNSElement.clientTop',
+    'nsIDOMNSElement.mozMatchesSelector',
 
     # dom/public/idl/css
     'nsIDOMElementCSSInlineStyle.style',

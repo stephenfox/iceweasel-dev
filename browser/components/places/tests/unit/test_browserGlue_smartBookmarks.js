@@ -83,8 +83,8 @@ tests.push({
 
     // Count items on toolbar.
     do_check_eq(countFolderChildren(bs.toolbarFolder), SMART_BOOKMARKS_ON_TOOLBAR);
-    // Count items on menu (+1 for the separator).
-    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU + 1);
+    // Count items on menu.
+    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU);
 
     // Check version has been updated.
     do_check_eq(ps.getIntPref(PREF_SMART_BOOKMARKS_VERSION), SMART_BOOKMARKS_VERSION);
@@ -114,8 +114,8 @@ tests.push({
 
     // Count items on toolbar.
     do_check_eq(countFolderChildren(bs.toolbarFolder), SMART_BOOKMARKS_ON_TOOLBAR);
-    // Count items on menu (+1 for the separator).
-    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU + 1);
+    // Count items on menu.
+    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU);
 
     // check smart bookmark has been replaced, itemId has changed.
     itemId = bs.getIdForItemAt(bs.toolbarFolder, 0);
@@ -145,8 +145,8 @@ tests.push({
 
     // Count items on toolbar, we should not have recreated the smart bookmark.
     do_check_eq(countFolderChildren(bs.toolbarFolder), 0);
-    // Count items on menu (+1 for the separator).
-    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU + 1);
+    // Count items on menu.
+    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU);
 
     // Check version has been updated.
     do_check_eq(ps.getIntPref(PREF_SMART_BOOKMARKS_VERSION), SMART_BOOKMARKS_VERSION);
@@ -168,8 +168,8 @@ tests.push({
 
     // Count items on toolbar, we should not have recreated the smart bookmark.
     do_check_eq(countFolderChildren(bs.toolbarFolder), SMART_BOOKMARKS_ON_TOOLBAR);
-    // Count items on menu (+1 for the separator).
-    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU + 1);
+    // Count items on menu.
+    do_check_eq(countFolderChildren(bs.bookmarksMenuFolder), SMART_BOOKMARKS_ON_MENU);
 
     // Check version has been updated.
     do_check_eq(ps.getIntPref(PREF_SMART_BOOKMARKS_VERSION), SMART_BOOKMARKS_VERSION);

@@ -642,7 +642,8 @@ class nsAutoCauseReflowNotifier;
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
                   public nsISelectionController, public nsIObserver,
-                  public nsSupportsWeakReference
+                  public nsSupportsWeakReference, 
+                  public nsIPresShell_MOZILLA_1_9_2
 {
 public:
   PresShell();
@@ -906,6 +907,7 @@ public:
                                                 nsRect* aBounds,
                                                 nscolor aBackstopColor);
 
+  virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const;
 protected:
   virtual ~PresShell();
 
@@ -1631,10 +1633,10 @@ PresShell::PresShell()
   new (this) nsFrameManager();
 }
 
-NS_IMPL_ISUPPORTS8(PresShell, nsIPresShell, nsIDocumentObserver,
+NS_IMPL_ISUPPORTS9(PresShell, nsIPresShell, nsIDocumentObserver,
                    nsIViewObserver, nsISelectionController,
                    nsISelectionDisplay, nsIObserver, nsISupportsWeakReference,
-                   nsIMutationObserver)
+                   nsIMutationObserver, nsIPresShell_MOZILLA_1_9_2)
 
 PresShell::~PresShell()
 {
@@ -3196,6 +3198,12 @@ nsIFrame*
 nsIPresShell::GetRootFrame() const
 {
   return FrameManager()->GetRootFrame();
+}
+
+nsIScrollableFrame*
+PresShell::GetRootScrollFrameAsScrollableExternal() const
+{
+  return GetRootScrollFrameAsScrollable();
 }
 
 nsIFrame*
@@ -5329,7 +5337,7 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
       rc->Init(devCtx, aThebesContext);
 
       nsRegion region(rect);
-      list.ComputeVisibility(&builder, &region);
+      list.ComputeVisibility(&builder, &region, nsnull);
       list.Paint(&builder, rc);
       // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
       list.DeleteAll();
@@ -5619,7 +5627,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
 
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
     nsRegion visible(aArea);
-    rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible);
+    rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible, nsnull);
     rangeInfo->mList.Paint(&rangeInfo->mBuilder, rc);
     aArea.MoveBy(rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
   }
@@ -6391,6 +6399,18 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       case NS_KEY_DOWN:
       case NS_KEY_UP:
         isHandlingUserInput = PR_TRUE;
+        break;
+      case NS_DRAGDROP_DROP:
+        nsCOMPtr<nsIDragSession> session = nsContentUtils::GetDragSession();
+        nsCOMPtr<nsIDragSession_1_9_2> session192 = do_QueryInterface(session);
+        if (session192) {
+          PRBool onlyChromeDrop = PR_FALSE;
+          session192->GetOnlyChromeDrop(&onlyChromeDrop);
+          if (onlyChromeDrop) {
+            aEvent->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
+          }
+        }
+        break;
       }
     }
 

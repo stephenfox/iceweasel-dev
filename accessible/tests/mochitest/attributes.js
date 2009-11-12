@@ -179,11 +179,11 @@ function testAttrsInternal(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs,
   } catch (e) { }
   
   if (!attrs) {
-    ok(false, "Can't get object attributes for " + aAccOrElmOrID);
+    ok(false, "Can't get object attributes for " + prettyName(aAccOrElmOrID));
     return;
   }
   
-  var errorMsg = " for " + aAccOrElmOrID;
+  var errorMsg = " for " + prettyName(aAccOrElmOrID);
   compareAttrs(errorMsg, attrs, aAttrs, aSkipUnexpectedAttrs, aAbsentAttrs);
 }
 

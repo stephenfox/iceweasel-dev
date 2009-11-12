@@ -32,6 +32,7 @@ const nsIAccessibleHyperText = Components.interfaces.nsIAccessibleHyperText;
 const nsIAccessibleImage = Components.interfaces.nsIAccessibleImage;
 const nsIAccessibleSelectable = Components.interfaces.nsIAccessibleSelectable;
 const nsIAccessibleTable = Components.interfaces.nsIAccessibleTable;
+const nsIAccessibleTableCell = Components.interfaces.nsIAccessibleTableCell;
 const nsIAccessibleValue = Components.interfaces.nsIAccessibleValue;
 
 const nsIObserverService = Components.interfaces.nsIObserverService;
@@ -163,7 +164,7 @@ const DONOTFAIL_IF_NO_INTERFACE = 2;
 
 /**
  * Return accessible for the given identifier (may be ID attribute or DOM
- * element or accessible object).
+ * element or accessible object) or null.
  *
  * @param aAccOrElmOrID      [in] identifier to get an accessible implementing
  *                           the given interfaces
@@ -177,7 +178,7 @@ const DONOTFAIL_IF_NO_INTERFACE = 2;
 function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
 {
   if (!aAccOrElmOrID)
-    return;
+    return null;
 
   var elm = null;
 
@@ -292,6 +293,15 @@ function ensureAccessibleTree(aAccOrElmOrID)
 
 /**
  * Compare expected and actual accessibles trees.
+ *
+ * @param  aAccOrElmOrID  [in] accessible identifier
+ * @param  aAccTree       [in] JS object, each field corresponds to property of
+ *                         accessible object. Additionally special properties
+ *                         are presented:
+ *                          children - an array of JS objects representing
+ *                                      children of accessible
+ *                          states   - an object having states and extraStates
+ *                                      fields
  */
 function testAccessibleTree(aAccOrElmOrID, aAccTree)
 {
@@ -300,7 +310,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
     return;
 
   for (var prop in aAccTree) {
-    var msg = "Wrong value of property '" + prop + "'.";
+    var msg = "Wrong value of property '" + prop + "' for " + prettyName(acc) + ".";
     if (prop == "role") {
       is(roleToString(acc[prop]), roleToString(aAccTree[prop]), msg);
 

@@ -1409,6 +1409,32 @@ nsContentUtils::ContentIsDescendantOf(nsINode* aPossibleDescendant,
   return PR_FALSE;
 }
 
+// static
+PRBool
+nsContentUtils::ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
+                                              nsINode* aPossibleAncestor)
+{
+  NS_PRECONDITION(aPossibleDescendant, "The possible descendant is null!");
+  NS_PRECONDITION(aPossibleAncestor, "The possible ancestor is null!");
+
+  do {
+    if (aPossibleDescendant == aPossibleAncestor)
+      return PR_TRUE;
+    nsINode* parent = aPossibleDescendant->GetNodeParent();
+    if (!parent && aPossibleDescendant->IsNodeOfType(nsINode::eDOCUMENT)) {
+      nsIDocument* doc = static_cast<nsIDocument*>(aPossibleDescendant);
+      nsIDocument* parentDoc = doc->GetParentDocument();
+      aPossibleDescendant = parentDoc ?
+                            parentDoc->FindContentForSubDocument(doc) : nsnull;
+    }
+    else {
+      aPossibleDescendant = parent;
+    }
+  } while (aPossibleDescendant);
+
+  return PR_FALSE;
+}
+
 
 // static
 nsresult
@@ -2988,6 +3014,18 @@ nsContentUtils::IsChromeDoc(nsIDocument *aDocument)
   sSecurityManager->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
 
   return aDocument->NodePrincipal() == systemPrincipal;
+}
+
+PRBool
+nsContentUtils::IsChildOfSameType(nsIDocument* aDoc)
+{
+  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(container));
+  nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
+  if (docShellAsItem) {
+    docShellAsItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
+  }
+  return sameTypeParent != nsnull;
 }
 
 PRBool

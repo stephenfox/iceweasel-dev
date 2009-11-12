@@ -86,6 +86,7 @@ typedef struct InstanceData {
   bool npnNewStream;
   int32_t lastMouseX;
   int32_t lastMouseY;
+  int32_t paintCount;
   TestFunction testFunction;
   PostMode postMode;
   string testUrl;

@@ -150,7 +150,7 @@
 
 #ToolbarEval {
   -moz-appearance: none;
-  background: -moz-linear-gradient(top, bottom, from(#E8E8E8), to(#D0D0D0)) repeat-x;
+  background: -moz-linear-gradient(top, #E8E8E8, #D0D0D0) repeat-x;
   border-bottom: 1px solid #686868;
   padding: 2px;
 }
@@ -169,7 +169,7 @@
   -moz-appearance: none;
   border: 1px solid rgba(0, 0, 0, .4);
   -moz-border-radius: 100%;
-  background: -moz-linear-gradient(top, bottom, from(#FFF), to(#CACACA)) repeat-x;
+  background: -moz-linear-gradient(top, #FFF, #CACACA) repeat-x;
   padding: 1px 10px;
   -moz-box-shadow: 0 1px 0 rgba(255, 255, 255, .4);
 }
@@ -210,7 +210,7 @@ toolbarseparator {
   border: 1px solid rgba(0, 0, 0, 0.6);
   -moz-border-radius: 3px;
   -moz-box-shadow: rgba(255, 255, 255, 0.4) 0 1px;
-  background: -moz-linear-gradient(top, bottom, from(#FFF), to(#B4B4B4)) repeat-x;
+  background: -moz-linear-gradient(top, #FFF, #B4B4B4) repeat-x;
 }
 
 #Console\:clear:active:hover {

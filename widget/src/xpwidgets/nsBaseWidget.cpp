@@ -201,7 +201,8 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   }
 
   if (nsnull != aInitData) {
-    PreCreateWidget(aInitData);
+    mWindowType = aInitData->mWindowType;
+    mBorderStyle = aInitData->mBorderStyle;
   }
 
   if (aParent) {
@@ -535,12 +536,6 @@ NS_IMETHODIMP nsBaseWidget::SetCursor(imgIContainer* aCursor,
 NS_IMETHODIMP nsBaseWidget::GetWindowType(nsWindowType& aWindowType)
 {
   aWindowType = mWindowType;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType) 
-{
-  mWindowType = aWindowType;
   return NS_OK;
 }
 

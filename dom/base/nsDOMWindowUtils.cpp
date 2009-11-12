@@ -40,7 +40,7 @@
 #include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsIDOMNSEvent.h"
-
+#include "nsIPrivateDOMEvent.h"
 #include "nsDOMWindowUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
@@ -73,6 +73,7 @@ NS_INTERFACE_MAP_BEGIN(nsDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils_1_9_2)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WindowUtils)
 NS_INTERFACE_MAP_END
 
@@ -811,5 +812,34 @@ nsDOMWindowUtils::GetScreenPixelsPerCSSPixel(float* aScreenPixels)
 
   *aScreenPixels = float(nsPresContext::AppUnitsPerCSSPixel())/
       presContext->AppUnitsPerDevPixel();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
+                                               nsIDOMEvent* aEvent,
+                                               PRBool aTrusted,
+                                               PRBool* aRetVal)
+{
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  nsPresContext* presContext = GetPresContext();
+  NS_ENSURE_STATE(presContext);
+  nsCOMPtr<nsIPresShell> shell = presContext->GetPresShell();
+  NS_ENSURE_STATE(shell);
+  nsCOMPtr<nsIPrivateDOMEvent> event = do_QueryInterface(aEvent);
+  NS_ENSURE_STATE(event);
+  event->SetTrusted(aTrusted);
+  nsEvent* internalEvent = event->GetInternalNSEvent();
+  NS_ENSURE_STATE(internalEvent);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
+  NS_ENSURE_STATE(content);
+
+  nsEventStatus status = nsEventStatus_eIgnore;
+  shell->HandleEventWithTarget(internalEvent, nsnull, content,
+                               &status);
+  *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return NS_OK;
 }

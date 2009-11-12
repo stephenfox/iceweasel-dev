@@ -45,6 +45,7 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/FileUtils.jsm");
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org"
 const KEY_PROFILEDIR                  = "ProfD";
@@ -70,15 +71,6 @@ const DEFAULT_LEVEL                   = 2;
 const MAX_BLOCK_LEVEL                 = 3;
 const SEVERITY_OUTDATED               = 0;
 
-const MODE_RDONLY   = 0x01;
-const MODE_WRONLY   = 0x02;
-const MODE_CREATE   = 0x08;
-const MODE_APPEND   = 0x10;
-const MODE_TRUNCATE = 0x20;
-
-const PERMS_FILE      = 0644;
-const PERMS_DIRECTORY = 0755;
-
 var gApp = null;
 var gPref = null;
 var gOS = null;
@@ -91,7 +83,11 @@ var gBlocklistEnabled = true;
 var gBlocklistLevel = DEFAULT_LEVEL;
 
 // shared code for suppressing bad cert dialogs
-#include ../../shared/src/badCertHandler.js
+XPCOMUtils.defineLazyGetter(this, "gCertUtils", function() {
+  let temp = { };
+  Components.utils.import("resource://gre/modules/CertUtils.jsm", temp);
+  return temp;
+});
 
 /**
  * Logs a string to the error console.
@@ -125,63 +121,6 @@ function getPref(func, preference, defaultValue) {
   catch (e) {
   }
   return defaultValue;
-}
-
-/**
- * Gets the file at the specified hierarchy under a Directory Service key.
- * @param   key
- *          The Directory Service Key to start from
- * @param   pathArray
- *          An array of path components to locate beneath the directory
- *          specified by |key|. The last item in this array must be the
- *          leaf name of a file.
- * @return  nsIFile object for the file specified. The file is NOT created
- *          if it does not exist, however all required directories along
- *          the way are.
- */
-function getFile(key, pathArray) {
-  var fileLocator = Cc["@mozilla.org/file/directory_service;1"].
-                    getService(Ci.nsIProperties);
-  var file = fileLocator.get(key, Ci.nsILocalFile);
-  for (var i = 0; i < pathArray.length - 1; ++i) {
-    file.append(pathArray[i]);
-    if (!file.exists())
-      file.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-  }
-  file.followLinks = false;
-  file.append(pathArray[pathArray.length - 1]);
-  return file;
-}
-
-/**
- * Opens a safe file output stream for writing.
- * @param   file
- *          The file to write to.
- * @param   modeFlags
- *          (optional) File open flags. Can be undefined.
- * @returns nsIFileOutputStream to write to.
- */
-function openSafeFileOutputStream(file, modeFlags) {
-  var fos = Cc["@mozilla.org/network/safe-file-output-stream;1"].
-            createInstance(Ci.nsIFileOutputStream);
-  if (modeFlags === undefined)
-    modeFlags = MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE;
-  if (!file.exists())
-    file.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
-  fos.init(file, modeFlags, PERMS_FILE, 0);
-  return fos;
-}
-
-/**
- * Closes a safe file output stream.
- * @param   stream
- *          The stream to close.
- */
-function closeSafeFileOutputStream(stream) {
-  if (stream instanceof Ci.nsISafeOutputStream)
-    stream.finish();
-  else
-    stream.close();
 }
 
 /**
@@ -513,7 +452,7 @@ Blocklist.prototype = {
     var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
                   createInstance(Ci.nsIXMLHttpRequest);
     request.open("GET", uri.spec, true);
-    request.channel.notificationCallbacks = new BadCertHandler();
+    request.channel.notificationCallbacks = new gCertUtils.BadCertHandler();
     request.overrideMimeType("text/xml");
     request.setRequestHeader("Cache-Control", "no-cache");
     request.QueryInterface(Components.interfaces.nsIJSXMLHttpRequest);
@@ -532,7 +471,7 @@ Blocklist.prototype = {
   onXMLLoad: function(aEvent) {
     var request = aEvent.target;
     try {
-      checkCert(request.channel);
+      gCertUtils.checkCert(request.channel);
     }
     catch (e) {
       LOG("Blocklist::onXMLLoad: " + e);
@@ -544,18 +483,19 @@ Blocklist.prototype = {
       LOG("Blocklist::onXMLLoad: there was an error during load");
       return;
     }
-    var blocklistFile = getFile(KEY_PROFILEDIR, [FILE_BLOCKLIST]);
+    var blocklistFile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_BLOCKLIST]);
     if (blocklistFile.exists())
       blocklistFile.remove(false);
-    var fos = openSafeFileOutputStream(blocklistFile);
+    var fos = FileUtils.openSafeFileOutputStream(blocklistFile);
     fos.write(request.responseText, request.responseText.length);
-    closeSafeFileOutputStream(fos);
+    FileUtils.closeSafeFileOutputStream(fos);
 
     var oldAddonEntries = this._addonEntries;
     var oldPluginEntries = this._pluginEntries;
     this._addonEntries = { };
     this._pluginEntries = { };
-    this._loadBlocklistFromFile(getFile(KEY_PROFILEDIR, [FILE_BLOCKLIST]));
+    this._loadBlocklistFromFile(FileUtils.getFile(KEY_PROFILEDIR,
+                                                  [FILE_BLOCKLIST]));
 
     this._blocklistUpdated(oldAddonEntries, oldPluginEntries);
   },
@@ -585,12 +525,12 @@ Blocklist.prototype = {
   _loadBlocklist: function() {
     this._addonEntries = { };
     this._pluginEntries = { };
-    var profFile = getFile(KEY_PROFILEDIR, [FILE_BLOCKLIST]);
+    var profFile = FileUtils.getFile(KEY_PROFILEDIR, [FILE_BLOCKLIST]);
     if (profFile.exists()) {
       this._loadBlocklistFromFile(profFile);
       return;
     }
-    var appFile = getFile(KEY_APPDIR, [FILE_BLOCKLIST]);
+    var appFile = FileUtils.getFile(KEY_APPDIR, [FILE_BLOCKLIST]);
     if (appFile.exists()) {
       this._loadBlocklistFromFile(appFile);
       return;
@@ -663,7 +603,7 @@ Blocklist.prototype = {
 
     var fileStream = Components.classes["@mozilla.org/network/file-input-stream;1"]
                                .createInstance(Components.interfaces.nsIFileInputStream);
-    fileStream.init(file, MODE_RDONLY, PERMS_FILE, 0);
+    fileStream.init(file, FileUtils.MODE_RDONLY, FileUtils.PERMS_FILE, 0);
     try {
       var parser = Cc["@mozilla.org/xmlextras/domparser;1"].
                    createInstance(Ci.nsIDOMParser);

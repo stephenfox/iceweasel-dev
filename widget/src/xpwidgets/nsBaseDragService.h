@@ -63,7 +63,8 @@ class nsICanvasElement;
  */
 
 class nsBaseDragService : public nsIDragService,
-                          public nsIDragSession
+                          public nsIDragSession,
+                          public nsIDragSession_1_9_2
 {
 
 public:
@@ -76,6 +77,7 @@ public:
   //nsIDragSession and nsIDragService
   NS_DECL_NSIDRAGSERVICE
   NS_DECL_NSIDRAGSESSION
+  NS_DECL_NSIDRAGSESSION_1_9_2
 
   void SetDragEndPoint(nsIntPoint aEndDragPoint) { mEndDragPoint = aEndDragPoint; }
 
@@ -128,6 +130,7 @@ protected:
                              PRInt32* aScreenX, PRInt32* aScreenY);
 
   PRPackedBool mCanDrop;
+  PRPackedBool mOnlyChromeDrop;
   PRPackedBool mDoingDrag;
   // true if mImage should be used to set a drag image
   PRPackedBool mHasImage;

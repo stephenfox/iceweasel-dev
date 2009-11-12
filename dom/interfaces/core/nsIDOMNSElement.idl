@@ -39,7 +39,7 @@
 
 #include "domstubs.idl"
 
-[scriptable, uuid(df86b1a8-02c3-47be-a76b-856620f925df)]
+[scriptable, uuid(C9DA11BC-32D4-425E-A91F-7E0939C39251)]
 interface nsIDOMNSElement : nsISupports
 {
   /*
@@ -152,4 +152,11 @@ interface nsIDOMNSElement : nsISupports
    * Returns a DOMTokenList object reflecting the class attribute.
    */
   readonly attribute nsIDOMDOMTokenList classList;
+
+  /**
+   * Returns whether this element would be selected by the given selector string.
+   *
+   * See http://dev.w3.org/2006/webapi/selectors-api2/#matchtesting
+   */
+  boolean mozMatchesSelector(in DOMString selector);
 };

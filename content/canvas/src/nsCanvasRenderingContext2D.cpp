@@ -488,14 +488,17 @@ protected:
      * Gets the pres shell from either the canvas element or the doc shell
      */
     nsIPresShell *GetPresShell() {
-      nsIPresShell *presShell = nsnull;
       nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
       if (content) {
-          presShell = content->GetOwnerDoc()->GetPrimaryShell();
-      } else if (mDocShell) {
-          mDocShell->GetPresShell(&presShell);
+        nsIDocument* ownerDoc = content->GetOwnerDoc();
+        return ownerDoc ? ownerDoc->GetPrimaryShell() : nsnull;
       }
-      return presShell;
+      if (mDocShell) {
+        nsCOMPtr<nsIPresShell> shell;
+        mDocShell->GetPresShell(getter_AddRefs(shell));
+        return shell.get();
+      }
+      return nsnull;
     }
 
     // text
@@ -3391,6 +3394,15 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 //
 // device pixel getting/setting
 //
+extern "C" {
+#include "jstypes.h"
+JS_FRIEND_API(JSBool)
+js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
+                                JSUint8 *dest);
+JS_FRIEND_API(JSObject *)
+js_NewArrayObjectWithCapacity(JSContext *cx, jsuint capacity, jsval **vector);
+}
+
 
 // ImageData getImageData (in float x, in float y, in float width, in float height);
 NS_IMETHODIMP
@@ -3462,10 +3474,14 @@ nsCanvasRenderingContext2D::GetImageData()
     if (len > (((PRUint32)0xfff00000)/sizeof(jsval)))
         return NS_ERROR_INVALID_ARG;
 
-    nsAutoArrayPtr<jsval> jsvector(new (std::nothrow) jsval[w * h * 4]);
-    if (!jsvector)
+    jsval *dest;
+    JSObject *dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
+    if (!dataArray)
         return NS_ERROR_OUT_OF_MEMORY;
-    jsval *dest = jsvector.get();
+
+    nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     PRUint8 *row;
     for (int j = 0; j < h; j++) {
         row = surfaceData + surfaceDataOffset + (surfaceDataStride * j);
@@ -3497,13 +3513,8 @@ nsCanvasRenderingContext2D::GetImageData()
         }
     }
 
-    JSObject *dataArray = JS_NewArrayObject(ctx, w*h*4, jsvector.get());
-    if (!dataArray)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    // Allocate result object after array, so if we have to trigger gc
+    // we do it now.
     JSObject *result = JS_NewObject(ctx, NULL, NULL, NULL);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -3522,13 +3533,6 @@ nsCanvasRenderingContext2D::GetImageData()
     ncc->SetReturnValueWasSet(PR_TRUE);
 
     return NS_OK;
-}
-
-extern "C" {
-#include "jstypes.h"
-JS_FRIEND_API(JSBool)
-js_CoerceArrayToCanvasImageData(JSObject *obj, jsuint offset, jsuint count,
-                                JSUint8 *dest);
 }
 
 static inline PRUint8 ToUint8(jsint aInput)
@@ -3796,21 +3800,19 @@ nsCanvasRenderingContext2D::CreateImageData()
     if (len / 4 != len0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-    nsAutoArrayPtr<jsval> jsvector(new (std::nothrow) jsval[w * h * 4]);
-    if (!jsvector)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    jsval *dest = jsvector.get();
-    for (PRUint32 i = 0; i < len; i++)
-        *dest++ = JSVAL_ZERO;
-
-    JSObject *dataArray = JS_NewArrayObject(ctx, w*h*4, jsvector.get());
+    jsval *dest;
+    JSObject *dataArray = js_NewArrayObjectWithCapacity(ctx, len, &dest);
     if (!dataArray)
         return NS_ERROR_OUT_OF_MEMORY;
 
     nsAutoGCRoot arrayGCRoot(&dataArray, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    for (PRUint32 i = 0; i < len; i++)
+        *dest++ = JSVAL_ZERO;
+
+    // Allocate result object after array, so if we have to trigger gc
+    // we do it now.
     JSObject *result = JS_NewObject(ctx, NULL, NULL, NULL);
     if (!result)
         return NS_ERROR_OUT_OF_MEMORY;

@@ -131,6 +131,7 @@
 
 #include "nsIDirectoryService.h"
 #include "nsDirectoryServiceDefs.h"
+#include "nsXULAppAPI.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIFile.h"
 #include "nsPluginDirServiceProvider.h"
@@ -468,11 +469,21 @@ void nsPluginInstanceTagList::stopRunning(nsISupportsArray* aReloadDocs,
                              (void *) &doCallSetWindowAfterDestroy);
       if (doCallSetWindowAfterDestroy) {
         p->mInstance->Stop();
+#ifdef OJI
+        nsCOMPtr<nsIPluginInstanceOld> instOld(do_QueryInterface(p->mInstance));
+        if (instOld)
+          instOld->Destroy();
+#endif
         p->mInstance->SetWindow(nsnull);
       }
       else {
         p->mInstance->SetWindow(nsnull);
         p->mInstance->Stop();
+#ifdef OJI
+        nsCOMPtr<nsIPluginInstanceOld> instOld(do_QueryInterface(p->mInstance));
+        if (instOld)
+          instOld->Destroy();
+#endif
       }
       doCallSetWindowAfterDestroy = PR_FALSE;
       p->setStopped(PR_TRUE);
@@ -2766,6 +2777,12 @@ nsresult nsPluginHost::GetURLWithHeaders(nsISupports* pluginInst,
 
   nsresult rv;
   nsCOMPtr<nsIPluginInstance> instance = do_QueryInterface(pluginInst, &rv);
+#ifdef OJI
+  if (NS_FAILED(rv)) {
+    nsCOMPtr<nsIPluginInstanceOld> instanceOld(do_QueryInterface(pluginInst));
+    rv = NewForOldPluginInstance(instanceOld, getter_AddRefs(instance));
+  }
+#endif
   if (NS_SUCCEEDED(rv))
     rv = DoURLLoadSecurityCheck(instance, url);
 
@@ -2816,6 +2833,12 @@ NS_IMETHODIMP nsPluginHost::PostURL(nsISupports* pluginInst,
    return NS_ERROR_ILLEGAL_VALUE;
 
   nsCOMPtr<nsIPluginInstance> instance = do_QueryInterface(pluginInst, &rv);
+#ifdef OJI
+  if (NS_FAILED(rv)) {
+    nsCOMPtr<nsIPluginInstanceOld> instanceOld(do_QueryInterface(pluginInst));
+    rv = NewForOldPluginInstance(instanceOld, getter_AddRefs(instance));
+  }
+#endif
   if (NS_SUCCEEDED(rv))
     rv = DoURLLoadSecurityCheck(instance, url);
 
@@ -4396,6 +4419,69 @@ NS_IMETHODIMP nsPluginHost::SetCookie(const char* inCookieURL, const void* inCoo
   return rv;
 }
 
+// Helper method
+
+// Given an nsIPluginInstanceOld pointer, return a pointer to its
+// corresponding nsIPluginInstance object (the one whose mShadow member is
+// the nsIPluginInstanceOld pointer).
+//
+// Here we assume that the nsPIPluginInstancePeer::GetOwner() and
+// nsIPluginInstanceOwner::GetInstance() methods will never be called
+// from an "old" plugin instance (an instance of nsIPluginInstanceOld).
+// If this were to happen, the plugin would get an instance pointer
+// that it couldn't use (it would need and expect an nsIPluginInstanceOld
+// pointer, but get an nsIPluginInstance pointer instead).  The JEP's
+// MRJPlugin.plugin doesn't use either of these two methods.  And given
+// that the nsPIPluginInstancePeer interface is "private", I don't expect
+// that other XPCOM/OJI plugins use it, either.  But if we ever load one
+// that does, we'll need to change the nsIPluginInstanceOwner::GetInstance()
+// method to return a different result depending on whether or not its
+// mInstance member has an mShadow member.  And we'll also need to change
+// this code.
+//
+// This method is (of course) always called from the browser.
+nsresult
+nsPluginHost::NewForOldPluginInstance(nsIPluginInstanceOld* aInstanceOld, nsIPluginInstance** aInstance)
+{
+  if (!aInstance)
+    return NS_ERROR_NULL_POINTER;
+
+  *aInstance = nsnull;
+
+  if (!aInstanceOld)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  nsresult rv = aInstanceOld->GetPeer(getter_AddRefs(peer));
+  if (NS_SUCCEEDED(rv) && !peer)
+    rv = NS_ERROR_FAILURE;
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCOMPtr<nsPIPluginInstancePeer> privpeer = do_QueryInterface(peer, &rv);
+  if (NS_SUCCEEDED(rv) && !privpeer)
+    rv = NS_ERROR_FAILURE;
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  rv = privpeer->GetOwner(getter_AddRefs(owner));
+  if (NS_SUCCEEDED(rv) && !owner)
+    rv = NS_ERROR_FAILURE;
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsIPluginInstance* instance = nsnull;
+  rv = owner->GetInstance(instance);
+  if (NS_SUCCEEDED(rv) && !instance)
+    rv = NS_ERROR_FAILURE;
+
+  if (NS_SUCCEEDED(rv))
+    *aInstance = instance;
+
+  return rv;
+}
+
 #endif // OJI
 
 // XXX called from ScanPluginsDirectory only when told to filter
@@ -4888,8 +4974,10 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   *aPluginsChanged = PR_FALSE;
   nsresult rv;
 
-  // Read cached plugins info
-  ReadPluginInfo();
+  // Read cached plugins info. If the profile isn't yet available then don't
+  // scan for plugins
+  if (ReadPluginInfo() == NS_ERROR_NOT_AVAILABLE)
+    return NS_OK;
 
   nsCOMPtr<nsIComponentManager> compManager;
   NS_GetComponentManager(getter_AddRefs(compManager));
@@ -5208,8 +5296,16 @@ nsPluginHost::ReadPluginInfo()
   directoryService->Get(NS_APP_USER_PROFILE_50_DIR, NS_GET_IID(nsIFile),
                         getter_AddRefs(mPluginRegFile));
 
-  if (!mPluginRegFile)
-    return NS_ERROR_FAILURE;
+  if (!mPluginRegFile) {
+    // There is no profile yet, this will tell us if there is going to be one
+    // in the future.
+    directoryService->Get(NS_APP_PROFILE_DIR_STARTUP, NS_GET_IID(nsIFile),
+                          getter_AddRefs(mPluginRegFile));
+    if (!mPluginRegFile)
+      return NS_ERROR_FAILURE;
+    else
+      return NS_ERROR_NOT_AVAILABLE;
+  }
 
   PRFileDesc* fd = nsnull;
 
@@ -6526,6 +6622,11 @@ public:
                ("Doing delayed destroy of instance %p\n", instance.get()));
 
     instance->Stop();
+#ifdef OJI
+    nsCOMPtr<nsIPluginInstanceOld> instOld(do_QueryInterface(instance));
+    if (instOld)
+      instOld->Destroy();
+#endif
 
     nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst();
 

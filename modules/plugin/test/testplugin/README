@@ -59,6 +59,18 @@ The test plugin object supports the following scriptable method:
 Returns true if the plugin has an associated widget. This will return true if
 wmode="window" was specified and the platform supports windowed plugins.
 
+== Plugin invalidation ==
+
+* setColor(colorString)
+Sets the color used for drawmode="solid" and invalidates the plugin area.
+This calls NPN_Invalidate, even for windowed plugins, since that should work
+for windowed plugins too (Silverlight depends on it).
+
+* getPaintCount()
+Returns the number of times this plugin instance has processed a paint request.
+This can be used to detect whether painting has happened in a plugin's
+window.
+
 == Plugin geometry ==
 
 The test plugin supports the following scriptable methods:
@@ -200,3 +212,11 @@ The attributes which control stream tests are:
   via calls to NPP_NewStream etc, and if a "frame" attribute is present, the
   contents of that stream will be passed back to the browser and displayed
   in the specified frame via NPN_GetURL.
+
+== Internal consistency ==
+
+* doInternalConsistencyCheck()
+Does internal consistency checking, returning an empty string if everything is
+OK, otherwise returning some kind of error string. On Windows, in windowed
+mode, this checks that the position of the plugin's internal child
+window has not been disturbed relative to the plugin window.

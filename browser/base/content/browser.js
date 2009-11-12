@@ -216,8 +216,13 @@ function SetClickAndHoldHandlers() {
     if (aEvent.button == 0 &&
         aEvent.target == aEvent.currentTarget &&
         !aEvent.currentTarget.open &&
-        !aEvent.currentTarget.disabled)
-      aEvent.currentTarget.doCommand();
+        !aEvent.currentTarget.disabled) {
+      let cmdEvent = document.createEvent("xulcommandevent");
+      cmdEvent.initCommandEvent("command", true, true, window, 0,
+                                aEvent.ctrlKey, aEvent.altKey, aEvent.shiftKey,
+                                aEvent.metaKey, null);
+      aEvent.currentTarget.dispatchEvent(cmdEvent);
+    }
   }
 
   function stopTimer(aEvent) {
@@ -2105,9 +2110,9 @@ function BrowserViewSourceOfDocument(aDocument)
 
 // doc - document to use for source, or null for this window's document
 // initialTab - name of the initial tab to display, or null for the first tab
-function BrowserPageInfo(doc, initialTab)
-{
-  var args = {doc: doc, initialTab: initialTab};
+// imageElement - image to load in the Media Tab of the Page Info window; can be null/omitted
+function BrowserPageInfo(doc, initialTab, imageElement) {
+  var args = {doc: doc, initialTab: initialTab, imageElement: imageElement};
   return toOpenDialogByTypeAndUrl("Browser:page-info",
                                   doc ? doc.location : window.content.document.location,
                                   "chrome://browser/content/pageinfo/pageInfo.xul",
@@ -7141,7 +7146,7 @@ var LightWeightThemeWebInstaller = {
   handleEvent: function (event) {
     switch (event.type) {
       case "InstallBrowserTheme":
-        this._install(event);
+        this._installRequest(event);
         break;
       case "PreviewBrowserTheme":
         this._preview(event);
@@ -7159,14 +7164,14 @@ var LightWeightThemeWebInstaller = {
     return this._manager = temp.LightweightThemeManager;
   },
 
-  _install: function (event) {
+  _installRequest: function (event) {
     var node = event.target;
     var data = this._getThemeFromNode(node);
     if (!data)
       return;
 
     if (this._isAllowed(node)) {
-      this._manager.currentTheme = data;
+      this._install(data);
       return;
     }
 
@@ -7181,13 +7186,64 @@ var LightWeightThemeWebInstaller = {
       label: allowButtonText,
       accessKey: allowButtonAccesskey,
       callback: function () {
-        LightWeightThemeWebInstaller._manager.currentTheme = data;
+        LightWeightThemeWebInstaller._install(data);
       }
     }];
+
+    this._removePreviousNotifications();
+
     var notificationBox = gBrowser.getNotificationBox();
     notificationBox.appendNotification(message, "lwtheme-install-request", "",
                                        notificationBox.PRIORITY_INFO_MEDIUM,
                                        buttons);
+  },
+
+  _install: function (newTheme) {
+    var previousTheme = this._manager.currentTheme;
+    this._manager.currentTheme = newTheme;
+    if (this._manager.currentTheme &&
+        this._manager.currentTheme.id == newTheme.id)
+      this._postInstallNotification(newTheme, previousTheme);
+  },
+
+  _postInstallNotification: function (newTheme, previousTheme) {
+    function text(id) {
+      return gNavigatorBundle.getString("lwthemePostInstallNotification." + id);
+    }
+
+    var buttons = [{
+      label: text("undoButton"),
+      accessKey: text("undoButton.accesskey"),
+      callback: function () {
+        LightWeightThemeWebInstaller._manager.forgetUsedTheme(newTheme.id);
+        LightWeightThemeWebInstaller._manager.currentTheme = previousTheme;
+      }
+    }, {
+      label: text("manageButton"),
+      accessKey: text("manageButton.accesskey"),
+      callback: function () {
+        BrowserOpenAddonsMgr("themes");
+      }
+    }];
+
+    this._removePreviousNotifications();
+
+    var notificationBox = gBrowser.getNotificationBox();
+    notificationBox.appendNotification(text("message"),
+                                       "lwtheme-install-notification", "",
+                                       notificationBox.PRIORITY_INFO_MEDIUM,
+                                       buttons);
+  },
+
+  _removePreviousNotifications: function () {
+    var box = gBrowser.getNotificationBox();
+
+    ["lwtheme-install-request",
+     "lwtheme-install-notification"].forEach(function (value) {
+        var notification = box.getNotificationWithValue(value);
+        if (notification)
+          box.removeNotification(notification);
+      });
   },
 
   _preview: function (event) {
