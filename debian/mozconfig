@@ -14,8 +14,6 @@ ac_add_options --with-gssapi=/usr
 ac_add_options --with-system-nspr
 ac_add_options --with-system-nss
 ac_add_options --enable-xinerama
-ac_add_options --enable-single-profile
-ac_add_options --disable-profilesharing
 ac_add_options --enable-svg
 ac_add_options --enable-svg-renderer=cairo
 ac_add_options --enable-mathml
@@ -37,7 +35,6 @@ ac_add_options --disable-elf-dynstr-gc
 ac_add_options --enable-system-hunspell
 ac_add_options --disable-crashreporter
 ac_add_options --enable-system-sqlite
-ac_add_options --enable-system-lcms
 ac_add_options --disable-strip
 ac_add_options --disable-install-strip
 ac_add_options --enable-url-classifier
