@@ -45,7 +45,7 @@ MODULE		= sydneyaudio
 LIBRARY_NAME	= sydneyaudio
 FORCE_STATIC_LIB= 1
 
-ifneq (,$(filter DragonFly FreeBSD GNU_% NetBSD OpenBSD,$(OS_ARCH)))
+ifneq (,$(filter DragonFly FreeBSD GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
 CSRCS		= \
 		sydney_audio_oss.c \
 		$(NULL)
