@@ -220,7 +220,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${python:Depends},
          xulrunner-1.9.1
-Conflicts: epiphany-browser
+Breaks: epiphany-gecko (<< 2.28)
 XB-Python-Version: ${python:Versions}
 Description: XPCOM bindings for Python
  PyXPCOM allows for communication between Python and XPCOM, such that a
