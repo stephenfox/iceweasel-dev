@@ -4133,7 +4133,14 @@ AC_CACHE_CHECK(for __thread keyword for TLS variables,
                             ac_cv_thread_keyword=no)])
 LDFLAGS=$_SAVE_LDFLAGS
 if test "$ac_cv_thread_keyword" = yes; then
-  AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
+  case "${target_cpu}" in
+    mips*)
+      :
+      ;;
+    *)
+      AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
+      ;;
+  esac
 fi
 
 dnl End of C++ language/feature checks
