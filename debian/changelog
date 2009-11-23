@@ -1,3 +1,24 @@
+xulrunner (1.9.1.5-2) unstable; urgency=low
+
+  * configure.in, configure: Work around FTBFS on mips by disabling TLS
+    support.
+  * debian/control:
+    + python-xpcom Breaks epiphany-gecko (<< 2.28) instead of conflicting
+      with epiphany-browser. Closes: #556622.
+    + libmozjs2d Breaks xulrunner-1.9.1 (<< 1.9.1.4). Closes: #556658.
+    + Make xulrunner-1.9.1-gnome-support depend on libgnomeui-0.
+      Closes: #555162.
+  * js/src/configure.in, js/src/configure,
+    media/libsydneyaudio/src/Makefile.in: Fix FTBFS on hurd-i386. Thanks
+    Samuel Thibault. Closes: #556244.
+  * xulrunner/installer/libxul-embedding*.pc.in: Add -ldl. Closes: #556888.
+  * js/jsd/jsd_xpc.cpp: Fix JS debugger crash on 64-bit: don't truncate PC
+    to jsuint in jsds_FilterHook. bz#510040. Closes: #542768.
+  * toolkit/content/inlineSpellCheckUI.js: Support both - and _ separators
+    in dictionary names when making them user friendly. bz#514151.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 23 Nov 2009 20:04:19 +0100
+
 xulrunner (1.9.1.5-1) unstable; urgency=low
 
   * New upstream release.
