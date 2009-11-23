@@ -75,6 +75,7 @@ Section: devel
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+         libgnomeui-0,
          xulrunner-1.9.1
 Description: Support for GNOME in xulrunner applications
  This is an extension to xulrunner that allows XUL applications to use
