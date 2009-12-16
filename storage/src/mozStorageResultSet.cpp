@@ -71,6 +71,8 @@ mozStorageResultSet::add(mozIStorageRow *aRow)
 NS_IMETHODIMP
 mozStorageResultSet::GetNextRow(mozIStorageRow **_row)
 {
+  NS_ENSURE_ARG_POINTER(_row);
+
   if (mCurrentIndex >= mData.Count()) {
     // Just return null here
     return NS_OK;
