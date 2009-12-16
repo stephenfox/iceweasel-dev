@@ -1,3 +1,9 @@
+iceweasel (3.5.6-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 16 Dec 2009 11:08:01 +0100
+
 iceweasel (3.5.5-1) unstable; urgency=low
 
   * New upstream release.
