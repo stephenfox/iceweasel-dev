@@ -14,7 +14,7 @@ Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 Package: iceweasel
 Architecture: any
 Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9.1
-Suggests: xulrunner-1.9.1-gnome-support, latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
+Suggests: xulrunner-1.9.1-gnome-support, ttf-lyx | latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
 Provides: www-browser
 Conflicts: iceweasel-dom-inspector (<< 3.0~b4)
 Replaces: iceweasel-gnome-support (<= 3.0~b5-2)
