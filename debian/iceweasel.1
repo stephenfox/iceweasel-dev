@@ -23,22 +23,6 @@ the Iceweasel application.
 .SH OPTIONS
 A summary of the options supported by \fBiceweasel\fR is included below.
 
-.SS "GTK options"
-\fB\-\-gdk\-debug=\fR\fIFLAGS\fR
-Gdk debugging flags to set
-.TP
-\fB\-\-gdk\-no\-debug=\fR\fIFLAGS\fR
-Gdk debugging flags to unset
-.TP
-\fB\-\-gtk\-debug=\fR\fIFLAGS\fR
-Gtk+ debugging flags to set
-.TP
-\fB\-\-gtk\-no\-debug=\fR\fIFLAGS\fR
-Gtk+ debugging flags to unset
-.TP
-\fB\-\-gtk\-module=\fR\fIMODULE\fR
-Load an additional Gtk module
-
 .SS "X11 options"
 .TP
 .BI \-\-display= DISPLAY
@@ -59,72 +43,46 @@ Make all warnings fatal
 
 .SS "Mozilla options"
 .TP
-\fB\-height\fR \fIvalue\fR
-Set height of startup window to \fIvalue\fR pixels.
-.TP
 .B \-h, \-help
 Show summary of options.
-.TP
-.B \-installer
-Start with Mozilla 4.x migration window.
-.TP
-\fB\-width\fR \fIvalue\fR
-Set width of startup window to \fIvalue\fR pixels.
 .TP
 .B \-v, \-version
 Print Iceweasel version.
 .TP
-.B \-no\-remote
-Don't connect to a running iceweasel instance.
-.TP
-\fB\-a\fR \fIapplication\-id\fR
-Check for a running Iceweasel started with the specified
-\fIapplication\-id\fR.  When \fBiceweasel\fR is invoked for
-the first time with a particular \fIapplication\-id\fR, a new Iceweasel
-application is started; subsequent invocations of \fBiceweasel\fR
-with the same \fIapplication\-id\fR will cause the already-running
-Iceweasel to bring up a new window.
-
-The default is \fB\-a iceweasel\fR.
-.TP
-\fB\-CreateProfile\fR \fIprofile\fR
-Create \fIprofile\fR.
-Implies \fB\-a iceweasel\-\-\fR\fIprofile\fR, or \fB\-a default\fR
-if \fIprofile\fR is \fBdefault\fR.
-.TP
 \fB\-P\fR \fIprofile\fR
-Start with \fIprofile\fR.
-Implies \fB\-a iceweasel\-\-\fR\fIprofile\fR, or \fB\-a default\fR
-if \fIprofile\fR is \fBdefault\fR.
+Start with \fIprofile\fR. May require \fB\-no\-remote\fR, see below.
+.TP
+.B \-migration
+Start with migration wizard. May require \fB\-no\-remote\fR, see below.
 .TP
 .B \-ProfileManager
-Start with profile manager.
-Implies \fB\-a\fR with a fresh unique \fIapplication\-id\fR.
+Start with profile manager. May require \fB\-no\-remote\fR, see below.
+.TP
+.B \-no\-remote
+Don't connect to a running Iceweasel instance. This option can be necessary
+in conjunction to several of the options above, that won't have any effect
+when an Iceweasel instance is running unless \fB\-no\-remote\fR is used at
+the same time.
 .TP
 \fB\-UILocale\fR \fIlocale\fR
 Start with \fIlocale\fR resources as User Interface locale. By default, it is
 guessed from environment and available locales for Iceweasel.
 .TP
-\fB\-contentLocale\fR \fIlocale\fR
-Start with \fIlocale\fR resources as content locale. By default, it is
-guessed from environment and available locales for Iceweasel.
-.TP
-\fB\-new-window\fR \fIURL\fR
-Open \fIURL\fR in a new window in an already running Iceweasel process.
-\fB\-new-tab\fR \fIURL\fR
-Open \fIURL\fR in a new tab in an already running Iceweasel process.
-
+.B \-safe\-mode
+Starts Iceweasel in safe mode, i.e. disabling all extensions and
+showing a bit more debugging messages.
 .TP
 .B \-jsconsole
 Start with Javascript Console
 .TP
+\fB\-new-window\fR \fIURL\fR
+Open \fIURL\fR in a new window in an already running Iceweasel process.
+.TP
+\fB\-new-tab\fR \fIURL\fR
+Open \fIURL\fR in a new tab in an already running Iceweasel process.
+.TP
 \fB\-chrome\fR \fIurl\fR
 Load the specified chrome.
-.TP
-.B \-safe\-mode
-Starts Iceweasel in safe mode, that is disabling all extensions and
-showing a bit more debugging messages.
-
 .SS "Debugger options"
 .TP
 .B \-g, \-debug
@@ -136,6 +94,9 @@ Use \fIprogram\fR as a debugger for Iceweasel. Implies \fB\-debug\fR.
 .SH ENVIRONMENT
 \fIICEWEASEL_DSP\fR - configures the /dev/dsp wrapper to use. Accepted values
 are "auto", "artsdsp", "esddsp", "aoss" or "none" (default).
+
+\fIMOZILLA_DISABLE_PLUGINS\fR - when set, totally disables loading browser plugins
+(the ones that appear at the about:plugins url)
 
 .SH FILES
 \fI/usr/bin/iceweasel\fR - shell script wrapping
@@ -154,10 +115,8 @@ variables to be passed to Iceweasel.
 be passed to Iceweasel. Overrides \fI/etc/iceweasel/iceweaselrc\fR
 
 .SH BUGS
-To report a bug, please visit \fIhttp://bugzilla.mozilla.org/\fR
-
-.SH "SEE ALSO"
-.BR mozilla(1)
+To report a bug, please visit \fIhttp://bugzilla.mozilla.org/\fR and/or report bugs
+to the Debian Bug Tracking System, as usual.
 
 .SH AUTHORS
 .TP
