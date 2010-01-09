@@ -34,17 +34,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* Used Javascript XPCOM component generator from
-   http://ted.mielczarek.org/code/mozilla/jscomponentwiz/ to get a skeleton */
-
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
-
-// You can change these if you like
-const CLASS_ID = Components.ID("1359a506-95b6-4fec-9f03-3d81ce131fc0");
-const CLASS_NAME = "about: handler for Debian and package related information";
-const CONTRACT_ID_PREFIX = "@mozilla.org/network/protocol/about;1?what=";
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 var debAboutURLs = {
   get urls() {
@@ -78,25 +71,10 @@ var debAboutURLs = {
   }
 }
 
-// This is your constructor.
-// You can do stuff here.
-function debAboutRedirector() {
-  // you can cheat and use this
-  // while testing without
-  // writing your own interface
-  this.wrappedJSObject = this;
-}
+function debAboutRedirector() {}
 
-// This is the implementation of your component.
 debAboutRedirector.prototype = {
-  // for nsISupports
-  QueryInterface: function(aIID)
-  {
-    // add any other interfaces you support here
-    if (!aIID.equals(Ci.nsISupports) && !aIID.equals(Ci.nsIAboutModule))
-        throw Cr.NS_ERROR_NO_INTERFACE;
-    return this;
-  },
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule]),
 
   newChannel: function(uri)
   {
@@ -116,52 +94,18 @@ debAboutRedirector.prototype = {
   }
 }
 
-//=================================================
-// Note: You probably don't want to edit anything
-// below this unless you know what you're doing.
-//
 // Factory
-var debAboutFactory = {
-  createInstance: function (aOuter, aIID)
-  {
-    if (aOuter != null)
-      throw Cr.NS_ERROR_NO_AGGREGATION;
-    return (new debAboutRedirector()).QueryInterface(aIID);
-  }
-};
+var debAboutFactory = XPCOMUtils._getFactory(debAboutRedirector);
 
-// Module
-var debAboutModule = {
-  registerSelf: function(aCompMgr, aFileSpec, aLocation, aType)
-  {
+function debAboutComponent(key) {
+  var component = function() {};
+  component.prototype = {
+    classDescription: "about: handler for Debian and package related information",
+    classID: Components.ID("{1359a506-95b6-4fec-9f03-3d81ce131fc0}"),
+    contractID: "@mozilla.org/network/protocol/about;1?what=" + key,
+    _xpcom_factory: debAboutFactory
+  };
+  return component;
+}
 
-    aCompMgr = aCompMgr.QueryInterface(Ci.nsIComponentRegistrar);
-    for (var key in debAboutURLs.urls) {
-      aCompMgr.registerFactoryLocation(CLASS_ID, CLASS_NAME, CONTRACT_ID_PREFIX + key, aFileSpec, aLocation, aType);
-    }
-  },
-
-  unregisterSelf: function(aCompMgr, aLocation, aType)
-  {
-    aCompMgr = aCompMgr.QueryInterface(Ci.nsIComponentRegistrar);
-    for (var key in this.urls) {
-      aCompMgr.unregisterFactoryLocation(CLASS_ID_PREFIX + key, aLocation);
-    }
-  },
-
-  getClassObject: function(aCompMgr, aCID, aIID)
-  {
-    if (!aIID.equals(Ci.nsIFactory))
-      throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-
-    if (aCID.equals(CLASS_ID))
-      return debAboutFactory;
-
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
-
-  canUnload: function(aCompMgr) { return true; }
-};
-
-//module initialization
-function NSGetModule(aCompMgr, aFileSpec) { return debAboutModule; }
+var NSGetModule = XPCOMUtils.generateNSGetModule([debAboutComponent(key) for (key in debAboutURLs.urls)]);
