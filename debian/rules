@@ -91,6 +91,7 @@ config.status: ./configure debian/mozconfig
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	            $(CONFIGURE_FLAGS)
+	build/autoconf/make-makefile debian/filemonitor
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
@@ -105,6 +106,7 @@ build-stamp:  config.status
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
 		DEB_NO_JAR=1
+	$(MAKE) -C debian/filemonitor
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
@@ -154,6 +156,7 @@ clean:
 	rm -f $(GENERATED_FILES)
 
 	# Add here commands to clean up after the build process.
+	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/filemonitor
 	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
 
 	for dir in $(AUTOCONF_DIRS); do \
