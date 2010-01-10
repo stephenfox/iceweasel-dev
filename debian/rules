@@ -57,7 +57,7 @@ ifeq ($(DEB_BUILD_ARCH)$(GCC_4_4_OR_MORE),armel)
 	JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 endif
 
-COMPONENT_PACKAGES := python-xpcom xulrunner-$(BASE_VERSION)-gnome-support
+COMPONENT_PACKAGES := python-xpcom
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
 GENERATED_FILES := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
 $(COMPONENT_SCRIPTS): %: debian/postinstrm.in
@@ -282,7 +282,8 @@ binary-arch: build test install $(GENERATED_FILES)
 	fi
 	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1.4)' -- $(GENSYMBOLS_FLAGS)
 	dh_installdeb -a
-	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
+	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
+	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(BASE_VERSION).substvars -dRecommends -pxulrunner $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(BASE_VERSION)/usr/lib/xulrunner-$(BASE_VERSION)/components/lib$(lib).so)
 	dh_gencontrol -a
 	dh_md5sums -a
 	dh_builddeb -a

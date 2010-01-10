@@ -47,9 +47,11 @@ Depends: ${shlibs:Depends},
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>> 3.12.0~rc3-1),
          libcairo2 (>= 1.8.8)
-Suggests: xulrunner-1.9.1-gnome-support
+Recommends: ${xulrunner:Recommends}, libgnomeui-0
 Breaks: iceweasel (<< 3.5.5-1)
-Conflicts: j2re1.4,
+Replaces: xulrunner-1.9.1-gnome-support
+Conflicts: xulrunner-1.9.1-gnome-support,
+           j2re1.4,
            pango-graphite
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
@@ -69,18 +71,6 @@ Description: XUL + XPCOM application runner
  .
  This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
-
-Package: xulrunner-1.9.1-gnome-support
-Section: devel
-Architecture: any
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         libgnomeui-0,
-         xulrunner-1.9.1
-Description: Support for GNOME in xulrunner applications
- This is an extension to xulrunner that allows XUL applications to use
- protocol handlers from GnomeVFS, such as smb or sftp, and other GNOME
- integration features.
 
 Package: libmozjs2d
 Section: libs
@@ -177,7 +167,6 @@ Section: debug
 Priority: extra
 Architecture: any
 Depends: xulrunner-1.9.1 (= ${binary:Version})
-         | xulrunner-1.9.1-gnome-support (= ${binary:Version})
          | python-xpcom (= ${binary:Version})
 Conflicts: xulrunner-1.9-dbg
 Description: Development files for the Gecko engine library
@@ -190,7 +179,7 @@ Description: Development files for the Gecko engine library
  Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
  .
  This package provides the debugging symbols for the library, and for the
- xulrunner, xulrunner-gnome-support and python-xpcom packages.
+ xulrunner-1.9.1 and python-xpcom packages.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: libmozillainterfaces-java
