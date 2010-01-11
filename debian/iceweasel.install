@@ -14,7 +14,6 @@ debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
 
 debian/iceweasel.desktop usr/share/applications
 debian/iceweaselrc etc/iceweasel
-debian/presubj usr/share/bug/iceweasel
 
 debian/default.xpm usr/share/iceweasel/chrome/icons/default
 debian/branding/mozicon16.xpm usr/share/iceweasel/chrome/icons/default

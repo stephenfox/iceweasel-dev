@@ -215,6 +215,7 @@ binary-arch: build install
 	dh_installinfo -a
 	dh_installmime -a
 	dh_installchangelogs -a
+	dh_bugfiles -a
 	dh_link -a
 	dh_strip -a --dbg-package=iceweasel-dbg
 	dh_compress -piceweasel -XREADME.Debian
