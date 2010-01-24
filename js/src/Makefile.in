@@ -662,3 +662,10 @@ update-imacros:: imacros.c.out
 	$(DIST)/bin/js imacro_asm.js $< > $@
 endif
 endif
+
+distclean::
+	cat unallmakefiles | $(XARGS) rm -f
+	rm -f $(DIST_GARBAGE)
+
+DIST_GARBAGE = config.cache config.log config.status \
+  config/autoconf.mk unallmakefiles mozilla-config.h js-config js-config.h
