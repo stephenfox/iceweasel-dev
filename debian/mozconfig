@@ -28,7 +28,7 @@ ac_add_options --enable-canvas
 #ac_add_options --disable-xpcom-obsolete
 ac_add_options --enable-js-binary
 ac_add_options --with-readline
-ac_add_options --enable-extensions="default cookie permissions python/xpcom spellcheck"
+ac_add_options --enable-extensions="default python/xpcom"
 ac_add_options --disable-installer
 ac_add_options --disable-javaxpcom
 ac_add_options --disable-elf-dynstr-gc
