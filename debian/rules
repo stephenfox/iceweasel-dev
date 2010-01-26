@@ -33,7 +33,7 @@ JAVA_VARS := \
 	JAVAC=javac \
 	JAR=jar \
 
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --disable-optimize
 endif
 
@@ -45,7 +45,7 @@ ifeq ($(DEB_BUILD_ARCH),ppc64)
 	CFLAGS += -mminimal-toc
 endif
 
-ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --enable-debug
 endif
 ifeq (,$(filter debug noopt,$(DEB_BUILD_OPTIONS)))
@@ -115,7 +115,7 @@ debian/locales/en_US.UTF-8:
 	localedef -f UTF-8 -i en_US $@
 
 test: build-stamp debian/locales/en_US.UTF-8
-ifeq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
