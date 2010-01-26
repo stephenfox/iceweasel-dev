@@ -57,6 +57,7 @@ ifeq ($(DEB_BUILD_ARCH)$(GCC_4_4_OR_MORE),armel)
 	JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 endif
 
+EXTRA_DIRS := filemonitor extra-stuff
 COMPONENT_PACKAGES := python-xpcom
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
 GENERATED_FILES := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
@@ -90,7 +91,7 @@ config.status: ./configure debian/mozconfig
 	CXXFLAGS="$(CFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	            $(CONFIGURE_FLAGS)
-	build/autoconf/make-makefile debian/filemonitor
+	build/autoconf/make-makefile $(foreach dir,$(EXTRA_DIRS),debian/$(dir))
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
@@ -105,7 +106,7 @@ build-stamp:  config.status
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
 		DEB_NO_JAR=1
-	$(MAKE) -C debian/filemonitor
+	$(foreach dir,$(EXTRA_DIRS),$(MAKE) -C debian/$(dir);)
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
@@ -154,7 +155,7 @@ clean:
 	rm -f $(GENERATED_FILES)
 
 	# Add here commands to clean up after the build process.
-	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/filemonitor
+	$(foreach dir,$(EXTRA_DIRS),[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/$(dir) distclean;)
 	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
 
 	for dir in $(AUTOCONF_DIRS); do \
@@ -235,7 +236,6 @@ install-stamp: build-stamp
 	install -d -m 755 debian/tmp/usr/lib/$(PYVER)
 	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/python debian/tmp/usr/lib/$(PYVER)/site-packages
 
-	install -m 644 debian/debAbout.js debian/addonsInfo.js debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/components/
 	install -m 755 debian/reportbug-helper-script debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/
 
 	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
