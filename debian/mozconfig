@@ -21,7 +21,6 @@ ac_add_options --disable-pedantic
 ac_add_options --disable-long-long-warning
 ac_add_options --enable-gnomevfs
 ac_add_options --enable-gnomeui
-ac_add_options --disable-tests
 ac_add_options --disable-mochitest
 ac_add_options --disable-debug
 ac_add_options --enable-canvas

@@ -32,9 +32,7 @@ Build-Depends: debhelper (>= 5.0.59),
                libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64 !hurd-i386],
                libiw-dev [!kfreebsd-i386 !kfreebsd-amd64 !hurd-i386],
                zip,
-               xvfb,
-               xfonts-base,
-               xauth
+               locales
 Build-Depends-Indep: default-jdk | java-gcj-compat-dev (>= 1.0.56)
 Standards-Version: 3.8.3.0
 
