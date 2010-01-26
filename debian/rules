@@ -115,7 +115,7 @@ debian/locales/en_US.UTF-8:
 	localedef -f UTF-8 -i en_US $@
 
 test: build-stamp debian/locales/en_US.UTF-8
-ifneq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
+ifeq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
