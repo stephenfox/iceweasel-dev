@@ -84,7 +84,6 @@ config.status: ./configure debian/mozconfig
 	done
 
 	# Add here commands to configure the package.
-	JAVA_HOME="$(if $(wildcard /usr/lib/jvm/default-java),/usr/lib/jvm/default-java,/usr/lib/jvm/java-gcj)" \
 	MOZCONFIG=debian/mozconfig \
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
