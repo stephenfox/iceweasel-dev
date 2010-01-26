@@ -5,6 +5,13 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+PREF_JS_EXPORTS := places.js
+
 EXTRA_COMPONENTS := addonsInfo.js  debAbout.js
 
 include $(topsrcdir)/config/rules.mk
+
+places.js: $(topsrcdir)/browser/app/profile/firefox.js
+	grep '\(places\.frecency\.\|browser\.\(formfill\.enable\|history_expire_days\|urlbar\.\(restrict\.\|match\.\|default\.behavior\|filter\.javascript\)\)\)' $< > $@
+
+GARBAGE += places.js
