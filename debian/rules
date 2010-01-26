@@ -118,6 +118,18 @@ test: build-stamp debian/locales/en_US.UTF-8
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
+# APNG is not supported
+	rm -f _tests/xpcshell/test_libpr0n/unit/test_encoder_apng.js
+# Image tests fail because of the use of system library which don't give the same result
+	rm -f _tests/xpcshell/test_libpr0n/unit/test_encoder_png.js \
+	      _tests/xpcshell/test_libpr0n/unit/test_imgtools.js \
+	      _tests/xpcshell/test_places/unit/test_favicons.js
+# This one fails because it relies on a sqlite bug that is fixed in the system one
+# See http://hg.mozilla.org/mozilla-central/raw-rev/1192461c259d
+	rm -f _tests/xpcshell/test_storage/unit/test_storage_combined_sharing.js
+# This one fails because it supposes some kind of preexisting gnome/mailcap configuration
+	rm -f _tests/xpcshell/test_uriloader_exthandler/unit/test_handlerService.js
+
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 	HOME="$(CURDIR)/dist" \
 	LOCPATH="$(CURDIR)/debian/locales" \
