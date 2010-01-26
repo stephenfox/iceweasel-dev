@@ -253,8 +253,10 @@ var BundleManager = {
    */
   get appName() {
     if (!this._appName) {
-      var brandBundle = this.getBundle(URI_BRAND_PROPERTIES)
-      this._appName = brandBundle.GetStringFromName("brandShortName");
+      try {
+        var brandBundle = this.getBundle(URI_BRAND_PROPERTIES)
+        this._appName = brandBundle.GetStringFromName("brandShortName");
+      } catch(e) {}
     }
     return this._appName;
   }
