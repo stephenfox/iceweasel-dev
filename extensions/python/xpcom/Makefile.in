@@ -45,9 +45,9 @@ DIRS = \
         components \
         $(NULL)
 
-ifdef ENABLE_TESTS
-        DIRS += test $(NULL)
-endif
+#ifdef ENABLE_TESTS
+#        DIRS += test $(NULL)
+#endif
 
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
