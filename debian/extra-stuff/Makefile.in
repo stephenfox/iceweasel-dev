@@ -15,3 +15,6 @@ places.js: $(topsrcdir)/browser/app/profile/firefox.js
 	grep '\(places\.frecency\.\|browser\.\(formfill\.enable\|history_expire_days\|urlbar\.\(restrict\.\|match\.\|default\.behavior\|filter\.javascript\)\)\)' $< > $@
 
 GARBAGE += places.js
+
+libs::
+	$(SYSINSTALL) $(IFLAGS2) $(srcdir)/reportbug-helper-script $(DIST)/bin
