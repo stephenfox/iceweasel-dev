@@ -35,6 +35,8 @@ Build-Depends: debhelper (>= 5.0.59),
                unzip,
                locales
 Build-Depends-Indep: default-jdk | java-gcj-compat-dev (>= 1.0.56)
+Build-Conflicts: libhildonmime-dev,
+                 libosso-dev
 Standards-Version: 3.8.3.0
 
 Package: xulrunner-1.9.1
