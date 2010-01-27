@@ -177,6 +177,7 @@ install-stamp: build-stamp
 
 	# Add here commands to install the package into debian/tmp.
 	$(MAKE) -C xulrunner/installer install DESTDIR=$(CURDIR)/debian/tmp MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
+	rm debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/TestHarness.h
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
 	install -m 755 dist/bin/js debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
