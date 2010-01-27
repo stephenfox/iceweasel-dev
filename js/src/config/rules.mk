@@ -54,6 +54,14 @@ ifndef INCLUDED_VERSION_MK
 include $(topsrcdir)/config/version.mk
 endif
 
+ifneq (,$(findstring sample,$(MODULE))$(findstring test,$(MODULE))$(findstring Test,$(MODULE)))
+PUBLIC := $(DIST)/tests/include
+IDL_DIR := $(DIST)/tests/idl
+LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
+override MOZ_JAVAXPCOM :=
+XPIDL_FLAGS += -I$(DIST)/idl
+endif
+
 REPORT_BUILD = @echo $(notdir $<)
 
 ifeq ($(OS_ARCH),OS2)
