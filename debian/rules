@@ -207,9 +207,9 @@ install-stamp: build-stamp
 
 	cp -Lr dist/include/js debian/tmp/usr/include/mozjs
 	find debian/tmp/usr/include/mozjs -type f -printf %P\\n | while read f; do \
-		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/*/$$f); \
+		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/*/$$(basename $$f)); \
 		rm $$file; \
-		ln -s /usr/include/mozjs/$$(basename $$f) $$file; \
+		ln -s /usr/include/mozjs/$$f $$file; \
 	done
 	for f in /usr/include/nspr/* /usr/include/nss/*; do \
 		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/stable/$$(basename $$f); \
