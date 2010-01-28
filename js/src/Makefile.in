@@ -223,6 +223,7 @@ INSTALLED_HEADERS = \
 		jsversion.h \
 		jsxdrapi.h \
 		jsxml.h \
+		jskeyword.tbl \
 		$(NULL)
 
 ifdef ENABLE_JIT
@@ -230,17 +231,18 @@ VPATH		+= $(srcdir)/nanojit
 
 INSTALLED_HEADERS += \
 		jsbuiltins.h    \
-		Assembler.h     \
-		Allocator.h     \
-		CodeAlloc.h     \
-		Containers.h    \
-		LIR.h		\
-		avmplus.h	\
-		Fragmento.h	\
-		Native.h	\
-		Native$(NANOJIT_ARCH).h \
-		RegAlloc.h	\
-		nanojit.h	\
+		nanojit/Assembler.h     \
+		nanojit/Allocator.h     \
+		nanojit/CodeAlloc.h     \
+		nanojit/Containers.h    \
+		nanojit/LIRopcode.tbl	\
+		nanojit/LIR.h		\
+		nanojit/avmplus.h	\
+		nanojit/Fragmento.h	\
+		nanojit/Native.h	\
+		nanojit/Native$(NANOJIT_ARCH).h \
+		nanojit/RegAlloc.h	\
+		nanojit/nanojit.h	\
 		$(NULL)
 
 CPPSRCS += \
@@ -277,7 +279,11 @@ ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 INSTALLED_HEADERS += jscpucfg.h
 endif
 
-EXPORTS = $(INSTALLED_HEADERS)
+EXPORTS = $(filter-out nanojit/%,$(INSTALLED_HEADERS))
+ifdef ENABLE_JIT
+EXPORTS_NAMESPACES  = nanojit
+EXPORTS_nanojit = $(filter nanojit/%,$(INSTALLED_HEADERS))
+endif # ENABLE_JIT
 
 JS_SAFE_ARENA	= 1
 
@@ -623,7 +629,12 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
 SCRIPTS = js-config
 SDK_BINARY = js-config
 
-install:: $(INSTALLED_HEADERS)
+ifdef ENABLE_JIT
+install:: $(filter nanojit/%,$(INSTALLED_HEADERS))
+	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/nanojit
+endif
+
+install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
 	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)
 
 install:: $(SCRIPTS)
