@@ -40,7 +40,7 @@ Build-Conflicts: libhildonmime-dev,
 Standards-Version: 3.8.3.0
 
 Package: xulrunner-1.9.1
-Section: devel
+Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
