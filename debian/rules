@@ -176,7 +176,7 @@ install-stamp: build-stamp
 	dh_installdirs
 
 	# Add here commands to install the package into debian/tmp.
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
+	$(MAKE) -C xulrunner/installer install DESTDIR=$(CURDIR)/debian/tmp MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
 	install -m 755 dist/bin/js debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
@@ -230,11 +230,13 @@ install-stamp: build-stamp
 		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/$$(basename $$f); \
 	done
 	# Move out libraries in /usr
-	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/libmozjs.so* debian/tmp/usr/lib
+	SONAME=$$(objdump -p dist/lib/libmozjs.so | awk '$$1 == "SONAME" { print $$2 }'); \
+	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/libmozjs.so debian/tmp/usr/lib/$$SONAME; \
+	ln -s $$SONAME debian/tmp/usr/lib/libmozjs.so
 	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/js debian/tmp/usr/bin/smjs
 
-	install -d -m 755 debian/tmp/usr/lib/$(PYVER)
-	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/python debian/tmp/usr/lib/$(PYVER)/site-packages
+	install -d -m 755 debian/tmp/usr/lib/$(PYVER)/site-packages
+	tar -C dist/bin/python -chf - .| tar -C debian/tmp/usr/lib/$(PYVER)/site-packages -xf -
 
 	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
