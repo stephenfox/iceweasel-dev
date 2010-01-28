@@ -183,22 +183,7 @@ install-stamp: build-stamp
 	install -m 755 dist/bin/js debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
 
 	# Fixup permissions
-	find debian/tmp -type f -print0 | xargs -0 chmod 644
-	for f in \
-		js \
-		run-mozilla.sh \
-		xulrunner \
-		mozilla-xremote-client \
-		updater \
-		xpcshell \
-		xpidl \
-		xpt_dump \
-		xpt_link \
-		xulrunner-bin \
-		xulrunner-stub \
-		; do \
-			chmod 755 debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/$$f; \
-	done
+	find debian/tmp/usr/share debian/tmp/usr/include -type f -print0 | xargs -0 chmod 644
 
 	# Replace some installed files by symlinks
 	cd debian/tmp/usr/lib/xulrunner-devel-$(BASE_VERSION)/sdk/lib; \
