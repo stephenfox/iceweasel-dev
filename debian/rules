@@ -22,6 +22,8 @@ BASE_VERSION := 1.9.1
 
 PYVER := $(shell pyversions -d)
 
+LOCALE := en_US.UTF-8
+
 CFLAGS := -g
 MAIN_LDFLAGS := -Wl,--as-needed
 
@@ -111,11 +113,11 @@ build-stamp:  config.status
 
 	touch build-stamp
 
-debian/locales/en_US.UTF-8:
+debian/locales/%:
 	mkdir -p debian/locales
-	localedef -f UTF-8 -i en_US $@
+	localedef -f $(word 2,$(subst ., ,$(notdir $@))) -i $(word 1,$(subst ., ,$(notdir $@))) $@
 
-test: build-stamp debian/locales/en_US.UTF-8
+test: build-stamp debian/locales/$(LOCALE)
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
@@ -134,8 +136,8 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 	HOME="$(CURDIR)/dist" \
 	LOCPATH="$(CURDIR)/debian/locales" \
-	LC_ALL=en_US.UTF-8 \
-	LANG=en_US.UTF-8 \
+	LC_ALL=$(LOCALE) \
+	LANG=$(LOCALE) \
 	$(MAKE) -j1 xpcshell-tests $(if $(TEST_PATH),,check)
 endif
 
