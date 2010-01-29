@@ -4,8 +4,7 @@ set -e
 
 if [ "$1" = "remove" ]; then
     rm -f /usr/lib/xulrunner-1.9.1/components/compreg.dat \
-          /usr/lib/xulrunner-1.9.1/components/xpti.dat \
-          /usr/lib/xulrunner-1.9.1/.autoreg
+          /usr/lib/xulrunner-1.9.1/components/xpti.dat
 fi
 
 #DEBHELPER#
