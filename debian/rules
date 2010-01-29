@@ -136,7 +136,7 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	LOCPATH="$(CURDIR)/debian/locales" \
 	LC_ALL=en_US.UTF-8 \
 	LANG=en_US.UTF-8 \
-	$(MAKE) -j1 xpcshell-tests check
+	$(MAKE) -j1 xpcshell-tests $(if $(TEST_PATH),,check)
 endif
 
 build-jars: build-jars-stamp
