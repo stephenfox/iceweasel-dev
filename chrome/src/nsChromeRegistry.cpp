@@ -550,47 +550,26 @@ nsChromeRegistry::Init()
   if (!prefs) {
     NS_WARNING("Could not get pref service!");
   }
-
-  PRBool useLocalePref = PR_TRUE;
-
-  if (prefs) {
-    // check the pref first
-    PRBool matchOS = PR_FALSE;
-    rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOS);
-
-    // match os locale
-    if (NS_SUCCEEDED(rv) && matchOS) {
-      // compute lang and region code only when needed!
-      nsCAutoString uiLocale;
-      rv = getUILangCountry(uiLocale);
-      if (NS_SUCCEEDED(rv)) {
-        useLocalePref = PR_FALSE;
-        mSelectedLocale = uiLocale;
-      }
-    }
-  }
-      
-  if (prefs) {
+  else {
     nsXPIDLCString provider;
-
     rv = prefs->GetCharPref(SELECTED_SKIN_PREF, getter_Copies(provider));
     if (NS_SUCCEEDED(rv))
       mSelectedSkin = provider;
 
+    SelectLocalePref(prefs);
+
     nsCOMPtr<nsIPrefBranch2> prefs2 (do_QueryInterface(prefs));
 
-    if (prefs2)
+    if (prefs2) {
+      rv = prefs2->AddObserver(MATCH_OS_LOCALE_PREF, this, PR_TRUE);
+      rv = prefs2->AddObserver(SELECTED_LOCALE_PREF, this, PR_TRUE);
       rv = prefs2->AddObserver(SELECTED_SKIN_PREF, this, PR_TRUE);
-
-    if (useLocalePref) {
-      rv = prefs->GetCharPref(SELECTED_LOCALE_PREF, getter_Copies(provider));
-      if (NS_SUCCEEDED(rv))
-        mSelectedLocale = provider;
-      
-      if (prefs2)
-        prefs2->AddObserver(SELECTED_LOCALE_PREF, this, PR_TRUE);
     }
   }
+
+  nsCOMPtr<nsIObserverService> obsService (do_GetService("@mozilla.org/observer-service;1"));
+  if (obsService)
+    obsService->AddObserver(this, "profile-initial-state", PR_TRUE);
 
   CheckForNewChrome();
 
@@ -1484,6 +1463,31 @@ nsChromeRegistry::ProcessNewChromeBuffer(char *aBuffer, PRInt32 aLength,
   return NS_OK;
 }
 
+nsresult
+nsChromeRegistry::SelectLocalePref(nsIPrefBranch* prefs)
+{
+  nsresult rv;
+  PRBool matchOSLocale = PR_FALSE;
+  rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOSLocale);
+
+  if (NS_SUCCEEDED(rv) && matchOSLocale) {
+    // compute lang and region code only when needed!
+    nsCAutoString uiLocale;
+    rv = getUILangCountry(uiLocale);
+    if (NS_SUCCEEDED(rv))
+      mSelectedLocale = uiLocale;
+  }
+  else {
+    nsXPIDLCString provider;
+    rv = prefs->GetCharPref(SELECTED_LOCALE_PREF, getter_Copies(provider));
+    if (NS_SUCCEEDED(rv)) {
+      mSelectedLocale = provider;
+    }
+  }
+
+  return rv;
+}
+
 NS_IMETHODIMP nsChromeRegistry::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
   nsresult rv = NS_OK;
@@ -1494,20 +1498,22 @@ NS_IMETHODIMP nsChromeRegistry::Observe(nsISupports *aSubject, const char *aTopi
 
     NS_ConvertUTF16toUTF8 pref(someData);
 
-    nsXPIDLCString provider;
-    rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
-    if (NS_FAILED(rv)) {
-      NS_ERROR("Couldn't get new locale or skin pref!");
-      return rv;
+    if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
+        pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
+      rv = SelectLocalePref(prefs);
+      if (NS_SUCCEEDED(rv) && mProfileLoaded)
+        FlushAllCaches();
     }
+    else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
+      nsXPIDLCString provider;
+      rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
+      if (NS_FAILED(rv)) {
+        NS_ERROR("Couldn't get new locale pref!");
+        return rv;
+      }
 
-    if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       mSelectedSkin = provider;
       RefreshSkins();
-    }
-    else if (pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-      mSelectedLocale = provider;
-      FlushAllCaches();
     } else {
       NS_ERROR("Unexpected pref!");
     }
@@ -1526,6 +1532,9 @@ NS_IMETHODIMP nsChromeRegistry::Observe(nsISupports *aSubject, const char *aTopi
         }
       }
     }
+  }
+  else if (!strcmp("profile-initial-state", aTopic)) {
+    mProfileLoaded = PR_TRUE;
   }
   else {
     NS_ERROR("Unexpected observer topic!");
