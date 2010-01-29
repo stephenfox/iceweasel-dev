@@ -22,7 +22,7 @@ BASE_VERSION := 1.9.1
 
 PYVER := $(shell pyversions -d)
 
-LOCALE := en_US.UTF-8
+LOCALE := fr_FR.UTF-8
 
 CFLAGS := -g
 MAIN_LDFLAGS := -Wl,--as-needed
