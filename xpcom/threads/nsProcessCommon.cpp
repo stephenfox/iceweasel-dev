@@ -507,7 +507,7 @@ nsProcess::GetProcessSignature(PRUint32 *aProcessSignature)
 NS_IMETHODIMP
 nsProcess::Kill()
 {
-    if (!mThread)
+    if (!mThread || !mProcess)
         return NS_ERROR_FAILURE;
 
     {
