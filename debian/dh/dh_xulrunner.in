@@ -51,7 +51,7 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 		$ff=`file "$file"`;
 		if ($ff=~m/ELF/) {
 			my @strings = ( "GRE_HOME", "MOZ_GRE_CONF", "USE_LOCAL_GRE", "/etc/gre.d", "/libxul.so" );
-			open FILE, "readelf -p .rodata \"$file\" |";
+			open FILE, "readelf -p .rodata \"$file\" 2>&1 |";
 			while (<FILE>) {
 				for(my $i = 0; $i <= $#strings; $i++) {
 					if (m{$strings[$i]}) {
