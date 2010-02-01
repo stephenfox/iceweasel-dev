@@ -99,4 +99,6 @@ libs:: bloaturls.txt
 # autocycling of URLs.
 libs:: bloatcycle.html
 	$(INSTALL) $< $(DIST)/bin/res
+
+GARBAGE += automationutils.pyc
 endif
