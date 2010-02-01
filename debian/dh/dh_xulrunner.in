@@ -50,7 +50,7 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 		# multiple files..
 		$ff=`file "$file"`;
 		if ($ff=~m/ELF/) {
-			my @strings = ( "GRE_HOME", "MOZ_GRE_CONF", "USE_LOCAL_GRE", "/etc/gre.d", "%s/libxul.so" );
+			my @strings = ( "GRE_HOME", "MOZ_GRE_CONF", "USE_LOCAL_GRE", "/etc/gre.d", "/libxul.so" );
 			open FILE, "readelf -p .rodata \"$file\" |";
 			while (<FILE>) {
 				for(my $i = 0; $i <= $#strings; $i++) {
