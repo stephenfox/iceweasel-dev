@@ -21,7 +21,12 @@ packages containing an executable or a library that it detects as containing
 the XPCOM glue (please note the detection is really hackish and error prone,
 though most likely accurate in most cases).
 
+It must be run after dh_shlibdeps.
+
 Using dh_xulrunner requires a build dependency on xulrunner-dev (>= 1.9.1.3-2).
+
+You can also use the xulrunner dh sequence addon to integrate in a dh workflow:
+	dh --with xulrunner $@
 
 =cut
 
