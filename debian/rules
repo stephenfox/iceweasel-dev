@@ -117,7 +117,7 @@ debian/locales/%:
 	mkdir -p debian/locales
 	localedef -f $(word 2,$(subst ., ,$(notdir $@))) -i $(word 1,$(subst ., ,$(notdir $@))) $@
 
-test: build-stamp debian/locales/$(LOCALE)
+test: build-stamp debian/locales/$(LOCALE) debian/dh/dh_xulrunner
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
@@ -251,6 +251,8 @@ binary-arch: build test install $(GENERATED_FILES)
 	dh_installexamples -a
 	dh_installmenu -pspidermonkey-bin
 	dh_install -a --fail-missing --sourcedir=debian/tmp -XMozillaInterfaces -XMozillaGlue -Xjavaxpcom.jar
+	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
+	perl debian/dh/dh_xulrunner -pxulrunner-$(BASE_VERSION) --no-act -v | grep -q "..*"
 	dh_pysupport -ppython-xpcom
 	dh_installman -pspidermonkey-bin debian/smjs.1
 	dh_installman -pxulrunner-dev debian/dh/dh_xulrunner.1
