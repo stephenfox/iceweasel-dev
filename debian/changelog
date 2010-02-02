@@ -1,8 +1,131 @@
-xulrunner (1.9.1.6-2) UNRELEASED; urgency=low
+xulrunner (1.9.1.6-2) unstable; urgency=low
 
-  * 
+  * modules/libpref/src/prefapi.cpp: Fix crash with SwitchProxy installed.
+    Closes: #559501.
+  * toolkit/components/console/jsconsole-clhandler.js,
+    toolkit/xre/nsAppRunner.cpp: Fix misalignments in --help command line.
+    bz#458631, xulrunner part.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/addonsInfo.js,
+    debian/extra-stuff/reportbug-helper-script, debian/rules,
+    debian/xulrunner-1.9.1.install: Add a component that dumps addons
+    information, and a helper script for reportbug
+  * debian/rules: Move debAbout component into debian/extra-stuff.
+  * debian/extra-stuff/debAbout.js: Simplify debAbout component by using
+    XPCOMUtils.
+  * debian/control, debian/rules, debian/xulrunner-1.9.1-gnome-support.install,
+    debian/xulrunner-1.9.1.install: Merge xulrunner-1.9.1-gnome-support into
+    xulrunner-1.9.1.
+  * toolkit/mozapps/update/src/nsUpdateService.js.in: Avoid creating the
+    updates directory when update service is disabled. bz#538933.
+  * toolkit/xre/nsXREDirProvider.cpp: Avoid creating
+    /usr/lib/mozilla/extensions 0700 when running as root. bz#538929.
+    Closes: #559926.
+  * build/Makefile.in, build/automation-build.mk, build/automation.py.in,
+    build/pgo/Makefile.in, layout/tools/reftest/Makefile.in,
+    testing/mochitest/Makefile.in: Don't remove build/automationutils.py
+    on make clean. bz#525047.
+  * Makefile.in, config/config.mk, config/rules.mk, js/src/config/config.mk,
+    js/src/config/rules.mk: Avoid creating config/my{config,rules}.mk.
+    bz#541767.
+  * build/automation-build.mk: Remove automation.py in make clean. bz#541768.
+  * build/Makefile.in: Remove leaktest files in make clean. bz#541769.
+  * js/src/Makefile.in: Remove generated files from js/src during make
+    distclean. bz#541770.
+  * js/src/xpconnect/src/Makefile.in: Cleanup idl-parser leftovers in make
+    clean. bz#541774.
+  * xulrunner/installer/Makefile.in: Properly clean
+    xulrunner/installer/*.system.conf.
+  * debian/control: Remove build dependency against liblcms1-dev.
+  * configure.in, configure: Remove --enable-system-lcms check, which somehow
+    resisted merges with upstream.
+  * debian/mozconfig: cookie, permissions and spellcheck are no longer
+    extensions.
+  * debian/control, debian/mozconfig, debian/rules, debian/test/*: Remove the
+    custom test application and use upstream xpcshell-tests instead.
+  * debian/rules:
+    + Remove useless setting of JAVA_HOME when ./configure'ing.
+    + Correctly handle the nocheck DEB_BUILD_OPTIONS flag.
+    + Replace findstring with filter when checking DEB_BUILD_OPTIONS.
+    + Remove xpcshell-tests that are known and expected to fail, at least for
+      now.
+  * toolkit/mozapps/extensions/src/nsExtensionManager.js.in: Avoid extension
+    manager failure when there is no branding (like in the testsuite).
+    Workaround for bz#455238.
+  * extensions/java/xpcom/Makefile.in: Disable javaxpcom tests at build time
+    when DEB_NO_JAR is unset.
+  * debian/extra-stuff/Makefile.in: Add basic places preferences by default.
+    These are required for places to work properly in xul applications that
+    wouldn't set them.
+  * js/src/config/check-sync-dirs.py, js/src/config/check-sync-exceptions:
+    Add (obvious) exceptions for js/src/config/check-sync-dirs.py. We also
+    modify the script so that given directories can be ignored. bz#542468.
+  * debian/rules, debian/control: Also run "make check" in the test target.
+  * extensions/python/xpcom/Makefile.in: Disable python-xpcom tests for now.
+  * debian/control: Build-Conflict with libhildonmime-dev and libosso-dev.
+  * config/rules.mk, js/src/config/rules.mk: Synchronize config/rules.mk and
+    js/src/config/rules.mk for check-sync-dirs.py.
+  * debian/rules, debian/extra-stuff/packages-static.xulrunner,
+    debian/extra-stuff/Makefile.in: Avoid installing test programs by using
+    upstream "installer". We use the installer files from firefox so that
+    most files are properly listed already, to which we add xulrunner and
+    debian specific files.
+  * js/src/config/rules.mk, config/rules.mk, debian/rules: Gross workaround
+    to avoid installing test idl and include files in the SDK. bz#542749.
+  * debian/rules: Only fix permissions in /usr/include and /usr/share.
+  * debian/control:
+    + Change xulrunner-1.9.1's section to libs. Closes: #551701.
+    + Bump libcairo2-dev build dependency. Upstream decided once more to
+      enforce runtime dependencies as build time *sigh*.
+  * js/src/Makefile.in: Install missing nanojit and .tbl headers from js/src.
+    bz#542789.
+  * debian/rules: Properly install mozjs header files in /usr/include.
+    Closes: #560404.
+  * chrome/src/nsChromeRegistry.*, chrome/test/unit/test_bug519468.js,
+    toolkit/xre/nsXREDirProvider.cpp: Allow intl.locale.matchOS to be
+    modified in user profile. bz#519468. Closes: #417961.
+  * chrome/src/nsChromeRegistry.cpp, chrome/test/unit/test_bug519468.js:
+    Override intl.locale.matchOS if general.useragent.locale is set in user
+    profile. This allows the Quick Locale Switcher extension to work.
+    bz#542999
+  * debian/rules: Allow to pass TEST_PATH to xpcshell-tests, in which case we
+    don't run make check. This allows to run a given xpcshell test.
+  * debian/libmozjs-dev.install, debian/libmozjs-dev.links: Install
+    libmozjs.so through dh_install instead of dh_link.
+  * debian/xulrunner-1.9.1.install, debian/xulrunner-1.9.1.prerm: Make
+    .autoreg part of the package.
+  * debian/rules: Fail dh_install when it doesn't install everything (except
+    the libmozillainterfaces-java stuff)
+  * debian/rules: Remove the file comparison scripts. We now use dh_install
+    --fail-missing, and the upstream installer guarantees debian/tmp content
+    from dist/bin.
+  * debian/control, debian/rules: Use fr_FR.UTF-8 locale during tests.
+  * xpcom/threads/nsProcessCommon.cpp: Avoid crashing when trying to kill a
+    nsProcess that is already terminated. bz#543441.
+  * xpcom/tests/TestBlockingProcess.cpp: Don't use stdin to block the
+    TestBlockingProcess. This made the nsIProcess unit test fail in pbuilder.
+    bz#543438.
+  * debian/rules: Add a test to ensure dh_xulrunner works properly.
+  * debian/dh/dh_xulrunner.in:
+    + Add hint about the dh sequence addon in dh_xulrunner manpage.
+    + Also add a note about dh_shlibdeps required to be run beforehand.
+    + Fix dh_xulrunner after the xpcom glue changes in 1.9.1.6-1.
+      Closes: #567746.
+    + Avoid displaying errors when an ELF file doesn't contain an .rodata
+      section.
+  * xpcom/tests/Makefile.in: Cleanup xpcom/tests/TestScriptable.h on make
+    clean. bz#543464.
+  * build/Makefile.in: Cleanup build/automationutils.pyc on make clean.
+    bz#543469.
+  * debian/rules: Remove unused {DEBIAN,UPSTREAM}_VERSION variables.
+  * debian/filemonitor/*, debian/rules, debian/xulrunner-1.9.1.install:
+    Add a file monitoring component, based on GIOFileMonitor.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/debUpdateNotifier.js:
+    Add an update notifier component. This component uses the file monitor
+    component to track plugins, extensions, GRE and application updates, and
+    prompts for restart in case a system upgrade occurred. The prompt still
+    needs to be enhanced and localized.
 
- -- Mike Hommey <glandium@debian.org>  Fri, 29 Jan 2010 16:49:23 +0100
+ -- Mike Hommey <glandium@debian.org>  Tue, 02 Feb 2010 08:44:43 +0100
 
 xulrunner (1.9.1.6-1) unstable; urgency=low
 
