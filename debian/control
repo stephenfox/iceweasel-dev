@@ -105,7 +105,8 @@ Section: debug
 Priority: extra
 Architecture: any
 Depends: libmozjs2d (= ${binary:Version})
-         | spidermonkey-bin (= ${binary:Version})
+         | spidermonkey-bin (= ${binary:Version}),
+         ${misc:Depends}
 Conflicts: libmozjs0d-dbg, libmozjs1d-dbg
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -167,7 +168,8 @@ Section: debug
 Priority: extra
 Architecture: any
 Depends: xulrunner-1.9.1 (= ${binary:Version})
-         | python-xpcom (= ${binary:Version})
+         | python-xpcom (= ${binary:Version}),
+         ${misc:Depends}
 Conflicts: xulrunner-1.9-dbg
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
@@ -187,6 +189,7 @@ Section: java
 Priority: extra
 Architecture: all
 Depends: xulrunner-1.9.1,
+         ${misc:Depends},
          gij | java2-runtime
 Description: XPCOM bindings for Java
  JavaXPCOM allows for communication between Java and XPCOM, such that a
