@@ -38,7 +38,8 @@ fi
 ##
 ## Variables
 ##
-MOZ_DIST_BIN="/usr/lib/iceweasel"
+MOZ_APP_LAUNCHER="$(which $0)"
+MOZ_DIST_BIN="$(dirname "$(readlink -f "${MOZ_APP_LAUNCHER}")")"
 MOZ_PROGRAM="${MOZ_DIST_BIN}/firefox-bin"
 MOZ_APP_LAUNCHER=/usr/bin/iceweasel
 export MOZ_APP_LAUNCHER
@@ -47,7 +48,6 @@ export MOZ_APP_LAUNCHER
 ## Load system and user properties
 ##
 
-RUNTIME_ICEWEASEL_DSP="${FIREFOX_DSP}"
 if [ "${ICEWEASEL_DSP}" ] ; then 
     RUNTIME_ICEWEASEL_DSP="${ICEWEASEL_DSP}"
 fi
@@ -96,27 +96,6 @@ if [ "${ICEWEASEL_DSP}" = "auto" ]; then
 elif [ "${ICEWEASEL_DSP}" = "none" ]; then
     ICEWEASEL_DSP=
 fi
-
-##
-## Set LD_LIBRARY_PATH
-##
-EXTENT_LD_LIB_PATH=${MOZ_DIST_BIN}:${MOZ_DIST_BIN}/plugins:/usr/lib/mozilla-firefox/plugins
-if [ "${LD_LIBRARY_PATH}" ]; then
-    LD_LIBRARY_PATH=${EXTENT_LD_LIB_PATH}:${LD_LIBRARY_PATH}
-else
-    LD_LIBRARY_PATH=${EXTENT_LD_LIB_PATH}
-fi
-
-export LD_LIBRARY_PATH
-
-EXTENT_MOZ_PLUGIN_PATH=/usr/lib/mozilla-firefox/plugins
-if [ "${MOZ_PLUGIN_PATH}" ]; then
-    MOZ_PLUGIN_PATH=${EXTENT_MOZ_PLUGIN_PATH}:${MOZ_PLUGIN_PATH}
-else
-    MOZ_PLUGIN_PATH=${EXTENT_MOZ_PLUGIN_PATH}
-fi
-
-export MOZ_PLUGIN_PATH
 
 verbose () {
     if [ "${VERBOSE}" ]; then

@@ -3,10 +3,10 @@ Section: web
 Priority: optional
 Maintainer: Maintainers of Mozilla-related packages <pkg-mozilla-maintainers@lists.alioth.debian.org>
 Uploaders: Mike Hommey <glandium@debian.org>, Eric Dorland <eric@debian.org>
-Build-Depends: autotools-dev, debhelper (>= 5.0), imagemagick,
+Build-Depends: autotools-dev, debhelper (>= 7.2.3), imagemagick,
 	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
 	zip, xulrunner-dev (>= 1.9.1)
-Build-Conflicts: graphicsmagick-imagemagick-compat
+Build-Conflicts: graphicsmagick-imagemagick-compat, libhildonmime-dev, libosso-dev
 Standards-Version: 3.8.3.0
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
 Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
@@ -14,28 +14,17 @@ Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 Package: iceweasel
 Architecture: any
 Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9.1
-Suggests: xulrunner-1.9.1-gnome-support, latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libkrb53
+Suggests: ttf-lyx | latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libgssapi-krb5-2
 Provides: www-browser
 Conflicts: iceweasel-dom-inspector (<< 3.0~b4)
-Replaces: iceweasel-gnome-support (<= 3.0~b5-2)
-Description: lightweight web browser based on Mozilla
- Iceweasel is a redesign of the Mozilla browser component, similar to
+Description: Web browser based on Firefox
+ Firefox is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface
  language and designed to be lightweight and cross-platform.
  .
  This browser is based on the Firefox source-code, with minor
  modifications. Historically, this browser was previously known as
  Firebird and Phoenix.
-
-Package: iceweasel-gnome-support
-Architecture: all
-Section: gnome
-Depends: ${misc:Depends}, iceweasel, xulrunner-1.9.1-gnome-support
-Provides: gnome-www-browser
-Description: Support for GNOME in Iceweasel
- This is an Iceweasel component that allows it to use protocol
- handlers from GnomeVFS, such as smb or sftp, and other GNOME
- integration features.
 
 Package: iceweasel-dbg
 Architecture: any
