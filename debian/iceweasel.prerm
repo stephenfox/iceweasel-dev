@@ -6,7 +6,6 @@ if [ "$1" = "remove" ] || [ "$1" = "deconfigure" ] ; then
 fi
 
 if [ "$1" = "remove" ]; then
-    rm -f /usr/lib/iceweasel/.autoreg
     rm -f /usr/lib/iceweasel/components/compreg.dat \
           /usr/lib/iceweasel/components/xpti.dat
     rm -rf /usr/lib/iceweasel/updates
