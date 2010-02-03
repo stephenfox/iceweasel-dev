@@ -132,7 +132,7 @@ function needHomepageOverride(prefb) {
     return OVERRIDE_NONE;
 
   var mstone = Components.classes["@mozilla.org/network/protocol;1?name=http"]
-                         .getService(nsIHttpProtocolHandler).misc + ".0";
+                         .getService(nsIHttpProtocolHandler).misc;
 
   if (mstone != savedmstone) {
     // Bug 462254. Previous releases had a default pref to suppress the EULA
