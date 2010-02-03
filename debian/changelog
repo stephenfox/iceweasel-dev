@@ -1,3 +1,60 @@
+iceweasel (3.5.6-2) unstable; urgency=low
+
+  * debian/iceweasel-runner:
+    - Allow iceweasel-runner not to hardcode the iceweasel base directory.
+      Closes: #507120.
+    - Remove old compatibility stuff.
+  * debian/iceweasel.desktop: Only put the name in the Name field of the
+    freedesktop application file. Closes: #507961.
+  * debian/iceweasel.dirs:
+    - Make it clear that plugins should live in /usr/lib/mozilla/plugins/
+      by shipping the directory in the iceweasel package. Closes: #520676.
+    - Likewise for extensions in /usr/{lib,share}/mozilla/extensions/$app-id.
+      Closes: #564669.
+  * debian/control:
+    - Suggest ttf-lyx | latex-xft-fonts (latex-xft-fonts is kept for stable
+      users). Closes: #539537.
+    - Replace libkrb53 suggestion with libgssapi-krb5-2.
+    - Remove the iceweasel-gnome-support package.
+    - Rewrite the short description. Also slightly modify the long
+      description. Closes: #400858.
+    - Build conflict with libhildonmime-dev and libosso-dev. Closes: #544369
+  * debian/iceweasel.1:
+    - Fix trivial typo in the manual page. Closes: #528789.
+    - Synchronize manual page with iceweasel --help output, and add various
+      other information. Closes: #362020, #520660, #556258.
+  * debian/homepagereset.js, debian/iceweasel.install: Remove the
+    homepagereset component. It was used to reset the homepage user settings
+    if it were a very old value. Anyone using these old homepages should have
+    had their homepage reset by now.
+  * debian/control, debian/iceweasel.bug-presubj, debian/iceweasel.install,
+    debian/rules: Use dh_bugfiles instead of installing reportbug-related
+    files by hand.
+  * debian/iceweasel.bug-script: Add reportbug script to list addons.
+    This uses a new helper in xulrunner-1.9.1. Closes: #356647.
+  * debian/iceweasel.bug-control: Request xulrunner-1.9.1 dependency list in
+    bug reports.
+  * debian/branding/Makefile.in, debian/branding/firefox-branding.js:
+    Use http://mozilla.debian.net pages for homepage_override and welcome.
+  * browser/components/nsBrowserContentHandler.js: Temporary hack to force
+    homepage_override to be triggered. This hack is to be removed in next
+    release. Its sole purpose is to get people to see the pages on
+    http://mozilla.debian.net/ despite the upstream version not being bumped.
+  * debian/iceweasel.prerm: When removing the package, cleanup files
+    iceweasel creates if run as root.
+  * debian/iceweasel.install, debian/iceweasel.prerm: Make .autoreg part of
+    the package.
+  * debian/iceweasel-restart-required.update-notifier,
+    debian/iceweasel.install, debian/iceweasel.postinst: Remove update
+    notification through update-notifier
+  * browser/components/nsBrowserContentHandler.js,
+    browser/components/shell/src/nsSetDefaultBrowser.js: Fix misalignments
+    in --help command line. bz#458631.
+  * browser/base/content/browser.css: Favicons in search bar dropdown not
+    shown if menus_have_icons=false. bz#508221. Closes: #561902.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 03 Feb 2010 07:55:01 +0100
+
 iceweasel (3.5.6-1) unstable; urgency=low
 
   * New upstream release.
