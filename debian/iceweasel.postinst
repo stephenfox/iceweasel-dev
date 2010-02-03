@@ -18,16 +18,3 @@ if [ "$1" = "configure" ] ; then
 fi
 
 #DEBHELPER#
-
-if pgrep firefox-bin >/dev/null 2>&1 ; then 
-    echo "Please restart any running Iceweasels," \
-        "or you will experience problems."
-fi
-
-unud=/var/lib/update-notifier/user.d
-
-if pgrep firefox-bin >/dev/null 2>&1 && test -d $unud; then
-    cp -f /usr/share/iceweasel/iceweasel-restart-required.update-notifier \
-        "$unud/iceweasel-restart-required"
-fi
-
