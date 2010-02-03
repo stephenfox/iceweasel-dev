@@ -17,8 +17,8 @@ Depends: fontconfig, psmisc, procps, debianutils (>= 1.16), ${shlibs:Depends}, $
 Suggests: ttf-lyx | latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libgssapi-krb5-2
 Provides: www-browser
 Conflicts: iceweasel-dom-inspector (<< 3.0~b4)
-Description: lightweight web browser based on Mozilla
- Iceweasel is a redesign of the Mozilla browser component, similar to
+Description: Web browser based on Firefox
+ Firefox is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface
  language and designed to be lightweight and cross-platform.
  .
