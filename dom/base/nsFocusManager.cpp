@@ -80,6 +80,8 @@
 #include "nsFrameSelection.h"
 #include "nsXULPopupManager.h"
 #include "nsImageMapUtils.h"
+#include "nsTreeWalker.h"
+#include "nsIDOMNodeFilter.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"
@@ -653,6 +655,13 @@ nsFocusManager::WindowRaised(nsIDOMWindow* aWindow)
   // is updated on the window
   window->ActivateOrDeactivate(PR_TRUE);
 
+  // send activate event
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(window->GetExtantDocument());
+  nsContentUtils::DispatchTrustedEvent(document,
+                                       window,
+                                       NS_LITERAL_STRING("activate"),
+                                       PR_TRUE, PR_TRUE, nsnull);
+
   // retrieve the last focused element within the window that was raised
   nsCOMPtr<nsPIDOMWindow> currentWindow;
   nsCOMPtr<nsIContent> currentFocus =
@@ -708,6 +717,13 @@ nsFocusManager::WindowLowered(nsIDOMWindow* aWindow)
   // inform the DOM window that it has deactivated, so that the active
   // attribute is updated on the window
   window->ActivateOrDeactivate(PR_FALSE);
+
+  // send deactivate event
+  nsCOMPtr<nsIDocument> document = do_QueryInterface(window->GetExtantDocument());
+  nsContentUtils::DispatchTrustedEvent(document,
+                                       window,
+                                       NS_LITERAL_STRING("deactivate"),
+                                       PR_TRUE, PR_TRUE, nsnull);
 
   // keep track of the window being lowered, so that attempts to raise the
   // window can be prevented until we return. Otherwise, focus can get into
@@ -774,6 +790,12 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
 NS_IMETHODIMP
 nsFocusManager::WindowShown(nsIDOMWindow* aWindow)
 {
+  return WindowShownInner(aWindow, PR_TRUE);
+}
+
+nsresult
+nsFocusManager::WindowShownInner(nsIDOMWindow* aWindow, PRBool aNeedsFocus)
+{
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(window, NS_ERROR_INVALID_ARG);
 
@@ -801,11 +823,19 @@ nsFocusManager::WindowShown(nsIDOMWindow* aWindow)
   if (mFocusedWindow != window)
     return NS_OK;
 
-  nsCOMPtr<nsPIDOMWindow> currentWindow;
-  nsCOMPtr<nsIContent> currentFocus =
-    GetFocusedDescendant(window, PR_TRUE, getter_AddRefs(currentWindow));
-  if (currentWindow)
-    Focus(currentWindow, currentFocus, 0, PR_TRUE, PR_FALSE, PR_FALSE);
+  if (aNeedsFocus) {
+    nsCOMPtr<nsPIDOMWindow> currentWindow;
+    nsCOMPtr<nsIContent> currentFocus =
+      GetFocusedDescendant(window, PR_TRUE, getter_AddRefs(currentWindow));
+    if (currentWindow)
+      Focus(currentWindow, currentFocus, 0, PR_TRUE, PR_FALSE, PR_FALSE);
+  }
+  else {
+    // Sometimes, an element in a window can be focused before the window is
+    // visible, which would mean that the widget may not be properly focused.
+    // When the window becomes visible, make sure the right widget is focused.
+    EnsureCurrentWidgetFocused();
+  }
 
   return NS_OK;
 }
@@ -900,7 +930,7 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
   // ensures that the focused window isn't in a chain of frames that doesn't
   // exist any more.
   if (window != mFocusedWindow) {
-    nsCOMPtr<nsIWebNavigation> webnav(do_GetInterface(window));
+    nsCOMPtr<nsIWebNavigation> webnav(do_GetInterface(mFocusedWindow));
     nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(webnav);
     if (dsti) {
       nsCOMPtr<nsIDocShellTreeItem> parentDsti;
@@ -2087,6 +2117,8 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
       startContent->IsFocusable(&tabIndex);
     else if (frame)
       frame->IsFocusable(&tabIndex, 0);
+    else
+      startContent->IsFocusable(&tabIndex);
 
     // if the current element isn't tabbable, ignore the tabindex and just
     // look for the next element. The root content won't have a tabindex
@@ -2157,7 +2189,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
                                 endSelectionContent, aNextContent);
             return NS_OK;
           }
-          
+
           // when starting from a selection, we always want to find the next or
           // previous element in the document. So the tabindex on elements
           // should be ignored.
@@ -2328,7 +2360,8 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
 {
   *aResultContent = nsnull;
 
-  if (!aStartContent)
+  nsCOMPtr<nsIContent> startContent = aStartContent;
+  if (!startContent)
     return NS_OK;
 
 #ifdef DEBUG_FOCUS_NAVIGATION
@@ -2338,19 +2371,38 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
 
   nsPresContext* presContext = aPresShell->GetPresContext();
 
+  PRBool getNextFrame = PR_TRUE;
+  nsCOMPtr<nsIContent> iterStartContent = aStartContent;
   while (1) {
-    nsIFrame* aStartFrame = aPresShell->GetPrimaryFrameFor(aStartContent);
-    if (!aStartFrame) {
-      // if there is no frame, just get the root frame
-      aStartFrame = aPresShell->GetPrimaryFrameFor(aRootContent);
-      if (!aStartFrame)
+    nsIFrame* startFrame = aPresShell->GetPrimaryFrameFor(iterStartContent);
+    // if there is no frame, look for another content node that has a frame
+    if (!startFrame) {
+      // if the root content doesn't have a frame, just return
+      if (iterStartContent == aRootContent)
         return NS_OK;
-      aStartContent = aRootContent;
+
+      // look for the next or previous content node in tree order
+      nsTreeWalker walker(aRootContent, nsIDOMNodeFilter::SHOW_ALL, nsnull, PR_TRUE);
+      nsCOMPtr<nsIDOMNode> nextNode = do_QueryInterface(iterStartContent);
+      walker.SetCurrentNode(nextNode);
+      if (NS_SUCCEEDED(aForward ? walker.NextNode(getter_AddRefs(nextNode)) :
+                                  walker.PreviousNode(getter_AddRefs(nextNode)))) {
+        iterStartContent = do_QueryInterface(nextNode);
+        // we've already skipped over the initial focused content, so we
+        // don't want to traverse frames.
+        getNextFrame = PR_FALSE;
+        if (iterStartContent)
+          continue;
+      }
+
+      // otherwise, as a last attempt, just look at the root content
+      iterStartContent = aRootContent;
+      continue;
     }
 
     nsCOMPtr<nsIFrameEnumerator> frameTraversal;
     nsresult rv = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                       presContext, aStartFrame,
+                                       presContext, startFrame,
                                        ePreOrder,
                                        PR_FALSE, // aVisual
                                        PR_FALSE, // aLockInScrollView
@@ -2358,12 +2410,13 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
                                        );
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (aStartContent == aRootContent) {
+    if (iterStartContent == aRootContent) {
       if (!aForward)
         frameTraversal->Last();
     }
-    else if (!aStartContent || aStartContent->Tag() != nsGkAtoms::area ||
-             !aStartContent->IsNodeOfType(nsINode::eHTML)) {
+    else if (getNextFrame &&
+             (!iterStartContent || iterStartContent->Tag() != nsGkAtoms::area ||
+              !iterStartContent->IsNodeOfType(nsINode::eHTML))) {
       // Need to do special check in case we're in an imagemap which has multiple
       // content nodes per frame, so don't skip over the starting frame.
       if (aForward)
@@ -2402,7 +2455,7 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
           // nsIFrameTraversal so look for the next or previous area element.
           nsIContent *areaContent =
             GetNextTabbableMapArea(aForward, aCurrentTabIndex,
-                                   currentContent, aStartContent);
+                                   currentContent, iterStartContent);
           if (areaContent) {
             NS_ADDREF(*aResultContent = areaContent);
             return NS_OK;
@@ -2459,7 +2512,7 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
           // a textbox is focused, the enclosing textbox would be found and
           // the same inner input would be returned again.
           else if (currentContent == aRootContent ||
-                   (currentContent != aStartContent &&
+                   (currentContent != startContent &&
                     (aForward || !GetRedirectedFocus(currentContent)))) {
             NS_ADDREF(*aResultContent = currentContent);
             return NS_OK;
@@ -2507,7 +2560,7 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
 
     // continue looking for next highest priority tabindex
     aCurrentTabIndex = GetNextTabIndex(aRootContent, aCurrentTabIndex, aForward);
-    aStartContent = aRootContent;
+    startContent = iterStartContent = aRootContent;
   }
 
   return NS_OK;

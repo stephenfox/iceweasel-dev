@@ -911,6 +911,56 @@ nsGlobalWindow::ClearControllers()
   }
 }
 
+class ClearScopeEvent : public nsRunnable
+{
+public:
+  ClearScopeEvent(nsGlobalWindow *innerWindow)
+    : mInnerWindow(innerWindow) {
+  }
+
+  NS_IMETHOD Run()
+  {
+    mInnerWindow->ReallyClearScope(this);
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<nsGlobalWindow> mInnerWindow;
+};
+
+void
+nsGlobalWindow::ReallyClearScope(nsRunnable *aRunnable)
+{
+  NS_ASSERTION(IsInnerWindow(), "Must be an inner window");
+
+  nsCOMPtr<nsIScriptContext_1_9_2> jsscx =
+    do_QueryInterface(GetContextInternal());
+  if (jsscx && jsscx->GetExecutingScript()) {
+    if (!aRunnable) {
+      aRunnable = new ClearScopeEvent(this);
+      if (!aRunnable) {
+        // The only reason that we clear scope here is to try to prevent
+        // leaks. Failing to clear scope might mean that we'll leak more
+        // but if we don't have enough memory to allocate a ClearScopeEvent
+        // we probably don't have to worry about this anyway.
+        return;
+      }
+    }
+
+    NS_DispatchToMainThread(aRunnable);
+    return;
+  }
+
+  PRUint32 lang_id;
+  NS_STID_FOR_ID(lang_id) {
+    // Note that scx comes from the outer window.  If this is an inner
+    // window, it may not be the current inner for its outer.
+    nsIScriptContext *scx = GetScriptContextInternal(lang_id);
+    if (scx)
+      scx->ClearScope(mScriptGlobals[NS_STID_INDEX(lang_id)], PR_TRUE);
+  }
+}
+
 void
 nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
 {
@@ -964,14 +1014,9 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   }
 
   if (aClearScope) {
-    PRUint32 lang_id;
-    NS_STID_FOR_ID(lang_id) {
-      // Note that scx comes from the outer window.  If this is an inner
-      // window, it may not be the current inner for its outer.
-      nsIScriptContext *scx = GetScriptContextInternal(lang_id);
-      if (scx)
-        scx->ClearScope(mScriptGlobals[NS_STID_INDEX(lang_id)], PR_TRUE);
-    }
+    // NB: This might not clear our scope, but fire an event to do so
+    // instead.
+    ReallyClearScope(nsnull);
   }
 
   if (mDummyJavaPluginOwner) {
@@ -6847,15 +6892,12 @@ nsGlobalWindow::SetReadyForFocus()
 {
   FORWARD_TO_INNER_VOID(SetReadyForFocus, ());
 
-  // if we don't need to be focused, then just return
-  if (!mNeedsFocus)
-    return;
-
+  PRBool oldNeedsFocus = mNeedsFocus;
   mNeedsFocus = PR_FALSE;
 
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm)
-    fm->WindowShown(this);
+    fm->WindowShownInner(this, oldNeedsFocus);
 }
 
 void
@@ -9888,12 +9930,27 @@ nsNavigator::MozIsLocallyAvailable(const nsAString &aURI,
 NS_IMETHODIMP nsNavigator::GetGeolocation(nsIDOMGeoGeolocation **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
+  *_retval = nsnull;
 
-  if (!mGeolocation && mDocShell) {
-    nsCOMPtr<nsIDOMWindow> contentDOMWindow(do_GetInterface(mDocShell));
-    mGeolocation = new nsGeolocation(contentDOMWindow);
+  if (mGeolocation) {
+    NS_ADDREF(*_retval = mGeolocation);
+    return NS_OK;
   }
 
-  NS_IF_ADDREF(*_retval = mGeolocation);
-  return NS_OK;
+  if (!mDocShell)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIDOMWindow> contentDOMWindow(do_GetInterface(mDocShell));
+  if (!contentDOMWindow)
+    return NS_ERROR_FAILURE;
+    
+  mGeolocation = new nsGeolocation();
+  if (!mGeolocation)
+    return NS_ERROR_FAILURE;
+  
+  if (NS_FAILED(mGeolocation->Init(contentDOMWindow)))
+    return NS_ERROR_FAILURE;
+  
+  NS_ADDREF(*_retval = mGeolocation);    
+  return NS_OK; 
 }

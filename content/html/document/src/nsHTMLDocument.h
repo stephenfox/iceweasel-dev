@@ -183,6 +183,10 @@ public:
   {
     return !mIsRegularHTML;
   }
+  virtual void SetDocWriteDisabled(PRBool aDisabled)
+  {
+    mDisableDocWrite = aDisabled;
+  }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
@@ -344,6 +348,8 @@ protected:
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
+
+  PRPackedBool mDisableDocWrite;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 

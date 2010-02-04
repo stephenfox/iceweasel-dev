@@ -328,7 +328,7 @@ ResizeSlots(JSContext *cx, JSObject *obj, uint32 oldlen, uint32 newlen,
     }
 
     slots = obj->dslots ? obj->dslots - 1 : NULL;
-    newslots = (jsval *) cx->realloc(slots, (newlen + 1) * sizeof(jsval));
+    newslots = (jsval *) cx->realloc(slots, (size_t(newlen) + 1) * sizeof(jsval));
     if (!newslots)
         return JS_FALSE;
 
@@ -1297,9 +1297,9 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
         /* obj is Array.prototype. */
         emptyShape = js_GenerateShape(cx, false);
     } else {
+        /* arrayProto is Array.prototype. */
         JS_ASSERT(arrayProto->getClass() == &js_SlowArrayClass);
-        if (!OBJ_SCOPE(arrayProto)->getEmptyScopeShape(cx, &js_SlowArrayClass, &emptyShape))
-            return JS_FALSE;
+        emptyShape = OBJ_SCOPE(arrayProto)->emptyScope->shape;
     }
     JSScope *scope = JSScope::create(cx, &js_SlowArrayObjectOps, &js_SlowArrayClass, obj,
                                      emptyShape);
@@ -3414,6 +3414,19 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto)
 }
 JS_DEFINE_CALLINFO_2(extern, OBJECT, js_NewEmptyArray, CONTEXT, OBJECT, 0, 0)
 
+JSObject* JS_FASTCALL
+js_NewEmptyArrayWithLength(JSContext* cx, JSObject* proto, int32 len)
+{
+    if (len < 0)
+        return NULL;
+    JSObject *obj = js_NewEmptyArray(cx, proto);
+    if (!obj)
+        return NULL;
+    obj->fslots[JSSLOT_ARRAY_LENGTH] = len;
+    return obj;
+}
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_NewEmptyArrayWithLength, CONTEXT, OBJECT, INT32, 0, 0)
+
 JSObject* FASTCALL
 js_NewUninitializedArray(JSContext* cx, JSObject* proto, uint32 len)
 {
@@ -3459,6 +3472,12 @@ js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
     obj = js_NewObject(cx, &js_ArrayClass, NULL, NULL);
     if (!obj)
         return NULL;
+
+    /*
+     * If this fails, the global object was not initialized and its class does
+     * not have JSCLASS_IS_GLOBAL.
+     */
+    JS_ASSERT(obj->getProto());
 
     JS_PUSH_TEMP_ROOT_OBJECT(cx, obj, &tvr);
     if (!InitArrayObject(cx, obj, length, vector, holey))

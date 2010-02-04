@@ -196,7 +196,9 @@ private:
   };
 
   imgFrame* GetImgFrame(PRUint32 framenum);
+  imgFrame* GetDrawableImgFrame(PRUint32 framenum);
   imgFrame* GetCurrentImgFrame();
+  imgFrame* GetCurrentDrawableImgFrame();
   PRInt32 GetCurrentImgFrameIndex() const;
   
   inline Anim* ensureAnimExists() {

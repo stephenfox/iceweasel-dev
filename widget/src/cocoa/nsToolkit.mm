@@ -383,8 +383,6 @@ NS_IMETHODIMP NS_GetCurrentToolkit(nsIToolkit* *aResult)
 
 PRInt32 nsToolkit::OSXVersion()
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
   static PRInt32 gOSXVersion = 0x0;
   if (gOSXVersion == 0x0) {
     OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
@@ -395,8 +393,6 @@ PRInt32 nsToolkit::OSXVersion()
     }
   }
   return gOSXVersion;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
 
 PRBool nsToolkit::OnLeopardOrLater()

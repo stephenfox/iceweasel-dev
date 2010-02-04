@@ -70,6 +70,7 @@ class nsIContent;
 class nsIDOMNode;
 class nsIDOMKeyEvent;
 class nsIDocument;
+class nsIDocumentObserver;
 class nsIDocShell;
 class nsINameSpaceManager;
 class nsIScriptSecurityManager;
@@ -1161,6 +1162,11 @@ public:
    */
   static nsresult DropJSObjects(void* aScriptObjectHolder);
 
+#ifdef DEBUG
+  static void CheckCCWrapperTraversal(nsISupports* aScriptObjectHolder,
+                                      nsWrapperCache* aCache);
+#endif
+
   static void PreserveWrapper(nsISupports* aScriptObjectHolder,
                               nsWrapperCache* aCache)
   {
@@ -1169,6 +1175,10 @@ public:
       CallQueryInterface(aScriptObjectHolder, &participant);
       HoldJSObjects(aScriptObjectHolder, participant);
       aCache->SetPreservingWrapper(PR_TRUE);
+#ifdef DEBUG
+      // Make sure the cycle collector will be able to traverse to the wrapper.
+      CheckCCWrapperTraversal(aScriptObjectHolder, aCache);
+#endif
     }
   }
   static void ReleaseWrapper(nsISupports* aScriptObjectHolder,
@@ -1293,7 +1303,7 @@ public:
 
   /**
    * Hide any XUL popups associated with aDocument, including any documents
-   * displayed in child frames.
+   * displayed in child frames. Does nothing if aDocument is null.
    */
   static void HidePopupsInDocument(nsIDocument* aDocument);
 
@@ -1653,27 +1663,13 @@ public:
 class mozAutoRemovableBlockerRemover
 {
 public:
-  mozAutoRemovableBlockerRemover()
-  {
-    mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
-    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
-      nsContentUtils::RemoveRemovableScriptBlocker();
-    }
-
-    NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "killing mutation events");
-  }
-
-  ~mozAutoRemovableBlockerRemover()
-  {
-    NS_ASSERTION(nsContentUtils::GetRemovableScriptBlockerLevel() == 0,
-                 "Should have had none");
-    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
-      nsContentUtils::AddRemovableScriptBlocker();
-    }
-  }
+  mozAutoRemovableBlockerRemover(nsIDocument* aDocument);
+  ~mozAutoRemovableBlockerRemover();
 
 private:
   PRUint32 mNestingLevel;
+  nsCOMPtr<nsIDocument> mDocument;
+  nsCOMPtr<nsIDocumentObserver> mObserver;
 };
 
 #define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line

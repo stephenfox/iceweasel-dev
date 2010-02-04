@@ -82,6 +82,20 @@ SDK_SUFFIX    = $(PKG_SUFFIX)
 SDK           = $(PKG_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
 
 MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
+MAKE_CAB	= $(error Don't know how to make a CAB!);
+
+ifdef WINCE
+ifndef WINCE_WINDOWS_MOBILE
+CABARGS += -s
+endif
+ifdef MOZ_FASTSTART
+CABARGS += -faststart
+endif
+VSINSTALLDIR ?= $(error VSINSTALLDIR not set, must be set to the Visual Studio install directory)
+MAKE_CAB	= $(PYTHON) $(topsrcdir)/build/package/wince/make_wince_cab.py \
+	$(CABARGS) "$(VSINSTALLDIR)/SmartDevices/SDK/SDKTools/cabwiz.exe" \
+	"$(MOZ_PKG_DIR)" "$(MOZ_APP_DISPLAYNAME)" "$(PKG_PATH)$(PKG_BASENAME).cab"
+endif
 
 CREATE_FINAL_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode="go-w" -f
@@ -113,16 +127,7 @@ MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
 endif
 ifeq ($(MOZ_PKG_FORMAT),CAB)
 PKG_SUFFIX	= .cab
-ifndef WINCE_WINDOWS_MOBILE
-CABARGS += -s
-endif
-ifdef MOZ_FASTSTART
-CABARGS += -faststart
-endif
-VSINSTALLDIR ?= $(error VSINSTALLDIR not set, must be set to the Visual Studio install directory)
-MAKE_PACKAGE	= $(PYTHON) $(topsrcdir)/build/package/wince/make_wince_cab.py \
-	$(CABARGS) "$(VSINSTALLDIR)/SmartDevices/SDK/SDKTools/cabwiz.exe" \
-	"$(MOZ_PKG_DIR)" "$(MOZ_APP_DISPLAYNAME)" "$(PACKAGE)"
+MAKE_PACKAGE	= $(MAKE_CAB)
 UNMAKE_PACKAGE	= $(error Unpacking CAB files is not supported)
 endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
@@ -409,7 +414,14 @@ ifndef PKG_SKIP_STRIP
 			$(PLATFORM_EXCLUDE_LIST) \
 			-exec $(STRIP) $(STRIP_FLAGS) {} >/dev/null 2>&1 \;
 	$(SIGN_NSS)
-endif
+else
+ifdef UNIVERSAL_BINARY
+# universal binaries will have had their .chk files removed prior to the unify
+# step, and if they're also --disable-install-strip then they won't get
+# re-signed in the block above.
+	$(SIGN_NSS)
+endif # UNIVERSAL_BINARY
+endif # PKG_SKIP_STRIP
 	@echo "Removing unpackaged files..."
 ifdef NO_PKG_FILES
 	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH); rm -rf $(NO_PKG_FILES)
@@ -508,7 +520,7 @@ upload:
 		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip) \
+		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
 		$(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 

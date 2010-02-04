@@ -54,6 +54,9 @@
 #define STATUS_DLL_NOT_FOUND ((DWORD)0xC0000135L)
 #endif
 
+// define this for very verbose dll load debug spew
+#undef DEBUG_very_verbose
+
 // The signature for LdrLoadDll changed at some point, with the second arg
 // becoming a PULONG instead of a ULONG.  This should only matter on 64-bit
 // systems, for which there was no support earlier -- on 32-bit systems,
@@ -67,7 +70,6 @@ static LdrLoadDll_func stub_LdrLoadDll = 0;
 static NTSTATUS NTAPI
 patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileName, PHANDLE handle)
 {
-  // this is for testing -- poke
   // We have UCS2 (UTF16?), we want ASCII, but we also just want the filename portion
 #define DLLNAME_MAX 128
   char dllName[DLLNAME_MAX+1];
@@ -82,7 +84,9 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
   if (moduleFileName->MaximumLength < moduleFileName->Length+2 ||
       fname[len] != 0)
   {
+#ifdef DEBUG
     printf_stderr("LdrLoadDll: non-null terminated string found!\n");
+#endif
     goto continue_loading;
   }
 
@@ -94,7 +98,7 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
     dll_part = fname;
   }
 
-#ifdef DEBUG
+#ifdef DEBUG_very_verbose
   printf_stderr("LdrLoadDll: dll_part '%S' %d\n", dll_part, len);
 #endif
 
@@ -118,6 +122,7 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
       goto continue_loading;
     }
 
+    // ensure that dll name is all lowercase
     if (c >= 'A' && c <= 'Z')
       c += 'a' - 'A';
 
@@ -126,7 +131,7 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
 
   dllName[len] = 0;
 
-#ifdef DEBUG
+#ifdef DEBUG_very_verbose
   printf_stderr("LdrLoadDll: dll name '%s'\n", dllName);
 #endif
 
@@ -142,7 +147,7 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
   if (info->name) {
     bool load_ok = false;
 
-#ifdef DEBUG
+#ifdef DEBUG_very_verbose
     printf_stderr("LdrLoadDll: info->name: '%s'\n", info->name);
 #endif
 
@@ -192,13 +197,13 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
     }
 
     if (!load_ok) {
-      printf_stderr("LdrLoadDll: Blocking load of '%s'\n", dllName);
+      printf_stderr("LdrLoadDll: Blocking load of '%s' -- see http://www.mozilla.com/en-US/blocklist/\n", dllName);
       return STATUS_DLL_NOT_FOUND;
     }
   }
 
 continue_loading:
-#ifdef DEBUG
+#ifdef DEBUG_very_verbose
   printf_stderr("LdrLoadDll: continuing load... ('%S')\n", moduleFileName->Buffer);
 #endif
 
@@ -214,6 +219,8 @@ SetupDllBlocklist()
 
   bool ok = NtDllIntercept.AddHook("LdrLoadDll", patched_LdrLoadDll, (void**) &stub_LdrLoadDll);
 
+#ifdef DEBUG
   if (!ok)
     printf_stderr ("LdrLoadDll hook failed, no dll blocklisting active\n");
+#endif
 }

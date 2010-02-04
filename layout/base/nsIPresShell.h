@@ -111,8 +111,8 @@ typedef PRUint32 nsFrameState;
   { 0x9e, 0xee, 0x5f, 0xc4, 0x5d, 0x81, 0x6b, 0xe8 } }
 
 #define NS_IPRESSHELL_MOZILLA_1_9_2_IID     \
-{ 0xfab5d6f6, 0xdce0, 0x405e,                    \
-  { 0xa4, 0x35, 0xb4, 0xb4, 0xa7, 0x01, 0x31, 0x36 } }
+{ 0x43a35d87, 0x5e16, 0x461f,               \
+  { 0x8c, 0xef, 0x79, 0xf4, 0xac, 0x56, 0x27, 0x44 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -143,6 +143,23 @@ public:
    * Can be called by code not linked into gklayout.
    */
   virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const = 0;
+
+  /*
+   *  The same as Add/RemoveWeakFrame but allows use outside gklayout linkage.
+   */
+  virtual void RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame) = 0;
+  virtual void AddWeakFrameExternal(nsWeakFrame* aWeakFrame) = 0;
+
+  /**
+   * Like AddCanvasBackgroundColorItem but with the option to skip the canvas
+   * frame check by specifying aForceDraw as true.
+   */
+  virtual nsresult AddCanvasBackgroundColorItem2(nsDisplayListBuilder& aBuilder,
+                                                 nsDisplayList& aList,
+                                                 nsIFrame* aFrame,
+                                                 nsRect* aBounds = nsnull,
+                                                 nscolor aBackstopColor = NS_RGBA(0,0,0,0),
+                                                 PRBool aForceDraw = PR_FALSE) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_MOZILLA_1_9_2, 
@@ -822,8 +839,29 @@ public:
                                                         nsIntPoint& aPoint,
                                                         nsIntRect* aScreenRect) = 0;
 
-  void AddWeakFrame(nsWeakFrame* aWeakFrame);
-  void RemoveWeakFrame(nsWeakFrame* aWeakFrame);
+  void AddWeakFrameInternal(nsWeakFrame* aWeakFrame);
+
+  void AddWeakFrame(nsWeakFrame* aWeakFrame)
+  {
+#ifdef _IMPL_NS_LAYOUT
+    AddWeakFrameInternal(aWeakFrame);
+#else
+    nsCOMPtr<nsIPresShell_MOZILLA_1_9_2> shell_1_9_2 = do_QueryInterface(this);
+    shell_1_9_2->AddWeakFrameExternal(aWeakFrame);
+#endif
+  }
+
+  void RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame);
+
+  void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
+  {
+#ifdef _IMPL_NS_LAYOUT
+    RemoveWeakFrameInternal(aWeakFrame);
+#else
+    nsCOMPtr<nsIPresShell_MOZILLA_1_9_2> shell_1_9_2 = do_QueryInterface(this);
+    shell_1_9_2->RemoveWeakFrameExternal(aWeakFrame);
+#endif
+  }
 
 #ifdef NS_DEBUG
   nsIFrame* GetDrawEventTargetFrame() { return mDrawEventTargetFrame; }

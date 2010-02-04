@@ -368,7 +368,7 @@ MoveClassPolicyEntry(PLDHashTable *table,
 { 0x7ee2a4c0, 0x4b93, 0x17d3, \
 { 0xba, 0x18, 0x00, 0x60, 0xb0, 0xf1, 0x99, 0xa2 }}
 
-class nsScriptSecurityManager : public nsIScriptSecurityManager,
+class nsScriptSecurityManager : public nsIScriptSecurityManager_1_9_2,
                                 public nsIPrefSecurityCheck,
                                 public nsIChannelEventSink,
                                 public nsIObserver
@@ -380,6 +380,7 @@ public:
         
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCRIPTSECURITYMANAGER
+    NS_DECL_NSISCRIPTSECURITYMANAGER_1_9_2
     NS_DECL_NSIXPCSECURITYMANAGER
     NS_DECL_NSIPREFSECURITYCHECK
     NS_DECL_NSICHANNELEVENTSINK
@@ -486,15 +487,15 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script for the
     // context.  Callers MUST pass in a non-null rv here.
-    static nsIPrincipal*
+    nsIPrincipal*
     GetSubjectPrincipal(JSContext* cx, nsresult* rv);
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script for the frame.
     // Callers MUST pass in a non-null rv here.
-    static nsIPrincipal*
+    nsIPrincipal*
     GetFramePrincipal(JSContext* cx, JSStackFrame* fp, nsresult* rv);
-                                                     
+
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script.  Callers MUST
     // pass in a non-null rv here.
@@ -514,7 +515,7 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script
     // running.  Callers MUST pass in a non-null rv here.
-    static nsIPrincipal*
+    nsIPrincipal*
     GetPrincipalAndFrame(JSContext *cx,
                          JSStackFrame** frameResult,
                          nsresult* rv);
@@ -601,6 +602,17 @@ private:
     PrintPolicyDB();
 #endif
 
+    struct ContextPrincipal {
+        ContextPrincipal(ContextPrincipal *next, JSContext *cx,
+                         JSStackFrame *fp, nsIPrincipal *principal)
+            : mNext(next), mCx(cx), mFp(fp), mPrincipal(principal) {}
+
+        ContextPrincipal *mNext;
+        JSContext *mCx;
+        JSStackFrame *mFp;
+        nsCOMPtr<nsIPrincipal> mPrincipal;
+    };
+
     // JS strings we need to clean up on shutdown
     static jsval sEnabledID;
 
@@ -618,6 +630,7 @@ private:
     nsCOMPtr<nsISecurityPref> mSecurityPref;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
+    ContextPrincipal *mContextPrincipals;
     nsInterfaceHashtable<PrincipalKey, nsIPrincipal> mPrincipals;
     PRPackedBool mIsJavaScriptEnabled;
     PRPackedBool mIsWritingPrefs;

@@ -4600,11 +4600,9 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
 void
 nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
 {
-  NS_PRECONDITION(aDocument, "Null document");
-
 #ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
+  if (pm && aDocument) {
     nsCOMPtr<nsISupports> container = aDocument->GetContainer();
     nsCOMPtr<nsIDocShellTreeItem> docShellToHide = do_QueryInterface(container);
     if (docShellToHide)
@@ -5130,4 +5128,113 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
   NS_ENSURE_STATE(target);
   PRBool dummy;
   return target->DispatchEvent(event, &dummy);
+}
+
+#ifdef DEBUG
+class DebugWrapperTraversalCallback : public nsCycleCollectionTraversalCallback
+{
+public:
+  DebugWrapperTraversalCallback(void* aWrapper) : mFound(PR_FALSE),
+                                                  mWrapper(aWrapper)
+  {
+    mFlags = WANT_ALL_TRACES;
+  }
+
+  NS_IMETHOD_(void) DescribeNode(CCNodeType type,
+                                 nsrefcnt refcount,
+                                 size_t objsz,
+                                 const char* objname)
+  {
+  }
+  NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root)
+  {
+  }
+  NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void* root,
+                             nsCycleCollectionParticipant* helper)
+  {
+  }
+  NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void* child)
+  {
+    if (langID == nsIProgrammingLanguage::JAVASCRIPT) {
+      mFound = child == mWrapper;
+    }
+  }
+  NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child)
+  {
+  }
+  NS_IMETHOD_(void) NoteNativeChild(void* child,
+                                    nsCycleCollectionParticipant* helper)
+  {
+  }
+
+  NS_IMETHOD_(void) NoteNextEdgeName(const char* name)
+  {
+  }
+
+  PRBool mFound;
+
+private:
+  void* mWrapper;
+};
+
+static void
+DebugWrapperTraceCallback(PRUint32 langID, void *p, void *closure)
+{
+  DebugWrapperTraversalCallback* callback =
+    static_cast<DebugWrapperTraversalCallback*>(closure);
+  callback->NoteScriptChild(langID, p);
+}
+
+// static
+void
+nsContentUtils::CheckCCWrapperTraversal(nsISupports* aScriptObjectHolder,
+                                        nsWrapperCache* aCache)
+{
+  nsXPCOMCycleCollectionParticipant* participant;
+  CallQueryInterface(aScriptObjectHolder, &participant);
+
+  DebugWrapperTraversalCallback callback(aCache->GetWrapper());
+
+  participant->Traverse(aScriptObjectHolder, callback);
+  NS_ASSERTION(callback.mFound,
+               "Cycle collection participant didn't traverse to preserved "
+               "wrapper! This will probably crash.");
+
+  callback.mFound = PR_FALSE;
+  participant->Trace(aScriptObjectHolder, DebugWrapperTraceCallback, &callback);
+  NS_ASSERTION(callback.mFound,
+               "Cycle collection participant didn't trace preserved wrapper! "
+               "This will probably crash.");
+}
+#endif
+
+mozAutoRemovableBlockerRemover::mozAutoRemovableBlockerRemover(nsIDocument* aDocument)
+{
+  mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
+  mDocument = aDocument;
+  nsCOMPtr<nsIDocument_MOZILLA_1_9_2_BRANCH> branchDocument =
+    do_QueryInterface(aDocument);
+  nsISupports* sink =
+    branchDocument ? branchDocument->GetCurrentContentSink() : nsnull;
+  mObserver = do_QueryInterface(sink);
+  for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+    if (mObserver) {
+      mObserver->EndUpdate(mDocument, UPDATE_CONTENT_MODEL);
+    }
+    nsContentUtils::RemoveRemovableScriptBlocker();
+  }
+
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "killing mutation events");
+}
+
+mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
+{
+  NS_ASSERTION(nsContentUtils::GetRemovableScriptBlockerLevel() == 0,
+               "Should have had none");
+  for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+    nsContentUtils::AddRemovableScriptBlocker();
+    if (mObserver) {
+      mObserver->BeginUpdate(mDocument, UPDATE_CONTENT_MODEL);
+    }
+  }
 }

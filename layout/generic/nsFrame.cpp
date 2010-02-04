@@ -269,7 +269,7 @@ NS_MergeReflowStatusInto(nsReflowStatus* aPrimary, nsReflowStatus aSecondary)
 }
 
 void
-nsWeakFrame::Init(nsIFrame* aFrame)
+nsWeakFrame::InitInternal(nsIFrame* aFrame)
 {
   Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
   mFrame = aFrame;
@@ -933,7 +933,7 @@ nsIFrame::DisplayCaret(nsDisplayListBuilder* aBuilder,
 }
 
 PRBool
-nsFrame::HasBorder() const
+nsIFrame::HasBorder() const
 {
   // Border images contribute to the background of the content area
   // even if there's no border proper.

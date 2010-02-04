@@ -231,7 +231,7 @@ function nsPlacesAutoComplete()
                    "UNION ALL " +
                    sql_base_fragment("moz_places") +
                    "AND +h.id NOT IN (SELECT id FROM moz_places_temp) " +
-                   "ORDER BY h.frecency DESC " +
+                   "ORDER BY h.frecency DESC, h.id DESC " +
                    "LIMIT :maxResults";
 
   //////////////////////////////////////////////////////////////////////////////
@@ -323,10 +323,12 @@ function nsPlacesAutoComplete()
     // title).
     return this._adaptiveQuery = this._db.createStatement(
       "/* do not warn (bug 487789) */ " +
-      "SELECT IFNULL(h_t.url, h.url), IFNULL(h_t.title, h.title), f.url, " +
-              kBookTagSQLFragment + ", IFNULL(h_t.visit_count, h.visit_count), " +
-              "IFNULL(h_t.typed, h.typed), IFNULL(h_t.id, h.id), " +
-              ":query_type, rank " +
+      "SELECT IFNULL(h_t.url, h.url) AS c_url, " +
+             "IFNULL(h_t.title, h.title) AS c_title, f.url, " +
+              kBookTagSQLFragment + ", " +
+              "IFNULL(h_t.visit_count, h.visit_count) AS c_visit_count, " +
+              "IFNULL(h_t.typed, h.typed) AS c_typed, " +
+              "IFNULL(h_t.id, h.id), :query_type, rank " +
       "FROM ( " +
         "SELECT ROUND(MAX(((i.input = :search_string) + " +
                           "(SUBSTR(i.input, 1, LENGTH(:search_string)) = :search_string)) * " +
@@ -337,11 +339,11 @@ function nsPlacesAutoComplete()
       ") AS i " +
       "LEFT JOIN moz_places h ON h.id = i.place_id " +
       "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id " +
-      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) "+
-      "WHERE IFNULL(h_t.url, h.url) NOTNULL " +
-      "AND AUTOCOMPLETE_MATCH(:searchString, 0 /* url */, " +
-                             "IFNULL(bookmark, 1 /* title */), tags, " +
-                             "6 /* visit_count */, 7 /* typed */, parent, " +
+      "LEFT JOIN moz_favicons f ON f.id = IFNULL(h_t.favicon_id, h.favicon_id) " + 
+      "WHERE c_url NOTNULL " +
+      "AND AUTOCOMPLETE_MATCH(:searchString, c_url, " +
+                             "IFNULL(bookmark, c_title), tags, " +
+                             "c_visit_count, c_typed, parent, " +
                              ":matchBehavior, :searchBehavior) " +
       "ORDER BY rank DESC, IFNULL(h_t.frecency, h.frecency) DESC"
     );

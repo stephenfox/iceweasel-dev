@@ -68,6 +68,10 @@ SUBMAKEFILES += \
 	$(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/Makefile \
 	$(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales/Makefile \
 	$(NULL)
+VERSION_SUFFIX = $(shell hg -R $(LOCALE_SRCDIR)/.. parent --template=".{rev}" 2>/dev/null)
+
+
+DEFINES += -DVERSION_SUFFIX=$(VERSION_SUFFIX)
 
 # This makefile uses variable overrides from the libs-% target to
 # build non-default locales to non-default dist/ locations. Be aware!

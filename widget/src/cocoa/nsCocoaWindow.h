@@ -220,6 +220,8 @@ public:
     NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
     virtual PRBool          OnPaint(nsPaintEvent &event);
     void                    ReportSizeEvent(NSRect *overrideRect = nsnull);
+    NS_IMETHOD              SetCursor(nsCursor aCursor);
+    NS_IMETHOD              SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
 
     NS_IMETHOD              SetTitle(const nsAString& aTitle);
 

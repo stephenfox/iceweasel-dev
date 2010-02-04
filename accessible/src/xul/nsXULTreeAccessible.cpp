@@ -286,6 +286,9 @@ nsXULTreeAccessible::GetChildAt(PRInt32 aChildIndex, nsIAccessible **aChild)
   NS_ENSURE_ARG_POINTER(aChild);
   *aChild = nsnull;
 
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   PRInt32 childCount = 0;
   nsresult rv = nsAccessible::GetChildCount(&childCount);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -541,7 +544,7 @@ nsXULTreeAccessible::GetTreeItemAccessible(PRInt32 aRow,
 {
   *aAccessible = nsnull;
 
-  if (aRow < 0)
+  if (aRow < 0 || IsDefunct())
     return;
 
   PRInt32 rowCount = 0;

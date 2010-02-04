@@ -577,7 +577,8 @@ class nsDocument : public nsIDocument,
                    public nsIDOMNodeSelector,
                    public nsIApplicationCacheContainer,
                    public nsIDOMXPathNSResolver,
-                   public nsStubMutationObserver
+                   public nsStubMutationObserver,
+                   public nsIDocument_MOZILLA_1_9_2_BRANCH
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -1010,6 +1011,9 @@ public:
   void MaybeEndOutermostXBLUpdate();
 
   virtual void MaybePreLoadImage(nsIURI* uri);
+
+  virtual nsISupports* GetCurrentContentSink();
+
 protected:
 
   void RegisterNamedItems(nsIContent *aContent);
@@ -1163,14 +1167,8 @@ protected:
 
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
-  // True if our content viewer has been removed from the docshell
-  // (it may still be displayed, but in zombie state). Form control data
-  // has been saved.
-  PRPackedBool mRemovedFromDocShell:1;
   // True if the document is being destroyed.
   PRPackedBool mInDestructor:1;
-  // True if the document "page" is not hidden
-  PRPackedBool mVisible:1;
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject:1;
   // True if this is a regular (non-XHTML) HTML document

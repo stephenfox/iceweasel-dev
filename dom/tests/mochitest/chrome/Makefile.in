@@ -59,6 +59,7 @@ _TEST_FILES = \
 		child_focus_frame.html \
 		test_focus_switchbinding.xul \
 		test_focused_link_scroll.xul \
+		test_geolocation.xul \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

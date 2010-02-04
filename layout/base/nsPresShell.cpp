@@ -907,7 +907,16 @@ public:
                                                 nsRect* aBounds,
                                                 nscolor aBackstopColor);
 
+  virtual nsresult AddCanvasBackgroundColorItem2(nsDisplayListBuilder& aBuilder,
+                                                 nsDisplayList& aList,
+                                                 nsIFrame* aFrame,
+                                                 nsRect* aBounds,
+                                                 nscolor aBackstopColor,
+                                                 PRBool aForceDraw);
+
   virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const;
+  virtual void RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame);
+  virtual void AddWeakFrameExternal(nsWeakFrame* aWeakFrame);
 protected:
   virtual ~PresShell();
 
@@ -1242,6 +1251,9 @@ private:
                                  nsIFrame*      aTargetFrame,
                                  nsGUIEvent*    aEvent,
                                  nsEventStatus* aEventStatus);
+  // This returns the focused DOM window under our top level window.
+  //  I.e., when we are deactive, this returns the *last* focused DOM window.
+  already_AddRefed<nsPIDOMWindow> GetFocusedDOMWindowInOurWindow();
 
   /*
    * This and the next two helper methods are used to target and position the
@@ -1563,7 +1575,7 @@ nsIPresShell::GetVerifyReflowFlags()
 }
 
 void
-nsIPresShell::AddWeakFrame(nsWeakFrame* aWeakFrame)
+nsIPresShell::AddWeakFrameInternal(nsWeakFrame* aWeakFrame)
 {
   if (aWeakFrame->GetFrame()) {
     aWeakFrame->GetFrame()->AddStateBits(NS_FRAME_EXTERNAL_REFERENCE);
@@ -1573,7 +1585,7 @@ nsIPresShell::AddWeakFrame(nsWeakFrame* aWeakFrame)
 }
 
 void
-nsIPresShell::RemoveWeakFrame(nsWeakFrame* aWeakFrame)
+nsIPresShell::RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame)
 {
   if (mWeakFrames == aWeakFrame) {
     mWeakFrames = aWeakFrame->GetPreviousWeakFrame();
@@ -1899,6 +1911,8 @@ PresShell::Destroy()
   for (i = 0; i < count; i++) {
     mCurrentEventFrameStack[i] = nsnull;
   }
+
+  mFramesToDirty.Clear();
 
   if (mViewManager) {
     // Clear the view manager's weak pointer back to |this| in case it
@@ -2870,6 +2884,29 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
 
     // Remove frame properties
     mPresContext->PropertyTable()->DeleteAllPropertiesFor(aFrame);
+
+    if (aFrame == mCurrentEventFrame) {
+      mCurrentEventContent = aFrame->GetContent();
+      mCurrentEventFrame = nsnull;
+    }
+  
+  #ifdef NS_DEBUG
+    if (aFrame == mDrawEventTargetFrame) {
+      mDrawEventTargetFrame = nsnull;
+    }
+  #endif
+  
+    for (unsigned int i=0; i < mCurrentEventFrameStack.Length(); i++) {
+      if (aFrame == mCurrentEventFrameStack.ElementAt(i)) {
+        //One of our stack frames was deleted.  Get its content so that when we
+        //pop it we can still get its new frame from its content
+        nsIContent *currentEventContent = aFrame->GetContent();
+        mCurrentEventContentStack.ReplaceObjectAt(currentEventContent, i);
+        mCurrentEventFrameStack[i] = nsnull;
+      }
+    }
+  
+    mFramesToDirty.RemoveEntry(aFrame);
   }
 
   return NS_OK;
@@ -3204,6 +3241,18 @@ nsIScrollableFrame*
 PresShell::GetRootScrollFrameAsScrollableExternal() const
 {
   return GetRootScrollFrameAsScrollable();
+}
+
+void
+PresShell::AddWeakFrameExternal(nsWeakFrame* aWeakFrame)
+{
+  AddWeakFrameInternal(aWeakFrame);
+}
+
+void
+PresShell::RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame)
+{
+  RemoveWeakFrameInternal(aWeakFrame);
 }
 
 nsIFrame*
@@ -3653,29 +3702,6 @@ NS_IMETHODIMP
 PresShell::ClearFrameRefs(nsIFrame* aFrame)
 {
   mPresContext->EventStateManager()->ClearFrameRefs(aFrame);
-  
-  if (aFrame == mCurrentEventFrame) {
-    mCurrentEventContent = aFrame->GetContent();
-    mCurrentEventFrame = nsnull;
-  }
-
-#ifdef NS_DEBUG
-  if (aFrame == mDrawEventTargetFrame) {
-    mDrawEventTargetFrame = nsnull;
-  }
-#endif
-
-  for (unsigned int i=0; i < mCurrentEventFrameStack.Length(); i++) {
-    if (aFrame == mCurrentEventFrameStack.ElementAt(i)) {
-      //One of our stack frames was deleted.  Get its content so that when we
-      //pop it we can still get its new frame from its content
-      nsIContent *currentEventContent = aFrame->GetContent();
-      mCurrentEventContentStack.ReplaceObjectAt(currentEventContent, i);
-      mCurrentEventFrameStack[i] = nsnull;
-    }
-  }
-
-  mFramesToDirty.RemoveEntry(aFrame);
 
   nsWeakFrame* weakFrame = mWeakFrames;
   while (weakFrame) {
@@ -5727,13 +5753,24 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                  nsRect*               aBounds,
                                                  nscolor               aBackstopColor)
 {
+  return AddCanvasBackgroundColorItem2(aBuilder, aList, aFrame, aBounds,
+                                       aBackstopColor, PR_FALSE);
+}
+
+nsresult PresShell::AddCanvasBackgroundColorItem2(nsDisplayListBuilder& aBuilder,
+                                                  nsDisplayList&        aList,
+                                                  nsIFrame*             aFrame,
+                                                  nsRect*               aBounds,
+                                                  nscolor               aBackstopColor,
+                                                  PRBool                aForceDraw)
+{
   // We don't want to add an item for the canvas background color if the frame
   // (sub)tree we are painting doesn't include any canvas frames. There isn't
   // an easy way to check this directly, but if we check if the root of the
   // (sub)tree we are painting is a canvas frame that should cover us in all
   // cases (it will usually be a viewport frame when we have a canvas frame in
   // the (sub)tree).
-  if (!nsCSSRendering::IsCanvasFrame(aFrame))
+  if (!aForceDraw && !nsCSSRendering::IsCanvasFrame(aFrame))
     return NS_OK;
 
   nscolor bgcolor = NS_ComposeColors(aBackstopColor, mCanvasBackgroundColor);
@@ -5964,6 +6001,21 @@ PresShell::DisableNonTestMouseEvents(PRBool aDisable)
   return NS_OK;
 }
 
+already_AddRefed<nsPIDOMWindow>
+PresShell::GetFocusedDOMWindowInOurWindow()
+{
+  nsCOMPtr<nsPIDOMWindow> window =
+    do_QueryInterface(mDocument->GetWindow());
+  NS_ENSURE_TRUE(window, nsnull);
+
+  nsCOMPtr<nsPIDOMWindow> rootWindow = window->GetPrivateRoot();
+  NS_ENSURE_TRUE(rootWindow, nsnull);
+  nsPIDOMWindow* focusedWindow;
+  nsIContent* content =
+    nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, &focusedWindow);
+  return focusedWindow;
+}
+
 NS_IMETHODIMP
 PresShell::HandleEvent(nsIView         *aView,
                        nsGUIEvent*     aEvent,
@@ -5997,6 +6049,13 @@ PresShell::HandleEvent(nsIView         *aView,
     // if there is no focused frame, there isn't anything to fire a key event
     // at so just return
     nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(window);
+
+    if (!piWindow) {
+      // When all our windows are deactive, we should use the last focused
+      // window under our top level window.
+      piWindow = GetFocusedDOMWindowInOurWindow();
+    }
+
     if (!piWindow)
       return NS_OK;
 
@@ -6077,7 +6136,8 @@ PresShell::HandleEvent(nsIView         *aView,
   // view that has a frame.
   if (!frame &&
       (dispatchUsingCoordinates || NS_IS_KEY_EVENT(aEvent) ||
-       NS_IS_IME_EVENT(aEvent) || aEvent->message == NS_PLUGIN_ACTIVATE)) {
+       NS_IS_IME_RELATED_EVENT(aEvent) ||
+       aEvent->message == NS_PLUGIN_ACTIVATE)) {
     nsIView* targetView = aView;
     while (targetView && !targetView->GetClientData()) {
       targetView = targetView->GetParent();
@@ -6166,7 +6226,7 @@ PresShell::HandleEvent(nsIView         *aView,
     PushCurrentEventInfo(nsnull, nsnull);
 
     // key and IME events go to the focused frame
-    if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
+    if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
         NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent)) {
       nsIFocusManager* fm = nsFocusManager::GetFocusManager();
       if (!fm)
@@ -6901,15 +6961,6 @@ PresShell::RemoveOverrideStyleSheet(nsIStyleSheet *aSheet)
 static void
 FreezeElement(nsIContent *aContent, void *aShell)
 {
-#ifdef MOZ_MEDIA
-  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
-  if (domMediaElem) {
-    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
-    mediaElem->Freeze();
-    return;
-  }
-#endif
-
   nsIPresShell* shell = static_cast<nsIPresShell*>(aShell);
   nsIFrame *frame = shell->FrameManager()->GetPrimaryFrameFor(aContent, -1);
   nsIObjectFrame *objectFrame = do_QueryFrame(frame);
@@ -6969,15 +7020,6 @@ PresShell::FireOrClearDelayedEvents(PRBool aFireEvents)
 static void
 ThawElement(nsIContent *aContent, void *aShell)
 {
-#ifdef MOZ_MEDIA
-  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
-  if (domMediaElem) {
-    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
-    mediaElem->Thaw();
-    return;
-  }
-#endif
-
   nsCOMPtr<nsIObjectLoadingContent> objlc(do_QueryInterface(aContent));
   if (objlc) {
     nsCOMPtr<nsIPluginInstance> inst;

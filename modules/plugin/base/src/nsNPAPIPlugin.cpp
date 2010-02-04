@@ -382,9 +382,9 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
 {
   CheckClassInitialized();
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
-  nsNPAPIPlugin *plptr;
+  nsRefPtr<nsNPAPIPlugin> plugin;
 
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
   NPPluginFuncs callbacks;
   memset((void*) &callbacks, 0, sizeof(callbacks));
   callbacks.size = sizeof(callbacks);
@@ -393,22 +393,21 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
     (NP_PLUGINSHUTDOWN)PR_FindFunctionSymbol(aLibrary, "NP_Shutdown");
 
   // create the new plugin handler
-  *aResult = plptr =
+  plugin =
     new nsNPAPIPlugin(&callbacks, aLibrary, pfnShutdown);
-
-  if (*aResult == NULL)
+  if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_ADDREF(*aResult);
-
   // Do not initialize if the file path is NULL.
-  if (!aFilePath)
+  if (!aFilePath) {
+    *aResult = plugin.forget().get();
     return NS_OK;
+  }
 
   // we must init here because the plugin may call NPN functions
   // when we call into the NP_Initialize entry point - NPN functions
   // require that mBrowserManager be set up
-  plptr->Initialize();
+  plugin->Initialize();
 
   NP_PLUGINUNIXINIT pfnInitialize =
     (NP_PLUGINUNIXINIT)PR_FindFunctionSymbol(aLibrary, "NP_Initialize");
@@ -420,27 +419,22 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
     return NS_ERROR_UNEXPECTED;
 
   // now copy function table back to nsNPAPIPlugin instance
-  memcpy((void*) &(plptr->fCallbacks), (void*)&callbacks, sizeof(callbacks));
+  memcpy((void*) &(plugin->fCallbacks), (void*)&callbacks, sizeof(callbacks));
 #endif
 
 #ifdef XP_WIN
   // Note: on Windows, we must use the fCallback because plugins may
   // change the function table. The Shockwave installer makes changes
   // in the table while running
-  *aResult = new nsNPAPIPlugin(nsnull, aLibrary, nsnull);
-
-  if (*aResult == NULL)
+  plugin = new nsNPAPIPlugin(nsnull, aLibrary, nsnull);
+  if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*aResult);
 
   // we must init here because the plugin may call NPN functions
   // when we call into the NP_Initialize entry point - NPN functions
   // require that mBrowserManager be set up
-  if (NS_FAILED((*aResult)->Initialize())) {
-    NS_RELEASE(*aResult);
+  if (NS_FAILED(plugin->Initialize()))
     return NS_ERROR_FAILURE;
-  }
 
   NP_PLUGININIT pfnInitialize =
     (NP_PLUGININIT)PR_FindSymbol(aLibrary, "NP_Initialize");
@@ -454,20 +448,15 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
 
 #ifdef XP_OS2
   // create the new plugin handler
-  *aResult = new nsNPAPIPlugin(nsnull, aLibrary, nsnull);
-
-  if (*aResult == NULL)
+  plugin = new nsNPAPIPlugin(nsnull, aLibrary, nsnull);
+  if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*aResult);
 
   // we must init here because the plugin may call NPN functions
   // when we call into the NP_Initialize entry point - NPN functions
   // require that mBrowserManager be set up
-  if (NS_FAILED((*aResult)->Initialize())) {
-    NS_RELEASE(*aResult);
+  if (NS_FAILED(plugin->Initialize()))
     return NS_ERROR_FAILURE;
-  }
 
   NP_PLUGININIT pfnInitialize =
     (NP_PLUGININIT)PR_FindSymbol(aLibrary, "NP_Initialize");
@@ -548,20 +537,15 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   pluginRefNum = pluginFile.OpenPluginResource();
 #endif
 
-  nsNPAPIPlugin* plugin = new nsNPAPIPlugin(nsnull, aLibrary, nsnull);
+  plugin = new nsNPAPIPlugin(nsnull, aLibrary, nsnull);
 #ifndef __LP64__
   ::UseResFile(appRefNum);
 #endif
   if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  *aResult = plugin;
-
-  NS_ADDREF(*aResult);
-  if (NS_FAILED((*aResult)->Initialize())) {
-    NS_RELEASE(*aResult);
+  if (NS_FAILED(plugin->Initialize()))
     return NS_ERROR_FAILURE;
-  }
 
 #ifndef __LP64__
   plugin->SetPluginRefNum(pluginRefNum);
@@ -572,8 +556,6 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   // I just copied UNIX version.
   // Makoto Hamanaka <VYA04230@nifty.com>
 
-  nsNPAPIPlugin *plptr;
-
   NPPluginFuncs callbacks;
   memset((void*) &callbacks, 0, sizeof(callbacks));
   callbacks.size = sizeof(callbacks);
@@ -582,17 +564,14 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
     (NP_PLUGINSHUTDOWN)PR_FindSymbol(aLibrary, "NP_Shutdown");
 
   // create the new plugin handler
-  *aResult = plptr = new nsNPAPIPlugin(&callbacks, aLibrary, pfnShutdown);
-
-  if (*aResult == NULL)
+  plugin = new nsNPAPIPlugin(&callbacks, aLibrary, pfnShutdown);
+  if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*aResult);
 
   // we must init here because the plugin may call NPN functions
   // when we call into the NP_Initialize entry point - NPN functions
   // require that mBrowserManager be set up
-  plptr->Initialize();
+  plugin->Initialize();
 
   NP_PLUGINUNIXINIT pfnInitialize =
     (NP_PLUGINUNIXINIT)PR_FindSymbol(aLibrary, "NP_Initialize");
@@ -604,9 +583,10 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
     return NS_ERROR_FAILURE;
 
   // now copy function table back to nsNPAPIPlugin instance
-  memcpy((void*) &(plptr->fCallbacks), (void*)&callbacks, sizeof(callbacks));
+  memcpy((void*) &(plugin->fCallbacks), (void*)&callbacks, sizeof(callbacks));
 #endif
 
+  *aResult = plugin.forget().get();
   return NS_OK;
 }
 
@@ -2274,9 +2254,17 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     return NPERR_GENERIC_ERROR;
   }
+#else
+  case NPNVDOMElement:
+    // fall through
+  case NPNVDOMWindow:
+    // fall through
 #endif /* WINCE */
-
-  case NPNVserviceManager: // old XPCOM object, no longer supported
+  case NPNVserviceManager:
+    // old XPCOM objects, no longer supported, but null out the out
+    // param to avoid crashing plugins that still try to use this.
+    *(nsISupports**)result = nsnull;
+    // fall through
   default:
     return NPERR_GENERIC_ERROR;
   }
@@ -2632,9 +2620,9 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
       }
 
       nsXPIDLCString cookieStr;
-      if (NS_FAILED(cookieService->GetCookieString(uri, nsnull,
-                                                   getter_Copies(cookieStr))) ||
-          !cookieStr) {
+      nsresult cookieReturn = cookieService->GetCookieString(uri, nsnull,
+                                                             getter_Copies(cookieStr));
+      if (NS_FAILED(cookieReturn) || !cookieStr) {
         return NPERR_GENERIC_ERROR;
       }
 

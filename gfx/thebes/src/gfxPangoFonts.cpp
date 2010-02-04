@@ -709,7 +709,7 @@ gfx_pango_fc_font_describe(PangoFont *font)
     gfxFcFont *gfxFont = gfxPangoFcFont::GfxFont(self);
     if (gfxFont) {
         double pixelsize = gfxFont->GetStyle()->size;
-        double dpi = gfxPlatformGtk::GetPlatformDPI();
+        double dpi = gfxPlatform::GetDPI();
         gint size = moz_pango_units_from_double(pixelsize * dpi / 72.0);
         pango_font_description_set_size(result, size);
     }
@@ -1706,8 +1706,8 @@ gfx_pango_font_map_get_resolution(PangoFcFontMap *fcfontmap,
                                   PangoContext *context)
 {
     // This merely enables the FC_SIZE field of the pattern to be accurate.
-    // We use gfxPlatformGtk::GetPlatformDPI() much of the time...
-    return gfxPlatformGtk::GetPlatformDPI();
+    // We use gfxPlatform::GetDPI() much of the time...
+    return gfxPlatform::GetDPI();
 }
 
 #ifdef MOZ_WIDGET_GTK2
@@ -1739,12 +1739,17 @@ PrepareSortPattern(FcPattern *aPattern, double aFallbackSize,
        cairo_font_options_set_antialias (options, CAIRO_ANTIALIAS_GRAY);
        cairo_ft_font_options_substitute(options, aPattern);
        cairo_font_options_destroy(options);
-    }
-#ifdef MOZ_WIDGET_GTK2
-    else {
-       ApplyGdkScreenFontOptions(aPattern);
-    }
+    } else {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+       cairo_font_options_t *options = cairo_font_options_create();
+       cairo_font_options_set_hint_style(options, CAIRO_HINT_STYLE_NONE);
+       cairo_ft_font_options_substitute(options, aPattern);
+       cairo_font_options_destroy(options);
 #endif
+#ifdef MOZ_WIDGET_GTK2
+       ApplyGdkScreenFontOptions(aPattern);
+#endif
+    }
 
     // Protect against any fontconfig settings that may have incorrectly
     // modified the pixelsize, and consider aSizeAdjustFactor.
@@ -2520,7 +2525,11 @@ CreateScaledFont(FcPattern *aPattern)
     // font will be used, but currently we don't have different gfxFonts for
     // different surface font_options, so we'll create a font suitable for the
     // Screen. Image and xlib surfaces default to CAIRO_HINT_METRICS_ON.
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+    cairo_font_options_set_hint_metrics(fontOptions, CAIRO_HINT_METRICS_OFF);
+#else
     cairo_font_options_set_hint_metrics(fontOptions, CAIRO_HINT_METRICS_ON);
+#endif
 
     // The remaining options have been recorded on the pattern and the face.
     // _cairo_ft_options_merge has some logic to decide which options from the
@@ -2544,10 +2553,12 @@ CreateScaledFont(FcPattern *aPattern)
     // use the setting from the FcPattern.
     //
     // Fallback values here mirror treatment of defaults in cairo-ft-font.c.
-    FcBool hinting;
+    FcBool hinting = FcFalse;
+#ifndef MOZ_GFX_OPTIMIZE_MOBILE
     if (FcPatternGetBool(aPattern, FC_HINTING, 0, &hinting) != FcResultMatch) {
         hinting = FcTrue;
     }
+#endif
     cairo_hint_style_t hint_style;
     if (!hinting) {
         hint_style = CAIRO_HINT_STYLE_NONE;

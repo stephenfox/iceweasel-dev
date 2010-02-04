@@ -1799,7 +1799,7 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie)
 nsresult
 nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 {
-  if (IsXHTML()) {
+  if (IsXHTML() || mDisableDocWrite) {
     // No calling document.open() on XHTML
 
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
@@ -2124,7 +2124,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
     (mWriteLevel > NS_MAX_DOCUMENT_WRITE_DEPTH || mTooDeepWriteRecursion);
   NS_ENSURE_STATE(!mTooDeepWriteRecursion);
 
-  if (IsXHTML()) {
+  if (IsXHTML() || mDisableDocWrite) {
     // No calling document.write*() on XHTML!
 
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;

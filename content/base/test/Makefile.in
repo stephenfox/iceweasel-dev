@@ -303,6 +303,7 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug444322.html \
 		bug444322.txt \
 		bug444322.js \
+		test_bug455472.html \
 		test_bug455629.html \
 		bug455629-helper.svg \
 		test_bug473162-1.html \
@@ -327,6 +328,10 @@ _TEST_FILES = 	test_bug5141.html \
 		bug466409-empty.css \
 		test_bug466409.html \
 		test_classList.html \
+		test_bug503481.html \
+		file_bug503481.sjs \
+		test_bug503481b.html \
+		file_bug503481b_inner.html \
 		$(NULL)
 # Disabled; see bug 492181
 #		test_plugin_freezing.html

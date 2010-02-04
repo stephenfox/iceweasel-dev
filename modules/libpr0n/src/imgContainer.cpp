@@ -145,7 +145,7 @@ NS_IMETHODIMP imgContainer::ExtractCurrentFrame(const nsIntRect &aRegion, imgICo
 
   img->Init(aRegion.width, aRegion.height, nsnull);
 
-  imgFrame *frame = GetCurrentImgFrame();
+  imgFrame *frame = GetCurrentDrawableImgFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   // The frame can be smaller than the image. We want to extract only the part
@@ -203,6 +203,17 @@ imgFrame *imgContainer::GetImgFrame(PRUint32 framenum)
   return mFrames.SafeElementAt(framenum, nsnull);
 }
 
+imgFrame *imgContainer::GetDrawableImgFrame(PRUint32 framenum)
+{
+  imgFrame *frame = GetImgFrame(framenum);
+
+  // We will return a paletted frame if it's not marked as compositing failed
+  // so we can catch crashes for reasons we haven't investigated.
+  if (frame && frame->GetIsPaletted() && frame->GetCompositingFailed())
+    return nsnull;
+  return frame;
+}
+
 PRInt32 imgContainer::GetCurrentImgFrameIndex() const
 {
   if (mAnim)
@@ -215,6 +226,12 @@ imgFrame *imgContainer::GetCurrentImgFrame()
 {
   return GetImgFrame(GetCurrentImgFrameIndex());
 }
+
+imgFrame *imgContainer::GetCurrentDrawableImgFrame()
+{
+  return GetDrawableImgFrame(GetCurrentImgFrameIndex());
+}
+
 
 //******************************************************************************
 /* readonly attribute boolean currentFrameIsOpaque; */
@@ -287,7 +304,7 @@ NS_IMETHODIMP imgContainer::CopyCurrentFrame(gfxImageSurface **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
 
-  imgFrame *frame = GetImgFrame(GetCurrentImgFrameIndex());
+  imgFrame *frame = GetCurrentDrawableImgFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   nsRefPtr<gfxPattern> pattern;
@@ -313,7 +330,7 @@ NS_IMETHODIMP imgContainer::CopyCurrentFrame(gfxImageSurface **_retval)
 /* [noscript] readonly attribute gfxASurface currentFrame; */
 NS_IMETHODIMP imgContainer::GetCurrentFrame(gfxASurface **_retval)
 {
-  imgFrame *frame = GetImgFrame(GetCurrentImgFrameIndex());
+  imgFrame *frame = GetCurrentDrawableImgFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   nsRefPtr<gfxASurface> framesurf;
@@ -1017,8 +1034,11 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
                               nextFrame, nextFrameIndex))) {
       // something went wrong, move on to next
       NS_WARNING("imgContainer::Notify(): Composing Frame Failed\n");
+      nextFrame->SetCompositingFailed(PR_TRUE);
       mAnim->currentAnimationFrameIndex = nextFrameIndex;
       return NS_OK;
+    } else {
+      nextFrame->SetCompositingFailed(PR_FALSE);
     }
   }
   // Set currentAnimationFrameIndex at the last possible moment
@@ -1136,7 +1156,10 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
     }
     nsresult rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
                                                 gfxASurface::ImageFormatARGB32);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      mAnim->compositingFrame = nsnull;
+      return rv;
+    }
     needToBlankComposite = PR_TRUE;
   } else if (aNextFrameIndex == 1) {
     // When we are looping the compositing frame needs to be cleared.
@@ -1239,7 +1262,10 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
       }
       nsresult rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
                                                       gfxASurface::ImageFormatARGB32);
-      NS_ENSURE_SUCCESS(rv, rv);
+      if (NS_FAILED(rv)) {
+        mAnim->compositingPrevFrame = nsnull;
+        return rv;
+      }
     }
 
     CopyFrameImage(mAnim->compositingFrame, mAnim->compositingPrevFrame);
@@ -1288,15 +1314,19 @@ void imgContainer::ClearFrame(imgFrame *aFrame)
   if (!aFrame)
     return;
 
-  aFrame->LockImageData();
+  nsresult rv = aFrame->LockImageData();
+  if (NS_FAILED(rv))
+    return;
 
   nsRefPtr<gfxASurface> surf;
   aFrame->GetSurface(getter_AddRefs(surf));
 
-  // Erase the surface to transparent
-  gfxContext ctx(surf);
-  ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
-  ctx.Paint();
+  if (surf) {
+    // Erase the surface to transparent
+    gfxContext ctx(surf);
+    ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
+    ctx.Paint();
+  }
 
   aFrame->UnlockImageData();
 }
@@ -1307,16 +1337,20 @@ void imgContainer::ClearFrame(imgFrame *aFrame, nsIntRect &aRect)
   if (!aFrame || aRect.width <= 0 || aRect.height <= 0)
     return;
 
-  aFrame->LockImageData();
+  nsresult rv = aFrame->LockImageData();
+  if (NS_FAILED(rv))
+    return;
 
   nsRefPtr<gfxASurface> surf;
   aFrame->GetSurface(getter_AddRefs(surf));
 
-  // Erase the destination rectangle to transparent
-  gfxContext ctx(surf);
-  ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
-  ctx.Rectangle(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
-  ctx.Fill();
+  if (surf) {
+    // Erase the destination rectangle to transparent
+    gfxContext ctx(surf);
+    ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
+    ctx.Rectangle(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
+    ctx.Fill();
+  }
 
   aFrame->UnlockImageData();
 }
@@ -1628,7 +1662,7 @@ NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext, gfxPattern::GraphicsFilte
 {
   NS_ENSURE_ARG_POINTER(aContext);
 
-  imgFrame *frame = GetCurrentImgFrame();
+  imgFrame *frame = GetCurrentDrawableImgFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   nsIntRect framerect = frame->GetRect();

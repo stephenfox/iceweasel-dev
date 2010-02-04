@@ -71,7 +71,6 @@
 #include <pango/pango.h>
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
-#include <pango/pangox.h>
 #endif /* MOZ_X11 */
 #include <pango/pango-fontmap.h>
 #endif /* GTK2 */
@@ -676,7 +675,13 @@ nsThebesDeviceContext::SetDPI()
             }
         }
 
-        dpi = gfxPlatform::GetDPI();        
+        dpi = gfxPlatform::GetDPI();
+
+#ifdef MOZ_ENABLE_GTK2
+        if (prefDPI < 0) // Clamp the minimum dpi to 96dpi
+            dpi = PR_MAX(dpi, 96);
+#endif
+ 
         if (prefDPI > 0 && !mPrintingSurface)
             dpi = prefDPI;
     }

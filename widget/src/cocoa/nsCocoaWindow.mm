@@ -1118,6 +1118,23 @@ PRBool nsCocoaWindow::OnPaint(nsPaintEvent &event)
   return PR_TRUE; // don't dispatch the update event
 }
 
+NS_IMETHODIMP nsCocoaWindow::SetCursor(nsCursor aCursor)
+{
+  if (mPopupContentView)
+    return mPopupContentView->SetCursor(aCursor);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsCocoaWindow::SetCursor(imgIContainer* aCursor,
+                                       PRUint32 aHotspotX, PRUint32 aHotspotY)
+{
+  if (mPopupContentView)
+    return mPopupContentView->SetCursor(aCursor, aHotspotX, aHotspotY);
+
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsCocoaWindow::SetTitle(const nsAString& aTitle)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1622,6 +1639,8 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  RollUpPopups();
+
   NSWindow* window = [aNotification object];
   if ([window isSheet])
     [WindowDelegate paintMenubarForWindow:window];
@@ -1632,6 +1651,8 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 - (void)windowDidResignKey:(NSNotification *)aNotification
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  RollUpPopups();
 
   // If a sheet just resigned key then we should paint the menu bar
   // for whatever window is now main.

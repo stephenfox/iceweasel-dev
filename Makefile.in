@@ -105,6 +105,9 @@ export::
 ifdef ENABLE_TESTS
 # Additional makefile targets to call automated test suites
 include $(topsrcdir)/testing/testsuite-targets.mk
+else
+# OS X Universal builds will want to call this, so stub it out
+package-tests:
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -193,13 +196,14 @@ ifdef MOZ_CRASHREPORTER
 	  $(MAKE_SYM_STORE_PATH) >                                        \
 	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
 	echo packing symbols
+	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D ../"$(SYMBOL_ARCHIVE_BASENAME).zip" .
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" .
 endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
 ifdef MOZ_CRASHREPORTER
-	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
+	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip"
 endif
 
 ifeq ($(OS_ARCH),WINNT)
@@ -226,7 +230,7 @@ endif
 ifneq ($(OS_ARCH)_$(GNU_CC), WINNT_)
 # No point in clobbering if PGO has been explicitly disabled.
 ifndef NO_PROFILE_GUIDED_OPTIMIZE
-maybe_clobber_profiledbuild: clobber_all
+maybe_clobber_profiledbuild: clean
 else
 maybe_clobber_profiledbuild:
 endif

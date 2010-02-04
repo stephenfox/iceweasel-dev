@@ -287,6 +287,18 @@ BrowserGlue.prototype = {
   // profile shutdown handler (contains profile cleanup routines)
   _onProfileShutdown: function() 
   {
+#ifdef WINCE
+    // If there's a pending update, clear cache to free up disk space.
+    try {
+      let um = Cc["@mozilla.org/updates/update-manager;1"].
+               getService(Ci.nsIUpdateManager);
+      if (um.activeUpdate && um.activeUpdate.state == "pending") {
+        let cacheService = Cc["@mozilla.org/network/cache-service;1"].
+                           getService(Ci.nsICacheService);
+        cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
+      }
+    } catch (e) { }
+#endif
     this._shutdownPlaces();
     this._idleService.removeIdleObserver(this, BOOKMARKS_ARCHIVE_IDLE_TIME);
     this.Sanitizer.onShutdown();

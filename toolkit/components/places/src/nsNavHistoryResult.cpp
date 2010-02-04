@@ -230,6 +230,7 @@ nsNavHistoryResultNode::nsNavHistoryResultNode(
   mFaviconURI(aIconURI),
   mBookmarkIndex(-1),
   mItemId(-1),
+  mFolderId(-1),
   mDateAdded(0),
   mLastModified(0),
   mIndentLevel(-1)
@@ -291,16 +292,14 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
   }
 
   // Fetch the tags
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_STATE(history);
-  mozIStorageStatement* getTagsStatement = history->DBGetTags();
-
+  nsNavHistory *history = nsNavHistory::GetHistoryService();
+  NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
+  mozIStorageStatement *getTagsStatement = history->DBGetTags();
+  NS_ENSURE_STATE(getTagsStatement);
   mozStorageStatementScoper scoper(getTagsStatement);
-  nsresult rv = getTagsStatement->BindStringParameter(0, NS_LITERAL_STRING(", "));
+  nsresult rv = getTagsStatement->BindInt64Parameter(0, history->GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = getTagsStatement->BindInt64Parameter(1, history->GetTagsFolder());
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = getTagsStatement->BindUTF8StringParameter(2, mURI);
+  rv = getTagsStatement->BindUTF8StringParameter(1, mURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool hasTags = PR_FALSE;

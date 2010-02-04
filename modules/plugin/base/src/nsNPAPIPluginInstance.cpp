@@ -912,6 +912,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
 #endif
 #endif
     mWindowless(PR_FALSE),
+    mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
     mStarted(PR_FALSE),
     mCached(PR_FALSE),
@@ -1755,6 +1756,13 @@ nsNPAPIPluginInstance::DefineJavaProperties()
   if (!ok)
     return NS_ERROR_FAILURE;
 
+  return NS_OK;
+}
+
+nsresult
+nsNPAPIPluginInstance::SetCached(PRBool aCache)
+{
+  mCached = aCache;
   return NS_OK;
 }
 
