@@ -75,25 +75,27 @@ addonsInfoHandler.prototype = {
     var out;
     try {
       path = cmdLine.handleFlagWithParam("dump-addons-info", false);
-      if (path) {
-        var file = Cc["@mozilla.org/file/local;1"]
-                   .createInstance(Ci.nsILocalFile);
-        file.initWithPath(path);
-        var outstream = Cc["@mozilla.org/network/file-output-stream;1"]
-                        .createInstance(Ci.nsIFileOutputStream);
-        outstream.init(file, 0x2A /* TRUNCATE | WRONLY | CREATE */, 0666, 0);
-        out = Cc["@mozilla.org/intl/converter-output-stream;1"]
-              .createInstance(Ci.nsIConverterOutputStream);
-        out.init(outstream, "UTF-8", 0, 0);
-      }
-    } catch (e) {
-      out = new dumper();
+      if (!path)
+        return;
+    } catch(e) {
+      if (!cmdLine.handleFlag("dump-addons-info", false))
+        return;
     }
 
-    if (! out)
-      return;
-
     cmdLine.preventDefault = true;
+
+    if (path) {
+      var file = Cc["@mozilla.org/file/local;1"]
+                 .createInstance(Ci.nsILocalFile);
+      file.initWithPath(path);
+      var outstream = Cc["@mozilla.org/network/file-output-stream;1"]
+                      .createInstance(Ci.nsIFileOutputStream);
+      outstream.init(file, 0x2A /* TRUNCATE | WRONLY | CREATE */, 0666, 0);
+      out = Cc["@mozilla.org/intl/converter-output-stream;1"]
+            .createInstance(Ci.nsIConverterOutputStream);
+      out.init(outstream, "UTF-8", 0, 0);
+    } else
+      out = new dumper();
 
     try {
       dump_extensions(out);
