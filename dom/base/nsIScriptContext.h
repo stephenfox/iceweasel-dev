@@ -461,7 +461,25 @@ public:
   virtual void LeaveModalState() = 0;
 };
 
+// 9531D11E-97F8-4455-9DB1-5008F10BDBD6
+#define NS_ISCRIPTCONTEXT_1_9_2_IID \
+{ 0x9531D11E, 0x97F8, 0x4455, \
+  { 0x9D, 0xB1, 0x50, 0x08, 0xF1, 0x0B, 0xDB, 0xD6 } }
+
+class nsIScriptContext_1_9_2 : public nsIScriptContext
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTCONTEXT_1_9_2_IID)
+
+  /**
+   * Called to find out if this script context might be executing script.
+   */
+  virtual PRBool GetExecutingScript() = 0;
+};
+
+
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContext, NS_ISCRIPTCONTEXT_IID)
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContext_1_9_2, NS_ISCRIPTCONTEXT_1_9_2_IID)
 
 #endif // nsIScriptContext_h__
 

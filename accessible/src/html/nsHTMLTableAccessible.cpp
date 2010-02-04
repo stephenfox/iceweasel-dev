@@ -403,6 +403,9 @@ nsHTMLTableHeaderCellAccessible::GetRoleInternal(PRUint32 *aRole)
   // Assume it's columnheader if there are headers in siblings, oterwise
   // rowheader.
   nsIContent* parent = content->GetParent();
+  NS_ASSERTION(parent, "No parent of HTML table header!");
+  NS_ENSURE_STATE(parent);
+
   PRInt32 indexInParent = parent->IndexOf(content);
 
   for (PRInt32 idx = indexInParent - 1; idx >= 0; idx--) {

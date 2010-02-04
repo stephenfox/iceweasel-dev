@@ -129,6 +129,8 @@ public:
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
       mMayStartLayout(PR_TRUE),
+      mVisible(PR_TRUE),
+      mRemovedFromDocShell(PR_FALSE),
       // mAllowDNSPrefetch starts true, so that we can always reliably && it
       // with various values that might disable it.  Since we never prefetch
       // unless we get a window, and in that case the docshell value will get
@@ -689,12 +691,10 @@ public:
                           nsIPrincipal* aPrincipal) = 0;
 
   /**
-   * Set the container (docshell) for this document.
+   * Set the container (docshell) for this document. Virtual so that
+   * docshell can call it.
    */
-  void SetContainer(nsISupports *aContainer)
-  {
-    mDocumentContainer = do_GetWeakReference(aContainer);
-  }
+  virtual void SetContainer(nsISupports *aContainer);
 
   /**
    * Get the container (docshell) for this document.
@@ -1120,6 +1120,16 @@ public:
    * called yet.
    */
   PRBool IsShowing() { return mIsShowing; }
+  /**
+   * Return whether the document is currently visible (in the sense of
+   * OnPageHide having been called and OnPageShow not yet having been called)
+   */
+  PRBool IsVisible() { return mVisible; }
+  /**
+   * Return true when this document is active, i.e., the active document
+   * in a content viewer.
+   */
+  PRBool IsActive() { return mDocumentContainer && !mRemovedFromDocShell; }
 
   void RegisterFreezableElement(nsIContent* aContent);
   PRBool UnregisterFreezableElement(nsIContent* aContent);
@@ -1159,14 +1169,16 @@ public:
   enum DocumentTheme {
     Doc_Theme_Uninitialized, // not determined yet
     Doc_Theme_None,
+    Doc_Theme_Neutral,
     Doc_Theme_Dark,
     Doc_Theme_Bright
   };
 
   /**
-   * Returns Doc_Theme_None if there is no lightweight theme specified, Doc_Theme_Dark
-   * for a dark theme and Doc_Theme_Bright for a light theme. This is used to
-   * determine the state of the pseudoclasses :-moz-lwtheme and :-moz-lwtheme-text.
+   * Returns Doc_Theme_None if there is no lightweight theme specified,
+   * Doc_Theme_Dark for a dark theme, Doc_Theme_Bright for a light theme, and
+   * Doc_Theme_Neutral for any other theme. This is used to determine the state
+   * of the pseudoclasses :-moz-lwtheme and :-moz-lwtheme-text.
    */
   virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
 
@@ -1261,6 +1273,15 @@ protected:
   // True iff IsShowing() should be returning true
   PRPackedBool mIsShowing;
 
+  // True iff the document "page" is not hidden (i.e. currently in the
+  // bfcache)
+  PRPackedBool mVisible;
+
+  // True if our content viewer has been removed from the docshell
+  // (it may still be displayed, but in zombie state). Form control data
+  // has been saved.
+  PRPackedBool mRemovedFromDocShell;
+
   // True iff DNS prefetch is allowed for this document.  Note that if the
   // document has no window, DNS prefetch won't be performed no matter what.
   PRPackedBool mAllowDNSPrefetch;
@@ -1297,6 +1318,19 @@ protected:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
+
+#define NS_IDOCUMENT_MOZILLA_1_9_2_BRANCH_IID               \
+  { 0x149e42ac, 0x0d6d, 0x4eaf,                             \
+      { 0x9a, 0x99, 0xc3, 0x69, 0x8d, 0x8f, 0xee, 0x2c } }
+class nsIDocument_MOZILLA_1_9_2_BRANCH : public nsISupports {
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IDOCUMENT_MOZILLA_1_9_2_BRANCH_IID)
+
+  virtual nsISupports* GetCurrentContentSink() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument_MOZILLA_1_9_2_BRANCH,
+                              NS_IDOCUMENT_MOZILLA_1_9_2_BRANCH_IID)
 
 /**
  * mozAutoSubtreeModified batches DOM mutations so that a DOMSubtreeModified

@@ -83,6 +83,10 @@ window.addEventListener("focus", function () {
 
   window.fullScreen = true;
 
+  window.addEventListener("deactivate", function () {
+    window.close();
+  }, false);
+
   video = document.querySelector("video");
 
   video.addEventListener("loadeddata", function () {

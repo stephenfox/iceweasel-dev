@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLScriptElement.h"
+#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -313,6 +314,7 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
 
 class nsHTMLScriptElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLScriptElement,
+                            public nsIDOMNSHTMLScriptElement,
                             public nsScriptElement
 {
 public:
@@ -331,8 +333,8 @@ public:
   // nsIDOMHTMLElement
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
-  // nsIDOMHTMLScriptElement
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
+  NS_DECL_NSIDOMNSHTMLSCRIPTELEMENT
 
   // nsIScriptElement
   virtual void GetScriptType(nsAString& type);
@@ -340,6 +342,7 @@ public:
   virtual void GetScriptText(nsAString& text);
   virtual void GetScriptCharset(nsAString& charset);
   virtual PRBool GetScriptDeferred();
+  virtual PRBool GetScriptAsync();
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -387,10 +390,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, nsGenericElement)
 
 // QueryInterface implementation for nsHTMLScriptElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLScriptElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLScriptElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLScriptElement,
                                    nsIDOMHTMLScriptElement,
                                    nsIScriptLoaderObserver,
                                    nsIScriptElement,
+                                   nsIDOMNSHTMLScriptElement,
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLScriptElement,
                                                nsGenericHTMLElement)
@@ -459,6 +463,7 @@ nsHTMLScriptElement::SetText(const nsAString& aValue)
 
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Charset, charset)
 NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Defer, defer)
+NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Async, async)
 NS_IMPL_URI_ATTR(nsHTMLScriptElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, HtmlFor, _for)
@@ -528,11 +533,22 @@ nsHTMLScriptElement::GetScriptCharset(nsAString& charset)
 PRBool
 nsHTMLScriptElement::GetScriptDeferred()
 {
-  PRBool defer;
+  PRBool defer, async;
+  GetAsync(&async);
   GetDefer(&defer);
   nsCOMPtr<nsIURI> uri = GetScriptURI();
 
-  return defer && uri;
+  return !async && defer && uri;
+}
+
+PRBool
+nsHTMLScriptElement::GetScriptAsync()
+{
+  PRBool async;
+  GetAsync(&async);
+  nsCOMPtr<nsIURI> uri = GetScriptURI();
+
+  return async && uri;
 }
 
 PRBool

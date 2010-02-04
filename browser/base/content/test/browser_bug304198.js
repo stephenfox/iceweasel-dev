@@ -38,13 +38,6 @@
 function test() {
   waitForExplicitFinish();
 
-  if (Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager).activeWindow !=
-      window) {
-    setTimeout(test, 0);
-    window.focus();
-    return;
-  }
-
   let charsToDelete, deletedURLTab, fullURLTab, partialURLTab, testPartialURL, testURL;
 
   charsToDelete = 5;

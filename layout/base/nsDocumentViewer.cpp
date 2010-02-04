@@ -840,6 +840,11 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
                                  PRBool aInPrintPreview,
                                  PRBool aNeedMakeCX /*= PR_TRUE*/)
 {
+  // We don't want any scripts to run here. That can cause flushing,
+  // which can cause reentry into initialization of this document viewer,
+  // which would be disastrous.
+  nsAutoScriptBlocker blockScripts;
+
   mParentWidget = aParentWidget; // not ref counted
   mBounds = aBounds;
 
@@ -1287,8 +1292,7 @@ DocumentViewerImpl::PageHide(PRBool aIsUnload)
 #ifdef MOZ_XUL
   // look for open menupopups and close them after the unload event, in case
   // the unload event listeners open any new popups
-  if (mDocument)
-    nsContentUtils::HidePopupsInDocument(mDocument);
+  nsContentUtils::HidePopupsInDocument(mDocument);
 #endif
 
   return NS_OK;

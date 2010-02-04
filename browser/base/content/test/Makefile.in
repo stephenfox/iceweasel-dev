@@ -97,10 +97,12 @@ _BROWSER_FILES = \
                  browser_bug455852.js \
                  browser_bug462673.js \
                  browser_bug481560.js \
+                 browser_bug484315.js \
                  browser_bug477014.js \
                  browser_bug495058.js \
                  browser_bug517902.js \
                  browser_bug521216.js \
+                 browser_bug537474.js \
                  browser_discovery.js \
                  browser_tabfocus.js \
                  discovery.html \
@@ -140,6 +142,8 @@ _BROWSER_FILES = \
                  browser_bug304198.js \
                  browser_drag.js \
                  browser_relatedTabs.js \
+                 browser_contextSearchTabPosition.js \
+                 browser_NetworkPrioritizer.js \
     $(NULL)
 
 ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))

@@ -72,13 +72,15 @@ if ("@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
   }
 }
 
-
-function _TimerCallback(expr) {
-  this._expr = expr;
+var _pendingTimerCallbacks = [];
+function _TimerCallback(expr, timer) {
+  this._func = typeof expr === "function"
+             ? expr
+             : function() { eval(expr); };
+  // Keep timer alive until it fires
+  _pendingTimerCallbacks.push(timer);
 }
 _TimerCallback.prototype = {
-  _expr: "",
-
   QueryInterface: function(iid) {
     if (iid.Equals(Components.interfaces.nsITimerCallback) ||
         iid.Equals(Components.interfaces.nsISupports))
@@ -88,7 +90,8 @@ _TimerCallback.prototype = {
   },
 
   notify: function(timer) {
-    eval(this._expr);
+    _pendingTimerCallbacks.splice(_pendingTimerCallbacks.indexOf(timer), 1);
+    this._func.call(null);
   }
 };
 
@@ -173,7 +176,7 @@ function _load_files(aFiles) {
 function do_timeout(delay, expr) {
   var timer = Components.classes["@mozilla.org/timer;1"]
                         .createInstance(Components.interfaces.nsITimer);
-  timer.initWithCallback(new _TimerCallback(expr), delay, timer.TYPE_ONE_SHOT);
+  timer.initWithCallback(new _TimerCallback(expr, timer), delay, timer.TYPE_ONE_SHOT);
 }
 
 function do_execute_soon(callback) {

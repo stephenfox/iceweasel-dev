@@ -52,16 +52,12 @@
   -moz-box-orient: vertical; /* for flex hack */
 }
 
-#menubar-items > menubar {
+#main-menubar {
   -moz-box-flex: 1; /* make menu items expand to fill toolbar height */
 }
 
 #personal-bookmarks {
   min-height: 29px;
-}
-
-#wrapper-search-container #searchbar html|*.textbox-input {
-  visibility: hidden;
 }
 
 #navigator-toolbox[inFullscreen="true"],
@@ -71,7 +67,7 @@
 }
 
 #urlbar:-moz-lwtheme:not([focused="true"]),
-#searchbar:-moz-lwtheme > textbox:not([focused="true"]),
+.searchbar-textbox:-moz-lwtheme:not([focused="true"]),
 .tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
   opacity: .85;
 }
@@ -226,9 +222,7 @@ menuitem:not([type]) {
 }
 
 #menu_close {
-  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
-        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
-  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
 #context-media-play {
@@ -555,6 +549,9 @@ toolbar[mode="full"] .toolbarbutton-menubutton-button {
 #home-button {
   list-style-image: url("moz-icon://stock/gtk-home?size=toolbar");
 }
+#home-button[disabled="true"] {
+  list-style-image: url("moz-icon://stock/gtk-home?size=toolbar&state=disabled");
+}
 
 #downloads-button {
   -moz-image-region: rect(0px 24px 24px 0px);
@@ -676,6 +673,10 @@ toolbar[iconsize="small"] #reload-button[disabled="true"] {
 toolbar[iconsize="small"] #home-button ,
 #home-button.bookmark-item {
   list-style-image: url("moz-icon://stock/gtk-home?size=menu");
+}
+toolbar[iconsize="small"] #home-button[disabled="true"],
+#home-button.bookmark-item[disabled="true"] {
+  list-style-image: url("moz-icon://stock/gtk-home?size=menu&state=disabled");
 }
 
 toolbar[iconsize="small"] #downloads-button {
@@ -849,12 +850,12 @@ toolbar[iconsize="small"] #fullscreen-button {
   outline: 1px dotted -moz-DialogText;
 }
 
-#identity-box:hover > hbox {
+#identity-box:hover > #identity-box-inner {
   background-color: rgba(255, 255, 255, .2);
 }
 
-#identity-box:hover:active > hbox,
-#identity-box[open="true"] > hbox {
+#identity-box:hover:active > #identity-box-inner,
+#identity-box[open="true"] > #identity-box-inner {
   background-color: rgba(0, 0, 0, .1);
 }
 
@@ -895,14 +896,13 @@ toolbar[iconsize="small"] #fullscreen-button {
 }
 
 /* Identity popup body text */
-#identity-popup-content-box > description,
-#identity-popup-encryption-label {
+.identity-popup-description {
   white-space: pre-wrap;
   -moz-padding-start: 15px;
   margin: 2px 0 4px;
 }
 
-#identity-popup-content-box > label {
+.identity-popup-label {
   white-space: pre-wrap;
   -moz-padding-start: 15px;
   margin: 0;
@@ -940,7 +940,6 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 /* Identity popup bounding box */
 #identity-popup-container {
-  background-image: none;
   min-width: 280px;
   padding: 10px;
 }
@@ -1160,9 +1159,7 @@ tabpanels {
 }
 
 #context_closeTab {
-  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
-        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
-  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
 /* tabbrowser-tab focus ring */
@@ -1239,7 +1236,9 @@ tabpanels {
 }
 
 .tabs-closebutton > .toolbarbutton-icon {
-  margin: 0;
+  /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
+     use evil CSS to give the impression of smaller content */
+  margin: -2px;
 }
 
 /* Tabbrowser arrowscrollbox arrows */

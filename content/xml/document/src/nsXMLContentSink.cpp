@@ -95,6 +95,7 @@
 #include "nsIDOMProcessingInstruction.h"
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIHTMLDocument.h"
 #include "nsEventDispatcher.h"
 #include "mozAutoDocUpdate.h"
 
@@ -391,6 +392,11 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 {
   NS_ENSURE_ARG(aResultDocument);
 
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aResultDocument);
+  if (htmlDoc) {
+    htmlDoc->SetDocWriteDisabled(PR_TRUE);
+  }
+
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
   if (contentViewer) {
@@ -432,6 +438,10 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
     // Transform succeeded or it failed and we have an error
     // document to display.
     mDocument = aResultDocument;
+    nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
+    if (htmlDoc) {
+      htmlDoc->SetDocWriteDisabled(PR_FALSE);
+    }
   }
 
   originalDocument->ScriptLoader()->RemoveObserver(this);

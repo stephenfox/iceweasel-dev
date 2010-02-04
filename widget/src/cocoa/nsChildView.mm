@@ -1276,17 +1276,19 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
                "StartDrawPlugin must only be called on a plugin widget");
   if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
 
-  // Prevent reentrant "drawing" (or in fact reentrant handling of any plugin
-  // event).  Doing this for both CoreGraphics and QuickDraw plugins restores
-  // the 1.8-branch behavior wrt reentrancy, and fixes (or works around) bugs
-  // caused by plugins depending on the old behavior -- e.g. bmo bug 409615.
-  if (mPluginDrawing)
-    return NS_ERROR_FAILURE;
-
   NSWindow* window = [mView nativeWindow];
   if (!window)
     return NS_ERROR_FAILURE;
-  
+
+  // In QuickDraw drawing mode, prevent reentrant handling of any plugin event
+  // (this emulates behavior on the 1.8 branch, where only QuickDraw mode is
+  // supported).  But in CoreGraphics drawing mode only do this if the current
+  // plugin event isn't an update/paint event.
+  if (!mPluginIsCG || (mView != [NSView focusView])) {
+    if (mPluginDrawing)
+      return NS_ERROR_FAILURE;
+  }
+
   // It appears that the WindowRef from which we get the plugin port undergoes the
   // traditional BeginUpdate/EndUpdate cycle, which, if you recall, sets the visible
   // region to the intersection of the visible region and the update region. Since
@@ -2639,6 +2641,15 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+- (void)viewWillDraw
+{
+  if (mGeckoChild) {
+    nsPaintEvent paintEvent(PR_TRUE, NS_WILL_PAINT, mGeckoChild);
+    mGeckoChild->DispatchWindowEvent(paintEvent);
+  }
+  [super viewWillDraw];
+}
+
 // Allows us to turn off setting up the clip region
 // before each drawRect. We already clip within gecko.
 - (BOOL)wantsDefaultClipping
@@ -2697,16 +2708,16 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  // If there is no rollup widget we assume the OS routed the event correctly.
-  if (!gRollupWidget)
-    return YES;
-
   // Don't bother if we've been destroyed:  mWindow will now be nil, which
   // makes all our work here pointless, and can even cause us to resend the
   // event to ourselves in an infinte loop (since targetWindow == mWindow no
   // longer tests whether targetWindow is us).
   if (!mGeckoChild || !mWindow)
     return YES;
+
+  // Find the window that the event is over.
+  BOOL isUnderMouse;
+  NSWindow* targetWindow = nsCocoaUtils::FindWindowForEvent(anEvent, &isUnderMouse);
 
   // If this is the rollup widget and the event is not a mouse move then trust the OS routing.  
   // The reason for this trust is complicated.
@@ -2727,20 +2738,19 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // action must have caused the rollup window to come into existence. In that case, we might need
   // to reroute the event if it is over the rollup window. That is why if we're not the rollup window
   // we don't return YES here.
-  NSWindow* rollupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
-  if (mWindow == rollupWindow && [anEvent type] != NSMouseMoved)
-    return YES;
+  if (gRollupWidget) {
+    NSWindow* rollupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
+    if (mWindow == rollupWindow && [anEvent type] != NSMouseMoved)
+      return YES;
 
-  // Find the window that the event is over.
-  NSWindow* targetWindow = nsCocoaUtils::FindWindowUnderPoint(nsCocoaUtils::ScreenLocationForEvent(anEvent));
+    // If the event was not over any window, send it to the rollup window.
+    if (!isUnderMouse)
+      targetWindow = rollupWindow;
+  }
 
-  // If the event was not over any window, send it to the rollup window.
-  if (!targetWindow)
-    targetWindow = rollupWindow;
-
-  // At this point we've resolved a target window, if we are it then just return
+  // If there's no window that's more appropriate than our window then just return
   // yes so we handle it. No need to redirect.
-  if (targetWindow == mWindow)
+  if (!targetWindow || targetWindow == mWindow)
     return YES;
 
   // Send the event to its new destination.
@@ -3177,11 +3187,10 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   nsEventStatus status;
   widget->DispatchEvent(&event, status);
 
-  // After the cursor exits a view set it to a visible regular arrow cursor.
+  // After the cursor exits the window set it to a visible regular arrow cursor.
   // This lets us recover from plugins that mess with it.
-  if (msg == NS_MOUSE_EXIT) {
-    [NSCursor unhide];
-    [[NSCursor arrowCursor] set];
+  if (msg == NS_MOUSE_EXIT && type == nsMouseEvent::eTopLevel) {
+    [[nsCursorManager sharedInstance] setCursor:eCursor_standard];
   }
 
   return status;
@@ -4015,7 +4024,8 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
   [self convertGenericCocoaEvent:aMouseEvent toGeckoEvent:outGeckoEvent];
 
   // convert point to view coordinate system
-  NSPoint localPoint = [self convertPoint:[aMouseEvent locationInWindow] fromView:nil];
+  NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, mWindow);
+  NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
   outGeckoEvent->refPoint.x = static_cast<nscoord>(localPoint.x);
   outGeckoEvent->refPoint.y = static_cast<nscoord>(localPoint.y);
 

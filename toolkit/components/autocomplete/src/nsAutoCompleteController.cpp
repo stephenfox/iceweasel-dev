@@ -331,7 +331,7 @@ nsAutoCompleteController::HandleStartComposition()
   // Stop all searches in case they are async.
   StopSearch();
 
-  PRBool isOpen;
+  PRBool isOpen = PR_FALSE;
   input->GetPopupOpen(&isOpen);
   if (isOpen)
     ClosePopup();
@@ -407,7 +407,7 @@ nsAutoCompleteController::HandleKeyNavigation(PRUint32 aKey, PRBool *_retval)
     // the cursor to home/end on some systems
     *_retval = PR_TRUE;
 
-    PRBool isOpen;
+    PRBool isOpen = PR_FALSE;
     input->GetPopupOpen(&isOpen);
     if (isOpen) {
       PRBool reverse = aKey == nsIDOMKeyEvent::DOM_VK_UP ||
@@ -481,7 +481,7 @@ nsAutoCompleteController::HandleKeyNavigation(PRUint32 aKey, PRBool *_retval)
             )
   {
     // The user hit a text-navigation key.
-    PRBool isOpen;
+    PRBool isOpen = PR_FALSE;
     input->GetPopupOpen(&isOpen);
     if (isOpen) {
       PRInt32 selectedIndex;
@@ -952,7 +952,7 @@ nsAutoCompleteController::ClosePopup()
     return NS_OK;
   }
 
-  PRBool isOpen;
+  PRBool isOpen = PR_FALSE;
   mInput->GetPopupOpen(&isOpen);
   if (!isOpen)
     return NS_OK;

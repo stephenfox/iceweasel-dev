@@ -184,6 +184,7 @@ var gApp  = null;
 var gPref = null;
 var gRDF  = null;
 var gOS   = null;
+var gCheckCompatibilityPref;
 var gEmSingleton          = null;
 var gBlocklist            = null;
 var gXPCOMABI             = null;
@@ -210,6 +211,8 @@ const FEATURES_EXTENSION_UPDATES      = "chrome,centerscreen,extra-chrome,dialog
  * Valid GUIDs fit this pattern.
  */
 var gIDTest = /^(\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|[a-z0-9-\._]*\@[a-z0-9-\._]+)$/i;
+
+var gBranchVersion = /^([^\.]+\.[^a-z\.]+[a-z]?).*/gi;
 
 // shared code for suppressing bad cert dialogs
 XPCOMUtils.defineLazyGetter(this, "gCertUtils", function() {
@@ -1570,6 +1573,8 @@ WinRegInstallLocation.prototype = {
 
   getItemFile: function RegInstallLocation_getItemFile(id, filePath) {
     var itemLocation = this.getItemLocation(id);
+    if (!itemLocation)
+      return null;
     var parts = filePath.split("/");
     for (var i = 0; i < parts.length; ++i)
       itemLocation.append(parts[i]);
@@ -1691,53 +1696,6 @@ function safeInstallOperation(itemID, installLocation, file) {
     }
   }
 
-  /**
-   * Extracts an XPI's files into the item's directory.
-   * @param   itemID
-   *          The ID of the item being installed.
-   * @param   installLocation
-   *          The install location where the item is being installed.
-   * @param   xpiFile
-   *          The source XPI file that contains the item.
-   */
-  function extractFiles(itemID, installLocation, xpiFile) {
-    var zipReader = getZipReaderForFile(xpiFile);
-
-    // create directories first
-    var entries = zipReader.findEntries("*/");
-    while (entries.hasMore()) {
-      var entryName = entries.getNext();
-      var target = installLocation.getItemFile(itemID, entryName);
-      if (!target.exists()) {
-        try {
-          target.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-        }
-        catch (e) {
-          ERROR("extractFiles: failed to create target directory for extraction " +
-                "file = " + target.path + ", exception = " + e + "\n");
-        }
-      }
-    }
-
-    entries = zipReader.findEntries(null);
-    while (entries.hasMore()) {
-      var entryName = entries.getNext();
-      target = installLocation.getItemFile(itemID, entryName);
-      if (target.exists())
-        continue;
-
-      try {
-        target.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, PERMS_FILE);
-      }
-      catch (e) {
-        ERROR("extractFiles: failed to create target file for extraction " +
-              "file = " + target.path + ", exception = " + e + "\n");
-      }
-      zipReader.extract(entryName, target);
-    }
-    zipReader.close();
-  }
-
   if (!installLocation.itemIsManagedIndependently(itemID)) {
     var itemLocation = installLocation.getItemLocation(itemID);
     if (itemLocation.exists()) {
@@ -1810,7 +1768,34 @@ function safeInstallOperation(itemID, installLocation, file) {
   if (file) {
     // Extract the xpi's files into the new directory
     try {
-      extractFiles(itemID, installLocation, file);
+      var zipReader = getZipReaderForFile(file);
+
+      // create directories first
+      var entries = zipReader.findEntries("*/");
+      while (entries.hasMore()) {
+        var entryName = entries.getNext();
+        var target = installLocation.getItemFile(itemID, entryName);
+        if (!target.exists()) {
+          try {
+            target.create(Ci.nsILocalFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
+          }
+          catch (e) {
+            ERROR("extractFiles: failed to create target directory for extraction " +
+                  "file = " + target.path + ", exception = " + e + "\n");
+          }
+        }
+      }
+
+      entries = zipReader.findEntries(null);
+      while (entries.hasMore()) {
+        var entryName = entries.getNext();
+        target = installLocation.getItemFile(itemID, entryName);
+        if (target.exists())
+          continue;
+
+        zipReader.extract(entryName, target);
+        target.permissions = PERMS_FILE;
+      }
     }
     catch (e) {
       // This means the install operation failed. Remove everything and roll back.
@@ -1830,6 +1815,10 @@ function safeInstallOperation(itemID, installLocation, file) {
       rollbackMove();
       cleanUpTrash(itemLocationTrash);
       throw e;
+    }
+    finally {
+      if (zipReader)
+        zipReader.close();
     }
   }
 
@@ -2355,7 +2344,7 @@ ExtensionManager.prototype = {
     case "nsPref:changed":
       if (data == PREF_EM_LOGGING_ENABLED)
         this._loggingToggled();
-      else if (data == PREF_EM_CHECK_COMPATIBILITY ||
+      else if (data == gCheckCompatibilityPref ||
                data == PREF_EM_CHECK_UPDATE_SECURITY)
         this._updateAppDisabledState();
       else if ((data == PREF_MATCH_OS_LOCALE) || (data == PREF_SELECTED_LOCALE))
@@ -2394,7 +2383,7 @@ ExtensionManager.prototype = {
    * we must app-enable or app-disable the item based on the new settings.
    */
   _updateAppDisabledState: function EM__updateAppDisabledState() {
-    gCheckCompatibility = getPref("getBoolPref", PREF_EM_CHECK_COMPATIBILITY, true);
+    gCheckCompatibility = getPref("getBoolPref", gCheckCompatibilityPref, true);
     gCheckUpdateSecurity = getPref("getBoolPref", PREF_EM_CHECK_UPDATE_SECURITY, true);
     var ds = this.datasource;
 
@@ -2448,8 +2437,11 @@ ExtensionManager.prototype = {
     catch (e) {
     }
 
+    var version = gApp.version.replace(gBranchVersion, "$1");
+    gCheckCompatibilityPref = PREF_EM_CHECK_COMPATIBILITY + "." + version;
+
     gLoggingEnabled = getPref("getBoolPref", PREF_EM_LOGGING_ENABLED, false);
-    gCheckCompatibility = getPref("getBoolPref", PREF_EM_CHECK_COMPATIBILITY, true);
+    gCheckCompatibility = getPref("getBoolPref", gCheckCompatibilityPref, true);
     gCheckUpdateSecurity = getPref("getBoolPref", PREF_EM_CHECK_UPDATE_SECURITY, true);
 
     if ("nsICrashReporter" in Ci && gApp instanceof Ci.nsICrashReporter) {
@@ -2645,6 +2637,8 @@ ExtensionManager.prototype = {
                             Ci.nsIExtensionManager.UPDATE_CHECK_NEWVERSION,
                             new BackgroundUpdateCheckListener(this.datasource),
                             UPDATE_WHEN_PERIODIC_UPDATE);
+
+    LightweightThemeManager.updateCurrentTheme();
   },
 
   /**
@@ -4448,7 +4442,7 @@ ExtensionManager.prototype = {
       safeInstallOperation(id, installLocation, file);
 
     var metadataFile = installLocation.getItemFile(id, FILE_INSTALL_MANIFEST);
-    if (metadataFile.exists()) {
+    if (metadataFile && metadataFile.exists()) {
       var metadataDS = getInstallManifest(metadataFile);
       if (metadataDS) {
         // Add metadata for the item to the extensions datasource
@@ -4489,7 +4483,7 @@ ExtensionManager.prototype = {
       var installRDF = extractRDFFileToTempDir(stagedFile, FILE_INSTALL_MANIFEST, true);
     else
       installRDF = installLocation.getItemFile(id, FILE_INSTALL_MANIFEST);
-    if (installRDF.exists()) {
+    if (installRDF && installRDF.exists()) {
       var installManifest = getInstallManifest(installRDF);
       if (installManifest) {
         var type = getAddonTypeFromInstallManifest(installManifest);
@@ -4535,7 +4529,7 @@ ExtensionManager.prototype = {
         // If there is no manifest then either the rollback failed, or there was
         // no manifest in the first place. Either way this item is now invalid
         // and we shouldn't try to re-install it.
-        if (manifest.exists()) {
+        if (manifest && manifest.exists()) {
           // Removal of the files failed, reset the uninstalled flag and rewrite
           // the install manifests so this item's components are registered.
           // Clear the op flag from the Startup Cache
@@ -4597,7 +4591,7 @@ ExtensionManager.prototype = {
       }
       else {
         if (opType == OP_NEEDS_UPGRADE)
-          ds.setItemProperty(id, "newVersion", null);
+          ds.setItemProperty(id, EM_R("newVersion"), null);
         this._setOp(id, OP_NEEDS_UNINSTALL);
         var type = ds.getItemProperty(id, "type");
         var restartRequired = this.installRequiresRestart(id, type);
@@ -7792,7 +7786,7 @@ ExtensionsDataSource.prototype = {
     if (!installLocation)
       return null;
     var file = installLocation.getItemFile(id, fileName)
-    if (file.exists())
+    if (file && file.exists())
       return gRDF.GetResource(getURLSpecFromFile(file));
 
     return null;

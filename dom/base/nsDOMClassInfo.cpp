@@ -300,6 +300,7 @@
 #include "nsIDOMHTMLPreElement.h"
 #include "nsIDOMHTMLQuoteElement.h"
 #include "nsIDOMHTMLScriptElement.h"
+#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMNSHTMLSelectElement.h"
 #include "nsIDOMHTMLStyleElement.h"
 #include "nsIDOMHTMLTableCaptionElem.h"
@@ -465,7 +466,7 @@
 #include "nsDOMWorker.h"
 
 #include "nsDOMFile.h"
-#include "nsDOMFileRequest.h"
+#include "nsDOMFileReader.h"
 #include "nsIDOMFileException.h"
 #include "nsIDOMFileError.h"
 
@@ -1266,7 +1267,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(FileError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(FileRequest, nsEventTargetSH,
+  NS_DEFINE_CLASSINFO_DATA(FileReader, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(ModalContentWindow, nsWindowSH,
@@ -1362,7 +1363,7 @@ struct nsContractIDMapData
 static const nsContractIDMapData kConstructorMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_DATA(DOMParser, NS_DOMPARSER_CONTRACTID)
-  NS_DEFINE_CONSTRUCTOR_DATA(FileRequest, NS_FILEREQUEST_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(FileReader, NS_FILEREADER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLHttpRequest, NS_XMLHTTPREQUEST_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
@@ -1783,6 +1784,8 @@ nsDOMClassInfo::~nsDOMClassInfo()
   }
 }
 
+NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMClassInfo, NS_DOMCLASSINFO_IID)
+
 NS_IMPL_ADDREF(nsDOMClassInfo)
 NS_IMPL_RELEASE(nsDOMClassInfo)
 
@@ -1790,6 +1793,11 @@ NS_INTERFACE_MAP_BEGIN(nsDOMClassInfo)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCScriptable)
+  if (aIID.Equals(NS_GET_IID(nsDOMClassInfo))) {
+    *aInstancePtr = static_cast<nsIXPCScriptable*>(this);
+    return NS_OK;
+  }
+  else
 NS_INTERFACE_MAP_END
 
 
@@ -2496,6 +2504,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLScriptElement, nsIDOMHTMLScriptElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLScriptElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLScriptElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3568,8 +3577,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIException)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(FileRequest, nsIDOMFileRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileRequest)
+  DOM_CLASSINFO_MAP_BEGIN(FileReader, nsIDOMFileReader)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileReader)
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
@@ -4242,14 +4251,6 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
     JS_ClearPendingException(cx);
   }
 
-  static const nsIID *sSupportsIID = &NS_GET_IID(nsISupports);
-
-  // This is safe because...
-  if (mData->mProtoChainInterface == sSupportsIID ||
-      !mData->mProtoChainInterface) {
-    return NS_OK;
-  }
-
   // This is called before any other location that requires
   // sObjectClass, so compute it here. We assume that nobody has had a
   // chance to monkey around with proto's prototype chain before this.
@@ -4262,9 +4263,10 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   NS_ASSERTION(::JS_GetPrototype(cx, proto) &&
                JS_GET_CLASS(cx, ::JS_GetPrototype(cx, proto)) == sObjectClass,
                "Hmm, somebody did something evil?");
- 
+
 #ifdef DEBUG
-  if (mData->mHasClassInterface) {
+  if (mData->mHasClassInterface && mData->mProtoChainInterface &&
+      mData->mProtoChainInterface != &NS_GET_IID(nsISupports)) {
     nsCOMPtr<nsIInterfaceInfoManager>
       iim(do_GetService(NS_INTERFACEINFOMANAGER_SERVICE_CONTRACTID));
 
@@ -4385,10 +4387,13 @@ nsDOMClassInfo::GetClassInfoInstance(nsDOMClassInfoData* aData)
 void
 nsDOMClassInfo::PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper)
 {
-  nsWrapperCache* cache = nsnull;
-  CallQueryInterface(aWrapper->Native(), &cache);
-  if (cache) {
-    nsContentUtils::PreserveWrapper(aWrapper->Native(), cache);
+  nsCOMPtr<nsIClassInfo> ci = do_QueryInterface(aWrapper->Native());
+  if (ci) {
+    nsDOMClassInfo* domci = nsnull;
+    CallQueryInterface(ci, &domci);
+    if (domci) {
+      domci->PreserveWrapper(aWrapper->Native());
+    }
   }
 }
 
@@ -5441,7 +5446,7 @@ private:
 
   static PRBool IsConstructable(const nsDOMClassInfoData *aData)
   {
-    if (IS_EXTERNAL(aData)) {
+    if (IS_EXTERNAL(aData->mCachedClassInfo)) {
       const nsExternalDOMClassInfoData* data =
         static_cast<const nsExternalDOMClassInfoData*>(aData);
       return data->mConstructorCID != nsnull;
@@ -7183,8 +7188,7 @@ NS_IMETHODIMP
 nsNodeSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                       JSObject *obj, jsval id, jsval *vp, PRBool *_retval)
 {
-  nsINode* node = static_cast<nsINode*>(GetNative(wrapper, obj));
-  nsContentUtils::PreserveWrapper(node, node);
+  nsNodeSH::PreserveWrapper(GetNative(wrapper, obj));
   return nsEventReceiverSH::AddProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
@@ -7201,8 +7205,7 @@ nsNodeSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   if (id == sOnload_id || id == sOnerror_id) {
     // Make sure that this node can't go away while waiting for a
     // network load that could fire an event handler.
-    nsINode* node = static_cast<nsINode*>(GetNative(wrapper, obj));
-    nsContentUtils::PreserveWrapper(node, node);
+    nsNodeSH::PreserveWrapper(GetNative(wrapper, obj));
   }
 
   return nsEventReceiverSH::NewResolve(wrapper, cx, obj, id, flags, objp,
@@ -7271,6 +7274,13 @@ nsNodeSH::GetFlags(PRUint32 *aFlags)
   *aFlags = DOMCLASSINFO_STANDARD_FLAGS | nsIClassInfo::CONTENT_NODE;
 
   return NS_OK;
+}
+
+void
+nsNodeSH::PreserveWrapper(nsISupports *aNative)
+{
+  nsINode *node = static_cast<nsINode*>(aNative);
+  nsContentUtils::PreserveWrapper(aNative, node);
 }
 
 // EventReceiver helper
@@ -7641,11 +7651,16 @@ nsEventTargetSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_OK;
   }
 
-  nsISupports *target = GetNative(wrapper, obj);
-  nsContentUtils::PreserveWrapper(target,
-                                  nsXHREventTarget::FromSupports(target));
+  nsEventTargetSH::PreserveWrapper(GetNative(wrapper, obj));
 
   return NS_OK;
+}
+
+void
+nsEventTargetSH::PreserveWrapper(nsISupports *aNative)
+{
+  nsXHREventTarget *target = nsXHREventTarget::FromSupports(aNative);
+  nsContentUtils::PreserveWrapper(aNative, target);
 }
 
 
@@ -9811,6 +9826,22 @@ nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
 #endif /* OJI */
 }
 
+NS_IMETHODIMP
+nsHTMLPluginObjElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                                     JSContext *cx, JSObject *obj, jsval id,
+                                     PRUint32 flags, JSObject **objp,
+                                     PRBool *_retval)
+{
+  // Make sure the plugin instance is loaded and instantiated, if
+  // possible.
+
+  nsCOMPtr<nsIPluginInstance> pi;
+  nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return nsElementSH::NewResolve(wrapper, cx, obj, id, flags, objp,
+                                 _retval);
+}
 
 // HTMLOptionsCollection helper
 

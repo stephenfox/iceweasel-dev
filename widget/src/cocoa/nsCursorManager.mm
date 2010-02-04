@@ -213,18 +213,27 @@ static NSArray* sSpinCursorFrames = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (aCursor != mCurrentCursor) {
-    [[self getCursor: mCurrentCursor] unset];
-    [[self getCursor: aCursor] set];
+  // Some plugins mess with our cursors and set a cursor that even
+  // [NSCursor currentCursor] doesn't know about. In case that happens, just
+  // reset the state.
+  [[NSCursor currentCursor] set];
 
+  nsMacCursor* currentCursor = [self getCursor: mCurrentCursor];
+
+  if (aCursor != mCurrentCursor || ![currentCursor isSet]) {
+    [currentCursor unset];
+    [[self getCursor: aCursor] set];
+  }
+
+  if (mCurrentCursor != aCursor) {
     if (aCursor == eCursor_none) {
       [NSCursor hide];
     } else if (mCurrentCursor == eCursor_none) {
       [NSCursor unhide];
     }
-
-    mCurrentCursor = aCursor;
   }
+
+  mCurrentCursor = aCursor;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

@@ -305,7 +305,9 @@ protected:
   static void             PostSleepWakeNotification(const char* aNotification);
   PRBool                  HandleScrollingPlugins(UINT aMsg, WPARAM aWParam, 
                                                  LPARAM aLParam,
-                                                 PRBool& aResult);
+                                                 PRBool& aResult,
+                                                 LRESULT* aRetValue,
+                                                 PRBool& aQuitProcessing);
 
   /**
    * Event handlers
@@ -395,7 +397,9 @@ protected:
                                               PRBool aIntersectWithExisting);
   nsCOMPtr<nsIRegion>     GetRegionToPaint(PRBool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
-
+#if !defined(WINCE)
+  static void             ActivateOtherWindowHelper(HWND aWnd);
+#endif
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
@@ -470,9 +474,6 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
-
-  static nsAutoPtr<PRUint8> sSharedSurfaceData;
-  static gfxIntSize     sSharedSurfaceSize;
 
   // Transparency
 #ifdef MOZ_XUL

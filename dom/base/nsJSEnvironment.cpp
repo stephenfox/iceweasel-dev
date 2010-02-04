@@ -941,26 +941,48 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
           JS_ClearPendingException(cx);
           return JS_FALSE;
         }
-        
-        nsCOMPtr<nsIPrompt> prompt = GetPromptFromContext(ctx);
-        
-        nsXPIDLString title, msg;
-        rv = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                "LowMemoryTitle",
-                                                title);
-        
-        rv |= nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                                 "LowMemoryMessage",
-                                                 msg);
-        
-        //GetStringFromName can return NS_OK and still give NULL string
-        if (NS_FAILED(rv) || !title || !msg) {
-          NS_ERROR("Failed to get localized strings.");
-          JS_ClearPendingException(cx);
-          return JS_FALSE;
+
+        nsCOMPtr<nsIScriptError> errorObject =
+          do_CreateInstance("@mozilla.org/scripterror;1");
+
+        if (errorObject) {
+          nsXPIDLString msg;
+          nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                             "LowMemoryMessage",
+                                             msg);
+
+          JSStackFrame *fp, *iterator = nsnull;
+          fp = ::JS_FrameIterator(cx, &iterator);
+          PRUint32 lineno = 0;
+          nsAutoString sourcefile;
+          if (fp) {
+            JSScript* script = ::JS_GetFrameScript(cx, fp);
+            if (script) {
+              const char* filename = ::JS_GetScriptFilename(cx, script);
+              if (filename) {
+                CopyUTF8toUTF16(nsDependentCString(filename), sourcefile);
+              }
+              jsbytecode* pc = ::JS_GetFramePC(cx, fp);
+              if (pc) {
+                lineno = ::JS_PCToLineNumber(cx, script, pc);
+              }
+            }
+          }
+
+          rv = errorObject->Init(msg.get(),
+                                 sourcefile.get(),
+                                 EmptyString().get(),
+                                 lineno, 0, nsIScriptError::errorFlag,
+                                 "content javascript");
+          if (NS_SUCCEEDED(rv)) {
+            nsCOMPtr<nsIConsoleService> consoleService =
+              do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv);
+            if (NS_SUCCEEDED(rv)) {
+              consoleService->LogMessage(errorObject);
+            }
+          }
         }
-        
-        prompt->Alert(title, msg);
+
         JS_ClearPendingException(cx);
         return JS_FALSE;
       }
@@ -1289,7 +1311,9 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   return 0;
 }
 
-nsJSContext::nsJSContext(JSRuntime *aRuntime) : mGCOnDestruction(PR_TRUE)
+nsJSContext::nsJSContext(JSRuntime *aRuntime)
+  : mGCOnDestruction(PR_TRUE),
+    mExecuteDepth(0)
 {
 
   ++sContextCount;
@@ -1405,6 +1429,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSContext)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContext)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptContext_1_9_2)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptNotify)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptContext)
 NS_INTERFACE_MAP_END
@@ -1499,6 +1524,8 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     JSAutoRequest ar(mContext);
     nsJSVersionSetter setVersion(mContext, aVersion);
 
+    ++mExecuteDepth;
+
     ok = ::JS_EvaluateUCScriptForPrincipals(mContext,
                                             (JSObject *)aScopeObject,
                                             jsprin,
@@ -1507,6 +1534,8 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                             aURL,
                                             aLineNo,
                                             &val);
+
+    --mExecuteDepth;
 
     if (!ok) {
       // Tell XPConnect about any pending exceptions. This is needed
@@ -1665,6 +1694,8 @@ nsJSContext::EvaluateString(const nsAString& aScript,
 
   nsJSContext::TerminationFuncHolder holder(this);
 
+  ++mExecuteDepth;
+
   // SecurityManager said "ok", but don't compile if aVersion is unknown.
   // Since the caller is responsible for parsing the version strings, we just
   // check it isn't JSVERSION_UNKNOWN.
@@ -1707,6 +1738,8 @@ nsJSContext::EvaluateString(const nsAString& aScript,
       aRetValue->Truncate();
     }
   }
+
+  --mExecuteDepth;
 
   // Pop here, after JS_ValueToString and any other possible evaluation.
   if (NS_FAILED(stack->Pop(nsnull)))
@@ -1826,6 +1859,7 @@ nsJSContext::ExecuteScript(void *aScriptObject,
 
   nsJSContext::TerminationFuncHolder holder(this);
   JSAutoRequest ar(mContext);
+  ++mExecuteDepth;
   ok = ::JS_ExecuteScript(mContext,
                           (JSObject *)aScopeObject,
                           (JSScript*)::JS_GetPrivate(mContext,
@@ -1844,6 +1878,8 @@ nsJSContext::ExecuteScript(void *aScriptObject,
       aRetValue->Truncate();
     }
   }
+
+  --mExecuteDepth;
 
   // Pop here, after JS_ValueToString and any other possible evaluation.
   if (NS_FAILED(stack->Pop(nsnull)))
@@ -2093,8 +2129,10 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
     jsval funval = OBJECT_TO_JSVAL(static_cast<JSObject *>(aHandler));
     JSAutoRequest ar(mContext);
+    ++mExecuteDepth;
     PRBool ok = ::JS_CallFunctionValue(mContext, target,
                                        funval, argc, argv, &rval);
+    --mExecuteDepth;
 
     if (!ok) {
       // Tell XPConnect about any pending exceptions. This is needed
@@ -3494,6 +3532,12 @@ void
 nsJSContext::SetProcessingScriptTag(PRBool aFlag)
 {
   mProcessingScriptTag = aFlag;
+}
+
+PRBool
+nsJSContext::GetExecutingScript()
+{
+  return JS_IsRunning(mContext) || mExecuteDepth > 0;
 }
 
 void

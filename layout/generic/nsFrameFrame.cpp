@@ -370,8 +370,13 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   if (!aBuilder->IsForEventDelivery()) {
     // Add the canvas background color.
-    rv = presShell->AddCanvasBackgroundColorItem(
-           *aBuilder, childItems, f ? f : this, &shellBounds);
+    nsCOMPtr<nsIPresShell_MOZILLA_1_9_2> presShell192 =
+      do_QueryInterface(presShell);
+    if (presShell192) {
+      rv = presShell192->AddCanvasBackgroundColorItem2(
+             *aBuilder, childItems, f ? f : this, &shellBounds,
+             NS_RGBA(0,0,0,0), PR_TRUE);
+    }
   }
 
   if (f && NS_SUCCEEDED(rv)) {

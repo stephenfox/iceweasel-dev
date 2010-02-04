@@ -580,8 +580,10 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex)
       }
       else {
         // otherwise, if there is no tabindex attribute, just use the value of
-        // *aTabIndex to indicate focusability
+        // *aTabIndex to indicate focusability. Reset any supplied tabindex to 0.
         shouldFocus = *aTabIndex >= 0;
+        if (shouldFocus)
+          *aTabIndex = 0;
       }
 
       if (shouldFocus && sTabFocusModelAppliesToXUL &&
@@ -1437,7 +1439,7 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     }
 
     if (hasMutationListeners) {
-        mozAutoRemovableBlockerRemover blockerRemover;
+        mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
 
         nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 

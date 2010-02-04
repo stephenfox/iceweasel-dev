@@ -48,6 +48,7 @@
 #   Paul O’Shannessy <paul@oshannessy.com>
 #   Nils Maier <maierman@web.de>
 #   Rob Arnold <robarnold@cmu.edu>
+#   Dietrich Ayala <dietrich@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -128,6 +129,14 @@ __defineSetter__("PluralForm", function (val) {
   delete this.PluralForm;
   return this.PluralForm = val;
 });
+
+#ifdef MOZ_CRASHREPORTER
+__defineGetter__("gCrashReporter", function() {
+  delete this.gCrashReporter;
+  return this.gCrashReporter = Cc["@mozilla.org/xre/app-info;1"].
+                               getService(Ci.nsICrashReporter);
+});
+#endif
 
 let gInitialPages = [
   "about:blank",
@@ -679,8 +688,8 @@ let gGestureSupport = {
     let addRemove = aAddListener ? window.addEventListener :
       window.removeEventListener;
 
-    for each (let event in gestureEvents)
-      addRemove("Moz" + event, this, true);
+    gestureEvents.forEach(function (event) addRemove("Moz" + event, this, true),
+                          this);
   },
 
   /**
@@ -870,9 +879,10 @@ let gGestureSupport = {
    */
   onSwipe: function GS_onSwipe(aEvent) {
     // Figure out which one (and only one) direction was triggered 
-    for each (let dir in ["UP", "RIGHT", "DOWN", "LEFT"])
+    ["UP", "RIGHT", "DOWN", "LEFT"].forEach(function (dir) {
       if (aEvent.direction == aEvent["DIRECTION_" + dir])
         return this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
+    }, this);
   },
 
   /**
@@ -1285,6 +1295,10 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   catch(ex) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
+
+  let NP = {};
+  Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
+  NP.trackBrowserWindow(window);
 
   // initialize the session-restore service (in case it's not already running)
   if (document.documentElement.getAttribute("windowtype") == "navigator:browser") {
@@ -2113,11 +2127,25 @@ function BrowserViewSourceOfDocument(aDocument)
 // imageElement - image to load in the Media Tab of the Page Info window; can be null/omitted
 function BrowserPageInfo(doc, initialTab, imageElement) {
   var args = {doc: doc, initialTab: initialTab, imageElement: imageElement};
-  return toOpenDialogByTypeAndUrl("Browser:page-info",
-                                  doc ? doc.location : window.content.document.location,
-                                  "chrome://browser/content/pageinfo/pageInfo.xul",
-                                  "chrome,toolbar,dialog=no,resizable",
-                                  args);
+  var windows = Cc['@mozilla.org/appshell/window-mediator;1']
+                  .getService(Ci.nsIWindowMediator)
+                  .getEnumerator("Browser:page-info");
+
+  var documentURL = doc ? doc.location : window.content.document.location;
+
+  // Check for windows matching the url
+  while (windows.hasMoreElements()) {
+    var currentWindow = windows.getNext();
+    if (currentWindow.document.documentElement.getAttribute("relatedUrl") == documentURL) {
+      currentWindow.focus();
+      currentWindow.resetPageInfo(args);
+      return currentWindow;
+    }
+  }
+
+  // We didn't find a matching window, so open a new one.
+  return openDialog("chrome://browser/content/pageinfo/pageInfo.xul", "",
+                    "chrome,toolbar,dialog=no,resizable", args);
 }
 
 #ifdef DEBUG
@@ -2653,7 +2681,7 @@ function FillInHTMLTooltip(tipElement)
   var tipNode = document.getElementById("aHTMLTooltip");
   tipNode.style.direction = direction;
   
-  for each (var t in [titleText, XLinkTitleText]) {
+  [titleText, XLinkTitleText].forEach(function (t) {
     if (t && /\S/.test(t)) {
 
       // Per HTML 4.01 6.2 (CDATA section), literal CRs and tabs should be
@@ -2667,7 +2695,7 @@ function FillInHTMLTooltip(tipElement)
       tipNode.setAttribute("label", t);
       retVal = true;
     }
-  }
+  });
 
   return retVal;
 }
@@ -2713,6 +2741,7 @@ var browserDragAndDrop = {
     if (types.contains("application/x-moz-file") ||
         types.contains("text/x-moz-url") ||
         types.contains("text/uri-list") ||
+        types.contains("text/x-moz-text-internal") ||
         types.contains("text/plain")) {
       aEvent.preventDefault();
 
@@ -3139,8 +3168,9 @@ const BrowserSearch = {
       return;
   
     if (useNewTab) {
-      gBrowser.loadOneTab(submission.uri.spec, null, null,
-                          submission.postData, null, false);
+      gBrowser.loadOneTab(submission.uri.spec, {
+                          postData: submission.postData,
+                          relatedToCurrent: true});
     } else
       loadURI(submission.uri.spec, null, submission.postData, false);
   },
@@ -4335,6 +4365,13 @@ var TabsProgressListener = {
   },
 
   onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
+#ifdef MOZ_CRASHREPORTER
+    if (aRequest instanceof Ci.nsIChannel &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_START &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT) {
+      gCrashReporter.annotateCrashReport("URL", aRequest.URI.spec);
+    }
+#endif
   },
 
   onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
@@ -4475,7 +4512,7 @@ nsBrowserAccess.prototype =
         newWindow = content;
         if (aURI) {
           let referrer = aOpener ? makeURI(aOpener.location.href) : null;
-          gBrowser.loadURIWithFlag(aURI.spec, loadflags, referrer, null, null);
+          gBrowser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
         }
         if (!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
           content.focus();
@@ -5980,6 +6017,7 @@ missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
   }
   
   function showOutdatedPluginsInfo() {
+    gPrefService.setBoolPref("plugins.update.notifyUser", false);
     var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
                     getService(Ci.nsIURLFormatter);
     var url = formatter.formatURLPref("plugins.update.url");
@@ -6162,6 +6200,7 @@ var FeedHandler = {
       var menuItem = document.createElement("menuitem");
       var baseTitle = feedInfo.title || feedInfo.href;
       var labelStr = gNavigatorBundle.getFormattedString("feedShowFeedNew", [baseTitle]);
+      menuItem.setAttribute("class", "feed-menuitem");
       menuItem.setAttribute("label", labelStr);
       menuItem.setAttribute("feed", feedInfo.href);
       menuItem.setAttribute("tooltiptext", feedInfo.href);
@@ -6351,8 +6390,8 @@ function undoCloseWindow(aIndex) {
 /**
  * Format a URL
  * eg:
- * echo formatURL("http://%LOCALE%.amo.mozilla.org/%LOCALE%/%APP%/%VERSION%/");
- * > http://en-US.amo.mozilla.org/en-US/firefox/3.0a1/
+ * echo formatURL("https://addons.mozilla.org/%LOCALE%/%APP%/%VERSION%/");
+ * > https://addons.mozilla.org/en-US/firefox/3.0a1/
  *
  * Currently supported built-ins are LOCALE, APP, and any value from nsIXULAppInfo, uppercased.
  */
@@ -6921,16 +6960,30 @@ let gPrivateBrowsingUI = {
     this._observerService = Cc["@mozilla.org/observer-service;1"].
                             getService(Ci.nsIObserverService);
     this._observerService.addObserver(this, "private-browsing", false);
+    this._observerService.addObserver(this, "private-browsing-transition-complete", false);
 
     this._privateBrowsingService = Cc["@mozilla.org/privatebrowsing;1"].
                                    getService(Ci.nsIPrivateBrowsingService);
 
     if (this.privateBrowsingEnabled)
-      this.onEnterPrivateBrowsing();
+      this.onEnterPrivateBrowsing(true);
   },
 
   uninit: function PBUI_unint() {
     this._observerService.removeObserver(this, "private-browsing");
+    this._observerService.removeObserver(this, "private-browsing-transition-complete");
+  },
+
+  get _disableUIOnToggle PBUI__disableUIOnTogle() {
+    if (this._privateBrowsingService.autoStarted)
+      return false;
+
+    try {
+      return !gPrefService.getBoolPref("browser.privatebrowsing.keep_current_session");
+    }
+    catch (e) {
+      return true;
+    }
   },
 
   observe: function PBUI_observe(aSubject, aTopic, aData) {
@@ -6939,6 +6992,15 @@ let gPrivateBrowsingUI = {
         this.onEnterPrivateBrowsing();
       else if (aData == "exit")
         this.onExitPrivateBrowsing();
+    }
+    else if (aTopic == "private-browsing-transition-complete") {
+      if (this._disableUIOnToggle) {
+        // use setTimeout here in order to make the code testable
+        setTimeout(function() {
+          document.getElementById("Tools:PrivateBrowsing")
+                  .removeAttribute("disabled");
+        }, 0);
+      }
     }
   },
 
@@ -6999,7 +7061,7 @@ let gPrivateBrowsingUI = {
     return result;
   },
 
-  onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
+  onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing(aOnWindowOpen) {
     if (BrowserSearch.searchBar)
       this._searchBarValue = BrowserSearch.searchBar.textbox.value;
 
@@ -7035,6 +7097,10 @@ let gPrivateBrowsingUI = {
     setTimeout(function () {
       DownloadMonitorPanel.updateStatus();
     }, 0);
+
+    if (!aOnWindowOpen && this._disableUIOnToggle)
+      document.getElementById("Tools:PrivateBrowsing")
+              .setAttribute("disabled", "true");
   },
 
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
@@ -7085,6 +7151,10 @@ let gPrivateBrowsingUI = {
     setTimeout(function () {
       DownloadMonitorPanel.updateStatus();
     }, 0);
+
+    if (this._disableUIOnToggle)
+      document.getElementById("Tools:PrivateBrowsing")
+              .setAttribute("disabled", "true");
   },
 
   _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
@@ -7146,6 +7216,14 @@ var LightWeightThemeWebInstaller = {
   handleEvent: function (event) {
     switch (event.type) {
       case "InstallBrowserTheme":
+      case "PreviewBrowserTheme":
+      case "ResetBrowserThemePreview":
+        // ignore requests from background tabs
+        if (event.target.ownerDocument.defaultView.top != content)
+          return;
+    }
+    switch (event.type) {
+      case "InstallBrowserTheme":
         this._installRequest(event);
         break;
       case "PreviewBrowserTheme":
@@ -7153,6 +7231,10 @@ var LightWeightThemeWebInstaller = {
         break;
       case "ResetBrowserThemePreview":
         this._resetPreview(event);
+        break;
+      case "pagehide":
+      case "TabSelect":
+        this._resetPreview();
         break;
     }
   },
@@ -7193,9 +7275,11 @@ var LightWeightThemeWebInstaller = {
     this._removePreviousNotifications();
 
     var notificationBox = gBrowser.getNotificationBox();
-    notificationBox.appendNotification(message, "lwtheme-install-request", "",
-                                       notificationBox.PRIORITY_INFO_MEDIUM,
-                                       buttons);
+    var notificationBar =
+      notificationBox.appendNotification(message, "lwtheme-install-request", "",
+                                         notificationBox.PRIORITY_INFO_MEDIUM,
+                                         buttons);
+    notificationBar.persistence = 1;
   },
 
   _install: function (newTheme) {
@@ -7229,10 +7313,13 @@ var LightWeightThemeWebInstaller = {
     this._removePreviousNotifications();
 
     var notificationBox = gBrowser.getNotificationBox();
-    notificationBox.appendNotification(text("message"),
-                                       "lwtheme-install-notification", "",
-                                       notificationBox.PRIORITY_INFO_MEDIUM,
-                                       buttons);
+    var notificationBar =
+      notificationBox.appendNotification(text("message"),
+                                         "lwtheme-install-notification", "",
+                                         notificationBox.PRIORITY_INFO_MEDIUM,
+                                         buttons);
+    notificationBar.persistence = 1;
+    notificationBar.timeout = Date.now() + 20000; // 20 seconds
   },
 
   _removePreviousNotifications: function () {
@@ -7246,6 +7333,7 @@ var LightWeightThemeWebInstaller = {
       });
   },
 
+  _previewWindow: null,
   _preview: function (event) {
     if (!this._isAllowed(event.target))
       return;
@@ -7254,12 +7342,23 @@ var LightWeightThemeWebInstaller = {
     if (!data)
       return;
 
+    this._resetPreview();
+
+    this._previewWindow = event.target.ownerDocument.defaultView;
+    this._previewWindow.addEventListener("pagehide", this, true);
+    gBrowser.tabContainer.addEventListener("TabSelect", this, false);
+
     this._manager.previewTheme(data);
   },
 
   _resetPreview: function (event) {
-    if (!this._isAllowed(event.target))
+    if (!this._previewWindow ||
+        event && !this._isAllowed(event.target))
       return;
+
+    this._previewWindow.removeEventListener("pagehide", this, true);
+    this._previewWindow = null;
+    gBrowser.tabContainer.removeEventListener("TabSelect", this, false);
 
     this._manager.resetPreview();
   },
@@ -7289,44 +7388,7 @@ var LightWeightThemeWebInstaller = {
   },
 
   _getThemeFromNode: function (node) {
-    const MANDATORY = ["id", "name", "headerURL"];
-    const OPTIONAL = ["footerURL", "textcolor", "accentcolor", "iconURL",
-                      "previewURL", "author", "description", "homepageURL"];
-
-    try {
-      var data = JSON.parse(node.getAttribute("data-browsertheme"));
-    } catch (e) {
-      return null;
-    }
-
-    if (!data || typeof data != "object")
-      return null;
-
-    for (let prop in data) {
-      if (!data[prop] ||
-          typeof data[prop] != "string" ||
-          MANDATORY.indexOf(prop) == -1 && OPTIONAL.indexOf(prop) == -1) {
-        delete data[prop];
-        continue;
-      }
-
-      if (/URL$/.test(prop)) {
-        try {
-          data[prop] = makeURLAbsolute(node.baseURI, data[prop]);
-
-          if (/^https?:/.test(data[prop]))
-            continue;
-        } catch (e) {}
-
-        delete data[prop];
-      }
-    }
-
-    for (let i = 0; i < MANDATORY.length; i++) {
-      if (!(MANDATORY[i] in data)) 
-        return null;
-    }
-
-    return data;
+    return this._manager.parseTheme(node.getAttribute("data-browsertheme"),
+                                    node.baseURI);
   }
 }

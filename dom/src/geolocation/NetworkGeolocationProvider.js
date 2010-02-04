@@ -35,7 +35,9 @@ function WifiGeoAddressObject(streetNumber, street, premises, city, county, regi
 
 WifiGeoAddressObject.prototype = {
 
-    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionAddress, Ci.nsIClassInfo]),
+    QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDOMGeoPositionAddress,
+                                             Ci.nsIDOMGeoPositionAddress_MOZILLA_1_9_2_BRANCH,
+                                             Ci.nsIClassInfo]),
 
     getInterfaces: function(countRef) {
         var interfaces = [Ci.nsIDOMGeoPositionAddress, Ci.nsIClassInfo, Ci.nsISupports];
@@ -149,8 +151,7 @@ WifiGeoPositionProvider.prototype = {
     contractID:       "@mozilla.org/geolocation/provider;1",
     QueryInterface:   XPCOMUtils.generateQI([Ci.nsIGeolocationProvider,
                                              Ci.nsIWifiListener,
-                                             Ci.nsITimerCallback,
-                                             Ci.nsISupportsWeakReference]),
+                                             Ci.nsITimerCallback]),
 
     prefService:     null,
 
@@ -158,17 +159,6 @@ WifiGeoPositionProvider.prototype = {
     wifi_service:    null,
     timer:           null,
     hasSeenWiFi:     false,
-
-    observe: function (aSubject, aTopic, aData) {
-        if (aTopic == "private-browsing") {
-            if (aData == "enter" || aData == "exit") {
-                try {
-                    let branch = this.prefService.getBranch("geo.wifi.access_token.");
-                    branch.deleteBranch("");
-                } catch (e) {}
-            }
-        }
-    },
 
     startup:         function() {
         LOG("startup called");
@@ -185,10 +175,6 @@ WifiGeoPositionProvider.prototype = {
             this.timer.initWithCallback(this, 5000, this.timer.TYPE_ONE_SHOT);
         else
             this.timer.initWithCallback(this, 200, this.timer.TYPE_REPEATING_SLACK);
-
-
-        let os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
-        os.addObserver(this, "private-browsing", true);
     },
 
     watch: function(c) {

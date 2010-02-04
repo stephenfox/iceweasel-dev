@@ -372,7 +372,10 @@ public:
 
     // Make sure we have a JSContext to run everything on.
     JSContext* cx = (JSContext*)PR_GetThreadPrivate(gJSContextIndex);
-    NS_ASSERTION(cx, "nsDOMThreadService didn't give us a context!");
+    if (!cx) {
+        NS_ERROR("nsDOMThreadService didn't give us a context! Are we out of memory?");
+        return NS_ERROR_FAILURE;
+    }
 
     NS_ASSERTION(!JS_GetGlobalObject(cx), "Shouldn't have a global!");
 
@@ -976,8 +979,10 @@ nsDOMThreadService::CreateJSContext()
     nsDOMWorkerSecurityManager::JSTranscodePrincipals,
     nsDOMWorkerSecurityManager::JSFindPrincipal
   };
-
   JS_SetContextSecurityCallbacks(cx, &securityCallbacks);
+
+  static JSDebugHooks debugHooks;
+  JS_SetContextDebugHooks(cx, &debugHooks);
 
   nsresult rv = nsContentUtils::XPConnect()->
     SetSecurityManagerForJSContext(cx, gWorkerSecurityManager, 0);

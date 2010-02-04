@@ -156,6 +156,7 @@ _TEST_FILES =\
 		test_textboxes.html \
 		test_textboxes.xul \
 		test_value.xul \
+		test_value.html \
 		testTextboxes.js \
 		treeview.css \
 		treeview.js \

@@ -273,30 +273,30 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                 } break;
 
                 case eCSSType_ValueList:
-                    if (iProp == eCSSProperty_background_image ||
-                        iProp == eCSSProperty_content) {
-                        for (nsCSSValueList* l = ValueListAtCursor(cursor);
-                             l; l = l->mNext)
-                            if (l->mValue.GetUnit() == eCSSUnit_URL)
-                                l->mValue.StartImageLoad(
-                                    aRuleData->mPresContext->Document());
-                    } else if (iProp == eCSSProperty_cursor) {
-                        for (nsCSSValueList* l = ValueListAtCursor(cursor);
-                             l; l = l->mNext)
-                            if (l->mValue.GetUnit() == eCSSUnit_Array) {
-                                // Don't try to restart loads we've already
-                                // started
-                                nsCSSValue& val =
-                                    l->mValue.GetArrayValue()->Item(0);
-                                if (val.GetUnit() == eCSSUnit_URL)
-                                    val.StartImageLoad(
-                                      aRuleData->mPresContext->Document());
-                            }
-                    }
-                // fall through
                 case eCSSType_ValuePairList: {
                     void** target = static_cast<void**>(prop);
                     if (!*target) {
+                        if (iProp == eCSSProperty_background_image ||
+                            iProp == eCSSProperty_content) {
+                            for (nsCSSValueList* l = ValueListAtCursor(cursor);
+                                 l; l = l->mNext)
+                                if (l->mValue.GetUnit() == eCSSUnit_URL)
+                                    l->mValue.StartImageLoad(
+                                        aRuleData->mPresContext->Document());
+                        } else if (iProp == eCSSProperty_cursor) {
+                            for (nsCSSValueList* l = ValueListAtCursor(cursor);
+                                 l; l = l->mNext)
+                                if (l->mValue.GetUnit() == eCSSUnit_Array) {
+                                    // Don't try to restart loads we've already
+                                    // started
+                                    nsCSSValue& val =
+                                        l->mValue.GetArrayValue()->Item(0);
+                                    if (val.GetUnit() == eCSSUnit_URL)
+                                        val.StartImageLoad(
+                                          aRuleData->mPresContext->Document());
+                                }
+                        }
+
                         void* val = PointerAtCursor(cursor);
                         NS_ASSERTION(val, "oops");
                         *target = val;

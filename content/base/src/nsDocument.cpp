@@ -55,7 +55,6 @@
 #include "nsUnicharUtils.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIEventStateManager.h"
-#include "nsIFocusController.h"
 #include "nsContentList.h"
 #include "nsIObserver.h"
 #include "nsIBaseWindow.h"
@@ -170,6 +169,7 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsIPropertyBag2.h"
 #include "nsIDOMPageTransitionEvent.h"
 #include "nsFrameLoader.h"
+#include "nsHTMLMediaElement.h"
 
 #include "mozAutoDocUpdate.h"
 
@@ -1482,8 +1482,7 @@ nsDOMImplementation::Init(nsIURI* aDocumentURI, nsIURI* aBaseURI,
   // bother initializing members to 0.
 
 nsDocument::nsDocument(const char* aContentType)
-  : nsIDocument(),
-    mVisible(PR_TRUE)
+  : nsIDocument()
 {
   mContentType = aContentType;
   
@@ -1628,6 +1627,7 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMNodeSelector)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIApplicationCacheContainer)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMXPathNSResolver)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDocument_MOZILLA_1_9_2_BRANCH)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDocument)
@@ -3528,6 +3528,25 @@ nsDocument::GetScopeObject()
 {
   nsCOMPtr<nsIScriptGlobalObject> scope(do_QueryReferent(mScopeObject));
   return scope;
+}
+
+static void
+NotifyActivityChanged(nsIContent *aContent, void *aUnused)
+{
+#ifdef MOZ_MEDIA
+  nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
+  if (domMediaElem) {
+    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
+    mediaElem->NotifyOwnerDocumentActivityChanged();
+  }
+#endif
+}
+
+void
+nsIDocument::SetContainer(nsISupports* aContainer)
+{
+  mDocumentContainer = do_GetWeakReference(aContainer);
+  EnumerateFreezableElements(NotifyActivityChanged, nsnull);
 }
 
 void
@@ -6928,6 +6947,7 @@ nsDocument::RemovedFromDocShell()
     return;
 
   mRemovedFromDocShell = PR_TRUE;
+  EnumerateFreezableElements(NotifyActivityChanged, nsnull); 
 
   PRUint32 i, count = mChildren.ChildCount();
   for (i = 0; i < count; ++i) {
@@ -7112,6 +7132,8 @@ void
 nsDocument::OnPageShow(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarget)
 {
   mVisible = PR_TRUE;
+
+  EnumerateFreezableElements(NotifyActivityChanged, nsnull); 
   UpdateLinkMap();
   
   nsIContent* root = GetRootContent();
@@ -7192,6 +7214,7 @@ nsDocument::OnPageHide(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarge
   DispatchPageTransition(target, NS_LITERAL_STRING("pagehide"), aPersisted);
 
   mVisible = PR_FALSE;
+  EnumerateFreezableElements(NotifyActivityChanged, nsnull);
 }
 
 void
@@ -7256,7 +7279,7 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
 
     PRInt32 realTargetCount = realTargets.Count();
     for (PRInt32 k = 0; k < realTargetCount; ++k) {
-      mozAutoRemovableBlockerRemover blockerRemover;
+      mozAutoRemovableBlockerRemover blockerRemover(this);
 
       nsMutationEvent mutation(PR_TRUE, NS_MUTATION_SUBTREEMODIFIED);
       nsEventDispatcher::Dispatch(realTargets[k], nsnull, &mutation);
@@ -7587,6 +7610,12 @@ nsDocument::UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents)
   } else {
     FireOrClearDelayedEvents(documents, PR_FALSE);
   }
+}
+
+nsISupports*
+nsDocument::GetCurrentContentSink()
+{
+  return mParser ? mParser->GetContentSink() : nsnull;
 }
 
 void

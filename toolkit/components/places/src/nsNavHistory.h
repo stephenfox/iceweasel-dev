@@ -23,6 +23,7 @@
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -84,6 +85,7 @@
 
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
+#include "nsToolkitCompsCID.h"
 
 // define to enable lazy link adding
 #define LAZY_ADD
@@ -156,15 +158,14 @@ public:
    * service to get a reference to this history object. Returns a pointer to
    * the service if it exists. Otherwise creates one. Returns NULL on error.
    */
-  static nsNavHistory* GetHistoryService()
+  static nsNavHistory *GetHistoryService()
   {
-    if (gHistoryService)
-      return gHistoryService;
-
-    nsCOMPtr<nsINavHistoryService> serv =
-      do_GetService("@mozilla.org/browser/nav-history-service;1");
-    NS_ENSURE_TRUE(serv, nsnull);
-
+    if (!gHistoryService) {
+      nsCOMPtr<nsINavHistoryService> serv =
+        do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID);
+      NS_ENSURE_TRUE(serv, nsnull);
+      NS_ASSERTION(gHistoryService, "Should have static instance pointer now");
+    }
     return gHistoryService;
   }
 
@@ -231,9 +232,6 @@ public:
   // returns true if history has been disabled
   PRBool IsHistoryDisabled() { return mExpireDaysMax == 0 || InPrivateBrowsingMode(); }
 
-  // get the statement for selecting a history row by URL
-  mozIStorageStatement* DBGetURLPageInfo() { return mDBGetURLPageInfo; }
-
   // Constants for the columns returned by the above statement.
   static const PRInt32 kGetInfoIndex_PageID;
   static const PRInt32 kGetInfoIndex_URL;
@@ -243,11 +241,13 @@ public:
   static const PRInt32 kGetInfoIndex_ItemId;
   static const PRInt32 kGetInfoIndex_ItemDateAdded;
   static const PRInt32 kGetInfoIndex_ItemLastModified;
+  static const PRInt32 kGetInfoIndex_ItemTags;
+  static const PRInt32 kGetInfoIndex_ItemParentId;
 
   // select a history row by id
-  mozIStorageStatement* DBGetIdPageInfo() { return mDBGetIdPageInfo; }
+  mozIStorageStatement *DBGetIdPageInfo() { return mDBGetIdPageInfo; }
 
-  mozIStorageStatement* DBGetTags() { return mDBGetTags; }
+  mozIStorageStatement *DBGetTags() { return mDBGetTags; }
   PRInt64 GetTagsFolder();
 
   // Constants for the columns returned by the above statement
@@ -387,7 +387,7 @@ public:
   ~nsNavHistory();
 
   // used by GetHistoryService
-  static nsNavHistory* gHistoryService;
+  static nsNavHistory *gHistoryService;
 
 protected:
 
@@ -414,8 +414,8 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBIsPageVisited; // used by IsURIStringVisited
   nsCOMPtr<mozIStorageStatement> mDBUpdatePageVisitStats; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBAddNewPage; // used by InternalAddNewPage
-  nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by FilterResultSet
-  nsCOMPtr<mozIStorageStatement> mFoldersWithAnnotationQuery;  // used by StartSearch and FilterResultSet
+  nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by GetTags
+  nsCOMPtr<mozIStorageStatement> mDBGetItemsWithAnno; // used by AutoComplete::StartSearch and FilterResultSet
   nsCOMPtr<mozIStorageStatement> mDBSetPlaceTitle; // used by SetPageTitleInternal
 
   // these are used by VisitIdToResultNode for making new result nodes from IDs
@@ -526,7 +526,7 @@ protected:
 
   // expiration
   friend class nsNavHistoryExpire;
-  nsNavHistoryExpire mExpire;
+  nsNavHistoryExpire *mExpire;
 
 #ifdef LAZY_ADD
   // lazy add committing
@@ -652,7 +652,7 @@ protected:
 
 #ifdef MOZ_XUL
   // AutoComplete stuff
-  mozIStorageStatement* GetDBFeedbackIncrease();
+  mozIStorageStatement *GetDBFeedbackIncrease();
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;
 
   nsresult AutoCompleteFeedback(PRInt32 aIndex,
@@ -689,15 +689,6 @@ protected:
   nsresult TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
                            nsCOMArray<nsNavHistoryQuery>* aQueries,
                            nsNavHistoryQueryOptions* aOptions);
-
-  /**
-   * Used to setup the idle timer used to perform various tasks when the user is
-   * idle..
-   */
-  nsCOMPtr<nsITimer> mIdleTimer;
-  nsresult InitializeIdleTimer();
-  static void IdleTimerCallback(nsITimer* aTimer, void* aClosure);
-  nsresult OnIdle();
 
   PRInt64 mTagsFolder;
 

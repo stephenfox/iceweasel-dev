@@ -107,6 +107,7 @@
 #endif
 
 ; [Components]
+@BINPATH@/components/components.list
 @BINPATH@/components/alerts.xpt
 #ifdef ACCESSIBILITY
 #ifdef XP_WIN32
@@ -220,6 +221,9 @@
 @BINPATH@/components/necko_wifi.xpt
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
+#ifdef MOZ_OJI
+@BINPATH@/components/oji.xpt
+#endif
 @BINPATH@/components/places.xpt
 @BINPATH@/components/plugin.xpt
 @BINPATH@/components/pref.xpt
@@ -544,4 +548,9 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/firefoxfaststart.exe
 @BINPATH@/components/FastStartup.js
 #endif
+#endif
+
+; [OS/2]
+#ifdef XP_OS2
+@BINPATH@/MozSounds.cmd
 #endif

@@ -86,6 +86,7 @@
 #include "prthread.h"
 #include "private/pprthred.h"
 #include "nsTArray.h"
+#include "prio.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -2923,13 +2924,97 @@ nsComponentManagerImpl::AutoRegisterImpl(nsIFile   *inDirSpec,
     return rv;
 }
 
+static const char kNL[] = "\r\n";
+
+class ArrayCaseInsensitiveCStringComparator {
+public:
+    PRBool Equals(const char *a, const char *b) const {
+        return PL_strcasecmp(a, b) == 0;
+    }
+};
+
+struct ComponentsList {
+    ComponentsList()
+        : mCompString(nsnull), mCompList(128)
+    {
+    }
+
+    nsresult InitFromFile(PRFileDesc *fd)
+    {
+        PRFileInfo info;
+        if (PR_SUCCESS != PR_GetOpenFileInfo(fd, &info))
+            return NS_ErrorAccordingToNSPR();
+
+        nsAutoArrayPtr<char> buf(new char[info.size + 1]);
+        if (!buf)
+            return NS_ERROR_OUT_OF_MEMORY;
+
+        PRInt32 read = 0;
+        while (read < info.size) {
+            PRInt32 n = PR_Read(fd, buf + read, info.size - read);
+            if (n < 0)
+                return NS_ErrorAccordingToNSPR();
+
+            read += n;
+            if (n == 0)
+                break;
+        }
+
+        buf[read] = '\0';
+
+        mCompString = buf.forget();
+
+        char *c = mCompString;
+        while (char *token = NS_strtok(kNL, &c)) {
+            if (token[0] == '#')
+                continue;
+
+            mCompList.AppendElement(token);
+        }
+
+        return NS_OK;
+    }
+
+    ~ComponentsList() {
+        delete [] mCompString;
+    }
+
+    PRBool HasComponent(const char *name) {
+        return mCompList.Contains(name, ArrayCaseInsensitiveCStringComparator());
+    }
+
+    char *mCompString;
+    nsTArray<char*> mCompList;
+};
+
 nsresult
 nsComponentManagerImpl::AutoRegisterDirectory(nsIFile *inDirSpec,
                           nsCOMArray<nsILocalFile>    &aLeftovers,
                           nsTArray<DeferredModule>    &aDeferred)
 {
+    nsresult rv;
+
+    nsAutoPtr<ComponentsList> compList;
+    nsCOMPtr<nsIFile> compListFile;
+    inDirSpec->Clone(getter_AddRefs(compListFile));
+    if (compListFile) {
+        nsCOMPtr<nsILocalFile> lfComponentsList = do_QueryInterface(compListFile);
+        lfComponentsList->AppendNative(NS_LITERAL_CSTRING("components.list"));
+        PRFileDesc* fd;
+        if (NS_SUCCEEDED(lfComponentsList->OpenNSPRFileDesc(PR_RDONLY,
+                                                            0400, &fd)))
+        {
+            compList = new ComponentsList;
+            rv = compList->InitFromFile(fd);
+            PR_Close(fd);
+
+            if (NS_FAILED(rv))
+                compList = nsnull;
+        }
+    }
+
     nsCOMPtr<nsISimpleEnumerator> entries;
-    nsresult rv = inDirSpec->GetDirectoryEntries(getter_AddRefs(entries));
+    rv = inDirSpec->GetDirectoryEntries(getter_AddRefs(entries));
     if (NS_FAILED(rv))
         return rv;
 
@@ -2952,6 +3037,12 @@ nsComponentManagerImpl::AutoRegisterDirectory(nsIFile *inDirSpec,
         if (isDir)
             AutoRegisterDirectory(lf, aLeftovers, aDeferred);
         else {
+            if (compList) {
+                nsCAutoString leafName;
+                lf->GetNativeLeafName(leafName);
+                if (!compList->HasComponent(leafName.get()))
+                    continue;
+            }
             rv = AutoRegisterComponent(lf, aDeferred);
             if (NS_FAILED(rv))
                 aLeftovers.AppendObject(lf);

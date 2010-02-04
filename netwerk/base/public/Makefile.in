@@ -107,6 +107,7 @@ XPIDLSRCS	= \
 		nsIRequestObserverProxy.idl \
 		nsISecurityInfoProvider.idl \
 		nsIStreamListenerTee.idl \
+		nsIStreamListenerTee_1_9_2.idl \
 		nsISimpleStreamListener.idl \
 		nsIStreamTransportService.idl \
 		nsIStreamLoader.idl \

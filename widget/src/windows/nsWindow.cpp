@@ -1237,11 +1237,13 @@ void nsWindow::SetThemeRegion()
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
     
-    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), GetDC(mWnd), TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
+    HDC dc = ::GetDC(mWnd);
+    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), dc, TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
     if (hRgn) {
       if (!SetWindowRgn(mWnd, hRgn, false)) // do not delete or alter hRgn if accepted.
         DeleteObject(hRgn);
     }
+    ::ReleaseDC(mWnd, dc);
   }
 #endif
 }
@@ -1441,28 +1443,17 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       case nsSizeMode_Maximized :
         mode = SW_MAXIMIZE;
         break;
+
       case nsSizeMode_Minimized :
+        // Using SW_SHOWMINIMIZED prevents the working set from being trimmed but
+        // keeps the window active in the tray. So after the window is minimized,
+        // windows will fire WM_WINDOWPOSCHANGED (OnWindowPosChanged) at which point
+        // we will do some additional processing to get the active window set right.
+        // If sTrimOnMinimize is set, we let windows handle minimization normally
+        // using SW_MINIMIZE.
         mode = sTrimOnMinimize ? SW_MINIMIZE : SW_SHOWMINIMIZED;
-        if (!sTrimOnMinimize) {
-          // Find the next window that is enabled, visible, and not minimized.
-          HWND hwndBelow = ::GetNextWindow(mWnd, GW_HWNDNEXT);
-          while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
-                               ::IsIconic(hwndBelow))) {
-            hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
-          }
-
-          // Push ourselves to the bottom of the stack, then activate the
-          // next window.
-          ::SetWindowPos(mWnd, HWND_BOTTOM, 0, 0, 0, 0,
-                         SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
-          if (hwndBelow)
-            ::SetForegroundWindow(hwndBelow);
-
-          // Play the minimize sound while we're here, since that is also
-          // forgotten when we use SW_SHOWMINIMIZED.
-          ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
-        }
         break;
+
       default :
         mode = SW_RESTORE;
     }
@@ -1590,6 +1581,12 @@ NS_METHOD nsWindow::IsEnabled(PRBool *aState)
 NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 {
   if (mWnd) {
+#ifdef WINSTATE_DEBUG_OUTPUT
+    if (mWnd == GetTopLevelHWND(mWnd))
+      printf("*** SetFocus: [  top] raise=%d\n", aRaise);
+    else
+      printf("*** SetFocus: [child] raise=%d\n", aRaise);
+#endif
     // Uniconify, if necessary
     HWND toplevelWnd = GetTopLevelHWND(mWnd);
     if (aRaise && ::IsIconic(toplevelWnd)) {
@@ -2181,6 +2178,29 @@ HasDescendantWindowOutsideRect(DWORD aThisThreadID, HWND aWnd,
   return PR_FALSE;
 }
 
+static void
+InvalidateRgnInWindowSubtree(HWND aWnd, HRGN aRgn, HRGN aTmpRgn)
+{
+  RECT clientRect;
+  ::GetClientRect(aWnd, &clientRect);
+  ::SetRectRgn(aTmpRgn, clientRect.left, clientRect.top,
+               clientRect.right, clientRect.bottom);
+  if (::CombineRgn(aTmpRgn, aTmpRgn, aRgn, RGN_AND) == NULLREGION) {
+    return;
+  }
+
+  ::InvalidateRgn(aWnd, aTmpRgn, FALSE);
+
+  for (HWND child = ::GetWindow(aWnd, GW_CHILD); child;
+       child = ::GetWindow(child, GW_HWNDNEXT)) {
+    POINT pt = { 0, 0 };
+    ::MapWindowPoints(child, aWnd, &pt, 1);
+    ::OffsetRgn(aRgn, -pt.x, -pt.y);
+    InvalidateRgnInWindowSubtree(child, aRgn, aTmpRgn);
+    ::OffsetRgn(aRgn, pt.x, pt.y);
+  }
+}
+
 void
 nsWindow::Scroll(const nsIntPoint& aDelta,
                  const nsTArray<nsIntRect>& aDestRects,
@@ -2205,14 +2225,26 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
   }
 
+  // Create temporary regions
+  HRGN updateRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (!updateRgn) {
+    // OOM?
+    return;
+  }
+  HRGN destRgn = ::CreateRectRgn(0, 0, 0, 0);
+  if (!destRgn) {
+    // OOM?
+    ::DeleteObject((HGDIOBJ)updateRgn);
+    return;
+  }
+
   DWORD ourThreadID = GetWindowThreadProcessId(mWnd, NULL);
 
   for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
+    const nsIntRect& destRect = aDestRects[i];
     nsIntRect affectedRect;
-    affectedRect.UnionRect(aDestRects[i], aDestRects[i] - aDelta);
-    // We pass SW_INVALIDATE because areas that get scrolled into view
-    // from offscreen (but inside the scroll area) need to be repainted.
-    UINT flags = SW_SCROLLCHILDREN | SW_INVALIDATE;
+    affectedRect.UnionRect(destRect, destRect - aDelta);
+    UINT flags = SW_SCROLLCHILDREN;
     // Now check if any of our children would be affected by
     // SW_SCROLLCHILDREN but not supposed to scroll.
     for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
@@ -2256,21 +2288,6 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     }
 
     if (flags & SW_SCROLLCHILDREN) {
-      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration& configuration = aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-        // Widgets that will be scrolled by SW_SCROLLCHILDREN but which
-        // will be partly visible outside the scroll area after scrolling
-        // must be invalidated, because SW_SCROLLCHILDREN doesn't
-        // update parts of widgets outside the area it scrolled, even
-        // if it moved them.
-        if (w->mBounds.Intersects(affectedRect) &&
-            !ClipRegionContainedInRect(configuration.mClipRegion,
-                                       affectedRect - (w->mBounds.TopLeft() + aDelta))) {
-          w->Invalidate(PR_FALSE);
-        }
-      }
-
       // ScrollWindowEx will send WM_MOVE to each moved window to tell it
       // its new position. Unfortunately those messages don't reach our
       // WM_MOVE handler for some plugins, so we have to update their
@@ -2285,8 +2302,53 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     }
 
     RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
-    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, NULL, NULL, flags);
+    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
+
+    // Areas that get scrolled into view from offscreen or under another
+    // window (but inside the scroll area) need to be repainted.
+    // ScrollWindowEx returns those areas in updateRgn, but also includes
+    // the area of the source that isn't covered by the destination.
+    // ScrollWindowEx will refuse to blit into an area that's already
+    // invalid. When we're blitting multiple adjacent rectangles, we have
+    // a problem where the source area of rectangle A overlaps the
+    // destination area of a subsequent rectangle B; the first ScrollWindowEx
+    // invalidates the source area of A that's outside of the destination
+    // area of A, and then the ScrollWindowEx for B will refuse to fully
+    // blit into B's destination. This produces nasty temporary glitches.
+    // We combat this by having ScrollWindowEx not invalidate directly,
+    // but give us back the region that needs to be invalidated,
+    // and restricting that region to the destination before invalidating
+    // it.
+    ::SetRectRgn(destRgn, destRect.x, destRect.y, destRect.XMost(), destRect.YMost());
+    ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_AND);
+    if (flags & SW_SCROLLCHILDREN) {
+      for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
+           w = static_cast<nsWindow*>(w->GetNextSibling())) {
+        if ((w->mBounds - aDelta).Intersects(affectedRect)) {
+          // Widgets that have been scrolled by SW_SCROLLCHILDREN but which
+          // were, or are, partly outside the scroll area must be invalidated
+          // because SW_SCROLLCHILDREN doesn't update parts of widgets outside
+          // the area it scrolled, even if it moved them.
+          nsAutoTArray<nsIntRect,1> clipRegion;
+          w->GetWindowClipRegion(&clipRegion);
+          if (!ClipRegionContainedInRect(clipRegion,
+                                         destRect - w->mBounds.TopLeft()) ||
+              !ClipRegionContainedInRect(clipRegion,
+                                         destRect - (w->mBounds.TopLeft() - aDelta))) {
+            ::SetRectRgn(destRgn, w->mBounds.x, w->mBounds.y, w->mBounds.XMost(), w->mBounds.YMost());
+            ::CombineRgn(updateRgn, updateRgn, destRgn, RGN_OR);
+          }
+        }
+      }
+
+      InvalidateRgnInWindowSubtree(mWnd, updateRgn, destRgn);
+    } else {
+      ::InvalidateRgn(mWnd, updateRgn, FALSE);
+    }
   }
+
+  ::DeleteObject((HGDIOBJ)updateRgn);
+  ::DeleteObject((HGDIOBJ)destRgn);
 
   // Now make sure all children actually get positioned, sized and clipped
   // correctly. If SW_SCROLLCHILDREN already moved widgets to their correct
@@ -3038,6 +3100,12 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
 // nsIWidget managed windows.
 void nsWindow::DispatchPendingEvents()
 {
+  if (mPainting) {
+    NS_WARNING("We were asked to dispatch pending events during painting, "
+               "denying since that's unsafe.");
+    return;
+  }
+
   UpdateLastInputEventTime();
 
   // We need to ensure that reflow events do not get starved.
@@ -3341,10 +3409,23 @@ PRBool nsWindow::DispatchFocusToTopLevelWindow(PRUint32 aEventType)
     sJustGotActivate = PR_FALSE;
   sJustGotDeactivate = PR_FALSE;
 
-  // clear the flags, and retrieve the toplevel window. This way, it doesn't
-  // mattter what child widget received the focus event and it will always be
-  // fired at the toplevel window.
-  HWND toplevelWnd = GetTopLevelHWND(mWnd);
+  // retrive the toplevel window or dialog
+  HWND curWnd = mWnd;
+  HWND toplevelWnd = NULL;
+  while (curWnd) {
+    toplevelWnd = curWnd;
+
+    nsWindow *win = GetNSWindowPtr(curWnd);
+    if (win) {
+      nsWindowType wintype;
+      win->GetWindowType(wintype);
+      if (wintype == eWindowType_toplevel || wintype == eWindowType_dialog)
+        break;
+    }
+
+    curWnd = ::GetParent(curWnd); // Parent or owner (if has no parent)
+  }
+
   if (toplevelWnd) {
     nsWindow *win = GetNSWindowPtr(toplevelWnd);
     if (win)
@@ -4756,23 +4837,96 @@ BOOL nsWindow::OnInputLangChange(HKL aHKL)
   return PR_FALSE;   // always pass to child window
 }
 
+#if !defined(WINCE) // implemented in nsWindowCE.cpp
 void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
 {
   if (wp == nsnull)
     return;
 
-  // We only care about a resize, so filter out things like z-order
-  // changes. Note: there's a WM_MOVE handler above which is why we're
-  // not handling them here...
+#ifdef WINSTATE_DEBUG_OUTPUT
+  if (mWnd == GetTopLevelHWND(mWnd))
+    printf("*** OnWindowPosChanged: [  top] ");
+  else
+    printf("*** OnWindowPosChanged: [child] ");
+  printf("WINDOWPOS flags:");
+  if (wp->flags & SWP_FRAMECHANGED)
+    printf("SWP_FRAMECHANGED ");
+  if (wp->flags & SWP_SHOWWINDOW)
+    printf("SWP_SHOWWINDOW ");
+  if (wp->flags & SWP_NOSIZE)
+    printf("SWP_NOSIZE ");
+  if (wp->flags & SWP_HIDEWINDOW)
+    printf("SWP_HIDEWINDOW ");
+  printf("\n");
+#endif
+
+  // Handle window size mode changes
+  if (wp->flags & SWP_FRAMECHANGED) {
+    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
+
+    WINDOWPLACEMENT pl;
+    pl.length = sizeof(pl);
+    ::GetWindowPlacement(mWnd, &pl);
+
+    if (pl.showCmd == SW_SHOWMAXIMIZED)
+      event.mSizeMode = nsSizeMode_Maximized;
+    else if (pl.showCmd == SW_SHOWMINIMIZED)
+      event.mSizeMode = nsSizeMode_Minimized;
+    else
+      event.mSizeMode = nsSizeMode_Normal;
+
+    // Windows has just changed the size mode of this window. The following
+    // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
+    // set the min/max window state again or for nsSizeMode_Normal, call
+    // SetWindow with a parameter of SW_RESTORE. There's no need however as
+    // this window's mode has already changed. Updating mSizeMode here
+    // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
+    // to window docking. (bug 489258)
+    mSizeMode = event.mSizeMode;
+
+    // If !sTrimOnMinimize, we minimize windows using SW_SHOWMINIMIZED (See
+    // SetSizeMode for internal calls, and WM_SYSCOMMAND for external). This
+    // prevents the working set from being trimmed but keeps the window active.
+    // After the window is minimized, we need to do some touch up work on the
+    // active window. (bugs 76831 & 499816)
+    if (!sTrimOnMinimize && nsSizeMode_Minimized == event.mSizeMode)
+      ActivateOtherWindowHelper(mWnd);
+
+#ifdef WINSTATE_DEBUG_OUTPUT
+    switch (mSizeMode) {
+      case nsSizeMode_Normal:
+          printf("*** mSizeMode: nsSizeMode_Normal\n");
+        break;
+      case nsSizeMode_Minimized:
+          printf("*** mSizeMode: nsSizeMode_Minimized\n");
+        break;
+      case nsSizeMode_Maximized:
+          printf("*** mSizeMode: nsSizeMode_Maximized\n");
+        break;
+      default:
+          printf("*** mSizeMode: ??????\n");
+        break;
+    };
+#endif
+
+    InitEvent(event);
+
+    result = DispatchWindowEvent(&event);
+
+    // Skip window size change events below on minimization.
+    if (mSizeMode == nsSizeMode_Minimized)
+      return;
+  }
+
+  // Handle window size changes
   if (0 == (wp->flags & SWP_NOSIZE)) {
-    // XXX Why are we using the client size area? If the size notification
-    // is for the client area then the origin should be (0,0) and not
-    // the window origin in screen coordinates...
     RECT r;
-    ::GetWindowRect(mWnd, &r);
     PRInt32 newWidth, newHeight;
-    newWidth = PRInt32(r.right - r.left);
-    newHeight = PRInt32(r.bottom - r.top);
+
+    ::GetWindowRect(mWnd, &r);
+
+    newWidth  = r.right - r.left;
+    newHeight = r.bottom - r.top;
     nsIntRect rect(wp->x, wp->y, newWidth, newHeight);
 
 #ifdef MOZ_XUL
@@ -4784,88 +4938,79 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
     {
       RECT drect;
 
-      //getting wider
-      drect.left = wp->x + mLastSize.width;
-      drect.top = wp->y;
-      drect.right = drect.left + (newWidth - mLastSize.width);
+      // getting wider
+      drect.left   = wp->x + mLastSize.width;
+      drect.top    = wp->y;
+      drect.right  = drect.left + (newWidth - mLastSize.width);
       drect.bottom = drect.top + newHeight;
 
       ::RedrawWindow(mWnd, &drect, NULL,
-                     RDW_INVALIDATE | RDW_NOERASE | RDW_NOINTERNALPAINT | RDW_ERASENOW | RDW_ALLCHILDREN);
+                     RDW_INVALIDATE |
+                     RDW_NOERASE |
+                     RDW_NOINTERNALPAINT |
+                     RDW_ERASENOW |
+                     RDW_ALLCHILDREN);
     }
     if (newHeight > mLastSize.height)
     {
       RECT drect;
 
-      //getting taller
-      drect.left = wp->x;
-      drect.top = wp->y + mLastSize.height;
-      drect.right = drect.left + newWidth;
+      // getting taller
+      drect.left   = wp->x;
+      drect.top    = wp->y + mLastSize.height;
+      drect.right  = drect.left + newWidth;
       drect.bottom = drect.top + (newHeight - mLastSize.height);
 
       ::RedrawWindow(mWnd, &drect, NULL,
-                     RDW_INVALIDATE | RDW_NOERASE | RDW_NOINTERNALPAINT | RDW_ERASENOW | RDW_ALLCHILDREN);
+                     RDW_INVALIDATE |
+                     RDW_NOERASE |
+                     RDW_NOINTERNALPAINT |
+                     RDW_ERASENOW |
+                     RDW_ALLCHILDREN);
     }
 
-    mBounds.width  = newWidth;
-    mBounds.height = newHeight;
-    mLastSize.width = newWidth;
+    mBounds.width    = newWidth;
+    mBounds.height   = newHeight;
+    mLastSize.width  = newWidth;
     mLastSize.height = newHeight;
 
-    // If we're being minimized, don't send the resize event to Gecko because
-    // it will cause the scrollbar in the content area to go away and we'll
-    // forget the scroll position of the page.  Note that we need to check the
-    // toplevel window, because child windows seem to go to 0x0 on minimize.
-    HWND toplevelWnd = GetTopLevelHWND(mWnd);
-    if (mWnd == toplevelWnd && IsIconic(toplevelWnd)) {
-      result = PR_FALSE;
-      return;
-    }
+#ifdef WINSTATE_DEBUG_OUTPUT
+    printf("*** Resize window: %d x %d x %d x %d\n", wp->x, wp->y, newWidth, newHeight);
+#endif
 
-    // recalculate the width and height
-    // this time based on the client area
+    // Recalculate the width and height based on the client area for gecko events.
     if (::GetClientRect(mWnd, &r)) {
-      rect.width  = PRInt32(r.right - r.left);
-      rect.height = PRInt32(r.bottom - r.top);
+      rect.width  = r.right - r.left;
+      rect.height = r.bottom - r.top;
     }
+    
+    // Send a gecko resize event
     result = OnResize(rect);
   }
-
-  // handle size mode changes - (the framechanged message seems a handy
-  // place to hook in, because it happens early enough (WM_SIZE is too
-  // late) and because in testing it seems an accurate harbinger of an
-  // impending min/max/restore change (WM_NCCALCSIZE would also work,
-  // but it's also sent when merely resizing.))
-  if (wp->flags & SWP_FRAMECHANGED && ::IsWindowVisible(mWnd)) {
-    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
-#ifndef WINCE
-    WINDOWPLACEMENT pl;
-    pl.length = sizeof(pl);
-    ::GetWindowPlacement(mWnd, &pl);
-
-    if (pl.showCmd == SW_SHOWMAXIMIZED)
-      event.mSizeMode = nsSizeMode_Maximized;
-    else if (pl.showCmd == SW_SHOWMINIMIZED)
-      event.mSizeMode = nsSizeMode_Minimized;
-    else
-      event.mSizeMode = nsSizeMode_Normal;
-#else
-    event.mSizeMode = mSizeMode;
-#endif
-    // Windows has just changed the size mode of this window. The following
-    // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
-    // set the min/max window state again or for nsSizeMode_Normal, call
-    // SetWindow with a parameter of SW_RESTORE. There's no need however as
-    // this window's mode has already changed. Updating mSizeMode here
-    // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
-    // to window docking. (bug 489258)
-    mSizeMode = event.mSizeMode;
-
-    InitEvent(event);
-
-    result = DispatchWindowEvent(&event);
-  }
 }
+
+// static
+void nsWindow::ActivateOtherWindowHelper(HWND aWnd)
+{
+  // Find the next window that is enabled, visible, and not minimized.
+  HWND hwndBelow = ::GetNextWindow(aWnd, GW_HWNDNEXT);
+  while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
+                       ::IsIconic(hwndBelow))) {
+    hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
+  }
+
+  // Push ourselves to the bottom of the stack, then activate the
+  // next window.
+  ::SetWindowPos(aWnd, HWND_BOTTOM, 0, 0, 0, 0,
+                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
+  if (hwndBelow)
+    ::SetForegroundWindow(hwndBelow);
+
+  // Play the minimize sound while we're here, since that is also
+  // forgotten when we use SW_SHOWMINIMIZED.
+  ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
+}
+#endif // !defined(WINCE)
 
 #if !defined(WINCE)
 void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
@@ -5045,8 +5190,9 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
 
   // The mousewheel event will be dispatched to the toplevel
   // window.  We need to give it to the child window
-  if (!HandleScrollingPlugins(msg, wParam, lParam, result))
-    return result; // return immediately if its not our window
+  PRBool quit;
+  if (!HandleScrollingPlugins(msg, wParam, lParam, result, aRetValue, quit))
+    return quit; // return immediately if its not our window
 
   // We should cancel the surplus delta if the current window is not
   // same as previous.
@@ -5779,13 +5925,16 @@ void nsWindow::OnSettingsChange(WPARAM wParam, LPARAM lParam)
 
 // Scrolling helper function for handling plugins.  
 // Return value indicates whether the calling function should handle this
-// result indicates whether this was handled at all
+// aHandled indicates whether this was handled at all
+// aQuitProcessing tells whether or not to continue processing the message
 PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
-                                        LPARAM aLParam, PRBool& aHandled)
+                                        LPARAM aLParam, PRBool& aHandled,
+                                        LRESULT* aRetValue,
+                                        PRBool& aQuitProcessing)
 {
   // The scroll event will be dispatched to the toplevel
   // window.  We need to give it to the child window
-  aHandled = PR_FALSE; // default is to have not handled
+  aQuitProcessing = PR_FALSE; // default is to not stop processing
   POINT point;
   DWORD dwPoints = ::GetMessagePos();
   point.x = GET_X_LPARAM(dwPoints);
@@ -5825,7 +5974,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
 
   if (!destWnd) {
     // No window is under the pointer
-    return PR_FALSE; // break
+    return PR_FALSE; // break, but continue processing
   }
   // We don't care about windows belonging to other processes.
   DWORD processId = 0;
@@ -5833,7 +5982,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
   if (processId != GetCurrentProcessId())
   {
     // Somebody elses window
-    return PR_FALSE; // break
+    return PR_FALSE; // break, but continue processing
   }
   nsWindow* destWindow = GetNSWindowPtr(destWnd);
   if (!destWindow || destWindow->mWindowType == eWindowType_plugin) {
@@ -5869,7 +6018,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
           destWnd = nsnull;
           mInScrollProcessing = PR_FALSE;
         }
-        return PR_FALSE; // break; // stop parent search
+        return PR_FALSE; // break, but continue processing
       }
       parentWnd = ::GetParent(parentWnd);
     } // while parentWnd
@@ -5878,10 +6027,9 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
     return PR_FALSE;
   if (destWnd != mWnd) {
     if (destWindow) {
-      LRESULT aRetValue;
-      destWindow->ProcessMessage(aMsg, aWParam, aLParam, &aRetValue);
-      aHandled = PR_TRUE;
-      return PR_FALSE; // return result immediately
+      aHandled = destWindow->ProcessMessage(aMsg, aWParam, aLParam, aRetValue);
+      aQuitProcessing = PR_TRUE;
+      return PR_FALSE; // break, and stop processing
     }
   #ifdef DEBUG
     else
@@ -5897,10 +6045,11 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
   {
     // Scroll message generated by Thinkpad Trackpoint Driver or similar
     // Treat as a mousewheel message and scroll appropriately
+    PRBool quit, result;
+    LRESULT retVal;
 
-    PRBool result;
-    if (!HandleScrollingPlugins(aMsg, aWParam, aLParam, result))
-      return result;  // Return if it's not our message or has been dispatched
+    if (!HandleScrollingPlugins(aMsg, aWParam, aLParam, result, &retVal, quit))
+      return quit;  // Return if it's not our message or has been dispatched
 
     nsMouseScrollEvent scrollevent(PR_TRUE, NS_MOUSE_SCROLL, this);
     scrollevent.scrollFlags = (aMsg == WM_VSCROLL) 
@@ -6800,6 +6949,7 @@ void nsWindow::InitTrackPointHack()
   long lResult;
   const WCHAR wstrKeys[][40] = {L"Software\\Lenovo\\TrackPoint",
                                 L"Software\\Lenovo\\UltraNav",
+                                L"Software\\Alps\\Apoint\\TrackPoint",
                                 L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2"};    
   // If anything fails turn the hack off
   sTrackPointHack = false;

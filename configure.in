@@ -119,7 +119,7 @@ GLIB_VERSION=1.2.0
 LIBIDL_VERSION=0.6.3
 PERL_VERSION=5.006
 PYTHON_VERSION=2.4
-CAIRO_VERSION=1.6.0
+CAIRO_VERSION=1.8.8
 PANGO_VERSION=1.14.0
 GTK2_VERSION=2.10.0
 WINDRES_VERSION=2.14.90
@@ -272,18 +272,18 @@ case "$target" in
 
     ac_exeext=.exe
 
-    _pwdw=`pwd -W`
-    _pwd=`pwd`
-    make OGLES_SDK_DIR="$OGLES_SDK_DIR" WINCE_SDK_DIR="$WINCE_SDK_DIR" TOPSRCDIR="$_topsrcdir" OBJDIR="$_pwdw" -C $srcdir/build/wince/tools
+    _pwd=`pwd -W`
+    _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
+    make OGLES_SDK_DIR="$OGLES_SDK_DIR" WINCE_SDK_DIR="$WINCE_SDK_DIR" TOPSRCDIR="$_topsrcdirwin" OBJDIR="$_pwd" -C $srcdir/build/wince/tools
 
-    CC="$_pwd/dist/sdk/bin/arm-wince-gcc"
-    CXX="$_pwd/dist/sdk/bin/arm-wince-gcc"
-    CPP="$_pwd/dist/sdk/bin/arm-wince-gcc -E -nologo"
-    CXXCPP="$_pwd/dist/sdk/bin/arm-wince-gcc -TP -E -nologo"
-    LD="$_pwd/dist/sdk/bin/arm-wince-link"
-    AR="$_pwd/dist/sdk/bin/arm-wince-lib"
-    AS="$_pwd/dist/sdk/bin/arm-wince-as"
-    RC="$_pwd/dist/sdk/bin/arm-wince-res"
+    CC="$_pwd/dist/sdk/bin/arm-wince-gcc.exe"
+    CXX="$_pwd/dist/sdk/bin/arm-wince-gcc.exe"
+    CPP="$_pwd/dist/sdk/bin/arm-wince-gcc.exe -E -nologo"
+    CXXCPP="$_pwd/dist/sdk/bin/arm-wince-gcc.exe -TP -E -nologo"
+    LD="$_pwd/dist/sdk/bin/arm-wince-link.exe"
+    AR="$_pwd/dist/sdk/bin/arm-wince-lib.exe"
+    AS="$_pwd/dist/sdk/bin/arm-wince-as.exe"
+    RC="$_pwd/dist/sdk/bin/arm-wince-res.exe"
 
 
     echo -----------------------------------------------------------------------------
@@ -1336,12 +1336,24 @@ case "$OS_TEST" in
     CPU_ARCH=x86
     ;;
 
-powerpc* | ppc | rs6000)
+powerpc64 | ppc64)
+    CPU_ARCH=ppc64
+    ;;
+
+powerpc | ppc | rs6000)
     CPU_ARCH=ppc
     ;;
 
 Alpha | alpha | ALPHA)
     CPU_ARCH=Alpha
+    ;;
+
+s390)
+    CPU_ARCH=s390
+    ;;
+
+s390x)
+    CPU_ARCH=s390x
     ;;
 
 hppa* | parisc)
@@ -1985,7 +1997,8 @@ case "$target" in
 
 *-wince*)
     TARGET_COMPILER_ABI=msvc
-    MOZ_TOOLS_DIR=`echo $MOZ_TOOLS`
+    MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd -W`
+    MOZ_BUILD_ROOT=`cd $MOZ_BUILD_ROOT && pwd -W`
     AR_LIST="$AR -list"
     AR_EXTRACT="$AR -extract"
     AR_DELETE="$AR d"
@@ -4829,6 +4842,7 @@ cairo-gtk2|cairo-gtk2-x11)
 
     AC_DEFINE(MOZ_X11)
     MOZ_X11=1
+    USE_FC_FREETYPE=1
 
     TK_CFLAGS='$(MOZ_GTK2_CFLAGS)'
     TK_LIBS='$(MOZ_GTK2_LIBS)'
@@ -4862,6 +4876,7 @@ cairo-qt)
 
     AC_DEFINE(MOZ_X11)
     MOZ_X11=1
+    USE_FC_FREETYPE=1
 
     TK_CFLAGS='$(MOZ_QT_CFLAGS)'
     TK_LIBS='$(MOZ_QT_LIBS)'
@@ -4871,6 +4886,7 @@ cairo-qt)
 cairo-beos)
     MOZ_WIDGET_TOOLKIT=beos
     MOZ_GFX_TOOLKIT=cairo
+    USE_FC_FREETYPE=1
     TK_CFLAGS='$(MOZ_CAIRO_CFLAGS)'
     TK_LIBS='$(MOZ_CAIRO_LIBS)'
     ;;
@@ -4878,6 +4894,7 @@ cairo-beos)
 cairo-os2)
     MOZ_WIDGET_TOOLKIT=os2
     MOZ_GFX_TOOLKIT=cairo
+    USE_FC_FREETYPE=1
     TK_CFLAGS='$(MOZ_CAIRO_CFLAGS)'
     TK_LIBS='$(MOZ_CAIRO_LIBS)'
     ;;
@@ -5945,8 +5962,7 @@ fi
 dnl ========================================================
 dnl SMIL
 dnl ========================================================
-MOZ_SMIL=0
-MOZ_ARG_DISABLE_BOOL(smil,
+MOZ_ARG_ENABLE_BOOL(smil,
 [  --enable-smil           Enable SMIL animation support],
     MOZ_SMIL=1,
     MOZ_SMIL= )
@@ -6287,6 +6303,28 @@ MOZ_ARG_DISABLE_BOOL(zipwriter,
     MOZ_ZIPWRITER=1 )
 AC_SUBST(MOZ_ZIPWRITER)
 
+dnl ========================================================
+dnl = Disable libconic
+dnl ========================================================
+MOZ_ENABLE_LIBCONIC=1
+MOZ_ARG_DISABLE_BOOL(libconic,
+[  --disable-libconic              Disable libconic],
+    MOZ_ENABLE_LIBCONIC=,
+    MOZ_ENABLE_LIBCONIC=1 )
+
+if test -n "$MOZ_ENABLE_LIBCONIC"; then
+    PKG_CHECK_MODULES(LIBCONIC, conic,
+                      MOZ_ENABLE_LIBCONIC=1,
+                      MOZ_ENABLE_LIBCONIC=)
+fi
+if test "$MOZ_ENABLE_LIBCONIC"; then
+    AC_DEFINE(MOZ_ENABLE_LIBCONIC)
+fi
+
+AC_SUBST(MOZ_ENABLE_LIBCONIC)
+AC_SUBST(LIBCONIC_CFLAGS)
+AC_SUBST(LIBCONIC_LIBS)
+ 
 dnl ========================================================
 dnl = Hildon and OSSO checks
 dnl ========================================================
@@ -7619,7 +7657,6 @@ if test "$MOZ_TREE_CAIRO"; then
         PS_SURFACE_FEATURE="#define CAIRO_HAS_PS_SURFACE 1"
         PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
-        FC_FONT_FEATURE="#define CAIRO_HAS_FC_FONT 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="$FT2_CFLAGS"
     fi
@@ -7669,7 +7706,6 @@ if test "$MOZ_TREE_CAIRO"; then
     if test "$MOZ_WIDGET_TOOLKIT" = "os2"; then
         OS2_SURFACE_FEATURE="#define CAIRO_HAS_OS2_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
-        FC_FONT_FEATURE="#define CAIRO_HAS_FC_FONT 1"
         PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="-I${MZFTCFGFT2}/include"
@@ -7679,8 +7715,10 @@ if test "$MOZ_TREE_CAIRO"; then
         PKG_CHECK_MODULES(CAIRO_FT, fontconfig freetype2)
         BEOS_SURFACE_FEATURE="#define CAIRO_HAS_BEOS_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
-        FC_FONT_FEATURE="#define CAIRO_HAS_FC_FONT 1"
         MOZ_ENABLE_CAIRO_FT=1
+    fi
+    if test "$USE_FC_FREETYPE"; then
+        FC_FONT_FEATURE="#define CAIRO_HAS_FC_FONT 1"
     fi
     AC_SUBST(MOZ_ENABLE_CAIRO_FT)
     AC_SUBST(CAIRO_FT_CFLAGS)
@@ -7897,14 +7935,10 @@ dnl
 dnl Build jsctypes on the platforms we can.
 dnl
 AC_SUBST(BUILD_CTYPES)
-case "$OS_TEST" in
-arm*)
-  ;;
-*)
+if test "$OS_TARGET" != "WINCE" -o `echo $OS_TEST | grep -ic arm` != 1; then
   BUILD_CTYPES=1
   AC_DEFINE(BUILD_CTYPES)
-  ;;
-esac
+fi
 
 dnl NECKO_ configuration options are not global
 _NON_GLOBAL_ACDEFINES="$_NON_GLOBAL_ACDEFINES NECKO_"
@@ -8239,6 +8273,18 @@ if test "$MOZ_X11"; then
 fi # MOZ_X11
 fi # COMPILE_ENVIRONMENT
 
+if test "$USE_FC_FREETYPE"; then
+    if test "$COMPILE_ENVIRONMENT"; then
+    	_SAVE_CPPFLAGS="$CPPFLAGS"
+    	CPPFLAGS="$CPPFLAGS $FT2_CFLAGS $XCFLAGS"
+        AC_CHECK_HEADERS(fontconfig/fcfreetype.h, , 
+            [AC_MSG_ERROR(Can't find header fontconfig/fcfreetype.h.)])
+    	CPPFLAGS="$_SAVE_CPPFLAGS"
+    else
+        AC_DEFINE(HAVE_FONTCONFIG_FCFREETYPE_H)
+    fi
+fi
+
 dnl Set various defines and substitutions
 dnl ========================================================
 
@@ -8522,7 +8568,16 @@ if test "$BUILD_CTYPES"; then
     if test -n "$CROSS_COMPILE"; then
       ac_configure_args="$ac_configure_args --build=$build --host=$target"
     fi
-    AC_OUTPUT_SUBDIRS(js/ctypes/libffi)
+    if test "$SOLARIS_SUNPRO_CC"; then
+      # Always use gcc for libffi on Solaris
+      old_cache_file=$cache_file
+      cache_file=js/ctypes/libffi/config.cache
+      ac_configure_args="$ac_configure_args CC=gcc"
+      AC_OUTPUT_SUBDIRS(js/ctypes/libffi)
+      cache_file=$old_cache_file
+    else
+      AC_OUTPUT_SUBDIRS(js/ctypes/libffi)
+    fi
     ac_configure_args="$_SUBDIR_CONFIG_ARGS"
   fi
 fi
