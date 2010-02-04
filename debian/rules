@@ -175,7 +175,7 @@ install-stamp: build-stamp
 		debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
 # Add Debian package version to preferences
-	echo "pref(\"general.useragent.extra.firefoxComment\",\"(like Firefox/$(UPSTREAM_VERSION); Debian-$(DEBIAN_VERSION))\");" \
+	echo "pref(\"general.useragent.extra.firefoxComment\",\"(like Firefox/$(UPSTREAM_VERSION))\");" \
 		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
 	sed -i 's/\(MinVersion=1.9.1\).*/\1/;s/\(MaxVersion=1.9.1\).*/\1.*/' debian/iceweasel/usr/lib/iceweasel/application.ini
