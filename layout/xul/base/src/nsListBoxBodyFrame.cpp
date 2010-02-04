@@ -1233,9 +1233,16 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
       // There is a content node that wants a frame.
       nsIContent *nextContent = parentContent->GetChildAt(i + aOffset + 1);
 
+      if (!nextContent->IsNodeOfType(nsINode::eXUL) ||
+          nextContent->Tag() != nsGkAtoms::listitem)
+        return GetNextItemBox(aBox, ++aOffset, aCreated);
+
       nsPresContext* presContext = PresContext();
       nsIFrame* existingFrame =
         presContext->GetPresShell()->GetPrimaryFrameFor(nextContent);
+
+      if (existingFrame && existingFrame->GetParent() != this)
+        return GetNextItemBox(aBox, ++aOffset, aCreated);
 
       if (!existingFrame) {
         // Either append the new frame, or insert it after the current frame
@@ -1263,6 +1270,9 @@ nsListBoxBodyFrame::GetNextItemBox(nsIBox* aBox, PRInt32 aOffset,
     return nsnull;
 
   mBottomFrame = result;
+
+  NS_ASSERTION(!result->IsBoxFrame() || result->GetParent() == this,
+               "returning frame that is not in childlist");
 
   return result->IsBoxFrame() ? result : nsnull;
 }
@@ -1510,16 +1520,21 @@ void
 nsListBoxBodyFrame::RemoveChildFrame(nsBoxLayoutState &aState,
                                      nsIFrame         *aFrame)
 {
+  if (!mFrames.ContainsFrame(aFrame)) {
+    NS_ERROR("tried to remove a child frame which isn't our child");
+    return;
+  }
+
+  if (aFrame == GetContentInsertionFrame()) {
+    // Don't touch that one
+    return;
+  }
+  
   nsPresContext* presContext = PresContext();
   nsCSSFrameConstructor* fc = presContext->PresShell()->FrameConstructor();
   fc->RemoveMappingsForFrameSubtree(aFrame);
 
-#ifdef DEBUG
-  PRBool removed =
-#endif
-    mFrames.RemoveFrame(aFrame);
-  NS_ASSERTION(removed,
-               "Going to destroy a frame we didn't remove.  Prepare to crash");
+  mFrames.RemoveFrame(aFrame);
   if (mLayoutManager)
     mLayoutManager->ChildrenRemoved(this, aState, aFrame);
   aFrame->Destroy();

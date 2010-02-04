@@ -81,6 +81,34 @@ extern "C" {
 - (int)_realControlTint { return [self controlTint]; }
 @end
 
+// The purpose of this class is to provide objects that can be used when drawing
+// NSCells using drawWithFrame:inView: without causing any harm. The only
+// messages that will be sent to such an object are "isFlipped" and
+// "currentEditor": isFlipped needs to return YES in order to avoid drawing bugs
+// on 10.4 (see bug 465069); currentEditor (which isn't even a method of
+// NSView) will be called when drawing search fields, and we only provide it in
+// order to prevent "unrecognized selector" exceptions.
+// There's no need to pass the actual NSView that we're drawing into to
+// drawWithFrame:inView:. What's more, doing so even causes unnecessary
+// invalidations as soon as we draw a focusring!
+@interface CellDrawView : NSView
+
+@end;
+
+@implementation CellDrawView
+
+- (BOOL)isFlipped
+{
+  return YES;
+}
+
+- (NSText*)currentEditor
+{
+  return nil;
+}
+
+@end
+
 static void DrawFocusRing(NSRect rect, float radius)
 {
   NSSetFocusRingStyle(NSFocusRingOnly);
@@ -171,18 +199,6 @@ static void InflateControlRect(NSRect* rect, NSControlSize cocoaControlSize, con
   rect->size.height += buttonMargins[bottomMargin] + buttonMargins[topMargin];
 }
 
-static NSView* NativeViewForFrame(nsIFrame* aFrame)
-{
-  if (!aFrame)
-    return nil;  
-
-  nsIWidget* widget = aFrame->GetWindow();
-  if (!widget)
-    return nil;
-
-  return (NSView*)widget->GetNativeData(NS_NATIVE_WIDGET);
-}
-
 static NSWindow* NativeWindowForFrame(nsIFrame* aFrame, int* aLevelsUp = NULL,
                                       nsIWidget** aTopLevelWidget = NULL)
 {
@@ -248,6 +264,8 @@ nsNativeThemeCocoa::nsNativeThemeCocoa()
   [mComboBoxCell setEditable:YES];
   [mComboBoxCell setFocusRingType:NSFocusRingTypeExterior];
 
+  mCellDrawView = [[CellDrawView alloc] init];
+
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -261,6 +279,7 @@ nsNativeThemeCocoa::~nsNativeThemeCocoa()
   [mSearchFieldCell release];
   [mDropdownCell release];
   [mComboBoxCell release];
+  [mCellDrawView release];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -615,9 +634,7 @@ nsNativeThemeCocoa::DrawCheckboxOrRadio(CGContextRef cgContext, PRBool inCheckbo
 
   DrawCellWithSnapping(cell, cgContext, drawRect,
                        inCheckbox ? checkboxSettings : radioSettings,
-                       VerticalAlignFactor(aFrame),
-                       NativeViewForFrame(aFrame),
-                       NO);
+                       VerticalAlignFactor(aFrame), mCellDrawView, NO);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -658,7 +675,7 @@ nsNativeThemeCocoa::DrawSearchField(CGContextRef cgContext, const HIRect& inBoxR
   [cell setShowsFirstResponder:IsFocused(aFrame)];
 
   DrawCellWithSnapping(cell, cgContext, inBoxRect, searchFieldSettings,
-                       VerticalAlignFactor(aFrame), NativeViewForFrame(aFrame),
+                       VerticalAlignFactor(aFrame), mCellDrawView,
                        IsFrameRTL(aFrame));
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -717,12 +734,12 @@ nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRe
     [mPushButtonCell setBezelStyle:NSShadowlessSquareBezelStyle];
     DrawCellWithScaling(mPushButtonCell, cgContext, inBoxRect, NSRegularControlSize,
                         NSZeroSize, NSMakeSize(14, 0), NULL,
-                        NativeViewForFrame(aFrame), IsFrameRTL(aFrame));
+                        mCellDrawView, IsFrameRTL(aFrame));
   } else {
     [mPushButtonCell setBezelStyle:NSRoundedBezelStyle];
 
     DrawCellWithSnapping(mPushButtonCell, cgContext, inBoxRect, pushButtonSettings,
-                         0.5f, NativeViewForFrame(aFrame), IsFrameRTL(aFrame), 1.0f);
+                         0.5f, mCellDrawView, IsFrameRTL(aFrame), 1.0f);
   }
 
 #if DRAW_IN_FRAME_DEBUG
@@ -865,7 +882,7 @@ nsNativeThemeCocoa::DrawDropdown(CGContextRef cgContext, const HIRect& inBoxRect
 
   const CellRenderSettings& settings = aIsEditable ? editableMenulistSettings : dropdownSettings;
   DrawCellWithSnapping(cell, cgContext, inBoxRect, settings,
-                       0.5f, NativeViewForFrame(aFrame), IsFrameRTL(aFrame));
+                       0.5f, mCellDrawView, IsFrameRTL(aFrame));
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -1341,7 +1358,7 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
     [(ToolbarWindow*)win setUnifiedToolbarHeight:inBoxRect.size.height];
   }
   
-  BOOL isMain = win ? [win isMainWindow] : YES;
+  BOOL isMain = [win isMainWindow] || ![NSView focusView];
 
   // Draw the gradient
   UnifiedGradientInfo info = { titlebarHeight, inBoxRect.size.height, isMain, NO };
@@ -1361,9 +1378,10 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
   CGShadingRelease(shading);
 
   // Draw the border at the bottom of the toolbar.
-  [NativeGreyColorAsNSColor(headerBorderGrey, isMain) set];
-  NSRectFill(NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y +
-                        inBoxRect.size.height - 1.0f, inBoxRect.size.width, 1.0f));
+  CGRect borderRect = CGRectMake(inBoxRect.origin.x, inBoxRect.origin.y +
+                                 inBoxRect.size.height - 1.0f,
+                                 inBoxRect.size.width, 1.0f);
+  DrawNativeGreyColorInRect(cgContext, headerBorderGrey, borderRect, isMain);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -1419,15 +1437,14 @@ nsNativeThemeCocoa::DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRec
   if (inBoxRect.size.height < 2.0f)
     return;
 
-  BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow];
+  BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow] || ![NSView focusView];
 
   // Draw the borders at the top of the statusbar.
-  [NativeGreyColorAsNSColor(statusbarFirstTopBorderGrey, isMain) set];
-  NSRectFill(NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y,
-                        inBoxRect.size.width, 1.0f));
-  [NativeGreyColorAsNSColor(statusbarSecondTopBorderGrey, isMain) set];
-  NSRectFill(NSMakeRect(inBoxRect.origin.x, inBoxRect.origin.y + 1.0f,
-                        inBoxRect.size.width, 1.0f));
+  CGRect rect = CGRectMake(inBoxRect.origin.x, inBoxRect.origin.y,
+                           inBoxRect.size.width, 1.0f);
+  DrawNativeGreyColorInRect(cgContext, statusbarFirstTopBorderGrey, rect, isMain);
+  rect.origin.y += 1.0f;
+  DrawNativeGreyColorInRect(cgContext, statusbarSecondTopBorderGrey, rect, isMain);
 
   // Draw the gradient.
   DrawGreyGradient(cgContext, CGRectMake(inBoxRect.origin.x, inBoxRect.origin.y + 2.0f,
@@ -1620,22 +1637,22 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       break;
 
     case NS_THEME_TOOLBAR: {
-      BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow];
+      BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow] || ![NSView focusView];
+      CGRect drawRect = macRect;
 
       // top border
-      [NativeGreyColorAsNSColor(toolbarTopBorderGrey, isMain) set];
-      NSRectFill(NSMakeRect(macRect.origin.x, macRect.origin.y,
-                            macRect.size.width, 1.0f));
+      drawRect.size.height = 1.0f;
+      DrawNativeGreyColorInRect(cgContext, toolbarTopBorderGrey, drawRect, isMain);
 
       // background
-      [NativeGreyColorAsNSColor(headerEndGrey, isMain) set];
-      NSRectFill(NSMakeRect(macRect.origin.x, macRect.origin.y + 1.0f,
-                            macRect.size.width, macRect.size.height - 2.0f));
+      drawRect.origin.y += drawRect.size.height;
+      drawRect.size.height = macRect.size.height - 2.0f;
+      DrawNativeGreyColorInRect(cgContext, headerEndGrey, drawRect, isMain);
 
       // bottom border
-      [NativeGreyColorAsNSColor(headerBorderGrey, isMain) set];
-      NSRectFill(NSMakeRect(macRect.origin.x, macRect.origin.y +
-                            macRect.size.height - 1.0f, macRect.size.width, 1.0f));
+      drawRect.origin.y += drawRect.size.height;
+      drawRect.size.height = 1.0f;
+      DrawNativeGreyColorInRect(cgContext, headerBorderGrey, drawRect, isMain);
     }
       break;
 
@@ -2030,6 +2047,9 @@ nsNativeThemeCocoa::GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFra
 }
 
 
+static const PRInt32 kRegularScrollbarThumbMinSize = 22;
+static const PRInt32 kSmallScrollbarThumbMinSize = 19;
+
 NS_IMETHODIMP
 nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                          nsIFrame* aFrame,
@@ -2141,47 +2161,19 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
       break;
     }
 
-    // Get the rect of the thumb from HITheme, so we can return it to Gecko, which has different ideas about
-    // how big the thumb should be. This is kind of a hack.
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL:
     case NS_THEME_SCROLLBAR_THUMB_VERTICAL:
     {
-      // Find our parent scrollbar frame. If we can't, abort.
+      // Find our parent scrollbar frame in order to find out whether we're in
+      // a small or a large scrollbar.
       nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
-      if (!scrollbarFrame) return NS_ERROR_FAILURE;
+      if (!scrollbarFrame)
+        return NS_ERROR_FAILURE;
 
-      nsRect scrollbarRect = scrollbarFrame->GetRect();      
-      *aIsOverridable = PR_FALSE;
-
-      if (scrollbarRect.IsEmpty()) {
-        // just return (0,0)
-        return NS_OK;
-      }
-
-      // We need to get the device context to convert from app units :(
-      nsCOMPtr<nsIDeviceContext> dctx;
-      aContext->GetDeviceContext(*getter_AddRefs(dctx));
-      PRInt32 p2a = dctx->AppUnitsPerDevPixel();
-      CGRect macRect = CGRectMake(NSAppUnitsToIntPixels(scrollbarRect.x, p2a),
-                                  NSAppUnitsToIntPixels(scrollbarRect.y, p2a),
-                                  NSAppUnitsToIntPixels(scrollbarRect.width, p2a),
-                                  NSAppUnitsToIntPixels(scrollbarRect.height, p2a));
-
-      // False here means not to get scrollbar button state information.
-      HIThemeTrackDrawInfo tdi;
-      GetScrollbarDrawInfo(tdi, scrollbarFrame, macRect, PR_FALSE);
-
-      HIRect thumbRect;
-      ::HIThemeGetTrackPartBounds(&tdi, kControlIndicatorPart, &thumbRect);
-
-      // HITheme is just lying to us, I guess...
-      PRInt32 thumbAdjust = ((scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL) ?
-                             2 : 4);
-
-      if (aWidgetType == NS_THEME_SCROLLBAR_THUMB_VERTICAL)
-        aResult->SizeTo(nscoord(thumbRect.size.width), nscoord(thumbRect.size.height - thumbAdjust));
-      else
-        aResult->SizeTo(nscoord(thumbRect.size.width - thumbAdjust), nscoord(thumbRect.size.height));
+      PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
+      PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_THUMB_HORIZONTAL);
+      PRInt32& minSize = isHorizontal ? aResult->width : aResult->height;
+      minSize = isSmall ? kSmallScrollbarThumbMinSize : kRegularScrollbarThumbMinSize;
       break;
     }
 

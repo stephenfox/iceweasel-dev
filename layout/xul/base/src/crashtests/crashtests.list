@@ -41,6 +41,7 @@ load 398326-1.xhtml
 load 402912-1.xhtml
 load 408904-1.xul
 load 412479-1.xhtml
+load 415394-1.xhtml
 load 430356-1.xhtml
 load 431738.xhtml
 load 433296-1.xul
@@ -49,3 +50,4 @@ load 467481-1.xul
 skip load 470063-1.html
 load 432068-1.xul
 load 432068-2.xul
+load 488210-1.xhtml

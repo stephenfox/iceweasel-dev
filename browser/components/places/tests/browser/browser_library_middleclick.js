@@ -250,7 +250,6 @@ gTests.push({
 
 function test() {
   waitForExplicitFinish();
-  dump("Starting test browser_library_middleclick.js\n");
 
   // Sanity checks.
   ok(PlacesUtils, "PlacesUtils in context");
@@ -297,8 +296,7 @@ function runNextTest() {
   if (gTests.length > 0) {
     // Goto next test.
     gCurrentTest = gTests.shift();
-    ok(true, "*** TEST: " + gCurrentTest.desc);
-    dump("*** TEST: " + gCurrentTest.desc + "\n");
+    info("Start of test: " + gCurrentTest.desc);
     // Test setup will set Library so that the bookmark to be opened is the
     // first node in the content (right pane) tree.
     gCurrentTest.setup();

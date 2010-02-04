@@ -8227,7 +8227,9 @@ nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
                                                   PRBool aPrevSibling)
 {
   nsIFrame* sibling = mPresShell->GetPrimaryFrameFor(aContent);
-  if (!sibling) {
+  if (!sibling || sibling->GetContent() != aContent) {
+    // XXX the GetContent() != aContent check is needed due to bug 135040.
+    // Remove it once that's fixed.
     return nsnull;
   }
 
@@ -9004,7 +9006,16 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
       // Get the correct parentFrame and prevSibling - if a
       // letter-frame is present, use its parent.
       if (parentFrame->GetType() == nsGkAtoms::letterFrame) {
-        parentFrame = parentFrame->GetParent();
+        // If parentFrame is out of flow, then we actually want the parent of
+        // the placeholder frame.
+        if (parentFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
+          nsPlaceholderFrame* placeholderFrame =
+            state.mFrameManager->GetPlaceholderFrameFor(parentFrame);
+          NS_ASSERTION(placeholderFrame, "No placeholder for out-of-flow?");
+          parentFrame = placeholderFrame->GetParent();
+        } else {
+          parentFrame = parentFrame->GetParent();
+        }
         container = parentFrame->GetContent();
       }
 
@@ -13629,6 +13640,7 @@ nsCSSFrameConstructor::LazyGenerateChildrenEvent::Run()
   // this is hard-coded to handle only menu popup frames
   nsIFrame* frame = mPresShell->GetPrimaryFrameFor(mContent);
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
+    nsWeakFrame weakFrame(frame);
 #ifdef MOZ_XUL
     // it is possible that the frame is different than the one that requested
     // the lazy generation, but as long as it's a popup frame that hasn't
@@ -13666,7 +13678,7 @@ nsCSSFrameConstructor::LazyGenerateChildrenEvent::Run()
       fc->EndUpdate();
     }
 
-    if (mCallback)
+    if (mCallback && weakFrame.IsAlive())
       mCallback(mContent, frame, mArg);
 
     // call XBL constructors after the frames are created

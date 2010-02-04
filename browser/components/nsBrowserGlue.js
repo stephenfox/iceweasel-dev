@@ -99,6 +99,11 @@ function BrowserGlue() {
                                    getService(Ci.nsIObserverService);
   });
 
+  this.__defineGetter__("_distributionCustomizer", function() {
+    delete this._distributionCustomizer;
+    return this._distributionCustomizer = new DistributionCustomizer()
+  });
+
   this._init();
 }
 
@@ -161,6 +166,10 @@ BrowserGlue.prototype = {
         this._observerService.removeObserver(this, "places-init-complete");
         // no longer needed, since history was initialized completely.
         this._observerService.removeObserver(this, "places-database-locked");
+
+        // Now apply distribution customized bookmarks.
+        // This should always run after Places initialization.
+        this._distributionCustomizer.applyBookmarks();
         break;
       case "places-database-locked":
         this._isPlacesDatabaseLocked = true;
@@ -173,6 +182,12 @@ BrowserGlue.prototype = {
           // Back up bookmarks.
           this._archiveBookmarks();
         }
+        break;
+      case "distribution-customization-complete":
+        this._observerService
+            .removeObserver(this, "distribution-customization-complete");
+        // Customization has finished, we don't need the customizer anymore.
+        delete this._distributionCustomizer;
         break;
     }
   }, 
@@ -192,6 +207,7 @@ BrowserGlue.prototype = {
     osvr.addObserver(this, "session-save", false);
     osvr.addObserver(this, "places-init-complete", false);
     osvr.addObserver(this, "places-database-locked", false);
+    osvr.addObserver(this, "distribution-customization-complete", false);
   },
 
   // cleanup (called on application shutdown)
@@ -213,8 +229,7 @@ BrowserGlue.prototype = {
   {
     // apply distribution customizations (prefs)
     // other customizations are applied in _onProfileStartup()
-    var distro = new DistributionCustomizer();
-    distro.applyPrefDefaults();
+    this._distributionCustomizer.applyPrefDefaults();
   },
 
   // profile startup handler (contains profile initialization routines)
@@ -233,8 +248,7 @@ BrowserGlue.prototype = {
 
     // apply distribution customizations
     // prefs are applied in _onAppDefaults()
-    var distro = new DistributionCustomizer();
-    distro.applyCustomizations();
+    this._distributionCustomizer.applyCustomizations();
 
     // handle any UI migration
     this._migrateUI();
@@ -1069,8 +1083,9 @@ GeolocationPrompt.prototype = {
       var buttons = [{
               label: browserBundle.GetStringFromName("geolocation.shareLocation"),
               accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-              callback: function(notification) {                  
-                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
+              callback: function(notification) {
+                  var elements = notification.getElementsByClassName("rememberChoice");
+                  if (elements.length && elements[0].checked)
                       setPagePermission(request.requestingURI, true);
                   request.allow(); 
               },
@@ -1079,7 +1094,8 @@ GeolocationPrompt.prototype = {
               label: browserBundle.GetStringFromName("geolocation.dontShareLocation"),
               accessKey: browserBundle.GetStringFromName("geolocation.dontShareLocation.accesskey"),
               callback: function(notification) {
-                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
+                  var elements = notification.getElementsByClassName("rememberChoice");
+                  if (elements.length && elements[0].checked)
                       setPagePermission(request.requestingURI, false);
                   request.cancel();
               },
@@ -1100,10 +1116,16 @@ GeolocationPrompt.prototype = {
       // bar.
       function geolocation_hacks_to_notification () {
 
-        var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
-        checkbox.className = "rememberChoice";
-        checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
-        newBar.appendChild(checkbox);
+        // Never show a remember checkbox inside the private browsing mode
+        var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                                getService(Ci.nsIPrivateBrowsingService).
+                                privateBrowsingEnabled;
+        if (!inPrivateBrowsing) {
+          var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
+          checkbox.className = "rememberChoice";
+          checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
+          newBar.appendChild(checkbox);
+        }
 
         var link = newBar.ownerDocument.createElementNS(XULNS, "label");
         link.className = "text-link";

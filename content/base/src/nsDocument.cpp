@@ -152,6 +152,7 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "nsIDOMXPathEvaluator.h"
 #include "nsDOMCID.h"
 
+#include "jsapi.h"
 #include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
 #include "nsCycleCollector.h"
@@ -306,6 +307,13 @@ nsIdentifierMapEntry::~nsIdentifierMapEntry()
   if (mNameContentList && mNameContentList != NAME_NOT_VALID) {
     NS_RELEASE(mNameContentList);
   }
+
+  if (mIdContentList.Count() != 1 || mIdContentList[0] != ID_NOT_IN_DOCUMENT) {
+    for (PRInt32 i = 0; i < mIdContentList.Count(); ++i) {
+      nsIContent* content = static_cast<nsIContent*>(mIdContentList[i]);
+      NS_RELEASE(content);
+    }
+  }
 }
 
 void
@@ -319,6 +327,14 @@ nsIdentifierMapEntry::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback, "mIdentifierMap mDocAllList");
   aCallback->NoteXPCOMChild(static_cast<nsIDOMNodeList*>(mDocAllList));
+
+  if (mIdContentList.Count() != 1 || mIdContentList[0] != ID_NOT_IN_DOCUMENT) {
+    for (PRInt32 i = 0; i < mIdContentList.Count(); ++i) {
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
+                                         "mIdentifierMap mIdContentList element");
+      aCallback->NoteXPCOMChild(static_cast<nsIContent*>(mIdContentList[i]));
+    }
+  }
 }
 
 void
@@ -425,6 +441,7 @@ nsIdentifierMapEntry::AddIdContent(nsIContent* aContent)
   if (currentContent == ID_NOT_IN_DOCUMENT) {
     NS_ASSERTION(mIdContentList.Count() == 1, "Bogus count");
     mIdContentList.ReplaceElementAt(aContent, 0);
+    NS_ADDREF(aContent);
     FireChangeCallbacks(nsnull, aContent);
     return PR_TRUE;
   }
@@ -433,6 +450,7 @@ nsIdentifierMapEntry::AddIdContent(nsIContent* aContent)
   if (mIdContentList.Count() == 0) {
     if (!mIdContentList.AppendElement(aContent))
       return PR_FALSE;
+    NS_ADDREF(aContent);
     FireChangeCallbacks(nsnull, aContent);
     return PR_TRUE;
   }
@@ -463,6 +481,7 @@ nsIdentifierMapEntry::AddIdContent(nsIContent* aContent)
 
   if (!mIdContentList.InsertElementAt(aContent, start))
     return PR_FALSE;
+  NS_ADDREF(aContent);
   if (start == 0) {
     FireChangeCallbacks(currentContent, aContent);
   }
@@ -484,6 +503,9 @@ nsIdentifierMapEntry::RemoveIdContent(nsIContent* aContent)
     FireChangeCallbacks(currentContent,
                         static_cast<nsIContent*>(mIdContentList.SafeElementAt(0)));
   }
+  // Make sure the release happens after the check above, since it'll
+  // null out aContent.
+  NS_RELEASE(aContent);
   return mIdContentList.Count() == 0 && !mNameContentList && !mChangeCallbacks;
 }
 
@@ -3561,6 +3583,33 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
     // Go back to using the docshell for the layout history state
     mLayoutHistoryState = nsnull;
     mScopeObject = do_GetWeakReference(aScriptGlobalObject);
+
+#ifdef DEBUG
+    // We really shouldn't have a wrapper here but if we do we need to make sure
+    // it has the correct parent.
+    nsIXPConnectWrappedNative *wrapper =
+      static_cast<nsIXPConnectWrappedNative*>(GetWrapper());
+    if (wrapper) {
+      JSObject *obj = nsnull;
+      wrapper->GetJSObject(&obj);
+      if (obj) {
+        JSObject *newScope = aScriptGlobalObject->GetGlobalJSObject();
+        nsIScriptContext *scx = aScriptGlobalObject->GetContext();
+        JSContext *cx = scx ? (JSContext *)scx->GetNativeContext() : nsnull;
+        if (!cx) {
+          nsContentUtils::ThreadJSContextStack()->Peek(&cx);
+          if (!cx) {
+            nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
+            NS_ASSERTION(cx, "Uhoh, no context, this is bad!");
+          }
+        }
+        if (cx) {
+          NS_ASSERTION(JS_GetGlobalForObject(cx, obj) == newScope,
+                       "Wrong scope, this is really bad!");
+        }
+      }
+    }
+#endif
 
     if (mAllowDNSPrefetch) {
       nsCOMPtr<nsIDocShell_MOZILLA_1_9_1_dns> docShell =
@@ -6951,6 +7000,10 @@ nsDocument::Destroy()
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
   ReleaseWrapper();
+
+  // Try really really hard to make sure we don't leak things through
+  // mIdentifierMap
+  mIdentifierMap.Clear();
 }
 
 void

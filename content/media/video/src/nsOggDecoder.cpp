@@ -58,10 +58,12 @@ using mozilla::TimeStamp;
 
 /* 
    The maximum height and width of the video. Used for
-   sanitizing the memory allocation of the RGB buffer
+   sanitizing the memory allocation of the RGB buffer.
+   The maximum resolution we anticipate encountering in the
+   wild is 2160p - 3840x2160 pixels.
 */
-#define MAX_VIDEO_WIDTH  2000
-#define MAX_VIDEO_HEIGHT 2000
+#define MAX_VIDEO_WIDTH  4000
+#define MAX_VIDEO_HEIGHT 3000
 
 // The number of entries in oggplay buffer list. This value
 // is the one used by the oggplay examples.
@@ -852,11 +854,11 @@ void nsOggDecodeStateMachine::HandleVideoData(FrameData* aFrame, int aTrackNum, 
   if (!aVideoHeader)
     return;
 
-  int y_width;
-  int y_height;
+  int y_width = 0;
+  int y_height = 0;
   oggplay_get_video_y_size(mPlayer, aTrackNum, &y_width, &y_height);
-  int uv_width;
-  int uv_height;
+  int uv_width = 0;
+  int uv_height = 0;
   oggplay_get_video_uv_size(mPlayer, aTrackNum, &uv_width, &uv_height);
 
   if (y_width >= MAX_VIDEO_WIDTH || y_height >= MAX_VIDEO_HEIGHT) {
@@ -1638,15 +1640,17 @@ nsresult nsOggDecodeStateMachine::Run()
         // if we need to seek again.
         LOG(PR_LOG_DEBUG, ("Changed state from SEEKING (to %f) to DECODING", seekTime));
         mState = DECODER_STATE_DECODING;
-        mon.NotifyAll();
-
-        mon.Exit();
         nsCOMPtr<nsIRunnable> stopEvent;
         if (mDecodedFrames.GetCount() > 1) {
           stopEvent = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStopped);
+          mState = DECODER_STATE_DECODING;
         } else {
           stopEvent = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStoppedAtEnd);
+          mState = DECODER_STATE_COMPLETED;
         }
+        mon.NotifyAll();
+
+        mon.Exit();
         NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);        
         mon.Enter();
       }
@@ -1726,14 +1730,19 @@ nsresult nsOggDecodeStateMachine::Run()
             continue;
         }
 
-        // Set the right current time
-        mCurrentFrameTime += mCallbackPeriod;
-
-        mon.Exit();
-        nsCOMPtr<nsIRunnable> event =
-          NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackEnded);
-        NS_DispatchToMainThread(event, NS_DISPATCH_SYNC);
-        mon.Enter();
+        if (mDecoder->GetState() == nsOggDecoder::PLAY_STATE_PLAYING) {
+          // We were playing, we need to move the current time to the end of
+          // media, and send an 'ended' event.
+          mCurrentFrameTime += mCallbackPeriod;
+          if (mDuration >= 0) {
+            mCurrentFrameTime = PR_MAX(mCurrentFrameTime, mDuration / 1000.0);
+          }
+          mon.Exit();
+          nsCOMPtr<nsIRunnable> event =
+            NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackEnded);
+          NS_DispatchToMainThread(event, NS_DISPATCH_SYNC);
+          mon.Enter();
+        }
 
         while (mState == DECODER_STATE_COMPLETED) {
           mon.Wait();
@@ -1746,85 +1755,119 @@ nsresult nsOggDecodeStateMachine::Run()
   return NS_OK;
 }
 
+// Initialize our OggPlay struct with the specified limit on video size.
+static OggPlay*
+OggPlayOpen(OggPlayReader* reader,
+            int max_frame_pixels)
+{
+  OggPlay *me = NULL;
+  int r;
+
+  if ((me = oggplay_new_with_reader(reader)) == NULL) {
+    return NULL;
+  }
+
+  r = oggplay_set_max_video_frame_pixels(me, max_frame_pixels);
+  if (r != E_OGGPLAY_OK) {
+    oggplay_close(me);
+    return NULL;
+  }
+
+  do {
+    r = oggplay_initialise(me, 0);
+  } while (r == E_OGGPLAY_TIMEOUT);
+
+  if (r != E_OGGPLAY_OK) {
+    oggplay_close(me);
+    return NULL;
+  }
+
+  return me;
+}
+
 void nsOggDecodeStateMachine::LoadOggHeaders(nsChannelReader* aReader) 
 {
   LOG(PR_LOG_DEBUG, ("Loading Ogg Headers"));
-  mPlayer = oggplay_open_with_reader(aReader);
-  if (mPlayer) {
-    LOG(PR_LOG_DEBUG, ("There are %d tracks", oggplay_get_num_tracks(mPlayer)));
+  mPlayer = OggPlayOpen(aReader, MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT);
+  if (!mPlayer) {
+    nsAutoMonitor mon(mDecoder->GetMonitor());
+    mState = DECODER_STATE_SHUTDOWN;
+    HandleDecodeErrors(E_OGGPLAY_UNINITIALISED);
+    return;
+  }
+  LOG(PR_LOG_DEBUG, ("%p There are %d tracks", mDecoder, oggplay_get_num_tracks(mPlayer)));
+  for (int i = 0; i < oggplay_get_num_tracks(mPlayer); ++i) {
+    LOG(PR_LOG_DEBUG, ("Tracks %d: %s", i, oggplay_get_track_typename(mPlayer, i)));
+    if (mVideoTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_THEORA) {
+      oggplay_set_callback_num_frames(mPlayer, i, 1);
+      mVideoTrack = i;
 
-    for (int i = 0; i < oggplay_get_num_tracks(mPlayer); ++i) {
-      LOG(PR_LOG_DEBUG, ("Tracks %d: %s", i, oggplay_get_track_typename(mPlayer, i)));
-      if (mVideoTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_THEORA) {
-        oggplay_set_callback_num_frames(mPlayer, i, 1);
-        mVideoTrack = i;
+      int fpsd, fpsn;
+      oggplay_get_video_fps(mPlayer, i, &fpsd, &fpsn);
+      mFramerate = fpsd == 0 ? 0.0 : float(fpsn)/float(fpsd);
+      mCallbackPeriod = 1.0 / mFramerate;
+      LOG(PR_LOG_DEBUG, ("Frame rate: %f", mFramerate));
 
-        int fpsd, fpsn;
-        oggplay_get_video_fps(mPlayer, i, &fpsd, &fpsn);
-        mFramerate = fpsd == 0 ? 0.0 : float(fpsn)/float(fpsd);
-        mCallbackPeriod = 1.0 / mFramerate;
-        LOG(PR_LOG_DEBUG, ("Frame rate: %f", mFramerate));
+      int aspectd, aspectn;
+      // this can return E_OGGPLAY_UNINITIALIZED if the video has
+      // no aspect ratio data. We assume 1.0 in that case.
+      OggPlayErrorCode r =
+        oggplay_get_video_aspect_ratio(mPlayer, i, &aspectd, &aspectn);
+      mAspectRatio = r == E_OGGPLAY_OK && aspectd > 0 ?
+          float(aspectn)/float(aspectd) : 1.0;
 
-        int aspectd, aspectn;
-        // this can return E_OGGPLAY_UNINITIALIZED if the video has
-        // no aspect ratio data. We assume 1.0 in that case.
-        OggPlayErrorCode r =
-          oggplay_get_video_aspect_ratio(mPlayer, i, &aspectd, &aspectn);
-        mAspectRatio = r == E_OGGPLAY_OK && aspectd > 0 ?
-            float(aspectn)/float(aspectd) : 1.0;
-
-        int y_width;
-        int y_height;
-        oggplay_get_video_y_size(mPlayer, i, &y_width, &y_height);
-        mDecoder->SetRGBData(y_width, y_height, mFramerate, mAspectRatio, nsnull);
-      }
-      else if (mAudioTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_VORBIS) {
-        mAudioTrack = i;
-        oggplay_set_offset(mPlayer, i, OGGPLAY_AUDIO_OFFSET);
-        oggplay_get_audio_samplerate(mPlayer, i, &mAudioRate);
-        oggplay_get_audio_channels(mPlayer, i, &mAudioChannels);
-        LOG(PR_LOG_DEBUG, ("samplerate: %d, channels: %d", mAudioRate, mAudioChannels));
-      }
+      int y_width;
+      int y_height;
+      oggplay_get_video_y_size(mPlayer, i, &y_width, &y_height);
+      mDecoder->SetRGBData(y_width, y_height, mFramerate, mAspectRatio, nsnull);
     }
-
-    SetTracksActive();
-
-    if (mVideoTrack == -1) {
-      oggplay_set_callback_num_frames(mPlayer, mAudioTrack, OGGPLAY_FRAMES_PER_CALLBACK);
-      mCallbackPeriod = 1.0 / (float(mAudioRate) / OGGPLAY_FRAMES_PER_CALLBACK);
-    }
-    LOG(PR_LOG_DEBUG, ("Callback Period: %f", mCallbackPeriod));
-
-    oggplay_use_buffer(mPlayer, OGGPLAY_BUFFER_SIZE);
-
-    // Get the duration from the Ogg file. We only do this if the
-    // content length of the resource is known as we need to seek
-    // to the end of the file to get the last time field. We also
-    // only do this if the resource is seekable and if we haven't
-    // already obtained the duration via an HTTP header.
-    {
-      nsAutoMonitor mon(mDecoder->GetMonitor());
-      mGotDurationFromHeader = (mDuration != -1);
-      if (mState != DECODER_STATE_SHUTDOWN &&
-          aReader->Stream()->GetLength() >= 0 &&
-          mSeekable &&
-          mDuration == -1) {
-        mDecoder->StopProgressUpdates();
-        // Don't hold the monitor during the duration
-        // call as it can issue seek requests
-        // and blocks until these are completed.
-        mon.Exit();
-        PRInt64 d = oggplay_get_duration(mPlayer);
-        oggplay_seek(mPlayer, 0);
-        mon.Enter();
-        mDuration = d;
-        mDecoder->StartProgressUpdates();
-        mDecoder->UpdatePlaybackRate();
-      }
-      if (mState == DECODER_STATE_SHUTDOWN)
-        return;
+    else if (mAudioTrack == -1 && oggplay_get_track_type(mPlayer, i) == OGGZ_CONTENT_VORBIS) {
+      mAudioTrack = i;
+      oggplay_set_offset(mPlayer, i, OGGPLAY_AUDIO_OFFSET);
+      oggplay_get_audio_samplerate(mPlayer, i, &mAudioRate);
+      oggplay_get_audio_channels(mPlayer, i, &mAudioChannels);
+      LOG(PR_LOG_DEBUG, ("samplerate: %d, channels: %d", mAudioRate, mAudioChannels));
     }
   }
+
+  SetTracksActive();
+
+  if (mVideoTrack == -1) {
+    oggplay_set_callback_num_frames(mPlayer, mAudioTrack, OGGPLAY_FRAMES_PER_CALLBACK);
+    mCallbackPeriod = 1.0 / (float(mAudioRate) / OGGPLAY_FRAMES_PER_CALLBACK);
+  }
+  LOG(PR_LOG_DEBUG, ("Callback Period: %f", mCallbackPeriod));
+
+  oggplay_use_buffer(mPlayer, OGGPLAY_BUFFER_SIZE);
+
+  // Get the duration from the Ogg file. We only do this if the
+  // content length of the resource is known as we need to seek
+  // to the end of the file to get the last time field. We also
+  // only do this if the resource is seekable and if we haven't
+  // already obtained the duration via an HTTP header.
+  {
+    nsAutoMonitor mon(mDecoder->GetMonitor());
+    mGotDurationFromHeader = (mDuration != -1);
+    if (mState != DECODER_STATE_SHUTDOWN &&
+        aReader->Stream()->GetLength() >= 0 &&
+        mSeekable &&
+        mDuration == -1) {
+      mDecoder->StopProgressUpdates();
+      // Don't hold the monitor during the duration
+      // call as it can issue seek requests
+      // and blocks until these are completed.
+      mon.Exit();
+      PRInt64 d = oggplay_get_duration(mPlayer);
+      oggplay_seek(mPlayer, 0);
+      mon.Enter();
+      mDuration = d;
+      mDecoder->StartProgressUpdates();
+      mDecoder->UpdatePlaybackRate();
+    }
+    if (mState == DECODER_STATE_SHUTDOWN)
+      return;
+  }
+
 }
 
 void nsOggDecodeStateMachine::SetTracksActive()

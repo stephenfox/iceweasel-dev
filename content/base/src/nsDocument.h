@@ -326,7 +326,8 @@ private:
   void FireChangeCallbacks(nsIContent* aOldContent, nsIContent* aNewContent);
 
   // The single element ID_NOT_IN_DOCUMENT, or empty to indicate we
-  // don't know what element(s) have this key as an ID
+  // don't know what element(s) have this key as an ID.
+  // The content nodes are stored addrefed.
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'
   nsBaseContentList *mNameContentList;

@@ -2051,8 +2051,9 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
   if (repositionViews)
     ::PlaceFrameView(this);
 
-  // We can skip trying to pull up the next line if there is no next
-  // in flow or we were told not to or we know it will be futile, i.e.,
+  // We can skip trying to pull up the next line if our height is constrained
+  // (so we can report being incomplete) and there is no next in flow or we
+  // were told not to or we know it will be futile, i.e.,
   // -- the next in flow is not changing
   // -- and we cannot have added more space for its first line to be
   // pulled up into,
@@ -2061,8 +2062,10 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
   // didn't change)
   // -- my chain of next-in-flows either has no first line, or its first
   // line isn't dirty.
-  PRBool skipPull = willReflowAgain;
-  if (aState.mNextInFlow &&
+  PRBool heightConstrained =
+    aState.mReflowState.availableHeight != NS_UNCONSTRAINEDSIZE;
+  PRBool skipPull = willReflowAgain && heightConstrained;
+  if (!skipPull && heightConstrained && aState.mNextInFlow &&
       (aState.mReflowState.mFlags.mNextInFlowUntouched &&
        !lastLineMovedUp && 
        !(GetStateBits() & NS_FRAME_IS_DIRTY) &&
@@ -2081,13 +2084,17 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       // (First, see if there is such a line, and second, see if it's clean)
       if (!bifLineIter.Next() ||                
           !bifLineIter.GetLine()->IsDirty()) {
-        if (IS_TRUE_OVERFLOW_CONTAINER(aState.mNextInFlow))
-          NS_FRAME_SET_OVERFLOW_INCOMPLETE(aState.mReflowStatus);
-        else
-          NS_FRAME_SET_INCOMPLETE(aState.mReflowStatus);
         skipPull=PR_TRUE;
       }
     }
+  }
+
+  if (skipPull && aState.mNextInFlow) {
+    NS_ASSERTION(heightConstrained, "Height should be constrained here\n");
+    if (IS_TRUE_OVERFLOW_CONTAINER(aState.mNextInFlow))
+      NS_FRAME_SET_OVERFLOW_INCOMPLETE(aState.mReflowStatus);
+    else
+      NS_FRAME_SET_INCOMPLETE(aState.mReflowStatus);
   }
   
   if (!skipPull && aState.mNextInFlow) {
@@ -2845,6 +2852,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       if (!*aState.mReflowState.mDiscoveredClearance) {
         *aState.mReflowState.mDiscoveredClearance = frame;
       }
+      aState.mPrevChild = frame;
       // Exactly what we do now is flexible since we'll definitely be
       // reflowed.
       return NS_OK;
@@ -3020,6 +3028,8 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       continue;
     }
 
+    aState.mPrevChild = frame;
+
     if (blockHtmlRS.WillReflowAgainForClearance()) {
       // If an ancestor of ours is going to reflow for clearance, we
       // need to avoid calling PlaceBlock, because it unsets dirty bits
@@ -3030,9 +3040,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
                    "we need to call PositionChildViews");
       return NS_OK;
     }
-    
-    aState.mPrevChild = frame;
-    
+
 #if defined(REFLOW_STATUS_COVERAGE)
     RecordReflowStatus(PR_TRUE, frameReflowStatus);
 #endif
@@ -5526,6 +5534,11 @@ found_frame:;
         // The deceased frames continuation is not a child of the
         // current block. So break out of the loop so that we advance
         // to the next parent.
+        //
+        // If we have a continuation in a different block then all bets are
+        // off regarding whether we are deleting frames without actual content,
+        // so don't propagate FRAMES_ARE_EMPTY any further.
+        aFlags &= ~FRAMES_ARE_EMPTY;
         break;
       }
 

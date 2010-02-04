@@ -3619,6 +3619,18 @@ function testComparisons()
 testComparisons.expected = "no failures reported!";
 test(testComparisons);
 
+function testBug504520() {
+    // A bug involving comparisons.
+    var arr = [1/0, 1/0, 1/0, 1/0, 1/0, 0];
+    assertEq(arr.length > RUNLOOP, true);
+
+    var x = 0;
+    for (var i = 0; i < arr.length; i++)
+        arr[i] >= 1/0 ? null : ++x;
+    assertEq(x, 1);
+}
+test(testBug504520);
+
 function testCaseAbort()
 {
   var four = "4";
@@ -4380,6 +4392,22 @@ delete g;
 delete h;
 delete a;
 delete f;
+
+function testRebranding2() {
+    // Same as testRebranding, but the object to be rebranded isn't the global.
+    var x = "FAIL";
+    function g(){}
+    function h(){ x = "ok"; }
+    var obj = {m: g};
+    var arr = [g, g, g, g, h];
+    for (var i = 0; i < 5; i++) {
+        obj.m = arr[i];
+        obj.m();
+    }
+    return x;
+}
+testRebranding2.expected = "ok";
+test(testRebranding2);
 
 function testLambdaCtor() {
     var a = [];
@@ -5159,6 +5187,67 @@ function testFewerGlobalsInInnerTree() {
 }
 testFewerGlobalsInInnerTree.expected = "ok";
 test(testFewerGlobalsInInnerTree);
+
+function testEliminatedGuardWithinAnchor() {
+    for (let i = 0; i < 5; ++i) { i / (i * i); }
+    return "ok";
+}
+testEliminatedGuardWithinAnchor.expected = "ok";
+test(testEliminatedGuardWithinAnchor);
+
+function testInt32ToId()
+{
+  // Ensure that a property which is a negative integer that does not fit in a
+  // jsval is properly detected by the 'in' operator.
+  var obj = { "-1073741828": 17 };
+  var index = -1073741819;
+  var a = [];
+  for (var i = 0; i < 10; i++)
+  {
+    a.push(index in obj);
+    index--;
+  }
+
+  // Ensure that a property which is a negative integer that does not fit in a
+  // jsval is properly *not* detected by the 'in' operator.  In this case
+  // wrongly applying INT_TO_JSID to -2147483648 will shift off the sign bit
+  // (the only bit set in that number) and bitwise-or that value with 1,
+  // producing jsid(1) -- which actually represents "0", not "-2147483648".
+  // Thus 'in' will report a "-2147483648" property when none exists, because
+  // it thinks the request was really whether the object had property "0".
+  var obj2 = { 0: 17 };
+  var b = [];
+  var index = -(1 << 28);
+  for (var i = 0; i < 10; i++)
+  {
+    b.push(index in obj2);
+    index = index - (1 << 28);
+  }
+
+  return a.join(",") + b.join(",");
+}
+testInt32ToId.expected =
+  "false,false,false,false,false,false,false,false,false,true" +
+  "false,false,false,false,false,false,false,false,false,false";
+testInt32ToId.jitstats = {
+  sideExitIntoInterpreter: 2
+};
+test(testInt32ToId);
+
+function testOwnPropertyWithInOperator()
+{
+  var o = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
+  var a = [];
+  for (var i = 0; i < 7; i++)
+    a.push(i in o);
+  return a.join(",");
+}
+testOwnPropertyWithInOperator.expected = "true,true,true,true,true,true,true";
+testOwnPropertyWithInOperator.jitstats = {
+  sideExitIntoInterpreter: 1
+};
+test(testOwnPropertyWithInOperator);
+
 
 /*****************************************************************************
  *                                                                           *

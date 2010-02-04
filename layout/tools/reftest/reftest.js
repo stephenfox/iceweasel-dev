@@ -130,7 +130,7 @@ function OnRefTestLoad()
       var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                   getService(Components.interfaces.nsIPrefBranch2);
       gLoadTimeout = prefs.getIntPref("reftest.timeout");
-    }                  
+    }
     catch(e) {
       gLoadTimeout = 5 * 60 * 1000; //5 minutes as per bug 479518
     }
@@ -175,6 +175,10 @@ function OnRefTestLoad()
         ReadTopManifest(window.arguments[0]);
         BuildUseCounts();
         gTotalTests = gURLs.length;
+
+        if (!gTotalTests)
+            throw "No tests to run";
+
         gURICanvases = {};
         StartCurrentTest();
     } catch (ex) {
@@ -225,7 +229,7 @@ function ReadManifest(aURL)
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
     sandbox.http = {};
-    for each (var prop in [ "userAgent", "appName", "appVersion", 
+    for each (var prop in [ "userAgent", "appName", "appVersion",
                             "vendor", "vendorSub", "vendorComment",
                             "product", "productSub", "productComment",
                             "platform", "oscpu", "language", "misc" ])
@@ -489,13 +493,13 @@ function setupZoom(contentRootElement) {
 function resetZoom() {
     gBrowser.markupDocumentViewer.fullZoom = 1.0;
 }
-    
+
 function OnDocumentLoad(event)
 {
     if (event.target != gBrowser.contentDocument)
         // Ignore load events for subframes.
         return;
-        
+
     if (gBrowser.contentDocument.location.href != gCurrentURL)
         // Ignore load events for previous documents.
         return;
@@ -666,7 +670,8 @@ function DocumentLoaded()
             var test_passed = (equal == gURLs[0].equal);
             // what is expected on this platform (PASS, FAIL, or RANDOM)
             var expected = gURLs[0].expected;
-            
+
+            // Not 'const ...' because of 'EXPECTED_*' value dependency.
             var outputs = {};
             const randomMsg = "(EXPECTED RANDOM)";
             outputs[EXPECTED_PASS] = {
