@@ -57,14 +57,15 @@ function dump_plugins(out) {
             .getService(Ci.nsIPluginHost);
   var plugins = phs.getPluginTags({ });
   plugins.sort();
-  out.writeString("-- Plugins information");
+  out.writeString("-- Plugins information\n");
   for (var i = 0; i < plugins.length; i++) {
     var plugin = plugins[i];
-    out.writeString("\nName: " + plugin.name +
+    out.writeString("Name: " + plugin.name +
            (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
     out.writeString("Location: " + plugin.filename+"\n");
     out.writeString("Status: " + (plugin.disabled ? "disabled" : "enabled") +
                     (plugin.blocklisted ? " blocklisted" : "") + "\n");
+    out.writeString("\n");
   }
 }
 
