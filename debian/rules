@@ -57,7 +57,6 @@ config.status:
 
 # Build all branding images
 	(cd debian \
-		&& uudecode debsearch.png.uu \
 		&& uudecode aboutCredits.png.uu \
 		&& uudecode about.png.uu)
 
