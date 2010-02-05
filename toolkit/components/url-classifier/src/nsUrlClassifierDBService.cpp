@@ -2562,7 +2562,7 @@ nsUrlClassifierDBServiceWorker::AddChunk(PRUint32 tableId,
 
   nsTArray<PRUint32> entryIDs;
 
-  nsAutoTArray<nsUrlClassifierEntry, 5> subEntries;
+  nsTArray<nsUrlClassifierEntry> subEntries;
   rv = mPendingSubStore.ReadSubEntries(tableId, chunkNum, subEntries);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2648,7 +2648,7 @@ nsUrlClassifierDBServiceWorker::SubChunk(PRUint32 tableId,
 
   LOG(("Subbing %d entries in chunk %d in table %d", entries.Length(), chunkNum, tableId));
 
-  nsAutoTArray<nsUrlClassifierEntry, 5> existingEntries;
+  nsTArray<nsUrlClassifierEntry> existingEntries;
   nsUrlClassifierDomainHash lastKey;
 
   for (PRUint32 i = 0; i < entries.Length(); i++) {
