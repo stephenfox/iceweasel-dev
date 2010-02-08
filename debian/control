@@ -146,6 +146,7 @@ Depends: ${shlibs:Depends},
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${source:Version}),
+         binutils (>= 2.18~cvs20070812-1)
 Replaces: xulrunner-dev-bin
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
