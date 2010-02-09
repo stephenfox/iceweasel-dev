@@ -1869,6 +1869,22 @@ FlushNativeGlobalFrame(JSContext* cx, unsigned ngslots, uint16* gslots, uint8* m
 }
 
 /*
+ * Returns the number of values on the native stack, excluding the innermost
+ * frame. This walks all FrameInfos on the native frame stack and sums the
+ * slot usage of each frame.
+ */
+static int32
+StackDepthFromCallStack(InterpState* state, uint32 callDepth)
+{
+    int32 nativeStackFramePos = 0;
+
+    // Duplicate native stack layout computation: see VisitFrameSlots header comment.
+    for (FrameInfo** fip = state->callstackBase; fip < state->rp + callDepth; fip++)
+        nativeStackFramePos += (*fip)->callerHeight;
+    return nativeStackFramePos;
+}
+
+/*
  * Generic function to read upvars on trace.
  *     T   Traits type parameter. Must provide static functions:
  *             interp_get(fp, slot)     Read the value out of an interpreter frame.
@@ -1887,26 +1903,33 @@ js_GetUpvarOnTrace(JSContext* cx, uint32 level, int32 slot, uint32 callDepth, do
     FrameInfo** fip = state->rp + callDepth;
 
     /*
-     * First search the FrameInfo call stack for an entry containing
-     * our upvar, namely one with level == upvarLevel.
+     * First search the FrameInfo call stack for an entry containing our
+     * upvar, namely one with level == upvarLevel. The first FrameInfo is a
+     * transition from the entry frame to some callee. However, it is not
+     * known (from looking at the FrameInfo) whether the entry frame had a
+     * callee. Rather than special-case this or insert more logic into the
+     * loop, instead just stop before that FrameInfo (i.e. |> base| instead of
+     * |>= base|), and let the code after the loop handle it.
      */
-    while (--fip >= state->callstackBase) {
+    int32 stackOffset = StackDepthFromCallStack(state, callDepth);
+    while (--fip > state->callstackBase) {
         FrameInfo* fi = *fip;
-        JSFunction* fun = GET_FUNCTION_PRIVATE(cx, fi->callee);
+        /*
+         * The loop starts aligned to the top of the stack, so move down to the
+         * first meaningful callee. Then read the callee directly from the frame.
+         */
+        stackOffset -= fi->callerHeight;
+        JSObject* callee = *(JSObject**)(&state->stackBase[stackOffset]);
+        JSFunction* fun = GET_FUNCTION_PRIVATE(cx, callee);
         uintN calleeLevel = fun->u.i.script->staticLevel;
         if (calleeLevel == level) {
             /*
-             * Now find the upvar's value in the native stack.
-             * nativeStackFramePos is the offset of the start of the 
-             * activation record corresponding to *fip in the native
-             * stack.
+             * Now find the upvar's value in the native stack. stackOffset is
+             * the offset of the start of the activation record corresponding
+             * to *fip in the native stack.
              */
-            int32 nativeStackFramePos = state->callstackBase[0]->spoffset;
-            for (FrameInfo** fip2 = state->callstackBase; fip2 <= fip; fip2++)
-                nativeStackFramePos += (*fip2)->spdist;
-            nativeStackFramePos -= (2 + (*fip)->get_argc());
-            uint32 native_slot = T::native_slot((*fip)->get_argc(), slot);
-            *result = state->stackBase[nativeStackFramePos + native_slot];
+            uint32 native_slot = T::native_slot(fi->callerArgc, slot);
+            *result = state->stackBase[stackOffset + native_slot];
             return fi->get_typemap()[native_slot];
         }
     }
@@ -2468,7 +2491,9 @@ TraceRecorder::snapshot(ExitType exitType)
     /* Capture the type map into a temporary location. */
     unsigned ngslots = treeInfo->globalSlots->length();
     unsigned typemap_size = (stackSlots + ngslots) * sizeof(uint8);
-    uint8* typemap = (uint8*)alloca(typemap_size);
+    void *mark = JS_ARENA_MARK(&cx->tempPool);
+    uint8* typemap;
+    JS_ARENA_ALLOCATE_CAST(typemap, uint8*, &cx->tempPool, typemap_size);
     uint8* m = typemap;
 
     /* Determine the type of a store by looking at the current type of the actual value the
@@ -2513,6 +2538,7 @@ TraceRecorder::snapshot(ExitType exitType)
                 ngslots == e->numGlobalSlots &&
                 !memcmp(getFullTypeMap(exits[n]), typemap, typemap_size)) {
                 AUDIT(mergedLoopExits);
+                JS_ARENA_RELEASE(&cx->tempPool, mark);
                 return e;
             }
         }
@@ -2529,6 +2555,7 @@ TraceRecorder::snapshot(ExitType exitType)
          */
         stackSlots = 0;
         ngslots = 0;
+        typemap_size = 0;
         trashSelf = true;
     }
 
@@ -2553,6 +2580,8 @@ TraceRecorder::snapshot(ExitType exitType)
     exit->rp_adj = exit->calldepth * sizeof(FrameInfo*);
     exit->nativeCalleeWord = 0;
     memcpy(getFullTypeMap(exit), typemap, typemap_size);
+
+    JS_ARENA_RELEASE(&cx->tempPool, mark);
     return exit;
 }
 
@@ -3265,6 +3294,26 @@ TraceRecorder::prepareTreeCall(Fragment* inner)
     }
 }
 
+static unsigned
+BuildGlobalTypeMapFromInnerTree(Queue<uint8>& typeMap, VMSideExit* inner)
+{
+#if defined DEBUG
+    unsigned initialSlots = typeMap.length();
+#endif
+    /* First, use the innermost exit's global typemap. */
+    typeMap.add(getGlobalTypeMap(inner), inner->numGlobalSlots);
+
+    /* Add missing global types from the innermost exit's tree. */
+    TreeInfo* innerTree = (TreeInfo*)inner->from->root->vmprivate;
+    unsigned slots = inner->numGlobalSlots;
+    if (slots < innerTree->nGlobalTypes()) {
+        typeMap.add(innerTree->globalTypeMap() + slots, innerTree->nGlobalTypes() - slots);
+        slots = innerTree->nGlobalTypes();
+    }
+    JS_ASSERT(typeMap.length() - initialSlots == slots);
+    return slots;
+}
+
 /* Record a call to an inner tree. */
 JS_REQUIRES_STACK void
 TraceRecorder::emitTreeCall(Fragment* inner, VMSideExit* exit)
@@ -3278,8 +3327,14 @@ TraceRecorder::emitTreeCall(Fragment* inner, VMSideExit* exit)
     /* Read back all registers, in case the called tree changed any of them. */
     JS_ASSERT(!memchr(getGlobalTypeMap(exit), JSVAL_BOXED, exit->numGlobalSlots) &&
               !memchr(getStackTypeMap(exit), JSVAL_BOXED, exit->numStackSlots));
-    import(ti, inner_sp_ins, exit->numStackSlots, exit->numGlobalSlots,
-           exit->calldepth, getFullTypeMap(exit));
+    /* bug 502604 - It is illegal to extend from the outer typemap without first extending from the
+     * inner. Make a new typemap here.
+     */
+    TypeMap fullMap;
+    fullMap.add(getStackTypeMap(exit), exit->numStackSlots);
+    BuildGlobalTypeMapFromInnerTree(fullMap, exit);
+    import(ti, inner_sp_ins, exit->numStackSlots, fullMap.length() - exit->numStackSlots,
+           exit->calldepth, fullMap.data());
 
     /* Restore sp and rp to their original values (we still have them in a register). */
     if (callDepth > 0) {
@@ -3608,6 +3663,10 @@ js_TrashTree(JSContext* cx, Fragment* f)
     unsigned length = ti->dependentTrees.length();
     for (unsigned n = 0; n < length; ++n)
         js_TrashTree(cx, data[n]);
+    data = ti->linkedTrees.data();
+    length = ti->linkedTrees.length();
+    for (unsigned n = 0; n < length; ++n)
+        js_TrashTree(cx, data[n]);
     delete ti;
     JS_ASSERT(!f->code() && !f->vmprivate);
 }
@@ -3771,7 +3830,7 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
 }
 
 static void
-SynthesizeSlowNativeFrame(JSContext *cx, VMSideExit *exit)
+SynthesizeSlowNativeFrame(InterpState& state, JSContext *cx, VMSideExit *exit)
 {
     void *mark;
     JSInlineFrame *ifp;
@@ -3792,9 +3851,9 @@ SynthesizeSlowNativeFrame(JSContext *cx, VMSideExit *exit)
     fp->script = NULL;
     fp->fun = GET_FUNCTION_PRIVATE(cx, fp->callee);
     // fp->thisp is really a jsval, so reinterpret_cast here, not JSVAL_TO_OBJECT.
-    fp->thisp = (JSObject *) cx->nativeVp[1];
-    fp->argc = cx->nativeVpLen - 2;
-    fp->argv = cx->nativeVp + 2;
+    fp->thisp = (JSObject *) state.nativeVp[1];
+    fp->argc = state.nativeVpLen - 2;
+    fp->argv = state.nativeVp + 2;
     fp->rval = JSVAL_VOID;
     fp->down = cx->fp;
     fp->annotation = NULL;
@@ -4079,12 +4138,9 @@ js_AttemptToExtendTree(JSContext* cx, VMSideExit* anchor, VMSideExit* exitedFrom
             fullMap.add(getStackTypeMap(e1), e1->numStackSlotsBelowCurrentFrame);
             fullMap.add(getStackTypeMap(e2), e2->numStackSlots);
             stackSlots = fullMap.length();
-            fullMap.add(getGlobalTypeMap(e2), e2->numGlobalSlots);
-            if (e1->numGlobalSlots >= e2->numGlobalSlots) {
-                fullMap.add(getGlobalTypeMap(e1) + e2->numGlobalSlots,
-                            e1->numGlobalSlots - e2->numGlobalSlots);
-            }
-            ngslots = e1->numGlobalSlots;
+            ngslots = BuildGlobalTypeMapFromInnerTree(fullMap, e2);
+            JS_ASSERT(ngslots >= e1->numGlobalSlots); // inner tree must have all globals
+            JS_ASSERT(ngslots == fullMap.length() - stackSlots);
             typeMap = fullMap.data();
         }
         JS_ASSERT(ngslots >= anchor->numGlobalSlots);
@@ -4451,6 +4507,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
     state->lastTreeExitGuard = NULL;
     state->lastTreeCallGuard = NULL;
     state->rpAtLastTreeCall = NULL;
+    state->nativeVp = NULL;
     state->builtinStatus = 0;
 
     /* Setup the native global frame. */
@@ -4513,6 +4570,9 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount,
 #else
     rec = u.func(state, NULL);
 #endif
+
+    JS_ASSERT(!state->nativeVp);
+
     VMSideExit* lr = (VMSideExit*)rec->exit;
 
     AUDIT(traceTriggered);
@@ -4622,10 +4682,18 @@ LeaveTree(InterpState& state, VMSideExit* lr)
              * but we have it now. Box it.
              */
             uint8* typeMap = getStackTypeMap(innermost);
+
+            /*
+             * If there's a tree call around the point that we deep exited at,
+             * then state.sp and state.rp were restored to their original
+             * values before the tree call and sp might be less than deepBailSp,
+             * which we sampled when we were told to deep bail.
+             */
+            JS_ASSERT(state.deepBailSp >= state.stackBase && state.sp <= state.deepBailSp);
             NativeToValue(cx,
                           cx->fp->regs->sp[-1],
                           typeMap[innermost->numStackSlots - 1],
-                          (jsdouble *) state.sp + innermost->sp_adj / sizeof(jsdouble) - 1);
+                          (jsdouble *) state.deepBailSp + innermost->sp_adj / sizeof(jsdouble) - 1);
         }
         JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
         if (tm->prohibitFlush && --tm->prohibitFlush == 0 && tm->needFlush)
@@ -4716,6 +4784,7 @@ LeaveTree(InterpState& state, VMSideExit* lr)
     uint8* globalTypeMap;
 
     /* Are there enough globals? This is the ideal fast path. */
+    Queue<uint8> typeMap(0);
     if (innermost->numGlobalSlots == ngslots) {
         globalTypeMap = getGlobalTypeMap(innermost);
     /* Otherwise, merge the typemap of the innermost entry and exit together.  This should always
@@ -4723,14 +4792,16 @@ LeaveTree(InterpState& state, VMSideExit* lr)
        Thus, whenever a new global type is lazily added into a tree, all dependent and linked
        trees are immediately specialized (see bug 476653). */
     } else {
-        TreeInfo* ti = (TreeInfo*)innermost->from->root->vmprivate;
-        JS_ASSERT(ti->nGlobalTypes() == ngslots);
-        JS_ASSERT(ti->nGlobalTypes() > innermost->numGlobalSlots);
-        globalTypeMap = (uint8*)alloca(ngslots * sizeof(uint8));
-        memcpy(globalTypeMap, getGlobalTypeMap(innermost), innermost->numGlobalSlots);
-        memcpy(globalTypeMap + innermost->numGlobalSlots,
-               ti->globalTypeMap() + innermost->numGlobalSlots,
-               ti->nGlobalTypes() - innermost->numGlobalSlots);
+        JS_ASSERT(((TreeInfo*)innermost->from->root->vmprivate)->nGlobalTypes() == ngslots);
+        JS_ASSERT(((TreeInfo*)innermost->from->root->vmprivate)->nGlobalTypes() >
+                  innermost->numGlobalSlots);
+        typeMap.ensure(ngslots);
+#ifdef DEBUG
+        unsigned check_ngslots =
+#endif
+        BuildGlobalTypeMapFromInnerTree(typeMap, innermost);
+        JS_ASSERT(check_ngslots == ngslots);
+        globalTypeMap = typeMap.data();
     }
 
     /* write back native stack frame */
@@ -4743,15 +4814,13 @@ LeaveTree(InterpState& state, VMSideExit* lr)
     JS_ASSERT(unsigned(slots) == innermost->numStackSlots);
 
     if (innermost->nativeCalleeWord)
-        SynthesizeSlowNativeFrame(cx, innermost);
+        SynthesizeSlowNativeFrame(state, cx, innermost);
 
     /* write back interned globals */
     double* global = (double*)(&state + 1);
     FlushNativeGlobalFrame(cx, ngslots, gslots, globalTypeMap, global);
     JS_ASSERT(*(uint64*)&global[STOBJ_NSLOTS(JS_GetGlobalForObject(cx, cx->fp->scopeChain))] ==
               0xdeadbeefdeadbeefLL);
-
-    cx->nativeVp = NULL;
 
 #ifdef DEBUG
     // Verify that our state restoration worked.
@@ -5476,7 +5545,10 @@ js_DeepBail(JSContext *cx)
     debug_only_v(printf("Deep bail.\n");)
     LeaveTree(*tracecx->interpState, tracecx->bailExit);
     tracecx->bailExit = NULL;
-    tracecx->interpState->builtinStatus |= JSBUILTIN_BAILED;
+
+    InterpState* state = tracecx->interpState;
+    state->builtinStatus |= JSBUILTIN_BAILED;
+    state->deepBailSp = state->sp;
 }
 
 JS_REQUIRES_STACK jsval&
@@ -5956,24 +6028,24 @@ TraceRecorder::incElem(jsint incr, bool pre)
 }
 
 static bool
-evalCmp(LOpcode op, double result)
+evalCmp(LOpcode op, double l, double r)
 {
     bool cond;
     switch (op) {
       case LIR_feq:
-        cond = (result == 0);
+        cond = (l == r);
         break;
       case LIR_flt:
-        cond = result < 0;
+        cond = l < r;
         break;
       case LIR_fgt:
-        cond = result > 0;
+        cond = l > r;
         break;
       case LIR_fle:
-        cond = result <= 0;
+        cond = l <= r;
         break;
       case LIR_fge:
-        cond = result >= 0;
+        cond = l >= r;
         break;
       default:
         JS_NOT_REACHED("unexpected comparison op");
@@ -5983,17 +6055,11 @@ evalCmp(LOpcode op, double result)
 }
 
 static bool
-evalCmp(LOpcode op, double l, double r)
-{
-    return evalCmp(op, l - r);
-}
-
-static bool
 evalCmp(LOpcode op, JSString* l, JSString* r)
 {
     if (op == LIR_feq)
         return js_EqualStrings(l, r);
-    return evalCmp(op, js_CompareStrings(l, r));
+    return evalCmp(op, js_CompareStrings(l, r), 0);
 }
 
 JS_REQUIRES_STACK void
@@ -6813,16 +6879,26 @@ TraceRecorder::getThis(LIns*& this_ins)
      * global object obtained throught the scope chain.
      */
     JSObject* obj = js_GetWrappedObject(cx, JSVAL_TO_OBJECT(thisv));
-    OBJ_TO_INNER_OBJECT(cx, obj);
+    JSObject* inner = obj;
+    OBJ_TO_INNER_OBJECT(cx, inner);
     if (!obj)
         return JSRS_ERROR;
 
-    JS_ASSERT(original == thisv || original == OBJECT_TO_JSVAL(obj));
-    this_ins = lir->ins_choose(lir->ins2(LIR_eq,
-                                         this_ins,
-                                         INS_CONSTPTR(obj)),
-                               INS_CONSTPTR(JSVAL_TO_OBJECT(thisv)),
-                               this_ins);
+    JS_ASSERT(original == thisv ||
+              original == OBJECT_TO_JSVAL(inner) ||
+              original == OBJECT_TO_JSVAL(obj));
+
+    // If the returned this object is the unwrapped inner or outer object,
+    // then we need to use the wrapped outer object.
+    LIns* is_inner = lir->ins2(LIR_eq, this_ins, INS_CONSTPTR(inner));
+    LIns* is_outer = lir->ins2(LIR_eq, this_ins, INS_CONSTPTR(obj));
+    LIns* wrapper = INS_CONSTPTR(JSVAL_TO_OBJECT(thisv));
+
+    this_ins = lir->ins_choose(is_inner,
+                               wrapper,
+                               lir->ins_choose(is_outer,
+                                               wrapper,
+                                               this_ins));
 
     return JSRS_CONTINUE;
 }
@@ -7545,7 +7621,7 @@ TraceRecorder::newArray(JSObject* ctor, uint32 argc, jsval* argv, jsval* rval)
 }
 
 JS_REQUIRES_STACK JSRecordingStatus
-TraceRecorder::emitNativeCall(JSTraceableNative* known, uintN argc, LIns* args[])
+TraceRecorder::emitNativeCall(JSTraceableNative* known, uintN argc, LIns* args[], bool rooted)
 {
     bool constructing = known->flags & JSTN_CONSTRUCTOR;
 
@@ -7569,6 +7645,11 @@ TraceRecorder::emitNativeCall(JSTraceableNative* known, uintN argc, LIns* args[]
     }
 
     LIns* res_ins = lir->insCall(known->builtin, args);
+
+    // Immediately unroot the vp as soon we return since we might deep bail next.
+    if (rooted)
+        lir->insStorei(INS_CONSTPTR(NULL), lirbuf->state, offsetof(InterpState, nativeVp));
+
     rval_ins = res_ins;
     switch (JSTN_ERRTYPE(known)) {
       case FAIL_NULL:
@@ -7702,7 +7783,7 @@ TraceRecorder::callTraceableNative(JSFunction* fun, uintN argc, bool constructin
 #if defined _DEBUG
         JS_ASSERT(args[0] != (LIns *)0xcdcdcdcd);
 #endif
-        return emitNativeCall(known, argc, args);
+        return emitNativeCall(known, argc, args, false);
 
 next_specialization:;
     } while ((known++)->flags & JSTN_MORE);
@@ -7735,9 +7816,7 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
     uintN vplen = 2 + JS_MAX(argc, FUN_MINARGS(fun)) + fun->u.n.extra;
     if (!(fun->flags & JSFUN_FAST_NATIVE))
         vplen++;  // slow native return value slot
-    lir->insStorei(INS_CONST(vplen), cx_ins, offsetof(JSContext, nativeVpLen));
     LIns* invokevp_ins = lir->insAlloc(vplen * sizeof(jsval));
-    lir->insStorei(invokevp_ins, cx_ins, offsetof(JSContext, nativeVp));
 
     // vp[0] is the callee.
     lir->insStorei(INS_CONSTWORD(OBJECT_TO_JSVAL(funobj)), invokevp_ins, 0);
@@ -7863,15 +7942,17 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
 
     generatedTraceableNative->prefix = generatedTraceableNative->argtypes = NULL;
 
+    // We only have to ensure that the values we wrote into the stack buffer
+    // are rooted if we actually make it to the call, so only set nativeVp and
+    // nativeVpLen immediately before emitting the call code. This way we avoid
+    // leaving trace with a bogus nativeVp because we fall off trace while unboxing
+    // values into the stack buffer.
+    lir->insStorei(INS_CONST(vplen), lirbuf->state, offsetof(InterpState, nativeVpLen));
+    lir->insStorei(invokevp_ins, lirbuf->state, offsetof(InterpState, nativeVp));
+
     // argc is the original argc here. It is used to calculate where to place
     // the return value.
-    JSRecordingStatus status;
-    if ((status = emitNativeCall(generatedTraceableNative, argc, args)) != JSRS_CONTINUE)
-        return status;
-
-    // Unroot the vp.
-    lir->insStorei(INS_CONSTPTR(NULL), cx_ins, offsetof(JSContext, nativeVp));
-    return JSRS_CONTINUE;
+    return emitNativeCall(generatedTraceableNative, argc, args, true);
 }
 
 JS_REQUIRES_STACK JSRecordingStatus
@@ -8124,6 +8205,15 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
     if (!isValidSlot(scope, sprop))
         return JSRS_STOP;
 
+    /*
+     * Setting a function-valued property might need to rebrand the object; we
+     * don't trace that case. There's no need to guard on that, though, because
+     * separating functions into the trace-time type JSVAL_TFUN will save the
+     * day!
+     */
+    if (VALUE_IS_FUNCTION(cx, r))
+        ABORT_TRACE("can't trace function-valued property set");
+
     if (obj == globalObj) {
         JS_ASSERT(SPROP_HAS_VALID_SLOT(sprop, scope));
         uint32 slot = sprop->slot;
@@ -8131,15 +8221,6 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
             ABORT_TRACE("lazy import of global slot failed");
 
         LIns* r_ins = get(&r);
-
-        /*
-         * Writing a function into the global object might rebrand it; we don't
-         * trace that case.  There's no need to guard on that, though, because
-         * separating functions into the trace-time type JSVAL_TFUN will save
-         * the day!
-         */
-        if (VALUE_IS_FUNCTION(cx, r))
-            ABORT_TRACE("potential rebranding of the global object");
         set(&STOBJ_GET_SLOT(obj, slot), r_ins);
 
         JS_ASSERT(*pc != JSOP_INITPROP);
@@ -8693,13 +8774,12 @@ TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc,
     fi->imacpc = fp->imacpc;
     fi->spdist = fp->regs->sp - fp->slots;
     fi->set_argc(argc, constructing);
-    fi->spoffset = 2 /*callee,this*/ + fp->argc;
+    fi->callerHeight = js_NativeStackSlots(cx, 0) - (2 + argc);
+    fi->callerArgc = fp->argc;
 
     unsigned callDepth = getCallDepth();
     if (callDepth >= treeInfo->maxCallDepth)
         treeInfo->maxCallDepth = callDepth + 1;
-    if (callDepth == 0)
-        fi->spoffset = 2 /*callee,this*/ + argc - fi->spdist;
 
     lir->insStorei(INS_CONSTPTR(fi), lirbuf->rp, callDepth * sizeof(FrameInfo*));
 
@@ -9018,8 +9098,18 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
     const JSCodeSpec& cs = js_CodeSpec[*cx->fp->regs->pc];
     if (PCVAL_IS_NULL(pcval)) {
         /*
+         * We could specialize to guard on just JSClass.getProperty, but a mere
+         * class guard is simpler and slightly faster.
+         */
+        if (OBJ_GET_CLASS(cx, obj)->getProperty != JS_PropertyStub) {
+            ABORT_TRACE("can't trace through access to undefined property if "
+                        "JSClass.getProperty hook isn't stubbed");
+        }
+        guardClass(obj, obj_ins, OBJ_GET_CLASS(cx, obj), snapshot(MISMATCH_EXIT));
+
+        /*
          * This trace will be valid as long as neither the object nor any object
-         * on its prototype chain change shape.
+         * on its prototype chain changes shape.
          */
         VMSideExit* exit = snapshot(BRANCH_EXIT);
         do {
@@ -9725,6 +9815,8 @@ TraceRecorder::record_JSOP_IN()
     bool cond = prop != NULL;
     if (prop)
         OBJ_DROP_PROPERTY(cx, obj2, prop);
+    if (wasDeepAborted())
+        ABORT_TRACE("deep abort from property lookup");
 
     /* The interpreter fuses comparisons and the following branch,
        so we have to do that here as well. */

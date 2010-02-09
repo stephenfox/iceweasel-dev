@@ -188,8 +188,12 @@ js_StringToInt32(JSContext* cx, JSString* str)
     jsdouble d;
 
     JSSTRING_CHARS_AND_END(str, bp, end);
-    if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end)
+    if ((!js_strtod(cx, bp, end, &ep, &d) ||
+         js_SkipWhiteSpace(ep, end) != end) &&
+        (!js_strtointeger(cx, bp, end, &ep, 0, &d) ||
+         js_SkipWhiteSpace(ep, end) != end)) {
         return 0;
+    }
     return js_DoubleToECMAInt32(d);
 }
 
@@ -301,7 +305,7 @@ HasProperty(JSContext* cx, JSObject* obj, jsid id)
 
     JSObject* obj2;
     JSProperty* prop;
-    if (!js_LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
+    if (js_LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) < 0)
         return JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID);
     if (prop)
         OBJ_DROP_PROPERTY(cx, obj2, prop);

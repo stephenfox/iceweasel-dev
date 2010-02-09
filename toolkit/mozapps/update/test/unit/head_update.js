@@ -112,6 +112,14 @@ function getPrefBranch() {
  * back since it is easier to comment out the call to cleanUp when needed.
  */
 function cleanUp() {
+  // Always call app update's observe method passing xpcom-shutdown to test that
+  // the shutdown of app update runs without throwing or leaking. The observer
+  // method is used directly instead of calling notifyObservers so components
+  // outside of the scope of this test don't assert and thereby cause app update
+  // tests to fail.
+  if (gAUS)
+    gAUS.observe(null, "xpcom-shutdown", "");
+
   removeUpdateDirsAndFiles();
   gDirSvc.unregisterProvider(gDirProvider);
 
@@ -164,13 +172,13 @@ function startAUS() {
   if (POST_UPDATE_CONTRACTID in AUS_Cc) {
     var registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
     registrar.registerFactory(Components.ID("{d15b970b-5472-40df-97e8-eb03a04baa82}"),
-                              "Fake nsPostUpdateWin",
-                              "@mozilla.org/updates/post-update;1",
+                              "Fake nsPostUpdateWin", POST_UPDATE_CONTRACTID,
                                nsPostUpdateWinFactory);
   }
 
   gAUS = AUS_Cc["@mozilla.org/updates/update-service;1"].
-         getService(AUS_Ci.nsIApplicationUpdateService);
+         getService(AUS_Ci.nsIApplicationUpdateService).
+         QueryInterface(AUS_Ci.nsIObserver);
   var os = AUS_Cc["@mozilla.org/observer-service;1"].
            getService(AUS_Ci.nsIObserverService);
   os.notifyObservers(null, "profile-after-change", null);
@@ -721,9 +729,18 @@ function removeDirRecursive(aDir) {
  *          toolkit/mozapps/update/test/unit/
  */
 function start_httpserver(aRelativeDirName) {
+  var dir = do_get_file(aRelativeDirName);
+  if (!dir.exists())
+    do_throw("The directory used by nsHttpServer does not exist! path: " +
+             dir.path + "\n");
+
+  if (!dir.isDirectory())
+    do_throw("A file instead of a directory was specified for nsHttpServer " +
+             "registerDirectory! path: " + dir.path + "\n");
+
   do_load_httpd_js();
   gTestserver = new nsHttpServer();
-  gTestserver.registerDirectory("/data/", do_get_file(aRelativeDirName));
+  gTestserver.registerDirectory("/data/", dir);
   gTestserver.start(4444);
 }
 

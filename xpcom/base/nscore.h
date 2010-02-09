@@ -478,6 +478,10 @@ typedef PRUint32 nsrefcnt;
 #define XPCOM_GLUE_AVOID_NSPR
 #endif
 
+#if defined(HAVE_THREAD_TLS_KEYWORD)
+#define NS_TLS __thread
+#endif
+
 /**
  * Static type annotations, enforced when static-checking is enabled:
  *

@@ -78,21 +78,26 @@ namespace nanojit
         /**
          * Prologue
          */
-        underrunProtect(12);
+        underrunProtect(16);
         uint32_t stackNeeded = STACK_GRANULARITY * _activation.highwatermark;
         uint32_t frameSize = stackNeeded + kcalleeAreaSize + kLinkageAreaSize;
         frameSize = BIT_ROUND_UP(frameSize, 8);
 
-        verbose_only( verbose_outputf("        %p:",_nIns); )
-            verbose_only( verbose_output("        patch entry:"); )
-            NIns *patchEntry = _nIns;
         if (frameSize <= 4096)
-            SAVEI(SP, (-frameSize), SP);
+            SUBI(FP, frameSize, SP);
         else {
-            SAVE(SP, G1, SP);
-            ORI(G1, -frameSize & 0x3FF, G1);
-            SETHI(-frameSize, G1);
+            SUB(FP, G1, SP);
+            ORI(G1, frameSize & 0x3FF, G1);
+            SETHI(frameSize, G1);
         }
+
+        verbose_only( verbose_outputf("        %p:",_nIns); )
+        verbose_only( verbose_output("        patch entry:"); )
+        NIns *patchEntry = _nIns;
+
+        // The frame size in SAVE is faked. We will still re-caculate SP later.
+        // We can use 0 here but it is not good for debuggers.
+        SAVEI(SP, -148, SP);
 
         // align the entry point
         asm_align_code();
@@ -271,16 +276,16 @@ namespace nanojit
             evict(rr);
 
         if (hi->isconst()) {
-            STW32(L0, d+4, FP);
-            SET32(hi->constval(), L0);
+            STW32(L2, d+4, FP);
+            SET32(hi->constval(), L2);
         } else {
             Register rh = findRegFor(hi, GpRegs);
             STW32(rh, d+4, FP);
         }
 
         if (lo->isconst()) {
-            STW32(L0, d, FP);
-            SET32(lo->constval(), L0);
+            STW32(L2, d, FP);
+            SET32(lo->constval(), L2);
         } else {
             // okay if r gets recycled.
             Register rl = findRegFor(lo, GpRegs);
@@ -295,8 +300,8 @@ namespace nanojit
     {
         underrunProtect(24);
         if (i->isop(LIR_alloc)) {
-            ADD(FP, L0, r);
-            SET32(disp(resv), L0);
+            ADD(FP, L2, r);
+            SET32(disp(resv), L2);
             verbose_only(if (_verbose) {
                 outputf("        remat %s size %d", _thisfrag->lirbuf->names->formatRef(i), i->size());
             })
@@ -327,8 +332,8 @@ namespace nanojit
             {
                 Register rb = getBaseReg(base, dr, GpRegs);
                 int c = value->constval();
-                STW32(L0, dr, rb);
-                SET32(c, L0);
+                STW32(L2, dr, rb);
+                SET32(c, L2);
             }
         else
             {
@@ -407,10 +412,10 @@ namespace nanojit
                 // generating a pointless store/load/store sequence
                 Register rb = findRegFor(base, GpRegs);
                 const int32_t* p = (const int32_t*) (value-2);
-                STW32(L0, dr+4, rb);
-                SET32(p[0], L0);
-                STW32(L0, dr, rb);
-                SET32(p[1], L0);
+                STW32(L2, dr+4, rb);
+                SET32(p[0], L2);
+                STW32(L2, dr, rb);
+                SET32(p[1], L2);
                 return;
             }
 
@@ -581,8 +586,8 @@ namespace nanojit
                 }
                 else if (!rhs->isQuad()) {
                     Register r = getBaseReg(lhs, c, GpRegs);
-                    SUBCC(r, L0, G0);
-                    SET32(c, L0);
+                    SUBCC(r, L2, G0);
+                    SET32(c, L2);
                 }
             }
         else
@@ -671,8 +676,8 @@ namespace nanojit
             // add alloc+const, use lea
             Register rr = prepResultReg(ins, allow);
             int d = findMemFor(lhs) + rhs->constval();
-            ADD(FP, L0, rr);
-            SET32(d, L0);
+            ADD(FP, L2, rr);
+            SET32(d, L2);
         }
 
         Register rr = prepResultReg(ins, allow);
@@ -713,24 +718,24 @@ namespace nanojit
             {
                 int c = rhs->constval();
                 if (op == LIR_add || op == LIR_addp) {
-                    ADDCC(rr, L0, rr); 
+                    ADDCC(rr, L2, rr); 
                 } else if (op == LIR_sub) {
-                    SUBCC(rr, L0, rr); 
+                    SUBCC(rr, L2, rr); 
                 } else if (op == LIR_and)
-                    AND(rr, L0, rr);
+                    AND(rr, L2, rr);
                 else if (op == LIR_or)
-                    OR(rr, L0, rr);
+                    OR(rr, L2, rr);
                 else if (op == LIR_xor)
-                    XOR(rr, L0, rr);
+                    XOR(rr, L2, rr);
                 else if (op == LIR_lsh)
-                    SLL(rr, L0, rr);
+                    SLL(rr, L2, rr);
                 else if (op == LIR_rsh)
-                    SRA(rr, L0, rr);
+                    SRA(rr, L2, rr);
                 else if (op == LIR_ush)
-                    SRL(rr, L0, rr);
+                    SRL(rr, L2, rr);
                 else
                     NanoAssertMsg(0, "Unsupported");
-                SET32(c, L0);
+                SET32(c, L2);
             }
 
         if ( rr != ra ) 
@@ -885,13 +890,11 @@ namespace nanojit
         freeRsrcOf(ins, false);
         if (d)
             {
-                Register r = registerAlloc(GpRegs);
-                _allocator.addFree(r);
                 const int32_t* p = (const int32_t*) (ins-2);
-                STW32(r, d+4, FP);
-                SET32(p[0], r);
-                STW32(r, d, FP);
-                SET32(p[1], r);
+                STW32(L2, d+4, FP);
+                SET32(p[0], L2);
+                STW32(L2, d, FP);
+                SET32(p[1], L2);
             }
     }
     

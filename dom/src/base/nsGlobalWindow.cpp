@@ -444,7 +444,7 @@ nsDummyJavaPluginOwner::Destroy()
     nsCOMPtr<nsIPluginInstancePeer> peer;
     mInstance->GetPeer(getter_AddRefs(peer));
 
-    nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
+    nsCOMPtr<nsIPluginInstancePeer2_1_9_1_BRANCH> peer2(do_QueryInterface(peer));
 
     // This plugin owner is going away, tell the peer.
     if (peer2)
@@ -2990,7 +2990,7 @@ nsGlobalWindow::GetOpener(nsIDOMWindowInternal** aOpener)
 
   *aOpener = nsnull;
 
-  nsCOMPtr<nsIDOMWindowInternal> opener = do_QueryReferent(mOpener);
+  nsCOMPtr<nsPIDOMWindow> opener = do_QueryReferent(mOpener);
   if (!opener) {
     return NS_OK;
   }
@@ -3001,27 +3001,36 @@ nsGlobalWindow::GetOpener(nsIDOMWindowInternal** aOpener)
     return NS_OK;
   }
 
+  nsCOMPtr<nsPIDOMWindow> openerPwin(do_QueryInterface(opener));
+  if (!openerPwin) {
+    return NS_OK;
+  }
+
+  // First, ensure that we're not handing back a chrome window.
+  nsGlobalWindow *win = static_cast<nsGlobalWindow *>(openerPwin.get());
+  if (win->IsChromeWindow()) {
+    return NS_OK;
+  }
+
   // We don't want to reveal the opener if the opener is a mail window,
   // because opener can be used to spoof the contents of a message (bug 105050).
   // So, we look in the opener's root docshell to see if it's a mail window.
-  nsCOMPtr<nsPIDOMWindow> openerPwin(do_QueryInterface(opener));
-  if (openerPwin) {
-    nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
-      do_QueryInterface(openerPwin->GetDocShell());
+  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
+    do_QueryInterface(openerPwin->GetDocShell());
 
-    if (docShellAsItem) {
-      nsCOMPtr<nsIDocShellTreeItem> openerRootItem;
-      docShellAsItem->GetRootTreeItem(getter_AddRefs(openerRootItem));
-      nsCOMPtr<nsIDocShell> openerRootDocShell(do_QueryInterface(openerRootItem));
-      if (openerRootDocShell) {
-        PRUint32 appType;
-        nsresult rv = openerRootDocShell->GetAppType(&appType);
-        if (NS_SUCCEEDED(rv) && appType != nsIDocShell::APP_TYPE_MAIL) {
-          *aOpener = opener;
-        }
+  if (docShellAsItem) {
+    nsCOMPtr<nsIDocShellTreeItem> openerRootItem;
+    docShellAsItem->GetRootTreeItem(getter_AddRefs(openerRootItem));
+    nsCOMPtr<nsIDocShell> openerRootDocShell(do_QueryInterface(openerRootItem));
+    if (openerRootDocShell) {
+      PRUint32 appType;
+      nsresult rv = openerRootDocShell->GetAppType(&appType);
+      if (NS_SUCCEEDED(rv) && appType != nsIDocShell::APP_TYPE_MAIL) {
+        *aOpener = opener;
       }
     }
   }
+
   NS_IF_ADDREF(*aOpener);
   return NS_OK;
 }
@@ -4462,7 +4471,9 @@ nsGlobalWindow::Print()
         printSettingsService->GetNewPrintSettings(getter_AddRefs(printSettings));
       }
 
+      EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
+      LeaveModalState();
 
       PRBool savePrintSettings =
         nsContentUtils::GetBoolPref("print.save_print_settings", PR_FALSE);
@@ -4478,7 +4489,10 @@ nsGlobalWindow::Print()
       }
     } else {
       webBrowserPrint->GetGlobalPrintSettings(getter_AddRefs(printSettings));
+
+      EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
+      LeaveModalState();
     }
   } 
 
@@ -5624,6 +5638,22 @@ nsGlobalWindow::ReallyCloseWindow()
   }
 }
 
+inline void
+SetScriptContextModalState(PRBool aIsModal)
+{
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  if (cx) {
+    nsCOMPtr<nsIScriptContext_MOZILLA_1_9_1_BRANCH> scx =
+        do_QueryInterface(GetScriptContextFromJSContext(cx));
+    if (scx) {
+      if (aIsModal)
+        scx->EnterModalState();
+      else 
+        scx->LeaveModalState();
+    }
+  }
+}
+
 void
 nsGlobalWindow::EnterModalState()
 {
@@ -5649,6 +5679,8 @@ nsGlobalWindow::EnterModalState()
     }
   }
   topWin->mModalStateDepth++;
+
+  SetScriptContextModalState(PR_TRUE);
 }
 
 // static
@@ -5752,6 +5784,8 @@ nsGlobalWindow::LeaveModalState()
       mSuspendedDoc = nsnull;
     }
   }
+
+  SetScriptContextModalState(PR_FALSE);
 }
 
 PRBool

@@ -689,11 +689,6 @@ public:
         IDX_ITEM                    ,
         IDX_PROTO                   ,
         IDX_ITERATOR                ,
-#ifdef XPC_IDISPATCH_SUPPORT
-        IDX_ACTIVEX_OBJECT          ,
-        IDX_COM_OBJECT              ,
-        IDX_ACTIVEX_SUPPORTS        ,
-#endif
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -3951,7 +3946,7 @@ public:
 
     jsval GetJSVal() const {return mJSVal;}
 
-    XPCVariant(jsval aJSVal);
+    XPCVariant(XPCCallContext& ccx, jsval aJSVal);
 
     /**
      * Convert a variant into a jsval.
@@ -3976,6 +3971,7 @@ protected:
 protected:
     nsDiscriminatedUnion mData;
     jsval                mJSVal;
+    JSBool               mReturnRawObject;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(XPCVariant, XPCVARIANT_IID)
@@ -3984,10 +3980,10 @@ class XPCTraceableVariant: public XPCVariant,
                            public XPCRootSetElem
 {
 public:
-    XPCTraceableVariant(XPCJSRuntime *runtime, jsval aJSVal)
-        : XPCVariant(aJSVal)
+    XPCTraceableVariant(XPCCallContext& ccx, jsval aJSVal)
+        : XPCVariant(ccx, aJSVal)
     {
-        runtime->AddVariantRoot(this);
+        ccx.GetRuntime()->AddVariantRoot(this);
     }
 
     virtual ~XPCTraceableVariant();

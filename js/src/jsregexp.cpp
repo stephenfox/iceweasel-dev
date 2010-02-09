@@ -2231,8 +2231,8 @@ class RegExpNativeCompiler {
         return pos;
     }
 
-#ifdef AVMPLUS_ARM
-/* We can't do this on ARM, since it relies on doing a 32-bit load from
+#if defined(AVMPLUS_ARM) || defined(AVMPLUS_SPARC)
+/* We can't do this on ARM or SPARC, since it relies on doing a 32-bit load from
  * a pointer which is only 2-byte aligned.
  */
 #undef USE_DOUBLE_CHAR_MATCH
@@ -4373,19 +4373,27 @@ js_InitRegExpStatics(JSContext *cx)
 }
 
 JS_FRIEND_API(void)
-js_SaveRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                     JSTempValueRooter *tvr)
+js_SaveAndClearRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
+                             JSTempValueRooter *tvr)
 {
-  *statics = cx->regExpStatics;
-  JS_PUSH_TEMP_ROOT_STRING(cx, statics->input, tvr);
+    *statics = cx->regExpStatics;
+    JS_PUSH_TEMP_ROOT_STRING(cx, statics->input, tvr);
+    /*
+     * Prevent JS_ClearRegExpStatics from freeing moreParens, since we've only
+     * moved it elsewhere (into statics->moreParens).
+     */
+    cx->regExpStatics.moreParens = NULL;
+    JS_ClearRegExpStatics(cx);
 }
 
 JS_FRIEND_API(void)
 js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
                         JSTempValueRooter *tvr)
 {
-  cx->regExpStatics = *statics;
-  JS_POP_TEMP_ROOT(cx, tvr);
+    /* Clear/free any new JSRegExpStatics data before clobbering. */
+    JS_ClearRegExpStatics(cx);
+    cx->regExpStatics = *statics;
+    JS_POP_TEMP_ROOT(cx, tvr);
 }
 
 void
@@ -4400,12 +4408,7 @@ js_TraceRegExpStatics(JSTracer *trc, JSContext *acx)
 void
 js_FreeRegExpStatics(JSContext *cx)
 {
-    JSRegExpStatics *res = &cx->regExpStatics;
-
-    if (res->moreParens) {
-        JS_free(cx, res->moreParens);
-        res->moreParens = NULL;
-    }
+    JS_ClearRegExpStatics(cx);
     JS_FinishArenaPool(&cx->regexpPool);
 }
 

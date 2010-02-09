@@ -791,7 +791,11 @@ panel[type="autocomplete-richlistbox"] {
 
 %endif
 
-
+/* Bug 453827 */
+toolbaritem.chromeclass-location > textbox > hbox > hbox > html|*.textbox-input > html|*.anonymous-div {
+  /* Make the line-height equal to the available height */
+  line-height: -moz-block-height;
+}
 
 /* the C++ implementation of widgets is too eager to make popups visible.
    this causes problems (bug 120155 and others), thus this workaround: */

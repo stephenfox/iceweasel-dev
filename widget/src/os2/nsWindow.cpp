@@ -1288,7 +1288,8 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode)
   // act on the request if the frame isn't already in the requested state
   if (aMode == nsSizeMode_Minimized) {
     if (!(ulStyle & WS_MINIMIZED))
-      WinSetWindowPos(hFrame, 0, 0, 0, 0, 0, SWP_MINIMIZE | SWP_DEACTIVATE);
+      WinSetWindowPos(hFrame, HWND_BOTTOM, 0, 0, 0, 0,
+                      SWP_MINIMIZE | SWP_ZORDER | SWP_DEACTIVATE);
   }
   else
     if (ulStyle & (WS_MAXIMIZED | WS_MINIMIZED))
@@ -1483,9 +1484,11 @@ NS_METHOD nsWindow::Resize(PRInt32 aX,
          ptl.y = WinQuerySysValue(HWND_DESKTOP, SV_CYSCREEN) - h - 1 - aY;
       }
 
-      if( !SetWindowPos( 0, ptl.x, ptl.y, w, h, SWP_MOVE | SWP_SIZE))
-         if( aRepaint)
+      if (!SetWindowPos(0, ptl.x, ptl.y, w, h, SWP_MOVE | SWP_SIZE)) {
+         if (aRepaint) {
             Invalidate(PR_FALSE);
+         }
+      }
 
 #if DEBUG_sobotka
       printf("+++++++++++Resized 0x%lx at %ld, %ld to %d x %d (%d,%d)\n",
@@ -2010,18 +2013,19 @@ NS_IMETHODIMP nsWindow::HideWindowChrome(PRBool aShouldHide)
   HWND hwndMinMax = NULLHANDLE;
   HWND hwndParent;
   ULONG ulStyle;
-  char className[19];
 
-  HWND hwnd = (HWND)GetNativeData(NS_NATIVE_WINDOW);
-  for ( ; hwnd != NULLHANDLE; hwnd = WinQueryWindow(hwnd, QW_PARENT)) {
-    ::WinQueryClassName(hwnd, 19, className);
-    if (strcmp(className, WC_FRAME_STRING) == 0)
-    {
-      hwndFrame = hwnd;
-      break;
-    }
+  // Make sure we're operating on the frame window.
+  nsWindow * top = static_cast<nsWindow*>(GetTopLevelWidget());
+  if (!top || !top->mFrameWnd) {
+    return NS_ERROR_FAILURE;
   }
+  hwndFrame = top->mFrameWnd;
 
+  // Restore maximized windows before putting them in fullscreen mode
+  // to avoid problems later if they're minimized & then restored.
+  if (WinQueryWindowULong(hwndFrame, QWL_STYLE) & WS_MAXIMIZED) {
+    WinSetWindowPos(hwndFrame, 0, 0, 0, 0, 0, SWP_RESTORE | SWP_NOREDRAW);
+  }
 
   if (aShouldHide) {
     hwndParent = HWND_OBJECT;
@@ -2041,8 +2045,8 @@ NS_IMETHODIMP nsWindow::HideWindowChrome(PRBool aShouldHide)
     WinSetParent(hwndMinMax, hwndParent, TRUE);
   if (aShouldHide) {
     ulStyle = (ULONG)WinQueryWindowULong(hwndFrame, QWL_STYLE);
-    WinSetWindowULong(hwndFrame, QWL_STYLE, ulStyle & ~FS_SIZEBORDER);
     WinSetProperty(hwndFrame, "ulStyle", (PVOID)ulStyle, 0);
+    WinSetWindowULong(hwndFrame, QWL_STYLE, ulStyle & ~FS_SIZEBORDER);
     WinSendMsg(hwndFrame, WM_UPDATEFRAME, 0, 0);
   } else {
     ulStyle = (ULONG)WinQueryProperty(hwndFrame, "ulStyle");
@@ -3592,19 +3596,20 @@ nsWindow::HasPendingInputEvent()
 
 BOOL nsWindow::SetWindowPos( HWND ib, long x, long y, long cx, long cy, ULONG flags)
 {
-   BOOL bDeferred = FALSE;
+   BOOL result = FALSE;
 
    if( mParent && mParent->mSWPs) // XXX bit implicit...
    {
       mParent->DeferPosition( GetMainWindow(), ib, x, y, cx, cy, flags);
-      bDeferred = TRUE;
+      result = TRUE;
    }
-   else // WinSetWindowPos appears not to need msgq (hmm)
-      WinSetWindowPos( GetMainWindow(), ib, x, y, cx, cy, GetSWPFlags(flags));
+   else { // WinSetWindowPos appears not to need msgq (hmm)
+      result = WinSetWindowPos( GetMainWindow(), ib, x, y, cx, cy, flags);
+   }
 
    // When the window is actually sized, mBounds will be updated in the fnwp.
 
-   return bDeferred;
+   return result;
 }
 
 nsresult nsWindow::GetWindowText( nsString &aStr, PRUint32 *rc)

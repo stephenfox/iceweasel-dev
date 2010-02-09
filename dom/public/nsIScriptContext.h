@@ -463,5 +463,25 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContext, NS_ISCRIPTCONTEXT_IID)
 
+#define NS_ISCRIPTCONTEXT_MOZILLA_1_9_1_BRANCH_IID \
+  { \
+    0xc361b41a, \
+    0x65f7, \
+    0x4771, \
+    { 0x8e, 0xcb, 0x92, 0x74, 0x05, 0xf9, 0xdc, 0x44 } \
+  }
+
+class nsIScriptContext_MOZILLA_1_9_1_BRANCH : public nsISupports
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTCONTEXT_MOZILLA_1_9_1_BRANCH_IID)
+
+  virtual void EnterModalState() = 0;
+  virtual void LeaveModalState() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContext_MOZILLA_1_9_1_BRANCH,
+                              NS_ISCRIPTCONTEXT_MOZILLA_1_9_1_BRANCH_IID)
+
 #endif // nsIScriptContext_h__
 

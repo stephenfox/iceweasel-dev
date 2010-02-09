@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <cctype>
 
-#include "lcms.h"
+#include "qcms.h"
 
 /* Nabbed from the http://www.jonh.net/~jonh/md5/crc32/crc32.c. License is
  * "do anything, no restrictions." */

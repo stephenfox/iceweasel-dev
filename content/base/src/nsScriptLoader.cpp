@@ -261,6 +261,10 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
   nsCOMPtr<nsIStreamLoader> loader;
 
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
+  if (!window) {
+    return NS_ERROR_NULL_POINTER;
+  }
+
   nsIDocShell *docshell = window->GetDocShell();
 
   nsCOMPtr<nsIInterfaceRequestor> prompter(do_QueryInterface(docshell));
@@ -1029,23 +1033,24 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 }
 
 void
-nsScriptLoader::EndDeferringScripts(PRBool aKillDeferred)
+nsScriptLoader::ParsingComplete(PRBool aTerminated)
 {
   if (mDeferEnabled) {
-    // Have to check because we apparently get EndDeferringScripts
+    // Have to check because we apparently get ParsingComplete
     // without BeginDeferringScripts in some cases
     mUnblockOnloadWhenDoneProcessing = PR_TRUE;
   }
   mDeferEnabled = PR_FALSE;
-  for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
-    if (aKillDeferred && mRequests[i]->mDefer) {
-      mRequests.RemoveObjectAt(i--);
-    }
-    else {
+  if (aTerminated) {
+    mRequests.Clear();
+  } else {
+    for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
       mRequests[i]->mDefer = PR_FALSE;
     }
   }
 
+  // Have to call this even if aTerminated so we'll correctly unblock
+  // onload and all.
   ProcessPendingRequests();
 }
 

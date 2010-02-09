@@ -204,7 +204,6 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") != 240536-resizer-ltr.xul 240536-resizer-rt
 == 253701-1.html 253701-1-ref.html
 == 255820-1.html 255820-1-ref.html
 == 262151-1.html 262151-1-ref.html
-#== 263683-1.html 263683-1-ref.html
 == 267353-1.html 267353-1-ref.html
 == 271747-1a.html 271747-1-ref.html
 == 271747-1b.html 271747-1-ref.html
@@ -1039,6 +1038,7 @@ fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 481948-3.html 481948-3-ref.html # differ
 == 485012-1.html 485012-1-ref.html
 == 485275-1.html 485275-1-ref.html
 == 485275-1.svg 485275-1-ref.html
+== 486065-1.html 486065-1-ref.html
 == 486848-1.xul 486848-1-ref.xul
 == 487539-1.html about:blank
 == 488390-1.html 488390-1-ref.html
@@ -1049,3 +1049,7 @@ fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 481948-3.html 481948-3-ref.html # differ
 == 494667-1.html 494667-1-ref.html
 fails == 494667-2.html 494667-2-ref.html # needs bug 155955 (not on 1.9.1 branch)
 == 495274-1.html 495274-1-ref.html
+== 504032-1.html 504032-1-ref.html
+== 513318-1.xul 513318-1-ref.xul
+!= 513318-2.xul 513318-2-ref.xul
+!= 513318-3.xul 513318-3-ref.xul

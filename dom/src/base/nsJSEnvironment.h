@@ -50,7 +50,8 @@
 class nsIXPConnectJSObjectHolder;
 
 class nsJSContext : public nsIScriptContext,
-                    public nsIXPCScriptNotify
+                    public nsIXPCScriptNotify,
+                    public nsIScriptContext_MOZILLA_1_9_1_BRANCH
 {
 public:
   nsJSContext(JSRuntime *aRuntime);
@@ -170,6 +171,10 @@ public:
   // reporting.
   virtual void ReportPendingException();
 
+  // nsIScriptContext_MOZILLA_1_9_1_BRANCH
+  virtual void EnterModalState();
+  virtual void LeaveModalState();
+
   NS_DECL_NSIXPCSCRIPTNOTIFY
 
   static void LoadStart();
@@ -288,6 +293,9 @@ private:
 
   PRUint32 mDefaultJSOptions;
   PRTime mOperationCallbackTime;
+
+  PRTime mModalStateTime;
+  PRUint32 mModalStateDepth;
 
   // mGlobalWrapperRef is used only to hold a strong reference to the
   // global object wrapper while the nsJSContext is alive. This cuts

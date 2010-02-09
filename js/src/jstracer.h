@@ -62,7 +62,10 @@ class Queue : public avmplus::GCObject {
     unsigned _len;
     unsigned _max;
 
+public:
     void ensure(unsigned size) {
+        if (!_max)
+            _max = 16;
         while (_max < size)
             _max <<= 1;
         _data = (T*)realloc(_data, _max * sizeof(T));
@@ -70,11 +73,14 @@ class Queue : public avmplus::GCObject {
         memset(&_data[_len], 0xcd, _max - _len);
 #endif
     }
-public:
+
     Queue(unsigned max = 16) {
         this->_max = max;
         this->_len = 0;
-        this->_data = (T*)malloc(max * sizeof(T));
+        if (max)
+            this->_data = (T*)malloc(max * sizeof(T));
+        else
+            this->_data = NULL;
     }
 
     ~Queue() {
@@ -301,15 +307,16 @@ struct FrameInfo {
     uint16          argc;
 
     /*
-     * Stack pointer adjustment needed for navigation of native stack in
-     * js_GetUpvarOnTrace. spoffset is the number of slots in the native
-     * stack frame for the caller *before* the slots covered by spdist.
-     * This may be negative if the caller is the top level script.
-     * The key fact is that if we let 'cpos' be the start of the caller's
-     * native stack frame, then (cpos + spoffset) points to the first 
-     * non-argument slot in the callee's native stack frame.
+     * Number of stack slots in the caller, not counting slots pushed when
+     * invoking the callee. That is, slots after JSOP_CALL completes but
+     * without the return value. This is also equal to the number of slots
+     * between fp->down->argv[-2] (calleR fp->callee) and fp->argv[-2]
+     * (calleE fp->callee).
      */
-    int32          spoffset;
+    uint32          callerHeight;
+
+    /* argc of the caller */
+    uint32          callerArgc;
 
     // Safer accessors for argc.
     enum { CONSTRUCTING_MASK = 0x8000 };
@@ -410,12 +417,17 @@ struct InterpState
 #endif
     InterpState*   prev;
 
-    /*
-     * Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
-     * JSBUILTIN_BAILED bit if it bails off trace and the JSBUILTIN_ERROR bit
-     * if an error or exception occurred.
-     */
+    // Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
+    // JSBUILTIN_BAILED bit if it bails off trace and the JSBUILTIN_ERROR bit
+    // if an error or exception occurred.
     uint32         builtinStatus;
+
+    // Used to communicate the location of the return value in case of a deep bail.
+    double*        deepBailSp;
+
+    // Used when calling natives from trace to root the vp vector. */
+    uintN          nativeVpLen;
+    jsval         *nativeVp;
 };
 
 static JS_INLINE void
@@ -636,7 +648,7 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK JSRecordingStatus interpretedFunctionCall(jsval& fval, JSFunction* fun,
                                                                 uintN argc, bool constructing);
     JS_REQUIRES_STACK JSRecordingStatus emitNativeCall(JSTraceableNative* known, uintN argc,
-                                                       nanojit::LIns* args[]);
+                                                       nanojit::LIns* args[], bool rooted);
     JS_REQUIRES_STACK JSRecordingStatus callTraceableNative(JSFunction* fun, uintN argc,
                                                             bool constructing);
     JS_REQUIRES_STACK JSRecordingStatus callNative(uintN argc, JSOp mode);

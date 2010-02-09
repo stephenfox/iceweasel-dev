@@ -196,8 +196,6 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 + (NSEvent*)makeNewCocoaEventWithType:(NSEventType)type fromEvent:(NSEvent*)theEvent;
 
-- (BOOL)isPaintingSuppressed;
-
 - (void)maybeInvalidateShadow;
 - (void)invalidateShadow;
 
@@ -477,6 +475,32 @@ FillTextRangeInTextEvent(nsTextEvent *aTextEvent, NSAttributedString* aString, N
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+#if defined(DEBUG) && defined(PR_LOGGING)
+
+static void DebugPrintAllKeyboardLayouts()
+{
+  CFIndex idx;
+  KLGetKeyboardLayoutCount(&idx);
+  PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
+  for (CFIndex i = 0; i < idx; ++i) {
+    KeyboardLayoutRef curKL;
+    if (KLGetKeyboardLayoutAtIndex(i, &curKL) == noErr) {
+      CFStringRef name;
+      if (KLGetKeyboardLayoutProperty(curKL, kKLName, (const void**)&name) == noErr) {
+        int idn;
+        KLGetKeyboardLayoutProperty(curKL, kKLIdentifier, (const void**)&idn);
+        int kind;
+        KLGetKeyboardLayoutProperty(curKL, kKLKind, (const void**)&kind);
+        char buf[256];
+        CFStringGetCString(name, buf, 256, kCFStringEncodingASCII);
+        PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("  %d,%s,%d\n", idn, buf, kind));
+      }
+    }
+  }
+}
+
+#endif // defined(DEBUG) && defined(PR_LOGGING)
+
 #pragma mark -
 
 
@@ -495,24 +519,9 @@ nsChildView::nsChildView() : nsBaseWidget()
 #ifdef PR_LOGGING
   if (!sCocoaLog) {
     sCocoaLog = PR_NewLogModule("nsCocoaWidgets");
-    CFIndex idx;
-    KLGetKeyboardLayoutCount(&idx);
-    PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("Keyboard layout configuration:"));
-    for (CFIndex i = 0; i < idx; ++i) {
-      KeyboardLayoutRef curKL;
-      if (KLGetKeyboardLayoutAtIndex(i, &curKL) == noErr) {
-        CFStringRef name;
-        if (KLGetKeyboardLayoutProperty(curKL, kKLName, (const void**)&name) == noErr) {
-          int idn;
-          KLGetKeyboardLayoutProperty(curKL, kKLIdentifier, (const void**)&idn);
-          int kind;
-          KLGetKeyboardLayoutProperty(curKL, kKLKind, (const void**)&kind);
-          char buf[256];
-          CFStringGetCString(name, buf, 256, kCFStringEncodingASCII);
-          PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("  %d,%s,%d\n", idn, buf, kind));
-        }
-      }
-    }
+#ifdef DEBUG
+    DebugPrintAllKeyboardLayouts();
+#endif // DEBUG
   }
 #endif
 
@@ -541,9 +550,12 @@ nsChildView::nsChildView() : nsBaseWidget()
 
 nsChildView::~nsChildView()
 {
-  // notify the children that we're gone
-  for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
+  // Notify the children that we're gone.  childView->ResetParent() can change
+  // our list of children while it's being iterated, so the way we iterate the
+  // list must allow for this.
+  for (nsIWidget* kid = mLastChild; kid;) {
     nsChildView* childView = static_cast<nsChildView*>(kid);
+    kid = kid->GetPrevSibling();
     childView->ResetParent();
   }
 
@@ -2514,6 +2526,8 @@ NSEvent* gLastDragEvent = nil;
     mGestureState = eGestureState_None;
     mCumulativeMagnification = 0.0;
     mCumulativeRotation = 0.0;
+
+    [self setFocusRingType:NSFocusRingTypeNone];
   }
   
   // register for things we'll take from other applications
@@ -2699,23 +2713,23 @@ NSEvent* gLastDragEvent = nil;
   // we have to loop up through superviews in case the view that received the
   // mouseDown is in fact a plugin view with no scrollbars
   while (currView) {
-    // This is a hack I learned in nsView::GetViewFor(nsIWidget* aWidget)
-    // that I'm not sure is kosher. If anyone knows a better way to get
-    // the view for a widget, I'd love to hear it. --Nathan
-
-    void* clientData;
-    [currView widget]->GetClientData(clientData);
-
-    nsISupports* data = (nsISupports*)clientData;
-    nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(data));
-    if (req) {
-      req->GetInterface(NS_GET_IID(nsIScrollableView), (void**)&scrollableView);
-      if (scrollableView)
-        break;
+    nsIWidget* widget = [currView widget];
+    if (widget) {
+      void* clientData;
+      if (NS_SUCCEEDED(widget->GetClientData(clientData))) {
+        nsISupports* data = (nsISupports*)clientData;
+        nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(data));
+        if (req) {
+          req->GetInterface(NS_GET_IID(nsIScrollableView), (void**)&scrollableView);
+          if (scrollableView)
+            break;
+        }
+      }
     }
 
-    if ([[currView superview] isMemberOfClass:[ChildView class]])
-        currView = (ChildView*)[currView superview];
+    NSView* superview = [currView superview];
+    if (superview && [superview isMemberOfClass:[ChildView class]])
+        currView = (ChildView*)superview;
     else
         currView = nil;
   }
@@ -2970,22 +2984,6 @@ NSEvent* gLastDragEvent = nil;
 }
 
 
-// Needed to deal with the consequences of calling [NSCell
-// drawWithFrame:inView:] with a ChildView object as the inView parameter
-// (this can happen in nsNativeThemeCocoa.mm):  drawWithFrame:inView:
-// expects an NSControl as its inView parameter, and may call [NSControl
-// currentEditor] on it.  But since a ChildView object (like an NSView object)
-// isn't a control, it doesn't have a "current editor", or a currentEditor
-// method.  So calling currentEditor on it will trigger a Objective-C
-// "unrecognized selector" exception.  To prevent this, ChildView needs its
-// own currentEditor method.  Since a ChildView object never has a "current
-// editor", it should always return nil.
-- (NSText*)currentEditor
-{
-  return nil;
-}
-
-
 - (void)scrollRect:(NSRect)aRect by:(NSSize)offset
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -3058,14 +3056,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 }
 
 
-- (BOOL)isPaintingSuppressed
-{
-  NSWindow* win = [self window];
-  return ([win isKindOfClass:[ToolbarWindow class]] &&
-          [(ToolbarWindow*)win isPaintingSuppressed]);
-}
-
-
 // The display system has told us that a portion of our view is dirty. Tell
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
@@ -3074,7 +3064,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   PRBool isVisible;
   if (!mGeckoChild || NS_FAILED(mGeckoChild->IsVisible(isVisible)) ||
-      !isVisible || [self isPaintingSuppressed])
+      !isVisible)
     return;
 
   CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
@@ -3104,8 +3094,9 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   /* clip and build a region */
   nsCOMPtr<nsIRegion> rgn(do_CreateInstance(kRegionCID));
-  if (rgn)
-    rgn->Init();
+  if (!rgn)
+    return;
+  rgn->Init();
 
   // bounding box of the dirty area
   nsIntRect fullRect;
@@ -3119,16 +3110,32 @@ static const PRInt32 sShadowInvalidationInterval = 100;
       const NSRect& r = rects[i];
 
       // add to the region
-      if (rgn)
-        rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
-
-      // to the context for clipping
-      targetContext->Rectangle(gfxRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
+      rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
     }
   } else {
     rgn->Union(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height);
-    targetContext->Rectangle(gfxRect(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
   }
+
+  // Subtract child view rectangles from the region
+  NSArray* subviews = [self subviews];
+  for (int i = 0; i < int([subviews count]); ++i) {
+    NSView* view = [subviews objectAtIndex:i];
+    if (![view isKindOfClass:[ChildView class]] || [view isHidden])
+      continue;
+    NSRect frame = [view frame];
+    rgn->Subtract(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+  }
+
+  nsRegionRectSet* rgnRects = nsnull;
+  rgn->GetRects(&rgnRects);
+  if (!rgnRects)
+    return;
+
+  for (PRUint32 i = 0; i < rgnRects->mNumRects; ++i) {
+    const nsRegionRect& r = rgnRects->mRects[i];
+    targetContext->Rectangle(gfxRect(r.x, r.y, r.width, r.height));
+  }
+  rgn->FreeRects(rgnRects);
   targetContext->Clip();
   
   nsPaintEvent paintEvent(PR_TRUE, NS_PAINT, mGeckoChild);

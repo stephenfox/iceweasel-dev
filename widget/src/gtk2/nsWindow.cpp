@@ -3498,7 +3498,7 @@ nsWindow::OnDragMotionEvent(GtkWidget *aWidget,
                             guint aTime,
                             gpointer aData)
 {
-    LOG(("nsWindow::OnDragMotionSignal\n"));
+    LOGDRAG(("nsWindow::OnDragMotionSignal\n"));
 
     if (mLastButtonReleaseTime) {
       // The drag ended before it was even setup to handle the end of the drag
@@ -3598,7 +3598,7 @@ nsWindow::OnDragLeaveEvent(GtkWidget *aWidget,
 {
     // XXX Do we want to pass this on only if the event's subwindow is null?
 
-    LOG(("nsWindow::OnDragLeaveSignal(%p)\n", this));
+    LOGDRAG(("nsWindow::OnDragLeaveSignal(%p)\n", this));
 
     sIsDraggingOutOf = PR_TRUE;
 
@@ -3625,7 +3625,7 @@ nsWindow::OnDragDropEvent(GtkWidget *aWidget,
                           gpointer *aData)
 
 {
-    LOG(("nsWindow::OnDragDropSignal\n"));
+    LOGDRAG(("nsWindow::OnDragDropSignal\n"));
 
     // get our drag context
     nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
@@ -3738,7 +3738,7 @@ nsWindow::OnDragDataReceivedEvent(GtkWidget *aWidget,
                                   guint aTime,
                                   gpointer aData)
 {
-    LOG(("nsWindow::OnDragDataReceived(%p)\n", this));
+    LOGDRAG(("nsWindow::OnDragDataReceived(%p)\n", this));
 
     // get our drag context
     nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
@@ -3751,7 +3751,7 @@ nsWindow::OnDragDataReceivedEvent(GtkWidget *aWidget,
 void
 nsWindow::OnDragLeave(void)
 {
-    LOG(("nsWindow::OnDragLeave(%p)\n", this));
+    LOGDRAG(("nsWindow::OnDragLeave(%p)\n", this));
 
     nsDragEvent event(PR_TRUE, NS_DRAGDROP_EXIT, this);
 
@@ -3784,7 +3784,7 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
 {
     // XXX Do we want to pass this on only if the event's subwindow is null?
 
-    LOG(("nsWindow::OnDragEnter(%p)\n", this));
+    LOGDRAG(("nsWindow::OnDragEnter(%p)\n", this));
 
     nsCOMPtr<nsIDragService> dragService = do_GetService(kCDragServiceCID);
 
@@ -5959,7 +5959,7 @@ nsWindow::ResetDragMotionTimer(GtkWidget *aWidget,
 void
 nsWindow::FireDragMotionTimer(void)
 {
-    LOG(("nsWindow::FireDragMotionTimer(%p)\n", this));
+    LOGDRAG(("nsWindow::FireDragMotionTimer(%p)\n", this));
 
     OnDragMotionEvent(mDragMotionWidget, mDragMotionContext,
                       mDragMotionX, mDragMotionY, mDragMotionTime,
@@ -5969,7 +5969,7 @@ nsWindow::FireDragMotionTimer(void)
 void
 nsWindow::FireDragLeaveTimer(void)
 {
-    LOG(("nsWindow::FireDragLeaveTimer(%p)\n", this));
+    LOGDRAG(("nsWindow::FireDragLeaveTimer(%p)\n", this));
 
     mDragLeaveTimer = 0;
 

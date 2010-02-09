@@ -906,11 +906,13 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   // ScriptEvaluated to be called, and clearing our operation callback time.
   // See bug 302333.
   PRTime callbackTime = ctx->mOperationCallbackTime;
+  PRTime modalStateTime = ctx->mModalStateTime;
 
   MaybeGC(cx);
 
   // Now restore the callback time and count, in case they got reset.
   ctx->mOperationCallbackTime = callbackTime;
+  ctx->mModalStateTime = modalStateTime;
 
   // Check to see if we are running OOM
   nsCOMPtr<nsIMemory> mem;
@@ -965,15 +967,20 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
 
   PRTime now = PR_Now();
 
-  if (LL_IS_ZERO(callbackTime)) {
+  if (callbackTime == 0) {
     // Initialize mOperationCallbackTime to start timing how long the
     // script has run
     ctx->mOperationCallbackTime = now;
     return JS_TRUE;
   }
 
-  PRTime duration;
-  LL_SUB(duration, now, callbackTime);
+  if (ctx->mModalStateDepth) {
+    // We're waiting on a modal dialog, nothing more to do here.
+
+    return JS_TRUE;
+  }
+
+  PRTime duration = now - callbackTime;
 
   // Check the amount of time this script has been running, or if the
   // dialog is disabled.
@@ -1153,6 +1160,46 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   return JS_FALSE;
 }
 
+void
+nsJSContext::EnterModalState()
+{
+  if (!mModalStateDepth) {
+    mModalStateTime =  mOperationCallbackTime ? PR_Now() : 0;
+  }
+  ++mModalStateDepth;
+}
+
+void
+nsJSContext::LeaveModalState()
+{
+  if (!mModalStateDepth) {
+    NS_ERROR("Uh, mismatched LeaveModalState() call!");
+
+    return;
+  }
+  
+  --mModalStateDepth;
+  
+  // If we're still in a modal dialog, or mOperationCallbackTime is still
+  // uninitialized, do nothing.
+  if (mModalStateDepth || !mOperationCallbackTime) {
+    return;
+  }
+
+  // If mOperationCallbackTime was set when we entered the first dialog
+  // (and mModalStateTime is thus non-zero), adjust mOperationCallbackTime
+  // to account for time spent in the dialog.
+  // If mOperationCallbackTime got set while the modal dialog was open,
+  // simply set mOperationCallbackTime to the closing time of the dialog so
+  // that we never adjust mOperationCallbackTime to be in the future. 
+  if (mModalStateTime) {
+    mOperationCallbackTime += PR_Now() - mModalStateTime;
+  }
+  else {
+    mOperationCallbackTime = PR_Now();
+  }
+}
+
 #define JS_OPTIONS_DOT_STR "javascript.options."
 
 static const char js_options_dot_str[]   = JS_OPTIONS_DOT_STR;
@@ -1275,7 +1322,9 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime) : mGCOnDestruction(PR_TRUE)
   mNumEvaluations = 0;
   mTerminations = nsnull;
   mScriptsEnabled = PR_TRUE;
-  mOperationCallbackTime = LL_ZERO;
+  mOperationCallbackTime = 0;
+  mModalStateTime = 0;
+  mModalStateDepth = 0;
   mProcessingScriptTag = PR_FALSE;
 }
 
@@ -1355,6 +1404,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSContext)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContext)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptNotify)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptContext_MOZILLA_1_9_1_BRANCH)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptContext)
 NS_INTERFACE_MAP_END
 
@@ -2367,11 +2417,6 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   JSObject *newInnerJSObject = (JSObject *)aNewInner->GetScriptGlobal(JAVASCRIPT);
   JSObject *myobject = (JSObject *)aOuterGlobal;
 
-  // Call ClearScope to nuke any properties (e.g. Function and Object) on the
-  // outer object. From now on, anybody asking the outer object for these
-  // properties will be forwarded to the inner window.
-  ::JS_ClearScope(mContext, myobject);
-
   // Make the inner and outer window both share the same
   // prototype. The prototype we share is the outer window's
   // prototype, this way XPConnect can still find the wrapper to
@@ -2474,11 +2519,23 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
       NS_ENSURE_SUCCESS(rv, rv);
     }
   } else {
-    // If there's already a global object in mContext we're called
-    // after ::JS_ClearScope() was called. We'll have to tell
-    // XPConnect to re-initialize the global object to do things like
+    // There's already a global object. We are preparing this outer window
+    // object for use as a real outer window (i.e. everything needs to live on
+    // the inner window).
+
+    // Call ClearScope to nuke any properties (e.g. Function and Object) on the
+    // outer object. From now on, anybody asking the outer object for these
+    // properties will be forwarded to the inner window.
+    ::JS_ClearScope(mContext, global);
+
+    // Tell XPConnect to re-initialize the global object to do things like
     // define the Components object on the global again and forget all
     // old prototypes in this scope.
+    // XXX Except that now, the global is thawed and has an inner window. So
+    // anything that XPConnect does to our global will be forwarded. So I
+    // think the only thing that this does for real is to call SetGlobal on
+    // our XPCWrappedNativeScope. Perhaps XPConnect should have a more
+    // targeted API?
     rv = xpc->InitClasses(mContext, global);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3363,7 +3420,8 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
   }
 
   if (aTerminated) {
-    mOperationCallbackTime = LL_ZERO;
+    mOperationCallbackTime = 0;
+    mModalStateTime = 0;
   }
 }
 

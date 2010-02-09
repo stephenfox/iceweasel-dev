@@ -336,7 +336,7 @@ public:
   nsresult OpenContainer(const nsIParserNode& aNode);
   nsresult CloseContainer(const nsHTMLTag aTag, PRBool aMalformed);
   nsresult AddLeaf(const nsIParserNode& aNode);
-  nsresult AddLeaf(nsGenericHTMLElement* aContent);
+  nsresult AddLeaf(nsIContent* aContent);
   nsresult AddComment(const nsIParserNode& aNode);
   nsresult End();
 
@@ -900,6 +900,7 @@ SinkContext::HaveNotifiedForCurrentContent() const
 nsIContent *
 SinkContext::Node::Add(nsIContent *child)
 {
+  NS_ASSERTION(mContent, "No parent to insert/append into!");
   if (mInsertionPoint != -1) {
     NS_ASSERTION(mNumFlushed == mContent->GetChildCount(),
                  "Inserting multiple children without flushing.");
@@ -1155,7 +1156,7 @@ SinkContext::AddLeaf(const nsIParserNode& aNode)
 }
 
 nsresult
-SinkContext::AddLeaf(nsGenericHTMLElement* aContent)
+SinkContext::AddLeaf(nsIContent* aContent)
 {
   NS_ASSERTION(mStackPos > 0, "leaf w/o container");
   if (mStackPos <= 0) {
@@ -1371,11 +1372,16 @@ SinkContext::FlushTags()
                       mStack[stackPos].mNumFlushed, stackPos));
         }
 #endif
-        if ((mStack[stackPos].mInsertionPoint != -1) &&
-            (mStackPos > (stackPos + 1))) {
+        if (mStack[stackPos].mInsertionPoint != -1) {
+          // We might have popped the child off our stack already
+          // but not notified on it yet, which is why we have to get it
+          // directly from its parent node.
+
           PRInt32 childIndex = mStack[stackPos].mInsertionPoint - 1;
-          nsIContent* child = mStack[stackPos + 1].mContent;
-          NS_ASSERTION(content->GetChildAt(childIndex) == child,
+          nsIContent* child = content->GetChildAt(childIndex);
+          // Child not on stack anymore; can't assert it's correct
+          NS_ASSERTION(!(mStackPos > (stackPos + 1)) ||
+                       (child == mStack[stackPos + 1].mContent),
                        "Flushing the wrong child.");
           mSink->NotifyInsert(content, child, childIndex);
         } else {
@@ -1472,13 +1478,8 @@ SinkContext::FlushText(PRBool* aDidFlush, PRBool aReleaseLast)
       mLastTextNodeSize += mTextLength;
       mTextLength = 0;
 
-      // Add text to its parent
-      NS_ASSERTION(mStackPos > 0, "leaf w/o container");
-      if (mStackPos <= 0) {
-        return NS_ERROR_FAILURE;
-      }
-
-      DidAddContent(mStack[mStackPos - 1].Add(mLastTextNode));
+      rv = AddLeaf(mLastTextNode);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       didFlush = PR_TRUE;
     }
@@ -2900,13 +2901,8 @@ nsresult
 HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
 {
   nsresult  result = NS_OK;
-  nsGenericHTMLElement* parent = nsnull;
 
   if (mCurrentContext) {
-    parent = mCurrentContext->mStack[mCurrentContext->mStackPos - 1].mContent;
-  }
-
-  if (parent) {
     // Create content object
     nsCOMPtr<nsIContent> element;
     nsCOMPtr<nsINodeInfo> nodeInfo;
@@ -2934,7 +2930,8 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     if (NS_FAILED(result)) {
       return result;
     }
-    parent->AppendChildTo(element, PR_FALSE);
+
+    mCurrentContext->AddLeaf(element); // <link>s are leaves
 
     if (ssle) {
       ssle->SetEnableUpdates(PR_TRUE);

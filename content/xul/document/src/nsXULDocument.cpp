@@ -705,10 +705,11 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
+    PRBool notify = mInitialLayoutComplete || mHandlingDelayedBroadcasters;
 
-	// We may be copying event handlers etc, so we must also copy
-	// the script-type to the listener.
-	listener->SetScriptTypeID(broadcaster->GetScriptTypeID());
+    // We may be copying event handlers etc, so we must also copy
+    // the script-type to the listener.
+    listener->SetScriptTypeID(broadcaster->GetScriptTypeID());
 
     if (aAttr.EqualsLiteral("*")) {
         PRUint32 count = broadcaster->GetAttrCount();
@@ -733,7 +734,7 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
             nsAutoString value;
             if (broadcaster->GetAttr(nameSpaceID, name, value)) {
               listener->SetAttr(nameSpaceID, name, attributes[count].mPrefix,
-                                value, mInitialLayoutComplete);
+                                value, notify);
             }
 
 #if 0
@@ -752,11 +753,9 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
 
         nsAutoString value;
         if (broadcaster->GetAttr(kNameSpaceID_None, name, value)) {
-            listener->SetAttr(kNameSpaceID_None, name, value,
-                              mInitialLayoutComplete);
+            listener->SetAttr(kNameSpaceID_None, name, value, notify);
         } else {
-            listener->UnsetAttr(kNameSpaceID_None, name,
-                                mInitialLayoutComplete);
+            listener->UnsetAttr(kNameSpaceID_None, name, notify);
         }
 
 #if 0
@@ -1178,13 +1177,15 @@ nsXULDocument::AddForwardReference(nsForwardReference* aRef)
     return NS_OK;
 }
 
-
 nsresult
 nsXULDocument::ResolveForwardReferences()
 {
     if (mResolutionPhase == nsForwardReference::eDone)
         return NS_OK;
 
+    NS_ASSERTION(mResolutionPhase == nsForwardReference::eStart,
+                 "nested ResolveForwardReferences()");
+        
     // Resolve each outstanding 'forward' reference. We iterate
     // through the list of forward references until no more forward
     // references can be resolved. This annealing process is
@@ -1216,6 +1217,13 @@ nsXULDocument::ResolveForwardReferences()
                     case nsForwardReference::eResolve_Later:
                         // do nothing. we'll try again later
                         ;
+                    }
+
+                    if (mResolutionPhase == nsForwardReference::eStart) {
+                        // Resolve() loaded a dynamic overlay,
+                        // (see nsXULDocument::LoadOverlayInternal()).
+                        // Return for now, we will be called again.
+                        return NS_OK;
                     }
                 }
             }
@@ -2886,7 +2894,8 @@ nsXULDocument::ResumeWalk()
     // <html:script src="..." />) can be properly re-loaded if the
     // cached copy of the document becomes stale.
     nsresult rv;
-    nsCOMPtr<nsIURI> overlayURI = mCurrentPrototype->GetURI();
+    nsCOMPtr<nsIURI> overlayURI =
+        mCurrentPrototype ? mCurrentPrototype->GetURI() : nsnull;
 
     while (1) {
         // Begin (or resume) walking the current prototype.
@@ -3341,6 +3350,8 @@ nsXULDocument::MaybeBroadcast()
 
         PRUint32 length = mDelayedBroadcasters.Length();
         if (length) {
+            PRBool oldValue = mHandlingDelayedBroadcasters;
+            mHandlingDelayedBroadcasters = PR_TRUE;
             nsTArray<nsDelayedBroadcastUpdate> delayedBroadcasters;
             mDelayedBroadcasters.SwapElements(delayedBroadcasters);
             for (PRUint32 i = 0; i < length; ++i) {
@@ -3348,6 +3359,7 @@ nsXULDocument::MaybeBroadcast()
                                              delayedBroadcasters[i].mListener,
                                              delayedBroadcasters[i].mAttr);
             }
+            mHandlingDelayedBroadcasters = oldValue;
         }
     }
 }

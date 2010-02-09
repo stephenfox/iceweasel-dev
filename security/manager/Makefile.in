@@ -58,8 +58,10 @@ SOFTOKEN3_CHK = $(DLL_PREFIX)softokn3.chk
 
 ifndef NSS_DISABLE_DBM
 NSSDBM3_LIB = $(DLL_PREFIX)nssdbm3$(DLL_SUFFIX)
+NSSDBM3_CHK = $(DLL_PREFIX)nssdbm3.chk
 else
 NSSDBM3_LIB = 
+NSSDBM3_CHK = 
 endif
 
 ifndef MOZ_NATIVE_NSS
@@ -70,7 +72,6 @@ SDK_LIBS = \
   $(DIST)/lib/$(LIB_PREFIX)ssl3.$(IMPORT_LIB_SUFFIX) \
   $(DIST)/lib/$(LIB_PREFIX)nss3.$(IMPORT_LIB_SUFFIX) \
   $(DIST)/lib/$(LIB_PREFIX)nssutil3.$(IMPORT_LIB_SUFFIX) \
-  $(DIST)/lib/$(LIB_PREFIX)softokn3.$(IMPORT_LIB_SUFFIX) \
   $(NULL)
 else
 SDK_LIBS = \
@@ -79,7 +80,6 @@ SDK_LIBS = \
   $(DIST)/lib/$(LIB_PREFIX)ssl.$(LIB_SUFFIX) \
   $(DIST)/lib/$(LIB_PREFIX)nss.$(LIB_SUFFIX) \
   $(DIST)/lib/$(LIB_PREFIX)nssutil.$(LIB_SUFFIX) \
-  $(DIST)/lib/$(LIB_PREFIX)softokn.$(LIB_SUFFIX) \
   $(NULL)
 endif
 endif
@@ -158,6 +158,10 @@ endif
 ifeq (WINNT_1,$(OS_TARGET)_$(MOZ_MEMORY))
 export DLLFLAGS
 endif
+
+# To get debug symbols from NSS
+export MOZ_DEBUG_SYMBOLS
+
 # NSS makefiles are not safe for parallel execution.
 DEFAULT_GMAKE_FLAGS = MAKE="$(MAKE) -j1" -j1
 DEFAULT_GMAKE_FLAGS += CC="$(CC)"
@@ -198,7 +202,6 @@ ifndef MOZ_NO_DEBUG_RTL
 DEFAULT_GMAKE_FLAGS += USE_DEBUG_RTL=1
 endif
 endif
-export MOZ_DEBUG_SYMBOLS
 endif # WINNT
 ifeq ($(OS_ARCH),OS2)
 ifdef MOZ_OS2_HIGH_MEMORY
@@ -219,6 +222,13 @@ ifdef MACOS_SDK_DIR
 DEFAULT_GMAKE_FLAGS += MACOS_SDK_DIR=$(MACOS_SDK_DIR)
 endif
 endif
+# Build libfreebl3.so the same way it's built in Fedora, so that Fedora's
+# /lib/libcrypt.so.1 can get the NSSRAWHASH_3.12.3 symbols it needs from
+# our libfreebl3.so.
+ifeq ($(OS_ARCH),Linux)
+DEFAULT_GMAKE_FLAGS += FREEBL_NO_DEPEND=1
+endif
+
 ifdef CROSS_COMPILE
 DEFAULT_GMAKE_FLAGS += \
 	NSINSTALL="$(NSINSTALL)" \
@@ -294,6 +304,9 @@ ifndef SKIP_CHK
 endif
 	$(INSTALL) -m 755 $(DIST)/lib/$(SOFTOKEN3_LIB) $(DIST)/bin
 ifndef NSS_DISABLE_DBM
+ifndef SKIP_CHK
+	$(INSTALL) -m 644 $(DIST)/lib/$(NSSDBM3_CHK) $(DIST)/bin
+endif
 	$(INSTALL) -m 755 $(DIST)/lib/$(NSSDBM3_LIB) $(DIST)/bin
 endif
 	$(INSTALL) -m 755 $(DIST)/lib/$(NSS3_LIB) $(DIST)/bin
@@ -355,6 +368,9 @@ ifndef SKIP_CHK
 	$(SYSINSTALL) -m 644 $(DIST)/lib/$(SOFTOKEN3_CHK) $(DESTDIR)$(mozappdir)
 endif
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(SOFTOKEN3_LIB) $(DESTDIR)$(mozappdir)
+ifndef SKIP_CHK
+	$(SYSINSTALL) -m 644 $(DIST)/lib/$(NSSDBM3_CHK) $(DESTDIR)$(mozappdir)
+endif
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(NSSDBM3_LIB) $(DESTDIR)$(mozappdir)
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(NSS3_LIB) $(DESTDIR)$(mozappdir)
 	$(SYSINSTALL) -m 755 $(DIST)/lib/$(NSSUTIL3_LIB) $(DESTDIR)$(mozappdir)

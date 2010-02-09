@@ -83,18 +83,20 @@ static NS_DEFINE_IID(kIPluginTagInfo2IID, NS_IPLUGINTAGINFO2_IID);
 #ifdef OJI
 static NS_DEFINE_IID(kIJVMPluginTagInfoIID, NS_IJVMPLUGINTAGINFO_IID);
 
-NS_IMPL_ISUPPORTS7(nsPluginInstancePeerImpl,
+NS_IMPL_ISUPPORTS8(nsPluginInstancePeerImpl,
                    nsIPluginInstancePeer,
                    nsIPluginInstancePeer2,
+                   nsIPluginInstancePeer2_1_9_1_BRANCH,
                    nsIWindowlessPluginInstancePeer,
                    nsIPluginTagInfo,
                    nsIPluginTagInfo2,
                    nsIJVMPluginTagInfo,
                    nsPIPluginInstancePeer)
 #else
-NS_IMPL_ISUPPORTS6(nsPluginInstancePeerImpl,
+NS_IMPL_ISUPPORTS7(nsPluginInstancePeerImpl,
                    nsIPluginInstancePeer,
                    nsIPluginInstancePeer2,
+                   nsIPluginInstancePeer2_1_9_1_BRANCH,
                    nsIWindowlessPluginInstancePeer,
                    nsIPluginTagInfo,
                    nsIPluginTagInfo2,

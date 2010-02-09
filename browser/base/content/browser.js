@@ -1230,7 +1230,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     focusElement(content);
 
   if (gURLBar)
-    gURLBar.setAttribute("emptytext", gURLBarEmptyText.value);
+    gURLBar.emptyText = gURLBarEmptyText.value;
 
   gNavToolbox.customizeDone = BrowserToolboxCustomizeDone;
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
@@ -1788,20 +1788,22 @@ function loadOneOrMoreURIs(aURIString)
 }
 
 function focusAndSelectUrlBar() {
-  if (gURLBar && isElementVisible(gURLBar) && !gURLBar.readOnly) {
-    gURLBar.focus();
-    gURLBar.select();
-    return true;
+  if (gURLBar && !gURLBar.readOnly) {
+    if (window.fullScreen)
+      FullScreen.mouseoverToggle(true);
+    if (isElementVisible(gURLBar)) {
+      gURLBar.focus();
+      gURLBar.select();
+      return true;
+    }
   }
   return false;
 }
 
 function openLocation() {
-  if (window.fullScreen)
-    FullScreen.mouseoverToggle(true);
-
   if (focusAndSelectUrlBar())
     return;
+
 #ifdef XP_MACOSX
   if (window.location.href != getBrowserURL()) {
     var win = getTopWin();
@@ -1838,8 +1840,7 @@ function BrowserOpenTab()
     return;
   }
   gBrowser.loadOneTab("about:blank", null, null, null, false, false);
-  if (gURLBar)
-    gURLBar.focus();
+  focusAndSelectUrlBar();
 }
 
 /* Called from the openLocation dialog. This allows that dialog to instruct
@@ -1863,6 +1864,35 @@ function delayedOpenTab(aUrl, aReferrer, aCharset, aPostData, aAllowThirdPartyFi
   gBrowser.loadOneTab(aUrl, aReferrer, aCharset, aPostData, false, aAllowThirdPartyFixup);
 }
 
+var gLastOpenDirectory = {
+  _lastDir: null,
+  get path() {
+    if (!this._lastDir || !this._lastDir.exists()) {
+      try {
+        this._lastDir = gPrefService.getComplexValue("browser.open.lastDir",
+                                                     Ci.nsILocalFile);
+        if (!this._lastDir.exists())
+          this._lastDir = null;
+      }
+      catch(e) {}
+    }
+    return this._lastDir;
+  },
+  set path(val) {
+    if (!val || !val.exists() || !val.isDirectory())
+      return;
+    this._lastDir = val.clone();
+
+    // Don't save the last open directory pref inside the Private Browsing mode
+    if (!gPrivateBrowsingUI.privateBrowsingEnabled)
+      gPrefService.setComplexValue("browser.open.lastDir", Ci.nsILocalFile,
+                                   this._lastDir);
+  },
+  reset: function() {
+    this._lastDir = null;
+  }
+};
+
 function BrowserOpenFileWindow()
 {
   // Get filepicker component.
@@ -1872,9 +1902,13 @@ function BrowserOpenFileWindow()
     fp.init(window, gNavigatorBundle.getString("openFile"), nsIFilePicker.modeOpen);
     fp.appendFilters(nsIFilePicker.filterAll | nsIFilePicker.filterText | nsIFilePicker.filterImages |
                      nsIFilePicker.filterXML | nsIFilePicker.filterHTML);
+    fp.displayDirectory = gLastOpenDirectory.path;
 
-    if (fp.show() == nsIFilePicker.returnOK)
+    if (fp.show() == nsIFilePicker.returnOK) {
+      if (fp.file && fp.file.exists())
+        gLastOpenDirectory.path = fp.file.parent.QueryInterface(Ci.nsILocalFile);
       openTopWin(fp.fileURL.spec);
+    }
   } catch (ex) {
   }
 }
@@ -2351,7 +2385,7 @@ function BrowserOnCommand(event) {
     // Exception…" or "Get me out of here!" button
     if (/^about:certerror/.test(errorDoc.documentURI)) {
       if (ot == errorDoc.getElementById('exceptionDialogButton')) {
-        var params = { exceptionAdded : false };
+        var params = { exceptionAdded : false, handlePrivateBrowsing : true };
         
         try {
           switch (gPrefService.getIntPref("browser.ssl_override_behavior")) {
@@ -6314,6 +6348,7 @@ HistoryMenu.populateUndoSubmenu = function PHM_populateUndoSubmenu() {
   var strings = gNavigatorBundle;
   undoPopup.appendChild(document.createElement("menuseparator"));
   m = undoPopup.appendChild(document.createElement("menuitem"));
+  m.id = "menu_restoreAllTabs";
   m.setAttribute("label", strings.getString("menuOpenAllInTabs.label"));
   m.setAttribute("accesskey", strings.getString("menuOpenAllInTabs.accesskey"));
   m.addEventListener("command", function() {
@@ -6384,6 +6419,7 @@ HistoryMenu.populateUndoWindowSubmenu = function PHM_populateUndoWindowSubmenu()
   // "Open All in Windows"
   undoPopup.appendChild(document.createElement("menuseparator"));
   let m = undoPopup.appendChild(document.createElement("menuitem"));
+  m.id = "menu_restoreAllWindows";
   m.setAttribute("label", gNavigatorBundle.getString("menuRestoreAllWindows.label"));
   m.setAttribute("accesskey", gNavigatorBundle.getString("menuRestoreAllWindows.accesskey"));
   m.setAttribute("oncommand",
@@ -7155,6 +7191,8 @@ let gPrivateBrowsingUI = {
             .removeAttribute("disabled");
 
     this._privateBrowsingAutoStarted = false;
+
+    gLastOpenDirectory.reset();
   },
 
   _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
