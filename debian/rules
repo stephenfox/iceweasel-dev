@@ -6,7 +6,7 @@ DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 
 SHELL=/bin/bash # I use bashisms
 
-UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/Version: *\(.*\)-.*$$/\1/ p')
+UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
 
 AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 
