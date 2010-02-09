@@ -135,24 +135,7 @@ install-stamp: build-stamp
 	touch install-stamp
 
 # Build architecture-independent files here.
-binary-indep: build install
-	dh_testdir -i
-	dh_testroot -i
-	dh_installdebconf -i	
-	dh_installdocs -i MPL
-	dh_installexamples -i
-	dh_installmenu -i
-	dh_installman -i
-	dh_installinfo -i
-	dh_installmime -i
-	dh_installchangelogs -i
-	dh_link -i
-	dh_compress -i
-	dh_fixperms -i
-	dh_installdeb -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
+binary-indep:
 
 # Build architecture-dependent files here.
 binary-arch: build install
