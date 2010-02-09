@@ -91,7 +91,6 @@ config.status:
 		debian/iceweasel_icon.svg
 	cp -f debian/branding/default48.png debian/branding/content/icon48.png
 	convert debian/branding/default48.png debian/branding/mozicon50.xpm
-	convert browser/base/branding/icon48.png debian/default.xpm
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
