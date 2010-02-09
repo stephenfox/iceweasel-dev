@@ -221,11 +221,13 @@ install-stamp: build-stamp
 
 	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
-	cp -f LICENSE MPL
 	touch install-stamp
 
+MPL: LICENSE
+	cp -f $< $@
+
 # Build architecture-independent files here.
-binary-indep: build-jars install
+binary-indep: build-jars install MPL
 	dh_testdir
 	dh_testroot
 	dh_installchangelogs -i
@@ -241,7 +243,7 @@ binary-indep: build-jars install
 	dh_builddeb -i
 
 # Build architecture-dependent files here.
-binary-arch: build test install $(GENERATED_FILES)
+binary-arch: build test install MPL $(GENERATED_FILES)
 	dh_testdir
 	dh_testroot
 	dh_installchangelogs -a
