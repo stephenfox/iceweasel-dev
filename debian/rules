@@ -1,6 +1,4 @@
 #!/usr/bin/make -f
-SHELL=/bin/bash # I use bashisms
-
 UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
 GRE_VERSION := 1.9.1
 
