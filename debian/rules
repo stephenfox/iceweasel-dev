@@ -53,45 +53,6 @@ configure: config.status
 config.status:
 	dh_testdir
 
-# Build all branding images
-	(cd debian \
-		&& uudecode aboutCredits.png.uu \
-		&& uudecode about.png.uu)
-
-	rsvg-convert -w 40 -h 40 -o debian/document_icon.png \
-		debian/iceweasel_icon.svg
-	composite -compose src-over -geometry -2+5 debian/document_icon.png \
-		browser/app/document.png debian/branding/document.png
-	convert debian/branding/document.png debian/branding/document.ico
-	rsvg-convert -w 128 -h 128 -o debian/branding/mozicon128.png \
-		debian/iceweasel_icon.svg
-	convert debian/branding/mozicon128.png debian/branding/firefox.ico
-	rsvg-convert -w 32 -h 32 -o debian/iceweasel.png debian/iceweasel_icon.svg
-	convert debian/iceweasel.png debian/iceweasel.xpm
-	cp -f debian/iceweasel.png debian/branding/default32.png
-	rsvg-convert -w 16 -h 16 -o debian/branding/default16.png \
-		debian/iceweasel_icon.svg
-	convert debian/branding/default16.png debian/branding/mozicon16.xpm
-
-	composite -compose src-over -gravity center -geometry +0-7 \
-		debian/branding/mozicon128.png debian/aboutCredits.png \
-		debian/branding/content/aboutCredits.png
-
-	rsvg-convert -w 256 -a -o debian/iceweasel_logo.png\
-		debian/iceweasel_logo.svg
-	composite -compose src-over -gravity center -geometry +0-26 \
-		debian/iceweasel_logo.png debian/about.png \
-		debian/branding/content/about.png
-
-	rsvg-convert -w 64 -h 64 -o debian/branding/default64.png \
-		debian/iceweasel_icon.svg
-	cp -f debian/branding/default64.png debian/branding/content/icon64.png
-
-	rsvg-convert -w 48 -h 48 -o debian/branding/default48.png \
-		debian/iceweasel_icon.svg
-	cp -f debian/branding/default48.png debian/branding/content/icon48.png
-	convert debian/branding/default48.png debian/branding/mozicon50.xpm
-
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
@@ -114,11 +75,7 @@ build-stamp: config.status
 clean: 
 	dh_testdir
 	dh_testroot
-	rm -f build-stamp install-stamp MPL \
-		debian/*.png \
-		debian/*.xpm \
-	rm -f debian/branding/*.png debian/branding/*.xpm \
-		debian/branding/*.ico debian/branding/content/*.png
+	rm -f build-stamp install-stamp MPL
 
 	[ ! -f Makefile ] || $(MAKE) distclean
 
@@ -154,13 +111,13 @@ install-stamp: build-stamp
 	install -m 644 debian/branding/default16.png \
 		debian/iceweasel/usr/share/icons/hicolor/16x16/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
-	install -m 644 debian/iceweasel.png \
+	install -m 644 debian/branding/default32.png \
 		debian/iceweasel/usr/share/icons/hicolor/32x32/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/64x64/apps
 	install -m 644 debian/branding/default64.png \
 		debian/iceweasel/usr/share/icons/hicolor/64x64/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/scalable/apps
-	install -m 644 debian/iceweasel_icon.svg \
+	install -m 644 debian/branding/iceweasel_icon.svg \
 		debian/iceweasel/usr/share/icons/hicolor/scalable/apps/iceweasel.svg
 
 # Remove unneeded configs

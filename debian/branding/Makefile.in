@@ -28,9 +28,41 @@ BROWSER_APP_FILES = \
         mozicon50.xpm \
         firefox.ico \
         document.ico \
+	document.png \
         $(NULL)
 
-export::
+GARBAGE += $(BROWSER_APP_FILES)
+
+export:: $(BROWSER_APP_FILES) iceweasel.xpm
 	$(NSINSTALL) -D $(DIST)/branding
-	cp $(addprefix $(srcdir)/, $(BROWSER_APP_FILES)) $(DIST)/branding/
-	cp $(srcdir)/document.png  $(DIST)/branding/document.png
+	cp $(BROWSER_APP_FILES) $(DIST)/branding/
+
+document.png: document_icon.png
+	composite -compose src-over -geometry -2+5 $< \
+		$(topsrcdir)/browser/app/document.png $@
+
+mozicon50.xpm: default48.png
+mozicon16.xpm: default16.png
+document.ico: document.png
+firefox.ico: mozicon128.png
+%.ico %.xpm:
+	convert $< $@
+
+iceweasel.xpm: default32.png
+GARBAGE += iceweasel.xpm iceweasel.png
+
+document_icon.png: SIZE=40
+default64.png: SIZE=64
+mozicon128.png: SIZE=128
+default16.png: SIZE=16
+default32.png: SIZE=32
+default48.png: SIZE=48
+GARBAGE += document_icon.png default64.png
+
+document_icon.png mozicon128.png default16.png default32.png default48.png default64.png: $(srcdir)/iceweasel_icon.svg
+	rsvg-convert -w $(SIZE) -h $(SIZE) -o $@ $<
+
+iceweasel_logo.png: $(srcdir)/iceweasel_logo.svg
+	rsvg-convert -w 256 -a -o $@ $<
+
+GARBAGE += iceweasel_logo.png
