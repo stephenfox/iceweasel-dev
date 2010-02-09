@@ -15,6 +15,7 @@ if [ "$1" = "configure" ] ; then
     touch /usr/lib/iceweasel/.autoreg
     rm -f /usr/lib/iceweasel/components/compreg.dat \
           /usr/lib/iceweasel/components/xpti.dat
+    rm -rf /usr/lib/iceweasel/updates
 fi
 
 #DEBHELPER#
