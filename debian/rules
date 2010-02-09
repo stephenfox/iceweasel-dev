@@ -86,9 +86,6 @@ install-stamp: build-stamp
 
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 	chmod 755 debian/iceweasel-xremote-client
-# Remove execute on javascript files
-	find debian/tmp -name '*.so' | xargs chmod a-x 
-	chmod a-x debian/tmp/$(LIB_DIR)/components/*.js
 
 # Exclude gnome components from iceweasel
 	dh_install -piceweasel
