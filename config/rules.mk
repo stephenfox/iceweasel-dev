@@ -2121,9 +2121,7 @@ endif
 #############################################################################
 
 -include $(topsrcdir)/$(MOZ_BUILD_APP)/app-rules.mk
-ifneq (,$(wildcard $(MY_RULES)))
 -include $(MY_RULES)
-endif
 
 #
 # Generate Emacs tags in a file named TAGS if ETAGS was set in $(MY_CONFIG)
