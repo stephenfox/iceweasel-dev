@@ -12,9 +12,7 @@ DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 
 SHELL=/bin/bash # I use bashisms
 
-DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/Version: *\(.*\)/\1/ p')
-UPSTREAM_VERSION := $(shell echo $(DEBIAN_VERSION) | sed 's/-.*$$//')
-DEBIAN_REV_CODE := $(shell echo $(DEBIAN_VERSION) | sed 's/^.*-\([0-9]*\)[^-]*$$/0\1/ ; s/^.*\(..\)$$/\1/')
+UPSTREAM_VERSION := $(shell dpkg-parsechangelog | sed -n 's/Version: *\(.*\)-.*$$/\1/ p')
 
 AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 
