@@ -135,7 +135,7 @@ binary-arch: build install
 	dh_testdir -a
 	dh_testroot -a
 	dh_installdebconf -a
-	dh_installdocs -a MPL
+	dh_installdocs -a -A MPL
 	dh_installexamples -a
 	dh_installmenu -a
 	dh_installman -a
