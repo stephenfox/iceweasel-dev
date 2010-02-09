@@ -83,7 +83,6 @@ override_dh_auto_configure:
 
 override_dh_auto_build:
 	# Add here commands to compile the package.
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
 	$(MAKE) \
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
