@@ -3,7 +3,7 @@ Section: devel
 Priority: optional
 Maintainer: Maintainers of Mozilla-related packages <pkg-mozilla-maintainers@lists.alioth.debian.org>
 Uploaders: Mike Hommey <glandium@debian.org>, Antonio Jose Lopez Morillo <antoniojlopez@gmail.com>
-Build-Depends: debhelper (>= 5.0.59),
+Build-Depends: debhelper (>= 7.0.50~),
                autotools-dev,
                libx11-dev,
                libxt-dev,

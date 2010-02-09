@@ -1,8 +1,6 @@
 #!/usr/bin/make -f
 # These are used for cross-compiling and for saving the configure script
 # from having to guess our platform (since we know it already)
-DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 GCC_4_4_OR_MORE := $(shell gcc -dumpversion | awk -F . '$$1 > 4 || ($$1 == 4 && $$2 > 3) {print $$0}')
@@ -50,7 +48,8 @@ endif
 EXTRA_DIRS := filemonitor extra-stuff
 COMPONENT_PACKAGES := python-xpcom
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
-GENERATED_FILES := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
+MAINT_SCRIPTS := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
+GENERATED_FILES := $(MAINT_SCRIPTS)
 $(COMPONENT_SCRIPTS): %: debian/postinstrm.in
 	cp $^ $@
 
@@ -65,9 +64,7 @@ debian/dh/dh_xulrunner.1: debian/dh/dh_xulrunner
 debian/dh/dh_xulrunner: debian/dh/dh_xulrunner.in
 	sed 's/##BASE_VERSION##/$(BASE_VERSION)/' $^ > $@
 
-config.status: ./configure debian/mozconfig
-	dh_testdir
-
+override_dh_auto_configure:
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
@@ -79,17 +76,12 @@ config.status: ./configure debian/mozconfig
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS)" \
-	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
-	            $(CONFIGURE_FLAGS)
+	dh_auto_configure -- $(CONFIGURE_FLAGS)
 	build/autoconf/make-makefile $(foreach dir,$(EXTRA_DIRS),debian/$(dir))
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
-build: build-stamp
-
-build-stamp:  config.status
-	dh_testdir
-
+override_dh_auto_build:
 	# Add here commands to compile the package.
 	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
 	$(MAKE) \
@@ -99,13 +91,13 @@ build-stamp:  config.status
 	$(foreach dir,$(EXTRA_DIRS),$(MAKE) -C debian/$(dir);)
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
-	touch build-stamp
-
 debian/locales/%:
 	mkdir -p debian/locales
 	localedef -f $(word 2,$(subst ., ,$(notdir $@))) -i $(word 1,$(subst ., ,$(notdir $@))) $@
 
-test: build-stamp debian/locales/$(LOCALE) debian/dh/dh_xulrunner
+override_dh_auto_test:
+
+test: debian/locales/$(LOCALE)
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
@@ -129,24 +121,18 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) -j1 xpcshell-tests $(if $(TEST_PATH),,check)
 endif
 
-build-jars: build-jars-stamp
-
-build-jars-stamp: build-stamp
+build-jars: build
 	$(MAKE) -C extensions/java/xpcom/interfaces $(JAVA_VARS)
 	$(MAKE) -C extensions/java/xpcom/src jar-libs $(JAVA_VARS)
 	
-	touch build-jars-stamp
-
-clean:
-	dh_testdir
-	dh_testroot
-	rm -f build*-stamp install*-stamp mozilla MPL debian/*.shlibs.local
-	rm -rf debian/include debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
+override_dh_auto_clean:
+	rm -f MPL debian/*.shlibs.local
+	rm -rf debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 
 	# Add here commands to clean up after the build process.
 	$(foreach dir,$(EXTRA_DIRS),[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/$(dir) distclean;)
-	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
+	dh_auto_clean -- $(JAVA_VARS)
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
@@ -155,18 +141,9 @@ clean:
 	done
 	rm -rf debian/locales
 
-	dh_clean 
-
-install: install-stamp
-
-install-stamp: build-stamp
-	dh_testdir
-	dh_testroot
-	dh_clean -k 
-	dh_installdirs
-
+override_dh_auto_install:
 	# Add here commands to install the package into debian/tmp.
-	$(MAKE) -C xulrunner/installer install DESTDIR=$(CURDIR)/debian/tmp MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
+	dh_auto_install --sourcedirectory=xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
 	rm debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/TestHarness.h
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
@@ -211,58 +188,43 @@ install-stamp: build-stamp
 
 	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
-	touch install-stamp
-
 MPL: LICENSE
 	cp -f $< $@
 
-# Build architecture-independent files here.
-binary-indep: build-jars install MPL
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs -i
-	dh_installdocs -A -i MPL
-	dh_installexamples -i
-	dh_install -i --sourcedir=debian/tmp
-	dh_link -i
-	dh_compress -i
-	dh_fixperms -i
-	dh_installdeb -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
+override_dh_installdocs: MPL
+	dh_installdocs -A $^
 
-# Build architecture-dependent files here.
-binary-arch: build test install MPL $(GENERATED_FILES)
-	dh_testdir
-	dh_testroot
-	dh_installchangelogs -a
-	dh_installdocs -A -a MPL
-	dh_installexamples -a
-	dh_installmenu -pspidermonkey-bin
+override_dh_install: debian/dh/dh_xulrunner
 	dh_install -a --fail-missing --sourcedir=debian/tmp -XMozillaInterfaces -XMozillaGlue -Xjavaxpcom.jar
+	dh_install -i
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
-	perl debian/dh/dh_xulrunner -pxulrunner-$(BASE_VERSION) --no-act -v | grep -q "..*"
+	perl $< -pxulrunner-$(BASE_VERSION) --no-act -v 2>&1 | grep -q "..*"
 	dh_pysupport -ppython-xpcom
+
+override_dh_installman: debian/dh/dh_xulrunner.1
 	dh_installman -pspidermonkey-bin debian/smjs.1
 	dh_installman -pxulrunner-dev debian/dh/dh_xulrunner.1
-	dh_link -a
+
+override_dh_strip:
 	dh_strip -a -Nlibmozjs2d -Nspidermonkey-bin --dbg-package=xulrunner-$(BASE_VERSION)-dbg
 	dh_strip -plibmozjs2d -pspidermonkey-bin --dbg-package=libmozjs2d-dbg
-	dh_compress -a
-	dh_fixperms -a
+
+override_dh_makeshlibs:
 	if [ "`$(MAKE) -s -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
 		echo '#include "libmozjs2d.symbols.jit"' > debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH); \
 	fi
 	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1.4)' -- $(GENSYMBOLS_FLAGS)
-	dh_installdeb -a
+
+override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
 	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(BASE_VERSION).substvars -dRecommends -pxulrunner $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(BASE_VERSION)/usr/lib/xulrunner-$(BASE_VERSION)/components/lib$(lib).so)
-	dh_gencontrol -a
-	dh_md5sums -a
-	dh_builddeb -a
 
-binary: binary-indep binary-arch
+binary binary-indep: build-jars
+binary binary-arch: test
+binary-arch: $(MAINT_SCRIPTS)
+
+binary binary-arch binary-indep build clean install:
+	dh $@
 
 .PHONY: build clean binary-indep binary-arch binary install build-jars test
 
