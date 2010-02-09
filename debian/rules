@@ -24,7 +24,6 @@ SHARE_DIR := /usr/share/iceweasel
 CFLAGS := -g
 
 CONFIGURE_OPTIONS = \
-	--with-distribution-id=org.debian \
 	--with-libxul-sdk=/usr/lib/xulrunner-devel-1.9.1 \
 	--with-user-appdir=.mozilla \
 	--disable-installer \
