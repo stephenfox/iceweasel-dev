@@ -39,12 +39,10 @@ override_dh_auto_configure:
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
 		done ; \
 	done
+	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS)" \
 	dh_auto_configure -- $(CONFIGURE_OPTIONS)
-
-override_dh_auto_build:
-	$(MAKE) OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 
 override_dh_auto_clean:
 	rm -f MPL
