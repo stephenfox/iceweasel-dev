@@ -64,8 +64,6 @@ build: build-stamp
 build-stamp: config.status
 	dh_testdir
 
-
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib \
 	$(MAKE) OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 
 	touch build-stamp
