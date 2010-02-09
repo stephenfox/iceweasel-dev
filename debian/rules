@@ -30,7 +30,6 @@ CONFIGURE_OPTIONS = \
 	--disable-strip \
 	--disable-install-strip \
 	--disable-tests \
-	--disable-gtktest \
 	--enable-extensions=default \
 	--enable-single-profile \
 	--disable-profilesharing \
