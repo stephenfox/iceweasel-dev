@@ -93,9 +93,10 @@ override_dh_install:
 
 	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/usr/lib/iceweasel/application.ini
 
-	cp -f LICENSE MPL
+MPL: LICENSE
+	cp -f $< $@
 
-override_dh_installdocs:
+override_dh_installdocs: MPL
 	dh_installdocs -A MPL
 
 override_dh_strip:
