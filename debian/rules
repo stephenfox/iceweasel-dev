@@ -7,6 +7,7 @@ DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 SHELL=/bin/bash # I use bashisms
 
 UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
+GRE_VERSION := 1.9.1
 
 AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 
@@ -16,7 +17,7 @@ SHARE_DIR := /usr/share/iceweasel
 CFLAGS := -g
 
 CONFIGURE_OPTIONS = \
-	--with-libxul-sdk=/usr/lib/xulrunner-devel-1.9.1 \
+	--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION) \
 	--with-user-appdir=.mozilla \
 	--disable-installer \
 	--disable-strip \
@@ -121,7 +122,7 @@ install-stamp: build-stamp
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(like Firefox/$(UPSTREAM_VERSION))\");" \
 		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
-	sed -i 's/\(MinVersion=1.9.1\).*/\1/;s/\(MaxVersion=1.9.1\).*/\1.*/' debian/iceweasel/usr/lib/iceweasel/application.ini
+	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/usr/lib/iceweasel/application.ini
 
 	cp -f LICENSE MPL
 	touch install-stamp
