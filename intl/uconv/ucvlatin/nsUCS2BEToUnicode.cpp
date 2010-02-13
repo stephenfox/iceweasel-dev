@@ -112,7 +112,7 @@ UTF16ConvertToUnicode(PRUint8& aState, PRUint8& aOddByte,
     if (dest == destEnd)
       goto error;
 
-#ifndef __sparc__
+#if !defined(__sparc__) && !defined(__arm__)
     u = *(const PRUnichar*)src;
 #else
     memcpy(&u, src, 2);
