@@ -410,6 +410,11 @@ Assembler::asm_call(LInsp ins)
 
         asm_arg(sz, arg, r, stkd);
     }
+#ifdef NJ_ARM_EABI
+    // On EABI, the overall stack must be 64-bits aligned
+    if ((stkd&7) != 0)
+        SUBi(SP, SP, 4);
+#endif
 }
 
 void
