@@ -141,7 +141,8 @@ fmObserver.prototype = {
       if (!Cc["@mozilla.org/embedcomp/prompt-service;1"]
            .getService(Ci.nsIPromptService)
            .confirm(null, "Please restart",
-                   name + ", an extension or a plugin has been upgraded " +
+                   name + ", an extension or a plugin has been " +
+                   " installed, upgraded or removed " +
                    "by the system.\n" +
                    "It is strongly recommended to restart. " +
                    "Do you want to restart now ?"))
