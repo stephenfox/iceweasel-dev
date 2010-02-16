@@ -5,6 +5,8 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS := filemonitor
+
 PREF_JS_EXPORTS := places.js
 
 EXTRA_COMPONENTS := addonsInfo.js  debAbout.js debUpdateNotifier.js

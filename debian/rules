@@ -45,7 +45,6 @@ ifeq ($(DEB_BUILD_ARCH)$(GCC_4_4_OR_MORE),armel)
 	JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 endif
 
-EXTRA_DIRS := filemonitor extra-stuff
 COMPONENT_PACKAGES := python-xpcom
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
 MAINT_SCRIPTS := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
@@ -77,7 +76,7 @@ override_dh_auto_configure:
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS)" \
 	dh_auto_configure -- $(CONFIGURE_FLAGS)
-	build/autoconf/make-makefile $(foreach dir,$(EXTRA_DIRS),debian/$(dir))
+	build/autoconf/make-makefile debian/extra-stuff
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
@@ -87,7 +86,7 @@ override_dh_auto_build:
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
 		DEB_NO_JAR=1
-	$(foreach dir,$(EXTRA_DIRS),$(MAKE) -C debian/$(dir);)
+	$(MAKE) -C debian/extra-stuff
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 debian/locales/%:
@@ -130,7 +129,7 @@ override_dh_auto_clean:
 	rm -f $(GENERATED_FILES)
 
 	# Add here commands to clean up after the build process.
-	$(foreach dir,$(EXTRA_DIRS),[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/$(dir) distclean;)
+	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/extra-stuff distclean
 	dh_auto_clean -- $(JAVA_VARS)
 
 	for dir in $(AUTOCONF_DIRS); do \
