@@ -1,6 +1,4 @@
 #!/usr/bin/make -f
-# These are used for cross-compiling and for saving the configure script
-# from having to guess our platform (since we know it already)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 GCC_4_4_OR_MORE := $(shell gcc -dumpversion | awk -F . '$$1 > 4 || ($$1 == 4 && $$2 > 3) {print $$0}')
@@ -70,7 +68,6 @@ override_dh_auto_configure:
 		done; \
 	done
 
-	# Add here commands to configure the package.
 	MOZCONFIG=debian/mozconfig \
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
@@ -81,7 +78,6 @@ override_dh_auto_configure:
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
 override_dh_auto_build:
-	# Add here commands to compile the package.
 	$(MAKE) \
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
@@ -128,7 +124,6 @@ override_dh_auto_clean:
 	rm -rf debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 
-	# Add here commands to clean up after the build process.
 	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/extra-stuff distclean
 	dh_auto_clean -- $(JAVA_VARS)
 
@@ -140,7 +135,6 @@ override_dh_auto_clean:
 	rm -rf debian/locales
 
 override_dh_auto_install:
-	# Add here commands to install the package into debian/tmp.
 	dh_auto_install --sourcedirectory=xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
 	rm debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/TestHarness.h
 
