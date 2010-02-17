@@ -21,7 +21,7 @@ xulrunner (1.9.1.8-1) unstable; urgency=low
     to change their permissions if they exist.
   * debian/xulrunner-1.9.1.docs, debian/rules: Remove non installation of
     README.txt. It was setup to be installed in xulrunner-1.9.1.docs, but was
-    explicitely excluded with a -X argument to dh_installdocs. Removing both
+    explicitly excluded with a -X argument to dh_installdocs. Removing both
     just has the same effect.
   * debian/rules:
     + Change the way the MPL file is created.
