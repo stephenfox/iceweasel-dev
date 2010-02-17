@@ -1,4 +1,6 @@
 #!/usr/bin/make -f
+DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 GCC_4_4_OR_MORE := $(shell gcc -dumpversion | awk -F . '$$1 > 4 || ($$1 == 4 && $$2 > 3) {print $$0}')
@@ -72,7 +74,7 @@ override_dh_auto_configure:
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS)" \
-	dh_auto_configure -- $(CONFIGURE_FLAGS)
+	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS)
 	build/autoconf/make-makefile debian/extra-stuff
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
