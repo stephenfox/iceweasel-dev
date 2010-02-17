@@ -9,12 +9,17 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ; then
         /usr/bin/iceweasel 0 \
         --slave /usr/share/man/man1/mozilla.1.gz mozilla.1.gz \
         /usr/share/man/man1/firefox.1.gz
+    update-alternatives --install /usr/bin/gnome-www-browser \
+        gnome-www-browser /usr/bin/iceweasel 70 \
+        --slave /usr/share/man/man1/gnome-www-browser.1.gz \
+        gnome-www-browser.1.gz /usr/share/man/man1/iceweasel.1.gz
 fi
 
 if [ "$1" = "configure" ] ; then
     touch /usr/lib/iceweasel/.autoreg
     rm -f /usr/lib/iceweasel/components/compreg.dat \
           /usr/lib/iceweasel/components/xpti.dat
+    rm -rf /usr/lib/iceweasel/updates
 fi
 
 #DEBHELPER#

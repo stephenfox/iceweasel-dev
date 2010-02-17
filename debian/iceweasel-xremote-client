@@ -1,14 +1,3 @@
 #!/bin/sh
 
-##
-## Set LD_LIBRARY_PATH
-##
-if [ "$LD_LIBRARY_PATH" ]
-then
-  LD_LIBRARY_PATH=/usr/lib/iceweasel:/usr/lib/iceweasel/plugins:/usr/lib/mozilla/plugins:/usr/lib:$LD_LIBRARY_PATH
-else
-  LD_LIBRARY_PATH=/usr/lib/iceweasel:/usr/lib/iceweasel/plugins:/usr/lib/mozilla/plugins:/usr/lib
-fi
- export LD_LIBRARY_PATH
-
-/usr/lib/iceweasel/firefox-bin -a iceweasel -remote "$1"
+exec /usr/lib/iceweasel/firefox-bin -a iceweasel -remote "$1"
