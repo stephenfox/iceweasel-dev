@@ -1,3 +1,70 @@
+xulrunner (1.9.1.8-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2010-{01-05}, also known as
+    CVE-2010-0159, CVE-2010-0160, CVE-2009-1571, CVE-2009-3988,
+    CVE-2010-0162.
+
+  * debian/control:
+    + Add missing ${misc:Depends}
+    + Build-depend on binutils with readelf -p support. Closes: #568888.
+    + xulrunner-dev depends on binutils with readelf -p support.
+    + Bump Standards-Version to 3.8.4.0.
+    + Fix the xulrunner-1.9.1-dbg package description.
+    + Don't allow different versions of xulrunner-1.9.1, python-xpcom and
+      xulrunner-1.9.1-dbg to be installed at the same time. Likewise for
+      libmozjs2d-dbg, libmozjs2d and spidermonkey-bin.Thanks Adrian von
+      Bidder. Closes: #570085.
+  * debian/xulrunner-1.9.1.preinst: Change permissions of /usr/lib/mozilla
+    and /usr/lib/mozilla/extensions. As earlier versions of xulrunner could
+    create these directories with the wrong permissions at runtime, we need
+    to change their permissions if they exist.
+  * debian/xulrunner-1.9.1.docs, debian/rules: Remove non installation of
+    README.txt. It was setup to be installed in xulrunner-1.9.1.docs, but was
+    explicitely excluded with a -X argument to dh_installdocs. Removing both
+    just has the same effect.
+  * debian/rules:
+    + Change the way the MPL file is created.
+    + Remove old comments from dh-make templates.
+    + Don't unnecessarily set LD_LIBRARY_PATH when building.
+  * debian/control, debian/compat, debian/rules: Switch to using dh.
+  * debian/extra-stuff/addonsInfo.js:
+    + Always prevent application to do something when given the
+      --dump-addons-info option.
+    + Avoid missing newline in dump-addons-info output when no plugins are
+      installed.
+  * debian/extra-stuff/debUpdateNotifier.js: Slightly reword update notifier
+    restart prompt.
+  * debian/extra-stuff, debian/filemonitor, debian/rules: Move
+    debian/filemonitor into debian/extra-stuff.
+  * xulrunner/app/Makefile.in: Revert one-liner harmless change that was the
+    result of a bad merge.
+
+  * config/config.mk, config/rules.mk, js/src/config/config.mk,
+    js/src/config/rules.mk: Remove pseudo speed enhancements for
+    my{config,rules}.mk as agreed with upstream. bz#541767.
+  * js/src/configure.in, js/src/configure: Avoid using -fshort-wchar in
+    libmozjs, as it was done in the main configure script.
+  * toolkit/components/url-classifier/src/nsUrlClassifierDBService.cpp:
+    Work around alignment problems on sparc. bz#448658.
+  * intl/uconv/ucvlatin/nsUCS2BEToUnicode.cpp,
+    intl/uconv/ucvlatin/nsUTF32ToUnicode.cpp: Fixes for misaligned accesses
+    on sparc and arm. bz#544512. Closes: #568214.
+  * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_ppc_linux.cpp,
+    xpcom/reflect/xptcall/tests/TestXPTCInvoke.cpp: Fix for padding of long
+    long arguments on ppc xptcall. bz#520367. Closes: #568213.
+  * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_arm.cpp: Fix xptcinvoke on
+    arm. bz#476903.
+  * js/src/nanojit/NativeARM.cpp: Fix stack alignment on function calls in
+    JIT on arm. bz#545747. Closes: #568212.
+  * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_mips.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcstubs_mips.cpp: Fix xptinvoke and
+    xptstubs on mips o32 big endian. Closes: #568249.
+  * widget/src/gtk2/nsPrintDialogGTK.cpp: Don't show the SVG output option
+    in the print dialog. bz#546093. Closes: #569809.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 17 Feb 2010 21:38:23 +0100
+
 xulrunner (1.9.1.6-2) unstable; urgency=low
 
   * modules/libpref/src/prefapi.cpp: Fix crash with SwitchProxy installed.
