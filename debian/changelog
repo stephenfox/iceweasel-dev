@@ -1,3 +1,76 @@
+iceweasel (3.5.8-1) unstable; urgency=low
+
+  * New upstream release.
+  * browser/components/nsBrowserContentHandler.js: Revert temporary hack to
+    force homepage_override to be triggered.
+  * extensions/reporter/resources/content/reporter/reporterOverlay.xul,
+    browser/base/content/baseMenuOverlay.xul: Resurrect release notes menu
+    item. Also resurrect the check for updates one, since it is #ifdef'ed on
+    something we disable.
+  * browser/components/safebrowsing/content/report-phishing-overlay.xul:
+    Revert the change in report phishing menu item location. Now we
+    resurrected the release notes item and restored the updateSeparator,
+    this change is pointless.
+  * browser/base/content/credits.xhtml: Correct old merge mistake.
+  * browser/locales/en-US/searchplugins/google.xml: Fix Google suggestions
+    in search box. Closes: #568004.
+  * build/Makefile.in: Remove leaktest files in make clean. bz#541769.
+  * build/Makefile.in, build/automation-build.mk, build/automation.py.in,
+    build/pgo/Makefile.in, layout/tools/reftest/Makefile.in,
+    testing/mochitest/Makefile.in: Don't remove build/automationutils.py
+    on make clean. bz#525047.
+  * build/automation-build.mk: Remove automation.py in make clean. bz#541768.
+
+  * debian/control:
+    - iceweasel provides gnome-www-browser: Closes: #568320.
+    - Bump Standards-Version to 3.8.4.0.
+  * debian/branding/firefox-branding.js:
+    - Add a release notes URL.
+    - Point to localized urls on mozilla.debian.net.
+  * debian/rules:
+    - Remove Debian revision from the User Agent string.
+    - Don't set distribution-id, it's only used in toolkit, i.e. xulrunner.
+    - Remove uneffective --disable-gtktest flag.
+  * debian/iceweasel.install, debian/wikipedia-en.xml: Remove
+    wikipedia-en.xml searchplugin. There is now a better search plugin (with
+    suggestions) provided upstream.
+  * debian/rules, debian/iceweasel.install, debian/debsearch.*: Refresh
+    debsearch search plugin.
+  * debian/iceweasel.1: Improve manual page for -P option. Closes: #568677.
+  * debian/iceweasel-xremote-client: Don't need to set LD_LIBRARY_PATH.
+  * debian/iceweasel.install, debian/rules: Don't install xpm files in
+    chrome/icons/default. They are not provided there upstream anymore,
+    there is no reason to do so.
+  * debian/rules, debian/*.svg, debian/iceweasel.install, debian/*.png.uu,
+    debian/branding: Move images generation and cleanup in debian/branding.
+  * debian/rules:
+    - Remove unused variables in debian/rules.
+    - Remove binary-indep rules, as we don't build an arch: all package
+      anymore.
+    - Don't unnecessarily set LD_LIBRARY_PATH when building.
+    - Remove old comments from dh-make templates.
+    - Use browser/config/version.txt content as UPSTREAM_VERSION.
+    - Use a variable for GRE version.
+    - Use the GRE directory as hint for dh_shlibdeps.
+    - Install the MPL license text in all packages.
+    - Don't fix permissions that don't need to be fixed.
+  * debian/README.Debian: Remove mostly irrelevant parts of README.Debian.
+  * debian/compat, debian/rules: Switch to dh.
+  * debian/iceweasel.postinst: Remove /usr/lib/iceweasel/updates on upgrades.
+  * debian/rules:
+    - There is no bashism in debian/rules anymore.
+    - Use make dependency to "generate" the MPL file.
+    - Set LDFLAGS at configure time.
+  * debian/vendor.js: Don't trigger the debAbout component. Now we have a
+    release notes link in about:, the debAbout generated links are pointless,
+    especially since they create problems in the target web pages
+    (e.g. unstyled BTS).
+  * debian/iceweasel-gnome-support.{prerm,postinst},
+    debian/iceweasel.{prerm,postinst}: Merge iceweasel-gnome-support
+    maintainer scripts into iceweasel ones.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 17 Feb 2010 22:46:30 +0100
+
 iceweasel (3.5.6-2) unstable; urgency=low
 
   * debian/iceweasel-runner:
