@@ -107,7 +107,12 @@ Architecture: any
 Depends: libmozjs2d (= ${binary:Version})
          | spidermonkey-bin (= ${binary:Version}),
          ${misc:Depends}
-Conflicts: libmozjs0d-dbg, libmozjs1d-dbg
+Conflicts: libmozjs0d-dbg,
+           libmozjs1d-dbg,
+           libmozjs2d (<< ${binary:Version}),
+           libmozjs2d (>> ${binary:Version}),
+           spidermonkey-bin (<< ${binary:Version}),
+           spidermonkey-bin (>> ${binary:Version})
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
@@ -171,7 +176,11 @@ Architecture: any
 Depends: xulrunner-1.9.1 (= ${binary:Version})
          | python-xpcom (= ${binary:Version}),
          ${misc:Depends}
-Conflicts: xulrunner-1.9-dbg
+Conflicts: xulrunner-1.9-dbg,
+           xulrunner-1.9.1 (<< ${binary:Version}),
+           xulrunner-1.9.1 (>> ${binary:Version}),
+           python-xpcom (<< ${binary:Version}),
+           python-xpcom (>> ${binary:Version})
 Description: Debugging symbols for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
