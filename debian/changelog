@@ -1,3 +1,22 @@
+xulrunner (1.9.1.8-2) unstable; urgency=low
+
+  * The "too much magic kills the magic" release.
+  * debian/rules:
+    - Use configure instead of dh_auto_configure, as the latter doesn't
+      support autoconf 2.13 generated configure scripts properly.
+      Closes: #570311.
+    - Use --no-print-directory option of make instead of -s, since dh likes
+      to set MAKEFLAGS=-w.
+    - Disable the test suite on arm. There is one failing test, but to debug
+      it, I'd prefer the arm buildd to actually generate debs so that I don't
+      have to wait 2 days to be able to debug (the buildd being significantly
+      faster to build than the porterbox).
+  * debian/extra-stuff/packages-static.xulrunner: Actually install the
+    debUpdateNotifier component.
+  * debian/control: Relax binutils dependency.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 18 Feb 2010 08:59:30 +0100
+
 xulrunner (1.9.1.8-1) unstable; urgency=low
 
   * New upstream release.
