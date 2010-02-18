@@ -204,7 +204,7 @@ override_dh_strip:
 	dh_strip -plibmozjs2d -pspidermonkey-bin --dbg-package=libmozjs2d-dbg
 
 override_dh_makeshlibs:
-	if [ "`$(MAKE) -s -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
+	if [ "`$(MAKE) --no-print-directory -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
 		echo '#include "libmozjs2d.symbols.jit"' > debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH); \
 	fi
 	dh_makeshlibs -plibmozjs2d -V 'libmozjs2d (>= 1.9.1.4)' -- $(GENSYMBOLS_FLAGS)
