@@ -3,7 +3,8 @@
 set -e
 
 if [ "$1" = "install" ] || [ "$1" = "upgrade" ]; then
-    chmod -f 755 /usr/lib/mozilla /usr/lib/mozilla/extensions
+    [ ! -d /usr/lib/mozilla ] || chmod -f 755 /usr/lib/mozilla
+    [ ! -d /usr/lib/mozilla/extensions ] || chmod -f 755 /usr/lib/mozilla/extensions
     if [ -d /usr/lib/xulrunner-1.9.1/chrome ] &&
        [ ! -L /usr/lib/xulrunner-1.9.1/chrome ]; then
         rmdir /usr/lib/xulrunner-1.9.1/chrome
