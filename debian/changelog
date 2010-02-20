@@ -1,3 +1,21 @@
+xulrunner (1.9.1.8-3) unstable; urgency=low
+
+  * xpcom/reflect/xptcall/src/md/unix/xptcstubs_mips.cpp: Fix xptcstubs on
+    mipsel. The previous patch for mips broke it.
+  * debian/xulrunner-1.9.1.preinst: Don't fail in preinst when
+    /usr/lib/mozilla doesn't exist. Closes: #570388.
+  * toolkit/components/url-classifier/src/nsUrlClassifierDBService.cpp:
+    Revert work around for alignment problems on sparc.
+  * xpcom/glue/nsTArray.*, xpcom/glue/nsTPtrArray.h: Force better
+    nsAutoT{Ptr,}Array buffer alignment. This solves issues on sparc in a
+    better way than the previous workaround that missed some other failure
+    cases. bz#448658. Closes: #568214.
+  * js/src/Makefile.in: Move cleanup changes to match equivalent upstream
+    changes on trunk.
+  * debian/rules: Re-enable test suite on arm.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 21 Feb 2010 08:19:35 +0100
+
 xulrunner (1.9.1.8-2) unstable; urgency=low
 
   * The "too much magic kills the magic" release.
