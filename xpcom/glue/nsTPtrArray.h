@@ -104,8 +104,18 @@ class nsAutoTPtrArray : public nsTPtrArray<E> {
     nsAutoTPtrArray() {
       base_type::mHdr = reinterpret_cast<Header*>(&mAutoBuf);
       base_type::mHdr->mLength = 0;
+      base_type::mHdr->mAdjustAlignment = 0;
       base_type::mHdr->mCapacity = N;
       base_type::mHdr->mIsAutoArray = 1;
+
+      NS_ASSERTION(reinterpret_cast<char *>(&mAutoBuf) <=
+         reinterpret_cast<char *>(base_type::GetAutoArrayBuffer()) +
+         sizeof(PRUint32),
+         "nsAutoTPtrArray doesn't support required alignment");
+
+      base_type::mHdr->mAdjustAlignment =
+         (reinterpret_cast<Header*>(&mAutoBuf) ==
+          base_type::GetAutoArrayBuffer()) ? 0 : 1;
 
       NS_ASSERTION(base_type::GetAutoArrayBuffer() ==
                    reinterpret_cast<Header*>(&mAutoBuf),
@@ -113,7 +123,10 @@ class nsAutoTPtrArray : public nsTPtrArray<E> {
     }
 
   protected:
-    char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
+    union {
+      char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
+      elem_type dummy;
+    };
 };
 
 #endif  // nsTPtrArray_h__
