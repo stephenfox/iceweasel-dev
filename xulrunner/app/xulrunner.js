@@ -70,3 +70,4 @@ pref("browser.preferences.animateFadeIn", true);
 #else
 pref("browser.preferences.animateFadeIn", false);
 #endif
+pref("extensions.dss.enabled", false);
