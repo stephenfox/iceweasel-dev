@@ -9,6 +9,7 @@ BASE_VERSION := 1.9.1
 PYVER := $(shell pyversions -d)
 
 LOCALE := fr_FR.UTF-8
+HAS_LOCALE := $(shell locale -a | grep $(LOCALE:UTF-8=utf8))
 
 CFLAGS := -g
 MAIN_LDFLAGS := -Wl,--as-needed
@@ -93,7 +94,7 @@ debian/locales/%:
 
 override_dh_auto_test:
 
-test: debian/locales/$(LOCALE)
+test: $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	dh_testdir
 
@@ -111,7 +112,7 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 	HOME="$(CURDIR)/dist" \
-	LOCPATH="$(CURDIR)/debian/locales" \
+	$(if $(HAS_LOCALE),,LOCPATH="$(CURDIR)/debian/locales") \
 	LC_ALL=$(LOCALE) \
 	LANG=$(LOCALE) \
 	$(MAKE) -j1 xpcshell-tests $(if $(TEST_PATH),,check)
