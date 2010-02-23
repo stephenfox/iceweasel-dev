@@ -211,7 +211,7 @@ override_dh_makeshlibs:
 
 override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
-	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(BASE_VERSION).substvars -dRecommends -pxulrunner $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(BASE_VERSION)/usr/lib/xulrunner-$(BASE_VERSION)/components/lib$(lib).so)
+	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(BASE_VERSION).substvars -dDepends -pgnome $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(BASE_VERSION)/usr/lib/xulrunner-$(BASE_VERSION)/components/lib$(lib).so)
 
 binary binary-indep: build-jars
 binary binary-arch: test

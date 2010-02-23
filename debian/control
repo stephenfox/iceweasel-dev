@@ -47,7 +47,7 @@ Depends: ${shlibs:Depends},
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>> 3.12.0~rc3-1),
          libcairo2 (>= 1.8.8)
-Recommends: ${xulrunner:Recommends}, libgnomeui-0
+Recommends: ${gnome:Depends}, libgnomeui-0
 Breaks: iceweasel (<< 3.5.5-1)
 Replaces: xulrunner-1.9.1-gnome-support
 Conflicts: xulrunner-1.9.1-gnome-support,
