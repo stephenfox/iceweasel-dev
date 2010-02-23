@@ -171,6 +171,11 @@ override_dh_auto_install:
 		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/stable/$$(basename $$f); \
 		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/$$(basename $$f); \
 	done
+	for h in $$(grep -l -r EXPORTS media | grep Makefile$ | \
+		while read f; do $(MAKE) --no-print-directory -C $$(dirname $$f) echo-variable-EXPORTS; done); do \
+		rm -f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/$$h; \
+	done
+
 	# Move out libraries in /usr
 	SONAME=$$(objdump -p dist/lib/libmozjs.so | awk '$$1 == "SONAME" { print $$2 }'); \
 	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/libmozjs.so debian/tmp/usr/lib/$$SONAME; \
