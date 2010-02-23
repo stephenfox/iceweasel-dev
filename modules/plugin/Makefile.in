@@ -57,7 +57,7 @@ endif
 #  buildable on other non-GTK unix builds
 
 ifdef MOZ_ENABLE_GTK2
-TOOL_DIRS += default/unix
+#TOOL_DIRS += default/unix
 endif
 
 ifeq ($(OS_ARCH),WINNT)
