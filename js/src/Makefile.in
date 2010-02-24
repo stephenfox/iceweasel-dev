@@ -280,6 +280,10 @@ INSTALLED_HEADERS += jscpucfg.h
 endif
 
 EXPORTS = $(filter-out nanojit/%,$(INSTALLED_HEADERS))
+ifdef ENABLE_JIT
+EXPORTS_NAMESPACES  = nanojit
+EXPORTS_nanojit = $(filter nanojit/%,$(INSTALLED_HEADERS))
+endif # ENABLE_JIT
 
 JS_SAFE_ARENA	= 1
 
@@ -626,9 +630,6 @@ SCRIPTS = js-config
 SDK_BINARY = js-config
 
 ifdef ENABLE_JIT
-export:: $(filter nanojit/%,$(INSTALLED_HEADERS))
-	$(INSTALL) $^ $(DIST)/include/nanojit
-
 install:: $(filter nanojit/%,$(INSTALLED_HEADERS))
 	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/nanojit
 endif
