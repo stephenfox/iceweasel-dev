@@ -208,7 +208,6 @@ override_dh_install: debian/dh/dh_xulrunner
 	dh_install -i
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
 	perl $< -pxulrunner-$(BASE_VERSION) --no-act -v 2>&1 | grep -q "..*"
-	dh_pysupport -ppython-xpcom
 
 override_dh_installman: debian/dh/dh_xulrunner.1
 	dh_installman -pspidermonkey-bin debian/smjs.1
