@@ -1434,6 +1434,7 @@ class JSAutoResolveFlags
 
 #endif /* __cplusplus */
 
+JS_BEGIN_EXTERN_C
 /*
  * Slightly more readable macros for testing per-context option settings (also
  * to hide bitset implementation detail).
@@ -1854,5 +1855,7 @@ js_RegenerateShapeForGC(JSContext *cx)
     cx->runtime->shapeGen = shape;
     return shape;
 }
+
+JS_END_EXTERN_C
 
 #endif /* jscntxt_h___ */
