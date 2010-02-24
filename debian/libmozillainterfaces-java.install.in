@@ -1,0 +1,4 @@
+usr/lib/xulrunner-##BASE_VERSION##/javaxpcom.jar
+usr/lib/xulrunner-devel-##BASE_VERSION##/sdk/lib/MozillaGlue.jar
+usr/lib/xulrunner-devel-##BASE_VERSION##/sdk/lib/MozillaInterfaces.jar usr/share/java
+usr/lib/xulrunner-devel-##BASE_VERSION##/sdk/lib/MozillaInterfaces-src.jar

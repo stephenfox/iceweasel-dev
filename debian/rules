@@ -50,21 +50,30 @@ COMPONENT_PACKAGES := python-xpcom
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
 MAINT_SCRIPTS := $(COMPONENT_SCRIPTS) debian/xulrunner-$(BASE_VERSION).postinst
 GENERATED_FILES := $(MAINT_SCRIPTS)
-$(COMPONENT_SCRIPTS): %: debian/postinstrm.in
+$(COMPONENT_SCRIPTS): %: debian/postinstrm
 	cp $^ $@
 
-debian/xulrunner-$(BASE_VERSION).postinst: debian/postinstrm.in
+debian/xulrunner-$(BASE_VERSION).postinst: debian/postinstrm
 	sed 's/abort-install/triggered/;/^dpkg-trigger/d' $^ > $@
 
-GENERATED_FILES += debian/dh/dh_xulrunner debian/dh/dh_xulrunner.1
+GENERATED_FILES += debian/dh/dh_xulrunner.1
 
 debian/dh/dh_xulrunner.1: debian/dh/dh_xulrunner
 	pod2man -c Debhelper -r $(BASE_VERSION) $^ > $@
 
-debian/dh/dh_xulrunner: debian/dh/dh_xulrunner.in
-	sed 's/##BASE_VERSION##/$(BASE_VERSION)/' $^ > $@
+IN_FILES := $(wildcard debian/*.in debian/dh/*.in)
+define preprocess
+$(subst BASE_VERSION,$(BASE_VERSION),$(1:.in=)): $(1)
+PREPROCESSED_FILES += $(subst BASE_VERSION,$(BASE_VERSION),$(1:.in=))
+endef
+$(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 
-override_dh_auto_configure:
+GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
+
+$(PREPROCESSED_FILES):
+	sed 's/##BASE_VERSION##/$(BASE_VERSION)/g' $^ > $@
+
+override_dh_auto_configure: debian/mozconfig
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
@@ -221,7 +230,7 @@ override_dh_shlibdeps:
 
 binary binary-indep: build-jars
 binary binary-arch: test
-binary-arch: $(MAINT_SCRIPTS)
+binary-arch: $(MAINT_SCRIPTS) $(PREPROCESSED_FILES)
 
 binary binary-arch binary-indep build clean install:
 	dh $@
