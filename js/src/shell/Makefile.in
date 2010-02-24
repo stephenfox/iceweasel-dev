@@ -49,7 +49,7 @@ CPPSRCS		= js.cpp
 
 DEFINES         += -DEXPORT_JS_API
 
-LIBS      = $(NSPR_LIBS) $(EDITLINE_LIBS) $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX)
+LIBS      = $(NSPR_LIBS) $(EDITLINE_LIBS) $(MOZ_JS_LIBS)
 
 LOCAL_INCLUDES += -I$(topsrcdir) -I..
 
