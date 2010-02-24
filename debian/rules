@@ -124,7 +124,7 @@ build-jars: build
 	
 override_dh_auto_clean:
 	rm -f MPL
-	rm -rf debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
+	rm -f debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 
 	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/extra-stuff distclean
