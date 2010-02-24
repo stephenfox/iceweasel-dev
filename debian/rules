@@ -123,7 +123,7 @@ build-jars: build
 	$(MAKE) -C extensions/java/xpcom/src jar-libs $(JAVA_VARS)
 	
 override_dh_auto_clean:
-	rm -f MPL debian/*.shlibs.local
+	rm -f MPL
 	rm -rf debian/libmozjs2d.symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 
