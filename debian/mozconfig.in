@@ -3,19 +3,14 @@ ac_add_options --prefix=/usr
 ac_add_options --with-default-mozilla-five-home=/usr/lib/xulrunner-##BASE_VERSION##
 ac_add_options --enable-default-toolkit=cairo-gtk2
 ac_add_options --enable-pango
-ac_add_options --enable-xft
-ac_add_options --disable-freetype2
 ac_add_options --enable-system-cairo
 ac_add_options --with-system-png
 ac_add_options --with-system-jpeg
 ac_add_options --with-system-zlib
 ac_add_options --with-system-bz2
-ac_add_options --with-gssapi=/usr
 ac_add_options --with-system-nspr
 ac_add_options --with-system-nss
-ac_add_options --enable-xinerama
 ac_add_options --enable-svg
-ac_add_options --enable-svg-renderer=cairo
 ac_add_options --enable-mathml
 ac_add_options --disable-pedantic
 ac_add_options --disable-long-long-warning
@@ -24,8 +19,6 @@ ac_add_options --enable-gnomeui
 ac_add_options --disable-mochitest
 ac_add_options --disable-debug
 ac_add_options --enable-canvas
-#ac_add_options --disable-xpcom-obsolete
-ac_add_options --enable-js-binary
 ac_add_options --with-readline
 ac_add_options --enable-extensions="default python/xpcom"
 ac_add_options --disable-installer
