@@ -40,6 +40,7 @@
 #define __MOZ_CONTAINER_H__
 
 #include <gtk/gtkcontainer.h>
+#include <gtk/gtkversion.h>
 
 #ifdef __cplusplus
 extern "C" {
