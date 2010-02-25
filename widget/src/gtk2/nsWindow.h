@@ -479,6 +479,7 @@ protected:
     PRUint32            mPreferredHeight;
 
 private:
+    void               DestroyChildWindows();
     void               GetToplevelWidget(GtkWidget **aWidget);
     GtkWidget         *GetMozContainerWidget();
     nsWindow          *GetContainerWindow();
