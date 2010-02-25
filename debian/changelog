@@ -1,3 +1,42 @@
+xulrunner (1.9.1.8-4) unstable; urgency=low
+
+  * debian/control, debian/rules: Rename xulrunner:Recommends variable to
+    gnome:Depends.
+  * debian/control: Switch gnome support dependencies from Recommends to
+    Suggests. Closes: #570579.
+  * modules/plugin/Makefile.in: Don't build the null plugin.
+  * debian/xulrunner-1.9.1.install: Don't install
+    /usr/lib/xulrunner-1.9.1/plugins now it's empty.
+  * debian/rules:
+    - Remove media libraries headers from xulrunner-dev.
+    - Only generate the fr_FR locale when it is not available on the
+      system. It appears the locales-all package Provides: locales but
+      localedef doesn't work with it.
+    - Don't remove debian/*.shlibs.local, which are never created, in the
+      clean target.
+    - Don't remove debian/libmozjs2d.symbols. recursively: it's a file.
+    - Generate maintainer scripts and other files on all binary-* targets.
+      This will also fix the lack of proper maintainer scripts on the uploaded
+      architecture.
+    - Don't call dh_pysupport from override_dh_install. dh will run it anyways.
+  * debian/*: Generalize the use of $(BASE_VERSION) in the packaging. This
+    should make packaging different releases at the same time easier.
+  * debian/mozconfig.in: Remove more obsolete mozconfig options.
+  * debian/control{,.in}: Suggest libcanberra0.
+  * widget/src/gtk2/Makefile.in, widget/src/gtk2/nsWindow.*: Replace
+    mozDrawingarea with a single GdkWindow. bz#506433.
+  * widget/src/gtk2/mozcontainer.*, widget/src/gtk2/nsWindow.cpp: Reuse the
+    GdkWindow in MozContainers. bz#506433.
+  * widget/src/gtk2/nsWindow.*: Destroy child nsWindows when destroying the
+    parent. bz#522635. Closes: #571138.
+  * widget/src/gtk2/mozcontainer.h: Header adjustment for imported changes.
+    Changes from bz#506433 rely on bz#471877 being applied, and we now need
+    gtkversion.h on top of gtkcontainer.h.
+  * widget/src/gtk2/nsWindow.cpp: Handle side-effect sibling destruction when
+    destroying child windows. bz#528386.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 25 Feb 2010 15:26:16 +0100
+
 xulrunner (1.9.1.8-3) unstable; urgency=low
 
   * xpcom/reflect/xptcall/src/md/unix/xptcstubs_mips.cpp: Fix xptcstubs on
