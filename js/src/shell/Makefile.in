@@ -70,3 +70,6 @@ endif
 # People expect the js shell to wind up in the top-level JS dir.
 libs::
 	$(INSTALL) $(IFLAGS2) $(PROGRAM) $(DEPTH)
+
+install:: $(PROGRAM)
+	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)
