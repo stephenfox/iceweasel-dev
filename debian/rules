@@ -225,7 +225,7 @@ override_dh_shlibdeps:
 
 binary binary-indep: build-jars
 binary binary-arch: test
-binary binary-arch binary-indep: $(MAINT_SCRIPTS) $(PREPROCESSED_FILES)
+install binary binary-arch binary-indep: $(MAINT_SCRIPTS) $(PREPROCESSED_FILES)
 
 binary binary-arch binary-indep build clean install:
 	dh $@
