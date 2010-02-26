@@ -610,6 +610,9 @@ ifneq (,$(LIBRARY))
 endif
 ifneq (,$(SHARED_LIBRARY))
 	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(libdir)
+ifneq (,$(UNVERSIONED_LIBRARY))
+	ln -s $(SHARED_LIBRARY) $(libdir)/$(UNVERSIONED_LIBRARY)
+endif
 endif
 ifneq (,$(IMPORT_LIBRARY))
 	$(SYSINSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(libdir)
