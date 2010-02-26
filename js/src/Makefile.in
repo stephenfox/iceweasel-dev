@@ -611,7 +611,7 @@ endif
 install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)
 
-install:: $(SCRIPTS)
+install:: $(SCRIPTS) $(SIMPLE_PROGRAMS)
 	$(SYSINSTALL) $(IFLAGS2) $^ $(DESTDIR)$(bindir)
 
 install:: $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
