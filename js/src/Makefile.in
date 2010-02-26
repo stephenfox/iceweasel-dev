@@ -601,14 +601,11 @@ SCRIPTS = js-config
 SDK_BINARY = js-config
 
 ifdef ENABLE_JIT
-$(PUBLIC)/nanojit $(includedir)/$(MODULE)/nanojit: config/nsinstall$(HOST_BIN_SUFFIX)
-	$(NSINSTALL) -D $@
+export:: $(filter nanojit/%,$(INSTALLED_HEADERS))
+	$(INSTALL) $(IFLAGS1) $^ $(PUBLIC)/nanojit
 
-export:: $(filter nanojit/%,$(INSTALLED_HEADERS)) $(PUBLIC)/nanojit
-	$(INSTALL) $(IFLAGS1) $^
-
-install:: $(filter nanojit/%,$(INSTALLED_HEADERS)) $(includedir)/$(MODULE)/nanojit
-	$(SYSINSTALL) $(IFLAGS1) $^
+install:: $(filter nanojit/%,$(INSTALLED_HEADERS))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(includedir)/$(MODULE)/nanojit
 endif
 
 install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
