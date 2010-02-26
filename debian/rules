@@ -151,7 +151,6 @@ override_dh_auto_install:
 	rm debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/TestHarness.h
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
-	install -m 755 dist/bin/js debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)
 
 	# Fixup permissions
 	find debian/tmp/usr/share debian/tmp/usr/include -type f -print0 | xargs -0 chmod 644
@@ -171,7 +170,7 @@ override_dh_auto_install:
 		done
 	ln -s ../../xulrunner-$(BASE_VERSION) debian/tmp/usr/lib/xulrunner-devel-$(BASE_VERSION)/sdk/bin
 
-	cp -Lr dist/include/js debian/tmp/usr/include/mozjs
+	dh_auto_install --sourcedirectory=js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB= SCRIPTS=
 	find debian/tmp/usr/include/mozjs -type f -printf %P\\n | while read f; do \
 		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/*/$$(basename $$f)); \
 		rm $$file; \
@@ -186,11 +185,8 @@ override_dh_auto_install:
 		rm -f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/$$h; \
 	done
 
-	# Move out libraries in /usr
-	SONAME=$$(objdump -p dist/lib/libmozjs.so | awk '$$1 == "SONAME" { print $$2 }'); \
-	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/libmozjs.so debian/tmp/usr/lib/$$SONAME; \
-	ln -s $$SONAME debian/tmp/usr/lib/libmozjs.so
-	mv debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/js debian/tmp/usr/bin/smjs
+	rm debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/libmozjs.so
+	mv debian/tmp/usr/bin/js debian/tmp/usr/bin/smjs
 
 	install -d -m 755 debian/tmp/usr/lib/$(PYVER)/site-packages
 	tar -C dist/bin/python -chf - .| tar -C debian/tmp/usr/lib/$(PYVER)/site-packages -xf -
