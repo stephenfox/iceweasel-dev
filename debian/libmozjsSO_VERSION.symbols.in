@@ -1,4 +1,4 @@
-libmozjs.so.2d libmozjs2d #MINVER#
+libmozjs.so.##SO_VERSION## libmozjs##SO_VERSION## #MINVER#
  JS_AddArgumentFormatter@Base 1.9.1
  JS_AddExternalStringFinalizer@Base 1.9.1
  JS_AddNamedRoot@Base 1.9.1

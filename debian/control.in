@@ -71,7 +71,7 @@ Description: XUL + XPCOM application runner
  This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
 
-Package: libmozjs2d
+Package: libmozjs##SO_VERSION##
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -87,7 +87,7 @@ Package: libmozjs-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libmozjs2d (= ${binary:Version}),
+         libmozjs##SO_VERSION## (= ${binary:Version}),
          libnspr4-dev
 Conflicts: mozilla-browser (<< 2:1.8)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
@@ -99,17 +99,17 @@ Description: Development files for the Mozilla SpiderMonkey JavaScript library
  Mozilla SpiderMonkey JavaScript library.
 Homepage: http://www.mozilla.org/js/
 
-Package: libmozjs2d-dbg
+Package: libmozjs##SO_VERSION##-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: libmozjs2d (= ${binary:Version})
+Depends: libmozjs##SO_VERSION## (= ${binary:Version})
          | spidermonkey-bin (= ${binary:Version}),
          ${misc:Depends}
 Conflicts: libmozjs0d-dbg,
            libmozjs1d-dbg,
-           libmozjs2d (<< ${binary:Version}),
-           libmozjs2d (>> ${binary:Version}),
+           libmozjs##SO_VERSION## (<< ${binary:Version}),
+           libmozjs##SO_VERSION## (>> ${binary:Version}),
            spidermonkey-bin (<< ${binary:Version}),
            spidermonkey-bin (>> ${binary:Version})
 Description: Development files for the Mozilla SpiderMonkey JavaScript library

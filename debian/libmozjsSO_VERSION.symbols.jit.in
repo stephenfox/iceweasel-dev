@@ -1,0 +1,2 @@
+#include "libmozjs##SO_VERSION##.symbols"
+ js_DeepBail@Base 1.9.1
