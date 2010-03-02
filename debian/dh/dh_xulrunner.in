@@ -7,6 +7,7 @@ dh_xulrunner - sets xulrunner dependencies
 =cut
 
 use strict;
+use Fcntl qw(SEEK_SET);
 use Debian::Debhelper::Dh_Lib;
 
 =head1 SYNOPSIS
@@ -51,20 +52,34 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 		$ff=`file "$file"`;
 		if ($ff=~m/ELF/) {
 			my @strings = ( "GRE_HOME", "MOZ_GRE_CONF", "USE_LOCAL_GRE", "/etc/gre.d", "/libxul.so" );
-			open FILE, "readelf -p .rodata \"$file\" 2>&1 |";
+			my($size, $offset);
+			open FILE, "objdump -h \"$file\" 2>&1 |";
 			while (<FILE>) {
-				for(my $i = 0; $i <= $#strings; $i++) {
-					if (m{$strings[$i]}) {
-						splice @strings, $i, 1;
-						last;
-					}
-				}
-				if ($#strings < 0) {
-					addsubstvar($package, "shlibs:Depends", "xulrunner-##BASE_VERSION##");
+				my(@fields) = split /\s+/;
+				next if $#fields < 7;
+				if ($fields[2] eq ".rodata") {
+					$size = hex $fields[3];
+					$offset = hex $fields[6];
 					last;
 				}
 			}
 			close FILE;
+			if ($size) {
+				open FILE, $file;
+				my $buf;
+				seek FILE, $offset, SEEK_SET;
+				# I don't expect the .rodata to be so huge that it doesn't fit in RAM
+				read FILE, $buf, $size;
+				close FILE;
+				$buf = join ' ', split(/[^A-Za-z\.\/_]+/, $buf);
+				my $pattern = '(' . join('|', @strings) . ')';
+				my (@matches) = $buf =~ m{$pattern}g;
+				print @matches,"\n";
+				if (!grep { my $s = $_; ! grep { $_ eq $s } @matches } @strings) {
+					addsubstvar($package, "shlibs:Depends", "xulrunner-##BASE_VERSION##");
+					last;
+				}
+			}
 		}
 	}
 }
