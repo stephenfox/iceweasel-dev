@@ -55,4 +55,8 @@ XPIDLSRCS       = \
 
 XPCSHELL_TESTS = test
 
+include $(topsrcdir)/config/config.mk
+
+FINAL_TARGET = $(DIST)/bin/distribution/bundles/httpd
+
 include $(topsrcdir)/config/rules.mk
