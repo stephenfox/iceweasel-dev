@@ -108,7 +108,7 @@ class XPCShellTests(object):
     testharnessdir = os.path.dirname(os.path.abspath(__file__))
     xpcshell = os.path.abspath(xpcshell)
     # we assume that httpd.js lives in components/ relative to xpcshell
-    httpdJSPath = os.path.join(os.path.dirname(xpcshell), "components", "httpd.js").replace("\\", "/");
+    httpdJSPath = os.path.join(os.path.dirname(xpcshell), "distribution" , "bundles", "httpd", "components", "httpd.js").replace("\\", "/");
 
     env = dict(os.environ)
     # Make assertions fatal
