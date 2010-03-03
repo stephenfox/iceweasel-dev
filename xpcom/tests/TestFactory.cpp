@@ -46,6 +46,9 @@
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsCOMPtr.h"
+#include "nsDirectoryServiceUtils.h"
+#include "nsStringGlue.h"
+#include "nsDirectoryServiceDefs.h"
 
 NS_DEFINE_CID(kTestFactoryCID, NS_TESTFACTORY_CID);
 NS_DEFINE_CID(kTestLoadedFactoryCID, NS_TESTLOADEDFACTORY_CID);
@@ -121,13 +124,21 @@ int main(int argc, char **argv) {
     nsCOMPtr<nsIServiceManager> servMan;
     rv = NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
     if (NS_FAILED(rv)) return -1;
+
+    nsCOMPtr<nsIFile> testdynamicdir;
+    NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR,
+                           getter_AddRefs(testdynamicdir));
+    testdynamicdir->AppendNative(NS_LITERAL_CSTRING("testdynamic"));
+
     nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
     NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
-    if (registrar)
-      registrar->RegisterFactory(kTestFactoryCID,
-                                 nsnull,
-                                 nsnull,
-                                 new TestFactory());
+
+    registrar->AutoRegister(testdynamicdir);
+
+    registrar->RegisterFactory(kTestFactoryCID,
+                               nsnull,
+                               nsnull,
+                               new TestFactory());
 
     ITestClass *t = NULL;
     CallCreateInstance(kTestFactoryCID, &t);
