@@ -3,7 +3,6 @@ DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
-GCC_4_4_OR_MORE := $(shell gcc -dumpversion | awk -F . '$$1 > 4 || ($$1 == 4 && $$2 > 3) {print $$0}')
 BASE_VERSION := 1.9.1
 SO_VERSION := $(shell awk -F'[\t =]+' '$$1 == "SO_VERSION" {print $$2}' js/src/Makefile.in)
 
@@ -43,9 +42,7 @@ ifeq (,$(filter debug noopt,$(DEB_BUILD_OPTIONS)))
 endif
 
 JS_LDFLAGS := $(MAIN_LDFLAGS)
-ifeq ($(DEB_BUILD_ARCH)$(GCC_4_4_OR_MORE),armel)
-	JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
-endif
+JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 
 COMPONENT_PACKAGES := python-xpcom
 COMPONENT_SCRIPTS := $(COMPONENT_PACKAGES:%=debian/%.postinst) $(COMPONENT_PACKAGES:%=debian/%.postrm)
