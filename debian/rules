@@ -93,7 +93,6 @@ override_dh_auto_build:
 		$(JAVA_VARS) \
 		DEB_NO_JAR=1
 	$(MAKE) -C debian/extra-stuff
-	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 debian/locales/%:
 	mkdir -p debian/locales
@@ -203,9 +202,10 @@ override_dh_install: debian/dh/dh_xulrunner
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
 	perl $< -pxulrunner-$(BASE_VERSION) --no-act -v 2>&1 | grep -q "..*"
 
-override_dh_installman: debian/dh/dh_xulrunner.1
+override_dh_installman: debian/dh/dh_xulrunner.1 debian/xulrunner-$(BASE_VERSION).1
 	dh_installman -pspidermonkey-bin debian/smjs.1
 	dh_installman -pxulrunner-dev debian/dh/dh_xulrunner.1
+	dh_installman -pxulrunner-$(BASE_VERSION) debian/xulrunner-$(BASE_VERSION).1
 
 override_dh_strip:
 	dh_strip -a -Nlibmozjs$(SO_VERSION) -Nspidermonkey-bin --dbg-package=xulrunner-$(BASE_VERSION)-dbg
