@@ -1,3 +1,63 @@
+xulrunner (1.9.1.8-5) unstable; urgency=low
+
+  * js/src/Makefile.in:
+    - Simplify installation of nanojit headers.
+    - DESTDIR support in js/src/Makefile.in. bz#482747.
+    - Install js shell when running make install from js/src.
+    - Install the .so symlink to the versioned library with make install.
+  * configure.in, configure: Simplify how js/src/configure is called from
+    main configure. bz#548273.
+  * debian/rules: Use make install from js/src. This allows to install the
+    js shell and C headers more easily.
+  * debian/rules: Generate debhelper files before the install target.
+  * debian/control.in, debian/control, debian/dh/dh_xulrunner.in: Don't rely
+    on readelf -p in dh_xulrunner. Now rely on objdump -h, which should be
+    available on stable and probably oldstable. This means we can lift the
+    binutils dependencies.
+    Note there was a binutils build dependency before, for a very old mips
+    bug, but the required version was already in oldstable, so removing the
+    build-dep altogether just works. Closes: #568888.
+  * debian/*: Get the libmozjs SO version from js/src/Makefile.in and
+    generate control files from it.
+  * xpcom/glue/nsTArray.*, xpcom/glue/nsTPtrArray.h: Always align AutoArrays
+    for 64-bits words, as decided with upstream.
+  * debian/rules, debian/symbols.filter: Unconditionally filter any C++
+    mangled symbol from libmozjs.
+  * debian/rules, debian/xulrunner-BASE_VERSION.1.in: Add a (basic) manual
+    page. Closes: #394567.
+  * debian/control.in, debian/control:
+    - Remove libkrb5-dev build dependency.
+    - Don't conflict with newer pango-graphite. Closes: #572380.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/debAbout.js,
+    debian/extra-stuff/packages-static.xulrunner, toolkit/content/about.dtd,
+    toolkit/content/about.xhtml, toolkit/content/jar.mn: Remove the debAbout
+    component and its use in the about: page. We already removed its use
+    from the iceweasel package, and it was the sole user of that feature.
+  * toolkit/xre/nsXREDirProvider.*: Load distribution bundles from GRE
+    directory, too.
+  * debian/extra-stuff/filemonitor/Makefile.in,
+    debian/extra-stuff/packages-static.xulrunner,
+    debian/xulrunner-BASE_VERSION.install.in,
+    debian/extra-stuff/Makefile.in: Move Debian specific components into
+    $GRE_DIR/distribution/bundles/debian/components.
+  * debian/rules: Use dh_auto_* --parallel where appropriate.
+  * xpcom/tests/TestBlockingProcess.cpp: Modify patched TestBlockingProcess
+    so that it builds cross-platforms. bz#543438.
+  * debian/extra-stuff/addonsInfo.js: Manually sort plugins and extensions
+    list in addons info component. This will make the component compatible
+    with 1.9.2.
+  * debian/extra-stuff/*.js: Get plugin path from nsIPluginTag.fullpath when
+    available. nsIPluginTag.filename only contains the leaf name on 1.9.2.
+  * debian/extra-stuff/debUpdateNotifier.js: Remove extra whitespace in
+    restart prompt.
+  * debian/extra-stuff/filemonitor/debGIOFileMonitorService.cpp: Allow
+    giofilemonitor to monitor files too.
+  * debian/copyright: Use DEP-5 format. Also remove some licensing terms
+    when they can be found in a file in subdirectories that are not used to
+    build the binary packages. Thanks Gabriele Giacone for the initial work.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 08 Mar 2010 15:33:35 +0100
+
 xulrunner (1.9.1.8-4) unstable; urgency=low
 
   * debian/control, debian/rules: Rename xulrunner:Recommends variable to
