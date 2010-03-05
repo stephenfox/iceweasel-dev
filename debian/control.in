@@ -50,7 +50,7 @@ Breaks: iceweasel (<< 3.5.5-1)
 Replaces: xulrunner-##BASE_VERSION##-gnome-support
 Conflicts: xulrunner-##BASE_VERSION##-gnome-support,
            j2re1.4,
-           pango-graphite
+           pango-graphite (<< 0.9.3)
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
  multiple XUL + XPCOM applications that are as rich as Firefox and
