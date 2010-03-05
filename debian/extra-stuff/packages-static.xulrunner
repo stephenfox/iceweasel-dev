@@ -20,7 +20,6 @@ bin/libjavaxpcomglue.so
 [debian]
 bin/reportbug-helper-script
 bin/components/addonsInfo.js
-bin/components/debAbout.js
 bin/components/debUpdateNotifier.js
 bin/components/giofilemonitor.xpt
 bin/components/libgiofilemonitor.so
