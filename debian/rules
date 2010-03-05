@@ -88,7 +88,7 @@ override_dh_auto_configure: debian/mozconfig
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
 override_dh_auto_build:
-	$(MAKE) \
+	dh_auto_build --parallel -- \
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
 		DEB_NO_JAR=1
@@ -134,7 +134,7 @@ override_dh_auto_clean:
 	rm -f $(GENERATED_FILES)
 
 	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/extra-stuff distclean
-	dh_auto_clean -- $(JAVA_VARS)
+	dh_auto_clean --parallel -- $(JAVA_VARS)
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
