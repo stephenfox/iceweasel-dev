@@ -87,7 +87,7 @@ class nsPluginHost;
 
 // A linked-list of plugin information that is used for instantiating plugins
 // and reflecting plugin information into JavaScript.
-class nsPluginTag : public nsIPluginTag
+class nsPluginTag : public nsIPluginTag_1_9_2
 {
 public:
   enum nsRegisterType {
@@ -97,6 +97,7 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGINTAG
+  NS_DECL_NSIPLUGINTAG_1_9_2
 
   nsPluginTag(nsPluginTag* aPluginTag);
   nsPluginTag(nsPluginInfo* aPluginInfo);
