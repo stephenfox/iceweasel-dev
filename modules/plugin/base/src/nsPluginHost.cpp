@@ -806,7 +806,7 @@ nsPluginTag::~nsPluginTag()
   }
 }
 
-NS_IMPL_ISUPPORTS1(nsPluginTag, nsIPluginTag)
+NS_IMPL_ISUPPORTS2(nsPluginTag, nsIPluginTag, nsIPluginTag_1_9_2)
 
 static nsresult ConvertToUTF8(nsIUnicodeDecoder *aUnicodeDecoder,
                               nsAFlatCString& aString)
@@ -889,6 +889,13 @@ NS_IMETHODIMP
 nsPluginTag::GetFilename(nsACString& aFileName)
 {
   aFileName = mFileName;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPluginTag::GetFullpath(nsACString& aFullPath)
+{
+  aFullPath = mFullPath;
   return NS_OK;
 }
 

@@ -48,3 +48,9 @@ interface nsIPluginTag : nsISupports
            attribute boolean  disabled;
            attribute boolean  blocklisted;
 };
+
+[scriptable, uuid(d1c7bb66-00ba-4f5c-99fd-f19ee1173a01)]
+interface nsIPluginTag_1_9_2 : nsIPluginTag
+{
+  readonly attribute AUTF8String fullpath;
+};
