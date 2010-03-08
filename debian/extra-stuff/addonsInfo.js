@@ -66,7 +66,8 @@ function dump_plugins(out) {
     var plugin = plugins[i];
     out.writeString("Name: " + plugin.name +
            (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
-    out.writeString("Location: " + plugin.filename+"\n");
+    out.writeString("Location: " +
+           (plugin.fullpath ? plugin.fullpath : plugin.filename) + "\n");
     out.writeString("Status: " + (plugin.disabled ? "disabled" : "enabled") +
                     (plugin.blocklisted ? " blocklisted" : "") + "\n");
     out.writeString("\n");

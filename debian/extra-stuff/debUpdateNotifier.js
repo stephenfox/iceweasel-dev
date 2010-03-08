@@ -94,7 +94,8 @@ function monitoredList() {
   for (var i = 0; i < plugins.length; i++) {
     var plugin = Cc["@mozilla.org/file/local;1"]
                  .createInstance(Ci.nsILocalFile);
-    plugin.initWithPath(plugins[i].filename);
+    plugin.initWithPath(plugins[i].fullpath ? plugins[i].fullpath
+                                            : plugins[i].filename);
     if (!userplugins || !plugin.parent.equals(userplugins))
       setResult(result, plugin, "plugin");
   }
