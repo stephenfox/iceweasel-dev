@@ -104,7 +104,7 @@ debGIOFileMonitorService::Monitor(nsIFile *aFile, debIGIOFileMonitorObserver *aO
   if (!monitored_file)
     return NS_ERROR_FAILURE;
 
-  GFileMonitor *monitor = g_file_monitor_directory(monitored_file, G_FILE_MONITOR_NONE, NULL, NULL);
+  GFileMonitor *monitor = g_file_monitor(monitored_file, G_FILE_MONITOR_NONE, NULL, NULL);
   g_object_unref(monitored_file);
 
   if (!monitor)
