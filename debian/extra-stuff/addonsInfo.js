@@ -2,6 +2,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
+function compare(a, b) {
+  return String.localeCompare(a.name, b.name);
+}
+
 function dumper() {}
 dumper.prototype = {
   close: function() { },
@@ -28,8 +32,8 @@ function dump_extensions(out) {
   var rdf = Cc["@mozilla.org/rdf/rdf-service;1"]
             .getService(Ci.nsIRDFService);
 
-  em.sortTypeByProperty(Ci.nsIUpdateItem.TYPE_ANY, "name", true);
   var extensions = em.getItemList(Ci.nsIUpdateItem.TYPE_ANY, { });
+  extensions.sort(compare);
   out.writeString("-- Extensions information\n");
   for (var i = 0; i < extensions.length; i++) {
     var extension = extensions[i];
@@ -56,7 +60,7 @@ function dump_plugins(out) {
   var phs = Cc["@mozilla.org/plugin/host;1"]
             .getService(Ci.nsIPluginHost);
   var plugins = phs.getPluginTags({ });
-  plugins.sort();
+  plugins.sort(compare);
   out.writeString("-- Plugins information\n");
   for (var i = 0; i < plugins.length; i++) {
     var plugin = plugins[i];
