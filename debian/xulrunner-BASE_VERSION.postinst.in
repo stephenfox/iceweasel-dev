@@ -2,8 +2,7 @@
 
 set -e
 
-dpkg-trigger --check-supported > /dev/null 2>&1 ||
-if [ "$1" = "configure" ] || [ "$1" = "abort-install" ] ||
+if [ "$1" = "configure" ] || [ "$1" = "triggered" ] ||
    [ "$1" = "abort-upgrade" ]; then
     touch /usr/lib/xulrunner-##BASE_VERSION##/.autoreg
     rm -f /usr/lib/xulrunner-##BASE_VERSION##/components/compreg.dat \

@@ -1,9 +1,0 @@
-#!/bin/sh
-
-set -e
-
-if [ "$1" = "remove" ]; then
-    rm -f /usr/lib/xulrunner-##BASE_VERSION##/components/pyabout.pyo
-fi
-
-#DEBHELPER#

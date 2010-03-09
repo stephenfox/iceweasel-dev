@@ -1,4 +1,0 @@
-usr/lib/xulrunner-##BASE_VERSION##/libpyxpcom.so
-usr/lib/xulrunner-##BASE_VERSION##/components/libpyloader.so
-usr/lib/xulrunner-##BASE_VERSION##/components/pyabout.py
-usr/lib/python*/site-packages

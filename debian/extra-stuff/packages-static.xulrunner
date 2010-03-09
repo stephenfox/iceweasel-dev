@@ -8,11 +8,6 @@ bin/xpt_dump
 bin/xpt_link
 bin/xulrunner-stub
 
-[pyxpcom]
-bin/libpyxpcom.so
-bin/components/libpyloader.so
-bin/components/pyabout.py
-
 [javaxpcom]
 bin/javaxpcom.jar
 bin/libjavaxpcomglue.so

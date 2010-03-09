@@ -20,7 +20,6 @@ ac_add_options --disable-mochitest
 ac_add_options --disable-debug
 ac_add_options --enable-canvas
 ac_add_options --with-readline
-ac_add_options --enable-extensions="default python/xpcom"
 ac_add_options --disable-installer
 ac_add_options --disable-javaxpcom
 ac_add_options --disable-elf-dynstr-gc
