@@ -121,7 +121,8 @@ override_dh_auto_install:
 		done
 	ln -s ../../xulrunner-$(BASE_VERSION) debian/tmp/usr/lib/xulrunner-devel-$(BASE_VERSION)/sdk/bin
 
-	dh_auto_install --sourcedirectory=js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB= SCRIPTS=
+	dh_auto_install --sourcedirectory=js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB=
+	rm debian/tmp/usr/bin/js-config
 	find debian/tmp/usr/include/mozjs -type f -printf %P\\n | while read f; do \
 		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/*/$$(basename $$f)); \
 		rm $$file; \
