@@ -4500,6 +4500,18 @@ fi
 
 AC_SUBST(SYSTEM_HUNSPELL)
 
+dnl system libffi Support
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(system-ffi,
+[  --enable-system-ffi       Use system libffi (located with pkgconfig)],
+    MOZ_NATIVE_FFI=1 )
+
+if test -n "$MOZ_NATIVE_FFI"; then
+    PKG_CHECK_MODULES(MOZ_FFI, libffi)
+fi
+
+AC_SUBST(MOZ_NATIVE_FFI)
+
 dnl ========================================================
 dnl Java SDK support
 dnl ========================================================
@@ -8753,7 +8765,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 # Build jsctypes on the platforms we can.
 if test "$BUILD_CTYPES"; then
   # Run the libffi 'configure' script on platforms that it supports.
-  if test -z "$_MSC_VER"; then
+  if test -z "$MOZ_NATIVE_FFI" && test -z "$_MSC_VER"; then
     ac_configure_args="--disable-shared --enable-static --disable-raw-api"
     if test "$MOZ_DEBUG"; then
       ac_configure_args="$ac_configure_args --enable-debug"
