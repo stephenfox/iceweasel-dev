@@ -52,10 +52,7 @@ Depends: ${shlibs:Depends},
          libnss3-1d (>> 3.12.0~rc3-1),
          libcairo2 (>= 1.8.8)
 Suggests: ${gnome:Depends}, libgnomeui-0, libcanberra0
-Breaks: iceweasel (<< 3.5.5-1)
-Replaces: xulrunner-##BASE_VERSION##-gnome-support
-Conflicts: xulrunner-##BASE_VERSION##-gnome-support,
-           j2re1.4,
+Conflicts: j2re1.4,
            pango-graphite (<< 0.9.3)
 Description: XUL + XPCOM application runner
  XULRunner is a single "gecko runtime" that can be used to bootstrap
