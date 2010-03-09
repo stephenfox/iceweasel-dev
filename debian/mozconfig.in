@@ -30,3 +30,4 @@ ac_add_options --disable-strip
 ac_add_options --disable-install-strip
 ac_add_options --enable-url-classifier
 ac_add_options --enable-startup-notification
+ac_add_options --enable-system-ffi
