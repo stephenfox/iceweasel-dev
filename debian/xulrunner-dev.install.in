@@ -3,8 +3,6 @@
 usr/include/xulrunner-##BASE_VERSION##
 usr/share/idl
 usr/lib/xulrunner-devel-##BASE_VERSION##
-usr/lib/pkgconfig/libxul-unstable.pc
-usr/lib/pkgconfig/libxul-embedding-unstable.pc
 usr/lib/pkgconfig/libxul.pc
 usr/lib/pkgconfig/libxul-embedding.pc
 usr/lib/pkgconfig/mozilla-gtkmozembed.pc
