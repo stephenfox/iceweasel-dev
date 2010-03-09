@@ -99,7 +99,7 @@ override_dh_auto_clean::
 
 override_dh_auto_install:
 	dh_auto_install --sourcedirectory=xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
-	rm debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/TestHarness.h
+	rm -rf debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/testing
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
 
@@ -111,36 +111,27 @@ override_dh_auto_install:
 		for f in *.so; do \
 			rm -f $$f; ln -s /usr/lib/xulrunner-$(BASE_VERSION)/$$f $$f; \
 		done
-	cd debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/stable; \
-		for f in *; do \
-			rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; \
-		done
-	cd debian/tmp/usr/share/idl/xulrunner-$(BASE_VERSION)/stable; \
-		for f in *; do \
-			rm -f ../unstable/$$f; ln -s ../stable/$$f ../unstable/$$f; \
-		done
 	ln -s ../../xulrunner-$(BASE_VERSION) debian/tmp/usr/lib/xulrunner-devel-$(BASE_VERSION)/sdk/bin
 
 	dh_auto_install --sourcedirectory=js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB=
 	rm debian/tmp/usr/bin/js-config
 	find debian/tmp/usr/include/mozjs -type f -printf %P\\n | while read f; do \
-		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/*/$$(basename $$f)); \
+		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/$$f); \
 		rm $$file; \
 		ln -s /usr/include/mozjs/$$f $$file; \
 	done
 	for f in /usr/include/nspr/* /usr/include/nss/*; do \
-		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/stable/$$(basename $$f); \
-		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/$$(basename $$f); \
+		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/$$(basename $$f); \
 	done
 	for h in $$(grep -l -r EXPORTS media | grep Makefile$ | \
-		while read f; do $(MAKE) --no-print-directory -C $$(dirname $$f) echo-variable-EXPORTS; done); do \
-		rm -f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/unstable/$$h; \
+		while read f; do $(MAKE) --no-print-directory -C $$(dirname $$f) echo-variable-EXPORTS echo-variable-EXPORTS_NAMESPACES; done); do \
+		rm -rf debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/$$h; \
 	done
 
 	rm debian/tmp/usr/lib/xulrunner-$(BASE_VERSION)/libmozjs.so
 	mv debian/tmp/usr/bin/js debian/tmp/usr/bin/smjs
 
-	sed -i '/^Cflags/ s,$${includedir}/stable,/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
+	sed -i '/^Cflags/ s,$${includedir},/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
 MPL: LICENSE
 	cp -f $< $@
