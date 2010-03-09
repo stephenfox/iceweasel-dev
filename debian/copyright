@@ -481,14 +481,10 @@ License: other
  extensions/spellcheck/locales/en-US/hunspell/README.txt
 
 Files: gfx/cairo/cairo/*
-Copyright: 2003 University of Southern California
-           1999 Tom Tromey
-           2002, 2003 University of Southern California
-           2004 Calum Robinson
-           2004 David Reveman
-           2000, 2002, 2004 Keith Packard
-           2004, 2005 Red Hat, Inc
-License: MPL-1.1 or GPL-2 or LGPL-2.1
+Copyright: various contributors
+License: MPL-1.1 or GPL-2 or LGPL-2.1, and MPL-1.1 or LGPL-2.1, and MIT
+ Please check individual files for detailed licensing information. These
+ files are not built in the binary packages.
 
 Files: gfx/cairo/libpixman/src/*
 Copyright: 2000 Keith Packard, member of The XFree86 Project, Inc.,
@@ -747,3 +743,85 @@ License: BSD-3
  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Files: js/ctypes/libffi/*
+Copyright: 1996-2008 Red Hat, Inc and others.
+License: other
+ Licensing details are available in js/ctypes/libffi/LICENSE
+
+Files: modules/freetype2/*
+Copyright: various contributors
+License: other
+ Licensing details are available in modules/freetype2/docs/LICENSE.TXT
+
+Files: modules/lib7z/*
+Copyright: Public Domain
+License: Public Domain
+
+Files: netwerk/system/maemo/*
+Copyright: 2009 Nokia Corporation
+License: MPL-1.1
+
+Files: parser/html/java/translator/src/nu/validator/htmlparser/cpptranslate/CppVisitor.java
+Copyright: 2007 Júlio Vilmar Gesser
+           2008 Mozilla Foundation
+License: LGPL-3+
+ On Debian systems, the complete text of the GNU Lesser General Public
+ License can be found in the file `/usr/share/common-licenses/LGPL-3'.
+
+Files: parser/html/java/translator/src/nu/validator/htmlparser/generator/GenerateNamedCharacters.java,
+       parser/html/javasrc/*
+Copyright: 2007-2009 Mozilla Foundation
+           2005-2007 Henri Sivonen
+           2004-2008 Apple Computer
+License: MIT
+
+Files: modules/plugin/test/testplugin/*
+Copyright: 2008, Mozilla Corporation
+License: BSD-3
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+ .
+ * Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+ * Neither the name of the Mozilla Corporation nor the names of its
+   contributors may be used to endorse or promote products derived from this
+   software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Files: modules/plugin/test/testplugin/nptest_utils.*
+Copyright: 2006, 2007, 2008 Apple Inc.
+License: BSD-2
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
+ EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
+ CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
