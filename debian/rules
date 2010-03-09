@@ -182,7 +182,7 @@ override_dh_makeshlibs:
 	if [ "`$(MAKE) --no-print-directory -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
 		echo '#include "libmozjs$(SO_VERSION).symbols.jit"' > debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH); \
 	fi
-	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 1.9.1.4)' -- $(GENSYMBOLS_FLAGS)
+	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 1.9.2)' -- $(GENSYMBOLS_FLAGS)
 
 override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
