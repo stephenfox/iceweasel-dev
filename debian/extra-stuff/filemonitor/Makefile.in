@@ -78,4 +78,4 @@ CXXFLAGS += $(XPCOM_GLUE_CFLAGS)
 LOCAL_INCLUDES := -I$(XPIDL_GEN_DIR)
 
 export::
-	rm $(IDL_DIR)/$(XPIDLSRCS) $(PUBLIC)/$(patsubst %.idl,%.h, $(XPIDLSRCS))
+	rm $(IDL_DIR)/$(XPIDLSRCS) $(DIST)/include/$(patsubst %.idl,%.h, $(XPIDLSRCS))
