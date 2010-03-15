@@ -98,12 +98,30 @@ debian/locales/%:
 	mkdir -p debian/locales
 	localedef -f $(word 2,$(subst ., ,$(notdir $@))) -i $(word 1,$(subst ., ,$(notdir $@))) $@
 
-override_dh_auto_test:
-
-test: $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	dh_testdir
+ifdef TEST_PATH
+TESTS := xpcshell-tests
+else
+TESTS := check xpcshell-tests
+endif
 
+override_dh_auto_test: $(TESTS)
+
+ifndef HAS_LOCALE
+xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
+endif
+xpcshell-tests: export LC_ALL=$(LOCALE)
+
+$(TESTS):
+	dh_testdir
+	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
+	HOME="$(CURDIR)/dist" \
+	$(MAKE) $@ 2>&1 | sed 's/^/$@> /'
+
+xpcshell-tests: xpcshell-tests-skip $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
+
+xpcshell-tests-skip:
+	dh_testdir
 # APNG is not supported
 	rm -f _tests/xpcshell/test_libpr0n/unit/test_encoder_apng.js
 # Image tests fail because of the use of system library which don't give the same result
@@ -115,13 +133,6 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	rm -f _tests/xpcshell/test_storage/unit/test_storage_combined_sharing.js
 # This one fails because it supposes some kind of preexisting gnome/mailcap configuration
 	rm -f _tests/xpcshell/test_uriloader_exthandler/unit/test_handlerService.js
-
-	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
-	HOME="$(CURDIR)/dist" \
-	$(if $(HAS_LOCALE),,LOCPATH="$(CURDIR)/debian/locales") \
-	LC_ALL=$(LOCALE) \
-	LANG=$(LOCALE) \
-	$(MAKE) -j1 xpcshell-tests $(if $(TEST_PATH),,check)
 endif
 
 build-jars: build
@@ -222,12 +233,11 @@ override_dh_shlibdeps:
 	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(BASE_VERSION).substvars -dDepends -pgnome $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(BASE_VERSION)/usr/lib/xulrunner-$(BASE_VERSION)/components/lib$(lib).so)
 
 binary binary-indep: build-jars
-binary binary-arch: test
 install binary binary-arch binary-indep: $(MAINT_SCRIPTS) $(PREPROCESSED_FILES)
 
 binary binary-arch binary-indep build clean install:
 	dh $@
 
-.PHONY: build clean binary-indep binary-arch binary install build-jars test
+.PHONY: build clean binary-indep binary-arch binary install build-jars test $(TESTS) xpcshell-tests-skip
 
 .NOTPARALLEL:
