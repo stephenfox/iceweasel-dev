@@ -34,7 +34,9 @@ Build-Depends: debhelper (>= 7.0.50~),
                locales,
                xvfb,
                xfonts-base,
-               xauth
+               xauth,
+               ttf-bitstream-vera,
+               ttf-freefont
 Build-Depends-Indep: default-jdk | java-gcj-compat-dev (>= 1.0.56)
 Build-Conflicts: libhildonmime-dev,
                  libosso-dev
