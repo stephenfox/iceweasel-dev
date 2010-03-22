@@ -103,20 +103,27 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 ifdef TEST_PATH
 TESTS := xpcshell-tests
 else
-TESTS := check xpcshell-tests
+TESTS := check xpcshell-tests reftest crashtest
 endif
 
 override_dh_auto_test: $(TESTS)
+
+debian/reftest-app/stub: $(CURDIR)/dist/bin/xulrunner-stub
+	ln -s $< $@
 
 ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
+reftest crashtest: debian/reftest-app/stub
+reftest crashtest: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
+reftest crashtest: export GRE_HOME = $(CURDIR)/dist/bin
+reftest crashtest: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
 
 $(TESTS):
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 	HOME="$(CURDIR)/dist" \
-	$(MAKE) $@ 2>&1 | sed 's/^/$@> /'
+	$(XVFB_RUN) $(MAKE) $@ 2>&1 | sed 's/^/$@> /'
 
 xpcshell-tests: xpcshell-tests-skip $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 
@@ -135,7 +142,7 @@ xpcshell-tests-skip:
 endif
 
 override_dh_auto_clean:
-	rm -f MPL
+	rm -f MPL debian/reftest-app/stub
 	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 

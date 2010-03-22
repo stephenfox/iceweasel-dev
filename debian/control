@@ -31,7 +31,10 @@ Build-Depends: debhelper (>= 7.0.50~),
                libiw-dev [!kfreebsd-i386 !kfreebsd-amd64 !hurd-i386],
                zip,
                unzip,
-               locales
+               locales,
+               xvfb,
+               xfonts-base,
+               xauth
 Build-Depends-Indep: default-jdk | java-gcj-compat-dev (>= 1.0.56)
 Build-Conflicts: libhildonmime-dev,
                  libosso-dev
