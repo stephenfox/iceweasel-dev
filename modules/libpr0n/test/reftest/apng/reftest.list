@@ -2,4 +2,4 @@
 #
 # delaytest.html delays the reftest snapshot to allow time for the
 # animation to complete.
-== delaytest.html?bug411852-1.png bug411852-1-ref.png
+fails-if(APNG!=1) == delaytest.html?bug411852-1.png bug411852-1-ref.png
