@@ -44,13 +44,15 @@ function run_test()
   let dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
   let db = dm.DBConnection;
+  var httpserv = new nsHttpServer();
+  httpserv.start(4444);
 
   let stmt = db.createStatement(
     "INSERT INTO moz_downloads (source, target, state, referrer) " +
     "VALUES (?1, ?2, ?3, ?4)");
 
   // Download from the test http server
-  stmt.bindStringParameter(0, "http://example.com/httpd.js");
+  stmt.bindStringParameter(0, "http://localhost:4444/httpd.js");
 
   // Download to a temp local file
   let file = Cc["@mozilla.org/file/directory_service;1"].
