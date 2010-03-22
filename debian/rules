@@ -91,7 +91,7 @@ override_dh_auto_build:
 	dh_auto_build --parallel -- \
 		PYTHON_SO=$(shell objdump -p /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') \
 		$(JAVA_VARS) \
-		DEB_NO_JAR=1
+		$(if $(wildcard /usr/bin/javac),,DEB_NO_JAR=1)
 	$(MAKE) -C debian/extra-stuff
 
 debian/locales/%:
@@ -135,10 +135,6 @@ xpcshell-tests-skip:
 	rm -f _tests/xpcshell/test_uriloader_exthandler/unit/test_handlerService.js
 endif
 
-build-jars: build
-	$(MAKE) -C extensions/java/xpcom/interfaces $(JAVA_VARS)
-	$(MAKE) -C extensions/java/xpcom/src jar-libs $(JAVA_VARS)
-	
 override_dh_auto_clean:
 	rm -f MPL
 	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
@@ -232,12 +228,11 @@ override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
 	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(BASE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(BASE_VERSION).substvars -dDepends -pgnome $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(BASE_VERSION)/usr/lib/xulrunner-$(BASE_VERSION)/components/lib$(lib).so)
 
-binary binary-indep: build-jars
 install binary binary-arch binary-indep: $(MAINT_SCRIPTS) $(PREPROCESSED_FILES)
 
 binary binary-arch binary-indep build clean install:
 	dh $@
 
-.PHONY: build clean binary-indep binary-arch binary install build-jars test $(TESTS) xpcshell-tests-skip
+.PHONY: build clean binary-indep binary-arch binary install test $(TESTS) xpcshell-tests-skip
 
 .NOTPARALLEL:
