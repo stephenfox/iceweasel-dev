@@ -131,24 +131,23 @@ fmObserver.prototype = {
       monitoredfile = file.parent;
     if (this.list[monitoredfile.path]) {
       var name;
+      var sbs = Cc["@mozilla.org/intl/stringbundle;1"]
+               .getService(Ci.nsIStringBundleService);
       try {
-        name = Cc["@mozilla.org/intl/stringbundle;1"]
-               .getService(Ci.nsIStringBundleService)
-               .createBundle("chrome://branding/locale/brand.properties")
+        name = sbs.createBundle("chrome://branding/locale/brand.properties")
                .GetStringFromName("brandShortName");
       } catch(e) {
         name = Cc["@mozilla.org/xre/app-info;1"]
                .getService(Ci.nsIXULAppInfo)
                .QueryInterface(Ci.nsIXULRuntime).name;
       }
+      var dun = sbs.createBundle("chrome://debian/locale/debUpdateNotifier.properties");
+      var title = dun.GetStringFromName("title");
+      var text = dun.formatStringFromName("message", [name], 1);
+
       if (!Cc["@mozilla.org/embedcomp/prompt-service;1"]
            .getService(Ci.nsIPromptService)
-           .confirm(null, "Please restart",
-                   name + ", an extension or a plugin has been " +
-                   "installed, upgraded or removed " +
-                   "by the system.\n" +
-                   "It is strongly recommended to restart. " +
-                   "Do you want to restart now ?"))
+           .confirm(null, title, text))
         return;
 
       var os = Cc["@mozilla.org/observer-service;1"]

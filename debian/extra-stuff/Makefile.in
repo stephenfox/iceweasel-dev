@@ -21,8 +21,21 @@ DEFINES += -DAB_CD=$(MOZ_UI_LOCALE) -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(
 packages-static: $(topsrcdir)/browser/installer/unix/packages-static $(srcdir)/packages-static.$(MOZ_APP_NAME)
 	$(PERL) $(topsrcdir)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) $^ | sed 's/^\[browser\]/[$(MOZ_APP_NAME)]/;/^bin\/\(README\.txt\|dictionaries\)/d' > $@
 
-GARBAGE += places.js packages-static
+GARBAGE += places.js packages-static jar.mn
 
 libs:: packages-static
 libs::
 	$(SYSINSTALL) $(IFLAGS2) $(srcdir)/reportbug-helper-script $(DIST)/bin
+
+ifeq (,$(wildcard $(JAR_MANIFEST)))
+libs::jar.mn
+	$(MAKE) realchrome
+endif
+
+locales:
+	mkdir $@
+
+GARBAGE_DIRS += locales
+
+jar.mn: debUpdateNotifier.properties locales
+	awk 'BEGIN { print "debian.jar:" } { l = $$1; print "% locale debian " l " %locale/" l "/debian/"; print " locale/" l "/debian/$< (locales/" l ")"; $$0=substr($$0,length($$1)+2); print $$0 > "locales/" l}' $< > $@
