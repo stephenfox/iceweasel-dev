@@ -16,7 +16,6 @@ include pngsuite-filtering/reftest.list
 include pngsuite-gamma/reftest.list
 include pngsuite-oddsizes/reftest.list
 include pngsuite-palettes/reftest.list
-include pngsuite-transparency/reftest.list
 include pngsuite-zlib/reftest.list
 
 # JPEG tests
