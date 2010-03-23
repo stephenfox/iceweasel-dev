@@ -137,7 +137,9 @@ fmObserver.prototype = {
                .createBundle("chrome://branding/locale/brand.properties")
                .GetStringFromName("brandShortName");
       } catch(e) {
-        name = "The application";
+        name = Cc["@mozilla.org/xre/app-info;1"]
+               .getService(Ci.nsIXULAppInfo)
+               .QueryInterface(Ci.nsIXULRuntime).name;
       }
       if (!Cc["@mozilla.org/embedcomp/prompt-service;1"]
            .getService(Ci.nsIPromptService)
