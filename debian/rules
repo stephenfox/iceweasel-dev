@@ -55,7 +55,7 @@ override_dh_auto_clean:
 	done
 
 override_dh_auto_install:
-	dh_auto_install
+	dh_auto_install -- installdir=/usr/lib/iceweasel
 	chmod 755 debian/iceweasel-xremote-client
 
 override_dh_install:
