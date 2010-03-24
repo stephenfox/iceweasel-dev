@@ -5,10 +5,7 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ; then
         x-www-browser /usr/bin/iceweasel 70 \
         --slave /usr/share/man/man1/x-www-browser.1.gz \
         x-www-browser.1.gz /usr/share/man/man1/iceweasel.1.gz
-    update-alternatives --install /usr/bin/mozilla mozilla \
-        /usr/bin/iceweasel 0 \
-        --slave /usr/share/man/man1/mozilla.1.gz mozilla.1.gz \
-        /usr/share/man/man1/firefox.1.gz
+    update-alternatives --remove mozilla /usr/bin/iceweasel
     update-alternatives --install /usr/bin/gnome-www-browser \
         gnome-www-browser /usr/bin/iceweasel 70 \
         --slave /usr/share/man/man1/gnome-www-browser.1.gz \
