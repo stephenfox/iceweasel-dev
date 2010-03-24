@@ -1,3 +1,64 @@
+xulrunner (1.9.1.8-6) unstable; urgency=low
+
+  * debian/extra-stuff/filemonitor/Makefile.in,
+    debian/extra-stuff/packages-static.xulrunner,
+    debian/xulrunner-BASE_VERSION.install.in,
+    debian/extra-stuff/Makefile.in: Revert previous change to move Debian
+    specific components into
+    $GRE_DIR/distribution/bundles/debian/components.
+  * toolkit/xre/nsXREDirProvider.*: Revert previous change to load
+    distribution bundles from GRE directory, too. See bz#551132 comment #7.
+  * extensions/java/xpcom/Makefile.in: Disable tests for javaxpcom.
+  * debian/rules:
+    - Change the way the test suite is called. At the same time, prepend
+      test suite output with the test suite name, so that the various test
+      results can be easily filtered.
+    - Build javaxpcom jars whenever /usr/bin/javac can be found. This
+      simplifies how the packages are built.
+    - Do a global dh_testdir test instead of running it in individual rules.
+  * js/src/nanojit/NativeARM.*: Fix ever-growing stack in JIT on ARM.
+    bz#545747.
+  * layout/reftests/first-letter/399941-[89]*.html: Don't fail reftest
+    first-letter tests because of a background bug. bz#512487.
+  * layout/svg/crashtests/crashtests.list: Skip 441368-1.svg crash test,
+    as it triggers an almost infinite loop.
+  * toolkit/components/downloads/test/unit/test_bug_406857.js: Don't block
+    on test_bug_406857.js when example.com is not reachable. bz#553995.
+    Closes: #571390.
+  * storage/src/mozStorageService.cpp: Don't error-out when run-time
+    libsqlite is older than build-time libsqlite In Debian, we have shlibs
+    to handle this.
+  * debian/rules, debian/reftest-app, debian/control: Run reftest and
+    crashtest to get more code coverage on all architectures. Prepare for
+    surprises.
+  * layout/reftests/font-face/local-1*.html: Use Bitstream Vera as an
+    alternative font in reftest font-face/local-1. bz#554029.
+  * modules/libpr0n/test/reftest/apng/reftest.list: Disable apng reftest
+    when apng support is not built.
+  * modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list: Skip png
+    tests that are known to fail. bz#471917.
+  * layout/reftests/bugs/reftest.list: reftest 424074-1-ref2.xul passes
+    depending on the gtk theme. bz#554036.
+  * debian/control: Build depend on the fonts that are required for the
+    reftests.
+  * toolkit/components/search/nsSearchService.js: Download search engine
+    icons when searchplugin is read-only. bz#554265.
+  * debian/extra-stuff/debUpdateNotifier.js: Fall back to the application
+    name as defined in application.ini when the application doesn't
+    contain a brandShortName in its branding chrome.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/debUpdateNotifier.js,
+    debian/extra-stuff/debUpdateNotifier.properties: Allow to localize the
+    debUpdateNotifier popup message. At the same time, slightly reword the
+    text to be more explicit about what is going to be restarted.
+    Closes: #574160.
+  * xulrunner/stub/nsXULStub.cpp: Resolve GRE directory symbolic link.
+    bz#530196, bz#550659.
+  * debian/xulrunner-BASE_VERSION.preinst.in: Remove the check for the
+    chrome directory in /usr/lib/xulrunner-$VERSION It was only necessary
+    in 1.9.0.x versions when it moved and was replaced by a symlink.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 24 Mar 2010 12:15:54 +0100
+
 xulrunner (1.9.1.8-5) unstable; urgency=low
 
   * js/src/Makefile.in:
