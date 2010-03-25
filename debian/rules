@@ -123,7 +123,7 @@ reftest crashtest: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
 $(TESTS):
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
 	HOME="$(CURDIR)/dist" \
-	$(XVFB_RUN) $(MAKE) $@ 2>&1 | sed 's/^/$@> /'
+	$(XVFB_RUN) $(MAKE) $@ 2>&1 | sed -u 's/^/$@> /'
 
 xpcshell-tests: xpcshell-tests-skip $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 
