@@ -1,4 +1,4 @@
-usr/lib/libmozjs.so.2d usr/lib/xulrunner-##BASE_VERSION##/libmozjs.so
+usr/lib/libmozjs.so.##SO_VERSION## usr/lib/xulrunner-##BASE_VERSION##/libmozjs.so
 usr/share/hunspell usr/lib/xulrunner-##BASE_VERSION##/dictionaries
 usr/share/xulrunner-##BASE_VERSION##/icons usr/lib/xulrunner-##BASE_VERSION##/icons
 usr/share/xulrunner-##BASE_VERSION##/greprefs usr/lib/xulrunner-##BASE_VERSION##/greprefs
