@@ -97,6 +97,8 @@ jstestbrowser:
 	$(call RUN_REFTEST,$(topsrcdir)/js/src/tests/jstests.list)
 	$(CHECK_TEST_ERROR)
 
+GARBAGE += reftest.log crashtest.log jstestbrowser.log
+
 # Execute all xpcshell tests in the directories listed in the manifest.
 # See also config/rules.mk 'xpcshell-tests' target for local execution.
 # Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] xpcshell-tests|.
