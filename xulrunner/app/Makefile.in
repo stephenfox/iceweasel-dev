@@ -47,8 +47,6 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS		= profile
-
 PREF_JS_EXPORTS = $(srcdir)/xulrunner.js
 GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/,xulrunner.js)
 
@@ -106,7 +104,9 @@ LIBS += \
 	$(EXTRA_DSO_LIBS) \
 	$(MOZ_JS_LIBS) \
 	$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+	-Wl,--no-as-needed \
 	$(XPCOM_LIBS) \
+	-Wl,--as-needed \
 	$(NSPR_LIBS) \
 	$(TK_LIBS) \
 	$(NULL)
@@ -114,6 +114,10 @@ LIBS += \
 # Add explicit X11 dependency when building against X11 toolkits
 ifneq (,$(filter gtk gtk2 xlib,$(MOZ_WIDGET_TOOLKIT)))
 LIBS += $(XLDFLAGS) $(XLIBS)
+endif
+
+ifdef MOZ_MEMORY
+LIBS += -ljemalloc
 endif
 
 ifdef MOZ_JPROF

@@ -45,8 +45,9 @@
  *  nsIUnicodeEncoder 
  *  nsICharRepresentable
  */
-[uuid(c60097ba-c79d-461b-9116-80a66404c0b0)]
+[uuid(99e23ae8-c334-44de-a208-a7aa6923f8f5)]
 interface nsINativeUConvService : nsISupports
 {
-  nsISupports getNativeConverter(in string from, in string to);
+  nsISupports getNativeUnicodeDecoder(in string from);
+  nsISupports getNativeUnicodeEncoder(in string to);
 };

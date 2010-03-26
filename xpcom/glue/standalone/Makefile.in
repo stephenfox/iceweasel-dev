@@ -47,6 +47,7 @@ EXTRA_DEPS += $(srcdir)/../objs.mk
 
 MODULE		= xpcom
 LIBRARY_NAME	= xpcomglue
+SO_VERSION	= 0d
 DIST_INSTALL	= 1
 
 REQUIRES	= string \
@@ -62,7 +63,7 @@ endif
 ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 LINKSRC = nsGlueLinkingWin.cpp
 endif
-ifneq (,$(filter AIX DragonFly FreeBSD Linux NetBSD OpenBSD SunOS,$(OS_ARCH)))
+ifneq (,$(filter AIX DragonFly FreeBSD GNU GNU_% Linux NetBSD OpenBSD SunOS,$(OS_ARCH)))
 LINKSRC = nsGlueLinkingDlopen.cpp
 endif
 ifeq (OS2,$(OS_ARCH))
@@ -93,11 +94,8 @@ SDK_HEADERS     = \
 		$(NULL)
 
 SDK_LIBRARY     	= \
-		$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX) \
+		$(SHARED_LIBRARY) \
 		$(NULL)
-
-# we don't want the shared lib, but we want to force the creation of a static lib.
-FORCE_STATIC_LIB = 1
 
 # Force use of PIC
 FORCE_USE_PIC	= 1

@@ -57,7 +57,9 @@ CPPSRCS		= xpcshell.cpp
 LIBS		= \
 		$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
 		$(MOZ_JS_LIBS) \
+		-Wl,--no-as-needed \
 		$(XPCOM_LIBS) \
+		-Wl,--as-needed \
 		$(NSPR_LIBS) \
 		$(NULL)
 
@@ -80,7 +82,7 @@ endif
 # look at mozilla/js/src/editline, which is license-free (but not part
 # of the mozilla build.)
 #
-ifdef JS_READLINE
+ifdef HAVE_READLINE
 DEFINES += -DEDITLINE
-LIBS += -lreadline $(JS_READLINE_EXTRA_LIBS)
+LIBS += $(READLINE_LIBS)
 endif
