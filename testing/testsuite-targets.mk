@@ -92,6 +92,7 @@ crashtest:
 	$(call RUN_REFTEST,$(topsrcdir)/testing/crashtest/crashtests.list)
 	$(CHECK_TEST_ERROR)
 
+GARBAGE += reftest.log crashtest.log
 
 # Execute all xpcshell tests in the directories listed in the manifest.
 # See also config/rules.mk 'xpcshell-tests' target for local execution.
