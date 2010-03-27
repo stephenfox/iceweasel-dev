@@ -71,7 +71,7 @@ build-stamp:  config.status
 	dh_testdir
 
 	# Add here commands to compile the package.
-	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 MOZ_APP_VERSION=1.9 OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
+	LD_LIBRARY_PATH=$(CURDIR)/dist/lib $(MAKE) PYTHON_SO=$(shell objdump -x /usr/lib/lib$(PYVER).so | awk '/SONAME/ {print $$2}') $(JAVA_VARS) DEB_NO_JAR=1 OS_LDFLAGS="-Wl,--as-needed $(shell sed -n 's/^OS_LDFLAGS\s*=\s*//p' config/autoconf.mk)"
 	#docbook-to-man debian/xulrunner.sgml > xulrunner.1
 
 	touch build-stamp
@@ -98,7 +98,7 @@ clean:
 	rm -f $(COMPONENT_SCRIPTS)
 
 	# Add here commands to clean up after the build process.
-	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS) MOZ_APP_VERSION=1.9
+	[ ! -f Makefile ] || $(MAKE) distclean $(JAVA_VARS)
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
@@ -117,7 +117,7 @@ install-stamp: build-stamp
 	dh_installdirs
 
 	# Add here commands to install the package into debian/tmp.
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp MOZ_APP_VERSION=1.9
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-1.9
 	install -m 755 dist/bin/regxpcom debian/tmp/usr/lib/xulrunner-1.9
