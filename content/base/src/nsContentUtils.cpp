@@ -149,6 +149,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsXULPopupManager.h"
 #include "nsIPermissionManager.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsIRunnable.h"
+#include "nsDOMJSUtils.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -195,6 +197,9 @@ PRUint32 nsContentUtils::sJSGCThingRootCount;
 #ifdef IBMBIDI
 nsIBidiKeyboard *nsContentUtils::sBidiKeyboard = nsnull;
 #endif
+PRUint32 nsContentUtils::sScriptBlockerCount = 0;
+nsCOMArray<nsIRunnable>* nsContentUtils::sBlockedScriptRunners = nsnull;
+PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
 
 nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
 JSRuntime *nsAutoGCRoot::sJSScriptRuntime;
@@ -323,6 +328,9 @@ nsContentUtils::Init()
     }
   }
 
+  sBlockedScriptRunners = new nsCOMArray<nsIRunnable>;
+  NS_ENSURE_TRUE(sBlockedScriptRunners, NS_ERROR_OUT_OF_MEMORY);
+
   sInitialized = PR_TRUE;
 
   return NS_OK;
@@ -402,13 +410,10 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::ondragenter,                   { NS_DRAGDROP_ENTER, EventNameType_XUL }},
     { &nsGkAtoms::ondragover,                    { NS_DRAGDROP_OVER_SYNTH, EventNameType_XUL }},
     { &nsGkAtoms::ondragexit,                    { NS_DRAGDROP_EXIT_SYNTH, EventNameType_XUL }},
-    { &nsGkAtoms::ondragdrop,                    { NS_DRAGDROP_DRAGDROP, EventNameType_XUL }},
+    { &nsGkAtoms::ondragdrop,                    { NS_DRAGDROP_DROP, EventNameType_XUL }},
     { &nsGkAtoms::ondraggesture,                 { NS_DRAGDROP_GESTURE, EventNameType_XUL }},
     { &nsGkAtoms::ondrag,                        { NS_DRAGDROP_DRAG, EventNameType_XUL }},
     { &nsGkAtoms::ondragend,                     { NS_DRAGDROP_END, EventNameType_XUL }},
-    { &nsGkAtoms::ondragstart,                   { NS_DRAGDROP_START, EventNameType_XUL }},
-    { &nsGkAtoms::ondragleave,                   { NS_DRAGDROP_LEAVE_SYNTH, EventNameType_XUL }},
-    { &nsGkAtoms::ondrop,                        { NS_DRAGDROP_DROP, EventNameType_XUL }},
     { &nsGkAtoms::onoverflow,                    { NS_SCROLLPORT_OVERFLOW, EventNameType_XUL }},
     { &nsGkAtoms::onunderflow,                   { NS_SCROLLPORT_UNDERFLOW, EventNameType_XUL }}
 #ifdef MOZ_SVG
@@ -820,6 +825,12 @@ nsContentUtils::Shutdown()
       sEventListenerManagersHash.ops = nsnull;
     }
   }
+
+  NS_ASSERTION(!sBlockedScriptRunners ||
+               sBlockedScriptRunners->Count() == 0,
+               "How'd this happen?");
+  delete sBlockedScriptRunners;
+  sBlockedScriptRunners = nsnull;
 
   nsAutoGCRoot::Shutdown();
 }
@@ -2588,17 +2599,41 @@ nsCxPusher::Push(nsISupports *aCurrentTarget)
 
   JSContext *cx = nsnull;
 
-  if (sgo) {
-    mScx = sgo->GetContext();
+  nsCOMPtr<nsIScriptContext> scx;
 
-    if (mScx) {
-      cx = (JSContext *)mScx->GetNativeContext();
+  if (sgo) {
+    scx = sgo->GetContext();
+
+    if (scx) {
+      cx = (JSContext *)scx->GetNativeContext();
     }
     // Bad, no JSContext from script global object!
     NS_ENSURE_TRUE(cx, PR_FALSE);
   }
 
+  // If there's no native context in the script context it must be
+  // in the process or being torn down. We don't want to notify the
+  // script context about scripts having been evaluated in such a
+  // case, calling with a null cx is fine in that case.
+  return Push(cx);
+}
+
+PRBool
+nsCxPusher::Push(JSContext *cx)
+{
+  if (mScx) {
+    NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
+
+    return PR_FALSE;
+  }
+
   if (cx) {
+    mScx = GetScriptContextFromJSContext(cx);
+    if (!mScx) {
+      // Should probably return PR_FALSE. See bug 416916.
+      return PR_TRUE;
+    }
+
     if (!mStack) {
       mStack = do_GetService(kJSStackContractID);
     }
@@ -2612,13 +2647,6 @@ nsCxPusher::Push(nsISupports *aCurrentTarget)
 
       mStack->Push(cx);
     }
-  } else {
-    // If there's no native context in the script context it must be
-    // in the process or being torn down. We don't want to notify the
-    // script context about scripts having been evaluated in such a
-    // case, so null out mScx.
-
-    mScx = nsnull;
   }
   return PR_TRUE;
 }
@@ -3230,6 +3258,7 @@ nsContentUtils::TraverseListenerManager(nsINode *aNode,
                (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
                                         PL_DHASH_LOOKUP));
   if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[via hash] mListenerManager");
     cb.NoteXPCOMChild(entry->mListenerManager);
   }
 }
@@ -3354,6 +3383,7 @@ nsContentUtils::IsValidNodeName(nsIAtom *aLocalName, nsIAtom *aPrefix,
 nsresult
 nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
                                          const nsAString& aFragment,
+                                         PRBool aWillOwnFragment,
                                          nsIDOMDocumentFragment** aReturn)
 {
   NS_ENSURE_ARG(aContextNode);
@@ -3499,7 +3529,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
   rv = parser->ParseFragment(aFragment, nsnull, tagStack,
                              !bHTML, contentType, mode);
   if (NS_SUCCEEDED(rv)) {
-    rv = sink->GetFragment(aReturn);
+    rv = sink->GetFragment(aWillOwnFragment, aReturn);
   }
 
   document->SetFragmentParser(parser);
@@ -3961,6 +3991,65 @@ nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMEvent* aDOMEvent,
 
 /* static */
 void
+nsContentUtils::AddScriptBlocker()
+{
+  if (!sScriptBlockerCount) {
+    NS_ASSERTION(sRunnersCountAtFirstBlocker == 0,
+                 "Should not already have a count");
+    sRunnersCountAtFirstBlocker = sBlockedScriptRunners->Count();
+  }
+  ++sScriptBlockerCount;
+}
+
+/* static */
+void
+nsContentUtils::RemoveScriptBlocker()
+{
+  --sScriptBlockerCount;
+  if (sScriptBlockerCount) {
+    return;
+  }
+
+  PRUint32 firstBlocker = sRunnersCountAtFirstBlocker;
+  PRUint32 lastBlocker = sBlockedScriptRunners->Count();
+  sRunnersCountAtFirstBlocker = 0;
+  NS_ASSERTION(firstBlocker <= lastBlocker,
+               "bad sRunnersCountAtFirstBlocker");
+
+  while (firstBlocker < lastBlocker) {
+    nsCOMPtr<nsIRunnable> runnable = (*sBlockedScriptRunners)[firstBlocker];
+    sBlockedScriptRunners->RemoveObjectAt(firstBlocker);
+    --lastBlocker;
+
+    runnable->Run();
+    NS_ASSERTION(lastBlocker == sBlockedScriptRunners->Count() &&
+                 sRunnersCountAtFirstBlocker == 0,
+                 "Bad count");
+    NS_ASSERTION(!sScriptBlockerCount, "This is really bad");
+  }
+}
+
+
+/* static */
+PRBool
+nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
+{
+  if (!aRunnable) {
+    return PR_FALSE;
+  }
+
+  if (sScriptBlockerCount) {
+    return sBlockedScriptRunners->AppendObject(aRunnable);
+  }
+  
+  nsCOMPtr<nsIRunnable> run = aRunnable;
+  run->Run();
+
+  return PR_TRUE;
+}
+
+/* static */
+void
 nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
 {
   NS_PRECONDITION(aDocument, "Null document");
@@ -3974,6 +4063,19 @@ nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
       pm->HidePopupsInDocShell(docShellToHide);
   }
 #endif
+}
+
+/* static */
+PRBool
+nsContentUtils::URIIsLocalFile(nsIURI *aURI)
+{
+  PRBool isFile;
+  nsCOMPtr<nsINetUtil> util = do_QueryInterface(sIOService);
+
+  return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
+                                nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                                &isFile)) &&
+         isFile;
 }
 
 /* static */

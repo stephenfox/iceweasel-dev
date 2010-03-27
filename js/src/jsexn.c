@@ -57,7 +57,9 @@
 #include "jsfun.h"
 #include "jsinterp.h"
 #include "jsnum.h"
+#include "jsobj.h"
 #include "jsopcode.h"
+#include "jsscope.h"
 #include "jsscript.h"
 
 /* Forward declarations for js_ErrorClass's initializer. */
@@ -294,7 +296,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     overflow |= (valueCount > ((size_t)-1 - size) / sizeof(jsval));
     size += valueCount * sizeof(jsval);
     if (overflow) {
-        JS_ReportOutOfMemory(cx);
+        js_ReportAllocationOverflow(cx);
         return JS_FALSE;
     }
     priv = (JSExnPrivate *)JS_malloc(cx, size);
@@ -319,8 +321,11 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
             elem->funName = NULL;
             elem->argc = 0;
         } else {
-            elem->funName = fp->fun->atom
-                            ? ATOM_TO_STRING(fp->fun->atom)
+            JSAtom *atom;
+
+            atom = FUN_ATOM(fp->fun);
+            elem->funName = atom
+                            ? ATOM_TO_STRING(atom)
                             : cx->runtime->emptyString;
             elem->argc = fp->argc;
             memcpy(values, fp->argv, fp->argc * sizeof(jsval));
@@ -330,8 +335,8 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
         elem->filename = NULL;
         if (fp->script) {
             elem->filename = fp->script->filename;
-            if (fp->pc)
-                elem->ulineno = js_PCToLineNumber(cx, fp->script, fp->pc);
+            if (fp->regs)
+                elem->ulineno = js_PCToLineNumber(cx, fp->script, fp->regs->pc);
         }
         ++elem;
     }
@@ -748,7 +753,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                                            .classPrototypeAtom),
                               rval))
             return JS_FALSE;
-        obj = js_NewObject(cx, &js_ErrorClass, JSVAL_TO_OBJECT(*rval), NULL);
+        obj = js_NewObject(cx, &js_ErrorClass, JSVAL_TO_OBJECT(*rval), NULL, 0);
         if (!obj)
             return JS_FALSE;
         *rval = OBJECT_TO_JSVAL(obj);
@@ -791,12 +796,15 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     /* Set the 'lineNumber' property. */
     if (argc > 2) {
-        if (!js_ValueToECMAUint32(cx, argv[2], &lineno))
+        lineno = js_ValueToECMAUint32(cx, &argv[2]);
+        if (JSVAL_IS_NULL(argv[2]))
             return JS_FALSE;
     } else {
         if (!fp)
             fp = JS_GetScriptedCaller(cx, NULL);
-        lineno = (fp && fp->pc) ? js_PCToLineNumber(cx, fp->script, fp->pc) : 0;
+        lineno = (fp && fp->regs)
+                 ? js_PCToLineNumber(cx, fp->script, fp->regs->pc)
+                 : 0;
     }
 
     return (OBJ_GET_CLASS(cx, obj) != &js_ErrorClass) ||
@@ -907,8 +915,11 @@ exn_toSource(JSContext *cx, uintN argc, jsval *vp)
         goto out;
     localroots[1] = STRING_TO_JSVAL(filename);
 
-    ok = JS_GetProperty(cx, obj, js_lineNumber_str, &localroots[2]) &&
-         js_ValueToECMAUint32 (cx, localroots[2], &lineno);
+    ok = JS_GetProperty(cx, obj, js_lineNumber_str, &localroots[2]);
+    if (!ok)
+        goto out;
+    lineno = js_ValueToECMAUint32 (cx, &localroots[2]);
+    ok = !JSVAL_IS_NULL(localroots[2]);
     if (!ok)
         goto out;
 
@@ -1035,7 +1046,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
     /* Initialize the prototypes first. */
     for (i = 0; exceptions[i].name != 0; i++) {
         JSAtom *atom;
-        JSFunction *fun;
+        JSNativeFunction *fun;
         JSObject *funobj;
         JSString *nameString;
         int protoIndex = exceptions[i].protoIndex;
@@ -1045,7 +1056,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
                                  (protoIndex != JSEXN_NONE)
                                  ? protos[protoIndex]
                                  : obj_proto,
-                                 obj);
+                                 obj, 0);
         if (!protos[i])
             break;
 
@@ -1059,10 +1070,10 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
             break;
 
         /* Make this constructor make objects of class Exception. */
-        fun->u.n.clasp = &js_ErrorClass;
+        NATIVE_FUN_SET_CLASS(fun, &js_ErrorClass);
 
         /* Extract the constructor object. */
-        funobj = fun->object;
+        funobj = &fun->base.object;
 
         /* Make the prototype and constructor links. */
         if (!js_SetClassPrototype(cx, funobj, protos[i],
@@ -1215,7 +1226,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp)
         goto out;
     tv[0] = OBJECT_TO_JSVAL(errProto);
 
-    errObject = js_NewObject(cx, &js_ErrorClass, errProto, NULL);
+    errObject = js_NewObject(cx, &js_ErrorClass, errProto, NULL, 0);
     if (!errObject) {
         ok = JS_FALSE;
         goto out;
@@ -1337,7 +1348,8 @@ js_ReportUncaughtException(JSContext *cx)
         ok = JS_GetProperty(cx, exnObject, js_lineNumber_str, &roots[4]);
         if (!ok)
             goto out;
-        ok = js_ValueToECMAUint32 (cx, roots[4], &lineno);
+        lineno = js_ValueToECMAUint32 (cx, &roots[4]);
+        ok = !JSVAL_IS_NULL(roots[4]);
         if (!ok)
             goto out;
 

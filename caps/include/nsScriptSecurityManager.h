@@ -406,6 +406,16 @@ public:
     static nsresult 
     ReportError(JSContext* cx, const nsAString& messageTag,
                 nsIURI* aSource, nsIURI* aTarget);
+    static nsresult
+    CheckSameOriginPrincipal(nsIPrincipal* aSubject,
+                             nsIPrincipal* aObject,
+                             PRBool aIsCheckConnect);
+
+    static PRBool
+    GetStrictFileOriginPolicy()
+    {
+        return sStrictFileOriginPolicy;
+    }
 
 private:
 
@@ -440,11 +450,6 @@ private:
                             nsIClassInfo* aClassInfo,
                             const char* aClassName, jsval aProperty,
                             void** aCachedClassPolicy);
-
-    nsresult
-    CheckSameOriginPrincipalInternal(nsIPrincipal* aSubject,
-                                     nsIPrincipal* aObject,
-                                     PRBool aIsCheckConnect);
 
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
@@ -548,10 +553,6 @@ private:
                    nsISecurityPref* securityPref);
 
 
-    /* encapsulate the file comparison rules */
-    static PRBool SecurityCompareFileURIs(nsIURI* aSourceURI,
-                                          nsIURI* aTargetURI);
-
 #ifdef XPC_IDISPATCH_SUPPORT
     // While this header is included outside of caps, this class isn't 
     // referenced so this should be fine.
@@ -592,24 +593,12 @@ private:
     static const char sXPCDefaultGrantAllName[];
 #endif
 
-    static PRInt32 sFileURIOriginPolicy;
+    static PRBool sStrictFileOriginPolicy;
 
     static nsIIOService    *sIOService;
     static nsIXPConnect    *sXPConnect;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
 };
-
-// Levels for file: URI same-origin policy:
-//   self:        same-origin only with itself
-//   samedir:     same-origin with files having the same path
-//   subdir:      same-origin with files having longer paths (asymetric)
-//   anyfile:     same-origin with any other file: URI (but not directories)
-//   traditional: any local file, any directory
-#define FILEURI_SOP_SELF        0
-#define FILEURI_SOP_SAMEDIR     1
-#define FILEURI_SOP_SUBDIR      2
-#define FILEURI_SOP_ANYFILE     3
-#define FILEURI_SOP_TRADITIONAL 4
 
 #endif // nsScriptSecurityManager_h__

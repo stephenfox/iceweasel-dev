@@ -193,7 +193,7 @@
 // belonging to the back-end like nsIContentPolicy
 #include "nsIPopupWindowManager.h"
 
-#include "nsIPermissionManager.h"
+#include "nsIDragService.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -212,6 +212,8 @@ static PRInt32              gRefCnt                    = 0;
 static PRInt32              gOpenPopupSpamCount        = 0;
 static PopupControlState    gPopupControlState         = openAbused;
 static PRInt32              gRunningTimeoutDepth       = 0;
+static PRBool               gMouseDown                 = PR_FALSE;
+static PRBool               gDragServiceDisabled       = PR_FALSE;
 
 #ifdef DEBUG
 static PRUint32             gSerialCounter             = 0;
@@ -660,7 +662,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #ifdef DEBUG
   printf("++DOMWINDOW == %d (%p) [serial = %d] [Outer = %p]\n", gRefCnt,
          static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
-         ++gSerialCounter, aOuterWindow);
+         ++gSerialCounter, static_cast<void*>(aOuterWindow));
   mSerial = gSerialCounter;
 #endif
 
@@ -682,7 +684,7 @@ nsGlobalWindow::~nsGlobalWindow()
 #ifdef DEBUG
   printf("--DOMWINDOW == %d (%p) [serial = %d] [Outer = %p]\n",
          gRefCnt, static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
-         mSerial, mOuterWindow);
+         mSerial, static_cast<void*>(mOuterWindow));
 #endif
 
 #ifdef PR_LOGGING
@@ -2181,6 +2183,20 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     }
   } else if (msg == NS_RESIZE_EVENT) {
     mIsHandlingResizeEvent = PR_TRUE;
+  } else if (msg == NS_MOUSE_BUTTON_DOWN &&
+             NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
+    gMouseDown = PR_TRUE;
+  } else if (msg == NS_MOUSE_BUTTON_UP &&
+             NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
+    gMouseDown = PR_FALSE;
+    if (gDragServiceDisabled) {
+      nsCOMPtr<nsIDragService> ds =
+        do_GetService("@mozilla.org/widget/dragservice;1");
+      if (ds) {
+        gDragServiceDisabled = PR_FALSE;
+        ds->Unsuppress();
+      }
+    }
   }
 
   aVisitor.mParentTarget = mChromeEventHandler;
@@ -3919,36 +3935,18 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
 PRBool
 nsGlobalWindow::CanMoveResizeWindows()
 {
-  // Chrome can do anything it wants.
-  if (nsContentUtils::IsCallerTrustedForWrite())
-    return PR_TRUE;
-
-  nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = nsContentUtils::GetSecurityManager()->
-    GetSubjectPrincipal(getter_AddRefs(principal));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-  // We can't do anything without a principal past this point, just say no.
-  if (!principal)
+  if (!CanSetProperty("dom.disable_window_move_resize"))
     return PR_FALSE;
 
-  nsCOMPtr<nsIURI> uri;
-  rv = principal->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-  // Can't do anything without a URI...
-  if (!uri)
-    return PR_FALSE;
-
-  nsCOMPtr<nsIPermissionManager> pm =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  
-  PRUint32 testResult;
-  rv = pm->TestPermission(uri, "moveresize", &testResult);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  
-  return testResult == nsIPermissionManager::ALLOW_ACTION;
+  if (gMouseDown && !gDragServiceDisabled) {
+    nsCOMPtr<nsIDragService> ds =
+      do_GetService("@mozilla.org/widget/dragservice;1");
+    if (ds) {
+      gDragServiceDisabled = PR_TRUE;
+      ds->Suppress();
+    }
+  }
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -5884,7 +5882,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
   *aRetVal = nsnull;
 
   nsCOMPtr<nsIDOMWindow> dlgWin;
-  nsAutoString options(NS_LITERAL_STRING("modal=1,status=1"));
+  nsAutoString options(NS_LITERAL_STRING("-moz-internal-modal=1,status=1"));
 
   ConvertDialogOptions(aOptions, options);
 
@@ -9028,6 +9026,16 @@ nsNavigator::GetPlatform(nsAString& aPlatform)
 NS_IMETHODIMP
 nsNavigator::GetOscpu(nsAString& aOSCPU)
 {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.oscpu.override");
+
+    if (override) {
+      CopyUTF8toUTF16(override, aOSCPU);
+      return NS_OK;
+    }
+  }
+
   nsresult rv;
   nsCOMPtr<nsIHttpProtocolHandler>
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
@@ -9089,6 +9097,25 @@ nsNavigator::GetProduct(nsAString& aProduct)
 NS_IMETHODIMP
 nsNavigator::GetProductSub(nsAString& aProductSub)
 {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.productSub.override");
+
+    if (override) {
+      CopyUTF8toUTF16(override, aProductSub);
+      return NS_OK;
+    } else {
+      // 'general.useragent.productSub' backwards compatible with 1.8 branch.
+      const nsAdoptingCString& override2 =
+        nsContentUtils::GetCharPref("general.useragent.productSub");
+
+      if (override2) {
+        CopyUTF8toUTF16(override2, aProductSub);
+        return NS_OK;
+      }
+    }
+  }
+
   nsresult rv;
   nsCOMPtr<nsIHttpProtocolHandler>
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
@@ -9164,6 +9191,16 @@ nsNavigator::GetOnLine(PRBool* aOnline)
 NS_IMETHODIMP
 nsNavigator::GetBuildID(nsAString& aBuildID)
 {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
+    const nsAdoptingCString& override =
+      nsContentUtils::GetCharPref("general.buildID.override");
+
+    if (override) {
+      CopyUTF8toUTF16(override, aBuildID);
+      return NS_OK;
+    }
+  }
+
   nsCOMPtr<nsIXULAppInfo> appInfo =
     do_GetService("@mozilla.org/xre/app-info;1");
   if (!appInfo)
@@ -9186,14 +9223,6 @@ nsNavigator::JavaEnabled(PRBool *aReturn)
   *aReturn = PR_FALSE;
 
 #ifdef OJI
-  // determine whether user has enabled java.
-  // if pref doesn't exist, map result to false.
-  *aReturn = nsContentUtils::GetBoolPref("security.enable_java");
-
-  // if Java is not enabled, result is false and return reight away
-  if (!*aReturn)
-    return NS_OK;
-
   // Ask the nsIJVMManager if Java is enabled
   nsCOMPtr<nsIJVMManager> jvmService = do_GetService(kJVMServiceCID);
   if (jvmService) {

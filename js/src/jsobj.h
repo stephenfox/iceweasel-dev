@@ -432,14 +432,15 @@ extern JSBool
 js_GetClassId(JSContext *cx, JSClass *clasp, jsid *idp);
 
 extern JSObject *
-js_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
+js_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent,
+             uintN extraBytes);
 
 /*
  * See jsapi.h, JS_NewObjectWithGivenProto.
  */
 extern JSObject *
 js_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
-                           JSObject *parent);
+                           JSObject *parent, uintN extraBytes);
 
 /*
  * Fast access to immutable standard objects (constructors and prototypes).
@@ -695,6 +696,14 @@ extern JSBool
 js_CheckPrincipalsAccess(JSContext *cx, JSObject *scopeobj,
                          JSPrincipals *principals, JSAtom *caller);
 
+/* Infallible -- returns its argument if there is no wrapped object. */
+extern JSObject *
+js_GetWrappedObject(JSContext *cx, JSObject *obj);
+
+/* NB: Infallible. */
+extern const char *
+js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
+                   JSPrincipals *principals, uintN *linenop);
 JS_END_EXTERN_C
 
 #endif /* jsobj_h___ */

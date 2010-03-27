@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsInternetConfigService.h"
+#include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsIMIMEInfo.h"
 #include "nsMIMEInfoMac.h"
@@ -50,14 +51,24 @@
 #include "nsCRT.h"
 #include "nsILocalFileMac.h"
 #include "nsMimeTypes.h"
-#include <TextUtils.h>
-#include <CodeFragments.h>
-#include <Processes.h>
-#include <Gestalt.h>
-#include <CFURL.h>
-#include <Finder.h>
-#include <LaunchServices.h>
 
+#import <Carbon/Carbon.h>
+#import <Foundation/NSArray.h>
+#import <Foundation/NSString.h>
+
+/* This is an undocumented interface that seems to exist at least in 10.4 and 10.5 */
+@class NSURLFileTypeMappingsInternal;
+
+@interface NSURLFileTypeMappings : NSObject
+{
+    NSURLFileTypeMappingsInternal *_internal;
+}
+
++ (NSURLFileTypeMappings*)sharedMappings;
+- (NSString*)MIMETypeForExtension:(NSString*)fp8;
+- (NSString*)preferredExtensionForMIMEType:(NSString*)fp8;
+- (NSArray*)extensionsForMIMEType:(NSString*)fp8;
+@end
 
 // helper converter function.....
 static void ConvertCharStringToStr255(const char* inString, Str255& outString)
@@ -96,6 +107,8 @@ NS_IMPL_ISUPPORTS1(nsInternetConfigService, nsIInternetConfigService)
 // Under OS X use LaunchServices instead of IC
 NS_IMETHODIMP nsInternetConfigService::LaunchURL(const char *url)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsresult rv = NS_ERROR_FAILURE; 
 
   CFURLRef myURLRef = ::CFURLCreateWithBytes(
@@ -110,12 +123,16 @@ NS_IMETHODIMP nsInternetConfigService::LaunchURL(const char *url)
   }
 
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 // boolean HasMappingForMIMEType (in string mimetype);
 // given a mime type, search Internet Config database for a mapping for that mime type
 NS_IMETHODIMP nsInternetConfigService::HasMappingForMIMEType(const char *mimetype, PRBool *_retval)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   ICMapEntry entry;
   nsresult rv = GetMappingForMIMEType(mimetype, nsnull, &entry);
   if (rv == noErr)
@@ -123,6 +140,8 @@ NS_IMETHODIMP nsInternetConfigService::HasMappingForMIMEType(const char *mimetyp
   else
     *_retval = PR_FALSE;
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 /* boolean hasProtocolHandler (in string protocol); */
@@ -130,6 +149,8 @@ NS_IMETHODIMP nsInternetConfigService::HasMappingForMIMEType(const char *mimetyp
 // as the protocol handler for the given protocol
 NS_IMETHODIMP nsInternetConfigService::HasProtocolHandler(const char *protocol, PRBool *_retval)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   *_retval = PR_FALSE;            // presume the OS doesn't have a handler
   nsresult rv = NS_OK;
 
@@ -171,12 +192,16 @@ NS_IMETHODIMP nsInternetConfigService::HasProtocolHandler(const char *protocol, 
   }
 
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 // This method does the dirty work of traipsing through IC mappings database
 // looking for a mapping for mimetype
 nsresult nsInternetConfigService::GetMappingForMIMEType(const char *mimetype, const char *fileextension, ICMapEntry *entry)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   ICInstance  inst = nsInternetConfig::GetInstance();
   OSStatus    err = noErr;
   ICAttr      attr;
@@ -273,10 +298,14 @@ nsresult nsInternetConfigService::GetMappingForMIMEType(const char *mimetype, co
     return NS_ERROR_FAILURE;
   else
     return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 nsresult nsInternetConfigService::FillMIMEInfoForICEntry(ICMapEntry& entry, nsIMIMEInfo ** mimeinfo)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   // create a mime info object and we'll fill it in based on the values from IC mapping entry
   nsresult  rv = NS_OK;
   nsRefPtr<nsMIMEInfoMac> info (new nsMIMEInfoMac());
@@ -296,11 +325,32 @@ nsresult nsInternetConfigService::FillMIMEInfoForICEntry(ICMapEntry& entry, nsIM
       else
         info->SetMIMEType(NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM));
     }
-    
-    // convert entry.extension which is a Str255 
-    // don't forget to remove the '.' in front of the file extension....
-    nsCAutoString temp((char *)&entry.extension[2], entry.extension[0] > 0 ? (int)entry.extension[0]-1 : 0);
-    info->AppendExtension(temp);
+
+    nsCAutoString temp;
+
+    /* The internet config service seems to return the first extension
+     * from the map's list; however, that first extension is sometimes
+     * not the best one to use.  Specifically, for image/jpeg, the
+     * internet config service will return "jfif", whereas the
+     * preferred extension is really "jpg".  So, don't believe IC's
+     * lies, and ask NSURLFileTypeMappings instead (see bug 414201).
+     */
+    NSURLFileTypeMappings *map = [NSURLFileTypeMappings sharedMappings];
+    NSString *mimeStr = [NSString stringWithCString:mimetype.get() encoding:NSASCIIStringEncoding];
+    NSString *realExtension = map ? [map preferredExtensionForMIMEType:mimeStr] : NULL;
+
+    if (realExtension) {
+      temp.Assign([realExtension cStringUsingEncoding:NSASCIIStringEncoding]);
+
+      info->AppendExtension(temp);
+    } else {
+      // convert entry.extension which is a Str255 
+      // don't forget to remove the '.' in front of the file extension....
+      temp.Assign((char *)&entry.extension[2], entry.extension[0] > 0 ? (int)entry.extension[0]-1 : 0);
+
+      info->AppendExtension(temp);
+    }
+
     info->SetMacType(entry.fileType);
     info->SetMacCreator(entry.fileCreator);
     temp.Assign((char *) &entry.entryName[1], entry.entryName[0]);
@@ -338,6 +388,8 @@ nsresult nsInternetConfigService::FillMIMEInfoForICEntry(ICMapEntry& entry, nsIM
     rv = NS_ERROR_FAILURE;
    
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 /* void FillInMIMEInfo (in string mimetype, in string fileExtension, out nsIMIMEInfo mimeinfo); */
@@ -371,6 +423,8 @@ NS_IMETHODIMP nsInternetConfigService::FillInMIMEInfo(const char *mimetype, cons
 
 NS_IMETHODIMP nsInternetConfigService::GetMIMEInfoFromExtension(const char *aFileExt, nsIMIMEInfo **_retval)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsresult    rv = NS_ERROR_FAILURE;
   ICInstance  instance = nsInternetConfig::GetInstance();
   if (instance)
@@ -387,11 +441,15 @@ NS_IMETHODIMP nsInternetConfigService::GetMIMEInfoFromExtension(const char *aFil
     }
   }   
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP nsInternetConfigService::GetMIMEInfoFromTypeCreator(PRUint32 aType, PRUint32 aCreator, const char *aFileExt, nsIMIMEInfo **_retval)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsresult    rv = NS_ERROR_FAILURE;
   ICInstance  instance = nsInternetConfig::GetInstance();
   if (instance)
@@ -406,11 +464,15 @@ NS_IMETHODIMP nsInternetConfigService::GetMIMEInfoFromTypeCreator(PRUint32 aType
       rv = FillMIMEInfoForICEntry(entry,_retval);
   }
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 NS_IMETHODIMP nsInternetConfigService::GetFileMappingFlags(FSSpec* fsspec, PRBool lookupByExtensionFirst, PRInt32 *_retval)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsresult  rv = NS_ERROR_FAILURE;
   OSStatus  err = noErr;
 
@@ -439,12 +501,16 @@ NS_IMETHODIMP nsInternetConfigService::GetFileMappingFlags(FSSpec* fsspec, PRBoo
      rv = NS_OK;
   }
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
 /* void GetDownloadFolder (out FSSpec fsspec); */
 NS_IMETHODIMP nsInternetConfigService::GetDownloadFolder(FSSpec *fsspec)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   ICInstance  inst = nsInternetConfig::GetInstance();
   OSStatus    err;
   Handle      prefH;
@@ -493,6 +559,8 @@ NS_IMETHODIMP nsInternetConfigService::GetDownloadFolder(FSSpec *fsspec)
     }
   }
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 nsresult nsInternetConfigService::GetICKeyPascalString(PRUint32 inIndex, const unsigned char*& outICKey)
@@ -568,6 +636,8 @@ nsresult nsInternetConfigService::GetICKeyPascalString(PRUint32 inIndex, const u
 nsresult nsInternetConfigService::GetICPreference(PRUint32 inKey, 
                                                   void *outData, long *ioSize)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   const unsigned char *icKey;
   nsresult  rv = GetICKeyPascalString(inKey, icKey);
   if (rv == NS_OK)
@@ -585,6 +655,8 @@ nsresult nsInternetConfigService::GetICPreference(PRUint32 inKey,
       rv = NS_ERROR_FAILURE;
   }
   return rv;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 

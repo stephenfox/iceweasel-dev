@@ -36,17 +36,14 @@
 
 #include "cairoint.h"
 
+#ifdef CAIRO_HAS_QUARTZ_IMAGE_SURFACE
+#include "cairo-quartz-image.h"
+#endif
+
 #include "cairo-quartz-private.h"
 
 #define SURFACE_ERROR_NO_MEMORY (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY)))
 #define SURFACE_ERROR_INVALID_FORMAT (_cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_INVALID_FORMAT)))
-
-static void
-DataProviderReleaseCallback (void *info, const void *data, size_t size)
-{
-    cairo_surface_t *surface = (cairo_surface_t *) info;
-    cairo_surface_destroy (surface);
-}
 
 CGImageRef
 _cairo_quartz_create_cgimage (cairo_format_t format,
@@ -77,11 +74,12 @@ _cairo_quartz_create_cgimage (cairo_format_t format,
 	case CAIRO_FORMAT_RGB24:
 	    if (colorSpace == NULL)
 		colorSpace = CGColorSpaceCreateDeviceRGB();
-	    bitinfo = kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host;
+	    bitinfo = kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host;
 	    bitsPerComponent = 8;
 	    bitsPerPixel = 32;
 	    break;
 
+	/* XXX -- should use CGImageMaskCreate! */
 	case CAIRO_FORMAT_A8:
 	    if (colorSpace == NULL)
 		colorSpace = CGColorSpaceCreateDeviceGray();
@@ -90,6 +88,7 @@ _cairo_quartz_create_cgimage (cairo_format_t format,
 	    bitsPerPixel = 8;
 	    break;
 
+	case CAIRO_FORMAT_A1:
 	default:
 	    return NULL;
     }
@@ -127,6 +126,14 @@ FINISH:
     return image;
 }
 
+#ifdef CAIRO_HAS_QUARTZ_IMAGE_SURFACE
+
+static void
+DataProviderReleaseCallback (void *info, const void *data, size_t size)
+{
+    cairo_surface_t *surface = (cairo_surface_t *) info;
+    cairo_surface_destroy (surface);
+}
 
 static cairo_surface_t *
 _cairo_quartz_image_surface_create_similar (void *asurface,
@@ -218,7 +225,7 @@ _cairo_quartz_image_surface_flush (void *asurface)
 					     surface->imageSurface->height,
 					     surface->imageSurface->stride,
 					     surface->imageSurface->data,
-					     FALSE,
+					     TRUE,
 					     NULL,
 					     DataProviderReleaseCallback,
 					     surface->imageSurface);
@@ -269,15 +276,12 @@ static const cairo_surface_backend_t cairo_quartz_image_surface_backend = {
  * cairo_quartz_image_surface_create
  * @surface: a cairo image surface to wrap with a quartz image surface
  *
- * Creates a Quartz surface backed by a CGImageRef that references
- * the given image surface.
- *
- * Data is to be loaded into this surface by calling
- * cairo_quartz_image_surface_get_image, and performing operations on the
- * resulting image surface.
- *
- * The resulting surface can be rendered quickly when used as a source
- * when rendering to a cairo_quartz_surface.
+ * Creates a Quartz surface backed by a CGImageRef that references the
+ * given image surface. The resulting surface can be rendered quickly
+ * when used as a source when rendering to a #cairo_quartz_surface.  If
+ * the data in the image surface is ever updated, cairo_surface_flush()
+ * must be called on the #cairo_quartz_image_surface to ensure that the
+ * CGImageRef refers to the updated data.
  *
  * Return value: the newly created surface.
  *
@@ -289,10 +293,6 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface)
     cairo_quartz_image_surface_t *qisurf;
 
     CGImageRef image;
-
-    CGContextRef cgContext;
-    CGColorSpaceRef cgColorspace;
-    CGBitmapInfo bitinfo;
 
     cairo_image_surface_t *image_surface;
     int width, height, stride;
@@ -324,15 +324,17 @@ cairo_quartz_image_surface_create (cairo_surface_t *surface)
 
     memset (qisurf, 0, sizeof(cairo_quartz_image_surface_t));
 
-    // ref this here; in case the create_cgimage fails, it will
-    // be released by the callback.
+    /* In case the create_cgimage fails, this ref will
+     * be released via the callback (which will be called in
+     * case of failure.)
+     */
     cairo_surface_reference (surface);
 
     image = _cairo_quartz_create_cgimage (format,
 					  width, height,
 					  stride,
 					  data,
-					  FALSE,
+					  TRUE,
 					  NULL,
 					  DataProviderReleaseCallback,
 					  surface);
@@ -367,3 +369,5 @@ cairo_quartz_image_surface_get_image (cairo_surface_t *asurface)
 
     return (cairo_surface_t*) surface->imageSurface;
 }
+
+#endif /* CAIRO_HAS_QUARTZ_IMAGE_SURFACE */

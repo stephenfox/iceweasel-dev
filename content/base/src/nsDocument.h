@@ -474,6 +474,8 @@ public:
   // observers.
   virtual void BeginUpdate(nsUpdateType aUpdateType);
   virtual void EndUpdate(nsUpdateType aUpdateType);
+  virtual PRUint32 GetUpdateNestingLevel();
+  virtual PRBool AllUpdatesAreContent();
   virtual void BeginLoad();
   virtual void EndLoad();
   virtual void ContentStatesChanged(nsIContent* aContent1,
@@ -647,7 +649,8 @@ public:
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
   virtual NS_HIDDEN_(void) FlushSkinBindings();
-  
+
+  virtual NS_HIDDEN_(nsresult) InitializeFrameLoader(nsFrameLoader* aLoader);
   virtual NS_HIDDEN_(nsresult) FinalizeFrameLoader(nsFrameLoader* aLoader);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
@@ -799,6 +802,8 @@ protected:
 
   // Our update nesting level
   PRUint32 mUpdateNestLevel;
+  // Our UPDATE_CONTENT_MODEL update nesting level
+  PRUint32 mContentUpdateNestLevel;
 
 private:
   friend class nsUnblockOnloadEvent;
@@ -842,6 +847,7 @@ private:
   // Member to store out last-selected stylesheet set.
   nsString mLastStyleSheetSet;
 
+  nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
 };
 

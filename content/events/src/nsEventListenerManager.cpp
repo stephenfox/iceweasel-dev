@@ -266,13 +266,10 @@ static const EventDispatchData sDragEvents[] = {
   { NS_DRAGDROP_ENTER,       HANDLER(&nsIDOMDragListener::DragEnter)   },
   { NS_DRAGDROP_OVER_SYNTH,  HANDLER(&nsIDOMDragListener::DragOver)    },
   { NS_DRAGDROP_EXIT_SYNTH,  HANDLER(&nsIDOMDragListener::DragExit)    },
-  { NS_DRAGDROP_DRAGDROP,    HANDLER(&nsIDOMDragListener::DragDrop)    },
+  { NS_DRAGDROP_DROP,        HANDLER(&nsIDOMDragListener::DragDrop)    },
   { NS_DRAGDROP_GESTURE,     HANDLER(&nsIDOMDragListener::DragGesture) },
   { NS_DRAGDROP_DRAG,        HANDLER(&nsIDOMDragListener::Drag)        },
-  { NS_DRAGDROP_END,         HANDLER(&nsIDOMDragListener::DragEnd)     },
-  { NS_DRAGDROP_START,       HANDLER(&nsIDOMDragListener::DragStart)   },
-  { NS_DRAGDROP_LEAVE_SYNTH, HANDLER(&nsIDOMDragListener::DragLeave)   },
-  { NS_DRAGDROP_DROP,        HANDLER(&nsIDOMDragListener::Drop)        },
+  { NS_DRAGDROP_END,         HANDLER(&nsIDOMDragListener::DragEnd)     }
 };
 
 static const EventDispatchData sXULEvents[] = {
@@ -816,6 +813,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
                                           handler);
         if (rv == NS_ERROR_ILLEGAL_VALUE) {
           NS_WARNING("Probably a syntax error in the event handler!");
+          context->ReportPendingException();
           return NS_SUCCESS_LOSS_OF_INSIGNIFICANT_DATA;
         }
         NS_ENSURE_SUCCESS(rv, rv);

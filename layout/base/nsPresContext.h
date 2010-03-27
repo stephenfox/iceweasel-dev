@@ -220,6 +220,7 @@ public:
    * Access the image animation mode for this context
    */
   PRUint16     ImageAnimationMode() const { return mImageAnimationMode; }
+  void RestoreImageAnimationMode() { SetImageAnimationMode(mImageAnimationModePref); }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(PRUint16 aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(PRUint16 aMode);
 #ifdef _IMPL_NS_LAYOUT
@@ -517,6 +518,13 @@ public:
   nscoord TwipsToAppUnits(PRInt32 aTwips) const
   { return NSToCoordRound(NS_TWIPS_TO_INCHES(aTwips) *
                           mDeviceContext->AppUnitsPerInch()); }
+
+  // Margin-specific version, since they often need TwipsToAppUnits
+  nsMargin TwipsToAppUnits(const nsMargin &marginInTwips) const
+  { return nsMargin(TwipsToAppUnits(marginInTwips.left), 
+                    TwipsToAppUnits(marginInTwips.top),
+                    TwipsToAppUnits(marginInTwips.right),
+                    TwipsToAppUnits(marginInTwips.bottom)); }
 
   PRInt32 AppUnitsToTwips(nscoord aTwips) const
   { return NS_INCHES_TO_TWIPS((float)aTwips /

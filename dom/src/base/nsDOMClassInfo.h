@@ -977,8 +977,8 @@ protected:
   {
   }
 
-  nsresult GetPluginInstance(nsIXPConnectWrappedNative *aWrapper,
-                             nsIPluginInstance **aResult);
+  static nsresult GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *aWrapper,
+                                          nsIPluginInstance **aResult);
 
   static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
                                     nsIPluginInstance *plugin_inst,
@@ -1003,6 +1003,10 @@ public:
   NS_IMETHOD Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                   JSObject *obj, PRUint32 argc, jsval *argv, jsval *vp,
                   PRBool *_retval);
+
+
+  static nsresult SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
+                                  JSContext *cx, JSObject *obj);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1331,16 +1335,16 @@ public:
   }
 };
 
-// TextRectangleList helper
+// ClientRectList helper
 
-class nsTextRectangleListSH : public nsArraySH
+class nsClientRectListSH : public nsArraySH
 {
 protected:
-  nsTextRectangleListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
+  nsClientRectListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
   {
   }
 
-  virtual ~nsTextRectangleListSH()
+  virtual ~nsClientRectListSH()
   {
   }
 
@@ -1352,7 +1356,7 @@ protected:
 public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsTextRectangleListSH(aData);
+    return new nsClientRectListSH(aData);
   }
 };
 

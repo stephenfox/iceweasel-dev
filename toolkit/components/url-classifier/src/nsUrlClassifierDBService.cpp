@@ -51,6 +51,7 @@
 #include "nsICryptoHash.h"
 #include "nsICryptoHMAC.h"
 #include "nsIDirectoryService.h"
+#include "nsIKeyModule.h"
 #include "nsIObserverService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
@@ -2690,17 +2691,31 @@ nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table,
 
   // If we're expecting a MAC, create the nsICryptoHMAC component now.
   if (!mUpdateClientKey.IsEmpty()) {
+    nsCOMPtr<nsIKeyObjectFactory> keyObjectFactory(do_GetService(
+        "@mozilla.org/security/keyobjectfactory;1", &rv));
+    if (NS_FAILED(rv)) {
+      NS_WARNING("Failed to get nsIKeyObjectFactory service");
+      mUpdateStatus = rv;
+      return mUpdateStatus;
+    }
+
+    nsCOMPtr<nsIKeyObject> keyObject;
+    rv = keyObjectFactory->KeyFromString(nsIKeyObject::HMAC, mUpdateClientKey, 
+        getter_AddRefs(keyObject));
+    if (NS_FAILED(rv)) {
+      NS_WARNING("Failed to create key object, maybe not FIPS compliant?");
+      mUpdateStatus = rv;
+      return mUpdateStatus;
+    }
+
     mHMAC = do_CreateInstance(NS_CRYPTO_HMAC_CONTRACTID, &rv);
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to create nsICryptoHMAC instance");
       mUpdateStatus = rv;
       return mUpdateStatus;
     }
-    NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mHMAC->Init(nsICryptoHMAC::SHA1,
-                     reinterpret_cast<const PRUint8*>(mUpdateClientKey.BeginReading()),
-                     mUpdateClientKey.Length());
+    rv = mHMAC->Init(nsICryptoHMAC::SHA1, keyObject);
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to initialize nsICryptoHMAC instance");
       mUpdateStatus = rv;
@@ -2978,11 +2993,7 @@ nsUrlClassifierDBServiceWorker::OpenDb()
 
   nsCOMPtr<mozIStorageConnection> connection;
   rv = storageService->OpenDatabase(mDBFile, getter_AddRefs(connection));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool ready;
-  connection->GetConnectionReady(&ready);
-  if (!ready) {
+  if (rv == NS_ERROR_FILE_CORRUPTED) {
     // delete the db and try opening again
     rv = mDBFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2990,8 +3001,8 @@ nsUrlClassifierDBServiceWorker::OpenDb()
     newDB = PR_TRUE;
 
     rv = storageService->OpenDatabase(mDBFile, getter_AddRefs(connection));
-    NS_ENSURE_SUCCESS(rv, rv);
   }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!newDB) {
     PRInt32 databaseVersion;
@@ -3268,12 +3279,7 @@ nsUrlClassifierLookupCallback::Completion(const nsACString& completeHash,
 
     if (!result.mEntry.mHaveComplete &&
         hash.StartsWith(result.mEntry.mPartialHash) &&
-        // XXX: We really want to be comparing the table name to make
-        // sure it matches.  Due to a short-lived server bug, they
-        // won't just yet.  This should be fixed as soon as the server is.
-#if 0
         result.mTableName == tableName &&
-#endif
         result.mEntry.mChunkId == chunkId) {
       // We have a completion for this entry.  Fill it in...
       result.mEntry.SetHash(hash);
@@ -3293,6 +3299,20 @@ nsUrlClassifierLookupCallback::Completion(const nsACString& completeHash,
 
         mCacheResults->AppendElement(result);
       }
+    } else if (result.mLookupFragment == hash) {
+      // The hash we got for this completion matches the hash we
+      // looked up, but doesn't match the table/chunk id.  This could
+      // happen in rare cases where a given URL was moved between
+      // lists or added/removed/re-added to the list in the time since
+      // we've updated.
+      //
+      // Update the lookup result, but don't update the entry or try
+      // caching the results of this completion, as it might confuse
+      // things.
+      result.mConfirmed = PR_TRUE;
+      result.mTableName = tableName;
+
+      NS_WARNING("Accepting a gethash with an invalid table name or chunk id");
     }
   }
 
@@ -3718,6 +3738,18 @@ nsUrlClassifierDBService::CacheCompletions(nsTArray<nsUrlClassifierLookupResult>
   NS_ENSURE_TRUE(gDbBackgroundThread, NS_ERROR_NOT_INITIALIZED);
 
   return mWorkerProxy->CacheCompletions(results);
+}
+
+PRBool
+nsUrlClassifierDBService::GetCompleter(const nsACString &tableName,
+                                       nsIUrlClassifierHashCompleter **completer)
+{
+  if (mCompleters.Get(tableName, completer)) {
+    return PR_TRUE;
+  }
+
+  return NS_SUCCEEDED(CallGetService(NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID,
+                                     completer));
 }
 
 NS_IMETHODIMP

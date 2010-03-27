@@ -533,12 +533,12 @@ nsXPConnect::Collect()
     return gCollected;
 }
 
-// JSTRACE_FUNCTION can hold on to a lot of objects, adding it to the cycle
-// collector reduces the number of edges to those objects.
+// JSTRACE_SCRIPTED_FUNCTION can hold on to a lot of objects, adding it to the
+// cycle collector reduces the number of edges to those objects.
 // JSTRACE_XML can recursively hold on to more JSTRACE_XML objects, adding it to
 // the cycle collector avoids stack overflow.
 #define ADD_TO_CC(_kind) \
-    ((_kind) == JSTRACE_OBJECT || (_kind) == JSTRACE_FUNCTION || \
+    ((_kind) == JSTRACE_OBJECT || (_kind) == JSTRACE_SCRIPTED_FUNCTION || \
      (_kind) == JSTRACE_XML)
 
 #ifdef DEBUG_CC
@@ -725,6 +725,23 @@ NoteJSChild(JSTracer *trc, void *thing, uint32 kind)
     if(ADD_TO_CC(kind))
     {
         TraversalTracer *tracer = static_cast<TraversalTracer*>(trc);
+#if defined(DEBUG) && defined(DEBUG_CC)
+        // based on DumpNotify in jsapi.c
+        if (tracer->debugPrinter) {
+            char buffer[200];
+            tracer->debugPrinter(trc, buffer, sizeof(buffer));
+            tracer->cb.NoteNextEdgeName(buffer);
+        } else if (tracer->debugPrintIndex != (size_t)-1) {
+            char buffer[200];
+            JS_snprintf(buffer, sizeof(buffer), "%s[%lu]",
+                        static_cast<const char *>(tracer->debugPrintArg),
+                        tracer->debugPrintIndex);
+            tracer->cb.NoteNextEdgeName(buffer);
+        } else {
+            tracer->cb.NoteNextEdgeName(
+              static_cast<const char*>(tracer->debugPrintArg));
+        }
+#endif
         tracer->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, thing);
     }
     else if(kind != JSTRACE_DOUBLE && kind != JSTRACE_STRING)
@@ -851,10 +868,11 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
             else if(clazz == &js_FunctionClass)
             {
                 JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
-                if(fun->atom && ATOM_IS_STRING(fun->atom))
+                JSString* str = JS_GetFunctionId(fun);
+                if(str)
                 {
                     NS_ConvertUTF16toUTF8
-                        fname(JS_GetStringChars(ATOM_TO_STRING(fun->atom)));
+                        fname(JS_GetStringChars(str));
                     JS_snprintf(name, sizeof(name), "JS Object (Function - %s)",
                                 fname.get());
                 }
@@ -998,6 +1016,7 @@ public:
 #ifdef DEBUG_CC
         cb.DescribeNode(RefCounted, refCount, sizeof(JSContext),
                         "JSContext");
+        cb.NoteNextEdgeName("[global object]");
 #else
         cb.DescribeNode(RefCounted, refCount);
 #endif

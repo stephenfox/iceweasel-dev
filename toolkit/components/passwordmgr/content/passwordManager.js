@@ -49,7 +49,7 @@ function SignonsStartup() {
   kSignonBundle = document.getElementById("signonBundle");
   document.getElementById("togglePasswords").label = kSignonBundle.getString("showPasswords");
   document.getElementById("togglePasswords").accessKey = kSignonBundle.getString("showPasswordsAccessKey");
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("passwordsAll");
+  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
   LoadSignons();
 
   // filter the table if requested by caller
@@ -126,7 +126,7 @@ function SignonSelected() {
 }
 
 function DeleteSignon() {
-  syncNeeded = (signonsTreeView._filterSet.length != 0);
+  var syncNeeded = (signonsTreeView._filterSet.length != 0);
   DeleteSelectedItemFromTree(signonsTree, signonsTreeView,
                              signonsTreeView._filterSet.length ? signonsTreeView._filterSet : signons,
                              deletedSignons, "removeSignon", "removeAllSignons");
@@ -146,7 +146,7 @@ function DeleteAllSignons() {
                          null, null, null, null, dummy) == 1) // 1 == "No" button
     return;
 
-  syncNeeded = (signonsTreeView._filterSet.length != 0);
+  var syncNeeded = (signonsTreeView._filterSet.length != 0);
   DeleteAllFromTree(signonsTree, signonsTreeView,
                         signonsTreeView._filterSet.length ? signonsTreeView._filterSet : signons,
                         deletedSignons, "removeSignon", "removeAllSignons");
@@ -252,7 +252,7 @@ function SignonClearFilter() {
   }
   signonsTreeView._lastSelectedRanges = [];
 
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("passwordsAll");
+  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
   document.getElementById("clearFilter").disabled = true;
   FocusFilterBox();
 }
@@ -322,7 +322,7 @@ function _filterPasswords()
   if (signonsTreeView.rowCount > 0)
     signonsTreeView.selection.select(0);
 
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("passwordsFiltered");
+  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielFiltered");
   document.getElementById("clearFilter").disabled = false;
 }
 

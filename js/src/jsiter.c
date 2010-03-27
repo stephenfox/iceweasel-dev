@@ -400,7 +400,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
              * we use the parent slot to keep track of the iterable, we must
              * fix it up after.
              */
-            iterobj = js_NewObject(cx, &js_IteratorClass, NULL, NULL);
+            iterobj = js_NewObject(cx, &js_IteratorClass, NULL, NULL, 0);
             if (!iterobj)
                 goto bad;
 
@@ -720,21 +720,20 @@ JSObject *
 js_NewGenerator(JSContext *cx, JSStackFrame *fp)
 {
     JSObject *obj;
-    uintN argc, nargs, nvars, depth, nslots;
+    uintN argc, nargs, nvars, nslots;
     JSGenerator *gen;
     jsval *newsp;
 
     /* After the following return, failing control flow must goto bad. */
-    obj = js_NewObject(cx, &js_GeneratorClass, NULL, NULL);
+    obj = js_NewObject(cx, &js_GeneratorClass, NULL, NULL, 0);
     if (!obj)
         return NULL;
 
     /* Load and compute stack slot counts. */
     argc = fp->argc;
-    nargs = JS_MAX(argc, fp->fun->nargs);
+    nargs = JS_MAX(argc, FUN_TO_SCRIPTED(fp->fun)->nargs);
     nvars = fp->nvars;
-    depth = fp->script->depth;
-    nslots = 2 + nargs + nvars + 2 * depth;
+    nslots = 2 + nargs + nvars + fp->script->depth;
 
     /* Allocate obj's private data struct. */
     gen = (JSGenerator *)
@@ -792,10 +791,12 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
     gen->frame.down = NULL;
     gen->frame.annotation = NULL;
     gen->frame.scopeChain = fp->scopeChain;
-    gen->frame.pc = fp->pc;
 
-    /* Allocate generating pc and operand stack space. */
-    gen->frame.spbase = gen->frame.sp = newsp + depth;
+    gen->frame.spbase = newsp;
+    JS_ASSERT(fp->spbase == fp->regs->sp);
+    gen->savedRegs.sp = newsp;
+    gen->savedRegs.pc = fp->regs->pc;
+    gen->frame.regs = &gen->savedRegs;
 
     /* Copy remaining state (XXX sharp* and xml* should be local vars). */
     gen->frame.sharpDepth = 0;
@@ -832,10 +833,9 @@ typedef enum JSGeneratorOp {
  */
 static JSBool
 SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
-                JSGenerator *gen, jsval arg, jsval *rval)
+                JSGenerator *gen, jsval arg)
 {
     JSStackFrame *fp;
-    jsval junk;
     JSArena *arena;
     JSBool ok;
 
@@ -855,7 +855,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
              * Store the argument to send as the result of the yield
              * expression.
              */
-            gen->frame.sp[-1] = arg;
+            gen->savedRegs.sp[-1] = arg;
         }
         gen->state = JSGEN_RUNNING;
         break;
@@ -883,7 +883,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     fp = cx->fp;
     cx->fp = &gen->frame;
     gen->frame.down = fp;
-    ok = js_Interpret(cx, gen->frame.pc, &junk);
+    ok = js_Interpret(cx);
     cx->fp = fp;
     gen->frame.down = NULL;
 
@@ -902,18 +902,15 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
         JS_ASSERT(op != JSGENOP_CLOSE);
         gen->frame.flags &= ~JSFRAME_YIELDING;
         gen->state = JSGEN_OPEN;
-        *rval = gen->frame.rval;
         return JS_TRUE;
     }
 
+    gen->frame.rval = JSVAL_VOID;
     gen->state = JSGEN_CLOSED;
-
     if (ok) {
         /* Returned, explicitly or by falling off the end. */
-        if (op == JSGENOP_CLOSE) {
-            *rval = JSVAL_VOID;
+        if (op == JSGENOP_CLOSE)
             return JS_TRUE;
-        }
         return js_ThrowStopIteration(cx);
     }
 
@@ -928,7 +925,6 @@ static JSBool
 CloseGenerator(JSContext *cx, JSObject *obj)
 {
     JSGenerator *gen;
-    jsval junk;
 
     JS_ASSERT(STOBJ_GET_CLASS(obj) == &js_GeneratorClass);
     gen = (JSGenerator *) JS_GetPrivate(cx, obj);
@@ -940,8 +936,7 @@ CloseGenerator(JSContext *cx, JSObject *obj)
     if (gen->state == JSGEN_CLOSED)
         return JS_TRUE;
 
-    /* SendToGenerator always sets *rval to JSVAL_VOID for JSGENOP_CLOSE. */
-    return SendToGenerator(cx, JSGENOP_CLOSE, obj, gen, JSVAL_VOID, &junk);
+    return SendToGenerator(cx, JSGENOP_CLOSE, obj, gen, JSVAL_VOID);
 }
 
 /*
@@ -1001,8 +996,9 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp)
     arg = (op == JSGENOP_SEND || op == JSGENOP_THROW)
           ? vp[2]
           : JSVAL_VOID;
-    if (!SendToGenerator(cx, op, obj, gen, arg, vp))
+    if (!SendToGenerator(cx, op, obj, gen, arg))
         return JS_FALSE;
+    *vp = gen->frame.rval;
     return JS_TRUE;
 }
 

@@ -63,6 +63,10 @@ ifdef MOZ_JAVAXPCOM
 DEFINES += -DMOZ_JAVAXPCOM
 endif
 
+ifdef TARGET_XPCOM_ABI
+DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
+endif
+
 REQUIRES = \
         xpcom \
         string \

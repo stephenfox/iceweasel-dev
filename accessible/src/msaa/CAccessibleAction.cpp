@@ -116,12 +116,14 @@ __try {
   if (NS_FAILED(acc->GetActionDescription(index, description)))
     return E_FAIL;
 
-  if (!description.IsVoid()) {
-    INT result = ::SysReAllocStringLen(aDescription, description.get(),
-                                       description.Length());
-    if (!result)
-      return E_OUTOFMEMORY;
-  }
+  if (description.IsVoid())
+    return S_FALSE;
+
+  *aDescription = ::SysAllocStringLen(description.get(),
+                                      description.Length());
+  if (!*aDescription)
+    return E_OUTOFMEMORY;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -156,17 +158,31 @@ __try {
   PRUint32 numBinding = length > maxBinding ? maxBinding : length;
   *aNumBinding = numBinding;
 
-  *aKeyBinding = new BSTR[numBinding];
+  *aKeyBinding = static_cast<BSTR*>(nsMemory::Alloc((numBinding) * sizeof(BSTR*)));
   if (!*aKeyBinding)
     return E_OUTOFMEMORY;
 
-  for (PRUint32 i = 0; i < numBinding; i++) {
+  PRBool outOfMemory = PR_FALSE;
+  PRUint32 i = 0;
+  for (; i < numBinding; i++) {
     nsAutoString key;
     keys->Item(i, key);
-    INT result = ::SysReAllocStringLen(aKeyBinding[i], key.get(),
-                                       key.Length());
-    if (!result)
-      return E_OUTOFMEMORY;
+    *(aKeyBinding[i]) = ::SysAllocStringLen(key.get(), key.Length());
+
+    if (!*(aKeyBinding[i])) {
+      outOfMemory = PR_TRUE;
+      break;
+    }
+  }
+
+  if (outOfMemory) {
+    for (PRUint32 j = 0; j < i; j++)
+      ::SysFreeString(*(aKeyBinding[j]));
+
+    nsMemory::Free(*aKeyBinding);
+    *aKeyBinding = NULL;
+
+    return E_OUTOFMEMORY;
   }
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
@@ -188,11 +204,13 @@ __try {
   if (NS_FAILED(acc->GetActionName(index, name)))
     return E_FAIL;
 
-  if (!name.IsVoid()) {
-    INT result = ::SysReAllocStringLen(aName, name.get(), name.Length());
-    if (!result)
-      return E_OUTOFMEMORY;
-  }
+  if (name.IsEmpty())
+    return S_FALSE;
+
+  *aName = ::SysAllocStringLen(name.get(), name.Length());
+  if (!*aName)
+    return E_OUTOFMEMORY;
+
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -201,6 +219,10 @@ __try {
 STDMETHODIMP
 CAccessibleAction::get_localizedName(long aActionIndex, BSTR *aLocalizedName)
 {
+__try {
+  *aLocalizedName = NULL;
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+
   return E_NOTIMPL;
 }
 
