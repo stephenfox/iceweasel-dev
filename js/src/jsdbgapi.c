@@ -105,13 +105,23 @@ js_UntrapScriptCode(JSContext *cx, JSScript *script)
     for (trap = (JSTrap *)rt->trapList.next;
          trap != (JSTrap *)&rt->trapList;
          trap = (JSTrap *)trap->links.next) {
-        if (trap->script == script) {
+        if (trap->script == script &&
+            (size_t)(trap->pc - script->code) < script->length) {
             if (code == script->code) {
-                code = JS_malloc(cx, script->length * sizeof(jsbytecode));
+                jssrcnote *sn, *notes;
+                size_t nbytes;
+
+                nbytes = script->length * sizeof(jsbytecode);
+                notes = SCRIPT_NOTES(script);
+                for (sn = notes; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
+                    continue;
+                nbytes += (sn - notes + 1) * sizeof *sn;
+
+                code = (jsbytecode *) JS_malloc(cx, nbytes);
                 if (!code)
                     break;
-                memcpy(code, script->code,
-                       script->length * sizeof(jsbytecode));
+                memcpy(code, script->code, nbytes);
+                JS_CLEAR_GSN_CACHE(cx);
             }
             code[trap->pc - script->code] = trap->op;
         }
@@ -140,9 +150,11 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         sample = rt->debuggerMutations;
         DBG_UNLOCK(rt);
         trap = (JSTrap *) JS_malloc(cx, sizeof *trap);
-        if (!trap || !js_AddRoot(cx, &trap->closure, "trap->closure")) {
-            if (trap)
-                JS_free(cx, trap);
+        if (!trap)
+            return JS_FALSE;
+        trap->closure = NULL;
+        if(!js_AddRoot(cx, &trap->closure, "trap->closure")) {
+            JS_free(cx, trap);
             return JS_FALSE;
         }
         DBG_LOCK(rt);
@@ -164,8 +176,10 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
     trap->handler = handler;
     trap->closure = closure;
     DBG_UNLOCK(rt);
-    if (junk)
+    if (junk) {
+        js_RemoveRoot(rt, &junk->closure);
         JS_free(cx, junk);
+    }
     return JS_TRUE;
 }
 
@@ -574,10 +588,8 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                 closure = (JSObject *) wp->closure;
                 clasp = OBJ_GET_CLASS(cx, closure);
                 if (clasp == &js_FunctionClass) {
-                    fun = OBJ_TO_FUNCTION(closure);
-                    script = FUN_IS_SCRIPTED(fun)
-                             ? FUN_TO_SCRIPTED(fun)->script
-                             : NULL;
+                    fun = GET_FUNCTION_PRIVATE(cx, closure);
+                    script = FUN_SCRIPT(fun);
                 } else if (clasp == &js_ScriptClass) {
                     fun = NULL;
                     script = (JSScript *) JS_GetPrivate(cx, closure);
@@ -589,15 +601,10 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                 nslots = 2;
                 injectFrame = JS_TRUE;
                 if (fun) {
-                    if (FUN_IS_SCRIPTED(fun)) {
-                        nslots += FUN_TO_SCRIPTED(fun)->nargs;
-                    } else {
-                        JSNativeFunction *nfun;
-
-                        nfun = FUN_TO_NATIVE(fun);
-                        nslots += NATIVE_FUN_MINARGS(nfun);
-                        nslots += nfun->extra;
-                        injectFrame = !(nfun->flags & JSFUN_FAST_NATIVE);
+                    nslots += FUN_MINARGS(fun);
+                    if (!FUN_INTERPRETED(fun)) {
+                        nslots += fun->u.n.extra;
+                        injectFrame = !(fun->flags & JSFUN_FAST_NATIVE);
                     }
                 }
 
@@ -673,8 +680,9 @@ js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     jsval userid;
 
     funobj = JSVAL_TO_OBJECT(argv[-2]);
-    wrapper = OBJ_TO_FUNCTION(funobj);
-    userid = ATOM_KEY(FUN_ATOM(wrapper));
+    JS_ASSERT(OBJ_GET_CLASS(cx, funobj) == &js_FunctionClass);
+    wrapper = GET_FUNCTION_PRIVATE(cx, funobj);
+    userid = ATOM_KEY(wrapper->atom);
     *rval = argv[0];
     return js_watch_set(cx, obj, userid, rval);
 }
@@ -683,7 +691,7 @@ JSPropertyOp
 js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, JSPropertyOp setter)
 {
     JSAtom *atom;
-    JSNativeFunction *wrapper;
+    JSFunction *wrapper;
 
     if (!(attrs & JSPROP_SETTER))
         return &js_watch_set;   /* & to silence schoolmarmish MSVC */
@@ -697,12 +705,12 @@ js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, JSPropertyOp setter)
     } else {
         atom = NULL;
     }
-    wrapper = js_NewNativeFunction(cx, js_watch_set_wrapper, 1, 0,
-                                   OBJ_GET_PARENT(cx, (JSObject *)setter),
-                                   atom);
+    wrapper = js_NewFunction(cx, NULL, js_watch_set_wrapper, 1, 0,
+                             OBJ_GET_PARENT(cx, (JSObject *)setter),
+                             atom);
     if (!wrapper)
         return NULL;
-    return (JSPropertyOp) &wrapper->base.object;
+    return (JSPropertyOp) FUN_OBJECT(wrapper);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -935,33 +943,19 @@ JS_LineNumberToPC(JSContext *cx, JSScript *script, uintN lineno)
 JS_PUBLIC_API(JSScript *)
 JS_GetFunctionScript(JSContext *cx, JSFunction *fun)
 {
-    return FUN_IS_SCRIPTED(fun) ? FUN_TO_SCRIPTED(fun)->script : NULL;
+    return FUN_SCRIPT(fun);
 }
 
 JS_PUBLIC_API(JSNative)
 JS_GetFunctionNative(JSContext *cx, JSFunction *fun)
 {
-    JSNativeFunction *nfun;
-
-    if (FUN_IS_SCRIPTED(fun))
-        return NULL;
-
-    nfun = FUN_TO_NATIVE(fun);
-    return (nfun->flags & JSFUN_FAST_NATIVE) ? NULL : nfun->native;
+    return FUN_NATIVE(fun);
 }
 
 JS_PUBLIC_API(JSFastNative)
 JS_GetFunctionFastNative(JSContext *cx, JSFunction *fun)
 {
-    JSNativeFunction *nfun;
-
-    if (FUN_IS_SCRIPTED(fun))
-        return NULL;
-
-    nfun = FUN_TO_NATIVE(fun);
-    return (nfun->flags & JSFUN_FAST_NATIVE)
-           ? (JSFastNative) nfun->native
-           : NULL;
+    return FUN_FAST_NATIVE(fun);
 }
 
 JS_PUBLIC_API(JSPrincipals *)
@@ -1013,9 +1007,11 @@ JS_StackFramePrincipals(JSContext *cx, JSStackFrame *fp)
     if (fp->fun) {
         JSRuntime *rt = cx->runtime;
 
-        if (rt->findObjectPrincipals)
-            return rt->findObjectPrincipals(cx, fp->callee);
-        /* FALL THROUGH */
+        if (rt->findObjectPrincipals) {
+            if (FUN_OBJECT(fp->fun) != fp->callee)
+                return rt->findObjectPrincipals(cx, fp->callee);
+            /* FALL THROUGH */
+        }
     }
     if (fp->script)
         return fp->script->principals;
@@ -1371,28 +1367,17 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
 
     pd->flags |= ((sprop->attrs & JSPROP_ENUMERATE) ? JSPD_ENUMERATE : 0)
               | ((sprop->attrs & JSPROP_READONLY)  ? JSPD_READONLY  : 0)
-              | ((sprop->attrs & JSPROP_PERMANENT) ? JSPD_PERMANENT : 0)
-              | ((sprop->getter == js_GetCallVariable) ? JSPD_VARIABLE  : 0);
-
-    /* for Call Object 'real' getter isn't passed in to us */
-    if (OBJ_GET_CLASS(cx, obj) == &js_CallClass &&
-        sprop->getter == js_CallClass.getProperty) {
-        /*
-         * Property of a heavyweight function's variable object having the
-         * class-default getter.  It's either an argument if permanent, or a
-         * nested function if impermanent.  Local variables have a special
-         * getter (js_GetCallVariable, tested above) and setter, and not the
-         * class default.
-         */
-        pd->flags |= (sprop->attrs & JSPROP_PERMANENT)
-                     ? JSPD_ARGUMENT
-                     : JSPD_VARIABLE;
-    }
-
+              | ((sprop->attrs & JSPROP_PERMANENT) ? JSPD_PERMANENT : 0);
     pd->spare = 0;
-    pd->slot = (pd->flags & (JSPD_ARGUMENT | JSPD_VARIABLE))
-               ? sprop->shortid
-               : 0;
+    if (sprop->getter == js_GetCallArg) {
+        pd->slot = sprop->shortid;
+        pd->flags |= JSPD_ARGUMENT;
+    } else if (sprop->getter == js_GetCallVar) {
+        pd->slot = sprop->shortid;
+        pd->flags |= JSPD_VARIABLE;
+    } else {
+        pd->slot = 0;
+    }
     pd->alias = JSVAL_VOID;
     scope = OBJ_SCOPE(obj);
     if (SPROP_HAS_VALID_SLOT(sprop, scope)) {
@@ -1577,27 +1562,16 @@ GetAtomTotalSize(JSContext *cx, JSAtom *atom)
 }
 
 JS_PUBLIC_API(size_t)
-JS_GetFunctionTotalSize(JSContext *cx, JSFunction *funobj)
+JS_GetFunctionTotalSize(JSContext *cx, JSFunction *fun)
 {
     size_t nbytes;
 
-    nbytes = JS_GetObjectTotalSize(cx, &funobj->object);
-    if (FUN_IS_SCRIPTED(funobj)) {
-        JSScriptedFunction *sfun;
-
-        sfun = FUN_TO_SCRIPTED(funobj);
-        nbytes += sizeof *sfun;
-        nbytes += JS_GetScriptTotalSize(cx, sfun->script);
-        if (sfun->atom)
-            nbytes += GetAtomTotalSize(cx, sfun->atom);
-    } else {
-        JSNativeFunction *nfun;
-
-        nfun = FUN_TO_NATIVE(funobj);
-        nbytes += sizeof(JSNativeFunction) - sizeof(JSObject);
-        if (nfun->atom)
-            nbytes += GetAtomTotalSize(cx, nfun->atom);
-    }
+    nbytes = sizeof *fun;
+    nbytes += JS_GetObjectTotalSize(cx, FUN_OBJECT(fun));
+    if (FUN_INTERPRETED(fun))
+        nbytes += JS_GetScriptTotalSize(cx, fun->u.i.script);
+    if (fun->atom)
+        nbytes += GetAtomTotalSize(cx, fun->atom);
     return nbytes;
 }
 
@@ -1660,6 +1634,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
             pbytes = JS_HOWMANY(pbytes, principals->refcount);
         nbytes += pbytes;
     }
+
     return nbytes;
 }
 

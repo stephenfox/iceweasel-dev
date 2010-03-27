@@ -11,11 +11,18 @@ include filters/reftest.list
 include moz-only/reftest.list
 
 == clipPath-basic-01.svg pass.svg
+== clip-surface-clone-01.svg clip-surface-clone-01-ref.svg
 == currentColor-01.svg pass.svg
 == currentColor-02.svg pass.svg
 == currentColor-03.svg pass.svg
 == dynamic-link-style-01.svg pass.svg
+== dynamic-rect-01.svg dynamic-rect-01-ref.svg
+== dynamic-rect-02.svg dynamic-rect-02-ref.svg
+== dynamic-rect-03.svg dynamic-rect-03-ref.svg
 == dynamic-reflow-01.svg dynamic-reflow-01-ref.svg
+== dynamic-text-01.svg dynamic-text-01-ref.svg
+== dynamic-text-02.svg dynamic-text-02-ref.svg
+== dynamic-text-03.svg dynamic-text-03-ref.svg
 == fallback-color-01a.svg pass.svg
 == fallback-color-01b.svg pass.svg
 == fallback-color-02a.svg fallback-color-02-ref.svg
@@ -55,6 +62,7 @@ fails == style-property-not-on-script-element-01.svg pass.svg
 == svg-in-foreignObject-01.xhtml svg-in-foreignObject-01-ref.xhtml
 == svg-in-foreignObject-02.xhtml svg-in-foreignObject-01-ref.xhtml # reuse -01-ref.xhtml
 random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == text-font-weight-01.svg text-font-weight-01-ref.svg # bug 386713
+== text-gradient-01.svg text-gradient-01-ref.svg
 == text-in-link-01.svg text-in-link-01-ref.svg
 == text-scale-01.svg text-scale-01-ref.svg
 == text-style-01a.svg text-style-01-ref.svg

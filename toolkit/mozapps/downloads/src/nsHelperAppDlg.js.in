@@ -55,6 +55,7 @@
  */
 
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
+const nsITimer = Components.interfaces.nsITimer;
 
 /* ctor
  */
@@ -91,9 +92,9 @@ nsUnknownContentTypeDialog.prototype = {
       this.mContext  = aContext;
 
       const nsITimer = Components.interfaces.nsITimer;
-      this._timer = Components.classes["@mozilla.org/timer;1"]
-                              .createInstance(nsITimer);
-      this._timer.initWithCallback(this, 0, nsITimer.TYPE_ONE_SHOT);
+      this._showTimer = Components.classes["@mozilla.org/timer;1"]
+                                  .createInstance(nsITimer);
+      this._showTimer.initWithCallback(this, 0, nsITimer.TYPE_ONE_SHOT);
     },
 
     // When opening from new tab, if tab closes while dialog is opening,
@@ -141,32 +142,34 @@ nsUnknownContentTypeDialog.prototype = {
     //
     // Note - this function is called without a dialog, so it cannot access any part
     // of the dialog XUL as other functions on this object do. 
-    promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension) {
+    promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
       var result = null;
       
       this.mLauncher = aLauncher;
 
-      // Check to see if the user wishes to auto save to the default download
-      // folder without prompting.  This preferences may not be set, so default
-      // to not prompting.
       let prefs = Components.classes["@mozilla.org/preferences-service;1"]
                             .getService(Components.interfaces.nsIPrefBranch);
-      let autodownload = true;
-      try {
-        autodownload = prefs.getBoolPref(PREF_BD_USEDOWNLOADDIR);
-      } catch (e) { }
+
+      if (!aForcePrompt) {
+        // Check to see if the user wishes to auto save to the default download
+        // folder without prompting. Note that preference might not be set.
+        let autodownload = false;
+        try {
+          autodownload = prefs.getBoolPref(PREF_BD_USEDOWNLOADDIR);
+        } catch (e) { }
       
-      if (autodownload) {
-        // Retrieve the user's default download directory
-        var dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
-                                .getService(Components.interfaces.nsIDownloadManager);
-        var defaultFolder = dnldMgr.userDownloadsDirectory;
-        result = this.validateLeafName(defaultFolder, aDefaultFile, aSuggestedFileExtension);
+        if (autodownload) {
+          // Retrieve the user's default download directory
+          let dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
+                                  .getService(Components.interfaces.nsIDownloadManager);
+          let defaultFolder = dnldMgr.userDownloadsDirectory;
+          result = this.validateLeafName(defaultFolder, aDefaultFile, aSuggestedFileExtension);
+
+          // Check to make sure we have a valid directory, otherwise, prompt
+          if (result)
+            return result;
+        }
       }
-      
-      // Check to make sure we have a valid directory, otherwise, prompt
-      if (result)
-        return result;
       
       // Use file picker to show dialog.
       var nsIFilePicker = Components.interfaces.nsIFilePicker;
@@ -495,27 +498,33 @@ nsUnknownContentTypeDialog.prototype = {
       this.mDialog.setTimeout("dialog.postShowCallback()", 0);
       
       this.mDialog.document.documentElement.getButton("accept").disabled = true;
-      const nsITimer = Components.interfaces.nsITimer;
-      this._timer = Components.classes["@mozilla.org/timer;1"]
-                              .createInstance(nsITimer);
-      this._timer.initWithCallback(this, 250, nsITimer.TYPE_ONE_SHOT);
+      this._showTimer = Components.classes["@mozilla.org/timer;1"]
+                                  .createInstance(nsITimer);
+      this._showTimer.initWithCallback(this, 250, nsITimer.TYPE_ONE_SHOT);
     },
 
-    _timer: null,
     notify: function (aTimer) {
-      if (!this.mDialog) {
-        this.reallyShow();
-      } else {
-        // The user may have already canceled the dialog.
-        try {
-          if (!this._blurred) {
-            this.mDialog.document.documentElement.getButton("accept").disabled = false;
-          }
-        } catch (ex) {}
-        this._delayExpired = true;
+      if (aTimer == this._showTimer) {
+        if (!this.mDialog) {
+          this.reallyShow();
+        } else {
+          // The user may have already canceled the dialog.
+          try {
+            if (!this._blurred) {
+              this.mDialog.document.documentElement.getButton("accept").disabled = false;
+            }
+          } catch (ex) {}
+          this._delayExpired = true;
+        }
+        // The timer won't release us, so we have to release it.
+        this._showTimer = null;
       }
-      // The timer won't release us, so we have to release it.
-      this._timer = null;
+      else if (aTimer == this._saveToDiskTimer) {
+        // Since saveToDisk may open a file picker and therefore block this routine,
+        // we should only call it once the dialog is closed.
+        this.mLauncher.saveToDisk(null, false);
+        this._saveToDiskTimer = null;
+      }
     },
 
     postShowCallback: function () {
@@ -892,12 +901,13 @@ nsUnknownContentTypeDialog.prototype = {
 
           this.mLauncher.saveToDisk(targetFile, false);
 #endif
-          // Since saveToDisk may open a file picker and therefore block this routine,
-          // we should only call it once the dialog is closed.
-          var _delayedSaveToDisk = function(aSelf) {
-            aSelf.mLauncher.saveToDisk(null, false);
-          }
-          this.mDialog.opener.setTimeout(_delayedSaveToDisk, 0, this);
+
+          // see @notify
+          // we cannot use opener's setTimeout, see bug 420405
+          this._saveToDiskTimer = Components.classes["@mozilla.org/timer;1"]
+                                            .createInstance(nsITimer);
+          this._saveToDiskTimer.initWithCallback(this, 0,
+                                                 nsITimer.TYPE_ONE_SHOT);
         }
         else
           this.mLauncher.launchWithApplication(null, false);

@@ -64,6 +64,8 @@
 #include "nsISound.h"
 #include "nsWidgetsCID.h"
 #endif
+#include "nsContentUtils.h"
+#include "nsUTF8Utils.h"
 
 
 //
@@ -86,8 +88,7 @@ nsMenuBarFrame::nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
     mStayActive(PR_FALSE),
     mIsActive(PR_FALSE),
     mCurrentMenu(nsnull),
-    mTarget(nsnull),
-    mCaretWasVisible(PR_FALSE)
+    mTarget(nsnull)
 {
 } // cntr
 
@@ -150,57 +151,6 @@ nsMenuBarFrame::SetActive(PRBool aActiveFlag)
   else {
     RemoveKeyboardNavigator();
   }
-  
-  // We don't want the caret to blink while the menus are active
-  // The caret distracts screen readers and other assistive technologies from the menu selection
-  // There is 1 caret per document, we need to find the focused document and toggle its caret 
-  do {
-    nsIPresShell *presShell = PresContext()->GetPresShell();
-    if (!presShell)
-      break;
-
-    nsIDocument *document = presShell->GetDocument();
-    if (!document)
-      break;
-
-    nsCOMPtr<nsISupports> container = document->GetContainer();
-    nsCOMPtr<nsPIDOMWindow> windowPrivate = do_GetInterface(container);
-    if (!windowPrivate)
-      break;
-
-    nsIFocusController *focusController =
-      windowPrivate->GetRootFocusController();
-    if (!focusController)
-      break;
-
-    nsCOMPtr<nsIDOMWindowInternal> windowInternal;
-    focusController->GetFocusedWindow(getter_AddRefs(windowInternal));
-    if (!windowInternal)
-      break;
-
-    nsCOMPtr<nsIDOMDocument> domDoc;
-    nsCOMPtr<nsIDocument> focusedDoc;
-    windowInternal->GetDocument(getter_AddRefs(domDoc));
-    focusedDoc = do_QueryInterface(domDoc);
-    if (!focusedDoc)
-      break;
-
-    presShell = focusedDoc->GetPrimaryShell();
-    nsCOMPtr<nsISelectionController> selCon(do_QueryInterface(presShell));
-    // there is no selection controller for full page plugins
-    if (!selCon)
-      break;
-
-    if (mIsActive) {// store whether caret was visible so that we can restore that state when menu is closed
-      PRBool isCaretVisible;
-      selCon->GetCaretEnabled(&isCaretVisible);
-      mCaretWasVisible |= isCaretVisible;
-    }
-    selCon->SetCaretEnabled(!mIsActive && mCaretWasVisible);
-    if (!mIsActive) {
-      mCaretWasVisible = PR_FALSE;
-    }
-  } while (0);
 
   NS_NAMED_LITERAL_STRING(active, "DOMMenuBarActive");
   NS_NAMED_LITERAL_STRING(inactive, "DOMMenuBarInactive");
@@ -261,8 +211,17 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
 {
   PRUint32 charCode;
   aKeyEvent->GetCharCode(&charCode);
-  if (!charCode) // no character was pressed so just return  
-    return nsnull;
+
+  nsAutoTArray<PRUint32, 10> accessKeys;
+  nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
+  nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
+  if (nativeKeyEvent)
+    nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, accessKeys);
+  if (accessKeys.IsEmpty() && charCode)
+    accessKeys.AppendElement(charCode);
+
+  if (accessKeys.IsEmpty())
+    return nsnull; // no character was pressed so just return
 
   // Enumerate over our list of frames.
   nsIFrame* immediateParent = nsnull;
@@ -270,28 +229,38 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
   if (!immediateParent)
     immediateParent = this;
 
+  // Find a most preferred accesskey which should be returned.
+  nsIFrame* foundMenu = nsnull;
+  PRUint32 foundIndex = accessKeys.NoIndex;
   nsIFrame* currFrame = immediateParent->GetFirstChild(nsnull);
 
   while (currFrame) {
     nsIContent* current = currFrame->GetContent();
-    
+
     // See if it's a menu item.
     if (nsXULPopupManager::IsValidMenuItem(PresContext(), current, PR_FALSE)) {
       // Get the shortcut attribute.
       nsAutoString shortcutKey;
       current->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, shortcutKey);
       if (!shortcutKey.IsEmpty()) {
-        // We've got something.
-        PRUnichar letter = PRUnichar(charCode); // throw away the high-zero-fill
-        if ( shortcutKey.Equals(Substring(&letter, &letter+1),
-                                nsCaseInsensitiveStringComparator()) )  {
-          // We match!
-          return (currFrame->GetType() == nsGkAtoms::menuFrame) ?
-                 static_cast<nsMenuFrame *>(currFrame) : nsnull;
+        ToLowerCase(shortcutKey);
+        nsAutoString::const_iterator start, end;
+        shortcutKey.BeginReading(start);
+        shortcutKey.EndReading(end);
+        PRUint32 ch = UTF16CharEnumerator::NextChar(start, end);
+        PRUint32 index = accessKeys.IndexOf(ch);
+        if (index != accessKeys.NoIndex &&
+            (foundIndex == kNotFound || index < foundIndex)) {
+          foundMenu = currFrame;
+          foundIndex = index;
         }
       }
     }
     currFrame = currFrame->GetNextSibling();
+  }
+  if (foundMenu) {
+    return (foundMenu->GetType() == nsGkAtoms::menuFrame) ?
+           static_cast<nsMenuFrame *>(foundMenu) : nsnull;
   }
 
   // didn't find a matching menu item

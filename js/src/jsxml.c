@@ -314,11 +314,17 @@ js_NewXMLNamespaceObject(JSContext *cx, JSString *prefix, JSString *uri,
                          JSBool declared)
 {
     JSXMLNamespace *ns;
+    JSTempValueRooter tvr;
+    JSObject *obj;
 
     ns = js_NewXMLNamespace(cx, prefix, uri, declared);
     if (!ns)
         return NULL;
-    return js_GetXMLNamespaceObject(cx, ns);
+
+    JS_PUSH_TEMP_ROOT_NAMESPACE(cx, ns, &tvr);
+    obj = js_GetXMLNamespaceObject(cx, ns);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return obj;
 }
 
 JSObject *
@@ -590,11 +596,16 @@ js_NewXMLQNameObject(JSContext *cx, JSString *uri, JSString *prefix,
                      JSString *localName)
 {
     JSXMLQName *qn;
+    JSTempValueRooter tvr;
+    JSObject *obj;
 
     qn = js_NewXMLQName(cx, uri, prefix, localName);
     if (!qn)
         return NULL;
-    return js_GetXMLQNameObject(cx, qn);
+    JS_PUSH_TEMP_ROOT_QNAME(cx, qn, &tvr);
+    obj = js_GetXMLQNameObject(cx, qn);
+    JS_POP_TEMP_ROOT(cx, &tvr);
+    return obj;
 }
 
 JSObject *
@@ -830,7 +841,6 @@ QName(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     jsval nameval, nsval;
     JSBool isQName, isNamespace;
-    JSFunction *funobj;
     JSXMLQName *qn;
     JSString *uri, *prefix, *name;
     JSObject *nsobj;
@@ -855,8 +865,8 @@ QName(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
          * Use the constructor's clasp so we can be shared by AttributeName
          * (see below after this function).
          */
-        funobj = JS_ValueToFunction(cx, argv[-2]);
-        obj = js_NewObject(cx, NATIVE_FUN_GET_CLASS(FUN_TO_NATIVE(funobj)),
+        obj = js_NewObject(cx,
+                           JS_ValueToFunction(cx, argv[-2])->u.n.clasp,
                            NULL, NULL, 0);
         if (!obj)
             return JS_FALSE;
@@ -5596,7 +5606,7 @@ static JSXML *
 StartNonListXMLMethod(JSContext *cx, jsval *vp, JSObject **objp)
 {
     JSXML *xml;
-    JSFunction *funobj;
+    JSFunction *fun;
     char numBuf[12];
 
     JS_ASSERT(VALUE_IS_FUNCTION(cx, *vp));
@@ -5617,11 +5627,11 @@ StartNonListXMLMethod(JSContext *cx, jsval *vp, JSObject **objp)
         }
     }
 
-    funobj = OBJ_TO_FUNCTION(JSVAL_TO_OBJECT(*vp));
+    fun = GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(*vp));
     JS_snprintf(numBuf, sizeof numBuf, "%u", xml->xml_kids.length);
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                          JSMSG_NON_LIST_XML_METHOD,
-                         JS_GetFunctionName(funobj), numBuf);
+                         JS_GetFunctionName(fun), numBuf);
     return NULL;
 }
 
@@ -7714,7 +7724,7 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     fun = JS_DefineFunction(cx, obj, js_XMLList_str, XMLList, 1, 0);
     if (!fun)
         return NULL;
-    if (!js_SetClassPrototype(cx, &fun->object, proto,
+    if (!js_SetClassPrototype(cx, FUN_OBJECT(fun), proto,
                               JSPROP_READONLY | JSPROP_PERMANENT)) {
         return NULL;
     }
@@ -7756,9 +7766,6 @@ js_GetFunctionNamespace(JSContext *cx, jsval *vp)
         obj = rt->functionNamespaceObject;
         if (!obj) {
             JS_UNLOCK_GC(rt);
-            atom = js_Atomize(cx, js_function_str, 8, 0);
-            JS_ASSERT(atom);
-            prefix = ATOM_TO_STRING(atom);
 
             /*
              * Note that any race to atomize anti_uri here is resolved by
@@ -7772,6 +7779,7 @@ js_GetFunctionNamespace(JSContext *cx, jsval *vp)
                 return JS_FALSE;
             rt->atomState.lazy.functionNamespaceURIAtom = atom;
 
+            prefix = ATOM_TO_STRING(rt->atomState.typeAtoms[JSTYPE_FUNCTION]);
             uri = ATOM_TO_STRING(atom);
             obj = js_NewXMLNamespaceObject(cx, prefix, uri, JS_FALSE);
             if (!obj)
@@ -7878,7 +7886,7 @@ js_SetDefaultXMLNamespace(JSContext *cx, jsval v)
             return JS_FALSE;
         }
     } else {
-        JS_ASSERT(fp->fun && !JSFUN_HEAVYWEIGHT_TEST(FUN_FLAGS(fp->fun)));
+        JS_ASSERT(fp->fun && !JSFUN_HEAVYWEIGHT_TEST(fp->fun->flags));
     }
     fp->xmlNamespace = JSVAL_TO_OBJECT(v);
     return JS_TRUE;

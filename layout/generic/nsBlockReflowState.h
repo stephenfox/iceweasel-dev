@@ -46,9 +46,7 @@
 #include "nsBlockBandData.h"
 #include "nsLineBox.h"
 #include "nsFrameList.h"
-#include "nsContainerFrame.h"
-
-class nsBlockFrame;
+#include "nsBlockFrame.h"
 
   // block reflow state flags
 #define BRS_UNCONSTRAINEDHEIGHT   0x00000001
@@ -110,8 +108,9 @@ public:
 
   // Returns the first coordinate >= aY that clears the
   // floats indicated by aBreakType and has enough width between floats
-  // (or no floats remaining) to accomodate aReplacedWidth.
-  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType, nscoord aReplacedWidth = 0);
+  // (or no floats remaining) to accomodate aReplacedBlock.
+  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType,
+                      nsIFrame *aReplacedBlock = nsnull);
 
   PRBool IsAdjacentWithTop() const {
     return mY ==
@@ -141,8 +140,19 @@ public:
   // Reconstruct the previous bottom margin that goes above |aLine|.
   void ReconstructMarginAbove(nsLineList::iterator aLine);
 
+  // Caller must have called GetAvailableSpace for the correct position
+  // (which need not be the current mY).  Callers need only pass
+  // aReplacedWidth for outer table frames.
+  void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
+                                            nscoord& aLeftResult,
+                                            nscoord& aRightResult,
+                                       nsBlockFrame::ReplacedElementWidthToClear
+                                                      *aReplacedWidth = nsnull);
+
+  // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,
                               const nsStyleDisplay* aDisplay,
+                              PRBool aBlockAvoidsFloats,
                               nsRect& aResult);
 
 protected:
@@ -184,6 +194,13 @@ public:
 
   // XXX get rid of this
   nsReflowStatus mReflowStatus;
+
+  // The x-position we should place an outside bullet relative to.
+  // This is the border-box edge of the principal box.  However, if a line box
+  // would be displaced by floats, we want to displace it by the same amount.
+  // That is, we act as though the edge of the floats is the content-edge of
+  // the block, displaced by the block's padding and border.
+  nscoord mOutsideBulletX;
 
   nscoord mBottomEdge;
 

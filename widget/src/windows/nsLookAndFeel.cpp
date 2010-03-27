@@ -23,6 +23,7 @@
  *   Michael Lowe <michael.lowe@bigfoot.com>
  *   Jens Bannmann <jens.b@web.de>
  *   Ryan Jones <sciguyryan@gmail.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,22 +51,32 @@ typedef HRESULT (WINAPI*CloseThemeDataPtr)(HANDLE hTheme);
 typedef HRESULT (WINAPI*GetThemeColorPtr)(HANDLE hTheme, int iPartId,
                                           int iStateId, int iPropId, OUT COLORREF* pFont);
 typedef BOOL (WINAPI*IsAppThemedPtr)(VOID);
+typedef HRESULT (WINAPI*GetCurrentThemeNamePtr)(LPWSTR pszThemeFileName, int dwMaxNameChars,
+                                                LPWSTR pszColorBuff, int cchMaxColorChars,
+                                                LPWSTR pszSizeBuff, int cchMaxSizeChars);
+
 
 static OpenThemeDataPtr openTheme = NULL;
 static CloseThemeDataPtr closeTheme = NULL;
 static GetThemeColorPtr getThemeColor = NULL;
 static IsAppThemedPtr isAppThemed = NULL;
+static GetCurrentThemeNamePtr getCurrentThemeName = NULL;
 
 static const char kThemeLibraryName[] = "uxtheme.dll";
 static HINSTANCE gThemeDLLInst = NULL;
 static HANDLE gMenuTheme = NULL;
+static HANDLE gMediaToolbarTheme = NULL;
+static HANDLE gCommunicationsToolbarTheme = NULL;
 
 #define MENU_POPUPITEM 14
+#define TP_BUTTON 1
 
 #define MPI_NORMAL 1
 #define MPI_HOT 2
 #define MPI_DISABLED 3
 #define MPI_DISABLEDHOT 4
+
+#define TS_NORMAL 1
 
 // From tmschema.h in the Vista SDK
 #define TMT_TEXTCOLOR 3803
@@ -118,7 +129,10 @@ nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
     closeTheme = (CloseThemeDataPtr)GetProcAddress(gThemeDLLInst, "CloseThemeData");
     getThemeColor = (GetThemeColorPtr)GetProcAddress(gThemeDLLInst, "GetThemeColor");
     isAppThemed = (IsAppThemedPtr)GetProcAddress(gThemeDLLInst, "IsAppThemed");
+    getCurrentThemeName = (GetCurrentThemeNamePtr)GetProcAddress(gThemeDLLInst, "GetCurrentThemeName");
     gMenuTheme = openTheme(NULL, L"Menu");
+    gMediaToolbarTheme = openTheme(NULL, L"Media::ToolBar");
+    gCommunicationsToolbarTheme = openTheme(NULL, L"Communications::ToolBar");
   }
 #endif
 }
@@ -133,6 +147,31 @@ nsLookAndFeel::~nsLookAndFeel()
        gSHAppBarMessage = NULL;
    }
 #endif
+}
+
+nsresult nsLookAndFeel::GetColorFromTheme(const PRUnichar* aClassList,
+                                          void* aTheme,
+                                          PRInt32 aPart,
+                                          PRInt32 aState,
+                                          PRInt32 aPropId,
+                                          nscolor &aColor)
+{
+  COLORREF color;
+  HRESULT hr;
+  hr = getThemeColor(aTheme, aPart, aState, aPropId, &color);
+  // Since we don't get theme changed messages, check if we lost the handle
+  if (hr == E_HANDLE)
+  {
+    closeTheme(aTheme);
+    aTheme = openTheme(NULL, (LPCWSTR)aClassList);
+    hr = getThemeColor(aTheme, aPart, aState, aPropId, &color);
+  }
+  if (hr == S_OK)
+  {
+    aColor = COLOREF_2_NSRGB(color);
+    return NS_OK;
+  }
+  return NS_ERROR_FAILURE;
 }
 
 nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
@@ -253,25 +292,10 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 #ifndef WINCE
       if (isAppThemed && isAppThemed() && GetWindowsVersion() >= VISTA_VERSION)
       {
-        COLORREF color;
-        HRESULT hr;
-        hr = getThemeColor(gMenuTheme, MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, &color);
-        if (hr == S_OK)
-        {
-          aColor = COLOREF_2_NSRGB(color);
-          return NS_OK;
-        }
-        // Since we don't get theme changed messages, check if we lost the handle
-        else if (hr == E_HANDLE)
-        {
-          closeTheme(gMenuTheme);
-          gMenuTheme = openTheme(NULL, L"Menu");
-          // gMenuTheme shouldn't be null since it was non-null before so we
-          // are running on Vista or higher
-          getThemeColor(gMenuTheme, MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, &color);
-          aColor = COLOREF_2_NSRGB(color);
-          return NS_OK;
-        }
+        res = GetColorFromTheme(L"Menu", gMenuTheme,
+                                MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, aColor);
+        if (NS_SUCCEEDED(res))
+          return res;
         // fall through to highlight case
       }
 #endif
@@ -327,6 +351,8 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_windowtext:
       idx = COLOR_WINDOWTEXT;
       break;
+    case eColor__moz_eventreerow:
+    case eColor__moz_oddtreerow:
     case eColor__moz_field:
       idx = COLOR_WINDOW;
       break;
@@ -336,6 +362,31 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor__moz_dialog:
     case eColor__moz_cellhighlight:
       idx = COLOR_3DFACE;
+      break;
+    case eColor__moz_win_mediatext:
+#ifndef WINCE
+      if (isAppThemed && isAppThemed() && GetWindowsVersion() >= VISTA_VERSION) {
+        res = GetColorFromTheme(L"Media::Toolbar", gMediaToolbarTheme,
+                                TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
+        if (NS_SUCCEEDED(res))
+          return res;
+      }
+      // if we've gotten here just return -moz-dialogtext instead
+#endif
+      idx = COLOR_WINDOWTEXT;
+      break;
+    case eColor__moz_win_communicationstext:
+#ifndef WINCE
+      if (isAppThemed && isAppThemed() && GetWindowsVersion() >= VISTA_VERSION)
+      {
+        res = GetColorFromTheme(L"Communications::Toolbar", gCommunicationsToolbarTheme,
+                                TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
+        if (NS_SUCCEEDED(res))
+          return res;
+      }
+      // if we've gotten here just return -moz-dialogtext instead
+#endif
+      idx = COLOR_WINDOWTEXT;
       break;
     case eColor__moz_dialogtext:
     case eColor__moz_cellhighlighttext:
@@ -497,6 +548,44 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         break;
     case eMetric_TreeScrollLinesMax:
         aMetric = 3;
+        break;
+    case eMetric_WindowsDefaultTheme:
+        aMetric = 0;
+#ifndef WINCE
+        if (getCurrentThemeName) {
+          WCHAR themeFileName[MAX_PATH + 1] = {L'\0'};
+          HRESULT hresult = getCurrentThemeName(themeFileName, MAX_PATH,
+                                                NULL, 0, NULL, 0);
+
+          // WIN2K and earlier will not have getCurrentThemeName defined, so
+          // they will never make it this far.  Unless we want to save 6.0
+          // users a handful of clock cycles by skipping checks for the
+          // 5.x themes (or vice-versa), we can use a single loop for all
+          // the different Windows versions.
+          if (hresult == S_OK && GetWindowsVersion() <= VISTA_VERSION) {
+            LPCWSTR defThemes[] = {
+              L"luna.msstyles",
+              L"royale.msstyles",
+              L"zune.msstyles",
+              L"aero.msstyles"
+            };
+
+            LPWSTR curTheme = wcsrchr(themeFileName, L'\\');
+            curTheme = curTheme ? curTheme + 1 : themeFileName;
+
+            for (int i = 0; i < NS_ARRAY_LENGTH(defThemes); ++i) {
+              if (!lstrcmpiW(curTheme, defThemes[i])) {
+                aMetric = 1;
+              }
+            }
+          } else {
+            res = NS_ERROR_NOT_IMPLEMENTED;
+          }
+        } else
+#endif
+        {
+          res = NS_ERROR_NOT_IMPLEMENTED;
+        }
         break;
 #ifndef WINCE
     case eMetric_AlertNotificationOrigin:

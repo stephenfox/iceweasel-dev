@@ -805,8 +805,8 @@ ReportBadReturn(JSContext *cx, JSTreeContext *tc, uintN flags, uintN errnum,
     const char *name;
 
     JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
-    if (FUN_TO_SCRIPTED(tc->funobj)->atom) {
-        name = js_AtomToPrintableString(cx, FUN_TO_SCRIPTED(tc->funobj)->atom);
+    if (tc->fun->atom) {
+        name = js_AtomToPrintableString(cx, tc->fun->atom);
     } else {
         errnum = anonerrnum;
         name = NULL;
@@ -891,8 +891,7 @@ FunctionBody(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
  * handler attribute in an HTML <INPUT> tag.
  */
 JSBool
-js_CompileFunctionBody(JSContext *cx, JSFunction *funobj,
-                       JSPrincipals *principals,
+js_CompileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
                        const jschar *chars, size_t length,
                        const char *filename, uintN lineno)
 {
@@ -914,7 +913,7 @@ js_CompileFunctionBody(JSContext *cx, JSFunction *funobj,
     js_InitCodeGenerator(cx, &funcg, &pc, &codePool, &notePool,
                          pc.tokenStream.lineno);
     funcg.treeContext.flags |= TCF_IN_FUNCTION;
-    funcg.treeContext.funobj = funobj;
+    funcg.treeContext.fun = fun;
 
     /*
      * Farble the body so that it looks like a block statement to js_EmitTree,
@@ -968,7 +967,6 @@ struct BindData {
     Binder                  binder;             /* binder, discriminates u */
     union {
         struct {
-            jsuint          index;
             uintN           overflow;
         } let;
     } u;
@@ -977,15 +975,13 @@ struct BindData {
 static JSBool
 BindArg(JSContext *cx, JSAtom *atom, JSTreeContext *tc)
 {
-    JSScriptedFunction *sfun;
     const char *name;
 
     /*
      * Check for a duplicate parameter name, a "feature" required by ECMA-262.
      */
     JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
-    sfun = FUN_TO_SCRIPTED(tc->funobj);
-    if (js_LookupLocal(cx, sfun, atom, NULL) != JSLOCAL_NONE) {
+    if (js_LookupLocal(cx, tc->fun, atom, NULL) != JSLOCAL_NONE) {
         name = js_AtomToPrintableString(cx, atom);
         if (!name ||
             !js_ReportCompileErrorNumber(cx, TS(tc->parseContext), NULL,
@@ -996,11 +992,11 @@ BindArg(JSContext *cx, JSAtom *atom, JSTreeContext *tc)
         }
     }
 
-    return js_AddLocal(cx, sfun, atom, JSLOCAL_ARG);
+    return js_AddLocal(cx, tc->fun, atom, JSLOCAL_ARG);
 }
 
 static JSBool
-BindLocalVariable(JSContext *cx, JSScriptedFunction *fun, JSAtom *atom,
+BindLocalVariable(JSContext *cx, JSFunction *fun, JSAtom *atom,
                   JSLocalKind localKind)
 {
     JS_ASSERT(localKind == JSLOCAL_VAR || localKind == JSLOCAL_CONST);
@@ -1030,7 +1026,6 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
                      JSTreeContext *tc)
 {
     JSAtomListElement *ale;
-    JSScriptedFunction *sfun;
     const char *name;
 
     JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
@@ -1042,8 +1037,7 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
         ALE_SET_JSOP(ale, data->op);
     }
 
-    sfun = FUN_TO_SCRIPTED(tc->funobj);
-    if (js_LookupLocal(cx, sfun, atom, NULL) != JSLOCAL_NONE) {
+    if (js_LookupLocal(cx, tc->fun, atom, NULL) != JSLOCAL_NONE) {
         name = js_AtomToPrintableString(cx, atom);
         if (!name ||
             !js_ReportCompileErrorNumber(cx, TS(tc->parseContext), data->pn,
@@ -1053,7 +1047,7 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
             return JS_FALSE;
         }
     } else {
-        if (!BindLocalVariable(cx, sfun, atom, JSLOCAL_VAR))
+        if (!BindLocalVariable(cx, tc->fun, atom, JSLOCAL_VAR))
             return JS_FALSE;
     }
     return JS_TRUE;
@@ -1065,18 +1059,17 @@ NewCompilerFunction(JSContext *cx, JSTreeContext *tc, JSAtom *atom,
                     uintN lambda)
 {
     JSObject *parent;
-    JSFunction *funobj;
+    JSFunction *fun;
 
     JS_ASSERT((lambda & ~JSFUN_LAMBDA) == 0);
-    parent = (tc->flags & TCF_IN_FUNCTION)
-             ? &tc->funobj->object
-             : cx->fp->varobj;
-    funobj = js_NewScriptedFunction(cx, NULL, lambda, parent, atom);
-    if (funobj && !(tc->flags & TCF_COMPILE_N_GO)) {
-        STOBJ_SET_PARENT(&funobj->object, NULL);
-        STOBJ_SET_PROTO(&funobj->object, NULL);
+    parent = (tc->flags & TCF_IN_FUNCTION) ? FUN_OBJECT(tc->fun) : cx->fp->varobj;
+    fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED | lambda,
+                         parent, atom);
+    if (fun && !(tc->flags & TCF_COMPILE_N_GO)) {
+        STOBJ_SET_PARENT(FUN_OBJECT(fun), NULL);
+        STOBJ_SET_PROTO(FUN_OBJECT(fun), NULL);
     }
-    return funobj;
+    return fun;
 }
 
 static JSParseNode *
@@ -1089,8 +1082,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     JSAtom *funAtom;
     JSParsedObjectBox *funpob;
     JSAtomListElement *ale;
-    JSFunction *funobj;
-    JSScriptedFunction *sfun;
+    JSFunction *fun;
     JSTreeContext funtc;
 #if JS_HAS_DESTRUCTURING
     JSParseNode *item, *list = NULL;
@@ -1177,37 +1169,35 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
              * variable even if the parameter with the given name already
              * exists.
              */
-            sfun = FUN_TO_SCRIPTED(tc->funobj);
-            localKind = js_LookupLocal(cx, sfun, funAtom, NULL);
+            localKind = js_LookupLocal(cx, tc->fun, funAtom, NULL);
             if (localKind == JSLOCAL_NONE || localKind == JSLOCAL_ARG) {
-                if (!js_AddLocal(cx, sfun, funAtom, JSLOCAL_VAR))
+                if (!js_AddLocal(cx, tc->fun, funAtom, JSLOCAL_VAR))
                     return NULL;
             }
         }
     }
 
-    funobj = NewCompilerFunction(cx, tc, funAtom, lambda);
-    if (!funobj)
+    fun = NewCompilerFunction(cx, tc, funAtom, lambda);
+    if (!fun)
         return NULL;
-    sfun = FUN_TO_SCRIPTED(funobj);
 
 #if JS_HAS_GETTER_SETTER
     if (op != JSOP_NOP)
-        sfun->flags |= (op == JSOP_GETTER) ? JSPROP_GETTER : JSPROP_SETTER;
+        fun->flags |= (op == JSOP_GETTER) ? JSPROP_GETTER : JSPROP_SETTER;
 #endif
 
     /*
      * Create wrapping box for fun->object early to protect against a
      * last-ditch GC.
      */
-    funpob = js_NewParsedObjectBox(cx, tc->parseContext, &funobj->object);
+    funpob = js_NewParsedObjectBox(cx, tc->parseContext, FUN_OBJECT(fun));
     if (!funpob)
         return NULL;
 
     /* Initialize early for possible flags mutation via DestructuringExpr. */
     TREE_CONTEXT_INIT(&funtc, tc->parseContext);
     funtc.flags |= TCF_IN_FUNCTION;
-    funtc.funobj = funobj;
+    funtc.fun = fun;
 
     /* Now parse formal argument list and compute fun->nargs. */
     MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_FORMAL);
@@ -1240,8 +1230,8 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                  * Adjust fun->nargs to count the single anonymous positional
                  * parameter that is to be destructured.
                  */
-                slot = sfun->nargs;
-                if (!js_AddLocal(cx, sfun, NULL, JSLOCAL_ARG))
+                slot = fun->nargs;
+                if (!js_AddLocal(cx, fun, NULL, JSLOCAL_ARG))
                     return NULL;
 
                 /*
@@ -1293,7 +1283,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     ts->flags &= ~TSF_OPERAND;
     if (tt != TOK_LC) {
         js_UngetToken(ts);
-        sfun->flags |= JSFUN_EXPR_CLOSURE;
+        fun->flags |= JSFUN_EXPR_CLOSURE;
     }
 #else
     MUST_MATCH_TOKEN(TOK_LC, JSMSG_CURLY_BEFORE_BODY);
@@ -1359,7 +1349,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
      * a call object per invocation).
      */
     if (funtc.flags & TCF_FUN_HEAVYWEIGHT) {
-        sfun->flags |= JSFUN_HEAVYWEIGHT;
+        fun->flags |= JSFUN_HEAVYWEIGHT;
         tc->flags |= TCF_FUN_HEAVYWEIGHT;
     } else {
         /*
@@ -1628,6 +1618,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     JSObject *blockObj;
     JSScopeProperty *sprop;
     JSAtomListElement *ale;
+    uintN n;
 
     blockObj = tc->blockChain;
     sprop = SCOPE_GET_PROPERTY(OBJ_SCOPE(blockObj), ATOM_TO_JSID(atom));
@@ -1637,7 +1628,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
 
         if (sprop) {
             JS_ASSERT(sprop->flags & SPROP_HAS_SHORTID);
-            JS_ASSERT((uint16)sprop->shortid < data->u.let.index);
+            JS_ASSERT((uint16)sprop->shortid < OBJ_BLOCK_COUNT(cx, blockObj));
         }
 
         name = js_AtomToPrintableString(cx, atom);
@@ -1652,7 +1643,8 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
         return JS_FALSE;
     }
 
-    if (data->u.let.index == JS_BIT(16)) {
+    n = OBJ_BLOCK_COUNT(cx, blockObj);
+    if (n == JS_BIT(16)) {
         js_ReportCompileErrorNumber(cx, TS(tc->parseContext), data->pn,
                                     JSREPORT_ERROR, data->u.let.overflow);
         return JS_FALSE;
@@ -1661,10 +1653,10 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     /* Use JSPROP_ENUMERATE to aid the disassembler. */
     return js_DefineNativeProperty(cx, blockObj, ATOM_TO_JSID(atom),
                                    JSVAL_VOID, NULL, NULL,
-                                   JSPROP_ENUMERATE | JSPROP_PERMANENT,
-                                   SPROP_HAS_SHORTID,
-                                   (intN)data->u.let.index++,
-                                   NULL);
+                                   JSPROP_ENUMERATE |
+                                   JSPROP_PERMANENT |
+                                   JSPROP_SHARED,
+                                   SPROP_HAS_SHORTID, (int16) n, NULL);
 }
 
 static JSBool
@@ -1674,7 +1666,6 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     JSAtomListElement *ale;
     JSOp op, prevop;
     const char *name;
-    JSScriptedFunction *sfun;
     JSLocalKind localKind;
 
     stmt = js_LexicalLookup(tc, atom, NULL, 0);
@@ -1722,8 +1713,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
         return JS_TRUE;
     }
 
-    sfun = FUN_TO_SCRIPTED(tc->funobj);
-    localKind = js_LookupLocal(cx, sfun, atom, NULL);
+    localKind = js_LookupLocal(cx, tc->fun, atom, NULL);
     if (localKind == JSLOCAL_NONE) {
         /*
          * Property not found in current variable scope: we have not seen this
@@ -1735,7 +1725,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
          */
         localKind = (data->op == JSOP_DEFCONST) ? JSLOCAL_CONST : JSLOCAL_VAR;
         if (!js_InWithStatement(tc) &&
-            !BindLocalVariable(cx, sfun, atom, localKind)) {
+            !BindLocalVariable(cx, tc->fun, atom, localKind)) {
             return JS_FALSE;
         }
     } else if (localKind == JSLOCAL_ARG) {
@@ -2038,7 +2028,6 @@ CheckDestructuring(JSContext *cx, BindData *data,
         return JS_FALSE;
     }
 
-    ok = JS_TRUE;
     fpvd.table.ops = NULL;
     lhs = left->pn_head;
     if (lhs && lhs->pn_type == TOK_DEFSHARP) {
@@ -2125,12 +2114,47 @@ CheckDestructuring(JSContext *cx, BindData *data,
         }
     }
 
-out:
+    /*
+     * The catch/finally handler implementation in the interpreter assumes
+     * that any operation that introduces a new scope (like a "let" or "with"
+     * block) increases the stack depth. This way, it is possible to restore
+     * the scope chain based on stack depth of the handler alone. "let" with
+     * an empty destructuring pattern like in
+     *
+     *   let [] = 1;
+     *
+     * would violate this assumption as the there would be no let locals to
+     * store on the stack. To satisfy it we add an empty property to such
+     * blocks so that OBJ_BLOCK_COUNT(cx, blockObj), which gives the number of
+     * slots, would be always positive.
+     *
+     * Note that we add such a property even if the block has locals due to
+     * later let declarations in it. We optimize for code simplicity here,
+     * not the fastest runtime performance with empty [] or {}.
+     */
+    if (data &&
+        data->binder == BindLet &&
+        OBJ_BLOCK_COUNT(cx, tc->blockChain) == 0) {
+        ok = js_DefineNativeProperty(cx, tc->blockChain,
+                                     ATOM_TO_JSID(cx->runtime->
+                                                  atomState.emptyAtom),
+                                     JSVAL_VOID, NULL, NULL,
+                                     JSPROP_ENUMERATE |
+                                     JSPROP_PERMANENT |
+                                     JSPROP_SHARED,
+                                     SPROP_HAS_SHORTID, 0, NULL);
+        if (!ok)
+            goto out;
+    }
+
+    ok = JS_TRUE;
+
+  out:
     if (fpvd.table.ops)
         JS_DHashTableFinish(&fpvd.table);
     return ok;
 
-no_var_name:
+  no_var_name:
     js_ReportCompileErrorNumber(cx, TS(tc->parseContext), pn, JSREPORT_ERROR,
                                 JSMSG_NO_VARIABLE_NAME);
     ok = JS_FALSE;
@@ -2973,7 +2997,6 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                 data.pn = NULL;
                 data.op = JSOP_NOP;
                 data.binder = BindLet;
-                data.u.let.index = 0;
                 data.u.let.overflow = JSMSG_TOO_MANY_CATCH_VARS;
 
                 tt = js_GetToken(cx, ts);
@@ -3526,7 +3549,6 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     if (let) {
         JS_ASSERT(tc->blockChain == scopeStmt->u.blockObj);
         data.binder = BindLet;
-        data.u.let.index = OBJ_BLOCK_COUNT(cx, tc->blockChain);
         data.u.let.overflow = JSMSG_TOO_MANY_FUN_VARS;
     } else {
         data.binder = BindVarOrConst;
@@ -4133,7 +4155,6 @@ ComprehensionTail(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     data.pn = NULL;
     data.op = JSOP_NOP;
     data.binder = BindLet;
-    data.u.let.index = 0;
     data.u.let.overflow = JSMSG_ARRAY_INIT_TOO_BIG;
 
     rt = cx->runtime;
@@ -4264,7 +4285,7 @@ GeneratorExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
               uintN oldflags, JSParseNode *pn, JSParseNode *kid)
 {
     JSParseNode *body, *lambda;
-    JSFunction *funobj;
+    JSFunction *fun;
 
     /* Initialize pn, connecting it to kid. */
     JS_ASSERT(pn->pn_arity == PN_UNARY);
@@ -4287,8 +4308,8 @@ GeneratorExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
      * Make the generator function and flag it as interpreted ASAP (see the
      * comment in FunctionBody).
      */
-    funobj = NewCompilerFunction(cx, tc, NULL, JSFUN_LAMBDA);
-    if (!funobj)
+    fun = NewCompilerFunction(cx, tc, NULL, JSFUN_LAMBDA);
+    if (!fun)
         return NULL;
 
     /*
@@ -4304,7 +4325,7 @@ GeneratorExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     lambda->pn_op = JSOP_ANONFUNOBJ;
     lambda->pn_pos.begin = body->pn_pos.begin;
     lambda->pn_funpob = js_NewParsedObjectBox(cx, tc->parseContext,
-                                              &funobj->object);
+                                              FUN_OBJECT(fun));
     if (!lambda->pn_funpob)
         return NULL;
     lambda->pn_body = body;
@@ -6396,9 +6417,11 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
                 pn->pn_type = TOK_RP;
                 pn->pn_arity = PN_UNARY;
                 pn->pn_kid = pn2;
-            } else {
-                PN_MOVE_NODE(pn, pn2);
+                if (pn3 && pn3 != pn2)
+                    RecycleTree(pn3, tc);
+                break;
             }
+            PN_MOVE_NODE(pn, pn2);
         }
         if (!pn2 || (pn->pn_type == TOK_SEMI && !pn->pn_kid)) {
             /*

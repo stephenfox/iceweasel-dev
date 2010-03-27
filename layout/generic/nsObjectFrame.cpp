@@ -427,6 +427,18 @@ public:
     }
   }
 
+  const char* GetPluginName()
+  {
+    if (mInstance && mPluginHost) {
+      nsCOMPtr<nsPIPluginHost> piPluginHost = do_QueryInterface(mPluginHost);
+      char* name = NULL;
+      if (NS_SUCCEEDED(piPluginHost->GetPluginName(mInstance, &name)) &&
+          name)
+        return name;
+    }
+    return "";
+  }
+
 private:
   void FixUpURLS(const nsString &name, nsAString &value);
 
@@ -569,7 +581,7 @@ nsObjectFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow)
 {
-  mInstantiating = PR_FALSE;
+  mPreventInstantiation = PR_FALSE;
 
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
          ("Initializing nsObjectFrame %p for content %p\n", this, aContent));
@@ -580,7 +592,7 @@ nsObjectFrame::Init(nsIContent*      aContent,
 void
 nsObjectFrame::Destroy()
 {
-  NS_ASSERTION(!mInstantiating, "about to crash due to bug 136927");
+  NS_ASSERTION(!mPreventInstantiation, "about to crash due to bug 136927");
 
   // we need to finish with the plugin before native window is destroyed
   // doing this in the destructor is too late.
@@ -819,6 +831,9 @@ nsObjectFrame::InstantiatePlugin(nsIPluginHost* aPluginHost,
                                  const char* aMimeType,
                                  nsIURI* aURI)
 {
+  NS_ASSERTION(mPreventInstantiation,
+               "Instantiation should be prevented here!");
+
   // If you add early return(s), be sure to balance this call to
   // appShell->SuspendNative() with additional call(s) to
   // appShell->ReturnNative().
@@ -826,9 +841,6 @@ nsObjectFrame::InstantiatePlugin(nsIPluginHost* aPluginHost,
   if (appShell) {
     appShell->SuspendNative();
   }
-
-  NS_PRECONDITION(!mInstantiating, "How did that happen?");
-  mInstantiating = PR_TRUE;
 
   NS_ASSERTION(mContent, "We should have a content node.");
 
@@ -847,7 +859,6 @@ nsObjectFrame::InstantiatePlugin(nsIPluginHost* aPluginHost,
     rv = aPluginHost->InstantiateEmbeddedPlugin(aMimeType, aURI,
                                                 mInstanceOwner);
   }
-  mInstantiating = PR_FALSE;
 
   if (appShell) {
     appShell->ResumeNative();
@@ -1627,7 +1638,7 @@ nsObjectFrame::PrepareInstanceOwner()
 nsresult
 nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamListener)
 {
-  if (mInstantiating) {
+  if (mPreventInstantiation) {
     return NS_OK;
   }
   
@@ -1644,10 +1655,12 @@ nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamList
   // This must be done before instantiating the plugin
   FixupWindow(mRect.Size());
 
-  NS_ASSERTION(!mInstantiating, "Say what?");
-  mInstantiating = PR_TRUE;
+  NS_ASSERTION(!mPreventInstantiation, "Say what?");
+  mPreventInstantiation = PR_TRUE;
   rv = pluginHost->InstantiatePluginForChannel(aChannel, mInstanceOwner, aStreamListener);
-  mInstantiating = PR_FALSE;
+  NS_ASSERTION(mPreventInstantiation,
+               "Instantiation should still be prevented!");
+  mPreventInstantiation = PR_FALSE;
 
   return rv;
 }
@@ -1659,7 +1672,7 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
          ("nsObjectFrame::Instantiate(%s) called on frame %p\n", aMimeType,
           this));
 
-  if (mInstantiating) {
+  if (mPreventInstantiation) {
     return NS_OK;
   }
 
@@ -1679,6 +1692,8 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
     return rv;
   mInstanceOwner->SetPluginHost(pluginHost);
 
+  mPreventInstantiation = PR_TRUE;
+
   rv = InstantiatePlugin(pluginHost, aMimeType, aURI);
 
   // finish up
@@ -1686,6 +1701,11 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
     TryNotifyContentObjectWrapper();
     CallSetWindow();
   }
+
+  NS_ASSERTION(mPreventInstantiation,
+               "Instantiation should still be prevented!");
+
+  mPreventInstantiation = PR_FALSE;
 
   return rv;
 }
@@ -1728,6 +1748,41 @@ private:
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsStopPluginRunnable, nsRunnable, nsITimerCallback)
 
+static const char*
+GetMIMEType(nsIPluginInstance *aPluginInstance)
+{
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  aPluginInstance->GetPeer(getter_AddRefs(peer));
+  if (peer) {
+    nsMIMEType mime = NULL;
+    if (NS_SUCCEEDED(peer->GetMIMEType(&mime)) && mime)
+      return mime;
+  }
+  return "";
+}
+
+static PRBool
+MatchPluginName(nsPluginInstanceOwner *aInstanceOwner, const char *aPluginName)
+{
+  return strncmp(aInstanceOwner->GetPluginName(),
+                 aPluginName,
+                 strlen(aPluginName)) == 0;
+}
+
+static PRBool
+DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
+{
+  // Don't delay stopping QuickTime (bug 425157), Flip4Mac (bug 426524).
+  if (aDelayedStop &&
+      !::MatchPluginName(aInstanceOwner, "QuickTime") &&
+      !::MatchPluginName(aInstanceOwner, "Flip4Mac")) {
+    nsCOMPtr<nsIRunnable> evt = new nsStopPluginRunnable(aInstanceOwner);
+    NS_DispatchToCurrentThread(evt);
+    return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+
 static void
 DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 {
@@ -1766,12 +1821,8 @@ DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
         else 
           inst->SetWindow(nsnull);
 
-        if (aDelayedStop) {
-          nsCOMPtr<nsIRunnable> evt = new nsStopPluginRunnable(aInstanceOwner);
-          NS_DispatchToCurrentThread(evt);
-
+        if (DoDelayedStop(aInstanceOwner, aDelayedStop))
           return;
-        }
 
         inst->Stop();
         inst->Destroy();
@@ -1783,12 +1834,8 @@ DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
       else 
         inst->SetWindow(nsnull);
 
-      if (aDelayedStop) {
-        nsCOMPtr<nsIRunnable> evt = new nsStopPluginRunnable(aInstanceOwner);
-        NS_DispatchToCurrentThread(evt);
-
+      if (DoDelayedStop(aInstanceOwner, aDelayedStop))
         return;
-      }
 
       inst->Stop();
     }
@@ -1848,30 +1895,18 @@ nsStopPluginRunnable::Run()
 void
 nsObjectFrame::StopPlugin()
 {
+  PRBool delayedStop = PR_FALSE;
 #ifdef XP_WIN
-  // XXXjst: ns4xPluginInstance::Destroy() is a no-op, clean
-  // this mess up when there are no other instance types.
-  PRBool delayedStop = PR_TRUE;
   nsCOMPtr<nsIPluginInstance> inst;
   if (mInstanceOwner)
     mInstanceOwner->GetInstance(*getter_AddRefs(inst));
   if (inst) {
-    PRBool doCache = PR_TRUE;
-    inst->GetValue(nsPluginInstanceVariable_DoCacheBool, (void *)&doCache);
-    if (!doCache) {
-      PRBool doCallSetWindowAfterDestroy = PR_FALSE;
-      inst->GetValue(nsPluginInstanceVariable_CallSetWindowAfterDestroyBool, 
-                     (void *)&doCallSetWindowAfterDestroy);
-      if (doCallSetWindowAfterDestroy) {
-        // Because DoStopPlugin ignores its 'aDelayedStop' arg in this case.
-        delayedStop = PR_FALSE;
-      }
-    }
+    // Delayed stop for Real plugin only; see bug 420886, 426852.
+    const char* pluginType = ::GetMIMEType(inst);
+    delayedStop = strcmp(pluginType, "audio/x-pn-realaudio-plugin") == 0;
   }
-  StopPluginInternal(delayedStop);
-#else
-  StopPluginInternal(PR_FALSE);
 #endif
+  StopPluginInternal(delayedStop);
 }
 
 void
@@ -1894,6 +1929,11 @@ nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
   // get reinstantiated we'll send the right messages to the plug-in.
   mWindowlessRect.Empty();
 
+  PRBool oldVal = mPreventInstantiation;
+  mPreventInstantiation = PR_TRUE;
+
+  nsWeakFrame weakFrame(this);
+
 #ifdef XP_WIN
   if (aDelayedStop) {
     // If we're asked to do a delayed stop it means we're stopping the
@@ -1914,6 +1954,14 @@ nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
   owner->PrepareToStop(aDelayedStop);
 
   DoStopPlugin(owner, aDelayedStop);
+
+  // If |this| is still alive, reset mPreventInstantiation.
+  if (weakFrame.IsAlive()) {
+    NS_ASSERTION(mPreventInstantiation,
+                 "Instantiation should still be prevented!");
+
+    mPreventInstantiation = oldVal;
+  }
 
   // Break relationship between frame and plugin instance owner
   owner->SetOwner(nsnull);
@@ -1998,7 +2046,10 @@ nsPluginDOMContextMenuListener::~nsPluginDOMContextMenuListener()
 {
 }
 
-NS_IMPL_ISUPPORTS2(nsPluginDOMContextMenuListener, nsIDOMContextMenuListener, nsIEventListener)
+NS_IMPL_ISUPPORTS3(nsPluginDOMContextMenuListener,
+                   nsIDOMContextMenuListener,
+                   nsIDOMEventListener,
+                   nsIEventListener)
 
 NS_IMETHODIMP
 nsPluginDOMContextMenuListener::ContextMenu(nsIDOMEvent* aContextMenuEvent)
@@ -2353,6 +2404,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRegion(nsPluginRegion invalidRegi
 
 NS_IMETHODIMP nsPluginInstanceOwner::ForceRedraw()
 {
+  NS_ENSURE_TRUE(mOwner,NS_ERROR_NULL_POINTER);
   nsIView* view = mOwner->GetView();
   if (view) {
     return view->GetViewManager()->Composite();
@@ -3826,8 +3878,13 @@ nsPluginInstanceOwner::Destroy()
     target->RemoveEventListener(NS_LITERAL_STRING("draggesture"), listener, PR_TRUE);
   }
 
-  if (mDestroyWidget && mWidget) {
-    mWidget->Destroy();
+  if (mWidget) {
+    nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
+    if (pluginWidget)
+      pluginWidget->SetPluginInstanceOwner(nsnull);
+
+    if (mDestroyWidget)
+      mWidget->Destroy();
   }
 
   return NS_OK;
@@ -4315,7 +4372,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
                           PR_FALSE);
 
           // mPluginWindow->type is used in |GetPluginPort| so it must
-          // be initilized first
+          // be initialized first
           mPluginWindow->type = nsPluginWindowType_Window;
           mPluginWindow->window = GetPluginPort();
 
@@ -4324,6 +4381,11 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
 
           // tell the plugin window about the widget
           mPluginWindow->SetPluginWidget(mWidget);
+
+          // tell the widget about the current plugin instance owner.
+          nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
+          if (pluginWidget)
+            pluginWidget->SetPluginInstanceOwner(this);
         }
       }
     }

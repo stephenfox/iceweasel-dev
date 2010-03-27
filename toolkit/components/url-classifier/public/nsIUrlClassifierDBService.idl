@@ -57,7 +57,7 @@ interface nsIUrlClassifierCallback : nsISupports {
  * clients streaming updates to the url-classifier (usually
  * nsUrlClassifierStreamUpdater.
  */
-[scriptable, uuid(1c9bd1c2-f6fe-43a8-a2b9-48359eb4a9b1)]
+[scriptable, uuid(bbb33c65-e783-476c-8db0-6ddb91826c07)]
 interface nsIUrlClassifierUpdateObserver : nsISupports {
   /**
    * The update requested a new URL whose contents should be downloaded
@@ -83,8 +83,10 @@ interface nsIUrlClassifierUpdateObserver : nsISupports {
    * A stream update has completed.
    *
    * @param status The state of the update process.
+   * @param delay The amount of time the updater should wait to fetch the
+   *              next URL in ms.
    */
-  void streamFinished(in nsresult status);
+  void streamFinished(in nsresult status, in unsigned long delay);
 
   /* The update has encountered an error and should be cancelled */
   void updateError(in nsresult error);
@@ -103,7 +105,7 @@ interface nsIUrlClassifierUpdateObserver : nsISupports {
  * It provides async methods for querying and updating the database.  As the
  * methods complete, they call the callback function.
  */
-[scriptable, uuid(aaf2c3b2-b7cd-4368-9d46-3fe92e5f78b1)]
+[scriptable, uuid(7aae3f3a-527d-488b-a448-45dca6db0e80)]
 interface nsIUrlClassifierDBService : nsISupports
 {
   /**
@@ -162,10 +164,12 @@ interface nsIUrlClassifierDBService : nsISupports
    * is already an update in progress.
    *
    * @param updater The update observer tied to this update.
+   * @param tables A comma-separated list of tables included in this update.
    * @param clientKey The client key for calculating an update's MAC,
    *        or empty to ignore MAC.
    */
   void beginUpdate(in nsIUrlClassifierUpdateObserver updater,
+                   in ACString tables,
                    in ACString clientKey);
 
   /**
@@ -227,7 +231,7 @@ interface nsIUrlClassifierDBService : nsISupports
  * Interface for the actual worker thread.  Implementations of this need not
  * be thread aware and just work on the database.
  */
-[scriptable, uuid(76d923e5-bbde-4292-ae35-16a67d04d524)]
+[scriptable, uuid(2af84c09-269e-4fc2-b28f-af56717db118)]
 interface nsIUrlClassifierDBServiceWorker : nsIUrlClassifierDBService
 {
   // Provide a way to forcibly close the db connection.

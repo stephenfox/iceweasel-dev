@@ -84,7 +84,6 @@
 #include "nsIAccessibilityService.h"
 #endif
 #include "nsLayoutUtils.h"
-#include "nsBoxLayoutState.h"
 #include "nsDisplayList.h"
 #include "nsContentErrors.h"
 #include "nsCSSAnonBoxes.h"
@@ -806,10 +805,14 @@ CalculateContainingBlockSizeForAbsolutes(const nsHTMLReflowState& aReflowState,
     // content.
     const nsHTMLReflowState* aLastRS = &aReflowState;
     const nsHTMLReflowState* lastButOneRS = &aReflowState;
+    PRBool isCanvasBlock = PR_FALSE;
     while (aLastRS->parentReflowState &&
            aLastRS->parentReflowState->frame->GetContent() == frame->GetContent()) {
       lastButOneRS = aLastRS;
       aLastRS = aLastRS->parentReflowState;
+      if (aLastRS->frame->GetType() == nsGkAtoms::canvasFrame) {
+        isCanvasBlock = PR_TRUE;
+      }
     }
     if (aLastRS != &aReflowState) {
       // Scrollbars need to be specifically excluded, if present, because they are outside the
@@ -818,9 +821,9 @@ CalculateContainingBlockSizeForAbsolutes(const nsHTMLReflowState& aReflowState,
       CallQueryInterface(aLastRS->frame, &scrollFrame);
       nsMargin scrollbars(0,0,0,0);
       if (scrollFrame) {
-        nsBoxLayoutState dummyState(aLastRS->frame->PresContext(),
-                                    aLastRS->rendContext);
-        scrollbars = scrollFrame->GetDesiredScrollbarSizes(&dummyState);
+        scrollbars =
+          scrollFrame->GetDesiredScrollbarSizes(aLastRS->frame->PresContext(),
+                                                aLastRS->rendContext);
         if (!lastButOneRS->mFlags.mAssumingHScrollbar) {
           scrollbars.top = scrollbars.bottom = 0;
         }
@@ -830,11 +833,23 @@ CalculateContainingBlockSizeForAbsolutes(const nsHTMLReflowState& aReflowState,
       }
       // We found a reflow state for the outermost wrapping frame, so use
       // its computed metrics if available
-      if (aLastRS->ComputedWidth() != NS_UNCONSTRAINEDSIZE) {
+      // XXX grotesque hack for Firefox 2 compatibility until we can
+      // properly fix abs-pos containers! If this is the block for
+      // the root element, don't adjust the width here, just use the block's
+      // width. We have to do this because the abs-pos frame will be
+      // positioned relative to the block, not the canvas frame, and the
+      // block might have borders and margin which will throw things off
+      // if we use the canvas frame width.
+      // Positioning abs-pos frames relative to the canvas is bug 425432.
+      if (aLastRS->ComputedWidth() != NS_UNCONSTRAINEDSIZE && !isCanvasBlock) {
         cbSize.width = PR_MAX(0,
           aLastRS->ComputedWidth() + aLastRS->mComputedPadding.LeftRight() - scrollbars.LeftRight());
       }
       if (aLastRS->ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
+        // XXX This can be terribly wrong if we're the root element's block,
+        // because our margin and borders will be included in the height
+        // here but the abs-pos element(s) are positioned relative to
+        // our content rect...
         cbSize.height = PR_MAX(0,
           aLastRS->ComputedHeight() + aLastRS->mComputedPadding.TopBottom() - scrollbars.TopBottom());
       }
@@ -1755,18 +1770,17 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       line->MarkDirty();
     }
 
-    nscoord replacedWidth = 0;
+    nsIFrame *replacedBlock = nsnull;
     if (line->IsBlock() &&
         !nsBlockFrame::BlockCanIntersectFloats(line->mFirstChild)) {
-      replacedWidth =
-        nsBlockFrame::WidthToClearPastFloats(aState, line->mFirstChild);
+      replacedBlock = line->mFirstChild;
     }
 
     // We have to reflow the line if it's a block whose clearance
     // might have changed, so detect that.
     if (!line->IsDirty() &&
         (line->GetBreakTypeBefore() != NS_STYLE_CLEAR_NONE ||
-         replacedWidth != 0)) {
+         replacedBlock)) {
       nscoord curY = aState.mY;
       // See where we would be after applying any clearance due to
       // BRs.
@@ -1775,7 +1789,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       }
 
       nscoord newY =
-        aState.ClearFloats(curY, line->GetBreakTypeBefore(), replacedWidth);
+        aState.ClearFloats(curY, line->GetBreakTypeBefore(), replacedBlock);
       
       if (line->HasClearance()) {
         // Reflow the line if it might not have clearance anymore.
@@ -2779,10 +2793,10 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
   PRBool treatWithClearance = aLine->HasClearance();
 
   PRBool mightClearFloats = breakType != NS_STYLE_CLEAR_NONE;
-  nscoord replacedWidth = 0;
+  nsIFrame *replacedBlock = nsnull;
   if (!nsBlockFrame::BlockCanIntersectFloats(frame)) {
     mightClearFloats = PR_TRUE;
-    replacedWidth = nsBlockFrame::WidthToClearPastFloats(aState, frame);
+    replacedBlock = frame;
   }
 
   // If our top margin was counted as part of some parents top-margin
@@ -2792,7 +2806,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
   if (!treatWithClearance && !applyTopMargin && mightClearFloats &&
       aState.mReflowState.mDiscoveredClearance) {
     nscoord curY = aState.mY + aState.mPrevBottomMargin.get();
-    nscoord clearY = aState.ClearFloats(curY, breakType, replacedWidth);
+    nscoord clearY = aState.ClearFloats(curY, breakType, replacedBlock);
     if (clearY != curY) {
       // Looks like that assumption was invalid, we do need
       // clearance. Tell our ancestor so it can reflow again. It is
@@ -2871,7 +2885,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
         // decision is only allowed to be made under the optimistic
         // first pass.
         nscoord curY = aState.mY + aState.mPrevBottomMargin.get();
-        nscoord clearY = aState.ClearFloats(curY, breakType, replacedWidth);
+        nscoord clearY = aState.ClearFloats(curY, breakType, replacedBlock);
         if (clearY != curY) {
           // Looks like we need clearance and we didn't know about it already. So
           // recompute collapsed margin
@@ -2899,7 +2913,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       if (treatWithClearance) {
         nscoord currentY = aState.mY;
         // advance mY to the clear position.
-        aState.mY = aState.ClearFloats(aState.mY, breakType, replacedWidth);
+        aState.mY = aState.ClearFloats(aState.mY, breakType, replacedBlock);
         
         // Compute clearance. It's the amount we need to add to the top
         // border-edge of the frame, after applying collapsed margins
@@ -2930,7 +2944,8 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
     PRBool isImpacted = aState.IsImpactedByFloat() ? PR_TRUE : PR_FALSE;
     aLine->SetLineIsImpactedByFloat(isImpacted);
     nsRect availSpace;
-    aState.ComputeBlockAvailSpace(frame, display, availSpace);
+    aState.ComputeBlockAvailSpace(frame, display, replacedBlock != nsnull,
+                                  availSpace);
     
     // Now put the Y coordinate back to the top of the top-margin +
     // clearance, and flow the block.
@@ -2941,7 +2956,6 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
     }
     
     // Reflow the block into the available space
-    nsMargin computedOffsets;
     // construct the html reflow state for the block. ReflowBlock 
     // will initialize it
     nsHTMLReflowState blockHtmlRS(aState.mPresContext, aState.mReflowState, frame, 
@@ -2958,7 +2972,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
     
     nsReflowStatus frameReflowStatus = NS_FRAME_COMPLETE;
     rv = brc.ReflowBlock(availSpace, applyTopMargin, aState.mPrevBottomMargin,
-                         clearance, aState.IsAdjacentWithTop(), computedOffsets,
+                         clearance, aState.IsAdjacentWithTop(),
                          aLine.get(), blockHtmlRS, frameReflowStatus, aState);
 
     // If this was a second-pass reflow and the block's vertical position
@@ -3004,7 +3018,7 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       nsCollapsingMargin collapsedBottomMargin;
       nsRect combinedArea(0,0,0,0);
       *aKeepReflowGoing = brc.PlaceBlock(blockHtmlRS, forceFit, aLine.get(),
-                                         computedOffsets, collapsedBottomMargin,
+                                         collapsedBottomMargin,
                                          aLine->mBounds, combinedArea, frameReflowStatus);
       if (aLine->SetCarriedOutBottomMargin(collapsedBottomMargin)) {
         line_iterator nextLine = aLine;
@@ -3642,30 +3656,19 @@ nsBlockFrame::ReflowInlineFrame(nsBlockReflowState& aState,
         }
       }
       aLine->SetBreakTypeAfter(breakType);
-      if (NS_FRAME_IS_NOT_COMPLETE(frameReflowStatus)) {
-        // Create a continuation for the incomplete frame. Note that the
-        // frame may already have a continuation.
-        PRBool madeContinuation;
-        rv = CreateContinuationFor(aState, aLine, aFrame, madeContinuation);
+      if (NS_FRAME_IS_COMPLETE(frameReflowStatus)) {
+        // Split line, but after the frame just reflowed
+        rv = SplitLine(aState, aLineLayout, aLine, aFrame->GetNextSibling(), aLineReflowStatus);
         NS_ENSURE_SUCCESS(rv, rv);
-        if (!aLineLayout.GetLineEndsInBR()) {
-          // Remember that the line has wrapped
-          aLine->SetLineWrapped(PR_TRUE);
-        }
-      }
 
-      // Split line, but after the frame just reflowed
-      rv = SplitLine(aState, aLineLayout, aLine, aFrame->GetNextSibling(), aLineReflowStatus);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      if (NS_FRAME_IS_NOT_COMPLETE(frameReflowStatus) ||
-          (NS_INLINE_IS_BREAK_AFTER(frameReflowStatus) &&
-           !aLineLayout.GetLineEndsInBR())) {
-        // Mark next line dirty in case SplitLine didn't end up
-        // pushing any frames.
-        nsLineList_iterator next = aLine.next();
-        if (next != end_lines() && !next->IsBlock()) {
-          next->MarkDirty();
+        if (NS_INLINE_IS_BREAK_AFTER(frameReflowStatus) &&
+            !aLineLayout.GetLineEndsInBR()) {
+          // Mark next line dirty in case SplitLine didn't end up
+          // pushing any frames.
+          nsLineList_iterator next = aLine.next();
+          if (next != end_lines() && !next->IsBlock()) {
+            next->MarkDirty();
+          }
         }
       }
     }
@@ -3675,14 +3678,13 @@ nsBlockFrame::ReflowInlineFrame(nsBlockReflowState& aState,
     // if the frame is a placeholder and was complete but truncated (and not at the top
     // of page), the entire line will be pushed to give it another chance to not truncate.
     *aLineReflowStatus = LINE_REFLOW_TRUNCATED;
-  }  
-  else if (NS_FRAME_IS_NOT_COMPLETE(frameReflowStatus)) {
-    // Frame is not-complete, no special breaking status
+  }
 
-    nsIAtom* frameType = aFrame->GetType();
-
+  if (NS_FRAME_IS_NOT_COMPLETE(frameReflowStatus)) {
     // Create a continuation for the incomplete frame. Note that the
     // frame may already have a continuation.
+    nsIAtom* frameType = aFrame->GetType();
+
     PRBool madeContinuation;
     rv = (nsGkAtoms::placeholderFrame == frameType)
          ? SplitPlaceholder(aState, aFrame)
@@ -3984,16 +3986,6 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
   // might have moved frames around!
   nsRect combinedArea;
   aLineLayout.RelativePositionFrames(combinedArea);  // XXXldb This returned width as -15, 2001-06-12, Bugzilla
-  if (aState.mPresContext->CompatibilityMode() != eCompatibility_NavQuirks) {
-    PRUint8 decorations;
-    nscolor underColor, overColor, strikeColor;
-    GetTextDecorations(aState.mPresContext, PR_TRUE, decorations,
-                       underColor, overColor, strikeColor);
-    if (decorations) {
-      nsLineLayout::CombineTextDecorations(aState.mPresContext, decorations,
-                                           this, combinedArea);
-    }
-  }
   aLine->SetCombinedArea(combinedArea);
   if (addedBullet) {
     aLineLayout.RemoveBulletFrame(mBullet);
@@ -5167,10 +5159,16 @@ nsBlockInFlowLineIterator::nsBlockInFlowLineIterator(nsBlockFrame* aFrame,
   } while (Next());
 }
 
+nsBlockFrame::line_iterator
+nsBlockInFlowLineIterator::End()
+{
+  return mInOverflowLines ? mInOverflowLines->end() : mFrame->end_lines();
+}
+
 PRBool
 nsBlockInFlowLineIterator::IsLastLineInList()
 {
-  line_iterator end = mInOverflowLines ? mInOverflowLines->end() : mFrame->end_lines();
+  line_iterator end = End();
   return mLine != end && mLine.next() == end;
 }
 
@@ -5696,11 +5694,9 @@ nsBlockFrame::ReflowFloat(nsBlockReflowState& aState,
       }
     }
 
-    nsMargin offsets; // Don't bother returning this to the caller; it's stored
-                      // on a frame property anyawy
     rv = brc.ReflowBlock(availSpace, PR_TRUE, margin,
                          0, isAdjacentWithTop,
-                         offsets, nsnull, floatRS,
+                         nsnull, floatRS,
                          aReflowStatus, aState);
   } while (NS_SUCCEEDED(rv) && clearanceFrame);
 
@@ -5920,8 +5916,6 @@ nsBlockFrame::PaintTextDecorationLine(nsIRenderingContext& aRenderingContext,
       
   // Only paint if we have a positive width
   if (width > 0) {
-    const nsStyleVisibility* visibility = GetStyleVisibility();
-    PRBool isRTL = visibility->mDirection == NS_STYLE_DIRECTION_RTL;
     nsRefPtr<gfxContext> ctx = aRenderingContext.ThebesContext();
     gfxPoint pt(PresContext()->AppUnitsToGfxUnits(start + aPt.x),
                 PresContext()->AppUnitsToGfxUnits(aLine->mBounds.y + aPt.y));
@@ -5929,7 +5923,7 @@ nsBlockFrame::PaintTextDecorationLine(nsIRenderingContext& aRenderingContext,
     nsCSSRendering::PaintDecorationLine(
       ctx, aColor, pt, size,
       PresContext()->AppUnitsToGfxUnits(aLine->GetAscent()),
-      aOffset, aDecoration, NS_STYLE_BORDER_STYLE_SOLID, isRTL);
+      aOffset, aDecoration, NS_STYLE_BORDER_STYLE_SOLID);
   }
 }
 
@@ -6132,7 +6126,7 @@ NS_IMETHODIMP nsBlockFrame::GetAccessible(nsIAccessible** aAccessible)
 
   nsPresContext *aPresContext = PresContext();
   if (!mBullet || !aPresContext) {
-    if (!mContent || !mContent->GetParent()) {
+    if (!mContent->GetParent()) {
       // Don't create accessible objects for the root content node, they are redundant with
       // the nsDocAccessible object created with the document node
       return NS_ERROR_FAILURE;
@@ -6595,35 +6589,18 @@ nsBlockFrame::ReflowBullet(nsBlockReflowState& aState,
   mBullet->WillReflow(aState.mPresContext);
   mBullet->Reflow(aState.mPresContext, aMetrics, reflowState, status);
 
-  // Place the bullet now.  We want to place the bullet relative to the
-  // border-box of the associated box (using the right/left margin of
-  // the bullet frame as separation).  However, if a line box would be
-  // displaced by floats, we want to displace it by the same amount.
-  // That is, we act as though the edge of the floats is the
-  // content-edge of the block, and place the bullet at a position
-  // offset from there by the block's padding, the block's border, and
-  // the bullet frame's margin.
-  // FIXME (bug 25888): need to check the entire region that the first
-  // line overlaps, not just the top pixel.
-  nscoord x;
-  aState.GetAvailableSpace(aLineTop, PR_FALSE);
-  if (rs.mStyleVisibility->mDirection == NS_STYLE_DIRECTION_LTR) {
-    // Note: mAvailSpaceRect.x is relative to the content box and never
-    // less than zero.  Converting to frame coordinates and subtracting
-    // the padding and border cancel each other out, and the PR_MAX()
-    // with 0 (or with the left border+padding) is even implied in the
-    // right place.
-    x = aState.mAvailSpaceRect.x
-        - reflowState.mComputedMargin.right - aMetrics.width;
-  } else {
-    // The XMost() of the available space and the computed width both
-    // give us offsets from the left content edge.  Then we add the left
-    // border/padding to get into frame coordinates, and the right
-    // border/padding and the bullet's margin to offset the position.
-    x = PR_MIN(rs.ComputedWidth(), aState.mAvailSpaceRect.XMost())
-        + rs.mComputedBorderPadding.LeftRight()
-        + reflowState.mComputedMargin.left;
-  }
+  // Place the bullet now, separate it from mOutsideBulletX by its margin.
+  // If the mAvailSpaceRect position is outside the mOutsideBulletX
+  // position it means the line didn't care about the float edge and we
+  // use that position instead (there cannot be any floats at the start
+  // of the line this case since that would violate CSS 2.1 float rules).
+  // XXX we need to take floats inside the principal block that clears
+  // outside floats into account also (bug 428810).
+  nscoord x = rs.mStyleVisibility->mDirection == NS_STYLE_DIRECTION_LTR ?
+    PR_MIN(aState.mOutsideBulletX, aState.mAvailSpaceRect.x)
+      - reflowState.mComputedMargin.right - aMetrics.width :
+    PR_MAX(aState.mOutsideBulletX, aState.mAvailSpaceRect.XMost())
+      + reflowState.mComputedMargin.left;
 
   // FIXME: come up with rules for when mAvailSpaceRect is valid so we
   // don't need to do this.
@@ -6787,57 +6764,108 @@ nsBlockFrame::BlockCanIntersectFloats(nsIFrame* aFrame)
          !(aFrame->GetStateBits() & NS_BLOCK_SPACE_MGR);
 }
 
-static nscoord
-OneWidthToClearPastFloats(nsPresContext* aPresContext,
-                          const nsHTMLReflowState& aParentReflowState,
-                          nscoord aCBWidth,
-                          nsIFrame* aFrame)
-{
-  // We need to compute percent widths, since intrinsic width
-  // computation doesn't.
-  if (aFrame->GetStylePosition()->mWidth.GetUnit() == eStyleUnit_Percent) {
-    // All we really need here is the result of ComputeSize, and we
-    // could *almost* get that from an nsCSSOffsetState, except for the
-    // last argument.
-    nsSize availSpace(aCBWidth, NS_UNCONSTRAINEDSIZE);
-    nsHTMLReflowState reflowState(aPresContext, aParentReflowState,
-                                  aFrame, availSpace);
-    return reflowState.ComputedWidth();
-  }
-
-  return nsLayoutUtils::IntrinsicForContainer(aParentReflowState.rendContext,
-                                              aFrame,
-                                              nsLayoutUtils::MIN_WIDTH);
-}
-
+// Note that this width can vary based on the vertical position.
+// However, the cases where it varies are the cases where the width fits
+// in the available space given, which means that variation shouldn't
+// matter.
 /* static */
-nscoord
+nsBlockFrame::ReplacedElementWidthToClear
 nsBlockFrame::WidthToClearPastFloats(nsBlockReflowState& aState,
                                      nsIFrame* aFrame)
 {
-  nscoord result;
+  nscoord leftOffset, rightOffset;
+  nsCSSOffsetState offsetState(aFrame, aState.mReflowState.rendContext,
+                               aState.mContentArea.width);
+
+  ReplacedElementWidthToClear result;
   // A table outer frame is an exception in that it is a block child
   // that is not a containing block for its children.
   if (aFrame->GetType() == nsGkAtoms::tableOuterFrame) {
-    nsSize availSpace(aState.mContentArea.width, NS_UNCONSTRAINEDSIZE);
-    nsHTMLReflowState outerRS(aState.mPresContext, aState.mReflowState,
-                              aFrame, availSpace);
     nsIFrame *innerTable = aFrame->GetFirstChild(nsnull);
     nsIFrame *caption = aFrame->GetFirstChild(nsGkAtoms::captionList);
-    result = OneWidthToClearPastFloats(aState.mPresContext, outerRS,
-                                       aState.mContentArea.width, innerTable);
-    if (caption) {
-      nscoord captionWidth = OneWidthToClearPastFloats(aState.mPresContext,
-                               outerRS, aState.mContentArea.width, caption);
-      PRUint8 captionSide = caption->GetStyleTableBorder()->mCaptionSide;
-      if (captionSide == NS_SIDE_TOP || captionSide == NS_SIDE_BOTTOM)
-        result = PR_MAX(result, captionWidth);
-      else
-        result += captionWidth;
+
+    nsMargin tableMargin, captionMargin;
+    {
+      nsCSSOffsetState tableOS(innerTable, aState.mReflowState.rendContext,
+                               aState.mContentArea.width);
+      tableMargin = tableOS.mComputedMargin;
     }
+
+    if (caption) {
+      nsCSSOffsetState captionOS(caption, aState.mReflowState.rendContext,
+                                 aState.mContentArea.width);
+      captionMargin = captionOS.mComputedMargin;
+    }
+
+    PRUint8 captionSide;
+    if (!caption ||
+        ((captionSide = caption->GetStyleTableBorder()->mCaptionSide)
+           == NS_STYLE_CAPTION_SIDE_TOP ||
+         captionSide == NS_STYLE_CAPTION_SIDE_BOTTOM)) {
+      result.marginLeft = tableMargin.left;
+      result.marginRight = tableMargin.right;
+    } else if (captionSide == NS_STYLE_CAPTION_SIDE_TOP_OUTSIDE ||
+               captionSide == NS_STYLE_CAPTION_SIDE_BOTTOM_OUTSIDE) {
+      // FIXME:  This doesn't treat the caption and table independently,
+      // since we adjust by only the smaller margin, and the table outer
+      // frame doesn't know about it.
+      result.marginLeft  = PR_MIN(tableMargin.left,  captionMargin.left);
+      result.marginRight = PR_MIN(tableMargin.right, captionMargin.right);
+    } else {
+      NS_ASSERTION(captionSide == NS_STYLE_CAPTION_SIDE_LEFT ||
+                   captionSide == NS_STYLE_CAPTION_SIDE_RIGHT,
+                   "unexpected caption-side");
+      if (captionSide == NS_STYLE_CAPTION_SIDE_LEFT) {
+        result.marginLeft = captionMargin.left;
+        result.marginRight = tableMargin.right;
+      } else {
+        result.marginLeft = tableMargin.left;
+        result.marginRight = captionMargin.right;
+      }
+    }
+
+    aState.ComputeReplacedBlockOffsetsForFloats(aFrame, leftOffset, rightOffset,
+                                                &result);
+
+    // result.marginLeft has already been subtracted from leftOffset (etc.)
+    nscoord availWidth = aState.mContentArea.width - leftOffset - rightOffset;
+    // Force the outer frame to shrink-wrap (otherwise it just sizes to
+    // the available width unconditionally).
+    result.borderBoxWidth =
+      aFrame->ComputeSize(aState.mReflowState.rendContext,
+                          nsSize(aState.mContentArea.width,
+                                 NS_UNCONSTRAINEDSIZE),
+                          availWidth,
+                          nsSize(offsetState.mComputedMargin.LeftRight(),
+                                 offsetState.mComputedMargin.TopBottom()),
+                          nsSize(offsetState.mComputedBorderPadding.LeftRight() -
+                                   offsetState.mComputedPadding.LeftRight(),
+                                 offsetState.mComputedBorderPadding.TopBottom() -
+                                   offsetState.mComputedPadding.TopBottom()),
+                          nsSize(offsetState.mComputedPadding.LeftRight(),
+                                 offsetState.mComputedPadding.TopBottom()),
+                          PR_TRUE).width +
+      offsetState.mComputedBorderPadding.LeftRight() -
+      (result.marginLeft + result.marginRight);
   } else {
-    result = OneWidthToClearPastFloats(aState.mPresContext,
-               aState.mReflowState, aState.mContentArea.width, aFrame);
+    aState.ComputeReplacedBlockOffsetsForFloats(aFrame, leftOffset, rightOffset);
+    nscoord availWidth = aState.mContentArea.width - leftOffset - rightOffset;
+
+    // We actually don't want the min width here; see bug 427782; we only
+    // want to displace if the width won't compute to a value small enough
+    // to fit.
+    // All we really need here is the result of ComputeSize, and we
+    // could *almost* get that from an nsCSSOffsetState, except for the
+    // last argument.
+    nsSize availSpace(availWidth, NS_UNCONSTRAINEDSIZE);
+    nsHTMLReflowState reflowState(aState.mPresContext, aState.mReflowState,
+                                  aFrame, availSpace);
+    result.borderBoxWidth = reflowState.ComputedWidth() +
+                            reflowState.mComputedBorderPadding.LeftRight();
+    // Use the margins from offsetState rather than reflowState so that
+    // they aren't reduced by ignoring margins in overconstrained cases.
+    result.marginLeft  = offsetState.mComputedMargin.left;
+    result.marginRight = offsetState.mComputedMargin.right;
   }
   return result;
 }

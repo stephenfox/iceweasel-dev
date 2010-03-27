@@ -127,10 +127,12 @@
             return;
           }
 
-          var containerStart = this._scrollbox.boxObject.screenX;
-          var containerEnd = containerStart + this._scrollbox.boxObject.width;
-          var elementStart = element.boxObject.screenX;
-          var elementEnd = elementStart + element.boxObject.width;
+          var rect = this._scrollbox.getBoundingClientRect();
+          var containerStart = rect.left;
+          var containerEnd = rect.right;
+          rect = element.getBoundingClientRect();
+          var elementStart = rect.left;
+          var elementEnd = rect.right;
           var amountToScroll;
 
           if (elementStart < containerStart) {
@@ -169,8 +171,18 @@
             round = Math.ceil;
           }
 
-          function processFrame(self, scrollAmounts) {
-            self.scrollBoxObject.scrollBy(scrollAmounts.shift(), 0);
+          const FRAME_LENGTH = 60;
+
+          function processFrame(self, scrollAmounts, off) {
+            var distance = scrollAmounts.shift();
+
+            // Skip frames if we aren't getting the desired frame rate.
+            if (off > 0) {
+              for (var i = Math.round(off / FRAME_LENGTH); i > 0; i--)
+                distance += scrollAmounts.shift() || 0;
+            }
+
+            self.scrollBoxObject.scrollBy(distance, 0);
             if (!scrollAmounts.length)
               self._stopSmoothScroll();
           }
@@ -180,7 +192,7 @@
           var scrollAmount, scrollAmounts = [];
           if (amountToScroll > 2 || amountToScroll < -2) {
             scrollAmount = round(amountToScroll * 0.2);
-            scrollAmounts.push (scrollAmount, scrollAmount, scrollAmount);
+            scrollAmounts.push(scrollAmount, scrollAmount, scrollAmount);
             amountToScroll -= 3 * scrollAmount;
           }
           while (this._isScrolling < 0 && amountToScroll < 0 ||
@@ -188,8 +200,8 @@
             amountToScroll -= (scrollAmount = round(amountToScroll * 0.5));
             scrollAmounts.push(scrollAmount);
           }
-          this._smoothScrollTimer = setInterval(processFrame, 60, this, scrollAmounts);
-          processFrame(this, scrollAmounts);
+          this._smoothScrollTimer = setInterval(processFrame, FRAME_LENGTH, this, scrollAmounts);
+          processFrame(this, scrollAmounts, 0);
         ]]></body>
       </method>
 
@@ -203,13 +215,12 @@
             return;
           }
 
-          var scrollBox = this.scrollBoxObject;
-          var edge = scrollBox.screenX;
+          var x;
           if (index > 0)
-            edge += scrollBox.width;
+            x = this._scrollbox.getBoundingClientRect().right + 1;
           else
-            edge--;
-          var nextElement = this._elementFromPoint(edge);
+            x = this._scrollbox.getBoundingClientRect().left - 1;
+          var nextElement = this._elementFromPoint(x);
           if (!nextElement)
             return;
 
@@ -248,11 +259,10 @@
           while (low <= high) {
             var mid = Math.floor((low + high) / 2);
             var element = elements[mid];
-            var bO = element.boxObject;
-            var x = bO.screenX;
-            if (x > aX)
+            var rect = element.getBoundingClientRect();
+            if (rect.left > aX)
               high = mid - 1; 
-            else if (x + bO.width < aX)
+            else if (rect.right < aX)
               low = mid + 1;
             else
               return element;
@@ -577,13 +587,13 @@
           if (aEvent.detail == 2) {
             // scroll by the width of the scrollbox; make sure that the next
             // partly-hidden element will become fully visible.
-            var scrollBox = this.scrollBoxObject;
-            var edge = scrollBox.screenX;
+            var rect = this._scrollbox.getBoundingClientRect();
+            var x;
             if (scrollLeft)
-              edge -= scrollBox.width;
+              x = rect.left - (rect.right - rect.left);
             else
-              edge += scrollBox.width * 2;
-            targetElement = this._elementFromPoint(edge);
+              x = rect.right + (rect.right - rect.left);
+            targetElement = this._elementFromPoint(x);
 
             if (targetElement)
               targetElement = scrollLeft ?
