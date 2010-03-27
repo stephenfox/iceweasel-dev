@@ -42,15 +42,15 @@
 
 #define XPCOM_DEPENDENT_LIBS_LIST "dependentlibs.list"
 
-NS_EXPORT_(GetFrozenFunctionsFunc)
+NS_HIDDEN_(GetFrozenFunctionsFunc)
 XPCOMGlueLoad(const char *xpcomFile);
 
-NS_EXPORT_(void)
+NS_HIDDEN_(void)
 XPCOMGlueUnload();
 
 typedef void (*DependentLibsCallback)(const char *aDependentLib);
 
-NS_EXPORT_(void)
+NS_HIDDEN_(void)
 XPCOMGlueLoadDependentLibs(const char *xpcomDir, DependentLibsCallback cb);
 
 #endif // nsGlueLinking_h__
