@@ -52,7 +52,7 @@
  * @see NS_ProxyRelease(nsIEventTarget*, nsISupports*, PRBool)
  */
 template <class T>
-inline NS_HIDDEN_(nsresult)
+inline NS_GLUE(nsresult)
 NS_ProxyRelease
     (nsIEventTarget *target, nsCOMPtr<T> &doomed, PRBool alwaysProxy=PR_FALSE)
 {
