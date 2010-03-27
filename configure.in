@@ -949,7 +949,7 @@ MOZ_FIX_LINK_PATHS='-Wl,-rpath-link,$(LIBXUL_DIST)/bin'
 XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/bin -lxpcom'
 LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) -lxul'
 XPCOM_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) $(XPCOM_FROZEN_LDOPTS)'
-XPCOM_STANDALONE_GLUE_LDOPTS='$(call EXPAND_LIBNAME_PATH,xpcomglue,$(LIBXUL_DIST)/lib)'
+XPCOM_STANDALONE_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX)'
 
 MOZ_COMPONENT_NSPR_LIBS='-L$(LIBXUL_DIST)/bin $(NSPR_LIBS)'
 MOZ_XPCOM_OBSOLETE_LIBS='-L$(LIBXUL_DIST)/lib -lxpcom_compat'
@@ -2743,7 +2743,7 @@ dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
 
     AC_CACHE_CHECK(for compiler -fshort-wchar option, 
         ac_cv_have_usable_wchar_option_v2,
-        [AC_TRY_COMPILE([#include <stddef.h>
+        [AC_TRY_LINK([#include <stddef.h>
                          $configure_static_assert_macros],
                         [CONFIGURE_STATIC_ASSERT(sizeof(wchar_t) == 2);
                          CONFIGURE_STATIC_ASSERT((wchar_t)-1 > (wchar_t) 0)],
