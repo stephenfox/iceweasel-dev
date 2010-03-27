@@ -158,6 +158,11 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
     },
 
     // about redirector
+    { "about:",
+      NS_ABOUT_REDIRECTOR_MODULE_CID,
+      NS_ABOUT_MODULE_CONTRACTID_PREFIX,
+      nsAboutRedirector::Create
+    },
     { "about:config",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "config",
@@ -205,11 +210,13 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "licence",
       nsAboutRedirector::Create
     },
+#ifndef MOZ_XUL_APP
     { "about:about",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "about",
       nsAboutRedirector::Create
     },
+#endif
     { "about:neterror",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "neterror",
