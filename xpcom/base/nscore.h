@@ -294,12 +294,6 @@
 #define XPCOM_API(type) IMPORT_XPCOM_API(type)
 #endif
 
-#ifdef XPCOM_GLUE
-#define NS_GLUE(type) type
-#else
-#define NS_GLUE(type) NS_HIDDEN_(type)
-#endif
-
 #ifdef MOZ_ENABLE_LIBXUL
 #define NS_COM
 #elif defined(_IMPL_NS_COM)

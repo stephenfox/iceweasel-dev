@@ -64,22 +64,22 @@ public:
   /**
    * Returns the length, beginning, and end of a string in one operation.
    */
-  NS_GLUE(PRUint32) BeginReading(const char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginReading(const char_type **begin,
                                     const char_type **end = nsnull) const;
 
-  NS_GLUE(const char_type*) BeginReading() const;
-  NS_GLUE(const char_type*) EndReading() const;
+  NS_HIDDEN_(const char_type*) BeginReading() const;
+  NS_HIDDEN_(const char_type*) EndReading() const;
 
-  NS_GLUE(char_type) CharAt(PRUint32 aPos) const
+  NS_HIDDEN_(char_type) CharAt(PRUint32 aPos) const
   {
     NS_ASSERTION(aPos < Length(), "Out of bounds");
     return BeginReading()[aPos];
   }
-  NS_GLUE(char_type) operator [](PRUint32 aPos) const
+  NS_HIDDEN_(char_type) operator [](PRUint32 aPos) const
   {
     return CharAt(aPos);
   }
-  NS_GLUE(char_type) First() const
+  NS_HIDDEN_(char_type) First() const
   {
     return CharAt(0);
   }
@@ -92,97 +92,97 @@ public:
    *                  to leave the length unchanged.
    * @return  The new length of the string, or 0 if resizing failed.
    */
-  NS_GLUE(PRUint32) BeginWriting(char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginWriting(char_type **begin,
                                     char_type **end = nsnull,
                                     PRUint32 newSize = PR_UINT32_MAX);
 
-  NS_GLUE(char_type*) BeginWriting(PRUint32 = PR_UINT32_MAX);
-  NS_GLUE(char_type*) EndWriting();
+  NS_HIDDEN_(char_type*) BeginWriting(PRUint32 = PR_UINT32_MAX);
+  NS_HIDDEN_(char_type*) EndWriting();
 
-  NS_GLUE(PRBool) SetLength(PRUint32 aLen);
+  NS_HIDDEN_(PRBool) SetLength(PRUint32 aLen);
 
-  NS_GLUE(size_type) Length() const
+  NS_HIDDEN_(size_type) Length() const
   {
     const char_type* data;
     return NS_StringGetData(*this, &data);
   }
 
-  NS_GLUE(PRBool) IsEmpty() const
+  NS_HIDDEN_(PRBool) IsEmpty() const
   {
     return Length() == 0;
   }
 
-  NS_GLUE(void) SetIsVoid(PRBool val)
+  NS_HIDDEN_(void) SetIsVoid(PRBool val)
   {
     NS_StringSetIsVoid(*this, val);
   }
-  NS_GLUE(PRBool) IsVoid() const
+  NS_HIDDEN_(PRBool) IsVoid() const
   {
     return NS_StringGetIsVoid(*this);
   }
 
-  NS_GLUE(void) Assign(const self_type& aString)
+  NS_HIDDEN_(void) Assign(const self_type& aString)
   {
     NS_StringCopy(*this, aString);
   }
-  NS_GLUE(void) Assign(const char_type* aData, size_type aLength = PR_UINT32_MAX)
+  NS_HIDDEN_(void) Assign(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_StringSetData(*this, aData, aLength);
   }
-  NS_GLUE(void) Assign(char_type aChar)
+  NS_HIDDEN_(void) Assign(char_type aChar)
   {
     NS_StringSetData(*this, &aChar, 1);
   }
 
-  NS_GLUE(void) AssignLiteral(const char *aStr);
+  NS_HIDDEN_(void) AssignLiteral(const char *aStr);
 
-  NS_GLUE(self_type&) operator=(const self_type& aString) { Assign(aString);   return *this; }
-  NS_GLUE(self_type&) operator=(const char_type* aPtr)    { Assign(aPtr);      return *this; }
-  NS_GLUE(self_type&) operator=(char_type aChar)          { Assign(aChar);     return *this; }
+  NS_HIDDEN_(self_type&) operator=(const self_type& aString) { Assign(aString);   return *this; }
+  NS_HIDDEN_(self_type&) operator=(const char_type* aPtr)    { Assign(aPtr);      return *this; }
+  NS_HIDDEN_(self_type&) operator=(char_type aChar)          { Assign(aChar);     return *this; }
 
-  NS_GLUE(void) Replace( index_type cutStart, size_type cutLength, const char_type* data, size_type length = size_type(-1) )
+  NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, const char_type* data, size_type length = size_type(-1) )
   {
     NS_StringSetDataRange(*this, cutStart, cutLength, data, length);
   }
-  NS_GLUE(void) Replace( index_type cutStart, size_type cutLength, char_type c )
+  NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, char_type c )
   {
     Replace(cutStart, cutLength, &c, 1);
   }
-  NS_GLUE(void) Replace( index_type cutStart, size_type cutLength, const self_type& readable )
+  NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, const self_type& readable )
   {
     const char_type* data;
     PRUint32 dataLen = NS_StringGetData(readable, &data);
     NS_StringSetDataRange(*this, cutStart, cutLength, data, dataLen);
   }
 
-  NS_GLUE(void) Append( char_type c )                                                              { Replace(size_type(-1), 0, c); }
-  NS_GLUE(void) Append( const char_type* data, size_type length = size_type(-1) )                  { Replace(size_type(-1), 0, data, length); }
-  NS_GLUE(void) Append( const self_type& readable )                                                { Replace(size_type(-1), 0, readable); }
-  NS_GLUE(void) AppendLiteral( const char *aASCIIStr );
+  NS_HIDDEN_(void) Append( char_type c )                                                              { Replace(size_type(-1), 0, c); }
+  NS_HIDDEN_(void) Append( const char_type* data, size_type length = size_type(-1) )                  { Replace(size_type(-1), 0, data, length); }
+  NS_HIDDEN_(void) Append( const self_type& readable )                                                { Replace(size_type(-1), 0, readable); }
+  NS_HIDDEN_(void) AppendLiteral( const char *aASCIIStr );
 
-  NS_GLUE(self_type&) operator+=( char_type c )                                                    { Append(c);        return *this; }
-  NS_GLUE(self_type&) operator+=( const char_type* data )                                          { Append(data);     return *this; }
-  NS_GLUE(self_type&) operator+=( const self_type& readable )                                      { Append(readable); return *this; }
+  NS_HIDDEN_(self_type&) operator+=( char_type c )                                                    { Append(c);        return *this; }
+  NS_HIDDEN_(self_type&) operator+=( const char_type* data )                                          { Append(data);     return *this; }
+  NS_HIDDEN_(self_type&) operator+=( const self_type& readable )                                      { Append(readable); return *this; }
 
-  NS_GLUE(void) Insert( char_type c, index_type pos )                                              { Replace(pos, 0, c); }
-  NS_GLUE(void) Insert( const char_type* data, index_type pos, size_type length = size_type(-1) )  { Replace(pos, 0, data, length); }
-  NS_GLUE(void) Insert( const self_type& readable, index_type pos )                                { Replace(pos, 0, readable); }
+  NS_HIDDEN_(void) Insert( char_type c, index_type pos )                                              { Replace(pos, 0, c); }
+  NS_HIDDEN_(void) Insert( const char_type* data, index_type pos, size_type length = size_type(-1) )  { Replace(pos, 0, data, length); }
+  NS_HIDDEN_(void) Insert( const self_type& readable, index_type pos )                                { Replace(pos, 0, readable); }
 
-  NS_GLUE(void) Cut( index_type cutStart, size_type cutLength )                                    { Replace(cutStart, cutLength, nsnull, 0); }
+  NS_HIDDEN_(void) Cut( index_type cutStart, size_type cutLength )                                    { Replace(cutStart, cutLength, nsnull, 0); }
 
-  NS_GLUE(void) Truncate() { SetLength(0); }
+  NS_HIDDEN_(void) Truncate() { SetLength(0); }
 
   /**
    * Remove all occurences of characters in aSet from the string.
    */
-  NS_GLUE(void) StripChars(const char *aSet);
+  NS_HIDDEN_(void) StripChars(const char *aSet);
 
   /**
    * Strip whitespace characters from the string.
    */
-  NS_GLUE(void) StripWhitespace() { StripChars(" \t\n\r"); }
+  NS_HIDDEN_(void) StripWhitespace() { StripChars(" \t\n\r"); }
 
-  NS_GLUE(void) Trim(const char *aSet, PRBool aLeading = PR_TRUE,
+  NS_HIDDEN_(void) Trim(const char *aSet, PRBool aLeading = PR_TRUE,
                         PRBool aTrailing = PR_TRUE);
 
   /**
@@ -192,89 +192,89 @@ public:
                                     const char_type *b,
                                     PRUint32 length);
 
-  static NS_GLUE(PRInt32) DefaultComparator(const char_type *a,
+  static NS_HIDDEN_(PRInt32) DefaultComparator(const char_type *a,
                                                const char_type *b,
                                                PRUint32 length);
 
-  NS_GLUE(PRInt32) Compare( const char_type *other,
+  NS_HIDDEN_(PRInt32) Compare( const char_type *other,
                                ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRInt32) Compare( const self_type &other,
+  NS_HIDDEN_(PRInt32) Compare( const self_type &other,
                                ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRBool) Equals( const char_type *other,
+  NS_HIDDEN_(PRBool) Equals( const char_type *other,
                              ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRBool) Equals( const self_type &other,
+  NS_HIDDEN_(PRBool) Equals( const self_type &other,
                              ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRBool) operator < (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator < (const self_type &other) const
   {
     return Compare(other) < 0;
   }
-  NS_GLUE(PRBool) operator < (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator < (const char_type *other) const
   {
     return Compare(other) < 0;
   }
 
-  NS_GLUE(PRBool) operator <= (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator <= (const self_type &other) const
   {
     return Compare(other) <= 0;
   }
-  NS_GLUE(PRBool) operator <= (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator <= (const char_type *other) const
   {
     return Compare(other) <= 0;
   }
 
-  NS_GLUE(PRBool) operator == (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator == (const self_type &other) const
   {
     return Equals(other);
   }
-  NS_GLUE(PRBool) operator == (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator == (const char_type *other) const
   {
     return Equals(other);
   }
 
-  NS_GLUE(PRBool) operator >= (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator >= (const self_type &other) const
   {
     return Compare(other) >= 0;
   }
-  NS_GLUE(PRBool) operator >= (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator >= (const char_type *other) const
   {
     return Compare(other) >= 0;
   }
 
-  NS_GLUE(PRBool) operator > (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator > (const self_type &other) const
   {
     return Compare(other) > 0;
   }
-  NS_GLUE(PRBool) operator > (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator > (const char_type *other) const
   {
     return Compare(other) > 0;
   }
 
-  NS_GLUE(PRBool) operator != (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator != (const self_type &other) const
   {
     return !Equals(other);
   }
-  NS_GLUE(PRBool) operator != (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator != (const char_type *other) const
   {
     return !Equals(other);
   }
 
-  NS_GLUE(PRBool) EqualsLiteral(const char *aASCIIString) const;
+  NS_HIDDEN_(PRBool) EqualsLiteral(const char *aASCIIString) const;
 
   /**
    * Case-insensitive match this string to a lowercase ASCII string.
    */
-  NS_GLUE(PRBool) LowerCaseEqualsLiteral(const char *aASCIIString) const;
+  NS_HIDDEN_(PRBool) LowerCaseEqualsLiteral(const char *aASCIIString) const;
 
   /**
    * Find the first occurence of aStr in this string.
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_GLUE(PRInt32) Find(const self_type& aStr,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr,
                            ComparatorFunc c = DefaultComparator) const
   { return Find(aStr, 0, c); }
 
@@ -283,7 +283,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_GLUE(PRInt32) Find(const self_type& aStr, PRUint32 aOffset,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr, PRUint32 aOffset,
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -291,10 +291,10 @@ public:
    *
    * @return the offset of aStr, or -1 if not found.
    */
-  NS_GLUE(PRInt32) Find(const char *aStr, PRBool aIgnoreCase = PR_FALSE) const
+  NS_HIDDEN_(PRInt32) Find(const char *aStr, PRBool aIgnoreCase = PR_FALSE) const
   { return Find(aStr, 0, aIgnoreCase); }
 
-  NS_GLUE(PRInt32) Find(const char *aStr, PRUint32 aOffset, PRBool aIgnoreCase = PR_FALSE) const;
+  NS_HIDDEN_(PRInt32) Find(const char *aStr, PRUint32 aOffset, PRBool aIgnoreCase = PR_FALSE) const;
 
   /**
    * Search for the offset of the first occurrence of a character in a
@@ -305,7 +305,7 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_GLUE(PRInt32) FindChar(char_type aChar, PRUint32 aOffset = 0) const;
+  NS_HIDDEN_(PRInt32) FindChar(char_type aChar, PRUint32 aOffset = 0) const;
 
   /**
    * Search for the offset of the last occurrence of a character in a
@@ -314,12 +314,12 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_GLUE(PRInt32) RFindChar(char_type aChar) const;
+  NS_HIDDEN_(PRInt32) RFindChar(char_type aChar) const;
 
   /**
    * Append a string representation of a number.
    */
-  NS_GLUE(void) AppendInt(int aInt, PRInt32 aRadix = 10);
+  NS_HIDDEN_(void) AppendInt(int aInt, PRInt32 aRadix = 10);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
   /**
@@ -328,7 +328,7 @@ public:
    * @param aErrorCode pointer to contain result code.
    * @param aRadix must be 10 or 16
    */
-  NS_GLUE(PRInt32) ToInteger(nsresult* aErrorCode,
+  NS_HIDDEN_(PRInt32) ToInteger(nsresult* aErrorCode,
                                 PRUint32 aRadix = 10) const;
 #endif // XPCOM_GLUE_AVOID_NSPR
 
@@ -348,22 +348,22 @@ public:
   /**
    * Returns the length, beginning, and end of a string in one operation.
    */
-  NS_GLUE(PRUint32) BeginReading(const char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginReading(const char_type **begin,
                                     const char_type **end = nsnull) const;
 
-  NS_GLUE(const char_type*) BeginReading() const;
-  NS_GLUE(const char_type*) EndReading() const;
+  NS_HIDDEN_(const char_type*) BeginReading() const;
+  NS_HIDDEN_(const char_type*) EndReading() const;
 
-  NS_GLUE(char_type) CharAt(PRUint32 aPos) const
+  NS_HIDDEN_(char_type) CharAt(PRUint32 aPos) const
   {
     NS_ASSERTION(aPos < Length(), "Out of bounds");
     return BeginReading()[aPos];
   }
-  NS_GLUE(char_type) operator [](PRUint32 aPos) const
+  NS_HIDDEN_(char_type) operator [](PRUint32 aPos) const
   {
     return CharAt(aPos);
   }
-  NS_GLUE(char_type) First() const
+  NS_HIDDEN_(char_type) First() const
   {
     return CharAt(0);
   }
@@ -376,99 +376,99 @@ public:
    *                  to leave the length unchanged.
    * @return  The new length of the string, or 0 if resizing failed.
    */
-  NS_GLUE(PRUint32) BeginWriting(char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginWriting(char_type **begin,
                                     char_type **end = nsnull,
                                     PRUint32 newSize = PR_UINT32_MAX);
 
-  NS_GLUE(char_type*) BeginWriting(PRUint32 aLen = PR_UINT32_MAX);
-  NS_GLUE(char_type*) EndWriting();
+  NS_HIDDEN_(char_type*) BeginWriting(PRUint32 aLen = PR_UINT32_MAX);
+  NS_HIDDEN_(char_type*) EndWriting();
 
-  NS_GLUE(PRBool) SetLength(PRUint32 aLen);
+  NS_HIDDEN_(PRBool) SetLength(PRUint32 aLen);
 
-  NS_GLUE(size_type) Length() const
+  NS_HIDDEN_(size_type) Length() const
   {
     const char_type* data;
     return NS_CStringGetData(*this, &data);
   }
 
-  NS_GLUE(PRBool) IsEmpty() const
+  NS_HIDDEN_(PRBool) IsEmpty() const
   {
     return Length() == 0;
   }
 
-  NS_GLUE(void) SetIsVoid(PRBool val)
+  NS_HIDDEN_(void) SetIsVoid(PRBool val)
   {
     NS_CStringSetIsVoid(*this, val);
   }
-  NS_GLUE(PRBool) IsVoid() const
+  NS_HIDDEN_(PRBool) IsVoid() const
   {
     return NS_CStringGetIsVoid(*this);
   }
 
-  NS_GLUE(void) Assign(const self_type& aString)
+  NS_HIDDEN_(void) Assign(const self_type& aString)
   {
     NS_CStringCopy(*this, aString);
   }
-  NS_GLUE(void) Assign(const char_type* aData, size_type aLength = PR_UINT32_MAX)
+  NS_HIDDEN_(void) Assign(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_CStringSetData(*this, aData, aLength);
   }
-  NS_GLUE(void) Assign(char_type aChar)
+  NS_HIDDEN_(void) Assign(char_type aChar)
   {
     NS_CStringSetData(*this, &aChar, 1);
   }
-  NS_GLUE(void) AssignLiteral(const char_type *aData)
+  NS_HIDDEN_(void) AssignLiteral(const char_type *aData)
   {
     Assign(aData);
   }
 
-  NS_GLUE(self_type&) operator=(const self_type& aString) { Assign(aString);   return *this; }
-  NS_GLUE(self_type&) operator=(const char_type* aPtr)    { Assign(aPtr);      return *this; }
-  NS_GLUE(self_type&) operator=(char_type aChar)          { Assign(aChar);     return *this; }
+  NS_HIDDEN_(self_type&) operator=(const self_type& aString) { Assign(aString);   return *this; }
+  NS_HIDDEN_(self_type&) operator=(const char_type* aPtr)    { Assign(aPtr);      return *this; }
+  NS_HIDDEN_(self_type&) operator=(char_type aChar)          { Assign(aChar);     return *this; }
 
-  NS_GLUE(void) Replace( index_type cutStart, size_type cutLength, const char_type* data, size_type length = size_type(-1) )
+  NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, const char_type* data, size_type length = size_type(-1) )
   {
     NS_CStringSetDataRange(*this, cutStart, cutLength, data, length);
   }
-  NS_GLUE(void) Replace( index_type cutStart, size_type cutLength, char_type c )
+  NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, char_type c )
   {
     Replace(cutStart, cutLength, &c, 1);
   }
-  NS_GLUE(void) Replace( index_type cutStart, size_type cutLength, const self_type& readable )
+  NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, const self_type& readable )
   {
     const char_type* data;
     PRUint32 dataLen = NS_CStringGetData(readable, &data);
     NS_CStringSetDataRange(*this, cutStart, cutLength, data, dataLen);
   }
 
-  NS_GLUE(void) Append( char_type c )                                                              { Replace(size_type(-1), 0, c); }
-  NS_GLUE(void) Append( const char_type* data, size_type length = size_type(-1) )                  { Replace(size_type(-1), 0, data, length); }
-  NS_GLUE(void) Append( const self_type& readable )                                                { Replace(size_type(-1), 0, readable); }
-  NS_GLUE(void) AppendLiteral( const char *aASCIIStr )                                             { Append(aASCIIStr); }
+  NS_HIDDEN_(void) Append( char_type c )                                                              { Replace(size_type(-1), 0, c); }
+  NS_HIDDEN_(void) Append( const char_type* data, size_type length = size_type(-1) )                  { Replace(size_type(-1), 0, data, length); }
+  NS_HIDDEN_(void) Append( const self_type& readable )                                                { Replace(size_type(-1), 0, readable); }
+  NS_HIDDEN_(void) AppendLiteral( const char *aASCIIStr )                                             { Append(aASCIIStr); }
 
-  NS_GLUE(self_type&) operator+=( char_type c )                                                    { Append(c);        return *this; }
-  NS_GLUE(self_type&) operator+=( const char_type* data )                                          { Append(data);     return *this; }
-  NS_GLUE(self_type&) operator+=( const self_type& readable )                                      { Append(readable); return *this; }
+  NS_HIDDEN_(self_type&) operator+=( char_type c )                                                    { Append(c);        return *this; }
+  NS_HIDDEN_(self_type&) operator+=( const char_type* data )                                          { Append(data);     return *this; }
+  NS_HIDDEN_(self_type&) operator+=( const self_type& readable )                                      { Append(readable); return *this; }
 
-  NS_GLUE(void) Insert( char_type c, index_type pos )                                              { Replace(pos, 0, c); }
-  NS_GLUE(void) Insert( const char_type* data, index_type pos, size_type length = size_type(-1) )  { Replace(pos, 0, data, length); }
-  NS_GLUE(void) Insert( const self_type& readable, index_type pos )                                { Replace(pos, 0, readable); }
+  NS_HIDDEN_(void) Insert( char_type c, index_type pos )                                              { Replace(pos, 0, c); }
+  NS_HIDDEN_(void) Insert( const char_type* data, index_type pos, size_type length = size_type(-1) )  { Replace(pos, 0, data, length); }
+  NS_HIDDEN_(void) Insert( const self_type& readable, index_type pos )                                { Replace(pos, 0, readable); }
 
-  NS_GLUE(void) Cut( index_type cutStart, size_type cutLength )                                    { Replace(cutStart, cutLength, nsnull, 0); }
+  NS_HIDDEN_(void) Cut( index_type cutStart, size_type cutLength )                                    { Replace(cutStart, cutLength, nsnull, 0); }
 
-  NS_GLUE(void) Truncate() { SetLength(0); }
+  NS_HIDDEN_(void) Truncate() { SetLength(0); }
 
   /**
    * Remove all occurences of characters in aSet from the string.
    */
-  NS_GLUE(void) StripChars(const char *aSet);
+  NS_HIDDEN_(void) StripChars(const char *aSet);
 
   /**
    * Strip whitespace characters from the string.
    */
-  NS_GLUE(void) StripWhitespace() { StripChars(" \t\r\n"); }
+  NS_HIDDEN_(void) StripWhitespace() { StripChars(" \t\r\n"); }
 
-  NS_GLUE(void) Trim(const char *aSet, PRBool aLeading = PR_TRUE,
+  NS_HIDDEN_(void) Trim(const char *aSet, PRBool aLeading = PR_TRUE,
                         PRBool aTrailing = PR_TRUE);
 
   /**
@@ -478,77 +478,77 @@ public:
                                     const char_type *b,
                                     PRUint32 length);
 
-  static NS_GLUE(PRInt32) DefaultComparator(const char_type *a,
+  static NS_HIDDEN_(PRInt32) DefaultComparator(const char_type *a,
                                                const char_type *b,
                                                PRUint32 length);
 
-  NS_GLUE(PRInt32) Compare( const char_type *other,
+  NS_HIDDEN_(PRInt32) Compare( const char_type *other,
                                ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRInt32) Compare( const self_type &other,
+  NS_HIDDEN_(PRInt32) Compare( const self_type &other,
                                ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRBool) Equals( const char_type *other,
+  NS_HIDDEN_(PRBool) Equals( const char_type *other,
                              ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRBool) Equals( const self_type &other,
+  NS_HIDDEN_(PRBool) Equals( const self_type &other,
                              ComparatorFunc c = DefaultComparator ) const;
 
-  NS_GLUE(PRBool) operator < (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator < (const self_type &other) const
   {
     return Compare(other) < 0;
   }
-  NS_GLUE(PRBool) operator < (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator < (const char_type *other) const
   {
     return Compare(other) < 0;
   }
 
-  NS_GLUE(PRBool) operator <= (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator <= (const self_type &other) const
   {
     return Compare(other) <= 0;
   }
-  NS_GLUE(PRBool) operator <= (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator <= (const char_type *other) const
   {
     return Compare(other) <= 0;
   }
 
-  NS_GLUE(PRBool) operator == (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator == (const self_type &other) const
   {
     return Equals(other);
   }
-  NS_GLUE(PRBool) operator == (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator == (const char_type *other) const
   {
     return Equals(other);
   }
 
-  NS_GLUE(PRBool) operator >= (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator >= (const self_type &other) const
   {
     return Compare(other) >= 0;
   }
-  NS_GLUE(PRBool) operator >= (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator >= (const char_type *other) const
   {
     return Compare(other) >= 0;
   }
 
-  NS_GLUE(PRBool) operator > (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator > (const self_type &other) const
   {
     return Compare(other) > 0;
   }
-  NS_GLUE(PRBool) operator > (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator > (const char_type *other) const
   {
     return Compare(other) > 0;
   }
 
-  NS_GLUE(PRBool) operator != (const self_type &other) const
+  NS_HIDDEN_(PRBool) operator != (const self_type &other) const
   {
     return !Equals(other);
   }
-  NS_GLUE(PRBool) operator != (const char_type *other) const
+  NS_HIDDEN_(PRBool) operator != (const char_type *other) const
   {
     return !Equals(other);
   }
 
-  NS_GLUE(PRBool) EqualsLiteral( const char_type *other ) const
+  NS_HIDDEN_(PRBool) EqualsLiteral( const char_type *other ) const
   {
     return Equals(other);
   }
@@ -558,7 +558,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_GLUE(PRInt32) Find(const self_type& aStr,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr,
                            ComparatorFunc c = DefaultComparator) const
   { return Find(aStr, 0, c); }
 
@@ -567,7 +567,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_GLUE(PRInt32) Find(const self_type& aStr, PRUint32 aOffset,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr, PRUint32 aOffset,
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -575,10 +575,10 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_GLUE(PRInt32) Find(const char_type *aStr,
+  NS_HIDDEN_(PRInt32) Find(const char_type *aStr,
                            ComparatorFunc c = DefaultComparator) const;
 
-  NS_GLUE(PRInt32) Find(const char_type *aStr, PRUint32 aLen,
+  NS_HIDDEN_(PRInt32) Find(const char_type *aStr, PRUint32 aLen,
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -590,7 +590,7 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_GLUE(PRInt32) FindChar(char_type aChar, PRUint32 aOffset = 0) const;
+  NS_HIDDEN_(PRInt32) FindChar(char_type aChar, PRUint32 aOffset = 0) const;
 
   /**
    * Search for the offset of the last occurrence of a character in a
@@ -599,12 +599,12 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_GLUE(PRInt32) RFindChar(char_type aChar) const;
+  NS_HIDDEN_(PRInt32) RFindChar(char_type aChar) const;
 
   /**
    * Append a string representation of a number.
    */
-  NS_GLUE(void) AppendInt(int aInt, PRInt32 aRadix = 10);
+  NS_HIDDEN_(void) AppendInt(int aInt, PRInt32 aRadix = 10);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
   /**
@@ -613,7 +613,7 @@ public:
    * @param aErrorCode pointer to contain result code.
    * @param aRadix must be 10 or 16
    */
-  NS_GLUE(PRInt32) ToInteger(nsresult* aErrorCode,
+  NS_HIDDEN_(PRInt32) ToInteger(nsresult* aErrorCode,
                                 PRUint32 aRadix = 10) const;
 #endif // XPCOM_GLUE_AVOID_NSPR
 
@@ -1283,7 +1283,7 @@ StringEndsWith(const nsACString& aSource, const nsACString& aSubstring,
  * Trim whitespace from the beginning and end of a string; then compress
  * remaining runs of whitespace characters to a single space.
  */
-NS_GLUE(void)
+NS_HIDDEN_(void)
 CompressWhitespace(nsAString& aString);
 
 #define EmptyCString() nsCString()
@@ -1293,22 +1293,22 @@ CompressWhitespace(nsAString& aString);
  * Convert an ASCII string to all upper/lowercase (a-z,A-Z only). As a bonus,
  * returns the string length.
  */
-NS_GLUE(PRUint32)
+NS_HIDDEN_(PRUint32)
 ToLowerCase(nsACString& aStr);
 
-NS_GLUE(PRUint32)
+NS_HIDDEN_(PRUint32)
 ToUpperCase(nsACString& aStr);
 
-NS_GLUE(PRUint32)
+NS_HIDDEN_(PRUint32)
 ToLowerCase(const nsACString& aSrc, nsACString& aDest);
 
-NS_GLUE(PRUint32)
+NS_HIDDEN_(PRUint32)
 ToUpperCase(const nsACString& aSrc, nsACString& aDest);
 
 /**
  * Comparison function for use with nsACString::Equals
  */
-NS_GLUE(PRInt32)
+NS_HIDDEN_(PRInt32)
 CaseInsensitiveCompare(const char *a, const char *b,
                        PRUint32 length);
 
