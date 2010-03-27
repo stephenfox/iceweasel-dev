@@ -270,7 +270,7 @@ js_LookupLocal(JSContext *cx, JSScriptedFunction *sfun, JSAtom *atom,
  */
 extern jsuword *
 js_GetLocalNameArray(JSContext *cx, JSScriptedFunction *sfun,
-                     JSArenaPool *pool);
+                     struct JSArenaPool *pool);
 
 #define JS_LOCAL_NAME_TO_ATOM(nameWord)                                       \
     ((JSAtom *) ((nameWord) & ~(jsuword) 1))
