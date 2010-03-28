@@ -164,6 +164,8 @@ private:
                                                           nsAString& aMozillaFlags);
 
   nsresult GetHandlerAppFromPrefs(const char* aScheme, nsIFile** aApp);
+
+  int GetProtocolHandlerType(const char * aProtocolScheme);
 };
 
 #endif // nsOSHelperAppService_h__
