@@ -581,6 +581,7 @@ class nsXULAppInfo : public nsIXULAppInfo,
 #endif
 #ifdef MOZ_CRASHREPORTER
                      public nsICrashReporter,
+                     public nsICrashReporter_MOZILLA_1_9_BRANCH,
 #endif
                      public nsIXULRuntime
                      
@@ -591,6 +592,7 @@ public:
   NS_DECL_NSIXULRUNTIME
 #ifdef MOZ_CRASHREPORTER
   NS_DECL_NSICRASHREPORTER
+  NS_DECL_NSICRASHREPORTER_MOZILLA_1_9_BRANCH
 #endif
 #ifdef XP_WIN
   NS_DECL_NSIWINAPPHELPER
@@ -607,6 +609,7 @@ NS_INTERFACE_MAP_BEGIN(nsXULAppInfo)
 #endif
 #ifdef MOZ_CRASHREPORTER
   NS_INTERFACE_MAP_ENTRY(nsICrashReporter)
+  NS_INTERFACE_MAP_ENTRY(nsICrashReporter_MOZILLA_1_9_BRANCH)
 #endif
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIXULAppInfo, gAppData)
 NS_INTERFACE_MAP_END
@@ -847,6 +850,12 @@ nsXULAppInfo::AnnotateCrashReport(const nsACString& key,
 }
 
 NS_IMETHODIMP
+nsXULAppInfo::AppendAppNotesToCrashReport(const nsACString& data)
+{
+  return CrashReporter::AppendAppNotesToCrashReport(data);
+}
+
+NS_IMETHODIMP
 nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
 {
 #ifdef XP_WIN32
@@ -855,7 +864,17 @@ nsXULAppInfo::WriteMinidumpForException(void* aExceptionInfo)
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
+
+NS_IMETHODIMP
+nsXULAppInfo::AppendObjCExceptionInfoToAppNotes(void* aException)
+{
+#ifdef XP_MACOSX
+  return CrashReporter::AppendObjCExceptionInfoToAppNotes(aException);
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
 #endif
+}
+#endif // MOZ_CRASHREPORTER
 
 static const nsXULAppInfo kAppInfo;
 static NS_METHOD AppInfoConstructor(nsISupports* aOuter,

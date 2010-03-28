@@ -1200,6 +1200,9 @@ static
 #endif
 bool		malloc_init_hard(void);
 
+void		_malloc_prefork(void);
+void		_malloc_postfork(void);
+
 /*
  * End function prototypes.
  */
