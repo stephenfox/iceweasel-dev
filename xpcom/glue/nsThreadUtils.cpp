@@ -171,7 +171,6 @@ NS_ProcessPendingEvents(nsIThread *thread, PRIntervalTime timeout)
     rv = NS_GetCurrentThread(getter_AddRefs(current));
     NS_ENSURE_SUCCESS(rv, rv);
     thread = current.get();
-    NS_ENSURE_STATE(thread);
   }
 #endif
 
@@ -188,25 +187,27 @@ NS_ProcessPendingEvents(nsIThread *thread, PRIntervalTime timeout)
 }
 #endif // XPCOM_GLUE_AVOID_NSPR
 
+inline PRBool
+hasPendingEvents(nsIThread *thread)
+{
+  PRBool val;
+  return NS_SUCCEEDED(thread->HasPendingEvents(&val)) && val;
+}
+
 PRBool
 NS_HasPendingEvents(nsIThread *thread)
 {
-#ifdef MOZILLA_INTERNAL_API
   if (!thread) {
+#ifndef MOZILLA_INTERNAL_API
+    nsCOMPtr<nsIThread> current;
+    NS_GetCurrentThread(getter_AddRefs(current));
+    return hasPendingEvents(current);
+#else
     thread = NS_GetCurrentThread();
     NS_ENSURE_TRUE(thread, PR_FALSE);
-  }
-#else
-  nsCOMPtr<nsIThread> current;
-  if (!thread) {
-    NS_GetCurrentThread(getter_AddRefs(current));
-    NS_ENSURE_TRUE(current, PR_FALSE);
-    thread = current.get();
-    NS_ENSURE_TRUE(thread, PR_FALSE);
-  }
 #endif
-  PRBool val;
-  return NS_SUCCEEDED(thread->HasPendingEvents(&val)) && val;
+  }
+  return hasPendingEvents(thread);
 }
 
 PRBool
@@ -223,7 +224,6 @@ NS_ProcessNextEvent(nsIThread *thread, PRBool mayWait)
     NS_GetCurrentThread(getter_AddRefs(current));
     NS_ENSURE_TRUE(current, PR_FALSE);
     thread = current.get();
-    NS_ENSURE_TRUE(thread, PR_FALSE);
   }
 #endif
   PRBool val;
