@@ -2228,6 +2228,7 @@ NSEvent* gLastDragEvent = nil;
 {
   nsTSMManager::OnDestroyView(self);
   mGeckoChild = nsnull;
+  mWindow = nil;
   // Just in case we're destroyed abruptly and missed the draggingExited
   // or performDragOperation message.
   NS_IF_RELEASE(mDragService);
@@ -3051,6 +3052,10 @@ NSEvent* gLastDragEvent = nil;
 
   nsMouseEvent geckoEvent(PR_TRUE, NS_MOUSE_BUTTON_UP, nsnull, nsMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
+  if ([theEvent modifierFlags] & NSControlKeyMask)
+    geckoEvent.button = nsMouseEvent::eRightButton;
+  else
+    geckoEvent.button = nsMouseEvent::eLeftButton;
 
   // create native EventRecord for use by plugins
   EventRecord macEvent;
@@ -5405,6 +5410,10 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (nsTSMManager::IsComposing())
     return NO;
 
+  // Sometimes we need to return YES unconditionally. An example is when an embedder's
+  // native menus handle an event but don't change focus.
+  BOOL handledByEmbedding = NO;
+
   // Perform native menu UI feedback even if we stop the event from propagating to it normally.
   // Recall that the menu system won't actually execute any commands for keyboard command invocations.
   //
@@ -5412,10 +5421,14 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // If the action on plugins here changes the first responder, don't continue.
   NSMenu* mainMenu = [NSApp mainMenu];
   if (mIsPluginView) {
-    if ([mainMenu isKindOfClass:[GeckoNSMenu class]])
+    if ([mainMenu isKindOfClass:[GeckoNSMenu class]]) {
       [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
-    else
-      [mainMenu performKeyEquivalent:theEvent];
+    }
+    else {
+      // This is probably an embedding situation. If the native menu handle the event
+      // then return YES from pKE no matter what Gecko or the plugin does.
+      handledByEmbedding = [mainMenu performKeyEquivalent:theEvent];
+    }
     if ([[self window] firstResponder] != self)
       return YES;
   }
@@ -5437,7 +5450,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // if we reject here
   if (!keyDownNeverFiredEvent &&
       (modifierFlags & (NSFunctionKeyMask| NSNumericPadKeyMask)))
-    return NO;
+    return handledByEmbedding;
 
   // Control and option modifiers are used when changing input sources in the
   // input menu. We need to send such key events via "keyDown:", which will
@@ -5446,12 +5459,12 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // for such events.
   if (!keyDownNeverFiredEvent &&
       (modifierFlags & (NSControlKeyMask | NSAlternateKeyMask)))
-    return NO;
+    return handledByEmbedding;
 
   if ([theEvent type] == NSKeyDown) {
     // We trust the Gecko handled status for cmd key events. See bug 417466 for more info.
     if (modifierFlags & NSCommandKeyMask)
-      return [self processKeyDownEvent:theEvent keyEquiv:YES];
+      return ([self processKeyDownEvent:theEvent keyEquiv:YES] || handledByEmbedding);
     else
       [self processKeyDownEvent:theEvent keyEquiv:YES];
   }

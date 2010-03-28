@@ -1324,6 +1324,11 @@ nsLocalFile::IsExecutable(PRBool *_retval)
     NS_ENSURE_ARG_POINTER(_retval);
     struct stat buf;
 
+    if (IsDesktopFile()) {
+        *_retval = PR_TRUE;
+        return NS_OK;
+    }
+    
     *_retval = (stat(mPath.get(), &buf) == 0);
     if (*_retval || errno == EACCES) {
         *_retval = *_retval && (buf.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH ));
@@ -1374,6 +1379,11 @@ nsLocalFile::IsExecutable(PRBool *_retval)
     CHECK_mPath();
     NS_ENSURE_ARG_POINTER(_retval);
 
+    if (IsDesktopFile()) {
+        *_retval = PR_TRUE;
+        return NS_OK;
+    }
+    
     *_retval = (access(mPath.get(), X_OK) == 0);
     if (*_retval || errno == EACCES)
         return NS_OK;
@@ -1859,4 +1869,14 @@ nsLocalFile::GlobalInit()
 void
 nsLocalFile::GlobalShutdown()
 {
+}
+
+PRBool
+nsLocalFile::IsDesktopFile()
+{
+    // Just needs to be good enough to match nsFileProtocolHandler::ReadURLFile
+    nsCAutoString leafName;
+    nsresult rv = GetNativeLeafName(leafName);
+    return NS_FAILED(rv) ||
+        StringEndsWith(leafName, NS_LITERAL_CSTRING(".desktop"));
 }
