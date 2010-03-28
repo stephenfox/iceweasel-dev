@@ -101,7 +101,6 @@
       catch (ex) { /* no release notes and vendor URL for you without bug 349985 being fixed */ }
 
       ["readme.debian", "bugs"].forEach(function (name) {
-      dump(name);
         var node = document.getElementById(name);
         if (! Components.classes["@mozilla.org/network/protocol/about;1?what=" +  name]) {
           node.style.display = "none";
