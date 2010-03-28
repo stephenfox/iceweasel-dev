@@ -1255,34 +1255,28 @@ nsOSHelperAppService::GetHandlerAppFromPrefs(const char* aScheme, /*out*/ nsIFil
   return GetFileTokenForPath(utf16AppPath.get(), aApp);
 }
 
-/* Returns 0 for no handler, 1 for prefs handler and 2 for GNOME handler */
-int nsOSHelperAppService::GetProtocolHandlerType(const char * aProtocolScheme)
+nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolScheme, PRBool * aHandlerExists)
 {
+  LOG(("-- nsOSHelperAppService::OSProtocolHandlerExists for '%s'\n",
+       aProtocolScheme));
+  *aHandlerExists = PR_FALSE;
+
   nsCOMPtr<nsIFile> app;
   nsresult rv = GetHandlerAppFromPrefs(aProtocolScheme, getter_AddRefs(app));
   if (NS_SUCCEEDED(rv)) {
     PRBool isExecutable = PR_FALSE, exists = PR_FALSE;
     nsresult rv1 = app->Exists(&exists);
     nsresult rv2 = app->IsExecutable(&isExecutable);
-    if (NS_SUCCEEDED(rv1) && exists && NS_SUCCEEDED(rv2) && isExecutable)
-      return 1;
+    *aHandlerExists = (NS_SUCCEEDED(rv1) && exists && NS_SUCCEEDED(rv2) && isExecutable);
+    LOG(("   handler exists: %s\n", *aHandlerExists ? "yes" : "no"));
   }
 
 #ifdef MOZ_WIDGET_GTK2
   // Check the GConf registry for a protocol handler
-  if (nsGNOMERegistry::HandlerExists(aProtocolScheme))
-    return 2;
+  if (!*aHandlerExists)
+    *aHandlerExists = nsGNOMERegistry::HandlerExists(aProtocolScheme);
 #endif
 
-  return 0;
-}
-
-nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolScheme, PRBool * aHandlerExists)
-{
-  LOG(("-- nsOSHelperAppService::OSProtocolHandlerExists for '%s'\n",
-       aProtocolScheme));
-  *aHandlerExists = GetProtocolHandlerType(aProtocolScheme) ? PR_TRUE : PR_FALSE;
-  LOG(("   handler exists: %s\n", *aHandlerExists ? "yes" : "no"));
   return NS_OK;
 }
 
@@ -1422,7 +1416,7 @@ nsOSHelperAppService::GetFromExtension(const nsCString& aFileExt) {
   }
 
   nsCAutoString mimeType(asciiMajorType + NS_LITERAL_CSTRING("/") + asciiMinorType);
-  nsMIMEInfoImpl* mimeInfo = new nsMIMEInfoImpl(mimeType);
+  nsMIMEInfoUnix* mimeInfo = new nsMIMEInfoUnix(mimeType);
   if (!mimeInfo)
     return nsnull;
   NS_ADDREF(mimeInfo);
@@ -1587,7 +1581,7 @@ nsOSHelperAppService::GetFromType(const nsCString& aMIMEType) {
     return nsnull;
   }
   
-  nsMIMEInfoImpl* mimeInfo = new nsMIMEInfoImpl(aMIMEType);
+  nsMIMEInfoUnix* mimeInfo = new nsMIMEInfoUnix(aMIMEType);
   if (!mimeInfo)
     return nsnull;
   NS_ADDREF(mimeInfo);
@@ -1643,7 +1637,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aType,
     // If we got nothing, make a new mimeinfo
     if (!retval) {
       *aFound = PR_FALSE;
-      retval = new nsMIMEInfoImpl(aType);
+      retval = new nsMIMEInfoUnix(aType);
       if (retval) {
         NS_ADDREF(retval);
         if (!aFileExt.IsEmpty())
@@ -1671,21 +1665,19 @@ nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
   // We must check that a registered handler exists so that gnome_url_show
   // doesn't fallback to gnomevfs.
   // See nsGNOMERegistry::LoadURL and bug 389632.
-  nsMIMEInfoBase *handlerInfo;
-  int handlerType = GetProtocolHandlerType(nsPromiseFlatCString(aScheme).get());
-  if (handlerType == 2) {
-    handlerInfo = new nsMIMEInfoUnix(aScheme, nsMIMEInfoBase::eProtocolInfo);
-  } else {
-    handlerInfo = new nsMIMEInfoImpl(aScheme, nsMIMEInfoBase::eProtocolInfo);
-  }
+  nsresult rv = OSProtocolHandlerExists(nsPromiseFlatCString(aScheme).get(),
+                                        found);
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsMIMEInfoUnix *handlerInfo =
+    new nsMIMEInfoUnix(aScheme, nsMIMEInfoBase::eProtocolInfo);
   NS_ENSURE_TRUE(handlerInfo, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*_retval = handlerInfo);
-  *found = handlerType ? PR_TRUE : PR_FALSE;
 
-  if (handlerType != 1) {
+  if (!*found) {
     // Code that calls this requires an object regardless if the OS has
     // something for us, so we return the empty object.
-    // We also don't need to SetDefaultDescription for nsMIMEInfoUnix
     return NS_OK;
   }
 

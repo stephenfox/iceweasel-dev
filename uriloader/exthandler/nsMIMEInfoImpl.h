@@ -219,7 +219,7 @@ class nsMIMEInfoImpl : public nsMIMEInfoBase {
      * Loads the URI with the OS default app.  This should be overridden by each
      * OS's implementation.
      */
-    virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI) { return NS_ERROR_NOT_IMPLEMENTED; }
+    virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI) = 0;
 
     nsCOMPtr<nsIFile>      mDefaultApplication; ///< default application associated with this type.
 };
