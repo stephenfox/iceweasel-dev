@@ -1120,6 +1120,7 @@ NS_IMETHODIMP
 nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
 {
   nsresult rv;
+  nsCOMPtr<nsIJAR> antiLockZipGrip;
   nsAutoLock lock(mLock);
 
 #ifdef ZIP_CACHE_HIT_RATE
@@ -1143,9 +1144,10 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
     zip->ClearReleaseTime();
   }
   else {
-    if (zip)
+    if (zip) {
+      antiLockZipGrip = zip;
       mZips.Remove(&key);
-
+    }
     zip = new nsJAR();
     if (zip == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
