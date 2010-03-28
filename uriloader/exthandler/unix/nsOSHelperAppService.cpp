@@ -1151,7 +1151,8 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
                   rv = file->InitWithNativePath(NS_LITERAL_CSTRING("/bin/sh"));
                   if (NS_FAILED(rv))
                     continue;
-                  if (NS_FAILED(rv = process->Init(file)))
+                  rv = process->Init(file);
+                  if (NS_FAILED(rv))
                     continue;
                   const char *args[] = { "-c", testCommand.get() };
                   LOG(("Running Test: %s\n", testCommand.get()));
@@ -1160,7 +1161,9 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
                   if (NS_FAILED(rv))
                     continue;
                   PRInt32 exitValue;
-                  process->GetExitValue(&exitValue);
+                  rv = process->GetExitValue(&exitValue);
+                  if (NS_FAILED(rv))
+                    continue;
                   LOG(("Exit code: %d\n", exitValue));
                   if (exitValue) {
                     match = PR_FALSE;
