@@ -163,7 +163,7 @@ moz_run_program()
 	##
 	## Run the program
 	##
-	if [ -z "$MOZILLA_NO_JEMALLOC" ] &&
+	if [ "$MOZILLA_JEMALLOC" ] &&
 	   [ -f "$MOZILLA_FIVE_HOME/libjemalloc.so" ]; then
 		LD_PRELOAD="${LD_PRELOAD+$LD_PRELOAD:}$MOZILLA_FIVE_HOME/libjemalloc.so" "$prog" ${1+"$@"}
 	else
@@ -236,7 +236,7 @@ moz_debug_program()
             echo " '$PARAM'" | perl -pe 'chomp' >> $tmpfile
         done
         echo >> $tmpfile
-	if [ -z "$MOZILLA_NO_JEMALLOC" ] &&
+	if [ "$MOZILLA_JEMALLOC" ] &&
 	   [ -f "$MOZILLA_FIVE_HOME/libjemalloc.so" ]; then
 		echo "set env LD_PRELOAD '${LD_PRELOAD+$LD_PRELOAD:}$MOZILLA_FIVE_HOME/libjemalloc.so'" >> $tmpfile
 	fi
