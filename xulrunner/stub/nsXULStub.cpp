@@ -208,18 +208,12 @@ main(int argc, char **argv)
   // 3) give up
 
   struct stat fileStat;
-  PRBool found = PR_FALSE;
-
-  strncpy(iniPath, argv[0], sizeof(iniPath));
-  lastSlash = strrchr(iniPath, PATH_SEPARATOR_CHAR);
+  strncpy(tmpPath, argv[0], sizeof(tmpPath));
+  lastSlash = strrchr(tmpPath, '/');
   if (lastSlash) {
-    lastSlash++;
-    strncpy(lastSlash, "application.ini", sizeof(iniPath) - (lastSlash - iniPath));
-    if (stat(iniPath, &fileStat) == 0)
-      found = PR_TRUE;
-  }
-
-  if (!found && (!realpath(argv[0], iniPath) || stat(iniPath, &fileStat))) {
+    *lastSlash = 0;
+    realpath(tmpPath, iniPath);
+  } else {
     const char *path = getenv("PATH");
     if (!path)
       return 1;
@@ -228,11 +222,15 @@ main(int argc, char **argv)
     if (!pathdup)
       return 1;
 
+    PRBool found = PR_FALSE;
     char *token = strtok(pathdup, ":");
     while (token) {
       sprintf(tmpPath, "%s/%s", token, argv[0]);
-      if (realpath(tmpPath, iniPath) && stat(iniPath, &fileStat) == 0) {
+      if (stat(tmpPath, &fileStat) == 0) {
         found = PR_TRUE;
+        lastSlash = strrchr(tmpPath, '/');
+        *lastSlash = 0;
+        realpath(tmpPath, iniPath);
         break;
       }
       token = strtok(NULL, ":");
@@ -241,11 +239,15 @@ main(int argc, char **argv)
     if (!found)
       return 1;
   }
+  lastSlash = iniPath + strlen(iniPath);
+  *lastSlash = '/';
 #endif
 
+#ifndef XP_UNIX
   lastSlash = strrchr(iniPath, PATH_SEPARATOR_CHAR);
   if (!lastSlash)
     return 1;
+#endif
 
   *(++lastSlash) = '\0';
 
@@ -319,6 +321,52 @@ main(int argc, char **argv)
   }
   DosSetExtLIBPATH(tmpPath, BEGIN_LIBPATH);
 #endif
+
+  const char *env;
+  env = getenv("MOZILLA_NO_JEMALLOC");
+  if (!env || !env[0]) {
+    // Fill tmpPath with location to the jemalloc library
+    strcpy(tmpPath, greDir);
+    lastSlash = strrchr(tmpPath, PATH_SEPARATOR_CHAR);
+    if (lastSlash)
+      lastSlash++;
+    else
+      lastSlash = tmpPath;
+    *lastSlash = '\0';
+    strncpy(lastSlash, JEMALLOC_LIB, MAXPATHLEN - (lastSlash - tmpPath) - 1);
+
+    // Don't do anything if libjemalloc doesn't exist
+    struct stat st;
+    if (stat(tmpPath, &st) == 0 && S_ISREG(st.st_mode)) {
+      // Avoid infinite loop
+      setenv("MOZILLA_NO_JEMALLOC", "1", 1);
+
+      // Keep previously set LD_PRELOAD
+      char *ldpreload;
+      env = getenv("LD_PRELOAD");
+      setenv("MOZILLA_OLD_PRELOAD", env ? env : "", 1);
+      if (env && env[0]) {
+        int len = strlen(env);
+        ldpreload = (char *) malloc(len + strlen(tmpPath) + 2);
+        strcpy(ldpreload, env);
+        ldpreload[len] = ':';
+        ldpreload[len + 1] = '\0';
+      } else {
+        ldpreload = (char *) malloc(strlen(tmpPath) + 1);
+        *ldpreload = '\0';
+      }
+      // Add jemalloc to LD_PRELOAD
+      strcat(ldpreload, tmpPath);
+      setenv("LD_PRELOAD", ldpreload, 1);
+      execv(argv[0], argv);
+    }
+  }
+  // Even if execv fails we want to do this cleanup
+  env = getenv("MOZILLA_OLD_PRELOAD");
+  if (env) {
+    setenv("LD_PRELOAD", env, 1);
+    unsetenv("MOZILLA_OLD_PRELOAD");
+  }
 
   rv = XPCOMGlueStartup(greDir);
   if (NS_FAILED(rv)) {

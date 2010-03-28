@@ -125,10 +125,6 @@ ifneq (,$(filter gtk gtk2 xlib,$(MOZ_WIDGET_TOOLKIT)))
 LIBS += $(XLDFLAGS) $(XLIBS)
 endif
 
-ifdef MOZ_MEMORY
-LIBS += -ljemalloc
-endif
-
 ifdef MOZ_JPROF
 LIBS += -ljprof
 endif
