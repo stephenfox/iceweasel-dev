@@ -323,8 +323,8 @@ main(int argc, char **argv)
 #endif
 
   const char *env;
-  env = getenv("MOZILLA_NO_JEMALLOC");
-  if (!env || !env[0]) {
+  env = getenv("MOZILLA_JEMALLOC");
+  if (env && env[0]) {
     // Fill tmpPath with location to the jemalloc library
     strcpy(tmpPath, greDir);
     lastSlash = strrchr(tmpPath, PATH_SEPARATOR_CHAR);
@@ -339,7 +339,7 @@ main(int argc, char **argv)
     struct stat st;
     if (stat(tmpPath, &st) == 0 && S_ISREG(st.st_mode)) {
       // Avoid infinite loop
-      setenv("MOZILLA_NO_JEMALLOC", "1", 1);
+      unsetenv("MOZILLA_JEMALLOC");
 
       // Keep previously set LD_PRELOAD
       char *ldpreload;
