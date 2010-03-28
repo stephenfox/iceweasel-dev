@@ -171,6 +171,7 @@ NS_ProcessPendingEvents(nsIThread *thread, PRIntervalTime timeout)
     rv = NS_GetCurrentThread(getter_AddRefs(current));
     NS_ENSURE_SUCCESS(rv, rv);
     thread = current.get();
+    NS_ENSURE_STATE(thread);
   }
 #endif
 
@@ -201,6 +202,7 @@ NS_HasPendingEvents(nsIThread *thread)
     NS_GetCurrentThread(getter_AddRefs(current));
     NS_ENSURE_TRUE(current, PR_FALSE);
     thread = current.get();
+    NS_ENSURE_TRUE(thread, PR_FALSE);
   }
 #endif
   PRBool val;
@@ -221,6 +223,7 @@ NS_ProcessNextEvent(nsIThread *thread, PRBool mayWait)
     NS_GetCurrentThread(getter_AddRefs(current));
     NS_ENSURE_TRUE(current, PR_FALSE);
     thread = current.get();
+    NS_ENSURE_TRUE(thread, PR_FALSE);
   }
 #endif
   PRBool val;

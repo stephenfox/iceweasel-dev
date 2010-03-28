@@ -236,6 +236,10 @@ moz_debug_program()
             echo " '$PARAM'" | perl -pe 'chomp' >> $tmpfile
         done
         echo >> $tmpfile
+	if [ -z "$MOZILLA_NO_JEMALLOC" ] &&
+	   [ -f "$MOZILLA_FIVE_HOME/libjemalloc.so" ]; then
+		echo "set env LD_PRELOAD '${LD_PRELOAD+$LD_PRELOAD:}$MOZILLA_FIVE_HOME/libjemalloc.so'" >> $tmpfile
+	fi
 # If you are not using ddd, gdb and know of a way to convey the arguments 
 # over to the prog then add that here- Gagan Saksena 03/15/00
         case `basename $debugger` in
