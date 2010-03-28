@@ -171,7 +171,6 @@ NS_ProcessPendingEvents(nsIThread *thread, PRIntervalTime timeout)
     rv = NS_GetCurrentThread(getter_AddRefs(current));
     NS_ENSURE_SUCCESS(rv, rv);
     thread = current.get();
-    NS_ENSURE_STATE(thread);
   }
 #endif
 
