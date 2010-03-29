@@ -119,8 +119,8 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex, PRUint32* args)
         default:
             NS_ASSERTION(0, "bad type");
             break;
-        }
 #endif
+        }
     }
 
     result = self->mOuter->CallMethod((PRUint16)methodIndex, info, dispatchParams);
