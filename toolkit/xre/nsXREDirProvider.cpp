@@ -563,7 +563,8 @@ nsXREDirProvider::LoadBundleDirectories()
   if (mXULAppDir) {
     LoadPlatformDirectory(mXULAppDir, mAppBundleDirectories);
 
-    LoadAppBundleDirs();
+    LoadAppBundleDirs(mXULAppDir);
+    LoadAppBundleDirs(mGREDir);
   }
 
   if (mProfileDir && !gSafeMode) {
@@ -590,13 +591,13 @@ nsXREDirProvider::LoadBundleDirectories()
 }
 
 void
-nsXREDirProvider::LoadAppBundleDirs()
+nsXREDirProvider::LoadAppBundleDirs(nsIFile *aBaseDir)
 {
-  if (!mXULAppDir)
+  if (!aBaseDir)
     return;
 
   nsCOMPtr<nsIFile> dir;
-  nsresult rv = mXULAppDir->Clone(getter_AddRefs(dir));
+  nsresult rv = aBaseDir->Clone(getter_AddRefs(dir));
   if (NS_FAILED(rv))
     return;
 

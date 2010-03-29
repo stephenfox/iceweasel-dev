@@ -41,7 +41,7 @@
 #include "nsXPCOM.h"
 #include "nsDebug.h"
 
-nsTArray_base::Header nsTArray_base::sEmptyHdr = { 0, 0, 0, 0 };
+nsTArray_base::Header nsTArray_base::sEmptyHdr = { 0, 0, 0 };
 
 nsTArray_base::nsTArray_base()
   : mHdr(&sEmptyHdr) {
