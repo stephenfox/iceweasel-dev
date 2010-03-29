@@ -59,7 +59,8 @@
 class nsComputedDOMStyle : public nsIComputedDOMStyle
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
 
   NS_IMETHOD Init(nsIDOMElement *aElement,
                   const nsAString& aPseudoElt,
@@ -87,6 +88,10 @@ private:
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT
 
+  nsresult GetEllipseRadii(const nsStyleCorners& aRadius,
+                           PRUint8 aFullCorner,
+                           nsIDOMCSSValue** aValue);
+
   nsresult GetOffsetWidthFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
 
   nsresult GetAbsoluteOffset(PRUint8 aSide, nsIDOMCSSValue** aValue);
@@ -101,17 +106,18 @@ private:
 
   nsresult GetBorderStyleFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
 
-  nsresult GetBorderRadiusFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
-
   nsresult GetBorderWidthFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
 
   nsresult GetBorderColorFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
 
-  nsresult GetOutlineRadiusFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
-
   nsresult GetMarginWidthFor(PRUint8 aSide, nsIDOMCSSValue** aValue);
 
   PRBool GetLineHeightCoord(nscoord& aCoord);
+
+  nsresult GetCSSShadowArray(nsCSSShadowArray* aArray,
+                             const nscolor& aDefaultColor,
+                             PRBool aIsBoxShadow,
+                             nsIDOMCSSValue** aValue);
 
   /* Properties Queryable as CSSValues */
 
@@ -136,6 +142,7 @@ private:
   nsresult GetTop(nsIDOMCSSValue** aValue);
   nsresult GetRight(nsIDOMCSSValue** aValue);
   nsresult GetBottom(nsIDOMCSSValue** aValue);
+  nsresult GetStackSizing(nsIDOMCSSValue** aValue);
 
   /* Font properties */
   nsresult GetColor(nsIDOMCSSValue** aValue);
@@ -195,6 +202,13 @@ private:
   nsresult GetBorderRadiusTopLeft(nsIDOMCSSValue** aValue);
   nsresult GetBorderRadiusTopRight(nsIDOMCSSValue** aValue);
   nsresult GetFloatEdge(nsIDOMCSSValue** aValue);
+  nsresult GetBorderImage(nsIDOMCSSValue** aValue);
+
+  /* Box Shadow */
+  nsresult GetBoxShadow(nsIDOMCSSValue** aValue);
+
+  /* Window Shadow */
+  nsresult GetWindowShadow(nsIDOMCSSValue** aValue);
 
   /* Margin Properties */
   nsresult GetMarginWidth(nsIDOMCSSValue** aValue);
@@ -238,9 +252,11 @@ private:
   nsresult GetTextDecoration(nsIDOMCSSValue** aValue);
   nsresult GetTextIndent(nsIDOMCSSValue** aValue);
   nsresult GetTextTransform(nsIDOMCSSValue** aValue);
+  nsresult GetTextShadow(nsIDOMCSSValue** aValue);
   nsresult GetLetterSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWordSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWhiteSpace(nsIDOMCSSValue** aValue);
+  nsresult GetWordWrap(nsIDOMCSSValue** aValue);
 
   /* Visibility properties */
   nsresult GetOpacity(nsIDOMCSSValue** aValue);
@@ -262,6 +278,8 @@ private:
   nsresult GetOverflowY(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakAfter(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakBefore(nsIDOMCSSValue** aValue);
+  nsresult GetMozTransform(nsIDOMCSSValue** aValue);
+  nsresult GetMozTransformOrigin(nsIDOMCSSValue **aValue);
 
   /* User interface properties */
   nsresult GetCursor(nsIDOMCSSValue** aValue);
@@ -276,6 +294,9 @@ private:
   nsresult GetColumnCount(nsIDOMCSSValue** aValue);
   nsresult GetColumnWidth(nsIDOMCSSValue** aValue);
   nsresult GetColumnGap(nsIDOMCSSValue** aValue);
+  nsresult GetColumnRuleWidth(nsIDOMCSSValue** aValue);
+  nsresult GetColumnRuleStyle(nsIDOMCSSValue** aValue);
+  nsresult GetColumnRuleColor(nsIDOMCSSValue** aValue);
 
 #ifdef MOZ_SVG
   /* SVG properties */
@@ -362,6 +383,8 @@ private:
 
   PRBool GetCBContentWidth(nscoord& aWidth);
   PRBool GetCBContentHeight(nscoord& aWidth);
+  PRBool GetFrameBoundsWidthForTransform(nscoord &aWidth);
+  PRBool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   PRBool GetFrameBorderRectWidth(nscoord& aWidth);
 
   struct ComputedStyleMapEntry

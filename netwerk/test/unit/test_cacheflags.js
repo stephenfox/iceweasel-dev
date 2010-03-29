@@ -1,9 +1,11 @@
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 
 // Need to randomize, because apparently no one clears our cache
 var suffix = Math.random();
+var httpBase = "http://localhost:4444";
+var httpsBase = "http://localhost:4445";
 var shortexpPath = "/shortexp" + suffix;
 var longexpPath = "/longexp" + suffix;
 var nocachePath = "/nocache" + suffix;
@@ -66,7 +68,7 @@ Test.prototype = {
          "\n  " + this.readFromCache +
          "\n  " + this.hitServer + "\n");
     gHitServer = false;
-    var channel = make_channel("http://localhost:4444" + this.path, this.flags);
+    var channel = make_channel(this.path, this.flags);
     channel.asyncOpen(this, null);
   }
 };
@@ -74,115 +76,127 @@ Test.prototype = {
 var gHitServer = false;
 
 var gTests = [
-  new Test(shortexpPath, 0,
+  new Test(httpBase + shortexpPath, 0,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(shortexpPath, 0,
+  new Test(httpBase + shortexpPath, 0,
            true,   // expect success
            true,   // read from cache
            true),  // hit server
-  new Test(shortexpPath, Ci.nsIRequest.LOAD_BYPASS_CACHE,
+  new Test(httpBase + shortexpPath, Ci.nsIRequest.LOAD_BYPASS_CACHE,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(shortexpPath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
+  new Test(httpBase + shortexpPath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
            false,  // expect success
            false,  // read from cache
            false), // hit server
-  new Test(shortexpPath,
+  new Test(httpBase + shortexpPath,
            Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
            Ci.nsIRequest.VALIDATE_NEVER,
            true,   // expect success
            true,   // read from cache
            false), // hit server
-  new Test(shortexpPath, Ci.nsIRequest.LOAD_FROM_CACHE,
+  new Test(httpBase + shortexpPath, Ci.nsIRequest.LOAD_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
 
-  new Test(longexpPath, 0,
+  new Test(httpBase + longexpPath, 0,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(longexpPath, 0,
+  new Test(httpBase + longexpPath, 0,
            true,   // expect success
            true,   // read from cache
            false), // hit server
-  new Test(longexpPath, Ci.nsIRequest.LOAD_BYPASS_CACHE,
+  new Test(httpBase + longexpPath, Ci.nsIRequest.LOAD_BYPASS_CACHE,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(longexpPath,
+  new Test(httpBase + longexpPath,
            Ci.nsIRequest.VALIDATE_ALWAYS,
            true,   // expect success
            true,   // read from cache
            true),  // hit server
-  new Test(longexpPath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
+  new Test(httpBase + longexpPath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
-  new Test(longexpPath,
+  new Test(httpBase + longexpPath,
            Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
            Ci.nsIRequest.VALIDATE_NEVER,
            true,   // expect success
            true,   // read from cache
            false), // hit server
-  new Test(longexpPath,
+  new Test(httpBase + longexpPath,
            Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
            Ci.nsIRequest.VALIDATE_ALWAYS,
            false,  // expect success
            false,  // read from cache
            false), // hit server
-  new Test(longexpPath, Ci.nsIRequest.LOAD_FROM_CACHE,
+  new Test(httpBase + longexpPath, Ci.nsIRequest.LOAD_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
 
-  new Test(nocachePath, 0,
+  new Test(httpBase + nocachePath, 0,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(nocachePath, 0,
+  new Test(httpBase + nocachePath, 0,
            true,   // expect success
            true,   // read from cache
            true),  // hit server
-  new Test(nocachePath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
+  new Test(httpBase + nocachePath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
            false,  // expect success
            false,  // read from cache
            false), // hit server
-  new Test(nocachePath, Ci.nsIRequest.LOAD_FROM_CACHE,
+  new Test(httpBase + nocachePath, Ci.nsIRequest.LOAD_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
   // LOAD_ONLY_FROM_CACHE would normally fail (because no-cache forces
   // a validation), but VALIDATE_NEVER should override that.
-  new Test(nocachePath,
+  new Test(httpBase + nocachePath,
            Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
            Ci.nsIRequest.VALIDATE_NEVER,
            true,   // expect success
            true,   // read from cache
            false), // hit server
 
-  new Test(nostorePath, 0,
+  // ... however, no-cache over ssl should act like no-store and force
+  // a validation (and therefore failure) even if VALIDATE_NEVER is
+  // set.
+  /* XXX bug 466524: We can't currently start an ssl server in xpcshell tests,
+                     so this test is currently disabled.
+  new Test(httpsBase + nocachePath,
+           Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
+           Ci.nsIRequest.VALIDATE_NEVER,
+           false,  // expect success
+           false,  // read from cache
+           false)  // hit server
+  */
+  new Test(httpBase + nostorePath, 0,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(nostorePath, 0,
+  new Test(httpBase + nostorePath, 0,
            true,   // expect success
            false,  // read from cache
            true),  // hit server
-  new Test(nostorePath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
+  new Test(httpBase + nostorePath, Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE,
            false,  // expect success
            false,  // read from cache
            false), // hit server
-  new Test(nostorePath, Ci.nsIRequest.LOAD_FROM_CACHE,
+  new Test(httpBase + nostorePath, Ci.nsIRequest.LOAD_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
   // no-store should force the validation (and therefore failure, with
   // LOAD_ONLY_FROM_CACHE) even if VALIDATE_NEVER is set.
-  new Test(nostorePath,
+  new Test(httpBase + nostorePath,
            Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
            Ci.nsIRequest.VALIDATE_NEVER,
            false,  // expect success
@@ -193,8 +207,7 @@ var gTests = [
 function run_next_test()
 {
   if (gTests.length == 0) {
-    httpserver.stop();
-    do_test_finished();
+    httpserver.stop(do_test_finished);
     return;
   }
 

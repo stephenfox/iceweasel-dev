@@ -101,8 +101,8 @@
 
       switch (gTreeInvalidatedCount) {
         case 1:
-// XXX see bug 454647          TreeInvalidatedHandlerHelper(aEvent, 0, 5, null, null,
-//                                       "nsITreeBoxObject::rowCountChanged");
+          TreeInvalidatedHandlerHelper(aEvent, 0, 5, null, null,
+                                       "nsITreeBoxObject::rowCountChanged");
           break;
         case 2:
 // XXX see bug 454647          TreeInvalidatedHandlerHelper(aEvent, null, null, 0, 0,

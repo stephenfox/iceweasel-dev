@@ -45,12 +45,10 @@ nsAtomService::nsAtomService()
 {
 }
 
-static const PRUnichar kEmpty[] = {'\0'};
-
 nsresult
-nsAtomService::GetAtom(const PRUnichar *aString, nsIAtom ** aResult)
+nsAtomService::GetAtom(const nsAString& aString, nsIAtom ** aResult)
 {
-  *aResult = NS_NewAtom(aString ? aString : kEmpty);
+  *aResult = NS_NewAtom(aString);
 
   if (!*aResult)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -59,9 +57,9 @@ nsAtomService::GetAtom(const PRUnichar *aString, nsIAtom ** aResult)
 }
 
 nsresult
-nsAtomService::GetPermanentAtom(const PRUnichar *aString, nsIAtom ** aResult)
+nsAtomService::GetPermanentAtom(const nsAString& aString, nsIAtom ** aResult)
 {
-  *aResult = NS_NewPermanentAtom(aString ? aString : kEmpty);
+  *aResult = NS_NewPermanentAtom(aString);
 
   if (!*aResult)
     return NS_ERROR_OUT_OF_MEMORY;

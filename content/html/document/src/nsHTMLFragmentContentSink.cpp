@@ -87,7 +87,7 @@ public:
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
   // nsIContentSink
-  NS_IMETHOD WillTokenize(void) { return NS_OK; }
+  NS_IMETHOD WillParse(void) { return NS_OK; }
   NS_IMETHOD WillBuildModel(void);
   NS_IMETHOD DidBuildModel(void);
   NS_IMETHOD WillInterrupt(void);
@@ -106,7 +106,6 @@ public:
     return NS_OK;
   }
   NS_IMETHOD_(PRBool) IsFormOnStack() { return PR_FALSE; }
-  NS_IMETHOD WillProcessTokens(void) { return NS_OK; }
   NS_IMETHOD DidProcessTokens(void) { return NS_OK; }
   NS_IMETHOD WillProcessAToken(void) { return NS_OK; }
   NS_IMETHOD DidProcessAToken(void) { return NS_OK; }
@@ -420,9 +419,8 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       ToLowerCase(tmp);
 
       nsCOMPtr<nsIAtom> name = do_GetAtom(tmp);
-      result = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None,
-                                             getter_AddRefs(nodeInfo));
-      NS_ENSURE_SUCCESS(result, result);
+      nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None);
+      NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     }
     else if (mNodeInfoCache[nodeType]) {
       nodeInfo = mNodeInfoCache[nodeType];
@@ -435,9 +433,8 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       nsIAtom *name = parserService->HTMLIdToAtomTag(nodeType);
       NS_ASSERTION(name, "This should not happen!");
 
-      result = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None,
-                                             getter_AddRefs(nodeInfo));
-      NS_ENSURE_SUCCESS(result, result);
+      nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_None);
+      NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
       NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
     }
@@ -523,10 +520,9 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           ToLowerCase(tmp);
 
           nsCOMPtr<nsIAtom> name = do_GetAtom(tmp);
-          result = mNodeInfoManager->GetNodeInfo(name, nsnull,
-                                                 kNameSpaceID_None,
-                                                 getter_AddRefs(nodeInfo));
-          NS_ENSURE_SUCCESS(result, result);
+          nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull,
+                                                   kNameSpaceID_None);
+          NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
         }
         else if (mNodeInfoCache[nodeType]) {
           nodeInfo = mNodeInfoCache[nodeType];
@@ -535,10 +531,9 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           nsIAtom *name = parserService->HTMLIdToAtomTag(nodeType);
           NS_ASSERTION(name, "This should not happen!");
 
-          result = mNodeInfoManager->GetNodeInfo(name, nsnull,
-                                                 kNameSpaceID_None,
-                                                 getter_AddRefs(nodeInfo));
-          NS_ENSURE_SUCCESS(result, result);
+          nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull,
+                                                   kNameSpaceID_None);
+          NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
           NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
         }
 
@@ -1179,10 +1174,9 @@ nsHTMLParanoidFragmentSink::AddLeaf(const nsIParserNode& aNode)
       nsIParserService* parserService = nsContentUtils::GetParserService();
       if (!parserService)
         return NS_ERROR_OUT_OF_MEMORY;
-      rv = mNodeInfoManager->GetNodeInfo(name, nsnull,
-                                         kNameSpaceID_None,
-                                         getter_AddRefs(nodeInfo));
-      NS_ENSURE_SUCCESS(rv, rv);
+      nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull,
+                                               kNameSpaceID_None);
+      NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
       rv = NS_NewHTMLElement(getter_AddRefs(content), nodeInfo, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
       AddAttributes(aNode, content);

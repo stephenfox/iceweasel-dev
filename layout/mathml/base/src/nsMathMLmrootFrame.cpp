@@ -246,7 +246,6 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   }
   if (2 != count) {
     // report an error, encourage people to get their markups in order
-    NS_WARNING("invalid markup");
     rv = ReflowError(renderingContext, aDesiredSize);
     aStatus = NS_FRAME_COMPLETE;
     NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
@@ -258,7 +257,8 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   ////////////
   // Prepare the radical symbol and the overline bar
 
-  renderingContext.SetFont(GetStyleFont()->mFont, nsnull);
+  renderingContext.SetFont(GetStyleFont()->mFont, nsnull,
+                           aPresContext->GetUserFontSet());
   nsCOMPtr<nsIFontMetrics> fm;
   renderingContext.GetFontMetrics(*getter_AddRefs(fm));
 

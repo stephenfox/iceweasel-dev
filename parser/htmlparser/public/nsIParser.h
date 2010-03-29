@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -53,15 +53,11 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 
-// {506527cc-d832-420b-ba3a-80c05aa105f4}
+// 506527cc-d832-420b-ba3a-80c05aa105f4
 #define NS_IPARSER_IID \
 { 0x506527cc, 0xd832, 0x420b, \
   { 0xba, 0x3a, 0x80, 0xc0, 0x5a, 0xa1, 0x05, 0xf4 } }
 
-// 5FA66227-44CF-4572-9B5F-E9A357B67ED9
-#define NS_IPARSER_1_9_0_BRANCH \
-{ 0x5FA66227, 0x44CF, 0x4572, \
-  { 0x9B, 0x5F, 0xE9, 0xA3, 0x57, 0xB6, 0x7E, 0xD9 } }
 
 // {41421C60-310A-11d4-816F-000064657374}
 #define NS_IDEBUG_DUMP_CONTENT_IID \
@@ -86,7 +82,6 @@ enum eParserDocType {
   ePlainText = 0,
   eXML,
   eHTML_Quirks,
-  eHTML3_Quirks, // separate, for editor output, since HTML pre-4.0 lacks tbody
   eHTML_Strict
 };
 
@@ -293,9 +288,12 @@ class nsIParser : public nsISupports {
     NS_IMETHOD CancelParsingEvents() = 0;
 
     virtual void Reset() = 0;
-};
 
-class nsIParser_1_9_0_BRANCH : public nsIParser {
+    /**
+     * True if the parser can currently be interrupted. Returns false when
+     * parsing for example document.write or innerHTML.
+     */
+    virtual PRBool CanInterrupt() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIParser, NS_IPARSER_IID)

@@ -8,12 +8,6 @@
 <head>
 <title>InstallTrigger tests</title>
 <script type="text/javascript">
-var JSON = {
-  parse: function(text) {
-    return eval("(" + text + ")");
-  }
-}
-
 function installCallback(url, status) {
   document.getElementById("status").textContent = status;
 }

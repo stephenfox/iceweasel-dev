@@ -10,6 +10,4 @@
     <property name="xblBoundProperty" onget="return 1;"/>
   </implementation>
 </binding>
-
-
 </bindings>

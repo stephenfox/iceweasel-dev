@@ -168,7 +168,7 @@ nsStyleSheetService::LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
   NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
   NS_ENSURE_ARG_POINTER(aSheetURI);
 
-  nsCOMPtr<nsICSSLoader_1_9_0_BRANCH> loader = do_CreateInstance(kCSSLoaderCID);
+  nsCOMPtr<nsICSSLoader> loader = do_CreateInstance(kCSSLoaderCID);
   nsCOMPtr<nsICSSStyleSheet> sheet;
   // Allow UA sheets, but not user sheets, to use unsafe rules
   nsresult rv = loader->LoadSheetSync(aSheetURI, aSheetType == AGENT_SHEET,

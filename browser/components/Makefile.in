@@ -60,9 +60,9 @@ EXTRA_PP_COMPONENTS = \
 EXTRA_JS_MODULES = distribution.js
 
 DIRS = \
+	certerror \
 	dirprovider \
 	microsummaries \
-	migration \
 	preferences \
 	search \
 	sessionstore \
@@ -70,7 +70,12 @@ DIRS = \
 	sidebar \
 	feeds \
 	places \
+	privatebrowsing \
 	$(NULL)
+
+ifndef WINCE
+DIRS += migration
+endif
 
 ifdef MOZ_SAFE_BROWSING
 DIRS += safebrowsing

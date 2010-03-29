@@ -229,10 +229,6 @@ nsPrintingPromptService::ShowPrintDialog(nsIDOMWindow *parent, nsIWebBrowserPrin
     if (!printSettingsX)
         return NS_ERROR_NO_INTERFACE;
     
-    nsCOMPtr<nsIPrintSettingsX_MOZILLA_1_9_BRANCH> printSettingsX_1_9(do_QueryInterface(printSettings));
-    if (!printSettingsX_1_9)
-        return NS_ERROR_NO_INTERFACE;
-    
     PMPrintSession  printSession;
     rv = printSettingsX->GetNativePrintSession(&printSession);
     if (NS_FAILED(rv))
@@ -350,7 +346,7 @@ nsPrintingPromptService::ShowPrintDialog(nsIDOMWindow *parent, nsIWebBrowserPrin
 
     Boolean accepted;
     status = ::PMSessionPrintDialog(printSession, nativePrintSettings, pageFormat, &accepted);
-    printSettingsX_1_9->CleanUpAfterCarbonDialog();
+    printSettingsX->CleanUpAfterCarbonDialog();
     
     if (status == noErr && accepted) {
         int pageRange = -1;
@@ -469,10 +465,6 @@ nsPrintingPromptService::ShowPageSetup(nsIDOMWindow *parent, nsIPrintSettings *p
   if (!printSettingsX)
     return NS_ERROR_NO_INTERFACE;
   
-  nsCOMPtr<nsIPrintSettingsX_MOZILLA_1_9_BRANCH> printSettingsX_1_9(do_QueryInterface(printSettings));
-  if (!printSettingsX_1_9)
-    return NS_ERROR_NO_INTERFACE;
-    
   OSStatus status;
     
   PMPrintSession printSession;
@@ -494,7 +486,7 @@ nsPrintingPromptService::ShowPageSetup(nsIDOMWindow *parent, nsIPrintSettings *p
 
   Boolean   accepted = false;
   status = ::PMSessionPageSetupDialog(printSession, pageFormat, &accepted);
-  printSettingsX_1_9->CleanUpAfterCarbonDialog();
+  printSettingsX->CleanUpAfterCarbonDialog();
 
   OSStatus tempStatus = ::PMRelease(printSession);
   if (status == noErr)

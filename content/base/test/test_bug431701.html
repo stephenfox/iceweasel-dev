@@ -55,7 +55,7 @@ function xhrDoc(idx) {
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var xhr = new XMLHttpRequest();
     xhr.open("GET", docSources[idx], false);
-    xhr.send(null);
+    xhr.send();
     return xhr.responseXML;
   };
 }

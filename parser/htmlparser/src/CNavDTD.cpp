@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-//#define ALLOW_TR_AS_CHILD_OF_TABLE  //by setting this to true, TR is allowable directly in TABLE.
-
 #include "nsDebug.h"
 #include "nsIAtom.h"
 #include "CNavDTD.h"
@@ -131,7 +129,7 @@ CNavDTD::CNavDTD()
     mParser(0),
     mTokenizer(0),
     mDTDMode(eDTDMode_quirks),
-    mDocType(eHTML3_Quirks), // why not eHTML_Quirks?
+    mDocType(eHTML_Quirks),
     mParserCommand(eViewNormal),
     mLineNumber(1),
     mOpenMapCount(0),
@@ -324,8 +322,6 @@ CNavDTD::BuildModel(nsIParser* aParser,
       }
     }
   }
-
-  mSink->WillProcessTokens();
 
   while (NS_SUCCEEDED(result)) {
     if (!(mFlags & NS_DTD_FLAG_STOP_PARSING)) {
@@ -1576,7 +1572,7 @@ FindAutoCloseTargetForEndTag(eHTMLTags aCurrentTag, nsDTDContext& aContext,
 
 static void
 StripWSFollowingTag(eHTMLTags aChildTag, nsITokenizer* aTokenizer,
-                    nsTokenAllocator* aTokenAllocator, PRInt32& aNewlineCount)
+                    nsTokenAllocator* aTokenAllocator, PRInt32* aNewlineCount)
 {
   if (!aTokenizer || !aTokenAllocator) {
     return;
@@ -1584,16 +1580,15 @@ StripWSFollowingTag(eHTMLTags aChildTag, nsITokenizer* aTokenizer,
 
   CToken* theToken = aTokenizer->PeekToken();
 
+  PRInt32 newlineCount = 0;
   while (theToken) {
     eHTMLTokenTypes theType = eHTMLTokenTypes(theToken->GetTokenType());
 
     switch(theType) {
       case eToken_newline:
-        ++aNewlineCount;
-        // Fall through...
-
       case eToken_whitespace:
         theToken = aTokenizer->PopToken();
+        newlineCount += theToken->GetNewlineCount();
         IF_FREE(theToken, aTokenAllocator);
 
         theToken = aTokenizer->PeekToken();
@@ -1603,6 +1598,10 @@ StripWSFollowingTag(eHTMLTags aChildTag, nsITokenizer* aTokenizer,
         theToken = nsnull;
         break;
     }
+  }
+
+  if (aNewlineCount) {
+    *aNewlineCount += newlineCount;
   }
 }
 
@@ -1635,7 +1634,8 @@ CNavDTD::HandleEndToken(CToken* aToken)
       break;
 
     case eHTMLTag_head:
-      StripWSFollowingTag(theChildTag, mTokenizer, mTokenAllocator, mLineNumber);
+      StripWSFollowingTag(theChildTag, mTokenizer, mTokenAllocator,
+                          IsParserInDocWrite() ? nsnull : &mLineNumber);
       if (mBodyContext->LastOf(eHTMLTag_head) != kNotFound) {
         result = CloseContainersTo(eHTMLTag_head, PR_FALSE);
       }
@@ -1663,7 +1663,7 @@ CNavDTD::HandleEndToken(CToken* aToken)
     case eHTMLTag_body:
     case eHTMLTag_html:
       StripWSFollowingTag(theChildTag, mTokenizer, mTokenAllocator,
-                          mLineNumber);
+                          IsParserInDocWrite() ? nsnull : &mLineNumber);
       break;
 
     case eHTMLTag_script:
@@ -2151,17 +2151,7 @@ CNavDTD::CanContain(PRInt32 aParent, PRInt32 aChild) const
 {
   PRBool result = gHTMLElements[aParent].CanContain((eHTMLTags)aChild, mDTDMode);
 
-#ifdef ALLOW_TR_AS_CHILD_OF_TABLE
-  if (!result) {
-      //XXX This vile hack is here to support bug 30378, which allows
-      //table to contain tr directly in an html32 document.
-    if ((eHTMLTag_tr == aChild) && (eHTMLTag_table == aParent)) {
-      result = PR_TRUE;
-    }
-  }
-#endif
-
-  if (eHTMLTag_nobr == aChild           &&
+  if (eHTMLTag_nobr == aChild &&
       IsInlineElement(aParent, aParent) &&
       HasOpenContainer(eHTMLTag_nobr)) {
     return PR_FALSE;
@@ -2256,7 +2246,7 @@ CNavDTD::CanPropagate(eHTMLTags aParent, eHTMLTags aChild,
       result = PR_FALSE;
     }
   } else {
-    result = aParentContains;
+    result = !!aParentContains;
   }
 
 
@@ -2297,7 +2287,7 @@ CNavDTD::CanOmit(eHTMLTags aParent, eHTMLTags aChild, PRInt32& aParentContains)
   if (-1 == aParentContains) {
     aParentContains = CanContain(aParent, aChild);
   }
-  
+
   if (aParentContains || aChild == aParent) {
     return PR_FALSE;
   }
@@ -2315,6 +2305,12 @@ CNavDTD::CanOmit(eHTMLTags aParent, eHTMLTags aChild, PRInt32& aParentContains)
   }
 
   if (gHTMLElements[aParent].HasSpecialProperty(kSaveMisplaced)) {
+    return PR_TRUE;
+  }
+
+  if (aParent == eHTMLTag_body) {
+    // There are very few tags that the body does not contain. If we get here
+    // the best thing to do is just drop them.
     return PR_TRUE;
   }
 
@@ -3153,13 +3149,6 @@ CNavDTD::CreateContextStackFor(eHTMLTags aParent, eHTMLTags aChild)
   // Now, build up the stack according to the tags.
   while (theLen) {
     theTag = (eHTMLTags)mScratch[--theLen];
-
-#ifdef ALLOW_TR_AS_CHILD_OF_TABLE
-    if (eHTML3_Quirks == mDocType && eHTMLTag_tbody == theTag) {
-      // The prev. condition prevents us from emitting tbody in html3.2 docs; fix bug 30378
-      continue;
-    }
-#endif
 
     // Note: These tokens should all wind up on contextstack, so don't recycle
     // them.

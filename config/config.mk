@@ -62,6 +62,8 @@ include $(topsrcdir)/config/insure.mk
 endif
 endif
 
+COMMA = ,
+
 # Sanity check some variables
 CHECK_VARS := \
  XPI_NAME \
@@ -150,6 +152,12 @@ FINAL_LINK_COMP_NAMES = $(DEPTH)/config/final-link-comp-names
 
 MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFIX)
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
+
+ifdef MOZ_MEMORY
+ifneq ($(OS_ARCH),WINNT)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib) $(MKSHLIB_UNFORCE_ALL)
+endif
+endif
 
 # determine debug-related options
 _DEBUG_CFLAGS :=
@@ -410,28 +418,6 @@ endif
 endif
 endif
 
-ifdef MINIMO
-ifdef LIBXUL_LIBRARY
-DEFINES += \
-		-D_IMPL_NS_COM \
-		-DEXPORT_XPT_API \
-		-DEXPORT_XPTC_API \
-		-DEXPORT_XPTI_API \
-		-D_IMPL_NS_COM_OBSOLETE \
-		-D_IMPL_NS_GFX \
-		-D_IMPL_NS_WIDGET \
-		-DIMPL_XREAPI \
-		-DIMPL_NS_NET \
-		-DIMPL_THEBES \
-		$(NULL)
-endif
-
-ifdef WINCE
-DEFINES += -D_NSPR_BUILD_
-endif
-
-endif
-
 # Force _all_ exported methods to be |_declspec(dllexport)| when we're
 # building them into the executable.
 
@@ -448,28 +434,16 @@ endif
 # Flags passed to make-jars.pl
 
 MAKE_JARS_FLAGS = \
-	-s $(srcdir) -t $(topsrcdir) -z $(ZIP) -p $(MOZILLA_DIR)/config/preprocessor.pl \
+	-t $(topsrcdir) \
 	-f $(MOZ_CHROME_FILE_FORMAT) \
 	$(NULL)
-
-ifdef NO_JAR_AUTO_REG
-MAKE_JARS_FLAGS += -a
-endif
 
 ifdef USE_EXTENSION_MANIFEST
 MAKE_JARS_FLAGS += -e
 endif
 
-ifeq ($(OS_TARGET),WIN95)
-MAKE_JARS_FLAGS += -l
-endif
-
-ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
-MAKE_JARS_FLAGS += -x
-endif
-
-ifdef CROSS_COMPILE
-MAKE_JARS_FLAGS += -o $(OS_ARCH)
+ifdef BOTH_MANIFESTS
+MAKE_JARS_FLAGS += --both-manifests
 endif
 
 TAR_CREATE_FLAGS = -cvhf
@@ -519,6 +493,8 @@ ifndef MOZILLA_INTERNAL_API
 INCLUDES	+= -I$(LIBXUL_DIST)/sdk/include
 endif
 
+include $(topsrcdir)/config/static-checking-config.mk
+
 CFLAGS		= $(OS_CFLAGS)
 CXXFLAGS	= $(OS_CXXFLAGS)
 LDFLAGS		= $(OS_LDFLAGS) $(MOZ_FIX_LINK_PATHS)
@@ -557,14 +533,6 @@ HOST_CFLAGS	+= $(MOZ_OPTIMIZE_FLAGS)
 endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
-
-ifeq ($(MOZ_OS2_TOOLS),VACPP)
-ifdef USE_STATIC_LIBS
-RTL_FLAGS += -Gd-
-else # !USE_STATIC_LIBS
-RTL_FLAGS += -Gd+
-endif
-endif
 
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
@@ -617,13 +585,11 @@ endif
 # put on the link line for binaries, and should
 # we link statically or dynamic?  Assuming dynamic for now.
 
-ifneq ($(MOZ_OS2_TOOLS),VACPP)
 ifneq (WINNT_,$(OS_ARCH)_$(GNU_CC))
 ifneq (,$(filter-out WINCE,$(OS_ARCH)))
 LIBS_DIR	= -L$(DIST)/bin -L$(DIST)/lib
 ifdef LIBXUL_SDK
 LIBS_DIR	+= -L$(LIBXUL_SDK)/bin -L$(LIBXUL_SDK)/lib
-endif
 endif
 endif
 endif
@@ -673,10 +639,6 @@ endif
 endif
 
 ifeq ($(OS_ARCH),Darwin)
-ifdef USE_PREBINDING
-export LD_PREBIND=1
-export LD_SEG_ADDR_TABLE=$(shell cd $(topsrcdir); pwd)/config/prebind-address-table
-endif # USE_PREBINDING
 ifdef NEXT_ROOT
 export NEXT_ROOT
 PBBUILD = NEXT_ROOT= $(PBBUILD_BIN)
@@ -718,7 +680,7 @@ endif
 # Set link flags according to whether we want a console.
 ifdef MOZ_WINCONSOLE
 ifeq ($(MOZ_WINCONSOLE),1)
-ifeq ($(MOZ_OS2_TOOLS),EMX)
+ifeq ($(OS_ARCH),OS2)
 BIN_FLAGS	+= -Zlinker -PM:VIO
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -729,10 +691,7 @@ WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:CONSOLE
 endif
 endif
 else # MOZ_WINCONSOLE
-ifeq ($(MOZ_OS2_TOOLS),VACPP)
-LDFLAGS += -PM:PM
-endif
-ifeq ($(MOZ_OS2_TOOLS),EMX)
+ifeq ($(OS_ARCH),OS2)
 BIN_FLAGS	+= -Zlinker -PM:PM
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -861,6 +820,10 @@ endif
 # overridden by the command line. (Besides, AB_CD is prettier).
 AB_CD = $(MOZ_UI_LOCALE)
 
+ifndef L10NBASEDIR
+L10NBASEDIR = $(error L10NBASEDIR not defined by configure)
+endif
+
 EXPAND_LOCALE_SRCDIR = $(if $(filter en-US,$(AB_CD)),$(topsrcdir)/$(1)/en-US,$(L10NBASEDIR)/$(AB_CD)/$(subst /locales,,$(1)))
 
 ifdef relativesrcdir
@@ -868,11 +831,23 @@ LOCALE_SRCDIR = $(call EXPAND_LOCALE_SRCDIR,$(relativesrcdir))
 endif
 
 ifdef LOCALE_SRCDIR
+# if LOCALE_MERGEDIR is set, use mergedir first, then the localization,
+# and finally en-US
+ifdef LOCALE_MERGEDIR
+MAKE_JARS_FLAGS += -c $(LOCALE_MERGEDIR)/$(subst /locales,,$(relativesrcdir))
+endif
 MAKE_JARS_FLAGS += -c $(LOCALE_SRCDIR)
+ifdef LOCALE_MERGEDIR
+MAKE_JARS_FLAGS += -c $(topsrcdir)/$(relativesrcdir)/en-US
+endif
 endif
 
 ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
+endif
+
+ifeq ($(OS_ARCH),OS2)
+RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
 endif
 
 #
@@ -884,4 +859,9 @@ JAVAC_FLAGS += -source 1.4
 
 ifdef MOZ_DEBUG
 JAVAC_FLAGS += -g
+endif
+
+ifdef TIERS
+DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_dirs))
+STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
 endif

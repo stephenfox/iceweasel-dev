@@ -47,12 +47,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=441519
 
           // check if it is focusable, not desired.
           var state = {}, extraState = {}
-          outerDocAcc.getFinalState(state, extraState);
+          outerDocAcc.getState(state, extraState);
           is(state.value & state_focusable, 0,
              "Wrong focusable state bit for internal frame!");
 
           // see bug 428954: No name wanted for internal frame
-//          is(outerDocAcc.name, "", "Wrong name for internal frame!");
+// xxx see bug 454636          is(outerDocAcc.name, "", "Wrong name for internal frame!");
 
           // see bug 440770, no actions wanted on outer doc
           is(outerDocAcc.numActions, 0,

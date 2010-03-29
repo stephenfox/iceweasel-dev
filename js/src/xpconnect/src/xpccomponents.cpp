@@ -366,13 +366,12 @@ nsXPCComponents_Interfaces::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                         *objp = obj;
                         *_retval = JS_ValueToId(cx, id, &idid) &&
-                                   OBJ_DEFINE_PROPERTY(cx, obj, idid,
-                                                       OBJECT_TO_JSVAL(idobj),
-                                                       nsnull, nsnull,
-                                                       JSPROP_ENUMERATE |
-                                                       JSPROP_READONLY |
-                                                       JSPROP_PERMANENT,
-                                                       nsnull);
+                                   JS_DefinePropertyById(cx, obj, idid,
+                                                         OBJECT_TO_JSVAL(idobj),
+                                                         nsnull, nsnull,
+                                                         JSPROP_ENUMERATE |
+                                                         JSPROP_READONLY |
+                                                         JSPROP_PERMANENT);
                     }
                 }
             }
@@ -707,13 +706,12 @@ nsXPCComponents_InterfacesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                     *objp = obj;
                     *_retval = JS_ValueToId(cx, id, &idid) &&
-                        OBJ_DEFINE_PROPERTY(cx, obj, idid,
-                                            OBJECT_TO_JSVAL(idobj),
-                                            nsnull, nsnull,
-                                            JSPROP_ENUMERATE |
-                                            JSPROP_READONLY |
-                                            JSPROP_PERMANENT,
-                                            nsnull);
+                        JS_DefinePropertyById(cx, obj, idid,
+                                              OBJECT_TO_JSVAL(idobj),
+                                              nsnull, nsnull,
+                                              JSPROP_ENUMERATE |
+                                              JSPROP_READONLY |
+                                              JSPROP_PERMANENT);
                 }
             }
         }
@@ -1001,13 +999,12 @@ nsXPCComponents_Classes::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                         *objp = obj;
                         *_retval = JS_ValueToId(cx, id, &idid) &&
-                                   OBJ_DEFINE_PROPERTY(cx, obj, idid,
-                                                       OBJECT_TO_JSVAL(idobj),
-                                                       nsnull, nsnull,
-                                                       JSPROP_ENUMERATE |
-                                                       JSPROP_READONLY |
-                                                       JSPROP_PERMANENT,
-                                                       nsnull);
+                                   JS_DefinePropertyById(cx, obj, idid,
+                                                         OBJECT_TO_JSVAL(idobj),
+                                                         nsnull, nsnull,
+                                                         JSPROP_ENUMERATE |
+                                                         JSPROP_READONLY |
+                                                         JSPROP_PERMANENT);
                     }
                 }
             }
@@ -1273,13 +1270,12 @@ nsXPCComponents_ClassesByID::NewResolve(nsIXPConnectWrappedNative *wrapper,
 
                         *objp = obj;
                         *_retval = JS_ValueToId(cx, id, &idid) &&
-                                   OBJ_DEFINE_PROPERTY(cx, obj, idid,
-                                                       OBJECT_TO_JSVAL(idobj),
-                                                       nsnull, nsnull,
-                                                       JSPROP_ENUMERATE |
-                                                       JSPROP_READONLY |
-                                                       JSPROP_PERMANENT,
-                                                       nsnull);
+                                   JS_DefinePropertyById(cx, obj, idid,
+                                                         OBJECT_TO_JSVAL(idobj),
+                                                         nsnull, nsnull,
+                                                         JSPROP_ENUMERATE |
+                                                         JSPROP_READONLY |
+                                                         JSPROP_PERMANENT);
                     }
                 }
             }
@@ -1501,12 +1497,11 @@ nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
                 *objp = obj;
                 if(!JS_NewNumberValue(cx, (jsdouble)rv, &val) ||
                    !JS_ValueToId(cx, id, &idid) ||
-                   !OBJ_DEFINE_PROPERTY(cx, obj, idid, val,
-                                        nsnull, nsnull,
-                                        JSPROP_ENUMERATE |
-                                        JSPROP_READONLY |
-                                        JSPROP_PERMANENT,
-                                        nsnull))
+                   !JS_DefinePropertyById(cx, obj, idid, val,
+                                          nsnull, nsnull,
+                                          JSPROP_ENUMERATE |
+                                          JSPROP_READONLY |
+                                          JSPROP_PERMANENT))
                 {
                     return NS_ERROR_UNEXPECTED;
                 }
@@ -2726,7 +2721,7 @@ nsXPCComponents_Utils::GetSandbox(nsIXPCComponents_utils_Sandbox **aSandbox)
     return NS_OK;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 MethodWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval)
 {
@@ -3002,7 +2997,7 @@ nsXPCComponents_Utils::ReportError()
 #include "nsNetUtil.h"
 const char kScriptSecurityManagerContractID[] = NS_SCRIPTSECURITYMANAGER_CONTRACTID;
 
-NS_IMPL_ISUPPORTS1(PrincipalHolder, nsIScriptObjectPrincipal)
+NS_IMPL_THREADSAFE_ISUPPORTS1(PrincipalHolder, nsIScriptObjectPrincipal)
 
 nsIPrincipal *
 PrincipalHolder::GetPrincipal()
@@ -3010,7 +3005,7 @@ PrincipalHolder::GetPrincipal()
     return mHoldee;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 SandboxDump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
@@ -3029,7 +3024,7 @@ SandboxDump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 SandboxDebug(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
 #ifdef DEBUG
@@ -3039,7 +3034,7 @@ SandboxDebug(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 #endif
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 SandboxFunForwarder(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                     jsval *rval)
 {
@@ -3056,7 +3051,7 @@ SandboxFunForwarder(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_FALSE;
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 SandboxImport(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
               jsval *rval)
 {
@@ -3122,20 +3117,20 @@ SandboxImport(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_SetReservedSlot(cx, newfunobj, 0, argv[0]);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 sandbox_enumerate(JSContext *cx, JSObject *obj)
 {
     return JS_EnumerateStandardClasses(cx, obj);
 }
 
-JS_STATIC_DLL_CALLBACK(JSBool)
+static JSBool
 sandbox_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
 }
 
-JS_STATIC_DLL_CALLBACK(void)
+static void
 sandbox_finalize(JSContext *cx, JSObject *obj)
 {
     nsIScriptObjectPrincipal *sop =
@@ -3143,11 +3138,22 @@ sandbox_finalize(JSContext *cx, JSObject *obj)
     NS_IF_RELEASE(sop);
 }
 
+static JSBool
+sandbox_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
+{
+    if (type == JSTYPE_OBJECT) {
+        *vp = OBJECT_TO_JSVAL(obj);
+        return JS_TRUE;
+    }
+
+    return JS_ConvertStub(cx, obj, type, vp);
+}
+
 static JSClass SandboxClass = {
     "Sandbox",
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
-    sandbox_enumerate, sandbox_resolve, JS_ConvertStub,  sandbox_finalize,
+    sandbox_enumerate, sandbox_resolve, sandbox_convert,  sandbox_finalize,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -3385,7 +3391,7 @@ public:
     NS_DECL_ISUPPORTS
 
 private:
-    static JSBool JS_DLL_CALLBACK ContextHolderOperationCallback(JSContext *cx);
+    static JSBool ContextHolderOperationCallback(JSContext *cx);
     
     XPCAutoJSContext mJSContext;
     JSContext* mOrigCx;
@@ -3404,16 +3410,11 @@ ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
                       JSOPTION_PRIVATE_IS_NSISUPPORTS);
         JS_SetGlobalObject(mJSContext, aSandbox);
         JS_SetContextPrivate(mJSContext, this);
-
-        if(JS_GetOperationCallback(aOuterCx))
-        {
-            JS_SetOperationCallback(mJSContext, ContextHolderOperationCallback,
-                                    JS_GetOperationLimit(aOuterCx));
-        }
+        JS_SetOperationCallback(mJSContext, ContextHolderOperationCallback);
     }
 }
 
-JSBool JS_DLL_CALLBACK
+JSBool
 ContextHolder::ContextHolderOperationCallback(JSContext *cx)
 {
     ContextHolder* thisObject =
@@ -3424,19 +3425,7 @@ ContextHolder::ContextHolderOperationCallback(JSContext *cx)
     JSOperationCallback callback = JS_GetOperationCallback(origCx);
     JSBool ok = JS_TRUE;
     if(callback)
-    {
         ok = callback(origCx);
-        callback = JS_GetOperationCallback(origCx);
-        if(callback)
-        {
-            // If the callback is still set in the original context, reflect
-            // a possibly updated operation limit into cx.
-            JS_SetOperationLimit(cx, JS_GetOperationLimit(origCx));
-            return ok;
-        }
-    }
-
-    JS_ClearOperationCallback(cx);
     return ok;
 }
 
@@ -3479,22 +3468,43 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString &source)
     if(NS_FAILED(rv))
         return rv;
 
+    // The second argument is the sandbox object. It is required.
     if (argc < 2)
         return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
 
-    // The second argument is the sandbox object. It is required.
     jsval *argv;
     rv = cc->GetArgvPtr(&argv);
     if (NS_FAILED(rv))
         return rv;
-    if (JSVAL_IS_PRIMITIVE(argv[1]))
-        return NS_ERROR_INVALID_ARG;
-    JSObject *sandbox = JSVAL_TO_OBJECT(argv[1]);
 
-    // Get the current source info from xpc.
-    nsXPIDLCString filename;
+    JSObject *sandbox;
+    char *jsVersionStr = NULL;
+    char *filenameStr = NULL;
     PRInt32 lineNo = 0;
-    {
+
+    JSBool ok = JS_ConvertArguments(cx, argc, argv, "*o/ssi",
+                                    &sandbox, &jsVersionStr,
+                                    &filenameStr, &lineNo);
+
+    if (!ok)
+        return NS_ERROR_INVALID_ARG;
+
+    JSVersion jsVersion = JSVERSION_DEFAULT;
+
+    // Optional third argument: JS version, as a string.
+    if (jsVersionStr) {
+        jsVersion = JS_StringToVersion(jsVersionStr);
+        if (jsVersion == JSVERSION_UNKNOWN)
+            return NS_ERROR_INVALID_ARG;
+    }
+
+    nsXPIDLCString filename;
+
+    // Optional fourth and fifth arguments: filename and line number.
+    if (filenameStr) {
+        filename = filenameStr;
+    } else {
+        // Get the current source info from xpc.
         nsCOMPtr<nsIStackFrame> frame;
         xpc->GetCurrentJSStack(getter_AddRefs(frame));
         if (frame) {
@@ -3504,15 +3514,10 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString &source)
     }
 
     rv = xpc_EvalInSandbox(cx, sandbox, source, filename.get(), lineNo,
-                           PR_FALSE, rval);
+                           jsVersion, PR_FALSE, rval);
 
-    if (NS_SUCCEEDED(rv)) {
-        if (JS_IsExceptionPending(cx)) {
-            cc->SetExceptionWasThrown(PR_TRUE);
-        } else {
-            cc->SetReturnValueWasSet(PR_TRUE);
-        }
-    }
+    if (NS_SUCCEEDED(rv) && !JS_IsExceptionPending(cx))
+        cc->SetReturnValueWasSet(PR_TRUE);
 
     return rv;
 #endif /* XPCONNECT_STANDALONE */
@@ -3522,7 +3527,7 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString &source)
 nsresult
 xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                   const char *filename, PRInt32 lineNo,
-                  PRBool returnStringOnly, jsval *rval)
+                  JSVersion jsVersion, PRBool returnStringOnly, jsval *rval)
 {
     if (STOBJ_GET_CLASS(sandbox) != &SandboxClass)
         return NS_ERROR_INVALID_ARG;
@@ -3547,6 +3552,9 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    if (jsVersion != JSVERSION_DEFAULT)
+        JS_SetVersion(sandcx->GetJSContext(), jsVersion);
+
     XPCPerThreadData *data = XPCPerThreadData::GetData(cx);
     XPCJSContextStack *stack = nsnull;
     if (data && (stack = data->GetJSContextStack())) {
@@ -3566,55 +3574,57 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
 
     nsresult rv = NS_OK;
 
-    AutoJSRequestWithNoCallContext req(sandcx->GetJSContext());
-    JSString *str = nsnull;
-    if (!JS_EvaluateUCScriptForPrincipals(sandcx->GetJSContext(), sandbox,
-                                          jsPrincipals,
-                                          reinterpret_cast<const jschar *>
-                                                          (PromiseFlatString(source).get()),
-                                          source.Length(), filename, lineNo,
-                                          rval) ||
-        (returnStringOnly &&
-         !JSVAL_IS_VOID(*rval) &&
-         !(str = JS_ValueToString(sandcx->GetJSContext(), *rval)))) {
-        jsval exn;
-        if (JS_GetPendingException(sandcx->GetJSContext(), &exn)) {
-            // Stash the exception in |cx| so we can execute code on
-            // sandcx without a pending exception.
-            {
-                AutoJSSuspendRequestWithNoCallContext sus(sandcx->GetJSContext());
-                AutoJSRequestWithNoCallContext cxreq(cx);
+    {
+        AutoJSRequestWithNoCallContext req(sandcx->GetJSContext());
+        JSString *str = nsnull;
+        if (!JS_EvaluateUCScriptForPrincipals(sandcx->GetJSContext(), sandbox,
+                                              jsPrincipals,
+                                              reinterpret_cast<const jschar *>
+                                                              (PromiseFlatString(source).get()),
+                                              source.Length(), filename, lineNo,
+                                              rval) ||
+            (returnStringOnly &&
+             !JSVAL_IS_VOID(*rval) &&
+             !(str = JS_ValueToString(sandcx->GetJSContext(), *rval)))) {
+            jsval exn;
+            if (JS_GetPendingException(sandcx->GetJSContext(), &exn)) {
+                // Stash the exception in |cx| so we can execute code on
+                // sandcx without a pending exception.
+                {
+                    AutoJSSuspendRequestWithNoCallContext sus(sandcx->GetJSContext());
+                    AutoJSRequestWithNoCallContext cxreq(cx);
 
-                JS_SetPendingException(cx, exn);
-            }
-
-            JS_ClearPendingException(sandcx->GetJSContext());
-            if (returnStringOnly) {
-                // The caller asked for strings only, convert the
-                // exception into a string.
-                str = JS_ValueToString(sandcx->GetJSContext(), exn);
-
-                AutoJSSuspendRequestWithNoCallContext sus(sandcx->GetJSContext());
-                AutoJSRequestWithNoCallContext cxreq(cx);
-                if (str) {
-                    // We converted the exception to a string. Use that
-                    // as the value exception.
-                    JS_SetPendingException(cx, STRING_TO_JSVAL(str));
-                } else {
-                    JS_ClearPendingException(cx);
-                    rv = NS_ERROR_FAILURE;
+                    JS_SetPendingException(cx, exn);
                 }
+
+                JS_ClearPendingException(sandcx->GetJSContext());
+                if (returnStringOnly) {
+                    // The caller asked for strings only, convert the
+                    // exception into a string.
+                    str = JS_ValueToString(sandcx->GetJSContext(), exn);
+
+                    AutoJSSuspendRequestWithNoCallContext sus(sandcx->GetJSContext());
+                    AutoJSRequestWithNoCallContext cxreq(cx);
+                    if (str) {
+                        // We converted the exception to a string. Use that
+                        // as the value exception.
+                        JS_SetPendingException(cx, STRING_TO_JSVAL(str));
+                    } else {
+                        JS_ClearPendingException(cx);
+                        rv = NS_ERROR_FAILURE;
+                    }
+                }
+
+                // Clear str so we don't confuse callers.
+                str = nsnull;
+            } else {
+                rv = NS_ERROR_OUT_OF_MEMORY;
             }
-
-            // Clear str so we don't confuse callers.
-            str = nsnull;
-        } else {
-            rv = NS_ERROR_OUT_OF_MEMORY;
         }
-    }
 
-    if (str) {
-        *rval = STRING_TO_JSVAL(str);
+        if (str) {
+            *rval = STRING_TO_JSVAL(str);
+        }
     }
 
     if (stack) {
@@ -3941,7 +3951,7 @@ nsXPCComponents::NewResolve(nsIXPConnectWrappedNative *wrapper,
                             jsval id, PRUint32 flags,
                             JSObject * *objp, PRBool *_retval)
 {
-    XPCJSRuntime* rt = nsXPConnect::GetRuntime();
+    XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
     if(!rt)
         return NS_ERROR_FAILURE;
 
@@ -3959,10 +3969,9 @@ nsXPCComponents::NewResolve(nsIXPConnectWrappedNative *wrapper,
         return NS_OK;
 
     *objp = obj;
-    *_retval = OBJ_DEFINE_PROPERTY(cx, obj, idid, JSVAL_VOID,
-                                   nsnull, nsnull,
-                                   JSPROP_ENUMERATE | JSPROP_PERMANENT | attrs,
-                                   nsnull);
+    *_retval = JS_DefinePropertyById(cx, obj, idid, JSVAL_VOID, nsnull, nsnull,
+                                     JSPROP_ENUMERATE | JSPROP_PERMANENT |
+                                     attrs);
     return NS_OK;
 }
 
@@ -3972,7 +3981,7 @@ nsXPCComponents::GetProperty(nsIXPConnectWrappedNative *wrapper,
                              JSContext * cx, JSObject * obj,
                              jsval id, jsval * vp, PRBool *_retval)
 {
-    XPCContext* xpcc = nsXPConnect::GetContext(cx);
+    XPCContext* xpcc = XPCContext::GetXPCContext(cx);
     if(!xpcc)
         return NS_ERROR_FAILURE;
 
@@ -4007,7 +4016,7 @@ nsXPCComponents::SetProperty(nsIXPConnectWrappedNative *wrapper,
                              JSContext * cx, JSObject * obj, jsval id,
                              jsval * vp, PRBool *_retval)
 {
-    XPCContext* xpcc = nsXPConnect::GetContext(cx);
+    XPCContext* xpcc = XPCContext::GetXPCContext(cx);
     if(!xpcc)
         return NS_ERROR_FAILURE;
 
@@ -4052,7 +4061,7 @@ nsXPCComponents::AttachNewComponentsObject(XPCCallContext& ccx,
         return JS_FALSE;
 
     nsCOMPtr<XPCWrappedNative> wrapper;
-    XPCWrappedNative::GetNewOrUsed(ccx, cholder, aScope, iface,
+    XPCWrappedNative::GetNewOrUsed(ccx, cholder, aScope, iface, nsnull,
                                    OBJ_IS_NOT_GLOBAL, getter_AddRefs(wrapper));
     if(!wrapper)
         return JS_FALSE;
@@ -4063,11 +4072,9 @@ nsXPCComponents::AttachNewComponentsObject(XPCCallContext& ccx,
     JSObject* obj;
 
     return NS_SUCCEEDED(wrapper->GetJSObject(&obj)) &&
-           obj && OBJ_DEFINE_PROPERTY(ccx,
-                                      aGlobal, id, OBJECT_TO_JSVAL(obj),
-                                      nsnull, nsnull,
-                                      JSPROP_PERMANENT | JSPROP_READONLY,
-                                      nsnull);
+           obj && JS_DefinePropertyById(ccx, aGlobal, id, OBJECT_TO_JSVAL(obj),
+                                        nsnull, nsnull,
+                                        JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 /* void lookupMethod (); */

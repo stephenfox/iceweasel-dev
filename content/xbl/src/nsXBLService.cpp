@@ -87,7 +87,6 @@
 #endif
 #include "nsIDOMLoadListener.h"
 #include "nsIDOMEventGroup.h"
-#include "nsDocument.h"
 
 #define NS_MAX_XBL_BINDING_RECURSION 20
 
@@ -111,16 +110,14 @@ IsAncestorBinding(nsIDocument* aDocument,
   NS_ASSERTION(aChild, "expected a child content");
 
   PRUint32 bindingRecursion = 0;
-  nsIContent* bindingParent = aChild->GetBindingParent();
   nsBindingManager* bindingManager = aDocument->BindingManager();
-  for (nsIContent* prev = aChild;
-       bindingParent && prev != bindingParent;
-       prev = bindingParent, bindingParent = bindingParent->GetBindingParent()) {
+  for (nsIContent *bindingParent = aChild->GetBindingParent();
+       bindingParent;
+       bindingParent = bindingParent->GetBindingParent()) {
     nsXBLBinding* binding = bindingManager->GetBinding(bindingParent);
     if (!binding) {
       continue;
     }
-
     PRBool equal;
     nsresult rv;
     nsCOMPtr<nsIURL> childBindingURL = do_QueryInterface(aChildBindingURI);
@@ -176,6 +173,33 @@ IsAncestorBinding(nsIDocument* aDocument,
       return PR_TRUE;
     }
   }
+
+  return PR_FALSE;
+}
+
+PRBool CheckTagNameWhiteList(PRInt32 aNameSpaceID, nsIAtom *aTagName)
+{
+  static nsIContent::AttrValuesArray kValidXULTagNames[] =  {
+    &nsGkAtoms::autorepeatbutton, &nsGkAtoms::box, &nsGkAtoms::browser,
+    &nsGkAtoms::button, &nsGkAtoms::hbox, &nsGkAtoms::image, &nsGkAtoms::menu,
+    &nsGkAtoms::menubar, &nsGkAtoms::menuitem, &nsGkAtoms::menupopup,
+    &nsGkAtoms::row, &nsGkAtoms::slider, &nsGkAtoms::spacer,
+    &nsGkAtoms::splitter, &nsGkAtoms::text, &nsGkAtoms::tree, nsnull};
+
+  PRUint32 i;
+  if (aNameSpaceID == kNameSpaceID_XUL) {
+    for (i = 0; kValidXULTagNames[i]; ++i) {
+      if (aTagName == *(kValidXULTagNames[i])) {
+        return PR_TRUE;
+      }
+    }
+  }
+#ifdef MOZ_SVG
+  else if (aNameSpaceID == kNameSpaceID_SVG &&
+           aTagName == nsGkAtoms::generic) {
+    return PR_TRUE;
+  }
+#endif
 
   return PR_FALSE;
 }
@@ -429,10 +453,6 @@ nsXBLStreamListener::Load(nsIDOMEvent* aEvent)
     NS_WARNING("XBL load did not complete until after document went away! Modal dialog bug?\n");
   }
   else {
-    // Clear script handling object on asynchronously loaded XBL documents.
-    static_cast<nsDocument*>(static_cast<nsIDocument*>(doc.get()))->
-      ClearScriptHandlingObject();
-
     // We have to do a flush prior to notification of the document load.
     // This has to happen since the HTML content sink can be holding on
     // to notifications related to our children (e.g., if you bind to the
@@ -557,6 +577,14 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
   // XXX document may be null if we're in the midst of paint suppression
   if (!document)
     return NS_OK;
+
+  nsCAutoString urlspec;
+  if (nsContentUtils::GetWrapperSafeScriptFilename(document, aURL, urlspec)) {
+    // Block an attempt to load a binding that has special wrapper
+    // automation needs.
+
+    return NS_OK;
+  }
 
   nsBindingManager *bindingManager = document->BindingManager();
   
@@ -694,28 +722,6 @@ nsXBLService::ResolveTag(nsIContent* aContent, PRInt32* aNameSpaceID,
   return NS_OK;
 }
 
-nsIXBLDocumentInfo*
-nsXBLService::GetXBLDocumentInfo(nsIURI* aURI, nsIContent* aBoundElement)
-{
-#ifdef MOZ_XUL
-  nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
-  if (cache && cache->IsEnabled()) { 
-    // The first line of defense is the chrome cache.  
-    // This cache crosses the entire product, so any XBL bindings that are
-    // part of chrome will be reused across all XUL documents.
-    return cache->GetXBLDocumentInfo(aURI);
-  }
-#endif
-
-  // The second line of defense is the binding manager's document table.
-  nsIDocument* boundDocument = aBoundElement->GetOwnerDoc();
-  if (boundDocument) {
-    return boundDocument->BindingManager()->GetXBLDocumentInfo(aURI);
-  }
-
-  return nsnull;
-}
-
 
 //
 // AttachGlobalKeyHandler
@@ -740,6 +746,10 @@ nsXBLService::AttachGlobalKeyHandler(nsPIDOMEventTarget* aTarget)
     
   if (!piTarget)
     return NS_ERROR_FAILURE;
+
+  // the listener already exists, so skip this
+  if (contentNode && contentNode->GetProperty(nsGkAtoms::listener))
+    return NS_OK;
     
   nsCOMPtr<nsIDOMElement> elt(do_QueryInterface(contentNode));
 
@@ -761,8 +771,53 @@ nsXBLService::AttachGlobalKeyHandler(nsPIDOMEventTarget* aTarget)
   target->AddGroupedEventListener(NS_LITERAL_STRING("keypress"), handler, 
                                   PR_FALSE, systemGroup);
 
-  // Release.  Do this so that only the event receiver holds onto the key handler.
+  if (contentNode)
+    return contentNode->SetProperty(nsGkAtoms::listener, handler,
+                                    nsPropertyTable::SupportsDtorFunc, PR_TRUE);
+
+  // release the handler. The reference will be maintained by the event target,
+  // and, if there is a content node, the property.
   NS_RELEASE(handler);
+  return NS_OK;
+}
+
+//
+// DetachGlobalKeyHandler
+//
+// Removes a key handler added by DeatchGlobalKeyHandler.
+//
+NS_IMETHODIMP
+nsXBLService::DetachGlobalKeyHandler(nsPIDOMEventTarget* aTarget)
+{
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = aTarget;
+  nsCOMPtr<nsIContent> contentNode(do_QueryInterface(aTarget));
+  if (!contentNode) // detaching is only supported for content nodes
+    return NS_ERROR_FAILURE;
+
+  // Only attach if we're really in a document
+  nsCOMPtr<nsIDocument> doc = contentNode->GetCurrentDoc();
+  if (doc)
+    piTarget = do_QueryInterface(doc);
+  if (!piTarget)
+    return NS_ERROR_FAILURE;
+
+  nsIDOMEventListener* handler =
+    static_cast<nsIDOMEventListener*>(contentNode->GetProperty(nsGkAtoms::listener));
+  if (!handler)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> target = do_QueryInterface(piTarget);
+
+  target->RemoveGroupedEventListener(NS_LITERAL_STRING("keydown"), handler,
+                                     PR_FALSE, systemGroup);
+  target->RemoveGroupedEventListener(NS_LITERAL_STRING("keyup"), handler, 
+                                     PR_FALSE, systemGroup);
+  target->RemoveGroupedEventListener(NS_LITERAL_STRING("keypress"), handler, 
+                                     PR_FALSE, systemGroup);
+
+  contentNode->DeleteProperty(nsGkAtoms::listener);
 
   return NS_OK;
 }
@@ -936,6 +991,21 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
               nsContentUtils::NameSpaceManager()->GetNameSpaceID(nameSpace);
 
             nsCOMPtr<nsIAtom> tagName = do_GetAtom(display);
+            // Check the white list
+            if (!CheckTagNameWhiteList(nameSpaceID, tagName)) {
+              const PRUnichar* params[] = { display.get() };
+              nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
+                                              "InvalidExtendsBinding",
+                                              params, NS_ARRAY_LENGTH(params),
+                                              doc->GetDocumentURI(),
+                                              EmptyString(), 0, 0,
+                                              nsIScriptError::errorFlag,
+                                              "XBL");
+              NS_ASSERTION(!IsChromeOrResourceURI(aURI),
+                           "Invalid extends value");
+              return NS_ERROR_ILLEGAL_VALUE;
+            }
+
             protoBinding->SetBaseTag(nameSpaceID, tagName);
           }
         }
@@ -1168,56 +1238,6 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
   return NS_OK;
 }
 
-class nsSameOriginChecker : public nsIChannelEventSink,
-                            public nsIInterfaceRequestor
-{
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICHANNELEVENTSINK
-  NS_DECL_NSIINTERFACEREQUESTOR
-};
-
-NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
-                   nsIChannelEventSink,
-                   nsIInterfaceRequestor)
-
-NS_IMETHODIMP
-nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
-                                       nsIChannel *aNewChannel,
-                                       PRUint32    aFlags)
-{
-    NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-
-    nsCOMPtr<nsIURI> oldURI;
-    nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI)); // The original URI
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIURI> newURI;
-    rv = aNewChannel->GetURI(getter_AddRefs(newURI)); // The new URI
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = nsContentUtils::GetSecurityManager()->
-      CheckSameOriginURI(oldURI, newURI, PR_TRUE);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIURI> newOrigURI;
-    rv = aNewChannel->GetOriginalURI(getter_AddRefs(newOrigURI));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (newOrigURI != newURI) {
-        rv = nsContentUtils::GetSecurityManager()->
-            CheckSameOriginURI(oldURI, newOrigURI, PR_TRUE);
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSameOriginChecker::GetInterface(const nsIID & aIID, void **aResult)
-{
-    return QueryInterface(aIID, aResult);
-}
-
 nsresult
 nsXBLService::FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoundDocument,
                                    nsIURI* aDocumentURI, nsIURI* aBindingURI, 
@@ -1252,7 +1272,7 @@ nsXBLService::FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoun
   rv = NS_NewChannel(getter_AddRefs(channel), aDocumentURI, nsnull, loadGroup);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIInterfaceRequestor> sameOriginChecker = new nsSameOriginChecker;
+  nsCOMPtr<nsIInterfaceRequestor> sameOriginChecker = nsContentUtils::GetSameOriginChecker();
   NS_ENSURE_TRUE(sameOriginChecker, NS_ERROR_OUT_OF_MEMORY);
 
   channel->SetNotificationCallbacks(sameOriginChecker);
@@ -1301,10 +1321,6 @@ nsXBLService::FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoun
 
   rv = nsSyncLoadService::PushSyncStreamToListener(in, listener, channel);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Clear script handling object on synchronously loaded XBL documents.
-  static_cast<nsDocument*>(static_cast<nsIDocument*>(doc.get()))->
-    ClearScriptHandlingObject();
 
   doc.swap(*aResult);
 

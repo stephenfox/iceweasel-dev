@@ -45,14 +45,13 @@ function is_about_now(timestamp) {
 var testnum = 0;
 var fh;
 var timesUsed, firstUsed, lastUsed;
-var DBConnection;
 
 function run_test()
 {
   try {
 
   // ===== test init =====
-  var testfile = do_get_file("toolkit/components/satchel/test/unit/formhistory_v0v1.sqlite");
+  var testfile = do_get_file("formhistory_v0v1.sqlite");
   var profileDir = dirSvc.get("ProfD", Ci.nsIFile);
 
   // Cleanup from any previous tests or failures.
@@ -66,7 +65,6 @@ function run_test()
 
   fh = Cc["@mozilla.org/satchel/form-history;1"].
        getService(Ci.nsIFormHistory2);
-  DBConnection = getDBConnection(destFile);
 
 
   // ===== 1 =====
@@ -78,7 +76,7 @@ function run_test()
   do_check_true(fh.entryExists("name-C", "value-C2"));
   do_check_true(fh.entryExists("name-D", "value-D"));
   // check for upgraded schema.
-  do_check_eq(CURRENT_SCHEMA, DBConnection.schemaVersion);
+  do_check_eq(CURRENT_SCHEMA, fh.DBConnection.schemaVersion);
 
   // ===== 2 =====
   testnum++;
@@ -87,7 +85,7 @@ function run_test()
   // sure the upgrade set timestamps on that entry.
   var query = "SELECT timesUsed, firstUsed, lastUsed " +
               "FROM moz_formhistory WHERE fieldname = 'name-D'";
-  var stmt = DBConnection.createStatement(query);
+  var stmt = fh.DBConnection.createStatement(query);
   stmt.executeStep();
 
   timesUsed = stmt.getInt32(0);
@@ -106,7 +104,7 @@ function run_test()
   // Check to make sure the existing timestamps are unmodified.
   var query = "SELECT timesUsed, firstUsed, lastUsed " +
               "FROM moz_formhistory WHERE fieldname = 'name-A'";
-  var stmt = DBConnection.createStatement(query);
+  var stmt = fh.DBConnection.createStatement(query);
   stmt.executeStep();
 
   timesUsed = stmt.getInt32(0);

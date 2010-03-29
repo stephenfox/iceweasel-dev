@@ -43,7 +43,7 @@
  *                    future releases.
  */
 
-[scriptable, uuid(4d6449fe-d642-45e5-9773-41af5793c99a)]
+[scriptable, uuid(D9A0F5B2-A7DF-4AEB-9775-21B9E01B4C59)]
 interface nsICrashReporter : nsISupports
 {
   /**
@@ -59,20 +59,8 @@ interface nsICrashReporter : nsISupports
    *                             '\n'.  Invalid character for data is '\0'.
    */
   void annotateCrashReport(in ACString key, in ACString data);
-  
-  /**
-    * Write a minidump immediately, with the user-supplied exception
-    * information. This is implemented on Windows only, because
-    * SEH (structured exception handling) exists on Windows only.
-    * @param aExceptionInfo  EXCEPTION_INFO* provided by Window's SEH
-    */
-  [noscript] void WriteMinidumpForException(in voidPtr aExceptionInfo);
-};
 
-[scriptable, uuid(5d0c6cc1-e1e7-42ce-ae99-ff7b9466a909)]
-interface nsICrashReporter_MOZILLA_1_9_BRANCH : nsISupports
-{
- /**
+  /**
    * Append some data to the "Notes" field, to be submitted with a crash report.
    * Unlike annotateCrashReport, this method will append to existing data.
    *
@@ -84,7 +72,15 @@ interface nsICrashReporter_MOZILLA_1_9_BRANCH : nsISupports
    *                             The only invalid character is '\0'.
    */
   void appendAppNotesToCrashReport(in ACString data);
-
+  
+  /**
+    * Write a minidump immediately, with the user-supplied exception
+    * information. This is implemented on Windows only, because
+    * SEH (structured exception handling) exists on Windows only.
+    * @param aExceptionInfo  EXCEPTION_INFO* provided by Window's SEH
+    */
+  [noscript] void writeMinidumpForException(in voidPtr aExceptionInfo);
+  
   /**
     * Append note containing an Obj-C exception's info.
     * @param aException  NSException object to append note for

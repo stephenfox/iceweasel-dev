@@ -153,9 +153,8 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
-                                      kNameSpaceID_None,
-                                      getter_AddRefs(nodeInfo));
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
+                                                 kNameSpaceID_None);
 
   // Create the text content
   NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);
@@ -307,7 +306,12 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   if (!filePicker)
     return NS_ERROR_FAILURE;
 
-  result = filePicker->Init(doc->GetWindow(), title, nsIFilePicker::modeOpen);
+  nsPIDOMWindow* win = doc->GetWindow();
+  if (!win) {
+    return NS_ERROR_FAILURE;
+  }
+
+  result = filePicker->Init(win, title, nsIFilePicker::modeOpen);
   if (NS_FAILED(result))
     return result;
 
@@ -567,6 +571,13 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
+  // box-shadow
+  if (GetStyleBorder()->mBoxShadow) {
+    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayBoxShadowOuter(this));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   // Our background is inherited to the text input, and we don't really want to
   // paint it or out padding and borders (which we never have anyway, per
   // styles in forms.css) -- doing it just makes us look ugly in some cases and

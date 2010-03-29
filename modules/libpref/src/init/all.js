@@ -113,6 +113,9 @@ pref("browser.display.focus_background_color", "#117722");
 pref("browser.display.focus_text_color",     "#ffffff");
 pref("browser.display.focus_ring_width",     1);
 pref("browser.display.focus_ring_on_anything", false);
+// focus ring border style.
+// 0 = solid border, 1 = dotted border
+pref("browser.display.focus_ring_style", 1);
 
 pref("browser.helperApps.alwaysAsk.force",  false);
 pref("browser.helperApps.neverAsk.saveToDisk", "");
@@ -128,8 +131,30 @@ pref("browser.chrome.image_icons.max_size", 1024);
 
 pref("browser.triple_click_selects_paragraph", true);
 
-pref("gfx.color_management.enabled", false);
+// When loading <video> or <audio>, check for Access-Control-Allow-Origin
+// header, and disallow the connection if not present or permitted.
+pref("media.enforce_same_site_origin", false);
+
+// Media cache size in kilobytes
+pref("media.cache_size", 51200);
+
+#ifdef MOZ_OGG
+pref("media.ogg.enabled", true);
+#endif
+#ifdef MOZ_WAVE
+pref("media.wave.enabled", true);
+#endif
+
+// Whether to autostart a media element with an |autoplay| attribute
+pref("media.autoplay.enabled", true);
+
+// 0 = Off, 1 = Full, 2 = Tagged Images Only. 
+// See eCMSMode in gfx/thebes/public/gfxPlatform.h
+pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
+pref("gfx.color_management.rendering_intent", 0);
+
+pref("gfx.downloadable_fonts.enabled", true);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
@@ -193,6 +218,11 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 // view source
 pref("view_source.syntax_highlight", true);
 pref("view_source.wrap_long_lines", false);
+pref("view_source.editor.external", false);
+pref("view_source.editor.path", "");
+// allows to add further arguments to the editor; use the %LINE% placeholder
+// for jumping to a specific line (e.g. "/line:%LINE%" or "--goto %LINE%")
+pref("view_source.editor.args", "");
 
 // dispatch left clicks only to content in browser (still allows clicks to chrome/xul)
 pref("nglayout.events.dispatchLeftClickOnly", true);
@@ -217,6 +247,9 @@ pref("browser.fixup.alternate.prefix", "www.");
 pref("browser.fixup.alternate.suffix", ".com");
 pref("browser.fixup.hide_user_pass", true);
 
+// Location Bar AutoComplete
+pref("browser.urlbar.autocomplete.enabled", true);
+
 // Print header customization
 // Use the following codes:
 // &T - Title
@@ -239,9 +272,6 @@ pref("print.show_print_progress", true);
 // When this is set to false each window has its own PrintSettings
 // and a change in one window does not affect the others
 pref("print.use_global_printsettings", true);
-
-// Use the native dialog or the XP dialog?
-pref("print.use_native_print_dialog", false);
 
 // Save the Printings after each print job
 pref("print.save_print_settings", true);
@@ -278,7 +308,7 @@ pref("print.print_edge_bottom", 0);
 pref("extensions.spellcheck.inline.max-misspellings", 500);
 
 // Prefs used by libeditor. Prefs specific to seamonkey composer
-// belong in mozilla/editor/ui/composer.js
+// belong in comm-central/editor/ui/composer.js
 
 pref("editor.use_custom_colors", false);
 pref("editor.htmlWrapColumn", 72);
@@ -363,6 +393,7 @@ pref("capability.policy.mailnews.*.substringData.get", "noAccess");
 pref("capability.policy.mailnews.*.text.get", "noAccess");
 pref("capability.policy.mailnews.*.textContent", "noAccess");
 pref("capability.policy.mailnews.*.title.get", "noAccess");
+pref("capability.policy.mailnews.*.wholeText", "noAccess");
 pref("capability.policy.mailnews.DOMException.toString", "noAccess");
 pref("capability.policy.mailnews.HTMLAnchorElement.toString", "noAccess");
 pref("capability.policy.mailnews.HTMLDocument.domain", "noAccess");
@@ -488,6 +519,13 @@ pref("dom.popup_allowed_events", "change click dblclick mouseup reset submit");
 pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
+pref("dom.storage.default_quota",      5120);
+
+// Parsing perf prefs. For now just mimic what the old code did.
+pref("content.sink.event_probe_rate", 3);
+#ifndef XP_WIN
+pref("content.sink.pending_event_mode", 0);
+#endif
 
 // Disable popups from plugins by default
 //   0 = openAllowed
@@ -502,6 +540,8 @@ pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
 pref("javascript.options.showInConsole",    true);
+pref("javascript.options.jit.content",      true);
+pref("javascript.options.jit.chrome",       false);
 
 // advanced prefs
 pref("security.enable_java",                true);
@@ -623,6 +663,9 @@ pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
 pref("network.http.pipelining.maxrequests" , 4);
+
+// Prompt for 307 redirects
+pref("network.http.prompt-temp-redirect", true);
 
 // </http>
 
@@ -785,11 +828,6 @@ pref("network.automatic-ntlm-auth.trusted-uris", "");
 //       implementation will not be affected by this preference.
 pref("network.ntlm.send-lm-response", false);
 
-// sspitzer:  change this back to "news" when we get to beta.
-// for now, set this to news.mozilla.org because you can only
-// post to the server specified by this pref.
-pref("network.hosts.nntp_server",           "news.mozilla.org");
-
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
 #ifndef XP_MACOSX
@@ -906,6 +944,9 @@ pref("mousewheel.transaction.timeout", 1500);
 // mouse wheel scroll transaction is held even if the mouse cursor is moved.
 pref("mousewheel.transaction.ignoremovedelay", 100);
 
+// Macbook touchpad two finger pixel scrolling
+pref("mousewheel.enable_pixel_scrolling", true);
+
 // 0=lines, 1=pages, 2=history , 3=text size
 pref("mousewheel.withnokey.action",0);
 pref("mousewheel.withnokey.numlines",1);	
@@ -994,6 +1035,8 @@ pref("bidi.controlstextmode", 1);
 // 2 = hindicontextnumeralBidi
 // 3 = arabicnumeralBidi
 // 4 = hindinumeralBidi
+// 5 = persiancontextnumeralBidi
+// 6 = persiannumeralBidi
 pref("bidi.numeral", 0);
 // ------------------
 //  Support Mode
@@ -1019,6 +1062,11 @@ pref("bidi.edit.delete_immediately", false);
 // 2 = visual, but logical during selection
 pref("bidi.edit.caret_movement_style", 2);
 
+// Setting this pref to |true| forces Bidi UI menu items and keyboard shortcuts
+// to be exposed, and enables the directional caret hook. By default, only
+// expose it for bidi-associated system locales.
+pref("bidi.browser.ui", false);
+
 // used for double-click word selection behavior. Win will override.
 pref("layout.word_select.eat_space_to_next_word", false);
 pref("layout.word_select.stop_at_punctuation", true);
@@ -1043,6 +1091,21 @@ pref("layout.frames.force_resizability", false);
 
 // pref to report CSS errors to the error console
 pref("layout.css.report_errors", true);
+
+// Should the :visited selector ever match (otherwise :link matches instead)?
+pref("layout.css.visited_links_enabled", true);
+
+// Override DPI. A value of -1 means use the maximum of 96 and the system DPI.
+// A value of 0 means use the system DPI. A positive value is used as the DPI.
+// This sets the physical size of a device pixel and thus controls the
+// interpretation of physical units such as "pt".
+pref("layout.css.dpi", 0);
+
+// Set the number of device pixels per CSS pixel. A value <= 0 means choose
+// automatically based on the DPI. A positive value is used as-is. This effectively
+// controls the size of a CSS "px". This is only used for pixel-based
+// (screen) output devices.
+pref("layout.css.devPixelsPerPx", -1);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1078,6 +1141,9 @@ pref("config.use_system_prefs", false);
 // if the system has enabled accessibility
 pref("config.use_system_prefs.accessibility", false);
 
+// enable single finger gesture input (win7+ tablets)
+pref("gestures.enable_single_finger_input", true);
+
 /*
  * What are the entities that you want Mozilla to save using mnemonic
  * names rather than numeric codes? E.g. If set, we'll output &nbsp;
@@ -1097,7 +1163,8 @@ pref("config.use_system_prefs.accessibility", false);
 pref("editor.resizing.preserve_ratio",       true);
 pref("editor.positioning.offset",            0);
 
-pref("dom.max_chrome_script_run_time", 20);
+// Disable slow script warnings for chrome by default - bug 492410
+pref("dom.max_chrome_script_run_time", 0);
 pref("dom.max_script_run_time", 10);
 
 pref("svg.enabled", true);
@@ -1153,27 +1220,22 @@ pref("font.name-list.serif.he", "Narkisim, David");
 pref("font.name-list.monospace.he", "Fixed Miriam Transparent, Miriam Fixed, Rod, Courier New");
 pref("font.name-list.cursive.he", "Guttman Yad, Ktav, Arial");
 
-// For CJK fonts, we list a font twice in name-list, once in the native script and once in English
-// because the name of a CJK font returned by Win32 API is beyond our control and depends on
-// whether or not Mozilla is run on CJK Win 9x/ME or Win 2k/XP with a CJK locale.
-// (see bug 227815)
-
 pref("font.name.serif.ja", "ＭＳ Ｐ明朝"); // "MS PMincho"
 pref("font.name.sans-serif.ja", "ＭＳ Ｐゴシック"); // "MS PGothic"
 pref("font.name.monospace.ja", "ＭＳ ゴシック"); // "MS Gothic"
-pref("font.name-list.serif.ja", "MS PMincho, ＭＳ Ｐ明朝, MS Mincho, MS PGothic, MS Gothic");
-pref("font.name-list.sans-serif.ja", "MS PGothic, ＭＳ Ｐゴシック, MS Gothic, MS PMincho, MS Mincho");
-pref("font.name-list.monospace.ja", "MS Gothic, ＭＳ ゴシック, MS Mincho, ＭＳ 明朝, MS PGothic, MS PMincho");
+pref("font.name-list.serif.ja", "MS PMincho, MS Mincho, MS PGothic, MS Gothic");
+pref("font.name-list.sans-serif.ja", "MS PGothic, MS Gothic, MS PMincho, MS Mincho");
+pref("font.name-list.monospace.ja", "MS Gothic, MS Mincho, MS PGothic, MS PMincho");
 
 pref("font.name.serif.ko", "바탕"); // "Batang" 
 pref("font.name.sans-serif.ko", "굴림"); // "Gulim" 
 pref("font.name.monospace.ko", "굴림체"); // "GulimChe" 
 pref("font.name.cursive.ko", "궁서"); // "Gungseo"
 
-pref("font.name-list.serif.ko", "Batang, 바탕, Gulim, 굴림"); 
-pref("font.name-list.sans-serif.ko", "Gulim, 굴림"); 
-pref("font.name-list.monospace.ko", "GulimChe, 굴림체"); 
-pref("font.name-list.cursive.ko", "Gungseo, 궁서"); 
+pref("font.name-list.serif.ko", "Batang, Gulim"); 
+pref("font.name-list.sans-serif.ko", "Gulim"); 
+pref("font.name-list.monospace.ko", "GulimChe"); 
+pref("font.name-list.cursive.ko", "Gungseo"); 
 
 pref("font.name.serif.th", "Tahoma");
 pref("font.name.sans-serif.th", "Tahoma");
@@ -1213,27 +1275,27 @@ pref("font.name.cursive.x-western", "Comic Sans MS");
 pref("font.name.serif.zh-CN", "宋体"); //MS Song
 pref("font.name.sans-serif.zh-CN", "宋体"); //MS Song
 pref("font.name.monospace.zh-CN", "宋体"); //MS Song
-pref("font.name-list.serif.zh-CN", "MS Song, 宋体, SimSun");
-pref("font.name-list.sans-serif.zh-CN", "MS Song, 宋体, SimSun");
-pref("font.name-list.monospace.zh-CN", "MS Song, 宋体, SimSun");
+pref("font.name-list.serif.zh-CN", "MS Song, SimSun");
+pref("font.name-list.sans-serif.zh-CN", "MS Song, SimSun");
+pref("font.name-list.monospace.zh-CN", "MS Song, SimSun");
 
 // Per Taiwanese users' demand. They don't want to use TC fonts for
 // rendering Latin letters. (bug 88579)
 pref("font.name.serif.zh-TW", "Times New Roman"); 
 pref("font.name.sans-serif.zh-TW", "Arial"); 
 pref("font.name.monospace.zh-TW", "細明體");  // MingLiU
-pref("font.name-list.serif.zh-TW", "新細明體,PMingLiu,細明體,MingLiU"); 
-pref("font.name-list.sans-serif.zh-TW", "新細明體,PMingLiU,細明體,MingLiU");
-pref("font.name-list.monospace.zh-TW", "MingLiU,細明體");
+pref("font.name-list.serif.zh-TW", "PMingLiu, MingLiU"); 
+pref("font.name-list.sans-serif.zh-TW", "PMingLiU, MingLiU");
+pref("font.name-list.monospace.zh-TW", "MingLiU");
 
 // hkscsm3u.ttf (HKSCS-2001) :  http://www.microsoft.com/hk/hkscs 
 // Hong Kong users have the same demand about glyphs for Latin letters (bug 88579) 
 pref("font.name.serif.zh-HK", "Times New Roman"); 
 pref("font.name.sans-serif.zh-HK", "Arial"); 
 pref("font.name.monospace.zh-HK", "細明體_HKSCS"); 
-pref("font.name-list.serif.zh-HK", "細明體_HKSCS, MingLiu_HKSCS, Ming(for ISO10646), MingLiU, 細明體"); 
-pref("font.name-list.sans-serif.zh-HK", "細明體_HKSCS, MingLiU_HKSCS, Ming(for ISO10646), MingLiU, 細明體");  
-pref("font.name-list.monospace.zh-HK", "MingLiU_HKSCS,  細明體_HKSCS, Ming(for ISO10646), MingLiU, 細明體");
+pref("font.name-list.serif.zh-HK", "MingLiu_HKSCS, Ming(for ISO10646), MingLiU"); 
+pref("font.name-list.sans-serif.zh-HK", "MingLiU_HKSCS, Ming(for ISO10646), MingLiU");  
+pref("font.name-list.monospace.zh-HK", "MingLiU_HKSCS, Ming(for ISO10646), MingLiU");
 
 pref("font.name.serif.x-devanagari", "Mangal");
 pref("font.name.sans-serif.x-devanagari", "Raghindi");
@@ -1470,9 +1532,6 @@ pref("slider.snapMultiplier", 6);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 
-// This indicates whether it should use the native dialog or the XP Dialog
-pref("print.use_native_print_dialog", true);
-
 // Whether to extend the native dialog with information on printing frames.
 pref("print.extend_native_print_dialog", true);
 
@@ -1515,6 +1574,9 @@ pref("intl.jis0208.map", "CP932");
 
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
+
+// See bug 448927, on topmost panel, some IMEs are not usable on Windows.
+pref("ui.panel.default_level_parent", false);
 
 # WINNT
 #endif
@@ -1930,8 +1992,8 @@ pref("ui.key.contentAccess", 2);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 
-// This indicates whether it should use the native dialog or the XP Dialog
-pref("print.use_native_print_dialog", true);
+// See bug 404131, topmost <panel> element wins to Dashboard on MacOSX.
+pref("ui.panel.default_level_parent", false);
 
 # XP_MACOSX
 #endif
@@ -1939,9 +2001,8 @@ pref("print.use_native_print_dialog", true);
 #ifdef XP_OS2
 
 pref("ui.key.menuAccessKeyFocuses", true);
-pref("layout.css.dpi", -1); // max(96dpi, System setting)
 
-pref("font.alias-list", "sans,sans-serif,serif,monospace");
+pref("font.alias-list", "sans,sans-serif,serif,monospace,Tms Rmn,Helv,Courier,Times New Roman");
 
 pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, DejaVu Sans");
 
@@ -1996,18 +2057,18 @@ pref("font.name.monospace.x-cyrillic", "Courier");
 // Unicode fonts
 // Fontconfig will match substrings, so that we only need to list e.g.
 // Times New Roman WT and it will search for the J, SC, TC, K variants.
-// The DejaVu fonts are shipped with eCS, so list them first but include all
+// The DejaVu fonts are shipped with eCS, so list them first but include other
 // fonts that OS/2 users are likely to have.
 pref("font.name.serif.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.serif.x-unicode", "Deja Vu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30, Gentium, Doulos SIL, TITUS Cyberbit Basic, Bitstream Cyberbit, Charis SIL, Georgia, Tms Rmn");
+pref("font.name-list.serif.x-unicode", "DejaVu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30, Tms Rmn");
 pref("font.name.sans-serif.x-unicode", "Lucida Sans Unicode");
-pref("font.name-list.sans-serif.x-unicode", "Deja Vu Sans, FreeSans, Arial Unicode, Lucida Sans Unicode, Code2002, Code2001, Code2000, Arial, Helv");
-pref("font.name.monospace.x-unicode", "Deja Vu Sans Mono");
-pref("font.name-list.monospace.x-unicode", "Deja Vu Sans Mono, FreeMono, Andale Mono, Monotype Sans Duospace WT J, Courier New, Courier");
+pref("font.name-list.sans-serif.x-unicode", "DejaVu Sans, FreeSans, Arial Unicode, Lucida Sans Unicode, Helv");
+pref("font.name.monospace.x-unicode", "DejaVu Sans Mono");
+pref("font.name-list.monospace.x-unicode", "DejaVu Sans Mono, FreeMono, Andale Mono, Courier New, Courier");
 pref("font.name.fantasy.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.fantasy.x-unicode", "Deja Vu Serif, FreeSerif, Junicode, Times New Roman WT, Times New Roman MT 30, Doulos SIL, TITUS Cyberbit Basic, Bitstream Cyberbit, Charis SIL, Arial Unicode, Lucida Sans Unicode, Code2002, Code2001, Code2000");
+pref("font.name-list.fantasy.x-unicode", "DejaVu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30");
 pref("font.name.cursive.x-unicode", "Times New Roman MT 30");
-pref("font.name-list.cursive.x-unicode", "Deja Vu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30, Doulos SIL, TITUS Cyberbit Basic, Bitstream Cyberbit, Charis SIL, Arial Unicode, Lucida Sans Unicode, Code2002, Code2001, Code2000");
+pref("font.name-list.cursive.x-unicode", "DejaVu Serif, FreeSerif, Times New Roman WT, Times New Roman MT 30");
 
 pref("font.name.serif.x-western", "Tms Rmn");
 pref("font.name.sans-serif.x-western", "Helv");
@@ -2130,12 +2191,15 @@ pref("intl.jis0208.map", "IBM943");
 // This is because OS/2 doesn't support IPv6
 pref("network.dns.disableIPv6", true);
 
+// IMEs of OS/2 might use non-topmost windows for topmost <panel> element,
+// see bug 451015. If there are other problems by this value, we may need to
+// change this value.
+pref("ui.panel.default_level_parent", false);
+
 # OS2
 #endif
 
 #ifdef XP_BEOS
-
-pref("layout.css.dpi", -1); // max(96dpi, System setting)
 
 pref("intl.font_charset", "");
 pref("intl.font_spec_list", "");
@@ -2221,6 +2285,11 @@ pref("ui.key.contentAccess", 3);
 // xxx toolkit?
 pref("browser.download.dir", "/boot/home/Downloads");
 
+// IMEs of BeOS might use non-topmost windows for topmost <panel> element,
+// see bug 451015. If there are other problems by this value, we may need to
+// change this value.
+pref("ui.panel.default_level_parent", false);
+
 # BeOS
 #endif
 
@@ -2230,7 +2299,6 @@ pref("browser.download.dir", "/boot/home/Downloads");
 pref("network.hosts.smtp_server", "localhost");
 pref("network.hosts.pop_server", "pop");
 pref("network.protocol-handler.warn-external.file", false);
-pref("layout.css.dpi", 0); // System setting
 pref("browser.drag_out_of_frame_style", 1);
 pref("editor.singleLine.pasteNewlines", 0);
 
@@ -2284,8 +2352,6 @@ pref("print.print_paper_size", 0);
 // print_extra_margin enables platforms to specify an extra gap or margin
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
-
-pref("print.whileInPrintPreview", false);
 
 pref("font.allow_double_byte_special_chars", true);
 // font names
@@ -2485,6 +2551,17 @@ pref("print.postscript.paper_size",    "letter");
 pref("print.postscript.orientation",   "portrait");
 pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER_NAME\"}");
 
+// On GTK2 platform, we should use topmost window level for the default window
+// level of <panel> element of XUL. GTK2 has only two window types. One is
+// normal top level window, other is popup window. The popup window is always
+// topmost window level, therefore, we are using normal top level window for
+// non-topmost panel, but it is pretty hacky. On some Window Managers, we have
+// 2 problems:
+// 1. The non-topmost panel steals focus from its parent window at showing.
+// 2. The parent of non-topmost panel is not activated when the panel is hidden.
+// So, we have no reasons we should use non-toplevel window for popup.
+pref("ui.panel.default_level_parent", true);
+
 # XP_UNIX
 #endif
 #endif
@@ -2616,7 +2693,7 @@ pref("signon.rememberSignons",              true);
 pref("signon.expireMasterPassword",         false);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
-pref("signon.SignonFileName3",              "signons3.txt");
+pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
 pref("signon.autofillForms",                true); 
 pref("signon.debug",                        false); // logs to Error Console
 
@@ -2625,3 +2702,20 @@ pref("browser.zoom.full", false);
 pref("zoom.minPercent", 30);
 pref("zoom.maxPercent", 300);
 pref("toolkit.zoomManager.zoomValues", ".3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2,2.4,3");
+
+// Image cache prefs
+// The maximum size, in bytes, of the decoded images we cache
+pref("image.cache.size", 5242880);
+// A weight, from 0-1000, to place on time when comparing to size.
+// Size is given a weight of 1000 - timeweight.
+pref("image.cache.timeweight", 500);
+
+#ifdef XP_WIN
+#ifndef WINCE
+// The default TCP send window on Windows is too small, and autotuning only occurs on receive
+pref("network.tcp.sendbuffer", 131072);
+#endif
+#endif
+
+// Enable/Disable the geolocation API for content
+pref("geo.enabled", true);
