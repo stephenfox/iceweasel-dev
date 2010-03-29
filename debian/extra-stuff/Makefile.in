@@ -7,17 +7,13 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS := filemonitor
 
+PREF_JS_EXPORTS := places.js
+
 EXTRA_COMPONENTS := addonsInfo.js debUpdateNotifier.js
-
-include $(topsrcdir)/config/config.mk
-
-FINAL_TARGET := $(DIST)/bin/distribution/bundles/debian
 
 include $(topsrcdir)/config/rules.mk
 
-PREF_EXPORT := $(DIST)/bin/$(PREF_DIR)/places.js
-
-$(PREF_EXPORT): $(topsrcdir)/browser/app/profile/firefox.js
+places.js: $(topsrcdir)/browser/app/profile/firefox.js
 	grep '\(places\.frecency\.\|browser\.\(formfill\.enable\|history_expire_days\|urlbar\.\(restrict\.\|match\.\|default\.behavior\|filter\.javascript\)\)\)' $< > $@
 
 DEFINES += -DAB_CD=$(MOZ_UI_LOCALE) -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(PREF_DIR)
@@ -25,8 +21,8 @@ DEFINES += -DAB_CD=$(MOZ_UI_LOCALE) -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(
 packages-static: $(topsrcdir)/browser/installer/unix/packages-static $(srcdir)/packages-static.$(MOZ_APP_NAME)
 	$(PERL) $(topsrcdir)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) $^ | sed 's/^\[browser\]/[$(MOZ_APP_NAME)]/;/^bin\/\(README\.txt\|dictionaries\)/d' > $@
 
-GARBAGE += packages-static
+GARBAGE += places.js packages-static
 
-libs:: $(PREF_EXPORT) packages-static
+libs:: packages-static
 libs::
 	$(SYSINSTALL) $(IFLAGS2) $(srcdir)/reportbug-helper-script $(DIST)/bin

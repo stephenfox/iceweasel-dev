@@ -31,8 +31,7 @@ usr/lib/xulrunner-##BASE_VERSION##/modules usr/share/xulrunner-##BASE_VERSION##
 usr/lib/xulrunner-##BASE_VERSION##/components/*.js
 usr/lib/xulrunner-##BASE_VERSION##/components/*.xpt
 usr/lib/xulrunner-##BASE_VERSION##/components/libimgicon.so
+usr/lib/xulrunner-##BASE_VERSION##/components/libgiofilemonitor.so
 usr/lib/xulrunner-##BASE_VERSION##/components/libdbusservice.so
 usr/lib/xulrunner-##BASE_VERSION##/components/libmozgnome.so
 usr/lib/xulrunner-##BASE_VERSION##/components/libnkgnomevfs.so
-
-usr/lib/xulrunner-##BASE_VERSION##/distribution

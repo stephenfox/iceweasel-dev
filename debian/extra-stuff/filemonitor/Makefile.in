@@ -67,8 +67,6 @@ endif
 
 include $(topsrcdir)/config/rules.mk
 
-FINAL_TARGET := $(DIST)/bin/distribution/bundles/debian
-
 ifdef MOZ_ENABLE_GIO
 CXXFLAGS += $(MOZ_GIO_CFLAGS)
 else
