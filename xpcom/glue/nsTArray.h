@@ -138,8 +138,7 @@ class NS_COM_GLUE nsTArray_base {
     // We prefix mData with a structure of this type.  This is done to minimize
     // the size of the nsTArray object when it is empty.
     struct Header {
-      PRUint32 mLength: 31;
-      PRUint32 mAdjustAlignment: 1;
+      PRUint32 mLength;
       PRUint32 mCapacity : 31;
       PRUint32 mIsAutoArray : 1;
     };
@@ -149,12 +148,16 @@ class NS_COM_GLUE nsTArray_base {
       return mHdr->mIsAutoArray;
     }
 
+    struct AutoArray {
+      Header *mHdr;
+      PRUint64 aligned;
+    };
+
     // Returns a Header for the built-in buffer of this nsAutoTArray.
     Header* GetAutoArrayBuffer() {
       NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
 
-      return reinterpret_cast<Header*>(reinterpret_cast<char *>(&mHdr) +
-          sizeof(nsTArray_base) + mHdr->mAdjustAlignment * sizeof(PRUint32));
+      return reinterpret_cast<Header*>(&(reinterpret_cast<AutoArray*>(&mHdr))->aligned);
     }
 
     // Returns true if this is an nsAutoTArray and it currently uses the
@@ -790,18 +793,8 @@ class nsAutoTArray : public nsTArray<E> {
     nsAutoTArray() {
       base_type::mHdr = reinterpret_cast<Header*>(&mAutoBuf);
       base_type::mHdr->mLength = 0;
-      base_type::mHdr->mAdjustAlignment = 0;
       base_type::mHdr->mCapacity = N;
       base_type::mHdr->mIsAutoArray = 1;
-
-      NS_ASSERTION(reinterpret_cast<char *>(&mAutoBuf) <=
-         reinterpret_cast<char *>(base_type::GetAutoArrayBuffer()) +
-         sizeof(PRUint32),
-         "nsAutoTArray doesn't support required alignment");
-
-      base_type::mHdr->mAdjustAlignment =
-         (reinterpret_cast<Header*>(&mAutoBuf) ==
-          base_type::GetAutoArrayBuffer()) ? 0 : 1;
 
       NS_ASSERTION(base_type::GetAutoArrayBuffer() ==
                    reinterpret_cast<Header*>(&mAutoBuf),
