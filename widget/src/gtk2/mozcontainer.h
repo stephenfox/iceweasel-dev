@@ -40,6 +40,7 @@
 #define __MOZ_CONTAINER_H__
 
 #include <gtk/gtkcontainer.h>
+#include <gtk/gtkversion.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,6 +83,11 @@ extern "C" {
 #define IS_MOZ_CONTAINER(obj)         (GTK_CHECK_TYPE ((obj), MOZ_CONTAINER_TYPE))
 #define IS_MOZ_CONTAINER_CLASS(klass) (GTK_CHECK_CLASS_TYPE ((klass), MOZ_CONTAINER_TYPE))
 #define MOZ_CONAINTER_GET_CLASS(obj)  (GTK_CHECK_GET_CLASS ((obj), MOZ_CONTAINER_TYPE, MozContainerClass))
+
+#if (GTK_CHECK_VERSION(2, 12, 0) || \
+    (GTK_CHECK_VERSION(2, 10, 0) && defined(MOZ_PLATFORM_HILDON)))
+#define HAVE_GTK_MOTION_HINTS
+#endif
 
 typedef struct _MozContainer      MozContainer;
 typedef struct _MozContainerClass MozContainerClass;
