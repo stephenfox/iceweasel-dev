@@ -9,9 +9,6 @@ SO_VERSION := $(shell awk -F'[\t =]+' '$$1 == "SO_VERSION" {print $$2}' js/src/M
 
 PYVER := $(shell pyversions -d)
 
-LOCALE := fr_FR.UTF-8
-HAS_LOCALE := $(shell locale -a | grep $(LOCALE:UTF-8=utf8))
-
 CFLAGS := -g
 MAIN_LDFLAGS := -Wl,--as-needed
 
@@ -95,53 +92,11 @@ override_dh_auto_build:
 		$(if $(wildcard /usr/bin/javac),,DEB_NO_JAR=1)
 	$(MAKE) -C debian/extra-stuff
 
-debian/locales/%:
-	mkdir -p debian/locales
-	localedef -f $(word 2,$(subst ., ,$(notdir $@))) -i $(word 1,$(subst ., ,$(notdir $@))) $@
-
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-ifdef TEST_PATH
-TESTS := xpcshell-tests
-else
-TESTS := check xpcshell-tests reftest crashtest
+include debian/test.mk
 endif
 
-override_dh_auto_test: $(TESTS)
-
-debian/reftest-app/stub: $(CURDIR)/dist/bin/xulrunner-stub
-	ln -s $< $@
-
-ifndef HAS_LOCALE
-xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
-endif
-xpcshell-tests: export LC_ALL=$(LOCALE)
-reftest crashtest: debian/reftest-app/stub
-reftest crashtest: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
-reftest crashtest: export GRE_HOME = $(CURDIR)/dist/bin
-reftest crashtest: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
-
-$(TESTS):
-	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
-	HOME="$(CURDIR)/dist" \
-	$(XVFB_RUN) $(MAKE) $@ 2>&1 | sed -u 's/^/$@> /'
-
-xpcshell-tests: xpcshell-tests-skip $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
-
-xpcshell-tests-skip:
-# APNG is not supported
-	rm -f _tests/xpcshell/test_libpr0n/unit/test_encoder_apng.js
-# Image tests fail because of the use of system library which don't give the same result
-	rm -f _tests/xpcshell/test_libpr0n/unit/test_encoder_png.js \
-	      _tests/xpcshell/test_libpr0n/unit/test_imgtools.js \
-	      _tests/xpcshell/test_places/unit/test_favicons.js
-# This one fails because it relies on a sqlite bug that is fixed in the system one
-# See http://hg.mozilla.org/mozilla-central/raw-rev/1192461c259d
-	rm -f _tests/xpcshell/test_storage/unit/test_storage_combined_sharing.js
-# This one fails because it supposes some kind of preexisting gnome/mailcap configuration
-	rm -f _tests/xpcshell/test_uriloader_exthandler/unit/test_handlerService.js
-endif
-
-override_dh_auto_clean:
+override_dh_auto_clean::
 	rm -f MPL debian/reftest-app/stub
 	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
@@ -154,7 +109,6 @@ override_dh_auto_clean:
 			sed -i '2!b;/^exec "/ d' $$dir/$$file; \
 		done; \
 	done
-	rm -rf debian/locales
 
 override_dh_auto_install:
 	dh_auto_install --sourcedirectory=xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
