@@ -206,6 +206,7 @@ INSTALLED_HEADERS = \
 		jsversion.h \
 		jsxdrapi.h \
 		jsxml.h \
+		jskeyword.tbl \
 		$(NULL)
 
 ifdef ENABLE_JIT
@@ -214,15 +215,16 @@ VPATH		+= $(srcdir)/nanojit
 INSTALLED_HEADERS += \
 		builtins.tbl    \
 		jsbuiltins.h    \
-		Assembler.h     \
-		LIR.h		\
-		avmplus.h	\
-		Fragmento.h	\
-		Native.h	\
-		Native$(NANOJIT_ARCH).h \
-		RegAlloc.h	\
-		nanojit.h	\
-		TraceTreeDrawer.h \
+		nanojit/Assembler.h     \
+		nanojit/LIRopcode.tbl	\
+		nanojit/LIR.h		\
+		nanojit/avmplus.h	\
+		nanojit/Fragmento.h	\
+		nanojit/Native.h	\
+		nanojit/Native$(NANOJIT_ARCH).h \
+		nanojit/RegAlloc.h	\
+		nanojit/nanojit.h	\
+		nanojit/TraceTreeDrawer.h \
 		$(NULL)
 
 CPPSRCS += \
@@ -260,7 +262,7 @@ ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 INSTALLED_HEADERS += jscpucfg.h
 endif
 
-EXPORTS = $(INSTALLED_HEADERS)
+EXPORTS = $(filter-out nanojit/%,$(INSTALLED_HEADERS))
 
 JS_SAFE_ARENA	= 1
 
@@ -601,7 +603,18 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
 SCRIPTS = js-config
 SDK_BINARY = js-config
 
-install:: $(INSTALLED_HEADERS)
+ifdef ENABLE_JIT
+$(PUBLIC)/nanojit $(includedir)/$(MODULE)/nanojit: config/nsinstall$(HOST_BIN_SUFFIX)
+	$(NSINSTALL) -D $@
+
+export:: $(filter nanojit/%,$(INSTALLED_HEADERS)) $(PUBLIC)/nanojit
+	$(INSTALL) $(IFLAGS1) $^
+
+install:: $(filter nanojit/%,$(INSTALLED_HEADERS)) $(includedir)/$(MODULE)/nanojit
+	$(SYSINSTALL) $(IFLAGS1) $^
+endif
+
+install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(includedir)/$(MODULE)
 
 install:: $(SCRIPTS)
@@ -669,3 +682,10 @@ update-imacros: imacros.c.tmp
 endif
 endif
 endif
+
+distclean::
+	cat unallmakefiles | $(XARGS) rm -f
+	rm -f $(DIST_GARBAGE)
+
+DIST_GARBAGE = config.cache config.log config.status \
+  config/autoconf.mk unallmakefiles mozilla-config.h js-config js-config.h

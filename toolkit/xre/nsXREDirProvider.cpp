@@ -818,6 +818,8 @@ nsXREDirProvider::DoStartup()
     // should also be created at this time.
     (void)NS_CreateServicesFromCategory("profile-after-change", nsnull,
                                         "profile-after-change");
+
+    obsSvc->NotifyObservers(nsnull, "profile-initial-state", nsnull);
   }
   return NS_OK;
 }
@@ -1156,9 +1158,6 @@ nsXREDirProvider::GetSystemExtensionsDirectory(nsILocalFile** aFile)
                              getter_AddRefs(localDir));
   NS_ENSURE_SUCCESS(rv, rv);
 #endif
-
-  rv = EnsureDirectoryExists(localDir);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*aFile = localDir);
   return NS_OK;

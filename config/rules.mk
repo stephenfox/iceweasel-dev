@@ -54,6 +54,14 @@ ifndef INCLUDED_VERSION_MK
 include $(topsrcdir)/config/version.mk
 endif
 
+ifneq (,$(findstring sample,$(MODULE))$(findstring test,$(MODULE))$(findstring Test,$(MODULE)))
+PUBLIC := $(DIST)/tests/include
+IDL_DIR := $(DIST)/tests/idl
+LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
+override MOZ_JAVAXPCOM :=
+XPIDL_FLAGS += -I$(DIST)/idl
+endif
+
 REPORT_BUILD = @echo $(notdir $<)
 
 ifeq ($(OS_ARCH),OS2)
@@ -251,6 +259,18 @@ else
 SHARED_LIBRARY		:= $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
 endif
 
+ifdef SO_VERSION
+UNVERSIONED_LIBRARY	:= $(notdir $(SHARED_LIBRARY))
+
+ifeq ($(strip $(SHARED_LIBRARY)),$(strip $(SDK_LIBRARY)))
+SDK_LIBRARY		:= $(SHARED_LIBRARY)
+endif
+
+SHARED_LIBRARY		:= $(SHARED_LIBRARY).$(SO_VERSION)
+
+MKSHLINKS		= rm -f $(1)/$(UNVERSIONED_LIBRARY); ln -s $(SHARED_LIBRARY) $(1)/$(UNVERSIONED_LIBRARY)
+endif
+
 ifeq ($(OS_ARCH),OS2)
 DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
 endif
@@ -364,7 +384,7 @@ HOST_PDBFILE=$(basename $(@F)).pdb
 endif
 
 ifndef TARGETS
-TARGETS			= $(LIBRARY) $(SHARED_LIBRARY) $(PROGRAM) $(SIMPLE_PROGRAMS) $(HOST_LIBRARY) $(HOST_PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
+TARGETS			= $(LIBRARY) $(UNVERSIONED_LIBRARY) $(SHARED_LIBRARY) $(PROGRAM) $(SIMPLE_PROGRAMS) $(HOST_LIBRARY) $(HOST_PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
 endif
 
 ifndef OBJS
@@ -867,7 +887,7 @@ $(PARALLEL_DIRS_libs): %_libs: %/Makefile
 	+@$(UPDATE_TITLE_libs) $(MAKE) -C $* libs
 endif
 
-libs:: $(SUBMAKEFILES) $(MAKE_DIRS) $(HOST_LIBRARY) $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(HOST_PROGRAM) $(PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
+libs:: $(SUBMAKEFILES) $(MAKE_DIRS) $(HOST_LIBRARY) $(LIBRARY) $(UNVERSIONED_LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(HOST_PROGRAM) $(PROGRAM) $(HOST_SIMPLE_PROGRAMS) $(SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
 ifndef NO_DIST_INSTALL
 ifdef LIBRARY
 ifdef EXPORT_LIBRARY # Stage libs that will be linked into a static build
@@ -897,8 +917,10 @@ ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
 	$(INSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(DIST)/lib
 else
 	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DIST)/lib
+	$(call MKSHLINKS,$(DIST)/lib)
 endif
 	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(FINAL_TARGET)
+	$(call MKSHLINKS,$(FINAL_TARGET))
 ifdef BEOS_ADDON_WORKAROUND
 	( cd $(FINAL_TARGET) && $(CC) -nostart -o $(SHARED_LIBRARY).stub $(SHARED_LIBRARY) )
 endif
@@ -1240,6 +1262,8 @@ endif
 # so instead of deleting .o files after repacking them into a dylib, we make
 # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
 # so no need to conditionalize on OS version or debugging format.
+$(UNVERSIONED_LIBRARY): $(SHARED_LIBRARY)
+	$(call MKSHLINKS,.)
 
 $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(SHARED_LIBRARY_LIBS) $(EXTRA_DEPS) $(DSO_LDOPTS_DEPS) $(GLOBAL_DEPS)
 ifndef INCREMENTAL_LINKER
@@ -2120,13 +2144,9 @@ endif
 #############################################################################
 
 -include $(topsrcdir)/$(MOZ_BUILD_APP)/app-rules.mk
+ifneq (,$(wildcard $(MY_RULES)))
 -include $(MY_RULES)
-
-#
-# This speeds up gmake's processing if these files don't exist.
-#
-$(MY_CONFIG) $(MY_RULES):
-	@touch $@
+endif
 
 #
 # Generate Emacs tags in a file named TAGS if ETAGS was set in $(MY_CONFIG)

@@ -54,6 +54,14 @@ ifndef INCLUDED_VERSION_MK
 include $(topsrcdir)/config/version.mk
 endif
 
+ifneq (,$(findstring sample,$(MODULE))$(findstring test,$(MODULE))$(findstring Test,$(MODULE)))
+PUBLIC := $(DIST)/tests/include
+IDL_DIR := $(DIST)/tests/idl
+LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
+override MOZ_JAVAXPCOM :=
+XPIDL_FLAGS += -I$(DIST)/idl
+endif
+
 REPORT_BUILD = @echo $(notdir $<)
 
 ifeq ($(OS_ARCH),OS2)
@@ -619,15 +627,6 @@ endif
 endif
 endif
 
-ifeq ($(OS_ARCH),Linux)
-ifneq (,$(filter mips mipsel,$(OS_TEST)))
-ifeq ($(MODULE),layout)
-OS_CFLAGS += -Wa,-xgot
-OS_CXXFLAGS += -Wa,-xgot
-endif
-endif
-endif
-
 #
 # HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
 # which uses internal symbols first
@@ -676,6 +675,14 @@ ifdef IS_COMPONENT
 EXTRA_DSO_LDOPTS += -Wl,-Bsymbolic
 endif
 endif 
+
+#
+# GNU doesn't have path length limitation
+#
+
+ifeq ($(OS_ARCH),GNU)
+OS_CPPFLAGS += -DPATH_MAX=1024 -DMAXPATHLEN=1024
+endif
 
 #
 # MINGW32
@@ -2137,13 +2144,9 @@ endif
 #############################################################################
 
 -include $(topsrcdir)/$(MOZ_BUILD_APP)/app-rules.mk
+ifneq (,$(wildcard $(MY_RULES)))
 -include $(MY_RULES)
-
-#
-# This speeds up gmake's processing if these files don't exist.
-#
-$(MY_CONFIG) $(MY_RULES):
-	@touch $@
+endif
 
 #
 # Generate Emacs tags in a file named TAGS if ETAGS was set in $(MY_CONFIG)
