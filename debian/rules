@@ -95,7 +95,6 @@ override_dh_auto_test:
 
 test: debian/locales/$(LOCALE)
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-ifneq ($(DEB_BUILD_ARCH),armel)
 	dh_testdir
 
 # APNG is not supported
@@ -116,7 +115,6 @@ ifneq ($(DEB_BUILD_ARCH),armel)
 	LC_ALL=$(LOCALE) \
 	LANG=$(LOCALE) \
 	$(MAKE) -j1 xpcshell-tests $(if $(TEST_PATH),,check)
-endif
 endif
 
 build-jars: build
