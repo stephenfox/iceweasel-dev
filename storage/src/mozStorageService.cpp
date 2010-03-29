@@ -67,6 +67,7 @@ mozStorageService::GetSingleton()
         return gStorageService;
     }
 
+#if 0
     // Ensure that we are using the same version of SQLite that we compiled with
     // or newer.  Our configure check ensures we are using a new enough version
     // at compile time.
@@ -83,6 +84,7 @@ mozStorageService::GetSingleton()
         }
         PR_Abort();
     }
+#endif
 
     gStorageService = new mozStorageService();
     if (gStorageService) {
