@@ -168,7 +168,7 @@ xpcshell-tests:
 check-interactive:
 	$(PYTHON) -u \
           $(testxpcsrcdir)/runxpcshelltests.py \
-          --test=$(SOLO_FILE) \
+          --test-path=$(SOLO_FILE) \
           --interactive \
           $(DIST)/bin/xpcshell \
           $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(MODULE)/$(dir))
@@ -177,7 +177,7 @@ check-interactive:
 check-one:
 	$(PYTHON) -u \
           $(testxpcsrcdir)/runxpcshelltests.py \
-          --test=$(SOLO_FILE) \
+          --test-path=$(SOLO_FILE) \
           $(DIST)/bin/xpcshell \
           $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(MODULE)/$(dir))
 

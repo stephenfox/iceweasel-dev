@@ -74,6 +74,10 @@ nsMenuItemX::~nsMenuItemX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  // Prevent the icon object from outliving us.
+  if (mIcon)
+    mIcon->Destroy();
+
   [mNativeMenuItem autorelease];
   if (mContent)
     mMenuBar->UnregisterForContentChanges(mContent);
