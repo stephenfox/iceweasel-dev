@@ -1197,6 +1197,7 @@ JS_GetGlobalObject(JSContext *cx)
 JS_PUBLIC_API(void)
 JS_SetGlobalObject(JSContext *cx, JSObject *obj)
 {
+    CHECK_REQUEST(cx);
     cx->globalObject = obj;
 
 #if JS_HAS_XML_SUPPORT
