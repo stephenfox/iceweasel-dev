@@ -730,9 +730,7 @@ endif
 # Include any personal overrides the user might think are needed.
 #
 -include $(topsrcdir)/$(MOZ_BUILD_APP)/app-config.mk
-ifneq (,$(wildcard $(MY_CONFIG)))
 -include $(MY_CONFIG)
-endif
 
 ######################################################################
 # Now test variables that might have been set or overridden by $(MY_CONFIG).
