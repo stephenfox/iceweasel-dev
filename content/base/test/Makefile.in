@@ -279,6 +279,10 @@ _TEST_FILES = 	test_bug5141.html \
 		file_XHRSendData_doc.xml^headers^ \
 		test_bug461555.html \
 		test_sync_xhr_timer.xhtml \
+		test_bug498897.html \
+		file_bug498897.html \
+		file_bug498897.html^headers^ \
+		file_bug498897.css \
 		$(NULL)
 
 # Disabled for now. Mochitest isn't reliable enough for these.

@@ -773,6 +773,14 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
                       kAppendPlugins,
                       directories);
 
+    if (mProfileDir) {
+      nsCOMArray<nsIFile> profileDir;
+      profileDir.AppendObject(mProfileDir);
+      LoadDirsIntoArray(profileDir,
+                        kAppendPlugins,
+                        directories);
+    }
+
     rv = NS_NewArrayEnumerator(aResult, directories);
     NS_ENSURE_SUCCESS(rv, rv);
 

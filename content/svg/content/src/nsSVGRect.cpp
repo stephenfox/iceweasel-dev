@@ -89,16 +89,16 @@ nsSVGRect::SetValueString(const nsAString& aValue)
   char* token;
   const char* delimiters = ",\x20\x9\xD\xA";
 
-  double vals[4];
-  int i;
-  for (i=0;i<4;++i) {
+  float vals[4];
+  PRUint32 i;
+  for (i = 0; i < 4; ++i) {
     if (!(token = nsCRT::strtok(rest, delimiters, &rest))) break; // parse error
 
     char *end;
-    vals[i] = PR_strtod(token, &end);
-    if (*end != '\0') break; // parse error
+    vals[i] = float(PR_strtod(token, &end));
+    if (*end != '\0' || !NS_FloatIsFinite(vals[i])) break; // parse error
   }
-  if (i!=4 || (nsCRT::strtok(rest, delimiters, &rest)!=0)) {
+  if (i!=4 || nsCRT::strtok(rest, delimiters, &rest)!=0) {
     // there was a parse error.
     rv = NS_ERROR_FAILURE;
   }

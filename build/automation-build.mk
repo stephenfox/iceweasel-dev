@@ -24,12 +24,12 @@ endif
 _PROFILE_DIR = $(TARGET_DEPTH)/_profile/pgo
 _SYMBOLS_PATH = $(TARGET_DIST)/crashreporter-symbols
 
-ifneq (,$(filter /%,$(topsrcdir)))
-# $(topsrcdir) is already an absolute pathname.
-ABSOLUTE_TOPSRCDIR = $(topsrcdir)
+ifneq (,$(filter /%,$(MOZILLA_DIR)))
+# $(MOZILLA_DIR) is already an absolute pathname.
+ABSOLUTE_TOPSRCDIR = $(MOZILLA_DIR)
 else
-# $(topsrcdir) is a relative pathname: prepend the current directory.
-ABSOLUTE_TOPSRCDIR = $(CURDIR)/$(topsrcdir)
+# $(MOZILLA_DIR) is a relative pathname: prepend the current directory.
+ABSOLUTE_TOPSRCDIR = $(CURDIR)/$(MOZILLA_DIR)
 endif
 _CERTS_SRC_DIR = $(ABSOLUTE_TOPSRCDIR)/build/pgo/certs
 
@@ -70,6 +70,6 @@ else
 AUTOMATION_PPARGS += -DIS_DEBUG_BUILD=0
 endif
 
-automation.py: $(topsrcdir)/build/automation.py.in $(topsrcdir)/build/automation-build.mk
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automation-build.mk
+	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
 	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
