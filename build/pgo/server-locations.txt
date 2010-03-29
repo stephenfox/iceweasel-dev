@@ -158,3 +158,7 @@ http://malware.example.com:80
 # Bug 483437, 484111
 https://www.bank1.com:443           privileged,cert=escapeattack1
 https://www.bank2.com:443           privileged,cert=escapeattack2
+
+# Bug 483437, 484111
+https://www.bank1.com:443           privileged,cert=escapeattack1
+https://www.bank2.com:443           privileged,cert=escapeattack2

@@ -4462,7 +4462,9 @@ nsGlobalWindow::Print()
         printSettingsService->GetNewPrintSettings(getter_AddRefs(printSettings));
       }
 
+      EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
+      LeaveModalState();
 
       PRBool savePrintSettings =
         nsContentUtils::GetBoolPref("print.save_print_settings", PR_FALSE);
@@ -4478,7 +4480,10 @@ nsGlobalWindow::Print()
       }
     } else {
       webBrowserPrint->GetGlobalPrintSettings(getter_AddRefs(printSettings));
+
+      EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
+      LeaveModalState();
     }
   } 
 
@@ -5624,6 +5629,22 @@ nsGlobalWindow::ReallyCloseWindow()
   }
 }
 
+inline void
+SetScriptContextModalState(PRBool aIsModal)
+{
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  if (cx) {
+    nsCOMPtr<nsIScriptContext_MOZILLA_1_9_1_BRANCH> scx =
+        do_QueryInterface(GetScriptContextFromJSContext(cx));
+    if (scx) {
+      if (aIsModal)
+        scx->EnterModalState();
+      else 
+        scx->LeaveModalState();
+    }
+  }
+}
+
 void
 nsGlobalWindow::EnterModalState()
 {
@@ -5649,6 +5670,8 @@ nsGlobalWindow::EnterModalState()
     }
   }
   topWin->mModalStateDepth++;
+
+  SetScriptContextModalState(PR_TRUE);
 }
 
 // static
@@ -5752,6 +5775,8 @@ nsGlobalWindow::LeaveModalState()
       mSuspendedDoc = nsnull;
     }
   }
+
+  SetScriptContextModalState(PR_FALSE);
 }
 
 PRBool

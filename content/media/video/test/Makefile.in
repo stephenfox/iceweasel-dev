@@ -76,6 +76,7 @@ _TEST_FILES += \
 		test_bug495145.html \
 		test_bug495300.html \
 		test_bug495319.html \
+		test_bug500311.html \
 		test_can_play_type_ogg.html \
 		test_closing_connections.html \
 		test_contentDuration1.html \
@@ -106,6 +107,8 @@ _TEST_FILES += \
 		320x240.allow-origin.ogv^headers^ \
 		bug461281.ogg \
 		bug482461.ogv \
+		bug500311.ogv \
+		bug500311.ogv^headers^ \
 		redirect.sjs \
 		contentDuration1.sjs \
 		contentDuration2.sjs \

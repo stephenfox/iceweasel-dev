@@ -1875,9 +1875,9 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       case nsSizeMode_Minimized :
         mode = gTrimOnMinimize ? SW_MINIMIZE : SW_SHOWMINIMIZED;
         if (!gTrimOnMinimize) {
-          // Find the next window that is visible and not minimized.
+           // Find the next window that is enabled, visible, and not minimized.
           HWND hwndBelow = ::GetNextWindow(mWnd, GW_HWNDNEXT);
-          while (hwndBelow  && !IsWindowEnabled(hwndBelow) && (!::IsWindowVisible(hwndBelow) ||
+          while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
                                ::IsIconic(hwndBelow))) {
             hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
           }
@@ -4960,7 +4960,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
         mBounds.height = newHeight;
         mLastSize.width = newWidth;
         mLastSize.height = newHeight;
-        ///nsRect rect(wp->x, wp->y, wp->cx, wp->cy);
 
         // If we're being minimized, don't send the resize event to Gecko because
         // it will cause the scrollbar in the content area to go away and we'll
@@ -5003,6 +5002,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 #else
         event.mSizeMode = nsSizeMode_Normal;
 #endif
+
+        // Windows has just changed the size mode of this window. The following
+        // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
+        // set the min/max window state again or for nsSizeMode_Normal, call
+        // SetWindow with a parameter of SW_RESTORE. There's no need however as
+        // this window's mode has already changed. Updating mSizeMode here
+        // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
+        // to window docking. (bug 489258)
+        mSizeMode = event.mSizeMode;
+
         InitEvent(event);
 
         result = DispatchWindowEvent(&event);
