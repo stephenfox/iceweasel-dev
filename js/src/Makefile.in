@@ -48,7 +48,7 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= js
 LIBRARY_NAME	= mozjs
 GRE_MODULE	= 1
-SO_VERSION	= 1d
+SO_VERSION	= 2d
 
 SIMPLE_PROGRAMS	= js$(BIN_SUFFIX)
 LIBS		= $(NSPR_LIBS) -L. $(MOZ_JS_LIBS)
