@@ -74,7 +74,7 @@
  * @retval non-zero on error 
  */
 
-#if defined(linux) || defined(SOLARIS) || defined(AIX) || defined(__FreeBSD__)
+#if defined(linux) || defined(SOLARIS) || defined(AIX) || defined(__FreeBSD__) || defined(__GLIBC__)
 #include <semaphore.h>
 #if defined(__FreeBSD__) 
 #define SEM_CREATE(p,s) sem_init(&(p), 0, s)  
