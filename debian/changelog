@@ -1,3 +1,30 @@
+xulrunner (1.9.1.9-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2010-{16-21,23-24}, also known as
+    CVE-2010-0173, CVE-2010-0174, CVE-2010-0175, CVE-2010-0176,
+    CVE-2010-0177, CVE-2010-0178, CVE-2010-0179, CVE-2010-0181.
+
+  * debian/xulrunner-BASE_VERSION.links.in: Use SO_VERSION for libmozjs.so
+    link in the GRE directory.
+  * debian/rules, debian/test.mk: Move test rules in a separate file.
+  * debian/test.mk: Don't buffer sed's output for tests.
+  * debian/remove.nonfree: We now remove more non-free data. Also cleaned
+    up outdated stuff. Closes: #567920
+  * debian/source/format, debian/patches/*: Switch to 3.0 (quilt) format,
+    with patches.
+
+  * build/automation-build.mk: More automation compiled python cleanup.
+    bz#543469.
+  * testing/testsuite-targets.mk: Cleanup test suite logs. bz#555189.
+  * modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list: Mark the
+    png tests as random so that they are actually run. It will help spotting
+    all the architectures that have different rounding.
+  * js/src/config/check-sync-dirs.py: Make check-sync-dirs.py check file
+    contents. bz#550704.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 31 Mar 2010 11:16:06 +0200
+
 xulrunner (1.9.1.8-6) unstable; urgency=low
 
   * debian/extra-stuff/filemonitor/Makefile.in,
@@ -27,7 +54,7 @@ xulrunner (1.9.1.8-6) unstable; urgency=low
     Closes: #571390.
   * storage/src/mozStorageService.cpp: Don't error-out when run-time
     libsqlite is older than build-time libsqlite In Debian, we have shlibs
-    to handle this.
+    to handle this
   * debian/rules, debian/reftest-app, debian/control: Run reftest and
     crashtest to get more code coverage on all architectures. Prepare for
     surprises.
