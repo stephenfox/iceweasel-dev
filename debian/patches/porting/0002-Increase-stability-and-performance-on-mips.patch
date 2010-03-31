@@ -1,0 +1,54 @@
+From 29d6136942a498f42634311de3c8c55c37e9a953 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Sat, 8 Dec 2007 17:34:10 +0100
+Subject: [PATCH 02/12] Increase stability and performance on mips
+
+http://bugs.debian.org/374389
+---
+ config/rules.mk        |    9 ---------
+ js/src/config/rules.mk |    9 ---------
+ 2 files changed, 0 insertions(+), 18 deletions(-)
+
+diff --git a/config/rules.mk b/config/rules.mk
+index 848719d..6ee1023 100644
+--- a/config/rules.mk
++++ b/config/rules.mk
+@@ -607,15 +607,6 @@ endif
+ endif
+ endif
+ 
+-ifeq ($(OS_ARCH),Linux)
+-ifneq (,$(filter mips mipsel,$(OS_TEST)))
+-ifeq ($(MODULE),layout)
+-OS_CFLAGS += -Wa,-xgot
+-OS_CXXFLAGS += -Wa,-xgot
+-endif
+-endif
+-endif
+-
+ #
+ # HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
+ # which uses internal symbols first
+diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
+index 848719d..6ee1023 100644
+--- a/js/src/config/rules.mk
++++ b/js/src/config/rules.mk
+@@ -607,15 +607,6 @@ endif
+ endif
+ endif
+ 
+-ifeq ($(OS_ARCH),Linux)
+-ifneq (,$(filter mips mipsel,$(OS_TEST)))
+-ifeq ($(MODULE),layout)
+-OS_CFLAGS += -Wa,-xgot
+-OS_CXXFLAGS += -Wa,-xgot
+-endif
+-endif
+-endif
+-
+ #
+ # HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
+ # which uses internal symbols first
+-- 
+1.7.0.rc0.69.g2ee80
+

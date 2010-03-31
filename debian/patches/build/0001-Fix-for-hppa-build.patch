@@ -1,0 +1,25 @@
+From bcb7307b2fdd842abb6553c473887277c0395255 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Thu, 3 Apr 2008 20:48:05 +0200
+Subject: [PATCH 1/5] Fix for hppa build
+
+---
+ xpcom/reflect/xptcall/src/md/unix/Makefile.in |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/xpcom/reflect/xptcall/src/md/unix/Makefile.in b/xpcom/reflect/xptcall/src/md/unix/Makefile.in
+index 8f29c8e..96ba820 100644
+--- a/xpcom/reflect/xptcall/src/md/unix/Makefile.in
++++ b/xpcom/reflect/xptcall/src/md/unix/Makefile.in
+@@ -222,7 +222,7 @@ endif
+ # Linux/HPPA/gcc
+ #
+ ifeq ($(OS_ARCH),Linux)
+-ifneq (,$(filter hppa2.0 hppa1.1,$(OS_TEST)))
++ifneq (,$(filter hppa hppa2.0 hppa1.1,$(OS_TEST)))
+ ifndef GNU_CXX
+ $(error Unknown C++ compiler, xptcall assembly will probably be incorrect.)
+ else
+-- 
+1.7.0.rc0.69.g2ee80
+

@@ -1,0 +1,37 @@
+From 487e3b706d2ed8f8d16594e3e51757e58853bb21 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Sat, 24 May 2008 10:46:18 +0200
+Subject: [PATCH 17/44] Don't hardcode the XRE version number in the about: page
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=428765
+---
+ toolkit/content/about.xhtml |    6 +++++-
+ 1 files changed, 5 insertions(+), 1 deletions(-)
+
+diff --git a/toolkit/content/about.xhtml b/toolkit/content/about.xhtml
+index 8940491..02d257f 100644
+--- a/toolkit/content/about.xhtml
++++ b/toolkit/content/about.xhtml
+@@ -61,7 +61,7 @@
+   <div id="aboutLogoContainer">
+     <a id="vendorURL" href="http://www.mozilla.org/">
+       <img src="about:logo" alt="&brandShortName;"/>
+-#expand <p id="version">&about.version; __MOZ_APP_VERSION__</p>
++      <p id="version"></p>
+     </a>
+   </div>
+ 
+@@ -84,6 +84,10 @@
+         var vendorURL = formatter.formatURLPref("app.vendorURL");
+         var vendor = document.getElementById("vendorURL");
+         vendor.setAttribute("href", vendorURL);
++
++        var versionNum = formatter.formatURL("%VERSION%");
++        var version = document.getElementById("version");
++        version.appendChild(document.createTextNode("&about.version; " + versionNum));
+       }
+       catch (ex) { /* no release notes and vendor URL for you without bug 349985 being fixed */ }
+ 
+-- 
+1.7.0.rc0.69.g2ee80
+

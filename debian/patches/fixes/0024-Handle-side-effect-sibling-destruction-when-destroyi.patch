@@ -1,0 +1,37 @@
+From 1a8bd46570b8fbf38e9b43516b7ac43fb8fc110c Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 25 Feb 2010 15:19:00 +0100
+Subject: [PATCH 24/30] Handle side-effect sibling destruction when destroying child windows
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=528386
+---
+ widget/src/gtk2/nsWindow.cpp |    6 +-----
+ 1 files changed, 1 insertions(+), 5 deletions(-)
+
+diff --git a/widget/src/gtk2/nsWindow.cpp b/widget/src/gtk2/nsWindow.cpp
+index e72579e..b00bcdf 100644
+--- a/widget/src/gtk2/nsWindow.cpp
++++ b/widget/src/gtk2/nsWindow.cpp
+@@ -713,9 +713,7 @@ nsWindow::DestroyChildWindows()
+     if (!mGdkWindow)
+         return;
+ 
+-    GList *children = gdk_window_get_children(mGdkWindow);
+-
+-    for(GList *list = children; list; list = list->next) {
++    while (GList *children = gdk_window_peek_children(mGdkWindow)) {
+         GdkWindow *child = GDK_WINDOW(children->data);
+         nsWindow *kid = get_window_for_gdk_window(child);
+         if (kid) {
+@@ -730,8 +728,6 @@ nsWindow::DestroyChildWindows()
+             }
+         }
+     }
+-
+-    g_list_free(children);
+ }
+ 
+ NS_IMETHODIMP
+-- 
+1.7.0.rc0.69.g2ee80
+

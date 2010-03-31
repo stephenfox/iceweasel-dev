@@ -1,0 +1,77 @@
+From 90e870f9ac9ca72c4cc32fd146fd4e912e7405bf Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 28 Jan 2010 18:08:38 +0100
+Subject: [PATCH 35/44] Install missing nanojit and .tbl headers from js/src
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=542789
+---
+ js/src/Makefile.in |   32 +++++++++++++++++++++-----------
+ 1 files changed, 21 insertions(+), 11 deletions(-)
+
+diff --git a/js/src/Makefile.in b/js/src/Makefile.in
+index 7e8b171..39cc2c5 100644
+--- a/js/src/Makefile.in
++++ b/js/src/Makefile.in
+@@ -206,6 +206,7 @@ INSTALLED_HEADERS = \
+ 		jsversion.h \
+ 		jsxdrapi.h \
+ 		jsxml.h \
++		jskeyword.tbl \
+ 		$(NULL)
+ 
+ ifdef ENABLE_JIT
+@@ -214,15 +215,16 @@ VPATH		+= $(srcdir)/nanojit
+ INSTALLED_HEADERS += \
+ 		builtins.tbl    \
+ 		jsbuiltins.h    \
+-		Assembler.h     \
+-		LIR.h		\
+-		avmplus.h	\
+-		Fragmento.h	\
+-		Native.h	\
+-		Native$(NANOJIT_ARCH).h \
+-		RegAlloc.h	\
+-		nanojit.h	\
+-		TraceTreeDrawer.h \
++		nanojit/Assembler.h     \
++		nanojit/LIRopcode.tbl	\
++		nanojit/LIR.h		\
++		nanojit/avmplus.h	\
++		nanojit/Fragmento.h	\
++		nanojit/Native.h	\
++		nanojit/Native$(NANOJIT_ARCH).h \
++		nanojit/RegAlloc.h	\
++		nanojit/nanojit.h	\
++		nanojit/TraceTreeDrawer.h \
+ 		$(NULL)
+ 
+ CPPSRCS += \
+@@ -260,7 +262,7 @@ ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
+ INSTALLED_HEADERS += jscpucfg.h
+ endif
+ 
+-EXPORTS = $(INSTALLED_HEADERS)
++EXPORTS = $(filter-out nanojit/%,$(INSTALLED_HEADERS))
+ 
+ JS_SAFE_ARENA	= 1
+ 
+@@ -609,7 +611,15 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
+ SCRIPTS = js-config
+ SDK_BINARY = js-config
+ 
+-install:: $(INSTALLED_HEADERS)
++ifdef ENABLE_JIT
++export:: $(filter nanojit/%,$(INSTALLED_HEADERS))
++	$(INSTALL) $(IFLAGS1) $^ $(PUBLIC)/nanojit
++
++install:: $(filter nanojit/%,$(INSTALLED_HEADERS))
++	$(SYSINSTALL) $(IFLAGS1) $^ $(includedir)/$(MODULE)/nanojit
++endif
++
++install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
+ 	$(SYSINSTALL) $(IFLAGS1) $^ $(includedir)/$(MODULE)
+ 
+ install:: $(SCRIPTS)
+-- 
+1.7.0.rc0.69.g2ee80
+

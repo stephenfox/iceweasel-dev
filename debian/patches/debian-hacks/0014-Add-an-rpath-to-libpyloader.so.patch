@@ -1,0 +1,25 @@
+From 2dfb2932b7615de3fd3b359d97aa6767411aba09 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Thu, 1 May 2008 08:28:32 +0200
+Subject: [PATCH 14/44] Add an rpath to libpyloader.so.
+
+It makes libpyxpcom.so can be found when libxul loads the component.
+---
+ extensions/python/xpcom/src/loader/Makefile.in |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/extensions/python/xpcom/src/loader/Makefile.in b/extensions/python/xpcom/src/loader/Makefile.in
+index 2d17e67..4056a89 100644
+--- a/extensions/python/xpcom/src/loader/Makefile.in
++++ b/extensions/python/xpcom/src/loader/Makefile.in
+@@ -69,6 +69,7 @@ include $(topsrcdir)/config/config.mk
+ 
+ EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS) \
+                     $(MOZ_COMPONENT_LIBS) \
++                    -Wl,-rpath,$(installdir) \
+                     $(NULL)
+ 
+ include $(topsrcdir)/config/rules.mk
+-- 
+1.7.0.rc0.69.g2ee80
+

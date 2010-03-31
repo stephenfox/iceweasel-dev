@@ -1,0 +1,29 @@
+From 7628c7595545d9fc44a6009bdf2923f898d28a36 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Mar 2010 15:21:41 +0100
+Subject: [PATCH 43/44] Mark the png tests as random so that we can spot on what architecture they fail
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=471917
+---
+ .../test/reftest/pngsuite-ancillary/reftest.list   |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list b/modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list
+index 43f1466..b654c4a 100644
+--- a/modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list
++++ b/modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list
+@@ -3,9 +3,9 @@
+ # cHRM chunks
+ #
+ # ccwn2c08 - gamma 1.0000 chunk, chroma chunk w:0.3127,0.3290 r:0.64,0.33 g:0.30,0.60 b:0.15,0.06
+-== ccwn2c08.png ccwn2c08.html
++random == ccwn2c08.png ccwn2c08.html # bz#471917
+ # ccwn3p08 - gamma 1.0000 chunk, chroma chunk w:0.3127,0.3290 r:0.64,0.33 g:0.30,0.60 b:0.15,0.06
+-== ccwn3p08.png ccwn3p08.html
++random == ccwn3p08.png ccwn3p08.html # bz#471917
+ 
+ # pHYs chunks
+ #
+-- 
+1.7.0.rc0.69.g2ee80
+

@@ -1,0 +1,50 @@
+From f2f4ef26484a0263c7f62d46ad484470d7cb5805 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Mar 2010 15:20:31 +0100
+Subject: [PATCH 27/30] Use Bitstream Vera as an alternative font in reftest font-face/local-1
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=554029
+---
+ layout/reftests/font-face/local-1-ref.html |    4 ++--
+ layout/reftests/font-face/local-1.html     |    3 ++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/layout/reftests/font-face/local-1-ref.html b/layout/reftests/font-face/local-1-ref.html
+index b395f16..345c498 100644
+--- a/layout/reftests/font-face/local-1-ref.html
++++ b/layout/reftests/font-face/local-1-ref.html
+@@ -6,8 +6,8 @@
+ 	<title>test src: local() reference</title>
+ 	<style type="text/css">
+ 	  body {
+-	    font-family: Nimbus Sans L, Helvetica, Arial, Liberation Sans,
+-                         serif;
++	    font-family: Nimbus Sans L, Helvetica, Bitstream Vera Sans,
++                         Arial, Liberation Sans, serif;
+ 	  }
+ 	</style>
+ </head>
+diff --git a/layout/reftests/font-face/local-1.html b/layout/reftests/font-face/local-1.html
+index 10a69af..c62d0d5 100644
+--- a/layout/reftests/font-face/local-1.html
++++ b/layout/reftests/font-face/local-1.html
+@@ -33,7 +33,7 @@
+ 	  @font-face {
+ 	     font-family: "Local";
+ 	     src: local(Nimbus Sans L), local(NimbusSansL-Regu),
+-	          local(Helvetica),
++	          local(Helvetica), local(Bitstream Vera Sans),
+ 	          local(Arial), local(Liberation Sans);
+ 	     font-weight: 100;
+ 	  }
+@@ -41,6 +41,7 @@
+ 	     font-family: "Local";
+ 	     src: local(Nimbus Sans L Bold), local(NimbusSansL-Bold),
+ 	          local(Helvetica Bold), local(Helvetica-Bold),
++                  local(Bitstream Vera Sans  Bold),
+ 	          local(Arial Bold), local(Liberation Sans Bold);
+ 	     font-weight: normal;
+ 	  }
+-- 
+1.7.0.rc0.69.g2ee80
+

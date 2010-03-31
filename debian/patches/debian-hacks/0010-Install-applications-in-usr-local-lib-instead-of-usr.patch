@@ -1,0 +1,25 @@
+From 895c1b32fa098a25da7082e7c19fa05d638441c5 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Thu, 13 Mar 2008 20:32:17 +0100
+Subject: [PATCH 10/44] Install applications in /usr/local/lib instead of /usr/lib
+
+---
+ xulrunner/setup/nsXULAppInstall.js |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/xulrunner/setup/nsXULAppInstall.js b/xulrunner/setup/nsXULAppInstall.js
+index c467e17..10968a7 100644
+--- a/xulrunner/setup/nsXULAppInstall.js
++++ b/xulrunner/setup/nsXULAppInstall.js
+@@ -243,7 +243,7 @@ const AppInstall = {
+ #else
+       aDirectory = Components.classes["@mozilla.org/file/local;1"].
+         createInstance(nsILocalFile);
+-      aDirectory.initWithPath("/usr/lib");
++      aDirectory.initWithPath("/usr/local/lib");
+       if (vendor)
+         aDirectory.append(vendor.toLowerCase());
+ #endif
+-- 
+1.7.0.rc0.69.g2ee80
+

@@ -1,0 +1,25 @@
+From 980c72b5c2e4aac78493ae94a9de231d5a6297c3 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Tue, 23 Feb 2010 13:40:34 +0100
+Subject: [PATCH 36/44] Don't build the null plugin
+
+---
+ modules/plugin/Makefile.in |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/modules/plugin/Makefile.in b/modules/plugin/Makefile.in
+index 6fead10..4daaced 100644
+--- a/modules/plugin/Makefile.in
++++ b/modules/plugin/Makefile.in
+@@ -57,7 +57,7 @@ endif
+ #  buildable on other non-GTK unix builds
+ 
+ ifdef MOZ_ENABLE_GTK2
+-TOOL_DIRS += default/unix
++#TOOL_DIRS += default/unix
+ endif
+ 
+ ifeq ($(OS_ARCH),WINNT)
+-- 
+1.7.0.rc0.69.g2ee80
+

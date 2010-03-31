@@ -1,0 +1,27 @@
+From cc4a5f831deec0dcd4638e3ef0242f3d43a91343 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Tue, 23 Mar 2010 11:57:28 +0100
+Subject: [PATCH 29/30] Download search engine icons when searchplugin is read-only
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=554265
+---
+ toolkit/components/search/nsSearchService.js |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/toolkit/components/search/nsSearchService.js b/toolkit/components/search/nsSearchService.js
+index fb9175c..fae3625 100644
+--- a/toolkit/components/search/nsSearchService.js
++++ b/toolkit/components/search/nsSearchService.js
+@@ -1409,7 +1409,8 @@ Engine.prototype = {
+       case "https":
+       case "ftp":
+         // No use downloading the icon if the engine file is read-only
+-        if (!this._readOnly) {
++        if (!this._readOnly ||
++            getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true)) {
+           LOG("_setIcon: Downloading icon: \"" + uri.spec +
+               "\" for engine: \"" + this.name + "\"");
+           var chan = gIoSvc.newChannelFromURI(uri);
+-- 
+1.7.0.rc0.69.g2ee80
+

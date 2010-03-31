@@ -1,0 +1,25 @@
+From b53fd7e6c1f6712402be5417b33df7036626eb02 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Mar 2010 11:38:20 +0100
+Subject: [PATCH 40/44] Skip 441368-1.svg crash test, as it triggers an almost infinite loop
+
+---
+ layout/svg/crashtests/crashtests.list |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/layout/svg/crashtests/crashtests.list b/layout/svg/crashtests/crashtests.list
+index 798a421..2d43339 100644
+--- a/layout/svg/crashtests/crashtests.list
++++ b/layout/svg/crashtests/crashtests.list
+@@ -59,7 +59,7 @@ load 409573-1.svg
+ load 420697-1.svg
+ load 420697-2.svg
+ load 429774-1.svg
+-load 441368-1.svg
++skip load 441368-1.svg # triggers an almost infinite loop
+ skip load 453754-1.svg
+ load 455314-1.xhtml
+ skip load 458453.html
+-- 
+1.7.0.rc0.69.g2ee80
+

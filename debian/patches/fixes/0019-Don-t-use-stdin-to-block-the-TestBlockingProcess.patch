@@ -1,0 +1,31 @@
+From 7ccb44648690a9f98eb571808e1ed539c27aea99 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 1 Feb 2010 13:33:25 +0100
+Subject: [PATCH 19/30] Don't use stdin to block the TestBlockingProcess
+
+This made the nsIProcess unit test fail in pbuilder.
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=543438
+---
+ xpcom/tests/TestBlockingProcess.cpp |    5 ++---
+ 1 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/xpcom/tests/TestBlockingProcess.cpp b/xpcom/tests/TestBlockingProcess.cpp
+index 8e06145..0dc781e 100644
+--- a/xpcom/tests/TestBlockingProcess.cpp
++++ b/xpcom/tests/TestBlockingProcess.cpp
+@@ -1,9 +1,8 @@
+-#include <stdio.h>
++#include <prthread.h>
+  
+ int main()
+ {
+-   char text[20];
+-   fgets(text, sizeof text, stdin);
++   while(1) PR_Sleep(PR_SecondsToInterval(10));
+    return 0;
+ }
+ 
+-- 
+1.7.0.rc0.69.g2ee80
+

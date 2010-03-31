@@ -1,0 +1,25 @@
+From 860cc1063a60c9a98faef56513572e59c3402133 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Sat, 8 Dec 2007 17:04:54 +0100
+Subject: [PATCH 01/44] Allow to override the PYTHON_SO variable
+
+---
+ extensions/python/xpcom/src/Makefile.in |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/extensions/python/xpcom/src/Makefile.in b/extensions/python/xpcom/src/Makefile.in
+index 4ee901a..e1e196a 100644
+--- a/extensions/python/xpcom/src/Makefile.in
++++ b/extensions/python/xpcom/src/Makefile.in
+@@ -82,7 +82,7 @@ CPPSRCS= \
+ 
+ include $(topsrcdir)/config/config.mk
+ 
+-CXXFLAGS += -DPYTHON_SO=\"libpython$(MOZ_PYTHON_VER_DOTTED).so\"
++CXXFLAGS += -DPYTHON_SO=\"$(PYTHON_SO)\"
+ 
+ EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS) \
+                     $(MOZ_COMPONENT_LIBS) \
+-- 
+1.7.0.rc0.69.g2ee80
+

@@ -1,0 +1,45 @@
+From 522b4908d6654a19ebf8f31dd9ddd3ea814e41e1 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Tue, 30 Jun 2009 07:27:21 +0200
+Subject: [PATCH 3/3] Fix FTBFS of xpcshell when EDITLINE is set
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=501241
+---
+ js/src/xpconnect/shell/xpcshell.cpp |   14 +++++++-------
+ 1 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/js/src/xpconnect/shell/xpcshell.cpp b/js/src/xpconnect/shell/xpcshell.cpp
+index ba5044c..d4390df 100644
+--- a/js/src/xpconnect/shell/xpcshell.cpp
++++ b/js/src/xpconnect/shell/xpcshell.cpp
+@@ -224,6 +224,13 @@ GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
+ #endif
+ }
+ 
++#ifdef EDITLINE
++extern "C" {
++extern JS_EXPORT_API(char)     *readline(const char *prompt);
++extern JS_EXPORT_API(void)     add_history(char *line);
++}
++#endif
++
+ static JSBool
+ GetLine(JSContext *cx, char *bufp, FILE *file, const char *prompt) {
+ #ifdef EDITLINE
+@@ -811,13 +818,6 @@ my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
+             return NULL;
+ }
+ 
+-#ifdef EDITLINE
+-extern "C" {
+-extern JS_EXPORT_API(char)     *readline(const char *prompt);
+-extern JS_EXPORT_API(void)     add_history(char *line);
+-}
+-#endif
+-
+ static void
+ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
+             JSBool forceTTY)
+-- 
+1.7.0.rc0.69.g2ee80
+

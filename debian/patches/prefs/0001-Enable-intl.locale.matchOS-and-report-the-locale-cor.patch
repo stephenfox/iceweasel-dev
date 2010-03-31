@@ -1,0 +1,27 @@
+From 3761ff15c4036e595077ba8ff414b319dfb50e35 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Thu, 13 Mar 2008 20:28:02 +0100
+Subject: [PATCH 1/3] Enable intl.locale.matchOS, and report the locale correctly
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=331779
+---
+ xulrunner/app/xulrunner.js |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/xulrunner/app/xulrunner.js b/xulrunner/app/xulrunner.js
+index 9a9ae9f..8217858 100644
+--- a/xulrunner/app/xulrunner.js
++++ b/xulrunner/app/xulrunner.js
+@@ -39,7 +39,8 @@
+ // We need to override the default values of these preferences since all.js
+ // assumes these are in the navigator package, which for us is non-existant.
+ // XXX(darin): perhaps all.js should not be seamonkey specific
+-pref("general.useragent.locale", "@AB_CD@");
++pref("intl.locale.matchOS", true);
++pref("general.useragent.locale", "chrome://global/locale/intl.properties");
+ pref("font.language.group", "chrome://global/locale/intl.properties");
+ pref("intl.accept_languages", "chrome://global/locale/intl.properties");
+ pref("intl.charsetmenu.browser.static", "chrome://global/locale/intl.properties");
+-- 
+1.7.0.rc0.69.g2ee80
+
