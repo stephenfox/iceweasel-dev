@@ -271,6 +271,7 @@ private:
   nsresult GetHostPortKey(nsNSSSocketInfo* infoObject, nsCAutoString& result);
 
 public:
+  friend class nsSSLIOLayerHelpers;
   nsPSMRememberCertErrorsTable();
   void RememberCertHasError(nsNSSSocketInfo* infoObject,
                            nsSSLStatus* status,
@@ -291,19 +292,23 @@ public:
 
   static PRLock *mutex;
   static nsCStringHashSet *mTLSIntolerantSites;
+  static nsCStringHashSet *mTLSTolerantSites;
   static nsPSMRememberCertErrorsTable* mHostsWithCertErrors;
-  
+
   static nsCStringHashSet *mRenegoUnrestrictedSites;
   static PRBool mTreatUnsafeNegotiationAsBroken;
 
   static void setTreatUnsafeNegotiationAsBroken(PRBool broken);
   static PRBool treatUnsafeNegotiationAsBroken();
 
+  static void getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key);
   static PRBool rememberPossibleTLSProblemSite(PRFileDesc* fd, nsNSSSocketInfo *socketInfo);
+  static void rememberTolerantSite(PRFileDesc* ssl_layer_fd, nsNSSSocketInfo *socketInfo);
 
   static void addIntolerantSite(const nsCString &str);
+  static void removeIntolerantSite(const nsCString &str);
   static PRBool isKnownAsIntolerantSite(const nsCString &str);
-  
+
   static void setRenegoUnrestrictedSites(const nsCString &str);
   static PRBool isRenegoUnrestrictedSite(const nsCString &str);
 

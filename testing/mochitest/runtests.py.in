@@ -393,7 +393,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   # via the commandline at your own risk.
   # NO_EM_RESTART: will do a '-silent' run instead.
   browserEnv["NO_EM_RESTART"] = "1"
-  browserEnv["XPCOM_DEBUG_BREAK"] = "warn"
+  browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
   appDir = os.path.dirname(options.app)
   if automation.UNIXISH:
     browserEnv["LD_LIBRARY_PATH"] = appDir
@@ -440,11 +440,6 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
     testURL = A11YTESTS_URL
     if options.testPath:
       urlOpts.append("testPath=" + encodeURIComponent(options.testPath))
-    # Force leak threshold. (bug 472773)
-    if automation.IS_MAC and options.leakThreshold == 0:
-      options.leakThreshold = 68
-      automation.log.info("INFO | runtests.py | setting leak threshold to %d",
-                          options.leakThreshold)
   elif options.browserChrome:
     testURL = "about:blank"
 
@@ -497,7 +492,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
                              xrePath = options.xrePath,
                              certPath=options.certPath,
                              debuggerInfo=debuggerInfo,
-                             symbolsPath = options.symbolsPath)
+                             symbolsPath=options.symbolsPath)
 
   # Server's no longer needed, and perhaps more importantly, anything it might
   # spew to console shouldn't disrupt the leak information table we print next.

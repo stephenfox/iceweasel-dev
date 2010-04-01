@@ -41,29 +41,42 @@ DEPTH		= .
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 
-DIRS		= config
-
 run_for_side_effects := $(shell echo "MAKE: $(MAKE)")
 include $(DEPTH)/config/autoconf.mk
 
-MODULE		= js
-LIBRARY_NAME	= mozjs
-GRE_MODULE	= 1
-SO_VERSION	= 2d
+DIRS		= config
 
-SIMPLE_PROGRAMS	= js$(BIN_SUFFIX)
-LIBS		= -L. $(MOZ_JS_LIBS) $(NSPR_LIBS)
-# Make sure the library is built before the js binary
-$(SIMPLE_PROGRAMS): $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
-
-ifdef HAVE_READLINE
-DEFINES	+= -DEDITLINE
-LIBS	+= $(READLINE_LIBS)
+ifdef DEHYDRA_PATH
+DIRS += analysis-tests
 endif
 
-ifdef WINCE
-EXTRA_LIBS += $(JEMALLOC_LIBS)
+ifdef JS_NATIVE_EDITLINE
+DIRS += editline
 endif
+
+# editline needs to get built before the shell
+ifndef JS_DISABLE_SHELL
+DIRS += shell
+endif
+
+# FIXME: bug 515383 covers getting these working on wince
+ifndef WINCE
+ifdef ENABLE_TESTS
+DIRS += jsapi-tests
+endif
+endif
+
+ifdef ENABLE_TESTS
+DIRS += tests
+endif
+
+MODULE		    = js
+LIBRARY_NAME	    = mozjs
+STATIC_LIBRARY_NAME = js_static
+GRE_MODULE	    = 1
+SO_VERSION	= 3d
+
+LIBS		= $(NSPR_LIBS) 
 
 ifdef GNU_CXX
 ifdef INTEL_CXX
@@ -75,7 +88,7 @@ MODULE_OPTIMIZE_FLAGS = -O2 -ip
 #XXX: do we want different INTERP_OPTIMIZER flags here?
 endif
 else # not INTEL_CXX
-MODULE_OPTIMIZE_FLAGS = -Os -fstrict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
+MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
 # Special optimization flags for jsinterp.c
 INTERP_OPTIMIZER = -O3 -fstrict-aliasing
 endif
@@ -96,17 +109,18 @@ endif
 
 ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
 LIBRARY_NAME	= js$(MOZ_BITS)$(VERSION_NUMBER)
-RESFILE		= js$(MOZ_BITS)40.res
 endif
 
 # JavaScript must be built shared, even for static builds, as it is used by
 # other modules which are always built shared. Failure to do so results in
 # the js code getting copied into xpinstall and jsd as well as mozilla-bin,
 # and then the static data cells used for locking no longer work.
+#
+# In fact, we now build both a static and a shared library, as the
+# JS shell would like to link to the static library.
 
-ifndef JS_STATIC_BUILD
 FORCE_SHARED_LIB = 1
-endif
+FORCE_STATIC_LIB = 1
 
 VPATH		= $(srcdir)
 
@@ -143,6 +157,7 @@ CPPSRCS		= \
 		jsscope.cpp \
 		jsscript.cpp \
 		jsstr.cpp \
+		jstask.cpp \
 		jsutil.cpp \
 		jsxdrapi.cpp \
 		jsxml.cpp \
@@ -150,8 +165,8 @@ CPPSRCS		= \
 		$(NULL)
 
 ifdef HAVE_DTRACE
-CSRCS 		+= \
-		jsdtracef.c
+CPPSRCS 	+= \
+		jsdtracef.cpp
 endif
 
 INSTALLED_HEADERS = \
@@ -177,12 +192,14 @@ INSTALLED_HEADERS = \
 		jsgc.h \
 		jshash.h \
 		jsinterp.h \
+		jsinttypes.h \
 		jsiter.h \
 		jslock.h \
 		jslong.h \
 		jsmath.h \
 		jsnum.h \
 		jsobj.h \
+		jsobjinlines.h \
 		json.h \
 		jsopcode.tbl \
 		jsopcode.h \
@@ -196,10 +213,10 @@ INSTALLED_HEADERS = \
 		jsscan.h \
 		jsscope.h \
 		jsscript.h \
+		jsscriptinlines.h \
 		jsstaticcheck.h \
-		jsstddef.h \
-		jsstdint.h \
 		jsstr.h \
+		jstask.h \
 		jstracer.h \
 		jstypes.h \
 		jsutil.h \
@@ -213,9 +230,11 @@ ifdef ENABLE_JIT
 VPATH		+= $(srcdir)/nanojit
 
 INSTALLED_HEADERS += \
-		builtins.tbl    \
 		jsbuiltins.h    \
 		nanojit/Assembler.h     \
+		nanojit/Allocator.h     \
+		nanojit/CodeAlloc.h     \
+		nanojit/Containers.h    \
 		nanojit/LIRopcode.tbl	\
 		nanojit/LIR.h		\
 		nanojit/avmplus.h	\
@@ -224,12 +243,14 @@ INSTALLED_HEADERS += \
 		nanojit/Native$(NANOJIT_ARCH).h \
 		nanojit/RegAlloc.h	\
 		nanojit/nanojit.h	\
-		nanojit/TraceTreeDrawer.h \
 		$(NULL)
 
 CPPSRCS += \
 		jstracer.cpp \
 		Assembler.cpp  \
+		Allocator.cpp  \
+		CodeAlloc.cpp  \
+		Containers.cpp \
 		Fragmento.cpp  \
 		LIR.cpp        \
 		RegAlloc.cpp   \
@@ -241,15 +262,11 @@ CPPSRCS += \
 ifdef WINCE
 # don't need -c
 AS_DASH_C_FLAG =
+ASFLAGS += -arch 6
 ASFILES += jswince.asm
 endif
 
-ifdef DEBUG
-CPPSRCS += TraceTreeDrawer.cpp
-endif
-
-DEFINES += -DFEATURE_NANOJIT -DJS_TRACER
-endif
+endif # ENABLE_JIT
 
 ifdef HAVE_DTRACE
 INSTALLED_HEADERS += \
@@ -284,19 +301,11 @@ EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib)
 endif
 endif
 
-# When using gcc the assembly is inlined in the C-file (see jslock.cpp)
-ifeq ($(OS_ARCH),SunOS)
-ifneq (86,$(findstring 86,$(OS_TEST)))
-ifndef GNU_CC
-ASFILES		= lock_$(OS_ARCH).s
-endif
-endif
-endif
-
 ifndef BUILD_OPT
 MOCHAFILE	= 1
 endif
 
+ifdef MOZ_OJI
 ifndef NSBUILDROOT
 JSJAVA_STUBHEADERS = \
 		-I$(topsrcdir)/sun-java/include/_gen \
@@ -310,6 +319,7 @@ JSJAVA_CFLAGS	= \
 		-I$(topsrcdir)/sun-java/md-include \
 		-I$(topsrcdir)/sun-java/include \
 		$(JSJAVA_STUBHEADERS)
+endif
 
 # Define keyword generator before rules.mk, see bug 323979 comment 50
 
@@ -328,19 +338,22 @@ endif
 MOZILLA_DTRACE_SRC = $(srcdir)/javascript-trace.d
 endif
 
-include $(topsrcdir)/config/rules.mk
+default::
 
+ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
+ifneq (,$(filter-out SYMBIAN WINCE,$(OS_ARCH)))
 # nsinstall doesn't get built until we enter config/ in the exports phase,
 # so we'll have to manually ensure it gets built here if we want to use
 # $(EXPORTS)
-ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
-ifneq ($(OS_ARCH), WINCE)
-$(EXPORTS) $(PUBLIC): config/nsinstall$(HOST_BIN_SUFFIX)
+export:: config/nsinstall$(HOST_BIN_SUFFIX)
+$(PUBLIC) $(SDK_PUBLIC): config/nsinstall$(HOST_BIN_SUFFIX)
 
 config/nsinstall$(HOST_BIN_SUFFIX): $(srcdir)/config/nsinstall.c $(srcdir)/config/pathsub.c
 	$(MAKE) -C config/ nsinstall$(HOST_BIN_SUFFIX)
 endif
 endif
+
+include $(topsrcdir)/config/rules.mk
 
 ifdef MOZ_SYNC_BUILD_FILES
 # Because the SpiderMonkey can be distributed and built independently
@@ -354,22 +367,36 @@ ifdef MOZ_SYNC_BUILD_FILES
 # belongs in the other as well.  If the change isn't right for both
 # places, then that's something to bring up with the other developers.
 #
-# Some files are reasonable to diverge; for example,
+# Some files are reasonable to diverge; for  example,
 # js/config/autoconf.mk.in doesn't need most of the stuff in
 # config/autoconf.mk.in.
 check-sync-dirs = $(PYTHON) $(srcdir)/config/check-sync-dirs.py
 check::
 	$(check-sync-dirs) $(srcdir)/config $(MOZ_SYNC_BUILD_FILES)/config
 	$(check-sync-dirs) $(srcdir)/build $(MOZ_SYNC_BUILD_FILES)/build
+
+check-valgrind::
+	$(check-sync-dirs) $(srcdir)/config $(MOZ_SYNC_BUILD_FILES)/config
+	$(check-sync-dirs) $(srcdir)/build $(MOZ_SYNC_BUILD_FILES)/build
 endif
 
-# Temporarily disable - backout of bug 473989.
-#ifdef ENABLE_JIT
-#check::
-#	$(wildcard $(RUN_TEST_PROGRAM)) ./js$(BIN_SUFFIX) -j -e \
-#		"var gSrcdir='$(srcdir)'; var gSkipSlowTests=true; var gReportSummary=false;" \
-#		$(srcdir)/trace-test.js
-#endif
+ifdef ENABLE_JIT
+check::
+	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
+	        --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
+
+check-valgrind::
+	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
+	        --valgrind --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
+endif
+
+DIST_GARBAGE = config.cache config.log config.status \
+   config/myrules.mk config/myconfig.mk \
+   unallmakefiles js-config js-config.h js-confdefs.h
+
+distclean::
+	cat unallmakefiles | $(XARGS) rm -f
+	rm -f $(DIST_GARBAGE)
 
 DIST_GARBAGE = config.cache config.log config.status \
    config/autoconf.mk \
@@ -458,15 +485,12 @@ endif
 ifeq ($(OS_ARCH),SunOS)
 ifeq ($(TARGET_CPU),sparc)
 
-ifdef JS_ULTRASPARC_OPTS
-DEFINES += -DULTRA_SPARC
 ifdef GNU_CC
-CFLAGS   += -Wa,-xarch=v8plus,-DULTRA_SPARC,-P,-L,-D_ASM,-D__STDC__=0
-CXXFLAGS += -Wa,-xarch=v8plus,-DULTRA_SPARC,-P,-L,-D_ASM,-D__STDC__=0,-K,PIC
+CFLAGS   += -mcpu=v9
+CXXFLAGS += -mcpu=v9
 else
-ASFLAGS  += -xarch=v8plus -DULTRA_SPARC -P -L -D_ASM -D__STDC__=0 -K PIC
+ASFLAGS  += -xarch=v8plus -P -L -D_ASM -D__STDC__=0 -K PIC
 endif # GNU_CC
-endif # JS_ULTRASPARC_OPTS
 
 endif
 ifeq ($(OS_RELEASE),4.1)
@@ -522,11 +546,9 @@ jsdtoa.o: jsdtoa.cpp Makefile.in
 	$(CXX) -o $@ -c $(filter-out $(MOZ_OPTIMIZE_FLAGS), $(COMPILE_CFLAGS)) $<
 endif
 
-jsopcode.h jsopcode.cpp: jsopcode.tbl
-
 export:: jsautocfg.h
 
-ifeq (,$(CROSS_COMPILE)$(filter-out WINNT,$(OS_ARCH)))
+ifeq (,$(CROSS_COMPILE)$(GNU_CC)$(filter-out WINNT,$(OS_ARCH)))
 jsautocfg.h:
 	touch $@
 else
@@ -613,31 +635,32 @@ SDK_BINARY = js-config
 
 ifdef ENABLE_JIT
 export:: $(filter nanojit/%,$(INSTALLED_HEADERS))
-	$(INSTALL) $(IFLAGS1) $^ $(PUBLIC)/nanojit
+	$(INSTALL) $^ $(DIST)/include/nanojit
 
 install:: $(filter nanojit/%,$(INSTALLED_HEADERS))
-	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)/nanojit
+	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/nanojit
 endif
 
 install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
-	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)
+	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)
 
-install:: $(SCRIPTS) $(SIMPLE_PROGRAMS)
-	$(SYSINSTALL) $(IFLAGS2) $^ $(DESTDIR)$(bindir)
+install:: $(SCRIPTS)
+	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)
 
 install:: $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
 ifneq (,$(LIBRARY))
-	$(SYSINSTALL) $(IFLAGS1) $(LIBRARY) $(DESTDIR)$(libdir)
+	$(SYSINSTALL) $(LIBRARY) $(DESTDIR)$(libdir)
 endif
 ifneq (,$(SHARED_LIBRARY))
-	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DESTDIR)$(libdir)
+	$(SYSINSTALL) $(SHARED_LIBRARY) $(DESTDIR)$(libdir)
 ifneq (,$(UNVERSIONED_LIBRARY))
 	ln -s $(SHARED_LIBRARY) $(DESTDIR)$(libdir)/$(UNVERSIONED_LIBRARY)
 endif
 endif
 ifneq (,$(IMPORT_LIBRARY))
-	$(SYSINSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
+	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
 endif
+	$(MAKE) -C shell install
 
 # Extra dependancies and rules for auto-generated headers
 host_jskwgen.$(OBJ_SUFFIX): jsversion.h jskeyword.tbl
@@ -663,7 +686,9 @@ $(CURDIR)/javascript-trace.h: $(srcdir)/javascript-trace.d
 	sed 's/if _DTRACE_VERSION/ifdef INCLUDE_MOZILLA_DTRACE/' \
 	    javascript-trace.h.in > javascript-trace.h
 
-$(CPPSRCS:%.cpp=%.$(OBJ_SUFFIX)): $(CURDIR)/javascript-trace.h
+# We can't automatically generate dependencies on auto-generated headers;
+# we have to list them explicitly.
+$(addsuffix .$(OBJ_SUFFIX),jsdtracef jsinterp jsobj): $(CURDIR)/javascript-trace.h
 endif
 
 ifdef GNU_CC

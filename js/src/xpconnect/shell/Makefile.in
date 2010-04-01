@@ -70,7 +70,8 @@ NSDISTMODE = copy
 
 ifdef _MSC_VER
 ifdef WINCE
-WIN32_EXE_LDFLAGS += -ENTRY:mainACRTStartup
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre/
 endif
 endif
 
@@ -100,7 +101,7 @@ endif
 # look at mozilla/js/src/editline, which is license-free (but not part
 # of the mozilla build.)
 #
-ifdef HAVE_READLINE
+ifdef JS_READLINE
 DEFINES += -DEDITLINE
-LIBS += $(READLINE_LIBS)
+LIBS += -lreadline $(JS_READLINE_EXTRA_LIBS)
 endif
