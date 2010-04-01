@@ -76,6 +76,7 @@ override_dh_auto_configure: debian/mozconfig
 override_dh_auto_build:
 	dh_auto_build --parallel -- \
 		$(JAVA_VARS) \
+		JS_READLINE=1 \
 		$(if $(wildcard /usr/bin/javac),,DEB_NO_JAR=1)
 	$(MAKE) -C debian/extra-stuff
 
