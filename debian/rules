@@ -84,7 +84,7 @@ include debian/test.mk
 endif
 
 override_dh_auto_clean::
-	rm -f MPL debian/reftest-app/stub
+	rm -f MPL
 	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 

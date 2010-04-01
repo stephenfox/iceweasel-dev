@@ -58,4 +58,4 @@ check-skip:
 	rm -f js/src/trace-test/tests/sunspider/check-date-format-tofte.js
 
 override_dh_auto_clean::
-	rm -rf debian/locales
+	rm -rf debian/locales debian/reftest-app/stub
