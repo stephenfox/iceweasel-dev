@@ -224,8 +224,8 @@ Architecture: any
 Provides: ${python:Provides}
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         ${python:Depends},
-         xulrunner-1.9.1
+         ${python:Depends}
+Pre-Depends: xulrunner-1.9.1
 Breaks: epiphany-gecko (<< 2.28)
 XB-Python-Version: ${python:Versions}
 Description: XPCOM bindings for Python
