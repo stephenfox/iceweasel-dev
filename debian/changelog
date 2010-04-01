@@ -1,3 +1,14 @@
+xulrunner (1.9.1.9-2) unstable; urgency=low
+
+  * debian/control.in: Update debian/control.in, that was mistakenly left
+    aside.
+  * debian/control*: python-xpcom needs to pre depend on the xulrunner
+    package. Closes: #576108
+  * debian/python-xpcom.prerm: Remove pyabout.pyo file when removing
+    python-xpcom.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 01 Apr 2010 20:29:38 +0200
+
 xulrunner (1.9.1.9-1) unstable; urgency=low
 
   * New upstream release.
