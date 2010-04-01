@@ -1,7 +1,7 @@
-From 8c38ffe7c57a7c059dde1998b9fcadf44003fad7 Mon Sep 17 00:00:00 2001
+From 308fd494630f411b0efb4267138ff4f42f7c5ae0 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 13:33:25 +0100
-Subject: [PATCH 15/21] Don't use stdin to block the TestBlockingProcess
+Subject: [PATCH 15/23] Don't use stdin to block the TestBlockingProcess
 
 This made the nsIProcess unit test fail in pbuilder.
 

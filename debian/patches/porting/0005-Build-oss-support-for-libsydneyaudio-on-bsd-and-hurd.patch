@@ -1,4 +1,4 @@
-From e57226c25762d569f908aeda9f3bb51b8ccf0b74 Mon Sep 17 00:00:00 2001
+From ec97d79691ddf1c895ef1399c64ec4dfeaeffa76 Mon Sep 17 00:00:00 2001
 From: Petr Salinger <Petr.Salinger@seznam.cz>
 Date: Fri, 18 Sep 2009 20:06:43 +0200
 Subject: [PATCH 05/10] Build oss support for libsydneyaudio on *bsd and hurd

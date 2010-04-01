@@ -1,4 +1,4 @@
-From 2318d8c6dd943993281d40885187b3214d85d3fe Mon Sep 17 00:00:00 2001
+From 8e61814397fa19777454792f4c94a674cbcf2731 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 8 Dec 2007 16:34:50 +0100
 Subject: [PATCH] Avoid visibility hidden issues with readline symbols

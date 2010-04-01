@@ -1,7 +1,7 @@
-From 750fe7b3ed0ed53aa8214000899d487e189cc81d Mon Sep 17 00:00:00 2001
+From f525fae080585c1c1e833b862bbe5fbdda3704a1 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 23 Nov 2009 20:03:10 +0100
-Subject: [PATCH 09/21] Add -ldl in libxul-embedding*.pc
+Subject: [PATCH 09/23] Add -ldl in libxul-embedding*.pc
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=530534
 

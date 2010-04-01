@@ -1,7 +1,7 @@
-From 6a9b05ecd1d2a33a6502e9db150eb5e10e483b44 Mon Sep 17 00:00:00 2001
+From 50c607de62b148fe4914187959a0167825804b2f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Tue, 7 Jul 2009 22:09:19 +0200
-Subject: [PATCH 07/21] Implement sync_instruction_memory for sparc linux
+Subject: [PATCH 07/23] Implement sync_instruction_memory for sparc linux
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=502369
 ---

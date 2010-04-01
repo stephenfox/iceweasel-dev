@@ -1,7 +1,7 @@
-From 9e55d75a9ffe39faad87cbd8db28af66a719109a Mon Sep 17 00:00:00 2001
+From 788664487c40f0058acb8124ada6e8197e28d9f5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:52:15 +0100
-Subject: [PATCH 1/9] Avoid creating config/my{config,rules}.mk
+Subject: [PATCH 01/11] Avoid creating config/my{config,rules}.mk
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541767
 ---

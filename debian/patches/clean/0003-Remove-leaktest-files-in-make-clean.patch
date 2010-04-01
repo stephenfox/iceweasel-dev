@@ -1,7 +1,7 @@
-From 9c82353a96d3e1c09287d11d362a3321c5394c59 Mon Sep 17 00:00:00 2001
+From cb24a521ddb4709d70a77822adfac2827ae7f66b Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:59:53 +0100
-Subject: [PATCH 3/9] Remove leaktest files in make clean
+Subject: [PATCH 03/11] Remove leaktest files in make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541769
 ---

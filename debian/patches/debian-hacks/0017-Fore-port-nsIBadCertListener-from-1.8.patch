@@ -1,7 +1,7 @@
-From e9c4c7fad96b71a744f87015281806f1ee5b4984 Mon Sep 17 00:00:00 2001
+From 6aa6f952608ec2d817470901096f1bf4a2ed6ffb Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sun, 15 Jun 2008 12:54:32 +0200
-Subject: [PATCH 17/35] Fore-port nsIBadCertListener from 1.8
+Subject: [PATCH 17/40] Fore-port nsIBadCertListener from 1.8
 
 This allows embedding applications to use the same dialogs as before, instead
 of the new ssl alert pages from Firefox, which have several problems in

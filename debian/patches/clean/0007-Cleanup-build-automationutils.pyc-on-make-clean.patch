@@ -1,7 +1,7 @@
-From 768b0b55252e29b8fe5f8e84cfd50e6b35f22a67 Mon Sep 17 00:00:00 2001
+From fdcb86d4f53f8cf4ec17cd9664a9f3f06efd796a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 16:34:43 +0100
-Subject: [PATCH 7/9] Cleanup build/automationutils.pyc on make clean
+Subject: [PATCH 07/11] Cleanup build/automationutils.pyc on make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543469
 ---

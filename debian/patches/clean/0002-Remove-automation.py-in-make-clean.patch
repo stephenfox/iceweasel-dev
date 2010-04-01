@@ -1,7 +1,7 @@
-From 1d97090cea03fb8569e54e94d9cdcf15aa306287 Mon Sep 17 00:00:00 2001
+From 2b5d444a7e41992e11c85e9bdb4a7ed0cdd308c0 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:56:44 +0100
-Subject: [PATCH 2/9] Remove automation.py in make clean
+Subject: [PATCH 02/11] Remove automation.py in make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541768
 ---

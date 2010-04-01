@@ -1,7 +1,7 @@
-From fb06cd32810dcebaf2bc414cdf24c536075b77ea Mon Sep 17 00:00:00 2001
+From b2e99b3cf60a69aa28338c7c4e5607672be3e4be Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 23 Nov 2009 19:36:21 +0100
-Subject: [PATCH 08/21] Work around FTBFS on mips by disabling TLS support
+Subject: [PATCH 08/23] Work around FTBFS on mips by disabling TLS support
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=528687
 ---

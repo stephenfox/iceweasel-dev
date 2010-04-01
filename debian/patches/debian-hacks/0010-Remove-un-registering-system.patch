@@ -1,7 +1,7 @@
-From 418c542930fb4c7840630ced3fc1a66e3d300919 Mon Sep 17 00:00:00 2001
+From 59271c12aafdced77a626568000c74a933e9d96b Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 20:34:52 +0100
-Subject: [PATCH 10/35] Remove (un|)registering system
+Subject: [PATCH 10/40] Remove (un|)registering system
 
 ---
  xulrunner/app/nsXULRunnerApp.cpp |   43 --------------------------------------

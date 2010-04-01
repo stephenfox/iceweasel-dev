@@ -1,7 +1,7 @@
-From cc09e5b992f8ec317cce06b1da21376f8b45dad1 Mon Sep 17 00:00:00 2001
+From a53875fc0d7694fda55cb192139be241eff9a600 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 11 Jan 2010 11:09:46 +0100
-Subject: [PATCH 11/21] Avoid creating /usr/lib/mozilla/extensions 0700 when running as root
+Subject: [PATCH 11/23] Avoid creating /usr/lib/mozilla/extensions 0700 when running as root
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=538929
 Closes: #559926

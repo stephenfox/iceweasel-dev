@@ -1,7 +1,7 @@
-From baa6ed5a7c6144bb7de0226026eff3b63605ab02 Mon Sep 17 00:00:00 2001
+From d35024010444ce8912a413e8dcc96a48c807d216 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Fri, 14 Mar 2008 08:29:51 +0100
-Subject: [PATCH 11/35] Disable APNG support when system libpng doesn't support it
+Subject: [PATCH 11/40] Disable APNG support when system libpng doesn't support it
 
 ---
  config/autoconf.mk.in                         |    1 +

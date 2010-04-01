@@ -1,4 +1,4 @@
-From 05c46339358b0f3b00c6e186e0f346f9fcfbcf79 Mon Sep 17 00:00:00 2001
+From 7f66c197b3f991f9344af7311f00d8af5874a9b0 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Tue, 30 Mar 2010 09:58:56 +0200
 Subject: [PATCH 06/10] Support for GNU/Hurd in liboggplay

@@ -1,7 +1,7 @@
-From 6d9eec0dc5d9314b1292af8ac50b31f3046b739e Mon Sep 17 00:00:00 2001
+From 1270498d8a8a69fd286511b4575772261766c816 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 20:30:19 +0100
-Subject: [PATCH 3/3] Set DPI to system settings
+Subject: [PATCH 3/4] Set DPI to system settings
 
 ---
  modules/libpref/src/init/all.js |    2 +-

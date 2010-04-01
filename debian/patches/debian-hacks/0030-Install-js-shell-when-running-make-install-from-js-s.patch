@@ -1,7 +1,7 @@
-From dac580a4bd5a16bd37769dab63947d4ad72207e7 Mon Sep 17 00:00:00 2001
+From 5213b8180988b93b4baf57d0d0031d72352de1a8 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 26 Feb 2010 16:25:15 +0100
-Subject: [PATCH 31/35] Install js shell when running make install from js/src
+Subject: [PATCH 30/40] Install js shell when running make install from js/src
 
 ---
  js/src/Makefile.in       |    1 +
@@ -9,10 +9,10 @@ Subject: [PATCH 31/35] Install js shell when running make install from js/src
  2 files changed, 4 insertions(+), 0 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index e5a1353..ee73a39 100644
+index d4c1706..1cf91eb 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -660,6 +660,7 @@ endif
+@@ -661,6 +661,7 @@ endif
  ifneq (,$(IMPORT_LIBRARY))
  	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
  endif
@@ -21,13 +21,13 @@ index e5a1353..ee73a39 100644
  # Extra dependancies and rules for auto-generated headers
  host_jskwgen.$(OBJ_SUFFIX): jsversion.h jskeyword.tbl
 diff --git a/js/src/shell/Makefile.in b/js/src/shell/Makefile.in
-index a7d341a..8251e8d 100644
+index e914b6a..6246f84 100644
 --- a/js/src/shell/Makefile.in
 +++ b/js/src/shell/Makefile.in
-@@ -70,3 +70,6 @@ endif
- # People expect the js shell to wind up in the top-level JS dir.
- libs::
+@@ -72,3 +72,6 @@ libs::
  	$(INSTALL) $(IFLAGS2) $(PROGRAM) $(DEPTH)
+ 
+ GARBAGE += $(DEPTH)/$(PROGRAM)
 +
 +install:: $(PROGRAM)
 +	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)

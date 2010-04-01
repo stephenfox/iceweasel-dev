@@ -1,7 +1,7 @@
-From 0fac2619b40019e38af9eac0a2ee3ef5085d8bea Mon Sep 17 00:00:00 2001
+From 406b718abbb29dbe858ed7dded222aec062a72c1 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 24 Feb 2010 16:16:50 +0100
-Subject: [PATCH 30/35] Simplify how js/src/configure is called from main configure
+Subject: [PATCH 29/40] Simplify how js/src/configure is called from main configure
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=548273
 ---

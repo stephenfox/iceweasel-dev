@@ -1,7 +1,7 @@
-From 572be7d11b48bc141072d7ea6b0d8c506fccbe15 Mon Sep 17 00:00:00 2001
+From 795a9e192ee996e05e5a1af1e195db4126b879ad Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 8 Dec 2007 19:24:40 +0100
-Subject: [PATCH 2/3] Set javascript.options.showInConsole
+Subject: [PATCH 2/4] Set javascript.options.showInConsole
 
 ---
  modules/libpref/src/init/all.js |    1 +

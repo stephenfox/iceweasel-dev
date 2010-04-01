@@ -1,7 +1,7 @@
-From 075b7ee3518880206748273d79eab608a6f6b714 Mon Sep 17 00:00:00 2001
+From 4cbaa4065ba0eef9c2622f31a37cf7874a1ebbc8 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 26 Jan 2010 14:00:18 +0100
-Subject: [PATCH 25/35] Avoid extension manager failure when there is no branding (like in the testsuite)
+Subject: [PATCH 24/40] Avoid extension manager failure when there is no branding (like in the testsuite)
 
 Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=455238
 ---

@@ -1,7 +1,7 @@
-From 36e4b7cc080abb522d65196a543aee098b0dda11 Mon Sep 17 00:00:00 2001
+From 00b5554142679c8568c00bc07ed837105051d962 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 22 Nov 2008 09:35:23 +0100
-Subject: [PATCH 06/21] Properly launch applications set in $HOME/.mailcap
+Subject: [PATCH 06/23] Properly launch applications set in $HOME/.mailcap
 
 Replaces the previous patch in a much simpler way.
 ---

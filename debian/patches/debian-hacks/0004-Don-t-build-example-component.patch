@@ -1,7 +1,7 @@
-From 69c52ffd81e0a8e476329c7f52a9464ead9e98ec Mon Sep 17 00:00:00 2001
+From d17b86b3b3286d8385dbd8f1bbdf3cf66cbbe18e Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 12 Mar 2008 23:20:52 +0100
-Subject: [PATCH 04/35] Don't build example component
+Subject: [PATCH 04/40] Don't build example component
 
 ---
  xulrunner/Makefile.in |    1 -

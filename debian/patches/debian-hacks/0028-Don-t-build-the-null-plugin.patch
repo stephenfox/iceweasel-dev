@@ -1,7 +1,7 @@
-From 3beb68c239dee214d7513ae94900c7d22113c750 Mon Sep 17 00:00:00 2001
+From eb30c94708bed9a2e36423e7bfda8aa74fce45a5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 23 Feb 2010 13:40:34 +0100
-Subject: [PATCH 29/35] Don't build the null plugin
+Subject: [PATCH 28/40] Don't build the null plugin
 
 ---
  modules/plugin/Makefile.in |    2 +-

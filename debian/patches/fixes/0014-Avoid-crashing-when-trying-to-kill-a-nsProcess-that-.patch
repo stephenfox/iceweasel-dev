@@ -1,7 +1,7 @@
-From 6607e35121bac94a52dffab5121d7905e869b343 Mon Sep 17 00:00:00 2001
+From 04ee6936e9432e88ad3028d61f2b2f6d1cdf9dd2 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 13:31:52 +0100
-Subject: [PATCH 14/21] Avoid crashing when trying to kill a nsProcess that is already terminated
+Subject: [PATCH 14/23] Avoid crashing when trying to kill a nsProcess that is already terminated
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543441
 ---

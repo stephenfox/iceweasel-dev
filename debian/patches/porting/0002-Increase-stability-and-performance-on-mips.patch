@@ -1,4 +1,4 @@
-From 0f75e83823bce83525620dcb11930d027259a4af Mon Sep 17 00:00:00 2001
+From 8bd803978c972c905d6a6d2a4d7d5638d2fa8a6d Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 8 Dec 2007 17:34:10 +0100
 Subject: [PATCH 02/10] Increase stability and performance on mips

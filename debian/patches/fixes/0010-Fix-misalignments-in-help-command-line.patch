@@ -1,7 +1,7 @@
-From ea88078870d14bcd92205d9834c22d7dfbcef1b2 Mon Sep 17 00:00:00 2001
+From 09b4a0675d4c7e4247457f39b02a04d499c57781 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 7 Jan 2010 10:45:26 +0100
-Subject: [PATCH 10/21] Fix misalignments in --help command line
+Subject: [PATCH 10/23] Fix misalignments in --help command line
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=458631
 ---

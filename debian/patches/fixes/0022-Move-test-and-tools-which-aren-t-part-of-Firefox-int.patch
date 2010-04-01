@@ -1,0 +1,232 @@
+From 6c6a15ef113e02a3ae61355e23cf603bb1525073 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 3 Mar 2010 16:59:40 +0100
+Subject: [PATCH 22/23] Move test and tools which aren't part of Firefox into distribution bundles, so that the components.list machinery doesn't pick them up
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=527458
+---
+ layout/tools/pageloader/Makefile.in         |    6 ++++++
+ layout/tools/reftest/Makefile.in            |   11 +++++++++--
+ layout/tools/reftest/print-manifest-dirs.py |    1 +
+ netwerk/test/httpserver/Makefile.in         |    4 ++++
+ testing/mochitest/Makefile.in               |   16 +++++-----------
+ testing/xpcshell/Makefile.in                |    6 +++---
+ testing/xpcshell/runxpcshelltests.py        |    2 +-
+ xpcom/sample/Makefile.in                    |    2 ++
+ xpcom/tests/TestFactory.cpp                 |   21 ++++++++++++++++-----
+ xpcom/tests/dynamic/Makefile.in             |    4 ++++
+ 10 files changed, 51 insertions(+), 22 deletions(-)
+
+diff --git a/layout/tools/pageloader/Makefile.in b/layout/tools/pageloader/Makefile.in
+index 8aefb9d..358eb02 100644
+--- a/layout/tools/pageloader/Makefile.in
++++ b/layout/tools/pageloader/Makefile.in
+@@ -48,4 +48,10 @@ EXTRA_COMPONENTS= \
+ 		tp-cmdline.js \
+ 		$(NULL)
+ 
++USE_EXTENSION_MANIFEST = 1
++
++include $(topsrcdir)/config/config.mk
++
++FINAL_TARGET = $(DIST)/bin/distribution/bundles/pageloader
++
+ include $(topsrcdir)/config/rules.mk
+diff --git a/layout/tools/reftest/Makefile.in b/layout/tools/reftest/Makefile.in
+index f260907..f140510 100644
+--- a/layout/tools/reftest/Makefile.in
++++ b/layout/tools/reftest/Makefile.in
+@@ -55,6 +55,14 @@ DIST_FILES = install.rdf
+ USE_EXTENSION_MANIFEST=1
+ endif
+ 
++USE_EXTENSION_MANIFEST = 1
++
++include $(topsrcdir)/config/config.mk
++
++ifndef XPI_NAME
++FINAL_TARGET = $(DIST)/bin/distribution/bundles/reftest
++endif
++
+ include $(topsrcdir)/config/rules.mk
+ 
+ # We're installing to _tests/reftest
+@@ -87,10 +95,9 @@ $(_HARNESS_FILES): $(_DEST_DIR)
+ copy-harness: $(_HARNESS_FILES)
+ 	$(INSTALL) $(_HARNESS_FILES) $(_DEST_DIR)
+ 	(cd $(DIST)/xpi-stage && tar $(TAR_CREATE_FLAGS) - reftest) | (cd $(_DEST_DIR) && tar -xf -)
+-	$(INSTALL) $(DIST)/bin/components/httpd.js $(_DEST_DIR)/reftest/components
++	$(INSTALL) $(DIST)/bin/distribution/bundles/httpd/components/httpd.js $(DIST)/bin/distribution/bundles/httpd/components/test_necko.xpt $(_DEST_DIR)/reftest/components
+ # need to get httpd.js into components.list so it loads
+ 	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(_DEST_DIR)/reftest/components/components.list httpd.js
+-	$(INSTALL) $(DIST)/bin/components/test_necko.xpt $(_DEST_DIR)/reftest/components
+ 
+ PKG_STAGE = $(DIST)/test-package-stage
+ 
+diff --git a/layout/tools/reftest/print-manifest-dirs.py b/layout/tools/reftest/print-manifest-dirs.py
+index 59a146b..9375222 100644
+--- a/layout/tools/reftest/print-manifest-dirs.py
++++ b/layout/tools/reftest/print-manifest-dirs.py
+@@ -93,6 +93,7 @@ def parseManifest(manifest, dirs):
+ def printTestDirs(topsrcdir, topmanifests):
+   """Parse |topmanifests| and print a list of directories containing the tests
+   within (and the manifests including those tests), relative to |topsrcdir|."""
++  topsrcdir = os.path.abspath(topsrcdir)
+   dirs = set()
+   for manifest in topmanifests:
+     parseManifest(manifest, dirs)
+diff --git a/netwerk/test/httpserver/Makefile.in b/netwerk/test/httpserver/Makefile.in
+index b7cb4a1..bb5f552 100644
+--- a/netwerk/test/httpserver/Makefile.in
++++ b/netwerk/test/httpserver/Makefile.in
+@@ -55,4 +55,8 @@ XPIDLSRCS       = \
+ 
+ XPCSHELL_TESTS = test
+ 
++include $(topsrcdir)/config/config.mk
++
++FINAL_TARGET = $(DIST)/bin/distribution/bundles/httpd
++
+ include $(topsrcdir)/config/rules.mk
+diff --git a/testing/mochitest/Makefile.in b/testing/mochitest/Makefile.in
+index 15945f2..aa0c6c9 100644
+--- a/testing/mochitest/Makefile.in
++++ b/testing/mochitest/Makefile.in
+@@ -108,17 +108,15 @@ endif
+ 
+ # Components / typelibs that don't get packaged with
+ # the build, but that we need for the test harness.
+-TEST_HARNESS_COMPONENTS := \
+-  test_necko.xpt \
+-  $(NULL)
++TEST_HARNESS_BINS += distribution/bundles/httpd
+ 
++ifdef MOZ_PLUGINS
+ # We need the test plugin as some tests rely on it
+ ifeq (Darwin,$(OS_TARGET))
+-TEST_HARNESS_PLUGINS := \
+-  Test.plugin/
++TEST_HARNESS_BINS += plugins/Test.plugin
+ else
+-TEST_HARNESS_PLUGINS := \
+-  $(DLL_PREFIX)nptest$(DLL_SUFFIX)
++TEST_HARNESS_BINS += plugins/$(DLL_PREFIX)nptest$(DLL_SUFFIX)
++endif
+ endif
+ 
+ # Rules for staging the necessary harness bits for a test package
+@@ -129,8 +127,4 @@ stage-package:
+ 	$(NSINSTALL) -D $(PKG_STAGE)/mochitest && $(NSINSTALL) -D $(PKG_STAGE)/bin/plugins
+ 	@(cd $(DEPTH)/_tests/testing/mochitest/ && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/mochitest && tar -xf -)
+ 	@(cd $(DIST_BIN) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
+-	@(cd $(DIST_BIN)/components && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_COMPONENTS)) | (cd $(PKG_STAGE)/bin/components && tar -xf -)
+ 	@(cd $(topsrcdir)/build/pgo/certs && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/certs && tar -xf -)
+-ifdef MOZ_PLUGINS
+-	@(cd $(DIST_BIN)/plugins && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_PLUGINS)) | (cd $(PKG_STAGE)/bin/plugins && tar -xf -)
+-endif
+diff --git a/testing/xpcshell/Makefile.in b/testing/xpcshell/Makefile.in
+index 9fbb10b..592c4c2 100644
+--- a/testing/xpcshell/Makefile.in
++++ b/testing/xpcshell/Makefile.in
+@@ -66,8 +66,8 @@ EXTRA_BUILD_FILES := \
+ 
+ # Components / typelibs that don't get packaged with
+ # the build, but that we need for the test harness.
+-TEST_HARNESS_COMPONENTS := \
+-  httpd.js \
++TEST_HARNESS_BINS := \
++  distribution/bundles/reftest \
+   $(NULL)
+ 
+ # Rules for staging the necessary harness bits for a test package
+@@ -78,4 +78,4 @@ stage-package:
+ 	@(cd $(srcdir) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_FILES)) | (cd $(PKG_STAGE)/xpcshell && tar -xf -)
+ 	@(cd $(topsrcdir)/build && tar $(TAR_CREATE_FLAGS) - $(EXTRA_BUILD_FILES)) | (cd $(PKG_STAGE)/xpcshell && tar -xf -)
+ 	@(cd $(DEPTH)/_tests/xpcshell/ && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/xpcshell/tests && tar -xf -)
+-	@(cd $(DIST)/bin/components && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_COMPONENTS)) | (cd $(PKG_STAGE)/bin/components && tar -xf -)
++	@(cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
+diff --git a/testing/xpcshell/runxpcshelltests.py b/testing/xpcshell/runxpcshelltests.py
+index 30f9bba..16f8e33 100644
+--- a/testing/xpcshell/runxpcshelltests.py
++++ b/testing/xpcshell/runxpcshelltests.py
+@@ -99,7 +99,7 @@ def runTests(xpcshell, xrePath=None, symbolsPath=None,
+   testharnessdir = os.path.dirname(os.path.abspath(__file__))
+   xpcshell = os.path.abspath(xpcshell)
+   # we assume that httpd.js lives in components/ relative to xpcshell
+-  httpdJSPath = os.path.join(os.path.dirname(xpcshell), "components", "httpd.js").replace("\\", "/");
++  httpdJSPath = os.path.join(os.path.dirname(xpcshell), "distribution" , "bundles", "httpd", "components", "httpd.js").replace("\\", "/");
+ 
+   env = dict(os.environ)
+   # Make assertions fatal
+diff --git a/xpcom/sample/Makefile.in b/xpcom/sample/Makefile.in
+index 21c427b..1719758 100644
+--- a/xpcom/sample/Makefile.in
++++ b/xpcom/sample/Makefile.in
+@@ -81,6 +81,8 @@ XPIDLSRCS	= nsISample.idl
+ 
+ include $(topsrcdir)/config/config.mk
+ 
++FINAL_TARGET = $(DIST)/bin/distribution/bundles/xpcom-sample
++
+ # EXTRA_COMPONENTS installs components written JavaScript to
+ # dist/bin/components
+ EXTRA_COMPONENTS = nsSample.js
+diff --git a/xpcom/tests/TestFactory.cpp b/xpcom/tests/TestFactory.cpp
+index c785d48..e20fb75 100644
+--- a/xpcom/tests/TestFactory.cpp
++++ b/xpcom/tests/TestFactory.cpp
+@@ -46,6 +46,9 @@
+ #include "nsComponentManagerUtils.h"
+ #include "nsServiceManagerUtils.h"
+ #include "nsCOMPtr.h"
++#include "nsDirectoryServiceUtils.h"
++#include "nsStringGlue.h"
++#include "nsDirectoryServiceDefs.h"
+ 
+ NS_DEFINE_CID(kTestFactoryCID, NS_TESTFACTORY_CID);
+ NS_DEFINE_CID(kTestLoadedFactoryCID, NS_TESTLOADEDFACTORY_CID);
+@@ -121,13 +124,21 @@ int main(int argc, char **argv) {
+     nsCOMPtr<nsIServiceManager> servMan;
+     rv = NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
+     if (NS_FAILED(rv)) return -1;
++
++    nsCOMPtr<nsIFile> testdynamicdir;
++    NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR,
++                           getter_AddRefs(testdynamicdir));
++    testdynamicdir->AppendNative(NS_LITERAL_CSTRING("testdynamic"));
++
+     nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
+     NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
+-    if (registrar)
+-      registrar->RegisterFactory(kTestFactoryCID,
+-                                 nsnull,
+-                                 nsnull,
+-                                 new TestFactory());
++
++    registrar->AutoRegister(testdynamicdir);
++
++    registrar->RegisterFactory(kTestFactoryCID,
++                               nsnull,
++                               nsnull,
++                               new TestFactory());
+ 
+     ITestClass *t = NULL;
+     CallCreateInstance(kTestFactoryCID, &t);
+diff --git a/xpcom/tests/dynamic/Makefile.in b/xpcom/tests/dynamic/Makefile.in
+index cecd5a2..0e049a8 100644
+--- a/xpcom/tests/dynamic/Makefile.in
++++ b/xpcom/tests/dynamic/Makefile.in
+@@ -54,6 +54,10 @@ include $(topsrcdir)/config/config.mk
+ 
+ LOCAL_INCLUDES	= -I$(srcdir)/.. -I$(srcdir)/../../public
+ 
++include $(topsrcdir)/config/config.mk
++
++FINAL_TARGET = $(DIST)/bin/testdynamic
++
+ include $(topsrcdir)/config/rules.mk
+ 
+ EXTRA_DSO_LDOPTS += \
+-- 
+1.7.0.rc0.69.g2ee80
+

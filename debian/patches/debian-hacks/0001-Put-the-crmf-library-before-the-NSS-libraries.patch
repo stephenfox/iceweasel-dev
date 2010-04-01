@@ -1,7 +1,7 @@
-From adc0e7c06c6426f0d8de4fd8c36a686bee2584d2 Mon Sep 17 00:00:00 2001
+From f04ca108a283ac7bc45b703683ad7e4365022b15 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 12 Mar 2008 22:31:12 +0100
-Subject: [PATCH 01/35] Put the crmf library before the NSS libraries
+Subject: [PATCH 01/40] Put the crmf library before the NSS libraries
 
 ---
  configure.in |    2 +-

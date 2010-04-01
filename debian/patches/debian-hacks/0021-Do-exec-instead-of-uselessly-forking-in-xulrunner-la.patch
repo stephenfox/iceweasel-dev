@@ -1,7 +1,7 @@
-From 8baabd53586508e658a8414fa6107550f0262a49 Mon Sep 17 00:00:00 2001
+From 91416a3d2fdaa7b368e0a35c361541490e432539 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 29 Oct 2008 21:00:17 +0100
-Subject: [PATCH 21/35] Do exec instead of uselessly forking in xulrunner launcher script
+Subject: [PATCH 21/40] Do exec instead of uselessly forking in xulrunner launcher script
 
 ---
  build/unix/mozilla.in |    5 +----

@@ -1,7 +1,7 @@
-From 2d7efe760e4075a7d61f54d6d9f04d1fda7af0d6 Mon Sep 17 00:00:00 2001
+From 752aaa86095e686e5e3803496be7674334d97b24 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 1 May 2008 14:32:54 +0200
-Subject: [PATCH 12/35] Use application.ini from where the xulrunner-stub lies
+Subject: [PATCH 12/40] Use application.ini from where the xulrunner-stub lies
 
 Whether it is a symlink or not, use the application.ini file from where
 the xulrunner-stub is, if present. If not, fallback to upstream method

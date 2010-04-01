@@ -1,7 +1,7 @@
-From 34e92c20640f252de5c6e75dc9e76dc5c41340a3 Mon Sep 17 00:00:00 2001
+From aa8465dce4fa50cb79374aec61f3c1654b164b3f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 08:22:05 +0100
-Subject: [PATCH 08/35] Add soname to appropriate libraries.
+Subject: [PATCH 08/40] Add soname to appropriate libraries.
 
 This is a stripped down version, compared to the dpatch version, because we
 actually are never going to use minor and micro version numbers. Also, we
@@ -75,7 +75,7 @@ index e99d5a1..3014d86 100644
  $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(SHARED_LIBRARY_LIBS) $(EXTRA_DEPS) $(DSO_LDOPTS_DEPS) $(GLOBAL_DEPS)
  ifndef INCREMENTAL_LINKER
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 0f790ab..330cacf 100644
+index d57536e..0101405 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -74,6 +74,7 @@ MODULE		    = js

@@ -1,7 +1,7 @@
-From cadfeaeab18c5473ef677e8d699144d4da87859f Mon Sep 17 00:00:00 2001
+From 637e5abb9f674584110ad2ce9c6df51d85c1fa64 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 10 Jul 2008 21:40:08 +0200
-Subject: [PATCH 05/21] Avoid spurious "Run" items in application handlers configuration pane
+Subject: [PATCH 05/23] Avoid spurious "Run" items in application handlers configuration pane
 
 ---
  uriloader/exthandler/nsHandlerService.js |   11 +++++------

@@ -1,7 +1,7 @@
-From d2992df8bf0ac0b7fcbb69e8dd71b59470f31b04 Mon Sep 17 00:00:00 2001
+From 51b17d7321588f36b625be717c602e5453aadb9d Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 6 Mar 2010 20:19:56 +0100
-Subject: [PATCH 21/21] Make check-sync-dirs.py check file contents
+Subject: [PATCH 21/23] Make check-sync-dirs.py check file contents
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=550704
 ---

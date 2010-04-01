@@ -1,4 +1,4 @@
-From 17ebd9fc54198d0a30c6c6021b455a24e25dab7f Mon Sep 17 00:00:00 2001
+From f8c64b584b68f865465aa7df86df4a6cbe71003f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Tue, 11 Mar 2008 08:29:25 +0100
 Subject: [PATCH 01/10] Support building on GNU/Hurd

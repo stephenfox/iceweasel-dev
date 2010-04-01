@@ -1,4 +1,4 @@
-From 0781115bc8df9c90f20eebc4bc57896effee7181 Mon Sep 17 00:00:00 2001
+From 7c9cd54a592e06827bc1d8137e9215cbf00d0d32 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 5 Feb 2010 20:33:51 +0100
 Subject: [PATCH 08/10] Fix for padding of long long arguments on ppc xptcall

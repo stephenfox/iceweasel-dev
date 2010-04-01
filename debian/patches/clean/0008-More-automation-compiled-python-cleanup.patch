@@ -1,7 +1,7 @@
-From 512347a369872d31c9859d83ff64670502cd60a9 Mon Sep 17 00:00:00 2001
+From 0148fcd89ef9412bbe7886bc58ca3d6af9945c60 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 26 Mar 2010 13:44:11 +0100
-Subject: [PATCH 8/9] More automation compiled python cleanup
+Subject: [PATCH 08/11] More automation compiled python cleanup
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543469
 ---

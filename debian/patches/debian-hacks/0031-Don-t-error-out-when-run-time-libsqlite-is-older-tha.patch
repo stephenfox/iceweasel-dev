@@ -1,7 +1,7 @@
-From 1b09aa0ba3666968018252e53ac4acaef817cecd Mon Sep 17 00:00:00 2001
+From 92bf8b349122b884ed110766b7dbe2968fc85c4d Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 11:45:42 +0100
-Subject: [PATCH 32/35] Don't error-out when run-time libsqlite is older than build-time libsqlite
+Subject: [PATCH 31/40] Don't error-out when run-time libsqlite is older than build-time libsqlite
 
 In Debian, we have shlibs to handle this.
 ---

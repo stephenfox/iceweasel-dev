@@ -1,7 +1,7 @@
-From 5bcce9c523c8e1cb3493ac6af7cd311ba813dc6e Mon Sep 17 00:00:00 2001
+From e2a5a6f40699b205e5e863950452174b14745566 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 23 Mar 2010 17:04:10 +0100
-Subject: [PATCH 35/35] Resolve GRE directory symbolic link
+Subject: [PATCH 34/40] Resolve GRE directory symbolic link
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=530196
 https://bugzilla.mozilla.org/show_bug.cgi?id=550659

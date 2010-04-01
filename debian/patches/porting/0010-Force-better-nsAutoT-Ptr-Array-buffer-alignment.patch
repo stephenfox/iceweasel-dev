@@ -1,4 +1,4 @@
-From 07ca76438cf6233a8099f5b1620e9251604f6afc Mon Sep 17 00:00:00 2001
+From 843b9325650b8d1e8d55ef746147f70467649c3f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 20 Feb 2010 17:42:19 +0100
 Subject: [PATCH 10/10] Force better nsAutoT{Ptr,}Array buffer alignment

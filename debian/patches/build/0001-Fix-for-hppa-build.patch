@@ -1,4 +1,4 @@
-From d58e3f9a13d1d041153df82454d08e62cc691b04 Mon Sep 17 00:00:00 2001
+From d71744261f6f3bf097652518561b359cc4c5e4b2 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 3 Apr 2008 20:48:05 +0200
 Subject: [PATCH 1/2] Fix for hppa build

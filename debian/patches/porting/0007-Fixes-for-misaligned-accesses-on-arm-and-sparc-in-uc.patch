@@ -1,4 +1,4 @@
-From 02bdf5b559c6eda849cf2b124b45f8837826cf02 Mon Sep 17 00:00:00 2001
+From 63df462b7237b24fb35d124cf6721232034dfb20 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 5 Feb 2010 20:31:42 +0100
 Subject: [PATCH 07/10] Fixes for misaligned accesses on arm and sparc in uconv

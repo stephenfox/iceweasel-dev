@@ -1,0 +1,50 @@
+From 5a8f901108c84a4667320fddd58335b7ebc34c54 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Sat, 6 Mar 2010 11:53:30 +0100
+Subject: [PATCH 23/23] Expose fullpath from nsIPluginTag
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=550668
+---
+ modules/plugin/base/public/nsIPluginTag.idl |    3 ++-
+ modules/plugin/base/src/nsPluginHost.cpp    |    7 +++++++
+ 2 files changed, 9 insertions(+), 1 deletions(-)
+
+diff --git a/modules/plugin/base/public/nsIPluginTag.idl b/modules/plugin/base/public/nsIPluginTag.idl
+index 9f42f3b..c21e7a7 100644
+--- a/modules/plugin/base/public/nsIPluginTag.idl
++++ b/modules/plugin/base/public/nsIPluginTag.idl
+@@ -38,11 +38,12 @@
+ 
+ #include "nsISupports.idl"
+ 
+-[scriptable, uuid(13a1b39e-72e5-442d-aa73-5905ffaf837b)]
++[scriptable, uuid(88e03453-a773-47ba-9d84-14f672ac99e2)]
+ interface nsIPluginTag : nsISupports
+ {
+   readonly attribute AUTF8String description;
+   readonly attribute AUTF8String filename;
++  readonly attribute AUTF8String fullpath;
+   readonly attribute AUTF8String version;
+   readonly attribute AUTF8String name;
+            attribute boolean  disabled;
+diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
+index aed4359..e5a86c8 100644
+--- a/modules/plugin/base/src/nsPluginHost.cpp
++++ b/modules/plugin/base/src/nsPluginHost.cpp
+@@ -903,6 +903,13 @@ nsPluginTag::GetFilename(nsACString& aFileName)
+ }
+ 
+ NS_IMETHODIMP
++nsPluginTag::GetFullpath(nsACString& aFullPath)
++{
++  aFullPath = mFullPath;
++  return NS_OK;
++}
++
++NS_IMETHODIMP
+ nsPluginTag::GetVersion(nsACString& aVersion)
+ {
+   aVersion = mVersion;
+-- 
+1.7.0.rc0.69.g2ee80
+

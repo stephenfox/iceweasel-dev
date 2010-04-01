@@ -1,7 +1,7 @@
-From 01620c80281c16da7d7b2e3e171d14497ea46ffc Mon Sep 17 00:00:00 2001
+From 0d66a7bf4dc30b0dc403652c5f186f6f96ca8c29 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 24 May 2008 11:10:35 +0200
-Subject: [PATCH 15/35] Unhide release notes link in about:
+Subject: [PATCH 15/40] Unhide release notes link in about:
 
 but only if app.releaseNotesURL is defined.
 ---

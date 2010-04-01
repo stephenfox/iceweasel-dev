@@ -1,7 +1,7 @@
-From 567486b0ee56181f4dabc4e185b45f41232b8fd5 Mon Sep 17 00:00:00 2001
+From f8bfb9846be4afecf688726f799145dfeda0b0c5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 09:39:56 +0100
-Subject: [PATCH 5/9] Cleanup idl-parser leftovers in make clean
+Subject: [PATCH 05/11] Cleanup idl-parser leftovers in make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541774
 ---

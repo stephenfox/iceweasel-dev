@@ -1,3 +1,76 @@
+xulrunner (1.9.2.3-1) experimental; urgency=low
+
+  * New upstream release.
+  * debian/copyright: Update with upstream changes.
+  * debian/rules: Bump BASE_VERSION to 1.9.2.
+  * debian/control*:
+    - Build depend on libnotify-dev.
+    - Remove 1.9.1 specific Breaks/Replaces/Conflicts.
+  * debian/rules, debian/libmozjsSO_VERSION.symbols.jit.in,
+    debian/libmozjsSO_VERSION.symbols.in: Bump libmozjs so version and update
+    symbols file.
+  * debian/control*, debian/extra-stuff/packages-static.xulrunner,
+    debian/mozconfig.in, debian/postinstrm.in, debian/python-xpcom.dirs,
+    debian/python-xpcom.install.in, debian/python-xpcom.prerm,
+    debian/rules, debian/xulrunner-BASE_VERSION.postinst.in: Remove python
+    xpcom, as it is not provided upstream anymore.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/filemonitor/Makefile.in:
+    Adapt debian/extra-stuff to new upstream.
+  * debian/rules:
+    - Modify js/src install rule.
+    - Install and cleanup headers from their new location.
+    - Enable readline support in for xpcshell.
+  * debian/xulrunner-dev.install.in: Remove -unstable pkg-config files. They
+    were removed upstream.
+  * debian/xulrunner-BASE_VERSION.install.in: Install components.list file.
+  * debian/test.mk: Remove tests that are known to fail.
+  * debian/mozconfig.in: Use --enable-readline instead of --with-readline.
+  * debian/mozconfig.in, debian/control*: Build against system libffi.
+  * debian/rules, debian/test.mk: Move reftest-app cleanup to debian/test.mk.
+  * debian/test.mk: The reftest application needs to point to
+    distribution/bundles from XRE. The reftest specific components are now
+    there, and XRE won't load bundles from $GRE_DIR/distribution/bundles;
+    only from $APP_DIR/distribution/bundles.
+
+  * js/src/Makefile.in: mozilla-config.h was renamed js-confdefs.h in js/src.
+  * js/src/shell/Makefile.in: Remove the js shell from the build directory
+    during cleanup.
+  * layout/tools/pageloader/Makefile.in, layout/tools/reftest/Makefile.in,
+    layout/tools/reftest/print-manifest-dirs.py,
+    netwerk/test/httpserver/Makefile.in, testing/mochitest/Makefile.in,
+    testing/xpcshell/Makefile.in, testing/xpcshell/runxpcshelltests.py,
+    xpcom/sample/Makefile.in, xpcom/tests/TestFactory.cpp,
+    xpcom/tests/dynamic/Makefile.in: Move test and tools which aren't part of
+    Firefox into distribution bundles, so that the components.list machinery
+    doesn't pick them up. bz#527458.
+  * modules/plugin/base/public/nsIPluginTag.idl,
+    modules/plugin/base/src/nsPluginHost.cpp: Expose fullpath from
+    nsIPluginTag. bz#550668.
+  * xulrunner/app/xulrunner.js: Set extensions.dss.enabled to false at XRE
+    level. bz#547943.
+  * js/src/jsapi-tests/Makefile.in: jsapi-tests don't build when using
+    -Wl,--as-needed. bz#547715.
+  * js/src/jsbuiltins.*: Revert previous patch to not export
+    js_SetTraceableNativeFailed, it is now used.
+  * js/src/Makefile.in: Use new EXPORTS_NAMESPACES facility to install
+    nanojit headers.
+  * js/src/shell/Makefile.in: Link js shell against shared mozjs library.
+    bz#501300.
+  * js/src/jscntxt.h, js/src/jsbuiltins.h: Avoid mangling some exported
+    symbols from libmozjs.
+  * js/src/configure.in: Enable x64 JIT backend by default. bz#489146.
+  * js/src/config/rules.mk, config/rules.mk: Modify gross workaround to avoid
+    installing test idl and include files in the SDK to fit upstream changes.
+  * config/autoconf.mk.in, config/system-headers, configure.in,
+    js/ctypes/Makefile.in, js/src/config/system-headers,
+    toolkit/library/libxul-config.mk, toolkit/toolkit-tiers.mk: Allow to
+    build against system libffi. bz#551138.
+  * modules/libpr0n/test/reftest/apng/reftest.list: Always fail apng test.
+  * xpcom/reflect/xptinfo/src/xptiInterfaceInfoManager.cpp: Fix issues with
+    symlinked component directories. bz#551152.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 02 Apr 2010 12:12:13 +0200
+
 xulrunner (1.9.1.9-2) unstable; urgency=low
 
   * debian/control.in: Update debian/control.in, that was mistakenly left

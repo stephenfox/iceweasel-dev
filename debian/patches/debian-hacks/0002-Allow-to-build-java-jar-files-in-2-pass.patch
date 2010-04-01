@@ -1,7 +1,7 @@
-From 3554ffcc63c8b1e5f620c673dc9482f212ffac40 Mon Sep 17 00:00:00 2001
+From 13009deca7b58411b624746aad71f8745987e009 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 12 Mar 2008 22:32:02 +0100
-Subject: [PATCH 02/35] Allow to build java jar files in 2 pass
+Subject: [PATCH 02/40] Allow to build java jar files in 2 pass
 
 Force creation of Makefiles in extensions/java, even when javaxpcom is
 disabled. Don't build the jars if DEB_NO_JAR is defined.

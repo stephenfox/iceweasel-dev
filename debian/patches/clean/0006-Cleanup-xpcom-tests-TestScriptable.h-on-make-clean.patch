@@ -1,7 +1,7 @@
-From e1d312e2675c752ffd67ece4ea56f9bcd15bdfea Mon Sep 17 00:00:00 2001
+From d2f521b78d5291b11c67cb584c22cfcb88fc9591 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 16:30:26 +0100
-Subject: [PATCH 6/9] Cleanup xpcom/tests/TestScriptable.h on make clean
+Subject: [PATCH 06/11] Cleanup xpcom/tests/TestScriptable.h on make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543464
 ---

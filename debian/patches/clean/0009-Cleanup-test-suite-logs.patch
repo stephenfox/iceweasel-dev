@@ -1,7 +1,7 @@
-From b2d379f8d0b3a3d23bcaabfcd6d2f76859f54ede Mon Sep 17 00:00:00 2001
+From 4f83a3afcf86696e34062ac70dd089a401be3978 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 26 Mar 2010 13:55:07 +0100
-Subject: [PATCH 9/9] Cleanup test suite logs
+Subject: [PATCH 09/11] Cleanup test suite logs
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=555189
 ---

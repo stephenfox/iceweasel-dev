@@ -1,7 +1,7 @@
-From cccdbc3eb5175e4fa587cee3de57df7683830594 Mon Sep 17 00:00:00 2001
+From bc71d0ae046ffcecc538f66ffa544e1ee06aa71a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 27 Jan 2010 11:31:44 +0100
-Subject: [PATCH 12/21] Add (obvious) exceptions for js/src/config/check-sync-dirs.py
+Subject: [PATCH 12/23] Add (obvious) exceptions for js/src/config/check-sync-dirs.py
 
 We also modify the script so that given directories can be ignored.
 

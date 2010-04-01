@@ -1,4 +1,4 @@
-From b68bcf3c87865f689525f9c61e2ad08c29c0d8f4 Mon Sep 17 00:00:00 2001
+From 4dad08a1afa137a7154305608d7927f34363dfc3 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 17 May 2008 19:30:10 +0200
 Subject: [PATCH 03/10] Build xptcstubs with less optimizations on hppa

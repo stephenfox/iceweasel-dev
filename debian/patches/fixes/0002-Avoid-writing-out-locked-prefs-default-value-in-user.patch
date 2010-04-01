@@ -1,7 +1,7 @@
-From 33a2540c7a405b33e46899cf93c4d416ab9da1f1 Mon Sep 17 00:00:00 2001
+From 514feedd261f689d459b7e51dbea6f243a95a695 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Fri, 24 Jul 2009 13:14:04 +0200
-Subject: [PATCH 02/21] Avoid writing out locked prefs default value in user preferences
+Subject: [PATCH 02/23] Avoid writing out locked prefs default value in user preferences
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=506224
 Closes: #512111

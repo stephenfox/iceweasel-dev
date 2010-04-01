@@ -1,7 +1,7 @@
-From ff8b1fda216410e958648c9c6f2661a389221d6d Mon Sep 17 00:00:00 2001
+From bfcd9a67db39373fc872d24778f432af7296c8e9 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 24 May 2008 11:11:57 +0200
-Subject: [PATCH 16/35] Don't put an about:blank link when there is no vendorURL defined in about:
+Subject: [PATCH 16/40] Don't put an about:blank link when there is no vendorURL defined in about:
 
 ---
  toolkit/content/about.xhtml |    6 +++++-

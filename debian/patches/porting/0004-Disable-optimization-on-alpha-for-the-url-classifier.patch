@@ -1,4 +1,4 @@
-From ec3d9812699d23813327a97a57f7760d84e7ad82 Mon Sep 17 00:00:00 2001
+From 20b8673109075d2b98fcdb9575fa3b3ec750dd8a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sun, 2 Nov 2008 17:56:24 +0100
 Subject: [PATCH 04/10] Disable optimization on alpha for the url-classifier component

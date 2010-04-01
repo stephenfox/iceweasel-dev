@@ -1,7 +1,7 @@
-From c2760b30a8993ca05eb44f61ff15a0c64f09c994 Mon Sep 17 00:00:00 2001
+From defaa1c5630822aa9e820d50ab57b1432e1984ab Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Mon, 14 Jul 2008 15:20:46 +0200
-Subject: [PATCH 23/35] Use a variable for xulrunner base version in various places
+Subject: [PATCH 23/40] Use a variable for xulrunner base version in various places
 
 ---
  config/autoconf.mk.in           |    9 +++++----
