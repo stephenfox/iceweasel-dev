@@ -168,6 +168,10 @@ endif # LIBXUL_SDK
 
 DEFINES += -DFIREFOX_ICO=\"$(DIST)/branding/firefox.ico\" -DDOCUMENT_ICO=\"$(DIST)/branding/document.ico\"
 
+ifdef MOZ_OFFICIAL_BRANDING
+DEFINES += -DMOZ_OFFICIAL_BRANDING
+endif
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(DIST)/bin/icons
