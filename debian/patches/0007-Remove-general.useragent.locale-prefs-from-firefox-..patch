@@ -1,0 +1,35 @@
+From 21b4bebc2b0d05230dab9f6cd6a1e331af3498df Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Sat, 18 Oct 2008 14:30:06 +0200
+Subject: [PATCH 07/15] Remove general.useragent.locale prefs from firefox*.js
+
+It is better defined in the GRE provided by xulrunner-1.9
+---
+ browser/app/profile/firefox.js        |    1 -
+ browser/locales/en-US/firefox-l10n.js |    1 -
+ 2 files changed, 0 insertions(+), 2 deletions(-)
+
+diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
+index 6deed70..441a1c0 100644
+--- a/browser/app/profile/firefox.js
++++ b/browser/app/profile/firefox.js
+@@ -174,7 +174,6 @@ pref("xpinstall.whitelist.add.103", "addons.mozilla.org");
+ pref("keyword.enabled", true);
+ pref("keyword.URL", "chrome://browser-region/locale/region.properties");
+ 
+-pref("general.useragent.locale", "@AB_CD@");
+ pref("general.skins.selectedSkin", "classic/1.0");
+ pref("general.useragent.extra.firefox", "@APP_UA_NAME@/@APP_VERSION@");
+ 
+diff --git a/browser/locales/en-US/firefox-l10n.js b/browser/locales/en-US/firefox-l10n.js
+index e9027aa..a683b7f 100644
+--- a/browser/locales/en-US/firefox-l10n.js
++++ b/browser/locales/en-US/firefox-l10n.js
+@@ -36,4 +36,3 @@
+ 
+ #filter substitution
+ 
+-pref("general.useragent.locale", "@AB_CD@");
+-- 
+1.7.0.rc0.69.g2ee80
+

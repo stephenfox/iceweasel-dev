@@ -1,0 +1,40 @@
+From 71c82c9cd9b3bb8b64d021bc43390e5131beae8a Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 7 Jan 2010 10:46:43 +0100
+Subject: [PATCH 03/15] Fix misalignments in --help command line
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=458631
+---
+ browser/components/nsBrowserContentHandler.js      |    2 +-
+ .../components/shell/src/nsSetDefaultBrowser.js    |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/browser/components/nsBrowserContentHandler.js b/browser/components/nsBrowserContentHandler.js
+index b0f621f..765184d 100644
+--- a/browser/components/nsBrowserContentHandler.js
++++ b/browser/components/nsBrowserContentHandler.js
+@@ -505,7 +505,7 @@ var nsBrowserContentHandler = {
+ #endif
+   },
+ 
+-  helpInfo : "  -browser            Open a browser window.\n",
++  helpInfo : "  -browser           Open a browser window.\n",
+ 
+   /* nsIBrowserHandler */
+ 
+diff --git a/browser/components/shell/src/nsSetDefaultBrowser.js b/browser/components/shell/src/nsSetDefaultBrowser.js
+index e8ddfca..c818acf 100644
+--- a/browser/components/shell/src/nsSetDefaultBrowser.js
++++ b/browser/components/shell/src/nsSetDefaultBrowser.js
+@@ -55,7 +55,7 @@ nsSetDefaultBrowser.prototype = {
+     }
+   },
+ 
+-  helpInfo: "  -setDefaultBrowser   Set this app as the default browser.\n",
++  helpInfo: "  -setDefaultBrowser Set this app as the default browser.\n",
+ 
+   classDescription: "Default Browser Cmdline Handler",
+   contractID: "@mozilla.org/browser/default-browser-clh;1",
+-- 
+1.7.0.rc0.69.g2ee80
+

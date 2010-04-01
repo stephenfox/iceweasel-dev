@@ -56,13 +56,22 @@ rm -fv ./toolkit/mozapps/installer/windows/nsis/ShellLink.dll
 rm -fv ./toolkit/mozapps/installer/windows/nsis/UAC.dll
 rm -fv ./toolkit/mozapps/installer/windows/nsis/nsProcess.dll
 
-echo also we need to remove any copyrighted image files from the mozilla src  suite,  not replaced by the branding process. This includes theme throbbers depending on how you handle that and windows icons, app icons, windows splash etc
-
 rm -fvr ./other-licenses/7zstub
 rm -fvr ./other-licenses/branding
 
 rm -fv ./netwerk/protocol/ftp/doc/rfc959.txt
 
-# CVS stuff
-find . -type d -name CVS | xargs rm -rf
-find . -type f -name .cvsignore | xargs rm -f
+rm -fvr ./layout/html/tests
+rm -fvr ./layout/doc
+rm -fvr ./content/xml/tests
+rm -fvr ./testing/performance
+rm -fvr ./modules/libpr0n/test/reftest/pngsuite-transparency/
+sed -i /pngsuite-transparency/d ./modules/libpr0n/test/reftest/reftest.list
+
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.amazon.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/amazondotcom.xml
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.answers.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/answers.xml
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.creativecommons.org/favicon.ico\1,' ./browser/locales/en-US/searchplugins/creativecommons.xml
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.ebay.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/eBay.xml
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.google.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/google.xml
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://en.wikipedia.org/favicon.ico\1,' ./browser/locales/en-US/searchplugins/wikipedia.xml
+sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.yahoo.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/yahoo.xml

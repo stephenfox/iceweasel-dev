@@ -1,3 +1,31 @@
+iceweasel (3.5.9-1) unstable; urgency=low
+
+  * New upstream release.
+  * config/autoconf.mk.in: Revert previous changes to install in an
+    unversioned directory.
+  * debian/rules: Pass an installdir variable to install into
+    /usr/lib/iceweasel.
+  * debian/control:
+    - Suggest libkrb53 for backports.
+    - Build-depend on xulrunner-dev << 1.9.2.
+  * debian/iceweasel.prerm, debian/iceweasel.postinst: Remove old mozilla
+    alternative. I think there is no reason to keep this anymore.
+  * debian/iceweasel.links: Remove firefox and mozilla-firefox links.
+    It will help make transition to Firefox easier if that ever happens.
+  * debian/remove.nonfree: We now remove more non-free data. Also cleaned up
+    outdated stuff. Closes: #567915
+  * debian/source/format, debian/patches/*: Switch to 3.0 (quilt) format,
+    with patches.
+
+  * browser/components/safebrowsing/content/application.js,
+    browser/app/profile/firefox.js: Use googpub-phish-shavar instead of
+    goog-phish-shavar for safe browsing. This is a first step for fixing safe
+    browsing. Either the current setup will work if Google allows our client
+    string to get this data, or we'll be allowed to say we're firefox to the
+    safe browsing server. Closes: #561927.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 01 Apr 2010 16:23:51 +0200
+
 iceweasel (3.5.8-1) unstable; urgency=low
 
   * New upstream release.

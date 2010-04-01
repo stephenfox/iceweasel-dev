@@ -1,0 +1,27 @@
+From 7129453be867a84116c7bee9f7a8a3512a1c83dc Mon Sep 17 00:00:00 2001
+From: Eric Dorland <eric@debian.org>
+Date: Sun, 10 Aug 2008 02:30:48 -0400
+Subject: [PATCH 10/15] Our name should be Iceweasel, not Firefox.
+
+This is used early in startup in some key places (like the main window
+group).
+---
+ browser/app/application.ini |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/browser/app/application.ini b/browser/app/application.ini
+index 8ae9f3b..a5fe3ca 100644
+--- a/browser/app/application.ini
++++ b/browser/app/application.ini
+@@ -38,7 +38,7 @@
+ #filter substitution
+ [App]
+ Vendor=Mozilla
+-Name=Firefox
++Name=Iceweasel
+ Version=@APP_VERSION@
+ BuildID=@GRE_BUILDID@
+ #ifdef MOZ_SOURCE_REPO
+-- 
+1.7.0.rc0.69.g2ee80
+
