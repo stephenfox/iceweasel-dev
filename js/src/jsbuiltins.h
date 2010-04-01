@@ -441,7 +441,7 @@ jsdouble FASTCALL
 js_BooleanOrUndefinedToNumber(JSContext* cx, int32 unboxed);
 
 /* Extern version of js_SetBuiltinError. */
-extern void
+extern JS_FRIEND_API(void)
 js_SetTraceableNativeFailed(JSContext *cx);
 
 extern jsdouble FASTCALL
