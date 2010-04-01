@@ -15,6 +15,9 @@ endif
 
 override_dh_auto_test: $(TESTS)
 
+debian/reftest-app/distribution: $(CURDIR)/dist/bin/distribution
+	ln -s $< $@
+
 debian/reftest-app/stub: $(CURDIR)/dist/bin/xulrunner-stub
 	ln -s $< $@
 
@@ -22,7 +25,7 @@ ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
-reftest crashtest: debian/reftest-app/stub
+reftest crashtest: debian/reftest-app/stub debian/reftest-app/distribution
 reftest crashtest: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
 reftest crashtest: export GRE_HOME = $(CURDIR)/dist/bin
 reftest crashtest: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
@@ -58,4 +61,4 @@ check-skip:
 	rm -f js/src/trace-test/tests/sunspider/check-date-format-tofte.js
 
 override_dh_auto_clean::
-	rm -rf debian/locales debian/reftest-app/stub
+	rm -rf debian/locales debian/reftest-app/stub debian/reftest-app/distribution
