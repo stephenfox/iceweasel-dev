@@ -742,7 +742,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
 pref("urlclassifier.gethashnoise", 4);
 
 // The list of tables that use the gethash request to confirm partial results.
+#ifdef MOZ_OFFICIAL_BRANDING
 pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
+#else
+pref("urlclassifier.gethashtables", "googpub-phish-shavar,goog-malware-shavar");
+#endif
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
