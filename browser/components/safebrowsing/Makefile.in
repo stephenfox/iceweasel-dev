@@ -51,6 +51,10 @@ ifdef MOZILLA_OFFICIAL
 DEFINES += -DOFFICIAL_BUILD=1
 endif
 
+ifdef MOZ_OFFICIAL_BRANDING
+DEFINES += -DMOZ_OFFICIAL_BRANDING
+endif
+
 EXTRA_COMPONENTS = \
   src/nsSafebrowsingApplication.manifest \
   $(NULL)
