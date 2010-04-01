@@ -109,7 +109,11 @@ PROT_Application.prototype.initialize = function() {
   this.malwareWarden.maybeToggleUpdateChecking();
 
   this.phishWarden = new PROT_PhishingWarden();
+#ifdef OFFICIAL_BUILD
   this.phishWarden.registerBlackTable("goog-phish-shavar");
+#else
+  this.phishWarden.registerBlackTable("googpub-phish-shavar");
+#endif
   this.phishWarden.maybeToggleUpdateChecking();
 }
 
