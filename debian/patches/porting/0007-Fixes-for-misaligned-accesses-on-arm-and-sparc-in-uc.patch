@@ -1,7 +1,7 @@
-From 6780aee3de54b7d1ea3199da3a7a97e9a67cc8de Mon Sep 17 00:00:00 2001
+From 02bdf5b559c6eda849cf2b124b45f8837826cf02 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 5 Feb 2010 20:31:42 +0100
-Subject: [PATCH 07/12] Fixes for misaligned accesses on arm and sparc in uconv
+Subject: [PATCH 07/10] Fixes for misaligned accesses on arm and sparc in uconv
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=544512
 ---

@@ -1,0 +1,56 @@
+From 3554ffcc63c8b1e5f620c673dc9482f212ffac40 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Wed, 12 Mar 2008 22:32:02 +0100
+Subject: [PATCH 02/35] Allow to build java jar files in 2 pass
+
+Force creation of Makefiles in extensions/java, even when javaxpcom is
+disabled. Don't build the jars if DEB_NO_JAR is defined.
+---
+ extensions/java/xpcom/Makefile.in |    8 +++++++-
+ toolkit/toolkit-makefiles.sh      |    2 +-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/extensions/java/xpcom/Makefile.in b/extensions/java/xpcom/Makefile.in
+index 0995bb9..3243935 100644
+--- a/extensions/java/xpcom/Makefile.in
++++ b/extensions/java/xpcom/Makefile.in
+@@ -41,7 +41,11 @@ VPATH		= @srcdir@
+ 
+ include $(DEPTH)/config/autoconf.mk
+ 
+-DIRS = interfaces glue
++DIRS = glue
++
++ifndef DEB_NO_JAR
++DIRS += interfaces
++endif
+ 
+ ifdef ENABLE_TESTS
+ DIRS += tests
+@@ -50,8 +54,10 @@ endif
+ include $(topsrcdir)/config/rules.mk
+ 
+ # Build the implementation Java classes
++ifndef DEB_NO_JAR
+ libs::
+ 	$(MAKE) -C src jar-libs
+ 
+ install::
+ 	$(MAKE) -C src jar-install
++endif
+diff --git a/toolkit/toolkit-makefiles.sh b/toolkit/toolkit-makefiles.sh
+index 7fdbcf6..b3a70c0 100644
+--- a/toolkit/toolkit-makefiles.sh
++++ b/toolkit/toolkit-makefiles.sh
+@@ -1308,7 +1308,7 @@ if [ "$MOZ_WEBSERVICES" ]; then
+   "
+ fi
+ 
+-if [ "$MOZ_JAVAXPCOM" ]; then
++if [ " " ]; then
+   add_makefiles "
+     extensions/java/Makefile
+     extensions/java/xpcom/Makefile
+-- 
+1.7.0.rc0.69.g2ee80
+

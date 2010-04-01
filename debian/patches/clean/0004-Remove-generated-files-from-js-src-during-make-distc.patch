@@ -1,4 +1,4 @@
-From 1374f2699d274c9c5d3bfd9fcb53e5538759a2fd Mon Sep 17 00:00:00 2001
+From 7565c5d2ae1358f5d72ff25ad6bc706bb055b550 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 09:03:25 +0100
 Subject: [PATCH 4/9] Remove generated files from js/src during make distclean
@@ -9,12 +9,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=541770
  1 files changed, 8 insertions(+), 0 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 3c2c2a7..380feef 100644
+index d006e0c..0f790ab 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -365,6 +365,14 @@ endif
- #		$(srcdir)/trace-test.js
- #endif
+@@ -395,6 +395,14 @@ distclean::
+ 	cat unallmakefiles | $(XARGS) rm -f
+ 	rm -f $(DIST_GARBAGE)
  
 +DIST_GARBAGE = config.cache config.log config.status \
 +   config/autoconf.mk \

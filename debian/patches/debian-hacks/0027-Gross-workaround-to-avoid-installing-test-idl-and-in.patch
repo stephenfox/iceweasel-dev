@@ -1,0 +1,52 @@
+From 877350998ae87c1b3786ae60f6fd8516cb6a2a59 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 27 Jan 2010 17:47:57 +0100
+Subject: [PATCH 27/35] Gross workaround to avoid installing test idl and include files in the SDK
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=542749
+---
+ config/rules.mk        |    8 ++++++++
+ js/src/config/rules.mk |    8 ++++++++
+ 2 files changed, 16 insertions(+), 0 deletions(-)
+
+diff --git a/config/rules.mk b/config/rules.mk
+index 3014d86..ba6351d 100644
+--- a/config/rules.mk
++++ b/config/rules.mk
+@@ -62,6 +62,14 @@ ifdef SDK_HEADERS
+ EXPORTS += $(SDK_HEADERS)
+ endif
+ 
++ifneq (,$(findstring sample,$(MODULE))$(findstring test,$(MODULE))$(findstring Test,$(MODULE)))
++PUBLIC := $(DIST)/tests/include
++IDL_DIR := $(DIST)/tests/idl
++LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
++override MOZ_JAVAXPCOM :=
++XPIDL_FLAGS += -I$(DIST)/idl
++endif
++
+ REPORT_BUILD = @echo $(notdir $<)
+ 
+ ifeq ($(OS_ARCH),OS2)
+diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
+index 3014d86..ba6351d 100644
+--- a/js/src/config/rules.mk
++++ b/js/src/config/rules.mk
+@@ -62,6 +62,14 @@ ifdef SDK_HEADERS
+ EXPORTS += $(SDK_HEADERS)
+ endif
+ 
++ifneq (,$(findstring sample,$(MODULE))$(findstring test,$(MODULE))$(findstring Test,$(MODULE)))
++PUBLIC := $(DIST)/tests/include
++IDL_DIR := $(DIST)/tests/idl
++LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
++override MOZ_JAVAXPCOM :=
++XPIDL_FLAGS += -I$(DIST)/idl
++endif
++
+ REPORT_BUILD = @echo $(notdir $<)
+ 
+ ifeq ($(OS_ARCH),OS2)
+-- 
+1.7.0.rc0.69.g2ee80
+

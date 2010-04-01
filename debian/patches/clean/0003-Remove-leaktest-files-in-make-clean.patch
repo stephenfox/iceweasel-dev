@@ -1,4 +1,4 @@
-From e7d5a1ec5a344d3df72c69855db6e419e41d1564 Mon Sep 17 00:00:00 2001
+From 9c82353a96d3e1c09287d11d362a3321c5394c59 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:59:53 +0100
 Subject: [PATCH 3/9] Remove leaktest files in make clean
@@ -9,7 +9,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=541769
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/build/Makefile.in b/build/Makefile.in
-index 5247126..4d425d7 100644
+index fd969dd..30c31f4 100644
 --- a/build/Makefile.in
 +++ b/build/Makefile.in
 @@ -71,6 +71,7 @@ TARGET_DEPTH = ..

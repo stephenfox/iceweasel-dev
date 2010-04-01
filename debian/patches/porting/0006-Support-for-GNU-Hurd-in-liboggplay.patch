@@ -1,7 +1,7 @@
-From 32c1a21512442b26cd914e17fbacd9eacb529b73 Mon Sep 17 00:00:00 2001
+From 05c46339358b0f3b00c6e186e0f346f9fcfbcf79 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Tue, 30 Mar 2010 09:58:56 +0200
-Subject: [PATCH 06/12] Support for GNU/Hurd in liboggplay
+Subject: [PATCH 06/10] Support for GNU/Hurd in liboggplay
 
 ---
  media/liboggplay/src/liboggplay/std_semaphore.h |    2 +-

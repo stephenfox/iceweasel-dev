@@ -1,63 +1,19 @@
-From 9fff9d142d012d73c69324bda3773faff1f6c36d Mon Sep 17 00:00:00 2001
+From 05741b1ffccb4fd2e8a600966266069f299e8f47 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 1 Jul 2009 07:54:41 +0200
-Subject: [PATCH 2/5] Allow to build the js shell against the libmozjs shared library
+Subject: [PATCH 2/2] Allow to build the js shell against the libmozjs shared library
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=501300
 ---
- js/src/Makefile.in  |   10 ++++------
- js/src/js.cpp       |    4 ++--
  js/src/jstracer.cpp |    4 ++++
- 3 files changed, 10 insertions(+), 8 deletions(-)
+ js/src/shell/js.cpp |    2 +-
+ 2 files changed, 5 insertions(+), 1 deletions(-)
 
-diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 380feef..94e3c82 100644
---- a/js/src/Makefile.in
-+++ b/js/src/Makefile.in
-@@ -50,12 +50,10 @@ MODULE		= js
- LIBRARY_NAME	= mozjs
- GRE_MODULE	= 1
- 
--PROGRAM         = js$(BIN_SUFFIX)
--# The shell uses some 'HIDDEN' symbols to produce statistics, so we
--# link directly against the .o files, not against the JS shared
--# library.
--PROGOBJS	= js.$(OBJ_SUFFIX) $(OBJS)
--LIBS		= $(NSPR_LIBS)
-+SIMPLE_PROGRAMS	= js$(BIN_SUFFIX)
-+LIBS		= $(NSPR_LIBS) -L. $(MOZ_JS_LIBS)
-+# Make sure the library is built before the js binary
-+$(SIMPLE_PROGRAMS): $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
- 
- ifdef WINCE
- EXTRA_LIBS += $(JEMALLOC_LIBS)
-diff --git a/js/src/js.cpp b/js/src/js.cpp
-index dd170e6..9cca114 100644
---- a/js/src/js.cpp
-+++ b/js/src/js.cpp
-@@ -650,7 +650,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
-             JS_ToggleOptions(cx, JSOPTION_JIT);
- #if defined(JS_TRACER) && defined(DEBUG)
- extern struct JSClass jitstats_class;
--extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
-+extern JS_FRIEND_API(void) js_InitJITStatsClass(JSContext *cx, JSObject *glob);
-             js_InitJITStatsClass(cx, JS_GetGlobalObject(cx));
-             JS_DefineObject(cx, JS_GetGlobalObject(cx), "tracemonkey",
-                             &jitstats_class, NULL, 0);
-@@ -1017,7 +1017,7 @@ AssertEq(JSContext *cx, uintN argc, jsval *vp)
-     }
- 
-     jsval *argv = JS_ARGV(cx, vp);
--    if (!js_StrictlyEqual(cx, argv[0], argv[1])) {
-+    if (!JS_StrictlyEqual(cx, argv[0], argv[1])) {
-         const char *actual = ToSource(cx, &argv[0]);
-         const char *expected = ToSource(cx, &argv[1]);
-         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_ASSERT_EQ_FAILED,
 diff --git a/js/src/jstracer.cpp b/js/src/jstracer.cpp
-index 808099a..55f1d7a 100644
+index 43fd017..9f016c1 100644
 --- a/js/src/jstracer.cpp
 +++ b/js/src/jstracer.cpp
-@@ -238,7 +238,11 @@ JSClass jitstats_class = {
+@@ -241,7 +241,11 @@ JSClass jitstats_class = {
      JSCLASS_NO_OPTIONAL_MEMBERS
  };
  
@@ -69,6 +25,19 @@ index 808099a..55f1d7a 100644
  js_InitJITStatsClass(JSContext *cx, JSObject *glob)
  {
      JS_InitClass(cx, glob, NULL, &jitstats_class, NULL, 0, jitstats_props, NULL, NULL, NULL);
+diff --git a/js/src/shell/js.cpp b/js/src/shell/js.cpp
+index 222e1c4..817166d 100644
+--- a/js/src/shell/js.cpp
++++ b/js/src/shell/js.cpp
+@@ -725,7 +725,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
+             JS_ToggleOptions(cx, JSOPTION_JIT);
+ #if defined(JS_TRACER) && defined(DEBUG)
+ extern struct JSClass jitstats_class;
+-extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
++extern JS_FRIEND_API(void) js_InitJITStatsClass(JSContext *cx, JSObject *glob);
+             js_InitJITStatsClass(cx, JS_GetGlobalObject(cx));
+             JS_DefineObject(cx, JS_GetGlobalObject(cx), "tracemonkey",
+                             &jitstats_class, NULL, 0);
 -- 
 1.7.0.rc0.69.g2ee80
 

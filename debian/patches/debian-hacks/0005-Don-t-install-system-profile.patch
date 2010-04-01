@@ -1,0 +1,25 @@
+From 5181d0e8214b4fc9e0815c835a69a990e81a0606 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Wed, 12 Mar 2008 23:25:15 +0100
+Subject: [PATCH 05/35] Don't install system profile
+
+---
+ xulrunner/app/Makefile.in |    2 --
+ 1 files changed, 0 insertions(+), 2 deletions(-)
+
+diff --git a/xulrunner/app/Makefile.in b/xulrunner/app/Makefile.in
+index b0c3aaa..db7fe0b 100644
+--- a/xulrunner/app/Makefile.in
++++ b/xulrunner/app/Makefile.in
+@@ -47,8 +47,6 @@ VPATH		= @srcdir@
+ 
+ include $(DEPTH)/config/autoconf.mk
+ 
+-DIRS		= profile
+-
+ PREF_JS_EXPORTS = $(srcdir)/xulrunner.js
+ GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/,xulrunner.js)
+ 
+-- 
+1.7.0.rc0.69.g2ee80
+

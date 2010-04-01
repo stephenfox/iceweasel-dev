@@ -1,4 +1,4 @@
-From af3653cd3f5ae54a7ac55afe665cb6d508d98d3f Mon Sep 17 00:00:00 2001
+From 567486b0ee56181f4dabc4e185b45f41232b8fd5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 09:39:56 +0100
 Subject: [PATCH 5/9] Cleanup idl-parser leftovers in make clean
@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=541774
  1 files changed, 5 insertions(+), 1 deletions(-)
 
 diff --git a/js/src/xpconnect/src/Makefile.in b/js/src/xpconnect/src/Makefile.in
-index 1c7c902..df003f8 100644
+index 030bc64..f73519f 100644
 --- a/js/src/xpconnect/src/Makefile.in
 +++ b/js/src/xpconnect/src/Makefile.in
-@@ -214,7 +214,7 @@ dom_quickstubs.h dom_quickstubs.cpp: $(srcdir)/dom_quickstubs.qsconf \
+@@ -217,7 +217,7 @@ dom_quickstubs.cpp: $(srcdir)/dom_quickstubs.qsconf \
  	  -I$(topsrcdir)/xpcom/idl-parser \
  	  $(srcdir)/qsgen.py \
  	  --idlpath=$(DEPTH)/dist/idl \
@@ -21,7 +21,7 @@ index 1c7c902..df003f8 100644
  	  --header-output dom_quickstubs.h \
  	  --stub-output dom_quickstubs.cpp \
  	  --makedepend-output $(MDDEPDIR)/dom_qsgen.pp \
-@@ -225,4 +225,8 @@ GARBAGE += \
+@@ -228,4 +228,8 @@ GARBAGE += \
  		dom_quickstubs.h \
  		dom_quickstubs.cpp \
  		$(MDDEPDIR)/dom_qsgen.pp \

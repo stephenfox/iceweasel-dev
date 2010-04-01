@@ -1,0 +1,25 @@
+From 750fe7b3ed0ed53aa8214000899d487e189cc81d Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 23 Nov 2009 20:03:10 +0100
+Subject: [PATCH 09/21] Add -ldl in libxul-embedding*.pc
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=530534
+
+Closes: #556888
+---
+ xulrunner/installer/libxul-embedding.pc.in |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/xulrunner/installer/libxul-embedding.pc.in b/xulrunner/installer/libxul-embedding.pc.in
+index bc3ac84..4134b0b 100644
+--- a/xulrunner/installer/libxul-embedding.pc.in
++++ b/xulrunner/installer/libxul-embedding.pc.in
+@@ -7,4 +7,4 @@ Name: libxul-embedding
+ Description: Static library for version-independent embedding of the Mozilla runtime
+ Version: %MOZILLA_VERSION%
+ Libs: -L${sdkdir}/lib -lxpcomglue
+-Cflags: -DXPCOM_GLUE -I${includedir} %WCHAR_CFLAGS%
++Cflags: -DXPCOM_GLUE -I${includedir} %WCHAR_CFLAGS% -ldl
+-- 
+1.7.0.rc0.69.g2ee80
+

@@ -1,0 +1,26 @@
+From 843bdc9874d6270511bb83adde903d30a7822ac1 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Mar 2010 15:22:37 +0100
+Subject: [PATCH 19/21] reftest 424074-1-ref2.xul passes depending on the gtk theme
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=554036
+---
+ layout/reftests/bugs/reftest.list |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/layout/reftests/bugs/reftest.list b/layout/reftests/bugs/reftest.list
+index 7b482a0..2b3545b 100644
+--- a/layout/reftests/bugs/reftest.list
++++ b/layout/reftests/bugs/reftest.list
+@@ -948,7 +948,7 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
+ == 423823-1.html 423823-1-ref.html
+ == 424074-1.xul 424074-1-ref.xul
+ != 424074-1.xul 424074-1-ref2.xul
+-fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
++random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
+ == 424236-1.html 424236-1-ref.html
+ == 424236-2.html 424236-2-ref.html
+ == 424236-3.html 424236-3-ref.html
+-- 
+1.7.0.rc0.69.g2ee80
+

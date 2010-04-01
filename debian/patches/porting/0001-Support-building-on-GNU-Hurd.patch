@@ -1,7 +1,7 @@
-From 040042be0d9185dd5c1ce634b23cb02be9618b86 Mon Sep 17 00:00:00 2001
+From 17ebd9fc54198d0a30c6c6021b455a24e25dab7f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Tue, 11 Mar 2008 08:29:25 +0100
-Subject: [PATCH 01/12] Support building on GNU/Hurd
+Subject: [PATCH 01/10] Support building on GNU/Hurd
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=555901
 ---
@@ -15,10 +15,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=555901
  7 files changed, 30 insertions(+), 9 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index 7d07fbd..848719d 100644
+index af3842c..5172501 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
-@@ -666,6 +666,14 @@ endif
+@@ -665,6 +665,14 @@ endif
  endif 
  
  #
@@ -34,10 +34,10 @@ index 7d07fbd..848719d 100644
  #
  ifeq ($(OS_ARCH),WINNT)
 diff --git a/configure.in b/configure.in
-index bdeeb35..8399825 100644
+index 109b894..3830f11 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -1022,6 +1022,7 @@ if test -n "$CROSS_COMPILE"; then
+@@ -1088,6 +1088,7 @@ if test -n "$CROSS_COMPILE"; then
      case "${target_os}" in
          linux*)       OS_ARCH=Linux OS_TARGET=Linux ;;
          kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU_kFreeBSD ;;
@@ -45,8 +45,8 @@ index bdeeb35..8399825 100644
          solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
          mingw*)       OS_ARCH=WINNT ;;
          wince*)       OS_ARCH=WINCE ;;
-@@ -1624,7 +1625,7 @@ case "$host" in
-     LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) $(LIBXUL_DIST)/bin/XUL -lobjc'
+@@ -1674,7 +1675,7 @@ case "$host" in
+     MOZ_FIX_LINK_PATHS='-Wl,-executable_path,$(LIBXUL_DIST)/bin'
      ;;
  
 -*-linux*|*-kfreebsd*-gnu)
@@ -54,7 +54,7 @@ index bdeeb35..8399825 100644
      HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
      HOST_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
      HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
-@@ -2645,7 +2646,7 @@ dnl ========================================================
+@@ -2683,7 +2684,7 @@ dnl ========================================================
  dnl = Flags to strip unused symbols from .so components
  dnl ========================================================
  case "$target" in
@@ -63,7 +63,7 @@ index bdeeb35..8399825 100644
          MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
          ;;
      *-solaris*)
-@@ -3328,7 +3329,7 @@ then
+@@ -3435,7 +3436,7 @@ then
  			fi
  			;;
  
@@ -73,10 +73,10 @@ index bdeeb35..8399825 100644
  			;;
  
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index 7d07fbd..848719d 100644
+index af3842c..5172501 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
-@@ -666,6 +666,14 @@ endif
+@@ -665,6 +665,14 @@ endif
  endif 
  
  #
@@ -92,10 +92,10 @@ index 7d07fbd..848719d 100644
  #
  ifeq ($(OS_ARCH),WINNT)
 diff --git a/js/src/configure.in b/js/src/configure.in
-index 917e0ef..206e3ee 100644
+index 4a872ef..8dc2427 100644
 --- a/js/src/configure.in
 +++ b/js/src/configure.in
-@@ -923,6 +923,7 @@ if test -n "$CROSS_COMPILE"; then
+@@ -893,6 +893,7 @@ if test -n "$CROSS_COMPILE"; then
      case "${target_os}" in
          linux*)       OS_ARCH=Linux OS_TARGET=Linux ;;
          kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU_kFreeBSD ;;
@@ -103,7 +103,7 @@ index 917e0ef..206e3ee 100644
          solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
          mingw*)       OS_ARCH=WINNT ;;
          wince*)       OS_ARCH=WINCE ;;
-@@ -1524,7 +1525,7 @@ case "$host" in
+@@ -1485,7 +1486,7 @@ case "$host" in
      LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) $(LIBXUL_DIST)/bin/XUL -lobjc'
      ;;
  
@@ -112,7 +112,7 @@ index 917e0ef..206e3ee 100644
      HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
      HOST_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
      HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
-@@ -2423,7 +2424,7 @@ dnl ========================================================
+@@ -2427,7 +2428,7 @@ dnl ========================================================
  dnl = Flags to strip unused symbols from .so components
  dnl ========================================================
  case "$target" in
@@ -121,7 +121,7 @@ index 917e0ef..206e3ee 100644
          MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
          ;;
      *-solaris*)
-@@ -2506,6 +2507,9 @@ solaris*)
+@@ -2512,6 +2513,9 @@ solaris*)
  freebsd*|kfreebsd*)
      AC_DEFINE(AVMPLUS_UNIX)
      ;;
@@ -131,7 +131,7 @@ index 917e0ef..206e3ee 100644
  *cygwin*|*mingw*|*mks*|*msvc*|*wince)
      AC_DEFINE(AVMPLUS_WIN32)
      ;;
-@@ -3095,7 +3099,7 @@ then
+@@ -3043,7 +3047,7 @@ then
  			fi
  			;;
  
@@ -154,18 +154,18 @@ index 08411fe..a52ddbc 100644
  endif
  ifeq (OS2,$(OS_ARCH))
 diff --git a/xpcom/reflect/xptcall/src/md/unix/Makefile.in b/xpcom/reflect/xptcall/src/md/unix/Makefile.in
-index 96ba820..b1a8829 100644
+index ee37da6..5ef061c 100644
 --- a/xpcom/reflect/xptcall/src/md/unix/Makefile.in
 +++ b/xpcom/reflect/xptcall/src/md/unix/Makefile.in
-@@ -64,7 +64,7 @@ include $(topsrcdir)/config/config.mk
- #
- # Lots of Unixish x86 flavors
- #
--ifneq (,$(filter FreeBSD NetBSD OpenBSD BSD_OS Darwin,$(OS_ARCH)))
-+ifneq (,$(filter FreeBSD NetBSD OpenBSD BSD_OS Darwin GNU,$(OS_ARCH)))
+@@ -76,7 +76,7 @@ endif
+ endif
+ endif
+ 
+-ifneq (,$(filter FreeBSD NetBSD OpenBSD BSD_OS,$(OS_ARCH)))
++ifneq (,$(filter FreeBSD NetBSD OpenBSD BSD_OS GNU,$(OS_ARCH)))
  ifeq (86,$(findstring 86,$(OS_TEST)))
  CPPSRCS		:= xptcinvoke_unixish_x86.cpp xptcstubs_unixish_x86.cpp
- ifeq (Darwin,$(OS_ARCH))
+ endif
 diff --git a/xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h b/xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h
 index 71fd140..d453e55 100644
 --- a/xpcom/reflect/xptcall/src/md/unix/xptc_platforms_unixish_x86.h

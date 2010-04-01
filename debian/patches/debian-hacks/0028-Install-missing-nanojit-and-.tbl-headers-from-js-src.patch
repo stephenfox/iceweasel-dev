@@ -1,0 +1,81 @@
+From dbc1c8a0d35844b6eb7fe6825ced74a2702f4496 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 28 Jan 2010 18:08:38 +0100
+Subject: [PATCH 28/35] Install missing nanojit and .tbl headers from js/src
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=542789
+---
+ js/src/Makefile.in |   36 +++++++++++++++++++++++-------------
+ 1 files changed, 23 insertions(+), 13 deletions(-)
+
+diff --git a/js/src/Makefile.in b/js/src/Makefile.in
+index 330cacf..e5a1353 100644
+--- a/js/src/Makefile.in
++++ b/js/src/Makefile.in
+@@ -223,6 +223,7 @@ INSTALLED_HEADERS = \
+ 		jsversion.h \
+ 		jsxdrapi.h \
+ 		jsxml.h \
++		jskeyword.tbl \
+ 		$(NULL)
+ 
+ ifdef ENABLE_JIT
+@@ -230,17 +231,18 @@ VPATH		+= $(srcdir)/nanojit
+ 
+ INSTALLED_HEADERS += \
+ 		jsbuiltins.h    \
+-		Assembler.h     \
+-		Allocator.h     \
+-		CodeAlloc.h     \
+-		Containers.h    \
+-		LIR.h		\
+-		avmplus.h	\
+-		Fragmento.h	\
+-		Native.h	\
+-		Native$(NANOJIT_ARCH).h \
+-		RegAlloc.h	\
+-		nanojit.h	\
++		nanojit/Assembler.h     \
++		nanojit/Allocator.h     \
++		nanojit/CodeAlloc.h     \
++		nanojit/Containers.h    \
++		nanojit/LIRopcode.tbl	\
++		nanojit/LIR.h		\
++		nanojit/avmplus.h	\
++		nanojit/Fragmento.h	\
++		nanojit/Native.h	\
++		nanojit/Native$(NANOJIT_ARCH).h \
++		nanojit/RegAlloc.h	\
++		nanojit/nanojit.h	\
+ 		$(NULL)
+ 
+ CPPSRCS += \
+@@ -277,7 +279,7 @@ ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
+ INSTALLED_HEADERS += jscpucfg.h
+ endif
+ 
+-EXPORTS = $(INSTALLED_HEADERS)
++EXPORTS = $(filter-out nanojit/%,$(INSTALLED_HEADERS))
+ 
+ JS_SAFE_ARENA	= 1
+ 
+@@ -631,7 +633,15 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
+ SCRIPTS = js-config
+ SDK_BINARY = js-config
+ 
+-install:: $(INSTALLED_HEADERS)
++ifdef ENABLE_JIT
++export:: $(filter nanojit/%,$(INSTALLED_HEADERS))
++	$(INSTALL) $^ $(DIST)/include/nanojit
++
++install:: $(filter nanojit/%,$(INSTALLED_HEADERS))
++	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/nanojit
++endif
++
++install:: $(filter-out nanojit/%,$(INSTALLED_HEADERS))
+ 	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)
+ 
+ install:: $(SCRIPTS)
+-- 
+1.7.0.rc0.69.g2ee80
+

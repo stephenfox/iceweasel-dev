@@ -1,0 +1,29 @@
+From ff8b1fda216410e958648c9c6f2661a389221d6d Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Sat, 24 May 2008 11:11:57 +0200
+Subject: [PATCH 16/35] Don't put an about:blank link when there is no vendorURL defined in about:
+
+---
+ toolkit/content/about.xhtml |    6 +++++-
+ 1 files changed, 5 insertions(+), 1 deletions(-)
+
+diff --git a/toolkit/content/about.xhtml b/toolkit/content/about.xhtml
+index 4e9d0cd..4d933b1 100644
+--- a/toolkit/content/about.xhtml
++++ b/toolkit/content/about.xhtml
+@@ -85,7 +85,11 @@
+ 
+         var vendorURL = formatter.formatURLPref("app.vendorURL");
+         var vendor = document.getElementById("vendorURL");
+-        vendor.setAttribute("href", vendorURL);
++        if (vendorURL == "about:blank") {
++          vendor.setAttribute("href", "");
++        } else {
++          vendor.setAttribute("href", vendorURL);
++        }
+ 
+         var versionNum = formatter.formatURL("%VERSION%");
+         var version = document.getElementById("version");
+-- 
+1.7.0.rc0.69.g2ee80
+

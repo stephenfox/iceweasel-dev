@@ -1,0 +1,30 @@
+From 075b7ee3518880206748273d79eab608a6f6b714 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Tue, 26 Jan 2010 14:00:18 +0100
+Subject: [PATCH 25/35] Avoid extension manager failure when there is no branding (like in the testsuite)
+
+Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=455238
+---
+ .../extensions/src/nsExtensionManager.js.in        |    6 ++++--
+ 1 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/toolkit/mozapps/extensions/src/nsExtensionManager.js.in b/toolkit/mozapps/extensions/src/nsExtensionManager.js.in
+index b5c0506..519bac6 100644
+--- a/toolkit/mozapps/extensions/src/nsExtensionManager.js.in
++++ b/toolkit/mozapps/extensions/src/nsExtensionManager.js.in
+@@ -253,8 +253,10 @@ var BundleManager = {
+    */
+   get appName() {
+     if (!this._appName) {
+-      var brandBundle = this.getBundle(URI_BRAND_PROPERTIES)
+-      this._appName = brandBundle.GetStringFromName("brandShortName");
++      try {
++        var brandBundle = this.getBundle(URI_BRAND_PROPERTIES)
++        this._appName = brandBundle.GetStringFromName("brandShortName");
++      } catch(e) {}
+     }
+     return this._appName;
+   }
+-- 
+1.7.0.rc0.69.g2ee80
+

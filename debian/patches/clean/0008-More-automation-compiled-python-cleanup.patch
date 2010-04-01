@@ -1,4 +1,4 @@
-From 2ab082c05097698c6f4de03353793412e3ac9bb5 Mon Sep 17 00:00:00 2001
+From 512347a369872d31c9859d83ff64670502cd60a9 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 26 Mar 2010 13:44:11 +0100
 Subject: [PATCH 8/9] More automation compiled python cleanup
@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=543469
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/build/automation-build.mk b/build/automation-build.mk
-index 0a2df8d..08510b1 100644
+index 5ad282f..a3c01ac 100644
 --- a/build/automation-build.mk
 +++ b/build/automation-build.mk
-@@ -74,4 +74,4 @@ automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automa
+@@ -75,4 +75,4 @@ automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automa
  	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
  	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
  

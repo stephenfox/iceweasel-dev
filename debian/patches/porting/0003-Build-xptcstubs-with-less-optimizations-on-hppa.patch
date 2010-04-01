@@ -1,7 +1,7 @@
-From 3a4357782179a1562b9bbf5e39ff3fc2ba5eeae5 Mon Sep 17 00:00:00 2001
+From b68bcf3c87865f689525f9c61e2ad08c29c0d8f4 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 17 May 2008 19:30:10 +0200
-Subject: [PATCH 03/12] Build xptcstubs with less optimizations on hppa
+Subject: [PATCH 03/10] Build xptcstubs with less optimizations on hppa
 
 This avoids g++ outsmarting the assembly code.
 
@@ -11,10 +11,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=434190
  1 files changed, 1 insertions(+), 0 deletions(-)
 
 diff --git a/xpcom/reflect/xptcall/src/md/unix/Makefile.in b/xpcom/reflect/xptcall/src/md/unix/Makefile.in
-index b1a8829..56be8b2 100644
+index 5ef061c..7b9efb2 100644
 --- a/xpcom/reflect/xptcall/src/md/unix/Makefile.in
 +++ b/xpcom/reflect/xptcall/src/md/unix/Makefile.in
-@@ -228,6 +228,7 @@ $(error Unknown C++ compiler, xptcall assembly will probably be incorrect.)
+@@ -243,6 +243,7 @@ $(error Unknown C++ compiler, xptcall assembly will probably be incorrect.)
  else
  CPPSRCS		:= xptcinvoke_pa32.cpp xptcstubs_pa32.cpp
  ASFILES		:= xptcstubs_asm_parisc_linux.s xptcinvoke_asm_parisc_linux.s

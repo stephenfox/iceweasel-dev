@@ -1,0 +1,28 @@
+From 0fac2619b40019e38af9eac0a2ee3ef5085d8bea Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 24 Feb 2010 16:16:50 +0100
+Subject: [PATCH 30/35] Simplify how js/src/configure is called from main configure
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=548273
+---
+ configure.in |    4 +---
+ 1 files changed, 1 insertions(+), 3 deletions(-)
+
+diff --git a/configure.in b/configure.in
+index 53f9e0a..4bf8dba 100644
+--- a/configure.in
++++ b/configure.in
+@@ -8586,9 +8586,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
+     ac_configure_args="$ac_configure_args --with-nspr-libs='$NSPR_LIBS'"
+ fi
+ ac_configure_args="$ac_configure_args --with-dist-dir=../../dist"
+-ac_configure_args="$ac_configure_args --includedir=$dist/include"
+-ac_configure_args="$ac_configure_args --bindir=$dist/bin"
+-ac_configure_args="$ac_configure_args --libdir=$dist/lib"
++ac_configure_args="$ac_configure_args --prefix=$dist"
+ ac_configure_args="$ac_configure_args --with-sync-build-files=$_topsrcdir"
+ if test "$MOZ_MEMORY"; then
+    ac_configure_args="$ac_configure_args --enable-jemalloc"
+-- 
+1.7.0.rc0.69.g2ee80
+

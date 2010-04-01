@@ -1,0 +1,28 @@
+From 32f8b17265bcf8809477e7931e30b0a6b451df49 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Wed, 12 Mar 2008 23:18:23 +0100
+Subject: [PATCH 03/35] Avoid libxpcom being excluded from linked libraries by -Wl,--as-needed
+
+Force libxpcom to be linked to xulrunner-bin and xpcshell so that it is
+loaded in most cases.
+---
+ xulrunner/app/Makefile.in |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/xulrunner/app/Makefile.in b/xulrunner/app/Makefile.in
+index bac4194..b0c3aaa 100644
+--- a/xulrunner/app/Makefile.in
++++ b/xulrunner/app/Makefile.in
+@@ -119,7 +119,9 @@ LIBS += \
+ 	$(EXTRA_DSO_LIBS) \
+ 	$(MOZ_JS_LIBS) \
+ 	$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
++	-Wl,--no-as-needed \
+ 	$(XPCOM_LIBS) \
++	-Wl,--as-needed \
+ 	$(NSPR_LIBS) \
+ 	$(TK_LIBS) \
+ 	$(NULL)
+-- 
+1.7.0.rc0.69.g2ee80
+

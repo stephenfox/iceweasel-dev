@@ -1,14 +1,14 @@
-From 21d0b0c0cbd632269f639e4b39808d25c17dc944 Mon Sep 17 00:00:00 2001
+From e57226c25762d569f908aeda9f3bb51b8ccf0b74 Mon Sep 17 00:00:00 2001
 From: Petr Salinger <Petr.Salinger@seznam.cz>
 Date: Fri, 18 Sep 2009 20:06:43 +0200
-Subject: [PATCH 05/12] Build oss support for libsydneyaudio on *bsd and hurd
+Subject: [PATCH 05/10] Build oss support for libsydneyaudio on *bsd and hurd
 
 ---
  media/libsydneyaudio/src/Makefile.in |    6 ++++++
  1 files changed, 6 insertions(+), 0 deletions(-)
 
 diff --git a/media/libsydneyaudio/src/Makefile.in b/media/libsydneyaudio/src/Makefile.in
-index b4a2588..1c1193a 100644
+index 8feca70..d15526b 100644
 --- a/media/libsydneyaudio/src/Makefile.in
 +++ b/media/libsydneyaudio/src/Makefile.in
 @@ -45,6 +45,12 @@ MODULE		= sydneyaudio

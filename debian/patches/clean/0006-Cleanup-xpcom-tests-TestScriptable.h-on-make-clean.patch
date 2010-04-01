@@ -1,4 +1,4 @@
-From 86b8b0dcd4403d151bd6f654e2bb72c1049937cf Mon Sep 17 00:00:00 2001
+From e1d312e2675c752ffd67ece4ea56f9bcd15bdfea Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 16:30:26 +0100
 Subject: [PATCH 6/9] Cleanup xpcom/tests/TestScriptable.h on make clean
@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=543464
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/xpcom/tests/Makefile.in b/xpcom/tests/Makefile.in
-index 787aa35..686cf70 100644
+index 8a38e68..baf5bc5 100644
 --- a/xpcom/tests/Makefile.in
 +++ b/xpcom/tests/Makefile.in
-@@ -190,3 +190,5 @@ check::
+@@ -210,3 +210,5 @@ check::
  	regOrderDir="$(call getnativepath,$(abs_srcdir)/regorder)";	\
  	XPCOM_DEBUG_BREAK=stack-and-abort $(RUN_TEST_PROGRAM) \
  	  $(DIST)/bin/TestRegistrationOrder$(BIN_SUFFIX) "$$regOrderDir"

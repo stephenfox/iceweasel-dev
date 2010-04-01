@@ -1,4 +1,4 @@
-From a2917b1f783fab673e0f0b3cc9aa972fbd2a363b Mon Sep 17 00:00:00 2001
+From 9e55d75a9ffe39faad87cbd8db28af66a719109a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:52:15 +0100
 Subject: [PATCH 1/9] Avoid creating config/my{config,rules}.mk
@@ -11,10 +11,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=541767
  3 files changed, 1 insertions(+), 13 deletions(-)
 
 diff --git a/Makefile.in b/Makefile.in
-index 7c0d6d1..8d8b785 100644
+index dcef73c..2552274 100644
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -72,7 +72,7 @@ include $(topsrcdir)/config/config.mk
+@@ -83,7 +83,7 @@ include $(topsrcdir)/config/config.mk
  
  GARBAGE_DIRS += dist _javagen _profile _tests staticlib
  DIST_GARBAGE = config.cache config.log config.status config-defs.h \
@@ -24,10 +24,10 @@ index 7c0d6d1..8d8b785 100644
     netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
     $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
 diff --git a/config/rules.mk b/config/rules.mk
-index cd2059c..7d07fbd 100644
+index 76c943e..af3842c 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
-@@ -2124,12 +2124,6 @@ endif
+@@ -2069,12 +2069,6 @@ endif
  -include $(MY_RULES)
  
  #
@@ -41,10 +41,10 @@ index cd2059c..7d07fbd 100644
  # or in $(MY_RULES)
  #
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index cd2059c..7d07fbd 100644
+index 76c943e..af3842c 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
-@@ -2124,12 +2124,6 @@ endif
+@@ -2069,12 +2069,6 @@ endif
  -include $(MY_RULES)
  
  #

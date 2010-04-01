@@ -1,7 +1,7 @@
-From 6f05d25b88367b2cd9ea08038d5dad7f66311c8d Mon Sep 17 00:00:00 2001
+From 7ad38c77f52be4ebd4789d429e7d79bb4261b16c Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 21 Jun 2008 02:48:46 +0200
-Subject: [PATCH 01/30] Allow .js preference files to set locked prefs with lockPref()
+Subject: [PATCH 01/21] Allow .js preference files to set locked prefs with lockPref()
 
 ---
  modules/libpref/src/prefapi.cpp  |    5 ++++-
@@ -11,10 +11,10 @@ Subject: [PATCH 01/30] Allow .js preference files to set locked prefs with lockP
  4 files changed, 17 insertions(+), 6 deletions(-)
 
 diff --git a/modules/libpref/src/prefapi.cpp b/modules/libpref/src/prefapi.cpp
-index 72a9731..4668d95 100644
+index 8998660..b5e7852 100644
 --- a/modules/libpref/src/prefapi.cpp
 +++ b/modules/libpref/src/prefapi.cpp
-@@ -943,7 +943,10 @@ void PREF_ReaderCallback(void       *closure,
+@@ -936,7 +936,10 @@ void PREF_ReaderCallback(void       *closure,
                           const char *pref,
                           PrefValue   value,
                           PrefType    type,
