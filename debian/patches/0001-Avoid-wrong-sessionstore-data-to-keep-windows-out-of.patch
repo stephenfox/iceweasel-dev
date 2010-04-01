@@ -1,0 +1,39 @@
+From 3dcda8eec3102c9b868caf8046e83d2568c8a9a1 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 12 Nov 2009 17:18:31 +0100
+Subject: [PATCH 01/15] Avoid wrong sessionstore data to keep windows out of user sight
+
+It happens that sessionstore can keep wrong information for the window
+position or minimized state. Workaround this until the real bug is found
+and fixed (probably in xulrunner).
+
+Closes: #552426, #553453
+---
+ .../components/sessionstore/src/nsSessionStore.js  |    4 +---
+ 1 files changed, 1 insertions(+), 3 deletions(-)
+
+diff --git a/browser/components/sessionstore/src/nsSessionStore.js b/browser/components/sessionstore/src/nsSessionStore.js
+index 127c239..66398c8 100644
+--- a/browser/components/sessionstore/src/nsSessionStore.js
++++ b/browser/components/sessionstore/src/nsSessionStore.js
+@@ -2332,7 +2332,7 @@ SessionStoreService.prototype = {
+       aWindow.resizeTo(aWidth, aHeight);
+     }
+     if (!isNaN(aLeft) && !isNaN(aTop) && (aLeft != win_("screenX") || aTop != win_("screenY"))) {
+-      aWindow.moveTo(aLeft, aTop);
++      aWindow.moveTo((aLeft < -aWidth) ? 0 : aLeft, (aTop < -aHeight) ? 0 : aTop);
+     }
+     if (aSizeMode && win_("sizemode") != aSizeMode)
+     {
+@@ -2342,8 +2342,6 @@ SessionStoreService.prototype = {
+         aWindow.maximize();
+         break;
+       case "minimized":
+-        aWindow.minimize();
+-        break;
+       case "normal":
+         aWindow.restore();
+         break;
+-- 
+1.7.0.rc0.69.g2ee80
+
