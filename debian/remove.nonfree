@@ -75,3 +75,6 @@ sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.ebay.com/favicon.
 sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.google.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/google.xml
 sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://en.wikipedia.org/favicon.ico\1,' ./browser/locales/en-US/searchplugins/wikipedia.xml
 sed -i 's,>data:.*\(</Image>\), type="image/x-icon">http://www.yahoo.com/favicon.ico\1,' ./browser/locales/en-US/searchplugins/yahoo.xml
+
+# There are still some cvsignore files
+find . -type f -name .cvsignore | xargs rm -f
