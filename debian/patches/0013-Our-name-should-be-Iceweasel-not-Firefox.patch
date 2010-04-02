@@ -1,7 +1,7 @@
-From 7129453be867a84116c7bee9f7a8a3512a1c83dc Mon Sep 17 00:00:00 2001
+From 2fcf1e7996bea9abf4681abfae23acc4637f64d7 Mon Sep 17 00:00:00 2001
 From: Eric Dorland <eric@debian.org>
 Date: Sun, 10 Aug 2008 02:30:48 -0400
-Subject: [PATCH 10/15] Our name should be Iceweasel, not Firefox.
+Subject: [PATCH 13/17] Our name should be Iceweasel, not Firefox.
 
 This is used early in startup in some key places (like the main window
 group).

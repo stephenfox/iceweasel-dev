@@ -1,17 +1,17 @@
-From 0e2e76346fa12f64ccb9fa9c98394b39f607acd6 Mon Sep 17 00:00:00 2001
+From 683d0289ce9354a2f0931ef809941ce5c8955716 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 8 Jul 2009 08:02:11 +0200
-Subject: [PATCH 04/15] browser/components/build/Makefile.in: Link against nspr
+Subject: [PATCH 02/17] browser/components/build/Makefile.in: Link against nspr
 
 ---
  browser/components/build/Makefile.in |    2 +-
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/browser/components/build/Makefile.in b/browser/components/build/Makefile.in
-index 9d51c61..8025f13 100644
+index f22b550..3a4a51c 100644
 --- a/browser/components/build/Makefile.in
 +++ b/browser/components/build/Makefile.in
-@@ -77,7 +77,7 @@ ifndef WINCE
+@@ -76,7 +76,7 @@ ifndef WINCE
  REQUIRES += migration
  LOCAL_INCLUDES += -I$(srcdir)/../migration/src
  SHARED_LIBRARY_LIBS += ../migration/src/$(LIB_PREFIX)migration_s.$(LIB_SUFFIX)
@@ -19,7 +19,7 @@ index 9d51c61..8025f13 100644
 +EXTRA_DSO_LDOPTS += $(LIBXUL_DIST)/lib/$(LIB_PREFIX)mozreg_s.$(LIB_SUFFIX) $(NSPR_LIBS)
  endif
  
- # Mac: Need to link with CoreFoundation for Mac Migrators (PList reading code)
+ # This has to come after the above chunk, because mozreg_s has dependencies on
 -- 
 1.7.0.rc0.69.g2ee80
 

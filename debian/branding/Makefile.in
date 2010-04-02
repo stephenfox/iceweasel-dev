@@ -39,7 +39,7 @@ export:: $(BROWSER_APP_FILES) iceweasel.xpm
 
 document.png: document_icon.png
 	composite -compose src-over -geometry -2+5 $< \
-		$(topsrcdir)/browser/app/document.png $@
+		$(topsrcdir)/browser/branding/unofficial/document.png $@
 
 mozicon50.xpm: default48.png
 mozicon16.xpm: default16.png
