@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
 GRE_VERSION := 1.9.1
+GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .|sed 's/[a-z]/~&/')
 
 AUTOCONF_DIRS := ./nsprpub/build/autoconf/ ./build/autoconf/
 
@@ -36,7 +37,7 @@ endif
 IN_FILES := $(wildcard debian/*.in)
 PREPROCESSED_FILES := $(IN_FILES:.in=)
 $(PREPROCESSED_FILES): %: %.in
-	sed 's/##GRE_VERSION##/$(GRE_VERSION)/g' $^ > $@
+	sed -e 's/##GRE_VERSION##/$(GRE_VERSION)/g' -e 's/##GRE_MILESTONE##/$(GRE_MILESTONE)/g' $^ > $@
 
 override_dh_auto_configure:
 	for dir in $(AUTOCONF_DIRS); do \
