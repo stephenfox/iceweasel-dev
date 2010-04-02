@@ -88,10 +88,12 @@ tier_gecko_dirs += \
 		$(NULL)
 
 ifdef BUILD_CTYPES
+ifndef MOZ_NATIVE_FFI
 ifndef _MSC_VER
 tier_gecko_staticdirs += \
 		js/ctypes/libffi \
 		$(NULL)
+endif
 endif
 endif
 

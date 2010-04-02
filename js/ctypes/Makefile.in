@@ -95,18 +95,26 @@ endif
 else # _MSVC_VER
 
 # build libffi proper
+ifdef MOZ_NATIVE_FFI
+LOCAL_INCLUDES = $(MOZ_FFI_CFLAGS)
+else
 LOCAL_INCLUDES = \
     -Ilibffi/include \
     $(NULL)
+endif
 
 ifeq ($(OS_ARCH),OS2)
 libffi/.libs/ffi.$(LIB_SUFFIX): libffi/.libs/$(LIB_PREFIX)ffi.a
 	emxomf $<
 endif
 
+ifdef MOZ_NATIVE_FFI
+EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
+else
 SHARED_LIBRARY_LIBS = \
     libffi/.libs/$(LIB_PREFIX)ffi.$(LIB_SUFFIX) \
     $(NULL)
+endif
 
 endif # _MSVC_VER
 

@@ -81,6 +81,8 @@ XPIDLSRCS	= nsISample.idl
 
 include $(topsrcdir)/config/config.mk
 
+FINAL_TARGET = $(DIST)/bin/distribution/bundles/xpcom-sample
+
 # EXTRA_COMPONENTS installs components written JavaScript to
 # dist/bin/components
 EXTRA_COMPONENTS = nsSample.js
