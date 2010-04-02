@@ -1,3 +1,17 @@
+iceweasel (3.5.9-2) unstable; urgency=low
+
+  * debian/remove.nonfree: There are still some .cvsignore files in the
+    upstream tarballs.
+  * debian/rules, debian/iceweasel.links.in, debian/iceweasel.bug-script.in,
+    debian/iceweasel.bug-control.in, debian/control.in, debian/control:
+    Generate GRE version dependent information from GRE_VERSION set in
+    debian/rules.
+  * debian/rules, debian/control*: Have iceweasel 3.5.x depend on xulrunner
+    1.9.1.x at least. This will force upgrades of xulrunner when iceweasel
+    is upgraded.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 02 Apr 2010 20:08:22 +0200
+
 iceweasel (3.5.9-1) unstable; urgency=low
 
   * New upstream release.
