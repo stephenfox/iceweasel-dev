@@ -10,7 +10,7 @@ debian/locales/%:
 ifdef TEST_PATH
 TESTS := xpcshell-tests
 else
-TESTS := check xpcshell-tests reftest crashtest
+TESTS := check xpcshell-tests reftest crashtest jstestbrowser
 endif
 
 override_dh_auto_test: $(TESTS)
@@ -25,10 +25,10 @@ ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
-reftest crashtest: debian/reftest-app/stub debian/reftest-app/distribution
-reftest crashtest: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
-reftest crashtest: export GRE_HOME = $(CURDIR)/dist/bin
-reftest crashtest: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
+reftest crashtest jstestbrowser: debian/reftest-app/stub debian/reftest-app/distribution
+reftest crashtest jstestbrowser: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
+reftest crashtest jstestbrowser: export GRE_HOME = $(CURDIR)/dist/bin
+reftest crashtest jstestbrowser: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
 
 $(TESTS):
 	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
