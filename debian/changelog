@@ -1,3 +1,14 @@
+iceweasel (3.6.3-1) experimental; urgency=low
+
+  * New upstream release.
+  * debian/rules, debian/control: Bump GRE version to 1.9.2.
+  * debian/branding/Makefile.in: document.png moved in upstream tarball.
+  * debian/patches/*: Refresh patches and add some more:
+    - More s/%APP%/firefox/ changes for 3.6.
+    - Additional --with-libxul-sdk changes for 3.6.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 02 Apr 2010 21:44:36 +0200
+
 iceweasel (3.5.9-2) unstable; urgency=low
 
   * debian/remove.nonfree: There are still some .cvsignore files in the

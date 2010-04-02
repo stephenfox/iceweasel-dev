@@ -1,14 +1,14 @@
-From fe1fba4c1f0b87e92097f50760168095e5d96a5b Mon Sep 17 00:00:00 2001
+From c98341652b24f3ee10a45c04fc3ac6c1af2db597 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 14 Jul 2008 10:08:56 +0200
-Subject: [PATCH 02/15] Avoid spurious "Run" items in application handlers configuration pane
+Subject: [PATCH 09/17] Avoid spurious "Run" items in application handlers configuration pane
 
 ---
  browser/components/preferences/applications.js |    1 +
  1 files changed, 1 insertions(+), 0 deletions(-)
 
 diff --git a/browser/components/preferences/applications.js b/browser/components/preferences/applications.js
-index 7f4578e..c70cc57 100755
+index 4b9d79f..6b71b3c 100644
 --- a/browser/components/preferences/applications.js
 +++ b/browser/components/preferences/applications.js
 @@ -1362,6 +1362,7 @@ var gApplicationsPane = {

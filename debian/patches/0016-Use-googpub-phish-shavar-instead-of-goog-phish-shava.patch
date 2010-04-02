@@ -1,7 +1,7 @@
-From 791e8139c52462b32c62733f5e2a46d393f7d441 Mon Sep 17 00:00:00 2001
+From 7c3a42a58d426a047f5f51b2b63854cd02405d1e Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 1 Apr 2010 15:34:59 +0200
-Subject: [PATCH 13/15] Use googpub-phish-shavar instead of goog-phish-shavar for safe browsing
+Subject: [PATCH 16/17] Use googpub-phish-shavar instead of goog-phish-shavar for safe browsing
 
 This is a first step for fixing safe browsing. Either the current setup will work
 if Google allows our client string to get this data, or we'll be allowed to say
@@ -12,10 +12,10 @@ we're firefox to the safe browsing server.
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index e3f80a9..2803671 100644
+index 2166559..607030c 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -697,7 +697,7 @@ pref("urlclassifier.alternate_error_page", "blocked");
+@@ -728,7 +728,7 @@ pref("urlclassifier.alternate_error_page", "blocked");
  pref("urlclassifier.gethashnoise", 4);
  
  // The list of tables that use the gethash request to confirm partial results.
@@ -25,7 +25,7 @@ index e3f80a9..2803671 100644
  // If an urlclassifier table has not been updated in this number of seconds,
  // a gethash request will be forced to check that the result is still in
 diff --git a/browser/components/safebrowsing/content/application.js b/browser/components/safebrowsing/content/application.js
-index f5be69f..66821f8 100644
+index d353cbc..6beebbf 100644
 --- a/browser/components/safebrowsing/content/application.js
 +++ b/browser/components/safebrowsing/content/application.js
 @@ -109,7 +109,7 @@ PROT_Application.prototype.initialize = function() {

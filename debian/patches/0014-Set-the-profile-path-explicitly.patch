@@ -1,7 +1,7 @@
-From b1d043202cd0b11b74387496dbb59c005a161de3 Mon Sep 17 00:00:00 2001
+From eab882c8f0e1f27d0d312ad0d59b457f52594932 Mon Sep 17 00:00:00 2001
 From: Eric Dorland <eric@debian.org>
 Date: Mon, 11 Aug 2008 02:56:28 -0400
-Subject: [PATCH 11/15] Set the profile path explicitly
+Subject: [PATCH 14/17] Set the profile path explicitly
 
 ---
  browser/app/application.ini |    1 +

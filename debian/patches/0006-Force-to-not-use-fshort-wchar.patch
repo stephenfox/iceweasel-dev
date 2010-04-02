@@ -1,21 +1,21 @@
-From 4460a95f22fbbbea0982cb878872b1902897b2f2 Mon Sep 17 00:00:00 2001
+From 5d138136fd088b9ef9e44eacf41023c3cf1ce199 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 21 Jun 2008 14:43:40 +0200
-Subject: [PATCH 14/15] Force to not use -fshort-wchar
+Subject: [PATCH 06/17] Force to not use -fshort-wchar
 
 ---
  configure.in |    2 +-
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 32eaa11..0f82d69 100644
+index 1ada8c0..2612eec 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -2848,7 +2848,7 @@ AC_CACHE_CHECK(for usable wchar_t (2 bytes, unsigned),
+@@ -2903,7 +2903,7 @@ AC_CACHE_CHECK(for usable wchar_t (2 bytes, unsigned),
  if test "$ac_cv_have_usable_wchar_v2" = "yes"; then
      AC_DEFINE(HAVE_CPP_2BYTE_WCHAR_T)
      HAVE_CPP_2BYTE_WCHAR_T=1
--else
+-elif test "$ac_cv_have_usable_char16_t" != "yes"; then
 +elif false; then
  dnl This is really gcc-only
  dnl Do this test using CXX only since some versions of gcc

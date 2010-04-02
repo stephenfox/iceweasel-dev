@@ -1,7 +1,7 @@
-From c7dd1e3c7c6a0e8f1d6e7835f7c8bc90333f9758 Mon Sep 17 00:00:00 2001
+From c840997f226b2c146894fbb1fc3be6fe39d20f74 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:56:44 +0100
-Subject: [PATCH 06/15] Remove automation.py in make clean
+Subject: [PATCH 04/17] Remove automation.py in make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541768
 ---
@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=541768
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/build/automation-build.mk b/build/automation-build.mk
-index 7bfa5a4..0a2df8d 100644
+index 2557ba8..5ad282f 100644
 --- a/build/automation-build.mk
 +++ b/build/automation-build.mk
-@@ -73,3 +73,5 @@ endif
+@@ -74,3 +74,5 @@ endif
  automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automation-build.mk
  	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
  	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@

@@ -1,7 +1,7 @@
-From 765b6615dfacf2f264d83f353186d0275c97fff0 Mon Sep 17 00:00:00 2001
+From ac9048bf22abe42a6cddf214952a61728accc4a0 Mon Sep 17 00:00:00 2001
 From: Eric Dorland <eric@debian.org>
 Date: Sun, 23 Mar 2008 00:19:14 -0400
-Subject: [PATCH 08/15] Rename Firefox to Iceweasel
+Subject: [PATCH 11/17] Rename Firefox to Iceweasel
 
 ---
  browser/base/content/credits.xhtml                 |   11 ++---------
@@ -47,10 +47,10 @@ index 09c57e2..c18454f 100644
            as that term is defined in 48 C.F.R. 2.101 (Oct. 1995), consisting of
            &ldquo;commercial computer software&rdquo; and &ldquo;commercial computer software
 diff --git a/browser/components/nsBrowserGlue.js b/browser/components/nsBrowserGlue.js
-index f5e86ef..42a67ad 100644
+index 6624b62..9293447 100644
 --- a/browser/components/nsBrowserGlue.js
 +++ b/browser/components/nsBrowserGlue.js
-@@ -1008,7 +1008,7 @@ BrowserGlue.prototype = {
+@@ -1087,7 +1087,7 @@ BrowserGlue.prototype = {
  
  
    // for XPCOM
@@ -98,7 +98,7 @@ index adecd76..ecf35b5 100644
  unsafeContentType=The page you are trying to view cannot be shown because it is contained in a file type that may not be safe to open. Please contact the website owners to inform them of this problem.
  externalProtocolTitle=External Protocol Request
 diff --git a/browser/locales/en-US/searchplugins/answers.xml b/browser/locales/en-US/searchplugins/answers.xml
-index ea32303..bd959d3 100755
+index ea32303..bd959d3 100644
 --- a/browser/locales/en-US/searchplugins/answers.xml
 +++ b/browser/locales/en-US/searchplugins/answers.xml
 @@ -8,6 +8,6 @@
@@ -110,7 +110,7 @@ index ea32303..bd959d3 100755
  <SearchForm>http://www.answers.com/</SearchForm>
  </SearchPlugin>
 diff --git a/browser/locales/en-US/searchplugins/google.xml b/browser/locales/en-US/searchplugins/google.xml
-index 790ed34..265750d 100755
+index 790ed34..265750d 100644
 --- a/browser/locales/en-US/searchplugins/google.xml
 +++ b/browser/locales/en-US/searchplugins/google.xml
 @@ -3,7 +3,7 @@
