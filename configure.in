@@ -4200,6 +4200,7 @@ AC_SUBST(LIBXUL_SDK)
 
 if test -n "$LIBXUL_SDK"; then
     LIBXUL_DIST="$LIBXUL_SDK"
+    SKIP_LIBRARY_CHECKS=1
 else
     LIBXUL_DIST="$MOZ_BUILD_ROOT/dist"
 fi
@@ -8329,7 +8330,7 @@ if test "$MOZ_X11"; then
 fi # MOZ_X11
 fi # COMPILE_ENVIRONMENT
 
-if test "$USE_FC_FREETYPE"; then
+if test "$USE_FC_FREETYPE" && test -z "$LIBXUL_SDK"; then
     if test "$COMPILE_ENVIRONMENT"; then
     	_SAVE_CPPFLAGS="$CPPFLAGS"
     	CPPFLAGS="$CPPFLAGS $FT2_CFLAGS $XCFLAGS"
