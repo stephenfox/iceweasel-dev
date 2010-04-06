@@ -85,10 +85,10 @@ JS_FloorLog2(JSUint32 n)
  */
 #if !defined(JS_HAS_BUILTIN_BITSCAN64) && JS_BYTES_PER_WORD == 8
 
-JSUword
-js_FloorLog2wImpl(JSUword n)
+JSSize
+js_FloorLog2wImpl(JSSize n)
 {
-    JSUword log2, m;
+    JSSize log2, m;
 
     JS_ASSERT(n != 0);
 
