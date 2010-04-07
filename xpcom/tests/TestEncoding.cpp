@@ -58,7 +58,8 @@ nsresult TestGoodSurrogatePair()
     return NS_ERROR_FAILURE;
   }
 
-  const char expected8[] = { 0xF0, 0x90, 0x8C, 0x82, 0x65, 0x78, 0x0 };
+  const char expected8[] =
+    { '\xF0', '\x90', '\x8C', '\x82', '\x65', '\x78', '\x0' };
   if (0 != memcmp(expected8, goodPair8, sizeof(expected8)))
   {
     fail("wrong translation to UTF8");
@@ -102,7 +103,7 @@ nsresult TestBackwardsSurrogatePair()
   }
 
   const char expected8[] =
-    { 0xEF, 0xBF, 0xBD, 0xEF, 0xBF, 0xBD, 0x65, 0x78, 0x0 };
+    { '\xEF', '\xBF', '\xBD', '\xEF', '\xBF', '\xBD', '\x65', '\x78', '\x0' };
   if (0 != memcmp(expected8, backwardsPair8, sizeof(expected8)))
   {
     fail("wrong translation to UTF8");
@@ -145,7 +146,8 @@ nsresult TestMalformedUTF16OrphanHighSurrogate()
     return NS_ERROR_FAILURE;
   }
 
-  const char expected8[] = { 0xEF, 0xBF, 0xBD, 0x74, 0x65, 0x78, 0x74, 0x0 };
+  const char expected8[] =
+    { '\xEF', '\xBF', '\xBD', '\x74', '\x65', '\x78', '\x74', '\x0' };
   if (0 != memcmp(expected8, highSurrogate8, sizeof(expected8)))
   {
     fail("wrong translation to UTF8");
@@ -188,7 +190,8 @@ nsresult TestMalformedUTF16OrphanLowSurrogate()
     return NS_ERROR_FAILURE;
   }
 
-  const char expected8[] = { 0xEF, 0xBF, 0xBD, 0x74, 0x65, 0x78, 0x74, 0x0 };
+  const char expected8[] =
+    { '\xEF', '\xBF', '\xBD', '\x74', '\x65', '\x78', '\x74', '\x0' };
   if (0 != memcmp(expected8, lowSurrogate8, sizeof(expected8)))
   {
     fail("wrong translation to UTF8");
