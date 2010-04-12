@@ -1017,6 +1017,3 @@ hildon-uri.h
 hildon-mime.h
 libosso.h
 #endif
-#if MOZ_NATIVE_FFI==1
-ffi.h
-#endif
