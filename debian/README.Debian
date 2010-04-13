@@ -78,4 +78,13 @@ information. To allow the port numbers being used, enter
 "network.security.ports.banned.override" entry to list the ports you
 wish to allow (eg "2049,4045,6000").
 
- -- Eric Dorland <eric@debian.org>, Sun, 14 Jan 2007 23:29:21 -0500
+Safe Browsing
+-------------
+
+Phishing and malware protection, also known as Safe Browsing, makes use
+of a third party web service and regularly downloads updates. More
+information on how this works and what is being sent and downloaded are
+available on the following page:
+http://www.mozilla.com/en-US/firefox/phishing-protection/
+
+ -- Mike Hommey <glandium@debian.org>, Tue, 13 Apr 2010 14:37:37 +0200
