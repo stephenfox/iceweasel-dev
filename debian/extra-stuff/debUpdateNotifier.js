@@ -92,12 +92,15 @@ function monitoredList() {
             .getService(Ci.nsIPluginHost);
   var plugins = phs.getPluginTags({ });
   for (var i = 0; i < plugins.length; i++) {
-    var plugin = Cc["@mozilla.org/file/local;1"]
-                 .createInstance(Ci.nsILocalFile);
-    plugin.initWithPath(plugins[i].fullpath ? plugins[i].fullpath
-                                            : plugins[i].filename);
-    if (!userplugins || !plugin.parent.equals(userplugins))
-      setResult(result, plugin, "plugin");
+    var file = Cc["@mozilla.org/file/local;1"]
+               .createInstance(Ci.nsILocalFile);
+    var plugin = plugins[i];
+    if (Ci.nsIPluginTag_1_9_2)
+      plugin = plugin.QueryInterface(Ci.nsIPluginTag_1_9_2);
+    file.initWithPath(plugin.fullpath ? plugin.fullpath
+                                      : plugin.filename);
+    if (!userplugins || !file.parent.equals(userplugins))
+      setResult(result, file, "plugin");
   }
 
   // individual extensions

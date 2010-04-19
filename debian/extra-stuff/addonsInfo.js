@@ -64,6 +64,8 @@ function dump_plugins(out) {
   out.writeString("-- Plugins information\n");
   for (var i = 0; i < plugins.length; i++) {
     var plugin = plugins[i];
+    if (Ci.nsIPluginTag_1_9_2)
+      plugin = plugin.QueryInterface(Ci.nsIPluginTag_1_9_2);
     out.writeString("Name: " + plugin.name +
            (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
     out.writeString("Location: " +
