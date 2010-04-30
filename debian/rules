@@ -30,6 +30,10 @@ ifeq ($(DEB_BUILD_ARCH),ppc64)
 	CFLAGS += -mminimal-toc
 endif
 
+ifneq (,$(filter kfreebsd-% hurd-%,$(DEB_BUILD_ARCH)))
+	CONFIGURE_FLAGS += --disable-necko-wifi
+endif
+
 ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --enable-debug
 endif
