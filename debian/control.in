@@ -105,15 +105,8 @@ Package: libmozjs##SO_VERSION##-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: libmozjs##SO_VERSION## (= ${binary:Version})
-         | spidermonkey-bin (= ${binary:Version}),
+Depends: libmozjs##SO_VERSION## (= ${binary:Version}),
          ${misc:Depends}
-Conflicts: libmozjs0d-dbg,
-           libmozjs1d-dbg,
-           libmozjs##SO_VERSION## (<< ${binary:Version}),
-           libmozjs##SO_VERSION## (>> ${binary:Version}),
-           spidermonkey-bin (<< ${binary:Version}),
-           spidermonkey-bin (>> ${binary:Version})
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox

@@ -157,7 +157,7 @@ override_dh_installman: debian/dh/dh_xulrunner.1 debian/xulrunner-$(BASE_VERSION
 
 override_dh_strip:
 	dh_strip -a -Nlibmozjs$(SO_VERSION) -Nspidermonkey-bin --dbg-package=xulrunner-$(BASE_VERSION)-dbg
-	dh_strip -plibmozjs$(SO_VERSION) -pspidermonkey-bin --dbg-package=libmozjs$(SO_VERSION)-dbg
+	dh_strip -plibmozjs$(SO_VERSION) --dbg-package=libmozjs$(SO_VERSION)-dbg
 
 override_dh_makeshlibs:
 	if [ "`$(MAKE) --no-print-directory -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
