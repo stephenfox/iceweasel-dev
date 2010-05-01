@@ -1,3 +1,61 @@
+xulrunner (1.9.2.3-3) experimental; urgency=low
+
+  * debian/control*, debian/rules: Don't include spidermonkey-bin debugging
+    symbols in libmozjs-dbg. There is actually not much to be debugged in smjs
+    itself, while the need to conflict with all other libmozjs-dbg packages is
+    a big caveat. Closes: #579251.
+  * debian/rules:
+    - Disable necko wifi on unsupported platforms. Closes: #578463.
+    - Build with -std=gnu++0x.
+
+  * toolkit/xre/nsAppRunner.cpp:
+    - KDE/Gnome startup notification not disappearing when app window is up.
+      bz#416053. Closes: #562970.
+    - KDE/Gnome startup notification not disappearing for the first time
+      startup (needsRestart). bz#534845.
+  * configure*: : Revert change to force not to use -fshort-wchar.
+  * embedding/components/find/src/nsFind.cpp, layout/base/nsCSSRendering.cpp,
+    layout/generic/nsTextFrameThebes.cpp,
+    modules/libpr0n/decoders/jpeg/nsJPEGDecoder.cpp,
+    modules/plugin/base/public/npruntime.h,
+    xpcom/tests/TestEncoding.cpp: Fix compiler errors with g++ 4.4 with
+    -std=gnu++0x of the form: error: narrowing conversion ... inside { }.
+    bz#502301.
+  * config/system-headers, js/src/config/system-headers: No need to put ffi.h
+    in system-headers, it was already there.
+  * modules/plugin/base/public/nsIPluginTag.idl,
+    modules/plugin/base/src/nsPluginHost.*: Keep nsIPluginTag binary
+    compatibility and add fullpath to a nsIPluginTag_1_9_2 interface.
+  * debian/extra-stuff/addonsInfo.js, debian/extra-stuff/debUpdateNotifier.js:
+    Use the nsIPluginTag_1_9_2 interface when available, in debian/extra-stuff
+    components.
+  * netwerk/streamconv/converters/nsBinHexDecoder.cpp: Additional fix for
+    g++ 4.4 -std=gnu++0x errors. This fixes FTBFS on arm, ppc and s390.
+  * xulrunner/installer/libxul-embedding.pc.in: Put -ldl in the proper field
+    in libxul-embedding.pc.
+  * xpcom/glue/nsStringAPI.h, xpcom/string/public/nsLiteralString.h,
+    xpcom/base/nscore.h: Do build time detection of 2-bytes wchar_t and
+    char16_t support. bz#559278. Closes: #577677.
+  * xpcom/reflect/xptcall/src/md/unix/Makefile.in,
+    xpcom/reflect/xptcall/src/md/unix/xptcinvoke_linux_sh.cpp,
+    xpcom/reflect/xptcall/src/md/unix/xptcstubs_linux_sh.cpp: Add xptcall
+    support for SH4 processors. Closes: #553593. bz#382214.
+    Thanks Nobuhiro Iwamatsu and others.
+  * js/src/nanojit/NativeARM.cpp, js/src/nanojit/avmplus.h,
+    js/src/nanojit/njcpudetect.h: Add nanojit support for ARMv4T. Thanks Albin
+    Tonnerre for the initial patch. bz#552624. Fixes FTBFS on armel.
+  * js/src/jsbit.h, js/src/jslog2.cpp, js/src/jstl.h: Change parameter type of
+    JS_{CEILING,FLOOR}_LOG2W and js_FloorLog2wImpl to be JSSize. This fixes
+    FTBFS on s390. bz#557270.
+  * xpcom/threads/nsProcessCommon.cpp: Fix remaining race condition when
+    calling nsProcess.Kill. bz#543441.
+  * layout/base/tests/Makefile.in: Hack to avoid building and running
+    TestPoisonArea for now. It currently fails to build on several
+    architectures, and also freezes on others (at least arm), so we disable it
+    until things are sorted out.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 01 May 2010 11:19:10 +0200
+
 xulrunner (1.9.2.3-2) experimental; urgency=low
 
   * debian/remove.nonfree: There are still some .cvsignore files in the
