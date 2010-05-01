@@ -1,7 +1,6 @@
-From 47f8ac97a73526fd70716061441f2f5bb86e1334 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 1 Jul 2009 07:54:41 +0200
-Subject: [PATCH 2/2] Allow to build the js shell against the libmozjs shared library
+Subject: Allow to build the js shell against the libmozjs shared library
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=501300
 ---
@@ -38,6 +37,3 @@ index 222e1c4..817166d 100644
              js_InitJITStatsClass(cx, JS_GetGlobalObject(cx));
              JS_DefineObject(cx, JS_GetGlobalObject(cx), "tracemonkey",
                              &jitstats_class, NULL, 0);
--- 
-1.7.0.rc0.69.g2ee80
-

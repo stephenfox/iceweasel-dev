@@ -1,7 +1,6 @@
-From 4dad08a1afa137a7154305608d7927f34363dfc3 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 17 May 2008 19:30:10 +0200
-Subject: [PATCH 03/10] Build xptcstubs with less optimizations on hppa
+Subject: Build xptcstubs with less optimizations on hppa
 
 This avoids g++ outsmarting the assembly code.
 
@@ -22,6 +21,3 @@ index 5ef061c..7b9efb2 100644
  endif
  endif
  endif
--- 
-1.7.0.rc0.69.g2ee80
-

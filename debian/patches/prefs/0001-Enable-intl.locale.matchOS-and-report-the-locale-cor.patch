@@ -1,7 +1,6 @@
-From 4de34a85f89326c838ed45477712ce6dc28fd205 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 20:28:02 +0100
-Subject: [PATCH 1/4] Enable intl.locale.matchOS, and report the locale correctly
+Subject: Enable intl.locale.matchOS, and report the locale correctly
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=331779
 ---
@@ -22,6 +21,3 @@ index 21072ef..c2eeb69 100644
  pref("font.language.group", "chrome://global/locale/intl.properties");
  pref("intl.accept_languages", "chrome://global/locale/intl.properties");
  pref("intl.charsetmenu.browser.static", "chrome://global/locale/intl.properties");
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From d17b86b3b3286d8385dbd8f1bbdf3cf66cbbe18e Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 12 Mar 2008 23:20:52 +0100
-Subject: [PATCH 04/40] Don't build example component
+Subject: Don't build example component
 
 ---
  xulrunner/Makefile.in |    1 -
@@ -19,6 +18,3 @@ index f2e8b7c..ef8a831 100644
  	$(NULL)
  
  ifeq ($(OS_ARCH),WINNT)
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From f346485257c3563f7241a6c04171cd3506622ac5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 20:32:17 +0100
-Subject: [PATCH 09/40] Install applications in /usr/local/lib instead of /usr/lib
+Subject: Install applications in /usr/local/lib instead of /usr/lib
 
 ---
  xulrunner/setup/nsXULAppInstall.js |    2 +-
@@ -20,6 +19,3 @@ index 75c865d..e506f99 100644
        if (vendor)
          aDirectory.append(vendor.toLowerCase());
  #endif
--- 
-1.7.0.rc0.69.g2ee80
-

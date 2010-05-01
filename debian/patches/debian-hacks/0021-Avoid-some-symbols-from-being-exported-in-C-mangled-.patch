@@ -1,7 +1,6 @@
-From 291eadf1c7e9eb0438a26b9c616b00267080671c Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 2 Jul 2009 11:01:57 +0200
-Subject: [PATCH 22/40] Avoid some symbols from being exported in C++ mangled form
+Subject: Avoid some symbols from being exported in C++ mangled form
 
 ---
  js/src/jscntxt.cpp                     |    2 +-
@@ -53,6 +52,3 @@ index b48df31..af2be5e 100644
  static JSBool
  DefineGetterOrSetter(JSContext *cx, uintN argc, JSBool wantGetter, jsval *vp)
  {
--- 
-1.7.0.rc0.69.g2ee80
-

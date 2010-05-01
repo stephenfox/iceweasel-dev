@@ -1,7 +1,6 @@
-From 63df462b7237b24fb35d124cf6721232034dfb20 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 5 Feb 2010 20:31:42 +0100
-Subject: [PATCH 07/10] Fixes for misaligned accesses on arm and sparc in uconv
+Subject: Fixes for misaligned accesses on arm and sparc in uconv
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=544512
 ---
@@ -47,6 +46,3 @@ index a16cb5b..c1f97e7 100644
  #define BE_STRING_TO_UCS4(s) (*(PRUint32*) (s))
  #else
  #define BE_STRING_TO_UCS4(s)                                       \
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From fdcb86d4f53f8cf4ec17cd9664a9f3f06efd796a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 16:34:43 +0100
-Subject: [PATCH 07/11] Cleanup build/automationutils.pyc on make clean
+Subject: Cleanup build/automationutils.pyc on make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543469
 ---
@@ -19,6 +18,3 @@ index 30c31f4..4e3b1d0 100644
 +
 +GARBAGE += automationutils.pyc
  endif # ENABLE_TESTS
--- 
-1.7.0.rc0.69.g2ee80
-

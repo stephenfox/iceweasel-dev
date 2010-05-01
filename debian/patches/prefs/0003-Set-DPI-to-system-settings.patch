@@ -1,7 +1,6 @@
-From 1270498d8a8a69fd286511b4575772261766c816 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 20:30:19 +0100
-Subject: [PATCH 3/4] Set DPI to system settings
+Subject: Set DPI to system settings
 
 ---
  modules/libpref/src/init/all.js |    2 +-
@@ -20,6 +19,3 @@ index 371814f..0cd7527 100644
  
  // Set the number of device pixels per CSS pixel. A value <= 0 means choose
  // automatically based on the DPI. A positive value is used as-is. This effectively
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 4f597efc6c1c6057655eaf8199937169b82b5e5f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 11:44:29 +0100
-Subject: [PATCH 17/23] Don't block on test_bug_406857.js when example.com is not reachable
+Subject: Don't block on test_bug_406857.js when example.com is not reachable
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=553995
 ---
@@ -29,6 +28,3 @@ index 88df501..d937160 100644
  
    // Download to a temp local file
    let file = Cc["@mozilla.org/file/directory_service;1"].
--- 
-1.7.0.rc0.69.g2ee80
-

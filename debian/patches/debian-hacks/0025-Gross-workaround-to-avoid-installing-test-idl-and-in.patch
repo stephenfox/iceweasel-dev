@@ -1,7 +1,6 @@
-From 8aaad6a9ffc663b519cc631d7539a8c5671d6d83 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 27 Jan 2010 17:47:57 +0100
-Subject: [PATCH 26/40] Gross workaround to avoid installing test idl and include files in the SDK
+Subject: Gross workaround to avoid installing test idl and include files in the SDK
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=542749
 ---
@@ -69,6 +68,3 @@ index 3014d86..85b06d5 100644
  	$(INSTALL) $(IFLAGS1) $^ 
  endif # NO_DIST_INSTALL
  
--- 
-1.7.0.rc0.69.g2ee80
-

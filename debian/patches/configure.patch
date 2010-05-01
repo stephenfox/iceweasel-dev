@@ -1,5 +1,5 @@
 diff --git a/configure b/configure
-index 9dc66f1..8d93baf 100755
+index 9dc66f1..500d807 100755
 --- a/configure
 +++ b/configure
 @@ -103,6 +103,8 @@ ac_help="$ac_help
@@ -2357,14 +2357,7 @@ index 9dc66f1..8d93baf 100755
    rm -rf conftest*
    ac_cv_have_usable_wchar_v2="yes"
  else
-@@ -8669,18 +8672,18 @@ if test "$ac_cv_have_usable_wchar_v2" = "yes"; then
- EOF
- 
-     HAVE_CPP_2BYTE_WCHAR_T=1
--elif test "$ac_cv_have_usable_char16_t" != "yes"; then
-+elif false; then
- 
-     _SAVE_CXXFLAGS=$CXXFLAGS
+@@ -8675,12 +8678,12 @@ elif test "$ac_cv_have_usable_char16_t" != "yes"; then
      CXXFLAGS="$CXXFLAGS -fshort-wchar"
  
      echo $ac_n "checking for compiler -fshort-wchar option""... $ac_c" 1>&6

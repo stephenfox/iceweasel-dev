@@ -1,7 +1,6 @@
-From 42bf2bf7d66b571c52073be6b5d692253229b577 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 23 Mar 2010 11:57:28 +0100
-Subject: [PATCH 20/23] Download search engine icons when searchplugin is read-only
+Subject: Download search engine icons when searchplugin is read-only
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=554265
 ---
@@ -22,6 +21,3 @@ index af6fd8d..2c9a637 100644
            LOG("_setIcon: Downloading icon: \"" + uri.spec +
                "\" for engine: \"" + this.name + "\"");
            var chan = gIoSvc.newChannelFromURI(uri);
--- 
-1.7.0.rc0.69.g2ee80
-

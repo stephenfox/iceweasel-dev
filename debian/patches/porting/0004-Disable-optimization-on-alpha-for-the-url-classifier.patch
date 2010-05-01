@@ -1,7 +1,6 @@
-From 20b8673109075d2b98fcdb9575fa3b3ec750dd8a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sun, 2 Nov 2008 17:56:24 +0100
-Subject: [PATCH 04/10] Disable optimization on alpha for the url-classifier component
+Subject: Disable optimization on alpha for the url-classifier component
 
 The use of this component leads to crashes when built with optimizations.
 ---
@@ -22,6 +21,3 @@ index 9171867..7619487 100644
 +
  include $(topsrcdir)/config/rules.mk
  
--- 
-1.7.0.rc0.69.g2ee80
-

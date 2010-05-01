@@ -1,7 +1,6 @@
-From ec97d79691ddf1c895ef1399c64ec4dfeaeffa76 Mon Sep 17 00:00:00 2001
 From: Petr Salinger <Petr.Salinger@seznam.cz>
 Date: Fri, 18 Sep 2009 20:06:43 +0200
-Subject: [PATCH 05/10] Build oss support for libsydneyaudio on *bsd and hurd
+Subject: Build oss support for libsydneyaudio on *bsd and hurd
 
 ---
  media/libsydneyaudio/src/Makefile.in |    6 ++++++
@@ -24,6 +23,3 @@ index 8feca70..d15526b 100644
  ifeq ($(OS_ARCH),Linux)
  CSRCS		= \
  		sydney_audio_alsa.c \
--- 
-1.7.0.rc0.69.g2ee80
-

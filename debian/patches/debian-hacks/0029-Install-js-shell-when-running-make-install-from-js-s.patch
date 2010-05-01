@@ -1,7 +1,6 @@
-From 5213b8180988b93b4baf57d0d0031d72352de1a8 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 26 Feb 2010 16:25:15 +0100
-Subject: [PATCH 30/40] Install js shell when running make install from js/src
+Subject: Install js shell when running make install from js/src
 
 ---
  js/src/Makefile.in       |    1 +
@@ -31,6 +30,3 @@ index e914b6a..6246f84 100644
 +
 +install:: $(PROGRAM)
 +	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)
--- 
-1.7.0.rc0.69.g2ee80
-

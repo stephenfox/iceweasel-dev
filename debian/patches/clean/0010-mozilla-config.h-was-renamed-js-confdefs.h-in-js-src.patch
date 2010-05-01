@@ -1,7 +1,6 @@
-From 0275a22057a1104e20238c273ecc0057856435ce Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 24 Feb 2010 18:38:43 +0100
-Subject: [PATCH 10/11] mozilla-config.h was renamed js-confdefs.h in js/src
+Subject: mozilla-config.h was renamed js-confdefs.h in js/src
 
 ---
  js/src/Makefile.in |    2 +-
@@ -20,6 +19,3 @@ index 0f790ab..d57536e 100644
  
  distclean::
  	cat unallmakefiles | $(XARGS) rm -f
--- 
-1.7.0.rc0.69.g2ee80
-

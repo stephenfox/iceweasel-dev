@@ -1,7 +1,6 @@
-From 406b718abbb29dbe858ed7dded222aec062a72c1 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 24 Feb 2010 16:16:50 +0100
-Subject: [PATCH 29/40] Simplify how js/src/configure is called from main configure
+Subject: Simplify how js/src/configure is called from main configure
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=548273
 ---
@@ -9,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=548273
  1 files changed, 1 insertions(+), 3 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 53f9e0a..4bf8dba 100644
+index e2983d1..66456be 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -8586,9 +8586,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
@@ -23,6 +22,3 @@ index 53f9e0a..4bf8dba 100644
  ac_configure_args="$ac_configure_args --with-sync-build-files=$_topsrcdir"
  if test "$MOZ_MEMORY"; then
     ac_configure_args="$ac_configure_args --enable-jemalloc"
--- 
-1.7.0.rc0.69.g2ee80
-

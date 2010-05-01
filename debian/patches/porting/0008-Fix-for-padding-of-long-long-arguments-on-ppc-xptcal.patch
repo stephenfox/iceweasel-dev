@@ -1,7 +1,6 @@
-From 7c9cd54a592e06827bc1d8137e9215cbf00d0d32 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 5 Feb 2010 20:33:51 +0100
-Subject: [PATCH 08/10] Fix for padding of long long arguments on ppc xptcall
+Subject: Fix for padding of long long arguments on ppc xptcall
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=520367
 ---
@@ -148,6 +147,3 @@ index 92ebaef..a0101ca 100644
      DoMultipleInheritenceTest();
      DoMultipleInheritenceTest2();
      // Disabled by default - takes too much time on slow machines
--- 
-1.7.0.rc0.69.g2ee80
-

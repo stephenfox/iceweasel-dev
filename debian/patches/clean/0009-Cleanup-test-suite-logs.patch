@@ -1,7 +1,6 @@
-From 4f83a3afcf86696e34062ac70dd089a401be3978 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 26 Mar 2010 13:55:07 +0100
-Subject: [PATCH 09/11] Cleanup test suite logs
+Subject: Cleanup test suite logs
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=555189
 ---
@@ -21,6 +20,3 @@ index 027dd79..f7db90a 100644
  # Execute all xpcshell tests in the directories listed in the manifest.
  # See also config/rules.mk 'xpcshell-tests' target for local execution.
  # Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] xpcshell-tests|.
--- 
-1.7.0.rc0.69.g2ee80
-

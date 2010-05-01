@@ -1,18 +1,15 @@
-From a0ff71e99c2142cf0f43bbb528ab6676f459bf3a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 9 Mar 2010 09:44:37 +0100
-Subject: [PATCH 39/40] Allow to build against system libffi
+Subject: Allow to build against system libffi
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=551138
 ---
  config/autoconf.mk.in            |    4 ++++
- config/system-headers            |    3 +++
  configure.in                     |   14 +++++++++++++-
  js/ctypes/Makefile.in            |    8 ++++++++
- js/src/config/system-headers     |    3 +++
  toolkit/library/libxul-config.mk |    3 +++
  toolkit/toolkit-tiers.mk         |    2 ++
- 7 files changed, 36 insertions(+), 1 deletions(-)
+ 5 files changed, 30 insertions(+), 1 deletions(-)
 
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
 index 64a8e5b..791b78d 100644
@@ -29,19 +26,8 @@ index 64a8e5b..791b78d 100644
  MOZ_NATIVE_ZLIB	= @SYSTEM_ZLIB@
  MOZ_NATIVE_BZ2	= @SYSTEM_BZ2@
  MOZ_NATIVE_JPEG	= @SYSTEM_JPEG@
-diff --git a/config/system-headers b/config/system-headers
-index 209fd19..f76b536 100644
---- a/config/system-headers
-+++ b/config/system-headers
-@@ -1017,3 +1017,6 @@ hildon-uri.h
- hildon-mime.h
- libosso.h
- #endif
-+#if MOZ_NATIVE_FFI==1
-+ffi.h
-+#endif
 diff --git a/configure.in b/configure.in
-index 4bf8dba..f551a52 100644
+index 66456be..4441fe2 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -4474,6 +4474,18 @@ fi
@@ -103,17 +89,6 @@ index 2ccd495..35e5253 100644
  
  endif # _MSVC_VER
  
-diff --git a/js/src/config/system-headers b/js/src/config/system-headers
-index 209fd19..f76b536 100644
---- a/js/src/config/system-headers
-+++ b/js/src/config/system-headers
-@@ -1017,3 +1017,6 @@ hildon-uri.h
- hildon-mime.h
- libosso.h
- #endif
-+#if MOZ_NATIVE_FFI==1
-+ffi.h
-+#endif
 diff --git a/toolkit/library/libxul-config.mk b/toolkit/library/libxul-config.mk
 index 89b8b3d..6cea1c0 100644
 --- a/toolkit/library/libxul-config.mk
@@ -147,6 +122,3 @@ index 57985cc..ee1d280 100644
  
  ifdef MOZ_ENABLE_GTK2
  ifdef MOZ_X11
--- 
-1.7.0.rc0.69.g2ee80
-

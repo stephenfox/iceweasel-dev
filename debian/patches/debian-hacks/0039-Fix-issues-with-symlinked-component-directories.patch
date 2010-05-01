@@ -1,7 +1,6 @@
-From 4591dc4cb290a4ba5441c7d49e5642a6977dcc21 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Fri, 2 Apr 2010 10:01:52 +0200
-Subject: [PATCH 40/40] Fix issues with symlinked component directories
+Subject: Fix issues with symlinked component directories
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=551152
 ---
@@ -33,6 +32,3 @@ index 57f6df9..f0d94b6 100644
                  return (int) i;
          }
      }
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 788664487c40f0058acb8124ada6e8197e28d9f5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:52:15 +0100
-Subject: [PATCH 01/11] Avoid creating config/my{config,rules}.mk
+Subject: Avoid creating config/my{config,rules}.mk
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541767
 ---
@@ -57,6 +56,3 @@ index 76c943e..af3842c 100644
  # Generate Emacs tags in a file named TAGS if ETAGS was set in $(MY_CONFIG)
  # or in $(MY_RULES)
  #
--- 
-1.7.0.rc0.69.g2ee80
-

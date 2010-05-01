@@ -1,7 +1,6 @@
-From 632fcc770262258aefc5b1a934cf5ca213017594 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 28 Jan 2010 18:08:38 +0100
-Subject: [PATCH 27/40] Install missing nanojit and .tbl headers from js/src
+Subject: Install missing nanojit and .tbl headers from js/src
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=542789
 ---
@@ -77,6 +76,3 @@ index 0101405..d4c1706 100644
  	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)
  
  install:: $(SCRIPTS)
--- 
-1.7.0.rc0.69.g2ee80
-

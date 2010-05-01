@@ -1,7 +1,6 @@
-From 36594e456af741e0db9556e257a9940f6077c4e2 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 15:20:31 +0100
-Subject: [PATCH 18/23] Use Bitstream Vera as an alternative font in reftest font-face/local-1
+Subject: Use Bitstream Vera as an alternative font in reftest font-face/local-1
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=554029
 ---
@@ -45,6 +44,3 @@ index 0260a5b..c0f7ec9 100644
  	          local(Arial Bold), local(Liberation Sans Bold), local(SwissA Bold);
  	     font-weight: normal;
  	  }
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 7f66c197b3f991f9344af7311f00d8af5874a9b0 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Tue, 30 Mar 2010 09:58:56 +0200
-Subject: [PATCH 06/10] Support for GNU/Hurd in liboggplay
+Subject: Support for GNU/Hurd in liboggplay
 
 ---
  media/liboggplay/src/liboggplay/std_semaphore.h |    2 +-
@@ -20,6 +19,3 @@ index 0a3c83f..345ead7 100644
  #include <semaphore.h>
  #if defined(__FreeBSD__) 
  #define SEM_CREATE(p,s) sem_init(&(p), 0, s)  
--- 
-1.7.0.rc0.69.g2ee80
-

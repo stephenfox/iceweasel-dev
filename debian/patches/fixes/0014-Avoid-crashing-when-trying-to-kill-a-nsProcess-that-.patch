@@ -1,7 +1,6 @@
-From 04ee6936e9432e88ad3028d61f2b2f6d1cdf9dd2 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 13:31:52 +0100
-Subject: [PATCH 14/23] Avoid crashing when trying to kill a nsProcess that is already terminated
+Subject: Avoid crashing when trying to kill a nsProcess that is already terminated
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543441
 ---
@@ -9,18 +8,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=543441
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/xpcom/threads/nsProcessCommon.cpp b/xpcom/threads/nsProcessCommon.cpp
-index 74d3e6f..2bc740b 100644
+index 74d3e6f..a5050c1 100644
 --- a/xpcom/threads/nsProcessCommon.cpp
 +++ b/xpcom/threads/nsProcessCommon.cpp
-@@ -483,7 +483,7 @@ nsProcess::GetPid(PRUint32 *aPid)
- NS_IMETHODIMP
- nsProcess::Kill()
- {
--    if (!mThread)
-+    if (!mThread || !mProcess)
-         return NS_ERROR_FAILURE;
- 
-     {
--- 
-1.7.0.rc0.69.g2ee80
-
+@@ -492,7 +492,7 @@ nsProcess::Kill()
+         if (TerminateProcess(mProcess, NULL) == 0)
+             return NS_ERROR_FAILURE;
+ #else
+-        if (PR_KillProcess(mProcess) != PR_SUCCESS)
++        if (!mProcess || (PR_KillProcess(mProcess) != PR_SUCCESS))
+             return NS_ERROR_FAILURE;
+ #endif
+     }

@@ -1,7 +1,6 @@
-From bc71d0ae046ffcecc538f66ffa544e1ee06aa71a Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 27 Jan 2010 11:31:44 +0100
-Subject: [PATCH 12/23] Add (obvious) exceptions for js/src/config/check-sync-dirs.py
+Subject: Add (obvious) exceptions for js/src/config/check-sync-dirs.py
 
 We also modify the script so that given directories can be ignored.
 
@@ -45,6 +44,3 @@ index 37ebc7e..b61f4a3 100644
  # This is a copy of nspr's config/make-system-wrappers.pl.
  make-system-wrappers.pl
 +system_wrappers_js
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 4b5cc62cd4a620354707ec80b8c7812f483eb21f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 11:37:26 +0100
-Subject: [PATCH 16/23] Don't fail reftest first-letter tests because of a background bug
+Subject: Don't fail reftest first-letter tests because of a background bug
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=512487
 ---
@@ -59,6 +58,3 @@ index 8e18ccd..f696098 100644
     }
    </style>
   </head>
--- 
-1.7.0.rc0.69.g2ee80
-

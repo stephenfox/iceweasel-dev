@@ -1,7 +1,6 @@
-From d761baa217d91e423de71256ba77a7655af7943f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 24 Feb 2010 18:40:52 +0100
-Subject: [PATCH 36/40] Link js shell against shared mozjs library
+Subject: Link js shell against shared mozjs library
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=501300
 ---
@@ -21,6 +20,3 @@ index 6246f84..d4dce0d 100644
  
  LOCAL_INCLUDES += -I$(topsrcdir) -I..
  
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 9f38e96f0b2df3910ae7ee40bc4e62415a6d0b34 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 07:43:39 +0100
-Subject: [PATCH 07/40] xulrunner-config: Give more appropriate cflags and libs
+Subject: xulrunner-config: Give more appropriate cflags and libs
 
 ---
  build/unix/mozilla-config.in |   23 +++++++++++++----------
@@ -69,6 +68,3 @@ index 4c02f39..b1bee68 100755
 -    echo -L%libdir% $libs
 +    echo $libs
  fi
--- 
-1.7.0.rc0.69.g2ee80
-

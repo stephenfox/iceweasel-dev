@@ -1,7 +1,6 @@
-From d71744261f6f3bf097652518561b359cc4c5e4b2 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 3 Apr 2008 20:48:05 +0200
-Subject: [PATCH 1/2] Fix for hppa build
+Subject: Fix for hppa build
 
 ---
  xpcom/reflect/xptcall/src/md/unix/Makefile.in |    2 +-
@@ -20,6 +19,3 @@ index 0c563e0..ee37da6 100644
  ifndef GNU_CXX
  $(error Unknown C++ compiler, xptcall assembly will probably be incorrect.)
  else
--- 
-1.7.0.rc0.69.g2ee80
-

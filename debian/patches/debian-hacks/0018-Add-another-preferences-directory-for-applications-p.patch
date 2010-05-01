@@ -1,7 +1,6 @@
-From 584193cc2defc31b5a13f7ef1bd6d2376d6606e7 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 21 Jun 2008 03:09:21 +0200
-Subject: [PATCH 19/40] Add another preferences directory for applications: preferences/syspref
+Subject: Add another preferences directory for applications: preferences/syspref
 
 It was existing in previous versions of iceweasel as a symlink to
 /etc/iceweasel/pref.
@@ -32,6 +31,3 @@ index a60d45e..c80d6f1 100644
  
      rv = NS_NewArrayEnumerator(aResult, directories);
    }
--- 
-1.7.0.rc0.69.g2ee80
-

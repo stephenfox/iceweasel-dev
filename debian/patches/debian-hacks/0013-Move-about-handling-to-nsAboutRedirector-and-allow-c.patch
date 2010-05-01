@@ -1,7 +1,6 @@
-From 62d8183dd413f8776fd940adabaf6248ac8ce5a6 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 21 May 2008 22:17:46 +0200
-Subject: [PATCH 13/40] Move about: handling to nsAboutRedirector, and allow chrome script
+Subject: Move about: handling to nsAboutRedirector, and allow chrome script
 
 Register about: from nsAboutRedirector, and give it permission to
 run chrome scripts.
@@ -243,6 +242,3 @@ index 5bf5fe1..1160ebd 100644
    }
  };
  
--- 
-1.7.0.rc0.69.g2ee80
-

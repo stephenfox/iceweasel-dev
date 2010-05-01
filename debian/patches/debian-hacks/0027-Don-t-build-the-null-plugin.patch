@@ -1,7 +1,6 @@
-From eb30c94708bed9a2e36423e7bfda8aa74fce45a5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 23 Feb 2010 13:40:34 +0100
-Subject: [PATCH 28/40] Don't build the null plugin
+Subject: Don't build the null plugin
 
 ---
  modules/plugin/Makefile.in |    2 +-
@@ -20,6 +19,3 @@ index aef5287..5da91ea 100644
  endif
  
  ifeq ($(OS_ARCH),WINNT)
--- 
-1.7.0.rc0.69.g2ee80
-

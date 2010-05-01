@@ -1,7 +1,6 @@
-From cb24a521ddb4709d70a77822adfac2827ae7f66b Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 08:59:53 +0100
-Subject: [PATCH 03/11] Remove leaktest files in make clean
+Subject: Remove leaktest files in make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541769
 ---
@@ -28,6 +27,3 @@ index fd969dd..30c31f4 100644
  
  libs:: $(_LEAKTEST_FILES)
  	$(INSTALL) $^ $(_LEAKTEST_DIR)
--- 
-1.7.0.rc0.69.g2ee80
-

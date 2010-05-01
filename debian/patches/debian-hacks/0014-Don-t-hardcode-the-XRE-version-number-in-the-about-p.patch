@@ -1,7 +1,6 @@
-From edf6c1df991cd3ea3665332bbc193e3d2662d729 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 24 May 2008 10:46:18 +0200
-Subject: [PATCH 14/40] Don't hardcode the XRE version number in the about: page
+Subject: Don't hardcode the XRE version number in the about: page
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=428765
 ---
@@ -32,6 +31,3 @@ index 8940491..02d257f 100644
        }
        catch (ex) { /* no release notes and vendor URL for you without bug 349985 being fixed */ }
  
--- 
-1.7.0.rc0.69.g2ee80
-

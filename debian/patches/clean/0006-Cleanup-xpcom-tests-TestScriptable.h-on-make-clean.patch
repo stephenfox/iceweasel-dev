@@ -1,7 +1,6 @@
-From d2f521b78d5291b11c67cb584c22cfcb88fc9591 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 1 Feb 2010 16:30:26 +0100
-Subject: [PATCH 06/11] Cleanup xpcom/tests/TestScriptable.h on make clean
+Subject: Cleanup xpcom/tests/TestScriptable.h on make clean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=543464
 ---
@@ -18,6 +17,3 @@ index 8a38e68..baf5bc5 100644
  	  $(DIST)/bin/TestRegistrationOrder$(BIN_SUFFIX) "$$regOrderDir"
 +
 +GARBAGE += TestScriptable.h
--- 
-1.7.0.rc0.69.g2ee80
-

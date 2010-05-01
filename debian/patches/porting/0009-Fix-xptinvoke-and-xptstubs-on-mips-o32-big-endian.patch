@@ -1,7 +1,6 @@
-From 8b0a7a90d021f1de1f6fb019ae78e37e4b0d2b79 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 14 Feb 2010 14:42:19 +0100
-Subject: [PATCH 09/10] Fix xptinvoke and xptstubs on mips o32 big endian
+Subject: Fix xptinvoke and xptstubs on mips o32 big endian
 
 ---
  .../xptcall/src/md/unix/xptcinvoke_mips.cpp        |   10 +++++++++
@@ -80,6 +79,3 @@ index bdce59c..730ab5d 100644
          }
      }
  
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 8bd803978c972c905d6a6d2a4d7d5638d2fa8a6d Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 8 Dec 2007 17:34:10 +0100
-Subject: [PATCH 02/10] Increase stability and performance on mips
+Subject: Increase stability and performance on mips
 
 http://bugs.debian.org/374389
 ---
@@ -49,6 +48,3 @@ index 5172501..e99d5a1 100644
  #
  # HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
  # which uses internal symbols first
--- 
-1.7.0.rc0.69.g2ee80
-

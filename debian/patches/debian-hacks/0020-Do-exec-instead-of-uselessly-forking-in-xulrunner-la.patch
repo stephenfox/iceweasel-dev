@@ -1,7 +1,6 @@
-From 91416a3d2fdaa7b368e0a35c361541490e432539 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 29 Oct 2008 21:00:17 +0100
-Subject: [PATCH 21/40] Do exec instead of uselessly forking in xulrunner launcher script
+Subject: Do exec instead of uselessly forking in xulrunner launcher script
 
 ---
  build/unix/mozilla.in |    5 +----
@@ -21,6 +20,3 @@ index c85b201..e0940fc 100644
 -exit $exitcode
 +exec "$dist_bin/run-mozilla.sh" $script_args "$dist_bin/$MOZILLA_BIN" "$@"
  # EOF.
--- 
-1.7.0.rc0.69.g2ee80
-

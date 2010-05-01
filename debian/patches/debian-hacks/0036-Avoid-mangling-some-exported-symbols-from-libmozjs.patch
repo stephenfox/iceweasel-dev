@@ -1,7 +1,6 @@
-From ccb005118a97aa8c0a8d782cb9422eb7df064d05 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 24 Feb 2010 16:25:04 +0100
-Subject: [PATCH 37/40] Avoid mangling some exported symbols from libmozjs
+Subject: Avoid mangling some exported symbols from libmozjs
 
 ---
  js/src/jsbuiltins.h |    2 +-
@@ -40,6 +39,3 @@ index 238a81a..ed45fd8 100644
 +JS_END_EXTERN_C
 +
  #endif /* jscntxt_h___ */
--- 
-1.7.0.rc0.69.g2ee80
-

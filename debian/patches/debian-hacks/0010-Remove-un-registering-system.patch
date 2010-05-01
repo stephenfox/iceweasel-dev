@@ -1,7 +1,6 @@
-From 59271c12aafdced77a626568000c74a933e9d96b Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 13 Mar 2008 20:34:52 +0100
-Subject: [PATCH 10/40] Remove (un|)registering system
+Subject: Remove (un|)registering system
 
 ---
  xulrunner/app/nsXULRunnerApp.cpp |   43 --------------------------------------
@@ -75,6 +74,3 @@ index 21670d9..55559a8 100644
      if (IsArg(argv[1], "find-gre")) {
        if (argc != 3) {
          Usage(argv[0]);
--- 
-1.7.0.rc0.69.g2ee80
-

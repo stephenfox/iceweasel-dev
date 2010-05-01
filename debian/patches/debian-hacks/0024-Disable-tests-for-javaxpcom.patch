@@ -1,7 +1,6 @@
-From ad57ce76104c2b04991b4793c035839006730f5f Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 26 Jan 2010 16:23:06 +0100
-Subject: [PATCH 25/40] Disable tests for javaxpcom
+Subject: Disable tests for javaxpcom
 
 ---
  extensions/java/xpcom/Makefile.in |    4 ----
@@ -22,6 +21,3 @@ index 3243935..3a6fa85 100644
  include $(topsrcdir)/config/rules.mk
  
  # Build the implementation Java classes
--- 
-1.7.0.rc0.69.g2ee80
-

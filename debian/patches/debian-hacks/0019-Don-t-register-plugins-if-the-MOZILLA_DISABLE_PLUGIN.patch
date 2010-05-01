@@ -1,14 +1,13 @@
-From 154761c4687499716f2855501490e159dc243bf8 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 27 Sep 2008 17:17:39 +0200
-Subject: [PATCH 20/40] Don't register plugins if the MOZILLA_DISABLE_PLUGINS environment variable is set
+Subject: Don't register plugins if the MOZILLA_DISABLE_PLUGINS environment variable is set
 
 ---
  modules/plugin/base/src/nsPluginHost.cpp |   25 +++++++++++++++++++++++++
  1 files changed, 25 insertions(+), 0 deletions(-)
 
 diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
-index e5a86c8..8b5f627 100644
+index 4465744..44a0e11 100644
 --- a/modules/plugin/base/src/nsPluginHost.cpp
 +++ b/modules/plugin/base/src/nsPluginHost.cpp
 @@ -235,6 +235,24 @@ PRBool gSkipPluginSafeCalls = PR_FALSE;
@@ -57,6 +56,3 @@ index e5a86c8..8b5f627 100644
    nsresult rv;
  
    nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID,&rv));
--- 
-1.7.0.rc0.69.g2ee80
-

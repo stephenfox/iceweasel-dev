@@ -1,7 +1,6 @@
-From 58fad703bfdf8e3f8fe6a25aebfb8bdc032014b0 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 15:21:41 +0100
-Subject: [PATCH 33/40] Mark the png tests as random so that we can spot on what architecture they fail
+Subject: Mark the png tests as random so that we can spot on what architecture they fail
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=471917
 ---
@@ -24,6 +23,3 @@ index 43f1466..b654c4a 100644
  
  # pHYs chunks
  #
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,0 +1,35 @@
+From: Mike Hommey <glandium@debian.org>
+Date: Sat, 1 May 2010 08:36:12 +0200
+Subject: Hack to avoid building and running TestPoisonArea for now
+
+It currently fails to build on several architectures, and also freezes on
+others (at least arm), so we disable it until things are sorted out.
+---
+ layout/base/tests/Makefile.in |    7 +++++++
+ 1 files changed, 7 insertions(+), 0 deletions(-)
+
+diff --git a/layout/base/tests/Makefile.in b/layout/base/tests/Makefile.in
+index 7f66224..a4dd5db 100644
+--- a/layout/base/tests/Makefile.in
++++ b/layout/base/tests/Makefile.in
+@@ -47,6 +47,11 @@ DIRS += \
+   chrome \
+   $(NULL)
+ 
++# Disable TestPoisonArea:
++# It currently fails to build on several architectures, and also freezes on
++# others (at least arm), so we disable it until things are sorted out.
++ifdef ENABLE_TESTPOISONAREA
++
+ # We can't use CPP_UNIT_TESTS for TestPoisonArea because libxpcom
+ # (which it does not need) isn't available at this point in the build.
+ 
+@@ -57,6 +62,8 @@ BARE_UNIT_TESTS = \
+ CPPSRCS += $(BARE_UNIT_TESTS)
+ SIMPLE_PROGRAMS += $(BARE_UNIT_TESTS:.cpp=$(BIN_SUFFIX))
+ 
++endif
++
+ include $(topsrcdir)/config/rules.mk
+ 
+ 

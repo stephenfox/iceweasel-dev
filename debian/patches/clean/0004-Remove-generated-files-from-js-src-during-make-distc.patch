@@ -1,7 +1,6 @@
-From 41fcf5acbcdd8160bb21134fa6a979b8201729c5 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sun, 24 Jan 2010 09:03:25 +0100
-Subject: [PATCH 04/11] Remove generated files from js/src during make distclean
+Subject: Remove generated files from js/src during make distclean
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=541770
 ---
@@ -27,6 +26,3 @@ index d006e0c..0f790ab 100644
  # our build system doesn't handle subdir srcs very gracefully today
  export::
  	mkdir -p nanojit
--- 
-1.7.0.rc0.69.g2ee80
-

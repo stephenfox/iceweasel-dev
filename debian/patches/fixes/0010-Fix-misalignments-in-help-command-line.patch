@@ -1,7 +1,6 @@
-From 09b4a0675d4c7e4247457f39b02a04d499c57781 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 7 Jan 2010 10:45:26 +0100
-Subject: [PATCH 10/23] Fix misalignments in --help command line
+Subject: Fix misalignments in --help command line
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=458631
 ---
@@ -70,6 +69,3 @@ index 89dd2c2..c3532d7 100644
  #endif
  
    // this works, but only after the components have registered.  so if you drop in a new command line handler, -help
--- 
-1.7.0.rc0.69.g2ee80
-

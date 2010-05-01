@@ -1,7 +1,6 @@
-From 6c6a15ef113e02a3ae61355e23cf603bb1525073 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 3 Mar 2010 16:59:40 +0100
-Subject: [PATCH 22/23] Move test and tools which aren't part of Firefox into distribution bundles, so that the components.list machinery doesn't pick them up
+Subject: Move test and tools which aren't part of Firefox into distribution bundles, so that the components.list machinery doesn't pick them up
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=527458
 ---
@@ -227,6 +226,3 @@ index cecd5a2..0e049a8 100644
  include $(topsrcdir)/config/rules.mk
  
  EXTRA_DSO_LDOPTS += \
--- 
-1.7.0.rc0.69.g2ee80
-

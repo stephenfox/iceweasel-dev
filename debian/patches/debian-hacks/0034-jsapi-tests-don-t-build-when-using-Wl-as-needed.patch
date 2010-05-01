@@ -1,7 +1,6 @@
-From d15157fd7f6c81b568b7c0aa6c2a2a07a3508d07 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Feb 2010 15:28:30 +0100
-Subject: [PATCH 35/40] jsapi-tests don't build when using -Wl,--as-needed
+Subject: jsapi-tests don't build when using -Wl,--as-needed
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=547715
 ---
@@ -21,6 +20,3 @@ index 133fca9..a335ed2 100644
  
  LOCAL_INCLUDES += -I$(topsrcdir) -I..
  
--- 
-1.7.0.rc0.69.g2ee80
-

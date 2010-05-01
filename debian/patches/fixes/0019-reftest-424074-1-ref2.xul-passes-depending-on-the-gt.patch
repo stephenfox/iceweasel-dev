@@ -1,7 +1,6 @@
-From 9ab799dc30bbc82da059126d60d8696bac20dd1d Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 15:22:37 +0100
-Subject: [PATCH 19/23] reftest 424074-1-ref2.xul passes depending on the gtk theme
+Subject: reftest 424074-1-ref2.xul passes depending on the gtk theme
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=554036
 ---
@@ -21,6 +20,3 @@ index 7b482a0..2b3545b 100644
  == 424236-1.html 424236-1-ref.html
  == 424236-2.html 424236-2-ref.html
  == 424236-3.html 424236-3-ref.html
--- 
-1.7.0.rc0.69.g2ee80
-

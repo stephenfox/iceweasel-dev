@@ -1,7 +1,6 @@
-From defaa1c5630822aa9e820d50ab57b1432e1984ab Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Mon, 14 Jul 2008 15:20:46 +0200
-Subject: [PATCH 23/40] Use a variable for xulrunner base version in various places
+Subject: Use a variable for xulrunner base version in various places
 
 ---
  config/autoconf.mk.in           |    9 +++++----
@@ -69,6 +68,3 @@ index a065b63..b8a25cc 100644
  
  GARBAGE += debian/changelog
  
--- 
-1.7.0.rc0.69.g2ee80
-

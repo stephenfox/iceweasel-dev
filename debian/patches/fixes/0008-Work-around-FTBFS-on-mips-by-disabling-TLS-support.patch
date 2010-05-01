@@ -1,7 +1,6 @@
-From b2e99b3cf60a69aa28338c7c4e5607672be3e4be Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 23 Nov 2009 19:36:21 +0100
-Subject: [PATCH 08/23] Work around FTBFS on mips by disabling TLS support
+Subject: Work around FTBFS on mips by disabling TLS support
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=528687
 ---
@@ -28,6 +27,3 @@ index 1ada8c0..109b894 100644
  fi
  
  dnl End of C++ language/feature checks
--- 
-1.7.0.rc0.69.g2ee80
-

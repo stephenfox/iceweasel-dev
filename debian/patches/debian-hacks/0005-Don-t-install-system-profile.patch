@@ -1,7 +1,6 @@
-From 4f072a8b3c9e62b76a0bf9c75954241da430f68c Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Wed, 12 Mar 2008 23:25:15 +0100
-Subject: [PATCH 05/40] Don't install system profile
+Subject: Don't install system profile
 
 ---
  xulrunner/app/Makefile.in |    2 --
@@ -20,6 +19,3 @@ index b0c3aaa..db7fe0b 100644
  PREF_JS_EXPORTS = $(srcdir)/xulrunner.js
  GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/,xulrunner.js)
  
--- 
-1.7.0.rc0.69.g2ee80
-
