@@ -483,7 +483,7 @@ nsProcess::GetPid(PRUint32 *aPid)
 NS_IMETHODIMP
 nsProcess::Kill()
 {
-    if (!mThread || !mProcess)
+    if (!mThread)
         return NS_ERROR_FAILURE;
 
     {
@@ -492,7 +492,7 @@ nsProcess::Kill()
         if (TerminateProcess(mProcess, NULL) == 0)
             return NS_ERROR_FAILURE;
 #else
-        if (PR_KillProcess(mProcess) != PR_SUCCESS)
+        if (!mProcess || (PR_KillProcess(mProcess) != PR_SUCCESS))
             return NS_ERROR_FAILURE;
 #endif
     }

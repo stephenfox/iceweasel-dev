@@ -8672,7 +8672,7 @@ if test "$ac_cv_have_usable_wchar_v2" = "yes"; then
 EOF
 
     HAVE_CPP_2BYTE_WCHAR_T=1
-elif false; then
+elif test "$ac_cv_have_usable_char16_t" != "yes"; then
 
     _SAVE_CXXFLAGS=$CXXFLAGS
     CXXFLAGS="$CXXFLAGS -fshort-wchar"
