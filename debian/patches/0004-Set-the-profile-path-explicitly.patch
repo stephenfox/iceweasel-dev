@@ -1,7 +1,6 @@
-From eab882c8f0e1f27d0d312ad0d59b457f52594932 Mon Sep 17 00:00:00 2001
 From: Eric Dorland <eric@debian.org>
 Date: Mon, 11 Aug 2008 02:56:28 -0400
-Subject: [PATCH 14/17] Set the profile path explicitly
+Subject: Set the profile path explicitly
 
 ---
  browser/app/application.ini |    1 +
@@ -19,6 +18,3 @@ index a5fe3ca..7e5f168 100644
  Version=@APP_VERSION@
  BuildID=@GRE_BUILDID@
  #ifdef MOZ_SOURCE_REPO
--- 
-1.7.0.rc0.69.g2ee80
-

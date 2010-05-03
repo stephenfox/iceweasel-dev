@@ -1,3 +1,29 @@
+iceweasel (3.6.4~build2-1) experimental; urgency=low
+
+  * debian/copyright, debian/remove.nonfree: Update to fit new upstream
+    (pre)release.
+  * debian/iceweasel-runner: Don't override MOZ_APP_LAUNCHER, which was
+    already set.
+  * debian/firefox, debian/iceweasel.install, debian/iceweasel.postrm,
+    debian/iceweasel.preinst: Divert /usr/bin/firefox and put a wrapper script
+    instead. The wrapper script runs the diverted firefox if it exists, and
+    iceweasel otherwise. Closes: #576392.
+  * debian/README.Debian: Add a note about safe browsing in README.Debian.
+    Closes: #575039.
+  * debian/rules:
+    - Build with --std=gnu++0x.
+    - Don't check for libiw, necko wifi is part of libxul already.
+  * debian/control*:
+    - Remove dependency on psmisc as we've not been using fuser for years.
+    - Iceweasel 3.6.4~build2 needs to depend on xulrunner 1.9.2.4~build2.
+  * debian/branding/Makefile.in, debian/branding/aboutIce.js,
+    debian/branding/ice.*, debian/branding/jar.mn, debian/iceweasel.install:
+    Add a about:iceweasel page similar to about:mozilla. Closes: #413725.
+
+  * configure.in: Revert change to force not to use -fshort-wchar.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 03 May 2010 13:44:40 +0200
+
 iceweasel (3.6.3-1) experimental; urgency=low
 
   * New upstream release.

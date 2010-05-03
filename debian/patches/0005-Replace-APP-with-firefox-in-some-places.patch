@@ -1,7 +1,6 @@
-From 51aeb7de76a172c26450824e4595c9ac49049070 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 18 Oct 2008 13:56:55 +0200
-Subject: [PATCH 15/17] Replace %APP% with firefox in some places
+Subject: Replace %APP% with firefox in some places
 
 Add-ons search and some other stuff are using %APP% in urls which won't work
 for iceweasel but for firefox. Hardcode firefox there.
@@ -10,7 +9,7 @@ for iceweasel but for firefox. Hardcode firefox there.
  1 files changed, 7 insertions(+), 7 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 10ad25e..2166559 100644
+index 1877105..739ac6c 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -70,12 +70,12 @@ pref("extensions.hideInstallButton", true);
@@ -49,6 +48,3 @@ index 10ad25e..2166559 100644
  
  // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
  pref("security.alternate_certificate_error_page", "certerror");
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -41,7 +41,6 @@ fi
 MOZ_APP_LAUNCHER="$(which $0)"
 MOZ_DIST_BIN="$(dirname "$(readlink -f "${MOZ_APP_LAUNCHER}")")"
 MOZ_PROGRAM="${MOZ_DIST_BIN}/firefox-bin"
-MOZ_APP_LAUNCHER=/usr/bin/iceweasel
 export MOZ_APP_LAUNCHER
 
 ##

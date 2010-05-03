@@ -1,7 +1,6 @@
-From 9f002ea6f1f431d4d96cb71f4522af61b855e4ad Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 19 Apr 2008 23:01:20 +0200
-Subject: [PATCH 07/17] Check less things during configure when using libxul-sdk
+Subject: Check less things during configure when using libxul-sdk
 
 We don't need to check e.g. cairo or pango when using libxul-sdk, since
 we won't be building most of the toolkit.
@@ -10,10 +9,10 @@ we won't be building most of the toolkit.
  1 files changed, 28 insertions(+), 6 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 1ada8c0..afa5207 100644
+index d60dff1..8f4e28a 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4238,6 +4238,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+@@ -4237,6 +4237,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
                  AC_MSG_ERROR([system NSPR does not support PR_STATIC_ASSERT]))
      CFLAGS=$_SAVE_CFLAGS
  else
@@ -24,7 +23,7 @@ index 1ada8c0..afa5207 100644
      if test "$OS_ARCH" = "WINCE"; then
          NSPR_CFLAGS="-I${LIBXUL_DIST}/include/nspr"
          NSPR_LIBS="${LIBXUL_DIST}/lib/nspr${NSPR_VERSION}.lib ${LIBXUL_DIST}/lib/plc${NSPR_VERSION}.lib ${LIBXUL_DIST}/lib/plds${NSPR_VERSION}.lib "
-@@ -4252,6 +4256,7 @@ else
+@@ -4251,6 +4255,7 @@ else
          NSPR_CFLAGS='`$(LIBXUL_DIST)/bin/nspr-config --prefix='${LIBXUL_DIST}' --includedir='${LIBXUL_DIST}'/include/nspr --cflags`'
          NSPR_LIBS='`$(LIBXUL_DIST)/bin/nspr-config --prefix='${LIBXUL_DIST}' --libdir='${LIBXUL_DIST}'/lib --libs`'
      fi
@@ -107,7 +106,7 @@ index 1ada8c0..afa5207 100644
  dnl ========================================================
  dnl = libnotify support
  dnl ========================================================
-@@ -5577,7 +5599,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
+@@ -5620,7 +5642,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
  dnl ========================================================
  
  dnl If using sydneyaudio with Linux, ensure that the alsa library is available
@@ -116,7 +115,7 @@ index 1ada8c0..afa5207 100644
  if test -n "$MOZ_SYDNEYAUDIO"; then
     case "$target_os" in
  linux*)
-@@ -6644,7 +6666,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
+@@ -6694,7 +6716,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
      MOZ_MEMORY=1,
      MOZ_MEMORY=)
  
@@ -125,7 +124,7 @@ index 1ada8c0..afa5207 100644
      MOZ_MEMORY=
  fi
  
-@@ -7534,7 +7556,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
+@@ -7582,7 +7604,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
      ;;
  esac
  
@@ -134,7 +133,7 @@ index 1ada8c0..afa5207 100644
      SKIP_IDL_CHECK="yes"
  fi
  
-@@ -7641,7 +7663,7 @@ if test -n "$CROSS_COMPILE"; then
+@@ -7689,7 +7711,7 @@ if test -n "$CROSS_COMPILE"; then
      fi
  fi
  
@@ -143,7 +142,7 @@ index 1ada8c0..afa5207 100644
  if test -z "${GLIB_CFLAGS}" || test -z "${GLIB_LIBS}" ; then
      if test "$MOZ_ENABLE_GTK2" || test "$USE_ELF_DYNSTR_GC" ; then
          PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
-@@ -8277,7 +8299,7 @@ if test "$USING_HCC"; then
+@@ -8325,7 +8347,7 @@ if test "$USING_HCC"; then
  fi
  
  dnl Check for missing components
@@ -152,6 +151,3 @@ index 1ada8c0..afa5207 100644
  if test "$MOZ_X11"; then
      dnl ====================================================
      dnl = Check if X headers exist
--- 
-1.7.0.rc0.69.g2ee80
-

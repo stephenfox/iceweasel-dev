@@ -51,6 +51,9 @@ rm -fv ./layout/html/tests/block/bugs/RealSnow.jar
 rm -fv ./xpfe/bootstrap/appleevents/nsAppleEvents.rsrc
 rm -fv ./toolkit/crashreporter/tools/win32/dump_syms.exe
 rm -fv ./toolkit/crashreporter/google-breakpad/src/tools/solaris/dump_syms/testdata/dump_syms_regtest.o
+rm -fv ./toolkit/crashreporter/google-breakpad/src/third_party/linux/lib/gflags/libgflags.a
+rm -fv ./toolkit/crashreporter/google-breakpad/src/third_party/linux/lib/glog/libglog.a
+rm -fv ./toolkit/crashreporter/google-breakpad/src/client/mac/gcov/libgcov.a
 rm -fv ./toolkit/mozapps/installer/windows/nsis/AppAssocReg.dll
 rm -fv ./toolkit/mozapps/installer/windows/nsis/ShellLink.dll
 rm -fv ./toolkit/mozapps/installer/windows/nsis/UAC.dll

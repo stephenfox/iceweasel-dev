@@ -1,7 +1,6 @@
-From 90774d962557559b6b96b88324dc91a879d47e09 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 16 Jun 2008 10:41:05 +0200
-Subject: [PATCH 12/17] Set MOZ_APP_NAME to iceweasel
+Subject: Set MOZ_APP_NAME to iceweasel
 
 This will make the shell service use the proper path when setting the
 default browser.
@@ -22,6 +21,3 @@ index 7173d2c..18aae5c 100755
  MOZ_UPDATER=1
  MOZ_PHOENIX=1
  
--- 
-1.7.0.rc0.69.g2ee80
-

@@ -1,7 +1,6 @@
-From 791ebaf4537c6ba306e1ab3829eae138550da9cd Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 7 Jan 2010 10:46:43 +0100
-Subject: [PATCH 05/17] Fix misalignments in --help command line
+Subject: Fix misalignments in --help command line
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=458631
 ---
@@ -35,6 +34,3 @@ index e8ddfca..c818acf 100644
  
    classDescription: "Default Browser Cmdline Handler",
    contractID: "@mozilla.org/browser/default-browser-clh;1",
--- 
-1.7.0.rc0.69.g2ee80
-
