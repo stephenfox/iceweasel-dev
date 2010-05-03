@@ -78,7 +78,7 @@ vpath %.mm \
 # instantiates template declarations in wrapped system headers with
 # the wrong visibility, which is causing the Linux tinderboxen to die in
 # std::string internals.
-VISIBILITY_FLAGS=
+#VISIBILITY_FLAGS=
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
