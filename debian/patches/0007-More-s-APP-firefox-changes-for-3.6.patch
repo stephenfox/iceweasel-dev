@@ -1,14 +1,13 @@
-From 009a7999fc057ad411f74708649fb0830a7a7461 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 2 Apr 2010 21:23:30 +0200
-Subject: [PATCH 17/17] More s/%APP%/firefox/ changes for 3.6
+Subject: More s/%APP%/firefox/ changes for 3.6
 
 ---
  browser/app/profile/firefox.js |    8 ++++----
  1 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 607030c..1a97c73 100644
+index cc51cdb..d2cf83b 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -87,7 +87,7 @@ pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID
@@ -40,6 +39,3 @@ index 607030c..1a97c73 100644
  
  // Name of the about: page contributed by safebrowsing to handle display of error
  // pages on phishing/malware hits.  (bug 399233)
--- 
-1.7.0.rc0.69.g2ee80
-

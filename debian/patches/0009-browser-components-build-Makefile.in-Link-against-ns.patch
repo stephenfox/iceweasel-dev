@@ -1,7 +1,6 @@
-From 683d0289ce9354a2f0931ef809941ce5c8955716 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 8 Jul 2009 08:02:11 +0200
-Subject: [PATCH 02/17] browser/components/build/Makefile.in: Link against nspr
+Subject: browser/components/build/Makefile.in: Link against nspr
 
 ---
  browser/components/build/Makefile.in |    2 +-
@@ -20,6 +19,3 @@ index f22b550..3a4a51c 100644
  endif
  
  # This has to come after the above chunk, because mozreg_s has dependencies on
--- 
-1.7.0.rc0.69.g2ee80
-

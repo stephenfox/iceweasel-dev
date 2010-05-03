@@ -1,17 +1,16 @@
-From 2611fa1cb97f899e75fae306deeeafa24361b05b Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 2 Apr 2010 21:00:08 +0200
-Subject: [PATCH 08/17] Additional --with-libxul-sdk changes for 3.6
+Subject: Additional --with-libxul-sdk changes for 3.6
 
 ---
  configure.in |    3 ++-
  1 files changed, 2 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index afa5207..baf19fd 100644
+index 8f4e28a..abe4d34 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4200,6 +4200,7 @@ AC_SUBST(LIBXUL_SDK)
+@@ -4199,6 +4199,7 @@ AC_SUBST(LIBXUL_SDK)
  
  if test -n "$LIBXUL_SDK"; then
      LIBXUL_DIST="$LIBXUL_SDK"
@@ -19,7 +18,7 @@ index afa5207..baf19fd 100644
  else
      LIBXUL_DIST="$MOZ_BUILD_ROOT/dist"
  fi
-@@ -8329,7 +8330,7 @@ if test "$MOZ_X11"; then
+@@ -8377,7 +8378,7 @@ if test "$MOZ_X11"; then
  fi # MOZ_X11
  fi # COMPILE_ENVIRONMENT
  
@@ -28,6 +27,3 @@ index afa5207..baf19fd 100644
      if test "$COMPILE_ENVIRONMENT"; then
      	_SAVE_CPPFLAGS="$CPPFLAGS"
      	CPPFLAGS="$CPPFLAGS $FT2_CFLAGS $XCFLAGS"
--- 
-1.7.0.rc0.69.g2ee80
-

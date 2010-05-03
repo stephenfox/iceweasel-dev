@@ -1,7 +1,6 @@
-From ac9048bf22abe42a6cddf214952a61728accc4a0 Mon Sep 17 00:00:00 2001
 From: Eric Dorland <eric@debian.org>
 Date: Sun, 23 Mar 2008 00:19:14 -0400
-Subject: [PATCH 11/17] Rename Firefox to Iceweasel
+Subject: Rename Firefox to Iceweasel
 
 ---
  browser/base/content/credits.xhtml                 |   11 ++---------
@@ -132,6 +131,3 @@ index 790ed34..265750d 100644
 -<SearchForm>http://www.google.com/firefox</SearchForm>
 +<SearchForm>http://www.google.com/</SearchForm>
  </SearchPlugin>
--- 
-1.7.0.rc0.69.g2ee80
-
