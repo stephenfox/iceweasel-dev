@@ -50,6 +50,7 @@
 #endif
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
+#include "nsCOMArray.h"
 #include "prlink.h"
 #include "prclist.h"
 #include "npapi.h"
@@ -160,7 +161,7 @@ struct nsPluginInstanceTag
   PRPackedBool           mDefaultPlugin;
   PRPackedBool           mXPConnected;
   // Array holding all opened stream listeners for this entry
-  nsCOMPtr <nsISupportsArray> mStreams; 
+  nsCOMArray<nsIPluginStreamInfo> mStreams;
 
   nsPluginInstanceTag(nsPluginTag* aPluginTag,
                       nsIPluginInstance* aInstance, 
@@ -175,15 +176,13 @@ class nsPluginInstanceTagList
 {
 public:
   nsPluginInstanceTag *mFirst;
-  nsPluginInstanceTag *mLast;
-  PRInt32 mCount;
 
   nsPluginInstanceTagList();
   ~nsPluginInstanceTagList();
 
   void shutdown();
-  PRBool add(nsPluginInstanceTag *plugin);
-  PRBool remove(nsPluginInstanceTag *plugin);
+  void add(nsPluginInstanceTag *plugin);
+  void remove(nsPluginInstanceTag *plugin);
   nsPluginInstanceTag *find(nsIPluginInstance *instance);
   nsPluginInstanceTag *find(const char *mimetype);
   nsPluginInstanceTag *findStopped(const char *url);
@@ -322,6 +321,12 @@ public:
 
   static nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
 
+#ifdef MOZ_IPC
+  void PluginCrashed(nsNPAPIPlugin* plugin,
+                     const nsAString& pluginDumpID,
+                     const nsAString& browserDumpID);
+#endif
+
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
@@ -335,7 +340,7 @@ private:
   NewEmbeddedPluginStream(nsIURI* aURL, nsIPluginInstanceOwner *aOwner, nsIPluginInstance* aInstance);
 
   nsresult
-  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIPluginInstance *aInstance);
+  NewFullPagePluginStream(nsIStreamListener *&aStreamListener, nsIURI* aURI, nsIPluginInstance *aInstance);
 
   // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
   // true, only enabled plugins will be returned.
@@ -344,6 +349,10 @@ private:
 
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+
+  // Return the tag for |plugin| if found, nsnull if not.
+  nsPluginTag*
+  FindTagForPlugin(nsIPlugin* aPlugin);
 
   nsresult
   FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);

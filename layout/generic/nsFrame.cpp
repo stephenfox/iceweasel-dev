@@ -449,10 +449,6 @@ nsFrame::Destroy()
     shell->ClearFrameRefs(this);
   }
 
-  //XXX Why is this done in nsFrame instead of some frame class
-  // that actually loads images?
-  presContext->StopImagesFor(this);
-
   if (view) {
     // Break association between view and frame
     view->SetClientData(nsnull);

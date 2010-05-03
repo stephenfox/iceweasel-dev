@@ -1257,7 +1257,12 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     fp = js_GetTopStackFrame(cx);
     caller = js_GetScriptedCaller(cx, fp);
-    indirectCall = (caller && caller->regs && *caller->regs->pc != JSOP_EVAL);
+    if (!caller) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                             JSMSG_BAD_INDIRECT_CALL, js_eval_str);
+        return JS_FALSE;
+    }
+    indirectCall = (caller->regs && *caller->regs->pc != JSOP_EVAL);
     uintN staticLevel = caller->script->staticLevel + 1;
 
     /*
@@ -1300,7 +1305,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
      * object, then we need to provide one for the compiler to stick any
      * declared (var) variables into.
      */
-    if (caller && !caller->varobj && !js_GetCallObject(cx, caller))
+    if (!caller->varobj && !js_GetCallObject(cx, caller))
         return JS_FALSE;
 
     /* Accept an optional trailing argument that overrides the scope object. */
@@ -1356,18 +1361,11 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         }
 #endif
 
-        /*
-         * Compile using caller's current scope object.
-         *
-         * NB: This means that native callers (who reach this point through
-         * the C API) must use the two parameter form.
-         */
-        if (caller) {
-            scopeobj = js_GetScopeChain(cx, caller);
-            if (!scopeobj) {
-                ok = JS_FALSE;
-                goto out;
-            }
+        /* Compile using caller's current scope object. */
+        scopeobj = js_GetScopeChain(cx, caller);
+        if (!scopeobj) {
+            ok = JS_FALSE;
+            goto out;
         }
     } else {
         scopeobj = js_GetWrappedObject(cx, scopeobj);
@@ -1398,16 +1396,9 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         goto out;
     }
 
-    tcflags = TCF_COMPILE_N_GO;
-    if (caller) {
-        tcflags |= TCF_PUT_STATIC_LEVEL(staticLevel);
-        principals = JS_EvalFramePrincipals(cx, fp, caller);
-        file = js_ComputeFilename(cx, caller, principals, &line);
-    } else {
-        principals = NULL;
-        file = NULL;
-        line = 0;
-    }
+    tcflags = TCF_COMPILE_N_GO | TCF_PUT_STATIC_LEVEL(staticLevel);
+    principals = JS_EvalFramePrincipals(cx, fp, caller);
+    file = js_ComputeFilename(cx, caller, principals, &line);
 
     str = JSVAL_TO_STRING(argv[0]);
     script = NULL;
@@ -1492,8 +1483,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     if (argc < 2) {
         /* Execute using caller's new scope object (might be a Call object). */
-        if (caller)
-            scopeobj = caller->scopeChain;
+        scopeobj = caller->scopeChain;
     }
 
     /*
