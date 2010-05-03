@@ -51,6 +51,7 @@ prefs/0003-Set-DPI-to-system-settings.patch
 prefs/0004-Set-extensions.dss.enabled-to-false-at-XRE-level.patch
 system-libs/0001-Avoid-visibility-hidden-issues-with-readline-symbols.patch
 system-libs/0002-Allow-to-build-against-system-libffi.patch
+system-libs/0003-Support-building-against-system-libevent.patch
 debian-hacks/0001-Put-the-crmf-library-before-the-NSS-libraries.patch
 debian-hacks/0002-Allow-to-build-java-jar-files-in-2-pass.patch
 debian-hacks/0003-Avoid-libxpcom-being-excluded-from-linked-libraries-.patch
@@ -92,4 +93,6 @@ debian-hacks/0038-Fix-issues-with-symlinked-component-directories.patch
 debian-hacks/0039-Fix-compiler-errors-with-g-4.4-with-std-gnu-0x.patch
 debian-hacks/0040-Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/0041-Hack-to-avoid-building-and-running-TestPoisonArea-fo.patch
+debian-hacks/0042-Remove-VISIBILITY_FLAGS-hack-in-ipc-chromium-Makefil.patch
+debian-hacks/0043-Include-memory.h-instead-of-memory-to-avoid-C-0x-pro.patch
 configure.patch

@@ -10,7 +10,7 @@ internal version, which makes system library not used even though
  1 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 3db1f8b..abed17e 100644
+index 9aadd6a..075d6f3 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -4318,7 +4318,7 @@ else

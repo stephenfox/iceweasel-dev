@@ -1,0 +1,157 @@
+From: Mike Hommey <glandium@debian.org>
+Date: Mon, 3 May 2010 10:01:52 +0200
+Subject: Support building against system libevent
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=558789
+---
+ config/Makefile.in              |    1 +
+ config/autoconf.mk.in           |    4 ++++
+ config/system-headers           |    3 +++
+ configure.in                    |   37 +++++++++++++++++++++++++++++++++++++
+ ipc/chromium/Makefile.in        |   16 ++++++++++++++++
+ toolkit/library/libxul-rules.mk |    4 ++++
+ 6 files changed, 65 insertions(+), 0 deletions(-)
+
+diff --git a/config/Makefile.in b/config/Makefile.in
+index 54d037c..2db14ec 100644
+--- a/config/Makefile.in
++++ b/config/Makefile.in
+@@ -131,6 +131,7 @@ export::
+ 		-DMOZ_NATIVE_ZLIB=$(MOZ_NATIVE_ZLIB) \
+ 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
+ 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
++		-DMOZ_NATIVE_LIBEVENT=$(MOZ_NATIVE_LIBEVENT) \
+ 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
+ 	$(INSTALL) system_wrappers $(DIST)
+ 
+diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
+index 1e4d3d0..68b6324 100644
+--- a/config/autoconf.mk.in
++++ b/config/autoconf.mk.in
+@@ -234,6 +234,10 @@ MOZ_NATIVE_FFI = @MOZ_NATIVE_FFI@
+ MOZ_FFI_LIBS = @MOZ_FFI_LIBS@
+ MOZ_FFI_CFLAGS = @MOZ_FFI_CFLAGS@
+ 
++MOZ_NATIVE_LIBEVENT = @MOZ_NATIVE_LIBEVENT@
++MOZ_LIBEVENT_LIBS = @MOZ_LIBEVENT_LIBS@
++MOZ_LIBEVENT_INCLUDES = @MOZ_LIBEVENT_INCLUDES@
++
+ MOZ_NATIVE_ZLIB	= @SYSTEM_ZLIB@
+ MOZ_NATIVE_BZ2	= @SYSTEM_BZ2@
+ MOZ_NATIVE_JPEG	= @SYSTEM_JPEG@
+diff --git a/config/system-headers b/config/system-headers
+index 240535c..e746acc 100644
+--- a/config/system-headers
++++ b/config/system-headers
+@@ -1018,3 +1018,6 @@ hildon-uri.h
+ hildon-mime.h
+ libosso.h
+ #endif
++#if MOZ_NATIVE_LIBEVENT==1
++event.h
++#endif
+diff --git a/configure.in b/configure.in
+index 762520e..eff4ee1 100644
+--- a/configure.in
++++ b/configure.in
+@@ -4483,6 +4483,43 @@ fi
+ 
+ AC_SUBST(MOZ_NATIVE_FFI)
+ 
++dnl system libevent Support
++dnl ========================================================
++MOZ_ARG_WITH_STRING(system-libevent,
++[  --with-system-libevent=[PFX]
++                          Use system libevent [installed at prefix PFX]],
++    LIBEVENT_DIR=$withval)
++
++_SAVE_CFLAGS=$CFLAGS
++_SAVE_LDFLAGS=$LDFLAGS
++_SAVE_LIBS=$LIBS
++if test -z "$LIBEVENT_DIR" -o "$LIBEVENT_DIR" = no; then
++    MOZ_NATIVE_LIBEVENT=
++else
++    if test "${LIBEVENT_DIR}" = "yes"; then
++        LIBEVENT_DIR=/usr
++    fi
++    CFLAGS="-I${LIBEVENT_DIR}/include $CFLAGS"
++    LDFLAGS="-L${LIBEVENT_DIR}/lib $LDFLAGS"
++    AC_CHECK_HEADER(event.h,
++                    [if test ! -f "${LIBEVENT_DIR}/include/event.h"; then
++                         AC_MSG_ERROR([event.h found, but is not in ${LIBEVENT_DIR}/include])
++                     fi],
++                    AC_MSG_ERROR([--with-system-libevent requested but event.h not found]))
++    AC_CHECK_LIB(event, event_init,
++                 [MOZ_NATIVE_LIBEVENT=1
++                  MOZ_LIBEVENT_INCLUDES="${LIBEVENT_DIR}/include"
++                  MOZ_LIBEVENT_LIBS="-L${LIBEVENT_DIR}/lib -levent"],
++                 [MOZ_NATIVE_LIBEVENT= MOZ_LIBEVENT_INCLUDES= MOZ_LIBEVENT_LIBS=])
++fi
++CFLAGS=$_SAVE_CFLAGS
++LDFLAGS=$_SAVE_LDFLAGS
++LIBS=$_SAVE_LIBS
++
++AC_SUBST(MOZ_NATIVE_LIBEVENT)
++AC_SUBST(MOZ_LIBEVENT_INCLUDES)
++AC_SUBST(MOZ_LIBEVENT_LIBS)
++
+ dnl ========================================================
+ dnl Java SDK support
+ dnl ========================================================
+diff --git a/ipc/chromium/Makefile.in b/ipc/chromium/Makefile.in
+index 37504af..d4294bf 100644
+--- a/ipc/chromium/Makefile.in
++++ b/ipc/chromium/Makefile.in
+@@ -51,9 +51,15 @@ EXPORT_LIBRARY = 1
+ ENABLE_CXX_EXCEPTIONS = 1
+ ACDEFINES =
+ 
++ifndef MOZ_NATIVE_LIBEVENT # {
+ vpath %.c \
+   $(srcdir)/src/third_party/libevent \
+   $(NULL)
++else # } else {
++# message_pump_libevent.cc includes third_party/libevent/event.h,
++# which we put in $(DIST), see export rule below
++LOCAL_INCLUDES += -I$(DIST)
++endif # }
+ 
+ vpath %.cc \
+   $(srcdir)/src/base \
+@@ -271,6 +277,8 @@ endif # } OS_LINUX
+ 
+ # libevent
+ 
++ifndef MOZ_NATIVE_LIBEVENT # {
++
+ ifdef OS_POSIX # {
+ 
+ LOCAL_INCLUDES += -I$(srcdir)/src/third_party/libevent
+@@ -307,4 +315,12 @@ endif # }
+ 
+ endif # }
+ 
++endif # }
++
+ include $(topsrcdir)/config/rules.mk
++
++ifdef MOZ_NATIVE_LIBEVENT # {
++export::
++	mkdir -p $(DIST)/third_party/libevent
++	echo "#include <event.h>" > $(DIST)/third_party/libevent/event.h
++endif # }
+diff --git a/toolkit/library/libxul-rules.mk b/toolkit/library/libxul-rules.mk
+index 5152478..94d6357 100644
+--- a/toolkit/library/libxul-rules.mk
++++ b/toolkit/library/libxul-rules.mk
+@@ -56,6 +56,10 @@ ifdef MOZ_NATIVE_HUNSPELL
+ EXTRA_DSO_LDOPTS += $(MOZ_HUNSPELL_LIBS)
+ endif
+ 
++ifdef MOZ_NATIVE_LIBEVENT
++EXTRA_DSO_LDOPTS += $(MOZ_LIBEVENT_LIBS)
++endif
++
+ # need widget/src/windows for resource.h (included from widget.rc)
+ LOCAL_INCLUDES += \
+ 	-I$(topsrcdir)/config \
