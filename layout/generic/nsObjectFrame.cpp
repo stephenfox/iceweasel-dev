@@ -213,6 +213,9 @@ enum { XKeyPress = KeyPress };
 #ifdef XP_WIN
 #include <wtypes.h>
 #include <winuser.h>
+#ifdef MOZ_IPC
+#define NS_OOPP_DOUBLEPASS_MSGID TEXT("MozDoublePassMsg")
+#endif
 #endif
 
 #ifdef CreateEvent // Thank you MS.
@@ -487,7 +490,8 @@ public:
   PRBool SendNativeEvents()
   {
 #ifdef XP_WIN
-    return MatchPluginName("Shockwave Flash");
+    return mPluginWindow->type == NPWindowTypeDrawable &&
+           MatchPluginName("Shockwave Flash");
 #else
     return PR_FALSE;
 #endif
@@ -676,6 +680,10 @@ nsObjectFrame::Init(nsIContent*      aContent,
   NS_PRECONDITION(aContent, "How did that happen?");
   mPreventInstantiation =
     (aContent->GetCurrentDoc()->GetDisplayDocument() != nsnull);
+
+#ifdef XP_WIN
+  mDoublePassEvent = 0;
+#endif
 
   PR_LOG(nsObjectFrameLM, PR_LOG_DEBUG,
          ("Initializing nsObjectFrame %p for content %p\n", this, aContent));
@@ -1330,16 +1338,23 @@ nsObjectFrame::IsOpaque() const
 #if defined(XP_MACOSX)
   return PR_FALSE;
 #else
-  if (mInstanceOwner) {
-    nsPluginWindow * window;
-    mInstanceOwner->GetWindow(window);
-    if (window->type == nsPluginWindowType_Drawable) {
-      // XXX we possibly should call nsPluginInstanceVariable_TransparentBool
-      // here to optimize for windowless but opaque plugins
-      return PR_FALSE;
-    }
-  }
-  return PR_TRUE;
+  if (!mInstanceOwner)
+    return PR_FALSE;
+
+  nsPluginWindow *window;
+  mInstanceOwner->GetWindow(window);
+  if (window->type != NPWindowTypeDrawable)
+    return PR_TRUE;
+
+  nsresult rv;
+  nsCOMPtr<nsIPluginInstance> pi;
+  rv = mInstanceOwner->GetInstance(*getter_AddRefs(pi));
+  if (NS_FAILED(rv) || !pi)
+    return PR_FALSE;
+
+  PRUint32 transparent = PR_FALSE;
+  pi->GetValue(nsPluginInstanceVariable_TransparentBool, &transparent);
+  return !transparent;
 #endif
 }
 
@@ -1731,8 +1746,26 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
       PRBool doupdatewindow = PR_FALSE;
       // the offset of the DC
       nsPoint origin;
-      
+
       gfxWindowsNativeDrawing nativeDraw(ctx, frameGfxRect);
+#ifdef MOZ_IPC
+      if (nativeDraw.IsDoublePass()) {
+        // OOP plugin specific: let the shim know before we paint if we are doing a
+        // double pass render. If this plugin isn't oop, the register window message
+        // will be ignored.
+        if (!mDoublePassEvent)
+          mDoublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
+        if (mDoublePassEvent) {
+          nsPluginEvent pluginEvent;
+          pluginEvent.event = mDoublePassEvent;
+          pluginEvent.wParam = 0;
+          pluginEvent.lParam = 0;
+          PRBool eventHandled = PR_FALSE;
+
+          inst->HandleEvent(&pluginEvent, &eventHandled);
+        }
+      }
+#endif
       do {
         HDC hdc = nativeDraw.BeginNativeDrawing();
         if (!hdc)
@@ -1751,17 +1784,21 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
           window->x = dest.left;
           window->y = dest.top;
 
-          // Windowless plugins on windows need a special event to update their location, see bug 135737
+          // Windowless plugins on windows need a special event to update their location,
+          // see bug 135737.
+          //
           // bug 271442: note, the rectangle we send is now purely the bounds of the plugin
-          // relative to the window it is contained in, which is useful for the plugin to correctly translate mouse coordinates
+          // relative to the window it is contained in, which is useful for the plugin to
+          // correctly translate mouse coordinates.
           //
           // this does not mesh with the comments for bug 135737 which imply that the rectangle
           // must be clipped in some way to prevent the plugin attempting to paint over areas it shouldn't;
           //
-          // since the two uses of the rectangle are mutually exclusive in some cases,
-          // and since I don't see any incorrect painting (at least with Flash and ViewPoint - the originator of 135737),
-          // it seems that windowless plugins are not relying on information here for clipping their drawing,
-          // and we can safely use this message to tell the plugin exactly where it is in all cases.
+          // since the two uses of the rectangle are mutually exclusive in some cases, and
+          // since I don't see any incorrect painting (at least with Flash and ViewPoint -
+          // the originator of bug 135737), it seems that windowless plugins are not relying
+          // on information here for clipping their drawing, and we can safely use this message
+          // to tell the plugin exactly where it is in all cases.
 
           nsIntPoint origin = GetWindowOriginInPixels(PR_TRUE);
           nsIntRect winlessRect = nsIntRect(origin, nsIntSize(window->width, window->height));
@@ -1790,13 +1827,11 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
             inst->HandleEvent(&pluginEvent, &eventHandled);
           }
 
-          inst->SetWindow(window);        
+          inst->SetWindow(window);
         }
-
         mInstanceOwner->Paint(dirty, hdc);
         nativeDraw.EndNativeDrawing();
       } while (nativeDraw.ShouldRenderAgain());
-
       nativeDraw.PaintToContext();
     } else if (!(ctx->GetFlags() & gfxContext::FLAG_DESTINED_FOR_SCREEN)) {
       // Get PrintWindow dynamically since it's not present on Win2K,
@@ -4419,7 +4454,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         nsPresContext* presContext = mOwner->PresContext();
         nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
                         presContext->AppUnitsToDevPixels(pt.y));
-        Point carbonPt = { ptPx.y + mPluginWindow->y, ptPx.x + mPluginWindow->x };
+        nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
+        Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
         InitializeEventRecord(&carbonEvent, &carbonPt);
 
         switch (anEvent.message) {
@@ -4558,6 +4594,12 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         pPluginEvent = &pluginEvent;
         break;
     }
+  }
+
+  if (pPluginEvent && !pPluginEvent->event) {
+    // Don't send null events to plugins.
+    NS_WARNING("nsObjectFrame ProcessEvent: trying to send null event to plugin.");
+    return rv;
   }
 
   if (pPluginEvent) {

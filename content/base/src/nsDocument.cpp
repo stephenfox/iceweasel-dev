@@ -46,6 +46,11 @@
  * Base class for all our document implementations.
  */
 
+#ifdef MOZ_LOGGING
+// so we can get logging even in release builds
+#define FORCE_PR_LOG 1
+#endif
+#include "prlog.h"
 #include "plstr.h"
 #include "prprf.h"
 
@@ -178,13 +183,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 #include "imgIContainer.h"
 #include "nsSVGUtils.h"
 #endif // MOZ_SMIL
-
-
-#ifdef MOZ_LOGGING
-// so we can get logging even in release builds
-#define FORCE_PR_LOG 1
-#endif
-#include "prlog.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDocumentLeakPRLog;

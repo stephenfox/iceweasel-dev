@@ -57,6 +57,20 @@
 #include <unistd.h>
 #include <time.h>
 
+class nsAutoreleasePool {
+public:
+    nsAutoreleasePool()
+    {
+        mLocalPool = [[NSAutoreleasePool alloc] init];
+    }
+    ~nsAutoreleasePool()
+    {
+        [mLocalPool release];
+    }
+private:
+    NSAutoreleasePool *mLocalPool;
+};
+
 // font info loader constants
 static const PRUint32 kDelayBeforeLoadingCmaps = 8 * 1000; // 8secs
 static const PRUint32 kIntervalBetweenLoadingCmaps = 150; // 150ms
@@ -288,6 +302,8 @@ MacOSFontEntry::ReadCMAP()
 nsresult
 MacOSFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 {
+    nsAutoreleasePool localPool;
+
     ATSFontRef fontRef = GetFontRef();
     if (fontRef == (ATSFontRef)kATSUInvalidFontID)
         return NS_ERROR_FAILURE;
@@ -325,6 +341,8 @@ public:
 void
 gfxMacFontFamily::LocalizedName(nsAString& aLocalizedName)
 {
+    nsAutoreleasePool localPool;
+
     if (!HasOtherFamilyNames()) {
         aLocalizedName = mName;
         return;
@@ -365,6 +383,8 @@ public:
 void
 gfxSingleFaceMacFontFamily::LocalizedName(nsAString& aLocalizedName)
 {
+    nsAutoreleasePool localPool;
+
     if (!HasOtherFamilyNames()) {
         aLocalizedName = mName;
         return;
@@ -417,6 +437,8 @@ gfxMacPlatformFontList::gfxMacPlatformFontList()
 void
 gfxMacPlatformFontList::InitFontList()
 {
+    nsAutoreleasePool localPool;
+
     ATSGeneration currentGeneration = ::ATSGetGeneration();
     
     // need to ignore notifications after adding each font
@@ -696,6 +718,8 @@ gfxMacPlatformFontList::ATSNotification(ATSFontNotificationInfoRef aInfo,
 gfxFontEntry*
 gfxMacPlatformFontList::GetDefaultFont(const gfxFontStyle* aStyle, PRBool& aNeedsBold)
 {
+    nsAutoreleasePool localPool;
+
     NSString *defaultFamily = [[NSFont userFontOfSize:aStyle->size] familyName];
     nsAutoString familyName;
 
@@ -717,6 +741,8 @@ gfxFontEntry*
 gfxMacPlatformFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                     const nsAString& aFontName)
 {
+    nsAutoreleasePool localPool;
+
     NSString *faceName = GetNSStringForString(aFontName);
     
     // first lookup a single face based on postscript name
