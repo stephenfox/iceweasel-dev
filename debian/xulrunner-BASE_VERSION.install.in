@@ -11,6 +11,7 @@ usr/bin/xulrunner-##BASE_VERSION##
 usr/lib/xulrunner-##BASE_VERSION##/run-mozilla.sh
 usr/lib/xulrunner-##BASE_VERSION##/xpcshell
 usr/lib/xulrunner-##BASE_VERSION##/mozilla-xremote-client
+usr/lib/xulrunner-##BASE_VERSION##/plugin-container
 usr/lib/xulrunner-##BASE_VERSION##/update.locale
 usr/lib/xulrunner-##BASE_VERSION##/updater
 usr/lib/xulrunner-##BASE_VERSION##/xulrunner
