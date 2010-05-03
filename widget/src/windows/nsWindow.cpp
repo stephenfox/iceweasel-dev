@@ -104,6 +104,10 @@
  **************************************************************
  **************************************************************/
 
+#ifdef MOZ_IPC
+#include "mozilla/ipc/RPCChannel.h"
+#endif
+
 #include "nsWindow.h"
 
 #include <windows.h>
@@ -205,10 +209,6 @@
 #include "nsGfxCIID.h"
 #endif
 
-// A magic APP message that can be sent to quit, sort of like a QUERYENDSESSION/ENDSESSION,
-// but without the query.
-#define MOZ_WM_APP_QUIT (WM_APP+0x0300)
-
 /**************************************************************
  **************************************************************
  **
@@ -277,6 +277,13 @@ LPFNLRESULTFROMOBJECT
                 nsWindow::sLresultFromObject      = 0;
 #endif // ACCESSIBILITY
 
+#ifdef MOZ_IPC
+// Used in OOPP plugin focus processing.
+const PRUnichar* kOOPPPluginFocusEventId   = L"OOPP Plugin Focus Widget Event";
+PRUint32        nsWindow::sOOPPPluginFocusEvent   =
+                  RegisterWindowMessageW(kOOPPPluginFocusEventId);
+#endif
+
 /**************************************************************
  *
  * SECTION: globals variables
@@ -324,7 +331,6 @@ static void UpdateLastInputEventTime() {
   if (is)
     is->IdleTimeWasModified();
 }
-
 
 // Global user preference for disabling native theme. Used
 // in NativeWindowTheme.
@@ -2250,8 +2256,8 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
 
   DWORD ourThreadID = GetWindowThreadProcessId(mWnd, NULL);
 
-  for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
-    const nsIntRect& destRect = aDestRects[i];
+  for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
+    const nsIntRect& destRect = iter.Rect();
     nsIntRect affectedRect;
     affectedRect.UnionRect(destRect, destRect - aDelta);
     UINT flags = SW_SCROLLCHILDREN;
@@ -2265,8 +2271,8 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
         if (entry) {
           // It's supposed to be scrolled, so we can still use
           // SW_SCROLLCHILDREN. But don't allow SW_SCROLLCHILDREN to be
-          // used on it again by a later rectangle in aDestRects, we
-          // don't want it to move twice!
+          // used on it again by a later rectangle; we don't want it to
+          // move twice!
           scrolledWidgets.RawRemoveEntry(entry);
 
           nsIntPoint screenOffset = WidgetToScreenOffset();
@@ -3106,9 +3112,8 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
     // its one of our windows so check to see if it has a
     // invalidated rect. If it does. Dispatch a synchronous
     // paint.
-    if (GetUpdateRect(aWnd, NULL, FALSE)) {
+    if (GetUpdateRect(aWnd, NULL, FALSE))
       VERIFY(::UpdateWindow(aWnd));
-    }
   }
   return TRUE;
 }
@@ -3337,6 +3342,9 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     case NS_MOUSE_MOVE:
       pluginEvent.event = WM_MOUSEMOVE;
       break;
+    case NS_MOUSE_EXIT:
+      pluginEvent.event = WM_MOUSELEAVE;
+      break;
     default:
       pluginEvent.event = WM_NULL;
       break;
@@ -3546,6 +3554,111 @@ PRBool nsWindow::ConvertStatus(nsEventStatus aStatus)
 }
 
 /**************************************************************
+ *
+ * SECTION: IPC
+ *
+ * IPC related helpers.
+ *
+ **************************************************************/
+
+#ifdef MOZ_IPC
+
+// static
+bool
+nsWindow::IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult)
+{
+  switch(aMsg) {
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+    case WM_ENABLE:
+    case WM_WINDOWPOSCHANGING:
+    case WM_WINDOWPOSCHANGED:
+    case WM_PARENTNOTIFY:
+    case WM_ACTIVATEAPP:
+    case WM_NCACTIVATE:
+    case WM_ACTIVATE:
+    case WM_CHILDACTIVATE:
+    case WM_IME_SETCONTEXT:
+    case WM_IME_NOTIFY:
+    case WM_SHOWWINDOW:
+    case WM_CANCELMODE:
+    case WM_MOUSEACTIVATE:
+    case WM_CONTEXTMENU:
+      aResult = 0;
+    return true;
+
+    case WM_SETTINGCHANGE:
+    case WM_SETCURSOR:
+    return false;
+  }
+
+#ifdef DEBUG
+  char szBuf[200];
+  sprintf(szBuf,
+    "An unhandled ISMEX_SEND message was received during spin loop! (%X)", aMsg);
+  NS_WARNING(szBuf);
+#endif
+
+  return false;
+}
+
+void
+nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
+{
+  NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
+               "Failed to prevent a nonqueued message from running!");
+
+  // Modal UI being displayed in windowless plugins.
+  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() &&
+      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+    LRESULT res;
+    if (IsAsyncResponseEvent(msg, res)) {
+      ReplyMessage(res);
+    }
+    return;
+  }
+
+  // Handle certain sync plugin events sent to the parent which
+  // trigger ipc calls that result in deadlocks.
+
+  DWORD dwResult = 0;
+  PRBool handled = PR_FALSE;
+
+  switch(msg) {
+    // Windowless flash sending WM_ACTIVATE events to the main window
+    // via calls to ShowWindow.
+    case WM_ACTIVATE:
+      if (lParam != 0 && LOWORD(wParam) == WA_ACTIVE &&
+          IsWindow((HWND)lParam))
+        handled = PR_TRUE;
+    break;
+    // Wheel events forwarded from the child.
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+    case WM_HSCROLL:
+    case WM_VSCROLL:
+    // Plugins taking or losing focus triggering focus app messages.
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+    // Windowed plugins that pass sys key events to defwndproc generate
+    // WM_SYSCOMMAND events to the main window.
+    case WM_SYSCOMMAND:
+    // Windowed plugins that fire context menu selection events to parent
+    // windows.
+    case WM_CONTEXTMENU:
+      handled = PR_TRUE;
+    break;
+  }
+
+  if (handled &&
+      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+    ReplyMessage(dwResult);
+  }
+}
+
+#endif // MOZ_IPC
+
+/**************************************************************
  **************************************************************
  **
  ** BLOCK: Native events
@@ -3568,16 +3681,21 @@ PRBool nsWindow::ConvertStatus(nsEventStatus aStatus)
 // The WndProc procedure for all nsWindows in this toolkit
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+  // Get the window which caused the event and ask it to process the message
+  nsWindow *someWindow = GetNSWindowPtr(hWnd);
+
+#ifdef MOZ_IPC
+  if (someWindow)
+    someWindow->IPCWindowProcHandler(msg, wParam, lParam);
+#endif
+
   // create this here so that we store the last rolled up popup until after
   // the event has been processed.
   nsAutoRollup autoRollup;
 
   LRESULT popupHandlingResult;
-  if ( DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult) )
+  if (DealWithPopups(hWnd, msg, wParam, lParam, &popupHandlingResult))
     return popupHandlingResult;
-
-  // Get the window which caused the event and ask it to process the message
-  nsWindow *someWindow = GetNSWindowPtr(hWnd);
 
   // XXX This fixes 50208 and we are leaving 51174 open to further investigate
   // why we are hitting this assert
@@ -3603,15 +3721,15 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
   }
 
   // Call ProcessMessage
-  if (nsnull != someWindow) {
-    LRESULT retValue;
-    if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
-      return retValue;
-    }
+  LRESULT retValue;
+  if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
+    return retValue;
   }
 
-  return ::CallWindowProcW(someWindow->GetPrevWindowProc(),
-                           hWnd, msg, wParam, lParam);
+  LRESULT res = ::CallWindowProcW(someWindow->GetPrevWindowProc(),
+                                  hWnd, msg, wParam, lParam);
+
+  return res;
 }
 
 // The main windows message processing method for plugins.
@@ -3698,7 +3816,13 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   // (Large blocks of code should be broken out into OnEvent handlers.)
   if (mWindowHook.Notify(mWnd, msg, wParam, lParam, aRetValue))
     return PR_TRUE;
-  
+
+#if defined(EVENT_DEBUG_OUTPUT)
+  // First param shows all events, second param indicates whether
+  // to show mouse move events. See nsWindowDbg for details.
+  PrintEvent(msg, SHOW_REPEAT_EVENTS, SHOW_MOUSEMOVE_EVENTS);
+#endif
+
   PRBool eatMessage;
   if (nsIMM32Handler::ProcessMessage(this, msg, wParam, lParam, aRetValue,
                                      eatMessage)) {
@@ -3718,12 +3842,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   *aRetValue = 0;
 
   static PRBool getWheelInfo = PR_TRUE;
-
-#if defined(EVENT_DEBUG_OUTPUT)
-  // First param shows all events, second param indicates whether
-  // to show mouse move events. See nsWindowDbg for details.
-  PrintEvent(msg, SHOW_REPEAT_EVENTS, SHOW_MOUSEMOVE_EVENTS);
-#endif
 
   switch (msg) {
     case WM_COMMAND:
@@ -4561,6 +4679,15 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
 #endif
+#ifdef MOZ_IPC
+      if (msg == sOOPPPluginFocusEvent) {
+        // With OOPP, the plugin window exists in another process and is a child of
+        // this window. This window is a placeholder plugin window for the dom. We
+        // receive this event when the child window receives focus. (sent from
+        // PluginInstanceParent.cpp)
+        ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
+      }
+#endif
     }
     break;
   }
@@ -4694,7 +4821,7 @@ LRESULT nsWindow::ProcessKeyUpMessage(const MSG &aMsg, PRBool *aEventDispatched)
   }
 
   if (!nsIMM32Handler::IsComposing(this) &&
-      (aMsg.message != WM_KEYUP || aMsg.message != VK_MENU)) {
+      (aMsg.message != WM_KEYUP || aMsg.wParam != VK_MENU)) {
     // Ignore VK_MENU if it's not a system key release, so that the menu bar does not trigger
     // This helps avoid triggering the menu bar for ALT key accelerators used in
     // assistive technologies such as Window-Eyes and ZoomText, and when using Alt+Tab
@@ -5250,8 +5377,18 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
     }
   }
 
-  if (!scrollEvent.delta)
+  if (!scrollEvent.delta) {
+    // We store the wheel delta, and it will be used next wheel message, so,
+    // we consume this message actually.  We shouldn't call next wndproc.
+    result = PR_TRUE;
     return PR_FALSE; // break
+  }
+
+#ifdef MOZ_IPC
+  // The event may go to a plug-in which already dispatched this message.
+  // Then, the event can cause deadlock.  We should unlock the sender here.
+  ::ReplyMessage(isVertical ? 0 : TRUE);
+#endif
 
   scrollEvent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
   scrollEvent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
@@ -5948,6 +6085,23 @@ void nsWindow::OnSettingsChange(WPARAM wParam, LPARAM lParam)
     nsWindowGfx::OnSettingsChangeGfx(wParam);
 }
 
+static PRBool IsOurProcessWindow(HWND aHWND)
+{
+  DWORD processId = 0;
+  ::GetWindowThreadProcessId(aHWND, &processId);
+  return processId == ::GetCurrentProcessId();
+}
+
+static HWND FindOurProcessWindow(HWND aHWND)
+{
+  for (HWND wnd = ::GetParent(aHWND); wnd; wnd = ::GetParent(wnd)) {
+    if (IsOurProcessWindow(wnd)) {
+      return wnd;
+    }
+  }
+  return nsnull;
+}
+
 // Scrolling helper function for handling plugins.  
 // Return value indicates whether the calling function should handle this
 // aHandled indicates whether this was handled at all
@@ -6006,15 +6160,32 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
     // No window is under the pointer
     return PR_FALSE; // break, but continue processing
   }
-  // We don't care about windows belonging to other processes.
-  DWORD processId = 0;
-  GetWindowThreadProcessId(destWnd, &processId);
-  if (processId != GetCurrentProcessId())
-  {
-    // Somebody elses window
-    return PR_FALSE; // break, but continue processing
+
+  nsWindow* destWindow;
+
+  // We don't handle the message if the found window belongs to another
+  // process's top window.  If it belongs window, that is a plug-in's window.
+  // Then, we need to send the message to the plug-in window.
+  if (!IsOurProcessWindow(destWnd)) {
+    HWND ourPluginWnd = FindOurProcessWindow(destWnd);
+    if (!ourPluginWnd) {
+      // Somebody elses window
+      return PR_FALSE; // break, but continue processing
+    }
+    destWindow = GetNSWindowPtr(ourPluginWnd);
+  } else {
+    destWindow = GetNSWindowPtr(destWnd);
   }
-  nsWindow* destWindow = GetNSWindowPtr(destWnd);
+
+  if (destWindow == this && mWindowType == eWindowType_plugin) {
+    // If this is plug-in window, the message came from the plug-in window.
+    // Then, the message should be processed on the parent window.
+    destWindow = static_cast<nsWindow*>(GetParent());
+    NS_ENSURE_TRUE(destWindow, PR_FALSE); // break, but continue processing
+    destWnd = destWindow->mWnd;
+    NS_ENSURE_TRUE(destWnd, PR_FALSE); // break, but continue processing
+  }
+
   if (!destWindow || destWindow->mWindowType == eWindowType_plugin) {
     // Some other app, or a plugin window.
     // Windows directs scrolling messages to the focused window.
@@ -6035,15 +6206,24 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
         // others will call DefWndProc, which itself still forwards back to us.
         // So if we have sent it once, we need to handle it ourself.
 
+#ifdef MOZ_IPC
+        // XXX The message shouldn't come from the plugin window at here.
+        // But the message might come from it due to some bugs.  If it happens,
+        // SendMessage causes deadlock.  For safety, we should unlock the
+        // sender here.
+        ::ReplyMessage(aMsg == WM_MOUSEHWHEEL ? TRUE : 0);
+#endif
+
         // First time we have seen this message.
         // Call the child - either it will consume it, or
         // it will wind it's way back to us,triggering the destWnd case above
         // either way,when the call returns,we are all done with the message,
         sIsProcessing = PR_TRUE;
-        if (0 == ::SendMessageW(destWnd, aMsg, aWParam, aLParam))
-          aHandled = PR_TRUE;
+        ::SendMessageW(destWnd, aMsg, aWParam, aLParam);
         sIsProcessing = PR_FALSE;
-        return PR_FALSE; // break, but continue processing
+        aHandled = PR_TRUE;
+        aQuitProcessing = PR_TRUE;
+        return PR_FALSE; // break, and stop processing
       }
       parentWnd = ::GetParent(parentWnd);
     } // while parentWnd
@@ -6097,6 +6277,11 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
       default:
         return PR_FALSE;
     }
+#ifdef MOZ_IPC
+    // The event may go to a plug-in which already dispatched this message.
+    // Then, the event can cause deadlock.  We should unlock the sender here.
+    ::ReplyMessage(0);
+#endif
     scrollevent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
     scrollevent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
     scrollevent.isMeta    = PR_FALSE;
@@ -6972,6 +7157,7 @@ void nsWindow::InitTrackPointHack()
   const WCHAR wstrKeys[][40] = {L"Software\\Lenovo\\TrackPoint",
                                 L"Software\\Lenovo\\UltraNav",
                                 L"Software\\Alps\\Apoint\\TrackPoint",
+                                L"Software\\Synaptics\\SynTPEnh\\UltraNavUSB",
                                 L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2"};    
   // If anything fails turn the hack off
   sTrackPointHack = false;

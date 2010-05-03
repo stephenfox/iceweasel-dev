@@ -1734,9 +1734,11 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
   if (mVisible && !aDestRects.IsEmpty()) {
     viewWasDirty = [mView needsDisplay];
 
-    for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
+    nsIntRect destRect; // keep the last rect
+    for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
+      destRect = iter.Rect();
       NSRect rect;
-      GeckoRectToNSRect(aDestRects[i] - aDelta, rect);
+      GeckoRectToNSRect(destRect - aDelta, rect);
       NSSize scrollVector = {aDelta.x, aDelta.y};
       [mView scrollRect:rect by:scrollVector];
     }
@@ -1748,7 +1750,7 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
     // So let's invalidate one pixel. We'll pick a pixel on the trailing edge
     // of the last destination rectangle, since in most situations that's going
     // to be invalidated anyway.
-    nsIntRect lastRect = aDestRects[aDestRects.Length() - 1] + aDelta;
+    nsIntRect lastRect = destRect + aDelta;
     nsIntPoint pointToInvalidate(
       PickValueForSign(aDelta.x, lastRect.XMost(), lastRect.x, lastRect.x - 1),
       PickValueForSign(aDelta.y, lastRect.YMost(), lastRect.y, lastRect.y - 1));
