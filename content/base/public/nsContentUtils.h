@@ -1492,6 +1492,16 @@ public:
    * method returns PR_TRUE, otherwise PR_FALSE.
    */
   static PRBool CanAccessNativeAnon();
+
+  static PRBool IsHandlingKeyBoardEvent()
+  {
+    return sIsHandlingKeyBoardEvent;
+  }
+
+  static void SetIsHandlingKeyBoardEvent(PRBool aHandling)
+  {
+    sIsHandlingKeyBoardEvent = aHandling;
+  }
 private:
 
   static PRBool InitializeEventTable();
@@ -1571,6 +1581,8 @@ private:
   static PRUint32 sRunnersCountAtFirstBlocker;
 
   static nsIInterfaceRequestor* sSameOriginChecker;
+
+  static PRBool sIsHandlingKeyBoardEvent;
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \

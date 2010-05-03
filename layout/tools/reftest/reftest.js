@@ -299,6 +299,14 @@ function ReadManifest(aURL)
         sandbox.nativeThemePref = true;
     }
 
+    new XPCSafeJSObjectWrapper(sandbox).prefs = {
+      __exposedProps__: {
+        getBoolPref: 'r',
+      },
+      _prefs:      prefs,
+      getBoolPref: function(p) { return this._prefs.getBoolPref(p); }
+    }
+
     var line = {value:null};
     var lineNo = 0;
     var urlprefix = "";

@@ -98,6 +98,11 @@ static const char kIniFile[] = "crashreporter.ini";
 
 static void LoadSettings()
 {
+  /*
+   * NOTE! This code needs to stay in sync with the preference checking
+   *       code in in nsExceptionHandler.cpp.
+   */
+
   StringTable settings;
   if (ReadStringsFromFile(gSettingsPath + "/" + kIniFile, settings, true)) {
     if (settings.find("Email") != settings.end()) {
@@ -125,6 +130,11 @@ static void LoadSettings()
 
 static void SaveSettings()
 {
+  /*
+   * NOTE! This code needs to stay in sync with the preference setting
+   *       code in in nsExceptionHandler.cpp.
+   */
+
   StringTable settings;
 
   ReadStringsFromFile(gSettingsPath + "/" + kIniFile, settings, true);
@@ -267,7 +277,7 @@ static void LoadProxyinfo()
 
   g_object_unref(conf);
 
-  dlclose(gconfLib);
+  // Don't dlclose gconfLib as libORBit-2 uses atexit().
 }
 #endif
 
@@ -305,11 +315,13 @@ static void SendReport()
   gtk_widget_set_sensitive(gSubmitReportCheck, FALSE);
   gtk_widget_set_sensitive(gViewReportButton, FALSE);
   gtk_widget_set_sensitive(gCommentText, FALSE);
-  gtk_widget_set_sensitive(gIncludeURLCheck, FALSE);
+  if (gIncludeURLCheck)
+    gtk_widget_set_sensitive(gIncludeURLCheck, FALSE);
   gtk_widget_set_sensitive(gEmailMeCheck, FALSE);
   gtk_widget_set_sensitive(gEmailEntry, FALSE);
   gtk_widget_set_sensitive(gCloseButton, FALSE);
-  gtk_widget_set_sensitive(gRestartButton, FALSE);
+  if (gRestartButton)
+    gtk_widget_set_sensitive(gRestartButton, FALSE);
   gtk_widget_show_all(gThrobber);
   gtk_label_set_text(GTK_LABEL(gProgressLabel),
                      gStrings[ST_REPORTDURINGSUBMIT].c_str());
@@ -387,7 +399,8 @@ static void UpdateSubmit()
   if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gSubmitReportCheck))) {
     gtk_widget_set_sensitive(gViewReportButton, TRUE);
     gtk_widget_set_sensitive(gCommentText, TRUE);
-    gtk_widget_set_sensitive(gIncludeURLCheck, TRUE);
+    if (gIncludeURLCheck)
+      gtk_widget_set_sensitive(gIncludeURLCheck, TRUE);
     gtk_widget_set_sensitive(gEmailMeCheck, TRUE);
     gtk_widget_set_sensitive(gEmailEntry,
                              gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(gEmailMeCheck)));
@@ -396,7 +409,8 @@ static void UpdateSubmit()
   } else {
     gtk_widget_set_sensitive(gViewReportButton, FALSE);
     gtk_widget_set_sensitive(gCommentText, FALSE);
-    gtk_widget_set_sensitive(gIncludeURLCheck, FALSE);
+    if (gIncludeURLCheck)
+      gtk_widget_set_sensitive(gIncludeURLCheck, FALSE);
     gtk_widget_set_sensitive(gEmailMeCheck, FALSE);
     gtk_widget_set_sensitive(gEmailEntry, FALSE);
     gtk_label_set_text(GTK_LABEL(gProgressLabel), "");
@@ -633,10 +647,9 @@ bool UIInit()
 
 void UIShutdown()
 {
-  if (gnomeLib)
-    dlclose(gnomeLib);
   if (gnomeuiLib)
     dlclose(gnomeuiLib);
+  // Don't dlclose gnomeLib as libgnomevfs and libORBit-2 use atexit().
 }
 
 void UIShowDefaultUI()

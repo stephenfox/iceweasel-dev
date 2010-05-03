@@ -813,3 +813,4 @@ components/nsUpdateService.js
 components/nsUpdateServiceStub.js
 #endif
 old-homepage-default.properties
+mozilla-runtime@BIN_SUFFIX@

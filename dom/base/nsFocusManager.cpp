@@ -82,6 +82,8 @@
 #include "nsImageMapUtils.h"
 #include "nsTreeWalker.h"
 #include "nsIDOMNodeFilter.h"
+#include "nsIScriptObjectPrincipal.h"
+#include "nsIPrincipal.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"
@@ -1050,6 +1052,25 @@ nsFocusManager::SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
   // if the new element is in the same window as the currently focused element 
   PRBool isElementInFocusedWindow = (mFocusedWindow == newWindow);
 
+  if (!isElementInFocusedWindow && mFocusedWindow && newWindow &&
+      nsContentUtils::IsHandlingKeyBoardEvent()) {
+    nsCOMPtr<nsIScriptObjectPrincipal> focused =
+      do_QueryInterface(mFocusedWindow);
+    nsCOMPtr<nsIScriptObjectPrincipal> newFocus =
+      do_QueryInterface(newWindow);
+    nsIPrincipal* focusedPrincipal = focused->GetPrincipal();
+    nsIPrincipal* newPrincipal = newFocus->GetPrincipal();
+    if (!focusedPrincipal || !newPrincipal) {
+      return;
+    }
+    PRBool subsumes = PR_FALSE;
+    focusedPrincipal->Subsumes(newPrincipal, &subsumes);
+    if (!subsumes && !nsContentUtils::IsCallerTrustedForWrite()) {
+      NS_WARNING("Not allowed to focus the new window!");
+      return;
+    }
+  }
+
   // to check if the new element is in the active window, compare the
   // new root docshell for the new element with the active window's docshell.
   PRBool isElementInActiveWindow = PR_FALSE;
@@ -1630,6 +1651,26 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     mFirstFocusEvent = nsnull;
 }
 
+class FocusBlurEvent : public nsRunnable
+{
+public:
+  FocusBlurEvent(nsISupports* aTarget, PRUint32 aType,
+                 nsPresContext* aContext)
+  : mTarget(aTarget), mType(aType), mContext(aContext)
+    {}
+
+  NS_IMETHOD Run()
+  {
+    nsEvent event(PR_TRUE, mType);
+    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+    return nsEventDispatcher::Dispatch(mTarget, mContext, &event);
+  }
+
+  nsCOMPtr<nsISupports>   mTarget;
+  PRUint32                mType;
+  nsCOMPtr<nsPresContext> mContext;
+};
+
 void
 nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
                                      nsIPresShell* aPresShell,
@@ -1661,13 +1702,8 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
     return;
   }
 
-  nsCOMPtr<nsPresContext> presContext = aPresShell->GetPresContext();
-
-  nsEventStatus status = nsEventStatus_eIgnore;
-  nsEvent event(PR_TRUE, aType);
-  event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
-
-  nsEventDispatcher::Dispatch(aTarget, presContext, &event, nsnull, &status);
+  nsContentUtils::AddScriptRunner(
+    new FocusBlurEvent(aTarget, aType, aPresShell->GetPresContext()));
 }
 
 void
