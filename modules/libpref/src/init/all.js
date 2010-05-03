@@ -859,15 +859,7 @@ pref("network.ntlm.send-lm-response", false);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
-#ifndef XP_MACOSX
-#ifdef XP_UNIX
 pref("network.proxy.type",                  5);
-#else
-pref("network.proxy.type",                  0);
-#endif
-#else
-pref("network.proxy.type",                  0);
-#endif
 
 pref("network.proxy.ftp",                   "");
 pref("network.proxy.ftp_port",              0);
@@ -1217,6 +1209,12 @@ pref("editor.positioning.offset",            0);
 
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
+
+// How long a plugin is allowed to process a synchronous IPC message
+// before we consider it "hung".
+//
+//  NB: chosen to match dom.max_script_run_time by default
+pref("dom.ipc.plugins.timeoutSecs", 10);
 
 pref("svg.enabled", true);
 pref("svg.smil.enabled", false);
@@ -2821,6 +2819,9 @@ pref("gfx.color_management.mode", 0);
 
 // Enable/Disable the geolocation API for content
 pref("geo.enabled", true);
+
+// Enable/Disable the orientation API for content
+pref("accelerometer.enabled", true);
 
 // Enable/Disable HTML5 parser
 pref("html5.enable", false);

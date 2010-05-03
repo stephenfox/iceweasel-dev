@@ -10809,6 +10809,26 @@ TraceRecorder::setProp(jsval &l, JSPropCacheEntry* entry, JSScopeProperty* sprop
 }
 
 JS_REQUIRES_STACK JSRecordingStatus
+TraceRecorder::setUpwardTrackedVar(jsval* stackVp, jsval v, LIns* v_ins)
+{
+    JSTraceType stackT = determineSlotType(stackVp);
+    JSTraceType otherT = getCoercedType(v);
+
+    bool promote = true;
+
+    if (stackT != otherT) {
+        if (stackT == TT_DOUBLE && otherT == TT_INT32 && isPromoteInt(v_ins))
+            promote = false;
+        else
+            ABORT_TRACE("can't trace this upvar mutation");
+    }
+
+    set(stackVp, v_ins, promote);
+
+    return JSRS_CONTINUE;
+}
+
+JS_REQUIRES_STACK JSRecordingStatus
 TraceRecorder::setCallProp(JSObject *callobj, LIns *callobj_ins, JSScopeProperty *sprop,
                            LIns *v_ins, jsval v)
 {
@@ -10818,12 +10838,12 @@ TraceRecorder::setCallProp(JSObject *callobj, LIns *callobj_ins, JSScopeProperty
         jsint slot = JSVAL_TO_INT(SPROP_USERID(sprop));
         if (sprop->setter == SetCallArg) {
             jsval *vp2 = &fp->argv[slot];
-            set(vp2, v_ins);
+            CHECK_STATUS(setUpwardTrackedVar(vp2, v, v_ins));
             return JSRS_CONTINUE;
         }
         if (sprop->setter == SetCallVar) {
             jsval *vp2 = &fp->slots[slot];
-            set(vp2, v_ins);
+            CHECK_STATUS(setUpwardTrackedVar(vp2, v, v_ins));
             return JSRS_CONTINUE;
         }
         ABORT_TRACE("can't trace special CallClass setter");
@@ -11210,58 +11230,65 @@ TraceRecorder::record_JSOP_GETELEM()
                 // the native stack area. The guard on js_ArgumentClass above ensures the up-to-date
                 // value has been written back to the native stack area.
                 idx_ins = makeNumberInt32(idx_ins);
-                if (int_idx >= 0 && int_idx < afp->argc) {
-                    JSTraceType type = getCoercedType(*vp);
 
-                    // Guard that the argument has the same type on trace as during recording.
-                    LIns* typemap_ins;
-                    if (callDepth == depth) {
-                        // In this case, we are in the same frame where the arguments object was created.
-                        // The entry type map is not necessarily up-to-date, so we capture a new type map
-                        // for this point in the code.
-                        unsigned stackSlots = NativeStackSlots(cx, 0 /* callDepth */);
-                        if (stackSlots * sizeof(JSTraceType) > LirBuffer::MAX_SKIP_PAYLOAD_SZB)
-                            ABORT_TRACE("|arguments| requires saving too much stack");
-                        JSTraceType* typemap = new (*traceMonitor->dataAlloc) JSTraceType[stackSlots];
-                        DetermineTypesVisitor detVisitor(*this, typemap);
-                        VisitStackSlots(detVisitor, cx, 0);
-                        typemap_ins = INS_CONSTPTR(typemap + 2 /* callee, this */);
-                    } else {
-                        // In this case, we are in a deeper frame from where the arguments object was
-                        // created. The type map at the point of the call out from the creation frame
-                        // is accurate.
-                        // Note: this relies on the assumption that we abort on setting an element of
-                        // an arguments object in any deeper frame.
-                        LIns* fip_ins = lir->insLoad(LIR_ldp, lirbuf->rp, (callDepth-depth)*sizeof(FrameInfo*));
-                        typemap_ins = lir->ins2(LIR_add, fip_ins, INS_CONST(sizeof(FrameInfo) + 2/*callee,this*/ * sizeof(JSTraceType)));
-                    }
+                if (int_idx < 0 || int_idx >= afp->argc)
+                    ABORT_TRACE("cannot trace arguments with out of range index");
 
-                    LIns* typep_ins = lir->ins2(LIR_piadd, typemap_ins,
+                guard(true,
+                      addName(lir->ins2(LIR_ge, idx_ins, INS_CONST(0)),
+                              "guard(index >= 0)"),
+                      MISMATCH_EXIT);
+                guard(true,
+                      addName(lir->ins2(LIR_lt, idx_ins, INS_CONST(afp->argc)),
+                              "guard(index < argc)"),
+                      MISMATCH_EXIT);
+
+                JSTraceType type = getCoercedType(*vp);
+
+                // Guard that the argument has the same type on trace as during recording.
+                LIns* typemap_ins;
+                if (callDepth == depth) {
+                    // In this case, we are in the same frame where the arguments object was created.
+                    // The entry type map is not necessarily up-to-date, so we capture a new type map
+                    // for this point in the code.
+                    unsigned stackSlots = NativeStackSlots(cx, 0 /* callDepth */);
+                    if (stackSlots * sizeof(JSTraceType) > LirBuffer::MAX_SKIP_PAYLOAD_SZB)
+                        ABORT_TRACE("|arguments| requires saving too much stack");
+                    JSTraceType* typemap = new (*traceMonitor->dataAlloc) JSTraceType[stackSlots];
+                    DetermineTypesVisitor detVisitor(*this, typemap);
+                    VisitStackSlots(detVisitor, cx, 0);
+                    typemap_ins = INS_CONSTPTR(typemap + 2 /* callee, this */);
+                } else {
+                    // In this case, we are in a deeper frame from where the arguments object was
+                    // created. The type map at the point of the call out from the creation frame
+                    // is accurate.
+                    // Note: this relies on the assumption that we abort on setting an element of
+                    // an arguments object in any deeper frame.
+                    LIns* fip_ins = lir->insLoad(LIR_ldp, lirbuf->rp, (callDepth-depth)*sizeof(FrameInfo*));
+                    typemap_ins = lir->ins2(LIR_add, fip_ins, INS_CONST(sizeof(FrameInfo) + 2/*callee,this*/ * sizeof(JSTraceType)));
+                }
+
+                LIns* typep_ins = lir->ins2(LIR_piadd, typemap_ins,
+                                            lir->ins_u2p(lir->ins2(LIR_mul,
+                                                                   idx_ins,
+                                                                   INS_CONST(sizeof(JSTraceType)))));
+                LIns* type_ins = lir->insLoad(LIR_ldcb, typep_ins, 0);
+                guard(true,
+                      addName(lir->ins2(LIR_eq, type_ins, lir->insImm(type)),
+                              "guard(type-stable upvar)"),
+                      BRANCH_EXIT);
+
+                // Read the value out of the native stack area.
+                guard(true, lir->ins2(LIR_ult, idx_ins, INS_CONST(afp->argc)),
+                      snapshot(BRANCH_EXIT));
+                size_t stackOffset = -treeInfo->nativeStackBase + nativeStackOffset(&afp->argv[0]);
+                LIns* args_addr_ins = lir->ins2(LIR_piadd, lirbuf->sp, INS_CONSTWORD(stackOffset));
+                LIns* argi_addr_ins = lir->ins2(LIR_piadd,
+                                                args_addr_ins,
                                                 lir->ins_u2p(lir->ins2(LIR_mul,
                                                                        idx_ins,
-                                                                       INS_CONST(sizeof(JSTraceType)))));
-                    LIns* type_ins = lir->insLoad(LIR_ldcb, typep_ins, 0);
-                    guard(true,
-                          addName(lir->ins2(LIR_eq, type_ins, lir->insImm(type)),
-                                  "guard(type-stable upvar)"),
-                          BRANCH_EXIT);
-
-                    // Read the value out of the native stack area.
-                    guard(true, lir->ins2(LIR_ult, idx_ins, INS_CONST(afp->argc)),
-                          snapshot(BRANCH_EXIT));
-                    size_t stackOffset = -treeInfo->nativeStackBase + nativeStackOffset(&afp->argv[0]);
-                    LIns* args_addr_ins = lir->ins2(LIR_piadd, lirbuf->sp, INS_CONSTWORD(stackOffset));
-                    LIns* argi_addr_ins = lir->ins2(LIR_piadd,
-                                                    args_addr_ins,
-                                                    lir->ins_u2p(lir->ins2(LIR_mul,
-                                                                           idx_ins,
-                                                                           INS_CONST(sizeof(double)))));
-                    v_ins = stackLoad(argi_addr_ins, type);
-                } else {
-                    guard(false, lir->ins2(LIR_ult, idx_ins, INS_CONST(afp->argc)),
-                          snapshot(BRANCH_EXIT));
-                    v_ins = INS_VOID();
-                }
+                                                                       INS_CONST(sizeof(double)))));
+                v_ins = stackLoad(argi_addr_ins, type);
             }
             JS_ASSERT(v_ins);
             set(&lval, v_ins);
@@ -11420,6 +11447,9 @@ TraceRecorder::record_JSOP_SETELEM()
 
     if (JS_InstanceOf(cx, obj, &js_ArgumentsClass, NULL))
         ABORT_TRACE("can't trace setting elements of the |arguments| object");
+
+    if (obj == globalObj)
+        ABORT_TRACE("can't trace setting elements on the global object");
 
     if (!JSVAL_IS_INT(idx)) {
         if (!JSVAL_IS_PRIMITIVE(idx))

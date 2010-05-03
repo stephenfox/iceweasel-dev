@@ -2870,6 +2870,8 @@ NS_IMETHODIMP
 PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
 {
   if (!mIgnoreFrameDestruction) {
+    mPresContext->StopImagesFor(aFrame);
+
     mFrameConstructor->NotifyDestroyingFrame(aFrame);
 
     for (PRInt32 idx = mDirtyRoots.Length(); idx; ) {
@@ -6381,8 +6383,8 @@ PresShell::HandleEventWithTarget(nsEvent* aEvent, nsIFrame* aFrame,
   return NS_OK;
 }
 
-inline PRBool
-IsSynthesizedMouseMove(nsEvent* aEvent)
+static inline PRBool
+IsSynthesizedMouseEvent(nsEvent* aEvent)
 {
   return aEvent->eventStructType == NS_MOUSE_EVENT &&
          static_cast<nsMouseEvent*>(aEvent)->reason != nsMouseEvent::eReal;
@@ -6507,9 +6509,16 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 
     // 2. Give event to the DOM for third party and JS use.
     if (GetCurrentEventFrame() && NS_SUCCEEDED(rv)) {
+      PRBool wasHandlingKeyBoardEvent =
+        nsContentUtils::IsHandlingKeyBoardEvent();
+      if (aEvent->eventStructType == NS_KEY_EVENT) {
+        nsContentUtils::SetIsHandlingKeyBoardEvent(PR_TRUE);
+      }
       // We want synthesized mouse moves to cause mouseover and mouseout
       // DOM events (PreHandleEvent above), but not mousemove DOM events.
-      if (!IsSynthesizedMouseMove(aEvent)) {
+      // Synthesized button up events also do not cause DOM events
+      // because they do not have a reliable refPoint.
+      if (!IsSynthesizedMouseEvent(aEvent)) {
         nsPresShellEventCB eventCB(this);
         if (mCurrentEventContent) {
           nsEventDispatcher::Dispatch(mCurrentEventContent, mPresContext,
@@ -6528,6 +6537,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
           }
         }
       }
+
+      nsContentUtils::SetIsHandlingKeyBoardEvent(wasHandlingKeyBoardEvent);
 
       // 3. Give event to event manager for post event state changes and
       //    generation of synthetic events.

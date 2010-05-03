@@ -909,6 +909,20 @@ pref("toolbar.customization.usesheet", true);
 pref("toolbar.customization.usesheet", false);
 #endif
 
+// Whitelist the test plugin, Flash, Silverlight, and QuickTime
+ 
+pref("dom.ipc.plugins.enabled.@DLL_PREFIX@nptest@DLL_SUFFIX@", true);
+#ifdef XP_WIN
+pref("dom.ipc.plugins.enabled.npswf32.dll", true);
+pref("dom.ipc.plugins.enabled.npctrl.dll", true);
+pref("dom.ipc.plugins.enabled.npqtplugin.dll", true);
+#endif
+#ifdef XP_UNIX
+pref("dom.ipc.plugins.enabled.libflashplayer.so", true);
+#endif
+
+pref("dom.ipc.plugins.enabled", false);
+
 #ifdef XP_WIN
 #ifndef WINCE
 pref("browser.taskbar.previews.enable", false);
