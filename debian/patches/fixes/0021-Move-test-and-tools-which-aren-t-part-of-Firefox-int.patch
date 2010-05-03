@@ -88,10 +88,10 @@ index b7cb4a1..bb5f552 100644
 +
  include $(topsrcdir)/config/rules.mk
 diff --git a/testing/mochitest/Makefile.in b/testing/mochitest/Makefile.in
-index 15945f2..aa0c6c9 100644
+index 4fd943a..9e1438a 100644
 --- a/testing/mochitest/Makefile.in
 +++ b/testing/mochitest/Makefile.in
-@@ -108,17 +108,15 @@ endif
+@@ -115,17 +115,15 @@ endif
  
  # Components / typelibs that don't get packaged with
  # the build, but that we need for the test harness.
@@ -114,7 +114,7 @@ index 15945f2..aa0c6c9 100644
  endif
  
  # Rules for staging the necessary harness bits for a test package
-@@ -129,8 +127,4 @@ stage-package:
+@@ -136,8 +134,4 @@ stage-package:
  	$(NSINSTALL) -D $(PKG_STAGE)/mochitest && $(NSINSTALL) -D $(PKG_STAGE)/bin/plugins
  	@(cd $(DEPTH)/_tests/testing/mochitest/ && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/mochitest && tar -xf -)
  	@(cd $(DIST_BIN) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
@@ -145,18 +145,18 @@ index 9fbb10b..592c4c2 100644
 -	@(cd $(DIST)/bin/components && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_COMPONENTS)) | (cd $(PKG_STAGE)/bin/components && tar -xf -)
 +	@(cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
 diff --git a/testing/xpcshell/runxpcshelltests.py b/testing/xpcshell/runxpcshelltests.py
-index 30f9bba..16f8e33 100644
+index 77ee849..ea8880b 100644
 --- a/testing/xpcshell/runxpcshelltests.py
 +++ b/testing/xpcshell/runxpcshelltests.py
-@@ -99,7 +99,7 @@ def runTests(xpcshell, xrePath=None, symbolsPath=None,
-   testharnessdir = os.path.dirname(os.path.abspath(__file__))
-   xpcshell = os.path.abspath(xpcshell)
-   # we assume that httpd.js lives in components/ relative to xpcshell
--  httpdJSPath = os.path.join(os.path.dirname(xpcshell), "components", "httpd.js").replace("\\", "/");
-+  httpdJSPath = os.path.join(os.path.dirname(xpcshell), "distribution" , "bundles", "httpd", "components", "httpd.js").replace("\\", "/");
+@@ -108,7 +108,7 @@ class XPCShellTests(object):
+     testharnessdir = os.path.dirname(os.path.abspath(__file__))
+     xpcshell = os.path.abspath(xpcshell)
+     # we assume that httpd.js lives in components/ relative to xpcshell
+-    httpdJSPath = os.path.join(os.path.dirname(xpcshell), "components", "httpd.js").replace("\\", "/");
++    httpdJSPath = os.path.join(os.path.dirname(xpcshell), "distribution" , "bundles", "httpd", "components", "httpd.js").replace("\\", "/");
  
-   env = dict(os.environ)
-   # Make assertions fatal
+     env = dict(os.environ)
+     # Make assertions fatal
 diff --git a/xpcom/sample/Makefile.in b/xpcom/sample/Makefile.in
 index 21c427b..1719758 100644
 --- a/xpcom/sample/Makefile.in

@@ -7,10 +7,10 @@ Subject: Don't register plugins if the MOZILLA_DISABLE_PLUGINS environment varia
  1 files changed, 25 insertions(+), 0 deletions(-)
 
 diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
-index 4465744..44a0e11 100644
+index 9e2e412..9b66f0d 100644
 --- a/modules/plugin/base/src/nsPluginHost.cpp
 +++ b/modules/plugin/base/src/nsPluginHost.cpp
-@@ -235,6 +235,24 @@ PRBool gSkipPluginSafeCalls = PR_FALSE;
+@@ -237,6 +237,24 @@ PRBool gSkipPluginSafeCalls = PR_FALSE;
  nsIFile *nsPluginHost::sPluginTempDir;
  nsPluginHost *nsPluginHost::sInst;
  
@@ -35,7 +35,7 @@ index 4465744..44a0e11 100644
  // flat file reg funcs
  static
  PRBool ReadSectionHeader(nsPluginManifestLineReader& reader, const char *token)
-@@ -5026,6 +5044,10 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
+@@ -4854,6 +4872,10 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
    // possible reset in subsequent ScanPluginsDirectory calls
    PRBool pluginschanged = PR_FALSE;
  
@@ -46,7 +46,7 @@ index 4465744..44a0e11 100644
    // Scan the app-defined list of plugin dirs.
    rv = dirService->Get(NS_APP_PLUGINS_DIR_LIST, NS_GET_IID(nsISimpleEnumerator), getter_AddRefs(dirList));
    if (NS_SUCCEEDED(rv)) {
-@@ -5314,6 +5336,9 @@ nsPluginHost::WritePluginInfo()
+@@ -5142,6 +5164,9 @@ nsPluginHost::WritePluginInfo()
  nsresult
  nsPluginHost::ReadPluginInfo()
  {

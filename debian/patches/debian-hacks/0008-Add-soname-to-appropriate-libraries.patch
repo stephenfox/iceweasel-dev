@@ -13,7 +13,7 @@ be dlloaded() by the standalone xpcomglue.
  3 files changed, 40 insertions(+), 4 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index e99d5a1..3014d86 100644
+index 1800ab6..28eb6a4 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
 @@ -259,6 +259,18 @@ else
@@ -64,7 +64,7 @@ index e99d5a1..3014d86 100644
  ifdef BEOS_ADDON_WORKAROUND
  	( cd $(FINAL_TARGET) && $(CC) -nostart -o $(SHARED_LIBRARY).stub $(SHARED_LIBRARY) )
  endif
-@@ -1209,6 +1223,8 @@ endif
+@@ -1214,6 +1228,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.
@@ -96,7 +96,7 @@ index d57536e..0101405 100644
  ifneq (,$(IMPORT_LIBRARY))
  	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index e99d5a1..3014d86 100644
+index 1800ab6..28eb6a4 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
 @@ -259,6 +259,18 @@ else
@@ -147,7 +147,7 @@ index e99d5a1..3014d86 100644
  ifdef BEOS_ADDON_WORKAROUND
  	( cd $(FINAL_TARGET) && $(CC) -nostart -o $(SHARED_LIBRARY).stub $(SHARED_LIBRARY) )
  endif
-@@ -1209,6 +1223,8 @@ endif
+@@ -1214,6 +1228,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.

@@ -9,10 +9,10 @@ Subject: Avoid some symbols from being exported in C++ mangled form
  3 files changed, 6 insertions(+), 5 deletions(-)
 
 diff --git a/js/src/jscntxt.cpp b/js/src/jscntxt.cpp
-index 2ca3e75..5213704 100644
+index b59d5eb..8fc32ac 100644
 --- a/js/src/jscntxt.cpp
 +++ b/js/src/jscntxt.cpp
-@@ -952,7 +952,7 @@ resolving_HashKey(JSDHashTable *table, const void *ptr)
+@@ -953,7 +953,7 @@ resolving_HashKey(JSDHashTable *table, const void *ptr)
      return ((JSDHashNumber)JS_PTR_TO_UINT32(key->obj) >> JSVAL_TAGBITS) ^ key->id;
  }
  

@@ -22,10 +22,10 @@ index dc1e97c..3fa6e09 100644
    classDescription: "jsConsoleHandler",
    classID: Components.ID("{2cd0c310-e127-44d0-88fc-4435c9ab4d4b}"),
 diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
-index 89dd2c2..c3532d7 100644
+index 0abd5e8..a8b773e 100644
 --- a/toolkit/xre/nsAppRunner.cpp
 +++ b/toolkit/xre/nsAppRunner.cpp
-@@ -1279,28 +1279,28 @@ DumpHelp()
+@@ -1299,28 +1299,28 @@ DumpHelp()
  
  #ifdef MOZ_X11
    printf("X11 options\n"

@@ -12,10 +12,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=551138
  5 files changed, 30 insertions(+), 1 deletions(-)
 
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index 64a8e5b..791b78d 100644
+index 45c1915..1e4d3d0 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
-@@ -229,6 +229,10 @@ MOZ_NATIVE_HUNSPELL = @SYSTEM_HUNSPELL@
+@@ -230,6 +230,10 @@ MOZ_NATIVE_HUNSPELL = @SYSTEM_HUNSPELL@
  MOZ_HUNSPELL_LIBS = @MOZ_HUNSPELL_LIBS@
  MOZ_HUNSPELL_CFLAGS = @MOZ_HUNSPELL_CFLAGS@
  
@@ -27,10 +27,10 @@ index 64a8e5b..791b78d 100644
  MOZ_NATIVE_BZ2	= @SYSTEM_BZ2@
  MOZ_NATIVE_JPEG	= @SYSTEM_JPEG@
 diff --git a/configure.in b/configure.in
-index 66456be..4441fe2 100644
+index 426bc53..762520e 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4474,6 +4474,18 @@ fi
+@@ -4471,6 +4471,18 @@ fi
  
  AC_SUBST(SYSTEM_HUNSPELL)
  
@@ -49,7 +49,7 @@ index 66456be..4441fe2 100644
  dnl ========================================================
  dnl Java SDK support
  dnl ========================================================
-@@ -8600,7 +8612,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
+@@ -8647,7 +8659,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
  # Build jsctypes on the platforms we can.
  if test "$BUILD_CTYPES"; then
    # Run the libffi 'configure' script on platforms that it supports.
@@ -90,10 +90,10 @@ index 2ccd495..35e5253 100644
  endif # _MSVC_VER
  
 diff --git a/toolkit/library/libxul-config.mk b/toolkit/library/libxul-config.mk
-index 89b8b3d..6cea1c0 100644
+index 33b28a5..6618016 100644
 --- a/toolkit/library/libxul-config.mk
 +++ b/toolkit/library/libxul-config.mk
-@@ -142,6 +142,9 @@ ifdef BUILD_CTYPES
+@@ -163,6 +163,9 @@ ifdef BUILD_CTYPES
  COMPONENT_LIBS += \
  	jsctypes \
  	$(NULL)
@@ -104,10 +104,10 @@ index 89b8b3d..6cea1c0 100644
  
  ifdef MOZ_PLUGINS
 diff --git a/toolkit/toolkit-tiers.mk b/toolkit/toolkit-tiers.mk
-index 57985cc..ee1d280 100644
+index 08f7da7..3824f7c 100644
 --- a/toolkit/toolkit-tiers.mk
 +++ b/toolkit/toolkit-tiers.mk
-@@ -88,12 +88,14 @@ tier_gecko_dirs += \
+@@ -92,12 +92,14 @@ tier_gecko_dirs += \
  		$(NULL)
  
  ifdef BUILD_CTYPES

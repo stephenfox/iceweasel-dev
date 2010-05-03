@@ -24,10 +24,10 @@ index 9f42f3b..ef03939 100644
 +  readonly attribute AUTF8String fullpath;
 +};
 diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
-index aed4359..4465744 100644
+index 7a78bc7..9e2e412 100644
 --- a/modules/plugin/base/src/nsPluginHost.cpp
 +++ b/modules/plugin/base/src/nsPluginHost.cpp
-@@ -820,7 +820,7 @@ nsPluginTag::~nsPluginTag()
+@@ -806,7 +806,7 @@ nsPluginTag::~nsPluginTag()
    }
  }
  
@@ -36,7 +36,7 @@ index aed4359..4465744 100644
  
  static nsresult ConvertToUTF8(nsIUnicodeDecoder *aUnicodeDecoder,
                                nsAFlatCString& aString)
-@@ -903,6 +903,13 @@ nsPluginTag::GetFilename(nsACString& aFileName)
+@@ -893,6 +893,13 @@ nsPluginTag::GetFilename(nsACString& aFileName)
  }
  
  NS_IMETHODIMP
@@ -51,10 +51,10 @@ index aed4359..4465744 100644
  {
    aVersion = mVersion;
 diff --git a/modules/plugin/base/src/nsPluginHost.h b/modules/plugin/base/src/nsPluginHost.h
-index a990172..88fc531 100644
+index ef6d79c..7c67d76 100644
 --- a/modules/plugin/base/src/nsPluginHost.h
 +++ b/modules/plugin/base/src/nsPluginHost.h
-@@ -86,7 +86,7 @@ class nsPluginHost;
+@@ -87,7 +87,7 @@ class nsPluginHost;
  
  // A linked-list of plugin information that is used for instantiating plugins
  // and reflecting plugin information into JavaScript.
@@ -63,7 +63,7 @@ index a990172..88fc531 100644
  {
  public:
    enum nsRegisterType {
-@@ -96,6 +96,7 @@ public:
+@@ -97,6 +97,7 @@ public:
  
    NS_DECL_ISUPPORTS
    NS_DECL_NSIPLUGINTAG

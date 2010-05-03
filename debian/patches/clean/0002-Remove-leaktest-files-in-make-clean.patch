@@ -8,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=541769
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/build/Makefile.in b/build/Makefile.in
-index fd969dd..30c31f4 100644
+index 5ecfb63..b811284 100644
 --- a/build/Makefile.in
 +++ b/build/Makefile.in
 @@ -71,6 +71,7 @@ TARGET_DEPTH = ..

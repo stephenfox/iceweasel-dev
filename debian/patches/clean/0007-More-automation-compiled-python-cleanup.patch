@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=543469
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/build/automation-build.mk b/build/automation-build.mk
-index 5ad282f..a3c01ac 100644
+index 343e198..c1f23fe 100644
 --- a/build/automation-build.mk
 +++ b/build/automation-build.mk
-@@ -75,4 +75,4 @@ automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automa
+@@ -78,4 +78,4 @@ automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automa
  	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
  	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
  

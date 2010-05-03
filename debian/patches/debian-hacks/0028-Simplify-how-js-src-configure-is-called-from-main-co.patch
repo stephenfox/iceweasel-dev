@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=548273
  1 files changed, 1 insertions(+), 3 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index e2983d1..66456be 100644
+index cb2e2ea..bf5d5d6 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -8586,9 +8586,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
+@@ -8646,9 +8646,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
      ac_configure_args="$ac_configure_args --with-nspr-libs='$NSPR_LIBS'"
  fi
  ac_configure_args="$ac_configure_args --with-dist-dir=../../dist"

@@ -9,7 +9,7 @@ http://bugs.debian.org/374389
  2 files changed, 0 insertions(+), 18 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index 5172501..e99d5a1 100644
+index 5b574d9..1800ab6 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
 @@ -606,15 +606,6 @@ endif
@@ -29,7 +29,7 @@ index 5172501..e99d5a1 100644
  # HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
  # which uses internal symbols first
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index 5172501..e99d5a1 100644
+index 5b574d9..1800ab6 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
 @@ -606,15 +606,6 @@ endif

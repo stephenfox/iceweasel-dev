@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=528687
  1 files changed, 8 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 1ada8c0..109b894 100644
+index d60dff1..5364435 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4134,7 +4134,14 @@ AC_CACHE_CHECK(for __thread keyword for TLS variables,
+@@ -4133,7 +4133,14 @@ AC_CACHE_CHECK(for __thread keyword for TLS variables,
                              ac_cv_thread_keyword=no)])
  LDFLAGS=$_SAVE_LDFLAGS
  if test "$ac_cv_thread_keyword" = yes; then

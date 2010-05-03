@@ -14,7 +14,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=555901
  7 files changed, 30 insertions(+), 9 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index af3842c..5172501 100644
+index 41ead42..5b574d9 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
 @@ -665,6 +665,14 @@ endif
@@ -33,10 +33,10 @@ index af3842c..5172501 100644
  #
  ifeq ($(OS_ARCH),WINNT)
 diff --git a/configure.in b/configure.in
-index 109b894..3830f11 100644
+index 5364435..426bc53 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -1088,6 +1088,7 @@ if test -n "$CROSS_COMPILE"; then
+@@ -1084,6 +1084,7 @@ if test -n "$CROSS_COMPILE"; then
      case "${target_os}" in
          linux*)       OS_ARCH=Linux OS_TARGET=Linux ;;
          kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU_kFreeBSD ;;
@@ -44,7 +44,7 @@ index 109b894..3830f11 100644
          solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
          mingw*)       OS_ARCH=WINNT ;;
          wince*)       OS_ARCH=WINCE ;;
-@@ -1674,7 +1675,7 @@ case "$host" in
+@@ -1673,7 +1674,7 @@ case "$host" in
      MOZ_FIX_LINK_PATHS='-Wl,-executable_path,$(LIBXUL_DIST)/bin'
      ;;
  
@@ -53,7 +53,7 @@ index 109b894..3830f11 100644
      HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
      HOST_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
      HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
-@@ -2683,7 +2684,7 @@ dnl ========================================================
+@@ -2682,7 +2683,7 @@ dnl ========================================================
  dnl = Flags to strip unused symbols from .so components
  dnl ========================================================
  case "$target" in
@@ -62,7 +62,7 @@ index 109b894..3830f11 100644
          MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
          ;;
      *-solaris*)
-@@ -3435,7 +3436,7 @@ then
+@@ -3434,7 +3435,7 @@ then
  			fi
  			;;
  
@@ -72,7 +72,7 @@ index 109b894..3830f11 100644
  			;;
  
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index af3842c..5172501 100644
+index 41ead42..5b574d9 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
 @@ -665,6 +665,14 @@ endif

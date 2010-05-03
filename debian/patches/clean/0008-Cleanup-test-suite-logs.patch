@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=555189
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/testing/testsuite-targets.mk b/testing/testsuite-targets.mk
-index 027dd79..f7db90a 100644
+index 7528a95..f70bfde 100644
 --- a/testing/testsuite-targets.mk
 +++ b/testing/testsuite-targets.mk
-@@ -97,6 +97,8 @@ jstestbrowser:
+@@ -101,6 +101,8 @@ jstestbrowser:
  	$(call RUN_REFTEST,$(topsrcdir)/js/src/tests/jstests.list)
  	$(CHECK_TEST_ERROR)
  

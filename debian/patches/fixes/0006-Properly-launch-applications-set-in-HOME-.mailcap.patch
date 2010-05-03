@@ -8,7 +8,7 @@ Replaces the previous patch in a much simpler way.
  1 files changed, 14 insertions(+), 3 deletions(-)
 
 diff --git a/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp b/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
-index 98a532d..19b7a38 100644
+index 207685f..a98e136 100644
 --- a/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
 +++ b/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
 @@ -73,6 +73,12 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
