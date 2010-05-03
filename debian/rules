@@ -24,6 +24,7 @@ CONFIGURE_OPTIONS = \
 	--disable-updater \
 	--disable-elf-dynstr-gc \
 	--with-branding=debian/branding \
+	--disable-necko-wifi \
 	--disable-crashreporter
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
