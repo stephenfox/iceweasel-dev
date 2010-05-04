@@ -33,6 +33,7 @@ fixes/0020-Download-search-engine-icons-when-searchplugin-is-re.patch
 fixes/0021-Move-test-and-tools-which-aren-t-part-of-Firefox-int.patch
 fixes/0022-Expose-fullpath-from-nsIPluginTag.patch
 fixes/0023-Change-parameter-type-of-JS_-CEILING-FLOOR-_LOG2W-an.patch
+fixes/0024-Fix-race-condition-in-test_autocomplete.js.patch
 porting/0001-Support-building-on-GNU-Hurd.patch
 porting/0002-Increase-stability-and-performance-on-mips.patch
 porting/0003-Build-xptcstubs-with-less-optimizations-on-hppa.patch
