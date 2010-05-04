@@ -34,6 +34,10 @@ ifneq (,$(filter kfreebsd-% hurd-%,$(DEB_BUILD_ARCH)))
 	CONFIGURE_FLAGS += --disable-necko-wifi
 endif
 
+ifeq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
+	CONFIGURE_FLAGS += --disable-ipc
+endif
+
 ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --enable-debug
 endif
