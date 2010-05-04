@@ -80,7 +80,7 @@ Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends}
-Breaks: xulrunner-1.9.1 (<< 1.9.1.4)
+Breaks: xulrunner-1.9.2 (<< 1.9.2.4~)
 Description: The Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
