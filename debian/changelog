@@ -1,3 +1,19 @@
+xulrunner (1.9.2.4~build2-2) experimental; urgency=low
+
+  * debian/rules:
+    - Strip symbols in the spidermonkey-bin package.
+    - Disable IPC support (for OOPP) on unsupported architectures. Fixes
+      FTBFS on anything but armel, i386 and amd64.
+  * toolkit/components/satchel/test/unit/test_autocomplete.js: Fix race
+    condition. bz#525394.
+  * debian/test.mk: Enable test_autocomplete.js.
+  * debian/control*:
+    - xulrunner-1.9.x needs to depend on a strict version of libmozjs.
+    - libmozjs3d 1.9.2.4 breaks xulrunner-1.9.2 before that version.
+    Closes: #580104.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 04 May 2010 16:32:35 +0200
+
 xulrunner (1.9.2.4~build2-1) experimental; urgency=low
 
   * debian/copyright, debian/remove.nonfree: Update to fit new upstream
