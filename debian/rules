@@ -149,8 +149,11 @@ override_dh_installdocs: MPL
 	dh_installdocs -A $^
 
 override_dh_install: debian/dh/dh_xulrunner
-	dh_install -a --fail-missing -XMozillaInterfaces -XMozillaGlue -Xjavaxpcom.jar
+	dh_install -a --fail-missing -XMozillaInterfaces -XMozillaGlue -Xjavaxpcom.jar -Xplugin-container
 	dh_install -i
+ifneq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
+	dh_install -pxulrunner-$(BASE_VERSION) usr/lib/xulrunner-$(BASE_VERSION)/plugin-container
+endif
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
 	perl $< -pxulrunner-$(BASE_VERSION) --no-act -v 2>&1 | grep -q "..*"
 
