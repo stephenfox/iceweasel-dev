@@ -6421,6 +6421,10 @@ var gMissingPluginInstaller = {
       link.href = gMissingPluginInstaller.crashReportHelpURL;
       let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
       description.appendChild(link);
+
+      // Remove the notfication when the page is reloaded.
+      doc.defaultView.top.addEventListener("unload", function() {
+        notificationBox.removeNotification(notification); }, false);
     }
 
   },
