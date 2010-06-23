@@ -1,0 +1,28 @@
+From 31a2c01f8871dcad1a776632441ae6d21adfbbc5 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Fri, 7 May 2010 15:08:01 +0200
+Subject: Use png_set_filter to make libpng not use write filters
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=564410
+---
+ modules/libpr0n/encoders/png/nsPNGEncoder.cpp |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/modules/libpr0n/encoders/png/nsPNGEncoder.cpp b/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
+index ef1909a..392303c 100644
+--- a/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
++++ b/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
+@@ -251,6 +251,10 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
+     return NS_ERROR_INVALID_ARG;
+   }
+ 
++#ifdef PNG_WRITE_FILTER_SUPPORTED
++  png_set_filter(mPNG, PNG_FILTER_TYPE_BASE, PNG_FILTER_VALUE_NONE);
++#endif
++
+   // write each row: if we add more input formats, we may want to
+   // generalize the conversions
+   if (aInputFormat == INPUT_FORMAT_HOSTARGB) {
+-- 
+1.7.1.rc1.280.g493d5
+
