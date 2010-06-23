@@ -1,3 +1,26 @@
+xulrunner (1.9.2.4-1) experimental; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2010-{26,28-33}, also known as
+    CVE-2010-1200, CVE-2010-1202, CVE-2010-1203, CVE-2010-1198,
+    CVE-2010-1196, CVE-2010-1199, CVE-2010-1125, CVE-2010-1197,
+    CVE-2008-5913.
+    Closes: #532516
+
+  * modules/libpr0n/encoders/png/nsPNGEncoder.cpp: Use png_set_filter to make
+    libpng not use write filters. bz#564410.
+  * netwerk/protocol/http/src/nsHttpChannel.cpp: Make sure to call
+    OnStartRequest even if we're failing on an SSL CONNECT. bz#561536.
+    Closes: #553635.
+  * memory/jemalloc/jemalloc.c: Use syscall() for mmap and munmap, and disable
+    ncpus use in jemalloc to work around deadlocks. Replaces the previous patch
+    to use a small pool of static memory during initialization. bz#435683
+
+  * debian/test.mk: Re-enable PNG xpcshell tests that were failing when using
+    system library.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 23 Jun 2010 12:39:34 +0200
+
 xulrunner (1.9.2.4~build2-3) experimental; urgency=low
 
   * debian/rules, debian/xulrunner-BASE_VERSION.install.in: Don't install
