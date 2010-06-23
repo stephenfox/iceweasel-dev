@@ -5498,11 +5498,10 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
       return NS_ERROR_CONTENT_BLOCKED;
     }
 
-    nsPluginStreamListenerPeer *listenerPeer = new nsPluginStreamListenerPeer;
+    nsRefPtr<nsPluginStreamListenerPeer> listenerPeer = new nsPluginStreamListenerPeer();
     if (listenerPeer == NULL)
       return NS_ERROR_OUT_OF_MEMORY;
 
-    NS_ADDREF(listenerPeer);
     rv = listenerPeer->Initialize(url, aInstance, aListener);
 
     if (NS_SUCCEEDED(rv)) {
@@ -5574,7 +5573,6 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
       }
       rv = channel->AsyncOpen(listenerPeer, nsnull);
     }
-    NS_RELEASE(listenerPeer);
   }
   return rv;
 }

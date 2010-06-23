@@ -64,6 +64,10 @@
 
 #include "nsNPAPIPlugin.h"
 
+#ifdef XP_WIN
+#include "COMMessageFilter.h"
+#endif
+
 using namespace mozilla::plugins;
 
 namespace {
@@ -73,6 +77,11 @@ static QApplication *gQApp = nsnull;
 #endif
 }
 
+#if defined(XP_WIN)
+// Used with fix for flash fullscreen window losing focus.
+const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
+static bool gDelayFlashFocusReplyUntilEval = false;
+#endif
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
@@ -85,6 +94,7 @@ PluginModuleChild::PluginModuleChild() :
 #endif
 #ifdef OS_WIN
   , mNestedEventHook(NULL)
+  , mGlobalCallWndProcHook(NULL)
 #endif
 {
     NS_ASSERTION(!gInstance, "Something terribly wrong here!");
@@ -122,6 +132,10 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
                         IPC::Channel* aChannel)
 {
     PLUGIN_LOG_DEBUG_METHOD;
+
+#ifdef XP_WIN
+    COMMessageFilter::Initialize(this);
+#endif
 
     NS_ASSERTION(aChannel, "need a channel");
 
@@ -497,7 +511,7 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
     memset(&mFunctions, 0, sizeof(mFunctions));
 
 #ifdef OS_WIN
-    ResetNestedInputEventHook();
+    ResetEventHooks();
 #endif
 
     return true;
@@ -1146,6 +1160,13 @@ _evaluate(NPP aNPP,
         return false;
     }
 
+#ifdef XP_WIN
+    if (gDelayFlashFocusReplyUntilEval) {
+        ReplyMessage(0);
+        gDelayFlashFocusReplyUntilEval = false;
+    }
+#endif
+
     return actor->Evaluate(aScript, aResult);
 }
 
@@ -1441,7 +1462,7 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 #endif
 
 #ifdef OS_WIN
-    SetNestedInputEventHook();
+    SetEventHooks();
 #endif
 
 #if defined(OS_LINUX)
@@ -1792,7 +1813,7 @@ PluginModuleChild::NPN_IntFromIdentifier(NPIdentifier aIdentifier)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    if (static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
+    if (!static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
       return static_cast<PluginIdentifierChildInt*>(aIdentifier)->ToInt();
     }
     return PR_INT32_MIN;
@@ -1818,6 +1839,31 @@ PluginModuleChild::ExitedCall()
 }
 
 LRESULT CALLBACK
+PluginModuleChild::CallWindowProcHook(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    // Trap and reply to anything we recognize as the source of a
+    // potential send message deadlock.
+    if (nCode >= 0 &&
+        (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+        CWPSTRUCT* pCwp = reinterpret_cast<CWPSTRUCT*>(lParam);
+        if (pCwp->message == WM_KILLFOCUS) {
+            // Fix for flash fullscreen window loosing focus. On single
+            // core systems, sync killfocus events need to be handled
+            // after the flash fullscreen window procedure processes this
+            // message, otherwise fullscreen focus will not work correctly.
+            PRUnichar szClass[26];
+            if (GetClassNameW(pCwp->hwnd, szClass,
+                              sizeof(szClass)/sizeof(PRUnichar)) &&
+                !wcscmp(szClass, kFlashFullscreenClass)) {
+                gDelayFlashFocusReplyUntilEval = true;
+            }
+        }
+    }
+
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
+
+LRESULT CALLBACK
 PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
 {
     PluginModuleChild* self = current();
@@ -1835,29 +1881,38 @@ PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
 }
 
 void
-PluginModuleChild::SetNestedInputEventHook()
+PluginModuleChild::SetEventHooks()
 {
     NS_ASSERTION(!mNestedEventHook,
         "mNestedEventHook already setup in call to SetNestedInputEventHook?");
+    NS_ASSERTION(!mGlobalCallWndProcHook,
+        "mGlobalCallWndProcHook already setup in call to CallWindowProcHook?");
 
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
-    // WH_GETMESSAGE hooks are triggered by peek message calls in parent due to
-    // attached message queues, resulting in stomped in-process ipc calls.  So
-    // we use a filter hook specific to dialogs, menus, and scroll bars to kick
-    // things off.
+    // WH_MSGFILTER event hook for detecting modal loops in the child.
     mNestedEventHook = SetWindowsHookEx(WH_MSGFILTER,
                                         NestedInputEventHook,
                                         NULL,
                                         GetCurrentThreadId());
+
+    // WH_CALLWNDPROC event hook for trapping sync messages sent from
+    // parent that can cause deadlocks.
+    mGlobalCallWndProcHook = SetWindowsHookEx(WH_CALLWNDPROC,
+                                              CallWindowProcHook,
+                                              NULL,
+                                              GetCurrentThreadId());
 }
 
 void
-PluginModuleChild::ResetNestedInputEventHook()
+PluginModuleChild::ResetEventHooks()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
     if (mNestedEventHook)
         UnhookWindowsHookEx(mNestedEventHook);
     mNestedEventHook = NULL;
+    if (mGlobalCallWndProcHook)
+        UnhookWindowsHookEx(mGlobalCallWndProcHook);
+    mGlobalCallWndProcHook = NULL;
 }
 #endif

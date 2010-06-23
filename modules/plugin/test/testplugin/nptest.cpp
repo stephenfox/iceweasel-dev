@@ -158,6 +158,7 @@ static bool getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t ar
 static bool callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
+static bool getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -200,7 +201,8 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getClipboardText",
   "callOnDestroy",
   "reinitWidget",
-  "propertyAndMethod"
+  "propertyAndMethod",
+  "getReflector"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -244,7 +246,8 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   getClipboardText,
   callOnDestroy,
   reinitWidget,
-  propertyAndMethod
+  propertyAndMethod,
+  getReflector
 };
 static const NPUTF8* sPluginPropertyIdentifierNames[] = {
   "propertyAndMethod"
@@ -1256,6 +1259,12 @@ NPN_GetStringIdentifiers(const NPUTF8 **names, int32_t nameCount, NPIdentifier *
   return sBrowserFuncs->getstringidentifiers(names, nameCount, identifiers);
 }
 
+bool
+NPN_IdentifierIsString(NPIdentifier identifier)
+{
+  return sBrowserFuncs->identifierisstring(identifier);
+}
+
 NPUTF8*
 NPN_UTF8FromIdentifier(NPIdentifier identifier)
 {
@@ -1645,7 +1654,15 @@ scriptableRemoveProperty(NPObject* npobj, NPIdentifier name)
 bool
 scriptableEnumerate(NPObject* npobj, NPIdentifier** identifier, uint32_t* count)
 {
-  return false;
+  const int bufsize = sizeof(NPIdentifier) * ARRAY_LENGTH(sPluginMethodIdentifierNames);
+  NPIdentifier* ids = (NPIdentifier*) NPN_MemAlloc(bufsize);
+  if (!ids)
+    return false;
+
+  memcpy(ids, sPluginMethodIdentifiers, bufsize);
+  *identifier = ids;
+  *count = ARRAY_LENGTH(sPluginMethodIdentifierNames);
+  return true;
 }
 
 bool
@@ -2784,5 +2801,61 @@ propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount,
                   NPVariant* result)
 {
   INT32_TO_NPVARIANT(5, *result);
+  return true;
+}
+
+static bool
+ReflectorHasMethod(NPObject* npobj, NPIdentifier name)
+{
+  return false;
+}
+
+static bool
+ReflectorHasProperty(NPObject* npobj, NPIdentifier name)
+{
+  return true;
+}
+
+static bool
+ReflectorGetProperty(NPObject* npobj, NPIdentifier name, NPVariant* result)
+{
+  if (NPN_IdentifierIsString(name)) {
+    char* s = NPN_UTF8FromIdentifier(name);
+    STRINGZ_TO_NPVARIANT(s, *result);
+    return true;
+  }
+
+  INT32_TO_NPVARIANT(NPN_IntFromIdentifier(name), *result);
+  return true;
+}
+
+static const NPClass kReflectorNPClass = {
+  NP_CLASS_STRUCT_VERSION,
+  NULL,
+  NULL,
+  NULL,
+  ReflectorHasMethod,
+  NULL,
+  NULL,
+  ReflectorHasProperty,
+  ReflectorGetProperty,
+  NULL,
+  NULL,
+  NULL,
+  NULL
+};
+
+bool
+getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
+{
+  if (0 != argCount)
+    return false;
+
+  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
+
+  NPObject* reflector =
+    NPN_CreateObject(npp,
+		     const_cast<NPClass*>(&kReflectorNPClass)); // retains
+  OBJECT_TO_NPVARIANT(reflector, *result);
   return true;
 }
