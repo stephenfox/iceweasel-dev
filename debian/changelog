@@ -1,3 +1,9 @@
+iceweasel (3.6.4-1) experimental; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 23 Jun 2010 15:27:03 +0200
+
 iceweasel (3.6.4~build2-1) experimental; urgency=low
 
   * debian/copyright, debian/remove.nonfree: Update to fit new upstream
