@@ -1,4 +1,3 @@
-From 77b095dc52d200294db45db3be6c1c2bf0123df9 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <glandium@debian.org>
 Date: Mon, 31 May 2010 13:05:41 +0200
 Subject: Use syscall() for mmap and munmap and disable ncpus in jemalloc to work around deadlocks with LD_PRELOADed libraries
@@ -118,6 +117,3 @@ index 31de338..3ba5098 100644
  
  	result = sysconf(_SC_PAGESIZE);
  	assert(result != -1);
--- 
-1.7.1.rc1.280.g493d5
-

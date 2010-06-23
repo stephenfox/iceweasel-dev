@@ -208,7 +208,7 @@ index b4c6860..5169da8 100644
  
  #endif // nsPNGDecoder_h__
 diff --git a/modules/libpr0n/encoders/png/nsPNGEncoder.cpp b/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
-index ef1909a..83f34e2 100644
+index 392303c..784135a 100644
 --- a/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
 +++ b/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
 @@ -51,7 +51,9 @@
@@ -309,7 +309,7 @@ index ef1909a..83f34e2 100644
  
    // Stride is the padded width of each row, so it better be longer (I'm afraid
    // people will not understand what stride means, so check it well)
-@@ -283,9 +302,11 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
+@@ -287,9 +306,11 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
      return NS_ERROR_INVALID_ARG;
    }
  
@@ -321,7 +321,7 @@ index ef1909a..83f34e2 100644
  
    return NS_OK;
  }
-@@ -321,12 +342,14 @@ NS_IMETHODIMP nsPNGEncoder::EndImageEncode()
+@@ -325,12 +346,14 @@ NS_IMETHODIMP nsPNGEncoder::EndImageEncode()
  nsresult
  nsPNGEncoder::ParseOptions(const nsAString& aOptions,
                             PRBool* useTransparency,
@@ -336,7 +336,7 @@ index ef1909a..83f34e2 100644
                             PRUint32* offsetX,
                             PRUint32* offsetY)
  {
-@@ -355,6 +378,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
+@@ -359,6 +382,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
          return NS_ERROR_INVALID_ARG;
        }
  
@@ -344,7 +344,7 @@ index ef1909a..83f34e2 100644
      // skipfirstframe=[yes|no]
      } else if (nsCRT::strcmp(token, "skipfirstframe") == 0 && skipFirstFrame) {
        if (!value) { return NS_ERROR_INVALID_ARG; }
-@@ -414,6 +438,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
+@@ -418,6 +442,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
        if (!value) { return NS_ERROR_INVALID_ARG; }
  
        if (PR_sscanf(value, "%u", frameDelay) != 1) { return NS_ERROR_INVALID_ARG; }
