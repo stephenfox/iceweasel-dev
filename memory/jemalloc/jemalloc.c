@@ -369,6 +369,53 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 
 #include "jemalloc.h"
 
+/* Some tools, such as /dev/dsp wrappers, LD_PRELOAD libraries that
+ * happen to override mmap() and call dlsym() from their overridden
+ * mmap(). The problem is that dlsym() calls malloc(), and this ends
+ * up in a dead lock in jemalloc.
+ * On these systems, we prefer to directly use the system call.
+ * We do that for Linux systems and kfreebsd with GNU userland.
+ * Note sanity checks are not done (alignment of offset, ...) because
+ * the uses of mmap are pretty limited, in jemalloc.
+ *
+ * On Alpha, glibc has a bug that prevents syscall() to work for system
+ * calls with 6 arguments
+ */
+#if (defined(MOZ_MEMORY_LINUX) && !defined(__alpha__)) || \
+    (defined(MOZ_MEMORY_BSD) && defined(__GLIBC__))
+#include <sys/syscall.h>
+#if defined(SYS_mmap) || defined(SYS_mmap2)
+static inline
+void *_mmap(void *addr, size_t length, int prot, int flags,
+            int fd, off_t offset)
+{
+/* S390 only passes one argument to the mmap system call, which is a
+ * pointer to a structure containing the arguments */
+#ifdef __s390__
+	struct {
+		void *addr;
+		size_t length;
+		int prot;
+		int flags;
+		int fd;
+		off_t offset;
+	} args = { addr, length, prot, flags, fd, offset };
+	return (void *) syscall(SYS_mmap, &args);
+#else
+#ifdef SYS_mmap2
+	return (void *) syscall(SYS_mmap2, addr, length, prot, flags,
+	                       fd, offset >> 12);
+#else
+	return (void *) syscall(SYS_mmap, addr, length, prot, flags,
+                               fd, offset);
+#endif
+#endif
+}
+#define mmap _mmap
+#define munmap(a, l) syscall(SYS_munmap, a, l)
+#endif
+#endif
+
 #ifdef MOZ_MEMORY_DARWIN
 static const bool __isthreaded = true;
 #endif
@@ -601,7 +648,6 @@ typedef malloc_spinlock_t malloc_mutex_t;
 
 /* Set to true once the allocator has been initialized. */
 static bool malloc_initialized = false;
-static bool malloc_initializing = false;
 
 #if defined(MOZ_MEMORY_WINDOWS)
 /* No init lock for Windows. */
@@ -985,8 +1031,10 @@ struct arena_s {
  * Data.
  */
 
+#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 /* Number of CPUs. */
 static unsigned		ncpus;
+#endif
 
 /* VM page size. */
 static size_t		pagesize;
@@ -3799,27 +3847,9 @@ arena_malloc(arena_t *arena, size_t size, bool zero)
 		return (arena_malloc_large(arena, size, zero));
 }
 
-#define STATIC_BUFFER_SIZE (64 * 1024)
-static char static_buffer[STATIC_BUFFER_SIZE];
-
-static inline void *
-static_alloc(size_t size)
-{
-	static char *next_buf = static_buffer;
-	char *ret = next_buf;
-
-	next_buf = &next_buf[size];
-	if (next_buf <= &static_buffer[STATIC_BUFFER_SIZE])
-		return ret;
-
-	return NULL;
-}
-
 static inline void *
 imalloc(size_t size)
 {
-	if (malloc_initializing)
-		goto static_alloc;
 
 	assert(size != 0);
 
@@ -3827,22 +3857,16 @@ imalloc(size_t size)
 		return (arena_malloc(choose_arena(), size, false));
 	else
 		return (huge_malloc(size, false));
-static_alloc:
-	return static_alloc(size);
 }
 
 static inline void *
 icalloc(size_t size)
 {
-	if (malloc_initializing)
-		goto static_alloc;
 
 	if (size <= arena_maxclass)
 		return (arena_malloc(choose_arena(), size, true));
 	else
 		return (huge_malloc(size, true));
-static_alloc:
-	return static_alloc(size);
 }
 
 /* Only handles large allocations that require more than page alignment. */
@@ -4263,16 +4287,11 @@ idalloc(void *ptr)
 
 	assert(ptr != NULL);
 
-	if ((ptr >= (void *)static_buffer) && (ptr < (void *)&static_buffer[STATIC_BUFFER_SIZE]))
-		goto end;
-
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
 		arena_dalloc(chunk->arena, chunk, ptr);
 	else
 		huge_dalloc(ptr);
-end:
-	return;
 }
 
 static void
@@ -4938,6 +4957,7 @@ huge_dalloc(void *ptr)
 	base_node_dealloc(node);
 }
 
+#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 #ifdef MOZ_MEMORY_BSD
 static inline unsigned
 malloc_ncpus(void)
@@ -5047,6 +5067,7 @@ malloc_ncpus(void)
 	return (1);
 }
 #endif
+#endif
 
 static void
 malloc_print_stats(void)
@@ -5086,7 +5107,9 @@ malloc_print_stats(void)
 #endif
 		_malloc_message("\n", "", "", "");
 
+#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 		_malloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
+#endif
 		_malloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
 #ifdef MALLOC_BALANCE
 		_malloc_message("Arena balance threshold: ",
@@ -5228,10 +5251,6 @@ malloc_init_hard(void)
 	int linklen;
 #endif
 
-	/* Recursive malloc_init(), it means we still need to allocate memory */
-	if (malloc_initializing)
-		return(false);
-
 #ifndef MOZ_MEMORY_WINDOWS
 	malloc_mutex_lock(&init_lock);
 #endif
@@ -5246,7 +5265,6 @@ malloc_init_hard(void)
 #endif
 		return (false);
 	}
-	malloc_initializing = true;
 
 #ifdef MOZ_MEMORY_WINDOWS
 	/* get a thread local storage index */
@@ -5263,10 +5281,14 @@ malloc_init_hard(void)
 
 		pagesize = (unsigned) result;
 
+#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 		ncpus = info.dwNumberOfProcessors;
+#endif
 	}
 #else
+#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 	ncpus = malloc_ncpus();
+#endif
 
 	result = sysconf(_SC_PAGESIZE);
 	assert(result != -1);
@@ -5702,7 +5724,6 @@ MALLOC_OUT:
 	/* Allocate and initialize arenas. */
 	arenas = (arena_t **)base_alloc(sizeof(arena_t *) * narenas);
 	if (arenas == NULL) {
-		malloc_initializing = false;
 #ifndef MOZ_MEMORY_WINDOWS
 		malloc_mutex_unlock(&init_lock);
 #endif
@@ -5720,7 +5741,6 @@ MALLOC_OUT:
 	 */
 	arenas_extend(0);
 	if (arenas[0] == NULL) {
-		malloc_initializing = false;
 #ifndef MOZ_MEMORY_WINDOWS
 		malloc_mutex_unlock(&init_lock);
 #endif
@@ -5755,7 +5775,6 @@ MALLOC_OUT:
 		return (true);
 #endif
 
-	malloc_initializing = false;
 	malloc_initialized = true;
 #ifndef MOZ_MEMORY_WINDOWS
 	malloc_mutex_unlock(&init_lock);
