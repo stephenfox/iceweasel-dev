@@ -1,3 +1,10 @@
+xulrunner (1.9.2.4-2) experimental; urgency=low
+
+  * Import the sole change from new upstream release 1.9.2.6:
+    - modules/libpref/src/init/all.js: Increase the OOPP hang timeout.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 28 Jun 2010 09:34:08 +0200
+
 xulrunner (1.9.2.4-1) experimental; urgency=low
 
   * New upstream release.
