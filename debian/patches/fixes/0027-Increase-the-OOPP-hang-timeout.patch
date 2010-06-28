@@ -1,0 +1,27 @@
+From d1ec18ce1736c94730bf072534b85ddecb3a2654 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <glandium@debian.org>
+Date: Mon, 28 Jun 2010 09:27:25 +0200
+Subject: Increase the OOPP hang timeout
+
+---
+ modules/libpref/src/init/all.js |    4 +---
+ 1 files changed, 1 insertions(+), 3 deletions(-)
+
+diff --git a/modules/libpref/src/init/all.js b/modules/libpref/src/init/all.js
+index 8f74c04..8e669c3 100644
+--- a/modules/libpref/src/init/all.js
++++ b/modules/libpref/src/init/all.js
+@@ -1224,9 +1224,7 @@ pref("dom.max_script_run_time", 10);
+ 
+ // How long a plugin is allowed to process a synchronous IPC message
+ // before we consider it "hung".
+-//
+-//  NB: chosen to match dom.max_script_run_time by default
+-pref("dom.ipc.plugins.timeoutSecs", 10);
++pref("dom.ipc.plugins.timeoutSecs", 45);
+ 
+ pref("svg.enabled", true);
+ pref("svg.smil.enabled", false);
+-- 
+1.7.1.rc1.280.g493d5
+

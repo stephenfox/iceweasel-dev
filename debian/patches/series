@@ -36,6 +36,7 @@ fixes/0023-Fix-race-condition-in-test_autocomplete.js.patch
 fixes/0024-Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
 fixes/0025-Make-sure-to-call-OnStartRequest-even-if-we-re-faili.patch
 fixes/0026-Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
+fixes/0027-Increase-the-OOPP-hang-timeout.patch
 porting/0001-Support-building-on-GNU-Hurd.patch
 porting/0002-Increase-stability-and-performance-on-mips.patch
 porting/0003-Build-xptcstubs-with-less-optimizations-on-hppa.patch
