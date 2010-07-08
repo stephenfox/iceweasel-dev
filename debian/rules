@@ -84,9 +84,6 @@ endif
 
 export CC CXX CFLAGS CXXFLAGS
 
-JS_LDFLAGS := $(MAIN_LDFLAGS)
-JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
-
 GENERATED_FILES += debian/dh/dh_xulrunner.1
 
 debian/dh/dh_xulrunner.1: debian/dh/dh_xulrunner
@@ -137,7 +134,7 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-default-mozilla-five-home=/usr/lib/xulrunner-$(GRE_VERSION)
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
-	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
 
 stamps/configure-check-xulrunner:: stamps/configure-xulrunner
 # Ensure --{with,enable}-system options properly set expected variables
