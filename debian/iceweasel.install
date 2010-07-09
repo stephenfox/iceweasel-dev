@@ -1,4 +1,3 @@
-debian/tmp/usr/lib/iceweasel/.autoreg usr/lib/iceweasel
 debian/tmp/usr/lib/iceweasel/components usr/lib/iceweasel
 debian/iceweasel-xremote-client usr/lib/iceweasel
 
