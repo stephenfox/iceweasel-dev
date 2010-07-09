@@ -1,6 +1,5 @@
 debian/tmp/usr/lib/iceweasel/.autoreg usr/lib/iceweasel
 debian/tmp/usr/lib/iceweasel/components usr/lib/iceweasel
-debian/tmp/usr/lib/iceweasel/browserconfig.properties usr/share/iceweasel
 debian/iceweasel-xremote-client usr/lib/iceweasel
 
 debian/tmp/usr/lib/iceweasel/defaults/preferences usr/share/iceweasel/defaults
