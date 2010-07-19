@@ -7,7 +7,7 @@ Subject: Build oss support for libsydneyaudio on *bsd and hurd
  1 files changed, 6 insertions(+), 0 deletions(-)
 
 diff --git a/media/libsydneyaudio/src/Makefile.in b/media/libsydneyaudio/src/Makefile.in
-index 8feca70..d15526b 100644
+index e8efc0a..47f4ec3 100644
 --- a/media/libsydneyaudio/src/Makefile.in
 +++ b/media/libsydneyaudio/src/Makefile.in
 @@ -45,6 +45,12 @@ MODULE		= sydneyaudio

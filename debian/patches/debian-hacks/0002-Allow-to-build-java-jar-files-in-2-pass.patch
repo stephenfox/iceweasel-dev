@@ -38,10 +38,10 @@ index 0995bb9..3243935 100644
  	$(MAKE) -C src jar-install
 +endif
 diff --git a/toolkit/toolkit-makefiles.sh b/toolkit/toolkit-makefiles.sh
-index b5ce189..40b63b7 100644
+index 5b3e1ac..86f1ec4 100644
 --- a/toolkit/toolkit-makefiles.sh
 +++ b/toolkit/toolkit-makefiles.sh
-@@ -1316,7 +1316,7 @@ if [ "$MOZ_WEBSERVICES" ]; then
+@@ -1320,7 +1320,7 @@ if [ "$MOZ_WEBSERVICES" ]; then
    "
  fi
  

@@ -1,3 +1,9 @@
+xulrunner (1.9.2.7-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 19 Jul 2010 13:01:04 +0200
+
 xulrunner (1.9.2.4-2) experimental; urgency=low
 
   * Import the sole change from new upstream release 1.9.2.6:

@@ -9,7 +9,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=501300
  2 files changed, 5 insertions(+), 1 deletions(-)
 
 diff --git a/js/src/jstracer.cpp b/js/src/jstracer.cpp
-index e82f5ea..245b4ee 100644
+index f081377..9e70977 100644
 --- a/js/src/jstracer.cpp
 +++ b/js/src/jstracer.cpp
 @@ -241,7 +241,11 @@ JSClass jitstats_class = {
@@ -25,7 +25,7 @@ index e82f5ea..245b4ee 100644
  {
      JS_InitClass(cx, glob, NULL, &jitstats_class, NULL, 0, jitstats_props, NULL, NULL, NULL);
 diff --git a/js/src/shell/js.cpp b/js/src/shell/js.cpp
-index 222e1c4..817166d 100644
+index 42e86cd..8beadc0 100644
 --- a/js/src/shell/js.cpp
 +++ b/js/src/shell/js.cpp
 @@ -725,7 +725,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)

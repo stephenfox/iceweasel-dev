@@ -8,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=555189
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/testing/testsuite-targets.mk b/testing/testsuite-targets.mk
-index 7528a95..f70bfde 100644
+index 4cb0b21..e5c2820 100644
 --- a/testing/testsuite-targets.mk
 +++ b/testing/testsuite-targets.mk
 @@ -101,6 +101,8 @@ jstestbrowser:

@@ -33,7 +33,7 @@ index 41ead42..5b574d9 100644
  #
  ifeq ($(OS_ARCH),WINNT)
 diff --git a/configure.in b/configure.in
-index 5364435..426bc53 100644
+index 97f58ba..04c9e76 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -1084,6 +1084,7 @@ if test -n "$CROSS_COMPILE"; then

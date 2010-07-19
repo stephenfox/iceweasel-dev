@@ -34,9 +34,7 @@ fixes/0021-Expose-fullpath-from-nsIPluginTag.patch
 fixes/0022-Change-parameter-type-of-JS_-CEILING-FLOOR-_LOG2W-an.patch
 fixes/0023-Fix-race-condition-in-test_autocomplete.js.patch
 fixes/0024-Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
-fixes/0025-Make-sure-to-call-OnStartRequest-even-if-we-re-faili.patch
-fixes/0026-Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
-fixes/0027-Increase-the-OOPP-hang-timeout.patch
+fixes/0025-Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
 porting/0001-Support-building-on-GNU-Hurd.patch
 porting/0002-Increase-stability-and-performance-on-mips.patch
 porting/0003-Build-xptcstubs-with-less-optimizations-on-hppa.patch
@@ -55,7 +53,6 @@ prefs/0003-Set-DPI-to-system-settings.patch
 prefs/0004-Set-extensions.dss.enabled-to-false-at-XRE-level.patch
 system-libs/0001-Avoid-visibility-hidden-issues-with-readline-symbols.patch
 system-libs/0002-Allow-to-build-against-system-libffi.patch
-system-libs/0003-Support-building-against-system-libevent.patch
 debian-hacks/0001-Put-the-crmf-library-before-the-NSS-libraries.patch
 debian-hacks/0002-Allow-to-build-java-jar-files-in-2-pass.patch
 debian-hacks/0003-Avoid-libxpcom-being-excluded-from-linked-libraries-.patch

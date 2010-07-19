@@ -8,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=554036
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/layout/reftests/bugs/reftest.list b/layout/reftests/bugs/reftest.list
-index 7b482a0..2b3545b 100644
+index 80939ae..0d8d371 100644
 --- a/layout/reftests/bugs/reftest.list
 +++ b/layout/reftests/bugs/reftest.list
 @@ -948,7 +948,7 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl

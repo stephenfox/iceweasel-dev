@@ -124,7 +124,7 @@ index 4fd943a..9e1438a 100644
 -	@(cd $(DIST_BIN)/plugins && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_PLUGINS)) | (cd $(PKG_STAGE)/bin/plugins && tar -xf -)
 -endif
 diff --git a/testing/xpcshell/Makefile.in b/testing/xpcshell/Makefile.in
-index 9fbb10b..592c4c2 100644
+index 14d8a48..8bab8a8 100644
 --- a/testing/xpcshell/Makefile.in
 +++ b/testing/xpcshell/Makefile.in
 @@ -66,8 +66,8 @@ EXTRA_BUILD_FILES := \
@@ -137,8 +137,8 @@ index 9fbb10b..592c4c2 100644
 +  distribution/bundles/reftest \
    $(NULL)
  
- # Rules for staging the necessary harness bits for a test package
-@@ -78,4 +78,4 @@ stage-package:
+ ifdef MOZ_CRASHREPORTER
+@@ -83,4 +83,4 @@ stage-package:
  	@(cd $(srcdir) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_FILES)) | (cd $(PKG_STAGE)/xpcshell && tar -xf -)
  	@(cd $(topsrcdir)/build && tar $(TAR_CREATE_FLAGS) - $(EXTRA_BUILD_FILES)) | (cd $(PKG_STAGE)/xpcshell && tar -xf -)
  	@(cd $(DEPTH)/_tests/xpcshell/ && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/xpcshell/tests && tar -xf -)
