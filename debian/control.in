@@ -94,7 +94,6 @@ Architecture: any
 Depends: ${misc:Depends},
          libmozjs##SO_VERSION## (= ${binary:Version}),
          libnspr4-dev
-Conflicts: mozilla-browser (<< 2:1.8)
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
  the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
@@ -148,7 +147,6 @@ Depends: ${shlibs:Depends},
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${source:Version})
-Replaces: xulrunner-dev-bin
 Description: Development files for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
  The Gecko engine is the core of the mozilla.org applications such as
