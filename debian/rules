@@ -81,7 +81,22 @@ override_dh_auto_configure: debian/mozconfig
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
 
-override_dh_auto_build:
+check-system-libs:
+	@awk -F' *# *| *$$' ' \
+	$$1 ~ /system/ { \
+		if (! $$2) { \
+			print FILENAME ": Missing variable for",$$1; \
+			error=1; \
+		} else { \
+			split($$2,var,"="); \
+			cmd = "$(MAKE) --no-print-directory echo-variable-" var[1]; \
+			cmd |  getline value; \
+			if (value != var[2]) { print $$1, "triggered", var[1] "=" value,"instead of",$$2; error=1 } \
+		} \
+	} \
+	END { if (error) { exit 1 }}' debian/mozconfig.in
+
+override_dh_auto_build: check-system-libs
 	dh_auto_build --parallel -- \
 		$(JAVA_VARS) \
 		JS_READLINE=1 \
@@ -182,7 +197,7 @@ install binary binary-arch binary-indep: $(PREPROCESSED_FILES)
 binary binary-arch binary-indep build clean install:
 	dh $@
 
-.PHONY: build clean binary-indep binary-arch binary install test $(TESTS) xpcshell-tests-skip
+.PHONY: build clean binary-indep binary-arch binary install test $(TESTS) xpcshell-tests-skip check-system-libs
 
 .NOTPARALLEL:
 endif
