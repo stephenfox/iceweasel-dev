@@ -7,7 +7,7 @@ Build-Depends: autotools-dev, debhelper (>= 7.2.3), imagemagick,
 	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
 	zip, xulrunner-dev (>= ##GRE_VERSION##), xulrunner-dev (<= ##GRE_VERSION##.999)
 Build-Conflicts: graphicsmagick-imagemagick-compat, libhildonmime-dev, libosso-dev
-Standards-Version: 3.8.4.0
+Standards-Version: 3.9.0.0
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
 Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 
