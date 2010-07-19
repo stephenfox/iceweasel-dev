@@ -45,6 +45,14 @@ ifeq (,$(filter debug noopt,$(DEB_BUILD_OPTIONS)))
 	GENSYMBOLS_FLAGS := -c4
 endif
 
+ifndef CXX
+CXX := g++
+endif
+CXXFLAGS := $(CFLAGS)
+ifeq (,$(shell dpkg --compare-versions $(shell $(CXX) -dumpversion) '>=' 4.4 || echo no))
+CXXFLAGS += -std=gnu++0x
+endif
+
 JS_LDFLAGS := $(MAIN_LDFLAGS)
 JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 
@@ -75,7 +83,7 @@ override_dh_auto_configure: debian/mozconfig
 	MOZCONFIG=debian/mozconfig \
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
-	CXXFLAGS="$(CFLAGS) -std=gnu++0x" \
+	CXXFLAGS="$(CXXFLAGS)" \
 	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS)
 	build/autoconf/make-makefile debian/extra-stuff
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
