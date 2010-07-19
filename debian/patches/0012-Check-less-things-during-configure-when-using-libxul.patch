@@ -9,7 +9,7 @@ we won't be building most of the toolkit.
  1 files changed, 28 insertions(+), 6 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index d60dff1..8f4e28a 100644
+index 9973e48f..5e85de0 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -4237,6 +4237,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
@@ -30,8 +30,8 @@ index d60dff1..8f4e28a 100644
 +  fi
  fi
  
- dnl ========================================================
-@@ -4786,6 +4791,10 @@ dnl =
+ dnl system libevent Support
+@@ -4822,6 +4827,10 @@ dnl =
  dnl ========================================================
  MOZ_ARG_HEADER(Toolkit Options)
  
@@ -42,7 +42,7 @@ index d60dff1..8f4e28a 100644
      dnl ========================================================
      dnl = Select the default toolkit
      dnl ========================================================
-@@ -4820,6 +4829,7 @@ MOZ_ARG_HEADER(Toolkit Options)
+@@ -4856,6 +4865,7 @@ MOZ_ARG_HEADER(Toolkit Options)
      else
          AC_MSG_ERROR([You must specify a default toolkit (perhaps $_PLATFORM_DEFAULT_TOOLKIT).])
      fi
@@ -50,7 +50,7 @@ index d60dff1..8f4e28a 100644
  
  AC_DEFINE_UNQUOTED(MOZ_DEFAULT_TOOLKIT,"$MOZ_WIDGET_TOOLKIT")
  
-@@ -4947,6 +4957,7 @@ dnl ========================================================
+@@ -4983,6 +4993,7 @@ dnl ========================================================
  dnl = startup-notification support module
  dnl ========================================================
  
@@ -58,7 +58,7 @@ index d60dff1..8f4e28a 100644
  if test "$MOZ_ENABLE_GTK2"
  then
      MOZ_ENABLE_STARTUP_NOTIFICATION=
-@@ -4974,6 +4985,7 @@ then
+@@ -5010,6 +5021,7 @@ then
  
      TK_LIBS="$TK_LIBS $MOZ_STARTUP_NOTIFICATION_LIBS"
  fi
@@ -66,7 +66,7 @@ index d60dff1..8f4e28a 100644
  AC_SUBST(MOZ_ENABLE_STARTUP_NOTIFICATION)
  AC_SUBST(MOZ_STARTUP_NOTIFICATION_CFLAGS)
  AC_SUBST(MOZ_STARTUP_NOTIFICATION_LIBS)
-@@ -5034,6 +5046,12 @@ AC_SUBST(MOZ_QT_LIBS)
+@@ -5070,6 +5082,12 @@ AC_SUBST(MOZ_QT_LIBS)
  AC_SUBST(MOC)
  
  AC_SUBST(MOZ_DFB)
@@ -79,7 +79,7 @@ index d60dff1..8f4e28a 100644
  AC_SUBST(MOZ_X11)
  
  dnl ========================================================
-@@ -5134,7 +5152,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
+@@ -5170,7 +5188,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
  dnl ========================================================
  dnl = Pango
  dnl ========================================================
@@ -88,7 +88,7 @@ index d60dff1..8f4e28a 100644
  then
      AC_SUBST(MOZ_PANGO)
  
-@@ -5169,6 +5187,7 @@ dnl ========================================================
+@@ -5205,6 +5223,7 @@ dnl ========================================================
  dnl = GnomeVFS support module
  dnl ========================================================
  
@@ -96,7 +96,7 @@ index d60dff1..8f4e28a 100644
  if test "$MOZ_X11"
  then
      dnl build the gnomevfs extension by default only when the
-@@ -5293,6 +5312,9 @@ AC_SUBST(MOZ_ENABLE_DBUS)
+@@ -5329,6 +5348,9 @@ AC_SUBST(MOZ_ENABLE_DBUS)
  AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
  AC_SUBST(MOZ_DBUS_GLIB_LIBS)
  
@@ -106,7 +106,7 @@ index d60dff1..8f4e28a 100644
  dnl ========================================================
  dnl = libnotify support
  dnl ========================================================
-@@ -5620,7 +5642,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
+@@ -5656,7 +5678,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
  dnl ========================================================
  
  dnl If using sydneyaudio with Linux, ensure that the alsa library is available
@@ -115,7 +115,7 @@ index d60dff1..8f4e28a 100644
  if test -n "$MOZ_SYDNEYAUDIO"; then
     case "$target_os" in
  linux*)
-@@ -6694,7 +6716,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
+@@ -6742,7 +6764,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
      MOZ_MEMORY=1,
      MOZ_MEMORY=)
  
@@ -124,7 +124,7 @@ index d60dff1..8f4e28a 100644
      MOZ_MEMORY=
  fi
  
-@@ -7582,7 +7604,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
+@@ -7630,7 +7652,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
      ;;
  esac
  
@@ -133,7 +133,7 @@ index d60dff1..8f4e28a 100644
      SKIP_IDL_CHECK="yes"
  fi
  
-@@ -7689,7 +7711,7 @@ if test -n "$CROSS_COMPILE"; then
+@@ -7737,7 +7759,7 @@ if test -n "$CROSS_COMPILE"; then
      fi
  fi
  
@@ -142,7 +142,7 @@ index d60dff1..8f4e28a 100644
  if test -z "${GLIB_CFLAGS}" || test -z "${GLIB_LIBS}" ; then
      if test "$MOZ_ENABLE_GTK2" || test "$USE_ELF_DYNSTR_GC" ; then
          PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
-@@ -8325,7 +8347,7 @@ if test "$USING_HCC"; then
+@@ -8360,7 +8382,7 @@ if test "$USING_HCC"; then
  fi
  
  dnl Check for missing components
