@@ -745,6 +745,8 @@ pref("network.IDN.whitelist.tw", true);
 pref("network.IDN.whitelist.vn", true);
 
 // IDN ccTLDs
+// ae, UAE, .<Emarat>
+pref("network.IDN.whitelist.xn--mgbaam7a8h", true); 
 // sa, Saudi Arabia, .<al-Saudiah>
 pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
 // ru, Russian Federation, .<RF>
@@ -901,6 +903,9 @@ pref("network.proxy.autoconfig_url", "");
 // until we reach interval_max or the PAC file is successfully loaded).
 pref("network.proxy.autoconfig_retry_interval_min", 5);    // 5 seconds
 pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
+
+pref("network.buffer.cache.count", 24);
+pref("network.buffer.cache.size",  4096);
 
 pref("converter.html2txt.structs",          true); // Output structured phrases (strong, em, code, sub, sup, b, i, u)
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
@@ -1224,9 +1229,7 @@ pref("dom.max_script_run_time", 10);
 
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
-//
-//  NB: chosen to match dom.max_script_run_time by default
-pref("dom.ipc.plugins.timeoutSecs", 10);
+pref("dom.ipc.plugins.timeoutSecs", 45);
 
 pref("svg.enabled", true);
 pref("svg.smil.enabled", false);
