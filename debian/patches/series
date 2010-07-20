@@ -35,6 +35,7 @@ fixes/0022-Change-parameter-type-of-JS_-CEILING-FLOOR-_LOG2W-an.patch
 fixes/0023-Fix-race-condition-in-test_autocomplete.js.patch
 fixes/0024-Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
 fixes/0025-Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
+fixes/0026-Fix-mozilla-plugin.pc.in-CFLAGS.patch
 porting/0001-Support-building-on-GNU-Hurd.patch
 porting/0002-Increase-stability-and-performance-on-mips.patch
 porting/0003-Build-xptcstubs-with-less-optimizations-on-hppa.patch
@@ -47,6 +48,8 @@ porting/0009-Fix-xptinvoke-and-xptstubs-on-mips-o32-big-endian.patch
 porting/0010-Force-better-nsAutoT-Ptr-Array-buffer-alignment.patch
 porting/0011-Add-xptcall-support-for-SH4-processors.patch
 porting/0012-Add-nanojit-support-for-ARMv4T.patch
+porting/0013-xpcom-PowerPC-lnx-add-support-for-soft-float.patch
+porting/0014-Build-the-test-plugin-on-GNU-kfreebsd.patch
 prefs/0001-Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/0002-Set-javascript.options.showInConsole.patch
 prefs/0003-Set-DPI-to-system-settings.patch
