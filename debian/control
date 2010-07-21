@@ -40,7 +40,6 @@ Build-Depends: debhelper (>= 7.0.50~),
                xauth,
                ttf-bitstream-vera,
                ttf-freefont
-Build-Depends-Indep: default-jdk | java-gcj-compat-dev (>= 1.0.56)
 Build-Conflicts: libhildonmime-dev,
                  libosso-dev
 Standards-Version: 3.9.0.0
@@ -181,24 +180,3 @@ Description: Debugging symbols for the Gecko engine library
  This package provides the debugging symbols for the xulrunner-1.9.2
  package.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
-
-Package: libmozillainterfaces-java
-Section: java
-Priority: extra
-Architecture: all
-Depends: xulrunner-1.9.2,
-         ${misc:Depends},
-         gij | java2-runtime
-Description: XPCOM bindings for Java
- JavaXPCOM allows for communication between Java and XPCOM, such that a
- Java application can access XPCOM objects, and XPCOM can access any Java
- class that implements an XPCOM interface.
- With JavaXPCOM, a developer can talk to XPCOM or embed Gecko from a Java
- application. JavaXPCOM is very similar to XPConnect (JavaScript-XPCOM
- bridge), and uses XPIDL
- .
- Install this package if you wish to access XPCOM objects from Java or
- the other way around.
- .
- This package also provides the JavaXPCOM interfaces sources.
-Homepage: http://developer.mozilla.org/en/docs/JavaXPCOM

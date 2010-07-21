@@ -5,7 +5,6 @@ usr/lib/xulrunner-##BASE_VERSION##/platform.ini
 
 usr/lib/xulrunner-##BASE_VERSION##/libxul.so
 usr/lib/xulrunner-##BASE_VERSION##/libxpcom.so
-usr/lib/xulrunner-##BASE_VERSION##/libjavaxpcomglue.so
 
 usr/bin/xulrunner-##BASE_VERSION##
 usr/lib/xulrunner-##BASE_VERSION##/run-mozilla.sh

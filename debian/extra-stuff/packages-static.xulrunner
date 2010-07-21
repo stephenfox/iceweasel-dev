@@ -8,10 +8,6 @@ bin/xpt_dump
 bin/xpt_link
 bin/xulrunner-stub
 
-[javaxpcom]
-bin/javaxpcom.jar
-bin/libjavaxpcomglue.so
-
 [debian]
 bin/reportbug-helper-script
 bin/components/addonsInfo.js
