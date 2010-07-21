@@ -461,6 +461,7 @@ libmozjs.so.##SO_VERSION## libmozjs##SO_VERSION## #MINVER#
  js_AttributeNameClass@Base 1.9.2
  js_CallClass@Base 1.9.2
  js_CallDestroyScriptHook@Base 1.9.2
+ js_CallFunctionValueWithFakeFrame@Base 1.9.2.7
  js_CallIteratorNext@Base 1.9.2
  js_CallNewScriptHook@Base 1.9.2
  js_CheckUndeclaredVarAssignment@Base 1.9.2
@@ -488,6 +489,7 @@ libmozjs.so.##SO_VERSION## libmozjs##SO_VERSION## #MINVER#
  js_GetErrorMessage@Base 1.9.2
  js_GetGCThingTraceKind@Base 1.9.2
  js_GetLocalNameArray@Base 1.9.2
+ js_GetPropertyByIdWithFakeFrame@Base 1.9.2.7
  js_GetScriptLineExtent@Base 1.9.2
  js_GetSlotThreadSafe@Base 1.9.2
  js_GetSrcNoteOffset@Base 1.9.2
@@ -508,6 +510,7 @@ libmozjs.so.##SO_VERSION## libmozjs##SO_VERSION## #MINVER#
  js_RestoreRegExpStatics@Base 1.9.2
  js_SaveAndClearRegExpStatics@Base 1.9.2
  js_ScriptClass@Base 1.9.2
+ js_SetPropertyByIdWithFakeFrame@Base 1.9.2.7
  js_SrcNoteLength@Base 1.9.2
  js_SrcNoteSpec@Base 1.9.2
  js_TraceContext@Base 1.9.2
