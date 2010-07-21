@@ -114,7 +114,7 @@
 #include "nsIParser.h"
 #include "nsIParserService.h"
 #include "nsCSSStyleSheet.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsIScriptError.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsEventDispatcher.h"
@@ -727,7 +727,7 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
-    PRBool notify = mInitialLayoutComplete || mHandlingDelayedBroadcasters;
+    PRBool notify = mDocumentLoaded || mHandlingDelayedBroadcasters;
 
     // We may be copying event handlers etc, so we must also copy
     // the script-type to the listener.
