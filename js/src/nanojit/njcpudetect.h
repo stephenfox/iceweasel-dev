@@ -91,7 +91,8 @@
 
     #define NJ_COMPILER_ARM_ARCH 5
 
-#elif   defined(__ARM_ARCH_4__)
+#elif   defined(__ARM_ARCH_4__) || \
+        defined(__ARM_ARCH_4T__)
 
     #define NJ_COMPILER_ARM_ARCH 4
 
