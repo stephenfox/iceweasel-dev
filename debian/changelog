@@ -1,3 +1,11 @@
+xulrunner (1.9.2.8-1) experimental; urgency=low
+
+  * New upstream release.
+  * Fixes mfsa-2010-48, also known as CVE-2010-2755.
+  * js/src/nanojit/njcpudetect.h: Add missing detection for armv4t.
+
+ -- Mike Hommey <glandium@agricola.debian.org>  Wed, 28 Jul 2010 10:22:31 +0000
+
 xulrunner (1.9.2.7-1) experimental; urgency=high
 
   * New upstream release.
