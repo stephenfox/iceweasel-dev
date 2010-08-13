@@ -71,7 +71,5 @@ endif
 libs::
 	$(INSTALL) $(IFLAGS2) $(PROGRAM) $(DEPTH)
 
-GARBAGE += $(DEPTH)/$(PROGRAM)
-
 install:: $(PROGRAM)
 	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)
