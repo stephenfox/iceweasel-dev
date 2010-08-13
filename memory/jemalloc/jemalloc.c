@@ -1031,7 +1031,7 @@ struct arena_s {
  * Data.
  */
 
-#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
+#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 /* Number of CPUs. */
 static unsigned		ncpus;
 #endif
@@ -4957,7 +4957,7 @@ huge_dalloc(void *ptr)
 	base_node_dealloc(node);
 }
 
-#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
+#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 #ifdef MOZ_MEMORY_BSD
 static inline unsigned
 malloc_ncpus(void)
@@ -5107,7 +5107,7 @@ malloc_print_stats(void)
 #endif
 		_malloc_message("\n", "", "", "");
 
-#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
+#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
 		_malloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
 #endif
 		_malloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
