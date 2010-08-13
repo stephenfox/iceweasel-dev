@@ -1,13 +1,3 @@
-clean/0001-Avoid-creating-config-my-config-rules-.mk.patch
-clean/0002-Remove-leaktest-files-in-make-clean.patch
-clean/0003-Remove-generated-files-from-js-src-during-make-distc.patch
-clean/0004-Cleanup-idl-parser-leftovers-in-make-clean.patch
-clean/0005-Cleanup-xpcom-tests-TestScriptable.h-on-make-clean.patch
-clean/0006-Cleanup-build-automationutils.pyc-on-make-clean.patch
-clean/0007-More-automation-compiled-python-cleanup.patch
-clean/0008-Cleanup-test-suite-logs.patch
-clean/0009-mozilla-config.h-was-renamed-js-confdefs.h-in-js-src.patch
-clean/0010-Remove-the-js-shell-from-the-build-directory-during-.patch
 build/0001-Fix-for-hppa-build.patch
 build/0002-Allow-to-build-the-js-shell-against-the-libmozjs-sha.patch
 fixes/0001-Allow-.js-preference-files-to-set-locked-prefs-with-.patch

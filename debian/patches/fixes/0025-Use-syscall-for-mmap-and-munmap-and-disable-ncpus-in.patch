@@ -8,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=435683
  1 files changed, 57 insertions(+), 0 deletions(-)
 
 diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
-index 50ffa7d..950acaa 100644
+index 50ffa7d..108a540 100644
 --- a/memory/jemalloc/jemalloc.c
 +++ b/memory/jemalloc/jemalloc.c
 @@ -369,6 +369,53 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
@@ -69,7 +69,7 @@ index 50ffa7d..950acaa 100644
   * Data.
   */
  
-+#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
++#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
  /* Number of CPUs. */
  static unsigned		ncpus;
 +#endif
@@ -80,7 +80,7 @@ index 50ffa7d..950acaa 100644
  	base_node_dealloc(node);
  }
  
-+#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
++#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
  #ifdef MOZ_MEMORY_BSD
  static inline unsigned
  malloc_ncpus(void)
@@ -96,7 +96,7 @@ index 50ffa7d..950acaa 100644
  #endif
  		_malloc_message("\n", "", "", "");
  
-+#ifdef MOZ_MEMORY_NARENAS_DEFAULT_ONE
++#ifndef MOZ_MEMORY_NARENAS_DEFAULT_ONE
  		_malloc_message("CPUs: ", umax2s(ncpus, s), "\n", "");
 +#endif
  		_malloc_message("Max arenas: ", umax2s(narenas, s), "\n", "");
