@@ -67,21 +67,25 @@ GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
 $(PREPROCESSED_FILES):
 	sed -e 's/##BASE_VERSION##/$(BASE_VERSION)/g' -e 's/##SO_VERSION##/$(SO_VERSION)/g' $^ > $@
 
-override_dh_auto_configure: debian/mozconfig
+build-xulrunner:
+	mkdir $@
+
+override_dh_auto_configure: build-xulrunner debian/mozconfig
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
 		done; \
 	done
 
-	MOZCONFIG=debian/mozconfig \
+	cd build-xulrunner && \
+	MOZCONFIG=$(CURDIR)/debian/mozconfig \
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CXXFLAGS)" \
-	./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS)
-	build/autoconf/make-makefile debian/extra-stuff
-	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' config/autoconf.mk
-	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' js/src/config/autoconf.mk
+	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS)
+	cd build-xulrunner && ../build/autoconf/make-makefile -t .. debian/extra-stuff
+	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
 
 check-system-libs:
 	@awk -F' *# *| *$$' ' \
@@ -91,7 +95,7 @@ check-system-libs:
 			error=1; \
 		} else { \
 			split($$2,var,"="); \
-			cmd = "$(MAKE) --no-print-directory echo-variable-" var[1]; \
+			cmd = "$(MAKE) -C build-xulrunner --no-print-directory echo-variable-" var[1]; \
 			cmd |  getline value; \
 			if (value != var[2]) { print $$1, "triggered", var[1] "=" value,"instead of",$$2; error=1 } \
 		} \
@@ -99,9 +103,9 @@ check-system-libs:
 	END { if (error) { exit 1 }}' debian/mozconfig.in
 
 override_dh_auto_build: check-system-libs
-	dh_auto_build --parallel -- \
+	dh_auto_build --parallel --builddirectory=build-xulrunner \
 		JS_READLINE=1 \
-	$(MAKE) -C debian/extra-stuff
+	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 include debian/test.mk
@@ -112,8 +116,8 @@ override_dh_auto_clean::
 	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 
-	[ ! -f config/autoconf.mk ] || $(MAKE) -C debian/extra-stuff distclean
-	dh_auto_clean --parallel
+	dh_auto_clean --builddirectory=build-xulrunner
+	find . -name "*.pyc" | xargs rm -f
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
@@ -122,7 +126,7 @@ override_dh_auto_clean::
 	done
 
 override_dh_auto_install:
-	dh_auto_install --sourcedirectory=xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/debian/extra-stuff/packages-static
+	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/build-xulrunner/debian/extra-stuff/packages-static
 	rm -rf debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/testing
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(BASE_VERSION)
@@ -137,7 +141,7 @@ override_dh_auto_install:
 		done
 	ln -s ../../xulrunner-$(BASE_VERSION) debian/tmp/usr/lib/xulrunner-devel-$(BASE_VERSION)/sdk/bin
 
-	dh_auto_install --sourcedirectory=js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB=
+	dh_auto_install --sourcedirectory=build-xulrunner/js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB= SCRIPTS=
 	rm debian/tmp/usr/bin/js-config
 	find debian/tmp/usr/include/mozjs -type f -printf %P\\n | while read f; do \
 		file=$$(echo debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/$$f); \
@@ -147,7 +151,7 @@ override_dh_auto_install:
 	for f in /usr/include/nspr/* /usr/include/nss/*; do \
 		ln -s $$f debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/$$(basename $$f); \
 	done
-	for h in $$(grep -l -r EXPORTS media | grep Makefile$ | \
+	for h in $$(grep -l -r EXPORTS build-xulrunner/media | grep Makefile$ | \
 		while read f; do $(MAKE) --no-print-directory -C $$(dirname $$f) echo-variable-EXPORTS echo-variable-EXPORTS_NAMESPACES; done); do \
 		rm -rf debian/tmp/usr/include/xulrunner-$(BASE_VERSION)/$$h; \
 	done
@@ -182,7 +186,7 @@ override_dh_strip:
 	dh_strip -pspidermonkey-bin
 
 override_dh_makeshlibs:
-	if [ "`$(MAKE) --no-print-directory -C js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
+	if [ "`$(MAKE) --no-print-directory -C build-xulrunner/js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
 		echo '#include "libmozjs$(SO_VERSION).symbols.jit"' > debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH); \
 	fi
 	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 1.9.2.7)' -- $(GENSYMBOLS_FLAGS)
