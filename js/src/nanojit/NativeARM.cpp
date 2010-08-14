@@ -42,7 +42,6 @@
 
 #ifdef UNDER_CE
 #include <cmnintrin.h>
-extern "C" bool blx_lr_broken();
 #endif
 
 #if defined(AVMPLUS_LINUX)
@@ -463,11 +462,6 @@ Assembler::asm_eor_imm(Register rd, Register rn, int32_t imm, int stat /* =0 */)
 void
 Assembler::nInit(AvmCore*)
 {
-#ifdef UNDER_CE
-    blx_lr_bug = blx_lr_broken();
-#else
-    blx_lr_bug = 0;
-#endif
 }
 
 void Assembler::nBeginAssembly()
@@ -868,26 +862,17 @@ Assembler::asm_call(LInsp ins)
             outputf("        %p:", _nIns);
         )
 
-        // Direct call: on v5 and above (where the calling sequence doesn't
-        // corrupt LR until the actual branch instruction), we can avoid an
-        // interlock in the "long" branch sequence by manually loading the
-        // target address into LR ourselves before setting up the parameters
-        // in other registers.
         BranchWithLink((NIns*)call->_address);
     } else {
-        // Indirect call: we assign the address arg to LR since it's not
-        // used for regular arguments, and is otherwise scratch since it's
-        // clobberred by the call. On v4/v4T, where we have to manually do
-        // the equivalent of a BLX, move LR into IP before corrupting LR
-        // with the return address.
-        if (blx_lr_bug) {
-            // workaround for msft device emulator bug (blx lr emulated as no-op)
-            underrunProtect(8);
-            BLX(IP);
-            MOV(IP,LR);
-        } else {
-            BLX(LR);
-        }
+        // Indirect call: we assign the address arg to LR
+#ifdef UNDER_CE
+        // workaround for msft device emulator bug (blx lr emulated as no-op)
+        underrunProtect(8);
+        BLX(IP);
+        MOV(IP, LR);
+#else
+        BLX(LR);
+#endif
         asm_regarg(ARGSIZE_LO, ins->arg(--argc), LR);
     }
 
@@ -1550,9 +1535,11 @@ Assembler::BLX(Register addr, bool chk /* = true */)
     NanoAssert(ARM_ARCH >= 5);
 
     NanoAssert(IsGpReg(addr));
+#ifdef UNDER_CE
     // There is a bug in the WinCE device emulator which stops "BLX LR" from
     // working as expected. Assert that we never do that!
-    if (blx_lr_bug) { NanoAssert(addr != LR); }
+    NanoAssert(addr != LR);
+#endif
 
     if (chk) {
         underrunProtect(4);
