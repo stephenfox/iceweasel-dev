@@ -47,7 +47,6 @@ prefs/Set-extensions.dss.enabled-to-false-at-XRE-level.patch
 system-libs/Avoid-visibility-hidden-issues-with-readline-symbols.patch
 system-libs/Allow-to-build-against-system-libffi.patch
 debian-hacks/Put-the-crmf-library-before-the-NSS-libraries.patch
-debian-hacks/Allow-to-build-java-jar-files-in-2-pass.patch
 debian-hacks/Avoid-libxpcom-being-excluded-from-linked-libraries-.patch
 debian-hacks/Don-t-build-example-component.patch
 debian-hacks/Don-t-install-system-profile.patch
@@ -69,7 +68,6 @@ debian-hacks/Do-exec-instead-of-uselessly-forking-in-xulrunner-la.patch
 debian-hacks/Avoid-some-symbols-from-being-exported-in-C-mangled-.patch
 debian-hacks/Use-a-variable-for-xulrunner-base-version-in-various.patch
 debian-hacks/Avoid-extension-manager-failure-when-there-is-no-bra.patch
-debian-hacks/Disable-tests-for-javaxpcom.patch
 debian-hacks/Gross-workaround-to-avoid-installing-test-idl-and-in.patch
 debian-hacks/Install-missing-nanojit-and-.tbl-headers-from-js-src.patch
 debian-hacks/Don-t-build-the-null-plugin.patch
