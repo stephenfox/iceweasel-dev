@@ -29,7 +29,7 @@ override_dh_auto_configure:
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
 		done ; \
 	done
-	MOZCONFIG=$(CURDIR)/debian/mozconfig \
+	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
 	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
