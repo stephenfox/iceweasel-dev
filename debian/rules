@@ -34,7 +34,8 @@ override_dh_auto_configure:
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
 	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_OPTIONS) \
-		--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION)
+		--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION) \
+		--with-system-libxul
 
 override_dh_auto_build:
 	dh_auto_build --builddirectory=build-iceweasel
