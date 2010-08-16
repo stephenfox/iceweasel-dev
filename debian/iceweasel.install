@@ -10,6 +10,7 @@ debian/tmp/usr/lib/iceweasel/chrome usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/modules usr/share/iceweasel
 
 debian/tmp/usr/lib/iceweasel/application.ini usr/lib/iceweasel
+debian/tmp/usr/lib/iceweasel/blocklist.xml usr/lib/iceweasel
 
 debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
 
