@@ -1320,7 +1320,7 @@ if [ "$MOZ_WEBSERVICES" ]; then
   "
 fi
 
-if [ " " ]; then
+if [ "$MOZ_JAVAXPCOM" ]; then
   add_makefiles "
     extensions/java/Makefile
     extensions/java/xpcom/Makefile
