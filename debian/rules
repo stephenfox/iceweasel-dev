@@ -55,7 +55,8 @@ override_dh_auto_install:
 	chmod 755 debian/iceweasel-xremote-client
 
 override_dh_install:
-	dh_install
+	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm
+	dh_install --fail-missing
 #Install helpers
 	install -m 755 debian/iceweasel-runner \
 		debian/iceweasel/$(LIB_DIR)/iceweasel
