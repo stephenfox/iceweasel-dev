@@ -71,7 +71,6 @@ TARGET_DEPTH = ..
 include $(srcdir)/automation-build.mk
 
 _LEAKTEST_DIR = $(DEPTH)/_leaktest
-GARBAGE_DIRS += $(_LEAKTEST_DIR)
 
 _LEAKTEST_FILES =    \
 		automation.py \
@@ -84,7 +83,6 @@ _LEAKTEST_FILES =    \
 leaktest.py: leaktest.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $^ > $@
 	chmod +x $@
-GARBAGE += leaktest.py
 
 libs:: $(_LEAKTEST_FILES)
 	$(INSTALL) $^ $(_LEAKTEST_DIR)
