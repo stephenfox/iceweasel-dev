@@ -49,11 +49,15 @@ override_dh_auto_configure:
 	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
-	dh_auto_configure -- $(CONFIGURE_OPTIONS)
+	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_OPTIONS)
+
+override_dh_auto_build:
+	dh_auto_build --builddirectory=build-iceweasel
 
 override_dh_auto_clean:
 	rm -f MPL $(filter-out debian/control,$(PREPROCESSED_FILES))
-	dh_auto_clean
+	dh_auto_clean --builddirectory=build-iceweasel
+	find . -name "*.pyc" | xargs rm -f
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
@@ -62,7 +66,7 @@ override_dh_auto_clean:
 	done
 
 override_dh_auto_install:
-	dh_auto_install -- installdir=/usr/lib/iceweasel
+	dh_auto_install --builddirectory=build-iceweasel -- installdir=/usr/lib/iceweasel
 	chmod 755 debian/iceweasel-xremote-client
 
 override_dh_install:
@@ -73,13 +77,13 @@ override_dh_install:
 
 # Install icons
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/16x16/apps
-	install -m 644 debian/branding/default16.png \
+	install -m 644 build-iceweasel/debian/branding/default16.png \
 		debian/iceweasel/usr/share/icons/hicolor/16x16/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
-	install -m 644 debian/branding/default32.png \
+	install -m 644 build-iceweasel/debian/branding/default32.png \
 		debian/iceweasel/usr/share/icons/hicolor/32x32/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/64x64/apps
-	install -m 644 debian/branding/default64.png \
+	install -m 644 build-iceweasel/debian/branding/default64.png \
 		debian/iceweasel/usr/share/icons/hicolor/64x64/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/scalable/apps
 	install -m 644 debian/branding/iceweasel_icon.svg \
