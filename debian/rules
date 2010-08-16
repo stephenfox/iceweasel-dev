@@ -78,7 +78,7 @@ override_dh_auto_configure: build-xulrunner
 	done
 
 	cd build-xulrunner && \
-	MOZCONFIG=$(CURDIR)/debian/mozconfig \
+	MOZCONFIG=$(CURDIR)/debian/xulrunner.mozconfig \
 	ASFLAGS="-g" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CXXFLAGS)" \
@@ -101,7 +101,7 @@ check-system-libs:
 			if (value != var[2]) { print $$1, "triggered", var[1] "=" value,"instead of",$$2; error=1 } \
 		} \
 	} \
-	END { if (error) { exit 1 }}' debian/mozconfig
+	END { if (error) { exit 1 }}' debian/xulrunner.mozconfig
 
 override_dh_auto_build: check-system-libs
 	dh_auto_build --parallel --builddirectory=build-xulrunner \
