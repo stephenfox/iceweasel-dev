@@ -2,7 +2,7 @@ Source: iceweasel
 Section: web
 Priority: optional
 Maintainer: Maintainers of Mozilla-related packages <pkg-mozilla-maintainers@lists.alioth.debian.org>
-Uploaders: Mike Hommey <glandium@debian.org>, Eric Dorland <eric@debian.org>
+Uploaders: Mike Hommey <glandium@debian.org>
 Build-Depends: autotools-dev,
                debhelper (>= 7.2.3),
                imagemagick,
