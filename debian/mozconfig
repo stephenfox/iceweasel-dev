@@ -1,6 +1,5 @@
 . $topsrcdir/xulrunner/config/mozconfig
 ac_add_options --prefix=/usr
-ac_add_options --with-default-mozilla-five-home=/usr/lib/xulrunner-##BASE_VERSION##
 ac_add_options --enable-default-toolkit=cairo-gtk2
 ac_add_options --enable-pango
 ac_add_options --enable-system-cairo # MOZ_TREE_CAIRO=
