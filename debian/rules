@@ -10,23 +10,6 @@ SHARE_DIR := /usr/share/iceweasel
 
 CFLAGS := -g
 
-CONFIGURE_OPTIONS = \
-	--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION) \
-	--with-user-appdir=.mozilla \
-	--disable-installer \
-	--disable-strip \
-	--disable-install-strip \
-	--disable-tests \
-	--enable-extensions=default \
-	--enable-single-profile \
-	--disable-profilesharing \
-	--enable-application=browser \
-	--disable-updater \
-	--disable-elf-dynstr-gc \
-	--with-branding=debian/branding \
-	--disable-necko-wifi \
-	--disable-crashreporter
-
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_OPTIONS += --disable-optimize
 endif
@@ -46,10 +29,12 @@ override_dh_auto_configure:
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
 		done ; \
 	done
+	MOZCONFIG=$(CURDIR)/debian/mozconfig \
 	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
-	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_OPTIONS)
+	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_OPTIONS) \
+		--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION)
 
 override_dh_auto_build:
 	dh_auto_build --builddirectory=build-iceweasel
