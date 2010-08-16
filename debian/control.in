@@ -44,7 +44,7 @@ Build-Conflicts: libhildonmime-dev,
                  libosso-dev
 Standards-Version: 3.9.0.0
 
-Package: xulrunner-##BASE_VERSION##
+Package: xulrunner-##GRE_VERSION##
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -142,7 +142,7 @@ Section: libdevel
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         xulrunner-##BASE_VERSION## (>= ${source:Upstream-Version}),
+         xulrunner-##GRE_VERSION## (>= ${source:Upstream-Version}),
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${source:Version})
@@ -162,11 +162,11 @@ Description: Development files for the Gecko engine library
  same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
-Package: xulrunner-##BASE_VERSION##-dbg
+Package: xulrunner-##GRE_VERSION##-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: xulrunner-##BASE_VERSION## (= ${binary:Version}),
+Depends: xulrunner-##GRE_VERSION## (= ${binary:Version}),
          ${misc:Depends}
 Description: Debugging symbols for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
@@ -177,6 +177,6 @@ Description: Debugging symbols for the Gecko engine library
  support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
  Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
  .
- This package provides the debugging symbols for the xulrunner-##BASE_VERSION##
+ This package provides the debugging symbols for the xulrunner-##GRE_VERSION##
  package.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL

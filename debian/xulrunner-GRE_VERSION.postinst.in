@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "configure" ] || [ "$1" = "triggered" ] ||
+   [ "$1" = "abort-upgrade" ]; then
+    touch /usr/lib/xulrunner-##GRE_VERSION##/.autoreg
+    rm -f /usr/lib/xulrunner-##GRE_VERSION##/components/compreg.dat \
+          /usr/lib/xulrunner-##GRE_VERSION##/components/xpti.dat
+    cd /usr/lib/xulrunner-##GRE_VERSION##
+    export HOME=`mktemp -d`
+    ./run-mozilla.sh ./xpcshell -e "" ||
+    rm -f /usr/lib/xulrunner-##GRE_VERSION##/components/compreg.dat \
+          /usr/lib/xulrunner-##GRE_VERSION##/components/xpti.dat
+    rm -rf "$HOME"
+fi
+
+#DEBHELPER#
+

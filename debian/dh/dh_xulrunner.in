@@ -76,7 +76,7 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 				my (@matches) = $buf =~ m{$pattern}g;
 				print @matches,"\n";
 				if (!grep { my $s = $_; ! grep { $_ eq $s } @matches } @strings) {
-					addsubstvar($package, "shlibs:Depends", "xulrunner-##BASE_VERSION##");
+					addsubstvar($package, "shlibs:Depends", "xulrunner-##GRE_VERSION##");
 					last;
 				}
 			}

@@ -1,12 +1,12 @@
-.TH XULRUNNER-##BASE_VERSION## 1 "March 4, 2010" xulrunner-##BASE_VERSION## "Linux User's Manual"
+.TH XULRUNNER-##GRE_VERSION## 1 "March 4, 2010" xulrunner-##GRE_VERSION## "Linux User's Manual"
 .SH NAME
-xulrunner-##BASE_VERSION## - a XUL + XPCOM application runner
+xulrunner-##GRE_VERSION## - a XUL + XPCOM application runner
 
 .SH SYNOPSIS
-.B xulrunner-##BASE_VERSION##
+.B xulrunner-##GRE_VERSION##
 [\fIOPTIONS\fR]
 
-.B xulrunner-##BASE_VERSION##
+.B xulrunner-##GRE_VERSION##
 [\fIOPTIONS\fR] \fIAPP-FILE\fR [\fIAPP-OPTIONS\fR]
 
 .SH DESCRIPTION
@@ -15,7 +15,7 @@ multiple XUL + XPCOM applications that are as rich as Firefox and
 Thunderbird.
 
 .SH OPTIONS
-A summary of the options directly supported by \fBxulrunner-##BASE_VERSION##\fR
+A summary of the options directly supported by \fBxulrunner-##GRE_VERSION##\fR
 is included below.
 
 .SS "X11 options"
