@@ -39,9 +39,9 @@ libs:: packages-static
 libs::
 	$(SYSINSTALL) $(IFLAGS2) $(srcdir)/reportbug-helper-script $(DIST)/bin
 
-ifeq (,$(wildcard $(JAR_MANIFEST)))
+ifeq (,$(wildcard jar.mn))
 libs::jar.mn
-	$(MAKE) realchrome
+	$(MAKE) realchrome JAR_MANIFEST=jar.mn
 endif
 
 locales:
