@@ -114,12 +114,12 @@ override_dh_auto_build: build-xulrunner
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
-	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
 	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-system-libxul --with-system-nspr --with-system-nss
+	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-iceweasel/config/autoconf.mk
 
 	dh_auto_build --builddirectory=build-iceweasel
 
