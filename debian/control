@@ -2,20 +2,40 @@ Source: iceweasel
 Section: web
 Priority: optional
 Maintainer: Maintainers of Mozilla-related packages <pkg-mozilla-maintainers@lists.alioth.debian.org>
-Uploaders: Mike Hommey <glandium@debian.org>, Eric Dorland <eric@debian.org>
-Build-Depends: autotools-dev, debhelper (>= 7.2.3), imagemagick,
-	libgtk2.0-dev (>= 2.8), librsvg2-bin, patch, sharutils, xsltproc,
-	zip, xulrunner-dev (>= 1.9.2), xulrunner-dev (<= 1.9.2.999)
-Build-Conflicts: graphicsmagick-imagemagick-compat, libhildonmime-dev, libosso-dev
+Uploaders: Mike Hommey <glandium@debian.org>
+Build-Depends: autotools-dev,
+               debhelper (>= 7.2.3),
+               imagemagick,
+               libgtk2.0-dev (>= 2.8),
+               librsvg2-bin,
+               patch,
+               sharutils,
+               xsltproc,
+               zip,
+               xulrunner-dev (>= 1.9.2), xulrunner-dev (<= 1.9.2.999)
+Build-Conflicts: graphicsmagick-imagemagick-compat,
+                 libhildonmime-dev,
+                 libosso-dev
 Standards-Version: 3.9.0.0
 Vcs-Git: git://git.debian.org/git/pkg-mozilla/iceweasel.git
 Vcs-Browser: http://git.debian.org/?p=pkg-mozilla/iceweasel.git
 
 Package: iceweasel
 Architecture: any
-Depends: fontconfig, procps, debianutils (>= 1.16), ${shlibs:Depends}, ${misc:Depends}, xulrunner-1.9.2 (>= 1.9.2.7~)
-Suggests: ttf-lyx | latex-xft-fonts, xfonts-mathml, ttf-mathematica4.1, xprint, mozplugger, libgssapi-krb5-2 | libkrb53
-Provides: www-browser, gnome-www-browser
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         fontconfig,
+         procps,
+         debianutils (>= 1.16),
+         xulrunner-1.9.2 (>= 1.9.2.8~)
+Suggests: ttf-lyx | latex-xft-fonts,
+          xfonts-mathml,
+          ttf-mathematica4.1,
+          xprint,
+          mozplugger,
+          libgssapi-krb5-2 | libkrb53
+Provides: www-browser,
+          gnome-www-browser
 Description: Web browser based on Firefox
  Firefox is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface
@@ -29,7 +49,9 @@ Package: iceweasel-dbg
 Architecture: any
 Priority: extra
 Section: debug
-Depends: ${misc:Depends}, iceweasel (= ${binary:Version}), xulrunner-1.9.2-dbg
+Depends: ${misc:Depends},
+         iceweasel (= ${binary:Version}),
+         xulrunner-1.9.2-dbg
 Description: debugging symbols for iceweasel
  Iceweasel is a redesign of the Mozilla browser component, similar to
  Galeon, K-Meleon and Camino, but written using the XUL user interface

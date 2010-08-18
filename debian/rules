@@ -10,29 +10,12 @@ SHARE_DIR := /usr/share/iceweasel
 
 CFLAGS := -g
 
-CONFIGURE_OPTIONS = \
-	--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION) \
-	--with-user-appdir=.mozilla \
-	--disable-installer \
-	--disable-strip \
-	--disable-install-strip \
-	--disable-tests \
-	--enable-extensions=default \
-	--enable-single-profile \
-	--disable-profilesharing \
-	--enable-application=browser \
-	--disable-updater \
-	--disable-elf-dynstr-gc \
-	--with-branding=debian/branding \
-	--disable-necko-wifi \
-	--disable-crashreporter
-
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CONFIGURE_OPTIONS += --disable-optimize
+	CONFIGURE_FLAGS += --disable-optimize
 endif
 
 ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
-	CONFIGURE_OPTIONS += --enable-debug
+	CONFIGURE_FLAGS += --enable-debug
 endif
 
 IN_FILES := $(wildcard debian/*.in)
@@ -46,14 +29,21 @@ override_dh_auto_configure:
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file ; \
 		done ; \
 	done
+	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
 	LDFLAGS="-Wl,--as-needed" \
 	CFLAGS="$(CFLAGS)" \
 	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
-	dh_auto_configure -- $(CONFIGURE_OPTIONS)
+	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_FLAGS) \
+		--with-libxul-sdk=/usr/lib/xulrunner-devel-$(GRE_VERSION) \
+		--with-system-libxul
+
+override_dh_auto_build:
+	dh_auto_build --builddirectory=build-iceweasel
 
 override_dh_auto_clean:
 	rm -f MPL $(filter-out debian/control,$(PREPROCESSED_FILES))
-	dh_auto_clean
+	dh_auto_clean --builddirectory=build-iceweasel
+	find . -name "*.pyc" | xargs rm -f
 
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
@@ -62,24 +52,25 @@ override_dh_auto_clean:
 	done
 
 override_dh_auto_install:
-	dh_auto_install -- installdir=/usr/lib/iceweasel
+	dh_auto_install --builddirectory=build-iceweasel -- installdir=/usr/lib/iceweasel
 	chmod 755 debian/iceweasel-xremote-client
 
 override_dh_install:
-	dh_install
+	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm
+	dh_install --fail-missing
 #Install helpers
 	install -m 755 debian/iceweasel-runner \
 		debian/iceweasel/$(LIB_DIR)/iceweasel
 
 # Install icons
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/16x16/apps
-	install -m 644 debian/branding/default16.png \
+	install -m 644 build-iceweasel/debian/branding/default16.png \
 		debian/iceweasel/usr/share/icons/hicolor/16x16/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
-	install -m 644 debian/branding/default32.png \
+	install -m 644 build-iceweasel/debian/branding/default32.png \
 		debian/iceweasel/usr/share/icons/hicolor/32x32/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/64x64/apps
-	install -m 644 debian/branding/default64.png \
+	install -m 644 build-iceweasel/debian/branding/default64.png \
 		debian/iceweasel/usr/share/icons/hicolor/64x64/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/scalable/apps
 	install -m 644 debian/branding/iceweasel_icon.svg \

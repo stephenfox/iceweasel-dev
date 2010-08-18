@@ -1,3 +1,9 @@
+iceweasel (3.6.8-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 16 Aug 2010 17:47:51 +0200
+
 iceweasel (3.6.7-1) experimental; urgency=low
 
   * New upstream release.
