@@ -185,8 +185,8 @@ MPL: LICENSE
 override_dh_installdocs: MPL
 	dh_installdocs -A $^
 
-override_dh_install: debian/dh/dh_xulrunner
-	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm
+override_dh_install: debian/dh/dh_xulrunner debian/noinstall
+	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r
 	dh_install --fail-missing -Xplugin-container -Xdependentlibs.list
 ifneq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
 	dh_install -pxulrunner-$(GRE_VERSION) usr/lib/xulrunner-$(GRE_VERSION)/plugin-container

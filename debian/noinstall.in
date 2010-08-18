@@ -3,3 +3,6 @@ usr/lib/iceweasel/LICENSE
 usr/lib/iceweasel/run-mozilla.sh
 usr/lib/iceweasel/README.txt
 usr/lib/iceweasel/removed-files
+usr/lib/xulrunner-##GRE_VERSION##/LICENSE
+usr/lib/xulrunner-##GRE_VERSION##/README.txt
+usr/lib/xulrunner-##GRE_VERSION##/dictionaries
