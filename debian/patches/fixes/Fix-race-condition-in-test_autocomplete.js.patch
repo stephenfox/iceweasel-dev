@@ -1,0 +1,31 @@
+From: Mike Hommey <glandium@debian.org>
+Date: Tue, 4 May 2010 16:05:59 +0200
+Subject: Fix race condition in test_autocomplete.js
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=525394
+---
+ .../satchel/test/unit/test_autocomplete.js         |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/toolkit/components/satchel/test/unit/test_autocomplete.js b/toolkit/components/satchel/test/unit/test_autocomplete.js
+index da3e8e9..232c57b 100644
+--- a/toolkit/components/satchel/test/unit/test_autocomplete.js
++++ b/toolkit/components/satchel/test/unit/test_autocomplete.js
+@@ -203,7 +203,7 @@ function run_test() {
+               "'field3', " +
+               "'old but not senior', " +
+               "100, " +
+-              (agedDate + 1000000) + ", " +
++              (agedDate + 60 * 1000 * 1000) + ", " +
+               now +
+           ");");
+         fh.DBConnection.executeSimpleSQL(
+@@ -213,7 +213,7 @@ function run_test() {
+               "'field3', " +
+               "'senior citizen', " +
+               "100, " +
+-              agedDate + ", " +
++              (agedDate - 60 * 1000 * 1000) + ", " +
+               now +
+           ");");
+ 

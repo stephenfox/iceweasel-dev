@@ -1,0 +1,24 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 11 Jan 2010 11:09:46 +0100
+Subject: Avoid creating /usr/lib/mozilla/extensions 0700 when running as root
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=538929
+Closes: #559926
+---
+ toolkit/xre/nsXREDirProvider.cpp |    3 ---
+ 1 files changed, 0 insertions(+), 3 deletions(-)
+
+diff --git a/toolkit/xre/nsXREDirProvider.cpp b/toolkit/xre/nsXREDirProvider.cpp
+index 430d1de..a60d45e 100644
+--- a/toolkit/xre/nsXREDirProvider.cpp
++++ b/toolkit/xre/nsXREDirProvider.cpp
+@@ -1241,9 +1241,6 @@ nsXREDirProvider::GetSystemExtensionsDirectory(nsILocalFile** aFile)
+   NS_ENSURE_SUCCESS(rv, rv);
+ #endif
+ 
+-  rv = EnsureDirectoryExists(localDir);
+-  NS_ENSURE_SUCCESS(rv, rv);
+-
+   NS_ADDREF(*aFile = localDir);
+   return NS_OK;
+ }

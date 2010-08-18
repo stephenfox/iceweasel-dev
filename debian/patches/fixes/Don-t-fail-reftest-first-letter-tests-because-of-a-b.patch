@@ -1,0 +1,60 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Mar 2010 11:37:26 +0100
+Subject: Don't fail reftest first-letter tests because of a background bug
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=512487
+---
+ layout/reftests/first-letter/399941-8-ref.html |    1 -
+ layout/reftests/first-letter/399941-8.html     |    1 -
+ layout/reftests/first-letter/399941-9-ref.html |    1 -
+ layout/reftests/first-letter/399941-9.html     |    1 -
+ 4 files changed, 0 insertions(+), 4 deletions(-)
+
+diff --git a/layout/reftests/first-letter/399941-8-ref.html b/layout/reftests/first-letter/399941-8-ref.html
+index b476838..34c449c 100644
+--- a/layout/reftests/first-letter/399941-8-ref.html
++++ b/layout/reftests/first-letter/399941-8-ref.html
+@@ -6,7 +6,6 @@
+   <style type="text/css">
+    span.fake-first-letter {
+      color: lime;
+-     background-color: olive;
+    }
+   </style>
+  </head>
+diff --git a/layout/reftests/first-letter/399941-8.html b/layout/reftests/first-letter/399941-8.html
+index e09ab1d..6ec8b76 100644
+--- a/layout/reftests/first-letter/399941-8.html
++++ b/layout/reftests/first-letter/399941-8.html
+@@ -6,7 +6,6 @@
+   <style type="text/css">
+    p:first-letter {
+      color: lime;
+-     background-color: olive;
+    }
+   </style>
+  </head>
+diff --git a/layout/reftests/first-letter/399941-9-ref.html b/layout/reftests/first-letter/399941-9-ref.html
+index 524afc6..671c355 100644
+--- a/layout/reftests/first-letter/399941-9-ref.html
++++ b/layout/reftests/first-letter/399941-9-ref.html
+@@ -6,7 +6,6 @@
+   <style type="text/css">
+    span.fake-first-letter {
+      color: lime;
+-     background-color: olive;
+    }
+   </style>
+  </head>
+diff --git a/layout/reftests/first-letter/399941-9.html b/layout/reftests/first-letter/399941-9.html
+index 8e18ccd..f696098 100644
+--- a/layout/reftests/first-letter/399941-9.html
++++ b/layout/reftests/first-letter/399941-9.html
+@@ -6,7 +6,6 @@
+   <style type="text/css">
+    p:first-letter {
+      color: lime;
+-     background-color: olive;
+    }
+   </style>
+  </head>

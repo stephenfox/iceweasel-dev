@@ -1,0 +1,25 @@
+From: Petr Salinger <Petr.Salinger@seznam.cz>
+Date: Fri, 18 Sep 2009 20:06:43 +0200
+Subject: Build oss support for libsydneyaudio on *bsd and hurd
+
+---
+ media/libsydneyaudio/src/Makefile.in |    6 ++++++
+ 1 files changed, 6 insertions(+), 0 deletions(-)
+
+diff --git a/media/libsydneyaudio/src/Makefile.in b/media/libsydneyaudio/src/Makefile.in
+index e8efc0a..47f4ec3 100644
+--- a/media/libsydneyaudio/src/Makefile.in
++++ b/media/libsydneyaudio/src/Makefile.in
+@@ -45,6 +45,12 @@ MODULE		= sydneyaudio
+ LIBRARY_NAME	= sydneyaudio
+ FORCE_STATIC_LIB= 1
+ 
++ifneq (,$(filter DragonFly FreeBSD GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
++CSRCS		= \
++		sydney_audio_oss.c \
++		$(NULL)
++endif
++
+ ifeq ($(OS_ARCH),Linux)
+ CSRCS		= \
+ 		sydney_audio_alsa.c \

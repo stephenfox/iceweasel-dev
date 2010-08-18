@@ -1,0 +1,97 @@
+#!/usr/bin/perl -w
+
+=head1 NAME
+
+dh_xulrunner - sets xulrunner dependencies
+
+=cut
+
+use strict;
+use Fcntl qw(SEEK_SET);
+use Debian::Debhelper::Dh_Lib;
+
+=head1 SYNOPSIS
+
+B<dh_xulrunner> [S<I<debhelper options>>]
+
+=head1 DESCRIPTION
+
+dh_xulrunner adds the xulrunner binary package corresponding to the installed
+xulrunner-dev package to the B<shlibs:Depends> substvar. It only does so for
+packages containing an executable or a library that it detects as containing
+the XPCOM glue (please note the detection is really hackish and error prone,
+though most likely accurate in most cases).
+
+It must be run after dh_shlibdeps.
+
+Using dh_xulrunner requires a build dependency on xulrunner-dev (>= 1.9.1.3-2).
+
+You can also use the xulrunner dh sequence addon to integrate in a dh workflow:
+	dh --with xulrunner $@
+
+=cut
+
+init();
+
+foreach my $package (@{$dh{DOPACKAGES}}) {
+	# The following is mostly stolen from dh_shlibdeps
+	my $tmp=tmpdir($package);
+	my $ff;
+
+	# Generate a list of ELF binaries in the package, ignoring any
+	# we were told to exclude.
+	my $find_options='';
+	if (defined($dh{EXCLUDE_FIND}) && $dh{EXCLUDE_FIND} ne '') {
+		$find_options="! \\( $dh{EXCLUDE_FIND} \\)";
+	}
+	foreach my $file (split(/\n/,`find $tmp -type f \\( -perm +111 -or -name "*.so*" -or -name "*.cmxs" \\) $find_options -print`)) {
+		# Prune directories that contain separated debug symbols.
+		next if $file=~m!^\Q$tmp\E/usr/lib/debug/(lib|lib64|usr|bin|sbin|opt|dev|emul)/!;
+		# TODO this is slow, optimize. Ie, file can run once on
+		# multiple files..
+		$ff=`file "$file"`;
+		if ($ff=~m/ELF/) {
+			my @strings = ( "GRE_HOME", "MOZ_GRE_CONF", "USE_LOCAL_GRE", "/etc/gre.d", "/libxul.so" );
+			my($size, $offset);
+			open FILE, "objdump -h \"$file\" 2>&1 |";
+			while (<FILE>) {
+				my(@fields) = split /\s+/;
+				next if $#fields < 7;
+				if ($fields[2] eq ".rodata") {
+					$size = hex $fields[3];
+					$offset = hex $fields[6];
+					last;
+				}
+			}
+			close FILE;
+			if ($size) {
+				open FILE, $file;
+				my $buf;
+				seek FILE, $offset, SEEK_SET;
+				# I don't expect the .rodata to be so huge that it doesn't fit in RAM
+				read FILE, $buf, $size;
+				close FILE;
+				$buf = join ' ', split(/[^A-Za-z\.\/_]+/, $buf);
+				my $pattern = '(' . join('|', @strings) . ')';
+				my (@matches) = $buf =~ m{$pattern}g;
+				print @matches,"\n";
+				if (!grep { my $s = $_; ! grep { $_ eq $s } @matches } @strings) {
+					addsubstvar($package, "shlibs:Depends", "xulrunner-##GRE_VERSION##");
+					last;
+				}
+			}
+		}
+	}
+}
+
+=head1 SEE ALSO
+
+L<debhelper(7)>
+
+This program is a part of xulrunner-dev.
+
+=head1 AUTHOR
+
+Mike Hommey <glandium@debian.org>
+
+=cut

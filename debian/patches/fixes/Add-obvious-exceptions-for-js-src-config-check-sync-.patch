@@ -1,0 +1,46 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 27 Jan 2010 11:31:44 +0100
+Subject: Add (obvious) exceptions for js/src/config/check-sync-dirs.py
+
+We also modify the script so that given directories can be ignored.
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=542468
+---
+ js/src/config/check-sync-dirs.py    |    4 ++++
+ js/src/config/check-sync-exceptions |    7 +++++++
+ 2 files changed, 11 insertions(+), 0 deletions(-)
+
+diff --git a/js/src/config/check-sync-dirs.py b/js/src/config/check-sync-dirs.py
+index 5f0c524..ed2abb3 100644
+--- a/js/src/config/check-sync-dirs.py
++++ b/js/src/config/check-sync-dirs.py
+@@ -65,6 +65,10 @@ def check(copy, original, ignore):
+     os.chdir(copy)
+     for (dirpath, dirnames, filenames) in os.walk('.'):
+         exceptions = read_exceptions(join(dirpath, 'check-sync-exceptions'))
++        for dirname in dirnames:
++            if (dirname in exceptions):
++                dirnames.remove(dirname)
++                break
+         for filename in filenames:
+             if (filename in exceptions) or fnmatch_any(filename, ignore):
+                 continue
+diff --git a/js/src/config/check-sync-exceptions b/js/src/config/check-sync-exceptions
+index 37ebc7e..b61f4a3 100644
+--- a/js/src/config/check-sync-exceptions
++++ b/js/src/config/check-sync-exceptions
+@@ -1,7 +1,14 @@
+ Makefile.in
++Makefile
+ autoconf.mk.in
++autoconf.mk
+ check-sync-dirs.py
+ static-checking-config.mk
++nsinstall
++nsinstall.exe
++host_nsinstall.o
++host_pathsub.o
+ 
+ # This is a copy of nspr's config/make-system-wrappers.pl.
+ make-system-wrappers.pl
++system_wrappers_js

@@ -1,0 +1,3 @@
+usr/include/mozjs
+usr/lib/libmozjs.so
+usr/lib/pkgconfig/mozilla-js.pc

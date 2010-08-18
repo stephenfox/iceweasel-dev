@@ -1,0 +1,21 @@
+From: Mike Hommey <glandium@debian.org>
+Date: Mon, 19 Jul 2010 16:59:50 +0200
+Subject: Build the test plugin on GNU/kfreebsd
+
+---
+ modules/plugin/Makefile.in |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/modules/plugin/Makefile.in b/modules/plugin/Makefile.in
+index aef5287..06ebc7b 100644
+--- a/modules/plugin/Makefile.in
++++ b/modules/plugin/Makefile.in
+@@ -73,7 +73,7 @@ TOOL_DIRS += default/mac
+ endif
+ 
+ ifdef ENABLE_TESTS
+-ifneq (,$(filter WINNT Darwin Linux OS2 SunOS,$(OS_ARCH)))
++ifneq (,$(filter WINNT Darwin Linux OS2 SunOS GNU_kFreeBSD,$(OS_ARCH)))
+ DIRS += test
+ TOOL_DIRS += sdk
+ endif

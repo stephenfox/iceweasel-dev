@@ -1,0 +1,22 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Feb 2010 15:28:30 +0100
+Subject: jsapi-tests don't build when using -Wl,--as-needed
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=547715
+---
+ js/src/jsapi-tests/Makefile.in |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/js/src/jsapi-tests/Makefile.in b/js/src/jsapi-tests/Makefile.in
+index 133fca9..a335ed2 100644
+--- a/js/src/jsapi-tests/Makefile.in
++++ b/js/src/jsapi-tests/Makefile.in
+@@ -60,7 +60,7 @@ CPPSRCS = \
+ 
+ DEFINES         += -DEXPORT_JS_API
+ 
+-LIBS      = $(NSPR_LIBS) $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX)
++LIBS      = $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX) $(NSPR_LIBS)
+ 
+ LOCAL_INCLUDES += -I$(topsrcdir) -I..
+ 

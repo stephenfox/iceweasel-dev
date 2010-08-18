@@ -1,0 +1,53 @@
+DEPTH		= ../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+DIRS := filemonitor
+
+PREF_JS_EXPORTS := places.js
+
+EXTRA_COMPONENTS := addonsInfo.js debUpdateNotifier.js
+
+include $(topsrcdir)/config/rules.mk
+
+places.js: $(topsrcdir)/browser/app/profile/firefox.js
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ | grep '\(places\.frecency\.\|browser\.\(formfill\.enable\|history_expire_days\|urlbar\.\(restrict\.\|match\.\|default\.behavior\|filter\.javascript\)\)\)' > $@
+
+DEFINES += -DAB_CD=$(MOZ_UI_LOCALE) -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(PREF_DIR)
+DEFINES += -DAPP_UA_NAME=a -DAPP_VERSION=0
+DEFINES += -DAPP_UA_NAME=a -DAPP_VERSION=0
+DEFINES += -DMOZ_ENABLE_GNOME_COMPONENT=1
+DEFINES += -DMOZ_GTK2=1
+DEFINES += -DMOZ_UPDATER=1
+DEFINES += -DBINPATH=bin
+DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX) -DBIN_SUFFIX=$(BIN_SUFFIX)
+
+ifdef MOZ_IPC
+include $(topsrcdir)/ipc/app/defs.mk
+DEFINES += -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME)
+endif
+
+packages-static: $(topsrcdir)/browser/installer/package-manifest.in $(srcdir)/packages-static.$(MOZ_APP_NAME)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ | sed 's/^\[browser\]/[$(MOZ_APP_NAME)]/;/^bin\/\(README\.txt\|dictionaries\|LICENSE\)/d' > $@
+
+GARBAGE += places.js packages-static jar.mn
+
+libs:: packages-static
+libs::
+	$(SYSINSTALL) $(IFLAGS2) $(srcdir)/reportbug-helper-script $(DIST)/bin
+
+ifeq (,$(wildcard $(JAR_MANIFEST)))
+libs::jar.mn
+	$(MAKE) realchrome
+endif
+
+locales:
+	mkdir $@
+
+GARBAGE_DIRS += locales
+
+jar.mn: debUpdateNotifier.properties locales
+	awk 'BEGIN { print "debian.jar:" } { l = $$1; print "% locale debian " l " %locale/" l "/debian/"; print " locale/" l "/debian/$< (locales/" l ")"; $$0=substr($$0,length($$1)+2); print $$0 > "locales/" l}' $< > $@

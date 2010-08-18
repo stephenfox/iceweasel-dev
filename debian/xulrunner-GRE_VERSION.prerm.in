@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "remove" ]; then
+    rm -f /usr/lib/xulrunner-##GRE_VERSION##/components/compreg.dat \
+          /usr/lib/xulrunner-##GRE_VERSION##/components/xpti.dat
+fi
+
+#DEBHELPER#

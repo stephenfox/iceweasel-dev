@@ -1,0 +1,41 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 24 Feb 2010 16:25:04 +0100
+Subject: Avoid mangling some exported symbols from libmozjs
+
+---
+ js/src/jsbuiltins.h |    2 +-
+ js/src/jscntxt.h    |    3 +++
+ 2 files changed, 4 insertions(+), 1 deletions(-)
+
+diff --git a/js/src/jsbuiltins.h b/js/src/jsbuiltins.h
+index 608853a..92a1155 100644
+--- a/js/src/jsbuiltins.h
++++ b/js/src/jsbuiltins.h
+@@ -441,7 +441,7 @@ jsdouble FASTCALL
+ js_BooleanOrUndefinedToNumber(JSContext* cx, int32 unboxed);
+ 
+ /* Extern version of js_SetBuiltinError. */
+-extern JS_FRIEND_API(void)
++extern "C" JS_FRIEND_API(void)
+ js_SetTraceableNativeFailed(JSContext *cx);
+ 
+ extern jsdouble FASTCALL
+diff --git a/js/src/jscntxt.h b/js/src/jscntxt.h
+index 2f9eb20..28e0dc8 100644
+--- a/js/src/jscntxt.h
++++ b/js/src/jscntxt.h
+@@ -1429,6 +1429,7 @@ class JSAutoResolveFlags
+ 
+ #endif /* __cplusplus */
+ 
++JS_BEGIN_EXTERN_C
+ /*
+  * Slightly more readable macros for testing per-context option settings (also
+  * to hide bitset implementation detail).
+@@ -1850,4 +1851,6 @@ js_RegenerateShapeForGC(JSContext *cx)
+     return shape;
+ }
+ 
++JS_END_EXTERN_C
++
+ #endif /* jscntxt_h___ */

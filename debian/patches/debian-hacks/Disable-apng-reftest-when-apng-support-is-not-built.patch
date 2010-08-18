@@ -1,0 +1,18 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Mon, 22 Mar 2010 15:21:06 +0100
+Subject: Disable apng reftest when apng support is not built
+
+---
+ modules/libpr0n/test/reftest/apng/reftest.list |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/modules/libpr0n/test/reftest/apng/reftest.list b/modules/libpr0n/test/reftest/apng/reftest.list
+index f9fa5c7..e3d7324 100644
+--- a/modules/libpr0n/test/reftest/apng/reftest.list
++++ b/modules/libpr0n/test/reftest/apng/reftest.list
+@@ -2,4 +2,4 @@
+ #
+ # delaytest.html delays the reftest snapshot to allow time for the
+ # animation to complete.
+-== delaytest.html?bug411852-1.png bug411852-1-ref.png
++fails == delaytest.html?bug411852-1.png bug411852-1-ref.png

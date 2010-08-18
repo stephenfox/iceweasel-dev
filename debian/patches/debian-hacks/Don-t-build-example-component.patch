@@ -1,0 +1,20 @@
+From: Mike Hommey <glandium@debian.org>
+Date: Wed, 12 Mar 2008 23:20:52 +0100
+Subject: Don't build example component
+
+---
+ xulrunner/Makefile.in |    1 -
+ 1 files changed, 0 insertions(+), 1 deletions(-)
+
+diff --git a/xulrunner/Makefile.in b/xulrunner/Makefile.in
+index f2e8b7c..ef8a831 100644
+--- a/xulrunner/Makefile.in
++++ b/xulrunner/Makefile.in
+@@ -47,7 +47,6 @@ DIRS = \
+ 	setup \
+ 	stub \
+ 	app \
+-	examples \
+ 	$(NULL)
+ 
+ ifeq ($(OS_ARCH),WINNT)
