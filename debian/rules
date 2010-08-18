@@ -52,6 +52,8 @@ ifeq (,$(shell dpkg --compare-versions $(shell $(CXX) -dumpversion) '>=' 4.4 || 
 CXXFLAGS += -std=gnu++0x
 endif
 
+export CFLAGS CXXFLAGS
+
 JS_LDFLAGS := $(MAIN_LDFLAGS)
 JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
 
@@ -87,8 +89,6 @@ override_dh_auto_build: build-xulrunner
 	cd build-xulrunner && \
 	MOZCONFIG=$(CURDIR)/debian/xulrunner.mozconfig \
 	ASFLAGS="-g" \
-	CFLAGS="$(CFLAGS)" \
-	CXXFLAGS="$(CXXFLAGS)" \
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-default-mozilla-five-home=/usr/lib/xulrunner-$(GRE_VERSION)
 	cd build-xulrunner && ../build/autoconf/make-makefile -t .. debian/extra-stuff
@@ -114,8 +114,6 @@ override_dh_auto_build: build-xulrunner
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
-	CFLAGS="$(CFLAGS)" \
-	CXXFLAGS="$(CFLAGS) --std=gnu++0x" \
 	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-system-libxul --with-system-nspr --with-system-nss
