@@ -50,4 +50,4 @@ locales:
 GARBAGE_DIRS += locales
 
 jar.mn: debUpdateNotifier.properties locales
-	awk 'BEGIN { print "debian.jar:" } $$2 == "message" { l = $$1; print "% locale debian " l " %locale/" l "/debian/"; print " locale/" l "/debian/$(notdir $<) (locales/" l ")"; $$0=substr($$0,length($$1)+2); print $$0 > "locales/" l}' $< > $@
+	awk 'BEGIN { print "debian.jar:" } { l = $$1 } $$2 == "message" { print "% locale debian " l " %locale/" l "/debian/"; print " locale/" l "/debian/$(notdir $<) (locales/" l ")" } { $$0=substr($$0,length($$1)+2); print $$0 > "locales/" l}' $< > $@
