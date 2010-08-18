@@ -76,16 +76,15 @@ $(PREPROCESSED_FILES):
 
 override_dh_auto_configure:
 
-build-xulrunner:
-	mkdir $@
-
-override_dh_auto_build: build-xulrunner
+stamps/prepare-configure::
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
 		done; \
 	done
 
+stamps/configure-xulrunner:: stamps/prepare-configure
+	mkdir build-xulrunner
 	cd build-xulrunner && \
 	MOZCONFIG=$(CURDIR)/debian/xulrunner.mozconfig \
 	ASFLAGS="-g" \
@@ -109,17 +108,26 @@ override_dh_auto_build: build-xulrunner
 	} \
 	END { if (error) { exit 1 }}' debian/xulrunner.mozconfig
 
+stamps/build-xulrunner:: stamps/configure-xulrunner
 	dh_auto_build --parallel --builddirectory=build-xulrunner \
 		JS_READLINE=1
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
+stamps/configure-iceweasel:: stamps/build-xulrunner
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
 	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-system-libxul --with-system-nspr --with-system-nss
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-iceweasel/config/autoconf.mk
 
+stamps/build-iceweasel:: stamps/configure-iceweasel
 	dh_auto_build --builddirectory=build-iceweasel
+
+stamps/prepare-configure $(foreach pkg,iceweasel xulrunner,stamps/configure-$(pkg) stamps/build-$(pkg))::
+	@mkdir -p stamps
+	touch $@
+
+override_dh_auto_build: stamps/build-iceweasel
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 include debian/test.mk
@@ -129,6 +137,7 @@ override_dh_auto_clean::
 	rm -f MPL
 	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
+	rm -rf stamps
 
 	dh_auto_clean --builddirectory=build-iceweasel
 	dh_auto_clean --builddirectory=build-xulrunner
