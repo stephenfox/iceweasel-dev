@@ -332,8 +332,6 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
                           pref->userPref,
                           (PrefType) PREF_TYPE(pref)))
         sourcePref = &pref->userPref;
-    else if (PREF_IS_LOCKED(pref))
-        sourcePref = &pref->defaultPref;
     else
         // do not save default prefs that haven't changed
         return PL_DHASH_NEXT;
@@ -936,7 +934,10 @@ void PREF_ReaderCallback(void       *closure,
                          const char *pref,
                          PrefValue   value,
                          PrefType    type,
-                         PRBool      isDefault)
+                         PRBool      isDefault,
+                         PRBool      isLocked)
 {
     pref_HashPref(pref, value, type, isDefault);
+    if (isLocked)
+        PREF_LockPref(pref, PR_TRUE);
 }

@@ -50,6 +50,8 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 
+#include "njcpudetect.h"
+
 #ifdef AVMPLUS_ARM
 #define ARM_ARCH   config.arch
 #define ARM_VFP    config.vfp

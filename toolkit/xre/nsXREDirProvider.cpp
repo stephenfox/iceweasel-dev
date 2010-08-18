@@ -621,6 +621,7 @@ nsXREDirProvider::LoadAppBundleDirs()
 }
 
 static const char *const kAppendPrefDir[] = { "defaults", "preferences", nsnull };
+static const char *const kAppendSysPrefDir[] = { "defaults", "syspref", nsnull };
 
 #ifdef DEBUG_bsmedberg
 static void
@@ -677,6 +678,7 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
     LoadAppDirIntoArray(mXULAppDir, kAppendPrefDir, directories);
     LoadDirsIntoArray(mAppBundleDirectories,
                       kAppendPrefDir, directories);
+    LoadAppDirIntoArray(mXULAppDir, kAppendSysPrefDir, directories);
 
     rv = NS_NewArrayEnumerator(aResult, directories);
   }
@@ -1240,9 +1242,6 @@ nsXREDirProvider::GetSystemExtensionsDirectory(nsILocalFile** aFile)
                              getter_AddRefs(localDir));
   NS_ENSURE_SUCCESS(rv, rv);
 #endif
-
-  rv = EnsureDirectoryExists(localDir);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*aFile = localDir);
   return NS_OK;

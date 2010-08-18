@@ -57,7 +57,7 @@ endif
 #  buildable on other non-GTK unix builds
 
 ifdef MOZ_ENABLE_GTK2
-TOOL_DIRS += default/unix
+#TOOL_DIRS += default/unix
 endif
 
 ifeq ($(OS_ARCH),WINNT)
@@ -73,7 +73,7 @@ TOOL_DIRS += default/mac
 endif
 
 ifdef ENABLE_TESTS
-ifneq (,$(filter WINNT Darwin Linux OS2 SunOS,$(OS_ARCH)))
+ifneq (,$(filter WINNT Darwin Linux OS2 SunOS GNU_kFreeBSD,$(OS_ARCH)))
 DIRS += test
 TOOL_DIRS += sdk
 endif

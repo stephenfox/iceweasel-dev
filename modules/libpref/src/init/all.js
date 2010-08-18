@@ -550,6 +550,7 @@ pref("dom.event.contextmenu.enabled",       true);
 pref("javascript.enabled",                  true);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
+pref("javascript.options.showInConsole",    true);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
@@ -1160,7 +1161,7 @@ pref("layout.css.visited_links_enabled", true);
 // A value of 0 means use the system DPI. A positive value is used as the DPI.
 // This sets the physical size of a device pixel and thus controls the
 // interpretation of physical units such as "pt".
-pref("layout.css.dpi", -1);
+pref("layout.css.dpi", 0);
 
 // Set the number of device pixels per CSS pixel. A value <= 0 means choose
 // automatically based on the DPI. A positive value is used as-is. This effectively

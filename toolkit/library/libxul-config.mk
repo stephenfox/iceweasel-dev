@@ -163,6 +163,9 @@ ifdef BUILD_CTYPES
 COMPONENT_LIBS += \
 	jsctypes \
 	$(NULL)
+ifdef MOZ_NATIVE_FFI
+EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
+endif
 endif
 
 ifdef MOZ_PLUGINS

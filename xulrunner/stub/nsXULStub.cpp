@@ -315,8 +315,12 @@ main(int argc, char **argv)
   // 3) give up
 
   struct stat fileStat;
-
-  if (!realpath(argv[0], iniPath) || stat(iniPath, &fileStat)) {
+  strncpy(tmpPath, argv[0], sizeof(tmpPath));
+  lastSlash = strrchr(tmpPath, '/');
+  if (lastSlash) {
+    *lastSlash = 0;
+    realpath(tmpPath, iniPath);
+  } else {
     const char *path = getenv("PATH");
     if (!path)
       return 1;
@@ -329,8 +333,11 @@ main(int argc, char **argv)
     char *token = strtok(pathdup, ":");
     while (token) {
       sprintf(tmpPath, "%s/%s", token, argv[0]);
-      if (realpath(tmpPath, iniPath) && stat(iniPath, &fileStat) == 0) {
+      if (stat(tmpPath, &fileStat) == 0) {
         found = PR_TRUE;
+        lastSlash = strrchr(tmpPath, '/');
+        *lastSlash = 0;
+        realpath(tmpPath, iniPath);
         break;
       }
       token = strtok(NULL, ":");
@@ -339,11 +346,15 @@ main(int argc, char **argv)
     if (!found)
       return 1;
   }
+  lastSlash = iniPath + strlen(iniPath);
+  *lastSlash = '/';
 #endif
 
+#ifndef XP_UNIX
   lastSlash = strrchr(iniPath, PATH_SEPARATOR_CHAR);
   if (!lastSlash)
     return 1;
+#endif
 
   *(++lastSlash) = '\0';
 
@@ -490,15 +501,16 @@ main(int argc, char **argv)
              range.lower, range.upper);
       return 1;
     }
-#ifdef XP_UNIX
-    // Using a symlinked greDir will fail during startup. Not sure why, but if
-    // we resolve the symlink, everything works as expected.
-    char resolved_greDir[MAXPATHLEN] = "";  
-    if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
-      strncpy(greDir, resolved_greDir, MAXPATHLEN);
-    }
-#endif
   }
+
+#ifdef XP_UNIX
+  // Using a symlinked greDir will fail during startup. Not sure why, but if
+  // we resolve the symlink, everything works as expected.
+  char resolved_greDir[MAXPATHLEN] = "";
+  if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
+    strncpy(greDir, resolved_greDir, MAXPATHLEN);
+  }
+#endif
 
 #ifdef XP_OS2
   // On OS/2 we need to set BEGINLIBPATH to be able to find XULRunner DLLs

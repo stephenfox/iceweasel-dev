@@ -1454,7 +1454,8 @@ Engine.prototype = {
       case "https":
       case "ftp":
         // No use downloading the icon if the engine file is read-only
-        if (!this._readOnly) {
+        if (!this._readOnly ||
+            getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true)) {
           LOG("_setIcon: Downloading icon: \"" + uri.spec +
               "\" for engine: \"" + this.name + "\"");
           var chan = gIoSvc.newChannelFromURI(uri);

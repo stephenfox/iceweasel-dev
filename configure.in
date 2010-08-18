@@ -1084,6 +1084,7 @@ if test -n "$CROSS_COMPILE"; then
     case "${target_os}" in
         linux*)       OS_ARCH=Linux OS_TARGET=Linux ;;
         kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU_kFreeBSD ;;
+        gnu*)         OS_ARCH=GNU ;;
         solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
         mingw*)       OS_ARCH=WINNT ;;
         wince*)       OS_ARCH=WINCE ;;
@@ -1673,7 +1674,7 @@ case "$host" in
     MOZ_FIX_LINK_PATHS='-Wl,-executable_path,$(LIBXUL_DIST)/bin'
     ;;
 
-*-linux*|*-kfreebsd*-gnu)
+*-linux*|*-kfreebsd*-gnu|*-gnu*)
     HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
     HOST_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
     HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
@@ -2682,7 +2683,7 @@ dnl ========================================================
 dnl = Flags to strip unused symbols from .so components
 dnl ========================================================
 case "$target" in
-    *-linux*|*-kfreebsd*-gnu)
+    *-linux*|*-kfreebsd*-gnu|*-gnu*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
         ;;
     *-solaris*)
@@ -3434,7 +3435,7 @@ then
 			fi
 			;;
 
-	    *-*-linux*|*-*-kfreebsd*-gnu)
+	    *-*-linux*|*-*-kfreebsd*-gnu|*-*-gnu*)
 			AC_DEFINE(_REENTRANT) 
 			;;
 
@@ -4133,7 +4134,14 @@ AC_CACHE_CHECK(for __thread keyword for TLS variables,
                             ac_cv_thread_keyword=no)])
 LDFLAGS=$_SAVE_LDFLAGS
 if test "$ac_cv_thread_keyword" = yes; then
-  AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
+  case "${target_cpu}" in
+    mips*)
+      :
+      ;;
+    *)
+      AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
+      ;;
+  esac
 fi
 
 dnl End of C++ language/feature checks
@@ -4310,7 +4318,7 @@ if test -n "$_USE_SYSTEM_NSS"; then
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
-   NSS_LIBS="$NSS_LIBS -lcrmf"
+   NSS_LIBS=`echo $NSS_LIBS | sed 's/-l/-lcrmf &/'`
 else
    NSS_CFLAGS='-I$(LIBXUL_DIST)/include/nss'
    NSS_DEP_LIBS="\
@@ -4353,7 +4361,7 @@ else
     AC_CHECK_LIB(jpeg, jpeg_destroy_compress, [SYSTEM_JPEG=1 JPEG_LIBS="-ljpeg $JPEG_LIBS"], SYSTEM_JPEG=, $JPEG_LIBS)
 fi
 
-if test "$SYSTEM_JPEG" = 1; then
+if test "$SYSTEM_JPEG" = 0; then
     LIBS="$JPEG_LIBS $LIBS"
     AC_TRY_COMPILE([ #include <stdio.h>
                      #include <sys/types.h>
@@ -4393,7 +4401,7 @@ else
     AC_CHECK_LIB(z, gzread, [SYSTEM_ZLIB=1 ZLIB_LIBS="-lz $ZLIB_LIBS"], 
 	[SYSTEM_ZLIB= ZLIB_CFLAGS= ZLIB_LIBS=], $ZLIB_LIBS)
 fi
-if test "$SYSTEM_ZLIB" = 1; then
+if test "$SYSTEM_ZLIB" = 0; then
     LIBS="$ZLIB_LIBS $LIBS"
     AC_TRY_COMPILE([ #include <stdio.h>
                      #include <string.h>
@@ -4458,6 +4466,7 @@ if test -n "${PNG_DIR}" -a "${PNG_DIR}" != "yes"; then
     CFLAGS="-I${PNG_DIR}/include $CFLAGS"
     LDFLAGS="-L${PNG_DIR}/lib $LDFLAGS"
 fi
+APNG=1
 if test -z "$PNG_DIR" -o "$PNG_DIR" = no; then
     SYSTEM_PNG=
 else
@@ -4466,10 +4475,11 @@ else
                  AC_MSG_ERROR([--with-system-png requested but no working libpng found]), 
                  $PNG_LIBS)
     AC_CHECK_LIB(png, png_get_acTL, ,
-                 AC_MSG_ERROR([--with-system-png won't work because the system's libpng doesn't have APNG support]),
+                 AC_MSG_WARN([system's libpng doesn't have APNG support])
+		 APNG=,
                  $_SAVE_PNG_LIBS)
 fi
-if test "$SYSTEM_PNG" = 1; then
+if test "$SYSTEM_PNG" = 0; then
     LIBS="$PNG_LIBS $LIBS"
     AC_TRY_COMPILE([ #include <stdio.h>
                      #include <sys/types.h>
@@ -4505,6 +4515,18 @@ if test -n "$SYSTEM_HUNSPELL"; then
 fi
 
 AC_SUBST(SYSTEM_HUNSPELL)
+
+dnl system libffi Support
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(system-ffi,
+[  --enable-system-ffi       Use system libffi (located with pkgconfig)],
+    MOZ_NATIVE_FFI=1 )
+
+if test -n "$MOZ_NATIVE_FFI"; then
+    PKG_CHECK_MODULES(MOZ_FFI, libffi)
+fi
+
+AC_SUBST(MOZ_NATIVE_FFI)
 
 dnl ========================================================
 dnl Java SDK support
@@ -8282,6 +8304,7 @@ AC_SUBST(SYSTEM_MAKEDEPEND)
 AC_SUBST(SYSTEM_LIBXUL)
 AC_SUBST(SYSTEM_JPEG)
 AC_SUBST(SYSTEM_PNG)
+AC_SUBST(APNG)
 AC_SUBST(SYSTEM_ZLIB)
 AC_SUBST(SYSTEM_BZ2)
 
@@ -8681,9 +8704,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
     ac_configure_args="$ac_configure_args --with-nspr-libs='$NSPR_LIBS'"
 fi
 ac_configure_args="$ac_configure_args --with-dist-dir=../../dist"
-ac_configure_args="$ac_configure_args --includedir=$dist/include"
-ac_configure_args="$ac_configure_args --bindir=$dist/bin"
-ac_configure_args="$ac_configure_args --libdir=$dist/lib"
+ac_configure_args="$ac_configure_args --prefix=$dist"
 ac_configure_args="$ac_configure_args --with-sync-build-files=$_topsrcdir"
 if test "$MOZ_MEMORY"; then
    ac_configure_args="$ac_configure_args --enable-jemalloc"
@@ -8697,7 +8718,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 # Build jsctypes on the platforms we can.
 if test "$BUILD_CTYPES"; then
   # Run the libffi 'configure' script on platforms that it supports.
-  if test -z "$_MSC_VER"; then
+  if test -z "$MOZ_NATIVE_FFI" && test -z "$_MSC_VER"; then
     ac_configure_args="--disable-shared --enable-static --disable-raw-api"
     if test "$MOZ_DEBUG"; then
       ac_configure_args="$ac_configure_args --enable-debug"
