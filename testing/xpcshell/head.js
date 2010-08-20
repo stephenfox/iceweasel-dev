@@ -104,8 +104,14 @@ function _do_main() {
   var thr = Components.classes["@mozilla.org/thread-manager;1"]
                       .getService().currentThread;
 
+  var timer = Components.classes["@mozilla.org/timer;1"]
+                        .createInstance(Components.interfaces.nsITimer);
+  timer.initWithCallback(function () { _passed = false; dump("TEST-UNEXPECTED-FAIL | test is taking more than 2 minutes\n"); _do_quit() }, 120000, timer.TYPE_ONE_SHOT);
+
   while (!_quit)
     thr.processNextEvent(true);
+
+  timer.cancel();
 
   while (thr.hasPendingEvents())
     thr.processNextEvent(true);
