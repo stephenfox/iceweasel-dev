@@ -109,7 +109,7 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	END { if (error) { exit 1 }}' debian/xulrunner.mozconfig
 
 stamps/build-xulrunner:: stamps/configure-xulrunner
-	dh_auto_build --parallel --builddirectory=build-xulrunner \
+	dh_auto_build --parallel --builddirectory=build-xulrunner -- \
 		JS_READLINE=1
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
