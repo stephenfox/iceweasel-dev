@@ -1,8 +1,78 @@
-iceweasel (3.6.8-1) UNRELEASED; urgency=low
+iceweasel (3.6.8-2) experimental; urgency=low
 
   * New upstream release.
 
- -- Mike Hommey <glandium@debian.org>  Mon, 16 Aug 2010 17:47:51 +0200
+  [ iceweasel ]
+  * debian/iceweasel.install, debian/rules: Build in a subdirectory instead
+    of within the source directory.
+  * debian/iceweasel.mozconfig, debian/rules: Move most configure options
+    to a separate mozconfig file.
+  * debian/iceweasel.install: Install blocklist.xml.
+  * debian/noinstall, debian/rules: Remove some installed files from
+    debian/tmp, and use dh_install --fail-missing.
+  * debian/rules: Add --with-system-libxul configure option.
+  * debian/rules: Rename CONFIGURE_OPTIONS to CONFIGURE_FLAGS
+  * debian/control*:
+    - Reformat.
+    - Remove Eric Dorland from the Uploaders field. Given his limited time
+      and lost interest, Eric agreed to formally retire from iceweasel
+      maintenance. Thanks for all these years, Eric.
+
+  * build/Makefile.in, build/automation-build.mk: Revert cleaning patches.
+
+  [ xulrunner ]
+  * debian/control*, debian/extra-stuff/packages-static.xulrunner,
+    debian/libmozillainterfaces-java.*, debian/rules,
+    debian/xulrunner-BASE_VERSION.install.in: Remove unsupported javaxpcom
+    support.
+  * debian/rules, debian/test.mk: Build in a subdirectory instead of within
+    the source directory.
+  * debian/mozconfig*, debian/rules: Move default-mozilla-five-home
+    definition from mozconfig to debian/rules.
+  * debian/mozconfig, debian/rules: Rename mozconfig to xulrunner.mozconfig.
+  * debian/*: Rename BASE_VERSION to GRE_VERSION.
+
+  * Makefile.in, build/Makefile.in, build/automation-build.mk,
+    config/rules.mk, js/src/Makefile.in, js/src/config/rules.mk,
+    js/src/xpconnect/src/Makefile.in, testing/testsuite-targets.mk,
+    xpcom/tests/Makefile.in: Revert cleaning patches.
+  * extensions/java/xpcom/Makefile.in,
+    toolkit/toolkit-makefiles.sh: Revert javaxpcom patches.
+  * memory/jemalloc/jemalloc.c: Properly disable ncpus in jemalloc, which
+    the previous patch didn't do.
+
+  [ merged packages ]
+  * debian/control*, debian/rules: Merged iceweasel and xulrunner source
+    packages. Binary packages are kept as they were before.
+  * debian/copyright, debian/watch: Use Iceweasel's version.
+  * debian/changelog: Keep Iceweasel changelog. Xulrunner's go in a separate
+    debian/changelog.xulrunner file, for historical purpose. The file is not
+    installed in binary packages.
+  * debian/control*: Fix xulrunner-dev dependencies. As ${source:*Version}
+    will return iceweasel version, ${binary:Version} is better to use. It
+    turns out it is safe to use now xulrunner-dev is not Arch: all.
+  * debian/extra-stuff/Makefile.in:
+    - Fix to support subdirectory build.
+    - Avoid duplicated entries in generated jar manifest.
+  * debian/rules:
+    - Set LDFLAGS for iceweasel the same way xulrunner does.
+    - Export CFLAGS and CXXFLAGS directly from rules instead of setting them
+      when calling configure.
+  * debian/extra-stuff/Makefile.in, debian/noinstall*, debian/rules: Use
+    debian/noinstall to avoid installing some xulrunner files, instead of
+    filtering the package manifest.
+  * debian/rules, debian/*.manpages*: Use .manpages files instead of calling
+    dh_installman manually. Iceweasel was doing that, but not xulrunner.
+  * Skip version 3.6.8-1, as xulrunner packages versions numbers would then
+    be 1.9.2.8-1, which was already used.
+  * debian/reftest-app/defaults/preferences/reftest-app.js: Add a default
+    value for the dom.ipc.plugins.enabled pref to the reftest app.
+
+  * testing/xpcshell/head.js: Add a 2 minutes timeout on xpcshell tests.
+  * debian/test.mk: Add logging messages during xpcshell tests to track down
+    kfreebsd buildd issues.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 20 Aug 2010 21:57:53 +0200
 
 iceweasel (3.6.7-1) experimental; urgency=low
 
