@@ -25,6 +25,7 @@ ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
+xpcshell-tests: export NSPR_LOG_MODULES=all:5
 reftest crashtest jstestbrowser: debian/reftest-app/stub debian/reftest-app/distribution
 reftest crashtest jstestbrowser: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
 reftest crashtest jstestbrowser: export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
