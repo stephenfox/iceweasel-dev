@@ -14,3 +14,4 @@ ac_add_options --disable-elf-dynstr-gc
 ac_add_options --with-branding=debian/branding
 ac_add_options --disable-necko-wifi
 ac_add_options --disable-crashreporter
+ac_add_options --disable-webm
