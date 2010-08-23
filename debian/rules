@@ -287,7 +287,8 @@ endif
 	echo "pref(\"general.useragent.extra.firefoxComment\",\"(like Firefox/$(UPSTREAM_VERSION))\");" \
 		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
 
-	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/$(LIB_DIR)/application.ini
+# Commented out for the beta release
+#	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/$(LIB_DIR)/application.ini
 
 CMP_AWK := '$$0 !~ /^\t/ { txt = txt ? txt "\n" $$0 : $$0 } END { if (txt != expected) { print "Expected:\n" expected "\nGot:\n" txt; exit 1 }}'
 
