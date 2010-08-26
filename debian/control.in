@@ -58,7 +58,7 @@ Depends: ${shlibs:Depends},
          fontconfig,
          procps,
          debianutils (>= 1.16),
-         xulrunner-##GRE_VERSION## (>= ##GRE_MILESTONE##~)
+         xulrunner-##GRE_VERSION## (>= ##GRE_MILESTONE##)
 Suggests: ttf-lyx | latex-xft-fonts,
           xfonts-mathml,
           ttf-mathematica4.1,
