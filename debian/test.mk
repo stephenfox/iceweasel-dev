@@ -35,7 +35,7 @@ $(TESTS):
 	HOME="$(CURDIR)/build-xulrunner/dist" \
 	$(XVFB_RUN) $(MAKE) -C build-xulrunner $@ 2>&1 | sed -u 's/^/$@> /'
 
-xpcshell-tests: xpcshell-tests-skip $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
+xpcshell-tests: $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 
 xpcshell-tests-skip:
 # APNG is not supported
@@ -52,8 +52,6 @@ xpcshell-tests-skip:
 # This one fails because of the patch from bz#527458. Anyways, if it failed, a lot of other tests would fail, too, so it is safe to ignore it
 	rm -f build-xulrunner/_tests/xpcshell/test_testing_xpcshell_example/unit/test_load_httpd_js.js
 
-check: check-skip
-
 check-skip:
 # This one fails because it only works in an american time zone. bz#515254
 	rm -f js/src/trace-test/tests/sunspider/check-date-format-tofte.js
@@ -61,4 +59,6 @@ check-skip:
 override_dh_auto_clean::
 	rm -rf debian/locales
 
-.PHONY: test $(TESTS) xpcshell-tests-skip
+$(TESTS): %: %-skip
+
+.PHONY: test $(TESTS) $(TESTS:%=%-skip)
