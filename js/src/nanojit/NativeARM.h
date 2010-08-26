@@ -460,7 +460,7 @@ enum {
 // _d = _l * _r
 #define MUL(_d,_l,_r)  do {                                  \
         underrunProtect(4);                                                 \
-        NanoAssert((ARM_ARCH >= 6) || ((_d) != (_l)));                      \
+        NanoAssert((ARM_ARCH_AT_LEAST(6)) || ((_d) != (_l)));                      \
         NanoAssert(IsGpReg(_d) && IsGpReg(_l) && IsGpReg(_r));              \
         NanoAssert(((_d) != PC) && ((_l) != PC) && ((_r) != PC));           \
         *(--_nIns) = (NIns)( COND_AL | (_d)<<16 | (_r)<<8 | 0x90 | (_l) );  \

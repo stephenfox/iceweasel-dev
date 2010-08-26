@@ -120,7 +120,7 @@ Assembler::CountLeadingZeroes(uint32_t data)
     // run-time check on config.arch and fall back to the C routine, but for
     // now we can avoid the cost of the check as we don't intend to support
     // ARMv4 anyway.
-    NanoAssert(ARM_ARCH >= 5);
+    NanoAssert(ARM_ARCH_AT_LEAST(5));
 
 #if defined(__ARMCC__)
     // ARMCC can do this with an intrinsic.
@@ -551,7 +551,7 @@ Assembler::genEpilogue()
 {
     // On ARMv5+, loading directly to PC correctly handles interworking.
     // Note that we don't support anything older than ARMv5.
-    NanoAssert(ARM_ARCH >= 5);
+    NanoAssert(ARM_ARCH_AT_LEAST(5));
 
     RegisterMask savingMask = rmask(FP) | rmask(PC);
 
@@ -1505,7 +1505,7 @@ Assembler::BranchWithLink(NIns* addr)
             // We need to emit an ARMv5+ instruction, so assert that we have a
             // suitable processor. Note that we don't support ARMv4(T), but
             // this serves as a useful sanity check.
-            NanoAssert(ARM_ARCH >= 5);
+            NanoAssert(ARM_ARCH_AT_LEAST(5));
 
             // The (pre-shifted) value of the "H" bit in the BLX encoding.
             uint32_t    H = (offs & 0x2) << 23;
@@ -1532,7 +1532,7 @@ Assembler::BLX(Register addr, bool chk /* = true */)
     // We need to emit an ARMv5+ instruction, so assert that we have a suitable
     // processor. Note that we don't support ARMv4(T), but this serves as a
     // useful sanity check.
-    NanoAssert(ARM_ARCH >= 5);
+    NanoAssert(ARM_ARCH_AT_LEAST(5));
 
     NanoAssert(IsGpReg(addr));
 #ifdef UNDER_CE
@@ -2165,7 +2165,7 @@ Assembler::asm_arith(LInsp ins)
             // common for (rr == ra) and is thus likely to be the most
             // efficient case; if ra is no longer used after this LIR
             // instruction, it is re-used for the result register (rr).
-            if ((ARM_ARCH > 5) || (rr != rb)) {
+            if ((ARM_ARCH_AT_LEAST(6)) || (rr != rb)) {
                 // Newer cores place no restrictions on the registers used in a
                 // MUL instruction (compared to other arithmetic instructions).
                 MUL(rr, rb, ra);
