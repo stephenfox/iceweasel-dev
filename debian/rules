@@ -84,7 +84,7 @@ stamps/prepare-configure:: stamps/dummy
 	done
 
 stamps/configure-xulrunner:: stamps/prepare-configure
-	mkdir build-xulrunner
+	$(if $(wildcard build-xulrunner),,mkdir build-xulrunner)
 	cd build-xulrunner && \
 	MOZCONFIG=$(CURDIR)/debian/xulrunner.mozconfig \
 	ASFLAGS="-g" \
