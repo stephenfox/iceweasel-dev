@@ -72,7 +72,7 @@ $(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
 
 $(PREPROCESSED_FILES):
-	sed -e 's/##GRE_VERSION##/$(GRE_VERSION)/g' -e 's/##GRE_MILESTONE##/$(GRE_MILESTONE)/g' -e 's/##SO_VERSION##/$(SO_VERSION)/g' $^ > $@
+	sed $(foreach var,GRE_VERSION GRE_MILESTONE SO_VERSION,-e 's/##$(var)##/$($(var))/g' )$^ > $@
 
 override_dh_auto_configure:
 
