@@ -259,7 +259,7 @@ install binary binary-arch binary-indep: $(GENERATED_FILES)
 binary binary-arch binary-indep build clean install:
 	dh $@
 
-.PHONY: build clean binary-indep binary-arch binary install test $(TESTS) xpcshell-tests-skip
+.PHONY: build clean binary-indep binary-arch binary install
 
 .NOTPARALLEL:
 endif

@@ -61,3 +61,5 @@ check-skip:
 
 override_dh_auto_clean::
 	rm -rf debian/locales debian/reftest-app/stub debian/reftest-app/distribution
+
+.PHONY: test $(TESTS) xpcshell-tests-skip
