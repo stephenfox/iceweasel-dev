@@ -213,6 +213,7 @@ Section: debug
 Priority: extra
 Architecture: any
 Depends: xulrunner-1.9.2 (= ${binary:Version}),
+         libmozjs3d-dbg (= ${binary:Version}),
          ${misc:Depends}
 Description: Debugging symbols for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
