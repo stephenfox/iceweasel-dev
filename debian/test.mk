@@ -32,8 +32,8 @@ reftest crashtest jstestbrowser: export GRE_HOME = $(CURDIR)/build-xulrunner/dis
 reftest crashtest jstestbrowser: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
 
 $(TESTS):
-	GNOME22_USER_DIR="$(CURDIR)/dist/.gnome2" \
-	HOME="$(CURDIR)/dist" \
+	GNOME22_USER_DIR="$(CURDIR)/build-xulrunner/dist/.gnome2" \
+	HOME="$(CURDIR)/build-xulrunner/dist" \
 	$(XVFB_RUN) $(MAKE) -C build-xulrunner $@ 2>&1 | sed -u 's/^/$@> /'
 
 xpcshell-tests: xpcshell-tests-skip $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
