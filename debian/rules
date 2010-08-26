@@ -279,7 +279,7 @@ override_dh_shlibdeps:
 
 override_dh_gencontrol:
 	dh_gencontrol -piceweasel -piceweasel-dbg
-	dh_gencontrol -Niceweasel -Niceweasel-dbg -- -v$(GRE_MILESTONE)-$(shell dpkg-parsechangelog | sed -n 's/^Version: *[^~]*\(~.*\)\?-\(.*\)$$/\2/ p')
+	dh_gencontrol -Niceweasel -Niceweasel-dbg -- -v$(GRE_MILESTONE)-$(DEBIAN_RELEASE)
 
 install binary binary-arch binary-indep: $(GENERATED_FILES)
 
