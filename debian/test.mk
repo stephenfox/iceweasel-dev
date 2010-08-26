@@ -11,10 +11,7 @@ TESTS := check xpcshell-tests reftest crashtest jstestbrowser
 
 override_dh_auto_test: $(TESTS)
 
-debian/reftest-app/distribution: $(CURDIR)/build-xulrunner/dist/bin/distribution
-	ln -s $< $@
-
-debian/reftest-app/stub: $(CURDIR)/build-xulrunner/dist/bin/xulrunner-stub
+build-iceweasel/dist/bin/distribution: $(CURDIR)/build-xulrunner/dist/bin/distribution
 	ln -s $< $@
 
 ifndef HAS_LOCALE
@@ -22,8 +19,8 @@ xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
 xpcshell-tests: export NSPR_LOG_MODULES=all:5
-reftest crashtest jstestbrowser: debian/reftest-app/stub debian/reftest-app/distribution
-reftest crashtest jstestbrowser: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/debian/reftest-app/stub
+reftest crashtest jstestbrowser: build-iceweasel/dist/bin/distribution
+reftest crashtest jstestbrowser: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/build-iceweasel/dist/bin/firefox
 reftest crashtest jstestbrowser: export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
 reftest crashtest jstestbrowser: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
 
@@ -62,6 +59,6 @@ check-skip:
 	rm -f js/src/trace-test/tests/sunspider/check-date-format-tofte.js
 
 override_dh_auto_clean::
-	rm -rf debian/locales debian/reftest-app/stub debian/reftest-app/distribution
+	rm -rf debian/locales
 
 .PHONY: test $(TESTS) xpcshell-tests-skip
