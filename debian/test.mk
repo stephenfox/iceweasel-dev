@@ -7,11 +7,7 @@ debian/locales/%:
 	mkdir -p debian/locales
 	localedef -f $(word 2,$(subst ., ,$(notdir $@))) -i $(word 1,$(subst ., ,$(notdir $@))) $@
 
-ifdef TEST_PATH
-TESTS := xpcshell-tests
-else
 TESTS := check xpcshell-tests reftest crashtest jstestbrowser
-endif
 
 override_dh_auto_test: $(TESTS)
 
