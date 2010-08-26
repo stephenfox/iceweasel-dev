@@ -27,6 +27,12 @@ reftest crashtest jstestbrowser: export EXTRA_TEST_ARGS += --appname=$(CURDIR)/d
 reftest crashtest jstestbrowser: export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
 reftest crashtest jstestbrowser: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
 
+ifeq ($(DEB_BUILD_ARCH),armel)
+# Force armel JIT to compile ARMv4T instructions at runtime even when the buildd
+# is > ARMv4T
+$(TESTS): export ARM_FORCE_PLATFORM=4
+endif
+
 $(TESTS):
 	GNOME22_USER_DIR="$(CURDIR)/build-xulrunner/dist/.gnome2" \
 	HOME="$(CURDIR)/build-xulrunner/dist" \
