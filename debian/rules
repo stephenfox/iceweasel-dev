@@ -76,7 +76,7 @@ $(PREPROCESSED_FILES):
 
 override_dh_auto_configure:
 
-stamps/prepare-configure::
+stamps/prepare-configure:: stamps/dummy
 	for dir in $(AUTOCONF_DIRS); do \
 		for file in config.guess config.sub; do \
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
@@ -123,9 +123,9 @@ stamps/configure-iceweasel:: stamps/build-xulrunner
 stamps/build-iceweasel:: stamps/configure-iceweasel
 	dh_auto_build --builddirectory=build-iceweasel
 
-stamps/prepare-configure $(foreach pkg,iceweasel xulrunner,stamps/configure-$(pkg) stamps/build-$(pkg))::
+stamps/dummy stamps/prepare-configure $(foreach pkg,iceweasel xulrunner,stamps/configure-$(pkg) stamps/build-$(pkg))::
 	@mkdir -p stamps
-	touch $@
+	[ -f $@ ] || touch $@
 
 override_dh_auto_build: stamps/build-iceweasel
 
