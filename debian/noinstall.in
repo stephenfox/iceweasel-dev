@@ -6,3 +6,4 @@ usr/lib/iceweasel/removed-files
 usr/lib/xulrunner-##GRE_VERSION##/LICENSE
 usr/lib/xulrunner-##GRE_VERSION##/README.txt
 usr/lib/xulrunner-##GRE_VERSION##/dictionaries
+usr/include/xulrunner-##GRE_VERSION##/testing

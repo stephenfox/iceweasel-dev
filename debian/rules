@@ -178,7 +178,6 @@ override_dh_auto_clean::
 
 override_dh_auto_install:
 	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/build-xulrunner/debian/extra-stuff/packages-static
-	rm -rf debian/tmp/usr/include/xulrunner-$(GRE_VERSION)/testing
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(GRE_VERSION)
 
