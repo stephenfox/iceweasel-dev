@@ -4,10 +4,37 @@ DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
-UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
 GRE_VERSION := 1.9.2
-GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .|sed 's/[a-z]/~&/')
+
+# The VERSION_FILTER transforms upstream version patterns to versions
+# useable in debian/changelog. Versions are to be transformed as follows:
+# 4.0      -> 4.0
+# 4.0pre   -> 4.0~pre
+# 4.0b5    -> 4.0~b5
+# 4.0b5pre -> 4.0~b5~pre
+# That should ensure the proper ordering
+VERSION_FILTER := sed 's/\([0-9]\)\([a-z]\)/\1~\2/g'
+UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
+GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))
 SO_VERSION := $(shell awk -F'[\t =]+' '$$1 == "SO_VERSION" {print $$2}' js/src/Makefile.in)
+# Last version in debian/changelog
+DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *// p')
+# Debian part of the above version (anything after the last dash)
+DEBIAN_RELEASE := $(lastword $(subst -, ,$(DEBIAN_VERSION)))
+# Upstream part of the debian/changelog version (anything before the last dash)
+UPSTREAM_RELEASE := $(DEBIAN_VERSION:%-$(DEBIAN_RELEASE)=%)
+
+# Check if the GRE_VERSION defined above matches the actual milestone
+ifeq (,$(filter $(GRE_VERSION).%,$(GRE_MILESTONE)))
+$(error GRE_VERSION ($(GRE_VERSION)) doesn't match GRE_MILESTONE ($(GRE_MILESTONE)))
+endif
+
+# Check if the version in debian/changelog matches actual upstream version
+# as VERSION_FILTER transforms it.
+FILTERED_UPSTREAM_VERSION := $(shell echo $(UPSTREAM_VERSION) | $(VERSION_FILTER))
+ifneq ($(FILTERED_UPSTREAM_VERSION),$(UPSTREAM_RELEASE))
+$(error Upstream version in debian/changelog ($(UPSTREAM_RELEASE)) doesn't match actual upstream version ($(FILTERED_UPSTREAM_VERSION)))
+endif
 
 LIB_DIR := /usr/lib/iceweasel
 SHARE_DIR := /usr/share/iceweasel
