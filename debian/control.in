@@ -42,7 +42,6 @@ Build-Depends: autotools-dev,
                ttf-freefont,
                imagemagick,
                librsvg2-bin,
-               sharutils,
                xsltproc
 Build-Conflicts: graphicsmagick-imagemagick-compat,
                  libhildonmime-dev,

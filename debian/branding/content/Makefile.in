@@ -13,15 +13,11 @@ GARBAGE += $(CHROME_DEPS)
 
 include $(topsrcdir)/config/rules.mk
 
-aboutCredits.png.0 about.png.0: %.0: $(srcdir)/%.uu
-	uudecode -o $@ $<
-GARBAGE += aboutCredits.png.0 about.png.0
-
-aboutCredits.png: %: ../mozicon128.png %.0
+aboutCredits.png: %.png: ../mozicon128.png %-base.png
 	composite -compose src-over -gravity center -geometry +0-7 \
 		$^ $@
 
-about.png: %: ../iceweasel_logo.png %.0
+about.png: %.png: ../iceweasel_logo.png %-base.png
 	composite -compose src-over -gravity center -geometry +0-26 \
 		$^ $@
 
