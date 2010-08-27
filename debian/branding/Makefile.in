@@ -17,7 +17,11 @@ DIRS = \
 
 PREF_JS_EXPORTS += $(srcdir)/firefox-branding.js
 
+ifndef BRANDING_TEST
 EXTRA_COMPONENTS := aboutIce.js
+else
+DEFINES += -DBRANDING_TEST
+endif
 
 include $(topsrcdir)/config/rules.mk
 

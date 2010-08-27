@@ -101,6 +101,9 @@ GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
 $(PREPROCESSED_FILES):
 	sed $(foreach var,GRE_VERSION GRE_MILESTONE SO_VERSION,-e 's/##$(var)##/$($(var))/g' )$^ > $@
 
+build-iceweasel/%/Makefile build-xulrunner/%/Makefile:
+	cd $(firstword $(subst /, ,$@)) && ../build/autoconf/make-makefile -t .. $*
+
 override_dh_auto_configure:
 
 stamps/prepare-configure:: stamps/dummy
@@ -117,7 +120,6 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	ASFLAGS="-g" \
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-default-mozilla-five-home=/usr/lib/xulrunner-$(GRE_VERSION)
-	cd build-xulrunner && ../build/autoconf/make-makefile -t .. debian/extra-stuff
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
 
@@ -146,7 +148,7 @@ stamps/build-xulrunner:: stamps/configure-check-xulrunner
 	dh_auto_build --parallel --builddirectory=build-xulrunner -- \
 		JS_READLINE=1
 
-stamps/build-xulrunner-extra:: stamps/build-xulrunner
+stamps/build-xulrunner-extra:: stamps/build-xulrunner build-xulrunner/debian/extra-stuff/Makefile
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
 stamps/configure-iceweasel:: stamps/build-xulrunner-extra
@@ -159,11 +161,20 @@ stamps/configure-iceweasel:: stamps/build-xulrunner-extra
 stamps/build-iceweasel:: stamps/configure-iceweasel
 	dh_auto_build --builddirectory=build-iceweasel
 
+build-iceweasel/%/filelist: stamps/build-iceweasel build-iceweasel/%/Makefile
+	rm -rf build-iceweasel/$*/dist
+	$(MAKE) -C build-iceweasel/$* MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-iceweasel/$*/dist BRANDING_TEST=1
+	cd build-iceweasel/$*/dist/bin && find -type f | sort > $(CURDIR)/$@
+
+stamps/build-check-iceweasel:: build-iceweasel/browser/branding/unofficial/filelist build-iceweasel/debian/branding/filelist
+# Ensure the iceweasel branding contains everything it's supposed to
+	diff $^
+
 $(shell awk -F: '$$1 ~ /^stamps\// { print $$1 }' debian/rules) stamps/dummy::
 	@mkdir -p stamps
 	[ -f $@ ] || touch $@
 
-override_dh_auto_build: stamps/build-iceweasel
+override_dh_auto_build: stamps/build-check-iceweasel
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 include debian/test.mk
