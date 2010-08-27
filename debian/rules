@@ -121,6 +121,7 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
 
+stamps/configure-check-xulrunner:: stamps/configure-xulrunner
 # Ensure --{with,enable}-system options properly set expected variables
 # according to the definitions in the mozconfig file.
 	@awk -F' *# *| *$$' ' \
@@ -141,12 +142,14 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	} \
 	END { if (error) { exit 1 }}' debian/xulrunner.mozconfig
 
-stamps/build-xulrunner:: stamps/configure-xulrunner
+stamps/build-xulrunner:: stamps/configure-check-xulrunner
 	dh_auto_build --parallel --builddirectory=build-xulrunner -- \
 		JS_READLINE=1
+
+stamps/build-xulrunner-extra:: stamps/build-xulrunner
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
-stamps/configure-iceweasel:: stamps/build-xulrunner
+stamps/configure-iceweasel:: stamps/build-xulrunner-extra
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
 	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
@@ -156,7 +159,7 @@ stamps/configure-iceweasel:: stamps/build-xulrunner
 stamps/build-iceweasel:: stamps/configure-iceweasel
 	dh_auto_build --builddirectory=build-iceweasel
 
-stamps/dummy stamps/prepare-configure $(foreach pkg,iceweasel xulrunner,stamps/configure-$(pkg) stamps/build-$(pkg))::
+$(shell awk -F: '$$1 ~ /^stamps\// { print $$1 }' debian/rules) stamps/dummy::
 	@mkdir -p stamps
 	[ -f $@ ] || touch $@
 
@@ -182,7 +185,9 @@ override_dh_auto_clean::
 		done; \
 	done
 
-override_dh_auto_install:
+override_dh_auto_install: stamps/install-iceweasel stamps/install-xulrunner
+
+stamps/install-xulrunner::
 	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/build-xulrunner/debian/extra-stuff/packages-static
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(GRE_VERSION)
@@ -217,6 +222,7 @@ override_dh_auto_install:
 
 	sed -i '/^Cflags/ s,$${includedir},/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
+stamps/install-iceweasel::
 	dh_auto_install --builddirectory=build-iceweasel -- installdir=$(LIB_DIR)
 	chmod 755 debian/iceweasel-xremote-client
 
