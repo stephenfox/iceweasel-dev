@@ -121,15 +121,21 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
 	sed -i '/^OS_LDFLAGS/s|=|& $(JS_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
 
+# Ensure --{with,enable}-system options properly set expected variables
+# according to the definitions in the mozconfig file.
 	@awk -F' *# *| *$$' ' \
+	BEGIN { "find $(CURDIR)/build-xulrunner -name autoconf.mk -printf \"%p \"" | getline confs } \
 	$$1 ~ /system/ { \
 		if (! $$2) { \
 			print FILENAME ": Missing variable for",$$1; \
 			error=1; \
 		} else { \
 			split($$2,var,"="); \
-			cmd = "$(MAKE) -C build-xulrunner --no-print-directory echo-variable-" var[1]; \
-			cmd |  getline value; \
+			cmd = "grep -l " var[1] " " confs; \
+			cmd | getline dir; \
+			sub(/\/[^\/]*$$/, "", dir); \
+			cmd = "$(MAKE) -C " dir " --no-print-directory echo-variable-" var[1]; \
+			cmd | getline value; \
 			if (value != var[2]) { print $$1, "triggered", var[1] "=" value,"instead of",$$2; error=1 } \
 		} \
 	} \
