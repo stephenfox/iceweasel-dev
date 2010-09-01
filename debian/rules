@@ -239,7 +239,7 @@ MPL: LICENSE
 override_dh_installdocs: MPL
 	dh_installdocs -A $^
 
-override_dh_install: debian/dh/dh_xulrunner debian/noinstall
+stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall
 	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r
 	dh_install --fail-missing -Xplugin-container -Xdependentlibs.list
 ifneq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
@@ -276,8 +276,11 @@ endif
 
 	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/$(LIB_DIR)/application.ini
 
+stamps/check-dh_xulrunner:: stamps/dh_install debian/dh/dh_xulrunner
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
 	perl $< -pxulrunner-$(GRE_VERSION) --no-act -v 2>&1 | grep -q "..*"
+
+override_dh_install: stamps/check-dh_xulrunner
 
 override_dh_strip:
 	dh_strip -a -Niceweasel -Nlibmozjs$(SO_VERSION) -Nspidermonkey-bin --dbg-package=xulrunner-$(GRE_VERSION)-dbg
