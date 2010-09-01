@@ -278,7 +278,7 @@ endif
 
 stamps/check-dh_xulrunner:: stamps/dh_install debian/dh/dh_xulrunner
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
-	perl $< -pxulrunner-$(GRE_VERSION) --no-act -v 2>&1 | grep -q "..*"
+	perl debian/dh/dh_xulrunner_test -pxulrunner-$(GRE_VERSION) | awk -v expected='addsubstvar("xulrunner-$(GRE_VERSION)", "shlibs:Depends", "xulrunner-$(GRE_VERSION)");' '$$0 !~ /^\t/ { txt = txt ? txt "\n" $$0 : $$0 } END { if (txt != expected) { print "Expected:\n" expected "\nGot:\n" txt; exit 1 }}'
 
 override_dh_install: stamps/check-dh_xulrunner
 

@@ -84,6 +84,8 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 	}
 }
 
+1;
+
 =head1 SEE ALSO
 
 L<debhelper(7)>
