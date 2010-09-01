@@ -313,5 +313,5 @@ binary binary-arch binary-indep build clean install:
 
 $(shell awk -F: '$$1 ~ /^stamps\// { print $$1 }' debian/rules) stamps/dummy::
 	@mkdir -p stamps
-	[ -f $@ ] || touch $@
+	$(if $(wildcard $@),,touch $@)
 endif
