@@ -50,11 +50,18 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 
-#ifdef AVMPLUS_ARM
-#define ARM_ARCH   config.arch
-#define ARM_VFP    config.vfp
-#define ARM_THUMB2 config.thumb2
+#include "njcpudetect.h"
 
+#ifdef AVMPLUS_ARM
+#ifdef DEBUG
+#define ARM_ARCH_AT_LEAST(wanted) (config.arch >= (wanted))
+#define ARM_VFP    config.vfp
+#else
+#define ARM_ARCH_AT_LEAST(wanted) \
+    ((NJ_COMPILER_ARM_ARCH >= (wanted)) || (config.arch >= (wanted)))
+#define ARM_VFP ((NJ_COMPILER_ARM_ARCH >= 7) || (config.vfp))
+#endif
+#define ARM_THUMB2 config.thumb2
 #endif
 
 #if !defined(AVMPLUS_LITTLE_ENDIAN) && !defined(AVMPLUS_BIG_ENDIAN)
