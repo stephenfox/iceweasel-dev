@@ -27,6 +27,7 @@ It must be run after dh_shlibdeps.
 Using dh_xulrunner requires a build dependency on xulrunner-dev (>= 1.9.1.3-2).
 
 You can also use the xulrunner dh sequence addon to integrate in a dh workflow:
+
 	dh --with xulrunner $@
 
 =cut
