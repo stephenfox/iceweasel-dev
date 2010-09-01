@@ -229,7 +229,6 @@ verbose_only( extern const char* shiftNames[]; )
     int *       _nSlot;                                                         \
     int *       _startingSlot;                                                  \
     int *       _nExitSlot;                                                     \
-    bool        blx_lr_bug;                                                     \
     int         max_out_args; /* bytes */                                      
 
 //nj_dprintf("jmp_l_n count=%d, nins=%X, %X = %X\n", (_c), nins, _nIns, ((intptr_t)(nins+(_c))-(intptr_t)_nIns - 4) );
@@ -461,7 +460,7 @@ enum {
 // _d = _l * _r
 #define MUL(_d,_l,_r)  do {                                  \
         underrunProtect(4);                                                 \
-        NanoAssert((ARM_ARCH >= 6) || ((_d) != (_l)));                      \
+        NanoAssert((ARM_ARCH_AT_LEAST(6)) || ((_d) != (_l)));                      \
         NanoAssert(IsGpReg(_d) && IsGpReg(_l) && IsGpReg(_r));              \
         NanoAssert(((_d) != PC) && ((_l) != PC) && ((_r) != PC));           \
         *(--_nIns) = (NIns)( COND_AL | (_d)<<16 | (_r)<<8 | 0x90 | (_l) );  \
