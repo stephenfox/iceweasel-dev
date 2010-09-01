@@ -75,7 +75,6 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 				$buf = join ' ', split(/[^A-Za-z\.\/_]+/, $buf);
 				my $pattern = '(' . join('|', @strings) . ')';
 				my (@matches) = $buf =~ m{$pattern}g;
-				print @matches,"\n";
 				if (!grep { my $s = $_; ! grep { $_ eq $s } @matches } @strings) {
 					addsubstvar($package, "shlibs:Depends", "xulrunner-##GRE_VERSION##");
 					last;
