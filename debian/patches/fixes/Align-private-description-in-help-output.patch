@@ -1,0 +1,21 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 1 Sep 2010 19:21:51 +0200
+Subject: Align -private description in --help output
+
+---
+ .../src/nsPrivateBrowsingService.js                |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/browser/components/privatebrowsing/src/nsPrivateBrowsingService.js b/browser/components/privatebrowsing/src/nsPrivateBrowsingService.js
+index 211baac..1fbe96e 100644
+--- a/browser/components/privatebrowsing/src/nsPrivateBrowsingService.js
++++ b/browser/components/privatebrowsing/src/nsPrivateBrowsingService.js
+@@ -432,7 +432,7 @@ PrivateBrowsingService.prototype = {
+   },
+ 
+   get helpInfo PBS_get_helpInfo() {
+-    return "  -private            Enable private browsing mode.\n";
++    return "  -private           Enable private browsing mode.\n";
+   },
+ 
+   // nsIPrivateBrowsingService
