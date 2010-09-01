@@ -71,7 +71,7 @@ ifeq (,$(filter debug noopt,$(DEB_BUILD_OPTIONS)))
 	GENSYMBOLS_FLAGS := -c4
 endif
 
-ifndef CXX
+ifeq (default,$(origin CXX))
 CXX := g++
 endif
 CXXFLAGS := $(CFLAGS)
@@ -79,7 +79,7 @@ ifeq (,$(shell dpkg --compare-versions $(shell $(CXX) -dumpversion) '>=' 4.4 || 
 CXXFLAGS += -std=gnu++0x
 endif
 
-export CFLAGS CXXFLAGS
+export CXX CFLAGS CXXFLAGS
 
 JS_LDFLAGS := $(MAIN_LDFLAGS)
 JS_LDFLAGS += -Wl,--version-script=$(CURDIR)/debian/symbols.filter
