@@ -432,7 +432,7 @@ PrivateBrowsingService.prototype = {
   },
 
   get helpInfo PBS_get_helpInfo() {
-    return "  -private            Enable private browsing mode.\n";
+    return "  -private           Enable private browsing mode.\n";
   },
 
   // nsIPrivateBrowsingService
