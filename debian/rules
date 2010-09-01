@@ -170,10 +170,6 @@ stamps/build-check-iceweasel:: build-iceweasel/browser/branding/unofficial/filel
 # Ensure the iceweasel branding contains everything it's supposed to
 	diff $^
 
-$(shell awk -F: '$$1 ~ /^stamps\// { print $$1 }' debian/rules) stamps/dummy::
-	@mkdir -p stamps
-	[ -f $@ ] || touch $@
-
 override_dh_auto_build: stamps/build-check-iceweasel
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
@@ -311,4 +307,8 @@ binary binary-arch binary-indep build clean install:
 .PHONY: build clean binary-indep binary-arch binary install
 
 .NOTPARALLEL:
+
+$(shell awk -F: '$$1 ~ /^stamps\// { print $$1 }' debian/rules) stamps/dummy::
+	@mkdir -p stamps
+	[ -f $@ ] || touch $@
 endif
