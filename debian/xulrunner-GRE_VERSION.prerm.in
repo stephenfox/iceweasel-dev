@@ -7,4 +7,8 @@ if [ "$1" = "remove" ]; then
           /usr/lib/xulrunner-##GRE_VERSION##/components/xpti.dat
 fi
 
+if [ "$1" = "remove" ] || [ "$1" = "deconfigure" ] ; then
+    update-alternatives --remove xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub
+fi
+
 #DEBHELPER#

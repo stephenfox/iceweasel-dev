@@ -15,5 +15,10 @@ if [ "$1" = "configure" ] || [ "$1" = "triggered" ] ||
     rm -rf "$HOME"
 fi
 
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ; then
+    update-alternatives --install /usr/bin/xulrunner-stub \
+        xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub 100
+fi
+
 #DEBHELPER#
 
