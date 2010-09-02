@@ -17,7 +17,9 @@ fi
 
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ; then
     update-alternatives --install /usr/bin/xulrunner-stub \
-        xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub 100
+        xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub 100 \
+        --slave /usr/share/man/man1/xulrunner-stub.1.gz xulrunner-stub.1.gz \
+        /usr/share/man/man1/xulrunner-stub-##GRE_VERSION##.1.gz
 fi
 
 #DEBHELPER#
