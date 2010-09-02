@@ -170,6 +170,8 @@ Depends: ${shlibs:Depends},
 Description: standalone JavaScript/ECMAScript (ECMA-262) interpreter
  SpiderMonkey is a standalone JavaScript/ECMAScript interpreter. It can either
  take input from files or from a command line driven interface.
+ It is not recommended for production use, as it contains dangerous
+ (security-wise) debugging features.
  .
  ECMAScript (ECMA-262) is a dynamic scripting language supporting prototype
  based object construction. The basic syntax is intentionally similar to
