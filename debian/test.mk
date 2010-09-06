@@ -19,7 +19,6 @@ ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
-xpcshell-tests: export NSPR_LOG_MODULES=all:5
 $(APP_TESTS): build-iceweasel/dist/bin/distribution
 $(APP_TESTS): export EXTRA_TEST_ARGS += --appname=$(CURDIR)/build-iceweasel/dist/bin/firefox
 $(APP_TESTS): export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
