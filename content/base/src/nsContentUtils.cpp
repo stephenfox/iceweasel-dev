@@ -153,6 +153,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIPrivateDOMEvent.h"
 #include "nsXULPopupManager.h"
 #include "nsIPermissionManager.h"
+#include "nsIContentPrefService.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIRunnable.h"
 #include "nsDOMJSUtils.h"
@@ -206,7 +207,9 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentDLF.h"
+#ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
+#endif
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -265,6 +268,12 @@ PRBool nsContentUtils::sInitialized = PR_FALSE;
 
 nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
   *nsContentUtils::sPrefCallbackTable = nsnull;
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+nsFrameLoader *nsContentUtils::sActiveFrameLoader = nsnull;
+#endif
+#endif
 
 static PLDHashTable sEventListenerManagersHash;
 
@@ -555,6 +564,7 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onreset,                       NS_FORM_RESET, EventNameType_HTMLXUL, NS_EVENT },
     { nsGkAtoms::onchange,                      NS_FORM_CHANGE, EventNameType_HTMLXUL, NS_EVENT },
     { nsGkAtoms::onselect,                      NS_FORM_SELECTED, EventNameType_HTMLXUL, NS_EVENT },
+    { nsGkAtoms::oninvalid,                     NS_FORM_INVALID, EventNameType_HTMLXUL, NS_EVENT },
     { nsGkAtoms::onload,                        NS_LOAD, EventNameType_All, NS_EVENT },
     { nsGkAtoms::onpopstate,                    NS_POPSTATE, EventNameType_HTMLXUL, NS_EVENT_NULL },
     { nsGkAtoms::onunload,                      NS_PAGE_UNLOAD,
@@ -663,6 +673,7 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onratechange,                  NS_RATECHANGE, EventNameType_HTML, NS_EVENT_NULL },
     { nsGkAtoms::ondurationchange,              NS_DURATIONCHANGE, EventNameType_HTML, NS_EVENT_NULL },
     { nsGkAtoms::onvolumechange,                NS_VOLUMECHANGE, EventNameType_HTML, NS_EVENT_NULL },
+    { nsGkAtoms::onMozAudioAvailable,           NS_MOZAUDIOAVAILABLE, EventNameType_None, NS_EVENT_NULL },
 #endif // MOZ_MEDIA
     { nsGkAtoms::onMozAfterPaint,               NS_AFTERPAINT, EventNameType_None, NS_EVENT },
     { nsGkAtoms::onMozBeforePaint,              NS_BEFOREPAINT, EventNameType_None, NS_EVENT_NULL },
@@ -1906,6 +1917,7 @@ nsContentUtils::TrimCharsInSet(const char* aSet,
  */
 
 // static
+template<PRBool IsWhitespace(PRUnichar)>
 const nsDependentSubstring
 nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
 {
@@ -1915,7 +1927,7 @@ nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
   aStr.EndReading(end);
 
   // Skip whitespace characters in the beginning
-  while (start != end && nsCRT::IsAsciiSpace(*start)) {
+  while (start != end && IsWhitespace(*start)) {
     ++start;
   }
 
@@ -1924,7 +1936,7 @@ nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
     while (end != start) {
       --end;
 
-      if (!nsCRT::IsAsciiSpace(*end)) {
+      if (!IsWhitespace(*end)) {
         // Step back to the last non-whitespace character.
         ++end;
 
@@ -1938,6 +1950,16 @@ nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
 
   return Substring(start, end);
 }
+
+// Declaring the templates we are going to use avoid linking issues without
+// inlining the method. Considering there is not so much spaces checking
+// methods we can consider this to be better than inlining.
+template
+const nsDependentSubstring
+nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(const nsAString&, PRBool);
+template
+const nsDependentSubstring
+nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespace>(const nsAString&, PRBool);
 
 static inline void KeyAppendSep(nsACString& aKey)
 {
@@ -2786,6 +2808,20 @@ nsContentUtils::AddIntPrefVarCache(const char *aPref,
   data->defaultValueInt = aDefault;
   sPrefCacheData->AppendElement(data);
   RegisterPrefCallback(aPref, IntVarChanged, data);
+}
+
+PRBool
+nsContentUtils::IsSitePermAllow(nsIURI* aURI, const char* aType)
+{
+  nsCOMPtr<nsIPermissionManager> permMgr =
+    do_GetService("@mozilla.org/permissionmanager;1");
+  NS_ENSURE_TRUE(permMgr, PR_FALSE);
+
+  PRUint32 perm;
+  nsresult rv = permMgr->TestPermission(aURI, aType, &perm);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  
+  return perm == nsIPermissionManager::ALLOW_ACTION;
 }
 
 static const char *gEventNames[] = {"event"};
@@ -5387,7 +5423,7 @@ nsContentUtils::CanAccessNativeAnon()
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
-  } else if (!fp->script) {
+  } else if (!fp->hasScript()) {
     fp = nsnull;
   }
 
@@ -5402,8 +5438,8 @@ nsContentUtils::CanAccessNativeAnon()
   // if they've been cloned into less privileged contexts.
   static const char prefix[] = "chrome://global/";
   const char *filename;
-  if (fp && fp->script &&
-      (filename = fp->script->filename) &&
+  if (fp && fp->hasScript() &&
+      (filename = fp->getScript()->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
     return PR_TRUE;
   }
@@ -6208,6 +6244,17 @@ nsContentUtils::IsFocusedContent(nsIContent* aContent)
 
   return fm && fm->GetFocusedContent() == aContent;
 }
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+// static
+already_AddRefed<nsFrameLoader>
+nsContentUtils::GetActiveFrameLoader()
+{
+  return nsCOMPtr<nsFrameLoader>(sActiveFrameLoader).forget();
+}
+#endif
+#endif
 
 void nsContentUtils::RemoveNewlines(nsString &aString)
 {

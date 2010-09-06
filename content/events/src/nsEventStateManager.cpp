@@ -44,6 +44,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#ifdef ANDROID
+#include "mozilla/dom/PBrowserParent.h"
+#endif
+#endif
+
 #include "nsCOMPtr.h"
 #include "nsEventStateManager.h"
 #include "nsEventListenerManager.h"
@@ -127,7 +133,7 @@
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 
-#include "nsIFrameFrame.h"
+#include "nsSubDocumentFrame.h"
 #include "nsIFrameTraversal.h"
 #include "nsLayoutCID.h"
 #include "nsLayoutUtils.h"
@@ -157,6 +163,12 @@
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
+#endif
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+#include "nsFrameLoader.h"
+#endif
 #endif
 
 //#define DEBUG_DOCSHELL_FOCUS
@@ -1369,6 +1381,40 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       DoContentCommandScrollEvent(static_cast<nsContentCommandEvent*>(aEvent));
     }
     break;
+#ifdef MOZ_IPC
+#ifdef ANDROID
+  case NS_TEXT_TEXT:
+    {
+      nsTextEvent *textEvent = static_cast<nsTextEvent*>(aEvent);
+      if (IsTargetCrossProcess(textEvent)) {
+        // Will not be handled locally, remote the event
+        mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
+        if (remoteBrowser &&
+            remoteBrowser->SendTextEvent(*textEvent)) {
+          // Cancel local dispatching
+          *aStatus = nsEventStatus_eConsumeNoDefault;
+        }
+      }
+    }
+    break;
+  case NS_COMPOSITION_START:
+  case NS_COMPOSITION_END:
+    {
+      nsCompositionEvent *compositionEvent =
+          static_cast<nsCompositionEvent*>(aEvent);
+      if (IsTargetCrossProcess(compositionEvent)) {
+        // Will not be handled locally, remote the event
+        mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
+        if (remoteBrowser &&
+            remoteBrowser->SendCompositionEvent(*compositionEvent)) {
+          // Cancel local dispatching
+          *aStatus = nsEventStatus_eConsumeNoDefault;
+        }
+      }
+    }
+    break;
+#endif
+#endif
   }
   return NS_OK;
 }
@@ -1744,8 +1790,10 @@ nsEventStateManager::FireContextClick()
         PRInt32 type = formCtrl->GetType();
 
         allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
+                             type == NS_FORM_INPUT_EMAIL ||
                              type == NS_FORM_INPUT_SEARCH ||
                              type == NS_FORM_INPUT_TEL ||
+                             type == NS_FORM_INPUT_URL ||
                              type == NS_FORM_INPUT_PASSWORD ||
                              type == NS_FORM_INPUT_FILE ||
                              type == NS_FORM_TEXTAREA);
@@ -3199,13 +3247,78 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     }
     break;
 #endif
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+  case NS_QUERY_SELECTED_TEXT:
+  case NS_QUERY_TEXT_CONTENT:
+  case NS_QUERY_CARET_RECT:
+  case NS_QUERY_TEXT_RECT:
+  case NS_QUERY_EDITOR_RECT:
+  case NS_QUERY_CONTENT_STATE:
+  // We don't remote nsITransferable yet
+  //case NS_QUERY_SELECTION_AS_TRANSFERABLE:
+  case NS_QUERY_CHARACTER_AT_POINT:
+    {
+      nsQueryContentEvent *queryEvent =
+          static_cast<nsQueryContentEvent*>(aEvent);
+      // If local query failed, try remote query
+      if (queryEvent->mSucceeded)
+        break;
+
+      mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
+      if (remoteBrowser &&
+          remoteBrowser->SendQueryContentEvent(*queryEvent)) {
+        queryEvent->mWasAsync = PR_TRUE;
+        queryEvent->mSucceeded = PR_TRUE;
+      }
+    }
+    break;
+  case NS_SELECTION_SET:
+    {
+      nsSelectionEvent *selectionEvent =
+          static_cast<nsSelectionEvent*>(aEvent);
+      // If local handler failed, try remoting the event
+      if (selectionEvent->mSucceeded)
+        break;
+
+      mozilla::dom::PBrowserParent *remoteBrowser = GetCrossProcessTarget();
+      if (remoteBrowser &&
+          remoteBrowser->SendSelectionEvent(*selectionEvent))
+        selectionEvent->mSucceeded = PR_TRUE;
+    }
+    break;
+#endif // ANDROID
+#endif // MOZ_IPC
   }
 
   //Reset target frame to null to avoid mistargeting after reentrant event
   mCurrentTarget = nsnull;
+  mCurrentTargetContent = nsnull;
 
   return ret;
 }
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+mozilla::dom::PBrowserParent*
+nsEventStateManager::GetCrossProcessTarget()
+{
+  nsCOMPtr<nsFrameLoader> fl = nsContentUtils::GetActiveFrameLoader();
+  NS_ENSURE_TRUE(fl, nsnull);
+  return fl->GetRemoteBrowser();
+}
+
+PRBool
+nsEventStateManager::IsTargetCrossProcess(nsGUIEvent *aEvent)
+{
+  nsQueryContentEvent stateEvent(PR_TRUE, NS_QUERY_CONTENT_STATE, aEvent->widget);
+  nsContentEventHandler handler(mPresContext);
+  handler.OnQueryContentState(&stateEvent);
+  return !stateEvent.mSucceeded;
+}
+#endif
+#endif
 
 NS_IMETHODIMP
 nsEventStateManager::NotifyDestroyPresContext(nsPresContext* aPresContext)
@@ -3500,6 +3613,8 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   event.relatedTarget = aRelatedContent;
   event.inputSource = static_cast<nsMouseEvent*>(aEvent)->inputSource;
 
+  nsWeakFrame previousTarget = mCurrentTarget;
+
   mCurrentTargetContent = aTargetContent;
 
   nsIFrame* targetFrame = nsnull;
@@ -3517,6 +3632,7 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   }
 
   mCurrentTargetContent = nsnull;
+  mCurrentTarget = previousTarget;
 
   return targetFrame;
 }
@@ -3533,7 +3649,7 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
   if (mLastMouseOverFrame) {
     // if the frame is associated with a subdocument,
     // tell the subdocument that we're moving out of it
-    nsIFrameFrame* subdocFrame = do_QueryFrame(mLastMouseOverFrame.GetFrame());
+    nsSubDocumentFrame* subdocFrame = do_QueryFrame(mLastMouseOverFrame.GetFrame());
     if (subdocFrame) {
       nsCOMPtr<nsIDocShell> docshell;
       subdocFrame->GetDocShell(getter_AddRefs(docshell));

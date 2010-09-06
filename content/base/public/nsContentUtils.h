@@ -385,6 +385,7 @@ public:
   static const nsDependentSubstring TrimCharsInSet(const char* aSet,
                                                    const nsAString& aValue);
 
+  template<PRBool IsWhitespace(PRUnichar)>
   static const nsDependentSubstring TrimWhitespace(const nsAString& aStr,
                                                    PRBool aTrimTrailing = PR_TRUE);
 
@@ -608,6 +609,11 @@ public:
   {
     return sPrefBranch;
   }
+
+  // Get a permission-manager setting for the given uri and type.
+  // If the pref doesn't exist or if it isn't ALLOW_ACTION, PR_FALSE is
+  // returned, otherwise PR_TRUE is returned.
+  static PRBool IsSitePermAllow(nsIURI* aURI, const char* aType);
 
   static nsILineBreaker* LineBreaker()
   {
@@ -1676,6 +1682,23 @@ public:
    */
   static PRBool IsFocusedContent(nsIContent *aContent);
 
+#ifdef MOZ_IPC
+#ifdef ANDROID
+  static void SetActiveFrameLoader(nsFrameLoader *aFrameLoader)
+  {
+    sActiveFrameLoader = aFrameLoader;
+  }
+
+  static void ClearActiveFrameLoader(const nsFrameLoader *aFrameLoader)
+  {
+    if (sActiveFrameLoader == aFrameLoader)
+      sActiveFrameLoader = nsnull;
+  }
+
+  static already_AddRefed<nsFrameLoader> GetActiveFrameLoader();
+#endif
+#endif
+
 private:
 
   static PRBool InitializeEventTable();
@@ -1765,6 +1788,12 @@ private:
   static nsIInterfaceRequestor* sSameOriginChecker;
 
   static PRBool sIsHandlingKeyBoardEvent;
+
+#ifdef MOZ_IPC
+#ifdef ANDROID
+  static nsFrameLoader *sActiveFrameLoader;
+#endif
+#endif
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \

@@ -37,12 +37,16 @@
 
 #include <android/log.h>
 
+#ifdef MOZ_IPC
 #include "mozilla/dom/ContentChild.h"
+#include "nsXULAppAPI.h"
+#endif
 #include <pthread.h>
 #include <prthread.h>
 #include "nsXPCOMStrings.h"
 
 #include "AndroidBridge.h"
+#include "nsAppShell.h"
 
 using namespace mozilla;
 
@@ -105,6 +109,9 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jOpenUriExternal = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "openUriExternal", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z");
     jGetMimeTypeFromExtension = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getMimeTypeFromExtension", "(Ljava/lang/String;)Ljava/lang/String;");
     jMoveTaskToBack = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "moveTaskToBack", "()V");
+    jGetClipboardText = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getClipboardText", "()Ljava/lang/String;");
+    jSetClipboardText = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setClipboardText", "(Ljava/lang/String;)V");
+    jShowAlertNotification = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showAlertNotification", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
 
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
@@ -192,8 +199,12 @@ AndroidBridge::NotifyIME(int aType, int aState)
     if (sBridge)
         JNI()->CallStaticVoidMethod(sBridge->mGeckoAppShellClass, 
                                     sBridge->jNotifyIME,  aType, aState);
-    else
+#ifdef MOZ_IPC
+    // It's possible that we are in chrome process
+    //  but sBridge is not initialized yet
+    else if (XRE_GetProcessType() == GeckoProcessType_Content)
         mozilla::dom::ContentChild::GetSingleton()->SendNotifyIME(aType, aState);
+#endif
 }
 
 void
@@ -201,9 +212,11 @@ AndroidBridge::NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen,
                                int aStart, int aEnd, int aNewEnd)
 {
     if (!sBridge) {
+#ifdef MOZ_IPC
         mozilla::dom::ContentChild::GetSingleton()->
             SendNotifyIMEChange(nsAutoString(aText), aTextLen,
                                 aStart, aEnd, aNewEnd);
+#endif
         return;
     }
 
@@ -334,7 +347,7 @@ AndroidBridge::OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMi
 }
 
 void
-AndroidBridge::GetMimeTypeFromExtension(const nsCString& aFileExt, nsCString& aMimeType) {
+AndroidBridge::GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType) {
     AutoLocalJNIFrame jniFrame;
     NS_ConvertUTF8toUTF16 wFileExt(aFileExt);
     jstring jstrExt = mJNIEnv->NewString(wFileExt.get(), wFileExt.Length());
@@ -349,6 +362,71 @@ void
 AndroidBridge::MoveTaskToBack()
 {
     mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jMoveTaskToBack);
+}
+
+bool
+AndroidBridge::GetClipboardText(nsAString& aText)
+{
+    jstring jstrType =  
+        static_cast<jstring>(mJNIEnv->
+                             CallStaticObjectMethod(mGeckoAppShellClass,
+                                                    jGetClipboardText));
+    if (!jstrType)
+        return PR_FALSE;
+    nsJNIString jniStr(jstrType);
+    aText.Assign(jniStr);
+    return PR_TRUE;
+}
+
+void
+AndroidBridge::SetClipboardText(const nsAString& aText)
+{
+    const PRUnichar* wText;
+    PRUint32 wTextLen = NS_StringGetData(aText, &wText);
+    jstring jstr = mJNIEnv->NewString(wText, wTextLen);
+    mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, jstr);
+}
+
+bool
+AndroidBridge::ClipboardHasText()
+{
+    jstring jstrType =  
+        static_cast<jstring>(mJNIEnv->
+                             CallStaticObjectMethod(mGeckoAppShellClass,
+                                                    jGetClipboardText));
+    if (!jstrType)
+        return PR_FALSE;
+    return PR_TRUE;
+}
+
+void
+AndroidBridge::EmptyClipboard()
+{
+    mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, nsnull);
+}
+
+void
+AndroidBridge::ShowAlertNotification(const nsAString& aImageUrl,
+                                     const nsAString& aAlertTitle,
+                                     const nsAString& aAlertText,
+                                     const nsAString& aAlertCookie,
+                                     nsIObserver *aAlertListener,
+                                     const nsAString& aAlertName)
+{
+    ALOG("ShowAlertNotification");
+
+    AutoLocalJNIFrame jniFrame;
+
+    if (nsAppShell::gAppShell && aAlertListener)
+        nsAppShell::gAppShell->AddObserver(aAlertName, aAlertListener);
+
+    jvalue args[5];
+    args[0].l = mJNIEnv->NewString(nsPromiseFlatString(aImageUrl).get(), aImageUrl.Length());
+    args[1].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertTitle).get(), aAlertTitle.Length());
+    args[2].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertText).get(), aAlertText.Length());
+    args[3].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertCookie).get(), aAlertCookie.Length());
+    args[4].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertName).get(), aAlertName.Length());
+    mJNIEnv->CallStaticVoidMethodA(mGeckoAppShellClass, jShowAlertNotification, args);
 }
 
 void

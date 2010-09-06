@@ -6119,7 +6119,7 @@ fi
 *-darwin*) 
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
-    MOZ_OPTIMIZE_FLAGS="-O3"
+    MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -13475,6 +13475,9 @@ fi
 
 
 
+
+
+
 CFLAGS=`echo \
 	$_WARNINGS_CFLAGS \
 	$CFLAGS`
@@ -13574,7 +13577,7 @@ if test "$MOZ_X11"; then
                 _SAVE_CFLAGS=$CFLAGS
     CFLAGS="$CFLAGS $XCFLAGS"
     cat > conftest.$ac_ext <<EOF
-#line 13578 "configure"
+#line 13581 "configure"
 #include "confdefs.h"
 
         #include <stdio.h>
@@ -13592,7 +13595,7 @@ int main() {
     
 ; return 0; }
 EOF
-if { (eval echo configure:13596: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+if { (eval echo configure:13599: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
   :
 else
   echo "configure: failed program was:" >&5
@@ -13693,12 +13696,12 @@ fi
 for ac_func in setlocale
 do
 echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
-echo "configure:13697: checking for $ac_func" >&5
+echo "configure:13700: checking for $ac_func" >&5
 if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
   cat > conftest.$ac_ext <<EOF
-#line 13702 "configure"
+#line 13705 "configure"
 #include "confdefs.h"
 /* System header to define __stub macros and hopefully few prototypes,
     which can conflict with char $ac_func(); below.  */
@@ -13721,7 +13724,7 @@ $ac_func();
 
 ; return 0; }
 EOF
-if { (eval echo configure:13725: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+if { (eval echo configure:13728: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
   rm -rf conftest*
   eval "ac_cv_func_$ac_func=yes"
 else
@@ -13748,12 +13751,12 @@ done
 for ac_func in localeconv
 do
 echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
-echo "configure:13752: checking for $ac_func" >&5
+echo "configure:13755: checking for $ac_func" >&5
 if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
   echo $ac_n "(cached) $ac_c" 1>&6
 else
   cat > conftest.$ac_ext <<EOF
-#line 13757 "configure"
+#line 13760 "configure"
 #include "confdefs.h"
 /* System header to define __stub macros and hopefully few prototypes,
     which can conflict with char $ac_func(); below.  */
@@ -13776,7 +13779,7 @@ $ac_func();
 
 ; return 0; }
 EOF
-if { (eval echo configure:13780: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+if { (eval echo configure:13783: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
   rm -rf conftest*
   eval "ac_cv_func_$ac_func=yes"
 else
@@ -14234,7 +14237,10 @@ s%@WINCE@%$WINCE%g
 s%@WINCE_WINDOWS_MOBILE@%$WINCE_WINDOWS_MOBILE%g
 s%@MOZ_APP_NAME@%$MOZ_APP_NAME%g
 s%@MOZ_APP_DISPLAYNAME@%$MOZ_APP_DISPLAYNAME%g
+s%@MOZ_APP_UA_NAME@%$MOZ_APP_UA_NAME%g
 s%@MOZ_APP_VERSION@%$MOZ_APP_VERSION%g
+s%@MOZ_UA_FIREFOX_VERSION@%$MOZ_UA_FIREFOX_VERSION%g
+s%@FIREFOX_VERSION@%$FIREFOX_VERSION%g
 s%@MOZ_PKG_SPECIAL@%$MOZ_PKG_SPECIAL%g
 s%@MOZILLA_OFFICIAL@%$MOZILLA_OFFICIAL%g
 s%@MOZ_MAPINFO@%$MOZ_MAPINFO%g
