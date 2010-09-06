@@ -215,6 +215,7 @@ my_glib_log_func(const gchar *log_domain, GLogLevelFlags log_level,
 
 #endif
 
+#ifdef SA_SIGINFO
 static void fpehandler(int signum, siginfo_t *si, void *context)
 {
 #ifdef XP_MACOSX
@@ -261,6 +262,7 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
 #endif
 #endif
 }
+#endif
 
 void InstallSignalHandlers(const char *ProgramName)
 {
@@ -293,12 +295,14 @@ void InstallSignalHandlers(const char *ProgramName)
   }
 #endif // CRAWL_STACK_ON_SIGSEGV
 
+#ifdef SA_SIGINFO
   /* Install a handler for floating point exceptions and disable them if they occur. */
   struct sigaction sa, osa;
   sa.sa_flags = SA_ONSTACK | SA_RESTART | SA_SIGINFO;
   sa.sa_sigaction = fpehandler;
   sigemptyset(&sa.sa_mask);
   sigaction(SIGFPE, &sa, &osa);
+#endif
 
 #if defined(DEBUG) && defined(LINUX)
   const char *memLimit = PR_GetEnv("MOZ_MEM_LIMIT");
