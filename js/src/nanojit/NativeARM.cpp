@@ -61,8 +61,6 @@ extern "C" void __clear_cache(void *BEG, void *END);
 
 #ifdef FEATURE_NANOJIT
 
-#define ARM_ARCH_AT_LEAST(wanted) ((NJ_COMPILER_ARM_ARCH >= wanted) || (ARM_ARCH >= wanted))
-
 namespace nanojit
 {
 
@@ -116,50 +114,49 @@ Assembler::CountLeadingZeroes(uint32_t data)
 {
     uint32_t    leading_zeroes;
 
+    // We can't do CLZ on anything earlier than ARMv5. Architectures as early
+    // as that aren't supported, but assert that we aren't running on one
+    // anyway.
+    // If ARMv4 support is required in the future for some reason, we can do a
+    // run-time check on config.arch and fall back to the C routine, but for
+    // now we can avoid the cost of the check as we don't intend to support
+    // ARMv4 anyway.
+    NanoAssert(ARM_ARCH >= 5);
+
 #if defined(__ARMCC__)
     // ARMCC can do this with an intrinsic.
     leading_zeroes = __clz(data);
 
-    if (0) // We don't need the fallback
-#elif defined(__GNUC__)
+// current Android GCC compiler incorrectly refuses to compile 'clz' for armv5
+// (even though this is a legal instruction there). Since we currently only compile for ARMv5
+// for emulation, we don't care too much (but we DO care for ARMv6+ since those are "real"
+// devices).
+#elif defined(__GNUC__) && !(defined(ANDROID) && __ARM_ARCH__ <= 5) 
     // GCC can use inline assembler to insert a CLZ instruction.
-    // Targetting armv5t allows a toolchain with armv4t default target to
-    // still build with clz. On Android gcc compiler, clz is not supported
-    // with a target smaller than armv7.
-    if (ARM_ARCH_AT_LEAST(5))
-        __asm (
-#if defined(ANDROID) && NJ_COMPILER_ARM_ARCH <= 5
-            ".arch armv7\n"
-#elif (NJ_COMPILER_ARM_ARCH < 5)
-            ".arch armv5t\n"
-#endif
-            "   clz     %0, %1  \n"
-            :   "=r"    (leading_zeroes)
-            :   "r"     (data)
-        );
-    else
+    __asm (
+        "   clz     %0, %1  \n"
+        :   "=r"    (leading_zeroes)
+        :   "r"     (data)
+    );
 #elif defined(WINCE)
     // WinCE can do this with an intrinsic.
     leading_zeroes = _CountLeadingZeros(data);
+#else
+    // Other platforms must fall back to a C routine. This won't be as
+    // efficient as the CLZ instruction, but it is functional.
+    uint32_t    try_shift;
 
-    if (0) // We don't need the fallback
-#endif
-    {
-        // Other platforms must fall back to a C routine. This won't be as
-        // efficient as the CLZ instruction, but it is functional.
-        uint32_t    try_shift;
+    leading_zeroes = 0;
 
-        leading_zeroes = 0;
-
-        // This loop does a bisection search rather than the obvious rotation loop.
-        // This should be faster, though it will still be no match for CLZ.
-        for (try_shift = 16; try_shift != 0; try_shift /= 2) {
-            uint32_t    shift = leading_zeroes + try_shift;
-            if (((data << shift) >> shift) == data) {
-                leading_zeroes = shift;
-            }
+    // This loop does a bisection search rather than the obvious rotation loop.
+    // This should be faster, though it will still be no match for CLZ.
+    for (try_shift = 16; try_shift != 0; try_shift /= 2) {
+        uint32_t    shift = leading_zeroes + try_shift;
+        if (((data << shift) >> shift) == data) {
+            leading_zeroes = shift;
         }
     }
+#endif
 
     // Assert that the operation worked!
     NanoAssert(((0xffffffff >> leading_zeroes) & data) == data);
@@ -558,18 +555,13 @@ NIns*
 Assembler::genEpilogue()
 {
     // On ARMv5+, loading directly to PC correctly handles interworking.
-    // On ARMv4T, interworking is not handled properly, therefore, we pop
-    // lr into ip and use bx ip to avoid that.
-    if (ARM_ARCH_AT_LEAST(5)) {
-        RegisterMask savingMask = rmask(FP) | rmask(PC);
+    // Note that we don't support anything older than ARMv5.
+    NanoAssert(ARM_ARCH >= 5);
 
-        POP_mask(savingMask); // regs
-    } else {
-        RegisterMask savingMask = rmask(FP) | rmask(IP);
+    RegisterMask savingMask = rmask(FP) | rmask(PC);
 
-        BX(IP);
-        POP_mask(savingMask); // regs
-    }
+    POP_mask(savingMask); // regs
+
     return _nIns;
 }
 
@@ -1510,7 +1502,7 @@ Assembler::BranchWithLink(NIns* addr)
 
     // ARMv5 and above can use BLX <imm> for branches within ±32MB of the
     // PC and BLX Rm for long branches.
-    if (isS24(offs>>2) && (ARM_ARCH_AT_LEAST(5))) {
+    if (isS24(offs>>2)) {
         // the value we need to stick in the instruction; masked,
         // because it will be sign-extended back to 32 bits.
         intptr_t offs2 = (offs>>2) & 0xffffff;
@@ -1527,6 +1519,7 @@ Assembler::BranchWithLink(NIns* addr)
             // We need to emit an ARMv5+ instruction, so assert that we have a
             // suitable processor. Note that we don't support ARMv4(T), but
             // this serves as a useful sanity check.
+            NanoAssert(ARM_ARCH >= 5);
 
             // The (pre-shifted) value of the "H" bit in the BLX encoding.
             uint32_t    H = (offs & 0x2) << 23;
@@ -1550,6 +1543,11 @@ Assembler::BranchWithLink(NIns* addr)
 inline void
 Assembler::BLX(Register addr, bool chk /* = true */)
 {
+    // We need to emit an ARMv5+ instruction, so assert that we have a suitable
+    // processor. Note that we don't support ARMv4(T), but this serves as a
+    // useful sanity check.
+    NanoAssert(ARM_ARCH >= 5);
+
     NanoAssert(IsGpReg(addr));
     // There is a bug in the WinCE device emulator which stops "BLX LR" from
     // working as expected. Assert that we never do that!
@@ -1560,15 +1558,8 @@ Assembler::BLX(Register addr, bool chk /* = true */)
     }
 
     // BLX IP
-    if (ARM_ARCH_AT_LEAST(5)) {
-        *(--_nIns) = (NIns)( (COND_AL) | (0x12<<20) | (0xFFF<<8) | (0x3<<4) | (addr) );
-        asm_output("blx %s", gpn(addr));
-    } else {
-        *(--_nIns) = (NIns)( (COND_AL) | (0x12fff1 << 4) | (addr) );
-        asm_output("bx %s", gpn(addr));
-        *(--_nIns) = (NIns)( (COND_AL) | (0x1A0 << 16) | (0xE << 12) | 0xF );
-        asm_output("mov lr, pc");
-    }
+    *(--_nIns) = (NIns)( (COND_AL) | (0x12<<20) | (0xFFF<<8) | (0x3<<4) | (addr) );
+    asm_output("blx ip");
 }
 
 // Emit the code required to load a memory address into a register as follows:
@@ -2186,7 +2177,7 @@ Assembler::asm_arith(LInsp ins)
             // common for (rr == ra) and is thus likely to be the most
             // efficient case; if ra is no longer used after this LIR
             // instruction, it is re-used for the result register (rr).
-            if ((ARM_ARCH_AT_LEAST(6)) || (rr != rb)) {
+            if ((ARM_ARCH > 5) || (rr != rb)) {
                 // Newer cores place no restrictions on the registers used in a
                 // MUL instruction (compared to other arithmetic instructions).
                 MUL(rr, rb, ra);
