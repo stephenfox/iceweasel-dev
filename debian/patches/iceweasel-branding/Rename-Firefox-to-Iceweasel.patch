@@ -11,7 +11,7 @@ Subject: Rename Firefox to Iceweasel
  5 files changed, 17 insertions(+), 24 deletions(-)
 
 diff --git a/browser/base/content/credits.xhtml b/browser/base/content/credits.xhtml
-index 09c57e2..c18454f 100644
+index d3e78e6..558e10d 100644
 --- a/browser/base/content/credits.xhtml
 +++ b/browser/base/content/credits.xhtml
 @@ -209,7 +209,7 @@
@@ -23,7 +23,7 @@ index 09c57e2..c18454f 100644
            <div class="motto">&brandMotto;</div>
          </h2>
          <div class="links" dir="&locale.dir;">
-@@ -622,20 +622,13 @@
+@@ -625,20 +625,13 @@
          <p id="gecko" class="center" dir="&locale.dir;">&credit.poweredByGeckoReg;</p>
  
          <p class="footnote" dir="&locale.dir;">

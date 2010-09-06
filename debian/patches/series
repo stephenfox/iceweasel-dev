@@ -22,7 +22,6 @@ fixes/Download-search-engine-icons-when-searchplugin-is-re.patch
 fixes/Move-test-and-tools-which-aren-t-part-of-Firefox-int.patch
 fixes/Expose-fullpath-from-nsIPluginTag.patch
 fixes/Change-parameter-type-of-JS_-CEILING-FLOOR-_LOG2W-an.patch
-fixes/Fix-race-condition-in-test_autocomplete.js.patch
 fixes/Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
 fixes/Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
 fixes/Fix-mozilla-plugin.pc.in-CFLAGS.patch
@@ -49,6 +48,7 @@ porting/Add-xptcall-support-for-SH4-processors.patch
 porting/Add-nanojit-support-for-ARMv4T.patch
 porting/xpcom-PowerPC-lnx-add-support-for-soft-float.patch
 porting/Build-the-test-plugin-on-GNU-kfreebsd.patch
+porting/Support-platforms-without-SA_SIGINFO.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
@@ -100,5 +100,4 @@ debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/Hack-to-avoid-building-and-running-TestPoisonArea-fo.patch
 debian-hacks/Remove-VISIBILITY_FLAGS-hack-in-ipc-chromium-Makefil.patch
 debian-hacks/Include-memory.h-instead-of-memory-to-avoid-C-0x-pro.patch
-debian-hacks/Add-a-2-minutes-timeout-on-xpcshell-tests.patch
 configure.patch

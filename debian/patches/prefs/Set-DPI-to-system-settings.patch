@@ -7,7 +7,7 @@ Subject: Set DPI to system settings
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/modules/libpref/src/init/all.js b/modules/libpref/src/init/all.js
-index 4451854..9b85b24 100644
+index e9e3612..de97baa 100644
 --- a/modules/libpref/src/init/all.js
 +++ b/modules/libpref/src/init/all.js
 @@ -1161,7 +1161,7 @@ pref("layout.css.visited_links_enabled", true);

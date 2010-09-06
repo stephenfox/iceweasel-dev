@@ -13,7 +13,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=542999
  delete mode 100644 chrome/test/unit/data/test_bug519468.manifest
 
 diff --git a/chrome/src/nsChromeRegistry.cpp b/chrome/src/nsChromeRegistry.cpp
-index 209f946..4a0c031 100644
+index 696303b..887046e 100644
 --- a/chrome/src/nsChromeRegistry.cpp
 +++ b/chrome/src/nsChromeRegistry.cpp
 @@ -1272,10 +1272,11 @@ nsresult
