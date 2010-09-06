@@ -3437,6 +3437,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
           if (!shuttingDown) {
 #ifdef XP_MACOSX
+            // Set up ability to respond to system (Apple) events. This must be
+            // done before setting up the command line service.
+            SetupMacApplicationDelegate();
+
             // we re-initialize the command-line service and do appleevents munging
             // after we are sure that we're not restarting
             cmdLine = do_CreateInstance("@mozilla.org/toolkit/command-line;1");
@@ -3447,10 +3451,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             rv = cmdLine->Init(gArgc, gArgv,
                                workingDir, nsICommandLine::STATE_INITIAL_LAUNCH);
             NS_ENSURE_SUCCESS(rv, 1);
-#endif
-#ifdef MOZ_WIDGET_COCOA
-            // Prepare Cocoa's form of Apple Event handling.
-            SetupMacApplicationDelegate();
 #endif
 
             MOZ_SPLASHSCREEN_UPDATE(70);
@@ -3718,7 +3718,9 @@ SetupErrorHandling(const char* progname)
 #endif
 #endif
 
+#ifndef XP_OS2
   InstallSignalHandlers(progname);
+#endif
 
 #ifndef WINCE
   // Unbuffer stdout, needed for tinderbox tests.

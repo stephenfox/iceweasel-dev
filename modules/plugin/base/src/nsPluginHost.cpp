@@ -1586,6 +1586,8 @@ nsresult nsPluginStreamListenerPeer::InitializeEmbedded(nsIURI *aURL,
     NS_IF_ADDREF(mHost);
   }
 
+  mPendingRequests = 1;
+
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
       return NS_ERROR_FAILURE;
@@ -1608,6 +1610,8 @@ nsresult nsPluginStreamListenerPeer::InitializeFullPage(nsIURI* aURL, nsIPluginI
   mDataForwardToRequest = new nsHashtable(16, PR_FALSE);
   if (!mDataForwardToRequest)
       return NS_ERROR_FAILURE;
+
+  mPendingRequests = 1;
 
   return NS_OK;
 }
