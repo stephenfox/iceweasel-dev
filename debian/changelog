@@ -1,3 +1,92 @@
+iceweasel (3.6.9-1) experimental; urgency=low
+
+  * New upstream release.
+  * Fixes for mfsa2010-{49-51,53-57,59-63}, also known as
+    CVE-2010-3169, CVE-2010-2765, CVE-2010-2767, CVE-2010-3166,
+    CVE-2010-2760, CVE-2010-3168, CVE-2010-3167, CVE-2010-2766,
+    CVE-2010-2762, CVE-2010-2763, CVE-2010-2768, CVE-2010-2769,
+    CVE-2010-2764.
+
+  * debian/README.Debian: Move to debian/iceweasel.README.Debian.
+  * debian/branding/content/*.png.uu (removed),
+    debian/branding/content/*-base.png, debian/source/include-binaries,
+    debian/branding/content/Makefile.in: Replace .uu files with their binary
+    counterpart, now that dpkg-dev supports binary files in the debian/
+    directory.
+  * debian/control*:
+    - Remove build dependency on sharutils.
+    - Install libmozjs debug symbols together with the xulrunner ones.
+    - Remove extra ~ in iceweasel version dependency on xulrunner, which
+      was only required for 3.6.4~build2.
+  * debian/rules:
+    - Refactor file preprocessing.
+    - Actually allow the build sequence to start from intermediate stamps.
+    - Don't fail to build if the build-xulrunner directory exists.
+    - Move .PHONY definitions for test targets to debian/test.mk.
+    - Add some sanity checks on version numbers.
+    - Use the new DEBIAN_RELEASE variable for dh_gencontrol.
+    - Enhance the check-system-libs rule to check in the all autoconf.mk
+      files.
+    - Further split build and install process in several stamped steps.
+    - Actually set CXX in default case, and re-export it.
+    - Move stamps creation at the end, so that "touch" always happens at
+      the end.
+    - Separate dh_xulrunner check from dh_install rule for better debugging.
+  * debian/test.mk:
+    - Move tests HOME directory into build-xulrunner/dist instead of now
+      nonexistent dist.
+    - Don't automatically modify TESTS when TEST_PATH is set.
+    - Force armel JIT to compile ARMv4T instructions during tests.
+    - Define generic -skip rules for tests.
+    - Put all tests requiring an application in a separate variable.
+    - Use iceweasel for reftest/crashtest.
+  * debian/reftest-app: Remove our custom reftest-app.
+  * debian/extra-stuff/Makefile.in: Remove duplicated variables definitions.
+  * debian/branding/content/jar.mn: Add missing aboutFooter.png to branding.
+  * debian/rules, debian/noinstall.in: Move testsuite related header field
+    removal to noinstall.in.
+  * debian/rules, debian/branding/jar.mn, debian/branding/Makefile.in: Check
+    the iceweasel branding installs all files provided by upstream unofficial
+    branding.
+  * debian/dh/dh_xulrunner.in:
+    - Fix small formatting issue in dh_xulrunner manual page.
+    - Remove debug output in dh_xulrunner.
+  * debian/rules, debian/dh/dh_xulrunner_test, debian/dh/dh_xulrunner.in:
+    Better check for the dh_xulrunner behaviour.
+  * debian/rules, debian/dh/npapi_getinfo.c, debian/dh/dh_xulrunner.in,
+    debian/xulrunner-dev.install.in: New dh_xulrunner feature: return
+    plugins handled mime types in a substvar.
+  * debian/xulrunner-dev.links.in: Install a symlink to nspr-config for the
+    SDK.
+  * debian/branding/firefox-branding.js: Unset startup.homepage_override_url
+    and startup.homepage_welcome_url. In other words, don't display anything
+    special after an upgrade or for the first time the browser is started.
+  * debian/xulrunner-GRE_VERSION.postinst.in,
+    debian/xulrunner-GRE_VERSION.prerm.in,
+    debian/xulrunner-GRE_VERSION.manpages.in,
+    debian/xulrunner-stub-GRE_VERSION.1.in: Add a /usr/bin/xulrunner-stub
+    binary in the form of an alternative, and a corresponding manual page.
+  * debian/smjs.1, debian/control*: Add a note that smjs is not recommended
+    for production use.
+
+  * gfx/qcms/iccread.c: Fix unaligned reads in qcms. bz#504766.
+    Closes: #591512.
+  * browser/components/privatebrowsing/src/nsPrivateBrowsingService.js: Align
+    -private description in --help output.
+  * js/src/nanojit/NativeARM.*, js/src/nanojit/avmplus.*,
+    js/src/nanojit/njcpudetect.h: Fix ARMv4T JIT support, and use patches as
+    landed in upstream nanojit.
+  * profile/dirserviceprovider/src/nsProfileLock.*,
+    toolkit/xre/nsSigHandlers.cpp: Support platforms without SA_SIGINFO.
+    bz#593767. Closes: #595535. Thanks Samuel Thibault.
+  * xulrunner/installer/*.pc.in: pkg-config files don't need to require the
+    version of nspr xulrunner was built against. Closes: #595842.
+
+  * testing/xpcshell/head.js, debian/test.mk: Revert previous temporary hacks
+    to track down kfreebsd buildd issues.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 08 Sep 2010 09:05:03 +0200
+
 iceweasel (3.6.8-2) experimental; urgency=low
 
   * New upstream release.

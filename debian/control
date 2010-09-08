@@ -57,7 +57,7 @@ Depends: ${shlibs:Depends},
          fontconfig,
          procps,
          debianutils (>= 1.16),
-         xulrunner-1.9.2 (>= 1.9.2.8)
+         xulrunner-1.9.2 (>= 1.9.2.9)
 Suggests: ttf-lyx | latex-xft-fonts,
           xfonts-mathml,
           ttf-mathematica4.1,
