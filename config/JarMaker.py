@@ -44,6 +44,7 @@ See the documentation for jar.mn on MDC for further details on the format.
 import sys
 import os
 import os.path
+import errno
 import re
 import logging
 from time import localtime
@@ -437,7 +438,7 @@ class JarMaker(object):
       try:
         os.remove(out)
       except OSError, e:
-        if e.errno != 2:
+        if e.errno != errno.ENOENT:
           raise
       return open(out, 'wb')
     def ensureDirFor(self, name):
@@ -457,7 +458,7 @@ class JarMaker(object):
       try:
         os.remove(out)
       except OSError, e:
-        if e.errno != 2:
+        if e.errno != errno.ENOENT:
           raise
       os.symlink(src, out)
 
