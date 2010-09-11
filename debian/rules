@@ -92,8 +92,8 @@ GENERATED_FILES += debian/dh/dh_xulrunner.1
 debian/dh/dh_xulrunner.1: debian/dh/dh_xulrunner
 	pod2man -c Debhelper -r $(GRE_VERSION) $^ > $@
 
-debian/dh/npapi_getinfo: %: %.c
-	$(CC) -o $@ $< -Imodules/plugin/base/public -ldl
+build-xulrunner/dist/bin/npapi_getinfo: debian/dh/npapi_getinfo.c
+	$(CC) -o $@ $< -Imodules/plugin/base/public -ldl -Wl,-rpath,\$$ORIGIN
 
 IN_FILES := $(wildcard debian/*.in debian/dh/*.in)
 define preprocess
@@ -245,7 +245,7 @@ MPL: LICENSE
 override_dh_installdocs: MPL
 	dh_installdocs -A $^
 
-stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall debian/dh/npapi_getinfo
+stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist/bin/npapi_getinfo
 	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r
 	dh_install --fail-missing -Xplugin-container -Xdependentlibs.list
 ifneq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
@@ -288,10 +288,10 @@ stamps/check-dh_xulrunner-glue:: stamps/dh_install debian/dh/dh_xulrunner
 	# Make sure dh_xulrunner is able to spot the current XPCOM standalone glue.
 	perl debian/dh/dh_xulrunner_test -pxulrunner-$(GRE_VERSION) | awk -v expected='addsubstvar("xulrunner-$(GRE_VERSION)", "shlibs:Depends", "xulrunner-$(GRE_VERSION)");' $(CMP_AWK)
 
-stamps/check-dh_xulrunner-npapi:: stamps/dh_install debian/dh/dh_xulrunner debian/dh/npapi_getinfo
+stamps/check-dh_xulrunner-npapi:: stamps/dh_install debian/dh/dh_xulrunner build-xulrunner/dist/bin/npapi_getinfo
 	$(if $(wildcard build-xulrunner/tmp/usr/lib/mozilla),,mkdir -p build-xulrunner/tmp/usr/lib/mozilla/)
 	$(if $(wildcard build-xulrunner/tmp/usr/lib/mozilla/plugins),,ln -s $(CURDIR)/build-xulrunner/dist/bin/plugins build-xulrunner/tmp/usr/lib/mozilla)
-	PATH=debian/dh:$(PATH) perl debian/dh/dh_xulrunner_test -piceweasel -Pbuild-xulrunner/tmp | awk -v expected='addsubstvar("iceweasel", "npapi:Mimetypes", "application/x-print-unix-nsplugin, application/x-test");' $(CMP_AWK)
+	PATH=build-xulrunner/dist/bin:$(PATH) perl debian/dh/dh_xulrunner_test -piceweasel -Pbuild-xulrunner/tmp | awk -v expected='addsubstvar("iceweasel", "npapi:Mimetypes", "application/x-print-unix-nsplugin, application/x-test");' $(CMP_AWK)
 
 override_dh_install: stamps/check-dh_xulrunner-glue stamps/check-dh_xulrunner-npapi
 
