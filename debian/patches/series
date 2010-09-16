@@ -27,6 +27,7 @@ fixes/Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
 fixes/Fix-mozilla-plugin.pc.in-CFLAGS.patch
 fixes/Bug-504766.-qcms-Fix-unaligned-reads-in-qcms.-r-jrmu.patch
 fixes/Align-private-description-in-help-output.patch
+fixes/Use-errno.ENOENT-instead-of-2-in-JarMaker.py.patch
 iceweasel-branding/Rename-Firefox-to-Iceweasel.patch
 iceweasel-branding/Set-MOZ_APP_NAME-to-iceweasel.patch
 iceweasel-branding/Our-name-should-be-Iceweasel-not-Firefox.patch
