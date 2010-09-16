@@ -1,8 +1,14 @@
-iceweasel (3.6.10-1) UNRELEASED; urgency=low
+iceweasel (3.6.10-1) experimental; urgency=low
 
   * New upstream release.
+  * config/JarMaker.py: Use errno.ENOENT instead of "2" in JarMaker.py.
+    bz#595459. Fixes FTBFS on Hurd.
+  * debian/rules, debian/xulrunner-dev.install.in: Build npapi_getinfo in
+    build-xulrunner/dist/bin, and use an RPATH. Some plugins depend on
+    libxpcom.so, and dlopen() from npapi_getinfo fails unless libxpcom.so
+    can be loaded too. Fixes FTBFS on hppa as a side effect.
 
- -- Mike Hommey <glandium@debian.org>  Thu, 16 Sep 2010 09:03:07 +0200
+ -- Mike Hommey <glandium@debian.org>  Thu, 16 Sep 2010 09:15:51 +0200
 
 iceweasel (3.6.9-1) experimental; urgency=low
 
