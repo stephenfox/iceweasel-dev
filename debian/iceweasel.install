@@ -23,6 +23,7 @@ build-iceweasel/debian/branding/mozicon128.png usr/share/iceweasel/icons/
 build-iceweasel/debian/branding/document.png usr/share/iceweasel/icons/
 
 debian/iceweasel.js etc/iceweasel/pref
+debian/vendor.js usr/share/iceweasel/defaults/preferences
 
 debian/debsearch.xml usr/share/iceweasel/searchplugins
 
