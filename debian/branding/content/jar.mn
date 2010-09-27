@@ -1,5 +1,5 @@
 browser.jar:
-% content branding %content/branding/
+% content branding %content/branding/ contentaccessible=yes
   content/branding/about.png                     (about.png)
   content/branding/aboutCredits.png              (aboutCredits.png)
   content/branding/aboutFooter.png               (../../../browser/branding/unofficial/content/aboutFooter.png)
