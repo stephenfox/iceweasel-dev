@@ -9,7 +9,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=501300
  2 files changed, 5 insertions(+), 1 deletions(-)
 
 diff --git a/js/src/jstracer.cpp b/js/src/jstracer.cpp
-index 4844b17..d209cfe 100644
+index 14e8435..b4e90f4 100644
 --- a/js/src/jstracer.cpp
 +++ b/js/src/jstracer.cpp
 @@ -241,7 +241,11 @@ JSClass jitstats_class = {

@@ -961,12 +961,12 @@ nsEditor::BeginPlaceHolderTransaction(nsIAtom *aName)
     mPlaceHolderName = aName;
     nsCOMPtr<nsISelection> selection;
     nsresult res = GetSelection(getter_AddRefs(selection));
-    if (NS_FAILED(res)) return res;
-    mSelState = new nsSelectionState();
-    if (!mSelState)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    mSelState->SaveSelection(selection);
+    if (NS_SUCCEEDED(res)) {
+      mSelState = new nsSelectionState();
+      if (mSelState) {
+        mSelState->SaveSelection(selection);
+      }
+    }
   }
   mPlaceHolderBatch++;
 
@@ -4148,8 +4148,12 @@ nsEditor::IsPreformatted(nsIDOMNode *aNode, PRBool *aResult)
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
+  // Look at the node (and its parent if it's not an element), and grab its style context
   nsRefPtr<nsStyleContext> elementStyle;
-  if (content->IsNodeOfType(nsINode::eELEMENT)) {
+  if (!content->IsNodeOfType(nsINode::eELEMENT)) {
+    content = content->GetParent();
+  }
+  if (content && content->IsNodeOfType(nsINode::eELEMENT)) {
     elementStyle = nsComputedDOMStyle::GetStyleContextForContent(static_cast<nsIContent*>(content),
                                                                  nsnull,
                                                                  ps);

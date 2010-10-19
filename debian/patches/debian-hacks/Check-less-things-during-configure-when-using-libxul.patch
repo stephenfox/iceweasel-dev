@@ -9,7 +9,7 @@ we won't be building most of the toolkit.
  1 files changed, 30 insertions(+), 7 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 14ec3c2..7511d75 100644
+index fbd1c9d..b68834a 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -4207,6 +4207,7 @@ AC_SUBST(LIBXUL_SDK)
@@ -104,7 +104,7 @@ index 14ec3c2..7511d75 100644
  if test "$MOZ_X11"
  then
      dnl build the gnomevfs extension by default only when the
-@@ -5349,6 +5369,9 @@ AC_SUBST(MOZ_ENABLE_DBUS)
+@@ -5352,6 +5372,9 @@ AC_SUBST(MOZ_DBUS_LIBS)
  AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
  AC_SUBST(MOZ_DBUS_GLIB_LIBS)
  
@@ -114,7 +114,7 @@ index 14ec3c2..7511d75 100644
  dnl ========================================================
  dnl = libnotify support
  dnl ========================================================
-@@ -5676,7 +5699,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
+@@ -5679,7 +5702,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
  dnl ========================================================
  
  dnl If using sydneyaudio with Linux, ensure that the alsa library is available
@@ -123,7 +123,7 @@ index 14ec3c2..7511d75 100644
  if test -n "$MOZ_SYDNEYAUDIO"; then
     case "$target_os" in
  linux*)
-@@ -6832,7 +6855,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
+@@ -6835,7 +6858,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
      MOZ_MEMORY=1,
      MOZ_MEMORY=)
  
@@ -132,7 +132,7 @@ index 14ec3c2..7511d75 100644
      MOZ_MEMORY=
  fi
  
-@@ -7720,7 +7743,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
+@@ -7723,7 +7746,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
      ;;
  esac
  
@@ -141,7 +141,7 @@ index 14ec3c2..7511d75 100644
      SKIP_IDL_CHECK="yes"
  fi
  
-@@ -7827,7 +7850,7 @@ if test -n "$CROSS_COMPILE"; then
+@@ -7830,7 +7853,7 @@ if test -n "$CROSS_COMPILE"; then
      fi
  fi
  
@@ -150,7 +150,7 @@ index 14ec3c2..7511d75 100644
  if test -z "${GLIB_CFLAGS}" || test -z "${GLIB_LIBS}" ; then
      if test "$MOZ_ENABLE_GTK2" || test "$USE_ELF_DYNSTR_GC" ; then
          PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
-@@ -8450,7 +8473,7 @@ if test "$USING_HCC"; then
+@@ -8453,7 +8476,7 @@ if test "$USING_HCC"; then
  fi
  
  dnl Check for missing components
@@ -159,7 +159,7 @@ index 14ec3c2..7511d75 100644
  if test "$MOZ_X11"; then
      dnl ====================================================
      dnl = Check if X headers exist
-@@ -8480,7 +8503,7 @@ if test "$MOZ_X11"; then
+@@ -8483,7 +8506,7 @@ if test "$MOZ_X11"; then
  fi # MOZ_X11
  fi # COMPILE_ENVIRONMENT
  

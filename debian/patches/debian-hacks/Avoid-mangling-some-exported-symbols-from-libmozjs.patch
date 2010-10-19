@@ -21,10 +21,10 @@ index 608853a..92a1155 100644
  
  extern jsdouble FASTCALL
 diff --git a/js/src/jscntxt.h b/js/src/jscntxt.h
-index 2f9eb20..28e0dc8 100644
+index 6d402bc..0ca182b 100644
 --- a/js/src/jscntxt.h
 +++ b/js/src/jscntxt.h
-@@ -1429,6 +1429,7 @@ class JSAutoResolveFlags
+@@ -1434,6 +1434,7 @@ class JSAutoResolveFlags
  
  #endif /* __cplusplus */
  
@@ -32,7 +32,7 @@ index 2f9eb20..28e0dc8 100644
  /*
   * Slightly more readable macros for testing per-context option settings (also
   * to hide bitset implementation detail).
-@@ -1850,4 +1851,6 @@ js_RegenerateShapeForGC(JSContext *cx)
+@@ -1855,4 +1856,6 @@ js_RegenerateShapeForGC(JSContext *cx)
      return shape;
  }
  

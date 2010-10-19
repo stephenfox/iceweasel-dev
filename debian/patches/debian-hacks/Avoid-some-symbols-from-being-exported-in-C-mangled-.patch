@@ -38,11 +38,11 @@ index 260bf28..12bb062 100644
  js_InitEval(JSContext *cx, JSObject *obj);
  
 diff --git a/js/src/xpconnect/src/xpcquickstubs.cpp b/js/src/xpconnect/src/xpcquickstubs.cpp
-index b48df31..af2be5e 100644
+index fb8db7f..8e93b6e 100644
 --- a/js/src/xpconnect/src/xpcquickstubs.cpp
 +++ b/js/src/xpconnect/src/xpcquickstubs.cpp
-@@ -325,10 +325,6 @@ SharedLookupSetter(JSContext *cx, uintN argc, jsval *vp)
-     return LookupGetterOrSetter(cx, PR_FALSE, vp);
+@@ -332,10 +332,6 @@ SharedLookupSetter(JSContext *cx, uintN argc, jsval *vp)
+     return LookupGetterOrSetter(cx, PR_FALSE, argc, vp);
  }
  
 -// XXX Hack! :-/

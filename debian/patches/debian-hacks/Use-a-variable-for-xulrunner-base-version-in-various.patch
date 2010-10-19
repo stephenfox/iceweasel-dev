@@ -8,7 +8,7 @@ Subject: Use a variable for xulrunner base version in various places
  2 files changed, 8 insertions(+), 7 deletions(-)
 
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index 8056408..17b405b 100644
+index 9be1855..6492575 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
 @@ -52,20 +52,21 @@ MOZ_APP_NAME	= @MOZ_APP_NAME@
