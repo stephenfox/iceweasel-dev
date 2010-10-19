@@ -1,10 +1,13 @@
-iceweasel (3.6.11-1) UNRELEASED; urgency=low
+iceweasel (3.6.11-1) experimental; urgency=low
 
   * New upstream release.
-  * debian/control*: Bump build dependencies on libnspr4-dev and libnss3-dev
-    to fit what configure will be looking for.
+  * Fixes for mfsa2010-{64-69}, also known as
+    CVE-2010-3176, CVE-2010-3175, CVE-2010-3179, CVE-2010-3180,
+    CVE-2010-3183, CVE-2010-3177, CVE-2010-3178.
+  * debian/control*: Bump build dependencies on libnspr4-dev, libnss3-dev,
+    and libsqlite3-dev to fit what configure will be looking for.
 
- -- Mike Hommey <glandium@debian.org>  Tue, 19 Oct 2010 23:50:52 +0200
+ -- Mike Hommey <glandium@debian.org>  Wed, 20 Oct 2010 02:15:38 +0200
 
 iceweasel (3.6.10-1) experimental; urgency=low
 
