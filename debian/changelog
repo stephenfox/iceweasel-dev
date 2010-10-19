@@ -1,3 +1,11 @@
+iceweasel (3.6.11-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+  * debian/control*: Bump build dependencies on libnspr4-dev and libnss3-dev
+    to fit what configure will be looking for.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 19 Oct 2010 23:50:52 +0200
+
 iceweasel (3.6.10-1) experimental; urgency=low
 
   * New upstream release.
