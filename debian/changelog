@@ -1,3 +1,10 @@
+iceweasel (3.6.12-1) experimental; urgency=low
+
+  * New upstream release.
+  * Fix for mfsa2010-73, also known as CVE-2010-3765.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 28 Oct 2010 09:21:33 +0200
+
 iceweasel (3.6.11-1) experimental; urgency=low
 
   * New upstream release.
