@@ -47,11 +47,6 @@ PARALLEL_DIRS += \
   chrome \
   $(NULL)
 
-# Disable TestPoisonArea:
-# It currently fails to build on several architectures, and also freezes on
-# others (at least arm), so we disable it until things are sorted out.
-ifdef ENABLE_TESTPOISONAREA
-
 # We can't use CPP_UNIT_TESTS for TestPoisonArea because libxpcom
 # (which it does not need) isn't available at this point in the build.
 
@@ -61,8 +56,6 @@ BARE_UNIT_TESTS = \
 
 CPPSRCS += $(BARE_UNIT_TESTS)
 SIMPLE_PROGRAMS += $(BARE_UNIT_TESTS:.cpp=$(BIN_SUFFIX))
-
-endif
 
 include $(topsrcdir)/config/rules.mk
 
