@@ -50,6 +50,7 @@ porting/Add-nanojit-support-for-ARMv4T.patch
 porting/xpcom-PowerPC-lnx-add-support-for-soft-float.patch
 porting/Build-the-test-plugin-on-GNU-kfreebsd.patch
 porting/Support-platforms-without-SA_SIGINFO.patch
+porting/Allow-TestPoisonArea-to-work-on-more-architectures.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
@@ -98,7 +99,6 @@ debian-hacks/Enable-x64-JIT-backend-by-default.patch
 debian-hacks/Fix-issues-with-symlinked-component-directories.patch
 debian-hacks/Fix-compiler-errors-with-g-4.4-with-std-gnu-0x.patch
 debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
-debian-hacks/Hack-to-avoid-building-and-running-TestPoisonArea-fo.patch
 debian-hacks/Remove-VISIBILITY_FLAGS-hack-in-ipc-chromium-Makefil.patch
 debian-hacks/Include-memory.h-instead-of-memory-to-avoid-C-0x-pro.patch
 debian-hacks/pkg-config-files-don-t-need-to-require-the-version-o.patch
