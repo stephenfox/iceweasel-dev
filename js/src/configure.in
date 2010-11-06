@@ -1547,6 +1547,14 @@ MOZ_ARG_DISABLE_BOOL(os2-high-mem,
 AC_SUBST(MOZ_OS2_HIGH_MEMORY)
 
 dnl ========================================================
+dnl = Use profiling compile flags
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(profiling,
+[  --enable-profiling      Set compile flags necessary for using sampling profilers (e.g. shark, perf)],
+    MOZ_PROFILING=1,
+    MOZ_PROFILING= )
+
+dnl ========================================================
 dnl System overrides of the defaults for host
 dnl ========================================================
 case "$host" in
@@ -1595,8 +1603,6 @@ case "$host" in
     HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX -DXP_MACOSX -DNO_X11"
     HOST_NSPR_MDCPUCFG='\"md/_darwin.cfg\"'
     HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
-    LDFLAGS="$LDFLAGS -lobjc"
-    LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) $(LIBXUL_DIST)/bin/XUL'
     ;;
 
 *-linux*|*-kfreebsd*-gnu|*-gnu*)
@@ -1727,7 +1733,12 @@ case "$target" in
 *-darwin*) 
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
-    MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
+    # If we're building with --enable-profiling, we need a frame pointer.
+    if test -z "$MOZ_PROFILING"; then
+        MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
+    else
+        MOZ_OPTIMIZE_FLAGS="-O3 -fno-omit-frame-pointer"
+    fi
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -1736,7 +1747,8 @@ case "$target" in
     STRIP="$STRIP -x -S"
     _PLATFORM_DEFAULT_TOOLKIT='cairo-cocoa'
     TARGET_NSPR_MDCPUCFG='\"md/_darwin.cfg\"'
-    LDFLAGS="$LDFLAGS -framework Cocoa"
+    LDFLAGS="$LDFLAGS -framework Cocoa -lobjc"
+    LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) $(LIBXUL_DIST)/bin/XUL'
     # The ExceptionHandling framework is needed for Objective-C exception
     # logging code in nsObjCExceptions.h. Currently we only use that in debug
     # builds.
@@ -1885,7 +1897,12 @@ ia64*-hpux*)
             # -Os is broken on gcc 4.1.x 4.2.x, 4.5.x we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
+        # If we're building with --enable-profiling, we need a frame pointer.
+        if test -z "$MOZ_PROFILING"; then
+          MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
+        else
+          MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fno-omit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
+        fi
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2058,6 +2075,9 @@ ia64*-hpux*)
         HOST_CC='$(CC)'
         HOST_CXX='$(CXX)'
         HOST_LD='$(LD)'
+        if test "$AS_BIN"; then
+          AS="$(basename "$AS_BIN")"
+        fi
         AR='lib -NOLOGO -OUT:"$@"'
         AR_FLAGS=
         RANLIB='echo not_ranlib'
@@ -2068,6 +2088,7 @@ ia64*-hpux*)
         UNZIP=unzip
         DOXYGEN=:
         GARBAGE='$(OBJDIR)/vc20.pdb $(OBJDIR)/vc40.pdb'
+        ASM_SUFFIX=asm
         OBJ_SUFFIX=obj
         LIB_SUFFIX=lib
         DLL_PREFIX=
@@ -2088,7 +2109,12 @@ ia64*-hpux*)
         MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
-    	MOZ_OPTIMIZE_FLAGS='-O1'
+        # If we're building with --enable-profiling, we need -Oy-, which forces a frame pointer.
+        if test -z "$MOZ_PROFILING"; then
+            MOZ_OPTIMIZE_FLAGS='-O1'
+        else
+            MOZ_OPTIMIZE_FLAGS='-O1 -Oy-'
+        fi
         MOZ_JS_LIBS='$(libdir)/mozjs.lib'
         MOZ_FIX_LINK_PATHS=
         DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xpcom_core.lib'
@@ -2589,24 +2615,74 @@ case "$target" in
 i?86-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=i386
+    ENABLE_METHODJIT=1
+    ENABLE_MONOIC=1
+    ENABLE_POLYIC=1
+    AC_DEFINE(JS_CPU_X86)
+    AC_DEFINE(JS_NUNBOX32)
     ;;
 x86_64*-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=X64
+    ENABLE_METHODJIT=1
+    ENABLE_MONOIC=1
+    ENABLE_POLYIC=1
+    AC_DEFINE(JS_CPU_X64)
+    AC_DEFINE(JS_PUNBOX64)
     ;;
 arm*-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=ARM
+    ENABLE_METHODJIT=1
+    ENABLE_MONOIC=1
+    AC_DEFINE(JS_CPU_ARM)
+    AC_DEFINE(JS_NUNBOX32)
     ;;
 sparc*-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=Sparc
+    AC_DEFINE(JS_CPU_SPARC)
     ;;
 esac
+
+MOZ_ARG_DISABLE_BOOL(methodjit,
+[  --disable-methodjit           Disable method JIT support],
+  ENABLE_METHODJIT= )
+
+MOZ_ARG_DISABLE_BOOL(monoic,
+[  --disable-monoic      Disable use of MICs by JIT compiler],
+  ENABLE_MONOIC= )
+
+MOZ_ARG_DISABLE_BOOL(polyic,
+[  --disable-polyic      Disable use of PICs by JIT compiler],
+  ENABLE_POLYIC= )
 
 MOZ_ARG_DISABLE_BOOL(tracejit,
 [  --disable-tracejit      Disable tracing JIT support],
   ENABLE_TRACEJIT=)
+
+MOZ_ARG_ENABLE_BOOL(methodjit-spew,
+[  --enable-methodjit-spew      Enable method JIT spew support],
+  ENABLE_METHODJIT_SPEW=1,
+  ENABLE_METHODJIT_SPEW= )
+
+AC_SUBST(ENABLE_METHODJIT)
+
+if test "$ENABLE_METHODJIT"; then
+    AC_DEFINE(JS_METHODJIT)
+fi
+
+if test "$ENABLE_MONOIC"; then
+    AC_DEFINE(JS_MONOIC)
+fi
+
+if test "$ENABLE_POLYIC"; then
+    AC_DEFINE(JS_POLYIC)
+fi
+
+if test "$ENABLE_METHODJIT_SPEW"; then
+    AC_DEFINE(JS_METHODJIT_SPEW)
+fi
 
 if test "$ENABLE_TRACEJIT"; then
 
@@ -4045,6 +4121,7 @@ if test -n "$MOZ_THUMB2"; then
   case "$target_cpu" in
     arm*)
       if test "$GNU_CC"; then
+        AC_DEFINE(MOZ_THUMB2)
         CFLAGS="$CFLAGS -march=armv7-a -mthumb -Wa, -march=armv7-a -Wa, -mthumb"
         CXXFLAGS="$CXXFLAGS -march=armv7-a -mthumb -Wa, -march=armv7-a -Wa, -mthumb"
         ASFLAGS="$ASFLAGS -march=armv7-a -mthumb"
@@ -4419,10 +4496,11 @@ dnl ========================================================
 dnl jprof
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(jprof,
-[  --enable-jprof          Enable jprof profiling tool (needs mozilla/tools/jprof)],
+[  --enable-jprof          Enable jprof profiling tool (needs mozilla/tools/jprof). Implies --enable-profiling.],
     MOZ_JPROF=1,
     MOZ_JPROF= )
 if test -n "$MOZ_JPROF"; then
+    MOZ_PROFILING=1
     AC_DEFINE(MOZ_JPROF)
 fi
 
@@ -4430,10 +4508,11 @@ dnl ========================================================
 dnl shark
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(shark,
-[  --enable-shark          Enable shark remote profiling (needs CHUD framework)],
+[  --enable-shark          Enable shark remote profiling (needs CHUD framework). Implies --enable-profiling.],
     MOZ_SHARK=1,
     MOZ_SHARK= )
 if test -n "$MOZ_SHARK"; then
+    MOZ_PROFILING=1
     AC_DEFINE(MOZ_SHARK)
 fi
 
@@ -4452,10 +4531,11 @@ dnl ========================================================
 dnl vtune
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(vtune,
-[  --enable-vtune          Enable vtune profiling],
+[  --enable-vtune          Enable vtune profiling. Implies --enable-profiling.],
     MOZ_VTUNE=1,
     MOZ_VTUNE= )
 if test -n "$MOZ_VTUNE"; then
+    MOZ_PROFILING=1
     AC_DEFINE(MOZ_VTUNE)
 fi
 
@@ -4909,6 +4989,15 @@ else
     _DEFINES_CFLAGS='$(ACDEFINES) -D_JS_CONFDEFS_H_ -DMOZILLA_CLIENT'
     _DEFINES_CXXFLAGS='$(ACDEFINES) -D_JS_CONFDEFS_H_ -DMOZILLA_CLIENT'
   else
+    echo '#include <stdio.h>' > dummy-hello.c
+    changequote(,)
+    CL_INCLUDES_PREFIX=`"${CC}" -showIncludes -c -Fonul dummy-hello.c 2>&1 | sed -ne 's/^\([^:]*:[^:]*:\).*stdio.h$/\1/p'`
+    changequote([,])
+    if test -z "$CL_INCLUDES_PREFIX"; then
+        AC_MSG_ERROR([Cannot find cl -showIncludes prefix.])
+    fi
+    AC_SUBST(CL_INCLUDES_PREFIX)
+    rm -f dummy-hello.c
     _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
     dnl cl.py provides dependency generation for MSVC
     CC_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
@@ -5036,6 +5125,7 @@ AC_SUBST(MOZ_JPROF)
 AC_SUBST(MOZ_SHARK)
 AC_SUBST(MOZ_CALLGRIND)
 AC_SUBST(MOZ_VTUNE)
+AC_SUBST(MOZ_PROFILING)
 AC_SUBST(MOZ_JSLOADER)
 AC_SUBST(MOZ_QUANTIFY)
 AC_SUBST(LIBICONV)
@@ -5407,7 +5497,7 @@ if test "$JS_HAS_CTYPES"; then
       CPPFLAGS="$ANDROID_CPPFLAGS"
       LDFLAGS="$ANDROID_LDFLAGS"
 
-      export CC CPP LD CPPFLAGS CFLAGS LDFLAGS
+      export AS CC CXX CPP LD AR RANLIB STRIP CPPFLAGS CFLAGS LDFLAGS
 
       ac_configure_args="$ac_configure_args --build=$build --host=${target_cpu}-${target_os} HOST_CC=\"$HOST_CC\""
       ;;

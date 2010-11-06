@@ -45,11 +45,11 @@
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
-#include "nsIFileControlElement.h"
 
 #include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
+#include "nsDOMFile.h"
 
 //
 // Accessors for mBitField
@@ -74,6 +74,9 @@
                                         : ((bitfield) &= ~(0x01 << (field))))
 
 class nsDOMFileList;
+class nsIRadioGroupContainer;
+class nsIRadioGroupVisitor;
+class nsIRadioVisitor;
 
 class UploadLastDir : public nsIObserver, public nsSupportsWeakReference {
 public:
@@ -114,12 +117,13 @@ class nsHTMLInputElement : public nsGenericHTMLFormElement,
                            public nsITextControlElement,
                            public nsIPhonetic,
                            public nsIDOMNSEditableElement,
-                           public nsIFileControlElement,
                            public nsIConstraintValidation
 {
 public:
+  using nsIConstraintValidation::GetValidationMessage;
+
   nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     PRUint32 aFromParser);
+                     mozilla::dom::FromParser aFromParser);
   virtual ~nsHTMLInputElement();
 
   // nsISupports
@@ -155,6 +159,8 @@ public:
   virtual PRBool RestoreState(nsPresState* aState);
   virtual PRBool AllowDrop();
 
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+
   // nsIContent
   virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
@@ -178,7 +184,7 @@ public:
 
   virtual void DoneCreatingElement();
 
-  virtual PRInt32 IntrinsicState() const;
+  virtual nsEventStates IntrinsicState() const;
 
   // nsITextControlElement
   NS_IMETHOD SetValueChanged(PRBool aValueChanged);
@@ -200,6 +206,7 @@ public:
   NS_IMETHOD_(void) UnbindFromFrame(nsTextControlFrame* aFrame);
   NS_IMETHOD CreateEditor();
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
+  NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
   NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
@@ -207,9 +214,9 @@ public:
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIFileControlElement
-  virtual void GetDisplayFileName(nsAString& aFileName);
-  virtual void GetFileArray(nsCOMArray<nsIFile> &aFile);
-  virtual void SetFileNames(const nsTArray<nsString>& aFileNames);
+  void GetDisplayFileName(nsAString& aFileName) const;
+  const nsCOMArray<nsIDOMFile>& GetFiles();
+  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged();
@@ -252,6 +259,13 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 
+  static nsHTMLInputElement* FromContent(nsIContent *aContent)
+  {
+    if (aContent->NodeInfo()->Equals(nsGkAtoms::input, kNameSpaceID_XHTML))
+      return static_cast<nsHTMLInputElement*>(aContent);
+    return NULL;
+  }
+
   // nsIConstraintValidation
   PRBool   IsTooLong();
   PRBool   IsValueMissing();
@@ -262,9 +276,24 @@ public:
   void     UpdateTypeMismatchValidityState();
   void     UpdatePatternMismatchValidityState();
   void     UpdateAllValidityStates(PRBool aNotify);
-  PRBool   IsBarredFromConstraintValidation() const;
+  void     UpdateBarredFromConstraintValidation();
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
+
+  /**
+   * Returns the filter which should be used for the file picker according to
+   * the accept attribute value.
+   *
+   * See:
+   * http://dev.w3.org/html5/spec/forms.html#attr-input-accept
+   *
+   * @return Filter to use on the file picker with AppendFilters, 0 if none.
+   *
+   * @note You should not call this function if the element has no @accept.
+   * @note This will only filter for one type of file. If more than one filter
+   * is specified by the accept attribute they will *all* be ignored.
+   */
+  PRInt32 GetFilterFromAccept();
 
 protected:
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
@@ -338,15 +367,16 @@ protected:
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
 
-  void ClearFileNames() {
-    nsTArray<nsString> fileNames;
-    SetFileNames(fileNames);
+  void ClearFiles() {
+    nsCOMArray<nsIDOMFile> files;
+    SetFiles(files);
   }
 
-  void SetSingleFileName(const nsAString& aFileName) {
-    nsAutoTArray<nsString, 1> fileNames;
-    fileNames.AppendElement(aFileName);
-    SetFileNames(fileNames);
+  void SetSingleFile(nsIDOMFile* aFile) {
+    nsCOMArray<nsIDOMFile> files;
+    nsCOMPtr<nsIDOMFile> file = aFile;
+    files.AppendObject(file);
+    SetFiles(files);
   }
 
   nsresult SetIndeterminateInternal(PRBool aValue,
@@ -398,7 +428,7 @@ protected:
   void FireOnChange();
 
   /**
-   * Visit a the group of radio buttons this radio belongs to
+   * Visit the group of radio buttons this radio belongs to
    * @param aVisitor the visitor to visit with
    */
   nsresult VisitGroup(nsIRadioVisitor* aVisitor, PRBool aFlushContent);
@@ -479,6 +509,11 @@ protected:
    */
   PRBool DoesPatternApply() const;
 
+  /**
+   * Returns if the maxlength attribute applies for the current type.
+   */
+  bool MaxLengthApplies() const { return IsSingleLineTextControlInternal(PR_FALSE, mType); }
+
   void FreeData();
   nsTextEditorState *GetEditorState() const;
 
@@ -500,6 +535,8 @@ protected:
 
   /**
    * Set the current default value to the value of the input element.
+   * @note You should not call this method if GetValueMode() doesn't return
+   * VALUE_MODE_VALUE.
    */
   nsresult SetDefaultValueAsValue();
 
@@ -543,9 +580,11 @@ protected:
    * the frame. Whenever the frame wants to change the filename it has to call
    * SetFileNames to update this member.
    */
-  nsTArray<nsString>       mFileNames;
+  nsCOMArray<nsIDOMFile>   mFiles;
 
   nsRefPtr<nsDOMFileList>  mFileList;
+
+  nsString mStaticDocFileList;
 };
 
 #endif

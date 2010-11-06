@@ -44,8 +44,8 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h" /* Added by JSIFY */
-#include "jshash.h" /* Added by JSIFY */
+#include "jsutil.h"
+#include "jshash.h"
 #include "jsprf.h"
 #include "jsapi.h"
 #include "jsatom.h"
@@ -65,8 +65,7 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-
-using namespace js;
+using namespace js::gc;
 
 /*
  * ATOM_HASH assumes that JSHashNumber is 32-bit even on 64-bit systems.
@@ -159,6 +158,8 @@ const char *const js_common_atom_names[] = {
     js_name_str,                /* nameAtom                     */
     js_next_str,                /* nextAtom                     */
     js_noSuchMethod_str,        /* noSuchMethodAtom             */
+    "[object Null]",            /* objectNullAtom               */
+    "[object Undefined]",       /* objectUndefinedAtom          */
     js_proto_str,               /* protoAtom                    */
     js_set_str,                 /* setAtom                      */
     js_source_str,              /* sourceAtom                   */
@@ -176,7 +177,10 @@ const char *const js_common_atom_names[] = {
     js_configurable_str,        /* configurableAtom             */
     js_writable_str,            /* writableAtom                 */
     js_value_str,               /* valueAtom                    */
+    js_test_str,                /* testAtom                     */
     "use strict",               /* useStrictAtom                */
+    "loc",                      /* locAtom                      */
+    "line",                     /* lineAtom                     */
 
 #if JS_HAS_XML_SUPPORT
     js_etago_str,               /* etagoAtom                    */
@@ -189,6 +193,7 @@ const char *const js_common_atom_names[] = {
     js_starQualifier_str,       /* starQualifierAtom            */
     js_tagc_str,                /* tagcAtom                     */
     js_xml_str,                 /* xmlAtom                      */
+    "@mozilla.org/js/function", /* functionNamespaceURIAtom     */
 #endif
 
     "Proxy",                    /* ProxyAtom                    */
@@ -265,6 +270,7 @@ const char js_enumerable_str[]      = "enumerable";
 const char js_configurable_str[]    = "configurable";
 const char js_writable_str[]        = "writable";
 const char js_value_str[]           = "value";
+const char js_test_str[]            = "test";
 
 #if JS_HAS_XML_SUPPORT
 const char js_etago_str[]           = "</";
@@ -441,8 +447,8 @@ js_SweepAtomState(JSContext *cx)
         AtomEntryType entry = e.front();
         if (AtomEntryFlags(entry) & (ATOM_PINNED | ATOM_INTERNED)) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!js_IsAboutToBeFinalized(AtomEntryToKey(entry)));
-        } else if (js_IsAboutToBeFinalized(AtomEntryToKey(entry))) {
+            JS_ASSERT(!IsAboutToBeFinalized(AtomEntryToKey(entry)));
+        } else if (IsAboutToBeFinalized(AtomEntryToKey(entry))) {
             e.removeFront();
         }
     }
@@ -457,47 +463,18 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
     if (str->isAtomized())
         return STRING_TO_ATOM(str);
 
-    size_t length = str->length();
-    if (length == 1) {
-        jschar c = str->chars()[0];
-        if (c < UNIT_STRING_LIMIT)
-            return STRING_TO_ATOM(JSString::unitString(c));
-    }
+    const jschar *chars;
+    size_t length;
+    str->getCharsAndLength(chars, length);
 
-    if (length == 2) {
-        jschar *chars = str->chars();
-        if (JSString::fitsInSmallChar(chars[0]) &&
-            JSString::fitsInSmallChar(chars[1])) {
-            return STRING_TO_ATOM(JSString::length2String(chars[0], chars[1]));
-        }
-    }
-
-    /*
-     * Here we know that JSString::intStringTable covers only 256 (or at least
-     * not 1000 or more) chars. We rely on order here to resolve the unit vs.
-     * int string/length-2 string atom identity issue by giving priority to unit
-     * strings for "0" through "9" and length-2 strings for "10" through "99".
-     */
-    JS_STATIC_ASSERT(INT_STRING_LIMIT <= 999);
-    if (length == 3) {
-        const jschar *chars = str->chars();
-
-        if ('1' <= chars[0] && chars[0] <= '9' &&
-            '0' <= chars[1] && chars[1] <= '9' &&
-            '0' <= chars[2] && chars[2] <= '9') {
-            jsint i = (chars[0] - '0') * 100 +
-                      (chars[1] - '0') * 10 +
-                      (chars[2] - '0');
-
-            if (jsuint(i) < INT_STRING_LIMIT)
-                return STRING_TO_ATOM(JSString::intString(i));
-        }
-    }
+    JSString *staticStr = JSString::lookupStaticString(chars, length);
+    if (staticStr)
+        return STRING_TO_ATOM(staticStr);
 
     JSAtomState *state = &cx->runtime->atomState;
     AtomSet &atoms = state->atoms;
 
-    JS_LOCK(cx, &state->lock);
+    AutoLockDefaultCompartment lock(cx);
     AtomSet::AddPtr p = atoms.lookupForAdd(str);
 
     /* Hashing the string should have flattened it if it was a rope. */
@@ -508,28 +485,36 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
         key = AtomEntryToKey(*p);
     } else {
         /*
-         * Unless str is already allocated from the GC heap and flat, we have
-         * to release state->lock as string construction is a complex
-         * operation. For example, it can trigger GC which may rehash the table
-         * and make the entry invalid.
+         * Ensure that any atomized string lives only in the default
+         * compartment.
          */
-        if (!(flags & ATOM_TMPSTR) && str->isFlat()) {
+        bool needNewString = !!(flags & ATOM_TMPSTR) ||
+                             str->asCell()->compartment() != cx->runtime->defaultCompartment;
+
+        /*
+         * Unless str is already comes from the default compartment and flat,
+         * we have to relookup the key as the last ditch GC invoked from the
+         * string allocation or OOM handling may unlock the default
+         * compartment lock.
+         */
+        if (!needNewString && str->isFlat()) {
             str->flatClearMutable();
             key = str;
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
-            JS_UNLOCK(cx, &state->lock);
-
-            if (flags & ATOM_TMPSTR) {
+            if (needNewString) {
+                SwitchToCompartment sc(cx, cx->runtime->defaultCompartment);
+                jschar *chars = str->chars();
                 if (flags & ATOM_NOCOPY) {
-                    key = js_NewString(cx, str->flatChars(), str->flatLength());
+                    key = js_NewString(cx, chars, length);
                     if (!key)
                         return NULL;
 
                     /* Finish handing off chars to the GC'ed key string. */
+                    JS_ASSERT(flags & ATOM_TMPSTR);
                     str->mChars = NULL;
                 } else {
-                    key = js_NewStringCopyN(cx, str->flatChars(), str->flatLength());
+                    key = js_NewStringCopyN(cx, chars, length);
                     if (!key)
                         return NULL;
                 }
@@ -540,9 +525,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
                 key = str;
             }
 
-            JS_LOCK(cx, &state->lock);
             if (!atoms.relookupOrAdd(p, key, StringToInitialAtomEntry(key))) {
-                JS_UNLOCK(cx, &state->lock);
                 JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report */
                 return NULL;
             }
@@ -554,7 +537,6 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
 
     JS_ASSERT(key->isAtomized());
     JSAtom *atom = STRING_TO_ATOM(key);
-    JS_UNLOCK(cx, &state->lock);
     return atom;
 }
 
@@ -902,7 +884,7 @@ JSAutoAtomList::~JSAutoAtomList()
     if (table) {
         JS_HashTableDestroy(table);
     } else {
-        JSHashEntry *hep = list; 
+        JSHashEntry *hep = list;
         while (hep) {
             JSHashEntry *next = hep->next;
             js_free_temp_entry(parser, hep, HT_FREE_ENTRY);

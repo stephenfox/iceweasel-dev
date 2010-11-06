@@ -159,7 +159,7 @@
 #include "nsIController.h"
 #include "nsPICommandUpdater.h"
 #include "nsIDOMHTMLAnchorElement.h"
-#include "nsIWebBrowserChrome2.h"
+#include "nsIWebBrowserChrome3.h"
 #include "nsITabChild.h"
 #include "nsIStrictTransportSecurityService.h"
 
@@ -229,6 +229,10 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsContentErrors.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
+
+#ifdef MOZ_IPC
+#include "nsXULAppAPI.h"
+#endif
 
 using namespace mozilla;
 
@@ -707,6 +711,7 @@ nsDocShell::nsDocShell():
     mAllowKeywordFixup(PR_FALSE),
     mIsOffScreenBrowser(PR_FALSE),
     mIsActive(PR_TRUE),
+    mIsAppTab(PR_FALSE),
     mFiredUnloadEvent(PR_FALSE),
     mEODForCurrentDocument(PR_FALSE),
     mURIResultedInDocument(PR_FALSE),
@@ -852,6 +857,7 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIWebShellServices)
     NS_INTERFACE_MAP_ENTRY(nsILinkHandler)
     NS_INTERFACE_MAP_ENTRY(nsIClipboardCommands)
+    NS_INTERFACE_MAP_ENTRY(nsIDocShell_MOZILLA_2_0_BRANCH)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
 ///*****************************************************************************
@@ -2160,6 +2166,37 @@ nsDocShell::HistoryPurged(PRInt32 aNumEntries)
         nsCOMPtr<nsIDocShell> shell = do_QueryInterface(ChildAt(i));
         if (shell) {
             shell->HistoryPurged(aNumEntries);
+        }
+    }
+
+    return NS_OK;
+}
+
+nsresult
+nsDocShell::HistoryTransactionRemoved(PRInt32 aIndex)
+{
+    // These indices are used for fastback cache eviction, to determine
+    // which session history entries are candidates for content viewer
+    // eviction.  We need to adjust by the number of entries that we
+    // just purged from history, so that we look at the right session history
+    // entries during eviction.
+    if (aIndex == mPreviousTransIndex) {
+        mPreviousTransIndex = -1;
+    } else if (aIndex < mPreviousTransIndex) {
+        --mPreviousTransIndex;
+    }
+    if (mLoadedTransIndex == aIndex) {
+        mLoadedTransIndex = 0;
+    } else if (aIndex < mLoadedTransIndex) {
+        --mLoadedTransIndex;
+    }
+                            
+    PRInt32 count = mChildList.Count();
+    for (PRInt32 i = 0; i < count; ++i) {
+        nsCOMPtr<nsIDocShell> shell = do_QueryInterface(ChildAt(i));
+        if (shell) {
+            static_cast<nsDocShell*>(shell.get())->
+                HistoryTransactionRemoved(aIndex);
         }
     }
 
@@ -4767,6 +4804,20 @@ nsDocShell::GetIsActive(PRBool *aIsActive)
 }
 
 NS_IMETHODIMP
+nsDocShell::SetIsAppTab(PRBool aIsAppTab)
+{
+  mIsAppTab = aIsAppTab;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShell::GetIsAppTab(PRBool *aIsAppTab)
+{
+  *aIsAppTab = mIsAppTab;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDocShell::SetVisibility(PRBool aVisibility)
 {
     if (!mContentViewer)
@@ -5896,7 +5947,13 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
         do_QueryInterface(aNewChannel);
     if (appCacheChannel) {
-        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
+#ifdef MOZ_IPC
+        // Permission will be checked in the parent process.
+        if (GeckoProcessType_Default != XRE_GetProcessType())
+            appCacheChannel->SetChooseApplicationCache(PR_TRUE);
+        else
+#endif
+            appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(newURI));
     }
 
     if (!(aRedirectFlags & nsIChannelEventSink::REDIRECT_INTERNAL) && 
@@ -6417,9 +6474,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
       // hook 'em up
       if (viewer) {
         viewer->SetContainer(static_cast<nsIContentViewerContainer *>(this));
-        nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(blankDoc));
         Embed(viewer, "", 0);
-        viewer->SetDOMDocument(domdoc);
 
         SetCurrentURI(blankDoc->GetDocumentURI(), nsnull, PR_TRUE);
         rv = mIsBeingDestroyed ? NS_ERROR_NOT_AVAILABLE : NS_OK;
@@ -6432,6 +6487,12 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   SetHistoryEntry(&mOSHE, nsnull);
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal *aPrincipal)
+{
+    return CreateAboutBlankContentViewer(aPrincipal, nsnull);
 }
 
 PRBool
@@ -8545,7 +8606,14 @@ nsDocShell::DoURILoad(nsIURI * aURI,
 
         // Loads with the correct permissions should check for a matching
         // application cache.
-        appCacheChannel->SetChooseApplicationCache(ShouldCheckAppCache(aURI));
+#ifdef MOZ_IPC
+        // Permission will be checked in the parent process
+        if (GeckoProcessType_Default != XRE_GetProcessType())
+            appCacheChannel->SetChooseApplicationCache(PR_TRUE);
+        else
+#endif
+            appCacheChannel->SetChooseApplicationCache(
+                ShouldCheckAppCache(aURI));
     }
 
     // Make sure to give the caller a channel if we managed to create one
@@ -9628,7 +9696,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
         AddURIVisit(newURI, oldURI, oldURI, 0);
     }
     else {
-        FireOnLocationChange(this, nsnull, mCurrentURI);
+        FireDummyOnLocationChange();
     }
 
     return NS_OK;
@@ -11258,8 +11326,22 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
     return NS_OK;
   }
 
+  nsresult rv = NS_ERROR_FAILURE;
+  nsAutoString target;
+
+  nsCOMPtr<nsIWebBrowserChrome3> browserChrome3 = do_GetInterface(mTreeOwner);
+  if (browserChrome3) {
+    nsCOMPtr<nsIDOMNode> linkNode = do_QueryInterface(aContent);
+    nsAutoString oldTarget(aTargetSpec);
+    rv = browserChrome3->OnBeforeLinkTraversal(oldTarget, aURI,
+                                               linkNode, mIsAppTab, target);
+  }
+  
+  if (NS_FAILED(rv))
+    target = aTargetSpec;  
+
   nsCOMPtr<nsIRunnable> ev =
-      new OnLinkClickEvent(this, aContent, aURI, aTargetSpec,
+      new OnLinkClickEvent(this, aContent, aURI, target.get(),
                            aPostDataStream, aHeadersDataStream);
   return NS_DispatchToCurrentThread(ev);
 }

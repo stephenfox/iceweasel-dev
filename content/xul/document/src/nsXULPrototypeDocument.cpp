@@ -65,6 +65,7 @@
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
+#include "xpcpublic.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -729,9 +730,14 @@ nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
       // some special JS specific code we should abstract
       JSContext *cx = (JSContext *)ctxNew->GetNativeContext();
       JSAutoRequest ar(cx);
-      JSObject *newGlob = ::JS_NewGlobalObject(cx, &gSharedGlobalClass);
-      if (!newGlob)
-        return nsnull;
+
+      nsIPrincipal *principal = GetPrincipal();
+      JSObject *newGlob;
+      JSCompartment *compartment;
+
+      rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
+                                  false, &newGlob, &compartment);
+      NS_ENSURE_SUCCESS(rv, nsnull);
 
       ::JS_SetGlobalObject(cx, newGlob);
 

@@ -43,6 +43,8 @@
 #ifndef nsGlobalWindow_h___
 #define nsGlobalWindow_h___
 
+#include "mozilla/XPCOM.h" // for TimeStamp/TimeDuration
+
 // Local Includes
 // Helper Classes
 #include "nsCOMPtr.h"
@@ -66,6 +68,7 @@
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMNavigatorGeolocation.h"
+#include "nsIDOMNavigatorDesktopNotification.h"
 #include "nsIDOMLocation.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
@@ -83,7 +86,9 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMDocument.h"
+#ifndef MOZ_DISABLE_DOMCRYPTO
 #include "nsIDOMCrypto.h"
+#endif
 #include "nsIPrincipal.h"
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
@@ -105,8 +110,20 @@
 #include "nsFrameMessageManager.h"
 #include "mozilla/TimeStamp.h"
 
+// JS includes
+#include "jsapi.h"
+#include "jswrapper.h"
+
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
+
+// Amount of time allowed between alert/prompt/confirm before enabling
+// the stop dialog checkbox.
+#define SUCCESSIVE_DIALOG_TIME_LIMIT 3 // 3 sec
+
+// During click or mousedown events (and others, see nsDOMEvent) we allow modal
+// dialogs up to this limit, even if they were disabled.
+#define MAX_DIALOG_COUNT 10
 
 class nsIDOMBarProp;
 class nsIDocument;
@@ -130,6 +147,11 @@ class nsRunnable;
 
 class nsDOMOfflineResourceList;
 class nsGeolocation;
+class nsDesktopNotificationCenter;
+
+#ifdef MOZ_DISABLE_DOMCRYPTO
+class nsIDOMCrypto;
+#endif
 
 extern nsresult
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
@@ -210,6 +232,25 @@ private:
 };
 
 //*****************************************************************************
+// nsOuterWindow: Outer Window Proxy
+//*****************************************************************************
+
+class nsOuterWindowProxy : public JSWrapper
+{
+public:
+  nsOuterWindowProxy() : JSWrapper((uintN)0) {}
+
+  virtual bool isOuterWindow() {
+    return true;
+  }
+  JSString *obj_toString(JSContext *cx, JSObject *wrapper);
+
+  static nsOuterWindowProxy singleton;
+};
+
+JSObject *NS_NewOuterWindowProxy(JSContext *cx, JSObject *parent);
+
+//*****************************************************************************
 // nsGlobalWindow: Global Object for Scripting
 //*****************************************************************************
 // Beware that all scriptable interfaces implemented by
@@ -240,9 +281,13 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMStorageWindow,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
+                       public nsWrapperCache,
                        public PRCListStr
 {
 public:
+  typedef mozilla::TimeStamp TimeStamp;
+  typedef mozilla::TimeDuration TimeDuration;
+
   // public methods
   nsPIDOMWindow* GetPrivateParent();
   // callback for close event
@@ -329,7 +374,8 @@ public:
   }
   virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForEventTargetChain()
   {
-    return static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
+    return IsInnerWindow() ?
+      this : static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
   }
   virtual NS_HIDDEN_(nsresult) PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual NS_HIDDEN_(nsresult) PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -347,7 +393,8 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState);
+                                              nsISupports *aState,
+                                              PRBool aForceReuseInnerWindow);
   void DispatchDOMWindowCreated();
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
@@ -392,6 +439,32 @@ public:
   {
     return FromSupports(wrapper->Native());
   }
+
+  inline nsGlobalWindow *GetTop()
+  {
+    nsCOMPtr<nsIDOMWindow> top;
+    GetTop(getter_AddRefs(top));
+    if (top)
+      return static_cast<nsGlobalWindow *>(static_cast<nsIDOMWindow *>(top.get()));
+    return nsnull;
+  }
+
+  // Call this when a modal dialog is about to be opened.  Returns
+  // true if we've reached the state in this top level window where we
+  // ask the user if further dialogs should be blocked.
+  bool DialogOpenAttempted();
+
+  // Returns true if dialogs have already been blocked for this
+  // window.
+  bool AreDialogsBlocked();
+
+  // Ask the user if further dialogs should be blocked. This is used
+  // in the cases where we have no modifiable UI to show, in that case
+  // we show a separate dialog when asking this question.
+  bool ConfirmDialogAllowed();
+
+  // Prevent further dialogs in this (top level) window
+  void PreventFurtherDialogs();
 
   nsIScriptContext *GetContextInternal()
   {
@@ -485,6 +558,14 @@ public:
                                     nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
                                     const nsAString &aPopupWindowName,
                                     const nsAString &aPopupWindowFeatures);
+
+  virtual PRUint32 GetSerial() {
+    return mSerial;
+  }
+
+  static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
+    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
+  }
 
 protected:
   // Object Management
@@ -800,9 +881,9 @@ protected:
   nsString                      mDefaultStatus;
   // index 0->language_id 1, so index MAX-1 == language_id MAX
   nsGlobalWindowObserver*       mObserver;
-
+#ifndef MOZ_DISABLE_DOMCRYPTO
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
-
+#endif
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
   nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
@@ -837,9 +918,10 @@ protected:
   // the method that was used to focus mFocusedNode
   PRUint32 mFocusMethod;
 
+  PRUint32 mSerial;
+
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;
-  PRUint32 mSerial;
   nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
 
@@ -853,14 +935,25 @@ protected:
 
   nsCOMPtr<nsIIDBFactory> mIndexedDB;
 
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
+  // In the case of a "trusted" dialog (@see PopupControlState), we
+  // set this counter to ensure a max of MAX_DIALOG_LIMIT
+  PRUint32                      mDialogAbuseCount;
+
+  // This holds the time when the last modal dialog was shown, if two
+  // dialogs are shown within CONCURRENT_DIALOG_TIME_LIMIT the
+  // checkbox is shown. In the case of ShowModalDialog another Confirm
+  // dialog will be shown, the result of the checkbox/confirm dialog
+  // will be stored in mDialogDisabled variable.
+  TimeStamp                     mLastDialogQuitTime;
+  PRPackedBool                  mDialogDisabled;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
+
+  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
+  static WindowByIdTable* sOuterWindowsById;
 };
 
 /*
@@ -911,7 +1004,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState);
+                                              nsISupports *aState,
+                                              PRBool aForceReuseInnerWindow);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;
@@ -924,7 +1018,8 @@ protected:
 
 class nsNavigator : public nsIDOMNavigator,
                     public nsIDOMClientInformation,
-                    public nsIDOMNavigatorGeolocation
+                    public nsIDOMNavigatorGeolocation,
+                    public nsIDOMNavigatorDesktopNotification
 {
 public:
   nsNavigator(nsIDocShell *aDocShell);
@@ -934,6 +1029,7 @@ public:
   NS_DECL_NSIDOMNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
   NS_DECL_NSIDOMNAVIGATORGEOLOCATION
+  NS_DECL_NSIDOMNAVIGATORDESKTOPNOTIFICATION
   
   void SetDocShell(nsIDocShell *aDocShell);
   nsIDocShell *GetDocShell()
@@ -948,6 +1044,7 @@ protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
+  nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsIDocShell* mDocShell; // weak reference
 };
 

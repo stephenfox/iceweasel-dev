@@ -75,6 +75,7 @@
 #include "nsICSSRuleList.h"
 #include "nsIDOMCSSRule.h"
 
+using namespace mozilla::dom;
 namespace css = mozilla::css;
 
 //
@@ -390,7 +391,8 @@ nsHTMLFragmentContentSink::OpenContainer(const nsIParserNode& aNode)
       NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
     }
 
-    content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE).get();
+    content =
+      CreateHTMLElement(nodeType, nodeInfo.forget(), NOT_FROM_PARSER).get();
     NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
     result = AddAttributes(aNode, content);
@@ -477,7 +479,8 @@ nsHTMLFragmentContentSink::AddLeaf(const nsIParserNode& aNode)
           NS_ADDREF(mNodeInfoCache[nodeType] = nodeInfo);
         }
 
-        content = CreateHTMLElement(nodeType, nodeInfo.forget(), PR_FALSE);
+        content =
+          CreateHTMLElement(nodeType, nodeInfo.forget(), NOT_FROM_PARSER);
         NS_ENSURE_TRUE(content, NS_ERROR_OUT_OF_MEMORY);
 
         result = AddAttributes(aNode, content);
@@ -992,12 +995,14 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
     nsContentUtils::ASCIIToLower(aNode.GetKeyAt(i), k);
     nsCOMPtr<nsIAtom> keyAtom = do_GetAtom(k);
 
-    // not an allowed attribute
-    if (!sAllowedAttributes || !sAllowedAttributes->GetEntry(keyAtom)) {
-      // unless it's style, and we're allowing it
-      if (!mProcessStyle || keyAtom != nsGkAtoms::style) {
-        continue;
-      }
+    // Check if this is an allowed attribute, or a style attribute in case
+    // we've been asked to allow style attributes, or an HTML5 data-*
+    // attribute, or an attribute which begins with "_".
+    if ((!sAllowedAttributes || !sAllowedAttributes->GetEntry(keyAtom)) &&
+        (!mProcessStyle || keyAtom != nsGkAtoms::style) &&
+        !(StringBeginsWith(k, NS_LITERAL_STRING("data-")) ||
+          StringBeginsWith(k, NS_LITERAL_STRING("_")))) {
+      continue;
     }
 
     // Get value and remove mandatory quotes

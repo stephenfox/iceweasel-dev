@@ -97,6 +97,7 @@ CPPSRCS		= \
 		nsHTMLCanvasFrame.cpp \
 		nsHTMLContainerFrame.cpp \
 		nsCanvasFrame.cpp \
+		nsHTMLReflowMetrics.cpp \
 		nsHTMLReflowState.cpp \
 		nsImageFrame.cpp \
 		nsImageMap.cpp \
@@ -151,6 +152,7 @@ LOCAL_INCLUDES += \
 		-I$(srcdir) \
 		-I$(srcdir)/../base \
 		-I$(srcdir)/../forms \
+		-I$(srcdir)/../style \
 		-I$(srcdir)/../tables \
 		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/xul/content/src \

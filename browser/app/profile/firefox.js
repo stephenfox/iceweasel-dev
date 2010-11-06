@@ -56,13 +56,12 @@ pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul
 // Enables some extra Extension System Logging (can reduce performance)
 pref("extensions.logging.enabled", false);
 
-// Preferences for the Addon Repository
+// Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
 pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/guid:%IDS%");
+pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%");
-
-// Preferences for AMO integration
 pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery/%VERSION%/%OS%");
 
 // Blocklist preferences
@@ -71,8 +70,10 @@ pref("extensions.blocklist.interval", 86400);
 // Controls what level the blocklist switches from warning about items to forcibly
 // blocking them.
 pref("extensions.blocklist.level", 2);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
+pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
+
+pref("extensions.update.autoUpdateDefault", true);
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/%APP%/dictionaries/");
@@ -87,8 +88,35 @@ pref("app.update.timer", 600000);
 // The interval to check for updates (app.update.interval) is defined in
 // firefox-branding.js
 
+// Alternative windowtype for an application update user interface window. When
+// a window with this windowtype is open the application update service won't
+// open the normal application update user interface window.
+pref("app.update.altwindowtype", "Browser:About");
+
 // Enables some extra Application Update Logging (can reduce performance)
 pref("app.update.log", false);
+
+// The number of general background check failures to allow before notifying the
+// user of the failure. User initiated update checks always notify the user of
+// the failure.
+pref("app.update.backgroundMaxErrors", 10);
+
+// When |app.update.cert.requireBuiltIn| is true or not specified the
+// final certificate and all certificates the connection is redirected to before
+// the final certificate for the url specified in the |app.update.url|
+// preference must be built-in.
+pref("app.update.cert.requireBuiltIn", true);
+
+// When |app.update.cert.checkAttributes| is true or not specified the
+// certificate attributes specified in the |app.update.certs.| preference branch
+// are checked against the certificate for the url specified by the
+// |app.update.url| preference.
+pref("app.update.cert.checkAttributes", true);
+
+// The number of certificate attribute check failures to allow for background
+// update checks before notifying the user of the failure. User initiated update
+// checks always notify the user of the certificate attribute check failure.
+pref("app.update.cert.maxErrors", 5);
 
 // The |app.update.certs.| preference branch contains branches that are
 // sequentially numbered starting at 1 that contain attribute name / value
@@ -103,7 +131,10 @@ pref("app.update.log", false);
 // no update available. This validation will not be performed when using the
 // |app.update.url.override| preference for update checking.
 pref("app.update.certs.1.issuerName", "OU=Equifax Secure Certificate Authority,O=Equifax,C=US");
-pref("app.update.certs.1.commonName", "*.mozilla.org");
+pref("app.update.certs.1.commonName", "aus3.mozilla.org");
+
+pref("app.update.certs.2.issuerName", "CN=Thawte SSL CA,O=\"Thawte, Inc.\",C=US");
+pref("app.update.certs.2.commonName", "aus3.mozilla.org");
 
 // Whether or not app updates are enabled
 pref("app.update.enabled", true);
@@ -128,7 +159,7 @@ pref("app.update.mode", 1);
 pref("app.update.silent", false);
 
 // Update service URL:
-pref("app.update.url", "https://aus2.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
+pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
 // app.update.url.manual is in branding section
 // app.update.url.details is in branding section
 
@@ -299,6 +330,7 @@ pref("browser.search.log", false);
 // Ordering of Search Engines in the Engine list. 
 pref("browser.search.order.1",                "chrome://browser-region/locale/region.properties");
 pref("browser.search.order.2",                "chrome://browser-region/locale/region.properties");
+pref("browser.search.order.3",                "chrome://browser-region/locale/region.properties");
 
 // search bar results always open in a new tab
 pref("browser.search.openintab", false);
@@ -379,11 +411,9 @@ pref("browser.bookmarks.max_backups",             10);
 
 // Scripts & Windows prefs
 pref("dom.disable_open_during_load",              true);
-#ifdef DEBUG
 pref("javascript.options.showInConsole",          true);
+#ifdef DEBUG
 pref("general.warnOnAboutConfig",                 false);
-#else
-pref("javascript.options.showInConsole",          false);
 #endif
 
 #ifdef WINCE
@@ -391,15 +421,12 @@ pref("javascript.options.showInConsole",          false);
 pref("dom.max_script_run_time",                   20);
 #endif
 
-// Make the status bar reliably present and unaffected by pages
-pref("dom.disable_window_open_feature.status",    true);
 // This is the pref to control the location bar, change this to true to 
-// force this instead of or in addition to the status bar - this makes 
-// the origin of popup windows more obvious to avoid spoofing. We would 
-// rather not do it by default because it affects UE for web applications, but
-// without it there isn't a really good way to prevent chrome spoofing, see bug 337344
+// force this - this makes the origin of popup windows more obvious to avoid
+// spoofing. We would rather not do it by default because it affects UE for web
+// applications, but without it there isn't a really good way to prevent chrome
+// spoofing, see bug 337344
 pref("dom.disable_window_open_feature.location",  true);
-pref("dom.disable_window_status_change",          true);
 // allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize",            false);
 // prevent JS from monkeying with window focus, etc
@@ -464,8 +491,8 @@ pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/in
 // simple gestures support
 pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
 pref("browser.gesture.swipe.right", "Browser:ForwardOrForwardDuplicate");
-pref("browser.gesture.swipe.up", "cmd_scrollTop");
-pref("browser.gesture.swipe.down", "cmd_scrollBottom");
+pref("browser.gesture.swipe.up", "Browser:HideTabView");
+pref("browser.gesture.swipe.down", "Browser:ShowTabView");
 #ifdef XP_MACOSX
 pref("browser.gesture.pinch.latched", true);
 pref("browser.gesture.pinch.threshold", 150);
@@ -765,7 +792,9 @@ pref("browser.sessionstore.interval", 15000);
 pref("browser.sessionstore.postdata", 0);
 // on which sites to save text data, POSTDATA and cookies
 // 0 = everywhere, 1 = unencrypted sites, 2 = nowhere
-pref("browser.sessionstore.privacy_level", 1);
+pref("browser.sessionstore.privacy_level", 0);
+// the same as browser.sessionstore.privacy_level, but for saving deferred session data
+pref("browser.sessionstore.privacy_level_deferred", 0);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
 // how many windows can be reopened (per session) - on non-OS X platforms this
@@ -774,6 +803,12 @@ pref("browser.sessionstore.max_windows_undo", 3);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
+// The number of tabs that can restore concurrently:
+// < 0 = All tabs can restore at the same time
+//   0 = Only the selected tab in each window will be restored
+//       Other tabs won't be restored until they are selected
+//   N = The number of tabs to restore at the same time
+pref("browser.sessionstore.max_concurrent_tabs", 3);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
@@ -908,14 +943,12 @@ pref("toolbar.customization.usesheet", false);
 // The default for this pref reflects whether the build is capable of IPC.
 // (Turning it on in a no-IPC build will have no effect.)
 #ifdef XP_MACOSX
-// OSX still has only partial support for IPC.  Note that the PowerPC
-// and x86 builds must generate identical copies of this file, so we
-// can't make the prefs indicate that IPC is not available at all in
-// PowerPC builds.
-pref("dom.ipc.plugins.enabled", false);
-// These plug-ins will run OOP by default
-pref("dom.ipc.plugins.enabled.flash player.plugin", true);
-pref("dom.ipc.plugins.enabled.javaplugin2_npapi.plugin", true);
+// i386 ipc preferences
+pref("dom.ipc.plugins.enabled.i386", false);
+pref("dom.ipc.plugins.enabled.i386.flash player.plugin", true);
+pref("dom.ipc.plugins.enabled.i386.javaplugin2_npapi.plugin", true);
+// x86_64 ipc preferences
+pref("dom.ipc.plugins.enabled.x86_64", true);
 #elifdef MOZ_IPC
 pref("dom.ipc.plugins.enabled", true);
 #else
@@ -932,7 +965,7 @@ pref("browser.taskbar.lists.frequent.enabled", true);
 pref("browser.taskbar.lists.recent.enabled", false);
 pref("browser.taskbar.lists.maxListItemCount", 7);
 pref("browser.taskbar.lists.tasks.enabled", true);
-pref("browser.taskbar.lists.refreshInSeconds", 30);
+pref("browser.taskbar.lists.refreshInSeconds", 120);
 #endif
 #endif
 
@@ -970,8 +1003,6 @@ pref("services.sync.prefs.sync.browser.urlbar.maxRichResults", true);
 pref("services.sync.prefs.sync.dom.disable_open_during_load", true);
 pref("services.sync.prefs.sync.dom.disable_window_flip", true);
 pref("services.sync.prefs.sync.dom.disable_window_move_resize", true);
-pref("services.sync.prefs.sync.dom.disable_window_open_feature.status", true);
-pref("services.sync.prefs.sync.dom.disable_window_status_change", true);
 pref("services.sync.prefs.sync.dom.event.contextmenu.enabled", true);
 pref("services.sync.prefs.sync.extensions.personas.current", true);
 pref("services.sync.prefs.sync.extensions.update.enabled", true);
@@ -1014,3 +1045,14 @@ pref("services.sync.prefs.sync.signon.rememberSignons", true);
 pref("services.sync.prefs.sync.spellchecker.dictionary", true);
 pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 #endif
+
+// Disable the error console and inspector
+pref("devtools.errorconsole.enabled", false);
+pref("devtools.inspector.enabled", false);
+
+// Whether the character encoding menu is under the main Firefox button. This
+// preference is a string so that localizers can alter it.
+pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.properties");
+
+// Whether the Panorama should animate going in/out of tabs
+pref("browser.panorama.animate_zoom", true);

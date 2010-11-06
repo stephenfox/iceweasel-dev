@@ -42,7 +42,7 @@ function test() {
     size: 5
   }]);
 
-  open_manager(null, function(aWindow) {
+  open_manager("addons://list/extension", function(aWindow) {
     gManagerWindow = aWindow;
     run_next_test();
   });
@@ -85,8 +85,8 @@ add_test(function() {
 // Tests that switching to date ordering works and defaults to descending
 add_test(function() {
   var sorters = gManagerWindow.document.getElementById("list-sorters");
-  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-date");
-  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "date-btn");
+  EventUtils.synthesizeMouseAtCenter(nameSorter, { }, gManagerWindow);
 
   check_order([
     "test5@tests.mozilla.org",
@@ -102,8 +102,8 @@ add_test(function() {
 // Tests that switching to name ordering works and defaults to ascending
 add_test(function() {
   var sorters = gManagerWindow.document.getElementById("list-sorters");
-  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "btn-name");
-  EventUtils.synthesizeMouse(nameSorter, 2, 2, { }, gManagerWindow);
+  var nameSorter = gManagerWindow.document.getAnonymousElementByAttribute(sorters, "anonid", "name-btn");
+  EventUtils.synthesizeMouseAtCenter(nameSorter, { }, gManagerWindow);
 
   check_order([
     "test2@tests.mozilla.org",

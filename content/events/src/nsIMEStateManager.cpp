@@ -63,6 +63,8 @@
 #include "nsISelectionController.h"
 #include "nsIMutationObserver.h"
 #include "nsContentEventHandler.h"
+#include "nsIObserverService.h"
+#include "mozilla/Services.h"
 
 /******************************************************************/
 /* nsIMEStateManager                                              */
@@ -235,6 +237,28 @@ nsIMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
   return aContent->GetDesiredIMEState();
 }
 
+// Helper class, used for IME enabled state change notification
+class IMEEnabledStateChangedEvent : public nsRunnable {
+public:
+  IMEEnabledStateChangedEvent(PRUint32 aState)
+    : mState(aState)
+  {
+  }
+
+  NS_IMETHOD Run() {
+    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+    if (observerService) {
+      nsAutoString state;
+      state.AppendInt(mState);
+      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
+    }
+    return NS_OK;
+  }
+
+private:
+  PRUint32 mState;
+};
+
 void
 nsIMEStateManager::SetIMEState(PRUint32 aState,
                                nsIWidget* aWidget)
@@ -243,6 +267,8 @@ nsIMEStateManager::SetIMEState(PRUint32 aState,
     PRUint32 state =
       nsContentUtils::GetWidgetStatusFromIMEStatus(aState);
     aWidget->SetIMEEnabled(state);
+
+    nsContentUtils::AddScriptRunner(new IMEEnabledStateChangedEvent(state));
   }
   if (aState & nsIContent::IME_STATUS_MASK_OPENED) {
     PRBool open = !!(aState & nsIContent::IME_STATUS_OPEN);
@@ -286,7 +312,8 @@ public:
 
   nsresult Init(nsIWidget* aWidget,
                 nsPresContext* aPresContext,
-                nsINode* aNode);
+                nsINode* aNode,
+                PRBool aWantUpdates);
   void     Destroy(void);
 
   nsCOMPtr<nsIWidget>            mWidget;
@@ -307,9 +334,15 @@ nsTextStateManager::nsTextStateManager()
 nsresult
 nsTextStateManager::Init(nsIWidget* aWidget,
                          nsPresContext* aPresContext,
-                         nsINode* aNode)
+                         nsINode* aNode,
+                         PRBool aWantUpdates)
 {
   mWidget = aWidget;
+
+  if (!aWantUpdates) {
+    mEditableNode = aNode;
+    return NS_OK;
+  }
 
   nsIPresShell* presShell = aPresContext->PresShell();
 
@@ -334,12 +367,17 @@ nsTextStateManager::Init(nsIWidget* aWidget,
 
   nsCOMPtr<nsIDOMRange> selDomRange;
   rv = sel->GetRangeAt(0, getter_AddRefs(selDomRange));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIRange> selRange(do_QueryInterface(selDomRange));
-  NS_ENSURE_TRUE(selRange && selRange->GetStartParent(), NS_ERROR_UNEXPECTED);
 
-  mRootContent = selRange->GetStartParent()->
+  if (NS_SUCCEEDED(rv)) {
+    nsCOMPtr<nsIRange> selRange(do_QueryInterface(selDomRange));
+    NS_ENSURE_TRUE(selRange && selRange->GetStartParent(),
+                   NS_ERROR_UNEXPECTED);
+
+    mRootContent = selRange->GetStartParent()->
                      GetSelectionRootContent(presShell);
+  } else {
+    mRootContent = aNode->GetSelectionRootContent(presShell);
+  }
   if (!mRootContent && aNode->IsNodeOfType(nsINode::eDOCUMENT)) {
     // The document node is editable, but there are no contents, this document
     // is not editable.
@@ -590,6 +628,8 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
     return NS_OK;
   NS_ENSURE_SUCCESS(rv, rv);
 
+  PRBool wantUpdates = rv != NS_SUCCESS_IME_NO_UPDATES;
+
   // OnIMEFocusChange may cause focus and sTextStateObserver to change
   // In that case return and keep the current sTextStateObserver
   NS_ENSURE_TRUE(!sTextStateObserver, NS_OK);
@@ -597,7 +637,8 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
   sTextStateObserver = new nsTextStateManager();
   NS_ENSURE_TRUE(sTextStateObserver, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(sTextStateObserver);
-  rv = sTextStateObserver->Init(widget, aPresContext, editableNode);
+  rv = sTextStateObserver->Init(widget, aPresContext,
+                                editableNode, wantUpdates);
   if (NS_FAILED(rv)) {
     sTextStateObserver->mDestroying = PR_TRUE;
     sTextStateObserver->Destroy();

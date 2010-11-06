@@ -49,9 +49,8 @@
 #include "nsDOMError.h"
 #include "nsGenericHTMLElement.h"
 #include "nsISaveAsCharset.h"
-
-// JBK added for submit move from content frame
 #include "nsIFile.h"
+#include "nsIDOMFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsStringStream.h"
 #include "nsIURI.h"
@@ -110,7 +109,7 @@ public:
   virtual nsresult AddNameValuePair(const nsAString& aName,
                                     const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIFile* aFile);
+                                   nsIDOMBlob* aBlob);
   virtual nsresult GetEncodedSubmission(nsIURI* aURI,
                                         nsIInputStream** aPostDataStream);
 
@@ -196,7 +195,7 @@ nsFSURLEncoded::AddIsindex(const nsAString& aValue)
 
 nsresult
 nsFSURLEncoded::AddNameFilePair(const nsAString& aName,
-                                nsIFile* aFile)
+                                nsIDOMBlob* aBlob)
 {
   if (!mWarnedFileControl) {
     SendJSWarning(mDocument, "ForgotFileEnctypeWarning", nsnull, 0);
@@ -204,8 +203,9 @@ nsFSURLEncoded::AddNameFilePair(const nsAString& aName,
   }
 
   nsAutoString filename;
-  if (aFile) {
-    aFile->GetLeafName(filename);
+  nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
+  if (file) {
+    file->GetName(filename);
   }
 
   return AddNameValuePair(aName, filename);
@@ -469,7 +469,7 @@ nsFSMultipartFormData::AddNameValuePair(const nsAString& aName,
 
 nsresult
 nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
-                                       nsIFile* aFile)
+                                       nsIDOMBlob* aBlob)
 {
   // Encode the control name
   nsCAutoString nameStr;
@@ -477,12 +477,16 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString filenameStr;
-  nsCAutoString contentType;
+  nsAutoString contentType;
   nsCOMPtr<nsIInputStream> fileStream;
-  if (aFile) {
+  if (aBlob) {
     // Get and encode the filename
     nsAutoString filename;
-    aFile->GetLeafName(filename);
+    nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
+    if (file) {
+      rv = file->GetName(filename);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
     nsCAutoString encodedFileName;
     rv = EncodeVal(filename, encodedFileName);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -493,20 +497,14 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
                                         nsLinebreakConverter::eLinebreakNet));
   
     // Get content type
-    nsCOMPtr<nsIMIMEService> MIMEService =
-      do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = MIMEService->GetTypeFromFile(aFile, contentType);
-    if (NS_FAILED(rv)) {
+    rv = aBlob->GetType(contentType);
+    if (NS_FAILED(rv) || contentType.IsEmpty()) {
       contentType.AssignLiteral("application/octet-stream");
     }
   
     // Get input stream
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(fileStream),
-                                    aFile, -1, -1,
-                                    nsIFileInputStream::CLOSE_ON_EOF |
-                                    nsIFileInputStream::REOPEN_ON_REWIND);
+    rv = aBlob->GetInternalStream(getter_AddRefs(fileStream));
+    NS_ENSURE_SUCCESS(rv, rv);
     if (fileStream) {
       // Create buffered stream (for efficiency)
       nsCOMPtr<nsIInputStream> bufferedStream;
@@ -534,8 +532,9 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
          NS_LITERAL_CSTRING("Content-Disposition: form-data; name=\"")
        + nameStr + NS_LITERAL_CSTRING("\"; filename=\"")
        + filenameStr + NS_LITERAL_CSTRING("\"" CRLF)
-       + NS_LITERAL_CSTRING("Content-Type: ") + contentType
-       + NS_LITERAL_CSTRING(CRLF CRLF);
+       + NS_LITERAL_CSTRING("Content-Type: ");
+  AppendUTF16toUTF8(contentType, mPostDataChunk);
+  mPostDataChunk += NS_LITERAL_CSTRING(CRLF CRLF);
 
   // Add the file to the stream
   if (fileStream) {
@@ -605,7 +604,7 @@ public:
   virtual nsresult AddNameValuePair(const nsAString& aName,
                                     const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIFile* aFile);
+                                   nsIDOMBlob* aBlob);
   virtual nsresult GetEncodedSubmission(nsIURI* aURI,
                                         nsIInputStream** aPostDataStream);
 
@@ -628,11 +627,12 @@ nsFSTextPlain::AddNameValuePair(const nsAString& aName,
 
 nsresult
 nsFSTextPlain::AddNameFilePair(const nsAString& aName,
-                               nsIFile* aFile)
+                               nsIDOMBlob* aBlob)
 {
   nsAutoString filename;
-  if (aFile) {
-    aFile->GetLeafName(filename);
+  nsCOMPtr<nsIDOMFile> file = do_QueryInterface(aBlob);
+  if (file) {
+    file->GetName(filename);
   }
     
   AddNameValuePair(aName, filename);

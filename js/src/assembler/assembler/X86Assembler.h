@@ -1,4 +1,7 @@
-/*
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=79:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2008 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -21,7 +24,8 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- */
+ * 
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef X86Assembler_h
 #define X86Assembler_h
@@ -181,6 +185,7 @@ private:
         OP_OR_EvGv                      = 0x09,
         OP_OR_GvEv                      = 0x0B,
         OP_2BYTE_ESCAPE                 = 0x0F,
+        OP_3BYTE_ESCAPE                 = 0x3A,
         OP_AND_EvGv                     = 0x21,
         OP_AND_GvEv                     = 0x23,
         OP_SUB_EvGv                     = 0x29,
@@ -258,6 +263,10 @@ private:
         OP2_PEXTRW_GdUdIb   = 0xC5
     } TwoByteOpcodeID;
 
+    typedef enum {
+        OP3_PINSRD_VsdWsd   = 0x22
+    } ThreeByteOpcodeID;
+
     TwoByteOpcodeID jccRel32(Condition cond)
     {
         return (TwoByteOpcodeID)(OP2_JCC_rel32 + cond);
@@ -298,7 +307,7 @@ private:
     class X86InstructionFormatter;
 public:
 
-#ifdef DEBUG
+#ifdef JS_METHODJIT_SPEW
     bool isOOLPath;
 #endif
 
@@ -346,7 +355,7 @@ public:
     };
 
     X86Assembler()
-#ifdef DEBUG
+#ifdef JS_METHODJIT_SPEW
       : isOOLPath(false)
 #endif
     {
@@ -354,6 +363,7 @@ public:
 
     size_t size() const { return m_formatter.size(); }
     unsigned char *buffer() const { return m_formatter.buffer(); }
+    bool oom() const { return m_formatter.oom(); }
 
     // Stack operations:
 
@@ -840,7 +850,9 @@ public:
 #if WTF_CPU_X86_64
     void xorq_rr(RegisterID src, RegisterID dst)
     {
-        FIXME_INSN_PRINTING;
+        js::JaegerSpew(js::JSpew_Insns,
+                       IPFX "xorq       %s, %s\n", MAYBE_PAD,
+                       nameIReg(8,src), nameIReg(8, dst));
         m_formatter.oneByteOp64(OP_XOR_EvGv, src, dst);
     }
 
@@ -2006,6 +2018,16 @@ public:
         m_formatter.twoByteOp(OP2_SQRTSD_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
+    void pinsrd_rr(RegisterID src, XMMRegisterID dst)
+    {
+        js::JaegerSpew(js::JSpew_Insns,
+                       IPFX "pinsrd     $1, %s, %s\n", MAYBE_PAD,
+                       nameIReg(src), nameFPReg(dst));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.threeByteOp(OP3_PINSRD_VsdWsd, (RegisterID)dst, (RegisterID)src);
+        m_formatter.immediate8(0x01); // the $1
+    }
+
     // Misc instructions:
 
     void int3()
@@ -2201,12 +2223,13 @@ public:
     void* executableCopy(ExecutablePool* allocator)
     {
         void* copy = m_formatter.executableCopy(allocator);
-        ASSERT(copy);
         return copy;
     }
 
     void* executableCopy(void* buffer)
     {
+        if (m_formatter.oom())
+            return NULL;
         return memcpy(buffer, m_formatter.buffer(), size());
     }
 
@@ -2361,6 +2384,16 @@ private:
         }
 #endif
 
+        void threeByteOp(ThreeByteOpcodeID opcode, int reg, RegisterID rm)
+        {
+            m_buffer.ensureSpace(maxInstructionSize);
+            emitRexIfNeeded(reg, 0, rm);
+            m_buffer.putByteUnchecked(OP_2BYTE_ESCAPE);
+            m_buffer.putByteUnchecked(OP_3BYTE_ESCAPE);
+            m_buffer.putByteUnchecked(opcode);
+            registerModRM(reg, rm);
+        }
+
 #if WTF_CPU_X86_64
         // Quad-word-sized operands:
         //
@@ -2510,6 +2543,7 @@ private:
 
         size_t size() const { return m_buffer.size(); }
         unsigned char *buffer() const { return m_buffer.buffer(); }
+        bool oom() const { return m_buffer.oom(); }
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
         void* executableCopy(ExecutablePool* allocator) { return m_buffer.executableCopy(allocator); }

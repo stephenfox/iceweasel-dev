@@ -219,6 +219,12 @@ StringsEqual(Vector<jschar, N, AP> &v, JSString* str)
 ** Function and struct API definitions
 *******************************************************************************/
 
+JS_ALWAYS_INLINE void
+ASSERT_OK(JSBool ok)
+{
+  JS_ASSERT(ok);
+}
+
 // for JS error reporting
 enum ErrorNum {
 #define MSG_DEF(name, number, count, exception, format) \
@@ -337,6 +343,10 @@ struct ClosureInfo
 #endif
 };
 
+bool IsCTypesGlobal(JSContext* cx, JSObject* obj);
+
+JSCTypesCallbacks* GetCallbacks(JSContext* cx, JSObject* obj);
+
 JSBool InitTypeClasses(JSContext* cx, JSObject* parent);
 
 JSBool ConvertToJS(JSContext* cx, JSObject* typeObj, JSObject* dataObj,
@@ -351,6 +361,11 @@ JSBool ExplicitConvert(JSContext* cx, jsval val, JSObject* targetType,
 /*******************************************************************************
 ** JSClass reserved slot definitions
 *******************************************************************************/
+
+enum CTypesGlobalSlot {
+  SLOT_CALLBACKS = 0, // pointer to JSCTypesCallbacks struct
+  CTYPESGLOBAL_SLOTS
+};
 
 enum CABISlot {
   SLOT_ABICODE = 0, // ABICode of the CABI object
@@ -387,7 +402,7 @@ enum CTypeSlot {
   SLOT_ELEMENT_T = 7, // (ArrayTypes only) 'elementType' property
   SLOT_LENGTH    = 8, // (ArrayTypes only) 'length' property
   SLOT_FIELDS    = 7, // (StructTypes only) 'fields' property
-  SLOT_FIELDINFO = 8, // (StructTypes only) FieldInfo array
+  SLOT_FIELDINFO = 8, // (StructTypes only) FieldInfoHash table
   SLOT_FNINFO    = 7, // (FunctionTypes only) FunctionInfo struct
   SLOT_ARGS_T    = 8, // (FunctionTypes only) 'argTypes' property (cached)
   CTYPE_SLOTS
@@ -444,6 +459,7 @@ namespace CType {
   JSString* GetName(JSContext* cx, JSObject* obj);
   JSObject* GetProtoFromCtor(JSContext* cx, JSObject* obj, CTypeProtoSlot slot);
   JSObject* GetProtoFromType(JSContext* cx, JSObject* obj, CTypeProtoSlot slot);
+  JSCTypesCallbacks* GetCallbacksFromType(JSContext* cx, JSObject* obj);
 }
 
 namespace PointerType {

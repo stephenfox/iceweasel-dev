@@ -43,6 +43,7 @@
 
 #include <QKeyEvent>
 #include <qgraphicswidget.h>
+#include <QTime>
 
 #include "nsAutoPtr.h"
 
@@ -110,7 +111,7 @@ public:
     nsWindow();
     virtual ~nsWindow();
 
-    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption );
+    nsEventStatus DoPaint( QPainter* aPainter, const QStyleOptionGraphicsItem * aOption, QWidget* aWidget);
 
     static void ReleaseGlobals();
 
@@ -130,6 +131,16 @@ public:
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
+
+    virtual already_AddRefed<nsIWidget>
+    CreateChild(const nsIntRect&  aRect,
+                EVENT_CALLBACK    aHandleEventFunction,
+                nsIDeviceContext* aContext,
+                nsIAppShell*      aAppShell = nsnull,
+                nsIToolkit*       aToolkit = nsnull,
+                nsWidgetInitData* aInitData = nsnull,
+                PRBool            aForceUseIWidgetParent = PR_TRUE);
+
     NS_IMETHOD         Destroy(void);
     NS_IMETHOD         SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
@@ -190,7 +201,6 @@ public:
 
     NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
     NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
-    NS_IMETHOD         SetAcceleratedRendering(PRBool aEnabled);
 
     //
     // utility methods
@@ -222,6 +232,7 @@ public:
     // called to check and see if a widget's dimensions are sane
     PRBool AreBoundsSane(void);
 
+    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
     nsCOMPtr<nsIWidget> mParent;
     // Is this a toplevel window?
@@ -279,7 +290,11 @@ protected:
 //Gestures are only supported in qt > 4.6
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     virtual nsEventStatus OnTouchEvent(QTouchEvent *event, PRBool &handled);
+
     virtual nsEventStatus OnGestureEvent(QGestureEvent *event, PRBool &handled);
+    nsEventStatus DispatchGestureEvent(PRUint32 aMsg, PRUint32 aDirection,
+                                       double aDelta, const nsIntPoint& aRefPoint);
+
     double DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint);
 #endif
 
@@ -305,7 +320,6 @@ protected:
 
     void               ThemeChanged(void);
 
-    virtual LayerManager* GetLayerManager();
     gfxASurface*       GetThebesSurface();
 
 private:
@@ -379,13 +393,15 @@ private:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
     double mTouchPointDistance;
     double mLastPinchDistance;
-    PRBool mMouseEventsDisabled;
+    double mPinchStartDistance;
+    QTime mLastMultiTouchTime;
 #endif
 
     PRPackedBool mNeedsResize;
     PRPackedBool mNeedsMove;
     PRPackedBool mListenForResizes;
     PRPackedBool mNeedsShow;
+    PRPackedBool mGesturesCancelled;
 };
 
 class nsChildWindow : public nsWindow

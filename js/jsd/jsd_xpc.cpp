@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsdbgapi.h"
+#include "jslock.h"
 #include "jsd_xpc.h"
 
 #include "nsIXPConnect.h"
@@ -58,6 +59,9 @@
 /* XXX DOM dependency */
 #include "nsIScriptContext.h"
 #include "nsIJSContextStack.h"
+
+/* XXX private JS headers. */
+#include "jscompartment.h"
 
 /*
  * defining CAUTIOUS_SCRIPTHOOK makes jsds disable GC while calling out to the
@@ -1318,10 +1322,14 @@ jsdScript::GetFunctionSource(nsAString & aFunctionSource)
     JSAutoRequest ar(cx);
 
     JSString *jsstr;
-    if (fun)
+    if (fun) {
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, JS_GetFunctionObject(fun)))
+            return NS_ERROR_FAILURE;
         jsstr = JS_DecompileFunction (cx, fun, 4);
-    else {
+    } else {
         JSScript *script = JSD_GetJSScript (mCx, mScript);
+        js::SwitchToCompartment sc(cx, script->compartment);
         jsstr = JS_DecompileScript (cx, script, "ppscript", 4);
     }
     if (!jsstr)
@@ -1841,14 +1849,6 @@ jsdStackFrame::GetFunctionName(nsACString &_rval)
 }
 
 NS_IMETHODIMP
-jsdStackFrame::GetIsNative(PRBool *_rval)
-{
-    ASSERT_VALID_EPHEMERAL;
-    *_rval = JSD_IsStackFrameNative (mCx, mThreadState, mStackFrameInfo);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 jsdStackFrame::GetIsDebugger(PRBool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
@@ -1902,9 +1902,7 @@ jsdStackFrame::GetLine(PRUint32 *_rval)
         jsuword pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
         *_rval = JSD_GetClosestLine (mCx, script, pc);
     } else {
-        if (!JSD_IsStackFrameNative(mCx, mThreadState, mStackFrameInfo))
-            return NS_ERROR_FAILURE;
-        *_rval = 1;
+        return NS_ERROR_FAILURE;
     }
     return NS_OK;
 }
@@ -2326,7 +2324,13 @@ jsdValue::GetWrappedValue()
 
     if (result)
     {
+        JSContext *cx;
+        rv = cc->GetJSContext(&cx);
+        if (NS_FAILED(rv))
+            return rv;
         *result = JSD_GetValueWrappedJSVal (mCx, mValue);
+        if (!JS_WrapValue(cx, result))
+            return NS_ERROR_FAILURE;
         cc->SetReturnValueWasSet(PR_TRUE);
     }
 
@@ -2401,6 +2405,12 @@ jsdService::GetIsOn (PRBool *_rval)
 NS_IMETHODIMP
 jsdService::On (void)
 {
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+jsdService::AsyncOn (jsdIActivationCallback *activationCallback)
+{
     nsresult  rv;
 
     /* get JS things from the CallContext */
@@ -2414,18 +2424,38 @@ jsdService::On (void)
     JSContext *cx;
     rv = cc->GetJSContext (&cx);
     if (NS_FAILED(rv)) return rv;
+
+    mActivationCallback = activationCallback;
     
-    return OnForRuntime(JS_GetRuntime (cx));
-    
+    return xpc->SetDebugModeWhenPossible(PR_TRUE);
 }
 
 NS_IMETHODIMP
-jsdService::OnForRuntime (JSRuntime *rt)
+jsdService::RecompileForDebugMode (JSRuntime *rt, JSBool mode) {
+  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
+
+  JSContext *cx;
+  JSContext *iter = NULL;
+
+  jsword currentThreadId = reinterpret_cast<jsword>(js_CurrentThreadId());
+
+  while ((cx = JS_ContextIterator (rt, &iter))) {
+    if (JS_GetContextThread(cx) == currentThreadId) {
+      JS_SetDebugMode(cx, mode);
+    }
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdService::ActivateDebugger (JSRuntime *rt)
 {
     if (mOn)
         return (rt == mRuntime) ? NS_OK : NS_ERROR_ALREADY_INITIALIZED;
 
     mRuntime = rt;
+    RecompileForDebugMode(rt, JS_TRUE);
 
     if (gLastGCProc == jsds_GCCallbackProc)
         /* condition indicates that the callback proc has not been set yet */
@@ -2475,6 +2505,10 @@ jsdService::OnForRuntime (JSRuntime *rt)
 #ifdef DEBUG
     printf ("+++ JavaScript debugging hooks installed.\n");
 #endif
+
+    if (mActivationCallback)
+        return mActivationCallback->OnDebuggerActivated();
+
     return NS_OK;
 }
 
@@ -2524,6 +2558,13 @@ jsdService::Off (void)
 #ifdef DEBUG
     printf ("+++ JavaScript debugging hooks removed.\n");
 #endif
+
+    nsresult rv;
+    nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID(), &rv);
+    if (NS_FAILED(rv))
+        return rv;
+
+    xpc->SetDebugModeWhenPossible(PR_FALSE);
 
     return NS_OK;
 }
@@ -2973,7 +3014,7 @@ jsdService::SetErrorHook (jsdIErrorHook *aHook)
     mErrorHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3017,7 +3058,7 @@ jsdService::SetDebugHook (jsdIExecutionHook *aHook)
     mDebugHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3045,7 +3086,7 @@ jsdService::SetDebuggerHook (jsdIExecutionHook *aHook)
     mDebuggerHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3073,7 +3114,7 @@ jsdService::SetInterruptHook (jsdIExecutionHook *aHook)
     mInterruptHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3101,7 +3142,7 @@ jsdService::SetScriptHook (jsdIScriptHook *aHook)
     mScriptHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3129,7 +3170,7 @@ jsdService::SetThrowHook (jsdIExecutionHook *aHook)
     mThrowHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3157,7 +3198,7 @@ jsdService::SetTopLevelHook (jsdICallHook *aHook)
     mTopLevelHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3185,7 +3226,7 @@ jsdService::SetFunctionHook (jsdICallHook *aHook)
     mFunctionHook = aHook;
 
     /* if the debugger isn't initialized, that's all we can do for now.  The
-     * OnForRuntime() method will do the rest when the coast is clear.
+     * ActivateDebugger() method will do the rest when the coast is clear.
      */
     if (!mCx || mPauseLevel)
         return NS_OK;
@@ -3278,7 +3319,7 @@ jsdASObserver::Observe (nsISupports *aSubject, const char *aTopic,
     if (NS_FAILED(rv))
         return rv;
 
-    rv = jsds->OnForRuntime(rt);
+    rv = jsds->ActivateDebugger(rt);
     if (NS_FAILED(rv))
         return rv;
     

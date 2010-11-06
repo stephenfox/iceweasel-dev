@@ -19,6 +19,7 @@
  *
  * Contributor(s):
  *   Henrik Skupin <hskupin@mozilla.com>
+ *   Geo Mealer <gmealer@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,6 +40,7 @@ var RELATIVE_ROOT = '../../../shared-modules';
 var MODULE_REQUIRES = ['ModalDialogAPI', 'PlacesAPI', 'UtilsAPI'];
 
 const gDelay = 0;
+const gTimeout = 5000;
 
 var setupModule = function(module) {
   module.controller = mozmill.getBrowserController();
@@ -48,7 +50,34 @@ var setupModule = function(module) {
 }
 
 var testVerifyDefaultBookmarks = function() {
-  var elemString = "/*[name()='window']/*[name()='toolbox'][1]/*[name()='toolbar'][3]/*[name()='toolbaritem'][1]/*[name()='hbox'][1]/*[name()='toolbarbutton'][%1]";
+  var toolbarElemString = "/*[name()='window']/*[name()='deck'][1]" +
+                          "/*[name()='vbox'][1]/*[name()='toolbox'][1]" +
+                          "/*[name()='toolbar'][3]";
+  var elemString = toolbarElemString + "/*[name()='toolbaritem'][1]" +
+                   "/*[name()='hbox'][1]/*[name()='hbox'][1]" +
+                   "/*[name()='scrollbox'][1]/*[name()='toolbarbutton'][%1]";
+
+  // Default bookmarks toolbar should be closed
+  var toolbar = new elementslib.XPath(controller.window.document, toolbarElemString);
+  controller.assertJSProperty(toolbar, "collapsed", true);
+
+  // Open the bookmarks toolbar via bookmarks button for the rest of the test
+  var bookmarksButton = new elementslib.ID(controller.window.document, "bookmarks-menu-button");
+  controller.click(bookmarksButton);
+  
+  var bookmarkBarItem = new elementslib.ID(controller.window.document, "BMB_viewBookmarksToolbar");
+  controller.mouseDown(bookmarkBarItem);
+  controller.mouseUp(bookmarkBarItem);
+  
+  // Make sure bookmarks toolbar is now open
+  
+  // TODO: Restore this after 1.5.1 lands
+  // controller.waitFor(function() {
+  //   return toolbar.getNode().collapsed == false;
+  // }, gTimeout, 100, 'Bookmarks toolbar is open' );
+  
+  controller.waitForEval("subject.collapsed == false", gTimeout, 100,
+                         toolbar.getNode());
 
   // Get list of items on the bookmarks toolbar and open container
   var toolbarNodes = getBookmarkToolbarItems();
@@ -61,12 +90,12 @@ var testVerifyDefaultBookmarks = function() {
   // Check if the Most Visited folder is visible and has the correct title
   var mostVisited = new elementslib.XPath(controller.window.document,
                                           elemString.replace("%1", "1"));
-  controller.assertProperty(mostVisited, "label", toolbarNodes.getChild(0).title);
+  controller.assertJSProperty(mostVisited, "label", toolbarNodes.getChild(0).title);
 
   // Check Getting Started bookmarks title and URI
   var gettingStarted = new elementslib.XPath(controller.window.document,
                                              elemString.replace("%1", "2"));
-  controller.assertProperty(gettingStarted, "label", toolbarNodes.getChild(1).title);
+  controller.assertJSProperty(gettingStarted, "label", toolbarNodes.getChild(1).title);
 
   var locationBar = new elementslib.ID(controller.window.document, "urlbar");
   controller.click(gettingStarted);
@@ -80,7 +109,7 @@ var testVerifyDefaultBookmarks = function() {
 
   // Check the title of the default RSS feed toolbar button
   var RSS = new elementslib.XPath(controller.window.document, elemString.replace("%1", "3"));
-  controller.assertProperty(RSS, "label", toolbarNodes.getChild(2).title);
+  controller.assertJSProperty(RSS, "label", toolbarNodes.getChild(2).title);
 
   // Close container again
   toolbarNodes.containerOpen = false;

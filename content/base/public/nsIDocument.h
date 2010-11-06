@@ -64,6 +64,8 @@
 #endif // MOZ_SMIL
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
+#include "nsIAnimationFrameListener.h"
+#include "nsEventStates.h"
 
 class nsIContent;
 class nsPresContext;
@@ -119,8 +121,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0xbd862a79, 0xc31b, 0x419b, \
-  { 0x92, 0x90, 0xa0, 0x77, 0x08, 0x62, 0xd4, 0xc4 } }
+{ 0x7fb1e97d, 0xbd2c, 0x47cf, \
+  { 0xa3, 0x05, 0x5b, 0x31, 0xd4, 0x1d, 0x3a, 0x52 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -128,9 +130,9 @@ class Element;
 // Document states
 
 // RTL locale: specific to the XUL localedir attribute
-#define NS_DOCUMENT_STATE_RTL_LOCALE              (1 << 0)
+#define NS_DOCUMENT_STATE_RTL_LOCALE              NS_DEFINE_EVENT_STATE_MACRO(0)
 // Window activation status
-#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         (1 << 1)
+#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         NS_DEFINE_EVENT_STATE_MACRO(1)
 
 //----------------------------------------------------------------------
 
@@ -159,6 +161,7 @@ public:
       // unless we get a window, and in that case the docshell value will get
       // &&-ed in, this is safe.
       mAllowDNSPrefetch(PR_TRUE),
+      mIsBeingUsedAsImage(PR_FALSE),
       mPartID(0)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
@@ -721,12 +724,12 @@ public:
   // either may be nsnull, but not both
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
-                                    PRInt32 aStateMask) = 0;
+                                    nsEventStates aStateMask) = 0;
 
   // Notify that a document state has changed.
   // This should only be called by callers whose state is also reflected in the
   // implementation of nsDocument::GetDocumentState.
-  virtual void DocumentStatesChanged(PRInt32 aStateMask) = 0;
+  virtual void DocumentStatesChanged(nsEventStates aStateMask) = 0;
 
   // Observation hooks for style data to propagate notifications
   // to document observers
@@ -1147,6 +1150,19 @@ public:
     return !mParentDocument && !mDisplayDocument;
   }
 
+  PRBool IsBeingUsedAsImage() const {
+    return mIsBeingUsedAsImage;
+  }
+
+  void SetIsBeingUsedAsImage() {
+    mIsBeingUsedAsImage = PR_TRUE;
+  }
+
+  PRBool IsResourceDoc() const {
+    return IsBeingUsedAsImage() || // Are we a helper-doc for an SVG image?
+      !!mDisplayDocument;          // Are we an external resource doc?
+  }
+
   /**
    * Get the document for which this document is an external resource.  This
    * will be null if this document is not an external resource.  Otherwise,
@@ -1400,17 +1416,18 @@ public:
    * Document state bits have the form NS_DOCUMENT_STATE_* and are declared in
    * nsIDocument.h.
    */
-  virtual PRInt32 GetDocumentState() = 0;
+  virtual nsEventStates GetDocumentState() = 0;
 
   virtual nsISupports* GetCurrentContentSink() = 0;
 
   /**
-   * Register a filedata uri as being "owned" by this document. I.e. that its
-   * lifetime is connected with this document. When the document goes away it
-   * should "kill" the uri by calling
+   * Register/Unregister a filedata uri as being "owned" by this document. 
+   * I.e. that its lifetime is connected with this document. When the document
+   * goes away it should "kill" the uri by calling
    * nsFileDataProtocolHandler::RemoveFileDataEntry
    */
-  virtual void RegisterFileDataUri(nsACString& aUri) = 0;
+  virtual void RegisterFileDataUri(const nsACString& aUri) = 0;
+  virtual void UnregisterFileDataUri(const nsACString& aUri) = 0;
 
   virtual void SetScrollToRef(nsIURI *aDocumentURI) = 0;
   virtual void ScrollToRef() = 0;
@@ -1434,11 +1451,18 @@ public:
    */
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
 
-  void ScheduleBeforePaintEvent();
+  void ScheduleBeforePaintEvent(nsIAnimationFrameListener* aListener);
   void BeforePaintEventFiring()
   {
     mHavePendingPaint = PR_FALSE;
   }
+
+  typedef nsTArray< nsCOMPtr<nsIAnimationFrameListener> > AnimationListenerList;
+  /**
+   * Put this documents animation frame listeners into the provided
+   * list, and forget about them.
+   */
+  void TakeAnimationFrameListeners(AnimationListenerList& aListeners);
 
   // This returns true when the document tree is being teared down.
   PRBool InUnlinkOrDeletion() { return mInUnlinkOrDeletion; }
@@ -1618,6 +1642,9 @@ protected:
   // True if we're waiting for a before-paint event.
   PRPackedBool mHavePendingPaint;
 
+  // True if we're an SVG document being used as an image.
+  PRPackedBool mIsBeingUsedAsImage;
+
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -1672,6 +1699,8 @@ protected:
   nsPIDOMWindow *mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
+
+  AnimationListenerList mAnimationFrameListeners;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

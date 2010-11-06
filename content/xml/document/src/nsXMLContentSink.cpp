@@ -88,6 +88,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIContentPolicy.h"
+#include "nsIDocumentViewer.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentErrors.h"
 #include "nsIDOMProcessingInstruction.h"
@@ -100,6 +101,8 @@
 #ifdef MOZ_SVG
 #include "nsHtml5SVGLoadDispatcher.h"
 #endif
+
+using namespace mozilla::dom;
 
 // XXX Open Issues:
 // 1) what's not allowed - We need to figure out which HTML tags
@@ -331,15 +334,6 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
     // Kick off layout for non-XSLT transformed documents.
     mDocument->ScriptLoader()->RemoveObserver(this);
 
-    if (mDocElement) {
-      // Notify document observers that all the content has been stuck
-      // into the document.
-      // XXX do we need to notify for things like PIs?  Or just the
-      // documentElement?
-      NS_ASSERTION(mDocument->IndexOf(mDocElement) != -1,
-                   "mDocElement not in doc?");
-    }
-
     // Check if we want to prettyprint
     MaybePrettyPrint();
 
@@ -386,9 +380,9 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  if (contentViewer) {
-    nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aResultDocument);
-    return contentViewer->SetDOMDocument(doc);
+  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
+  if (docViewer) {
+    return docViewer->SetDocumentInternal(aResultDocument, PR_TRUE);
   }
   return NS_OK;
 }
@@ -499,7 +493,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRUint32 aFromParser)
+                                FromParser aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -549,9 +543,11 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(content));
     if (ssle) {
       ssle->InitStyleLinkElement(PR_FALSE);
-      ssle->SetEnableUpdates(PR_FALSE);
+      if (aFromParser) {
+        ssle->SetEnableUpdates(PR_FALSE);
+      }
       if (!aNodeInfo->Equals(nsGkAtoms::link, kNameSpaceID_XHTML)) {
-        ssle->SetLineNumber(aLineNumber);
+        ssle->SetLineNumber(aFromParser ? aLineNumber : 0);
       }
     }
   } 
@@ -870,15 +866,14 @@ nsXMLContentSink::GetCurrentContent()
   if (mContentStack.Length() == 0) {
     return nsnull;
   }
-  return GetCurrentStackNode().mContent;
+  return GetCurrentStackNode()->mContent;
 }
 
-StackNode &
+StackNode*
 nsXMLContentSink::GetCurrentStackNode()
 {
   PRInt32 count = mContentStack.Length();
-  NS_ASSERTION(count > 0, "Bogus Length()");
-  return mContentStack[count-1];
+  return count != 0 ? &mContentStack[count-1] : nsnull;
 }
 
 
@@ -1027,7 +1022,8 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   result = CreateElement(aAtts, aAttsCount, nodeInfo, aLineNumber,
-                         getter_AddRefs(content), &appendContent, PR_TRUE);
+                         getter_AddRefs(content), &appendContent,
+                         FROM_PARSER_NETWORK);
   NS_ENSURE_SUCCESS(result, result);
 
   // Have to do this before we push the new content on the stack... and have to
@@ -1115,11 +1111,14 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 
   FlushText();
 
-  StackNode & sn = GetCurrentStackNode();
+  StackNode* sn = GetCurrentStackNode();
+  if (!sn) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsCOMPtr<nsIContent> content;
-  sn.mContent.swap(content);
-  PRUint32 numFlushed = sn.mNumFlushed;
+  sn->mContent.swap(content);
+  PRUint32 numFlushed = sn->mNumFlushed;
 
   PopContent();
   NS_ASSERTION(content, "failed to pop content");

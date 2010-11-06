@@ -1,4 +1,7 @@
-/*
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=79:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 University of Szeged
  * All rights reserved.
  *
@@ -22,7 +25,8 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+ * 
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef AssemblerBufferWithConstantPool_h
 #define AssemblerBufferWithConstantPool_h
@@ -217,7 +221,7 @@ public:
     void flushWithoutBarrier(bool isForced = false)
     {
         // Flush if constant pool is more than 60% full to avoid overuse of this function.
-        if (isForced || 5 * m_numConsts > 3 * maxPoolSize / sizeof(uint32_t))
+        if (isForced || (5 * m_numConsts * sizeof(uint32_t)) > (3 * maxPoolSize))
             flushConstantPool(false);
     }
 

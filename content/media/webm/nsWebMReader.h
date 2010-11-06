@@ -41,10 +41,16 @@
 
 #include "nsDeque.h"
 #include "nsBuiltinDecoderReader.h"
+#include "nsWebMBufferedParser.h"
+#include "nsAutoRef.h"
 #include "nestegg/nestegg.h"
 #include "vpx/vpx_decoder.h"
 #include "vpx/vp8dx.h"
+#ifdef MOZ_TREMOR
+#include "tremor/ivorbiscodec.h"
+#else
 #include "vorbis/codec.h"
+#endif
 
 class nsMediaDecoder;
 
@@ -94,14 +100,13 @@ class PacketQueue : private nsDeque {
   }
 };
 
-
 class nsWebMReader : public nsBuiltinDecoderReader
 {
 public:
   nsWebMReader(nsBuiltinDecoder* aDecoder);
   ~nsWebMReader();
 
-  virtual nsresult Init();
+  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
   virtual nsresult ResetDecode();
   virtual PRBool DecodeAudioData();
 
@@ -126,6 +131,7 @@ public:
   virtual nsresult ReadMetadata();
   virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime);
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset);
 
 private:
   // Value passed to NextPacket to determine if we are reading a video or an
@@ -138,7 +144,7 @@ private:
   // Read a packet from the nestegg file. Returns NULL if all packets for
   // the particular track have been read. Pass VIDEO or AUDIO to indicate the
   // type of the packet we want to read.
-  nestegg_packet* NextPacket(TrackType aTrackType);
+  nsReturnRef<nestegg_packet> NextPacket(TrackType aTrackType);
 
   // Returns an initialized ogg packet with data obtained from the WebM container.
   ogg_packet InitOggPacket(unsigned char* aData,
@@ -189,6 +195,10 @@ private:
 
   // Number of samples we've decoded since decoding began at mAudioStartMs.
   PRUint64 mAudioSamples;
+
+  // Parser state and computed offset-time mappings.  Shared by multiple
+  // readers when decoder has been cloned.  Main thread only.
+  nsRefPtr<nsWebMBufferedState> mBufferedState;
 
   // Booleans to indicate if we have audio and/or video data
   PRPackedBool mHasVideo;

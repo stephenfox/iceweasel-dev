@@ -111,7 +111,7 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             continue;
 
         if (vd.buf == nsnull) {
-            LogMessage("No VBO bound to enabled attrib index %d!", i);
+            LogMessageIfVerbose("No VBO bound to enabled attrib index %d!", i);
             return PR_FALSE;
         }
 
@@ -126,12 +126,12 @@ WebGLContext::ValidateBuffers(PRUint32 count)
             CheckedUint32(vd.componentSize()) * vd.size;   // and the number of bytes needed for these components
 
         if (!checked_needed.valid()) {
-            LogMessage("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
+            LogMessageIfVerbose("Integer overflow computing the size of bound vertex attrib buffer at index %d", i);
             return PR_FALSE;
         }
 
         if (vd.buf->ByteLength() < checked_needed.value()) {
-            LogMessage("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
+            LogMessageIfVerbose("VBO too small for bound attrib index %d: need at least %d bytes, but have only %d",
                        i, checked_needed.value(), vd.buf->ByteLength());
             return PR_FALSE;
         }
@@ -301,9 +301,6 @@ PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
     if (type == LOCAL_GL_UNSIGNED_BYTE)
     {
         switch (format) {
-            case LOCAL_GL_RED:
-            case LOCAL_GL_GREEN:
-            case LOCAL_GL_BLUE:
             case LOCAL_GL_ALPHA:
             case LOCAL_GL_LUMINANCE:
                 *texelSize = 1;
@@ -384,6 +381,11 @@ WebGLContext::InitAndValidateGL()
 
     MakeContextCurrent();
 
+    // on desktop OpenGL, we always keep vertex attrib 0 array enabled
+    if (!gl->IsGLES2()) {
+        gl->fEnableVertexAttribArray(0);
+    }
+
     gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_ATTRIBS, (GLint*) &mGLMaxVertexAttribs);
     if (mGLMaxVertexAttribs < 8) {
         LogMessage("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
@@ -445,7 +447,26 @@ WebGLContext::InitAndValidateGL()
         // gl_PointSize is always available in ES2 GLSL, but has to be
         // specifically enabled on desktop GLSL.
         gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
+
+        // we don't do the following glEnable(GL_POINT_SPRITE) on ATI cards on Windows, because bug 602183 shows that it causes
+        // crashes in the ATI/Windows driver; and point sprites on ATI seem like a lost cause anyway, see
+        //    http://www.gamedev.net/community/forums/topic.asp?topic_id=525643
+        // Also, if the ATI/Windows driver implements a recent GL spec version, this shouldn't be needed anyway.
+#ifdef XP_WIN
+        if (gl->Vendor() != gl::GLContext::VendorATI)
+#else
+        if (true)
+#endif
+        {
+            // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
+            // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
+            //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
+            gl->fEnable(LOCAL_GL_POINT_SPRITE);
+        }
     }
+
+    gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT,   (GLint*) &mPixelStorePackAlignment);
+    gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, (GLint*) &mPixelStoreUnpackAlignment);
 
     // Check the shader validator pref
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
@@ -462,6 +483,14 @@ WebGLContext::InitAndValidateGL()
         }
     }
 #endif
+
+    // notice that the point of calling GetError here is not only to check for error,
+    // it is also to reset the error flag so that a subsequent WebGL getError call will give the correct result.
+    GLenum error = gl->fGetError();
+    if (error != LOCAL_GL_NO_ERROR) {
+        LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
+        return PR_FALSE;
+    }
 
     return PR_TRUE;
 }

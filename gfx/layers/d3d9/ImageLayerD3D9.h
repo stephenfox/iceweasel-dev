@@ -40,6 +40,7 @@
 
 #include "LayerManagerD3D9.h"
 #include "ImageLayers.h"
+#include "yuv_convert.h"
 #include "mozilla/Mutex.h"
 
 namespace mozilla {
@@ -86,7 +87,7 @@ public:
   // LayerD3D9 Implementation
   virtual Layer* GetLayer();
 
-  virtual void RenderLayer();
+  virtual void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
 };
 
 class THEBES_API ImageD3D9
@@ -129,6 +130,7 @@ public:
   nsRefPtr<IDirect3DTexture9> mCrTexture;
   nsRefPtr<IDirect3DTexture9> mCbTexture;
   PRPackedBool mHasData;
+  gfx::YUVType mType; 
 };
 
 

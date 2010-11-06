@@ -178,7 +178,6 @@ nsCaret::nsCaret()
 #endif
 , mLastContentOffset(0)
 , mLastHint(nsFrameSelection::HINTLEFT)
-, mLastFrameOffset(0)
 {
 }
 
@@ -301,7 +300,6 @@ void nsCaret::Terminate()
   mPresShell = nsnull;
 
   mLastContent = nsnull;
-  mLastFrame = nsnull;
 }
 
 //-----------------------------------------------------------------------------
@@ -401,7 +399,7 @@ nsCaret::GetGeometryForFrame(nsIFrame* aFrame,
     // Now see if thet caret extends beyond the view's bounds. If it does,
     // then snap it back, put it as close to the edge as it can.
     nscoord overflow = caretInScroll.XMost() -
-      scrolled->GetOverflowRectRelativeToSelf().width;
+      scrolled->GetVisualOverflowRectRelativeToSelf().width;
     if (overflow > 0)
       aRect->x -= overflow;
   }
@@ -505,8 +503,8 @@ nsIFrame * nsCaret::GetCaretFrame(PRInt32 *aOffset)
   if (!mDrawn)
     return nsnull;
 
-  // Recompute the frame that we're supposed to draw in if the cached frame
-  // is stale (dead).
+  // Recompute the frame that we're supposed to draw in to guarantee that
+  // we're not going to try to draw into a stale (dead) frame.
   PRInt32 offset;
   nsIFrame *frame = nsnull;
   nsresult rv = GetCaretFrameForNodeOffset(mLastContent, mLastContentOffset,
@@ -526,7 +524,7 @@ void nsCaret::InvalidateOutsideCaret()
   nsIFrame *frame = GetCaretFrame();
 
   // Only invalidate if we are not fully contained by our frame's rect.
-  if (frame && !frame->GetOverflowRect().Contains(GetCaretRect()))
+  if (frame && !frame->GetVisualOverflowRect().Contains(GetCaretRect()))
     InvalidateRects(mCaretRect, GetHookRect(), frame);
 }
 
@@ -714,8 +712,6 @@ nsCaret::DrawAtPositionWithHint(nsIDOMNode*             aNode,
     mLastContentOffset = aOffset;
     mLastHint = aFrameHint;
     mLastBidiLevel = aBidiLevel;
-    mLastFrame = theFrame;
-    mLastFrameOffset = theFrameOffset;
 
     // If there has been a reflow, set the caret Bidi level to the level of the current frame
     if (aBidiLevel & BIDI_LEVEL_UNDEFINED) {
@@ -744,16 +740,6 @@ nsCaret::GetCaretFrameForNodeOffset(nsIContent*             aContentNode,
                                     nsIFrame**              aReturnFrame,
                                     PRInt32*                aReturnOffset)
 {
-  // Try to see if we can use our cached frame
-  if (mLastFrame.IsAlive() &&
-      mLastContent == aContentNode &&
-      mLastContentOffset == aOffset &&
-      mLastHint == aFrameHint &&
-      mLastBidiLevel == aBidiLevel) {
-    *aReturnFrame = mLastFrame;
-    *aReturnOffset = mLastFrameOffset;
-    return NS_OK;
-  }
 
   //get frame selection and find out what frame to use...
   nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);

@@ -46,6 +46,7 @@
 #include "nsContentUtils.h"
 #include "nsIXPConnect.h"
 #include "nsDOMError.h"
+#include "nsIGfxInfo.h"
 
 #include "gfxContext.h"
 #include "gfxPattern.h"
@@ -63,6 +64,7 @@
 
 using namespace mozilla;
 using namespace mozilla::gl;
+using namespace mozilla::layers;
 
 nsresult NS_NewCanvasRenderingContextWebGL(nsICanvasRenderingContextWebGL** aResult);
 
@@ -85,6 +87,7 @@ WebGLContext::WebGLContext()
     mGeneration = 0;
     mInvalidated = PR_FALSE;
     mResetLayer = PR_TRUE;
+    mVerbose = PR_FALSE;
 
     mActiveTexture = 0;
     mSynthesizedGLError = LOCAL_GL_NO_ERROR;
@@ -102,6 +105,12 @@ WebGLContext::WebGLContext()
 
     mBlackTexturesAreInitialized = PR_FALSE;
     mFakeBlackStatus = DoNotNeedFakeBlack;
+
+    mFakeVertexAttrib0Array = nsnull;
+    mVertexAttrib0Vector[0] = 0;
+    mVertexAttrib0Vector[1] = 0;
+    mVertexAttrib0Vector[2] = 0;
+    mVertexAttrib0Vector[3] = 1;
 }
 
 WebGLContext::~WebGLContext()
@@ -209,7 +218,9 @@ WebGLContext::DestroyResourcesAndContext()
 
     // We just got rid of everything, so the context had better
     // have been going away.
+#ifdef DEBUG
     printf_stderr("--- WebGL context destroyed: %p\n", gl.get());
+#endif
 
     gl = nsnull;
 }
@@ -295,81 +306,107 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
     NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
 
-    PRBool forceOSMesa;
+    PRBool verbose = PR_FALSE;
+    prefService->GetBoolPref("webgl.verbose", &verbose);
+    mVerbose = verbose;
+
+    // Get some prefs for some preferred/overriden things
+    PRBool forceOSMesa = PR_FALSE;
+    PRBool preferEGL = PR_FALSE;
     prefService->GetBoolPref("webgl.force_osmesa", &forceOSMesa);
+    prefService->GetBoolPref("webgl.prefer_egl", &preferEGL);
 
-    if (!forceOSMesa) {
-    #ifdef XP_WIN
-        // On Windows, we may have a choice of backends, including straight
-        // OpenGL, D3D through ANGLE via EGL, or straight EGL/GLES2.
-        // We don't differentiate the latter two yet, but we allow for
-        // a env var to try EGL first, instead of last.
-        bool preferEGL = PR_GetEnv("MOZ_WEBGL_PREFER_EGL") != nsnull;
+    // Ask GfxInfo about what we should use
+    PRBool useOpenGL = PR_TRUE;
+    PRBool useANGLE = PR_TRUE;
 
-        // if we want EGL, try it first
-        if (!gl && preferEGL) {
-            gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-            if (gl && !InitAndValidateGL()) {
-                gl = nsnull;
+    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+    if (gfxInfo) {
+        PRInt32 status;
+        if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
+            if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
+                status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
+            {
+                useOpenGL = PR_FALSE;
             }
         }
-
-        // if it failed, then try the default provider, whatever that is
-        if (!gl) {
-            gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-            if (gl && !InitAndValidateGL()) {
-                gl = nsnull;
+        if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_ANGLE, &status))) {
+            if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
+                status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
+            {
+                useANGLE = PR_FALSE;
             }
         }
-
-        // if that failed, and we weren't already preferring EGL, try it now.
-        if (!gl && !preferEGL) {
-            gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
-            if (gl && !InitAndValidateGL()) {
-                gl = nsnull;
-            }
-        }
-    #else
-        // other platforms just use whatever the default is
-        if (!gl) {
-            gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
-            if (gl && !InitAndValidateGL()) {
-                gl = nsnull;
-            }
-        }
-    #endif
     }
 
-    // last chance, try OSMesa
-    if (!gl) {
+    // if we're forcing osmesa, do it first
+    if (forceOSMesa) {
         gl = gl::GLContextProviderOSMesa::CreateOffscreen(gfxIntSize(width, height), format);
-        if (gl) {
-            if (!InitAndValidateGL()) {
-                gl = nsnull;
-            } else {
-                // make sure we notify always in this case, because it's likely going to be
-                // painfully slow
-                LogMessage("WebGL: Using software rendering via OSMesa");
-            }
+        if (!gl || !InitAndValidateGL()) {
+            LogMessage("WebGL: OSMesa forced, but creating context failed -- aborting!");
+            return NS_ERROR_FAILURE;
+        }
+        LogMessage("WebGL: Using software rendering via OSMesa (THIS WILL BE SLOW)");
+    }
+
+#ifdef XP_WIN
+    // On Windows, we may have a choice of backends, including straight
+    // OpenGL, D3D through ANGLE via EGL, or straight EGL/GLES2.
+    // We don't differentiate the latter two yet, but we allow for
+    // a env var to try EGL first, instead of last; there's also a pref,
+    // the env var being set overrides the pref
+    if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
+        preferEGL = PR_TRUE;
+    }
+
+    // force opengl instead of EGL/ANGLE
+    if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
+        preferEGL = PR_FALSE;
+        useANGLE = PR_FALSE;
+        useOpenGL = PR_TRUE;
+    }
+
+    // if we want EGL, try it first
+    if (!gl && (preferEGL || useANGLE)) {
+        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
         }
     }
 
-    if (!gl) {
-        if (forceOSMesa) {
-            LogMessage("WebGL: You set the webgl.force_osmesa preference to true, but OSMesa can't be found. "
-                       "Either install OSMesa and let webgl.osmesalib point to it, "
-                       "or set webgl.force_osmesa back to false.");
-        } else {
-            #ifdef XP_WIN
-                LogMessage("WebGL: Can't get a usable OpenGL context (also tried Direct3D via ANGLE)");
-            #else
-                LogMessage("WebGL: Can't get a usable OpenGL context");
-            #endif
+    // if it failed, then try the default provider, whatever that is
+    if (!gl && useOpenGL) {
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
         }
+    }
+
+    // if that failed, and we weren't already preferring EGL, try it now.
+    if (!gl && !(preferEGL || useANGLE)) {
+        gl = gl::GLContextProviderEGL::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
+        }
+    }
+#else
+    // other platforms just use whatever the default is
+    if (!gl && useOpenGL) {
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
+        if (gl && !InitAndValidateGL()) {
+            gl = nsnull;
+        }
+    }
+#endif
+
+    if (!gl) {
+        LogMessage("WebGL: Can't get a usable WebGL context");
         return NS_ERROR_FAILURE;
     }
 
+#ifdef DEBUG
     printf_stderr ("--- WebGL context created: %p\n", gl.get());
+#endif
 
     mWidth = width;
     mHeight = height;
@@ -409,16 +446,19 @@ WebGLContext::Render(gfxContext *ctx, gfxPattern::GraphicsFilter f)
     if (surf->CairoStatus() != 0)
         return NS_ERROR_FAILURE;
 
-    MakeContextCurrent();
-    gl->fReadPixels(0, 0, mWidth, mHeight,
-                    LOCAL_GL_BGRA,
-                    LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV,
-                    surf->Data());
-
+    gl->ReadPixelsIntoImageSurface(0, 0, mWidth, mHeight, surf);
     gfxUtils::PremultiplyImageSurface(surf);
 
     nsRefPtr<gfxPattern> pat = new gfxPattern(surf);
     pat->SetFilter(f);
+
+    // Pixels from ReadPixels will be "upside down" compared to
+    // what cairo wants, so draw with a y-flip and a translte to
+    // flip them.
+    gfxMatrix m;
+    m.Translate(gfxPoint(0.0, mHeight));
+    m.Scale(1.0, -1.0);
+    pat->SetMatrix(m);
 
     ctx->NewPath();
     ctx->PixelSnappedRectangleAndSetPattern(gfxRect(0, 0, mWidth, mHeight), pat);
@@ -508,7 +548,7 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
                              LayerManager *aManager)
 {
     if (!mResetLayer && aOldLayer &&
-        aOldLayer->GetUserData() == &gWebGLLayerUserData) {
+        aOldLayer->HasUserData(&gWebGLLayerUserData)) {
         NS_ADDREF(aOldLayer);
         if (mInvalidated) {
             aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
@@ -522,7 +562,7 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
-    canvasLayer->SetUserData(&gWebGLLayerUserData);
+    canvasLayer->SetUserData(&gWebGLLayerUserData, nsnull);
 
     CanvasLayer::Data data;
 
@@ -542,7 +582,8 @@ WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
     data.mGLBufferIsPremultiplied = PR_FALSE;
 
     canvasLayer->Initialize(data);
-    canvasLayer->SetIsOpaqueContent(gl->CreationFormat().alpha == 0 ? PR_TRUE : PR_FALSE);
+    PRUint32 flags = gl->CreationFormat().alpha == 0 ? Layer::CONTENT_OPAQUE : 0;
+    canvasLayer->SetContentFlags(flags);
     canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
     mInvalidated = PR_FALSE;

@@ -45,6 +45,7 @@
 #include "nsIScriptLoaderObserver.h"
 #include "nsWeakPtr.h"
 #include "nsIParser.h"
+#include "nsContentCreatorFunctions.h"
 
 #define NS_ISCRIPTELEMENT_IID \
 { 0x6d625b30, 0xfac4, 0x11de, \
@@ -57,14 +58,18 @@ class nsIScriptElement : public nsIScriptLoaderObserver {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTELEMENT_IID)
 
-  nsIScriptElement()
+  nsIScriptElement(mozilla::dom::FromParser aFromParser)
     : mLineNumber(0),
-      mIsEvaluated(PR_FALSE),
+      mAlreadyStarted(PR_FALSE),
       mMalformed(PR_FALSE),
       mDoneAddingChildren(PR_TRUE),
       mFrozen(PR_FALSE),
       mDefer(PR_FALSE),
       mAsync(PR_FALSE),
+      mParserCreated(aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT ?
+                     mozilla::dom::NOT_FROM_PARSER : aFromParser),
+                     // Fragment parser-created scripts (if executable)
+                     // behave like script-created scripts.
       mCreatorParser(nsnull)
   {
   }
@@ -117,6 +122,14 @@ public:
     return mAsync;  
   }
 
+  /**
+   * Returns how the element was created.
+   */
+  mozilla::dom::FromParser GetParserCreated()
+  {
+    return mParserCreated;
+  }
+
   void SetScriptLineNumber(PRUint32 aLineNumber)
   {
     mLineNumber = aLineNumber;
@@ -137,7 +150,15 @@ public:
 
   void PreventExecution()
   {
-    mIsEvaluated = PR_TRUE;
+    mAlreadyStarted = PR_TRUE;
+  }
+
+  void LoseParserInsertedness()
+  {
+    mFrozen = PR_FALSE;
+    mUri = nsnull;
+    mCreatorParser = nsnull;
+    mParserCreated = mozilla::dom::NOT_FROM_PARSER;
   }
 
   void SetCreatorParser(nsIParser* aParser)
@@ -185,7 +206,7 @@ protected:
   /**
    * The "already started" flag per HTML5.
    */
-  PRPackedBool mIsEvaluated;
+  PRPackedBool mAlreadyStarted;
   
   /**
    * The script didn't have an end tag.
@@ -212,6 +233,11 @@ protected:
    */
   PRPackedBool mAsync;
   
+  /**
+   * Whether this element was parser-created.
+   */
+  mozilla::dom::FromParser mParserCreated;
+
   /**
    * The effective src (or null if no src).
    */

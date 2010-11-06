@@ -78,8 +78,6 @@
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
 
-#include "mozilla/Omnijar.h"
-
 #define UILOCALE_CMD_LINE_ARG "UILocale"
 
 #define MATCH_OS_LOCALE_PREF "intl.locale.matchOS"
@@ -534,11 +532,10 @@ CanLoadResource(nsIURI* aResourceURI)
   return isLocalResource;
 }
 
-nsresult
+nsIURI*
 nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
                                               const nsCString& aProvider,
-                                              const nsCString& aPath,
-                                              nsIURI* *aResult)
+                                              const nsCString& aPath)
 {
   PackageEntry* entry =
       static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
@@ -547,25 +544,24 @@ nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
 
   if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     if (!mInitialized)
-      return NS_ERROR_NOT_INITIALIZED;
+      return nsnull;
 
     LogMessage("No chrome package registered for chrome://%s/%s/%s",
                aPackage.get(), aProvider.get(), aPath.get());
 
-    return NS_ERROR_FAILURE;
+    return nsnull;
   }
 
-  *aResult = nsnull;
   if (aProvider.EqualsLiteral("locale")) {
-    *aResult = entry->locales.GetBase(mSelectedLocale, nsProviderArray::LOCALE);
+    return entry->locales.GetBase(mSelectedLocale, nsProviderArray::LOCALE);
   }
   else if (aProvider.EqualsLiteral("skin")) {
-    *aResult = entry->skins.GetBase(mSelectedSkin, nsProviderArray::ANY);
+    return entry->skins.GetBase(mSelectedSkin, nsProviderArray::ANY);
   }
   else if (aProvider.EqualsLiteral("content")) {
-    *aResult = entry->baseURI;
+    return entry->baseURI;
   }
-  return NS_OK;
+  return nsnull;
 }
 
 nsresult
@@ -788,7 +784,6 @@ nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
       return NULL;
     }
 
-#ifdef MOZ_OMNIJAR
     if (mPath) {
       nsCOMPtr<nsIURI> fileURI;
       io->NewFileURI(mFile, getter_AddRefs(fileURI));
@@ -801,9 +796,7 @@ nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
 
       NS_NewURI(getter_AddRefs(mManifestURI), spec, NULL, NULL, io);
     }
-    else
-#endif
-    {
+    else {
       io->NewFileURI(mFile, getter_AddRefs(mManifestURI));
     }
   }

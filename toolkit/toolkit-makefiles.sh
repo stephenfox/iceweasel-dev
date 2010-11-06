@@ -316,6 +316,13 @@ MAKEFILES_libvorbis="
   media/libvorbis/include/vorbis/Makefile
 "
 
+MAKEFILES_libtremor="
+  media/libtremor/Makefile
+  media/libtremor/lib/Makefile
+  media/libtremor/include/Makefile
+  media/libtremor/include/tremor/Makefile
+"
+
 MAKEFILES_libvpx="
   media/libvpx/Makefile
 "
@@ -726,10 +733,6 @@ MAKEFILES_libpr0n="
   modules/libpr0n/public/Makefile
   modules/libpr0n/src/Makefile
   modules/libpr0n/decoders/Makefile
-  modules/libpr0n/decoders/gif/Makefile
-  modules/libpr0n/decoders/png/Makefile
-  modules/libpr0n/decoders/jpeg/Makefile
-  modules/libpr0n/decoders/bmp/Makefile
   modules/libpr0n/decoders/icon/Makefile
   modules/libpr0n/decoders/icon/mac/Makefile
   modules/libpr0n/decoders/icon/win/Makefile
@@ -931,7 +934,7 @@ if [ "$ENABLE_TESTS" ]; then
     parser/htmlparser/tests/mochitest/Makefile
     parser/xml/test/Makefile
     rdf/tests/triplescat/Makefile
-    startupcache/tests/Makefile
+    startupcache/test/Makefile
     testing/mochitest/Makefile
     testing/mochitest/MochiKit/Makefile
     testing/mochitest/chrome/Makefile
@@ -1008,10 +1011,15 @@ fi
 if [ "$MOZ_TREE_CAIRO" ] ; then
   add_makefiles "
     gfx/cairo/Makefile
-    gfx/cairo/libpixman/src/Makefile
     gfx/cairo/cairo/src/Makefile
     gfx/cairo/cairo/src/cairo-features.h
   "
+  if [ "$MOZ_TREE_PIXMAN" ] ; then
+    add_makefiles "
+      gfx/cairo/libpixman/src/Makefile
+    "
+  fi
+
 fi
 
 if [ "$MOZ_UNIVERSALCHARDET" ] ; then
@@ -1212,6 +1220,13 @@ fi
 if [ "$MOZ_VORBIS" ]; then
  add_makefiles "
    $MAKEFILES_libvorbis
+   $MAKEFILES_libogg
+ "
+fi
+
+if [ "$MOZ_TREMOR" ]; then
+ add_makefiles "
+   $MAKEFILES_libtremor
    $MAKEFILES_libogg
  "
 fi

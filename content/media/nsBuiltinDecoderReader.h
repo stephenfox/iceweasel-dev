@@ -89,6 +89,30 @@ public:
   PRPackedBool mHasVideo;
 };
 
+#ifdef MOZ_TREMOR
+#include <ogg/os_types.h>
+typedef ogg_int32_t VorbisPCMValue;
+typedef short SoundDataValue;
+
+#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
+#define MOZ_CLIP_TO_15(x) ((x)<-32768?-32768:(x)<=32767?(x):32767)
+// Convert the output of vorbis_synthesis_pcmout to a SoundDataValue
+#define MOZ_CONVERT_VORBIS_SAMPLE(x) \
+ (static_cast<SoundDataValue>(MOZ_CLIP_TO_15((x)>>9)))
+// Convert a SoundDataValue to a float for the Audio API
+#define MOZ_CONVERT_SOUND_SAMPLE(x) ((x)*(1.F/32768))
+
+#else /*MOZ_VORBIS*/
+
+typedef float VorbisPCMValue;
+typedef float SoundDataValue;
+
+#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
+#define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
+#define MOZ_CONVERT_SOUND_SAMPLE(x) (x)
+
+#endif
+
 // Holds chunk a decoded sound samples.
 class SoundData {
 public:
@@ -96,7 +120,7 @@ public:
             PRInt64 aTime,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            float* aData,
+            SoundDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(aTime),
@@ -111,7 +135,7 @@ public:
   SoundData(PRInt64 aOffset,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            float* aData,
+            SoundDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(-1),
@@ -140,7 +164,7 @@ public:
   const PRInt64 mDuration; // In ms.
   const PRUint32 mSamples;
   const PRUint32 mChannels;
-  nsAutoArrayPtr<float> mAudioData;
+  nsAutoArrayPtr<SoundDataValue> mAudioData;
 };
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
@@ -330,6 +354,15 @@ template <class T> class MediaQueue : private nsDeque {
     return GetSize() == 0 && mEndOfStream;    
   }
 
+  // Returns PR_TRUE if the media queue has had it last sample added to it.
+  // This happens when the media stream has been completely decoded. Note this
+  // does not mean that the corresponding stream has finished playback.
+  PRBool IsFinished() {
+    MonitorAutoEnter mon(mMonitor);
+    return mEndOfStream;    
+  }
+
+  // Informs the media queue that it won't be receiving any more samples.
   void Finish() {
     MonitorAutoEnter mon(mMonitor);
     mEndOfStream = PR_TRUE;    
@@ -402,7 +435,7 @@ public:
 
   // Initializes the reader, returns NS_OK on success, or NS_ERROR_FAILURE
   // on failure.
-  virtual nsresult Init() = 0;
+  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor) = 0;
 
   // Resets all state related to decoding, emptying all buffers etc.
   virtual nsresult ResetDecode();
@@ -462,6 +495,10 @@ public:
   // should only be called on the main thread.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
                                PRInt64 aStartTime) = 0;
+
+  // Only used by nsWebMReader for now, so stub here rather than in every
+  // reader than inherits from nsBuiltinDecoderReader.
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
 
 protected:
 

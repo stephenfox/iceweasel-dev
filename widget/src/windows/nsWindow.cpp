@@ -174,6 +174,9 @@
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
 #endif
+#ifdef MOZ_ENABLE_D3D10_LAYER
+#include "LayerManagerD3D10.h"
+#endif
 #include "LayerManagerOGL.h"
 #endif
 #include "BasicLayers.h"
@@ -386,6 +389,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mTouchWindow          = PR_FALSE;
   mCustomNonClient      = PR_FALSE;
   mHideChrome           = PR_FALSE;
+  mFullscreenMode       = PR_FALSE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
   mPopupType            = ePopupTypeAny;
@@ -437,16 +441,14 @@ nsWindow::nsWindow() : nsBaseWidget()
     NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
 #endif
 
-#if defined(HEAP_DUMP_EVENT)
-    InitHeapDump();
-#endif
-
 #if !defined(WINCE)
     InitTrackPointHack();
 #endif
 
     // Init titlebar button info for custom frames.
     nsUXThemeData::InitTitlebarInfo();
+    // Init theme data
+    nsUXThemeData::UpdateNativeThemeInfo();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -540,8 +542,7 @@ nsWindow::Create(nsIWidget *aParent,
                           nsnull : aParent;
 
   mIsTopWidgetWindow = (nsnull == baseParent);
-  mBounds.width = aRect.width;
-  mBounds.height = aRect.height;
+  mBounds = aRect;
 
   BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
              aAppShell, aToolkit, aInitData);
@@ -556,14 +557,10 @@ nsWindow::Create(nsIWidget *aParent,
   }
 
   mPopupType = aInitData->mPopupHint;
-  mContentType = aInitData->mContentType;
+  mIsRTL = aInitData->mRTL;
 
   DWORD style = WindowStyle();
   DWORD extendedStyle = WindowExStyle();
-
-  if (aInitData->mRTL) {
-    extendedStyle |= WS_EX_LAYOUTRTL | WS_EX_NOINHERITLAYOUT;
-  }
 
   if (mWindowType == eWindowType_popup) {
     if (!aParent)
@@ -601,6 +598,13 @@ nsWindow::Create(nsIWidget *aParent,
     NS_WARNING("nsWindow CreateWindowEx failed.");
     return NS_ERROR_FAILURE;
   }
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  if (mIsRTL && nsUXThemeData::dwmSetWindowAttributePtr) {
+    DWORD dwAttribute = TRUE;    
+    nsUXThemeData::dwmSetWindowAttributePtr(mWnd, DWMWA_NONCLIENT_RTL_LAYOUT, &dwAttribute, sizeof dwAttribute);
+  }
+#endif
 
   if (nsWindow::sTrackPointHack &&
       mWindowType != eWindowType_plugin &&
@@ -734,18 +738,6 @@ LPCWSTR nsWindow::WindowClass()
       ERROR_CLASS_ALREADY_EXISTS != GetLastError();
     nsWindow::sIsRegistered = succeeded;
 
-    wc.lpszClassName = kClassNameContentFrame;
-    if (!::RegisterClassW(&wc) && 
-      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
-      nsWindow::sIsRegistered = FALSE;
-    }
-
-    wc.lpszClassName = kClassNameContent;
-    if (!::RegisterClassW(&wc) && 
-      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
-      nsWindow::sIsRegistered = FALSE;
-    }
-
     wc.lpszClassName = kClassNameGeneral;
     ATOM generalClassAtom = ::RegisterClassW(&wc);
     if (!generalClassAtom && 
@@ -766,12 +758,6 @@ LPCWSTR nsWindow::WindowClass()
   }
   if (mWindowType == eWindowType_dialog) {
     return kClassNameDialog;
-  }
-  if (mContentType == eContentTypeContent) {
-    return kClassNameContent;
-  }
-  if (mContentType == eContentTypeContentFrame) {
-    return kClassNameContentFrame;
   }
   return kClassNameGeneral;
 }
@@ -1017,38 +1003,37 @@ NS_IMETHODIMP nsWindow::SetParent(nsIWidget *aNewParent)
 {
   mParent = aNewParent;
 
-  if (aNewParent) {
-    nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-
-    nsIWidget* parent = GetParent();
-    if (parent) {
-      parent->RemoveChild(this);
-    }
-
-    HWND newParent = (HWND)aNewParent->GetNativeData(NS_NATIVE_WINDOW);
-    NS_ASSERTION(newParent, "Parent widget has a null native window handle");
-    if (newParent && mWnd) {
-      ::SetParent(mWnd, newParent);
-    }
-
-    aNewParent->AddChild(this);
-
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-
   nsIWidget* parent = GetParent();
-
   if (parent) {
     parent->RemoveChild(this);
   }
-
+  if (aNewParent) {
+    ReparentNativeWidget(aNewParent);
+    aNewParent->AddChild(this);
+    return NS_OK;
+  }
   if (mWnd) {
     // If we have no parent, SetParent should return the desktop.
     VERIFY(::SetParent(mWnd, nsnull));
   }
+  return NS_OK;
+}
 
+NS_IMETHODIMP
+nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
+{
+  NS_PRECONDITION(aNewParent, "");
+
+  mParent = aNewParent;
+  if (mWindowType == eWindowType_popup) {
+    return NS_OK;
+  }
+  HWND newParent = (HWND)aNewParent->GetNativeData(NS_NATIVE_WINDOW);
+  NS_ASSERTION(newParent, "Parent widget has a null native window handle");
+  if (newParent && mWnd) {
+    ::SetParent(mWnd, newParent);
+  }
   return NS_OK;
 }
 
@@ -1285,7 +1270,8 @@ void nsWindow::ClearThemeRegion()
 {
 #ifndef WINCE
   if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
-      mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
+      (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
+       (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     SetWindowRgn(mWnd, NULL, false);
   }
 #endif
@@ -1300,7 +1286,8 @@ void nsWindow::SetThemeRegion()
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
   if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
-      mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
+      (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
+       (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
     
@@ -2470,7 +2457,8 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
 
     // The minimum glass height must be the caption buttons height,
     // otherwise the buttons are drawn incorrectly.
-    margins.cyTopHeight = PR_MAX(largest.y, mCaptionButtons.height);
+    margins.cyTopHeight = PR_MAX(largest.y,
+                                 nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
   }
 
   // Only update glass area if there are changes
@@ -2514,65 +2502,6 @@ void nsWindow::UpdateGlass()
     nsUXThemeData::dwmSetWindowAttributePtr(hWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
   }
 #endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-}
-#endif
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-void nsWindow::UpdateCaptionButtonsClippingRect()
-{
-  NS_ASSERTION(mWnd, "UpdateCaptionButtonsClippingRect called with invalid mWnd.");
-
-  RECT captionButtons;
-  mCaptionButtonsRoundedRegion.SetEmpty();
-  mCaptionButtons.Empty();
-
-  if (!mCustomNonClient ||
-      mSizeMode == nsSizeMode_Fullscreen || 
-      mSizeMode == nsSizeMode_Minimized ||
-      !nsUXThemeData::CheckForCompositor() ||
-      FAILED(nsUXThemeData::dwmGetWindowAttributePtr(mWnd,
-                                                     DWMWA_CAPTION_BUTTON_BOUNDS,
-                                                     &captionButtons,
-                                                     sizeof(captionButtons)))) {
-    return;
-  }
-
-  mCaptionButtons = nsWindowGfx::ToIntRect(captionButtons);
-
-  // Adjustments to reported area
-  PRInt32 leftMargin = (mNonClientMargins.left == -1) ? mHorResizeMargin  : mNonClientMargins.left;
-
-  // "leftMargin - 1" represents the resizer border and an
-  // one pixel adjustment to hide the semi-transparent highlight.
-  // The extra width is already excluded when the window is maximized.
-  mCaptionButtons.x -= leftMargin - 1;
-
-  if (mSizeMode != nsSizeMode_Maximized) {
-    mCaptionButtons.width += leftMargin - 1;
-    mCaptionButtons.height -= mVertResizeMargin + 1;
-  } else {
-    // Adjustments to the buttons' shift from the edge of the screen,
-    // plus some apparently transparent drop shadow below them.
-    mCaptionButtons.width -= 2;
-    mCaptionButtons.height -= 3;
-  }
-
-  // Create a rounded region by shrinking the 2 bottommost pixel rows from
-  // the rect by 1 and 2 pixels.
-  // mCaptionButtons:        mCaptionButtonsRoundedRegion:
-  //  +-----------+                  +-----------+
-  //  |           |                  |           |
-  //  |           |                   |         |
-  //  +-----------+                    +-------+
-  nsIntRect round1(mCaptionButtons.x, mCaptionButtons.y,
-                   mCaptionButtons.width, mCaptionButtons.height - 2);
-  nsIntRect round2(mCaptionButtons.x + 1, mCaptionButtons.YMost() - 2,
-                   mCaptionButtons.width - 2, 1);
-  nsIntRect round3(mCaptionButtons.x + 2, mCaptionButtons.YMost() - 1,
-                   mCaptionButtons.width - 4, 1);
-  mCaptionButtonsRoundedRegion.Or(mCaptionButtonsRoundedRegion, round1);
-  mCaptionButtonsRoundedRegion.Or(mCaptionButtonsRoundedRegion, round2);
-  mCaptionButtonsRoundedRegion.Or(mCaptionButtonsRoundedRegion, round3);
 }
 #endif
 
@@ -2731,6 +2660,7 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
 
 #else
 
+  mFullscreenMode = aFullScreen;
   if (aFullScreen) {
     if (mSizeMode == nsSizeMode_Fullscreen)
       return NS_OK;
@@ -2742,10 +2672,23 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
 
   UpdateNonClientMargins();
 
+  // Prevent window updates during the transition.
+  DWORD style;
+  if (nsUXThemeData::CheckForCompositor()) {
+    style = GetWindowLong(mWnd, GWL_STYLE);
+    SetWindowLong(mWnd, GWL_STYLE, style & ~WS_VISIBLE);
+  }
+
   // Will call hide chrome, reposition window. Note this will
   // also cache dimensions for restoration, so it should only
   // be called once per fullscreen request.
   nsresult rv = nsBaseWidget::MakeFullScreen(aFullScreen);
+
+  if (nsUXThemeData::CheckForCompositor()) {
+    style = GetWindowLong(mWnd, GWL_STYLE);
+    SetWindowLong(mWnd, GWL_STYLE, style | WS_VISIBLE);
+    Invalidate(PR_FALSE);
+  }
 
   // Let the dom know via web shell window
   nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
@@ -2792,6 +2735,19 @@ NS_IMETHODIMP nsWindow::Update()
 void* nsWindow::GetNativeData(PRUint32 aDataType)
 {
   switch (aDataType) {
+    case NS_NATIVE_TMP_WINDOW:
+      return (void*)::CreateWindowExW(mIsRTL ? WS_EX_LAYOUTRTL : 0,
+                                      WindowClass(),
+                                      L"",
+                                      WS_CHILD,
+                                      CW_USEDEFAULT,
+                                      CW_USEDEFAULT,
+                                      CW_USEDEFAULT,
+                                      CW_USEDEFAULT,
+                                      mWnd,
+                                      NULL,
+                                      nsToolkit::mDllInstance,
+                                      NULL);
     case NS_NATIVE_PLUGIN_PORT:
     case NS_NATIVE_WIDGET:
     case NS_NATIVE_WINDOW:
@@ -3167,17 +3123,10 @@ nsWindow::HasPendingInputEvent()
  **************************************************************/
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager()
+nsWindow::GetLayerManager(bool* aAllowRetaining)
 {
-  nsWindow *topWindow = GetNSWindowPtr(GetTopLevelHWND(mWnd, PR_TRUE));
-
-  if (!topWindow) {
-    return nsBaseWidget::GetLayerManager();
-  }
-
-  if (topWindow->GetAcceleratedRendering() != mUseAcceleratedRendering) {
-    mLayerManager = NULL;
-    mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
+  if (aAllowRetaining) {
+    *aAllowRetaining = true;
   }
 
 #ifndef WINCE
@@ -3187,6 +3136,7 @@ nsWindow::GetLayerManager()
     PRBool accelerateByDefault = PR_TRUE;
     PRBool disableAcceleration = PR_FALSE;
     PRBool preferOpenGL = PR_FALSE;
+    PRBool preferD3D9 = PR_FALSE;
     if (prefs) {
       prefs->GetBoolPref("layers.accelerate-all",
                          &accelerateByDefault);
@@ -3194,7 +3144,19 @@ nsWindow::GetLayerManager()
                          &disableAcceleration);
       prefs->GetBoolPref("layers.prefer-opengl",
                          &preferOpenGL);
+      prefs->GetBoolPref("layers.prefer-d3d9",
+                         &preferD3D9);
     }
+
+    const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
+    accelerateByDefault = accelerateByDefault ||
+                          (acceleratedEnv && (*acceleratedEnv != '0'));
+
+    /* We don't currently support using an accelerated layer manager with
+     * transparent windows so don't even try. I'm also not sure if we even
+     * want to support this case. See bug #593471 */
+    disableAcceleration = disableAcceleration ||
+                          eTransparencyTransparent == mTransparencyMode;
 
     nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
     PRBool safeMode = PR_FALSE;
@@ -3207,8 +3169,17 @@ nsWindow::GetLayerManager()
       mUseAcceleratedRendering = PR_TRUE;
 
     if (mUseAcceleratedRendering) {
+#ifdef MOZ_ENABLE_D3D10_LAYER
+      if (!preferD3D9) {
+        nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
+          new mozilla::layers::LayerManagerD3D10(this);
+        if (layerManager->Initialize()) {
+          mLayerManager = layerManager;
+        }
+      }
+#endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!preferOpenGL) {
+      if (!preferOpenGL && !mLayerManager) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize()) {
@@ -3216,7 +3187,7 @@ nsWindow::GetLayerManager()
         }
       }
 #endif
-      if (!mLayerManager) {
+      if (!mLayerManager && preferOpenGL) {
         nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
           new mozilla::layers::LayerManagerOGL(this);
         if (layerManager->Initialize()) {
@@ -3224,10 +3195,14 @@ nsWindow::GetLayerManager()
         }
       }
     }
+
+    // Fall back to software if we couldn't use any hardware backends.
+    if (!mLayerManager)
+      mLayerManager = CreateBasicLayerManager();
   }
 #endif
 
-  return nsBaseWidget::GetLayerManager();
+  return mLayerManager;
 }
 
 /**************************************************************
@@ -3692,9 +3667,10 @@ void nsWindow::DispatchPendingEvents()
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 
-    // Dispatch pending paints for all topWnd's descendant windows.
+    // Dispatch pending paints for topWnd and all its descendant windows.
     // Note: EnumChildWindows enumerates all descendant windows not just
-    // it's children.
+    // the children (but not the window itself).
+    nsWindow::DispatchStarvedPaints(topWnd, 0);
 #if !defined(WINCE)
     ::EnumChildWindows(topWnd, nsWindow::DispatchStarvedPaints, 0);
 #else
@@ -4268,6 +4244,43 @@ static int ReportException(EXCEPTION_POINTERS *aExceptionInfo)
 }
 #endif
 
+static PRBool
+DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt32 y)
+{
+  GetSystemMenu(hWnd, TRUE); // reset the system menu
+  HMENU hMenu = GetSystemMenu(hWnd, FALSE);
+  if (hMenu) {
+    // update the options
+    switch(sizeMode) {
+      case nsSizeMode_Fullscreen:
+        EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
+        // intentional fall through
+      case nsSizeMode_Maximized:
+        EnableMenuItem(hMenu, SC_SIZE, MF_BYCOMMAND | MF_GRAYED);
+        EnableMenuItem(hMenu, SC_MOVE, MF_BYCOMMAND | MF_GRAYED);
+        EnableMenuItem(hMenu, SC_MAXIMIZE, MF_BYCOMMAND | MF_GRAYED);
+        break;
+      case nsSizeMode_Minimized:
+        EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_GRAYED);
+        break;
+      case nsSizeMode_Normal:
+        EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
+        break;
+    }
+    LPARAM cmd =
+      TrackPopupMenu(hMenu,
+                     (TPM_LEFTBUTTON|TPM_RIGHTBUTTON|
+                      TPM_RETURNCMD|TPM_TOPALIGN|
+                      (isRtl ? TPM_RIGHTALIGN : TPM_LEFTALIGN)),
+                     x, y, 0, hWnd, NULL);
+    if (cmd) {
+      PostMessage(hWnd, WM_SYSCOMMAND, cmd, 0);
+      return PR_TRUE;
+    }
+  }
+  return PR_FALSE;
+}
+
 // The WndProc procedure for all nsWindows in this toolkit. This merely catches
 // exceptions and passes the real work to WindowProcInternal. See bug 587406
 // and http://msdn.microsoft.com/en-us/library/ms633573%28VS.85%29.aspx
@@ -4514,6 +4527,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
+      nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
 
@@ -4878,21 +4892,28 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
                                   contextMenukey ?
                                     nsMouseEvent::eLeftButton :
                                     nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+      if (lParam != -1 && !result && mCustomNonClient &&
+          DispatchMouseEvent(NS_MOUSE_MOZHITTEST, wParam, pos,
+                             PR_FALSE, nsMouseEvent::eLeftButton,
+                             MOUSE_INPUT_SOURCE())) {
+        // Blank area hit, throw up the system menu.
+        DisplaySystemMenu(mWnd, mSizeMode, mIsRTL, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        result = PR_TRUE;
+      }
     }
     break;
 
     case WM_LBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
       break;
 
     case WM_MBUTTONDOWN:
-    {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-    }
-    break;
+      break;
 
     case WM_MBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
@@ -4901,17 +4922,34 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_MBUTTONDBLCLK:
-      result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
+      result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
+      break;
+
+    case WM_NCMBUTTONDOWN:
+      result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, 0, lParamToClient(lParam), PR_FALSE,
+                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
+      break;
+
+    case WM_NCMBUTTONUP:
+      result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, 0, lParamToClient(lParam), PR_FALSE,
+                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
+      break;
+
+    case WM_NCMBUTTONDBLCLK:
+      result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, 0, lParamToClient(lParam), PR_FALSE,
+                                  nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
       break;
 
     case WM_RBUTTONDOWN:
-    {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-    }
-    break;
+      break;
 
     case WM_RBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
@@ -4922,6 +4960,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_RBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
       break;
 
     case WM_NCRBUTTONDOWN:
@@ -4942,6 +4981,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, 0, lParamToClient(lParam),
                                   PR_FALSE, nsMouseEvent::eRightButton,
                                   MOUSE_INPUT_SOURCE());
+      DispatchPendingEvents();
+      break;
 
     case WM_APPCOMMAND:
     {
@@ -5188,6 +5229,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         ::ShowWindow(mWnd, SW_SHOWMINIMIZED);
         result = PR_TRUE;
       }
+
+      // Handle the system menu manually when we're in full screen mode
+      // so we can set the appropriate options.
+      if (wParam == SC_KEYMENU && lParam == VK_SPACE &&
+          mSizeMode == nsSizeMode_Fullscreen) {
+        DisplaySystemMenu(mWnd, mSizeMode, mIsRTL,
+                          MOZ_SYSCONTEXT_X_POS,
+                          MOZ_SYSCONTEXT_Y_POS);
+        result = PR_TRUE;
+      }
       break;
 #endif
 
@@ -5398,12 +5449,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         nsTextStore::OnTextChangeMsg();
       }
 #endif //NS_ENABLE_TSF
-#if defined(HEAP_DUMP_EVENT)
-      if (msg == GetHeapMsg()) {
-        HeapDump(msg, wParam, lParam);
-        result = PR_TRUE;
-      }
-#endif
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
@@ -5530,15 +5575,15 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
   PRBool left   = PR_FALSE;
   PRBool right  = PR_FALSE;
 
-  if (my >= winRect.top && my <=
+  if (my >= winRect.top && my <
       (winRect.top + mVertResizeMargin + (mCaptionHeight - mNonClientOffset.top)))
     top = PR_TRUE;
-  else if (my <= winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
+  else if (my < winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
     bottom = PR_TRUE;
 
-  if (mx >= winRect.left && mx <= (winRect.left + mHorResizeMargin))
+  if (mx >= winRect.left && mx < (winRect.left + mHorResizeMargin))
     left = PR_TRUE;
-  else if (mx <= winRect.right && mx >= (winRect.right - mHorResizeMargin))
+  else if (mx < winRect.right && mx >= (winRect.right - mHorResizeMargin))
     right = PR_TRUE;
 
   if (top) {
@@ -5608,7 +5653,6 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
 
   return testResult;
 }
-
 
 #ifndef WINCE
 void nsWindow::PostSleepWakeNotification(const char* aNotification)
@@ -5872,6 +5916,14 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
 
   // Handle window size mode changes
   if (wp->flags & SWP_FRAMECHANGED && mSizeMode != nsSizeMode_Fullscreen) {
+
+    // Bug 566135 - Windows theme code calls show window on SW_SHOWMINIMIZED
+    // windows when fullscreen games disable desktop composition. If we're
+    // minimized and not being activated, ignore the event and let windows
+    // handle it.
+    if (mSizeMode == nsSizeMode_Minimized && (wp->flags & SWP_NOACTIVATE))
+      return;
+
     nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
 
     WINDOWPLACEMENT pl;
@@ -5882,6 +5934,8 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
       event.mSizeMode = nsSizeMode_Maximized;
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       event.mSizeMode = nsSizeMode_Minimized;
+    else if (mFullscreenMode)
+      event.mSizeMode = nsSizeMode_Fullscreen;
     else
       event.mSizeMode = nsSizeMode_Normal;
 
@@ -6040,7 +6094,8 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
   // browser know we are changing size modes, so alternative css can kick in.
   // If we're going into fullscreen mode, ignore this, since it'll reset
   // margins to normal mode. 
-  if (info->flags & SWP_FRAMECHANGED && mSizeMode != nsSizeMode_Fullscreen) {
+  if ((info->flags & SWP_FRAMECHANGED && !(info->flags & SWP_NOSIZE)) &&
+      mSizeMode != nsSizeMode_Fullscreen) {
     WINDOWPLACEMENT pl;
     pl.length = sizeof(pl);
     ::GetWindowPlacement(mWnd, &pl);
@@ -6049,6 +6104,8 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
       sizeMode = nsSizeMode_Maximized;
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       sizeMode = nsSizeMode_Minimized;
+    else if (mFullscreenMode)
+      sizeMode = nsSizeMode_Fullscreen;
     else
       sizeMode = nsSizeMode_Normal;
 
@@ -6380,7 +6437,7 @@ StringCaseInsensitiveEquals(const PRUnichar* aChars1, const PRUint32 aNumChars1,
     return PR_FALSE;
 
   nsCaseInsensitiveStringComparator comp;
-  return comp(aChars1, aChars2, aNumChars1) == 0;
+  return comp(aChars1, aChars2, aNumChars1, aNumChars2) == 0;
 }
 
 UINT nsWindow::MapFromNativeToDOM(UINT aNativeKeyCode)
@@ -6846,6 +6903,20 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
                 PR_TRUE);
     } else if (bounds.TopLeft() != configuration.mBounds.TopLeft()) {
       w->Move(configuration.mBounds.x, configuration.mBounds.y);
+
+
+      if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
+          gfxWindowsPlatform::RENDER_DIRECT2D ||
+          GetLayerManager()->GetBackendType() != LayerManager::LAYERS_BASIC) {
+        // XXX - Workaround for Bug 587508. This will invalidate the part of the
+        // plugin window that might be touched by moving content somehow. The
+        // underlying problem should be found and fixed!
+        nsIntRegion r;
+        r.Sub(bounds, configuration.mBounds);
+        r.MoveBy(-bounds.x,
+                 -bounds.y);
+        w->Invalidate(r.GetBounds(), PR_FALSE);
+      }
     }
     rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -7038,10 +7109,6 @@ PRBool nsWindow::OnResize(nsIntRect &aWindowRect)
     mD2DWindowSurface = NULL;
     Invalidate(PR_FALSE);
   }
-#endif
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  UpdateCaptionButtonsClippingRect();
 #endif
 
   // call the event callback
@@ -7516,8 +7583,8 @@ nsWindow::OnIMESelectionChange(void)
 #define NS_LOG_WMGETOBJECT_THISWND                                             \
 {                                                                              \
   printf("\n*******Get Doc Accessible*******\nOrig Window: ");                 \
-  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p, content type: %d,\n",\
-         mWnd, ::GetParent(mWnd), this, mContentType);                         \
+  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",               \
+         mWnd, ::GetParent(mWnd), this);                                       \
   NS_LOG_WMGETOBJECT_WNDACC(this)                                              \
   printf("\n  }\n");                                                           \
 }
@@ -7569,38 +7636,8 @@ nsWindow::GetRootAccessible()
   }
 
   NS_LOG_WMGETOBJECT_THISWND
-
-  if (mContentType != eContentTypeInherit) {
-    // We're on a MozillaContentWindowClass or MozillaUIWindowClass window.
-    // Search for the correct visible child window to get an accessible 
-    // document from. Make sure to use an active child window. If this window
-    // doesn't have child windows then return an accessible for it.
-    HWND accessibleWnd = ::GetTopWindow(mWnd);
-    NS_LOG_WMGETOBJECT_WND("Top Window", accessibleWnd);
-    if (!accessibleWnd) {
-      NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
-      return DispatchAccessibleEvent(NS_GETACCESSIBLE);
-    }
-
-    nsWindow* accessibleWindow = nsnull;
-    while (accessibleWnd) {
-      // Loop through windows and find the first one with accessibility info
-      accessibleWindow = GetNSWindowPtr(accessibleWnd);
-      if (accessibleWindow) {
-        nsAccessible *rootAccessible =
-          accessibleWindow->DispatchAccessibleEvent(NS_GETACCESSIBLE);
-        if (rootAccessible) {
-          // Success, one of the child windows was active.
-          return rootAccessible;
-        }
-      }
-      accessibleWnd = ::GetNextWindow(accessibleWnd, GW_HWNDNEXT);
-      NS_LOG_WMGETOBJECT_WND("Next Window", accessibleWnd);
-    }
-    return nsnull;
-  }
-
   NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
+
   return DispatchAccessibleEvent(NS_GETACCESSIBLE);
 }
 

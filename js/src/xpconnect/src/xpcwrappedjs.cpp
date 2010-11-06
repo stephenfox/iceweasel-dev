@@ -42,6 +42,8 @@
 /* Class that wraps JS objects to appear as XPCOM objects. */
 
 #include "xpcprivate.h"
+#include "nsAtomicRefcnt.h"
+#include "nsThreadUtils.h"
 
 // NOTE: much of the fancy footwork is done in xpcstubs.cpp
 
@@ -208,7 +210,7 @@ nsXPCWrappedJS::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 nsrefcnt
 nsXPCWrappedJS::AddRef(void)
 {
-    nsrefcnt cnt = (nsrefcnt) PR_AtomicIncrement((PRInt32*)&mRefCnt);
+    nsrefcnt cnt = NS_AtomicIncrementRefcnt(mRefCnt);
     NS_LOG_ADDREF(this, cnt, "nsXPCWrappedJS", sizeof(*this));
 
     if(2 == cnt && IsValid())
@@ -232,7 +234,7 @@ nsXPCWrappedJS::Release(void)
 
 do_decrement:
 
-    nsrefcnt cnt = (nsrefcnt) PR_AtomicDecrement((PRInt32*)&mRefCnt);
+    nsrefcnt cnt = NS_AtomicDecrementRefcnt(mRefCnt);
     NS_LOG_RELEASE(this, cnt, "nsXPCWrappedJS");
 
     if(0 == cnt)
@@ -289,6 +291,7 @@ nsXPCWrappedJS::GetJSObject(JSObject** aJSObj)
 {
     NS_PRECONDITION(aJSObj, "bad param");
     NS_PRECONDITION(mJSObj, "bad wrapper");
+
     if(!(*aJSObj = mJSObj))
         return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
@@ -432,7 +435,8 @@ nsXPCWrappedJS::nsXPCWrappedJS(XPCCallContext& ccx,
       mClass(aClass),
       mRoot(root ? root : this),
       mNext(nsnull),
-      mOuter(root ? nsnull : aOuter)
+      mOuter(root ? nsnull : aOuter),
+      mMainThread(NS_IsMainThread())
 {
 #ifdef DEBUG_stats_jband
     static int count = 0;
@@ -567,6 +571,9 @@ nsXPCWrappedJS::CallMethod(PRUint16 methodIndex,
 {
     if(!IsValid())
         return NS_ERROR_UNEXPECTED;
+    if (NS_IsMainThread() != mMainThread) {
+        return NS_ERROR_NOT_SAME_THREAD;
+    }
     return GetClass()->CallMethod(this, methodIndex, info, params);
 }
 

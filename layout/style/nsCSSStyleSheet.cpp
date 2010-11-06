@@ -249,6 +249,15 @@ nsMediaExpression::Matches(nsPresContext *aPresContext,
         cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
       }
       break;
+    case nsMediaFeature::eFloat:
+      {
+        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Number,
+                     "bad actual value");
+        NS_ASSERTION(required.GetUnit() == eCSSUnit_Number,
+                     "bad required value");
+        cmp = DoCompare(actual.GetFloatValue(), required.GetFloatValue());
+      }
+      break;
     case nsMediaFeature::eIntRatio:
       {
         NS_ASSERTION(actual.GetUnit() == eCSSUnit_Array &&
@@ -305,6 +314,17 @@ nsMediaExpression::Matches(nsPresContext *aPresContext,
         // We don't really need DoCompare, but it doesn't hurt (and
         // maybe the compiler will condense this case with eInteger).
         cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
+      }
+      break;
+    case nsMediaFeature::eIdent:
+      {
+        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Ident,
+                     "bad actual value");
+        NS_ASSERTION(required.GetUnit() == eCSSUnit_Ident,
+                     "bad required value");
+        NS_ASSERTION(mFeature->mRangeType == nsMediaFeature::eMinMaxNotAllowed,
+                     "bad range"); 
+        cmp = !(actual == required); // string comparison
       }
       break;
   }
@@ -422,6 +442,15 @@ nsMediaQuery::AppendToString(nsAString& aString) const
           // written without anything extra.
           expr.mValue.AppendToString(eCSSProperty_z_index, aString);
           break;
+        case nsMediaFeature::eFloat:
+          {
+            NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Number,
+                         "bad unit");
+            // Use 'line-height' as a property that takes float values
+            // written in the normal way.
+            expr.mValue.AppendToString(eCSSProperty_line_height, aString);
+          }
+          break;
         case nsMediaFeature::eIntRatio:
           {
             NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Array,
@@ -459,6 +488,11 @@ nsMediaQuery::AppendToString(nsAString& aString) const
               nsCSSProps::ValueToKeyword(expr.mValue.GetIntValue(),
                                          feature->mData.mKeywordTable),
               aString);
+          break;
+        case nsMediaFeature::eIdent:
+          NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Ident,
+                       "bad unit");
+          aString.Append(expr.mValue.GetStringBufferValue());
           break;
       }
     }

@@ -525,8 +525,16 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
         *aUVSTableOffset = nsnull;
     }
 
+    if (!aBuf || aBufLength < SizeOfHeader) {
+        // cmap table is missing, or too small to contain header fields!
+        return 0;
+    }
+
     // PRUint16 version = ReadShortAt(aBuf, OffsetVersion); // Unused: self-documenting.
     PRUint16 numTables = ReadShortAt(aBuf, OffsetNumTables);
+    if (aBufLength < SizeOfHeader + numTables * SizeOfTable) {
+        return 0;
+    }
 
     // save the format we want here
     PRUint32 keepFormat = 0;
@@ -539,8 +547,10 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
 
         const PRUint16 encodingID = ReadShortAt(table, TableOffsetEncodingID);
         const PRUint32 offset = ReadLongAt(table, TableOffsetOffset);
-
-        NS_ENSURE_TRUE(offset < aBufLength, NS_ERROR_GFX_CMAP_MALFORMED);
+        if (aBufLength - 2 < offset) {
+            // this subtable is not valid - beyond end of buffer
+            return 0;
+        }
 
         const PRUint8 *subtable = aBuf + offset;
         const PRUint16 format = ReadShortAt(subtable, SubtableOffsetFormat);
@@ -910,21 +920,6 @@ nsresult gfxFontUtils::MakeUniqueUserFontName(nsAString& aName)
 
 // need byte aligned structs
 #pragma pack(1)
-
-struct SFNTHeader {
-    AutoSwap_PRUint32    sfntVersion;            // Fixed, 0x00010000 for version 1.0.
-    AutoSwap_PRUint16    numTables;              // Number of tables.
-    AutoSwap_PRUint16    searchRange;            // (Maximum power of 2 <= numTables) x 16.
-    AutoSwap_PRUint16    entrySelector;          // Log2(maximum power of 2 <= numTables).
-    AutoSwap_PRUint16    rangeShift;             // NumTables x 16-searchRange.        
-};
-
-struct TableDirEntry {
-    AutoSwap_PRUint32    tag;                    // 4 -byte identifier.
-    AutoSwap_PRUint32    checkSum;               // CheckSum for this table.
-    AutoSwap_PRUint32    offset;                 // Offset from beginning of TrueType font file.
-    AutoSwap_PRUint32    length;                 // Length of this table.        
-};
 
 // name table stores set of name record structures, followed by
 // large block containing all the strings.  name record offset and length

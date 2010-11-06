@@ -39,6 +39,7 @@
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxDrawable.h"
+#include "nsRegion.h"
 
 #if defined(XP_WIN) || defined(WINCE)
 #include "gfxWindowsPlatform.h"
@@ -209,6 +210,27 @@ IsSafeImageTransformComponent(gfxFloat aValue)
   return aValue >= -32768 && aValue <= 32767;
 }
 
+/**
+ * This returns the fastest operator to use for solid surfaces which have no
+ * alpha channel or their alpha channel is uniformly opaque.
+ * This differs per render mode.
+ */
+static gfxContext::GraphicsOperator
+OptimalFillOperator()
+{
+#ifdef XP_WIN
+    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
+        gfxWindowsPlatform::RENDER_DIRECT2D) {
+        // D2D -really- hates operator source.
+        return gfxContext::OPERATOR_OVER;
+    } else {
+#endif
+        return gfxContext::OPERATOR_SOURCE;
+#ifdef XP_WIN
+    }
+#endif
+}
+
 // EXTEND_PAD won't help us here; we have to create a temporary surface to hold
 // the subimage of pixels we're allowed to sample.
 static already_AddRefed<gfxDrawable>
@@ -244,13 +266,13 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
 
     gfxIntSize size(PRInt32(needed.Width()), PRInt32(needed.Height()));
     nsRefPtr<gfxASurface> temp =
-        gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, aFormat);
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ContentFromFormat(aFormat));
     if (!temp || temp->CairoStatus())
         return nsnull;
 
-    gfxContext tmpCtx(temp);
-    tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
-    aDrawable->Draw(&tmpCtx, needed - needed.pos, PR_TRUE,
+    nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
+    tmpCtx->SetOperator(OptimalFillOperator());
+    aDrawable->Draw(tmpCtx, needed - needed.pos, PR_TRUE,
                     gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.pos));
 
     nsRefPtr<gfxPattern> resultPattern = new gfxPattern(temp);
@@ -326,27 +348,6 @@ private:
     PRPackedBool mPushedGroup;
 };
 
-/**
- * This returns the fastest operator to use for solid surfaces which have no
- * alpha channel or their alpha channel is uniformly opaque.
- * This differs per render mode.
- */
-static gfxContext::GraphicsOperator
-OptimalFillOperator()
-{
-#ifdef XP_WIN
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D) {
-        // D2D -really- hates operator source.
-        return gfxContext::OPERATOR_OVER;
-    } else {
-#endif
-        return gfxContext::OPERATOR_SOURCE;
-#ifdef XP_WIN
-    }
-#endif
-}
-
 static gfxMatrix
 DeviceToImageTransform(gfxContext* aContext,
                        const gfxMatrix& aUserSpaceToImageSpace)
@@ -418,3 +419,42 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
     aContext->SetOperator(op);
 }
 
+/* static */ int
+gfxUtils::ImageFormatToDepth(gfxASurface::gfxImageFormat aFormat)
+{
+    switch (aFormat) {
+        case gfxASurface::ImageFormatARGB32:
+            return 32;
+        case gfxASurface::ImageFormatRGB24:
+            return 24;
+        case gfxASurface::ImageFormatRGB16_565:
+            return 16;
+        default:
+            break;
+    }
+    return 0;
+}
+static void
+ClipToRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
+                     PRBool aSnap)
+{
+  aContext->NewPath();
+  nsIntRegionRectIterator iter(aRegion);
+  const nsIntRect* r;
+  while ((r = iter.Next()) != nsnull) {
+    aContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), aSnap);
+  }
+  aContext->Clip();
+}
+
+/*static*/ void
+gfxUtils::ClipToRegion(gfxContext* aContext, const nsIntRegion& aRegion)
+{
+  ClipToRegionInternal(aContext, aRegion, PR_FALSE);
+}
+
+/*static*/ void
+gfxUtils::ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
+{
+  ClipToRegionInternal(aContext, aRegion, PR_TRUE);
+}

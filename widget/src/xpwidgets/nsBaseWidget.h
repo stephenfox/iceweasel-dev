@@ -115,7 +115,7 @@ public:
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   virtual nsIDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager();
+  virtual LayerManager*   GetLayerManager(bool* aAllowRetaining = nsnull);
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
@@ -146,10 +146,12 @@ public:
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
   NS_IMETHOD              SetAcceleratedRendering(PRBool aEnabled);
   virtual PRBool          GetAcceleratedRendering();
+  virtual PRBool          GetShouldAccelerate();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
+  virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(PR_FALSE, PR_FALSE); }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
   virtual already_AddRefed<nsIWidget>
@@ -184,6 +186,7 @@ public:
             mBorderStyle & eBorderStyle_title);
   }
 
+  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent) = 0;
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
    * (nsBaseWidget::GetLayerManager() does). This sets up the widget's
@@ -198,6 +201,15 @@ public:
     nsBaseWidget* mWidget;
   };
   friend class AutoLayerManagerSetup;
+
+  class AutoUseBasicLayerManager {
+  public:
+    AutoUseBasicLayerManager(nsBaseWidget* aWidget);
+    ~AutoUseBasicLayerManager();
+  private:
+    nsBaseWidget* mWidget;
+  };
+  friend class AutoUseBasicLayerManager;
 
 protected:
 
@@ -242,6 +254,8 @@ protected:
     return widget.forget();
   }
 
+  BasicLayerManager* CreateBasicLayerManager();
+
 protected: 
   void*             mClientData;
   ViewWrapper*      mViewWrapperPtr;
@@ -250,6 +264,7 @@ protected:
   nsIDeviceContext* mContext;
   nsIToolkit*       mToolkit;
   nsRefPtr<LayerManager> mLayerManager;
+  nsRefPtr<LayerManager> mBasicLayerManager;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;
@@ -257,6 +272,7 @@ protected:
   nsBorderStyle     mBorderStyle;
   PRPackedBool      mOnDestroyCalled;
   PRPackedBool      mUseAcceleratedRendering;
+  PRPackedBool      mTemporarilyUseBasicLayerManager;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped

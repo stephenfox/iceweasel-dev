@@ -50,6 +50,12 @@ include css-charset/reftest.list
 # css default pseudo class tests
 include css-default/reftest.list
 
+# css :disable tests
+include css-disabled/reftest.list
+
+# css :enable tests
+include css-enabled/reftest.list
+
 # css @import tests
 include css-import/reftest.list
 
@@ -80,6 +86,9 @@ include css-valid/reftest.list
 # css invalid
 include css-invalid/reftest.list
 
+# css-submit-invalid
+include css-submit-invalid/reftest.list
+
 # css transitions
 include css-transitions/reftest.list
 
@@ -90,6 +99,8 @@ include css-valuesandunits/reftest.list
 # layout/style/test/test_visited_reftests instead of using the reftest
 # harness.
 
+include cssom/reftest.list
+
 # columns/
 include columns/reftest.list
 
@@ -98,6 +109,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# datalist
+include datalist/reftest.list
 
 # dom/
 include dom/reftest.list

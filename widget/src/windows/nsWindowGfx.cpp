@@ -75,6 +75,9 @@ using mozilla::plugins::PluginInstanceParent;
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
 #endif
+#ifdef MOZ_ENABLE_D3D10_LAYER
+#include "LayerManagerD3D10.h"
+#endif
 
 #ifndef WINCE
 #include "nsUXThemeData.h"
@@ -250,11 +253,7 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    nsIntRegion region(nsWindowGfx::ToIntRect(paintRect));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-    return region;
+    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
   }
 
 #if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
@@ -274,21 +273,11 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
     ::DeleteObject(paintRgn);
 # ifdef WINCE
     if (!rgn.IsEmpty())
-      return rgn;
-# elif MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    rgn.Sub(rgn, mCaptionButtonsRoundedRegion);
-    return rgn;
-# else
-    return rgn;
 # endif
+      return rgn;
   }
 #endif
-
-  nsIntRegion region(nsWindowGfx::ToIntRect(ps.rcPaint));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-  return region;
+  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -534,7 +523,6 @@ DDRAW_FAILED:
           }
 
           nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
-          thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
           if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
             const nsIntRect* r;
             for (nsIntRegionRectIterator iter(event.region);
@@ -574,28 +562,6 @@ DDRAW_FAILED:
             doubleBuffering = BasicLayerManager::BUFFER_BUFFERED;
 #endif
           }
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
-              mTransparencyMode != eTransparencyTransparent &&
-              !mCaptionButtons.IsEmpty()) {
-            // The area behind the caption buttons need to have a
-            // black background first to make the clipping work.
-            RECT rect;
-            rect.top = mCaptionButtons.y;
-            rect.left = mCaptionButtons.x;
-            rect.right = mCaptionButtons.x + mCaptionButtons.width;
-            rect.bottom = mCaptionButtons.y + mCaptionButtons.height;
-            FillRect(hDC, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-            const nsIntRect* r;
-            for (nsIntRegionRectIterator iter(event.region);
-                 (r = iter.Next()) != nsnull;) {
-              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
-            }
-            thebesContext->Clip();
-          }
-#endif
 
           {
             AutoLayerManagerSetup
@@ -745,9 +711,33 @@ DDRAW_FAILED:
         break;
 #ifdef MOZ_ENABLE_D3D9_LAYER
       case LayerManager::LAYERS_D3D9:
-        static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager())->
-          SetClippingRegion(event.region);
-        result = DispatchWindowEvent(&event, eventStatus);
+        {
+          LayerManagerD3D9 *layerManagerD3D9 =
+            static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager());
+          layerManagerD3D9->SetClippingRegion(event.region);
+          result = DispatchWindowEvent(&event, eventStatus);
+          if (layerManagerD3D9->DeviceWasRemoved()) {
+            mLayerManager = nsnull;
+            // When our device was removed, we should have gfxWindowsPlatform
+            // check if its render mode is up to date!
+            gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
+            Invalidate(PR_FALSE);
+          }
+        }
+        break;
+#endif
+#ifdef MOZ_ENABLE_D3D10_LAYER
+      case LayerManager::LAYERS_D3D10:
+        {
+          gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
+          LayerManagerD3D10 *layerManagerD3D10 = static_cast<mozilla::layers::LayerManagerD3D10*>(GetLayerManager());
+          if (layerManagerD3D10->device() != gfxWindowsPlatform::GetPlatform()->GetD3D10Device()) {
+            mLayerManager = nsnull;
+            Invalidate(PR_FALSE);
+          } else {
+            result = DispatchWindowEvent(&event, eventStatus);
+          }
+        }
         break;
 #endif
       default:
@@ -1054,7 +1044,6 @@ PRBool nsWindow::OnPaintImageDDraw16()
   targetSurfaceImage->SetDeviceOffset(gfxPoint(-brx, -bry));
   
   thebesContext = new gfxContext(targetSurfaceImage);
-  thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
   thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
     
   {

@@ -47,6 +47,7 @@
 #include "nsThreadUtils.h"
 
 #include "IDBEvents.h"
+#include "IDBFactory.h"
 #include "IDBTransaction.h"
 #include "TransactionThreadPool.h"
 
@@ -56,6 +57,8 @@ using mozilla::TimeDuration;
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
+
+IDBTransaction* gCurrentTransaction = nsnull;
 
 const PRUint32 kProgressHandlerGranularity = 1000;
 const PRUint32 kDefaultTimeoutMS = 30000;
@@ -83,10 +86,10 @@ AsyncConnectionHelper::AsyncConnectionHelper(IDBDatabase* aDatabase,
   mRequest(aRequest),
   mTimeoutDuration(TimeDuration::FromMilliseconds(kDefaultTimeoutMS)),
   mErrorCode(0),
-  mError(PR_FALSE)
+  mError(PR_FALSE),
+  mDispatched(PR_FALSE)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(mRequest, "Null request!");
 }
 
 AsyncConnectionHelper::AsyncConnectionHelper(IDBTransaction* aTransaction,
@@ -96,19 +99,15 @@ AsyncConnectionHelper::AsyncConnectionHelper(IDBTransaction* aTransaction,
   mRequest(aRequest),
   mTimeoutDuration(TimeDuration::FromMilliseconds(kDefaultTimeoutMS)),
   mErrorCode(0),
-  mError(PR_FALSE)
+  mError(PR_FALSE),
+  mDispatched(PR_FALSE)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(mRequest, "Null request!");
 }
 
 AsyncConnectionHelper::~AsyncConnectionHelper()
 {
   if (!NS_IsMainThread()) {
-    NS_ASSERTION(mErrorCode == NOREPLY || !mRequest,
-                 "This should only happen if NOREPLY was returned or if the "
-                 "runnable already ran on the main thread!");
-
     IDBDatabase* database;
     mDatabase.forget(&database);
 
@@ -146,17 +145,12 @@ NS_IMETHODIMP
 AsyncConnectionHelper::Run()
 {
   if (NS_IsMainThread()) {
-    if (mRequest->mAborted) {
-      NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::DONE,
-                   "Wrong state!");
-      mError = true;
-      mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
+    if (mRequest) {
+      mRequest->SetDone();
     }
-    else {
-      NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::LOADING,
-                   "Wrong state!");
-      mRequest->mReadyState = nsIIDBRequest::DONE;
-    }
+
+    NS_ASSERTION(!gCurrentTransaction, "Should be null!");
+    gCurrentTransaction = mTransaction;
 
     // Call OnError if the database had an error or if the OnSuccess handler
     // has an error.
@@ -164,13 +158,18 @@ AsyncConnectionHelper::Run()
       OnError(mRequest, mErrorCode);
     }
 
-    if (mTransaction) {
+    NS_ASSERTION(gCurrentTransaction == mTransaction, "Should be unchanged!");
+    gCurrentTransaction = nsnull;
+
+    if (mDispatched && mTransaction) {
       mTransaction->OnRequestFinished();
     }
 
-    mDatabase = nsnull;
-    mTransaction = nsnull;
-    mRequest = nsnull;
+    ReleaseMainThreadObjects();
+
+    NS_ASSERTION(!(mDatabase || mTransaction || mRequest), "Subclass didn't "
+                 "call AsyncConnectionHelper::ReleaseMainThreadObjects!");
+
     return NS_OK;
   }
 
@@ -183,14 +182,6 @@ AsyncConnectionHelper::Run()
       NS_ASSERTION(connection, "This should never be null!");
     }
   }
-  else if (mDatabase) {
-    rv = mDatabase->GetOrCreateConnection(getter_AddRefs(connection));
-    if (NS_SUCCEEDED(rv)) {
-      NS_ASSERTION(connection, "This should never be null!");
-    }
-  }
-
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "GetOrCreateConnection failed!");
 
   if (connection) {
     rv = connection->SetProgressHandler(kProgressHandlerGranularity, this,
@@ -202,10 +193,44 @@ AsyncConnectionHelper::Run()
   }
 
   if (NS_SUCCEEDED(rv)) {
+    bool hasSavepoint = false;
+    if (mDatabase) {
+      IDBFactory::SetCurrentDatabase(mDatabase);
+
+      // Make the first savepoint.
+      if (mTransaction) {
+        if (!(hasSavepoint = mTransaction->StartSavepoint())) {
+          NS_WARNING("Failed to make savepoint!");
+        }
+      }
+    }
+
     mErrorCode = DoDatabaseWork(connection);
+
+    if (mDatabase) {
+      IDBFactory::SetCurrentDatabase(nsnull);
+
+      // Release or roll back the savepoint depending on the error code.
+      if (hasSavepoint) {
+        NS_ASSERTION(mTransaction, "Huh?!");
+        if (mErrorCode == OK) {
+          mTransaction->ReleaseSavepoint();
+        }
+        else {
+          mTransaction->RollbackSavepoint();
+        }
+      }
+    }
   }
   else {
-    mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
+    // NS_ERROR_NOT_AVAILABLE is our special code for "database is invalidated"
+    // and we should fail with RECOVERABLE_ERR.
+    if (rv == NS_ERROR_NOT_AVAILABLE) {
+      mErrorCode = nsIIDBDatabaseException::RECOVERABLE_ERR;
+    }
+    else {
+      mErrorCode = nsIIDBDatabaseException::UNKNOWN_ERR;
+    }
   }
 
   if (!mStartTime.IsNull()) {
@@ -223,19 +248,20 @@ AsyncConnectionHelper::Run()
     mStartTime = TimeStamp();
   }
 
-  if (mErrorCode != NOREPLY) {
-    mError = mErrorCode != OK;
-
-    return NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL);
-  }
-
-  return NS_OK;
+  mError = mErrorCode != OK;
+  return NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL);
 }
 
 NS_IMETHODIMP
 AsyncConnectionHelper::OnProgress(mozIStorageConnection* aConnection,
                                   PRBool* _retval)
 {
+  if (mDatabase && mDatabase->IsInvalidated()) {
+    // Someone is trying to delete the database file. Exit lightningfast!
+    *_retval = PR_TRUE;
+    return NS_OK;
+  }
+
   TimeDuration elapsed = TimeStamp::Now() - mStartTime;
   if (elapsed >= mTimeoutDuration) {
     *_retval = PR_TRUE;
@@ -268,16 +294,14 @@ AsyncConnectionHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     return rv;
   }
 
-  NS_ASSERTION(mRequest->mReadyState == nsIIDBRequest::INITIAL,
-               "Wrong readyState!");
-  mRequest->mReadyState = nsIIDBRequest::LOADING;
-
   rv = aDatabaseThread->Dispatch(this, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mTransaction) {
     mTransaction->OnNewRequest();
   }
+
+  mDispatched = PR_TRUE;
 
   return NS_OK;
 }
@@ -288,6 +312,15 @@ AsyncConnectionHelper::DispatchToTransactionPool()
   NS_ASSERTION(mTransaction, "Only ok to call this with a transaction!");
   TransactionPoolEventTarget target(mTransaction);
   return Dispatch(&target);
+}
+
+// static
+IDBTransaction*
+AsyncConnectionHelper::GetCurrentTransaction()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  return gCurrentTransaction;
 }
 
 nsresult
@@ -366,6 +399,16 @@ AsyncConnectionHelper::GetSuccessResult(nsIWritableVariant* /* aResult */)
   // Leave the variant remain set to empty.
 
   return OK;
+}
+
+void
+AsyncConnectionHelper::ReleaseMainThreadObjects()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  mDatabase = nsnull;
+  mTransaction = nsnull;
+  mRequest = nsnull;
 }
 
 NS_IMETHODIMP_(nsrefcnt)

@@ -44,6 +44,19 @@
 #define xpcinlines_h___
 
 /***************************************************************************/
+PRBool
+xpc::PtrAndPrincipalHashKey::KeyEquals(const PtrAndPrincipalHashKey* aKey) const
+{
+  if(aKey->mPtr != mPtr)
+    return PR_FALSE;
+
+  if(!mURI || !aKey->mURI)
+      return mURI == aKey->mURI;
+
+  nsIScriptSecurityManager *ssm = nsXPConnect::gScriptSecurityManager;
+  return !ssm || NS_SUCCEEDED(ssm->CheckSameOriginURI(mURI, aKey->mURI, PR_FALSE));
+}
+
 inline void
 XPCJSRuntime::AddVariantRoot(XPCTraceableVariant* variant)
 {
@@ -411,14 +424,6 @@ XPCNativeInterface::HasAncestor(const nsIID* iid) const
     PRBool found = PR_FALSE;
     mInfo->HasAncestor(iid, &found);
     return found;
-}
-
-inline void
-XPCNativeInterface::DealWithDyingGCThings(JSContext* cx, XPCJSRuntime* rt)
-{
-    XPCNativeMember* member = mMembers;
-    for(int i = (int) mMemberCount; i > 0; i--, member++)
-        member->DealWithDyingGCThings(cx, rt);
 }
 
 /***************************************************************************/

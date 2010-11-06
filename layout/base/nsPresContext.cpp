@@ -898,18 +898,27 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
     mRefreshDriver = mDocument->GetDisplayDocument()->GetShell()->
       GetPresContext()->RefreshDriver();
   } else {
-    // We don't have our container set yet at this point
-    nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
-    nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
-    if (ourItem) {
-      nsCOMPtr<nsIDocShellTreeItem> parentItem;
-      ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
-      nsCOMPtr<nsIDocShell> parentDocShell = do_QueryInterface(parentItem);
-      if (parentDocShell) {
-        nsCOMPtr<nsIPresShell> parentPresShell;
-        parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
-        if (parentPresShell) {
-          mRefreshDriver = parentPresShell->GetPresContext()->RefreshDriver();
+    nsIDocument* parent = mDocument->GetParentDocument();
+    // Unfortunately, sometimes |parent| here has no presshell because
+    // printing screws up things.  Assert that in other cases it does,
+    // but whenever the shell is null just fall back on using our own
+    // refresh driver.
+    NS_ASSERTION(!parent || mDocument->IsStaticDocument() || parent->GetShell(),
+                 "How did we end up with a presshell if our parent doesn't "
+                 "have one?");
+    if (parent && parent->GetShell()) {
+      NS_ASSERTION(parent->GetShell()->GetPresContext(),
+                   "How did we get a presshell?");
+
+      // We don't have our container set yet at this point
+      nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
+
+      nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
+      if (ourItem) {
+        nsCOMPtr<nsIDocShellTreeItem> parentItem;
+        ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
+        if (parentItem) {
+          mRefreshDriver = parent->GetShell()->GetPresContext()->RefreshDriver();
         }
       }
     }
@@ -2183,44 +2192,6 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
   request->mFlags = aFlags;
 }
 
-void
-nsPresContext::NotifyInvalidateRegion(const nsRegion& aRegion,
-                                      nsPoint aOffset, PRUint32 aFlags)
-{
-  const nsRect* r;
-  for (nsRegionRectIterator iter(aRegion); (r = iter.Next());) {
-    NotifyInvalidation(*r + aOffset, aFlags);
-  }
-}
-
-void
-nsPresContext::NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
-                                            const nsRegion& aInvalidateRegion)
-{
-  nsPresContext* pc = this;
-  PRUint32 crossDocFlags = 0;
-  nsIFrame* rootFrame = FrameManager()->GetRootFrame();
-  nsPoint offset(0,0);
-  while (pc) {
-    if (pc->MayHavePaintEventListener()) {
-      pc->NotifyInvalidateRegion(aBlitRegion, offset,
-                                 nsIFrame::INVALIDATE_REASON_SCROLL_BLIT | crossDocFlags);
-      pc->NotifyInvalidateRegion(aInvalidateRegion, offset,
-                                 nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT | crossDocFlags);
-    }
-    crossDocFlags = nsIFrame::INVALIDATE_CROSS_DOC;
-
-    nsIFrame* rootParentFrame = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
-    if (!rootParentFrame)
-      break;
-
-    pc = rootParentFrame->PresContext();
-    nsIFrame* nextRootFrame = pc->PresShell()->FrameManager()->GetRootFrame();
-    offset += rootFrame->GetOffsetTo(nextRootFrame);
-    rootFrame = nextRootFrame;
-  }
-}
-
 PRBool
 nsPresContext::HasCachedStyleData()
 {
@@ -2383,10 +2354,41 @@ nsPresContext::CheckForInterrupt(nsIFrame* aFrame)
   return mHasPendingInterrupt;
 }
 
+PRBool
+nsPresContext::IsRootContentDocument()
+{
+  // We are a root content document if: we are not a resource doc, we are
+  // not chrome, and we either have no parent or our parent is chrome.
+  if (mDocument->IsResourceDoc()) {
+    return PR_FALSE;
+  }
+  if (IsChrome()) {
+    return PR_FALSE;
+  }
+  // We may not have a root frame, so use views.
+  nsIViewManager* vm = PresShell()->GetViewManager();
+  nsIView* view = nsnull;
+  if (NS_FAILED(vm->GetRootView(view)) || !view) {
+    return PR_FALSE;
+  }
+  view = view->GetParent(); // anonymous inner view
+  if (!view) {
+    return PR_TRUE;
+  }
+  view = view->GetParent(); // subdocumentframe's view
+  if (!view) {
+    return PR_TRUE;
+  }
+
+  nsIFrame* f = static_cast<nsIFrame*>(view->GetClientData());
+  return (f && f->PresContext()->IsChrome());
+}
+
 nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
                                      nsPresContextType aType)
   : nsPresContext(aDocument, aType),
     mUpdatePluginGeometryForFrame(nsnull),
+    mDOMGeneration(0),
     mNeedsToUpdatePluginGeometry(PR_FALSE)
 {
   mRegisteredPlugins.Init();
@@ -2505,7 +2507,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   closure.mRootFrame = mShell->FrameManager()->GetRootFrame();
   closure.mRootAPD = closure.mRootFrame->PresContext()->AppUnitsPerDevPixel();
   closure.mChangedSubtree = aChangedSubtree;
-  closure.mChangedRect = aChangedSubtree->GetOverflowRect() +
+  closure.mChangedRect = aChangedSubtree->GetVisualOverflowRect() +
       aChangedSubtree->GetOffsetToCrossDoc(closure.mRootFrame);
   PRInt32 subtreeAPD = aChangedSubtree->PresContext()->AppUnitsPerDevPixel();
   closure.mChangedRect =
@@ -2649,8 +2651,13 @@ nsRootPresContext::UpdatePluginGeometry()
 }
 
 void
-nsRootPresContext::ForcePluginGeometryUpdate()
+nsRootPresContext::SynchronousPluginGeometryUpdate()
 {
+  if (!mNeedsToUpdatePluginGeometry) {
+    // Nothing to do
+    return;
+  }
+
   // Force synchronous paint
   nsIPresShell* shell = GetPresShell();
   if (!shell)
@@ -2682,8 +2689,10 @@ nsRootPresContext::RequestUpdatePluginGeometry(nsIFrame* aFrame)
     mNeedsToUpdatePluginGeometry = PR_TRUE;
 
     // Dispatch a Gecko event to ensure plugin geometry gets updated
+    // XXX this really should be done through the refresh driver, once
+    // all painting happens in the refresh driver
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsRootPresContext::ForcePluginGeometryUpdate);
+      NS_NewRunnableMethod(this, &nsRootPresContext::SynchronousPluginGeometryUpdate);
     NS_DispatchToMainThread(event);
 
     mUpdatePluginGeometryForFrame = aFrame;

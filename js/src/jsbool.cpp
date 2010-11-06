@@ -42,7 +42,7 @@
  */
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h" /* Added by JSIFY */
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsbool.h"
@@ -54,13 +54,15 @@
 #include "jsstr.h"
 #include "jsvector.h"
 
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
 
 Class js_BooleanClass = {
     "Boolean",
-    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
+    JSCLASS_HAS_RESERVED_SLOTS(1) |
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     PropertyStub,   /* addProperty */
     PropertyStub,   /* delProperty */
     PropertyStub,   /* getProperty */
@@ -76,28 +78,28 @@ Class js_BooleanClass = {
 static JSBool
 bool_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    const Value *primp;
-    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
-        return JS_FALSE;
+    bool b;
+    if (!GetPrimitiveThis(cx, vp, &b))
+        return false;
+
     char buf[32];
-    JS_snprintf(buf, sizeof buf, "(new %s(%s))",
-                js_BooleanClass.name,
-                JS_BOOLEAN_STR(primp->toBoolean()));
+    JS_snprintf(buf, sizeof buf, "(new Boolean(%s))", JS_BOOLEAN_STR(b));
     JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
-        return JS_FALSE;
+        return false;
     vp->setString(str);
-    return JS_TRUE;
+    return true;
 }
 #endif
 
 static JSBool
 bool_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    const Value *primp;
-    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
-        return JS_FALSE;
-    JSAtom *atom = cx->runtime->atomState.booleanAtoms[primp->toBoolean() ? 1 : 0];
+    bool b;
+    if (!GetPrimitiveThis(cx, vp, &b))
+        return false;
+
+    JSAtom *atom = cx->runtime->atomState.booleanAtoms[b ? 1 : 0];
     JSString *str = ATOM_TO_STRING(atom);
     if (!str)
         return JS_FALSE;
@@ -108,36 +110,39 @@ bool_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 bool_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    const Value *primp;
-    if (!js_GetPrimitiveThis(cx, vp, &js_BooleanClass, &primp))
-        return JS_FALSE;
-    *vp = *primp;
+    bool b;
+    if (!GetPrimitiveThis(cx, vp, &b))
+        return false;
+
+    vp->setBoolean(b);
     return JS_TRUE;
 }
 
 static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_PRIMITIVE_THIS),
 #endif
-    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_THISP_BOOLEAN),
-    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
-    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_PRIMITIVE_THIS),
+    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_PRIMITIVE_THIS),
     JS_FS_END
 };
 
 static JSBool
-Boolean(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
+Boolean(JSContext *cx, uintN argc, Value *vp)
 {
-    Value bval;
+    Value *argv = vp + 2;
+    bool b = argc != 0 ? js_ValueToBoolean(argv[0]) : false;
 
-    if (argc != 0)
-        bval.setBoolean(!!js_ValueToBoolean(argv[0]));
-    else
-        bval.setBoolean(false);
-    if (!JS_IsConstructing(cx))
-        *rval = bval;
-    else
-        obj->setPrimitiveThis(bval);
+    if (IsConstructing(vp)) {
+        JSObject *obj = NewBuiltinClassInstance(cx, &js_BooleanClass);
+        if (!obj)
+            return false;
+        obj->setPrimitiveThis(BooleanValue(b));
+        vp->setObject(*obj);
+    } else {
+        vp->setBoolean(b);
+    }
     return true;
 }
 
@@ -170,14 +175,14 @@ js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
 JSBool
 js_ValueToBoolean(const Value &v)
 {
-    if (v.isNullOrUndefined())
-        return JS_FALSE;
-    if (v.isObject())
-        return JS_TRUE;
-    if (v.isString())
-        return v.toString()->length() != 0;
     if (v.isInt32())
         return v.toInt32() != 0;
+    if (v.isString())
+        return v.toString()->length() != 0;
+    if (v.isObject())
+        return JS_TRUE;
+    if (v.isNullOrUndefined())
+        return JS_FALSE;
     if (v.isDouble()) {
         jsdouble d;
 

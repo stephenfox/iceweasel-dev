@@ -41,15 +41,41 @@
 #include "jsapi.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsMemory.h"
+#include "nsString.h"
+#include "nsNativeCharsetUtils.h"
 
 #define JSCTYPES_CONTRACTID \
   "@mozilla.org/jsctypes;1"
+
 
 #define JSCTYPES_CID \
 { 0xc797702, 0x1c60, 0x4051, { 0x9d, 0xd7, 0x4d, 0x74, 0x5, 0x60, 0x56, 0x42 } }
 
 namespace mozilla {
 namespace ctypes {
+
+static char*
+UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
+{
+  nsCAutoString native;
+  nsDependentString unicode(reinterpret_cast<const PRUnichar*>(source), slen);
+  nsresult rv = NS_CopyUnicodeToNative(unicode, native);
+  if (NS_FAILED(rv)) {
+    JS_ReportError(cx, "could not convert string to native charset");
+    return NULL;
+  }
+
+  char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
+  if (!result)
+    return NULL;
+
+  memcpy(result, native.get(), native.Length() + 1);
+  return result;
+}
+
+static JSCTypesCallbacks sCallbacks = {
+  UnicodeToNative
+};
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(Module)
 
@@ -81,8 +107,7 @@ SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
     return false;
 
   JSObject* prototype = JSVAL_TO_OBJECT(prop);
-  return JS_SealObject(cx, obj, JS_FALSE) &&
-         JS_SealObject(cx, prototype, JS_FALSE);
+  return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
 static JSBool
@@ -92,16 +117,24 @@ InitAndSealCTypesClass(JSContext* cx, JSObject* global)
   if (!JS_InitCTypesClass(cx, global))
     return false;
 
-  // Seal up Object, Function, and Array and their prototypes.  (This single
-  // object instance is shared amongst everyone who imports the ctypes module.)
+  // Set callbacks for charset conversion and such.
+  jsval ctypes;
+  if (!JS_GetProperty(cx, global, "ctypes", &ctypes) ||
+      !JS_SetCTypesCallbacks(cx, JSVAL_TO_OBJECT(ctypes), &sCallbacks))
+    return false;
+
+  // Seal up Object, Function, Array and Error and their prototypes.  (This
+  // single object instance is shared amongst everyone who imports the ctypes
+  // module.)
   if (!SealObjectAndPrototype(cx, global, "Object") ||
       !SealObjectAndPrototype(cx, global, "Function") ||
-      !SealObjectAndPrototype(cx, global, "Array"))
+      !SealObjectAndPrototype(cx, global, "Array") ||
+      !SealObjectAndPrototype(cx, global, "Error"))
     return false;
 
   // Finally, seal the global object, for good measure. (But not recursively;
   // this breaks things.)
-  return JS_SealObject(cx, global, JS_FALSE);
+  return JS_FreezeObject(cx, global);
 }
 
 NS_IMETHODIMP

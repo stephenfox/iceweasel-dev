@@ -61,7 +61,7 @@ var drag = {
 //   event - The DOM event that kicks off the drag
 //   isResizing - (boolean) is this a resizing instance? or (if false) dragging?
 //   isFauxDrag - (boolean) true if a faux drag, which is used when simply snapping.
-var Drag = function(item, event, isResizing, isFauxDrag) {
+function Drag(item, event, isResizing, isFauxDrag) {
   Utils.assert(item && (item.isAnItem || item.isAFauxItem), 
       'must be an item, or at least a faux item');
 
@@ -118,8 +118,8 @@ Drag.prototype = {
 
     // OH SNAP!
 
-    // if we aren't holding down the meta key...
-    if (!Keys.meta) {
+    // if we aren't holding down the meta key or have trenches disabled...
+    if (!Keys.meta && !Trenches.disabled) {
       // snappable = true if we aren't a tab on top of something else, and
       // there's no active drop site...
       let snappable = !(this.item.isATabItem &&
@@ -257,7 +257,7 @@ Drag.prototype = {
   // ----------
   // Function: drag
   // Called in response to an <Item> draggable "drag" event.
-  drag: function(event) {
+  drag: function Drag_drag(event) {
     this.snap('topleft', true);
 
     if (this.parent && this.parent.expanded) {
@@ -272,7 +272,10 @@ Drag.prototype = {
   // ----------
   // Function: stop
   // Called in response to an <Item> draggable "stop" event.
-  stop: function() {
+  //
+  // Parameters:
+  //  immediately - bool for doing the pushAway immediately, without animation
+  stop: function Drag_stop(immediately) {
     Trenches.hideGuides();
     this.item.isDragging = false;
 
@@ -288,7 +291,7 @@ Drag.prototype = {
       this.item.setZ(drag.zIndex);
       drag.zIndex++;
 
-      this.item.pushAway();
+      this.item.pushAway(immediately);
     }
 
     Trenches.disactivate();

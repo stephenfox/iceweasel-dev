@@ -101,7 +101,8 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
              aAttribute == nsGkAtoms::dx ||
-             aAttribute == nsGkAtoms::dy) {
+             aAttribute == nsGkAtoms::dy ||
+             aAttribute == nsGkAtoms::rotate) {
     NotifyGlyphMetricsChange();
   }
 
@@ -313,21 +314,21 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     return;
   }
 
-  gfxPoint ctp(0.0, 0.0);
+  BuildPositionList(0, 0);
 
-  SVGUserUnitList xLengthList, yLengthList;
-  GetXY(&xLengthList, &yLengthList);
-  if (xLengthList.Length() > 0) ctp.x = xLengthList[0];
-  if (yLengthList.Length() > 0) ctp.y = yLengthList[0];
+  gfxPoint ctp(0.0, 0.0);
 
   // loop over chunks
   while (firstFragment) {
-    firstFragment->GetXY(&xLengthList, &yLengthList);
-    if (xLengthList.Length() > 0) ctp.x = xLengthList[0];
-    if (yLengthList.Length() > 0) ctp.y = yLengthList[0];
+    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
+
+    nsTArray<float> effectiveXList, effectiveYList;
+    firstFragment->GetEffectiveXY(firstFragment->GetNumberOfChars(),
+                                  effectiveXList, effectiveYList);
+    if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
+    if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
 
     // check for startOffset on textPath
-    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
     if (textPath) {
       if (!textPath->GetPathFrame()) {
         // invalid text path, give up

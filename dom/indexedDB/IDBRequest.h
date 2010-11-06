@@ -44,7 +44,7 @@
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
 #include "nsIIDBRequest.h"
-#include "nsIVariant.h"
+#include "nsIIDBVersionChangeRequest.h"
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
@@ -54,87 +54,81 @@ class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class AsyncConnectionHelper;
-class IDBFactory;
-class IDBDatabase;
-
 class IDBRequest : public nsDOMEventTargetHelper,
                    public nsIIDBRequest
 {
-  friend class AsyncConnectionHelper;
-
 public:
-  class Generator : public nsISupports
-  {
-    protected:
-      friend class IDBRequest;
-
-      Generator() { }
-
-      virtual ~Generator() {
-        NS_ASSERTION(mLiveRequests.IsEmpty(), "Huh?!");
-      }
-
-      already_AddRefed<IDBRequest>
-      GenerateRequest(nsIScriptContext* aScriptContext,
-                      nsPIDOMWindow* aOwner) {
-        return GenerateRequestInternal(aScriptContext, aOwner, PR_FALSE);
-      }
-
-      already_AddRefed<IDBRequest>
-      GenerateWriteRequest(nsIScriptContext* aScriptContext,
-                           nsPIDOMWindow* aOwner) {
-        return GenerateRequestInternal(aScriptContext, aOwner, PR_TRUE);
-      }
-
-      void NoteDyingRequest(IDBRequest* aRequest) {
-        NS_ASSERTION(mLiveRequests.Contains(aRequest), "Unknown request!");
-        mLiveRequests.RemoveElement(aRequest);
-      }
-
-    private:
-      already_AddRefed<IDBRequest>
-      GenerateRequestInternal(nsIScriptContext* aScriptContext,
-                              nsPIDOMWindow* aOwner,
-                              PRBool aWriteRequest);
-
-      // XXXbent Assuming infallible nsTArray here, make sure it lands!
-      nsAutoTArray<IDBRequest*, 1> mLiveRequests;
-  };
-
-  friend class IDBRequestGenerator;
-
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBREQUEST
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBRequest,
                                            nsDOMEventTargetHelper)
 
-  already_AddRefed<nsISupports> GetGenerator()
+  static
+  already_AddRefed<IDBRequest> Create(nsISupports* aSource,
+                                      nsIScriptContext* aScriptContext,
+                                      nsPIDOMWindow* aOwner);
+
+  nsISupports* Source()
   {
-    nsCOMPtr<nsISupports> generator(mGenerator);
-    return generator.forget();
+    return mSource;
   }
 
-private:
-  // Only called by IDBRequestGenerator::Generate().
-  IDBRequest()
-  : mReadyState(nsIIDBRequest::INITIAL),
-    mAborted(PR_FALSE),
-    mWriteRequest(PR_FALSE)
-  { }
+  void SetDone()
+  {
+    NS_ASSERTION(mReadyState != nsIIDBRequest::DONE, "Already set!");
+    mReadyState = nsIIDBRequest::DONE;
+  }
 
-  nsRefPtr<Generator> mGenerator;
+  nsIScriptContext* ScriptContext()
+  {
+    NS_ASSERTION(mScriptContext, "This should never be null!");
+    return mScriptContext;
+  }
+
+  nsPIDOMWindow* Owner()
+  {
+    NS_ASSERTION(mOwner, "This should never be null!");
+    return mOwner;
+  }
 
 protected:
-  // Called by Release().
-  ~IDBRequest();
+  IDBRequest()
+  : mReadyState(nsIIDBRequest::LOADING)
+  { }
+
+  ~IDBRequest()
+  {
+    if (mListenerManager) {
+      mListenerManager->Disconnect();
+    }
+  }
+
+  nsCOMPtr<nsISupports> mSource;
 
   nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
   PRUint16 mReadyState;
-  PRPackedBool mAborted;
-  PRPackedBool mWriteRequest;
+};
+
+class IDBVersionChangeRequest : public IDBRequest,
+                                public nsIIDBVersionChangeRequest
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_FORWARD_NSIIDBREQUEST(IDBRequest::)
+  NS_DECL_NSIIDBVERSIONCHANGEREQUEST
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBVersionChangeRequest,
+                                           IDBRequest)
+
+  static
+  already_AddRefed<IDBVersionChangeRequest>
+  Create(nsISupports* aSource,
+         nsIScriptContext* aScriptContext,
+         nsPIDOMWindow* aOwner);
+
+protected:
+  nsRefPtr<nsDOMEventListenerWrapper> mOnBlockedListener;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -47,7 +47,8 @@
 
 #include "AndroidJavaWrappers.h"
 
-#include "nsVoidArray.h"
+#include "nsIMutableArray.h"
+#include "nsIMIMEInfo.h"
 
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
@@ -85,7 +86,13 @@ public:
     }
 
     static JNIEnv *JNIForThread() {
-        return sBridge->AttachThread();
+        if (NS_LIKELY(sBridge))
+          return sBridge->AttachThread();
+        return nsnull;
+    }
+    
+    static jclass GetGeckoAppShellClass() {
+        return sBridge->mGeckoAppShellClass;
     }
 
     // The bridge needs to be constructed via ConstructBridge first,
@@ -108,6 +115,8 @@ public:
 
     void ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen, int aSelStart, int aSelLen);
 
+    void NotifyAppShellReady();
+
     void NotifyXreExit();
 
     void ScheduleRestart();
@@ -115,13 +124,21 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    PRBool GetHandlersForProtocol(const char *aScheme, nsStringArray* aStringArray = nsnull);
+    PRBool GetHandlersForProtocol(const char *aScheme, 
+                                  nsIMutableArray* handlersArray = nsnull,
+                                  nsIHandlerApp **aDefaultApp = nsnull,
+                                  const nsAString& aAction = EmptyString());
 
-    PRBool GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray = nsnull);
+    PRBool GetHandlersForMimeType(const char *aMimeType,
+                                  nsIMutableArray* handlersArray = nsnull,
+                                  nsIHandlerApp **aDefaultApp = nsnull,
+                                  const nsAString& aAction = EmptyString());
 
-    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType, 
-                           const nsAString& aPackageName = EmptyString(), 
-                           const nsAString& aClassName = EmptyString());
+    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
+                           const nsAString& aPackageName = EmptyString(),
+                           const nsAString& aClassName = EmptyString(),
+                           const nsAString& aAction = EmptyString(),
+                           const nsAString& aTitle = EmptyString());
 
     void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
 
@@ -142,6 +159,17 @@ public:
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
 
+    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
+                                           PRInt64 aProgress,
+                                           PRInt64 aProgressMax,
+                                           const nsAString& aAlertText);
+
+    void AlertsProgressListener_OnCancel(const nsAString& aAlertName);
+
+    int GetDPI();
+
+    void ShowFilePicker(nsAString& aFilePath);
+
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -161,6 +189,8 @@ public:
 
     /* See GLHelpers.java as to why this is needed */
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
+
+    bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
 protected:
     static AndroidBridge *sBridge;
@@ -189,6 +219,7 @@ protected:
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;
     jmethodID jReturnIMEQueryResult;
+    jmethodID jNotifyAppShellReady;
     jmethodID jNotifyXreExit;
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
@@ -200,6 +231,10 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
+    jmethodID jShowFilePicker;
+    jmethodID jAlertsProgressListener_OnProgress;
+    jmethodID jAlertsProgressListener_OnCancel;
+    jmethodID jGetDpi;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
@@ -214,5 +249,6 @@ protected:
 
 extern "C" JNIEnv * GetJNIForThread();
 extern PRBool mozilla_AndroidBridge_SetMainThread(void *);
+extern jclass GetGeckoAppShellClass();
 
 #endif /* AndroidBridge_h__ */

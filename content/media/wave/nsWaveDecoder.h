@@ -180,7 +180,8 @@ class nsWaveDecoder : public nsMediaDecoder
   // Start downloading the media at the specified URI.  The media's metadata
   // will be parsed and made available as the load progresses.
   virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener** aStreamListener);
+                        nsIStreamListener** aStreamListener,
+                        nsMediaDecoder* aCloneDonor);
 
   // Called by mStream (and possibly the nsChannelToPipeListener used
   // internally by mStream) when the stream has completed loading.
@@ -240,6 +241,8 @@ class nsWaveDecoder : public nsMediaDecoder
   // Constructs the time ranges representing what segments of the media
   // are buffered and playable.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered);
+
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
 
 private:
   // Notifies the element that seeking has started.

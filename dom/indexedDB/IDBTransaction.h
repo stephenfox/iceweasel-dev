@@ -40,7 +40,7 @@
 #ifndef mozilla_dom_indexeddb_idbtransaction_h__
 #define mozilla_dom_indexeddb_idbtransaction_h__
 
-#include "mozilla/dom/indexedDB/IDBRequest.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 #include "mozilla/dom/indexedDB/IDBDatabase.h"
 
 #include "nsIIDBTransaction.h"
@@ -53,9 +53,9 @@
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
 
-class nsIScriptContext;
+class mozIStorageConnection;
+class mozIStorageStatement;
 class nsIThread;
-class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -65,7 +65,6 @@ struct ObjectStoreInfo;
 class TransactionThreadPool;
 
 class IDBTransaction : public nsDOMEventTargetHelper,
-                       public IDBRequest::Generator,
                        public nsIIDBTransaction
 {
   friend class AsyncConnectionHelper;
@@ -80,8 +79,7 @@ public:
                                            nsDOMEventTargetHelper)
 
   static already_AddRefed<IDBTransaction>
-  Create(JSContext* aCx,
-         IDBDatabase* aDatabase,
+  Create(IDBDatabase* aDatabase,
          nsTArray<nsString>& aObjectStoreNames,
          PRUint16 aMode,
          PRUint32 aTimeout);
@@ -92,6 +90,9 @@ public:
   bool StartSavepoint();
   nsresult ReleaseSavepoint();
   void RollbackSavepoint();
+
+  // Only meant to be called on mStorageThread!
+  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
 
   already_AddRefed<mozIStorageStatement>
   AddStatement(bool aCreate,
@@ -131,38 +132,34 @@ public:
 
 #ifdef DEBUG
   bool TransactionIsOpen() const;
-  bool IsWriteAllowed() const;
 #else
   bool TransactionIsOpen() const
   {
     return mReadyState == nsIIDBTransaction::INITIAL ||
            mReadyState == nsIIDBTransaction::LOADING;
   }
+#endif
 
   bool IsWriteAllowed() const
   {
-    return mMode == nsIIDBTransaction::READ_WRITE;
-  }
-#endif
-
-  enum { FULL_LOCK = nsIIDBTransaction::SNAPSHOT_READ + 1 };
-
-  nsIScriptContext* ScriptContext()
-  {
-    return mScriptContext;
+    return mMode == nsIIDBTransaction::READ_WRITE ||
+           mMode == nsIIDBTransaction::VERSION_CHANGE;
   }
 
-  nsPIDOMWindow* Owner()
+  PRUint16 Mode()
   {
-    return mOwner;
+    return mMode;
+  }
+
+  IDBDatabase* Database()
+  {
+    NS_ASSERTION(mDatabase, "This should never be null!");
+    return mDatabase;
   }
 
 private:
   IDBTransaction();
   ~IDBTransaction();
-
-  // Only meant to be called on mStorageThread!
-  nsresult GetOrCreateConnection(mozIStorageConnection** aConnection);
 
   nsresult CommitOrRollback();
 
@@ -177,6 +174,7 @@ private:
   nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
@@ -187,7 +185,6 @@ private:
   // Only touched on the database thread.
   PRUint32 mSavepointCount;
 
-  bool mHasInitialSavepoint;
   bool mAborted;
 };
 
@@ -197,13 +194,8 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  CommitHelper(IDBTransaction* aTransaction)
-  : mTransaction(aTransaction),
-    mAborted(!!aTransaction->mAborted),
-    mHasInitialSavepoint(!!aTransaction->mHasInitialSavepoint)
-  {
-    mConnection.swap(aTransaction->mConnection);
-  }
+  CommitHelper(IDBTransaction* aTransaction);
+  ~CommitHelper();
 
   template<class T>
   bool AddDoomedObject(nsCOMPtr<T>& aCOMPtr)
@@ -222,8 +214,12 @@ private:
   nsRefPtr<IDBTransaction> mTransaction;
   nsCOMPtr<mozIStorageConnection> mConnection;
   nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
+
+  nsString mOldVersion;
+  nsTArray<nsAutoPtr<ObjectStoreInfo> > mOldObjectStores;
+
   bool mAborted;
-  bool mHasInitialSavepoint;
+  bool mHaveMetadata;
 };
 
 END_INDEXEDDB_NAMESPACE

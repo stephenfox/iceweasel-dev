@@ -1,4 +1,7 @@
-/* vim: set ts=4 sw=4 tw=99 et:
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=79:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -21,7 +24,8 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- */
+ * 
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef LinkBuffer_h
 #define LinkBuffer_h
@@ -63,8 +67,18 @@ public:
     //       m_code uses m_executablePool, *not* executablePool, since this is no longer valid.
     LinkBuffer(MacroAssembler* masm, ExecutablePool* executablePool)
         : m_executablePool(executablePool)
-        , m_code(masm->m_assembler.executableCopy(m_executablePool))
+        , m_code(executableCopy(*masm, executablePool))
         , m_size(masm->m_assembler.size())
+#ifndef NDEBUG
+        , m_completed(false)
+#endif
+    {
+    }
+
+    LinkBuffer()
+        : m_executablePool(NULL)
+        , m_code(NULL)
+        , m_size(0)
 #ifndef NDEBUG
         , m_completed(false)
 #endif
@@ -175,12 +189,17 @@ public:
         return CodeLocationLabel(code());
     }
 
-private:
+protected:
     // Keep this private! - the underlying code should only be obtained externally via 
     // finalizeCode() or finalizeCodeAddendum().
     void* code()
     {
         return m_code;
+    }
+
+    void *executableCopy(MacroAssembler &masm, ExecutablePool *pool)
+    {
+        return masm.m_assembler.executableCopy(pool);
     }
 
     void performFinalization()

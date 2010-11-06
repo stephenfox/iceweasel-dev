@@ -488,6 +488,11 @@ class nsHashKey;
 #define NS_MOZTOUCH_MOVE             (NS_MOZTOUCH_EVENT_START+1)
 #define NS_MOZTOUCH_UP               (NS_MOZTOUCH_EVENT_START+2)
 
+// script notification events
+#define NS_NOTIFYSCRIPT_START    4500
+#define NS_BEFORE_SCRIPT_EXECUTE (NS_NOTIFYSCRIPT_START)
+#define NS_AFTER_SCRIPT_EXECUTE  (NS_NOTIFYSCRIPT_START+1)
+
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
@@ -1058,6 +1063,9 @@ private:
   nsTextEvent()
   {
   }
+
+public:
+  PRUint32 seqno;
 #endif // MOZ_IPC
 
 public:
@@ -1086,6 +1094,9 @@ private:
   nsCompositionEvent()
   {
   }
+
+public:
+  PRUint32 seqno;
 #endif // MOZ_IPC
 
 public:
@@ -1287,11 +1298,13 @@ class nsFocusEvent : public nsEvent
 public:
   nsFocusEvent(PRBool isTrusted, PRUint32 msg)
     : nsEvent(isTrusted, msg, NS_FOCUS_EVENT),
-      fromRaise(PR_FALSE)
+      fromRaise(PR_FALSE),
+      isRefocus(PR_FALSE)
   {
   }
 
   PRPackedBool fromRaise;
+  PRPackedBool isRefocus;
 };
 
 class nsSelectionEvent : public nsGUIEvent
@@ -1304,6 +1317,9 @@ private:
   nsSelectionEvent()
   {
   }
+
+public:
+  PRUint32 seqno;
 #endif // MOZ_IPC
 
 public:

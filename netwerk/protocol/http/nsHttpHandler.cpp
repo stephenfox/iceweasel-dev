@@ -76,6 +76,7 @@
 #include "nsNetUtil.h"
 #include "nsIOService.h"
 #include "nsAsyncRedirectVerifyHelper.h"
+#include "nsSocketTransportService2.h"
 
 #include "nsIXULAppInfo.h"
 
@@ -210,9 +211,6 @@ nsHttpHandler::nsHttpHandler()
 
 nsHttpHandler::~nsHttpHandler()
 {
-    // We do not deal with the timer cancellation in the destructor since
-    // it is taken care of in xpcom shutdown event in the Observe method.
-
     LOG(("Deleting nsHttpHandler [this=%x]\n", this));
 
     // make sure the connection manager is shutdown
@@ -283,6 +281,7 @@ nsHttpHandler::Init()
     if (mAppName.Length() == 0 && appInfo) {
         appInfo->GetName(mAppName);
         appInfo->GetVersion(mAppVersion);
+        mAppName.StripChars(" ()<>@,;:\\\"/[]?={}");
     } else {
         mAppVersion.AssignLiteral(MOZ_APP_UA_VERSION);
     }
@@ -295,8 +294,6 @@ nsHttpHandler::Init()
     LOG(("> oscpu = %s\n", mOscpu.get()));
     LOG(("> language = %s\n", mLanguage.get()));
     LOG(("> misc = %s\n", mMisc.get()));
-    LOG(("> vendor = %s\n", mVendor.get()));
-    LOG(("> vendor-sub = %s\n", mVendorSub.get()));
     LOG(("> product = %s\n", mProduct.get()));
     LOG(("> product-sub = %s\n", mProductSub.get()));
     LOG(("> app-name = %s\n", mAppName.get()));
@@ -332,9 +329,9 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
         mObserverService->AddObserver(this, "net:clear-active-logins", PR_TRUE);
         mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
+        mObserverService->AddObserver(this, "net:prune-dead-connections", PR_TRUE);
     }
  
-    StartPruneDeadConnectionsTimer();
     return NS_OK;
 }
 
@@ -360,31 +357,6 @@ nsHttpHandler::InitConnectionMgr()
                         mMaxRequestDelay,
                         mMaxPipelinedRequests);
     return rv;
-}
-
-void
-nsHttpHandler::StartPruneDeadConnectionsTimer()
-{
-    LOG(("nsHttpHandler::StartPruneDeadConnectionsTimer\n"));
-
-    mTimer = do_CreateInstance("@mozilla.org/timer;1");
-    NS_ASSERTION(mTimer, "no timer");
-    // failure to create a timer is not a fatal error, but idle connections
-    // will not be cleaned up until we try to use them.
-    if (mTimer)
-        mTimer->Init(this, 15*1000, // every 15 seconds
-                     nsITimer::TYPE_REPEATING_SLACK);
-}
-
-void
-nsHttpHandler::StopPruneDeadConnectionsTimer()
-{
-    LOG(("nsHttpHandler::StopPruneDeadConnectionsTimer\n"));
-
-    if (mTimer) {
-        mTimer->Cancel();
-        mTimer = 0;
-    }
 }
 
 nsresult
@@ -630,12 +602,10 @@ nsHttpHandler::BuildUserAgent()
                            mMisc.Length() +
                            mProduct.Length() +
                            mProductSub.Length() +
-                           mVendor.Length() +
-                           mVendorSub.Length() +
                            mAppName.Length() +
                            mAppVersion.Length() +
                            mCompatFirefox.Length() +
-                           15);
+                           13);
 
     // Application portion
     mUserAgent.Assign(mLegacyAppName);
@@ -671,16 +641,6 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mAppName;
     mUserAgent += '/';
     mUserAgent += mAppVersion;
-
-    // Vendor portion
-    if (!mVendor.IsEmpty()) {
-        mUserAgent += ' ';
-        mUserAgent += mVendor;
-        if (!mVendorSub.IsEmpty()) {
-            mUserAgent += '/';
-            mUserAgent += mVendorSub;
-        }
-    }
 }
 
 #ifdef XP_WIN
@@ -825,18 +785,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     // UA components
     //
 
-    // Gather vendor values.
-    if (PREF_CHANGED(UA_PREF("vendor"))) {
-        prefs->GetCharPref(UA_PREF("vendor"),
-            getter_Copies(mVendor));
-        mUserAgentIsDirty = PR_TRUE;
-    }
-    if (PREF_CHANGED(UA_PREF("vendorSub"))) {
-        prefs->GetCharPref(UA_PREF("vendorSub"),
-            getter_Copies(mVendorSub));
-        mUserAgentIsDirty = PR_TRUE;
-    }
-
     PRBool cVar = PR_FALSE;
 
     if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
@@ -907,7 +855,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("max-connections"))) {
         rv = prefs->GetIntPref(HTTP_PREF("max-connections"), &val);
         if (NS_SUCCEEDED(rv)) {
-            mMaxConnections = (PRUint16) NS_CLAMP(val, 1, 0xffff);
+            mMaxConnections = (PRUint16) NS_CLAMP(val, 1, NS_SOCKET_MAX_COUNT);
             if (mConnMgr)
                 mConnMgr->UpdateParam(nsHttpConnectionMgr::MAX_CONNECTIONS,
                                       mMaxConnections);
@@ -1526,12 +1474,17 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
         if (mPipeliningOverSSL)
             caps |= NS_HTTP_ALLOW_PIPELINING;
 
-        // HACK: make sure PSM gets initialized on the main thread.
-        nsCOMPtr<nsISocketProviderService> spserv =
-                do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID);
-        if (spserv) {
-            nsCOMPtr<nsISocketProvider> provider;
-            spserv->GetSocketProvider("ssl", getter_AddRefs(provider));
+#ifdef MOZ_IPC
+        if (!IsNeckoChild()) 
+#endif
+        {
+            // HACK: make sure PSM gets initialized on the main thread.
+            nsCOMPtr<nsISocketProviderService> spserv =
+                    do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID);
+            if (spserv) {
+                nsCOMPtr<nsISocketProvider> provider;
+                spserv->GetSocketProvider("ssl", getter_AddRefs(provider));
+            }
         }
     }
 
@@ -1565,20 +1518,6 @@ NS_IMETHODIMP
 nsHttpHandler::GetAppVersion(nsACString &value)
 {
     value = mLegacyAppVersion;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetVendor(nsACString &value)
-{
-    value = mVendor;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetVendorSub(nsACString &value)
-{
-    value = mVendorSub;
     return NS_OK;
 }
 
@@ -1643,9 +1582,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     else if (strcmp(topic, "profile-change-net-teardown")    == 0 ||
              strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)    == 0) {
 
-        // kill off the "prune dead connections" timer
-        StopPruneDeadConnectionsTimer();
-
         // clear cache of all authentication credentials.
         mAuthCache.ClearAll();
 
@@ -1660,18 +1596,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     else if (strcmp(topic, "profile-change-net-restore") == 0) {
         // initialize connection manager
         InitConnectionMgr();
-
-        // restart the "prune dead connections" timer
-        StartPruneDeadConnectionsTimer();
-    }
-    else if (strcmp(topic, "timer-callback") == 0) {
-        // prune dead connections
-#ifdef DEBUG
-        nsCOMPtr<nsITimer> timer = do_QueryInterface(subject);
-        NS_ASSERTION(timer == mTimer, "unexpected timer-callback");
-#endif
-        if (mConnMgr)
-            mConnMgr->PruneDeadConnections();
     }
     else if (strcmp(topic, "net:clear-active-logins") == 0) {
         mAuthCache.ClearAll();
@@ -1681,6 +1605,11 @@ nsHttpHandler::Observe(nsISupports *subject,
             mInPrivateBrowsingMode = PR_TRUE;
         else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(data))
             mInPrivateBrowsingMode = PR_FALSE;
+    }
+    else if (strcmp(topic, "net:prune-dead-connections") == 0) {
+        if (mConnMgr) {
+            mConnMgr->PruneDeadConnections();
+        }
     }
   
     return NS_OK;

@@ -64,9 +64,7 @@ nsTextEquivUtils::GetNameFromSubtree(nsAccessible *aAccessible,
 
   gInitiatorAcc = aAccessible;
 
-  PRUint32 role = nsAccUtils::Role(aAccessible);
-  PRUint32 nameRule = gRoleToNameRulesMap[role];
-
+  PRUint32 nameRule = gRoleToNameRulesMap[aAccessible->Role()];
   if (nameRule == eFromSubtree) {
     //XXX: is it necessary to care the accessible is not a document?
     if (aAccessible->IsContent()) {
@@ -239,6 +237,11 @@ nsresult
 nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
                                        nsAString *aString)
 {
+  // Ignore hidden accessible for name computation.
+  nsIFrame* frame = aAccessible->GetFrame();
+  if (!frame || !frame->GetStyleVisibility()->IsVisible())
+    return NS_OK;
+
   //XXX: is it necessary to care the accessible is not a document?
   if (aAccessible->IsContent()) {
     nsresult rv = AppendTextEquivFromTextContent(aAccessible->GetContent(),
@@ -269,9 +272,7 @@ nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
   // into subtree if accessible allows "text equivalent from subtree rule" or
   // it's not root and not control.
   if (isEmptyTextEquiv) {
-    PRUint32 role = nsAccUtils::Role(aAccessible);
-    PRUint32 nameRule = gRoleToNameRulesMap[role];
-
+    PRUint32 nameRule = gRoleToNameRulesMap[aAccessible->Role()];
     if (nameRule & eFromSubtreeIfRec) {
       rv = AppendFromAccessibleChildren(aAccessible, aString);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -294,9 +295,7 @@ nsresult
 nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
                                   nsAString *aString)
 {
-  PRUint32 role = nsAccUtils::Role(aAccessible);
-  PRUint32 nameRule = gRoleToNameRulesMap[role];
-
+  PRUint32 nameRule = gRoleToNameRulesMap[aAccessible->Role()];
   if (nameRule != eFromValue)
     return NS_OK_NO_NAME_CLAUSE_HANDLED;
 

@@ -50,24 +50,12 @@ function getBrowserURL()
   return "chrome://browser/content/browser.xul";
 }
 
-function goToggleToolbar( id, elementID )
-{
-  var toolbar = document.getElementById(id);
-  var element = document.getElementById(elementID);
-  if (toolbar)
-  {
-    var isHidden = toolbar.hidden;
-    toolbar.hidden = !isHidden;
-    document.persist(id, 'hidden');
-    if (element) {
-      element.setAttribute("checked", isHidden ? "true" : "false");
-      document.persist(elementID, 'checked');
-    }
+function getTopWin(skipPopups) {
+  if (skipPopups) {
+    return Components.classes["@mozilla.org/browser/browserglue;1"]
+                     .getService(Components.interfaces.nsIBrowserGlue)
+                     .getMostRecentBrowserWindow();
   }
-}
-
-function getTopWin()
-{
   return Services.wm.getMostRecentWindow("navigator:browser");
 }
 
@@ -174,18 +162,33 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
  *   relatedToCurrent     (boolean)
  */
 function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI) {
+  var params;
+
+  if (arguments.length == 3 && typeof arguments[2] == "object") {
+    params = aAllowThirdPartyFixup;
+  } else {
+    params = {
+      allowThirdPartyFixup: aAllowThirdPartyFixup,
+      postData: aPostData,
+      referrerURI: aReferrerURI
+    };
+  }
+
+  params.fromContent = false;
+
+  openLinkIn(url, where, params);
+}
+
+function openLinkIn(url, where, params) {
   if (!where || !url)
     return;
 
-  var aRelatedToCurrent;
-  if (arguments.length == 3 &&
-      typeof arguments[2] == "object") {
-    let params = arguments[2];
-    aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-    aPostData             = params.postData;
-    aReferrerURI          = params.referrerURI;
-    aRelatedToCurrent     = params.relatedToCurrent;
-  }
+  var aFromContent          = params.fromContent;
+  var aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+  var aPostData             = params.postData;
+  var aCharset              = params.charset;
+  var aReferrerURI          = params.referrerURI;
+  var aRelatedToCurrent     = params.relatedToCurrent;
 
   if (where == "save") {
     saveURL(url, null, null, true, null, aReferrerURI);
@@ -195,6 +198,11 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
   const Ci = Components.interfaces;
 
   var w = getTopWin();
+  if ((where == "tab" || where == "tabshifted") &&
+      w.document.documentElement.getAttribute("chromehidden")) {
+    w = getTopWin(true);
+    aRelatedToCurrent = false;
+  }
 
   if (!w || where == "window") {
     var sa = Cc["@mozilla.org/supports-array;1"].
@@ -204,12 +212,19 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
                createInstance(Ci.nsISupportsString);
     wuri.data = url;
 
+    let charset = null;
+    if (aCharset) {
+      charset = Cc["@mozilla.org/supports-string;1"]
+                  .createInstance(Ci.nsISupportsString);
+      charset.data = "charset=" + aCharset;
+    }
+
     var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
                                        createInstance(Ci.nsISupportsPRBool);
     allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
 
     sa.AppendElement(wuri);
-    sa.AppendElement(null);
+    sa.AppendElement(charset);
     sa.AppendElement(aReferrerURI);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
@@ -226,7 +241,23 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
     return;
   }
 
-  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground");
+  var loadInBackground = aFromContent ?
+                         getBoolPref("browser.tabs.loadInBackground") :
+                         getBoolPref("browser.tabs.loadBookmarksInBackground");
+
+  if (where == "current" && w.gBrowser.selectedTab.pinned) {
+    try {
+      let uriObj = Services.io.newURI(url, null, null);
+      if (!uriObj.schemeIs("javascript") &&
+          w.gBrowser.currentURI.host != uriObj.host) {
+        where = "tab";
+        loadInBackground = false;
+      }
+    } catch (err) {
+      where = "tab";
+      loadInBackground = false;
+    }
+  }
 
   switch (where) {
   case "current":
@@ -239,6 +270,7 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
     let browser = w.gBrowser;
     browser.loadOneTab(url, {
                        referrerURI: aReferrerURI,
+                       charset: aCharset,
                        postData: aPostData,
                        inBackground: loadInBackground,
                        allowThirdPartyFixup: aAllowThirdPartyFixup,
@@ -381,10 +413,8 @@ function openAboutDialog() {
   var enumerator = Services.wm.getEnumerator("Browser:About");
   while (enumerator.hasMoreElements()) {
     let win = enumerator.getNext();
-#ifdef XP_WIN
     if (win.opener != window)
       continue;
-#endif
     win.focus();
     return;
   }
@@ -392,11 +422,7 @@ function openAboutDialog() {
 #ifdef XP_MACOSX
   var features = "chrome,resizable=no,minimizable=no";
 #else
-#ifdef XP_WIN
   var features = "chrome,centerscreen,dependent";
-#else
-  var features = "chrome,centerscreen";
-#endif
 #endif
   window.openDialog("chrome://browser/content/aboutDialog.xul", "", features);
 }
@@ -457,7 +483,7 @@ function openTroubleshootingPage()
  */
 function openFeedbackPage()
 {
-  openUILinkIn("http://input.mozilla.com/sad", "tab");
+  openUILinkIn("http://input.mozilla.com/feedback", "tab");
 }
 
 
@@ -484,14 +510,12 @@ function checkForUpdates()
 }
 #endif
 
-function buildHelpMenu()
-{
-  // Enable/disable the "Report Web Forgery" menu item.  safebrowsing object
-  // may not exist in OSX
-  if (typeof safebrowsing != "undefined")
-    safebrowsing.setReportPhishingMenu();
-
 #ifdef MOZ_UPDATER
+/**
+ * Updates an element to reflect the state of available update services.
+ */
+function setupCheckForUpdates(checkForUpdates, aStringBundle)
+{
   var updates = 
       Components.classes["@mozilla.org/updates/update-service;1"].
       getService(Components.interfaces.nsIApplicationUpdateService);
@@ -501,23 +525,21 @@ function buildHelpMenu()
 
   // Disable the UI if the update enabled pref has been locked by the 
   // administrator or if we cannot update for some other reason
-  var checkForUpdates = document.getElementById("checkForUpdates");
   var canCheckForUpdates = updates.canCheckForUpdates;
   checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
   if (!canCheckForUpdates)
     return; 
 
-  var strings = document.getElementById("bundle_browser");
   var activeUpdate = um.activeUpdate;
-  
+
   // If there's an active update, substitute its name into the label
   // we show for this item, otherwise display a generic label.
   function getStringWithUpdateName(key) {
     if (activeUpdate && activeUpdate.name)
-      return strings.getFormattedString(key, [activeUpdate.name]);
-    return strings.getString(key + "Fallback");
+      return aStringBundle.formatStringFromName(key, [activeUpdate.name], 1);
+    return aStringBundle.GetStringFromName(key + "Fallback");
   }
-  
+
   // By default, show "Check for Updates..."
   var key = "default";
   if (activeUpdate) {
@@ -536,11 +558,31 @@ function buildHelpMenu()
     }
   }
   checkForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
-  checkForUpdates.accessKey = strings.getString("updatesItem_" + key + ".accesskey");
+  checkForUpdates.accessKey = aStringBundle.
+                              GetStringFromName("updatesItem_" + key + ".accesskey");
   if (um.activeUpdate && updates.isDownloading)
     checkForUpdates.setAttribute("loading", "true");
   else
     checkForUpdates.removeAttribute("loading");
+}
+#endif
+
+function buildHelpMenu()
+{
+  // Enable/disable the "Report Web Forgery" menu item.  safebrowsing object
+  // may not exist in OSX
+  if (typeof safebrowsing != "undefined")
+    safebrowsing.setReportPhishingMenu();
+
+#ifdef XP_MACOSX
+#ifdef MOZ_UPDATER
+  var checkForUpdates = document.getElementById("checkForUpdates");
+  var browserBundle = document.getElementById("bundle_browser").stringBundle;
+  setupCheckForUpdates(checkForUpdates, browserBundle);
+#else  
+  // Needed by safebrowsing for inserting its menuitem so just hide it
+  document.getElementById("updateSeparator").hidden = true;
+#endif
 #else
   // Needed by safebrowsing for inserting its menuitem so just hide it
   document.getElementById("updateSeparator").hidden = true;

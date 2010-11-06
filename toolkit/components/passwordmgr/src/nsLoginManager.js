@@ -978,9 +978,9 @@ LoginManager.prototype = {
     },
 
     _getActionOrigin : function (form) {
-        var uriString = form.mozActionUri;
+        var uriString = form.action;
 
-        // A blank or mission action submits to where it came from.
+        // A blank or missing action submits to where it came from.
         if (uriString == "")
             uriString = form.baseURI; // ala bug 297761
 
@@ -1365,6 +1365,10 @@ UserAutoCompleteResult.prototype = {
             throw "Index out of range.";
 
         return this.logins[index].username;
+    },
+
+    getLabelAt: function(index) {
+        return this.getValueAt(index);
     },
 
     getCommentAt : function (index) {

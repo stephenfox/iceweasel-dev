@@ -404,7 +404,8 @@ nsContextMenu.prototype = {
     this.showItem("context-video-fullscreen", this.onVideo);
     // Disable them when there isn't a valid media source loaded.
     if (onMedia) {
-      var hasError = (this.target.error != null);
+      var hasError = this.target.error != null ||
+                     this.target.networkState == this.target.NETWORK_NO_SOURCE;
       this.setItemAttr("context-media-play",  "disabled", hasError);
       this.setItemAttr("context-media-pause", "disabled", hasError);
       this.setItemAttr("context-media-mute",   "disabled", hasError);
@@ -957,14 +958,17 @@ nsContextMenu.prototype = {
       }
     }
 
-    // in case we need to prompt the user for authentication
     function callbacks() {}
     callbacks.prototype = {
       getInterface: function sLA_callbacks_getInterface(aIID) {
         if (aIID.equals(Ci.nsIAuthPrompt) || aIID.equals(Ci.nsIAuthPrompt2)) {
-          var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-                   getService(Ci.nsIPromptFactory);
-          return ww.getPrompt(doc.defaultView, aIID);
+          // If the channel demands authentication prompt, we must cancel it
+          // because the save-as-timer would expire and cancel the channel
+          // before we get credentials from user.  Both authentication dialog
+          // and save as dialog would appear on the screen as we fall back to
+          // the old fashioned way after the timeout.
+          timer.cancel();
+          channel.cancel(NS_ERROR_SAVE_LINK_AS_TIMEOUT);
         }
         throw Cr.NS_ERROR_NO_INTERFACE;
       } 

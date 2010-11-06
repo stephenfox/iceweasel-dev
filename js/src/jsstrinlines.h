@@ -46,7 +46,7 @@ inline JSString *
 JSString::unitString(jschar c)
 {
     JS_ASSERT(c < UNIT_STRING_LIMIT);
-    return &unitStringTable[c];
+    return const_cast<JSString *>(&unitStringTable[c]);
 }
 
 inline JSString *
@@ -64,7 +64,8 @@ JSString::length2String(jschar c1, jschar c2)
 {
     JS_ASSERT(fitsInSmallChar(c1));
     JS_ASSERT(fitsInSmallChar(c2));
-    return &length2StringTable[(((size_t)toSmallChar[c1]) << 6) + toSmallChar[c2]];
+    return const_cast<JSString *>
+           (&length2StringTable[(((size_t)toSmallChar[c1]) << 6) + toSmallChar[c2]]);
 }
 
 inline JSString *
@@ -72,7 +73,87 @@ JSString::intString(jsint i)
 {
     jsuint u = jsuint(i);
     JS_ASSERT(u < INT_STRING_LIMIT);
-    return JSString::intStringTable[u];
+    return const_cast<JSString *>(JSString::intStringTable[u]);
+}
+
+/* Get a static atomized string for chars if possible. */
+inline JSString *
+JSString::lookupStaticString(const jschar *chars, size_t length)
+{
+    if (length == 1) {
+        if (chars[0] < UNIT_STRING_LIMIT)
+            return unitString(chars[0]);
+    }
+
+    if (length == 2) {
+        if (fitsInSmallChar(chars[0]) && fitsInSmallChar(chars[1]))
+            return length2String(chars[0], chars[1]);
+    }
+
+    /*
+     * Here we know that JSString::intStringTable covers only 256 (or at least
+     * not 1000 or more) chars. We rely on order here to resolve the unit vs.
+     * int string/length-2 string atom identity issue by giving priority to unit
+     * strings for "0" through "9" and length-2 strings for "10" through "99".
+     */
+    JS_STATIC_ASSERT(INT_STRING_LIMIT <= 999);
+    if (length == 3) {
+        if ('1' <= chars[0] && chars[0] <= '9' &&
+            '0' <= chars[1] && chars[1] <= '9' &&
+            '0' <= chars[2] && chars[2] <= '9') {
+            jsint i = (chars[0] - '0') * 100 +
+                      (chars[1] - '0') * 10 +
+                      (chars[2] - '0');
+
+            if (jsuint(i) < INT_STRING_LIMIT)
+                return intString(i);
+        }
+    }
+
+    return NULL;
+}
+
+inline void
+JSString::finalize(JSContext *cx, unsigned thingKind) {
+    if (JS_LIKELY(thingKind == js::gc::FINALIZE_STRING)) {
+        JS_ASSERT(!JSString::isStatic(this));
+        JS_RUNTIME_UNMETER(cx->runtime, liveStrings);
+        if (isDependent()) {
+            JS_ASSERT(dependentBase());
+            JS_RUNTIME_UNMETER(cx->runtime, liveDependentStrings);
+        } else if (isFlat()) {
+            /*
+             * flatChars for stillborn string is null, but cx->free checks
+             * for a null pointer on its own.
+             */
+            cx->free(flatChars());
+        } else if (isTopNode()) {
+            cx->free(topNodeBuffer());
+        }
+    } else {
+        unsigned type = thingKind - js::gc::FINALIZE_EXTERNAL_STRING0;
+        JS_ASSERT(type < JS_ARRAY_LENGTH(str_finalizers));
+        JS_ASSERT(!isStatic(this));
+        JS_ASSERT(isFlat());
+        JS_RUNTIME_UNMETER(cx->runtime, liveStrings);
+
+        /* A stillborn string has null chars. */
+        jschar *chars = flatChars();
+        if (!chars)
+            return;
+        JSStringFinalizeOp finalizer = str_finalizers[type];
+        if (finalizer)
+            finalizer(cx, this);
+    }
+}
+
+inline void
+JSShortString::finalize(JSContext *cx, unsigned thingKind)
+{
+    JS_ASSERT(js::gc::FINALIZE_SHORT_STRING == thingKind);
+    JS_ASSERT(!JSString::isStatic(header()));
+    JS_ASSERT(header()->isFlat());
+    JS_RUNTIME_UNMETER(cx->runtime, liveStrings);
 }
 
 inline

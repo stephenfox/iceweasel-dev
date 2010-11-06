@@ -308,7 +308,7 @@ nsSVGOuterSVGFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 PRBool aShrinkWrap)
 {
   if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox) &&
-      EmbeddedByReference()) {
+      (EmbeddedByReference() || IsRootOfImage())) {
     // The embedding element has done the replaced element sizing, using our
     // intrinsic dimensions as necessary. We just need to fill the viewport.
     return aCBSize;
@@ -345,7 +345,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
 
   // Make sure we scroll if we're too big:
   // XXX Use the bounding box of our descendants? (See bug 353460 comment 14.)
-  aDesiredSize.mOverflowArea.SetRect(0, 0, aDesiredSize.width, aDesiredSize.height);
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
   FinishAndStoreOverflow(&aDesiredSize);
 
   // If our SVG viewport has changed, update our content and notify.
@@ -466,7 +466,7 @@ nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
                     nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(*aCtx, mVisibleRect, ToReferenceFrame());
+    Paint(aBuilder, *aCtx, mVisibleRect, ToReferenceFrame());
 }
 
 // helper
@@ -541,7 +541,8 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
+nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
+                          nsIRenderingContext& aRenderingContext,
                           const nsRect& aDirtyRect, nsPoint aPt)
 {
   // initialize Mozilla rendering context
@@ -564,6 +565,10 @@ nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
   nsIntRect dirtyPxRect = dirtyRect.ToOutsidePixels(PresContext()->AppUnitsPerDevPixel());
 
   nsSVGRenderState ctx(&aRenderingContext);
+
+  if (aBuilder->IsPaintingToWindow()) {
+    ctx.SetPaintingToWindow(PR_TRUE);
+  }
 
 #ifdef XP_MACOSX
   if (mEnableBitmapFallback) {
@@ -808,7 +813,7 @@ nsSVGOuterSVGFrame::UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame)
 PRBool
 nsSVGOuterSVGFrame::EmbeddedByReference(nsIFrame **aEmbeddingFrame)
 {
-  if (mContent->GetParent() == nsnull) {
+  if (!mContent->GetParent()) {
     // Our content is the document element
     nsCOMPtr<nsISupports> container = PresContext()->GetContainer();
     nsCOMPtr<nsIDOMWindowInternal> window = do_GetInterface(container);
@@ -831,5 +836,20 @@ nsSVGOuterSVGFrame::EmbeddedByReference(nsIFrame **aEmbeddingFrame)
   if (aEmbeddingFrame) {
     *aEmbeddingFrame = nsnull;
   }
+  return PR_FALSE;
+}
+
+PRBool
+nsSVGOuterSVGFrame::IsRootOfImage()
+{
+  if (!mContent->GetParent()) {
+    // Our content is the document element
+    nsIDocument* doc = mContent->GetCurrentDoc();
+    if (doc && doc->IsBeingUsedAsImage()) {
+      // Our document is being used as an image
+      return PR_TRUE;
+    }
+  }
+
   return PR_FALSE;
 }

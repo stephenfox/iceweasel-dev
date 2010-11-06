@@ -49,7 +49,7 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-var EXPORTED_SYMBOLS = ["HUDService"];
+var EXPORTED_SYMBOLS = ["HUDService", "ConsoleUtils"];
 
 XPCOMUtils.defineLazyServiceGetter(this, "scriptError",
                                    "@mozilla.org/scripterror;1",
@@ -62,6 +62,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "activityDistributor",
 XPCOMUtils.defineLazyServiceGetter(this, "sss",
                                    "@mozilla.org/content/style-sheet-service;1",
                                    "nsIStyleSheetService");
+
+XPCOMUtils.defineLazyServiceGetter(this, "mimeService",
+                                   "@mozilla.org/mime;1",
+                                   "nsIMIMEService");
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   var obj = {};
@@ -79,6 +83,11 @@ XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
   return obj.PropertyPanel;
 });
 
+XPCOMUtils.defineLazyGetter(this, "namesAndValuesOf", function () {
+  var obj = {};
+  Cu.import("resource://gre/modules/PropertyPanel.jsm", obj);
+  return obj.namesAndValuesOf;
+});
 
 function LogFactory(aMessagePrefix)
 {
@@ -105,6 +114,18 @@ const NEW_GROUP_DELAY = 5000;
 // The amount of time in milliseconds that we wait before performing a live
 // search.
 const SEARCH_DELAY = 200;
+
+// The number of lines that are displayed in the console output by default.
+// The user can change this number by adjusting the hidden
+// "devtools.hud.loglimit" preference.
+const DEFAULT_LOG_LIMIT = 200;
+
+// Constants used for defining the direction of JSTerm input history navigation.
+const HISTORY_BACK = -1;
+const HISTORY_FORWARD = 1;
+
+// The maximum number of bytes a Network ResponseListener can hold.
+const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
 
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
@@ -160,13 +181,22 @@ ResponseListener.prototype =
     let httpActivity = this.httpActivity;
     // Check if the header isn't set yet.
     if (!httpActivity.response.header) {
-      httpActivity.response.header = {};
       if (aRequest instanceof Ci.nsIHttpChannel) {
+      httpActivity.response.header = {};
+        try {
         aRequest.visitResponseHeaders({
           visitHeader: function(aName, aValue) {
             httpActivity.response.header[aName] = aValue;
           }
         });
+      }
+        // Accessing the response header can throw an NS_ERROR_NOT_AVAILABLE
+        // exception. Catch it and stop it to make it not show up in the.
+        // This can happen if the response is not finished yet and the user
+        // reloades the page.
+        catch (ex) {
+          delete httpActivity.response.header;
+        }
       }
     }
   },
@@ -199,11 +229,22 @@ ResponseListener.prototype =
     binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
-    this.receivedData += data;
+
+    if (HUDService.saveRequestAndResponseBodies &&
+        this.receivedData.length < RESPONSE_BODY_LIMIT) {
+      this.receivedData += data;
+    }
+
     binaryOutputStream.writeBytes(data, aCount);
 
+    let newInputStream = storageStream.newInputStream(0);
+    try {
     this.originalListener.onDataAvailable(aRequest, aContext,
-      storageStream.newInputStream(0), aOffset, aCount);
+        newInputStream, aOffset, aCount);
+    }
+    catch(ex) {
+      aRequest.cancel(ex);
+    }
   },
 
   /**
@@ -215,7 +256,12 @@ ResponseListener.prototype =
    */
   onStartRequest: function RL_onStartRequest(aRequest, aContext)
   {
+    try {
     this.originalListener.onStartRequest(aRequest, aContext);
+    }
+    catch(ex) {
+      aRequest.cancel(ex);
+    }
   },
 
   /**
@@ -224,8 +270,8 @@ ResponseListener.prototype =
    *
    * If aRequest is an nsIHttpChannel then the response header is stored on the
    * httpActivity object. Also, the response body is set on the httpActivity
-   * object and the HUDService.lastFinishedRequestCallback is called if there
-   * is one.
+   * object (if the user has turned on response content logging) and the
+   * HUDService.lastFinishedRequestCallback is called if there is one.
    *
    * @param nsIRequest aRequest
    * @param nsISupports aContext
@@ -233,10 +279,19 @@ ResponseListener.prototype =
    */
   onStopRequest: function RL_onStopRequest(aRequest, aContext, aStatusCode)
   {
+    try {
     this.originalListener.onStopRequest(aRequest, aContext, aStatusCode);
+    }
+    catch (ex) { }
 
     this.setResponseHeader(aRequest);
-    this.httpActivity.response.body = this.receivedData;
+
+    if (HUDService.saveRequestAndResponseBodies) {
+      this.httpActivity.response.body = this.receivedData;
+    }
+    else {
+      this.httpActivity.response.bodyDiscarded = true;
+    }
 
     if (HUDService.lastFinishedRequestCallback) {
       HUDService.lastFinishedRequestCallback(this.httpActivity);
@@ -250,7 +305,9 @@ ResponseListener.prototype =
       }
     });
     this.httpActivity.response.isDone = true;
+    this.httpActivity.response.listener = null;
     this.httpActivity = null;
+    this.receivedData = "";
   },
 
   QueryInterface: XPCOMUtils.generateQI([
@@ -499,6 +556,76 @@ var NetworkHelper =
       aCallback(NetworkHelper.readAndConvertFromStream(aInputStream,
                                                        contentCharset));
     });
+  },
+
+  // This is a list of all the mime category maps jviereck could find in the
+  // firebug code base.
+  mimeCategoryMap: {
+    "text/plain": "txt",
+    "text/html": "html",
+    "text/xml": "xml",
+    "text/xsl": "txt",
+    "text/xul": "txt",
+    "text/css": "css",
+    "text/sgml": "txt",
+    "text/rtf": "txt",
+    "text/x-setext": "txt",
+    "text/richtext": "txt",
+    "text/javascript": "js",
+    "text/jscript": "txt",
+    "text/tab-separated-values": "txt",
+    "text/rdf": "txt",
+    "text/xif": "txt",
+    "text/ecmascript": "js",
+    "text/vnd.curl": "txt",
+    "text/x-json": "json",
+    "text/x-js": "txt",
+    "text/js": "txt",
+    "text/vbscript": "txt",
+    "view-source": "txt",
+    "view-fragment": "txt",
+    "application/xml": "xml",
+    "application/xhtml+xml": "xml",
+    "application/atom+xml": "xml",
+    "application/rss+xml": "xml",
+    "application/vnd.mozilla.maybe.feed": "xml",
+    "application/vnd.mozilla.xul+xml": "xml",
+    "application/javascript": "js",
+    "application/x-javascript": "js",
+    "application/x-httpd-php": "txt",
+    "application/rdf+xml": "xml",
+    "application/ecmascript": "js",
+    "application/http-index-format": "txt",
+    "application/json": "json",
+    "application/x-js": "txt",
+    "multipart/mixed": "txt",
+    "multipart/x-mixed-replace": "txt",
+    "image/svg+xml": "svg",
+    "application/octet-stream": "bin",
+    "image/jpeg": "image",
+    "image/jpg": "image",
+    "image/gif": "image",
+    "image/png": "image",
+    "image/bmp": "image",
+    "application/x-shockwave-flash": "flash",
+    "video/x-flv": "flash",
+    "audio/mpeg3": "media",
+    "audio/x-mpeg-3": "media",
+    "video/mpeg": "media",
+    "video/x-mpeg": "media",
+    "audio/ogg": "media",
+    "application/ogg": "media",
+    "application/x-ogg": "media",
+    "application/x-midi": "media",
+    "audio/midi": "media",
+    "audio/x-mid": "media",
+    "audio/x-midi": "media",
+    "music/crescendo": "media",
+    "audio/wav": "media",
+    "audio/x-wav": "media",
+    "text/json": "json",
+    "application/x-json": "json",
+    "application/json-rpc": "json"
   }
 }
 
@@ -573,28 +700,34 @@ function NetworkPanel(aParent, aHttpActivity)
     close: "true"
   });
 
-  // Create the browser that displays the NetworkPanel XHTML.
-  this.browser = createAndAppendElement(this.panel, "browser", {
-    src: "chrome://global/content/NetworkPanel.xhtml",
-    disablehistory: "true",
+  // Create the iframe that displays the NetworkPanel XHTML.
+  this.iframe = createAndAppendElement(this.panel, "iframe", {
+    src: "chrome://browser/content/NetworkPanel.xhtml",
+    type: "content",
     flex: "1"
   });
+
+  let self = this;
 
   // Destroy the panel when it's closed.
   this.panel.addEventListener("popuphidden", function onPopupHide() {
     self.panel.removeEventListener("popuphidden", onPopupHide, false);
     self.panel.parentNode.removeChild(self.panel);
     self.panel = null;
-    self.browser = null;
+    self.iframe = null;
     self.document = null;
     self.httpActivity = null;
+
+    if (self.linkNode) {
+      self.linkNode._panelOpen = false;
+      self.linkNode = null;
+    }
   }, false);
 
   // Set the document object and update the content once the panel is loaded.
-  let self = this;
   this.panel.addEventListener("load", function onLoad() {
     self.panel.removeEventListener("load", onLoad, true)
-    self.document = self.browser.contentWindow.document;
+    self.document = self.iframe.contentWindow.document;
     self.update();
   }, true);
 
@@ -650,24 +783,83 @@ NetworkPanel.prototype =
   },
 
   /**
+   * Returns the content type of the response body. This is based on the
+   * response.header["Content-Type"] info. If this value is not available, then
+   * the content type is tried to be estimated by the url file ending.
+   *
+   * @returns string or null
+   *          Content type or null if no content type could be figured out.
+   */
+  get _contentType()
+  {
+    let response = this.httpActivity.response;
+    let contentTypeValue = null;
+
+    if (response.header && response.header["Content-Type"]) {
+      let types = response.header["Content-Type"].split(/,|;/);
+      for (let i = 0; i < types.length; i++) {
+        let type = NetworkHelper.mimeCategoryMap[types[i]];
+        if (type) {
+          return types[i];
+        }
+      }
+    }
+
+    // Try to get the content type from the request file extension.
+    let uri = NetUtil.newURI(this.httpActivity.url);
+    let mimeType = null;
+    if ((uri instanceof Ci.nsIURL) && uri.fileExtension) {
+      try {
+        mimeType = mimeService.getTypeFromExtension(uri.fileExtension);
+      } catch(e) {
+        // Added to prevent failures on OS X 64. No Flash?
+        Cu.reportError(e);
+        // Return empty string to pass unittests.
+        return "";
+      }
+    }
+    return mimeType;
+  },
+
+  /**
    *
    * @returns boolean
    *          True if the response is an image, false otherwise.
    */
   get _responseIsImage()
   {
-    let response = this.httpActivity.response;
-    if (!response || !response.header || !response.header["Content-Type"]) {
-      let request = this.httpActivity.request;
-      if (request.header["Accept"] &&
-          request.header["Accept"].indexOf("image/") != -1) {
-        return true;
-      }
-      else {
-        return false;
-      }
+    return NetworkHelper.mimeCategoryMap[this._contentType] == "image";
+  },
+
+  /**
+   *
+   * @returns boolean
+   *          True if the response body contains text, false otherwise.
+   */
+  get _isResponseBodyTextData()
+  {
+    let contentType = this._contentType;
+
+    if (!contentType)
+      return false;
+
+    if (contentType.indexOf("text/") == 0) {
+      return true;
     }
-    return response.header["Content-Type"].indexOf("image/") != -1;
+
+    switch (NetworkHelper.mimeCategoryMap[contentType]) {
+      case "txt":
+      case "js":
+      case "json":
+      case "css":
+      case "html":
+      case "svg":
+      case "xml":
+        return true;
+
+      default:
+        return false;
+    }
   },
 
   /**
@@ -950,6 +1142,26 @@ NetworkPanel.prototype =
   },
 
   /**
+   * Displays the `Unknown Content-Type hint` and sets the duration between the
+   * receiving of the response header on the NetworkPanel.
+   *
+   * @returns void
+   */
+  _displayResponseBodyUnknownType: function NP_displayResponseBodyUnknownType()
+  {
+    let timing = this.httpActivity.timing;
+
+    this._displayNode("responseBodyUnknownType");
+    let deltaDuration =
+      Math.round((timing.RESPONSE_COMPLETE - timing.RESPONSE_HEADER) / 1000);
+    this._appendTextNode("responseBodyUnknownTypeInfo",
+      this._format("durationMS", [deltaDuration]));
+
+    this._appendTextNode("responseBodyUnknownTypeContent",
+      this._format("responseBodyUnableToDisplay.content", [this._contentType]));
+  },
+
+  /**
    * Displays the `no response body` section and sets the the duration between
    * the receiving of the response header and the end of the request.
    *
@@ -976,14 +1188,14 @@ NetworkPanel.prototype =
   },
 
   /**
-   * Updates the content of the NetworkPanel's browser.
+   * Updates the content of the NetworkPanel's iframe.
    *
    * @returns void
    */
   update: function NP_update()
   {
     /**
-     * After the browser contentWindow is ready, the document object is set.
+     * After the iframe's contentWindow is ready, the document object is set.
      * If the document object isn't set yet, then the page is loaded and nothing
      * can be updated.
      */
@@ -1003,7 +1215,7 @@ NetworkPanel.prototype =
 
       case this._DISPLAYED_REQUEST_HEADER:
         // Process the request body if there is one.
-        if (request.body) {
+        if (!request.bodyDiscarded && request.body) {
           // Check if we send some form data. If so, display the form data special.
           if (this._isRequestBodyFormData) {
             this._displayRequestForm();
@@ -1029,8 +1241,15 @@ NetworkPanel.prototype =
       case this._DISPLAYED_RESPONSE_HEADER:
         // Check if the transition is done.
         if (timing.TRANSACTION_CLOSE && response.isDone) {
-          if (this._responseIsImage) {
+          if (response.bodyDiscarded) {
+            this._callIsDone();
+          }
+          else if (this._responseIsImage) {
             this._displayResponseImage();
+            this._callIsDone();
+          }
+          else if (!this._isResponseBodyTextData) {
+            this._displayResponseBodyUnknownType();
             this._callIsDone();
           }
           else if (response.body) {
@@ -1066,6 +1285,48 @@ NetworkPanel.prototype =
   }
 }
 
+///////////////////////////////////////////////////////////////////////////
+//// Private utility functions for the HUD service
+
+/**
+ * Destroys lines of output if more lines than the allowed log limit are
+ * present.
+ *
+ * @param nsIDOMNode aConsoleNode
+ *        The DOM node that holds the output of the console.
+ * @returns void
+ */
+function pruneConsoleOutputIfNecessary(aConsoleNode)
+{
+  let logLimit;
+  try {
+    let prefBranch = Services.prefs.getBranch("devtools.hud.");
+    logLimit = prefBranch.getIntPref("loglimit");
+  } catch (e) {
+    logLimit = DEFAULT_LOG_LIMIT;
+  }
+
+  let messageNodes = aConsoleNode.querySelectorAll(".hud-msg-node");
+  for (let i = 0; i < messageNodes.length - logLimit; i++) {
+    let messageNode = messageNodes[i];
+    let groupNode = messageNode.parentNode;
+    if (!groupNode.classList.contains("hud-group")) {
+      throw new Error("pruneConsoleOutputIfNecessary: message node not in a " +
+                      "HUD group");
+    }
+
+    groupNode.removeChild(messageNode);
+
+    // If there are no more children, then remove the group itself.
+    if (!groupNode.querySelector(".hud-msg-node")) {
+      groupNode.parentNode.removeChild(groupNode);
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////
+//// The HUD service
+
 function HUD_SERVICE()
 {
   // TODO: provide mixins for FENNEC: bug 568621
@@ -1080,6 +1341,11 @@ function HUD_SERVICE()
   this.storage = new ConsoleStorage();
   this.defaultFilterPrefs = this.storage.defaultDisplayPrefs;
   this.defaultGlobalConsolePrefs = this.storage.defaultGlobalConsolePrefs;
+
+  // These methods access the "this" object, but they're registered as
+  // event listeners. So we hammer in the "this" binding.
+  this.onTabClose = this.onTabClose.bind(this);
+  this.onWindowUnload = this.onWindowUnload.bind(this);
 
   // load stylesheet with StyleSheetService
   var uri = Services.io.newURI(HUD_STYLESHEET_URI, null, null);
@@ -1158,6 +1424,12 @@ HUD_SERVICE.prototype =
    * Each HeadsUpDisplay has a set of filter preferences
    */
   filterPrefs: {},
+
+  /**
+   * Whether to save the bodies of network requests and responses. Disabled by
+   * default to save memory.
+   */
+  saveRequestAndResponseBodies: false,
 
   /**
    * Event handler to get window errors
@@ -1247,50 +1519,55 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Activate a HeadsUpDisplay for the current window
+   * Activate a HeadsUpDisplay for the given tab context.
    *
-   * @param nsIDOMWindow aContext
+   * @param Element aContext the tab element.
    * @returns void
    */
   activateHUDForContext: function HS_activateHUDForContext(aContext)
   {
     var window = aContext.linkedBrowser.contentWindow;
-    var id = aContext.linkedBrowser.parentNode.getAttribute("id");
+    var id = aContext.linkedBrowser.parentNode.parentNode.getAttribute("id");
     this.registerActiveContext(id);
     HUDService.windowInitializer(window);
   },
 
   /**
-   * Deactivate a HeadsUpDisplay for the current window
+   * Deactivate a HeadsUpDisplay for the given tab context.
    *
    * @param nsIDOMWindow aContext
    * @returns void
    */
   deactivateHUDForContext: function HS_deactivateHUDForContext(aContext)
   {
-    var gBrowser = HUDService.currentContext().gBrowser;
-    var window = aContext.linkedBrowser.contentWindow;
-    var browser = gBrowser.getBrowserForDocument(window.top.document);
-    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
-    var hudId = "hud_" + tabId;
-    var displayNode = this.getHeadsUpDisplay(hudId);
+    let window = aContext.linkedBrowser.contentWindow;
+    let nBox = aContext.ownerDocument.defaultView.
+      getNotificationBox(window);
+    let hudId = "hud_" + nBox.id;
+    let displayNode = nBox.querySelector("#" + hudId);
 
+    if (hudId in this.displayRegistry && displayNode) {
     this.unregisterActiveContext(hudId);
-    this.unregisterDisplay(hudId);
-    window.wrappedJSObject.console = null;
-
+      this.unregisterDisplay(displayNode);
+    window.focus();
+    }
   },
 
   /**
    * Clear the specified HeadsUpDisplay
    *
-   * @param string aId
+   * @param string|nsIDOMNode aHUD
+   *        Either the ID of a HUD or the DOM node corresponding to an outer
+   *        HUD box.
    * @returns void
    */
-  clearDisplay: function HS_clearDisplay(aId)
+  clearDisplay: function HS_clearDisplay(aHUD)
   {
-    var displayNode = this.getOutputNodeById(aId);
-    var outputNode = displayNode.querySelectorAll(".hud-output-node")[0];
+    if (typeof(aHUD) === "string") {
+      aHUD = this.getOutputNodeById(aHUD);
+    }
+
+    var outputNode = aHUD.querySelector(".hud-output-node");
 
     while (outputNode.firstChild) {
       outputNode.removeChild(outputNode.firstChild);
@@ -1449,7 +1726,7 @@ HUD_SERVICE.prototype =
         result = 'concat("' + word.replace(/"/g, "\", '\"', \"") + '")';
       }
 
-      results.push("contains(., " + result + ")");
+      results.push("contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), " + result.toLowerCase() + ")");
     }
 
     return (results.length === 0) ? "true()" : results.join(" and ");
@@ -1612,19 +1889,30 @@ HUD_SERVICE.prototype =
   /**
    * When a display is being destroyed, unregister it first
    *
-   * @param string aId
+   * @param string|nsIDOMNode aHUD
+   *        Either the ID of a HUD or the DOM node corresponding to an outer
+   *        HUD box.
    * @returns void
    */
-  unregisterDisplay: function HS_unregisterDisplay(aId)
+  unregisterDisplay: function HS_unregisterDisplay(aHUD)
   {
     // Remove children from the output. If the output is not cleared, there can
     // be leaks as some nodes has node.onclick = function; set and GC can't
     // remove the nodes then.
-    HUDService.clearDisplay(aId);
+    HUDService.clearDisplay(aHUD);
+
+    var id, outputNode;
+    if (typeof(aHUD) === "string") {
+      id = aHUD;
+      outputNode = this.mixins.getOutputNodeById(aHUD);
+    }
+    else {
+      id = aHUD.getAttribute("id");
+      outputNode = aHUD;
+    }
 
     // remove HUD DOM node and
     // remove display references from local registries get the outputNode
-    var outputNode = this.mixins.getOutputNodeById(aId);
     var parent = outputNode.parentNode;
     var splitters = parent.querySelectorAll("splitter");
     var len = splitters.length;
@@ -1636,27 +1924,35 @@ HUD_SERVICE.prototype =
     }
     // remove the DOM Nodes
     parent.removeChild(outputNode);
+
+    this.windowRegistry[id].forEach(function(aContentWindow) {
+      if (aContentWindow.wrappedJSObject.console instanceof HUDConsole) {
+        delete aContentWindow.wrappedJSObject.console;
+      }
+    });
+
     // remove our record of the DOM Nodes from the registry
-    delete this._headsUpDisplays[aId];
+    delete this._headsUpDisplays[id];
     // remove the HeadsUpDisplay object from memory
-    this.deleteHeadsUpDisplay(aId);
+    this.deleteHeadsUpDisplay(id);
     // remove the related storage object
-    this.storage.removeDisplay(aId);
+    this.storage.removeDisplay(id);
     // remove the related window objects
-    delete this.windowRegistry[aId];
+    delete this.windowRegistry[id];
 
     let displays = this.displays();
 
-    var uri  = this.displayRegistry[aId];
+    var uri  = this.displayRegistry[id];
     var specHudArr = this.uriRegistry[uri];
 
     for (var i = 0; i < specHudArr.length; i++) {
-      if (specHudArr[i] == aId) {
+      if (specHudArr[i] == id) {
         specHudArr.splice(i, 1);
       }
     }
-    delete displays[aId];
-    delete this.displayRegistry[aId];
+    delete displays[id];
+    delete this.displayRegistry[id];
+    delete this.uriRegistry[uri];
   },
 
   /**
@@ -1671,17 +1967,6 @@ HUD_SERVICE.prototype =
     }
     // delete the storage as it holds onto channels
     delete this.storage;
-
-     var xulWindow = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-       .getInterface(Ci.nsIWebNavigation)
-       .QueryInterface(Ci.nsIDocShellTreeItem)
-       .rootTreeItem
-       .QueryInterface(Ci.nsIInterfaceRequestor)
-       .getInterface(Ci.nsIDOMWindow);
-
-    xulWindow = XPCNativeWrapper.unwrap(xulWindow);
-    var gBrowser = xulWindow.gBrowser;
-    gBrowser.tabContainer.removeEventListener("TabClose", this.onTabClose, false);
   },
 
   /**
@@ -1833,6 +2118,8 @@ HUD_SERVICE.prototype =
 
     // store this message in the storage module:
     this.storage.recordEntry(aMessage.hudId, aMessage);
+
+    pruneConsoleOutputIfNecessary(aConsoleNode);
   },
 
   /**
@@ -1882,6 +2169,45 @@ HUD_SERVICE.prototype =
         // noop
         break;
     }
+  },
+
+  /**
+   * Get OutputNode by Id
+   *
+   * @param string aId
+   * @returns nsIDOMNode
+   */
+  getConsoleOutputNode: function HS_getConsoleOutputNode(aId)
+  {
+    let displayNode = this.getHeadsUpDisplay(aId);
+    return displayNode.querySelector(".hud-output-node");
+  },
+
+  /**
+   * Inform user that the Web Console API has been replaced by a script
+   * in a content page.
+   *
+   * @param string aHUDId
+   * @returns void
+   */
+  logWarningAboutReplacedAPI:
+  function HS_logWarningAboutReplacedAPI(aHUDId)
+  {
+    let domId = "hud-log-node-" + this.sequenceId();
+    let outputNode = this.getConsoleOutputNode(aHUDId);
+
+    let msgFormat = {
+      logLevel: "error",
+      activityObject: {},
+      hudId: aHUDId,
+      origin: "console-listener",
+      domId: domId,
+      message: this.getStr("ConsoleAPIDisabled"),
+    };
+
+    let messageObject =
+    this.messageFactory(msgFormat, "error", outputNode, msgFormat.activityObject);
+    this.logMessage(messageObject.messageObject, outputNode, messageObject.messageNode);
   },
 
   /**
@@ -1994,6 +2320,7 @@ HUD_SERVICE.prototype =
     let doc = aNode.ownerDocument;
     let parent = doc.getElementById("mainPopupSet");
     let netPanel = new NetworkPanel(parent, aHttpActivity);
+    netPanel.linkNode = aNode;
 
     let panel = netPanel.panel;
     panel.openPopup(aNode, "after_pointer", 0, 0, false, false);
@@ -2092,9 +2419,23 @@ HUD_SERVICE.prototype =
             // Make the network span clickable.
             let linkNode = loggedNode.messageNode;
             linkNode.setAttribute("aria-haspopup", "true");
-            linkNode.onclick = function() {
-              self.openNetworkPanel(linkNode, httpActivity);
-            }
+            linkNode.addEventListener("mousedown", function(aEvent) {
+              this._startX = aEvent.clientX;
+              this._startY = aEvent.clientY;
+            }, false);
+
+            linkNode.addEventListener("click", function(aEvent) {
+              if (aEvent.detail != 1 || aEvent.button != 0 ||
+                  (this._startX != aEvent.clientX &&
+                   this._startY != aEvent.clientY)) {
+                return;
+              }
+
+              if (!this._panelOpen) {
+                self.openNetworkPanel(this, httpActivity);
+                this._panelOpen = true;
+              }
+            }, false);
           }
           else {
             // Iterate over all currently ongoing requests. If aChannel can't
@@ -2119,6 +2460,11 @@ HUD_SERVICE.prototype =
 
             switch (aActivitySubtype) {
               case activityDistributor.ACTIVITY_SUBTYPE_REQUEST_BODY_SENT:
+                if (!self.saveRequestAndResponseBodies) {
+                  httpActivity.request.bodyDiscarded = true;
+                  break;
+                }
+
                 let gBrowser = HUDService.currentContext().gBrowser;
 
                 let sentBody = NetworkHelper.readPostTextFromRequest(
@@ -2166,7 +2512,7 @@ HUD_SERVICE.prototype =
                 msgObject.messageNode.appendChild(
                   msgObject.textFactory(
                     msgObject.prefix +
-                    self.getFormatStr("networkUrlWithStatus", data)));
+                    self.getFormatStr("networkUrlWithStatus", data) + "\n"));
 
                 break;
 
@@ -2191,7 +2537,8 @@ HUD_SERVICE.prototype =
                 msgObject.messageNode.appendChild(
                   msgObject.textFactory(
                     msgObject.prefix +
-                    self.getFormatStr("networkUrlWithStatusAndDuration", data)));
+                    self.getFormatStr("networkUrlWithStatusAndDuration",
+                                      data) + "\n"));
 
                 delete self.openRequests[item.id];
                 updatePanel = true;
@@ -2269,6 +2616,9 @@ HUD_SERVICE.prototype =
       var urlIdx = timestampedMessage.indexOf(aActivityObject.url);
       messageObject.prefix = timestampedMessage.substring(0, urlIdx);
 
+      messageObject.messageNode.classList.add("hud-clickable");
+      messageObject.messageNode.setAttribute("crop", "end");
+
       this.logMessage(messageObject.messageObject, outputNode, messageObject.messageNode);
       return messageObject;
     }
@@ -2317,8 +2667,8 @@ HUD_SERVICE.prototype =
       hudId: hudId,
     };
 
-    var lineColSubs = [aActivityObject.columnNumber,
-                       aActivityObject.lineNumber];
+    var lineColSubs = [aActivityObject.lineNumber,
+                       aActivityObject.columnNumber];
     var lineCol = this.getFormatStr("errLineCol", lineColSubs);
 
     var errFileSubs = [aActivityObject.sourceName];
@@ -2403,11 +2753,6 @@ HUD_SERVICE.prototype =
     let groupNode = chromeDocument.createElement("vbox");
     groupNode.setAttribute("class", "hud-group");
 
-    let separatorNode = chromeDocument.createElement("separator");
-    separatorNode.setAttribute("class", "groove hud-divider");
-    separatorNode.setAttribute("orient", "horizontal");
-    groupNode.appendChild(separatorNode);
-
     aConsoleNode.appendChild(groupNode);
     return groupNode;
   },
@@ -2448,18 +2793,24 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Initialize the JSTerm object to create a JS Workspace
+   * Initialize the JSTerm object to create a JS Workspace by attaching the UI
+   * into the given parent node, using the mixin.
    *
-   * @param nsIDOMWindow aContext
-   * @param nsIDOMNode aParentNode
-   * @returns void
+   * @param nsIDOMWindow aContext the context used for evaluating user input
+   * @param nsIDOMNode aParentNode where to attach the JSTerm
+   * @param object aConsole
+   *        Console object used within the JSTerm instance to report errors
+   *        and log data (by calling console.error(), console.log(), etc).
    */
-  initializeJSTerm: function HS_initializeJSTerm(aContext, aParentNode)
+  initializeJSTerm: function HS_initializeJSTerm(aContext, aParentNode, aConsole)
   {
     // create Initial JS Workspace:
     var context = Cu.getWeakReference(aContext);
+
+    // Attach the UI into the target parent node using the mixin.
     var firefoxMixin = new JSTermFirefoxMixin(context, aParentNode);
-    var jsTerm = new JSTerm(context, aParentNode, firefoxMixin);
+    var jsTerm = new JSTerm(context, aParentNode, firefoxMixin, aConsole);
+
     // TODO: injection of additional functionality needs re-thinking/api
     // see bug 559748
   },
@@ -2476,8 +2827,12 @@ HUD_SERVICE.prototype =
     var nodes = hud.parentNode.childNodes;
 
     for (var i = 0; i < nodes.length; i++) {
-      if (nodes[i].contentWindow) {
-        return nodes[i].contentWindow;
+      var node = nodes[i];
+
+      if (node.localName == "stack" &&
+          node.firstChild &&
+          node.firstChild.contentWindow) {
+        return node.firstChild.contentWindow;
       }
     }
     throw new Error("HS_getContentWindowFromHUD: Cannot get contentWindow");
@@ -2519,6 +2874,27 @@ HUD_SERVICE.prototype =
   },
 
   /**
+   * Closes the Console, if any, that resides on the given tab.
+   *
+   * @param nsIDOMNode aTab
+   *        The tab on which to close the console.
+   * @returns void
+   */
+  closeConsoleOnTab: function HS_closeConsoleOnTab(aTab)
+  {
+    let xulDocument = aTab.ownerDocument;
+    let xulWindow = xulDocument.defaultView;
+    let gBrowser = xulWindow.gBrowser;
+    let linkedBrowser = aTab.linkedBrowser;
+    let notificationBox = gBrowser.getNotificationBox(linkedBrowser);
+    let hudId = "hud_" + notificationBox.getAttribute("id");
+    let outputNode = xulDocument.getElementById(hudId);
+    if (outputNode != null) {
+      this.unregisterDisplay(outputNode);
+    }
+  },
+
+  /**
    * onTabClose event handler function
    *
    * @param aEvent
@@ -2526,10 +2902,27 @@ HUD_SERVICE.prototype =
    */
   onTabClose: function HS_onTabClose(aEvent)
   {
-    var browser = aEvent.target;
-    var tabId = gBrowser.getNotificationBox(browser).getAttribute("id");
-    var hudId = "hud_" + tabId;
-    this.unregisterDisplay(hudId);
+    this.closeConsoleOnTab(aEvent.target);
+  },
+
+  /**
+   * Called whenever a browser window closes. Cleans up any consoles still
+   * around.
+   *
+   * @param nsIDOMEvent aEvent
+   *        The dispatched event.
+   * @returns void
+   */
+  onWindowUnload: function HS_onWindowUnload(aEvent)
+  {
+    let gBrowser = aEvent.target.defaultView.gBrowser;
+    let tabContainer = gBrowser.tabContainer;
+
+    let tab = tabContainer.firstChild;
+    while (tab != null) {
+      this.closeConsoleOnTab(tab);
+      tab = tab.nextSibling;
+    }
   },
 
   /**
@@ -2562,6 +2955,8 @@ HUD_SERVICE.prototype =
       return;
     }
 
+    xulWindow.addEventListener("unload", this.onWindowUnload, false);
+
     let gBrowser = xulWindow.gBrowser;
 
 
@@ -2572,8 +2967,8 @@ HUD_SERVICE.prototype =
       HUDWindowObserver.initialConsoleCreated = true;
     }
 
-    let _browser =
-      gBrowser.getBrowserForDocument(aContentWindow.document.wrappedJSObject);
+    let _browser = gBrowser.
+      getBrowserForDocument(aContentWindow.top.document);
     let nBox = gBrowser.getNotificationBox(_browser);
     let nBoxId = nBox.getAttribute("id");
     let hudId = "hud_" + nBoxId;
@@ -2584,49 +2979,65 @@ HUD_SERVICE.prototype =
 
     this.registerDisplay(hudId, aContentWindow);
 
-    // check if aContentWindow has a console Object
-    let _console = aContentWindow.wrappedJSObject.console;
-    if (!_console) {
-      // no console exists. does the HUD exist?
-      let hudNode;
-      let childNodes = nBox.childNodes;
+    let hudNode;
+    let childNodes = nBox.childNodes;
 
-      for (var i = 0; i < childNodes.length; i++) {
-        let id = childNodes[i].getAttribute("id");
-        if (id.split("_")[0] == "hud") {
-          hudNode = childNodes[i];
-          break;
-        }
-      }
-
-      if (!hudNode) {
-        // get nBox object and call new HUD
-        let config = { parentNode: nBox,
-                       contentWindow: aContentWindow
-                     };
-
-        let _hud = new HeadsUpDisplay(config);
-
-        let hudWeakRef = Cu.getWeakReference(_hud);
-        HUDService.registerHUDWeakReference(hudWeakRef, hudId);
-      }
-      else {
-        // only need to attach a console object to the window object
-        let config = { hudNode: hudNode,
-                       consoleOnly: true,
-                       contentWindow: aContentWindow
-                     };
-
-        let _hud = new HeadsUpDisplay(config);
-
-        let hudWeakRef = Cu.getWeakReference(_hud);
-        HUDService.registerHUDWeakReference(hudWeakRef, hudId);
-
-        aContentWindow.wrappedJSObject.console = _hud.console;
+    for (let i = 0; i < childNodes.length; i++) {
+      let id = childNodes[i].getAttribute("id");
+      // `id` is a string with the format "hud_<number>".
+      if (id.split("_")[0] == "hud") {
+        hudNode = childNodes[i];
+        break;
       }
     }
+
+    let hud;
+    // If there is no HUD for this tab create a new one.
+    if (!hudNode) {
+      // get nBox object and call new HUD
+      let config = { parentNode: nBox,
+                     contentWindow: aContentWindow,
+                   };
+
+      hud = new HeadsUpDisplay(config);
+
+      let hudWeakRef = Cu.getWeakReference(hud);
+      HUDService.registerHUDWeakReference(hudWeakRef, hudId);
+    }
+    else {
+      hud = this.hudWeakReferences[hudId].get();
+      hud.reattachConsole(aContentWindow.top);
+    }
+
+    // Check if aContentWindow has a console object. If so, don't attach
+    // our console, but warn the user about this.
+    if (aContentWindow.wrappedJSObject.console) {
+      this.logWarningAboutReplacedAPI(hudId);
+    }
+    else {
+      aContentWindow.wrappedJSObject.console = hud.console;
+    }
+
     // capture JS Errors
     this.setOnErrorHandler(aContentWindow);
+
+    // register the controller to handle "select all" properly
+    this.createController(xulWindow);
+  },
+
+  /**
+   * Adds the command controller to the XUL window if it's not already present.
+   *
+   * @param nsIDOMWindow aWindow
+   *        The browser XUL window.
+   * @returns void
+   */
+  createController: function HUD_createController(aWindow)
+  {
+    if (aWindow.commandController == null) {
+      aWindow.commandController = new CommandController(aWindow);
+      aWindow.controllers.insertControllerAt(0, aWindow.commandController);
+    }
   }
 };
 
@@ -2650,23 +3061,6 @@ function HeadsUpDisplay(aConfig)
   //                  placement: "insertBefore",
   //                  placementChildNodeIndex: 0,
   //                }
-  //
-  // or, just create a new console - as there is already a HUD in place
-  // config: { hudNode: existingHUDDOMNode,
-  //           consoleOnly: true,
-  //           contentWindow: aWindow
-  //         }
-
-  if (aConfig.consoleOnly) {
-    this.HUDBox = aConfig.hudNode;
-    this.parentNode = aConfig.hudNode.parentNode;
-    this.notificationBox = this.parentNode;
-    this.contentWindow = aConfig.contentWindow;
-    this.uriSpec = aConfig.contentWindow.location.href;
-    this.reattachConsole();
-    this.HUDBox.querySelectorAll(".jsterm-input-node")[0].focus();
-    return;
-  }
 
   this.HUDBox = null;
 
@@ -2754,11 +3148,10 @@ function HeadsUpDisplay(aConfig)
   this.notificationBox.insertBefore(splitter,
                                     this.notificationBox.childNodes[1]);
 
-  let console = this.createConsole();
-
   this.HUDBox.lastTimestamp = 0;
 
-  this.contentWindow.wrappedJSObject.console = console;
+  // Create the console object that is attached to the window later.
+  this._console = this.createConsole();
 
   // create the JSTerm input element
   try {
@@ -2814,7 +3207,7 @@ HeadsUpDisplay.prototype = {
     if (appName() == "FIREFOX") {
       let outputCSSClassOverride = "hud-msg-node";
       let mixin = new JSTermFirefoxMixin(context, aParentNode, aExistingConsole, outputCSSClassOverride);
-      this.jsterm = new JSTerm(context, aParentNode, mixin);
+      this.jsterm = new JSTerm(context, aParentNode, mixin, this.console);
     }
     else {
       throw new Error("Unsupported Gecko Application");
@@ -2824,24 +3217,26 @@ HeadsUpDisplay.prototype = {
   /**
    * Re-attaches a console when the contentWindow is recreated
    *
+   * @param nsIDOMWindow aContentWindow
    * @returns void
    */
-  reattachConsole: function HUD_reattachConsole()
+  reattachConsole: function HUD_reattachConsole(aContentWindow)
   {
-    this.hudId = this.HUDBox.getAttribute("id");
+    this.contentWindow = aContentWindow;
+    this.contentDocument = this.contentWindow.document;
+    this.uriSpec = this.contentWindow.location.href;
 
-    this.outputNode = this.HUDBox.querySelectorAll(".hud-output-node")[0];
+    if (!this._console) {
+      this._console = this.createConsole();
+    }
 
-    this.chromeWindow = HUDService.
-      getChromeWindowFromContentWindow(this.contentWindow);
-    this.chromeDocument = this.HUDBox.ownerDocument;
-
-    if (this.outputNode) {
-      // createConsole
-      this.createConsole();
+    if (!this.jsterm) {
+      this.createConsoleInput(this.contentWindow, this.consoleWrap, this.outputNode);
     }
     else {
-      throw new Error("Cannot get output node");
+      this.jsterm.context = Cu.getWeakReference(this.contentWindow);
+      this.jsterm.console = this.console;
+      this.jsterm.createSandbox();
     }
   },
 
@@ -3023,6 +3418,17 @@ HeadsUpDisplay.prototype = {
     let id = this.hudId + "-output-contextmenu";
     menuPopup.setAttribute("id", id);
 
+    let saveBodiesItem = this.makeXULNode("menuitem");
+    saveBodiesItem.setAttribute("label", this.getStr("saveBodies.label"));
+    saveBodiesItem.setAttribute("accesskey",
+                                 this.getStr("saveBodies.accesskey"));
+    saveBodiesItem.setAttribute("type", "checkbox");
+    saveBodiesItem.setAttribute("buttonType", "saveBodies");
+    saveBodiesItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
+    menuPopup.appendChild(saveBodiesItem);
+
+    menuPopup.appendChild(this.makeXULNode("menuseparator"));
+
     let copyItem = this.makeXULNode("menuitem");
     copyItem.setAttribute("label", this.getStr("copyCmd.label"));
     copyItem.setAttribute("accesskey", this.getStr("copyCmd.accesskey"));
@@ -3030,10 +3436,21 @@ HeadsUpDisplay.prototype = {
     copyItem.setAttribute("command", "cmd_copy");
     menuPopup.appendChild(copyItem);
 
+    let selectAllItem = this.makeXULNode("menuitem");
+    selectAllItem.setAttribute("label", this.getStr("selectAllCmd.label"));
+    selectAllItem.setAttribute("accesskey",
+                               this.getStr("selectAllCmd.accesskey"));
+    selectAllItem.setAttribute("hudId", this.hudId);
+    selectAllItem.setAttribute("buttonType", "selectAll");
+    selectAllItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
+    menuPopup.appendChild(selectAllItem);
+
     menuPopup.appendChild(this.makeXULNode("menuseparator"));
 
     let clearItem = this.makeXULNode("menuitem");
-    clearItem.setAttribute("label", this.getStr("itemClear"));
+    clearItem.setAttribute("label", this.getStr("clearConsoleCmd.label"));
+    clearItem.setAttribute("accesskey",
+                           this.getStr("clearConsoleCmd.accesskey"));
     clearItem.setAttribute("hudId", this.hudId);
     clearItem.setAttribute("buttonType", "clear");
     clearItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
@@ -3119,7 +3536,13 @@ HeadsUpDisplay.prototype = {
     }
   },
 
-  get console() { return this._console || this.createConsole(); },
+  get console() {
+    if (!this._console) {
+      this._console = this.createConsole();
+    }
+
+    return this._console;
+  },
 
   getLogCount: function HUD_getLogCount()
   {
@@ -3168,8 +3591,6 @@ function HUDConsole(aHeadsUpDisplay)
   let outputNode = hud.outputNode;
   let chromeDocument = hud.chromeDocument;
 
-  aHeadsUpDisplay._console = this;
-
   let sendToHUDService = function console_send(aLevel, aArguments)
   {
     let ts = ConsoleUtils.timestamp();
@@ -3186,7 +3607,7 @@ function HUDConsole(aHeadsUpDisplay)
 
     let message = argumentArray.join(' ');
     let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
-      message;
+      message + "\n";
 
     messageNode.appendChild(chromeDocument.createTextNode(timestampedMessage));
 
@@ -3232,27 +3653,29 @@ function HUDConsole(aHeadsUpDisplay)
 
 /**
  * Creates a DOM Node factory for XUL nodes - as well as textNodes
- * @param   aFactoryType
- *          "xul" or "text"
- * @returns DOM Node Factory function
+ * @param aFactoryType "xul" or "text"
+ * @param ignored This parameter is currently ignored, and will be removed
+ * See bug 594304
+ * @param aDocument The document, the factory is to generate nodes from
+ * @return DOM Node Factory function
  */
-function NodeFactory(aFactoryType, aNameSpace, aDocument)
+function NodeFactory(aFactoryType, ignored, aDocument)
 {
   // aDocument is presumed to be a XULDocument
   if (aFactoryType == "text") {
-    function factory(aText) {
+    return function factory(aText)
+    {
       return aDocument.createTextNode(aText);
     }
-    return factory;
+  }
+  else if (aFactoryType == "xul") {
+    return function factory(aTag)
+    {
+      return aDocument.createElement(aTag);
+    }
   }
   else {
-    if (aNameSpace == "xul") {
-      function factory(aTag)
-      {
-        return aDocument.createElement(aTag);
-      }
-      return factory;
-    }
+    throw new Error('NodeFactory: Unknown factory type: ' + aFactoryType);
   }
 }
 
@@ -3399,7 +3822,7 @@ function findCompletionBeginning(aStr)
  */
 function JSPropertyProvider(aScope, aInputValue)
 {
-  let obj = aScope;
+  let obj = XPCNativeWrapper.unwrap(aScope);
 
   // Analyse the aInputValue and find the beginning of the last part that
   // should be completed.
@@ -3475,6 +3898,164 @@ function JSPropertyProvider(aScope, aInputValue)
 //////////////////////////////////////////////////////////////////////////
 
 /**
+ * JSTermHelper
+ *
+ * Defines a set of functions ("helper functions") that are available from the
+ * WebConsole but not from the webpage.
+ * A list of helper functions used by Firebug can be found here:
+ *   http://getfirebug.com/wiki/index.php/Command_Line_API
+ */
+function JSTermHelper(aJSTerm)
+{
+  /**
+   * Returns the result of document.getElementById(aId).
+   *
+   * @param string aId
+   *        A string that is passed to window.document.getElementById.
+   * @returns nsIDOMNode or null
+   */
+  aJSTerm.sandbox.$ = function JSTH_$(aId)
+  {
+    try {
+      return aJSTerm._window.document.getElementById(aId);
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+  };
+
+  /**
+   * Returns the result of document.querySelectorAll(aSelector).
+   *
+   * @param string aSelector
+   *        A string that is passed to window.document.querySelectorAll.
+   * @returns array of nsIDOMNode
+   */
+  aJSTerm.sandbox.$$ = function JSTH_$$(aSelector)
+  {
+    try {
+      return aJSTerm._window.document.querySelectorAll(aSelector);
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+  };
+
+  /**
+   * Runs a xPath query and returns all matched nodes.
+   *
+   * @param string aXPath
+   *        xPath search query to execute.
+   * @param [optional] nsIDOMNode aContext
+   *        Context to run the xPath query on. Uses window.document if not set.
+   * @returns array of nsIDOMNode
+   */
+  aJSTerm.sandbox.$x = function JSTH_$x(aXPath, aContext)
+  {
+    let nodes = [];
+    let doc = aJSTerm._window.document;
+    let aContext = aContext || doc;
+
+    try {
+      let results = doc.evaluate(aXPath, aContext, null,
+                                  Ci.nsIDOMXPathResult.ANY_TYPE, null);
+
+      let node;
+      while (node = results.iterateNext()) {
+        nodes.push(node);
+      }
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+
+    return nodes;
+  };
+
+  /**
+   * Clears the output of the JSTerm.
+   */
+  aJSTerm.sandbox.clear = function JSTH_clear()
+  {
+    aJSTerm.clearOutput();
+  };
+
+  /**
+   * Returns the result of Object.keys(aObject).
+   *
+   * @param object aObject
+   *        Object to return the property names from.
+   * @returns array of string
+   */
+  aJSTerm.sandbox.keys = function JSTH_keys(aObject)
+  {
+    try {
+      return Object.keys(aObject);
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+  };
+
+  /**
+   * Returns the values of all properties on aObject.
+   *
+   * @param object aObject
+   *        Object to display the values from.
+   * @returns array of string
+   */
+  aJSTerm.sandbox.values = function JSTH_values(aObject)
+  {
+    let arrValues = [];
+
+    try {
+      for (let prop in aObject) {
+        arrValues.push(aObject[prop]);
+      }
+    }
+    catch (ex) {
+      aJSTerm.console.error(ex.message);
+    }
+    return arrValues;
+  };
+
+  /**
+   * Inspects the passed aObject. This is done by opening the PropertyPanel.
+   *
+   * @param object aObject
+   *        Object to inspect.
+   * @returns void
+   */
+  aJSTerm.sandbox.inspect = function JSTH_inspect(aObject)
+  {
+    aJSTerm.openPropertyPanel(null, aObject);
+  };
+
+  /**
+   * Prints aObject to the output.
+   *
+   * @param object aObject
+   *        Object to print to the output.
+   * @returns void
+   */
+  aJSTerm.sandbox.pprint = function JSTH_pprint(aObject)
+  {
+    if (aObject === null || aObject === undefined || aObject === true || aObject === false) {
+      aJSTerm.console.error(HUDService.getStr("helperFuncUnsupportedTypeError"));
+      return;
+    }
+    let output = [];
+    let pairs = namesAndValuesOf(aObject);
+
+    pairs.forEach(function(pair) {
+      output.push("  " + pair.display);
+    });
+
+    aJSTerm.writeOutput(output.join("\n"));
+  };
+}
+
+/**
  * JSTerm
  *
  * JavaScript Terminal: creates input nodes for console code interpretation
@@ -3482,18 +4063,18 @@ function JSPropertyProvider(aScope, aInputValue)
  */
 
 /**
- * Create a JSTerminal or attach a JSTerm input node to an existing output node
- *
- *
+ * Create a JSTerminal or attach a JSTerm input node to an existing output node,
+ * given by the parent node.
  *
  * @param object aContext
  *        Usually nsIDOMWindow, but doesn't have to be
- * @param nsIDOMNode aParentNode
+ * @param nsIDOMNode aParentNode where to attach the JSTerm
  * @param object aMixin
  *        Gecko-app (or Jetpack) specific utility object
- * @returns void
+ * @param object aConsole
+ *        Console object to use within the JSTerm.
  */
-function JSTerm(aContext, aParentNode, aMixin)
+function JSTerm(aContext, aParentNode, aMixin, aConsole)
 {
   // set the context, attach the UI by appending to aParentNode
 
@@ -3501,6 +4082,7 @@ function JSTerm(aContext, aParentNode, aMixin)
   this.context = aContext;
   this.parentNode = aParentNode;
   this.mixins = aMixin;
+  this.console = aConsole;
 
   this.xulElementFactory =
     NodeFactory("xul", "xul", aParentNode.ownerDocument);
@@ -3557,12 +4139,10 @@ JSTerm.prototype = {
   createSandbox: function JST_setupSandbox()
   {
     // create a JS Sandbox out of this.context
-    this._window.wrappedJSObject.jsterm = {};
-    this.console = this._window.wrappedJSObject.console;
-    this.sandbox = new Cu.Sandbox(this._window);
-    this.sandbox.window = this._window;
+    this.sandbox = new Cu.Sandbox(this._window,
+      { sandboxPrototype: this._window, wantXrays: false });
     this.sandbox.console = this.console;
-    this.sandbox.__proto__ = this._window.wrappedJSObject;
+    JSTermHelper(this);
   },
 
   get _window()
@@ -3580,8 +4160,7 @@ JSTerm.prototype = {
    */
   evalInSandbox: function JST_evalInSandbox(aString)
   {
-    let execStr = "with(window) {" + aString + "}";
-    return Cu.evalInSandbox(execStr,  this.sandbox, "default", "HUD Console", 1);
+    return Cu.evalInSandbox(aString, this.sandbox, "1.8", "HUD Console", 1);
   },
 
 
@@ -3616,7 +4195,7 @@ JSTerm.prototype = {
     this.history.push(aExecuteString);
     this.historyIndex++;
     this.historyPlaceHolder = this.history.length;
-    this.inputNode.value = "";
+    this.setInputValue("");
   },
 
   /**
@@ -3672,8 +4251,10 @@ JSTerm.prototype = {
     buttons.push({
       label: HUDService.getStr("close.button"),
       accesskey: HUDService.getStr("close.accesskey"),
+      class: "jsPropertyPanelCloseButton",
       oncommand: function () {
         propPanel.destroy();
+        aAnchor._panelOpen = false;
       }
     });
 
@@ -3707,20 +4288,37 @@ JSTerm.prototype = {
 
     var self = this;
     var node = this.xulElementFactory("label");
-    node.setAttribute("class", "jsterm-output-line");
+    node.setAttribute("class", "jsterm-output-line hud-clickable");
     node.setAttribute("aria-haspopup", "true");
-    node.onclick = function() {
-      self.openPropertyPanel(aEvalString, aOutputObject, node);
-    }
+    node.setAttribute("crop", "end");
+
+    node.addEventListener("mousedown", function(aEvent) {
+      this._startX = aEvent.clientX;
+      this._startY = aEvent.clientY;
+    }, false);
+
+    node.addEventListener("click", function(aEvent) {
+      if (aEvent.detail != 1 || aEvent.button != 0 ||
+          (this._startX != aEvent.clientX &&
+           this._startY != aEvent.clientY)) {
+        return;
+      }
+
+      if (!this._panelOpen) {
+        self.openPropertyPanel(aEvalString, aOutputObject, this);
+        this._panelOpen = true;
+      }
+    }, false);
 
     // TODO: format the aOutputObject and don't just use the
     // aOuputObject.toString() function: [object object] -> Object {prop, ...}
     // See bug 586249.
-    let textNode = this.textFactory(aOutputObject);
+    let textNode = this.textFactory(aOutputObject + "\n");
     node.appendChild(textNode);
 
     lastGroupNode.appendChild(node);
     ConsoleUtils.scrollToVisible(node);
+    pruneConsoleOutputIfNecessary(this.outputNode);
   },
 
   /**
@@ -3755,11 +4353,12 @@ JSTerm.prototype = {
       }
     }
 
-    var textNode = this.textFactory(aOutputMessage);
+    var textNode = this.textFactory(aOutputMessage + "\n");
     node.appendChild(textNode);
 
     lastGroupNode.appendChild(node);
     ConsoleUtils.scrollToVisible(node);
+    pruneConsoleOutputIfNecessary(this.outputNode);
   },
 
   clearOutput: function JST_clearOutput()
@@ -3773,12 +4372,46 @@ JSTerm.prototype = {
     outputNode.lastTimestamp = 0;
   },
 
+  /**
+   * Updates the size of the input field (command line) to fit its contents.
+   *
+   * @returns void
+   */
+  resizeInput: function JST_resizeInput()
+  {
+    let inputNode = this.inputNode;
+
+    // Reset the height so that scrollHeight will reflect the natural height of
+    // the contents of the input field.
+    inputNode.style.height = "auto";
+
+    // Now resize the input field to fit its contents.
+    let scrollHeight = inputNode.inputField.scrollHeight;
+    if (scrollHeight > 0) {
+      inputNode.style.height = scrollHeight + "px";
+    }
+  },
+
+  /**
+   * Sets the value of the input field (command line), and resizes the field to
+   * fit its contents. This method is preferred over setting "inputNode.value"
+   * directly, because it correctly resizes the field.
+   *
+   * @param string aNewValue
+   *        The new value to set.
+   * @returns void
+   */
+  setInputValue: function JST_setInputValue(aNewValue)
+  {
+    this.inputNode.value = aNewValue;
+    this.resizeInput();
+  },
+
   inputEventHandler: function JSTF_inputEventHandler()
   {
     var self = this;
     function handleInputEvent(aEvent) {
-      self.inputNode.setAttribute("rows",
-        Math.min(8, self.inputNode.value.split("\n").length));
+      self.resizeInput();
     }
     return handleInputEvent;
   },
@@ -3798,17 +4431,16 @@ JSTerm.prototype = {
             // control-a
             tmp = self.codeInputString;
             setTimeout(function() {
-              self.inputNode.value = tmp;
+              self.setInputValue(tmp);
               self.inputNode.setSelectionRange(0, 0);
             }, 0);
             break;
           case 101:
             // control-e
             tmp = self.codeInputString;
-            self.inputNode.value = "";
+            self.setInputValue("");
             setTimeout(function(){
-              var endPos = tmp.length + 1;
-              self.inputNode.value = tmp;
+              self.setInputValue(tmp);
             }, 0);
             break;
           default:
@@ -3830,20 +4462,19 @@ JSTerm.prototype = {
             break;
           case 38:
             // up arrow: history previous
-            if (self.caretInFirstLine()){
-              self.historyPeruse(true);
-              if (aEvent.cancelable) {
-                let inputEnd = self.inputNode.value.length;
-                self.inputNode.setSelectionRange(inputEnd, inputEnd);
+            if (self.caretAtStartOfInput()) {
+              let updated = self.historyPeruse(HISTORY_BACK);
+              if (updated && aEvent.cancelable) {
+                self.inputNode.setSelectionRange(0, 0);
                 aEvent.preventDefault();
               }
             }
             break;
           case 40:
             // down arrow: history next
-            if (self.caretInLastLine()){
-              self.historyPeruse(false);
-              if (aEvent.cancelable) {
+            if (self.caretAtEndOfInput()) {
+              let updated = self.historyPeruse(HISTORY_FORWARD);
+              if (updated && aEvent.cancelable) {
                 let inputEnd = self.inputNode.value.length;
                 self.inputNode.setSelectionRange(inputEnd, inputEnd);
                 aEvent.preventDefault();
@@ -3855,20 +4486,19 @@ JSTerm.prototype = {
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
+            var completionResult;
             if (aEvent.shiftKey) {
-              self.complete(self.COMPLETE_BACKWARD);
+              completionResult = self.complete(self.COMPLETE_BACKWARD);
             }
             else {
-              self.complete(self.COMPLETE_FORWARD);
+              completionResult = self.complete(self.COMPLETE_FORWARD);
             }
-            var bool = aEvent.cancelable;
-            if (bool) {
+            if (completionResult) {
+              if (aEvent.cancelable) {
               aEvent.preventDefault();
             }
-            else {
-              // noop
-            }
             aEvent.target.focus();
+            }
             break;
           case 8:
             // backspace key
@@ -3896,39 +4526,53 @@ JSTerm.prototype = {
     return handleKeyDown;
   },
 
-  historyPeruse: function JST_historyPeruse(aFlag) {
+  /**
+   * Go up/down the history stack of input values.
+   *
+   * @param number aDirection
+   *        History navigation direction: HISTORY_BACK or HISTORY_FORWARD.
+   *
+   * @returns boolean
+   *          True if the input value changed, false otherwise.
+   */
+  historyPeruse: function JST_historyPeruse(aDirection)
+  {
     if (!this.history.length) {
-      return;
+      return false;
     }
 
     // Up Arrow key
-    if (aFlag) {
+    if (aDirection == HISTORY_BACK) {
       if (this.historyPlaceHolder <= 0) {
-        return;
+        return false;
       }
 
       let inputVal = this.history[--this.historyPlaceHolder];
       if (inputVal){
-        this.inputNode.value = inputVal;
+        this.setInputValue(inputVal);
       }
     }
     // Down Arrow key
-    else {
+    else if (aDirection == HISTORY_FORWARD) {
       if (this.historyPlaceHolder == this.history.length - 1) {
         this.historyPlaceHolder ++;
-        this.inputNode.value = "";
-        return;
+        this.setInputValue("");
       }
       else if (this.historyPlaceHolder >= (this.history.length)) {
-        return;
+        return false;
       }
       else {
         let inputVal = this.history[++this.historyPlaceHolder];
         if (inputVal){
-          this.inputNode.value = inputVal;
+          this.setInputValue(inputVal);
         }
       }
     }
+    else {
+      throw new Error("Invalid argument 0");
+    }
+
+    return true;
   },
 
   refocus: function JSTF_refocus()
@@ -3937,17 +4581,28 @@ JSTerm.prototype = {
     this.inputNode.focus();
   },
 
-  caretInFirstLine: function JSTF_caretInFirstLine()
+  /**
+   * Check if the caret is at the start of the input.
+   *
+   * @returns boolean
+   *          True if the caret is at the start of the input.
+   */
+  caretAtStartOfInput: function JST_caretAtStartOfInput()
   {
-    var firstLineBreak = this.codeInputString.indexOf("\n");
-    return ((firstLineBreak == -1) ||
-            (this.inputNode.selectionStart <= firstLineBreak));
+    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
+        this.inputNode.selectionStart == 0;
   },
 
-  caretInLastLine: function JSTF_caretInLastLine()
+  /**
+   * Check if the caret is at the end of the input.
+   *
+   * @returns boolean
+   *          True if the caret is at the end of the input, or false otherwise.
+   */
+  caretAtEndOfInput: function JST_caretAtEndOfInput()
   {
-    var lastLineBreak = this.codeInputString.lastIndexOf("\n");
-    return (this.inputNode.selectionEnd > lastLineBreak);
+    return this.inputNode.selectionStart == this.inputNode.selectionEnd &&
+        this.inputNode.selectionStart == this.inputNode.value.length;
   },
 
   history: [],
@@ -3979,7 +4634,8 @@ JSTerm.prototype = {
    *          the inputNode.value is set to this value and the selection is set
    *          from the current cursor position to the end of the completed text.
    *
-   * @returns void
+   * @returns boolean true if there existed a completion for the current input,
+   *          or false otherwise.
    */
   complete: function JSTF_complete(type)
   {
@@ -3987,7 +4643,7 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
-      return;
+      return false;
     }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
@@ -4001,7 +4657,7 @@ JSTerm.prototype = {
     // Only complete if the selection is at the end of the input.
     if (selEnd != inputValue.length) {
       this.lastCompletion = null;
-      return;
+      return false;
     }
 
     // Remove the selected text from the inputValue.
@@ -4029,7 +4685,7 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
-        return;
+        return false;
       }
       matches = completion.matches;
       matchIndexToUse = 0;
@@ -4056,7 +4712,7 @@ JSTerm.prototype = {
       }
 
       completionStr = matches[matchIndexToUse].substring(matchOffset);
-      this.inputNode.value = inputValue +  completionStr;
+      this.setInputValue(inputValue + completionStr);
 
       selEnd = inputValue.length + completionStr.length;
 
@@ -4069,7 +4725,11 @@ JSTerm.prototype = {
       else {
         inputNode.setSelectionRange(selEnd, selEnd);
       }
+
+      return completionStr ? true : false;
     }
+
+    return false;
   }
 };
 
@@ -4116,10 +4776,21 @@ JSTermFirefoxMixin.prototype = {
    */
   generateUI: function JSTF_generateUI()
   {
+    let inputContainer = this.xulElementFactory("hbox");
+    inputContainer.setAttribute("class", "jsterm-input-container");
+
     let inputNode = this.xulElementFactory("textbox");
     inputNode.setAttribute("class", "jsterm-input-node");
+    inputNode.setAttribute("flex", "1");
     inputNode.setAttribute("multiline", "true");
     inputNode.setAttribute("rows", "1");
+    inputContainer.appendChild(inputNode);
+
+    let closeButton = this.xulElementFactory("button");
+    closeButton.setAttribute("class", "jsterm-close-button");
+    inputContainer.appendChild(closeButton);
+    closeButton.addEventListener("command", HeadsUpDisplayUICommands.toggleHUD,
+                                 false);
 
     if (this.existingConsoleNode == undefined) {
       // create elements
@@ -4140,7 +4811,7 @@ JSTermFirefoxMixin.prototype = {
     }
     else {
       this.inputNode = inputNode;
-      this.term = inputNode;
+      this.term = inputContainer;
       this.outputNode = this.existingConsoleNode;
     }
   },
@@ -4200,12 +4871,16 @@ LogMessage.prototype = {
     var ts = ConsoleUtils.timestamp();
     this.timestampedMessage = ConsoleUtils.timestampString(ts) + ": " +
       this.message.message;
-    var messageTxtNode = this.textFactory(this.timestampedMessage);
+    var messageTxtNode = this.textFactory(this.timestampedMessage + "\n");
 
     this.messageNode.appendChild(messageTxtNode);
 
-    var klass = "hud-msg-node hud-" + this.level;
-    this.messageNode.setAttribute("class", klass);
+    this.messageNode.classList.add("hud-msg-node");
+    this.messageNode.classList.add("hud-" + this.level);
+
+    if (this.activityObject.category == "CSS Parser") {
+      this.messageNode.classList.add("hud-cssparser");
+    }
 
     var self = this;
 
@@ -4309,23 +4984,11 @@ ConsoleUtils = {
    */
   timestampString: function ConsoleUtils_timestampString(ms)
   {
-    // TODO: L10N see bug 568656
     var d = new Date(ms ? ms : null);
-
-    function pad(n, mil)
-    {
-      if (mil) {
-        return n < 100 ? "0" + n : n;
-      }
-      else {
-        return n < 10 ? "0" + n : n;
-      }
-    }
-
-    return pad(d.getHours()) + ":"
-      + pad(d.getMinutes()) + ":"
-      + pad(d.getSeconds()) + ":"
-      + pad(d.getMilliseconds(), true);
+    let hours = d.getHours(), minutes = d.getMinutes();
+    let seconds = d.getSeconds(), milliseconds = d.getMilliseconds();
+    let parameters = [ hours, minutes, seconds, milliseconds ];
+    return HUDService.getFormatStr("timestampFormat", parameters);
   },
 
   /**
@@ -4347,32 +5010,6 @@ ConsoleUtils = {
     nsIScrollBoxObject.ensureElementIsVisible(aNode);
   }
 };
-
-/**
- * Creates a DOM Node factory for XUL nodes - as well as textNodes
- * @param   aFactoryType
- *          "xul" or "text"
- * @returns DOM Node Factory function
- */
-function NodeFactory(aFactoryType, aNameSpace, aDocument)
-{
-  // aDocument is presumed to be a XULDocument
-  if (aFactoryType == "text") {
-    function factory(aText) {
-      return aDocument.createTextNode(aText);
-    }
-    return factory;
-  }
-  else {
-    if (aNameSpace == "xul") {
-      function factory(aTag) {
-        return aDocument.createElement(aTag);
-      }
-      return factory;
-    }
-  }
-}
-
 
 //////////////////////////////////////////////////////////////////////////
 // HeadsUpDisplayUICommands
@@ -4411,8 +5048,21 @@ HeadsUpDisplayUICommands = {
   command: function UIC_command(aButton) {
     var filter = aButton.getAttribute("buttonType");
     var hudId = aButton.getAttribute("hudId");
-    if (filter == "clear") {
-      HUDService.clearDisplay(hudId);
+    switch (filter) {
+      case "clear":
+        HUDService.clearDisplay(hudId);
+        break;
+      case "selectAll":
+        let outputNode = HUDService.getOutputNodeById(hudId);
+        let chromeWindow = outputNode.ownerDocument.defaultView;
+        let commandController = chromeWindow.commandController;
+        commandController.selectAll(outputNode);
+        break;
+      case "saveBodies": {
+        let checked = aButton.getAttribute("checked") === "true";
+        HUDService.saveRequestAndResponseBodies = checked;
+        break;
+      }
     }
   },
 
@@ -4717,6 +5367,67 @@ HUDWindowObserver = {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// CommandController
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * A controller (an instance of nsIController) that makes editing actions
+ * behave appropriately in the context of the Web Console.
+ */
+function CommandController(aWindow) {
+  this.window = aWindow;
+}
+
+CommandController.prototype = {
+  /**
+   * Returns the HUD output node that currently has the focus, or null if the
+   * currently-focused element isn't inside the output node.
+   *
+   * @returns nsIDOMNode
+   *          The currently-focused output node.
+   */
+  _getFocusedOutputNode: function CommandController_getFocusedOutputNode()
+  {
+    let anchorNode = this.window.getSelection().anchorNode;
+    while (!(anchorNode.nodeType === anchorNode.ELEMENT_NODE &&
+             anchorNode.classList.contains("hud-output-node"))) {
+      anchorNode = anchorNode.parentNode;
+    }
+    return anchorNode;
+  },
+
+  /**
+   * Selects all the text in the HUD output.
+   *
+   * @param nsIDOMNode aOutputNode
+   *        The HUD output node.
+   * @returns void
+   */
+  selectAll: function CommandController_selectAll(aOutputNode)
+  {
+    let selection = this.window.getSelection();
+    selection.removeAllRanges();
+    selection.selectAllChildren(aOutputNode);
+  },
+
+  supportsCommand: function CommandController_supportsCommand(aCommand)
+  {
+    return aCommand === "cmd_selectAll" &&
+           this._getFocusedOutputNode() != null;
+  },
+
+  isCommandEnabled: function CommandController_isCommandEnabled(aCommand)
+  {
+    return aCommand === "cmd_selectAll";
+  },
+
+  doCommand: function CommandController_doCommand(aCommand)
+  {
+    this.selectAll(this._getFocusedOutputNode());
+  }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // HUDConsoleObserver
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -4745,15 +5456,81 @@ HUDConsoleObserver = {
 
     if (aSubject instanceof Ci.nsIScriptError) {
       switch (aSubject.category) {
+        // We ignore chrome-originating errors as we only
+        // care about content.
         case "XPConnect JavaScript":
+          // nsXPCWrappedJSClass::CheckForException()
+          // nsXPCComponents_Utils::ReportError()
         case "component javascript":
         case "chrome javascript":
-          // we ignore these CHROME-originating errors as we only
-          // care about content
+          // ScriptErrorEvent in nsJSEnvironment.cpp
+        case "chrome registration":
+          // nsChromeRegistry::LogMessageWithContext()
+        case "XBL":
+          // nsXBLService
+        case "XBL Prototype Handler":
+          // nsXBLPrototypeHandler::ReportKeyConflict()
+        case "XBL Content Sink":
+          // nsXBLContentSink
+        case "xbl javascript":
+          // XBL_ProtoErrorReporter in nsXBLDocumentInfo.cpp
+        case "FrameConstructor":
+          // nsCSSFrameConstructor::ProcessChildren()
           return;
+
+        // Display the messages from the following categories.
         case "HUDConsole":
         case "CSS Parser":
+          // nsCSSScanner::OutputError()
+        case "CSS Loader":
+          // SheetLoadData::OnStreamComplete()
         case "content javascript":
+          // ScriptErrorEvent in nsJSEnvironment.cpp
+        case "DOM Events":
+          // nsHtml5StreamParser::ContinueAfterScripts()
+          // ReportUseOfDeprecatedMethod() in nsGlobalWindow.cpp,
+          // nsHTMLDocument.cpp, nsDOMEvent.cpp
+          // nsDOMEvent::ReportWrongPropertyAccessWarning()
+          // nsHTMLDocument::WriteCommon()
+        case "DOM:HTML":
+          // PrintWarningOnConsole() in nsDOMClassInfo.cpp
+        case "DOM Window":
+          // nsGlobalWindow::Close()
+          // TODO: This message is never displayed because its origin cannot be
+          // determined, no sourceName is given. See bug 603711.
+        case "SVG":
+          // nsSVGUtils::ReportToConsole()
+          // nsSVGElement::ReportAttributeParseFailure()
+        case "ImageMap":
+          // logMessage() in nsImageMap.cpp
+        case "HTML":
+          // SendJSWarning() in nsFormSubmission.cpp
+        case "Canvas":
+          // nsCanvasRenderingContext2D::SetStyleFromStringOrInterface()
+          // TODO: This message is never displayed because its origin cannot be
+          // determined, no sourceName is given. See bug 603714.
+        case "DOM3 Load":
+          // ReportUseOfDeprecatedMethod() in nsXMLDocument.cpp
+          // TODO: This message is generally not displayed because its origin
+          // (sourceName) points to the previous URI of the document object -
+          // not the URI of the page in which the script tries to load the new
+          // URI. See bug 603720.
+        case "DOM":
+          // nsDocument::ReportEmptyGetElementByIdArg()
+          //   TODO: This message is never displayed because its origin cannot
+          //   be determined, no sourceName is given. See bug 603723.
+          // nsXMLDocument::Load() - for chrome code.
+        case "malformed-xml":
+          // nsExpatDriver::HandleError()
+          // TODO: This message is only displayed when its origin (sourceName)
+          // is the same as the tab location for which a Web Console is open.
+          // See bug 603727.
+        case "DOM Worker javascript":
+          // nsReportErrorRunnable and DOMWorkerErrorReporter in
+          // nsDOMThreadService.cpp
+          // TODO: This message is never displayed because its origin
+          // (sourceName) points us only to the script that thrown the exception
+          // - no way to associate it to a specific tab. See bug 603730.
           HUDService.reportConsoleServiceContentScriptError(aSubject);
           return;
         default:

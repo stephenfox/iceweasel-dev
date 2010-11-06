@@ -148,7 +148,7 @@ public:
   ~nsBuiltinDecoderStateMachine();
 
   // nsDecoderStateMachine interface
-  virtual nsresult Init();
+  virtual nsresult Init(nsDecoderStateMachine* aCloneDonor);
   State GetState()
   { 
     mDecoder->GetMonitor().AssertCurrentThreadIn();
@@ -240,7 +240,28 @@ public:
     return mReader->GetBuffered(aBuffered, mStartTime);
   }
 
+  void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {
+    NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+    mReader->NotifyDataArrived(aBuffer, aLength, aOffset);
+  }
+
+  PRInt64 GetEndMediaTime() const {
+    mDecoder->GetMonitor().AssertCurrentThreadIn();
+    return mEndTime;
+  }
+
 protected:
+
+  // Returns the number of unplayed ms of audio we've got decoded and/or
+  // pushed to the hardware waiting to play. This is how much audio we can
+  // play without having to run the audio decoder.
+  PRInt64 AudioDecodedMs() const;
+
+  // Returns PR_TRUE if we're running low on decoded data.
+  PRBool HasLowDecodedData() const;
+
+  // Returns PR_TRUE if we've got plenty of decoded data.
+  PRBool HasAmpleDecodedData() const;
 
   // Returns PR_TRUE when there's decoded audio waiting to play.
   // The decoder monitor must be held.
@@ -337,6 +358,16 @@ protected:
   // Returns PR_TRUE if we're currently playing. The decoder monitor must
   // be held.
   PRBool IsPlaying();
+
+  // Returns the "media time". This is the absolute time which the media
+  // playback has reached. i.e. this returns values in the range
+  // [mStartTime, mEndTime], and mStartTime will not be 0 if the media does
+  // not start at 0. Note this is different to the value returned
+  // by GetCurrentTime(), which is in the range [0,duration].
+  PRInt64 GetMediaTime() const {
+    mDecoder->GetMonitor().AssertCurrentThreadIn();
+    return mStartTime + mCurrentFrameTime;
+  }
 
   // Monitor on mAudioStream. This monitor must be held in order to delete
   // or use the audio stream. This stops us destroying the audio stream
@@ -445,14 +476,9 @@ protected:
   // the state machine thread. Synchronised via decoder monitor.
   PRPackedBool mAudioCompleted;
 
-  // PR_TRUE if the decode thread has indicated that we need to buffer.
-  // Accessed by the decode thread and the state machine thread.
-  // Synchronised via the decoder monitor.
-  PRPackedBool mBufferExhausted;
-
-  // PR_TRUE if mDuration has a value obtained from an HTTP header.
-  // Accessed on the state machine thread.
-  PRPackedBool mGotDurationFromHeader;
+  // PR_TRUE if mDuration has a value obtained from an HTTP header, or from
+  // the media index/metadata. Accessed on the state machine thread.
+  PRPackedBool mGotDurationFromMetaData;
     
   // PR_FALSE while decode threads should be running. Accessed on audio, 
   // state machine and decode threads. Syncrhonised by decoder monitor.

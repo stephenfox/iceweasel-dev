@@ -1,4 +1,7 @@
-/*
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=79:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009, 2010 University of Szeged
  * All rights reserved.
  *
@@ -22,7 +25,8 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+ * 
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef ARMAssembler_h
 #define ARMAssembler_h
@@ -128,7 +132,7 @@ namespace JSC {
     class ARMAssembler {
     public:
         
-#ifdef DEBUG
+#ifdef JS_METHODJIT_SPEW
         bool isOOLPath;
         // Assign a default value to keep Valgrind quiet.
         ARMAssembler() : isOOLPath(false) { }
@@ -142,6 +146,7 @@ namespace JSC {
         typedef SegmentedVector<int, 64> Jumps;
 
         unsigned char *buffer() const { return m_buffer.buffer(); }
+        bool oom() const { return m_buffer.oom(); }
 
         // ARM conditional constants
         typedef enum {
@@ -205,10 +210,11 @@ namespace JSC {
             FMRS = 0x0e100a10,
             FSITOD = 0x0eb80bc0,
             FTOSID = 0x0ebd0b40,
+            FTOSIZD = 0x0ebd0bc0,
             FMSTAT = 0x0ef1fa10
 #if WTF_ARM_ARCH_VERSION >= 5
            ,CLZ = 0x016f0f10,
-            BKPT = 0xe120070,
+            BKPT = 0xe1200070,
             BLX = 0x012fff30
 #endif
 #if WTF_ARM_ARCH_VERSION >= 7
@@ -247,9 +253,9 @@ namespace JSC {
         };
 
         enum {
-            padForAlign8  = 0x00,
-            padForAlign16 = 0x0000,
-            padForAlign32 = 0xee120070
+            padForAlign8  = (int)0x00,
+            padForAlign16 = (int)0x0000,
+            padForAlign32 = (int)0xe12fff7f  // 'bkpt 0xffff'
         };
 
         typedef enum {
@@ -301,7 +307,7 @@ namespace JSC {
             }
 
             int m_offset : 31;
-            int m_used : 1;
+            bool m_used : 1;
         };
 
         // Instruction formating
@@ -424,6 +430,12 @@ namespace JSC {
         {
             spewInsWithOp2("cmp", cc, rn, op2);
             emitInst(static_cast<ARMWord>(cc) | CMP | SET_CC, 0, rn, op2);
+        }
+
+        void cmn_r(int rn, ARMWord op2, Condition cc = AL)
+        {
+            spewInsWithOp2("cmn", cc, rn, op2);
+            emitInst(static_cast<ARMWord>(cc) | CMN | SET_CC, 0, rn, op2);
         }
 
         void orr_r(int rd, int rn, ARMWord op2, Condition cc = AL)
@@ -717,16 +729,18 @@ namespace JSC {
 
         void fdtr_u(bool isLoad, int dd, int rn, ARMWord offset, Condition cc = AL)
         {
+            char const * ins = isLoad ? "vldr.f64" : "vstr.f64";
             js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, [%s, #+%u]\n", MAYBE_PAD, "vldr.f64", nameFpRegD(dd), nameGpReg(rn), offset);
+                    IPFX   "%-15s %s, [%s, #+%u]\n", MAYBE_PAD, ins, nameFpRegD(dd), nameGpReg(rn), offset);
             ASSERT(offset <= 0xff);
             emitInst(static_cast<ARMWord>(cc) | FDTR | DT_UP | (isLoad ? DT_LOAD : 0), dd, rn, offset);
         }
 
         void fdtr_d(bool isLoad, int dd, int rn, ARMWord offset, Condition cc = AL)
         {
+            char const * ins = isLoad ? "vldr.f64" : "vstr.f64";
             js::JaegerSpew(js::JSpew_Insns,
-                    IPFX   "%-15s %s, [%s, #-%u]\n", MAYBE_PAD, "vldr.f64", nameFpRegD(dd), nameGpReg(rn), offset);
+                    IPFX   "%-15s %s, [%s, #-%u]\n", MAYBE_PAD, ins, nameFpRegD(dd), nameGpReg(rn), offset);
             ASSERT(offset <= 0xff);
             emitInst(static_cast<ARMWord>(cc) | FDTR | (isLoad ? DT_LOAD : 0), dd, rn, offset);
         }
@@ -783,6 +797,13 @@ namespace JSC {
             // TODO: emitInst doesn't work for VFP instructions, though it
             // seems to work for current usage.
             emitInst(static_cast<ARMWord>(cc) | FTOSID, fd, 0, dm);
+        }
+
+        void ftosizd_r(int fd, int dm, Condition cc = AL)
+        {
+            // TODO: emitInst doesn't work for VFP instructions, though it
+            // seems to work for current usage.
+            emitInst(static_cast<ARMWord>(cc) | FTOSIZD, fd, 0, dm);
         }
 
         void fmstat(Condition cc = AL)
@@ -1220,9 +1241,16 @@ namespace JSC {
             ASSERT((op2 & ~0xfff) == 0);
 
             uint32_t    imm8 = op2 & 0xff;
-            uint32_t    rot = 32 - ((op2 >> 7) & 0x1e);
+            uint32_t    rot = ((op2 >> 7) & 0x1e);
 
-            return imm8 << (rot & 0x1f);
+            // 'rot' is a right-rotate count.
+
+            uint32_t    imm = (imm8 >> rot);
+            if (rot > 0) {
+                imm |= (imm8 << (32-rot));
+            }
+
+            return imm;
         }
 
         // Format the operand 2 argument for debug spew. The operand can be
@@ -1256,7 +1284,7 @@ namespace JSC {
                     // Deal with special encodings.
                     if ((type == LSL) && (imm == 0)) {
                         // "LSL #0" doesn't shift at all (and is the default).
-                        sprintf(out, rm);
+                        sprintf(out, "%s", rm);
                         return;
                     }
 

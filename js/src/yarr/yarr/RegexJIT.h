@@ -37,7 +37,7 @@
 #include "yarr/pcre/pcre.h"
 struct JSRegExp; // temporary, remove when fallback is removed.
 
-#if WTF_CPU_X86 && !WTF_COMPILER_MSVC
+#if WTF_CPU_X86 && !WTF_COMPILER_MSVC && !WTF_COMPILER_SUNPRO
 #define YARR_CALL __attribute__ ((regparm (3)))
 #else
 #define YARR_CALL
@@ -74,7 +74,7 @@ public:
 
     int execute(const UChar* input, unsigned start, unsigned length, int* output)
     {
-        return JS_EXTENSION(reinterpret_cast<RegexJITCode>(m_ref.m_code.executableAddress())(input, start, length, output));
+        return JS_EXTENSION((reinterpret_cast<RegexJITCode>(m_ref.m_code.executableAddress()))(input, start, length, output));
     }
 
 private:
@@ -82,7 +82,11 @@ private:
     JSRegExp* m_fallback;
 };
 
-void jitCompileRegex(ExecutableAllocator &allocator, RegexCodeBlock& jitObject, const UString& pattern, unsigned& numSubpatterns, int& error, bool &fellBack, bool ignoreCase = false, bool multiline = false);
+void jitCompileRegex(ExecutableAllocator &allocator, RegexCodeBlock& jitObject, const UString& pattern, unsigned& numSubpatterns, int& error, bool &fellBack, bool ignoreCase = false, bool multiline = false
+#ifdef ANDROID
+                     , bool forceFallback = false
+#endif
+);
 
 inline int executeRegex(JSContext *cx, RegexCodeBlock& jitObject, const UChar* input, unsigned start, unsigned length, int* output, int outputArraySize)
 {

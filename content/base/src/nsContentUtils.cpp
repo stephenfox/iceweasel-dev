@@ -269,12 +269,6 @@ PRBool nsContentUtils::sInitialized = PR_FALSE;
 nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
   *nsContentUtils::sPrefCallbackTable = nsnull;
 
-#ifdef MOZ_IPC
-#ifdef ANDROID
-nsFrameLoader *nsContentUtils::sActiveFrameLoader = nsnull;
-#endif
-#endif
-
 static PLDHashTable sEventListenerManagersHash;
 
 class EventListenerManagerMapEntry : public PLDHashEntryHdr
@@ -576,6 +570,8 @@ nsContentUtils::InitializeEventTable() {
                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
     { nsGkAtoms::onerror,                       NS_LOAD_ERROR,
                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
+    { nsGkAtoms::onbeforescriptexecute,         NS_BEFORE_SCRIPT_EXECUTE, EventNameType_HTMLXUL, NS_EVENT },
+    { nsGkAtoms::onafterscriptexecute,          NS_AFTER_SCRIPT_EXECUTE, EventNameType_HTMLXUL, NS_EVENT },
 
     { nsGkAtoms::onDOMAttrModified,             NS_MUTATION_ATTRMODIFIED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
     { nsGkAtoms::onDOMCharacterDataModified,    NS_MUTATION_CHARACTERDATAMODIFIED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
@@ -1522,29 +1518,36 @@ nsContentUtils::GetDocShellFromCaller()
   return nsnull;
 }
 
-nsIDOMDocument *
-nsContentUtils::GetDocumentFromCaller()
+nsPIDOMWindow *
+nsContentUtils::GetWindowFromCaller()
 {
   JSContext *cx = nsnull;
   sThreadJSContextStack->Peek(&cx);
 
-  nsIDOMDocument *doc = nsnull;
-
   if (cx) {
-    JSObject *callee = nsnull;
-    JSStackFrame *fp = nsnull;
-    while (!callee && (fp = ::JS_FrameIterator(cx, &fp))) {
-      callee = ::JS_GetFrameCalleeObject(cx, fp);
-    }
-
     nsCOMPtr<nsPIDOMWindow> win =
-      do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, callee));
-    if (win) {
-      doc = win->GetExtantDocument();
-    }
+      do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
+    return win;
   }
 
-  return doc;
+  return nsnull;
+}
+
+nsIDOMDocument *
+nsContentUtils::GetDocumentFromCaller()
+{
+  JSContext *cx = nsnull;
+  JSObject *obj = nsnull;
+  sXPConnect->GetCaller(&cx, &obj);
+  NS_ASSERTION(cx && obj, "Caller ensures something is running");
+
+  nsCOMPtr<nsPIDOMWindow> win =
+    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, obj));
+  if (!win) {
+    return nsnull;
+  }
+
+  return win->GetExtantDocument();
 }
 
 nsIDOMDocument *
@@ -2002,7 +2005,7 @@ static inline void KeyAppendAtom(nsIAtom* aAtom, nsACString& aKey)
   KeyAppendString(nsAtomCString(aAtom), aKey);
 }
 
-static inline PRBool IsAutocompleteOff(nsIContent* aElement)
+static inline PRBool IsAutocompleteOff(const nsIContent* aElement)
 {
   return aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::autocomplete,
                                NS_LITERAL_STRING("off"), eIgnoreCase);
@@ -2010,7 +2013,7 @@ static inline PRBool IsAutocompleteOff(nsIContent* aElement)
 
 /*static*/ nsresult
 nsContentUtils::GenerateStateKey(nsIContent* aContent,
-                                 nsIDocument* aDocument,
+                                 const nsIDocument* aDocument,
                                  nsIStatefulFrame::SpecialStateID aID,
                                  nsACString& aKey)
 {
@@ -2258,7 +2261,7 @@ nsContentUtils::CheckQName(const nsAString& aQualifiedName,
 
 //static
 nsresult
-nsContentUtils::SplitQName(nsIContent* aNamespaceResolver,
+nsContentUtils::SplitQName(const nsIContent* aNamespaceResolver,
                            const nsAFlatString& aQName,
                            PRInt32 *aNamespace, nsIAtom **aLocalName)
 {
@@ -2390,7 +2393,7 @@ nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
 
 // static
 nsPresContext*
-nsContentUtils::GetContextForContent(nsIContent* aContent)
+nsContentUtils::GetContextForContent(const nsIContent* aContent)
 {
   nsIDocument* doc = aContent->GetCurrentDoc();
   if (doc) {
@@ -2625,7 +2628,7 @@ nsContentUtils::IsDraggableImage(nsIContent* aContent)
 
 // static
 PRBool
-nsContentUtils::IsDraggableLink(nsIContent* aContent) {
+nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
   nsCOMPtr<nsIURI> absURI;
   return aContent->IsLink(getter_AddRefs(absURI));
 }
@@ -3471,7 +3474,7 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
 
 /* static */
 Element*
-nsContentUtils::MatchElementId(nsIContent *aContent, nsIAtom* aId)
+nsContentUtils::MatchElementId(nsIContent *aContent, const nsIAtom* aId)
 {
   for (nsIContent* cur = aContent;
        cur;
@@ -3631,7 +3634,7 @@ nsContentUtils::UnregisterShutdownObserver(nsIObserver* aObserver)
 
 /* static */
 PRBool
-nsContentUtils::HasNonEmptyAttr(nsIContent* aContent, PRInt32 aNameSpaceID,
+nsContentUtils::HasNonEmptyAttr(const nsIContent* aContent, PRInt32 aNameSpaceID,
                                 nsIAtom* aName)
 {
   static nsIContent::AttrValuesArray strings[] = {&nsGkAtoms::_empty, nsnull};
@@ -3896,7 +3899,9 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     }
     
     nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
-    if (contextAsContent) {
+    if (contextAsContent &&
+        !(nsGkAtoms::html == contextAsContent->Tag() &&
+          contextAsContent->IsHTML())) {
       parser->ParseFragment(aFragment, 
                             fragment, 
                             contextAsContent->Tag(), 
@@ -4179,8 +4184,8 @@ nsContentUtils::HasNonEmptyTextContent(nsINode* aNode)
 
 /* static */
 PRBool
-nsContentUtils::IsInSameAnonymousTree(nsINode* aNode,
-                                      nsIContent* aContent)
+nsContentUtils::IsInSameAnonymousTree(const nsINode* aNode,
+                                      const nsIContent* aContent)
 {
   NS_PRECONDITION(aNode,
                   "Must have a node to work with");
@@ -4198,7 +4203,7 @@ nsContentUtils::IsInSameAnonymousTree(nsINode* aNode,
     return aContent->GetBindingParent() == nsnull;
   }
 
-  return static_cast<nsIContent*>(aNode)->GetBindingParent() ==
+  return static_cast<const nsIContent*>(aNode)->GetBindingParent() ==
          aContent->GetBindingParent();
  
 }
@@ -5423,7 +5428,7 @@ nsContentUtils::CanAccessNativeAnon()
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
-  } else if (!fp->hasScript()) {
+  } else if (!JS_IsScriptFrame(cx, fp)) {
     fp = nsnull;
   }
 
@@ -5438,8 +5443,8 @@ nsContentUtils::CanAccessNativeAnon()
   // if they've been cloned into less privileged contexts.
   static const char prefix[] = "chrome://global/";
   const char *filename;
-  if (fp && fp->hasScript() &&
-      (filename = fp->getScript()->filename) &&
+  if (fp && JS_IsScriptFrame(cx, fp) &&
+      (filename = JS_GetFrameScript(cx, fp)->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
     return PR_TRUE;
   }
@@ -5849,7 +5854,7 @@ CloneSimpleValues(JSContext* cx,
   }
 
   // Security wrapped objects are not allowed either.
-  if (obj->getClass()->ext.wrappedObject)
+  if (obj->isWrapper() && !obj->getClass()->ext.innerObject)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 
   // See if this JSObject is backed by some C++ object. If it is then we assume
@@ -6238,23 +6243,48 @@ mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
 
 // static
 PRBool
-nsContentUtils::IsFocusedContent(nsIContent* aContent)
+nsContentUtils::IsFocusedContent(const nsIContent* aContent)
 {
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
 
   return fm && fm->GetFocusedContent() == aContent;
 }
 
-#ifdef MOZ_IPC
-#ifdef ANDROID
-// static
-already_AddRefed<nsFrameLoader>
-nsContentUtils::GetActiveFrameLoader()
+bool
+nsContentUtils::IsSubDocumentTabbable(nsIContent* aContent)
 {
-  return nsCOMPtr<nsFrameLoader>(sActiveFrameLoader).forget();
+  nsIDocument* doc = aContent->GetCurrentDoc();
+  if (!doc) {
+    return false;
+  }
+
+  // XXXbz should this use GetOwnerDoc() for GetSubDocumentFor?
+  // sXBL/XBL2 issue!
+  nsIDocument* subDoc = doc->GetSubDocumentFor(aContent);
+  if (!subDoc) {
+    return false;
+  }
+
+  nsCOMPtr<nsISupports> container = subDoc->GetContainer();
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+  if (!docShell) {
+    return false;
+  }
+
+  nsCOMPtr<nsIContentViewer> contentViewer;
+  docShell->GetContentViewer(getter_AddRefs(contentViewer));
+  if (!contentViewer) {
+    return false;
+  }
+
+  nsCOMPtr<nsIContentViewer> zombieViewer;
+  contentViewer->GetPreviousViewer(getter_AddRefs(zombieViewer));
+
+  // If there are 2 viewers for the current docshell, that
+  // means the current document is a zombie document.
+  // Only navigate into the subdocument if it's not a zombie.
+  return !zombieViewer;
 }
-#endif
-#endif
 
 void nsContentUtils::RemoveNewlines(nsString &aString)
 {

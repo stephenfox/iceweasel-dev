@@ -23,8 +23,9 @@ function testOnLoad() {
   var sstring = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
   sstring.data = location.search;
+
   ww.openWindow(window, "chrome://mochikit/content/browser-harness.xul", "browserTest",
-                "chrome,centerscreen,dialog,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
+                "chrome,centerscreen,dialog=no,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
 }
 
 function Tester(aTests, aDumper, aCallback) {
@@ -113,8 +114,9 @@ Tester.prototype = {
   finish: function Tester_finish(aSkipSummary) {
     this._cs.unregisterListener(this);
 
+    this.dumper.dump("\nINFO TEST-START | Shutdown\n");
     if (this.tests.length) {
-      this.dumper.dump("\nBrowser Chrome Test Summary\n");
+      this.dumper.dump("Browser Chrome Test Summary\n");
 
       function sum(a,b) a+b;
       var passCount = this.tests.map(function (f) f.passCount).reduce(sum);
@@ -130,7 +132,6 @@ Tester.prototype = {
     }
 
     this.dumper.dump("\n*** End BrowserChrome Test Results ***\n");
-    this.dumper.dump("TEST-START | Shutdown\n");
 
     this.dumper.done();
 
@@ -160,13 +161,18 @@ Tester.prototype = {
       let testScope = this.currentTest.scope;
       while (testScope.__cleanupFunctions.length > 0) {
         let func = testScope.__cleanupFunctions.shift();
-        func.apply(testScope);
+        try {
+          func.apply(testScope);
+        }
+        catch (ex) {
+          this.currentTest.addResult(new testResult(false, "Cleanup function threw an exception", ex, false));
+        }
       };
 
       // Note the test run time
       let time = Date.now() - this.lastStartTime;
-      let msg = "Test took " + (time / 1000) + "s to complete\n";
-      this.currentTest.addResult(new testMessage(msg));
+      this.dumper.dump("INFO TEST-END | " + this.currentTest.path + " | finished in " + time + "ms\n");
+      this.currentTest.setDuration(time);
     }
 
     // Check the window state for the current test before moving to the next one.
@@ -194,10 +200,17 @@ Tester.prototype = {
     // Import utils in the test scope.
     this.currentTest.scope.EventUtils = this.EventUtils;
     this.currentTest.scope.SimpleTest = this.SimpleTest;
+    this.currentTest.scope.gTestPath = this.currentTest.path;
+
     // Override SimpleTest methods with ours.
     ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot"].forEach(function(m) {
       this.SimpleTest[m] = this[m];
     }, this.currentTest.scope);
+
+    //load the tools to work with chrome .jar and remote
+    try {
+      this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", this.currentTest.scope);
+    } catch (ex) { /* no chrome-harness tools */ }
 
     // Import head.js script if it exists.
     var currentTestDirPath =
@@ -344,6 +357,10 @@ function testScope(aTester, aTest) {
 
   this.requestLongerTimeout = function test_requestLongerTimeout(aFactor) {
     self.__timeoutFactor = aFactor;
+  };
+
+  this.copyToProfile = function test_copyToProfile(filename) {
+    self.SimpleTest.copyToProfile(filename);
   };
 
   this.finish = function test_finish() {

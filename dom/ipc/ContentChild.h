@@ -43,6 +43,7 @@
 #include "mozilla/dom/PContentChild.h"
 
 #include "nsTArray.h"
+#include "nsIConsoleListener.h"
 
 struct ChromePackage;
 class nsIObserver;
@@ -52,7 +53,9 @@ struct OverrideMapping;
 namespace mozilla {
 namespace dom {
 
+class AlertObserver;
 class PrefObserver;
+class ConsoleListener;
 
 class ContentChild : public PContentChild
 {
@@ -63,6 +66,7 @@ public:
     bool Init(MessageLoop* aIOLoop,
               base::ProcessHandle aParentHandle,
               IPC::Channel* aChannel);
+    void InitXPCOM();
 
     static ContentChild* GetSingleton() {
         NS_ASSERTION(sSingleton, "not initialized");
@@ -82,6 +86,14 @@ public:
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
 
+    virtual PExternalHelperAppChild *AllocPExternalHelperApp(
+            const IPC::URI& uri,
+            const nsCString& aMimeContentType,
+            const nsCString& aContentDisposition,
+            const bool& aForceSave,
+            const PRInt64& aContentLength);
+    virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
+
     virtual bool RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
                                     const nsTArray<ResourceMapping>& resources,
                                     const nsTArray<OverrideMapping>& overrides);
@@ -89,27 +101,34 @@ public:
     virtual bool RecvSetOffline(const PRBool& offline);
 
     virtual bool RecvNotifyVisited(const IPC::URI& aURI);
+    // auto remove when alertfinished is received.
+    nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
 
-    /**
-     * Notify |aObserver| of changes to |aPrefRoot|.|aDomain|.  If
-     * |aHoldWeak|, only a weak reference to |aObserver| is held.
-     */
-    nsresult AddRemotePrefObserver(const nsCString& aDomain, 
-                                   const nsCString& aPrefRoot, 
-                                   nsIObserver* aObserver, PRBool aHoldWeak);
-    nsresult RemoveRemotePrefObserver(const nsCString& aDomain, 
-                                      const nsCString& aPrefRoot, 
-                                      nsIObserver* aObserver);
+    virtual bool RecvPreferenceUpdate(const PrefTuple& aPref);
 
-    virtual bool RecvNotifyRemotePrefObserver(
-            const nsCString& aDomain);
+    virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
+
+    virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
+
+    virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
+
+    virtual bool RecvAddPermission(const IPC::Permission& permission);
 
 private:
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why);
 
-    nsTArray<nsAutoPtr<PrefObserver> > mPrefObservers;
-    bool mDead;
+    NS_OVERRIDE
+    virtual void ProcessingError(Result what);
+
+    /**
+     * Exit *now*.  Do not shut down XPCOM, do not pass Go, do not run
+     * static destructors, do not collect $200.
+     */
+    NS_NORETURN void QuickExit();
+
+    nsTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
+    nsRefPtr<ConsoleListener> mConsoleListener;
 
     static ContentChild* sSingleton;
 

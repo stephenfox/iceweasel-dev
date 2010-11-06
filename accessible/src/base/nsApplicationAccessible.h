@@ -71,7 +71,20 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessNode
-  NS_DECL_NSIACCESSNODE
+  NS_SCRIPTABLE NS_IMETHOD GetDOMNode(nsIDOMNode** aDOMNode);
+  NS_SCRIPTABLE NS_IMETHOD GetDocument(nsIAccessibleDocument** aDocument);
+  NS_SCRIPTABLE NS_IMETHOD GetRootDocument(nsIAccessibleDocument** aRootDocument);
+  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
+  NS_SCRIPTABLE NS_IMETHOD ScrollTo(PRUint32 aScrollType);
+  NS_SCRIPTABLE NS_IMETHOD ScrollToPoint(PRUint32 aCoordinateType, PRInt32 aX, PRInt32 aY);
+  NS_IMETHOD GetOwnerWindow(void **aOwnerWindow);
+  NS_SCRIPTABLE NS_IMETHOD GetComputedStyleValue(const nsAString& aPseudoElt,
+                                                 const nsAString& aPropertyName,
+                                                 nsAString& aValue NS_OUTPARAM);
+  NS_SCRIPTABLE NS_IMETHOD GetComputedStyleCSSValue(const nsAString& aPseudoElt,
+                                                    const nsAString& aPropertyName,
+                                                    nsIDOMCSSPrimitiveValue** aValue NS_OUTPARAM);
+  NS_SCRIPTABLE NS_IMETHOD GetLanguage(nsAString& aLanguage);
 
   // nsIAccessible
   NS_IMETHOD GetParent(nsIAccessible **aParent);
@@ -81,7 +94,6 @@ public:
   NS_IMETHOD GetValue(nsAString &aValue);
   NS_IMETHOD GetDescription(nsAString &aDescription);
   NS_IMETHOD GetKeyboardShortcut(nsAString &aKeyboardShortcut);
-  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetState(PRUint32 *aState , PRUint32 *aExtraState );
   NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
   NS_IMETHOD GroupPosition(PRInt32 *aGroupLevel, PRInt32 *aSimilarItemsInGroup,
@@ -110,10 +122,12 @@ public:
   virtual PRBool IsDefunct();
   virtual PRBool Init();
   virtual void Shutdown();
+  virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 Role();
+  virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();

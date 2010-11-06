@@ -65,9 +65,8 @@ class nsIWidget;
 //   ePopupShowing - during the period when the popupshowing event fires
 //   ePopupOpen - between the popupshowing event and being visible. Creation
 //                of the child frames, layout and reflow occurs in this state.
-//   ePopupOpenAndVisible - layout is done and AdjustView is called to make
-//                          the popup's widget visible. The popup is now
-//                          visible and the popupshown event fires.
+//   ePopupOpenAndVisible - layout is done and the popup's view and widget are
+//                          made visible. The popupshown event fires.
 // When closing a popup:
 //   ePopupHidden - during the period when the popuphiding event fires and
 //                  the popup is removed.
@@ -91,6 +90,15 @@ enum nsPopupState {
   // state can also occur when the popup is removed because the document is
   // unloaded.
   ePopupInvisible
+};
+
+// How a popup may be flipped. Flipping to the outside edge is like how
+// a submenu would work. The entire popup is flipped to the opposite side
+// of the anchor.
+enum FlipStyle {
+  FlipStyle_None = 0,
+  FlipStyle_Outside = 1,
+  FlipStyle_Inside = 2
 };
 
 // values are selected so that the direction can be flipped just by
@@ -203,9 +211,6 @@ public:
   // layout, position and display the popup as needed
   void LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, PRBool aSizedToPopup);
 
-  // AdjustView is called by LayoutPopup to position and show the popup's view.
-  void AdjustView();
-
   nsIView* GetRootViewForPopup(nsIFrame* aStartFrame);
 
   // set the position of the popup either relative to the anchor aAnchorFrame
@@ -239,8 +244,8 @@ public:
     return nsnull;
   }
 
-  nsIContent* GetTriggerContent() { return mTriggerContent; }
-  void SetTriggerContent(nsIContent* aTriggerContent) { mTriggerContent = aTriggerContent; }
+  static nsIContent* GetTriggerContent(nsMenuPopupFrame* aMenuPopupFrame);
+  void ClearTriggerContent() { mTriggerContent = nsnull; }
 
   // returns true if the popup is in a content shell, or false for a popup in
   // a chrome shell
@@ -269,7 +274,7 @@ public:
                                       PRInt32 aXPos, PRInt32 aYPos);
 
   // indicate that the popup should be opened
-  PRBool ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem);
+  void ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem);
   // indicate that the popup should be hidden. The new state should either be
   // ePopupClosed or ePopupInvisible.
   void HidePopup(PRBool aDeselectMenu, nsPopupState aNewState);
@@ -329,6 +334,9 @@ public:
   // Return true if the popup is positioned relative to an anchor.
   PRBool IsAnchored() const { return mScreenXPos == -1 && mScreenYPos == -1; }
 
+  // Return the anchor if there is one.
+  nsIContent* GetAnchor() const { return mAnchorContent; }
+
   // Return the screen coordinates of the popup, or (-1, -1) if anchored.
   nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
 
@@ -346,8 +354,8 @@ protected:
   // return the position where the popup should be, when it should be
   // anchored at anchorRect. aHFlip and aVFlip will be set if the popup may be
   // flipped in that direction if there is not enough space available.
-  nsPoint AdjustPositionForAnchorAlign(const nsRect& anchorRect, PRBool& aHFlip, PRBool& aVFlip);
-
+  nsPoint AdjustPositionForAnchorAlign(const nsRect& anchorRect,
+                                       FlipStyle& aHFlip, FlipStyle& aVFlip);
 
   // check if the popup will fit into the available space and resize it. This
   // method handles only one axis at a time so is called twice, once for
@@ -362,13 +370,13 @@ protected:
   //   aMarginBegin - the left or top margin of the popup
   //   aMarginEnd - the right or bottom margin of the popup
   //   aOffsetForContextMenu - the additional offset to add for context menus
-  //   aFlip - whether to flip or resize the popup when there isn't space
+  //   aFlip - how to flip or resize the popup when there isn't space
   //   aFlipSide - pointer to where current flip mode is stored
   nscoord FlipOrResize(nscoord& aScreenPoint, nscoord aSize, 
                        nscoord aScreenBegin, nscoord aScreenEnd,
                        nscoord aAnchorBegin, nscoord aAnchorEnd,
                        nscoord aMarginBegin, nscoord aMarginEnd,
-                       nscoord aOffsetForContextMenu, PRBool aFlip,
+                       nscoord aOffsetForContextMenu, FlipStyle aFlip,
                        PRPackedBool* aFlipSide);
 
   // Move the popup to the position specified in its |left| and |top| attributes.
@@ -405,6 +413,7 @@ protected:
   // popup alignment relative to the anchor node
   PRInt8 mPopupAlignment;
   PRInt8 mPopupAnchor;
+  PRPackedBool mFlipBoth; // flip in both directions
 
   PRPackedBool mIsOpenChanged; // true if the open state changed since the last layout
   PRPackedBool mIsContextMenu; // true for context menus

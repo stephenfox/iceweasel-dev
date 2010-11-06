@@ -43,6 +43,7 @@
 #ifdef JS_TRACER
 
 #include "nanojit/nanojit.h"
+#include "jsvalue.h"
 
 #ifdef THIS
 #undef THIS
@@ -61,7 +62,7 @@ enum {
 #define JSTN_ERRTYPE(jstn)  ((jstn)->flags & JSTN_ERRTYPE_MASK)
 
 /*
- * Type describing a type specialization of a JSFastNative.
+ * Type describing a type specialization of a js::Native.
  *
  * |prefix| and |argtypes| declare what arguments should be passed to the
  * native function.  |prefix| can contain the following characters:
@@ -103,7 +104,7 @@ struct JSSpecializedNative {
  * terminated by the lack of having the JSTN_MORE flag set.
  */
 struct JSNativeTraceInfo {
-    JSFastNative            native;
+    js::Native              native;
     JSSpecializedNative     *specializations;
 };
 
@@ -183,6 +184,7 @@ struct ClosureVarInfo;
 
 #define _JS_CTYPE_CONTEXT           _JS_CTYPE(JSContext *,            _JS_PTR,"C", "", INFALLIBLE)
 #define _JS_CTYPE_RUNTIME           _JS_CTYPE(JSRuntime *,            _JS_PTR,"R", "", INFALLIBLE)
+#define _JS_CTYPE_MATHCACHE         _JS_CTYPE(js::MathCache *,        _JS_PTR,"M", "", INFALLIBLE)
 #define _JS_CTYPE_THIS              _JS_CTYPE(JSObject *,             _JS_PTR,"T", "", INFALLIBLE)
 #define _JS_CTYPE_THIS_DOUBLE       _JS_CTYPE(jsdouble,               _JS_F64,"D", "", INFALLIBLE)
 #define _JS_CTYPE_THIS_STRING       _JS_CTYPE(JSString *,             _JS_PTR,"S", "", INFALLIBLE)
@@ -222,7 +224,7 @@ struct ClosureVarInfo;
 #define _JS_CTYPE_CONSTRUCTOR_RETRY _JS_CTYPE(JSObject *,             _JS_PTR, --, --, FAIL_NULL | \
                                                                                   JSTN_CONSTRUCTOR)
 #define _JS_CTYPE_REGEXP            _JS_CTYPE(JSObject *,             _JS_PTR, "","r", INFALLIBLE)
-#define _JS_CTYPE_SCOPEPROP         _JS_CTYPE(JSScopeProperty *,      _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_SHAPE             _JS_CTYPE(js::Shape *,            _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_TRACERSTATE       _JS_CTYPE(TracerState *,          _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_FRAGMENT          _JS_CTYPE(nanojit::Fragment *,    _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_CLASS             _JS_CTYPE(js::Class *,            _JS_PTR, --, --, INFALLIBLE)
@@ -230,6 +232,7 @@ struct ClosureVarInfo;
 #define _JS_CTYPE_CHARPTR           _JS_CTYPE(char *,                 _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_CVIPTR            _JS_CTYPE(const ClosureVarInfo *, _JS_PTR, --, --, INFALLIBLE)
 #define _JS_CTYPE_FRAMEINFO         _JS_CTYPE(FrameInfo *,            _JS_PTR, --, --, INFALLIBLE)
+#define _JS_CTYPE_PICTABLE          _JS_CTYPE(PICTable *,             _JS_PTR, --, --, INFALLIBLE)
 
 /*
  * The "VALUE" type is used to indicate that a native takes a js::Value
@@ -506,7 +509,7 @@ struct ClosureVarInfo;
     JSSpecializedNative name##_sns[] = {                                                          \
         { _JS_TN_INIT_HELPER_n tn0 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define JS_DEFINE_TRCINFO_2(name, tn0, tn1)                                                       \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
@@ -515,7 +518,7 @@ struct ClosureVarInfo;
         { _JS_TN_INIT_HELPER_n tn0 | JSTN_MORE },                                                 \
         { _JS_TN_INIT_HELPER_n tn1 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define JS_DEFINE_TRCINFO_3(name, tn0, tn1, tn2)                                                  \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
@@ -526,7 +529,7 @@ struct ClosureVarInfo;
         { _JS_TN_INIT_HELPER_n tn1 | JSTN_MORE },                                                 \
         { _JS_TN_INIT_HELPER_n tn2 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define JS_DEFINE_TRCINFO_4(name, tn0, tn1, tn2, tn3)                                             \
     _JS_DEFINE_CALLINFO_n tn0                                                                     \
@@ -539,7 +542,7 @@ struct ClosureVarInfo;
         { _JS_TN_INIT_HELPER_n tn2 | JSTN_MORE },                                                 \
         { _JS_TN_INIT_HELPER_n tn3 }                                                              \
     };                                                                                            \
-    JSNativeTraceInfo name##_trcinfo = { (JSFastNative)name, name##_sns };
+    JSNativeTraceInfo name##_trcinfo = { JS_VALUEIFY_NATIVE(name), name##_sns };
 
 #define _JS_DEFINE_CALLINFO_n(n, args)  JS_DEFINE_CALLINFO_##n args
 
@@ -572,12 +575,12 @@ js_dmod(jsdouble a, jsdouble b);
 #endif /* !JS_TRACER */
 
 /* Defined in jsarray.cpp. */
-JS_DECLARE_CALLINFO(js_Array_dense_setelem)
-JS_DECLARE_CALLINFO(js_Array_dense_setelem_int)
-JS_DECLARE_CALLINFO(js_Array_dense_setelem_double)
+JS_DECLARE_CALLINFO(js_Array_dense_setelem_hole)
 JS_DECLARE_CALLINFO(js_NewEmptyArray)
 JS_DECLARE_CALLINFO(js_NewPreallocatedArray)
+JS_DECLARE_CALLINFO(js_InitializerArray)
 JS_DECLARE_CALLINFO(js_ArrayCompPush_tn)
+JS_DECLARE_CALLINFO(js_EnsureDenseArrayCapacity)
 
 /* Defined in jsbuiltins.cpp. */
 JS_DECLARE_CALLINFO(js_UnboxDouble)
@@ -595,25 +598,24 @@ JS_DECLARE_CALLINFO(js_HasNamedPropertyInt32)
 JS_DECLARE_CALLINFO(js_TypeOfObject)
 JS_DECLARE_CALLINFO(js_BooleanIntToString)
 JS_DECLARE_CALLINFO(js_NewNullClosure)
-JS_DECLARE_CALLINFO(js_PopInterpFrame)
 
 /* Defined in jsfun.cpp. */
 JS_DECLARE_CALLINFO(js_AllocFlatClosure)
-JS_DECLARE_CALLINFO(js_PutArguments)
+JS_DECLARE_CALLINFO(js_PutArgumentsOnTrace)
 JS_DECLARE_CALLINFO(js_PutCallObjectOnTrace)
 JS_DECLARE_CALLINFO(js_SetCallVar)
 JS_DECLARE_CALLINFO(js_SetCallArg)
 JS_DECLARE_CALLINFO(js_CloneFunctionObject)
 JS_DECLARE_CALLINFO(js_CreateCallObjectOnTrace)
-JS_DECLARE_CALLINFO(js_Arguments)
+JS_DECLARE_CALLINFO(js_NewArgumentsOnTrace)
 
 /* Defined in jsnum.cpp. */
 JS_DECLARE_CALLINFO(js_NumberToString)
 
 /* Defined in jsobj.cpp. */
 JS_DECLARE_CALLINFO(js_Object_tn)
-JS_DECLARE_CALLINFO(js_NewInstance)
-JS_DECLARE_CALLINFO(js_NonEmptyObject)
+JS_DECLARE_CALLINFO(js_CreateThisFromTrace)
+JS_DECLARE_CALLINFO(js_InitializerObject)
 
 /* Defined in jsregexp.cpp. */
 JS_DECLARE_CALLINFO(js_CloneRegExpObject)

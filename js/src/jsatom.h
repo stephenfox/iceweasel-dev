@@ -351,6 +351,8 @@ struct JSAtomState
     JSAtom              *nameAtom;
     JSAtom              *nextAtom;
     JSAtom              *noSuchMethodAtom;
+    JSAtom              *objectNullAtom;
+    JSAtom              *objectUndefinedAtom;
     JSAtom              *protoAtom;
     JSAtom              *setAtom;
     JSAtom              *sourceAtom;
@@ -368,7 +370,10 @@ struct JSAtomState
     JSAtom              *configurableAtom;
     JSAtom              *writableAtom;
     JSAtom              *valueAtom;
+    JSAtom              *testAtom;
     JSAtom              *useStrictAtom;
+    JSAtom              *locAtom;
+    JSAtom              *lineAtom;
 
 #if JS_HAS_XML_SUPPORT
     JSAtom              *etagoAtom;
@@ -381,6 +386,9 @@ struct JSAtomState
     JSAtom              *starQualifierAtom;
     JSAtom              *tagcAtom;
     JSAtom              *xmlAtom;
+
+    /* Represents an invalid URI, for internal use only. */
+    JSAtom              *functionNamespaceURIAtom;
 #endif
 
     JSAtom              *ProxyAtom;
@@ -410,7 +418,6 @@ struct JSAtomState
         JSAtom          *encodeURIAtom;
         JSAtom          *encodeURIComponentAtom;
         JSAtom          *escapeAtom;
-        JSAtom          *functionNamespaceURIAtom;
         JSAtom          *hasOwnPropertyAtom;
         JSAtom          *isFiniteAtom;
         JSAtom          *isNaNAtom;
@@ -524,6 +531,7 @@ extern const char   js_enumerable_str[];
 extern const char   js_configurable_str[];
 extern const char   js_writable_str[];
 extern const char   js_value_str[];
+extern const char   js_test_str[];
 
 /*
  * Initialize atom state. Return true on success, false on failure to allocate

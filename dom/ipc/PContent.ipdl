@@ -39,15 +39,23 @@
 include protocol PBrowser;
 include protocol PTestShell;
 include protocol PNecko;
+include protocol PExternalHelperApp;
 
-include "mozilla/TabTypes.h";
 include "mozilla/chrome/RegistryMessageUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
+
+include "nsGeoPositionIPCSerialiser.h";
+include "PPrefTuple.h";
+
+using GeoPosition;
+using PrefTuple;
+using nsTArray<PrefTuple>;
 
 using ChromePackage;
 using ResourceMapping;
 using OverrideMapping;
 using IPC::URI;
+using IPC::Permission;
 
 namespace mozilla {
 namespace dom {
@@ -57,6 +65,7 @@ rpc protocol PContent
     manages PBrowser;
     manages PTestShell;
     manages PNecko;
+    manages PExternalHelperApp;
 
 child:
     PBrowser(PRUint32 chromeFlags);
@@ -70,7 +79,14 @@ child:
 
     async NotifyVisited(URI uri);
 
-    NotifyRemotePrefObserver(nsCString aDomain);
+    PreferenceUpdate(PrefTuple pref);
+
+    NotifyAlertsObserver(nsCString topic, nsString data);
+
+    GeolocationUpdate(GeoPosition somewhere);
+
+    // nsIPermissionManager messages
+    AddPermission(Permission permission);
 
 parent:
     PNecko();
@@ -80,24 +96,46 @@ parent:
     async StartVisitedQuery(URI uri);
     async VisitURI(URI uri, URI referrer, PRUint32 flags);
     async SetURITitle(URI uri, nsString title);
+    
+    // filepicker remoting
+    sync ShowFilePicker(PRInt16 mode, PRInt16 selectedType, 
+                        nsString title, nsString defaultFile, nsString defaultExtension,
+                        nsString[] filters, nsString[] filterNames)
+        returns (nsString[] files, PRInt16 retValue, nsresult result);
 
     async LoadURIExternal(URI uri);
 
-    // PrefService messages
-    sync GetPrefType(nsCString prefName) returns (PRInt32 retValue, nsresult rv);
-    sync GetBoolPref(nsCString prefName) returns (PRBool retValue, nsresult rv);
-    sync GetIntPref(nsCString prefName)  returns (PRInt32 retValue, nsresult rv);
-    sync GetCharPref(nsCString prefName) returns (nsCString retValue, nsresult rv);
-    sync GetPrefLocalizedString(nsCString prefName) returns (nsString retValue, nsresult rv);
-    sync PrefHasUserValue(nsCString prefName) returns (PRBool retValue, nsresult rv);
-    sync PrefIsLocked(nsCString prefName) returns (PRBool retValue, nsresult rv);
-    sync GetChildList(nsCString domain) returns (nsCString[] list, nsresult rv);
+    // PrefService message
+    sync ReadPrefsArray() returns (nsTArray<PrefTuple> retValue);
 
-    // PermissionsManager messages
-    sync TestPermission(URI uri, nsCString type, PRBool exact) returns (PRUint32 retValue);
-    NotifyIME(int aType, int aState);
-    NotifyIMEChange(nsString aText, PRUint32 aTextLen,
-                    int aStart, int aEnd, int aNewEnd);
+    sync SyncMessage(nsString aMessage, nsString aJSON)
+      returns (nsString[] retval);
+
+    ShowAlertNotification(nsString imageUrl, 
+                          nsString title, 
+                          nsString text, 
+                          PRBool textClickable,
+                          nsString cookie,
+                          nsString name);
+
+    PExternalHelperApp(URI uri, nsCString aMimeContentType,
+                       nsCString aContentDisposition, bool aForceSave,
+                       PRInt64 aContentLength);
+    
+    GeolocationStart();
+    GeolocationStop();
+
+    ConsoleMessage(nsString message);
+    ScriptError(nsString message, nsString sourceName, nsString sourceLine,
+                PRUint32 lineNumber, PRUint32 colNumber, PRUint32 flags,
+                nsCString category); 
+
+    // nsIPermissionManager messages
+    sync ReadPermissions() returns (Permission[] permissions);
+
+both:
+     AsyncMessage(nsString aMessage, nsString aJSON);
+
 };
 
 }

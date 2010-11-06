@@ -270,7 +270,7 @@ namespace nanojit
     // Full AccSets don't fit into load and store instructions.  But
     // load/store AccSets almost always contain a single access region.  We
     // take advantage of this to create a compressed AccSet, MiniAccSet, that
-    // does fit.  
+    // does fit.
     //
     // The 32 single-region AccSets get compressed into a number in the range
     // 0..31 (according to the position of the set bit), and all other
@@ -303,7 +303,7 @@ namespace nanojit
         return (miniAccSet.val == MINI_ACCSET_MULTIPLE.val) ? ACCSET_ALL : (1 << miniAccSet.val);
     }
 
-    // The LoadQual affects how a load can be optimised:  
+    // The LoadQual affects how a load can be optimised:
     //
     // - CONST: These loads are guaranteed to always return the same value
     //   during a single execution of a fragment (but the value is allowed to
@@ -491,31 +491,21 @@ namespace nanojit
         NanoAssert(op == LIR_xt || op == LIR_xf);
         return LOpcode(op ^ 1);
     }
-    inline LOpcode invertCmpIOpcode(LOpcode op) {
-        NanoAssert(isCmpIOpcode(op));
-        return LOpcode(op ^ 1);
-    }
-#ifdef NANOJIT_64BIT
-    inline LOpcode invertCmpQOpcode(LOpcode op) {
-        NanoAssert(isCmpQOpcode(op));
-        return LOpcode(op ^ 1);
-    }
-#endif
-    inline LOpcode invertCmpDOpcode(LOpcode op) {
-        NanoAssert(isCmpDOpcode(op));
+    inline LOpcode invertCmpOpcode(LOpcode op) {
+        NanoAssert(isCmpOpcode(op));
         return LOpcode(op ^ 1);
     }
 
     inline LOpcode getCallOpcode(const CallInfo* ci) {
         LOpcode op = LIR_callp;
         switch (ci->returnType()) {
-        case ARGTYPE_V: op = LIR_callp; break;
+        case ARGTYPE_V: op = LIR_callv; break;
         case ARGTYPE_I:
         case ARGTYPE_UI: op = LIR_calli; break;
-        case ARGTYPE_D: op = LIR_calld; break;
 #ifdef NANOJIT_64BIT
         case ARGTYPE_Q: op = LIR_callq; break;
 #endif
+        case ARGTYPE_D: op = LIR_calld; break;
         default:        NanoAssert(0);  break;
         }
         return op;
@@ -547,7 +537,7 @@ namespace nanojit
 
     inline RegisterMask rmask(Register r)
     {
-        return RegisterMask(1) << r;
+        return RegisterMask(1) << REGNUM(r);
     }
 
     //-----------------------------------------------------------------------
@@ -656,7 +646,7 @@ namespace nanojit
     private:
         // SharedFields: fields shared by all LIns kinds.
         //
-        // The .inReg, .reg, .inAr and .arIndex fields form a "reservation"
+        // The .inReg, .regnum, .inAr and .arIndex fields form a "reservation"
         // that is used temporarily during assembly to record information
         // relating to register allocation.  See class RegAlloc for more
         // details.  Note: all combinations of .inReg/.inAr are possible, ie.
@@ -668,7 +658,7 @@ namespace nanojit
         //
         struct SharedFields {
             uint32_t inReg:1;           // if 1, 'reg' is active
-            Register reg:7;
+            uint32_t regnum:7;
             uint32_t inAr:1;            // if 1, 'arIndex' is active
             uint32_t isResultLive:1;    // if 1, the instruction's result is live
 
@@ -758,7 +748,12 @@ namespace nanojit
         }
         Register deprecated_getReg() {
             NanoAssert(isExtant());
-            return ( isInReg() ? sharedFields.reg : deprecated_UnknownReg );
+            if (isInReg()) {
+                Register r = { sharedFields.regnum };
+                return r;
+            } else { 
+                return deprecated_UnknownReg;
+            }
         }
         uint32_t deprecated_getArIndex() {
             NanoAssert(isExtant());
@@ -782,11 +777,12 @@ namespace nanojit
         }
         Register getReg() {
             NanoAssert(isInReg());
-            return sharedFields.reg;
+            Register r = { sharedFields.regnum };
+            return r;
         }
         void setReg(Register r) {
             sharedFields.inReg = 1;
-            sharedFields.reg = r;
+            sharedFields.regnum = REGNUM(r);
         }
         void clearReg() {
             sharedFields.inReg = 0;
@@ -927,7 +923,8 @@ namespace nanojit
             return isCmpOpcode(opcode());
         }
         bool isCall() const {
-            return isop(LIR_calli) ||
+            return isop(LIR_callv) ||
+                   isop(LIR_calli) ||
 #if defined NANOJIT_64BIT
                    isop(LIR_callq) ||
 #endif
@@ -1580,6 +1577,9 @@ namespace nanojit
         virtual LIns* insJtbl(LIns* index, uint32_t size) {
             return out->insJtbl(index, size);
         }
+        virtual LIns* insComment(const char* str) {
+            return out->insComment(str);
+        }
 
         // convenience functions
 
@@ -1675,10 +1675,36 @@ namespace nanojit
     private:
         Allocator& alloc;
 
-        template <class Key>
-        class CountMap: public HashMap<Key, int> {
+        // A small string-wrapper class, required because we need '==' to
+        // compare string contents, not string pointers, when strings are used
+        // as keys in CountMap.
+        struct Str {
+            Allocator& alloc;
+            char* s;
+
+            Str(Allocator& alloc_, const char* s_) : alloc(alloc_) {
+                s = new (alloc) char[1+strlen(s_)];
+                strcpy(s, s_);
+            }
+
+            bool operator==(const Str& str) const {
+                return (0 == strcmp(this->s, str.s));
+            }
+        };
+
+        // Similar to 'struct Str' -- we need to hash the string's contents,
+        // not its pointer.
+        template<class K> struct StrHash {
+            static size_t hash(const Str &k) {
+                // (const void*) cast is required by ARM RVCT 2.2
+                return murmurhash((const void*)k.s, strlen(k.s));
+            }
+        };
+
+        template <class Key, class H=DefaultHash<Key> >
+        class CountMap: public HashMap<Key, int, H> {
         public:
-            CountMap(Allocator& alloc) : HashMap<Key, int>(alloc) {}
+            CountMap(Allocator& alloc) : HashMap<Key, int, H>(alloc, 128) {}
             int add(Key k) {
                 int c = 1;
                 if (this->containsKey(k)) {
@@ -1691,7 +1717,7 @@ namespace nanojit
 
         CountMap<int> lircounts;
         CountMap<const CallInfo *> funccounts;
-        CountMap<const char *> namecounts;
+        CountMap<Str, StrHash<Str> > namecounts;
 
         void addNameWithSuffix(LIns* i, const char *s, int suffix, bool ignoreOneSuffix);
 
@@ -1800,14 +1826,9 @@ namespace nanojit
         {
             if (!code.isEmpty()) {
                 InsBuf b;
-                int32_t count = 0;
-                for (Seq<LIns*>* p = code.get(); p != NULL; p = p->tail) {
+                for (Seq<LIns*>* p = code.get(); p != NULL; p = p->tail)
                     logc->printf("%s    %s\n", prefix, printer->formatIns(&b, p->head));
-                    count++;
-                }
                 code.clear();
-                if (count > 1)
-                    logc->printf("\n");
             }
         }
 
@@ -1816,7 +1837,7 @@ namespace nanojit
         }
 
         LIns* insGuardXov(LOpcode op, LIns* a, LIns* b, GuardRecord *gr) {
-            return add_flush(out->insGuardXov(op,a,b,gr));
+            return add(out->insGuardXov(op,a,b,gr));
         }
 
         LIns* insBranch(LOpcode v, LIns* condition, LIns* to) {
@@ -1824,7 +1845,7 @@ namespace nanojit
         }
 
         LIns* insBranchJov(LOpcode v, LIns* a, LIns* b, LIns* to) {
-            return add_flush(out->insBranchJov(v, a, b, to));
+            return add(out->insBranchJov(v, a, b, to));
         }
 
         LIns* insJtbl(LIns* index, uint32_t size) {
@@ -1857,7 +1878,7 @@ namespace nanojit
             return add(out->insLoad(v, base, disp, accSet, loadQual));
         }
         LIns* insStore(LOpcode op, LIns* v, LIns* b, int32_t d, AccSet accSet) {
-            return add(out->insStore(op, v, b, d, accSet));
+            return add_flush(out->insStore(op, v, b, d, accSet));
         }
         LIns* insAlloc(int32_t size) {
             return add(out->insAlloc(size));
@@ -1872,6 +1893,10 @@ namespace nanojit
 #endif
         LIns* insImmD(double d) {
             return add(out->insImmD(d));
+        }
+
+        LIns* insComment(const char* str) {
+            return add_flush(out->insComment(str));
         }
     };
 
@@ -1963,6 +1988,18 @@ namespace nanojit
 
         Allocator& alloc;
 
+        // After a conditional guard such as "xf cmp", we know that 'cmp' must
+        // be true, else we would have side-exited.  So if we see 'cmp' again
+        // we can treat it like a constant.  This table records such
+        // comparisons.
+        HashMap <LIns*, bool> knownCmpValues;
+
+        // If true, we will not add new instructions to the CSE tables, but we
+        // will continue to CSE instructions that match existing table
+        // entries.  Load instructions will still be removed if aliasing
+        // stores are encountered.
+        bool suspended;
+
         CseAcc miniAccSetToCseAcc(MiniAccSet miniAccSet, LoadQual loadQual) {
             NanoAssert(miniAccSet.val < NUM_ACCS || miniAccSet.val == MINI_ACCSET_MULTIPLE.val);
             return (loadQual == LOAD_CONST) ? CSE_ACC_CONST :
@@ -2038,6 +2075,14 @@ namespace nanojit
         LIns* insCall(const CallInfo *call, LIns* args[]);
         LIns* insGuard(LOpcode op, LIns* cond, GuardRecord *gr);
         LIns* insGuardXov(LOpcode op, LIns* a, LIns* b, GuardRecord *gr);
+
+        // These functions provide control over CSE in the face of control
+        // flow.  A suspend()/resume() pair may be put around a synthetic
+        // control flow diamond, preventing the inserted label from resetting
+        // the CSE state.  A suspend() call must be dominated by a resume()
+        // call, else incorrect code could result.
+        void suspend() { suspended = true; }
+        void resume() { suspended = false; }
     };
 
     class LirBuffer
@@ -2111,6 +2156,7 @@ namespace nanojit
             LIns*   insBranchJov(LOpcode v, LIns* a, LIns* b, LIns* to);
             LIns*   insAlloc(int32_t size);
             LIns*   insJtbl(LIns* index, uint32_t size);
+            LIns*   insComment(const char* str);
     };
 
     class LirFilter
@@ -2177,6 +2223,78 @@ namespace nanojit
         LIns* read();
     };
 
+    // This type is used to perform a simple interval analysis of 32-bit
+    // add/sub/mul.  It lets us avoid overflow checks in some cases.
+    struct Interval
+    {
+        // The bounds are 64-bit integers so that any overflow from a 32-bit
+        // operation can be safely detected.
+        //
+        // If 'hasOverflowed' is false, 'lo' and 'hi' must be in the range
+        // I32_MIN..I32_MAX.  If 'hasOverflowed' is true, 'lo' and 'hi' should
+        // not be trusted (and in debug builds we set them both to a special
+        // value UNTRUSTWORTHY that is outside the I32_MIN..I32_MAX range to
+        // facilitate sanity checking).
+        //
+        int64_t lo;
+        int64_t hi;
+        bool hasOverflowed;
+
+        static const int64_t I32_MIN = int64_t(int32_t(0x80000000));
+        static const int64_t I32_MAX = int64_t(int32_t(0x7fffffff));
+
+#ifdef DEBUG
+        static const int64_t UNTRUSTWORTHY = int64_t(0xdeafdeadbeeffeedLL);
+
+        bool isSane() {
+            return (hasOverflowed && lo == UNTRUSTWORTHY && hi == UNTRUSTWORTHY) ||
+                   (!hasOverflowed && lo <= hi && I32_MIN <= lo && hi <= I32_MAX);
+        }
+#endif
+
+        Interval(int64_t lo_, int64_t hi_) {
+            if (lo_ < I32_MIN || I32_MAX < hi_) {
+                hasOverflowed = true;
+#ifdef DEBUG
+                lo = UNTRUSTWORTHY;
+                hi = UNTRUSTWORTHY;
+#endif
+            } else {
+                hasOverflowed = false;
+                lo = lo_;
+                hi = hi_;
+            }
+            NanoAssert(isSane());
+        }
+
+        static Interval OverflowInterval() {
+            Interval interval(0, 0);
+#ifdef DEBUG
+            interval.lo = UNTRUSTWORTHY;
+            interval.hi = UNTRUSTWORTHY;
+#endif
+            interval.hasOverflowed = true;
+            return interval;
+        }
+
+        static Interval of(LIns* ins, int32_t lim);
+
+        static Interval add(Interval x, Interval y);
+        static Interval sub(Interval x, Interval y);
+        static Interval mul(Interval x, Interval y);
+
+        bool canBeZero() {
+            NanoAssert(isSane());
+            return hasOverflowed || (lo <= 0 && 0 <= hi);
+        }
+
+        bool canBeNegative() {
+            NanoAssert(isSane());
+            return hasOverflowed || (lo < 0);
+        }
+    };
+
+#if NJ_SOFTFLOAT_SUPPORTED
     struct SoftFloatOps
     {
         const CallInfo* opmap[LIR_sentinel];
@@ -2197,12 +2315,13 @@ namespace nanojit
         LIns *split(const CallInfo *call, LIns* args[]);
         LIns *callD1(const CallInfo *call, LIns *a);
         LIns *callD2(const CallInfo *call, LIns *a, LIns *b);
+        LIns *callI1(const CallInfo *call, LIns *a);
         LIns *cmpD(const CallInfo *call, LIns *a, LIns *b);
         LIns *ins1(LOpcode op, LIns *a);
         LIns *ins2(LOpcode op, LIns *a, LIns *b);
         LIns *insCall(const CallInfo *ci, LIns* args[]);
     };
-
+#endif
 
 #ifdef DEBUG
     // This class does thorough checking of LIR.  It checks *implicit* LIR

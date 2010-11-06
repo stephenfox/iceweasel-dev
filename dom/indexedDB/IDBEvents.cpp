@@ -51,34 +51,18 @@
 #include "IDBRequest.h"
 #include "IDBTransaction.h"
 
-#define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(_class, _condition)  \
-  if ((_condition) && (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||               \
-                       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {            \
-    foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
-    if (!foundInterface) {                                                    \
-      *aInstancePtr = nsnull;                                                 \
-      return NS_ERROR_OUT_OF_MEMORY;                                          \
-    }                                                                         \
-  } else
-
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
 
-template<class Class>
+template <class T>
 inline
-nsIDOMEvent*
-idomevent_cast(Class* aClassPtr)
+already_AddRefed<nsIDOMEvent>
+ForgetEvent(nsRefPtr<T>& aRefPtr)
 {
-  return static_cast<nsIDOMEvent*>(static_cast<nsDOMEvent*>(aClassPtr));
-}
-
-template<class Class>
-inline
-nsIDOMEvent*
-idomevent_cast(nsRefPtr<Class> aClassAutoPtr)
-{
-  return idomevent_cast(aClassAutoPtr.get());
+  T* result;
+  aRefPtr.forget(&result);
+  return static_cast<nsIDOMEvent*>(static_cast<nsDOMEvent*>(result));
 }
 
 class EventFiringRunnable : public nsRunnable
@@ -205,7 +189,17 @@ IDBEvent::CreateGenericEventRunnable(const nsAString& aType,
 NS_IMPL_ADDREF_INHERITED(IDBEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(IDBEvent, nsDOMEvent)
 
-NS_INTERFACE_MAP_BEGIN(IDBEvent)
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBEvent)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBEvent)
   NS_INTERFACE_MAP_ENTRY(nsIIDBEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
@@ -224,7 +218,7 @@ IDBErrorEvent::Create(IDBRequest* aRequest,
 {
   nsRefPtr<IDBErrorEvent> event(new IDBErrorEvent());
 
-  event->mSource = aRequest->GetGenerator();
+  event->mSource = aRequest->Source();
   event->mCode = aCode;
   GetMessageForErrorCode(aCode, event->mMessage);
 
@@ -235,9 +229,7 @@ IDBErrorEvent::Create(IDBRequest* aRequest,
   rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  IDBErrorEvent* result;
-  event.forget(&result);
-  return idomevent_cast(result);
+  return ForgetEvent(event);
 }
 
 // static
@@ -245,7 +237,7 @@ already_AddRefed<nsIRunnable>
 IDBErrorEvent::CreateRunnable(IDBRequest* aRequest,
                               PRUint16 aCode)
 {
-  nsCOMPtr<nsIDOMEvent> event(IDBErrorEvent::Create(aRequest, aCode));
+  nsCOMPtr<nsIDOMEvent> event(Create(aRequest, aCode));
   NS_ENSURE_TRUE(event, nsnull);
 
   nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aRequest, event));
@@ -298,7 +290,7 @@ IDBSuccessEvent::Create(IDBRequest* aRequest,
 {
   nsRefPtr<IDBSuccessEvent> event(new IDBSuccessEvent());
 
-  event->mSource = aRequest->GetGenerator();
+  event->mSource = aRequest->Source();
   event->mResult = aResult;
   event->mTransaction = aTransaction;
 
@@ -309,9 +301,7 @@ IDBSuccessEvent::Create(IDBRequest* aRequest,
   rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  IDBSuccessEvent* result;
-  event.forget(&result);
-  return idomevent_cast(result);
+  return ForgetEvent(event);
 }
 
 // static
@@ -320,8 +310,7 @@ IDBSuccessEvent::CreateRunnable(IDBRequest* aRequest,
                                 nsIVariant* aResult,
                                 nsIIDBTransaction* aTransaction)
 {
-  nsCOMPtr<nsIDOMEvent> event =
-    IDBSuccessEvent::Create(aRequest, aResult, aTransaction);
+  nsCOMPtr<nsIDOMEvent> event(Create(aRequest, aResult, aTransaction));
   NS_ENSURE_TRUE(event, nsnull);
 
   nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aRequest, event));
@@ -331,7 +320,19 @@ IDBSuccessEvent::CreateRunnable(IDBRequest* aRequest,
 NS_IMPL_ADDREF_INHERITED(IDBSuccessEvent, IDBEvent)
 NS_IMPL_RELEASE_INHERITED(IDBSuccessEvent, IDBEvent)
 
-NS_INTERFACE_MAP_BEGIN(IDBSuccessEvent)
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBSuccessEvent)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBSuccessEvent, IDBEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mResult)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTransaction)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBSuccessEvent, IDBEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mResult)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTransaction)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBSuccessEvent)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIIDBTransactionEvent, mTransaction)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(IDBTransactionEvent,
                                                    mTransaction)
@@ -372,11 +373,18 @@ IDBSuccessEvent::GetTransaction(nsIIDBTransaction** aTransaction)
   return NS_OK;
 }
 
+GetSuccessEvent::~GetSuccessEvent()
+{
+  if (mValueRooted) {
+    NS_DROP_JS_OBJECTS(this, GetSuccessEvent);
+  }
+}
+
 nsresult
 GetSuccessEvent::Init(IDBRequest* aRequest,
                       IDBTransaction* aTransaction)
 {
-  mSource = aRequest->GetGenerator();
+  mSource = aRequest->Source();
   mTransaction = aTransaction;
 
   nsresult rv = InitEvent(NS_LITERAL_STRING(SUCCESS_EVT_STR), PR_FALSE,
@@ -398,19 +406,13 @@ GetSuccessEvent::GetResult(JSContext* aCx,
     return NS_OK;
   }
 
-  if (!mJSRuntime) {
+  if (!mValueRooted) {
+    RootCachedValue();
+
     nsString jsonValue = mValue;
     mValue.Truncate();
 
     JSAutoRequest ar(aCx);
-
-    JSRuntime* rt = JS_GetRuntime(aCx);
-
-    JSBool ok = js_AddRootRT(rt, &mCachedValue,
-                             "GetSuccessEvent::mCachedValue");
-    NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
-
-    mJSRuntime = rt;
 
     nsCOMPtr<nsIJSON> json(new nsJSON());
     nsresult rv = json->DecodeToJSVal(jsonValue, aCx, &mCachedValue);
@@ -426,20 +428,55 @@ GetSuccessEvent::GetResult(JSContext* aCx,
   return NS_OK;
 }
 
+void
+GetSuccessEvent::RootCachedValue()
+{
+  mValueRooted = PR_TRUE;
+  NS_HOLD_JS_OBJECTS(this, GetSuccessEvent);
+}
+
+NS_IMPL_ADDREF_INHERITED(GetSuccessEvent, IDBSuccessEvent)
+NS_IMPL_RELEASE_INHERITED(GetSuccessEvent, IDBSuccessEvent)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(GetSuccessEvent)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(GetSuccessEvent,
+                                                  IDBSuccessEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(GetSuccessEvent)
+  if (tmp->mValueRooted) {
+    NS_DROP_JS_OBJECTS(tmp, GetSuccessEvent);
+    tmp->mCachedValue = JSVAL_VOID;
+    tmp->mValueRooted = PR_FALSE;
+  }
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(GetSuccessEvent,
+                                                IDBSuccessEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mResult)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTransaction)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(GetSuccessEvent)
+  if (JSVAL_IS_GCTHING(tmp->mCachedValue)) {
+    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedValue);
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing)
+  }
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(GetSuccessEvent)
+NS_INTERFACE_MAP_END_INHERITING(IDBSuccessEvent)
+
 NS_IMETHODIMP
 GetAllSuccessEvent::GetResult(JSContext* aCx,
                               jsval* aResult)
 {
-  if (!mJSRuntime) {
+  if (!mValueRooted) {
+    RootCachedValue();
+
     JSAutoRequest ar(aCx);
-
-    JSRuntime* rt = JS_GetRuntime(aCx);
-
-    JSBool ok = js_AddRootRT(rt, &mCachedValue,
-                             "GetSuccessEvent::mCachedValue");
-    NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
-
-    mJSRuntime = rt;
 
     // Swap into a stack array so that we don't hang on to the strings if
     // something fails.
@@ -497,16 +534,10 @@ NS_IMETHODIMP
 GetAllKeySuccessEvent::GetResult(JSContext* aCx,
                                  jsval* aResult)
 {
-  if (!mJSRuntime) {
+  if (!mValueRooted) {
+    RootCachedValue();
+
     JSAutoRequest ar(aCx);
-
-    JSRuntime* rt = JS_GetRuntime(aCx);
-
-    JSBool ok = js_AddRootRT(rt, &mCachedValue,
-                             "GetSuccessEvent::mCachedValue");
-    NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
-
-    mJSRuntime = rt;
 
     // Swap into a stack array so that we don't hang on to the strings if
     // something fails.
@@ -556,5 +587,56 @@ GetAllKeySuccessEvent::GetResult(JSContext* aCx,
   }
 
   *aResult = mCachedValue;
+  return NS_OK;
+}
+
+// static
+already_AddRefed<nsIDOMEvent>
+IDBVersionChangeEvent::CreateInternal(nsISupports* aSource,
+                                      const nsAString& aType,
+                                      const nsAString& aVersion)
+{
+  nsRefPtr<IDBVersionChangeEvent> event(new IDBVersionChangeEvent());
+
+  event->mSource = aSource;
+  event->mVersion = aVersion;
+
+  nsresult rv = event->InitEvent(aType, PR_FALSE, PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, nsnull);
+
+  rv = event->SetTrusted(PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, nsnull);
+
+  return ForgetEvent(event);
+}
+
+// static
+already_AddRefed<nsIRunnable>
+IDBVersionChangeEvent::CreateRunnableInternal(nsISupports* aSource,
+                                              const nsAString& aType,
+                                              const nsAString& aVersion,
+                                              nsIDOMEventTarget* aTarget)
+{
+  nsCOMPtr<nsIDOMEvent> event = CreateInternal(aSource, aType, aVersion);
+  NS_ENSURE_TRUE(event, nsnull);
+
+  nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aTarget, event));
+  return runnable.forget();
+}
+
+NS_IMPL_ADDREF_INHERITED(IDBVersionChangeEvent, IDBEvent)
+NS_IMPL_RELEASE_INHERITED(IDBVersionChangeEvent, IDBEvent)
+
+NS_INTERFACE_MAP_BEGIN(IDBVersionChangeEvent)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBVersionChangeEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBVersionChangeEvent)
+NS_INTERFACE_MAP_END_INHERITING(IDBEvent)
+
+DOMCI_DATA(IDBVersionChangeEvent, IDBVersionChangeEvent)
+
+NS_IMETHODIMP
+IDBVersionChangeEvent::GetVersion(nsAString& aVersion)
+{
+  aVersion.Assign(mVersion);
   return NS_OK;
 }

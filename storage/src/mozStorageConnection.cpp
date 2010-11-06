@@ -379,7 +379,8 @@ Connection::getAsyncExecutionTarget()
 }
 
 nsresult
-Connection::initialize(nsIFile *aDatabaseFile)
+Connection::initialize(nsIFile *aDatabaseFile,
+                       const char* aVFSName)
 {
   NS_ASSERTION (!mDBConn, "Initialize called on already opened database!");
 
@@ -394,11 +395,11 @@ Connection::initialize(nsIFile *aDatabaseFile)
     NS_ENSURE_SUCCESS(rv, rv);
 
     srv = ::sqlite3_open_v2(NS_ConvertUTF16toUTF8(path).get(), &mDBConn, mFlags,
-                            NULL);
+                            aVFSName);
   }
   else {
     // in memory database requested, sqlite uses a magic file name
-    srv = ::sqlite3_open_v2(":memory:", &mDBConn, mFlags, NULL);
+    srv = ::sqlite3_open_v2(":memory:", &mDBConn, mFlags, aVFSName);
   }
   if (srv != SQLITE_OK) {
     mDBConn = nsnull;
@@ -422,8 +423,9 @@ Connection::initialize(nsIFile *aDatabaseFile)
 #endif
   // Switch db to preferred page size in case the user vacuums.
   sqlite3_stmt *stmt;
-  srv = prepareStmt(mDBConn, NS_LITERAL_CSTRING("PRAGMA page_size = 32768"),
-                    &stmt);
+  nsCAutoString pageSizeQuery(NS_LITERAL_CSTRING("PRAGMA page_size = "));
+  pageSizeQuery.AppendInt(DEFAULT_PAGE_SIZE);
+  srv = prepareStmt(mDBConn, pageSizeQuery, &stmt);
   if (srv == SQLITE_OK) {
     (void)stepStmt(stmt);
     (void)::sqlite3_finalize(stmt);
@@ -1102,6 +1104,21 @@ Connection::RemoveProgressHandler(mozIStorageProgressHandler **_oldHandler)
   mProgressHandler = nsnull;
   ::sqlite3_progress_handler(mDBConn, 0, NULL, NULL);
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Connection::SetGrowthIncrement(PRInt32 aChunkSize, const nsACString &aDatabaseName)
+{
+  // Bug 597215: Disk space is extremely limited on Android
+  // so don't preallocate space. This is also not effective
+  // on log structured file systems used by Android devices
+#ifndef ANDROID
+  (void)::sqlite3_file_control(mDBConn,
+                               aDatabaseName.Length() ? nsPromiseFlatCString(aDatabaseName).get() : NULL,
+                               SQLITE_FCNTL_CHUNK_SIZE,
+                               &aChunkSize);
+#endif
   return NS_OK;
 }
 

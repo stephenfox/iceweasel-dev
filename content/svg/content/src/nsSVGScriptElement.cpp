@@ -49,6 +49,8 @@
 #include "nsScriptElement.h"
 #include "nsIDOMText.h"
 
+using namespace mozilla::dom;
+
 typedef nsSVGElement nsSVGScriptElementBase;
 
 class nsSVGScriptElement : public nsSVGScriptElementBase,
@@ -59,9 +61,9 @@ class nsSVGScriptElement : public nsSVGScriptElementBase,
 protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
                                          already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         PRUint32 aFromParser);
+                                         FromParser aFromParser);
   nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     PRUint32 aFromParser);
+                     FromParser aFromParser);
   
 public:
   // interfaces:
@@ -108,7 +110,7 @@ protected:
 
 nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_FALSE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
@@ -133,8 +135,9 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 // Implementation
 
 nsSVGScriptElement::nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       PRUint32 aFromParser)
+                                       FromParser aFromParser)
   : nsSVGScriptElementBase(aNodeInfo)
+  , nsScriptElement(aFromParser)
 {
   mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
@@ -149,10 +152,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGScriptElement* it = new nsSVGScriptElement(ni.forget(), PR_FALSE);
-  if (!it) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  nsSVGScriptElement* it = new nsSVGScriptElement(ni.forget(), NOT_FROM_PARSER);
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = it->Init();
@@ -160,7 +160,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The clone should be marked evaluated if we are.
-  it->mIsEvaluated = mIsEvaluated;
+  it->mAlreadyStarted = mAlreadyStarted;
   it->mLineNumber = mLineNumber;
   it->mMalformed = mMalformed;
 
@@ -278,11 +278,10 @@ nsSVGScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
   nsresult rv = MaybeProcessScript();
-  if (!mIsEvaluated) {
-    // Need to thaw the script uri here to allow another script to cause
+  if (!mAlreadyStarted) {
+    // Need to lose parser-insertedness here to allow another script to cause
     // execution later.
-    mFrozen = PR_FALSE;
-    mUri = nsnull;
+    LoseParserInsertedness();
   }
   return rv;
 }

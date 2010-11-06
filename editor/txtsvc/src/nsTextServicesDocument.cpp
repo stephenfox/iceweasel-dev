@@ -1203,7 +1203,8 @@ nsTextServicesDocument::ScrollSelectionIntoView()
 
   // After ScrollSelectionIntoView(), the pending notifications might be flushed
   // and PresShell/PresContext/Frames may be dead. See bug 418470.
-  result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
+  result = mSelCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL, nsISelectionController::SELECTION_FOCUS_REGION,
+                                            nsISelectionController::SCROLL_SYNCHRONOUS);
 
   UNLOCK_DOC(this);
 
@@ -2370,6 +2371,11 @@ nsTextServicesDocument::ClearDidSkip(nsIContentIterator* aFilteredIter)
 PRBool
 nsTextServicesDocument::IsBlockNode(nsIContent *aContent)
 {
+  if (!aContent) {
+    NS_ERROR("How did a null pointer get passed to IsBlockNode?");
+    return PR_FALSE;
+  }
+
   nsIAtom *atom = aContent->Tag();
 
   return (sAAtom       != atom &&

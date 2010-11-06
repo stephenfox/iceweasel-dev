@@ -165,6 +165,10 @@ BrowserGlue.prototype = {
       case "final-ui-startup":
         this._onProfileStartup();
         break;
+      case "browser-delayed-startup-finished":
+        this._onFirstWindowLoaded();
+        Services.obs.removeObserver(this, "browser-delayed-startup-finished");
+        break;
       case "sessionstore-windows-restored":
         this._onBrowserStartup();
         break;
@@ -260,6 +264,7 @@ BrowserGlue.prototype = {
     os.addObserver(this, "xpcom-shutdown", false);
     os.addObserver(this, "prefservice:after-app-defaults", false);
     os.addObserver(this, "final-ui-startup", false);
+    os.addObserver(this, "browser-delayed-startup-finished", false);
     os.addObserver(this, "sessionstore-windows-restored", false);
     os.addObserver(this, "browser:purge-session-history", false);
     os.addObserver(this, "quit-application-requested", false);
@@ -347,6 +352,22 @@ BrowserGlue.prototype = {
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
+  // the first browser window has finished initializing
+  _onFirstWindowLoaded: function BG__onFirstWindowLoaded() {
+#ifdef XP_WIN
+#ifndef WINCE
+    // For windows seven, initialize the jump list module.
+    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
+    if (WINTASKBAR_CONTRACTID in Cc &&
+        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
+      let temp = {};
+      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
+      temp.WinTaskbarJumpList.startup();
+    }
+#endif
+#endif
+  },
+
   // profile shutdown handler (contains profile cleanup routines)
   _onProfileShutdown: function BG__onProfileShutdown() {
 #ifdef MOZ_UPDATER
@@ -408,19 +429,6 @@ BrowserGlue.prototype = {
     // been warned about them yet, open the plugins update page.
     if (Services.prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
       this._showPluginUpdatePage();
-
-#ifdef XP_WIN
-#ifndef WINCE
-    // For windows seven, initialize the jump list module.
-    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
-    if (WINTASKBAR_CONTRACTID in Cc &&
-        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
-      let temp = {};
-      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
-      temp.WinTaskbarJumpList.startup();
-    }
-#endif
-#endif
   },
 
   _onQuitRequest: function BG__onQuitRequest(aCancelQuit, aQuitType) {
@@ -589,7 +597,7 @@ BrowserGlue.prototype = {
     var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
     var productName      = brandBundle.GetStringFromName("brandFullName");
     var notifyRightsText = rightsBundle.formatStringFromName("notifyRightsText", [productName], 1);
-    
+
     var buttons = [
                     {
                       label:     buttonLabel,
@@ -995,7 +1003,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 2;
+    const UI_VERSION = 3;
     let currentUIVersion = 0;
     try {
       currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
@@ -1053,6 +1061,25 @@ BrowserGlue.prototype = {
       }
     }
 
+    if (currentUIVersion < 3) {
+      // This code merges the reload/stop/go button into the url bar.
+      let currentsetResource = this._rdf.GetResource("currentset");
+      let toolbarResource = this._rdf.GetResource("chrome://browser/content/browser.xul#nav-bar");
+      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      // Need to migrate only if toolbar is customized and all 3 elements are found.
+      if (currentset &&
+          currentset.indexOf("reload-button") != -1 &&
+          currentset.indexOf("stop-button") != -1 &&
+          currentset.indexOf("urlbar-container") != -1 &&
+          currentset.indexOf("urlbar-container,reload-button,stop-button") == -1) {
+        currentset = currentset.replace(/(^|,)reload-button($|,)/, "$1$2").
+                                replace(/(^|,)stop-button($|,)/, "$1$2").
+                                replace(/(^|,)urlbar-container($|,)/,
+                                        "$1urlbar-container,reload-button,stop-button$2");
+        this._setPersist(toolbarResource, currentsetResource, currentset);
+      }
+    }
+
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
@@ -1090,7 +1117,7 @@ BrowserGlue.prototype = {
   // ------------------------------
   // public nsIBrowserGlue members
   // ------------------------------
-  
+
   sanitize: function BG_sanitize(aParentWindow) {
     this._sanitizer.sanitize(aParentWindow);
   },
@@ -1229,7 +1256,7 @@ BrowserGlue.prototype = {
                                     SMART_BOOKMARKS_ANNO, smartBookmark.queryId,
                                     0, annosvc.EXPIRE_NEVER);
         }
-        
+
         // If we are creating all Smart Bookmarks from ground up, add a
         // separator below them in the bookmarks menu.
         if (smartBookmarksCurrentVersion == 0 &&
@@ -1304,15 +1331,20 @@ BrowserGlue.prototype = {
   _xpcom_factory: BrowserGlueServiceFactory,
 }
 
-function GeolocationPrompt() {}
+function ContentPermissionPrompt() {}
 
-GeolocationPrompt.prototype = {
-  classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
+ContentPermissionPrompt.prototype = {
+  classID:          Components.ID("{d8903bf6-68d5-4e97-bcd1-e4d3012f721a}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
 
-  prompt: function GP_prompt(request) {
-    var requestingURI = request.requestingURI;
+  prompt: function CPP_prompt(request) {
+
+    if (request.type != "geolocation") {
+        return;
+    }
+
+    var requestingURI = request.uri;
 
     // Ignore requests from non-nsIStandardURLs
     if (!(requestingURI instanceof Ci.nsIStandardURL))
@@ -1324,7 +1356,7 @@ GeolocationPrompt.prototype = {
       request.allow();
       return;
     }
-    
+
     if (result == Ci.nsIPermissionManager.DENY_ACTION) {
       request.cancel();
       return;
@@ -1363,7 +1395,7 @@ GeolocationPrompt.prototype = {
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
       message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
-                                                   [request.requestingURI.path], 1);
+                                                   [requestingURI.path], 1);
     } else {
       message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
                                                    [requestingURI.host], 1);
@@ -1393,7 +1425,7 @@ GeolocationPrompt.prototype = {
       }
     }
 
-    var requestingWindow = request.requestingWindow.top;
+    var requestingWindow = request.window.top;
     var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
@@ -1402,5 +1434,5 @@ GeolocationPrompt.prototype = {
   }
 };
 
-var components = [BrowserGlue, GeolocationPrompt];
+var components = [BrowserGlue, ContentPermissionPrompt];
 var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

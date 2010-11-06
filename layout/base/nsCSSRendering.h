@@ -73,14 +73,9 @@ struct nsCSSRendering {
                                   const nsRect& aFrameArea,
                                   const nsRect& aDirtyRect);
 
-  /**
-   * Get the size, in app units, of the border radii. It returns FALSE iff all
-   * returned radii == 0 (so no border radii), TRUE otherwise.
-   * For the aRadii indexes, use the NS_CORNER_* constants in nsStyleConsts.h
-   */
-  static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                     const nscoord& aFrameWidth,
-                                     nscoord aRadii[8]);
+  static void ComputePixelRadii(const nscoord *aAppUnitsRadii,
+                                nscoord aAppUnitsPerPixel,
+                                gfxCornerSizes *oBorderRadii);
 
   /**
    * Render the border for an element using css rendering rules
@@ -229,8 +224,14 @@ struct nsCSSRendering {
      */
     PAINTBG_WILL_PAINT_BORDER = 0x01,
     /**
-     * When this flag is passed, images are synchronously decoded. */
-    PAINTBG_SYNC_DECODE_IMAGES = 0x02
+     * When this flag is passed, images are synchronously decoded.
+     */
+    PAINTBG_SYNC_DECODE_IMAGES = 0x02,
+    /**
+     * When this flag is passed, painting will go to the screen so we can
+     * take advantage of the fact that it will be clipped to the viewport.
+     */
+    PAINTBG_TO_WINDOW = 0x04
   };
   static void PaintBackground(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,
@@ -468,6 +469,15 @@ public:
    * constructed at that point.
    */
   gfxContext* GetContext();
+
+
+  /**
+   * Get the margin associated with the given blur radius, i.e., the
+   * additional area that might be painted as a result of it.  (The
+   * margin for a spread radius is itself, on all sides.)
+   */
+  static nsMargin GetBlurRadiusMargin(nscoord aBlurRadius,
+                                      PRInt32 aAppUnitsPerDevPixel);
 
 protected:
   gfxAlphaBoxBlur blur;

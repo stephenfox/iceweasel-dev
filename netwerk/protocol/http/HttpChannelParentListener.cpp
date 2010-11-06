@@ -43,6 +43,7 @@
 #include "mozilla/net/HttpChannelParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/net/NeckoParent.h"
+#include "mozilla/unused.h"
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
 #include "nsNetUtil.h"
@@ -55,6 +56,8 @@
 #include "nsISerializable.h"
 #include "nsIAssociatedContentSecurity.h"
 #include "nsISecureBrowserUI.h"
+
+using mozilla::unused;
 
 namespace mozilla {
 namespace net {
@@ -140,6 +143,12 @@ HttpChannelParentListener::GetInterface(const nsIID& aIID, void **result)
     return mActiveChannel->mTabParent->QueryInterface(aIID, result);
   }
 
+  if (aIID.Equals(NS_GET_IID(nsISecureBrowserUI))) {
+    if (!mActiveChannel || !mActiveChannel->mTabParent)
+      return NS_NOINTERFACE;
+    return mActiveChannel->mTabParent->QueryInterface(aIID, result);
+  }
+
   if (aIID.Equals(NS_GET_IID(nsIProgressEventSink))) {
     if (!mActiveChannel)
       return NS_NOINTERFACE;
@@ -220,13 +229,17 @@ HttpChannelParentListener::AsyncOnChannelRedirect(
   newChannel->GetURI(getter_AddRefs(newURI));
 
   nsHttpChannel *oldHttpChannel = static_cast<nsHttpChannel *>(oldChannel);
-  // TODO: check mActiveChannel->mIPCClosed and return val from Send function
-  mActiveChannel->SendRedirect1Begin(mRedirectChannel,
-                                     IPC::URI(newURI),
-                                     redirectFlags,
-                                     *oldHttpChannel->GetResponseHead());
+  nsHttpResponseHead *responseHead = oldHttpChannel->GetResponseHead();
 
-  // mActiveChannel gets the response in RecvRedirect2Result and forwards it
+  // TODO: check mActiveChannel->mIPCClosed and return val from Send function
+  
+  unused << mActiveChannel->SendRedirect1Begin(mRedirectChannel,
+                                               IPC::URI(newURI),
+                                               redirectFlags,
+                                               responseHead ? *responseHead 
+                                                            : nsHttpResponseHead());
+
+  // mActiveChannel gets the response in RecvRedirect2Verify and forwards it
   // to this wrapper through OnContentRedirectResultReceived
 
   return NS_OK;
@@ -266,7 +279,7 @@ HttpChannelParentListener::OnRedirectResult(PRBool succeeded)
 
   if (succeeded && !mActiveChannel->mIPCClosed) {
     // TODO: check return value: assume child dead if failed
-    mActiveChannel->SendRedirect3Complete();
+    unused << mActiveChannel->SendRedirect3Complete();
   }
 
   HttpChannelParent* channelToDelete;
@@ -280,7 +293,7 @@ HttpChannelParentListener::OnRedirectResult(PRBool succeeded)
   }
 
   if (!channelToDelete->mIPCClosed)
-    HttpChannelParent::Send__delete__(channelToDelete);
+    unused << channelToDelete->SendDeleteSelf();
   mRedirectChannel = nsnull;
 
   return NS_OK;

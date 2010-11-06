@@ -76,6 +76,8 @@ class gfxDrawable;
  */
 class nsLayoutUtils
 {
+  typedef gfxPattern::GraphicsFilter GraphicsFilter;
+
 public:
 
   /**
@@ -153,6 +155,11 @@ public:
    */
   static PRBool IsGeneratedContentFor(nsIContent* aContent, nsIFrame* aFrame,
                                       nsIAtom* aPseudoElement);
+
+#ifdef DEBUG
+  // TODO: remove, see bug 598468.
+  static bool gPreventAssertInCompareTreePosition;
+#endif // DEBUG
 
   /**
    * CompareTreePosition determines whether aContent1 comes before or
@@ -517,9 +524,10 @@ public:
     PAINT_SYNC_DECODE_IMAGES = 0x02,
     PAINT_WIDGET_LAYERS = 0x04,
     PAINT_IGNORE_SUPPRESSION = 0x08,
-    PAINT_IGNORE_VIEWPORT_SCROLLING = 0x10,
+    PAINT_DOCUMENT_RELATIVE = 0x10,
     PAINT_HIDE_CARET = 0x20,
-    PAINT_ALL_CONTINUATIONS = 0x40
+    PAINT_ALL_CONTINUATIONS = 0x40,
+    PAINT_TO_WINDOW = 0x80
   };
 
   /**
@@ -543,6 +551,10 @@ public:
    * even if aRenderingContext is non-null. This is useful if you want
    * to force rendering to use the widget's layer manager for testing
    * or speed. PAINT_WIDGET_LAYERS must be set if aRenderingContext is null.
+   * If PAINT_DOCUMENT_RELATIVE is used, the visible region is interpreted
+   * as being relative to the document.  (Normally it's relative to the CSS
+   * viewport.) PAINT_TO_WINDOW sets painting to window to true on the display
+   * list builder even if we can't tell that we are painting to the window.
    *
    * So there are three possible behaviours:
    * 1) PAINT_WIDGET_LAYERS is set and aRenderingContext is null; we paint
@@ -798,6 +810,29 @@ public:
            (aCBHeight == NS_AUTOHEIGHT && aCoord.HasPercent());
   }
 
+  static PRBool IsPaddingZero(const nsStyleCoord &aCoord)
+  {
+    return (aCoord.GetUnit() == eStyleUnit_Coord &&
+            aCoord.GetCoordValue() == 0) ||
+           (aCoord.GetUnit() == eStyleUnit_Percent &&
+            aCoord.GetPercentValue() == 0.0) ||
+           (aCoord.IsCalcUnit() &&
+            // clamp negative calc() to 0
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) <= 0 &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) <= 0);
+  }
+
+  static PRBool IsMarginZero(const nsStyleCoord &aCoord)
+  {
+    return (aCoord.GetUnit() == eStyleUnit_Coord &&
+            aCoord.GetCoordValue() == 0) ||
+           (aCoord.GetUnit() == eStyleUnit_Percent &&
+            aCoord.GetPercentValue() == 0.0) ||
+           (aCoord.IsCalcUnit() &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) == 0 &&
+            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) == 0);
+  }
+
   /*
    * Calculate the used values for 'width' and 'height' for a replaced element.
    *
@@ -901,7 +936,7 @@ public:
   /**
    * Gets the graphics filter for the frame
    */
-  static gfxPattern::GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
+  static GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
 
   /* N.B. The only difference between variants of the Draw*Image
    * functions below is the type of the aImage argument.
@@ -924,12 +959,18 @@ public:
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
                             imgIContainer*       aImage,
-                            gfxPattern::GraphicsFilter aGraphicsFilter,
+                            GraphicsFilter       aGraphicsFilter,
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
                             const nsRect&        aDirty,
                             PRUint32             aImageFlags);
+
+  /**
+   * Convert an nsRect to a gfxRect.
+   */
+  static gfxRect RectToGfxRect(const nsRect& aRect,
+                               PRInt32 aAppUnitsPerDevPixel);
 
   /**
    * Draw a drawable using the pixel snapping algorithm.
@@ -948,7 +989,7 @@ public:
    */
   static void DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
                                gfxDrawable*         aDrawable,
-                               gfxPattern::GraphicsFilter aFilter,
+                               GraphicsFilter       aFilter,
                                const nsRect&        aDest,
                                const nsRect&        aFill,
                                const nsPoint&       aAnchor,
@@ -962,7 +1003,8 @@ public:
    *                            app units.
    *   @param aImage            The image.
    *   @param aDest             The top-left where the image should be drawn
-   *   @param aDirty            Pixels outside this area may be skipped.
+   *   @param aDirty            If non-null, then pixels outside this area may
+   *                            be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn at aDest. It's
@@ -971,8 +1013,9 @@ public:
    */
   static nsresult DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                           imgIContainer*       aImage,
+                                          GraphicsFilter       aGraphicsFilter,
                                           const nsPoint&       aDest,
-                                          const nsRect&        aDirty,
+                                          const nsRect*        aDirty,
                                           PRUint32             aImageFlags,
                                           const nsRect*        aSourceArea = nsnull);
 
@@ -993,11 +1036,30 @@ public:
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
-                                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                                  GraphicsFilter       aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
                                   PRUint32             aImageFlags,
                                   const nsRect*        aSourceArea = nsnull);
+
+  /**
+   * Given an imgIContainer, this method attempts to obtain an intrinsic
+   * px-valued height & width for it.  If the imgIContainer has a non-pixel
+   * value for either height or width, this method tries to generate a pixel
+   * value for that dimension using the intrinsic ratio (if available).
+   *
+   * This method will always set aGotWidth and aGotHeight to indicate whether
+   * we were able to successfully obtain (or compute) a value for each
+   * dimension.
+   *
+   * NOTE: This method is similar to ComputeSizeWithIntrinsicDimensions.  The
+   * difference is that this one is simpler and is suited to places where we
+   * have less information about the frame tree.
+   */
+  static void ComputeSizeForDrawing(imgIContainer* aImage,
+                                    nsIntSize&     aImageSize,
+                                    PRBool&        aGotWidth,
+                                    PRBool&        aGotHeight);
 
   /**
    * Given a source area of an image (in appunits) and a destination area

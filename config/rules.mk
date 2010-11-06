@@ -147,9 +147,9 @@ endif
 ifdef ENABLE_TESTS
 
 ifdef XPCSHELL_TESTS
-#ifndef MODULE
-#$(error Must define MODULE when defining XPCSHELL_TESTS.)
-#endif
+ifndef relativesrcdir
+$(error Must define relativesrcdir when defining XPCSHELL_TESTS.)
+endif
 
 testxpcobjdir = $(DEPTH)/_tests/xpcshell
 
@@ -171,8 +171,8 @@ SOLO_FILE ?= $(error Specify a test filename in SOLO_FILE when using check-inter
 libs::
 	$(foreach dir,$(XPCSHELL_TESTS),$(_INSTALL_TESTS))
 	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py \
-          $(testxpcobjdir)/all-test-dirs.list \
-          $(addprefix $(relativesrcdir)/,$(XPCSHELL_TESTS))
+	  $(testxpcobjdir)/all-test-dirs.list \
+	  $(addprefix $(relativesrcdir)/,$(XPCSHELL_TESTS))
 
 testxpcsrcdir = $(topsrcdir)/testing/xpcshell
 
@@ -180,39 +180,39 @@ testxpcsrcdir = $(topsrcdir)/testing/xpcshell
 # See also testsuite-targets.mk 'xpcshell-tests' target for global execution.
 xpcshell-tests:
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
-          -I$(topsrcdir)/build \
-          $(testxpcsrcdir)/runxpcshelltests.py \
-          --symbols-path=$(DIST)/crashreporter-symbols \
-          $(EXTRA_TEST_ARGS) \
-          $(DIST)/bin/xpcshell \
-          $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
+	  -I$(topsrcdir)/build \
+	  $(testxpcsrcdir)/runxpcshelltests.py \
+	  --symbols-path=$(DIST)/crashreporter-symbols \
+	  $(EXTRA_TEST_ARGS) \
+	  $(DIST)/bin/xpcshell \
+	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 # Execute a single test, specified in $(SOLO_FILE), but don't automatically
 # start the test. Instead, present the xpcshell prompt so the user can
 # attach a debugger and then start the test.
 check-interactive:
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
-          -I$(topsrcdir)/build \
-          $(testxpcsrcdir)/runxpcshelltests.py \
-          --symbols-path=$(DIST)/crashreporter-symbols \
-          --test-path=$(SOLO_FILE) \
-          --profile-name=$(MOZ_APP_NAME) \
-          --interactive \
-          $(DIST)/bin/xpcshell \
-          $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
+	  -I$(topsrcdir)/build \
+	  $(testxpcsrcdir)/runxpcshelltests.py \
+	  --symbols-path=$(DIST)/crashreporter-symbols \
+	  --test-path=$(SOLO_FILE) \
+	  --profile-name=$(MOZ_APP_NAME) \
+	  --interactive \
+	  $(DIST)/bin/xpcshell \
+	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 # Execute a single test, specified in $(SOLO_FILE)
 check-one:
 	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
-          -I$(topsrcdir)/build \
-          $(testxpcsrcdir)/runxpcshelltests.py \
-          --symbols-path=$(DIST)/crashreporter-symbols \
-          --test-path=$(SOLO_FILE) \
-          --profile-name=$(MOZ_APP_NAME) \
-          --verbose \
-          $(EXTRA_TEST_ARGS) \
-          $(DIST)/bin/xpcshell \
-          $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
+	  -I$(topsrcdir)/build \
+	  $(testxpcsrcdir)/runxpcshelltests.py \
+	  --symbols-path=$(DIST)/crashreporter-symbols \
+	  --test-path=$(SOLO_FILE) \
+	  --profile-name=$(MOZ_APP_NAME) \
+	  --verbose \
+	  $(EXTRA_TEST_ARGS) \
+	  $(DIST)/bin/xpcshell \
+	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
 endif # XPCSHELL_TESTS
 
@@ -846,7 +846,7 @@ ifdef MODULE_NAME
 	@$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_COMP_NAMES) $(MODULE_NAME)
 endif
 endif # BUILD_STATIC_LIBS
-else  # !IS_COMPONENT
+else # !IS_COMPONENT
 	$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_LIBS) $(STATIC_LIBRARY_NAME)
 endif # IS_COMPONENT
 endif # EXPORT_LIBRARY
@@ -874,7 +874,7 @@ endif # _LIBDIRS
 
 endif # _LIBNAME_RELATIVE_PATHS
 
-# Dependancies which, if modified, should cause everything to rebuild
+# Dependencies which, if modified, should cause everything to rebuild
 GLOBAL_DEPS += Makefile Makefile.in $(DEPTH)/config/autoconf.mk $(topsrcdir)/config/config.mk
 
 ##############################################
@@ -975,11 +975,11 @@ ifneq (,$(SHARED_LIBRARY)$(PROGRAM))
 export::
 ifdef PROGRAM
 	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
-	  $(PROGRAM:$(BIN_SUFFIX)=) $(DIST)/bin
+	  $(PROGRAM:$(BIN_SUFFIX)=) $(DIST)/$(MOZ_APP_NAME)
 endif
 ifdef SHARED_LIBRARY
 	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
-	  $(SHARED_LIBRARY_NAME) $(DIST)/bin
+	  $(SHARED_LIBRARY_NAME) $(DIST)/$(MOZ_APP_NAME)
 endif
 endif # SHARED_LIBRARY || PROGRAM
 endif # WINNT_
@@ -1198,7 +1198,7 @@ CLEANUP2	:= true
 endif
 SUB_LOBJS	= $(shell for lib in $(SHARED_LIBRARY_LIBS); do $(AR_LIST) $${lib} $(CLEANUP1); done;)
 endif # EXPAND_FAKELIBS
-endif # SHARED_LIBARY_LIBS
+endif # SHARED_LIBRARY_LIBS
 endif
 ifdef MOZILLA_PROBE_LIBS
 PROBE_LOBJS	= $(shell for lib in $(MOZILLA_PROBE_LIBS); do $(AR_LIST) $${lib} $(CLEANUP1); done;)
@@ -1578,7 +1578,7 @@ normalizepath = $(foreach p,$(1),$(shell cygpath -m $(p)))
 else
 # assume MSYS
 #  We use 'pwd -W' to get DOS form of the path.  However, since the given path
-#  could be a file or a nonexistent path, we cannot call 'pwd -W' directly
+#  could be a file or a non-existent path, we cannot call 'pwd -W' directly
 #  on the path.  Instead, we extract the root path (i.e. "c:/"), call 'pwd -W'
 #  on it, then merge with the rest of the path.
 root-path = $(shell echo $(1) | sed -e "s|\(/[^/]*\)/\?\(.*\)|\1|")
@@ -1874,7 +1874,7 @@ endif # MOZ_JAVAXPCOM
 ifneq (,$(filter %.js,$(EXTRA_COMPONENTS) $(EXTRA_PP_COMPONENTS)))
 ifeq (,$(filter %.manifest,$(EXTRA_COMPONENTS) $(EXTRA_PP_COMPONENTS)))
 ifndef NO_JS_MANIFEST
-$(error .js component without matching .manifest)
+$(error .js component without matching .manifest. See https://developer.mozilla.org/en/XPCOM/XPCOM_changes_in_Gecko_2.0)
 endif
 endif
 endif
@@ -2357,5 +2357,5 @@ CHECK_FROZEN_VARIABLES = $(foreach var,$(FREEZE_VARIABLES), \
 libs export libs::
 	$(CHECK_FROZEN_VARIABLES)
 
-default::
+default all::
 	if test -d $(DIST)/bin ; then touch $(DIST)/bin/.purgecaches ; fi

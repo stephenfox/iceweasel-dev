@@ -45,6 +45,11 @@
   by Patrick C. Beard.
  */
 
+#ifdef MOZ_IPC
+#include "GeckoChildProcessHost.h"
+#include "base/process_util.h"
+#endif
+
 #include "prlink.h"
 #include "prnetdb.h"
 #include "nsXPCOM.h"
@@ -103,13 +108,13 @@ static nsresult toCFURLRef(nsIFile* file, CFURLRef& outURL)
 
 PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
-  nsCString temp;
-  file->GetNativeLeafName(temp);
+  nsCString fileName;
+  file->GetNativeLeafName(fileName);
   /*
    * Don't load the VDP fake plugin, to avoid tripping a bad bug in OS X
    * 10.5.3 (see bug 436575).
    */
-  if (!strcmp(temp.get(), "VerifiedDownloadPlugin.plugin")) {
+  if (!strcmp(fileName.get(), "VerifiedDownloadPlugin.plugin")) {
     NS_WARNING("Preventing load of VerifiedDownloadPlugin.plugin (see bug 436575)");
     return PR_FALSE;
   }
@@ -125,7 +130,27 @@ PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
     UInt32 packageType, packageCreator;
     ::CFBundleGetPackageInfo(pluginBundle, &packageType, &packageCreator);
     if (packageType == 'BRPL' || packageType == 'IEPL' || packageType == 'NSPL') {
+#ifdef MOZ_IPC
+      // Get path to plugin as a C string.
+      char executablePath[PATH_MAX];
+      executablePath[0] = '\0';
+      if (!::CFURLGetFileSystemRepresentation(pluginURL, true, (UInt8*)&executablePath, PATH_MAX)) {
+        executablePath[0] = '\0';
+      }
+
+      uint32 pluginLibArchitectures;
+      nsresult rv = mozilla::ipc::GeckoChildProcessHost::GetArchitecturesForBinary(executablePath, &pluginLibArchitectures);
+      if (NS_FAILED(rv)) {
+        return PR_FALSE;
+      }
+
+      uint32 containerArchitectures = mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+
+      // Consider the plugin architecture valid if there is any overlap in the masks.
+      isPluginFile = !!(containerArchitectures & pluginLibArchitectures);
+#else
       isPluginFile = !!::CFBundlePreflightExecutable(pluginBundle, NULL);
+#endif
     }
     ::CFRelease(pluginBundle);
   }
@@ -146,69 +171,165 @@ static char* CFStringRefToUTF8Buffer(CFStringRef cfString)
   return newBuffer;
 }
 
+class AutoCFTypeObject {
+public:
+  AutoCFTypeObject(CFTypeRef object)
+  {
+    mObject = object;
+  }
+  ~AutoCFTypeObject()
+  {
+    ::CFRelease(mObject);
+  }
+private:
+  CFTypeRef mObject;
+};
+
+static CFDictionaryRef ParsePlistForMIMETypesFilename(CFBundleRef bundle)
+{
+  CFTypeRef mimeFileName = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypesFilename"));
+  if (!mimeFileName || ::CFGetTypeID(mimeFileName) != ::CFStringGetTypeID()) {
+    return NULL;
+  }
+  
+  FSRef homeDir;
+  if (::FSFindFolder(kUserDomain, kCurrentUserFolderType, kDontCreateFolder, &homeDir) != noErr) {
+    return NULL;
+  }
+  
+  CFURLRef userDirURL = ::CFURLCreateFromFSRef(kCFAllocatorDefault, &homeDir);
+  if (!userDirURL) {
+    return NULL;
+  }
+  
+  AutoCFTypeObject userDirURLAutorelease(userDirURL);
+  CFStringRef mimeFilePath = ::CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("Library/Preferences/%@"), static_cast<CFStringRef>(mimeFileName));
+  if (!mimeFilePath) {
+    return NULL;
+  }
+  
+  AutoCFTypeObject mimeFilePathAutorelease(mimeFilePath);
+  CFURLRef mimeFileURL = ::CFURLCreateWithFileSystemPathRelativeToBase(kCFAllocatorDefault, mimeFilePath, kCFURLPOSIXPathStyle, false, userDirURL);
+  if (!mimeFileURL) {
+    return NULL;
+  }
+  
+  AutoCFTypeObject mimeFileURLAutorelease(mimeFileURL);
+  SInt32 errorCode = 0;
+  CFDataRef mimeFileData = NULL;
+  Boolean result = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault, mimeFileURL, &mimeFileData, NULL, NULL, &errorCode);
+  if (!result) {
+    return NULL;
+  }
+  
+  AutoCFTypeObject mimeFileDataAutorelease(mimeFileData);
+  if (errorCode != 0) {
+    return NULL;
+  }
+  
+  CFPropertyListRef propertyList = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault, mimeFileData, kCFPropertyListImmutable, NULL);
+  if (!propertyList) {
+    return NULL;
+  }
+  
+  AutoCFTypeObject propertyListAutorelease(propertyList);
+  if (::CFGetTypeID(propertyList) != ::CFDictionaryGetTypeID()) {
+    return NULL;
+  }
+  
+  CFTypeRef localizedName = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyList), CFSTR("WebPluginLocalizationName"));
+  if (!localizedName || ::CFGetTypeID(localizedName) != ::CFStringGetTypeID()) {
+    return NULL;
+  }
+  
+  CFLocaleRef currentLocale = ::CFLocaleCopyCurrent();
+  if (!currentLocale) {
+    return NULL;
+  }
+  
+  AutoCFTypeObject currentLocaleAutorelease(currentLocale);
+  if (::CFStringCompare(static_cast<CFStringRef>(localizedName), ::CFLocaleGetIdentifier(currentLocale), 0) != kCFCompareEqualTo) {
+    return NULL;
+  }
+  
+  CFTypeRef mimeTypes = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(propertyList), CFSTR("WebPluginMIMETypes"));
+  if (!mimeTypes || ::CFGetTypeID(mimeTypes) != ::CFDictionaryGetTypeID() || ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeTypes)) == 0) {
+    return NULL;
+  }
+  
+  return static_cast<CFDictionaryRef>(::CFRetain(mimeTypes));
+}
+
 static void ParsePlistPluginInfo(nsPluginInfo& info, CFBundleRef bundle)
 {
-  CFTypeRef mimeDict = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypes"));
-  if (mimeDict && ::CFGetTypeID(mimeDict) == ::CFDictionaryGetTypeID() && ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeDict)) > 0) {
-    int mimeDictKeyCount = ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeDict));
+  CFDictionaryRef mimeDict = ParsePlistForMIMETypesFilename(bundle);
+  
+  if (!mimeDict) {
+    CFTypeRef mimeTypes = ::CFBundleGetValueForInfoDictionaryKey(bundle, CFSTR("WebPluginMIMETypes"));
+    if (!mimeTypes || ::CFGetTypeID(mimeTypes) != ::CFDictionaryGetTypeID() || ::CFDictionaryGetCount(static_cast<CFDictionaryRef>(mimeTypes)) == 0)
+      return;
+    mimeDict = static_cast<CFDictionaryRef>(::CFRetain(mimeTypes));
+  }
+  
+  AutoCFTypeObject mimeDictAutorelease(mimeDict);
+  int mimeDictKeyCount = ::CFDictionaryGetCount(mimeDict);
 
-    // Allocate memory for mime data
-    int mimeDataArraySize = mimeDictKeyCount * sizeof(char*);
-    info.fMimeTypeArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
-    if (!info.fMimeTypeArray)
-      return;
-    memset(info.fMimeTypeArray, 0, mimeDataArraySize);
-    info.fExtensionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
-    if (!info.fExtensionArray)
-      return;
-    memset(info.fExtensionArray, 0, mimeDataArraySize);
-    info.fMimeDescriptionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
-    if (!info.fMimeDescriptionArray)
-      return;
-    memset(info.fMimeDescriptionArray, 0, mimeDataArraySize);
+  // Allocate memory for mime data
+  int mimeDataArraySize = mimeDictKeyCount * sizeof(char*);
+  info.fMimeTypeArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
+  if (!info.fMimeTypeArray)
+    return;
+  memset(info.fMimeTypeArray, 0, mimeDataArraySize);
+  info.fExtensionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
+  if (!info.fExtensionArray)
+    return;
+  memset(info.fExtensionArray, 0, mimeDataArraySize);
+  info.fMimeDescriptionArray = static_cast<char**>(NS_Alloc(mimeDataArraySize));
+  if (!info.fMimeDescriptionArray)
+    return;
+  memset(info.fMimeDescriptionArray, 0, mimeDataArraySize);
 
-    // Allocate memory for mime dictionary keys and values
-    nsAutoArrayPtr<CFTypeRef> keys(new CFTypeRef[mimeDictKeyCount]);
-    if (!keys)
-      return;
-    nsAutoArrayPtr<CFTypeRef> values(new CFTypeRef[mimeDictKeyCount]);
-    if (!values)
-      return;
+  // Allocate memory for mime dictionary keys and values
+  nsAutoArrayPtr<CFTypeRef> keys(new CFTypeRef[mimeDictKeyCount]);
+  if (!keys)
+    return;
+  nsAutoArrayPtr<CFTypeRef> values(new CFTypeRef[mimeDictKeyCount]);
+  if (!values)
+    return;
 
-    // Set the variant count now that we have safely allocated memory
-    info.fVariantCount = mimeDictKeyCount;
+  // Set the variant count now that we have safely allocated memory
+  info.fVariantCount = mimeDictKeyCount;
 
-    ::CFDictionaryGetKeysAndValues(static_cast<CFDictionaryRef>(mimeDict), keys, values);
-    for (int i = 0; i < mimeDictKeyCount; i++) {
-      CFTypeRef mimeString = keys[i];
-      if (mimeString && ::CFGetTypeID(mimeString) == ::CFStringGetTypeID()) {
-        info.fMimeTypeArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(mimeString));
-      }
-      else {
-        info.fVariantCount -= 1;
-        continue;
-      }
-      CFTypeRef mimeDict = values[i];
-      if (mimeDict && ::CFGetTypeID(mimeDict) == ::CFDictionaryGetTypeID()) {
-        CFTypeRef extensions = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginExtensions"));
-        if (extensions && ::CFGetTypeID(extensions) == ::CFArrayGetTypeID()) {
-          int extensionCount = ::CFArrayGetCount(static_cast<CFArrayRef>(extensions));
-          CFMutableStringRef extensionList = ::CFStringCreateMutable(kCFAllocatorDefault, 0);
-          for (int j = 0; j < extensionCount; j++) {
-            CFTypeRef extension = ::CFArrayGetValueAtIndex(static_cast<CFArrayRef>(extensions), j);
-            if (extension && ::CFGetTypeID(extension) == ::CFStringGetTypeID()) {
-              if (j > 0)
-                ::CFStringAppend(extensionList, CFSTR(","));
-              ::CFStringAppend(static_cast<CFMutableStringRef>(extensionList), static_cast<CFStringRef>(extension));
-            }
+  ::CFDictionaryGetKeysAndValues(mimeDict, keys, values);
+  for (int i = 0; i < mimeDictKeyCount; i++) {
+    CFTypeRef mimeString = keys[i];
+    if (mimeString && ::CFGetTypeID(mimeString) == ::CFStringGetTypeID()) {
+      info.fMimeTypeArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(mimeString));
+    }
+    else {
+      info.fVariantCount -= 1;
+      continue;
+    }
+    CFTypeRef mimeDict = values[i];
+    if (mimeDict && ::CFGetTypeID(mimeDict) == ::CFDictionaryGetTypeID()) {
+      CFTypeRef extensions = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginExtensions"));
+      if (extensions && ::CFGetTypeID(extensions) == ::CFArrayGetTypeID()) {
+        int extensionCount = ::CFArrayGetCount(static_cast<CFArrayRef>(extensions));
+        CFMutableStringRef extensionList = ::CFStringCreateMutable(kCFAllocatorDefault, 0);
+        for (int j = 0; j < extensionCount; j++) {
+          CFTypeRef extension = ::CFArrayGetValueAtIndex(static_cast<CFArrayRef>(extensions), j);
+          if (extension && ::CFGetTypeID(extension) == ::CFStringGetTypeID()) {
+            if (j > 0)
+              ::CFStringAppend(extensionList, CFSTR(","));
+            ::CFStringAppend(static_cast<CFMutableStringRef>(extensionList), static_cast<CFStringRef>(extension));
           }
-          info.fExtensionArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(extensionList));
-          ::CFRelease(extensionList);
         }
-        CFTypeRef description = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginTypeDescription"));
-        if (description && ::CFGetTypeID(description) == ::CFStringGetTypeID())
-          info.fMimeDescriptionArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(description));
+        info.fExtensionArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(extensionList));
+        ::CFRelease(extensionList);
       }
+      CFTypeRef description = ::CFDictionaryGetValue(static_cast<CFDictionaryRef>(mimeDict), CFSTR("WebPluginTypeDescription"));
+      if (description && ::CFGetTypeID(description) == ::CFStringGetTypeID())
+        info.fMimeDescriptionArray[i] = CFStringRefToUTF8Buffer(static_cast<CFStringRef>(description));
     }
   }
 }

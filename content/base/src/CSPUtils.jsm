@@ -216,43 +216,65 @@ CSPRep.fromString = function(aStr, self) {
         }
       }
     }
-    
+
     // REPORT URI ///////////////////////////////////////////////////////
     if (dirname === UD.REPORT_URI) {
       // might be space-separated list of URIs
       var uriStrings = dirvalue.split(/\s+/);
       var okUriStrings = [];
 
-      // Verify that each report URI is in the same etld + 1
-      // if "self" is defined, and just that it's valid otherwise.
       for (let i in uriStrings) {
+        var uri = null;
         try {
-          var uri = gIoService.newURI(uriStrings[i],null,null);
+          // Relative URIs are okay, but to ensure we send the reports to the
+          // right spot, the relative URIs are expanded here during parsing.
+          // The resulting CSPRep instance will have only absolute URIs.
+          uri = gIoService.newURI(uriStrings[i],null,selfUri);
+
+          // if there's no host, don't do the ETLD+ check.  This will throw
+          // NS_ERROR_FAILURE if the URI doesn't have a host, causing a parse
+          // failure.
+          uri.host;
+
+          // Verify that each report URI is in the same etld + 1 and that the
+          // scheme and port match "self" if "self" is defined, and just that
+          // it's valid otherwise.
           if (self) {
-            if (gETLDService.getBaseDomain(uri) ===
+            if (gETLDService.getBaseDomain(uri) !==
                 gETLDService.getBaseDomain(selfUri)) {
-              okUriStrings.push(uriStrings[i]);
-            } else {
               CSPWarning("can't use report URI from non-matching eTLD+1: "
                          + gETLDService.getBaseDomain(uri));
+              continue;
+            }
+            if (!uri.schemeIs(selfUri.scheme)) {
+              CSPWarning("can't use report URI with different scheme from "
+                         + "originating document: " + uri.asciiSpec);
+              continue;
+            }
+            if (uri.port && uri.port !== selfUri.port) {
+              CSPWarning("can't use report URI with different port from "
+                         + "originating document: " + uri.asciiSpec);
+              continue;
             }
           }
         } catch(e) {
           switch (e.result) {
             case Components.results.NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS:
             case Components.results.NS_ERROR_HOST_IS_IP_ADDRESS:
-              if (uri.host === selfUri.host) {
-                okUriStrings.push(uriStrings[i]);
-              } else {
-                CSPWarning("page on " + selfUri.host + " cannot send reports to " + uri.host);
+              if (uri.host !== selfUri.host) {
+                CSPWarning("page on " + selfUri.host
+                           + " cannot send reports to " + uri.host);
+                continue;
               }
               break;
 
             default:
               CSPWarning("couldn't parse report URI: " + uriStrings[i]);
-              break;
+              continue;
           }
         }
+        // all verification passed: same ETLD+1, scheme, and port.
+        okUriStrings.push(uri.asciiSpec);
       }
       aCSPR._directives[UD.REPORT_URI] = okUriStrings.join(' ');
       continue directive;
@@ -358,8 +380,7 @@ CSPRep.prototype = {
   },
 
   /**
-   * Generates string representation of the policy.  Should be fairly similar
-   * to the original.
+   * Generates canonical string representation of the policy.
    */
   toString:
   function csp_toString() {
@@ -585,8 +606,7 @@ CSPSourceList.prototype = {
   },
 
   /**
-   * Generates string representation of the Source List.
-   * Should be fairly similar to the original.
+   * Generates canonical string representation of the Source List.
    */
   toString:
   function() {
@@ -617,7 +637,7 @@ CSPSourceList.prototype = {
   },
 
   /**
-   * Makes a new instance that resembles this object.
+   * Makes a new deep copy of this object.
    * @returns
    *      a new CSPSourceList
    */
@@ -929,7 +949,7 @@ CSPSource.fromString = function(aStr, self, enforceSelfChecks) {
         // Allow scheme-only sources!  These default to wildcard host/port,
         // especially since host and port don't always matter.
         // Example: "javascript:" and "data:" 
-        if (!sObj._host) sObj._host = "*";
+        if (!sObj._host) sObj._host = CSPHost.fromString("*");
         if (!sObj._port) sObj._port = "*";
       } else {
         // some host was defined.
@@ -1028,8 +1048,7 @@ CSPSource.prototype = {
   },
 
   /**
-   * Generates string representation of the Source.
-   * Should be fairly similar to the original.
+   * Generates canonical string representation of the Source.
    */
   toString:
   function() {
@@ -1047,7 +1066,7 @@ CSPSource.prototype = {
   },
 
   /**
-   * Makes a new instance that resembles this object.
+   * Makes a new deep copy of this object.
    * @returns
    *      a new CSPSource
    */
@@ -1150,13 +1169,28 @@ CSPSource.prototype = {
       return null;
     }
 
+    // NOTE: Both sources must have a host, if they don't, something funny is
+    // going on.  The fromString() factory method should have set the host to
+    // * if there's no host specified in the input. Regardless, if a host is
+    // not present either the scheme is hostless or any host should be allowed.
+    // This means we can use the other source's host as the more restrictive
+    // host expression, or if neither are present, we can use "*", but the
+    // error should still be reported.
+
     // host
-    if (!this._host)
-      newSource._host = that._host;
-    else if (!that._host)
-      newSource._host = this._host;
-    else // both this and that have hosts
+    if (this._host && that._host) {
       newSource._host = this._host.intersectWith(that._host);
+    } else if (this._host) {
+      CSPError("intersecting source with undefined host: " + that.toString());
+      newSource._host = this._host.clone();
+    } else if (that._host) {
+      CSPError("intersecting source with undefined host: " + this.toString());
+      newSource._host = that._host.clone();
+    } else {
+      CSPError("intersecting two sources with undefined hosts: " +
+               this.toString() + " and " + that.toString());
+      newSource._host = CSPHost.fromString("*");
+    }
 
     return newSource;
   },
@@ -1244,8 +1278,7 @@ CSPHost.fromString = function(aStr) {
 
 CSPHost.prototype = {
   /**
-   * Generates string representation of the Source.
-   * Should be fairly similar to the original.
+   * Generates canonical string representation of the Host.
    */
   toString:
   function() {
@@ -1253,7 +1286,7 @@ CSPHost.prototype = {
   },
 
   /**
-   * Makes a new instance that resembles this object.
+   * Makes a new deep copy of this object.
    * @returns
    *      a new CSPHost
    */
@@ -1275,7 +1308,7 @@ CSPHost.prototype = {
    */
   permits:
   function(aHost) {
-    if (!aHost) return false;
+    if (!aHost) aHost = CSPHost.fromString("*");
 
     if (!(aHost instanceof CSPHost)) {
       // -- compare CSPHost to String

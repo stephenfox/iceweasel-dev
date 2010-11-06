@@ -61,6 +61,7 @@
 #include "nsHashKeys.h"
 #include "nsIFileStreams.h"
 #include "nsTObserverArray.h"
+#include "nsITimer.h"
 
 namespace mozilla {
 namespace plugins {
@@ -221,6 +222,10 @@ private:
                                 void *value);
 
     virtual bool HasRequiredFunctions();
+    virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
+    virtual nsresult NotifyPainted(NPP instance);
+    virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface);
+    virtual nsresult UseAsyncPainting(NPP instance, PRBool* aIsAsync);
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error);
@@ -260,8 +265,7 @@ private:
     nsString mHangID;
 
 #ifdef OS_MACOSX
-    void CAUpdate();
-    base::RepeatingTimer<PluginModuleParent> mCATimer;
+    nsCOMPtr<nsITimer> mCATimer;
     nsTObserverArray<PluginInstanceParent*> mCATimerTargets;
 #endif
 };

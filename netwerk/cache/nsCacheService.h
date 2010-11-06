@@ -143,6 +143,9 @@ public:
     static void      ReleaseObject_Locked(nsISupports *    object,
                                           nsIEventTarget * target = nsnull);
 
+    static nsresult DispatchToCacheIOThread(nsIRunnable* event);
+
+
     /**
      * Methods called by nsCacheProfilePrefObserver
      */
@@ -167,6 +170,7 @@ private:
     friend class nsCacheServiceAutoLock;
     friend class nsOfflineCacheDevice;
     friend class nsProcessRequestEvent;
+    friend class nsSetSmartSizeEvent;
 
     /**
      * Internal Methods
@@ -186,7 +190,8 @@ private:
                                    nsICacheListener * listener,
                                    nsCacheRequest **  request);
 
-    nsresult         DoomEntry_Internal(nsCacheEntry * entry);
+    nsresult         DoomEntry_Internal(nsCacheEntry * entry,
+                                        PRBool doProcessPendingRequests);
 
     nsresult         EvictEntriesForClient(const char *          clientID,
                                            nsCacheStoragePolicy  storagePolicy);
@@ -199,7 +204,9 @@ private:
                                     nsCacheAccessMode         accessGranted,
                                     nsresult                  error);
 
-    nsresult         ActivateEntry(nsCacheRequest * request, nsCacheEntry ** entry);
+    nsresult         ActivateEntry(nsCacheRequest * request,
+                                   nsCacheEntry ** entry,
+                                   nsCacheEntry ** doomedEntry);
 
     nsCacheDevice *  EnsureEntryHasDevice(nsCacheEntry * entry);
 

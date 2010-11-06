@@ -422,5 +422,11 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
                               DestroyBlobFunc, ftr);
     }
 
-    return hb_blob_create_empty();
+    if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
+        // for downloaded fonts, there may be layout tables cached in the entry
+        // even though they're absent from the sanitized platform font
+        return mFontEntry->GetFontTable(aTag);
+    }
+
+    return nsnull;
 }

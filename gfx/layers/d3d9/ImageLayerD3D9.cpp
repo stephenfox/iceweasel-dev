@@ -148,7 +148,7 @@ ImageLayerD3D9::GetLayer()
 }
 
 void
-ImageLayerD3D9::RenderLayer()
+ImageLayerD3D9::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
 {
   if (!GetContainer()) {
     return;
@@ -165,29 +165,23 @@ ImageLayerD3D9::RenderLayer()
     }
     yuvImage->AllocateTextures();
 
-    float quadTransform[4][4];
-    /*
-     * Matrix to transform the <0.0,0.0>, <1.0,1.0> quad to the correct position
-     * and size. To get pixel perfect mapping we extend the quad half a pixel
-     * beyond all edges.
-     */
-    memset(&quadTransform, 0, sizeof(quadTransform));
-    quadTransform[0][0] = (float)yuvImage->mSize.width + 0.5f;
-    quadTransform[1][1] = (float)yuvImage->mSize.height + 0.5f;
-    quadTransform[2][2] = 1.0f;
-    quadTransform[3][3] = 1.0f;
+    device()->SetVertexShaderConstantF(CBvLayerQuad,
+                                       ShaderConstantRect(0,
+                                                          0,
+                                                          yuvImage->mSize.width,
+                                                          yuvImage->mSize.height),
+                                       1);
 
-
-    device()->SetVertexShaderConstantF(0, &quadTransform[0][0], 4);
-    device()->SetVertexShaderConstantF(4, &mTransform._11, 4);
+    gfx3DMatrix transform = mTransform * aTransform;
+    device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
 
     float opacity[4];
     /*
      * We always upload a 4 component float, but the shader will
      * only use the the first component since it's declared as a 'float'.
      */
-    opacity[0] = GetOpacity();
-    device()->SetPixelShaderConstantF(0, opacity, 1);
+    opacity[0] = GetOpacity() * aOpacity;
+    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
 
     mD3DManager->SetShaderMode(DeviceManagerD3D9::YCBCRLAYER);
 
@@ -219,31 +213,26 @@ ImageLayerD3D9::RenderLayer()
     CairoImageD3D9 *cairoImage =
       static_cast<CairoImageD3D9*>(image.get());
 
-    float quadTransform[4][4];
-    /*
-     * Matrix to transform the <0.0,0.0>, <1.0,1.0> quad to the correct position
-     * and size. To get pixel perfect mapping we extend the quad half a pixel
-     * beyond all edges.
-     */
-    memset(&quadTransform, 0, sizeof(quadTransform));
-    quadTransform[0][0] = (float)cairoImage->mSize.width + 0.5f;
-    quadTransform[1][1] = (float)cairoImage->mSize.height + 0.5f;
-    quadTransform[2][2] = 1.0f;
-    quadTransform[3][3] = 1.0f;
 
+    device()->SetVertexShaderConstantF(CBvLayerQuad,
+                                       ShaderConstantRect(0,
+                                                          0,
+                                                          cairoImage->mSize.width,
+                                                          cairoImage->mSize.height),
+                                       1);
 
-    device()->SetVertexShaderConstantF(0, &quadTransform[0][0], 4);
-    device()->SetVertexShaderConstantF(4, &mTransform._11, 4);
+    gfx3DMatrix transform = mTransform * aTransform;
+    device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
 
     float opacity[4];
     /*
      * We always upload a 4 component float, but the shader will
      * only use the the first component since it's declared as a 'float'.
      */
-    opacity[0] = GetOpacity();
-    device()->SetPixelShaderConstantF(0, opacity, 1);
+    opacity[0] = GetOpacity() * aOpacity;
+    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
 
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER);
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
 
     device()->SetTexture(0, cairoImage->mTexture);
     device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
@@ -269,23 +258,35 @@ PlanarYCbCrImageD3D9::SetData(const PlanarYCbCrImage::Data &aData)
      // YV24 format
      width_shift = 0;
      height_shift = 0;
+     mType = gfx::YV24;
   } else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
              aData.mYSize.height == aData.mCbCrSize.height) {
     // YV16 format
     width_shift = 1;
     height_shift = 0;
+    mType = gfx::YV16;
   } else if (aData.mYSize.width / 2 == aData.mCbCrSize.width &&
              aData.mYSize.height / 2 == aData.mCbCrSize.height ) {
       // YV12 format
     width_shift = 1;
     height_shift = 1;
+    mType = gfx::YV12;
   } else {
     NS_ERROR("YCbCr format not supported");
   }
 
   mData = aData;
   mData.mCbCrStride = mData.mCbCrSize.width = aData.mPicSize.width >> width_shift;
+  // Round up the values for width and height to make sure we sample enough data
+  // for the last pixel - See bug 590735
+  if (width_shift && (aData.mPicSize.width & 1)) {
+    mData.mCbCrStride++;
+    mData.mCbCrSize.width++;
+  }
   mData.mCbCrSize.height = aData.mPicSize.height >> height_shift;
+  if (height_shift && (aData.mPicSize.height & 1)) {
+      mData.mCbCrSize.height++;
+  }
   mData.mYSize = aData.mPicSize;
   mData.mYStride = mData.mYSize.width;
 
@@ -458,7 +459,7 @@ PlanarYCbCrImageD3D9::GetAsSurface()
                            mData.mYStride,
                            mData.mCbCrStride,
                            imageSurface->Stride(),
-                           gfx::YV12);
+                           mType);
 
   return imageSurface.forget().get();
 }

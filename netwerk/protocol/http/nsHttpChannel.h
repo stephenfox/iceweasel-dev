@@ -55,8 +55,6 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
 #include "nsIApplicationCacheChannel.h"
-#include "nsIEncodedChannel.h"
-#include "nsIStringEnumerator.h"
 #include "nsIPrompt.h"
 #include "nsIResumableChannel.h"
 #include "nsIProtocolProxyCallback.h"
@@ -79,7 +77,6 @@ class nsHttpChannel : public HttpBaseChannel
                     , public nsIStreamListener
                     , public nsICachingChannel
                     , public nsICacheListener
-                    , public nsIEncodedChannel
                     , public nsITransportEventSink
                     , public nsIProtocolProxyCallback
                     , public nsIHttpAuthenticableChannel
@@ -94,7 +91,6 @@ public:
     NS_DECL_NSICACHEINFOCHANNEL
     NS_DECL_NSICACHINGCHANNEL
     NS_DECL_NSICACHELISTENER
-    NS_DECL_NSIENCODEDCHANNEL
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
     NS_DECL_NSIPROXIEDCHANNEL
@@ -147,8 +143,7 @@ public:
 
 public: /* internal necko use only */ 
     typedef void (nsHttpChannel:: *nsAsyncCallback)(void);
-    nsHttpResponseHead * GetResponseHead() const { return mResponseHead; }
-    void SetRemoteChannel(bool aRemote) { mRemoteChannel = aRemote; }
+
     void InternalSetUploadStream(nsIInputStream *uploadStream) 
       { mUploadStream = uploadStream; }
     void SetUploadStreamHasHeaders(PRBool hasHeaders) 
@@ -179,7 +174,6 @@ private:
     void     HandleAsyncNotifyListener();
     void     DoNotifyListener();
     nsresult SetupTransaction();
-    nsresult ApplyContentConversions();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
     nsresult ContinueProcessResponse(nsresult);
@@ -217,7 +211,16 @@ private:
     nsresult ResolveProxy();
 
     // cache specific methods
-    nsresult OpenCacheEntry(PRBool offline, PRBool *delayed);
+    nsresult OpenCacheEntry();
+    nsresult OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
+                                          nsCacheAccessMode aAccess,
+                                          nsresult aResult,
+                                          PRBool aSync);
+    nsresult OpenNormalCacheEntry(PRBool aSync);
+    nsresult OnNormalCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
+                                         nsCacheAccessMode aAccess,
+                                         nsresult aResult,
+                                         PRBool aSync);
     nsresult OpenOfflineCacheEntryForWriting();
     nsresult GenerateCacheKey(PRUint32 postID, nsACString &key);
     nsresult UpdateExpirationTime();
@@ -235,6 +238,7 @@ private:
     nsresult InstallOfflineCacheListener();
     void     MaybeInvalidateCacheEntryForSubsequentGet();
     nsCacheStoragePolicy DetermineStoragePolicy();
+    nsresult DetermineCacheAccess(nsCacheAccessMode *_retval);
     void     AsyncOnExamineCachedResponse();
 
     // Handle the bogus Content-Encoding Apache sometimes sends
@@ -277,6 +281,11 @@ private:
     PRUint32                          mPostID;
     PRUint32                          mRequestTime;
 
+    typedef nsresult (nsHttpChannel:: *nsOnCacheEntryAvailableCallback)(
+        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult, PRBool);
+    nsOnCacheEntryAvailableCallback   mOnCacheEntryAvailableCallback;
+    PRBool                            mAsyncCacheOpen;
+
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;
     nsCString                         mOfflineCacheClientID;
@@ -307,7 +316,6 @@ private:
     PRUint32                          mRedirectType;
 
     // state flags
-    PRUint32                          mApplyConversion          : 1;
     PRUint32                          mCachedContentIsValid     : 1;
     PRUint32                          mCachedContentIsPartial   : 1;
     PRUint32                          mTransactionReplaced      : 1;
@@ -328,35 +336,9 @@ private:
     PRUint32                          mCustomConditionalRequest : 1;
     PRUint32                          mFallingBack              : 1;
     PRUint32                          mWaitingForRedirectCallback : 1;
-    // True iff this channel is servicing a remote HttpChannelChild
-    PRUint32                          mRemoteChannel : 1;
     // True if mRequestTime has been set. In such a case it is safe to update
     // the cache entry's expiration time. Otherwise, it is not(see bug 567360).
     PRUint32                          mRequestTimeInitialized : 1;
-
-    class nsContentEncodings : public nsIUTF8StringEnumerator
-    {
-    public:
-        NS_DECL_ISUPPORTS
-        NS_DECL_NSIUTF8STRINGENUMERATOR
-
-        nsContentEncodings(nsIHttpChannel* aChannel, const char* aEncodingHeader);
-        virtual ~nsContentEncodings();
-        
-    private:
-        nsresult PrepareForNext(void);
-        
-        // We do not own the buffer.  The channel owns it.
-        const char* mEncodingHeader;
-        const char* mCurStart;  // points to start of current header
-        const char* mCurEnd;  // points to end of current header
-        
-        // Hold a ref to our channel so that it can't go away and take the
-        // header with it.
-        nsCOMPtr<nsIHttpChannel> mChannel;
-        
-        PRPackedBool mReady;
-    };
 
     nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
 

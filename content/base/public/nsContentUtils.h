@@ -133,6 +133,7 @@ class nsIObserver;
 class nsPresContext;
 class nsIChannel;
 struct nsIntMargin;
+class nsPIDOMWindow;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -308,7 +309,7 @@ public:
    *  Returns -1 if point1 < point2, 1, if point1 > point2,
    *  0 if error or if point1 == point2.
    *  NOTE! If the two nodes aren't in the same connected subtree,
-   *  the result is undefined, but the optional aDisconnected parameter
+   *  the result is 1, and the optional aDisconnected parameter
    *  is set to PR_TRUE.
    */
   static PRInt32 ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
@@ -339,7 +340,7 @@ public:
   /**
    * Similar to above, but to be used if one already has an atom for the ID
    */
-  static Element* MatchElementId(nsIContent *aContent, nsIAtom* aId);
+  static Element* MatchElementId(nsIContent *aContent, const nsIAtom* aId);
 
   /**
    * Given a URI containing an element reference (#whatever),
@@ -445,6 +446,12 @@ public:
   static nsIDocShell *GetDocShellFromCaller();
 
   /**
+   * Get the window through the JS context that's currently on the stack.
+   * If there's no JS context currently on the stack, returns null.
+   */
+  static nsPIDOMWindow *GetWindowFromCaller();
+
+  /**
    * The two GetDocumentFrom* functions below allow a caller to get at a
    * document that is relevant to the currently executing script.
    *
@@ -523,7 +530,7 @@ public:
   }
 
   static nsresult GenerateStateKey(nsIContent* aContent,
-                                   nsIDocument* aDocument,
+                                   const nsIDocument* aDocument,
                                    nsIStatefulFrame::SpecialStateID aID,
                                    nsACString& aKey);
 
@@ -573,13 +580,9 @@ public:
   static nsresult CheckQName(const nsAString& aQualifiedName,
                              PRBool aNamespaceAware = PR_TRUE);
 
-  static nsresult SplitQName(nsIContent* aNamespaceResolver,
+  static nsresult SplitQName(const nsIContent* aNamespaceResolver,
                              const nsAFlatString& aQName,
                              PRInt32 *aNamespace, nsIAtom **aLocalName);
-
-  static nsresult LookupNamespaceURI(nsIContent* aNamespaceResolver,
-                                     const nsAString& aNamespacePrefix,
-                                     nsAString& aNamespaceURI);
 
   static nsresult GetNodeInfoFromQName(const nsAString& aNamespaceURI,
                                        const nsAString& aQualifiedName,
@@ -641,7 +644,7 @@ public:
    * @return PR_TRUE if aContent has an attribute aName in namespace aNameSpaceID,
    * and the attribute value is non-empty.
    */
-  static PRBool HasNonEmptyAttr(nsIContent* aContent, PRInt32 aNameSpaceID,
+  static PRBool HasNonEmptyAttr(const nsIContent* aContent, PRInt32 aNameSpaceID,
                                 nsIAtom* aName);
 
   /**
@@ -651,7 +654,7 @@ public:
    * @return the presContext, or nsnull if the content is not in a document
    *         (if GetCurrentDoc returns nsnull)
    */
-  static nsPresContext* GetContextForContent(nsIContent* aContent);
+  static nsPresContext* GetContextForContent(const nsIContent* aContent);
 
   /**
    * Method to do security and content policy checks on the image URI
@@ -736,7 +739,7 @@ public:
    * @param aContent The content node to test.
    * @return whether it's a draggable link
    */
-  static PRBool IsDraggableLink(nsIContent* aContent);
+  static PRBool IsDraggableLink(const nsIContent* aContent);
 
   /**
    * Convenience method to create a new nodeinfo that differs only by name
@@ -789,7 +792,7 @@ public:
    *
    * Both arguments to this method must be non-null.
    */
-  static PRBool IsInSameAnonymousTree(nsINode* aNode, nsIContent* aContent);
+  static PRBool IsInSameAnonymousTree(const nsINode* aNode, const nsIContent* aContent);
 
   /**
    * Return the nsIXPConnect service.
@@ -1045,6 +1048,11 @@ public:
   /**
    * Creates a DocumentFragment from text using a context node to resolve
    * namespaces.
+   *
+   * Note! In the HTML case with the HTML5 parser enabled, this is only called
+   * from Range.createContextualFragment() and the implementation here is
+   * quirky accordingly (html context node behaves like a body context node).
+   * If you don't want that quirky behavior, don't use this method as-is!
    *
    * @param aContextNode the node which is used to resolve namespaces
    * @param aFragment the string which is parsed to a DocumentFragment
@@ -1680,24 +1688,17 @@ public:
    * @param aContent the content node to check
    * @return true if the content node is focused, false otherwise.
    */
-  static PRBool IsFocusedContent(nsIContent *aContent);
+  static PRBool IsFocusedContent(const nsIContent *aContent);
 
-#ifdef MOZ_IPC
-#ifdef ANDROID
-  static void SetActiveFrameLoader(nsFrameLoader *aFrameLoader)
-  {
-    sActiveFrameLoader = aFrameLoader;
-  }
-
-  static void ClearActiveFrameLoader(const nsFrameLoader *aFrameLoader)
-  {
-    if (sActiveFrameLoader == aFrameLoader)
-      sActiveFrameLoader = nsnull;
-  }
-
-  static already_AddRefed<nsFrameLoader> GetActiveFrameLoader();
-#endif
-#endif
+  /**
+   * Returns if aContent has a tabbable subdocument.
+   * A sub document isn't tabbable when it's a zombie document.
+   *
+   * @param aElement element to test.
+   *
+   * @return Whether the subdocument is tabbable.
+   */
+  static bool IsSubDocumentTabbable(nsIContent* aContent);
 
 private:
 
@@ -1788,12 +1789,6 @@ private:
   static nsIInterfaceRequestor* sSameOriginChecker;
 
   static PRBool sIsHandlingKeyBoardEvent;
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-  static nsFrameLoader *sActiveFrameLoader;
-#endif
-#endif
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \

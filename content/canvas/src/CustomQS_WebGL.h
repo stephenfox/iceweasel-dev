@@ -344,9 +344,9 @@ nsICanvasRenderingContextWebGL_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
                 xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 5);
                 return JS_FALSE;
             }
-            rv = self->TexImage2D_array(argv0, argv1, argv2,
-                                        int_width, int_height, 0,
-                                        argv3, argv4, js::TypedArray::fromJSObject(obj_data));
+            rv = self->TexImage2D_imageData(argv0, argv1, argv2,
+                                            int_width, int_height, 0,
+                                            argv3, argv4, js::TypedArray::fromJSObject(obj_data));
         }
     } else if (argc > 8 &&
                JSVAL_IS_OBJECT(argv[8])) // here, we allow null !
@@ -462,10 +462,10 @@ nsICanvasRenderingContextWebGL_TexSubImage2D(JSContext *cx, uintN argc, jsval *v
                 xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 6);
                 return JS_FALSE;
             }
-            rv = self->TexSubImage2D_array(argv0, argv1, argv2, argv3,
-                                           int_width, int_height,
-                                           argv4, argv5,
-                                           js::TypedArray::fromJSObject(obj_data));
+            rv = self->TexSubImage2D_imageData(argv0, argv1, argv2, argv3,
+                                               int_width, int_height,
+                                               argv4, argv5,
+                                               js::TypedArray::fromJSObject(obj_data));
         }
     } else if (argc > 8 &&
                !JSVAL_IS_PRIMITIVE(argv[8]))
@@ -532,7 +532,7 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(JSContext *cx, uintN argc, js
         return JS_FALSE;
     }
 
-    if (!JSVAL_IS_OBJECT(argv[1])) {
+    if (JSVAL_IS_PRIMITIVE(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
         return JS_FALSE;
     }
@@ -606,7 +606,7 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(JSContext *cx, uintN argc, js
         return JS_FALSE;
     }
 
-    if (!JSVAL_IS_OBJECT(argv[1])) {
+    if (JSVAL_IS_PRIMITIVE(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
         return JS_FALSE;
     }
@@ -684,7 +684,7 @@ helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv(JSContext *cx, uintN ar
     if (!JS_ValueToECMAInt32(cx, argv[1], &transpose))
         return JS_FALSE;
 
-    if (!JSVAL_IS_OBJECT(argv[2])) {
+    if (JSVAL_IS_PRIMITIVE(argv[2])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
         return JS_FALSE;
     }
@@ -751,7 +751,7 @@ helper_nsICanvasRenderingContextWebGL_VertexAttrib_x_fv(JSContext *cx, uintN arg
     if (!JS_ValueToECMAUint32(cx, argv[0], &location))
         return JS_FALSE;
 
-    if (!JSVAL_IS_OBJECT(argv[1])) {
+    if (JSVAL_IS_PRIMITIVE(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
         return JS_FALSE;
     }
@@ -901,6 +901,11 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(JSContext *cx, JSObject *o
         return;
     }
 
+    if (!arg) {
+        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsICanvasRenderingContextWebGL", "uniformNiv");
+        js_SetTraceableNativeFailed(cx);
+    }
+
     js::AutoValueRooter obj_tvr(cx);
 
     nsIWebGLUniformLocation *location;
@@ -962,6 +967,11 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(JSContext *cx, JSObject *o
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
+    }
+
+    if (!arg) {
+        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsICanvasRenderingContextWebGL", "uniformNfv");
+        js_SetTraceableNativeFailed(cx);
     }
 
     js::AutoValueRooter obj_tvr(cx);
@@ -1027,6 +1037,11 @@ helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(JSContext *cx, JSObj
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, &vp.array[0], nsnull)) {
         js_SetTraceableNativeFailed(cx);
         return;
+    }
+
+    if (!arg) {
+        xpc_qsThrowMethodFailedWithDetails(cx, NS_ERROR_FAILURE, "nsICanvasRenderingContextWebGL", "uniformMatrixNfv");
+        js_SetTraceableNativeFailed(cx);
     }
 
     js::AutoValueRooter obj_tvr(cx);

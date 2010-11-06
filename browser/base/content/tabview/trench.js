@@ -55,7 +55,7 @@
 //     Guide trenches extend out (unless they are intercepted) and act as "guides".
 //   edge - which edge of the Item that this trench corresponds to.
 //     Either "top", "left", "bottom", or "right".
-var Trench = function(element, xory, type, edge) {
+function Trench(element, xory, type, edge) {
   //----------
   // Variable: id
   // (integer) The id for the Trench. Set sequentially via <Trenches.nextId>
@@ -382,7 +382,7 @@ Trench.prototype = {
   ruleOverlaps: function Trench_ruleOverlaps(position, range) {
     return (this.position - this.radius < position &&
            position < this.position + this.radius &&
-           this.activeRange.contains(range));
+           this.activeRange.overlaps(range));
   },
 
   //----------
@@ -466,9 +466,11 @@ var Trenches = {
   //   nextId - (integer) a counter for the next <Trench>'s <Trench.id> value.
   //   showDebug - (boolean) whether to draw the <Trench>es or not.
   //   defaultRadius - (integer) the default radius for new <Trench>es.
+  //   disabled - (boolean) whether trench-snapping is disabled or not.
   nextId: 0,
   showDebug: false,
   defaultRadius: 10,
+  disabled: false,
 
   // ---------
   // Variables: snapping preferences; used to break ties in snapping.

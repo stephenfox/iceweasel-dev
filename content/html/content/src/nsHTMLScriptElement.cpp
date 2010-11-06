@@ -58,6 +58,8 @@
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
 
+using namespace mozilla::dom;
+
 //
 // Helper class used to support <SCRIPT FOR=object EVENT=handler ...>
 // style script tags...
@@ -308,7 +310,7 @@ class nsHTMLScriptElement : public nsGenericHTMLElement,
 {
 public:
   nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      PRUint32 aFromParser);
+                      FromParser aFromParser);
   virtual ~nsHTMLScriptElement();
 
   // nsISupports
@@ -361,8 +363,9 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Script)
 
 
 nsHTMLScriptElement::nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         PRUint32 aFromParser)
+                                         FromParser aFromParser)
   : nsGenericHTMLElement(aNodeInfo)
+  , nsScriptElement(aFromParser)
 {
   mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
@@ -418,17 +421,15 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLScriptElement* it = new nsHTMLScriptElement(ni.forget(), PR_FALSE);
-  if (!it) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  nsHTMLScriptElement* it =
+    new nsHTMLScriptElement(ni.forget(), NOT_FROM_PARSER);
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = CopyInnerTo(it);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The clone should be marked evaluated if we are.
-  it->mIsEvaluated = mIsEvaluated;
+  it->mAlreadyStarted = mAlreadyStarted;
   it->mLineNumber = mLineNumber;
   it->mMalformed = mMalformed;
 
@@ -477,11 +478,10 @@ nsHTMLScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
   nsresult rv = MaybeProcessScript();
-  if (!mIsEvaluated) {
-    // Need to thaw the script uri here to allow another script to cause
+  if (!mAlreadyStarted) {
+    // Need to lose parser-insertedness here to allow another script to cause
     // execution later.
-    mFrozen = PR_FALSE;
-    mUri = nsnull;
+    LoseParserInsertedness();
   }
   return rv;
 }
@@ -555,7 +555,7 @@ nsHTMLScriptElement::MaybeProcessScript()
 
     // We tried to evaluate the script but realized it was an eventhandler
     // mEvaluated will already be set at this point
-    NS_ASSERTION(mIsEvaluated, "should have set mIsEvaluated already");
+    NS_ASSERTION(mAlreadyStarted, "should have set mIsEvaluated already");
     NS_ASSERTION(!mScriptEventHandler, "how could we have an SEH already?");
 
     mScriptEventHandler = new nsHTMLScriptEventHandler(this);

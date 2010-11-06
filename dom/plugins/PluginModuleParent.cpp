@@ -127,6 +127,12 @@ PluginModuleParent::~PluginModuleParent()
 {
     NS_ASSERTION(OkToCleanup(), "unsafe destruction");
 
+#ifdef OS_MACOSX
+    if (mCATimer) {
+        mCATimer->Cancel();
+    }
+#endif
+
     if (!mShutdown) {
         NS_WARNING("Plugin host deleted the module without shutting down.");
         NPError err;
@@ -613,6 +619,47 @@ PluginModuleParent::HasRequiredFunctions()
     return true;
 }
 
+nsresult
+PluginModuleParent::AsyncSetWindow(NPP instance, NPWindow* window)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->AsyncSetWindow(window);
+}
+
+nsresult
+PluginModuleParent::NotifyPainted(NPP instance)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->NotifyPainted();
+}
+
+nsresult
+PluginModuleParent::GetSurface(NPP instance, gfxASurface** aSurface)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->GetSurface(aSurface);
+}
+
+nsresult
+PluginModuleParent::UseAsyncPainting(NPP instance, PRBool* aIsAsync)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->UseAsyncPainting(aIsAsync);
+}
+
+
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
 nsresult
 PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error)
@@ -870,6 +917,17 @@ PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
 
 #ifdef OS_MACOSX
 #define DEFAULT_REFRESH_MS 20 // CoreAnimation: 50 FPS
+
+void
+CAUpdate(nsITimer *aTimer, void *aClosure) {
+    nsTObserverArray<PluginInstanceParent*> *ips =
+        static_cast<nsTObserverArray<PluginInstanceParent*> *>(aClosure);
+    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(*ips);
+    while (iter.HasMore()) {
+        iter.GetNext()->Invalidate();
+    }
+}
+
 void
 PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
     if (mCATimerTargets.Contains(aInstance)) {
@@ -878,8 +936,17 @@ PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
 
     mCATimerTargets.AppendElement(aInstance);
     if (mCATimerTargets.Length() == 1) {
-        mCATimer.Start(base::TimeDelta::FromMilliseconds(DEFAULT_REFRESH_MS),
-                       this, &PluginModuleParent::CAUpdate);
+        if (!mCATimer) {
+            nsresult rv;
+            nsCOMPtr<nsITimer> xpcomTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+            if (NS_FAILED(rv)) {
+                NS_WARNING("Could not create Core Animation timer for plugin.");
+                return;
+            }
+            mCATimer = xpcomTimer;
+        }
+        mCATimer->InitWithFuncCallback(CAUpdate, &mCATimerTargets, DEFAULT_REFRESH_MS,
+                                       nsITimer::TYPE_REPEATING_SLACK);
     }
 }
 
@@ -887,15 +954,7 @@ void
 PluginModuleParent::RemoveFromRefreshTimer(PluginInstanceParent *aInstance) {
     PRBool visibleRemoved = mCATimerTargets.RemoveElement(aInstance);
     if (visibleRemoved && mCATimerTargets.IsEmpty()) {
-        mCATimer.Stop();
-    }
-}
-
-void
-PluginModuleParent::CAUpdate() {
-    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(mCATimerTargets);
-    while (iter.HasMore()) {
-        iter.GetNext()->Invalidate();
+        mCATimer->Cancel();
     }
 }
 #endif

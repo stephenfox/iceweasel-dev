@@ -11,14 +11,14 @@ diff --git a/media/libvpx/vp8/common/loopfilter_filters.c b/media/libvpx/vp8/com
  #include "onyxc_int.h"
  
 +#ifdef __SUNPRO_C
-+#define __inline static inline
++#define __inline inline
 +#endif
  
  #define NEW_LOOPFILTER_MASK
  
  typedef unsigned char uc;
  
- __inline signed char vp8_signed_char_clamp(int t)
+ static __inline signed char vp8_signed_char_clamp(int t)
  {
      t = (t < -128 ? -128 : t);
 diff --git a/media/libvpx/vpx/internal/vpx_codec_internal.h b/media/libvpx/vpx/internal/vpx_codec_internal.h

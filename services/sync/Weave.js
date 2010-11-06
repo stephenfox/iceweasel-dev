@@ -64,7 +64,9 @@ WeaveService.prototype = {
       this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       this.timer.initWithCallback({
         notify: function() {
-          Cu.import("resource://services-sync/service.js");
+          Cu.import("resource://services-sync/main.js");
+          if (Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED)
+            Weave.Service;
         }
       }, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
       break;
@@ -78,12 +80,16 @@ WeaveService.prototype = {
                   .QueryInterface(Ci.nsIResProtocolHandler);
 
     // Only create alias if resource://services-sync doesn't already exist.
-    if (resProt.hasSubstitution("services-sync"))
-      return;
-
-    let uri = ioService.newURI("resource://gre/modules/services-sync/",
-                               null, null);
-    resProt.setSubstitution("services-sync", uri);
+    if (!resProt.hasSubstitution("services-sync")) {
+      let uri = ioService.newURI("resource:///modules/services-sync/",
+                                 null, null);
+      resProt.setSubstitution("services-sync", uri);
+    }
+    if (!resProt.hasSubstitution("services-crypto")) {
+      let uri = ioService.newURI("resource:///modules/services-crypto/",
+                                 null, null);
+      resProt.setSubstitution("services-crypto", uri);
+    }
   }
 };
 

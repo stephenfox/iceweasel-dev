@@ -40,15 +40,17 @@
 #ifndef mozilla_dom_indexeddb_idbobjectstore_h__
 #define mozilla_dom_indexeddb_idbobjectstore_h__
 
-#include "mozilla/dom/indexedDB/IDBRequest.h"
-#include "mozilla/dom/indexedDB/IDBDatabase.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
 #include "mozilla/dom/indexedDB/IDBTransaction.h"
 
 #include "nsIIDBObjectStore.h"
+#include "nsIIDBTransaction.h"
 
-struct JSContext;
+#include "nsDOMEventTargetHelper.h"
 
 BEGIN_INDEXEDDB_NAMESPACE
+
+class AsyncConnectionHelper;
 
 struct ObjectStoreInfo;
 struct IndexInfo;
@@ -210,18 +212,19 @@ private:
   PRInt64 mInt;
 };
 
-class IDBObjectStore : public IDBRequest::Generator,
+class IDBObjectStore : public nsDOMEventTargetHelper,
                        public nsIIDBObjectStore
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBOBJECTSTORE
 
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBObjectStore,
+                                           nsDOMEventTargetHelper)
+
   static already_AddRefed<IDBObjectStore>
-  Create(IDBDatabase* aDatabase,
-         IDBTransaction* aTransaction,
-         const ObjectStoreInfo* aInfo,
-         PRUint16 aMode);
+  Create(IDBTransaction* aTransaction,
+         const ObjectStoreInfo* aInfo);
 
   static nsresult
   GetKeyFromVariant(nsIVariant* aKeyVariant,
@@ -261,6 +264,10 @@ public:
                 PRInt64 aObjectDataId,
                 const nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
+  const nsString& Name() const
+  {
+    return mName;
+  }
 
   bool TransactionIsOpen() const
   {
@@ -279,6 +286,7 @@ public:
 
   PRInt64 Id() const
   {
+    NS_ASSERTION(mId != LL_MININT, "Don't ask for this yet!");
     return mId;
   }
 
@@ -306,7 +314,6 @@ protected:
                       nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
 private:
-  nsRefPtr<IDBDatabase> mDatabase;
   nsRefPtr<IDBTransaction> mTransaction;
 
   PRInt64 mId;
@@ -314,7 +321,9 @@ private:
   nsString mKeyPath;
   PRBool mAutoIncrement;
   PRUint32 mDatabaseId;
-  PRUint16 mMode;
+
+  // Only touched on the main thread.
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -508,6 +508,13 @@ public:
    */
   NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
+  /**
+   * Returns the current disabled state of the element.
+   */
+  virtual bool IsDisabled() const {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  }
+
 protected:
   /**
    * Add/remove this element to the documents name cache
@@ -767,7 +774,6 @@ protected:
   // Used by A, AREA, LINK, and STYLE.
   already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
 
-private:
   /**
    * Returns whether this element is an editable root. There are two types of
    * editable roots:
@@ -780,6 +786,7 @@ private:
    */
   PRBool IsEditableRoot() const;
 
+private:
   void ChangeEditableState(PRInt32 aChange);
 };
 
@@ -839,9 +846,33 @@ public:
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
   virtual PRUint32 GetDesiredIMEState();
-  virtual PRInt32 IntrinsicState() const;
+  virtual nsEventStates IntrinsicState() const;
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+
+  virtual bool IsDisabled() const {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
+           (mFieldSet && mFieldSet->IsDisabled());
+  }
+
+  /**
+   * This callback is called by a fieldest on all it's elements whenever it's
+   * disabled attribute is changed so the element knows it's disabled state
+   * might have changed.
+   *
+   * @param aStates States for which a change should be notified.
+   * @note Classes redefining this method should not call ContentStatesChanged
+   * but they should pass aStates instead.
+   */
+  virtual void FieldSetDisabledChanged(nsEventStates aStates, PRBool aNotify);
+
+  void FieldSetFirstLegendChanged(PRBool aNotify) {
+    UpdateFieldSet();
+
+    // The disabled state may have change because the element might not be in
+    // the first legend anymore.
+    FieldSetDisabledChanged(nsEventStates(), aNotify);
+  }
 
   /**
    * Returns if the control can be disabled.
@@ -881,6 +912,11 @@ protected:
   void UpdateFormOwner(bool aBindToTree, Element* aFormIdElement);
 
   /**
+   * This method will update mFieldset and set it to the first fieldset parent.
+   */
+  void UpdateFieldSet();
+
+  /**
    * Add a form id observer which will observe when the element with the id in
    * @form will change.
    *
@@ -916,6 +952,9 @@ protected:
 
   /** The form that contains this control */
   nsHTMLFormElement* mForm;
+
+  /* This is a pointer to our closest fieldset parent if any */
+  nsGenericHTMLFormElement* mFieldSet;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have
@@ -948,10 +987,10 @@ class nsGenericHTMLFrameElement : public nsGenericHTMLElement,
 {
 public:
   nsGenericHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                            PRUint32 aFromParser)
+                            mozilla::dom::FromParser aFromParser)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    mNetworkCreated = aFromParser == NS_FROM_PARSER_NETWORK;
+    mNetworkCreated = aFromParser == mozilla::dom::FROM_PARSER_NETWORK;
   }
   virtual ~nsGenericHTMLFrameElement();
 
@@ -1007,25 +1046,6 @@ protected:
 //----------------------------------------------------------------------
 
 /**
- * A macro to implement the NS_NewHTMLXXXElement() functions.
- */
-#define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
-nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
-                                  PRUint32 aFromParser)                      \
-{                                                                            \
-  return new nsHTML##_elementName##Element(aNodeInfo);                       \
-}
-
-#define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
-nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
-                                  PRUint32 aFromParser)                      \
-{                                                                            \
-  return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
-}
-
-/**
  * A macro to implement the getter and setter for a given string
  * valued content property. The method uses the generic GetAttr and
  * SetAttr methods.
@@ -1034,12 +1054,12 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
   NS_IMETHODIMP                                                      \
   _class::Get##_method(nsAString& aValue)                            \
   {                                                                  \
-    return GetAttrHelper(nsGkAtoms::_atom, aValue);                \
+    return GetAttrHelper(nsGkAtoms::_atom, aValue);                  \
   }                                                                  \
   NS_IMETHODIMP                                                      \
   _class::Set##_method(const nsAString& aValue)                      \
   {                                                                  \
-    return SetAttrHelper(nsGkAtoms::_atom, aValue);                \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                  \
   }
 
 /**
@@ -1082,7 +1102,7 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
  * SetAttr methods.
  */
 #define NS_IMPL_INT_ATTR(_class, _method, _atom)                    \
-  NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, -1)
+  NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0)
 
 #define NS_IMPL_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
   NS_IMETHODIMP                                                           \
@@ -1145,6 +1165,27 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
   _class::Set##_method(const nsAString& aValue)                              \
   {                                                                          \
     return SetAttrHelper(nsGkAtoms::_atom, aValue);                        \
+  }
+
+/**
+ * A macro to implement getter and setter for action and form action content
+ * attributes. It's very similar to NS_IMPL_URI_ATTR excepted that if the
+ * content attribute is the empty string, the empty string is returned.
+ */
+#define NS_IMPL_ACTION_ATTR(_class, _method, _atom)                 \
+  NS_IMETHODIMP                                                     \
+  _class::Get##_method(nsAString& aValue)                           \
+  {                                                                 \
+    GetAttr(kNameSpaceID_None, nsGkAtoms::_atom, aValue);           \
+    if (aValue.IsEmpty()) {                                         \
+      return NS_OK;                                                 \
+    }                                                               \
+    return GetURIAttr(nsGkAtoms::_atom, nsnull, aValue);            \
+  }                                                                 \
+  NS_IMETHODIMP                                                     \
+  _class::Set##_method(const nsAString& aValue)                     \
+  {                                                                 \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                 \
   }
 
 /**
@@ -1315,6 +1356,18 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
     NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
   NS_OFFSET_AND_INTERFACE_TABLE_END
 
+#define NS_HTML_CONTENT_INTERFACE_TABLE7(_class, _i1, _i2, _i3, _i4, _i5,     \
+                                         _i6, _i7)                            \
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
+    NS_INTERFACE_TABLE_ENTRY(_class, _i7)                                     \
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+
 #define NS_HTML_CONTENT_INTERFACE_TABLE8(_class, _i1, _i2, _i3, _i4, _i5,     \
                                          _i6, _i7, _i8)                       \
   NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(_class)                               \
@@ -1358,26 +1411,46 @@ NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
   NS_OFFSET_AND_INTERFACE_TABLE_END
 
 
-// Element class factory methods
-
+/**
+ * A macro to declare the NS_NewHTMLXXXElement() functions.
+ */
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT(_elementName)                       \
 nsGenericHTMLElement*                                                      \
 NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo, \
-                                  PRUint32 aFromParser = 0);
+                                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
 
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)             \
 inline nsGenericHTMLElement*                                               \
 NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo, \
-                                  PRUint32 aFromParser = 0)                \
+                                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER) \
 {                                                                          \
   return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);                  \
+}
+
+/**
+ * A macro to implement the NS_NewHTMLXXXElement() functions.
+ */
+#define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
+                                  mozilla::dom::FromParser aFromParser)      \
+{                                                                            \
+  return new nsHTML##_elementName##Element(aNodeInfo);                       \
+}
+
+#define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
+nsGenericHTMLElement*                                                        \
+NS_NewHTML##_elementName##Element(already_AddRefed<nsINodeInfo> aNodeInfo,   \
+                                  mozilla::dom::FromParser aFromParser)      \
+{                                                                            \
+  return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
 }
 
 // Here, we expand 'NS_DECLARE_NS_NEW_HTML_ELEMENT()' by hand.
 // (Calling the macro directly (with no args) produces compiler warnings.)
 nsGenericHTMLElement*
 NS_NewHTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                  PRUint32 aFromParser = 0);
+                  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)
@@ -1393,6 +1466,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Body)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Button)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Canvas)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Mod)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(DataList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Div)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FieldSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Font)

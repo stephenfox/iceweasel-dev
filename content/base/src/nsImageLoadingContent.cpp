@@ -567,10 +567,8 @@ nsImageLoadingContent::NotifyOwnerDocumentChanged(nsIDocument *aOldDoc)
   }
 
   // Re-track the images
-  if (mCurrentRequest)
-    TrackImage(mCurrentRequest);
-  if (mPendingRequest)
-    TrackImage(mPendingRequest);
+  TrackImage(mCurrentRequest);
+  TrackImage(mPendingRequest);
 }
 
 nsresult
@@ -701,21 +699,36 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 }
 
 nsresult
-nsImageLoadingContent::ForceImageState(PRBool aForce, PRInt32 aState)
+nsImageLoadingContent::ForceImageState(PRBool aForce, nsEventStates::InternalType aState)
 {
   mIsImageStateForced = aForce;
-  mForcedImageState = aState;
+  mForcedImageState = nsEventStates(aState);
   return NS_OK;
 }
 
-PRInt32
+nsEventStates
 nsImageLoadingContent::ImageState() const
 {
-  return mIsImageStateForced ? mForcedImageState :
-    (mBroken * NS_EVENT_STATE_BROKEN) |
-    (mUserDisabled * NS_EVENT_STATE_USERDISABLED) |
-    (mSuppressed * NS_EVENT_STATE_SUPPRESSED) |
-    (mLoading * NS_EVENT_STATE_LOADING);
+  if (mIsImageStateForced) {
+    return mForcedImageState;
+  }
+
+  nsEventStates states;
+
+  if (mBroken) {
+    states |= NS_EVENT_STATE_BROKEN;
+  }
+  if (mUserDisabled) {
+    states |= NS_EVENT_STATE_USERDISABLED;
+  }
+  if (mSuppressed) {
+    states |= NS_EVENT_STATE_SUPPRESSED;
+  }
+  if (mLoading) {
+    states |= NS_EVENT_STATE_LOADING;
+  }
+
+  return states;
 }
 
 void
@@ -736,7 +749,7 @@ nsImageLoadingContent::UpdateImageState(PRBool aNotify)
     return;
   }
 
-  PRInt32 oldState = ImageState();
+  nsEventStates oldState = ImageState();
 
   mLoading = mBroken = mUserDisabled = mSuppressed = PR_FALSE;
   
@@ -764,8 +777,8 @@ nsImageLoadingContent::UpdateImageState(PRBool aNotify)
     nsIDocument* doc = thisContent->GetCurrentDoc();
     if (doc) {
       NS_ASSERTION(thisContent->IsInDoc(), "Something is confused");
-      PRInt32 changedBits = oldState ^ ImageState();
-      if (changedBits) {
+      nsEventStates changedBits = oldState ^ ImageState();
+      if (!changedBits.IsEmpty()) {
         mozAutoDocUpdate upd(doc, UPDATE_CONTENT_STATE, PR_TRUE);
         doc->ContentStatesChanged(thisContent, nsnull, changedBits);
       }
@@ -985,6 +998,9 @@ nsImageLoadingContent::SetBlockingOnload(PRBool aBlocking)
 nsresult
 nsImageLoadingContent::TrackImage(imgIRequest* aImage)
 {
+  if (!aImage)
+    return NS_OK;
+
   nsIDocument* doc = GetOurDocument();
   if (doc)
     return doc->AddImage(aImage);
@@ -994,6 +1010,9 @@ nsImageLoadingContent::TrackImage(imgIRequest* aImage)
 nsresult
 nsImageLoadingContent::UntrackImage(imgIRequest* aImage)
 {
+  if (!aImage)
+    return NS_OK;
+
   // If GetOurDocument() returns null here, we've outlived our document.
   // That's fine, because the document empties out the tracker and unlocks
   // all locked images on destruction.
@@ -1008,6 +1027,7 @@ void
 nsImageLoadingContent::CreateStaticImageClone(nsImageLoadingContent* aDest) const
 {
   aDest->mCurrentRequest = nsContentUtils::GetStaticRequest(mCurrentRequest);
+  aDest->TrackImage(aDest->mCurrentRequest);
   aDest->mForcedImageState = mForcedImageState;
   aDest->mImageBlockingStatus = mImageBlockingStatus;
   aDest->mLoadingEnabled = mLoadingEnabled;

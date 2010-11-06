@@ -304,8 +304,6 @@ bool TOutputGLSL::visitBinary(Visit visit, TIntermBinary* node)
 
 bool TOutputGLSL::visitUnary(Visit visit, TIntermUnary* node)
 {
-    TInfoSinkBase& out = objSink();
-
     switch (node->getOp())
     {
         case EOpNegative: writeTriplet(visit, "(-", NULL, ")"); break;
@@ -375,6 +373,10 @@ bool TOutputGLSL::visitUnary(Visit visit, TIntermUnary* node)
 
         case EOpLength: writeTriplet(visit, "length(", NULL, ")"); break;
         case EOpNormalize: writeTriplet(visit, "normalize(", NULL, ")"); break;
+
+        case EOpDFdx: writeTriplet(visit, "dFdx(", NULL, ")"); break;
+        case EOpDFdy: writeTriplet(visit, "dFdy(", NULL, ")"); break;
+        case EOpFwidth: writeTriplet(visit, "fwidth(", NULL, ")"); break;
 
         case EOpAny: writeTriplet(visit, "any(", NULL, ")"); break;
         case EOpAll: writeTriplet(visit, "all(", NULL, ")"); break;
@@ -650,8 +652,6 @@ bool TOutputGLSL::visitLoop(Visit visit, TIntermLoop* node)
 
 bool TOutputGLSL::visitBranch(Visit visit, TIntermBranch* node)
 {
-    TInfoSinkBase &out = objSink();
-
     switch (node->getFlowOp())
     {
         case EOpKill: writeTriplet(visit, "discard", NULL, NULL); break;

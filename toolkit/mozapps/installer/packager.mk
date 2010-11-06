@@ -55,7 +55,11 @@ else
    ifeq (,$(filter-out gtk2 qt, $(MOZ_WIDGET_TOOLKIT)))
       MOZ_PKG_FORMAT  = BZ2
    else
-      MOZ_PKG_FORMAT  = TGZ
+      ifeq (Android,$(OS_TARGET))
+          MOZ_PKG_FORMAT = APK
+      else
+          MOZ_PKG_FORMAT = TGZ
+      endif
    endif
 endif
 endif
@@ -87,6 +91,7 @@ SDK           = $(SDK_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
 
 MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
 MAKE_CAB	= $(error Don't know how to make a CAB!);
+_ABS_DIST = $(call core_abspath,$(DIST))
 
 ifdef WINCE
 ifndef WINCE_WINDOWS_MOBILE
@@ -146,6 +151,75 @@ INNER_MAKE_PACKAGE	= rm -f app.7z && \
 INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) && \
   mv core $(MOZ_PKG_DIR)
 endif
+ifeq ($(MOZ_PKG_FORMAT),APK)
+
+# we have custom stuff for Android
+MOZ_OMNIJAR =
+
+JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar
+include $(topsrcdir)/config/android-common.mk
+
+JARSIGNER ?= echo
+
+DIST_FILES = \
+  resources.arsc \
+  AndroidManifest.xml \
+  chrome \
+  components \
+  defaults \
+  modules \
+  res \
+  lib \
+  lib.id \
+  extensions \
+  application.ini \
+  platform.ini \
+  greprefs.js \
+  browserconfig.properties \
+  blocklist.xml \
+  chrome.manifest \
+  update.locale \
+  $(NULL)
+
+NON_DIST_FILES = \
+  classes.dex \
+  $(NULL)
+
+UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
+
+include $(topsrcdir)/ipc/app/defs.mk
+
+ifdef MOZ_IPC
+DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
+endif
+
+PKG_SUFFIX      = .apk
+INNER_MAKE_PACKAGE	= \
+  rm -f $(_ABS_DIST)/gecko.ap_ && \
+  ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
+    rm -rf lib && \
+    mkdir -p lib/armeabi && \
+    cp lib*.so lib && \
+    mv lib/libmozutils.so lib/armeabi && \
+    rm -f lib.id && \
+    for SOMELIB in lib/*.so ; \
+    do \
+      printf "`basename $$SOMELIB`:`$(_ABS_DIST)/host/bin/file_id $$SOMELIB`\n" >> lib.id ; \
+    done && \
+    $(ZIP) -r9D $(_ABS_DIST)/gecko.ap_ $(DIST_FILES) -x $(NON_DIST_FILES) ) && \
+  rm -f $(_ABS_DIST)/gecko.apk && \
+  $(APKBUILDER) $(_ABS_DIST)/gecko.apk -v $(APKBUILDER_FLAGS) -z $(_ABS_DIST)/gecko.ap_ -f $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/classes.dex && \
+  cp $(_ABS_DIST)/gecko.apk $(_ABS_DIST)/gecko-unsigned-unaligned.apk && \
+  $(JARSIGNER) $(_ABS_DIST)/gecko.apk && \
+  $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/gecko.apk $(PACKAGE)
+INNER_UNMAKE_PACKAGE	= \
+  mkdir $(MOZ_PKG_DIR) && \
+  cd $(MOZ_PKG_DIR) && \
+  $(UNZIP) $(UNPACKAGE) && \
+  mv lib/armeabi/*.so . && \
+  mv lib/*.so . && \
+  rm -rf lib
+endif
 ifeq ($(MOZ_PKG_FORMAT),DMG)
 ifndef _APPNAME
 ifdef MOZ_DEBUG
@@ -184,7 +258,6 @@ endif
 INNER_MAKE_PACKAGE	= $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
   --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
   --volname "$(MOZ_APP_DISPLAYNAME)" $(PKG_DMG_FLAGS)
-_ABS_DIST = $(call core_abspath,$(DIST))
 INNER_UNMAKE_PACKAGE	= \
   set -ex; \
   rm -rf $(_ABS_DIST)/unpack.tmp; \
@@ -237,12 +310,19 @@ NON_OMNIJAR_FILES = \
 PACK_OMNIJAR	= \
   rm -f omni.jar components/binary.manifest && \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
+  sed -e 's/^binary-component/\#binary-component/' components/components.manifest > components.manifest && \
+  mv components.manifest components && \
   find . | xargs touch -t 201001010000 && \
   zip -r9mX omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
-  $(OPTIMIZE_JARS_CMD) $(DIST)/jarlog/ ./ ./ && \
+  $(OPTIMIZE_JARS_CMD) --optimize $(_ABS_DIST)/jarlog/ ./ ./ && \
   mv binary.manifest components && \
   printf "manifest components/binary.manifest\n" > chrome.manifest
-UNPACK_OMNIJAR	= unzip -o omni.jar && rm -f components/binary.manifest
+UNPACK_OMNIJAR	= \
+  $(OPTIMIZE_JARS_CMD) --deoptimize $(_ABS_DIST)/jarlog/ ./ ./ && \
+  unzip -o omni.jar && \
+  rm -f components/binary.manifest && \
+  sed -e 's/^\#binary-component/binary-component/' components/components.manifest > components.manifest && \
+  mv components.manifest components
 
 MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && $(INNER_MAKE_PACKAGE)
 UNMAKE_PACKAGE	= $(INNER_UNMAKE_PACKAGE) && (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(UNPACK_OMNIJAR))
@@ -403,6 +483,7 @@ ifdef MOZ_OPTIONAL_PKG_LIST
 	  "$(call core_abspath,$(DEPTH)/installer-stage/optional)", \
 	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
 	  $(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
+	@cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \;
 endif
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
@@ -450,7 +531,7 @@ else
 endif # DMG
 endif # MOZ_PKG_MANIFEST
 endif # UNIVERSAL_BINARY
-	$(OPTIMIZE_JARS_CMD) $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
+	$(OPTIMIZE_JARS_CMD) --optimize $(DIST)/jarlog/ $(DIST)/bin/chrome $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/chrome
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
 	@cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR); find . ! -type d \
@@ -579,17 +660,39 @@ empty :=
 space = $(empty) $(empty)
 QUOTED_WILDCARD = $(if $(wildcard $(subst $(space),?,$(1))),"$(1)")
 
-upload:
+# This variable defines which OpenSSL algorithm to use to 
+# generate checksums for files that we upload
+CHECKSUM_ALGORITHM = 'sha512'
+
+# This variable defines where the checksum file will be located
+CHECKSUM_FILE = "$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).checksums"
+
+UPLOAD_FILES= \
+  $(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
+  $(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
+  $(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
+  $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
+  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
+  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
+  $(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
+  $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt) \
+  $(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
+
+checksum:
+	@$(PYTHON) $(MOZILLA_DIR)/build/checksums.py \
+		-o $(CHECKSUM_FILE) \
+		-d $(CHECKSUM_ALGORITHM) \
+		-s $(call QUOTED_WILDCARD,$(DIST)) \
+		$(UPLOAD_FILES)
+	@echo "CHECKSUM FILE START"
+	@cat $(CHECKSUM_FILE)
+	@echo "CHECKSUM FILE END"
+
+
+upload: checksum
 	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
-		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \
-		$(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR))) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
-		$(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt) \
-		$(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
+		$(UPLOAD_FILES) \
+		$(CHECKSUM_FILE)
 
 ifndef MOZ_PKG_SRCDIR
 MOZ_PKG_SRCDIR = $(topsrcdir)

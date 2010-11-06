@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 DOMCI_CLASS(Window)
-DOMCI_CLASS(InnerWindow)
 DOMCI_CLASS(Location)
 DOMCI_CLASS(Navigator)
 DOMCI_CLASS(Plugin)
@@ -93,6 +92,7 @@ DOMCI_CLASS(HTMLBRElement)
 DOMCI_CLASS(HTMLBaseElement)
 DOMCI_CLASS(HTMLBodyElement)
 DOMCI_CLASS(HTMLButtonElement)
+DOMCI_CLASS(HTMLDataListElement)
 DOMCI_CLASS(HTMLDListElement)
 DOMCI_CLASS(HTMLDelElement)
 DOMCI_CLASS(HTMLDirectoryElement)
@@ -188,7 +188,6 @@ DOMCI_CLASS(CSSRect)
 
 // DOM Chrome Window class, almost identical to Window
 DOMCI_CLASS(ChromeWindow)
-DOMCI_CLASS(InnerChromeWindow)
 
 // RGBColor object used by getComputedStyle
 DOMCI_CLASS(CSSRGBColor)
@@ -401,6 +400,7 @@ DOMCI_CLASS(CommandEvent)
 DOMCI_CLASS(OfflineResourceList)
 
 DOMCI_CLASS(FileList)
+DOMCI_CLASS(Blob)
 DOMCI_CLASS(File)
 DOMCI_CLASS(FileException)
 DOMCI_CLASS(FileError)
@@ -408,7 +408,6 @@ DOMCI_CLASS(FileReader)
 
 // DOM modal content window class, almost identical to Window
 DOMCI_CLASS(ModalContentWindow)
-DOMCI_CLASS(InnerModalContentWindow)
 
 // Data Events
 DOMCI_CLASS(DataContainerEvent)
@@ -421,6 +420,7 @@ DOMCI_CLASS(MessageEvent)
 DOMCI_CLASS(GeoGeolocation)
 DOMCI_CLASS(GeoPosition)
 DOMCI_CLASS(GeoPositionCoords)
+DOMCI_CLASS(GeoPositionAddress)
 DOMCI_CLASS(GeoPositionError)
 
 // @font-face in CSS
@@ -485,6 +485,9 @@ DOMCI_CLASS(ContentFrameMessageManager)
 
 DOMCI_CLASS(FormData)
 
+DOMCI_CLASS(DesktopNotification)
+DOMCI_CLASS(DesktopNotificationCenter)
+
 // WebSocket
 DOMCI_CLASS(WebSocket)
 DOMCI_CLASS(CloseEvent)
@@ -500,3 +503,5 @@ DOMCI_CLASS(IDBTransaction)
 DOMCI_CLASS(IDBCursor)
 DOMCI_CLASS(IDBKeyRange)
 DOMCI_CLASS(IDBIndex)
+DOMCI_CLASS(IDBVersionChangeEvent)
+DOMCI_CLASS(IDBVersionChangeRequest)

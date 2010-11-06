@@ -148,6 +148,12 @@ tier_platform_dirs += \
 		$(NULL)
 endif
 
+ifdef MOZ_TREMOR
+tier_platform_dirs += \
+		media/libtremor \
+		$(NULL)
+endif
+
 ifdef MOZ_WEBM
 tier_platform_dirs += \
 		media/libnestegg \
@@ -245,6 +251,17 @@ tier_platform_dirs += startupcache
 endif
 
 ifndef BUILD_STATIC_LIBS
+ifdef APP_LIBXUL_STATICDIRS
+# Applications can cheat and ask for code to be
+# built before libxul so libxul can be linked against it.
+tier_platform_staticdirs += $(APP_LIBXUL_STATICDIRS)
+endif
+ifdef APP_LIBXUL_DIRS
+# Applications can cheat and ask for code to be
+# built before libxul so it can be linked into libxul.
+tier_platform_dirs += $(APP_LIBXUL_DIRS)
+endif
+
 tier_platform_dirs += toolkit/library
 endif
 
@@ -273,11 +290,6 @@ endif
 
 ifdef MOZ_MAPINFO
 tier_platform_dirs	+= tools/codesighs
-endif
-
-ifdef MOZ_SERVICES_SYNC
-tier_platform_dirs += services/crypto
-tier_platform_dirs += services/sync
 endif
 
 ifdef ENABLE_TESTS

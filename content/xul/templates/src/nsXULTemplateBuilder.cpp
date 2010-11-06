@@ -528,6 +528,9 @@ nsXULTemplateBuilder::UpdateResult(nsIXULTemplateResult* aOldResult,
            ("nsXULTemplateBuilder::UpdateResult %p %p %p",
            aOldResult, aNewResult, aQueryNode));
 
+    if (!mRoot || !mQueriesCompiled)
+      return NS_OK;
+
     // get the containers where content may be inserted. If
     // GetInsertionLocations returns false, no container has generated
     // any content yet so new content should not be generated either. This
@@ -1024,6 +1027,9 @@ nsXULTemplateBuilder::ResultBindingChanged(nsIXULTemplateResult* aResult)
     // The new result will have the new values.
     NS_ENSURE_ARG_POINTER(aResult);
 
+    if (!mRoot || !mQueriesCompiled)
+      return NS_OK;
+
     return SynchronizeResult(aResult);
 }
 
@@ -1133,13 +1139,8 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
         // Check for a change to the 'datasources' attribute. If so, setup
         // mDB by parsing the new value and rebuild.
         else if (aAttribute == nsGkAtoms::datasources) {
-            Uninit(PR_FALSE);  // Reset results
-            
-            PRBool shouldDelay;
-            LoadDataSources(aDocument, &shouldDelay);
-            if (!shouldDelay)
-                nsContentUtils::AddScriptRunner(
-                    NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableRebuild));
+            nsContentUtils::AddScriptRunner(
+                NS_NewRunnableMethod(this, &nsXULTemplateBuilder::RunnableLoadAndRebuild));
         }
     }
 }
@@ -1157,8 +1158,9 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
         if (mQueryProcessor)
             mQueryProcessor->Done();
 
-        // use false since content is going away anyway
-        Uninit(PR_FALSE);
+        // Pass false to Uninit since content is going away anyway
+        nsContentUtils::AddScriptRunner(
+            NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitFalse));
 
         aDocument->RemoveObserver(this);
 
@@ -1195,7 +1197,8 @@ nsXULTemplateBuilder::NodeWillBeDestroyed(const nsINode* aNode)
     mCompDB = nsnull;
     mRoot = nsnull;
 
-    Uninit(PR_TRUE);
+    nsContentUtils::AddScriptRunner(
+        NS_NewRunnableMethod(this, &nsXULTemplateBuilder::UninitTrue));
 }
 
 

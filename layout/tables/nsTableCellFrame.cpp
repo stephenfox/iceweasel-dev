@@ -539,10 +539,10 @@ nsTableCellFrame::GetSkipSides() const
   return skip;
 }
 
-/* virtual */ void
-nsTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
+/* virtual */ nsMargin
+nsTableCellFrame::GetBorderOverflow()
 {
-  aOverflowArea = nsRect(nsPoint(0,0), GetSize());
+  return nsMargin(0, 0, 0, 0);
 }
 
 // Align the cell's child frame within the cell
@@ -556,21 +556,7 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   nscoord topInset = borderPadding.top;
   nscoord bottomInset = borderPadding.bottom;
 
-  // As per bug 10207, we map 'sub', 'super', 'text-top', 'text-bottom',
-  // length and percentage values to 'baseline'
-  // XXX It seems that we don't get to see length and percentage values here
-  //     because the Style System has already fixed the error and mapped them
-  //     to whatever is inherited from the parent, i.e, 'middle' in most cases.
-  PRUint8 verticalAlignFlags = NS_STYLE_VERTICAL_ALIGN_BASELINE;
-  if (textStyle->mVerticalAlign.GetUnit() == eStyleUnit_Enumerated) {
-    verticalAlignFlags = textStyle->mVerticalAlign.GetIntValue();
-    if (verticalAlignFlags != NS_STYLE_VERTICAL_ALIGN_TOP &&
-        verticalAlignFlags != NS_STYLE_VERTICAL_ALIGN_MIDDLE &&
-        verticalAlignFlags != NS_STYLE_VERTICAL_ALIGN_BOTTOM)
-    {
-      verticalAlignFlags = NS_STYLE_VERTICAL_ALIGN_BASELINE;
-    }
-  }
+  PRUint8 verticalAlignFlags = GetVerticalAlign();
 
   nscoord height = mRect.height;
   nsIFrame* firstKid = mFrames.FirstChild();
@@ -615,8 +601,11 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   nsHTMLReflowMetrics desiredSize;
   desiredSize.width = mRect.width;
   desiredSize.height = mRect.height;
-  GetSelfOverflow(desiredSize.mOverflowArea);
-  ConsiderChildOverflow(desiredSize.mOverflowArea, firstKid);
+
+  nsRect overflow(nsPoint(0,0), GetSize());
+  overflow.Inflate(GetBorderOverflow());
+  desiredSize.mOverflowAreas.SetAllTo(overflow);
+  ConsiderChildOverflow(desiredSize.mOverflowAreas, firstKid);
   FinishAndStoreOverflow(&desiredSize);
   if (kidYTop != kidRect.y) {
     // Make sure any child views are correctly positioned. We know the inner table
@@ -629,29 +618,25 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
   if (HasView()) {
     nsContainerFrame::SyncFrameViewAfterReflow(PresContext(), this,
                                                GetView(),
-                                               &desiredSize.mOverflowArea, 0);
+                                               desiredSize.VisualOverflow(), 0);
   }
 }
 
-// As per bug 10207, we map 'sub', 'super', 'text-top', 'text-bottom',
-// length and percentage values to 'baseline'
-// XXX It seems that we don't get to see length and percentage values here
-//     because the Style System has already fixed the error and mapped them
-//     to whatever is inherited from the parent, i.e, 'middle' in most cases.
-PRBool
-nsTableCellFrame::HasVerticalAlignBaseline()
+// Per CSS 2.1, we map 'sub', 'super', 'text-top', 'text-bottom',
+// length, percentage, and calc() values to 'baseline'.
+PRUint8
+nsTableCellFrame::GetVerticalAlign() const
 {
-  const nsStyleTextReset* textStyle = GetStyleTextReset();
-  if (textStyle->mVerticalAlign.GetUnit() == eStyleUnit_Enumerated) {
-    PRUint8 verticalAlignFlags = textStyle->mVerticalAlign.GetIntValue();
-    if (verticalAlignFlags == NS_STYLE_VERTICAL_ALIGN_TOP ||
-        verticalAlignFlags == NS_STYLE_VERTICAL_ALIGN_MIDDLE ||
-        verticalAlignFlags == NS_STYLE_VERTICAL_ALIGN_BOTTOM)
-    {
-      return PR_FALSE;
+  const nsStyleCoord& verticalAlign = GetStyleTextReset()->mVerticalAlign;
+  if (verticalAlign.GetUnit() == eStyleUnit_Enumerated) {
+    PRUint8 value = verticalAlign.GetIntValue();
+    if (value == NS_STYLE_VERTICAL_ALIGN_TOP ||
+        value == NS_STYLE_VERTICAL_ALIGN_MIDDLE ||
+        value == NS_STYLE_VERTICAL_ALIGN_BOTTOM) {
+      return value;
     }
   }
-  return PR_TRUE;
+  return NS_STYLE_VERTICAL_ALIGN_BASELINE;
 }
 
 PRBool
@@ -912,7 +897,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
 
   nsPoint kidOrigin(leftInset, topInset);
   nsRect origRect = firstKid->GetRect();
-  nsRect origOverflowRect = firstKid->GetOverflowRect();
+  nsRect origVisualOverflow = firstKid->GetVisualOverflowRect();
   PRBool firstReflow = (firstKid->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
 
   ReflowChild(firstKid, aPresContext, kidSize, kidReflowState,
@@ -948,7 +933,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   FinishReflowChild(firstKid, aPresContext, &kidReflowState, kidSize,
                     kidOrigin.x, kidOrigin.y, 0);
 
-  nsTableFrame::InvalidateFrame(firstKid, origRect, origOverflowRect,
+  nsTableFrame::InvalidateFrame(firstKid, origRect, origVisualOverflow,
                                 firstReflow);
 
   // first, compute the height which can be set w/o being restricted by aMaxSize.height
@@ -1099,6 +1084,15 @@ nsBCTableCellFrame::GetUsedBorder() const
   return result;
 }
 
+/* virtual */ PRBool
+nsBCTableCellFrame::GetBorderRadii(nscoord aRadii[8]) const
+{
+  NS_FOR_CSS_HALF_CORNERS(corner) {
+    aRadii[corner] = 0;
+  }
+  return PR_FALSE;
+}
+
 #ifdef DEBUG
 NS_IMETHODIMP
 nsBCTableCellFrame::GetFrameName(nsAString& aResult) const
@@ -1152,8 +1146,8 @@ nsBCTableCellFrame::SetBorderWidth(mozilla::css::Side aSide,
   }
 }
 
-/* virtual */ void
-nsBCTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
+/* virtual */ nsMargin
+nsBCTableCellFrame::GetBorderOverflow()
 {
   nsMargin halfBorder;
   PRInt32 p2t = nsPresContext::AppUnitsPerCSSPixel();
@@ -1161,10 +1155,7 @@ nsBCTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
   halfBorder.right = BC_BORDER_RIGHT_HALF_COORD(p2t, mRightBorder);
   halfBorder.bottom = BC_BORDER_BOTTOM_HALF_COORD(p2t, mBottomBorder);
   halfBorder.left = BC_BORDER_LEFT_HALF_COORD(p2t, mLeftBorder);
-
-  nsRect overflow(nsPoint(0,0), GetSize());
-  overflow.Inflate(halfBorder);
-  aOverflowArea = overflow;
+  return halfBorder;
 }
 
 
@@ -1180,6 +1171,11 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
   GetBorderWidth(borderWidth);
 
   nsStyleBorder myBorder(*GetStyleBorder());
+  // We're making an ephemeral stack copy here, so just copy this debug-only
+  // member to prevent assertions.
+#ifdef DEBUG
+  myBorder.mImageTracked = GetStyleBorder()->mImageTracked;
+#endif
 
   NS_FOR_CSS_SIDES(side) {
     myBorder.SetBorderWidth(side, borderWidth.side(side));
@@ -1192,4 +1188,8 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                         aDirtyRect, rect,
                                         GetStyleContext(), myBorder,
                                         aFlags, nsnull);
+
+#ifdef DEBUG
+  myBorder.mImageTracked = false;
+#endif
 }

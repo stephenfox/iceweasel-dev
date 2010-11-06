@@ -86,9 +86,11 @@ _validateUserCallbacks(JSD_UserCallbacks* callbacks)
 static JSDContext*
 _newJSDContext(JSRuntime*         jsrt, 
                JSD_UserCallbacks* callbacks, 
-               void*              user)
+               void*              user,
+               JSObject*          scopeobj)
 {
     JSDContext* jsdc = NULL;
+    JSCrossCompartmentCall *call = NULL;
 
     if( ! jsrt )
         return NULL;
@@ -137,12 +139,20 @@ _newJSDContext(JSRuntime*         jsrt,
 
     JS_BeginRequest(jsdc->dumbContext);
 
-    jsdc->glob = JS_NewGlobalObject(jsdc->dumbContext, &global_class);
+    jsdc->glob = JS_NewCompartmentAndGlobalObject(jsdc->dumbContext, &global_class, NULL);
+
     if( ! jsdc->glob )
+        goto label_newJSDContext_failure;
+
+    call = JS_EnterCrossCompartmentCall(jsdc->dumbContext, jsdc->glob);
+    if( ! call )
         goto label_newJSDContext_failure;
 
     if( ! JS_InitStandardClasses(jsdc->dumbContext, jsdc->glob) )
         goto label_newJSDContext_failure;
+
+    if( call )
+        JS_LeaveCrossCompartmentCall(call);
 
     JS_EndRequest(jsdc->dumbContext);
 
@@ -194,12 +204,13 @@ _destroyJSDContext(JSDContext* jsdc)
 JSDContext*
 jsd_DebuggerOnForUser(JSRuntime*         jsrt, 
                       JSD_UserCallbacks* callbacks, 
-                      void*              user)
+                      void*              user,
+                      JSObject*          scopeobj)
 {
     JSDContext* jsdc;
     JSContext* iter = NULL;
 
-    jsdc = _newJSDContext(jsrt, callbacks, user);
+    jsdc = _newJSDContext(jsrt, callbacks, user, scopeobj);
     if( ! jsdc )
         return NULL;
 
@@ -226,7 +237,7 @@ jsd_DebuggerOn(void)
 {
     JS_ASSERT(_jsrt);
     JS_ASSERT(_validateUserCallbacks(&_callbacks));
-    return jsd_DebuggerOnForUser(_jsrt, &_callbacks, _user);
+    return jsd_DebuggerOnForUser(_jsrt, &_callbacks, _user, NULL);
 }
 
 void

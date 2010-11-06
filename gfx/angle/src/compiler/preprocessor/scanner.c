@@ -1,8 +1,3 @@
-//
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-//
 /****************************************************************************\
 Copyright (c) 2002, NVIDIA Corporation.
 
@@ -175,7 +170,7 @@ static void str_ungetch(StringInputSrc *in, int ch, yystypepp *type) {
     }
 } // str_ungetch
 
-int ScanFromString(char *s)
+int ScanFromString(const char *s)
 {
     
 	StringInputSrc *in = malloc(sizeof(StringInputSrc));

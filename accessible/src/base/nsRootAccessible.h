@@ -84,7 +84,7 @@ public:
   virtual void Shutdown();
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   // nsRootAccessible
@@ -106,7 +106,6 @@ public:
                                   nsINode *aFocusNode,
                                   nsIDOMEvent *aFocusEvent,
                                   PRBool aForceEvent = PR_FALSE,
-                                  PRBool aIsAsynch = PR_FALSE,
                                   EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
     /**

@@ -74,7 +74,6 @@
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheContainer.h"
 #include "nsIApplicationCacheChannel.h"
-#include "nsIApplicationCacheService.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDOMLoadStatus.h"
 #include "nsICookieService.h"
@@ -366,8 +365,8 @@ nsContentSink::ScriptAvailable(nsresult aResult,
   PRUint32 count = mScriptElements.Count();
 
   // aElement will not be in mScriptElements if a <script> was added
-  // using the DOM during loading, or if the script was inline and thus
-  // never blocked.
+  // using the DOM during loading or if DoneAddingChildren did not return
+  // NS_ERROR_HTMLPARSER_BLOCK.
   NS_ASSERTION(count == 0 ||
                mScriptElements.IndexOf(aElement) == PRInt32(count - 1) ||
                mScriptElements.IndexOf(aElement) == -1,
@@ -943,29 +942,6 @@ nsContentSink::PrefetchDNS(const nsAString &aHref)
 }
 
 nsresult
-nsContentSink::GetChannelCacheKey(nsIChannel* aChannel, nsACString& aCacheKey)
-{
-  aCacheKey.Truncate();
-
-  nsresult rv;
-  nsCOMPtr<nsICachingChannel> cachingChannel = do_QueryInterface(aChannel, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsISupports> cacheKey;
-  rv = cachingChannel->GetCacheKey(getter_AddRefs(cacheKey));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsISupportsCString> cacheKeyString = 
-        do_QueryInterface(cacheKey, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = cacheKeyString->GetData(aCacheKey);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
 nsContentSink::SelectDocAppCache(nsIApplicationCache *aLoadApplicationCache,
                                  nsIURI *aManifestURI,
                                  PRBool aFetchedWithHTTPGetOrEquiv,
@@ -994,17 +970,8 @@ nsContentSink::SelectDocAppCache(nsIApplicationCache *aLoadApplicationCache,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!equal) {
-      // This is a foreign entry, mark it as such and force a reload to avoid
-      // loading the foreign entry.  The next attempt will not choose this
-      // cache entry (because it has been marked foreign).
-
-      nsCAutoString cachekey;
-      rv = GetChannelCacheKey(mDocument->GetChannel(), cachekey);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = aLoadApplicationCache->MarkEntry(cachekey,
-                                            nsIApplicationCache::ITEM_FOREIGN);
-      NS_ENSURE_SUCCESS(rv, rv);
+      // This is a foreign entry, force a reload to avoid loading the foreign
+      // entry. The entry will be marked as foreign to avoid loading it again.
 
       *aAction = CACHE_SELECTION_RELOAD;
     }
@@ -1219,6 +1186,13 @@ nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
   case CACHE_SELECTION_RELOAD: {
     // This situation occurs only for toplevel documents, see bottom
     // of SelectDocAppCache method.
+    // The document has been loaded from a different offline cache group than
+    // the manifest it refers to, i.e. this is a foreign entry, mark it as such 
+    // and force a reload to avoid loading it.  The next attempt will not 
+    // choose it.
+
+    applicationCacheChannel->MarkOfflineCacheEntryAsForeign();
+
     nsCOMPtr<nsIWebNavigation> webNav = do_QueryInterface(mDocShell);
 
     webNav->Stop(nsIWebNavigation::STOP_ALL);
@@ -1735,6 +1709,8 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::acronym,
   &nsGkAtoms::address,
   &nsGkAtoms::area,
+  &nsGkAtoms::article,
+  &nsGkAtoms::aside,
 #ifdef MOZ_MEDIA
   &nsGkAtoms::audio,
 #endif
@@ -1744,14 +1720,18 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::blockquote,
   &nsGkAtoms::br,
   &nsGkAtoms::button,
+  &nsGkAtoms::canvas,
   &nsGkAtoms::caption,
   &nsGkAtoms::center,
   &nsGkAtoms::cite,
   &nsGkAtoms::code,
   &nsGkAtoms::col,
   &nsGkAtoms::colgroup,
+  &nsGkAtoms::command,
+  &nsGkAtoms::datalist,
   &nsGkAtoms::dd,
   &nsGkAtoms::del,
+  &nsGkAtoms::details,
   &nsGkAtoms::dfn,
   &nsGkAtoms::dir,
   &nsGkAtoms::div,
@@ -1759,7 +1739,10 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::dt,
   &nsGkAtoms::em,
   &nsGkAtoms::fieldset,
+  &nsGkAtoms::figcaption,
+  &nsGkAtoms::figure,
   &nsGkAtoms::font,
+  &nsGkAtoms::footer,
   &nsGkAtoms::form,
   &nsGkAtoms::h1,
   &nsGkAtoms::h2,
@@ -1767,6 +1750,8 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::h4,
   &nsGkAtoms::h5,
   &nsGkAtoms::h6,
+  &nsGkAtoms::header,
+  &nsGkAtoms::hgroup,
   &nsGkAtoms::hr,
   &nsGkAtoms::i,
   &nsGkAtoms::img,
@@ -1778,16 +1763,26 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::li,
   &nsGkAtoms::listing,
   &nsGkAtoms::map,
+  &nsGkAtoms::mark,
   &nsGkAtoms::menu,
+  &nsGkAtoms::meter,
+  &nsGkAtoms::nav,
   &nsGkAtoms::nobr,
+  &nsGkAtoms::noscript,
   &nsGkAtoms::ol,
   &nsGkAtoms::optgroup,
   &nsGkAtoms::option,
+  &nsGkAtoms::output,
   &nsGkAtoms::p,
   &nsGkAtoms::pre,
+  &nsGkAtoms::progress,
   &nsGkAtoms::q,
+  &nsGkAtoms::rp,
+  &nsGkAtoms::rt,
+  &nsGkAtoms::ruby,
   &nsGkAtoms::s,
   &nsGkAtoms::samp,
+  &nsGkAtoms::section,
   &nsGkAtoms::select,
   &nsGkAtoms::small,
 #ifdef MOZ_MEDIA
@@ -1797,6 +1792,7 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::strike,
   &nsGkAtoms::strong,
   &nsGkAtoms::sub,
+  &nsGkAtoms::summary,
   &nsGkAtoms::sup,
   &nsGkAtoms::table,
   &nsGkAtoms::tbody,
@@ -1805,7 +1801,9 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::tfoot,
   &nsGkAtoms::th,
   &nsGkAtoms::thead,
+  &nsGkAtoms::time,
   &nsGkAtoms::tr,
+  &nsGkAtoms::track,
   &nsGkAtoms::tt,
   &nsGkAtoms::u,
   &nsGkAtoms::ul,
@@ -1813,6 +1811,7 @@ nsIAtom** const kDefaultAllowedTags [] = {
 #ifdef MOZ_MEDIA
   &nsGkAtoms::video,
 #endif
+  &nsGkAtoms::wbr,
   nsnull
 };
 
@@ -1825,6 +1824,7 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::align,
   &nsGkAtoms::alt,
   &nsGkAtoms::autocomplete,
+  &nsGkAtoms::autofocus,
 #ifdef MOZ_MEDIA
   &nsGkAtoms::autoplay,
 #endif
@@ -1844,6 +1844,8 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::cols,
   &nsGkAtoms::colspan,
   &nsGkAtoms::color,
+  &nsGkAtoms::contenteditable,
+  &nsGkAtoms::contextmenu,
 #ifdef MOZ_MEDIA
   &nsGkAtoms::controls,
 #endif
@@ -1852,33 +1854,57 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::datetime,
   &nsGkAtoms::dir,
   &nsGkAtoms::disabled,
+  &nsGkAtoms::draggable,
   &nsGkAtoms::enctype,
+  &nsGkAtoms::face,
   &nsGkAtoms::_for,
   &nsGkAtoms::frame,
   &nsGkAtoms::headers,
   &nsGkAtoms::height,
+  &nsGkAtoms::hidden,
+  &nsGkAtoms::high,
   &nsGkAtoms::href,
   &nsGkAtoms::hreflang,
   &nsGkAtoms::hspace,
+  &nsGkAtoms::icon,
   &nsGkAtoms::id,
   &nsGkAtoms::ismap,
+  &nsGkAtoms::itemid,
+  &nsGkAtoms::itemprop,
+  &nsGkAtoms::itemref,
+  &nsGkAtoms::itemscope,
+  &nsGkAtoms::itemtype,
+  &nsGkAtoms::kind,
   &nsGkAtoms::label,
   &nsGkAtoms::lang,
+  &nsGkAtoms::list,
   &nsGkAtoms::longdesc,
 #ifdef MOZ_MEDIA
+  &nsGkAtoms::loop,
   &nsGkAtoms::loopend,
   &nsGkAtoms::loopstart,
 #endif
+  &nsGkAtoms::low,
+  &nsGkAtoms::max,
   &nsGkAtoms::maxlength,
   &nsGkAtoms::media,
   &nsGkAtoms::method,
+  &nsGkAtoms::min,
+  &nsGkAtoms::mozdonotsend,
   &nsGkAtoms::multiple,
   &nsGkAtoms::name,
   &nsGkAtoms::nohref,
   &nsGkAtoms::noshade,
+  &nsGkAtoms::novalidate,
   &nsGkAtoms::nowrap,
+  &nsGkAtoms::open,
+  &nsGkAtoms::optimum,
+  &nsGkAtoms::pattern,
 #ifdef MOZ_MEDIA
   &nsGkAtoms::pixelratio,
+#endif
+  &nsGkAtoms::placeholder,
+#ifdef MOZ_MEDIA
   &nsGkAtoms::playbackrate,
   &nsGkAtoms::playcount,
 #endif
@@ -1888,19 +1914,26 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::preload,
 #endif
   &nsGkAtoms::prompt,
+  &nsGkAtoms::pubdate,
+  &nsGkAtoms::radiogroup,
   &nsGkAtoms::readonly,
   &nsGkAtoms::rel,
+  &nsGkAtoms::required,
   &nsGkAtoms::rev,
+  &nsGkAtoms::reversed,
   &nsGkAtoms::role,
   &nsGkAtoms::rows,
   &nsGkAtoms::rowspan,
   &nsGkAtoms::rules,
+  &nsGkAtoms::scoped,
   &nsGkAtoms::scope,
   &nsGkAtoms::selected,
   &nsGkAtoms::shape,
   &nsGkAtoms::size,
   &nsGkAtoms::span,
+  &nsGkAtoms::spellcheck,
   &nsGkAtoms::src,
+  &nsGkAtoms::srclang,
   &nsGkAtoms::start,
   &nsGkAtoms::summary,
   &nsGkAtoms::tabindex,
@@ -1912,5 +1945,6 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::value,
   &nsGkAtoms::vspace,
   &nsGkAtoms::width,
+  &nsGkAtoms::wrap,
   nsnull
 };

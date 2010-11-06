@@ -129,7 +129,7 @@
 #define SYSTEMPREF_MODULES
 #endif
 
-#if defined(MOZ_DEBUG) && defined(ENABLE_TESTS)
+#ifdef ENABLE_LAYOUTDEBUG
 #define LAYOUT_DEBUG_MODULE MODULE(nsLayoutDebugModule)
 #else
 #define LAYOUT_DEBUG_MODULE
@@ -178,13 +178,15 @@
 #define PLACES_MODULES \
     MODULE(nsPlacesModule)
 #else
-#if (defined(MOZ_MORK) && defined(MOZ_XUL))
-#define PLACES_MODULES \
-    MODULE(nsMorkModule)
-#else
 #define PLACES_MODULES
 #endif
-#endif    
+
+#if (defined(MOZ_MORK) && defined(MOZ_XUL))
+#define MORK_MODULES \
+    MODULE(nsMorkModule)
+#else
+#define MORK_MODULES
+#endif
 
 #ifdef MOZ_XUL
 #define XULENABLED_MODULES                   \
@@ -231,6 +233,12 @@
 #define JSCTYPES_MODULE
 #endif
 
+#if defined(MOZ_APP_COMPONENT_INCLUDE)
+#include MOZ_APP_COMPONENT_INCLUDE
+#else
+#define APP_COMPONENT_MODULES
+#endif
+
 #define XUL_MODULES                          \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
@@ -265,6 +273,7 @@
     FILEVIEW_MODULE                          \
     STORAGE_MODULE                           \
     PLACES_MODULES                           \
+    MORK_MODULES                             \
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \
@@ -279,6 +288,7 @@
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
     MODULE(jsperf)                           \
+    APP_COMPONENT_MODULES                    \
     /* end of list */
 
 #define MODULE(_name) \

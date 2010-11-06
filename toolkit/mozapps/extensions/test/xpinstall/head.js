@@ -2,11 +2,29 @@ const RELATIVE_DIR = "toolkit/mozapps/extensions/test/xpinstall/";
 
 const TESTROOT = "http://example.com/browser/" + RELATIVE_DIR;
 const TESTROOT2 = "http://example.org/browser/" + RELATIVE_DIR;
-const CHROMEROOT = "chrome://mochikit/content/browser/" + RELATIVE_DIR;
 const XPINSTALL_URL = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PROMPT_URL = "chrome://global/content/commonDialog.xul";
 const ADDONS_URL = "chrome://mozapps/content/extensions/extensions.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
+const PREF_INSTALL_REQUIREBUILTINCERTS = "extensions.install.requireBuiltInCerts";
+const CHROME_NAME = "mochikit";
+
+function getChromeRoot(path) {
+  if (path === undefined) {
+    return "chrome://" + CHROME_NAME + "/content/browser/" + RELATIVE_DIR
+  }
+  return getRootDirectory(path);
+}
+
+function extractChromeRoot(path) {
+  var chromeRootPath = getChromeRoot(path);
+  var jar = getJar(chromeRootPath);
+  if (jar) {
+    var tmpdir = extractJarToTmp(jar);
+    return "file://" + tmpdir.path + "/";
+  }
+  return chromeRootPath;
+}
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -121,12 +139,6 @@ var Harness = {
   },
 
   // Window open handling
-  windowLoad: function(window) {
-    // Allow any other load handlers to execute
-    var self = this;
-    executeSoon(function() { self.windowReady(window); } );
-  },
-
   windowReady: function(window) {
     if (window.document.location.href == XPINSTALL_URL) {
       if (this.installBlockedCallback)
@@ -147,7 +159,7 @@ var Harness = {
       }
     }
     else if (window.document.location.href == PROMPT_URL) {
-        var promptType = window.gArgs.getProperty("promptType");
+        var promptType = window.args.promptType;
         switch (promptType) {
           case "alert":
           case "alertCheck":
@@ -206,10 +218,9 @@ var Harness = {
     var domwindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                           .getInterface(Components.interfaces.nsIDOMWindowInternal);
     var self = this;
-    domwindow.addEventListener("load", function() {
-      domwindow.removeEventListener("load", arguments.callee, false);
-      self.windowLoad(domwindow);
-    }, false);
+    waitForFocus(function() {
+      self.windowReady(domwindow);
+    }, domwindow);
   },
 
   onCloseWindow: function(window) {

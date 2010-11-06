@@ -166,7 +166,7 @@ public:
                                               PRBool aDoCapture, PRBool aConsumeRollupEvent);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
-  virtual LayerManager*   GetLayerManager();
+  virtual LayerManager*   GetLayerManager(bool* aAllowRetaining = nsnull);
   gfxASurface             *GetThebesSurface();
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
@@ -272,6 +272,7 @@ public:
   void SetTaskbarPreview(nsITaskbarWindowPreview *preview) { mTaskbarPreview = do_GetWeakReference(preview); }
 #endif
 
+  NS_IMETHOD              ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   /**
@@ -454,9 +455,6 @@ protected:
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
   void                    ClearCachedResources();
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  void                    UpdateCaptionButtonsClippingRect();
-#endif
 
 protected:
   nsCOMPtr<nsIWidget>   mParent;
@@ -473,8 +471,11 @@ protected:
   PRPackedBool          mPainting;
   PRPackedBool          mExitToNonClientArea;
   PRPackedBool          mTouchWindow;
+  PRPackedBool          mDisplayPanFeedback;
+  PRPackedBool          mHideChrome;
+  PRPackedBool          mIsRTL;
+  PRPackedBool          mFullscreenMode;
   PRUint32              mBlurSuppressLevel;
-  nsContentType         mContentType;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;
@@ -482,8 +483,6 @@ protected:
   nsNativeDragTarget*   mNativeDragTarget;
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
-  PRPackedBool          mDisplayPanFeedback;
-  PRPackedBool          mHideChrome;
   nsSizeMode            mOldSizeMode;
   WindowHook            mWindowHook;
   static PRUint32       sInstanceCount;
@@ -508,13 +507,6 @@ protected:
   nsIntMargin           mNonClientOffset;
   // Margins set by the owner
   nsIntMargin           mNonClientMargins;
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  // Represents the area taken by the caption buttons
-  // on dwm-enabled systems
-  nsIntRect             mCaptionButtons;
-  nsIntRegion           mCaptionButtonsRoundedRegion;
-#endif
 
   // Indicates custom frames are enabled
   PRPackedBool          mCustomNonClient;

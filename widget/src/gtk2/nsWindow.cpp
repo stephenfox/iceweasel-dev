@@ -21,7 +21,7 @@
  * are Copyright (C) 2001 the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <mats.palmgren@bredband.net>
+ *   Mats Palmgren <matspal@gmail.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -44,7 +44,6 @@
 #endif
 
 #include "prlink.h"
-
 #include "nsWindow.h"
 #include "nsGTKToolkit.h"
 #include "nsIDeviceContext.h"
@@ -64,6 +63,7 @@
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/XShm.h>
 
 #ifdef AIX
 #include <X11/keysym.h>
@@ -135,6 +135,8 @@ extern "C" {
 #include "gfxXlibSurface.h"
 #endif
 
+#include "nsShmImage.h"
+
 #ifdef MOZ_DFB
 extern "C" {
 #ifdef MOZ_DIRECT_DEBUG
@@ -149,6 +151,7 @@ D_DEBUG_DOMAIN( ns_Window, "nsWindow", "nsWindow" );
 #define GDK_WINDOW_XWINDOW(_win) _win
 #endif
 
+using namespace mozilla;
 using mozilla::gl::GLContext;
 using mozilla::layers::LayerManagerOGL;
 
@@ -162,7 +165,7 @@ static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
 /* utility functions */
 static PRBool     check_for_rollup(GdkWindow *aWindow,
                                    gdouble aMouseX, gdouble aMouseY,
-                                   PRBool aIsWheel);
+                                   PRBool aIsWheel, PRBool aAlwaysRollup);
 static PRBool     is_mouse_in_window(GdkWindow* aWindow,
                                      gdouble aMouseX, gdouble aMouseY);
 static nsWindow  *get_window_for_gtk_widget(GtkWidget *widget);
@@ -415,8 +418,6 @@ nsWindow::nsWindow()
         // It's OK if either of these fail, but it may not be one day.
         initialize_prefs();
     }
-
-    memset(mKeyDownFlags, 0, sizeof(mKeyDownFlags));
 
     if (mLastDragMotionWindow == this)
         mLastDragMotionWindow = NULL;
@@ -842,7 +843,8 @@ nsWindow::SetParent(nsIWidget *aNewParent)
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
-    // nsBaseWidget::SetZIndex adds child widgets to the parent's list.
+    NS_ASSERTION(!mTransientParent, "child widget with transient parent");
+
     nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
     mParent->RemoveChild(this);
 
@@ -857,49 +859,104 @@ nsWindow::SetParent(nsIWidget *aNewParent)
         return NS_OK;
     }
 
-    NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(mGdkWindow)->destroyed,
-                      "destroyed GdkWindow with widget");
-
-    nsWindow* newParent = static_cast<nsWindow*>(aNewParent);
-    GdkWindow* newParentWindow = NULL;
-    GtkWidget* newContainer = NULL;
     if (aNewParent) {
-        newParentWindow = newParent->mGdkWindow;
-        if (newParentWindow) {
-            newContainer = get_gtk_widget_for_gdk_window(newParentWindow);
-        }
+        aNewParent->AddChild(this);
+        ReparentNativeWidget(aNewParent);
     } else {
         // aNewParent is NULL, but reparent to a hidden window to avoid
         // destroying the GdkWindow and its descendants.
         // An invisible container widget is needed to hold descendant
         // GtkWidgets.
-        newContainer = EnsureInvisibleContainer();
-        newParentWindow = newContainer->window;
+        GtkWidget* newContainer = EnsureInvisibleContainer();
+        GdkWindow* newParentWindow = newContainer->window;
+        ReparentNativeWidgetInternal(aNewParent, newContainer, newParentWindow,
+                                     oldContainer);
+    }
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
+{
+    NS_PRECONDITION(aNewParent, "");
+    NS_ASSERTION(!mIsDestroyed, "");
+    NS_ASSERTION(!static_cast<nsWindow*>(aNewParent)->mIsDestroyed, "");
+
+    GtkWidget* oldContainer = GetMozContainerWidget();
+    if (!oldContainer) {
+        // The GdkWindows have been destroyed so there is nothing else to
+        // reparent.
+        NS_ABORT_IF_FALSE(GDK_WINDOW_OBJECT(mGdkWindow)->destroyed,
+                          "live GdkWindow with no widget");
+        return NS_OK;
+    }
+    NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(mGdkWindow)->destroyed,
+                      "destroyed GdkWindow with widget");
+    
+    nsWindow* newParent = static_cast<nsWindow*>(aNewParent);
+    GdkWindow* newParentWindow = newParent->mGdkWindow;
+    GtkWidget* newContainer = NULL;
+    if (newParentWindow) {
+        newContainer = get_gtk_widget_for_gdk_window(newParentWindow);
     }
 
-    if (!newContainer) {
+    if (mTransientParent) {
+      GtkWindow* topLevelParent =
+          GTK_WINDOW(gtk_widget_get_toplevel(newContainer));
+      gtk_window_set_transient_for(GTK_WINDOW(mShell), topLevelParent);
+      mTransientParent = topLevelParent;
+      if (mWindowGroup) {
+          g_object_unref(G_OBJECT(mWindowGroup));
+          mWindowGroup = NULL;
+      }
+      if (mTransientParent->group) {
+          gtk_window_group_add_window(mTransientParent->group,
+                                      GTK_WINDOW(mShell));
+          mWindowGroup = mTransientParent->group;
+          g_object_ref(G_OBJECT(mWindowGroup));
+      }
+      else if (GTK_WINDOW(mShell)->group) {
+          gtk_window_group_remove_window(GTK_WINDOW(mShell)->group,
+                                         GTK_WINDOW(mShell));
+      }
+    }
+
+    ReparentNativeWidgetInternal(aNewParent, newContainer, newParentWindow,
+                                 oldContainer);
+    return NS_OK;
+}
+
+void
+nsWindow::ReparentNativeWidgetInternal(nsIWidget* aNewParent,
+                                       GtkWidget* aNewContainer,
+                                       GdkWindow* aNewParentWindow,
+                                       GtkWidget* aOldContainer)
+{
+    if (!aNewContainer) {
         // The new parent GdkWindow has been destroyed.
-        NS_ABORT_IF_FALSE(!newParentWindow ||
-                          GDK_WINDOW_OBJECT(newParentWindow)->destroyed,
+        NS_ABORT_IF_FALSE(!aNewParentWindow ||
+                          GDK_WINDOW_OBJECT(aNewParentWindow)->destroyed,
                           "live GdkWindow with no widget");
         Destroy();
     } else {
-        if (newContainer != oldContainer) {
-            NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(newParentWindow)->destroyed,
+        if (aNewContainer != aOldContainer) {
+            NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(aNewParentWindow)->destroyed,
                               "destroyed GdkWindow with widget");
-            SetWidgetForHierarchy(mGdkWindow, oldContainer, newContainer);
+            SetWidgetForHierarchy(mGdkWindow, aOldContainer, aNewContainer);
         }
 
-        gdk_window_reparent(mGdkWindow, newParentWindow, 0, 0);
+        if (!mIsTopLevel) {
+            gdk_window_reparent(mGdkWindow, aNewParentWindow, mBounds.x,
+                                mBounds.y);
+        }
     }
 
+    nsWindow* newParent = static_cast<nsWindow*>(aNewParent);
     PRBool parentHasMappedToplevel =
         newParent && newParent->mHasMappedToplevel;
     if (mHasMappedToplevel != parentHasMappedToplevel) {
         SetHasMappedToplevel(parentHasMappedToplevel);
     }
-
-    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2085,10 +2142,6 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     }
             
     nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface());
-    if (NS_UNLIKELY(!ctx)) {
-        g_free(rects);
-        return FALSE;
-    }
 
 #ifdef MOZ_DFB
     gfxPlatformGtk::SetGdkDrawable(ctx->OriginalSurface(),
@@ -2131,6 +2184,11 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         // channel is used on compositing window managers.)
         layerBuffering = BasicLayerManager::BUFFER_NONE;
         ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+#ifdef MOZ_HAVE_SHMIMAGE
+    } else if (nsShmImage::UseShm()) {
+        // We're using an xshm mapping as a back buffer.
+        layerBuffering = BasicLayerManager::BUFFER_NONE;
+#endif // MOZ_HAVE_SHMIMAGE
     } else {
         // Get the layer manager to do double buffering (if necessary).
         layerBuffering = BasicLayerManager::BUFFER_BUFFERED;
@@ -2185,6 +2243,11 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
             }
         }
     }
+#  ifdef MOZ_HAVE_SHMIMAGE
+    if (nsShmImage::UseShm() && NS_LIKELY(!mIsDestroyed)) {
+        mShmImage->Put(mGdkWindow, rects, r_end);
+    }
+#  endif  // MOZ_HAVE_SHMIMAGE
 #endif // MOZ_X11
 
     g_free(rects);
@@ -2214,6 +2277,10 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
     if (mBounds.x == aEvent->x &&
         mBounds.y == aEvent->y)
         return FALSE;
+
+    if (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog) {
+        check_for_rollup(aEvent->window, 0, 0, PR_FALSE, PR_TRUE);
+    }
 
     // Toplevel windows need to have their bounds set so that we can
     // keep track of our location.  It's not often that the x,y is set
@@ -2651,9 +2718,9 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
 
     // check to see if we should rollup
     PRBool rolledUp = check_for_rollup(aEvent->window, aEvent->x_root,
-                                       aEvent->y_root, PR_FALSE);
+                                       aEvent->y_root, PR_FALSE, PR_FALSE);
     if (gConsumeRollupEvent && rolledUp)
-            return;
+        return;
 
     gdouble pressure = 0;
     gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
@@ -2802,6 +2869,10 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
 {
     LOGFOCUS(("OnContainerFocusOutEvent [%p]\n", (void *)this));
 
+    if (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog) {
+        check_for_rollup(aEvent->window, 0, 0, PR_FALSE, PR_TRUE);
+    }
+
 #ifdef MOZ_X11
     // plugin lose focus
     if (gPluginFocusWindow) {
@@ -2889,14 +2960,6 @@ nsWindow::DispatchKeyDownEvent(GdkEventKey *aEvent, PRBool *aCancelled)
         return PR_FALSE;
     }
 
-    PRUint32 domVirtualKeyCode = GdkKeyCodeToDOMKeyCode(aEvent->keyval);
-
-    if (IsKeyDown(domVirtualKeyCode)) {
-        return PR_FALSE;
-    }
-
-    SetKeyDownFlag(domVirtualKeyCode);
-
     // send the key down event
     nsEventStatus status;
     nsKeyEvent downEvent(PR_TRUE, NS_KEY_DOWN, this);
@@ -2926,11 +2989,11 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
 
     nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
 
-    // If the key down flag isn't set then set it so we don't send
-    // another key down event on the next key press -- DOM events are
-    // key down, key press and key up.  X only has key press and key
-    // release.  gtk2 already filters the extra key release events for
-    // us.
+    // Dispatch keydown event always.  At auto repeating, we should send
+    // KEYDOWN -> KEYPRESS -> KEYDOWN -> KEYPRESS ... -> KEYUP
+    // However, old distributions (e.g., Ubuntu 9.10) sent native key
+    // release event, so, on such platform, the DOM events will be:
+    // KEYDOWN -> KEYPRESS -> KEYUP -> KEYDOWN -> KEYPRESS -> KEYUP...
 
     PRBool isKeyDownCancelled = PR_FALSE;
     if (DispatchKeyDownEvent(aEvent, &isKeyDownCancelled) &&
@@ -3108,9 +3171,6 @@ nsWindow::OnKeyReleaseEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     nsKeyEvent event(PR_TRUE, NS_KEY_UP, this);
     InitKeyEvent(event, aEvent);
 
-    // unset the key down flag
-    ClearKeyDownFlag(event.keyCode);
-
     nsEventStatus status;
     DispatchEvent(&event, status);
 
@@ -3127,7 +3187,7 @@ nsWindow::OnScrollEvent(GtkWidget *aWidget, GdkEventScroll *aEvent)
 {
     // check to see if we should rollup
     PRBool rolledUp =  check_for_rollup(aEvent->window, aEvent->x_root,
-                                        aEvent->y_root, PR_TRUE);
+                                        aEvent->y_root, PR_TRUE, PR_FALSE);
     if (gConsumeRollupEvent && rolledUp)
         return;
 
@@ -3777,11 +3837,12 @@ nsWindow::Create(nsIWidget        *aParent,
                 // GTK_WINDOW_POPUP, which will use a Window with the
                 // override-redirect attribute (for temporary windows).
                 mShell = gtk_window_new(GTK_WINDOW_POPUP);
+                gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
             } else {
                 // For long-lived windows, their stacking order is managed by
                 // the window manager, as indicated by GTK_WINDOW_TOPLEVEL ...
                 mShell = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-                GtkWindow* gtkWin = GTK_WINDOW(mShell);
+                gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
                 // ... but the window manager does not decorate this window,
                 // nor provide a separate taskbar icon.
                 if (mBorderStyle == eBorderStyle_default) {
@@ -3794,11 +3855,11 @@ nsWindow::Create(nsIWidget        *aParent,
                     gtk_window_set_deletable(GTK_WINDOW(mShell), mBorderStyle & eBorderStyle_close);
                   }
                 }
-                gtk_window_set_skip_taskbar_hint(gtkWin, TRUE);
+                gtk_window_set_skip_taskbar_hint(GTK_WINDOW(mShell), TRUE);
                 // Element focus is managed by the parent window so the
                 // WM_HINTS input field is set to False to tell the window
                 // manager not to set input focus to this window ...
-                gtk_window_set_accept_focus(gtkWin, FALSE);
+                gtk_window_set_accept_focus(GTK_WINDOW(mShell), FALSE);
 #ifdef MOZ_X11
                 // ... but when the window manager offers focus through
                 // WM_TAKE_FOCUS, focus is requested on the parent window.
@@ -3807,8 +3868,6 @@ nsWindow::Create(nsIWidget        *aParent,
                                       popup_take_focus_filter, NULL); 
 #endif
             }
-
-            gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
 
             GdkWindowTypeHint gtkTypeHint;
             switch (aInitData->mPopupHint) {
@@ -5113,7 +5172,7 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
 
 PRBool
 check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
-                 PRBool aIsWheel)
+                 PRBool aIsWheel, PRBool aAlwaysRollup)
 {
     PRBool retVal = PR_FALSE;
     nsCOMPtr<nsIWidget> rollupWidget = do_QueryReferent(gRollupWindow);
@@ -5121,17 +5180,17 @@ check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
     if (rollupWidget && gRollupListener) {
         GdkWindow *currentPopup =
             (GdkWindow *)rollupWidget->GetNativeData(NS_NATIVE_WINDOW);
-        if (!is_mouse_in_window(currentPopup, aMouseX, aMouseY)) {
+        if (aAlwaysRollup || !is_mouse_in_window(currentPopup, aMouseX, aMouseY)) {
             PRBool rollup = PR_TRUE;
             if (aIsWheel) {
                 gRollupListener->ShouldRollupOnMouseWheelEvent(&rollup);
                 retVal = PR_TRUE;
             }
             // if we're dealing with menus, we probably have submenus and
-            // we don't want to rollup if the clickis in a parent menu of
+            // we don't want to rollup if the click is in a parent menu of
             // the current submenu
             PRUint32 popupsToRollup = PR_UINT32_MAX;
-            if (gMenuRollup) {
+            if (gMenuRollup && !aAlwaysRollup) {
                 nsAutoTArray<nsIWidget*, 5> widgetChain;
                 PRUint32 sameTypeCount = gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
                 for (PRUint32 i=0; i<widgetChain.Length(); ++i) {
@@ -6320,19 +6379,11 @@ nsWindow::DispatchEventToRootAccessible(PRUint32 aEventType)
         return;
     }
 
+    // Get the root document accessible and fire event to it.
     nsAccessible *acc = DispatchAccessibleEvent();
-    if (!acc) {
-        return;
+    if (acc) {
+        accService->FireAccessibleEvent(aEventType, acc);
     }
-
-    nsCOMPtr<nsIAccessibleDocument> accRootDoc;
-    acc->GetRootDocument(getter_AddRefs(accRootDoc));
-    nsCOMPtr<nsIAccessible> rootAcc(do_QueryInterface(accRootDoc));
-    if (!rootAcc) {
-        return;
-    }
-
-    accService->FireAccessibleEvent(aEventType, rootAcc);
 }
 
 void
@@ -6472,25 +6523,6 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
 }
 #endif
 
-mozilla::layers::LayerManager*
-nsWindow::GetLayerManager()
-{
-    GtkWidget *topWidget;
-    GetToplevelWidget(&topWidget);
-
-    nsWindow *topWindow = get_window_for_gtk_widget(topWidget);
-    if (!topWindow) {
-        return nsBaseWidget::GetLayerManager();
-    }
-
-    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()) {
-        mLayerManager = NULL;
-        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
-    }
-
-    return nsBaseWidget::GetLayerManager();
-}
-
 // return the gfxASurface for rendering to this widget
 gfxASurface*
 nsWindow::GetThebesSurface()
@@ -6508,12 +6540,29 @@ nsWindow::GetThebesSurface()
     // Owen Taylor says this is the right thing to do!
     width = PR_MIN(32767, width);
     height = PR_MIN(32767, height);
+    gfxIntSize size(width, height);
+    Visual* visual = GDK_VISUAL_XVISUAL(gdk_drawable_get_visual(d));
+
+#  ifdef MOZ_HAVE_SHMIMAGE
+    PRBool usingShm = PR_FALSE;
+    if (nsShmImage::UseShm()) {
+        // EnsureShmImage() is a dangerous interface, but we guarantee
+        // that the thebes surface and the shmimage have the same
+        // lifetime
+        mThebesSurface =
+            nsShmImage::EnsureShmImage(size,
+                                       visual, gdk_drawable_get_depth(d),
+                                       mShmImage);
+        usingShm = mThebesSurface != nsnull;
+    }
+    if (!usingShm)
+#  endif  // MOZ_HAVE_SHMIMAGE
 
     mThebesSurface = new gfxXlibSurface
         (GDK_WINDOW_XDISPLAY(d),
          GDK_WINDOW_XWINDOW(d),
-         GDK_VISUAL_XVISUAL(gdk_drawable_get_visual(d)),
-         gfxIntSize(width, height));
+         visual,
+         size);
 #endif
 #ifdef MOZ_DFB
     mThebesSurface = new gfxDirectFBSurface(gdk_directfb_surface_lookup(d));

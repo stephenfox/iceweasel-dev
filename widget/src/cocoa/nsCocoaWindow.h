@@ -254,7 +254,7 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
     NS_IMETHOD Update();
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager();
+    virtual LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
                                    PRBool aDoCapture, PRBool aConsumeRollupEvent);
@@ -298,6 +298,7 @@ public:
 
     void SetPopupWindowLevel();
 
+    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
   nsresult             CreateNativeWindow(const NSRect &aRect,
