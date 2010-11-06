@@ -299,7 +299,7 @@ stamps/check-dh_xulrunner-glue:: stamps/dh_install debian/dh/dh_xulrunner
 stamps/check-dh_xulrunner-npapi:: stamps/dh_install debian/dh/dh_xulrunner build-xulrunner/dist/bin/npapi_getinfo
 	$(if $(wildcard build-xulrunner/tmp/usr/lib/mozilla),,mkdir -p build-xulrunner/tmp/usr/lib/mozilla/)
 	$(if $(wildcard build-xulrunner/tmp/usr/lib/mozilla/plugins),,ln -s $(CURDIR)/build-xulrunner/dist/bin/plugins build-xulrunner/tmp/usr/lib/mozilla)
-	PATH=build-xulrunner/dist/bin:$(PATH) perl debian/dh/dh_xulrunner_test -piceweasel -Pbuild-xulrunner/tmp | awk -v expected='addsubstvar("iceweasel", "npapi:Mimetypes", "application/x-print-unix-nsplugin, application/x-test");' $(CMP_AWK)
+	PATH=build-xulrunner/dist/bin:$(PATH) perl debian/dh/dh_xulrunner_test -piceweasel -Pbuild-xulrunner/tmp | awk -v expected='addsubstvar("iceweasel", "npapi:Mimetypes", "application/x-test");' $(CMP_AWK)
 
 override_dh_install: stamps/check-dh_xulrunner-glue stamps/check-dh_xulrunner-npapi
 
