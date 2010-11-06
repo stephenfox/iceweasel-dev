@@ -3,5 +3,7 @@ browser.jar:
   content/branding/about.png                     (about.png)
   content/branding/aboutCredits.png              (aboutCredits.png)
   content/branding/aboutFooter.png               (../../../browser/branding/unofficial/content/aboutFooter.png)
-  content/branding/icon48.png                    (icon48.png)
+  content/branding/icon128.png                   (icon128.png)
   content/branding/icon64.png                    (icon64.png)
+  content/branding/icon48.png                    (icon48.png)
+  content/branding/icon16.png                    (icon16.png)

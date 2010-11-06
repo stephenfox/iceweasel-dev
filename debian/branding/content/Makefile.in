@@ -8,7 +8,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-CHROME_DEPS := aboutCredits.png about.png icon48.png icon64.png
+CHROME_DEPS := aboutCredits.png about.png icon16.png icon48.png icon64.png icon128.png
 GARBAGE += $(CHROME_DEPS)
 
 include $(topsrcdir)/config/rules.mk
@@ -21,8 +21,10 @@ about.png: %.png: ../iceweasel_logo.png %-base.png
 	composite -compose src-over -gravity center -geometry +0-26 \
 		$^ $@
 
+icon128.png: ../mozicon128.png
 icon64.png: ../default64.png
 icon48.png: ../default48.png
+icon16.png: ../default16.png
 icon%.png:
 	cp -f $^ $@
 
