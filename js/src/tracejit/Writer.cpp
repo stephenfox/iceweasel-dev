@@ -42,7 +42,7 @@
 
 #include "jscompartment.h"
 #include "Writer.h"
-#include "nanojit.h"
+#include "nanojit/nanojit.h"
 
 #include "vm/ArgumentsObject.h"
 
