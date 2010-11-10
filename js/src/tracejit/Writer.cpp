@@ -43,7 +43,7 @@
 #include "jscompartment.h"
 #include "jsiter.h"
 #include "Writer.h"
-#include "nanojit.h"
+#include "nanojit/nanojit.h"
 #include "jsobjinlines.h"
 
 #include "vm/ArgumentsObject.h"
