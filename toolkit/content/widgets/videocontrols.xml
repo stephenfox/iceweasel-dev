@@ -378,7 +378,7 @@
                         this.bufferBar.setAttribute("value", 0);
 
                     // Set the current status icon.
-                    if (this.video.error) {
+                    if (this.video.error || this.video.networkState == this.video.NETWORK_NO_SOURCE) {
                         this.statusIcon.setAttribute("type", "error");
                         this.setupStatusFader(true);
                     } else {
@@ -397,7 +397,7 @@
 
                     // If the video hits an error, suppress controls if it
                     // hasn't managed to do anything else yet.
-                    if (!this.firstFrameShown && this.video.error)
+                    if (!this.firstFrameShown && (this.video.error || this.video.networkState == this.video.NETWORK_NO_SOURCE))
                         enabled = false;
 
                     return enabled;
@@ -718,13 +718,15 @@
                     else
                         element.removeAttribute("immediate");
 
+                    // We must force style resolution (by accessing element.clientTop)
+                    // in order to ensure our size changes correctly when the status
+                    // overlay hides and shows.
                     if (fadeIn) {
                         element.setAttribute("hidden", false);
-                        // force style resolution, so that transition begins
-                        // when we remove the attribute.
-                        getComputedStyle(element, "").display;
+                        element.clientTop;
                         element.removeAttribute("fadeout");
                     } else {
+                        element.clientTop;
                         element.setAttribute("fadeout", true);
                     }
                 },
@@ -933,8 +935,10 @@
                     this.startFade(this.controlBar, shouldShow, true);
 
                     // Use the handleEvent() callback for all media events.
+                    // The "error" event listener must capture, so that it can trap error events
+                    // from the <source> children, which don't bubble.
                     for each (var event in this.videoEvents)
-                        this.video.addEventListener(event, this, false);
+                        this.video.addEventListener(event, this, (event == "error") ? true : false);
 
                     var self = this;
                     this.muteButton.addEventListener("command", function() { self.toggleMute(); }, false);

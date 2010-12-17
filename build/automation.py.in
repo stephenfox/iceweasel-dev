@@ -332,6 +332,7 @@ class Automation(object):
       {'allowXULXBL':[(l.host, 'noxul' not in l.options) for l in locations]});
 
     part = """\
+user_pref("browser.console.showInPanel", true);
 user_pref("browser.dom.window.dump.enabled", true);
 user_pref("dom.allow_scripts_to_close_windows", true);
 user_pref("dom.disable_open_during_load", false);
@@ -360,6 +361,7 @@ user_pref("network.http.prompt-temp-redirect", false);
 user_pref("media.cache_size", 100);
 user_pref("security.warn_viewing_mixed", false);
 user_pref("app.update.enabled", false);
+user_pref("browser.panorama.experienced_first_run", true); // Assume experienced
 
 // Only load extensions from the application and user profile
 // AddonManager.SCOPE_PROFILE + AddonManager.SCOPE_APPLICATION

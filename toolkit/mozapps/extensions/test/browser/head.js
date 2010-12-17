@@ -26,6 +26,7 @@ const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
 const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
+const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 
 var gPendingTests = [];
 var gTestsRun = 0;
@@ -37,6 +38,8 @@ var gUseInContentUI = !gTestInWindow && ("switchToTabHavingURI" in window);
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
 // Turn off remote results in searches
 Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 0);
+// Default to a local discovery pane
+Services.prefs.setCharPref(PREF_DISCOVERURL, "http://127.0.0.1/extensions-dummy/discoveryURL");
 registerCleanupFunction(function() {
   Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
   try {
@@ -291,6 +294,14 @@ function wait_for_window_open(aCallback) {
   });
 }
 
+function get_string(aName) {
+  var bundle = Services.strings.createBundle("chrome://mozapps/locale/extensions/extensions.properties");
+  if (arguments.length == 1)
+    return bundle.GetStringFromName(aName);
+  var args = Array.slice(arguments, 1);
+  return bundle.formatStringFromName(aName, args, args.length);
+}
+
 function is_hidden(aElement) {
   var style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, "");
   if (style.display == "none")
@@ -529,11 +540,22 @@ MockProvider.prototype = {
    */
   addInstall: function MP_addInstall(aInstall) {
     this.installs.push(aInstall);
+    aInstall._provider = this;
 
     if (!this.started)
       return;
 
     aInstall.callListeners("onNewInstall");
+  },
+
+  removeInstall: function MP_removeInstall(aInstall) {
+    var pos = this.installs.indexOf(aInstall);
+    if (pos == -1) {
+      ok(false, "Tried to remove an install that wasn't registered with the mock provider");
+      return;
+    }
+
+    this.installs.splice(pos, 1);
   },
 
   /**
@@ -575,14 +597,20 @@ MockProvider.prototype = {
   createInstalls: function MP_createInstalls(aInstallProperties) {
     var newInstalls = [];
     aInstallProperties.forEach(function(aInstallProp) {
-      var install = new MockInstall();
+      var install = new MockInstall(aInstallProp.name || null,
+                                    aInstallProp.type || null,
+                                    null);
       for (var prop in aInstallProp) {
-        if (prop == "sourceURI") {
-          install[prop] = NetUtil.newURI(aInstallProp[prop]);
-          continue;
+        switch (prop) {
+          case "name":
+          case "type":
+            break;
+          case "sourceURI":
+            install[prop] = NetUtil.newURI(aInstallProp[prop]);
+            break;
+          default:
+            install[prop] = aInstallProp[prop];
         }
-
-        install[prop] = aInstallProp[prop];
       }
       this.addInstall(install);
       newInstalls.push(install);
@@ -949,7 +977,9 @@ MockAddon.prototype = {
 
 function MockInstall(aName, aType, aAddonToInstall) {
   this.name = aName || "";
-  this.type = aType || "extension";
+  // Don't expose type until download completed
+  this._type = aType || "extension";
+  this.type = null;
   this.version = "1.0";
   this.iconURL = "";
   this.infoURL = "";
@@ -975,24 +1005,43 @@ MockInstall.prototype = {
   install: function() {
     switch (this.state) {
       case AddonManager.STATE_AVAILABLE:
-      case AddonManager.STATE_DOWNLOADED:
-        // Downloading to be implemented when needed
-
-        this.state = AddonManager.STATE_INSTALLING;
-        if (!this.callListeners("onInstallStarted")) {
-          // Reverting to STATE_DOWNLOADED instead to be implemented when needed
+        this.state = AddonManager.STATE_DOWNLOADING;
+        if (!this.callListeners("onDownloadStarted")) {
           this.state = AddonManager.STATE_CANCELLED;
-          this.callListeners("onInstallCancelled");
+          this.callListeners("onDownloadCancelled");
           return;
         }
+
+        this.type = this._type;
 
         // Adding addon to MockProvider to be implemented when needed
         if (this._addonToInstall)
           this.addon = this._addonToInstall;
         else {
           this.addon = new MockAddon("", this.name, this.type);
+          this.addon.version = this.version;
           this.addon.pendingOperations = AddonManager.PENDING_INSTALL;
         }
+        this.addon.install = this;
+        if (this.existingAddon) {
+          if (!this.addon.id)
+            this.addon.id = this.existingAddon.id;
+          this.existingAddon.pendingUpgrade = this.addon;
+          this.existingAddon.pendingOperations |= AddonManager.PENDING_UPGRADE;
+        }
+
+        this.state = AddonManager.STATE_DOWNLOADED;
+        this.callListeners("onDownloadEnded");
+
+      case AddonManager.STATE_DOWNLOADED:
+        this.state = AddonManager.STATE_INSTALLING;
+        if (!this.callListeners("onInstallStarted")) {
+          this.state = AddonManager.STATE_CANCELLED;
+          this.callListeners("onInstallCancelled");
+          return;
+        }
+
+        AddonManagerPrivate.callAddonListeners("onInstalling", this.addon);
 
         this.state = AddonManager.STATE_INSTALLED;
         this.callListeners("onInstallEnded");
@@ -1014,6 +1063,7 @@ MockInstall.prototype = {
         break;
       case AddonManager.STATE_INSTALLED:
         this.state = AddonManager.STATE_CANCELLED;
+        this._provider.removeInstall(this);
         this.callListeners("onInstallCancelled");
         break;
       default:
@@ -1048,10 +1098,15 @@ MockInstall.prototype = {
     // Call test listeners after standard listeners to remove race condition
     // between standard and test listeners
     this.testListeners.forEach(function(aListener) {
-      if (aMethod in aListener)
-        if (aListener[aMethod].call(aListener, this, this.addon) === false)
-          result = false;
-    });
+      try {
+        if (aMethod in aListener)
+          if (aListener[aMethod].call(aListener, this, this.addon) === false)
+            result = false;
+      }
+      catch (e) {
+        ok(false, "Test listener threw exception: " + e);
+      }
+    }, this);
 
     return result;
   }

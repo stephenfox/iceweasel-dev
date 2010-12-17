@@ -36,10 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+include protocol PAudio;
 include protocol PBrowser;
+include protocol PCrashReporter;
 include protocol PTestShell;
 include protocol PNecko;
 include protocol PExternalHelperApp;
+include protocol PStorage;
 
 include "mozilla/chrome/RegistryMessageUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
@@ -49,23 +52,44 @@ include "PPrefTuple.h";
 
 using GeoPosition;
 using PrefTuple;
-using nsTArray<PrefTuple>;
 
 using ChromePackage;
 using ResourceMapping;
 using OverrideMapping;
 using IPC::URI;
 using IPC::Permission;
+using mozilla::null_t;
+using gfxIntSize;
 
 namespace mozilla {
 namespace dom {
 
+// Data required to clone an existing DOMStorageImpl in the parent
+struct StorageClone
+{
+    // Existing cross-process storage actor to clone
+    PStorage actor;
+    // Result of calling IsCallerSecure() in the child
+    bool callerSecure;
+};
+
+// When creating a new PStorage protocol, an existing one can be
+// cloned (see nsDOMStorage2::Clone)
+union StorageConstructData
+{
+    null_t;
+    StorageClone;
+};
+
 rpc protocol PContent
 {
+    manages PAudio;
     manages PBrowser;
+    manages PCrashReporter;
     manages PTestShell;
     manages PNecko;
     manages PExternalHelperApp;
+    manages PStorage;
 
 child:
     PBrowser(PRUint32 chromeFlags);
@@ -88,8 +112,19 @@ child:
     // nsIPermissionManager messages
     AddPermission(Permission permission);
 
+    AccelerationChanged(double x, double y, double z);
+
+    ScreenSizeChanged(gfxIntSize size);
+
+    FlushMemory(nsString reason);
+
 parent:
     PNecko();
+    PCrashReporter();
+    
+    PStorage(StorageConstructData data);
+
+    PAudio(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat);
 
     // Services remoting
 
@@ -106,7 +141,7 @@ parent:
     async LoadURIExternal(URI uri);
 
     // PrefService message
-    sync ReadPrefsArray() returns (nsTArray<PrefTuple> retValue);
+    sync ReadPrefsArray() returns (PrefTuple[] retValue);
 
     sync SyncMessage(nsString aMessage, nsString aJSON)
       returns (nsString[] retval);
@@ -120,10 +155,12 @@ parent:
 
     PExternalHelperApp(URI uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
-                       PRInt64 aContentLength);
+                       PRInt64 aContentLength, URI aReferrer);
     
-    GeolocationStart();
-    GeolocationStop();
+    AddGeolocationListener();
+    RemoveGeolocationListener();
+    AddAccelerometerListener();
+    RemoveAccelerometerListener();
 
     ConsoleMessage(nsString message);
     ScriptError(nsString message, nsString sourceName, nsString sourceLine,

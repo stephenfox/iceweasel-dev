@@ -63,20 +63,22 @@
 #include "imgIContainer.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "BasicLayers.h"
+#include "nsBoxFrame.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
 
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
-    PRBool aIsForEvents, PRBool aBuildCaret)
+    Mode aMode, PRBool aBuildCaret)
     : mReferenceFrame(aReferenceFrame),
       mIgnoreScrollFrame(nsnull),
       mCurrentTableItem(nsnull),
+      mMode(aMode),
       mBuildCaret(aBuildCaret),
-      mEventDelivery(aIsForEvents),
       mIgnoreSuppression(PR_FALSE),
       mHadToIgnoreSuppression(PR_FALSE),
       mIsAtRootOfPseudoStackingContext(PR_FALSE),
+      mIncludeAllOutOfFlows(PR_FALSE),
       mSelectedFramesOnly(PR_FALSE),
       mAccurateVisibleRegions(PR_FALSE),
       mInTransform(PR_FALSE),
@@ -307,6 +309,21 @@ nsDisplayList::ComputeVisibilityForRoot(nsDisplayListBuilder* aBuilder,
   return ComputeVisibilityForSublist(aBuilder, aVisibleRegion, r.GetBounds());
 }
 
+static PRBool
+TreatAsOpaque(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder,
+              PRBool* aTransparentBackground)
+{
+  if (aItem->IsOpaque(aBuilder, aTransparentBackground))
+    return PR_TRUE;
+  if (aBuilder->IsForPluginGeometry()) {
+    // Treat all chrome items as opaque
+    nsIFrame* f = aItem->GetUnderlyingFrame();
+    if (f && f->PresContext()->IsChrome())
+      return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+
 PRBool
 nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
                                            nsRegion* aVisibleRegion,
@@ -343,9 +360,8 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
 
     if (item->ComputeVisibility(aBuilder, aVisibleRegion)) {
       anyVisible = PR_TRUE;
-      nsIFrame* f = item->GetUnderlyingFrame();
       PRBool transparentBackground = PR_FALSE;
-      if (item->IsOpaque(aBuilder, &transparentBackground) && f) {
+      if (TreatAsOpaque(item, aBuilder, &transparentBackground)) {
         // Subtract opaque item from the visible region
         aBuilder->SubtractFromVisibleRegion(aVisibleRegion, nsRegion(bounds));
       }
@@ -496,6 +512,24 @@ void nsDisplayList::DeleteAll() {
   }
 }
 
+static PRBool
+GetMouseThrough(const nsIFrame* aFrame)
+{
+  if (!aFrame->IsBoxFrame())
+    return PR_FALSE;
+
+  const nsIFrame* frame = aFrame;
+  while (frame) {
+    if (frame->GetStateBits() & NS_FRAME_MOUSE_THROUGH_ALWAYS) {
+      return PR_TRUE;
+    } else if (frame->GetStateBits() & NS_FRAME_MOUSE_THROUGH_NEVER) {
+      return PR_FALSE;
+    }
+    frame = frame->GetParentBox();
+  }
+  return PR_FALSE;
+}
+
 void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                             nsDisplayItem::HitTestState* aState,
                             nsTArray<nsIFrame*> *aOutFrames) const {
@@ -517,7 +551,7 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
       for (PRUint32 j = 0; j < outFrames.Length(); j++) {
         nsIFrame *f = outFrames.ElementAt(j);
         // Handle the XUL 'mousethrough' feature and 'pointer-events'.
-        if (!f->GetMouseThrough() &&
+        if (!GetMouseThrough(f) &&
             f->GetStyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
           aOutFrames->AppendElement(f);
         }
@@ -650,7 +684,8 @@ PRBool nsDisplayItem::RecomputeVisibility(nsDisplayListBuilder* aBuilder,
   if (!ComputeVisibility(aBuilder, aVisibleRegion))
     return PR_FALSE;
 
-  if (IsOpaque(aBuilder)) {
+  PRBool forceTransparentBackground;
+  if (TreatAsOpaque(this, aBuilder, &forceTransparentBackground)) {
     aVisibleRegion->Sub(*aVisibleRegion, bounds);
   }
   return PR_TRUE;
@@ -1014,7 +1049,7 @@ nsDisplayBackground::GetBounds(nsDisplayListBuilder* aBuilder) {
 
 nsRect
 nsDisplayOutline::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
 }
 
 void
@@ -1156,7 +1191,7 @@ nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
 
 nsRect
 nsDisplayBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
 }
 
 PRBool
@@ -1969,7 +2004,7 @@ nsRect nsDisplayTransform::GetBounds(nsDisplayListBuilder *aBuilder)
 }
 
 /* The transform is opaque iff the transform consists solely of scales and
- * transforms and if the underlying content is opaque.  Thus if the transform
+ * translations and if the underlying content is opaque.  Thus if the transform
  * is of the form
  *
  * |a c e|
@@ -1977,6 +2012,12 @@ nsRect nsDisplayTransform::GetBounds(nsDisplayListBuilder *aBuilder)
  * |0 0 1|
  *
  * We need b and c to be zero.
+ *
+ * We also need to check whether the underlying opaque content completely fills
+ * our visible rect. We use UntransformRect which expands to the axis-aligned
+ * bounding rect, but that's OK since if
+ * mStoredList.GetVisibleRect().Contains(untransformedVisible), then it
+ * certainly contains the actual (non-axis-aligned) untransformed rect.
  */
 PRBool nsDisplayTransform::IsOpaque(nsDisplayListBuilder *aBuilder,
                                     PRBool* aForceTransparentSurface)
@@ -1985,8 +2026,11 @@ PRBool nsDisplayTransform::IsOpaque(nsDisplayListBuilder *aBuilder,
     *aForceTransparentSurface = PR_FALSE;
   }
   const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
+  nsRect untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
   return disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
     disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
+    mStoredList.GetVisibleRect().Contains(untransformedVisible) &&
     mStoredList.IsOpaque(aBuilder);
 }
 
@@ -1997,8 +2041,11 @@ PRBool nsDisplayTransform::IsOpaque(nsDisplayListBuilder *aBuilder,
 PRBool nsDisplayTransform::IsUniform(nsDisplayListBuilder *aBuilder, nscolor* aColor)
 {
   const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
+  nsRect untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
   return disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
     disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
+    mStoredList.GetVisibleRect().Contains(untransformedVisible) &&
     mStoredList.IsUniform(aBuilder, aColor);
 }
 

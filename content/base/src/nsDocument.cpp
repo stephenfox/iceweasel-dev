@@ -205,6 +205,8 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 using namespace mozilla::dom;
 
+typedef nsTArray<Link*> LinkArray;
+
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDocumentLeakPRLog;
@@ -3174,7 +3176,7 @@ nsDocument::doCreateShell(nsPresContext* aContext,
 
   NS_ASSERTION(!mPresShell, "We have a presshell already!");
 
-  NS_ENSURE_FALSE(mShellIsHidden, NS_ERROR_FAILURE);
+  NS_ENSURE_FALSE(GetBFCacheEntry(), NS_ERROR_FAILURE);
 
   FillStyleSet(aStyleSet);
   
@@ -3876,19 +3878,7 @@ nsDocument::ScriptLoader()
 PRBool
 nsDocument::InternalAllowXULXBL()
 {
-  if (nsContentUtils::IsSystemPrincipal(NodePrincipal())) {
-    mAllowXULXBL = eTriTrue;
-    return PR_TRUE;
-  }
-  
-  nsCOMPtr<nsIURI> princURI;
-  NodePrincipal()->GetURI(getter_AddRefs(princURI));
-  if (!princURI) {
-    mAllowXULXBL = eTriFalse;
-    return PR_FALSE;
-  }
-
-  if (nsContentUtils::IsSitePermAllow(princURI, "allowXULXBL")) {
+  if (nsContentUtils::AllowXULXBLForPrincipal(NodePrincipal())) {
     mAllowXULXBL = eTriTrue;
     return PR_TRUE;
   }
@@ -3902,7 +3892,7 @@ nsDocument::InternalAllowXULXBL()
 void
 nsDocument::AddObserver(nsIDocumentObserver* aObserver)
 {
-  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray_base::NoIndex,
+  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray<int>::NoIndex,
                "Observer already in the list");
   mObservers.AppendElement(aObserver);
   AddMutationObserver(aObserver);
@@ -4361,7 +4351,18 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                             nsIDOMElement** aReturn)
 {
   *aReturn = nsnull;
+  nsCOMPtr<nsIContent> content;
+  nsresult rv = CreateElementNS(aNamespaceURI, aQualifiedName,
+                                getter_AddRefs(content));
+  NS_ENSURE_SUCCESS(rv, rv);
+  return CallQueryInterface(content, aReturn);
+}
 
+nsresult
+nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
+                            const nsAString& aQualifiedName,
+                            nsIContent** aReturn)
+{
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nsresult rv = nsContentUtils::GetNodeInfoFromQName(aNamespaceURI,
                                                      aQualifiedName,
@@ -4369,13 +4370,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> content;
   PRInt32 ns = nodeInfo->NamespaceID();
-  rv = NS_NewElement(getter_AddRefs(content), ns, nodeInfo.forget(),
-                     NOT_FROM_PARSER);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return CallQueryInterface(content, aReturn);
+  return NS_NewElement(aReturn, ns,
+                       nodeInfo.forget(), NOT_FROM_PARSER);
 }
 
 NS_IMETHODIMP
@@ -5543,6 +5540,13 @@ nsDocument::GetAnimationController()
     }
   }
 
+  // If we're hidden (or being hidden), notify the newly-created animation
+  // controller. (Skip this check for SVG-as-an-image documents, though,
+  // because they don't get OnPageShow / OnPageHide calls).
+  if (!mIsShowing && !mIsBeingUsedAsImage) {
+    mAnimationController->OnPageHide();
+  }
+
   return mAnimationController;
 }
 #endif // MOZ_SMIL
@@ -5774,7 +5778,7 @@ nsDocument::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 {
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, !mCreatingStaticClone, aReturn);
 }
 
 NS_IMETHODIMP
@@ -7541,7 +7545,7 @@ static
 PLDHashOperator
 EnumerateStyledLinks(nsPtrHashKey<Link>* aEntry, void* aArray)
 {
-  nsTArray<Link*>* array = static_cast<nsTArray<Link*>*>(aArray);
+  LinkArray* array = static_cast<LinkArray*>(aArray);
   (void)array->AppendElement(aEntry->GetKey());
   return PL_DHASH_NEXT;
 }
@@ -7552,12 +7556,12 @@ nsDocument::RefreshLinkHrefs()
   // Get a list of all links we know about.  We will reset them, which will
   // remove them from the document, so we need a copy of what is in the
   // hashtable.
-  nsTArray<Link*> linksToNotify(mStyledLinks.Count());
+  LinkArray linksToNotify(mStyledLinks.Count());
   (void)mStyledLinks.EnumerateEntries(EnumerateStyledLinks, &linksToNotify);
 
   // Reset all of our styled links.
   MOZ_AUTO_DOC_UPDATE(this, UPDATE_CONTENT_STATE, PR_TRUE);
-  for (nsTArray_base::size_type i = 0; i < linksToNotify.Length(); i++) {
+  for (LinkArray::size_type i = 0; i < linksToNotify.Length(); i++) {
     linksToNotify[i]->ResetLinkState(true);
   }
 }

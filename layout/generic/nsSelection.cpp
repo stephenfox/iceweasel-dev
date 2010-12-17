@@ -112,6 +112,8 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "nsIBidiKeyboard.h"
 #endif // IBMBIDI
 
+#include "nsDOMError.h"
+
 //#define DEBUG_TABLE 1
 
 static NS_DEFINE_IID(kCContentIteratorCID, NS_CONTENTITERATOR_CID);
@@ -196,9 +198,16 @@ public:
   // utility methods for scrolling the selection into view
   nsresult      GetPresContext(nsPresContext **aPresContext);
   nsresult      GetPresShell(nsIPresShell **aPresShell);
-  // Returns the position of the region, and frame that that position is relative
-  // to. The 'position' is a zero-width rectangle.
+  // Returns a rect containing the selection region, and frame that that
+  // position is relative to. For SELECTION_ANCHOR_REGION or
+  // SELECTION_FOCUS_REGION the rect is a zero-width rectangle. For
+  // SELECTION_WHOLE_SELECTION the rect contains both the anchor and focus
+  // region rects.
   nsIFrame*     GetSelectionAnchorGeometry(SelectionRegion aRegion, nsRect *aRect);
+  // Returns the position of the region (SELECTION_ANCHOR_REGION or
+  // SELECTION_FOCUS_REGION only), and frame that that position is relative to.
+  // The 'position' is a zero-width rectangle.
+  nsIFrame*     GetSelectionEndPointGeometry(SelectionRegion aRegion, nsRect *aRect);
 
   nsresult      PostScrollSelectionIntoViewEvent(SelectionRegion aRegion, PRBool aFirstAncestorOnly);
   enum {
@@ -2085,18 +2094,28 @@ nsFrameSelection::GetFrameForNodeOffset(nsIContent *aNode,
 
       if (textNode)
       {
-        if (aOffset > childIndex)
+        if (theNode->GetPrimaryFrame())
         {
-          PRUint32 textLength = 0;
+          if (aOffset > childIndex)
+          {
+            PRUint32 textLength = 0;
 
-          nsresult rv = textNode->GetLength(&textLength);
-          if (NS_FAILED(rv))
-            return nsnull;
+            nsresult rv = textNode->GetLength(&textLength);
+            if (NS_FAILED(rv))
+              return nsnull;
 
-          *aReturnOffset = (PRInt32)textLength;
+            *aReturnOffset = (PRInt32)textLength;
+          }
+          else
+            *aReturnOffset = 0;
         }
         else
-          *aReturnOffset = 0;
+        {
+          // If we're at a collapsed whitespace content node (which
+          // does not have a primary frame), just use the original node
+          // to get the frame on which we should put the caret.
+          theNode = aNode;
+        }
       }
     }
   }
@@ -4967,7 +4986,7 @@ nsTypedSelection::CollapseToStart()
   PRInt32 cnt;
   nsresult rv = GetRangeCount(&cnt);
   if (NS_FAILED(rv) || cnt <= 0)
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
 
   // Get the first range
   nsIRange* firstRange = mRanges[0].mRange;
@@ -4987,7 +5006,7 @@ nsTypedSelection::CollapseToEnd()
   PRInt32 cnt;
   nsresult rv = GetRangeCount(&cnt);
   if (NS_FAILED(rv) || cnt <= 0)
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
 
   // Get the last range
   nsIRange* lastRange = mRanges[cnt-1].mRange;
@@ -5012,13 +5031,13 @@ nsTypedSelection::GetIsCollapsed(PRBool* aIsCollapsed)
     *aIsCollapsed = PR_TRUE;
     return NS_OK;
   }
-  
+
   if (cnt != 1)
   {
     *aIsCollapsed = PR_FALSE;
     return NS_OK;
   }
-  
+
   *aIsCollapsed = mRanges[0].mRange->Collapsed();
   return NS_OK;
 }
@@ -5036,7 +5055,7 @@ nsTypedSelection::GetRangeAt(PRInt32 aIndex, nsIDOMRange** aReturn)
 {
   *aReturn = mRanges.SafeElementAt(aIndex, sEmptyData).mRange;
   if (!*aReturn) {
-    return NS_ERROR_INVALID_ARG;
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   NS_ADDREF(*aReturn);
@@ -5073,7 +5092,7 @@ nsTypedSelection::CopyRangeToAnchorFocus(nsIRange *aRange)
       return NS_ERROR_FAILURE;//???
   }
   else if (NS_FAILED(mAnchorFocusRange->SetEnd(endNode,endOffset)))
-          return NS_ERROR_FAILURE;//???
+    return NS_ERROR_FAILURE;//???
   return NS_OK;
 }
 
@@ -5489,6 +5508,52 @@ nsTypedSelection::GetPresShell(nsIPresShell **aPresShell)
 nsIFrame *
 nsTypedSelection::GetSelectionAnchorGeometry(SelectionRegion aRegion,
                                              nsRect *aRect)
+{
+  if (!mFrameSelection)
+    return nsnull;  // nothing to do
+
+  NS_ENSURE_TRUE(aRect, nsnull);
+
+  aRect->SetRect(0, 0, 0, 0);
+
+  switch (aRegion) {
+    case nsISelectionController::SELECTION_ANCHOR_REGION:
+    case nsISelectionController::SELECTION_FOCUS_REGION:
+      return GetSelectionEndPointGeometry(aRegion, aRect);
+      break;
+    case nsISelectionController::SELECTION_WHOLE_SELECTION:
+      break;
+    default:
+      return nsnull;
+  }
+
+  NS_ASSERTION(aRegion == nsISelectionController::SELECTION_WHOLE_SELECTION,
+    "should only be SELECTION_WHOLE_SELECTION here");
+
+  nsRect anchorRect;
+  nsIFrame* anchorFrame = GetSelectionEndPointGeometry(
+    nsISelectionController::SELECTION_ANCHOR_REGION, &anchorRect);
+  if (!anchorFrame)
+    return nsnull;
+
+  nsRect focusRect;
+  nsIFrame* focusFrame = GetSelectionEndPointGeometry(
+    nsISelectionController::SELECTION_FOCUS_REGION, &focusRect);
+  if (!focusFrame)
+    return nsnull;
+
+  NS_ASSERTION(anchorFrame->PresContext() == focusFrame->PresContext(),
+    "points of selection in different documents?");
+  // make focusRect relative to anchorFrame
+  focusRect += focusFrame->GetOffsetTo(anchorFrame);
+
+  aRect->UnionRectIncludeEmpty(anchorRect, focusRect);
+  return anchorFrame;
+}
+
+nsIFrame *
+nsTypedSelection::GetSelectionEndPointGeometry(SelectionRegion aRegion,
+                                               nsRect *aRect)
 {
   if (!mFrameSelection)
     return nsnull;  // nothing to do

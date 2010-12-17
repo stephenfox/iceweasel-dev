@@ -148,6 +148,26 @@ ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
   DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity, aXRes, aYRes);
 }
 
+already_AddRefed<gfxContext>
+ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds,
+                                               float aXResolution,
+                                               float aYResolution)
+{
+  nsRefPtr<gfxContext> ctx = new gfxContext(mBuffer);
+
+  // Figure out which quadrant to draw in
+  PRInt32 xBoundary = mBufferRect.XMost() - mBufferRotation.x;
+  PRInt32 yBoundary = mBufferRect.YMost() - mBufferRotation.y;
+  XSide sideX = aBounds.XMost() <= xBoundary ? RIGHT : LEFT;
+  YSide sideY = aBounds.YMost() <= yBoundary ? BOTTOM : TOP;
+  nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
+  NS_ASSERTION(quadrantRect.Contains(aBounds), "Messed up quadrants");
+  ctx->Scale(aXResolution, aYResolution);
+  ctx->Translate(-gfxPoint(quadrantRect.x, quadrantRect.y));
+
+  return ctx.forget();
+}
+
 static void
 WrapRotationAxis(PRInt32* aRotationPoint, PRInt32 aSize)
 {
@@ -226,7 +246,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
           (drawBounds.y < yBoundary && yBoundary < drawBounds.YMost())) {
         // The stuff we need to redraw will wrap around an edge of the
         // buffer, so we will need to do a self-copy
-        if (mBufferRotation == nsIntPoint(0,0)) {
+        if (mBuffer->SupportsSelfCopy() && mBufferRotation == nsIntPoint(0,0)) {
           destBuffer = mBuffer;
         } else {
           // We can't do a real self-copy because the buffer is rotated.
@@ -290,17 +310,8 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   invalidate.Sub(aLayer->GetValidRegion(), destBufferRect);
   result.mRegionToInvalidate.Or(result.mRegionToInvalidate, invalidate);
 
-  result.mContext = new gfxContext(mBuffer);
-
-  // Figure out which quadrant to draw in
-  PRInt32 xBoundary = mBufferRect.XMost() - mBufferRotation.x;
-  PRInt32 yBoundary = mBufferRect.YMost() - mBufferRotation.y;
-  XSide sideX = drawBounds.XMost() <= xBoundary ? RIGHT : LEFT;
-  YSide sideY = drawBounds.YMost() <= yBoundary ? BOTTOM : TOP;
-  nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
-  NS_ASSERTION(quadrantRect.Contains(drawBounds), "Messed up quadrants");
-  result.mContext->Scale(aXResolution, aYResolution);
-  result.mContext->Translate(-gfxPoint(quadrantRect.x, quadrantRect.y));
+  result.mContext = GetContextForQuadrantUpdate(drawBounds,
+                                                aXResolution, aYResolution);
 
   gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
   if (aContentType == gfxASurface::CONTENT_COLOR_ALPHA && !isClear) {

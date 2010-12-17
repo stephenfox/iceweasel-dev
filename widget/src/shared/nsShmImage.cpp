@@ -51,6 +51,8 @@
 
 #ifdef MOZ_HAVE_SHMIMAGE
 
+using namespace mozilla::ipc;
+
 // If XShm isn't available to our client, we'll try XShm once, fail,
 // set this to false and then never try again.
 static PRBool gShmAvailable = PR_TRUE;
@@ -76,7 +78,8 @@ nsShmImage::Create(const gfxIntSize& aSize,
         return nsnull;
     }
 
-    size_t size = shm->mImage->bytes_per_line * shm->mImage->height;
+    size_t size = SharedMemory::PageAlignedSize(
+        shm->mImage->bytes_per_line * shm->mImage->height);
     shm->mSegment = new SharedMemorySysV();
     if (!shm->mSegment->Create(size) || !shm->mSegment->Map(size)) {
         return nsnull;
@@ -107,11 +110,19 @@ nsShmImage::Create(const gfxIntSize& aSize,
     shm->mSize = aSize;
     switch (shm->mImage->depth) {
     case 24:
-        shm->mFormat = gfxASurface::ImageFormatRGB24; break;
+        // Only xRGB is supported.
+        if ((shm->mImage->red_mask == 0xff0000) &&
+            (shm->mImage->green_mask == 0xff00) &&
+            (shm->mImage->blue_mask == 0xff)) {
+            shm->mFormat = gfxASurface::ImageFormatRGB24;
+            break;
+        }
+        goto unsupported;
     case 16:
         shm->mFormat = gfxASurface::ImageFormatRGB16_565; break;
+    unsupported:
     default:
-        NS_WARNING("Unsupported XShm Image depth!");
+        NS_WARNING("Unsupported XShm Image format!");
         gShmAvailable = PR_FALSE;
         return nsnull;
     }

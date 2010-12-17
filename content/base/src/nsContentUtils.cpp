@@ -183,6 +183,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsTextEditorState.h"
 #include "nsIPluginHost.h"
 #include "nsICategoryManager.h"
+#include "nsAHtml5FragmentParser.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -259,10 +260,8 @@ PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
 PRUint32 nsContentUtils::sScriptBlockerCountWhereRunnersPrevented = 0;
 nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nsnull;
 
-nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
-JSRuntime *nsAutoGCRoot::sJSScriptRuntime;
-
 PRBool nsContentUtils::sIsHandlingKeyBoardEvent = PR_FALSE;
+PRBool nsContentUtils::sAllowXULXBL_for_file = PR_FALSE;
 
 PRBool nsContentUtils::sInitialized = PR_FALSE;
 
@@ -505,6 +504,9 @@ nsContentUtils::Init()
   sBlockedScriptRunners = new nsCOMArray<nsIRunnable>;
   NS_ENSURE_TRUE(sBlockedScriptRunners, NS_ERROR_OUT_OF_MEMORY);
 
+  nsContentUtils::AddBoolPrefVarCache("dom.allow_XUL_XBL_for_file",
+                                      &sAllowXULXBL_for_file);
+
   sInitialized = PR_TRUE;
 
   return NS_OK;
@@ -591,6 +593,7 @@ nsContentUtils::InitializeEventTable() {
                                                 
     { nsGkAtoms::onpageshow,                    NS_PAGE_SHOW, EventNameType_HTML, NS_EVENT },
     { nsGkAtoms::onpagehide,                    NS_PAGE_HIDE, EventNameType_HTML, NS_EVENT },
+    { nsGkAtoms::onMozBeforeResize,             NS_BEFORERESIZE_EVENT, EventNameType_None, NS_EVENT },
     { nsGkAtoms::onresize,                      NS_RESIZE_EVENT,
                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
     { nsGkAtoms::onscroll,                      NS_SCROLL_EVENT,
@@ -1205,8 +1208,6 @@ nsContentUtils::Shutdown()
 
   NS_IF_RELEASE(sSameOriginChecker);
   
-  nsAutoGCRoot::Shutdown();
-
   nsTextEditorState::ShutDown();
 }
 
@@ -3280,53 +3281,6 @@ nsContentUtils::GetContentPolicy()
 }
 
 // static
-nsresult
-nsAutoGCRoot::AddJSGCRoot(void* aPtr, RootType aRootType, const char* aName)
-{
-  if (!sJSScriptRuntime) {
-    nsresult rv = CallGetService("@mozilla.org/js/xpc/RuntimeService;1",
-                                 &sJSRuntimeService);
-    NS_ENSURE_TRUE(sJSRuntimeService, rv);
-
-    sJSRuntimeService->GetRuntime(&sJSScriptRuntime);
-    if (!sJSScriptRuntime) {
-      NS_RELEASE(sJSRuntimeService);
-      NS_WARNING("Unable to get JS runtime from JS runtime service");
-      return NS_ERROR_FAILURE;
-    }
-  }
-
-  PRBool ok;
-  if (aRootType == RootType_JSVal)
-    ok = ::js_AddRootRT(sJSScriptRuntime, (jsval *)aPtr, aName);
-  else
-    ok = ::js_AddGCThingRootRT(sJSScriptRuntime, (void **)aPtr, aName);
-  if (!ok) {
-    NS_WARNING("JS_AddNamedRootRT failed");
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  return NS_OK;
-}
-
-/* static */
-nsresult
-nsAutoGCRoot::RemoveJSGCRoot(void* aPtr, RootType aRootType)
-{
-  if (!sJSScriptRuntime) {
-    NS_NOTREACHED("Trying to remove a JS GC root when none were added");
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  if (aRootType == RootType_JSVal)
-    ::js_RemoveRoot(sJSScriptRuntime, (jsval *)aPtr);
-  else
-    ::js_RemoveRoot(sJSScriptRuntime, (JSObject **)aPtr);
-
-  return NS_OK;
-}
-
-// static
 PRBool
 nsContentUtils::IsEventAttributeName(nsIAtom* aName, PRInt32 aType)
 {
@@ -3898,21 +3852,27 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
       }
     }
     
+    nsAHtml5FragmentParser* asFragmentParser =
+        static_cast<nsAHtml5FragmentParser*> (parser.get());
     nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
     if (contextAsContent &&
         !(nsGkAtoms::html == contextAsContent->Tag() &&
           contextAsContent->IsHTML())) {
-      parser->ParseFragment(aFragment, 
-                            fragment, 
-                            contextAsContent->Tag(), 
-                            contextAsContent->GetNameSpaceID(), 
-                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));    
+      asFragmentParser->ParseHtml5Fragment(aFragment,
+                                           fragment,
+                                           contextAsContent->Tag(),
+                                           contextAsContent->GetNameSpaceID(),
+                                           (document->GetCompatibilityMode() ==
+                                               eCompatibility_NavQuirks),
+                                           PR_FALSE);
     } else {
-      parser->ParseFragment(aFragment, 
-                            fragment,
-                            nsGkAtoms::body, 
-                            kNameSpaceID_XHTML, 
-                            (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
+      asFragmentParser->ParseHtml5Fragment(aFragment,
+                                           fragment,
+                                           nsGkAtoms::body,
+                                           kNameSpaceID_XHTML,
+                                           (document->GetCompatibilityMode() ==
+                                               eCompatibility_NavQuirks),
+                                           PR_FALSE);
     }
   
     frag.swap(*aReturn);
@@ -4803,8 +4763,12 @@ static void ProcessViewportToken(nsIDocument *aDocument,
     return;
 
   /* Extract the key and value. */
-  const nsAString &key = Substring(tail, tip);
-  const nsAString &value = Substring(++tip, end);
+  const nsAString &key =
+    nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(Substring(tail, tip),
+                                                        PR_TRUE);
+  const nsAString &value =
+    nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(Substring(++tip, end),
+                                                        PR_TRUE);
 
   /* Check for known keys. If we find a match, insert the appropriate
    * information into the document header. */
@@ -4823,7 +4787,9 @@ static void ProcessViewportToken(nsIDocument *aDocument,
     aDocument->SetHeaderData(nsGkAtoms::viewport_user_scalable, value);
 }
 
-#define IS_SEPARATOR(c) ((c == ' ') || (c == ',') || (c == ';'))
+#define IS_SEPARATOR(c) ((c == '=') || (c == ',') || (c == ';') || \
+                         (c == '\t') || (c == '\n') || (c == '\r'))
+
 /* static */
 nsresult
 nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
@@ -4839,12 +4805,12 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
   viewportInfo.EndReading(end);
 
   /* Read the tip to the first non-separator character. */
-  while ((tip != end) && IS_SEPARATOR(*tip))
+  while ((tip != end) && (IS_SEPARATOR(*tip) || nsCRT::IsAsciiSpace(*tip)))
     ++tip;
 
   /* Read through and find tokens separated by separators. */
   while (tip != end) {
-    
+
     /* Synchronize tip and tail. */
     tail = tip;
 
@@ -4852,11 +4818,22 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
     while ((tip != end) && !IS_SEPARATOR(*tip))
       ++tip;
 
+    /* Allow white spaces that surround the '=' character */
+    if ((tip != end) && (*tip == '=')) {
+      ++tip;
+
+      while ((tip != end) && nsCRT::IsAsciiSpace(*tip))
+        ++tip;
+
+      while ((tip != end) && !(IS_SEPARATOR(*tip) || nsCRT::IsAsciiSpace(*tip)))
+        ++tip;
+    }
+
     /* Our token consists of the characters between tail and tip. */
     ProcessViewportToken(aDocument, Substring(tail, tip));
 
     /* Skip separators. */
-    while ((tip != end) && IS_SEPARATOR(*tip))
+    while ((tip != end) && (IS_SEPARATOR(*tip) || nsCRT::IsAsciiSpace(*tip)))
       ++tip;
   }
 
@@ -4916,12 +4893,9 @@ nsContentUtils::SetDataTransferInEvent(nsDragEvent* aDragEvent)
     // A dataTransfer won't exist when a drag was started by some other
     // means, for instance calling the drag service directly, or a drag
     // from another application. In either case, a new dataTransfer should
-    // be created that reflects the data. Pass true to the constructor for
-    // the aIsExternal argument, so that only system access is allowed.
-    PRUint32 action = 0;
-    dragSession->GetDragAction(&action);
+    // be created that reflects the data.
     initialDataTransfer =
-      new nsDOMDataTransfer(aDragEvent->message, action);
+      new nsDOMDataTransfer(aDragEvent->message);
     NS_ENSURE_TRUE(initialDataTransfer, NS_ERROR_OUT_OF_MEMORY);
 
     // now set it in the drag session so we don't need to create it again
@@ -5169,13 +5143,6 @@ nsContentUtils::EqualsIgnoreASCIICase(const nsAString& aStr1,
 }
 
 /* static */
-void
-nsAutoGCRoot::Shutdown()
-{
-  NS_IF_RELEASE(sJSRuntimeService);
-}
-
-/* static */
 nsIInterfaceRequestor*
 nsContentUtils::GetSameOriginChecker()
 {
@@ -5186,18 +5153,10 @@ nsContentUtils::GetSameOriginChecker()
   return sSameOriginChecker;
 }
 
-
-NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
-                   nsIChannelEventSink,
-                   nsIInterfaceRequestor)
-
-NS_IMETHODIMP
-nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                            nsIChannel *aNewChannel,
-                                            PRUint32 aFlags,
-                                            nsIAsyncVerifyRedirectCallback *cb)
+/* static */
+nsresult
+nsContentUtils::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel)
 {
-  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
   if (!nsContentUtils::GetSecurityManager())
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -5217,11 +5176,27 @@ nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
   }
 
-  if (NS_FAILED(rv))
-      return rv;
+  return rv;
+}
 
-  cb->OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
+NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
+                   nsIChannelEventSink,
+                   nsIInterfaceRequestor)
+
+NS_IMETHODIMP
+nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
+                                            nsIChannel *aNewChannel,
+                                            PRUint32 aFlags,
+                                            nsIAsyncVerifyRedirectCallback *cb)
+{
+  NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
+
+  nsresult rv = nsContentUtils::CheckSameOrigin(aOldChannel, aNewChannel);
+  if (NS_SUCCEEDED(rv)) {
+    cb->OnRedirectVerifyCallback(NS_OK);
+  }
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -5509,6 +5484,11 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
 
     *vp = JSVAL_NULL;
 
+    return NS_OK;
+  }
+
+  JSObject *wrapper = xpc_GetCachedSlimWrapper(cache, scope, vp);
+  if (wrapper) {
     return NS_OK;
   }
 
@@ -6286,6 +6266,40 @@ nsContentUtils::IsSubDocumentTabbable(nsIContent* aContent)
   return !zombieViewer;
 }
 
+void
+nsContentUtils::FlushLayoutForTree(nsIDOMWindow* aWindow)
+{
+    nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
+    if (!piWin)
+        return;
+
+    // Note that because FlushPendingNotifications flushes parents, this
+    // is O(N^2) in docshell tree depth.  However, the docshell tree is
+    // usually pretty shallow.
+
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    aWindow->GetDocument(getter_AddRefs(domDoc));
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+    if (doc) {
+        doc->FlushPendingNotifications(Flush_Layout);
+    }
+
+    nsCOMPtr<nsIDocShellTreeNode> node =
+        do_QueryInterface(piWin->GetDocShell());
+    if (node) {
+        PRInt32 i = 0, i_end;
+        node->GetChildCount(&i_end);
+        for (; i < i_end; ++i) {
+            nsCOMPtr<nsIDocShellTreeItem> item;
+            node->GetChildAt(i, getter_AddRefs(item));
+            nsCOMPtr<nsIDOMWindow> win = do_GetInterface(item);
+            if (win) {
+                FlushLayoutForTree(win);
+            }
+        }
+    }
+}
+
 void nsContentUtils::RemoveNewlines(nsString &aString)
 {
   // strip CR/LF and null
@@ -6307,8 +6321,8 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-already_AddRefed<LayerManager>
-nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
+static already_AddRefed<LayerManager>
+LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent)
 {
   nsIDocument* doc = aDoc;
   nsIDocument* displayDoc = doc->GetDisplayDocument();
@@ -6342,7 +6356,10 @@ nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
       nsIWidget* widget =
         nsLayoutUtils::GetDisplayRootFrame(rootFrame)->GetNearestWidget();
       if (widget) {
-        nsRefPtr<LayerManager> manager = widget->GetLayerManager();
+        nsRefPtr<LayerManager> manager =
+          static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget)->
+            GetLayerManager(aRequirePersistent ? nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_PERSISTENT : 
+                                                 nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_CURRENT);
         return manager.forget();
       }
     }
@@ -6352,6 +6369,32 @@ nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
   return manager.forget();
 }
 
+already_AddRefed<LayerManager>
+nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
+{
+  return LayerManagerForDocumentInternal(aDoc, false);
+}
+
+already_AddRefed<LayerManager>
+nsContentUtils::PersistentLayerManagerForDocument(nsIDocument *aDoc)
+{
+  return LayerManagerForDocumentInternal(aDoc, true);
+}
+
+bool
+nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
+{
+  if (IsSystemPrincipal(aPrincipal)) {
+    return true;
+  }
+  
+  nsCOMPtr<nsIURI> princURI;
+  aPrincipal->GetURI(getter_AddRefs(princURI));
+  
+  return princURI &&
+         ((sAllowXULXBL_for_file && SchemeIs(princURI, "file")) ||
+          IsSitePermAllow(princURI, "allowXULXBL"));
+}
 
 NS_IMPL_ISUPPORTS1(nsIContentUtils, nsIContentUtils)
 
@@ -6430,4 +6473,18 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 #endif // MOZ_MEDIA
 
   return NULL;
+}
+
+NS_IMPL_ISUPPORTS1(nsIContentUtils2, nsIContentUtils2)
+
+nsIInterfaceRequestor*
+nsIContentUtils2::GetSameOriginChecker()
+{
+  return nsContentUtils::GetSameOriginChecker();
+}
+
+nsresult
+nsIContentUtils2::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel)
+{
+  return nsContentUtils::CheckSameOrigin(aOldChannel, aNewChannel);
 }

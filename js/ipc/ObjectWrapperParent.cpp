@@ -62,7 +62,7 @@ namespace {
         JSContext* mContext;
         JSObject* mObj;
         uintN mOldFlags;
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
         static uintN GetFlags(JSContext* cx, JSObject* obj) {
             jsval v;
@@ -118,7 +118,7 @@ namespace {
 
     class AutoCheckOperation : public ACOBase
     {
-        JS_DECL_USE_GUARD_OBJECT_NOTIFIER;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     public:
         AutoCheckOperation(JSContext* cx,
                            ObjectWrapperParent* owp
@@ -666,7 +666,7 @@ ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
         receiver = manager->GetGlobalObjectWrapper();
     }
 
-    nsTArray<JSVariant> in_argv(argc);
+    InfallibleTArray<JSVariant> in_argv(argc);
     jsval* argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))
@@ -692,7 +692,7 @@ ObjectWrapperParent::CPOW_Construct(JSContext* cx, uintN argc, jsval* vp)
 
     AutoCheckOperation aco(cx, constructor);
 
-    nsTArray<JSVariant> in_argv(argc);
+    InfallibleTArray<JSVariant> in_argv(argc);
     jsval* argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))

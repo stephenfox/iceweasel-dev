@@ -48,10 +48,10 @@
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
 
+#include "nsARIAMap.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
-#include "nsDataHashtable.h"
 
 class AccGroupInfo;
 class EmbeddedObjCollector;
@@ -67,8 +67,6 @@ class nsIView;
 
 typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessible>
   nsAccessibleHashtable;
-typedef nsDataHashtable<nsPtrHashKey<const nsINode>, nsAccessible*>
-  NodeToAccessibleMap;
 
 // see nsAccessible::GetAttrValue
 #define NS_OK_NO_ARIA_VALUE \
@@ -113,7 +111,6 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // nsAccessNode
 
-  virtual PRBool Init();
   virtual void Shutdown();
 
   //////////////////////////////////////////////////////////////////////////////
@@ -149,7 +146,25 @@ public:
   /**
    * Return enumerated accessible role (see constants in nsIAccessibleRole).
    */
-  virtual PRUint32 Role();
+  inline PRUint32 Role()
+  {
+    if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+      return NativeRole();
+
+    return ARIARoleInternal();
+  }
+
+  /**
+   * Return accessible role specified by ARIA (see constants in
+   * nsIAccessibleRole).
+   */
+  inline PRUint32 ARIARole()
+  {
+    if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
+      return nsIAccessibleRole::ROLE_NOTHING;
+
+    return ARIARoleInternal();
+  }
 
   /**
    * Returns enumerated accessible role from native markup (see constants in
@@ -209,7 +224,6 @@ public:
    *                      nsnull if none.
    */
   virtual void SetRoleMapEntry(nsRoleMapEntry *aRoleMapEntry);
-  const nsRoleMapEntry* GetRoleMapEntry() const { return mRoleMapEntry; }
 
   /**
    * Cache children if necessary. Return true if the accessible is defunct.
@@ -297,13 +311,6 @@ public:
   nsAccessible* GetCachedChildAt(PRUint32 aIndex) const { return mChildren.ElementAt(aIndex); }
   PRBool AreChildrenCached() const { return mChildrenFlags != eChildrenUninitialized; }
   bool IsBoundToParent() const { return mParent; }
-
-#ifdef DEBUG
-  /**
-   * Return true if the access node is cached.
-   */
-  PRBool IsInCache();
-#endif
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
@@ -441,7 +448,7 @@ protected:
   /**
    * Set accessible parent and index in parent.
    */
-  void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
+  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
   void UnbindFromParent();
 
   /**
@@ -452,6 +459,11 @@ protected:
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous helpers
+
+  /**
+   * Return ARIA role (helper method).
+   */
+  PRUint32 ARIARoleInternal();
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);

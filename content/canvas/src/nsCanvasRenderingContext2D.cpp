@@ -948,9 +948,7 @@ nsCanvasRenderingContext2D::StyleColorToString(const nscolor& aColor, nsAString&
                                         NS_GET_G(aColor),
                                         NS_GET_B(aColor)),
                         aStr);
-        nsString tmp;
-        tmp.AppendFloat(nsStyleUtil::ColorComponentToFloat(NS_GET_A(aColor)));
-        aStr.Append(tmp);
+        aStr.AppendFloat(nsStyleUtil::ColorComponentToFloat(NS_GET_A(aColor)));
         aStr.Append(')');
     }
 }
@@ -1080,7 +1078,8 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
             nsRefPtr<LayerManager> layerManager = nsnull;
 
             if (ownerDoc)
-              layerManager = nsContentUtils::LayerManagerForDocument(ownerDoc);
+              layerManager =
+                nsContentUtils::PersistentLayerManagerForDocument(ownerDoc);
 
             if (layerManager) {
               surface = layerManager->CreateOptimalSurface(gfxIntSize(width, height), format);
@@ -2129,7 +2128,7 @@ nsCanvasRenderingContext2D::ArcTo(float x1, float y1, float x2, float y2, float 
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Arc(float x, float y, float r, float startAngle, float endAngle, int ccw)
+nsCanvasRenderingContext2D::Arc(float x, float y, float r, float startAngle, float endAngle, PRBool ccw)
 {
     if (!FloatValidate(x,y,r,startAngle,endAngle))
         return NS_ERROR_DOM_SYNTAX_ERR;
@@ -2801,9 +2800,11 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
 
     gfxContextPathAutoSaveRestore pathSR(mThebes, PR_FALSE);
 
-    // back up path if stroking
-    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
+    // back up and clear path if stroking
+    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
         pathSR.Save();
+        mThebes->NewPath();
+    }
     // doUseIntermediateSurface is mutually exclusive to op == STROKE
     else {
         if (doUseIntermediateSurface) {
@@ -3562,41 +3563,6 @@ nsCanvasRenderingContext2D::GetGlobalCompositeOperation(nsAString& op)
     return NS_OK;
 }
 
-
-static void
-FlushLayoutForTree(nsIDOMWindow* aWindow)
-{
-    nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
-    if (!piWin)
-        return;
-
-    // Note that because FlushPendingNotifications flushes parents, this
-    // is O(N^2) in docshell tree depth.  However, the docshell tree is
-    // usually pretty shallow.
-
-    nsCOMPtr<nsIDOMDocument> domDoc;
-    aWindow->GetDocument(getter_AddRefs(domDoc));
-    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-    if (doc) {
-        doc->FlushPendingNotifications(Flush_Layout);
-    }
-
-    nsCOMPtr<nsIDocShellTreeNode> node =
-        do_QueryInterface(piWin->GetDocShell());
-    if (node) {
-        PRInt32 i = 0, i_end;
-        node->GetChildCount(&i_end);
-        for (; i < i_end; ++i) {
-            nsCOMPtr<nsIDocShellTreeItem> item;
-            node->GetChildAt(i, getter_AddRefs(item));
-            nsCOMPtr<nsIDOMWindow> win = do_GetInterface(item);
-            if (win) {
-                FlushLayoutForTree(win);
-            }
-        }
-    }
-}
-
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY,
                                        float aW, float aH,
@@ -3625,7 +3591,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 
     // Flush layout updates
     if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
-        FlushLayoutForTree(aWindow);
+        nsContentUtils::FlushLayoutForTree(aWindow);
 
     nsRefPtr<nsPresContext> presContext;
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);
@@ -3919,7 +3885,9 @@ nsCanvasRenderingContext2D::PutImageData()
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32 w, PRUint32 h,
-                                                  unsigned char *aData, PRUint32 aDataLen)
+                                                  unsigned char *aData, PRUint32 aDataLen,
+                                                  PRBool hasDirtyRect, PRInt32 dirtyX, PRInt32 dirtyY,
+                                                  PRInt32 dirtyWidth, PRInt32 dirtyHeight)
 {
     if (!mValid)
         return NS_ERROR_FAILURE;
@@ -3927,8 +3895,49 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     if (w == 0 || h == 0)
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
-        return NS_ERROR_DOM_SYNTAX_ERR;
+    gfxRect dirtyRect;
+    gfxRect imageDataRect(0, 0, w, h);
+
+    if (hasDirtyRect) {
+        // fix up negative dimensions
+        if (dirtyWidth < 0) {
+            NS_ENSURE_TRUE(dirtyWidth != INT_MIN, NS_ERROR_DOM_INDEX_SIZE_ERR);
+
+            CheckedInt32 checkedDirtyX = CheckedInt32(dirtyX) + dirtyWidth;
+
+            if (!checkedDirtyX.valid())
+                return NS_ERROR_DOM_INDEX_SIZE_ERR;
+
+            dirtyX = checkedDirtyX.value();
+            dirtyWidth = -(int32)dirtyWidth;
+        }
+
+        if (dirtyHeight < 0) {
+            NS_ENSURE_TRUE(dirtyHeight != INT_MIN, NS_ERROR_DOM_INDEX_SIZE_ERR);
+
+            CheckedInt32 checkedDirtyY = CheckedInt32(dirtyY) + dirtyHeight;
+
+            if (!checkedDirtyY.valid())
+                return NS_ERROR_DOM_INDEX_SIZE_ERR;
+
+            dirtyY = checkedDirtyY.value();
+            dirtyHeight = -(int32)dirtyHeight;
+        }
+
+        // bound the dirty rect within the imageData rectangle
+        dirtyRect = imageDataRect.Intersect(gfxRect(dirtyX, dirtyY, dirtyWidth, dirtyHeight));
+
+        if (dirtyRect.Width() <= 0 || dirtyRect.Height() <= 0)
+            return NS_OK;
+    } else {
+        dirtyRect = imageDataRect;
+    }
+
+    dirtyRect.MoveBy(gfxPoint(x, y));
+    dirtyRect = gfxRect(0, 0, mWidth, mHeight).Intersect(dirtyRect);
+
+    if (dirtyRect.Width() <= 0 || dirtyRect.Height() <= 0)
+        return NS_OK;
 
     PRUint32 len = w * h * 4;
     if (aDataLen != len)
@@ -3974,14 +3983,13 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     mThebes->ResetClip();
 
     mThebes->IdentityMatrix();
-    mThebes->Translate(gfxPoint(x, y));
     mThebes->NewPath();
-    mThebes->Rectangle(gfxRect(0, 0, w, h));
-    mThebes->SetSource(imgsurf, gfxPoint(0, 0));
+    mThebes->Rectangle(dirtyRect);
+    mThebes->SetSource(imgsurf, gfxPoint(x, y));
     mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
     mThebes->Fill();
 
-    return Redraw(gfxRect(x, y, w, h));
+    return Redraw(dirtyRect);
 }
 
 NS_IMETHODIMP

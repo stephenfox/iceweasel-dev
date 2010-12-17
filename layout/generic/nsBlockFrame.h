@@ -184,6 +184,7 @@ public:
                           nsIFrame*       aOldFrame);
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nscoord GetBaseline() const;
+  virtual nscoord GetCaretBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual nsSplittableType GetSplittableType() const;
@@ -377,7 +378,7 @@ protected:
                    nsLineList::iterator* aEndIterator,
                    PRBool* aInOverflowLines);
 
-  void SetFlags(PRUint32 aFlags) {
+  void SetFlags(nsFrameState aFlags) {
     mState &= ~NS_BLOCK_FLAGS_MASK;
     mState |= aFlags;
   }

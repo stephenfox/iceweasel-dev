@@ -19,9 +19,10 @@
 		 android:debuggable="true">
         <activity android:name="App"
                   android:label="@MOZ_APP_DISPLAYNAME@"
-                  android:configChanges="keyboard|keyboardHidden|orientation|mcc|mnc"
+                  android:configChanges="keyboard|keyboardHidden|mcc|mnc"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
-                  android:launchMode="singleTask">
+                  android:launchMode="singleTask"
+                  android:theme="@android:style/Theme.Light.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -72,7 +73,8 @@
             </intent-filter>
         </activity>
 
-        <activity android:enabled="true" android:name="Restarter">
+        <activity android:name="Restarter"
+                  android:theme="@android:style/Theme.Light.NoTitleBar">
           <intent-filter>
             <action android:name="org.mozilla.gecko.restart@MOZ_APP_NAME@" 
 		    android:process="@MOZ_APP_NAME@Restarter"/>
@@ -81,8 +83,7 @@
 #if MOZ_CRASHREPORTER
 	<activity android:name="CrashReporter"
                   android:label="@MOZ_APP_DISPLAYNAME@ Crash Reporter"
-		  android:icon="@drawable/crash_reporter"
-		  android:process="org.mozilla.@MOZ_APP_NAME@.crashReporter" >
+		  android:icon="@drawable/crash_reporter" >
           <intent-filter>
             <action android:name="org.mozilla.gecko.reportCrash" />
           </intent-filter>

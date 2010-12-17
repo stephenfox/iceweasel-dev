@@ -204,6 +204,25 @@ PRBool WebGLContext::ValidateBlendFuncSrcEnum(WebGLenum factor, const char *info
         return ValidateBlendFuncDstEnum(factor, info);
 }
 
+PRBool WebGLContext::ValidateBlendFuncEnumsCompatibility(WebGLenum sfactor, WebGLenum dfactor, const char *info)
+{
+    PRBool sfactorIsConstantColor = sfactor == LOCAL_GL_CONSTANT_COLOR ||
+                                    sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
+    PRBool sfactorIsConstantAlpha = sfactor == LOCAL_GL_CONSTANT_ALPHA ||
+                                    sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA;
+    PRBool dfactorIsConstantColor = dfactor == LOCAL_GL_CONSTANT_COLOR ||
+                                    dfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
+    PRBool dfactorIsConstantAlpha = dfactor == LOCAL_GL_CONSTANT_ALPHA ||
+                                    dfactor == LOCAL_GL_ONE_MINUS_CONSTANT_ALPHA;
+    if ( (sfactorIsConstantColor && dfactorIsConstantAlpha) ||
+         (dfactorIsConstantColor && sfactorIsConstantAlpha) ) {
+        ErrorInvalidOperation("%s are mutually incompatible, see section 6.8 in the WebGL 1.0 spec", info);
+        return PR_FALSE;
+    } else {
+        return PR_TRUE;
+    }
+}
+
 PRBool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *info)
 {
     switch (target) {
@@ -362,10 +381,6 @@ WebGLContext::InitAndValidateGL()
     mBoundElementArrayBuffer = nsnull;
     mCurrentProgram = nsnull;
 
-    mFramebufferColorAttachments.Clear();
-    mFramebufferDepthAttachment = nsnull;
-    mFramebufferStencilAttachment = nsnull;
-
     mBoundFramebuffer = nsnull;
     mBoundRenderbuffer = nsnull;
 
@@ -433,7 +448,7 @@ WebGLContext::InitAndValidateGL()
     // Always 1 for GLES2
     val = 1;
 #endif
-    mFramebufferColorAttachments.SetLength(val);
+    mMaxFramebufferColorAttachments = val;
 
 #if defined(DEBUG_vladimir) && defined(USE_GLES2)
     gl->fGetIntegerv(LOCAL_GL_IMPLEMENTATION_COLOR_READ_FORMAT, (GLint*) &val);
@@ -467,6 +482,10 @@ WebGLContext::InitAndValidateGL()
 
     gl->fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT,   (GLint*) &mPixelStorePackAlignment);
     gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, (GLint*) &mPixelStoreUnpackAlignment);
+
+    gl->fGetIntegerv(LOCAL_GL_STENCIL_WRITEMASK, (GLint*) &mStencilWriteMask);
+    gl->fGetIntegerv(LOCAL_GL_STENCIL_VALUE_MASK, (GLint*) &mStencilValueMask);
+    gl->fGetIntegerv(LOCAL_GL_STENCIL_REF, (GLint*) &mStencilRef);
 
     // Check the shader validator pref
     nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);

@@ -107,6 +107,7 @@ struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
 class imgIRequest;
+class nsISHEntry;
 
 namespace mozilla {
 namespace css {
@@ -121,8 +122,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x7fb1e97d, 0xbd2c, 0x47cf, \
-  { 0xa3, 0x05, 0x5b, 0x31, 0xd4, 0x1d, 0x3a, 0x52 } }
+{ 0xc38a7935, 0xc854, 0x4df7, \
+  { 0x8f, 0xd4, 0xa2, 0x6f, 0x0d, 0x27, 0x9f, 0x31 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -450,11 +451,16 @@ public:
 
   nsIPresShell* GetShell() const
   {
-    return mShellIsHidden ? nsnull : mPresShell;
+    return GetBFCacheEntry() ? nsnull : mPresShell;
   }
 
-  void SetShellHidden(PRBool aHide) { mShellIsHidden = aHide; }
-  PRBool ShellIsHidden() const { return mShellIsHidden; }
+  void SetBFCacheEntry(nsISHEntry* aSHEntry) {
+    mSHEntry = aSHEntry;
+    // Doing this just to keep binary compat for the gecko 2.0 release
+    mShellIsHidden = !!aSHEntry;
+  }
+
+  nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -1280,6 +1286,11 @@ public:
   virtual nsSMILAnimationController* GetAnimationController() = 0;
 #endif // MOZ_SMIL
 
+  // Makes the images on this document capable of having their animation
+  // active or suspended. An Image will animate as long as at least one of its
+  // owning Documents needs it to animate; otherwise it can suspend.
+  virtual void SetImagesNeedAnimating(PRBool aAnimating) = 0;
+
   /**
    * Prevents user initiated events from being dispatched to the document and
    * subdocuments.
@@ -1589,6 +1600,8 @@ protected:
   // document in it.
   PRPackedBool mIsInitialDocumentInWindow;
 
+  // True if we're currently bfcached. This is only here for binary compat.
+  // Remove once the gecko 2.0 has branched and just use mSHEntry instead.
   PRPackedBool mShellIsHidden;
 
   PRPackedBool mIsRegularHTML;
@@ -1701,6 +1714,10 @@ protected:
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
   AnimationListenerList mAnimationFrameListeners;
+
+  // The session history entry in which we're currently bf-cached. Non-null
+  // if and only if we're currently in the bfcache.
+  nsISHEntry* mSHEntry;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

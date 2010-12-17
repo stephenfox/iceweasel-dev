@@ -47,6 +47,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsDOMLists.h"
+#include "nsIDocument.h"
 
 class nsIScriptContext;
 class nsPIDOMWindow;
@@ -79,6 +80,9 @@ public:
          DatabaseInfo* aDatabaseInfo,
          const nsACString& aASCIIOrigin);
 
+  // nsPIDOMEventTarget
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+
   PRUint32 Id()
   {
     return mDatabaseId;
@@ -104,6 +108,13 @@ public:
   {
     NS_ASSERTION(mOwner, "This should never be null!");
     return mOwner;
+  }
+
+  already_AddRefed<nsIDocument> GetOwnerDocument()
+  {
+    NS_ASSERTION(mOwner, "This should never be null!");
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mOwner->GetExtantDocument());
+    return doc.forget();
   }
 
   bool IsQuotaDisabled();
@@ -132,7 +143,6 @@ private:
 
   PRUint32 mDatabaseId;
   nsString mName;
-  nsString mDescription;
   nsString mFilePath;
   nsCString mASCIIOrigin;
 
@@ -142,6 +152,8 @@ private:
 
   // Only touched on the main thread.
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnVersionChangeListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnBlockedListener;
 };
 
 END_INDEXEDDB_NAMESPACE

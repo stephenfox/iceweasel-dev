@@ -512,13 +512,6 @@ public:
    */
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
-  /**
-   * If aIn can be represented exactly using an nsIntRect (i.e.
-   * integer-aligned edges and coordinates in the PRInt32 range) then we
-   * set aOut to that rectangle, otherwise return failure.
-   */
-  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
-
   enum {
     PAINT_IN_TRANSFORM = 0x01,
     PAINT_SYNC_DECODE_IMAGES = 0x02,
@@ -672,7 +665,7 @@ public:
    * @param aFontMetrics the font metrics result
    * @return success or failure code
    */
-  static nsresult GetFontMetricsForFrame(nsIFrame* aFrame,
+  static nsresult GetFontMetricsForFrame(const nsIFrame* aFrame,
                                          nsIFontMetrics** aFontMetrics);
 
   /**

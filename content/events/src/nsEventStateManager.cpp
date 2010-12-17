@@ -290,8 +290,13 @@ nsUITimerCallback::Notify(nsITimer* aTimer)
   if ((gMouseOrKeyboardEventCounter == mPreviousCount) || !aTimer) {
     gMouseOrKeyboardEventCounter = 0;
     obs->NotifyObservers(nsnull, "user-interaction-inactive", nsnull);
+    if (gUserInteractionTimer) {
+      gUserInteractionTimer->Cancel();
+      NS_RELEASE(gUserInteractionTimer);
+    }
   } else {
     obs->NotifyObservers(nsnull, "user-interaction-active", nsnull);
+    nsEventStateManager::UpdateUserActivityTimer();
   }
   mPreviousCount = gMouseOrKeyboardEventCounter;
   return NS_OK;
@@ -784,17 +789,28 @@ nsEventStateManager::nsEventStateManager()
 {
   if (sESMInstanceCount == 0) {
     gUserInteractionTimerCallback = new nsUITimerCallback();
-    if (gUserInteractionTimerCallback) {
+    if (gUserInteractionTimerCallback)
       NS_ADDREF(gUserInteractionTimerCallback);
-      CallCreateInstance("@mozilla.org/timer;1", &gUserInteractionTimer);
-      if (gUserInteractionTimer) {
-        gUserInteractionTimer->InitWithCallback(gUserInteractionTimerCallback,
-                                                NS_USER_INTERACTION_INTERVAL,
-                                                nsITimer::TYPE_REPEATING_SLACK);
-      }
-    }
+    UpdateUserActivityTimer();
   }
   ++sESMInstanceCount;
+}
+
+nsresult
+nsEventStateManager::UpdateUserActivityTimer(void)
+{
+  if (!gUserInteractionTimerCallback)
+    return NS_OK;
+
+  if (!gUserInteractionTimer)
+    CallCreateInstance("@mozilla.org/timer;1", &gUserInteractionTimer);
+
+  if (gUserInteractionTimer) {
+    gUserInteractionTimer->InitWithCallback(gUserInteractionTimerCallback,
+                                            NS_USER_INTERACTION_INTERVAL,
+                                            nsITimer::TYPE_ONE_SHOT);
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1071,6 +1087,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         mozilla::services::GetObserverService();
       if (obs) {
         obs->NotifyObservers(nsnull, "user-interaction-active", nsnull);
+        UpdateUserActivityTimer();
       }
     }
     ++gMouseOrKeyboardEventCounter;
@@ -2773,6 +2790,7 @@ nsEventStateManager::DecideGestureEvent(nsGestureNotifyEvent* aEvent,
   aEvent->panDirection = panDirection;
 }
 
+#ifdef XP_MACOSX
 static bool
 NodeAllowsClickThrough(nsINode* aNode)
 {
@@ -2793,6 +2811,7 @@ NodeAllowsClickThrough(nsINode* aNode)
   }
   return true;
 }
+#endif
 
 NS_IMETHODIMP
 nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
@@ -3014,15 +3033,18 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         }
 
         if (aEvent->message == NS_MOUSE_PIXEL_SCROLL) {
-          if (action == MOUSE_SCROLL_N_LINES) {
+          if (action == MOUSE_SCROLL_N_LINES ||
+              (msEvent->scrollFlags & nsMouseScrollEvent::kIsMomentum)) {
              action = MOUSE_SCROLL_PIXELS;
           } else {
             // Do not scroll pixels when zooming
             action = -1;
           }
         } else if (msEvent->scrollFlags & nsMouseScrollEvent::kHasPixels) {
-          if (action == MOUSE_SCROLL_N_LINES) {
-            // We shouldn't scroll lines when a pixel scroll event will follow.
+          if (action == MOUSE_SCROLL_N_LINES ||
+              (msEvent->scrollFlags & nsMouseScrollEvent::kIsMomentum)) {
+            // Don't scroll lines when a pixel scroll event will follow.
+            // Also, don't do history scrolling or zooming for momentum scrolls.
             action = -1;
           }
         }
@@ -3805,6 +3827,8 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
   switch(aEvent->message) {
   case NS_DRAGDROP_OVER:
     {
+      // when dragging from one frame to another, events are fired in the
+      // order: dragexit, dragenter, dragleave
       if (mLastDragOverFrame != mCurrentTarget) {
         //We'll need the content, too, to check if it changed separately from the frames.
         nsCOMPtr<nsIContent> lastContent;
@@ -3815,14 +3839,17 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
           //The frame has changed but the content may not have. Check before dispatching to content
           mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
-          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
-                              targetContent, lastContent, mLastDragOverFrame);
           FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
                               targetContent, lastContent, mLastDragOverFrame);
         }
 
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_ENTER,
                             lastContent, targetContent, mCurrentTarget);
+
+        if (mLastDragOverFrame) {
+          FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
+                              targetContent, lastContent, mLastDragOverFrame);
+        }
 
         mLastDragOverFrame = mCurrentTarget;
       }
@@ -3836,9 +3863,9 @@ nsEventStateManager::GenerateDragDropEnterExit(nsPresContext* aPresContext,
         nsCOMPtr<nsIContent> lastContent;
         mLastDragOverFrame->GetContentForEvent(aPresContext, aEvent, getter_AddRefs(lastContent));
 
-        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
-                            nsnull, lastContent, mLastDragOverFrame);
         FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_EXIT_SYNTH,
+                            nsnull, lastContent, mLastDragOverFrame);
+        FireDragEnterOrExit(aPresContext, aEvent, NS_DRAGDROP_LEAVE_SYNTH,
                             nsnull, lastContent, mLastDragOverFrame);
 
         mLastDragOverFrame = nsnull;

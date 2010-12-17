@@ -42,6 +42,8 @@
 #include "nsUnicharUtils.h"
 #include "nsPrintfCString.h"
 #include "mozilla/FunctionTimer.h"
+#include "prenv.h"
+#include "prprf.h"
 
 #if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
 #include "nsExceptionHandler.h"
@@ -169,17 +171,15 @@ GfxInfo::Init()
   displayDevice.cb = sizeof(displayDevice);
   int deviceIndex = 0;
 
+  mDeviceKeyDebug = NS_LITERAL_STRING("PrimarySearch");
+
   while (EnumDisplayDevicesW(NULL, deviceIndex, &displayDevice, 0)) {
-    if (displayDevice.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)
+    if (displayDevice.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) {
+      mDeviceKeyDebug = NS_LITERAL_STRING("NullSearch");
       break;
+    }
     deviceIndex++;
   }
-
-  /* DeviceKey is "reserved" according to MSDN so we'll be careful with it */
-  /* check that DeviceKey begins with DEVICE_KEY_PREFIX */
-  /* some systems have a DeviceKey starting with \REGISTRY\Machine\ so we need to compare case insenstively */
-  if (_wcsnicmp(displayDevice.DeviceKey, DEVICE_KEY_PREFIX, NS_ARRAY_LENGTH(DEVICE_KEY_PREFIX)-1) != 0)
-    return;
 
   // make sure the string is NULL terminated
   if (wcsnlen(displayDevice.DeviceKey, NS_ARRAY_LENGTH(displayDevice.DeviceKey))
@@ -187,6 +187,14 @@ GfxInfo::Init()
     // we did not find a NULL
     return;
   }
+
+  mDeviceKeyDebug = displayDevice.DeviceKey;
+
+  /* DeviceKey is "reserved" according to MSDN so we'll be careful with it */
+  /* check that DeviceKey begins with DEVICE_KEY_PREFIX */
+  /* some systems have a DeviceKey starting with \REGISTRY\Machine\ so we need to compare case insenstively */
+  if (_wcsnicmp(displayDevice.DeviceKey, DEVICE_KEY_PREFIX, NS_ARRAY_LENGTH(DEVICE_KEY_PREFIX)-1) != 0)
+    return;
 
   // chop off DEVICE_KEY_PREFIX
   mDeviceKey = displayDevice.DeviceKey + NS_ARRAY_LENGTH(DEVICE_KEY_PREFIX)-1;
@@ -274,6 +282,12 @@ GfxInfo::GetAdapterDriver(nsAString & aAdapterDriver)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDriverVersion(nsAString & aAdapterDriverVersion)
 {
+  const char *spoofedDriverVersionString = PR_GetEnv("MOZ_GFX_SPOOF_DRIVER_VERSION");
+  if (spoofedDriverVersionString) {
+    aAdapterDriverVersion.AssignASCII(spoofedDriverVersionString);
+    return NS_OK;
+  }
+
   aAdapterDriverVersion = mDriverVersion;
   return NS_OK;
 }
@@ -290,6 +304,13 @@ GfxInfo::GetAdapterDriverDate(nsAString & aAdapterDriverDate)
 NS_IMETHODIMP
 GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
 {
+  const char *spoofedVendor = PR_GetEnv("MOZ_GFX_SPOOF_VENDOR_ID");
+  if (spoofedVendor &&
+      1 == PR_sscanf(spoofedVendor, "%x", aAdapterVendorID))
+  {
+      return NS_OK;
+  }
+
   nsAutoString vendor(mDeviceID);
   ToUpperCase(vendor);
   PRInt32 start = vendor.Find(NS_LITERAL_CSTRING("VEN_"));
@@ -306,6 +327,13 @@ GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
 {
+  const char *spoofedDevice = PR_GetEnv("MOZ_GFX_SPOOF_DEVICE_ID");
+  if (spoofedDevice &&
+      1 == PR_sscanf(spoofedDevice, "%x", aAdapterDeviceID))
+  {
+      return NS_OK;
+  }
+
   nsAutoString device(mDeviceID);
   ToUpperCase(device);
   PRInt32 start = device.Find(NS_LITERAL_CSTRING("&DEV_"));
@@ -342,7 +370,16 @@ GfxInfo::AddCrashReportAnnotations()
   nsCAutoString note;
   /* AppendPrintf only supports 32 character strings, mrghh. */
   note.AppendPrintf("AdapterVendorID: %04x, ", vendorID);
-  note.AppendPrintf("AdapterDeviceID: %04x\n", deviceID);
+  note.AppendPrintf("AdapterDeviceID: %04x", deviceID);
+
+  if (vendorID == 0) {
+      /* if we didn't find a valid vendorID lets append the mDeviceID string to try to find out why */
+      note.Append(", ");
+      note.AppendWithConversion(mDeviceID);
+      note.Append(", ");
+      note.AppendWithConversion(mDeviceKeyDebug);
+  }
+  note.Append("\n");
 
   CrashReporter::AppendAppNotesToCrashReport(note);
 
@@ -577,13 +614,6 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
 
   PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
 
-  if (aFeature == FEATURE_DIRECT3D_9_LAYERS &&
-      gfxWindowsPlatform::WindowsOSVersion() < gfxWindowsPlatform::kWindowsXP)
-  {
-    *aStatus = FEATURE_BLOCKED_OS_VERSION;
-    return NS_OK;
-  }
-
   PRUint32 adapterVendor = 0;
   PRUint32 adapterDeviceID = 0;
   nsAutoString adapterDriverVersionString;
@@ -598,14 +628,30 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32 *aStatus, nsAString & aS
   if (!ParseDriverVersion(adapterDriverVersionString, &driverVersion)) {
     return NS_ERROR_FAILURE;
   }
-
+  
   PRUint64 suggestedDriverVersion = 0;
+
+  PRInt32 windowsVersion = 0;
+  const char *spoofedWindowsVersion = PR_GetEnv("MOZ_GFX_SPOOF_WINDOWS_VERSION");
+  if (spoofedWindowsVersion) {
+    if (1 != PR_sscanf(spoofedWindowsVersion, "%x", &windowsVersion))
+      return NS_ERROR_FAILURE;
+  } else {
+    windowsVersion = gfxWindowsPlatform::WindowsOSVersion();
+  }
+
+  if (aFeature == FEATURE_DIRECT3D_9_LAYERS &&
+      windowsVersion < gfxWindowsPlatform::kWindowsXP)
+  {
+    *aStatus = FEATURE_BLOCKED_OS_VERSION;
+    return NS_OK;
+  }
 
   const GfxDriverInfo *info = &driverInfo[0];
   while (info->windowsVersion) {
 
     if (info->windowsVersion != allWindowsVersions &&
-        info->windowsVersion != gfxWindowsPlatform::WindowsOSVersion())
+        info->windowsVersion != windowsVersion)
     {
       info++;
       continue;

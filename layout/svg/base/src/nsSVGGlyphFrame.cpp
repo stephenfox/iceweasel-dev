@@ -43,11 +43,10 @@
 #include "SVGLengthList.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGRect.h"
-#include "nsIDOMSVGPoint.h"
+#include "DOMSVGPoint.h"
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsSVGPathElement.h"
-#include "nsSVGPoint.h"
 #include "nsSVGRect.h"
 #include "nsDOMError.h"
 #include "gfxContext.h"
@@ -131,6 +130,13 @@ public:
   PRBool SetupForDirectTextRunMetrics(gfxContext *aContext) {
     return SetupForDirectTextRun(aContext, mMetricsScale);
   }
+  /**
+   * We are scaling the glyphs up/down to the size we want so we need to
+   * inverse scale the outline widths of those glyphs so they are invariant
+   */
+  void SetLineWidthForDrawing(gfxContext *aContext) {
+    aContext->SetLineWidth(aContext->CurrentLineWidth() / mDrawScale);
+  }
 
   /**
    * Returns the index of the next char in the string that should be
@@ -144,6 +150,20 @@ public:
    * out of bounds, or not drawable).
    */
   PRBool AdvanceToCharacter(PRInt32 aIndex);
+
+  /**
+   * Resets the iterator to the beginning of the string.
+   */
+  void Reset() {
+    // There are two ways mInError can be set
+    // a) If there was a problem creating the iterator (mCurrentChar == -1)
+    // b) If we ran off the end of the string (mCurrentChar != -1)
+    // We can only reset the mInError flag in case b)
+    if (mCurrentChar != -1) {
+      mCurrentChar = -1;
+      mInError = PR_FALSE;
+    }
+  }
 
   /**
    * Set up aContext for glyph drawing. This applies any global transform
@@ -356,11 +376,11 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
   gfx->Save();
   SetupGlobalTransform(gfx);
 
+  CharacterIterator iter(this, PR_TRUE);
+  iter.SetInitialMatrix(gfx);
+
   if (SetupCairoFill(gfx)) {
     gfxMatrix matrix = gfx->CurrentMatrix();
-    CharacterIterator iter(this, PR_TRUE);
-    iter.SetInitialMatrix(gfx);
-
     FillCharacters(&iter, gfx);
     gfx->SetMatrix(matrix);
   }
@@ -368,8 +388,7 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
   if (SetupCairoStroke(gfx)) {
     // SetupCairoStroke will clear mTextRun whenever
     // there is a pattern or gradient on the text
-    CharacterIterator iter(this, PR_TRUE);
-    iter.SetInitialMatrix(gfx);
+    iter.Reset();
 
     gfx->NewPath();
     AddCharactersToPath(&iter, gfx);
@@ -386,10 +405,6 @@ nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-#ifdef DEBUG
-  //printf("nsSVGGlyphFrame(%p)::GetFrameForPoint\n", this);
-#endif
-
   if (!mRect.Contains(aPoint))
     return nsnull;
 
@@ -465,7 +480,7 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
   SetMatrixPropagation(PR_FALSE);
   CharacterIterator iter(this, PR_TRUE);
   iter.SetInitialMatrix(tmpCtx);
-  AddBoundingBoxesToPath(&iter, tmpCtx); // iter is now unsafe to use! (at end)
+  AddBoundingBoxesToPath(&iter, tmpCtx);
   SetMatrixPropagation(PR_TRUE);
   tmpCtx->IdentityMatrix();
 
@@ -546,6 +561,7 @@ void
 nsSVGGlyphFrame::AddCharactersToPath(CharacterIterator *aIter,
                                      gfxContext *aContext)
 {
+  aIter->SetLineWidthForDrawing(aContext);
   if (aIter->SetupForDirectTextRunDrawing(aContext)) {
     mTextRun->DrawToPath(aContext, gfxPoint(0, 0), 0,
                          mTextRun->GetLength(), nsnull, nsnull);
@@ -1082,7 +1098,8 @@ nsSVGGlyphFrame::GetStartPositionOfChar(PRUint32 charnum,
   if (!iter.AdvanceToCharacter(charnum))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  return NS_NewSVGPoint(_retval, iter.GetPositionData().pos);
+  NS_ADDREF(*_retval = new DOMSVGPoint(iter.GetPositionData().pos));
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1099,7 +1116,8 @@ nsSVGGlyphFrame::GetEndPositionOfChar(PRUint32 charnum,
   iter.SetupForMetrics(tmpCtx);
   tmpCtx->MoveTo(gfxPoint(mTextRun->GetAdvanceWidth(charnum, 1, nsnull), 0));
   tmpCtx->IdentityMatrix();
-  return NS_NewSVGPoint(_retval, tmpCtx->CurrentPoint());
+  NS_ADDREF(*_retval = new DOMSVGPoint(tmpCtx->CurrentPoint()));
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1235,7 +1253,7 @@ nsSVGGlyphFrame::GetEffectiveDxDy(PRInt32 strLength, nsTArray<float> &aDx, nsTAr
   aDy.AppendElements(dy.Elements() + mStartIndex, dyCount);
 }
 
-already_AddRefed<nsIDOMSVGNumberList>
+const SVGNumberList*
 nsSVGGlyphFrame::GetRotate()
 {
   nsSVGTextContainerFrame *containerFrame;
@@ -1619,17 +1637,21 @@ CharacterIterator::SetupForDirectTextRun(gfxContext *aContext, float aScale)
   aContext->SetMatrix(mInitialMatrix);
   aContext->Translate(mSource->mPosition);
   aContext->Scale(aScale, aScale);
-  // We are scaling the glyphs up/down to the size we want so we need to
-  // inverse scale the outline widths of those glyphs so they are invariant
-  aContext->SetLineWidth(aContext->CurrentLineWidth() / aScale);
   return PR_TRUE;
 }
 
 PRInt32
 CharacterIterator::NextChar()
 {
-  if (mInError)
+  if (mInError) {
+#ifdef DEBUG
+    if (mCurrentChar != -1) {
+      PRBool pastEnd = (mCurrentChar >= PRInt32(mSource->mTextRun->GetLength()));
+      NS_ABORT_IF_FALSE(pastEnd, "Past the end of CharacterIterator. Missing Reset?");
+    }
+#endif
     return -1;
+  }
 
   while (PR_TRUE) {
     if (mCurrentChar >= 0 &&
@@ -1639,8 +1661,10 @@ CharacterIterator::NextChar()
     }
     ++mCurrentChar;
 
-    if (mCurrentChar >= PRInt32(mSource->mTextRun->GetLength()))
+    if (mCurrentChar >= PRInt32(mSource->mTextRun->GetLength())) {
+      mInError = PR_TRUE;
       return -1;
+    }
 
     if (mPositions.IsEmpty() || mPositions[mCurrentChar].draw)
       return mCurrentChar;
@@ -1672,9 +1696,6 @@ CharacterIterator::SetupFor(gfxContext *aContext, float aScale)
     aContext->Rotate(mPositions[mCurrentChar].angle);
     aContext->Scale(aScale, aScale);
   }
-  // We are scaling the glyphs up/down to the size we want so we need to
-  // inverse scale the outline widths of those glyphs so they are invariant
-  aContext->SetLineWidth(aContext->CurrentLineWidth() / aScale);
 }
 
 CharacterPosition

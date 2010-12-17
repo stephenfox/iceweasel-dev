@@ -136,15 +136,25 @@ public:
    * @param aBuildCaret whether or not we should include the caret in any
    * display lists that we make.
    */
-  nsDisplayListBuilder(nsIFrame* aReferenceFrame, PRBool aIsForEvents,
-                       PRBool aBuildCaret);
+  enum Mode {
+	PAINTING,
+	EVENT_DELIVERY,
+	PLUGIN_GEOMETRY,
+	OTHER
+  };
+  nsDisplayListBuilder(nsIFrame* aReferenceFrame, Mode aMode, PRBool aBuildCaret);
   ~nsDisplayListBuilder();
 
   /**
    * @return PR_TRUE if the display is being built in order to determine which
    * frame is under the mouse position.
    */
-  PRBool IsForEventDelivery() { return mEventDelivery; }
+  PRBool IsForEventDelivery() { return mMode == EVENT_DELIVERY; }
+  /**
+   * @return PR_TRUE if the display list is being build to compute geometry
+   * for plugins.
+   */
+  PRBool IsForPluginGeometry() { return mMode == PLUGIN_GEOMETRY; }
   /**
    * @return PR_TRUE if "painting is suppressed" during page load and we
    * should paint only the background of the document.
@@ -195,11 +205,15 @@ public:
    */
   nsIFrame* GetIgnoreScrollFrame() { return mIgnoreScrollFrame; }
   /**
-   * Calling this setter makes us:
-   * 1. include all positioned descendant frames in the display list,
-   *    wherever they may be positioned (even outside the dirty rects).
-   * 2. exclude all leaf frames that does not have the NS_FRAME_SELECTED_CONTENT
-   *    bit.
+   * Calling this setter makes us include all out-of-flow descendant
+   * frames in the display list, wherever they may be positioned (even
+   * outside the dirty rects).
+   */
+  void SetIncludeAllOutOfFlows() { mIncludeAllOutOfFlows = PR_TRUE; }
+  PRBool GetIncludeAllOutOfFlows() const { return mIncludeAllOutOfFlows; }
+  /**
+   * Calling this setter makes us exclude all leaf frames that does
+   * not have the NS_FRAME_SELECTED_CONTENT bit.
    */
   void SetSelectedFramesOnly() { mSelectedFramesOnly = PR_TRUE; }
   PRBool GetSelectedFramesOnly() { return mSelectedFramesOnly; }
@@ -319,6 +333,17 @@ public:
    * Return the FrameLayerBuilder.
    */
   FrameLayerBuilder* LayerBuilder() { return &mLayerBuilder; }
+
+  /**
+   * Returns true if we need to descend into this frame when building
+   * the display list, even though it doesn't intersect the dirty
+   * rect, because it may have out-of-flows that do so.
+   */
+  bool ShouldDescendIntoFrame(nsIFrame* aFrame) const {
+    return
+      (aFrame->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO) ||
+      GetIncludeAllOutOfFlows();
+  }
   
   /**
    * Allocate memory in our arena. It will only be freed when this display list
@@ -393,11 +418,12 @@ private:
   nsAutoTArray<PresShellState,8> mPresShellStates;
   nsAutoTArray<nsIFrame*,100>    mFramesMarkedForDisplay;
   nsDisplayTableItem*            mCurrentTableItem;
+  Mode                           mMode;
   PRPackedBool                   mBuildCaret;
-  PRPackedBool                   mEventDelivery;
   PRPackedBool                   mIgnoreSuppression;
   PRPackedBool                   mHadToIgnoreSuppression;
   PRPackedBool                   mIsAtRootOfPseudoStackingContext;
+  PRPackedBool                   mIncludeAllOutOfFlows;
   PRPackedBool                   mSelectedFramesOnly;
   PRPackedBool                   mAccurateVisibleRegions;
   // True when we're building a display list that's directly or indirectly

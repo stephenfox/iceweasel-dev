@@ -64,7 +64,9 @@
 #define VISTA_VERSION                     0x600
 #define WIN7_VERSION                      0x601
 
-#define WM_XP_THEMECHANGED                0x031A
+#ifndef WM_THEMECHANGED
+#define WM_THEMECHANGED                   0x031A
+#endif
 
 #ifndef WM_GETOBJECT
 #define WM_GETOBJECT                      0x03d
@@ -214,11 +216,11 @@ typedef enum
  * touchpad scrolling or screen readers.
  */
 const PRUint32 kMaxClassNameLength   = 40;
-const LPCWSTR kClassNameHidden       = L"MozillaHiddenWindowClass";
-const LPCWSTR kClassNameGeneral      = L"MozillaWindowClass";
-const LPCWSTR kClassNameDialog       = L"MozillaDialogClass";
-const LPCWSTR kClassNameDropShadow   = L"MozillaDropShadowWindowClass";
-const LPCWSTR kClassNameTemp         = L"MozillaTempWindowClass";
+const char kClassNameHidden[]        = "MozillaHiddenWindowClass";
+const char kClassNameGeneral[]       = "MozillaWindowClass";
+const char kClassNameDialog[]        = "MozillaDialogClass";
+const char kClassNameDropShadow[]    = "MozillaDropShadowWindowClass";
+const char kClassNameTemp[]          = "MozillaTempWindowClass";
 
 static const PRUint32 sModifierKeyMap[][3] = {
   { nsIWidget::CAPS_LOCK, VK_CAPITAL, 0 },

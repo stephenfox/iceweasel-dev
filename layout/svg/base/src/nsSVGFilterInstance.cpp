@@ -41,6 +41,7 @@
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterElement.h"
 #include "nsLayoutUtils.h"
+#include "gfxUtils.h"
 
 static double Square(double aX)
 {
@@ -165,7 +166,7 @@ nsSVGFilterInstance::BuildSources()
   gfxRect sourceBounds = UserSpaceToFilterSpace(mTargetBBox);
   sourceBounds.RoundOut();
   // Detect possible float->int overflow
-  if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
+  if (!gfxUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt))
     return NS_ERROR_FAILURE;
 
   mSourceColorAlpha.mResultBoundingBox = sourceBoundsInt;
@@ -356,9 +357,8 @@ nsSVGFilterInstance::BuildSourceImages()
     r = m.TransformBounds(r);
     r.RoundOut();
     nsIntRect dirty;
-    nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &dirty);
-    if (NS_FAILED(rv))
-      return rv;
+    if (!gfxUtils::GfxRectToIntRect(r, &dirty))
+      return NS_ERROR_FAILURE;
 
     // SVG graphics paint to device space, so we need to set an initial device
     // space to filter space transform on the gfxContext that SourceGraphic
@@ -494,13 +494,19 @@ nsSVGFilterInstance::Render(gfxASurface** aOutput)
       
       ColorModel desiredColorModel =
         primitive->mFE->GetInputColorModel(this, j, &input->mImage);
+      if (j == 0) {
+        // the output colour model is whatever in1 is if there is an in1
+        primitive->mImage.mColorModel = desiredColorModel;
+      }
       EnsureColorModel(input, desiredColorModel);
       NS_ASSERTION(input->mImage.mImage->Stride() == primitive->mImage.mImage->Stride(),
                    "stride mismatch");
       inputs.AppendElement(&input->mImage);
     }
 
-    primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
+    if (primitive->mInputs.Length() == 0) {
+      primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
+    }
 
     rv = primitive->mFE->Filter(this, inputs, &primitive->mImage, dataRect);
     if (NS_FAILED(rv))

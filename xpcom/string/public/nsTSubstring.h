@@ -418,6 +418,17 @@ class nsTSubstring_CharT
           AppendPrintf( fmt, aInteger );
         }
 
+      /**
+       * Append the given float to this string 
+       */
+      void AppendFloat( float aFloat )
+                      { DoAppendFloat(aFloat, 6); }
+      void AppendFloat( double aFloat )
+                      { DoAppendFloat(aFloat, 15); }
+  private:
+      NS_COM void NS_FASTCALL DoAppendFloat( double aFloat, int digits );
+  public:
+
     // AppendLiteral must ONLY be applied to an actual literal string.
     // Do not attempt to use it with a regular char* pointer, or with a char
     // array variable. Use AppendASCII for those.
@@ -659,8 +670,25 @@ class nsTSubstring_CharT
          * this function returns false if is unable to allocate sufficient
          * memory.
          */
-      PRBool NS_FASTCALL ReplacePrep( index_type cutStart, size_type cutLength, size_type newLength );
+      PRBool ReplacePrep(index_type cutStart, size_type cutLength,
+                         size_type newLength)
+      {
+        cutLength = NS_MIN(cutLength, mLength - cutStart);
+        PRUint32 newTotalLen = mLength - cutLength + newLength;
+        if (cutStart == mLength && Capacity() > newTotalLen) {
+          mFlags &= ~F_VOIDED;
+          mData[newTotalLen] = char_type(0);
+          mLength = newTotalLen;
+          return PR_TRUE;
+        }
+        return ReplacePrepInternal(cutStart, cutLength, newLength, newTotalLen);
+      }
 
+      PRBool NS_FASTCALL ReplacePrepInternal(index_type cutStart,
+                                             size_type cutLength,
+                                             size_type newFragLength,
+                                             size_type newTotalLength);
+      
         /**
          * returns the number of writable storage units starting at mData.
          * the value does not include space for the null-terminator character.

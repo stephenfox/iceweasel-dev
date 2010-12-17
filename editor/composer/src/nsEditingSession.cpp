@@ -451,8 +451,13 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
   nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(docShell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIEditor> editor = do_CreateInstance(classString, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // Try to reuse an existing editor
+  nsCOMPtr<nsIEditor> editor = do_QueryReferent(mExistingEditor);
+  if (!editor) {
+    editor = do_CreateInstance(classString, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    mExistingEditor = do_GetWeakReference(editor);
+  }
   // set the editor on the docShell. The docShell now owns it.
   rv = editorDocShell->SetEditor(editor);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1026,9 +1031,9 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
     {
       // To keep pre Gecko 1.9 behavior, setup editor always when
       // mMakeWholeDocumentEditable.
-      PRBool needsSetup;
+      bool needsSetup = false;
       if (mMakeWholeDocumentEditable) {
-        needsSetup = PR_TRUE;
+        needsSetup = true;
       } else {
         // do we already have an editor here?
         nsCOMPtr<nsIEditor> editor;

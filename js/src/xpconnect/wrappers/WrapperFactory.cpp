@@ -48,6 +48,7 @@
 #include "XPCWrapper.h"
 
 #include "xpcprivate.h"
+#include "xpcmaps.h"
 
 namespace xpc {
 
@@ -168,24 +169,8 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj
         NS_ASSERTION(IS_WN_WRAPPER(obj), "bad object");
 
         XPCWrappedNative *newwn = static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
-        if (newwn->GetSet()->GetInterfaceCount() == 1) {
-            // Some objects claim to implement nsIClassInfo, but don't
-            // actually implement GetInterfaces. In those cases, the
-            // newly-created WN will not have any useful functions or
-            // properties on it. We detect that here and use the old WN's
-            // set on the new wrapper.
-
-#ifdef DEBUG
-            {
-                XPCNativeInterface *iface = newwn->GetSet()->GetInterfaceAt(0);
-                JSString *name = JSID_TO_STRING(iface->GetName());
-                NS_ASSERTION(!strcmp("nsISupports", JS_GetStringBytes(name)), "weird interface");
-            }
-#endif
-
+        if (newwn->GetSet()->GetInterfaceCount() < wn->GetSet()->GetInterfaceCount())
             newwn->SetSet(wn->GetSet());
-        }
-
     }
 
     return DoubleWrap(cx, obj, flags);
@@ -323,10 +308,33 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
     obj = GetCurrentOuter(cx, obj);
 
     {
-        js::SwitchToCompartment sc(cx, obj->compartment());
-        obj = JSWrapper::New(cx, obj, NULL, obj->getGlobal(), &WaiveXrayWrapperWrapper);
-        if (!obj)
-            return false;
+        // See if we already have a waiver wrapper for this object.
+        CompartmentPrivate *priv =
+            (CompartmentPrivate *)JS_GetCompartmentPrivate(cx, obj->compartment());
+        JSObject *wobj = nsnull;
+        if (priv && priv->waiverWrapperMap)
+            wobj = priv->waiverWrapperMap->Find(obj);
+
+        // No wrapper yet, make one.
+        if (!wobj) {
+            js::SwitchToCompartment sc(cx, obj->compartment());
+            wobj = JSWrapper::New(cx, obj, NULL, obj->getGlobal(), &WaiveXrayWrapperWrapper);
+            if (!wobj)
+                return false;
+
+            // Add the new wrapper so we find it next time.
+            if (priv) {
+                if (!priv->waiverWrapperMap) {
+                    priv->waiverWrapperMap = JSObject2JSObjectMap::newMap(XPC_WRAPPER_MAP_SIZE);
+                    if (!priv->waiverWrapperMap)
+                        return false;
+                }
+                if (!priv->waiverWrapperMap->Add(obj, wobj))
+                    return false;
+            }
+        }
+
+        obj = wobj;
     }
 
     *vp = OBJECT_TO_JSVAL(obj);

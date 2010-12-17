@@ -399,9 +399,8 @@
 
             var button = aEvent.target.buttonInfo;
             if (button.popup) {
-              document.popupNode = aEvent.target;
               document.getElementById(button.popup).
-                showPopup(aEvent.originalTarget, -1, -1, "popup", "bottomleft", "topleft");
+                openPopup(aEvent.originalTarget, "after_start", 0, 0, false, false, aEvent);
               aEvent.stopPropagation();
             }
             else {
@@ -423,9 +422,9 @@
     <content align="start">
       <xul:image class="popup-notification-icon"
                  xbl:inherits="popupid"/>
-      <xul:vbox>
+      <xul:vbox flex="1">
         <xul:description class="popup-notification-description"
-                         xbl:inherits="value=label"/>
+                         xbl:inherits="xbl:text=label"/>
         <xul:spacer flex="1"/>
         <xul:hbox pack="end">
           <xul:button anonid="button"
@@ -439,6 +438,9 @@
         </xul:hbox>
       </xul:vbox>
     </content>
+    <resources>
+      <stylesheet src="chrome://global/skin/notification.css"/>
+    </resources>
     <implementation>
       <field name="button" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "button");

@@ -550,11 +550,30 @@ nsBlockFrame::InvalidateInternal(const nsRect& aDamageRect,
 nscoord
 nsBlockFrame::GetBaseline() const
 {
-  NS_ASSERTION(!NS_SUBTREE_DIRTY(this), "frame must not be dirty");
   nscoord result;
   if (nsLayoutUtils::GetLastLineBaseline(this, &result))
     return result;
   return nsFrame::GetBaseline();
+}
+
+nscoord
+nsBlockFrame::GetCaretBaseline() const
+{
+  nsRect contentRect = GetContentRect();
+  nsMargin bp = GetUsedBorderAndPadding();
+
+  if (!mLines.empty()) {
+    const_line_iterator line = begin_lines();
+    const nsLineBox* firstLine = line;
+    if (firstLine->GetChildCount()) {
+      return bp.top + firstLine->mFirstChild->GetCaretBaseline();
+    }
+  }
+  nsCOMPtr<nsIFontMetrics> fm;
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  return nsLayoutUtils::GetCenteredFontBaseline(fm, nsHTMLReflowState::
+      CalcLineHeight(GetStyleContext(), contentRect.height)) +
+    bp.top;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -6083,8 +6102,11 @@ DisplayLine(nsDisplayListBuilder* aBuilder, const nsRect& aLineArea,
   // The line might contain a placeholder for a visible out-of-flow, in which
   // case we need to descend into it. If there is such a placeholder, we will
   // have NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO set.
-  if (!intersect &&
-      !(aFrame->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO))
+  // In particular, we really want to check ShouldDescendIntoFrame()
+  // on all the frames on the line, but that might be expensive.  So
+  // we approximate it by checking it on aFrame; if it's true for any
+  // frame in the line, it's also true for aFrame.
+  if (!intersect && !aBuilder->ShouldDescendIntoFrame(aFrame))
     return NS_OK;
 
   nsresult rv;
@@ -6158,8 +6180,12 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Don't use the line cursor if we might have a descendant placeholder ...
   // it might skip lines that contain placeholders but don't themselves
   // intersect with the dirty area.
-  nsLineBox* cursor = GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO
-    ? nsnull : GetFirstLineContaining(aDirtyRect.y);
+  // In particular, we really want to check ShouldDescendIntoFrame()
+  // on all our child frames, but that might be expensive.  So we
+  // approximate it by checking it on |this|; if it's true for any
+  // frame in our child list, it's also true for |this|.
+  nsLineBox* cursor = aBuilder->ShouldDescendIntoFrame(this) ?
+    nsnull : GetFirstLineContaining(aDirtyRect.y);
   line_iterator line_end = end_lines();
   nsresult rv = NS_OK;
   

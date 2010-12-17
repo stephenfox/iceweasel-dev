@@ -445,9 +445,8 @@ nsAttrValue::ToString(nsAString& aResult) const
 #endif
     case eFloatValue:
     {
-      nsAutoString str;
-      str.AppendFloat(GetFloatValue());
-      aResult = str;
+      aResult.Truncate();
+      aResult.AppendFloat(GetFloatValue());
       break;
     }
     default:
@@ -1073,11 +1072,7 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString,
   PRInt32 val = NS_MAX(originalVal, 0);
 
   // % (percent)
-  // XXX RFindChar means that 5%x will be parsed!
   if (aCanBePercent && (isPercent || tmp.RFindChar('%') >= 0)) {
-    if (val > 100) {
-      val = 100;
-    }
     isPercent = PR_TRUE;
   }
 

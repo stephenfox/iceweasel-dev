@@ -64,9 +64,8 @@ public:
     enum {
         NOTIFY_IME_RESETINPUTSTATE = 0,
         NOTIFY_IME_SETOPENSTATE = 1,
-        NOTIFY_IME_SETENABLED = 2,
-        NOTIFY_IME_CANCELCOMPOSITION = 3,
-        NOTIFY_IME_FOCUSCHANGE = 4
+        NOTIFY_IME_CANCELCOMPOSITION = 2,
+        NOTIFY_IME_FOCUSCHANGE = 3
     };
 
     static AndroidBridge *ConstructBridge(JNIEnv *jEnv,
@@ -107,6 +106,9 @@ public:
     /* These are all implemented in Java */
     static void NotifyIME(int aType, int aState);
 
+    static void NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
+                                 const nsAString& aActionHint);
+
     static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
 
     void EnableAccelerometer(bool aEnable);
@@ -140,7 +142,7 @@ public:
                            const nsAString& aAction = EmptyString(),
                            const nsAString& aTitle = EmptyString());
 
-    void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
+    void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
 
     void MoveTaskToBack();
 
@@ -168,11 +170,22 @@ public:
 
     int GetDPI();
 
-    void ShowFilePicker(nsAString& aFilePath);
+    void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
+
+    void PerformHapticFeedback(PRBool aIsLongPress);
+
+    void SetFullScreen(PRBool aFullScreen);
+
+    void ShowInputMethodPicker();
+
+    void HideProgressDialogOnce();
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
-            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
+            // Make sure there is enough space to store a local ref to the
+            // exception.  I am not completely sure this is needed, but does
+            // not hurt.
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries + 1);
         }
         // Note! Calling Purge makes all previous local refs created in
         // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
@@ -182,6 +195,12 @@ public:
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
         ~AutoLocalJNIFrame() {
+            jthrowable exception =
+                AndroidBridge::Bridge()->JNI()->ExceptionOccurred();
+            if (exception) {
+                AndroidBridge::Bridge()->JNI()->ExceptionDescribe();
+                AndroidBridge::Bridge()->JNI()->ExceptionClear();
+            }
             AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
         }
         int mEntries;
@@ -215,6 +234,7 @@ protected:
 
     // other things
     jmethodID jNotifyIME;
+    jmethodID jNotifyIMEEnabled;
     jmethodID jNotifyIMEChange;
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;
@@ -226,7 +246,7 @@ protected:
     jmethodID jGetHandlersForMimeType;
     jmethodID jGetHandlersForProtocol;
     jmethodID jOpenUriExternal;
-    jmethodID jGetMimeTypeFromExtension;
+    jmethodID jGetMimeTypeFromExtensions;
     jmethodID jMoveTaskToBack;
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
@@ -235,6 +255,10 @@ protected:
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
+    jmethodID jSetFullScreen;
+    jmethodID jShowInputMethodPicker;
+    jmethodID jHideProgressDialog;
+    jmethodID jPerformHapticFeedback;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

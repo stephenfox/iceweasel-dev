@@ -169,7 +169,7 @@ public:
     int BeginDrawing();
     jobject GetSoftwareDrawBuffer();
     void EndDrawing();
-    void Draw2D(jobject buffer);
+    void Draw2D(jobject buffer, int stride);
 
     // must have a JNI local frame when calling this,
     // and you'd better know what you're doing
@@ -449,7 +449,10 @@ public:
         SIZE_CHANGED = 7,
         ACTIVITY_STOPPING = 8,
         ACTIVITY_PAUSING = 9,
-        LOAD_URI = 10,
+        ACTIVITY_SHUTDOWN = 10,
+        LOAD_URI = 11,
+        SURFACE_CREATED = 12,
+        SURFACE_DESTROYED = 13,
         dummy_java_enum_list_end
     };
 

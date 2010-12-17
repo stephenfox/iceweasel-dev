@@ -290,9 +290,9 @@ nsGeolocationRequest::Notify(nsITimer* aTimer)
   // provider yet, cancel the request.  Same logic as
   // ::Cancel, just a different error
   
-  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
   // remove ourselves from the locator's callback lists.
   mLocator->RemoveRequest(this);
+  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
 
   mTimeoutTimer = nsnull;
   return NS_OK;
@@ -338,10 +338,10 @@ nsGeolocationRequest::GetElement(nsIDOMElement * *aRequestingElement)
 NS_IMETHODIMP
 nsGeolocationRequest::Cancel()
 {
-  NotifyError(nsIDOMGeoPositionError::PERMISSION_DENIED);
-
   // remove ourselves from the locators callback lists.
   mLocator->RemoveRequest(this);
+
+  NotifyError(nsIDOMGeoPositionError::PERMISSION_DENIED);
   return NS_OK;
 }
 
@@ -455,6 +455,10 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 void
 nsGeolocationRequest::Shutdown()
 {
+  if (mTimeoutTimer) {
+    mTimeoutTimer->Cancel();
+    mTimeoutTimer = nsnull;
+  }
   mCleared = PR_TRUE;
   mCallback = nsnull;
   mErrorCallback = nsnull;
@@ -749,7 +753,7 @@ nsGeolocationService::StartDevice()
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendGeolocationStart();
+    cpc->SendAddGeolocationListener();
     return NS_OK;
   }
 #endif
@@ -794,7 +798,7 @@ nsGeolocationService::StopDevice()
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendGeolocationStop();
+    cpc->SendRemoveGeolocationListener();
     return; // bail early
   }
 #endif

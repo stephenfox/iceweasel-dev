@@ -50,7 +50,6 @@
 #include "nsWeakReference.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIAuthPromptProvider.h"
-#include "nsISSLStatusProvider.h"
 #include "nsISecureBrowserUI.h"
 
 class nsFrameLoader;
@@ -70,13 +69,12 @@ class TabParent : public PBrowserParent
                 , public nsITabParent 
                 , public nsIAuthPromptProvider
                 , public nsISecureBrowserUI
-                , public nsISSLStatusProvider
 {
 public:
     TabParent();
     virtual ~TabParent();
     nsIDOMElement* GetOwnerElement() { return mFrameElement; }
-    void SetOwnerElement(nsIDOMElement* aElement) { mFrameElement = aElement; }
+    void SetOwnerElement(nsIDOMElement* aElement);
     nsIBrowserDOMWindow *GetBrowserDOMWindow() { return mBrowserDOMWindow; }
     void SetBrowserDOMWindow(nsIBrowserDOMWindow* aBrowserDOMWindow) {
         mBrowserDOMWindow = aBrowserDOMWindow;
@@ -88,7 +86,7 @@ public:
     virtual bool AnswerCreateWindow(PBrowserParent** retval);
     virtual bool RecvSyncMessage(const nsString& aMessage,
                                  const nsString& aJSON,
-                                 nsTArray<nsString>* aJSONRetVal);
+                                 InfallibleTArray<nsString>* aJSONRetVal);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const nsString& aJSON);
     virtual bool RecvNotifyIMEFocus(const PRBool& aFocus,
@@ -104,19 +102,21 @@ public:
     virtual bool RecvEndIMEComposition(const PRBool& aCancel,
                                        nsString* aComposition);
     virtual bool RecvGetIMEEnabled(PRUint32* aValue);
-    virtual bool RecvSetIMEEnabled(const PRUint32& aValue);
+    virtual bool RecvSetInputMode(const PRUint32& aValue, const nsString& aType, const nsString& aAction);
     virtual bool RecvGetIMEOpenState(PRBool* aValue);
     virtual bool RecvSetIMEOpenState(const PRBool& aValue);
+    virtual bool RecvGetDPI(float* aValue);
     virtual PContentDialogParent* AllocPContentDialog(const PRUint32& aType,
                                                       const nsCString& aName,
                                                       const nsCString& aFeatures,
-                                                      const nsTArray<int>& aIntParams,
-                                                      const nsTArray<nsString>& aStringParams);
+                                                      const InfallibleTArray<int>& aIntParams,
+                                                      const InfallibleTArray<nsString>& aStringParams);
     virtual bool DeallocPContentDialog(PContentDialogParent* aDialog)
     {
       delete aDialog;
       return true;
     }
+
 
     void LoadURL(nsIURI* aURI);
     // XXX/cjones: it's not clear what we gain by hiding these
@@ -154,7 +154,6 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIAUTHPROMPTPROVIDER
     NS_DECL_NSISECUREBROWSERUI
-    NS_DECL_NSISSLSTATUSPROVIDER
 
     void HandleDelayedDialogs();
 
@@ -167,7 +166,7 @@ protected:
     bool ReceiveMessage(const nsString& aMessage,
                         PRBool aSync,
                         const nsString& aJSON,
-                        nsTArray<nsString>* aJSONRetVal = nsnull);
+                        InfallibleTArray<nsString>* aJSONRetVal = nsnull);
 
     void ActorDestroy(ActorDestroyReason why);
 
@@ -189,7 +188,7 @@ protected:
       nsCString mFeatures;
       nsCOMPtr<nsIDialogParamBlock> mParams;
     };
-    nsTArray<DelayedDialogData*> mDelayedDialogs;
+    InfallibleTArray<DelayedDialogData*> mDelayedDialogs;
 
     PRBool ShouldDelayDialogs();
     PRBool AllowContentIME();
@@ -198,10 +197,6 @@ protected:
     virtual PRenderFrameParent* AllocPRenderFrame();
     NS_OVERRIDE
     virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame);
-
-    PRUint32 mSecurityState;
-    nsString mSecurityTooltipText;
-    nsCOMPtr<nsISupports> mSecurityStatusObject;
 
     // IME
     static TabParent *mIMETabParent;
@@ -215,6 +210,8 @@ protected:
     nsAutoString mIMECompositionText;
     PRUint32 mIMECompositionStart;
     PRUint32 mIMESeqno;
+
+    float mDPI;
 
 private:
     already_AddRefed<nsFrameLoader> GetFrameLoader() const;

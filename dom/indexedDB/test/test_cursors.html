@@ -100,15 +100,15 @@
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          let retval = cursor.continue();
-          is(retval, true, "Correct return from continue");
+          cursor.continue();
 
           try {
             cursor.continue();
             ok(false, "continue twice should throw");
           }
           catch (e) {
-            ok(true, "continue twice should throw");
+            ok(e instanceof IDBDatabaseException, "got a database exception");
+            is(e.code, IDBDatabaseException.NOT_ALLOWED_ERR, "correct code");
           }
 
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
@@ -126,7 +126,7 @@
 
       keyIndex = 4;
 
-      let range = moz_indexedDB.makeBoundKeyRange(2000, "q");
+      let range = IDBKeyRange.bound(2000, "q");
       request = objectStore.openCursor(range);
       request.onerror = errorHandler;
       request.onsuccess = function (event) {
@@ -135,8 +135,7 @@
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          let retval = cursor.continue();
-          is(retval, true, "Correct return from continue");
+          cursor.continue();
 
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
@@ -161,8 +160,12 @@
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          let retval = keyIndex ? cursor.continue() : cursor.continue("b");
-          is(retval, true, "Correct return from continue");
+          if (keyIndex) {
+            cursor.continue();
+          }
+          else {
+            cursor.continue("b");
+          }
 
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
@@ -187,8 +190,12 @@
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          let retval = keyIndex ? cursor.continue() : cursor.continue(10);
-          is(retval, true, "Correct return from continue");
+          if (keyIndex) {
+            cursor.continue();
+          }
+          else {
+            cursor.continue(10);
+          }
 
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
@@ -213,13 +220,17 @@
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          let retval = keyIndex ? cursor.continue() : cursor.continue("c");
-          is(retval, true, "Correct return from continue");
+          if (keyIndex) {
+            cursor.continue();
+          }
+          else {
+            cursor.continue("c");
+          }
 
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          keyIndex++;
+          keyIndex += keyIndex ? 1 : 7;
         }
         else {
           testGenerator.next();
@@ -286,7 +297,7 @@
           is(cursor.value, "foo", "Correct value");
 
           if (keyIndex == 4) {
-            request = cursor.remove();
+            request = cursor.delete();
             request.onerror = errorHandler;
             request.onsuccess = function(event) {
               is(event.result, sortedKeys[4], "Correct key");
@@ -327,8 +338,7 @@
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");
 
-          let retval = cursor.continue();
-          is(retval, true, "Correct return from continue");
+          cursor.continue();
 
           is(cursor.key, sortedKeys[keyIndex], "Correct key");
           is(cursor.value, "foo", "Correct value");

@@ -677,18 +677,22 @@ nsNavHistory::InitDB()
   nsresult rv = mDBConn->GetSchemaVersion(&currentSchemaVersion);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Get the page size.  This may be different than the default if the
-  // database file already existed with a different page size.
-  nsCOMPtr<mozIStorageStatement> statement;
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING("PRAGMA page_size"),
-                                getter_AddRefs(statement));
-  NS_ENSURE_SUCCESS(rv, rv);
+  PRInt32 pageSize = 0;
+  {
+    // Get the page size.  This may be different than the default if the
+    // database file already existed with a different page size.
+    nsCOMPtr<mozIStorageStatement> statement;
+    rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING("PRAGMA page_size"),
+                                  getter_AddRefs(statement));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool hasResult;
-  mozStorageStatementScoper scoper(statement);
-  rv = statement->ExecuteStep(&hasResult);
-  NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && hasResult, NS_ERROR_FAILURE);
-  PRInt32 pageSize = statement->AsInt32(0);
+    PRBool hasResult;
+    mozStorageStatementScoper scoper(statement);
+    rv = statement->ExecuteStep(&hasResult);
+    NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && hasResult, NS_ERROR_FAILURE);
+    pageSize = statement->AsInt32(0);
+  }
+  NS_ASSERTION(pageSize >= 512 && pageSize <= 65536, "Invalid page size.");
 
   // Ensure that temp tables are held in memory, not on disk.  We use temp
   // tables mainly for fsync and I/O reduction.
@@ -734,7 +738,7 @@ nsNavHistory::InitDB()
 
   rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "PRAGMA journal_mode = " DATABASE_JOURNAL_MODE));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "Unable to set journal mode.");
 
   // We are going to initialize tables, so everything from now on should be in
   // a transaction for performances.
@@ -3033,14 +3037,14 @@ nsNavHistory::ExecuteQueries(nsINavHistoryQuery** aQueries, PRUint32 aQueryCount
     queries.AppendObject(query);
   }
 
+  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
+  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
   // root node
   nsRefPtr<nsNavHistoryContainerResultNode> rootNode;
   PRInt64 folderId = GetSimpleBookmarksQueryFolder(queries, options);
   if (folderId) {
     // In the simple case where we're just querying children of a single bookmark
     // folder, we can more efficiently generate results.
-    nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
-    NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
     nsRefPtr<nsNavHistoryResultNode> tempRootNode;
     rv = bookmarks->ResultNodeForContainer(folderId, options,
                                            getter_AddRefs(tempRootNode));
@@ -3053,9 +3057,10 @@ nsNavHistory::ExecuteQueries(nsINavHistoryQuery** aQueries, PRUint32 aQueryCount
     NS_ENSURE_TRUE(rootNode, NS_ERROR_OUT_OF_MEMORY);
   }
 
-  // result object
+  // Create the result that will hold nodes.  Inject batching status into it.
   nsRefPtr<nsNavHistoryResult> result;
-  rv = nsNavHistoryResult::NewHistoryResult(aQueries, aQueryCount, options, rootNode,
+  rv = nsNavHistoryResult::NewHistoryResult(aQueries, aQueryCount, options,
+                                            rootNode, isBatching(),
                                             getter_AddRefs(result));
   NS_ENSURE_SUCCESS(rv, rv);
 

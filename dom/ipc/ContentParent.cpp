@@ -40,9 +40,11 @@
 #include "ContentParent.h"
 
 #include "TabParent.h"
+#include "CrashReporterParent.h"
 #include "History.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/net/NeckoParent.h"
+#include "nsHashPropertyBag.h"
 #include "nsIFilePicker.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
@@ -66,12 +68,19 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsConsoleMessage.h"
+#include "AudioParent.h"
 
 #ifdef MOZ_PERMISSIONS
 #include "nsPermissionManager.h"
 #endif
 
+#ifdef MOZ_CRASHREPORTER
+#include "nsExceptionHandler.h"
+#endif
+
 #include "mozilla/dom/ExternalHelperAppParent.h"
+#include "mozilla/dom/StorageParent.h"
+#include "nsAccelerometer.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -107,7 +116,9 @@ ContentParent::GetSingleton(PRBool aForceNew)
                     }
                 }
                 obs->AddObserver(
-                  parent, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE); 
+                  parent, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE);
+
+                obs->AddObserver(parent, "memory-pressure", PR_FALSE); 
             }
             nsCOMPtr<nsIThreadInternal>
                 threadInt(do_QueryInterface(NS_GetCurrentThread()));
@@ -115,9 +126,34 @@ ContentParent::GetSingleton(PRBool aForceNew)
                 threadInt->GetObserver(getter_AddRefs(parent->mOldObserver));
                 threadInt->SetObserver(parent);
             }
+            if (obs) {
+                obs->NotifyObservers(nsnull, "ipc:content-created", nsnull);
+            }
         }
     }
     return gSingleton;
+}
+
+void
+ContentParent::OnChannelConnected(int32 pid)
+{
+    ProcessHandle handle;
+    if (!base::OpenPrivilegedProcessHandle(pid, &handle)) {
+        NS_WARNING("Can't open handle to child process.");
+    }
+    else {
+        SetOtherProcess(handle);
+    }
+}
+
+namespace {
+void
+DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
+{
+    XRE_GetIOMessageLoop()
+        ->PostTask(FROM_HERE,
+                   new DeleteTask<GeckoChildProcessHost>(aSubprocess));
+}
 }
 
 void
@@ -139,11 +175,39 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     mIsAlive = false;
 
     if (obs) {
-        nsString context = NS_LITERAL_STRING("");
-        if (AbnormalShutdown == why)
-            context.AssignLiteral("abnormal");
-        obs->NotifyObservers(nsnull, "ipc:content-shutdown", context.get());
+        nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
+        props->Init();
+
+        if (AbnormalShutdown == why) {
+            props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), PR_TRUE);
+
+#ifdef MOZ_CRASHREPORTER
+            nsAutoString dumpID;
+
+            nsCOMPtr<nsILocalFile> crashDump;
+            TakeMinidump(getter_AddRefs(crashDump)) &&
+                CrashReporter::GetIDFromMinidump(crashDump, dumpID);
+
+            if (!dumpID.IsEmpty()) {
+                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"),
+                                            dumpID);
+
+                CrashReporter::AnnotationTable notes;
+                notes.Init();
+                notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
+                // TODO: Additional per-process annotations.
+                CrashReporter::AppendExtraData(dumpID, notes);
+            }
+#endif
+
+            obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nsnull);
+        }
     }
+
+    MessageLoop::current()->
+        PostTask(FROM_HERE,
+                 NewRunnableFunction(DelayedDeleteSubprocess, mSubprocess));
+    mSubprocess = NULL;
 }
 
 TabParent*
@@ -184,6 +248,9 @@ ContentParent::ContentParent()
 
 ContentParent::~ContentParent()
 {
+    if (OtherProcess())
+        base::CloseProcessHandle(OtherProcess());
+
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     //If the previous content process has died, a new one could have
     //been started since.
@@ -198,7 +265,7 @@ ContentParent::IsAlive()
 }
 
 bool
-ContentParent::RecvReadPrefsArray(nsTArray<PrefTuple> *prefs)
+ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
 {
     EnsurePrefService();
     mPrefService->MirrorPreferences(prefs);
@@ -217,7 +284,7 @@ ContentParent::EnsurePrefService()
 }
 
 bool
-ContentParent::RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions)
+ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions)
 {
 #ifdef MOZ_PERMISSIONS
     nsRefPtr<nsPermissionManager> permissionManager =
@@ -265,14 +332,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIThreadObserver,
                               nsIDOMGeoPositionCallback)
 
-namespace {
-void
-DeleteSubprocess(GeckoChildProcessHost* aSubprocess)
-{
-    delete aSubprocess;
-}
-}
-
 NS_IMETHODIMP
 ContentParent::Observe(nsISupports* aSubject,
                        const char* aTopic,
@@ -288,20 +347,21 @@ ContentParent::Observe(nsISupports* aSubject,
             }
         }
 
-        RecvGeolocationStop();
+        RecvRemoveGeolocationListener();
             
         Close();
-        XRE_GetIOMessageLoop()->PostTask(
-            FROM_HERE,
-            NewRunnableFunction(DeleteSubprocess, mSubprocess));
-        mSubprocess = nsnull;
+        NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
     }
 
     if (!mIsAlive || !mSubprocess)
         return NS_OK;
 
+    // listening for memory pressure event
+    if (!strcmp(aTopic, "memory-pressure")) {
+        SendFlushMemory(nsDependentString(aData));
+    }
     // listening for remotePrefs...
-    if (!strcmp(aTopic, "nsPref:changed")) {
+    else if (!strcmp(aTopic, "nsPref:changed")) {
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
 
@@ -348,6 +408,19 @@ ContentParent::DeallocPBrowser(PBrowserParent* frame)
   return true;
 }
 
+PCrashReporterParent*
+ContentParent::AllocPCrashReporter()
+{
+  return new CrashReporterParent();
+}
+
+bool
+ContentParent::DeallocPCrashReporter(PCrashReporterParent* crashreporter)
+{
+  delete crashreporter;
+  return true;
+}
+
 PTestShellParent*
 ContentParent::AllocPTestShell()
 {
@@ -359,6 +432,24 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
 {
   delete shell;
   return true;
+}
+ 
+PAudioParent*
+ContentParent::AllocPAudio(const PRInt32& numChannels,
+                           const PRInt32& rate,
+                           const PRInt32& format)
+{
+    AudioParent *parent = new AudioParent(numChannels, rate, format);
+    NS_ADDREF(parent);
+    return parent;
+}
+
+bool
+ContentParent::DeallocPAudio(PAudioParent* doomed)
+{
+    AudioParent *parent = static_cast<AudioParent*>(doomed);
+    NS_RELEASE(parent);
+    return true;
 }
 
 PNeckoParent* 
@@ -379,11 +470,12 @@ ContentParent::AllocPExternalHelperApp(const IPC::URI& uri,
                                        const nsCString& aMimeContentType,
                                        const nsCString& aContentDisposition,
                                        const bool& aForceSave,
-                                       const PRInt64& aContentLength)
+                                       const PRInt64& aContentLength,
+                                       const IPC::URI& aReferrer)
 {
     ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
     parent->AddRef();
-    parent->Init(this, aMimeContentType, aContentDisposition, aForceSave);
+    parent->Init(this, aMimeContentType, aContentDisposition, aForceSave, aReferrer);
     return parent;
 }
 
@@ -392,6 +484,19 @@ ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
 {
     ExternalHelperAppParent *parent = static_cast<ExternalHelperAppParent *>(aService);
     parent->Release();
+    return true;
+}
+
+PStorageParent*
+ContentParent::AllocPStorage(const StorageConstructData& aData)
+{
+    return new StorageParent(aData);
+}
+
+bool
+ContentParent::DeallocPStorage(PStorageParent* aActor)
+{
+    delete aActor;
     return true;
 }
 
@@ -460,9 +565,9 @@ ContentParent::RecvShowFilePicker(const PRInt16& mode,
                                   const nsString& title,
                                   const nsString& defaultFile,
                                   const nsString& defaultExtension,
-                                  const nsTArray<nsString>& filters,
-                                  const nsTArray<nsString>& filterNames,
-                                  nsTArray<nsString>* files,
+                                  const InfallibleTArray<nsString>& filters,
+                                  const InfallibleTArray<nsString>& filterNames,
+                                  InfallibleTArray<nsString>* files,
                                   PRInt16* retValue,
                                   nsresult* result)
 {
@@ -600,7 +705,7 @@ ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsStri
 
 bool
 ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                               nsTArray<nsString>* aRetvals)
+                               InfallibleTArray<nsString>* aRetvals)
 {
   nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
   if (ppm) {
@@ -622,7 +727,7 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 }
 
 bool
-ContentParent::RecvGeolocationStart()
+ContentParent::RecvAddGeolocationListener()
 {
   if (mGeolocationWatchID == -1) {
     nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
@@ -635,7 +740,7 @@ ContentParent::RecvGeolocationStart()
 }
 
 bool
-ContentParent::RecvGeolocationStop()
+ContentParent::RecvRemoveGeolocationListener()
 {
   if (mGeolocationWatchID != -1) {
     nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
@@ -646,6 +751,26 @@ ContentParent::RecvGeolocationStop()
     mGeolocationWatchID = -1;
   }
   return true;
+}
+
+bool
+ContentParent::RecvAddAccelerometerListener()
+{
+    nsCOMPtr<nsIAccelerometer> ac = 
+        do_GetService(NS_ACCELEROMETER_CONTRACTID);
+    if (ac)
+        ac->AddListener(this);
+    return true;
+}
+
+bool
+ContentParent::RecvRemoveAccelerometerListener()
+{
+    nsCOMPtr<nsIAccelerometer> ac = 
+        do_GetService(NS_ACCELEROMETER_CONTRACTID);
+    if (ac)
+        ac->RemoveListener(this);
+    return true;
 }
 
 NS_IMETHODIMP
@@ -689,6 +814,20 @@ ContentParent::RecvScriptError(const nsString& aMessage,
   svc->LogMessage(msg);
   return true;
 }
+
+NS_IMETHODIMP
+ContentParent::OnAccelerationChange(nsIAcceleration *aAcceleration)
+{
+    double x, y, z;
+    aAcceleration->GetX(&x);
+    aAcceleration->GetY(&y);
+    aAcceleration->GetZ(&z);
+
+    mozilla::dom::ContentParent::GetSingleton()->
+        SendAccelerationChanged(x, y, z);
+    return NS_OK;
+}
+
 
 } // namespace dom
 } // namespace mozilla

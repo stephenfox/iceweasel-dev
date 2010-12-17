@@ -36,6 +36,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ContainerLayerD3D9.h"
+#include "gfxUtils.h"
+#include "nsRect.h"
 
 namespace mozilla {
 namespace layers {
@@ -65,6 +67,8 @@ ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
+    } else {
+      mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
@@ -77,6 +81,8 @@ ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
+      } else {
+        mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -93,6 +99,8 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
     mFirstChild = GetFirstChild()->GetNextSibling();
     if (mFirstChild) {
       mFirstChild->SetPrevSibling(nsnull);
+    } else {
+      mLastChild = nsnull;
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -108,6 +116,8 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
+      } else {
+        mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
@@ -134,10 +144,18 @@ ContainerLayerD3D9::GetFirstChildD3D9()
   return static_cast<LayerD3D9*>(mFirstChild->ImplData());
 }
 
-void
-ContainerLayerD3D9::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
+static inline LayerD3D9*
+GetNextSiblingD3D9(LayerD3D9* aLayer)
 {
-  float opacity = GetOpacity() * aOpacity;
+   Layer* layer = aLayer->GetLayer()->GetNextSibling();
+   return layer ? static_cast<LayerD3D9*>(layer->
+                                          ImplData())
+                 : nsnull;
+}
+
+void
+ContainerLayerD3D9::RenderLayer()
+{
   nsRefPtr<IDirect3DSurface9> previousRenderTarget;
   nsRefPtr<IDirect3DTexture9> renderTexture;
   float previousRenderTargetOffset[4];
@@ -145,10 +163,8 @@ ContainerLayerD3D9::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
   float renderTargetOffset[] = { 0, 0, 0, 0 };
   float oldViewMatrix[4][4];
 
-  gfx3DMatrix transform = mTransform * aTransform;
-
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
-  PRBool useIntermediate = ShouldUseIntermediate(opacity, transform);
+  PRBool useIntermediate = UseIntermediateSurface();
 
   if (useIntermediate) {
     device()->GetRenderTarget(0, getter_AddRefs(previousRenderTarget));
@@ -182,9 +198,16 @@ ContainerLayerD3D9::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
   /*
    * Render this container's contents.
    */
-  LayerD3D9 *layerToRender = GetFirstChildD3D9();
-  while (layerToRender) {
-    const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
+  for (LayerD3D9* layerToRender = GetFirstChildD3D9();
+       layerToRender != nsnull;
+       layerToRender = GetNextSiblingD3D9(layerToRender)) {
+
+    const nsIntRect* clipRect = layerToRender->GetLayer()->GetClipRect();
+    if ((clipRect && clipRect->IsEmpty()) ||
+        layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
+      continue;
+    }
+
     if (clipRect || useIntermediate) {
       RECT r;
       device()->GetScissorRect(&oldClipRect);
@@ -223,20 +246,11 @@ ContainerLayerD3D9::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
       device()->SetScissorRect(&r);
     }
 
-    if (!useIntermediate) {
-      layerToRender->RenderLayer(opacity, transform);
-    } else {
-      layerToRender->RenderLayer(1.0, gfx3DMatrix());
-    }
+    layerToRender->RenderLayer();
 
     if (clipRect || useIntermediate) {
       device()->SetScissorRect(&oldClipRect);
     }
-
-    Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
-    layerToRender = nextSibling ? static_cast<LayerD3D9*>(nextSibling->
-                                                          ImplData())
-                                : nsnull;
   }
 
   if (useIntermediate) {
@@ -251,15 +265,7 @@ ContainerLayerD3D9::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
                                                           visibleRect.height),
                                        1);
 
-    device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
-
-    float opacityVector[4];
-    /*
-     * We always upload a 4 component float, but the shader will use only the
-     * first component since it's declared as a 'float'.
-     */
-    opacityVector[0] = opacity;
-    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacityVector, 1);
+    SetShaderTransformAndOpacity();
 
     mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
 
@@ -275,33 +281,6 @@ ContainerLayerD3D9::LayerManagerDestroyed()
     GetFirstChildD3D9()->LayerManagerDestroyed();
     RemoveChild(mFirstChild);
   }
-}
-
-bool
-ContainerLayerD3D9::ShouldUseIntermediate(float aOpacity,
-                                          const gfx3DMatrix &aMatrix)
-{
-  if (aOpacity == 1.0f && aMatrix.IsIdentity()) {
-    return false;
-  }
-
-  Layer *firstChild = GetFirstChild();
-
-  if (!firstChild || (!firstChild->GetNextSibling() &&
-      !firstChild->GetClipRect())) {
-    // If we forward our transform to a child without using an intermediate,
-    // we need to be sure that child does not have a clip rect, since its clip
-    // rect would be applied after our transform.
-    return false;
-  }
-
-  if (aMatrix.IsIdentity() && (!firstChild || !firstChild->GetNextSibling())) {
-    // If there's no transforms applied and a single child, opacity can always
-    // be forwarded to our only child.
-    return false;
-  }
-
-  return true;
 }
 
 } /* layers */

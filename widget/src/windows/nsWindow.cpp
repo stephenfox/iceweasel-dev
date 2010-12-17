@@ -158,6 +158,9 @@
 #include "nsString.h"
 #include "mozilla/Services.h"
 #include "nsNativeThemeWin.h"
+#include "nsWindowsDllInterceptor.h"
+#include "nsIWindowMediator.h"
+#include "nsIServiceManager.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -232,6 +235,7 @@
 #include "nsIXULRuntime.h"
 
 using namespace mozilla::widget;
+using namespace mozilla::layers;
 
 /**************************************************************
  **************************************************************
@@ -251,8 +255,6 @@ using namespace mozilla::widget;
 
 PRUint32        nsWindow::sInstanceCount          = 0;
 PRBool          nsWindow::sSwitchKeyboardLayout   = PR_FALSE;
-BOOL            nsWindow::sIsRegistered           = FALSE;
-BOOL            nsWindow::sIsPopupClassRegistered = FALSE;
 BOOL            nsWindow::sIsOleInitialized       = FALSE;
 HCURSOR         nsWindow::sHCursor                = NULL;
 imgIContainer*  nsWindow::sCursorImgContainer     = nsnull;
@@ -291,8 +293,13 @@ BYTE            nsWindow::sLastMouseButton        = 0;
 // Trim heap on minimize. (initialized, but still true.)
 int             nsWindow::sTrimOnMinimize         = 2;
 
-// Default Trackpoint Hack to off
-PRBool          nsWindow::sTrackPointHack         = PR_FALSE;
+// Default value for Trackpoint hack (used when the pref is set to -1).
+PRBool          nsWindow::sDefaultTrackPointHack  = PR_FALSE;
+// Default value for general window class (used when the pref is the empty string).
+const char*     nsWindow::sDefaultMainWindowClass = kClassNameGeneral;
+
+// If we're using D3D9, this will not be allowed during initial 5 seconds.
+bool            nsWindow::sAllowD3D9              = false;
 
 #ifdef ACCESSIBILITY
 BOOL            nsWindow::sIsAccessibilityOn      = FALSE;
@@ -351,6 +358,9 @@ static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 #endif
 
+// General purpose user32.dll hook object
+static WindowsDllInterceptor sUser32Intercept;
+
 /**************************************************************
  **************************************************************
  **
@@ -404,7 +414,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mExitToNonClientArea  = 0;
   mLastKeyboardLayout   = 0;
   mBlurSuppressLevel    = 0;
-  mIMEEnabled           = nsIWidget::IME_STATUS_ENABLED;
+  mIMEContext.mStatus   = nsIWidget::IME_STATUS_ENABLED;
 #ifdef MOZ_XUL
   mTransparentSurface   = nsnull;
   mMemoryDC             = nsnull;
@@ -442,7 +452,7 @@ nsWindow::nsWindow() : nsBaseWidget()
 #endif
 
 #if !defined(WINCE)
-    InitTrackPointHack();
+    InitInputHackDefaults();
 #endif
 
     // Init titlebar button info for custom frames.
@@ -580,9 +590,14 @@ nsWindow::Create(nsIWidget *aParent,
     }
   }
 
+  nsAutoString className;
+  if (aInitData->mDropShadow) {
+    GetWindowPopupClass(className);
+  } else {
+    GetWindowClass(className);
+  }
   mWnd = ::CreateWindowExW(extendedStyle,
-                           aInitData->mDropShadow ?
-                           WindowPopupClass() : WindowClass(),
+                           className.get(),
                            L"",
                            style,
                            aRect.x,
@@ -606,9 +621,9 @@ nsWindow::Create(nsIWidget *aParent,
   }
 #endif
 
-  if (nsWindow::sTrackPointHack &&
-      mWindowType != eWindowType_plugin &&
-      mWindowType != eWindowType_invisible) {
+  if (mWindowType != eWindowType_plugin &&
+      mWindowType != eWindowType_invisible &&
+      UseTrackPointHack()) {
     // Ugly Thinkpad Driver Hack (Bug 507222)
     // We create an invisible scrollbar to trick the 
     // Trackpoint driver into sending us scrolling messages
@@ -701,8 +716,11 @@ NS_METHOD nsWindow::Destroy()
   
   // Our windows can be subclassed which may prevent us receiving WM_DESTROY. If OnDestroy()
   // didn't get called, call it now.
-  if (PR_FALSE == mOnDestroyCalled)
+  if (PR_FALSE == mOnDestroyCalled) {
+    LRESULT result;
+    mWindowHook.Notify(mWnd, WM_DESTROY, 0, 0, &result);
     OnDestroy();
+  }
 
   return NS_OK;
 }
@@ -716,79 +734,60 @@ NS_METHOD nsWindow::Destroy()
  *
  **************************************************************/
 
-// Return the proper window class for everything except popups.
-LPCWSTR nsWindow::WindowClass()
+void nsWindow::RegisterWindowClass(const nsString& aClassName, UINT aExtraStyle,
+                                   LPWSTR aIconID)
 {
-  if (!nsWindow::sIsRegistered) {
-    WNDCLASSW wc;
-
-//    wc.style         = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-    wc.style         = CS_DBLCLKS;
-    wc.lpfnWndProc   = ::DefWindowProcW;
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = nsToolkit::mDllInstance;
-    wc.hIcon         = ::LoadIconW(::GetModuleHandleW(NULL), (LPWSTR)IDI_APPLICATION);
-    wc.hCursor       = NULL;
-    wc.hbrBackground = mBrush;
-    wc.lpszMenuName  = NULL;
-    wc.lpszClassName = kClassNameHidden;
-
-    BOOL succeeded = ::RegisterClassW(&wc) != 0 && 
-      ERROR_CLASS_ALREADY_EXISTS != GetLastError();
-    nsWindow::sIsRegistered = succeeded;
-
-    wc.lpszClassName = kClassNameGeneral;
-    ATOM generalClassAtom = ::RegisterClassW(&wc);
-    if (!generalClassAtom && 
-      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
-      nsWindow::sIsRegistered = FALSE;
-    }
-
-    wc.lpszClassName = kClassNameDialog;
-    wc.hIcon = 0;
-    if (!::RegisterClassW(&wc) && 
-      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
-      nsWindow::sIsRegistered = FALSE;
-    }
+  WNDCLASSW wc;
+  if (::GetClassInfoW(nsToolkit::mDllInstance, aClassName.get(), &wc)) {
+    // already registered
+    return;
   }
 
-  if (mWindowType == eWindowType_invisible) {
-    return kClassNameHidden;
+  wc.style         = CS_DBLCLKS | aExtraStyle;
+  wc.lpfnWndProc   = ::DefWindowProcW;
+  wc.cbClsExtra    = 0;
+  wc.cbWndExtra    = 0;
+  wc.hInstance     = nsToolkit::mDllInstance;
+  wc.hIcon         = aIconID ? ::LoadIconW(::GetModuleHandleW(NULL), aIconID) : NULL;
+  wc.hCursor       = NULL;
+  wc.hbrBackground = mBrush;
+  wc.lpszMenuName  = NULL;
+  wc.lpszClassName = aClassName.get();
+
+  if (!::RegisterClassW(&wc)) {
+    // For older versions of Win32 (i.e., not XP), the registration may
+    // fail with aExtraStyle, so we have to re-register without it.
+    wc.style = CS_DBLCLKS;
+    ::RegisterClassW(&wc);
   }
-  if (mWindowType == eWindowType_dialog) {
-    return kClassNameDialog;
+}
+
+static LPWSTR const gStockApplicationIcon = MAKEINTRESOURCEW(32512);
+
+// Return the proper window class for everything except popups.
+void nsWindow::GetWindowClass(nsString& aWindowClass)
+{
+  switch (mWindowType) {
+  case eWindowType_invisible:
+    aWindowClass.AssignLiteral(kClassNameHidden);
+    RegisterWindowClass(aWindowClass, 0, gStockApplicationIcon);
+    break;
+  case eWindowType_dialog:
+    aWindowClass.AssignLiteral(kClassNameDialog);
+    RegisterWindowClass(aWindowClass, 0, 0);
+    break;
+  default:
+    GetMainWindowClass(aWindowClass);
+    RegisterWindowClass(aWindowClass, 0, gStockApplicationIcon);
+    break;
   }
-  return kClassNameGeneral;
 }
 
 // Return the proper popup window class
-LPCWSTR nsWindow::WindowPopupClass()
+void nsWindow::GetWindowPopupClass(nsString& aWindowClass)
 {
-  if (!nsWindow::sIsPopupClassRegistered) {
-    WNDCLASSW wc;
-
-    wc.style = CS_DBLCLKS | CS_XP_DROPSHADOW;
-    wc.lpfnWndProc   = ::DefWindowProcW;
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = nsToolkit::mDllInstance;
-    wc.hIcon         = ::LoadIconW(::GetModuleHandleW(NULL), (LPWSTR)IDI_APPLICATION);
-    wc.hCursor       = NULL;
-    wc.hbrBackground = mBrush;
-    wc.lpszMenuName  = NULL;
-    wc.lpszClassName = kClassNameDropShadow;
-
-    nsWindow::sIsPopupClassRegistered = ::RegisterClassW(&wc);
-    if (!nsWindow::sIsPopupClassRegistered) {
-      // For older versions of Win32 (i.e., not XP), the registration will
-      // fail, so we have to re-register without the CS_XP_DROPSHADOW flag.
-      wc.style = CS_DBLCLKS;
-      nsWindow::sIsPopupClassRegistered = ::RegisterClassW(&wc);
-    }
-  }
-
-  return kClassNameDropShadow;
+  aWindowClass.AssignLiteral(kClassNameDropShadow);
+  RegisterWindowClass(aWindowClass, CS_XP_DROPSHADOW, gStockApplicationIcon);
 }
 
 /**************************************************************
@@ -1102,6 +1101,35 @@ nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
 
   return widget;
 }
+ 
+BOOL CALLBACK
+nsWindow::EnumAllChildWindProc(HWND aWnd, LPARAM aParam)
+{
+  nsWindow *wnd = nsWindow::GetNSWindowPtr(aWnd);
+  if (wnd) {
+    ((nsWindow::WindowEnumCallback*)aParam)(wnd);
+  }
+  return TRUE;
+}
+
+BOOL CALLBACK
+nsWindow::EnumAllThreadWindowProc(HWND aWnd, LPARAM aParam)
+{
+  nsWindow *wnd = nsWindow::GetNSWindowPtr(aWnd);
+  if (wnd) {
+    ((nsWindow::WindowEnumCallback*)aParam)(wnd);
+  }
+  EnumChildWindows(aWnd, EnumAllChildWindProc, aParam);
+  return TRUE;
+}
+
+void
+nsWindow::EnumAllWindows(WindowEnumCallback aCallback)
+{
+  EnumThreadWindows(GetCurrentThreadId(),
+                    EnumAllThreadWindowProc,
+                    (LPARAM)&aCallback);
+}
 
 /**************************************************************
  *
@@ -1398,8 +1426,19 @@ NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
     }
 #endif
     ClearThemeRegion();
-    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0,
-                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE));
+
+    UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE;
+    // Workaround SetWindowPos bug with D3D9. If our window has a clip
+    // region, some drivers or OSes may incorrectly copy into the clipped-out
+    // area.
+    if (mWindowType == eWindowType_plugin &&
+        (!mLayerManager || mLayerManager->GetBackendType() == LayerManager::LAYERS_D3D9) &&
+        mClipRects &&
+        (mClipRectCount != 1 || mClipRects[0] != nsIntRect(0, 0, mBounds.width, mBounds.height))) {
+      flags |= SWP_NOCOPYBITS;
+    }
+    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0, flags));
+
     SetThemeRegion();
   }
   return NS_OK;
@@ -1986,6 +2025,50 @@ nsWindow::ResetLayout()
   Invalidate(PR_FALSE);
 }
 
+// Internally track the caption status via a window property. Required
+// due to our internal handling of WM_NCACTIVATE when custom client
+// margins are set.
+static const PRUnichar kManageWindowInfoProperty[] = L"ManageWindowInfoProperty";
+typedef BOOL (WINAPI *GetWindowInfoPtr)(HWND hwnd, PWINDOWINFO pwi);
+static GetWindowInfoPtr sGetWindowInfoPtrStub = NULL;
+
+BOOL WINAPI
+GetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
+{
+  if (!sGetWindowInfoPtrStub) {
+    NS_ASSERTION(FALSE, "Something is horribly wrong in GetWindowInfoHook!");
+    return FALSE;
+  }
+  int windowStatus = 
+    reinterpret_cast<int>(GetPropW(hWnd, kManageWindowInfoProperty));
+  // No property set, return the default data.
+  if (!windowStatus)
+    return sGetWindowInfoPtrStub(hWnd, pwi);
+  // Call GetWindowInfo and update dwWindowStatus with our
+  // internally tracked value. 
+  BOOL result = sGetWindowInfoPtrStub(hWnd, pwi);
+  if (result && pwi)
+    pwi->dwWindowStatus = (windowStatus == 1 ? 0 : WS_ACTIVECAPTION);
+  return result;
+}
+
+void
+nsWindow::UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption)
+{
+  if (!mWnd)
+    return;
+
+  if (!sGetWindowInfoPtrStub) {
+    sUser32Intercept.Init("user32.dll");
+    if (!sUser32Intercept.AddHook("GetWindowInfo", GetWindowInfoHook,
+                                  (void**) &sGetWindowInfoPtrStub))
+      return;
+  }
+  // Update our internally tracked caption status
+  SetPropW(mWnd, kManageWindowInfoProperty, 
+    reinterpret_cast<HANDLE>(static_cast<int>(aActiveCaption) + 1));
+}
+
 // Called when the window layout changes: full screen mode transitions,
 // theme changes, and composition changes. Calculates the new non-client
 // margins and fires off a frame changed event, which triggers an nc calc
@@ -2088,6 +2171,7 @@ nsWindow::SetNonClientMargins(nsIntMargin &margins)
       margins.right == -1 && margins.bottom == -1) {
     mCustomNonClient = PR_FALSE;
     mNonClientMargins = margins;
+    RemovePropW(mWnd, kManageWindowInfoProperty);
     // Force a reflow of content based on the new client
     // dimensions.
     ResetLayout();
@@ -2455,10 +2539,13 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
     margins.cxRightWidth = clientBounds.width - largest.XMost();
     margins.cyBottomHeight = clientBounds.height - largest.YMost();
 
-    // The minimum glass height must be the caption buttons height,
-    // otherwise the buttons are drawn incorrectly.
-    margins.cyTopHeight = PR_MAX(largest.y,
-                                 nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
+    if (mCustomNonClient) {
+      // The minimum glass height must be the caption buttons height,
+      // otherwise the buttons are drawn incorrectly.
+      largest.y = PR_MAX(largest.y, 
+                         nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
+    }
+    margins.cyTopHeight = largest.y;
   }
 
   // Only update glass area if there are changes
@@ -2734,10 +2821,12 @@ NS_IMETHODIMP nsWindow::Update()
 // Return some native data according to aDataType
 void* nsWindow::GetNativeData(PRUint32 aDataType)
 {
+  nsAutoString className;
   switch (aDataType) {
     case NS_NATIVE_TMP_WINDOW:
+      GetWindowClass(className);
       return (void*)::CreateWindowExW(mIsRTL ? WS_EX_LAYOUTRTL : 0,
-                                      WindowClass(),
+                                      className.get(),
                                       L"",
                                       WS_CHILD,
                                       CW_USEDEFAULT,
@@ -3123,14 +3212,36 @@ nsWindow::HasPendingInputEvent()
  **************************************************************/
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(bool* aAllowRetaining)
+nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowRetaining)
 {
   if (aAllowRetaining) {
     *aAllowRetaining = true;
   }
 
 #ifndef WINCE
-  if (!mLayerManager) {
+#ifdef MOZ_ENABLE_D3D10_LAYER
+  if (mLayerManager) {
+    if (mLayerManager->GetBackendType() ==
+        mozilla::layers::LayerManager::LAYERS_D3D10)
+    {
+      mozilla::layers::LayerManagerD3D10 *layerManagerD3D10 =
+        static_cast<mozilla::layers::LayerManagerD3D10*>(mLayerManager.get());
+      if (layerManagerD3D10->device() !=
+          gfxWindowsPlatform::GetPlatform()->GetD3D10Device())
+      {
+        mLayerManager->Destroy();
+        mLayerManager = nsnull;
+      }
+    }
+  }
+#endif
+
+  if (!mLayerManager ||
+      (!sAllowD3D9 && aPersistence == LAYER_MANAGER_PERSISTENT &&
+        mLayerManager->GetBackendType() == 
+        mozilla::layers::LayerManager::LAYERS_BASIC)) {
+    // If D3D9 is not currently allowed but the permanent manager is required,
+    // -and- we're currently using basic layers, run through this check.
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
     PRBool accelerateByDefault = PR_TRUE;
@@ -3169,6 +3280,12 @@ nsWindow::GetLayerManager(bool* aAllowRetaining)
       mUseAcceleratedRendering = PR_TRUE;
 
     if (mUseAcceleratedRendering) {
+      if (aPersistence == LAYER_MANAGER_PERSISTENT && !sAllowD3D9) {
+        // This will clear out our existing layer manager if we have one since
+        // if we hit this with a LayerManager we're always using BasicLayers.
+        nsToolkit::StartAllowingD3D9();
+      }
+
 #ifdef MOZ_ENABLE_D3D10_LAYER
       if (!preferD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
@@ -3179,7 +3296,7 @@ nsWindow::GetLayerManager(bool* aAllowRetaining)
       }
 #endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!preferOpenGL && !mLayerManager) {
+      if (!preferOpenGL && !mLayerManager && sAllowD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize()) {
@@ -4378,7 +4495,6 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
 
     case WM_DEADCHAR:
     case WM_SYSDEADCHAR:
-    case WM_CONTEXTMENU:
 
     case WM_CUT:
     case WM_COPY:
@@ -4523,10 +4639,11 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-    case WM_XP_THEMECHANGED:
+    case WM_THEMECHANGED:
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
+      nsUXThemeData::InitTitlebarInfo();
       nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
@@ -4665,6 +4782,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         // going active
         *aRetValue = FALSE; // ignored
         result = PR_TRUE;
+        UpdateGetWindowInfoCaptionStatus(PR_TRUE);
         // invalidate to trigger a paint
         InvalidateNonClientRegion();
         break;
@@ -4672,6 +4790,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         // going inactive
         *aRetValue = TRUE; // go ahead and deactive
         result = PR_TRUE;
+        UpdateGetWindowInfoCaptionStatus(PR_FALSE);
         // invalidate to trigger a paint
         InvalidateNonClientRegion();
         break;
@@ -5054,20 +5173,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
           nsMouseEvent event(PR_TRUE, NS_MOUSE_ACTIVATE, this,
                              nsMouseEvent::eReal);
           InitEvent(event);
-
-          event.acceptActivation = PR_TRUE;
-  
           DispatchWindowEvent(&event);
 #ifndef WINCE
-          if (event.acceptActivation)
-            *aRetValue = MA_ACTIVATE;
-          else
-            *aRetValue = MA_NOACTIVATE;
-
           if (sSwitchKeyboardLayout && mLastKeyboardLayout)
             ActivateKeyboardLayout(mLastKeyboardLayout, 0);
-#else
-          *aRetValue = 0;
 #endif
         }
       }
@@ -5224,22 +5333,25 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
 #ifndef WINCE
     case WM_SYSCOMMAND:
+    {
+      WPARAM filteredWParam = (wParam &0xFFF0);
       // prevent Windows from trimming the working set. bug 76831
-      if (!sTrimOnMinimize && wParam == SC_MINIMIZE) {
+      if (!sTrimOnMinimize && filteredWParam == SC_MINIMIZE) {
         ::ShowWindow(mWnd, SW_SHOWMINIMIZED);
         result = PR_TRUE;
       }
 
       // Handle the system menu manually when we're in full screen mode
       // so we can set the appropriate options.
-      if (wParam == SC_KEYMENU && lParam == VK_SPACE &&
+      if (filteredWParam == SC_KEYMENU && lParam == VK_SPACE &&
           mSizeMode == nsSizeMode_Fullscreen) {
         DisplaySystemMenu(mWnd, mSizeMode, mIsRTL,
                           MOZ_SYSCONTEXT_X_POS,
                           MOZ_SYSCONTEXT_Y_POS);
         result = PR_TRUE;
       }
-      break;
+    }
+    break;
 #endif
 
 
@@ -5266,7 +5378,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #ifndef WINCE
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   case WM_DWMCOMPOSITIONCHANGED:
+    // First, update the compositor state to latest one. All other methods
+    // should use same state as here for consistency painting.
+    nsUXThemeData::CheckForCompositor(PR_TRUE);
+
     UpdateNonClientMargins();
+    RemovePropW(mWnd, kManageWindowInfoProperty);
     BroadcastMsg(mWnd, WM_DWMCOMPOSITIONCHANGED);
     DispatchStandardEvent(NS_THEMECHANGED);
     UpdateGlass();
@@ -5911,6 +6028,10 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
     printf("SWP_NOSIZE ");
   if (wp->flags & SWP_HIDEWINDOW)
     printf("SWP_HIDEWINDOW ");
+  if (wp->flags & SWP_NOZORDER)
+    printf("SWP_NOZORDER ");
+  if (wp->flags & SWP_NOACTIVATE)
+    printf("SWP_NOACTIVATE ");
   printf("\n");
 #endif
 
@@ -5983,7 +6104,7 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
   }
 
   // Handle window size changes
-  if (0 == (wp->flags & SWP_NOSIZE)) {
+  if (!(wp->flags & SWP_NOSIZE)) {
     RECT r;
     PRInt32 newWidth, newHeight;
 
@@ -7417,6 +7538,37 @@ PRBool nsWindow::AutoErase(HDC dc)
   return PR_FALSE;
 }
 
+void
+nsWindow::AllowD3D9Callback(nsWindow *aWindow)
+{
+  if (aWindow->mLayerManager) {
+    aWindow->mLayerManager->Destroy();
+    aWindow->mLayerManager = NULL;
+  }
+}
+
+void
+nsWindow::AllowD3D9WithReinitializeCallback(nsWindow *aWindow)
+{
+  if (aWindow->mLayerManager) {
+    aWindow->mLayerManager->Destroy();
+    aWindow->mLayerManager = NULL;
+    (void) aWindow->GetLayerManager();
+  }
+}
+
+void
+nsWindow::StartAllowingD3D9(bool aReinitialize)
+{
+  sAllowD3D9 = true;
+
+  if (aReinitialize) {
+    EnumAllWindows(AllowD3D9WithReinitializeCallback);
+  } else {
+    EnumAllWindows(AllowD3D9Callback);
+  }
+}
+
 /**************************************************************
  **************************************************************
  **
@@ -7474,25 +7626,26 @@ NS_IMETHODIMP nsWindow::GetIMEOpenState(PRBool* aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
+NS_IMETHODIMP nsWindow::SetInputMode(const IMEContext& aContext)
 {
+  PRUint32 status = aContext.mStatus;
 #ifdef NS_ENABLE_TSF
-  nsTextStore::SetIMEEnabled(aState);
+  nsTextStore::SetInputMode(aContext);
 #endif //NS_ENABLE_TSF
 #ifdef DEBUG_KBSTATE
-  printf("SetIMEEnabled: %s\n", (aState == nsIWidget::IME_STATUS_ENABLED ||
-                                 aState == nsIWidget::IME_STATUS_PLUGIN)? 
-                                "Enabled": "Disabled");
+  printf("SetInputMode: %s\n", (status == nsIWidget::IME_STATUS_ENABLED ||
+                                status == nsIWidget::IME_STATUS_PLUGIN) ? 
+                               "Enabled" : "Disabled");
 #endif 
   if (nsIMM32Handler::IsComposing()) {
     ResetInputState();
   }
-  mIMEEnabled = aState;
-  PRBool enable = (aState == nsIWidget::IME_STATUS_ENABLED ||
-                   aState == nsIWidget::IME_STATUS_PLUGIN);
+  mIMEContext = aContext;
+  PRBool enable = (status == nsIWidget::IME_STATUS_ENABLED ||
+                   status == nsIWidget::IME_STATUS_PLUGIN);
 
 #if defined(WINCE_HAVE_SOFTKB)
-  sSoftKeyboardState = (aState != nsIWidget::IME_STATUS_DISABLED);
+  sSoftKeyboardState = (status != nsIWidget::IME_STATUS_DISABLED);
   nsWindowCE::ToggleSoftKB(mWnd, sSoftKeyboardState);
 #endif
 
@@ -7504,12 +7657,12 @@ NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWindow::GetIMEEnabled(PRUint32* aState)
+NS_IMETHODIMP nsWindow::GetInputMode(IMEContext& aContext)
 {
 #ifdef DEBUG_KBSTATE
-  printf("GetIMEEnabled: %s\n", mIMEEnabled? "Enabled": "Disabled");
+  printf("GetInputMode: %s\n", mIMEContext.mStatus ? "Enabled" : "Disabled");
 #endif 
-  *aState = mIMEEnabled;
+  aContext = mIMEContext;
   return NS_OK;
 }
 
@@ -7542,7 +7695,7 @@ nsWindow::GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState)
 NS_IMETHODIMP
 nsWindow::OnIMEFocusChange(PRBool aFocus)
 {
-  nsresult rv = nsTextStore::OnFocusChange(aFocus, this, mIMEEnabled);
+  nsresult rv = nsTextStore::OnFocusChange(aFocus, this, mIMEContext.mStatus);
   if (rv == NS_ERROR_NOT_AVAILABLE)
     rv = NS_ERROR_NOT_IMPLEMENTED; // TSF is not enabled, maybe.
   return rv;
@@ -8187,7 +8340,22 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
         //
         // So if we are NOT supposed to be consuming events, let it go through
         if (consumeRollupEvent && inMsg != WM_RBUTTONDOWN) {
-          *outResult = TRUE;
+          *outResult = MA_ACTIVATE;
+
+          // However, don't activate panels
+#ifndef WINCE
+          if (inMsg == WM_MOUSEACTIVATE) {
+            nsWindow* activateWindow = GetNSWindowPtr(inWnd);
+            if (activateWindow) {
+              nsWindowType wintype;
+              activateWindow->GetWindowType(wintype);
+              if (wintype == eWindowType_popup && activateWindow->PopupType() == ePopupTypePanel) {
+                *outResult = MA_NOACTIVATE;
+              }
+            }
+          }
+#endif
+
           return TRUE;
         }
 #ifndef WINCE
@@ -8348,52 +8516,88 @@ PRBool nsWindow::CanTakeFocus()
   return PR_FALSE;
 }
 
-#if !defined(WINCE)
-void nsWindow::InitTrackPointHack()
+void nsWindow::GetMainWindowClass(nsAString& aClass)
 {
-  // Init Trackpoint Hack
   nsresult rv;
-  PRInt32 lHackValue;
-  long lResult;
-  const WCHAR wstrKeys[][40] = {L"Software\\Lenovo\\TrackPoint",
-                                L"Software\\Lenovo\\UltraNav",
-                                L"Software\\Alps\\Apoint\\TrackPoint",
-                                L"Software\\Synaptics\\SynTPEnh\\UltraNavUSB",
-                                L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2"};    
-  // If anything fails turn the hack off
-  sTrackPointHack = false;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  if(NS_SUCCEEDED(rv) && prefs) {
-    prefs->GetIntPref("ui.trackpoint_hack.enabled", &lHackValue);
-    switch (lHackValue) {
-      // 0 means hack disabled
-      case 0:
-        break;
-      // 1 means hack enabled
-      case 1:
-        sTrackPointHack = true;
-        break;
-      // -1 means autodetect
-      case -1:
-        for(unsigned i = 0; i < NS_ARRAY_LENGTH(wstrKeys); i++) {
-          HKEY hKey;
-          lResult = ::RegOpenKeyExW(HKEY_CURRENT_USER, (LPCWSTR)&wstrKeys[i],
-                                    0, KEY_READ, &hKey);
-          ::RegCloseKey(hKey);
-          if(lResult == ERROR_SUCCESS) {
-            // If we detected a registry key belonging to a TrackPoint driver
-            // Turn on the hack
-            sTrackPointHack = true;
-            break;
-          }
-        }
-        break;
-      // Shouldn't be any other values, but treat them as disabled
-      default:
-        break;
+  if (NS_SUCCEEDED(rv) && prefs) {
+    nsXPIDLCString name;
+    rv = prefs->GetCharPref("ui.window_class_override", getter_Copies(name));
+    if (NS_SUCCEEDED(rv) && !name.IsEmpty()) {
+      aClass.AssignASCII(name.get());
+      return;
     }
   }
-  return;
+  aClass.AssignASCII(sDefaultMainWindowClass);
+}
+
+PRBool nsWindow::UseTrackPointHack()
+{
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+  if (NS_SUCCEEDED(rv) && prefs) {
+    PRInt32 lHackValue;
+    rv = prefs->GetIntPref("ui.trackpoint_hack.enabled", &lHackValue);
+    if (NS_SUCCEEDED(rv)) {
+      switch (lHackValue) {
+        case 0: // disabled
+          return PR_FALSE;
+        case 1: // enabled
+          return PR_TRUE;
+        default: // -1: autodetect
+          break;
+      }
+    }
+  }
+  return sDefaultTrackPointHack;
+}
+
+#if !defined(WINCE)
+static PRBool
+HasRegistryKey(HKEY aRoot, LPCWSTR aName)
+{
+  HKEY key;
+  LONG result = ::RegOpenKeyExW(aRoot, aName, 0, KEY_READ, &key);
+  if (result != ERROR_SUCCESS)
+    return PR_FALSE;
+  ::RegCloseKey(key);
+  return PR_TRUE;
+}
+
+static PRBool
+IsObsoleteSynapticsDriver()
+{
+  HKEY key;
+  LONG result = ::RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+      L"Software\\Synaptics\\SynTP\\Install\\DriverVersion", 0, KEY_READ, &key);
+  if (result != ERROR_SUCCESS)
+    return PR_FALSE;
+  DWORD type;
+  PRUnichar buf[40];
+  DWORD buflen = sizeof(buf);
+  result = ::RegQueryValueExW(key, NULL, NULL, &type, (BYTE*)buf, &buflen);
+  ::RegCloseKey(key);
+  if (result != ERROR_SUCCESS || type != REG_SZ)
+    return PR_FALSE;
+  buf[NS_ARRAY_LENGTH(buf) - 1] = 0;
+
+  int majorVersion = wcstol(buf, NULL, 10);
+  return majorVersion < 15;
+}
+
+void nsWindow::InitInputHackDefaults()
+{
+  if (HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Lenovo\\TrackPoint")) {
+    sDefaultTrackPointHack = PR_TRUE;
+  } else if (HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Lenovo\\UltraNav")) {
+    sDefaultTrackPointHack = PR_TRUE;
+  } else if (HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Alps\\Apoint\\TrackPoint")) {
+    sDefaultTrackPointHack = PR_TRUE;
+  } else if ((HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Synaptics\\SynTPEnh\\UltraNavUSB") ||
+              HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2")) &&
+              IsObsoleteSynapticsDriver()) {
+    sDefaultTrackPointHack = PR_TRUE;
+  }
 }
 #endif // #if !defined(WINCE)
 

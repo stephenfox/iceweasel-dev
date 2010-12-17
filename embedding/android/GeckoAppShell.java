@@ -49,27 +49,21 @@ import android.text.*;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.content.*;
+import android.content.res.*;
+import android.content.pm.*;
 import android.graphics.*;
 import android.widget.*;
 import android.hardware.*;
 import android.location.*;
 
 import android.util.*;
-import android.content.DialogInterface; 
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.net.Uri;
 
 class GeckoAppShell
 {
-    static {
-        sGeckoRunning = false;
-    }
-
     // static members only
     private GeckoAppShell() { }
 
-    static boolean sGeckoRunning;
     static private GeckoEvent gPendingResize = null;
 
     static private boolean gRestartScheduled = false;
@@ -80,9 +74,8 @@ class GeckoAppShell
 
     static private final int NOTIFY_IME_RESETINPUTSTATE = 0;
     static private final int NOTIFY_IME_SETOPENSTATE = 1;
-    static private final int NOTIFY_IME_SETENABLED = 2;
-    static private final int NOTIFY_IME_CANCELCOMPOSITION = 3;
-    static private final int NOTIFY_IME_FOCUSCHANGE = 4;
+    static private final int NOTIFY_IME_CANCELCOMPOSITION = 2;
+    static private final int NOTIFY_IME_FOCUSCHANGE = 3;
 
     /* The Android-side API: API methods that Android calls */
 
@@ -126,6 +119,8 @@ class GeckoAppShell
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE" + f.getPath());
 
+        GeckoAppShell.putenv("LANG=" + Locale.getDefault().toString());
+
         loadLibs(apkName);
     }
 
@@ -149,7 +144,7 @@ class GeckoAppShell
     private static GeckoEvent mLastDrawEvent;
 
     public static void sendEventToGecko(GeckoEvent e) {
-        if (sGeckoRunning) {
+        if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
             if (gPendingResize != null) {
                 notifyGeckoOfEvent(gPendingResize);
                 gPendingResize = null;
@@ -245,13 +240,6 @@ class GeckoAppShell
             IMEStateUpdater.enableIME();
             break;
 
-        case NOTIFY_IME_SETENABLED:
-            /* When IME is 'disabled', IME processing is disabled.
-                In addition, the IME UI is hidden */
-            GeckoApp.surfaceView.mIMEState = state;
-            IMEStateUpdater.enableIME();
-            break;
-
         case NOTIFY_IME_CANCELCOMPOSITION:
             IMEStateUpdater.resetIME();
             break;
@@ -260,8 +248,20 @@ class GeckoAppShell
             GeckoApp.surfaceView.mIMEFocus = state != 0;
             IMEStateUpdater.resetIME();
             break;
-
         }
+    }
+
+    public static void notifyIMEEnabled(int state, String typeHint, 
+                                        String actionHint) {
+        if (GeckoApp.surfaceView == null)
+            return;
+
+        /* When IME is 'disabled', IME processing is disabled.
+            In addition, the IME UI is hidden */
+        GeckoApp.surfaceView.mIMEState = state;
+        GeckoApp.surfaceView.mIMETypeHint = typeHint;
+        GeckoApp.surfaceView.mIMEActionHint = actionHint;
+        IMEStateUpdater.enableIME();
     }
 
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
@@ -333,7 +333,8 @@ class GeckoAppShell
 
     static void onAppShellReady()
     {
-        sGeckoRunning = true;
+        // mLaunchState can only be Launched at this point
+        GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoRunning);
         if (gPendingResize != null) {
             notifyGeckoOfEvent(gPendingResize);
             gPendingResize = null;
@@ -341,13 +342,15 @@ class GeckoAppShell
     }
 
     static void onXreExit() {
-        sGeckoRunning = false;
+        // mLaunchState can only be Launched or GeckoRunning at this point
+        GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoExiting);
         Log.i("GeckoAppJava", "XRE exited");
         if (gRestartScheduled) {
             GeckoApp.mAppContext.doRestart();
         } else {
             Log.i("GeckoAppJava", "we're done, good bye");
             GeckoApp.mAppContext.finish();
+            System.exit(0);
         }
 
     }
@@ -417,8 +420,30 @@ class GeckoAppShell
             return new Intent(Intent.ACTION_VIEW);
     }
 
-    static String getMimeTypeFromExtension(String aFileExt) {
-        return android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(aFileExt);
+    static String getMimeTypeFromExtensions(String aFileExt) {
+        android.webkit.MimeTypeMap mtm =
+            android.webkit.MimeTypeMap.getSingleton();
+        StringTokenizer st = new StringTokenizer(aFileExt, "., ");
+        String type = null;
+        String subType = null;
+        while (st.hasMoreElements()) {
+            String ext = st.nextToken();
+            String mt = mtm.getMimeTypeFromExtension(ext);
+            if (mt == null)
+                continue;
+            int slash = mt.indexOf('/');
+            String tmpType = mt.substring(0, slash);
+            if (!tmpType.equalsIgnoreCase(type))
+                type = type == null ? tmpType : "*";
+            String tmpSubType = mt.substring(slash + 1);
+            if (!tmpSubType.equalsIgnoreCase(subType))
+                subType = subType == null ? tmpSubType : "*";
+        }
+        if (type == null)
+            type = "*";
+        if (subType == null)
+            subType = "*";
+        return type + "/" + subType;
     }
 
     static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName, 
@@ -530,6 +555,12 @@ class GeckoAppShell
         AlertNotification notification = mAlertNotifications.get(notificationID);
         if (notification != null)
             notification.updateProgress(aAlertText, aProgress, aProgressMax);
+
+        if (aProgress == aProgressMax) {
+            // Hide the notification at 100%
+            removeObserver(aAlertName);
+            removeNotification(notificationID);
+        }
     }
 
     public static void alertsProgressListener_OnCancel(String aAlertName) {
@@ -571,11 +602,41 @@ class GeckoAppShell
     }
 
     public static int getDpi() {
-         DisplayMetrics metrics = new DisplayMetrics();
-         GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
-         return metrics.densityDpi;
+        DisplayMetrics metrics = new DisplayMetrics();
+        GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        return metrics.densityDpi;
     }
-    public static String showFilePicker() {
-        return GeckoApp.mAppContext.showFilePicker();
+
+    public static void setFullScreen(boolean fullscreen) {
+        GeckoApp.mFullscreen = fullscreen;
+
+        // force a reconfiguration to hide/show the system bar
+        GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER);
+    }
+
+    public static String showFilePicker(String aFilters) {
+        return GeckoApp.mAppContext.
+            showFilePicker(getMimeTypeFromExtensions(aFilters));
+    }
+
+    public static void performHapticFeedback(boolean aIsLongPress) {
+        GeckoApp.surfaceView.
+            performHapticFeedback(aIsLongPress ?
+                                  HapticFeedbackConstants.LONG_PRESS :
+                                  HapticFeedbackConstants.VIRTUAL_KEY);
+    }
+
+    public static void showInputMethodPicker() {
+        InputMethodManager imm = (InputMethodManager) GeckoApp.surfaceView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.showInputMethodPicker();       
+    }
+
+    public static void hideProgressDialog() {
+        if (GeckoApp.mAppContext.mProgressDialog != null) {
+            GeckoApp.mAppContext.mProgressDialog.dismiss();
+            GeckoApp.mAppContext.mProgressDialog = null;
+        }
     }
 }

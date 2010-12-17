@@ -859,6 +859,9 @@ public:
 
   nsresult CreateElement(const nsAString& aTagName,
                          nsIContent** aReturn);
+  nsresult CreateElementNS(const nsAString& aNamespaceURI,
+                           const nsAString& aQualifiedName,
+                           nsIContent** aReturn);
 
   nsresult CreateTextNode(const nsAString& aData, nsIContent** aReturn);
 
@@ -918,6 +921,8 @@ public:
   // If HasAnimationController is true, this is guaranteed to return non-null.
   nsSMILAnimationController* GetAnimationController();
 #endif // MOZ_SMIL
+
+  void SetImagesNeedAnimating(PRBool aAnimating);
 
   virtual void SuppressEventHandling(PRUint32 aIncrease);
 
@@ -1252,12 +1257,6 @@ private:
 protected:
   PRBool mWillReparent;
 #endif
-
-protected:
-  // Makes the images on this document capable of having their animation
-  // active or suspended. An Image will animate as long as at least one of its
-  // owning Documents needs it to animate; otherwise it can suspend.
-  void SetImagesNeedAnimating(PRBool aAnimating);
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

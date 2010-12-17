@@ -866,6 +866,7 @@ private:
   // on the line, or null if there was no previous leaf frame.
   nsIFrame*                     mCommonAncestorWithLastFrame;
   // mMaxTextLength is an upper bound on the size of the text in all mapped frames
+  // The value PR_UINT32_MAX represents overflow; text will be discarded
   PRUint32                      mMaxTextLength;
   PRPackedBool                  mDoubleByteText;
   PRPackedBool                  mBidiEnabled;
@@ -1294,8 +1295,11 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
       }
     } else {
       nsAutoTArray<PRUint8,BIG_TEXT_NODE_SIZE> buffer;
-      if (!buffer.AppendElements(mMaxTextLength*(mDoubleByteText ? 2 : 1)))
+      PRUint32 bufferSize = mMaxTextLength*(mDoubleByteText ? 2 : 1);
+      if (bufferSize < mMaxTextLength || bufferSize == PR_UINT32_MAX ||
+          !buffer.AppendElements(bufferSize)) {
         return;
+      }
       textRun = BuildTextRunForFrames(buffer.Elements());
     }
   }
@@ -1339,8 +1343,14 @@ void BuildTextRunsScanner::FlushLineBreaks(gfxTextRun* aTrailingTextRun)
 
 void BuildTextRunsScanner::AccumulateRunInfo(nsTextFrame* aFrame)
 {
-  NS_ASSERTION(mMaxTextLength <= mMaxTextLength + aFrame->GetContentLength(), "integer overflow");
-  mMaxTextLength += aFrame->GetContentLength();
+  if (mMaxTextLength != PR_UINT32_MAX) {
+    NS_ASSERTION(mMaxTextLength < PR_UINT32_MAX - aFrame->GetContentLength(), "integer overflow");
+    if (mMaxTextLength >= PR_UINT32_MAX - aFrame->GetContentLength()) {
+      mMaxTextLength = PR_UINT32_MAX;
+    } else {
+      mMaxTextLength += aFrame->GetContentLength();
+    }
+  }
   mDoubleByteText |= aFrame->GetContent()->GetText()->Is2b();
   mLastFrame = aFrame;
   mCommonAncestorWithLastFrame = aFrame->GetParent();
@@ -4156,20 +4166,31 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
   // Quirks mode text decoration are rendered by children; see bug 1777
   // In non-quirks mode, nsHTMLContainer::Paint and nsBlockFrame::Paint
   // does the painting of text decorations.
-  if (eCompatibility_NavQuirks != aPresContext->CompatibilityMode())
+  // FIXME Bug 403524: We'd like to unify standards-mode and quirks-mode
+  // text-decoration drawing, using what's currently the quirks mode
+  // codepath.  But for now this code is only used for quirks mode.
+  const nsCompatibility compatMode = aPresContext->CompatibilityMode();
+  if (compatMode != eCompatibility_NavQuirks)
     return decorations;
 
   PRBool useOverride = PR_FALSE;
   nscolor overrideColor;
 
   // A mask of all possible decorations.
+  // FIXME: Per spec, we still need to draw all relevant decorations
+  // from ancestors, not just the nearest one from each.
   PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_UNDERLINE | 
                       NS_STYLE_TEXT_DECORATION_OVERLINE |
                       NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
 
-  for (nsStyleContext* context = GetStyleContext();
-       decorMask && context && context->HasTextDecorations();
-       context = context->GetParent()) {
+  PRBool isChild; // ignored
+  for (nsIFrame* f = this; decorMask && f;
+       NS_SUCCEEDED(f->GetParentStyleContextFrame(aPresContext, &f, &isChild))
+         || (f = nsnull)) {
+    nsStyleContext* context = f->GetStyleContext();
+    if (!context->HasTextDecorations()) {
+      break;
+    }
     const nsStyleTextReset* styleText = context->GetStyleTextReset();
     if (!useOverride && 
         (NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL & styleText->mTextDecoration)) {
@@ -4179,10 +4200,20 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
       overrideColor = context->GetVisitedDependentColor(eCSSProperty_color);
     }
 
+    // FIXME: see above (remove this check)
     PRUint8 useDecorations = decorMask & styleText->mTextDecoration;
     if (useDecorations) {// a decoration defined here
       nscolor color = context->GetVisitedDependentColor(eCSSProperty_color);
 
+      // FIXME: We also need to record the thickness and position
+      // metrics appropriate to this element (at least in standards
+      // mode).  This will require adjusting the visual overflow region
+      // of this frame and maybe its ancestors.  The positions should
+      // probably be relative to the line's baseline (when text
+      // decorations are specified on inlines we should look for their
+      // containing line; otherwise use the element's font); when
+      // drawing it should always be relative to the line baseline.
+      // This way we move the decorations for relative positioning.
       if (NS_STYLE_TEXT_DECORATION_UNDERLINE & useDecorations) {
         decorations.mUnderColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_UNDERLINE;
@@ -4197,6 +4228,27 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
         decorations.mStrikeColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
         decorations.mDecorations |= NS_STYLE_TEXT_DECORATION_LINE_THROUGH;
+      }
+    }
+
+    // In all modes, if we're on an inline-block or inline-table (or
+    // inline-stack, inline-box, inline-grid), we're done.
+    const nsStyleDisplay *disp = context->GetStyleDisplay();
+    if (disp->mDisplay != NS_STYLE_DISPLAY_INLINE &&
+        disp->IsInlineOutside()) {
+      break;
+    }
+
+    if (compatMode == eCompatibility_NavQuirks) {
+      // In quirks mode, if we're on an HTML table element, we're done.
+      if (f->GetContent()->IsHTML(nsGkAtoms::table)) {
+        break;
+      }
+    } else {
+      // In standards/almost-standards mode, if we're on an
+      // absolutely-positioned element or a floating element, we're done.
+      if (disp->IsFloating() || disp->IsAbsolutelyPositioned()) {
+        break;
       }
     }
   }
@@ -5574,8 +5626,8 @@ nsTextFrame::PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset)
   } else {
     // If we're at the end of a line, look at the next continuation
     iter.SetOriginalOffset(startOffset);
-    if (startOffset <= PRUint32(trimmed.GetEnd()) &&
-        !(startOffset < PRUint32(trimmed.GetEnd()) &&
+    if (startOffset <= trimmed.GetEnd() &&
+        !(startOffset < trimmed.GetEnd() &&
           GetStyleText()->NewlineIsSignificant() &&
           iter.GetSkippedOffset() < mTextRun->GetLength() &&
           mTextRun->GetChar(iter.GetSkippedOffset()) == '\n')) {
@@ -6396,6 +6448,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
 
   // Restrict preformatted text to the nearest newline
   PRInt32 newLineOffset = -1; // this will be -1 or a content offset
+  PRInt32 contentNewLineOffset = -1;
   // Pointer to the nsGkAtoms::newline set on this frame's element
   NewlineProperty* cachedNewlineOffset = nsnull;
   if (textStyle->NewlineIsSignificant()) {
@@ -6404,9 +6457,18 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     if (cachedNewlineOffset && cachedNewlineOffset->mStartOffset <= offset &&
         (cachedNewlineOffset->mNewlineOffset == -1 ||
          cachedNewlineOffset->mNewlineOffset >= offset)) {
-      newLineOffset = cachedNewlineOffset->mNewlineOffset;
+      contentNewLineOffset = cachedNewlineOffset->mNewlineOffset;
     } else {
-      newLineOffset = FindChar(frag, offset, length, '\n');
+      contentNewLineOffset = FindChar(frag, offset, 
+                                      mContent->TextLength() - offset, '\n');
+    }
+    if (contentNewLineOffset < offset + length) {
+      /*
+        The new line offset could be outside this frame if the frame has been
+        split by bidi resolution. In that case we won't use it in this reflow
+        (newLineOffset will remain -1), but we will still cache it in mContent
+      */
+      newLineOffset = contentNewLineOffset;
     }
     if (newLineOffset >= 0) {
       length = newLineOffset + 1 - offset;
@@ -6567,6 +6629,18 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
                                   &textMetrics, boundingBoxType, ctx,
                                   &usedHyphenation, &transformedLastBreak,
                                   textStyle->WordCanWrap(), &breakPriority);
+  if (!length && !textMetrics.mAscent && !textMetrics.mDescent) {
+    // If we're measuring a zero-length piece of text, update
+    // the height manually.
+    nsIFontMetrics* fm = provider.GetFontMetrics();
+    if (fm) {
+      nscoord ascent, descent;
+      fm->GetMaxAscent(ascent);
+      fm->GetMaxDescent(descent);
+      textMetrics.mAscent = gfxFloat(ascent);
+      textMetrics.mDescent = gfxFloat(descent);
+    }
+  }
   // The "end" iterator points to the first character after the string mapped
   // by this frame. Basically, its original-string offset is offset+charsFit
   // after we've computed charsFit.
@@ -6658,7 +6732,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   // Disallow negative widths
   aMetrics.width = NSToCoordCeil(NS_MAX(gfxFloat(0.0), textMetrics.mAdvanceWidth));
 
-  if (transformedCharsFit == 0 && !usedHyphenation) {
+  if (completedFirstLetter && transformedCharsFit == 0 && !usedHyphenation) {
     aMetrics.ascent = 0;
     aMetrics.height = 0;
   } else if (boundingBoxType != gfxFont::LOOSE_INK_EXTENTS) {
@@ -6754,7 +6828,8 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   // Updated the cached NewlineProperty, or delete it.
   if (contentLength < maxContentLength &&
       textStyle->NewlineIsSignificant() &&
-      (newLineOffset < 0 || mContentOffset + contentLength <= newLineOffset)) {
+      (contentNewLineOffset < 0 ||
+       mContentOffset + contentLength <= contentNewLineOffset)) {
     if (!cachedNewlineOffset) {
       cachedNewlineOffset = new NewlineProperty;
       if (cachedNewlineOffset) {
@@ -6767,7 +6842,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     }
     if (cachedNewlineOffset) {
       cachedNewlineOffset->mStartOffset = offset;
-      cachedNewlineOffset->mNewlineOffset = newLineOffset;
+      cachedNewlineOffset->mNewlineOffset = contentNewLineOffset;
     }
   } else if (cachedNewlineOffset) {
     mContent->DeleteProperty(nsGkAtoms::newline);
@@ -7240,6 +7315,12 @@ PRBool
 nsTextFrame::IsAtEndOfLine() const
 {
   return (GetStateBits() & TEXT_END_OF_LINE) != 0;
+}
+
+nscoord
+nsTextFrame::GetBaseline() const
+{
+  return mAscent;
 }
 
 PRBool

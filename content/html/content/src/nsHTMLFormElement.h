@@ -189,11 +189,10 @@ public:
    *
    * @param aElement the element to remove
    * @param aUpdateValidity If true, updates the form validity.
-   * @param aNotify If true, send nsIDocumentObserver notifications as needed.
    * @return NS_OK if the element was successfully removed.
    */
   nsresult RemoveElement(nsGenericHTMLFormElement* aElement,
-                         bool aUpdateValidity, PRBool aNotify);
+                         bool aUpdateValidity);
 
   /**
    * Remove an element from the lookup table maintained by the form.
@@ -297,24 +296,32 @@ public:
    */
   nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
 
+  /**
+   * Whether the submission of this form has been ever prevented because of
+   * being invalid.
+   *
+   * @return Whether the submission of this form has been prevented because of
+   * being invalid.
+   */
+  bool HasEverTriedInvalidSubmit() const { return mEverTriedInvalidSubmit; }
+
 protected:
   class RemoveElementRunnable;
   friend class RemoveElementRunnable;
 
   class RemoveElementRunnable : public nsRunnable {
   public:
-    RemoveElementRunnable(nsHTMLFormElement* aForm, PRBool aNotify):
-      mForm(aForm), mNotify(aNotify)
+    RemoveElementRunnable(nsHTMLFormElement* aForm)
+      : mForm(aForm)
     {}
 
     NS_IMETHOD Run() {
-      mForm->HandleDefaultSubmitRemoval(mNotify);
+      mForm->HandleDefaultSubmitRemoval();
       return NS_OK;
     }
 
   private:
     nsRefPtr<nsHTMLFormElement> mForm;
-    PRBool mNotify;
   };
 
   nsresult DoSubmitOrReset(nsEvent* aEvent,
@@ -322,7 +329,7 @@ protected:
   nsresult DoReset();
 
   // Async callback to handle removal of our default submit
-  void HandleDefaultSubmitRemoval(PRBool aNotify);
+  void HandleDefaultSubmitRemoval();
 
   //
   // Submit Helpers
@@ -442,6 +449,12 @@ protected:
    * @note Should only be used by UpdateValidity() and GetValidity()!
    */
   PRInt32 mInvalidElementsCount;
+
+  /**
+   * Whether the submission of this form has been ever prevented because of
+   * being invalid.
+   */
+  bool mEverTriedInvalidSubmit;
 
 protected:
   /** Detection of first form to notify observers */

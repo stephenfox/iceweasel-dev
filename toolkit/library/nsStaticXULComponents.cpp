@@ -233,6 +233,12 @@
 #define JSCTYPES_MODULE
 #endif
 
+#ifdef MOZ_SERVICES_SYNC
+#define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
+#else
+#define SERVICES_CRYPTO_MODULE
+#endif
+
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
 #else
@@ -288,6 +294,7 @@
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
     MODULE(jsperf)                           \
+    SERVICES_CRYPTO_MODULE                   \
     APP_COMPONENT_MODULES                    \
     /* end of list */
 
@@ -299,13 +306,11 @@ XUL_MODULES
 #undef MODULE
 
 #define MODULE(_name) \
-    NSMODULE_NAME(_name),
+    &NSMODULE_NAME(_name),
 
-static const mozilla::Module *const kStaticModules[] = {
+const mozilla::Module *const *const kPStaticModules[] = {
   XUL_MODULES
   NULL
 };
 
 #undef MODULE
-
-mozilla::Module const *const *const kPStaticModules = kStaticModules;

@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *  Benedict Hsieh <bhsieh@mozilla.com>
+ *  Taras Glek <tglek@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -215,39 +216,25 @@ StartupCache::LoadArchive()
 nsresult
 StartupCache::GetBuffer(const char* id, char** outbuf, PRUint32* length) 
 {
-  char* data = NULL;
-  PRUint32 len;
-
   if (!mStartupWriteInitiated) {
     CacheEntry* entry; 
     nsDependentCString idStr(id);
     mTable.Get(idStr, &entry);
     if (entry) {
-      data = entry->data;
-      len = entry->size;
+      *outbuf = new char[entry->size];
+      memcpy(*outbuf, entry->data, entry->size);
+      *length = entry->size;
+      return NS_OK;
     }
   }
 
-  if (!data && mArchive) {
-    nsZipItem* zipItem = mArchive->GetItem(id);
+  if (mArchive) {
+    nsZipItemPtr<char> zipItem(mArchive, id, true);
     if (zipItem) {
-      const PRUint8* itemData = mArchive->GetData(zipItem);
-      if (!itemData || !mArchive->CheckCRC(zipItem, itemData)) {
-        NS_WARNING("StartupCache file corrupted!");
-        InvalidateCache();
-        return NS_ERROR_FILE_CORRUPTED;
-      }
-
-      len = zipItem->Size();
-      data = (char*) itemData;
-    }
-  }
-
-  if (data) {
-    *outbuf = new char[len];
-    memcpy(*outbuf, data, len);
-    *length = len;
-    return NS_OK;
+      *outbuf = zipItem.Forget();
+      *length = zipItem.Length();
+      return NS_OK;
+    } 
   }
 
   return NS_ERROR_NOT_AVAILABLE;
@@ -484,8 +471,6 @@ StartupCacheDebugOutputStream::CheckReferences(nsISupports* aObject)
 nsresult
 StartupCacheDebugOutputStream::WriteObject(nsISupports* aObject, PRBool aIsStrongRef)
 {
-  nsresult rv;
-  
   nsCOMPtr<nsISupports> rootObject(do_QueryInterface(aObject));
   
   NS_ASSERTION(rootObject.get() == aObject,
@@ -498,7 +483,6 @@ StartupCacheDebugOutputStream::WriteObject(nsISupports* aObject, PRBool aIsStron
 nsresult
 StartupCacheDebugOutputStream::WriteSingleRefObject(nsISupports* aObject)
 {
-  nsresult rv;
   nsCOMPtr<nsISupports> rootObject(do_QueryInterface(aObject));
   
   NS_ASSERTION(rootObject.get() == aObject,
@@ -513,7 +497,6 @@ StartupCacheDebugOutputStream::WriteCompoundObject(nsISupports* aObject,
                                                 const nsIID& aIID,
                                                 PRBool aIsStrongRef)
 {
-  nsresult rv;
   nsCOMPtr<nsISupports> rootObject(do_QueryInterface(aObject));
   
   nsCOMPtr<nsISupports> roundtrip;

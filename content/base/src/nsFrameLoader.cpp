@@ -87,6 +87,8 @@
 #include "nsIDocShellHistory.h"
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsIXULWindow.h"
+#include "nsIEditor.h"
+#include "nsIEditorDocShell.h"
 
 #include "nsLayoutUtils.h"
 #include "nsIView.h"
@@ -653,7 +655,18 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 
   nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(mDocShell);
   NS_ASSERTION(baseWindow, "Found a nsIDocShell that isn't a nsIBaseWindow.");
-  baseWindow->InitWindow(nsnull, view->GetWidget(), 0, 0, 10, 10);
+  nsIntSize size;
+  if (!(frame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    // We have a useful size already; use it, since we might get no
+    // more size updates.
+    size = GetSubDocumentSize(frame);
+  } else {
+    // Pick some default size for now.  Using 10x10 because that's what the
+    // code here used to do.
+    size.SizeTo(10, 10);
+  }
+  baseWindow->InitWindow(nsnull, view->GetWidget(), 0, 0,
+                         size.width, size.height);
   // This is kinda whacky, this "Create()" call doesn't really
   // create anything, one starts to wonder why this was named
   // "Create"...
@@ -675,6 +688,13 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
       doc->GetDesignMode(designMode);
 
       if (designMode.EqualsLiteral("on")) {
+        // Hold on to the editor object to let the document reattach to the
+        // same editor object, instead of creating a new one.
+        nsCOMPtr<nsIEditorDocShell> editorDocshell = do_QueryInterface(mDocShell);
+        nsCOMPtr<nsIEditor> editor;
+        nsresult rv = editorDocshell->GetEditor(getter_AddRefs(editor));
+        NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
         doc->SetDesignMode(NS_LITERAL_STRING("off"));
         doc->SetDesignMode(NS_LITERAL_STRING("on"));
       }
@@ -712,8 +732,7 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
     mRemoteBrowser->Show(size);
     mRemoteBrowserShown = PR_TRUE;
 
-    nsCOMPtr<nsIChromeFrameMessageManager> dummy;
-    GetMessageManager(getter_AddRefs(dummy)); // Initialize message manager.
+    EnsureMessageManager();
   } else {
     mRemoteBrowser->Move(size);
   }

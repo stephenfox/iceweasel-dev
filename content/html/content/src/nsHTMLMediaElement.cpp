@@ -124,6 +124,9 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
+// Number of milliseconds between timeupdate events as defined by spec
+#define TIMEUPDATE_MS 250
+
 // Under certain conditions there may be no-one holding references to
 // a media element from script, DOM parent, etc, but the element may still
 // fire meaningful events in the future so we can't destroy it yet:
@@ -227,7 +230,7 @@ public:
     return nsContentUtils::DispatchTrustedEvent(mElement->GetOwnerDoc(),
                                                 mSource,
                                                 NS_LITERAL_STRING("error"),
-                                                PR_TRUE,
+                                                PR_FALSE,
                                                 PR_TRUE);
   }
 };
@@ -389,8 +392,7 @@ NS_IMPL_STRING_ATTR(nsHTMLMediaElement, Preload, preload)
 /* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
 NS_IMETHODIMP nsHTMLMediaElement::GetMozAutoplayEnabled(PRBool *aAutoplayEnabled)
 {
-  // Do not allow autoplay on editable nodes
-  *aAutoplayEnabled = !IsEditable() && mAutoplayEnabled;
+  *aAutoplayEnabled = mAutoplayEnabled;
 
   return NS_OK;
 }
@@ -509,7 +511,7 @@ void nsHTMLMediaElement::AbortExistingLoads()
       // will now be reported as 0. The playback position was non-zero when
       // we destroyed the decoder, so fire a timeupdate event so that the
       // change will be reflected in the controls.
-      DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
+      FireTimeUpdate(PR_FALSE);
     }
     DispatchEvent(NS_LITERAL_STRING("emptied"));
   }
@@ -944,7 +946,8 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
     channelPolicy->SetContentSecurityPolicy(csp);
     channelPolicy->SetLoadType(nsIContentPolicy::TYPE_MEDIA);
   }
-  rv = NS_NewChannel(getter_AddRefs(mChannel),
+  nsCOMPtr<nsIChannel> channel;
+  rv = NS_NewChannel(getter_AddRefs(channel),
                      aURI,
                      nsnull,
                      loadGroup,
@@ -953,41 +956,34 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
                      channelPolicy);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  // The listener holds a strong reference to us.  This creates a reference
-  // cycle which is manually broken in the listener's OnStartRequest method
-  // after it is finished with the element. The cycle will also be
-  // broken if we get a shutdown notification before OnStartRequest fires.
-  // Necko guarantees that OnStartRequest will eventually fire if we
-  // don't shut down first.
+  // The listener holds a strong reference to us.  This creates a
+  // reference cycle, once we've set mChannel, which is manually broken
+  // in the listener's OnStartRequest method after it is finished with
+  // the element. The cycle will also be broken if we get a shutdown
+  // notification before OnStartRequest fires.  Necko guarantees that
+  // OnStartRequest will eventually fire if we don't shut down first.
   nsRefPtr<MediaLoadListener> loadListener = new MediaLoadListener(this);
-  if (!loadListener) return NS_ERROR_OUT_OF_MEMORY;
 
-  // loadListener will be unregistered either on shutdown or when
-  // OnStartRequest fires.
-  nsContentUtils::RegisterShutdownObserver(loadListener);
-  mChannel->SetNotificationCallbacks(loadListener);
+  channel->SetNotificationCallbacks(loadListener);
 
   nsCOMPtr<nsIStreamListener> listener;
   if (ShouldCheckAllowOrigin()) {
-    nsCrossSiteListenerProxy* crossSiteListener =
+    listener =
       new nsCrossSiteListenerProxy(loadListener,
                                    NodePrincipal(),
-                                   mChannel,
+                                   channel,
                                    PR_FALSE,
                                    &rv);
-    listener = crossSiteListener;
-    NS_ENSURE_TRUE(crossSiteListener, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_SUCCESS(rv, rv);
   } else {
     rv = nsContentUtils::GetSecurityManager()->
            CheckLoadURIWithPrincipal(NodePrincipal(),
                                      aURI,
                                      nsIScriptSecurityManager::STANDARD);
-    NS_ENSURE_SUCCESS(rv,rv);
     listener = loadListener;
   }
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
+  nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(channel);
   if (hc) {
     // Use a byte range request from the start of the resource.
     // This enables us to detect if the stream supports byte range
@@ -999,21 +995,17 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
     SetRequestHeaders(hc);
   }
 
-  rv = mChannel->AsyncOpen(listener, nsnull);
-  if (NS_FAILED(rv)) {
-    // OnStartRequest is guaranteed to be called if the open succeeds.  If
-    // the open failed, the listener's OnStartRequest will never be called,
-    // so we need to break the element->channel->listener->element reference
-    // cycle here.  The channel holds the only reference to the listener,
-    // and is useless now anyway, so drop our reference to it to allow it to
-    // be destroyed.
-    mChannel = nsnull;
-    return rv;
-  }
+  rv = channel->AsyncOpen(listener, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Else the channel must be open and starting to download. If it encounters
   // a non-catastrophic failure, it will set a new task to continue loading
-  // another candidate.
+  // another candidate.  It's safe to set it as mChannel now.
+  mChannel = channel;
+
+  // loadListener will be unregistered either on shutdown or when
+  // OnStartRequest for the channel we just opened fires.
+  nsContentUtils::RegisterShutdownObserver(loadListener);
   return NS_OK;
 }
 
@@ -1159,7 +1151,7 @@ NS_IMETHODIMP nsHTMLMediaElement::Pause()
   AddRemoveSelfReference();
 
   if (!oldPaused) {
-    DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
+    FireTimeUpdate(PR_FALSE);
     DispatchAsyncEvent(NS_LITERAL_STRING("pause"));
   }
 
@@ -1277,6 +1269,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mRate(0),
     mPreloadAction(PRELOAD_UNDEFINED),
     mMediaSize(-1,-1),
+    mLastCurrentTime(0.0),
     mAllowAudioData(PR_FALSE),
     mBegun(PR_FALSE),
     mLoadedFirstFrame(PR_FALSE),
@@ -1287,7 +1280,6 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mPlayingBeforeSeek(PR_FALSE),
     mPausedForInactiveDocument(PR_FALSE),
     mWaitingFired(PR_FALSE),
-    mIsBindingToTree(PR_FALSE),
     mIsRunningLoadMethod(PR_FALSE),
     mIsLoadingFromSourceChildren(PR_FALSE),
     mDelayingLoadEvent(PR_FALSE),
@@ -1387,6 +1379,7 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
     switch (mReadyState) {
     case nsIDOMHTMLMediaElement::HAVE_METADATA:
     case nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA:
+      FireTimeUpdate(PR_FALSE);
       DispatchAsyncEvent(NS_LITERAL_STRING("waiting"));
       break;
     case nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA:
@@ -1496,19 +1489,18 @@ nsresult nsHTMLMediaElement::BindToTree(nsIDocument* aDocument, nsIContent* aPar
                                         nsIContent* aBindingParent,
                                         PRBool aCompileEventHandlers)
 {
-  if (aDocument) {
-    mIsBindingToTree = PR_TRUE;
-    mAutoplayEnabled =
-      IsAutoplayEnabled() && (!aDocument || !aDocument->IsStaticDocument());
-    // The preload action depends on the value of the autoplay attribute.
-    // It's value may have changed, so update it.
-    UpdatePreloadAction();
-  }
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument,
                                                  aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
-  mIsBindingToTree = PR_FALSE;
+  if (aDocument) {
+    mAutoplayEnabled =
+      IsAutoplayEnabled() && (!aDocument || !aDocument->IsStaticDocument()) &&
+      !IsEditable();
+    // The preload action depends on the value of the autoplay attribute.
+    // It's value may have changed, so update it.
+    UpdatePreloadAction();
+  }
 
   return rv;
 }
@@ -2028,13 +2020,14 @@ void nsHTMLMediaElement::PlaybackEnded()
   // We changed the state of IsPlaybackEnded which can affect AddRemoveSelfReference
   AddRemoveSelfReference();
 
+  FireTimeUpdate(PR_FALSE);
   DispatchAsyncEvent(NS_LITERAL_STRING("ended"));
 }
 
 void nsHTMLMediaElement::SeekStarted()
 {
   DispatchAsyncEvent(NS_LITERAL_STRING("seeking"));
-  DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
+  FireTimeUpdate(PR_FALSE);
 }
 
 void nsHTMLMediaElement::SeekCompleted()
@@ -2089,6 +2082,7 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
   if (aNextFrame != NEXT_FRAME_AVAILABLE) {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
     if (!mWaitingFired && aNextFrame == NEXT_FRAME_UNAVAILABLE_BUFFERING) {
+      FireTimeUpdate(PR_FALSE);
       DispatchAsyncEvent(NS_LITERAL_STRING("waiting"));
       mWaitingFired = PR_TRUE;
     }
@@ -2180,7 +2174,8 @@ PRBool nsHTMLMediaElement::CanActivateAutoplay()
   return mAutoplaying &&
          mPaused &&
          HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
-         mAutoplayEnabled;
+         mAutoplayEnabled &&
+         !IsEditable();
 }
 
 void nsHTMLMediaElement::NotifyAutoplayDataReady()
@@ -2214,7 +2209,8 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
   if (!video)
     return nsnull;
 
-  nsRefPtr<LayerManager> manager = nsContentUtils::LayerManagerForDocument(GetOwnerDoc());
+  nsRefPtr<LayerManager> manager =
+    nsContentUtils::PersistentLayerManagerForDocument(GetOwnerDoc());
   if (!manager)
     return nsnull;
 
@@ -2266,7 +2262,7 @@ nsresult nsHTMLMediaElement::DispatchEvent(const nsAString& aName)
   return nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
                                               static_cast<nsIContent*>(this),
                                               aName,
-                                              PR_TRUE,
+                                              PR_FALSE,
                                               PR_TRUE);
 }
 
@@ -2576,9 +2572,39 @@ void nsHTMLMediaElement::SetRequestHeaders(nsIHttpChannel* aChannel)
   // Send Accept header for video and audio types only (Bug 489071)
   SetAcceptHeader(aChannel);
 
+  // Apache doesn't send Content-Length when gzip transfer encoding is used,
+  // which prevents us from estimating the video length (if explicit Content-Duration
+  // and a length spec in the container are not present either) and from seeking.
+  // So, disable the standard "Accept-Encoding: gzip,deflate" that we usually send.
+  // See bug 614760.
+  aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept-Encoding"),
+                             NS_LITERAL_CSTRING(""), PR_FALSE);
+
   // Set the Referer header
   nsIDocument* doc = GetOwnerDoc();
   if (doc) {
     aChannel->SetReferrer(doc->GetDocumentURI());
+  }
+}
+
+void nsHTMLMediaElement::FireTimeUpdate(PRBool aPeriodic)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
+
+  TimeStamp now = TimeStamp::Now();
+  float time = 0;
+  GetCurrentTime(&time);
+
+  // Fire a timupdate event if this is not a periodic update (i.e. it's a
+  // timeupdate event mandated by the spec), or if it's a periodic update
+  // and TIMEUPDATE_MS has passed since the last timeupdate event fired and
+  // the time has changed.
+  if (!aPeriodic ||
+      (mLastCurrentTime != time &&
+       (mTimeUpdateTime.IsNull() ||
+        now - mTimeUpdateTime >= TimeDuration::FromMilliseconds(TIMEUPDATE_MS)))) {
+    DispatchAsyncEvent(NS_LITERAL_STRING("timeupdate"));
+    mTimeUpdateTime = now;
+    mLastCurrentTime = time;
   }
 }

@@ -159,54 +159,17 @@ gfxMacFont::InitTextRun(gfxContext *aContext,
                         const PRUnichar *aString,
                         PRUint32 aRunStart,
                         PRUint32 aRunLength,
-                        PRInt32 aRunScript)
+                        PRInt32 aRunScript,
+                        PRBool aPreferPlatformShaping)
 {
     if (!mIsValid) {
         NS_WARNING("invalid font! expect incorrect text rendering");
         return PR_FALSE;
     }
 
-    PRBool ok = PR_FALSE;
-
-    if (mHarfBuzzShaper &&
-        !static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout())
-    {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzLevel() >=
-            gfxUnicodeProperties::ScriptShapingLevel(aRunScript)) {
-            ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength, 
-                                              aRunScript);
-#if DEBUG
-            if (!ok) {
-                NS_ConvertUTF16toUTF8 name(GetName());
-                char msg[256];
-                sprintf(msg, "HarfBuzz shaping failed for font: %s",
-                        name.get());
-                NS_WARNING(msg);
-            }
-#endif
-        }
-    }
-
-    if (!ok) {
-        // fallback to Core Text shaping
-        if (!mPlatformShaper) {
-            CreatePlatformShaper();
-        }
-
-        ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                          aRunStart, aRunLength, 
-                                          aRunScript);
-#if DEBUG
-        if (!ok) {
-            NS_ConvertUTF16toUTF8 name(GetName());
-            char msg[256];
-            sprintf(msg, "Core Text shaping failed for font: %s",
-                    name.get());
-            NS_WARNING(msg);
-        }
-#endif
-    }
+    PRBool ok = gfxFont::InitTextRun(aContext, aTextRun, aString,
+                                     aRunStart, aRunLength, aRunScript,
+        static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout());
 
     aTextRun->AdjustAdvancesForSyntheticBold(aRunStart, aRunLength);
 
@@ -421,7 +384,10 @@ gfxMacFont::GetFontTable(PRUint32 aTag)
     if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
         // for downloaded fonts, there may be layout tables cached in the entry
         // even though they're absent from the sanitized platform font
-        return mFontEntry->GetFontTable(aTag);
+        hb_blob_t *blob;
+        if (mFontEntry->GetExistingFontTable(aTag, &blob)) {
+            return blob;
+        }
     }
 
     return nsnull;

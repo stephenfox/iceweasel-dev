@@ -228,6 +228,8 @@ Section "-InstallStartCleanup"
   ; Remove the updates directory for Vista and above
   ${CleanUpdatesDir} "Mozilla\Firefox"
 
+  ${RemoveDeprecatedFiles}
+
   ${InstallStartCleanupCommon}
 SectionEnd
 
@@ -368,6 +370,8 @@ Section "-Application" APP_IDX
   ${WriteRegStr2} $TmpVal "$0" "Path" "$INSTDIR" 0
 
   StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\$R9"
+  ${CreateRegKey} "$TmpVal" "$0" 0
+  StrCpy $0 "Software\Microsoft\MediaPlayer\ShimInclusionList\plugin-container.exe"
   ${CreateRegKey} "$TmpVal" "$0" 0
 
   ${If} $TmpVal == "HKLM"

@@ -590,7 +590,6 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
                           "unexpected unit");
         NS_ABORT_IF_FALSE(a1->Item(0) == a2->Item(0),
                           "unexpected function mismatch");
-        nsCSSKeyword tfunc = nsStyleTransformMatrix::TransformFunctionOf(a1);
         NS_ABORT_IF_FALSE(a1->Count() == a2->Count(),
                           "unexpected count mismatch");
         for (size_t i = 1, iEnd = NS_MIN(a1->Count(), a2->Count());
@@ -623,15 +622,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
             squareDistance += diff * diff;
           } else {
             NS_ABORT_IF_FALSE(v1.GetUnit() == v2.GetUnit(), "unit mismatch");
-            double diff;
-            if (tfunc == eCSSKeyword_skewx ||
-                tfunc == eCSSKeyword_skewy ||
-                tfunc == eCSSKeyword_skew) {
-              NS_ABORT_IF_FALSE(v1.GetUnit() == eCSSUnit_Radian, "unexpected unit");
-              diff = tan(v2.GetFloatValue()) - tan(v1.GetFloatValue());
-            } else {
-              diff = v2.GetFloatValue() - v1.GetFloatValue();
-            }
+            double diff = v2.GetFloatValue() - v1.GetFloatValue();
             squareDistance += diff * diff;
           }
         }
@@ -880,21 +871,6 @@ AddTransformScale(const nsCSSValue &aValue1, double aCoeff1,
   float result = v1 * aCoeff1 + v2 * aCoeff2;
   aResult.SetFloatValue(result + 1.0f, eCSSUnit_Number);
 }
-
-// FIXME: The spec still says skew should animate in angle space,
-// although I think we at least sort of agreed that it should animate
-// in tangent space.  So here I animate in in tangent space.
-// Animating in angle space would mean just using AddCSSValueAngle.
-static void
-AddTransformSkew(const nsCSSValue &aValue1, double aCoeff1,
-                 const nsCSSValue &aValue2, double aCoeff2,
-                 nsCSSValue &aResult)
-{
-  aResult.SetFloatValue(atan(aCoeff1 * tan(aValue1.GetAngleValueInRadians()) +
-                             aCoeff2 * tan(aValue2.GetAngleValueInRadians())),
-                        eCSSUnit_Radian);
-}
-
 
 static already_AddRefed<nsCSSValue::Array>
 AppendTransformFunction(nsCSSKeyword aTransformFunction,
@@ -1156,10 +1132,7 @@ AddTransformMatrix(const nsStyleTransformMatrix &aMatrix1, double aCoeff1,
 
   float rotate = rotate1 * aCoeff1 + rotate2 * aCoeff2;
 
-  // FIXME: The spec still says skew should animate in angle space,
-  // although I think we at least sort of agreed that it should animate
-  // in tangent space.  So here I animate in in tangent space.
-  float skewX = atanf(XYshear1 * aCoeff1 + XYshear2 * aCoeff2);
+  float skewX = atanf(XYshear1) * aCoeff1 + atanf(XYshear2) * aCoeff2;
 
   // Handle scale, and the two matrix components where identity is 1, by
   // subtracting 1, multiplying by the coefficients, and then adding 1
@@ -1280,6 +1253,11 @@ AddTransformLists(const nsCSSValueList* aList1, double aCoeff1,
 
         break;
       }
+      // It would probably be nicer to animate skew in tangent space
+      // rather than angle space.  However, it's easy to specify
+      // skews with infinite tangents, and behavior changes pretty
+      // drastically when crossing such skews (since the direction of
+      // animation flips), so interop is probably more important here.
       case eCSSKeyword_skew: {
         NS_ABORT_IF_FALSE(a1->Count() == 2 || a1->Count() == 3,
                           "unexpected count");
@@ -1288,7 +1266,7 @@ AddTransformLists(const nsCSSValueList* aList1, double aCoeff1,
 
         nsCSSValue zero(0.0f, eCSSUnit_Radian);
         // Add Y component of skew.
-        AddTransformSkew(a1->Count() == 3 ? a1->Item(2) : zero,
+        AddCSSValueAngle(a1->Count() == 3 ? a1->Item(2) : zero,
                          aCoeff1,
                          a2->Count() == 3 ? a2->Item(2) : zero,
                          aCoeff2,
@@ -1296,21 +1274,13 @@ AddTransformLists(const nsCSSValueList* aList1, double aCoeff1,
 
         // Add X component of skew (which can be merged with case below
         // in non-DEBUG).
-        AddTransformSkew(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
+        AddCSSValueAngle(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
                          arr->Item(1));
 
         break;
       }
       case eCSSKeyword_skewx:
-      case eCSSKeyword_skewy: {
-        NS_ABORT_IF_FALSE(a1->Count() == 2, "unexpected count");
-        NS_ABORT_IF_FALSE(a2->Count() == 2, "unexpected count");
-
-        AddTransformSkew(a1->Item(1), aCoeff1, a2->Item(1), aCoeff2,
-                         arr->Item(1));
-
-        break;
-      }
+      case eCSSKeyword_skewy:
       case eCSSKeyword_rotate: {
         NS_ABORT_IF_FALSE(a1->Count() == 2, "unexpected count");
         NS_ABORT_IF_FALSE(a2->Count() == 2, "unexpected count");
@@ -2272,13 +2242,13 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         case eCSSProperty_border_spacing: {
           const nsStyleTableBorder *styleTableBorder =
             static_cast<const nsStyleTableBorder*>(styleStruct);
-          nsCSSValuePair *pair = new nsCSSValuePair;
+          nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
           if (!pair) {
             return PR_FALSE;
           }
           nscoordToCSSValue(styleTableBorder->mBorderSpacingX, pair->mXValue);
           nscoordToCSSValue(styleTableBorder->mBorderSpacingY, pair->mYValue);
-          aComputedValue.SetAndAdoptCSSValuePairValue(pair,
+          aComputedValue.SetAndAdoptCSSValuePairValue(pair.forget(),
                                                       eUnit_CSSValuePair);
           break;
         }
@@ -2286,7 +2256,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         case eCSSProperty__moz_transform_origin: {
           const nsStyleDisplay *styleDisplay =
             static_cast<const nsStyleDisplay*>(styleStruct);
-          nsCSSValuePair *pair = new nsCSSValuePair;
+          nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
           if (!pair ||
               !StyleCoordToCSSValue(styleDisplay->mTransformOrigin[0],
                                     pair->mXValue) ||
@@ -2294,7 +2264,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                                     pair->mYValue)) {
             return PR_FALSE;
           }
-          aComputedValue.SetAndAdoptCSSValuePairValue(pair,
+          aComputedValue.SetAndAdoptCSSValuePairValue(pair.forget(),
                                                       eUnit_CSSValuePair);
           break;
         }
@@ -2601,13 +2571,14 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         corners->Get(NS_FULL_TO_HALF_CORNER(fullCorner, PR_FALSE));
       const nsStyleCoord &vert =
         corners->Get(NS_FULL_TO_HALF_CORNER(fullCorner, PR_TRUE));
-      nsCSSValuePair *pair = new nsCSSValuePair;
+      nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
       if (!pair ||
           !StyleCoordToCSSValue(horiz, pair->mXValue) ||
           !StyleCoordToCSSValue(vert, pair->mYValue)) {
         return PR_FALSE;
       }
-      aComputedValue.SetAndAdoptCSSValuePairValue(pair, eUnit_CSSValuePair);
+      aComputedValue.SetAndAdoptCSSValuePairValue(pair.forget(),
+                                                  eUnit_CSSValuePair);
       return PR_TRUE;
     }
     case eStyleAnimType_nscoord:
@@ -2874,7 +2845,7 @@ nsStyleAnimation::Value::SetUnparsedStringValue(const nsString& aString)
 {
   FreeValue();
   mUnit = eUnit_UnparsedString;
-  mValue.mString = nsCSSValue::BufferFromString(aString);
+  mValue.mString = nsCSSValue::BufferFromString(aString).get();
   if (NS_UNLIKELY(!mValue.mString)) {
     // not much we can do here; just make sure that our promise of a
     // non-null mValue.mString holds for string units.
