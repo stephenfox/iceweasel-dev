@@ -11,9 +11,4 @@ bin/xulrunner-stub
 [debian]
 bin/reportbug-helper-script
 bin/components/addonsInfo.js
-bin/components/debUpdateNotifier.js
-bin/components/giofilemonitor.xpt
-bin/components/libgiofilemonitor.so
 bin/defaults/pref/places.js
-bin/chrome/debian.jar
-bin/chrome/debian.manifest
