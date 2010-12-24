@@ -1,3 +1,5 @@
+# Please don't use this mozconfig unless you are planning to build
+# packages for Debian or a derivative.
 . $topsrcdir/xulrunner/config/mozconfig
 ac_add_options --prefix=/usr
 ac_add_options --enable-default-toolkit=cairo-gtk2

@@ -1,3 +1,5 @@
+# Please don't use this mozconfig unless you are planning to build
+# packages for Debian or a derivative.
 . $topsrcdir/browser/config/mozconfig
 ac_add_options --with-user-appdir=.mozilla
 ac_add_options --disable-installer
