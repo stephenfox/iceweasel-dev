@@ -104,8 +104,14 @@ $(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 
 GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
 
+ifeq ($(shell lsb_release -sc),lenny)
+DICT_DIR := /usr/share/myspell/dicts
+else
+DICT_DIR := /usr/share/hunspell
+endif
+
 $(PREPROCESSED_FILES):
-	sed $(foreach var,GRE_VERSION GRE_MILESTONE SO_VERSION,-e 's/##$(var)##/$($(var))/g' )$^ > $@
+	sed $(foreach var,GRE_VERSION GRE_MILESTONE SO_VERSION DICT_DIR,-e 's,##$(var)##,$($(var)),g' )$^ > $@
 
 build-iceweasel/%/Makefile build-xulrunner/%/Makefile:
 	cd $(firstword $(subst /, ,$@)) && ../build/autoconf/make-makefile -t .. $*

@@ -1,5 +1,5 @@
 usr/lib/libmozjs.so.##SO_VERSION## usr/lib/xulrunner-##GRE_VERSION##/libmozjs.so
-usr/share/hunspell usr/lib/xulrunner-##GRE_VERSION##/dictionaries
+##DICT_DIR## usr/lib/xulrunner-##GRE_VERSION##/dictionaries
 usr/share/xulrunner-##GRE_VERSION##/icons usr/lib/xulrunner-##GRE_VERSION##/icons
 usr/share/xulrunner-##GRE_VERSION##/greprefs usr/lib/xulrunner-##GRE_VERSION##/greprefs
 usr/share/xulrunner-##GRE_VERSION##/res usr/lib/xulrunner-##GRE_VERSION##/res
