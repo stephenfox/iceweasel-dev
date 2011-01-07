@@ -20,8 +20,8 @@ occasional bug fix).
 Sound
 -----
 
-By default, iceweasel detects and runs the correct dsp wrapper for esd,
-arts, or alsa. If this is not the desired behaviour, edit
+By default, iceweasel doesn't use a dsp wrapper for sound support. If you
+happen to experience sound issues, you can try to edit
 /etc/iceweasel/iceweaselrc or ~/.mozilla/firefox/rc and set the ICEWEASEL_DSP
 variable to:
 
