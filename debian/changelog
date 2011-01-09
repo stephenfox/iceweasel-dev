@@ -1,6 +1,12 @@
-iceweasel (3.6.13-1) UNRELEASED; urgency=low
+iceweasel (3.6.13-1) experimental; urgency=low
 
-  * 
+  * New upstream release.
+  * Fixes for mfsa2010-{74-84}, also known as
+    CVE-2010-3776, CVE-2010-3777, CVE-2010-3769, CVE-2010-3771,
+    CVE-2010-3772, CVE-2010-3768, CVE-2010-3775, CVE-2010-3766,
+    CVE-2010-3767, CVE-2010-3773, CVE-2010-3774, CVE-2010-3770.
+  * debian/copyright: Updated to include gfx/ots.
+  * debian/libmozjsSO_VERSION.symbols.in: Add new symbols.
 
  -- Mike Hommey <glandium@debian.org>  Fri, 10 Dec 2010 00:11:50 +0100
 
