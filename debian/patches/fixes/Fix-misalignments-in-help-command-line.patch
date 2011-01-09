@@ -11,7 +11,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=458631
  4 files changed, 18 insertions(+), 18 deletions(-)
 
 diff --git a/browser/components/nsBrowserContentHandler.js b/browser/components/nsBrowserContentHandler.js
-index d118d69..7940b0c 100644
+index 0e4e21f..572ef80 100644
 --- a/browser/components/nsBrowserContentHandler.js
 +++ b/browser/components/nsBrowserContentHandler.js
 @@ -505,7 +505,7 @@ var nsBrowserContentHandler = {

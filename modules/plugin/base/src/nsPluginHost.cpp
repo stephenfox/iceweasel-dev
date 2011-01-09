@@ -1170,7 +1170,7 @@ public:
   nsresult InitializeEmbedded(nsIURI *aURL,
                              nsIPluginInstance* aInstance,
                              nsIPluginInstanceOwner *aOwner = nsnull,
-                             nsIPluginHost *aHost = nsnull);
+                             nsPluginHost *aHost = nsnull);
 
   nsresult InitializeFullPage(nsIURI* aURL, nsIPluginInstance *aInstance);
 
@@ -1205,7 +1205,7 @@ private:
   // these get passed to the plugin stream listener
   PRUint32                mLength;
   nsPluginStreamType      mStreamType;
-  nsIPluginHost           *mHost;
+  nsPluginHost            *mHost;
 
   // local cached file, we save the content into local cache if browser cache is not available,
   // or plugin asks stream as file and it expects file extension until bug 90558 got fixed
@@ -1561,7 +1561,7 @@ nsresult nsPluginStreamListenerPeer::Initialize(nsIURI *aURL,
 nsresult nsPluginStreamListenerPeer::InitializeEmbedded(nsIURI *aURL,
                                                         nsIPluginInstance* aInstance,
                                                         nsIPluginInstanceOwner *aOwner,
-                                                        nsIPluginHost *aHost)
+                                                        nsPluginHost *aHost)
 {
 #ifdef PLUGIN_LOGGING
   nsCAutoString urlSpec;
@@ -1834,10 +1834,16 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
       // determine if we need to try embedded again. FullPage takes a different code path
       nsPluginMode mode;
       mOwner->GetMode(&mode);
-      if (mode == nsPluginMode_Embedded)
-        rv = mHost->InstantiateEmbeddedPlugin(aContentType.get(), aURL, mOwner);
-      else
+      if (mode == nsPluginMode_Embedded) {
+        // Make sure to not allow new streams to be opened here; we've
+        // already got a stream for this data; we just need a properly
+        // set up plugin instance.
+        rv = mHost->DoInstantiateEmbeddedPlugin(aContentType.get(), aURL,
+                                                mOwner, PR_FALSE);
+      }
+      else {
         rv = mHost->SetUpPluginInstance(aContentType.get(), aURL, mOwner);
+      }
 
       if (NS_OK == rv) {
         mOwner->GetInstance(getter_AddRefs(mInstance));
@@ -2911,8 +2917,8 @@ nsPluginHost::GetPluginTempDir(nsIFile **aDir)
 }
 
 NS_IMETHODIMP nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
-                                                            nsIPluginInstanceOwner* aOwner,
-                                                            nsIStreamListener** aListener)
+                                                        nsIPluginInstanceOwner* aOwner,
+                                                        nsIStreamListener** aListener)
 {
   NS_PRECONDITION(aChannel && aOwner,
                   "Invalid arguments to InstantiatePluginForChannel");
@@ -2934,8 +2940,9 @@ NS_IMETHODIMP nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
   }
 #endif
 
-  // XXX do we need to look for stopped plugins, like InstantiateEmbeddedPlugin
-  // does?
+  // Note that we're not setting up a plugin instance here; the stream
+  // listener's OnStartRequest will handle doing that, looking for
+  // stopped plugins, etc, etc.
 
   return NewEmbeddedPluginStreamListener(uri, aOwner, nsnull, aListener);
 }
@@ -2944,6 +2951,14 @@ NS_IMETHODIMP nsPluginHost::InstantiatePluginForChannel(nsIChannel* aChannel,
 NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
                                                           nsIURI* aURL,
                                                           nsIPluginInstanceOwner *aOwner)
+{
+  return DoInstantiateEmbeddedPlugin(aMimeType, aURL, aOwner, PR_TRUE);
+}
+
+nsresult
+nsPluginHost::DoInstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
+                                          nsIPluginInstanceOwner* aOwner,
+                                          PRBool aAllowOpeningStreams)
 {
   NS_ENSURE_ARG_POINTER(aOwner);
 
@@ -2980,7 +2995,11 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
   // Security checks
   // Can't do security checks without a URI - hopefully the plugin will take
   // care of that
-  if (aURL) {
+  // No need to do the security check if aAllowOpeningStreams is
+  // false; we don't plan to do any network access in that case.
+  // Furthermore, doing it could reenter plugin instantiation, which
+  // would be Bad.
+  if (aURL && aAllowOpeningStreams) {
     nsCOMPtr<nsIScriptSecurityManager> secMan =
                     do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
     if (NS_FAILED(rv))
@@ -3024,9 +3043,11 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
   // Determine if the scheme of this URL is one we can handle internaly because we should
   // only open the initial stream if it's one that we can handle internally. Otherwise
   // |NS_OpenURI| in |InstantiateEmbeddedPlugin| may open up a OS protocal registered helper app
+  // Also set bCanHandleInternally to true if aAllowOpeningStreams is
+  // false; we don't want to do any network traffic in that case.
   PRBool bCanHandleInternally = PR_FALSE;
   nsCAutoString scheme;
-  if (aURL && NS_SUCCEEDED(aURL->GetScheme(scheme))) {
+  if (aURL && aAllowOpeningStreams && NS_SUCCEEDED(aURL->GetScheme(scheme))) {
       nsCAutoString contractID(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX);
       contractID += scheme;
       ToLowerCase(contractID);

@@ -1,3 +1,9 @@
+iceweasel (3.6.13-1) UNRELEASED; urgency=low
+
+  * 
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 10 Dec 2010 00:11:50 +0100
+
 iceweasel (3.6.12-2) experimental; urgency=low
 
   * layout/base/tests/TestPoisonArea.cpp: Allow TestPoisonArea to work on

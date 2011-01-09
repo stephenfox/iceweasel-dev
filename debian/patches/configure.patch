@@ -1,5 +1,5 @@
 diff --git a/configure b/configure
-index 19da282..cf58174 100755
+index b486628..b37d9a9 100755
 --- a/configure
 +++ b/configure
 @@ -106,6 +106,8 @@ ac_help="$ac_help
@@ -6696,28 +6696,28 @@ index 19da282..cf58174 100755
              ## Remove evil flags like -Wl,--export-dynamic
              CAIRO_XRENDER_LIBS="`$PKG_CONFIG --libs \"cairo-xlib-xrender >= $CAIRO_VERSION\" |sed s/-Wl,--export-dynamic//g`"
              echo "$ac_t""$CAIRO_XRENDER_LIBS" 1>&6
-@@ -22510,17 +22657,17 @@ if test -z "$SKIP_LIBRARY_CHECKS" -a "$NECKO_WIFI" -a "$OS_ARCH" = "Linux"
+@@ -22513,17 +22660,17 @@ if test -z "$SKIP_LIBRARY_CHECKS" -a "$NECKO_WIFI" -a "$OS_ARCH" = "Linux"
  then
    ac_safe=`echo "iwlib.h" | sed 'y%./+-%__p_%'`
  echo $ac_n "checking for iwlib.h""... $ac_c" 1>&6
--echo "configure:22514: checking for iwlib.h" >&5
-+echo "configure:22661: checking for iwlib.h" >&5
+-echo "configure:22517: checking for iwlib.h" >&5
++echo "configure:22664: checking for iwlib.h" >&5
  if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
    echo $ac_n "(cached) $ac_c" 1>&6
  else
    cat > conftest.$ac_ext <<EOF
--#line 22519 "configure"
-+#line 22666 "configure"
+-#line 22522 "configure"
++#line 22669 "configure"
  #include "confdefs.h"
  #include <iwlib.h>
  EOF
  ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
--{ (eval echo configure:22524: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
-+{ (eval echo configure:22671: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+-{ (eval echo configure:22527: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:22674: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
  ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
  if test -z "$ac_err"; then
    rm -rf conftest*
-@@ -22858,6 +23005,7 @@ COMPILE_CXXFLAGS=`echo \
+@@ -22861,6 +23008,7 @@ COMPILE_CXXFLAGS=`echo \
  
  
  
@@ -6725,7 +6725,7 @@ index 19da282..cf58174 100755
  cat >> confdefs.h <<EOF
  #define MOZ_DLL_SUFFIX "$DLL_SUFFIX"
  EOF
-@@ -22881,12 +23029,12 @@ if test "$USING_HCC"; then
+@@ -22884,12 +23032,12 @@ if test "$USING_HCC"; then
     
  fi
  
@@ -6735,21 +6735,21 @@ index 19da282..cf58174 100755
                  _SAVE_CFLAGS=$CFLAGS
      CFLAGS="$CFLAGS $XCFLAGS"
      cat > conftest.$ac_ext <<EOF
--#line 22890 "configure"
-+#line 23038 "configure"
+-#line 22893 "configure"
++#line 23041 "configure"
  #include "confdefs.h"
  
          #include <stdio.h>
-@@ -22904,7 +23052,7 @@ int main() {
+@@ -22907,7 +23055,7 @@ int main() {
      
  ; return 0; }
  EOF
--if { (eval echo configure:22908: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
-+if { (eval echo configure:23056: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+-if { (eval echo configure:22911: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:23059: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
    :
  else
    echo "configure: failed program was:" >&5
-@@ -22922,7 +23070,7 @@ rm -f conftest*
+@@ -22925,7 +23073,7 @@ rm -f conftest*
  fi # MOZ_X11
  fi # COMPILE_ENVIRONMENT
  
@@ -6758,28 +6758,28 @@ index 19da282..cf58174 100755
      if test "$COMPILE_ENVIRONMENT"; then
      	_SAVE_CPPFLAGS="$CPPFLAGS"
      	CPPFLAGS="$CPPFLAGS $FT2_CFLAGS $XCFLAGS"
-@@ -22930,17 +23078,17 @@ if test "$USE_FC_FREETYPE"; then
+@@ -22933,17 +23081,17 @@ if test "$USE_FC_FREETYPE"; then
  do
  ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
  echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
--echo "configure:22934: checking for $ac_hdr" >&5
-+echo "configure:23082: checking for $ac_hdr" >&5
+-echo "configure:22937: checking for $ac_hdr" >&5
++echo "configure:23085: checking for $ac_hdr" >&5
  if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
    echo $ac_n "(cached) $ac_c" 1>&6
  else
    cat > conftest.$ac_ext <<EOF
--#line 22939 "configure"
-+#line 23087 "configure"
+-#line 22942 "configure"
++#line 23090 "configure"
  #include "confdefs.h"
  #include <$ac_hdr>
  EOF
  ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
--{ (eval echo configure:22944: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
-+{ (eval echo configure:23092: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+-{ (eval echo configure:22947: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:23095: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
  ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
  if test -z "$ac_err"; then
    rm -rf conftest*
-@@ -23441,6 +23589,9 @@ s%@PKG_CONFIG@%$PKG_CONFIG%g
+@@ -23444,6 +23592,9 @@ s%@PKG_CONFIG@%$PKG_CONFIG%g
  s%@MOZ_HUNSPELL_CFLAGS@%$MOZ_HUNSPELL_CFLAGS%g
  s%@MOZ_HUNSPELL_LIBS@%$MOZ_HUNSPELL_LIBS%g
  s%@SYSTEM_HUNSPELL@%$SYSTEM_HUNSPELL%g
@@ -6789,7 +6789,7 @@ index 19da282..cf58174 100755
  s%@MOZ_EMBEDDING_LEVEL_DEFAULT@%$MOZ_EMBEDDING_LEVEL_DEFAULT%g
  s%@MOZ_EMBEDDING_LEVEL_BASIC@%$MOZ_EMBEDDING_LEVEL_BASIC%g
  s%@MOZ_EMBEDDING_LEVEL_MINIMAL@%$MOZ_EMBEDDING_LEVEL_MINIMAL%g
-@@ -23757,6 +23908,7 @@ s%@WINCE_WINDOWS_MOBILE@%$WINCE_WINDOWS_MOBILE%g
+@@ -23761,6 +23912,7 @@ s%@WINCE_WINDOWS_MOBILE@%$WINCE_WINDOWS_MOBILE%g
  s%@SYSTEM_LIBXUL@%$SYSTEM_LIBXUL%g
  s%@SYSTEM_JPEG@%$SYSTEM_JPEG%g
  s%@SYSTEM_PNG@%$SYSTEM_PNG%g
@@ -6797,7 +6797,7 @@ index 19da282..cf58174 100755
  s%@SYSTEM_ZLIB@%$SYSTEM_ZLIB%g
  s%@SYSTEM_BZ2@%$SYSTEM_BZ2%g
  s%@JPEG_CFLAGS@%$JPEG_CFLAGS%g
-@@ -24218,9 +24370,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
+@@ -24222,9 +24374,7 @@ if test -z "$MOZ_NATIVE_NSPR"; then
      ac_configure_args="$ac_configure_args --with-nspr-libs='$NSPR_LIBS'"
  fi
  ac_configure_args="$ac_configure_args --with-dist-dir=../../dist"
@@ -6808,7 +6808,7 @@ index 19da282..cf58174 100755
  ac_configure_args="$ac_configure_args --with-sync-build-files=$_topsrcdir"
  if test "$MOZ_MEMORY"; then
     ac_configure_args="$ac_configure_args --enable-jemalloc"
-@@ -24331,7 +24481,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
+@@ -24335,7 +24485,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
  # Build jsctypes on the platforms we can.
  if test "$BUILD_CTYPES"; then
    # Run the libffi 'configure' script on platforms that it supports.

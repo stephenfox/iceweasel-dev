@@ -21,7 +21,7 @@ index 608853a..92a1155 100644
  
  extern jsdouble FASTCALL
 diff --git a/js/src/jscntxt.h b/js/src/jscntxt.h
-index 6d402bc..0ca182b 100644
+index a7ed3db..5c3708f 100644
 --- a/js/src/jscntxt.h
 +++ b/js/src/jscntxt.h
 @@ -1434,6 +1434,7 @@ class JSAutoResolveFlags

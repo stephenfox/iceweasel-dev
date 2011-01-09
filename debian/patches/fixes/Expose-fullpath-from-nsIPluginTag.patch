@@ -24,7 +24,7 @@ index 9f42f3b..ef03939 100644
 +  readonly attribute AUTF8String fullpath;
 +};
 diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
-index 7c46492..a459fcf 100644
+index b11c0e6..ff2633d 100644
 --- a/modules/plugin/base/src/nsPluginHost.cpp
 +++ b/modules/plugin/base/src/nsPluginHost.cpp
 @@ -806,7 +806,7 @@ nsPluginTag::~nsPluginTag()
@@ -51,7 +51,7 @@ index 7c46492..a459fcf 100644
  {
    aVersion = mVersion;
 diff --git a/modules/plugin/base/src/nsPluginHost.h b/modules/plugin/base/src/nsPluginHost.h
-index ef6d79c..7c67d76 100644
+index ee16d0d..a1c5c92 100644
 --- a/modules/plugin/base/src/nsPluginHost.h
 +++ b/modules/plugin/base/src/nsPluginHost.h
 @@ -87,7 +87,7 @@ class nsPluginHost;

@@ -6,7 +6,6 @@ fixes/Avoid-writing-out-locked-prefs-default-value-in-user.patch
 fixes/Don-t-use-static-strings-when-setting-environment-va.patch
 fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
-fixes/Implement-sync_instruction_memory-for-sparc-linux.patch
 fixes/Work-around-FTBFS-on-mips-by-disabling-TLS-support.patch
 fixes/Add-ldl-in-libxul-embedding-.pc.patch
 fixes/Avoid-creating-usr-lib-mozilla-extensions-0700-when-.patch
@@ -24,7 +23,6 @@ fixes/Expose-fullpath-from-nsIPluginTag.patch
 fixes/Change-parameter-type-of-JS_-CEILING-FLOOR-_LOG2W-an.patch
 fixes/Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
 fixes/Use-syscall-for-mmap-and-munmap-and-disable-ncpus-in.patch
-fixes/Fix-mozilla-plugin.pc.in-CFLAGS.patch
 fixes/Bug-504766.-qcms-Fix-unaligned-reads-in-qcms.-r-jrmu.patch
 fixes/Align-private-description-in-help-output.patch
 fixes/Use-errno.ENOENT-instead-of-2-in-JarMaker.py.patch
@@ -96,7 +94,6 @@ debian-hacks/jsapi-tests-don-t-build-when-using-Wl-as-needed.patch
 debian-hacks/Link-js-shell-against-shared-mozjs-library.patch
 debian-hacks/Avoid-mangling-some-exported-symbols-from-libmozjs.patch
 debian-hacks/Enable-x64-JIT-backend-by-default.patch
-debian-hacks/Fix-issues-with-symlinked-component-directories.patch
 debian-hacks/Fix-compiler-errors-with-g-4.4-with-std-gnu-0x.patch
 debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/Remove-VISIBILITY_FLAGS-hack-in-ipc-chromium-Makefil.patch
