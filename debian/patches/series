@@ -99,4 +99,5 @@ debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/Remove-VISIBILITY_FLAGS-hack-in-ipc-chromium-Makefil.patch
 debian-hacks/Include-memory.h-instead-of-memory-to-avoid-C-0x-pro.patch
 debian-hacks/pkg-config-files-don-t-need-to-require-the-version-o.patch
+debian-hacks/Add-a-2-minutes-timeout-on-xpcshell-tests.patch 
 configure.patch
