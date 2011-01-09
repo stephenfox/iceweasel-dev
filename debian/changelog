@@ -1,8 +1,32 @@
-iceweasel (3.6.13-2) UNRELEASED; urgency=low
+iceweasel (3.6.13-2) experimental; urgency=low
 
-  * 
+  * debian/control: Refresh from debian/control.in.
+  * debian/*.mozconfig: Add a comment on top of mozconfig files to avoid
+    people using them.
+  * debian/remove.nonfree, debian/repack.py, debian/source.filter,
+    debian/watch: Update debian/watch and provide a script repacking
+    upstream source tarballs.
+  * debian/iceweasel.README.Debian: Fix for the default dsp wrapper behaviour.
+  * debian/iceweasel.desktop: Add russian translation. Closes: #608876.
+    Thanks Alexander Sashanov.
+  * debian/control.in, debian/rules, debian/xulrunner-GRE_VERSION.links.in:
+    Use /usr/share/myspell/dicts for dictionaries when building for lenny.
+    Closes: #609111.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/debUpdateNotifier.*,
+    debian/extra-stuff/filemonitor/,
+    debian/extra-stuff/packages-static.xulrunner,
+    debian/xulrunner-GRE_VERSION.install.in: Remove update notifier, it's
+    not quite as helpful as it should be.
+  * debian/control.*:
+    - Relax libglib2.0-dev build dependency.  2.18.0 was only needed for
+      filemonitor, which we just removed.
+    - Add a minimum version for build dependency on libevent-dev, for
+      event_base_loopbreak() and event_base_new().
 
- -- Mike Hommey <glandium@debian.org>  Sun, 09 Jan 2011 11:56:47 +0100
+  * testing/xpcshell/runxpcshelltests.py: Add a 2 minutes timeout on xpcshell
+    tests.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 09 Jan 2011 13:46:07 +0100
 
 iceweasel (3.6.13-1) experimental; urgency=low
 
