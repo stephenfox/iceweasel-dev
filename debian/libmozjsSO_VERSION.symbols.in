@@ -507,9 +507,11 @@ libmozjs.so.##SO_VERSION## libmozjs##SO_VERSION## #MINVER#
  js_ObjectOps@Base 1.9.2
  js_QNameClass@Base 1.9.2
  js_ReportErrorAgain@Base 1.9.2
+ js_ReportOverRecursed@Base 1.9.2.13
  js_RestoreRegExpStatics@Base 1.9.2
  js_SaveAndClearRegExpStatics@Base 1.9.2
  js_ScriptClass@Base 1.9.2
+ js_SetObjectWeakRoot@Base 1.9.2.13
  js_SetPropertyByIdWithFakeFrame@Base 1.9.2.7
  js_SrcNoteLength@Base 1.9.2
  js_SrcNoteSpec@Base 1.9.2
