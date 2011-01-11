@@ -17,27 +17,9 @@ include $(topsrcdir)/config/rules.mk
 places.js: $(topsrcdir)/browser/app/profile/firefox.js
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ | grep '\(places\.frecency\.\|browser\.\(formfill\.enable\|history_expire_days\|urlbar\.\(restrict\.\|match\.\|default\.behavior\|filter\.javascript\)\)\)' > $@
 
-DEFINES += -DAB_CD=$(MOZ_UI_LOCALE) -DMOZ_APP_NAME=$(MOZ_APP_NAME) -DPREF_DIR=$(PREF_DIR)
 DEFINES += -DAPP_UA_NAME=a -DAPP_VERSION=0
-DEFINES += -DMOZ_ENABLE_GNOME_COMPONENT=1
-DEFINES += -DMOZ_GTK2=1
-DEFINES += -DMOZ_UPDATER=1
-DEFINES += -DBINPATH=bin
-DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX) -DBIN_SUFFIX=$(BIN_SUFFIX)
-ifeq (,$(filter 1.9.%,$(GRE_VERSION)))
-DEFINES += -DWITH_MANIFEST=1
-endif
 
-ifdef MOZ_IPC
-include $(topsrcdir)/ipc/app/defs.mk
-DEFINES += -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME)
-endif
+GARBAGE += places.js
 
-packages-static: $(topsrcdir)/browser/installer/package-manifest.in $(srcdir)/packages-static.$(MOZ_APP_NAME)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ | sed 's/^\[browser\]/[$(MOZ_APP_NAME)]/' > $@
-
-GARBAGE += places.js packages-static
-
-libs:: packages-static
 libs::
 	$(SYSINSTALL) $(IFLAGS2) $(srcdir)/reportbug-helper-script $(DIST)/bin

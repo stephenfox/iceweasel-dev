@@ -113,8 +113,12 @@ endif
 $(PREPROCESSED_FILES):
 	sed $(foreach var,GRE_VERSION GRE_MILESTONE SO_VERSION DICT_DIR,-e 's,##$(var)##,$($(var)),g' )$^ > $@
 
-build-iceweasel/%/Makefile build-xulrunner/%/Makefile:
-	cd $(firstword $(subst /, ,$@)) && ../build/autoconf/make-makefile -t .. $*
+%/Makefile: DIR=$(firstword $(subst /, ,$@))
+%/Makefile:
+	cd $(DIR) && ../build/autoconf/make-makefile -t .. $(*:$(DIR)/%=%)
+
+%/package-manifest: %/Makefile
+	$(MAKE) -C $*
 
 override_dh_auto_configure:
 
@@ -206,8 +210,8 @@ override_dh_auto_clean::
 
 override_dh_auto_install: stamps/install-iceweasel stamps/install-xulrunner
 
-stamps/install-xulrunner::
-	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/build-xulrunner/debian/extra-stuff/packages-static
+stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
+	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/$<
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(GRE_VERSION)
 
@@ -241,8 +245,9 @@ stamps/install-xulrunner::
 
 	sed -i '/^Cflags/ s,$${includedir},/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
-stamps/install-iceweasel::
-	dh_auto_install --builddirectory=build-iceweasel -- installdir=$(LIB_DIR)
+stamps/install-iceweasel:: build-iceweasel/debian/installer/package-manifest
+	dh_auto_install --builddirectory=build-iceweasel -- installdir=$(LIB_DIR) \
+		MOZ_PKG_MANIFEST=$(CURDIR)/$<
 	chmod 755 debian/iceweasel-xremote-client
 
 MPL: LICENSE
