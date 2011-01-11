@@ -191,7 +191,6 @@ endif
 
 override_dh_auto_clean::
 	rm -f MPL
-	rm -f debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH)
 	rm -f $(GENERATED_FILES)
 	rm -rf stamps
 
@@ -308,10 +307,7 @@ override_dh_strip:
 	dh_strip -pspidermonkey-bin
 
 override_dh_makeshlibs:
-	if [ "`$(MAKE) --no-print-directory -C build-xulrunner/js/src echo-variable-ENABLE_JIT`" = 1 ]; then \
-		echo '#include "libmozjs$(SO_VERSION).symbols.jit"' > debian/libmozjs$(SO_VERSION).symbols.$(DEB_BUILD_ARCH); \
-	fi
-	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 1.9.2.7)' -- $(GENSYMBOLS_FLAGS)
+	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 2.0~b4)'
 
 override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
