@@ -122,4 +122,7 @@ addonsInfoHandler.prototype = {
   _xpcom_categories: [{category: "command-line-handler", entry: "a-addons-info"}]
 };
 
-var NSGetModule = XPCOMUtils.generateNSGetModule([addonsInfoHandler]);
+if (XPCOMUtils.generateNSGetFactory)
+    var NSGetFactory = XPCOMUtils.generateNSGetFactory([addonsInfoHandler]);
+else
+    var NSGetModule = XPCOMUtils.generateNSGetModule([addonsInfoHandler]);
