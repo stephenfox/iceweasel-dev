@@ -20,6 +20,7 @@
  *
  * Contributor(s):
  *   Dan Mills <thunder@mozilla.com>
+ *   Philipp von Weitershausen <philipp@weitershausen.de>
  *   Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -36,22 +37,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['HistoryEngine'];
+const EXPORTED_SYMBOLS = ['HistoryEngine', 'HistoryRec'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
+const Cr = Components.results;
 
 const GUID_ANNO = "sync/guid";
+const HISTORY_TTL = 5184000; // 60 days
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/stores.js");
-Cu.import("resource://services-sync/trackers.js");
-Cu.import("resource://services-sync/type_records/history.js");
+Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/log4moz.js");
+
+function HistoryRec(collection, id) {
+  CryptoWrapper.call(this, collection, id);
+}
+HistoryRec.prototype = {
+  __proto__: CryptoWrapper.prototype,
+  _logName: "Record.History",
+  ttl: HISTORY_TTL
+};
+
+Utils.deferGetSet(HistoryRec, "cleartext", ["histUri", "title", "visits"]);
+
 
 function HistoryEngine() {
   SyncEngine.call(this, "History");
@@ -428,7 +441,13 @@ HistoryStore.prototype = {
         Svc.History.addVisit(uri, date, null, type, type == 5 || type == 6, 0);
 
     if (record.title) {
-      this._hsvc.setPageTitle(uri, record.title);
+      try {
+        this._hsvc.setPageTitle(uri, record.title);
+      } catch (ex if ex.result == Cr.NS_ERROR_NOT_AVAILABLE) {
+        // There's no entry for the given URI, either because it's a
+        // URI that Places ignores (e.g. javascript:) or there were no
+        // visits.  We can just ignore those cases.
+      }
     }
   },
 

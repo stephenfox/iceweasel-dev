@@ -1228,18 +1228,6 @@ static inline PRBool ApplyOverflowHiddenClipping(nsIFrame* aFrame,
        type == nsGkAtoms::bcTableCellFrame;
 }
 
-static inline PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame,
-                                                    const nsStyleDisplay* aDisp)
-{
-  // If we're paginated and aFrame is a block, and it has
-  // NS_BLOCK_CLIP_PAGINATED_OVERFLOW set, then we want to clip our
-  // overflow.
-  return
-    aFrame->PresContext()->IsPaginated() &&
-    aFrame->GetType() == nsGkAtoms::blockFrame &&
-    (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
-}
-
 static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
                                     nsIFrame* aFrame,
                                     const nsStyleDisplay* aDisp, nsRect* aRect) {
@@ -1252,7 +1240,7 @@ static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
   // frames, and any non-visible value for blocks in a paginated context).
   // Other overflow clipping is applied by nsHTML/XULScrollFrame.
   if (!ApplyOverflowHiddenClipping(aFrame, aDisp) &&
-      !ApplyPaginatedOverflowClipping(aFrame, aDisp)) {
+      !nsFrame::ApplyPaginatedOverflowClipping(aFrame)) {
     PRBool clip = aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP;
     if (!clip)
       return PR_FALSE;
@@ -4551,9 +4539,11 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
 
 PRBool
 nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
-                            nsHTMLReflowMetrics& aMetrics)
+                            nsHTMLReflowMetrics& aMetrics,
+                            nsReflowStatus& aStatus)
 {
   if (aReflowState.mReflowDepth >  MAX_FRAME_DEPTH) {
+    NS_WARNING("frame tree too deep; setting zero size and returning");
     mState |= NS_FRAME_TOO_DEEP_IN_FRAME_TREE;
     ClearOverflowRects();
     aMetrics.width = 0;
@@ -4561,6 +4551,16 @@ nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
     aMetrics.ascent = 0;
     aMetrics.mCarriedOutBottomMargin.Zero();
     aMetrics.mOverflowAreas.Clear();
+
+    if (GetNextInFlow()) {
+      // Reflow depth might vary between reflows, so we might have
+      // successfully reflowed and split this frame before.  If so, we
+      // shouldn't delete its continuations.
+      aStatus = NS_FRAME_NOT_COMPLETE;
+    } else {
+      aStatus = NS_FRAME_COMPLETE;
+    }
+
     return PR_TRUE;
   }
   mState &= ~NS_FRAME_TOO_DEEP_IN_FRAME_TREE;
@@ -6117,7 +6117,8 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   NS_ASSERTION((disp->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
                (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
                "If one overflow is clip, the other should be too");
-  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP) {
+  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
+      nsFrame::ApplyPaginatedOverflowClipping(this)) {
     // The contents are actually clipped to the padding area 
     aOverflowAreas.SetAllTo(bounds);
   }

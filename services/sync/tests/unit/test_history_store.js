@@ -1,6 +1,5 @@
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines/history.js");
-Cu.import("resource://services-sync/type_records/history.js");
 Cu.import("resource://services-sync/util.js");
 
 const TIMESTAMP1 = (Date.now() - 103406528) * 1000;
@@ -155,6 +154,19 @@ function run_test() {
     let stmt = Utils.createStatement(Svc.History.DBConnection, query);
     let result = Utils.queryAsync(stmt);    
     do_check_eq([id for (id in store.getAllIDs())].length, 4);
+
+    _("Make sure we handle records with javascript: URLs gracefully.");
+    store.create({id: Utils.makeGUID(),
+                  histUri: "javascript:''",
+                  title: "javascript:''",
+                  visits: [{date: TIMESTAMP3,
+                            type: Ci.nsINavHistoryService.TRANSITION_EMBED}]});
+
+    _("Make sure we handle records without any visits gracefully.");
+    store.create({id: Utils.makeGUID(),
+                  histUri: "http://getfirebug.com",
+                  title: "Get Firebug!",
+                  visits: []});
 
     _("Remove a record from the store.");
     store.remove({id: fxguid});

@@ -3057,7 +3057,7 @@ js_InferFlags(JSContext *cx, uintN defaultFlags)
 {
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx))
-        return cx->bailExit->lookupFlags;
+        return JS_TRACE_MONITOR(cx).bailExit->lookupFlags;
 #endif
 
     JS_ASSERT_NOT_ON_TRACE(cx);
@@ -3744,7 +3744,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
          * property is not yet present, force it into a new one bound to a
          * reserved slot. Otherwise, go through the normal property path.
          */
-        JS_ASSERT(obj->getClass()->flags & JSCLASS_IS_GLOBAL);
+        JS_ASSERT(obj->isGlobal());
         JS_ASSERT(obj->isNative());
 
         if (!obj->ensureClassReservedSlots(cx))
@@ -3841,10 +3841,7 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
          * of obj (the global object) is has a reserved slot indexed by key;
          * and (c) key is not the null key.
          */
-        if (!(clasp->flags & JSCLASS_IS_ANONYMOUS) ||
-            !(obj->getClass()->flags & JSCLASS_IS_GLOBAL) ||
-            key == JSProto_Null)
-        {
+        if (!(clasp->flags & JSCLASS_IS_ANONYMOUS) || !obj->isGlobal() || key == JSProto_Null) {
             uint32 attrs = (clasp->flags & JSCLASS_IS_ANONYMOUS)
                            ? JSPROP_READONLY | JSPROP_PERMANENT
                            : 0;
@@ -4121,16 +4118,15 @@ JSBool
 js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
                   JSObject **objp)
 {
-    JSObject *tmp, *cobj;
+    JSObject *cobj;
     JSResolvingKey rkey;
     JSResolvingEntry *rentry;
     uint32 generation;
     JSObjectOp init;
     Value v;
 
-    while ((tmp = obj->getParent()) != NULL)
-        obj = tmp;
-    if (!(obj->getClass()->flags & JSCLASS_IS_GLOBAL)) {
+    obj = obj->getGlobal();
+    if (!obj->isGlobal()) {
         *objp = NULL;
         return JS_TRUE;
     }
@@ -4174,7 +4170,7 @@ JSBool
 js_SetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject *cobj, JSObject *proto)
 {
     JS_ASSERT(!obj->getParent());
-    if (!(obj->getClass()->flags & JSCLASS_IS_GLOBAL))
+    if (!obj->isGlobal())
         return JS_TRUE;
 
     return js_SetReservedSlot(cx, obj, key, ObjectOrNullValue(cobj)) &&
@@ -4685,8 +4681,13 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
          * may not have changed and we may be overwriting a function-valued
          * property. See bug 560998.
          */
-        if (obj->shape() == oldShape && obj->branded() && shape->slot != SHAPE_INVALID_SLOT)
-            obj->methodWriteBarrier(cx, shape->slot, value);
+        if (obj->shape() == oldShape && obj->branded() && shape->slot != SHAPE_INVALID_SLOT) {
+#ifdef DEBUG
+            const Shape *newshape =
+#endif
+                obj->methodWriteBarrier(cx, *shape, value);
+            JS_ASSERT(newshape == shape);
+        }
     }
 
     /* Store value before calling addProperty, in case the latter GC's. */
@@ -4705,13 +4706,8 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
     if (defineHow & JSDNP_CACHE_RESULT) {
         JS_ASSERT_NOT_ON_TRACE(cx);
         if (added) {
-#ifdef JS_TRACER
-            PropertyCacheEntry *entry =
-#endif
-                JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, true);
-            TRACE_2(SetPropHit, entry, shape);
-        } else {
-            TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
+            JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, true);
+            TRACE_1(AddProperty, obj);
         }
     }
     if (propp)
@@ -4719,7 +4715,7 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
     return true;
 
 #ifdef JS_TRACER
-error: // TRACE_2 jumps here on error.
+  error: // TRACE_1 jumps here on error.
 #endif
     return false;
 }
@@ -5202,6 +5198,9 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value
         AutoShapeRooter tvr(cx, shape);
         if (!shape->set(cx, obj, vp))
             return false;
+
+        JS_ASSERT_IF(!obj->inDictionaryMode(), shape->slot == slot);
+        slot = shape->slot;
     }
 
     if (obj->containsSlot(slot) &&
@@ -5437,11 +5436,6 @@ JSObject::reportNotExtensible(JSContext *cx, uintN report)
                                     NULL, NULL, NULL);
 }
 
-/*
- * Note: all non-error exits in this function must notify the tracer using
- * SetPropHit when called from the interpreter, which is detected by testing
- * (defineHow & JSDNP_CACHE_RESULT).
- */
 JSBool
 js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                      Value *vp, JSBool strict)
@@ -5472,7 +5466,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
         if (!pobj->isNative()) {
             if (pobj->isProxy()) {
                 AutoPropertyDescriptorRooter pd(cx);
-                if (!pobj->getProxyHandler()->getPropertyDescriptor(cx, pobj, id, true, &pd))
+                if (!JSProxy::getPropertyDescriptor(cx, pobj, id, true, &pd))
                     return false;
 
                 if (pd.attrs & JSPROP_SHARED)
@@ -5515,20 +5509,13 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
     if (shape) {
         /* ES5 8.12.4 [[Put]] step 2. */
         if (shape->isAccessorDescriptor()) {
-            if (shape->hasDefaultSetter()) {
-                if (defineHow & JSDNP_CACHE_RESULT)
-                    TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
+            if (shape->hasDefaultSetter())
                 return js_ReportGetterOnlyAssignment(cx);
-            }
         } else {
             JS_ASSERT(shape->isDataDescriptor());
 
             if (!shape->writable()) {
                 PCMETER((defineHow & JSDNP_CACHE_RESULT) && JS_PROPERTY_CACHE(cx).rofills++);
-                if (defineHow & JSDNP_CACHE_RESULT) {
-                    JS_ASSERT_NOT_ON_TRACE(cx);
-                    TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
-                }
 
                 /* Error in strict mode code, warn with strict option, otherwise do nothing. */
                 if (strict)
@@ -5536,11 +5523,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                 if (JS_HAS_STRICT_OPTION(cx))
                     return obj->reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
                 return JS_TRUE;
-
-#ifdef JS_TRACER
-              error: // TRACE_2 jumps here in case of error.
-                return JS_FALSE;
-#endif
             }
         }
 
@@ -5550,14 +5532,8 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
              * We found id in a prototype object: prepare to share or shadow.
              */
             if (!shape->shadowable()) {
-                if (defineHow & JSDNP_CACHE_RESULT) {
-#ifdef JS_TRACER
-                    JS_ASSERT_NOT_ON_TRACE(cx);
-                    PropertyCacheEntry *entry =
-#endif
-                        JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, protoIndex, pobj, shape);
-                    TRACE_2(SetPropHit, entry, shape);
-                }
+                if (defineHow & JSDNP_CACHE_RESULT)
+                    JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, protoIndex, pobj, shape);
 
                 if (shape->hasDefaultSetter() && !shape->hasGetterValue())
                     return JS_TRUE;
@@ -5614,23 +5590,18 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
              */
             bool identical = shape->isMethod() && &shape->methodObject() == &vp->toObject();
             if (!identical) {
-                if (!obj->methodShapeChange(cx, *shape))
+                shape = obj->methodShapeChange(cx, *shape);
+                if (!shape)
                     return false;
 
-                JS_ASSERT(IsFunctionObject(*vp));
-
                 JSObject *funobj = &vp->toObject();
-                JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
+                JSFunction *fun = funobj->getFunctionPrivate();
                 if (fun == funobj) {
                     funobj = CloneFunctionObject(cx, fun, fun->parent);
                     if (!funobj)
                         return JS_FALSE;
                     vp->setObject(*funobj);
                 }
-            }
-            if (defineHow & JSDNP_CACHE_RESULT) {
-                JS_ASSERT_NOT_ON_TRACE(cx);
-                TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
             }
             return identical || js_NativeSet(cx, obj, shape, false, vp);
         }
@@ -5639,11 +5610,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
     added = false;
     if (!shape) {
         if (!obj->isExtensible()) {
-            if (defineHow & JSDNP_CACHE_RESULT) {
-                JS_ASSERT_NOT_ON_TRACE(cx);
-                TRACE_2(SetPropHit, JS_NO_PROP_CACHE_FILL, shape);
-            }
-
             /* Error in strict mode code, warn with strict option, otherwise do nothing. */
             if (strict)
                 return obj->reportNotExtensible(cx);
@@ -5683,6 +5649,9 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
         if (!shape)
             return JS_FALSE;
 
+        if (defineHow & JSDNP_CACHE_RESULT)
+            TRACE_1(AddProperty, obj);
+
         /*
          * Initialize the new property value (passed to setter) to undefined.
          * Note that we store before calling addProperty, to match the order
@@ -5699,16 +5668,15 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
         added = true;
     }
 
-    if (defineHow & JSDNP_CACHE_RESULT) {
-#ifdef JS_TRACER
-        JS_ASSERT_NOT_ON_TRACE(cx);
-        PropertyCacheEntry *entry =
-#endif
-            JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, added);
-        TRACE_2(SetPropHit, entry, shape);
-    }
+    if (defineHow & JSDNP_CACHE_RESULT)
+        JS_PROPERTY_CACHE(cx).fill(cx, obj, 0, 0, obj, shape, added);
 
     return js_NativeSet(cx, obj, shape, added, vp);
+
+#ifdef JS_TRACER
+  error: // TRACE_1 jumps here in case of error.
+    return JS_FALSE;
+#endif
 }
 
 JSBool
@@ -6137,7 +6105,7 @@ js_GetClassPrototype(JSContext *cx, JSObject *scopeobj, JSProtoKey protoKey,
             }
         }
         scopeobj = scopeobj->getGlobal();
-        if (scopeobj->getClass()->flags & JSCLASS_IS_GLOBAL) {
+        if (scopeobj->isGlobal()) {
             const Value &v = scopeobj->getReservedSlot(JSProto_LIMIT + protoKey);
             if (v.isObject()) {
                 *protop = &v.toObject();
@@ -6400,8 +6368,7 @@ js_PrintObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
 
     if (!shape) {
         const char *slotname = NULL;
-        Class *clasp = obj->getClass();
-        if (clasp->flags & JSCLASS_IS_GLOBAL) {
+        if (obj->isGlobal()) {
 #define JS_PROTO(name,code,init)                                              \
     if ((code) == slot) { slotname = js_##name##_str; goto found; }
 #include "jsproto.tbl"

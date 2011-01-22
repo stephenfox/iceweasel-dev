@@ -258,10 +258,6 @@ nsPresContext::~nsPresContext()
   NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
   SetShell(nsnull);
 
-  if (mTransitionManager) {
-    mTransitionManager->Disconnect();
-  }
-
   // Disconnect the refresh driver *after* the transition manager, which
   // needs it.
   if (mRefreshDriver && mRefreshDriver->PresContext() == this) {
@@ -306,8 +302,6 @@ nsPresContext::~nsPresContext()
                                          this);
 #ifdef IBMBIDI
   nsContentUtils::UnregisterPrefCallback("bidi.", PrefChangedCallback, this);
-
-  delete mBidiUtils;
 #endif // IBMBIDI
   nsContentUtils::UnregisterPrefCallback("gfx.font_rendering.",
                                          nsPresContext::PrefChangedCallback,
@@ -360,6 +354,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrintSettings);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrefChangedTimer);
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
@@ -384,6 +380,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
     tmp->mPrefChangedTimer->Cancel();
     tmp->mPrefChangedTimer = nsnull;
   }
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -1045,6 +1043,11 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       mImageLoaders[i].Enumerate(destroy_loads, nsnull);
       mImageLoaders[i].Clear();
     }
+
+    if (mTransitionManager) {
+      mTransitionManager->Disconnect();
+      mTransitionManager = nsnull;
+    }
   }
 }
 
@@ -1101,24 +1104,33 @@ nsPresContext::Observe(nsISupports* aSubject,
   return NS_ERROR_FAILURE;
 }
 
+static nsPresContext*
+GetParentPresContext(nsPresContext* aPresContext)
+{
+  nsIPresShell* shell = aPresContext->GetPresShell();
+  if (shell) {
+    nsIFrame* rootFrame = shell->FrameManager()->GetRootFrame();
+    if (rootFrame) {
+      nsIFrame* f = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
+      if (f)
+        return f->PresContext();
+    }
+  }
+  return nsnull;
+}
+
 // We may want to replace this with something faster, maybe caching the root prescontext
 nsRootPresContext*
 nsPresContext::GetRootPresContext()
 {
   nsPresContext* pc = this;
   for (;;) {
-    if (pc->mShell) {
-      nsIFrame* rootFrame = pc->mShell->FrameManager()->GetRootFrame();
-      if (rootFrame) {
-        nsIFrame* f = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
-        if (f) {
-          pc = f->PresContext();
-          continue;
-        }
-      }
-    }
-    return pc->IsRoot() ? static_cast<nsRootPresContext*>(pc) : nsnull;
+    nsPresContext* parent = GetParentPresContext(pc);
+    if (!parent)
+      break;
+    pc = parent;
   }
+  return pc->IsRoot() ? static_cast<nsRootPresContext*>(pc) : nsnull;
 }
 
 void
@@ -1451,8 +1463,11 @@ nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceRestyle)
       SetVisualMode(IsVisualCharset(doc->GetDocumentCharacterSet()));
     }
   }
-  if (aForceRestyle) {
-    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+  if (aForceRestyle && mShell) {
+    // Reconstruct the root document element's frame and its children,
+    // because we need to trigger frame reconstruction for direction change.
+    RebuildUserFontSet();
+    mShell->ReconstructFrames();
   }
 }
 
@@ -2176,11 +2191,17 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
   if (aRect.IsEmpty() || !MayHavePaintEventListener())
     return;
 
-  if (!IsDOMPaintEventPending()) {
-    // No event is pending. Dispatch one now.
-    nsCOMPtr<nsIRunnable> ev =
-      NS_NewRunnableMethod(this, &nsPresContext::FireDOMPaintEvent);
-    NS_DispatchToCurrentThread(ev);
+  nsPresContext* pc;
+  for (pc = this; pc; pc = GetParentPresContext(pc)) {
+    if (pc->mFireAfterPaintEvents)
+      break;
+    pc->mFireAfterPaintEvents = PR_TRUE;
+  }
+  if (!pc) {
+    nsRootPresContext* rpc = GetRootPresContext();
+    if (rpc) {
+      rpc->EnsureEventualDidPaintEvent();
+    }
   }
 
   nsInvalidateRequestList::Request* request =
@@ -2190,6 +2211,39 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
 
   request->mRect = aRect;
   request->mFlags = aFlags;
+}
+
+static PRBool
+NotifyDidPaintSubdocumentCallback(nsIDocument* aDocument, void* aData)
+{
+  nsIPresShell* shell = aDocument->GetShell();
+  if (shell) {
+    nsPresContext* pc = shell->GetPresContext();
+    if (pc) {
+      pc->NotifyDidPaintForSubtree();
+    }
+  }
+  return PR_TRUE;
+}
+
+void
+nsPresContext::NotifyDidPaintForSubtree()
+{
+  if (!mFireAfterPaintEvents)
+    return;
+  mFireAfterPaintEvents = PR_FALSE;
+
+  if (IsRoot()) {
+    static_cast<nsRootPresContext*>(this)->CancelDidPaintTimer();
+  }
+
+  if (!mInvalidateRequests.mRequests.IsEmpty()) {
+    nsCOMPtr<nsIRunnable> ev =
+      NS_NewRunnableMethod(this, &nsPresContext::FireDOMPaintEvent);
+    nsContentUtils::AddScriptRunner(ev);
+  }
+
+  mDocument->EnumerateSubDocuments(NotifyDidPaintSubdocumentCallback, nsnull);
 }
 
 PRBool
@@ -2398,6 +2452,7 @@ nsRootPresContext::~nsRootPresContext()
 {
   NS_ASSERTION(mRegisteredPlugins.Count() == 0,
                "All plugins should have been unregistered");
+  CancelDidPaintTimer();
 }
 
 void
@@ -2731,4 +2786,24 @@ nsRootPresContext::RootForgetUpdatePluginGeometryFrame(nsIFrame* aFrame)
       SetContainsUpdatePluginGeometryFrame(PR_FALSE);
     mUpdatePluginGeometryForFrame = nsnull;
   }
+}
+
+static void
+NotifyDidPaintForSubtreeCallback(nsITimer *aTimer, void *aClosure)
+{
+  nsPresContext* presContext = (nsPresContext*)aClosure;
+  nsAutoScriptBlocker blockScripts;
+  presContext->NotifyDidPaintForSubtree();
+}
+
+void
+nsRootPresContext::EnsureEventualDidPaintEvent()
+{
+  if (mNotifyDidPaintTimer)
+    return;
+  mNotifyDidPaintTimer = do_CreateInstance("@mozilla.org/timer;1");
+  if (!mNotifyDidPaintTimer)
+    return;
+  mNotifyDidPaintTimer->InitWithFuncCallback(NotifyDidPaintForSubtreeCallback,
+                                             (void*)this, 100, nsITimer::TYPE_ONE_SHOT);
 }

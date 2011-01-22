@@ -50,6 +50,7 @@
  * nsWindow - Native window management and event handling.
  */
 
+#include "nsAutoPtr.h"
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
 #include "nsIdleService.h"
@@ -336,6 +337,8 @@ protected:
     return mTransparencyMode == eTransparencyGlass ||
            mTransparencyMode == eTransparencyBorderlessGlass;
   }
+  PRBool                  IsOurProcessWindow(HWND aHWND);
+  HWND                    FindOurProcessWindow(HWND aHWND);
 
   /**
    * Event processing helpers
@@ -346,6 +349,7 @@ protected:
   PRBool                  DispatchStandardEvent(PRUint32 aMsg);
   PRBool                  DispatchCommandEvent(PRUint32 aEventCommand);
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
+  static void             RemoveNextCharMessage(HWND aWnd);
   void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg);
   static MSG              InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam);
   virtual PRBool          ProcessMessage(UINT msg, WPARAM &wParam,
@@ -368,6 +372,19 @@ protected:
                                                  LRESULT* aRetValue,
                                                  PRBool& aQuitProcessing);
   PRInt32                 ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my);
+  static WORD             GetScanCode(LPARAM aLParam)
+  {
+    return (aLParam >> 16) & 0xFF;
+  }
+  static PRBool           IsExtendedScanCode(LPARAM aLParam)
+  {
+    return (aLParam & 0x1000000) != 0;
+  }
+  static PRBool           IsRedirectedKeyDownMessage(const MSG &aMsg);
+  static void             ForgetRedirectedKeyDownMessage()
+  {
+    sRedirectedKeyDown.message = WM_NULL;
+  }
 
   /**
    * Event handlers
@@ -489,10 +506,8 @@ protected:
   PRPackedBool          mIsTopWidgetWindow;
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
-  PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
-  PRPackedBool          mExitToNonClientArea;
   PRPackedBool          mTouchWindow;
   PRPackedBool          mDisplayPanFeedback;
   PRPackedBool          mHideChrome;
@@ -518,6 +533,7 @@ protected:
   static PRBool         sSwitchKeyboardLayout;
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
+  static PRBool         sIsInMouseCapture;
   static int            sTrimOnMinimize;
   static PRBool         sDefaultTrackPointHack;
   static const char*    sDefaultMainWindowClass;
@@ -608,6 +624,45 @@ protected:
   static HINSTANCE      sAccLib;
   static LPFNLRESULTFROMOBJECT sLresultFromObject;
 #endif // ACCESSIBILITY
+
+  // sRedirectedKeyDown is WM_KEYDOWN message or WM_SYSKEYDOWN message which
+  // was reirected to SendInput() API by OnKeyDown().
+  static MSG            sRedirectedKeyDown;
+
+  // If a window receives WM_KEYDOWN message or WM_SYSKEYDOWM message which is
+  // redirected message, OnKeyDowm() prevents to dispatch NS_KEY_DOWN event
+  // because it has been dispatched before the message was redirected.
+  // However, in some cases, ProcessKeyDownMessage() doesn't call OnKeyDown().
+  // Then, ProcessKeyDownMessage() needs to forget the redirected message and
+  // remove WM_CHAR message or WM_SYSCHAR message for the redirected keydown
+  // message.  AutoForgetRedirectedKeyDownMessage struct is a helper struct
+  // for doing that.  This must be created in stack.
+  struct AutoForgetRedirectedKeyDownMessage
+  {
+    AutoForgetRedirectedKeyDownMessage(nsWindow* aWindow, const MSG &aMsg) :
+      mCancel(!nsWindow::IsRedirectedKeyDownMessage(aMsg)),
+      mWindow(aWindow), mMsg(aMsg)
+    {
+    }
+
+    ~AutoForgetRedirectedKeyDownMessage()
+    {
+      if (mCancel) {
+        return;
+      }
+      // Prevent unnecessary keypress event
+      if (!mWindow->mOnDestroyCalled) {
+        nsWindow::RemoveNextCharMessage(mWindow->mWnd);
+      }
+      // Foreget the redirected message
+      nsWindow::ForgetRedirectedKeyDownMessage();
+    }
+
+    PRBool mCancel;
+    nsRefPtr<nsWindow> mWindow;
+    const MSG &mMsg;
+  };
+
 };
 
 /**

@@ -215,7 +215,7 @@ JSWrapper::set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, Va
 }
 
 bool
-JSWrapper::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+JSWrapper::keys(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     const jsid id = JSID_VOID;
     GET(GetPropertyNames(cx, wrappedObject(wrapper), JSITER_OWNONLY, &props));
@@ -348,9 +348,6 @@ AutoCompartment::enter()
     if (origin != destination) {
         LeaveTrace(context);
 
-        if (context->isExceptionPending())
-            return false;
-
         context->compartment = destination;
         JSObject *scopeChain = target->getGlobal();
         JS_ASSERT(scopeChain->isNative());
@@ -360,6 +357,9 @@ AutoCompartment::enter()
             context->compartment = origin;
             return false;
         }
+
+        if (context->isExceptionPending())
+            context->wrapPendingException();
     }
     entered = true;
     return true;
@@ -500,11 +500,11 @@ JSCrossCompartmentWrapper::set(JSContext *cx, JSObject *wrapper, JSObject *recei
 }
 
 bool
-JSCrossCompartmentWrapper::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+JSCrossCompartmentWrapper::keys(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     PIERCE(cx, wrapper, GET,
            NOTHING,
-           JSWrapper::enumerateOwn(cx, wrapper, props),
+           JSWrapper::keys(cx, wrapper, props),
            call.origin->wrap(cx, props));
 }
 
@@ -552,41 +552,26 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
      * N.B. the order of closing/creating iterators is important due to the
      * implicit cx->enumerators state.
      */
-
-    if (ni->isKeyIter()) {
-        size_t length = ni->numKeys();
-        AutoIdVector keys(cx);
-        if (length > 0) {
-            if (!keys.resize(length))
-                return false;
-            for (size_t i = 0; i < length; ++i) {
-                keys[i] = ni->beginKey()[i];
-                if (!origin->wrapId(cx, &keys[i]))
-                    return false;
-            }
-        }
-
-        close.clear();
-        return js_CloseIterator(cx, iterObj) &&
-               VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
-    }
-
-    size_t length = ni->numValues();
-    AutoValueVector vals(cx);
+    size_t length = ni->numKeys();
+    bool isKeyIter = ni->isKeyIter();
+    AutoIdVector keys(cx);
     if (length > 0) {
-        if (!vals.resize(length))
+        if (!keys.resize(length))
             return false;
         for (size_t i = 0; i < length; ++i) {
-            vals[i] = ni->beginValue()[i];
-            if (!origin->wrap(cx, &vals[i]))
+            keys[i] = ni->begin()[i];
+            if (!origin->wrapId(cx, &keys[i]))
                 return false;
         }
-
     }
 
     close.clear();
-    return js_CloseIterator(cx, iterObj) &&
-           VectorToValueIterator(cx, obj, ni->flags, vals, vp);
+    if (!js_CloseIterator(cx, iterObj))
+        return false;
+
+    if (isKeyIter)
+        return VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
+    return VectorToValueIterator(cx, obj, ni->flags, keys, vp); 
 }
 
 bool
