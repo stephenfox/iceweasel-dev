@@ -68,4 +68,7 @@ AboutIce.prototype = {
   }
 }
 
-var NSGetModule = XPCOMUtils.generateNSGetModule([AboutIce]);
+if (XPCOMUtils.generateNSGetFactory)
+    var NSGetFactory = XPCOMUtils.generateNSGetFactory([AboutIce]);
+else
+    var NSGetModule = XPCOMUtils.generateNSGetModule([AboutIce]);
