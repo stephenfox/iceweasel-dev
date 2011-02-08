@@ -570,6 +570,8 @@ pref("dom.disable_open_click_delay", 1000);
 pref("dom.storage.enabled", true);
 pref("dom.storage.default_quota",      5120);
 
+pref("dom.send_after_paint_to_content", false);
+
 // Timeout clamp in ms for timeouts we clamp
 pref("dom.min_timeout_value", 10);
 
@@ -583,6 +585,9 @@ pref("content.sink.pending_event_mode", 0);
 //   1 = openControlled
 //   2 = openAbused
 pref("privacy.popups.disable_from_plugins", 2);
+
+// "do not track" HTTP header, disabled by default
+pref("privacy.donottrackheader.enabled",    false);
 
 pref("dom.event.contextmenu.enabled",       true);
 
@@ -1336,11 +1341,9 @@ pref("dom.ipc.plugins.timeoutSecs", 0);
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 #endif
 
-#ifdef XP_WIN
-// Disable oopp for java on windows. They run their own
-// process isolation which conflicts with our implementation.
+// Disable oopp for standard java. They run their own process isolation (which
+// conflicts with our implementation, at least on Windows).
 pref("dom.ipc.plugins.java.enabled", false);
-#endif
 
 #ifndef ANDROID
 #ifndef XP_MACOSX
@@ -3205,12 +3208,13 @@ pref("image.mem.max_ms_before_yield", 400);
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
 // WebGL prefs
-pref("webgl.enabled_for_all_sites", true);
+pref("webgl.force-enabled", false);
+pref("webgl.disabled", false);
 pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
-pref("webgl.mochitest_native_gl", false);
 pref("webgl.osmesalib", "");
 pref("webgl.verbose", false);
+pref("webgl.prefer-native-gl", false);
 
 #ifdef XP_WIN
 #ifndef WINCE

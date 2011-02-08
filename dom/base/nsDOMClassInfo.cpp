@@ -5766,11 +5766,12 @@ public:
 
   nsresult Install(JSContext *cx, JSObject *target, jsval thisAsVal)
   {
+    // The 'attrs' argument used to be JSPROP_PERMANENT. See bug 628612.
     JSBool ok = JS_WrapValue(cx, &thisAsVal) &&
       ::JS_DefineUCProperty(cx, target,
                             reinterpret_cast<const jschar *>(mClassName),
                             nsCRT::strlen(mClassName), thisAsVal, nsnull,
-                            nsnull, JSPROP_PERMANENT);
+                            nsnull, 0);
 
     return ok ? NS_OK : NS_ERROR_UNEXPECTED;
   }
@@ -10040,20 +10041,14 @@ nsHistorySH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                        JSObject *globalObj, JSObject **parentObj)
 {
   nsHistory *history = (nsHistory *)nativeObj;
-  nsIDocShell *ds = history->GetDocShell();
-  if (!ds) {
-    NS_WARNING("Refusing to create a history object in the wrong scope");
-    return NS_ERROR_UNEXPECTED;
+  nsCOMPtr<nsPIDOMWindow> innerWindow;
+  history->GetWindow(getter_AddRefs(innerWindow));
+  if (!innerWindow) {
+    NS_WARNING("refusing to create history object in the wrong scope");
+    return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_GetInterface(ds);
-  if (!sgo) {
-    NS_WARNING("Refusing to create a history object in the wrong scope because the "
-               "docshell is being destroyed");
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  *parentObj = sgo->GetGlobalJSObject();
+  *parentObj = static_cast<nsGlobalWindow *>(innerWindow.get())->FastGetGlobalJSObject();
   return NS_OK;
 }
 

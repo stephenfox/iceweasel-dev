@@ -6800,17 +6800,6 @@ LeaveTree(TraceMonitor *tm, TracerState& state, VMSideExit* lr)
              */
             JSFrameRegs* regs = cx->regs;
             JSOp op = (JSOp) *regs->pc;
-            JS_ASSERT(op == JSOP_CALL || op == JSOP_FUNAPPLY || op == JSOP_FUNCALL || op == JSOP_NEW ||
-                      op == JSOP_GETPROP || op == JSOP_GETTHISPROP || op == JSOP_GETARGPROP ||
-                      op == JSOP_GETLOCALPROP || op == JSOP_LENGTH ||
-                      op == JSOP_GETELEM || op == JSOP_CALLELEM || op == JSOP_CALLPROP ||
-                      op == JSOP_SETPROP || op == JSOP_SETNAME || op == JSOP_SETMETHOD ||
-                      op == JSOP_SETELEM || op == JSOP_INITELEM || op == JSOP_ENUMELEM ||
-                      op == JSOP_INSTANCEOF ||
-                      op == JSOP_ITER || op == JSOP_MOREITER || op == JSOP_ENDITER ||
-                      op == JSOP_FORARG || op == JSOP_FORLOCAL ||
-                      op == JSOP_FORNAME || op == JSOP_FORPROP || op == JSOP_FORELEM ||
-                      op == JSOP_DELPROP || op == JSOP_DELELEM);
 
             /*
              * JSOP_SETELEM can be coalesced with a JSOP_POP in the interpeter.
@@ -12458,7 +12447,7 @@ TraceRecorder::recordInitPropertyOp(jsbytecode op)
     LIns* v_ins = get(&v);
 
     JSAtom* atom = atoms[GET_INDEX(cx->regs->pc)];
-    jsid id = ATOM_TO_JSID(atom);
+    jsid id = js_CheckForStringIndex(ATOM_TO_JSID(atom));
 
     // If obj already has this property (because JSOP_NEWOBJECT already set its
     // shape or because the id appears more than once in the initializer), just
@@ -14311,13 +14300,17 @@ TraceRecorder::typedArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_
         break;
       case js::TypedArray::TYPE_UINT8:
       case js::TypedArray::TYPE_UINT8_CLAMPED:
-        v_ins = w.ui2d(w.lduc2uiTypedArrayElement(data_ins, pidx_ins));
+        // i2d on purpose here:  it's safe, because an 8-bit uint is guaranteed
+        // to fit in a 32-bit int, and i2d gets more optimization than ui2d.
+        v_ins = w.i2d(w.lduc2uiTypedArrayElement(data_ins, pidx_ins));
         break;
       case js::TypedArray::TYPE_INT16:
         v_ins = w.i2d(w.lds2iTypedArrayElement(data_ins, pidx_ins));
         break;
       case js::TypedArray::TYPE_UINT16:
-        v_ins = w.ui2d(w.ldus2uiTypedArrayElement(data_ins, pidx_ins));
+        // i2d on purpose here:  it's safe, because a 16-bit uint is guaranteed
+        // to fit in a 32-bit int, and i2d gets more optimization than ui2d.
+        v_ins = w.i2d(w.ldus2uiTypedArrayElement(data_ins, pidx_ins));
         break;
       case js::TypedArray::TYPE_INT32:
         v_ins = w.i2d(w.ldiTypedArrayElement(data_ins, pidx_ins));
@@ -14978,6 +14971,13 @@ TraceRecorder::record_JSOP_POPN()
     return ARECORD_CONTINUE;
 }
 
+static inline bool
+IsFindableCallObj(JSObject *obj)
+{
+    return obj->isCall() &&
+           (obj->callIsForEval() || obj->getCallObjCalleeFunction()->isHeavyweight());
+}
+
 /*
  * Generate LIR to reach |obj2| from |obj| by traversing the scope chain. The
  * generated code also ensures that any call objects found have not changed shape.
@@ -15019,13 +15019,10 @@ TraceRecorder::traverseScopeChain(JSObject *obj, LIns *obj_ins, JSObject *target
 
     for (;;) {
         if (searchObj != globalObj) {
-            Class* clasp = searchObj->getClass();
-            if (clasp == &js_BlockClass) {
+            if (searchObj->isBlock())
                 foundBlockObj = true;
-            } else if (clasp == &js_CallClass &&
-                       searchObj->getCallObjCalleeFunction()->isHeavyweight()) {
+            else if (IsFindableCallObj(searchObj))
                 foundCallObj = true;
-            }
         }
 
         if (searchObj == targetObj)
@@ -15054,8 +15051,7 @@ TraceRecorder::traverseScopeChain(JSObject *obj, LIns *obj_ins, JSObject *target
             // We must guard on the shape of all call objects for heavyweight functions
             // that we traverse on the scope chain: if the shape changes, a variable with
             // the same name may have been inserted in the scope chain.
-            if (obj->isCall() &&
-                obj->getCallObjCalleeFunction()->isHeavyweight()) {
+            if (IsFindableCallObj(obj)) {
                 if (!exit)
                     exit = snapshot(BRANCH_EXIT);
                 guard(true,
@@ -15431,6 +15427,9 @@ TraceRecorder::record_JSOP_LAMBDA()
     JSFunction* fun;
     fun = cx->fp()->script()->getFunction(getFullIndex());
 
+    if (FUN_NULL_CLOSURE(fun) && FUN_OBJECT(fun)->getParent() != globalObj)
+        RETURN_STOP_A("Null closure function object parent must be global object");
+
     /*
      * Emit code to clone a null closure parented by this recorder's global
      * object, in order to preserve function object evaluation rules observable
@@ -15442,10 +15441,7 @@ TraceRecorder::record_JSOP_LAMBDA()
      * JSOP_INITMETHOD logic governing the early ARECORD_CONTINUE returns below
      * must agree with the corresponding break-from-do-while(0) logic there.
      */
-    if (FUN_NULL_CLOSURE(fun)) {
-        if (FUN_OBJECT(fun)->getParent() != globalObj)
-            RETURN_STOP_A("Null closure function object parent must be global object");
-
+    if (FUN_NULL_CLOSURE(fun) && FUN_OBJECT(fun)->getParent() == &cx->fp()->scopeChain()) {
         jsbytecode *pc2 = AdvanceOverBlockchainOp(cx->regs->pc + JSOP_LAMBDA_LENGTH);
         JSOp op2 = JSOp(*pc2);
 

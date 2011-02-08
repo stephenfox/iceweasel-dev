@@ -25,6 +25,7 @@
  * Ehsan Akhgari <ehsan@mozilla.com>
  * Raymond Lee <raymond@appcoast.com>
  * Sean Dunn <seanedunn@yahoo.com>
+ * Tim Taubert <tim.taubert@gmx.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -200,11 +201,6 @@ let UI = {
         }
       });
 
-      iQ(window).bind("beforeunload", function() {
-        Array.forEach(gBrowser.tabs, function(tab) {
-          gBrowser.showTab(tab);
-        });
-      });
       iQ(window).bind("unload", function() {
         self.uninit();
       });
@@ -478,10 +474,21 @@ let UI = {
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
-    this._setActiveTitleColor(true);
+    this.setTitlebarColors(true);
 #endif
     let event = document.createEvent("Events");
     event.initEvent("tabviewshown", true, false);
+
+    // Close the active group if it was empty. This will happen when the
+    // user returns to Panorama after looking at an app tab, having
+    // closed all other tabs. (If the user is looking at an orphan tab, then
+    // there is no active group for the purposes of this check.)
+    let activeGroupItem = null;
+    if (!GroupItems.getActiveOrphanTab()) {
+      activeGroupItem = GroupItems.getActiveGroupItem();
+      if (activeGroupItem && activeGroupItem.closeIfEmpty())
+        activeGroupItem = null;
+    }
 
     if (zoomOut && currentTab && currentTab._tabViewTabItem) {
       item = currentTab._tabViewTabItem;
@@ -496,11 +503,8 @@ let UI = {
 
         self.setActiveTab(item);
 
-        if (item.parent) {
-          var activeGroupItem = GroupItems.getActiveGroupItem();
-          if (activeGroupItem)
-            activeGroupItem.setTopChild(item);
-        }
+        if (activeGroupItem && item.parent)
+          activeGroupItem.setTopChild(item);
 
         self._resize(true);
         dispatchEvent(event);
@@ -511,9 +515,6 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
-      if (currentTab && currentTab._tabViewTabItem)
-        currentTab._tabViewTabItem.setZoomPrep(false);
-
       self.setActiveTab(null);
       dispatchEvent(event);
 
@@ -555,7 +556,7 @@ let UI = {
 
     gBrowser.updateTitlebar();
 #ifdef XP_MACOSX
-    this._setActiveTitleColor(false);
+    this.setTitlebarColors(false);
 #endif
     let event = document.createEvent("Events");
     event.initEvent("tabviewhidden", true, false);
@@ -566,19 +567,27 @@ let UI = {
 
 #ifdef XP_MACOSX
   // ----------
-  // Function: _setActiveTitleColor
+  // Function: setTitlebarColors
   // Used on the Mac to make the title bar match the gradient in the rest of the
   // TabView UI.
   //
   // Parameters:
-  //   set - true for the special TabView color, false for the normal color.
-  _setActiveTitleColor: function UI__setActiveTitleColor(set) {
+  //   colors - (bool or object) true for the special TabView color, false for
+  //         the normal color, and an object with "active" and "inactive"
+  //         properties to specify directly.
+  setTitlebarColors: function UI_setTitlebarColors(colors) {
     // Mac Only
     var mainWindow = gWindow.document.getElementById("main-window");
-    if (set)
+    if (colors === true) {
       mainWindow.setAttribute("activetitlebarcolor", "#C4C4C4");
-    else
+      mainWindow.setAttribute("inactivetitlebarcolor", "#EDEDED");
+    } else if (colors && "active" in colors && "inactive" in colors) {
+      mainWindow.setAttribute("activetitlebarcolor", colors.active);
+      mainWindow.setAttribute("inactivetitlebarcolor", colors.inactive);
+    } else {
       mainWindow.removeAttribute("activetitlebarcolor");
+      mainWindow.removeAttribute("inactivetitlebarcolor");
+    }
   },
 #endif
 
@@ -587,8 +596,10 @@ let UI = {
   // Pauses the storage activity that conflicts with sessionstore updates and 
   // private browsing mode switches. Calls can be nested. 
   storageBusy: function UI_storageBusy() {
-    if (!this._storageBusyCount)
+    if (!this._storageBusyCount) {
       TabItems.pauseReconnecting();
+      GroupItems.pauseAutoclose();
+    }
     
     this._storageBusyCount++;
   },
@@ -606,6 +617,7 @@ let UI = {
   
       TabItems.resumeReconnecting();
       GroupItems._updateTabBar();
+      GroupItems.resumeAutoclose();
     }
   },
 
@@ -729,9 +741,6 @@ let UI = {
           if (closingLastOfGroup || closingUnnamedGroup) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
-            // remove the zoom prep.
-            if (tab && tab._tabViewTabItem)
-              tab._tabViewTabItem.setZoomPrep(false);
             self.showTabView();
           }
         }
@@ -871,15 +880,6 @@ let UI = {
       if (GroupItems.getActiveGroupItem() || GroupItems.getActiveOrphanTab())
         GroupItems._updateTabBar();
     }
-
-    // ___ prepare for when we return to TabView
-    if (newItem != oldItem) {
-      if (oldItem)
-        oldItem.setZoomPrep(false);
-      if (newItem)
-        newItem.setZoomPrep(true);
-    } else if (oldItem)
-      oldItem.setZoomPrep(true);
   },
 
   // ----------
@@ -993,7 +993,7 @@ let UI = {
       if (norm != null) {
         var nextTab = getClosestTabBy(norm);
         if (nextTab) {
-          if (nextTab.inStack() && !nextTab.parent.expanded)
+          if (nextTab.isStacked && !nextTab.parent.expanded)
             nextTab = nextTab.parent.getChild(0);
           self.setActiveTab(nextTab);
         }
@@ -1057,7 +1057,7 @@ let UI = {
   //   event - the event triggers this action.
   enableSearch: function UI_enableSearch(event) {
     if (!isSearchEnabled()) {
-      ensureSearchShown(null);
+      ensureSearchShown();
       SearchEventHandler.switchToInMode();
       
       if (event) {
@@ -1228,9 +1228,6 @@ let UI = {
     itemBounds.width = 1;
     itemBounds.height = 1;
     items.forEach(function(item) {
-      if (item.locked.bounds)
-        return;
-
       var bounds = item.getBounds();
       itemBounds = (itemBounds ? itemBounds.union(bounds) : new Rect(bounds));
     });
@@ -1258,9 +1255,6 @@ let UI = {
     var self = this;
     var pairs = [];
     items.forEach(function(item) {
-      if (item.locked.bounds)
-        return;
-
       var bounds = item.getBounds();
       bounds.left += (UI.rtl ? -1 : 1) * (newPageBounds.left - self._pageBounds.left);
       bounds.left *= scale;
@@ -1361,14 +1355,17 @@ let UI = {
       let unhiddenGroups = GroupItems.groupItems.filter(function(groupItem) {
         return (!groupItem.hidden && groupItem.getChildren().length > 0);
       });
-      // no visible groups, no orphaned tabs and no apps tabs, open a new group
-      // with a blank tab
-      if (unhiddenGroups.length == 0 && GroupItems.getOrphanedTabs().length == 0 &&
-          gBrowser._numPinnedTabs == 0) {
-        let box = new Rect(20, 20, 250, 200);
-        let groupItem = new GroupItem([], { bounds: box, immediately: true });
-        groupItem.newTab();
-        return;
+      // no pinned tabs, no visible groups and no orphaned tabs: open a new
+      // group. open a blank tab and return
+      if (!unhiddenGroups.length && !GroupItems.getOrphanedTabs().length) {
+        let emptyGroups = GroupItems.groupItems.filter(function (groupItem) {
+          return (!groupItem.hidden && !groupItem.getChildren().length);
+        });
+        let group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
+        if (!gBrowser._numPinnedTabs) {
+          group.newTab();
+          return;
+        }
       }
 
       // If there's an active TabItem, zoom into it. If not (for instance when the

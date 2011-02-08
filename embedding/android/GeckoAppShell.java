@@ -95,7 +95,6 @@ class GeckoAppShell
     // helper methods
     public static native void setSurfaceView(GeckoSurfaceView sv);
     public static native void putenv(String map);
-    public static native void onResume();
     public static native void onLowMemory();
     public static native void onCriticalOOM();
     public static native void callObserver(String observerKey, String topic, String data);
@@ -166,11 +165,14 @@ class GeckoAppShell
 
         if (freeSpace + kLibFreeSpaceBuffer < kFreeSpaceThreshold) {
             // remove any previously extracted libs since we're apparently low
-            Iterator cacheFiles = Arrays.asList(cacheFile.listFiles()).iterator();
-            while (cacheFiles.hasNext()) {
-                File libFile = (File)cacheFiles.next();
-                if (libFile.getName().endsWith(".so"))
-                    libFile.delete();
+            File[] files = cacheFile.listFiles();
+            if (files != null) {
+                Iterator cacheFiles = Arrays.asList(files).iterator();
+                while (cacheFiles.hasNext()) {
+                    File libFile = (File)cacheFiles.next();
+                    if (libFile.getName().endsWith(".so"))
+                        libFile.delete();
+                }
             }
         }
         loadLibs(apkName, freeSpace > kFreeSpaceThreshold);
@@ -584,7 +586,7 @@ class GeckoAppShell
         removeNotification(notificationID);
 
         AlertNotification notification = new AlertNotification(GeckoApp.mAppContext,
-            notificationID, icon, aAlertTitle, System.currentTimeMillis());
+            notificationID, icon, aAlertTitle, aAlertText, System.currentTimeMillis());
 
         // The intent to launch when the user clicks the expanded notification
         Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CLICK);

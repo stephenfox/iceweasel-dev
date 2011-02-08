@@ -1200,7 +1200,11 @@ nsHTMLInputElement::SetUserInput(const nsAString& aValue)
   } else {
     SetValueInternal(aValue, PR_TRUE, PR_TRUE);
   }
-  return NS_OK;
+
+  return nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
+                                              static_cast<nsIDOMHTMLInputElement*>(this),
+                                              NS_LITERAL_STRING("input"), PR_TRUE,
+                                              PR_TRUE);
 }
 
 NS_IMETHODIMP_(nsIEditor*)
@@ -3310,9 +3314,10 @@ nsHTMLInputElement::IntrinsicState() const
     } else {
       state |= NS_EVENT_STATE_INVALID;
 
-      if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR) ||
-          (GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI) &&
-           ShouldShowValidityUI())) {
+      if ((!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) &&
+          (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR) ||
+           (GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI) &&
+            ShouldShowValidityUI()))) {
         state |= NS_EVENT_STATE_MOZ_UI_INVALID;
       }
     }
@@ -3322,11 +3327,14 @@ nsHTMLInputElement::IntrinsicState() const
     //    :-moz-ui-invalid applying before it was focused ;
     // 2. The element is either valid or isn't allowed to have
     //    :-moz-ui-invalid applying ;
-    // 3. The rules to have :-moz-ui-valid applying are fulfilled
-    //    (see ShouldShowValidityUI()).
-    if (GET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI) && ShouldShowValidityUI() &&
-        (IsValid() || (!state.HasState(NS_EVENT_STATE_MOZ_UI_INVALID) &&
-                       !GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI)))) {
+    // 3. The element has no form owner or its form owner doesn't have the
+    //    novalidate attribute set ;
+    // 4. The element has already been modified or the user tried to submit the
+    //    form owner while invalid.
+    if ((!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) &&
+        (GET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI) && ShouldShowValidityUI() &&
+         (IsValid() || (!state.HasState(NS_EVENT_STATE_MOZ_UI_INVALID) &&
+                        !GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI))))) {
       state |= NS_EVENT_STATE_MOZ_UI_VALID;
     }
   }
@@ -4113,16 +4121,11 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     return PR_FALSE;
   }
 
-  // The domain name must have at least one dot which can't follow another dot,
-  // can't be the first nor the last domain name character.
-  PRBool dotFound = PR_FALSE;
-
   // Parsing the domain name.
   for (; i < length; ++i) {
     PRUnichar c = aValue[i];
 
     if (c == '.') {
-      dotFound = PR_TRUE;
       // A dot can't follow a dot.
       if (aValue[i-1] == '.') {
         return PR_FALSE;
@@ -4134,7 +4137,7 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     }
   }
 
-  return dotFound;
+  return PR_TRUE;
 }
 
 //static

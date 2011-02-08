@@ -80,6 +80,7 @@ nsHyperTextAccessible::
   nsHyperTextAccessible(nsIContent *aNode, nsIWeakReference *aShell) :
   nsAccessibleWrap(aNode, aShell)
 {
+  mFlags |= eHyperTextAccessible;
 }
 
 NS_IMPL_ADDREF_INHERITED(nsHyperTextAccessible, nsAccessibleWrap)
@@ -203,6 +204,17 @@ nsHyperTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
+PRBool
+nsHyperTextAccessible::RemoveChild(nsAccessible *aAccessible)
+{
+  PRInt32 childIndex = aAccessible->GetIndexInParent();
+  PRInt32 count = mOffsets.Length() - childIndex;
+  if (count > 0)
+    mOffsets.RemoveElementsAt(childIndex, count);
+
+  return nsAccessible::RemoveChild(aAccessible);
+}
+
 // Substring must be entirely within the same text node
 nsIntRect nsHyperTextAccessible::GetBoundsForString(nsIFrame *aFrame, PRUint32 aStartRenderedOffset,
                                                     PRUint32 aEndRenderedOffset)
@@ -282,13 +294,13 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
                                      nsAccessible **aEndAcc)
 {
   if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
-    GetCharacterCount(&aStartOffset);
+    aStartOffset = CharacterCount();
   }
   if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
     GetCaretOffset(&aStartOffset);
   }
   if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
-    GetCharacterCount(&aEndOffset);
+    aEndOffset = CharacterCount();
   }
   if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
     GetCaretOffset(&aEndOffset);
@@ -473,12 +485,62 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
   return startFrame;
 }
 
-NS_IMETHODIMP nsHyperTextAccessible::GetText(PRInt32 aStartOffset, PRInt32 aEndOffset, nsAString &aText)
+NS_IMETHODIMP
+nsHyperTextAccessible::GetText(PRInt32 aStartOffset, PRInt32 aEndOffset,
+                               nsAString &aText)
 {
+  aText.Truncate();
+
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  return GetPosAndText(aStartOffset, aEndOffset, &aText) ? NS_OK : NS_ERROR_FAILURE;
+  if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT)
+    aStartOffset = CharacterCount();
+  else if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
+    GetCaretOffset(&aStartOffset);
+
+  if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT)
+    aEndOffset = CharacterCount();
+  else if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
+    GetCaretOffset(&aEndOffset);
+
+  PRInt32 startChildIdx = GetChildIndexAtOffset(aStartOffset);
+  if (startChildIdx == -1)
+    return NS_ERROR_INVALID_ARG;
+
+  PRInt32 endChildIdx = GetChildIndexAtOffset(aEndOffset);
+  if (endChildIdx == -1)
+    return NS_ERROR_INVALID_ARG;
+
+  if (startChildIdx == endChildIdx) {
+    PRInt32 childOffset =  GetChildOffset(startChildIdx);
+    NS_ENSURE_STATE(childOffset != -1);
+
+    nsAccessible* child = GetChildAt(startChildIdx);
+    child->AppendTextTo(aText, aStartOffset - childOffset,
+                        aEndOffset - aStartOffset);
+
+    return NS_OK;
+  }
+
+  PRInt32 startChildOffset =  GetChildOffset(startChildIdx);
+  NS_ENSURE_STATE(startChildOffset != -1);
+
+  nsAccessible* startChild = GetChildAt(startChildIdx);
+  startChild->AppendTextTo(aText, aStartOffset - startChildOffset);
+
+  for (PRInt32 childIdx = startChildIdx + 1; childIdx < endChildIdx; childIdx++) {
+    nsAccessible* child = GetChildAt(childIdx);
+    child->AppendTextTo(aText);
+  }
+
+  PRInt32 endChildOffset =  GetChildOffset(endChildIdx);
+  NS_ENSURE_STATE(endChildOffset != -1);
+
+  nsAccessible* endChild = GetChildAt(endChildIdx);
+  endChild->AppendTextTo(aText, 0, aEndOffset - endChildOffset);
+
+  return NS_OK;
 }
 
 /*
@@ -492,14 +554,7 @@ NS_IMETHODIMP nsHyperTextAccessible::GetCharacterCount(PRInt32 *aCharacterCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 childCount = GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *childAcc = mChildren[childIdx];
-
-    PRInt32 textLength = nsAccUtils::TextLength(childAcc);
-    NS_ENSURE_TRUE(textLength >= 0, nsnull);
-    *aCharacterCount += textLength;
-  }
+  *aCharacterCount = CharacterCount();
   return NS_OK;
 }
 
@@ -874,7 +929,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   }
 
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
-    GetCharacterCount(&aOffset);
+    aOffset = CharacterCount();
   }
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
     GetCaretOffset(&aOffset);
@@ -958,8 +1013,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
                                        nsnull, getter_AddRefs(startAcc));
 
   if (!startFrame) {
-    PRInt32 textLength;
-    GetCharacterCount(&textLength);
+    PRInt32 textLength = CharacterCount();
     if (aBoundaryType == BOUNDARY_LINE_START && aOffset > 0 && aOffset == textLength) {
       // Asking for start of line, while on last character
       if (startAcc)
@@ -1023,8 +1077,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
         // that the first character is in
         return GetTextHelper(eGetAfter, aBoundaryType, aOffset, aStartOffset, aEndOffset, aText);
       }
-      PRInt32 textLength;
-      GetCharacterCount(&textLength);
+      PRInt32 textLength = CharacterCount();
       if (finalEndOffset < textLength) {
         // This happens sometimes when current character at finalStartOffset 
         // is an embedded object character representing another hypertext, that
@@ -1419,8 +1472,7 @@ NS_IMETHODIMP nsHyperTextAccessible::SetAttributes(PRInt32 aStartPos, PRInt32 aE
 
 NS_IMETHODIMP nsHyperTextAccessible::SetTextContents(const nsAString &aText)
 {
-  PRInt32 numChars;
-  GetCharacterCount(&numChars);
+  PRInt32 numChars = CharacterCount();
   if (numChars == 0 || NS_SUCCEEDED(DeleteText(0, numChars))) {
     return InsertText(aText, 0);
   }

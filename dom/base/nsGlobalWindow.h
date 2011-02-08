@@ -299,7 +299,6 @@ public:
   nsPIDOMWindow* GetPrivateParent();
   // callback for close event
   void ReallyCloseWindow();
-  void ReallyClearScope(nsRunnable *aRunnable);
 
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -410,8 +409,8 @@ public:
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
 
-  virtual NS_HIDDEN_(void) EnterModalState();
-  virtual NS_HIDDEN_(void) LeaveModalState();
+  virtual NS_HIDDEN_(nsIDOMWindow *) EnterModalState();
+  virtual NS_HIDDEN_(void) LeaveModalState(nsIDOMWindow *aWindow);
 
   virtual NS_HIDDEN_(PRBool) CanClose();
   virtual NS_HIDDEN_(nsresult) ForceClose();
@@ -593,6 +592,8 @@ protected:
   virtual ~nsGlobalWindow();
   void CleanUp(PRBool aIgnoreModalDialog);
   void ClearControllers();
+  static void TryClearWindowScope(nsISupports* aWindow);
+  void ClearScopeWhenAllScriptsStop();
   nsresult FinalClose();
 
   void FreeInnerObjects(PRBool aClearScope);
@@ -863,6 +864,11 @@ protected:
   // Fast way to tell if this is a chrome window (without having to QI).
   PRPackedBool                  mIsChrome : 1;
 
+  // Hack to indicate whether a chrome window needs its message manager
+  // to be disconnected, since clean up code is shared in the global
+  // window superclass.
+  PRPackedBool                  mCleanMessageManager : 1;
+
   // Indicates that the current document has never received a document focus
   // event.
   PRPackedBool           mNeedsFocus : 1;
@@ -896,7 +902,6 @@ protected:
   nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
   nsRefPtr<nsNavigator>         mNavigator;
   nsRefPtr<nsScreen>            mScreen;
-  nsRefPtr<nsHistory>           mHistory;
   nsRefPtr<nsDOMWindowList>     mFrames;
   nsRefPtr<nsBarProp>           mMenubar;
   nsRefPtr<nsBarProp>           mToolbar;
@@ -927,6 +932,7 @@ protected:
   PRUint32                      mTimeoutPublicIdCounter;
   PRUint32                      mTimeoutFiringDepth;
   nsRefPtr<nsLocation>          mLocation;
+  nsRefPtr<nsHistory>           mHistory;
 
   // Holder of the dummy java plugin, used to expose window.java and
   // window.packages.
@@ -1004,6 +1010,19 @@ public:
     : nsGlobalWindow(aOuterWindow)
   {
     mIsChrome = PR_TRUE;
+    mCleanMessageManager = PR_TRUE;
+  }
+
+  ~nsGlobalChromeWindow()
+  {
+    NS_ABORT_IF_FALSE(mCleanMessageManager,
+                      "chrome windows may always disconnect the msg manager");
+    if (mMessageManager) {
+      static_cast<nsFrameMessageManager *>(
+        mMessageManager.get())->Disconnect();
+    }
+
+    mCleanMessageManager = PR_FALSE;
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
