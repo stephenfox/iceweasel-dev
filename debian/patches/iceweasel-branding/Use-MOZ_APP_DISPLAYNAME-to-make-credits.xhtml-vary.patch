@@ -1,0 +1,45 @@
+From 071f6697d8d1d9f4eb5a79477be5f9fdda79c5b8 Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Sat, 19 Feb 2011 11:04:04 +0100
+Subject: Use MOZ_APP_DISPLAYNAME to make credits.xhtml vary
+
+---
+ browser/base/Makefile.in           |    1 +
+ browser/base/content/credits.xhtml |    2 ++
+ 2 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/browser/base/Makefile.in b/browser/base/Makefile.in
+index 4b667a2..b692bae 100644
+--- a/browser/base/Makefile.in
++++ b/browser/base/Makefile.in
+@@ -65,6 +65,7 @@ PRE_RELEASE_SUFFIX := $(shell $(PYTHON) $(topsrcdir)/config/printprereleasesuffi
+ 
+ DEFINES += \
+ 	-DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
++	-DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME) \
+ 	-DAPP_LICENSE_BLOCK=$(abs_srcdir)/content/overrides/app-license.html \
+ 	-DPRE_RELEASE_SUFFIX="$(PRE_RELEASE_SUFFIX)" \
+ 	$(NULL)
+diff --git a/browser/base/content/credits.xhtml b/browser/base/content/credits.xhtml
+index d3e78e6..5b4b2cb 100644
+--- a/browser/base/content/credits.xhtml
++++ b/browser/base/content/credits.xhtml
+@@ -631,6 +631,7 @@
+           <a href="" link="about:license" onclick="visitLink(event);">about:license</a>
+           &license.part3;</p>
+ 
++#if MOZ_APP_DISPLAYNAME==Firefox
+         <p class="footnote">
+           Mozilla Firefox&reg; and the Firefox logo are registered trademarks of the
+           Mozilla Foundation. You are not granted rights or licenses to the trademarks
+@@ -638,6 +639,7 @@
+           Firefox name or logo. Gecko&reg; is a registered trademark of Netscape
+           Communications Corporation.</p>
+ 
++#endif
+         <p class="footnote">
+           U.S. GOVERNMENT END USERS. The Software is a &ldquo;commercial item,&rdquo;
+           as that term is defined in 48 C.F.R. 2.101 (Oct. 1995), consisting of
+-- 
+1.7.4.1
+

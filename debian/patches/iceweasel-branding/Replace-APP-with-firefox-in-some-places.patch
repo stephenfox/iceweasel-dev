@@ -1,3 +1,4 @@
+From d2229bc8a25c79f2d1653d2023d6a3634b4c7ce3 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 18 Oct 2008 13:56:55 +0200
 Subject: Replace %APP% with firefox in some places
@@ -48,3 +49,6 @@ index 1877105..739ac6c 100644
  
  // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
  pref("security.alternate_certificate_error_page", "certerror");
+-- 
+1.7.4.1
+

@@ -1,38 +1,45 @@
+From d16ade441548f64203d23c1261ddbe2e4643a1fc Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 1 Apr 2010 15:34:59 +0200
-Subject: Use googpub-phish-shavar instead of goog-phish-shavar for safe browsing
+Subject: Determine which phishing shavar to use depending on MOZ_OFFICIAL
 
-This is a first step for fixing safe browsing. Either the current setup will work
-if Google allows our client string to get this data, or we'll be allowed to say
-we're firefox to the safe browsing server.
 ---
- browser/app/profile/firefox.js                     |    2 +-
- .../components/safebrowsing/content/application.js |    2 +-
- 2 files changed, 2 insertions(+), 2 deletions(-)
+ browser/app/profile/firefox.js                     |    4 ++++
+ .../components/safebrowsing/content/application.js |    4 ++++
+ 2 files changed, 8 insertions(+), 0 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 739ac6c..cc51cdb 100644
+index e5aecc0..c1ff3a0 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -728,7 +728,7 @@ pref("urlclassifier.alternate_error_page", "blocked");
+@@ -728,7 +728,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
  pref("urlclassifier.gethashnoise", 4);
  
  // The list of tables that use the gethash request to confirm partial results.
--pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
++#ifdef MOZILLA_OFFICIAL
+ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
++#else
 +pref("urlclassifier.gethashtables", "googpub-phish-shavar,goog-malware-shavar");
++#endif
  
  // If an urlclassifier table has not been updated in this number of seconds,
  // a gethash request will be forced to check that the result is still in
 diff --git a/browser/components/safebrowsing/content/application.js b/browser/components/safebrowsing/content/application.js
-index d353cbc..6beebbf 100644
+index d353cbc..7fdd839 100644
 --- a/browser/components/safebrowsing/content/application.js
 +++ b/browser/components/safebrowsing/content/application.js
-@@ -109,7 +109,7 @@ PROT_Application.prototype.initialize = function() {
+@@ -109,7 +109,11 @@ PROT_Application.prototype.initialize = function() {
    this.malwareWarden.maybeToggleUpdateChecking();
  
    this.phishWarden = new PROT_PhishingWarden();
--  this.phishWarden.registerBlackTable("goog-phish-shavar");
++#ifdef OFFICIAL_BUILD
+   this.phishWarden.registerBlackTable("goog-phish-shavar");
++#else
 +  this.phishWarden.registerBlackTable("googpub-phish-shavar");
++#endif
    this.phishWarden.maybeToggleUpdateChecking();
  }
  
+-- 
+1.7.4.1
+

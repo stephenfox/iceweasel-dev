@@ -1,0 +1,66 @@
+From fbf16e404a383991bc0a61c186ccc023ff18c3bd Mon Sep 17 00:00:00 2001
+From: Mike Hommey <mh@glandium.org>
+Date: Sat, 19 Feb 2011 12:18:14 +0100
+Subject: Use &brandTrade; instead of &trade;
+
+---
+ browser/base/content/credits.xhtml                 |    6 +++---
+ browser/branding/nightly/locales/en-US/brand.dtd   |    1 +
+ .../branding/unofficial/locales/en-US/brand.dtd    |    1 +
+ 3 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/browser/base/content/credits.xhtml b/browser/base/content/credits.xhtml
+index 5b4b2cb..0d83186 100644
+--- a/browser/base/content/credits.xhtml
++++ b/browser/base/content/credits.xhtml
+@@ -54,7 +54,7 @@
+ 
+ <html xmlns="http://www.w3.org/1999/xhtml">
+   <head>
+-    <title>&brandFullName; Credits</title>
++    <title>&brandFullName;&brandTrade; Credits</title>
+ 
+     <style>
+       html {
+@@ -209,7 +209,7 @@
+     </div>
+ 
+     <div id="creditsBox">
+-        <h2 class="title" dir="&locale.dir;">&brandFullName;&trade;
++        <h2 class="title" dir="&locale.dir;">&brandFullName;&brandTrade;
+           <div class="motto">&brandMotto;</div>
+         </h2>
+         <div class="links" dir="&locale.dir;">
+@@ -625,7 +625,7 @@
+         <p id="gecko" class="center" dir="&locale.dir;">&credit.poweredByGeckoReg;</p>
+ 
+         <p class="footnote" dir="&locale.dir;">
+-          &brandFullName;&trade; &license.part0; &copy;1998-2010 &license.part1;
++          &brandFullName;&brandTrade; &license.part0; &copy;1998-2010 &license.part1;
+           <a href="" link="about:credits" onclick="visitLink(event);">&license.contrib;</a>,
+           &license.part2;
+           <a href="" link="about:license" onclick="visitLink(event);">about:license</a>
+diff --git a/browser/branding/nightly/locales/en-US/brand.dtd b/browser/branding/nightly/locales/en-US/brand.dtd
+index e0081c3..bceab30 100644
+--- a/browser/branding/nightly/locales/en-US/brand.dtd
++++ b/browser/branding/nightly/locales/en-US/brand.dtd
+@@ -1,4 +1,5 @@
+ <!ENTITY  brandShortName        "Minefield">
+ <!ENTITY  brandFullName         "Minefield">            
++<!ENTITY  brandTrade            "">
+ <!ENTITY  vendorShortName       "Mozilla">
+ <!ENTITY  logoCopyright         " ">
+diff --git a/browser/branding/unofficial/locales/en-US/brand.dtd b/browser/branding/unofficial/locales/en-US/brand.dtd
+index 6268cf2..b425a65 100644
+--- a/browser/branding/unofficial/locales/en-US/brand.dtd
++++ b/browser/branding/unofficial/locales/en-US/brand.dtd
+@@ -1,5 +1,6 @@
+ <!ENTITY  brandShortName        "Namoroka">
+ <!ENTITY  brandFullName         "Namoroka">
++<!ENTITY  brandTrade            "">
+ <!ENTITY  vendorShortName       "mozilla.org">
+ <!ENTITY  logoCopyright         " ">
+ 
+-- 
+1.7.4.1
+
