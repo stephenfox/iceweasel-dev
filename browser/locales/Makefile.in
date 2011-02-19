@@ -72,6 +72,7 @@ VERSION_SUFFIX = $(shell hg -R $(LOCALE_SRCDIR)/.. parent --template=".{rev}" 2>
 
 
 DEFINES += -DVERSION_SUFFIX=$(VERSION_SUFFIX)
+DEFINES += -DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME)
 
 # This makefile uses variable overrides from the libs-% target to
 # build non-default locales to non-default dist/ locations. Be aware!
