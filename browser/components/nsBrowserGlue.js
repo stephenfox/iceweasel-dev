@@ -1087,7 +1087,7 @@ BrowserGlue.prototype = {
 
 
   // for XPCOM
-  classDescription: "Iceweasel Browser Glue Service",
+  classDescription: "Firefox Browser Glue Service",
   classID:          Components.ID("{eab9012e-5f74-4cbc-b2b5-a590235513cc}"),
   contractID:       "@mozilla.org/browser/browserglue;1",
 
