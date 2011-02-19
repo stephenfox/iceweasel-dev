@@ -1,8 +1,45 @@
 iceweasel (3.6.13-3) UNRELEASED; urgency=low
 
-  * 
+  * debian/branding/locales/en-US/brand.*: Changed vendorShortName to
+    Mozilla to fit upstream.
+  * debian/branding/Makefile.in, debian/branding/aboutIce.*,
+    debian/rules: Prepare aboutIce component to the XPCOM changes in
+    Gecko 2.0.
+  * debian/extra-stuff/Makefile.in, debian/extra-stuff/addonsInfo.*,
+    debian/extra-stuff/packages-static.xulrunner: Prepare extra components
+    to the XPCOM changes in Gecko 2.0.
+  * debian/iceweasel.install, debian/rules: Install vendor.js with dh_install
+    instead of manually in debian/rules.
+  * debian/extra-stuff/Makefile.in,
+    debian/extra-stuff/packages-static.xulrunner, debian/iceweasel.install,
+    debian/installer/Makefile.in, debian/installer/package-manifest.*,
+    debian/rules: Use packager.mk to install about:iceweasel files.
+  * debian/iceweasel.desktop: Add x-scheme-handler/http* MimeTypes.
+    Closes: #613109.
 
- -- Mike Hommey <glandium@debian.org>  Sat, 22 Jan 2011 14:04:13 +0100
+  * browser/components/nsBrowserGlue.js: Unbrand Browser Glue Service.
+  * browser/locales/en-US/chrome/overrides/appstrings.properties,
+    browser/locales/Makefile.in: Use MOZ_APP_DISPLAYNAME to fill
+    appstrings.properties.
+  * browser/branding/*/locales/en-US/brand.dtd,
+    browser/base/content/credits.xhtml: Use &brandTrade; instead of &trade;.
+  * browser/base/content/credits.xhtml, browser/base/Makefile.in:
+    Use MOZ_APP_DISPLAYNAME to make credits.xhtml vary depending on branding.
+  * browser/locales/en-US/searchplugins/answers.xml,
+    browser/locales/en-US/searchplugins/google.xml,
+    browser/locales/Makefile.in: Modify search plugins depending on
+    MOZ_APP_NAME.
+  * browser/app/Makefile.in, browser/app/application.ini, browser/confvars.sh,
+    config/autoconf.mk.in, configure.in: Don't hardcode anything in
+    application.ini files. bz#525882.
+  * browser/components/safebrowsing/content/application.js,
+    browser/app/profile/firefox.js: Determine which phishing shavar to use
+    depending on MOZ_OFFICIAL.
+
+  * debian/branding/configure.sh, debian/branding/locales/en-US/brand.dtd:
+    Adjust Iceweasel branding to unbranding changes above.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 19 Feb 2011 13:47:22 +0100
 
 iceweasel (3.6.13-2) experimental; urgency=low
 
