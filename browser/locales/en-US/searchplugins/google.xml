@@ -3,7 +3,11 @@
 <Description>Google Search</Description>
 <InputEncoding>UTF-8</InputEncoding>
 <Image width="16" height="16" type="image/x-icon">http://www.google.com/favicon.ico</Image>
+#if MOZ_APP_NAME==firefox
 <Url type="application/x-suggestions+json" method="GET" template="http://suggestqueries.google.com/complete/search?output=firefox&amp;client=firefox&amp;hl={moz:locale}&amp;q={searchTerms}"/>
+#else
+<Url type="application/x-suggestions+json" method="GET" template="http://suggestqueries.google.com/complete/search?output=firefox&amp;hl={moz:locale}&amp;q={searchTerms}"/>
+#endif
 <Url type="text/html" method="GET" template="http://www.google.com/search">
   <Param name="q" value="{searchTerms}"/>
   <Param name="ie" value="utf-8"/>
@@ -11,7 +15,7 @@
   <Param name="aq" value="t"/>
   <!-- Dynamic parameters -->
   <Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
-  <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
+#expand  <MozParam name="client" condition="defaultEngine" trueValue="__MOZ_APP_NAME__-a" falseValue="__MOZ_APP_NAME__"/>
 </Url>
 <SearchForm>http://www.google.com/</SearchForm>
 </SearchPlugin>

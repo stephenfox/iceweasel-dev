@@ -8,6 +8,6 @@
   <Param name="gwp" value="13"/>
 </Url>
 <Url type="application/x-suggestions+json" method="GET"
-     template="http://www.answers.com/main/startswith?output=json&amp;client=firefox&amp;s={searchTerms}"/>
+#expand     template="http://www.answers.com/main/startswith?output=json&amp;client=__MOZ_APP_NAME__&amp;s={searchTerms}"/>
 <SearchForm>http://www.answers.com/</SearchForm>
 </SearchPlugin>
