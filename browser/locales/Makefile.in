@@ -69,6 +69,8 @@ SUBMAKEFILES += \
 	$(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales/Makefile \
 	$(NULL)
 
+DEFINES += -DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME)
+
 # This makefile uses variable overrides from the libs-% target to
 # build non-default locales to non-default dist/ locations. Be aware!
 
