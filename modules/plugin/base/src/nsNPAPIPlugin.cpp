@@ -123,6 +123,10 @@ using mozilla::plugins::PluginModuleParent;
 #include "mozilla/X11Util.h"
 #endif
 
+#ifdef XP_WIN
+#include <windows.h>
+#endif
+
 using namespace mozilla::plugins::parent;
 
 // We should make this const...
@@ -273,7 +277,7 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
 
 #ifdef MOZ_IPC
 
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && defined(__i386__)
 static PRInt32 OSXVersion()
 {
   static PRInt32 gOSXVersion = 0x0;
@@ -324,7 +328,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
     return PR_FALSE;
   }
 
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && defined(__i386__)
   // Only allow on Mac OS X 10.6 or higher.
   if (OSXVersion() < 0x00001060) {
     return PR_FALSE;
@@ -345,6 +349,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
         return PR_FALSE;
       }
     }
+
     // At this point we have Flash 10.1+ but now we also need to blacklist
     // if the machine has a Intel GMA9XX GPU.
     if (GMA9XXGraphics()) {
@@ -474,7 +479,7 @@ GetNewPluginLibrary(nsPluginTag *aPluginTag)
 
 // Creates an nsNPAPIPlugin object. One nsNPAPIPlugin object exists per plugin (not instance).
 nsresult
-nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult)
+nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsNPAPIPlugin** aResult)
 {
   *aResult = nsnull;
 
@@ -1517,7 +1522,10 @@ _retainobject(NPObject* npobj)
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_retainobject called from the wrong thread\n"));
   }
   if (npobj) {
-    int32_t refCnt = PR_AtomicIncrement((PRInt32*)&npobj->referenceCount);
+#ifdef NS_BUILD_REFCNT_LOGGING
+    int32_t refCnt =
+#endif
+      PR_AtomicIncrement((PRInt32*)&npobj->referenceCount);
     NS_LOG_ADDREF(npobj, refCnt, "BrowserNPObject", sizeof(NPObject));
   }
 

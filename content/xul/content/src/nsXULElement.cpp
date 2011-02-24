@@ -375,6 +375,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsStyledElement)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
                                                     nsXULPrototypeElement)
+    {
+        nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
+        if (slots) {
+            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
+            nsISupports *frameLoader =
+                static_cast<nsIFrameLoader*>(slots->mFrameLoader);
+            cb.NoteXPCOMChild(frameLoader);
+        }
+    }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
@@ -2414,12 +2423,32 @@ nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
     }
 }
 
+class SetDrawInTitleBarEvent : public nsRunnable
+{
+public:
+  SetDrawInTitleBarEvent(nsIWidget* aWidget, PRBool aState)
+    : mWidget(aWidget)
+    , mState(aState)
+  {}
+
+  NS_IMETHOD Run() {
+    NS_ASSERTION(mWidget, "You shouldn't call this runnable with a null widget!");
+
+    mWidget->SetDrawsInTitlebar(mState);
+    return NS_OK;
+  }
+
+private:
+  nsCOMPtr<nsIWidget> mWidget;
+  PRBool mState;
+};
+
 void
 nsXULElement::SetDrawsInTitlebar(PRBool aState)
 {
     nsIWidget* mainWidget = GetWindowWidget();
     if (mainWidget) {
-        mainWidget->SetDrawsInTitlebar(aState);
+        nsContentUtils::AddScriptRunner(new SetDrawInTitleBarEvent(mainWidget, aState));
     }
 }
 

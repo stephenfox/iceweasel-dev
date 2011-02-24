@@ -61,6 +61,8 @@
 #include "nsTObserverArray.h"
 #include "nsITimer.h"
 #include "nsPluginTags.h"
+#include "nsIEffectiveTLDService.h"
+#include "nsIIDNService.h"
 
 class nsNPAPIPlugin;
 class nsIComponentManager;
@@ -88,6 +90,7 @@ public:
 };
 
 class nsPluginHost : public nsIPluginHost,
+                     public nsIPluginHost_MOZILLA_2_0_BRANCH,
                      public nsIObserver,
                      public nsITimerCallback,
                      public nsSupportsWeakReference
@@ -102,6 +105,7 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGINHOST
+  NS_DECL_NSIPLUGINHOST_MOZILLA_2_0_BRANCH
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
 
@@ -245,6 +249,8 @@ private:
                            PRBool * aPluginsChanged,
                            PRBool checkForUnwantedPlugins = PR_FALSE);
 
+  nsresult EnsurePluginLoaded(nsPluginTag* plugin);
+
   PRBool IsRunningPlugin(nsPluginTag * plugin);
 
   // Stores all plugins info into the registry
@@ -258,7 +264,10 @@ private:
   void RemoveCachedPluginsInfo(const char *filePath,
                                nsPluginTag **result);
 
-  //checks if the list already have the same plugin as given
+  // Checks to see if a tag object is in our list of live tags.
+  PRBool IsLiveTag(nsIPluginTag* tag);
+
+  // Checks our list of live tags for an equivalent tag.
   nsPluginTag* HaveSamePlugin(nsPluginTag * aPluginTag);
 
   // checks if given plugin is a duplicate of what we already have
@@ -291,6 +300,16 @@ private:
 #ifdef XP_WIN
   nsRefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
 #endif
+
+  nsCOMPtr<nsIEffectiveTLDService> mTLDService;
+  nsCOMPtr<nsIIDNService> mIDNService;
+
+  // Helpers for ClearSiteData and SiteHasData.
+  nsresult NormalizeHostname(nsCString& host);
+  nsresult EnumerateSiteData(const nsACString& domain,
+                             const nsTArray<nsCString>& sites,
+                             InfallibleTArray<nsCString>& result,
+                             bool firstMatchOnly);
 
   nsWeakPtr mCurrentDocument; // weak reference, we use it to id document only
 

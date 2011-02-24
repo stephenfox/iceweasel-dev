@@ -549,7 +549,7 @@ public:
   virtual void SetReadyForFocus();
   virtual void PageHidden();
   virtual nsresult DispatchAsyncHashchange();
-  virtual nsresult DispatchSyncPopState();
+  virtual nsresult DispatchSyncPopState(PRBool aIsInitial);
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
@@ -820,6 +820,8 @@ protected:
 
   virtual void UpdateParentTarget();
 
+  PRBool GetIsTabModalPromptAllowed();
+
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
   // could own objects that are implemented in JavaScript, then those
@@ -945,7 +947,7 @@ protected:
 
   typedef nsCOMArray<nsIDOMStorageEvent> nsDOMStorageEventArray;
   nsDOMStorageEventArray mPendingStorageEvents;
-  nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEventsObsolete;
+  nsAutoPtr< nsDataHashtable<nsStringHashKey, PRBool> > mPendingStorageEventsObsolete;
 
   PRUint32 mTimeoutsSuspendDepth;
 

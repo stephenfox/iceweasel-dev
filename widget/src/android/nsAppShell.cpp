@@ -46,10 +46,10 @@
 #include "nsIPrefService.h"
 
 #include "mozilla/Services.h"
+#include "mozilla/unused.h"
 #include "prenv.h"
 
 #include "AndroidBridge.h"
-#include "nsMemoryWatcher.h"
 #include "nsAccelerometerSystem.h"
 #include <android/log.h>
 #include <pthread.h>
@@ -123,10 +123,6 @@ nsAppShell::Init()
     if (obsServ) {
         obsServ->AddObserver(this, "xpcom-shutdown", PR_FALSE);
     }
-
-    mMemoryWatcher = new nsMemoryWatcher();
-    if (mMemoryWatcher)
-        mMemoryWatcher->StartWatching();
     return rv;
 }
 
@@ -256,6 +252,15 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
             NS_WARNING("Received location event without geoposition!");
         break;
 
+    case AndroidGeckoEvent::ACTIVITY_STOPPING: {
+        nsCOMPtr<nsIObserverService> obsServ =
+          mozilla::services::GetObserverService();
+        NS_NAMED_LITERAL_STRING(minimize, "heap-minimize");
+        obsServ->NotifyObservers(nsnull, "memory-pressure", minimize.get());
+
+        break;
+    }
+
     case AndroidGeckoEvent::ACTIVITY_SHUTDOWN: {
         nsCOMPtr<nsIObserverService> obsServ =
           mozilla::services::GetObserverService();
@@ -268,17 +273,9 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         nsCOMPtr<nsIAppStartup> appSvc = do_GetService("@mozilla.org/toolkit/app-startup;1");
         if (appSvc)
             appSvc->Quit(nsIAppStartup::eForceQuit);
-
-        if (mMemoryWatcher)
-            mMemoryWatcher->StopWatching();
         break;
     }
 
-    case AndroidGeckoEvent::ACTIVITY_RESUMING: {
-        if (mMemoryWatcher)
-            mMemoryWatcher->StartWatching();
-        break;
-    }
     case AndroidGeckoEvent::ACTIVITY_PAUSING: {
         // We really want to send a notification like profile-before-change,
         // but profile-before-change ends up shutting some things down instead
@@ -287,8 +284,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         if (prefs)
             prefs->SavePrefFile(nsnull);
 
-        if (mMemoryWatcher)
-            mMemoryWatcher->StopWatching();
         break;
     }
 
@@ -302,12 +297,12 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         if (!uri)
             break;
 
-        char* argv[3] = {
+        const char *argv[3] = {
             "dummyappname",
             "-remote",
             uri
         };
-        nsresult rv = cmdline->Init(3, argv, nsnull, nsICommandLine::STATE_REMOTE_AUTO);
+        nsresult rv = cmdline->Init(3, const_cast<char **>(argv), nsnull, nsICommandLine::STATE_REMOTE_AUTO);
         if (NS_SUCCEEDED(rv))
             cmdline->Run();
         nsMemory::Free(uri);
@@ -380,6 +375,11 @@ nsAppShell::RemoveNextEvent()
     PR_Unlock(mQueueLock);
 }
 
+void
+nsAppShell::OnResume()
+{
+}
+
 nsresult
 nsAppShell::AddObserver(const nsAString &aObserverKey, nsIObserver *aObserver)
 {
@@ -432,6 +432,7 @@ nsAppShell::CallObserver(const nsAString &aObserverKey, const nsAString &aTopic,
         nsCOMPtr<nsIRunnable> observerCaller = new ObserverCaller(observer, sTopic.get(), sData.get());
         nsresult rv = NS_DispatchToMainThread(observerCaller);
         ALOG("NS_DispatchToMainThread result: %d", rv);
+        unused << rv;
     }
 }
 

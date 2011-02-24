@@ -135,7 +135,7 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
         jsval resultVal;
 
         if(!XPCConvert::NativeData2JS(ccx, &resultVal, &v.val, v.type,
-                                      nsnull, nsnull, nsnull))
+                                      nsnull, nsnull))
             return JS_FALSE;
 
         *vp = resultVal;
@@ -661,7 +661,11 @@ XPCNativeSet::GetNewOrUsed(XPCCallContext& ccx, nsIClassInfo* classInfo)
     if(set)
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
-        XPCNativeSet* set2 = map->Add(classInfo, set);
+
+#ifdef DEBUG
+        XPCNativeSet* set2 =
+#endif
+          map->Add(classInfo, set);
         NS_ASSERTION(set2, "failed to add our set!");
         NS_ASSERTION(set2 == set, "hashtables inconsistent!");
     }

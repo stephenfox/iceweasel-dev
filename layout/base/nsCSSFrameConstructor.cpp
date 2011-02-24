@@ -2365,6 +2365,9 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     return NS_OK;
   }
 
+  // Make sure to start any background image loads for the root element now.
+  styleContext->StartBackgroundImageLoads();
+
   nsFrameConstructorSaveState absoluteSaveState;
   if (mHasRootAbsPosContainingBlock) {
     // Push the absolute containing block now so we can absolutely position
@@ -5460,11 +5463,9 @@ nsCSSFrameConstructor::ConstructFramesFromItem(nsFrameConstructorState& aState,
                               aFrameItems);
   }
 
-  // Start background loads during frame construction. This is just
-  // a hint; the paint code will do the right thing in any case.
-  {
-    styleContext->GetStyleBackground();
-  }
+  // Start background loads during frame construction so that we're
+  // guaranteed that they will be started before onload fires.
+  styleContext->StartBackgroundImageLoads();
 
   nsFrameState savedStateBits = aState.mAdditionalStateBits;
   if (item.mIsGeneratedContent) {
@@ -5504,8 +5505,12 @@ IsRootBoxFrame(nsIFrame *aFrame)
 nsresult
 nsCSSFrameConstructor::ReconstructDocElementHierarchy()
 {
-  return RecreateFramesForContent(mPresShell->GetDocument()->GetRootElement(),
-				  PR_FALSE);
+  Element* rootElement = mDocument->GetRootElement();
+  if (!rootElement) {
+    /* nothing to do */
+    return NS_OK;
+  }
+  return RecreateFramesForContent(rootElement, PR_FALSE);
 }
 
 nsIFrame*
@@ -7663,7 +7668,7 @@ UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
           do {
             DoApplyRenderingChangeToTree(outOfFlowFrame, aViewManager,
                                          aFrameManager, aChange);
-          } while (outOfFlowFrame = outOfFlowFrame->GetNextContinuation());
+          } while ((outOfFlowFrame = outOfFlowFrame->GetNextContinuation()));
         } else if (childList == nsGkAtoms::popupList) {
           DoApplyRenderingChangeToTree(child, aViewManager,
                                        aFrameManager, aChange);
@@ -11762,6 +11767,17 @@ nsCSSFrameConstructor::GenerateChildFrames(nsIFrame* aFrame)
 
     EndUpdate();
   }
+
+#ifdef ACCESSIBILITY
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    nsIContent* container = aFrame->GetContent();
+    nsIContent* child = container->GetFirstChild();
+    if (child) {
+      accService->ContentRangeInserted(mPresShell, container, child, nsnull);
+    }
+  }
+#endif
 
   // call XBL constructors after the frames are created
   mPresShell->GetDocument()->BindingManager()->ProcessAttachedQueue();

@@ -1164,7 +1164,7 @@ nsCanvasRenderingContext2D::InitializeWithSurface(nsIDocShell *docShell, gfxASur
     // then the surface became cleared, and we need to redraw everything.
     Redraw();
 
-    return NS_OK;
+    return mValid ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMETHODIMP
@@ -1215,9 +1215,6 @@ nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter a
     if (!mValid || !mSurface ||
         mSurface->CairoStatus() ||
         mThebes->HasError())
-        return NS_ERROR_FAILURE;
-
-    if (!mSurface)
         return NS_ERROR_FAILURE;
 
     nsRefPtr<gfxPattern> pat = new gfxPattern(mSurface);
@@ -4066,6 +4063,7 @@ nsCanvasRenderingContext2D::GetCanvasLayer(CanvasLayer *aOldLayer,
             // of the rectangle based on Redraw args.
             aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
             MarkContextClean();
+            HTMLCanvasElement()->GetPrimaryCanvasFrame()->MarkLayersActive();
         }
 
         return aOldLayer;

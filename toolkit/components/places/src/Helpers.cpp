@@ -43,6 +43,9 @@
 #include "nsString.h"
 #include "nsNavHistory.h"
 #include "mozilla/Services.h"
+#if defined(XP_OS2)
+#include "nsIRandomGenerator.h"
+#endif
 
 // The length of guids that are used by history and bookmarks.
 #define GUID_LENGTH 12
@@ -276,8 +279,8 @@ GenerateRandomBytes(PRUint32 aSize,
                                 CRYPT_VERIFYCONTEXT | CRYPT_SILENT);
   if (rc) {
     rc = CryptGenRandom(cryptoProvider, aSize, _buffer);
+    (void)CryptReleaseContext(cryptoProvider, 0);
   }
-  (void)CryptReleaseContext(cryptoProvider, 0);
   return rc ? NS_OK : NS_ERROR_FAILURE;
 
   // On Unix, we'll just read in from /dev/urandom.
@@ -293,6 +296,17 @@ GenerateRandomBytes(PRUint32 aSize,
     (void)PR_Close(urandom);
   }
   return rv;
+#elif defined(XP_OS2)
+  nsCOMPtr<nsIRandomGenerator> rg =
+    do_GetService("@mozilla.org/security/random-generator;1");
+  NS_ENSURE_STATE(rg);
+
+  PRUint8* temp;
+  nsresult rv = rg->GenerateRandomBytes(aSize, &temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+  memcpy(_buffer, temp, aSize);
+  NS_Free(temp);
+  return NS_OK;
 #endif
 }
 

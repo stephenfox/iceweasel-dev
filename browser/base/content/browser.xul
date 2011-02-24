@@ -125,7 +125,7 @@
       <menu id="context_tabViewMenu" label="&moveToGroup.label;"
             accesskey="&moveToGroup.accesskey;">
         <menupopup id="context_tabViewMenuPopup"
-                   onpopupshowing="if (event.target == this) TabView.updateContextMenu(TabContextMenu.contextTab, this);">
+                   onpopupshowing="if (event.target == this) TabView.moveToGroupPopupShowing(event);">
           <menuseparator id="context_tabViewNamedGroups" hidden="true"/>
           <menuitem id="context_tabViewNewGroup" label="&moveToNewGroup.label;"
                     oncommand="TabView.moveTabTo(TabContextMenu.contextTab, null);"/>
@@ -467,6 +467,8 @@
            defaultmode="icons" mode="icons"
 #ifdef WINCE
            defaulticonsize="small" iconsize="small"
+#else
+           iconsize="large"
 #endif
            tabsontop="true"
            persist="tabsontop">
@@ -842,7 +844,16 @@
                      tooltiptext="&listAllTabs.label;"
                      removable="true">
         <menupopup id="alltabs-popup"
-                   position="after_end"/>
+                   position="after_end">
+          <menuitem id="menu_tabview"
+                    class="menuitem-iconic"
+                    key="key_tabview"
+                    label="&viewTabGroups.label;"
+                    command="Browser:ToggleTabView"
+                    observes="tabviewGroupsNumber"
+                    keepme="true"/>
+          <menuseparator id="alltabs-popup-separator" keepme="true"/>
+        </menupopup>
       </toolbarbutton>
 
       <toolbarbutton id="tabs-closebutton"
@@ -1000,7 +1011,7 @@
       <toolbarbutton id="addonbar-closebutton"
                      tooltiptext="&addonBarCloseButton.tooltip;"
                      oncommand="setToolbarVisibility(this.parentNode, false);"/>
-      <statusbar id="status-bar"/>
+      <statusbar id="status-bar" ordinal="1000"/>
     </toolbar>
   </vbox>
 

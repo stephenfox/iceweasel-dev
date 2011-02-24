@@ -333,9 +333,11 @@ num_parseFloat(JSContext *cx, uintN argc, Value *vp)
 static jsdouble FASTCALL
 ParseFloat(JSContext* cx, JSString* str)
 {
+    TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
+
     const jschar *bp = str->getChars(cx);
     if (!bp) {
-        SetBuiltinError(cx);
+        SetBuiltinError(tm);
         return js_NaN;
     }
     const jschar *end = bp + str->length();
@@ -475,16 +477,18 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
 static jsdouble FASTCALL
 ParseInt(JSContext* cx, JSString* str)
 {
+    TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
+
     const jschar *start = str->getChars(cx);
     if (!start) {
-        SetBuiltinError(cx);
+        SetBuiltinError(tm);
         return js_NaN;
     }
     const jschar *end = start + str->length();
 
     jsdouble d;
     if (!ParseIntStringHelper(cx, start, end, 0, true, &d)) {
-        SetBuiltinError(cx);
+        SetBuiltinError(tm);
         return js_NaN;
     }
     return d;
@@ -526,10 +530,10 @@ static JSFunctionSpec number_functions[] = {
 Class js_NumberClass = {
     js_Number_str,
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Number),
-    PropertyStub,   /* addProperty */
-    PropertyStub,   /* delProperty */
-    PropertyStub,   /* getProperty */
-    PropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub
@@ -1081,14 +1085,14 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
     /* ECMA 15.1.1.1 */
     rt = cx->runtime;
     if (!JS_DefineProperty(cx, obj, js_NaN_str, Jsvalify(rt->NaNValue),
-                           JS_PropertyStub, JS_PropertyStub,
+                           JS_PropertyStub, JS_StrictPropertyStub,
                            JSPROP_PERMANENT | JSPROP_READONLY)) {
         return NULL;
     }
 
     /* ECMA 15.1.1.2 */
     if (!JS_DefineProperty(cx, obj, js_Infinity_str, Jsvalify(rt->positiveInfinityValue),
-                           JS_PropertyStub, JS_PropertyStub,
+                           JS_PropertyStub, JS_StrictPropertyStub,
                            JSPROP_PERMANENT | JSPROP_READONLY)) {
         return NULL;
     }

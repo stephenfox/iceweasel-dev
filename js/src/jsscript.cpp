@@ -110,7 +110,8 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
     uintN attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_SHARED;
 
     uint16 *indexp;
-    PropertyOp getter, setter;
+    PropertyOp getter;
+    StrictPropertyOp setter;
     uint32 slot = JSObject::CALL_RESERVED_SLOTS;
 
     if (kind == ARGUMENT) {
@@ -163,31 +164,6 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
     ++*indexp;
     return true;
 }
-
-/*
- * This algorithm is O(n^2)! But this method is only called if the function is
- * strict mode code or if JSOPTION_STRICT is set, so for now we'll tolerate the
- * quadratic blowup.
- */
-JSAtom *
-Bindings::findDuplicateArgument() const
-{
-    JS_ASSERT(lastBinding);
-
-    if (nargs <= 1)
-        return NULL;
-
-    for (Shape::Range r = lastArgument(); !r.empty(); r.popFront()) {
-        const Shape &shape = r.front();
-        for (Shape::Range r2 = shape.previous(); !r2.empty(); r2.popFront()) {
-            if (r2.front().id == shape.id)
-                return JSID_TO_ATOM(shape.id);
-        }
-    }
-
-    return NULL;
-}
-
 
 jsuword *
 Bindings::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
@@ -800,20 +776,20 @@ Class js_ScriptClass = {
     "Script",
     JSCLASS_HAS_PRIVATE |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
-    PropertyStub,   /* addProperty */
-    PropertyStub,   /* delProperty */
-    PropertyStub,   /* getProperty */
-    PropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
     ConvertStub,
     script_finalize,
-    NULL,           /* reserved0   */
-    NULL,           /* checkAccess */
-    NULL,           /* call        */
-    NULL,           /* construct   */
-    NULL,           /* xdrObject   */
-    NULL,           /* hasInstance */
+    NULL,                 /* reserved0   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
+    NULL,                 /* hasInstance */
     JS_CLASS_TRACE(script_trace)
 };
 
@@ -1205,11 +1181,18 @@ JS_STATIC_ASSERT(sizeof(uint32) % sizeof(jsbytecode) == 0);
 JS_STATIC_ASSERT(sizeof(jsbytecode) % sizeof(jssrcnote) == 0);
 
 /*
- * Check that uint8 offset for object, upvar, regexp, and try note arrays is
- * sufficient.
+ * Check that uint8 offsets is enough to reach any optional array allocated
+ * after JSScript. For that we check that the maximum possible offset for
+ * JSConstArray, that last optional array, still fits 1 byte and do not
+ * coincide with INVALID_OFFSET.
  */
-JS_STATIC_ASSERT(sizeof(JSScript) + 2 * sizeof(JSObjectArray) +
-                 sizeof(JSUpvarArray) < JS_BIT(8));
+JS_STATIC_ASSERT(sizeof(JSObjectArray) +
+                 sizeof(JSUpvarArray) +
+                 sizeof(JSObjectArray) +
+                 sizeof(JSTryNoteArray) +
+                 sizeof(js::GlobalSlotArray)
+                 < JSScript::INVALID_OFFSET);
+JS_STATIC_ASSERT(JSScript::INVALID_OFFSET <= 255);
 
 JSScript *
 JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
@@ -1578,7 +1561,7 @@ js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun)
     }
 }
 
-JS_FRIEND_API(void)
+void
 js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
 {
     JSDestroyScriptHook hook;
@@ -1586,6 +1569,7 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
     hook = cx->debugHooks->destroyScriptHook;
     if (hook)
         hook(cx, script, cx->debugHooks->destroyScriptHookData);
+    JS_ClearScriptTraps(cx, script);
 }
 
 static void
@@ -1597,9 +1581,6 @@ DestroyScript(JSContext *cx, JSScript *script)
     else
         JS_RUNTIME_UNMETER(cx->runtime, liveScripts);
 #endif
-
-    js_CallDestroyScriptHook(cx, script);
-    JS_ClearScriptTraps(cx, script);
 
     if (script->principals)
         JSPRINCIPALS_DROP(cx, script->principals);
@@ -1663,11 +1644,20 @@ void
 js_DestroyScript(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(!cx->runtime->gcRunning);
+    js_CallDestroyScriptHook(cx, script);
     DestroyScript(cx, script);
 }
 
 void
 js_DestroyScriptFromGC(JSContext *cx, JSScript *script)
+{
+    JS_ASSERT(cx->runtime->gcRunning);
+    js_CallDestroyScriptHook(cx, script);
+    DestroyScript(cx, script);
+}
+
+void
+js_DestroyCachedScript(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(cx->runtime->gcRunning);
     DestroyScript(cx, script);

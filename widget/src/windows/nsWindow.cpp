@@ -228,11 +228,7 @@
 #endif
 
 #include "mozilla/FunctionTimer.h"
-
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
+#include "nsCrashOnException.h"
 #include "nsIXULRuntime.h"
 
 using namespace mozilla::widget;
@@ -254,6 +250,7 @@ using namespace mozilla::layers;
  *
  **************************************************************/
 
+PRBool          nsWindow::sDropShadowEnabled      = PR_TRUE;
 PRUint32        nsWindow::sInstanceCount          = 0;
 PRBool          nsWindow::sSwitchKeyboardLayout   = PR_FALSE;
 BOOL            nsWindow::sIsOleInitialized       = FALSE;
@@ -299,6 +296,8 @@ int             nsWindow::sTrimOnMinimize         = 2;
 PRBool          nsWindow::sDefaultTrackPointHack  = PR_FALSE;
 // Default value for general window class (used when the pref is the empty string).
 const char*     nsWindow::sDefaultMainWindowClass = kClassNameGeneral;
+// Whether to enable the Elantech gesture hack.
+PRBool          nsWindow::sUseElantechGestureHacks = PR_FALSE;
 
 // If we're using D3D9, this will not be allowed during initial 5 seconds.
 bool            nsWindow::sAllowD3D9              = false;
@@ -431,6 +430,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mOldExStyle           = 0;
   mPainting             = 0;
   mLastKeyboardLayout   = 0;
+  mAssumeWheelIsZoomUntil = 0;
   mBlurSuppressLevel    = 0;
   mIMEContext.mStatus   = nsIWidget::IME_STATUS_ENABLED;
 #ifdef MOZ_XUL
@@ -470,7 +470,7 @@ nsWindow::nsWindow() : nsBaseWidget()
 #endif
 
 #if !defined(WINCE)
-    InitInputHackDefaults();
+    InitInputWorkaroundPrefDefaults();
 #endif
 
     // Init titlebar button info for custom frames.
@@ -1046,6 +1046,19 @@ BOOL nsWindow::SetNSWindowPtr(HWND aWnd, nsWindow * ptr)
   }
 }
 
+static BOOL CALLBACK AddMonitor(HMONITOR, HDC, LPRECT, LPARAM aParam)
+{
+  (*(PRInt32*)aParam)++;
+  return TRUE;
+}
+
+PRInt32 nsWindow::GetMonitorCount()
+{
+  PRInt32 monitorCount = 0;
+  EnumDisplayMonitors(NULL, NULL, AddMonitor, (LPARAM)&monitorCount);
+  return monitorCount;
+}
+
 /**************************************************************
  *
  * SECTION: nsIWidget::SetParent, nsIWidget::GetParent
@@ -1212,6 +1225,29 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
 #endif
 
+  if (mWindowType == eWindowType_popup) {
+    // See bug 603793. When we try to draw D3D10 windows with a drop shadow
+    // without the DWM on a secondary monitor, windows fails to composite
+    // our windows correctly. We therefor switch off the drop shadow for
+    // pop-up windows when the DWM is disabled and two monitors are
+    // connected.
+    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
+        gfxWindowsPlatform::RENDER_DIRECT2D &&
+        GetMonitorCount() > 1 &&
+        !nsUXThemeData::CheckForCompositor())
+    {
+      if (sDropShadowEnabled) {
+        ::SetClassLongA(mWnd, GCL_STYLE, 0);
+        sDropShadowEnabled = PR_FALSE;
+      }
+    } else {
+      if (!sDropShadowEnabled) {
+        ::SetClassLongA(mWnd, GCL_STYLE, CS_DROPSHADOW);
+        sDropShadowEnabled = PR_TRUE;
+      }
+    }
+  }
+
 #ifdef NS_FUNCTION_TIMER
   static bool firstShow = true;
   if (firstShow &&
@@ -1224,10 +1260,19 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
 #endif
 
+  PRBool syncInvalidate = PR_FALSE;
+
   PRBool wasVisible = mIsVisible;
   // Set the status now so that anyone asking during ShowWindow or
   // SetWindowPos would get the correct answer.
   mIsVisible = bState;
+
+  // We may have cached an out of date visible state. This can happen
+  // when session restore sets the full screen mode.
+  if (mIsVisible)
+    mOldStyle |= WS_VISIBLE;
+  else
+    mOldStyle &= ~WS_VISIBLE;
 
   if (!mIsVisible && wasVisible) {
       ClearCachedResources();
@@ -1236,6 +1281,9 @@ NS_METHOD nsWindow::Show(PRBool bState)
   if (mWnd) {
     if (bState) {
       if (!wasVisible && mWindowType == eWindowType_toplevel) {
+        // speed up the initial paint after show for
+        // top level windows:
+        syncInvalidate = PR_TRUE;
         switch (mSizeMode) {
 #ifdef WINCE
           case nsSizeMode_Fullscreen:
@@ -1320,7 +1368,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
   
 #ifdef MOZ_XUL
   if (!wasVisible && bState)
-    Invalidate(PR_FALSE);
+    Invalidate(syncInvalidate);
 #endif
 
   return NS_OK;
@@ -2655,18 +2703,12 @@ void nsWindow::UpdateGlass()
   DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
   switch (mTransparencyMode) {
   case eTransparencyBorderlessGlass:
-    // Margins must be 2px (kGlassMarginAdjustment) or larger to cover the 2px
-    // border Windows adds. A value of -1 in cxLeftWidth indicates a sheet of
-    // glass which we ignore here.
+    // Only adjust if there is some opaque rectangle
     if (margins.cxLeftWidth >= 0) {
-      if (margins.cxLeftWidth >= 0 && margins.cxLeftWidth < kGlassMarginAdjustment)
-        margins.cxLeftWidth = kGlassMarginAdjustment;
-      if (margins.cyTopHeight >= 0 && margins.cyTopHeight < kGlassMarginAdjustment)
-        margins.cyTopHeight = kGlassMarginAdjustment;
-      if (margins.cxRightWidth >= 0 && margins.cxRightWidth < kGlassMarginAdjustment)
-        margins.cxRightWidth = kGlassMarginAdjustment;
-      if (margins.cyBottomHeight >= 0 && margins.cyBottomHeight < kGlassMarginAdjustment)
-        margins.cyBottomHeight = kGlassMarginAdjustment;
+      margins.cxLeftWidth += kGlassMarginAdjustment;
+      margins.cyTopHeight += kGlassMarginAdjustment;
+      margins.cxRightWidth += kGlassMarginAdjustment;
+      margins.cyBottomHeight += kGlassMarginAdjustment;
     }
     // Fall through
   case eTransparencyGlass:
@@ -3903,12 +3945,9 @@ void nsWindow::DispatchPendingEvents()
     --recursionBlocker;
   }
 
-  // Quickly check to see if there are any paint events pending,
-  // but only dispatch them if it has been long enough since the
-  // last paint completed.
-  if (::GetQueueStatus(QS_PAINT) && 
-      (mLastPaintEndTime.IsNull() ||
-       (TimeStamp::Now() - mLastPaintEndTime).ToMilliseconds() >= 50)) {
+  // Quickly check to see if there are any
+  // paint events pending.
+  if (::GetQueueStatus(QS_PAINT)) {
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 
@@ -4476,19 +4515,6 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
  *
  **************************************************************/
 
-#ifdef _MSC_VER
-static int ReportException(EXCEPTION_POINTERS *aExceptionInfo)
-{
-#ifdef MOZ_CRASHREPORTER
-  nsCOMPtr<nsICrashReporter> cr =
-    do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-  if (cr)
-    cr->WriteMinidumpForException(aExceptionInfo);
-#endif
-  return EXCEPTION_EXECUTE_HANDLER;
-}
-#endif
-
 static PRBool
 DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt32 y)
 {
@@ -4531,16 +4557,7 @@ DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt
 // and http://msdn.microsoft.com/en-us/library/ms633573%28VS.85%29.aspx
 LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-#ifdef _MSC_VER
-  __try {
-    return WindowProcInternal(hWnd, msg, wParam, lParam);
-  }
-  __except(ReportException(GetExceptionInformation())) {
-    ::TerminateProcess(::GetCurrentProcess(), 253);
-  }
-#else
-  return WindowProcInternal(hWnd, msg, wParam, lParam);
-#endif
+  return mozilla::CallWindowProcCrashProtected(WindowProcInternal, hWnd, msg, wParam, lParam);
 }
 
 LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -4657,6 +4674,24 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
 PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
                                 LRESULT *aRetValue)
 {
+  // For the Elantech Touchpad Zoom Gesture Hack, we should check that the
+  // system time (32-bit milliseconds) hasn't wrapped around.  Otherwise we
+  // might get into the situation where wheel events for the next 50 days of
+  // system uptime are assumed to be Ctrl+Wheel events.  (It is unlikely that
+  // we would get into that state, because the system would already need to be
+  // up for 50 days and the Control key message would need to be processed just
+  // before the system time overflow and the wheel message just after.)
+  //
+  // We also take the chance to reset mAssumeWheelIsZoomUntil if we simply have
+  // passed that time.
+  if (mAssumeWheelIsZoomUntil) {
+    LONG msgTime = ::GetMessageTime();
+    if ((mAssumeWheelIsZoomUntil >= 0x3fffffffu && DWORD(msgTime) < 0x40000000u) ||
+        (mAssumeWheelIsZoomUntil < DWORD(msgTime))) {
+      mAssumeWheelIsZoomUntil = 0;
+    }
+  }
+
   // (Large blocks of code should be broken out into OnEvent handlers.)
   if (mWindowHook.Notify(mWnd, msg, wParam, lParam, aRetValue))
     return PR_TRUE;
@@ -5031,6 +5066,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_KEYUP:
     {
       MSG nativeMsg = InitMSG(msg, wParam, lParam);
+      nativeMsg.time = ::GetMessageTime();
       result = ProcessKeyUpMessage(nativeMsg, nsnull);
       DispatchPendingEvents();
     }
@@ -6233,11 +6269,9 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
     ::GetWindowPlacement(mWnd, &pl);
 
     if (pl.showCmd == SW_SHOWMAXIMIZED)
-      event.mSizeMode = nsSizeMode_Maximized;
+      event.mSizeMode = (mFullscreenMode ? nsSizeMode_Fullscreen : nsSizeMode_Maximized);
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       event.mSizeMode = nsSizeMode_Minimized;
-    else if (mFullscreenMode)
-      event.mSizeMode = nsSizeMode_Fullscreen;
     else
       event.mSizeMode = nsSizeMode_Normal;
 
@@ -6403,11 +6437,9 @@ void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
     ::GetWindowPlacement(mWnd, &pl);
     PRInt32 sizeMode;
     if (pl.showCmd == SW_SHOWMAXIMIZED)
-      sizeMode = nsSizeMode_Maximized;
+      sizeMode = (mFullscreenMode ? nsSizeMode_Fullscreen : nsSizeMode_Maximized);
     else if (pl.showCmd == SW_SHOWMINIMIZED)
       sizeMode = nsSizeMode_Minimized;
-    else if (mFullscreenMode)
-      sizeMode = nsSizeMode_Fullscreen;
     else
       sizeMode = nsSizeMode_Normal;
 
@@ -6714,8 +6746,19 @@ PRBool nsWindow::OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, PRBool& ge
   ::ReplyMessage(isVertical ? 0 : TRUE);
 #endif
 
+  // Assume the Control key is down if the Elantech touchpad has sent the
+  // mis-ordered WM_KEYDOWN/WM_MOUSEWHEEL messages.  (See the comment in
+  // OnKeyUp.)
+  PRBool isControl;
+  if (mAssumeWheelIsZoomUntil &&
+      static_cast<DWORD>(::GetMessageTime()) < mAssumeWheelIsZoomUntil) {
+    isControl = PR_TRUE;
+  } else {
+    isControl = IS_VK_DOWN(NS_VK_CONTROL);
+  }
+
   scrollEvent.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
-  scrollEvent.isControl = IS_VK_DOWN(NS_VK_CONTROL);
+  scrollEvent.isControl = isControl;
   scrollEvent.isMeta    = PR_FALSE;
   scrollEvent.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   InitEvent(scrollEvent);
@@ -6763,6 +6806,37 @@ PRBool nsWindow::IsRedirectedKeyDownMessage(const MSG &aMsg)
           GetScanCode(sRedirectedKeyDown.lParam) == GetScanCode(aMsg.lParam));
 }
 
+void
+nsWindow::PerformElantechSwipeGestureHack(UINT& aVirtualKeyCode,
+                                          nsModifierKeyState& aModKeyState)
+{
+  // The Elantech touchpad driver understands three-finger swipe left and
+  // right gestures, and translates them into Page Up and Page Down key
+  // events for most applications.  For Firefox 3.6, it instead sends
+  // Alt+Left and Alt+Right to trigger browser back/forward actions.  As
+  // with the Thinkpad Driver hack in nsWindow::Create, the change in
+  // HWND structure makes Firefox not trigger the driver's heuristics
+  // any longer.
+  //
+  // The Elantech driver actually sends these messages for a three-finger
+  // swipe right:
+  //
+  //   WM_KEYDOWN virtual_key = 0xCC or 0xFF (depending on driver version)
+  //   WM_KEYDOWN virtual_key = VK_NEXT
+  //   WM_KEYUP   virtual_key = VK_NEXT
+  //   WM_KEYUP   virtual_key = 0xCC or 0xFF
+  //
+  // so we use the 0xCC or 0xFF key modifier to detect whether the Page Down
+  // is due to the gesture rather than a regular Page Down keypress.  We then
+  // pretend that we were went an Alt+Right keystroke instead.  Similarly
+  // for VK_PRIOR and Alt+Left.
+  if ((aVirtualKeyCode == VK_NEXT || aVirtualKeyCode == VK_PRIOR) &&
+      (IS_VK_DOWN(0xFF) || IS_VK_DOWN(0xCC))) {
+    aModKeyState.mIsAltDown = true;
+    aVirtualKeyCode = aVirtualKeyCode == VK_NEXT ? VK_RIGHT : VK_LEFT;
+  }
+}
+
 /**
  * nsWindow::OnKeyDown peeks into the message queue and pulls out
  * WM_CHAR messages for processing. During testing we don't want to
@@ -6782,6 +6856,10 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
 #ifndef WINCE
   gKbdLayout.OnKeyDown(virtualKeyCode);
 #endif
+
+  if (sUseElantechGestureHacks) {
+    PerformElantechSwipeGestureHack(virtualKeyCode, aModKeyState);
+  }
 
   // Use only DOMKeyCode for XP processing.
   // Use virtualKeyCode for gKbdLayout and native processing.
@@ -7132,6 +7210,32 @@ LRESULT nsWindow::OnKeyUp(const MSG &aMsg,
                           PRBool *aEventDispatched)
 {
   UINT virtualKeyCode = aMsg.wParam;
+
+  if (sUseElantechGestureHacks) {
+    PerformElantechSwipeGestureHack(virtualKeyCode, aModKeyState);
+
+    // Version 8 of the Elantech touchpad driver sends these messages for
+    // zoom gestures:
+    //
+    //   WM_KEYDOWN    virtual_key = 0xCC        time = 10
+    //   WM_KEYDOWN    virtual_key = VK_CONTROL  time = 10
+    //   WM_MOUSEWHEEL                           time = ::GetTickCount()
+    //   WM_KEYUP      virtual_key = VK_CONTROL  time = 10
+    //   WM_KEYUP      virtual_key = 0xCC        time = 10
+    //
+    // The result of this is that we process all of the WM_KEYDOWN/WM_KEYUP
+    // messages first because their timestamps make them appear to have
+    // been sent before the WM_MOUSEWHEEL message.  To work around this,
+    // we store the current time when we process the WM_KEYUP message and
+    // assume that any WM_MOUSEWHEEL message with a timestamp before that
+    // time is one that should be processed as if the Control key was down.
+    if (virtualKeyCode == VK_CONTROL && aMsg.time == 10) {
+      // We look only at the bottom 31 bits of the system tick count since
+      // GetMessageTime returns a LONG, which is signed, so we want values
+      // that are more easily comparable.
+      mAssumeWheelIsZoomUntil = ::GetTickCount() & 0x7FFFFFFF;
+    }
+  }
 
   PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
          ("nsWindow::OnKeyUp VK=%d\n", virtualKeyCode));
@@ -7572,6 +7676,124 @@ HWND nsWindow::FindOurProcessWindow(HWND aHWND)
   return nsnull;
 }
 
+static PRBool PointInWindow(HWND aHWND, const POINT& aPoint)
+{
+  RECT bounds;
+  if (!::GetWindowRect(aHWND, &bounds)) {
+    return PR_FALSE;
+  }
+
+  if (aPoint.x < bounds.left
+      || aPoint.x >= bounds.right
+      || aPoint.y < bounds.top
+      || aPoint.y >= bounds.bottom) {
+    return PR_FALSE;
+  }
+
+  return PR_TRUE;
+}
+
+static HWND FindTopmostWindowAtPoint(HWND aHWND, const POINT& aPoint)
+{
+  if (!::IsWindowVisible(aHWND) || !PointInWindow(aHWND, aPoint)) {
+    return 0;
+  }
+
+  HWND childWnd = ::GetTopWindow(aHWND);
+  while (childWnd) {
+    HWND topmostWnd = FindTopmostWindowAtPoint(childWnd, aPoint);
+    if (topmostWnd) {
+      return topmostWnd;
+    }
+    childWnd = ::GetNextWindow(childWnd, GW_HWNDNEXT);
+  }
+
+  return aHWND;
+}
+
+struct FindOurWindowAtPointInfo
+{
+  POINT mInPoint;
+  HWND mOutHWND;
+};
+
+/* static */
+BOOL CALLBACK nsWindow::FindOurWindowAtPointCallback(HWND aHWND, LPARAM aLPARAM)
+{
+  if (!nsWindow::IsOurProcessWindow(aHWND)) {
+    // This isn't one of our top-level windows; continue enumerating.
+    return TRUE;
+  }
+
+  // Get the top-most child window under the point.  If there's no child
+  // window, and the point is within the top-level window, then the top-level
+  // window will be returned.  (This is the usual case.  A child window
+  // would be returned for plugins.)
+  FindOurWindowAtPointInfo* info = reinterpret_cast<FindOurWindowAtPointInfo*>(aLPARAM);
+  HWND childWnd = FindTopmostWindowAtPoint(aHWND, info->mInPoint);
+  if (!childWnd) {
+    // This window doesn't contain the point; continue enumerating.
+    return TRUE;
+  }
+
+  // Return the HWND and stop enumerating.
+  info->mOutHWND = childWnd;
+  return FALSE;
+}
+
+/* static */
+HWND nsWindow::FindOurWindowAtPoint(const POINT& aPoint)
+{
+  FindOurWindowAtPointInfo info;
+  info.mInPoint = aPoint;
+  info.mOutHWND = 0;
+
+  // This will enumerate all top-level windows in order from top to bottom.
+  EnumWindows(FindOurWindowAtPointCallback, reinterpret_cast<LPARAM>(&info));
+  return info.mOutHWND;
+}
+
+typedef DWORD (*GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
+
+// Determine whether the given HWND is the handle for the Elantech helper
+// window.  The helper window cannot be distinguished based on its
+// window class, so we need to check if it is owned by the helper process,
+// ETDCtrl.exe.
+static PRBool IsElantechHelperWindow(HWND aHWND)
+{
+  static HMODULE hPSAPI = ::LoadLibraryW(L"psapi.dll");
+  static GetProcessImageFileNameProc pGetProcessImageFileName =
+    reinterpret_cast<GetProcessImageFileNameProc>(::GetProcAddress(hPSAPI, "GetProcessImageFileNameW"));
+
+  if (!pGetProcessImageFileName) {
+    return PR_FALSE;
+  }
+
+  const PRUnichar* filenameSuffix = L"\\etdctrl.exe";
+  const int filenameSuffixLength = 12;
+
+  DWORD pid;
+  ::GetWindowThreadProcessId(aHWND, &pid);
+
+  PRBool result = PR_FALSE;
+
+  HANDLE hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+  if (hProcess) {
+    PRUnichar path[256] = {L'\0'};
+    if (pGetProcessImageFileName(hProcess, path, NS_ARRAY_LENGTH(path))) {
+      int pathLength = lstrlenW(path);
+      if (pathLength >= filenameSuffixLength) {
+        if (lstrcmpiW(path + pathLength - filenameSuffixLength, filenameSuffix) == 0) {
+          result = PR_TRUE;
+        }
+      }
+    }
+    ::CloseHandle(hProcess);
+  }
+
+  return result;
+}
+
 // Scrolling helper function for handling plugins.  
 // Return value indicates whether the calling function should handle this
 // aHandled indicates whether this was handled at all
@@ -7625,6 +7847,14 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
   // we are focused, it's entirely possible that there
   // is another app's window or no window under the
   // pointer.
+
+  if (sUseElantechGestureHacks && IsElantechHelperWindow(destWnd)) {
+    // The Elantech driver places a window right underneath the cursor
+    // when sending a WM_MOUSEWHEEL event to us as part of a pinch-to-zoom
+    // gesture.  We detect that here, and search for our window that would
+    // be beneath the cursor if that window wasn't there.
+    destWnd = FindOurWindowAtPoint(point);
+  }
 
   if (!destWnd) {
     // No window is under the pointer
@@ -8831,13 +9061,28 @@ void nsWindow::GetMainWindowClass(nsAString& aClass)
   aClass.AssignASCII(sDefaultMainWindowClass);
 }
 
-PRBool nsWindow::UseTrackPointHack()
+/**
+ * Gets the Boolean value of a pref used to enable or disable an input
+ * workaround (like the Trackpoint hack).  The pref can take values 0 (for
+ * disabled), 1 (for enabled) or -1 (to automatically detect whether to
+ * enable the workaround).
+ *
+ * @param aPrefName The name of the pref.
+ * @param aValueIfAutomatic Whether the given input workaround should be
+ *   enabled by default.
+ */
+PRBool nsWindow::GetInputWorkaroundPref(const char* aPrefName,
+                                        PRBool aValueIfAutomatic)
 {
+  if (!aPrefName) {
+    return aValueIfAutomatic;
+  }
+
   nsresult rv;
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
   if (NS_SUCCEEDED(rv) && prefs) {
     PRInt32 lHackValue;
-    rv = prefs->GetIntPref("ui.trackpoint_hack.enabled", &lHackValue);
+    rv = prefs->GetIntPref(aPrefName, &lHackValue);
     if (NS_SUCCEEDED(rv)) {
       switch (lHackValue) {
         case 0: // disabled
@@ -8849,12 +9094,18 @@ PRBool nsWindow::UseTrackPointHack()
       }
     }
   }
-  return sDefaultTrackPointHack;
+  return aValueIfAutomatic;
+}
+
+PRBool nsWindow::UseTrackPointHack()
+{
+  return GetInputWorkaroundPref("ui.trackpoint_hack.enabled",
+                                sDefaultTrackPointHack);
 }
 
 #if !defined(WINCE)
 static PRBool
-HasRegistryKey(HKEY aRoot, LPCWSTR aName)
+HasRegistryKey(HKEY aRoot, PRUnichar* aName)
 {
   HKEY key;
   LONG result = ::RegOpenKeyExW(aRoot, aName, 0, KEY_READ, &key);
@@ -8864,28 +9115,91 @@ HasRegistryKey(HKEY aRoot, LPCWSTR aName)
   return PR_TRUE;
 }
 
+/**
+ * Gets the value of a string-typed registry value.
+ *
+ * @param aRoot The registry root to search in.
+ * @param aKeyName The name of the registry key to open.
+ * @param aValueName The name of the registry value in the specified key whose
+ *   value is to be retrieved.  Can be null, to retrieve the key's unnamed/
+ *   default value.
+ * @param aBuffer The buffer into which to store the string value.  Can be null,
+ *   in which case the return value indicates just whether the value exists.
+ * @param aBufferLength The size of aBuffer, in bytes.
+ * @return Whether the value exists and is a string.
+ */
 static PRBool
-IsObsoleteSynapticsDriver()
+GetRegistryKey(HKEY aRoot, PRUnichar* aKeyName, PRUnichar* aValueName, PRUnichar* aBuffer, DWORD aBufferLength)
 {
+  if (!aKeyName) {
+    return PR_FALSE;
+  }
+
   HKEY key;
-  LONG result = ::RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-      L"Software\\Synaptics\\SynTP\\Install", 0, KEY_READ, &key);
+  LONG result = ::RegOpenKeyExW(aRoot, aKeyName, NULL, KEY_READ, &key);
   if (result != ERROR_SUCCESS)
     return PR_FALSE;
   DWORD type;
-  PRUnichar buf[40];
-  DWORD buflen = sizeof(buf);
-  result = ::RegQueryValueExW(key, L"DriverVersion", NULL, &type, (BYTE*)buf, &buflen);
+  result = ::RegQueryValueExW(key, aValueName, NULL, &type, (BYTE*) aBuffer, &aBufferLength);
   ::RegCloseKey(key);
   if (result != ERROR_SUCCESS || type != REG_SZ)
     return PR_FALSE;
-  buf[NS_ARRAY_LENGTH(buf) - 1] = 0;
+  if (aBuffer)
+    aBuffer[aBufferLength / sizeof(*aBuffer) - 1] = 0;
+  return PR_TRUE;
+}
+
+static PRBool
+IsObsoleteSynapticsDriver()
+{
+  PRUnichar buf[40];
+  PRBool foundKey = GetRegistryKey(HKEY_LOCAL_MACHINE,
+                                   L"Software\\Synaptics\\SynTP\\Install",
+                                   L"DriverVersion",
+                                   buf,
+                                   sizeof buf);
+  if (!foundKey)
+    return PR_FALSE;
 
   int majorVersion = wcstol(buf, NULL, 10);
   return majorVersion < 15;
 }
 
-void nsWindow::InitInputHackDefaults()
+static PRBool
+IsObsoleteElantechDriver()
+{
+  PRUnichar buf[40];
+  // The driver version is found in one of these two registry keys.
+  PRBool foundKey = GetRegistryKey(HKEY_CURRENT_USER,
+                                   L"Software\\Elantech\\MainOption",
+                                   L"DriverVersion",
+                                   buf,
+                                   sizeof buf);
+  if (!foundKey)
+    foundKey = GetRegistryKey(HKEY_CURRENT_USER,
+                              L"Software\\Elantech",
+                              L"DriverVersion",
+                              buf,
+                              sizeof buf);
+
+  if (!foundKey)
+    return PR_FALSE;
+
+  // Assume that the major version number can be found just after a space
+  // or at the start of the string.
+  for (PRUnichar* p = buf; *p; p++) {
+    if (*p >= L'0' && *p <= L'9' && (p == buf || *(p - 1) == L' ')) {
+      int majorVersion = wcstol(p, NULL, 10);
+      // Versions 7 and 8 need the hack.
+      if (majorVersion == 7 || majorVersion == 8)
+        return PR_TRUE;
+    }
+  }
+
+  return PR_FALSE;
+}
+
+void nsWindow::InitInputWorkaroundPrefDefaults()
 {
   if (HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Lenovo\\TrackPoint")) {
     sDefaultTrackPointHack = PR_TRUE;
@@ -8898,6 +9212,10 @@ void nsWindow::InitInputHackDefaults()
               IsObsoleteSynapticsDriver()) {
     sDefaultTrackPointHack = PR_TRUE;
   }
+
+  sUseElantechGestureHacks =
+    GetInputWorkaroundPref("ui.elantech_gesture_hacks.enabled",
+                           IsObsoleteElantechDriver());
 }
 #endif // #if !defined(WINCE)
 

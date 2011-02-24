@@ -1040,16 +1040,17 @@ jsdScript::CreatePPLineMap()
     JSAutoRequest ar(cx);
     JSObject   *obj = JS_NewObject(cx, NULL, NULL, NULL);
     JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
-    JSScript   *script;
-    JSString   *jsstr;
+    JSScript   *script; /* In JSD compartment */
     PRUint32    baseLine;
     PRBool      scriptOwner = PR_FALSE;
+    JSString   *jsstr;
+    size_t      length;
+    const jschar *chars;
     
     if (fun) {
         uintN nargs;
 
-        /* Enter a new block so we can leave before the end of this block */
-        do {
+        {
             JSAutoEnterCompartment ac;
             if (!ac.enter(cx, JS_GetFunctionObject(fun)))
                 return nsnull;
@@ -1060,13 +1061,12 @@ jsdScript::CreatePPLineMap()
             jsstr = JS_DecompileFunctionBody (cx, fun, 4);
             if (!jsstr)
                 return nsnull;
-        } while(false);
 
-        size_t length;
-        const jschar *chars = JS_GetStringCharsAndLength(cx, jsstr, &length);
-        if (!chars)
-            return nsnull;
-    
+            if (!(chars = JS_GetStringCharsAndLength(cx, jsstr, &length)))
+                return nsnull;
+        }
+
+        JS::Anchor<JSString *> kungFuDeathGrip(jsstr);
         const char *argnames[] = {"arg1", "arg2", "arg3", "arg4", 
                                   "arg5", "arg6", "arg7", "arg8",
                                   "arg9", "arg10", "arg11", "arg12" };
@@ -1076,27 +1076,24 @@ jsdScript::CreatePPLineMap()
             return nsnull;
         baseLine = 3;
     } else {
-        /* Enter a new block so we can leave before the end of this block */
-        do {
-            script = JSD_GetJSScript(mCx, mScript);
+        script = JSD_GetJSScript(mCx, mScript);
+        JSString *jsstr;
 
+        {
             JSAutoEnterCompartment ac;
             if (!ac.enter(cx, script))
                 return nsnull;
 
-            jsstr = JS_DecompileScript (cx, JSD_GetJSScript(mCx, mScript),
-                                        "ppscript", 4);
+            jsstr = JS_DecompileScript (cx, JSD_GetJSScript(mCx, mScript), "ppscript", 4);
             if (!jsstr)
                 return nsnull;
-        } while(false);
 
-        size_t length;
-        const jschar *chars = JS_GetStringCharsAndLength(cx, jsstr, &length);
-        if (!chars)
-            return nsnull;
+            if (!(chars = JS_GetStringCharsAndLength(cx, jsstr, &length)))
+                return nsnull;
+        }
 
-        script = JS_CompileUCScript (cx, obj, chars, length,
-                                     "x-jsd:ppbuffer?type=script", 1);
+        JS::Anchor<JSString *> kungFuDeathGrip(jsstr);
+        script = JS_CompileUCScript (cx, obj, chars, length, "x-jsd:ppbuffer?type=script", 1);
         if (!script)
             return nsnull;
         scriptOwner = PR_TRUE;
@@ -1190,6 +1187,9 @@ jsdScript::GetVersion (PRInt32 *_rval)
     ASSERT_VALID_EPHEMERAL;
     JSContext *cx = JSD_GetDefaultJSContext (mCx);
     JSScript *script = JSD_GetJSScript(mCx, mScript);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, script))
+        return NS_ERROR_FAILURE;
     *_rval = static_cast<PRInt32>(JS_GetScriptVersion(cx, script));
     return NS_OK;
 }
@@ -1286,12 +1286,19 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
         return NS_ERROR_FAILURE;
     }
     JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
+    if (!fun) {
+        *count = 0;
+        *paramNames = nsnull;
+        return NS_OK;
+    }
 
     JSAutoRequest ar(cx);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, JS_GetFunctionObject(fun)))
+        return NS_ERROR_FAILURE;
 
     uintN nargs;
-    if (!fun ||
-        !JS_FunctionHasLocalNames(cx, fun) ||
+    if (!JS_FunctionHasLocalNames(cx, fun) ||
         (nargs = JS_GetFunctionArgumentCount(cx, fun)) == 0) {
         *count = 0;
         *paramNames = nsnull;
@@ -1524,9 +1531,7 @@ jsdScript::EnableSingleStepInterrupts(PRBool enable)
     if (enable && !jsdService::GetService()->CheckInterruptHook())
         return NS_ERROR_NOT_INITIALIZED;
 
-    JSD_EnableSingleStepInterrupts(mCx, mScript, enable);
-
-    return NS_OK;
+    return (JSD_EnableSingleStepInterrupts(mCx, mScript, enable) ? NS_OK : NS_ERROR_FAILURE);
 }
 
 NS_IMETHODIMP
@@ -2511,22 +2516,43 @@ jsdService::AsyncOn (jsdIActivationCallback *activationCallback)
 }
 
 NS_IMETHODIMP
-jsdService::RecompileForDebugMode (JSRuntime *rt, JSBool mode) {
+jsdService::RecompileForDebugMode (JSContext *cx, JSCompartment *comp, JSBool mode) {
   NS_ASSERTION(NS_IsMainThread(), "wrong thread");
-
-  JSContext *cx;
-  JSContext *iter = NULL;
-
-  jsword currentThreadId = reinterpret_cast<jsword>(js_CurrentThreadId());
-
-  while ((cx = JS_ContextIterator (rt, &iter))) {
-    if (JS_GetContextThread(cx) == currentThreadId) {
-      JS_SetDebugMode(cx, mode);
-    }
-  }
-
-  return NS_OK;
+  /* XPConnect now does this work itself, so this IDL entry point is no longer used. */
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
+
+NS_IMETHODIMP
+jsdService::DeactivateDebugger ()
+{
+    if (!mCx)
+        return NS_OK;
+
+    jsdContext::InvalidateAll();
+    jsdScript::InvalidateAll();
+    jsdValue::InvalidateAll();
+    jsdProperty::InvalidateAll();
+    jsdStackFrame::InvalidateAll();
+    ClearAllBreakpoints();
+
+    JSD_SetErrorReporter (mCx, NULL, NULL);
+    JSD_SetScriptHook (mCx, NULL, NULL);
+    JSD_ClearThrowHook (mCx);
+    JSD_ClearInterruptHook (mCx);
+    JSD_ClearDebuggerHook (mCx);
+    JSD_ClearDebugBreakHook (mCx);
+    JSD_ClearTopLevelHook (mCx);
+    JSD_ClearFunctionHook (mCx);
+    
+    JSD_DebuggerOff (mCx);
+
+    mCx = nsnull;
+    mRuntime = nsnull;
+    mOn = PR_FALSE;
+
+    return NS_OK;
+}
+
 
 NS_IMETHODIMP
 jsdService::ActivateDebugger (JSRuntime *rt)
@@ -2535,7 +2561,6 @@ jsdService::ActivateDebugger (JSRuntime *rt)
         return (rt == mRuntime) ? NS_OK : NS_ERROR_ALREADY_INITIALIZED;
 
     mRuntime = rt;
-    RecompileForDebugMode(rt, JS_TRUE);
 
     if (gLastGCProc == jsds_GCCallbackProc)
         /* condition indicates that the callback proc has not been set yet */
@@ -2556,7 +2581,12 @@ jsdService::ActivateDebugger (JSRuntime *rt)
         return rv;
     
     xpc->InitClasses (cx, glob);
-    
+
+    /* Start watching for script creation/destruction and manage jsdScript
+     * objects accordingly
+     */
+    JSD_SetScriptHook (mCx, jsds_ScriptHookProc, NULL);
+
     /* If any of these mFooHook objects are installed, do the required JSD
      * hookup now.   See also, jsdService::SetFooHook().
      */
@@ -2615,26 +2645,7 @@ jsdService::Off (void)
         JS_SetGCCallbackRT (mRuntime, gLastGCProc);
     */
 
-    jsdContext::InvalidateAll();
-    jsdScript::InvalidateAll();
-    jsdValue::InvalidateAll();
-    jsdProperty::InvalidateAll();
-    ClearAllBreakpoints();
-
-    JSD_SetErrorReporter (mCx, NULL, NULL);
-    JSD_SetScriptHook (mCx, NULL, NULL);
-    JSD_ClearThrowHook (mCx);
-    JSD_ClearInterruptHook (mCx);
-    JSD_ClearDebuggerHook (mCx);
-    JSD_ClearDebugBreakHook (mCx);
-    JSD_ClearTopLevelHook (mCx);
-    JSD_ClearFunctionHook (mCx);
-    
-    JSD_DebuggerOff (mCx);
-
-    mCx = nsnull;
-    mRuntime = nsnull;
-    mOn = PR_FALSE;
+    DeactivateDebugger();
 
 #ifdef DEBUG
     printf ("+++ JavaScript debugging hooks removed.\n");

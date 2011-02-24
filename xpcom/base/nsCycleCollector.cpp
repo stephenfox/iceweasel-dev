@@ -2881,6 +2881,12 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
 
         mScanInProgress = PR_FALSE;
 
+        for (PRUint32 i = 0; i <= nsIProgrammingLanguage::MAX; ++i) {
+            if (mRuntimes[i]) {
+                mRuntimes[i]->FinishTraverse();
+            }
+        }
+
         PRBool describeExtraRefcounts = PR_FALSE;
         PRBool findCycleRoots = PR_FALSE;
         {
@@ -3279,6 +3285,7 @@ class nsCycleCollectorRunner : public nsRunnable
     CondVar mRequest;
     CondVar mReply;
     PRBool mRunning;
+    PRBool mShutdown;
     PRBool mCollected;
     PRBool mJSGCHasRun;
 
@@ -3298,6 +3305,9 @@ public:
                      "Wrong thread!");
 
         MutexAutoLock autoLock(mLock);
+
+        if (mShutdown)
+            return NS_OK;
 
         mRunning = PR_TRUE;
 
@@ -3324,6 +3334,7 @@ public:
           mRequest(mLock, "cycle collector request condvar"),
           mReply(mLock, "cycle collector reply condvar"),
           mRunning(PR_FALSE),
+          mShutdown(PR_FALSE),
           mCollected(PR_FALSE),
           mJSGCHasRun(PR_FALSE)
     {
@@ -3367,6 +3378,8 @@ public:
         NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
         MutexAutoLock autoLock(mLock);
+
+        mShutdown = PR_TRUE;
 
         if (!mRunning)
             return;
@@ -3461,7 +3474,7 @@ nsCycleCollector_collect(nsICycleCollectorListener *aListener)
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     nsCOMPtr<nsICycleCollectorListener> listener(aListener);
 #ifdef DEBUG_CC
-    if (!aListener && sCollector->mParams.mDrawGraphs) {
+    if (!aListener && sCollector && sCollector->mParams.mDrawGraphs) {
         listener = new nsCycleCollectorLogger();
     }
 #endif

@@ -3116,7 +3116,7 @@ sandbox_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
 static JSClass SandboxClass = {
     "Sandbox",
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_GLOBAL_FLAGS,
-    JS_PropertyStub,   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
+    JS_PropertyStub,   JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     sandbox_enumerate, sandbox_resolve, sandbox_convert,  sandbox_finalize,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
@@ -3703,13 +3703,12 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                     // exception into a string.
                     str = JS_ValueToString(sandcx->GetJSContext(), exn);
 
-                    JSAutoRequest req(cx);
                     if (str) {
                         // We converted the exception to a string. Use that
                         // as the value exception.
                         exn = STRING_TO_JSVAL(str);
                         if (JS_WrapValue(cx, &exn)) {
-                            JS_SetPendingException(cx, STRING_TO_JSVAL(str));
+                            JS_SetPendingException(cx, exn);
                         } else {
                             JS_ClearPendingException(cx);
                             rv = NS_ERROR_FAILURE;
@@ -3719,8 +3718,6 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                         rv = NS_ERROR_FAILURE;
                     }
                 } else {
-                    JSAutoRequest req(cx);
-
                     if (JS_WrapValue(cx, &exn)) {
                         JS_SetPendingException(cx, exn);
                     }

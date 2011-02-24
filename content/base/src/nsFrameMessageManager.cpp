@@ -378,7 +378,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           // create array even if len == 0.
           aObjectsArray = JS_NewArrayObject(ctx, 0, NULL);
           if (!aObjectsArray) {
-            return false;
+            return NS_ERROR_OUT_OF_MEMORY;
           }
         }
 
@@ -414,7 +414,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         JSAutoEnterCompartment ac;
 
         if (!ac.enter(ctx, object))
-          return PR_FALSE;
+          return NS_ERROR_FAILURE;
 
         jsval funval = JSVAL_VOID;
         if (JS_ObjectIsFunction(ctx, object)) {
@@ -714,6 +714,16 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
     JSContext* unused;
     nsContentUtils::ThreadJSContextStack()->Pop(&unused);
   }
+}
+
+// static
+void
+nsFrameScriptExecutor::Traverse(nsFrameScriptExecutor *tmp,
+                                nsCycleCollectionTraversalCallback &cb)
+{
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobal)
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCx");
+  nsContentUtils::XPConnect()->NoteJSContext(tmp->mCx, cb);
 }
 
 NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)

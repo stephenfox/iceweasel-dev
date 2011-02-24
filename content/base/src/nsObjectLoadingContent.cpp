@@ -87,6 +87,7 @@
 #include "nsMimeTypes.h"
 #include "nsStyleUtil.h"
 #include "nsGUIEvent.h"
+#include "nsUnicharUtils.h"
 
 // Concrete classes
 #include "nsFrameLoader.h"
@@ -933,10 +934,10 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   NS_ASSERTION(thisContent, "must be a content");
   nsIDocument* doc = thisContent->GetOwnerDoc();
-  if (!doc || doc->IsStaticDocument()) {
+  if (!doc || doc->IsStaticDocument() || doc->IsBeingUsedAsImage()) {
     return NS_OK;
   }
-  
+
   // "revoke" any existing instantiate event as it likely has out of
   // date data (frame pointer etc).
   mPendingInstantiateEvent = nsnull;
@@ -1193,7 +1194,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   NS_ASSERTION(thisContent, "must be a content");
 
   nsIDocument* doc = thisContent->GetOwnerDoc();
-  if (!doc) {
+  if (!doc || doc->IsBeingUsedAsImage()) {
     return NS_OK;
   }
 
@@ -1731,7 +1732,7 @@ nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
   }
 
   // If it starts with "clsid:", this is ActiveX content
-  if (StringBeginsWith(aClassID, NS_LITERAL_STRING("clsid:"))) {
+  if (StringBeginsWith(aClassID, NS_LITERAL_STRING("clsid:"), nsCaseInsensitiveStringComparator())) {
     // Check if we have a plugin for that
 
     if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForType("application/x-oleobject"))) {
