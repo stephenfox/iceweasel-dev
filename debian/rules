@@ -283,10 +283,6 @@ endif
 # Remove unneeded configs
 	rm -f debian/iceweasel/$(SHARE_DIR)/defaults/pref/firefox-l10n.js
 
-# Add Debian package version to preferences
-	echo "pref(\"general.useragent.extra.firefoxComment\",\"(like Firefox/$(UPSTREAM_VERSION))\");" \
-		>> debian/iceweasel/$(SHARE_DIR)/defaults/preferences/vendor.js
-
 # Commented out for the beta release
 #	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/$(LIB_DIR)/application.ini
 
