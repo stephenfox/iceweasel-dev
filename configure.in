@@ -4125,6 +4125,25 @@ if test "$GNU_CC"; then
     else
         ARM_ABI_PREFIX=oabi-
     fi
+
+    AC_CACHE_CHECK(whether building for Thumb-2,
+        ac_cv_gcc_arm_thumb2,
+        [AC_TRY_COMPILE([],
+                        [
+#if defined(__thumb2__)
+  return 0;
+#else
+#error Not Thumb-2
+#endif
+                        ],
+                        ac_cv_gcc_arm_thumb2="yes",
+                        ac_cv_gcc_arm_thumb2="no")])
+    if test "$ac_cv_gcc_arm_thumb2" = "yes"; then
+        MOZ_THUMB2=1
+        AC_DEFINE(MOZ_THUMB2)
+    else
+        MOZ_THUMB2=
+    fi
   fi
 
   AC_CACHE_CHECK(for gcc 3.0 ABI,
@@ -5002,7 +5021,6 @@ MOZ_SPELLCHECK=1
 MOZ_SPLASHSCREEN=
 MOZ_STORAGE=1
 MOZ_SVG=1
-MOZ_THUMB2=
 MOZ_TIMELINE=
 MOZ_TOOLKIT_SEARCH=1
 MOZ_UI_LOCALE=en-US
@@ -5056,7 +5074,6 @@ case "${target}" in
         USE_ARM_KUSER=1
         MOZ_INSTALLER=
         NECKO_WIFI=
-        MOZ_THUMB2=1
         MOZ_THEME_FASTSTRIPE=1
         MOZ_TREE_FREETYPE=1
         MOZ_MEMORY=1
@@ -7163,7 +7180,6 @@ if test $MOZ_PLATFORM_MAEMO; then
          fi
       fi
 
-      MOZ_THUMB2=1
    fi
 
    PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
@@ -7191,81 +7207,6 @@ if test $MOZ_PLATFORM_MAEMO; then
    AC_SUBST(MOZ_PLATFORM_MAEMO_LIBS)
    AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
 fi
-
-dnl Setup default CPU arch for arm target
-case "$target_cpu" in
-  arm*)
-    MOZ_ARM_ARCH=armv7
-  ;;
-esac
-dnl ========================================================
-dnl = Enable building the Thumb2 instruction set
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(thumb2,
- [  --enable-thumb2         Enable Thumb2 instruction set (implies ARMv7)],
-    MOZ_THUMB2=1,
-    MOZ_THUMB2=)
-if test -n "$MOZ_THUMB2"; then
-  MOZ_ARM_ARCH=armv7
-fi
-
-dnl ========================================================
-dnl = Enable building for ARM specific CPU features
-dnl ========================================================
-MOZ_ARG_WITH_STRING(cpu-arch,
-[  --with-cpu-arch=arch      Use specific arm architecture CPU features, default armv7],
-    MOZ_ARM_ARCH=$withval)
-
-if test -n "$MOZ_THUMB2"; then
-  case "$target_cpu" in
-    arm*)
-      if test "$MOZ_ARM_ARCH" != "armv7"; then
-        AC_MSG_ERROR([--enable-thumb2 is not compatible with cpu-arch=$MOZ_ARM_ARCH])
-      fi
-      if test "$GNU_CC"; then
-        AC_DEFINE(MOZ_THUMB2)
-        AC_DEFINE(MOZ_ARM_ARCH)
-        CFLAGS="$CFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        CXXFLAGS="$CXXFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        ASFLAGS="$ASFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-      else
-        AC_MSG_ERROR([--enable-thumb2 is not supported for non-GNU toolchains])
-      fi
-    ;;
-    *)
-      AC_MSG_ERROR([--enable-thumb2 is not supported for non-ARM CPU architectures])
-    ;;
-  esac
-elif test "$MOZ_ARM_ARCH" = "armv7"; then
-  case "$target_cpu" in
-    arm*)
-      if test "$GNU_CC"; then
-        AC_DEFINE(MOZ_ARM_ARCH)
-        CFLAGS="$CFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        CXXFLAGS="$CXXFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        ASFLAGS="$ASFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-      else
-        AC_MSG_ERROR([--with-cpu-arch=armv7 is not supported for non-GNU toolchains])
-      fi
-    ;;
-    *)
-      AC_MSG_ERROR([--with-cpu-arch=armv7 is not supported for non-ARM CPU architectures])
-    ;;
-  esac
-else
-  case "$target_cpu" in
-    arm*)
-      if test "$GNU_CC"; then
-        CFLAGS="$CFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-        CXXFLAGS="$CXXFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-        ASFLAGS="$ASFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-      fi
-      ;;
-  esac
-fi
-
-AC_SUBST(MOZ_THUMB2)
-AC_SUBST(MOZ_ARM_ARCH)
 
 dnl ========================================================
 dnl = faststripe theme
@@ -9302,6 +9243,7 @@ AC_SUBST(VPX_AS_CONVERSION)
 AC_SUBST(VPX_ASM_SUFFIX)
 AC_SUBST(VPX_X86_ASM)
 AC_SUBST(VPX_ARM_ASM)
+AC_SUBST(MOZ_THUMB2)
 
 if test "$USING_HCC"; then
    CC='${topsrcdir}/build/hcc'
@@ -9599,12 +9541,6 @@ unset CONFIG_FILES
 # No need to run subconfigures when building with LIBXUL_SDK_DIR
 if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
 
-if test -n "$MOZ_THUMB2"; then
-  _SUBDIR_CONFIG_ARGS="$_SUBDIR_CONFIG_ARGS --enable-thumb2"
-fi
-if test -n "$MOZ_ARM_ARCH"; then
-  _SUBDIR_CONFIG_ARGS="$_SUBDIR_CONFIG_ARGS --with-cpu-arch=$MOZ_ARM_ARCH"
-fi
 if test -n "$_WRAP_MALLOC"; then
   _SUBDIR_CONFIG_ARGS="$_SUBDIR_CONFIG_ARGS --enable-wrap-malloc"
 fi
