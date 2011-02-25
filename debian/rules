@@ -4,7 +4,7 @@ DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
-export GRE_VERSION := 1.9.2
+export GRE_VERSION := 2.0
 
 # The VERSION_FILTER transforms upstream version patterns to versions
 # useable in debian/changelog. Versions are to be transformed as follows:
@@ -25,7 +25,7 @@ DEBIAN_RELEASE := $(lastword $(subst -, ,$(DEBIAN_VERSION)))
 UPSTREAM_RELEASE := $(DEBIAN_VERSION:%-$(DEBIAN_RELEASE)=%)
 
 # Check if the GRE_VERSION defined above matches the actual milestone
-ifeq (,$(filter $(GRE_VERSION).%,$(GRE_MILESTONE)))
+ifeq (,$(filter $(GRE_VERSION).%,$(subst ~,.,$(GRE_MILESTONE))))
 $(error GRE_VERSION ($(GRE_VERSION)) doesn't match GRE_MILESTONE ($(GRE_MILESTONE)))
 endif
 

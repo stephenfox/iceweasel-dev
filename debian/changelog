@@ -1,3 +1,10 @@
+iceweasel (4.0~b12-1) UNRELEASED; urgency=low
+
+  * New upstream beta release.
+  * debian/rules: Handle beta versions in milestone check.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 25 Feb 2011 11:42:30 +0100
+
 iceweasel (3.6.13-3) UNRELEASED; urgency=low
 
   * debian/branding/locales/en-US/brand.*: Changed vendorShortName to
