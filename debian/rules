@@ -207,7 +207,10 @@ override_dh_auto_clean::
 override_dh_auto_install: stamps/install-iceweasel stamps/install-xulrunner
 
 stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
-	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- MOZ_PKG_MANIFEST=$(CURDIR)/$<
+	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- \
+		MOZ_PKG_MANIFEST=$(CURDIR)/$< \
+		MOZ_NONLOCALIZED_PKG_LIST="xpcom xulrunner debian" \
+		MOZ_LOCALIZED_PKG_LIST=en-US
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(GRE_VERSION)
 
