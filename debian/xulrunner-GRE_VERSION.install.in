@@ -34,3 +34,5 @@ usr/lib/xulrunner-##GRE_VERSION##/components/*.manifest
 usr/lib/xulrunner-##GRE_VERSION##/components/libdbusservice.so
 usr/lib/xulrunner-##GRE_VERSION##/components/libmozgnome.so
 usr/lib/xulrunner-##GRE_VERSION##/components/libnkgnomevfs.so
+
+usr/lib/xulrunner-##GRE_VERSION##/chrome.manifest
