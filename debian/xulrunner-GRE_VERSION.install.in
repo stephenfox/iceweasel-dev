@@ -21,18 +21,10 @@ usr/lib/xulrunner-##GRE_VERSION##/reportbug-helper-script
 usr/lib/xulrunner-##GRE_VERSION##/icons usr/share/xulrunner-##GRE_VERSION##
 usr/lib/xulrunner-##GRE_VERSION##/chrome usr/share/xulrunner-##GRE_VERSION##
 
-usr/lib/xulrunner-##GRE_VERSION##/greprefs.js usr/share/xulrunner-##GRE_VERSION##
-usr/lib/xulrunner-##GRE_VERSION##/defaults/pref usr/share/xulrunner-##GRE_VERSION##/defaults
-usr/lib/xulrunner-##GRE_VERSION##/defaults/autoconfig usr/share/xulrunner-##GRE_VERSION##/defaults
-
-usr/lib/xulrunner-##GRE_VERSION##/res usr/share/xulrunner-##GRE_VERSION##
-usr/lib/xulrunner-##GRE_VERSION##/modules usr/share/xulrunner-##GRE_VERSION##
-
-usr/lib/xulrunner-##GRE_VERSION##/components/*.js
-usr/lib/xulrunner-##GRE_VERSION##/components/*.xpt
 usr/lib/xulrunner-##GRE_VERSION##/components/*.manifest
 usr/lib/xulrunner-##GRE_VERSION##/components/libdbusservice.so
 usr/lib/xulrunner-##GRE_VERSION##/components/libmozgnome.so
 usr/lib/xulrunner-##GRE_VERSION##/components/libnkgnomevfs.so
 
 usr/lib/xulrunner-##GRE_VERSION##/chrome.manifest
+usr/lib/xulrunner-##GRE_VERSION##/omni.jar usr/share/xulrunner-##GRE_VERSION##
