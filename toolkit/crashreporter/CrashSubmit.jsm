@@ -35,6 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Components.utils.import("resource://gre/modules/Services.jsm");
+
 let EXPORTED_SYMBOLS = [
   "CrashSubmit"
 ];
@@ -315,9 +317,7 @@ Submitter.prototype = {
       propBag.setPropertyAsAString("serverCrashID", ret.CrashID);
     }
 
-    Cc["@mozilla.org/observer-service;1"]
-      .getService(Ci.nsIObserverService)
-      .notifyObservers(propBag, "crash-report-status", status);
+    Services.obs.notifyObservers(propBag, "crash-report-status", status);
 
     switch (status) {
       case SUCCESS:

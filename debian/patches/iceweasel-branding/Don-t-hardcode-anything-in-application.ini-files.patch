@@ -1,4 +1,3 @@
-From 752c0307f2e6721e86f6acaa8915480be213b5cc Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 19 Feb 2011 10:38:14 +0100
 Subject: Don't hardcode anything in application.ini files
@@ -13,10 +12,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=525882
  5 files changed, 47 insertions(+), 4 deletions(-)
 
 diff --git a/browser/app/Makefile.in b/browser/app/Makefile.in
-index 15fb695..de22085 100644
+index d55bee0..acea959 100644
 --- a/browser/app/Makefile.in
 +++ b/browser/app/Makefile.in
-@@ -83,6 +83,13 @@ ifdef SOURCE_REPO
+@@ -77,6 +77,13 @@ ifdef SOURCE_REPO
  DEFINES += -DMOZ_SOURCE_REPO="$(SOURCE_REPO)"
  endif
  
@@ -31,7 +30,7 @@ index 15fb695..de22085 100644
  
  ifdef LIBXUL_SDK
 diff --git a/browser/app/application.ini b/browser/app/application.ini
-index 8ae9f3b..a2978a9 100644
+index 0f2cb3a..008b8c3 100644
 --- a/browser/app/application.ini
 +++ b/browser/app/application.ini
 @@ -37,9 +37,12 @@
@@ -50,7 +49,7 @@ index 8ae9f3b..a2978a9 100644
  #ifdef MOZ_SOURCE_REPO
  SourceRepository=@MOZ_SOURCE_REPO@
 diff --git a/browser/confvars.sh b/browser/confvars.sh
-index 7173d2c..eba45bd 100755
+index 534d182..b62bd2a 100755
 --- a/browser/confvars.sh
 +++ b/browser/confvars.sh
 @@ -36,7 +36,8 @@
@@ -64,7 +63,7 @@ index 7173d2c..eba45bd 100755
  MOZ_PHOENIX=1
  
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index c1fbb20..4d98e4e 100644
+index 8a9fc33..822f13e 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
 @@ -50,6 +50,9 @@ FIREFOX_VERSION	= @FIREFOX_VERSION@
@@ -74,15 +73,15 @@ index c1fbb20..4d98e4e 100644
 +MOZ_APP_BASENAME = @MOZ_APP_BASENAME@
 +MOZ_APP_VENDOR = @MOZ_APP_VENDOR@
 +MOZ_APP_PROFILE = @MOZ_APP_PROFILE@
+ MOZ_APP_UA_NAME = @MOZ_APP_UA_NAME@
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
- MOZ_APP_UA_EXTRA = @MOZ_APP_UA_EXTRA@
- 
+ MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
 diff --git a/configure.in b/configure.in
-index d63137c..5623be3 100644
+index a96a125..4c4559b 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -7662,7 +7662,7 @@ MOZ_ARG_ENABLE_BOOL(libxul,
-     MOZ_ENABLE_LIBXUL=)
+@@ -8388,7 +8388,7 @@ fi
+ AC_SUBST(JS_SHARED_LIBRARY)
  
  if test -n "$MOZ_STATIC_BUILD_UNSUPPORTED" -a -n "$BUILD_STATIC_LIBS"; then
 -	AC_MSG_ERROR([--enable-static is not supported for building $MOZ_APP_NAME. You probably want --enable-libxul.])
@@ -90,7 +89,7 @@ index d63137c..5623be3 100644
  fi
  
  if test -n "$MOZ_ENABLE_LIBXUL" -a -n "$BUILD_STATIC_LIBS"; then
-@@ -8289,8 +8289,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
+@@ -9134,8 +9134,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
  AC_SUBST(MOZ_TIMELINE)
  AC_SUBST(OGLES_SDK_DIR)
  
@@ -125,9 +124,6 @@ index d63137c..5623be3 100644
 +AC_SUBST(MOZ_APP_BASENAME)
 +AC_SUBST(MOZ_APP_VENDOR)
 +AC_SUBST(MOZ_APP_PROFILE)
- AC_SUBST(MOZ_APP_VERSION)
- AC_SUBST(MOZ_APP_UA_EXTRA)
- AC_SUBST(FIREFOX_VERSION)
--- 
-1.7.4.1
-
+ AC_DEFINE_UNQUOTED(MOZ_APP_UA_NAME, "$MOZ_APP_UA_NAME")
+ AC_SUBST(MOZ_APP_UA_NAME)
+ AC_DEFINE_UNQUOTED(MOZ_APP_UA_VERSION, "$MOZ_APP_VERSION")

@@ -1,4 +1,3 @@
-From d16ade441548f64203d23c1261ddbe2e4643a1fc Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Thu, 1 Apr 2010 15:34:59 +0200
 Subject: Determine which phishing shavar to use depending on MOZ_OFFICIAL
@@ -9,10 +8,10 @@ Subject: Determine which phishing shavar to use depending on MOZ_OFFICIAL
  2 files changed, 8 insertions(+), 0 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index e5aecc0..c1ff3a0 100644
+index ece0765..4ee855a 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -728,7 +728,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
+@@ -747,7 +747,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
  pref("urlclassifier.gethashnoise", 4);
  
  // The list of tables that use the gethash request to confirm partial results.
@@ -40,6 +39,3 @@ index d353cbc..7fdd839 100644
    this.phishWarden.maybeToggleUpdateChecking();
  }
  
--- 
-1.7.4.1
-

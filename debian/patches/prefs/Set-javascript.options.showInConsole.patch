@@ -7,14 +7,14 @@ Subject: Set javascript.options.showInConsole
  1 files changed, 1 insertions(+), 0 deletions(-)
 
 diff --git a/modules/libpref/src/init/all.js b/modules/libpref/src/init/all.js
-index 8d6779a..ab8b005 100644
+index 64d8371..a9d0c8b 100644
 --- a/modules/libpref/src/init/all.js
 +++ b/modules/libpref/src/init/all.js
-@@ -556,6 +556,7 @@ pref("dom.event.contextmenu.enabled",       true);
- pref("javascript.enabled",                  true);
- pref("javascript.options.strict",           false);
- pref("javascript.options.relimit",          false);
+@@ -598,6 +598,7 @@ pref("javascript.options.strict",           false);
+ pref("javascript.options.strict.debug",     true);
+ #endif
+ pref("javascript.options.relimit",          true);
 +pref("javascript.options.showInConsole",    true);
- pref("javascript.options.jit.content",      true);
- pref("javascript.options.jit.chrome",       true);
- // This preference limits the memory usage of javascript.
+ pref("javascript.options.tracejit.content",  true);
+ pref("javascript.options.tracejit.chrome",   true);
+ pref("javascript.options.methodjit.content", true);

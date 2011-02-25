@@ -9,17 +9,17 @@ It is better defined in the GRE provided by xulrunner-1.9
  2 files changed, 0 insertions(+), 2 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index d2cf83b..28aaf4c 100644
+index 4ee855a..00688b9 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -181,7 +181,6 @@ pref("lightweightThemes.update.enabled", true);
- pref("keyword.enabled", true);
- pref("keyword.URL", "chrome://browser-region/locale/region.properties");
+@@ -220,7 +220,6 @@ pref("keyword.enabled", true);
+ // "use the search service's default engine"
+ pref("keyword.URL", "");
  
 -pref("general.useragent.locale", "@AB_CD@");
  pref("general.skins.selectedSkin", "classic/1.0");
- pref("general.useragent.extra.firefox", "@APP_UA_NAME@/@APP_VERSION@");
  
+ pref("general.smoothScroll", false);
 diff --git a/browser/locales/en-US/firefox-l10n.js b/browser/locales/en-US/firefox-l10n.js
 index e9027aa..a683b7f 100644
 --- a/browser/locales/en-US/firefox-l10n.js

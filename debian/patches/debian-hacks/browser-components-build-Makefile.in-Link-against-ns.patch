@@ -7,11 +7,11 @@ Subject: browser/components/build/Makefile.in: Link against nspr
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/browser/components/build/Makefile.in b/browser/components/build/Makefile.in
-index f22b550..3a4a51c 100644
+index 3947a1f..552aa52 100644
 --- a/browser/components/build/Makefile.in
 +++ b/browser/components/build/Makefile.in
-@@ -76,7 +76,7 @@ ifndef WINCE
- REQUIRES += migration
+@@ -59,7 +59,7 @@ EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,unicharutil_external_s,$(LIBXUL_D
+ ifndef WINCE
  LOCAL_INCLUDES += -I$(srcdir)/../migration/src
  SHARED_LIBRARY_LIBS += ../migration/src/$(LIB_PREFIX)migration_s.$(LIB_SUFFIX)
 -EXTRA_DSO_LDOPTS += $(LIBXUL_DIST)/lib/$(LIB_PREFIX)mozreg_s.$(LIB_SUFFIX)

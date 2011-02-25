@@ -1,4 +1,3 @@
-From d2229bc8a25c79f2d1653d2023d6a3634b4c7ce3 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 18 Oct 2008 13:56:55 +0200
 Subject: Replace %APP% with firefox in some places
@@ -6,32 +5,38 @@ Subject: Replace %APP% with firefox in some places
 Add-ons search and some other stuff are using %APP% in urls which won't work
 for iceweasel but for firefox. Hardcode firefox there.
 ---
- browser/app/profile/firefox.js |   14 +++++++-------
- 1 files changed, 7 insertions(+), 7 deletions(-)
+ browser/app/profile/firefox.js |   20 ++++++++++----------
+ 1 files changed, 10 insertions(+), 10 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 1877105..739ac6c 100644
+index 89814d8..ece0765 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -70,12 +70,12 @@ pref("extensions.hideInstallButton", true);
- 
- // Preferences for the Get Add-ons pane
- pref("extensions.getAddons.showPane", true);
--pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/%APP%");
-+pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/firefox");
- pref("extensions.getAddons.maxResults", 5);
--pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/recommended");
--pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
+@@ -59,10 +59,10 @@ pref("extensions.logging.enabled", false);
+ // Preferences for AMO integration
+ pref("extensions.getAddons.cache.enabled", true);
+ pref("extensions.getAddons.maxResults", 15);
+-pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
 -pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
--pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
-+pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/recommended");
-+pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
+-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%?src=firefox");
+-pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery/pane/%VERSION%/%OS%");
++pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
 +pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/search?q=%TERMS%");
-+pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
++pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%?src=firefox");
++pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/firefox/discovery/pane/%VERSION%/%OS%");
  
  // Blocklist preferences
  pref("extensions.blocklist.enabled", true);
-@@ -165,7 +165,7 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
+@@ -76,7 +76,7 @@ pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blockl
+ pref("extensions.update.autoUpdateDefault", true);
+ 
+ // Dictionary download preference
+-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/%APP%/dictionaries/");
++pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
+ 
+ // Update Timer Manager preferences
+ // Interval: When all registered timers should be checked (in milliseconds)
+@@ -202,7 +202,7 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
  pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                              // Themes every day
  // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -40,7 +45,27 @@ index 1877105..739ac6c 100644
  pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
  pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                  // restart.
-@@ -853,7 +853,7 @@ pref("editor.singleLine.pasteNewlines", 2);
+@@ -329,7 +329,7 @@ pref("browser.download.manager.scanWhenDone", true);
+ pref("browser.download.manager.resumeOnWakeDelay", 10000);
+ 
+ // search engines URL
+-pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/%APP%/search-engines/");
++pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
+ 
+ // pointer to the default engine name
+ pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
+@@ -736,8 +736,8 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
+ pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
+ 
+ // FAQ URLs
+-pref("browser.safebrowsing.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/phishing-protection/");
+-pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/geolocation/");
++pref("browser.safebrowsing.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
++pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
+ 
+ // Name of the about: page contributed by safebrowsing to handle display of error
+ // pages on phishing/malware hits.  (bug 399233)
+@@ -887,7 +887,7 @@ pref("browser.zoom.updateBackgroundTabs", true);
  pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
  
  // base URL for web-based support pages
@@ -49,6 +74,3 @@ index 1877105..739ac6c 100644
  
  // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
  pref("security.alternate_certificate_error_page", "certerror");
--- 
-1.7.4.1
-

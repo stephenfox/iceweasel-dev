@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -44,8 +44,6 @@ function LoginManagerStorage_legacy() { };
 
 LoginManagerStorage_legacy.prototype = {
 
-    classDescription  : "LoginManagerStorage_legacy",
-    contractID : "@mozilla.org/login-manager/storage/legacy;1",
     classID : Components.ID("{e09e4ca6-276b-4bb4-8b71-0635a3a2a007}"),
     QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage,
                                     Ci.nsILoginManagerIEMigrationHelper]),
@@ -124,7 +122,7 @@ LoginManagerStorage_legacy.prototype = {
      * EG: _logins["http://site.com"][0].password
      * EG: _disabledHosts["never.site.com"]
      */
-    _logins        : null, 
+    _logins        : null,
     _disabledHosts : null,
 
 
@@ -341,7 +339,8 @@ LoginManagerStorage_legacy.prototype = {
         if (userCanceled)
             throw "User canceled Master Password entry";
 
-        count.value = result.length; // needed for XPCOM
+        if (count)
+            count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -368,7 +367,8 @@ LoginManagerStorage_legacy.prototype = {
             }
         }
 
-        count.value = result.length; // needed for XPCOM
+        if (count)
+            count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -411,7 +411,8 @@ LoginManagerStorage_legacy.prototype = {
             result.push(hostname);
         }
 
-        count.value = result.length; // needed for XPCOM
+        if (count)
+            count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -469,7 +470,7 @@ LoginManagerStorage_legacy.prototype = {
         return logins;
     },
 
-    
+
     /*
      * countLogins
      *
@@ -481,7 +482,7 @@ LoginManagerStorage_legacy.prototype = {
         if (aHostname) {
             logins = this._searchLogins(aHostname, aFormSubmitURL, aHttpRealm);
             return logins.length
-        } 
+        }
 
         // For consistency with how aFormSubmitURL and aHttpRealm work
         if (aHostname == null)
@@ -495,6 +496,10 @@ LoginManagerStorage_legacy.prototype = {
         }
 
         return count;
+    },
+
+    get uiBusy() {
+        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     },
 
 
@@ -730,14 +735,14 @@ LoginManagerStorage_legacy.prototype = {
                                 aLogin.username, aLogin.password, "", "");
                 // We don't have decrypted values, unless we're importing from IE,
                 // so clone the encrypted bits into the new entry.
-                extraLogin.wrappedJSObject.encryptedPassword = 
+                extraLogin.wrappedJSObject.encryptedPassword =
                     aLogin.wrappedJSObject.encryptedPassword;
-                extraLogin.wrappedJSObject.encryptedUsername = 
+                extraLogin.wrappedJSObject.encryptedUsername =
                     aLogin.wrappedJSObject.encryptedUsername;
 
                 if (extraLogin.httpRealm == "")
                     extraLogin.httpRealm = extraLogin.hostname;
-                
+
                 upgradedLogins.push(extraLogin);
             }
 
@@ -792,7 +797,7 @@ LoginManagerStorage_legacy.prototype = {
                         newURL += ":" + port;
                 }
 
-                // Could be a channel login with a username. 
+                // Could be a channel login with a username.
                 if (scheme != "http" && scheme != "https" && uri.username)
                     username = uri.username;
 
@@ -829,8 +834,7 @@ LoginManagerStorage_legacy.prototype = {
             if (isMailNews.test(aLogin.hostname))
                 try {
                     username = decodeURIComponent(username);
-                }
-                catch (ex) {
+                } catch (ex) {
                     // It has been seen that some usernames cannot be decoded
                     // on upgrade, so if hit the case, log it and re-throw so
                     // that we can handle it in the caller.
@@ -1335,7 +1339,7 @@ LoginManagerStorage_legacy.prototype = {
      *  userCanceled -- if the encryption failed, this is true if the
      *                  user selected Cancel when prompted to enter their
      *                  Master Password. The caller should bail out, and not
-     *                  not request that more things be encrypted (which 
+     *                  not request that more things be encrypted (which
      *                  results in prompting the user for a Master Password
      *                  over and over.)
      */
@@ -1368,7 +1372,7 @@ LoginManagerStorage_legacy.prototype = {
      *  userCanceled -- if the decryption failed, this is true if the
      *                  user selected Cancel when prompted to enter their
      *                  Master Password. The caller should bail out, and not
-     *                  not request that more things be decrypted (which 
+     *                  not request that more things be decrypted (which
      *                  results in prompting the user for a Master Password
      *                  over and over.)
      */
@@ -1380,7 +1384,7 @@ LoginManagerStorage_legacy.prototype = {
             if (cipherText.charAt(0) == '~') {
                 // The older file format obscured entries by
                 // base64-encoding them. These entries are signaled by a
-                // leading '~' character. 
+                // leading '~' character.
                 plainOctet = atob(cipherText.substring(1));
             } else {
                 plainOctet = this._decoderRing.decryptString(cipherText);
@@ -1489,7 +1493,4 @@ LoginManagerStorage_legacy.prototype = {
     }
 }; // end of nsLoginManagerStorage_legacy implementation
 
-var component = [LoginManagerStorage_legacy];
-function NSGetModule(compMgr, fileSpec) {
-    return XPCOMUtils.generateModule(component);
-}
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([LoginManagerStorage_legacy]);

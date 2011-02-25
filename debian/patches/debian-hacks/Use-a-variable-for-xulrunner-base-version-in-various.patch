@@ -8,14 +8,14 @@ Subject: Use a variable for xulrunner base version in various places
  2 files changed, 8 insertions(+), 7 deletions(-)
 
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index 4d98e4e..0ccd56e 100644
+index 822f13e..33faed9 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
-@@ -55,20 +55,21 @@ MOZ_APP_VENDOR = @MOZ_APP_VENDOR@
- MOZ_APP_PROFILE = @MOZ_APP_PROFILE@
+@@ -57,20 +57,21 @@ MOZ_APP_UA_NAME = @MOZ_APP_UA_NAME@
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
- MOZ_APP_UA_EXTRA = @MOZ_APP_UA_EXTRA@
-+MOZ_BASE_VERSION = 1.9.2
+ MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
+ MOZ_UA_BUILDID = @MOZ_UA_BUILDID@
++MOZ_BASE_VERSION = 2.0
  
  MOZ_PKG_SPECIAL = @MOZ_PKG_SPECIAL@
  
@@ -38,7 +38,7 @@ index 4d98e4e..0ccd56e 100644
  DIST		= $(DEPTH)/dist
  LIBXUL_SDK      = @LIBXUL_SDK@
 diff --git a/xulrunner/installer/Makefile.in b/xulrunner/installer/Makefile.in
-index a065b63..b8a25cc 100644
+index dfa78a8..163e5de 100644
 --- a/xulrunner/installer/Makefile.in
 +++ b/xulrunner/installer/Makefile.in
 @@ -67,7 +67,7 @@ INSTALL_SDK = 1
@@ -59,7 +59,7 @@ index a065b63..b8a25cc 100644
  	$(NSINSTALL) -D $(DESTDIR)$(regdir)
  	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(regdir)
  endif
-@@ -134,7 +134,7 @@ install:: $(pkg_config_files)
+@@ -136,7 +136,7 @@ install:: $(pkg_config_files)
  	@echo pkg_config_file: $(pkg_config_files)
  	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(libdir)/pkgconfig
  

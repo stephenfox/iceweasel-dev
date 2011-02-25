@@ -1,4 +1,3 @@
-From a0ca3bb91220c24b92e2eae85e36c757a0f59903 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 19 Feb 2011 11:04:53 +0100
 Subject: Modify search plugins depending on MOZ_APP_NAME
@@ -6,14 +5,14 @@ Subject: Modify search plugins depending on MOZ_APP_NAME
 ---
  browser/locales/Makefile.in                     |    9 +++++++--
  browser/locales/en-US/searchplugins/answers.xml |    2 +-
- browser/locales/en-US/searchplugins/google.xml  |   10 +++++++++-
- 3 files changed, 17 insertions(+), 4 deletions(-)
+ browser/locales/en-US/searchplugins/google.xml  |    6 +++++-
+ 3 files changed, 13 insertions(+), 4 deletions(-)
 
 diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
-index 22ca7ab..149876d 100644
+index 4b02261..ed5814a 100644
 --- a/browser/locales/Makefile.in
 +++ b/browser/locales/Makefile.in
-@@ -183,8 +183,13 @@ install:: $(addprefix $(LOCALE_SRCDIR)/profile/chrome/,$(PROFILE_CHROME))
+@@ -178,8 +178,13 @@ install:: $(addprefix $(LOCALE_SRCDIR)/profile/chrome/,$(PROFILE_CHROME))
  
  SEARCH_PLUGINS = $(shell cat $(LOCALE_SRCDIR)/searchplugins/list.txt)
  
@@ -42,7 +41,7 @@ index ea32303..2da83aa 100644
  <SearchForm>http://www.answers.com/</SearchForm>
  </SearchPlugin>
 diff --git a/browser/locales/en-US/searchplugins/google.xml b/browser/locales/en-US/searchplugins/google.xml
-index 790ed34..6b8cc53 100644
+index 1803902..8ea2079 100644
 --- a/browser/locales/en-US/searchplugins/google.xml
 +++ b/browser/locales/en-US/searchplugins/google.xml
 @@ -3,7 +3,11 @@
@@ -57,19 +56,12 @@ index 790ed34..6b8cc53 100644
  <Url type="text/html" method="GET" template="http://www.google.com/search">
    <Param name="q" value="{searchTerms}"/>
    <Param name="ie" value="utf-8"/>
-@@ -11,7 +15,11 @@
+@@ -11,7 +15,7 @@
    <Param name="aq" value="t"/>
    <!-- Dynamic parameters -->
    <Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
 -  <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
 +#expand  <MozParam name="client" condition="defaultEngine" trueValue="__MOZ_APP_NAME__-a" falseValue="__MOZ_APP_NAME__"/>
  </Url>
-+#if MOZ_APP_NAME==firefox
- <SearchForm>http://www.google.com/firefox</SearchForm>
-+#else
-+<SearchForm>http://www.google.com/</SearchForm>
-+#endif
+ <SearchForm>http://www.google.com/</SearchForm>
  </SearchPlugin>
--- 
-1.7.4.1
-

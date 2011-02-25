@@ -1,4 +1,4 @@
-/* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "jscntxt.h"
+
 #include "nsDOMThreadService.h"
 
 // Interfaces
@@ -44,10 +46,7 @@
 #include "nsIConsoleService.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMNavigator.h"
-#include "nsIDOMWindowInternal.h"
 #include "nsIEventTarget.h"
-#include "nsIGenericFactory.h"
 #include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIObserverService.h"
@@ -60,11 +59,11 @@
 #include "nsPIDOMWindow.h"
 
 // Other includes
-#include "jscntxt.h"
 #include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsDeque.h"
+#include "nsGlobalWindow.h"
 #include "nsIClassInfoImpl.h"
 #include "nsStringBuffer.h"
 #include "nsThreadUtils.h"
@@ -127,16 +126,6 @@ static const char* sPrefsToWatch[] = {
 // The length of time the close handler is allowed to run in milliseconds.
 static PRUint32 gWorkerCloseHandlerTimeoutMS = 10000;
 
-static int sStringFinalizerIndex = -1;
-
-static void
-StringFinalizer(JSContext* aCx,
-                JSString* aStr)
-{
-  NS_ASSERTION(aStr, "Null string!");
-  nsStringBuffer::FromData(JS_GetStringChars(aStr))->Release();
-}
-
 /**
  * Simple class to automatically destroy a JSContext to make error handling
  * easier.
@@ -166,6 +155,47 @@ public:
 private:
   JSContext* mCx;
 };
+
+class nsDestroyJSContextRunnable : public nsIRunnable
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  nsDestroyJSContextRunnable(JSContext* aCx)
+  : mCx(aCx)
+  {
+    NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+    NS_ASSERTION(aCx, "Null pointer!");
+    NS_ASSERTION(!JS_GetGlobalObject(aCx), "Should not have a global!");
+
+    // We're removing this context from this thread. Let the JS engine know.
+    JS_ClearContextThread(aCx);
+  }
+
+  NS_IMETHOD Run()
+  {
+    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+    // We're about to use this context on this thread. Let the JS engine know.
+    if (!!JS_SetContextThread(mCx)) {
+      NS_WARNING("JS_SetContextThread failed!");
+    }
+
+    if (nsContentUtils::XPConnect()) {
+      nsContentUtils::XPConnect()->ReleaseJSContext(mCx, PR_TRUE);
+    }
+    else {
+      NS_WARNING("Failed to release JSContext!");
+    }
+
+    return NS_OK;
+  }
+
+private:
+  JSContext* mCx;
+};
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDestroyJSContextRunnable, nsIRunnable)
 
 /**
  * This class is used as to post an error to the worker's outer handler.
@@ -363,7 +393,7 @@ public:
     NS_ASSERTION(aTimeoutInterval, "No timeout specified!");
     NS_ASSERTION(aTimeoutInterval!= PR_INTERVAL_NO_TIMEOUT, "Bad timeout!");
 
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(gDOMThreadService->mMonitor);
+    // No need to enter the monitor because we should already be in it.
 
     NS_ASSERTION(mWorker->GetExpirationTime() == PR_INTERVAL_NO_TIMEOUT,
                  "Asked to set timeout on a runnable with no close handler!");
@@ -378,17 +408,6 @@ public:
     NS_ASSERTION(!NS_IsMainThread(),
                  "This should *never* run on the main thread!");
 
-    // If the worker has been suspended then we're going to bail here and let
-    // another worker take precedence.
-    if (mWorker->IsSuspended()) {
-      if (gDOMThreadService->QueueSuspendedWorker(this)) {
-        return NS_OK;
-      }
-      // Out of memory maybe? We can suspend the old fashioned way by not
-      // returning here.
-      NS_WARNING("Can't reschedule worker?!");
-    }
-
     // This must have been set up by the thread service
     NS_ASSERTION(gJSContextIndex != BAD_TLS_INDEX, "No context index!");
 
@@ -401,6 +420,13 @@ public:
 
     NS_ASSERTION(!JS_GetGlobalObject(cx), "Shouldn't have a global!");
 
+    if (mWorker->IsPrivileged()) {
+      JS_SetVersion(cx, JSVERSION_LATEST);
+    }
+    else {
+      JS_SetVersion(cx, JSVERSION_DEFAULT);
+    }
+
     JS_SetContextPrivate(cx, mWorker);
 
     // Go ahead and trigger the operation callback for this context before we
@@ -409,35 +435,41 @@ public:
     JS_TriggerOperationCallback(cx);
 
     PRBool killWorkerWhenDone;
+    {
+      nsLazyAutoRequest ar;
+      JSAutoEnterCompartment ac;
 
-    // Tell the worker which context it will be using
-    if (mWorker->SetGlobalForContext(cx)) {
-      RunQueue(cx, &killWorkerWhenDone);
+      // Tell the worker which context it will be using
+      if (mWorker->SetGlobalForContext(cx, &ar, &ac)) {
+        NS_ASSERTION(ar.entered(), "SetGlobalForContext must enter request on success");
+        NS_ASSERTION(ac.entered(), "SetGlobalForContext must enter compartment on success");
 
-      // Code in XPConnect assumes that the context's global object won't be
-      // replaced outside of a request.
-      JSAutoRequest ar(cx);
+        RunQueue(cx, &killWorkerWhenDone);
 
-      // Remove the global object from the context so that it might be garbage
-      // collected.
-      JS_SetGlobalObject(cx, NULL);
-      JS_SetContextPrivate(cx, NULL);
-    }
-    else {
-      {
-        // Code in XPConnect assumes that the context's global object won't be
-        // replaced outside of a request.
-        JSAutoRequest ar(cx);
-
-        // This is usually due to a parse error in the worker script...
+        // Remove the global object from the context so that it might be garbage
+        // collected.
         JS_SetGlobalObject(cx, NULL);
         JS_SetContextPrivate(cx, NULL);
       }
+      else {
+        NS_ASSERTION(!ar.entered(), "SetGlobalForContext must not enter request on failure");
+        NS_ASSERTION(!ac.entered(), "SetGlobalForContext must not enter compartment on failure");
 
-      nsAutoMonitor mon(gDOMThreadService->mMonitor);
-      killWorkerWhenDone = mKillWorkerWhenDone;
-      gDOMThreadService->WorkerComplete(this);
-      mon.NotifyAll();
+        {
+          // Code in XPConnect assumes that the context's global object won't be
+          // replaced outside of a request.
+          JSAutoRequest ar2(cx);
+
+          // This is usually due to a parse error in the worker script...
+          JS_SetGlobalObject(cx, NULL);
+          JS_SetContextPrivate(cx, NULL);
+        }
+
+        nsAutoMonitor mon(gDOMThreadService->mMonitor);
+        killWorkerWhenDone = mKillWorkerWhenDone;
+        gDOMThreadService->WorkerComplete(this);
+        mon.NotifyAll();
+      }
     }
 
     if (killWorkerWhenDone) {
@@ -495,7 +527,8 @@ protected:
       }
 
       // Clear out any old cruft hanging around in the regexp statics.
-      JS_ClearRegExpStatics(aCx);
+      if (JSObject *global = JS_GetGlobalObject(aCx))
+          JS_ClearRegExpStatics(aCx, global);
 
       runnable->Run();
     }
@@ -524,67 +557,49 @@ DOMWorkerOperationCallback(JSContext* aCx)
   nsDOMWorker* worker = (nsDOMWorker*)JS_GetContextPrivate(aCx);
   NS_ASSERTION(worker, "This must never be null!");
 
-  PRBool wasSuspended = PR_FALSE;
-  PRBool extraThreadAllowed = PR_FALSE;
-  jsrefcount suspendDepth = 0;
+  PRBool canceled = worker->IsCanceled();
+  if (!canceled && worker->IsSuspended()) {
+    JSAutoSuspendRequest suspended(aCx);
 
-  for (;;) {
-    // Kill execution if we're canceled.
-    if (worker->IsCanceled()) {
-      LOG(("Forcefully killing JS for worker [0x%p]",
-           static_cast<void*>(worker)));
+    // Since we're going to block this thread we should open up a new thread
+    // in the thread pool for other workers. Must check the return value to
+    // make sure we don't decrement when we failed.
+    PRBool extraThreadAllowed =
+      NS_SUCCEEDED(gDOMThreadService->ChangeThreadPoolMaxThreads(1));
 
-      if (wasSuspended) {
-        if (extraThreadAllowed) {
-          gDOMThreadService->ChangeThreadPoolMaxThreads(-1);
-        }
-        JS_ResumeRequest(aCx, suspendDepth);
+    // Flush JIT caches now before suspending to avoid holding memory that we
+    // are not going to use.
+    JS_FlushCaches(aCx);
+
+    for (;;) {
+      nsAutoMonitor mon(worker->Pool()->Monitor());
+
+      // There's a small chance that the worker was canceled after our check
+      // above in which case we shouldn't wait here. We're guaranteed not to
+      // race here because the pool reenters its monitor after canceling each
+      // worker in order to notify its condition variable.
+      canceled = worker->IsCanceled();
+      if (!canceled && worker->IsSuspended()) {
+        mon.Wait();
       }
-
-      // Kill execution of the currently running JS.
-      JS_ClearPendingException(aCx);
-      return JS_FALSE;
-    }
-
-    // Break out if we're not suspended.
-    if (!worker->IsSuspended()) {
-      if (wasSuspended) {
-        if (extraThreadAllowed) {
-          gDOMThreadService->ChangeThreadPoolMaxThreads(-1);
-        }
-        JS_ResumeRequest(aCx, suspendDepth);
+      else {
+        break;
       }
-      return JS_TRUE;
     }
 
-    if (!wasSuspended) {
-      // Make sure to suspend our request while we block like this, otherwise we
-      // prevent GC for everyone.
-      suspendDepth = JS_SuspendRequest(aCx);
-
-      // Since we're going to block this thread we should open up a new thread
-      // in the thread pool for other workers. Must check the return value to
-      // make sure we don't decrement when we failed.
-      extraThreadAllowed =
-        NS_SUCCEEDED(gDOMThreadService->ChangeThreadPoolMaxThreads(1));
-
-      // Only do all this setup once.
-      wasSuspended = PR_TRUE;
-    }
-
-    nsAutoMonitor mon(worker->Pool()->Monitor());
-
-    // There's a small chance that the worker was canceled after our check
-    // above in which case we shouldn't wait here. We're guaranteed not to race
-    // here because the pool reenters its monitor after canceling each worker
-    // in order to notify its condition variable.
-    if (worker->IsSuspended() && !worker->IsCanceled()) {
-      mon.Wait();
+    if (extraThreadAllowed) {
+      gDOMThreadService->ChangeThreadPoolMaxThreads(-1);
     }
   }
 
-  NS_NOTREACHED("Should never get here!");
-  return JS_FALSE;
+  if (canceled) {
+    LOG(("Forcefully killing JS for worker [0x%p]",
+         static_cast<void*>(worker)));
+    // Kill execution of the currently running JS.
+    JS_ClearPendingException(aCx);
+    return JS_FALSE;
+  }
+  return JS_TRUE;
 }
 
 void
@@ -622,15 +637,17 @@ DOMWorkerErrorReporter(JSContext* aCx,
     return;
   }
 
+  nsCOMPtr<nsIScriptError2> scriptError2(do_QueryInterface(scriptError));
+
   nsAutoString message, filename, line;
   PRUint32 lineNumber, columnNumber, flags, errorNumber;
 
   if (aReport) {
     if (aReport->ucmessage) {
-      message.Assign(aReport->ucmessage);
+      message.Assign(reinterpret_cast<const PRUnichar*>(aReport->ucmessage));
     }
     filename.AssignWithConversion(aReport->filename);
-    line.Assign(aReport->uclinebuf);
+    line.Assign(reinterpret_cast<const PRUnichar*>(aReport->uclinebuf));
     lineNumber = aReport->lineno;
     columnNumber = aReport->uctokenptr - aReport->uclinebuf;
     flags = aReport->flags;
@@ -645,8 +662,11 @@ DOMWorkerErrorReporter(JSContext* aCx,
     message.AssignWithConversion(aMessage);
   }
 
-  rv = scriptError->Init(message.get(), filename.get(), line.get(), lineNumber,
-                         columnNumber, flags, "DOM Worker javascript");
+  rv = scriptError2->InitWithWindowID(message.get(), filename.get(), line.get(),
+                                      lineNumber, columnNumber, flags,
+                                      "DOM Worker javascript",
+                                      worker->Pool()->WindowID());
+
   if (NS_FAILED(rv)) {
     return;
   }
@@ -742,7 +762,6 @@ nsDOMThreadService::Init()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!gDOMThreadService, "Only one instance should ever be created!");
-  NS_ASSERTION(sStringFinalizerIndex == -1, "String finalizer already set!");
 
   nsresult rv;
   nsCOMPtr<nsIObserverService> obs =
@@ -753,9 +772,6 @@ nsDOMThreadService::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   obs.forget(&gObserverService);
-
-  sStringFinalizerIndex = JS_AddExternalStringFinalizer(StringFinalizer);
-  NS_ENSURE_TRUE(sStringFinalizerIndex != -1, NS_ERROR_FAILURE);
 
   RegisterPrefCallbacks();
 
@@ -778,6 +794,9 @@ nsDOMThreadService::Init()
   NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
 
   success = mPools.Init();
+  NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
+
+  success = mThreadsafeContractIDs.Init();
   NS_ENSURE_TRUE(success, NS_ERROR_OUT_OF_MEMORY);
 
   success = mJSContexts.SetCapacity(THREADPOOL_THREAD_CAP);
@@ -866,6 +885,9 @@ nsDOMThreadService::Cleanup()
   // This will either be called at 'xpcom-shutdown' or earlier if the call to
   // Init fails somehow. We can therefore assume that all services will still
   // be available here.
+
+  // Cancel all workers that weren't tied to a window.
+  CancelWorkersForGlobal(nsnull);
 
   {
     nsAutoMonitor mon(mMonitor);
@@ -1054,26 +1076,12 @@ nsDOMThreadService::CreateJSContext()
     SetSecurityManagerForJSContext(cx, gWorkerSecurityManager, 0);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  PRUint32 stackDummy;
-  jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
-
-  // 256k stack space.
-  const jsuword kStackSize = 0x40000;
-
-#if JS_STACK_GROWTH_DIRECTION < 0
-  stackLimit = (currentStackAddr > kStackSize) ?
-               currentStackAddr - kStackSize :
-               0;
-#else
-  stackLimit = (currentStackAddr + kStackSize > currentStackAddr) ?
-               currentStackAddr + kStackSize :
-               (jsuword) -1;
-#endif
-
-  JS_SetThreadStackLimit(cx, stackLimit);
+  JS_SetNativeStackQuota(cx, 256*1024);
   JS_SetScriptStackQuota(cx, 100*1024*1024);
 
-  JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX);
+  JS_SetOptions(cx,
+    JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_JIT |
+    JSOPTION_PROFILING | JSOPTION_ANONFUNFIX);
   JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 1 * 1024 * 1024);
 
   return cx.forget();
@@ -1083,8 +1091,6 @@ already_AddRefed<nsDOMWorkerPool>
 nsDOMThreadService::GetPoolForGlobal(nsIScriptGlobalObject* aGlobalObject,
                                      PRBool aRemove)
 {
-  NS_ASSERTION(aGlobalObject, "Null pointer!");
-
   nsAutoMonitor mon(mMonitor);
 
   nsRefPtr<nsDOMWorkerPool> pool;
@@ -1157,8 +1163,6 @@ nsDOMThreadService::RescheduleSuspendedWorkerForPool(nsDOMWorkerPool* aPool)
 void
 nsDOMThreadService::CancelWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
 {
-  NS_ASSERTION(aGlobalObject, "Null pointer!");
-
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_TRUE);
   if (pool) {
     pool->Cancel();
@@ -1256,6 +1260,43 @@ nsDOMThreadService::ChangeThreadPoolMaxThreads(PRInt16 aDelta)
   return NS_OK;
 }
 
+void
+nsDOMThreadService::NoteThreadsafeContractId(const nsACString& aContractId,
+                                             PRBool aIsThreadsafe)
+{
+  NS_ASSERTION(!aContractId.IsEmpty(), "Empty contract id!");
+
+  nsAutoMonitor mon(mMonitor);
+
+#ifdef DEBUG
+  {
+    PRBool isThreadsafe;
+    if (mThreadsafeContractIDs.Get(aContractId, &isThreadsafe)) {
+      NS_ASSERTION(aIsThreadsafe == isThreadsafe, "Inconsistent threadsafety!");
+    }
+  }
+#endif
+
+  if (!mThreadsafeContractIDs.Put(aContractId, aIsThreadsafe)) {
+    NS_WARNING("Out of memory!");
+  }
+}
+
+ThreadsafeStatus
+nsDOMThreadService::GetContractIdThreadsafeStatus(const nsACString& aContractId)
+{
+  NS_ASSERTION(!aContractId.IsEmpty(), "Empty contract id!");
+
+  nsAutoMonitor mon(mMonitor);
+
+  PRBool isThreadsafe;
+  if (mThreadsafeContractIDs.Get(aContractId, &isThreadsafe)) {
+    return isThreadsafe ? Threadsafe : NotThreadsafe;
+  }
+
+  return Unknown;
+}
+
 // static
 nsIJSRuntimeService*
 nsDOMThreadService::JSRuntimeService()
@@ -1275,38 +1316,6 @@ nsIXPCSecurityManager*
 nsDOMThreadService::WorkerSecurityManager()
 {
   return gWorkerSecurityManager;
-}
-
-// static
-jsval
-nsDOMThreadService::ShareStringAsJSVal(JSContext* aCx,
-                                       const nsAString& aString)
-{
-  NS_ASSERTION(sStringFinalizerIndex != -1, "Bad index!");
-  NS_ASSERTION(aCx, "Null context!");
-
-  PRUint32 length = aString.Length();
-  if (!length) {
-    JSAtom* atom = aCx->runtime->atomState.emptyAtom;
-    return ATOM_KEY(atom);
-  }
-
-  nsStringBuffer* buf = nsStringBuffer::FromString(aString);
-  if (!buf) {
-    NS_WARNING("Can't share this string buffer!");
-    return JSVAL_VOID;
-  }
-
-  JSString* str =
-    JS_NewExternalString(aCx, reinterpret_cast<jschar*>(buf->Data()), length,
-                         sStringFinalizerIndex);
-  if (str) {
-    buf->AddRef();
-    return STRING_TO_JSVAL(str);
-  }
-
-  NS_WARNING("JS_NewExternalString failed!");
-  return JSVAL_VOID;
 }
 
 /**
@@ -1428,7 +1437,14 @@ nsDOMThreadService::OnThreadShuttingDown()
 
     gThreadJSContextStack->SetSafeJSContext(nsnull);
 
-    nsContentUtils::XPConnect()->ReleaseJSContext(cx, PR_TRUE);
+    // The cycle collector may be running on the main thread. If so we cannot
+    // simply destroy this context. Instead we proxy the context destruction to
+    // the main thread. If that fails somehow then we simply leak the context.
+    nsCOMPtr<nsIRunnable> runnable = new nsDestroyJSContextRunnable(cx);
+
+    if (NS_FAILED(NS_DispatchToMainThread(runnable, NS_DISPATCH_NORMAL))) {
+      NS_WARNING("Failed to dispatch release runnable!");
+    }
   }
 
   return NS_OK;
@@ -1439,9 +1455,8 @@ nsDOMThreadService::RegisterWorker(nsDOMWorker* aWorker,
                                    nsIScriptGlobalObject* aGlobalObject)
 {
   NS_ASSERTION(aWorker, "Null pointer!");
-  NS_ASSERTION(aGlobalObject, "Null pointer!");
 
-  if (NS_IsMainThread()) {
+  if (aGlobalObject && NS_IsMainThread()) {
     nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(aGlobalObject));
     NS_ENSURE_TRUE(domWindow, NS_ERROR_NO_INTERFACE);
 
@@ -1474,36 +1489,32 @@ nsDOMThreadService::RegisterWorker(nsDOMWorker* aWorker,
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
     if (!mNavigatorStringsLoaded) {
-      nsCOMPtr<nsIDOMWindowInternal> internal(do_QueryInterface(aGlobalObject));
-      NS_ENSURE_TRUE(internal, NS_ERROR_NO_INTERFACE);
-
-      nsCOMPtr<nsIDOMNavigator> navigator;
-      rv = internal->GetNavigator(getter_AddRefs(navigator));
+      rv = NS_GetNavigatorAppName(mAppName);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = navigator->GetAppName(mAppName);
+      rv = NS_GetNavigatorAppVersion(mAppVersion);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = navigator->GetAppVersion(mAppVersion);
+      rv = NS_GetNavigatorPlatform(mPlatform);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = navigator->GetPlatform(mPlatform);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = navigator->GetUserAgent(mUserAgent);
+      rv = NS_GetNavigatorUserAgent(mUserAgent);
       NS_ENSURE_SUCCESS(rv, rv);
 
       mNavigatorStringsLoaded = PR_TRUE;
     }
 
-    nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(aGlobalObject));
-    NS_ENSURE_TRUE(domWindow, NS_ERROR_NO_INTERFACE);
+    nsCOMPtr<nsIDocument> document;
+    if (aGlobalObject) {
+      nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(aGlobalObject));
+      NS_ENSURE_TRUE(domWindow, NS_ERROR_NO_INTERFACE);
 
-    nsIDOMDocument* domDocument = domWindow->GetExtantDocument();
-    NS_ENSURE_STATE(domDocument);
+      nsIDOMDocument* domDocument = domWindow->GetExtantDocument();
+      NS_ENSURE_STATE(domDocument);
 
-    nsCOMPtr<nsIDocument> document(do_QueryInterface(domDocument));
-    NS_ENSURE_STATE(document);
+      document = do_QueryInterface(domDocument);
+      NS_ENSURE_STATE(document);
+    }
 
     pool = new nsDOMWorkerPool(aGlobalObject, document);
     NS_ENSURE_TRUE(pool, NS_ERROR_OUT_OF_MEMORY);

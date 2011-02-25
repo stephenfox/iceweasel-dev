@@ -1,5 +1,5 @@
 toolkit.jar:
-% content mozapps %content/mozapps/ xpcnativewrappers=yes
+% content mozapps %content/mozapps/
 * content/mozapps/downloads/helperApps.js                       (downloads/content/helperApps.js)
 * content/mozapps/downloads/unknownContentType.xul              (downloads/content/unknownContentType.xul)
 * content/mozapps/downloads/downloads.xul                       (downloads/content/downloads.xul)
@@ -23,12 +23,6 @@ toolkit.jar:
   content/mozapps/plugins/pluginProblemContent.css              (plugins/content/pluginProblemContent.css)
   content/mozapps/plugins/pluginProblemBinding.css              (plugins/content/pluginProblemBinding.css)
   content/mozapps/plugins/pluginFinderBinding.css               (plugins/content/pluginFinderBinding.css)
-  content/mozapps/plugins/pluginHelp-16.png                     (plugins/content/pluginHelp-16.png)
-  content/mozapps/plugins/pluginBlocked.png                     (plugins/content/pluginBlocked.png)
-  content/mozapps/plugins/pluginCrashed.png                     (plugins/content/pluginCrashed.png)
-  content/mozapps/plugins/pluginDisabled.png                    (plugins/content/pluginDisabled.png)
-  content/mozapps/plugins/pluginDownload.png                    (plugins/content/pluginDownload.png)
-  content/mozapps/plugins/pluginProblemLorentz.css              (plugins/content/pluginProblemLorentz.css)
   content/mozapps/handling/handler.css                          (handling/content/handler.css)
   content/mozapps/handling/handler.xml                          (handling/content/handler.xml)
   content/mozapps/handling/dialog.xul                           (handling/content/dialog.xul)

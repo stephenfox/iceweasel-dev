@@ -51,10 +51,22 @@ MOZ_PKG_PLATFORM := $(TARGET_OS)-$(TARGET_CPU)
 
 # TARGET_OS/TARGET_CPU may be unintuitive, so we hardcode some special formats
 ifeq ($(OS_ARCH),WINNT)
-MOZ_PKG_PLATFORM := win$(MOZ_BITS)
+ifeq ($(TARGET_CPU),x86_64)
+MOZ_PKG_PLATFORM := win64-$(TARGET_CPU)
+else
+MOZ_PKG_PLATFORM := win32
+endif
 endif
 ifeq ($(OS_ARCH),Darwin)
+ifdef UNIVERSAL_BINARY
 MOZ_PKG_PLATFORM := mac
+else
+ifeq ($(TARGET_CPU),x86_64)
+MOZ_PKG_PLATFORM := mac64
+else
+MOZ_PKG_PLATFORM := mac
+endif
+endif
 endif
 ifeq ($(TARGET_OS),linux-gnu)
 MOZ_PKG_PLATFORM := linux-$(TARGET_CPU)
@@ -157,6 +169,7 @@ PKG_SRCPACK_PATH = source/
 endif # MOZ_PKG_PRETTYNAMES
 
 # Symbol package naming
+SYMBOL_FULL_ARCHIVE_BASENAME = $(PKG_BASENAME).crashreporter-symbols-full
 SYMBOL_ARCHIVE_BASENAME = $(PKG_BASENAME).crashreporter-symbols
 
 # Test package naming
@@ -168,4 +181,12 @@ else
 BUILDID = $(shell $(PYTHON) $(MOZILLA_DIR)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
 
-MOZ_SOURCE_STAMP = $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null)
+MOZ_SOURCE_STAMP = $(firstword $(shell hg -R $(MOZILLA_DIR) parent --template="{node|short}\n" 2>/dev/null))
+
+# strip a trailing slash from the repo URL because it's not always present,
+# and we want to construct a working URL in the sourcestamp file.
+# make+shell+sed = awful
+_dollar=$$
+MOZ_SOURCE_REPO = $(shell cd $(MOZILLA_DIR) && hg showconfig paths.default 2>/dev/null | head -n1 | sed -e "s/^ssh:/http:/" -e "s/\/$(_dollar)//" )
+
+MOZ_SOURCESTAMP_FILE = $(DIST)/$(PKG_PATH)/$(PKG_BASENAME).txt

@@ -45,7 +45,9 @@
 #include <elf.h>
 #include <errno.h>
 #include <fcntl.h>
+#if !defined(__ANDROID__)
 #include <link.h>
+#endif
 
 #include <sys/types.h>
 #include <sys/ptrace.h>
@@ -58,6 +60,8 @@
 #include "common/linux/file_id.h"
 #include "common/linux/linux_libc_support.h"
 #include "common/linux/linux_syscall_support.h"
+
+static const char kMappedFileUnsafePrefix[] = "/dev/";
 
 namespace google_breakpad {
 
@@ -74,6 +78,26 @@ bool AttachThread(pid_t pid) {
       return false;
     }
   }
+#if defined(__i386) || defined(__x86_64)
+  // On x86, the stack pointer is NULL or -1, when executing trusted code in
+  // the seccomp sandbox. Not only does this cause difficulties down the line
+  // when trying to dump the thread's stack, it also results in the minidumps
+  // containing information about the trusted threads. This information is
+  // generally completely meaningless and just pollutes the minidumps.
+  // We thus test the stack pointer and exclude any threads that are part of
+  // the seccomp sandbox's trusted code.
+  user_regs_struct regs;
+  if (sys_ptrace(PTRACE_GETREGS, pid, NULL, &regs) == -1 ||
+#if defined(__i386)
+      !regs.esp
+#elif defined(__x86_64)
+      !regs.rsp
+#endif
+      ) {
+    sys_ptrace(PTRACE_DETACH, pid, NULL, NULL);
+    return false;
+  }
+#endif
   return true;
 }
 
@@ -81,13 +105,29 @@ bool DetachThread(pid_t pid) {
   return sys_ptrace(PTRACE_DETACH, pid, NULL, NULL) >= 0;
 }
 
+inline bool IsMappedFileOpenUnsafe(
+    const google_breakpad::MappingInfo& mapping) {
+  // It is unsafe to attempt to open a mapped file that lives under /dev,
+  // because the semantics of the open may be driver-specific so we'd risk
+  // hanging the crash dumper. And a file in /dev/ almost certainly has no
+  // ELF file identifier anyways.
+  return my_strncmp(mapping.name,
+                    kMappedFileUnsafePrefix,
+                    sizeof(kMappedFileUnsafePrefix) - 1) == 0;
+}
+
 bool GetThreadRegisters(ThreadInfo* info) {
   pid_t tid = info->tid;
 
-  if (sys_ptrace(PTRACE_GETREGS, tid, NULL, &info->regs) == -1 ||
-      sys_ptrace(PTRACE_GETFPREGS, tid, NULL, &info->fpregs) == -1) {
+  if (sys_ptrace(PTRACE_GETREGS, tid, NULL, &info->regs) == -1) {
     return false;
   }
+
+#if !defined(__ANDROID__)
+  if (sys_ptrace(PTRACE_GETFPREGS, tid, NULL, &info->fpregs) == -1) {
+    return false;
+  }
+#endif
 
 #if defined(__i386)
   if (sys_ptrace(PTRACE_GETFPXREGS, tid, NULL, &info->fpxregs) == -1)
@@ -125,11 +165,19 @@ bool LinuxDumper::Init() {
 bool LinuxDumper::ThreadsAttach() {
   if (threads_suspended_)
     return true;
-  bool good = true;
-  for (size_t i = 0; i < threads_.size(); ++i)
-    good &= AttachThread(threads_[i]);
+  for (size_t i = 0; i < threads_.size(); ++i) {
+    if (!AttachThread(threads_[i])) {
+      // If the thread either disappeared before we could attach to it, or if
+      // it was part of the seccomp sandbox's trusted code, it is OK to
+      // silently drop it from the minidump.
+      memmove(&threads_[i], &threads_[i+1],
+              (threads_.size() - i - 1) * sizeof(threads_[i]));
+      threads_.resize(threads_.size() - 1);
+      --i;
+    }
+  }
   threads_suspended_ = true;
-  return good;
+  return threads_.size() > 0;
 }
 
 bool LinuxDumper::ThreadsDetach() {
@@ -189,12 +237,14 @@ LinuxDumper::BuildProcPath(char* path, pid_t pid, const char* node) const {
 }
 
 bool
-LinuxDumper::ElfFileIdentifierForMapping(unsigned int mapping_id,
+LinuxDumper::ElfFileIdentifierForMapping(const MappingInfo& mapping,
                                          uint8_t identifier[sizeof(MDGUID)])
 {
-  assert(mapping_id < mappings_.size());
-  const MappingInfo* mapping = mappings_[mapping_id];
-  int fd = sys_open(mapping->name, O_RDONLY, 0);
+  my_memset(identifier, 0, sizeof(MDGUID));
+  if (IsMappedFileOpenUnsafe(mapping)) {
+    return false;
+  }
+  int fd = sys_open(mapping.name, O_RDONLY, 0);
   if (fd < 0)
     return false;
   struct kernel_stat st;
@@ -380,7 +430,7 @@ bool LinuxDumper::ThreadInfoGet(ThreadInfo* info) {
 #elif defined(__x86_64)
   memcpy(&stack_pointer, &info->regs.rsp, sizeof(info->regs.rsp));
 #elif defined(__ARM_EABI__)
-  memcpy(&stack_pointer, &info->regs.uregs[R13], sizeof(info->regs.uregs[R13]));
+  memcpy(&stack_pointer, &info->regs.ARM_sp, sizeof(info->regs.ARM_sp));
 #else
 #error "This code hasn't been ported to your platform yet."
 #endif

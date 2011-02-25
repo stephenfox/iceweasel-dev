@@ -46,10 +46,17 @@
 #include "prinrval.h"
 #include "nsMemory.h"
 
+// Allows us to mark unused functions as known-unused
+#ifdef __GNUC__
+#define UNUSED __attribute__ ((unused))
+#else
+#define UNUSED
+#endif
+
 // forward declration
 static void DoMultipleInheritenceTest();
 static void DoMultipleInheritenceTest2();
-static void DoSpeedTest();
+static void UNUSED DoSpeedTest();
 
 // {AAC1FB90-E099-11d2-984E-006008962422}
 #define INVOKETESTTARGET_IID \
@@ -105,6 +112,7 @@ public:
     NS_IMETHOD AddMixedInts3(PRInt64 p1, PRInt64 p2, PRInt32 p3, PRInt64 p4,
                              PRInt32 p5, PRInt32 p6, PRInt64 p7, PRInt64 p8,
                              PRInt32 p9, PRInt64 p10, PRInt64* retval) = 0;
+    NS_IMETHOD ShouldFail(PRInt32 p) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(InvokeTestTargetInterface, INVOKETESTTARGET_IID)
@@ -159,6 +167,7 @@ public:
     NS_IMETHOD AddMixedInts3(PRInt64 p1, PRInt64 p2, PRInt32 p3, PRInt64 p4,
                              PRInt32 p5, PRInt32 p6, PRInt64 p7, PRInt64 p8,
                              PRInt32 p9, PRInt64 p10, PRInt64* retval);
+    NS_IMETHOD ShouldFail(PRInt32 p);
 };
 
 NS_IMPL_ISUPPORTS1(InvokeTestTarget, InvokeTestTargetInterface)
@@ -168,6 +177,10 @@ InvokeTestTarget::InvokeTestTarget()
     NS_ADDREF_THIS();
 }
 
+NS_IMETHODIMP
+InvokeTestTarget::ShouldFail(PRInt32 p) {
+    return NS_ERROR_NULL_POINTER;
+}
 NS_IMETHODIMP
 InvokeTestTarget::AddTwoInts(PRInt32 p1, PRInt32 p2, PRInt32* retval)
 {
@@ -311,7 +324,7 @@ InvokeTestTarget::AddMixedInts3(PRInt64 p1, PRInt64 p2, PRInt32 p3, PRInt64 p4,
 	printf("P8 : %lld\n", p8);
 	printf("P9 : %d\n",   p9);
 	printf("P10: %lld\n", p10);
-	printf("ret: %p\n",   retval);
+	printf("ret: %p\n",   static_cast<void*>(retval));
     *retval = p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9 + p10;
     return NS_OK;
 }
@@ -339,6 +352,7 @@ int main()
 
     PRInt32 out, tmp32 = 0;
     PRInt64 out64;
+    nsresult failed_rv;
     printf("calling direct:\n");
     if(NS_SUCCEEDED(test->AddTwoInts(1,1,&out)))
         printf("\t1 + 1 = %d\n", out);
@@ -431,6 +445,9 @@ int main()
       } else
         printf("\tFAILED");
 
+     failed_rv = test->ShouldFail(5);
+     printf("should fail %s, returned %x\n", failed_rv == NS_ERROR_NULL_POINTER ? "failed" :"passed", failed_rv);
+    
     printf("calling via invoke:\n");
 
     nsXPTCVariant var[21];
@@ -936,9 +953,16 @@ int main()
     var[2].ptr = &var[2].val.p;
     
     if(NS_SUCCEEDED(NS_InvokeByIndex(test, 15, 3, var)))
-        printf(" = %s\n", var[2].val.p);
+        printf(" = %s\n", static_cast<char*>(var[2].val.p));
     else
         printf("\tFAILED");
+
+    var[0].val.i32 = 5;
+    var[0].type = nsXPTType::T_I32;
+    var[0].flags = 0;
+
+    failed_rv = NS_InvokeByIndex(test, 17, 1, var);
+    printf("should fail %s, returned %x\n", failed_rv == NS_ERROR_NULL_POINTER ? "failed" :"passed", failed_rv);
 
     var[0].val.i64 = 3;
     var[0].type = nsXPTType::T_I64;
@@ -1192,9 +1216,9 @@ static void DoMultipleInheritenceTest()
     if(NS_SUCCEEDED(impl->QueryInterface(NS_GET_IID(nsIFoo), (void**)&foo)) &&
        NS_SUCCEEDED(impl->QueryInterface(NS_GET_IID(nsIBar), (void**)&bar)))
     {
-        printf("impl == %p\n", impl);
-        printf("foo  == %p\n", foo);
-        printf("bar  == %p\n", bar);
+        printf("impl == %p\n", static_cast<void*>(impl));
+        printf("foo  == %p\n", static_cast<void*>(foo));
+        printf("bar  == %p\n", static_cast<void*>(bar));
 
         printf("Calling Foo...\n");
         printf("direct calls:\n");
@@ -1362,9 +1386,9 @@ static void DoMultipleInheritenceTest2()
     if(NS_SUCCEEDED(impl->QueryInterface(NS_GET_IID(nsIFoo), (void**)&foo)) &&
        NS_SUCCEEDED(impl->QueryInterface(NS_GET_IID(nsIBar), (void**)&bar)))
     {
-        printf("impl == %p\n", impl);
-        printf("foo  == %p\n", foo);
-        printf("bar  == %p\n", bar);
+        printf("impl == %p\n", static_cast<void*>(impl));
+        printf("foo  == %p\n", static_cast<void*>(foo));
+        printf("bar  == %p\n", static_cast<void*>(bar));
 
         printf("Calling Foo...\n");
         printf("direct calls:\n");

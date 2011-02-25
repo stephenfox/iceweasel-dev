@@ -41,7 +41,6 @@
 #include "nsParserCIID.h"
 #include "nsIParser.h"
 #include "nsIXMLContentSink.h"
-#include "nsIPresShell.h"
 #include "nsPresContext.h" 
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
@@ -49,8 +48,6 @@
 #include "nsIDocShell.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsHTMLParts.h"
-#include "nsHTMLStyleSheet.h"
-#include "nsIHTMLCSSStyleSheet.h"
 #include "nsIComponentManager.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMElement.h"
@@ -95,6 +92,7 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
+#include "nsGenericElement.h"
 
 // ==================================================================
 // =
@@ -123,9 +121,13 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   PRBool isHTML = PR_FALSE;
   PRBool isXHTML = PR_FALSE;
   if (aDoctype) {
-    nsAutoString publicId;
+    nsAutoString publicId, name;
     aDoctype->GetPublicId(publicId);
-    if (publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
+    if (publicId.IsEmpty()) {
+      aDoctype->GetName(name);
+    }
+    if (name.EqualsLiteral("html") ||
+        publicId.EqualsLiteral("-//W3C//DTD HTML 4.01//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Frameset//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.01 Transitional//EN") ||
         publicId.EqualsLiteral("-//W3C//DTD HTML 4.0//EN") ||
@@ -235,13 +237,15 @@ nsXMLDocument::~nsXMLDocument()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
+DOMCI_NODE_DATA(XMLDocument, nsXMLDocument)
+
 // QueryInterface implementation for nsXMLDocument
 NS_INTERFACE_TABLE_HEAD(nsXMLDocument)
   NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsXMLDocument)
     NS_INTERFACE_TABLE_ENTRY(nsXMLDocument, nsIDOMXMLDocument)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XMLDocument)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XMLDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsDocument)
 
 
@@ -315,9 +319,23 @@ nsXMLDocument::SetAsync(PRBool aAsync)
   return NS_OK;
 }
 
+static void
+ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
+{
+  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning,
+                                  nsnull, 0,
+                                  nsnull,
+                                  EmptyString(), 0, 0,
+                                  nsIScriptError::warningFlag,
+                                  "DOM3 Load", aDoc);
+}
+
 NS_IMETHODIMP
 nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
 {
+  ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
+
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = PR_FALSE;
 
@@ -328,7 +346,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
   nsCAutoString charset;
 
   if (callingDoc) {
-    baseURI = callingDoc->GetBaseURI();
+    baseURI = callingDoc->GetDocBaseURI();
     charset = callingDoc->GetDocumentCharacterSet();
   }
 
@@ -380,18 +398,24 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
       nsAutoString error;
       error.AssignLiteral("Cross site loading using document.load is no "
                           "longer supported. Use XMLHttpRequest instead.");
-      nsCOMPtr<nsIScriptError> errorObject =
+      nsCOMPtr<nsIScriptError2> errorObject =
           do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = errorObject->Init(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
-                             nsnull, 0, 0, nsIScriptError::warningFlag,
-                             "DOM");
+
+      rv = errorObject->InitWithWindowID(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
+                                         nsnull, 0, 0, nsIScriptError::warningFlag,
+                                         "DOM",
+                                         callingDoc ?
+                                           callingDoc->OuterWindowID() :
+                                           this->OuterWindowID());
+
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIConsoleService> consoleService =
         do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      if (consoleService) {
-        consoleService->LogMessage(errorObject);
+      nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
+      if (consoleService && logError) {
+        consoleService->LogMessage(logError);
       }
 
       return NS_ERROR_DOM_SECURITY_ERR;
@@ -464,7 +488,7 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
     }
 
     // We set return to true unless there was a parsing error
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(GetRootContent());
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(GetRootElement());
     if (node) {
       nsAutoString name, ns;      
       if (NS_SUCCEEDED(node->GetLocalName(name)) &&

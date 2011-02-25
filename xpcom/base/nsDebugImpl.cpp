@@ -40,6 +40,10 @@
 
 #include "nsDebugImpl.h"
 #include "nsDebug.h"
+#ifdef MOZ_CRASHREPORTER
+# include "nsExceptionHandler.h"
+#endif
+#include "nsStringGlue.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "prinit.h"
@@ -49,6 +53,10 @@
 #include "prerr.h"
 #include "prenv.h"
 #include "pratom.h"
+
+#ifdef ANDROID
+#include <android/log.h>
+#endif
 
 #if defined(XP_BEOS)
 /* For DEBUGGER macros */
@@ -71,6 +79,8 @@
 #include <tchar.h>
 #include "nsString.h"
 #endif
+
+#include "mozilla/mozalloc_abort.h"
 
 static void
 Abort(const char *aMsg);
@@ -307,6 +317,10 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      fprintf(stderr, "\07");
 #endif
 
+#ifdef ANDROID
+   __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buf.buffer);
+#endif
+
    // Write the message to stderr
    fprintf(stderr, "%s\n", buf.buffer);
    fflush(stderr);
@@ -319,13 +333,23 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      Break(buf.buffer);
      return;
 
-   case NS_DEBUG_ABORT:
-#ifdef DEBUG
+   case NS_DEBUG_ABORT: {
+#if defined(MOZ_CRASHREPORTER) && defined(MOZ_ENABLE_LIBXUL)
+     nsCString note("xpcom_runtime_abort(");
+     note += buf.buffer;
+     note += ")";
+     CrashReporter::AppendAppNotesToCrashReport(note);
+#endif  // MOZ_CRASHREPORTER
+
+#if defined(DEBUG) && defined(_WIN32)
      RealBreak();
 #endif
+#ifdef DEBUG
      nsTraceRefcntImpl::WalkTheStack(stderr);
+#endif
      Abort(buf.buffer);
      return;
+   }
    }
 
    // Now we deal with assertions
@@ -357,48 +381,16 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_ASSERT_TRAP:
+   case NS_ASSERT_UNINITIALIZED: // Default to "trap" behavior
      Break(buf.buffer);
+     return;
    }   
-}
-
-static void
-TouchBadMemory()
-{
-  // XXX this should use the frame poisoning code
-  gAssertionCount += *((PRInt32 *) 0); // TODO annotation saying we know 
-                                       // this is crazy
 }
 
 static void
 Abort(const char *aMsg)
 {
-#if defined(_WIN32)
-  TouchBadMemory();
-
-#ifndef WINCE
-  //This should exit us
-  raise(SIGABRT);
-#endif
-  //If we are ignored exit this way..
-  _exit(3);
-#elif defined(XP_UNIX)
-  PR_Abort();
-#elif defined(XP_BEOS)
-  {
-#ifndef DEBUG_cls
-	DEBUGGER(aMsg);
-#endif
-  }
-#else
-  // Don't know how to abort on this platform! call Break() instead
-  Break(aMsg);
-#endif
-
-  // Still haven't aborted?  Try dereferencing null.
-  TouchBadMemory();
-
-  // Still haven't aborted?  Try _exit().
-  PR_ProcessExit(127);
+  mozalloc_abort(aMsg);
 }
 
 static void
@@ -415,8 +407,16 @@ RealBreak()
    raise(SIGTRAP);
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
    asm("int $3");
+#elif defined(__arm__)
+   asm("BKPT #0");
+#elif defined(SOLARIS)
+#if defined(__i386__) || defined(__i386) || defined(__x86_64__)
+   asm("int $3");
 #else
-   // don't know how to break on this platform
+   raise(SIGTRAP);
+#endif
+#else
+#warning do not know how to break on this platform
 #endif
 }
 
@@ -515,14 +515,18 @@ Break(const char *aMsg)
    RealBreak();
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
    RealBreak();
+#elif defined(__arm__)
+   RealBreak();
+#elif defined(SOLARIS)
+   RealBreak();
 #else
-   // don't know how to break on this platform
+#warning do not know how to break on this platform
 #endif
 }
 
 static const nsDebugImpl kImpl;
 
-NS_METHOD
+nsresult
 nsDebugImpl::Create(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr)
 {
   NS_ENSURE_NO_AGGREGATION(outer);
@@ -558,3 +562,12 @@ NS_ErrorAccordingToNSPR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef XP_WIN
+NS_COM PRBool sXPCOMHasLoadedNewDLLs = PR_FALSE;
+
+NS_EXPORT void
+NS_SetHasLoadedNewDLLs()
+{
+  sXPCOMHasLoadedNewDLLs = PR_TRUE;
+}
+#endif

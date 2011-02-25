@@ -58,10 +58,6 @@ NS_NewFirstLetterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsFirstLetterFrame)
 
-NS_QUERYFRAME_HEAD(nsFirstLetterFrame)
-  NS_QUERYFRAME_ENTRY(nsFirstLetterFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsFirstLetterFrameSuper)
-
 #ifdef NS_DEBUG
 NS_IMETHODIMP
 nsFirstLetterFrame::GetFrameName(nsAString& aResult) const
@@ -112,7 +108,7 @@ nsFirstLetterFrame::SetInitialChildList(nsIAtom*     aListName,
 
   for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(e.get()->GetParent() == this, "Unexpected parent");
-    frameManager->ReParentStyleContext(e.get());
+    frameManager->ReparentStyleContext(e.get());
   }
 
   mFrames.SetFrames(aChildList);
@@ -233,7 +229,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     PRBool        pushedFrame;
 
     ll->SetInFirstLetter(
-      mStyleContext->GetPseudoType() == nsCSSPseudoElements::firstLetter);
+      mStyleContext->GetPseudo() == nsCSSPseudoElements::firstLetter);
     ll->BeginSpan(this, &aReflowState, bp.left, availSize.width);
     ll->ReflowFrame(kid, aReflowStatus, &aMetrics, pushedFrame);
     ll->EndSpan(this);
@@ -253,9 +249,8 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
   // Ensure that the overflow rect contains the child textframe's overflow rect.
   // Note that if this is floating, the overline/underline drawable area is in
   // the overflow rect of the child textframe.
-  aMetrics.mOverflowArea.UnionRect(aMetrics.mOverflowArea,
-                           nsRect(0, 0, aMetrics.width, aMetrics.height));
-  ConsiderChildOverflow(aMetrics.mOverflowArea, kid);
+  aMetrics.UnionOverflowAreasWithDesiredBounds();
+  ConsiderChildOverflow(aMetrics.mOverflowAreas, kid);
 
   // Create a continuation or remove existing continuations based on
   // the reflow completion status.
@@ -275,22 +270,15 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     // have one.
     if (!GetStyleDisplay()->IsFloating()) {
       nsIFrame* nextInFlow;
-      rv = CreateNextInFlow(aPresContext, this, kid, nextInFlow);
+      rv = CreateNextInFlow(aPresContext, kid, nextInFlow);
       if (NS_FAILED(rv)) {
         return rv;
       }
 
       // And then push it to our overflow list
-      if (nextInFlow) {
-        kid->SetNextSibling(nsnull);
-        SetOverflowFrames(aPresContext, nextInFlow);
-      }
-      else {
-        nsIFrame* nextSib = kid->GetNextSibling();
-        if (nextSib) {
-          kid->SetNextSibling(nsnull);
-          SetOverflowFrames(aPresContext, nextSib);
-        }
+      const nsFrameList& overflow = mFrames.RemoveFramesAfter(kid);
+      if (overflow.NotEmpty()) {
+        SetOverflowFrames(aPresContext, overflow);
       }
     } else if (!kid->GetNextInFlow()) {
       // For floating first letter frames (if a continuation wasn't already
@@ -356,7 +344,7 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
   // nsGkAtoms::nextBidi because this is just like creating a continuation
   // except we have to insert it in a different place and we don't want a
   // reflow command to try to be issued.
-  nsFrameList temp(continuation);
+  nsFrameList temp(continuation, continuation);
   rv = parent->InsertFrames(nsGkAtoms::nextBidi, placeholderFrame, temp);
 
   *aContinuation = continuation;
@@ -406,4 +394,10 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
       }
     }
   }
+}
+
+nscoord
+nsFirstLetterFrame::GetBaseline() const
+{
+  return mBaseline;
 }

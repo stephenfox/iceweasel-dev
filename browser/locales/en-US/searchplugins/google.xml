@@ -17,9 +17,5 @@
   <Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
 #expand  <MozParam name="client" condition="defaultEngine" trueValue="__MOZ_APP_NAME__-a" falseValue="__MOZ_APP_NAME__"/>
 </Url>
-#if MOZ_APP_NAME==firefox
-<SearchForm>http://www.google.com/firefox</SearchForm>
-#else
 <SearchForm>http://www.google.com/</SearchForm>
-#endif
 </SearchPlugin>

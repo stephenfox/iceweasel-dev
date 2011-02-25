@@ -47,7 +47,7 @@
 #include "nsIXULAppInfo.h"
 
 #include "mozilla/Mutex.h"
-#include "PaintTracker.h"
+#include "mozilla/PaintTracker.h"
 
 using mozilla::ipc::SyncChannel;
 using mozilla::ipc::RPCChannel;
@@ -210,6 +210,7 @@ ProcessOrDeferMessage(HWND hwnd,
     case WM_PARENTNOTIFY:
     case WM_SETFOCUS:
     case WM_SYSCOMMAND:
+    case WM_DISPLAYCHANGE:
     case WM_SHOWWINDOW: // Intentional fall-through.
     case WM_XP_THEMECHANGED: {
       deferred = new DeferredSendMessage(hwnd, uMsg, wParam, lParam);
@@ -334,6 +335,9 @@ ProcessOrDeferMessage(HWND hwnd,
   return res;
 }
 
+} // anonymous namespace
+
+// We need the pointer value of this in PluginInstanceChild.
 LRESULT CALLBACK
 NeuteredWindowProc(HWND hwnd,
                    UINT uMsg,
@@ -351,6 +355,8 @@ NeuteredWindowProc(HWND hwnd,
   // DefWindowProc, or defer it for later.
   return ProcessOrDeferMessage(hwnd, uMsg, wParam, lParam);
 }
+
+namespace {
 
 static bool
 WindowIsDeferredWindow(HWND hWnd)
@@ -459,8 +465,7 @@ RestoreWindowProcedure(HWND hWnd)
 {
   NS_ASSERTION(WindowIsDeferredWindow(hWnd),
                "Not a deferred window, this shouldn't be in our list!");
-
-  LONG_PTR oldWndProc = (LONG_PTR)RemoveProp(hWnd, kOldWndProcProp);
+  LONG_PTR oldWndProc = (LONG_PTR)GetProp(hWnd, kOldWndProcProp);
   if (oldWndProc) {
     NS_ASSERTION(oldWndProc != (LONG_PTR)NeuteredWindowProc,
                  "This shouldn't be possible!");
@@ -470,6 +475,7 @@ RestoreWindowProcedure(HWND hWnd)
     NS_ASSERTION(currentWndProc == (LONG_PTR)NeuteredWindowProc,
                  "This should never be switched out from under us!");
   }
+  RemoveProp(hWnd, kOldWndProcProp);
 }
 
 LRESULT CALLBACK

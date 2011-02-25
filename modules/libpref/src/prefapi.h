@@ -44,7 +44,7 @@
 #include "nscore.h"
 #include "pldhash.h"
 
-NSPR_BEGIN_EXTERN_C
+PR_BEGIN_EXTERN_C
 
 typedef union
 {
@@ -210,5 +210,5 @@ void PREF_ReaderCallback( void *closure,
                           PRBool      isDefault,
                           PRBool      isLocked);
 
-NSPR_END_EXTERN_C
+PR_END_EXTERN_C
 #endif

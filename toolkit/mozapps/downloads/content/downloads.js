@@ -63,6 +63,9 @@ Cu.import("resource://gre/modules/PluralForm.jsm");
 const nsIDM = Ci.nsIDownloadManager;
 
 let gDownloadManager = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
+let gDownloadManagerUI = Cc["@mozilla.org/download-manager-ui;1"].
+                         getService(Ci.nsIDownloadManagerUI);
+
 let gDownloadListener = null;
 let gDownloadsView = null;
 let gSearchBox = null;
@@ -167,6 +170,8 @@ function downloadCompleted(aDownload)
 
     if (gDownloadManager.activeDownloadCount == 0)
       document.title = document.documentElement.getAttribute("statictitle");
+
+    gDownloadManagerUI.getAttention();
   }
   catch (e) { }
 }
@@ -323,6 +328,15 @@ function openDownload(aDownload)
     }
   }
   try {
+    try {
+      let download = gDownloadManager.getDownload(aDownload.getAttribute("dlid"));
+      let mimeInfo = download.MIMEInfo;
+      if (mimeInfo.preferredAction == mimeInfo.useHelperApp) {
+        mimeInfo.launchWithFile(f);
+        return;
+      }
+    } catch (ex) {
+    }
     f.launch();
   } catch (ex) {
     // if launch fails, try sending it through the system's external
@@ -476,6 +490,14 @@ function Startup()
       e.preventDefault();
     }
   }, false);
+
+#ifdef XP_WIN
+#ifndef WINCE
+  let tempScope = {};
+  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", tempScope);
+  tempScope.DownloadTaskbarProgress.onDownloadWindowLoad(window);
+#endif
+#endif
 }
 
 function Shutdown()
@@ -682,12 +704,25 @@ function buildContextMenu(aEvent)
 
   return false;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Drag and Drop
-
 var gDownloadDNDObserver =
 {
+  onDragStart: function (aEvent)
+  {
+    if (!gDownloadsView.selectedItem)
+      return;
+    var dl = gDownloadsView.selectedItem;
+    var f = getLocalFileFromNativePathOrUrl(dl.getAttribute("file"));
+    if (!f.exists())
+      return;
+
+    var dt = aEvent.dataTransfer;
+    dt.mozSetDataAt("application/x-moz-file", f, 0);
+    dt.effectAllowed = "copyMove";
+    dt.addElement(dl);
+  },
+
   onDragOver: function (aEvent)
   {
     var types = aEvent.dataTransfer.types;

@@ -102,12 +102,13 @@ class Buffer {
   }
 
   bool ReadU24(uint32_t *value) {
-    if (offset_ + 3 > length_) {
+    if (offset_ + 4 > length_) {
       return OTS_FAILURE();
     }
-    *value = static_cast<uint32_t>(buffer_[offset_]) << 16 |
-             static_cast<uint32_t>(buffer_[offset_ + 1]) << 8 |
-             static_cast<uint32_t>(buffer_[offset_ + 2]);
+    *value = 0;
+    std::memcpy(reinterpret_cast<uint8_t*>(value) + 1,
+                buffer_ + offset_, 3);
+    *value = ntohl(*value);
     offset_ += 3;
     return true;
   }

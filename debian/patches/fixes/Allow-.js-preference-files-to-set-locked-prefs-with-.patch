@@ -10,10 +10,10 @@ Subject: Allow .js preference files to set locked prefs with lockPref()
  4 files changed, 17 insertions(+), 6 deletions(-)
 
 diff --git a/modules/libpref/src/prefapi.cpp b/modules/libpref/src/prefapi.cpp
-index 8998660..b5e7852 100644
+index ec005d7..0b83059 100644
 --- a/modules/libpref/src/prefapi.cpp
 +++ b/modules/libpref/src/prefapi.cpp
-@@ -936,7 +936,10 @@ void PREF_ReaderCallback(void       *closure,
+@@ -1002,7 +1002,10 @@ void PREF_ReaderCallback(void       *closure,
                           const char *pref,
                           PrefValue   value,
                           PrefType    type,
@@ -26,7 +26,7 @@ index 8998660..b5e7852 100644
 +        PREF_LockPref(pref, PR_TRUE);
  }
 diff --git a/modules/libpref/src/prefapi.h b/modules/libpref/src/prefapi.h
-index 7a400e7..1eed2de 100644
+index e8ca98d..76b966a 100644
 --- a/modules/libpref/src/prefapi.h
 +++ b/modules/libpref/src/prefapi.h
 @@ -207,7 +207,8 @@ void PREF_ReaderCallback( void *closure,
@@ -37,7 +37,7 @@ index 7a400e7..1eed2de 100644
 +                          PRBool      isDefault,
 +                          PRBool      isLocked);
  
- NSPR_END_EXTERN_C
+ PR_END_EXTERN_C
  #endif
 diff --git a/modules/libpref/src/prefread.cpp b/modules/libpref/src/prefread.cpp
 index c2a4f7e..b80da67 100644
@@ -90,7 +90,7 @@ index c2a4f7e..b80da67 100644
                  ps->nextstate = PREF_PARSE_UNTIL_COMMA; /* return here when done */
                  state = PREF_PARSE_QUOTED_STRING;
 diff --git a/modules/libpref/src/prefread.h b/modules/libpref/src/prefread.h
-index b2f9102..ba79742 100644
+index 1dc374b..a2d93ca 100644
 --- a/modules/libpref/src/prefread.h
 +++ b/modules/libpref/src/prefread.h
 @@ -62,7 +62,8 @@ typedef void (*PrefReader)(void       *closure,

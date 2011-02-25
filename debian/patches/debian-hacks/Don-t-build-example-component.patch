@@ -7,14 +7,14 @@ Subject: Don't build example component
  1 files changed, 0 insertions(+), 1 deletions(-)
 
 diff --git a/xulrunner/Makefile.in b/xulrunner/Makefile.in
-index f2e8b7c..ef8a831 100644
+index 46406ba..21c4ddd 100644
 --- a/xulrunner/Makefile.in
 +++ b/xulrunner/Makefile.in
-@@ -47,7 +47,6 @@ DIRS = \
- 	setup \
- 	stub \
- 	app \
--	examples \
- 	$(NULL)
+@@ -47,7 +47,6 @@ PARALLEL_DIRS = \
+   app \
+   setup \
+   stub \
+-  examples \
+   $(NULL)
  
  ifeq ($(OS_ARCH),WINNT)

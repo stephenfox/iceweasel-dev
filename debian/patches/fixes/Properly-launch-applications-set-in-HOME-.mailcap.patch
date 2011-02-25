@@ -4,14 +4,14 @@ Subject: Properly launch applications set in $HOME/.mailcap
 
 Replaces the previous patch in a much simpler way.
 ---
- uriloader/exthandler/unix/nsMIMEInfoUnix.cpp |   17 ++++++++++++++---
- 1 files changed, 14 insertions(+), 3 deletions(-)
+ uriloader/exthandler/unix/nsMIMEInfoUnix.cpp |   15 +++++++++++++--
+ 1 files changed, 13 insertions(+), 2 deletions(-)
 
 diff --git a/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp b/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
-index 0a889be..f408741 100644
+index 6352f56..4892820 100644
 --- a/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
 +++ b/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
-@@ -74,6 +74,12 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
+@@ -97,6 +97,12 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
  NS_IMETHODIMP
  nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
  {
@@ -22,16 +22,14 @@ index 0a889be..f408741 100644
 +    return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
 +
    *_retval = PR_FALSE;
-   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mType);
+   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
    if (!mimeInfo) {
-@@ -95,14 +101,19 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
-     return NS_OK;
+@@ -130,13 +136,18 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
    }
  #endif
--
+ 
 -  // If we didn't find a VFS handler, fallback.
 -  return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
-+  
 +  return NS_OK;
  }
  

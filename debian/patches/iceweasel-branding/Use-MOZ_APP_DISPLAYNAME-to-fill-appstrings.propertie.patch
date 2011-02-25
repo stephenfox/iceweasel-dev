@@ -1,27 +1,27 @@
-From 624a85d9dbb6c22a1adb120191dea39bfa7b8548 Mon Sep 17 00:00:00 2001
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 19 Feb 2011 11:02:30 +0100
 Subject: Use MOZ_APP_DISPLAYNAME to fill appstrings.properties
 
 ---
- browser/locales/Makefile.in                        |    1 +
+ browser/locales/Makefile.in                        |    2 ++
  .../en-US/chrome/overrides/appstrings.properties   |   20 ++++++++++----------
- 2 files changed, 11 insertions(+), 10 deletions(-)
+ 2 files changed, 12 insertions(+), 10 deletions(-)
 
 diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
-index da9b426..22ca7ab 100644
+index c48180b..4b02261 100644
 --- a/browser/locales/Makefile.in
 +++ b/browser/locales/Makefile.in
-@@ -72,6 +72,7 @@ VERSION_SUFFIX = $(shell hg -R $(LOCALE_SRCDIR)/.. parent --template=".{rev}" 2>
+@@ -69,6 +69,8 @@ SUBMAKEFILES += \
+ 	$(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales/Makefile \
+ 	$(NULL)
  
- 
- DEFINES += -DVERSION_SUFFIX=$(VERSION_SUFFIX)
 +DEFINES += -DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME)
- 
++
  # This makefile uses variable overrides from the libs-% target to
  # build non-default locales to non-default dist/ locations. Be aware!
+ 
 diff --git a/browser/locales/en-US/chrome/overrides/appstrings.properties b/browser/locales/en-US/chrome/overrides/appstrings.properties
-index adecd76..00f437b 100644
+index 0363f72..cf7af39 100644
 --- a/browser/locales/en-US/chrome/overrides/appstrings.properties
 +++ b/browser/locales/en-US/chrome/overrides/appstrings.properties
 @@ -35,23 +35,23 @@
@@ -58,6 +58,3 @@ index adecd76..00f437b 100644
  contentEncodingError=The page you are trying to view cannot be shown because it uses an invalid or unsupported form of compression.
  unsafeContentType=The page you are trying to view cannot be shown because it is contained in a file type that may not be safe to open. Please contact the website owners to inform them of this problem.
  externalProtocolTitle=External Protocol Request
--- 
-1.7.4.1
-

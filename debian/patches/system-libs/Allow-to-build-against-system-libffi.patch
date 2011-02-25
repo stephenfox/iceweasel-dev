@@ -4,35 +4,85 @@ Subject: Allow to build against system libffi
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=551138
 ---
- config/autoconf.mk.in            |    4 ++++
- configure.in                     |   14 +++++++++++++-
- js/ctypes/Makefile.in            |    8 ++++++++
- toolkit/library/libxul-config.mk |    3 +++
- toolkit/toolkit-tiers.mk         |    2 ++
- 5 files changed, 30 insertions(+), 1 deletions(-)
+ js/src/Makefile.in           |   16 ++++++++++++++--
+ js/src/config/autoconf.mk.in |    4 ++++
+ js/src/configure.in          |   14 +++++++++++++-
+ js/src/shell/Makefile.in     |    3 +++
+ 4 files changed, 34 insertions(+), 3 deletions(-)
 
-diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index c1fbb20..3b6e912 100644
---- a/config/autoconf.mk.in
-+++ b/config/autoconf.mk.in
-@@ -233,6 +233,10 @@ MOZ_NATIVE_LIBEVENT = @MOZ_NATIVE_LIBEVENT@
- MOZ_LIBEVENT_LIBS = @MOZ_LIBEVENT_LIBS@
- MOZ_LIBEVENT_INCLUDES = @MOZ_LIBEVENT_INCLUDES@
+diff --git a/js/src/Makefile.in b/js/src/Makefile.in
+index b4eec90..64ffe4a 100644
+--- a/js/src/Makefile.in
++++ b/js/src/Makefile.in
+@@ -446,11 +446,20 @@ CPPSRCS += \
+     Library.cpp \
+     $(NULL)
  
-+MOZ_NATIVE_FFI = @MOZ_NATIVE_FFI@
-+MOZ_FFI_LIBS = @MOZ_FFI_LIBS@
-+MOZ_FFI_CFLAGS = @MOZ_FFI_CFLAGS@
+-LOCAL_INCLUDES = \
+-    -Ictypes/libffi/include \
++ifdef MOZ_NATIVE_FFI
++LOCAL_INCLUDES = $(MOZ_FFI_CFLAGS)
++else
++LOCAL_INCLUDES = -Ictypes/libffi/include
++endif
 +
- MOZ_NATIVE_ZLIB	= @SYSTEM_ZLIB@
- MOZ_NATIVE_BZ2	= @SYSTEM_BZ2@
- MOZ_NATIVE_JPEG	= @SYSTEM_JPEG@
-diff --git a/configure.in b/configure.in
-index f5dfc8f..29c3c98 100644
---- a/configure.in
-+++ b/configure.in
-@@ -4508,6 +4508,18 @@ fi
++LOCAL_INCLUDES += \
+     -I. \
+     $(NULL)
  
- AC_SUBST(SYSTEM_HUNSPELL)
++
++ifdef MOZ_NATIVE_FFI
++EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
++else
+ ifeq ($(OS_ARCH),OS2)
+ SHARED_LIBRARY_LIBS += \
+     ctypes/libffi/.libs/ffi.a \
+@@ -460,6 +469,7 @@ SHARED_LIBRARY_LIBS += \
+     ctypes/libffi/.libs/libffi.$(LIB_SUFFIX) \
+     $(NULL)
+ endif
++endif
+ 
+ endif # JS_HAS_CTYPES
+ 
+@@ -539,6 +549,7 @@ endif
+ include $(topsrcdir)/config/rules.mk
+ 
+ ifdef JS_HAS_CTYPES
++ifndef MOZ_NATIVE_FFI
+ # Build libffi proper as part of the 'exports' target, so things get built
+ # in the right order.
+ export::
+@@ -547,6 +558,7 @@ export::
+ distclean clean::
+ 		$(call SUBMAKE,$@,ctypes/libffi)
+ endif
++endif
+ 
+ ifdef MOZ_SYNC_BUILD_FILES
+ # Because the SpiderMonkey can be distributed and built independently
+diff --git a/js/src/config/autoconf.mk.in b/js/src/config/autoconf.mk.in
+index f4c8150..2a3299c 100644
+--- a/js/src/config/autoconf.mk.in
++++ b/js/src/config/autoconf.mk.in
+@@ -250,6 +250,10 @@ NSPR_CONFIG	= @NSPR_CONFIG@
+ NSPR_CFLAGS	= @NSPR_CFLAGS@
+ NSPR_LIBS	= @NSPR_LIBS@
+ 
++MOZ_NATIVE_FFI	= @MOZ_NATIVE_FFI@
++MOZ_FFI_LIBS	= @MOZ_FFI_LIBS@
++MOZ_FFI_CFLAGS	= @MOZ_FFI_CFLAGS@
++
+ USE_DEPENDENT_LIBS = @USE_DEPENDENT_LIBS@
+ 
+ JS_NATIVE_EDITLINE = @JS_NATIVE_EDITLINE@
+diff --git a/js/src/configure.in b/js/src/configure.in
+index 5d5365b..a440af3 100644
+--- a/js/src/configure.in
++++ b/js/src/configure.in
+@@ -4591,6 +4591,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+     CFLAGS=$_SAVE_CFLAGS
+ fi
  
 +dnl system libffi Support
 +dnl ========================================================
@@ -47,78 +97,28 @@ index f5dfc8f..29c3c98 100644
 +AC_SUBST(MOZ_NATIVE_FFI)
 +
  dnl ========================================================
- dnl Java SDK support
- dnl ========================================================
-@@ -8761,7 +8773,7 @@ ac_configure_args="$_SUBDIR_CONFIG_ARGS"
- # Build jsctypes on the platforms we can.
- if test "$BUILD_CTYPES"; then
-   # Run the libffi 'configure' script on platforms that it supports.
--  if test -z "$_MSC_VER"; then
-+  if test -z "$MOZ_NATIVE_FFI" && test -z "$_MSC_VER"; then
-     ac_configure_args="--disable-shared --enable-static --disable-raw-api"
-     if test "$MOZ_DEBUG"; then
-       ac_configure_args="$ac_configure_args --enable-debug"
-diff --git a/js/ctypes/Makefile.in b/js/ctypes/Makefile.in
-index 2ccd495..35e5253 100644
---- a/js/ctypes/Makefile.in
-+++ b/js/ctypes/Makefile.in
-@@ -95,18 +95,26 @@ endif
- else # _MSVC_VER
+ dnl =
+ dnl = Application
+@@ -6074,7 +6086,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
+ $GMAKE js-config
  
- # build libffi proper
+ # Build jsctypes if it's enabled.
+-if test "$JS_HAS_CTYPES"; then
++if test "$JS_HAS_CTYPES" -a -z "$MOZ_NATIVE_FFI"; then
+   # Run the libffi 'configure' script.
+   ac_configure_args="--disable-shared --enable-static --disable-raw-api"
+   if test "$MOZ_DEBUG"; then
+diff --git a/js/src/shell/Makefile.in b/js/src/shell/Makefile.in
+index 058b3b2..99e2169 100644
+--- a/js/src/shell/Makefile.in
++++ b/js/src/shell/Makefile.in
+@@ -53,6 +53,9 @@ CPPSRCS		= \
+ DEFINES         += -DEXPORT_JS_API
+ 
+ LIBS      = $(NSPR_LIBS) $(EDITLINE_LIBS) $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX)
 +ifdef MOZ_NATIVE_FFI
-+LOCAL_INCLUDES = $(MOZ_FFI_CFLAGS)
-+else
- LOCAL_INCLUDES = \
-     -Ilibffi/include \
-     $(NULL)
++EXTRA_LIBS += $(MOZ_FFI_LIBS)
 +endif
  
- ifeq ($(OS_ARCH),OS2)
- libffi/.libs/ffi.$(LIB_SUFFIX): libffi/.libs/$(LIB_PREFIX)ffi.a
- 	emxomf $<
- endif
+ LOCAL_INCLUDES += -I$(topsrcdir) -I..
  
-+ifdef MOZ_NATIVE_FFI
-+EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
-+else
- SHARED_LIBRARY_LIBS = \
-     libffi/.libs/$(LIB_PREFIX)ffi.$(LIB_SUFFIX) \
-     $(NULL)
-+endif
- 
- endif # _MSVC_VER
- 
-diff --git a/toolkit/library/libxul-config.mk b/toolkit/library/libxul-config.mk
-index 33b28a5..6618016 100644
---- a/toolkit/library/libxul-config.mk
-+++ b/toolkit/library/libxul-config.mk
-@@ -163,6 +163,9 @@ ifdef BUILD_CTYPES
- COMPONENT_LIBS += \
- 	jsctypes \
- 	$(NULL)
-+ifdef MOZ_NATIVE_FFI
-+EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
-+endif
- endif
- 
- ifdef MOZ_PLUGINS
-diff --git a/toolkit/toolkit-tiers.mk b/toolkit/toolkit-tiers.mk
-index 08f7da7..3824f7c 100644
---- a/toolkit/toolkit-tiers.mk
-+++ b/toolkit/toolkit-tiers.mk
-@@ -92,12 +92,14 @@ tier_gecko_dirs += \
- 		$(NULL)
- 
- ifdef BUILD_CTYPES
-+ifndef MOZ_NATIVE_FFI
- ifndef _MSC_VER
- tier_gecko_staticdirs += \
- 		js/ctypes/libffi \
- 		$(NULL)
- endif
- endif
-+endif
- 
- ifdef MOZ_ENABLE_GTK2
- ifdef MOZ_X11

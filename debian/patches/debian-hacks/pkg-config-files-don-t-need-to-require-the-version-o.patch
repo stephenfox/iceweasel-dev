@@ -9,7 +9,7 @@ Subject: pkg-config files don't need to require the version of nspr xulrunner wa
  3 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/xulrunner/installer/libxul.pc.in b/xulrunner/installer/libxul.pc.in
-index 989732a..91df2c8 100644
+index ccce9aa..631382d 100644
 --- a/xulrunner/installer/libxul.pc.in
 +++ b/xulrunner/installer/libxul.pc.in
 @@ -6,6 +6,6 @@ idldir=%idldir%
@@ -18,10 +18,10 @@ index 989732a..91df2c8 100644
  Version: %MOZILLA_VERSION%
 -Requires: %NSPR_NAME% >= %NSPR_VERSION%
 +Requires: %NSPR_NAME%
- Libs: -L${sdkdir}/lib -lxpcomglue_s -lxul -lxpcom
+ Libs: -L${sdkdir}/lib %MOZ_XUL_LINK%
  Cflags: -I${includedir} %WCHAR_CFLAGS%
 diff --git a/xulrunner/installer/mozilla-js.pc.in b/xulrunner/installer/mozilla-js.pc.in
-index 672ca6a..b4ba21f 100644
+index c1428f1..9eb0a79 100644
 --- a/xulrunner/installer/mozilla-js.pc.in
 +++ b/xulrunner/installer/mozilla-js.pc.in
 @@ -5,6 +5,6 @@ includedir=%includedir%
@@ -30,7 +30,7 @@ index 672ca6a..b4ba21f 100644
  Version: %MOZILLA_VERSION%
 -Requires: %NSPR_NAME% >= %NSPR_VERSION%
 +Requires: %NSPR_NAME%
- Libs: -L${sdkdir}/lib -lmozjs
+ Libs: -L${sdkdir}/lib %MOZ_JS_LINK%
  Cflags: -I${includedir} -DXP_UNIX -DJS_THREADSAFE
 diff --git a/xulrunner/installer/mozilla-nss.pc.in b/xulrunner/installer/mozilla-nss.pc.in
 index 088832a..927305f 100644

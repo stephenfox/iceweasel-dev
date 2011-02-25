@@ -7,7 +7,7 @@ Subject: Remove (un|)registering system
  1 files changed, 0 insertions(+), 43 deletions(-)
 
 diff --git a/xulrunner/app/nsXULRunnerApp.cpp b/xulrunner/app/nsXULRunnerApp.cpp
-index 21670d9..55559a8 100644
+index 40ec5a1..4285c51 100644
 --- a/xulrunner/app/nsXULRunnerApp.cpp
 +++ b/xulrunner/app/nsXULRunnerApp.cpp
 @@ -43,7 +43,6 @@

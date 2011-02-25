@@ -8,15 +8,16 @@ embedding applications.
 ---
  security/manager/ssl/public/Makefile.in            |    1 +
  security/manager/ssl/public/nsIBadCertListener.idl |  155 ++++++++++++++++++++
- security/manager/ssl/src/nsNSSIOLayer.cpp          |  103 +++++++++++++-
+ security/manager/ssl/src/nsNSSIOLayer.cpp          |  105 +++++++++++++-
  security/manager/ssl/src/nsNSSIOLayer.h            |    8 +
- 4 files changed, 266 insertions(+), 1 deletions(-)
+ 4 files changed, 268 insertions(+), 1 deletions(-)
+ create mode 100644 security/manager/ssl/public/nsIBadCertListener.idl
 
 diff --git a/security/manager/ssl/public/Makefile.in b/security/manager/ssl/public/Makefile.in
-index fa84d3a..affd50a 100644
+index 2782984..5db8159 100644
 --- a/security/manager/ssl/public/Makefile.in
 +++ b/security/manager/ssl/public/Makefile.in
-@@ -60,6 +60,7 @@ SDK_XPIDLSRCS = \
+@@ -59,6 +59,7 @@ SDK_XPIDLSRCS = \
  
  XPIDLSRCS = \
      nsISSLCertErrorDialog.idl \
@@ -25,8 +26,9 @@ index fa84d3a..affd50a 100644
      nsISSLErrorListener.idl \
      nsIIdentityInfo.idl \
 diff --git a/security/manager/ssl/public/nsIBadCertListener.idl b/security/manager/ssl/public/nsIBadCertListener.idl
-index e69de29..5e9e750 100644
---- a/security/manager/ssl/public/nsIBadCertListener.idl
+new file mode 100644
+index 0000000..5e9e750
+--- /dev/null
 +++ b/security/manager/ssl/public/nsIBadCertListener.idl
 @@ -0,0 +1,155 @@
 +/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
@@ -185,7 +187,7 @@ index e69de29..5e9e750 100644
 +#define NS_BADCERTLISTENER_CONTRACTID "@mozilla.org/nsBadCertListener;1"
 +%}
 diff --git a/security/manager/ssl/src/nsNSSIOLayer.cpp b/security/manager/ssl/src/nsNSSIOLayer.cpp
-index edc493c..ea4c626 100644
+index 88f0c98..c4d8db9 100644
 --- a/security/manager/ssl/src/nsNSSIOLayer.cpp
 +++ b/security/manager/ssl/src/nsNSSIOLayer.cpp
 @@ -60,6 +60,7 @@
@@ -196,7 +198,7 @@ index edc493c..ea4c626 100644
  #include "nsIBadCertListener2.h"
  #include "nsISSLErrorListener.h"
  #include "nsIObjectInputStream.h"
-@@ -809,6 +810,20 @@ void nsNSSSocketInfo::SetHandshakeInProgress(PRBool aIsIn)
+@@ -899,6 +900,20 @@ void nsNSSSocketInfo::SetHandshakeInProgress(PRBool aIsIn)
    }
  }
  
@@ -217,7 +219,7 @@ index edc493c..ea4c626 100644
  void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(PRBool aAllow)
  {
    mAllowTLSIntoleranceTimeout = aAllow;
-@@ -818,7 +833,8 @@ void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(PRBool aAllow)
+@@ -908,7 +923,8 @@ void nsNSSSocketInfo::SetAllowTLSIntoleranceTimeout(PRBool aAllow)
  
  PRBool nsNSSSocketInfo::HandshakeTimeout()
  {
@@ -227,7 +229,7 @@ index edc493c..ea4c626 100644
      return PR_FALSE;
  
    return ((PRIntervalTime)(PR_IntervalNow() - mHandshakeStartTime)
-@@ -1846,6 +1862,37 @@ isTLSIntoleranceError(PRInt32 err, PRBool withInitialCleartext)
+@@ -1949,6 +1965,37 @@ isTLSIntoleranceError(PRInt32 err, PRBool withInitialCleartext)
    return PR_FALSE;
  }
  
@@ -265,7 +267,7 @@ index edc493c..ea4c626 100644
  PRInt32
  nsSSLThread::checkHandshake(PRInt32 bytesTransfered, 
                              PRBool wasReading,
-@@ -1897,6 +1944,12 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
+@@ -2000,6 +2047,12 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
          return bytesTransfered;
        }
  
@@ -278,7 +280,7 @@ index edc493c..ea4c626 100644
        if (!wantRetry // no decision yet
            && isTLSIntoleranceError(err, socketInfo->GetHasCleartextPhase()))
        {
-@@ -1914,6 +1967,12 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
+@@ -2017,6 +2070,12 @@ nsSSLThread::checkHandshake(PRInt32 bytesTransfered,
    {
      if (handleHandshakeResultNow)
      {
@@ -291,7 +293,7 @@ index edc493c..ea4c626 100644
        if (!wantRetry // no decision yet
            && !socketInfo->GetHasCleartextPhase()) // mirror PR_CONNECT_RESET_ERROR treament
        {
-@@ -3431,6 +3490,48 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
+@@ -3577,6 +3636,50 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
          rv = proxy_bcl->NotifyCertProblem(csi, status, hostWithPortString, 
                                            &suppressMessage);
        }
@@ -327,6 +329,8 @@ index edc493c..ea4c626 100644
 +          rv = badCertHandler->ConfirmCertExpired(csi, ix509, &retVal);
 +          if (NS_FAILED(rv)) retVal = PR_FALSE;
 +        }
++        nsCOMPtr<nsICertOverrideService> overrideService =
++          do_GetService(NS_CERTOVERRIDE_CONTRACTID);
 +        if (overrideService && retVal && addType != nsIBadCertListener::UNINIT_ADD_FLAG) {
 +          overrideService->RememberValidityOverride(hostString, port, ix509,
 +                                    nsICertOverrideService::ERROR_UNTRUSTED,
@@ -341,7 +345,7 @@ index edc493c..ea4c626 100644
    }
  
 diff --git a/security/manager/ssl/src/nsNSSIOLayer.h b/security/manager/ssl/src/nsNSSIOLayer.h
-index bb6eaf1..ea25fbe 100644
+index c619282..fbca648 100644
 --- a/security/manager/ssl/src/nsNSSIOLayer.h
 +++ b/security/manager/ssl/src/nsNSSIOLayer.h
 @@ -189,6 +189,13 @@ public:

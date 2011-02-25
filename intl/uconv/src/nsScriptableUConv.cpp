@@ -46,15 +46,14 @@
 #include "nsScriptableUConv.h"
 #include "nsIStringStream.h"
 #include "nsCRT.h"
+#include "nsComponentManagerUtils.h"
 
 #include "nsIPlatformCharset.h"
 
 static PRInt32          gInstanceCount = 0;
 
 /* Implementation file */
-NS_IMPL_ISUPPORTS2(nsScriptableUnicodeConverter,
-                   nsIScriptableUnicodeConverter,
-                   nsIScriptableUnicodeConverter_1_9_BRANCH)
+NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
 
 nsScriptableUnicodeConverter::nsScriptableUnicodeConverter()
 : mIsInternal(PR_FALSE)
@@ -197,7 +196,7 @@ nsScriptableUnicodeConverter::ConvertFromByteArray(const PRUint8* aData,
 }
 
 /* void convertToByteArray(in AString aString,
-                          out unsigned long aLen,
+                          [optional] out unsigned long aLen,
                           [array, size_is(aLen),retval] out octet aData);
  */
 NS_IMETHODIMP
@@ -293,7 +292,7 @@ nsScriptableUnicodeConverter::InitConverter()
   nsresult rv = NS_OK;
   mEncoder = NULL ;
 
-  nsCOMPtr<nsICharsetConverterManager_1_9_BRANCH> ccm = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  nsCOMPtr<nsICharsetConverterManager> ccm = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
 
   if (NS_SUCCEEDED( rv) && (nsnull != ccm)) {
     // get charset atom due to getting unicode converter

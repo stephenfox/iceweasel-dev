@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=564410
  1 files changed, 4 insertions(+), 0 deletions(-)
 
 diff --git a/modules/libpr0n/encoders/png/nsPNGEncoder.cpp b/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
-index ef1909a..392303c 100644
+index 6ca7eab..3539abd 100644
 --- a/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
 +++ b/modules/libpr0n/encoders/png/nsPNGEncoder.cpp
-@@ -251,6 +251,10 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
+@@ -272,6 +272,10 @@ NS_IMETHODIMP nsPNGEncoder::AddImageFrame(const PRUint8* aData,
      return NS_ERROR_INVALID_ARG;
    }
  

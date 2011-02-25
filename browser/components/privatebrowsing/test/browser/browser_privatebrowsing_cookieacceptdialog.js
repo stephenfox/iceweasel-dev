@@ -42,42 +42,39 @@ function test() {
   // initialization
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
-  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-           getService(Ci.nsIWindowWatcher);
   let cp = Cc["@mozilla.org/embedcomp/cookieprompt-service;1"].
            getService(Ci.nsICookiePromptService);
 
   waitForExplicitFinish();
 
   function checkRememberOption(expectedDisabled, callback) {
-    let observer = {
-      observe: function(aSubject, aTopic, aData) {
-        if (aTopic === "domwindowopened") {
-          ww.unregisterNotification(this);
-          let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-          win.addEventListener("load", function onLoad(event) {
-            win.removeEventListener("load", onLoad, false);
+    function observer(aSubject, aTopic, aData) {
+      if (aTopic != "domwindowopened")
+        return;
 
-            executeSoon(function() {
-              let doc = win.document;
-              let remember = doc.getElementById("persistDomainAcceptance");
-              ok(remember, "The remember checkbox should exist");
+      Services.ww.unregisterNotification(observer);
+      let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      win.addEventListener("load", function onLoad(event) {
+        win.removeEventListener("load", onLoad, false);
 
-              if (expectedDisabled)
-                is(remember.getAttribute("disabled"), "true",
-                   "The checkbox should be disabled");
-              else
-                ok(!remember.hasAttribute("disabled"),
-                   "The checkbox should not be disabled");
+        executeSoon(function () {
+          let doc = win.document;
+          let remember = doc.getElementById("persistDomainAcceptance");
+          ok(remember, "The remember checkbox should exist");
 
-              win.close();
-              callback();
-            });
-          }, false);
-        }
-      }
-    };
-    ww.registerNotification(observer);
+          if (expectedDisabled)
+            is(remember.getAttribute("disabled"), "true",
+               "The checkbox should be disabled");
+          else
+            ok(!remember.hasAttribute("disabled"),
+               "The checkbox should not be disabled");
+
+          win.close();
+          callback();
+        });
+      }, false);
+    }
+    Services.ww.registerNotification(observer);
 
     let remember = {};
     const time = (new Date("Jan 1, 2030")).getTime() / 1000;

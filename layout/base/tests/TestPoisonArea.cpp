@@ -134,6 +134,12 @@ typedef unsigned int uint32_t;
 
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__OS2__)
+#include <sys/types.h>
+#include <unistd.h>
+#include <setjmp.h>
+#define INCL_DOS
+#include <os2.h>
 #else
 #include <sys/types.h>
 #include <fcntl.h>
@@ -283,7 +289,76 @@ MakeRegionExecutable(void *)
 #undef MAP_FAILED
 #define MAP_FAILED 0
 
-#else
+#elif defined(__OS2__)
+
+// page size is always 4k
+#undef PAGESIZE
+#define PAGESIZE 0x1000
+static unsigned long rc = 0;
+
+char * LastErrMsg()
+{
+  char * errmsg = (char *)malloc(16);
+  sprintf(errmsg, "rc= %ld", rc);
+  rc = 0;
+  return errmsg;
+}
+
+static void *
+ReserveRegion(uintptr_t request, bool accessible)
+{
+  // OS/2 doesn't support allocation at an arbitrary address,
+  // so return an address that is known to be invalid.
+  if (request) {
+    return (void*)0xFFFD0000;
+  }
+  void * mem = 0;
+  rc = DosAllocMem(&mem, PAGESIZE,
+                   (accessible ? PAG_COMMIT : 0) | PAG_READ | PAG_WRITE);
+  return rc ? 0 : mem;
+}
+
+static void
+ReleaseRegion(void *page)
+{
+  return;
+}
+
+static bool
+ProbeRegion(uintptr_t page)
+{
+  // There's no reliable way to probe an address in the system
+  // arena other than by touching it and seeing if a trap occurs.
+  return false;
+}
+
+static bool
+MakeRegionExecutable(void *page)
+{
+  rc = DosSetMem(page, PAGESIZE, PAG_READ | PAG_WRITE | PAG_EXECUTE);
+  return rc ? true : false;
+}
+
+typedef struct _XCPT {
+  EXCEPTIONREGISTRATIONRECORD regrec;
+  jmp_buf                     jmpbuf;
+} XCPT;
+
+static unsigned long _System
+ExceptionHandler(PEXCEPTIONREPORTRECORD pReport,
+                 PEXCEPTIONREGISTRATIONRECORD pRegRec,
+                 PCONTEXTRECORD pContext, PVOID pVoid)
+{
+  if (pReport->fHandlerFlags == 0) {
+    longjmp(((XCPT*)pRegRec)->jmpbuf, pReport->ExceptionNum);
+  }
+  return XCPT_CONTINUE_SEARCH;
+}
+
+#undef MAP_FAILED
+#define MAP_FAILED 0
+
+#else // Unix
 
 #define LastErrMsg() (strerror(errno))
 
@@ -440,6 +515,27 @@ JumpTo(uintptr_t opaddr)
 #endif
 }
 
+#ifdef _WIN32
+static BOOL
+IsBadExecPtr(uintptr_t ptr)
+{
+  BOOL ret = false;
+
+#ifdef _MSC_VER
+  __try {
+    JumpTo(ptr);
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    ret = true;
+  }
+#else
+  printf("INFO | exec test not supported on MinGW build\n");
+  // We do our best
+  ret = IsBadReadPtr((const void*)ptr, 1);
+#endif
+  return ret;
+}
+#endif
+
 /* Test each page.  */
 static bool
 TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
@@ -459,15 +555,23 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
     }
 
 #ifdef _WIN32
-    __try {
-      unsigned char scratch;
-      switch (test) {
-      case 0: scratch = *(volatile unsigned char *)opaddr; break;
-      case 1: JumpTo(opaddr); break;
-      case 2: *(volatile unsigned char *)opaddr = 0; break;
-      default: abort();
-      }
+    BOOL badptr;
 
+    switch (test) {
+    case 0: badptr = IsBadReadPtr((const void*)opaddr, 1); break;
+    case 1: badptr = IsBadExecPtr(opaddr); break;
+    case 2: badptr = IsBadWritePtr((void*)opaddr, 1); break;
+    default: abort();
+    }
+
+    if (badptr) {
+      if (should_succeed) {
+        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
+        failed = true;
+      } else {
+        printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
+      }
+    } else {
       // if control reaches this point the probe succeeded
       if (should_succeed) {
         printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
@@ -475,9 +579,25 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
         printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
         failed = true;
       }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-      // Unfortunately, there is no equivalent of strsignal().
-      DWORD code = GetExceptionCode();
+    }
+#elif defined(__OS2__)
+    XCPT xcpt;
+    volatile int code = setjmp(xcpt.jmpbuf);
+
+    if (!code) {
+      xcpt.regrec.prev_structure = 0;
+      xcpt.regrec.ExceptionHandler = ExceptionHandler;
+      DosSetExceptionHandler(&xcpt.regrec);
+      unsigned char scratch;
+      switch (test) {
+        case 0: scratch = *(volatile unsigned char *)opaddr; break;
+        case 1: ((void (*)())opaddr)(); break;
+        case 2: *(volatile unsigned char *)opaddr = 0; break;
+        default: abort();
+      }
+    }
+
+    if (code) {
       if (should_succeed) {
         printf("TEST-UNEXPECTED-FAIL | %s %s | exception code %x\n",
                oplabel, pagelabel, code);
@@ -486,6 +606,14 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
         printf("TEST-PASS | %s %s | exception code %x\n",
                oplabel, pagelabel, code);
       }
+    } else {
+      if (should_succeed) {
+        printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
+      } else {
+        printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
+        failed = true;
+      }
+      DosUnsetExceptionHandler(&xcpt.regrec);
     }
 #else
     pid_t pid = fork();
@@ -514,7 +642,8 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
         if (should_succeed) {
           printf("TEST-PASS | %s %s\n", oplabel, pagelabel);
         } else {
-          printf("TEST-UNEXPECTED-FAIL | %s %s\n", oplabel, pagelabel);
+          printf("TEST-UNEXPECTED-FAIL | %s %s | unexpected successful exit\n",
+                 oplabel, pagelabel);
           failed = true;
         }
       } else if (WIFEXITED(status)) {
@@ -523,12 +652,12 @@ TestPage(const char *pagelabel, uintptr_t pageaddr, int should_succeed)
         exit(2);
       } else if (WIFSIGNALED(status)) {
         if (should_succeed) {
-          printf("TEST-UNEXPECTED-FAIL | %s %s | %s\n",
-                 oplabel, pagelabel, strsignal(WTERMSIG(status)));
+          printf("TEST-UNEXPECTED-FAIL | %s %s | unexpected signal %d\n",
+                 oplabel, pagelabel, WTERMSIG(status));
           failed = true;
         } else {
-          printf("TEST-PASS | %s %s | %s\n",
-                 oplabel, pagelabel, strsignal(WTERMSIG(status)));
+          printf("TEST-PASS | %s %s | signal %d (as expected)\n",
+                 oplabel, pagelabel, WTERMSIG(status));
         }
       } else {
         printf("ERROR | %s %s | unexpected exit status %d\n",
@@ -546,7 +675,7 @@ main()
 {
 #ifdef _WIN32
   GetSystemInfo(&_sinfo);
-#else
+#elif !defined(__OS2__)
   _pagesize = sysconf(_SC_PAGESIZE);
 #endif
 

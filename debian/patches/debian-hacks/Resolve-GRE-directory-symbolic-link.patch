@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=550659
  1 files changed, 8 insertions(+), 7 deletions(-)
 
 diff --git a/xulrunner/stub/nsXULStub.cpp b/xulrunner/stub/nsXULStub.cpp
-index c82cd57..ddc2c98 100644
+index 42b3e5d..8e1126e 100644
 --- a/xulrunner/stub/nsXULStub.cpp
 +++ b/xulrunner/stub/nsXULStub.cpp
-@@ -501,15 +501,16 @@ main(int argc, char **argv)
+@@ -502,15 +502,16 @@ main(int argc, char **argv)
               range.lower, range.upper);
        return 1;
      }

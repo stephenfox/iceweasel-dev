@@ -7,11 +7,11 @@ Subject: Build the test plugin on GNU/kfreebsd
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/modules/plugin/Makefile.in b/modules/plugin/Makefile.in
-index aef5287..06ebc7b 100644
+index 6c84714..4a91977 100644
 --- a/modules/plugin/Makefile.in
 +++ b/modules/plugin/Makefile.in
-@@ -73,7 +73,7 @@ TOOL_DIRS += default/mac
- endif
+@@ -53,7 +53,7 @@ DIRS		+= base/src
+ #  buildable on other non-GTK unix builds
  
  ifdef ENABLE_TESTS
 -ifneq (,$(filter WINNT Darwin Linux OS2 SunOS,$(OS_ARCH)))

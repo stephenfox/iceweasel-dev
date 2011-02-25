@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=547943
  1 files changed, 1 insertions(+), 0 deletions(-)
 
 diff --git a/xulrunner/app/xulrunner.js b/xulrunner/app/xulrunner.js
-index c2eeb69..33ecfbc 100644
+index 0a0f5a9..3db22f8 100644
 --- a/xulrunner/app/xulrunner.js
 +++ b/xulrunner/app/xulrunner.js
-@@ -70,3 +70,4 @@ pref("browser.preferences.animateFadeIn", true);
+@@ -57,3 +57,4 @@ pref("browser.preferences.animateFadeIn", true);
  #else
  pref("browser.preferences.animateFadeIn", false);
  #endif

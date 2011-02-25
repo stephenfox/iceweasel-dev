@@ -47,8 +47,6 @@
 class nsFirstLetterFrame : public nsFirstLetterFrameSuper {
 public:
   NS_DECL_FRAMEARENA_HELPERS
-  NS_DECL_QUERYFRAME_TARGET(nsFirstLetterFrame)
-  NS_DECL_QUERYFRAME
 
   nsFirstLetterFrame(nsStyleContext* aContext) : nsHTMLContainerFrame(aContext) {}
 
@@ -86,6 +84,7 @@ public:
                     nsReflowStatus&          aStatus);
 
   virtual PRBool CanContinueTextRun() const;
+  virtual nscoord GetBaseline() const;
 
 //override of nsFrame method
   NS_IMETHOD GetChildFrameContainingOffset(PRInt32 inContentOffset,

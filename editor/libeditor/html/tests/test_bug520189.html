@@ -249,13 +249,13 @@ var tests = [
     isIFrame: true,
     payload: invalidStyle5Payload,
     rootElement: function() document.getElementById("y").contentDocument.documentElement,
-    checkResult: function(html) is(html.indexOf("xxx"), -1, "Should not have retained the font-face style")
+    checkResult: function(html) isnot(html.indexOf("xxx"), -1, "Should not have retained the font-face style")
   },
   {
     id: "z",
     payload: invalidStyle5Payload,
     rootElement: function() document.getElementById("z"),
-    checkResult: function(html) is(html.indexOf("xxx"), -1, "Should not have retained the font-face style")
+    checkResult: function(html) isnot(html.indexOf("xxx"), -1, "Should not have retained the font-face style")
   },
   {
     id: "aa",
@@ -296,13 +296,13 @@ var tests = [
     isIFrame: true,
     payload: invalidStyle6Payload,
     rootElement: function() document.getElementById("ee").contentDocument.documentElement,
-    checkResult: function(html) is(html.indexOf("xxx"), -1, "Should not have retained the namespace style")
+    checkResult: function(html) isnot(html.indexOf("xxx"), -1, "Should not have retained the namespace style")
   },
   {
     id: "ff",
     payload: invalidStyle6Payload,
     rootElement: function() document.getElementById("ff"),
-    checkResult: function(html) is(html.indexOf("xxx"), -1, "Should not have retained the namespace style")
+    checkResult: function(html) isnot(html.indexOf("xxx"), -1, "Should not have retained the namespace style")
   },
   {
     id: "gg",
@@ -424,9 +424,6 @@ function runTest(test) {
   trans.setTransferData("text/html", data, data.data.length * 2);
 
   if ("indirectPaste" in test) {
-    todo(false, "nsIEditor.pasteTransferable is not availbale on branches");
-    return;
-    /*
     var editor, win;
     if ("isIFrame" in test) {
       win = elem.contentDocument.defaultView;
@@ -439,21 +436,13 @@ function runTest(test) {
                 .QueryInterface(Components.interfaces.nsIEditorDocShell)
                 .editor;
     editor.pasteTransferable(trans);
-    */
   } else {
     var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
                               .getService(Components.interfaces.nsIClipboard);
 
     clipboard.setData(trans, null, Components.interfaces.nsIClipboard.kGlobalClipboard);
 
-    var mainWindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                           .getInterface(Components.interfaces.nsIWebNavigation)
-                           .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
-                           .rootTreeItem
-                           .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                           .getInterface(Components.interfaces.nsIDOMWindow);
-
-    mainWindow.goDoCommand("cmd_paste");
+    synthesizeKey("V", {accelKey: true});
   }
 
   if ("checkResult" in test) {

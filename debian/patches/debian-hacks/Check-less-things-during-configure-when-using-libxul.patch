@@ -5,14 +5,14 @@ Subject: Check less things during configure when using libxul-sdk
 We don't need to check e.g. cairo or pango when using libxul-sdk, since
 we won't be building most of the toolkit.
 ---
- configure.in |   37 ++++++++++++++++++++++++++++++-------
- 1 files changed, 30 insertions(+), 7 deletions(-)
+ configure.in |   32 ++++++++++++++++++++++++++------
+ 1 files changed, 26 insertions(+), 6 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 29c3c98..3c4d86a 100644
+index 4c4559b..5d2c46b 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4207,6 +4207,7 @@ AC_SUBST(LIBXUL_SDK)
+@@ -4608,6 +4608,7 @@ AC_SUBST(LIBXUL_SDK)
  
  if test -n "$LIBXUL_SDK"; then
      LIBXUL_DIST="$LIBXUL_SDK"
@@ -20,8 +20,8 @@ index 29c3c98..3c4d86a 100644
  else
      LIBXUL_DIST="$MOZ_BUILD_ROOT/dist"
  fi
-@@ -4245,6 +4246,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
-                 AC_MSG_ERROR([system NSPR does not support PR_STATIC_ASSERT]))
+@@ -4646,6 +4647,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+                 AC_MSG_ERROR([system NSPR does not support PR_STATIC_ASSERT or including prtypes.h does not provide it]))
      CFLAGS=$_SAVE_CFLAGS
  else
 +  if test -n "$LIBXUL_SDK"; then
@@ -31,34 +31,15 @@ index 29c3c98..3c4d86a 100644
      if test "$OS_ARCH" = "WINCE"; then
          NSPR_CFLAGS="-I${LIBXUL_DIST}/include/nspr"
          NSPR_LIBS="${LIBXUL_DIST}/lib/nspr${NSPR_VERSION}.lib ${LIBXUL_DIST}/lib/plc${NSPR_VERSION}.lib ${LIBXUL_DIST}/lib/plds${NSPR_VERSION}.lib "
-@@ -4259,6 +4264,7 @@ else
-         NSPR_CFLAGS='`$(LIBXUL_DIST)/bin/nspr-config --prefix='${LIBXUL_DIST}' --includedir='${LIBXUL_DIST}'/include/nspr --cflags`'
-         NSPR_LIBS='`$(LIBXUL_DIST)/bin/nspr-config --prefix='${LIBXUL_DIST}' --libdir='${LIBXUL_DIST}'/lib --libs`'
+@@ -4660,6 +4665,7 @@ else
+         NSPR_CFLAGS='`$(LIBXUL_DIST)/sdk/bin/nspr-config --prefix='${LIBXUL_DIST}' --includedir='${LIBXUL_DIST}'/include/nspr --cflags`'
+         NSPR_LIBS='`$(LIBXUL_DIST)/sdk/bin/nspr-config --prefix='${LIBXUL_DIST}' --libdir='${LIBXUL_DIST}'/lib --libs`'
      fi
 +  fi
  fi
  
  dnl system libevent Support
-@@ -4842,6 +4848,10 @@ dnl =
- dnl ========================================================
- MOZ_ARG_HEADER(Toolkit Options)
- 
-+if test -n "$LIBXUL_SDK"; then
-+    MOZ_WIDGET_TOOLKIT=`perl -e 'while (<>) { /MOZ_DEFAULT_TOOLKIT *\"(.*)\"/ && print $1; }' $LIBXUL_SDK_DIR/include/mozilla-config.h`
-+else
-+
-     dnl ========================================================
-     dnl = Select the default toolkit
-     dnl ========================================================
-@@ -4876,6 +4886,7 @@ MOZ_ARG_HEADER(Toolkit Options)
-     else
-         AC_MSG_ERROR([You must specify a default toolkit (perhaps $_PLATFORM_DEFAULT_TOOLKIT).])
-     fi
-+fi # LIBXUL_SDK
- 
- AC_DEFINE_UNQUOTED(MOZ_DEFAULT_TOOLKIT,"$MOZ_WIDGET_TOOLKIT")
- 
-@@ -5003,6 +5014,7 @@ dnl ========================================================
+@@ -5348,6 +5354,7 @@ dnl ========================================================
  dnl = startup-notification support module
  dnl ========================================================
  
@@ -66,7 +47,7 @@ index 29c3c98..3c4d86a 100644
  if test "$MOZ_ENABLE_GTK2"
  then
      MOZ_ENABLE_STARTUP_NOTIFICATION=
-@@ -5030,6 +5042,7 @@ then
+@@ -5376,6 +5383,7 @@ then
  
      TK_LIBS="$TK_LIBS $MOZ_STARTUP_NOTIFICATION_LIBS"
  fi
@@ -74,7 +55,7 @@ index 29c3c98..3c4d86a 100644
  AC_SUBST(MOZ_ENABLE_STARTUP_NOTIFICATION)
  AC_SUBST(MOZ_STARTUP_NOTIFICATION_CFLAGS)
  AC_SUBST(MOZ_STARTUP_NOTIFICATION_LIBS)
-@@ -5090,6 +5103,12 @@ AC_SUBST(MOZ_QT_LIBS)
+@@ -5439,6 +5447,12 @@ AC_SUBST(MOZ_QT_LIBS)
  AC_SUBST(MOC)
  
  AC_SUBST(MOZ_DFB)
@@ -87,7 +68,7 @@ index 29c3c98..3c4d86a 100644
  AC_SUBST(MOZ_X11)
  
  dnl ========================================================
-@@ -5190,7 +5209,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
+@@ -5524,7 +5538,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
  dnl ========================================================
  dnl = Pango
  dnl ========================================================
@@ -96,15 +77,15 @@ index 29c3c98..3c4d86a 100644
  then
      AC_SUBST(MOZ_PANGO)
  
-@@ -5225,6 +5244,7 @@ dnl ========================================================
- dnl = GnomeVFS support module
+@@ -5565,6 +5579,7 @@ dnl ========================================================
+ dnl = GnomeVFS, GIO and GConf support module
  dnl ========================================================
  
 +if test -z "$LIBXUL_SDK"; then
  if test "$MOZ_X11"
  then
      dnl build the gnomevfs extension by default only when the
-@@ -5352,6 +5372,9 @@ AC_SUBST(MOZ_DBUS_LIBS)
+@@ -5796,6 +5811,9 @@ AC_SUBST(MOZ_DBUS_LIBS)
  AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
  AC_SUBST(MOZ_DBUS_GLIB_LIBS)
  
@@ -112,18 +93,25 @@ index 29c3c98..3c4d86a 100644
 +
 +
  dnl ========================================================
- dnl = libnotify support
+ dnl = Build Personal Security Manager
  dnl ========================================================
-@@ -5679,7 +5702,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
+@@ -6203,6 +6221,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
  dnl ========================================================
  
  dnl If using sydneyaudio with Linux, ensure that the alsa library is available
--if test "$COMPILE_ENVIRONMENT"; then
-+if test "$COMPILE_ENVIRONMENT" && test -z "$LIBXUL_SDK"; then
++if test -z "$LIBXUL_SDK"; then
  if test -n "$MOZ_SYDNEYAUDIO"; then
     case "$target_os" in
  linux*)
-@@ -6835,7 +6858,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
+@@ -6212,6 +6231,7 @@ linux*)
+       ;;
+    esac
+ fi
++fi
+ 
+ dnl ========================================================
+ dnl Splashscreen
+@@ -7490,7 +7510,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
      MOZ_MEMORY=1,
      MOZ_MEMORY=)
  
@@ -132,25 +120,25 @@ index 29c3c98..3c4d86a 100644
      MOZ_MEMORY=
  fi
  
-@@ -7723,7 +7746,7 @@ msvc*|mks*|cygwin*|mingw*|wince*)
-     ;;
- esac
+@@ -8426,7 +8446,7 @@ dnl Check for GLib and libIDL.
+ dnl ========================================================
+ SKIP_IDL_CHECK="no"
  
 -if test -z "$COMPILE_ENVIRONMENT"; then
 +if test -z "$COMPILE_ENVIRONMENT" || test "$LIBXUL_SDK"; then
      SKIP_IDL_CHECK="yes"
  fi
  
-@@ -7830,7 +7853,7 @@ if test -n "$CROSS_COMPILE"; then
-     fi
+@@ -8626,7 +8646,7 @@ else
+     LIBIDL_LIBS="$HOST_LIBIDL_LIBS"
  fi
  
 -if test -z "$SKIP_PATH_CHECKS"; then
 +if test -z "$SKIP_PATH_CHECKS" && test -z "$LIBXUL_SDK"; then
- if test -z "${GLIB_CFLAGS}" || test -z "${GLIB_LIBS}" ; then
-     if test "$MOZ_ENABLE_GTK2" || test "$USE_ELF_DYNSTR_GC" ; then
+ if test -z "${GLIB_CFLAGS}" -o -z "${GLIB_LIBS}" ; then
+     if test "$MOZ_ENABLE_GTK2" -o "$USE_ELF_DYNSTR_GC" ; then
          PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
-@@ -8459,7 +8482,7 @@ if test "$USING_HCC"; then
+@@ -9356,7 +9376,7 @@ else
  fi
  
  dnl Check for missing components
@@ -159,8 +147,8 @@ index 29c3c98..3c4d86a 100644
  if test "$MOZ_X11"; then
      dnl ====================================================
      dnl = Check if X headers exist
-@@ -8489,7 +8512,7 @@ if test "$MOZ_X11"; then
- fi # MOZ_X11
+@@ -9394,7 +9414,7 @@ if test -n "$MOZ_WEBGL_GLX"; then
+ fi # MOZ_WEBGL_GLX
  fi # COMPILE_ENVIRONMENT
  
 -if test "$USE_FC_FREETYPE"; then
