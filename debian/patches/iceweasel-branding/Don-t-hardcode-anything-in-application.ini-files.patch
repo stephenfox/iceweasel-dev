@@ -77,10 +77,10 @@ index 8a9fc33..822f13e 100644
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
  MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
 diff --git a/configure.in b/configure.in
-index a96a125..4c4559b 100644
+index 6fd17dc..fe238f4 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -8388,7 +8388,7 @@ fi
+@@ -8329,7 +8329,7 @@ fi
  AC_SUBST(JS_SHARED_LIBRARY)
  
  if test -n "$MOZ_STATIC_BUILD_UNSUPPORTED" -a -n "$BUILD_STATIC_LIBS"; then
@@ -89,7 +89,7 @@ index a96a125..4c4559b 100644
  fi
  
  if test -n "$MOZ_ENABLE_LIBXUL" -a -n "$BUILD_STATIC_LIBS"; then
-@@ -9134,8 +9134,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
+@@ -9075,8 +9075,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
  AC_SUBST(MOZ_TIMELINE)
  AC_SUBST(OGLES_SDK_DIR)
  

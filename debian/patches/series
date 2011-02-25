@@ -2,6 +2,14 @@ fixes/Allow-.js-preference-files-to-set-locked-prefs-with-.patch
 fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
+fixes/Bug-620931-part-1-Use-chrome-manifest-to-register-re.patch
+fixes/Bug-620931-part-2-When-building-with-libxul-sdk-use-.patch
+fixes/Bug-620931-part-3-Allow-GRE-and-XUL-application-to-u.patch
+fixes/Bug-620931-part-4-Fix-resource-app-to-always-point-t.patch
+fixes/Bug-620931-part-5-Enable-omni.jar-by-default-on-xulr.patch
+fixes/Bug-626035-Don-t-force-build-flags-upon-ARM-compiler.patch
+fixes/Bug-589744-Fallback-to-perf-measurement-stub-when-pe.patch
+fixes/Remove-ljs_static-from-test-linking-flags.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Don-t-hardcode-anything-in-application.ini-files.patch
@@ -40,4 +48,6 @@ debian-hacks/Resolve-GRE-directory-symbolic-link.patch
 debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/pkg-config-files-don-t-need-to-require-the-version-o.patch
 debian-hacks/Add-a-2-minutes-timeout-on-xpcshell-tests.patch
+debian-hacks/Fix-tracejit-to-build-against-nanojit-headers-in-dis.patch
+debian-hacks/Allow-to-build-against-system-nspr-4.8.6.patch
 configure.patch

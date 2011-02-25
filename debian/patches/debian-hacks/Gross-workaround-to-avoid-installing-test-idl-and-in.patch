@@ -9,7 +9,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=542749
  2 files changed, 22 insertions(+), 2 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index 035e6e5..df443f3 100644
+index 8fb2071..3384f03 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
 @@ -62,6 +62,16 @@ ifdef SDK_HEADERS
@@ -39,7 +39,7 @@ index 035e6e5..df443f3 100644
  endif # NO_DIST_INSTALL
  
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index 035e6e5..df443f3 100644
+index 8fb2071..3384f03 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
 @@ -62,6 +62,16 @@ ifdef SDK_HEADERS

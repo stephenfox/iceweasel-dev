@@ -13,7 +13,7 @@ be dlloaded() by the standalone xpcomglue.
  3 files changed, 40 insertions(+), 4 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index 3675b8b..035e6e5 100644
+index f97a14d..8fb2071 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
 @@ -288,6 +288,18 @@ else
@@ -96,7 +96,7 @@ index 64ffe4a..c3c7511 100644
  ifneq (,$(IMPORT_LIBRARY))
  	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index 3675b8b..035e6e5 100644
+index f97a14d..8fb2071 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
 @@ -288,6 +288,18 @@ else

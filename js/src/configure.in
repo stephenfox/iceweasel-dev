@@ -3477,7 +3477,22 @@ case $target in
 esac
 
 dnl Performance measurement headers.
-AC_CHECK_HEADER(linux/perf_event.h, HAVE_LINUX_PERF_EVENT_H=1)
+AC_CHECK_HEADER(linux/perf_event.h,
+    [AC_CACHE_CHECK(for perf_event_open system call,ac_cv_perf_even_open,
+        [AC_TRY_COMPILE([#include <sys/syscall.h>],[
+#ifdef __NR_perf_event_open
+    return 0
+#else
+#error no __NR_perf_event_open
+#endif
+        ],
+        ac_cv_perf_even_open=yes,
+        ac_cv_perf_even_open=no)])])
+if test "$ac_cv_perf_even_open" = "yes"; then
+    HAVE_LINUX_PERF_EVENT_H=1
+else
+    HAVE_LINUX_PERF_EVENT_H=
+fi
 AC_SUBST(HAVE_LINUX_PERF_EVENT_H)
 
 dnl Checks for libraries.
@@ -4076,6 +4091,25 @@ if test "$GNU_CC"; then
     else
         ARM_ABI_PREFIX=oabi-
     fi
+
+    AC_CACHE_CHECK(whether building for Thumb-2,
+        ac_cv_gcc_arm_thumb2,
+        [AC_TRY_COMPILE([],
+                        [
+#if defined(__thumb2__)
+  return 0;
+#else
+#error Not Thumb-2
+#endif
+                        ],
+                        ac_cv_gcc_arm_thumb2="yes",
+                        ac_cv_gcc_arm_thumb2="no")])
+    if test "$ac_cv_gcc_arm_thumb2" = "yes"; then
+        MOZ_THUMB2=1
+        AC_DEFINE(MOZ_THUMB2)
+    else
+        MOZ_THUMB2=
+    fi
   fi
 
   AC_CACHE_CHECK(for gcc 3.0 ABI,
@@ -4614,13 +4648,11 @@ MOZ_ARG_HEADER(Application)
 BUILD_STATIC_LIBS=
 ENABLE_TESTS=1
 
-MOZ_THUMB2=
 USE_ARM_KUSER=
 
 case "${target}" in
     arm-android-eabi)
         USE_ARM_KUSER=1
-        MOZ_THUMB2=1
         ;;
 esac
 
@@ -4665,81 +4697,6 @@ dnl = Module specific options
 dnl =
 dnl ========================================================
 MOZ_ARG_HEADER(Individual module options)
-
-dnl Setup default CPU arch for arm target
-case "$target_cpu" in
-  arm*)
-    MOZ_ARM_ARCH=armv7
-  ;;
-esac
-dnl ========================================================
-dnl = Enable building the Thumb2 instruction set
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(thumb2,
- [  --enable-thumb2         Enable Thumb2 instruction set (implies ARMv7)],
-    MOZ_THUMB2=1,
-    MOZ_THUMB2=)
-if test -n "$MOZ_THUMB2"; then
-  MOZ_ARM_ARCH=armv7
-fi
-
-dnl ========================================================
-dnl = Enable building for ARM specific CPU features
-dnl ========================================================
-MOZ_ARG_WITH_STRING(cpu-arch,
-[  --with-cpu-arch=arch      Use specific arm architecture CPU features, default armv7],
-    MOZ_ARM_ARCH=$withval)
-
-if test -n "$MOZ_THUMB2"; then
-  case "$target_cpu" in
-    arm*)
-      if test "$MOZ_ARM_ARCH" != "armv7"; then
-        AC_MSG_ERROR([--enable-thumb2 is not compatible with cpu-arch=$MOZ_ARM_ARCH])
-      fi
-      if test "$GNU_CC"; then
-        AC_DEFINE(MOZ_THUMB2)
-        AC_DEFINE(MOZ_ARM_ARCH)
-        CFLAGS="$CFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        CXXFLAGS="$CXXFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        ASFLAGS="$ASFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-      else
-        AC_MSG_ERROR([--enable-thumb2 is not supported for non-GNU toolchains])
-      fi
-    ;;
-    *)
-      AC_MSG_ERROR([--enable-thumb2 is not supported for non-ARM CPU architectures])
-    ;;
-  esac
-elif test "$MOZ_ARM_ARCH" = "armv7"; then
-  case "$target_cpu" in
-    arm*)
-      if test "$GNU_CC"; then
-        AC_DEFINE(MOZ_ARM_ARCH)
-        CFLAGS="$CFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        CXXFLAGS="$CXXFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        ASFLAGS="$ASFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-      else
-        AC_MSG_ERROR([--with-cpu-arch=armv7 is not supported for non-GNU toolchains])
-      fi
-    ;;
-    *)
-      AC_MSG_ERROR([--with-cpu-arch=armv7 is not supported for non-ARM CPU architectures])
-    ;;
-  esac
-else
-  case "$target_cpu" in
-    arm*)
-      if test "$GNU_CC"; then
-        CFLAGS="$CFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-        CXXFLAGS="$CXXFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-        ASFLAGS="$ASFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-      fi
-      ;;
-  esac
-fi
-
-AC_SUBST(MOZ_THUMB2)
-AC_SUBST(MOZ_ARM_ARCH)
 
 dnl ========================================================
 dnl =
@@ -5849,6 +5806,7 @@ AC_SUBST(USE_N32)
 AC_SUBST(CC_VERSION)
 AC_SUBST(CXX_VERSION)
 AC_SUBST(MSMANIFEST_TOOL)
+AC_SUBST(MOZ_THUMB2)
 
 if test "$USING_HCC"; then
    CC='${topsrcdir}/build/hcc'
@@ -6146,12 +6104,6 @@ if test "$JS_HAS_CTYPES" -a -z "$MOZ_NATIVE_FFI"; then
   fi
   if test "$OS_ARCH" = "OS2"; then
     ac_configure_args="$ac_configure_args CFLAGS=-Zomf AR=emxomfar"
-  fi
-  if test -n "$MOZ_THUMB2"; then
-    ac_configure_args="$ac_configure_args --enable-thumb2"
-  fi
-  if test -n "$MOZ_ARM_ARCH"; then
-    ac_configure_args="$ac_configure_args --with-cpu-arch=$MOZ_ARM_ARCH"
   fi
 
   # Use a separate cache file for libffi, since it does things differently

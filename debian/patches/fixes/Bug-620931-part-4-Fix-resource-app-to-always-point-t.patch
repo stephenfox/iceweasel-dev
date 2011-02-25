@@ -1,0 +1,48 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Fri, 25 Feb 2011 12:54:24 +0100
+Subject: Bug 620931 part 4 - Fix resource://app/ to always point to the same as resource:///
+
+---
+ netwerk/protocol/res/nsResProtocolHandler.cpp |    7 +++++++
+ toolkit/xre/nsXREDirProvider.cpp              |    3 ---
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/netwerk/protocol/res/nsResProtocolHandler.cpp b/netwerk/protocol/res/nsResProtocolHandler.cpp
+index cae9ee7..2feba96 100644
+--- a/netwerk/protocol/res/nsResProtocolHandler.cpp
++++ b/netwerk/protocol/res/nsResProtocolHandler.cpp
+@@ -79,6 +79,7 @@ static nsResProtocolHandler *gResHandler = nsnull;
+ static PRLogModuleInfo *gResLog;
+ #endif
+ 
++#define kAPP           NS_LITERAL_CSTRING("app")
+ #define kGRE           NS_LITERAL_CSTRING("gre")
+ 
+ //----------------------------------------------------------------------------
+@@ -184,6 +185,12 @@ nsResProtocolHandler::Init()
+     NS_ENSURE_SUCCESS(rv, rv);
+ 
+     //
++    // make resource://app/ point to the application directory or omnijar
++    //
++    rv = SetSubstitution(kAPP, uri);
++    NS_ENSURE_SUCCESS(rv, rv);
++
++    //
+     // make resource://gre/ point to the GRE directory
+     //
+     if (appURI.Length()) { // We already have greURI in uri if appURI.Length() is 0.
+diff --git a/toolkit/xre/nsXREDirProvider.cpp b/toolkit/xre/nsXREDirProvider.cpp
+index bbef3ca..2862b84 100644
+--- a/toolkit/xre/nsXREDirProvider.cpp
++++ b/toolkit/xre/nsXREDirProvider.cpp
+@@ -305,9 +305,6 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
+     if (NS_SUCCEEDED(rv))
+       file = lf;
+   }
+-  else if (!strcmp(aProperty, "resource:app")) {
+-    rv = GetAppDir()->Clone(getter_AddRefs(file));
+-  }
+ 
+   else if (!strcmp(aProperty, NS_APP_PROFILE_DIR_STARTUP) && mProfileDir) {
+     return mProfileDir->Clone(aFile);
