@@ -12,14 +12,10 @@ TESTS := check xpcshell-tests $(APP_TESTS)
 
 override_dh_auto_test: $(TESTS)
 
-build-iceweasel/dist/bin/distribution: $(CURDIR)/build-xulrunner/dist/bin/distribution
-	ln -s $< $@
-
 ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
-$(APP_TESTS): build-iceweasel/dist/bin/distribution
 $(APP_TESTS): export EXTRA_TEST_ARGS += --appname=$(CURDIR)/build-iceweasel/dist/bin/firefox
 $(APP_TESTS): export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
 $(APP_TESTS) xpcshell-tests: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
