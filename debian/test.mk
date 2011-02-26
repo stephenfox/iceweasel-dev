@@ -43,7 +43,7 @@ xpcshell-tests-skip:
 
 check-skip:
 # This one fails because it only works in an american time zone. bz#515254
-	rm -f js/src/trace-test/tests/sunspider/check-date-format-tofte.js
+	rm -f js/src/jit-test/tests/sunspider/check-date-format-tofte.js
 
 override_dh_auto_clean::
 	rm -rf debian/locales
