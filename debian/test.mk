@@ -38,19 +38,8 @@ $(TESTS):
 xpcshell-tests: $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 
 xpcshell-tests-skip:
-# APNG is not supported
-	rm -f build-xulrunner/_tests/xpcshell/test_libpr0n/unit/test_encoder_apng.js
-# Image tests fail because of the use of system library which don't give the same result
-	rm -f build-xulrunner/_tests/xpcshell/test_libpr0n/unit/test_encoder_png.js \
-	      build-xulrunner/_tests/xpcshell/test_libpr0n/unit/test_imgtools.js \
-	      build-xulrunner/_tests/xpcshell/test_places/unit/test_favicons.js
-# This one fails because it relies on a sqlite bug that is fixed in the system one
-# See http://hg.mozilla.org/mozilla-central/raw-rev/1192461c259d
-	rm -f build-xulrunner/_tests/xpcshell/test_storage/unit/test_storage_combined_sharing.js
 # This one fails because it supposes some kind of preexisting gnome/mailcap configuration
 	rm -f build-xulrunner/_tests/xpcshell/test_uriloader_exthandler/unit/test_handlerService.js
-# This one fails because of the patch from bz#527458. Anyways, if it failed, a lot of other tests would fail, too, so it is safe to ignore it
-	rm -f build-xulrunner/_tests/xpcshell/test_testing_xpcshell_example/unit/test_load_httpd_js.js
 
 check-skip:
 # This one fails because it only works in an american time zone. bz#515254
