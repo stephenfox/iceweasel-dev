@@ -57,7 +57,6 @@ toolkit/mozapps/installer/windows/nsis/ShellLink.dll
 toolkit/mozapps/installer/windows/nsis/UAC.dll
 toolkit/mozapps/installer/windows/nsis/nsProcess.dll
 other-licenses/7zstub
-other-licenses/branding
 netwerk/protocol/ftp/doc/rfc959.txt
 layout/html/tests
 layout/doc
