@@ -2079,15 +2079,15 @@ IMPL_RUNNABLE_ON_MAIN_THREAD_METHOD_BEGIN(FailConnection)
 
   if (mStatus < CONN_CONNECTED_AND_READY) {
     if (mCurrentProxyConfig == eResolvingProxyFailed) {
-      PrintErrorOnConsole("chrome://browser/locale/appstrings.properties",
+      PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
                           NS_LITERAL_STRING("proxyConnectFailure").get(),
                           nsnull, 0);
     }
-    PrintErrorOnConsole("chrome://browser/locale/appstrings.properties",
+    PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
                         NS_LITERAL_STRING("connectionFailure").get(),
                         formatStrings, NS_ARRAY_LENGTH(formatStrings));
   } else {
-    PrintErrorOnConsole("chrome://browser/locale/appstrings.properties",
+    PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
                         NS_LITERAL_STRING("netInterrupt").get(),
                         formatStrings, NS_ARRAY_LENGTH(formatStrings));
   }
