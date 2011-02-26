@@ -35,7 +35,7 @@ xpcshell-tests: $(if $(HAS_LOCALE),,debian/locales/$(LOCALE))
 
 xpcshell-tests-skip:
 # This one fails because it supposes some kind of preexisting gnome/mailcap configuration
-	rm -f build-xulrunner/_tests/xpcshell/test_uriloader_exthandler/unit/test_handlerService.js
+	rm -f build-xulrunner/_tests/xpcshell/uriloader/exthandler/tests/unit/test_handlerService.js
 
 check-skip:
 # This one fails because it only works in an american time zone. bz#515254
