@@ -4,5 +4,5 @@ bin/components/aboutIce.js
 bin/components/aboutIce.manifest
 #endif
 bin/chrome/ice.manifest
-bin/chrome/ice.jar
+bin/chrome/ice@JAREXT@
 

@@ -16,7 +16,11 @@ DEFINES += -DDLL_PREFIX=$(DLL_PREFIX) -DDLL_SUFFIX=$(DLL_SUFFIX) -DBIN_SUFFIX=$(
 ifeq (,$(filter 1.9.%,$(GRE_VERSION)))
 DEFINES += -DWITH_MANIFEST=1
 endif
+ifeq ($(MOZ_CHROME_FILE_FORMAT),jar)
 DEFINES += -DJAREXT=.jar
+else
+DEFINES += -DJAREXT=
+endif
 
 ifdef MOZ_IPC
 include $(topsrcdir)/ipc/app/defs.mk
