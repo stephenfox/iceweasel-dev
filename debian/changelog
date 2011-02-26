@@ -1,9 +1,129 @@
-iceweasel (4.0~b12-1) UNRELEASED; urgency=low
+iceweasel (4.0~b12-1) experimental; urgency=low
 
   * New upstream beta release.
+    - Properly build documents with overflow:hidden elements. Closes: #562996.
+    - window.alert dialogs are not popups any more. Closes: #239105.
+    - Upscaling of images uses bilinear filtering. Closes: #596774.
+    - Various improvements to the :visited css support to mitigate history
+      sniffing. Closes: #560108.
+    - Properly render SVG files with flowRoot. Closes: #513885.
+    - Fullscreen mode doesn't prevent proper search engine from being used.
+      Closes: #514939.
+    - Authentication dialogs are not really popups anymore, so focus problems
+      with them are fixed. Closes: #609768.
+    - Better focus handling with location bar vs. content. Closes: #611354.
+    - Various fixes for use with cairo 1.10, which most notably fixes
+      animated GIFs. Closes: #589576.
   * debian/rules: Handle beta versions in milestone check.
+  * This new version makes use of APNG files in the GUI that can't easily
+    be replaced with GIF versions, so we're switching back to the embedded
+    libpng library. As a consequence, the APNG related patches were dropped.
 
- -- Mike Hommey <glandium@debian.org>  Fri, 25 Feb 2011 11:42:30 +0100
+  * debian/copyright: Updated, but there are most probably still things
+    missing.
+  * debian/rules, config/autoconf.mk.in: Bump base version to 2.0.
+  * debian/rules:
+    - Don't modify application.ini on the beta release.
+    - Adjust dh_xulrunner test to match the removal of unixprint plugin.
+    - Add new variables for packages lists, as required by
+      toolkit/mozapps/installer/packager.mk.
+  * debian/control*:
+    - Add a build dependency on mesa-common-dev.
+    - libmozjs4d doesn't break xulrunner-1.9.2.
+    - Build depend on libvpx-dev.
+    - Build depend on libnss3-dev >= 3.12.9~beta2.
+    - Build depend on libcairo2-dev >= 1.10.2-2~ for tee surfaces.
+    - Remove build-dep on libpng12-dev.
+  * debian/xulrunner-GRE_VERSION.install.in,
+    debian/xulrunner-GRE_VERSION.links.in: Adapt dh_install and dh_link data
+    files to new files in built application.
+  * debian/symbols.filter, debian/rules: Don't filter libmozjs symbols.
+  * debian/libmozjsSO_VERSION.symbols.*, debian/rules: Don't provide a
+    symbols file yet.
+  * js/src/Makefile.in: Bump libmozjs version.
+  * debian/xulrunner.mozconfig:
+    - Use internal png library. Works-around: #486827.
+    - Use system libvpx.
+    - Build with shared js library.
+  * debian/iceweasel.mozconfig:
+    - Disable webm support to avoid failure to build against libxul. This
+      doesn't remove webm support from underlying xulrunner.
+    - Build iceweasel without omni.jar until I figure out what to do with the
+      default profile.
+  * debian/xulrunner-GRE_VERSION.prerm.in,
+    debian/xulrunner-GRE_VERSION.postinst.in: Fit to new component
+    registration. The new component registration doesn't create compreg.dat
+    and xpti.dat anymore, and .autoreg is not used either.
+    python-xpcom and other similarly integrated components won't register
+    automatically until I either implement something to do so, or these
+    components get integrated as extensions.
+  * debian/branding:
+    - Remove brandTrade entity, we don't need it anymore.
+    - browserconfig.properties is now installed in the chrome.
+    - branding doesn't use xpcnativewrappers=yes anymore.
+    - Add icon16.png and icon128.png to branding. These are required for
+      the new about:home.
+    - Add missing contentaccessible=yes in content/jar.mn.
+    - Modify for the new about dialog.
+    - Use about:home as homepage.
+  * debian/iceweasel.install, debian/iceweasel.links.in: Don't install
+    browserconfig.properties from usr/lib/iceweasel, it's not shipped
+    anymore.
+  * debian/iceweasel.install:
+    - Don't install .autoreg, it isn't used anymore.
+  * debian/installer/Makefile.in: Define JAREXT when building package manifest.
+  * debian/noinstall.in: LICENSE file is not installed anymore.
+  * debian/iceweasel.install, debian/xulrunner-GRE_VERSION.install.in:
+    Install chrome.manifest in GRE and APP directories.
+  * debian/rules, debian/vendor.js: Set general.useragent.compatMode.firefox
+    instead of general.useragent.extra.firefoxComment.
+  * debian/rules, debian/iceweasel.install: Install vendor.js with dh_install
+    instead of manually in debian/rules.
+  * debian/watch: Updated.
+  * debian/xulrunner-GRE_VERSION.install.in,
+    debian/xulrunner-GRE_VERSION.links.in: Install omni.jar files for
+    xulrunner.
+  * debian/installer/Makefile.in, debian/installer/package-manifest.browser:
+    Properly handle the various MOZ_CHROME_FILE_FORMATs in the package
+    manifests.
+  * debian/source.filter: Don't remove branding from source tarball, it's
+    free as in speech.
+  * debian/test.mk:
+    - Don't skip but a few xpcshell tests.
+    - xpcshell-tests now need a X server.
+    - Remove the check-date-format-tofte.js test from its new location.
+    - Remove the test_handlerService.js test from its new location.
+    - dist/bin/distribution is not needed anymore.
+
+  * js/src/tracejit/Writer.*: "Fix" tracejit to build against nanojit headers
+    in dist/include/nanojit.
+  * configure.in, configure:
+    - Don't take toolkit from the libxul sdk, it's not provided in
+      mozilla-config.h anymore.
+    - Allow to build against nspr 4.8.6.
+  * layout/style/jar.mn, netwerk/protocol/res/nsResProtocolHandler.cpp,
+    browser/locales/Makefile.in, ipc/glue/GeckoChildProcessHost.cpp,
+    js/src/xpconnect/loader/mozJSComponentLoader.cpp, modules/libjar/nsJAR.cpp,
+    modules/libpref/src/nsPrefService.cpp,
+    netwerk/protocol/res/nsResProtocolHandler.cpp,
+    startupcache/StartupCache.cpp, toolkit/xre/nsAppRunner.cpp,
+    toolkit/mozapps/installer/packager.mk, toolkit/xre/nsEmbedFunctions.cpp,
+    toolkit/xre/nsXREDirProvider.cpp, xpcom/build/Makefile.in,
+    xpcom/build/Omnijar.*, xpcom/build/nsXPComInit.cpp,
+    xpcom/components/nsComponentManager.cpp, xulrunner/confvars.sh: Add support
+    for omni.jar in xulrunner. bz#620931.
+  * configure.in, configure, js/src/configure.in, js/src/configure:
+    Don't force build flags upon ARM compilers. bz#626035.
+  * js/src/configure.in: Fallback to perf measurement stub when perf_event_open
+    syscall isn't supported. bz#589744.
+  * config/rules.mk, js/src/config/rules.mk: Remove -ljs_static from test
+    linking flags. part of bz#584474.
+  * content/base/src/nsWebSocket.cpp: Use chrome://global url instead of
+    chrome://browser for websockets errors. bz#636960.
+  * toolkit/xre/nsAppRunner.cpp: Restore DESKTOP_STARTUP_ID if a restart is
+    required. bz#607900.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 26 Feb 2011 11:13:10 +0100
 
 iceweasel (3.6.13-3) UNRELEASED; urgency=low
 
