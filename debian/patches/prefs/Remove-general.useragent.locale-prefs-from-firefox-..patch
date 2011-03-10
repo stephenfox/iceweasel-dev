@@ -9,7 +9,7 @@ It is better defined in the GRE provided by xulrunner-1.9
  2 files changed, 0 insertions(+), 2 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 4ee855a..00688b9 100644
+index ca8f9a4..5a29d96 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -220,7 +220,6 @@ pref("keyword.enabled", true);

@@ -699,10 +699,10 @@ index daca67c..62d252b 100644
  }
  
 diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
-index ac8e9af..68e85b9 100644
+index 1f1ddc8..30a5c7e 100644
 --- a/toolkit/xre/nsAppRunner.cpp
 +++ b/toolkit/xre/nsAppRunner.cpp
-@@ -3902,25 +3902,35 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
+@@ -3912,25 +3912,35 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
  #endif
  #endif
  

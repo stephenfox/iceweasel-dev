@@ -8,7 +8,7 @@ Subject: Determine which phishing shavar to use depending on MOZ_OFFICIAL
  2 files changed, 8 insertions(+), 0 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index ece0765..4ee855a 100644
+index a4e665e..ca8f9a4 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -747,7 +747,11 @@ pref("urlclassifier.alternate_error_page", "blocked");

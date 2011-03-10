@@ -8,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=542789
  1 files changed, 27 insertions(+), 17 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index c3c7511..fbff0a8 100644
+index 9bba79f..ce30745 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -256,6 +256,7 @@ INSTALLED_HEADERS = \
@@ -69,7 +69,7 @@ index c3c7511..fbff0a8 100644
  
  DASH_R		= -r
  
-@@ -837,7 +842,12 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
+@@ -838,7 +843,12 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
  SCRIPTS = js-config
  SDK_BINARY = js-config
  

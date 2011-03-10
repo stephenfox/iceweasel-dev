@@ -7,7 +7,7 @@ Subject: Don't register plugins if the MOZILLA_DISABLE_PLUGINS environment varia
  1 files changed, 25 insertions(+), 0 deletions(-)
 
 diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
-index 0ef1eef..c6d6a6c 100644
+index dd92396..b0363b7 100644
 --- a/modules/plugin/base/src/nsPluginHost.cpp
 +++ b/modules/plugin/base/src/nsPluginHost.cpp
 @@ -253,6 +253,24 @@ nsInvalidPluginTag::~nsInvalidPluginTag()

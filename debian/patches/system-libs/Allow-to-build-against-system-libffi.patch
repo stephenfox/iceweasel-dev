@@ -11,7 +11,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=551138
  4 files changed, 34 insertions(+), 3 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index b4eec90..64ffe4a 100644
+index fadd850..810b964 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -446,11 +446,20 @@ CPPSRCS += \

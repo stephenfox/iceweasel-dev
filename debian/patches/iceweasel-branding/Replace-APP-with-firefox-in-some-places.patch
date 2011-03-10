@@ -9,7 +9,7 @@ for iceweasel but for firefox. Hardcode firefox there.
  1 files changed, 10 insertions(+), 10 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 89814d8..ece0765 100644
+index 19e3336..a4e665e 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -59,10 +59,10 @@ pref("extensions.logging.enabled", false);

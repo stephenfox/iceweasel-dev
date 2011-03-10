@@ -8,10 +8,10 @@ Replaces the previous patch in a much simpler way.
  1 files changed, 13 insertions(+), 2 deletions(-)
 
 diff --git a/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp b/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
-index 6352f56..4892820 100644
+index b781255..f61f90b 100644
 --- a/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
 +++ b/uriloader/exthandler/unix/nsMIMEInfoUnix.cpp
-@@ -97,6 +97,12 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
+@@ -99,6 +99,12 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
  NS_IMETHODIMP
  nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
  {
@@ -24,7 +24,7 @@ index 6352f56..4892820 100644
    *_retval = PR_FALSE;
    nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
    if (!mimeInfo) {
-@@ -130,13 +136,18 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
+@@ -132,13 +138,18 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
    }
  #endif
  

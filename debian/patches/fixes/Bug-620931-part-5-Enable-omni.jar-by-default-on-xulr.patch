@@ -7,7 +7,7 @@ Subject: Bug 620931 part 5 - Enable omni.jar by default on xulrunner
  1 files changed, 1 insertions(+), 0 deletions(-)
 
 diff --git a/xulrunner/confvars.sh b/xulrunner/confvars.sh
-index fb23ddc..4f1410c 100755
+index 937da9c..20896cb 100755
 --- a/xulrunner/confvars.sh
 +++ b/xulrunner/confvars.sh
 @@ -41,6 +41,7 @@ MOZ_APP_DISPLAYNAME=XULRunner

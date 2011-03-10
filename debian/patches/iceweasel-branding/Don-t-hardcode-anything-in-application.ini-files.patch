@@ -77,7 +77,7 @@ index 8a9fc33..822f13e 100644
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
  MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
 diff --git a/configure.in b/configure.in
-index 6fd17dc..fe238f4 100644
+index 17dde91..b1665e5 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -8329,7 +8329,7 @@ fi

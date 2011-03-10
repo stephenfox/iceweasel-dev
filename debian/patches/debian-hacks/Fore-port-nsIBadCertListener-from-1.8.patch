@@ -14,10 +14,10 @@ embedding applications.
  create mode 100644 security/manager/ssl/public/nsIBadCertListener.idl
 
 diff --git a/security/manager/ssl/public/Makefile.in b/security/manager/ssl/public/Makefile.in
-index 2782984..5db8159 100644
+index fa84d3a..affd50a 100644
 --- a/security/manager/ssl/public/Makefile.in
 +++ b/security/manager/ssl/public/Makefile.in
-@@ -59,6 +59,7 @@ SDK_XPIDLSRCS = \
+@@ -60,6 +60,7 @@ SDK_XPIDLSRCS = \
  
  XPIDLSRCS = \
      nsISSLCertErrorDialog.idl \

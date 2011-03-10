@@ -14,8 +14,8 @@ export GRE_VERSION := 2.0
 # 4.0b5pre -> 4.0~b5~pre
 # That should ensure the proper ordering
 VERSION_FILTER := sed 's/\([0-9]\)\([a-z]\)/\1~\2/g'
-UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
-GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))
+UPSTREAM_VERSION := $(shell cat browser/config/version.txt)rc1
+GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))~rc1
 SO_VERSION := $(shell awk -F'[\t =]+' '$$1 == "SO_VERSION" {print $$2}' js/src/Makefile.in)
 # Last version in debian/changelog
 DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *// p')
@@ -306,7 +306,7 @@ override_dh_strip:
 	dh_strip -pspidermonkey-bin
 
 override_dh_makeshlibs:
-	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 2.0~b12)'
+	dh_makeshlibs -plibmozjs$(SO_VERSION) -V 'libmozjs$(SO_VERSION) (>= 2.0~rc1)'
 
 override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
