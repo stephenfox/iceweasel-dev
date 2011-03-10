@@ -1,0 +1,43 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 10 Mar 2011 10:07:48 +0100
+Subject: Use std::signbit when using js headers in C++
+
+---
+ js/src/jsnum.h   |    5 +++++
+ js/src/jsvalue.h |    5 +++++
+ 2 files changed, 10 insertions(+), 0 deletions(-)
+
+diff --git a/js/src/jsnum.h b/js/src/jsnum.h
+index 9548cf5..13a8baf 100644
+--- a/js/src/jsnum.h
++++ b/js/src/jsnum.h
+@@ -40,7 +40,12 @@
+ #ifndef jsnum_h___
+ #define jsnum_h___
+ 
++#ifdef __cplusplus
++#include <cmath>
++using std::signbit;
++#else
+ #include <math.h>
++#endif
+ #if defined(XP_WIN) || defined(XP_OS2)
+ #include <float.h>
+ #endif
+diff --git a/js/src/jsvalue.h b/js/src/jsvalue.h
+index 7baa2c4..f1d9fab 100644
+--- a/js/src/jsvalue.h
++++ b/js/src/jsvalue.h
+@@ -89,7 +89,12 @@
+ 
+ /* To avoid a circular dependency, pull in the necessary pieces of jsnum.h. */
+ 
++#ifdef __cplusplus
++#include <cmath>
++using std::signbit;
++#else
+ #include <math.h>
++#endif
+ #if defined(XP_WIN) || defined(XP_OS2)
+ #include <float.h>
+ #endif
