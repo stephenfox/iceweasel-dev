@@ -1,8 +1,14 @@
-iceweasel (4.0~rc1-1) UNRELEASED; urgency=low
+iceweasel (4.0~rc1-1) experimental; urgency=low
 
-  * 
+  * New upstream release candidate.
+    - Long link URLs are cropped in the middle instead of at the end.
+      Closes: #615853.
+  * debian/rules: Gross hack on the version checks to make it work with
+    RC, which claims to be final.
+  * js/src/jsnum.h, js/src/jsvalue.h: Use std::signbit when using js
+    headers in C++. Fixes FTBFS with -std=c++0x, which we use.
 
- -- Mike Hommey <glandium@debian.org>  Thu, 10 Mar 2011 08:36:56 +0100
+ -- Mike Hommey <glandium@debian.org>  Thu, 10 Mar 2011 10:19:52 +0100
 
 iceweasel (4.0~b12-1) experimental; urgency=low
 
