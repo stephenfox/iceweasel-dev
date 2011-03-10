@@ -40,7 +40,12 @@
 #ifndef jsnum_h___
 #define jsnum_h___
 
+#ifdef __cplusplus
+#include <cmath>
+using std::signbit;
+#else
 #include <math.h>
+#endif
 #if defined(XP_WIN) || defined(XP_OS2)
 #include <float.h>
 #endif
