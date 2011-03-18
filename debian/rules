@@ -64,6 +64,10 @@ ifeq (,$(filter armel i386 amd64 powerpc,$(DEB_BUILD_ARCH)))
 	CONFIGURE_FLAGS += --disable-ipc
 endif
 
+ifeq (,$(filter armel,$(DEB_BUILD_ARCH)))
+	CONFIGURE_FLAGS += --disable-methodjit
+endif
+
 ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --enable-debug
 endif
