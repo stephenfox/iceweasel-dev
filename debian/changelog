@@ -1,3 +1,9 @@
+iceweasel (4.0~rc2-1) UNRELEASED; urgency=low
+
+  * New upstream release candidate.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 19 Mar 2011 08:56:42 +0100
+
 iceweasel (4.0~rc1-1) experimental; urgency=low
 
   * New upstream release candidate.
