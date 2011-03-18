@@ -231,6 +231,7 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
                                type);
     }
   }
+  SetOffscreenFormat(format);
   mSize = size;
 }
 
