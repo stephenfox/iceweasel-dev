@@ -60,7 +60,7 @@ ifneq (,$(filter kfreebsd-% hurd-%,$(DEB_BUILD_ARCH)))
 	CONFIGURE_FLAGS += --disable-necko-wifi
 endif
 
-ifeq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
+ifeq (,$(filter armel i386 amd64 powerpc,$(DEB_BUILD_ARCH)))
 	CONFIGURE_FLAGS += --disable-ipc
 endif
 
