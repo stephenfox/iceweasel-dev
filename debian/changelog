@@ -1,8 +1,21 @@
-iceweasel (4.0~rc2-1) UNRELEASED; urgency=low
+iceweasel (4.0~rc2-1) experimental; urgency=low
 
   * New upstream release candidate.
+  * debian/rules: Modify gross hack on the version checks to make it work with
+    RC2, which claims to be final.
+  * debian/control*: Include our tee-enabled cairo NMU from mozilla.debian.net
+    in build dependencies.
+  * debian/rules:
+    - Add IPC support for powerpc.
+    - Disable methodjit on armel.
 
- -- Mike Hommey <glandium@debian.org>  Sat, 19 Mar 2011 08:56:42 +0100
+  * gfx/layers/basic/BasicImages.cpp: fix bad rendering of video with 16-bits
+    displays. bz#640588. Closes: #617475.
+  * configure*: Allow to build against SQLite 3.7.3 for backports.
+  * js/src/Makefile.in: Avoid "The cacheFlush support is missing on this
+    platform" error on alpha, ia64, mips and s390.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 19 Mar 2011 09:01:30 +0100
 
 iceweasel (4.0~rc1-1) experimental; urgency=low
 
