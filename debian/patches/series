@@ -13,6 +13,7 @@ fixes/Remove-ljs_static-from-test-linking-flags.patch
 fixes/Bug-636960-Use-chrome-global-url-instead-of-chrome-b.patch
 fixes/Use-std-signbit-when-using-js-headers-in-C.patch
 fixes/Bug-640588-Bad-rendering-of-webm-and-ogv-with-16-bit.patch
+fixes/Fix-FTBFS-in-IPC-on-Linux-PPC.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Don-t-hardcode-anything-in-application.ini-files.patch

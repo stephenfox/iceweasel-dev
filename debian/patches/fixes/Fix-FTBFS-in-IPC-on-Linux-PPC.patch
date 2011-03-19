@@ -1,0 +1,22 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Sat, 19 Mar 2011 11:38:31 +0100
+Subject: Fix FTBFS in IPC on Linux PPC
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=643112
+---
+ ipc/chromium/src/build/build_config.h |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/ipc/chromium/src/build/build_config.h b/ipc/chromium/src/build/build_config.h
+index 06ee253..f7293d9 100644
+--- a/ipc/chromium/src/build/build_config.h
++++ b/ipc/chromium/src/build/build_config.h
+@@ -57,7 +57,7 @@
+ #define ARCH_CPU_ARMEL 1
+ #define ARCH_CPU_32_BITS 1
+ #define WCHAR_T_IS_UNSIGNED 1
+-#elif defined(__ppc__)
++#elif defined(__ppc__) || defined(__powerpc__)
+ #define ARCH_CPU_PPC 1
+ #define ARCH_CPU_32_BITS 1
+ #else
