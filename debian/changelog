@@ -1,3 +1,12 @@
+iceweasel (4.0~rc2-2) experimental; urgency=low
+
+  * debian/rules: Actually disable methodjit on armel, instead of all other
+    architectures.
+  * ipc/chromium/src/build/build_config.h: Fix FTBFS in IPC on Linux PPC.
+    bz#643112.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 19 Mar 2011 11:42:44 +0100
+
 iceweasel (4.0~rc2-1) experimental; urgency=low
 
   * New upstream release candidate.
