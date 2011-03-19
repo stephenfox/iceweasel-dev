@@ -1,0 +1,20 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Fri, 18 Mar 2011 08:50:30 +0100
+Subject: Bug 640588 - "Bad rendering of webm and ogv with 16-bits displays on Linux" [r=jones.chris.g a-2.0=doug.turner]
+
+---
+ gfx/layers/basic/BasicImages.cpp |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/gfx/layers/basic/BasicImages.cpp b/gfx/layers/basic/BasicImages.cpp
+index 34d12ae..3307345 100644
+--- a/gfx/layers/basic/BasicImages.cpp
++++ b/gfx/layers/basic/BasicImages.cpp
+@@ -231,6 +231,7 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
+                                type);
+     }
+   }
++  SetOffscreenFormat(format);
+   mSize = size;
+ }
+ 

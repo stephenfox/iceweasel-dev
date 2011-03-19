@@ -8,7 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=542789
  1 files changed, 27 insertions(+), 17 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 9bba79f..ce30745 100644
+index a949fc3..909835c 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -256,6 +256,7 @@ INSTALLED_HEADERS = \
