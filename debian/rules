@@ -14,8 +14,8 @@ export GRE_VERSION := 2.0
 # 4.0b5pre -> 4.0~b5~pre
 # That should ensure the proper ordering
 VERSION_FILTER := sed 's/\([0-9]\)\([a-z]\)/\1~\2/g'
-UPSTREAM_VERSION := $(shell cat browser/config/version.txt)rc2
-GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))~rc2
+UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
+GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))
 SO_VERSION := $(shell awk -F'[\t =]+' '$$1 == "SO_VERSION" {print $$2}' js/src/Makefile.in)
 # Last version in debian/changelog
 DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *// p')
@@ -26,7 +26,9 @@ UPSTREAM_RELEASE := $(DEBIAN_VERSION:%-$(DEBIAN_RELEASE)=%)
 
 # Check if the GRE_VERSION defined above matches the actual milestone
 ifeq (,$(filter $(GRE_VERSION).%,$(subst ~,.,$(GRE_MILESTONE))))
+ifneq ($(GRE_VERSION),$(GRE_MILESTONE))
 $(error GRE_VERSION ($(GRE_VERSION)) doesn't match GRE_MILESTONE ($(GRE_MILESTONE)))
+endif
 endif
 
 # Check if the version in debian/changelog matches actual upstream version
