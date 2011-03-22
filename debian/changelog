@@ -1,3 +1,15 @@
+iceweasel (4.0-1) experimental; urgency=low
+
+  * New upstream release. It's actually the same as rc2.
+
+  * debian/rules: Adjust version checking for version 4.0.
+  * debian/control: Refreshed.
+
+  * ipc/chromium/Makefile.in: Fix FTBFS in IPC on Linux PPC, part 2.
+  * xpcom/base/nsDebugImpl.cpp: Fix FTBFS in xpcom/base on armv4t. bz#643779.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 22 Mar 2011 21:06:29 +0100
+
 iceweasel (4.0~rc2-2) experimental; urgency=low
 
   * debian/rules: Actually disable methodjit on armel, instead of all other
