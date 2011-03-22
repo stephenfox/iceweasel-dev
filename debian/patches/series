@@ -23,6 +23,7 @@ porting/Disable-optimization-on-alpha-for-the-url-classifier.patch
 porting/Add-xptcall-support-for-SH4-processors.patch
 porting/Build-the-test-plugin-on-GNU-kfreebsd.patch
 porting/Bug-638056-Avoid-The-cacheFlush-support-is-missing-o.patch
+porting/Fix-FTBFS-in-xpcom-base-on-armv4t.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch

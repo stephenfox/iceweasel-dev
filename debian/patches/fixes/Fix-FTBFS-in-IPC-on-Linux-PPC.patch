@@ -4,9 +4,22 @@ Subject: Fix FTBFS in IPC on Linux PPC
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=643112
 ---
+ ipc/chromium/Makefile.in              |    1 -
  ipc/chromium/src/build/build_config.h |    2 +-
- 1 files changed, 1 insertions(+), 1 deletions(-)
+ 2 files changed, 1 insertions(+), 2 deletions(-)
 
+diff --git a/ipc/chromium/Makefile.in b/ipc/chromium/Makefile.in
+index 00b834f..12505d6 100644
+--- a/ipc/chromium/Makefile.in
++++ b/ipc/chromium/Makefile.in
+@@ -247,7 +247,6 @@ ifdef OS_LINUX # {
+ CPPSRCS += \
+   atomicops_internals_x86_gcc.cc \
+   base_paths_linux.cc \
+-  data_pack.cc \
+   file_util_linux.cc \
+   file_version_info_linux.cc \
+   idle_timer_none.cc \
 diff --git a/ipc/chromium/src/build/build_config.h b/ipc/chromium/src/build/build_config.h
 index 06ee253..f7293d9 100644
 --- a/ipc/chromium/src/build/build_config.h

@@ -407,7 +407,7 @@ RealBreak()
    raise(SIGTRAP);
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
    asm("int $3");
-#elif defined(__arm__)
+#elif defined(__arm__) && (__ARM_ARCH__ >= 5)
    asm("BKPT #0");
 #elif defined(SOLARIS)
 #if defined(__i386__) || defined(__i386) || defined(__x86_64__)
