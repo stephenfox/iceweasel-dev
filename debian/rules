@@ -68,6 +68,7 @@ endif
 
 ifneq (,$(filter armel,$(DEB_BUILD_ARCH)))
 	CONFIGURE_FLAGS += --disable-methodjit
+	CFLAGS += -D__ARM_PCS
 endif
 
 ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
