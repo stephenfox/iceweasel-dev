@@ -1,3 +1,10 @@
+iceweasel (4.0-2) experimental; urgency=low
+
+  * debian/rules: Define __ARM_PCS when building on armel. Fixes FTBFS with
+    gcc 4.5 not declaring either __ARM_PCS or __ARM_PCS_VFP.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 23 Mar 2011 15:45:17 +0100
+
 iceweasel (4.0-1) experimental; urgency=low
 
   * New upstream release. It's actually the same as rc2.
