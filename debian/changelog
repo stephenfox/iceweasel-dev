@@ -1,3 +1,16 @@
+iceweasel (4.0-3) experimental; urgency=low
+
+  * accessible/src/base/TextUpdater.cpp: Fix crash @nsAccessible::AsHyperText()
+    bz#643906. Closes: #619637.
+  * configure*, gfx/ycbcr/Makefile.in: Avoid building arm neon code. bz#547946.
+  * js/src/xpconnect/src/xpcprivate.h,
+    js/src/xpconnect/src/xpccallcontext.cpp: Ensure XPCCallContext string
+    cache is aligned. bz#634594.
+  * gfx/ots/include/opentype-sanitiser.h: strict alignment issues when
+    displaying OpenType fonts. bz#643137.
+
+ -- Mike Hommey <glandium@debian.org>  Sun, 27 Mar 2011 14:23:44 +0200
+
 iceweasel (4.0-2) experimental; urgency=low
 
   * debian/rules: Define __ARM_PCS when building on armel. Fixes FTBFS with
