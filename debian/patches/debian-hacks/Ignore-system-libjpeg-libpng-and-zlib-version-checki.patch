@@ -10,10 +10,10 @@ internal version, which makes system library not used even though
  1 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index ddb8f4e..3f0bdf5 100644
+index ae91681..2e9a6f0 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4869,7 +4869,7 @@ else
+@@ -4864,7 +4864,7 @@ else
      AC_CHECK_LIB(jpeg, jpeg_destroy_compress, [SYSTEM_JPEG=1 JPEG_LIBS="-ljpeg $JPEG_LIBS"], SYSTEM_JPEG=, $JPEG_LIBS)
  fi
  
@@ -22,7 +22,7 @@ index ddb8f4e..3f0bdf5 100644
      LIBS="$JPEG_LIBS $LIBS"
      AC_TRY_COMPILE([ #include <stdio.h>
                       #include <sys/types.h>
-@@ -4909,7 +4909,7 @@ else
+@@ -4904,7 +4904,7 @@ else
      AC_CHECK_LIB(z, gzread, [SYSTEM_ZLIB=1 ZLIB_LIBS="-lz $ZLIB_LIBS"], 
  	[SYSTEM_ZLIB= ZLIB_CFLAGS= ZLIB_LIBS=], $ZLIB_LIBS)
  fi
@@ -31,7 +31,7 @@ index ddb8f4e..3f0bdf5 100644
      LIBS="$ZLIB_LIBS $LIBS"
      AC_TRY_COMPILE([ #include <stdio.h>
                       #include <string.h>
-@@ -4985,7 +4985,7 @@ else
+@@ -4980,7 +4980,7 @@ else
                   AC_MSG_ERROR([--with-system-png won't work because the system's libpng doesn't have APNG support]),
                   $_SAVE_PNG_LIBS)
  fi

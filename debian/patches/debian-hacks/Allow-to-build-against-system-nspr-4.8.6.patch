@@ -7,10 +7,10 @@ Subject: Allow to build against system nspr 4.8.6
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 3f0bdf5..70597ec 100644
+index 2e9a6f0..5e8a26d 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4720,7 +4720,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
+@@ -4715,7 +4715,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
      _USE_SYSTEM_NSPR=1 )
  
  if test -n "$_USE_SYSTEM_NSPR"; then

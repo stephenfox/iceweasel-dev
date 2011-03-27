@@ -7,7 +7,7 @@ Subject: Allow to build against SQLite 3.7.3
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 70597ec..4c14935 100644
+index 5e8a26d..9574088 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -130,7 +130,7 @@ GCONF_VERSION=1.2.1
