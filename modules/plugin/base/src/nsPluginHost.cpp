@@ -194,8 +194,9 @@ using mozilla::TimeStamp;
 // 0.12 force refresh due to quicktime pdf claim fix, bug 611197
 // 0.13 add architecture and list of invalid plugins, bug 616271
 // 0.14 force refresh due to locale comparison fix, bug 611296
+// 0.15 force refresh due to bug in reading Java plist MIME data, bug 638171
 // The current plugin registry version (and the maximum version we know how to read)
-static const char *kPluginRegistryVersion = "0.14";
+static const char *kPluginRegistryVersion = "0.15";
 // The minimum registry version we know how to read
 static const char *kMinimumRegistryVersion = "0.9";
 
@@ -454,13 +455,17 @@ nsPluginHost::GetInst()
 
 PRBool nsPluginHost::IsRunningPlugin(nsPluginTag * plugin)
 {
-  if (!plugin)
+  if (!plugin || !plugin->mEntryPoint) {
     return PR_FALSE;
+  }
 
-  for (int i = 0; i < plugin->mVariants; i++) {
-    nsNPAPIPluginInstance *instance = FindInstance(plugin->mMimeTypeArray[i]);
-    if (instance && instance->IsRunning())
+  for (PRUint32 i = 0; i < mInstances.Length(); i++) {
+    nsNPAPIPluginInstance *instance = mInstances[i].get();
+    if (instance &&
+        instance->GetPlugin() == plugin->mEntryPoint &&
+        instance->IsRunning()) {
       return PR_TRUE;
+    }
   }
 
   return PR_FALSE;

@@ -4465,8 +4465,22 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
     // via calls to ShowWindow.
     case WM_ACTIVATE:
       if (lParam != 0 && LOWORD(wParam) == WA_ACTIVE &&
-          IsWindow((HWND)lParam))
+          IsWindow((HWND)lParam)) {
+        // Check for Adobe Reader X sync activate message from their
+        // ime window and ignore. Fixes an annoying focus problem.
+        if ((InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+          PRUnichar szClass[10];
+          HWND focusWnd = (HWND)lParam;
+          if (IsWindowVisible(focusWnd) &&
+              GetClassNameW(focusWnd, szClass,
+                            sizeof(szClass)/sizeof(PRUnichar)) &&
+              !wcscmp(szClass, L"Edit") &&
+              !IsOurProcessWindow(focusWnd)) {
+            return;
+          }
+        }
         handled = PR_TRUE;
+      }
     break;
     // Wheel events forwarded from the child.
     case WM_MOUSEWHEEL:
@@ -7758,7 +7772,7 @@ HWND nsWindow::FindOurWindowAtPoint(const POINT& aPoint)
   return info.mOutHWND;
 }
 
-typedef DWORD (*GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
+typedef DWORD (WINAPI *GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
 
 // Determine whether the given HWND is the handle for the Elantech helper
 // window.  The helper window cannot be distinguished based on its

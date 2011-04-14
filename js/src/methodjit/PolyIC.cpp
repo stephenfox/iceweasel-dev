@@ -560,6 +560,7 @@ class SetPropCompiler : public PICStubCompiler
              * populate the slot to satisfy the method invariant (in case we
              * hit an early return below).
              */
+            id = js_CheckForStringIndex(id);
             const Shape *shape =
                 obj->putProperty(cx, id, getter, clasp->setProperty,
                                  SHAPE_INVALID_SLOT, JSPROP_ENUMERATE, flags, 0);
@@ -2268,12 +2269,7 @@ GetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsi
         LoadFromTypedArray(masm, tarray, addr, typeReg, objReg);
     }
 
-    Jump done1 = masm.jump();
-
-    outOfBounds.linkTo(masm.label(), &masm);
-    masm.loadValueAsComponents(UndefinedValue(), typeReg, objReg);
-
-    Jump done2 = masm.jump();
+    Jump done = masm.jump();
 
     PICLinker buffer(masm, *this);
     if (!buffer.init(cx))
@@ -2283,8 +2279,8 @@ GetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsi
         return disable(cx, "code memory is out of range");
 
     buffer.link(claspGuard, slowPathStart);
-    buffer.link(done1, fastPathRejoin);
-    buffer.link(done2, fastPathRejoin);
+    buffer.link(outOfBounds, slowPathStart);
+    buffer.link(done, fastPathRejoin);
 
     CodeLocationLabel cs = buffer.finalizeCodeAddendum();
     JaegerSpew(JSpew_PICs, "generated getelem typed array stub at %p\n", cs.executableAddress());
