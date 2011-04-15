@@ -254,24 +254,6 @@ nsInvalidPluginTag::~nsInvalidPluginTag()
   
 }
 
-// Globally disable plugins
-static
-int pluginsdisabled()
-{
-  static int _disabled = -1;
-
-  if (_disabled >= 0)
-    return _disabled;
-
-  const char *env = PR_GetEnv("MOZILLA_DISABLE_PLUGINS");
-  if (env && env[0])
-    _disabled = 1;
-  else
-    _disabled = 0;
-
-  return _disabled;
-}
-
 // flat file reg funcs
 static
 PRBool ReadSectionHeader(nsPluginManifestLineReader& reader, const char *token)
@@ -415,6 +397,10 @@ nsPluginHost::nsPluginHost()
       mPluginsDisabled = tmp;
     }
   }
+
+  const char *env = PR_GetEnv("MOZILLA_DISABLE_PLUGINS");
+  if (env && env[0])
+    mPluginsDisabled = PR_TRUE;
 
   nsCOMPtr<nsIObserverService> obsService =
     mozilla::services::GetObserverService();
@@ -2567,10 +2553,6 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   // possible reset in subsequent ScanPluginsDirectory calls
   PRBool pluginschanged = PR_FALSE;
 
-  if (pluginsdisabled()) {
-    mPluginsLoaded = PR_TRUE;
-    return NS_OK;
-  }
   // Scan the app-defined list of plugin dirs.
   rv = dirService->Get(NS_APP_PLUGINS_DIR_LIST, NS_GET_IID(nsISimpleEnumerator), getter_AddRefs(dirList));
   if (NS_SUCCEEDED(rv)) {
@@ -2927,9 +2909,6 @@ nsPluginHost::WritePluginInfo()
 nsresult
 nsPluginHost::ReadPluginInfo()
 {
-  if (pluginsdisabled())
-    return NS_ERROR_FAILURE;
-
   nsresult rv;
 
   nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID,&rv));
