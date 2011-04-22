@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 18 Mar 2011 08:50:30 +0100
-Subject: Bug 640588 - "Bad rendering of webm and ogv with 16-bits displays on Linux" [r=jones.chris.g a-2.0=doug.turner]
+Subject: Bug 640588 - "Bad rendering of webm and ogv with 16-bits displays on
+ Linux" [r=jones.chris.g a-2.0=doug.turner]
 
 ---
  gfx/layers/basic/BasicImages.cpp |    1 +

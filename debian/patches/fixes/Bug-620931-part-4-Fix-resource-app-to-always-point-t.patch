@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 25 Feb 2011 12:54:24 +0100
-Subject: Bug 620931 part 4 - Fix resource://app/ to always point to the same as resource:///
+Subject: Bug 620931 part 4 - Fix resource://app/ to always point to the same
+ as resource:///
 
 ---
  netwerk/protocol/res/nsResProtocolHandler.cpp |    7 +++++++

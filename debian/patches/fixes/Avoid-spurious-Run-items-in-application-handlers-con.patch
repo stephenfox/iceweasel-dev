@@ -1,6 +1,7 @@
 From: Mike Hommey <glandium@debian.org>
 Date: Thu, 10 Jul 2008 21:40:08 +0200
-Subject: Avoid spurious "Run" items in application handlers configuration pane
+Subject: Avoid spurious "Run" items in application handlers configuration
+ pane
 
 ---
  browser/components/preferences/applications.js |    1 +

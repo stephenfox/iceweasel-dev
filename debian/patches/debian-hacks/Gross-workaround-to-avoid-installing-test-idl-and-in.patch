@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 27 Jan 2010 17:47:57 +0100
-Subject: Gross workaround to avoid installing test idl and include files in the SDK
+Subject: Gross workaround to avoid installing test idl and include files in
+ the SDK
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=542749
 ---

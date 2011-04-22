@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Sat, 26 Feb 2011 10:11:39 +0100
-Subject: Bug 636960 - Use chrome://global url instead of chrome://browser for websockets errors
+Subject: Bug 636960 - Use chrome://global url instead of chrome://browser for
+ websockets errors
 
 ---
  content/base/src/nsWebSocket.cpp |    6 +++---

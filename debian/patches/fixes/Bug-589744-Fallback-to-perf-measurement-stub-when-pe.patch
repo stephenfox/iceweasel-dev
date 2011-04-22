@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 25 Feb 2011 13:35:48 +0100
-Subject: Bug 589744 - Fallback to perf measurement stub when perf_event_open syscall isn't supported
+Subject: Bug 589744 - Fallback to perf measurement stub when perf_event_open
+ syscall isn't supported
 
 ---
  js/src/configure.in |   17 ++++++++++++++++-

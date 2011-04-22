@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 25 Feb 2011 12:48:02 +0100
-Subject: Bug 620931 part 1 - Use chrome manifest to register resource://gre-resources/
+Subject: Bug 620931 part 1 - Use chrome manifest to register
+ resource://gre-resources/
 
 ---
  layout/style/jar.mn                           |    2 ++

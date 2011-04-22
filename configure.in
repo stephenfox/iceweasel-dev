@@ -2738,6 +2738,7 @@ ia64*-hpux*)
     RC=rc.exe
     RCFLAGS='-n'
     MOZ_USER_DIR="Mozilla"
+    ZIP="$ZIP -X"
 
     if test "$MOZTOOLS"; then
         MOZ_TOOLS_DIR=`echo $MOZTOOLS | sed -e 's|\\\\|/|g'`
@@ -8966,6 +8967,10 @@ fi
 
 if test "$MOZ_APP_COMPONENT_INCLUDE"; then
   AC_DEFINE_UNQUOTED(MOZ_APP_COMPONENT_INCLUDE, "$MOZ_APP_COMPONENT_INCLUDE")
+fi
+
+if test "$MOZ_APP_COMPONENT_MODULES"; then
+  AC_DEFINE_UNQUOTED(MOZ_APP_COMPONENT_MODULES, $MOZ_APP_COMPONENT_MODULES)
 fi
 
 dnl ========================================================

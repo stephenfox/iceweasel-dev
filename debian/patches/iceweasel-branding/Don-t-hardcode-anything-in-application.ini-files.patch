@@ -49,7 +49,7 @@ index 0f2cb3a..008b8c3 100644
  #ifdef MOZ_SOURCE_REPO
  SourceRepository=@MOZ_SOURCE_REPO@
 diff --git a/browser/confvars.sh b/browser/confvars.sh
-index 534d182..b62bd2a 100755
+index 4a234d9..7ea3aaa 100755
 --- a/browser/confvars.sh
 +++ b/browser/confvars.sh
 @@ -36,7 +36,8 @@
@@ -77,10 +77,10 @@ index 8a9fc33..822f13e 100644
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
  MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
 diff --git a/configure.in b/configure.in
-index 17dde91..b1665e5 100644
+index 76a8afc..5987894 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -8329,7 +8329,7 @@ fi
+@@ -8330,7 +8330,7 @@ fi
  AC_SUBST(JS_SHARED_LIBRARY)
  
  if test -n "$MOZ_STATIC_BUILD_UNSUPPORTED" -a -n "$BUILD_STATIC_LIBS"; then
@@ -89,7 +89,7 @@ index 17dde91..b1665e5 100644
  fi
  
  if test -n "$MOZ_ENABLE_LIBXUL" -a -n "$BUILD_STATIC_LIBS"; then
-@@ -9075,8 +9075,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
+@@ -9080,8 +9080,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
  AC_SUBST(MOZ_TIMELINE)
  AC_SUBST(OGLES_SDK_DIR)
  

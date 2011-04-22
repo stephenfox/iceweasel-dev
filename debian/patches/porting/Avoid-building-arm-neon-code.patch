@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=547946
  2 files changed, 2 insertions(+), 5 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index b1665e5..2b00889 100644
+index 5987894..3f130ae 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -3677,10 +3677,6 @@ AC_SUBST(HAVE_ARM_SIMD)
+@@ -3678,10 +3678,6 @@ AC_SUBST(HAVE_ARM_SIMD)
  
  AC_MSG_CHECKING(for ARM NEON support in compiler)
  _SAVE_CFLAGS="$CFLAGS"
@@ -23,7 +23,7 @@ index b1665e5..2b00889 100644
  # We try to link so that this also fails when
  # building with LTO.
  AC_TRY_LINK([],
-@@ -3691,7 +3687,6 @@ if test "$result" = "yes"; then
+@@ -3692,7 +3688,6 @@ if test "$result" = "yes"; then
      AC_DEFINE(HAVE_ARM_NEON)
      HAVE_ARM_NEON=1
  fi

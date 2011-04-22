@@ -1,6 +1,7 @@
 From: Landry Breuil <landry@openbsd.org>
 Date: Fri, 25 Mar 2011 04:04:18 -3600
-Subject: Bug 643137 - strict alignment issues when displaying OpenType fonts on sparc64. r=roc
+Subject: Bug 643137 - strict alignment issues when displaying OpenType fonts
+ on sparc64. r=roc
 
 ---
  gfx/ots/include/opentype-sanitiser.h |    6 ++++--

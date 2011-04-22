@@ -1,6 +1,7 @@
 From: Luke Wagner <lw@mozilla.com>
 Date: Wed, 16 Feb 2011 16:43:15 -0800
-Subject: Bug 634594 - Ensure XPCCallContext string cache is aligned (r=mrbkap,a=pavlov)
+Subject: Bug 634594 - Ensure XPCCallContext string cache is aligned
+ (r=mrbkap,a=pavlov)
 
 ---
  js/src/xpconnect/src/xpccallcontext.cpp |   44 ++++++------------------------

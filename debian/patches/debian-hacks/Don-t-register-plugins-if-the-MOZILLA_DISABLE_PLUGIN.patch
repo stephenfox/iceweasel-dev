@@ -1,16 +1,17 @@
 From: Mike Hommey <glandium@debian.org>
 Date: Sat, 27 Sep 2008 17:17:39 +0200
-Subject: Don't register plugins if the MOZILLA_DISABLE_PLUGINS environment variable is set
+Subject: Don't register plugins if the MOZILLA_DISABLE_PLUGINS environment
+ variable is set
 
 ---
  modules/plugin/base/src/nsPluginHost.cpp |   25 +++++++++++++++++++++++++
  1 files changed, 25 insertions(+), 0 deletions(-)
 
 diff --git a/modules/plugin/base/src/nsPluginHost.cpp b/modules/plugin/base/src/nsPluginHost.cpp
-index dd92396..b0363b7 100644
+index c3aede4..ff385a1 100644
 --- a/modules/plugin/base/src/nsPluginHost.cpp
 +++ b/modules/plugin/base/src/nsPluginHost.cpp
-@@ -253,6 +253,24 @@ nsInvalidPluginTag::~nsInvalidPluginTag()
+@@ -254,6 +254,24 @@ nsInvalidPluginTag::~nsInvalidPluginTag()
    
  }
  
@@ -35,7 +36,7 @@ index dd92396..b0363b7 100644
  // flat file reg funcs
  static
  PRBool ReadSectionHeader(nsPluginManifestLineReader& reader, const char *token)
-@@ -2544,6 +2562,10 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
+@@ -2549,6 +2567,10 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
    // possible reset in subsequent ScanPluginsDirectory calls
    PRBool pluginschanged = PR_FALSE;
  
@@ -46,7 +47,7 @@ index dd92396..b0363b7 100644
    // Scan the app-defined list of plugin dirs.
    rv = dirService->Get(NS_APP_PLUGINS_DIR_LIST, NS_GET_IID(nsISimpleEnumerator), getter_AddRefs(dirList));
    if (NS_SUCCEEDED(rv)) {
-@@ -2900,6 +2922,9 @@ nsPluginHost::WritePluginInfo()
+@@ -2905,6 +2927,9 @@ nsPluginHost::WritePluginInfo()
  nsresult
  nsPluginHost::ReadPluginInfo()
  {

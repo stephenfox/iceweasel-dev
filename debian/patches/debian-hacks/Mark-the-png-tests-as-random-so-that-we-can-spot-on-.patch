@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Mon, 22 Mar 2010 15:21:41 +0100
-Subject: Mark the png tests as random so that we can spot on what architecture they fail
+Subject: Mark the png tests as random so that we can spot on what
+ architecture they fail
 
 https://bugzilla.mozilla.org/show_bug.cgi?id=471917
 ---

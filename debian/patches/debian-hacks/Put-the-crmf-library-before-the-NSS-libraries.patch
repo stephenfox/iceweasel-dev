@@ -7,10 +7,10 @@ Subject: Put the crmf library before the NSS libraries
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 44abf04..ae91681 100644
+index 8ee0eec..9c50f92 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4801,7 +4801,7 @@ if test -n "$_USE_SYSTEM_NSS"; then
+@@ -4802,7 +4802,7 @@ if test -n "$_USE_SYSTEM_NSS"; then
  fi
  
  if test -n "$MOZ_NATIVE_NSS"; then

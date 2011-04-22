@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Wed, 10 Nov 2010 08:41:03 +0100
-Subject: Fix tracejit to build against nanojit headers in dist/include/nanojit
+Subject: Fix tracejit to build against nanojit headers in
+ dist/include/nanojit
 
 ---
  js/src/tracejit/Writer.cpp |    2 +-

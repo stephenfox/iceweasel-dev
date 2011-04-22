@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 25 Feb 2011 12:53:36 +0100
-Subject: Bug 620931 part 3 - Allow GRE and XUL application to use omni.jar independently
+Subject: Bug 620931 part 3 - Allow GRE and XUL application to use omni.jar
+ independently
 
 We now store two independent locations for an omni.jar, allowing GRE/XRE and
 XUL application to each have their own omni.jar. And since xulrunner setups
@@ -294,10 +295,10 @@ index 7296fc1..4b9bcf7 100644
  
  /* static */
 diff --git a/modules/libjar/nsJAR.cpp b/modules/libjar/nsJAR.cpp
-index 9e2df71..becadd6 100644
+index 0738948..336511e 100644
 --- a/modules/libjar/nsJAR.cpp
 +++ b/modules/libjar/nsJAR.cpp
-@@ -175,16 +175,13 @@ nsJAR::Open(nsIFile* zipFile)
+@@ -176,16 +176,13 @@ nsJAR::Open(nsIFile* zipFile)
    mLock = PR_NewLock();
    NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
    
@@ -318,8 +319,8 @@ index 9e2df71..becadd6 100644
  }
  
 @@ -239,13 +236,12 @@ nsJAR::Close()
+   mGlobalStatus = JAR_MANIFEST_NOT_PARSED;
    mTotalItemsInManifest = 0;
-   mOuterZipEntry.Truncate(0);
  
 -#ifdef MOZ_OMNIJAR
 -  if (mZip == mozilla::OmnijarReader()) {

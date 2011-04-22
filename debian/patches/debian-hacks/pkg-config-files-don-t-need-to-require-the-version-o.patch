@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Tue, 7 Sep 2010 08:52:43 +0200
-Subject: pkg-config files don't need to require the version of nspr xulrunner was built against
+Subject: pkg-config files don't need to require the version of nspr xulrunner
+ was built against
 
 ---
  xulrunner/installer/libxul.pc.in      |    2 +-

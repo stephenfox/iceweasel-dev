@@ -8,10 +8,10 @@ Subject: Bug 626035 - Don't force build flags upon ARM compilers
  2 files changed, 40 insertions(+), 167 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 4563bc0..17dde91 100644
+index 053e5c8..76a8afc 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4193,6 +4193,25 @@ if test "$GNU_CC"; then
+@@ -4194,6 +4194,25 @@ if test "$GNU_CC"; then
      else
          ARM_ABI_PREFIX=oabi-
      fi
@@ -37,7 +37,7 @@ index 4563bc0..17dde91 100644
    fi
  
    AC_CACHE_CHECK(for gcc 3.0 ABI,
-@@ -5070,7 +5089,6 @@ MOZ_SPELLCHECK=1
+@@ -5071,7 +5090,6 @@ MOZ_SPELLCHECK=1
  MOZ_SPLASHSCREEN=
  MOZ_STORAGE=1
  MOZ_SVG=1
@@ -45,7 +45,7 @@ index 4563bc0..17dde91 100644
  MOZ_TIMELINE=
  MOZ_TOOLKIT_SEARCH=1
  MOZ_UI_LOCALE=en-US
-@@ -5124,7 +5142,6 @@ case "${target}" in
+@@ -5125,7 +5143,6 @@ case "${target}" in
          USE_ARM_KUSER=1
          MOZ_INSTALLER=
          NECKO_WIFI=
@@ -53,7 +53,7 @@ index 4563bc0..17dde91 100644
          MOZ_THEME_FASTSTRIPE=1
          MOZ_TREE_FREETYPE=1
          MOZ_MEMORY=1
-@@ -7231,7 +7248,6 @@ if test $MOZ_PLATFORM_MAEMO; then
+@@ -7232,7 +7249,6 @@ if test $MOZ_PLATFORM_MAEMO; then
           fi
        fi
  
@@ -61,7 +61,7 @@ index 4563bc0..17dde91 100644
     fi
  
     PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
-@@ -7260,81 +7276,6 @@ if test $MOZ_PLATFORM_MAEMO; then
+@@ -7261,81 +7277,6 @@ if test $MOZ_PLATFORM_MAEMO; then
     AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
  fi
  
@@ -143,7 +143,7 @@ index 4563bc0..17dde91 100644
  dnl ========================================================
  dnl = faststripe theme
  dnl ========================================================
-@@ -9302,6 +9243,7 @@ AC_SUBST(VPX_AS_CONVERSION)
+@@ -9307,6 +9248,7 @@ AC_SUBST(VPX_AS_CONVERSION)
  AC_SUBST(VPX_ASM_SUFFIX)
  AC_SUBST(VPX_X86_ASM)
  AC_SUBST(VPX_ARM_ASM)
@@ -151,7 +151,7 @@ index 4563bc0..17dde91 100644
  
  if test "$USING_HCC"; then
     CC='${topsrcdir}/build/hcc'
-@@ -9599,12 +9541,6 @@ unset CONFIG_FILES
+@@ -9604,12 +9546,6 @@ unset CONFIG_FILES
  # No need to run subconfigures when building with LIBXUL_SDK_DIR
  if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
  

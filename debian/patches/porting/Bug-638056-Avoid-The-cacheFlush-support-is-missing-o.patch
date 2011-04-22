@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 18 Mar 2011 09:25:57 +0100
-Subject: Bug 638056 - Avoid "The cacheFlush support is missing on this platform" error on exotic platforms
+Subject: Bug 638056 - Avoid "The cacheFlush support is missing on this
+ platform" error on exotic platforms
 
 ---
  js/src/Makefile.in |    2 +-

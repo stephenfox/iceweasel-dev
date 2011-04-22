@@ -1,6 +1,7 @@
 From: Mike Hommey <mh@glandium.org>
 Date: Fri, 25 Feb 2011 12:49:19 +0100
-Subject: Bug 620931 part 2 - When building --with-libxul-sdk, use the right preferences directory
+Subject: Bug 620931 part 2 - When building --with-libxul-sdk, use the right
+ preferences directory
 
 ---
  browser/locales/Makefile.in           |    2 +-
@@ -21,7 +22,7 @@ index c48180b..ce6ebaa 100644
  
  
 diff --git a/toolkit/mozapps/installer/packager.mk b/toolkit/mozapps/installer/packager.mk
-index 554ef91..d02e027 100644
+index 5583d0b..8cf7c38 100644
 --- a/toolkit/mozapps/installer/packager.mk
 +++ b/toolkit/mozapps/installer/packager.mk
 @@ -312,7 +312,7 @@ OMNIJAR_FILES	= \
