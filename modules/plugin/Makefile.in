@@ -53,7 +53,7 @@ DIRS		+= base/src
 #  buildable on other non-GTK unix builds
 
 ifdef ENABLE_TESTS
-ifneq (,$(filter WINNT Darwin Linux OS2 SunOS GNU_kFreeBSD,$(OS_ARCH)))
+ifneq (,$(filter gtk2 cocoa windows android qt os2,$(MOZ_WIDGET_TOOLKIT)))
 DIRS += test
 TOOL_DIRS += sdk
 endif
