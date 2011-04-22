@@ -1,8 +1,57 @@
-iceweasel (4.0.1-1) UNRELEASED; urgency=low
+iceweasel (4.0.1-1) experimental; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2011-{12,17-18}, also known as
+    CVE-2011-0079, CVE-2011-0081, CVE-2011-0069, CVE-2011-0070,
+    CVE-2011-0068, CVE-2011-1202.
 
- -- Mike Hommey <glandium@debian.org>  Fri, 22 Apr 2011 11:23:53 +0200
+  * debian/rules, toolkit/components/url-classifier/src/Makefile.in:
+    Remove alpha specific thungs because it is unsure they still have any
+    positive effect, and alpha has many other problems that would need fixing
+    if porters care.
+
+  * modules/libpr0n/encoders/png/nsPNGEncoder.cpp: Now that we use the bundled
+    PNG library, revert patch to use png_set_filter to avoid using write
+    filters.
+  * browser/app/Makefile.in, browser/app/profile/firefox.js,
+    browser/components/safebrowsing/Makefile.in,
+    browser/components/safebrowsing/content/application.js: Use
+    MOZ_OFFICIAL_BRANDING instead of MOZILLA_OFFICIAL to choose the shavar to
+    use for safebrowsing.
+  * modules/plugin/Makefile.in: Filter by toolkit instead of by OS to decide
+    whether to go into modules/plugin/test.
+  * xulrunner/app/xulrunner.js: Don't set extensions.dss.enabled at the XRE
+    level. It looks like the addons manager bug this would circumventing has
+    been fixed since 3.6.
+  * modules/plugin/base/src/nsPluginHost.cpp: Simplify MOZILLA_DISABLE_PLUGINS
+    environment variable handling.
+  * modules/libpr0n/test/reftest/pngsuite-ancillary/reftest.list: Revert what
+    was supposed to be a temporary patch.
+  * browser/components/build/Makefile.in: Revert our patch to link against
+    nspr, this was fixed upstream in a different location.
+  * security/manager/ssl/public/Makefile.in,
+    security/manager/ssl/public/nsIBadCertListener.idl,
+    security/manager/ssl/src/nsNSSIOLayer.*: Embedding as it existed is going
+    to go away in 5.0, don't fool ourselves in keeping that any longer.
+  * ipc/chromium/src/build/build_config.h: Add mips, hppa, ia64, s390 and sparc
+    defines.
+  * configure.in, gfx/ycbcr/Makefile.in: Reverted patch to avoid building ARM
+    neon code.
+  * gfx/ycbcr/yuv_convert_arm.cpp: Allow to build on armv4t.
+  * gfx/ycbcr/yuv_convert.cpp: Do runtime detection of NEON in
+    ConvertYCbCrToRGB565.
+  * xpcom/base/nsDebugImpl.cpp: Fix FTBFS in xpcom/base on armv4t differently.
+  * js/src/nanojit/NativeARM.cpp: Force NativeARM.o to have arch armv4t in its
+    .ARM.attributes.
+  * js/src/jsnum.h, js/src/jsvalue.h: Don't use std::signbit, and replace
+    JSDOUBLE_IS_* definitions with bitwise operations. bz#640494.
+  * js/src/shell/jsworkers.cpp: Get rid of STL algorithm use. bz#640494.
+  * js/src/configure.in: Update to landed version of bz#589744.
+  * configure.in, js/src/configure.in: Updated to latest version of bz#626035.
+
+  * debian/rules: Enable IPC on all architectures.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 29 Apr 2011 08:01:15 +0200
 
 iceweasel (4.0-3) experimental; urgency=low
 
