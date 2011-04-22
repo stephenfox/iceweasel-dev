@@ -178,7 +178,7 @@ build-iceweasel/%/filelist: stamps/build-iceweasel build-iceweasel/%/Makefile
 	$(MAKE) -C build-iceweasel/$* MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-iceweasel/$*/dist BRANDING_TEST=1
 	cd build-iceweasel/$*/dist/bin && find -type f | sort > $(CURDIR)/$@
 
-stamps/build-check-iceweasel:: build-iceweasel/browser/branding/unofficial/filelist build-iceweasel/debian/branding/filelist
+stamps/build-check-iceweasel:: build-iceweasel/other-licenses/branding/firefox/filelist build-iceweasel/debian/branding/filelist
 # Ensure the iceweasel branding contains everything it's supposed to
 	diff $^
 
