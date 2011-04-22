@@ -1,7 +1,6 @@
 fixes/Allow-.js-preference-files-to-set-locked-prefs-with-.patch
 fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
-fixes/Use-png_set_filter-to-make-libpng-not-use-write-filt.patch
 fixes/Bug-620931-part-1-Use-chrome-manifest-to-register-re.patch
 fixes/Bug-620931-part-2-When-building-with-libxul-sdk-use-.patch
 fixes/Bug-620931-part-3-Allow-GRE-and-XUL-application-to-u.patch
@@ -20,7 +19,6 @@ iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Don-t-hardcode-anything-in-application.ini-files.patch
 iceweasel-branding/Replace-APP-with-firefox-in-some-places.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
-porting/Disable-optimization-on-alpha-for-the-url-classifier.patch
 porting/Add-xptcall-support-for-SH4-processors.patch
 porting/Build-the-test-plugin-on-GNU-kfreebsd.patch
 porting/Bug-638056-Avoid-The-cacheFlush-support-is-missing-o.patch
@@ -32,9 +30,7 @@ prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
 prefs/Set-DPI-to-system-settings.patch
-prefs/Set-extensions.dss.enabled-to-false-at-XRE-level.patch
 system-libs/Allow-to-build-against-system-libffi.patch
-debian-hacks/browser-components-build-Makefile.in-Link-against-ns.patch
 debian-hacks/Check-less-things-during-configure-when-using-libxul.patch
 debian-hacks/Avoid-wrong-sessionstore-data-to-keep-windows-out-of.patch
 debian-hacks/Put-the-crmf-library-before-the-NSS-libraries.patch
@@ -45,7 +41,6 @@ debian-hacks/Ignore-system-libjpeg-libpng-and-zlib-version-checki.patch
 debian-hacks/Add-soname-to-appropriate-libraries.patch
 debian-hacks/Remove-un-registering-system.patch
 debian-hacks/Use-application.ini-from-where-the-xulrunner-stub-li.patch
-debian-hacks/Fore-port-nsIBadCertListener-from-1.8.patch
 debian-hacks/Add-another-preferences-directory-for-applications-p.patch
 debian-hacks/Don-t-register-plugins-if-the-MOZILLA_DISABLE_PLUGIN.patch
 debian-hacks/Use-a-variable-for-xulrunner-base-version-in-various.patch
@@ -53,7 +48,6 @@ debian-hacks/Gross-workaround-to-avoid-installing-test-idl-and-in.patch
 debian-hacks/Install-missing-nanojit-and-.tbl-headers-from-js-src.patch
 debian-hacks/Install-js-shell-when-running-make-install-from-js-s.patch
 debian-hacks/Don-t-error-out-when-run-time-libsqlite-is-older-tha.patch
-debian-hacks/Mark-the-png-tests-as-random-so-that-we-can-spot-on-.patch
 debian-hacks/Resolve-GRE-directory-symbolic-link.patch
 debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/pkg-config-files-don-t-need-to-require-the-version-o.patch
