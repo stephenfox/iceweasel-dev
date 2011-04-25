@@ -12,7 +12,6 @@ fixes/Remove-ljs_static-from-test-linking-flags.patch
 fixes/Bug-636960-Use-chrome-global-url-instead-of-chrome-b.patch
 fixes/Use-std-signbit-when-using-js-headers-in-C.patch
 fixes/Bug-640588-Bad-rendering-of-webm-and-ogv-with-16-bit.patch
-fixes/Fix-FTBFS-in-IPC-on-Linux-PPC.patch
 fixes/Fix-crash-nsAccessible-AsHyperText.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
@@ -26,6 +25,8 @@ porting/Fix-FTBFS-in-xpcom-base-on-armv4t.patch
 porting/Avoid-building-arm-neon-code.patch
 porting/Bug-634594-Ensure-XPCCallContext-string-cache-is-ali.patch
 porting/Bug-643137-strict-alignment-issues-when-displaying-O.patch
+porting/Fix-FTBFS-in-IPC-on-Linux-PPC.patch
+porting/Add-mips-hppa-ia64-s390-and-sparc-defines-in-ipc-chr.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
