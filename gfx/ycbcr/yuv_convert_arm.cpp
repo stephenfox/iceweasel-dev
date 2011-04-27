@@ -50,6 +50,8 @@ void __attribute((noinline,optimize("-fomit-frame-pointer")))
      */
     asm volatile (
 ".fpu neon\n"
+".arch armv7a\n"
+".object_arch armv4t\n"
 ".macro convert_macroblock size\n"
 /* load up to 16 source pixels */
 	".if \\size == 16\n"
