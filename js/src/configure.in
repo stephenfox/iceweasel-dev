@@ -3478,17 +3478,11 @@ esac
 
 dnl Performance measurement headers.
 AC_CHECK_HEADER(linux/perf_event.h,
-    [AC_CACHE_CHECK(for perf_event_open system call,ac_cv_perf_even_open,
-        [AC_TRY_COMPILE([#include <sys/syscall.h>],[
-#ifdef __NR_perf_event_open
-    return 0
-#else
-#error no __NR_perf_event_open
-#endif
-        ],
-        ac_cv_perf_even_open=yes,
-        ac_cv_perf_even_open=no)])])
-if test "$ac_cv_perf_even_open" = "yes"; then
+    [AC_CACHE_CHECK(for perf_event_open system call,ac_cv_perf_event_open,
+        [AC_TRY_COMPILE([#include <sys/syscall.h>],[return sizeof(__NR_perf_event_open);],
+        ac_cv_perf_event_open=yes,
+        ac_cv_perf_event_open=no)])])
+if test "$ac_cv_perf_event_open" = "yes"; then
     HAVE_LINUX_PERF_EVENT_H=1
 else
     HAVE_LINUX_PERF_EVENT_H=
