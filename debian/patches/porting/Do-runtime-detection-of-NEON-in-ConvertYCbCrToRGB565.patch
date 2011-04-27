@@ -1,0 +1,45 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Wed, 27 Apr 2011 11:04:48 +0200
+Subject: Do runtime detection of NEON in ConvertYCbCrToRGB565
+
+---
+ gfx/ycbcr/yuv_convert.cpp |   19 +++++++++++--------
+ 1 files changed, 11 insertions(+), 8 deletions(-)
+
+diff --git a/gfx/ycbcr/yuv_convert.cpp b/gfx/ycbcr/yuv_convert.cpp
+index 0e9e329..57fdb43 100644
+--- a/gfx/ycbcr/yuv_convert.cpp
++++ b/gfx/ycbcr/yuv_convert.cpp
+@@ -23,6 +23,8 @@
+ #include "mozilla/SSE.h"
+ 
+ #ifdef HAVE_YCBCR_TO_RGB565
++#include "ycbcr_to_rgb565.h"
++
+ void __attribute((noinline)) yv12_to_rgb565_neon(uint16 *dst, const uint8 *y, const uint8 *u, const uint8 *v, int n, int oddflag);
+ #endif
+ 
+@@ -51,14 +53,15 @@ NS_GFX_(void) ConvertYCbCrToRGB565(const uint8* y_buf,
+                                   YUVType yuv_type)
+ {
+ #ifdef HAVE_YCBCR_TO_RGB565
+-  for (int i = 0; i < pic_height; i++) {
+-    yv12_to_rgb565_neon((uint16*)rgb_buf + pic_width * i,
+-                         y_buf + y_pitch * i,
+-                         u_buf + uv_pitch * (i / 2),
+-                         v_buf + uv_pitch * (i / 2),
+-                         pic_width,
+-                         0);
+-  }
++  if (have_ycbcr_to_rgb565())
++    for (int i = 0; i < pic_height; i++) {
++      yv12_to_rgb565_neon((uint16*)rgb_buf + pic_width * i,
++                           y_buf + y_pitch * i,
++                           u_buf + uv_pitch * (i / 2),
++                           v_buf + uv_pitch * (i / 2),
++                           pic_width,
++                           0);
++    }
+ #endif
+ }
+ 

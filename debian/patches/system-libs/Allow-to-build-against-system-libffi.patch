@@ -77,10 +77,10 @@ index f4c8150..2a3299c 100644
  
  JS_NATIVE_EDITLINE = @JS_NATIVE_EDITLINE@
 diff --git a/js/src/configure.in b/js/src/configure.in
-index 8884e22..c3895d1 100644
+index 4869b0c..b96a055 100644
 --- a/js/src/configure.in
 +++ b/js/src/configure.in
-@@ -4625,6 +4625,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+@@ -4572,6 +4572,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
      CFLAGS=$_SAVE_CFLAGS
  fi
  
@@ -99,7 +99,7 @@ index 8884e22..c3895d1 100644
  dnl ========================================================
  dnl =
  dnl = Application
-@@ -6032,7 +6044,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
+@@ -6177,7 +6189,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
  $GMAKE js-config
  
  # Build jsctypes if it's enabled.
