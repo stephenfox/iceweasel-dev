@@ -23,6 +23,8 @@
 #include "mozilla/SSE.h"
 
 #ifdef HAVE_YCBCR_TO_RGB565
+#include "ycbcr_to_rgb565.h"
+
 void __attribute((noinline)) yv12_to_rgb565_neon(uint16 *dst, const uint8 *y, const uint8 *u, const uint8 *v, int n, int oddflag);
 #endif
 
@@ -51,14 +53,15 @@ NS_GFX_(void) ConvertYCbCrToRGB565(const uint8* y_buf,
                                   YUVType yuv_type)
 {
 #ifdef HAVE_YCBCR_TO_RGB565
-  for (int i = 0; i < pic_height; i++) {
-    yv12_to_rgb565_neon((uint16*)rgb_buf + pic_width * i,
-                         y_buf + y_pitch * i,
-                         u_buf + uv_pitch * (i / 2),
-                         v_buf + uv_pitch * (i / 2),
-                         pic_width,
-                         0);
-  }
+  if (have_ycbcr_to_rgb565())
+    for (int i = 0; i < pic_height; i++) {
+      yv12_to_rgb565_neon((uint16*)rgb_buf + pic_width * i,
+                           y_buf + y_pitch * i,
+                           u_buf + uv_pitch * (i / 2),
+                           v_buf + uv_pitch * (i / 2),
+                           pic_width,
+                           0);
+    }
 #endif
 }
 
