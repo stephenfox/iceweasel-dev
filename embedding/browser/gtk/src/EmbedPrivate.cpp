@@ -99,6 +99,7 @@ nsIDirectoryServiceProvider *EmbedPrivate::sAppFileLocProvider = nsnull;
 class GTKEmbedDirectoryProvider : public nsIDirectoryServiceProvider2
 {
 public:
+  GTKEmbedDirectoryProvider() {}
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDIRECTORYSERVICEPROVIDER
   NS_DECL_NSIDIRECTORYSERVICEPROVIDER2

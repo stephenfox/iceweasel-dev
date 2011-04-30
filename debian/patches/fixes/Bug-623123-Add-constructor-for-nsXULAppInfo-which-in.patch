@@ -1,0 +1,21 @@
+From: =?UTF-8?q?Rafael=20=C3=81vila=20de=20Esp=C3=ADndola?= <respindola@mozilla.com>
+Date: Thu, 24 Mar 2011 19:29:29 -0400
+Subject: Bug 623123 - Add constructor for nsXULAppInfo (which inherits from
+ nsIXULAppInfo) to placate CLang; r=bsmedberg
+
+---
+ toolkit/xre/nsAppRunner.cpp |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
+index 30a5c7e..995f28f 100644
+--- a/toolkit/xre/nsAppRunner.cpp
++++ b/toolkit/xre/nsAppRunner.cpp
+@@ -614,6 +614,7 @@ class nsXULAppInfo : public nsIXULAppInfo,
+ 
+ {
+ public:
++  nsXULAppInfo() {}
+   NS_DECL_ISUPPORTS_INHERITED
+   NS_DECL_NSIXULAPPINFO
+   NS_DECL_NSIXULRUNTIME

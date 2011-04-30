@@ -1,0 +1,61 @@
+From: =?UTF-8?q?Rafael=20=C3=81vila=20de=20Esp=C3=ADndola?= <respindola@mozilla.com>
+Date: Thu, 24 Mar 2011 19:26:55 -0400
+Subject: Bug 623126 - Add constructor for nsDebugImpl, nsTraceRefcntImpl,
+ EmptyEnumeratorImpl, and nsSimpleUnicharStreamFactory to placate
+ CLang; r=bsmedberg
+
+---
+ xpcom/base/nsDebugImpl.h         |    1 +
+ xpcom/base/nsTraceRefcntImpl.h   |    1 +
+ xpcom/glue/nsEnumeratorUtils.cpp |    1 +
+ xpcom/io/nsUnicharInputStream.h  |    1 +
+ 4 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/xpcom/base/nsDebugImpl.h b/xpcom/base/nsDebugImpl.h
+index 18b9ab3..8ab5cf2 100644
+--- a/xpcom/base/nsDebugImpl.h
++++ b/xpcom/base/nsDebugImpl.h
+@@ -40,6 +40,7 @@
+ class nsDebugImpl : public nsIDebug2
+ {
+ public:
++    nsDebugImpl() {}
+     NS_DECL_ISUPPORTS
+     NS_DECL_NSIDEBUG
+     NS_DECL_NSIDEBUG2
+diff --git a/xpcom/base/nsTraceRefcntImpl.h b/xpcom/base/nsTraceRefcntImpl.h
+index 41b348b..d7c40ff 100644
+--- a/xpcom/base/nsTraceRefcntImpl.h
++++ b/xpcom/base/nsTraceRefcntImpl.h
+@@ -44,6 +44,7 @@
+ class nsTraceRefcntImpl : public nsITraceRefcnt
+ {
+ public:
++  nsTraceRefcntImpl() {}
+   NS_DECL_ISUPPORTS
+   NS_DECL_NSITRACEREFCNT
+ 
+diff --git a/xpcom/glue/nsEnumeratorUtils.cpp b/xpcom/glue/nsEnumeratorUtils.cpp
+index b5d915b..80383d7 100644
+--- a/xpcom/glue/nsEnumeratorUtils.cpp
++++ b/xpcom/glue/nsEnumeratorUtils.cpp
+@@ -52,6 +52,7 @@ class EmptyEnumeratorImpl : public nsISimpleEnumerator,
+                             public nsIStringEnumerator
+ {
+ public:
++    EmptyEnumeratorImpl() {}
+     // nsISupports interface
+     NS_DECL_ISUPPORTS_INHERITED  // not really inherited, but no mRefCnt
+ 
+diff --git a/xpcom/io/nsUnicharInputStream.h b/xpcom/io/nsUnicharInputStream.h
+index 1cd6eed..fdeadd5 100644
+--- a/xpcom/io/nsUnicharInputStream.h
++++ b/xpcom/io/nsUnicharInputStream.h
+@@ -51,6 +51,7 @@ class nsSimpleUnicharStreamFactory :
+   private nsISimpleUnicharStreamFactory
+ {
+ public:
++  nsSimpleUnicharStreamFactory() {}
+   NS_DECL_ISUPPORTS_INHERITED
+   NS_DECL_NSIFACTORY
+   NS_DECL_NSISIMPLEUNICHARSTREAMFACTORY

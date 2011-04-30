@@ -4,8 +4,9 @@ Subject: Add mips, hppa, ia64, s390 and sparc defines in
  ipc/chromium/src/build/build_config.h
 
 ---
- ipc/chromium/src/build/build_config.h |   15 +++++++++++++++
- 1 files changed, 15 insertions(+), 0 deletions(-)
+ ipc/chromium/src/build/build_config.h              |   15 +++++++++++++++
+ ipc/chromium/src/chrome/common/ipc_message_utils.h |    2 +-
+ 2 files changed, 16 insertions(+), 1 deletions(-)
 
 diff --git a/ipc/chromium/src/build/build_config.h b/ipc/chromium/src/build/build_config.h
 index f7293d9..3536d1c 100644
@@ -33,3 +34,16 @@ index f7293d9..3536d1c 100644
  #else
  #error Please add support for your architecture in build/build_config.h
  #endif
+diff --git a/ipc/chromium/src/chrome/common/ipc_message_utils.h b/ipc/chromium/src/chrome/common/ipc_message_utils.h
+index c4e0856..2b8c56f 100644
+--- a/ipc/chromium/src/chrome/common/ipc_message_utils.h
++++ b/ipc/chromium/src/chrome/common/ipc_message_utils.h
+@@ -219,7 +219,7 @@ struct ParamTraits<unsigned long> {
+   }
+ };
+ 
+-#if !(defined(OS_MACOSX) || (defined(CHROMIUM_MOZILLA_BUILD) && (defined(OS_LINUX) || defined(OS_WIN)) && defined(ARCH_CPU_64_BITS)))
++#if !(defined(OS_MACOSX) || (defined(CHROMIUM_MOZILLA_BUILD) && (defined(OS_LINUX) || defined(OS_WIN)) && defined(ARCH_CPU_64_BITS)) || defined(ARCH_CPU_S390))
+ // There size_t is a synonym for |unsigned long| ...
+ template <>
+ struct ParamTraits<size_t> {
