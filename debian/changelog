@@ -1,3 +1,19 @@
+iceweasel (4.0.1-2) experimental; urgency=low
+
+  * xpcom/base/nsDebugImpl.h, xpcom/base/nsTraceRefcntImpl.h,
+    xpcom/glue/nsEnumeratorUtils.cpp, xpcom/io/nsUnicharInputStream.h,
+    intl/unicharutil/util/nsUnicharUtils.h, toolkit/xre/nsAppRunner.cpp,
+    embedding/browser/gtk/src/EmbedPrivate.cpp: Add missing constructors
+    according to 8.5 [dcl.init], para 9 in C++03, para 6 in C++0x,
+    because gcc 4.6 enforces it.
+  * ipc/chromium/src/chrome/common/ipc_message_utils.h: Fix for s390, where
+    size_t is unsigned long.
+
+  * debian/copyright: Updated to fit the replacement of the remove.nonfree
+    script. Closes: #624587.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 30 Apr 2011 19:29:34 +0200
+
 iceweasel (4.0.1-1) experimental; urgency=low
 
   * New upstream release.
