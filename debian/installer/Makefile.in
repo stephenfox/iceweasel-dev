@@ -22,10 +22,8 @@ else
 DEFINES += -DJAREXT=
 endif
 
-ifdef MOZ_IPC
 include $(topsrcdir)/ipc/app/defs.mk
 DEFINES += -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME)
-endif
 
 package-manifest: $(topsrcdir)/browser/installer/package-manifest.in $(srcdir)/package-manifest.$(MOZ_BUILD_APP)
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ | sed 's/^\[browser\]/[$(MOZ_BUILD_APP)]/' > $@
