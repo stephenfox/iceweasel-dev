@@ -1,5 +1,3 @@
-etc/gre.d/##GRE_VERSION##.system.conf
-
 usr/lib/xulrunner-##GRE_VERSION##/platform.ini
 
 usr/lib/xulrunner-##GRE_VERSION##/libxul.so
