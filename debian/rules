@@ -33,7 +33,7 @@ UPSTREAM_RELEASE := $(firstword $(subst +, ,$(UPSTREAM_RELEASE)))
 # Check if the version in debian/changelog matches actual upstream version
 # as VERSION_FILTER transforms it.
 FILTERED_UPSTREAM_VERSION := $(shell echo $(UPSTREAM_VERSION) | $(VERSION_FILTER))
-ifneq ($(FILTERED_UPSTREAM_VERSION),$(UPSTREAM_RELEASE))
+ifneq ($(FILTERED_UPSTREAM_VERSION),$(firstword $(subst ~b, ,$(UPSTREAM_RELEASE))))
 $(error Upstream version in debian/changelog ($(UPSTREAM_RELEASE)) doesn't match actual upstream version ($(FILTERED_UPSTREAM_VERSION)))
 endif
 
