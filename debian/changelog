@@ -1,3 +1,16 @@
+iceweasel (4.0.1-3) experimental; urgency=low
+
+  * debian/installer/Makefile.in: Remove MOZ_IPC ifdef, it's not strictly
+    required, and won't be defined anymore in 5.0.
+  * debian/rules:
+    - Use official branding as reference when comparing to ours.
+    - Construct GRE_VERSION from the first two digits in GRE_MILESTONE.
+    - Handle build id from the debian version number.
+    - Handle UPSTREAM_RELEASE correctly for beta releases.
+    - Set MOZ_UA_BUILDID on betas and releases.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 17 Jun 2011 11:39:56 +0900
+
 iceweasel (4.0.1-2) experimental; urgency=low
 
   * xpcom/base/nsDebugImpl.h, xpcom/base/nsTraceRefcntImpl.h,
