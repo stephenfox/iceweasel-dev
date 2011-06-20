@@ -1,3 +1,14 @@
+iceweasel (4.0.1-4) experimental; urgency=low
+
+  * The 'I meant that to be in previous release but forgot' release.
+  * xulrunner/installer/Makefile.in: Add -lmozalloc in link flags provided in
+    libxul.pc. bz#662223.
+  * memory/mozalloc/mozalloc.h, memory/mozalloc/Makefile.in,
+    xpcom/xpcom-config.h.in: Define NS_ATTR_MALLOC and NS_WARN_UNUSED_RESULT
+    in xpcom-config.h, and include it from mozalloc.h. bz#662224.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 20 Jun 2011 15:29:09 +0900
+
 iceweasel (4.0.1-3) experimental; urgency=low
 
   * debian/installer/Makefile.in: Remove MOZ_IPC ifdef, it's not strictly
