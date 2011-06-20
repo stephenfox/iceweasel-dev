@@ -18,6 +18,8 @@ fixes/Bug-623126-Add-constructor-for-nsDebugImpl-nsTraceRe.patch
 fixes/Bug-623116-Add-constructor-for-nsASCIICaseInsensitiv.patch
 fixes/Bug-623123-Add-constructor-for-nsXULAppInfo-which-in.patch
 fixes/Add-constructor-for-GTKEmbedDirectoryProvider.patch
+fixes/Bug-662223-Add-lmozalloc-in-link-flags-provided-in-l.patch
+fixes/Bug-662224-Define-NS_ATTR_MALLOC-and-NS_WARN_UNUSED_.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Don-t-hardcode-anything-in-application.ini-files.patch
