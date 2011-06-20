@@ -8,7 +8,7 @@ Subject: Bug 640494 part 1 - Get rid of STL algorithm use in jsworker.cpp.
  1 files changed, 1 insertions(+), 2 deletions(-)
 
 diff --git a/js/src/shell/jsworkers.cpp b/js/src/shell/jsworkers.cpp
-index 684a9d1..40242a0 100644
+index 798be1e..7dfd146 100644
 --- a/js/src/shell/jsworkers.cpp
 +++ b/js/src/shell/jsworkers.cpp
 @@ -40,7 +40,6 @@

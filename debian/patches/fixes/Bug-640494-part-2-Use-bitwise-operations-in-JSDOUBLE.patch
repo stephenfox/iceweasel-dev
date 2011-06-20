@@ -9,7 +9,7 @@ Subject: Bug 640494 part 2 - Use bitwise operations in JSDOUBLE_IS_*
  2 files changed, 28 insertions(+), 40 deletions(-)
 
 diff --git a/js/src/jsnum.h b/js/src/jsnum.h
-index 9548cf5..b19c6f9 100644
+index 7b38f19..d03d0d7 100644
 --- a/js/src/jsnum.h
 +++ b/js/src/jsnum.h
 @@ -41,12 +41,9 @@
@@ -96,7 +96,7 @@ index 9548cf5..b19c6f9 100644
  
  static inline uint32
 diff --git a/js/src/jsvalue.h b/js/src/jsvalue.h
-index 7baa2c4..49e3ad8 100644
+index 010250c..b54e3f7 100644
 --- a/js/src/jsvalue.h
 +++ b/js/src/jsvalue.h
 @@ -89,24 +89,19 @@

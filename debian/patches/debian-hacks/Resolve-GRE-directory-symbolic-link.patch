@@ -5,34 +5,26 @@ Subject: Resolve GRE directory symbolic link
 https://bugzilla.mozilla.org/show_bug.cgi?id=530196
 https://bugzilla.mozilla.org/show_bug.cgi?id=550659
 ---
- xulrunner/stub/nsXULStub.cpp |   15 ++++++++-------
- 1 files changed, 8 insertions(+), 7 deletions(-)
+ xulrunner/stub/nsXULStub.cpp |    9 +++++++++
+ 1 files changed, 9 insertions(+), 0 deletions(-)
 
 diff --git a/xulrunner/stub/nsXULStub.cpp b/xulrunner/stub/nsXULStub.cpp
-index 42b3e5d..8e1126e 100644
+index 0437141..1b5ae8b 100644
 --- a/xulrunner/stub/nsXULStub.cpp
 +++ b/xulrunner/stub/nsXULStub.cpp
-@@ -502,15 +502,16 @@ main(int argc, char **argv)
-              range.lower, range.upper);
-       return 1;
-     }
-+  }
-+
- #ifdef XP_UNIX
--    // Using a symlinked greDir will fail during startup. Not sure why, but if
--    // we resolve the symlink, everything works as expected.
--    char resolved_greDir[MAXPATHLEN] = "";  
--    if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
--      strncpy(greDir, resolved_greDir, MAXPATHLEN);
--    }
--#endif
-+  // Using a symlinked greDir will fail during startup. Not sure why, but if
-+  // we resolve the symlink, everything works as expected.
-+  char resolved_greDir[MAXPATHLEN] = "";
-+  if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
-+    strncpy(greDir, resolved_greDir, MAXPATHLEN);
-   }
-+#endif
+@@ -351,6 +351,15 @@ main(int argc, char **argv)
  
- #ifdef XP_OS2
-   // On OS/2 we need to set BEGINLIBPATH to be able to find XULRunner DLLs
+   greFound = FolderExists(greDir);
+ 
++#ifdef XP_UNIX
++  if (greFound) {
++    char resolved_greDir[MAXPATHLEN] = "";
++    if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
++      strncpy(greDir, resolved_greDir, MAXPATHLEN);
++    }
++  }
++#endif
++
+   strncpy(lastSlash, "application.ini", sizeof(iniPath) - (lastSlash - iniPath));
+ 
+ #endif

@@ -8,10 +8,10 @@ Subject: Bug 638056 - Avoid "The cacheFlush support is missing on this
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index fadd850..a5968c9 100644
+index afb2f30..7faf1a8 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -375,7 +375,7 @@ CPPSRCS += 	checks.cc \
+@@ -391,7 +391,7 @@ CPPSRCS += 	checks.cc \
  # END enclude sources for V8 dtoa
  #############################################
  

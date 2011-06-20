@@ -7,10 +7,10 @@ Subject: Bug 662223 - Add -lmozalloc in link flags provided in libxul.pc
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/xulrunner/installer/Makefile.in b/xulrunner/installer/Makefile.in
-index dfa78a8..19a8004 100644
+index 688d401..77caf53 100644
 --- a/xulrunner/installer/Makefile.in
 +++ b/xulrunner/installer/Makefile.in
-@@ -102,7 +102,7 @@ FULL_NSPR_LIBS=$(subst $(prefix),\$${sdkdir},$(shell $(DEPTH)/nsprpub/config/nsp
+@@ -90,7 +90,7 @@ FULL_NSPR_LIBS=$(subst $(prefix),\$${sdkdir},$(shell $(DEPTH)/nsprpub/config/nsp
  NSPR_VERSION=$(shell $(DEPTH)/nsprpub/config/nspr-config --version)
  endif
  

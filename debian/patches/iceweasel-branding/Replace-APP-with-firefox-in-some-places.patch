@@ -9,10 +9,10 @@ for iceweasel but for firefox. Hardcode firefox there.
  1 files changed, 10 insertions(+), 10 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 19e3336..a4e665e 100644
+index 7cdde5c..c0bbe21 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -59,10 +59,10 @@ pref("extensions.logging.enabled", false);
+@@ -57,10 +57,10 @@ pref("extensions.logging.enabled", false);
  // Preferences for AMO integration
  pref("extensions.getAddons.cache.enabled", true);
  pref("extensions.getAddons.maxResults", 15);
@@ -27,7 +27,7 @@ index 19e3336..a4e665e 100644
  
  // Blocklist preferences
  pref("extensions.blocklist.enabled", true);
-@@ -76,7 +76,7 @@ pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blockl
+@@ -74,7 +74,7 @@ pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blockl
  pref("extensions.update.autoUpdateDefault", true);
  
  // Dictionary download preference
@@ -36,7 +36,7 @@ index 19e3336..a4e665e 100644
  
  // Update Timer Manager preferences
  // Interval: When all registered timers should be checked (in milliseconds)
-@@ -202,7 +202,7 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
+@@ -200,7 +200,7 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
  pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                              // Themes every day
  // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -45,7 +45,7 @@ index 19e3336..a4e665e 100644
  pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
  pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                  // restart.
-@@ -329,7 +329,7 @@ pref("browser.download.manager.scanWhenDone", true);
+@@ -327,7 +327,7 @@ pref("browser.download.manager.scanWhenDone", true);
  pref("browser.download.manager.resumeOnWakeDelay", 10000);
  
  // search engines URL
@@ -54,7 +54,7 @@ index 19e3336..a4e665e 100644
  
  // pointer to the default engine name
  pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
-@@ -736,8 +736,8 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
+@@ -729,8 +729,8 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
  pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
  
  // FAQ URLs
@@ -65,7 +65,7 @@ index 19e3336..a4e665e 100644
  
  // Name of the about: page contributed by safebrowsing to handle display of error
  // pages on phishing/malware hits.  (bug 399233)
-@@ -887,7 +887,7 @@ pref("browser.zoom.updateBackgroundTabs", true);
+@@ -880,7 +880,7 @@ pref("browser.zoom.updateBackgroundTabs", true);
  pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
  
  // base URL for web-based support pages

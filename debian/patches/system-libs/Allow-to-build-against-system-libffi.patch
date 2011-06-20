@@ -11,10 +11,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=551138
  4 files changed, 34 insertions(+), 3 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index a5968c9..0e6c4c8 100644
+index 7faf1a8..eaaed13 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -446,11 +446,20 @@ CPPSRCS += \
+@@ -462,11 +462,20 @@ CPPSRCS += \
      Library.cpp \
      $(NULL)
  
@@ -37,7 +37,7 @@ index a5968c9..0e6c4c8 100644
  ifeq ($(OS_ARCH),OS2)
  SHARED_LIBRARY_LIBS += \
      ctypes/libffi/.libs/ffi.a \
-@@ -460,6 +469,7 @@ SHARED_LIBRARY_LIBS += \
+@@ -476,6 +485,7 @@ SHARED_LIBRARY_LIBS += \
      ctypes/libffi/.libs/libffi.$(LIB_SUFFIX) \
      $(NULL)
  endif
@@ -45,7 +45,7 @@ index a5968c9..0e6c4c8 100644
  
  endif # JS_HAS_CTYPES
  
-@@ -539,6 +549,7 @@ endif
+@@ -555,6 +565,7 @@ endif
  include $(topsrcdir)/config/rules.mk
  
  ifdef JS_HAS_CTYPES
@@ -53,19 +53,19 @@ index a5968c9..0e6c4c8 100644
  # Build libffi proper as part of the 'exports' target, so things get built
  # in the right order.
  export::
-@@ -547,6 +558,7 @@ export::
+@@ -563,6 +574,7 @@ export::
  distclean clean::
  		$(call SUBMAKE,$@,ctypes/libffi)
  endif
 +endif
  
- ifdef MOZ_SYNC_BUILD_FILES
  # Because the SpiderMonkey can be distributed and built independently
+ # of the Mozilla source tree, it contains its own copies of many of
 diff --git a/js/src/config/autoconf.mk.in b/js/src/config/autoconf.mk.in
-index f4c8150..2a3299c 100644
+index 03c77d7..49aa667 100644
 --- a/js/src/config/autoconf.mk.in
 +++ b/js/src/config/autoconf.mk.in
-@@ -250,6 +250,10 @@ NSPR_CONFIG	= @NSPR_CONFIG@
+@@ -249,6 +249,10 @@ NSPR_CONFIG	= @NSPR_CONFIG@
  NSPR_CFLAGS	= @NSPR_CFLAGS@
  NSPR_LIBS	= @NSPR_LIBS@
  
@@ -77,10 +77,10 @@ index f4c8150..2a3299c 100644
  
  JS_NATIVE_EDITLINE = @JS_NATIVE_EDITLINE@
 diff --git a/js/src/configure.in b/js/src/configure.in
-index 4869b0c..b96a055 100644
+index f513c5a..6981473 100644
 --- a/js/src/configure.in
 +++ b/js/src/configure.in
-@@ -4572,6 +4572,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+@@ -4483,6 +4483,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
      CFLAGS=$_SAVE_CFLAGS
  fi
  
@@ -99,7 +99,7 @@ index 4869b0c..b96a055 100644
  dnl ========================================================
  dnl =
  dnl = Application
-@@ -6177,7 +6189,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
+@@ -6091,7 +6103,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
  $GMAKE js-config
  
  # Build jsctypes if it's enabled.
@@ -109,7 +109,7 @@ index 4869b0c..b96a055 100644
    ac_configure_args="--disable-shared --enable-static --disable-raw-api"
    if test "$MOZ_DEBUG"; then
 diff --git a/js/src/shell/Makefile.in b/js/src/shell/Makefile.in
-index 058b3b2..99e2169 100644
+index 8a4f8cf..a9eb875 100644
 --- a/js/src/shell/Makefile.in
 +++ b/js/src/shell/Makefile.in
 @@ -53,6 +53,9 @@ CPPSRCS		= \

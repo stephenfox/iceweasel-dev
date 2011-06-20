@@ -7,7 +7,7 @@ Subject: Force NativeARM.o to have arch armv4t in its .ARM.attributes
  1 files changed, 1 insertions(+), 0 deletions(-)
 
 diff --git a/js/src/nanojit/NativeARM.cpp b/js/src/nanojit/NativeARM.cpp
-index 1c38cac..6969b73 100644
+index 5317e3b..37716b3 100644
 --- a/js/src/nanojit/NativeARM.cpp
 +++ b/js/src/nanojit/NativeARM.cpp
 @@ -138,6 +138,7 @@ Assembler::CountLeadingZeroes(uint32_t data)

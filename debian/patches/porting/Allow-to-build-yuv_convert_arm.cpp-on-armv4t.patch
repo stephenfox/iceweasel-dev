@@ -7,10 +7,10 @@ Subject: Allow to build yuv_convert_arm.cpp on armv4t
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/gfx/ycbcr/yuv_convert_arm.cpp b/gfx/ycbcr/yuv_convert_arm.cpp
-index 64e7baa..17485e0 100644
+index b14e2ba..7edd23c 100644
 --- a/gfx/ycbcr/yuv_convert_arm.cpp
 +++ b/gfx/ycbcr/yuv_convert_arm.cpp
-@@ -34,6 +34,8 @@ void __attribute((noinline)) yv12_to_rgb565_neon(uint16 *dst, const uint8 *y, co
+@@ -49,6 +49,8 @@ void __attribute((noinline)) yuv42x_to_rgb565_row_neon(uint16 *dst,
       */
      asm volatile (
  ".fpu neon\n"

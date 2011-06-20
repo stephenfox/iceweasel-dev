@@ -9,10 +9,10 @@ It is better defined in the GRE provided by xulrunner-1.9
  2 files changed, 0 insertions(+), 2 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 7d29b38..c7f2bd8 100644
+index 1a495b3..fd636d3 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -220,7 +220,6 @@ pref("keyword.enabled", true);
+@@ -218,7 +218,6 @@ pref("keyword.enabled", true);
  // "use the search service's default engine"
  pref("keyword.URL", "");
  

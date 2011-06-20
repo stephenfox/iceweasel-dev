@@ -7,17 +7,9 @@ fixes/Bug-620931-part-3-Allow-GRE-and-XUL-application-to-u.patch
 fixes/Bug-620931-part-4-Fix-resource-app-to-always-point-t.patch
 fixes/Bug-620931-part-5-Enable-omni.jar-by-default-on-xulr.patch
 fixes/Bug-626035-Modify-the-way-arm-compiler-flags-are-set.patch
-fixes/Bug-589744-Fallback-to-perf-measurement-stub-when-pe.patch
-fixes/Remove-ljs_static-from-test-linking-flags.patch
 fixes/Bug-636960-Use-chrome-global-url-instead-of-chrome-b.patch
-fixes/Bug-640588-Bad-rendering-of-webm-and-ogv-with-16-bit.patch
-fixes/Fix-crash-nsAccessible-AsHyperText.patch
 fixes/Bug-640494-part-1-Get-rid-of-STL-algorithm-use-in-js.patch
 fixes/Bug-640494-part-2-Use-bitwise-operations-in-JSDOUBLE.patch
-fixes/Bug-623126-Add-constructor-for-nsDebugImpl-nsTraceRe.patch
-fixes/Bug-623116-Add-constructor-for-nsASCIICaseInsensitiv.patch
-fixes/Bug-623123-Add-constructor-for-nsXULAppInfo-which-in.patch
-fixes/Add-constructor-for-GTKEmbedDirectoryProvider.patch
 fixes/Bug-662223-Add-lmozalloc-in-link-flags-provided-in-l.patch
 fixes/Bug-662224-Define-NS_ATTR_MALLOC-and-NS_WARN_UNUSED_.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
@@ -30,9 +22,6 @@ porting/Build-the-test-plugin-on-GNU-kfreebsd.patch
 porting/Bug-638056-Avoid-The-cacheFlush-support-is-missing-o.patch
 porting/Fix-FTBFS-in-xpcom-base-on-armv4t.patch
 porting/Allow-to-build-yuv_convert_arm.cpp-on-armv4t.patch
-porting/Do-runtime-detection-of-NEON-in-ConvertYCbCrToRGB565.patch
-porting/Bug-634594-Ensure-XPCCallContext-string-cache-is-ali.patch
-porting/Bug-643137-strict-alignment-issues-when-displaying-O.patch
 porting/Fix-FTBFS-in-IPC-on-Linux-PPC.patch
 porting/Add-mips-hppa-ia64-s390-and-sparc-defines-in-ipc-chr.patch
 porting/Force-NativeARM.o-to-have-arch-armv4t-in-its-.ARM.at.patch
@@ -49,7 +38,6 @@ debian-hacks/Don-t-build-example-component.patch
 debian-hacks/Don-t-install-system-profile.patch
 debian-hacks/Ignore-system-libjpeg-libpng-and-zlib-version-checki.patch
 debian-hacks/Add-soname-to-appropriate-libraries.patch
-debian-hacks/Remove-un-registering-system.patch
 debian-hacks/Use-application.ini-from-where-the-xulrunner-stub-li.patch
 debian-hacks/Add-another-preferences-directory-for-applications-p.patch
 debian-hacks/Don-t-register-plugins-if-the-MOZILLA_DISABLE_PLUGIN.patch

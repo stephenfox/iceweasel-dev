@@ -8,10 +8,10 @@ Subject: Bug 626035 - Modify the way arm compiler flags are set in configure
  2 files changed, 372 insertions(+), 204 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 053e5c8..acbb759 100644
+index 8f66709..81468e7 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -2937,8 +2937,6 @@ alpha*-*-osf*)
+@@ -2868,8 +2868,6 @@ alpha*-*-osf*)
      else
          MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fno-omit-frame-pointer"
      fi
@@ -20,7 +20,7 @@ index 053e5c8..acbb759 100644
      ;;
  
  esac
-@@ -3663,38 +3661,6 @@ AC_SUBST(XEXT_LIBS)
+@@ -3589,38 +3587,6 @@ AC_SUBST(XEXT_LIBS)
  AC_SUBST(XT_LIBS)
  AC_SUBST(XSS_LIBS)
  
@@ -59,7 +59,7 @@ index 053e5c8..acbb759 100644
  dnl ========================================================
  dnl = pthread support
  dnl = Start by checking whether the system support pthreads
-@@ -5071,7 +5037,6 @@ MOZ_SPELLCHECK=1
+@@ -4993,7 +4959,6 @@ MOZ_SPELLCHECK=1
  MOZ_SPLASHSCREEN=
  MOZ_STORAGE=1
  MOZ_SVG=1
@@ -67,7 +67,7 @@ index 053e5c8..acbb759 100644
  MOZ_TIMELINE=
  MOZ_TOOLKIT_SEARCH=1
  MOZ_UI_LOCALE=en-US
-@@ -5125,7 +5090,6 @@ case "${target}" in
+@@ -5045,7 +5010,6 @@ case "${target}" in
          USE_ARM_KUSER=1
          MOZ_INSTALLER=
          NECKO_WIFI=
@@ -75,7 +75,7 @@ index 053e5c8..acbb759 100644
          MOZ_THEME_FASTSTRIPE=1
          MOZ_TREE_FREETYPE=1
          MOZ_MEMORY=1
-@@ -7231,8 +7195,6 @@ if test $MOZ_PLATFORM_MAEMO; then
+@@ -7102,8 +7066,6 @@ if test $MOZ_PLATFORM_MAEMO; then
              AC_SUBST(MOZ_ENABLE_CONTENTACTION)
           fi
        fi
@@ -84,7 +84,7 @@ index 053e5c8..acbb759 100644
     fi
  
     PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
-@@ -7261,80 +7223,204 @@ if test $MOZ_PLATFORM_MAEMO; then
+@@ -7132,80 +7094,204 @@ if test $MOZ_PLATFORM_MAEMO; then
     AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
  fi
  
@@ -351,7 +351,7 @@ index 053e5c8..acbb759 100644
  
  dnl ========================================================
  dnl = faststripe theme
-@@ -9604,12 +9690,6 @@ unset CONFIG_FILES
+@@ -9459,12 +9545,6 @@ unset CONFIG_FILES
  # No need to run subconfigures when building with LIBXUL_SDK_DIR
  if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
  
@@ -365,10 +365,10 @@ index 053e5c8..acbb759 100644
    _SUBDIR_CONFIG_ARGS="$_SUBDIR_CONFIG_ARGS --enable-wrap-malloc"
  fi
 diff --git a/js/src/configure.in b/js/src/configure.in
-index 5d5365b..1f4938a 100644
+index 3460091..f513c5a 100644
 --- a/js/src/configure.in
 +++ b/js/src/configure.in
-@@ -3535,34 +3535,6 @@ case $target in
+@@ -3455,34 +3455,6 @@ case $target in
      AC_CHECK_LIB(socket, socket)
  esac
  
@@ -403,7 +403,7 @@ index 5d5365b..1f4938a 100644
  dnl ========================================================
  dnl = pthread support
  dnl = Start by checking whether the system support pthreads
-@@ -4602,13 +4574,11 @@ MOZ_ARG_HEADER(Application)
+@@ -4522,13 +4494,11 @@ MOZ_ARG_HEADER(Application)
  BUILD_STATIC_LIBS=
  ENABLE_TESTS=1
  
@@ -417,7 +417,7 @@ index 5d5365b..1f4938a 100644
          ;;
  esac
  
-@@ -4654,80 +4624,204 @@ dnl =
+@@ -4574,80 +4544,204 @@ dnl =
  dnl ========================================================
  MOZ_ARG_HEADER(Individual module options)
  
@@ -684,7 +684,7 @@ index 5d5365b..1f4938a 100644
  
  dnl ========================================================
  dnl =
-@@ -6135,12 +6229,6 @@ if test "$JS_HAS_CTYPES"; then
+@@ -6055,12 +6149,6 @@ if test "$JS_HAS_CTYPES"; then
    if test "$OS_ARCH" = "OS2"; then
      ac_configure_args="$ac_configure_args CFLAGS=-Zomf AR=emxomfar"
    fi

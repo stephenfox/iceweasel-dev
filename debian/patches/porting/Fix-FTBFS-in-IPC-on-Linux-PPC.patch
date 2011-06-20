@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=643112
  2 files changed, 1 insertions(+), 2 deletions(-)
 
 diff --git a/ipc/chromium/Makefile.in b/ipc/chromium/Makefile.in
-index 00b834f..12505d6 100644
+index bc1551d..65ecaad 100644
 --- a/ipc/chromium/Makefile.in
 +++ b/ipc/chromium/Makefile.in
-@@ -247,7 +247,6 @@ ifdef OS_LINUX # {
+@@ -246,7 +246,6 @@ ifdef OS_LINUX # {
  CPPSRCS += \
    atomicops_internals_x86_gcc.cc \
    base_paths_linux.cc \

@@ -8,10 +8,10 @@ Subject: Install js shell when running make install from js/src
  2 files changed, 4 insertions(+), 0 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 909835c..5d940c7 100644
+index 6119394..32c330a 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -867,6 +867,7 @@ endif
+@@ -951,6 +951,7 @@ endif
  ifneq (,$(IMPORT_LIBRARY))
  	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
  endif
@@ -20,10 +20,10 @@ index 909835c..5d940c7 100644
  # Extra dependancies and rules for auto-generated headers
  host_jskwgen.$(OBJ_SUFFIX): jsversion.h jskeyword.tbl
 diff --git a/js/src/shell/Makefile.in b/js/src/shell/Makefile.in
-index 99e2169..cf767d5 100644
+index a9eb875..d163fc8 100644
 --- a/js/src/shell/Makefile.in
 +++ b/js/src/shell/Makefile.in
-@@ -82,3 +82,6 @@ endif
+@@ -76,3 +76,6 @@ endif
  # People expect the js shell to wind up in the top-level JS dir.
  libs::
  	$(INSTALL) $(IFLAGS2) $(PROGRAM) $(DEPTH)

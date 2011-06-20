@@ -35,15 +35,15 @@ index f7293d9..3536d1c 100644
  #error Please add support for your architecture in build/build_config.h
  #endif
 diff --git a/ipc/chromium/src/chrome/common/ipc_message_utils.h b/ipc/chromium/src/chrome/common/ipc_message_utils.h
-index c4e0856..2b8c56f 100644
+index 3c50df9..1486cb3 100644
 --- a/ipc/chromium/src/chrome/common/ipc_message_utils.h
 +++ b/ipc/chromium/src/chrome/common/ipc_message_utils.h
 @@ -219,7 +219,7 @@ struct ParamTraits<unsigned long> {
    }
  };
  
--#if !(defined(OS_MACOSX) || (defined(CHROMIUM_MOZILLA_BUILD) && (defined(OS_LINUX) || defined(OS_WIN)) && defined(ARCH_CPU_64_BITS)))
-+#if !(defined(OS_MACOSX) || (defined(CHROMIUM_MOZILLA_BUILD) && (defined(OS_LINUX) || defined(OS_WIN)) && defined(ARCH_CPU_64_BITS)) || defined(ARCH_CPU_S390))
+-#if !(defined(OS_MACOSX) || defined(OS_WIN) || (defined(CHROMIUM_MOZILLA_BUILD) && defined(OS_LINUX) && defined(ARCH_CPU_64_BITS)))
++#if !(defined(OS_MACOSX) || defined(OS_WIN) || (defined(CHROMIUM_MOZILLA_BUILD) && defined(OS_LINUX) && defined(ARCH_CPU_64_BITS)) || defined(ARCH_CPU_S390))
  // There size_t is a synonym for |unsigned long| ...
  template <>
  struct ParamTraits<size_t> {

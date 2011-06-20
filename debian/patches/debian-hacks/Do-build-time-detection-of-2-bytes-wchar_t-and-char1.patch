@@ -44,10 +44,10 @@ index c1ddece..6dba6c8 100644
  #define __PRUNICHAR__
    /* For now, don't use wchar_t on Unix because it breaks the Netscape
 diff --git a/xpcom/glue/nsStringAPI.h b/xpcom/glue/nsStringAPI.h
-index 19ca533..a35ff78 100644
+index 35183df..d516522 100644
 --- a/xpcom/glue/nsStringAPI.h
 +++ b/xpcom/glue/nsStringAPI.h
-@@ -1063,6 +1063,7 @@ private:
+@@ -1109,6 +1109,7 @@ private:
    #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const nsDependentString n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
    typedef nsDependentString nsLiteralString;
  #else

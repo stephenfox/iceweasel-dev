@@ -9,10 +9,10 @@ Subject: Bug 620931 part 4 - Fix resource://app/ to always point to the same
  2 files changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/netwerk/protocol/res/nsResProtocolHandler.cpp b/netwerk/protocol/res/nsResProtocolHandler.cpp
-index cae9ee7..2feba96 100644
+index 48a4228..26c11ae 100644
 --- a/netwerk/protocol/res/nsResProtocolHandler.cpp
 +++ b/netwerk/protocol/res/nsResProtocolHandler.cpp
-@@ -79,6 +79,7 @@ static nsResProtocolHandler *gResHandler = nsnull;
+@@ -76,6 +76,7 @@ static nsResProtocolHandler *gResHandler = nsnull;
  static PRLogModuleInfo *gResLog;
  #endif
  
@@ -20,7 +20,7 @@ index cae9ee7..2feba96 100644
  #define kGRE           NS_LITERAL_CSTRING("gre")
  
  //----------------------------------------------------------------------------
-@@ -184,6 +185,12 @@ nsResProtocolHandler::Init()
+@@ -181,6 +182,12 @@ nsResProtocolHandler::Init()
      NS_ENSURE_SUCCESS(rv, rv);
  
      //
@@ -34,10 +34,10 @@ index cae9ee7..2feba96 100644
      //
      if (appURI.Length()) { // We already have greURI in uri if appURI.Length() is 0.
 diff --git a/toolkit/xre/nsXREDirProvider.cpp b/toolkit/xre/nsXREDirProvider.cpp
-index bbef3ca..2862b84 100644
+index 1e2c885..36a3e42 100644
 --- a/toolkit/xre/nsXREDirProvider.cpp
 +++ b/toolkit/xre/nsXREDirProvider.cpp
-@@ -305,9 +305,6 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
+@@ -301,9 +301,6 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
      if (NS_SUCCEEDED(rv))
        file = lf;
    }

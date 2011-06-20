@@ -12,7 +12,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=525882
  5 files changed, 47 insertions(+), 4 deletions(-)
 
 diff --git a/browser/app/Makefile.in b/browser/app/Makefile.in
-index d55bee0..acea959 100644
+index 31e8a77..8be20fa 100644
 --- a/browser/app/Makefile.in
 +++ b/browser/app/Makefile.in
 @@ -77,6 +77,13 @@ ifdef SOURCE_REPO
@@ -49,7 +49,7 @@ index 0f2cb3a..008b8c3 100644
  #ifdef MOZ_SOURCE_REPO
  SourceRepository=@MOZ_SOURCE_REPO@
 diff --git a/browser/confvars.sh b/browser/confvars.sh
-index 4a234d9..7ea3aaa 100755
+index 2a957ff..ec5f06d 100755
 --- a/browser/confvars.sh
 +++ b/browser/confvars.sh
 @@ -36,7 +36,8 @@
@@ -63,7 +63,7 @@ index 4a234d9..7ea3aaa 100755
  MOZ_PHOENIX=1
  
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index 8a9fc33..822f13e 100644
+index 8b94e1e..fa3d30a 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
 @@ -50,6 +50,9 @@ FIREFOX_VERSION	= @FIREFOX_VERSION@
@@ -77,19 +77,19 @@ index 8a9fc33..822f13e 100644
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
  MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
 diff --git a/configure.in b/configure.in
-index acbb759..d929ece 100644
+index 1251341..cb5dcf4 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -8475,7 +8475,7 @@ fi
+@@ -8390,7 +8390,7 @@ fi
  AC_SUBST(JS_SHARED_LIBRARY)
  
  if test -n "$MOZ_STATIC_BUILD_UNSUPPORTED" -a -n "$BUILD_STATIC_LIBS"; then
--	AC_MSG_ERROR([--enable-static is not supported for building $MOZ_APP_NAME. You probably want --enable-libxul.])
-+	AC_MSG_ERROR([--enable-static is not supported for building $MOZ_BUILD_APP. You probably want --enable-libxul.])
+-  AC_MSG_ERROR([--enable-static is not supported for building $MOZ_APP_NAME.])
++  AC_MSG_ERROR([--enable-static is not supported for building $MOZ_BUILD_APP.])
  fi
  
  if test -n "$MOZ_ENABLE_LIBXUL" -a -n "$BUILD_STATIC_LIBS"; then
-@@ -9225,8 +9225,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
+@@ -9109,8 +9109,37 @@ AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
  AC_SUBST(MOZ_TIMELINE)
  AC_SUBST(OGLES_SDK_DIR)
  

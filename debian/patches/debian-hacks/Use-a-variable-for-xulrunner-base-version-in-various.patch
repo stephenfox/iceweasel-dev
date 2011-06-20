@@ -4,18 +4,18 @@ Subject: Use a variable for xulrunner base version in various places
 
 ---
  config/autoconf.mk.in           |    9 +++++----
- xulrunner/installer/Makefile.in |    6 +++---
- 2 files changed, 8 insertions(+), 7 deletions(-)
+ xulrunner/installer/Makefile.in |    2 +-
+ 2 files changed, 6 insertions(+), 5 deletions(-)
 
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index 822f13e..33faed9 100644
+index fa3d30a..98b71dc 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
 @@ -57,20 +57,21 @@ MOZ_APP_UA_NAME = @MOZ_APP_UA_NAME@
  MOZ_APP_VERSION = @MOZ_APP_VERSION@
  MOZ_UA_FIREFOX_VERSION = @FIREFOX_VERSION@
  MOZ_UA_BUILDID = @MOZ_UA_BUILDID@
-+MOZ_BASE_VERSION = 2.0
++MOZ_BASE_VERSION = 5.0
  
  MOZ_PKG_SPECIAL = @MOZ_PKG_SPECIAL@
  
@@ -38,28 +38,10 @@ index 822f13e..33faed9 100644
  DIST		= $(DEPTH)/dist
  LIBXUL_SDK      = @LIBXUL_SDK@
 diff --git a/xulrunner/installer/Makefile.in b/xulrunner/installer/Makefile.in
-index dfa78a8..163e5de 100644
+index 77caf53..5b106a1 100644
 --- a/xulrunner/installer/Makefile.in
 +++ b/xulrunner/installer/Makefile.in
-@@ -67,7 +67,7 @@ INSTALL_SDK = 1
- 
- include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
- 
--$(MOZILLA_VERSION).system.conf: $(topsrcdir)/config/milestone.txt Makefile
-+$(MOZ_BASE_VERSION).system.conf: $(topsrcdir)/config/milestone.txt Makefile
- 	printf "[%s]\nGRE_PATH=%s\nxulrunner=true\nabi=%s" \
- 	  $(MOZILLA_VERSION) $(installdir) $(TARGET_XPCOM_ABI)> $@
- 
-@@ -75,7 +75,7 @@ ifndef SKIP_GRE_REGISTRATION
- # to register xulrunner per-user, override this with $HOME/.gre.d
- regdir = /etc/gre.d
- 
--install:: $(MOZILLA_VERSION).system.conf
-+install:: $(MOZ_BASE_VERSION).system.conf
- 	$(NSINSTALL) -D $(DESTDIR)$(regdir)
- 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(regdir)
- endif
-@@ -136,7 +136,7 @@ install:: $(pkg_config_files)
+@@ -124,7 +124,7 @@ install:: $(pkg_config_files)
  	@echo pkg_config_file: $(pkg_config_files)
  	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(libdir)/pkgconfig
  

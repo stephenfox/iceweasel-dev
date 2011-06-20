@@ -1,3 +1,9 @@
+iceweasel (5.0-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 20 Jun 2011 16:38:57 +0900
+
 iceweasel (4.0.1-4) experimental; urgency=low
 
   * The 'I meant that to be in previous release but forgot' release.

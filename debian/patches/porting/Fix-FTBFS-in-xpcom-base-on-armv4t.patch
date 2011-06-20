@@ -8,10 +8,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=643779
  1 files changed, 3 insertions(+), 1 deletions(-)
 
 diff --git a/xpcom/base/nsDebugImpl.cpp b/xpcom/base/nsDebugImpl.cpp
-index 82bf74d..e284c0b 100644
+index f26f97b..353c1e4 100644
 --- a/xpcom/base/nsDebugImpl.cpp
 +++ b/xpcom/base/nsDebugImpl.cpp
-@@ -408,7 +408,9 @@ RealBreak()
+@@ -402,7 +402,9 @@ RealBreak()
  #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
     asm("int $3");
  #elif defined(__arm__)

@@ -174,6 +174,12 @@ static void Usage(const char *argv0)
            "  -h, --help                 show this message\n"
            "  -v, --version              show version\n"
            "  --gre-version              print the GRE version string on stdout\n"
+           "  --register-global          register this GRE in the machine registry\n"
+           "  --register-user            register this GRE in the user registry\n"
+           "  --unregister-global        unregister this GRE formerly registered with\n"
+           "                             --register-global\n"
+           "  --unregister-user          unregister this GRE formely registered with\n"
+           "                             --register-user\n"
            "  --find-gre <version>       Find a GRE with version <version> and print\n"
            "                             the path on stdout\n"
            "  --install-app <application> [<destination> [<directoryname>]]\n"
@@ -254,16 +260,6 @@ InstallXULApp(nsIFile* aXULRunnerDir,
   return 0;
 }
 
-static const GREProperty kGREProperties[] = {
-  { "xulrunner", "true" }
-#ifdef TARGET_XPCOM_ABI
-  , { "abi", TARGET_XPCOM_ABI }
-#endif
-#ifdef MOZ_JAVAXPCOM
-  , { "javaxpcom", "1" }
-#endif
-};
-
 class AutoAppData
 {
 public:
@@ -309,31 +305,6 @@ int main(int argc, char* argv[])
     nsresult rv = GetGREVersion(argv[0], &milestone, nsnull);
     if (NS_FAILED(rv))
       return 2;
-
-    if (IsArg(argv[1], "find-gre")) {
-      if (argc != 3) {
-        Usage(argv[0]);
-        return 1;
-      }
-
-      char path[MAXPATHLEN];
-      static const GREVersionRange vr = {
-        argv[2], PR_TRUE,
-        argv[2], PR_TRUE
-      };
-      static const GREProperty kProperties[] = {
-        { "xulrunner", "true" }
-      };
-
-      rv = GRE_GetGREPathWithProperties(&vr, 1, kProperties,
-                                        NS_ARRAY_LENGTH(kProperties),
-                                        path, sizeof(path));
-      if (NS_FAILED(rv))
-        return 1;
-
-      printf("%s\n", path);
-      return 0;
-    }
 
     if (IsArg(argv[1], "gre-version")) {
       if (argc != 2) {

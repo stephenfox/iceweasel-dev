@@ -38,10 +38,10 @@ APP and GRE resources.
  13 files changed, 574 insertions(+), 298 deletions(-)
 
 diff --git a/ipc/glue/GeckoChildProcessHost.cpp b/ipc/glue/GeckoChildProcessHost.cpp
-index 67a9651..6c8fa41 100644
+index 28d7334..76a74c1 100644
 --- a/ipc/glue/GeckoChildProcessHost.cpp
 +++ b/ipc/glue/GeckoChildProcessHost.cpp
-@@ -445,16 +445,19 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
+@@ -492,16 +492,19 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
  
    childArgv.insert(childArgv.end(), aExtraOpts.begin(), aExtraOpts.end());
  
@@ -68,7 +68,7 @@ index 67a9651..6c8fa41 100644
  
    childArgv.push_back(pidstring);
  
-@@ -557,16 +560,19 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
+@@ -604,16 +607,19 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
  
    cmdLine.AppendLooseValue(std::wstring(mGroupId.get()));
  
@@ -96,7 +96,7 @@ index 67a9651..6c8fa41 100644
    cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
  
 diff --git a/js/src/xpconnect/loader/mozJSComponentLoader.cpp b/js/src/xpconnect/loader/mozJSComponentLoader.cpp
-index 7296fc1..4b9bcf7 100644
+index 934b99d..f28aba8 100644
 --- a/js/src/xpconnect/loader/mozJSComponentLoader.cpp
 +++ b/js/src/xpconnect/loader/mozJSComponentLoader.cpp
 @@ -86,6 +86,7 @@
@@ -137,8 +137,8 @@ index 7296fc1..4b9bcf7 100644
      fullSpec += aComponentPath;
  
      nsCOMPtr<nsIURI> uri;
-@@ -838,47 +826,128 @@ class JSScriptHolder
-     JSScript *mScript;
+@@ -827,47 +815,128 @@ class JSPrincipalsHolder
+     JSPrincipals *mPrincipals;
  };
  
 +static const char baseName[2][5] = { "gre/", "app/" };
@@ -295,12 +295,12 @@ index 7296fc1..4b9bcf7 100644
  
  /* static */
 diff --git a/modules/libjar/nsJAR.cpp b/modules/libjar/nsJAR.cpp
-index 0738948..336511e 100644
+index a2cc5dc..80c66b4 100644
 --- a/modules/libjar/nsJAR.cpp
 +++ b/modules/libjar/nsJAR.cpp
-@@ -176,16 +176,13 @@ nsJAR::Open(nsIFile* zipFile)
-   mLock = PR_NewLock();
-   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
+@@ -177,16 +177,13 @@ nsJAR::Open(nsIFile* zipFile)
+   mOuterZipEntry.Truncate();
+   mOpened = PR_TRUE;
    
 -#ifdef MOZ_OMNIJAR
    // The omnijar is special, it is opened early on and closed late
@@ -318,7 +318,7 @@ index 0738948..336511e 100644
    return mZip->OpenArchive(zipFile);
  }
  
-@@ -239,13 +236,12 @@ nsJAR::Close()
+@@ -235,13 +232,12 @@ nsJAR::Close()
    mGlobalStatus = JAR_MANIFEST_NOT_PARSED;
    mTotalItemsInManifest = 0;
  
@@ -334,7 +334,7 @@ index 0738948..336511e 100644
    return mZip->CloseArchive();
  }
  
-@@ -396,12 +392,11 @@ nsJAR::GetCertificatePrincipal(const char* aFilename, nsIPrincipal** aPrincipal)
+@@ -392,12 +388,11 @@ nsJAR::GetCertificatePrincipal(const char* aFilename, nsIPrincipal** aPrincipal)
      return NS_ERROR_NULL_POINTER;
    *aPrincipal = nsnull;
  
@@ -350,10 +350,10 @@ index 0738948..336511e 100644
    //-- Parse the manifest
    nsresult rv = ParseManifest();
 diff --git a/modules/libpref/src/nsPrefService.cpp b/modules/libpref/src/nsPrefService.cpp
-index 55eeb51..83b0609 100644
+index 057e905..84802b8 100644
 --- a/modules/libpref/src/nsPrefService.cpp
 +++ b/modules/libpref/src/nsPrefService.cpp
-@@ -72,10 +72,8 @@
+@@ -70,10 +70,8 @@
  
  #include "nsITimelineService.h"
  
@@ -364,7 +364,7 @@ index 55eeb51..83b0609 100644
  
  // Definitions
  #define INITIAL_PREF_FILES 10
-@@ -798,30 +796,6 @@ static nsresult pref_LoadPrefsInDirList(const char *listId)
+@@ -784,30 +782,6 @@ static nsresult pref_LoadPrefsInDirList(const char *listId)
    return NS_OK;
  }
  
@@ -395,7 +395,7 @@ index 55eeb51..83b0609 100644
  static nsresult pref_ReadPrefFromJar(nsZipArchive* jarReader, const char *name)
  {
    nsZipItemPtr<char> manifest(jarReader, name, true);
-@@ -835,77 +809,121 @@ static nsresult pref_ReadPrefFromJar(nsZipArchive* jarReader, const char *name)
+@@ -821,77 +795,121 @@ static nsresult pref_ReadPrefFromJar(nsZipArchive* jarReader, const char *name)
    return rv;
  }
  
@@ -563,10 +563,10 @@ index 55eeb51..83b0609 100644
  
    rv = pref_LoadPrefsInDirList(NS_APP_PREFS_DEFAULTS_DIR_LIST);
 diff --git a/netwerk/protocol/res/nsResProtocolHandler.cpp b/netwerk/protocol/res/nsResProtocolHandler.cpp
-index 0431b43..cae9ee7 100644
+index 1e52394..48a4228 100644
 --- a/netwerk/protocol/res/nsResProtocolHandler.cpp
 +++ b/netwerk/protocol/res/nsResProtocolHandler.cpp
-@@ -157,20 +157,6 @@ nsResProtocolHandler::~nsResProtocolHandler()
+@@ -154,20 +154,6 @@ nsResProtocolHandler::~nsResProtocolHandler()
  }
  
  nsresult
@@ -587,7 +587,7 @@ index 0431b43..cae9ee7 100644
  nsResProtocolHandler::Init()
  {
      if (!mSubstitutions.Init(32))
-@@ -181,24 +167,31 @@ nsResProtocolHandler::Init()
+@@ -178,24 +164,31 @@ nsResProtocolHandler::Init()
      mIOService = do_GetIOService(&rv);
      NS_ENSURE_SUCCESS(rv, rv);
  
@@ -629,7 +629,7 @@ index 0431b43..cae9ee7 100644
      NS_ENSURE_SUCCESS(rv, rv);
  
      //XXXbsmedberg Neil wants a resource://pchrome/ for the profile chrome dir...
-@@ -210,34 +203,6 @@ nsResProtocolHandler::Init()
+@@ -207,34 +200,6 @@ nsResProtocolHandler::Init()
      return rv;
  }
  
@@ -661,14 +661,14 @@ index 0431b43..cae9ee7 100644
 -}
 -#endif
 -
- #ifdef MOZ_IPC
  static PLDHashOperator
  EnumerateSubstitution(const nsACString& aKey,
+                       nsIURI* aURI,
 diff --git a/startupcache/StartupCache.cpp b/startupcache/StartupCache.cpp
-index daca67c..62d252b 100644
+index dee1878..1ab4ec9 100644
 --- a/startupcache/StartupCache.cpp
 +++ b/startupcache/StartupCache.cpp
-@@ -242,17 +242,26 @@ StartupCache::GetBuffer(const char* id, char** outbuf, PRUint32* length)
+@@ -250,17 +250,26 @@ StartupCache::GetBuffer(const char* id, char** outbuf, PRUint32* length)
      } 
    }
  
@@ -700,11 +700,11 @@ index daca67c..62d252b 100644
  }
  
 diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
-index 1f1ddc8..30a5c7e 100644
+index a47192f..fc7505e 100644
 --- a/toolkit/xre/nsAppRunner.cpp
 +++ b/toolkit/xre/nsAppRunner.cpp
-@@ -3912,25 +3912,35 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
- #endif
+@@ -3877,25 +3877,35 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
+   delete[] canonArgs;
  #endif
  
 -#ifdef MOZ_OMNIJAR
@@ -752,10 +752,10 @@ index 1f1ddc8..30a5c7e 100644
  
  nsresult
 diff --git a/toolkit/xre/nsEmbedFunctions.cpp b/toolkit/xre/nsEmbedFunctions.cpp
-index 53ec37f..b777049 100644
+index 393afda..67d3c59 100644
 --- a/toolkit/xre/nsEmbedFunctions.cpp
 +++ b/toolkit/xre/nsEmbedFunctions.cpp
-@@ -517,9 +517,7 @@ XRE_InitChildProcess(int aArgc,
+@@ -512,9 +512,7 @@ XRE_InitChildProcess(int aArgc,
        // Allow ProcessChild to clean up after itself before going out of
        // scope and being deleted
        process->CleanUp();
@@ -767,7 +767,7 @@ index 53ec37f..b777049 100644
    }
  
 diff --git a/xpcom/build/Makefile.in b/xpcom/build/Makefile.in
-index 9421f4c..b08ff56 100644
+index c5004c2..0fa7fd1 100644
 --- a/xpcom/build/Makefile.in
 +++ b/xpcom/build/Makefile.in
 @@ -69,6 +69,7 @@ CPPSRCS		= \
@@ -1166,10 +1166,10 @@ index 33a2b4a..a36678a 100644
  
  #endif /* mozilla_Omnijar_h */
 diff --git a/xpcom/build/nsXPComInit.cpp b/xpcom/build/nsXPComInit.cpp
-index 722bbc5..043a2a2 100644
+index e9238a8..f6203f2 100644
 --- a/xpcom/build/nsXPComInit.cpp
 +++ b/xpcom/build/nsXPComInit.cpp
-@@ -467,25 +467,25 @@ NS_InitXPCOM2(nsIServiceManager* *result,
+@@ -457,25 +457,25 @@ NS_InitXPCOM2(nsIServiceManager* *result,
          if (NS_FAILED(rv)) return rv;
      }
  
@@ -1204,11 +1204,11 @@ index 722bbc5..043a2a2 100644
      }
 -#endif
  
- #ifdef MOZ_IPC
      if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
-@@ -774,9 +774,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
+         NS_TIME_FUNCTION_MARK("Next: IPC command line init");
+@@ -755,9 +755,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
+         sExitManager = nsnull;
      }
- #endif
  
 -#ifdef MOZ_OMNIJAR
 -    mozilla::SetOmnijar(nsnull);
@@ -1218,10 +1218,10 @@ index 722bbc5..043a2a2 100644
      NS_LogTerm();
  
 diff --git a/xpcom/components/nsComponentManager.cpp b/xpcom/components/nsComponentManager.cpp
-index bdf6645..2a0be15 100644
+index 7fd67b7..7e6646a 100644
 --- a/xpcom/components/nsComponentManager.cpp
 +++ b/xpcom/components/nsComponentManager.cpp
-@@ -180,8 +180,6 @@ NS_DEFINE_CID(kCategoryManagerCID, NS_CATEGORYMANAGER_CID);
+@@ -174,8 +174,6 @@ NS_DEFINE_CID(kCategoryManagerCID, NS_CATEGORYMANAGER_CID);
  #define COMPMGR_TIME_FUNCTION_CONTRACTID(cid) do {} while (0)
  #endif
  
@@ -1230,7 +1230,7 @@ index bdf6645..2a0be15 100644
  nsresult
  nsGetServiceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) const
  {
-@@ -395,14 +393,20 @@ nsresult nsComponentManagerImpl::Init()
+@@ -385,14 +383,20 @@ nsresult nsComponentManagerImpl::Init()
      for (PRUint32 i = 0; i < sStaticModules->Length(); ++i)
          RegisterModule((*sStaticModules)[i], NULL);
  
@@ -1258,7 +1258,7 @@ index bdf6645..2a0be15 100644
  
      for (PRUint32 i = 0; i < sModuleLocations->Length(); ++i) {
          ComponentLocation& l = sModuleLocations->ElementAt(i);
-@@ -417,15 +421,6 @@ nsresult nsComponentManagerImpl::Init()
+@@ -407,15 +411,6 @@ nsresult nsComponentManagerImpl::Init()
              RegisterJarManifest(reader, "chrome.manifest", false);
      }
  
