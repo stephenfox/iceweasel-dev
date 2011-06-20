@@ -1,8 +1,32 @@
-iceweasel (5.0-1) UNRELEASED; urgency=low
+iceweasel (5.0-1) experimental; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2011-{09,19-22,25-28}, also known as
+    CVE-2011-0061, CVE-2011-2374, CVE-2011-2375, CVE-2011-2373,
+    CVE-2011-2372, CVE-2011-2371, CVE-2011-2366, CVE-2011-2367,
+    CVE-2011-2368, CVE-2011-2369, CVE-2011-2370.
 
- -- Mike Hommey <glandium@debian.org>  Mon, 20 Jun 2011 16:38:57 +0900
+  * debian/xulrunner-GRE_VERSION.install.in: /etc/gre.d is not used anymore.
+  * debian/branding/content/aboutDialog.css, debian/branding/content/jar.mn:
+    Updated branding.
+  * debian/rules: xulrunner and iceweasel now have the same version.
+  * debian/dh/dh_xulrunner.in: Modify the strings we try to find in the xpcom
+    standalone glue.
+
+  * other-licenses/bsdiff/Makefile.in: Fix bsdiff build failure with system
+    bzip2. bz#644692.
+  * layout/base/nsDocumentViewer.cpp: Use an integer type in
+    DocumentViewerImpl::SetMinFontSize, instead of float. bz#652139.
+  * browser/base/content/aboutDialog.*,
+    browser/branding/*/content/aboutDialog.css
+    browser/branding/*/content/jar.mn,
+    other-licenses/branding/firefox/content/aboutDialog.css,
+    other-licenses/branding/firefox/content/jar.mn: Move some parts of
+    aboutDialog.css into branding. bz#652306.
+  * configure.*: Disable building embedded libjpeg-turbo when building with
+    system libjpeg. bz#652399.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 20 Jun 2011 17:17:04 +0900
 
 iceweasel (4.0.1-4) experimental; urgency=low
 
