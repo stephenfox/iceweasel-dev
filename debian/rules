@@ -131,6 +131,7 @@ stamps/prepare-configure:: stamps/dummy
 			sed -i '2!b;/^#/ i\exec "/usr/share/misc/'$$file'" "$$@"' $$dir/$$file; \
 		done; \
 	done
+	chmod 755 configure js/src/configure
 
 stamps/configure-xulrunner:: stamps/prepare-configure
 	$(if $(wildcard build-xulrunner),,mkdir build-xulrunner)
