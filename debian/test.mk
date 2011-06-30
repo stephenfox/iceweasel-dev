@@ -26,7 +26,10 @@ ifeq ($(DEB_BUILD_ARCH),armel)
 $(TESTS): export ARM_FORCE_PLATFORM=4
 endif
 
-$(TESTS):
+$(CURDIR)/build-iceweasel/dist/bin/xulrunner:
+	ln -s ../../../build-xulrunner/dist/bin $@
+
+$(TESTS): $(CURDIR)/build-iceweasel/dist/bin/xulrunner
 	GNOME22_USER_DIR="$(CURDIR)/build-xulrunner/dist/.gnome2" \
 	HOME="$(CURDIR)/build-xulrunner/dist" \
 	$(XVFB_RUN) $(MAKE) -C build-xulrunner $@ 2>&1 | sed -u 's/^/$@> /'
