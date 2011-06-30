@@ -37,7 +37,11 @@ PlatformThreadId PlatformThread::CurrentId() {
   // TODO(BSD): find a better thread ID
   return (intptr_t)(pthread_self());
 #elif defined(OS_LINUX)
+#ifdef __NR_gettid
   return syscall(__NR_gettid);
+#else
+  return getpid();
+#endif
 #endif
 }
 
