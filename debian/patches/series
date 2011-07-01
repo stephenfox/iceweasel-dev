@@ -29,6 +29,8 @@ porting/Allow-to-build-yuv_convert_arm.cpp-on-armv4t.patch
 porting/Fix-FTBFS-in-IPC-on-Linux-PPC.patch
 porting/Add-mips-hppa-ia64-s390-and-sparc-defines-in-ipc-chr.patch
 porting/Force-NativeARM.o-to-have-arch-armv4t-in-its-.ARM.at.patch
+porting/Allow-ARMv4T-in-nanojit.patch
+porting/Allow-ipc-code-to-build-on-GNU-kfreebsd.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
