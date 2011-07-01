@@ -1,3 +1,19 @@
+iceweasel (5.0-2) experimental; urgency=low
+
+  * debian/rules: Fix configure permissions for source tarballs generated from
+    mercurial.
+  * debian/test.mk: Create a xulrunner symbolic link in
+    build-iceweasel/dist/bin so that reftests work.
+  * debian/watch: Always get the latest release.
+
+  * js/src/nanojit/njconfig.cpp: Allow ARMv4T in nanojit.
+  * ipc/chromium/src/base/platform_thread_posix.cc,
+    ipc/chromium/src/base/third_party/nspr/prcpucfg.h,
+    ipc/chromium/src/build/build_config.h: Allow ipc code to build on
+    GNU/kfreebsd. Closes: #626314.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 01 Jul 2011 14:43:39 +0200
+
 iceweasel (5.0-1) experimental; urgency=low
 
   * New upstream release.
