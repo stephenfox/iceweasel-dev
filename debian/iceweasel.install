@@ -18,7 +18,6 @@ debian/iceweaselrc etc/iceweasel
 build-iceweasel/debian/branding/mozicon16.xpm usr/share/iceweasel/icons/
 build-iceweasel/debian/branding/mozicon50.xpm usr/share/iceweasel/icons/
 build-iceweasel/debian/branding/mozicon128.png usr/share/iceweasel/icons/
-build-iceweasel/debian/branding/document.png usr/share/iceweasel/icons/
 
 debian/iceweasel.js etc/iceweasel/pref
 debian/vendor.js usr/share/iceweasel/defaults/preferences
