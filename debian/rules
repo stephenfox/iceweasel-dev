@@ -225,11 +225,14 @@ stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
 	find debian/tmp/usr/share debian/tmp/usr/include -type f -print0 | xargs -0 chmod 644
 
 	# Replace some installed files by symlinks
-	cd debian/tmp/usr/lib/xulrunner-devel-$(GRE_VERSION)/sdk/lib; \
-		for f in *.so; do \
-			rm -f $$f; ln -s /usr/lib/xulrunner-$(GRE_VERSION)/$$f $$f; \
-		done
-	ln -s ../../xulrunner-$(GRE_VERSION) debian/tmp/usr/lib/xulrunner-devel-$(GRE_VERSION)/sdk/bin
+	for d in lib bin; do \
+		cd "$(CURDIR)/debian/tmp/usr/lib/xulrunner-devel-$(GRE_VERSION)/sdk/$$d"; \
+		for f in *; do \
+			if [ -f "$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION)/$$f" ]; then \
+				rm -f $$f ; ln -s /usr/lib/xulrunner-$(GRE_VERSION)/$$f $$f; \
+			fi; \
+		done; \
+	done
 
 	dh_auto_install --sourcedirectory=build-xulrunner/js/src -- prefix=/usr MODULE=mozjs FORCE_STATIC_LIB=
 	rm debian/tmp/usr/bin/js-config
