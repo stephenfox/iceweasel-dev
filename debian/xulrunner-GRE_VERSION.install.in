@@ -18,6 +18,7 @@ usr/lib/xulrunner-##GRE_VERSION##/reportbug-helper-script
 
 usr/lib/xulrunner-##GRE_VERSION##/icons usr/share/xulrunner-##GRE_VERSION##
 usr/lib/xulrunner-##GRE_VERSION##/chrome usr/share/xulrunner-##GRE_VERSION##
+usr/lib/xulrunner-##GRE_VERSION##/hyphenation usr/share/xulrunner-##GRE_VERSION##
 
 usr/lib/xulrunner-##GRE_VERSION##/components/*.manifest
 usr/lib/xulrunner-##GRE_VERSION##/components/libdbusservice.so
