@@ -87,9 +87,6 @@ ifeq (default,$(origin CXX))
 CXX := g++
 endif
 CXXFLAGS := $(CFLAGS)
-ifeq (,$(shell dpkg --compare-versions $(shell $(CXX) -dumpversion) '>=' 4.4 || echo no))
-CXXFLAGS += -std=gnu++0x
-endif
 
 export CC CXX CFLAGS CXXFLAGS
 
