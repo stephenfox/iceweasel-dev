@@ -506,7 +506,7 @@ endif
 
 EXPORTS = $(filter-out nanojit/%,$(INSTALLED_HEADERS))
 ifdef ENABLE_TRACEJIT
-EXPORTS_NAMESPACES  = nanojit
+EXPORTS_NAMESPACES += nanojit
 EXPORTS_nanojit = $(filter nanojit/%,$(INSTALLED_HEADERS))
 endif # ENABLE_TRACEJIT
 
