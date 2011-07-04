@@ -249,7 +249,7 @@ stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
 		rm -rf debian/tmp/usr/include/xulrunner-$(GRE_VERSION)/$$h; \
 	done
 
-	rm debian/tmp/usr/lib/xulrunner-$(GRE_VERSION)/libmozjs.so
+	rm debian/tmp/usr/lib/xulrunner-$(GRE_VERSION)/libmozjs.so*
 	mv debian/tmp/usr/bin/js debian/tmp/usr/bin/smjs
 
 	sed -i '/^Cflags/ s,$${includedir},/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
