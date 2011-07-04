@@ -8,7 +8,7 @@ Subject: Install js shell when running make install from js/src
  2 files changed, 4 insertions(+), 0 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 6119394..32c330a 100644
+index 8ee5e4d..d59da35 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -951,6 +951,7 @@ endif
