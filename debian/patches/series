@@ -16,6 +16,7 @@ fixes/Bug-644692-Fix-bsdiff-build-failure-with-system-bzip.patch
 fixes/Bug-652139-Use-an-integer-type-in-DocumentViewerImpl.patch
 fixes/Bug-652306-Move-some-parts-of-aboutDialog.css-into-b.patch
 fixes/Disable-building-embedded-libjpeg-turbo-when-buildin.patch
+fixes/Bug-639554-Install-sdk-bin-with-make-install.-r-bsme.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Don-t-hardcode-anything-in-application.ini-files.patch
