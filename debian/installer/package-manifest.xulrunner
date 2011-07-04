@@ -4,8 +4,7 @@ bin/components/nsXULAppInstall.js
 bin/defaults/pref/xulrunner.js
 bin/xpcshell
 bin/xpidl
-bin/xpt_dump
-bin/xpt_link
+bin/xpt.py
 bin/xulrunner-stub
 
 [debian]
