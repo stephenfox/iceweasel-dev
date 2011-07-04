@@ -4,7 +4,7 @@ DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
-OFFICIAL_BRANDING := other-licenses/branding/firefox
+OFFICIAL_BRANDING := browser/branding/official
 
 # The VERSION_FILTER transforms upstream version patterns to versions
 # useable in debian/changelog. Versions are to be transformed as follows:
