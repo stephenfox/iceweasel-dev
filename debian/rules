@@ -114,7 +114,7 @@ DICT_DIR := /usr/share/hunspell
 endif
 
 $(PREPROCESSED_FILES):
-	sed $(foreach var,GRE_VERSION GRE_MILESTONE SO_VERSION DICT_DIR,-e 's,##$(var)##,$($(var)),g' )$^ > $@
+	sed $(foreach var,GRE_VERSION SO_VERSION DICT_DIR,-e 's,##$(var)##,$($(var)),g' )$^ > $@
 
 %/Makefile: DIR=$(firstword $(subst /, ,$@))
 %/Makefile:
