@@ -39,7 +39,7 @@ Cu.import("resource://gre/modules/DownloadUtils.jsm");
 
 const gDecimalSymbol = Number(5.4).toLocaleString().match(/\D/);
 function _(str) {
-  return str.replace(".", gDecimalSymbol);
+  return str.replace(".", gDecimalSymbol, "g");
 }
 
 function testConvertByteUnits(aBytes, aValue, aUnit)
@@ -76,7 +76,7 @@ function testStatus(aCurr, aMore, aRate, aTest)
   }
 
   // Make sure the status text matches
-  do_check_eq(status, aTest[0].replace(/--/, gDash));
+  do_check_eq(status, _(aTest[0].replace(/--/, gDash)));
 
   // Make sure the lastSeconds matches
   if (last == Infinity)
