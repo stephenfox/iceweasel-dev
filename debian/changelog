@@ -1,3 +1,65 @@
+iceweasel (5.0-3) unstable; urgency=low
+
+  * Upload to unstable.
+  * debian/control*: Fix build dependency on libsqlite3-dev.
+  * debian/rules:
+    - Replace sdk/bin files also in /usr/lib/xulrunner-5.0 with symbolic links.
+    - Use dist/include to find npapi.h when building npapi_getinfo.
+  * debian/control*, debian/rules: Use ${binary:Version} for iceweasel
+    dependency on xulrunner, now that they have the same version.
+  * debian/test.mk:
+    - Set the application directory for xpcshell tests.
+    - Set plugin path for all tests.
+  * debian/control*: Add a build dependency on ttf-dejima-mincho to avoid
+    reftest failure due to the lack of japanese font.
+  * debian/xulrunner-GRE_VERSION.lintian-overrides.in: Add a temporary lintian
+    override for libtheora embedding.
+
+  * js/src/Makefile.in: Fix namespace exporting.
+  * toolkit/mozapps/installer/packager.mk: Install sdk/bin with make install.
+    bz#639554.
+  * config/autoconf.mk.in: Use the first two digits of the version number for
+    the install directory. bz#445128.
+  * xulrunner/installer/Makefile.in: Revert previous change for the version
+    number here, it concerns something that isn't built anymore and will go
+    away.
+  * embedding/android/GeckoAppShell.java, ipc/glue/GeckoChildProcessHost.cpp,
+    other-licenses/android/APKOpen.cpp, toolkit/xre/nsAppRunner.cpp,
+    toolkit/xre/nsEmbedFunctions.cpp, xpcom/build/Omnijar.*,
+    xpcom/build/nsXPComInit.cpp: Updated part 3 of bz#620931.
+  * js/src/xpconnect/shell/xpcshell.cpp: Add a -a option to xpcshell to set
+    an application directory. bz#620931 (part 6)
+  * browser/installer/Makefile.in, browser/installer/precompile_cache.js:
+    Make startup cache generation work better with new omni.jar handling.
+    bz#620931 (part 7)
+  * toolkit/components/places/tests/unit/test_database_replaceOnStartup.js:
+    Don't modify in-tree default.sqlite. bz#666709, bz#668906.
+  * storage/src/mozStorageService.cpp,
+    storage/test/unit/test_storage_service.js: Add a safeguard to
+    openUnsharedDatabase. bz#668906.
+  * toolkit/mozapps/downloads/tests/unit/test_DownloadUtils.js: Fix with
+    locales with a different decimal separator. bz#671533.
+  * xpcom/build/nsXPComInit.cpp: Initialize NS_XPCOM_LIBRARY_FILE from
+    NS_GRE_DIR. bz#671564.
+  * testing/xpcshell/runxpcshelltests.py: Allow to pass an application
+    directory to xpcshell tests. bz#671562.
+  * modules/plugin/test/unit/head_plugins.js, netwerk/test/unit/test_socks.js,
+    toolkit/mozapps/extensions/test/xpcshell/test_plugins.js: Fix some tests
+    using CurProcD where GreD should be used.
+  * xpcom/tests/unit/test_iniProcessor.js: Cleanup temporary files from
+    test_iniProcessor.js. bz#671570.
+  * modules/libpref/test/unit/test_libPrefs.js: Cleanup temporary files from
+    test_libPrefs.js. bz#671576. Together with bz#671570 and bz#666709 above,
+    Closes: #632890.
+  * toolkit/mozapps/extensions/test/xpcshell/test_update.js: Don't hardcode
+    en-US in test_update.js. bz#671631.
+  * modules/libpref/src/nsPrefService.cpp: Always load $gre/defaults/pref
+    prefs. bz#671798.
+  * js/src/xpconnect/shell/xpcshell.cpp: Provide NS_APP_PREF_DEFAULTS_50_DIR
+    and NS_APP_PREFS_DEFAULTS_DIR_LIST in xpcshell dir provider. bz#671804.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 15 Jul 2011 12:04:39 +0200
+
 iceweasel (5.0-2) experimental; urgency=low
 
   * debian/rules: Fix configure permissions for source tarballs generated from
