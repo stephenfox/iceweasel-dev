@@ -36,7 +36,7 @@ function runScriptSubprocess(script, args)
 {
   // logic copied from ted's crashreporter unit test
   var ds = new DirectoryService();
-  var bin = ds.get("CurProcD", Ci.nsILocalFile);
+  var bin = ds.get("GreD", Ci.nsILocalFile);
 
   bin.append("xpcshell");
   if (!bin.exists()) {
