@@ -16,6 +16,7 @@ ifndef HAS_LOCALE
 xpcshell-tests: export LOCPATH = $(CURDIR)/debian/locales
 endif
 xpcshell-tests: export LC_ALL=$(LOCALE)
+xpcshell-tests: export EXTRA_TEST_ARGS += --app-path=$(CURDIR)/build-iceweasel/dist/bin
 $(APP_TESTS): export EXTRA_TEST_ARGS += --appname=$(CURDIR)/build-iceweasel/dist/bin/firefox
 $(APP_TESTS): export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
 $(APP_TESTS) xpcshell-tests: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
