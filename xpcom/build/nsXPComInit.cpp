@@ -460,21 +460,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     NS_TIME_FUNCTION_MARK("Next: Omnijar init");
 
     if (!mozilla::Omnijar::IsInitialized()) {
-        nsCOMPtr<nsILocalFile> greDir, appDir;
-        nsCOMPtr<nsIFile> file;
-
-        nsDirectoryService::gService->Get(NS_GRE_DIR,
-                                          NS_GET_IID(nsIFile),
-                                          getter_AddRefs(file));
-        greDir = do_QueryInterface(file);
-
-        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                                          NS_GET_IID(nsIFile),
-                                          getter_AddRefs(file));
-        appDir = do_QueryInterface(file);
-
-        rv = mozilla::Omnijar::SetBase(greDir, appDir);
-        NS_ENSURE_SUCCESS(rv, rv);
+        mozilla::Omnijar::Init();
     }
 
     if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
@@ -755,7 +741,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         sExitManager = nsnull;
     }
 
-    mozilla::Omnijar::SetBase(nsnull, nsnull);
+    mozilla::Omnijar::CleanUp();
 
     NS_LogTerm();
 

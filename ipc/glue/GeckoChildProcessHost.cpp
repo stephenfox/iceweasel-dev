@@ -495,14 +495,14 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // Make sure the child process can find the omnijar
   // See XRE_InitCommandLine in nsAppRunner.cpp
   nsCAutoString path;
-  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetBase(mozilla::Omnijar::GRE);
+  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetPath(mozilla::Omnijar::GRE);
   if (file && NS_SUCCEEDED(file->GetNativePath(path))) {
-    childArgv.push_back("-grebase");
+    childArgv.push_back("-greomni");
     childArgv.push_back(path.get());
   }
-  file = mozilla::Omnijar::GetBase(mozilla::Omnijar::APP);
+  file = mozilla::Omnijar::GetPath(mozilla::Omnijar::APP);
   if (file && NS_SUCCEEDED(file->GetNativePath(path))) {
-    childArgv.push_back("-appbase");
+    childArgv.push_back("-appomni");
     childArgv.push_back(path.get());
   }
 
@@ -610,14 +610,14 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // Make sure the child process can find the omnijar
   // See XRE_InitCommandLine in nsAppRunner.cpp
   nsAutoString path;
-  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetBase(mozilla::Omnijar::GRE);
+  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetPath(mozilla::Omnijar::GRE);
   if (file && NS_SUCCEEDED(file->GetPath(path))) {
-    cmdLine.AppendLooseValue(UTF8ToWide("-grebase"));
+    cmdLine.AppendLooseValue(UTF8ToWide("-greomni"));
     cmdLine.AppendLooseValue(path.get());
   }
-  file = mozilla::Omnijar::GetBase(mozilla::Omnijar::APP);
+  file = mozilla::Omnijar::GetPath(mozilla::Omnijar::APP);
   if (file && NS_SUCCEEDED(file->GetPath(path))) {
-    cmdLine.AppendLooseValue(UTF8ToWide("-appbase"));
+    cmdLine.AppendLooseValue(UTF8ToWide("-appomni"));
     cmdLine.AppendLooseValue(path.get());
   }
 
