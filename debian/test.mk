@@ -20,6 +20,7 @@ xpcshell-tests: export EXTRA_TEST_ARGS += --app-path=$(CURDIR)/build-iceweasel/d
 $(APP_TESTS): export EXTRA_TEST_ARGS += --appname=$(CURDIR)/build-iceweasel/dist/bin/firefox
 $(APP_TESTS): export GRE_HOME = $(CURDIR)/build-xulrunner/dist/bin
 $(APP_TESTS) xpcshell-tests: XVFB_RUN = xvfb-run -s "-screen 0 1024x768x24"
+$(TESTS): export MOZ_PLUGIN_PATH = $(CURDIR)/build-xulrunner/dist/bin/plugins
 
 ifeq ($(DEB_BUILD_ARCH),armel)
 # Force armel JIT to compile ARMv4T instructions at runtime even when the buildd
