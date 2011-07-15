@@ -4,6 +4,8 @@ fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Bug-620931-part-1-Use-chrome-manifest-to-register-re.patch
 fixes/Bug-620931-part-2-When-building-with-libxul-sdk-use-.patch
 fixes/Bug-620931-part-3-Allow-GRE-and-XUL-application-to-u.patch
+fixes/Bug-620931-part-6-Add-a-a-option-to-xpcshell-to-set-.patch
+fixes/Bug-620931-part-7-Make-startup-cache-generation-work.patch
 fixes/Bug-620931-part-4-Fix-resource-app-to-always-point-t.patch
 fixes/Bug-620931-part-5-Enable-omni.jar-by-default-on-xulr.patch
 fixes/Bug-626035-Modify-the-way-arm-compiler-flags-are-set.patch
@@ -17,6 +19,17 @@ fixes/Bug-652139-Use-an-integer-type-in-DocumentViewerImpl.patch
 fixes/Bug-652306-Move-some-parts-of-aboutDialog.css-into-b.patch
 fixes/Disable-building-embedded-libjpeg-turbo-when-buildin.patch
 fixes/Bug-639554-Install-sdk-bin-with-make-install.-r-bsme.patch
+fixes/Bug-666709-One-or-more-places-xpcshell-tests-modify-.patch
+fixes/Bug-668906-Do-not-call-openUnsharedDatabase-with-a-n.patch
+fixes/Bug-671533-Fix-test_DownloadUtils.js-with-locales-wi.patch
+fixes/Bug-671564-Initialize-NS_XPCOM_LIBRARY_FILE-from-NS_.patch
+fixes/Bug-671562-Allow-to-pass-an-application-directory-to.patch
+fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
+fixes/Bug-671570-Cleanup-temporary-files-from-test_iniProc.patch
+fixes/Bug-671576-Cleanup-temporary-files-from-test_libPref.patch
+fixes/Bug-671631-Don-t-hardcode-en-US-in-test_update.js.patch
+fixes/Bug-671798-Always-load-gre-defaults-pref-prefs.patch
+fixes/Bug-671804-Provide-NS_APP_PREF_DEFAULTS_50_DIR-and-N.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Don-t-hardcode-anything-in-application.ini-files.patch

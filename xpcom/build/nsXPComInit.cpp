@@ -429,52 +429,37 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIFile> xpcomLib;
-            
     PRBool value;
+
     if (binDirectory)
     {
         rv = binDirectory->IsDirectory(&value);
 
         if (NS_SUCCEEDED(rv) && value) {
             nsDirectoryService::gService->Set(NS_XPCOM_INIT_CURRENT_PROCESS_DIR, binDirectory);
-            binDirectory->Clone(getter_AddRefs(xpcomLib));
         }
     }
-    else {
-        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
-                                          NS_GET_IID(nsIFile), 
-                                          getter_AddRefs(xpcomLib));
+
+    if (appFileLocationProvider) {
+        rv = nsDirectoryService::gService->RegisterProvider(appFileLocationProvider);
+        if (NS_FAILED(rv)) return rv;
     }
+
+    nsCOMPtr<nsIFile> xpcomLib;
+
+    nsDirectoryService::gService->Get(NS_GRE_DIR,
+                                      NS_GET_IID(nsIFile),
+                                      getter_AddRefs(xpcomLib));
 
     if (xpcomLib) {
         xpcomLib->AppendNative(nsDependentCString(XPCOM_DLL));
         nsDirectoryService::gService->Set(NS_XPCOM_LIBRARY_FILE, xpcomLib);
     }
     
-    if (appFileLocationProvider) {
-        rv = nsDirectoryService::gService->RegisterProvider(appFileLocationProvider);
-        if (NS_FAILED(rv)) return rv;
-    }
-
     NS_TIME_FUNCTION_MARK("Next: Omnijar init");
 
     if (!mozilla::Omnijar::IsInitialized()) {
-        nsCOMPtr<nsILocalFile> greDir, appDir;
-        nsCOMPtr<nsIFile> file;
-
-        nsDirectoryService::gService->Get(NS_GRE_DIR,
-                                          NS_GET_IID(nsIFile),
-                                          getter_AddRefs(file));
-        greDir = do_QueryInterface(file);
-
-        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                                          NS_GET_IID(nsIFile),
-                                          getter_AddRefs(file));
-        appDir = do_QueryInterface(file);
-
-        rv = mozilla::Omnijar::SetBase(greDir, appDir);
-        NS_ENSURE_SUCCESS(rv, rv);
+        mozilla::Omnijar::Init();
     }
 
     if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
@@ -755,7 +740,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         sExitManager = nsnull;
     }
 
-    mozilla::Omnijar::SetBase(nsnull, nsnull);
+    mozilla::Omnijar::CleanUp();
 
     NS_LogTerm();
 

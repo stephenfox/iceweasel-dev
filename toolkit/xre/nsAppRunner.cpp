@@ -3878,34 +3878,39 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
 #endif
 
   const char *path = nsnull;
-  ArgResult ar = CheckArg("grebase", PR_FALSE, &path);
+  ArgResult ar = CheckArg("greomni", PR_FALSE, &path);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -grebase requires a path argument\n");
+    PR_fprintf(PR_STDERR, "Error: argument -greomni requires a path argument\n");
     return NS_ERROR_FAILURE;
   }
 
   if (!path)
     return rv;
 
-  nsCOMPtr<nsILocalFile> greBase;
-  rv = XRE_GetFileFromPath(path, getter_AddRefs(greBase));
-  if (NS_FAILED(rv))
+  nsCOMPtr<nsILocalFile> greOmni;
+  rv = XRE_GetFileFromPath(path, getter_AddRefs(greOmni));
+  if (NS_FAILED(rv)) {
+    PR_fprintf(PR_STDERR, "Error: argument -greomni requires a valid path\n");
     return rv;
+  }
 
-  ar = CheckArg("appbase", PR_FALSE, &path);
+  ar = CheckArg("appomni", PR_FALSE, &path);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -appbase requires a path argument\n");
+    PR_fprintf(PR_STDERR, "Error: argument -appomni requires a path argument\n");
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsILocalFile> appBase;
+  nsCOMPtr<nsILocalFile> appOmni;
   if (path) {
-      rv = XRE_GetFileFromPath(path, getter_AddRefs(appBase));
-      if (NS_FAILED(rv))
+      rv = XRE_GetFileFromPath(path, getter_AddRefs(appOmni));
+      if (NS_FAILED(rv)) {
+        PR_fprintf(PR_STDERR, "Error: argument -appomni requires a valid path\n");
         return rv;
+      }
   }
 
-  return mozilla::Omnijar::SetBase(greBase, appBase);
+  mozilla::Omnijar::Init(greOmni, appOmni);
+  return rv;
 }
 
 nsresult

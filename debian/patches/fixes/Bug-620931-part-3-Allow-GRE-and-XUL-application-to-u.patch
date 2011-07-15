@@ -22,23 +22,38 @@ needed for the mozilla::Omnijar API initialization in the child process.
 Finally, the startupcache file name canonicalization is modified to separate
 APP and GRE resources.
 ---
+ embedding/android/GeckoAppShell.java             |    2 +-
  ipc/glue/GeckoChildProcessHost.cpp               |   34 +++--
- js/src/xpconnect/loader/mozJSComponentLoader.cpp |  161 ++++++++++++++------
+ js/src/xpconnect/loader/mozJSComponentLoader.cpp |  161 +++++++++++++++------
  modules/libjar/nsJAR.cpp                         |   19 +--
- modules/libpref/src/nsPrefService.cpp            |  160 +++++++++++---------
- netwerk/protocol/res/nsResProtocolHandler.cpp    |   69 ++------
+ modules/libpref/src/nsPrefService.cpp            |  160 ++++++++++++----------
+ netwerk/protocol/res/nsResProtocolHandler.cpp    |   69 +++-------
+ other-licenses/android/APKOpen.cpp               |    2 +-
  startupcache/StartupCache.cpp                    |   17 ++-
- toolkit/xre/nsAppRunner.cpp                      |   34 +++--
+ toolkit/xre/nsAppRunner.cpp                      |   37 ++++--
  toolkit/xre/nsEmbedFunctions.cpp                 |    4 +-
  xpcom/build/Makefile.in                          |    5 +-
- xpcom/build/Omnijar.cpp                          |  181 +++++++++++++++++-----
- xpcom/build/Omnijar.h                            |  131 ++++++++++++++--
- xpcom/build/nsXPComInit.cpp                      |   26 ++--
- xpcom/components/nsComponentManager.cpp          |   31 ++--
- 13 files changed, 574 insertions(+), 298 deletions(-)
+ xpcom/build/Omnijar.cpp                          |  153 ++++++++++++++++-----
+ xpcom/build/Omnijar.h                            |  124 +++++++++++++++--
+ xpcom/build/nsXPComInit.cpp                      |   22 +---
+ xpcom/components/nsComponentManager.cpp          |   31 ++---
+ 15 files changed, 541 insertions(+), 299 deletions(-)
 
+diff --git a/embedding/android/GeckoAppShell.java b/embedding/android/GeckoAppShell.java
+index 228116a..5711160 100644
+--- a/embedding/android/GeckoAppShell.java
++++ b/embedding/android/GeckoAppShell.java
+@@ -377,7 +377,7 @@ public class GeckoAppShell
+         GeckoAppShell.setSurfaceView(GeckoApp.surfaceView);
+ 
+         // First argument is the .apk path
+-        String combinedArgs = apkPath + " -omnijar " + apkPath;
++        String combinedArgs = apkPath + " -greomni " + apkPath;
+         if (args != null)
+             combinedArgs += " " + args;
+         if (url != null)
 diff --git a/ipc/glue/GeckoChildProcessHost.cpp b/ipc/glue/GeckoChildProcessHost.cpp
-index 28d7334..76a74c1 100644
+index 28d7334..d6a5b96 100644
 --- a/ipc/glue/GeckoChildProcessHost.cpp
 +++ b/ipc/glue/GeckoChildProcessHost.cpp
 @@ -492,16 +492,19 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
@@ -54,14 +69,14 @@ index 28d7334..76a74c1 100644
 -    childArgv.push_back("-omnijar");
 -    childArgv.push_back(omnijarPath.get());
 +  nsCAutoString path;
-+  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetBase(mozilla::Omnijar::GRE);
++  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetPath(mozilla::Omnijar::GRE);
 +  if (file && NS_SUCCEEDED(file->GetNativePath(path))) {
-+    childArgv.push_back("-grebase");
++    childArgv.push_back("-greomni");
 +    childArgv.push_back(path.get());
 +  }
-+  file = mozilla::Omnijar::GetBase(mozilla::Omnijar::APP);
++  file = mozilla::Omnijar::GetPath(mozilla::Omnijar::APP);
 +  if (file && NS_SUCCEEDED(file->GetNativePath(path))) {
-+    childArgv.push_back("-appbase");
++    childArgv.push_back("-appomni");
 +    childArgv.push_back(path.get());
    }
 -#endif
@@ -81,14 +96,14 @@ index 28d7334..76a74c1 100644
 -    cmdLine.AppendLooseValue(UTF8ToWide("-omnijar"));
 -    cmdLine.AppendLooseValue(omnijarPath.get());
 +  nsAutoString path;
-+  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetBase(mozilla::Omnijar::GRE);
++  nsCOMPtr<nsIFile> file = mozilla::Omnijar::GetPath(mozilla::Omnijar::GRE);
 +  if (file && NS_SUCCEEDED(file->GetPath(path))) {
-+    cmdLine.AppendLooseValue(UTF8ToWide("-grebase"));
++    cmdLine.AppendLooseValue(UTF8ToWide("-greomni"));
 +    cmdLine.AppendLooseValue(path.get());
 +  }
-+  file = mozilla::Omnijar::GetBase(mozilla::Omnijar::APP);
++  file = mozilla::Omnijar::GetPath(mozilla::Omnijar::APP);
 +  if (file && NS_SUCCEEDED(file->GetPath(path))) {
-+    cmdLine.AppendLooseValue(UTF8ToWide("-appbase"));
++    cmdLine.AppendLooseValue(UTF8ToWide("-appomni"));
 +    cmdLine.AppendLooseValue(path.get());
    }
 -#endif
@@ -664,6 +679,19 @@ index 1e52394..48a4228 100644
  static PLDHashOperator
  EnumerateSubstitution(const nsACString& aKey,
                        nsIURI* aURI,
+diff --git a/other-licenses/android/APKOpen.cpp b/other-licenses/android/APKOpen.cpp
+index 96a2bff..e024359 100644
+--- a/other-licenses/android/APKOpen.cpp
++++ b/other-licenses/android/APKOpen.cpp
+@@ -767,7 +767,7 @@ ChildProcessInit(int argc, char* argv[])
+ {
+   int i;
+   for (i = 0; i < (argc - 1); i++) {
+-    if (strcmp(argv[i], "-omnijar"))
++    if (strcmp(argv[i], "-greomni"))
+       continue;
+ 
+     i = i + 1;
 diff --git a/startupcache/StartupCache.cpp b/startupcache/StartupCache.cpp
 index dee1878..1ab4ec9 100644
 --- a/startupcache/StartupCache.cpp
@@ -700,10 +728,10 @@ index dee1878..1ab4ec9 100644
  }
  
 diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
-index a47192f..fc7505e 100644
+index a47192f..b098591 100644
 --- a/toolkit/xre/nsAppRunner.cpp
 +++ b/toolkit/xre/nsAppRunner.cpp
-@@ -3877,25 +3877,35 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
+@@ -3877,24 +3877,39 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
    delete[] canonArgs;
  #endif
  
@@ -711,10 +739,10 @@ index a47192f..fc7505e 100644
 -  const char *omnijarPath = nsnull;
 -  ArgResult ar = CheckArg("omnijar", PR_FALSE, &omnijarPath);
 +  const char *path = nsnull;
-+  ArgResult ar = CheckArg("grebase", PR_FALSE, &path);
++  ArgResult ar = CheckArg("greomni", PR_FALSE, &path);
    if (ar == ARG_BAD) {
 -    PR_fprintf(PR_STDERR, "Error: argument -omnijar requires an omnijar path\n");
-+    PR_fprintf(PR_STDERR, "Error: argument -grebase requires a path argument\n");
++    PR_fprintf(PR_STDERR, "Error: argument -greomni requires a path argument\n");
      return NS_ERROR_FAILURE;
    }
  
@@ -728,31 +756,34 @@ index a47192f..fc7505e 100644
 -  if (NS_SUCCEEDED(rv))
 -    mozilla::SetOmnijar(omnijar);
 -#endif
-+  nsCOMPtr<nsILocalFile> greBase;
-+  rv = XRE_GetFileFromPath(path, getter_AddRefs(greBase));
-+  if (NS_FAILED(rv))
++  nsCOMPtr<nsILocalFile> greOmni;
++  rv = XRE_GetFileFromPath(path, getter_AddRefs(greOmni));
++  if (NS_FAILED(rv)) {
++    PR_fprintf(PR_STDERR, "Error: argument -greomni requires a valid path\n");
 +    return rv;
- 
--  return rv;
-+  ar = CheckArg("appbase", PR_FALSE, &path);
++  }
++
++  ar = CheckArg("appomni", PR_FALSE, &path);
 +  if (ar == ARG_BAD) {
-+    PR_fprintf(PR_STDERR, "Error: argument -appbase requires a path argument\n");
++    PR_fprintf(PR_STDERR, "Error: argument -appomni requires a path argument\n");
 +    return NS_ERROR_FAILURE;
 +  }
 +
-+  nsCOMPtr<nsILocalFile> appBase;
++  nsCOMPtr<nsILocalFile> appOmni;
 +  if (path) {
-+      rv = XRE_GetFileFromPath(path, getter_AddRefs(appBase));
-+      if (NS_FAILED(rv))
++      rv = XRE_GetFileFromPath(path, getter_AddRefs(appOmni));
++      if (NS_FAILED(rv)) {
++        PR_fprintf(PR_STDERR, "Error: argument -appomni requires a valid path\n");
 +        return rv;
++      }
 +  }
-+
-+  return mozilla::Omnijar::SetBase(greBase, appBase);
+ 
++  mozilla::Omnijar::Init(greOmni, appOmni);
+   return rv;
  }
  
- nsresult
 diff --git a/toolkit/xre/nsEmbedFunctions.cpp b/toolkit/xre/nsEmbedFunctions.cpp
-index 393afda..67d3c59 100644
+index 393afda..ab4151b 100644
 --- a/toolkit/xre/nsEmbedFunctions.cpp
 +++ b/toolkit/xre/nsEmbedFunctions.cpp
 @@ -512,9 +512,7 @@ XRE_InitChildProcess(int aArgc,
@@ -762,7 +793,7 @@ index 393afda..67d3c59 100644
 -#ifdef MOZ_OMNIJAR
 -      mozilla::SetOmnijar(nsnull);
 -#endif
-+      mozilla::Omnijar::SetBase(nsnull, nsnull);
++      mozilla::Omnijar::CleanUp();
      }
    }
  
@@ -790,7 +821,7 @@ index c5004c2..0fa7fd1 100644
  		$(DEPTH)/chrome/src/$(LIB_PREFIX)chrome_s.$(LIB_SUFFIX) \
  		../ds/$(LIB_PREFIX)xpcomds_s.$(LIB_SUFFIX) \
 diff --git a/xpcom/build/Omnijar.cpp b/xpcom/build/Omnijar.cpp
-index 14a0dcf..f5d9c31 100644
+index 14a0dcf..5922182 100644
 --- a/xpcom/build/Omnijar.cpp
 +++ b/xpcom/build/Omnijar.cpp
 @@ -21,6 +21,7 @@
@@ -801,12 +832,14 @@ index 14a0dcf..f5d9c31 100644
   *
   * Alternatively, the contents of this file may be used under the terms of
   * either the GNU General Public License Version 2 or later (the "GPL"), or
-@@ -38,64 +39,170 @@
+@@ -38,64 +39,152 @@
  
  #include "Omnijar.h"
  
 -#include "nsILocalFile.h"
 -#include "nsXULAppAPI.h"
++#include "nsDirectoryService.h"
++#include "nsDirectoryServiceDefs.h"
 +#include "nsIFile.h"
  #include "nsZipArchive.h"
 +#include "nsNetUtil.h"
@@ -818,191 +851,166 @@ index 14a0dcf..f5d9c31 100644
 -static void
 -SetupReader()
 +nsIFile *Omnijar::sPath[2] = { nsnull, nsnull };
-+PRBool Omnijar::sIsOmnijar[2] = { PR_FALSE, PR_FALSE };
-+
-+#ifdef MOZ_ENABLE_LIBXUL
 +nsZipArchive *Omnijar::sReader[2] = { nsnull, nsnull };
-+#endif
++PRPackedBool Omnijar::sInitialized = PR_FALSE;
++static PRPackedBool sIsUnified = PR_FALSE;
 +
-+static already_AddRefed<nsIFile>
-+ComputePath(nsIFile *aPath, PRBool &aIsOmnijar)
++static const char *sProp[2] =
++    { NS_GRE_DIR, NS_XPCOM_CURRENT_PROCESS_DIR };
++
++#define SPROP(Type) ((Type == mozilla::Omnijar::GRE) ? sProp[GRE] : sProp[APP])
++
++void
++Omnijar::CleanUpOne(Type aType)
  {
 -    if (!sOmnijarPath) {
--        return;
--    }
-+    PRBool isDir;
-+    aIsOmnijar = PR_FALSE;
-+    if (!aPath || NS_FAILED(aPath->IsDirectory(&isDir)) || !isDir)
-+        return nsnull;
++    if (sReader[aType]) {
++        sReader[aType]->CloseArchive();
++        delete sReader[aType];
++    }
++    sReader[aType] = nsnull;
++    NS_IF_RELEASE(sPath[aType]);
++}
++
++void
++Omnijar::InitOne(nsIFile *aPath, Type aType)
++{
++    nsCOMPtr<nsIFile> file;
++    if (aPath) {
++        file = aPath;
++    } else {
++        nsCOMPtr<nsIFile> dir;
++        nsDirectoryService::gService->Get(SPROP(aType), NS_GET_IID(nsIFile), getter_AddRefs(dir));
++        if (NS_FAILED(dir->Clone(getter_AddRefs(file))) ||
++            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("omni.jar"))))
++            return;
++    }
++    PRBool isFile;
++    if (NS_FAILED(file->IsFile(&isFile)) || !isFile) {
++        // If we're not using an omni.jar for GRE, and we don't have an
++        // omni.jar for APP, check if both directories are the same.
++        if ((aType == APP) && (!sPath[GRE])) {
++            nsCOMPtr<nsIFile> greDir, appDir;
++            PRBool equals;
++            nsDirectoryService::gService->Get(SPROP(GRE), NS_GET_IID(nsIFile), getter_AddRefs(greDir));
++            nsDirectoryService::gService->Get(SPROP(APP), NS_GET_IID(nsIFile), getter_AddRefs(appDir));
++            if (NS_SUCCEEDED(greDir->Equals(appDir, &equals)) && equals)
++                sIsUnified = PR_TRUE;
++        }
+         return;
+     }
  
 -    nsZipArchive* zipReader = new nsZipArchive();
 -    if (!zipReader) {
 -        NS_IF_RELEASE(sOmnijarPath);
--        return;
-+    nsCOMPtr<nsIFile> path;
-+#ifdef MOZ_ENABLE_LIBXUL
-+    // Search for omni.jar in the given directory
-+    if (!isDir || NS_FAILED(aPath->Clone(getter_AddRefs(path))))
-+        return nsnull;
-+
-+    if (NS_FAILED(path->AppendNative(NS_LITERAL_CSTRING("omni.jar"))))
-+        return nsnull;
-+
-+    if (NS_FAILED(path->Exists(&aIsOmnijar)))
-+        return nsnull;
-+#endif
-+
-+    if (!aIsOmnijar && NS_FAILED(aPath->Clone(getter_AddRefs(path))))
-+        return nsnull;
-+
-+    return path.forget();
-+}
-+
-+nsresult
-+Omnijar::SetBase(nsIFile *aGrePath, nsIFile *aAppPath)
-+{
-+    NS_ABORT_IF_FALSE(aGrePath || !aAppPath, "Omnijar::SetBase(NULL, something) call forbidden");
-+
-+#ifdef MOZ_ENABLE_LIBXUL
-+    if (sReader[GRE]) {
-+        sReader[GRE]->CloseArchive();
-+        delete sReader[GRE];
++    PRBool equals;
++    if ((aType == APP) && (sPath[GRE]) &&
++        NS_SUCCEEDED(sPath[GRE]->Equals(file, &equals)) && equals) {
++        // If we're using omni.jar on both GRE and APP and their path
++        // is the same, we're in the unified case.
++        sIsUnified = PR_TRUE;
+         return;
      }
-+    if (sReader[APP]) {
-+        sReader[APP]->CloseArchive();
-+        delete sReader[APP];
-+    }
-+    sReader[APP] = sReader[GRE] = nsnull;
-+#endif
  
 -    if (NS_FAILED(zipReader->OpenArchive(sOmnijarPath))) {
--        delete zipReader;
++    nsZipArchive* zipReader = new nsZipArchive();
++    if (!zipReader)
++        return;
++
++    if (NS_FAILED(zipReader->OpenArchive(file))) {
+         delete zipReader;
 -        NS_IF_RELEASE(sOmnijarPath);
--        return;
-+    nsresult rv;
-+    PRBool equals;
-+    if (aAppPath) {
-+        rv = aAppPath->Equals(aGrePath, &equals);
-+        NS_ENSURE_SUCCESS(rv, rv);
-+    } else {
-+        equals = PR_TRUE;
+         return;
      }
  
 -    sOmnijarReader = zipReader;
-+    nsCOMPtr<nsIFile> grePath = ComputePath(aGrePath, sIsOmnijar[GRE]);
-+    nsCOMPtr<nsIFile> appPath = ComputePath(equals ? nsnull : aAppPath, sIsOmnijar[APP]);
-+
-+    NS_IF_RELEASE(sPath[GRE]);
-+    sPath[GRE] = grePath;
-+    NS_IF_ADDREF(sPath[GRE]);
-+
-+    NS_IF_RELEASE(sPath[APP]);
-+    sPath[APP] = appPath;
-+    NS_IF_ADDREF(sPath[APP]);
-+
-+    return NS_OK;
++    CleanUpOne(aType);
++    sReader[aType] = zipReader;
++    sPath[aType] = file;
++    NS_IF_ADDREF(file);
  }
  
 -nsILocalFile*
 -mozilla::OmnijarPath()
-+already_AddRefed<nsIFile>
-+Omnijar::GetBase(Type aType)
++void
++Omnijar::Init(nsIFile *aGrePath, nsIFile *aAppPath)
  {
 -    if (!sOmnijarReader)
 -        SetupReader();
-+    NS_ABORT_IF_FALSE(sPath[0], "Omnijar not initialized");
++    InitOne(aGrePath, GRE);
++    InitOne(aAppPath, APP);
++    sInitialized = PR_TRUE;
++}
  
 -    return sOmnijarPath;
-+    if (!sIsOmnijar[aType]) {
-+        NS_IF_ADDREF(sPath[aType]);
-+        return sPath[aType];
-+    }
-+
-+    nsCOMPtr<nsIFile> file, path;
-+    if (NS_FAILED(sPath[aType]->Clone(getter_AddRefs(file))))
-+        return nsnull;
-+
-+    if (NS_FAILED(file->GetParent(getter_AddRefs(path))))
-+        return nsnull;
-+    return path.forget();
++void
++Omnijar::CleanUp()
++{
++    CleanUpOne(GRE);
++    CleanUpOne(APP);
++    sInitialized = PR_FALSE;
  }
  
 -nsZipArchive*
 -mozilla::OmnijarReader()
-+#ifdef MOZ_ENABLE_LIBXUL
 +nsZipArchive *
-+Omnijar::GetReader(Type aType)
++Omnijar::GetReader(nsIFile *aPath)
  {
 -    if (!sOmnijarReader)
 -        SetupReader();
-+    if (!sIsOmnijar[aType])
-+        return nsnull;
++    NS_ABORT_IF_FALSE(IsInitialized(), "Omnijar not initialized");
 +
-+    if (sReader[aType])
-+        return sReader[aType];
-+
-+    nsZipArchive* zipReader = new nsZipArchive();
-+    if (!zipReader)
-+        return nsnull;
++    PRBool equals;
++    nsresult rv;
  
 -    return sOmnijarReader;
-+    if (NS_FAILED(zipReader->OpenArchive(sPath[aType]))) {
-+        delete zipReader;
-+        return nsnull;
++    if (sPath[GRE]) {
++        rv = sPath[GRE]->Equals(aPath, &equals);
++        if (NS_SUCCEEDED(rv) && equals)
++            return sReader[GRE];
 +    }
-+
-+    return (sReader[aType] = zipReader);
++    if (sPath[APP]) {
++        rv = sPath[APP]->Equals(aPath, &equals);
++        if (NS_SUCCEEDED(rv) && equals)
++            return sReader[APP];
++    }
++    return nsnull;
  }
  
 -void
 -mozilla::SetOmnijar(nsILocalFile* aPath)
-+nsZipArchive *
-+Omnijar::GetReader(nsIFile *aPath)
++nsresult
++Omnijar::GetURIString(Type aType, nsACString &result)
  {
 -    NS_IF_RELEASE(sOmnijarPath);
 -    if (sOmnijarReader) {
 -        sOmnijarReader->CloseArchive();
 -        delete sOmnijarReader;
 -        sOmnijarReader = nsnull;
-+    PRBool equals;
-+    nsresult rv;
++    NS_ABORT_IF_FALSE(IsInitialized(), "Omnijar not initialized");
 +
-+    if (sIsOmnijar[GRE]) {
-+        rv = sPath[GRE]->Equals(aPath, &equals);
-+        if (NS_SUCCEEDED(rv) && equals)
-+            return GetReader(GRE);
++    result.Truncate();
++
++    // Return an empty string for APP in the unified case.
++    if ((aType == APP) && sIsUnified) {
++        return NS_OK;
      }
-+    if (sIsOmnijar[APP]) {
-+        rv = sPath[APP]->Equals(aPath, &equals);
-+        if (NS_SUCCEEDED(rv) && equals)
-+            return GetReader(APP);
-+    }
-+    return nsnull;
-+}
-+#endif
-+
-+nsresult
-+Omnijar::GetURIString(Type aType, nsCString &result)
-+{
-+    NS_ABORT_IF_FALSE(sPath[0], "Omnijar not initialized");
  
 -    sOmnijarPath = aPath;
 -    NS_IF_ADDREF(sOmnijarPath);
-+    result = "";
-+
-+    if ((aType == APP) && (!sPath[APP]))
-+        return NS_OK;
-+
 +    nsCAutoString omniJarSpec;
-+    nsresult rv = NS_GetURLSpecFromActualFile(sPath[aType], omniJarSpec);
-+    NS_ENSURE_SUCCESS(rv, rv);
++    if (sPath[aType]) {
++        nsresult rv = NS_GetURLSpecFromActualFile(sPath[aType], omniJarSpec);
++        NS_ENSURE_SUCCESS(rv, rv);
 +
-+    if (sIsOmnijar[aType]) {
 +        result = "jar:";
 +        result += omniJarSpec;
 +        result += "!";
 +    } else {
-+        result = omniJarSpec;
++        nsCOMPtr<nsIFile> dir;
++        nsDirectoryService::gService->Get(SPROP(aType), NS_GET_IID(nsIFile), getter_AddRefs(dir));
++        nsresult rv = NS_GetURLSpecFromActualFile(dir, result);
++        NS_ENSURE_SUCCESS(rv, rv);
 +    }
 +    result += "/";
 +    return NS_OK;
@@ -1010,7 +1018,7 @@ index 14a0dcf..f5d9c31 100644
  
 +} /* namespace mozilla */
 diff --git a/xpcom/build/Omnijar.h b/xpcom/build/Omnijar.h
-index 33a2b4a..a36678a 100644
+index 33a2b4a..64c1c43 100644
 --- a/xpcom/build/Omnijar.h
 +++ b/xpcom/build/Omnijar.h
 @@ -21,6 +21,7 @@
@@ -1021,14 +1029,13 @@ index 33a2b4a..a36678a 100644
   *
   * Alternatively, the contents of this file may be used under the terms of
   * either the GNU General Public License Version 2 or later (the "GPL"), or
-@@ -39,24 +40,132 @@
+@@ -39,24 +40,125 @@
  #ifndef mozilla_Omnijar_h
  #define mozilla_Omnijar_h
  
 -class nsILocalFile;
 -class nsZipArchive;
 +#include "nscore.h"
-+#include "nsTArray.h"
 +#include "nsCOMPtr.h"
 +#include "nsString.h"
  
@@ -1039,40 +1046,32 @@ index 33a2b4a..a36678a 100644
  
  namespace mozilla {
  
-+#ifdef MOZ_ENABLE_LIBXUL
-+#define OMNIJAR_EXPORT
-+#else
-+#define OMNIJAR_EXPORT NS_EXPORT
-+#endif
-+
-+class OMNIJAR_EXPORT Omnijar {
++class Omnijar {
 +private:
-+/**
-+ * Store an nsIFile for either a base directory when there is no omni.jar,
-+ * or omni.jar itself. We can store two paths here, one for GRE
-+ * (corresponding to resource://gre/) and one for APP
-+ * (corresponding to resource:/// and resource://app/), but only
-+ * store one when both point to the same location (unified).
-+ */
-+static nsIFile *sPath[2];
  /**
 - * This returns the path to the omnijar.
 - * If the omnijar isn't available, this function will return null.
 - * Callers should fallback to flat packaging if null.
-+ * Store whether the corresponding sPath is an omni.jar or a directory
++ * Store an nsIFile for an omni.jar. We can store two paths here, one
++ * for GRE (corresponding to resource://gre/) and one for APP
++ * (corresponding to resource:/// and resource://app/), but only
++ * store one when both point to the same location (unified).
   */
 -nsILocalFile *OmnijarPath();
 -nsZipArchive *OmnijarReader();
 -void SetOmnijar(nsILocalFile* aPath);
-+static PRBool sIsOmnijar[2];
++static nsIFile *sPath[2];
  
 -} /* namespace mozilla */
-+#ifdef MOZ_ENABLE_LIBXUL
 +/**
 + * Cached nsZipArchives for the corresponding sPath
 + */
 +static nsZipArchive *sReader[2];
-+#endif
++
++/**
++ * Has Omnijar::Init() been called?
++ */
++static PRPackedBool sInitialized;
 +
 +public:
 +enum Type {
@@ -1084,72 +1083,67 @@ index 33a2b4a..a36678a 100644
 + * Returns whether SetBase has been called at least once with
 + * a valid nsIFile
 + */
-+static PRBool
++static inline PRPackedBool
 +IsInitialized()
 +{
-+    // GRE path is always set after initialization.
-+    return sPath[0] != nsnull;
++    return sInitialized;
 +}
 +
 +/**
-+ * Sets the base directories for GRE and APP. APP base directory
-+ * may be nsnull, in case the APP and GRE directories are the same.
++ * Initializes the Omnijar API with the given directory or file for GRE and
++ * APP. Each of the paths given can be:
++ * - a file path, pointing to the omnijar file,
++ * - a directory path, pointing to a directory containing an "omni.jar" file,
++ * - nsnull for autodetection of an "omni.jar" file.
 + */
-+static nsresult SetBase(nsIFile *aGrePath, nsIFile *aAppPath);
++static void Init(nsIFile *aGrePath = nsnull, nsIFile *aAppPath = nsnull);
++
++/**
++ * Cleans up the Omnijar API
++ */
++static void CleanUp();
 +
 +/**
 + * Returns an nsIFile pointing to the omni.jar file for GRE or APP.
 + * Returns nsnull when there is no corresponding omni.jar.
 + * Also returns nsnull for APP in the unified case.
 + */
-+static already_AddRefed<nsIFile>
++static inline already_AddRefed<nsIFile>
 +GetPath(Type aType)
 +{
-+    NS_ABORT_IF_FALSE(sPath[0], "Omnijar not initialized");
- 
--#endif /* MOZ_OMNIJAR */
-+    if (sIsOmnijar[aType]) {
-+        NS_IF_ADDREF(sPath[aType]);
-+        return sPath[aType];
-+    }
-+    return nsnull;
++    NS_ABORT_IF_FALSE(IsInitialized(), "Omnijar not initialized");
++    NS_IF_ADDREF(sPath[aType]);
++    return sPath[aType];
 +}
 +
 +/**
-+ * Returns whether GRE or APP use an omni.jar. Returns PR_False when
-+ * using an omni.jar in the unified case.
++ * Returns whether GRE or APP use an omni.jar. Returns PR_False for
++ * APP when using an omni.jar in the unified case.
 + */
-+static PRBool
++static inline PRBool
 +HasOmnijar(Type aType)
 +{
-+    return sIsOmnijar[aType];
++    NS_ABORT_IF_FALSE(IsInitialized(), "Omnijar not initialized");
++    return !!sPath[aType];
 +}
-+
-+/**
-+ * Returns the base directory for GRE or APP. In the unified case,
-+ * returns nsnull for APP.
-+ */
-+static already_AddRefed<nsIFile> GetBase(Type aType);
-+
+ 
+-#endif /* MOZ_OMNIJAR */
 +/**
 + * Returns a nsZipArchive pointer for the omni.jar file for GRE or
 + * APP. Returns nsnull in the same cases GetPath() would.
 + */
-+#ifdef MOZ_ENABLE_LIBXUL
-+static nsZipArchive *GetReader(Type aType);
-+#else
-+static nsZipArchive *GetReader(Type aType) { return nsnull; }
-+#endif
++static inline nsZipArchive *
++GetReader(Type aType)
++{
++    NS_ABORT_IF_FALSE(IsInitialized(), "Omnijar not initialized");
++    return sReader[aType];
++}
 +
 +/**
 + * Returns a nsZipArchive pointer for the given path IAOI the given
 + * path is the omni.jar for either GRE or APP.
 + */
-+#ifdef MOZ_ENABLE_LIBXUL
 +static nsZipArchive *GetReader(nsIFile *aPath);
-+#else
-+static nsZipArchive *GetReader(nsIFile *aPath) { return nsnull; }
-+#endif
 +
 +/**
 + * Returns the URI string corresponding to the omni.jar or directory
@@ -1158,7 +1152,14 @@ index 33a2b4a..a36678a 100644
 + * the unified case.
 + * The returned URI is guaranteed to end with a slash.
 + */
-+static nsresult GetURIString(Type aType, nsCString &result);
++static nsresult GetURIString(Type aType, nsACString &result);
++
++private:
++/**
++ * Used internally, respectively by Init() and CleanUp()
++ */
++static void InitOne(nsIFile *aPath, Type aType);
++static void CleanUpOne(Type aType);
 +
 +}; /* class Omnijar */
 +
@@ -1166,10 +1167,10 @@ index 33a2b4a..a36678a 100644
  
  #endif /* mozilla_Omnijar_h */
 diff --git a/xpcom/build/nsXPComInit.cpp b/xpcom/build/nsXPComInit.cpp
-index e9238a8..f6203f2 100644
+index e9238a8..0e10e29 100644
 --- a/xpcom/build/nsXPComInit.cpp
 +++ b/xpcom/build/nsXPComInit.cpp
-@@ -457,25 +457,25 @@ NS_InitXPCOM2(nsIServiceManager* *result,
+@@ -457,25 +457,11 @@ NS_InitXPCOM2(nsIServiceManager* *result,
          if (NS_FAILED(rv)) return rv;
      }
  
@@ -1178,42 +1179,33 @@ index e9238a8..f6203f2 100644
  
 -    if (!mozilla::OmnijarPath()) {
 -        nsCOMPtr<nsILocalFile> omnijar;
-+    if (!mozilla::Omnijar::IsInitialized()) {
-+        nsCOMPtr<nsILocalFile> greDir, appDir;
-         nsCOMPtr<nsIFile> file;
- 
+-        nsCOMPtr<nsIFile> file;
+-
 -        rv = NS_ERROR_FAILURE;
-         nsDirectoryService::gService->Get(NS_GRE_DIR,
-                                           NS_GET_IID(nsIFile),
-                                           getter_AddRefs(file));
+-        nsDirectoryService::gService->Get(NS_GRE_DIR,
+-                                          NS_GET_IID(nsIFile),
+-                                          getter_AddRefs(file));
 -        if (file)
 -            rv = file->Append(NS_LITERAL_STRING("omni.jar"));
 -        if (NS_SUCCEEDED(rv))
 -            omnijar = do_QueryInterface(file);
 -        if (NS_SUCCEEDED(rv))
 -            mozilla::SetOmnijar(omnijar);
-+        greDir = do_QueryInterface(file);
-+
-+        nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-+                                          NS_GET_IID(nsIFile),
-+                                          getter_AddRefs(file));
-+        appDir = do_QueryInterface(file);
-+
-+        rv = mozilla::Omnijar::SetBase(greDir, appDir);
-+        NS_ENSURE_SUCCESS(rv, rv);
++    if (!mozilla::Omnijar::IsInitialized()) {
++        mozilla::Omnijar::Init();
      }
 -#endif
  
      if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
          NS_TIME_FUNCTION_MARK("Next: IPC command line init");
-@@ -755,9 +755,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
+@@ -755,9 +741,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
          sExitManager = nsnull;
      }
  
 -#ifdef MOZ_OMNIJAR
 -    mozilla::SetOmnijar(nsnull);
 -#endif
-+    mozilla::Omnijar::SetBase(nsnull, nsnull);
++    mozilla::Omnijar::CleanUp();
  
      NS_LogTerm();
  

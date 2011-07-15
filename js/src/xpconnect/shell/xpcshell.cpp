@@ -1152,7 +1152,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
+    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-a appdir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
     return 2;
 }
 
@@ -1821,6 +1821,23 @@ main(int argc, char **argv, char **envp)
         argv += 2;
     }
 
+    if (argc > 1 && !strcmp(argv[1], "-a")) {
+        if (argc < 3)
+            return usage();
+
+        nsCOMPtr<nsILocalFile> dir;
+        rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(dir));
+        if (NS_SUCCEEDED(rv)) {
+            appDir = do_QueryInterface(dir, &rv);
+        }
+        if (NS_FAILED(rv)) {
+            printf("Couldn't use given appdir.\n");
+            return 1;
+        }
+        argc -= 2;
+        argv += 2;
+    }
+
     while (argc > 1 && !strcmp(argv[1], "-r")) {
         if (argc < 3)
             return usage();
@@ -2076,6 +2093,15 @@ XPCShellDirProvider::GetFile(const char *prop, PRBool *persistent,
         *persistent = PR_TRUE;
         NS_ADDREF(*result = mGREDir);
         return NS_OK;
+    } else if (mGREDir && !strcmp(prop, NS_APP_PREF_DEFAULTS_50_DIR)) {
+        nsCOMPtr<nsIFile> file;
+        *persistent = PR_TRUE;
+        if (NS_FAILED(mGREDir->Clone(getter_AddRefs(file))) ||
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("defaults"))) ||
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("pref"))))
+            return NS_ERROR_FAILURE;
+        NS_ADDREF(*result = file);
+        return NS_OK;
     }
 
     return NS_ERROR_FAILURE;
@@ -2097,6 +2123,18 @@ XPCShellDirProvider::GetFiles(const char *prop, nsISimpleEnumerator* *result)
         if (NS_SUCCEEDED(rv))
             dirs.AppendObject(file);
 
+        return NS_NewArrayEnumerator(result, dirs);
+    } else if (!strcmp(prop, NS_APP_PREFS_DEFAULTS_DIR_LIST)) {
+        nsCOMArray<nsIFile> dirs;
+
+        nsCOMPtr<nsIFile> file;
+        if (NS_FAILED(NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
+                                             getter_AddRefs(file))) ||
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("defaults"))) ||
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("preferences"))))
+            return NS_ERROR_FAILURE;
+
+        dirs.AppendObject(file);
         return NS_NewArrayEnumerator(result, dirs);
     }
     return NS_ERROR_FAILURE;
