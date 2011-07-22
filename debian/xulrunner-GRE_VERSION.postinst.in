@@ -2,11 +2,6 @@
 
 set -e
 
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
-    rm -f /usr/lib/xulrunner-##GRE_VERSION##/components/compreg.dat \
-          /usr/lib/xulrunner-##GRE_VERSION##/components/xpti.dat
-fi
-
 if [ "$1" = "configure" ] ; then
     update-alternatives --remove xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub
 fi
