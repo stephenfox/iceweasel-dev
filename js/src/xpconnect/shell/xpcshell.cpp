@@ -2091,8 +2091,7 @@ XPCShellDirProvider::GetFile(const char *prop, PRBool *persistent,
 {
     if (mGREDir && !strcmp(prop, NS_GRE_DIR)) {
         *persistent = PR_TRUE;
-        NS_ADDREF(*result = mGREDir);
-        return NS_OK;
+        return mGREDir->Clone(result);
     } else if (mGREDir && !strcmp(prop, NS_APP_PREF_DEFAULTS_50_DIR)) {
         nsCOMPtr<nsIFile> file;
         *persistent = PR_TRUE;
