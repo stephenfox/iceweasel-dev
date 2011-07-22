@@ -70,13 +70,8 @@ Suggests: ttf-lyx | latex-xft-fonts,
 Provides: www-browser,
           gnome-www-browser
 Description: Web browser based on Firefox
- Firefox is a redesign of the Mozilla browser component, similar to
- Galeon, K-Meleon and Camino, but written using the XUL user interface
- language and designed to be lightweight and cross-platform.
- .
- This browser is based on the Firefox source-code, with minor
- modifications. Historically, this browser was previously known as
- Firebird and Phoenix.
+ Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
+ with support for modern web application technologies.
 
 Package: iceweasel-dbg
 Architecture: any
@@ -86,9 +81,8 @@ Depends: ${misc:Depends},
          iceweasel (= ${binary:Version}),
          xulrunner-5.0-dbg
 Description: debugging symbols for iceweasel
- Iceweasel is a redesign of the Mozilla browser component, similar to
- Galeon, K-Meleon and Camino, but written using the XUL user interface
- language and designed to be lightweight and cross-platform.
+ Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
+ with support for modern web application technologies.
  .
  This package contains the debugging symbols for iceweasel.
 
@@ -128,10 +122,10 @@ Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends}
-Description: The Mozilla SpiderMonkey JavaScript library
+Description: Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
- the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
- browsers as well as by the iPlanet WebServer).
+ the Mozilla project (used among others by the Iceweasel (Firefox) browser
+ as well as by the iPlanet WebServer).
 Homepage: http://www.mozilla.org/js/
 
 Package: libmozjs-dev
@@ -142,8 +136,8 @@ Depends: ${misc:Depends},
          libnspr4-dev
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
- the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
- browsers as well as by the iPlanet WebServer).
+ the Mozilla project (used among others by the Iceweasel (Firefox) browser
+ as well as by the iPlanet WebServer).
  .
  Install this package if you wish to develop your own programs using the
  Mozilla SpiderMonkey JavaScript library.
@@ -157,8 +151,8 @@ Depends: libmozjs5d (= ${binary:Version}),
          ${misc:Depends}
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
- the Mozilla project (used among others by the Mozilla, Epiphany, Firefox
- browsers as well as by the iPlanet WebServer).
+ the Mozilla project (used among others by the Iceweasel (Firefox) browser
+ as well as by the iPlanet WebServer).
  .
  This package provides the debugging symbols for the library and for
  the spidermonkey-bin package.
