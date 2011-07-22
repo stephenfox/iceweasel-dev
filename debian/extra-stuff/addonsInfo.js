@@ -1,6 +1,7 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 function compare(a, b) {
   return String.localeCompare(a.name, b.name);
@@ -14,66 +15,42 @@ dumper.prototype = {
   }
 };
 
-function rdfvalue(rdf, ds, id, prop) {
-  var res = rdf.GetResource("urn:mozilla:item:" + id);
-  var propres = rdf.GetResource("http://www.mozilla.org/2004/em-rdf#"+prop);
-  var target = ds.GetTarget(res, propres, true);
-  if (target instanceof Ci.nsIRDFLiteral)
-    return target.Value;
-  if (target instanceof Ci.nsIRDFResource)
-    return target.Value;
-  return undefined;
-}
+function dump_addons(out) {
+  AddonManager.getAllAddons(function(aAddons) {
+    aAddons.sort(compare);
+    out.writeString("-- Extensions information\n");
+    aAddons.forEach(function(extension) {
+      if (extension.type == "plugin")
+        return;
+      out.writeString("Name: " + extension.name + " " + extension.type + (extension instanceof Ci.nsIPluginTag) +"\n");
+      var location = extension.getResourceURI("").QueryInterface(Ci.nsIFileURL).file;
+      if (extension.scope == AddonManager.SCOPE_PROFILE)
+        out.writeString("Location: ${PROFILE_EXTENSIONS}/" +
+                        location.leafName + "\n");
+      else
+        out.writeString("Location: " + location.path + "\n");
 
-function dump_extensions(out) {
-  var em = Cc["@mozilla.org/extensions/manager;1"]
-           .getService(Ci.nsIExtensionManager);
-  var ds = em.datasource;
-  var rdf = Cc["@mozilla.org/rdf/rdf-service;1"]
-            .getService(Ci.nsIRDFService);
+      out.writeString("Status: " + (extension.appDisabled ? "app-disabled" :
+                                   (extension.userDisabled ? "user-disabled" :
+                                   "enabled")) + "\n");
+      out.writeString("\n");
+    });
 
-  var extensions = em.getItemList(Ci.nsIUpdateItem.TYPE_ANY, { });
-  extensions.sort(compare);
-  out.writeString("-- Extensions information\n");
-  for (var i = 0; i < extensions.length; i++) {
-    var extension = extensions[i];
-    var res = rdf.GetResource("urn:mozilla:item:" + extension.id);
-    out.writeString("Name: " + extension.name + "\n");
-    var location = em.getInstallLocation(extension.id)
-                     .getItemLocation(extension.id);
-    if (extension.installLocationKey == "app-profile")
-      out.writeString("Location: ${PROFILE_EXTENSIONS}/" +
-                      location.leafName + "\n");
-    else
-      out.writeString("Location: " + location.path + "\n");
-
-    out.writeString("Status: " +
-           (rdfvalue(rdf, ds, extension.id, "appDisabled") == "true" ?
-                 "app-disabled" :
-           (rdfvalue(rdf, ds, extension.id, "userDisabled") == "true" ?
-                 "user-disabled" : "enabled")) + "\n")
-    out.writeString("\n");
-  }
-}
-
-function dump_plugins(out) {
-  var phs = Cc["@mozilla.org/plugin/host;1"]
-            .getService(Ci.nsIPluginHost);
-  var plugins = phs.getPluginTags({ });
-  plugins.sort(compare);
-  out.writeString("-- Plugins information\n");
-  for (var i = 0; i < plugins.length; i++) {
-    var plugin = plugins[i];
-    if (Ci.nsIPluginTag_1_9_2)
-      plugin = plugin.QueryInterface(Ci.nsIPluginTag_1_9_2);
-    out.writeString("Name: " + plugin.name +
-           (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
-    out.writeString("Location: " +
-           (plugin.fullpath ? plugin.fullpath : plugin.filename) + "\n");
-    out.writeString("Status: " + (plugin.disabled ? "disabled" : "enabled") +
-                    (plugin.blocklisted ? " blocklisted" : "") + "\n");
-    out.writeString("\n");
-  }
+    var phs = Cc["@mozilla.org/plugin/host;1"]
+              .getService(Ci.nsIPluginHost);
+    var plugins = phs.getPluginTags({ });
+    plugins.sort(compare);
+    out.writeString("-- Plugins information\n");
+    plugins.forEach(function(plugin) {
+      out.writeString("Name: " + plugin.name +
+             (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
+      out.writeString("Location: " +
+             (plugin.fullpath ? plugin.fullpath : plugin.filename) + "\n");
+      out.writeString("Status: " + (plugin.disabled ? "disabled" : "enabled") +
+                      (plugin.blocklisted ? " blocklisted" : "") + "\n");
+      out.writeString("\n");
+    });
+  });
 }
 
 function addonsInfoHandler() {}
@@ -105,24 +82,13 @@ addonsInfoHandler.prototype = {
     } else
       out = new dumper();
 
-    try {
-      dump_extensions(out);
-    } catch (e) {}
-    try {
-      dump_plugins(out);
-    } catch (e) {}
-
-    out.close();
+    dump_addons(out);
   },
 
   classDescription: "addonsInfoHandler",
   classID: Components.ID("{17a1f091-70f7-411c-a9d7-191689552d01}"),
   contractID: "@mozilla.org/toolkit/addonsInfo-clh;1",
   QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler]),
-  _xpcom_categories: [{category: "command-line-handler", entry: "a-addons-info"}]
 };
 
-if (XPCOMUtils.generateNSGetFactory)
-    var NSGetFactory = XPCOMUtils.generateNSGetFactory([addonsInfoHandler]);
-else
-    var NSGetModule = XPCOMUtils.generateNSGetModule([addonsInfoHandler]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([addonsInfoHandler]);
