@@ -7,11 +7,8 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
           /usr/lib/xulrunner-##GRE_VERSION##/components/xpti.dat
 fi
 
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] ; then
-    update-alternatives --install /usr/bin/xulrunner-stub \
-        xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub 100 \
-        --slave /usr/share/man/man1/xulrunner-stub.1.gz xulrunner-stub.1.gz \
-        /usr/share/man/man1/xulrunner-stub-##GRE_VERSION##.1.gz
+if [ "$1" = "configure" ] ; then
+    update-alternatives --remove xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub
 fi
 
 #DEBHELPER#
