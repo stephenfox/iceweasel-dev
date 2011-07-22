@@ -14287,7 +14287,7 @@ echo "configure:14242: checking for NSS - version >= $min_nss_version" >&5
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
-   NSS_LIBS=`echo $NSS_LIBS | sed 's/-l/-lcrmf &/'`
+   NSS_LIBS="$NSS_LIBS -lcrmf"
 else
    NSS_CFLAGS='-I$(LIBXUL_DIST)/include/nss'
    NSS_DEP_LIBS="\

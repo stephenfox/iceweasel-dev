@@ -52,7 +52,6 @@ prefs/Set-DPI-to-system-settings.patch
 system-libs/Allow-to-build-against-system-libffi.patch
 debian-hacks/Check-less-things-during-configure-when-using-libxul.patch
 debian-hacks/Avoid-wrong-sessionstore-data-to-keep-windows-out-of.patch
-debian-hacks/Put-the-crmf-library-before-the-NSS-libraries.patch
 debian-hacks/Avoid-libxpcom-being-excluded-from-linked-libraries-.patch
 debian-hacks/Don-t-build-example-component.patch
 debian-hacks/Don-t-install-system-profile.patch
