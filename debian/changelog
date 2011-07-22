@@ -1,3 +1,28 @@
+iceweasel (5.0-4) unstable; urgency=low
+
+  * debian/rules: Don't create a versioned shlibs for libmozjs.
+  * debian/xulrunner-dev.preinst.in: Add a preinst script to remove
+    /usr/lib/xulrunner-devel-GRE_VERSION/sdk/bin before upgrading from versions
+    <= 5.0-2. Closes: #634053.
+  * debian/control*:
+    - Use linux-any wildcard for libasound2-dev and libiw-dev Build-Depends
+      instead of using a list of negated architectures. Closes: #634629.
+    - Adjust some package descriptions. Closes: #633597.
+    - Bump Standards-Version to 3.9.2.0. No changes required.
+  * debian/extra-stuff/addonsInfo.js: Fix the addons info dumper to use the new
+    Addons Manager API. Closes: #603412.
+  * debian/xulrunner-GRE_VERSION.postinst.in,
+    debian/xulrunner-GRE_VERSION.prerm.in: Remove the xulrunner-stub
+    alternative. The reason why it was good to have in /usr/bin doesn't exist
+    anymore.
+  * debian/xulrunner-GRE_VERSION.postinst.in: Don't cleanup {compreg,xpti}.dat.
+    They've not been generated for a while.
+
+  * js/src/xpconnect/shell/xpcshell.cpp: Fixup for bz#671804.
+  * configure*: Revert "Put the crmf library before the NSS libraries".
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 22 Jul 2011 15:48:09 +0200
+
 iceweasel (5.0-3) unstable; urgency=low
 
   * Upload to unstable.
