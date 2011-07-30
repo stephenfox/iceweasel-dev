@@ -69,6 +69,10 @@ ifneq (,$(filter armel,$(DEB_BUILD_ARCH)))
 	CFLAGS += -D__ARM_PCS
 endif
 
+ifneq (,$(filter ia64,$(DEB_BUILD_ARCH)))
+	CONFIGURE_FLAGS += --enable-debug-symbols=-gstabs
+endif
+
 ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --enable-debug
 endif
