@@ -48,7 +48,6 @@ endif
 LIB_DIR := /usr/lib/iceweasel
 SHARE_DIR := /usr/share/iceweasel
 
-CFLAGS := -g
 MAIN_LDFLAGS := -Wl,--as-needed
 
 AUTOCONF_DIRS := build/autoconf js/src/build/autoconf
