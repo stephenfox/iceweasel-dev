@@ -1,3 +1,10 @@
+iceweasel (5.0-6) unstable; urgency=low
+
+  * debian/rules: ia64 doesn't support stabs debugging information, so use a
+    different workaround: use -O2 instead of -Os.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 30 Jul 2011 10:31:55 +0200
+
 iceweasel (5.0-5) unstable; urgency=low
 
   * debian/rules:

@@ -70,7 +70,7 @@ ifneq (,$(filter armel,$(DEB_BUILD_ARCH)))
 endif
 
 ifneq (,$(filter ia64,$(DEB_BUILD_ARCH)))
-	CONFIGURE_FLAGS += --enable-debug-symbols=-gstabs
+	CONFIGURE_FLAGS += --enable-optimize=-O2
 endif
 
 ifneq (,$(filter debug,$(DEB_BUILD_OPTIONS)))
