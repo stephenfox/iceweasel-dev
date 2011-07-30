@@ -1,3 +1,13 @@
+iceweasel (5.0-5) unstable; urgency=low
+
+  * debian/rules:
+    - Don't add -g to CFLAGS, the upstream build system does it.
+    - Use -gstabs on ia64, to work around ICE.
+  * xpcom/base/nsDebugImpl.cpp: Refresh with the patch from bz#643779 as
+    landed updstream. Closes: #635957.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 30 Jul 2011 08:48:19 +0200
+
 iceweasel (5.0-4) unstable; urgency=low
 
   * debian/rules: Don't create a versioned shlibs for libmozjs.
