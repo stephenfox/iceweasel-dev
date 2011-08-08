@@ -64,7 +64,6 @@ Depends: ${shlibs:Depends},
 Suggests: ttf-lyx | latex-xft-fonts,
           xfonts-mathml,
           ttf-mathematica4.1,
-          xprint,
           mozplugger,
           libgssapi-krb5-2 | libkrb53
 Provides: www-browser,
