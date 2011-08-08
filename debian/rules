@@ -96,7 +96,7 @@ debian/dh/dh_xulrunner.1: debian/dh/dh_xulrunner
 	pod2man -c Debhelper -r $(GRE_VERSION) $^ > $@
 
 build-xulrunner/dist/bin/npapi_getinfo: debian/dh/npapi_getinfo.c
-	$(CC) -o $@ $< -Ibuild-xulrunner/dist/include -ldl -Wl,-rpath,\$$ORIGIN
+	$(CC) -o $@ $< -Ibuild-xulrunner/dist/include -ldl -lpthread -Wl,-rpath,\$$ORIGIN
 
 IN_FILES := $(wildcard debian/*.in debian/dh/*.in)
 define preprocess
