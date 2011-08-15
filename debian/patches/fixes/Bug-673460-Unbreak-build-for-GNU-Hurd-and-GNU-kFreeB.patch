@@ -1,0 +1,36 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Fri, 22 Jul 2011 19:34:07 +0200
+Subject: Bug 673460 - Unbreak build for GNU/Hurd and GNU/kFreeBSD (since they
+ don't have libossaudio)
+
+---
+ layout/build/Makefile.in    |    2 +-
+ toolkit/library/Makefile.in |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/layout/build/Makefile.in b/layout/build/Makefile.in
+index f217076..f487740 100644
+--- a/layout/build/Makefile.in
++++ b/layout/build/Makefile.in
+@@ -277,7 +277,7 @@ EXTRA_DSO_LDOPTS += $(XLDFLAGS) $(XLIBS)
+ endif
+ 
+ ifdef MOZ_SYDNEYAUDIO
+-ifneq (,$(filter GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
++ifneq (,$(filter NetBSD OpenBSD,$(OS_ARCH)))
+ EXTRA_DSO_LDOPTS += -lossaudio
+ endif
+ 
+diff --git a/toolkit/library/Makefile.in b/toolkit/library/Makefile.in
+index 2db6cfb..bdac4d3 100644
+--- a/toolkit/library/Makefile.in
++++ b/toolkit/library/Makefile.in
+@@ -168,7 +168,7 @@ EXTRA_DSO_LDOPTS += \
+ endif
+ endif
+ 
+-ifneq (,$(filter GNU GNU_% NetBSD OpenBSD,$(OS_ARCH)))
++ifneq (,$(filter NetBSD OpenBSD,$(OS_ARCH)))
+ ifdef MOZ_SYDNEYAUDIO
+ EXTRA_DSO_LDOPTS += -lossaudio
+ endif
