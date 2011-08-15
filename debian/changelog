@@ -1,8 +1,38 @@
-iceweasel (6.0-1) UNRELEASED; urgency=low
+iceweasel (6.0-1) unstable; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2011-29, including:
+    CVE-2011-2989, CVE-2011-2991, CVE-2011-2992, CVE-2011-2985,
+    CVE-2011-2993, CVE-2011-2988, CVE-2011-2987, CVE-2011-0084,
+    CVE-2011-2990, CVE-2011-2986.
+  * debian/control*:
+    - Bump build dependency on nspr, nss and sqlite.
+    - Build-depend on libjpeg-dev instead of libjpeg62-dev. Closes: #636452.
+    - Remove xprint suggest. Closes: #626794.
+  * debian/rules:
+    - Official branding moved to browser/branding/official.
+    - Don't set -std=gnu++0x ourselves, upstream build system now does it for
+      us.
+    - Remove libmozjs.so* from /usr/lib/xulrunner-6.0.
+    - Link npapi_getinfo against libpthread for GNU/Hurd.
+  * debian/installer/package-manifest.xulrunner,
+    debian/xulrunner-dev.install.in: Install xpt.py from sdk instead of xpt_*
+    from /usr/lib/xulrunner-6.0.
+  * debian/xulrunner-GRE_VERSION.install.in,
+    debian/xulrunner-GRE_VERSION.links.in: Add hyphenation dictionary. This is
+    temporary until we use libreoffice.org's.
+  * debian/iceweasel.desktop: Add german translation for the Iceweasel menu
+    item. Thanks Ronny Standtke. Closes: #629924.
 
- -- Mike Hommey <glandium@debian.org>  Mon, 15 Aug 2011 17:22:40 +0200
+  * layout/build/Makefile.in, toolkit/library/Makefile.in: Unbreak build for
+    GNU/Hurd and GNU/kFreeBSD (since they don't have libossaudio). bz#673460.
+  * ipc/chromium/src/base/debug_util_posix.cc,
+    ipc/chromium/src/base/third_party/nspr/prcpucfg.h,
+    ipc/chromium/src/build/build_config.h: Allow ipc code to build on GNU/Hurd.
+    Closes: #636750.
+  * configure*: Revert "Allow to build against SQLite 3.7.3".
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 15 Aug 2011 18:16:55 +0200
 
 iceweasel (5.0-6) unstable; urgency=low
 
