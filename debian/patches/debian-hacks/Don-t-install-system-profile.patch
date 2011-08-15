@@ -7,7 +7,7 @@ Subject: Don't install system profile
  1 files changed, 0 insertions(+), 2 deletions(-)
 
 diff --git a/xulrunner/app/Makefile.in b/xulrunner/app/Makefile.in
-index ff17dd3..f441e6a 100644
+index 5ebc7cf..16a97c1 100644
 --- a/xulrunner/app/Makefile.in
 +++ b/xulrunner/app/Makefile.in
 @@ -47,8 +47,6 @@ VPATH = @srcdir@

@@ -66,13 +66,11 @@
 #include "nsIObserverService.h"
 #include "nsIXPCScriptable.h"
 #include "nsString.h"
-#ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
 #include "nsIURI.h"
 #include "nsIFileURL.h"
 #include "nsIJARURI.h"
 #include "nsNetUtil.h"
-#endif
 #include "jsxdrapi.h"
 #include "jscompartment.h"
 #include "jsprf.h"
@@ -88,10 +86,8 @@
 #include "xpcprivate.h"
 #include "nsIResProtocolHandler.h"
 
-#ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
-#endif
 #include "mozilla/Omnijar.h"
 
 #include "jsdbgapi.h"
@@ -344,7 +340,6 @@ ReportOnCaller(JSCLContextHelper &helper,
     return OutputError(cx, format, ap);
 }
 
-#ifdef MOZ_ENABLE_LIBXUL
 static nsresult
 ReadScriptFromStream(JSContext *cx, nsIObjectInputStream *stream,
                      JSObject **scriptObj)
@@ -446,7 +441,6 @@ WriteScriptToStream(JSContext *cx, JSObject *scriptObj,
     JS_XDRDestroy(xdr);
     return rv;
 }
-#endif // MOZ_ENABLE_LIBXUL
 
 mozJSComponentLoader::mozJSComponentLoader()
     : mRuntime(nsnull),
@@ -518,7 +512,6 @@ mozJSComponentLoader::ReallyInit()
     // Limit C stack consumption to a reasonable 512K
     JS_SetNativeStackQuota(mContext, 512 * 1024);
 
-#ifndef XPCONNECT_STANDALONE
     nsCOMPtr<nsIScriptSecurityManager> secman = 
         do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
     if (!secman)
@@ -527,7 +520,6 @@ mozJSComponentLoader::ReallyInit()
     rv = secman->GetSystemPrincipal(getter_AddRefs(mSystemPrincipal));
     if (NS_FAILED(rv) || !mSystemPrincipal)
         return NS_ERROR_FAILURE;
-#endif
 
     if (!mModules.Init(32))
         return NS_ERROR_OUT_OF_MEMORY;
@@ -624,7 +616,6 @@ const mozilla::Module*
 mozJSComponentLoader::LoadModuleFromJAR(nsILocalFile *aJarFile,
                                         const nsACString &aComponentPath)
 {
-#if !defined(XPCONNECT_STANDALONE)
     nsresult rv;
 
     nsCAutoString fullSpec, fileSpec;
@@ -647,9 +638,6 @@ mozJSComponentLoader::LoadModuleFromJAR(nsILocalFile *aJarFile,
     return LoadModuleImpl(aJarFile,
                           hashstring,
                           uri);
-#else
-    return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 }
 
 const mozilla::Module*
@@ -940,7 +928,6 @@ PathifyURI(nsIURI *in, nsACString &out)
 }
 
 /* static */
-#ifdef MOZ_ENABLE_LIBXUL
 nsresult
 mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
                                  JSContext *cx, JSObject **scriptObj)
@@ -998,7 +985,6 @@ mozJSComponentLoader::WriteScript(StartupCache* cache, JSObject *scriptObj,
     rv = cache->PutBuffer(spec.get(), buf, len);
     return rv;
 }
-#endif //MOZ_ENABLE_LIBXUL
 
 nsresult
 mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
@@ -1015,12 +1001,10 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     // preserve caller's compartment
     js::PreserveCompartment pc(cx);
     
-#ifndef XPCONNECT_STANDALONE
     rv = mSystemPrincipal->GetJSPrincipals(cx, &jsPrincipals);
     NS_ENSURE_SUCCESS(rv, rv);
 
     JSPrincipalsHolder princHolder(mContext, jsPrincipals);
-#endif
 
     nsCOMPtr<nsIXPCScriptable> backstagePass;
     rv = mRuntimeService->GetBackstagePass(getter_AddRefs(backstagePass));
@@ -1088,20 +1072,19 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     }
 
     nsCAutoString nativePath;
-    // Quick hack to unbust XPCONNECT_STANDALONE.
-    // This leaves the jsdebugger with a non-URL pathname in the 
-    // XPCONNECT_STANDALONE case - but at least it builds and runs otherwise.
-    // See: http://bugzilla.mozilla.org/show_bug.cgi?id=121438
-#ifdef XPCONNECT_STANDALONE
-    localFile->GetNativePath(nativePath);
-#else
     rv = aURI->GetSpec(nativePath);
     NS_ENSURE_SUCCESS(rv, rv);
-#endif
+
+    // Expose the URI from which the script was imported through a special
+    // variable that we insert into the JSM.
+    JSString *exposedUri = JS_NewStringCopyN(cx, nativePath.get(), nativePath.Length());
+    if (!JS_DefineProperty(cx, global, "__URI__",
+                           STRING_TO_JSVAL(exposedUri), nsnull, nsnull, 0))
+        return NS_ERROR_FAILURE;
+
 
     JSObject *scriptObj = nsnull;
 
-#ifdef MOZ_ENABLE_LIBXUL  
     // Before compiling the script, first check to see if we have it in
     // the startupcache.  Note: as a rule, startupcache errors are not fatal
     // to loading the script, since we can always slow-load.
@@ -1120,7 +1103,6 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             writeToCache = PR_TRUE;
         }
     }
-#endif
 
     if (!scriptObj) {
         // The script wasn't in the cache , so compile it now.
@@ -1201,7 +1183,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
                 return NS_ERROR_FILE_NOT_FOUND;
             }
 
-            script = JS_CompileFileHandleForPrincipalsVersion(
+            scriptObj = JS_CompileFileHandleForPrincipalsVersion(
               cx, global, nativePath.get(), fileHandle, jsPrincipals, JSVERSION_LATEST);
 
             /* JS will close the filehandle after compilation is complete. */
@@ -1263,7 +1245,6 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             nativePath.get());
 #endif
 
-#ifdef MOZ_ENABLE_LIBXUL
     if (writeToCache) {
         // We successfully compiled the script, so cache it. 
         rv = WriteScript(cache, scriptObj, aComponentFile, aURI, cx);
@@ -1276,7 +1257,6 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             LOG(("Failed to write to cache\n"));
         }
     }
-#endif
 
     // Assign aGlobal here so that it's available to recursive imports.
     // See bug 384168.

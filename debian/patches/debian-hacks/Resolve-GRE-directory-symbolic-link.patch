@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=550659
  1 files changed, 9 insertions(+), 0 deletions(-)
 
 diff --git a/xulrunner/stub/nsXULStub.cpp b/xulrunner/stub/nsXULStub.cpp
-index 0437141..1b5ae8b 100644
+index 916b704..6620c08 100644
 --- a/xulrunner/stub/nsXULStub.cpp
 +++ b/xulrunner/stub/nsXULStub.cpp
-@@ -351,6 +351,15 @@ main(int argc, char **argv)
+@@ -314,6 +314,15 @@ main(int argc, char **argv)
  
    greFound = FolderExists(greDir);
  

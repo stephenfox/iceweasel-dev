@@ -1,3 +1,9 @@
+iceweasel (6.0-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Mon, 15 Aug 2011 17:22:40 +0200
+
 iceweasel (5.0-6) unstable; urgency=low
 
   * debian/rules: ia64 doesn't support stabs debugging information, so use a

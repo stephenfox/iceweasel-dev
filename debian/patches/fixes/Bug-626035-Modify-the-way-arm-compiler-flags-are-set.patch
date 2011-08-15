@@ -3,15 +3,15 @@ Date: Wed, 27 Apr 2011 08:58:01 +0200
 Subject: Bug 626035 - Modify the way arm compiler flags are set in configure
 
 ---
- configure.in        |  292 ++++++++++++++++++++++++++++++++-------------------
- js/src/configure.in |  284 ++++++++++++++++++++++++++++++++-----------------
- 2 files changed, 372 insertions(+), 204 deletions(-)
+ configure.in        |  295 ++++++++++++++++++++++++++++++++-------------------
+ js/src/configure.in |  287 ++++++++++++++++++++++++++++++++------------------
+ 2 files changed, 372 insertions(+), 210 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 8f66709..81468e7 100644
+index 3447605..bfbaee0 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -2868,8 +2868,6 @@ alpha*-*-osf*)
+@@ -2705,8 +2705,6 @@ alpha*-*-osf*)
      else
          MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fno-omit-frame-pointer"
      fi
@@ -20,46 +20,49 @@ index 8f66709..81468e7 100644
      ;;
  
  esac
-@@ -3589,38 +3587,6 @@ AC_SUBST(XEXT_LIBS)
+@@ -3440,41 +3438,6 @@ AC_SUBST(XEXT_LIBS)
  AC_SUBST(XT_LIBS)
  AC_SUBST(XSS_LIBS)
  
--AC_MSG_CHECKING(for ARM SIMD support in compiler)
--# We try to link so that this also fails when
--# building with LTO.
--AC_TRY_LINK([],
--               [asm("uqadd8 r1, r1, r2");],
--               result="yes", result="no")
--AC_MSG_RESULT("$result")
--if test "$result" = "yes"; then
--    AC_DEFINE(HAVE_ARM_SIMD)
--    HAVE_ARM_SIMD=1
--fi
--AC_SUBST(HAVE_ARM_SIMD)
+-if test "$CPU_ARCH" = "arm"; then
+-  AC_MSG_CHECKING(for ARM SIMD support in compiler)
+-  # We try to link so that this also fails when
+-  # building with LTO.
+-  AC_TRY_LINK([],
+-                 [asm("uqadd8 r1, r1, r2");],
+-                 result="yes", result="no")
+-  AC_MSG_RESULT("$result")
+-  if test "$result" = "yes"; then
+-      AC_DEFINE(HAVE_ARM_SIMD)
+-      HAVE_ARM_SIMD=1
+-  fi
 -
--AC_MSG_CHECKING(for ARM NEON support in compiler)
--_SAVE_CFLAGS="$CFLAGS"
--if test "$GNU_CC"; then
--  # gcc needs -mfpu=neon to recognize NEON instructions
--  CFLAGS="$CFLAGS -mfpu=neon -mfloat-abi=softfp"
--fi
--# We try to link so that this also fails when
--# building with LTO.
--AC_TRY_LINK([],
--               [asm("vadd.i8 d0, d0, d0");],
--               result="yes", result="no")
--AC_MSG_RESULT("$result")
--if test "$result" = "yes"; then
--    AC_DEFINE(HAVE_ARM_NEON)
--    HAVE_ARM_NEON=1
--fi
--CFLAGS="$_SAVE_CFLAGS"
+-  AC_MSG_CHECKING(for ARM NEON support in compiler)
+-  _SAVE_CFLAGS="$CFLAGS"
+-  if test "$GNU_CC"; then
+-    # gcc needs -mfpu=neon to recognize NEON instructions
+-    CFLAGS="$CFLAGS -mfpu=neon -mfloat-abi=softfp"
+-  fi
+-  # We try to link so that this also fails when
+-  # building with LTO.
+-  AC_TRY_LINK([],
+-                 [asm("vadd.i8 d0, d0, d0");],
+-                 result="yes", result="no")
+-  AC_MSG_RESULT("$result")
+-  if test "$result" = "yes"; then
+-      AC_DEFINE(HAVE_ARM_NEON)
+-      HAVE_ARM_NEON=1
+-  fi
+-  CFLAGS="$_SAVE_CFLAGS"
+-fi # CPU_ARCH = arm
+-
+-AC_SUBST(HAVE_ARM_SIMD)
 -AC_SUBST(HAVE_ARM_NEON)
 -
  dnl ========================================================
  dnl = pthread support
  dnl = Start by checking whether the system support pthreads
-@@ -4993,7 +4959,6 @@ MOZ_SPELLCHECK=1
+@@ -4834,7 +4797,6 @@ MOZ_SPELLCHECK=1
  MOZ_SPLASHSCREEN=
  MOZ_STORAGE=1
  MOZ_SVG=1
@@ -67,7 +70,7 @@ index 8f66709..81468e7 100644
  MOZ_TIMELINE=
  MOZ_TOOLKIT_SEARCH=1
  MOZ_UI_LOCALE=en-US
-@@ -5045,7 +5010,6 @@ case "${target}" in
+@@ -4886,7 +4848,6 @@ case "${target}" in
          USE_ARM_KUSER=1
          MOZ_INSTALLER=
          NECKO_WIFI=
@@ -75,7 +78,7 @@ index 8f66709..81468e7 100644
          MOZ_THEME_FASTSTRIPE=1
          MOZ_TREE_FREETYPE=1
          MOZ_MEMORY=1
-@@ -7102,8 +7066,6 @@ if test $MOZ_PLATFORM_MAEMO; then
+@@ -6953,8 +6914,6 @@ if test $MOZ_PLATFORM_MAEMO; then
              AC_SUBST(MOZ_ENABLE_CONTENTACTION)
           fi
        fi
@@ -84,7 +87,7 @@ index 8f66709..81468e7 100644
     fi
  
     PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
-@@ -7132,80 +7094,204 @@ if test $MOZ_PLATFORM_MAEMO; then
+@@ -6983,80 +6942,204 @@ if test $MOZ_PLATFORM_MAEMO; then
     AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
  fi
  
@@ -351,7 +354,7 @@ index 8f66709..81468e7 100644
  
  dnl ========================================================
  dnl = faststripe theme
-@@ -9459,12 +9545,6 @@ unset CONFIG_FILES
+@@ -9271,12 +9354,6 @@ unset CONFIG_FILES
  # No need to run subconfigures when building with LIBXUL_SDK_DIR
  if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
  
@@ -365,46 +368,49 @@ index 8f66709..81468e7 100644
    _SUBDIR_CONFIG_ARGS="$_SUBDIR_CONFIG_ARGS --enable-wrap-malloc"
  fi
 diff --git a/js/src/configure.in b/js/src/configure.in
-index 3460091..f513c5a 100644
+index c29ea2a..361d029 100644
 --- a/js/src/configure.in
 +++ b/js/src/configure.in
-@@ -3455,34 +3455,6 @@ case $target in
+@@ -3328,37 +3328,6 @@ case $target in
      AC_CHECK_LIB(socket, socket)
  esac
  
--AC_MSG_CHECKING(for ARM SIMD support in compiler)
--AC_TRY_COMPILE([],
--               [asm("uqadd8 r1, r1, r2");],
--               result="yes", result="no")
--AC_MSG_RESULT("$result")
--if test "$result" = "yes"; then
--    AC_DEFINE(HAVE_ARM_SIMD)
--    HAVE_ARM_SIMD=1
--fi
--AC_SUBST(HAVE_ARM_SIMD)
+-if test "$CPU_ARCH" = "arm"; then
+-  AC_MSG_CHECKING(for ARM SIMD support in compiler)
+-  AC_TRY_COMPILE([],
+-                 [asm("uqadd8 r1, r1, r2");],
+-                 result="yes", result="no")
+-  AC_MSG_RESULT("$result")
+-  if test "$result" = "yes"; then
+-      AC_DEFINE(HAVE_ARM_SIMD)
+-      HAVE_ARM_SIMD=1
+-  fi
 -
--AC_MSG_CHECKING(for ARM NEON support in compiler)
--_SAVE_CFLAGS="$CFLAGS"
--if test "$GNU_CC"; then
--  # gcc needs -mfpu=neon to recognize NEON instructions
--  CFLAGS="$CFLAGS -mfpu=neon -mfloat-abi=softfp"
+-  AC_MSG_CHECKING(for ARM NEON support in compiler)
+-  _SAVE_CFLAGS="$CFLAGS"
+-  if test "$GNU_CC"; then
+-    # gcc needs -mfpu=neon to recognize NEON instructions
+-    CFLAGS="$CFLAGS -mfpu=neon -mfloat-abi=softfp"
+-  fi
+-  AC_TRY_COMPILE([],
+-                 [asm("vadd.i8 d0, d0, d0");],
+-                 result="yes", result="no")
+-  AC_MSG_RESULT("$result")
+-  if test "$result" = "yes"; then
+-      AC_DEFINE(HAVE_ARM_NEON)
+-      HAVE_ARM_NEON=1
+-  fi
+-  CFLAGS="$_SAVE_CFLAGS"
 -fi
--AC_TRY_COMPILE([],
--               [asm("vadd.i8 d0, d0, d0");],
--               result="yes", result="no")
--AC_MSG_RESULT("$result")
--if test "$result" = "yes"; then
--    AC_DEFINE(HAVE_ARM_NEON)
--    HAVE_ARM_NEON=1
--fi
--CFLAGS="$_SAVE_CFLAGS"
+-
+-AC_SUBST(HAVE_ARM_SIMD)
 -AC_SUBST(HAVE_ARM_NEON)
 -
  dnl ========================================================
  dnl = pthread support
  dnl = Start by checking whether the system support pthreads
-@@ -4522,13 +4494,11 @@ MOZ_ARG_HEADER(Application)
- BUILD_STATIC_LIBS=
+@@ -4396,13 +4365,11 @@ MOZ_ARG_HEADER(Application)
+ 
  ENABLE_TESTS=1
  
 -MOZ_THUMB2=
@@ -417,7 +423,7 @@ index 3460091..f513c5a 100644
          ;;
  esac
  
-@@ -4574,80 +4544,204 @@ dnl =
+@@ -4448,80 +4415,204 @@ dnl =
  dnl ========================================================
  MOZ_ARG_HEADER(Individual module options)
  
@@ -684,7 +690,7 @@ index 3460091..f513c5a 100644
  
  dnl ========================================================
  dnl =
-@@ -6055,12 +6149,6 @@ if test "$JS_HAS_CTYPES"; then
+@@ -5902,12 +5993,6 @@ if test "$JS_HAS_CTYPES"; then
    if test "$OS_ARCH" = "OS2"; then
      ac_configure_args="$ac_configure_args CFLAGS=-Zomf AR=emxomfar"
    fi

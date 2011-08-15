@@ -145,9 +145,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
 
-#ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
-#endif
 
 #include "base/at_exit.h"
 #include "base/command_line.h"
@@ -404,7 +402,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     rv = nsTimerImpl::Startup();
     NS_ENSURE_SUCCESS(rv, rv);
 
-#if !defined(WINCE) && !defined(ANDROID)
+#ifndef ANDROID
     NS_TIME_FUNCTION_MARK("Next: setlocale");
 
     // If the locale hasn't already been setup by our embedder,
@@ -523,9 +521,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     // to the directory service.
     nsDirectoryService::gService->RegisterCategoryProviders();
 
-#ifdef MOZ_ENABLE_LIBXUL
     mozilla::scache::StartupCache::GetSingleton();
-#endif
     NS_TIME_FUNCTION_MARK("Next: create services from category");
 
     // Notify observers of xpcom autoregistration start
@@ -606,9 +602,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         }
 
         NS_ProcessPendingEvents(thread);
-#ifdef MOZ_ENABLE_LIBXUL
         mozilla::scache::StartupCache::DeleteSingleton();
-#endif
         if (observerService)
             (void) observerService->
                 NotifyObservers(nsnull, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,

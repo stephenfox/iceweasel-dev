@@ -3,14 +3,14 @@ Date: Fri, 15 Jul 2011 08:59:49 +0200
 Subject: Bug 671798 - Always load $gre/defaults/pref prefs
 
 ---
- modules/libpref/src/nsPrefService.cpp |   45 ++++++++++++++++-----------------
+ modules/libpref/src/Preferences.cpp |   45 +++++++++++++++++------------------
  1 files changed, 22 insertions(+), 23 deletions(-)
 
-diff --git a/modules/libpref/src/nsPrefService.cpp b/modules/libpref/src/nsPrefService.cpp
-index 84802b8..58bf97e 100644
---- a/modules/libpref/src/nsPrefService.cpp
-+++ b/modules/libpref/src/nsPrefService.cpp
-@@ -809,11 +809,12 @@ static nsresult pref_InitInitialObjects()
+diff --git a/modules/libpref/src/Preferences.cpp b/modules/libpref/src/Preferences.cpp
+index 10167fd..2262d1f 100644
+--- a/modules/libpref/src/Preferences.cpp
++++ b/modules/libpref/src/Preferences.cpp
+@@ -875,11 +875,12 @@ static nsresult pref_InitInitialObjects()
    // In non omni.jar case, we load:
    // - $gre/greprefs.js
    //
@@ -27,7 +27,7 @@ index 84802b8..58bf97e 100644
    //
    // When $app != $gre, we additionally load, in omni.jar case:
    // - jar:$app/omni.jar!/defaults/preferences/*.js
-@@ -862,37 +863,35 @@ static nsresult pref_InitInitialObjects()
+@@ -928,37 +929,35 @@ static nsresult pref_InitInitialObjects()
        NS_WARNING("Error parsing GRE default preferences. Is this an old-style embedding app?");
    }
  
@@ -46,7 +46,7 @@ index 84802b8..58bf97e 100644
 -    static const char* specialFiles[] = {
 +  /* these pref file names should not be used: we process them after all other application pref files for backwards compatibility */
 +  static const char* specialFiles[] = {
- #if defined(XP_MAC) || defined(XP_MACOSX)
+ #if defined(XP_MACOSX)
 -      "macprefs.js"
 +    "macprefs.js"
  #elif defined(XP_WIN)

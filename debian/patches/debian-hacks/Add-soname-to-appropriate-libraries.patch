@@ -13,7 +13,7 @@ be dlloaded() by the standalone xpcomglue.
  3 files changed, 40 insertions(+), 4 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index c869a11..74f293d 100644
+index d77c70e..5b0660d 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
 @@ -262,6 +262,18 @@ else
@@ -35,7 +35,7 @@ index c869a11..74f293d 100644
  ifeq ($(OS_ARCH),OS2)
  DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
  endif
-@@ -362,7 +374,7 @@ HOST_PDBFILE=$(basename $(@F)).pdb
+@@ -355,7 +367,7 @@ SIMPLE_PROGRAMS :=
  endif
  
  ifndef TARGETS
@@ -44,7 +44,7 @@ index c869a11..74f293d 100644
  endif
  
  ifndef OBJS
-@@ -837,7 +849,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
+@@ -814,7 +826,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
  endif
  endif # EXPORT_LIBRARY
  
@@ -53,7 +53,7 @@ index c869a11..74f293d 100644
  ifndef NO_DIST_INSTALL
  ifdef LIBRARY
  ifdef EXPORT_LIBRARY # Stage libs that will be linked into a static build
-@@ -864,8 +876,10 @@ ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
+@@ -841,8 +853,10 @@ ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
  	$(INSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(DIST)/lib
  else
  	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DIST)/lib
@@ -64,7 +64,7 @@ index c869a11..74f293d 100644
  endif # IS_COMPONENT
  endif # SHARED_LIBRARY
  ifdef PROGRAM
-@@ -1158,6 +1172,8 @@ endif
+@@ -1121,6 +1135,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.
@@ -74,18 +74,18 @@ index c869a11..74f293d 100644
  $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(SHARED_LIBRARY_LIBS_DEPS) $(LIBRARY) $(EXTRA_DEPS) $(DSO_LDOPTS_DEPS) $(GLOBAL_DEPS)
  ifndef INCREMENTAL_LINKER
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index eaaed13..5ad5e12 100644
+index 71b7456..0c19f69 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -74,6 +74,7 @@ MODULE		    = js
  LIBRARY_NAME	    = mozjs
  STATIC_LIBRARY_NAME = js_static
  GRE_MODULE	    = 1
-+SO_VERSION	= 5d
++SO_VERSION	= 6d
  
  LIBS		= $(NSPR_LIBS) 
  
-@@ -933,6 +934,9 @@ ifneq (,$(LIBRARY))
+@@ -986,6 +987,9 @@ ifneq (,$(LIBRARY))
  endif
  ifneq (,$(SHARED_LIBRARY))
  	$(SYSINSTALL) $(SHARED_LIBRARY) $(DESTDIR)$(libdir)
@@ -96,7 +96,7 @@ index eaaed13..5ad5e12 100644
  ifneq (,$(IMPORT_LIBRARY))
  	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index c869a11..74f293d 100644
+index d77c70e..5b0660d 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
 @@ -262,6 +262,18 @@ else
@@ -118,7 +118,7 @@ index c869a11..74f293d 100644
  ifeq ($(OS_ARCH),OS2)
  DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
  endif
-@@ -362,7 +374,7 @@ HOST_PDBFILE=$(basename $(@F)).pdb
+@@ -355,7 +367,7 @@ SIMPLE_PROGRAMS :=
  endif
  
  ifndef TARGETS
@@ -127,7 +127,7 @@ index c869a11..74f293d 100644
  endif
  
  ifndef OBJS
-@@ -837,7 +849,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
+@@ -814,7 +826,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
  endif
  endif # EXPORT_LIBRARY
  
@@ -136,7 +136,7 @@ index c869a11..74f293d 100644
  ifndef NO_DIST_INSTALL
  ifdef LIBRARY
  ifdef EXPORT_LIBRARY # Stage libs that will be linked into a static build
-@@ -864,8 +876,10 @@ ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
+@@ -841,8 +853,10 @@ ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
  	$(INSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(DIST)/lib
  else
  	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DIST)/lib
@@ -147,7 +147,7 @@ index c869a11..74f293d 100644
  endif # IS_COMPONENT
  endif # SHARED_LIBRARY
  ifdef PROGRAM
-@@ -1158,6 +1172,8 @@ endif
+@@ -1121,6 +1135,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.

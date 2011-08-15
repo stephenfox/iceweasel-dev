@@ -7,10 +7,10 @@ Subject: Bug 671576 - Cleanup temporary files from test_libPrefs.js
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/modules/libpref/test/unit/test_libPrefs.js b/modules/libpref/test/unit/test_libPrefs.js
-index 4ced2a2..0dfe3dc 100644
+index e7fd5ca..261ecba 100644
 --- a/modules/libpref/test/unit/test_libPrefs.js
 +++ b/modules/libpref/test/unit/test_libPrefs.js
-@@ -360,6 +360,8 @@ function run_test() {
+@@ -359,6 +359,8 @@ function run_test() {
  
    // loading our former savePrefFile should allow us to read former prefs
    ps.readUserPrefs(savePrefFile);

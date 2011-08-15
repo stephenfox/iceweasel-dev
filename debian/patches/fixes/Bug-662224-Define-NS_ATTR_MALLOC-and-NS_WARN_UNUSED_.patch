@@ -10,10 +10,10 @@ Subject: Bug 662224 - Define NS_ATTR_MALLOC and NS_WARN_UNUSED_RESULT in
  3 files changed, 9 insertions(+), 1 deletions(-)
 
 diff --git a/memory/mozalloc/Makefile.in b/memory/mozalloc/Makefile.in
-index 2cfd6ee..ecb9a42 100644
+index 80e22dc..b2e9323 100644
 --- a/memory/mozalloc/Makefile.in
 +++ b/memory/mozalloc/Makefile.in
-@@ -120,4 +120,6 @@ else
+@@ -114,4 +114,6 @@ else
  SDK_LIBRARY = $(SHARED_LIBRARY)
  endif
  

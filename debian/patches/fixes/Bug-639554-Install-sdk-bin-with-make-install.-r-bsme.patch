@@ -7,10 +7,10 @@ Subject: Bug 639554 - Install sdk/bin with make install. r=bsmedberg
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/toolkit/mozapps/installer/packager.mk b/toolkit/mozapps/installer/packager.mk
-index 18d6871..f80800d 100644
+index d257171..6e83229 100644
 --- a/toolkit/mozapps/installer/packager.mk
 +++ b/toolkit/mozapps/installer/packager.mk
-@@ -727,10 +727,12 @@ ifdef INSTALL_SDK # Here comes the hard part
+@@ -713,10 +713,12 @@ ifdef INSTALL_SDK # Here comes the hard part
  	  (cd $(DESTDIR)$(idldir) && tar -xf -)
  # SDK directory is the libs + a bunch of symlinks
  	$(NSINSTALL) -D $(DESTDIR)$(sdkdir)/sdk/lib

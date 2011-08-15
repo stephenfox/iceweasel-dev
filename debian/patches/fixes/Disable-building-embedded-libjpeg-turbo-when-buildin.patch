@@ -9,10 +9,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=652399
  1 files changed, 5 insertions(+), 1 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 81468e7..1251341 100644
+index bfbaee0..664a5c5 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4747,6 +4747,11 @@ if test "$SYSTEM_JPEG" = 1; then
+@@ -4587,6 +4587,11 @@ if test "$SYSTEM_JPEG" = 1; then
                       #endif ],
                     SYSTEM_JPEG=1,
                     [SYSTEM_JPEG= JPEG_CFLAGS= JPEG_LIBS=]) 
@@ -24,7 +24,7 @@ index 81468e7..1251341 100644
  fi 
  CFLAGS=$_SAVE_CFLAGS
  LDFLAGS=$_SAVE_LDFLAGS
-@@ -4939,7 +4944,6 @@ VPX_AS_CONVERSION=
+@@ -4778,7 +4783,6 @@ VPX_AS_CONVERSION=
  VPX_ASM_SUFFIX=
  VPX_X86_ASM=
  VPX_ARM_ASM=

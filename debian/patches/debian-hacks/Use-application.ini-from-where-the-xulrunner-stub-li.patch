@@ -17,10 +17,10 @@ $PATH or an absolute location.
  1 files changed, 14 insertions(+), 3 deletions(-)
 
 diff --git a/xulrunner/stub/nsXULStub.cpp b/xulrunner/stub/nsXULStub.cpp
-index 3ebbd81..0437141 100644
+index 1373211..916b704 100644
 --- a/xulrunner/stub/nsXULStub.cpp
 +++ b/xulrunner/stub/nsXULStub.cpp
-@@ -300,8 +300,12 @@ main(int argc, char **argv)
+@@ -263,8 +263,12 @@ main(int argc, char **argv)
    // 3) give up
  
    struct stat fileStat;
@@ -35,7 +35,7 @@ index 3ebbd81..0437141 100644
      const char *path = getenv("PATH");
      if (!path)
        return 1;
-@@ -314,8 +318,11 @@ main(int argc, char **argv)
+@@ -277,8 +281,11 @@ main(int argc, char **argv)
      char *token = strtok(pathdup, ":");
      while (token) {
        sprintf(tmpPath, "%s/%s", token, argv[0]);
@@ -48,7 +48,7 @@ index 3ebbd81..0437141 100644
          break;
        }
        token = strtok(NULL, ":");
-@@ -324,11 +331,15 @@ main(int argc, char **argv)
+@@ -287,11 +294,15 @@ main(int argc, char **argv)
      if (!found)
        return 1;
    }

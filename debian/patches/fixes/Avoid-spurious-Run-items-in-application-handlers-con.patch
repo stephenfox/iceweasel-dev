@@ -21,10 +21,10 @@ index 5e05e0e..f4d6518 100644
  //          just don't know how to do that via script...
  // XXXmano TBD: can probably add this to nsIShellService
 diff --git a/uriloader/exthandler/nsHandlerService.js b/uriloader/exthandler/nsHandlerService.js
-index 0ff5160..2f01a95 100644
+index c4e62f6..589ba31 100644
 --- a/uriloader/exthandler/nsHandlerService.js
 +++ b/uriloader/exthandler/nsHandlerService.js
-@@ -642,25 +642,24 @@ HandlerService.prototype = {
+@@ -658,25 +658,24 @@ HandlerService.prototype = {
  
      try {
        file.initWithPath(aPath);
