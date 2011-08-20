@@ -1,3 +1,10 @@
+iceweasel (6.0-2) unstable; urgency=low
+
+  * debian/libmozjs-dev.install: Install mfbt/* files under
+    /usr/include/mozjs/mozilla. Closes: #637984.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 20 Aug 2011 09:13:06 +0200
+
 iceweasel (6.0-1) unstable; urgency=low
 
   * New upstream release.
