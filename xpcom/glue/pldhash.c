@@ -189,7 +189,7 @@ PL_DHashFinalizeStub(PLDHashTable *table)
 {
 }
 
-static const PLDHashTableOps stub_ops = {
+static const PLDHashTableOps _stub_ops = {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
     PL_DHashVoidPtrKeyStub,
@@ -203,7 +203,7 @@ static const PLDHashTableOps stub_ops = {
 const PLDHashTableOps *
 PL_DHashGetStubOps(void)
 {
-    return &stub_ops;
+    return &_stub_ops;
 }
 
 PLDHashTable *
