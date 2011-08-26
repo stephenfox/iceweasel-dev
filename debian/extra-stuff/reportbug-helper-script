@@ -16,6 +16,6 @@ awk -F": " 'BEGIN { while (i = getline < "'"$tmp2"'") { p[$2] = $1; } }
 
 echo >&3
 echo -- Addons package information >&3
-awk -F": " '{ print $1 }' "$tmp2" | sort -u | COLUMNS=79 xargs dpkg -l 2> /dev/null | grep ^i >&3
+awk -F": " '{ print $1 }' "$tmp2" | sort -u | COLUMNS=79 xargs -r dpkg -l 2> /dev/null | grep ^i >&3
 
 rm -f "$tmp" "$tmp2"
