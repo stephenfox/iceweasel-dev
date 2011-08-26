@@ -1,3 +1,25 @@
+iceweasel (6.0-3) unstable; urgency=low
+
+  * debian/libmozjs-dev.install: Add more missing headers to libmozjs-dev.
+  * debian/rules, debian/xulrunner-GRE_VERSION.install.in: Install
+    plugin-container on all architectures. Closes: #639289.
+  * debian/extra-stuff/reportbug-helper-script: Avoid listing all debian
+    packages in the reportbug helper when no addons are installed.
+  * debian/duckduckgo.xml, debian/iceweasel.install: Add DuckDuckGo search
+    plugin. Closes: #616115.
+
+  * js/src/jsgcinlines.h, js/src/jsnum.cpp, js/src/jsstr.cpp, js/src/jsstr.h,
+    js/src/jsstrinlines.h, js/src/jstracer.cpp, js/src/jstracer.h,
+    js/src/tracejit/Writer.cpp: Allow static JS strings to be turned off;
+    turn off on ia64. bz#589735.
+  * memory/jemalloc/jemalloc.c: Allocate memory with an address with high 17
+    bits clear on ia64. bz#589735. This should finally make Iceweasel
+    actually work on ia64.
+  * js/src/jsval.h, js/src/jsvalue.h: Fix jsval_layout on 64-bit big-endian
+    platforms. bz#674522. Closes: #638623.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 26 Aug 2011 09:48:52 +0200
+
 iceweasel (6.0-2) unstable; urgency=low
 
   * debian/libmozjs-dev.install: Install mfbt/* files under
