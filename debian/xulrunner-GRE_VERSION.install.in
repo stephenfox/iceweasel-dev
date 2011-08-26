@@ -15,6 +15,7 @@ usr/lib/xulrunner-##GRE_VERSION##/xulrunner
 usr/lib/xulrunner-##GRE_VERSION##/xulrunner-bin
 usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub
 usr/lib/xulrunner-##GRE_VERSION##/reportbug-helper-script
+usr/lib/xulrunner-##GRE_VERSION##/plugin-container
 
 usr/lib/xulrunner-##GRE_VERSION##/icons usr/share/xulrunner-##GRE_VERSION##
 usr/lib/xulrunner-##GRE_VERSION##/chrome usr/share/xulrunner-##GRE_VERSION##

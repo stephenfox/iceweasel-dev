@@ -267,11 +267,8 @@ override_dh_installdocs: MPL
 
 stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist/bin/npapi_getinfo
 	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r
-	dh_install --fail-missing -Xplugin-container
+	dh_install --fail-missing
 
-ifneq (,$(filter armel i386 amd64,$(DEB_BUILD_ARCH)))
-	dh_install -pxulrunner-$(GRE_VERSION) usr/lib/xulrunner-$(GRE_VERSION)/plugin-container
-endif
 #Install helpers
 	install -m 755 debian/iceweasel-runner \
 		debian/iceweasel/$(LIB_DIR)/iceweasel
