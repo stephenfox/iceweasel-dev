@@ -9,7 +9,7 @@ Subject: Fix tracejit to build against nanojit headers in
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/js/src/tracejit/Writer.cpp b/js/src/tracejit/Writer.cpp
-index 0099d30..d2cfa6c 100644
+index 58671c4..900754d 100644
 --- a/js/src/tracejit/Writer.cpp
 +++ b/js/src/tracejit/Writer.cpp
 @@ -42,7 +42,7 @@

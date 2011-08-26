@@ -286,7 +286,6 @@ JSVAL_EXTRACT_NON_DOUBLE_TAG_IMPL(jsval_layout l)
 }
 
 #ifdef __cplusplus
-JS_STATIC_ASSERT(offsetof(jsval_layout, s.payload) == 0);
 JS_STATIC_ASSERT((JSVAL_TYPE_NONFUNOBJ & 0xF) == JSVAL_TYPE_OBJECT);
 JS_STATIC_ASSERT((JSVAL_TYPE_FUNOBJ & 0xF) == JSVAL_TYPE_OBJECT);
 #endif
@@ -734,7 +733,11 @@ class Value
     }
 
     const jsuword *payloadWord() const {
+#if JS_BITS_PER_WORD == 32
         return &data.s.payload.word;
+#elif JS_BITS_PER_WORD == 64
+        return &data.asWord;
+#endif
     }
 
   private:

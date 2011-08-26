@@ -1,0 +1,54 @@
+From: Luke Wagner <luke@mozilla.com>
+Date: Mon, 8 Aug 2011 10:47:16 -0700
+Subject: Bug 674522 - Remove bad static assert; fix strict-aliasing warnings
+ (rs=waldo)
+
+---
+ js/src/jsval.h   |    2 ++
+ js/src/jsvalue.h |    5 ++---
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/js/src/jsval.h b/js/src/jsval.h
+index 38e5ce3..2ac90dd 100644
+--- a/js/src/jsval.h
++++ b/js/src/jsval.h
+@@ -317,6 +317,7 @@ typedef union jsval_layout
+     } s;
+     double asDouble;
+     void *asPtr;
++    jsuword asWord;
+ } jsval_layout;
+ # endif  /* JS_BITS_PER_WORD */
+ #else   /* defined(IS_LITTLE_ENDIAN) */
+@@ -358,6 +359,7 @@ typedef union jsval_layout
+     } s;
+     double asDouble;
+     void *asPtr;
++    jsuword asWord;
+ } jsval_layout;
+ # endif /* JS_BITS_PER_WORD */
+ #endif  /* defined(IS_LITTLE_ENDIAN) */
+diff --git a/js/src/jsvalue.h b/js/src/jsvalue.h
+index ccfb92c..68c5483 100644
+--- a/js/src/jsvalue.h
++++ b/js/src/jsvalue.h
+@@ -286,7 +286,6 @@ JSVAL_EXTRACT_NON_DOUBLE_TAG_IMPL(jsval_layout l)
+ }
+ 
+ #ifdef __cplusplus
+-JS_STATIC_ASSERT(offsetof(jsval_layout, s.payload) == 0);
+ JS_STATIC_ASSERT((JSVAL_TYPE_NONFUNOBJ & 0xF) == JSVAL_TYPE_OBJECT);
+ JS_STATIC_ASSERT((JSVAL_TYPE_FUNOBJ & 0xF) == JSVAL_TYPE_OBJECT);
+ #endif
+@@ -735,9 +734,9 @@ class Value
+ 
+     const jsuword *payloadWord() const {
+ #if JS_BITS_PER_WORD == 32
+-        return reinterpret_cast<const jsuword *>(&data.s.payload.word);
++        return &data.s.payload.word;
+ #elif JS_BITS_PER_WORD == 64
+-        return reinterpret_cast<const jsuword *>(&data.asBits);
++        return &data.asWord;
+ #endif
+     }
+ 

@@ -29,6 +29,10 @@ porting/Force-NativeARM.o-to-have-arch-armv4t-in-its-.ARM.at.patch
 porting/Allow-ARMv4T-in-nanojit.patch
 porting/Allow-ipc-code-to-build-on-GNU-kfreebsd.patch
 porting/Allow-ipc-code-to-build-on-GNU-Hurd.patch
+porting/Bug-589735-Allow-static-JS-strings-to-be-turned-off-.patch
+porting/Bug-589735-Allocate-memory-with-an-address-with-high.patch
+porting/Bug-674522-Fix-jsval_layout-on-64-bit-big-endian-pla.patch
+porting/Bug-674522-Remove-bad-static-assert-fix-strict-alias.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
