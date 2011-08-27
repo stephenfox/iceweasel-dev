@@ -4,15 +4,15 @@ Subject: Bug 589735 - Allow static JS strings to be turned off; turn off on
  ia64 (r=igor)
 
 ---
- js/src/jsgcinlines.h       |   12 +++++++
+ js/src/jsgcinlines.h       |   12 ++++++++
  js/src/jsnum.cpp           |    2 +
- js/src/jsstr.cpp           |    4 ++
- js/src/jsstr.h             |   16 +++++++--
- js/src/jsstrinlines.h      |   77 ++++++++++++++++++++++++++++++++++++++++++++
- js/src/jstracer.cpp        |    9 ++++-
+ js/src/jsstr.cpp           |    4 +++
+ js/src/jsstr.h             |   16 +++++++++--
+ js/src/jsstrinlines.h      |   64 ++++++++++++++++++++++++++++++++++++++++++++
+ js/src/jstracer.cpp        |    9 +++++-
  js/src/jstracer.h          |    2 +
- js/src/tracejit/Writer.cpp |    5 ++-
- 8 files changed, 122 insertions(+), 5 deletions(-)
+ js/src/tracejit/Writer.cpp |    5 +++-
+ 8 files changed, 109 insertions(+), 5 deletions(-)
 
 diff --git a/js/src/jsgcinlines.h b/js/src/jsgcinlines.h
 index 538d0b9..b9dc0f7 100644
@@ -153,7 +153,7 @@ index 0977fca..3e0dbfd 100644
    private:
      /* Defined in jsgcinlines.h */
 diff --git a/js/src/jsstrinlines.h b/js/src/jsstrinlines.h
-index c08e1ea..8c2ef62 100644
+index c08e1ea..c017e77 100644
 --- a/js/src/jsstrinlines.h
 +++ b/js/src/jsstrinlines.h
 @@ -412,6 +412,7 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length, intN t
@@ -164,7 +164,7 @@ index c08e1ea..8c2ef62 100644
  inline bool
  JSAtom::fitsInSmallChar(jschar c)
  {
-@@ -510,6 +511,82 @@ JSAtom::lookupStatic(const jschar *chars, size_t length)
+@@ -510,6 +511,69 @@ JSAtom::lookupStatic(const jschar *chars, size_t length)
      return NULL;
  }
  
@@ -184,19 +184,6 @@ index c08e1ea..8c2ef62 100644
 +
 +inline JSStaticAtom &
 +JSAtom::unitStatic(jschar c)
-+{
-+    JS_NOT_REACHED("no static strings");
-+    return *(JSStaticAtom *)NULL;
-+}
-+
-+inline bool
-+JSAtom::hasUintStatic(uint32 u)
-+{
-+    return false;
-+}
-+
-+inline JSStaticAtom &
-+JSAtom::uintStatic(uint32 u)
 +{
 +    JS_NOT_REACHED("no static strings");
 +    return *(JSStaticAtom *)NULL;
