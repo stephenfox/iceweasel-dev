@@ -533,19 +533,6 @@ JSAtom::unitStatic(jschar c)
 }
 
 inline bool
-JSAtom::hasUintStatic(uint32 u)
-{
-    return false;
-}
-
-inline JSStaticAtom &
-JSAtom::uintStatic(uint32 u)
-{
-    JS_NOT_REACHED("no static strings");
-    return *(JSStaticAtom *)NULL;
-}
-
-inline bool
 JSAtom::hasIntStatic(int32 i)
 {
     return false;
