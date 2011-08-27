@@ -1,3 +1,9 @@
+iceweasel (6.0-4) unstable; urgency=low
+
+  * js/src/jsstrinlines.h: Fix-up bz#589735 backport. Should fix ia64 FTBFS.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 27 Aug 2011 09:07:06 +0200
+
 iceweasel (6.0-3) unstable; urgency=low
 
   * debian/libmozjs-dev.install: Add more missing headers to libmozjs-dev.
