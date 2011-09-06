@@ -1,3 +1,10 @@
+iceweasel (6.0.2-1) unstable; urgency=medium
+
+  * New upstream release to strengthen the libnss3 response to the
+    DigiNotargate.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 06 Sep 2011 08:32:55 +0200
+
 iceweasel (6.0-4) unstable; urgency=low
 
   * js/src/jsstrinlines.h: Fix-up bz#589735 backport. Should fix ia64 FTBFS.
