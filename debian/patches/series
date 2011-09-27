@@ -1,12 +1,6 @@
 fixes/Allow-.js-preference-files-to-set-locked-prefs-with-.patch
 fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
-fixes/Bug-626035-Modify-the-way-arm-compiler-flags-are-set.patch
-fixes/Bug-662223-Add-lmozalloc-in-link-flags-provided-in-l.patch
-fixes/Bug-662224-Define-NS_ATTR_MALLOC-and-NS_WARN_UNUSED_.patch
-fixes/Disable-building-embedded-libjpeg-turbo-when-buildin.patch
-fixes/Bug-639554-Install-sdk-bin-with-make-install.-r-bsme.patch
-fixes/Bug-666709-One-or-more-places-xpcshell-tests-modify-.patch
 fixes/Bug-668906-Do-not-call-openUnsharedDatabase-with-a-n.patch
 fixes/Bug-671533-Fix-test_DownloadUtils.js-with-locales-wi.patch
 fixes/Bug-671564-Initialize-NS_XPCOM_LIBRARY_FILE-from-NS_.patch
@@ -22,7 +16,6 @@ iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
 porting/Add-xptcall-support-for-SH4-processors.patch
-porting/Fix-FTBFS-in-xpcom-base-on-armv4t.patch
 porting/Allow-to-build-yuv_convert_arm.cpp-on-armv4t.patch
 porting/Add-mips-hppa-ia64-s390-and-sparc-defines-in-ipc-chr.patch
 porting/Force-NativeARM.o-to-have-arch-armv4t-in-its-.ARM.at.patch
@@ -45,7 +38,6 @@ debian-hacks/Don-t-build-example-component.patch
 debian-hacks/Don-t-install-system-profile.patch
 debian-hacks/Ignore-system-libjpeg-libpng-and-zlib-version-checki.patch
 debian-hacks/Add-soname-to-appropriate-libraries.patch
-debian-hacks/Use-application.ini-from-where-the-xulrunner-stub-li.patch
 debian-hacks/Add-another-preferences-directory-for-applications-p.patch
 debian-hacks/Gross-workaround-to-avoid-installing-test-idl-and-in.patch
 debian-hacks/Don-t-register-plugins-if-the-MOZILLA_DISABLE_PLUGIN.patch

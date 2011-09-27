@@ -1,3 +1,9 @@
+iceweasel (7.0-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 27 Sep 2011 08:08:13 +0200
+
 iceweasel (6.0.2-1) unstable; urgency=medium
 
   * New upstream release to strengthen the libnss3 response to the

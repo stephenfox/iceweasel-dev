@@ -10,10 +10,10 @@ loaded in most cases.
  1 files changed, 2 insertions(+), 0 deletions(-)
 
 diff --git a/xulrunner/app/Makefile.in b/xulrunner/app/Makefile.in
-index c713b42..5ebc7cf 100644
+index bb93c55..a7b651e 100644
 --- a/xulrunner/app/Makefile.in
 +++ b/xulrunner/app/Makefile.in
-@@ -82,7 +82,9 @@ endif
+@@ -83,7 +83,9 @@ endif
  LIBS += \
    $(EXTRA_DSO_LIBS) \
    $(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \

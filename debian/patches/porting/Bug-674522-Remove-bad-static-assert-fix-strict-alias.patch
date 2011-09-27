@@ -9,7 +9,7 @@ Subject: Bug 674522 - Remove bad static assert; fix strict-aliasing warnings
  2 files changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/js/src/jsval.h b/js/src/jsval.h
-index 38e5ce3..2ac90dd 100644
+index 4ebca16..ab340f7 100644
 --- a/js/src/jsval.h
 +++ b/js/src/jsval.h
 @@ -317,6 +317,7 @@ typedef union jsval_layout

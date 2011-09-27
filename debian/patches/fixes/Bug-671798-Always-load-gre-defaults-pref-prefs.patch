@@ -7,10 +7,10 @@ Subject: Bug 671798 - Always load $gre/defaults/pref prefs
  1 files changed, 22 insertions(+), 23 deletions(-)
 
 diff --git a/modules/libpref/src/Preferences.cpp b/modules/libpref/src/Preferences.cpp
-index 10167fd..2262d1f 100644
+index 37cd619..718c70c 100644
 --- a/modules/libpref/src/Preferences.cpp
 +++ b/modules/libpref/src/Preferences.cpp
-@@ -875,11 +875,12 @@ static nsresult pref_InitInitialObjects()
+@@ -1019,11 +1019,12 @@ static nsresult pref_InitInitialObjects()
    // In non omni.jar case, we load:
    // - $gre/greprefs.js
    //
@@ -27,7 +27,7 @@ index 10167fd..2262d1f 100644
    //
    // When $app != $gre, we additionally load, in omni.jar case:
    // - jar:$app/omni.jar!/defaults/preferences/*.js
-@@ -928,37 +929,35 @@ static nsresult pref_InitInitialObjects()
+@@ -1072,37 +1073,35 @@ static nsresult pref_InitInitialObjects()
        NS_WARNING("Error parsing GRE default preferences. Is this an old-style embedding app?");
    }
  

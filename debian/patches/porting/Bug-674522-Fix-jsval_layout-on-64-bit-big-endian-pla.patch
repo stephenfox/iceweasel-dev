@@ -9,7 +9,7 @@ Subject: Bug 674522 - Fix jsval_layout on 64-bit big-endian platforms
  2 files changed, 8 insertions(+), 3 deletions(-)
 
 diff --git a/js/src/jsval.h b/js/src/jsval.h
-index f76f297..38e5ce3 100644
+index e77d489..4ebca16 100644
 --- a/js/src/jsval.h
 +++ b/js/src/jsval.h
 @@ -313,7 +313,6 @@ typedef union jsval_layout

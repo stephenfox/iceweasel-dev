@@ -11,7 +11,7 @@ Closes: #577677
  3 files changed, 24 insertions(+), 0 deletions(-)
 
 diff --git a/xpcom/base/nscore.h b/xpcom/base/nscore.h
-index c1f8ab5..e14cc8e 100644
+index 938b2aa..8994823 100644
 --- a/xpcom/base/nscore.h
 +++ b/xpcom/base/nscore.h
 @@ -410,6 +410,28 @@ typedef PRUint32 nsrefcnt;

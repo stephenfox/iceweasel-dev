@@ -7,7 +7,7 @@ Subject: Bug 671564 - Initialize NS_XPCOM_LIBRARY_FILE from NS_GRE_DIR
  1 files changed, 11 insertions(+), 12 deletions(-)
 
 diff --git a/xpcom/build/nsXPComInit.cpp b/xpcom/build/nsXPComInit.cpp
-index aaad42b..187ed1b 100644
+index fa94943..a6ffb47 100644
 --- a/xpcom/build/nsXPComInit.cpp
 +++ b/xpcom/build/nsXPComInit.cpp
 @@ -427,34 +427,33 @@ NS_InitXPCOM2(nsIServiceManager* *result,

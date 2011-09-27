@@ -8,10 +8,10 @@ Subject: Bug 671562 - Allow to pass an application directory to xpcshell
  1 files changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/testing/xpcshell/runxpcshelltests.py b/testing/xpcshell/runxpcshelltests.py
-index 53cfbf8..457e617 100644
+index 56b8eb4..74ad492 100644
 --- a/testing/xpcshell/runxpcshelltests.py
 +++ b/testing/xpcshell/runxpcshelltests.py
-@@ -209,7 +209,9 @@ class XPCShellTests(object):
+@@ -220,7 +220,9 @@ class XPCShellTests(object):
      """
      # - NOTE: if you rename/add any of the constants set here, update
      #   do_load_child_test_harness() in head.js
@@ -22,7 +22,7 @@ index 53cfbf8..457e617 100644
          ['-e', 'const _HTTPD_JS_PATH = "%s";' % self.httpdJSPath,
           '-e', 'const _HEAD_JS_PATH = "%s";' % self.headJSPath,
           '-f', os.path.join(self.testharnessdir, 'head.js')]
-@@ -368,7 +370,7 @@ class XPCShellTests(object):
+@@ -379,7 +381,7 @@ class XPCShellTests(object):
               '-e', 'const _HEAD_FILES = [%s];' % cmdH,
               '-e', 'const _TAIL_FILES = [%s];' % cmdT]
  
@@ -31,7 +31,7 @@ index 53cfbf8..457e617 100644
                 manifest=None, testdirs=[], testPath=None,
                 interactive=False, verbose=False, keepGoing=False, logfiles=True,
                 thisChunk=1, totalChunks=1, debugger=None,
-@@ -378,6 +380,7 @@ class XPCShellTests(object):
+@@ -389,6 +391,7 @@ class XPCShellTests(object):
  
      |xpcshell|, is the xpcshell executable to use to run the tests.
      |xrePath|, if provided, is the path to the XRE to use.
@@ -39,7 +39,7 @@ index 53cfbf8..457e617 100644
      |symbolsPath|, if provided is the path to a directory containing
        breakpad symbols for processing crashes in tests.
      |manifest|, if provided, is a file containing a list of
-@@ -401,6 +404,7 @@ class XPCShellTests(object):
+@@ -413,6 +416,7 @@ class XPCShellTests(object):
  
      self.xpcshell = xpcshell
      self.xrePath = xrePath
@@ -47,7 +47,7 @@ index 53cfbf8..457e617 100644
      self.symbolsPath = symbolsPath
      self.manifest = manifest
      self.testdirs = testdirs
-@@ -534,6 +538,9 @@ class XPCShellOptions(OptionParser):
+@@ -577,6 +581,9 @@ class XPCShellOptions(OptionParser):
      OptionParser.__init__(self)
  
      addCommonOptions(self)

@@ -10,10 +10,10 @@ Subject: Bug 668906 - Do not call openUnsharedDatabase with a null file
  3 files changed, 17 insertions(+), 1 deletions(-)
 
 diff --git a/storage/src/mozStorageService.cpp b/storage/src/mozStorageService.cpp
-index 73b0a92..947562d 100644
+index 611267d..a74004b 100644
 --- a/storage/src/mozStorageService.cpp
 +++ b/storage/src/mozStorageService.cpp
-@@ -479,6 +479,8 @@ NS_IMETHODIMP
+@@ -477,6 +477,8 @@ NS_IMETHODIMP
  Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
                                mozIStorageConnection **_connection)
  {

@@ -11,10 +11,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=551138
  4 files changed, 34 insertions(+), 3 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index efecd10..71b7456 100644
+index 35d79dc..e0753a3 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -490,11 +490,20 @@ CPPSRCS += \
+@@ -484,11 +484,20 @@ CPPSRCS += \
      Library.cpp \
      $(NULL)
  
@@ -37,7 +37,7 @@ index efecd10..71b7456 100644
  ifeq ($(OS_ARCH),OS2)
  SHARED_LIBRARY_LIBS += \
      ctypes/libffi/.libs/ffi.a \
-@@ -504,6 +513,7 @@ SHARED_LIBRARY_LIBS += \
+@@ -498,6 +507,7 @@ SHARED_LIBRARY_LIBS += \
      ctypes/libffi/.libs/libffi.$(LIB_SUFFIX) \
      $(NULL)
  endif
@@ -45,7 +45,7 @@ index efecd10..71b7456 100644
  
  endif # JS_HAS_CTYPES
  
-@@ -583,6 +593,7 @@ endif
+@@ -586,6 +596,7 @@ endif
  include $(topsrcdir)/config/rules.mk
  
  ifdef JS_HAS_CTYPES
@@ -53,7 +53,7 @@ index efecd10..71b7456 100644
  # Build libffi proper as part of the 'exports' target, so things get built
  # in the right order.
  export::
-@@ -591,6 +602,7 @@ export::
+@@ -594,6 +605,7 @@ export::
  distclean clean::
  		$(call SUBMAKE,$@,ctypes/libffi)
  endif
@@ -62,7 +62,7 @@ index efecd10..71b7456 100644
  # Because the SpiderMonkey can be distributed and built independently
  # of the Mozilla source tree, it contains its own copies of many of
 diff --git a/js/src/config/autoconf.mk.in b/js/src/config/autoconf.mk.in
-index 7f14a6b..ab24db0 100644
+index e76b709..fbdc618 100644
 --- a/js/src/config/autoconf.mk.in
 +++ b/js/src/config/autoconf.mk.in
 @@ -246,6 +246,10 @@ NSPR_CONFIG	= @NSPR_CONFIG@
@@ -77,10 +77,10 @@ index 7f14a6b..ab24db0 100644
  
  JS_NATIVE_EDITLINE = @JS_NATIVE_EDITLINE@
 diff --git a/js/src/configure.in b/js/src/configure.in
-index 361d029..872b320 100644
+index a0dddaf..ee68723 100644
 --- a/js/src/configure.in
 +++ b/js/src/configure.in
-@@ -4355,6 +4355,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+@@ -4380,6 +4380,18 @@ if test -n "$MOZ_NATIVE_NSPR"; then
      CFLAGS=$_SAVE_CFLAGS
  fi
  
@@ -99,7 +99,7 @@ index 361d029..872b320 100644
  dnl ========================================================
  dnl =
  dnl = Application
-@@ -5935,7 +5947,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
+@@ -5959,7 +5971,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
  $GMAKE js-config
  
  # Build jsctypes if it's enabled.
