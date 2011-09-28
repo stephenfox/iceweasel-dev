@@ -1,8 +1,31 @@
-iceweasel (7.0-1) UNRELEASED; urgency=low
+iceweasel (7.0-1) unstable; urgency=low
 
   * New upstream release.
+  * Fixes various security issues, which CVE ids are not published yet.
 
- -- Mike Hommey <glandium@debian.org>  Tue, 27 Sep 2011 08:08:13 +0200
+  * debian/branding/Makefile.in, debian/iceweasel.install: Remove document.png,
+    as it is not used anymore.
+  * debian/branding/content/Makefile.in, debian/branding/content/jar.mn: Stop
+    jarring up a copy of mozicon128.png that aboutHome no longer uses.
+  * debian/rules: Don't remove /usr/lib/xulrunner-7.0/libmozjs.so*, they're not
+    installed there anymore.
+  * debian/iceweasel.mozconfig: Add --disable-libjpeg-turbo to work around
+    configure checking for yasm on APP build.
+
+  * js/src/Makefile.in: Only add -DENABLE_JIT=1 to CXXFLAGS if any of
+    trace/method/regex jit is enabled. bz#670719. Fixes FTBFSes on
+    powerpc and s390.
+  * js/src/jsregexpinlines.h, js/src/yarr/OSAllocatorPosix.cpp,
+    js/src/yarr/wtfbridge.h: build fix for ENABLE_YARR_JIT=0. bz#665819.
+  * xpcom/glue/pldhash.c: Work around recent ARM GNU ld bug with
+    -fdata-sections and variables names starting with "stub" leading to crash.
+    bz#675618. Also avoids elfhack crash during build.
+  * js/src/assembler/wtf/Platform.h: Don't enable YARR JIT on MIPS, as the
+    implementation is missing. bz#680642.
+  * js/src/yarr/BumpPointerAllocator.h: Use a pool size of 16kB on ia64 for
+    bump pointer allocator. bz#680917.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 28 Sep 2011 08:51:02 +0200
 
 iceweasel (6.0.2-1) unstable; urgency=medium
 
