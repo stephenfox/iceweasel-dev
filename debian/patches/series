@@ -12,6 +12,10 @@ fixes/Bug-671631-Don-t-hardcode-en-US-in-test_update.js.patch
 fixes/Bug-671798-Always-load-gre-defaults-pref-prefs.patch
 fixes/Bug-671804-Provide-NS_APP_PREF_DEFAULTS_50_DIR-and-N.patch
 fixes/Bug-673460-Unbreak-build-for-GNU-Hurd-and-GNU-kFreeB.patch
+fixes/Bug-670719-Only-add-DENABLE_JIT-1-to-CXXFLAGS-if-any.patch
+fixes/Bug-665819-build-fix-for-ENABLE_YARR_JIT-0-r-dmandel.patch
+fixes/Bug-675618-Work-around-recent-ARM-GNU-ld-bug-with-fd.patch
+fixes/Bug-680642-Don-t-enable-YARR-JIT-on-MIPS-as-the-impl.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
@@ -26,6 +30,7 @@ porting/Bug-589735-Allow-static-JS-strings-to-be-turned-off-.patch
 porting/Bug-589735-Allocate-memory-with-an-address-with-high.patch
 porting/Bug-674522-Fix-jsval_layout-on-64-bit-big-endian-pla.patch
 porting/Bug-674522-Remove-bad-static-assert-fix-strict-alias.patch
+porting/Bug-680917-Use-a-pool-size-of-16kB-on-ia64-for-bump-.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
