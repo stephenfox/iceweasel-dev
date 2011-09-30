@@ -6,7 +6,4 @@ usr/share/idl
 usr/lib/xulrunner-devel-@GRE_VERSION@
 usr/lib/pkgconfig/libxul.pc
 usr/lib/pkgconfig/libxul-embedding.pc
-usr/lib/pkgconfig/mozilla-gtkmozembed.pc
-usr/lib/pkgconfig/mozilla-gtkmozembed-embedding.pc
 usr/lib/pkgconfig/mozilla-plugin.pc
-usr/lib/xulrunner-@GRE_VERSION@/xpidl
