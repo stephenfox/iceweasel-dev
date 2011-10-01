@@ -56,10 +56,13 @@ class TarFilterList(object):
                     return cmd
         return False
 
+def file_extension(name):
+    return os.path.splitext(name)[1][1:]
+
 def filter_tar(orig, new, filt):
     filt = TarFilterList(filt)
-    tar = tarfile.open(orig, "r:*")
-    new = tarfile.open(new, "w:bz2")
+    tar = tarfile.open(orig, "r:" + file_extension(orig))
+    new_tar = tarfile.open(new + ".new", "w:" + file_extension(new))
 
     while True:
         info = tar.next()
@@ -88,12 +91,13 @@ def filter_tar(orig, new, filt):
                 file.writelines(map(the_filt, orig.readlines()))
                 file.seek(0);
                 info.size = len(file.buf)
-            new.addfile(info, file)
+            new_tar.addfile(info, file)
         else:
-            new.addfile(info)
+            new_tar.addfile(info)
 
     tar.close()
-    new.close()
+    new_tar.close()
+    os.rename(new_tar.name, new)
 
 def get_package_name():
     control = os.path.join(os.path.dirname(__file__), "control")
@@ -131,11 +135,11 @@ def main():
         new_file = args[0]
     else:
         orig = args[0]
-        new_file = options.package + "_" + options.upstream_version + ".orig.tar.bz2"
+        compression = file_extension(orig)
+        new_file = options.package + "_" + options.upstream_version + ".orig.tar." + compression
         new_file = os.path.realpath(os.path.join(os.path.dirname(orig), new_file))
     print orig, new_file
-    filter_tar(orig, new_file + ".new", options.filter)
-    os.rename(new_file + ".new", new_file)
+    filter_tar(orig, new_file, options.filter)
 
 if __name__ == '__main__':
     main()
