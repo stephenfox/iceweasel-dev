@@ -104,6 +104,10 @@ def main():
     parser.add_option("-u", "--upstream-version", dest="upstream_version",
         help="define upstream version number to use when creating the file",
         metavar="VERSION")
+    parser.add_option("-f", "--filter", dest="filter",
+        help="use the given filter list", metavar="FILE")
+    parser.add_option("-p", "--package", dest="package",
+        help="use the given package name", metavar="NAME")
     (options, args) = parser.parse_args()
 
     if not options.upstream_version:
@@ -117,15 +121,20 @@ def main():
         parser.error("Too many arguments")
         return
 
+    if not options.filter:
+        options.filter = os.path.join(os.path.dirname(__file__), "source.filter")
+    if not options.package:
+        options.package = get_package_name()
+
     if os.path.islink(args[0]):
         orig = os.path.realpath(args[0])
         new_file = args[0]
     else:
         orig = args[0]
-        new_file = get_package_name() + "_" + options.upstream_version + ".orig.tar.bz2"
+        new_file = options.package + "_" + options.upstream_version + ".orig.tar.bz2"
         new_file = os.path.realpath(os.path.join(os.path.dirname(orig), new_file))
     print orig, new_file
-    filter_tar(orig, new_file + ".new", os.path.join(os.path.dirname(__file__), "source.filter"))
+    filter_tar(orig, new_file + ".new", options.filter)
     os.rename(new_file + ".new", new_file)
 
 if __name__ == '__main__':
