@@ -96,7 +96,8 @@ def filter_tar(orig, new, filt):
     new.close()
 
 def get_package_name():
-    return rfc822.Message(open("debian/control"))["Source"]
+    control = os.path.join(os.path.dirname(__file__), "control")
+    return rfc822.Message(open(control))["Source"]
 
 def main():
     parser = OptionParser()
@@ -124,7 +125,7 @@ def main():
         new_file = get_package_name() + "_" + options.upstream_version + ".orig.tar.bz2"
         new_file = os.path.realpath(os.path.join(os.path.dirname(orig), new_file))
     print orig, new_file
-    filter_tar(orig, new_file + ".new", "debian/source.filter")
+    filter_tar(orig, new_file + ".new", os.path.join(os.path.dirname(__file__), "source.filter"))
     os.rename(new_file + ".new", new_file)
 
 if __name__ == '__main__':
