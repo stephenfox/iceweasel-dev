@@ -8,6 +8,35 @@ import re
 import os
 import sys
 import rfc822
+import urllib2
+from urlparse import urlparse
+
+class URLFile(object):
+    '''Simple proxy to urllib2.urlopen, that responds to seek only if
+       it's called before read. This is enough for tarfile to be happy'''
+
+    def __init__(self, url):
+        self.file = urllib2.urlopen(url)
+
+    def seek(self, offset, whence = os.SEEK_SET):
+        if whence != os.SEEK_SET or offset != 0 or self.read == self._read:
+            raise "unsupported"
+
+    def _read(self, size = -1):
+        return self.file.read(size)
+
+    def read(self, size = -1):
+        self.read = self._read
+        return self._read(size)
+
+    def close(self):
+        self.file.close()
+
+def dirname(filespec):
+    '''Returns os.path.dirname if a file, and '' if an url'''
+    if urlparse(filespec).scheme:
+        return ''
+    return os.path.dirname(filespec)
 
 class TarFilterList(object):
     def __init__(self, filename):
@@ -61,7 +90,10 @@ def file_extension(name):
 
 def filter_tar(orig, new, filt):
     filt = TarFilterList(filt)
-    tar = tarfile.open(orig, "r:" + file_extension(orig))
+    if urlparse(orig).scheme:
+        tar = tarfile.open(orig, "r:" + file_extension(orig), URLFile(orig))
+    else:
+        tar = tarfile.open(orig, "r:" + file_extension(orig))
     new_tar = tarfile.open(new + ".new", "w:" + file_extension(new))
 
     while True:
@@ -137,7 +169,7 @@ def main():
         orig = args[0]
         compression = file_extension(orig)
         new_file = options.package + "_" + options.upstream_version + ".orig.tar." + compression
-        new_file = os.path.realpath(os.path.join(os.path.dirname(orig), new_file))
+        new_file = os.path.realpath(os.path.join(dirname(orig), new_file))
     print orig, new_file
     filter_tar(orig, new_file, options.filter)
 
