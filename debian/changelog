@@ -1,3 +1,11 @@
+iceweasel (7.0.1-2) unstable; urgency=low
+
+  * debian/repack.py: Improved in several ways.
+  * debian/rules: Install vm/* headers under /usr/include/mozjs.
+    Closes: #644086.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 04 Oct 2011 08:32:20 +0200
+
 iceweasel (7.0.1-1) unstable; urgency=low
 
   * New upstream release.
