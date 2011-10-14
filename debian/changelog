@@ -1,3 +1,18 @@
+iceweasel (7.0.1-3) unstable; urgency=low
+
+  * debian/branding/configure.sh: Set MOZ_APP_DISPLAYNAME in Iceweasel
+    branding. Closes: #644801.
+  * debian/xulrunner.mozconfig, debian/xulrunner-GRE_VERSION.install.in,
+    debian/rules: Enable GIO instead of gnome-vfs and GConf.
+    Partially fixes #410671.
+
+  * ipc/chromium/src/build/build_config.h: Update supported architectures
+    for IPC, as landed upstream. Closes: #644939.
+  * xpcom/base/nscore.h, xpcom/glue/nsID.h: Force nsID to align to 64-bit
+    boundary. bz#660335. Closes: #642762.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 14 Oct 2011 17:22:42 +0200
+
 iceweasel (7.0.1-2) unstable; urgency=low
 
   * debian/repack.py: Improved in several ways.
