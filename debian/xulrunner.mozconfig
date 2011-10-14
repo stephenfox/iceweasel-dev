@@ -14,7 +14,9 @@ ac_add_options --enable-svg
 ac_add_options --enable-mathml
 ac_add_options --disable-pedantic
 ac_add_options --disable-long-long-warning
-ac_add_options --enable-gnomevfs
+ac_add_options --disable-gnomevfs
+ac_add_options --disable-gconf
+ac_add_options --enable-gio
 ac_add_options --enable-gnomeui
 ac_add_options --disable-mochitest
 ac_add_options --disable-debug

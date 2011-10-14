@@ -313,8 +313,8 @@ override_dh_strip:
 	dh_strip -pspidermonkey-bin
 
 override_dh_shlibdeps:
-	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) -Xlibmozgnome -Xlibnkgnomevfs -Xlibdbusservice
-	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(GRE_VERSION).substvars -dDepends -pgnome $(foreach lib,dbusservice mozgnome nkgnomevfs,debian/xulrunner-$(GRE_VERSION)/usr/lib/xulrunner-$(GRE_VERSION)/components/lib$(lib).so)
+	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) -Xlibdbusservice
+	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(GRE_VERSION).substvars -dDepends -pgnome $(foreach lib,dbusservice,debian/xulrunner-$(GRE_VERSION)/usr/lib/xulrunner-$(GRE_VERSION)/components/lib$(lib).so)
 
 install binary binary-arch binary-indep: $(GENERATED_FILES)
 
