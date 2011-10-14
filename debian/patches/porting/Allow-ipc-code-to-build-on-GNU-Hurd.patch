@@ -34,7 +34,7 @@ index 54fc498..4556481 100644
  #else
  #error Provide a prcpucfg.h appropriate for your platform
 diff --git a/ipc/chromium/src/build/build_config.h b/ipc/chromium/src/build/build_config.h
-index 65a72a3..e51c421 100644
+index 26360e1..e22c2f2 100644
 --- a/ipc/chromium/src/build/build_config.h
 +++ b/ipc/chromium/src/build/build_config.h
 @@ -17,7 +17,7 @@
