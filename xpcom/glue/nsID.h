@@ -52,12 +52,11 @@
 
 struct nsID {
   /**
-   * @name Identifier values.  Align these to start at an 8-byte (64-bit)
-   * boundary so we can use 64-bit loads in nsID::Equals.
+   * @name Identifier values
    */
 
   //@{
-  NS_DEFINE_ALIGNED(PRUint32, m0, 8);
+  PRUint32 m0;
   PRUint16 m1;
   PRUint16 m2;
   PRUint8 m3[8];
@@ -74,10 +73,18 @@ struct nsID {
    */
 
   inline PRBool Equals(const nsID& other) const {
-    // First cast to void* in order to silence the alignment warnings.
+    // One would think that this could be done faster with a really
+    // efficient implementation of memcmp(), but evidently no
+    // memcmp()'s out there are better than this code.
+    //
+    // See bug http://bugzilla.mozilla.org/show_bug.cgi?id=164580 for
+    // details.
+
     return
-      ((PRUint64*)(void*) &m0)[0] == ((PRUint64*)(void*) &other.m0)[0] &&
-      ((PRUint64*)(void*) &m0)[1] == ((PRUint64*)(void*) &other.m0)[1];
+      ((((PRUint32*) &m0)[0] == ((PRUint32*) &other.m0)[0]) &&
+       (((PRUint32*) &m0)[1] == ((PRUint32*) &other.m0)[1]) &&
+       (((PRUint32*) &m0)[2] == ((PRUint32*) &other.m0)[2]) &&
+       (((PRUint32*) &m0)[3] == ((PRUint32*) &other.m0)[3]));
   }
 
   /**

@@ -31,7 +31,7 @@ porting/Bug-589735-Allocate-memory-with-an-address-with-high.patch
 porting/Bug-674522-Fix-jsval_layout-on-64-bit-big-endian-pla.patch
 porting/Bug-674522-Remove-bad-static-assert-fix-strict-alias.patch
 porting/Bug-680917-Use-a-pool-size-of-16kB-on-ia64-for-bump-.patch
-porting/Bug-660335-Force-nsID-to-align-to-64-bit-boundary.-r.patch
+porting/Revert-bz-164580.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
