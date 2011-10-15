@@ -1,3 +1,11 @@
+iceweasel (7.0.1-4) unstable; urgency=low
+
+  * xpcom/base/nscore.h, xpcom/glue/nsID.h: Don't force nsID to align to
+    64-bit boundary ; instead, use 32-bits comparisons in nsID::Equals,
+    effectively reverting bz#164580. Closes: #645371.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 15 Oct 2011 09:44:32 +0200
+
 iceweasel (7.0.1-3) unstable; urgency=low
 
   * debian/branding/configure.sh: Set MOZ_APP_DISPLAYNAME in Iceweasel
