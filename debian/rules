@@ -290,9 +290,6 @@ stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist
 # Remove unneeded configs
 	rm -f debian/iceweasel/$(SHARE_DIR)/defaults/pref/firefox-l10n.js
 
-# Commented out for the beta release
-#	sed -i 's/\(MinVersion=$(GRE_VERSION)\).*/\1/;s/\(MaxVersion=$(GRE_VERSION)\).*/\1.*/' debian/iceweasel/$(LIB_DIR)/application.ini
-
 CMP_AWK := '$$0 !~ /^\t/ { txt = txt ? txt "\n" $$0 : $$0 } END { if (txt != expected) { print "Expected:\n" expected "\nGot:\n" txt; exit 1 }}'
 
 stamps/check-dh_xulrunner-glue:: stamps/dh_install debian/dh/dh_xulrunner
