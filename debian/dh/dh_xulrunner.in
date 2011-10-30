@@ -42,7 +42,7 @@ You can also use the xulrunner dh sequence addon to integrate in a dh workflow:
 
 init();
 
-$ENV{PATH} = join ':', '/usr/lib/xulrunner-##GRE_VERSION##', split ':', $ENV{PATH};
+$ENV{PATH} = join ':', '/usr/lib/xulrunner-@GRE_VERSION@', split ':', $ENV{PATH};
 
 my $ld_lib_path = $ENV{LD_LIBRARY_PATH};
 my @new_ld_lib_path = ();
@@ -125,7 +125,7 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 				my $pattern = '(' . join('|', @strings) . ')';
 				my (@matches) = $buf =~ m{$pattern}g;
 				if (!grep { my $s = $_; ! grep { $_ eq $s } @matches } @strings) {
-					addsubstvar($package, "shlibs:Depends", "xulrunner-##GRE_VERSION##");
+					addsubstvar($package, "shlibs:Depends", "xulrunner-@GRE_VERSION@");
 					last;
 				}
 			}

@@ -11,8 +11,8 @@ application directory, where an application.ini file lies. It is recommended
 that the symbolic link is named after the application.
 
 An application requiring a specific major version of the xulrunner runtime
-(e.g. ##GRE_VERSION##.*) should target the symbolic link at the corresponding
-specific xulrunner\-stub (e.g. /usr/lib/xulrunner\-##GRE_VERSION##/xulrunner\-stub).
+(e.g. @GRE_VERSION@.*) should target the symbolic link at the corresponding
+specific xulrunner\-stub (e.g. /usr/lib/xulrunner\-@GRE_VERSION@/xulrunner\-stub).
 
 On the other hand, an application with a broad range of supported version
 should target the symbolic link at /usr/bin/xulrunner\-stub.

@@ -3,7 +3,7 @@
 set -e
 
 if [ "$1" = "configure" ] ; then
-    update-alternatives --remove xulrunner-stub /usr/lib/xulrunner-##GRE_VERSION##/xulrunner-stub
+    update-alternatives --remove xulrunner-stub /usr/lib/xulrunner-@GRE_VERSION@/xulrunner-stub
 fi
 
 #DEBHELPER#

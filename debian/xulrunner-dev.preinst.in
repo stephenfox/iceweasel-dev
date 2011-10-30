@@ -2,8 +2,8 @@
 
 set -e
 
-if [ "$1" = "upgrade" ] && dpkg --compare-versions "$2" le 5.0-2 && [ -L /usr/lib/xulrunner-devel-##GRE_VERSION##/sdk/bin ]; then
-    rm -f /usr/lib/xulrunner-devel-##GRE_VERSION##/sdk/bin
+if [ "$1" = "upgrade" ] && dpkg --compare-versions "$2" le 5.0-2 && [ -L /usr/lib/xulrunner-devel-@GRE_VERSION@/sdk/bin ]; then
+    rm -f /usr/lib/xulrunner-devel-@GRE_VERSION@/sdk/bin
 fi
 
 #DEBHELPER#
