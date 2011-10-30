@@ -171,26 +171,26 @@ stamps/build-xulrunner:: stamps/configure-check-xulrunner
 stamps/build-xulrunner-extra:: stamps/build-xulrunner build-xulrunner/debian/extra-stuff/Makefile
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
-stamps/configure-iceweasel:: stamps/build-xulrunner-extra
+stamps/configure-browser:: stamps/build-xulrunner-extra
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
-	dh_auto_configure --builddirectory=build-iceweasel -- $(CONFIGURE_FLAGS) \
+	dh_auto_configure --builddirectory=build-browser -- $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-system-libxul --with-system-nspr --with-system-nss
-	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-iceweasel/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-browser/config/autoconf.mk
 
-stamps/build-iceweasel:: stamps/configure-iceweasel
-	dh_auto_build --builddirectory=build-iceweasel
+stamps/build-browser:: stamps/configure-browser
+	dh_auto_build --builddirectory=build-browser
 
-build-iceweasel/%/filelist: stamps/build-iceweasel build-iceweasel/%/Makefile
-	rm -rf build-iceweasel/$*/dist
-	$(MAKE) -C build-iceweasel/$* MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-iceweasel/$*/dist BRANDING_TEST=1
-	cd build-iceweasel/$*/dist/bin && find -type f | sort > $(CURDIR)/$@
+build-browser/%/filelist: stamps/build-browser build-browser/%/Makefile
+	rm -rf build-browser/$*/dist
+	$(MAKE) -C build-browser/$* MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-browser/$*/dist BRANDING_TEST=1
+	cd build-browser/$*/dist/bin && find -type f | sort > $(CURDIR)/$@
 
-stamps/build-check-iceweasel:: build-iceweasel/$(OFFICIAL_BRANDING)/filelist build-iceweasel/debian/branding/filelist
+stamps/build-check-browser:: build-browser/$(OFFICIAL_BRANDING)/filelist build-browser/debian/branding/filelist
 # Ensure the iceweasel branding contains everything it's supposed to
 	diff $^
 
-override_dh_auto_build: stamps/build-check-iceweasel
+override_dh_auto_build: stamps/build-check-browser
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 include debian/test.mk
@@ -201,7 +201,7 @@ override_dh_auto_clean::
 	rm -f $(GENERATED_FILES) config/Expression.py[co]
 	rm -rf stamps
 
-	dh_auto_clean --builddirectory=build-iceweasel
+	dh_auto_clean --builddirectory=build-browser
 	dh_auto_clean --builddirectory=build-xulrunner
 	find . -name "*.pyc" | xargs rm -f
 
@@ -211,7 +211,7 @@ override_dh_auto_clean::
 		done; \
 	done
 
-override_dh_auto_install: stamps/install-iceweasel stamps/install-xulrunner
+override_dh_auto_install: stamps/install-browser stamps/install-xulrunner
 
 stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
 	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- \
@@ -254,8 +254,8 @@ stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
 
 	sed -i '/^Cflags/ s,$${includedir},/usr/include/mozjs,' debian/tmp/usr/lib/pkgconfig/mozilla-js.pc
 
-stamps/install-iceweasel:: build-iceweasel/debian/installer/package-manifest
-	dh_auto_install --builddirectory=build-iceweasel -- installdir=$(LIB_DIR) \
+stamps/install-browser:: build-browser/debian/installer/package-manifest
+	dh_auto_install --builddirectory=build-browser -- installdir=$(LIB_DIR) \
 		MOZ_PKG_MANIFEST=$(CURDIR)/$<
 	chmod 755 debian/iceweasel-xremote-client
 
@@ -275,13 +275,13 @@ stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist
 
 # Install icons
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/16x16/apps
-	install -m 644 build-iceweasel/debian/branding/default16.png \
+	install -m 644 build-browser/debian/branding/default16.png \
 		debian/iceweasel/usr/share/icons/hicolor/16x16/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/32x32/apps
-	install -m 644 build-iceweasel/debian/branding/default32.png \
+	install -m 644 build-browser/debian/branding/default32.png \
 		debian/iceweasel/usr/share/icons/hicolor/32x32/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/64x64/apps
-	install -m 644 build-iceweasel/debian/branding/default64.png \
+	install -m 644 build-browser/debian/branding/default64.png \
 		debian/iceweasel/usr/share/icons/hicolor/64x64/apps/iceweasel.png
 	install -d -m 755 debian/iceweasel/usr/share/icons/hicolor/scalable/apps
 	install -m 644 debian/branding/iceweasel_icon.svg \
