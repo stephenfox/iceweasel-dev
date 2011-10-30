@@ -114,7 +114,7 @@ DICT_DIR := /usr/share/hunspell
 endif
 
 $(PREPROCESSED_FILES):
-	sed $(foreach var,GRE_VERSION SO_VERSION DICT_DIR,-e 's,@$(var)@,$($(var)),g' )$^ > $@
+	python config/Preprocessor.py -Fsubstitution $(foreach var,GRE_VERSION SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$^ > $@
 
 %/Makefile: DIR=$(firstword $(subst /, ,$@))
 %/Makefile:
@@ -198,7 +198,7 @@ endif
 
 override_dh_auto_clean::
 	rm -f MPL
-	rm -f $(GENERATED_FILES)
+	rm -f $(GENERATED_FILES) config/Expression.py[co]
 	rm -rf stamps
 
 	dh_auto_clean --builddirectory=build-iceweasel
