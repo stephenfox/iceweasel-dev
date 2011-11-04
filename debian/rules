@@ -220,6 +220,7 @@ override_dh_auto_install: stamps/install-browser stamps/install-xulrunner
 
 stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
 	dh_auto_install --sourcedirectory=build-xulrunner/xulrunner/installer -- \
+		MOZ_APP_BASE_VERSION=$(GRE_VERSION) \
 		MOZ_PKG_MANIFEST=$(CURDIR)/$< \
 		MOZ_NONLOCALIZED_PKG_LIST="xpcom xulrunner debian" \
 		MOZ_LOCALIZED_PKG_LIST=en-US
