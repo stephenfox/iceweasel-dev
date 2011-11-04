@@ -69,6 +69,10 @@ ifneq (,$(filter armel,$(DEB_BUILD_ARCH)))
 	CFLAGS += -D__ARM_PCS
 endif
 
+ifeq (8.0_sparc,$(GRE_MILESTONE)_$(DEB_BUILD_ARCH))
+	CONFIGURE_FLAGS += --disable-methodjit
+endif
+
 ifneq (,$(filter ia64,$(DEB_BUILD_ARCH)))
 	CONFIGURE_FLAGS += --enable-optimize=-O2
 endif
