@@ -92,7 +92,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>> 3.12.0~rc3-1),
-         libmozjs@SO_VERSION@ (= ${binary:Version}),
+         libmozjs@JS_SO_VERSION@ (= ${binary:Version}),
          libcairo2 (>= 1.8.8)
 Suggests: ${gnome:Depends}, libgnomeui-0, libcanberra0
 Conflicts: j2re1.4,
@@ -116,7 +116,7 @@ Description: XUL + XPCOM application runner
  This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
 
-Package: libmozjs@SO_VERSION@
+Package: libmozjs@JS_SO_VERSION@
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -131,7 +131,7 @@ Package: libmozjs-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libmozjs@SO_VERSION@ (= ${binary:Version}),
+         libmozjs@JS_SO_VERSION@ (= ${binary:Version}),
          libnspr4-dev
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -142,11 +142,11 @@ Description: Development files for the Mozilla SpiderMonkey JavaScript library
  Mozilla SpiderMonkey JavaScript library.
 Homepage: http://www.mozilla.org/js/
 
-Package: libmozjs@SO_VERSION@-dbg
+Package: libmozjs@JS_SO_VERSION@-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: libmozjs@SO_VERSION@ (= ${binary:Version}),
+Depends: libmozjs@JS_SO_VERSION@ (= ${binary:Version}),
          ${misc:Depends}
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -209,7 +209,7 @@ Section: debug
 Priority: extra
 Architecture: any
 Depends: xulrunner-@GRE_VERSION@ (= ${binary:Version}),
-         libmozjs@SO_VERSION@-dbg (= ${binary:Version}),
+         libmozjs@JS_SO_VERSION@-dbg (= ${binary:Version}),
          ${misc:Depends}
 Description: Debugging symbols for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.

@@ -19,9 +19,9 @@ GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))
 
 # Construct GRE_VERSION from the first two digits in GRE_MILESTONE
 GRE_VERSION := $(subst ~, ,$(subst ., ,$(GRE_MILESTONE)))
+export JS_SO_VERSION := $(firstword $(GRE_VERSION))d
 export GRE_VERSION := $(firstword $(GRE_VERSION)).$(word 2,$(GRE_VERSION))
 
-SO_VERSION := $(shell awk -F'[\t =]+' '$$1 == "SO_VERSION" {print $$2}' js/src/Makefile.in)
 # Last version in debian/changelog
 DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *// p')
 # Debian part of the above version (anything after the last dash)
@@ -100,8 +100,8 @@ build-xulrunner/dist/bin/npapi_getinfo: debian/dh/npapi_getinfo.c
 
 IN_FILES := $(wildcard debian/*.in debian/dh/*.in)
 define preprocess
-$(subst SO_VERSION,$(SO_VERSION),$(subst GRE_VERSION,$(GRE_VERSION),$(1:.in=))): $(1)
-PREPROCESSED_FILES += $(subst SO_VERSION,$(SO_VERSION),$(subst GRE_VERSION,$(GRE_VERSION),$(1:.in=)))
+$(subst JS_SO_VERSION,$(JS_SO_VERSION),$(subst GRE_VERSION,$(GRE_VERSION),$(1:.in=))): $(1)
+PREPROCESSED_FILES += $(subst JS_SO_VERSION,$(JS_SO_VERSION),$(subst GRE_VERSION,$(GRE_VERSION),$(1:.in=)))
 endef
 $(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 
@@ -304,9 +304,9 @@ stamps/check-dh_xulrunner-npapi:: stamps/dh_install debian/dh/dh_xulrunner build
 override_dh_install: stamps/check-dh_xulrunner-glue stamps/check-dh_xulrunner-npapi
 
 override_dh_strip:
-	dh_strip -a -Niceweasel -Nlibmozjs$(SO_VERSION) -Nspidermonkey-bin --dbg-package=xulrunner-$(GRE_VERSION)-dbg
+	dh_strip -a -Niceweasel -Nlibmozjs$(JS_SO_VERSION) -Nspidermonkey-bin --dbg-package=xulrunner-$(GRE_VERSION)-dbg
 	dh_strip -piceweasel --dbg-package=iceweasel-dbg
-	dh_strip -plibmozjs$(SO_VERSION) --dbg-package=libmozjs$(SO_VERSION)-dbg
+	dh_strip -plibmozjs$(JS_SO_VERSION) --dbg-package=libmozjs$(JS_SO_VERSION)-dbg
 	dh_strip -pspidermonkey-bin
 
 override_dh_shlibdeps:
