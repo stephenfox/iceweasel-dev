@@ -38,7 +38,7 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import re, sys, os, os.path, logging, shutil, signal, math, select
+import re, sys, os, os.path, logging, shutil, signal, math, time, select
 from glob import glob
 from optparse import OptionParser
 from subprocess import Popen, PIPE, STDOUT
@@ -496,6 +496,7 @@ class XPCShellTests(object):
 
       try:
         self.log.info("TEST-INFO | %s | running test ..." % name)
+        startTime = time.time()
 
         proc = self.launchProcess(cmdH + cmdT + self.xpcsRunArgs,
                     stdout=pStdout, stderr=pStderr, env=self.env, cwd=testdir)
@@ -543,7 +544,8 @@ class XPCShellTests(object):
           print_stdout(stdout)
           self.failCount += 1
         else:
-          self.log.info("TEST-%s | %s | test passed" % ("PASS" if expected else "KNOWN-FAIL", name))
+          timeTaken = (time.time() - startTime) * 1000
+          self.log.info("TEST-%s | %s | test passed (time: %.3fms)" % ("PASS" if expected else "KNOWN-FAIL", name, timeTaken))
           if verbose:
             print_stdout(stdout)
           if expected:
@@ -584,8 +586,8 @@ INFO | Failed: %d
 INFO | Todo: %d""" % (self.passCount, self.failCount, self.todoCount))
 
     if gotSIGINT and not keepGoing:
-      log.error("TEST-UNEXPECTED-FAIL | Received SIGINT (control-C), so stopped run. " \
-            "(Use --keep-going to keep running tests after killing one with SIGINT)")
+      self.log.error("TEST-UNEXPECTED-FAIL | Received SIGINT (control-C), so stopped run. " \
+                     "(Use --keep-going to keep running tests after killing one with SIGINT)")
       return False
     return self.failCount == 0
 

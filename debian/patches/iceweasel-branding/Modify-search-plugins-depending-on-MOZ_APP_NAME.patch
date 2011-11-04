@@ -9,10 +9,10 @@ Subject: Modify search plugins depending on MOZ_APP_NAME
  3 files changed, 13 insertions(+), 4 deletions(-)
 
 diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
-index b39809f..788ff5f 100644
+index 9f7befb..e6422b8 100644
 --- a/browser/locales/Makefile.in
 +++ b/browser/locales/Makefile.in
-@@ -176,8 +176,13 @@ install:: $(call MERGE_FILES,$(addprefix profile/chrome/,$(PROFILE_CHROME)))
+@@ -162,8 +162,13 @@ install:: $(call MERGE_FILES,$(addprefix profile/chrome/,$(PROFILE_CHROME)))
  
  SEARCH_PLUGINS = $(shell cat $(call MERGE_FILE,/searchplugins/list.txt))
  

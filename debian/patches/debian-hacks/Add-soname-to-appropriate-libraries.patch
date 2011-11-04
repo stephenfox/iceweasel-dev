@@ -13,10 +13,10 @@ be dlloaded() by the standalone xpcomglue.
  3 files changed, 40 insertions(+), 4 deletions(-)
 
 diff --git a/config/rules.mk b/config/rules.mk
-index c6cae7e..32b6d49 100644
+index 4243d4f..6b431c9 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
-@@ -265,6 +265,18 @@ else
+@@ -257,6 +257,18 @@ else
  SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
  endif
  
@@ -35,7 +35,7 @@ index c6cae7e..32b6d49 100644
  ifeq ($(OS_ARCH),OS2)
  DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
  endif
-@@ -358,7 +370,7 @@ SIMPLE_PROGRAMS :=
+@@ -350,7 +362,7 @@ SIMPLE_PROGRAMS :=
  endif
  
  ifndef TARGETS
@@ -44,7 +44,7 @@ index c6cae7e..32b6d49 100644
  endif
  
  ifndef OBJS
-@@ -817,7 +829,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
+@@ -809,7 +821,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
  endif
  endif # EXPORT_LIBRARY
  
@@ -53,7 +53,7 @@ index c6cae7e..32b6d49 100644
  ifndef NO_DIST_INSTALL
  ifdef LIBRARY
  ifdef EXPORT_LIBRARY # Stage libs that will be linked into a static build
-@@ -846,8 +858,10 @@ ifndef NO_INSTALL_IMPORT_LIBRARY
+@@ -838,8 +850,10 @@ ifndef NO_INSTALL_IMPORT_LIBRARY
  endif
  else
  	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DIST)/lib
@@ -64,7 +64,7 @@ index c6cae7e..32b6d49 100644
  endif # IS_COMPONENT
  endif # SHARED_LIBRARY
  ifdef PROGRAM
-@@ -1140,6 +1154,8 @@ endif
+@@ -1133,6 +1147,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.
@@ -74,18 +74,18 @@ index c6cae7e..32b6d49 100644
  $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(SHARED_LIBRARY_LIBS_DEPS) $(LIBRARY) $(EXTRA_DEPS) $(DSO_LDOPTS_DEPS) $(GLOBAL_DEPS)
  ifndef INCREMENTAL_LINKER
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index e0753a3..ffa1042 100644
+index 391ff9f..b02e013 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -74,6 +74,7 @@ MODULE		    = js
  LIBRARY_NAME	    = mozjs
  STATIC_LIBRARY_NAME = js_static
  GRE_MODULE	    = 1
-+SO_VERSION	= 7d
++SO_VERSION	= $(JS_SO_VERSION)
  
  LIBS		= $(NSPR_LIBS) 
  
-@@ -989,6 +990,9 @@ ifneq (,$(LIBRARY))
+@@ -991,6 +992,9 @@ ifneq (,$(LIBRARY))
  endif
  ifneq (,$(SHARED_LIBRARY))
  	$(SYSINSTALL) $(SHARED_LIBRARY) $(DESTDIR)$(libdir)
@@ -96,10 +96,10 @@ index e0753a3..ffa1042 100644
  ifneq (,$(IMPORT_LIBRARY))
  	$(SYSINSTALL) $(IMPORT_LIBRARY) $(DESTDIR)$(libdir)
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index c6cae7e..32b6d49 100644
+index 4243d4f..6b431c9 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
-@@ -265,6 +265,18 @@ else
+@@ -257,6 +257,18 @@ else
  SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
  endif
  
@@ -118,7 +118,7 @@ index c6cae7e..32b6d49 100644
  ifeq ($(OS_ARCH),OS2)
  DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
  endif
-@@ -358,7 +370,7 @@ SIMPLE_PROGRAMS :=
+@@ -350,7 +362,7 @@ SIMPLE_PROGRAMS :=
  endif
  
  ifndef TARGETS
@@ -127,7 +127,7 @@ index c6cae7e..32b6d49 100644
  endif
  
  ifndef OBJS
-@@ -817,7 +829,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
+@@ -809,7 +821,7 @@ GARBAGE += $(foreach lib,$(LIBRARY),$(EXPORT_LIBRARY)/$(lib))
  endif
  endif # EXPORT_LIBRARY
  
@@ -136,7 +136,7 @@ index c6cae7e..32b6d49 100644
  ifndef NO_DIST_INSTALL
  ifdef LIBRARY
  ifdef EXPORT_LIBRARY # Stage libs that will be linked into a static build
-@@ -846,8 +858,10 @@ ifndef NO_INSTALL_IMPORT_LIBRARY
+@@ -838,8 +850,10 @@ ifndef NO_INSTALL_IMPORT_LIBRARY
  endif
  else
  	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DIST)/lib
@@ -147,7 +147,7 @@ index c6cae7e..32b6d49 100644
  endif # IS_COMPONENT
  endif # SHARED_LIBRARY
  ifdef PROGRAM
-@@ -1140,6 +1154,8 @@ endif
+@@ -1133,6 +1147,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.

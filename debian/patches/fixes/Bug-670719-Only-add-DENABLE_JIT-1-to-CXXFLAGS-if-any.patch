@@ -8,10 +8,10 @@ Subject: Bug 670719 - Only add -DENABLE_JIT=1 to CXXFLAGS if any of
  1 files changed, 8 insertions(+), 1 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 746ca7f..35d79dc 100644
+index e1bead8..391ff9f 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -431,6 +431,9 @@ else
+@@ -438,6 +438,9 @@ else
  ###############################################
  # BEGIN include sources for the Nitro assembler
  #
@@ -21,7 +21,7 @@ index 746ca7f..35d79dc 100644
  VPATH += 	$(srcdir)/assembler \
  		$(srcdir)/assembler/wtf \
  		$(srcdir)/assembler/jit \
-@@ -1051,7 +1054,11 @@ endif
+@@ -1081,7 +1084,11 @@ endif
  # Needed to "configure" it correctly.  Unfortunately these
  # flags wind up being applied to all code in js/src, not just
  # the code in js/src/assembler.

@@ -8,10 +8,10 @@ Subject: Bug 589735 - Allocate memory with an address with high 17 bits clear
  1 files changed, 38 insertions(+), 0 deletions(-)
 
 diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
-index 2c9759a..e4b8933 100644
+index ad7c450..76fdce2 100644
 --- a/memory/jemalloc/jemalloc.c
 +++ b/memory/jemalloc/jemalloc.c
-@@ -2156,6 +2156,26 @@ static void *
+@@ -2203,6 +2203,26 @@ static void *
  pages_map(void *addr, size_t size, int pfd)
  {
  	void *ret;
@@ -38,7 +38,7 @@ index 2c9759a..e4b8933 100644
  
  	/*
  	 * We don't use MAP_FIXED here, because it can cause the *replacement*
-@@ -2175,7 +2195,20 @@ pages_map(void *addr, size_t size, int pfd)
+@@ -2222,7 +2242,20 @@ pages_map(void *addr, size_t size, int pfd)
  
  	if (ret == MAP_FAILED)
  		ret = NULL;
@@ -59,7 +59,7 @@ index 2c9759a..e4b8933 100644
  		/*
  		 * We succeeded in mapping memory, but not in the right place.
  		 */
-@@ -2191,8 +2224,13 @@ pages_map(void *addr, size_t size, int pfd)
+@@ -2238,8 +2271,13 @@ pages_map(void *addr, size_t size, int pfd)
  		ret = NULL;
  	}
  

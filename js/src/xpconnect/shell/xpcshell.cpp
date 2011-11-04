@@ -548,14 +548,6 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     rt = cx->runtime;
     preBytes = rt->gcBytes;
     JS_GC(cx);
-    fprintf(gOutFile, "before %lu, after %lu, break %08lx\n",
-           (unsigned long)preBytes, (unsigned long)rt->gcBytes,
-#if defined(XP_UNIX) && !defined(__SYMBIAN32__)
-           (unsigned long)sbrk(0)
-#else
-           0
-#endif
-           );
 #ifdef JS_GCMETER
     js_DumpGCStats(rt, stdout);
 #endif
@@ -855,11 +847,6 @@ static JSFunctionSpec glob_functions[] = {
 #endif
     {"sendCommand",     SendCommand,    1,0},
     {"getChildGlobalObject", GetChildGlobalObject, 0,0},
-#ifdef MOZ_CALLGRIND
-    {"startCallgrind",  js_StartCallgrind,  0,0},
-    {"stopCallgrind",   js_StopCallgrind,   0,0},
-    {"dumpCallgrind",   js_DumpCallgrind,   1,0},
-#endif
     {nsnull,nsnull,0,0}
 };
 
@@ -1160,7 +1147,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 {
     const char rcfilename[] = "xpcshell.js";
     FILE *rcfile;
-    int i, j, length;
+    int i;
     JSObject *argsObj;
     char *filename = NULL;
     JSBool isInteractive = JS_TRUE;
@@ -1206,8 +1193,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         return 1;
     }
 
-    length = argc - i;
-    for (j = 0; j < length; j++) {
+    for (size_t j = 0, length = argc - i; j < length; j++) {
         JSString *str = JS_NewStringCopyZ(cx, argv[i++]);
         if (!str)
             return 1;
@@ -1843,6 +1829,21 @@ main(int argc, char **argv, char **envp)
     }
 
     {
+        if (argc > 1 && !strcmp(argv[1], "--greomni")) {
+            nsCOMPtr<nsILocalFile> greOmni;
+            nsCOMPtr<nsILocalFile> appOmni;
+            XRE_GetFileFromPath(argv[2], getter_AddRefs(greOmni));
+            if (argc > 3 && !strcmp(argv[3], "--appomni")) {
+                XRE_GetFileFromPath(argv[4], getter_AddRefs(appOmni));
+                argc-=2;
+                argv+=2;
+            } 
+            
+            XRE_InitOmnijar(greOmni, appOmni);
+            argc-=2;
+            argv+=2;
+        }
+
         nsCOMPtr<nsIServiceManager> servMan;
         rv = NS_InitXPCOM2(getter_AddRefs(servMan), appDir, &dirprovider);
         if (NS_FAILED(rv)) {

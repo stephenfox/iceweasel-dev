@@ -8,10 +8,10 @@ Subject: Bug 680642 - Don't enable YARR JIT on MIPS, as the implementation is
  1 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/js/src/assembler/wtf/Platform.h b/js/src/assembler/wtf/Platform.h
-index ec8be2e..7598b42 100644
+index 194672d..edcff57 100644
 --- a/js/src/assembler/wtf/Platform.h
 +++ b/js/src/assembler/wtf/Platform.h
-@@ -1009,9 +1009,9 @@
+@@ -1026,9 +1026,9 @@
  #define ENABLE_JIT 0
  #endif
  

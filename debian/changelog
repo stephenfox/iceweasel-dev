@@ -1,3 +1,9 @@
+iceweasel (8.0-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 04 Nov 2011 11:08:42 +0100
+
 iceweasel (7.0.1-4) unstable; urgency=low
 
   * xpcom/base/nscore.h, xpcom/glue/nsID.h: Don't force nsID to align to
