@@ -1,5 +1,5 @@
 diff --git a/configure b/configure
-index c93937c..3d877f7 100755
+index c93937c..11d2489 100755
 --- a/configure
 +++ b/configure
 @@ -13540,6 +13540,7 @@ fi
@@ -2110,6 +2110,15 @@ index c93937c..3d877f7 100755
             test -s conftest${ac_exeext} -a -s conftest.${ac_objext}; then
              if test "`$PYTHON "$_topsrcdir"/build/unix/check_debug_ranges.py conftest.${ac_objext} conftest.${ac_ext}`" = \
                      "`$PYTHON "$_topsrcdir"/build/unix/check_debug_ranges.py conftest${ac_exeext} conftest.${ac_ext}`"; then
+@@ -21363,7 +21386,7 @@ else
+                 GC_SECTIONS_BREAKS_DEBUG_RANGES=yes
+             fi
+         else
+-                          { echo "configure: error: couldn't compile a simple C file" 1>&2; exit 1; }
++                          GC_SECTIONS_BREAKS_DEBUG_RANGES="no, but it's broken in some other way"
+         fi
+         rm -rf conftest*
+ fi
 @@ -21486,7 +21509,7 @@ if test "${enable_jemalloc+set}" = set; then
  fi
  

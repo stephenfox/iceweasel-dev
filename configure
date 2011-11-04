@@ -21386,7 +21386,7 @@ else
                 GC_SECTIONS_BREAKS_DEBUG_RANGES=yes
             fi
         else
-                          { echo "configure: error: couldn't compile a simple C file" 1>&2; exit 1; }
+                          GC_SECTIONS_BREAKS_DEBUG_RANGES="no, but it's broken in some other way"
         fi
         rm -rf conftest*
 fi

@@ -80,6 +80,10 @@ else
 EXEC			= exec
 endif
 
+ifneq (,$(SIMPLE_PROGRAMS)$(PROGRAM))
+LIBS += $(MOZ_JEMALLOC_LIBS)
+endif
+
 # Don't copy xulrunner files at install time, when using system xulrunner
 ifdef SYSTEM_LIBXUL
   SKIP_COPY_XULRUNNER=1
