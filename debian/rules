@@ -106,6 +106,7 @@ endef
 $(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 
 GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
+debian/control: debian/rules debian/changelog
 
 ifeq ($(shell lsb_release -sc),lenny)
 DICT_DIR := /usr/share/myspell/dicts
@@ -114,7 +115,7 @@ DICT_DIR := /usr/share/hunspell
 endif
 
 $(PREPROCESSED_FILES):
-	python config/Preprocessor.py -Fsubstitution $(foreach var,GRE_VERSION SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$^ > $@
+	python config/Preprocessor.py -Fsubstitution $(foreach var,GRE_VERSION JS_SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$< > $@
 
 %/Makefile: DIR=$(firstword $(subst /, ,$@))
 %/Makefile:
