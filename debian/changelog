@@ -1,3 +1,9 @@
+iceweasel (8.0-2) unstable; urgency=low
+
+  * js/src/vm/String-inl.h: Add missing parts from bz#589735 for 8.0.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 08 Nov 2011 23:19:35 +0100
+
 iceweasel (8.0-1) unstable; urgency=low
 
   * New upstream release.
