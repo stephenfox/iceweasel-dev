@@ -1,8 +1,50 @@
-iceweasel (8.0-1) UNRELEASED; urgency=low
+iceweasel (8.0-1) unstable; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2011-{47-52}, also known as
+    CVE-2011-3648, CVE-2011-3651, CVE-2011-3652, CVE-2011-3654,
+    CVE-2011-3650, CVE-2011-3649, CVE-2011-3653, CVE-2011-3655.
 
- -- Mike Hommey <glandium@debian.org>  Fri, 04 Nov 2011 11:08:42 +0100
+  * debian/*.in, debian/rules: Use @VARIABLE@ instead of ##VARIABLE## for
+    preprocessing.
+  * debian/rules:
+    - Use Preprocessor.py instead of sed for preprocessing.
+    - Application.ini tweaks for version aren't needed anymore.
+    - Add some dependencies to regenerate debian/control.
+    - Force MOZ_APP_BASE_VERSION to GRE_VERSION.
+  * debian/iceweasel.install, debian/rules, debian/test.mk: Build iceweasel
+    in build-browser/ instead of build-iceweasel/.
+  * debian/import-tar.py: Add a tool that dumps a tar as a git fast-import
+    stream.
+  * debian/rules, debian/control.in, debian/xulrunner-GRE_VERSION.links.in:
+    Rename SO_VERSION variable to JS_SO_VERSION and use the first digit of
+    GRE_VERSION to generate it.
+  * debian/noinstall.in: README.txt is not shipped anymore.
+  * debian/rules: Disable methodjit on sparc because of bz#698911.
+
+  * configure*: Disable dead symbol removal when failing to test for bz#670659.
+    bz#690682.
+  * js/src/jsscan.cpp: Properly handle EOF in TokenStream::getAtSourceMappingURL
+    on platforms with unsigned chars. bz#686283.
+  * js/src/assembler/assembler/ARMAssembler.h: LDRH/STRH/LDRSB/STRSB are
+    supported on ARMv5-. bz#694533.
+  * xpcom/reflect/xptcall/src/md/unix/xptcinvoke_linux_s390.cpp: Reimplement
+    NS_InvokeByIndex in C on S390 Linux. This will fix FTBFS on S390.
+  * config/config.mk, config/rules.mk, js/src/config/config.mk,
+    js/src/config/rules.mk: (Statically) link jemalloc to all programs. This
+    will solve FTBFS on ia64, and fits what is done in 9.0.
+  * browser/devtools/webconsole/HUDService.jsm,
+    browser/devtools/webconsole/test/browser/browser_webconsole_bug_651501_document_body_autocomplete.js,
+    browser/devtools/webconsole/test/browser/head.js: HUDService uses some
+    resource://gre/ urls that ought to be resource:///. bz#682217.
+    Closes: #638772.
+  * build/unix/gnu-ld-scripts/jemalloc-standalone-linkage-version-script:
+    Export the _IO_stdin_used symbol. bz#699734. This will fix FTBFS on
+    sparc.
+  * testing/xpcshell/runxpcshelltests.py: Read xpcshell process' stdout one
+    character at a time.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 08 Nov 2011 20:04:06 +0100
 
 iceweasel (7.0.1-4) unstable; urgency=low
 
