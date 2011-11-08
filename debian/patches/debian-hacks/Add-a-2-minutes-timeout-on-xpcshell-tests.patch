@@ -7,7 +7,7 @@ Subject: Add a 2 minutes timeout on xpcshell tests
  1 files changed, 16 insertions(+), 2 deletions(-)
 
 diff --git a/testing/xpcshell/runxpcshelltests.py b/testing/xpcshell/runxpcshelltests.py
-index 6424683..9d04e09 100644
+index 6424683..cdcdf1a 100644
 --- a/testing/xpcshell/runxpcshelltests.py
 +++ b/testing/xpcshell/runxpcshelltests.py
 @@ -38,7 +38,7 @@
@@ -32,7 +32,7 @@ index 6424683..9d04e09 100644
 +              stdout += "TEST-UNEXPECTED-FAIL | %s | application timed out after 120 seconds with no output" % (test)
 +              proc.kill()
 +              break
-+            line = proc.stdout.readline()
++            line = proc.stdout.read(1)
 +            if line == "":
 +              break
 +            stdout += line

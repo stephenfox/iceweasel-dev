@@ -513,7 +513,7 @@ class XPCShellTests(object):
               stdout += "TEST-UNEXPECTED-FAIL | %s | application timed out after 120 seconds with no output" % (test)
               proc.kill()
               break
-            line = proc.stdout.readline()
+            line = proc.stdout.read(1)
             if line == "":
               break
             stdout += line
