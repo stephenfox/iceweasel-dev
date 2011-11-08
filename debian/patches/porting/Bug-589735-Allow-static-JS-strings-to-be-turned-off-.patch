@@ -206,7 +206,7 @@ index 07d931b..42303b1 100644
      return ret;
  }
 diff --git a/js/src/vm/String-inl.h b/js/src/vm/String-inl.h
-index 117b874..2416d54 100644
+index 117b874..5feff39 100644
 --- a/js/src/vm/String-inl.h
 +++ b/js/src/vm/String-inl.h
 @@ -193,6 +193,7 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length, intN t
@@ -217,7 +217,7 @@ index 117b874..2416d54 100644
  inline bool
  JSAtom::fitsInSmallChar(jschar c)
  {
-@@ -304,6 +305,69 @@ JSAtom::lookupStatic(const jschar *chars, size_t length)
+@@ -304,6 +305,82 @@ JSAtom::lookupStatic(const jschar *chars, size_t length)
      return NULL;
  }
  
@@ -237,6 +237,19 @@ index 117b874..2416d54 100644
 +
 +inline JSStaticAtom &
 +JSAtom::unitStatic(jschar c)
++{
++    JS_NOT_REACHED("no static strings");
++    return *(JSStaticAtom *)NULL;
++}
++
++inline bool
++JSAtom::hasUintStatic(uint32 u)
++{
++    return false;
++}
++
++inline JSStaticAtom &
++JSAtom::uintStatic(uint32 u)
 +{
 +    JS_NOT_REACHED("no static strings");
 +    return *(JSStaticAtom *)NULL;
