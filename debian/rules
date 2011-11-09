@@ -119,7 +119,7 @@ DICT_DIR := /usr/share/hunspell
 endif
 
 $(PREPROCESSED_FILES):
-	python config/Preprocessor.py -Fsubstitution $(foreach var,GRE_VERSION JS_SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$< > $@
+	python config/Preprocessor.py --marker % -Fsubstitution $(foreach var,GRE_VERSION JS_SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$< > $@
 
 %/Makefile: DIR=$(firstword $(subst /, ,$@))
 %/Makefile:
