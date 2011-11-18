@@ -1,0 +1,3 @@
+resource://gre/modules/DownloadTaskbarProgress.jsm jar:build-browser/dist/bin/chrome/browser.jar!/content/browser/browser.js
+resource://gre/modules/CrashSubmit.jsm jar:build-browser/dist/bin/chrome/browser.jar!/content/browser/browser.js
+resource:///modules/source-editor- build-browser/dist/bin/modules/source-editor.jsm

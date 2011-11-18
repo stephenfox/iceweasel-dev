@@ -191,11 +191,14 @@ build-browser/%/filelist: stamps/build-browser build-browser/%/Makefile
 	$(MAKE) -C build-browser/$* MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-browser/$*/dist BRANDING_TEST=1
 	cd build-browser/$*/dist/bin && find -type f | sort > $(CURDIR)/$@
 
-stamps/build-check-browser:: build-browser/$(OFFICIAL_BRANDING)/filelist build-browser/debian/branding/filelist
+stamps/build-check-branding:: build-browser/$(OFFICIAL_BRANDING)/filelist build-browser/debian/branding/filelist
 # Ensure the iceweasel branding contains everything it's supposed to
 	diff $^
 
-override_dh_auto_build: stamps/build-check-browser
+stamps/build-check-resources:: stamps/build-xulrunner stamps/build-browser
+	python debian/check_resources.py -a build-browser/dist/bin -x build-xulrunner/dist/bin
+
+override_dh_auto_build: stamps/build-check-branding stamps/build-check-resources
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 include debian/test.mk
