@@ -1,5 +1,3 @@
-#!/usr/bin/make -f
-
 LOCALE := fr_FR.UTF-8
 HAS_LOCALE := $(shell locale -a | grep $(LOCALE:UTF-8=utf8))
 
