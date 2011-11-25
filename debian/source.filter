@@ -8,8 +8,6 @@ intl/unicharutil/tools/data/ctype.dat
 intl/unicharutil/tools/data/decomp.dat
 intl/unicharutil/tools/data/num.dat
 xpinstall/test/pre_checkin.xpi
-layout/doc/SpaceMgr_BlockReflSt_OD.sda
-layout/doc/object_diagram_template.sda
 netwerk/protocol/ftp/doc/rfc959.txt
 layout/doc
 content/xml/tests
