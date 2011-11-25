@@ -52,6 +52,8 @@ MAIN_LDFLAGS := -Wl,--as-needed
 
 AUTOCONF_DIRS := build/autoconf js/src/build/autoconf
 
+PYTHON := python -B
+
 ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --disable-optimize
 endif
@@ -119,7 +121,7 @@ DICT_DIR := /usr/share/hunspell
 endif
 
 $(PREPROCESSED_FILES):
-	python config/Preprocessor.py --marker % -Fsubstitution $(foreach var,GRE_VERSION JS_SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$< > $@
+	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution $(foreach var,GRE_VERSION JS_SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$< > $@
 
 %/Makefile: DIR=$(firstword $(subst /, ,$@))
 %/Makefile:
@@ -196,7 +198,7 @@ stamps/build-check-branding:: build-browser/$(OFFICIAL_BRANDING)/filelist build-
 	diff $^
 
 stamps/build-check-resources:: stamps/build-xulrunner stamps/build-browser
-	python debian/check_resources.py -a build-browser/dist/bin -x build-xulrunner/dist/bin
+	$(PYTHON) debian/check_resources.py -a build-browser/dist/bin -x build-xulrunner/dist/bin
 
 override_dh_auto_build: stamps/build-check-branding stamps/build-check-resources
 
