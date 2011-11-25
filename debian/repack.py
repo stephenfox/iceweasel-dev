@@ -144,9 +144,11 @@ def main():
         help="use the given filter list", metavar="FILE")
     parser.add_option("-p", "--package", dest="package",
         help="use the given package name", metavar="NAME")
+    parser.add_option("-o", "--output", dest="new_file",
+        help="save the filtered tarball as the given file name", metavar="FILE")
     (options, args) = parser.parse_args()
 
-    if not options.upstream_version:
+    if not options.upstream_version and not options.new_file:
         parser.error("Need an upstream version")
         return
 
@@ -162,14 +164,19 @@ def main():
     if not options.package:
         options.package = get_package_name()
 
+    if options.new_file:
+        new_file = options.new_file
+
     if os.path.islink(args[0]):
         orig = os.path.realpath(args[0])
-        new_file = args[0]
+        if not new_file:
+            new_file = args[0]
     else:
         orig = args[0]
         compression = file_extension(orig)
-        new_file = options.package + "_" + options.upstream_version + ".orig.tar." + compression
-        new_file = os.path.realpath(os.path.join(dirname(orig), new_file))
+        if not new_file:
+            new_file = options.package + "_" + options.upstream_version + ".orig.tar." + compression
+            new_file = os.path.realpath(os.path.join(dirname(orig), new_file))
     print orig, new_file
     filter_tar(orig, new_file, options.filter)
 

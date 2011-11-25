@@ -5,40 +5,13 @@ DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
+PYTHON := python -B
+
+PRODUCT := browser
+PRODUCT_NAME := firefox
+include debian/upstream.mk
+
 OFFICIAL_BRANDING := browser/branding/official
-
-# The VERSION_FILTER transforms upstream version patterns to versions
-# useable in debian/changelog. Versions are to be transformed as follows:
-# 4.0      -> 4.0
-# 4.0pre   -> 4.0~pre
-# 4.0b5    -> 4.0~b5
-# 4.0b5pre -> 4.0~b5~pre
-# That should ensure the proper ordering
-VERSION_FILTER := sed 's/\([0-9]\)\([a-z]\)/\1~\2/g'
-UPSTREAM_VERSION := $(shell cat browser/config/version.txt)
-GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))
-
-# Construct GRE_VERSION from the first two digits in GRE_MILESTONE
-GRE_VERSION := $(subst ~, ,$(subst ., ,$(GRE_MILESTONE)))
-export JS_SO_VERSION := $(firstword $(GRE_VERSION))d
-export GRE_VERSION := $(firstword $(GRE_VERSION)).$(word 2,$(GRE_VERSION))
-
-# Last version in debian/changelog
-DEBIAN_VERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: *// p')
-# Debian part of the above version (anything after the last dash)
-DEBIAN_RELEASE := $(lastword $(subst -, ,$(DEBIAN_VERSION)))
-# Upstream part of the debian/changelog version (anything before the last dash)
-UPSTREAM_RELEASE := $(DEBIAN_VERSION:%-$(DEBIAN_RELEASE)=%)
-# Aurora builds have the build id in the upstream part of the debian/changelog version
-export MOZ_BUILD_DATE := $(word 2,$(subst +, ,$(UPSTREAM_RELEASE)))
-UPSTREAM_RELEASE := $(firstword $(subst +, ,$(UPSTREAM_RELEASE)))
-
-# Check if the version in debian/changelog matches actual upstream version
-# as VERSION_FILTER transforms it.
-FILTERED_UPSTREAM_VERSION := $(shell echo $(UPSTREAM_VERSION) | $(VERSION_FILTER))
-ifneq ($(FILTERED_UPSTREAM_VERSION),$(firstword $(subst ~b, ,$(UPSTREAM_RELEASE))))
-$(error Upstream version in debian/changelog ($(UPSTREAM_RELEASE)) doesn't match actual upstream version ($(FILTERED_UPSTREAM_VERSION)))
-endif
 
 # Betas and Releases need to set MOZ_UA_BUILDID
 ifeq (,$(word 2,$(subst ~a, ,$(UPSTREAM_RELEASE))))
@@ -52,8 +25,6 @@ SHARE_DIR := /usr/share/iceweasel
 MAIN_LDFLAGS := -Wl,--as-needed
 
 AUTOCONF_DIRS := build/autoconf js/src/build/autoconf
-
-PYTHON := python -B
 
 ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
 	CONFIGURE_FLAGS += --disable-optimize
