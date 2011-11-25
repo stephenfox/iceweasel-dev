@@ -50,7 +50,6 @@ class TarFilterList(object):
                 [pat, cmd] = f
 
             pat = pat.split(os.sep)
-            self.patterns['t'] = "A"
             self.add_pattern(pat, self.patterns, cmd)
 
     def add_pattern(self, pat, patterns, cmd):
