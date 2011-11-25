@@ -56,7 +56,7 @@ class TarFilterList(object):
         if re.search(r'[\[\?\*]', pat[0]):
             if not '*' in patterns:
                 patterns['*'] = []
-            patterns['*'].append([os.sep.join(pat), cmd])
+            patterns['*'].append([os.sep.join(pat), cmd, False])
         else:
             if not pat[0] in patterns:
                 patterns[pat[0]] = {}
@@ -65,7 +65,7 @@ class TarFilterList(object):
             else:
                 if not '*' in patterns[pat[0]]:
                     patterns[pat[0]]['*'] = []
-                patterns[pat[0]]['*'].append([os.sep.join(pat[1:]), cmd])
+                patterns[pat[0]]['*'].append([os.sep.join(pat[1:]), cmd, False])
 
     def match(self, name):
         name = name.split(os.sep)[1:]
@@ -79,10 +79,26 @@ class TarFilterList(object):
             if cmd != False:
                 return cmd
         if '*' in patterns:
-            for [pat, cmd] in patterns['*']:
-                if fnmatch.fnmatch(name[0], pat) or fnmatch.fnmatch(os.sep.join(name), pat):
-                    return cmd
+            for pat in patterns['*']:
+                if fnmatch.fnmatch(name[0], pat[0]) or fnmatch.fnmatch(os.sep.join(name), pat[0]):
+                    pat[2] = True
+                    return pat[1]
         return False
+
+    def unused(self, patterns=None, root=''):
+        result = []
+        if root:
+            root += '/'
+        if not patterns:
+            patterns = self.patterns
+        for pat in patterns:
+            if pat != '*':
+                result += self.unused(patterns[pat], root + pat)
+            else:
+                for p in patterns[pat]:
+                    if not p[2]:
+                        result.append(root + p[0])
+        return result
 
 def file_extension(name):
     return os.path.splitext(name)[1][1:]
@@ -129,6 +145,11 @@ def filter_tar(orig, new, filt):
     tar.close()
     new_tar.close()
     os.rename(new_tar.name, new)
+    unused = filt.unused()
+    if unused:
+        print 'Unused filters:'
+        print '', '\n '.join(unused)
+        exit(1)
 
 def get_package_name():
     control = os.path.join(os.path.dirname(__file__), "control")
