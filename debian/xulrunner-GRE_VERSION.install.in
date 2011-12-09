@@ -25,4 +25,4 @@ usr/lib/xulrunner-@GRE_VERSION@/components/libdbusservice.so
 usr/lib/xulrunner-@GRE_VERSION@/components/libmozgnome.so
 
 usr/lib/xulrunner-@GRE_VERSION@/chrome.manifest
-usr/lib/xulrunner-@GRE_VERSION@/omni.jar usr/share/xulrunner-@GRE_VERSION@
+usr/lib/xulrunner-@GRE_VERSION@/omni.ja usr/share/xulrunner-@GRE_VERSION@
