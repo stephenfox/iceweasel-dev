@@ -888,8 +888,8 @@ MarkThreadDataConservatively(JSTracer *trc, ThreadData *td)
 void
 MarkStackRangeConservatively(JSTracer *trc, Value *beginv, Value *endv)
 {
-    const jsuword *begin = beginv->payloadWord();
-    const jsuword *end = endv->payloadWord();;
+    const jsuword *begin = (const jsuword *) beginv->payloadWord();
+    const jsuword *end = (const jsuword *) endv->payloadWord();;
 #ifdef JS_NUNBOX32
     /*
      * With 64-bit jsvals on 32-bit systems, we can optimize a bit by

@@ -3,7 +3,7 @@ fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
 fixes/Bug-690682-Disable-dead-symbol-removal-when-failing-.patch
-fixes/Bug-699734-Export-the-_IO_stdin_used-symbol.patch
+fixes/Bug-703633-TreePanel.jsm-uses-a-resource-url-that-ou.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
@@ -15,6 +15,13 @@ porting/Bug-680917-Use-a-pool-size-of-16kB-on-ia64-for-bump-.patch
 porting/Revert-bz-164580.patch
 porting/Bug-694533-LDRH-STRH-LDRSB-STRSB-are-supported-on-AR.patch
 porting/Bug-696393-Reimplement-NS_InvokeByIndex-in-C-on-S390.patch
+porting/Bug-698923-Don-t-require-16-bytes-alignment-for-VMFr.patch
+porting/Fix-GNU-non-Linux-failure-to-build-because-of-ipc-ch.patch
+porting/Bug-703531-Fix-ARMAssembler-getOp2RegScale-on-ARMv5.patch
+porting/Bug-703534-Fix-build-failure-on-platforms-without-YA.patch
+porting/Bug-703842-Avoid-R_SPARC_WDISP22-relocation-in-Tramp.patch
+porting/Bug-703833-Avoid-invalid-conversion-from-const-size_.patch
+porting/Bug-711353-Add-support-for-GNU-kFreeBSD-and-GNU-Hurd.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
