@@ -9,7 +9,7 @@ Subject: Fix tracejit to build against nanojit headers in
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/js/src/tracejit/Writer.cpp b/js/src/tracejit/Writer.cpp
-index 42303b1..f6c6b4b 100644
+index 46a97c5..6740177 100644
 --- a/js/src/tracejit/Writer.cpp
 +++ b/js/src/tracejit/Writer.cpp
 @@ -43,7 +43,7 @@
@@ -18,11 +18,11 @@ index 42303b1..f6c6b4b 100644
  #include "Writer.h"
 -#include "nanojit.h"
 +#include "nanojit/nanojit.h"
+ #include "jsobjinlines.h"
  
  #include "vm/ArgumentsObject.h"
- 
 diff --git a/js/src/tracejit/Writer.h b/js/src/tracejit/Writer.h
-index d69d2d5..0adce1a 100644
+index 6ffb161..d6c2713 100644
 --- a/js/src/tracejit/Writer.h
 +++ b/js/src/tracejit/Writer.h
 @@ -42,7 +42,7 @@

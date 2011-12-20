@@ -36,6 +36,8 @@
 #include "base/third_party/nspr/prcpucfg_mac.h"
 #elif defined(__linux__) || defined(ANDROID) || defined(__GLIBC__) || defined(__GNU__)
 #include "base/third_party/nspr/prcpucfg_linux.h"
+#elif defined(__OpenBSD__)
+#include "base/third_party/nspr/prcpucfg_openbsd.h"
 #else
 #error Provide a prcpucfg.h appropriate for your platform
 #endif

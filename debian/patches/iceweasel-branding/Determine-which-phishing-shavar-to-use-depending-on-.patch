@@ -11,10 +11,10 @@ Subject: Determine which phishing shavar to use depending on
  4 files changed, 16 insertions(+), 0 deletions(-)
 
 diff --git a/browser/app/Makefile.in b/browser/app/Makefile.in
-index 9a39a45..39f5618 100644
+index e40172f..8acee11 100644
 --- a/browser/app/Makefile.in
 +++ b/browser/app/Makefile.in
-@@ -193,6 +193,10 @@ ifdef MOZILLA_OFFICIAL
+@@ -191,6 +191,10 @@ ifdef MOZILLA_OFFICIAL
  DEFINES += -DMOZILLA_OFFICIAL
  endif
  
@@ -26,7 +26,7 @@ index 9a39a45..39f5618 100644
  libs::
  	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(DIST)/bin/icons
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 9ef3e9a..f37b791 100644
+index 250eb75..d059151 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -726,7 +726,11 @@ pref("urlclassifier.alternate_error_page", "blocked");

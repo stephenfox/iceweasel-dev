@@ -1,3 +1,9 @@
+iceweasel (9.0-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 20 Dec 2011 19:37:51 +0100
+
 iceweasel (8.0-3) unstable; urgency=low
 
   * debian/rules: Don't remove lines beginning with # in preprocessed files.

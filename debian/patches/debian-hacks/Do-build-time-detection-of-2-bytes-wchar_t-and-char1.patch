@@ -11,10 +11,10 @@ Closes: #577677
  3 files changed, 24 insertions(+), 0 deletions(-)
 
 diff --git a/xpcom/base/nscore.h b/xpcom/base/nscore.h
-index 938b2aa..8994823 100644
+index 5f656e4..9f6c844 100644
 --- a/xpcom/base/nscore.h
 +++ b/xpcom/base/nscore.h
-@@ -410,6 +410,28 @@ typedef PRUint32 nsrefcnt;
+@@ -391,6 +391,28 @@ typedef PRUint32 nsrefcnt;
    #define HAVE_CPP_2BYTE_WCHAR_T
  #endif
  

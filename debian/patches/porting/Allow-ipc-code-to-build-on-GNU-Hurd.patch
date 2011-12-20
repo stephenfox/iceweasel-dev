@@ -9,19 +9,19 @@ Subject: Allow ipc code to build on GNU/Hurd
  3 files changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/ipc/chromium/src/base/debug_util_posix.cc b/ipc/chromium/src/base/debug_util_posix.cc
-index ed9ad4f..30f6b42 100644
+index 72a4ebf..5a45ac9 100644
 --- a/ipc/chromium/src/base/debug_util_posix.cc
 +++ b/ipc/chromium/src/base/debug_util_posix.cc
-@@ -13,7 +13,6 @@
+@@ -17,7 +17,6 @@
  #include <unistd.h>
- #ifndef ANDROID
+ #if MOZ_HAVE_EXECINFO_H
  #include <execinfo.h>
 -#include <sys/sysctl.h>
  #endif
  
  #include "base/basictypes.h"
 diff --git a/ipc/chromium/src/base/third_party/nspr/prcpucfg.h b/ipc/chromium/src/base/third_party/nspr/prcpucfg.h
-index 54fc498..4556481 100644
+index 30fef1b..c7e47ba 100644
 --- a/ipc/chromium/src/base/third_party/nspr/prcpucfg.h
 +++ b/ipc/chromium/src/base/third_party/nspr/prcpucfg.h
 @@ -34,7 +34,7 @@
@@ -31,10 +31,10 @@ index 54fc498..4556481 100644
 -#elif defined(__linux__) || defined(ANDROID) || defined(__GLIBC__)
 +#elif defined(__linux__) || defined(ANDROID) || defined(__GLIBC__) || defined(__GNU__)
  #include "base/third_party/nspr/prcpucfg_linux.h"
- #else
- #error Provide a prcpucfg.h appropriate for your platform
+ #elif defined(__OpenBSD__)
+ #include "base/third_party/nspr/prcpucfg_openbsd.h"
 diff --git a/ipc/chromium/src/build/build_config.h b/ipc/chromium/src/build/build_config.h
-index 26360e1..e22c2f2 100644
+index 4ef0c76..463b3d9 100644
 --- a/ipc/chromium/src/build/build_config.h
 +++ b/ipc/chromium/src/build/build_config.h
 @@ -17,7 +17,7 @@
@@ -44,5 +44,5 @@ index 26360e1..e22c2f2 100644
 -#elif defined(__linux__) || defined(ANDROID) || defined(__GLIBC__)
 +#elif defined(__linux__) || defined(ANDROID) || defined(__GLIBC__) || defined(__GNU__)
  #define OS_LINUX 1
- #elif defined(_WIN32)
- #define OS_WIN 1
+ #elif defined(__OpenBSD__)
+ #define OS_OPENBSD 1

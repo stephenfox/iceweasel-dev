@@ -207,11 +207,7 @@ NS_InvokeByIndex(nsISupports* that, PRUint32 methodIndex,
                  PRUint32 paramCount, nsXPTCVariant* params)
 {
     vtable_func *vtable = *reinterpret_cast<vtable_func **>(that);
-#if defined(__GXX_ABI_VERSION) && __GXX_ABI_VERSION >= 100 /* G++ V3 ABI */
     vtable_func method = vtable[methodIndex];
-#else /* not G++ V3 ABI  */
-    vtable_func method = vtable[methodIndex + 2];
-#endif /* G++ V3 ABI */ 
     PRUint32 overflow = invoke_count_words (paramCount, params);
     PRUint32 *stack_space = reinterpret_cast<PRUint32 *>(__builtin_alloca((overflow + 8 /* 4 32-bits gpr + 2 64-bits fpr */) * 4));
 
