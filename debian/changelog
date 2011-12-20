@@ -1,8 +1,39 @@
-iceweasel (9.0-1) UNRELEASED; urgency=low
+iceweasel (9.0-1) unstable; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2011-{53-56,58}, also known as
+    CVE-2011-3660, CVE-2011-3661, CVE-2011-3658, CVE-2011-3663,
+    CVE-2011-3665.
 
- -- Mike Hommey <glandium@debian.org>  Tue, 20 Dec 2011 19:37:51 +0100
+  * debian/test.mk: Remove hashbang.
+  * debian/control*:
+    - Build dependency on libidl-dev is not required anymore.
+    - Bump libsqlite3-dev build dependency.
+    - Bump libnss3-dev build dependency.
+  * debian/xulrunner-dev.install.in: Adapt to upstream changes.
+  * debian/check_resources.*, debian/rules: Check that resources:// urls are
+    appropriately used.
+
+  * build/unix/gnu-ld-scripts/jemalloc-standalone-linkage-version-script:
+    Revert previous patch, the file is not used anymore.
+  * browser/devtools/highlighter/TreePanel.jsm: Use resource:// urls
+    appropriately. bz#703633.
+  * js/src/methodjit/MethodJIT.cpp: Don't require 16 bytes alignment for
+    VMFrame on sparc. bz#698923.
+  * ipc/chromium/src/base/dir_reader_posix.h: Fix GNU/non-Linux failure to
+    build.
+  * js/src/assembler/assembler/ARMAssembler.cpp:
+    Fix ARMAssembler::getOp2RegScale on < ARMv5. bz#703531.
+  * js/src/jscompartment.cpp: Fix build failure on platforms without YARR JIT.
+    bz#703534.
+  * js/src/methodjit/TrampolineSparc.s: Avoid R_SPARC_WDISP22 relocation
+    in TrampolineSparc.s. bz#703842.
+  * js/src/jsgc.cpp: Avoid invalid conversion from 'const size_t*' to
+    'const jsuword*' on s390. bz#703833.
+  * gfx/angle/src/compiler/osinclude.h: Add support for GNU/kFreeBSD and
+    GNU/Hurd. bz#711353.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 20 Dec 2011 20:05:33 +0100
 
 iceweasel (8.0-3) unstable; urgency=low
 
