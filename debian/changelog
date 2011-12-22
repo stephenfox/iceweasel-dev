@@ -1,3 +1,12 @@
+iceweasel (9.0.1-1) unstable; urgency=low
+
+  * New upstream release.
+  * debian/control*: Force xulrunner to depend on libnss3-1d >= 3.13.1.
+    It doesn't require symbols from versions that new, but it actually
+    requires some new flags being supported.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 22 Dec 2011 09:00:09 +0100
+
 iceweasel (9.0-1) unstable; urgency=low
 
   * New upstream release.
