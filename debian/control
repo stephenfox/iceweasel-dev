@@ -90,7 +90,7 @@ Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          libnspr4-0d (>> 4.7.1-1),
-         libnss3-1d (>> 3.12.0~rc3-1),
+         libnss3-1d (>= 3.13.1),
          libmozjs9d (= ${binary:Version}),
          libcairo2 (>= 1.8.8)
 Suggests: ${gnome:Depends}, libgnomeui-0, libcanberra0
