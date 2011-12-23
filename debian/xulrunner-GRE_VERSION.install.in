@@ -9,7 +9,6 @@ usr/bin/xulrunner-@GRE_VERSION@
 usr/lib/xulrunner-@GRE_VERSION@/run-mozilla.sh
 usr/lib/xulrunner-@GRE_VERSION@/xpcshell
 usr/lib/xulrunner-@GRE_VERSION@/mozilla-xremote-client
-usr/lib/xulrunner-@GRE_VERSION@/update.locale
 usr/lib/xulrunner-@GRE_VERSION@/updater
 usr/lib/xulrunner-@GRE_VERSION@/xulrunner
 usr/lib/xulrunner-@GRE_VERSION@/xulrunner-bin
