@@ -7,7 +7,6 @@ intl/unicharutil/tools/data/cmbcl.dat
 intl/unicharutil/tools/data/ctype.dat
 intl/unicharutil/tools/data/decomp.dat
 intl/unicharutil/tools/data/num.dat
-xpinstall/test/pre_checkin.xpi
 netwerk/protocol/ftp/doc/rfc959.txt
 layout/doc
 content/xml/tests
