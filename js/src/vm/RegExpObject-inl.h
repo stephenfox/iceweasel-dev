@@ -357,6 +357,7 @@ detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag 
     return RetType(priv);
 }
 
+#if ENABLE_YARR_JIT
 /* This function should be deleted once bad Android platforms phase out. See bug 604774. */
 inline bool
 detail::RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
@@ -367,12 +368,12 @@ detail::RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
     return true;
 #endif
 }
+#endif
 
 inline bool
 detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, TokenStream *ts,
                                    uintN *parenCount, RegExpFlag flags)
 {
-#if ENABLE_YARR_JIT
     /* Parse the pattern. */
     ErrorCode yarrError;
     YarrPattern yarrPattern(pattern, bool(flags & IgnoreCaseFlag), bool(flags & MultilineFlag),
@@ -389,7 +390,7 @@ detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, Token
      * case we have to bytecode compile it.
      */
 
-#ifdef JS_METHODJIT
+#if ENABLE_YARR_JIT && defined(JS_METHODJIT)
     if (isJITRuntimeEnabled(cx) && !yarrPattern.m_containsBackreferences) {
         JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecutableAllocator(cx);
         if (!execAlloc) {
@@ -410,21 +411,11 @@ detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, Token
         return false;
     }
 
+#if ENABLE_YARR_JIT
     codeBlock.setFallBack(true);
+#endif
     byteCode = byteCompile(yarrPattern, bumpAlloc).get();
     return true;
-#else /* !defined(ENABLE_YARR_JIT) */
-    int error = 0;
-    compiled = jsRegExpCompile(pattern.chars(), pattern.length(),
-                  ignoreCase() ? JSRegExpIgnoreCase : JSRegExpDoNotIgnoreCase,
-                  multiline() ? JSRegExpMultiline : JSRegExpSingleLine,
-                  parenCount, &error);
-    if (error) {
-        reportPCREError(cx, error);
-        return false;
-    }
-    return true;
-#endif
 }
 
 inline bool
@@ -466,18 +457,11 @@ detail::RegExpPrivateCode::execute(JSContext *cx, const jschar *chars, size_t le
     else
         result = JSC::Yarr::execute(codeBlock, chars, start, length, output);
 #else
-    result = jsRegExpExecute(cx, compiled, chars, length, start, output, outputCount);
+    result = JSC::Yarr::interpret(byteCode, chars, start, length, output);
 #endif
 
     if (result == -1)
         return RegExpRunStatus_Success_NotFound;
-
-#if !ENABLE_YARR_JIT
-    if (result < 0) {
-        reportPCREError(cx, result);
-        return RegExpRunStatus_Error;
-    }
-#endif
 
     JS_ASSERT(result >= 0);
     return RegExpRunStatus_Success;
