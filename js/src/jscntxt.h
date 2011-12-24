@@ -153,21 +153,27 @@ struct ThreadData {
      * Both of these allocators are used for regular expression code which is shared at the
      * thread-data level.
      */
+#if ENABLE_ASSEMBLER
     JSC::ExecutableAllocator    *execAlloc;
+#endif
     WTF::BumpPointerAllocator   *bumpAlloc;
     js::RegExpPrivateCache      *repCache;
 
+#if ENABLE_ASSEMBLER
     JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
+#endif
     WTF::BumpPointerAllocator *createBumpPointerAllocator(JSContext *cx);
     js::RegExpPrivateCache *createRegExpPrivateCache(JSContext *cx);
 
   public:
+#if ENABLE_ASSEMBLER
     JSC::ExecutableAllocator *getOrCreateExecutableAllocator(JSContext *cx) {
         if (execAlloc)
             return execAlloc;
 
         return createExecutableAllocator(cx);
     }
+#endif
 
     WTF::BumpPointerAllocator *getOrCreateBumpPointerAllocator(JSContext *cx) {
         if (bumpAlloc)

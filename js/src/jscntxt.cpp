@@ -106,7 +106,9 @@ ThreadData::ThreadData(JSRuntime *rt)
 #endif
     waiveGCQuota(false),
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
+#if ENABLE_ASSEMBLER
     execAlloc(NULL),
+#endif
     bumpAlloc(NULL),
     repCache(NULL),
     dtoaState(NULL),
@@ -123,7 +125,9 @@ ThreadData::~ThreadData()
 {
     JS_ASSERT(!repCache);
 
+#if ENABLE_ASSEMBLER
     rt->delete_<JSC::ExecutableAllocator>(execAlloc);
+#endif
     rt->delete_<WTF::BumpPointerAllocator>(bumpAlloc);
 
     if (dtoaState)
@@ -157,9 +161,11 @@ ThreadData::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, 
     *temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
     size_t method = 0, regexp = 0, unused = 0;
+#if ENABLE_ASSEMBLER
     if (execAlloc)
         execAlloc->sizeOfCode(&method, &regexp, &unused);
     JS_ASSERT(method == 0);     /* this execAlloc is only used for regexp code */
+#endif
     *regexpCode = regexp + unused;
 
     *stackCommitted = stackSpace.sizeOfCommitted();
@@ -188,6 +194,7 @@ ThreadData::triggerOperationCallback(JSRuntime *rt)
 #endif
 }
 
+#if ENABLE_ASSEMBLER
 JSC::ExecutableAllocator *
 ThreadData::createExecutableAllocator(JSContext *cx)
 {
@@ -199,6 +206,7 @@ ThreadData::createExecutableAllocator(JSContext *cx)
         js_ReportOutOfMemory(cx);
     return execAlloc;
 }
+#endif
 
 WTF::BumpPointerAllocator *
 ThreadData::createBumpPointerAllocator(JSContext *cx)
