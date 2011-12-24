@@ -337,44 +337,19 @@ CPPSRCS += 	checks.cc \
 # END enclude sources for V8 dtoa
 #############################################
 
-# For architectures without YARR JIT, PCRE is faster than the YARR
-# interpreter (bug 684559).
-
-ifeq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
-
-VPATH +=        $(srcdir)/yarr/pcre \
-		$(NULL)
-
-CPPSRCS += \
-                pcre_compile.cpp \
-                pcre_exec.cpp \
-                pcre_tables.cpp \
-                pcre_xclass.cpp \
-                pcre_ucp_searchfuncs.cpp \
-		$(NULL)
-else
-
 ###############################################
 # BEGIN include sources for the Nitro assembler
 #
 
-ENABLE_YARR_JIT = 1
-
 VPATH += 	$(srcdir)/assembler \
 		$(srcdir)/assembler/wtf \
 		$(srcdir)/assembler/jit \
-		$(srcdir)/assembler/assembler \
-		$(srcdir)/methodjit \
 		$(srcdir)/yarr \
 		$(NONE)
 
 CPPSRCS += 	ExecutableAllocator.cpp \
-		ARMAssembler.cpp \
-		MacroAssemblerARM.cpp \
-		MacroAssemblerX86Common.cpp \
 		PageBlock.cpp \
 		YarrInterpreter.cpp \
-		YarrJIT.cpp \
 		YarrPattern.cpp \
 		YarrSyntaxChecker.cpp \
 		$(NONE)
@@ -399,6 +374,19 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
            $(NONE)
 endif
 
+ifneq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
+ENABLE_YARR_JIT = 1
+
+VPATH +=	$(srcdir)/assembler/assembler \
+		$(srcdir)/methodjit \
+		$(NONE)
+
+CPPSRCS +=	ARMAssembler.cpp \
+		MacroAssemblerARM.cpp \
+		MacroAssemblerX86Common.cpp \
+		YarrJIT.cpp \
+		$(NONE)
+
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
 #CPPSRCS		+= only_on_x86_64.cpp
@@ -409,11 +397,12 @@ endif
 ifeq (arm, $(TARGET_CPU))
 #CPPSRCS		+= only_on_arm.cpp
 endif
+
+endif
+
 #
 # END enclude sources for the Nitro assembler
 #############################################
-
-endif
 
 ifdef JS_HAS_CTYPES
 VPATH += $(srcdir)/ctypes
