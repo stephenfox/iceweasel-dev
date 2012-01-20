@@ -151,8 +151,10 @@ stamps/build-xulrunner-extra:: stamps/build-xulrunner build-xulrunner/debian/ext
 	$(MAKE) -C build-xulrunner/debian/extra-stuff
 
 stamps/configure-browser:: stamps/build-xulrunner-extra
+	$(if $(wildcard build-browser),,mkdir build-browser)
+	cd build-browser && \
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
-	dh_auto_configure --builddirectory=build-browser -- $(CONFIGURE_FLAGS) \
+	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-system-libxul --with-system-nspr --with-system-nss
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-browser/config/autoconf.mk
