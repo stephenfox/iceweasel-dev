@@ -38,10 +38,11 @@ ifneq ($(FILTERED_UPSTREAM_VERSION),$(firstword $(subst ~b, ,$(UPSTREAM_RELEASE)
 $(error Upstream version in debian/changelog ($(UPSTREAM_RELEASE)) does not match actual upstream version ($(FILTERED_UPSTREAM_VERSION)))
 endif
 
-SOURCE_TARBALL = $(DEBIAN_SOURCE)_$(UPSTREAM_RELEASE)$(SOURCE_BUILD_DATE:%=+%).orig.tar.bz2
+VERSION = $(UPSTREAM_RELEASE)
+SOURCE_TARBALL = $(DEBIAN_SOURCE)_$(VERSION)$(SOURCE_BUILD_DATE:%=+%).orig.tar.bz2
 SOURCE_TARBALL_LOCATION = ..
 
-SOURCE_VERSION = $(subst ~,,$(UPSTREAM_RELEASE))
+SOURCE_VERSION = $(subst ~,,$(VERSION))
 
 # Find the right channel corresponding to the version number
 ifneq (,$(filter suite mail calendar,$(PRODUCT)))
@@ -49,16 +50,16 @@ REPO_PREFIX = comm
 else
 REPO_PREFIX = mozilla
 endif
-ifneq (,$(filter $(GRE_MILESTONE)~b%, $(UPSTREAM_RELEASE)))
+ifneq (,$(filter $(GRE_MILESTONE)~b%, $(VERSION)))
 # Betas are under releases/
 SOURCE_TYPE := releases
 else
-ifneq (,$(filter %~a2, $(UPSTREAM_RELEASE)))
+ifneq (,$(filter %~a2, $(VERSION)))
 # Aurora
 SOURCE_TYPE := nightly
 SOURCE_CHANNEL := $(REPO_PREFIX)-aurora
 else
-ifneq (,$(filter %~a1, $(UPSTREAM_RELEASE)))
+ifneq (,$(filter %~a1, $(VERSION)))
 # Nightly
 SOURCE_TYPE := nightly
 SOURCE_CHANNEL := $(REPO_PREFIX)-central
