@@ -222,3 +222,13 @@ Description: Debugging symbols for the Gecko engine library
  This package provides the debugging symbols for the xulrunner-@GRE_VERSION@
  package.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
+
+Package: iceweasel-l10n-all
+Architecture: all
+Depends: ${misc:Depends}, @L10N_PACKAGES_DEPS@
+Description: All language packages for Iceweasel (meta)
+ Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
+ with support for modern web application technologies.
+ .
+ This is a metapackage depending on all available localizations of Iceweasel.
+%include l10n/iceweasel-l10n.control

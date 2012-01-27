@@ -84,7 +84,21 @@ endef
 $(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 
 GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
-debian/control: debian/rules debian/changelog
+debian/control: debian/rules debian/changelog debian/l10n/iceweasel-l10n.control
+
+L10N_PACKAGES = $(foreach lang,$(L10N_LANGS),$(shell echo iceweasel-l10n-$(lang) | tr A-Z a-z))
+L10N_PACKAGES_CONTROLS = $(foreach pkg,$(L10N_PACKAGES),debian/l10n/$(pkg).control)
+L10N_PACKAGES_DEPS = $(shell echo $(L10N_PACKAGES) | sed 's/ /, /g')
+REMOVE_L10N_PACKAGES_CONTROLS = $(foreach ctrl,$(filter-out $(L10N_PACKAGES_CONTROLS),$(wildcard debian/l10n/iceweasel-l10n-*.control)),$(ctrl)-rm)
+
+$(REMOVE_L10N_PACKAGES_CONTROLS): %-rm:
+	rm $*
+
+debian/l10n/iceweasel-l10n.control: $(L10N_PACKAGES_CONTROLS) $(REMOVE_L10N_PACKAGES_CONTROLS)
+	@($(foreach file,$(L10N_PACKAGES_CONTROLS),echo;echo "%include $(notdir $(file))";)) > $@
+
+$(L10N_PACKAGES_CONTROLS): debian/l10n/iceweasel-l10n-%.control: debian/l10n/iceweasel-l10n.control.in
+	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution -DL10N_LANG=$* -DL10N_LANGUAGE="$(shell isoquery -n -i 639 $(firstword $(subst -, ,$*)) | awk -F[\\t,\;] '{print $$4}')$(if $(word 2,$(subst -, ,$*)), ($(shell isoquery -n -i 3166 $(word 2,$(subst -, ,$*)) | awk -F[\\t,] '{print $$4}')))" -DL10N_RECOMMENDS="$(shell awk -F': *' '$$1 == "$*" {print $$2}' debian/l10n/recommends)" $< > $@
 
 ifeq ($(shell lsb_release -sc),lenny)
 DICT_DIR := /usr/share/myspell/dicts
@@ -92,8 +106,10 @@ else
 DICT_DIR := /usr/share/hunspell
 endif
 
+$(PREPROCESSED_FILES): VARS = GRE_VERSION JS_SO_VERSION DICT_DIR
+debian/control: VARS += L10N_PACKAGES_DEPS
 $(PREPROCESSED_FILES):
-	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution $(foreach var,GRE_VERSION JS_SO_VERSION DICT_DIR,-D$(var)=$($(var)) )$< > $@
+	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution $(foreach var,$(VARS),-D$(var)="$($(var))" )$< > $@
 
 %/Makefile: DIR=$(firstword $(subst /, ,$@))
 %/Makefile:
@@ -174,6 +190,15 @@ stamps/build-check-branding:: build-browser/$(OFFICIAL_BRANDING)/filelist build-
 stamps/build-check-resources:: stamps/build-xulrunner stamps/build-browser
 	$(PYTHON) debian/check_resources.py -a build-browser/dist/bin -x build-xulrunner/dist/bin
 
+L10N_BUILD_STAMPS = $(foreach lang,$(L10N_LANGS),stamps/build-l10n-$(lang))
+stamps/build-l10n:: $(L10N_BUILD_STAMPS)
+
+$(L10N_BUILD_STAMPS):: stamps/build-l10n-%: stamps/build-xulrunner stamps/build-browser
+	$(if $(wildcard l10n),,mkdir -p l10n)
+	$(if $(wildcard l10n/$*),,ln -sf ../l10n-$* l10n/$*)
+	$(MAKE) -C build-xulrunner/toolkit/locales libs-$* L10NBASEDIR=$(CURDIR)/l10n MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-browser/dist LOCALE_MERGEDIR=$(CURDIR)/build-xulrunner/l10n-$* BOTH_MANIFESTS=1
+	$(MAKE) -C build-browser/browser/locales langpack-$* L10NBASEDIR=$(CURDIR)/l10n MOZ_CHROME_FILE_FORMAT=flat MOZ_LANGPACK_EID=langpack-$*@iceweasel.mozilla.org PKG_LANGPACK_BASENAME='$$(MOZ_LANGPACK_EID)' PKG_LANGPACK_PATH=xpi/ LOCALE_MERGEDIR=$(CURDIR)/build-browser/l10n-$*
+
 override_dh_auto_build: stamps/build-check-branding stamps/build-check-resources
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
@@ -183,7 +208,7 @@ endif
 override_dh_auto_clean::
 	rm -f MPL
 	rm -f $(GENERATED_FILES) config/Expression.py[co]
-	rm -rf stamps
+	rm -rf stamps l10n
 
 	dh_auto_clean --builddirectory=build-browser
 	dh_auto_clean --builddirectory=build-xulrunner
@@ -250,6 +275,12 @@ MPL: LICENSE
 override_dh_installdocs: MPL
 	dh_installdocs -A $^
 
+L10N_DH_INSTALL_STAMPS = $(foreach lang,$(L10N_LANGS),stamps/dh_install-l10n-$(lang))
+stamps/dh_install-l10n:: $(L10N_DH_INSTALL_STAMPS)
+
+$(L10N_DH_INSTALL_STAMPS):: stamps/dh_install-l10n-%: stamps/build-l10n-%
+	dh_install -piceweasel-l10n-$(shell echo $* | tr A-Z a-z) build-browser/dist/xpi/langpack-$*@iceweasel.mozilla.org.xpi usr/lib/iceweasel/extensions/
+
 stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist/bin/npapi_getinfo
 	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r
 	dh_install --fail-missing
@@ -298,7 +329,13 @@ override_dh_shlibdeps:
 	dh_shlibdeps -a -l$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) -Xlibdbusservice
 	LD_LIBRARY_PATH=$(CURDIR)/debian/tmp/usr/lib/xulrunner-$(GRE_VERSION) dpkg-shlibdeps -Tdebian/xulrunner-$(GRE_VERSION).substvars -dDepends -pgnome $(foreach lib,dbusservice,debian/xulrunner-$(GRE_VERSION)/usr/lib/xulrunner-$(GRE_VERSION)/components/lib$(lib).so)
 
+override_dh_gencontrol:
+	dh_gencontrol$(foreach pkg,$(L10N_PACKAGES), -p$(pkg)) -- -v1:$(DEBIAN_VERSION)
+	dh_gencontrol$(foreach pkg,$(L10N_PACKAGES), -N$(pkg))
+
 install binary binary-arch binary-indep: $(GENERATED_FILES)
+
+binary binary-indep: stamps/dh_install-l10n
 
 binary binary-arch binary-indep build clean install:
 	dh $@
@@ -307,7 +344,7 @@ binary binary-arch binary-indep build clean install:
 
 .NOTPARALLEL:
 
-$(shell awk -F: '$$1 ~ /^stamps\// { print $$1 }' debian/rules) stamps/dummy::
+$(shell awk -F:: '$$1 ~ /^stamps\// && !/%/ { print $$1 }' debian/rules) stamps/dummy $(L10N_BUILD_STAMPS) $(L10N_DH_INSTALL_STAMPS)::
 	@mkdir -p stamps
 	$(if $(wildcard $@),,touch $@)
 endif
