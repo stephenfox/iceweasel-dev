@@ -225,6 +225,7 @@ Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
 Package: iceweasel-l10n-all
 Architecture: all
+Section: localization
 Depends: ${misc:Depends}, @L10N_PACKAGES_DEPS@
 Description: All language packages for Iceweasel (meta)
  Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
