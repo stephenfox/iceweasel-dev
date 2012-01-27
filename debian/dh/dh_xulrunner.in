@@ -101,7 +101,7 @@ foreach my $package (@{$dh{DOPACKAGES}}) {
 		# multiple files..
 		$ff=`file "$file"`;
 		if ($ff=~m/ELF/) {
-			my @strings = ( "NS_GetFrozenFunctions", "XRE_main", "/dependentlibs.list", "/libxul.so" );
+			my @strings = ( "NS_GetFrozenFunctions", "XRE_main", "/dependentlibs.list", "libxul.so" );
 			my($size, $offset);
 			open FILE, "objdump -h \"$file\" 2>&1 |";
 			while (<FILE>) {
