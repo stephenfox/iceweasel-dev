@@ -1,0 +1,124 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Til ">
+<!ENTITY fromField3.label "Frá ">
+<!ENTITY senderField3.label "Sendandi ">
+<!ENTITY organizationField3.label "Fyrirtæki/Stofnun ">
+<!ENTITY replyToField3.label "Svara á ">
+<!ENTITY subjectField3.label "Efni ">
+<!ENTITY ccField3.label "Afrit ">
+<!ENTITY bccField3.label "Falið afrit ">
+<!ENTITY newsgroupsField3.label "Fréttahópa ">
+<!ENTITY followupToField3.label "Áframsending á ">
+<!ENTITY tagsHdr3.label "Flokkar ">
+<!ENTITY dateField3.label "Dagsetning ">
+<!ENTITY userAgentField3.label "Notandaauðkenni ">
+<!ENTITY referencesField3.label "Tilvitnanir ">
+<!ENTITY messageIdField3.label "Auðkenni skeytis ">
+<!ENTITY inReplyToField3.label "Svar við ">
+<!ENTITY originalWebsite3.label "Vefsvæði ">
+<!ENTITY editMessageDescription.label "Þetta eru tölvupóstsdrög">
+<!ENTITY editMessageButton.label "Breyta…">
+<!ENTITY hdrArchiveButton1.label "Skjalasafn">
+<!ENTITY hdrArchiveButton1.tooltip "Safnvista þessi boð">
+<!ENTITY hdrSmartReplyButton1.label "Snjallsvar">
+<!ENTITY hdrReplyButton1.label "Svara">
+<!ENTITY hdrReplyButton1.tooltip "Svara þessum pósti">
+<!ENTITY hdrReplyAllButton1.label "Svara öllum">
+<!ENTITY hdrReplyAllButton1.tooltip "Svara sendanda og öllum viðtakendum">
+<!ENTITY hdrReplyListButton1.label "Svarlisti">
+<!ENTITY hdrReplyListButton1.tooltip "Svara póstlista">
+<!ENTITY hdrForwardButton1.label "Áfram">
+<!ENTITY hdrForwardButton1.tooltip "Áframsenda þennan póst">
+<!ENTITY hdrJunkButton1.label "Ruslpóstur">
+<!ENTITY hdrJunkButton1.tooltip "Merkja póst sem ruslpóst">
+<!ENTITY hdrTrashButton1.label "Eyða">
+<!ENTITY hdrTrashButton1.tooltip "Eyða pósti">
+<!ENTITY hdrViewToolbarShowFull.label "Sýna myndir og texta">
+<!ENTITY hdrViewToolbarShowFull.accesskey "a">
+<!ENTITY hdrViewToolbarShowIcons.label "Sýna aðeins myndir">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "i">
+<!ENTITY hdrViewToolbarShowText.label "Sýna einungis texta">
+<!ENTITY hdrViewToolbarShowText.accesskey "t">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Alltaf sýna svar til sendanda">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "r">
+<!ENTITY otherActionsButton1.label "Aðrar aðgerðir">
+<!ENTITY otherActionsOpenConversation1.label "Opna í samtali">
+<!ENTITY otherActionsOpenConversation1.accesskey "s">
+<!ENTITY otherActionsOpenInNewWindow1.label "Opna í nýjum glugga">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "g">
+<!ENTITY otherActionsOpenInNewTab1.label "Opna í nýjum flipa">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "f">
+<!ENTITY markAsReadMenuItem1.label "Merkja sem lesið">
+<!ENTITY markAsReadMenuItem1.accesskey "r">
+<!ENTITY markAsUnreadMenuItem1.label "Merkja sem ólesið">
+<!ENTITY markAsUnreadMenuItem1.accesskey "r">
+<!ENTITY saveAsMenuItem1.label "Vista sem…">
+<!ENTITY saveAsMenuItem1.accesskey "s">
+<!ENTITY viewSourceMenuItem1.label "Sýna frumkóða">
+<!ENTITY viewSourceMenuItem1.accesskey "f">
+<!ENTITY otherActionsPrint1.label "Prenta…">
+<!ENTITY otherActionsPrint1.accesskey "P">
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label "Opna">
+<!ENTITY openAttachmentCmd.accesskey "O">
+<!ENTITY saveAsAttachmentCmd.label "Vista sem…">
+<!ENTITY saveAsAttachmentCmd.accesskey "e">
+<!ENTITY detachAttachmentCmd.label "Taka út…">
+<!ENTITY detachAttachmentCmd.accesskey "t">
+<!ENTITY deleteAttachmentCmd.label "Eyða">
+<!ENTITY deleteAttachmentCmd.accesskey "ð">
+<!ENTITY openAllAttachmentsCmd.label "Open All…">
+<!ENTITY openAllAttachmentsCmd.accesskey "O">
+<!ENTITY saveAllAttachmentsCmd.label "Vista öll…">
+<!ENTITY saveAllAttachmentsCmd.accesskey "a">
+<!ENTITY detachAllAttachmentsCmd.label "Taka út öll…">
+<!ENTITY detachAllAttachmentsCmd.accesskey "ö">
+<!ENTITY deleteAllAttachmentsCmd.label "Eyða öllum…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey "E">
+<!ENTITY openAttachment.tooltip "Opna viðhengið">
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label "Vista">
+<!ENTITY saveAttachmentButton1.tooltip "Vista viðhengi">
+<!ENTITY saveAllAttachmentsButton1.label "Vista allt">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Vista öll viðhengi">
+<!ENTITY copyLinkCmd.label "Afrita tengil">
+<!ENTITY copyLinkCmd.accesskey "A">
+<!ENTITY CopyMessageId.label "Afrita Skeytis-Auðkenni">
+<!ENTITY OpenMessageForMsgId.label "Opna póst fyrir ákveðið auðkenni">
+<!ENTITY OpenBrowserWithMsgId.label "Opna vafra með Skeytis-Auðkenni">

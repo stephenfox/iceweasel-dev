@@ -1,0 +1,134 @@
+<!-- File Menu -->
+<!ENTITY tabCmd.label "Вкладки переглядача">
+<!ENTITY tabCmd.accesskey "В">
+<!ENTITY tabCmd.commandkey "t">
+<!ENTITY openCmd.label "Відкрити адресу…">
+<!ENTITY openCmd.accesskey "а">
+<!ENTITY openCmd.commandkey "l">
+<!ENTITY openFileCmd.label "Відкрити файл…">
+<!ENTITY openFileCmd.accesskey "ф">
+<!ENTITY openFileCmd.commandkey "o">
+
+<!ENTITY closeOtherTabs.label "Закрити інші вкладки">
+<!ENTITY closeOtherTabs.accesskey "в">
+
+<!ENTITY uploadFile.label "Вивантажити файл…">
+<!ENTITY uploadFile.accesskey "В">
+
+<!ENTITY printSetupCmd.label "Параметри сторінки…">
+<!ENTITY printSetupCmd.accesskey "П">
+
+<!-- Edit Menu -->
+<!ENTITY findOnCmd.label "Знайти на цій сторінці…">
+
+<!-- View Menu -->
+<!ENTITY toolbarsCmd.label "Показати/сховати">
+<!ENTITY toolbarsCmd.accesskey "о">
+<!ENTITY tabbarCmd.label "Панель вкладок">
+<!ENTITY tabbarCmd.accesskey "к">
+<!ENTITY taskbarCmd.label "Смужка стану">
+<!ENTITY taskbarCmd.accesskey "м">
+<!ENTITY componentbarCmd.label "Панель складових">
+<!ENTITY componentbarCmd.accesskey "с">
+
+<!ENTITY fullScreenCmd.label "Повний екран">
+<!ENTITY fullScreenCmd.accesskey "е">
+
+<!ENTITY useStyleSheetMenu.label "Скористатись стилем">
+<!ENTITY useStyleSheetMenu.accesskey "к">
+<!ENTITY useStyleSheetNone.label "Немає">
+<!ENTITY useStyleSheetNone.accesskey "Н">
+<!ENTITY useStyleSheetPersistentOnly.label "Типовий стиль">
+<!ENTITY useStyleSheetPersistentOnly.accesskey "Т">
+<!ENTITY bidiSwitchPageDirectionItem.label "Змінити напрямок сторінки">
+<!ENTITY bidiSwitchPageDirectionItem.accesskey "З">
+<!ENTITY pageSourceCmd.label "Код сторінки">
+<!ENTITY pageSourceCmd.accesskey "К">
+<!ENTITY pageSourceCmd.commandkey "u">
+<!ENTITY pageInfoCmd.label "Інформація про сторінку">
+<!ENTITY pageInfoCmd.accesskey "І">
+<!ENTITY pageInfoCmd.commandkey "i">
+
+<!-- Go Menu -->
+<!ENTITY goMenu.label "Перейти">
+<!ENTITY goMenu.accesskey "й">
+<!ENTITY goHomeCmd.label "Домівка">
+<!ENTITY goHomeCmd.accesskey "Д">
+<!ENTITY historyCmd.label "Історія">
+<!ENTITY historyCmd.accesskey "І">
+<!ENTITY history.commandKey "h">
+<!ENTITY recentTabs.label "Нещодавно закриті вкладки">
+<!ENTITY recentTabs.accesskey "з">
+<!ENTITY recentTabs.commandkey "t">
+<!ENTITY recentWindows.label "Нещодавно закриті вікна">
+<!ENTITY recentWindows.accesskey "Н">
+<!ENTITY recentWindows.commandkey "y">
+<!ENTITY historyRestoreLastSession.label "Відновити попередній сеанс">
+<!ENTITY historyRestoreLastSession.accesskey "В">
+<!ENTITY syncTabsMenu.label "Вкладки з інших комп'ютерів">
+<!ENTITY syncTabsMenu.accesskey "і">
+
+<!-- Bookmarks Menu -->
+<!ENTITY bookmarksMenu.label "Закладки">
+<!ENTITY bookmarksMenu.accesskey "З">
+<!ENTITY addCurPageCmd.label "Закласти цю сторінку">
+<!ENTITY addCurPageCmd.accesskey "ц">
+<!ENTITY addCurPageAsCmd.label "Підшити закладку…">
+<!ENTITY addCurPageAsCmd.accesskey "П">
+<!ENTITY addCurPageAsCmd.commandkey "d">
+<!ENTITY addCurTabsAsCmd.label "Закласти цю групу вкладок…">
+<!ENTITY addCurTabsAsCmd.accesskey "г">
+<!ENTITY manBookmarksCmd.label "Упорядкувати закладки…">
+<!ENTITY manBookmarksCmd.accesskey "У">
+<!ENTITY manBookmarksCmd.commandkey "b">
+
+<!-- Tools Menu -->
+<!ENTITY searchInternetCmd.label "Відшукати в інтернеті">
+<!ENTITY searchInternetCmd.accesskey "В">
+<!ENTITY searchInternet.commandKey "s">
+<!ENTITY translateMenu.label "Перекласти сторінку">
+<!ENTITY translateMenu.accesskey "П">
+
+<!ENTITY cookieMessageTitle.label "Права на кук змінено">
+<!ENTITY cookieDisplayCookiesCmd.label "Упорядкувати збережених кук">
+<!ENTITY cookieDisplayCookiesCmd.accesskey "У">
+<!ENTITY cookieAllowCookiesCmd.label "Дозволити кук з цього сайту">
+<!ENTITY cookieAllowCookiesCmd.accesskey "A">
+<!ENTITY cookieAllowCookiesMsg.label "Куки з цього сайту завжди буде дозволено.">
+<!ENTITY cookieAllowSessionCookiesCmd.label "Дозволити сеанс кук з цього сайту">
+<!ENTITY cookieAllowSessionCookiesCmd.accesskey "Д">
+<!ENTITY cookieAllowSessionCookiesMsg.label "Цьому сайтові буде дозволеного встановити сук лише для поточного сеансу.">
+<!ENTITY cookieCookiesDefaultCmd.label "Скористатись типовими правами на кук">
+<!ENTITY cookieCookiesDefaultCmd.accesskey "С">
+<!ENTITY cookieCookiesDefaultMsg.label "Куки з цього сайту буде схвалено або відхилено відповідно до типових налаштувань.">
+<!ENTITY cookieBlockCookiesCmd.label "Заблокувати кук з цього сайту">
+<!ENTITY cookieBlockCookiesCmd.accesskey "З">
+<!ENTITY cookieBlockCookiesMsg.label "Куки з цього сайту будуть завжди відкидатись.">
+
+<!ENTITY cookieImageMessageTitle.label "Права на зображення змінено">
+<!ENTITY cookieDisplayImagesCmd.label "Упорядкувати права на зображення">
+<!ENTITY cookieDisplayImagesCmd.accesskey "У">
+<!ENTITY cookieAllowImagesCmd.label "Дозволити зображення з цього сайту">
+<!ENTITY cookieAllowImagesCmd.accesskey "Д">
+<!ENTITY cookieAllowImagesMsg.label "Зображення з цього сайту завжди буде звантажено.">
+<!ENTITY cookieImagesDefaultCmd.label "Скористатись типовими правами на зображення">
+<!ENTITY cookieImagesDefaultCmd.accesskey "С">
+<!ENTITY cookieImagesDefaultMsg.label "Зображення з цього сайту завжи будуть звантажуватись відповідно до типових налаштувань.">
+<!ENTITY cookieBlockImagesCmd.label "Заблокувати зображення з цього сайту">
+<!ENTITY cookieBlockImagesCmd.accesskey "З">
+<!ENTITY cookieBlockImagesMsg.label "Зображення з цього сайту ніколи не будуть звантажуватись.">
+
+<!ENTITY cookieAllowPopupsCmd.label "Дозволити виринання з цього сайту">
+<!ENTITY cookieAllowPopupsCmd.accesskey "Д">
+<!ENTITY cookieManagePopups.label "Упорядкувати виринання">
+<!ENTITY cookieManagePopups.accesskey "У">
+
+<!ENTITY cookieCookieManager.label "Менеджер кук">
+<!ENTITY cookieCookieManager.accesskey "к">
+<!ENTITY cookieImageManager.label "Менеджер зобржень">
+<!ENTITY cookieImageManager.accesskey "з">
+<!ENTITY cookiePopupManager.label "Менеджер виринань">
+<!ENTITY cookiePopupManager.accesskey "в">
+
+<!ENTITY clearPrivateDataCmd.label "Стерти особисті дані…">
+<!ENTITY clearPrivateDataCmd.accesskey "С">

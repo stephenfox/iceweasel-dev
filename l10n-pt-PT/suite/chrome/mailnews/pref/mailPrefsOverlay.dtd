@@ -1,0 +1,21 @@
+<!-- These are added to the Advanced - Scripts & Plug-ins panel -->
+<!ENTITY enbPluginCheckMailNews.label     "Correio &amp; Grupos de Discussão">
+<!ENTITY enbPluginCheckMailNews.accesskey "o">
+
+<!-- These are added to the Window menu -->
+<!ENTITY mail.label                       "Correio &amp; Grupos de Discussão">
+<!ENTITY mail.accesskey                   "C">
+<!ENTITY addressbook.label                "Livro de Endereços">
+<!ENTITY addressbook.accesskey            "L">
+
+<!-- These are added to Preferences dialog -->
+<!ENTITY viewingMessages.label            "Apresentação da Mensagem">
+<!ENTITY notifications.label              "Notificações">
+<!ENTITY address.label                    "Endereçamento">
+<!ENTITY composingMessages.label          "Composição">
+<!ENTITY format.label                     "Formato de Envio">
+<!ENTITY return.label                     "Recibos de Leitura">
+<!ENTITY junk.label                       "Lixo electrónico">
+<!ENTITY tags.label                       "Etiquetas">
+<!ENTITY characterEncoding.label          "Codificação de caracteres">
+<!ENTITY networkStorage.label             "Rede &amp; Armazenamento">

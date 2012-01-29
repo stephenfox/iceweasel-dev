@@ -1,0 +1,26 @@
+<!ENTITY newMessageCmd.label             "Mensagem">
+<!ENTITY newMessageCmd.accesskey         "M">
+<!ENTITY newMessageCmd.key               "M">
+
+<!ENTITY newContactCmd.label             "Contacto…">
+<!ENTITY newContactCmd.accesskey         "C">
+
+<!ENTITY sendPage.label                  "Enviar Página…">
+<!ENTITY sendPage.accesskey              "v">
+
+<!ENTITY contextSendThisPage.label       "Enviar esta página…">
+<!ENTITY contextSendThisPage.accesskey   "s">
+<!ENTITY contextSendThisLink.label       "Enviar esta ligação…">
+<!ENTITY contextSendThisLink.accesskey   "g">
+<!ENTITY contextSendImage.label          "Enviar imagem…">
+<!ENTITY contextSendImage.accesskey      "n">
+<!ENTITY contextSendVideo.label          "Enviar vídeo…">
+<!ENTITY contextSendVideo.accesskey      "i">
+<!ENTITY contextSendAudio.label          "Enviar áudio…">
+<!ENTITY contextSendAudio.accesskey      "i">
+<!ENTITY contextSendFrame.label          "Enviar Frame…">
+<!ENTITY contextSendFrame.accesskey      "v">
+
+<!ENTITY sendLinkCmd.label               "Enviar ligação…"> 
+<!ENTITY sendLinkCmd.accesskey           "ç">
+

@@ -1,0 +1,7 @@
+<!ENTITY junkLog.title "Խլամ նամակի մատյանը">
+<!ENTITY junkLogInfo.label "Խլամ նամակի ղեկավարման մատյանը։">
+<!ENTITY clearLog.label "Մաքրել մատյանը">
+<!ENTITY clearLog.accesskey "C">
+<!ENTITY closeLog.label "Փակել">
+<!ENTITY closeLog.accesskey "o">
+

@@ -1,0 +1,78 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either of the GNU General Public License Version 2 or later (the "GPL"),
+ or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY threadColumn.label "Обговорення">
+<!ENTITY fromColumn.label "Відправник">
+<!ENTITY recipientColumn.label "Адресат">
+<!ENTITY attachmentColumn.label "Долучення">
+<!ENTITY subjectColumn.label "Тема">
+<!ENTITY dateColumn.label "Дата">
+<!ENTITY priorityColumn.label "Важливість">
+<!ENTITY tagsColumn.label "Ключові слова">
+<!ENTITY accountColumn.label "Обліковий запис">
+<!ENTITY statusColumn.label "Стан">
+<!ENTITY sizeColumn.label "Розмір">
+<!ENTITY junkStatusColumn.label "Спам">
+<!ENTITY unreadColumn.label "Непрочитане в обговоренні">
+<!ENTITY totalColumn.label "Загальне в обговоренні">
+<!ENTITY readColumn.label "Читання">
+<!ENTITY receivedColumn.label "Отримано">
+<!ENTITY flagColumn.label "Помічено">
+<!ENTITY locationColumn.label "Адреса">
+<!ENTITY idColumn.label "Порядок отримання">
+
+<!--Tooltips-->
+<!ENTITY columnChooser.tooltip "Натисніть, щоб вибрати колонки для відображення">
+<!ENTITY threadColumn.tooltip "Натисніть тут, щоб переглянути обговорення"> 
+<!ENTITY fromColumn.tooltip "Натисніть тут, щоб відсортувати листи за відправником">
+<!ENTITY recipientColumn.tooltip "Натисніть тут, щоб відсортувати листи за адресатом">
+<!ENTITY attachmentColumn.tooltip "Натисніть тут, щоб відсортувати листи по наявності долучень">
+<!ENTITY subjectColumn.tooltip "Натисніть тут, щоб відсортувати листи за темою">
+<!ENTITY dateColumn.tooltip "Натисніть тут, щоб відсортувати листи за датою">
+<!ENTITY priorityColumn.tooltip "Натисніть тут, щоб відсортувати листи за важливостю">
+<!ENTITY tagsColumn.tooltip "Натисніть тут, щоб відсортувати листи за позначками">
+<!ENTITY accountColumn.tooltip "Натисніть тут, щоб відсортувати листи за обліковим записом">
+<!ENTITY statusColumn.tooltip "Натисніть тут, щоб відсортувати листи за станом">
+<!ENTITY sizeColumn.tooltip "Натисніть тут, щоб відсортувати листи за розміром">
+<!ENTITY junkStatusColumn.tooltip "Натисніть тут, щоб відсортувати листи за міткою спаму">
+<!ENTITY unreadColumn.tooltip "Число непрочитаних листів в обговоренні">
+<!ENTITY totalColumn.tooltip "Загальне число листів у обговоренні">
+<!ENTITY readColumn.tooltip "Натисніть тут, щоб відсортувати прочитані листи">
+<!ENTITY receivedColumn.tooltip "Натисніть тут щоб відсортувати листи за датою отримання">
+<!ENTITY flagColumn.tooltip "Натисніть тут щоб відсортувати листи за поміченням">
+<!ENTITY locationColumn.tooltip "Натисніть тут, щоб відсортувати листи за їх розташуванням">
+<!ENTITY idColumn.tooltip "Натисніть тут, щоб відсортувати листи за порядком отримання">

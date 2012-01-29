@@ -1,0 +1,16 @@
+<!--
+# Translator(s):
+#
+# Alexandru Szasz <alexxed@gmail.com>
+#
+-->
+<!--
+# Reviewer(s):
+#
+# Alexandru Szasz <alexxed@gmail.com>
+#
+-->
+<!ENTITY appManager.title     "Detaliile aplicației">
+<!ENTITY appManager.style     "width: 40ch; min-height: 20em;">
+<!ENTITY remove.label         "Eliminați">
+<!ENTITY remove.accesskey     "E">

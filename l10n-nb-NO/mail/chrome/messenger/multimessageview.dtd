@@ -1,0 +1,4 @@
+<!ENTITY window.title             "Meldingsoppsummering">
+<!ENTITY selectedmessages.label   "Valgte meldinger">
+<!ENTITY archiveButton.label      "Arkiver">
+<!ENTITY deleteButton.label       "Slett">

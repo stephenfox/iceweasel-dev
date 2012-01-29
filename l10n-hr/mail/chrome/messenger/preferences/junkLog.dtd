@@ -1,0 +1,6 @@
+<!ENTITY junkLog.title "Zapisnik neželjene pošte">
+<!ENTITY junkLogInfo.label "Zapisnik kontrole aktivnosti neželjene pošte.">
+<!ENTITY clearLog.label "Očisti zapisnik">
+<!ENTITY clearLog.accesskey "O">
+<!ENTITY closeLog.label "Zatvori">
+<!ENTITY closeLog.accesskey "Z">

@@ -1,0 +1,11 @@
+<!-- LOCALIZATION NOTE: do not use digits "0"-"9" as accesskeys -->
+<!ENTITY zoomEnlargeCmd.label "Większy">
+<!ENTITY zoomEnlargeCmd.accesskey "W">
+<!ENTITY zoomEnlargeCmd.commandkey "+">
+<!ENTITY zoomEnlargeCmd.commandkey2 "=">
+
+<!ENTITY zoomReduceCmd.label "Mniejszy">
+<!ENTITY zoomReduceCmd.accesskey "M">
+<!ENTITY zoomReduceCmd.commandkey "-">
+
+<!ENTITY zoomResetCmd.commandkey "0">

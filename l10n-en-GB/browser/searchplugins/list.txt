@@ -1,0 +1,7 @@
+amazon-en-GB
+bing
+chambers-en-GB
+eBay-en-GB
+google
+wikipedia
+yahoo-en-GB

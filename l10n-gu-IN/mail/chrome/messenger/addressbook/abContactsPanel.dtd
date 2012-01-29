@@ -1,0 +1,16 @@
+
+<!ENTITY addressbookPicker.label            "સરનામા પુસ્તિકા:">
+<!ENTITY searchInput.label                  "ના માટે શોધ કરો:">
+<!ENTITY SearchNameOrEmail.label            "નામ અથવા ઈમેઈલ">
+
+<!ENTITY addtoToFieldMenu.label             "પ્રતિ ક્ષેત્રમાં એડ-ઓન">
+<!ENTITY addtoCcFieldMenu.label             "આને પણ ક્ષેત્રમાં એડ-ઓન">
+<!ENTITY addtoBccFieldMenu.label            "આને પણ ખબર વિના ક્ષેત્રમાં એડ-ઓન">
+
+<!ENTITY toButton.label                     "પ્રતિમાં એડ-ઓન:">
+<!ENTITY ccButton.label                     "આને પણ માં એડ-ઓન:">
+
+
+
+
+

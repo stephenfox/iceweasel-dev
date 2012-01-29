@@ -1,0 +1,55 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - Contributor(s):
+   -   Rimas Kudelis <rq@akl.lt>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY linksHeader.label "Saitų atvėrimas">
+<!ENTITY newWindow.label "Saitų atvėrimas">
+<!ENTITY newWindowDescription.label "Saitus, kurie turėtų būti atveriami naujame lange, atverti:">
+<!ENTITY newWindowRestriction.label "Kai naują langą bando atverti scenarijus:">
+<!ENTITY external.label "Saitai iš kitų programų">
+<!ENTITY externalDescription.label "Saitus, perduotus kitų programų, atverti:">
+
+<!ENTITY openCurrent.label "šiuo metu atvertoje kortelėje">
+<!ENTITY newWindowGroupCurrent.accesskey "š">
+<!ENTITY externalGroupCurrent.accesskey "u">
+
+<!ENTITY openTab.label "naujoje kortelėje šiuo metu atvertame lange">
+<!ENTITY newWindowGroupTab.accesskey "k">
+<!ENTITY externalGroupTab.accesskey "o">
+
+<!ENTITY openWindow.label "naujame lange">
+<!ENTITY newWindowGroupWindow.accesskey "l">
+<!ENTITY externalGroupWindow.accesskey "a">
+
+<!ENTITY divertAll.label "vietoje lango visuomet atverti naują kortelę">
+<!ENTITY divertAll.accesskey "r">
+<!ENTITY divertNoFeatures.label "atverti naujas korteles tik vietoje netinkintų langų">
+<!ENTITY divertNoFeatures.accesskey "t">
+<!ENTITY dontDivert.label "visuomet atverti naują langą">
+<!ENTITY dontDivert.accesskey "n">

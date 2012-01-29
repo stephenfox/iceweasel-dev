@@ -1,0 +1,8 @@
+<!ENTITY viewLog.title "Dnevnik filtrov">
+<!ENTITY viewLogInfo.text "Dnevnik filtrov vsebuje seznam filtrov, s katerimi se je obdelalo sporočila. Da aktivirate vodenje dnevnika, odkljukajte spodnje izbirno polje.">
+<!ENTITY clearLog.label "Počisti dnevnik">
+<!ENTITY clearLog.accesskey "o">
+<!ENTITY enableLog.label "Omogoči dnevnik filtrov">
+<!ENTITY enableLog.accesskey "e">
+<!ENTITY closeLog.label "Zapri">
+<!ENTITY closeLog.accesskey "Z">

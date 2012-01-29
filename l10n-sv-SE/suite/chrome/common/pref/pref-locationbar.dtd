@@ -1,0 +1,34 @@
+<!--LOCALIZATION NOTE : FILE The Location Bar prefs panel -->
+<!ENTITY pref.locationBar.title                "Adressfält">
+
+<!ENTITY autoComplete.label                    "Automatisk komplettering">
+<!ENTITY enableAutoComplete.label              "Komplettera automatiskt ur din surfandehistorik medan du skriver">
+<!ENTITY enableAutoComplete.accesskey          "o">
+<!ENTITY autoCompleteAutoFill.label            "Komplettera automatiskt med den bästa matchningen">
+<!ENTITY autoCompleteAutoFill.accesskey        "m">
+<!ENTITY autoCompleteShowPopup.label           "Visa en lista med matchande resultat">
+<!ENTITY autoCompleteShowPopup.accesskey       "s">
+<!ENTITY autoCompleteMatchOnlyTyped.label      "Matcha endast adresser som du skrivit in tidigare">
+<!ENTITY autoCompleteMatchOnlyTyped.accesskey  "c">
+<!ENTITY autoCompleteMatchOnlyURLs.label       "Matcha endast adresser, inte webbplatsernas titlar">
+<!ENTITY autoCompleteMatchOnlyURLs.accesskey   "i">
+<!--LOCALIZATION NOTE (autoCompleteMatch.label): This is the common leading
+  part of the menulist items listed below, mainly to make the control available
+  via the accesskey
+-->
+<!ENTITY autoCompleteMatch.label               "Matcha">
+<!ENTITY autoCompleteMatch.accesskey           "M">
+<!ENTITY autoCompleteMatchAnywhere             "Var som helst i adressen eller titeln">
+<!ENTITY autoCompleteMatchWordsFirst           "Var som helst men hela ord sorteras först">
+<!ENTITY autoCompleteMatchWords                "Bara i hela ord">
+<!ENTITY autoCompleteMatchStart                "Bara i början av adressen eller titeln">
+
+<!ENTITY searchEngine.label                    "Söktjänst för Internet">
+<!ENTITY showSearchEngine.label                "Visa förinställd söktjänst">
+<!ENTITY showSearchEngine.accesskey            "f">
+
+<!ENTITY unknownLocations.label                "Okända adresser">
+<!ENTITY domainGuessing.label                  "Lägg till &quot;www.&quot; och &quot;.com&quot; till adressen om en webbplats inte hittas">
+<!ENTITY domainGuessing.accesskey              "ä">
+<!ENTITY keywords.label                        "Utför en sökning på webben när angiven text inte är en webbadress">
+<!ENTITY keywords.accesskey                    "U">

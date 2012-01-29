@@ -1,0 +1,7 @@
+<!ENTITY  newMessageCmd2.key              "N">
+<!ENTITY  newMessageCmd.key               "N">
+<!ENTITY  newMessageCmd.label             "Sporočilo">
+<!ENTITY  newMessageCmd.accesskey         "s">
+ 
+<!ENTITY  newContactCmd.label             "Stik iz adresarja …">
+<!ENTITY  newContactCmd.accesskey         "z">

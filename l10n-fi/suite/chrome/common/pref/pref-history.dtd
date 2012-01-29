@@ -1,0 +1,19 @@
+<!ENTITY  pref.history.title                "Sivuhistoria">
+
+<!ENTITY  pref.history.caption              "Sivuhistoria">
+<!ENTITY  historyPages.label                "Sivuhistoria on lista sivuista, joilla olet käynyt.">
+<!ENTITY  enableHistory.label               "Säilytä sivuhistoria">
+<!ENTITY  enableHistory.accesskey           "S">
+<!ENTITY  clearHistory.label                "Tyhjennä sivuhistoria">
+<!ENTITY  clearHistory.accesskey            "T">
+
+<!ENTITY  locationBarHistory.caption        "Osoitehistoria">
+<!ENTITY  clearLocationBar.label            "Tyhjentää osoitevalikossa näytettävän sivustolistan.">
+<!ENTITY  clearLocationBarButton.label      "Tyhjennä osoitepalkki">
+<!ENTITY  clearLocationBarButton.accesskey  "o">
+<!ENTITY  formfillHistory.caption           "Lomake- ja hakuhistoria">
+<!ENTITY  enableFormfill.label              "Salli lomake- ja hakuhistorian tallennus">
+<!ENTITY  enableFormfill.accesskey          "a">
+<!ENTITY  formfillExpire.label              "Säilytä lomake- ja hakuhistoria enintään">
+<!ENTITY  formfillExpire.accesskey          "i">
+<!ENTITY  formfillDays.label                "päivältä">

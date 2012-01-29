@@ -1,0 +1,101 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Communicator client code, released
+   - March 31, 1998.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 1998-1999
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either of the GNU General Public License Version 2 or later (the "GPL"),
+   - or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+
+<!-- Window title -->
+<!ENTITY windowTitle.label            "Side publisearje">
+<!ENTITY windowTitleSettings.label    "Publikaasjeynstellings">
+
+<!ENTITY publishTab.label             "Publisearje">
+<!ENTITY settingsTab.label            "Ynstellings">
+
+<!ENTITY publishButton.label          "Publisearje">
+
+<!-- Publish Tab Panel -->
+<!ENTITY siteList.label               "Websteenamme:">
+<!ENTITY siteList.accesskey           "e">
+<!ENTITY siteList.tooltip             "Kies it webstee dy't jo publisearje wolle">
+<!ENTITY newSiteButton.label          "Nij webstee">
+<!ENTITY newSiteButton.accesskey      "N">
+<!ENTITY docDirList.label             "websteesubmap foar dizze side:">
+<!ENTITY docDirList.accesskey         "W">
+<!ENTITY docDirList.tooltip           "Kies of fier de namme yn fan de submap dy't jo yn publisearje wolle">
+<!ENTITY publishImgCheckbox.label     "Ofbyldingen en oare bestannen byfoegje">
+<!ENTITY publishImgCheckbox.accesskey "o">
+<!ENTITY publishImgCheckbox.tooltip   "Ofbyldings en oare bestannen dy't dizze side nei ferwiist publisearje">
+<!ENTITY sameLocationRadio.label      "Deselde lokaasje as de side brûke">
+<!ENTITY sameLocationRadio.accesskey  "s">
+<!ENTITY sameLocationRadio.tooltip    "Bestannen publisearje op deselde lokaasje as de side">
+<!ENTITY useSubdirRadio.label         "Dizze websteesubmap brûke:">
+<!ENTITY useSubdirRadio.accesskey     "s">
+<!ENTITY useSubdirRadio.tooltip       "Bestannen publisearje yn de selektearre websteesubmap">
+<!ENTITY otherDirList.tooltip         "Kies of fier de namme yn fan de submap dy't de bestannen yn publisearre wurde sille">
+<!ENTITY pageTitle.label              "Sidetitel:">
+<!ENTITY pageTitle.accesskey          "t">
+<!ENTITY pageTitle.tooltip            "Fier in titel yn om de side te identifisearjen yn it finster en yn blêdwizers">
+<!ENTITY pageTitleExample.label       "bgl. &quot;Myn webtee&quot;">
+<!ENTITY filename.label               "Bestânsnamme:">
+<!ENTITY filename.accesskey           "B">
+<!ENTITY filename.tooltip             "Fier in namme yn foar dit bestân dat einiget op ‘html’ foar in webside">
+<!ENTITY filenameExample.label        "bgl. &quot;mynwebside.html&quot;">
+<!ENTITY setDefaultButton.label       "As standert ynstelle">
+<!ENTITY setDefaultButton.accesskey   "d">
+<!ENTITY removeButton.label           "webstee fuortsmite">
+<!ENTITY removeButton.accesskey       "f">
+
+<!-- Settings Tab Panel -->
+<!ENTITY publishSites.label           "Publikaasjewebsteeën">
+<!ENTITY serverInfo.label             "Tsjinnerynformaasje">
+<!ENTITY loginInfo.label              "Ynlogynformaasje">
+<!ENTITY siteName.label               "websteenamme:">
+<!ENTITY siteName.accesskey           "e">
+<!ENTITY siteName.tooltip             "In bynamme om dit publikaasjewebstee te identisearjen (bgl. ‘Mynwebstee’)">
+<!ENTITY siteUrl.label                "Publikaasjeadres (byg. ‘ftp://ftp.myisp.com/myusername’):">
+<!ENTITY siteUrl.accesskey            "a">
+<!ENTITY siteUrl.tooltip              "It FTP://- of HTTP://-adres dat troch jo ISP- of webhostingservice jûn is">
+<!ENTITY browseUrl.label              "HTTP-adres fan jo thússide (byg. ‘http://www.mynisp.com/mynbrûkersnamme’):">
+<!ENTITY browseUrl.accesskey          "T">
+<!ENTITY browseUrl.tooltip            "It HTTP://-adres fan jo haadmap (sûnder bestânsnamme)">
+<!ENTITY username.label               "Brûkersnamme:">
+<!ENTITY username.accesskey           "B">
+<!ENTITY username.tooltip             "De brûkersnamme om yn te loggen by jo ISP- of webhostingservice">
+<!ENTITY password.label               "Wachtwurd:">
+<!ENTITY password.accesskey           "W">
+<!ENTITY password.tooltip             "It wachtwurd dat by jo brûkersnamme heart">
+<!ENTITY savePassword.label           "Wachtwurd bewarje">
+<!ENTITY savePassword.accesskey       "b">
+<!ENTITY savePassword.tooltip         "Selektearje dit om jo wachtwurd feilich te bewarjen mei de wachtwurdbehearder">

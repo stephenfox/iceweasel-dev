@@ -1,0 +1,10 @@
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Segédalkalmazások">
+
+<!ENTITY typeColumn.label "Tartalomtípus">
+<!ENTITY typeColumn.accesskey "T">
+
+<!ENTITY actionColumn2.label "Művelet">
+<!ENTITY actionColumn2.accesskey "M">
+
+<!ENTITY search.placeholder "Tartalomtípusok és műveletek keresése">

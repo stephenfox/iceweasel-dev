@@ -1,0 +1,5 @@
+<!ENTITY messageMarkByDate.label "Marcar como lidas">
+<!ENTITY markByDateLower.label "De:">
+<!ENTITY markByDateLower.accesskey "D">
+<!ENTITY markByDateUpper.accesskey "A">
+<!ENTITY markByDateUpper.label "Até:">

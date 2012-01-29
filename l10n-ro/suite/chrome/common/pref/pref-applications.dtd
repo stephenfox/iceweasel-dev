@@ -1,0 +1,23 @@
+<!--
+# Translator(s):
+#
+# BuBBaX <mikebubbax@yahoo.com>
+# Alexandru Szasz <alexxed@gmail.com>
+#
+-->
+<!--
+# Reviewer(s):
+#
+# Alexandru Szasz <alexxed@gmail.com>
+#
+-->
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Ajutorul Pentru Aplicații">
+
+<!ENTITY typeColumn.label        "Tip conținut">
+<!ENTITY typeColumn.accesskey    "T">
+
+<!ENTITY actionColumn2.label     "Procesează acțiunea">
+<!ENTITY actionColumn2.accesskey "a">
+
+<!ENTITY search.placeholder      "Search Types and Actions">

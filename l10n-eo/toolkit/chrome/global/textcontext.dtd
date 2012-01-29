@@ -1,0 +1,20 @@
+<!ENTITY cutCmd.label "Eltondi">
+<!ENTITY cutCmd.accesskey "t">
+<!ENTITY copyCmd.label "Kopii">
+<!ENTITY copyCmd.accesskey "c">
+<!ENTITY pasteCmd.label "Alglui">
+<!ENTITY pasteCmd.accesskey "p">
+<!ENTITY undoCmd.label "Malfari">
+<!ENTITY undoCmd.accesskey "u">
+<!ENTITY selectAllCmd.label "Elekti ĉion">
+<!ENTITY selectAllCmd.accesskey "a">
+<!ENTITY deleteCmd.label "Forviŝi">
+<!ENTITY deleteCmd.accesskey "d">
+
+<!ENTITY spellAddToDictionary.label "Aldoni al vortaro">
+<!ENTITY spellAddToDictionary.accesskey "a">
+<!ENTITY spellCheckEnable.label "Kontroli literumadon">
+<!ENTITY spellCheckEnable.accesskey "L">
+<!ENTITY spellNoSuggestions.label "(Neniu sugesto pri literumado)">
+<!ENTITY spellDictionaries.label "Lingvoj">
+<!ENTITY spellDictionaries.accesskey "l">

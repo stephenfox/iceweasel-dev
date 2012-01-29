@@ -1,0 +1,137 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either of the GNU General Public License Version 2 or later (the "GPL"),
+ or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!-- Title -->
+<!ENTITY addressbookWindow.title                        "Adressebok">
+
+<!-- Menus:  the . means that the menu item isn't implemented yet -->
+
+<!-- File Menu -->
+<!ENTITY newContact.label                               "Kontakt …">
+<!-- LOCALIZATION NOTE (newContact.accesskey) : DONT_TRANSLATE -->
+<!ENTITY newContact.accesskey                           "K">
+<!ENTITY newListCmd.label                               "E-postliste …">
+<!-- LOCALIZATION NOTE (newListCmd.accesskey) : DONT_TRANSLATE -->  
+<!ENTITY newListCmd.accesskey                           "E">  
+<!ENTITY newAddressBookCmd.label                        "Adressebok …"> 
+<!ENTITY newAddressBookCmd.accesskey                    "d">  
+<!ENTITY newLDAPDirectoryCmd.label                      "LDAP-katalog …">
+<!-- LOCALIZATION NOTE (newLDAPDirectoryCmd.accesskey) : DONT_TRANSLATE -->
+<!ENTITY newLDAPDirectoryCmd.accesskey                  "L">
+<!ENTITY newIM.label                                    "IM">
+<!ENTITY printContactViewCmd.label                      "Skriv ut kontakt …">
+<!ENTITY printContactViewCmd.accesskey                  "k">
+<!ENTITY printPreviewContactViewCmd.label               "Forhåndsvisning av kontakt">
+<!ENTITY printPreviewContactViewCmd.accesskey           "v">
+<!ENTITY printContactViewCmd.key                        "P">
+<!ENTITY printAddressBook.label                         "Skriv ut adressebok …"> 
+<!ENTITY printAddressBook.accesskey                     "a"> 
+<!ENTITY printPreviewAddressBook.label                  "Forhåndsvisning av adressebok"> 
+<!ENTITY printPreviewAddressBook.accesskey              "F">
+
+<!-- Edit Menu -->
+<!ENTITY deleteAbCmd.label                              "Slett adressebok">  
+<!ENTITY deleteContactCmd.label                         "Slett kontakt">
+<!ENTITY deleteContactsCmd.label                        "Slett valgte kontakter">
+<!ENTITY deleteListCmd.label                            "Slett liste">
+<!ENTITY deleteListsCmd.label                           "Slett valgte lister">
+<!ENTITY deleteItemsCmd.label                           "Slett valgte elementer">
+<!ENTITY swapFirstNameLastNameCmd.label                 "Bytt om for/etternavn">
+<!ENTITY swapFirstNameLastNameCmd.accesskey             "B">  
+<!ENTITY propertiesCmd.label                            "Egenskaper …">
+<!-- LOCALIZATION NOTE (propertiesCmd.accesskey) : DONT_TRANSLATE -->  
+<!ENTITY propertiesCmd.accesskey                        "E">  
+<!ENTITY propertiesCmd.key                              "i">  
+
+<!-- View Menu -->
+<!ENTITY showAbToolbarCmd.label                         "Adressebok-verktøylinje"> 
+<!ENTITY showAbToolbarCmd.accesskey                     "A">  
+
+<!ENTITY showCardPane.label                             "Oppsummeringsvindu for kontakt">
+<!ENTITY showCardPane.accesskey                         "O">
+  
+<!ENTITY menu_ShowNameAs.label                          "Vis navn som"> 
+<!ENTITY menu_ShowNameAs.accesskey                      "n"> 
+<!ENTITY firstLastCmd.label                             "Fornavn, Etternavn">  
+<!ENTITY firstLastCmd.accesskey                         "F"> 
+<!ENTITY lastFirstCmd.label                             "Etternavn, Fornavn">  
+<!ENTITY lastFirstCmd.accesskey                         "E"> 
+<!ENTITY displayNameCmd.label                           "Vis navn">  
+<!ENTITY displayNameCmd.accesskey                       "V"> 
+
+<!-- Tasks Menu -->
+<!ENTITY importCmd.label                                "Importer …">
+<!ENTITY importCmd.accesskey                            "I">
+<!ENTITY exportCmd.label                                "Eksporter …">
+<!ENTITY exportCmd.accesskey                            "E">
+
+<!-- Toolbar and Popup items -->  
+<!ENTITY newContactButton.label                         "Ny kontakt">
+<!ENTITY newContactButton.accesskey                     "N">
+<!ENTITY newlistButton.label                            "Ny liste">  
+<!ENTITY newlistButton.accesskey                        "L">  
+<!ENTITY editItemButton.label                           "Egenskaper">
+<!ENTITY editItemButton.accesskey                       "P">
+<!ENTITY newmsgButton.label                             "Skriv ny">  
+<!ENTITY newmsgButton.accesskey                         "n">  
+<!ENTITY deleteItemButton.label                         "Slett">
+<!ENTITY deleteItemButton.accesskey                     "S">
+<!ENTITY newimButton.label                              "Lynmelding">  
+<!ENTITY newimButton.accesskey                          "I">  
+<!ENTITY searchNameAndEmail.placeholder                 "Søk i navn og e-postadresse">
+<!ENTITY searchBox.title                                "Søk">
+
+<!-- Tooltips -->
+<!ENTITY addressbookToolbar.tooltip                     "Adressebok-verktøylinje">
+<!ENTITY newContactButton.tooltip                       "Lag en ny kontakt">
+<!ENTITY newlistButton.tooltip                          "Lag en ny liste"> 
+<!ENTITY editItemButton.tooltip                         "Rediger valgt element">
+<!ENTITY newmsgButton.tooltip                           "Send en e-post"> 
+<!ENTITY newIM.tooltip                                  "Send en melding eller chat"> 
+<!ENTITY deleteItemButton.tooltip                       "Slett valgt element">
+<!ENTITY throbber.tooltip                               "Gå til hjemmesiden til &vendorShortName;">
+<!ENTITY advancedButton.tooltip                         "Avansert adressesøk">
+
+<!-- Dir Tree header -->
+<!ENTITY dirTreeHeader.label                            "Adressebøker">
+
+<!-- Status Bar -->  
+<!ENTITY statusText.label                               "">
+
+<!-- LOCALIZATION NOTE (hideSwapFnLnUI) : DONT_TRANSLATE -->
+<!-- Swap FN/LN UI  Set to "false" to show swap fn/ln UI -->
+<!ENTITY  hideSwapFnLnUI                                "true">

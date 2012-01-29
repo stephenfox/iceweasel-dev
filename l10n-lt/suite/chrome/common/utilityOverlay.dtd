@@ -1,0 +1,181 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - Contributor(s):
+   -   Gintautas Grigas <grigas@ktl.mii.lt>
+   -   Tatjana Jevsikova <tatjanaj@julius.ktl.mii.lt>
+   -   Rimas Kudelis <rq@akl.lt>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!-- these things need to move into utilityOverlay.xul -->
+<!ENTITY  offlineGoOfflineCmd.label                 "Atsijungti nuo tinklo">
+<!ENTITY  offlineGoOfflineCmd.accesskey             "i">
+
+<!-- LOCALIZATION NOTE : FILE This file contains the global menu items --> 
+
+<!ENTITY fileMenu.label                             "Failas"> 
+<!ENTITY fileMenu.accesskey                         "F">
+<!ENTITY newMenu.label                              "Naujas">
+<!ENTITY newMenu.accesskey                          "N">
+<!ENTITY newBlankPageCmd.label                      "Tinklalapis">
+<!ENTITY newBlankPageCmd.accesskey                  "T" >
+<!ENTITY newBlankPageCmd.key                        "n" >
+<!ENTITY newPageFromTemplateCmd.label               "Tinklalapis pagal šabloną">
+<!ENTITY newPageFromTemplateCmd.accesskey           "š">
+<!ENTITY newPageFromDraftCmd.label                  "Tinklalapis iš juodraščio">
+<!ENTITY newPageFromDraftCmd.accesskey              "j">
+<!-- LOCALIZATION NOTE  (newNavigatorCmd.label): Do NOT translate "Navigator" -->
+<!ENTITY newNavigatorCmd.label                      "Naršyklės langas">
+<!ENTITY newNavigatorCmd.key                        "N">
+<!ENTITY newNavigatorCmd.accesskey                  "r">
+<!ENTITY printSetupCmd.label "Puslapio nuostatos…">
+<!ENTITY printSetupCmd.accesskey "P">
+<!ENTITY printPreviewCmd.label "Spaudinio peržiūra">
+<!ENTITY printPreviewCmd.accesskey "ž">
+<!ENTITY printCmd.label "Spausdinti…">
+<!ENTITY printCmd.accesskey "S">
+<!ENTITY printCmd.key "P">
+
+<!ENTITY editMenu.label                             "Taisa"> 
+<!ENTITY editMenu.accesskey                         "T"> 
+<!ENTITY undoCmd.label                              "Atšaukti">  
+<!ENTITY undoCmd.key                                "Z">  
+<!ENTITY undoCmd.accesskey                          "A"> 
+<!ENTITY redoCmd.label                              "Atstatyti">  
+<!ENTITY redoCmd.key                                "Y">  
+<!ENTITY redoCmd.accesskey                          "s"> 
+<!ENTITY cutCmd.label                               "Iškirpti">  
+<!ENTITY cutCmd.key                                 "X">  
+<!ENTITY cutCmd.accesskey                           "r"> 
+<!ENTITY copyCmd.label                              "Kopijuoti">  
+<!ENTITY copyCmd.key                                "C">  
+<!ENTITY copyCmd.accesskey                          "K"> 
+<!ENTITY pasteCmd.label                             "Įdėti">  
+<!ENTITY pasteCmd.key                               "V">  
+<!ENTITY pasteCmd.accesskey                         "d"> 
+<!ENTITY pasteGoCmd.label                           "Įdėti ir atverti">
+<!ENTITY pasteGoCmd.accesskey                       "ė">
+<!-- LOCALIZATION NOTE (pasteSearchCmd): "Search" is a verb, this is the
+     search bar equivalent to the url bar's "Paste & Go"  -->
+<!ENTITY pasteSearchCmd.label                       "Įdėti ir ieškoti">
+<!ENTITY pasteSearchCmd.accesskey                   "ė">
+<!ENTITY deleteCmd.label                            "Pašalinti">  
+<!ENTITY deleteCmd.accesskey                        "š"> 
+<!ENTITY selectAllCmd.label                         "Pažymėti viską">  
+<!ENTITY selectAllCmd.key                           "A">  
+<!ENTITY selectAllCmd.accesskey                     "v"> 
+<!ENTITY clearHistoryCmd.label                      "Išvalyti paieškos praeities sąrašą">
+<!ENTITY clearHistoryCmd.accesskey                  "v">
+<!ENTITY showSuggestionsCmd.label                   "Rodyti siūlymus">
+<!ENTITY showSuggestionsCmd.accesskey               "R">
+<!ENTITY preferencesCmd.label                       "Nuostatos…">
+<!ENTITY preferencesCmd.key                         "E">  
+<!ENTITY preferencesCmd.accesskey                   "N"> 
+<!ENTITY findCmd.key "F">
+<!-- LOCALIZATION NOTE (findCmd.accesskey): This accesskey should be within
+     findCmd.label found in messengercompose.dtd, messenger.dtd and
+     editorOverlay.dtd and findOnCmd.label found in navigatorOverlay.dtd -->
+<!ENTITY findCmd.accesskey "I">
+<!ENTITY findAgainCmd.label "Ieškoti toliau">
+<!ENTITY findAgainCmd.key "G">
+<!ENTITY findAgainCmd.accesskey "e">
+<!ENTITY findAgainCmd.key2 "VK_F3">
+<!ENTITY findPrevCmd.label "Ieškoti ankstesnio">
+<!ENTITY findPrevCmd.key "G">
+<!ENTITY findPrevCmd.key2 "VK_F3">
+<!ENTITY findPrevCmd.accesskey "o">
+<!ENTITY findTypeTextCmd.label                      "Renkant ieškoti tekste">
+<!ENTITY findTypeTextCmd.accesskey                  "R">
+<!ENTITY findTypeLinksCmd.label                     "Renkant ieškoti saituose">
+<!ENTITY findTypeLinksCmd.accesskey                 "s">
+
+<!ENTITY viewMenu.label                             "Rodymas"> 
+<!ENTITY viewMenu.accesskey                         "R"> 
+<!ENTITY viewToolbarsMenu.label                     "Priemonių juostos"> 
+<!ENTITY viewToolbarsMenu.accesskey	                "o"> 
+<!ENTITY showTaskbarCmd.label                       "Būsenos juosta">  
+<!ENTITY showTaskbarCmd.accesskey                   "B"> 
+
+<!ENTITY helpMenu.label                             "Žinynas"> 
+<!ENTITY helpMenu.accesskey                         "Ž"> 
+
+<!ENTITY helpTroubleshootingInfo.label              "Informacija problemų sprendimui">
+<!ENTITY helpTroubleshootingInfo.accesskey          "s">
+<!ENTITY releaseCmd.label                           "Laidos apžvalga">
+<!ENTITY releaseCmd.accesskey                       "L">
+<!ENTITY helpSafeMode.label                         "Perleisti programą, išjungus priedus">
+<!ENTITY helpSafeMode.accesskey                     "r">
+<!ENTITY updateCmd.label                            "Tikrinti ar yra naujinimų…">
+<!ENTITY updateCmd.accesskey                        "T">
+<!ENTITY aboutCmd.label                             "Apie „&brandShortName;“">
+<!ENTITY aboutCmd.accesskey                         "A">
+<!ENTITY aboutCommPluginsCmd.label                  "Apie programos papildinius">
+<!ENTITY aboutCommPluginsCmd.accesskey              "p">
+
+<!ENTITY direct.label                               "Tinkle (be įgaliotojo serverio)">
+<!ENTITY direct.accesskey                           "b">
+<!ENTITY manual.label                               "Tinkle (rankinė įgaliotojo serverio sąranka)">
+<!ENTITY manual.accesskey                           "r">
+<!ENTITY pac.label                                  "Tinkle (automatinė įgaliotojo serverio sąranka)">
+<!ENTITY pac.accesskey                              "a">
+<!ENTITY wpad.label                                 "Tinkle (įgaliotieji serveriai aptinkami automatiškai)">
+<!ENTITY wpad.accesskey                             "T">
+<!ENTITY system.label                               "Tinkle (naudojamos sistemos įgaliotojo serverio nuostatos)">
+<!ENTITY system.accesskey                           "s">
+
+<!ENTITY proxy.label                                "Įgaliotojo serverio sąranka…">
+<!ENTITY proxy.accesskey                            "s">
+
+<!ENTITY bidiSwitchTextDirectionItem.label          "Pakeisti teksto kryptį">
+<!ENTITY bidiSwitchTextDirectionItem.accesskey      "P">
+<!ENTITY bidiSwitchTextDirectionItem.commandkey     "X">
+
+<!ENTITY customizeToolbarContext.label              "Tvarkyti…">
+<!ENTITY customizeToolbarContext.accesskey          "T">
+
+<!ENTITY customizeToolbar.toolbarmode.label         "Priemonių juostos nuostatos">
+<!ENTITY customizeToolbar.toolbarmode.accesskey     "n">
+<!ENTITY customizeToolbar.iconsAndText.label        "Piktogramos ir tekstas">
+<!ENTITY customizeToolbar.iconsAndText.accesskey    "i">
+<!ENTITY customizeToolbar.icons.label               "Piktogramos">
+<!ENTITY customizeToolbar.icons.accesskey           "P">
+<!ENTITY customizeToolbar.text.label                "Tekstas">
+<!ENTITY customizeToolbar.text.accesskey            "T">
+<!ENTITY customizeToolbar.useSmallIcons.label       "Mažos piktogramos">
+<!ENTITY customizeToolbar.useSmallIcons.accesskey   "M">
+<!ENTITY customizeToolbar.labelAlignEnd.label       "Tekstas greta piktogramų">
+<!ENTITY customizeToolbar.labelAlignEnd.accesskey   "g">
+<!ENTITY customizeToolbar.useDefault.label          "Atkurti numatytąsias nuostatas">
+<!ENTITY customizeToolbar.useDefault.accesskey      "n">
+
+<!-- Popup Blocked notification menu -->
+<!ENTITY allowPopups.accesskey                      "L">
+<!ENTITY showPopupManager.label                     "Iškylančiųjų langų valdymas">
+<!ENTITY showPopupManager.accesskey                 "v">
+<!ENTITY dontShowMessage.label                      "Užblokavus iškylančiuosius langus nerodyti šio pranešimo">
+<!ENTITY dontShowMessage.accesskey                  "n">
+
+<!ENTITY syncToolbarButton.label                    "Sinchronizuoti">

@@ -1,0 +1,10 @@
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Hjelpeprogrammer">
+
+<!ENTITY typeColumn.label        "Innholdstype">
+<!ENTITY typeColumn.accesskey    "T">
+
+<!ENTITY actionColumn2.label     "Handling">
+<!ENTITY actionColumn2.accesskey "H">
+
+<!ENTITY search.placeholder      "Søk i typer og handlinger">

@@ -1,0 +1,37 @@
+<!-- extracted from am-addressing.xul -->
+
+<!ENTITY addressing.label "Opmaak en adressering">
+<!ENTITY addressingGroupTitle.label "Adresbediener">
+<!ENTITY addressingText.label "Wanneer adresse deursoek word:">
+<!-- LOCALIZATION NOTE (override.label) : do not translate "LDAP" in below line -->
+<!ENTITY useGlobal.label "Gebruik die algemene LDAP-bedienervoorkeure vir hierdie rekening">
+<!ENTITY useGlobal.accesskey "G">
+<!ENTITY editDirectories.label "Edit Directories…">
+<!ENTITY editDirectories.accesskey "E">
+<!-- LOCALIZATION NOTE (directories.label) : do not translate "LDAP" in below line -->
+<!ENTITY directories.label "Gebruik 'n ander LDAP-bediener:">
+<!ENTITY directories.accesskey "D">
+<!ENTITY directoriesNone.label "Geen">
+<!-- am-addressing.xul -->
+
+
+<!ENTITY compositionGroupTitle.label "Opstelling">
+<!-- LOCALIZATION NOTE (useHtml.label) : do not translate "html" in below line -->
+<!ENTITY useHtml.label "Skryf boodskappe in HTML-formaat">
+<!ENTITY useHtml.accesskey "S">
+<!ENTITY autoQuote.label "Automatically quote the original message when replying">
+<!ENTITY autoQuote.accesskey "m">
+<!-- LOCALIZATION NOTE (then.label): This will concatenate with the 4 strings that follow. -->
+<!ENTITY then.label "Dan,">
+<!ENTITY then.accesskey "D">
+<!ENTITY aboveQuote.label "begin my antwoord bo die aangehaalde teks">
+<!ENTITY belowQuote.label "begin my antwoord onder die aangehaalde teks">
+<!ENTITY selectAndQuote.label "merk die aanhaling">
+<!ENTITY place.label "and place my signature">
+<!ENTITY place.accesskey "s">
+<!ENTITY belowText.label "onder die aanhaling (aanbeveel)">
+<!ENTITY aboveText.label "begin my antwoord (bokant aanhaalde)">
+<!ENTITY includeSigOnReply.label "Include signature for replies">
+<!ENTITY includeSigOnReply.accesskey "s">
+<!ENTITY includeSigOnForward.label "Include signature for forwards">
+<!ENTITY includeSigOnForward.accesskey "w">

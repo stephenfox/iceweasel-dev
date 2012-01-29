@@ -1,0 +1,102 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Communicator.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corp.
+   - Portions created by the Initial Developer are Copyright (C) 2000
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   David Bienvenu <bienvenu@netscape.com>
+   -   Mohan Bhamidipati <mohanb@netscape.com>
+   -   Lorenzo Colitti   <lorenzo@colitti.com>
+   -   Stefan Borggraefe <Stefan.Borggraefe@gmx.de>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either of the GNU General Public License Version 2 or later (the "GPL"),
+   - or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY folderProps.windowtitle.label           "Eigenschaften">
+
+<!ENTITY generalInfo.label                       "Allgemeine Informationen">
+<!ENTITY folderCharsetTab.label                  "Standard-Zeichensatz:">
+<!ENTITY folderCharsetTab.accesskey              "Z">
+<!ENTITY folderCharsetOverride.label             "Standard allen Nachrichten im Ordner zuweisen (individuelle Nachrichtenzeichensatzeinstellungen und autom. Bestimmung werden ignoriert)">
+<!ENTITY folderCharsetOverride.accesskey         "S">
+<!ENTITY folderRebuildSummaryFileTip2.label      "Zusammenfassungsdatei neu erstellen">
+<!ENTITY folderRebuildSummaryFile2.label         "Ordner reparieren">
+<!ENTITY folderRebuildSummaryFile2.accesskey     "O">
+<!ENTITY folderRebuildSummaryFile.explanation    "Manchmal wird die Ordner-Index-Datei (.msf) beschädigt und Nachrichten können verloren erscheinen oder gelöschte Dateien noch aufscheinen; den Ordner zu reparieren könnte diese Probleme lösen.">
+<!ENTITY folderIncludeInGlobalSearch.label       "Nachrichten dieses Ordners in globalen Suchergebnissen einschließen.">
+<!ENTITY folderIncludeInGlobalSearch.accesskey   "N">
+
+<!ENTITY retention.label "Regeln für Lebensdauer">
+<!ENTITY retentionUseAccount.label "Account-Einstellungen verwenden">
+<!ENTITY retentionUseAccount.accesskey "o">
+<!ENTITY daysOld.label "Tage sind">
+<!ENTITY message.label "Nachrichten">
+<!ENTITY retentionCleanup.label "Nachrichten behalten:">
+<!ENTITY retentionCleanupImap.label "Nachrichten behalten, sowohl die lokalen Kopien als auch ihre Originale am Server:">
+<!ENTITY retentionCleanupPop.label "Nachrichten behalten, inklusive ihrer Originale am Server:">
+<!ENTITY retentionDeleteMsg.label "Nachrichten löschen, die älter sind als">
+<!ENTITY retentionDeleteMsg.accesskey "c">
+<!ENTITY retentionKeepAll.label "Alle Nachrichten">
+<!ENTITY retentionKeepAll.accesskey "A">
+<!ENTITY retentionKeepRecent.label "Die neuesten">
+<!ENTITY retentionKeepRecent.accesskey "e">
+<!-- LOCALIZATION NOTE: Unhide with .keepUnreadOnly { display: -moz-box; } -->
+<!ENTITY retentionKeepUnreadHidden.label "Gelesene Nachrichten immer löschen (übergeht Alterseinstellungen)">
+<!ENTITY retentionApplyToFlagged.label "Gekennzeichnete Nachrichten immer behalten">
+<!ENTITY retentionApplyToFlagged.accesskey "G">
+
+<!ENTITY folderSynchronizationTab.label          "Synchronisation">
+<!ENTITY folderCheckForNewMessages2.label        "Diesen Ordner immer prüfen, wenn Nachrichten für diesen Account abgefragt werden">
+<!ENTITY folderCheckForNewMessages2.accesskey    "w">
+
+<!ENTITY offlineFolder.check.label               "Diesen Ordner für Offline-Gebrauch auswählen">
+<!ENTITY offlineFolder.check.accesskey           "D">
+<!ENTITY offlineFolder.button.label              "Jetzt herunterladen">
+<!ENTITY offlineFolder.button.accesskey          "J">
+
+<!ENTITY selectofflineNewsgroup.check.label      "Diese Newsgroup für Offline-Gebrauch auswählen">
+<!ENTITY selectofflineNewsgroup.check.accesskey  "D">
+<!ENTITY offlineNewsgroup.button.label           "Jetzt herunterladen">
+<!ENTITY offlineNewsgroup.button.accesskey       "J">
+
+<!ENTITY folderProps.name.label                  "Name:">
+<!ENTITY folderProps.name.accesskey              "N">
+<!ENTITY folderProps.location.label              "Adresse:">
+<!ENTITY folderProps.location.accesskey          "A">
+
+<!ENTITY folderSharingTab.label                  "Freigabe">
+<!ENTITY privileges.button.label                 "Berechtigungen…">
+<!ENTITY privileges.button.accesskey             "B">
+<!ENTITY permissionsDesc.label                   "Sie haben folgende Berechtigungen:">
+<!ENTITY folderType.label                        "Ordnertyp:">
+
+<!ENTITY folderQuotaTab.label                    "Quota">
+<!ENTITY folderQuotaRoot.label                   "Quota-Wurzel:">
+<!ENTITY folderQuotaUsage.label                  "Verwendung:">
+<!ENTITY folderQuotaStatus.label                 "Status:">

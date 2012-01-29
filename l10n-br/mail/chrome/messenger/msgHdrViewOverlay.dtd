@@ -1,0 +1,133 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Da ">
+<!ENTITY fromField3.label "A-berzh ">
+<!ENTITY senderField3.label "Kaser ">
+<!ENTITY organizationField3.label "Aozadur ">
+<!ENTITY replyToField3.label "Respont da ">
+
+<!ENTITY subjectField3.label "Danvez ">
+<!ENTITY ccField3.label "Cc ">
+<!ENTITY bccField3.label "Bcc ">
+<!ENTITY newsgroupsField3.label "Strolladoù-keleier ">
+<!ENTITY followupToField3.label "Kas en-dro da ">
+<!ENTITY tagsHdr3.label "Merkoù ">
+<!ENTITY dateField3.label "Deiziad ">
+<!ENTITY userAgentField3.label "Gwezhiad arveriad ">
+<!ENTITY referencesField3.label "Menegoù ">
+<!ENTITY messageIdField3.label "Naoudi ar gemennadenn ">
+<!ENTITY inReplyToField3.label "E-respont-da ">
+<!ENTITY originalWebsite3.label "Lec'hienn ">
+
+<!ENTITY editMessageDescription.label "Ar gemennadenn-mañ zo ur brouilhed">
+<!ENTITY editMessageButton.label "Embann…">
+<!ENTITY hdrArchiveButton1.label "Diellaouiñ">
+<!ENTITY hdrArchiveButton1.tooltip "Diellaouiñ ar gemennadenn-mañ">
+<!ENTITY hdrSmartReplyButton1.label "Respont speredek">
+<!ENTITY hdrReplyButton1.label "Respont">
+<!ENTITY hdrReplyButton1.tooltip "Respont d'ar gemennadenn-mañ">
+<!ENTITY hdrReplyAllButton1.label "Respont d'an holl">
+<!ENTITY hdrReplyAllButton1.tooltip "Respont d'ar c'haser ha d'an holl zegemerien">
+<!ENTITY hdrReplyListButton1.label "Respont d'ar roll">
+<!ENTITY hdrReplyListButton1.tooltip "Respont d'ar roll skignañ">
+<!ENTITY hdrForwardButton1.label "Lakaat da dremen">
+<!ENTITY hdrForwardButton1.tooltip "Lakaat da dremen ar gemennadenn-mañ">
+<!ENTITY hdrJunkButton1.label "Lastez">
+<!ENTITY hdrJunkButton1.tooltip "Merkañ ar gemennadenn-mañ evel lastez">
+<!ENTITY hdrTrashButton1.label "Dilemel">
+<!ENTITY hdrTrashButton1.tooltip "Dilemel ar gemennadenn-mañ">
+
+<!ENTITY hdrViewToolbarShowFull.label "Diskwel an arlunioù hag an destenn">
+<!ENTITY hdrViewToolbarShowFull.accesskey "D">
+<!ENTITY hdrViewToolbarShowIcons.label "Diskwel an arlunioù nemetken">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "a">
+<!ENTITY hdrViewToolbarShowText.label "Diskwel an destenn nemetken">
+<!ENTITY hdrViewToolbarShowText.accesskey "d">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Diskwel atav Respont d'ar c'haser">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "R">
+
+<!ENTITY otherActionsButton1.label "Gwezhioù all">
+<!ENTITY otherActionsOpenConversation1.label "Digeriñ e-barzh ar gaozeadenn">
+<!ENTITY otherActionsOpenConversation1.accesskey "D">
+<!ENTITY otherActionsOpenInNewWindow1.label "Digeriñ e-barzh ur prenestr nevez">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "D">
+<!ENTITY otherActionsOpenInNewTab1.label "Digeriñ e-barzh un ivinell nevez">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "D">
+<!ENTITY markAsReadMenuItem1.label "Merkañ evel Lennet">
+<!ENTITY markAsReadMenuItem1.accesskey "r">
+<!ENTITY markAsUnreadMenuItem1.label "Merkañ evel Ket lennet">
+<!ENTITY markAsUnreadMenuItem1.accesskey "r">
+<!ENTITY saveAsMenuItem1.label "Enrollañ evel…">
+<!ENTITY saveAsMenuItem1.accesskey "E">
+<!ENTITY viewSourceMenuItem1.label "Gwelout an tarzh">
+<!ENTITY viewSourceMenuItem1.accesskey "G">
+<!ENTITY otherActionsPrint1.label "Moullañ…">
+<!ENTITY otherActionsPrint1.accesskey "M">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label    "Digeriñ">
+<!ENTITY openAttachmentCmd.accesskey    "D">
+<!ENTITY saveAsAttachmentCmd.label    "Enrollañ evel…">
+<!ENTITY saveAsAttachmentCmd.accesskey    "n">
+<!ENTITY detachAttachmentCmd.label    "Distagañ …">
+<!ENTITY detachAttachmentCmd.accesskey    "s">
+<!ENTITY deleteAttachmentCmd.label    "Dilemel">
+<!ENTITY deleteAttachmentCmd.accesskey    "l">
+<!ENTITY openAllAttachmentsCmd.label    "Digeriñ pep tra…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "g">
+<!ENTITY saveAllAttachmentsCmd.label    "Enrollañ pep tra…">
+<!ENTITY saveAllAttachmentsCmd.accesskey    "t">
+<!ENTITY detachAllAttachmentsCmd.label    "Distagañ pep tra…">
+<!ENTITY detachAllAttachmentsCmd.accesskey    "D">
+<!ENTITY deleteAllAttachmentsCmd.label    "Dilemel pep tra…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "m">
+
+<!ENTITY openAttachment.tooltip "Digeriñ ar restr stag">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "Enrollañ">
+<!ENTITY saveAttachmentButton1.tooltip     "Enrollañ ar restr stag">
+<!ENTITY saveAllAttachmentsButton1.label   "Enrollañ pep tra">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Enrollañ an holl restroù stag">
+
+<!ENTITY copyLinkCmd.label        "Eilañ lec'hiadur an ere">
+<!ENTITY copyLinkCmd.accesskey    "c">
+
+<!ENTITY CopyMessageId.label "Eilañ an hennad kemennadenn">
+<!ENTITY OpenMessageForMsgId.label "Digeriñ kemennadenn an hennad">
+<!ENTITY OpenBrowserWithMsgId.label "Digeriñ ar merdeer evit an hennad kemennadenn">

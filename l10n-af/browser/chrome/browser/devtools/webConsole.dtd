@@ -1,0 +1,16 @@
+<!ENTITY networkPanel.requestURL                  "Versoek-URL">
+<!ENTITY networkPanel.requestMethod               "Versoekmetode">
+<!ENTITY networkPanel.statusCode                  "Statuskode">
+
+<!ENTITY networkPanel.requestHeaders              "Versoekkoppe">
+<!ENTITY networkPanel.requestCookie               "Koekie gestuur">
+<!ENTITY networkPanel.requestBody                 "Versoeklyf">
+<!ENTITY networkPanel.requestFormData             "Stuur vormdata">
+
+<!ENTITY networkPanel.responseHeaders             "Responskoppe">
+<!ENTITY networkPanel.responseBody                "Responslyf">
+<!ENTITY networkPanel.responseBodyCached          "Gekaste data">
+<!ENTITY networkPanel.responseBodyUnknownType     "Onbekende inhoudtipe">
+<!ENTITY networkPanel.responseNoBody              "Geen responslyf nie">
+<!ENTITY networkPanel.responseImage               "Ontvangde prent">
+<!ENTITY networkPanel.responseImageCached         "Gekaste prent">

@@ -1,0 +1,30 @@
+<!ENTITY pref.navigator.title "Браузер">
+<!ENTITY navRadio.label "Открывать при">
+<!ENTITY navRadio.accesskey "т">
+<!ENTITY navStartPageMenu.label "запуске браузера">
+<!ENTITY newWinPageMenu.label "создании окна">
+<!ENTITY newTabPageMenu.label "создании вкладки">
+<!ENTITY blankPageRadio.label "Пустую страницу">
+<!ENTITY blankPageRadio.accesskey "П">
+<!ENTITY homePageRadio.label "Домашнюю страницу">
+<!ENTITY homePageRadio.accesskey "Н">
+<!ENTITY lastPageRadio.label "Последнюю просмотренную страницу">
+<!ENTITY lastPageRadio.accesskey "с">
+<!ENTITY restoreSessionRadio.label "Восстановить предыдущую сессию">
+<!ENTITY restoreSessionRadio.accesskey "с">
+<!ENTITY header2.label "Домашняя страница">
+<!ENTITY homePageIntro.label "При нажатии кнопки «Домашняя страница» загрузится следующая группа страниц:">
+<!ENTITY useCurrent.label "Текущая страница">
+<!ENTITY useCurrent.accesskey "Т">
+<!ENTITY useCurrentGroup.label "Текущая группа страниц">
+<!ENTITY useCurrentGroup.accesskey "г">
+<!ENTITY browseFile.label "Выбрать файл…">
+<!ENTITY browseFile.accesskey "б">
+<!ENTITY useDefault.label "Восстановить">
+<!ENTITY useDefault.accesskey "В">
+<!ENTITY defaultBrowserGroup.label "Браузер по умолчанию">
+<!ENTITY defaultBrowserButton.label "По умолчанию">
+<!ENTITY defaultBrowserButton.accesskey "м">
+<!ENTITY alreadyDefaultText "&brandShortName; уже является вашим браузером по умолчанию.">
+<!ENTITY defaultPendingText "&brandShortName; станет вашим браузером по умолчанию после нажатия кнопки «OK».">
+<!ENTITY makeDefaultText "Сделать &brandShortName; браузером по умолчанию.">

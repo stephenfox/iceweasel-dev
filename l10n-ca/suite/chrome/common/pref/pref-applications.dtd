@@ -1,0 +1,10 @@
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Aplicacions ajudants">
+
+<!ENTITY typeColumn.label        "Tipus de contingut">
+<!ENTITY typeColumn.accesskey    "T">
+
+<!ENTITY actionColumn2.label     "Acció">
+<!ENTITY actionColumn2.accesskey "A">
+
+<!ENTITY search.placeholder      "Cerca tipus i accions">

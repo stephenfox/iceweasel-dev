@@ -1,0 +1,4 @@
+<!ENTITY window.title             "Berichtsamenvatting">
+<!ENTITY selectedmessages.label   "Geselecteerde berichten">
+<!ENTITY archiveButton.label      "Archiveren">
+<!ENTITY deleteButton.label       "Verwijderen">

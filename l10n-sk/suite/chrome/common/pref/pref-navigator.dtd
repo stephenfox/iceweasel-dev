@@ -1,0 +1,34 @@
+<!ENTITY pref.navigator.title           "Prehliadač">
+
+<!ENTITY navRadio.label                 "Zobraziť">
+<!ENTITY navRadio.accesskey             "Z">
+<!ENTITY navStartPageMenu.label         "pri spustení prehliadača">
+<!ENTITY newWinPageMenu.label           "v novom okne">
+<!ENTITY newTabPageMenu.label           "na novej karte">
+
+<!ENTITY blankPageRadio.label           "Prázdnu stránku">
+<!ENTITY blankPageRadio.accesskey       "r">
+<!ENTITY homePageRadio.label            "Domovskú stránku">
+<!ENTITY homePageRadio.accesskey        "D">
+<!ENTITY lastPageRadio.label            "Naposledy navštívenú stránku">
+<!ENTITY lastPageRadio.accesskey        "N">
+<!ENTITY restoreSessionRadio.label      "Obnoviť predchádzajúcu reláciu">
+<!ENTITY restoreSessionRadio.accesskey  "O">
+
+<!ENTITY header2.label                  "Domovská stránka">
+<!ENTITY homePageIntro.label            "Kliknutím na tlačidlo Domov prejdete na túto skupinu stránok:">
+<!ENTITY useCurrent.label               "Použiť aktuálnu stránku">
+<!ENTITY useCurrent.accesskey           "a">
+<!ENTITY useCurrentGroup.label          "Použiť aktuálnu skupinu">
+<!ENTITY useCurrentGroup.accesskey      "u">
+<!ENTITY browseFile.label               "Vybrať súbor…">
+<!ENTITY browseFile.accesskey           "V">
+<!ENTITY useDefault.label               "Obnoviť predvolené">
+<!ENTITY useDefault.accesskey           "b">
+
+<!ENTITY defaultBrowserGroup.label      "Predvolený prehliadač">
+<!ENTITY defaultBrowserButton.label     "Nastaviť predvolený prehliadač">
+<!ENTITY defaultBrowserButton.accesskey "e">
+<!ENTITY alreadyDefaultText             "&brandShortName; už je nastavený ako predvolený prehliadač.">
+<!ENTITY defaultPendingText             "&brandShortName; bude po kliknutí na tlačidlo OK nastavený ako predvolený prehliadač.">
+<!ENTITY makeDefaultText                "Nastaviť &brandShortName; ako predvolený prehliadač.">

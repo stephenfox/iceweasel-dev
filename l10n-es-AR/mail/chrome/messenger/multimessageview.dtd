@@ -1,0 +1,5 @@
+<!ENTITY window.title             "Resumen de mensajes">
+<!ENTITY selectedmessages.label   "Mensajes seleccionados">
+<!ENTITY archiveButton.label      "Archivar">
+<!ENTITY deleteButton.label       "Borrar">
+

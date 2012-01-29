@@ -1,0 +1,9 @@
+<!ENTITY contact.heading "Contato">
+<!ENTITY home.heading "Endereço residencial">
+<!ENTITY other.heading "Outros">
+<!ENTITY phone.heading "Telefones">
+<!ENTITY work.heading "Endereço comercial">
+<!ENTITY description.heading "Descrição">
+<!ENTITY addresses.heading "Endereços">
+<!ENTITY mapItButton.label "Mapa">
+<!ENTITY mapIt.tooltip "Pesquisar um mapa deste endereço na web">

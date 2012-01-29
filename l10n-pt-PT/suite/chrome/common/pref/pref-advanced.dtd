@@ -1,0 +1,15 @@
+<!--LOCALIZATION NOTE : FILE 'Advanced' prefs settings -->
+<!ENTITY pref.advanced.title        "Avançado">
+
+<!ENTITY systemPref.caption         "Preferências do Sistema">
+<!ENTITY systemPrefCheck.label      "Usar as Preferências do Sistema">
+<!ENTITY systemPrefCheck.accesskey  "U">
+<!ENTITY systemPref.desc            "Com esta opção, o &brandShortName; utiliza as preferências do sistema. Estas definições do sistema sobrepõem-se às preferências do &brandShortName;.">
+
+<!ENTITY prefCheckDefault.caption   "Integração do sistema">
+<!ENTITY prefCheckDefaultClient.label "Verificar definições pré-definidas no arranque">
+<!ENTITY prefCheckDefaultClient.accesskey "V">
+
+<!ENTITY crashReports.caption       "Relatórios de erro">
+<!ENTITY submitCrashes.label        "Enviar relatórios de erro">
+<!ENTITY submitCrashes.accesskey    "S">

@@ -1,0 +1,136 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+   Henrik Olsson <henriko@algonet.se>
+   Mikael Hedberg <hedberg@novasphere.net>
+   Hasse Wallanger <hasse@jasajudeju.se>
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Till ">
+<!ENTITY fromField3.label "Från ">
+<!ENTITY senderField3.label "Avsändare ">
+<!ENTITY organizationField3.label "Organisation ">
+<!ENTITY replyToField3.label "Svara till ">
+
+<!ENTITY subjectField3.label "Ämne ">
+<!ENTITY ccField3.label "Kopia ">
+<!ENTITY bccField3.label "Dold kopia ">
+<!ENTITY newsgroupsField3.label "Diskussionsgrupper ">
+<!ENTITY followupToField3.label "Uppföljning till ">
+<!ENTITY tagsHdr3.label "Etiketter ">
+<!ENTITY dateField3.label "Datum ">
+<!ENTITY userAgentField3.label "Använt program ">
+<!ENTITY referencesField3.label "Referenser ">
+<!ENTITY messageIdField3.label "Meddelande-ID ">
+<!ENTITY inReplyToField3.label "Svar på ">
+<!ENTITY originalWebsite3.label "Webbplats ">
+
+<!ENTITY editMessageDescription.label "Det här är ett utkast">
+<!ENTITY editMessageButton.label "Redigera…">
+<!ENTITY hdrArchiveButton1.label "Arkivera">
+<!ENTITY hdrArchiveButton1.tooltip "Arkivera meddelandet">
+<!ENTITY hdrSmartReplyButton1.label "Svara smart">
+<!ENTITY hdrReplyButton1.label "Svara">
+<!ENTITY hdrReplyButton1.tooltip "Besvara meddelandet">
+<!ENTITY hdrReplyAllButton1.label "Svara alla">
+<!ENTITY hdrReplyAllButton1.tooltip "Svara avsändaren och alla mottagare">
+<!ENTITY hdrReplyListButton1.label "Svara listan">
+<!ENTITY hdrReplyListButton1.tooltip "Svara till e-postlistan">
+<!ENTITY hdrForwardButton1.label "Vidarebefordra">
+<!ENTITY hdrForwardButton1.tooltip "Vidarebefordra meddelandet">
+<!ENTITY hdrJunkButton1.label "Skräp">
+<!ENTITY hdrJunkButton1.tooltip "Märk meddelandet som skräp">
+<!ENTITY hdrTrashButton1.label "Ta bort">
+<!ENTITY hdrTrashButton1.tooltip "Ta bort meddelandet">
+
+<!ENTITY hdrViewToolbarShowFull.label "Visa ikoner och text">
+<!ENTITY hdrViewToolbarShowFull.accesskey "V">
+<!ENTITY hdrViewToolbarShowIcons.label "Visa endast ikoner">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "e">
+<!ENTITY hdrViewToolbarShowText.label "Visa endast text">
+<!ENTITY hdrViewToolbarShowText.accesskey "t">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Visa alltid Svara till avsändaren">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "a">
+
+<!ENTITY otherActionsButton1.label "Andra åtgärder">
+<!ENTITY otherActionsOpenConversation1.label "Öppna i konversation">
+<!ENTITY otherActionsOpenConversation1.accesskey "k">
+<!ENTITY otherActionsOpenInNewWindow1.label "Öppna i nytt fönster">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "Ö">
+<!ENTITY otherActionsOpenInNewTab1.label "Öppna i ny flik">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "a">
+<!ENTITY markAsReadMenuItem1.label "Markera som läst">
+<!ENTITY markAsReadMenuItem1.accesskey "M">
+<!ENTITY markAsUnreadMenuItem1.label "Markera som oläst">
+<!ENTITY markAsUnreadMenuItem1.accesskey "o">
+<!ENTITY saveAsMenuItem1.label "Spara som…">
+<!ENTITY saveAsMenuItem1.accesskey "S">
+<!ENTITY viewSourceMenuItem1.label "Visa källkod">
+<!ENTITY viewSourceMenuItem1.accesskey "V">
+<!ENTITY otherActionsPrint1.label "Skriv ut…">
+<!ENTITY otherActionsPrint1.accesskey "u">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label    "Öppna">
+<!ENTITY openAttachmentCmd.accesskey    "p">
+<!ENTITY saveAsAttachmentCmd.label    "Spara som…">
+<!ENTITY saveAsAttachmentCmd.accesskey    "s">
+<!ENTITY detachAttachmentCmd.label    "Avskilj…">
+<!ENTITY detachAttachmentCmd.accesskey    "k">
+<!ENTITY deleteAttachmentCmd.label    "Ta bort">
+<!ENTITY deleteAttachmentCmd.accesskey    "b">
+<!ENTITY openAllAttachmentsCmd.label    "Öppna alla…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "p">
+<!ENTITY saveAllAttachmentsCmd.label    "Spara alla…">
+<!ENTITY saveAllAttachmentsCmd.accesskey    "a">
+<!ENTITY detachAllAttachmentsCmd.label    "Avskilj alla…">
+<!ENTITY detachAllAttachmentsCmd.accesskey    "v">
+<!ENTITY deleteAllAttachmentsCmd.label    "Ta bort alla…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "T">
+
+<!ENTITY openAttachment.tooltip "Öppna den bifogade filen">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "Spara">
+<!ENTITY saveAttachmentButton1.tooltip     "Spara den bifogade filen">
+<!ENTITY saveAllAttachmentsButton1.label   "Spara alla">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Spara alla bifogade filer">
+
+<!ENTITY copyLinkCmd.label        "Kopiera länkadress">
+<!ENTITY copyLinkCmd.accesskey    "K">
+
+<!ENTITY CopyMessageId.label "Kopiera meddelande-ID">
+<!ENTITY OpenMessageForMsgId.label "Öppna meddelande för ID">
+<!ENTITY OpenBrowserWithMsgId.label "Öppna webbläsare med meddelande-ID">

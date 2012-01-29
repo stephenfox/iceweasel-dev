@@ -1,0 +1,34 @@
+<!ENTITY pref.navigator.title           "Browser">
+
+<!ENTITY navRadio.label                 "Anzeigen">
+<!ENTITY navRadio.accesskey             "n">
+<!ENTITY navStartPageMenu.label         "Beim Browser-Start">
+<!ENTITY newWinPageMenu.label           "In Neuem Fenster">
+<!ENTITY newTabPageMenu.label           "In Neuem Tab">
+
+<!ENTITY blankPageRadio.label           "Leere Seite">
+<!ENTITY blankPageRadio.accesskey       "l">
+<!ENTITY homePageRadio.label            "Startseite">
+<!ENTITY homePageRadio.accesskey        "a">
+<!ENTITY lastPageRadio.label            "Letzte angezeigte Seite">
+<!ENTITY lastPageRadio.accesskey        "e">
+<!ENTITY restoreSessionRadio.label      "Vorherige Sitzung wiederherstellen">
+<!ENTITY restoreSessionRadio.accesskey  "V">
+
+<!ENTITY header2.label                  "Startseite">
+<!ENTITY homePageIntro.label            "Klicken auf die Schaltfläche &quot;Startseite&quot; bringt Sie zu dieser Seite oder Gruppe von Seiten.">
+<!ENTITY useCurrent.label               "Aktuelle Seite">
+<!ENTITY useCurrent.accesskey           "k">
+<!ENTITY useCurrentGroup.label          "Aktuelle Gruppe">
+<!ENTITY useCurrentGroup.accesskey      "G">
+<!ENTITY browseFile.label               "Datei wählen…">
+<!ENTITY browseFile.accesskey           "D">
+<!ENTITY useDefault.label               "Standard">
+<!ENTITY useDefault.accesskey           "S">
+
+<!ENTITY defaultBrowserGroup.label      "Standard-Browser">
+<!ENTITY defaultBrowserButton.label     "Standard-Browser setzen">
+<!ENTITY defaultBrowserButton.accesskey "S">
+<!ENTITY alreadyDefaultText             "&brandShortName; ist bereits Ihr Standard-Browser.">
+<!ENTITY defaultPendingText             "&brandShortName; wird als Ihr Standard-Browser gesetzt, wenn Sie OK klicken.">
+<!ENTITY makeDefaultText                "&brandShortName; als Ihren Standard-Browser setzen.">

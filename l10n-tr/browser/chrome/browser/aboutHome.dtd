@@ -1,0 +1,24 @@
+<!ENTITY % brandDTD
+    SYSTEM "chrome://branding/locale/brand.dtd">
+  %brandDTD;
+
+<!-- These strings are used in the about:home page -->
+
+<!ENTITY abouthome.pageTitle "&brandFullName; başlangıç sayfası">
+
+<!ENTITY abouthome.searchEngineButton.label "Arama">
+
+<!ENTITY abouthome.aboutMozilla "Mozilla hakkında">
+
+<!-- LOCALIZATION NOTE (abouthome.defaultSnippet1.v1):
+     text in <a/> will be linked to the Firefox features page on mozilla.com
+-->
+<!ENTITY abouthome.defaultSnippet1.v1 "Firefox'u seçtiğiniz için teşekkürler! Tarayıcınızdan en üst düzeyde yararlanmak için <a>yeni özellikler</a> hakkında daha fazla bilgi alın.">
+<!-- LOCALIZATION NOTE (abouthome.defaultSnippet2.v1):
+     text in <a/> will be linked to the featured add-ons on addons.mozilla.org
+-->
+<!ENTITY abouthome.defaultSnippet2.v1 "Firefox'u istediğiniz şekilde kendinize uyarlamak çok kolay. <a>Binlerce eklentiler dilediğinizi seçin</a>.">
+
+<!ENTITY abouthome.syncSetup.label   "Eşitlemeyi kur">
+<!ENTITY abouthome.pairDevice.label  "Aygıt eşleştir">
+

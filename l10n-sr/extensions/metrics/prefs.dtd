@@ -1,0 +1,4 @@
+<!ENTITY prefs.label.msg "Молимо Вас да нам помогнете да побољшамо фајерфокс тако што ћете нам послати анонимне податке о употреби.">
+<!ENTITY prefs.button.close "Затвори">
+<!ENTITY prefs.checkbox.enable "Enable Spectator">
+<!ENTITY prefs.title "Spectator Preferences">

@@ -1,0 +1,36 @@
+<!ENTITY aboutDialog.title "&brandFullName; વિશે">
+<!ENTITY bottomLinks.license        "લાઇસન્સીંગ જાણકારી">
+<!ENTITY bottomLinks.privacy        "ખાનગી પોલિસી">
+<!ENTITY bottomLinks.rights         "અંતિમ વપરાશકર્તા હકો">
+<!ENTITY community.creditsLink      "વૈશ્વીક સમુદાય">
+<!ENTITY community.end2             " ઇન્ટરનેટને સારામાં સારુ બનાવવા માટે ભેગા મળીને કામ કરી રહ્યા છે. અમે માનીએ છે કે ઇન્ટરનેટ કોઇપણ મર્યાદાઓ વગર બધાની માટે મુક્ત, સાર્વજનિક, અને વાપરી શકે તેવુ હોવુ જોઇએ.">
+<!ENTITY community.middle2          ", ">
+<!ENTITY community.mozillaLink      "&vendorShortName;">
+<!ENTITY community.start2           "&brandShortName; તેના દ્દારા રચેલ છે ">
+<!ENTITY contribute.end             "">
+<!ENTITY contribute.getInvolvedLink "ભાગીદાર થાઓ!">
+<!ENTITY contribute.start           "શું મનોરંજક લાગે છે? ">
+<!ENTITY update.adminDisabled       "તમારા સિસ્ટમ સંચાલક દ્દારા સુધારો નિષ્ક્રિય">
+<!ENTITY update.checkingAddonCompat "ઍડ-ઑન સુસંગતતાને ચકાસી રહ્યા છે…">
+<!ENTITY update.checkingForUpdates  "સુધારાઓને ચકાસી રહ્યા છે…">
+<!ENTITY update.downloading.start   "સુધારાને ડાઉનલોડ કરી રહ્યા છે — ">
+<!ENTITY update.downloading.end     "">
+<!ENTITY update.failed.start        "સુધારો નિષ્ફળ. ">
+<!ENTITY update.failed.linkText     "તાજેતરની આવૃત્તિને ડાઉનલોડ કરો">
+<!ENTITY update.failed.end          "">
+<!ENTITY update.manual.start        "સુધારાઓ આની પર ઉપલબ્ધ છે ">
+<!ENTITY update.manual.end          "">
+<!ENTITY update.noUpdatesFound      "&brandShortName; નવીનકૃત છે">
+<!ENTITY channel.change             "બદલો">
+<!ENTITY channel.description.start  "તમે હમણાં ચેનલ સુધારા  ">
+<!ENTITY channel.description.end    " પર છો. ">
+<!ENTITY channel.selector.applyButton    "લાગુ કરો અને સુધારો">
+<!ENTITY channel.selector.cancelButton   "રદ કરો">
+<!ENTITY channel.selector.start          "ચેનલ સુધારો કરવા માટે ">
+<!ENTITY channel.selector.end            "બદલો.">
+<!ENTITY channel.aurora.description        "નવા પરીક્ષણોનો કે જે મુખ્ય પ્રકાશનમાં નહીં હોય તેમનો ચકાસણી પર્યાવરણમાં અનુભવ લઇ જુઓ. અંતિમ પ્રકાશનમાં શું કરવાનું છે નક્કી કરવા મદદ માટે પ્રતિસાદ પૂરો પાડો.">
+<!ENTITY channel.beta.description          "વધારે સ્થિરતા સાથે આજનાં યુગની સેવાઓનો લાભ લઇ જુઓ. અંતિમ પ્રકાશનમાં શું હશે તે પ્રકાશિત અને ચોખવટ કરવા માટે પ્રતિસાદ પૂરો પાડો.">
+<!ENTITY channel.release.description       "દુનિયાભરનાં હજારો લોકો દ્દારા વાપરેલ અને ચકાસેલ અંતિમ પ્રકાશનનો આનંદ માણો. ઝડપ, સરળ કસ્ટમાઇઝેશન, તાજેતરની વેબ ટૅકનોલોજી સાથે તમારાં ઓનલાઇન અનુભવને સાચવી રાખો.">
+
+
+

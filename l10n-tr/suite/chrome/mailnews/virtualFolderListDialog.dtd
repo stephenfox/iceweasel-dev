@@ -1,0 +1,5 @@
+<!ENTITY server.label "Hesap: ">
+<!ENTITY server.accesskey "a">
+<!ENTITY virtualFolderListTitle.title "Dizin seçin">
+<!ENTITY virtualFolderDesc.label "Aranacak dizini girin:">
+

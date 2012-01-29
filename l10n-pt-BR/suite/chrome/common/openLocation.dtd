@@ -1,0 +1,12 @@
+<!ENTITY enter.label "Forneça um endereço ou selecione o arquivo que você deseja abrir:">
+<!ENTITY enter.accesskey "F">
+<!ENTITY chooseFile.label "Arquivo...">
+<!ENTITY chooseFile.accesskey "A">
+<!ENTITY newWindow.label "Nova janela">
+<!ENTITY newTab.label "Nova aba">
+<!ENTITY topWindow.label "Janela atual">
+<!ENTITY editNewWindow.label "Composer">
+<!ENTITY open.label "Abrir">
+<!ENTITY caption.label "Abrir">
+<!ENTITY openWhere.label "Abrir em:">
+<!ENTITY openWhere.accesskey "B">

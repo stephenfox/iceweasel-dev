@@ -1,0 +1,105 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Communicator.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corp.
+   - Portions created by the Initial Developer are Copyright (C) 2000
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   David Bienvenu <bienvenu@netscape.com>
+   -   Mohan Bhamidipati <mohanb@netscape.com>
+   -   Lorenzo Colitti   <lorenzo@colitti.com>
+   -   Stefan Borggraefe <Stefan.Borggraefe@gmx.de>
+   -   Henrik Olsson <henriko@algonet.se>
+   -   Mikael Hedberg <hedberg@novasphere.net>
+   -   Lars P M <larspeemm@netscape.net>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either of the GNU General Public License Version 2 or later (the "GPL"),
+   - or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY folderProps.windowtitle.label  "Egenskaper">
+
+<!ENTITY generalInfo.label            "Allmän information">
+<!ENTITY folderCharsetTab.label                  "Förinställd teckenkodning:">
+<!ENTITY folderCharsetTab.accesskey              "t">
+<!ENTITY folderCharsetOverride.label  "Tillämpa förinställningen i alla mappens meddelanden (individuella teckenkodningsinställningar och automatisk avkänning ignoreras)">
+<!ENTITY folderCharsetOverride.accesskey         "v">
+<!ENTITY folderRebuildSummaryFileTip2.label      "Generera sammanställningsfilen på nytt">
+<!ENTITY folderRebuildSummaryFile2.label         "Reparera mapp">
+<!ENTITY folderRebuildSummaryFile2.accesskey     "R">
+<!ENTITY folderRebuildSummaryFile.explanation    "Ibland skadas innehållsförteckningenfilen (.msf) för en mapp och meddelanden kan verka saknas, eller borttagna meddelanden ligga kvar. Att reparera mappen kan lösa dessa problem.">
+<!ENTITY folderIncludeInGlobalSearch.label       "Ta med meddelanden i denna mapp i generella sökresultat">
+<!ENTITY folderIncludeInGlobalSearch.accesskey   "G">
+
+<!ENTITY retention.label                         "Behåll meddelanden">
+<!ENTITY retentionUseAccount.label "Använd inställningen från mitt konto">
+<!ENTITY retentionUseAccount.accesskey "k">
+<!ENTITY daysOld.label                           "dagar">
+<!ENTITY message.label                           "meddelandena">
+<!ENTITY retentionCleanup.label                  "Behåll:">
+<!ENTITY retentionCleanupImap.label 			"Behåll meddelanden, både de lokala kopiorna och deras original på servern:">
+<!ENTITY retentionCleanupPop.label 				"Behåll meddelanden, inklusiver deras original på servern:">
+<!ENTITY retentionDeleteMsg.label "Ta bort meddelanden äldre än">
+<!ENTITY retentionDeleteMsg.accesskey "e">
+<!ENTITY retentionKeepAll.label                  "Alla meddelanden">
+<!ENTITY retentionKeepAll.accesskey              "l">
+<!ENTITY retentionKeepRecent.label "De senaste">
+<!ENTITY retentionKeepRecent.accesskey "s">
+<!-- LOCALIZATION NOTE: Unhide with .keepUnreadOnly { display: -moz-box; } -->
+<!ENTITY retentionKeepUnreadHidden.label "Ta alltid bort lästa meddelanden (oberoende av antalet dagar)">
+<!ENTITY retentionApplyToFlagged.label "Behåll alltid flaggade meddelanden">
+<!ENTITY retentionApplyToFlagged.accesskey "e">
+
+<!ENTITY folderSynchronizationTab.label          "Synkronisera">
+<!ENTITY folderCheckForNewMessages2.label        "När nya meddelanden hämtas från detta konto, kontrollera alltid denna mapp">
+<!ENTITY folderCheckForNewMessages2.accesskey    "k">
+
+<!ENTITY offlineFolder.check.label                          "Den här mappen ska kunna användas nedkopplad">
+<!ENTITY offlineFolder.check.accesskey           "D">
+<!ENTITY offlineFolder.button.label                         "Hämta nu">
+<!ENTITY offlineFolder.button.accesskey          "ä">
+
+<!ENTITY selectofflineNewsgroup.check.label                 "Den här diskussionsgruppen ska kunna användas nedkopplad">
+<!ENTITY selectofflineNewsgroup.check.accesskey  "e">
+<!ENTITY offlineNewsgroup.button.label                      "Hämta nu">
+<!ENTITY offlineNewsgroup.button.accesskey       "ä">
+
+<!ENTITY folderProps.name.label	        "Namn:">
+<!ENTITY folderProps.name.accesskey              "N">
+<!ENTITY folderProps.location.label              "Plats:"> 
+<!ENTITY folderProps.location.accesskey          "P">
+
+<!ENTITY folderSharingTab.label                             "Delning">
+<!ENTITY privileges.button.label                      "Privilegier">
+<!ENTITY privileges.button.accesskey             "P">
+<!ENTITY permissionsDesc.label                            "Du har dessa privilegier:">
+<!ENTITY folderType.label                             "Typ av mapp:">
+
+<!ENTITY folderQuotaTab.label                    "Kvot">
+<!ENTITY folderQuotaRoot.label                   "Kvot-rot:">
+<!ENTITY folderQuotaUsage.label                  "Användning:">
+<!ENTITY folderQuotaStatus.label                            "Status:">

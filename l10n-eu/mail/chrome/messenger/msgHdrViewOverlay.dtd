@@ -1,0 +1,133 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Nori">
+<!ENTITY fromField3.label "Nork ">
+<!ENTITY senderField3.label "Bidaltzailea ">
+<!ENTITY organizationField3.label "Erakundea ">
+<!ENTITY replyToField3.label "Erantzun honi ">
+
+<!ENTITY subjectField3.label "Gaia ">
+<!ENTITY ccField3.label "Cc ">
+<!ENTITY bccField3.label "Bcc ">
+<!ENTITY newsgroupsField3.label "Berri-taldeak ">
+<!ENTITY followupToField3.label "Jarraipena honi ">
+<!ENTITY tagsHdr3.label "Etiketak ">
+<!ENTITY dateField3.label "Data ">
+<!ENTITY userAgentField3.label "Erabiltzaile-agentea ">
+<!ENTITY referencesField3.label "Erreferentziak ">
+<!ENTITY messageIdField3.label "Mezu-IDa ">
+<!ENTITY inReplyToField3.label "Honi erantzunez ">
+<!ENTITY originalWebsite3.label "Webgunea ">
+
+<!ENTITY editMessageDescription.label "Mezua zirriborroa da">
+<!ENTITY editMessageButton.label "Editatu…">
+<!ENTITY hdrArchiveButton1.label "Artxibatu">
+<!ENTITY hdrArchiveButton1.tooltip "Artxibatu mezu hau">
+<!ENTITY hdrSmartReplyButton1.label "Erantzun bizkorra">
+<!ENTITY hdrReplyButton1.label "Erantzun">
+<!ENTITY hdrReplyButton1.tooltip "Erantzun mezuari">
+<!ENTITY hdrReplyAllButton1.label "Erantzun denei">
+<!ENTITY hdrReplyAllButton1.tooltip "Erantzun bidaltzaileari eta hartzaile guztiei">
+<!ENTITY hdrReplyListButton1.label "Erantzun zerrendari">
+<!ENTITY hdrReplyListButton1.tooltip "Erantzun posta-zerrendari">
+<!ENTITY hdrForwardButton1.label "Birbidali">
+<!ENTITY hdrForwardButton1.tooltip "Birbidali mezua">
+<!ENTITY hdrJunkButton1.label "Zabor-posta">
+<!ENTITY hdrJunkButton1.tooltip "Markatu mezua zabor gisa">
+<!ENTITY hdrTrashButton1.label "Ezabatu">
+<!ENTITY hdrTrashButton1.tooltip "Ezabatu mezua">
+
+<!ENTITY hdrViewToolbarShowFull.label "Erakutsi ikonoak eta testua">
+<!ENTITY hdrViewToolbarShowFull.accesskey "E">
+<!ENTITY hdrViewToolbarShowIcons.label "Erakutsi ikonoak soilik">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "i">
+<!ENTITY hdrViewToolbarShowText.label "Erakutsi testua soilik">
+<!ENTITY hdrViewToolbarShowText.accesskey "t">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Erakutsi beti 'erantzun bidaltzaileari'">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "r">
+
+<!ENTITY otherActionsButton1.label "Bestelako ekintzak">
+<!ENTITY otherActionsOpenConversation1.label "Ireki hizketaldian">
+<!ENTITY otherActionsOpenConversation1.accesskey "h">
+<!ENTITY otherActionsOpenInNewWindow1.label "Ireki leiho berrian">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "l">
+<!ENTITY otherActionsOpenInNewTab1.label "Ireki fitxa berri batean">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "t">
+<!ENTITY markAsReadMenuItem1.label "Markatu irakurritako gisa">
+<!ENTITY markAsReadMenuItem1.accesskey "k">
+<!ENTITY markAsUnreadMenuItem1.label "Markatu irakurri gabeko gisa">
+<!ENTITY markAsUnreadMenuItem1.accesskey "r">
+<!ENTITY saveAsMenuItem1.label "Gorde honela…">
+<!ENTITY saveAsMenuItem1.accesskey "G">
+<!ENTITY viewSourceMenuItem1.label "Ikusi iturburua">
+<!ENTITY viewSourceMenuItem1.accesskey "I">
+<!ENTITY otherActionsPrint1.label "Inprimatu…">
+<!ENTITY otherActionsPrint1.accesskey "p">
+<!-- Attachment context menu items -->
+
+<!ENTITY openAttachmentCmd.label    "Ireki">
+<!ENTITY openAttachmentCmd.accesskey    "I">
+<!ENTITY saveAsAttachmentCmd.label    "Gorde honela…">
+<!ENTITY saveAsAttachmentCmd.accesskey    "a">
+<!ENTITY detachAttachmentCmd.label    "Askatu…">
+<!ENTITY detachAttachmentCmd.accesskey    "s">
+<!ENTITY deleteAttachmentCmd.label    "Ezabatu">
+<!ENTITY deleteAttachmentCmd.accesskey    "z">
+<!ENTITY openAllAttachmentsCmd.label    "Ireki dena…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "I">
+<!ENTITY saveAllAttachmentsCmd.label    "Gorde dena…">
+<!ENTITY saveAllAttachmentsCmd.accesskey    "G">
+<!ENTITY detachAllAttachmentsCmd.label    "Askatu dena…">
+<!ENTITY detachAllAttachmentsCmd.accesskey    "d">
+<!ENTITY deleteAllAttachmentsCmd.label    "Ezabatu dena…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "E">
+
+<!ENTITY openAttachment.tooltip "Ireki erantsitako fitxategia">
+<!-- Attachment toolbar items -->
+
+<!ENTITY saveAttachmentButton1.label       "Gorde">
+<!ENTITY saveAttachmentButton1.tooltip     "Gorde erantsitako fitxategia">
+<!ENTITY saveAllAttachmentsButton1.label   "Gorde dena">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Gorde erantsitako fitxategi guztiak">
+
+<!ENTITY copyLinkCmd.label        "Kopiatu loturaren helbidea">
+<!ENTITY copyLinkCmd.accesskey    "K">
+
+<!ENTITY CopyMessageId.label "Kopiatu mezu-IDa">
+<!ENTITY OpenMessageForMsgId.label "Ireki mezua ID bidez">
+<!ENTITY OpenBrowserWithMsgId.label "Ireki nabigatzailea mezu-ID honekin">

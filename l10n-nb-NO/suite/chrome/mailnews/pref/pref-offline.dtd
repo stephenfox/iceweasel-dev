@@ -1,0 +1,34 @@
+<!-- extracted from content/pref-offline.xul -->
+
+<!--LOCALIZATION NOTE : FILE The 'Offline' preferences dialog -->
+<!ENTITY pref.network.title               "Nettverk og lagring">
+<!ENTITY pref.offline.caption             "Frakoblet">
+<!ENTITY textStartUp                      "Ved oppstart:">
+<!ENTITY textStartUp.accesskey            "V">
+<!ENTITY menuitemRememberPrevState        "Husk forrige tilkoblingstilstand">
+<!ENTITY menuitemAskMe                    "Spør meg for tilkoblingstilstand ved oppstart">
+<!ENTITY menuitemAlwaysOnline             "Alltid start opp i tilkoblet modus">
+<!ENTITY menuitemAlwaysOffline            "Alltid start opp i frakoblet modus">
+<!ENTITY menuitemAutomatic                "Oppdag automatisk (dersom tilgjengelig)">
+<!ENTITY textGoingOnline                  "Send usendte meldinger når jeg kobler til?">
+<!ENTITY radioAutoSend                    "Automatisk send usendte meldinger">
+<!ENTITY radioAutoSend.accesskey          "u">
+<!ENTITY radioNotSend                     "Ikke send">
+<!ENTITY radioNotSend.accesskey           "D">
+<!ENTITY radioAskUnsent                   "Spør meg om jeg vil sende usendte meldinger">
+<!ENTITY radioAskUnsent.accesskey         "S">
+<!ENTITY textGoingOffline                 "Last ned meldinger når jeg kobler fra?">
+<!ENTITY radioAutoDownload                "Ja">
+<!ENTITY radioAutoDownload.accesskey      "J">
+<!ENTITY radioNotDownload                 "Nei">
+<!ENTITY radioNotDownload.accesskey       "N">
+<!ENTITY radioAskDownload                 "Spør meg">
+<!ENTITY radioAskDownload.accesskey       "e">
+<!ENTITY mailConnections.caption          "E-posttilkoblinger">
+<!ENTITY mailnewsTimeout.label            "Tidsavbrudd:">
+<!ENTITY mailnewsTimeout.accesskey        "T">
+<!ENTITY mailnewsTimeoutSeconds.label     "sekunder">
+<!ENTITY Diskspace                        "Diskplass">
+<!ENTITY offlineCompact.label             "Komprimer mapper når det vil spare mer enn">
+<!ENTITY offlineCompact.accesskey         "K">
+<!ENTITY mb.label                         " MB">

@@ -1,0 +1,35 @@
+
+<!ENTITY migrationWizard.title          "Leeta Kafulu">
+
+<!ENTITY importFrom.label               "Leeta Ebirala, Obulambe, Ebyafayo, Obusumuluzo ne bwino omulala okuva:">
+<!ENTITY importFromUnix.label           "Leeta Ebyerobozebwa, Obulambe, Ebyafayo, Obusumuluzo ne bwino omulala okuva:">
+<!ENTITY importFromBookmarks.label      "Leeta Obulambe okuva:">
+
+<!ENTITY importFromIE.label             "Mocrosoft Internet Explorer">
+<!ENTITY importFromIE.accesskey         "M">
+<!ENTITY importFromNothing.label        "Toleeta kintu kyonna">
+<!ENTITY importFromNothing.accesskey    "T">
+<!ENTITY importFromSeamonkey.label      "Netscape 6, 7 oba Mozilla 1.x">
+<!ENTITY importFromSeamonkey.accesskey  "N">
+<!ENTITY importFromOpera.label          "Opera">
+<!ENTITY importFromOpera.accesskey      "O">
+<!ENTITY importFromSafari.label         "Safari">
+<!ENTITY importFromSafari.accesskey     "S">
+<!ENTITY importFromHTMLFile.label       "Kuva mu Fayiro ya HTML">
+<!ENTITY importFromHTMLFile.accesskey   "K">
+
+<!ENTITY noMigrationSources.label       "Ttewali pulogulamu ezirina obulabe, ebyafayo oba akasumulizzo ka wiinoenyiza ku labikwa.">
+
+<!ENTITY importSource.title             "Leeta Etegeka ne Bwiino">
+<!ENTITY importItems.title              "Ebyokuleta okuva Ewalala">
+<!ENTITY importItems.label              "Londako ebinaletebwa:">
+
+<!ENTITY migrating.title                "Okuleeta…">
+<!ENTITY migrating.label                "Obuntu obundirira kakano bunjjirwa ewalala…">
+
+<!ENTITY selectProfile.title            "Londako Ebikwataiko">
+<!ENTITY selectProfile.label            "Ebiwandiiko ebindirira webiri leeta okuva:">
+
+<!ENTITY done.title                     "Leetera Ddala">
+<!ENTITY done.label                     "Obuntu obundirira bya siswe kuva ewalala burugi:">
+

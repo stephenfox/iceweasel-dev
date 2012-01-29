@@ -1,0 +1,4 @@
+<!ENTITY window.title             "Povzetek sporočila">
+<!ENTITY selectedmessages.label   "Izbrana sporočila">
+<!ENTITY archiveButton.label      "Arhiviraj">
+<!ENTITY deleteButton.label       "Izbriši">

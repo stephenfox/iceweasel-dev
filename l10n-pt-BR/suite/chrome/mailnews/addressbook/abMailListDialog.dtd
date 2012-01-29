@@ -1,0 +1,10 @@
+<!ENTITY mailListWindow.title "Lista de emails">
+<!ENTITY addToAddressBook.label "Criar em:">
+<!ENTITY ListName.label "Nome da lista:">
+<!ENTITY ListNickName.label "Apelido da lista:">
+<!ENTITY ListDescription.label "Descrição:">
+<!ENTITY AddressTitle.label "Digite os endereços para adicioná-los à lista de emails:">
+<!ENTITY addToAddressBook.accesskey "C">
+<!ENTITY ListName.accesskey "N">
+<!ENTITY ListNickName.accesskey "A">
+<!ENTITY ListDescription.accesskey "d">

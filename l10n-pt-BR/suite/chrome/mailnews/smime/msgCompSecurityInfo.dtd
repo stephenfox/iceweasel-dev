@@ -1,0 +1,12 @@
+<!ENTITY title.label "Segurança da mensagem">
+<!ENTITY subject.plaintextWarning "Atenção: a linha de assunto não é criptografada.">
+<!ENTITY status.heading "O conteúdo de sua mensagem será enviado como segue:">
+<!ENTITY status.signed "Assinada digitalmente:">
+<!ENTITY status.encrypted "Criptografada:">
+<!ENTITY status.certificates "Certificados:">
+<!ENTITY view.label "Exibir...">
+<!ENTITY view.accesskey "X">
+<!ENTITY tree.recipient "Destinatário">
+<!ENTITY tree.status "Estado:">
+<!ENTITY tree.issuedDate "Emitido">
+<!ENTITY tree.expiresDate "Válido até">

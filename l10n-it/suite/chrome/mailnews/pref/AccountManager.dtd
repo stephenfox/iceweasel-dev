@@ -1,0 +1,9 @@
+<!ENTITY accountManagerTitle.label "Configurazione account di Posta e gruppi di discussione">
+<!ENTITY addAccountButton.label "Aggiungi account…">
+<!ENTITY addAccountButton.accesskey "A">
+<!ENTITY setDefaultButton.label "Imposta come predefinito">
+<!ENTITY setDefaultButton.accesskey "I">
+<!ENTITY removeButton.label "Elimina account">
+<!ENTITY removeButton.accesskey "E">
+<!ENTITY accountManager.size "width: 67em; height: 50em;">
+<!ENTITY accountTree.width "width: 19em;">

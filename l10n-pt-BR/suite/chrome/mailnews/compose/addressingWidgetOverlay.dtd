@@ -1,0 +1,6 @@
+<!ENTITY toAddr.label "Para:">
+<!ENTITY ccAddr.label "CC:">
+<!ENTITY bccAddr.label "BCC:">
+<!ENTITY replyAddr.label "Responder-Para:">
+<!ENTITY newsgroupsAddr.label "Newsgroup:">
+<!ENTITY followupAddr.label "Encaminhar-Para:">

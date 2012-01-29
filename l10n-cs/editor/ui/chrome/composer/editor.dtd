@@ -1,0 +1,101 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Communicator client code, released
+   - March 31, 1998.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 1999
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either of the GNU General Public License Version 2 or later (the "GPL"),
+   - or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!-- Window title -->
+<!-- LOCALIZATION NOTE  (editorWindow.titlemodifier): DONT_TRANSLATE -->
+<!ENTITY editorWindow.titlemodifier "Editor">
+<!ENTITY editorWindow.titlemodifiermenuseparator " - ">
+
+<!-- Menu items:  the . means that the menu item isn't implemented yet -->
+
+<!-- Toolbar-only items -->
+<!ENTITY compositionToolbar.tooltip "Lišta editoru">
+<!ENTITY previewToolbarCmd.label "Náhled">
+<!ENTITY previewToolbarCmd.tooltip "Zobrazí stránku v prohlížeči">
+
+<!-- File menu items -->
+<!ENTITY exportToTextCmd.label "Exportovat text…">
+<!ENTITY exportToTextCmd.accesskey "x">
+<!ENTITY previewCmd.label "Náhled stránky">
+<!ENTITY previewCmd.accesskey "h">
+<!ENTITY sendPageCmd.label "Odeslat stránku…">
+<!ENTITY sendPageCmd.accesskey "l">
+
+
+<!-- View menu items -->
+<!ENTITY compositionToolbarCmd.label "Lišta editoru">
+<!ENTITY compositionToolbarCmd.accesskey "e">
+<!ENTITY formattingToolbarCmd.label "Lišta stylů">
+<!ENTITY formattingToolbarCmd.accesskey "s">
+<!ENTITY editmodeToolbarCmd.label "Lišta zobrazení">
+<!ENTITY editmodeToolbarCmd.accesskey "z">
+
+<!-- Format menu items -->
+<!ENTITY formatMenu.label "Formát">
+<!ENTITY formatMenu.accesskey "F">
+<!ENTITY grid.label "Rastr pro pozicování">
+<!ENTITY grid.accesskey "R">
+<!ENTITY pageProperties.label "Vlastnosti stránky…">
+<!ENTITY pageProperties.accesskey "r">
+
+<!-- Tools menu items -->
+<!ENTITY validateCmd.label "Kontrola HTML">
+<!ENTITY validateCmd.accesskey "K">
+
+<!-- Display Mode toolbar and View menu items -->
+<!ENTITY NormalModeTab.label "Normální">
+<!ENTITY NormalMode.label "Normální režim úprav">
+<!ENTITY NormalMode.accesskey "N">
+<!ENTITY NormalMode.tooltip "Zobrazí rámečky tabulek a názvy kotev">
+<!ENTITY AllTagsModeTab.label "HTML značky">
+<!ENTITY AllTagsMode.label "HTML značky">
+<!ENTITY AllTagsMode.accesskey "a">
+<!ENTITY AllTagsMode.tooltip "Zobrazí ikony pro všechny HTML značky">
+<!-- LOCALIZATION NOTE: (HTMLSourceModeTab.dir, HTMLSourceModeTab.label)
+     Do NOT translate text for 'HTMLSourceModeTab.dir', use latin "ltr" if
+     you want the <html> image to left of the 'HTMLSourceModeTab.label' text,
+     or use latin "rtl" if you want this image to the right of text. You do
+     not need to include HTML in the label 'HTMLSourceModeTab.label' -->
+<!ENTITY HTMLSourceModeTab.dir "ltr">
+<!ENTITY HTMLSourceModeTab.label "Zdrojový kód">
+<!ENTITY HTMLSourceMode.label "Zdrojový HTML kód">
+<!ENTITY HTMLSourceMode.accesskey "H">
+<!ENTITY HTMLSourceMode.tooltip "Úprava zdrojového kódu">
+<!ENTITY PreviewModeTab.label "Náhled">
+<!ENTITY PreviewMode.label "Náhled">
+<!ENTITY PreviewMode.accesskey "l">
+<!ENTITY PreviewMode.tooltip "Zobrazí stránku jako v prohlížeči">

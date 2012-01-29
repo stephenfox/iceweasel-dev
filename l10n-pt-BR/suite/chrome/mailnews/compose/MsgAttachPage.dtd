@@ -1,0 +1,5 @@
+<!ENTITY caption.label "Anexar página da web">
+<!ENTITY enter.label "Forneça o endereço da página da web(URL), ou especifique o arquivo local que você quer anexar:">
+<!ENTITY enter.accesskey "F">
+<!ENTITY chooseFile.label "Selecionar arquivo...">
+<!ENTITY chooseFile.accesskey "S">

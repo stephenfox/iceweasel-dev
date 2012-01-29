@@ -1,0 +1,111 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - Contributor(s):
+   -   Gintautas Grigas <grigas@ktl.mii.lt>
+   -   Tatjana Jevsikova <tatjanaj@julius.ktl.mii.lt>
+   -   Rimas Kudelis <rq@akl.lt>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY tracking.label                 "Sekimas">
+
+<!ENTITY doNotTrack.label               "Informuoti svetaines, jog nenorite, kad jos Jus sektų">
+<!ENTITY doNotTrack.accesskey           "s">
+
+<!ENTITY  history.label                 "Žurnalas">
+
+<!ENTITY  locationBar.label             "Adreso laukas">
+
+<!ENTITY  locbar.pre.label              "Rašant adreso lauke, siūlyti tinklalapius iš:">
+<!ENTITY  locbar.pre.accessKey          "d">
+<!ENTITY  locbar.post.label             "">
+<!ENTITY  locbar.both.label             "žurnalo ir adresyno">
+<!ENTITY  locbar.history.label          "žurnalo">
+<!ENTITY  locbar.bookmarks.label        "adresyno">
+<!ENTITY  locbar.nothing.label          "nesiūlyti">
+
+<!ENTITY  acceptCookies.label           "Leisti įrašyti slapukus">
+<!ENTITY  acceptCookies.accesskey       "L">
+
+<!ENTITY  acceptThirdParty.label        "Leisti įrašyti trečiųjų šalių slapukus">
+<!ENTITY  acceptThirdParty.accesskey    "t">
+
+<!ENTITY  keepUntil.label               "Laikyti iki:">
+<!ENTITY  keepUntil.accesskey           "k">
+
+<!ENTITY  expire.label                  "jų galiojimo laiko pabaigos">
+<!ENTITY  close.label                   "„&brandShortName;“ seanso pabaigos">
+<!ENTITY  askEachTime.label             "klausti prieš priimant slapuką">
+
+<!ENTITY  cookieExceptions.label        "Išimtys…">
+<!ENTITY  cookieExceptions.accesskey    "I">
+
+<!ENTITY  showCookies.label             "Rodyti slapukus…">
+<!ENTITY  showCookies.accesskey         "R">
+
+<!ENTITY  historyHeader.pre.label                "„&brandShortName;“ privalo:">
+<!ENTITY  historyHeader.pre.accesskey            "p">
+<!ENTITY  historyHeader.remember.label           "vesti žurnalą">
+<!ENTITY  historyHeader.dontremember.label       "niekada nevesti žurnalo">
+<!ENTITY  historyHeader.custom.label             "laikytis tinkintų žurnalo vedimo nuostatų">
+<!ENTITY  historyHeader.post.label               "">
+
+<!ENTITY  rememberDescription.label              "Naršyklė įsimins Jūsų naršytus tinklalapius, parsiųstus failus, įvestas formų ir paieškos laukų reikšmes bei laikys lankomų svetainių slapukus.">
+
+<!-- LOCALIZATION NOTE (rememberActions.pre.label): include a trailing space as needed -->
+<!-- LOCALIZATION NOTE (rememberActions.middle.label): include a starting and trailing space as needed -->
+<!-- LOCALIZATION NOTE (rememberActions.post.label): include a starting space as needed -->
+<!ENTITY  rememberActions.pre.label              "Taip pat galbūt norite ">
+<!ENTITY  rememberActions.clearHistory.label     "išvalyti žurnalą">
+<!ENTITY  rememberActions.middle.label           " arba ">
+<!ENTITY  rememberActions.removeCookies.label    "pašalinti kai kuriuos slapukus">
+<!ENTITY  rememberActions.post.label             ".">
+
+<!ENTITY  dontrememberDescription.label          "Naršyklė visą laiką laikysis privačiojo naršymo seanso nuostatų ir nepildys žurnalo.">
+
+<!-- LOCALIZATION NOTE (dontrememberActions.pre.label): include a trailing space as needed -->
+<!-- LOCALIZATION NOTE (dontrememberActions.post.label): include a starting space as needed -->
+<!ENTITY  dontrememberActions.pre.label          "Taip pat galbūt norite ">
+<!ENTITY  dontrememberActions.clearHistory.label "visiškai išvalyti žurnalą">
+<!ENTITY  dontrememberActions.post.label         ".">
+
+<!ENTITY  privateBrowsingPermanent2.label        "Visuomet naršyti privačiojo naršymo veiksenoje">
+<!ENTITY  privateBrowsingPermanent2.accesskey    "V">
+
+<!ENTITY  rememberHistory.label                  "Žurnale įsiminti lankytus tinklalapius">
+<!ENTITY  rememberHistory.accesskey              "m">
+
+<!ENTITY  rememberDownload.label                 "Įsiminti parsiųstus failus">
+<!ENTITY  rememberDownload.accesskey             "f">
+
+<!ENTITY  rememberSearchForm.label               "Įsiminti įvestas formų ir paieškos laukų reiškmes">
+<!ENTITY  rememberSearchForm.accesskey           "o">
+
+<!ENTITY  clearOnClose.label                     "Išvalyti žurnalą baigiant „&brandShortName;“ darbą">
+<!ENTITY  clearOnClose.accesskey                 "b">
+
+<!ENTITY  clearOnCloseSettings.label             "Nuostatos…">
+<!ENTITY  clearOnCloseSettings.accesskey         "N">

@@ -1,0 +1,7 @@
+<!ENTITY identitiesListDesc.label "Suporte a múltiplas identidades">
+<!ENTITY identitiesListAdd.label  "Adicionar...">
+<!ENTITY identitiesListAdd.accesskey  "A">
+<!ENTITY identitiesListEdit.label "Editar...">
+<!ENTITY identitiesListEdit.accesskey "E">
+<!ENTITY identitiesListDelete.label "Apagar">
+<!ENTITY identitiesListDelete.accesskey "p">

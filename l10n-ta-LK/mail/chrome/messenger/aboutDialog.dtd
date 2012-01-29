@@ -1,0 +1,17 @@
+<!ENTITY aboutDialog.title "&brandShortName;-ஐ பற்றி">
+<!ENTITY aboutCredits.label     "Credits">
+<!ENTITY aboutCredits.accesskey "C">
+<!ENTITY aboutLicense.label      "உரிமம்">
+<!ENTITY aboutLicense.accesskey  "L">
+<!ENTITY aboutButton.label      "&lt; Back">
+<!ENTITY aboutButton.accesskey  "B">
+<!ENTITY aboutVersion           "பதிப்பு">
+<!ENTITY aboutMenu.label        "பற்றி">
+<!ENTITY aboutMenu.accesskey    "A">
+<!ENTITY aboutRights.label      "உங்களுடைய உரிமைகள்">
+<!ENTITY aboutRights.accesskey  "R">
+<!ENTITY aboutContributors.label "பங்களிப்பாளர்கள்">
+<!ENTITY aboutContributors.accesskey "o">
+
+<!ENTITY cmdCloseMac.commandKey "w">
+

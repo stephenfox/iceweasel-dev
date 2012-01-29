@@ -1,0 +1,9 @@
+<!ENTITY accountManagerTitle.label "Параметры учётной записи">
+<!ENTITY addAccountButton.label "Добавить учётную запись…">
+<!ENTITY addAccountButton.accesskey "Д">
+<!ENTITY setDefaultButton.label "Установить по умолчанию">
+<!ENTITY setDefaultButton.accesskey "п">
+<!ENTITY removeButton.label "Удалить учётную запись">
+<!ENTITY removeButton.accesskey "У">
+<!ENTITY accountManager.size "width: 112ch; height: 55em;">
+<!ENTITY accountTree.width "width: 33ch;">
