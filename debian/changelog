@@ -1,8 +1,34 @@
-iceweasel (10.0-1) UNRELEASED; urgency=low
+iceweasel (10.0-1) unstable; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2012-{01-09}, also known as
+    CVE-2012-0442, CVE-2012-0443, CVE-2011-3670, CVE-2012-0445,
+    CVE-2011-3659, CVE-2012-0446, CVE-2012-0447, CVE-2012-0444,
+    CVE-2012-0449, CVE-2012-0450.
 
- -- Mike Hommey <glandium@debian.org>  Wed, 01 Feb 2012 11:41:05 +0100
+  * debian/iceweasel.postinst: Remove /usr/lib/iceweasel/.autoreg on upgrade.
+    Closes: #648541.
+  * debian/source.filter: The PNG test suite moved.
+  * debian/xulrunner-GRE_VERSION.{links,install}.in: Hyphenation
+    dictionaries moved inside omni.jar.
+  * debian/control*: Bump libvpx-dev build dependency.
+  * debian/xulrunner-GRE_VERSION.*.in: Omni.jar was renamed omni.ja.
+  * debian/upstream.mk: Use a separate variable for download version.
+  * debian/rules: Call configure directly for build-browser, instead of
+    using dh_auto_configure. Closes: #656313.
+  * debian/upstream.mk: Add rules to download l10n sources.
+  * debian/rules, debian/control*, debian/l10n,
+    debian/branding/locales/Makefile.in: Add rules to build l10n packages.
+
+  * js/src/Makefile.in, js/src/vm/RegExpObject*, js/src/yarr/wtfbridge.h:
+    Use YARR interpreter instead of PCRE on platforms where YARR JIT is
+    not supported. bz#691898.
+  * browser/locales/Makefile.in, toolkit/locales/Makefile.in: Don't
+    build some toolkit l10n from browser/.
+  * l10n-ru/browser/chrome/browser-region/region.properties: Place google
+    and gmail before yandex. (imported from iceweasel-l10n)
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 01 Feb 2012 14:13:16 +0100
 
 iceweasel (9.0.1-1) unstable; urgency=low
 
