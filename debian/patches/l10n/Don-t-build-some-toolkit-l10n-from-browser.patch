@@ -1,0 +1,41 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Sat, 21 Jan 2012 16:28:08 +0100
+Subject: Don't build some toolkit l10n from browser/
+
+---
+ browser/locales/Makefile.in |    4 ++--
+ toolkit/locales/Makefile.in |    4 ++++
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
+index e6422b8..c3e3807 100644
+--- a/browser/locales/Makefile.in
++++ b/browser/locales/Makefile.in
+@@ -176,10 +176,10 @@ install:: $(addsuffix .xml,$(SEARCH_PLUGINS))
+ 
+ libs-%:
+ 	$(NSINSTALL) -D $(DIST)/install
++ifndef LIBXUL_SDK
+ 	@$(MAKE) -C ../../toolkit/locales libs-$* BOTH_MANIFESTS=1
++endif
+ 	@$(MAKE) -C ../../services/sync/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+-	@$(MAKE) -C ../../extensions/spellcheck/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+-	@$(MAKE) -C ../../intl/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+ 	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$* PREF_DIR=$(PREF_DIR) BOTH_MANIFESTS=1
+ 	@$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+ 
+diff --git a/toolkit/locales/Makefile.in b/toolkit/locales/Makefile.in
+index 4c46354..72d72d2 100644
+--- a/toolkit/locales/Makefile.in
++++ b/toolkit/locales/Makefile.in
+@@ -62,6 +62,10 @@ libs-%:
+ ifdef MOZ_PSM
+ 	@$(MAKE) -C ../../security/manager/locales/ libs AB_CD=$* XPI_NAME=locale-$*
+ endif
++ifdef MOZ_SPELLCHECK
++	@$(MAKE) -C ../../extensions/spellcheck/locales AB_CD=$* XPI_NAME=locale-$*
++endif
++	@$(MAKE) -C ../../intl/locales AB_CD=$* XPI_NAME=locale-$*
+ 	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$*
+ 
+ # target to be used by multi-locale l10n builds, just add this locale 
