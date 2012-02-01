@@ -1,0 +1,26 @@
+<!ENTITY newMessageCmd.label             "Лист">
+<!ENTITY newMessageCmd.accesskey         "Л">
+<!ENTITY newMessageCmd.key               "M">
+
+<!ENTITY newContactCmd.label             "Контакт…">
+<!ENTITY newContactCmd.accesskey         "К">
+
+<!ENTITY sendPage.label                  "Надіслати сторінку…">
+<!ENTITY sendPage.accesskey              "В">
+
+<!ENTITY contextSendThisPage.label       "Надіслати цю сторінку…">
+<!ENTITY contextSendThisPage.accesskey   "с">
+<!ENTITY contextSendThisLink.label       "Надіслати це посилання…">
+<!ENTITY contextSendThisLink.accesskey   "ц">
+<!ENTITY contextSendImage.label          "Надіслати зображення…">
+<!ENTITY contextSendImage.accesskey      "з">
+<!ENTITY contextSendVideo.label          "Надіслати відео…">
+<!ENTITY contextSendVideo.accesskey      "і">
+<!ENTITY contextSendAudio.label          "Надіслати аудіо…">
+<!ENTITY contextSendAudio.accesskey      "а">
+<!ENTITY contextSendFrame.label          "Надіслати рамку…">
+<!ENTITY contextSendFrame.accesskey      "р">
+
+<!ENTITY sendLinkCmd.label               "Надіслати посилання…"> 
+<!ENTITY sendLinkCmd.accesskey           "я">
+

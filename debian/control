@@ -59,7 +59,7 @@ Depends: ${shlibs:Depends},
          fontconfig,
          procps,
          debianutils (>= 1.16),
-         xulrunner-9.0 (>= ${binary:Version})
+         xulrunner-10.0 (>= ${binary:Version})
 Suggests: ttf-lyx | latex-xft-fonts,
           xfonts-mathml,
           ttf-mathematica4.1,
@@ -77,21 +77,21 @@ Priority: extra
 Section: debug
 Depends: ${misc:Depends},
          iceweasel (= ${binary:Version}),
-         xulrunner-9.0-dbg
+         xulrunner-10.0-dbg
 Description: debugging symbols for iceweasel
  Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
  with support for modern web application technologies.
  .
  This package contains the debugging symbols for iceweasel.
 
-Package: xulrunner-9.0
+Package: xulrunner-10.0
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          libnspr4-0d (>> 4.7.1-1),
          libnss3-1d (>= 3.13.1),
-         libmozjs9d (= ${binary:Version}),
+         libmozjs10d (= ${binary:Version}),
          libcairo2 (>= 1.8.8)
 Suggests: ${gnome:Depends}, libgnomeui-0, libcanberra0
 Conflicts: j2re1.4,
@@ -115,7 +115,7 @@ Description: XUL + XPCOM application runner
  This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
 
-Package: libmozjs9d
+Package: libmozjs10d
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -130,7 +130,7 @@ Package: libmozjs-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libmozjs9d (= ${binary:Version}),
+         libmozjs10d (= ${binary:Version}),
          libnspr4-dev
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -141,11 +141,11 @@ Description: Development files for the Mozilla SpiderMonkey JavaScript library
  Mozilla SpiderMonkey JavaScript library.
 Homepage: http://www.mozilla.org/js/
 
-Package: libmozjs9d-dbg
+Package: libmozjs10d-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: libmozjs9d (= ${binary:Version}),
+Depends: libmozjs10d (= ${binary:Version}),
          ${misc:Depends}
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -183,7 +183,7 @@ Section: libdevel
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         xulrunner-9.0 (>= ${binary:Version}),
+         xulrunner-10.0 (>= ${binary:Version}),
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${binary:Version})
@@ -203,12 +203,12 @@ Description: Development files for the Gecko engine library
  same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
-Package: xulrunner-9.0-dbg
+Package: xulrunner-10.0-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: xulrunner-9.0 (= ${binary:Version}),
-         libmozjs9d-dbg (= ${binary:Version}),
+Depends: xulrunner-10.0 (= ${binary:Version}),
+         libmozjs10d-dbg (= ${binary:Version}),
          ${misc:Depends}
 Description: Debugging symbols for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
@@ -219,6 +219,6 @@ Description: Debugging symbols for the Gecko engine library
  support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
  Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
  .
- This package provides the debugging symbols for the xulrunner-9.0
+ This package provides the debugging symbols for the xulrunner-10.0
  package.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL

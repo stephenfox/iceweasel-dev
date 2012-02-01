@@ -1,0 +1,11 @@
+<!-- LOCALIZATION NOTE: do not use digits "0"-"9" as accesskeys -->
+<!ENTITY zoomEnlargeCmd.label       "Suurempi">
+<!ENTITY zoomEnlargeCmd.accesskey   "S">
+<!ENTITY zoomEnlargeCmd.commandkey  "+">
+<!ENTITY zoomEnlargeCmd.commandkey2 "="> <!-- + is above this key on many keyboards -->
+
+<!ENTITY zoomReduceCmd.label        "Pienempi">
+<!ENTITY zoomReduceCmd.accesskey    "P">
+<!ENTITY zoomReduceCmd.commandkey   "-">
+
+<!ENTITY zoomResetCmd.commandkey    "0">

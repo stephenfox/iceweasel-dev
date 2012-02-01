@@ -1,0 +1,34 @@
+<!ENTITY pref.navigator.title "Böngésző">
+
+<!ENTITY navRadio.label "Display on">
+<!ENTITY navRadio.accesskey "n">
+<!ENTITY navStartPageMenu.label "Böngésző elindítása">
+<!ENTITY newWinPageMenu.label "Új ablak">
+<!ENTITY newTabPageMenu.label "Új lap">
+
+<!ENTITY blankPageRadio.label "Üres oldal">
+<!ENTITY blankPageRadio.accesskey "r">
+<!ENTITY homePageRadio.label "Kezdőlap">
+<!ENTITY homePageRadio.accesskey "K">
+<!ENTITY lastPageRadio.label "Az utoljára látogatott oldal">
+<!ENTITY lastPageRadio.accesskey "u">
+<!ENTITY restoreSessionRadio.label "Restore Previous Session">
+<!ENTITY restoreSessionRadio.accesskey "P">
+
+<!ENTITY header2.label "Kezdőlap">
+<!ENTITY homePageIntro.label "A 'Kezdőlap' gombra kattintva ez az oldal töltődik be.">
+<!ENTITY useCurrent.label "Aktuális oldal használata">
+<!ENTITY useCurrent.accesskey "A">
+<!ENTITY useCurrentGroup.label "Aktuális csoport használata">
+<!ENTITY useCurrentGroup.accesskey "c">
+<!ENTITY browseFile.label "Tallózás...">
+<!ENTITY browseFile.accesskey "T">
+<!ENTITY useDefault.label "Alaphelyzet">
+<!ENTITY useDefault.accesskey "A">
+
+<!ENTITY defaultBrowserGroup.label "Alapértelmezett böngésző">
+<!ENTITY defaultBrowserButton.label "Alapértelmezés">
+<!ENTITY defaultBrowserButton.accesskey "A">
+<!ENTITY alreadyDefaultText "A &brandShortName; már be van állítva alapértelmezett böngészőnek.">
+<!ENTITY defaultPendingText "A &brandShortName; lesz beállítva alapértelmezett böngészőnek, miután az OK gombra kattint.">
+<!ENTITY makeDefaultText "&brandShortName; beállítása alapértelmezett böngészőnek.">

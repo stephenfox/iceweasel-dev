@@ -1,0 +1,73 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+   Ian Neal <iann_bugzilla@blueyonder.co.uk>
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY pref.formatting.title        "Verzendopmaak">
+<!ENTITY sendMaildesc.label           "Wanneer opgemaakte (HTML-)berichten worden verzonden en van één of meer ontvangers niet bekend is of ze HTML kunnen ontvangen:">
+<!ENTITY askMe.label                  "Mij vragen wat te doen (Mail vraagt u een opmaak te kiezen)">
+<!ENTITY askMe.accesskey              "v">
+<!ENTITY convertPlain.label           "Het bericht converteren naar platte tekst (bepaalde opmaak kan verloren gaan)">
+<!ENTITY convertPlain.accesskey       "c">
+<!ENTITY sendHTML.label               "Het bericht toch als opgemaakte tekst (HTML) verzenden (sommige mailprogramma’s kunnen het mogelijk niet weergeven)">
+<!ENTITY sendHTML.accesskey           "M">
+<!ENTITY sendBoth.label               "Het bericht in zowel platte tekst als HTML verzenden (grotere berichtgrootte)">
+<!ENTITY sendBoth.accesskey           "z">
+<!ENTITY override.label               "U kunt deze instellingen voor individuele berichten negeren door het menu Opties te gebruiken tijdens het opstellen van een bericht.">
+
+<!-- Html and Plain Text Domains  -->
+<!ENTITY domain.title                 "HTML- en plattetekstdomeinen">
+<!ENTITY domaindesc.label             "Wanneer u een bericht verzendt naar een adres met één van de hieronder genoemde domeinnamen, zal Mail het bericht automatisch in de opmaak van uw voorkeur verzenden (opgemaakte tekst of platte tekst).">
+<!ENTITY HTMLdomaintitle.label        "HTML-domeinen">
+<!ENTITY HTMLdomaintitle.accesskey    "T">
+<!ENTITY PlainTexttitle.label         "Plattetekstdomeinen">
+<!ENTITY PlainTexttitle.accesskey     "P">
+<!ENTITY AddButton.label              "Toevoegen…">
+<!ENTITY AddHtmlDomain.accesskey      "o">
+<!ENTITY AddPlainText.accesskey       "e">
+<!ENTITY DeleteButton.label           "Verwijderen">
+<!ENTITY DeleteHtmlDomain.accesskey   "r">
+<!ENTITY DeletePlainText.accesskey    "w">
+
+<!-- Add Domain Name -->
+<!ENTITY add.htmltitle                "HTML-domeinnaam toevoegen">
+<!ENTITY add.htmldomain               "HTML-domeinnaam:">
+<!ENTITY add.plaintexttitle           "Plattetekstdomeinnaam toevoegen">
+<!ENTITY add.plaintextdomain          "Plattetekstdomeinnaam:">
+
+<!ENTITY domainnameError.title        "Domeinnaamfout">
+<!-- LOCALIZATION NOTE: do not translate @string@ -->
+<!ENTITY invalidEntryError.label      "De domeinnaam @string@ is ongeldig en zal worden genegeerd. Geldige domeinnamen bevatten minstens één ‘.’ met tekens aan beide zijden ervan.">

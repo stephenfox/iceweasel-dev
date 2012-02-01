@@ -1,0 +1,35 @@
+
+<!ENTITY migrationWizard.title          "Importo vediklis">
+
+<!ENTITY importFrom.label               "Importuoti nuostatas, adresyną, žurnalą, slaptažodžius ir kitus duomenis iš:">
+<!ENTITY importFromUnix.label           "Importuoti nuostatas, adresyną, žurnalą, slaptažodžius ir kitus duomenis iš:">
+<!ENTITY importFromBookmarks.label      "Importuoti adresyną iš:">
+
+<!ENTITY importFromIE.label             "Microsoft Internet Explorer">
+<!ENTITY importFromIE.accesskey         "E">
+<!ENTITY importFromNothing.label        "Neimportuoti">
+<!ENTITY importFromNothing.accesskey    "m">
+<!ENTITY importFromSeamonkey.label      "Netscape 6, 7 arba Mozilla 1.x">
+<!ENTITY importFromSeamonkey.accesskey  "N">
+<!ENTITY importFromOpera.label          "Opera">
+<!ENTITY importFromOpera.accesskey      "O">
+<!ENTITY importFromSafari.label         "Safari">
+<!ENTITY importFromSafari.accesskey     "S">
+<!ENTITY importFromHTMLFile.label       "HTML failo">
+<!ENTITY importFromHTMLFile.accesskey   "f">
+
+<!ENTITY noMigrationSources.label       "Nepavyko rasti programų, kuriose būtų adresyno, naršymo žurnalo ar įrašytų slaptažodžių duomenų.">
+
+<!ENTITY importSource.title             "Duomenų ir nuostatų importas">
+<!ENTITY importItems.title              "Importuotini elementai">
+<!ENTITY importItems.label              "Pasirinkite, ką importuoti:">
+
+<!ENTITY migrating.title                "Importuojama…">
+<!ENTITY migrating.label                "Importuojami šie elementai…">
+
+<!ENTITY selectProfile.title            "Profilio pasirinkimas">
+<!ENTITY selectProfile.label            "Galima importuoti iš šių profilių:">
+
+<!ENTITY done.title                     "Importas baigtas">
+<!ENTITY done.label                     "Sėkmingai importuota:">
+

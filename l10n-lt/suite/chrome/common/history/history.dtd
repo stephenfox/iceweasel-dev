@@ -1,0 +1,84 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - Contributor(s):
+   -   Tatjana Jevsikova <tatjanaj@julius.ktl.mii.lt>
+   -   Rimas Kudelis <rq@akl.lt>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!-- history.xul, history-panel.xul, placesOverlay.xul -->
+
+<!ENTITY historyWindowTitle.label             "Žurnalas">
+<!ENTITY menuBar.tooltip                      "Meniu juosta">
+<!ENTITY searchBar.tooltip                    "Paieškos juosta">
+
+<!ENTITY search.placeholder                   "Ieškoti žurnale">
+<!ENTITY search.key                           "f">
+<!ENTITY view.label                           "Rodymas">
+
+<!ENTITY view.columns.label                   "Rodyti stulpelius">
+<!ENTITY view.columns.accesskey               "s">
+<!ENTITY view.sortBy.label                    "Rikiuoti pagal">
+<!ENTITY view.sortBy.accesskey                "R">
+<!ENTITY view.groupBy.label                   "Grupuoti pagal">
+<!ENTITY view.groupBy.accesskey               "G">
+
+<!ENTITY view.unsorted.label                  "Nerikiuoti">
+<!ENTITY view.unsorted.accesskey              "N">
+<!ENTITY view.sortAscending.label             "Abėcėlės tvarka">
+<!ENTITY view.sortAscending.accesskey         "A">
+<!ENTITY view.sortDescending.label            "Atvirkštine abėcėlės tvarka">
+<!ENTITY view.sortDescending.accesskey        "t">
+
+<!ENTITY view.groupNone.label                 "negrupuoti">
+<!ENTITY view.groupNone.accesskey             "n">
+<!ENTITY view.groupDay.label                  "datą">
+<!ENTITY view.groupDay.accesskey              "d">
+<!ENTITY view.groupSite.label                 "svetainę">
+<!ENTITY view.groupSite.accesskey             "s">
+<!ENTITY view.groupDayAndSite.label           "datą ir svetainę">
+<!ENTITY view.groupDayAndSite.accesskey       "a">
+
+<!ENTITY cmd.open.label                       "Atverti">
+<!ENTITY cmd.open.accesskey                   "A">
+<!ENTITY cmd.open_window.label                "Atverti naujame lange">
+<!ENTITY cmd.open_window.accesskey            "l">
+<!ENTITY cmd.open_tab.label                   "Atverti naujoje kortelėje">
+<!ENTITY cmd.open_tab.accesskey               "o">
+
+<!ENTITY bookmarkLinkCmd.label                "Saitą įrašyti į adresyną…">
+<!ENTITY bookmarkLinkCmd.accesskey            "d">
+<!ENTITY bookmarkLinksCmd.label               "Saitus įrašyti į adresyną">
+<!ENTITY bookmarkLinksCmd.accesskey           "d">
+
+<!ENTITY col.title.label                      "Pavadinimas">
+<!ENTITY col.title.accesskey                  "P">
+<!ENTITY col.url.label                        "Adresas">
+<!ENTITY col.url.accesskey                    "A">
+<!ENTITY col.lastvisit.label                  "Paskiausiai aplankytas">
+<!ENTITY col.lastvisit.accesskey              "l">
+<!ENTITY col.visitcount.label                 "Aplankymų kiekis">
+<!ENTITY col.visitcount.accesskey             "k">

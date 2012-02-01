@@ -1,0 +1,13 @@
+<!ENTITY newBookmark.title "Criar marcador">
+<!ENTITY selectFolder.title "Selecionar pasta">
+<!ENTITY name.label "Nome:">
+<!ENTITY name.accesskey "N">
+<!ENTITY url.label "Endereço:">
+<!ENTITY url.accesskey "E">
+<!ENTITY shortcutURL.label "Palavra-chave:">
+<!ENTITY shortcutURL.accesskey "P">
+<!ENTITY destination.label "Criar em:">
+<!ENTITY newFolder.label "Nova pasta...">
+<!ENTITY newFolder.accesskey "v">
+<!ENTITY addGroup.label "Criar marcador para este grupo de abas">
+<!ENTITY addGroup.accesskey "A">

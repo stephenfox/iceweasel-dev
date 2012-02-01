@@ -1,0 +1,18 @@
+<!ENTITY aboutPage.title                        "เกี่ยวกับ &brandShortName;">
+<!ENTITY aboutPage.faq.label                    "คำถามที่พบบ่อย">
+<!ENTITY aboutPage.support.label                "การสนับสนุน">
+<!ENTITY aboutPage.privacyPolicy.label          "นโยบายความเป็นส่วนตัว">
+<!ENTITY aboutPage.rights.label                 "เข้าใจสิทธิ์ของคุณ">
+<!ENTITY aboutPage.relNotes.label               "บันทึกประจำรุ่น">
+<!ENTITY aboutPage.credits.label                "ผู้จัดทำ">
+<!ENTITY aboutPage.checkForUpdates.button       "ตรวจหาการปรับปรุง">
+<!ENTITY aboutPage.checkForUpdates.checking     "กำลังหาการปรับปรุง…">
+<!ENTITY aboutPage.checkForUpdates.none         "ไม่พบการปรับปรุง">
+<!ENTITY aboutPage.checkForUpdates.found        "พบการปรับปรุง">
+
+
+<!-- LOCALIZATION NOTE:
+     These strings are concatenated in order. Unneeded strings may be left blank.
+-->
+<!ENTITY aboutPage.licenseLink                  "ข้อมูลเกี่ยวกับลิขสิทธิ์">
+<!ENTITY aboutPage.licenseLinkSuffix            " ">

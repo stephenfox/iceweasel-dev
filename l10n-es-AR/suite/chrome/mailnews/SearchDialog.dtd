@@ -1,0 +1,34 @@
+
+<!-- for SearchDialog.xul -->
+<!ENTITY searchHeading.label         "Buscar mensajes en:">
+<!ENTITY searchHeading.accesskey     "B">
+<!ENTITY searchSubfolders.label      "Buscar subcarpetas">
+<!ENTITY searchSubfolders.accesskey  "e">
+<!ENTITY searchLocalSystem.label     "Buscar sistema local">
+<!ENTITY searchLocalSystem.accesskey "B">
+<!ENTITY resetButton.label           "Borrar">
+<!ENTITY resetButton.accesskey       "B">
+<!ENTITY openButton.label            "Abrir">
+<!ENTITY openButton.accesskey        "A">
+<!ENTITY deleteButton.label          "Borrar">
+<!ENTITY deleteButton.accesskey      "B">
+<!ENTITY searchDialogTitle.label     "Buscar mensajes">
+<!ENTITY results.label               "Resultados">
+<!ENTITY fileHereMenu.label          "Archivar aquí">
+<!ENTITY fileHereMenu.accesskey      "A">
+<!ENTITY fileButton.label            "Archivo">
+<!ENTITY fileButton.accesskey        "i">
+<!ENTITY goToFolderButton.label      "Abrir carpeta de mensajes">
+<!ENTITY goToFolderButton.accesskey  "r">
+<!ENTITY saveAsVFButton.label      "Guardar como carpeta de búsqueda">
+<!ENTITY saveAsVFButton.accesskey  "a">
+
+<!-- for ABSearchDialog.xul -->
+<!ENTITY abSearchHeading.label       "Buscar en:">
+<!ENTITY abSearchHeading.accesskey   "B">
+<!ENTITY propertiesButton.label      "Propiedades">
+<!ENTITY propertiesButton.accesskey  "P">
+<!ENTITY composeButton.label         "Redactar">
+<!ENTITY composeButton.accesskey     "e">
+<!ENTITY abSearchDialogTitle.label   "Búsqueda avanzada en la libreta de direcciones">
+

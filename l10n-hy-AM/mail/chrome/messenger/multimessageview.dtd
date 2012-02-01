@@ -1,0 +1,5 @@
+<!ENTITY window.title             "Նամակի հանրագումարը">
+<!ENTITY selectedmessages.label   "Ընտրված նամակներ">
+<!ENTITY archiveButton.label      "Արխիվ">
+<!ENTITY deleteButton.label       "Ջնջել">
+

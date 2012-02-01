@@ -1,0 +1,40 @@
+<!--LOCALIZATION NOTE : FILE Lists preferences categories that appear on the left of the preferences dialog -->
+<!ENTITY prefWindow.title "Předvolby">
+<!ENTITY categoryHeader "Kategorie">
+<!ENTITY appear.label "Vzhled">
+<!ENTITY content.label "Obsah">
+<!ENTITY fonts.label "Písma">
+<!ENTITY colors.label "Barvy">
+<!ENTITY navigator.label "Prohlížeč">
+<!ENTITY history.label "Historie">
+<!ENTITY languages.label "Jazyky">
+<!ENTITY applications.label "Pomocné aplikace">
+<!ENTITY locationBar.label "Adresní řádek">
+<!ENTITY tabWindows.label "Prohlížení v panelech">
+<!ENTITY links.label "Chování odkazů">
+<!ENTITY offline.label "Režim offline">
+<!ENTITY security.label "Soukromí a zabezpečení">
+<!ENTITY cookies.label "Cookies">
+<!ENTITY images.label "Obrázky">
+<!ENTITY popups.label "Vyskakovací okna">
+<!ENTITY passwords.label "Hesla">
+<!ENTITY masterpass.label "Hlavní heslo">
+<!ENTITY ssl.label "SSL">
+<!ENTITY certs.label "Certifikáty">
+<!ENTITY validation.label "Ověřování">
+<!ENTITY sync.label "Sync">
+<!ENTITY advance.label "Rozšířené nastavení">
+<!ENTITY down.label "Ukládání">
+<!ENTITY cache.label "Mezipaměť">
+<!ENTITY proxies.label "Proxy servery">
+<!ENTITY httpnetworking.label "HTTP spojení">
+<!ENTITY smart.label "Instalace software">
+<!ENTITY download.label "Stahování">
+<!ENTITY keynav.label "Navigace klávesnicí">
+<!ENTITY findAsYouType.label "Najít přímo při psaní">
+<!ENTITY search.label "Hledání na webu">
+<!ENTITY policies.label "Zabezpečení">
+<!ENTITY mousewheel.label "Kolečko myši">
+<!ENTITY scriptsAndWindows.label "Skripty a moduly">
+
+<!ENTITY focusSearch.key "f">

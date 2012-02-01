@@ -1,0 +1,17 @@
+<!--null-->
+<!ENTITY AddToAddressBook.label "Дадаць у адрасную кнігу…">
+<!ENTITY AddToAddressBook.accesskey "к">
+<!ENTITY SendMailTo.label "Укласці ліст да…">
+<!ENTITY SendMailTo.accesskey "у">
+<!ENTITY CopyEmailAddress.label "Капіяваць адрас э-пошты">
+<!ENTITY CopyEmailAddress.accesskey "к">
+<!ENTITY CreateFilterFrom.label "Стварыць сіта з…">
+<!ENTITY CreateFilterFrom.accesskey "с">
+<!ENTITY copyLinkCmd.label "Капіяваць месцазнаходжанне спасылкі">
+<!ENTITY copyLinkCmd.accesskey "К">
+<!ENTITY CopyMessageId.label "Капіяваць Вызначальнік-Ліста">
+<!ENTITY CopyMessageId.accesskey "К">
+<!ENTITY OpenMessageForMsgId.label "Адкрыць ліст з вызначальнікам">
+<!ENTITY OpenMessageForMsgId.accesskey "А">
+<!ENTITY OpenBrowserWithMsgId.label "Адкрыць азіральнік з Вызначальнікам-Ліста">
+<!ENTITY OpenBrowserWithMsgId.accesskey "з">

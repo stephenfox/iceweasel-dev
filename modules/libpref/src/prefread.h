@@ -56,14 +56,14 @@ PR_BEGIN_EXTERN_C
  * @param type
  *        preference type (PREF_STRING, PREF_INT, or PREF_BOOL)
  * @param defPref
- *        preference type (PR_TRUE: default, PR_FALSE: user preference)
+ *        preference type (true: default, false: user preference)
  */
 typedef void (*PrefReader)(void       *closure,
                            const char *pref,
                            PrefValue   val,
                            PrefType    type,
-                           PRBool      defPref,
-                           PRBool      lockPref);
+                           bool        defPref,
+                           bool        lockPref);
 
 /* structure fields are private */
 typedef struct PrefParseState {
@@ -83,8 +83,8 @@ typedef struct PrefParseState {
     char       *lbend;      /* line buffer end               */
     char       *vb;         /* value buffer (ptr into lb)    */
     PrefType    vtype;      /* PREF_STRING,INT,BOOL          */
-    PRBool      fdefault;   /* PR_TRUE if (default) pref     */
-    PRBool      flock;      /* PR_TRUE if pref to be locked  */
+    bool        fdefault;   /* true if (default) pref        */
+    bool        flock;      /* true if pref to be locked     */
 } PrefParseState;
 
 /**
@@ -127,9 +127,9 @@ void PREF_FinalizeParseState(PrefParseState *ps);
  * @param bufLen
  *        Length of buffer.
  *
- * @return PR_FALSE if buffer contains malformed content.
+ * @return false if buffer contains malformed content.
  */
-PRBool PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen);
+bool PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen);
 
 PR_END_EXTERN_C
 #endif /* prefread_h__ */

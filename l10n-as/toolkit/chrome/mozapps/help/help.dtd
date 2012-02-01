@@ -1,0 +1,57 @@
+<!ENTITY printCmd.commandkey            "p">
+
+<!ENTITY findOnCmd.commandkey           "F">
+<!ENTITY findAgainCmd.commandkey        "G">
+<!ENTITY findAgainCmd.commandkey2       "VK_F3">
+
+<!ENTITY backButton.label               "পিছলৈ">
+<!ENTITY backButton.accesskey           "B">
+<!ENTITY backButton.tooltip             "এক পৃষ্ঠা পিছলৈ যাওক">
+<!ENTITY forwardButton.label            "আগলৈ">
+<!ENTITY forwardButton.accesskey        "F">
+<!ENTITY forwardButton.tooltip          "এক পৃষ্ঠা আগলৈ যাওক">
+<!ENTITY copyCmd.label                  "নকল কৰক">
+<!ENTITY copyCmd.accesskey              "C">
+<!ENTITY selectAllCmd.label             "সকলো নিৰ্ব্বাচন কৰক">
+<!ENTITY selectAllCmd.accesskey         "A">
+<!ENTITY goBackCmd.commandkey           "[">
+<!ENTITY goForwardCmd.commandkey        "]">
+<!ENTITY homeButton.label               "ঘৰ">
+<!ENTITY homeButton.tooltip             "সহায় আৰম্ভৰ পৃষ্ঠালৈ যাওক">
+<!ENTITY printButton.label              "মূদৰ্ণ কৰক">
+<!ENTITY printButton.tooltip            "এই পৃষ্ঠা মূদ্ৰণ কৰক">
+<!ENTITY closeWindow.commandkey         "W">
+
+
+
+
+<!ENTITY toctab.label       	  	"বিষয়বস্তু">
+<!ENTITY toctab.accesskey               "C">
+
+ <!-- + is above this key on many keyboards -->
+
+<!ENTITY helpSearch.commandkey          "k">
+
+<!ENTITY zLevel.label                   "সদায়ে ওপৰত">
+<!ENTITY zLevel.accesskey               "T">
+
+
+
+
+<!--
+entities below were automatically added by l10nmerge
+-->
+
+<!ENTITY fullZoomReduceBtn.accesskey    "O">
+<!ENTITY search.emptytext               "বিচাৰক">
+<!ENTITY fullZoomEnlargeCmd.commandkey2 "=">
+<!ENTITY fullZoomEnlargeCmd.commandkey3 "">
+<!ENTITY fullZoomEnlargeCmd.commandkey  "+">
+<!ENTITY fullZoomReduceBtn.label        "বাহিৰলৈ জুম কৰক">
+<!ENTITY searchHeader.label             "বিচৰাৰ ফলাফল">
+<!ENTITY fullZoomResetCmd.commandkey2   "">
+<!ENTITY fullZoomReduceCmd.commandkey   "-">
+<!ENTITY fullZoomResetCmd.commandkey    "0">
+<!ENTITY fullZoomReduceCmd.commandkey2  "">
+<!ENTITY fullZoomEnlargeBtn.label       "ভিতৰলৈ জুম কৰক">
+<!ENTITY fullZoomEnlargeBtn.accesskey   "I">

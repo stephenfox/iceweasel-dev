@@ -1,0 +1,69 @@
+<!-- extracted from content/navigator.xul -->
+
+<!-- LOCALIZATION NOTE : FILE This file contains the browser main menu items --> 
+<!-- LOCALIZATION NOTE : FILE Do not translate accesskey and commandkey --> 
+
+<!-- LOCALIZATION NOTE (mainWindow.title): DONT_TRANSLATE --> 
+<!ENTITY mainWindow.title "&brandShortName;">
+<!-- LOCALIZATION NOTE (mainWindow.titlemodifier) : DONT_TRANSLATE --> 
+<!ENTITY mainWindow.titlemodifier "&brandShortName;">
+<!-- LOCALIZATION NOTE (mainWindow.titlemodifiermenuseparator): DONT_TRANSLATE -->
+<!ENTITY mainWindow.titlemodifiermenuseparator " - ">
+
+<!ENTITY editPageCmd.label "Editar Página">
+<!ENTITY editPageCmd.accesskey "E">
+<!ENTITY editPageCmd.commandkey "e">
+
+<!ENTITY navbarCmd.label "Barra de ferramentas de navegação">
+<!ENTITY navbarCmd.accesskey "n">
+<!ENTITY personalbarCmd.label "Barra de ferramentas pessoal">
+<!ENTITY personalbarCmd.accesskey "p">
+
+<!ENTITY closeWindow.label "Fechar janela">
+<!ENTITY closeWindow.accesskey "e">
+
+<!ENTITY minimizeButton.tooltip       "Minimizar">
+<!ENTITY restoreButton.tooltip        "Restaurar">
+
+<!ENTITY feedsMenu.label "Subscrever esta página">
+<!ENTITY feedsMenu.accesskey "S">
+
+<!ENTITY menuBar.tooltip                  "Barra de Menus">
+<!ENTITY personalToolbar.tooltip          "Barra de ferramentas pessoal">
+<!ENTITY navigationToolbar.tooltip        "Barra de ferramentas de navegação">
+
+<!-- Toolbar items --> 
+<!ENTITY backButton.label             "Retroceder">
+<!ENTITY backButton.tooltip           "Retroceder uma página">
+<!ENTITY forwardButton.label          "Avançar">
+<!ENTITY forwardButton.tooltip        "Avançar uma página">
+<!ENTITY reloadButton.label           "Recarregar">
+<!ENTITY reloadButton.tooltip         "Recarregar página atual">
+<!ENTITY stopButton.label             "Parar">
+<!ENTITY stopButton.tooltip           "Parar o carregamento desta página">
+<!ENTITY searchButton.label           "Pesquisar">
+<!ENTITY searchButton.tooltip         "Escreva uma palavra no campo esquerdo e depois clique Pesquisar">
+<!ENTITY goButton.label               "Ir">
+<!ENTITY goButton.tooltip             "Escreva uma localização no campo esquerdo e depois clique Ir">
+<!ENTITY printButton.label            "Imprimir">
+<!ENTITY printButton.tooltip          "Imprimir esta página">
+
+<!ENTITY throbber.tooltip             "Ir para a página inicial do &vendorShortName;">
+
+<!ENTITY locationBar.tooltip          "Escrever o termo da pesquisa, palavra chave, ou endereço web">
+<!ENTITY locationBar.accesskey        "d">
+<!ENTITY locationBar.title            "Localização">
+<!ENTITY proxyIcon.tooltip            "Arraste e largue este ícone para criar uma ligação para esta página">
+
+<!ENTITY searchItem.title             "Pesquisar">
+
+<!ENTITY bookmarksButton.label       "Marcadores">
+<!ENTITY bookmarksButton.tooltip     "Lista de marcadores">
+<!ENTITY homeButton.label            "Página inicial">
+<!ENTITY bookmarksToolbarItem.label  "Itens da barra de ferramentas dos marcadores">
+<!ENTITY bookmarksToolbarChevron.tooltip "Mostrar mais marcadores">
+
+<!-- Statusbar -->
+<!ENTITY  statusText.label            "Feito">
+
+<!ENTITY popupIcon.tooltiptext      "Desbloquear os popups do sítio">

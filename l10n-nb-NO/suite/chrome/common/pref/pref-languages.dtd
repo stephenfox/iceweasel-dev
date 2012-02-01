@@ -1,0 +1,32 @@
+<!-- LOCALIZATION NOTE : FILE 'Languages' preferences dialog -->
+
+<!ENTITY languages.customize.prefLangDescript           "Noen ganger er nettsider tilgjengelige i flere språk. Velg hvilke språk du vil vise.">
+<!ENTITY languages.customize.title                      "Språk">
+<!ENTITY langtitle.label                                "Språk for nettsider">
+<!ENTITY languages.customize.prefAddLangDescript        "Velg hvilket språk du vil legge til.">
+<!ENTITY languages.customize.addButton.label            "Legg til …">
+<!ENTITY languages.customize.addButton.accesskey        "L">
+<!ENTITY languages.customize.deleteButton.label         "Fjern">
+<!ENTITY languages.customize.deleteButton.accesskey     "F">
+<!ENTITY languages.customize.add.title.label            "Legg til språk">
+<!ENTITY languages.customize.available.label            "Språk:">
+<!ENTITY languages.customize.active.label               "Språk i foretrukket rekkefølge:">
+<!ENTITY languages.customize.active.accesskey           "S">
+<!ENTITY languages.customize.others.label               "Andre:">
+<!ENTITY languages.customize.others.accesskey           "A">
+<!ENTITY languages.customize.Charset.grouplabel         "Tegnkoding">
+<!ENTITY languages.customize.DefaultCharset.label       "Standard tegnkoding:">
+<!ENTITY languages.customize.DefaultCharset.accesskey   "S">
+<!-- LOCALIZATION NOTE  Character Encoding Preferences Dialog: Do NOT localize the terms "en-bz, ar-jo"  -->
+<!ENTITY languages.customize.others.examples            "f.eks. nn, en-us">
+<!ENTITY languages.customize.moveUp.label               "Flytt opp">
+<!ENTITY languages.customize.moveUp.accesskey           "O">
+<!ENTITY languages.customize.moveDown.label             "Flytt ned">
+<!ENTITY languages.customize.moveDown.accesskey         "N">
+
+<!ENTITY spelling.label                                 "Stavekontroll">
+<!ENTITY checkSpelling.label                            "Når jeg skriver, kontroller staving:">
+<!ENTITY checkSpelling.accesskey                        "N">
+<!ENTITY dontCheckSpelling.label                        "Aldri">
+<!ENTITY multilineCheckSpelling.label                   "I tekstbokser med flere linjer">
+<!ENTITY alwaysCheckSpelling.label                      "I alle tekstbokser">

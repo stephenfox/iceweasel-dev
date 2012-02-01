@@ -1,0 +1,9 @@
+<!ENTITY newFolderDialog.title "Nova pasta">
+<!ENTITY name.label "Nome:">
+<!ENTITY name.accesskey "n">
+<!ENTITY description.label "Criar como subpasta de:">
+<!ENTITY description.accesskey "c">
+<!ENTITY folderRestriction1.label "Este servidor tem restrições a pastas de dois tipos especiais.">
+<!ENTITY folderRestriction2.label "Permitir que sua nova pasta contenha:">
+<!ENTITY foldersOnly.label "Apenas pastas">
+<!ENTITY messagesOnly.label "Apenas mensagens">

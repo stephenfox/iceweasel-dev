@@ -1,0 +1,5 @@
+<!--LOCALIZATION NOTE sendprogress.dtd Main UI for Send Message Progress Dialog -->
+<!ENTITY sendWindow.title "Նամակը ուղարկվում է"> 
+<!ENTITY status.label "Վիճակը.">
+<!ENTITY progress.label "Ընթացքը.">
+

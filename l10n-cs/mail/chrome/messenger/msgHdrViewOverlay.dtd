@@ -1,0 +1,133 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Komu ">
+<!ENTITY fromField3.label "Od ">
+<!ENTITY senderField3.label "Odesílatel ">
+<!ENTITY organizationField3.label "Organizace ">
+<!ENTITY replyToField3.label "Odpověď ">
+
+<!ENTITY subjectField3.label "Předmět ">
+<!ENTITY ccField3.label "Kopie ">
+<!ENTITY bccField3.label "Skrytá kopie ">
+<!ENTITY newsgroupsField3.label "Diskusní skupiny ">
+<!ENTITY followupToField3.label "Pokračování v ">
+<!ENTITY tagsHdr3.label "Štítky ">
+<!ENTITY dateField3.label "Datum ">
+<!ENTITY userAgentField3.label "Poštovní klient ">
+<!ENTITY referencesField3.label "Reference ">
+<!ENTITY messageIdField3.label "Id zprávy ">
+<!ENTITY inReplyToField3.label "V odpovědi na ">
+<!ENTITY originalWebsite3.label "Webový server ">
+
+<!ENTITY editMessageDescription.label "Tato zpráva je koncept">
+<!ENTITY editMessageButton.label "Upravit…">
+<!ENTITY hdrArchiveButton1.label "Archivovat">
+<!ENTITY hdrArchiveButton1.tooltip "Archivuje tuto zprávu">
+<!ENTITY hdrSmartReplyButton1.label "Odpovědět chytře">
+<!ENTITY hdrReplyButton1.label "Odpovědět">
+<!ENTITY hdrReplyButton1.tooltip "Odpoví na tuto zprávu">
+<!ENTITY hdrReplyAllButton1.label "Odpovědět všem">
+<!ENTITY hdrReplyAllButton1.tooltip "Odpoví odesílateli a všem příjemcům">
+<!ENTITY hdrReplyListButton1.label "Odpovědět do konference">
+<!ENTITY hdrReplyListButton1.tooltip "Odpoví do e-mailové konference">
+<!ENTITY hdrForwardButton1.label "Přeposlat">
+<!ENTITY hdrForwardButton1.tooltip "Přepošle tuto zprávu">
+<!ENTITY hdrJunkButton1.label "Nevyžádaná pošta">
+<!ENTITY hdrJunkButton1.tooltip "Označí tuto zprávu jako nevyžádaná">
+<!ENTITY hdrTrashButton1.label "Smazat">
+<!ENTITY hdrTrashButton1.tooltip "Smaže tuto zprávu">
+
+<!ENTITY hdrViewToolbarShowFull.label "Zobrazit ikony a text">
+<!ENTITY hdrViewToolbarShowFull.accesskey "Z">
+<!ENTITY hdrViewToolbarShowIcons.label "Zobrazit pouze ikony">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "i">
+<!ENTITY hdrViewToolbarShowText.label "Zobrazit pouze text">
+<!ENTITY hdrViewToolbarShowText.accesskey "t">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Vždy zobrazit Odpovědět odesílateli">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "V">
+
+<!ENTITY otherActionsButton1.label "Další akce">
+<!ENTITY otherActionsOpenConversation1.label "Otevřít jako konverzaci">
+<!ENTITY otherActionsOpenConversation1.accesskey "k">
+<!ENTITY otherActionsOpenInNewWindow1.label "Otevřít v novém okně">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "O">
+<!ENTITY otherActionsOpenInNewTab1.label "Otevřít v panelu">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "p">
+<!ENTITY markAsReadMenuItem1.label "Označit jako přečtená">
+<!ENTITY markAsReadMenuItem1.accesskey "z">
+<!ENTITY markAsUnreadMenuItem1.label "Označit jako nepřečtená">
+<!ENTITY markAsUnreadMenuItem1.accesskey "z">
+<!ENTITY saveAsMenuItem1.label "Uložit jako…">
+<!ENTITY saveAsMenuItem1.accesskey "U">
+<!ENTITY viewSourceMenuItem1.label "Zobrazit zdrojový kód…">
+<!ENTITY viewSourceMenuItem1.accesskey "k">
+<!ENTITY otherActionsPrint1.label "Tisknout">
+<!ENTITY otherActionsPrint1.accesskey "T">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label "Otevřít">
+<!ENTITY openAttachmentCmd.accesskey "O">
+<!ENTITY saveAsAttachmentCmd.label "Uložit jako…">
+<!ENTITY saveAsAttachmentCmd.accesskey "j">
+<!ENTITY detachAttachmentCmd.label "Vyčlenit…">
+<!ENTITY detachAttachmentCmd.accesskey "V">
+<!ENTITY deleteAttachmentCmd.label "Smazat">
+<!ENTITY deleteAttachmentCmd.accesskey "m">
+<!ENTITY openAllAttachmentsCmd.label "Otevřít vše…">
+<!ENTITY openAllAttachmentsCmd.accesskey "t">
+<!ENTITY saveAllAttachmentsCmd.label "Uložit vše…">
+<!ENTITY saveAllAttachmentsCmd.accesskey "U">
+<!ENTITY detachAllAttachmentsCmd.label "Vyčlenit vše…">
+<!ENTITY detachAllAttachmentsCmd.accesskey "V">
+<!ENTITY deleteAllAttachmentsCmd.label "Smazat vše">
+<!ENTITY deleteAllAttachmentsCmd.accesskey "S">
+
+<!ENTITY openAttachment.tooltip "Otevře přiložený soubor">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label "Uložit">
+<!ENTITY saveAttachmentButton1.tooltip "Uloží soubor přílohy">
+<!ENTITY saveAllAttachmentsButton1.label "Uložit vše">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Uloží všechny soubory přílohy">
+
+<!ENTITY copyLinkCmd.label "Kopírovat adresu odkazu">
+<!ENTITY copyLinkCmd.accesskey "K">
+
+<!ENTITY CopyMessageId.label "Kopírovat id zprávy">
+<!ENTITY OpenMessageForMsgId.label "Otevřít zprávu pro id">
+<!ENTITY OpenBrowserWithMsgId.label "Otevřít prohlížeč s id zprávy">

@@ -1,0 +1,47 @@
+<!-- extracted from printjoboptions.xul -->
+
+<!ENTITY printJobOptions.title "মূদ্ৰকৰ গুণ">
+
+<!ENTITY paperInput.label "কাগজৰ আকাৰ:">
+
+<!ENTITY plexInput.label "Plex ধৰণ:">
+
+<!ENTITY resolutionInput.label "বিভাজন/গুণগত বৈশিষ্ট:">
+
+<!ENTITY cmdInput.label "মূদ্ৰণৰ আদেশ:">
+
+<!ENTITY jobTitleInput.label "কাৰ্য্যৰ শিৰোনাম:">
+
+<!ENTITY colorGroup.label "ৰং:">
+<!ENTITY grayRadio.label "GrayScale">
+<!ENTITY colorRadio.label "ৰং">
+
+<!ENTITY colorspaceInput.label "Colorspace:">
+
+<!ENTITY fontsGroup.label "আখৰ:">
+<!ENTITY downloadFonts.label "মূদ্ৰকলৈ আখৰ ডাউন্‌লোড কৰোঁ ?">
+
+<!ENTITY edgeMarginInput.label "কাগজৰ কাষৰ পৰা মাৰ্জিনলৈ ৰিক্ত স্থান">
+<!ENTITY topInput.label "ওপৰ:">
+<!ENTITY bottomInput.label "তল:">
+<!ENTITY leftInput.label "বাওঁ:">
+<!ENTITY rightInput.label "সোঁ:">
+
+
+<!--
+entities below were automatically added by l10nmerge
+-->
+
+<!ENTITY downloadFonts.accesskey "D">
+<!ENTITY colorRadio.accesskey "C">
+<!ENTITY topInput.accesskey "T">
+<!ENTITY bottomInput.accesskey "B">
+<!ENTITY cmdInput.accesskey "o">
+<!ENTITY paperInput.accesskey "P">
+<!ENTITY plexInput.accesskey "m">
+<!ENTITY grayRadio.accesskey "G">
+<!ENTITY resolutionInput.accesskey "e">
+<!ENTITY colorspaceInput.accesskey "s">
+<!ENTITY rightInput.accesskey "R">
+<!ENTITY jobTitleInput.accesskey "J">
+<!ENTITY leftInput.accesskey "L">

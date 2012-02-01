@@ -1,0 +1,10 @@
+<!ENTITY zoomEnlargeCmd.label       "Priblížiť">
+<!ENTITY zoomEnlargeCmd.accesskey   "P">
+<!ENTITY zoomEnlargeCmd.commandkey  "+">
+<!ENTITY zoomEnlargeCmd.commandkey2 "="> <!-- + is above this key on many keyboards -->
+
+<!ENTITY zoomReduceCmd.label        "Vzdialiť">
+<!ENTITY zoomReduceCmd.accesskey    "V">
+<!ENTITY zoomReduceCmd.commandkey   "-">
+
+<!ENTITY zoomResetCmd.commandkey    "0">

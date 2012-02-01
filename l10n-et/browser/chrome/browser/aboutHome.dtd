@@ -1,0 +1,23 @@
+<!ENTITY % brandDTD
+    SYSTEM "chrome://branding/locale/brand.dtd">
+  %brandDTD;
+
+<!-- These strings are used in the about:home page -->
+
+<!ENTITY abouthome.pageTitle                     "&brandFullName;i avaleht">
+
+<!ENTITY abouthome.searchEngineButton.label      "Otsi">
+
+<!ENTITY abouthome.aboutMozilla                  "Mozillast">
+
+<!-- LOCALIZATION NOTE (abouthome.defaultSnippet1.v1):
+     text in <a/> will be linked to the Firefox features page on mozilla.com
+-->
+<!ENTITY abouthome.defaultSnippet1.v1            "Täname, et valisid Firefoxi! Brauserist parima võtmiseks tutvu <a>viimaste uuendustega</a>.">
+<!-- LOCALIZATION NOTE (abouthome.defaultSnippet2.v1):
+     text in <a/> will be linked to the featured add-ons on addons.mozilla.org
+-->
+<!ENTITY abouthome.defaultSnippet2.v1            "Firefoxi endale meelepäraseks kujundamine on lihtne. <a>Selleks leidub tuhandeid lisasid</a>.">
+
+<!ENTITY abouthome.syncSetup.label               "Seadista sünkroniseerimine">
+<!ENTITY abouthome.pairDevice.label              "Lisa seade">

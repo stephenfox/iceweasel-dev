@@ -1,0 +1,35 @@
+
+<!ENTITY migrationWizard.title          "Penuntun Impor">
+
+<!ENTITY importFrom.label               "Impor Pengaturan, Markah (Bookmark), Riwayat, Sandi, dan data lainnya dari:">
+<!ENTITY importFromUnix.label           "Impor Pengaturan, Markah (Bookmark), Riwayat, Sandi, dan data lainnya dari:">
+<!ENTITY importFromBookmarks.label      "Impor Markah dari:">
+
+<!ENTITY importFromIE.label             "Microsoft Internet Explorer">
+<!ENTITY importFromIE.accesskey         "M">
+<!ENTITY importFromNothing.label        "Jangan impor apa pun">
+<!ENTITY importFromNothing.accesskey    "J">
+<!ENTITY importFromSeamonkey.label      "Netscape 6, 7 atau Mozilla 1.x">
+<!ENTITY importFromSeamonkey.accesskey  "N">
+<!ENTITY importFromOpera.label          "Opera">
+<!ENTITY importFromOpera.accesskey      "O">
+<!ENTITY importFromSafari.label         "Safari">
+<!ENTITY importFromSafari.accesskey     "S">
+<!ENTITY importFromHTMLFile.label       "Dari Berkas HTML">
+<!ENTITY importFromHTMLFile.accesskey   "B">
+
+<!ENTITY noMigrationSources.label       "Tidak ada program yang berisi markah, riwayat atau sandi yang bisa ditemukan.">
+
+<!ENTITY importSource.title             "Impor Pengaturan dan Data">
+<!ENTITY importItems.title              "Pilih yang akan diimpor">
+<!ENTITY importItems.label              "Pilih yang akan diimpor:">
+
+<!ENTITY migrating.title                "Mengimpor…">
+<!ENTITY migrating.label                "Berikut ini yang sedang diimpor…">
+
+<!ENTITY selectProfile.title            "Pilih Profil">
+<!ENTITY selectProfile.label            "Profil berikut ini bisa diimpor dari:">
+
+<!ENTITY done.title                     "Proses Impor Selesai">
+<!ENTITY done.label                     "Item berikut sukses diimpor:">
+

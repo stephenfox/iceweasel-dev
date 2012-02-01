@@ -1,0 +1,142 @@
+<!-- LOCALIZATION NOTE (places.library.title): use "Library", "Archive" or "Repository" -->
+<!ENTITY places.library.title  "Llyfrgell">
+<!ENTITY places.library.width  "700">
+<!ENTITY places.library.height "500">
+<!ENTITY organize.label        "Trefnu">
+<!ENTITY organize.accesskey    "T">
+<!ENTITY organize.tooltip      "Trefnu eich nodau tudalen">
+
+<!ENTITY file.accesskey                 "F">
+<!ENTITY file.close.label               "Cau">
+<!ENTITY file.close.accesskey           "C">
+<!ENTITY cmd.close.key                  "w">
+<!ENTITY edit.label                     "Golygu">
+<!ENTITY edit.accesskey                 "G">
+<!ENTITY views.label                    "Golwg">
+<!ENTITY views.accesskey                "G">
+<!ENTITY views.tooltip                  "Newid eich golwg">
+<!ENTITY view.columns.label             "Dangos Colofnau">
+<!ENTITY view.columns.accesskey         "C">
+<!ENTITY view.sort.label                "Trefnu">
+<!ENTITY view.sort.accesskey            "T">
+<!ENTITY view.unsorted.label            "Didrefn">
+<!ENTITY view.unsorted.accesskey        "D">
+<!ENTITY view.sortAscending.label       "Trefnu A > Z">
+<!ENTITY view.sortAscending.accesskey   "A">
+<!ENTITY view.sortDescending.label      "Trefnu Z > A">
+<!ENTITY view.sortDescending.accesskey  "Z">
+
+<!ENTITY cmd.findInBookmarks.label      "Canfod mewn Nodau Tudaleni ...">
+<!ENTITY cmd.findInBookmarks.accesskey  "C">
+<!ENTITY cmd.findCurrent.label          "Canfod yn y Casgliad Cyfredol">
+<!ENTITY cmd.findCurrent.accesskey      "a">
+
+<!ENTITY cmd.exportHTML.label           "Allforio HTML ...">
+<!ENTITY cmd.exportHTML.accesskey       "A">
+<!ENTITY cmd.importHTML.label           "Mewnforio HTML...">
+<!ENTITY cmd.importHTML.accesskey       "M">
+
+<!ENTITY cmd.backup.label               "Wrth gefn ...">
+<!ENTITY cmd.backup.accesskey           "W">
+<!ENTITY cmd.restore2.label             "Adfer">
+<!ENTITY cmd.restore2.accesskey         "A">
+<!ENTITY cmd.restoreFromFile.label      "Dewis Ffeil...">
+<!ENTITY cmd.restoreFromFile.accesskey  "D">
+
+<!ENTITY cmd.bookmarkLink.label         "Gosod Nod Tudalen i'r Dudalen...">
+<!ENTITY cmd.bookmarkLink.accesskey     "G">
+<!ENTITY cmd.delete.label               "Dileu'r Dudalen Hon">
+<!ENTITY cmd.delete.accesskey           "D">
+<!ENTITY cmd.deleteDomainData.label     "Anghofio'r Wefan Hon">
+<!ENTITY cmd.deleteDomainData.accesskey "A">
+
+<!ENTITY cmd.open.label                  "Agor">
+<!ENTITY cmd.open.accesskey              "A">
+<!ENTITY cmd.open_window.label           "Agor mewn Ffenestr Newydd">
+<!ENTITY cmd.open_window.accesskey       "F">
+<!ENTITY cmd.open_tab.label              "Agor mewn Tab Newydd">
+<!ENTITY cmd.open_tab.accesskey          "T">
+<!ENTITY cmd.open_all_in_tabs.label      "Agor pob Tab">
+<!ENTITY cmd.open_all_in_tabs.accesskey  "A">
+
+<!ENTITY cmd.properties.label      "Priodweddau">
+<!ENTITY cmd.properties.accesskey  "P">
+
+<!ENTITY cmd.sortby_name.label              "Trefnu yn ôl Enw">
+<!ENTITY cmd.sortby_name.accesskey          "T">
+<!ENTITY cmd.context_sortby_name.accesskey  "T">
+
+<!ENTITY cmd.new_bookmark.label            "Nod Tudalen Newydd">
+<!ENTITY cmd.new_bookmark.accesskey        "N">
+<!ENTITY cmd.new_folder.label              "Ffolder Newydd">
+<!ENTITY cmd.new_folder.accesskey          "f">
+<!ENTITY cmd.context_new_folder.accesskey  "F">
+<!ENTITY cmd.new_separator.label           "Ymwahanydd Newydd">
+<!ENTITY cmd.new_separator.accesskey       "Y">
+
+<!ENTITY cmd.reloadLivebookmark.label      "Ail lwytho Nod Tudalen Byw">
+<!ENTITY cmd.reloadLivebookmark.accesskey  "A">
+<!ENTITY cmd.reloadMicrosummary.label      "Ail lwytho Teitl Byw">
+<!ENTITY cmd.reloadMicrosummary.accesskey  "A">
+
+<!ENTITY cmd.moveBookmarks.label                  "Symud...">
+<!ENTITY cmd.moveBookmarks.accesskey              "S">
+
+<!ENTITY col.name.label          "Enw">
+<!ENTITY col.tags.label          "Tagiau">
+<!ENTITY col.url.label           "Lleoliad">
+<!ENTITY col.lastvisit.label     "Dyddiad Ymweld">
+<!ENTITY col.visitcount.label    "Cyfrif Ymweliadau">
+<!ENTITY col.keyword.label       "Allweddair">
+<!ENTITY col.description.label   "Disgrifiad">
+<!ENTITY col.dateadded.label     "Ychwanegwyd">
+<!ENTITY col.lastmodified.label  "Newidwyd Ddiwethaf">
+
+<!ENTITY search.label                              "Chwilio:">
+<!ENTITY search.accesskey                          "C">
+
+<!ENTITY search.in.label                           "Chwilio yn:">
+<!ENTITY search.scopeFolder.label                  "Ffolderi Dewiswyd">
+<!ENTITY search.scopeFolder.accesskey              "d">
+<!ENTITY search.scopeBookmarks.label               "Nodau Tudalen">
+<!ENTITY search.scopeBookmarks.accesskey           "n">
+<!ENTITY search.scopeDownloads.label               "Llwythi">
+<!ENTITY search.scopeDownloads.accesskey           "L">
+<!ENTITY search.scopeHistory.label                 "Hanes">
+<!ENTITY search.scopeHistory.accesskey             "a">
+<!ENTITY saveSearch.label                          "Cadw">
+<!ENTITY saveSearch.accesskey                      "C">
+
+<!ENTITY cmd.find.key  "l">
+
+<!ENTITY maintenance.label      "Mewnforio ac Allforio">
+<!ENTITY maintenance.accesskey  "M">
+<!ENTITY maintenance.tooltip    "Mewnforio a chadw eich nodau tudalen wrth gefn">
+
+<!ENTITY backCmd.label       "Nôl">
+<!ENTITY backButton.tooltip  "Mynd Nôl">
+
+<!ENTITY forwardCmd.label       "Ymlaen">
+<!ENTITY forwardButton.tooltip  "Mynd ymlaen">
+
+<!ENTITY detailsPane.more.label "Mwy">
+<!ENTITY detailsPane.more.accesskey "M">
+<!ENTITY detailsPane.less.label "Llai">
+<!ENTITY detailsPane.less.accesskey "l">
+<!ENTITY detailsPane.noPreviewAvailable.label "Rhagolwg">
+<!ENTITY detailsPane.selectAnItemText.description "Dewis eitem i'w gweld a golygu ei phriodweddau">
+
+<!ENTITY find.label               "Chwilio:">
+<!ENTITY find.accesskey           "C">
+<!ENTITY view.label               "Golwg">
+<!ENTITY view.accesskey           "w">
+<!ENTITY byDate.label             "Yn ôl Dyddiad">
+<!ENTITY byDate.accesskey         "D">
+<!ENTITY bySite.label             "Yn ôl Gwefan">
+<!ENTITY bySite.accesskey         "Y">
+<!ENTITY byMostVisited.label      "Ymwelwyd Amlaf">
+<!ENTITY byMostVisited.accesskey  "Y">
+<!ENTITY byLastVisited.label      "Ymwelwyd Diwethaf">
+<!ENTITY byLastVisited.accesskey  "l">
+<!ENTITY byDayAndSite.label       "Yn ôl Dyddiad a Gwefan">
+<!ENTITY byDayAndSite.accesskey   "Y">

@@ -1,0 +1,26 @@
+<!ENTITY migrationWizard.title "Мастер импорта">
+<!ENTITY importFrom.label "Импортировать настройки, закладки, журнал, пароли и другие данные из:">
+<!ENTITY importFromUnix.label "Импортировать настройки, закладки, журнал, пароли и другие данные из:">
+<!ENTITY importFromBookmarks.label "Импортировать закладки из:">
+<!ENTITY importFromIE.label "Microsoft Internet Explorer">
+<!ENTITY importFromIE.accesskey "M">
+<!ENTITY importFromNothing.label "Не импортировать ничего">
+<!ENTITY importFromNothing.accesskey "н">
+<!ENTITY importFromSeamonkey.label "Netscape 6, 7 или Mozilla 1.x">
+<!ENTITY importFromSeamonkey.accesskey "N">
+<!ENTITY importFromOpera.label "Opera">
+<!ENTITY importFromOpera.accesskey "O">
+<!ENTITY importFromSafari.label "Safari">
+<!ENTITY importFromSafari.accesskey "S">
+<!ENTITY importFromHTMLFile.label "HTML-файла">
+<!ENTITY importFromHTMLFile.accesskey "ф">
+<!ENTITY noMigrationSources.label "Ни одной программы, содержащей закладки, журнал или пароли, не найдено.">
+<!ENTITY importSource.title "Импорт настроек и данных">
+<!ENTITY importItems.title "Объекты для импорта">
+<!ENTITY importItems.label "Выберите объекты для импортирования:">
+<!ENTITY migrating.title "Идёт импорт…">
+<!ENTITY migrating.label "В данное время импортируются следующие объекты…">
+<!ENTITY selectProfile.title "Выбор профиля">
+<!ENTITY selectProfile.label "Импорт может быть произведен из следующих профилей:">
+<!ENTITY done.title "Импорт успешно завершён">
+<!ENTITY done.label "Следующие объекты были успешно импортированы:">

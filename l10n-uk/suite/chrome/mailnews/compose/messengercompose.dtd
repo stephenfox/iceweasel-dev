@@ -1,0 +1,133 @@
+<!--LOCALIZATION NOTE messengercompose.dtd Main UI for message composition -->
+<!ENTITY msgComposeWindow.title "Compose: (no subject)">
+
+<!ENTITY fromAddr.label "Від:">
+<!ENTITY fromAddr.accesskey "д">
+<!ENTITY subject.label  "Тема:">
+<!ENTITY subject.accesskey "Т">
+<!ENTITY attachments.label "Вкладення:">
+<!ENTITY attachments.accesskey "В">
+
+<!-- menu items:  the . means that the menu item isn't implemented yet -->
+
+<!-- File menu items -->
+<!ENTITY saveCmd.label "Зберегти">
+<!ENTITY saveCmd.accesskey "б">
+<!ENTITY saveAsCmd.label "Зберегти як">
+<!ENTITY saveAsCmd.accesskey "я">
+<!ENTITY saveAsFileCmd.label "Файл…">
+<!ENTITY saveAsFileCmd.accesskey "Ф">
+<!ENTITY saveAsDraftCmd.label "Чернетку">
+<!ENTITY saveAsDraftCmd.accesskey "Ч">
+<!ENTITY saveAsTemplateCmd.label "Шаблон">
+<!ENTITY saveAsTemplateCmd.accesskey "Ш">
+<!ENTITY attachMenu.label "Вкласти">
+<!ENTITY attachMenu.accesskey "к">
+<!ENTITY attachFileCmd.label "Файл(и)…">
+<!ENTITY attachFileCmd.accesskey "л">
+<!ENTITY attachPageCmd.label "Веб-сторінку…">
+<!ENTITY attachPageCmd.accesskey "е">
+<!--LOCALIZATION NOTE attachVCardCmd.label Don't translate the term 'vCard' -->
+<!ENTITY attachVCardCmd.label "Візитну картку (vCard)">
+<!ENTITY attachVCardCmd.accesskey "з">
+<!ENTITY sendNowCmd.label "Відіслати">
+<!ENTITY sendCmd.keycode "VK_RETURN">
+<!ENTITY sendNowCmd.accesskey "д">
+<!ENTITY sendLaterCmd.label "Відіслати пізніше">
+<!ENTITY sendLaterCmd.keycode "VK_RETURN">
+<!ENTITY sendLaterCmd.accesskey "з">
+
+<!-- Edit menu items -->
+<!ENTITY editRewrapCmd.label "Переформатувати">
+<!ENTITY editRewrapCmd.key "О">
+<!ENTITY editRewrapCmd.accesskey  "ф">
+<!ENTITY accountManagerCmd.label "Налаштування пошти &amp; обліковго запису груп новин…">
+<!ENTITY accountManagerCmd.accesskey "Н">
+
+<!-- View menu items -->
+<!ENTITY showComposeToolbarCmd.label "Панель інструментів пошти">
+<!ENTITY showComposeToolbarCmd.accesskey "П">
+<!ENTITY showFormatToolbarCmd.label "Панель інструментів форматування">
+<!ENTITY showFormatToolbarCmd.accesskey "F">
+
+<!-- Format menu items -->
+<!ENTITY formatMenu.label "Формат">
+<!ENTITY formatMenu.accesskey "Ф">
+
+<!-- Options menu items -->
+<!ENTITY optionsMenu.label "Налаштування">
+<!ENTITY optionsMenu.accesskey "Н">
+
+<!ENTITY quoteCmd.label "Цитувати лист">
+<!ENTITY quoteCmd.accesskey "Ц">
+<!ENTITY selectAddressCmd.label "Вибрати адресу…">
+<!ENTITY selectAddressCmd.key "">
+<!ENTITY selectAddressCmd.accesskey "A">
+
+<!ENTITY priorityMenu.label "Важливість">
+<!ENTITY priorityMenu.accesskey "ж">
+<!ENTITY lowestPriorityCmd.label "Найнижча">
+<!ENTITY lowestPriorityCmd.accesskey "й">
+<!ENTITY lowPriorityCmd.label "Низька">
+<!ENTITY lowPriorityCmd.accesskey "з">
+<!ENTITY normalPriorityCmd.label "Звичайна">
+<!ENTITY normalPriorityCmd.accesskey "в">
+<!ENTITY highPriorityCmd.label "Висока">
+<!ENTITY highPriorityCmd.accesskey "в">
+<!ENTITY highestPriorityCmd.label "Найвища">
+<!ENTITY highestPriorityCmd.accesskey "а">
+
+<!ENTITY returnReceiptMenu.label "Сповіщення про доставку">
+<!ENTITY returnReceiptMenu.accesskey "С">
+<!ENTITY outputFormatMenu.label "Формат">
+<!ENTITY outputFormatMenu.accesskey  "Ф">
+<!ENTITY autoFormatCmd.label "Автовизначення">
+<!ENTITY autoFormatCmd.accesskey "А">
+<!ENTITY plainTextFormatCmd.label "Звичайний текст">
+<!ENTITY plainTextFormatCmd.accesskey "т">
+<!ENTITY htmlFormatCmd.label "Форматований текст (HTML)">
+<!ENTITY htmlFormatCmd.accesskey "Ф">
+<!ENTITY bothFormatCmd.label "Звичайний текст і HTML">
+<!ENTITY bothFormatCmd.accesskey "і">
+
+<!ENTITY fileCarbonCopyCmd.label "Відіслати копію">
+<!ENTITY fileCarbonCopyCmd.accesskey "к">
+<!ENTITY fileHereMenu.label "Помістити сюди">
+
+<!--LOCALIZATION NOTE Toolbar items Don't change any "chrome://" URLs -->
+<!-- Toolbar items -->
+<!ENTITY sendButton.label "Відіслати">
+<!ENTITY addressButton.label "Адреса">
+<!ENTITY attachButton.label "Вкладення">
+<!ENTITY spellingButton.label "Орфографія">
+<!ENTITY saveButton.label "Зберегти">
+<!ENTITY stopButton.label "Зупинити">
+
+<!--tooltips-->
+<!-- We already inherit &menuBar.tooltip and &mailToolbar.tooltip from messenger.dtd -->
+<!ENTITY addressBar.tooltip "Панель адреси">
+<!ENTITY formatToolbar.tooltip "Панель інструментів форматування">
+<!ENTITY sendButton.tooltip "Відіслати цього листа зараз"> 
+<!ENTITY sendlaterButton.tooltip "Відіслати цей лист пізніше"> 
+<!ENTITY addressButton.tooltip "Вибрати адресата з адресної книги"> 
+<!ENTITY attachButton.tooltip "Вкласти файл в цей лист"> 
+<!ENTITY saveButton.tooltip "Зберегти цей лист"> 
+<!ENTITY stopButton.tooltip "Зупинити поточну передачу даних"> 
+
+<!-- context menu items -->
+<!ENTITY spellCheckNoSuggestions.label "(Порад не знайдено)">
+<!ENTITY spellCheckIgnoreWord.label "Пропустити слово">
+<!ENTITY spellCheckIgnoreWord.accesskey "П">
+<!ENTITY spellCheckAddToDictionary.label "Додати в словник">
+<!ENTITY spellCheckAddToDictionary.accesskey "с">
+
+<!ENTITY openAttachment.label "Відкрити">
+<!ENTITY openAttachment.accesskey "В">
+<!ENTITY renameAttachment.label "Перейменувати…">
+<!ENTITY renameAttachment.accesskey "й">
+<!ENTITY deleteAttachment.accesskey "D">
+<!ENTITY selectAllAttachments.accesskey "A">
+<!ENTITY attachFile.label "Вкласти файл(и)…">
+<!ENTITY attachFile.accesskey "ф">
+<!ENTITY attachPage.label "Вкласти веб-сторінку…">
+<!ENTITY attachPage.accesskey "е">

@@ -1,0 +1,20 @@
+<!ENTITY editContactPanelDeleteContact.label "Sil">
+<!ENTITY editContactPanelDeleteContact.accesskey "l">
+
+<!ENTITY editContactName.label "İsim:">
+<!ENTITY editContactName.accesskey "s">
+
+<!ENTITY editContactEmail.label "E-posta:">
+<!ENTITY editContactEmail.accesskey "E">
+
+<!ENTITY editContactAddressBook.label "Adres defteri:">
+<!ENTITY editContactAddressBook.accesskey "A">
+
+<!ENTITY editContactPanelCancel.label "Vazgeç">
+<!ENTITY editContactPanelCancel.accesskey "V">
+
+<!ENTITY editContactPanelDone.label "Kaydet">
+<!ENTITY editContactPanelDone.accesskey "K">
+
+<!ENTITY contactMoveDisabledWarning.description "Bu kişi bir posta listesinde olduğu için adres defterini değiştiremezsiniz.">
+

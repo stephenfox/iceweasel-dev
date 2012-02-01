@@ -1,0 +1,32 @@
+<!-- LOCALIZATION NOTE : FILE 'Languages' preferences dialog -->
+
+<!ENTITY  languages.customize.prefLangDescript          "Webbsidor kan ibland finnas på mer än ett språk. Ange prioritetsordning för språk på webbsidorna.">
+<!ENTITY languages.customize.title                      "Språk">
+<!ENTITY langtitle.label                                "Språk för webbsidor">
+<!ENTITY languages.customize.prefAddLangDescript        "Markera det eller de språk du vill lägga till.">
+<!ENTITY languages.customize.addButton.label            "Lägg till…">
+<!ENTITY languages.customize.addButton.accesskey        "L">
+<!ENTITY languages.customize.deleteButton.label         "Ta bort">
+<!ENTITY languages.customize.deleteButton.accesskey     "b">
+<!ENTITY languages.customize.add.title.label		"Lägg till språk">
+<!ENTITY languages.customize.available.label            "Språk:">
+<!ENTITY languages.customize.active.label               "Språk i prioritetsordning:">
+<!ENTITY languages.customize.active.accesskey           "p">
+<!ENTITY languages.customize.others.label               "Övriga:">
+<!ENTITY languages.customize.others.accesskey           "Ö">
+<!ENTITY languages.customize.Charset.grouplabel         "Förinställd teckenkodning">
+<!ENTITY languages.customize.DefaultCharset.label       "Teckenkodning:">
+<!ENTITY languages.customize.DefaultCharset.accesskey   "T">
+<!-- LOCALIZATION NOTE  Character Encoding Preferences Dialog: Do NOT localize the terms "en-bz, ar-jo"  -->
+<!ENTITY languages.customize.others.examples            "t.ex.: en-bz, ar-jo">
+<!ENTITY languages.customize.moveUp.label               "Flytta upp">
+<!ENTITY languages.customize.moveUp.accesskey           "u">
+<!ENTITY languages.customize.moveDown.label             "Flytta ned">
+<!ENTITY languages.customize.moveDown.accesskey         "d">
+
+<!ENTITY spelling.label                                 "Stavning">
+<!ENTITY checkSpelling.label                            "Stavningskontrollera medan jag skriver:">
+<!ENTITY checkSpelling.accesskey                        "S">
+<!ENTITY dontCheckSpelling.label                        "Aldrig">
+<!ENTITY multilineCheckSpelling.label                   "I fält med flera rader">
+<!ENTITY alwaysCheckSpelling.label                      "I alla fält">

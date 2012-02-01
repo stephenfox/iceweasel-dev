@@ -1,0 +1,4 @@
+<!ENTITY window.title             "Viestiyhteenveto">
+<!ENTITY selectedmessages.label   "Valitut viestit">
+<!ENTITY archiveButton.label      "Arkistoi">
+<!ENTITY deleteButton.label       "Poista">

@@ -1,0 +1,36 @@
+<!ENTITY pref.download.title            "Transferências">
+
+<!ENTITY downloadBehavior.label         "Ao iniciar uma transferência">
+<!ENTITY focusWhenStarting.label        "Flash ao gestor de transferências se já estiver aberto, caso contrário:">
+<!ENTITY focusWhenStarting.accesskey    "F">
+<!ENTITY openDM.label                   "Abrir o gestor de transferências">
+<!ENTITY openDM.accesskey               "g">
+<!ENTITY openProgressDialog.label       "Abrir um diálogo de progresso">
+<!ENTITY openProgressDialog.accesskey   "o">
+<!ENTITY doNothing.label                "Não abrir nada">
+<!ENTITY doNothing.accesskey            "d">
+
+<!ENTITY downloadLocation.label         "Ao guardar um ficheiro">
+<!ENTITY saveTo.label                   "Guardar ficheiros para">
+<!ENTITY saveTo.accesskey               "r">
+<!ENTITY chooseDownloadFolder.label     "Escolher pasta…">
+<!ENTITY chooseDownloadFolder.accesskey "c">
+<!ENTITY alwaysAsk.label                "Perguntar-me sempre onde guardar os ficheiros">
+<!ENTITY alwaysAsk.accesskey            "P">
+
+<!ENTITY downloadHistory.label          "Histórico de transferências">
+<!ENTITY removeEntries.label            "Remover entradas de transferências">
+<!ENTITY removeEntries.accesskey        "R">
+<!ENTITY whenCompleted.label            "Quando forem terminadas">
+<!ENTITY whenQuittingApp.label          "Ao sair do &brandShortName;">
+<!ENTITY neverRemove.label              "Nunca">
+
+<!ENTITY finishedBehavior.label         "When a download completes">
+<!ENTITY playSound.label                "Tocar um som">
+<!ENTITY playSound.accesskey            "s">
+<!ENTITY showAlert.label                "Mostrar um alerta">
+<!ENTITY showAlert.accesskey            "t">
+<!ENTITY browse.label                   "Navegar…">
+<!ENTITY browse.accesskey               "N">
+<!ENTITY playButton.label               "Reproduzir">
+<!ENTITY playButton.accesskey           "z">

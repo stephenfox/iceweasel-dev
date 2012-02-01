@@ -1,0 +1,16 @@
+<!--
+# Reviewer(s):
+#
+# http://tomercohen.com/ <tomer.mozilla@tomercohen.com>
+#
+-->
+<!ENTITY position.label             "מיקום:">
+<!ENTITY tile.label                 "פרוש">
+<!ENTITY center.label               "מרכז">
+<!ENTITY stretch.label              "מתוח">
+<!ENTITY preview.label              "תצוגה מקדימה">
+<!ENTITY color.label                "צבע:">
+<!ENTITY setDesktopBackground.title "קבע כרקע שולחן העבודה">
+<!ENTITY openDesktopPrefs.label     "פתח מאפייני שולחן עבודה">
+<!ENTITY closeWindow.key            "w">
+

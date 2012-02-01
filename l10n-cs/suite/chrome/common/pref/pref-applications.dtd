@@ -1,0 +1,10 @@
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Pomocné aplikace">
+
+<!ENTITY typeColumn.label "Typ obsahu">
+<!ENTITY typeColumn.accesskey "T">
+
+<!ENTITY actionColumn2.label "Akce">
+<!ENTITY actionColumn2.accesskey "A">
+
+<!ENTITY search.placeholder "Hledat typy a akce">

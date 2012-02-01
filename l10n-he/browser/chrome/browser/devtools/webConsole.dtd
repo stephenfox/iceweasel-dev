@@ -1,0 +1,31 @@
+<!--
+# Translator(s):
+#
+# Yaron <sh.yaron@gmail.com>
+# Tomer Cohen <tomer.mozilla@tomercohen.com>
+# elad <el.il@doom.co.il>
+#
+-->
+<!--
+# Reviewer(s):
+#
+# Tomer Cohen <tomer.mozilla@tomercohen.com>
+#
+-->
+<!ENTITY networkPanel.requestURL                  "כתובת הבקשה">
+<!ENTITY networkPanel.requestMethod               "שיטת הבקשה">
+<!ENTITY networkPanel.statusCode                  "קוד מצב">
+
+<!ENTITY networkPanel.requestHeaders              "כותרות בקשה">
+<!ENTITY networkPanel.requestCookie               "עוגיה נשלחה">
+<!ENTITY networkPanel.requestBody                 "גוף הבקשה">
+<!ENTITY networkPanel.requestFormData             "נתוני טופס שנשלח">
+
+<!ENTITY networkPanel.responseHeaders             "כותרות תגובה">
+<!ENTITY networkPanel.responseBody                "גוף תגובה">
+<!ENTITY networkPanel.responseBodyCached          "נתונים במטמון">
+<!ENTITY networkPanel.responseBodyUnknownType     "סוג תוכן לא מוכר">
+<!ENTITY networkPanel.responseNoBody              "אין גוף לבקשה">
+<!ENTITY networkPanel.responseImage               "תמונה שהתקבלה">
+<!ENTITY networkPanel.responseImageCached         "תמונה במטמון">
+

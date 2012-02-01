@@ -1,0 +1,34 @@
+<!ENTITY pref.navigator.title           "Browser">
+
+<!ENTITY navRadio.label                 "Tonen tijdens">
+<!ENTITY navRadio.accesskey             "T">
+<!ENTITY navStartPageMenu.label         "Browser opstarten">
+<!ENTITY newWinPageMenu.label           "Nieuw venster">
+<!ENTITY newTabPageMenu.label           "Nieuw tabblad">
+
+<!ENTITY blankPageRadio.label           "Blanco pagina">
+<!ENTITY blankPageRadio.accesskey       "c">
+<!ENTITY homePageRadio.label            "Beginpagina">
+<!ENTITY homePageRadio.accesskey        "B">
+<!ENTITY lastPageRadio.label            "Laatst bezochte pagina">
+<!ENTITY lastPageRadio.accesskey        "L">
+<!ENTITY restoreSessionRadio.label      "Vorige sessie herstellen">
+<!ENTITY restoreSessionRadio.accesskey  "V">
+
+<!ENTITY header2.label                  "Beginpagina">
+<!ENTITY homePageIntro.label            "Op de knop Beginpagina klikken brengt u naar deze pagina of groep pagina’s.">
+<!ENTITY useCurrent.label               "Huidige pagina gebruiken">
+<!ENTITY useCurrent.accesskey           "u">
+<!ENTITY useCurrentGroup.label          "Huidige groep gebruiken">
+<!ENTITY useCurrentGroup.accesskey      "r">
+<!ENTITY browseFile.label               "Bestand kiezen…">
+<!ENTITY browseFile.accesskey           "k">
+<!ENTITY useDefault.label               "Standaard herstellen">
+<!ENTITY useDefault.accesskey           "S">
+
+<!ENTITY defaultBrowserGroup.label      "Standaardbrowser">
+<!ENTITY defaultBrowserButton.label     "Standaardbrowser instellen">
+<!ENTITY defaultBrowserButton.accesskey "d">
+<!ENTITY alreadyDefaultText             "&brandShortName; is al ingesteld als uw standaardbrowser.">
+<!ENTITY defaultPendingText             "&brandShortName; zal als uw standaardbrowser worden ingesteld zodra u op OK klikt.">
+<!ENTITY makeDefaultText                "Stel &brandShortName; in als uw standaardbrowser.">

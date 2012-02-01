@@ -1,0 +1,12 @@
+<!-- Window title -->
+<!ENTITY siteUrl.label         "URL &quot;Site&quot;-i:">
+<!ENTITY docSubdir.label       "Nëndrejtori faqeje:">
+<!ENTITY otherSubdir.label     "Nëndrejtori figurash:">
+
+<!ENTITY status.label          "Po botohet…">
+<!ENTITY fileList.label        "Gjendje Botimi">
+<!ENTITY succeeded.label       "Me sukses">
+<!ENTITY failed.label          "Dështoi">
+
+<!ENTITY keepOpen              "Mbaje hapur këtë dritare pasi të jetë plotësuar botimi.">
+<!ENTITY closeButton.label     "Mbylle">

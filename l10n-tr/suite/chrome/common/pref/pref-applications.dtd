@@ -1,0 +1,10 @@
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Yardımcı uygulamalar">
+
+<!ENTITY typeColumn.label "Content Type">
+<!ENTITY typeColumn.accesskey "T">
+
+<!ENTITY actionColumn2.label "Eylem">
+<!ENTITY actionColumn2.accesskey "E">
+
+<!ENTITY search.placeholder "Search Types and Actions">

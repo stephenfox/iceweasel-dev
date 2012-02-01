@@ -1,0 +1,16 @@
+<!--null-->
+<!ENTITY menuBar.tooltip "Barra del menu">
+<!ENTITY modeToolbar.tooltip "Barra modalità">
+<!ENTITY entryToolbar.tooltip "Barra elemento JavaScript">
+<!ENTITY toolbarsCmd.label "Mostra/Nascondi">
+<!ENTITY toolbarsCmd.accesskey "M">
+<!ENTITY toolbarMode.label "Modalità">
+<!ENTITY toolbarMode.accesskey "M">
+<!ENTITY toolbarEval.label "Elemento JavaScript">
+<!ENTITY toolbarEval.accesskey "J">
+<!ENTITY all.accesskey "T">
+<!ENTITY errors.accesskey "r">
+<!ENTITY warnings.accesskey "A">
+<!ENTITY messages.accesskey "e">
+<!ENTITY clear.accesskey "C">
+<!ENTITY evaluate.accesskey "u">

@@ -1,0 +1,4 @@
+<!ENTITY windowTitle.label "Proszę sprawdzić adresy obrazków i odnośników">
+<!ENTITY succeeded.label   "Powiodło się">
+<!ENTITY failed.label      "Nie powiodło się">
+<!ENTITY closeButton.label "Zamknij">

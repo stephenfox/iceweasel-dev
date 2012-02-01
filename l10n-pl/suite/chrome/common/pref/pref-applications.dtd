@@ -1,0 +1,9 @@
+<!ENTITY pref.applications.title "Aplikacje">
+
+<!ENTITY typeColumn.label "Typ zawartości">
+<!ENTITY typeColumn.accesskey "T">
+
+<!ENTITY actionColumn2.label "Czynność">
+<!ENTITY actionColumn2.accesskey "C">
+
+<!ENTITY search.placeholder "Przeszukaj typy i czynności">

@@ -1,0 +1,134 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Aan ">
+<!ENTITY fromField3.label "Van ">
+<!ENTITY senderField3.label "Afzender ">
+<!ENTITY organizationField3.label "Organisatie ">
+<!ENTITY replyToField3.label "Antwoord-naar ">
+
+<!ENTITY subjectField3.label "Onderwerp ">
+<!--# LOCALIZATION NOTE (ccField.label): DONT_TRANSLATE -->
+<!ENTITY ccField3.label "Cc ">
+<!ENTITY bccField3.label "Bcc ">
+<!ENTITY newsgroupsField3.label "Nieuwsgroepen ">
+<!ENTITY followupToField3.label "Reacties-naar ">
+<!ENTITY tagsHdr3.label "Labels ">
+<!ENTITY dateField3.label "Datum ">
+<!ENTITY userAgentField3.label "Useragent ">
+<!ENTITY referencesField3.label "Referenties ">
+<!ENTITY messageIdField3.label "Message-id ">
+<!ENTITY inReplyToField3.label "In-antwoord-op ">
+<!ENTITY originalWebsite3.label "Website ">
+
+<!ENTITY editMessageDescription.label "Dit is een berichtconcept">
+<!ENTITY editMessageButton.label "Bewerken…">
+<!ENTITY hdrArchiveButton1.label "Archiveren">
+<!ENTITY hdrArchiveButton1.tooltip "Dit bericht archiveren">
+<!ENTITY hdrSmartReplyButton1.label "Slim beantwoorden">
+<!ENTITY hdrReplyButton1.label "Beantwoorden">
+<!ENTITY hdrReplyButton1.tooltip "Dit bericht beantwoorden">
+<!ENTITY hdrReplyAllButton1.label "Allen beantwoorden">
+<!ENTITY hdrReplyAllButton1.tooltip "Afzender en alle ontvangers beantwoorden">
+<!ENTITY hdrReplyListButton1.label "Lijst beantwoorden">
+<!ENTITY hdrReplyListButton1.tooltip "Mailinglijst beantwoorden">
+<!ENTITY hdrForwardButton1.label "Doorsturen">
+<!ENTITY hdrForwardButton1.tooltip "Dit bericht doorsturen">
+<!ENTITY hdrJunkButton1.label "Ongewenst">
+<!ENTITY hdrJunkButton1.tooltip "Dit bericht als ongewenst markeren">
+<!ENTITY hdrTrashButton1.label "Verwijderen">
+<!ENTITY hdrTrashButton1.tooltip "Dit bericht verwijderen">
+
+<!ENTITY hdrViewToolbarShowFull.label "Pictogrammen en tekst tonen">
+<!ENTITY hdrViewToolbarShowFull.accesskey "a">
+<!ENTITY hdrViewToolbarShowIcons.label "Alleen pictogrammen tonen">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "p">
+<!ENTITY hdrViewToolbarShowText.label "Alleen tekst tonen">
+<!ENTITY hdrViewToolbarShowText.accesskey "t">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Afzender beantwoorden altijd tonen">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "b">
+
+<!ENTITY otherActionsButton1.label "Andere acties">
+<!ENTITY otherActionsOpenConversation1.label "Openen in conversatie">
+<!ENTITY otherActionsOpenConversation1.accesskey "c">
+<!ENTITY otherActionsOpenInNewWindow1.label "Openen in nieuw venster">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "v">
+<!ENTITY otherActionsOpenInNewTab1.label "Openen in nieuw tabblad">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "t">
+<!ENTITY markAsReadMenuItem1.label "Als gelezen markeren">
+<!ENTITY markAsReadMenuItem1.accesskey "r">
+<!ENTITY markAsUnreadMenuItem1.label "Als ongelezen markeren">
+<!ENTITY markAsUnreadMenuItem1.accesskey "r">
+<!ENTITY saveAsMenuItem1.label "Opslaan als…">
+<!ENTITY saveAsMenuItem1.accesskey "s">
+<!ENTITY viewSourceMenuItem1.label "Bron bekijken">
+<!ENTITY viewSourceMenuItem1.accesskey "B">
+<!ENTITY otherActionsPrint1.label "Afdrukken…">
+<!ENTITY otherActionsPrint1.accesskey "A">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label "Openen">
+<!ENTITY openAttachmentCmd.accesskey "O">
+<!ENTITY saveAsAttachmentCmd.label "Opslaan als…">
+<!ENTITY saveAsAttachmentCmd.accesskey "l">
+<!ENTITY detachAttachmentCmd.label "Ontkoppelen…">
+<!ENTITY detachAttachmentCmd.accesskey    "t">
+<!ENTITY deleteAttachmentCmd.label "Verwijderen">
+<!ENTITY deleteAttachmentCmd.accesskey    "w">
+<!ENTITY openAllAttachmentsCmd.label    "Alles openen…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "O">
+<!ENTITY saveAllAttachmentsCmd.label "Alles opslaan…">
+<!ENTITY saveAllAttachmentsCmd.accesskey "s">
+<!ENTITY detachAllAttachmentsCmd.label "Alles ontkoppelen…">
+<!ENTITY detachAllAttachmentsCmd.accesskey "k">
+<!ENTITY deleteAllAttachmentsCmd.label "Alles verwijderen…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey "v">
+
+<!ENTITY openAttachment.tooltip "Bijlagebestand openen">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "Opslaan">
+<!ENTITY saveAttachmentButton1.tooltip     "Bijlage opslaan">
+<!ENTITY saveAllAttachmentsButton1.label   "Alles opslaan">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Alle bijlagen opslaan">
+
+<!ENTITY copyLinkCmd.label "Koppelingslocatie kopiëren">
+<!ENTITY copyLinkCmd.accesskey "k">
+
+<!ENTITY CopyMessageId.label "Bericht-ID kopiëren">
+<!ENTITY OpenMessageForMsgId.label "Bericht voor ID openen">
+<!ENTITY OpenBrowserWithMsgId.label "Browser met bericht-ID openen">

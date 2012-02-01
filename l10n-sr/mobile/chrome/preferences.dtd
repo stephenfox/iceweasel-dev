@@ -1,0 +1,14 @@
+<!ENTITY content.title "Садржај">
+<!ENTITY prefsHeader.label "Подешавања">
+<!ENTITY showImages.title "Прикажи слике">
+<!ENTITY about.button "Иди на страну">
+<!ENTITY allowCookies.title "Дозволи пријем колачића">
+<!ENTITY language.title "Језик">
+<!ENTITY about.title "О &brandShortName;">
+<!ENTITY clearPrivateData.button "Очисти">
+<!ENTITY privacy.title "Приватност и безбедност">
+<!ENTITY clearPrivateData2.title "Очисти историјат сурфовања">
+<!ENTITY language.auto "Аутоматско препознавање">
+<!ENTITY enableJavaScript.title "Омогући Јаваскрипт">
+<!ENTITY enablePlugins.title "Омогући додатке(plugins)">
+<!ENTITY rememberPasswords.title "Памти моје лозинке">

@@ -1,0 +1,150 @@
+<!--
+# Translator(s):
+#
+# Yaron <sh.yaron@gmail.com>
+# ace <isabag@walla.com>
+# Tomer Cohen <tomer.mozilla@tomercohen.com>
+# hatul <amiadb@gmail.com>
+#
+-->
+<!--
+# Reviewer(s):
+#
+# hatul <amiadb@gmail.com>
+# Tomer Cohen <tomer.mozilla@tomercohen.com>
+#
+-->
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "אל">
+<!ENTITY fromField3.label "מאת">
+<!ENTITY senderField3.label "שולח">
+<!ENTITY organizationField3.label "ארגון">
+<!ENTITY replyToField3.label " תשובה אל">
+
+<!ENTITY subjectField3.label "נושא">
+<!ENTITY ccField3.label "העתק">
+<!ENTITY bccField3.label "העתק נסתר">
+<!ENTITY newsgroupsField3.label " קבוצות דיון">
+<!ENTITY followupToField3.label "המשך מעקב בידי ">
+<!ENTITY tagsHdr3.label "תגיות">
+<!ENTITY dateField3.label "תאריך">
+<!ENTITY userAgentField3.label " סוכן משתמש">
+<!ENTITY referencesField3.label "אזכורים">
+<!ENTITY messageIdField3.label " מזהה הודעה">
+<!ENTITY inReplyToField3.label " בתשובה אל">
+<!ENTITY originalWebsite3.label "אתר אינטרנט">
+
+<!ENTITY editMessageDescription.label "זוהי הודעת טיוטה">
+<!ENTITY editMessageButton.label "עריכה…">
+<!ENTITY hdrArchiveButton1.label "ארכיון">
+<!ENTITY hdrArchiveButton1.tooltip "העבר הודעה זו לארכיון">
+<!ENTITY hdrSmartReplyButton1.label "תשובה חכמה">
+<!ENTITY hdrReplyButton1.label "השב">
+<!ENTITY hdrReplyButton1.tooltip "השב להודעה זו">
+<!ENTITY hdrReplyAllButton1.label "השב לכולם">
+<!ENTITY hdrReplyAllButton1.tooltip "השב לשולח ולכל הנמענים">
+<!ENTITY hdrReplyListButton1.label "תשובה לרשימה">
+<!ENTITY hdrReplyListButton1.tooltip "השב לרשימת תפוצה">
+<!ENTITY hdrForwardButton1.label "העבר">
+<!ENTITY hdrForwardButton1.tooltip "העבר הודעה זו">
+<!ENTITY hdrJunkButton1.label "זבל">
+<!ENTITY hdrJunkButton1.tooltip "סמן הודעה זו כזבל">
+<!ENTITY hdrTrashButton1.label "מחיקה">
+<!ENTITY hdrTrashButton1.tooltip "מחק הודעה זו">
+
+<!ENTITY hdrViewToolbarShowFull.label "הצג צלמיות וטקסט">
+<!ENTITY hdrViewToolbarShowFull.accesskey "ו">
+<!ENTITY hdrViewToolbarShowIcons.label "הצג צלמיות בלבד">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "צ">
+<!ENTITY hdrViewToolbarShowText.label "הצג טקסט בלבד">
+<!ENTITY hdrViewToolbarShowText.accesskey "ט">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "הצג תמיד כפתור תגובה לשולח">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "ש">
+
+<!ENTITY otherActionsButton1.label "פעולות אחרות">
+<!ENTITY otherActionsOpenConversation1.label "פתח בדיון">
+<!ENTITY otherActionsOpenConversation1.accesskey "פ">
+<!ENTITY otherActionsOpenInNewWindow1.label "פתיחה בחלון חדש">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "ח">
+<!ENTITY otherActionsOpenInNewTab1.label "פתיחה בלשונית חדשה">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "ל">
+<!ENTITY markAsReadMenuItem1.label "סמן כנקרא">
+<!ENTITY markAsReadMenuItem1.accesskey "ס">
+<!ENTITY markAsUnreadMenuItem1.label "סמן כלא נקרא">
+<!ENTITY markAsUnreadMenuItem1.accesskey "ס">
+<!ENTITY saveAsMenuItem1.label "שמור בשם…">
+<!ENTITY saveAsMenuItem1.accesskey "ב">
+<!ENTITY viewSourceMenuItem1.label "הצג מקור">
+<!ENTITY viewSourceMenuItem1.accesskey "מ">
+<!ENTITY otherActionsPrint1.label "הדפסה…">
+<!ENTITY otherActionsPrint1.accesskey "ד">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label    "פתח">
+<!ENTITY openAttachmentCmd.accesskey    "פ">
+<!ENTITY saveAsAttachmentCmd.label    "שמור בשם…">
+<!ENTITY saveAsAttachmentCmd.accesskey    "ש">
+<!ENTITY detachAttachmentCmd.label    "נתק…">
+<!ENTITY detachAttachmentCmd.accesskey    "נ">
+<!ENTITY deleteAttachmentCmd.label    "מחק">
+<!ENTITY deleteAttachmentCmd.accesskey    "l">
+<!ENTITY openAllAttachmentsCmd.label    "פתיחת הכול…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "O">
+<!ENTITY saveAllAttachmentsCmd.label    "שמור הכול…">
+<!ENTITY saveAllAttachmentsCmd.accesskey    "מ">
+<!ENTITY detachAllAttachmentsCmd.label    "נתק הכול…">
+<!ENTITY detachAllAttachmentsCmd.accesskey    "נ">
+<!ENTITY deleteAllAttachmentsCmd.label    "מחק הכול…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "ח">
+
+<!ENTITY openAttachment.tooltip "פתח את הקובץ המצורף">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "שמירה">
+<!ENTITY saveAttachmentButton1.tooltip     "שמור קובץ מצורף">
+<!ENTITY saveAllAttachmentsButton1.label   "שמור הכל">
+<!ENTITY saveAllAttachmentsButton1.tooltip "שמור את כל הקבצים המצורפים">
+
+<!ENTITY copyLinkCmd.label        "העתק מיקום קישור">
+<!ENTITY copyLinkCmd.accesskey    "ק">
+
+<!ENTITY CopyMessageId.label "העתק מזהה הודעה">
+<!ENTITY OpenMessageForMsgId.label "פתח הודעה לפי מזהה">
+<!ENTITY OpenBrowserWithMsgId.label "פתח דפדפן עם מזהה ההודעה">
+

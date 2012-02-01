@@ -1,0 +1,23 @@
+<!ENTITY pref.editing.title "Ny side-indstillinger">
+<!ENTITY authorName.label "Forfatter:">
+<!ENTITY authorName.accesskey "F">
+<!ENTITY pageColorHeader "Standard sideudseende">
+<!ENTITY defaultColors.label "Brugerens standardfarver (Angiv ikke farver)">
+<!ENTITY defaultColors.accesskey "s">
+<!ENTITY customColors.label "Benyt brugerdefinerede farver for tekst:">
+<!ENTITY customColors.accesskey "f">
+<!ENTITY normalText.label "Normal">
+<!ENTITY normalText.accesskey "n">
+<!ENTITY linkText.label "Links">
+<!ENTITY linkText.accesskey "l">
+<!ENTITY activeLinkText.label "Aktive links">
+<!ENTITY activeLinkText.accesskey "a">
+<!ENTITY visitedLinkText.label "Besøgte links">
+<!ENTITY visitedLinkText.accesskey "e">
+<!ENTITY background.label "Baggrund">
+<!ENTITY background.accesskey "B">
+<!ENTITY colon.character ":">
+<!ENTITY backgroundImage.label "Baggrundsbillede:">
+<!ENTITY backgroundImage.accesskey "i">
+<!ENTITY chooseFile.label "Vælg fil…">
+<!ENTITY chooseFile.accesskey "V">

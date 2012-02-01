@@ -1,0 +1,135 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+    Tatjana Jevsikova <tatjanaj@julius.ktl.mii.lt>
+	 Rimas Kudelis <rq@akl.lt>
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Gavėjas ">
+<!ENTITY fromField3.label "Nuo ">
+<!ENTITY senderField3.label "Siuntėjas ">
+<!ENTITY organizationField3.label "Organizacija ">
+<!ENTITY replyToField3.label "Atsakymą gaus ">
+
+<!ENTITY subjectField3.label "Tema ">
+<!ENTITY ccField3.label "Kopija ">
+<!ENTITY bccField3.label "Nematomoji kopija ">
+<!ENTITY newsgroupsField3.label "Naujienų grupės ">
+<!ENTITY followupToField3.label "Atsakyti į grupę ">
+<!ENTITY tagsHdr3.label "Gairės ">
+<!ENTITY dateField3.label "Data ">
+<!ENTITY userAgentField3.label "Pašto programa ">
+<!ENTITY referencesField3.label "Nuorodos ">
+<!ENTITY messageIdField3.label "Laiško ID ">
+<!ENTITY inReplyToField3.label "Atsakymas į ">
+<!ENTITY originalWebsite3.label "Svetainė ">
+
+<!ENTITY editMessageDescription.label "Tai – laiško juodraštis">
+<!ENTITY editMessageButton.label "Taisyti…">
+<!ENTITY hdrArchiveButton1.label "Archyvuoti">
+<!ENTITY hdrArchiveButton1.tooltip "Archyvuoti šį laišką">
+<!ENTITY hdrSmartReplyButton1.label "Atsakyti parenkant gavėjus">
+<!ENTITY hdrReplyButton1.label "Atsakyti">
+<!ENTITY hdrReplyButton1.tooltip "Atsakyti į šį laišką">
+<!ENTITY hdrReplyAllButton1.label "Atsakyti visiems">
+<!ENTITY hdrReplyAllButton1.tooltip "Atsakyti laiško siuntėjui ir visiems gavėjams">
+<!ENTITY hdrReplyListButton1.label "Atsakyti grupei">
+<!ENTITY hdrReplyListButton1.tooltip "Atsakyti el. pašto grupei">
+<!ENTITY hdrForwardButton1.label "Persiųsti">
+<!ENTITY hdrForwardButton1.tooltip "Persiųsti šį laišką">
+<!ENTITY hdrJunkButton1.label "Brukalas">
+<!ENTITY hdrJunkButton1.tooltip "Pažymėti šį laišką kaip brukalą">
+<!ENTITY hdrTrashButton1.label "Pašalinti">
+<!ENTITY hdrTrashButton1.tooltip "Pašalinti šį laišką">
+
+<!ENTITY hdrViewToolbarShowFull.label "Rodyti piktogramas ir tekstą">
+<!ENTITY hdrViewToolbarShowFull.accesskey "i">
+<!ENTITY hdrViewToolbarShowIcons.label "Rodyti tik piktogramas">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "p">
+<!ENTITY hdrViewToolbarShowText.label "Rodyti tik tekstą">
+<!ENTITY hdrViewToolbarShowText.accesskey "t">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Visuomet siūlyti atsakyti siuntėjui">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "s">
+
+<!ENTITY otherActionsButton1.label "Kiti veiksmai">
+<!ENTITY otherActionsOpenConversation1.label "Atverti diskusijoje">
+<!ENTITY otherActionsOpenConversation1.accesskey "d">
+<!ENTITY otherActionsOpenInNewWindow1.label "Atverti naujame lange">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "l">
+<!ENTITY otherActionsOpenInNewTab1.label "Atverti naujoje kortelėje">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "k">
+<!ENTITY markAsReadMenuItem1.label "Pažymėti kaip skaitytą">
+<!ENTITY markAsReadMenuItem1.accesskey "ž">
+<!ENTITY markAsUnreadMenuItem1.label "Pažymėti kaip neskaitytą">
+<!ENTITY markAsUnreadMenuItem1.accesskey "ž">
+<!ENTITY saveAsMenuItem1.label "Įrašyti kaip…">
+<!ENTITY saveAsMenuItem1.accesskey "r">
+<!ENTITY viewSourceMenuItem1.label "Pirminis tekstas…">
+<!ENTITY viewSourceMenuItem1.accesskey "P">
+<!ENTITY otherActionsPrint1.label "Spausdinti…">
+<!ENTITY otherActionsPrint1.accesskey "S">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label    "Atverti">
+<!ENTITY openAttachmentCmd.accesskey		"A">
+<!ENTITY saveAsAttachmentCmd.label    "Įrašyti kaip…">
+<!ENTITY saveAsAttachmentCmd.accesskey		"r">
+<!ENTITY detachAttachmentCmd.label    "Išimti…">  
+<!ENTITY detachAttachmentCmd.accesskey    "m">
+<!ENTITY deleteAttachmentCmd.label    "Pašalinti">  
+<!ENTITY deleteAttachmentCmd.accesskey    "š">
+<!ENTITY openAllAttachmentsCmd.label    "Atverti visus…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "A">
+<!ENTITY saveAllAttachmentsCmd.label    "Įrašyti visus…">
+<!ENTITY saveAllAttachmentsCmd.accesskey		"r">
+<!ENTITY detachAllAttachmentsCmd.label    "Išimti visus…">  
+<!ENTITY detachAllAttachmentsCmd.accesskey    "m">  
+<!ENTITY deleteAllAttachmentsCmd.label    "Pašalinti visus…">  
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "š">  
+
+<!ENTITY openAttachment.tooltip "Atverti pridėtą failą">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "Įrašyti">
+<!ENTITY saveAttachmentButton1.tooltip     "Įrašyti priedą kaip failą">
+<!ENTITY saveAllAttachmentsButton1.label   "Įrašyti visus">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Įrašyti visus priedus kaip failus">
+
+<!ENTITY copyLinkCmd.label        "Kopijuoti saito adresą">  
+<!ENTITY copyLinkCmd.accesskey		"K">
+
+<!ENTITY CopyMessageId.label "Kopijuoti laiško ID">
+<!ENTITY OpenMessageForMsgId.label "Atverti laišką su šiuo ID">
+<!ENTITY OpenBrowserWithMsgId.label "Naršyklėje atverti laišką su šiuo ID">

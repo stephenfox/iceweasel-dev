@@ -1,0 +1,133 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "Кому ">
+<!ENTITY fromField3.label "Від ">
+<!ENTITY senderField3.label "Відправник ">
+<!ENTITY organizationField3.label "Організація ">
+<!ENTITY replyToField3.label "Відповідати-до ">
+
+<!ENTITY subjectField3.label "Тема ">
+<!ENTITY ccField3.label "Копія ">
+<!ENTITY bccField3.label "Прихована копія ">
+<!ENTITY newsgroupsField3.label "Групи новин ">
+<!ENTITY followupToField3.label "Продовження до ">
+<!ENTITY tagsHdr3.label "Мітки ">
+<!ENTITY dateField3.label "Дата ">
+<!ENTITY userAgentField3.label "User agent ">
+<!ENTITY referencesField3.label "References ">
+<!ENTITY messageIdField3.label "Message ID ">
+<!ENTITY inReplyToField3.label "У відповідь на ">
+<!ENTITY originalWebsite3.label "Сайт ">
+
+<!ENTITY editMessageDescription.label "це чернетка">
+<!ENTITY editMessageButton.label "редагувати…">
+<!ENTITY hdrArchiveButton1.label "Архівувати">
+<!ENTITY hdrArchiveButton1.tooltip "Архівувати цей лист">
+<!ENTITY hdrSmartReplyButton1.label "Розумна відповідь">
+<!ENTITY hdrReplyButton1.label "Відповісти">
+<!ENTITY hdrReplyButton1.tooltip "Відповісти на цей лист">
+<!ENTITY hdrReplyAllButton1.label "Відповісти всім">
+<!ENTITY hdrReplyAllButton1.tooltip "Відповісти відправнику та всім отримувачам">
+<!ENTITY hdrReplyListButton1.label "Відповісти списку">
+<!ENTITY hdrReplyListButton1.tooltip "Відповісти списку розсилки">
+<!ENTITY hdrForwardButton1.label "Переслати">
+<!ENTITY hdrForwardButton1.tooltip "Переслати цей лист">
+<!ENTITY hdrJunkButton1.label "Спам">
+<!ENTITY hdrJunkButton1.tooltip "Позначити цей лист як спам">
+<!ENTITY hdrTrashButton1.label "Видалити">
+<!ENTITY hdrTrashButton1.tooltip "Видалити цей лист">
+
+<!ENTITY hdrViewToolbarShowFull.label "Показувати значки та текст">
+<!ENTITY hdrViewToolbarShowFull.accesskey "т">
+<!ENTITY hdrViewToolbarShowIcons.label "Показувати лише значки">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "з">
+<!ENTITY hdrViewToolbarShowText.label "Показувати лише текст">
+<!ENTITY hdrViewToolbarShowText.accesskey "л">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "Завжди показувати Відповісти Відправнику">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "В">
+
+<!ENTITY otherActionsButton1.label "Інші дії">
+<!ENTITY otherActionsOpenConversation1.label "Відкрити у бесіді">
+<!ENTITY otherActionsOpenConversation1.accesskey "б">
+<!ENTITY otherActionsOpenInNewWindow1.label "Відкрити у новому вікні">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "в">
+<!ENTITY otherActionsOpenInNewTab1.label "Відкрити у новій вкладці">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "к">
+<!ENTITY markAsReadMenuItem1.label "Позначити як прочитане">
+<!ENTITY markAsReadMenuItem1.accesskey "ч">
+<!ENTITY markAsUnreadMenuItem1.label "Позначити як нечитане">
+<!ENTITY markAsUnreadMenuItem1.accesskey "н">
+<!ENTITY saveAsMenuItem1.label "Зберегти як…">
+<!ENTITY saveAsMenuItem1.accesskey "з">
+<!ENTITY viewSourceMenuItem1.label "Глянути джерело">
+<!ENTITY viewSourceMenuItem1.accesskey "д">
+<!ENTITY otherActionsPrint1.label "Друкувати…">
+<!ENTITY otherActionsPrint1.accesskey "Д">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label    "Відкрити">
+<!ENTITY openAttachmentCmd.accesskey    "В">
+<!ENTITY saveAsAttachmentCmd.label    "Зберегти як…">
+<!ENTITY saveAsAttachmentCmd.accesskey    "З">
+<!ENTITY detachAttachmentCmd.label    "Викласти…">
+<!ENTITY detachAttachmentCmd.accesskey    "к">
+<!ENTITY deleteAttachmentCmd.label    "Видалити">
+<!ENTITY deleteAttachmentCmd.accesskey    "д">
+<!ENTITY openAllAttachmentsCmd.label    "Відкрити всі…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "В">
+<!ENTITY saveAllAttachmentsCmd.label    "Зберегти всі…">
+<!ENTITY saveAllAttachmentsCmd.accesskey    "З">
+<!ENTITY detachAllAttachmentsCmd.label    "Викласти всі…">
+<!ENTITY detachAllAttachmentsCmd.accesskey    "д">
+<!ENTITY deleteAllAttachmentsCmd.label    "Видалити всі…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "д">
+
+<!ENTITY openAttachment.tooltip "Відкрити вкладений файл">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "Зберегти">
+<!ENTITY saveAttachmentButton1.tooltip     "Зберегти вкладений файл">
+<!ENTITY saveAllAttachmentsButton1.label   "Зберегти всі">
+<!ENTITY saveAllAttachmentsButton1.tooltip "Зберегти всі вкладені файли">
+
+<!ENTITY copyLinkCmd.label        "Копіювати посилання">
+<!ENTITY copyLinkCmd.accesskey    "К">
+
+<!ENTITY CopyMessageId.label "Копіювати ідентифікатор">
+<!ENTITY OpenMessageForMsgId.label "Відкрити листа за ідентифікатором">
+<!ENTITY OpenBrowserWithMsgId.label "Відкрити лист у браузері">

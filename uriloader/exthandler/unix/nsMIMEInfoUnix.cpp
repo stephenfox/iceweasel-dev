@@ -97,7 +97,7 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 }
 
 NS_IMETHODIMP
-nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
+nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
 {
   // if mDefaultApplication is set, it means the application has been set from
   // either /etc/mailcap or ${HOME}/.mailcap, in which case we don't want to
@@ -105,7 +105,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
   if (mDefaultApplication)
     return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
 
-  *_retval = PR_FALSE;
+  *_retval = false;
   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
   if (!mimeInfo) {
     nsCAutoString ext;
@@ -115,7 +115,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
     }
   }
   if (mimeInfo)
-    *_retval = PR_TRUE;
+    *_retval = true;
 
   if (*_retval)
     return NS_OK;
@@ -123,7 +123,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
   HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
   if (action) {
-    *_retval = PR_TRUE;
+    *_retval = true;
     hildon_uri_action_unref(action);
     return NS_OK;
   }
@@ -133,7 +133,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
   ContentAction::Action action = 
     ContentAction::Action::defaultActionForFile(QUrl(), QString(mSchemeOrType.get()));
   if (action.isValid()) {
-    *_retval = PR_TRUE;
+    *_retval = true;
     return NS_OK;
   }
 #endif
@@ -251,13 +251,13 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
   return NS_OK;
 }
 
-/* static */ PRBool
+/* static */ bool
 nsMIMEInfoUnix::HandlerExists(const char *aProtocolScheme)
 {
-  PRBool isEnabled = PR_FALSE;
+  bool isEnabled = false;
   HildonURIAction *action = hildon_uri_get_default_action(aProtocolScheme, nsnull);
   if (action) {
-    isEnabled = PR_TRUE;
+    isEnabled = true;
     hildon_uri_action_unref(action);
   }
   return isEnabled;
@@ -303,7 +303,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
       app->SetObjectPath(objpath);
       app->SetDBusInterface(interface);
 
-      mPossibleApplications->AppendElement(app, PR_FALSE);
+      mPossibleApplications->AppendElement(app, false);
     }
     hildon_uri_free_actions(actions);
   }
@@ -331,7 +331,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
       nsContentHandlerApp* app =
         new nsContentHandlerApp(nsString((PRUnichar*)actions[i].name().data()), 
                                 mSchemeOrType, actions[i]);
-      mPossibleApplications->AppendElement(app, PR_FALSE);
+      mPossibleApplications->AppendElement(app, false);
     }
   }
 

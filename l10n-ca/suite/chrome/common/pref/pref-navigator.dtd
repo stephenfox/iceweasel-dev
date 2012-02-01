@@ -1,0 +1,34 @@
+<!ENTITY pref.navigator.title           "Navegador">
+
+<!ENTITY navRadio.label                 "Mostra">
+<!ENTITY navRadio.accesskey             "M">
+<!ENTITY navStartPageMenu.label         "Inici del navegador">
+<!ENTITY newWinPageMenu.label           "Nova finestra">
+<!ENTITY newTabPageMenu.label           "Pestanya nova">
+
+<!ENTITY blankPageRadio.label           "Pàgina en blanc">
+<!ENTITY blankPageRadio.accesskey       "n">
+<!ENTITY homePageRadio.label            "Pàgina d'inici">
+<!ENTITY homePageRadio.accesskey        "g">
+<!ENTITY lastPageRadio.label            "Darrera pàgina visitada">
+<!ENTITY lastPageRadio.accesskey        "D">
+<!ENTITY restoreSessionRadio.label      "Recupera la sessió anterior">
+<!ENTITY restoreSessionRadio.accesskey  "p">
+
+<!ENTITY header2.label                  "Pàgina d'inici">
+<!ENTITY homePageIntro.label            "En prémer el botó Inici, anireu a aquest grup de pàgines:">
+<!ENTITY useCurrent.label               "Utilitza la pàgina actual">
+<!ENTITY useCurrent.accesskey           "U">
+<!ENTITY useCurrentGroup.label          "Utilitza el grup actual">
+<!ENTITY useCurrentGroup.accesskey      "t">
+<!ENTITY browseFile.label               "Trieu un fitxer...">
+<!ENTITY browseFile.accesskey           "T">
+<!ENTITY useDefault.label               "Valor per defecte">
+<!ENTITY useDefault.accesskey           "V">
+
+<!ENTITY defaultBrowserGroup.label      "Navegador per defecte">
+<!ENTITY defaultBrowserButton.label     "Defineix com a navegador per defecte">
+<!ENTITY defaultBrowserButton.accesskey "D">
+<!ENTITY alreadyDefaultText             "El &brandShortName; ja és el vostre navegador per defecte.">
+<!ENTITY defaultPendingText             "Es definirà el &brandShortName; com a navegador per defecte quan feu clic a D'acord.">
+<!ENTITY makeDefaultText                "Defineix el &brandShortName; com el vostre navegador per defecte.">

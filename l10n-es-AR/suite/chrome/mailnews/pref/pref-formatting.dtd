@@ -1,0 +1,73 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+   Ian Neal <iann_bugzilla@blueyonder.co.uk>
+
+ Alternatively, the contents of this file may be used under the terms of
+ either of the GNU General Public License Version 2 or later (the "GPL"),
+ or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY pref.formatting.title        "Formato de envío">
+<!ENTITY sendMaildesc.label           "Al enviar mensajes con formato (HTML) y uno o más destinatarios no están listados como capaces de recibir HTML:">
+<!ENTITY askMe.label                  "Preguntarme qué hacer (Mail le pide elegir un formato)">
+<!ENTITY askMe.accesskey              "P">
+<!ENTITY convertPlain.label           "Convertir el mensaje a texto plano (se puede perder algún formato)">
+<!ENTITY convertPlain.accesskey       "C">
+<!ENTITY sendHTML.label               "Enviar el mensaje como texto con formato (HTML) de cualquier manera (algunos programas de correo no podrán mostrarlo)">
+<!ENTITY sendHTML.accesskey           "s">
+<!ENTITY sendBoth.label               "Enviar el mensaje tanto en texto plano como en HTML (el mensaje tendrá más tamaño)">
+<!ENTITY sendBoth.accesskey           "n">
+<!ENTITY override.label               "Puede anular esta opción para mensajes individuales desde el menú Opciones mientras escribe el mensaje.">
+
+<!-- Html and Plain Text Domains  -->
+<!ENTITY domain.title                 "Dominios HTML y texto plano">
+<!ENTITY domaindesc.label             "Cuando envíe un mensaje a una dirección de alguno de los dominios listados debajo, Mail enviará automáticamente el mensaje en el formato preferido (texto con formato o texto plano).">
+<!ENTITY HTMLdomaintitle.label        "Dominios HTML">
+<!ENTITY HTMLdomaintitle.accesskey    "M">
+<!ENTITY PlainTexttitle.label         "Dominios de texto plano">
+<!ENTITY PlainTexttitle.accesskey     "t">
+<!ENTITY AddButton.label              "Agregar…">
+<!ENTITY AddHtmlDomain.accesskey      "A">
+<!ENTITY AddPlainText.accesskey       "g">
+<!ENTITY DeleteButton.label           "Borrar">
+<!ENTITY DeleteHtmlDomain.accesskey   "B">
+<!ENTITY DeletePlainText.accesskey    "r">
+
+<!-- Add Domain Name -->
+<!ENTITY add.htmltitle                "Agregar un nombre de dominio HTML">
+<!ENTITY add.htmldomain               "Agregar un nombre de dominio HTML">
+<!ENTITY add.plaintexttitle           "Nombre de dominio HTML:">
+<!ENTITY add.plaintextdomain          "Nombre de dominio de texto plano:">
+
+<!ENTITY domainnameError.title        "Error en el nombre de dominio">
+<!-- LOCALIZATION NOTE: do not translate @string@ -->
+<!ENTITY invalidEntryError.label      "El nombre de dominio @string@ no es válido y será ignorado. Los nombres de dominio válidos deben incluír al menos un '.' y caracteres a ambos lados del mismo.">

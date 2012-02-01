@@ -1,0 +1,10 @@
+<!--LOCALIZATION NOTE : FILE The Applications prefs dialog -->
+<!ENTITY pref.applications.title "Hilfsanwendungen">
+
+<!ENTITY typeColumn.label        "Inhalts-Typ">
+<!ENTITY typeColumn.accesskey    "T">
+
+<!ENTITY actionColumn2.label     "Aktion">
+<!ENTITY actionColumn2.accesskey "A">
+
+<!ENTITY search.placeholder      "Typen und Aktionen durchsuchen">

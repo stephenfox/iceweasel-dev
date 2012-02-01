@@ -1,0 +1,36 @@
+<!-- win -->
+<!-- LOCALIZATION NOTE : FILE Do not translate "accel" or "shift",
+                         You may want to translate the Cmd.key and accesskey --> 
+
+<!ENTITY closeCmd.label                 "Fechar">  
+<!ENTITY closeCmd.key                   "W">  
+<!ENTITY closeCmd.accesskey             "c">
+
+<!ENTITY quitApplicationCmd.label       "Sair"> 
+<!ENTITY quitApplicationCmd.key         "Q"> 
+<!ENTITY quitApplicationCmd.accesskey   "S">
+
+<!ENTITY redoCmd.key                    "Y">  
+
+<!ENTITY findTypeTextCmd.key            "/">
+<!ENTITY findTypeLinksCmd.key           "'">
+
+<!ENTITY accel.emacs_conflict           "accel">
+
+<!-- Help viewer -->
+<!ENTITY openHelpCmd.label              "Tópicos da ajuda">
+<!ENTITY openHelpCmd.accesskey          "T">
+<!ENTITY openHelpCmd.key                "VK_F1">
+<!ENTITY helpForIEUsers.label           "Para utilizadores do Internet Explorer">
+<!ENTITY helpForIEUsers.accesskey       "I">
+<!-- LOCALIZATION NOTE some localizations need to change the
+                       "Help" menu label on Windows -->
+<!ENTITY helpMenu.label                 "Ajuda"> 
+<!ENTITY helpMenu.accesskey             "u">
+
+
+<!-- Key labels, for mousewheel prefs -->
+<!ENTITY ctrlKey.label                  "Ctrl">
+<!ENTITY altKey.label                   "Alt">
+<!ENTITY shiftKey.label                 "Shift">
+

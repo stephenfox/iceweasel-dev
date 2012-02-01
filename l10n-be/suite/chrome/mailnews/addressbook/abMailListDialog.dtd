@@ -1,0 +1,11 @@
+<!--null-->
+<!ENTITY mailListWindow.title "Адрасны спіс">
+<!ENTITY addToAddressBook.label "Дадаць да:">
+<!ENTITY ListName.label "Назва спіса:">
+<!ENTITY ListNickName.label "Мянушка спіса:">
+<!ENTITY ListDescription.label "Апісанне:">
+<!ENTITY AddressTitle.label "Набярыце адрасы э-пошты, каб дадаць іх у адрасны спіс:">
+<!ENTITY addToAddressBook.accesskey "Д">
+<!ENTITY ListName.accesskey "С">
+<!ENTITY ListNickName.accesskey "М">
+<!ENTITY ListDescription.accesskey "А">

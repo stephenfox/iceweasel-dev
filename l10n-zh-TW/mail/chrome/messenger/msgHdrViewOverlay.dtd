@@ -1,0 +1,133 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+ Version: MPL 1.1/GPL 2.0/LGPL 2.1
+
+ The contents of this file are subject to the Mozilla Public License Version
+ 1.1 (the "License"); you may not use this file except in compliance with
+ the License. You may obtain a copy of the License at
+ http://www.mozilla.org/MPL/
+
+ Software distributed under the License is distributed on an "AS IS" basis,
+ WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ for the specific language governing rights and limitations under the
+ License.
+
+ The Original Code is Mozilla Communicator client code, released
+ March 31, 1998.
+
+ The Initial Developer of the Original Code is
+ Netscape Communications Corporation.
+ Portions created by the Initial Developer are Copyright (C) 1998-1999
+ the Initial Developer. All Rights Reserved.
+
+ Contributor(s):
+
+ Alternatively, the contents of this file may be used under the terms of
+ either the GNU General Public License Version 2 or later (the "GPL"), or
+ the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ in which case the provisions of the GPL or the LGPL are applicable instead
+ of those above. If you wish to allow use of your version of this file only
+ under the terms of either the GPL or the LGPL, and not to allow others to
+ use your version of this file under the terms of the MPL, indicate your
+ decision by deleting the provisions above and replace them with the notice
+ and other provisions required by the GPL or the LGPL. If you do not delete
+ the provisions above, a recipient may use your version of this file under
+ the terms of any one of the MPL, the GPL or the LGPL.
+
+ ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY toField3.label "到 ">
+<!ENTITY fromField3.label "從 ">
+<!ENTITY senderField3.label "寄件者 ">
+<!ENTITY organizationField3.label "組織 ">
+<!ENTITY replyToField3.label "回覆至 ">
+
+<!ENTITY subjectField3.label "主旨 ">
+<!ENTITY ccField3.label "副本 ">
+<!ENTITY bccField3.label "密件副本 ">
+<!ENTITY newsgroupsField3.label "新聞群組 ">
+<!ENTITY followupToField3.label "原文參見 ">
+<!ENTITY tagsHdr3.label "標籤 ">
+<!ENTITY dateField3.label "日期 ">
+<!ENTITY userAgentField3.label "使用者代理字串 ">
+<!ENTITY referencesField3.label "參考資料 ">
+<!ENTITY messageIdField3.label "訊息 ID ">
+<!ENTITY inReplyToField3.label "回覆給 ">
+<!ENTITY originalWebsite3.label "網站 ">
+
+<!ENTITY editMessageDescription.label "這是一封草稿">
+<!ENTITY editMessageButton.label "編輯…">
+<!ENTITY hdrArchiveButton1.label "備存">
+<!ENTITY hdrArchiveButton1.tooltip "備存此訊息">
+<!ENTITY hdrSmartReplyButton1.label "智慧回覆">
+<!ENTITY hdrReplyButton1.label "回覆">
+<!ENTITY hdrReplyButton1.tooltip "回覆此訊息">
+<!ENTITY hdrReplyAllButton1.label "全部回覆">
+<!ENTITY hdrReplyAllButton1.tooltip "回信給寄件者及所有收件者">
+<!ENTITY hdrReplyListButton1.label "回覆清單">
+<!ENTITY hdrReplyListButton1.tooltip "回覆到郵件論壇">
+<!ENTITY hdrForwardButton1.label "轉寄">
+<!ENTITY hdrForwardButton1.tooltip "轉寄此訊息">
+<!ENTITY hdrJunkButton1.label "垃圾郵件">
+<!ENTITY hdrJunkButton1.tooltip "將此訊息標示為垃圾郵件">
+<!ENTITY hdrTrashButton1.label "刪除">
+<!ENTITY hdrTrashButton1.tooltip "刪除此訊息">
+
+<!ENTITY hdrViewToolbarShowFull.label "顯示圖示與文字">
+<!ENTITY hdrViewToolbarShowFull.accesskey "a">
+<!ENTITY hdrViewToolbarShowIcons.label "只顯示圖示">
+<!ENTITY hdrViewToolbarShowIcons.accesskey "I">
+<!ENTITY hdrViewToolbarShowText.label "只顯示文字">
+<!ENTITY hdrViewToolbarShowText.accesskey "T">
+<!ENTITY hdrViewToolbarAlwaysReplySender.label "總是顯示回覆給寄件者">
+<!ENTITY hdrViewToolbarAlwaysReplySender.accesskey "R">
+
+<!ENTITY otherActionsButton1.label "其他動作">
+<!ENTITY otherActionsOpenConversation1.label "以討論串檢視模式開啟">
+<!ENTITY otherActionsOpenConversation1.accesskey "C">
+<!ENTITY otherActionsOpenInNewWindow1.label "開啟至新視窗">
+<!ENTITY otherActionsOpenInNewWindow1.accesskey "w">
+<!ENTITY otherActionsOpenInNewTab1.label "以新分頁開啟">
+<!ENTITY otherActionsOpenInNewTab1.accesskey "T">
+<!ENTITY markAsReadMenuItem1.label "標示為已閱讀">
+<!ENTITY markAsReadMenuItem1.accesskey "r">
+<!ENTITY markAsUnreadMenuItem1.label "標示為未閱讀">
+<!ENTITY markAsUnreadMenuItem1.accesskey "r">
+<!ENTITY saveAsMenuItem1.label "另存為…">
+<!ENTITY saveAsMenuItem1.accesskey "S">
+<!ENTITY viewSourceMenuItem1.label "檢視原始碼">
+<!ENTITY viewSourceMenuItem1.accesskey "V">
+<!ENTITY otherActionsPrint1.label "列印…">
+<!ENTITY otherActionsPrint1.accesskey "P">
+
+<!-- Attachment context menu items -->
+<!ENTITY openAttachmentCmd.label    "開啟">
+<!ENTITY openAttachmentCmd.accesskey    "O">
+<!ENTITY saveAsAttachmentCmd.label    "另存新檔…">
+<!ENTITY saveAsAttachmentCmd.accesskey    "S">
+<!ENTITY detachAttachmentCmd.label    "取出…">
+<!ENTITY detachAttachmentCmd.accesskey    "D">
+<!ENTITY deleteAttachmentCmd.label    "刪除">
+<!ENTITY deleteAttachmentCmd.accesskey    "e">
+<!ENTITY openAllAttachmentsCmd.label    "開啟全部…">
+<!ENTITY openAllAttachmentsCmd.accesskey    "O">
+<!ENTITY saveAllAttachmentsCmd.label    "全部儲存…">
+<!ENTITY saveAllAttachmentsCmd.accesskey    "s">
+<!ENTITY detachAllAttachmentsCmd.label    "全部取出…">
+<!ENTITY detachAllAttachmentsCmd.accesskey    "d">
+<!ENTITY deleteAllAttachmentsCmd.label    "全部刪除…">
+<!ENTITY deleteAllAttachmentsCmd.accesskey    "e">
+
+<!ENTITY openAttachment.tooltip "開啟附加的檔案">
+
+<!-- Attachment toolbar items -->
+<!ENTITY saveAttachmentButton1.label       "儲存">
+<!ENTITY saveAttachmentButton1.tooltip     "儲存附加檔案">
+<!ENTITY saveAllAttachmentsButton1.label   "儲存所有附件">
+<!ENTITY saveAllAttachmentsButton1.tooltip "儲存所有附加檔案">
+
+<!ENTITY copyLinkCmd.label        "複製鏈結網址">
+<!ENTITY copyLinkCmd.accesskey    "C">
+
+<!ENTITY CopyMessageId.label "複製 Message-ID">
+<!ENTITY OpenMessageForMsgId.label "開啟此 Message-ID 的郵件">
+<!ENTITY OpenBrowserWithMsgId.label "在瀏覽器開啟此 Message-ID 的郵件">

@@ -1,0 +1,34 @@
+<!ENTITY  pref.navigator.title      "Webbläsare">
+
+<!ENTITY navRadio.label                 "Visa vid">
+<!ENTITY navRadio.accesskey             "a">
+<!ENTITY  navStartPageMenu.label    "Programstart">
+<!ENTITY  newWinPageMenu.label      "Nytt fönster">
+<!ENTITY  newTabPageMenu.label      "Ny flik">
+
+<!ENTITY  blankPageRadio.label      "En tom sida">
+<!ENTITY  blankPageRadio.accesskey  "t">
+<!ENTITY  homePageRadio.label       "Startsidan">
+<!ENTITY  homePageRadio.accesskey   "i">
+<!ENTITY  lastPageRadio.label       "Senast besökta sidan">
+<!ENTITY  lastPageRadio.accesskey   "S">
+<!ENTITY restoreSessionRadio.label      "Återställ föregående session">
+<!ENTITY restoreSessionRadio.accesskey  "e">
+
+<!ENTITY  header2.label             "Startsida">
+<!ENTITY  homePageIntro.label       "Den sida eller grupp av sidor som visas när du klickar på ikonen Startsida.">
+<!ENTITY  useCurrent.label          "Använd aktuell sida">
+<!ENTITY  useCurrent.accesskey      "v">
+<!ENTITY  useCurrentGroup.label     "Använd aktuell grupp">
+<!ENTITY  useCurrentGroup.accesskey "u">
+<!ENTITY  browseFile.label          "Välj fil…">
+<!ENTITY  browseFile.accesskey      "f">
+<!ENTITY  useDefault.label          "Återställ">
+<!ENTITY  useDefault.accesskey      "Å">
+
+<!ENTITY defaultBrowserGroup.label      "Förvald webbläsare">
+<!ENTITY defaultBrowserButton.label     "Gör till förvald webbläsare">
+<!ENTITY defaultBrowserButton.accesskey "w">
+<!ENTITY alreadyDefaultText             "&brandShortName; är redan förvald webbläsare.">
+<!ENTITY defaultPendingText             "&brandShortName; kommer att bli förvald webbläsare när du klickar på OK.">
+<!ENTITY makeDefaultText                "Gör &brandShortName; till förvald webbläsare.">

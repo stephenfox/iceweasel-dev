@@ -1,0 +1,34 @@
+<!ENTITY pref.navigator.title           "Navegador">
+
+<!ENTITY navRadio.label                 "Mostrar en">
+<!ENTITY navRadio.accesskey             "n">
+<!ENTITY navStartPageMenu.label         "Inicio del navegador">
+<!ENTITY newWinPageMenu.label           "Ventana nueva">
+<!ENTITY newTabPageMenu.label           "Pestaña nueva">
+
+<!ENTITY blankPageRadio.label           "Página en blanco">
+<!ENTITY blankPageRadio.accesskey       "b">
+<!ENTITY homePageRadio.label            "Página de inicio">
+<!ENTITY homePageRadio.accesskey        "P">
+<!ENTITY lastPageRadio.label            "Última página visitada">
+<!ENTITY lastPageRadio.accesskey        "l">
+<!ENTITY restoreSessionRadio.label      "Restaurar sesión previa">
+<!ENTITY restoreSessionRadio.accesskey  "R">
+
+<!ENTITY header2.label                  "Página de inicio">
+<!ENTITY homePageIntro.label            "El botón Inicio lo llevará a este grupo de páginas:">
+<!ENTITY useCurrent.label               "Usar página actual">
+<!ENTITY useCurrent.accesskey           "U">
+<!ENTITY useCurrentGroup.label          "Usar grupo actual">
+<!ENTITY useCurrentGroup.accesskey      "g">
+<!ENTITY browseFile.label               "Seleccionar archivo…">
+<!ENTITY browseFile.accesskey           "C">
+<!ENTITY useDefault.label               "Restaurar predeterminado">
+<!ENTITY useDefault.accesskey           "R">
+
+<!ENTITY defaultBrowserGroup.label      "Navegador predeterminado">
+<!ENTITY defaultBrowserButton.label     "Establecer navegador predeterminado">
+<!ENTITY defaultBrowserButton.accesskey "d">
+<!ENTITY alreadyDefaultText             "&brandShortName; ya es su navegador predeterminado.">
+<!ENTITY defaultPendingText             "&brandShortName; será configurado como su navegador predeterminado cuando haga clic en Aceptar.">
+<!ENTITY makeDefaultText                "Establecer &brandShortName; como su navegador predeterminado.">

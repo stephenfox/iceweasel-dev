@@ -1,0 +1,100 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Communicator client code, released
+   - March 31, 1998.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 1999
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either of the GNU General Public License Version 2 or later (the "GPL"),
+   - or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!-- Window title -->
+<!-- LOCALIZATION NOTE  (editorWindow.titlemodifier): DONT_TRANSLATE -->
+<!ENTITY editorWindow.titlemodifier "設計師"> 
+<!ENTITY editorWindow.titlemodifiermenuseparator " - ">
+
+<!-- Menu items:  the . means that the menu item isn't implemented yet -->
+
+<!-- Toolbar-only items -->
+<!ENTITY compositionToolbar.tooltip "編輯工具列">
+<!ENTITY previewToolbarCmd.label "瀏覽">
+<!ENTITY previewToolbarCmd.tooltip "於瀏覽器中載入此頁面">
+
+<!-- File menu items -->
+<!ENTITY exportToTextCmd.label "輸出成純文字…">
+<!ENTITY exportToTextCmd.accesskey "x">
+<!ENTITY previewCmd.label "瀏覽頁面">
+<!ENTITY previewCmd.accesskey "w">
+<!ENTITY sendPageCmd.label "傳送頁面…">
+<!ENTITY sendPageCmd.accesskey "d">
+
+<!-- View menu items -->
+<!ENTITY compositionToolbarCmd.label "編輯工具列">
+<!ENTITY compositionToolbarCmd.accesskey "C">
+<!ENTITY formattingToolbarCmd.label "格式工具列">
+<!ENTITY formattingToolbarCmd.accesskey "F">
+<!ENTITY editmodeToolbarCmd.label "編輯模式工具列">
+<!ENTITY editmodeToolbarCmd.accesskey "E">
+
+<!-- Format menu items -->
+<!ENTITY formatMenu.label "格式">
+<!ENTITY formatMenu.accesskey "o">
+<!ENTITY grid.label "定位格點">
+<!ENTITY grid.accesskey "t">
+<!ENTITY pageProperties.label "頁面標題與屬性…">
+<!ENTITY pageProperties.accesskey "g">
+
+<!-- Tools menu items -->
+<!ENTITY validateCmd.label "驗證 HTML">
+<!ENTITY validateCmd.accesskey "V">
+
+<!-- Display Mode toolbar and View menu items -->
+<!ENTITY NormalModeTab.label "標準">
+<!ENTITY NormalMode.label "標準編輯模式">
+<!ENTITY NormalMode.accesskey "N">
+<!ENTITY NormalMode.tooltip "顯示表格框線與錨點">
+<!ENTITY AllTagsModeTab.label "HTML 標籤">
+<!ENTITY AllTagsMode.label "HTML 標籤">
+<!ENTITY AllTagsMode.accesskey "a">
+<!ENTITY AllTagsMode.tooltip "顯示所有 HTML 標籤的圖示">
+<!-- LOCALIZATION NOTE: (HTMLSourceModeTab.dir, HTMLSourceModeTab.label)
+     Do NOT translate text for 'HTMLSourceModeTab.dir', use latin "ltr" if
+     you want the <html> image to left of the 'HTMLSourceModeTab.label' text,
+     or use latin "rtl" if you want this image to the right of text. You do
+     not need to include HTML in the label 'HTMLSourceModeTab.label' -->
+<!ENTITY HTMLSourceModeTab.dir "ltr">
+<!ENTITY HTMLSourceModeTab.label "原始碼">
+<!ENTITY HTMLSourceMode.label "HTML 原始碼">
+<!ENTITY HTMLSourceMode.accesskey "H">
+<!ENTITY HTMLSourceMode.tooltip "編輯 HTML 原始碼">
+<!ENTITY PreviewModeTab.label "預覽">
+<!ENTITY PreviewMode.label "預覽">
+<!ENTITY PreviewMode.accesskey "P">
+<!ENTITY PreviewMode.tooltip "所視即所得(WYSIWYG)(如同在瀏覽器裡顯示)">

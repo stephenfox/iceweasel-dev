@@ -1,0 +1,9 @@
+<!--
+# Reviewer(s):
+#
+# Alexandru Szasz <alexxed@gmail.com>
+#
+-->
+<!ENTITY directoryWindow.filename.label "Nume">
+<!ENTITY directoryWindow.contentlength.label "Mărime">
+<!ENTITY directoryWindow.lastmodified.label "Ultima modificare">

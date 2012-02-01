@@ -1,0 +1,78 @@
+<!-- extracted from am-server-top.xul -->
+
+<!ENTITY securitySettings.label "Sikkerhetsinnstillinger">
+<!ENTITY serverSettings.label "Tjenerinnstillinger">
+<!ENTITY serverType.label "Tjenertype:">
+<!ENTITY serverName.label "Tjenernavn:">
+<!ENTITY serverName.accesskey "T">
+<!ENTITY userName.label "Brukernavn:">
+<!ENTITY userName.accesskey "n">
+<!ENTITY port.label "Port:">
+<!ENTITY port.accesskey "P">
+<!ENTITY serverPortDefault.label "Std:">
+<!-- LOCALIZATION NOTE (biffStart.label) : translate below 2 line with grammer dependency
+        For example, in Japanese cases:
+                biffStart.label "every"
+                biffEnd.label   "minutes for new messages Check"
+-->
+<!ENTITY biffStart.label "Se etter nye meldinger hvert">
+<!ENTITY biffStart.accesskey "y">
+<!ENTITY biffEnd.label "minutt">
+<!ENTITY connectionSecurity.label "Tilkoblingssikkerhet:">
+<!ENTITY connectionSecurity.accesskey "T">
+<!ENTITY connectionSecurityType-0.label "Ingen">
+<!ENTITY connectionSecurityType-1.label "STARTTLS, dersom tilgjengelig">
+<!ENTITY connectionSecurityType-2.label "STARTTLS">
+<!ENTITY connectionSecurityType-3.label "SSL/TLS">
+<!ENTITY authMethod.label "Autentiseringsmetode:">
+<!ENTITY authMethod.accesskey "i">
+<!ENTITY leaveOnServer.label "La meldinger ligge på tjeneren">
+<!ENTITY leaveOnServer.accesskey "m">
+<!ENTITY headersOnly.label "Last ned bare meldingshoder">
+<!ENTITY headersOnly.accesskey "n">
+<!ENTITY deleteByAgeFromServer.label "Som er maks">
+<!ENTITY deleteByAgeFromServer.accesskey "o">
+<!ENTITY daysEnd.label "dager gamle">
+<!ENTITY deleteOnServer2.label "Inntil jeg sletter de">
+<!ENTITY deleteOnServer2.accesskey "n">
+<!ENTITY downloadOnBiff.label "Last ned nye meldinger automatisk">
+<!ENTITY downloadOnBiff.accesskey "L">
+<!ENTITY username.label "Innloggingsnavn">
+<!ENTITY deleteMessagePrefix.label "Når jeg sletter en melding:">
+<!ENTITY modelMoveToTrash.label "Flytt den til denne mappen:">
+<!ENTITY modelMoveToTrash.accesskey "F">
+<!ENTITY modelMarkDeleted.label "Marker den som slettet">
+<!ENTITY modelMarkDeleted.accesskey "M">
+<!ENTITY modelDeleteImmediately.label "Fjern den umiddelbart">
+<!ENTITY modelDeleteImmediately.accesskey "F">
+<!-- LOCALIZATION NOTE (expungeOnExit.label) : do not translate two of "&quot;" in below line -->
+<!ENTITY expungeOnExit.label "Tøm (slett) innboks ved avslutning">
+<!ENTITY expungeOnExit.accesskey "u">
+<!ENTITY emptyTrashOnExit.label "Tøm søppelkasse ved avslutning">
+<!ENTITY emptyTrashOnExit.accesskey "T">
+<!ENTITY loginAtStartup.label "Se etter nye meldinger ved oppstart"> 
+<!ENTITY loginAtStartup.accesskey "o">
+<!-- LOCALIZATION NOTE (maxMessagesStart.label) : translate below 2 lines with grammar dependency 
+    maxMessengerStart.label will be followed by maxMessagesEnd.label with the number
+	 of messages between them
+-->
+<!ENTITY maxMessagesStart.label "Spør meg før nedlasting av mer enn">
+<!ENTITY maxMessagesStart.accesskey "m">
+<!-- LOCALIZATION NOTE (maxMessagesEnd.label) : see note for maxMessagesStart.label -->
+<!ENTITY maxMessagesEnd.label "meldinger">
+<!ENTITY alwaysAuthenticate.label "Alltid spør etter autentisering ved tilkobling til denne tjeneren">
+<!ENTITY alwaysAuthenticate.accesskey "A">
+<!ENTITY newsrcFilePath.label "newsrc-fil:">
+<!ENTITY localPath.label "Lokal mappe:">
+<!ENTITY abbreviate.label "Vis navn i mappelista med">
+<!ENTITY abbreviateOn.label "Fulle navn (for eksempel «netscape.public.mozilla.mail-news»)">
+<!ENTITY abbreviateOff.label "Forkortede navn (for eksempel «n.p.m.mail-news»)">
+<!ENTITY advancedButton.label "Avansert …">
+<!ENTITY serverDefaultCharset.label "Standard tegnkoding:">
+<!ENTITY advancedButton.accesskey "A">
+<!ENTITY localFolderPicker.label "Velg lokal mappe:">
+<!ENTITY browseFolder.label "Bla gjennom …">
+<!ENTITY browseFolder.accesskey "B">
+<!ENTITY newsrcPicker.label "Velg newsrc-fil">
+<!ENTITY browseNewsrc.label "Bla gjennom …">
+<!ENTITY browseNewsrc.accesskey "B">

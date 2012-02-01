@@ -1,0 +1,4 @@
+<!ENTITY window.title             "Üzenet-összefoglaló">
+<!ENTITY selectedmessages.label   "Kijelölt üzenetek">
+<!ENTITY archiveButton.label      "Archiválás">
+<!ENTITY deleteButton.label       "Törlés">

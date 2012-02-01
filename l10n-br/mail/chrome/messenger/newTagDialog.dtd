@@ -1,0 +1,4 @@
+<!-- New Tag Dialog -->
+<!ENTITY newTagDialog.title      "Krouiñ ur merk nevez">
+<!ENTITY name.label              "Anv ar merk :">
+<!ENTITY name.accesskey          "m">

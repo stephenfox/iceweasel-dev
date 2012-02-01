@@ -1,0 +1,37 @@
+<!--null-->
+<!ENTITY window.title "Modifica filtro">
+<!ENTITY filterEditorDialog.dimensions "width: 105ch;">
+<!ENTITY filterName.label "Nome filtro:">
+<!ENTITY filterName.accesskey "f">
+<!ENTITY junk.label "Spam">
+<!ENTITY notJunk.label "Non spam">
+<!ENTITY lowestPriorityCmd.label "Minima">
+<!ENTITY lowPriorityCmd.label "Bassa">
+<!ENTITY normalPriorityCmd.label "Normale">
+<!ENTITY highPriorityCmd.label "Alta">
+<!ENTITY highestPriorityCmd.label "Massima">
+<!ENTITY contextDesc.label "Applica il filtro:">
+<!ENTITY contextDesc.accesskey "A">
+<!ENTITY contextIncoming.label "durante il controllo della posta">
+<!ENTITY contextManual.label "manualmente">
+<!ENTITY contextBoth.label "durante il controllo della posta o manualmente">
+<!ENTITY contextPostPlugin.label "durante il controllo della posta (dopo la classificazione)">
+<!ENTITY contextPostPluginBoth.label "durante il controllo della posta (dopo la classificazione) o manualmente">
+<!ENTITY filterActionDesc.label "Esegui le seguenti azioni:">
+<!ENTITY filterActionDesc.accesskey "E">
+<!ENTITY moveMessage.label "Sposta messaggio in">
+<!ENTITY copyMessage.label "Copia messaggio a">
+<!ENTITY forwardTo.label "Inoltra messaggio a:">
+<!ENTITY replyWithTemplate.label "Rispondi con modello">
+<!ENTITY markMessageRead.label "Segna come letto">
+<!ENTITY markMessageStarred.label "Segna come spuntato">
+<!ENTITY setPriority.label "Imposta priorità a">
+<!ENTITY addTag.label "Etichetta messaggio">
+<!ENTITY setJunkScore.label "Imposta stato Spam a">
+<!ENTITY deleteMessage.label "Elimina messaggio">
+<!ENTITY deleteFromPOP.label "Elimina dal server POP">
+<!ENTITY fetchFromPOP.label "Recupera dal server POP">
+<!ENTITY ignoreThread.label "Ignora argomento">
+<!ENTITY ignoreSubthread.label "Ignora le sotto discussioni">
+<!ENTITY watchThread.label "Segui argomento">
+<!ENTITY stopExecution.label "Interrompi l'esecuzione dei filtri">

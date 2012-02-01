@@ -1,0 +1,9 @@
+repo: 5f55d2f2d359ca83ea6a0af248d0a331d7efe379
+node: 5b54d5ee8eccf9afe9512cce012fcdc20a556a39
+branch: default
+tag: FIREFOX_10_0_BUILD1
+tag: FIREFOX_10_0_RELEASE
+tag: FIREFOX_10_0b6_BUILD1
+tag: FIREFOX_10_0b6_RELEASE
+tag: FIREFOX_10_0esr_BUILD1
+tag: FIREFOX_10_0esr_RELEASE
