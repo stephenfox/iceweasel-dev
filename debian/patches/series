@@ -4,6 +4,7 @@ fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
 fixes/Bug-703633-TreePanel.jsm-uses-a-resource-url-that-ou.patch
 fixes/Bug-691898-Use-YARR-interpreter-instead-of-PCRE-on-p.patch
+fixes/Bug-722127-Bump-required-libvpx-version-to-1.0.0.-r-.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch

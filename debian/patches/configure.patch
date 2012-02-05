@@ -1,5 +1,5 @@
 diff --git a/configure b/configure
-index b8e7773..78b304f 100755
+index b8e7773..67ba888 100755
 --- a/configure
 +++ b/configure
 @@ -13173,6 +13173,7 @@ fi
@@ -1306,18 +1306,25 @@ index b8e7773..78b304f 100755
    rm -rf conftest*
    eval "ac_cv_lib_$ac_lib_var=yes"
  else
-@@ -17728,9 +17749,9 @@ fi
+@@ -17727,14 +17748,14 @@ else
+ fi
  
          if test -n "$MOZ_NATIVE_LIBVPX_DEC_TEST" ; then
-             echo $ac_n "checking for libvpx version >= v0.9.7""... $ac_c" 1>&6
+-            echo $ac_n "checking for libvpx version >= v0.9.7""... $ac_c" 1>&6
 -echo "configure:17732: checking for libvpx version >= v0.9.7" >&5
-+echo "configure:17753: checking for libvpx version >= v0.9.7" >&5
++            echo $ac_n "checking for libvpx version >= v1.0.0""... $ac_c" 1>&6
++echo "configure:17753: checking for libvpx version >= v1.0.0" >&5
                                                                                                                                      cat > conftest.$ac_ext <<EOF
 -#line 17734 "configure"
 +#line 17755 "configure"
  #include "confdefs.h"
  
                  #include <vpx/vpx_decoder.h>
+-                #if !defined(VPX_CODEC_USE_INPUT_PARTITION)
++                #if !defined(VPX_CODEC_USE_INPUT_FRAGMENTS)
+                     #error "test failed."
+                 #endif
+                 
 @@ -17742,7 +17763,7 @@ int main() {
  return 0;
  ; return 0; }
@@ -1327,6 +1334,15 @@ index b8e7773..78b304f 100755
    rm -rf conftest*
    echo "$ac_t""yes" 1>&6
                   MOZ_NATIVE_LIBVPX=1
+@@ -17753,7 +17774,7 @@ else
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+   echo "$ac_t""no" 1>&6
+-                 { echo "configure: error: --with-system-libvpx requested but it is not v0.9.7 or later" 1>&2; exit 1; }
++                 { echo "configure: error: --with-system-libvpx requested but it is not v1.0.0 or later" 1>&2; exit 1; }
+ fi
+ rm -f conftest*
+         fi
 @@ -17918,6 +17939,7 @@ EOF
  fi
  

@@ -17748,14 +17748,14 @@ else
 fi
 
         if test -n "$MOZ_NATIVE_LIBVPX_DEC_TEST" ; then
-            echo $ac_n "checking for libvpx version >= v0.9.7""... $ac_c" 1>&6
-echo "configure:17753: checking for libvpx version >= v0.9.7" >&5
+            echo $ac_n "checking for libvpx version >= v1.0.0""... $ac_c" 1>&6
+echo "configure:17753: checking for libvpx version >= v1.0.0" >&5
                                                                                                                                     cat > conftest.$ac_ext <<EOF
 #line 17755 "configure"
 #include "confdefs.h"
 
                 #include <vpx/vpx_decoder.h>
-                #if !defined(VPX_CODEC_USE_INPUT_PARTITION)
+                #if !defined(VPX_CODEC_USE_INPUT_FRAGMENTS)
                     #error "test failed."
                 #endif
                 
@@ -17774,7 +17774,7 @@ else
   cat conftest.$ac_ext >&5
   rm -rf conftest*
   echo "$ac_t""no" 1>&6
-                 { echo "configure: error: --with-system-libvpx requested but it is not v0.9.7 or later" 1>&2; exit 1; }
+                 { echo "configure: error: --with-system-libvpx requested but it is not v1.0.0 or later" 1>&2; exit 1; }
 fi
 rm -f conftest*
         fi
