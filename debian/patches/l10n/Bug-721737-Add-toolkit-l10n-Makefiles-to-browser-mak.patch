@@ -1,0 +1,25 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Fri, 10 Feb 2012 08:26:00 +0100
+Subject: Bug 721737 - Add toolkit l10n Makefiles to browser/makefiles.sh
+
+---
+ browser/makefiles.sh |    6 ++++++
+ 1 files changed, 6 insertions(+), 0 deletions(-)
+
+diff --git a/browser/makefiles.sh b/browser/makefiles.sh
+index ed72d3d..6da1d9f 100644
+--- a/browser/makefiles.sh
++++ b/browser/makefiles.sh
+@@ -80,6 +80,12 @@ browser/themes/winstripe/Makefile
+ $MOZ_BRANDING_DIRECTORY/Makefile
+ $MOZ_BRANDING_DIRECTORY/content/Makefile
+ $MOZ_BRANDING_DIRECTORY/locales/Makefile
++toolkit/locales/Makefile
++extensions/spellcheck/locales/Makefile
++intl/locales/Makefile
++netwerk/locales/Makefile
++dom/locales/Makefile
++security/manager/locales/Makefile
+ "
+ 
+ if [ "$ENABLE_TESTS" ]; then

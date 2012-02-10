@@ -40,6 +40,6 @@ debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/pkg-config-files-don-t-need-to-require-the-version-o.patch
 debian-hacks/Add-a-2-minutes-timeout-on-xpcshell-tests.patch
 debian-hacks/Fix-tracejit-to-build-against-nanojit-headers-in-dis.patch
-l10n/Don-t-build-some-toolkit-l10n-from-browser.patch
+l10n/Bug-721737-Add-toolkit-l10n-Makefiles-to-browser-mak.patch
 l10n/Place-google-and-gmail-before-yandex.patch
 configure.patch
