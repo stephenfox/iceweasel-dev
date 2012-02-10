@@ -62,10 +62,6 @@ libs-%:
 ifdef MOZ_PSM
 	@$(MAKE) -C ../../security/manager/locales/ libs AB_CD=$* XPI_NAME=locale-$*
 endif
-ifdef MOZ_SPELLCHECK
-	@$(MAKE) -C ../../extensions/spellcheck/locales AB_CD=$* XPI_NAME=locale-$*
-endif
-	@$(MAKE) -C ../../intl/locales AB_CD=$* XPI_NAME=locale-$*
 	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$*
 
 # target to be used by multi-locale l10n builds, just add this locale 
