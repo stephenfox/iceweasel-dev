@@ -196,7 +196,7 @@ stamps/build-l10n:: $(L10N_BUILD_STAMPS)
 $(L10N_BUILD_STAMPS):: stamps/build-l10n-%: stamps/build-xulrunner stamps/build-browser
 	$(if $(wildcard l10n),,mkdir -p l10n)
 	$(if $(wildcard l10n/$*),,ln -sf ../l10n-$* l10n/$*)
-	$(MAKE) -C build-xulrunner/toolkit/locales libs-$* L10NBASEDIR=$(CURDIR)/l10n MOZ_CHROME_FILE_FORMAT=flat DIST=$(CURDIR)/build-browser/dist LOCALE_MERGEDIR=$(CURDIR)/build-xulrunner/l10n-$* BOTH_MANIFESTS=1
+	$(PYTHON) config/pythonpath.py -I$(CURDIR)/compare-locales/lib $(CURDIR)/compare-locales/scripts/compare-locales -m $(CURDIR)/build-browser/l10n-$* browser/locales/l10n.ini $(CURDIR)/l10n $*
 	$(MAKE) -C build-browser/browser/locales langpack-$* L10NBASEDIR=$(CURDIR)/l10n MOZ_CHROME_FILE_FORMAT=flat MOZ_LANGPACK_EID=langpack-$*@iceweasel.mozilla.org PKG_LANGPACK_BASENAME='$$(MOZ_LANGPACK_EID)' PKG_LANGPACK_PATH=xpi/ LOCALE_MERGEDIR=$(CURDIR)/build-browser/l10n-$*
 
 override_dh_auto_build: stamps/build-check-branding stamps/build-check-resources
