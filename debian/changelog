@@ -1,3 +1,17 @@
+iceweasel (10.0-3) unstable; urgency=low
+
+  * debian/upstream.mk: Add rule to download compare-locales for a given
+    release.
+  * debian/rules: Build locales from build-browser only, and use
+    compare-locales to merge them with en-US for non-existing strings.
+
+  * browser/locales/Makefile.in, toolkit/locales/Makefile.in: Revert previous
+    patch.
+  * browser/makefiles.sh: Add toolkit l10n Makefiles to browser/makefiles.sh.
+    bz#721737.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 10 Feb 2012 08:32:58 +0100
+
 iceweasel (10.0-2) unstable; urgency=low
 
   * debian/control*: Bump libvpx-dev build dependency to 1.0.0.
