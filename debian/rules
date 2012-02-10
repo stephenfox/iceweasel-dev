@@ -98,7 +98,7 @@ debian/l10n/iceweasel-l10n.control: $(L10N_PACKAGES_CONTROLS) $(REMOVE_L10N_PACK
 	@($(foreach file,$(L10N_PACKAGES_CONTROLS),echo;echo "%include $(notdir $(file))";)) > $@
 
 $(L10N_PACKAGES_CONTROLS): debian/l10n/iceweasel-l10n-%.control: debian/l10n/iceweasel-l10n.control.in
-	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution -DL10N_LANG=$* -DL10N_LANGUAGE="$(shell isoquery -n -i 639 $(firstword $(subst -, ,$*)) | awk -F[\\t,\;] '{print $$4}')$(if $(word 2,$(subst -, ,$*)), ($(shell isoquery -n -i 3166 $(word 2,$(subst -, ,$*)) | awk -F[\\t,] '{print $$4}')))" -DL10N_RECOMMENDS="$(shell awk -F': *' '$$1 == "$*" {print $$2}' debian/l10n/recommends)" $< > $@
+	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution -DL10N_LANG=$* -DL10N_LANGUAGE="${shell isoquery -n -i $(if $(shell isoquery -n -i 639-3 $(firstword $(subst -, ,$*)) 2> /dev/null),639-3,639) $(firstword $(subst -, ,$*)) | awk -F\\t '{print $$NF}' | awk -F' *[(;]' '{print $$1}' | awk -F', ' '$$2 {print $$2,$$1} !$$2 {print $$1}'}$(if $(word 2,$(subst -, ,$*)), ($(shell isoquery -n -i 3166 $(word 2,$(subst -, ,$*)) | awk -F[\\t,] '{print $$4}')))" -DL10N_RECOMMENDS="$(shell awk -F': *' '$$1 == "$*" {print $$2}' debian/l10n/recommends)" $< > $@
 
 ifeq ($(shell lsb_release -sc),lenny)
 DICT_DIR := /usr/share/myspell/dicts
