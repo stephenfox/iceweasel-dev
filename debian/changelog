@@ -1,3 +1,10 @@
+iceweasel (10.0.1-1) unstable; urgency=low
+
+  * New upstream release.
+  * Fixes for mfsa2012-10, also known as CVE-2012-0452.
+
+ -- Mike Hommey <glandium@debian.org>  Sat, 11 Feb 2012 08:26:28 +0100
+
 iceweasel (10.0-3) unstable; urgency=low
 
   * debian/upstream.mk: Add rule to download compare-locales for a given
