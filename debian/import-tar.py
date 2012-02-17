@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import glob
 import tarfile
 import sys
 import StringIO
@@ -15,7 +16,7 @@ class GitImportTar(object):
         self.mtime = 0
         self.head = head
 
-    def addfile(self, info, file = None):
+    def addfile(self, info, prefix = '', file = None):
         if info.isdir():
             return
         self.git.write("blob\n" +
@@ -31,7 +32,9 @@ class GitImportTar(object):
                            file.getvalue())
 
         self.git.write("\n")
-        self.files[info.name] = (self.mark, mode)
+        if not prefix in self.files:
+            self.files[prefix] = {}
+        self.files[prefix][info.name] = (self.mark, mode)
         self.mark += 1
         if info.mtime > self.mtime:
             self.mtime = info.mtime
@@ -45,12 +48,16 @@ class GitImportTar(object):
                        "EOM\n\n" +
                        "from refs/heads/%s^0\n" % (self.head) +
                        "deleteall\n")
-        basedir = os.path.commonprefix(self.files)
-        for path, info in self.files.iteritems():
-            (mark, mode) = info
-            if mode != 0120000:
-                mode = 0755 if (mode & 0111) else 0644
-            self.git.write("M %o :%d %s\n" % (mode, mark, path[len(basedir):]))
+        for prefix, fileset in self.files.iteritems():
+            basedir = os.path.commonprefix(fileset)
+            for path, info in fileset.iteritems():
+                (mark, mode) = info
+                if mode != 0120000:
+                    mode = 0755 if (mode & 0111) else 0644
+                path = path[len(basedir):]
+                if prefix != '':
+                    path = prefix + '/' + path
+                self.git.write("M %o :%d %s\n" % (mode, mark, path))
 
 def main():
     parser = OptionParser()
@@ -61,20 +68,27 @@ def main():
     if not options.head:
         options.head = "upstream"
 
-    tar = tarfile.open(args[0], "r:*")
+    (name, ext) = os.path.splitext(args[0])
+    if ext[0:2] != '.t':
+        (name, ext2) = os.path.splitext(name)
+        ext = ext2 + ext
+
     git_import = GitImportTar(os.path.basename(args[0]), options.head)
+    for file in [args[0]] + glob.glob(name + "-*" + ext):
+        prefix = file[len(name)+1:-len(ext)]
+        tar = tarfile.open(file, "r:*")
 
-    while True:
-        info = tar.next()
-        if not info:
-            break
-        if info.isfile():
-            file = tar.extractfile(info)
-            git_import.addfile(info, file)
-        else:
-            git_import.addfile(info)
+        while True:
+            info = tar.next()
+            if not info:
+                break
+            if info.isfile():
+                file = tar.extractfile(info)
+                git_import.addfile(info, prefix, file)
+            else:
+                git_import.addfile(info, prefix)
 
-    tar.close()
+        tar.close()
     git_import.close()
 
 if __name__ == '__main__':
