@@ -1,3 +1,22 @@
+iceweasel (10.0.2-1) unstable; urgency=low
+
+  * New upstream release. Addresses CVE-2012-3026.
+  * debian/import-tar.py: Allow to import multi-tarball sources.
+  * debian/rules: Install js/*.h in /usr/include/mozjs/. Closes: #658315.
+  * debian/xulrunner.mozconfig, debian/control*: Build against system
+    python-ply.
+  * debian/control*: Build conflict with liboss4-salsa-dev.
+
+  * xpcom/typelib/xpidl/Makefile.in: Ship xpidllex.py and xpidlyacc.py.
+    bz#723861.
+  * config/autoconf.mk.in, configure.in, xpcom/idl-parser/Makefile.in,
+    xpcom/typelib/xpidl/Makefile.in: Allow to build with system python ply
+    library. bz#728229.
+  * browser/app/profile/firefox.js: Don't auto-disable extensions in system
+    directories. Closes: #656378 and friends.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 17 Feb 2012 18:40:48 +0100
+
 iceweasel (10.0.1-1) unstable; urgency=low
 
   * New upstream release.
