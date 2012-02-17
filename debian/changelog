@@ -1,6 +1,6 @@
 iceweasel (10.0.2-1) unstable; urgency=low
 
-  * New upstream release. Addresses CVE-2012-3026.
+  * New upstream release. Addresses CVE-2011-3026.
   * debian/import-tar.py: Allow to import multi-tarball sources.
   * debian/rules: Install js/*.h in /usr/include/mozjs/. Closes: #658315.
   * debian/xulrunner.mozconfig, debian/control*: Build against system
