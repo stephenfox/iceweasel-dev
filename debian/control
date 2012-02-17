@@ -47,6 +47,7 @@ Build-Depends: autotools-dev,
                xsltproc,
                lsb-release
 Build-Conflicts: graphicsmagick-imagemagick-compat,
+                 liboss4-salsa-dev,
                  libhildonmime-dev,
                  libosso-dev
 Standards-Version: 3.9.2.0
