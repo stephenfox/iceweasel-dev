@@ -24,6 +24,7 @@ prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
 prefs/Set-DPI-to-system-settings.patch
+prefs/Don-t-auto-disable-extensions-in-system-directories.patch
 debian-hacks/Check-less-things-during-configure-when-using-libxul.patch
 debian-hacks/Avoid-wrong-sessionstore-data-to-keep-windows-out-of.patch
 debian-hacks/Avoid-libxpcom-being-excluded-from-linked-libraries-.patch
