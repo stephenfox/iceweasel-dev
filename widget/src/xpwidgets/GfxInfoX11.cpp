@@ -61,6 +61,7 @@ pid_t glxtest_pid = 0;
 nsresult
 GfxInfo::Init()
 {
+    mGLMajorVersion = 0;
     mMajorVersion = 0;
     mMinorVersion = 0;
     mRevisionVersion = 0;
@@ -195,6 +196,9 @@ GfxInfo::GetData()
     CrashReporter::AppendAppNotesToCrashReport(note);
 #endif
 
+    // determine the major OpenGL version. That's the first integer in the version string.
+    mGLMajorVersion = strtol(mVersion.get(), 0, 10);
+
     // determine driver type (vendor) and where in the version string
     // the actual driver version numbers should be expected to be found (whereToReadVersionNumbers)
     const char *whereToReadVersionNumbers = nsnull;
@@ -219,7 +223,7 @@ GfxInfo::GetData()
         whereToReadVersionNumbers = mVersion.get();
     }
 
-    // read major.minor version numbers
+    // read major.minor version numbers of the driver (not to be confused with the OpenGL version)
     if (whereToReadVersionNumbers) {
         // copy into writable buffer, for tokenization
         strncpy(buf, whereToReadVersionNumbers, buf_size);
@@ -274,6 +278,14 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
 #endif
 
     OperatingSystem os = DRIVER_OS_LINUX;
+
+    if (mGLMajorVersion == 1) {
+        // We're on OpenGL 1. In most cases that indicates really old hardware.
+        // We better block them, rather than rely on them to fail gracefully, because they don't!
+        // see bug 696636
+        *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
+        return NS_OK;
+    }
 
     // Disable OpenGL layers when we don't have texture_from_pixmap because it regresses performance. 
     if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS && !mHasTextureFromPixmap) {
