@@ -12,7 +12,11 @@
 # That should ensure the proper ordering
 VERSION_FILTER := sed 's/\([0-9]\)\([a-z]\)/\1~\2/g'
 UPSTREAM_VERSION := $(shell cat $(PRODUCT)/config/version.txt)
-GRE_MILESTONE := $(shell config/milestone.pl --topsrcdir .| $(VERSION_FILTER))
+GRE_SRCDIR := $(strip $(foreach dir,. mozilla,$(if $(wildcard $(dir)/config/milestone.pl),$(dir))))
+ifndef GRE_SRCDIR
+$(error Could not determine the top directory for GRE codebase)
+endif
+GRE_MILESTONE := $(shell $(GRE_SRCDIR)/config/milestone.pl --topsrcdir $(GRE_SRCDIR) | $(VERSION_FILTER))
 
 # Construct GRE_VERSION from the first two digits in GRE_MILESTONE
 GRE_VERSION := $(subst ~, ,$(subst ., ,$(GRE_MILESTONE)))
