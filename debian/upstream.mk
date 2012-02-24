@@ -111,11 +111,11 @@ download: $(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL) $(L10N_TARBALLS) $(SOURCE
 $(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL): debian/source.filter
 	$(PYTHON) debian/repack.py -o $@ $(SOURCE_URL)
 
-$(L10N_TARBALLS): $(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL:%.orig.tar.bz2=%.orig-l10n-%.tar.bz2):
-	curl -s $(subst $(SOURCE_CHANNEL),l10n/$(SOURCE_CHANNEL:$(REPO_PREFIX)-%=mozilla-%),$(SOURCE_REPO))/$*/archive/$(L10N_REV).tar.bz2 > $@
+$(L10N_TARBALLS): $(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL:%.orig.tar.bz2=%.orig-l10n-%.tar.bz2): debian/l10n.filter
+	$(PYTHON) debian/repack.py -o $@ -t $* -f debian/l10n.filter $(subst $(SOURCE_CHANNEL),l10n/$(SOURCE_CHANNEL:$(REPO_PREFIX)-%=mozilla-%),$(SOURCE_REPO))/$*/archive/$(L10N_REV).tar.bz2
 
-$(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL:%.orig.tar.bz2=%.orig-compare-locales.tar.bz2):
-	curl -s http://hg.mozilla.org/build/compare-locales/archive/$(L10N_REV).tar.bz2 > $@
+$(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL:%.orig.tar.bz2=%.orig-compare-locales.tar.bz2): debian/l10n.filter
+	$(PYTHON) debian/repack.py -o $@ -t compare-locales -f debian/l10n.filter http://hg.mozilla.org/build/compare-locales/archive/$(L10N_REV).tar.bz2 > $@
 
 endif
 .PHONY: download

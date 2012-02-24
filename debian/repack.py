@@ -103,7 +103,7 @@ class TarFilterList(object):
 def file_extension(name):
     return os.path.splitext(name)[1][1:]
 
-def filter_tar(orig, new, filt):
+def filter_tar(orig, new, filt, topdir = None):
     filt = TarFilterList(filt)
     if urlparse(orig).scheme:
         tar = tarfile.open(orig, "r:" + file_extension(orig), URLFile(orig))
@@ -115,6 +115,8 @@ def filter_tar(orig, new, filt):
         info = tar.next()
         if not info:
             break
+        if topdir:
+            info.name = "/".join([topdir] + info.name.split("/")[1:])
         do_filt = filt.match(info.name)
         if do_filt == None:
             print >> sys.stderr, "Removing %s" % (info.name)
@@ -166,6 +168,8 @@ def main():
         help="use the given package name", metavar="NAME")
     parser.add_option("-o", "--output", dest="new_file",
         help="save the filtered tarball as the given file name", metavar="FILE")
+    parser.add_option("-t", "--topdir", dest="topdir",
+        help="replace the top directory with the given name", metavar="NAME")
     (options, args) = parser.parse_args()
 
     if not options.upstream_version and not options.new_file:
@@ -198,7 +202,7 @@ def main():
             new_file = options.package + "_" + options.upstream_version + ".orig.tar." + compression
             new_file = os.path.realpath(os.path.join(dirname(orig), new_file))
     print orig, new_file
-    filter_tar(orig, new_file, options.filter)
+    filter_tar(orig, new_file, options.filter, options.topdir)
 
 if __name__ == '__main__':
     main()
