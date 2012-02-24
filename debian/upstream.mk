@@ -50,7 +50,7 @@ REPO_PREFIX = comm
 else
 REPO_PREFIX = mozilla
 endif
-ifneq (,$(filter $(GRE_MILESTONE)~b%, $(VERSION)))
+ifneq (,$(findstring ~b, $(VERSION)))
 # Betas are under releases/
 SOURCE_TYPE := releases
 SOURCE_CHANNEL := $(REPO_PREFIX)-beta
