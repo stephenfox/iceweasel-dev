@@ -13,7 +13,6 @@ debian/tmp/usr/lib/iceweasel/blocklist.xml usr/lib/iceweasel
 debian/tmp/usr/lib/iceweasel/defaults/profile etc/iceweasel/
 
 debian/iceweasel.desktop usr/share/applications
-debian/iceweaselrc etc/iceweasel
 
 build-browser/debian/branding/mozicon16.xpm usr/share/iceweasel/icons/
 build-browser/debian/branding/mozicon50.xpm usr/share/iceweasel/icons/

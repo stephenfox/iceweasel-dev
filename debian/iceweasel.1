@@ -92,9 +92,6 @@ Starts Iceweasel through a debugger (gdb by default).
 Use \fIprogram\fR as a debugger for Iceweasel. Implies \fB\-debug\fR.
 
 .SH ENVIRONMENT
-\fIICEWEASEL_DSP\fR - configures the /dev/dsp wrapper to use. Accepted values
-are "auto", "artsdsp", "esddsp", "aoss" or "none" (default).
-
 \fIMOZILLA_DISABLE_PLUGINS\fR - when set, totally disables loading browser plugins
 (the ones that appear at the about:plugins url)
 
@@ -106,13 +103,6 @@ are "auto", "artsdsp", "esddsp", "aoss" or "none" (default).
 \fI/usr/lib/iceweasel/firefox\-bin\fR - \fBiceweasel\fR
 executable
 .br
-
-\fI/etc/iceweasel/iceweaselrc\fR - file containing environment
-variables to be passed to Iceweasel.
-.br
-
-\fI${HOME}/.mozilla/firefox/rc\fR - file containing environment variables to
-be passed to Iceweasel. Overrides \fI/etc/iceweasel/iceweaselrc\fR
 
 .SH BUGS
 To report a bug, please visit \fIhttp://bugzilla.mozilla.org/\fR and/or report bugs

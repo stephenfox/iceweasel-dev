@@ -20,21 +20,13 @@ occasional bug fix).
 Sound
 -----
 
-By default, iceweasel doesn't use a dsp wrapper for sound support. If you
-happen to experience sound issues, you can try to edit
-/etc/iceweasel/iceweaselrc or ~/.mozilla/firefox/rc and set the ICEWEASEL_DSP
-variable to:
+Iceweasel used to provide a facility to setup a dsp wrapper for sound
+support. The main contender that required this is the proprietary Flash
+plugin, which has supported ALSA for a while now.
 
-"auto": Auto-detection.
-
-"esddsp": Use esd.
-
-"artsdsp": Use arts.
-
-"aoss": Use alsa.
-
-"none": The default, don't use any sound wrapper.
-
+However, if for some reason Flash gets it wrong and uses OSS instead, you
+can set the FLASH_ALSA_DEVICE variable to tell it what ALSA device it can
+use.
 
 using Java. (You should use plugin which compiled with gcc-3.2 or newer)
 ----------
