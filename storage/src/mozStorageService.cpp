@@ -367,7 +367,8 @@ static int sqliteMemSize(void* p)
 
 static int sqliteMemRoundup(int n)
 {
-  n = je_malloc_usable_size_in_advance(n);
+  if (je_malloc_usable_size_in_advance)
+  	n = je_malloc_usable_size_in_advance(n);
 
   // jemalloc can return blocks of size 2 and 4, but SQLite requires that all
   // allocations be 8-aligned.  So we round up sub-8 requests to 8.  This
