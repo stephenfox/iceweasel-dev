@@ -281,6 +281,7 @@ stamps/dh_install-l10n:: $(L10N_DH_INSTALL_STAMPS)
 
 $(L10N_DH_INSTALL_STAMPS):: stamps/dh_install-l10n-%: stamps/build-l10n-%
 	dh_install -piceweasel-l10n-$(shell echo $* | tr A-Z a-z) build-browser/dist/xpi/langpack-$*@iceweasel.mozilla.org.xpi usr/lib/iceweasel/extensions/
+	dh_install -piceweasel-l10n-$(shell echo $* | tr A-Z a-z) build-browser/dist/xpi-stage/locale-$*/searchplugins/* /usr/share/iceweasel/distribution/searchplugins/locale/$*/
 
 stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist/bin/npapi_getinfo
 	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r
