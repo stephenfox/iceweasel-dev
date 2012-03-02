@@ -269,6 +269,7 @@ stamps/install-browser:: build-browser/debian/installer/package-manifest
 	dh_auto_install --builddirectory=build-browser -- installdir=$(LIB_DIR) \
 		MOZ_PKG_MANIFEST=$(CURDIR)/$<
 	chmod 755 debian/iceweasel-xremote-client
+	rm -f debian/tmp/usr/lib/iceweasel/update-settings.ini
 
 MPL: LICENSE
 	cp -f $< $@
