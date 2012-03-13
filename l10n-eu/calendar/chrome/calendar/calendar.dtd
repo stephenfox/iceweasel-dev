@@ -253,8 +253,8 @@
 <!ENTITY calendar.context.findcalendar.accesskey       "l" >
 <!ENTITY calendar.context.deleteserver.label           "Ezabatu egutegia">
 <!ENTITY calendar.context.deleteserver.accesskey       "z">
-<!ENTITY calendar.context.reloadserver.label           "Birkargatu urruneko egutegiak">
-<!ENTITY calendar.context.reloadserver.accesskey       "r">
+<!ENTITY calendar.context.synccalendars.label          "Sinkronizatu egutegiak">
+<!ENTITY calendar.context.synccalendars.accesskey      "S">
 <!ENTITY calendar.context.publish.label                "Argitaratu egutegia…">
 <!ENTITY calendar.context.publish.accesskey            "g">
 <!ENTITY calendar.context.export.label                 "Esportatu egutegia…">

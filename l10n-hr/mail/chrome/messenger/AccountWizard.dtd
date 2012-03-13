@@ -5,9 +5,9 @@
 
 <!-- Entities for Account Type page -->
 
-<!ENTITY accountSetupInfo.label "Da biste primali poruke, prvo morate postaviti račun e-pošte ili interesnih grupa.">
+<!ENTITY accountSetupInfo2.label "Da biste primali poruke, prvo morate postaviti račun.">
 <!ENTITY accountTypeTitle.label "Postavljanje novog računa">
-<!ENTITY accountTypeDesc.label "Ovaj čarobnjak će prikupiti informacije potrebne za postavljanje računa e-pošte ili interesnih grupa. Ukoliko ne znate tražene informacije, kontaktirajte svojeg sistem administratora ili pružatelja usluge.">
+<!ENTITY accountTypeDesc2.label "Ovaj čarobnjak će prikupiti informacije potrebne za postavljanje računa. Ukoliko ne znate tražene informacije, kontaktirajte svojeg sistem administratora ili pružatelja usluge.">
 <!ENTITY accountTypeDirections.label "Odaberite vrstu računa kojeg želite postaviti:">
 <!ENTITY accountTypeMail.label "Račun e-pošte">
 <!ENTITY accountTypeMail.accesskey "e">
@@ -25,7 +25,7 @@
   1, do not translate two of "&quot;"
   2, Use localized full name instead of "John Smith"
 -->
-<!ENTITY fullnameExample.label "(na primjer, &quot;Đelo Hadžiselimović&quot;).">
+<!ENTITY fullnameExample.label "(na primjer, &quot;Ivan Horvat&quot;).">
 <!ENTITY fullnameLabel.label "Vaše ime:">
 <!ENTITY fullnameLabel.accesskey "i">
 
@@ -56,7 +56,10 @@
 <!ENTITY popType.accesskey "P">
 <!ENTITY leaveMsgsOnSrvr.label "Ostavi poruke na poslužitelju">
 <!ENTITY leaveMsgsOnSrvr.accesskey "t">
-
+<!ENTITY portNum.label "Port:">
+<!ENTITY portNum.accesskey "o">
+<!ENTITY defaultPortLabel.label "Zadano:">
+<!ENTITY defaultPortValue.label "">
 
 <!-- LOCALIZATION NOTE (haveSmtp1.prefix and haveSmtp1.suffix2) : Do not translate "SMTP" and "&quot;" in
      these variables. Also, translate haveSmtp1.prefix and haveSmtp1.suffix2 as a single sentence, inserting

@@ -1,0 +1,109 @@
+
+<!ENTITY splash_firstrun "Nastavení &brandShortName;\u2026">
+
+<!ENTITY no_space_to_start_error "&brandShortName; nemá dostatek místa pro své spuštění.">
+<!ENTITY error_loading_file "Při načítání souborů vyžadovaných aplikací &brandShortName; nastala chyba.">
+
+<!ENTITY awesomebar_all_pages_title "Top stránky">
+<!ENTITY awesomebar_bookmarks_title "Záložky">
+<!ENTITY awesomebar_history_title "Historie">
+<!ENTITY awesomebar_search_engine "Hledat „&#037;s“">
+
+<!ENTITY crash_reporter_title "Oznamovatel pádu">
+<!ENTITY crash_message "Aplikace &brandShortName; spadla. Po restartu aplikace &brandShortName; budou otevřené panely uvedeny na startovní stránce.">
+<!ENTITY crash_help_message "Pomozte nám prosím opravit tento problém.">
+<!ENTITY crash_send_report_message "Odeslat Mozille hlášení o pádu">
+<!ENTITY crash_include_url "Zahrnout dresu stránky">
+<!ENTITY crash_close_label "Zavřít">
+<!ENTITY crash_restart_label "Restartovat &brandShortName;">
+<!ENTITY sending_crash_report "Odesílání hlášení o pádu\u2026">
+<!ENTITY exit_label "Ukončit">
+<!ENTITY continue_label "Pokračovat">
+
+<!ENTITY launcher_shortcuts_title "&brandShortName; aplikace">
+<!ENTITY launcher_shortcuts_empty "Nebyla nalezena žádná webová aplikace">
+
+<!ENTITY choose_file "Volba souboru">
+
+<!ENTITY awesomebar_default_text "Vložte hledání nebo adresu">
+
+<!ENTITY bookmark "Záložky">
+<!ENTITY bookmark_added "Záložka přidána">
+<!ENTITY bookmark_removed "Záložka odebrána">
+
+<!ENTITY history_today_section "Dnes">
+<!ENTITY history_yesterday_section "Včera">
+<!ENTITY history_week_section "Posledních 7 dnů">
+<!ENTITY history_older_section "Starší než 7 dnů">
+
+<!ENTITY reload "Obnovit">
+<!ENTITY forward "Vpřed">
+
+<!ENTITY new_tab "Nový panel">
+
+<!ENTITY settings "Nastavení">
+<!ENTITY settings_title "Nastavení">
+<!ENTITY pref_category_general "Obecné">
+<!ENTITY pref_category_privacy "Soukromí a bezpečnost">
+<!ENTITY pref_category_content "Obsah">
+<!ENTITY pref_about_firefox "About &brandShortName;">
+<!ENTITY pref_do_not_track "Říct serverům, že nechci být sledován">
+<!ENTITY pref_telemetry "Odesílat data o výkonu">
+<!ENTITY pref_remember_signons "Pamatovat si hesla">
+<!ENTITY pref_cookies "Povolit cookies">
+<!ENTITY pref_char_encoding "Znaková sada">
+<!ENTITY pref_char_encoding_on "Zobrazit nabídku">
+<!ENTITY pref_char_encoding_off "Nezobrazovat nabídku">
+<!ENTITY pref_clear_history "Smazat historii">
+<!ENTITY pref_clear_history_confirm "Historie prohlížení bude smazána">
+<!ENTITY pref_clear_private_data "Vymazat důvěrná data">
+<!ENTITY pref_clear_private_data_confirm "Data z prohlížení včetně hesel a cookies budou smazána">
+<!ENTITY pref_plugins "Zásuvné moduly">
+<!ENTITY pref_plugins_enabled "Povolit">
+<!ENTITY pref_plugins_tap_to_play "Přehrát po klepnutí">
+<!ENTITY pref_plugins_disabled "Zakázat">
+<!ENTITY pref_text_size "Velikost textu">
+<!ENTITY pref_font_size_tiny "Drobné">
+<!ENTITY pref_font_size_small "Malé">
+<!ENTITY pref_font_size_medium "Střední">
+<!ENTITY pref_font_size_large "Velké">
+<!ENTITY pref_font_size_xlarge "Extra velké">
+<!ENTITY pref_use_master_password "Použít hlavní heslo">
+<!ENTITY pref_sync "Sync">
+
+<!ENTITY quit "Ukončit">
+
+<!ENTITY addons "Doplňky">
+<!ENTITY downloads "Stahování">
+<!ENTITY char_encoding "Znaková sada">
+
+<!ENTITY share "Sdílet">
+<!ENTITY save_as_pdf "Uložit jako PDF">
+
+<!ENTITY contextmenu_open_new_tab "Otevřít v novém panelu">
+<!ENTITY contextmenu_remove_bookmark "Smazat">
+<!ENTITY contextmenu_add_to_launcher "Přidat na úvodní obrazovku">
+<!ENTITY contextmenu_share "Sdílet">
+
+<!ENTITY site_settings_title "Vymazat nastavení serveru">
+<!ENTITY site_settings_cancel "Zrušit">
+<!ENTITY site_settings_clear "Vymazat">
+<!ENTITY site_settings_no_settings "Žádné nastavení neexistuje.">
+
+<!ENTITY masterpassword_create_title "Vytvořit hlavní heslo">
+<!ENTITY masterpassword_remove_title "Odebrat hlavní heslo">
+<!ENTITY masterpassword_password "Heslo">
+<!ENTITY masterpassword_confirm "Potvrzení hesla">
+
+<!ENTITY button_ok "OK">
+<!ENTITY button_cancel "Zrušit">
+
+<!ENTITY abouthome_addons_title "Doplňky aplikace &brandShortName;">
+<!ENTITY abouthome_addons_browse "Zobrazit všechny doplňky aplikace &brandShortName;">
+<!ENTITY abouthome_last_tabs_title "Panely z minula">
+<!ENTITY abouthome_last_tabs_open "Otevřít všechny panely z minula">
+<!ENTITY abouthome_top_sites_title "Top stránky">
+<!ENTITY abouthome_top_sites_browse "Zobrazit všechny top stránky">
+<!ENTITY abouthome_no_top_sites "Zatím nemáte žádné top stránky. Brouzdání začnete klepnutím na pole titulku.">
+<!ENTITY abouthome_about_sync "Nastavte si Firefox Sync a přistupujte ke svým záložkám, historii a panelům ze svých ostatních zařízení">
+<!ENTITY abouthome_sync_bold_name "Firefox Sync">

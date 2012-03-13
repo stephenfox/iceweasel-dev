@@ -20,11 +20,11 @@
 #define bookmarks_addons Firefox: Настройка с помощью дополнений
 
 # LOCALIZATION NOTE (bookmarks_support):
-# link title for https://mobile.support.mozilla.com
+# link title for https://support.mozilla.com/mobile
 #define bookmarks_support Firefox: Поддержка
 
 # LOCALIZATION NOTE (bookmarks_aboutHome):
 # link title for about:home
-#define bookmarks_aboutHome Firefox: Начало
+#define bookmarks_aboutHome Запуск Firefox
 
 #unfilter emptyLines

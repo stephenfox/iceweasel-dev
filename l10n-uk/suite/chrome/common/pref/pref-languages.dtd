@@ -3,7 +3,7 @@
 <!ENTITY languages.customize.prefLangDescript           "Деколи сайти доступні кількома мовами. Вибрати мови для показу сторінок, в порядку пріоритету.">
 <!ENTITY languages.customize.title                      "Мови">
 <!ENTITY langtitle.label                                "Мови для сторінок">
-<!ENTITY languages.customize.prefAddLangDescript        "Вибрати мову(и), яку ви бажаєте додати.">
+<!ENTITY languages.customize.prefAddLangDescript        "Вибрати мову(и), яку бажаєте додати.">
 <!ENTITY languages.customize.addButton.label            "Додати…">
 <!ENTITY languages.customize.addButton.accesskey        "Д">
 <!ENTITY languages.customize.deleteButton.label         "Вилучити">
@@ -15,7 +15,7 @@
 <!ENTITY languages.customize.others.label               "Інші:">
 <!ENTITY languages.customize.others.accesskey           "І">
 <!ENTITY languages.customize.Charset.grouplabel         "Типове кодування символів">
-<!ENTITY languages.customize.DefaultCharset.label       "Кодуванння символів:">
+<!ENTITY languages.customize.DefaultCharset.label       "Кодування символів:">
 <!ENTITY languages.customize.DefaultCharset.accesskey   "К">
 <!-- LOCALIZATION NOTE  Character Encoding Preferences Dialog: Do NOT localize the terms "en-bz, ar-jo"  -->
 <!ENTITY languages.customize.others.examples            "наприклад: en-bz, ar-jo">

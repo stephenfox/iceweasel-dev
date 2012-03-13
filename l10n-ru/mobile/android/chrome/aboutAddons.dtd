@@ -1,0 +1,7 @@
+<!ENTITY aboutAddons.title "Управление дополнениями">
+<!ENTITY aboutAddons.header2 "Мои дополнения">
+<!ENTITY aboutAddons.options "Настройки">
+<!ENTITY addonAction.enable "Включить">
+<!ENTITY addonAction.disable "Отключить">
+<!ENTITY addonAction.uninstall "Удалить">
+<!ENTITY addonAction.cancel "Отмена">

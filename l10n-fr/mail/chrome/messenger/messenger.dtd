@@ -1,4 +1,3 @@
-<!ENTITY messengerWindow.title "Courrier et groupes">
 <!ENTITY titledefault.label "&brandFullName;">
 <!ENTITY titleSeparator.label " - ">
 
@@ -146,16 +145,16 @@
 
 <!ENTITY folderView.label "Dossiers">
 <!ENTITY folderView.accesskey "r">
-<!ENTITY unifiedFolders.label "Dossiers unifiés">
-<!ENTITY unifiedFolders.accesskey "D">
+<!ENTITY unifiedFolders.label "Unifiés">
+<!ENTITY unifiedFolders.accesskey "U">
 <!ENTITY allFolders.label "Tous">
 <!ENTITY allFolders.accesskey "T">
-<!ENTITY unreadFolders.label "Dossiers avec des non lus">
-<!ENTITY unreadFolders.accesskey "n">
-<!ENTITY favoriteFolders.label "Dossiers préférés">
-<!ENTITY favoriteFolders.accesskey "p">
-<!ENTITY recentFolders.label "Dossiers récents">
-<!ENTITY recentFolders.accesskey "r">
+<!ENTITY unreadFolders.label "Avec des messages non lus">
+<!ENTITY unreadFolders.accesskey "A">
+<!ENTITY favoriteFolders.label "Préférés">
+<!ENTITY favoriteFolders.accesskey "P">
+<!ENTITY recentFolders.label "Récents">
+<!ENTITY recentFolders.accesskey "R">
 
 <!-- Sort Menu -->
 <!ENTITY sortMenu.label "Trier par">
@@ -593,8 +592,8 @@ you can use these alternative items. Otherwise, their values should be empty.
 <!ENTITY folderContextMarkMailFolderRead.accesskey "d">
 <!ENTITY folderContextSubscribe.label "S'abonner…">
 <!ENTITY folderContextSubscribe.accesskey "b">
-<!ENTITY folderContextSearchMessages.label "Rechercher…">
-<!ENTITY folderContextSearchMessages.accesskey "c">
+<!ENTITY folderContextSearchForMessages.label "Rechercher dans les messages…">
+<!ENTITY folderContextSearchForMessages.accesskey "c">
 <!ENTITY folderContextProperties.label "Propriétés…">
 <!ENTITY folderContextProperties.accesskey "t">
 <!ENTITY folderContextFavoriteFolder.label "Dossier préféré">

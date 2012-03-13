@@ -40,7 +40,9 @@
 <!ENTITY connectionSettings.label        "Paramètres…">
 <!ENTITY connectionSettings.accesskey    "P">
 
-<!ENTITY offlineStorage.label            "Stockage hors connexion">
+<!ENTITY httpCache.label                 "Contenu Web en cache">
+
+<!ENTITY offlineStorage2.label           "Contenu Web et données utilisateur hors connexion">
 
 <!-- LOCALIZATION NOTE:
   The entities limitCacheSizeBefore.label and limitCacheSizeAfter.label appear on a single
@@ -51,8 +53,10 @@
 <!ENTITY limitCacheSizeBefore.label      "Limiter le cache à">
 <!ENTITY limitCacheSizeBefore.accesskey  "L">
 <!ENTITY limitCacheSizeAfter.label       "Mo d'espace disque">
-<!ENTITY clearCacheNow.label             "Vider le cache maintenant">
+<!ENTITY clearCacheNow.label             "Vider maintenant">
 <!ENTITY clearCacheNow.accesskey         "V">
+<!ENTITY clearOfflineAppCacheNow.label   "Vider maintenant">
+<!ENTITY clearOfflineAppCacheNow.accesskey "d">
 <!ENTITY overrideSmartCacheSize.label    "Modifier la gestion automatique du cache">
 <!ENTITY overrideSmartCacheSize.accesskey "O">
 
@@ -76,8 +80,6 @@
 <!ENTITY useService.accesskey            "s">
 
 <!ENTITY updateOthers.label              "Mettre à jour automatiquement :">
-<!ENTITY enableAddonsUpdate3.label       "les modules">
-<!ENTITY enableAddonsUpdate3.accesskey   "e">
 <!ENTITY enableSearchUpdate.label        "les moteurs de recherche">
 <!ENTITY enableSearchUpdate.accesskey    "m">
 
@@ -86,7 +88,7 @@
 <!ENTITY offlineNotifyExceptions.label   "Exceptions…">
 <!ENTITY offlineNotifyExceptions.accesskey "x">
 
-<!ENTITY offlineAppsList.label           "Les sites suivants ont des données enregistrées pour une utilisation hors connexion :">
+<!ENTITY offlineAppsList2.label          "Les sites suivants sont autorisés à stocker des données pour une utilisation hors connexion :">
 <!ENTITY offlineAppsList.height          "7em">
 <!ENTITY offlineAppsListRemove.label     "Supprimer…">
 <!ENTITY offlineAppsListRemove.accesskey "S">

@@ -65,3 +65,9 @@
 <!ENTITY fileRevert.accesskey "В">
 <!ENTITY publishSettings.label "Наладжванні пляцоўкі публікавання…">
 <!ENTITY publishSettings.accesskey "л">
+<!ENTITY newToolbarCmd.label "Стварыць">
+<!ENTITY newToolbarCmd.tooltip "Стварыць новую старонку ўкладальніка">
+<!ENTITY openToolbarCmd.label "Адчыніць">
+<!ENTITY openToolbarCmd.tooltip "Адчыніць мясцовы файл">
+<!ENTITY saveToolbarCmd.tooltip "Захаваць файл мясцова">
+<!ENTITY publishToolbarCmd.tooltip "Зацягнуць файл у адлеглае месца">

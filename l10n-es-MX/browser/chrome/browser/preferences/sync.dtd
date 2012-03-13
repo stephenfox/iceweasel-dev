@@ -7,9 +7,9 @@
 <!ENTITY manageAccount.accesskey "A">
 <!ENTITY viewQuota.label "Ver cuota">
 <!ENTITY changePassword2.label "Cambiar contraseña…">
-<!ENTITY mySyncKey.label "Mi clave de Sync">
+<!ENTITY myRecoveryKey.label "Mi clave de recuperación">
 <!ENTITY resetSync2.label "Reestablecer Sync…">
-<!ENTITY addDevice.label "Añadir un dispositivo">
+<!ENTITY pairDevice.label "Sincronizar un dispositivo">
 <!ENTITY syncMy.label "Sincronizar">
 <!ENTITY engine.bookmarks.label "Marcadores">
 <!ENTITY engine.bookmarks.accesskey "m">
@@ -21,6 +21,8 @@
 <!ENTITY engine.passwords.accesskey "C">
 <!ENTITY engine.prefs.label "Preferencias">
 <!ENTITY engine.prefs.accesskey "S">
+<!ENTITY engine.addons.label "Add-ons">
+<!ENTITY engine.addons.accesskey "A">
 <!ENTITY syncComputerName.label "Nombre del equipo:">
 <!ENTITY syncComputerName.accesskey "e">
 <!ENTITY unlinkDevice.label "Desvincular este dispositivo">

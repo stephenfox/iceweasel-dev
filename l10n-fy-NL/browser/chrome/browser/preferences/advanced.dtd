@@ -40,7 +40,9 @@
 <!ENTITY connectionSettings.label        "Ynstellings...">
 <!ENTITY connectionSettings.accesskey    "Y">
 
-<!ENTITY offlineStorage.label            "Opslach sûnder ferbining">
+<!ENTITY httpCache.label                 "Buffere webynhâld">
+
+<!ENTITY offlineStorage2.label           "Offlinewebynhâld en brûkersgegevens">
 
 <!-- LOCALIZATION NOTE:
   The entities limitCacheSizeBefore.label and limitCacheSizeAfter.label appear on a single
@@ -53,34 +55,40 @@
 <!ENTITY limitCacheSizeAfter.label       "MB romte">
 <!ENTITY clearCacheNow.label            "No leechmeitsje">
 <!ENTITY clearCacheNow.accesskey        "l">
+<!ENTITY clearOfflineAppCacheNow.label   "No wiskje">
+<!ENTITY clearOfflineAppCacheNow.accesskey "N">
 <!ENTITY overrideSmartCacheSize.label    "Automatysk bufferbehear net brûke">
 <!ENTITY overrideSmartCacheSize.accesskey "A">
 
 <!ENTITY updateTab.label                "Fernijing">
 
-<!ENTITY autoCheck.label       			"Automatysk kontrolearje op nije ferzjes fan:">
-<!ENTITY enableAppUpdate.label        	"&brandShortName;">
-<!ENTITY enableAppUpdate.accesskey      "F">
-<!ENTITY enableAddonsUpdate2.label      "Tafoegings">
-<!ENTITY enableAddonsUpdate2.accesskey  "T">
-<!ENTITY enableSearchUpdate.label       "Sykmasines">
-<!ENTITY enableSearchUpdate.accesskey   "i">
-<!ENTITY whenUpdatesFound.label         "As der fernijings foar &brandShortName; fûn binne,">
-<!ENTITY askMe.label                    "My freegje wat ik dwaan wol">
-<!ENTITY askMe.accesskey                "r">
-<!ENTITY modeAutomatic.label            "Automatysk de fernijing ynlade en ynstallearje">
-<!ENTITY modeAutomatic.accesskey        "d">
-<!ENTITY modeAutoAddonWarn.label        "My warskôgje as dit útwreidings of tema’s útskeakelje sil">
-<!ENTITY modeAutoAddonWarn.accesskey    "w">
+<!ENTITY updateApp.label                 "&brandShortName;-fernijings:">
+<!ENTITY updateAuto.label                "Fernijings automatysk ynstallearje (oanrikkemandearre: ferbettere feilichheid)">
+<!ENTITY updateAuto.accesskey            "F">
+<!ENTITY updateCheck.label               "Kontrolearje op fernijings mar lit my kieze oft ik it ynstallearje wol">
+<!ENTITY updateCheck.accesskey           "K">
+<!ENTITY updateManual.label              "Noait kontrolearje op fernijings (net oanrikkemandearre: feilichheidsrisiko)">
+<!ENTITY updateManual.accesskey          "N">
+
+<!ENTITY updateAutoAddonWarn.label       "My warskôgje as dit ien fan myn tafoegings útskeakelje sil">
+<!ENTITY updateAutoAddonWarn.accesskey   "w">
+
 <!ENTITY updateHistory.label            "Fernijingsskiednis sjen litte">
 <!ENTITY updateHistory.accesskey        "s">
+
+<!ENTITY useService.label                "Gebrûk in achtergrûntsjinst om fernijings te ynstallearjen">
+<!ENTITY useService.accesskey            "a">
+
+<!ENTITY updateOthers.label              "Automatysk fernijing:">
+<!ENTITY enableSearchUpdate.label        "Sykmasines">
+<!ENTITY enableSearchUpdate.accesskey    "S">
 
 <!ENTITY offlineNotify.label             "My fertelle as in webstee freget om gegevens te bewarjen foar offline gebrûk">
 <!ENTITY offlineNotify.accesskey         "e">
 <!ENTITY offlineNotifyExceptions.label   "Utsûnderings">
 <!ENTITY offlineNotifyExceptions.accesskey "u">
 
-<!ENTITY offlineAppsList.label           "De folgjende websteeën hawwe gegevens ynstallearre foar gebrûk as jo gjin ferbining hawwe">
+<!ENTITY offlineAppsList2.label          "De folgjende websteeën hawwe tastimming om gegevens te bewarjen foar offlinegebrûk:">
 <!ENTITY offlineAppsList.height          "7em">
 <!ENTITY offlineAppsListRemove.label     "Fuortsmite...">
 <!ENTITY offlineAppsListRemove.accesskey "F">

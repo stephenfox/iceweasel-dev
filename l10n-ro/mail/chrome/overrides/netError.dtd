@@ -4,15 +4,14 @@
 # janimo <jani@ubuntu.com>
 # Alexandru Szasz <alexxed@gmail.com>
 # Cristian Silaghi <stelistcristi@yahoo.com>
-# raulmalea <raul.malea@gmail.com>
 # Vestitorul <vestitorul@yahoo.com>
+# raulmalea <raul.malea@gmail.com>
 #
 -->
 <!--
 # Reviewer(s):
 #
 # Alexandru Szasz <alexxed@gmail.com>
-# raulmalea <raul.malea@gmail.com>
 #
 -->
 <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
@@ -44,8 +43,8 @@
 <!ENTITY netInterrupt.title "Conexiunea a fost întreruptă">
 <!ENTITY netInterrupt.longDesc "&sharedLongDesc;">
 
-<!ENTITY notCached.title "Document Expired">
-<!ENTITY notCached.longDesc "<p>The requested document is not available in the cache.</p><ul><li>As a security precaution, &brandShortName; does not automatically re-request sensitive documents.</li><li>Click Try Again to re-request the document from the website.</li></ul>">
+<!ENTITY notCached.title "Document expirat">
+<!ENTITY notCached.longDesc "<p>Documentul cerut nu e disponibil în cache.</p><ul><li>Ca o măsură de siguranță, &brandShortName; nu cere automat documente ce par a fi private.</li><li>Clic pe „încearcă din nou” pentru a cere din nou documentul de la saitul web.</li></ul>">
 
 <!ENTITY netOffline.title "Mod offline">
 <!ENTITY netOffline.longDesc2 "
@@ -137,6 +136,6 @@ functionality specific to thunderbird. -->
 <button id='exceptionDialogButton'>&securityOverride.exceptionButtonLabel;</button>
 ">
 
-<!ENTITY remoteXUL.title "Remote XUL">
+<!ENTITY remoteXUL.title "XUL la distanță">
 <!ENTITY remoteXUL.longDesc "<p><ul><li>Vă rugăm să contactați proprietarii websaitului pentru a-i informa despre această problemă.</li></ul></p>">
 

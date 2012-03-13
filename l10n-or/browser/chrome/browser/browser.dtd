@@ -548,7 +548,6 @@ just addresses the organization to follow, e.g. "ଏହି ସାଇଟଟି �
 <!ENTITY inspectContextMenu.label     "ଉପାଦାନକୁ ନିରୀକ୍ଷଣ କରନ୍ତୁ">
 <!ENTITY inspectContextMenu.accesskey "Q">
 <!ENTITY searchFocus.commandkey2      "e">
-
 <!ENTITY domFullScreenWarning.label "ସମ୍ପୂର୍ଣ୍ଣ ପରଦା ଧାରାରୁ ପ୍ରସ୍ଥାନ କରିବା ପାଇଁ ESC କୁ ଦବାନ୍ତୁ">
 <!ENTITY inspectCloseButton.tooltiptext "ନିରୀକ୍ଷକକୁ ବନ୍ଦ କରନ୍ତୁ">
 
@@ -566,4 +565,15 @@ just addresses the organization to follow, e.g. "ଏହି ସାଇଟଟି �
 <!ENTITY videoShowStats.label        "ପରିସଂଖ୍ୟାନ ଦର୍ଶାନ୍ତୁ">
 
 <!ENTITY videoShowStats.accesskey    "t">
+ <!ENTITY inspect3DButton.label        "3D">
+
+ <!ENTITY inspect3DButton.accesskey    "M">
+<!ENTITY styleeditor.label            "ଶୈଳୀ ସମ୍ପାଦକ">
+
+<!ENTITY styleeditor.accesskey        "y">
+
+<!ENTITY styleeditor.keycode          "VK_F7">
+
+<!ENTITY styleeditor.keytext          "F7">
+
 

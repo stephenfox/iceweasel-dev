@@ -54,7 +54,7 @@ can reach it easily. -->
 <!ENTITY printSetupCmd.accesskey "y">
 <!ENTITY printPreviewCmd.label "Yazdırma önizleme">
 <!ENTITY printPreviewCmd.accesskey "z">
-<!ENTITY printCmd.label "Yazdır...">
+<!ENTITY printCmd.label "Yazdır…">
 <!ENTITY printCmd.accesskey "Y">
 <!ENTITY printCmd.commandkey "p">
 
@@ -115,7 +115,7 @@ can reach it easily. -->
 <!ENTITY backForwardButtonMenu.tooltip "Geçmişi göstermek için sağ tıklayın veya aşağı çekin">
 <!ENTITY backForwardButtonMenuMac.tooltip "Geçmişi göstermek için aşağı çekin">
 <!ENTITY reloadCmd.label              "Tazele">
-<!ENTITY reloadCmd.accesskey          "T">
+<!ENTITY reloadCmd.accesskey          "z">
 <!ENTITY reloadButton.tooltip         "Geçerli sayfayı tazele">
 <!ENTITY stopCmd.label                "Durdur">
 <!ENTITY stopCmd.accesskey            "D">
@@ -196,7 +196,7 @@ can reach it easily. -->
 <!ENTITY inspectMenu.commandkey       "I">
 
 <!ENTITY inspectContextMenu.label     "Ögeyi incele">
-<!ENTITY inspectContextMenu.accesskey "Q">
+<!ENTITY inspectContextMenu.accesskey "g">
 
 <!-- LOCALIZATION NOTE (scratchpad.label): This menu item label appears
   -  in the Tools menu. See bug 653093.
@@ -217,8 +217,22 @@ can reach it easily. -->
 <!ENTITY inspectButton.label            "İncele">
 <!ENTITY inspectButton.accesskey        "c">
 <!ENTITY inspectCloseButton.tooltiptext "Denetçiyi kapat">
+
+<!-- LOCALIZATION NOTE (inspect3DViewButton.label): This button shows an
+  -  alternate view for the Inspector, creating a 3D visualization of the
+  -  webpage. -->
+<!ENTITY inspect3DButton.accesskey     "3B">
+<!ENTITY inspect3DButton.label "B">
+
 <!ENTITY inspectStyleButton.label     "Stil">
 <!ENTITY inspectStyleButton.accesskey "S">
+
+<!-- LOCALIZATION NOTE (styleeditor.label): This menu item label appears
+  -  in the Tools menu. -->
+<!ENTITY styleeditor.label            "Stil editörü">
+<!ENTITY styleeditor.accesskey        "d">
+<!ENTITY styleeditor.keycode          "VK_F7">
+<!ENTITY styleeditor.keytext          "F7">
 
 <!ENTITY getMoreDevtoolsCmd.label        "Daha fazla araca ulaş">
 <!ENTITY getMoreDevtoolsCmd.accesskey    "u">
@@ -295,7 +309,7 @@ can reach it easily. -->
 <!ENTITY appMenuCustomize.label "Özelleştir">
 <!ENTITY appMenuToolbarLayout.label "Araç çubuğu düzeni…">
 <!ENTITY appMenuSidebars.label "Kenar çubukları">
-<!ENTITY appMenuFind.label "Bul...">
+<!ENTITY appMenuFind.label "Bul…">
 <!ENTITY appMenuUnsorted.label "Sıralanmamış yer imleri">
 <!ENTITY appMenuWebDeveloper.label "Web geliştirici">
 <!ENTITY appMenuGettingStarted.label "İlk adım">
@@ -380,7 +394,7 @@ can reach it easily. -->
 <!ENTITY bookmarkThisFrameCmd.label      "Bu çerçeveyi yer imlerine ekle">
 <!ENTITY bookmarkThisFrameCmd.accesskey  "m">
 <!ENTITY sendPageCmd.label            "Bağlantıyı gönder…">
-<!ENTITY sendPageCmd.accesskey        "d">
+<!ENTITY sendPageCmd.accesskey        "n">
 <!ENTITY savePageCmd.label            "Sayfayı farklı kaydet…">
 <!ENTITY savePageCmd.accesskey        "S">
 <!-- alternate for content area context menu -->
@@ -422,14 +436,23 @@ can reach it easily. -->
 <!ENTITY thisFrameMenu.accesskey          "l">
 
 <!-- Media (video/audio) controls -->
+<!-- LOCALIZATION NOTE: The access keys for "Play" and
+"Pause" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaPlay.label             "Yürüt">
 <!ENTITY mediaPlay.accesskey         "t">
 <!ENTITY mediaPause.label            "Duraklat">
 <!ENTITY mediaPause.accesskey        "D">
+<!-- LOCALIZATION NOTE: The access keys for "Mute" and
+"Unmute" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaMute.label             "Sesi kapat">
 <!ENTITY mediaMute.accesskey         "k">
 <!ENTITY mediaUnmute.label           "Sesi aç">
 <!ENTITY mediaUnmute.accesskey       "e">
+<!-- LOCALIZATION NOTE: The access keys for "Show Controls" and
+"Hide Controls" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaShowControls.label     "Düğmeleri göster">
 <!ENTITY mediaShowControls.accesskey "s">
 <!ENTITY mediaHideControls.label     "Düğmeleri gizle">
@@ -438,9 +461,12 @@ can reach it easily. -->
 <!ENTITY videoFullScreen.accesskey   "T">
 <!ENTITY videoSaveImage.label        "Ekran görüntüsünü farklı kaydet…">
 <!ENTITY videoSaveImage.accesskey    "E">
-<!ENTITY videoShowStats.label        "Show Statistics">
-<!ENTITY videoShowStats.accesskey    "g">
-<!ENTITY videoHideStats.label        "Hide Statistics">
+<!-- LOCALIZATION NOTE: The access keys for "Show Statistics" and
+"Hide Statistics" are the same because the two context-menu
+items are mutually exclusive. -->
+<!ENTITY videoShowStats.label        "İstatistikleri göster">
+<!ENTITY videoShowStats.accesskey    "t">
+<!ENTITY videoHideStats.label        "İstatistikleri gizle">
 <!ENTITY videoHideStats.accesskey    "z">
 
 <!-- LOCALIZATION NOTE :
@@ -513,7 +539,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY editPopupSettingsUnix.label "İstenmeyen pencere tercihlerini düzenle…">
 <!ENTITY editPopupSettings.label "İstenmeyen pencere seçeneklerini düzenle…">
 <!ENTITY editPopupSettings.accesskey "e">
-<!ENTITY dontShowMessage.accesskey "D">
+<!ENTITY dontShowMessage.accesskey "g">
 
 <!ENTITY bidiSwitchPageDirectionItem.label        "Sayfanın yönünü değiştir">
 <!ENTITY bidiSwitchPageDirectionItem.accesskey    "d">
@@ -563,7 +589,7 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!-- LOCALIZATION NOTE (syncTabsMenu.label): This appears in the history menu -->
 <!ENTITY syncTabsMenu.label     "Diğer bilgisayarlardaki sekmeler">
 
-<!ENTITY syncBrand.shortName.label    "Eşitleme">
+<!ENTITY syncBrand.shortName.label    "Sync">
 
 <!ENTITY syncSetup.label              "&syncBrand.shortName.label; kurulumu…">
 <!ENTITY syncSetup.accesskey          "k">

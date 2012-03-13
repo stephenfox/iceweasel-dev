@@ -49,3 +49,7 @@
 <!ENTITY pref.defaultlength.accesskey "a">
 <!ENTITY pref.defaultsnoozelength.label "Lama Alarm Getar Default:" >
 <!ENTITY pref.defaultsnoozelength.accesskey "G">
+
+<!ENTITY pref.accessibility.label "Aksesibilitas" >
+<!ENTITY pref.systemcolors.label "Optimalkan warna untuk aksesibilitas" >
+<!ENTITY pref.systemcolors.accesskey "w">

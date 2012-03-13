@@ -1,4 +1,3 @@
-<!ENTITY messengerWindow.title "Nachrichten &amp; Newsgruppen">
 <!ENTITY titledefault.label    "&brandFullName;">
 <!ENTITY titleSeparator.label " - ">
 
@@ -314,7 +313,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY nextUnreadThread.accesskey "T">
 <!ENTITY nextUnreadThread.key "t">
 <!ENTITY prevMenu.label "Vorherige">
-<!ENTITY prevMenu.accesskey "h">
+<!ENTITY prevMenu.accesskey "r">
 <!ENTITY prevMsgCmd.label "Nachricht">
 <!ENTITY prevMsgCmd.accesskey "n">
 <!ENTITY prevMsgCmd.key "b">
@@ -587,8 +586,8 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY folderContextMarkMailFolderRead.accesskey "d">
 <!ENTITY folderContextSubscribe.label "Abonnieren…">
 <!ENTITY folderContextSubscribe.accesskey "A">
-<!ENTITY folderContextSearchMessages.label "Suchen…">
-<!ENTITY folderContextSearchMessages.accesskey "S">
+<!ENTITY folderContextSearchForMessages.label "Nachrichten suchen…">
+<!ENTITY folderContextSearchForMessages.accesskey "s">
 <!ENTITY folderContextProperties.label "Eigenschaften…">
 <!ENTITY folderContextProperties.accesskey "E">
 <!ENTITY folderContextFavoriteFolder.label "Favoriten-Ordner">

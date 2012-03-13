@@ -39,28 +39,28 @@
   -->
 
 
-<!ENTITY  connectionsDialog.title       "Konexio ezarpenak">
+<!ENTITY  connectionsDialog.title       "Konexio-ezarpenak">
 <!ENTITY  window.width                  "45em">
 <!ENTITY  window.macWidth               "45em">
 
-<!ENTITY  proxyTitle.label              "Internetera sarrerarako proxy-ak konfiguratu">
+<!ENTITY  proxyTitle.label              "Konfiguratu Internetera sartzeko proxy-ak">
 <!ENTITY  directTypeRadio.label         "Internetera zuzeneko konexioa">
 <!ENTITY  directTypeRadio.accesskey     "z">
-<!ENTITY  WPADTypeRadio.label           "sare honetako proxy ezarpenak auto-antzeman">
+<!ENTITY  WPADTypeRadio.label           "Auto-atzeman sare honetako proxy-ezarpenak">
 <!ENTITY  WPADTypeRadio.accesskey       "r">
-<!ENTITY  manualTypeRadio.label         "Eskuzko proxy konfigurazioa:">
+<!ENTITY  manualTypeRadio.label         "Eskuzko proxy-konfigurazioa:">
 <!ENTITY  manualTypeRadio.accesskey     "E">
-<!ENTITY  autoTypeRadio.label           "Proxy konfigurazio automatiko URL-a:">
+<!ENTITY  autoTypeRadio.label           "Proxy-konfigurazio automatikoaren URLa:">
 <!ENTITY  autoTypeRadio.accesskey       "a">
 <!ENTITY  reload.label                  "Birkargatu">
 <!ENTITY  reload.accesskey              "i">
-<!ENTITY  ftp.label                     "FTP Proxy-a:">
+<!ENTITY  ftp.label                     "FTP proxy-a:">
 <!ENTITY  ftp.accesskey                 "F">
-<!ENTITY  http.label                    "HTTP Proxy-a:">
+<!ENTITY  http.label                    "HTTP proxy-a:">
 <!ENTITY  http.accesskey                "y">
-<!ENTITY  ssl.label                     "SSL Proxy-a:">
+<!ENTITY  ssl.label                     "SSL proxy-a:">
 <!ENTITY  ssl.accesskey                 "S">
-<!ENTITY  socks.label                   "SOCKS Ostalaria:">
+<!ENTITY  socks.label                   "SOCKS ostalaria:">
 <!ENTITY  socks.accesskey               "C">
 <!ENTITY  socks4.label                  "SOCKS 4b">
 <!ENTITY  socks4.accesskey              "K">
@@ -71,8 +71,8 @@
 <!ENTITY  SSLport.accesskey             "t">
 <!ENTITY  FTPport.accesskey             "k">
 <!ENTITY  SOCKSport.accesskey           "t">
-<!ENTITY  noproxy.label                 "Proxy gabe honentzat:">
+<!ENTITY  noproxy.label                 "Proxyrik ez honentzat:">
 <!ENTITY  noproxy.accesskey             "g">
 <!ENTITY  noproxyExplain.label          "Adibidea: .mozilla.org, .net.nz, 192.168.1.0/24">
-<!ENTITY  shareproxy.label              "Proxy zerbitzari hau erabili protokolo guztientzat">
+<!ENTITY  shareproxy.label              "Erabili proxy-zerbitzari hau protokolo guztientzat">
 <!ENTITY  shareproxy.accesskey          "x">

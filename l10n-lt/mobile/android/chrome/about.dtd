@@ -1,0 +1,12 @@
+<!ENTITY aboutPage.title                        "Apie „&brandShortName;“">
+<!ENTITY aboutPage.checkForUpdates.link         "Tikrinti, ar yra naujinimų »">
+<!ENTITY aboutPage.checkForUpdates.checking     "Tikrinama, ar yra naujinimų…">
+<!ENTITY aboutPage.checkForUpdates.none         "Išleistų naujinimų nėra">
+<!ENTITY aboutPage.checkForUpdates.found        "Yra išleistas naujinimas">
+<!ENTITY aboutPage.faq.label                    "Klausimai ir atsakymai">
+<!ENTITY aboutPage.support.label                "Palaikymas">
+<!ENTITY aboutPage.privacyPolicy.label          "Privatumo politika">
+<!ENTITY aboutPage.rights.label                 "Žinokite savo teises">
+<!ENTITY aboutPage.relNotes.label               "Laidos apžvalga">
+<!ENTITY aboutPage.credits.label                "Padėkos">
+<!ENTITY aboutPage.license.label                "Programos licencija">

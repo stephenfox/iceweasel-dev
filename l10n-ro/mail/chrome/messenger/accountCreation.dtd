@@ -8,16 +8,12 @@
 # nicubunu <nicubunu@gmail.com>
 # janimo <jani@ubuntu.com>
 # premamotion <premamotion@yahoo.com>
-# stas <stas@nerd.ro>
-# toffee <daniel@toffee.ro>
-# xdaiana <xdaiana@yahoo.com>
 #
 -->
 <!--
 # Reviewer(s):
 #
 # Alexandru Szasz <alexxed@gmail.com>
-# raulmalea <raul.malea@gmail.com>
 #
 -->
 <!ENTITY autoconfigWizard.title          "Setarea contului de email">
@@ -25,7 +21,7 @@
 <!ENTITY name.accesskey                  "N">
 <!ENTITY name.placeholder                "First Last">
 <!ENTITY name.text                       "Numele dumneavoastră, așa cum e afișat altora">
-<!ENTITY email.label                     "Adresa email:">
+<!ENTITY email.label                     "Adresa de email:">
 <!ENTITY email.accesskey                 "l">
 <!ENTITY email.placeholder               "email@exemplu.ro">
 <!ENTITY password.label                  "Parola:">
@@ -35,7 +31,7 @@
 <!ENTITY rememberPassword.label          "Memorează parola">
 <!ENTITY rememberPassword.accesskey      "M">
 
-<!ENTITY imapLong.label                  "IMAP (foldere la distanță)">
+<!ENTITY imapLong.label                  "IMAP (dosare la distanță)">
 <!ENTITY pop3Long.label                  "POP3 (stochează mesajele pe calculatorul propriu)">
 
 <!ENTITY incoming.label                  "Primire:">
@@ -48,18 +44,18 @@
 <!ENTITY imap.label                      "IMAP">
 <!ENTITY pop3.label                       "POP3">
 <!ENTITY smtp.label                      "SMTP">
-<!ENTITY autodetect.label                "Autodetectează">
+<!ENTITY autodetect.label                "Detecție automată">
 <!-- LOCALIZATION NOTE(noEncryption.label): Neither SSL/TLS nor STARTTLS.
      Transmission of emails in cleartext over the Internet. -->
-<!ENTITY noEncryption.label              "Nespecificat">
+<!ENTITY noEncryption.label              "Fără">
 <!ENTITY starttls.label                  "STARTTLS">
 <!ENTITY sslTls.label                    "SSL/TLS">
 
 <!ENTITY advancedSetup.label             "Configurare avansată">
 <!ENTITY advancedSetup.accesskey         "a">
-<!ENTITY cancel.label                    "Anuleaz">
-<!ENTITY cancel.accesskey                "A">
-<!ENTITY continue.label                  "Continua">
+<!ENTITY cancel.label                    "Renunță">
+<!ENTITY cancel.accesskey                "R">
+<!ENTITY continue.label                  "Continuă">
 <!ENTITY continue.accesskey              "C">
 <!ENTITY stop.label                      "Oprește">
 <!ENTITY stop.accesskey                  "O">
@@ -68,11 +64,11 @@
      the account configuration, taking into account the settings that
      the user has manually changed. -->
 <!ENTITY half-manual-test.label          "Testează din nou configurația">
-<!ENTITY half-manual-test.accesskey      "t">
+<!ENTITY half-manual-test.accesskey      "T">
 <!ENTITY manual-edit.label               "Configurează manual">
 <!ENTITY manual-edit.accesskey           "m">
-<!ENTITY switch-to-provisioner.label     "Get a new account">
-<!ENTITY switch-to-provisioner.accesskey "G">
+<!ENTITY switch-to-provisioner.label     "Obțineți un cont nou">
+<!ENTITY switch-to-provisioner.accesskey "O">
 
 
 <!ENTITY warning.label                   "Avertisment!">
@@ -87,14 +83,14 @@
 <!-- LOCALIZATION NOTE (createAccount.label): If there is a security warning
      on the incoming or outgoing servers, then the page that pops up will
      have this text in a button to continue by creating the account. -->
-<!ENTITY createAccount.label             "Creare cont">
+<!ENTITY createAccount.label             "Creează cont">
 <!ENTITY createAccount.accesskey         "C">
 <!-- LOCALIZATION NOTE (changeSettings.label): If there is a security warning on
      the incoming or outgoing servers, then the page that pops up will have
      this text in a button to take you back to the previous page to change
      the settings and try again. -->
-<!ENTITY changeSettings.label            "Modifică setările">
-<!ENTITY changeSettings.accesskey        "s">
+<!ENTITY changeSettings.label            "Schimbă setările">
+<!ENTITY changeSettings.accesskey        "S">
 
 <!ENTITY contactYourProvider.description "&brandShortName; vă poate permite accesarea contului de email folosind configurația furnizată. Totuși, ar trebui să contactați administratorul sau furnizorul de email în legătură cu aceste conexiuni improprii. Vedeți întrebările frecvente despre Thunderbird pentru mai multe informații.">
 

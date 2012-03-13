@@ -24,10 +24,10 @@ used as a metaphor for expressing the fact that these tabs are "pinned" to the
 left edge of the tabstrip. Really we just want the string to express the idea
 that this is a lightweight and reversible action that keeps your tab where you
 can reach it easily. -->
-<!ENTITY  pinAppTab.label                    "ปักหมุดเป็น App Tab">
-<!ENTITY  pinAppTab.accesskey                "ป">
-<!ENTITY  unpinAppTab.label                  "ถอดหมุด Tab">
-<!ENTITY  unpinAppTab.accesskey              "ถ">
+<!ENTITY  pinAppTab.label                    "ตรึงแท็บ">
+<!ENTITY  pinAppTab.accesskey                "ต">
+<!ENTITY  unpinAppTab.label                  "เลิกตรึงแท็บ">
+<!ENTITY  unpinAppTab.accesskey              "ล">
 <!ENTITY  moveToGroup.label                  "ย้ายไปยังกลุ่ม">
 <!ENTITY  moveToGroup.accesskey              "ย">
 <!ENTITY  moveToNewGroup.label               "กลุ่มใหม่">
@@ -217,8 +217,17 @@ can reach it easily. -->
 <!ENTITY inspectButton.label          "ตรวจดู">
 <!ENTITY inspectButton.accesskey      "ต">
 <!ENTITY inspectCloseButton.tooltiptext "ปิดตัวตรวจดู">
+<!ENTITY inspect3DButton.label        "3 มิติ">
+<!ENTITY inspect3DButton.accesskey    "ท">
 <!ENTITY inspectStyleButton.label     "สไตล์">
 <!ENTITY inspectStyleButton.accesskey "ส">
+
+<!-- LOCALIZATION NOTE (styleeditor.label): This menu item label appears
+  -  in the Tools menu. -->
+<!ENTITY styleeditor.label            "ตัวแก้ไขสไตล์">
+<!ENTITY styleeditor.accesskey        "ก">
+<!ENTITY styleeditor.keycode          "VK_F7">
+<!ENTITY styleeditor.keytext          "F7">
 
 <!ENTITY getMoreDevtoolsCmd.label        "เพิ่มเครื่องมือ">
 <!ENTITY getMoreDevtoolsCmd.accesskey    "ม">

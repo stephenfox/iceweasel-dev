@@ -42,7 +42,7 @@
    -
    - ***** END LICENSE BLOCK ***** -->
 
-<!ENTITY calendar.open.file.label                          "Ireki egutegi fitxategia">
+<!ENTITY calendar.open.file.label                          "Ireki egutegi-fitxategia…">
 <!ENTITY calendar.open.file.key                            "O">
 <!ENTITY calendar.open.file.accesskey                      "I">
 
@@ -56,20 +56,20 @@
 <!ENTITY event.delete.tasks                                "Ezabatu hautatutako zereginak">
 <!ENTITY event.delete.tasks.accesskey                      "T">
 
-<!ENTITY calendar.pagesetup.label                          "Prestatu orria...">
+<!ENTITY calendar.pagesetup.label                          "Prestatu orria…">
 <!ENTITY calendar.pagesetup.accesskey                      "u">
 
 <!ENTITY calendar.subscribe.label                          "Harpidetu urruneko egutegira…">
 <!ENTITY calendar.subscribe.accesskey                      "r">
 
-<!ENTITY calendar.reloadserver.label                       "Urruneko egutegiak birkargatu">
-<!ENTITY calendar.reloadserver.key                         "R">
-<!ENTITY calendar.reloadserver.accesskey                   "r">
+<!ENTITY calendar.synccalendars.label                      "Sinkronizatu egutegiak">
+<!ENTITY calendar.synccalendars.key                        "R">
+<!ENTITY calendar.synccalendars.accesskey                  "S">
 
-<!ENTITY calendar.publish.calendar.label                   "Egutegia argitaratu...">
+<!ENTITY calendar.publish.calendar.label                   "Argitaratu egutegia…">
 <!ENTITY calendar.publish.calendar.accesskey               "g">
-<!ENTITY calendar.publish.selection.label                  "Hautapena argitaratu…">
-<!ENTITY calendar.publish.selection.accesskey              "p">
+<!ENTITY calendar.publish.selection.label                  "Argitaratu hautapena…">
+<!ENTITY calendar.publish.selection.accesskey              "h">
 
 <!ENTITY calendar.quit.label                               "Irten">
 <!ENTITY calendar.quit.accesskey                           "I">
@@ -143,12 +143,12 @@
 <!ENTITY editMenu.label                                    "Editatu">
 <!ENTITY editMenu.accesskey                                "E">
 
-<!ENTITY optionsCmd.label                                  "Aukerak...">
+<!ENTITY optionsCmd.label                                  "Aukerak…">
 <!ENTITY optionsCmd.accesskey                              "A">
 
 <!ENTITY preferencesCmd.label                              "Hobespenak">
 <!ENTITY preferencesCmd.accesskey                          "n">
-<!ENTITY preferencesCmdMac.label                           "Hobespenak...">
+<!ENTITY preferencesCmdMac.label                           "Hobespenak…">
 <!ENTITY preferencesCmdMac.commandkey                      ",">
 <!ENTITY preferencesCmdMac.modifiers                       "accel">
 
@@ -176,7 +176,7 @@
 <!-- Mac OS X Application menu items -->
 
 <!ENTITY servicesMenuMac.label                             "Zerbitzuak">
-<!ENTITY hideThisAppCmdMac.label                           "&brandShortName; ezkutatu">
+<!ENTITY hideThisAppCmdMac.label                           "Ezkutatu &brandShortName;">
 <!ENTITY hideThisAppCmdMac.commandkey                      "H">
 <!ENTITY hideThisAppCmdMac.modifiers                       "accel">
 <!ENTITY hideOtherAppsCmdMac.label                         "Ezkutatu besteak">

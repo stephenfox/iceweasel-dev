@@ -2,7 +2,6 @@
 # Translator(s):
 #
 # janimo <jani@ubuntu.com>
-# Alexandru Szasz <alexxed@gmail.com>
 #
 -->
 <!--
@@ -57,7 +56,7 @@
    Either label could be set to null ("") if required grammatically.
 -->
 
-<!ENTITY download.label     "Descărcați">
+<!ENTITY download.label     "Descarcă">
 <!ENTITY download.accesskey "D">
 <!--LOCALIZATION NOTE (headers.label): see note for download.label -->
 <!ENTITY headers.label      "antete">

@@ -1,0 +1,13 @@
+<!ENTITY dialog.title             "Personalizza Bâra">
+<!ENTITY dialog.style             "width: 86ch; height: 36em;">
+<!ENTITY instructions.description "Ti peu azónze ò scancelâ i ògétti rebelandoli inte ò fêua de bâre.">
+<!ENTITY show.label               "Fànni védde:">
+<!ENTITY iconsAndText.label       "Icone e Testo">
+<!ENTITY icons.label              "Icone">
+<!ENTITY text.label               "Testo">
+<!ENTITY useSmallIcons.label      "Ûza icone picìnn-e">
+<!ENTITY restoreDefaultSet.label  "Métti tórna predefinîo">
+<!ENTITY addNewToolbar.label      "Azónzi Nêuva Bâra">
+<!ENTITY saveChanges.label        "Fæto">
+<!ENTITY undoChanges.label        "Anùlla i cangi">
+

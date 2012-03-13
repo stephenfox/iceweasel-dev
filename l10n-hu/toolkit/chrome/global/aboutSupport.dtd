@@ -2,8 +2,7 @@
 
 <!-- LOCALIZATION NOTE (aboutSupport.pageSubtitle): don't change the 'supportLink' id. -->
 <!ENTITY aboutSupport.pageSubtitle "
-  Ez az oldal problémakeresésnél használható technikai információkat tartalmaz.
-   Ha a &brandShortName; programmal kapcsolatos gyakori kérdésekre keresi a választ, akkor
+  Ez az oldal problémakeresésnél használható technikai információkat tartalmaz. Ha a &brandShortName; programmal kapcsolatos gyakori kérdésekre keresi a választ, akkor
   nézze meg a <a id='supportLink'>támogató weboldalunkat</a>.
 ">
 

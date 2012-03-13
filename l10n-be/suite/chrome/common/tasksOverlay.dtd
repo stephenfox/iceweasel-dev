@@ -27,7 +27,7 @@
 <!ENTITY downloadManagerCmd.accesskey "З">
 <!ENTITY downloadManagerCmd.commandkey "j">
 <!ENTITY addOnsManagerCmd.label "Кіраўнік дадаткаў">
-<!ENTITY addOnsManagerCmd.accesskey "A">
+<!ENTITY addOnsManagerCmd.accesskey "д">
 <!ENTITY addOnsManagerCmd.commandkey "a">
 <!ENTITY switchProfileCmd.label "Змяніць профіль…">
 <!ENTITY switchProfileCmd.accesskey "З">
@@ -35,4 +35,4 @@
 <!ENTITY syncSetup.label "Уладкаваць Sync…">
 <!ENTITY syncSetup.accesskey "S">
 <!ENTITY syncSyncNowItem.label "Сінхранізаваць зараз ">
-<!ENTITY syncSyncNowItem.accesskey "S">
+<!ENTITY syncSyncNowItem.accesskey "С">

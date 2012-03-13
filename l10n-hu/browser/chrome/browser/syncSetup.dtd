@@ -2,7 +2,7 @@
 
 <!-- First page of the wizard -->
 
-<!ENTITY setup.pickSetupType.description "Üdvözöljük! Ha még nem használta a &syncBrand.fullName.label;et, akkor létre kell hoznia egy fiókot.">
+<!ENTITY setup.pickSetupType.description2 "Üdvözöljük! Ha még nem használta a &syncBrand.fullName.label;et, akkor létre kell hoznia egy fiókot.">
 <!ENTITY button.createNewAccount.label "Új fiók létrehozása">
 <!ENTITY button.haveAccount.label      "Van már postafiókom">
 
@@ -88,6 +88,8 @@
 <!ENTITY engine.passwords.accesskey "J">
 <!ENTITY engine.prefs.label         "Beállítások">
 <!ENTITY engine.prefs.accesskey     "B">
+<!ENTITY engine.addons.label        "Kiegészítők">
+<!ENTITY engine.addons.accesskey    "K">
 
 <!ENTITY choice2.merge.main.label      "A számítógép adatainak összefésülése a &syncBrand.shortName.label; adataival">
 <!ENTITY choice2.merge.recommended.label "Ajánlott:">

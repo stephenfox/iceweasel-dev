@@ -252,8 +252,8 @@
 <!ENTITY calendar.context.findcalendar.accesskey       "s" >
 <!ENTITY calendar.context.deleteserver.label           "Aginda fuortsmite">
 <!ENTITY calendar.context.deleteserver.accesskey       "f">
-<!ENTITY calendar.context.reloadserver.label           "Aginda’s op oare kompjûter(s) ferfarskje">
-<!ENTITY calendar.context.reloadserver.accesskey       "o">
+<!ENTITY calendar.context.synccalendars.label          "Aginda’s syngronisearje">
+<!ENTITY calendar.context.synccalendars.accesskey      "s">
 <!ENTITY calendar.context.publish.label                "Aginda publisearje">
 <!ENTITY calendar.context.publish.accesskey            "p">
 <!ENTITY calendar.context.export.label                 "Aginda eksportearje…">
@@ -322,7 +322,7 @@
 <!ENTITY calendarproperties.name.label     			"Namme:">
 <!ENTITY calendarproperties.readonly.label 			"Allinnich-lêze">
 <!ENTITY calendarproperties.firealarms.label 		"Alarmen toane">
-<!ENTITY calendarproperties.cache.label    			"Buffer (EKSPERIMENTEEL, werstart nedich)">
+<!ENTITY calendarproperties.cache2.label    			"Buffer">
 <!ENTITY calendarproperties.enabled.label  			"Dizze aginda ynskeakelje">
 <!ENTITY calendarproperties.forceDisabled.label		"De útjouwer foar dizze aginda koe net fûn wurde. Dit bart faak as jo bepaalde útwreidings útskeakele of de-ynstallearre hawwe.">
 <!ENTITY calendarproperties.unsubscribe.label		"Utskriuwe">
