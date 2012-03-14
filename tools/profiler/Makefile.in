@@ -48,8 +48,10 @@ VPATH       = \
 
 include $(DEPTH)/config/autoconf.mk
 
-EXPORTS = \
-  sampler.h \
+EXPORTS =  sampler.h
+
+ifdef MOZ_ENABLE_PROFILER_SPS
+EXPORTS += \
   sps_sampler.h \
   thread_helper.h \
   $(NULL)
@@ -107,7 +109,7 @@ CPPSRCS += \
   $(NULL)
 endif
 
-
+endif
 
 include $(topsrcdir)/config/rules.mk
 

@@ -11,6 +11,9 @@ fixes/Load-dependent-libraries-with-their-real-path-to-avo.patch
 fixes/Bug-515232-Try-getting-general.useragent.locale-as-a.patch
 fixes/Bug-729817-Block-the-Nouveau-3D-driver-as-it-s-insta.patch
 fixes/Bug-729817-Allow-the-Nouveau-driver-with-Mesa-8.0.1-.patch
+fixes/Bug-710972-Define-G_VARIANT_TYPE_STRING_ARRAY-when-b.patch
+fixes/Revert-investigation-patch-for-bug-621446.patch
+fixes/Bug-734335-Only-build-SPS-on-supported-platforms.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch

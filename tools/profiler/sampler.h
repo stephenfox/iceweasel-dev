@@ -77,6 +77,9 @@
 #ifndef SAMPLER_H
 #define SAMPLER_H
 
+// Redefine the macros for platforms where SPS is supported.
+#ifdef MOZ_ENABLE_PROFILER_SPS
+
 #if defined(_MSC_VER)
 #define FULLFUNCTION __FUNCSIG__
 #elif (__GNUC__ >= 4)
@@ -84,9 +87,6 @@
 #else
 #define FULLFUNCTION __FUNCTION__
 #endif
-
-// Redefine the macros for platforms where SPS is supported.
-#if defined(ANDROID) || defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
 
 #include "sps_sampler.h"
 
