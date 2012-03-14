@@ -41,10 +41,10 @@
   -->
 
 
-<!ENTITY pref.alarmgoesoff.label "When a Reminder is Due:">
+<!ENTITY pref.alarmgoesoff.label "Gogorarazle bat muga-egunean denean:">
 <!ENTITY pref.playasound "Soinu bat jo">
 <!ENTITY pref.calendar.alarms.playsound.accessKey "s">
-<!ENTITY pref.calendar.alarms.sound.useDefault.label "Lehenetsiriko soinua erabili">
+<!ENTITY pref.calendar.alarms.sound.useDefault.label "Erabili lehenetsitako soinua">
 <!ENTITY pref.calendar.alarms.sound.useDefault.accessKey "L">
 <!ENTITY pref.calendar.alarms.sound.browse.label "Arakatu…">
 <!ENTITY pref.calendar.alarms.sound.browse.accessKey "A">

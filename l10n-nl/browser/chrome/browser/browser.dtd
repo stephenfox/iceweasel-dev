@@ -90,7 +90,7 @@ can reach it easily. -->
 <!ENTITY fullScreenAutohide.accesskey "W">
 <!ENTITY fullScreenExit.label "Volledigschermmodus verlaten">
 <!ENTITY fullScreenExit.accesskey "d">
-<!ENTITY domFullScreenWarning.label "Druk op ESC om volledigschermmodus te verlaten">
+<!ENTITY domFullScreenWarning.label "Druk op ESC om de volledigschermmodus te verlaten">
 
 <!ENTITY closeWindow.label "Venster sluiten">
 <!ENTITY closeWindow.accesskey "e">
@@ -196,7 +196,7 @@ can reach it easily. -->
 <!ENTITY inspectMenu.commandkey       "I">
 
 <!ENTITY inspectContextMenu.label     "Element inspecteren">
-<!ENTITY inspectContextMenu.accesskey "Q">
+<!ENTITY inspectContextMenu.accesskey "E">
 
 <!-- LOCALIZATION NOTE (scratchpad.label): This menu item label appears
   -  in the Tools menu. See bug 653093.
@@ -217,8 +217,17 @@ can reach it easily. -->
 <!ENTITY inspectButton.label            "Inspecteren">
 <!ENTITY inspectButton.accesskey        "I">
 <!ENTITY inspectCloseButton.tooltiptext "Inspector sluiten">
+<!ENTITY inspect3DButton.label        "3D">
+<!ENTITY inspect3DButton.accesskey    "3">
 <!ENTITY inspectStyleButton.label     "Stijl">
 <!ENTITY inspectStyleButton.accesskey "S">
+
+<!-- LOCALIZATION NOTE (styleeditor.label): This menu item label appears
+  -  in the Tools menu. -->
+<!ENTITY styleeditor.label            "Stijleditor">
+<!ENTITY styleeditor.accesskey        "i">
+<!ENTITY styleeditor.keycode          "VK_F7">
+<!ENTITY styleeditor.keytext          "F7">
 
 <!ENTITY getMoreDevtoolsCmd.label        "Meer hulpmiddelen verkrijgen">
 <!ENTITY getMoreDevtoolsCmd.accesskey    "M">
@@ -422,23 +431,34 @@ can reach it easily. -->
 <!ENTITY thisFrameMenu.accesskey          "D">
 
 <!-- Media (video/audio) controls -->
+<!-- LOCALIZATION NOTE: The access keys for "Play" and
+"Pause" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaPlay.label             "Afspelen">
 <!ENTITY mediaPlay.accesskey         "A">
 <!ENTITY mediaPause.label            "Pauzeren">
 <!ENTITY mediaPause.accesskey        "P">
+<!-- LOCALIZATION NOTE: The access keys for "Mute" and
+"Unmute" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaMute.label             "Dempen">
 <!ENTITY mediaMute.accesskey         "D">
 <!ENTITY mediaUnmute.label           "Dempen uitschakelen">
 <!ENTITY mediaUnmute.accesskey       "D">
+<!-- LOCALIZATION NOTE: The access keys for "Show Controls" and
+"Hide Controls" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaShowControls.label     "Bedieningsknoppen tonen">
 <!ENTITY mediaShowControls.accesskey "B">
 <!ENTITY mediaHideControls.label     "Bedieningsknoppen verbergen">
 <!ENTITY mediaHideControls.accesskey "B">
 <!ENTITY videoFullScreen.label       "Volledig scherm">
 <!ENTITY videoFullScreen.accesskey   "V">
-<!ENTITY videoSaveImage.label        "Snapshot opslaan als…">
-<!ENTITY videoSaveImage.accesskey    "S">
-
+<!ENTITY videoSaveImage.label        "Momentopname opslaan als…">
+<!ENTITY videoSaveImage.accesskey    "M">
+<!-- LOCALIZATION NOTE: The access keys for "Show Statistics" and
+"Hide Statistics" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY videoShowStats.label        "Statistieken tonen">
 <!ENTITY videoShowStats.accesskey    "t">
 <!ENTITY videoHideStats.label        "Statistieken verbergen">

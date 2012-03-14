@@ -1,4 +1,5 @@
 <!-- extracted from AccountManager.xul -->
+
 <!ENTITY accountManagerTitle.label "Configuración de cuenta">
 
 <!ENTITY accountActionsButton.label "Acciones de cuenta">
@@ -11,6 +12,7 @@
 <!ENTITY setDefaultButton.accesskey "f">
 <!ENTITY removeButton.label "Eliminar cuenta">
 <!ENTITY removeButton.accesskey "r">
+
 <!-- AccountManager.xul -->
 <!-- LOCALIZATION NOTE : this is part of an inline-style attribute on the account
      setting dialog, which specifies the width and height in em units of the dialog.

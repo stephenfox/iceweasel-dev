@@ -97,6 +97,8 @@
 
 %include iceweasel-l10n-lg.control
 
+%include iceweasel-l10n-lij.control
+
 %include iceweasel-l10n-lt.control
 
 %include iceweasel-l10n-lv.control

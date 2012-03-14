@@ -40,7 +40,9 @@
 <!ENTITY connectionSettings.label        "Beállítások...">
 <!ENTITY connectionSettings.accesskey    "B">
 
-<!ENTITY offlineStorage.label            "Kapcsolat nélküli tár">
+<!ENTITY httpCache.label                 "Gyorsítótárazott webtartalom">
+
+<!ENTITY offlineStorage2.label           "Offline webtartalom és felhasználói adatok">
 
 <!-- LOCALIZATION NOTE:
   The entities limitCacheSizeBefore.label and limitCacheSizeAfter.label appear on a single
@@ -53,6 +55,8 @@
 <!ENTITY limitCacheSizeAfter.label       "MB">
 <!ENTITY clearCacheNow.label             "Törlés most">
 <!ENTITY clearCacheNow.accesskey         "T">
+<!ENTITY clearOfflineAppCacheNow.label   "Törlés most">
+<!ENTITY clearOfflineAppCacheNow.accesskey "m">
 <!ENTITY overrideSmartCacheSize.label    "Az automatikus gyorsítótár-kezelés felülbírálása">
 <!ENTITY overrideSmartCacheSize.accesskey "a">
 
@@ -76,8 +80,6 @@
 <!ENTITY useService.accesskey            "H">
 
 <!ENTITY updateOthers.label              "Automatikus frissítés:">
-<!ENTITY enableAddonsUpdate3.label       "Kiegészítők">
-<!ENTITY enableAddonsUpdate3.accesskey   "K">
 <!ENTITY enableSearchUpdate.label        "Keresőszolgáltatások">
 <!ENTITY enableSearchUpdate.accesskey    "E">
 
@@ -86,7 +88,8 @@
 <!ENTITY offlineNotifyExceptions.label   "Kivételek...">
 <!ENTITY offlineNotifyExceptions.accesskey "K">
 
-<!ENTITY offlineAppsList.label           "A következő webhelyek tároltak adatokat kapcsolat nélküli használatra:">
+<!ENTITY offlineAppsList2.label          "A következő webhelyek tárolhatnak adatokat kapcsolat nélküli használatra:
+">
 <!ENTITY offlineAppsList.height          "7em">
 <!ENTITY offlineAppsListRemove.label     "Eltávolítás...">
 <!ENTITY offlineAppsListRemove.accesskey "E">

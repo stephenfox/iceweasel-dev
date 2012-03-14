@@ -1,0 +1,72 @@
+<!-- Don't localize these. They're here until they have
+     a better place to live. -->
+<!ENTITY syncBrand.fullName.label "Firefox Sync">
+<!ENTITY syncBrand.shortName.label "Sync">
+
+<!-- Main titles. -->
+<!ENTITY sync.app.name.label "&syncBrand.fullName.label;">
+<!ENTITY sync.title.connect.label "Připojit k &syncBrand.shortName.label;">
+<!ENTITY sync.title.adddevice.label "Přidat účet &syncBrand.fullName.label;">
+<!ENTITY sync.title.pair.label "Připojit zařízení">
+
+<!-- J-PAKE Key Screen -->
+<!ENTITY sync.subtitle.connect.label "Pro aktivaci nového zařízení na něm zvolte „Nastavit &syncBrand.shortName.label;“.">
+<!ENTITY sync.subtitle.header.label "Tento kód vložte na svém počítači">
+<!ENTITY sync.subtitle.connectlocation.label "V nastavení vašeho desktopového Firefoxu klepněte v části &syncBrand.shortName.label; na „&sync.title.pair.label;“.">
+<!ENTITY sync.subtitle.pair.label "Pro aktivaci na druhém zařízení zvolte „Připojit nové zařízení“.">
+<!ENTITY sync.pin.default.label "…\n…\n…\n">
+<!ENTITY sync.pin.oneline.label "…">
+<!ENTITY sync.link.show.label "Zobrazit návod">
+<!ENTITY sync.link.advancedsetup.label "Rozšířené nastavení…">
+<!ENTITY sync.link.nodevice.label "Nemám zařízení sebou…">
+
+<!-- J-PAKE Waiting Screen -->
+<!ENTITY sync.jpake.subtitle.waiting.label "Čeká se na druhé zařízení…">
+
+<!-- Account Login Screen -->
+<!ENTITY sync.subtitle.account.label "Vložit nastavení účtu &syncBrand.fullName.label;">
+<!ENTITY sync.input.username.label "Název účtu">
+<!ENTITY sync.input.password.label "Heslo">
+<!ENTITY sync.input.key.label "Obnovovací klíč">
+<!ENTITY sync.checkbox.server.label "Použít vlastní server">
+<!ENTITY sync.input.server.label "Adresa serveru">
+  
+<!-- Setup Fail -->
+<!ENTITY sync.title.fail.label "Nepodařilo se nastavit &syncBrand.shortName.label;">
+<!ENTITY sync.subtitle.fail.label "&syncBrand.fullName.label; se nemohl připojit k serveru. Chcete to zkusit znovu?">
+<!ENTITY sync.button.tryagain.label "Zkusit znovu">
+<!ENTITY sync.button.manual.label "Ruční nastavení">
+<!ENTITY sync.subtitle.nointernet.label "Připojení k Internetu není dostupné.">
+  
+<!-- Setup Success -->
+<!ENTITY sync.title.success.label "Nastavení dokončeno">
+<!ENTITY sync.subtitle.success.label "Vaše data jsou nyní stahována na pozadí. Nyní můžete přejít zpět do Nastavení.">
+<!ENTITY sync.settings.label "Nastavení">
+<!ENTITY sync.subtitle.manage.label "Účet &syncBrand.fullName.label; je nyní nastaven. Pro správu účtu přejděte do Nastavení.">
+
+<!-- Pair Device -->
+<!ENTITY sync.pair.tryagain.label "Prosím opkaujte znovu.">
+
+<!-- Firefox SyncAdapter Settings Screen -->
+<!ENTITY sync.settings.options.label "Možnosti">
+<!ENTITY sync.summary.pair.label "K účtu &syncBrand.shortName.label; připojit další zařízení">
+
+<!-- Common text -->
+<!ENTITY sync.button.cancel.label "Zrušit">
+<!ENTITY sync.button.connect.label "Připojit">
+<!ENTITY sync.button.ok.label "OK">
+  
+<!-- Account strings -->
+<!ENTITY sync.account.label.label "&syncBrand.fullName.label;">
+  
+<!-- Bookmark folder strings -->
+<!ENTITY bookmarks.folder.menu.label "Nabídka záložek">
+<!ENTITY bookmarks.folder.places.label "">
+<!ENTITY bookmarks.folder.tags.label "Štítky">
+<!ENTITY bookmarks.folder.toolbar.label "Lišta záložek">
+<!ENTITY bookmarks.folder.unfiled.label "Netříděné záložky">
+<!ENTITY bookmarks.folder.desktop.label "Záložky z desktopu">
+<!ENTITY bookmarks.folder.mobile.label "Záložky z mobilu">
+
+<!-- Notification strings -->
+<!ENTITY sync.notification.oneaccount.label "Pouze jeden účet &syncBrand.fullName.label; je podporován.">

@@ -50,7 +50,7 @@
 
 <!ENTITY composition.caption    "Afișează următoarele butoane în bara de redactare:">
 
-<!ENTITY new.label              "Creează">
+<!ENTITY new.label              "Nouă">
 <!ENTITY open.label             "Deschide">
 <!ENTITY save.label             "Salvează">
 <!ENTITY publish.label          "Publică">

@@ -7,10 +7,10 @@ Subject: Bug 721737 - Add toolkit l10n Makefiles to browser/makefiles.sh
  1 files changed, 6 insertions(+), 0 deletions(-)
 
 diff --git a/browser/makefiles.sh b/browser/makefiles.sh
-index ed72d3d..6da1d9f 100644
+index 7868af8..a2c4946 100644
 --- a/browser/makefiles.sh
 +++ b/browser/makefiles.sh
-@@ -80,6 +80,12 @@ browser/themes/winstripe/Makefile
+@@ -85,6 +85,12 @@ browser/themes/Makefile
  $MOZ_BRANDING_DIRECTORY/Makefile
  $MOZ_BRANDING_DIRECTORY/content/Makefile
  $MOZ_BRANDING_DIRECTORY/locales/Makefile
@@ -22,4 +22,4 @@ index ed72d3d..6da1d9f 100644
 +security/manager/locales/Makefile
  "
  
- if [ "$ENABLE_TESTS" ]; then
+ if [ "$MOZ_SAFE_BROWSING" ]; then

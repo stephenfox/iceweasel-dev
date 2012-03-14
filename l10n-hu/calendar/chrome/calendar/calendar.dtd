@@ -252,8 +252,8 @@
 <!ENTITY calendar.context.findcalendar.accesskey       "k">
 <!ENTITY calendar.context.deleteserver.label           "Naptár törlése">
 <!ENTITY calendar.context.deleteserver.accesskey       "t">
-<!ENTITY calendar.context.reloadserver.label           "Távoli naptárak frissítése">
-<!ENTITY calendar.context.reloadserver.accesskey       "f">
+<!ENTITY calendar.context.synccalendars.label          "Naptárak szinkronizálása">
+<!ENTITY calendar.context.synccalendars.accesskey      "S">
 <!ENTITY calendar.context.publish.label                "Naptár közzététele...">
 <!ENTITY calendar.context.publish.accesskey            "k">
 <!ENTITY calendar.context.export.label                 "Naptár exportálása...">

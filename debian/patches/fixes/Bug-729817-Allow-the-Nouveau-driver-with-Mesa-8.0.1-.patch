@@ -7,10 +7,10 @@ Subject: Bug 729817 - Allow the Nouveau driver with Mesa >= 8.0.1 - r=bjacob
  1 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/widget/src/xpwidgets/GfxInfoX11.cpp b/widget/src/xpwidgets/GfxInfoX11.cpp
-index c6f7d96..27a0fd0 100644
+index d274cc6..4243d94 100644
 --- a/widget/src/xpwidgets/GfxInfoX11.cpp
 +++ b/widget/src/xpwidgets/GfxInfoX11.cpp
-@@ -310,9 +310,9 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
+@@ -312,9 +312,9 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
      }
  
      if (mIsMesa) {

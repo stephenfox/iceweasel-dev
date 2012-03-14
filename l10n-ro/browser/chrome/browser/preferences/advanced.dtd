@@ -11,6 +11,7 @@
 # Reviewer(s):
 #
 # Alexandru Szasz <alexxed@gmail.com>
+# Cristian Silaghi <stelistcristi@yahoo.com>
 #
 -->
 <!-- Note: each tab panel must contain unique accesskeys -->
@@ -20,11 +21,11 @@
 <!ENTITY accessibility.label             "Accesibilitate">
 
 <!ENTITY useCursorNavigation.label       "Folosește întotdeauna săgețile pentru a naviga în pagini">
-<!ENTITY useCursorNavigation.accesskey   "t">
+<!ENTITY useCursorNavigation.accesskey   "F">
 <!ENTITY searchStartTyping.label         "Caută textul în timp ce tastez">
 <!ENTITY searchStartTyping.accesskey     "x">
 <!ENTITY blockAutoRefresh.label          "Avertizează-mă când saiturile încearcă să redirecționeze sau să reîncarce pagina">
-<!ENTITY blockAutoRefresh.accesskey      "r">
+<!ENTITY blockAutoRefresh.accesskey      "z">
 
 <!ENTITY browsing.label                  "Navigare">
 
@@ -41,7 +42,7 @@
 <!ENTITY alwaysCheckDefault.label        "Verifică întotdeauna la pornire dacă &brandShortName; este navigatorul implicit"><!--XXX-->
 <!ENTITY alwaysCheckDefault.accesskey    "V">
 <!ENTITY checkNow.label                  "Verifică acum">
-<!ENTITY checkNow.accesskey              "a">
+<!ENTITY checkNow.accesskey              "m">
 <!ENTITY submitCrashes.label             "Raportează defecțiunile">
 <!ENTITY submitCrashes.accesskey         "R">
 <!ENTITY submitTelemetry.label           "Trimite datele despre performanță">
@@ -55,7 +56,9 @@
 <!ENTITY connectionSettings.label        "Setări…">
 <!ENTITY connectionSettings.accesskey    "e">
 
-<!ENTITY offlineStorage.label            "Stocare offline">
+<!ENTITY httpCache.label                 "Cached Web Content">
+
+<!ENTITY offlineStorage2.label           "Offline Web Content and User Data">
 
 <!-- LOCALIZATION NOTE:
   The entities limitCacheSizeBefore.label and limitCacheSizeAfter.label appear on a single
@@ -68,6 +71,8 @@
 <!ENTITY limitCacheSizeAfter.label       "MO din spațiu">
 <!ENTITY clearCacheNow.label             "Curăță acum">
 <!ENTITY clearCacheNow.accesskey         "C">
+<!ENTITY clearOfflineAppCacheNow.label   "Clear Now">
+<!ENTITY clearOfflineAppCacheNow.accesskey "N">
 <!ENTITY overrideSmartCacheSize.label    "Ignoră administrarea automată a memoriei cache">
 <!ENTITY overrideSmartCacheSize.accesskey "o">
 
@@ -91,8 +96,6 @@
 <!ENTITY useService.accesskey            "d">
 
 <!ENTITY updateOthers.label              "Actualizează automat:">
-<!ENTITY enableAddonsUpdate3.label       "Suplimente">
-<!ENTITY enableAddonsUpdate3.accesskey   "u">
 <!ENTITY enableSearchUpdate.label        "Motoare de căutare">
 <!ENTITY enableSearchUpdate.accesskey    "M">
 
@@ -101,7 +104,7 @@
 <!ENTITY offlineNotifyExceptions.label   "Excepții...">
 <!ENTITY offlineNotifyExceptions.accesskey "x">
 
-<!ENTITY offlineAppsList.label           "Următoarele saituri au date instalate pentru uz offline:">
+<!ENTITY offlineAppsList2.label          "The following websites are allowed to store data for offline use:">
 <!ENTITY offlineAppsList.height          "7em">
 <!ENTITY offlineAppsListRemove.label     "Șterge…">
 <!ENTITY offlineAppsListRemove.accesskey "r">

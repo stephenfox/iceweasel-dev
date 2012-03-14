@@ -2,7 +2,6 @@ fixes/Allow-.js-preference-files-to-set-locked-prefs-with-.patch
 fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
-fixes/Bug-703633-TreePanel.jsm-uses-a-resource-url-that-ou.patch
 fixes/Bug-691898-Use-YARR-interpreter-instead-of-PCRE-on-p.patch
 fixes/Bug-722127-Bump-required-libvpx-version-to-1.0.0.-r-.patch
 fixes/Bug-728229-Allow-to-build-with-system-python-ply-lib.patch
@@ -20,9 +19,6 @@ porting/Allow-ipc-code-to-build-on-GNU-kfreebsd.patch
 porting/Allow-ipc-code-to-build-on-GNU-Hurd.patch
 porting/Bug-698923-Don-t-require-16-bytes-alignment-for-VMFr.patch
 porting/Fix-GNU-non-Linux-failure-to-build-because-of-ipc-ch.patch
-porting/Bug-703531-Fix-ARMAssembler-getOp2RegScale-on-ARMv5.patch
-porting/Bug-703534-Fix-build-failure-on-platforms-without-YA.patch
-porting/Bug-703842-Avoid-R_SPARC_WDISP22-relocation-in-Tramp.patch
 porting/Bug-703833-Avoid-invalid-conversion-from-const-size_.patch
 porting/Bug-711353-Add-support-for-GNU-kFreeBSD-and-GNU-Hurd.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
@@ -40,14 +36,12 @@ debian-hacks/Add-soname-to-appropriate-libraries.patch
 debian-hacks/Add-another-preferences-directory-for-applications-p.patch
 debian-hacks/Gross-workaround-to-avoid-installing-test-idl-and-in.patch
 debian-hacks/Don-t-register-plugins-if-the-MOZILLA_DISABLE_PLUGIN.patch
-debian-hacks/Install-missing-nanojit-and-.tbl-headers-from-js-src.patch
 debian-hacks/Use-a-variable-for-xulrunner-base-version-in-various.patch
 debian-hacks/Install-js-shell-when-running-make-install-from-js-s.patch
 debian-hacks/Don-t-error-out-when-run-time-libsqlite-is-older-tha.patch
 debian-hacks/Do-build-time-detection-of-2-bytes-wchar_t-and-char1.patch
 debian-hacks/pkg-config-files-don-t-need-to-require-the-version-o.patch
 debian-hacks/Add-a-2-minutes-timeout-on-xpcshell-tests.patch
-debian-hacks/Fix-tracejit-to-build-against-nanojit-headers-in-dis.patch
 l10n/Bug-721737-Add-toolkit-l10n-Makefiles-to-browser-mak.patch
 l10n/Place-google-and-gmail-before-yandex.patch
 configure.patch

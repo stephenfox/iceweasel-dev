@@ -1,0 +1,109 @@
+
+<!ENTITY  splash_firstrun "正在設定 &brandShortName;\u2026">
+
+<!ENTITY  no_space_to_start_error "空間不足，無法啟動 &brandShortName;。">
+<!ENTITY  error_loading_file "嘗試讀取 &brandShortName; 執行所必需的檔案時發生錯誤。">
+
+<!ENTITY  awesomebar_all_pages_title "最常瀏覽">
+<!ENTITY  awesomebar_bookmarks_title "書籤">
+<!ENTITY  awesomebar_history_title "歷史記錄">
+<!ENTITY  awesomebar_search_engine "搜尋「&#037;s」">
+
+<!ENTITY  crash_reporter_title "&brandShortName; 錯誤回報員">
+<!ENTITY  crash_message "&brandShortName; 意外碰上問題而自行關閉。您的分頁將會在重新啟動後被列在 &brandShortName; 的首頁。">
+<!ENTITY  crash_help_message "請幫助我們修正這個問題！">
+<!ENTITY  crash_send_report_message "傳送錯誤回報給 Mozilla">
+<!ENTITY  crash_include_url "包含頁面網址">
+<!ENTITY  crash_close_label "關閉">
+<!ENTITY  crash_restart_label "重開 &brandShortName;">
+<!ENTITY  sending_crash_report "正在傳送錯誤報告\u2026">
+<!ENTITY  exit_label "結束">
+<!ENTITY  continue_label "繼續">
+
+<!ENTITY  launcher_shortcuts_title "&brandShortName; 行動網頁應用程式">
+<!ENTITY  launcher_shortcuts_empty "找不到任何行動網頁應用程式">
+
+<!ENTITY choose_file "選擇檔案">
+
+<!ENTITY awesomebar_default_text "輸入要搜尋的資料或是網址">
+
+<!ENTITY bookmark "書籤">
+<!ENTITY bookmark_added "已加入書籤">
+<!ENTITY bookmark_removed "已移除書籤">
+
+<!ENTITY history_today_section "今天">
+<!ENTITY history_yesterday_section "昨天">
+<!ENTITY history_week_section "7 天前">
+<!ENTITY history_older_section "早於 7 天前">
+
+<!ENTITY reload "重新載入">
+<!ENTITY forward "下一頁">
+
+<!ENTITY new_tab "開新分頁">
+
+<!ENTITY settings "設定">
+<!ENTITY settings_title "設定">
+<!ENTITY pref_category_general "一般">
+<!ENTITY pref_category_privacy "個人隱私與安全">
+<!ENTITY pref_category_content "內容">
+<!ENTITY pref_about_firefox "關於 &brandShortName;">
+<!ENTITY pref_do_not_track "告訴網站我不想被追蹤">
+<!ENTITY pref_telemetry "傳送效能資料">
+<!ENTITY pref_remember_signons "記住密碼">
+<!ENTITY pref_cookies "啟用 Cookie">
+<!ENTITY pref_char_encoding "語言及字元編碼">
+<!ENTITY pref_char_encoding_on "顯示選單">
+<!ENTITY pref_char_encoding_off "不顯示選單">
+<!ENTITY pref_clear_history "清除歷史紀錄">
+<!ENTITY pref_clear_history_confirm "將會刪除瀏覽紀錄">
+<!ENTITY pref_clear_private_data "清除隱私資訊">
+<!ENTITY pref_clear_private_data_confirm "將會刪除包含已存的密碼與 Cookie 等瀏覽設定">
+<!ENTITY pref_plugins "外掛程式">
+<!ENTITY pref_plugins_enabled "啟用">
+<!ENTITY pref_plugins_tap_to_play "點一下播放">
+<!ENTITY pref_plugins_disabled "停用">
+<!ENTITY pref_text_size "文字大小">
+<!ENTITY pref_font_size_tiny "小">
+<!ENTITY pref_font_size_small "小">
+<!ENTITY pref_font_size_medium "中">
+<!ENTITY pref_font_size_large "大">
+<!ENTITY pref_font_size_xlarge "特大">
+<!ENTITY pref_use_master_password "使用主控密碼">
+<!ENTITY pref_sync "Sync">
+
+<!ENTITY quit "離開">
+
+<!ENTITY addons "附加元件">
+<!ENTITY downloads "下載">
+<!ENTITY char_encoding "語言及字元編碼">
+
+<!ENTITY share "分享">
+<!ENTITY save_as_pdf "儲存為 PDF">
+
+<!ENTITY contextmenu_open_new_tab "以新分頁開啟">
+<!ENTITY contextmenu_remove_bookmark "移除">
+<!ENTITY contextmenu_add_to_launcher "新增至裝置主畫面">
+<!ENTITY contextmenu_share "透露">
+
+<!ENTITY site_settings_title        "清除網站設定值">
+<!ENTITY site_settings_cancel       "取消">
+<!ENTITY site_settings_clear        "清除">
+<!ENTITY site_settings_no_settings  "沒有可清除的設定。">
+
+<!ENTITY masterpassword_create_title "建立主控密碼">
+<!ENTITY masterpassword_remove_title "移除主控密碼">
+<!ENTITY masterpassword_password "密碼">
+<!ENTITY masterpassword_confirm "請再次輸入密碼">
+
+<!ENTITY button_ok "確定">
+<!ENTITY button_cancel "取消">
+
+<!ENTITY abouthome_addons_title "給您 &brandShortName; 使用的附加元件">
+<!ENTITY abouthome_addons_browse "瀏覽所有的 &brandShortName; 附加元件">
+<!ENTITY abouthome_last_tabs_title "上一次打開的分頁">
+<!ENTITY abouthome_last_tabs_open "打開上次開啟的所有分頁">
+<!ENTITY abouthome_top_sites_title "最常瀏覽的網站">
+<!ENTITY abouthome_top_sites_browse "瀏覽您最常開啟的網站">
+<!ENTITY abouthome_no_top_sites "目前還無法列出您最常瀏覽的網站。請點下標題列開始瀏覽。">
+<!ENTITY abouthome_about_sync "設定 Firefox Sync 以自您其他裝置上存取書籤、瀏覽紀錄與分頁標籤。">
+<!ENTITY abouthome_sync_bold_name "Firefox Sync">

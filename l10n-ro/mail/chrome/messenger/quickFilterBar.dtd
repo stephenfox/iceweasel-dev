@@ -3,7 +3,6 @@
 #
 # Alexandru Szasz <alexxed@gmail.com>
 # nicubunu <nicubunu@gmail.com>
-# stas <stas@nerd.ro>
 #
 -->
 <!--
@@ -12,6 +11,13 @@
 # Alexandru Szasz <alexxed@gmail.com>
 #
 -->
+<!-- LOCALIZATION NOTE (quickFilterBar.qfbShowFilterBar.label):
+     The label  for the button on the tab bar that toggles the visibility of
+     the quick filter bar.
+     -->
+<!ENTITY quickFilterBar.qfbShowFilterBar.label
+         "Quick Filter">
+
 <!-- LOCALIZATION NOTE (quickFilterBar.toggleBarVisibility.menu.label):
      The label to display for the "View... Toolbars..." menu item that controls
      whether the quick filter bar is visible.
@@ -55,7 +61,7 @@
      include unread messages.
      -->
 <!ENTITY quickFilterBar.unread.label
-         "Necitit">
+         "Necitite">
 
 <!-- LOCALIZATION NOTE (quickFilterBar.unread.tooltip):
      The tooltip for the filter button that causes us to filter results to only
@@ -99,7 +105,7 @@
      include messages with at least one tag on them.
      -->
 <!ENTITY quickFilterBar.tags.label
-         "Tag-uri">
+         "Etichete">
 
 <!-- LOCALIZATION NOTE (quickFilterBar.tags.tooltip):
      The tooltip for the filter button that causes us to filter results to only
@@ -167,7 +173,7 @@
 <!-- LOCALIZATION NOTE (quickFilterBar.show.key2):
      This is the key used to show the quick filter bar. -->
 <!ENTITY quickFilterBar.show.key2
-         "s">
+         "k">
 
 <!-- LOCALIZATION NOTE (quickFilterBar.textbox.emptyText.keyLabel.nonmac):
      The description of the key-binding to get into the box on windows and
@@ -216,7 +222,7 @@
      sender for the string.
      -->
 <!ENTITY quickFilterBar.textFilter.sender.label
-         "Expeditorul">
+         "Expeditor">
 
 <!-- LOCALIZATION NOTE (quickFilterBar.textFilter.recipients.label):
      The button label that toggles whether the text filter searches the message
@@ -230,7 +236,7 @@
      subject for the string.
      -->
 <!ENTITY quickFilterBar.textFilter.subject.label
-         "Subiectul">
+         "Subiect">
 
 <!-- LOCALIZATION NOTE (quickFilterBar.textFilter.body.label):
      The button label that toggles whether the text filter searches the message

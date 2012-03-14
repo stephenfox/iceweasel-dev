@@ -49,3 +49,7 @@
 <!ENTITY pref.defaultlength.accesskey "u">
 <!ENTITY pref.defaultsnoozelength.label "Standaard sluimerduur:" >
 <!ENTITY pref.defaultsnoozelength.accesskey "s">
+
+<!ENTITY pref.accessibility.label "Toegankelijkheid" >
+<!ENTITY pref.systemcolors.label "Kleuren optimaliseren voor toegankelijkheid" >
+<!ENTITY pref.systemcolors.accesskey "o">

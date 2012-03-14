@@ -40,7 +40,7 @@
    - your editor isn't using UTF-8 encoding and may munge up the document!
   -->
 
-<!ENTITY pref.mainbox.label "Algemiene ynstellings" >
+<!ENTITY pref.mainbox.label "Algemiene ynstellingen" >
 <!ENTITY pref.dateformat.label "Datumtekstformaat:" >
 <!ENTITY pref.dateformat.accesskey "f">
 <!ENTITY pref.dateformat.long "Lang" >
@@ -49,3 +49,7 @@
 <!ENTITY pref.defaultlength.accesskey "b">
 <!ENTITY pref.defaultsnoozelength.label "Standert slommerdjoer:" >
 <!ENTITY pref.defaultsnoozelength.accesskey "s">
+
+<!ENTITY pref.accessibility.label "Tagonklikheid" >
+<!ENTITY pref.systemcolors.label "Kleuren optimalisearje foar tagonklikheid" >
+<!ENTITY pref.systemcolors.accesskey "o">

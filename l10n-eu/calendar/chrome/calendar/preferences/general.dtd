@@ -49,3 +49,7 @@
 <!ENTITY pref.defaultlength.accesskey "e">
 <!ENTITY pref.defaultsnoozelength.label "Atzerapen iraupen lehenetsia:" >
 <!ENTITY pref.defaultsnoozelength.accesskey "A">
+
+<!ENTITY pref.accessibility.label "Erabilgarritasuna" >
+<!ENTITY pref.systemcolors.label "Optimizatu koloreak erabilgarritasunerako" >
+<!ENTITY pref.systemcolors.accesskey "k">

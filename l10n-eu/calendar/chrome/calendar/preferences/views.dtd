@@ -45,9 +45,9 @@
 
 
 <!ENTITY pref.calendar.view.allview.caption "Nagusia">
-<!ENTITY pref.calendar.view.dayandweekviews.caption "Egun eta aste ikuspegia">
-<!ENTITY pref.calendar.view.multiweekview.caption "Aste anitz ikuspegia">
-<!ENTITY pref.calendar.view.workweek.caption "Lan astea">
+<!ENTITY pref.calendar.view.dayandweekviews.caption "Eguneko eta asteko ikuspegia">
+<!ENTITY pref.calendar.view.multiweekview.caption "Aste anitzeko ikuspegia">
+<!ENTITY pref.calendar.view.workweek.caption "Laneko astea">
 
 <!ENTITY pref.weekstarts.label "Astea noiz hasi:">
 <!ENTITY pref.weekstarts.accesskey "h">

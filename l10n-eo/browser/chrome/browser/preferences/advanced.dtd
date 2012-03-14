@@ -40,7 +40,9 @@
 <!ENTITY connectionSettings.label        "Agordoj…">
 <!ENTITY connectionSettings.accesskey    "g">
 
-<!ENTITY offlineStorage.label            "Deponejo por malkonektitaĵoj">
+<!ENTITY httpCache.label                 "Teksaĵa enhavo en staplo">
+
+<!ENTITY offlineStorage2.label           "Deponejo por malkonektitaĵoj, de teksaĵa enhavo kaj de datumoj de uzanto">
 
 <!-- LOCALIZATION NOTE:
   The entities limitCacheSizeBefore.label and limitCacheSizeAfter.label appear on a single
@@ -51,8 +53,10 @@
 <!ENTITY limitCacheSizeBefore.label      "Limigi staplon al">
 <!ENTITY limitCacheSizeBefore.accesskey  "L">
 <!ENTITY limitCacheSizeAfter.label       "MO de spaco">
-<!ENTITY clearCacheNow.label             "Forviŝi nun">
+<!ENTITY clearCacheNow.label             "Viŝi nun">
 <!ENTITY clearCacheNow.accesskey         "F">
+<!ENTITY clearOfflineAppCacheNow.label   "Viŝi nun">
+<!ENTITY clearOfflineAppCacheNow.accesskey "N">
 <!ENTITY overrideSmartCacheSize.label    "Superregi la aŭtomatan administradon de staplo">
 <!ENTITY overrideSmartCacheSize.accesskey "O">
 
@@ -70,23 +74,21 @@
 <!ENTITY updateAutoAddonWarn.accesskey   "v">
 
 <!ENTITY updateHistory.label             "Montri la historion de ĝisdatigoj">
-<!ENTITY updateHistory.accesskey         "h">
+<!ENTITY updateHistory.accesskey         "M">
 
 <!ENTITY useService.label                "Uzi fonan servon por instali ĝisdatigojn">
 <!ENTITY useService.accesskey            "f">
 
 <!ENTITY updateOthers.label              "Aŭtomate ĝisdatigi:">
-<!ENTITY enableAddonsUpdate3.label       "Aldonaĵoj">
-<!ENTITY enableAddonsUpdate3.accesskey   "o">
-<!ENTITY enableSearchUpdate.label        "Serĉiloj">
-<!ENTITY enableSearchUpdate.accesskey    "i">
+<!ENTITY enableSearchUpdate.label        "Serĉilojn">
+<!ENTITY enableSearchUpdate.accesskey    "S">
 
 <!ENTITY offlineNotify.label             "Diri al mi kiam retejo petas la konservado de datumojn por uzi malkonektite">
 <!ENTITY offlineNotify.accesskey         "D">
 <!ENTITY offlineNotifyExceptions.label   "Esceptoj…">
 <!ENTITY offlineNotifyExceptions.accesskey "s">
 
-<!ENTITY offlineAppsList.label           "La jenaj retejoj havas konservitajn datumojn por uzi malkonektite:">
+<!ENTITY offlineAppsList2.label          "La jenaj retejoj rajtas konservi datumojn por uzi malkonektite:">
 <!ENTITY offlineAppsList.height          "7em">
 <!ENTITY offlineAppsListRemove.label     "Forigi…">
 <!ENTITY offlineAppsListRemove.accesskey "F">

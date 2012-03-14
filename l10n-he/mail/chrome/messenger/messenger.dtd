@@ -12,7 +12,6 @@
 # http://tomercohen.com/ <tomer.mozilla@tomercohen.com>
 #
 -->
-<!ENTITY messengerWindow.title "דואר וקבוצות דיון">
 <!ENTITY titledefault.label    "&brandFullName;">
 <!ENTITY titleSeparator.label " - ">
 
@@ -602,8 +601,8 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY folderContextMarkMailFolderRead.accesskey "ס">
 <!ENTITY folderContextSubscribe.label "הירשם כמנוי…">
 <!ENTITY folderContextSubscribe.accesskey "b">
-<!ENTITY folderContextSearchMessages.label "חפש…">
-<!ENTITY folderContextSearchMessages.accesskey "ש">
+<!ENTITY folderContextSearchForMessages.label "חיפוש הודעות…">
+<!ENTITY folderContextSearchForMessages.accesskey "ח">
 <!ENTITY folderContextProperties.label "מאפיינים…">
 <!ENTITY folderContextProperties.accesskey "א">
 <!ENTITY folderContextFavoriteFolder.label "תיקייה מועדפת">

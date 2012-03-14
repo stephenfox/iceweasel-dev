@@ -333,15 +333,6 @@
 <!ENTITY event.recurrence.pattern.yearly.week.6.label        "יום שישי" >
 <!ENTITY event.recurrence.pattern.yearly.week.7.label        "יום שבת" >
 <!ENTITY event.recurrence.of.label                           "מתוך" >
-<!ENTITY event.recurrence.yearly.every.label                 "בכל">
-<!ENTITY event.recurrence.yearly.first.label                 "הראשון">
-<!ENTITY event.recurrence.yearly.second.label                "השני">
-<!ENTITY event.recurrence.yearly.third.label                 "השלישי">
-<!ENTITY event.recurrence.yearly.fourth.label                "הרביעי">
-<!ENTITY event.recurrence.yearly.fifth.label                 "החמישי">
-<!ENTITY event.recurrence.yearly.last.label                  "האחרון">
-
-<!ENTITY event.recurrence.of.label                           "" >
 <!ENTITY event.recurrence.pattern.yearly.month2.1.label      "בינואר" >
 <!ENTITY event.recurrence.pattern.yearly.month2.2.label      "בפברואר" >
 <!ENTITY event.recurrence.pattern.yearly.month2.3.label      "במרץ" >

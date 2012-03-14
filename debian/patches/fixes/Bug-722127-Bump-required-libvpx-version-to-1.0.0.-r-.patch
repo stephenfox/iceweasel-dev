@@ -7,10 +7,10 @@ Subject: Bug 722127 - Bump required libvpx version to 1.0.0. r=tterribe
  1 files changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index b0a7ae3..ee1bb50 100644
+index 882e339..e74a470 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -5616,20 +5616,20 @@ if test -n "$MOZ_WEBM"; then
+@@ -5710,20 +5710,20 @@ if test -n "$MOZ_WEBM"; then
                       [MOZ_NATIVE_LIBVPX_DEC_TEST=1],
                       ([--with-system-libvpx requested but symbol vpx_codec_dec_init_ver not found]))
          if test -n "$MOZ_NATIVE_LIBVPX_DEC_TEST" ; then
@@ -36,7 +36,7 @@ index b0a7ae3..ee1bb50 100644
                      #error "test failed."
                  #endif
                  ],
-@@ -5639,7 +5639,7 @@ if test -n "$MOZ_WEBM"; then
+@@ -5734,7 +5734,7 @@ if test -n "$MOZ_WEBM"; then
                   MOZ_LIBVPX_INCLUDES="-I${LIBVPX_DIR}/include"
                   MOZ_LIBVPX_LIBS="-L${LIBVPX_DIR}/lib -lvpx"],
                  [AC_MSG_RESULT([no])

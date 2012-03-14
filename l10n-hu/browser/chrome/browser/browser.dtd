@@ -217,8 +217,17 @@ can reach it easily. -->
 <!ENTITY inspectButton.label            "Vizsgálat">
 <!ENTITY inspectButton.accesskey        "V">
 <!ENTITY inspectCloseButton.tooltiptext "Vizsgáló bezárása">
+<!ENTITY inspect3DButton.label        "3D">
+<!ENTITY inspect3DButton.accesskey    "3">
 <!ENTITY inspectStyleButton.label     "Stílus">
 <!ENTITY inspectStyleButton.accesskey "S">
+
+<!-- LOCALIZATION NOTE (styleeditor.label): This menu item label appears
+  -  in the Tools menu. -->
+<!ENTITY styleeditor.label            "Stílusszerkesztő">
+<!ENTITY styleeditor.accesskey        "S">
+<!ENTITY styleeditor.keycode          "VK_F7">
+<!ENTITY styleeditor.keytext          "F7">
 
 <!ENTITY getMoreDevtoolsCmd.label        "További eszközök letöltése">
 <!ENTITY getMoreDevtoolsCmd.accesskey    "T">
@@ -422,14 +431,23 @@ can reach it easily. -->
 <!ENTITY thisFrameMenu.accesskey          "z">
 
 <!-- Media (video/audio) controls -->
+<!-- LOCALIZATION NOTE: The access keys for "Play" and
+"Pause" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaPlay.label             "Lejátszás">
 <!ENTITY mediaPlay.accesskey         "L">
 <!ENTITY mediaPause.label            "Szünet">
 <!ENTITY mediaPause.accesskey        "S">
+<!-- LOCALIZATION NOTE: The access keys for "Mute" and
+"Unmute" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaMute.label             "Némítás">
 <!ENTITY mediaMute.accesskey         "N">
 <!ENTITY mediaUnmute.label           "Hang be">
 <!ENTITY mediaUnmute.accesskey       "H">
+<!-- LOCALIZATION NOTE: The access keys for "Show Controls" and
+"Hide Controls" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY mediaShowControls.label     "Vezérlők megjelenítése">
 <!ENTITY mediaShowControls.accesskey "V">
 <!ENTITY mediaHideControls.label     "Vezérlők elrejtése">
@@ -438,6 +456,9 @@ can reach it easily. -->
 <!ENTITY videoFullScreen.accesskey   "T">
 <!ENTITY videoSaveImage.label        "Pillanatkép mentése...">
 <!ENTITY videoSaveImage.accesskey    "P">
+<!-- LOCALIZATION NOTE: The access keys for "Show Statistics" and
+"Hide Statistics" are the same because the two context-menu
+items are mutually exclusive. -->
 <!ENTITY videoShowStats.label        "Statisztika megjelenítése">
 <!ENTITY videoShowStats.accesskey    "S">
 <!ENTITY videoHideStats.label        "Statisztika elrejtése">

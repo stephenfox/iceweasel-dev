@@ -1,7 +1,7 @@
 <!--
-# Translator(s):
+# Reviewer(s):
 #
-# anonymous <anonymous@n.a>
+# Alexandru Szasz <alexxed@gmail.com>
 #
 -->
 <!-- ***** BEGIN LICENSE BLOCK *****
@@ -43,21 +43,21 @@
  ***** END LICENSE BLOCK ***** -->
 
 <!-- Title -->
-<!ENTITY mailListWindow.title           "Lista de Corespondenta">
+<!ENTITY mailListWindow.title           "Listă de expediție">
 <!-- Labels -->
-<!ENTITY addToAddressBook.label         "Add to: ">
+<!ENTITY addToAddressBook.label         "Adaugă la:">
 
-<!ENTITY ListName.label                 "List Name: ">
-<!ENTITY ListNickName.label             "List Nickname: ">
-<!ENTITY ListDescription.label          "Description: ">
+<!ENTITY ListName.label                 "Numele listei:">
+<!ENTITY ListNickName.label             "Nume scurt:">
+<!ENTITY ListDescription.label          "Descriere:">
 <!-- See bug 58485, when we implement drag and drop, add 'or drag addresses' back in -->
-<!ENTITY AddressTitle.label             "Type email addresses to add them to the mailing list:">
-<!ENTITY UpButton.label                 "Move Up">
-<!ENTITY DownButton.label               "Move Down">
+<!ENTITY AddressTitle.label             "Tastați adrese de email în lista de mai jos:">
+<!ENTITY UpButton.label                 "Mută sus">
+<!ENTITY DownButton.label               "Mută jos">
 
 <!-- Access Keys -->
 <!ENTITY addToAddressBook.accesskey     "A">
-<!ENTITY ListName.accesskey             "L">
+<!ENTITY ListName.accesskey             "l">
 <!ENTITY ListNickName.accesskey         "N">
 <!ENTITY ListDescription.accesskey      "e">
 

@@ -1,5 +1,5 @@
 <!-- The page shown when not logged in... -->
-<!ENTITY setupButton.label          "&syncBrand.fullName.label; kurulumu">
+<!ENTITY setupButton.label          "&syncBrand.fullName.label;'i kur">
 <!ENTITY setupButton.accesskey      "k">
 <!ENTITY weaveDesc.label            "&syncBrand.fullName.label; tüm aygıtlarınızdan tarama geçmişinize, yer imlerinize, parolalarınıza ve açık sekmelerinize erişmenize olanak sağlar.">
 
@@ -30,6 +30,8 @@
 <!ENTITY engine.passwords.accesskey "P">
 <!ENTITY engine.prefs.label         "Tercihler">
 <!ENTITY engine.prefs.accesskey     "T">
+<!ENTITY engine.addons.label        "Eklentiler">
+<!ENTITY engine.addons.accesskey    "E">
 
 <!-- Device Settings -->
 <!ENTITY syncComputerName.label       "Bilgisayar adı:">

@@ -39,10 +39,10 @@ index 707fdd1..254e2d3 100644
  endif # SHARED_LIBRARY
  ifdef PROGRAM
 diff --git a/config/rules.mk b/config/rules.mk
-index d1b969b..c64b4d5 100644
+index 1f37020..9b6f64f 100644
 --- a/config/rules.mk
 +++ b/config/rules.mk
-@@ -290,6 +290,18 @@ else
+@@ -303,6 +303,18 @@ else
  SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
  endif
  
@@ -61,7 +61,7 @@ index d1b969b..c64b4d5 100644
  ifeq ($(OS_ARCH),OS2)
  DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
  endif
-@@ -380,7 +392,7 @@ SIMPLE_PROGRAMS :=
+@@ -393,7 +405,7 @@ SIMPLE_PROGRAMS :=
  endif
  
  ifndef TARGETS
@@ -70,7 +70,7 @@ index d1b969b..c64b4d5 100644
  endif
  
  ifndef OBJS
-@@ -1059,6 +1071,8 @@ endif
+@@ -1072,6 +1084,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.
@@ -80,7 +80,7 @@ index d1b969b..c64b4d5 100644
  $(SHARED_LIBRARY): $(OBJS) $(LOBJS) $(DEF_FILE) $(RESFILE) $(SHARED_LIBRARY_LIBS_DEPS) $(LIBRARY) $(EXTRA_DEPS) $(DSO_LDOPTS_DEPS) $(GLOBAL_DEPS)
  ifndef INCREMENTAL_LINKER
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 49f0bdc..7a8f9c1 100644
+index 46c32e6..31fe6b9 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
 @@ -74,6 +74,7 @@ MODULE		    = js
@@ -91,7 +91,7 @@ index 49f0bdc..7a8f9c1 100644
  
  LIBS		= $(NSPR_LIBS) 
  
-@@ -927,6 +928,9 @@ ifneq (,$(LIBRARY))
+@@ -868,6 +869,9 @@ ifneq (,$(LIBRARY))
  endif
  ifneq (,$(SHARED_LIBRARY))
  	$(SYSINSTALL) $(SHARED_LIBRARY) $(DESTDIR)$(libdir)
@@ -126,10 +126,10 @@ index 707fdd1..254e2d3 100644
  endif # SHARED_LIBRARY
  ifdef PROGRAM
 diff --git a/js/src/config/rules.mk b/js/src/config/rules.mk
-index d1b969b..c64b4d5 100644
+index 1f37020..9b6f64f 100644
 --- a/js/src/config/rules.mk
 +++ b/js/src/config/rules.mk
-@@ -290,6 +290,18 @@ else
+@@ -303,6 +303,18 @@ else
  SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
  endif
  
@@ -148,7 +148,7 @@ index d1b969b..c64b4d5 100644
  ifeq ($(OS_ARCH),OS2)
  DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
  endif
-@@ -380,7 +392,7 @@ SIMPLE_PROGRAMS :=
+@@ -393,7 +405,7 @@ SIMPLE_PROGRAMS :=
  endif
  
  ifndef TARGETS
@@ -157,7 +157,7 @@ index d1b969b..c64b4d5 100644
  endif
  
  ifndef OBJS
-@@ -1059,6 +1071,8 @@ endif
+@@ -1072,6 +1084,8 @@ endif
  # so instead of deleting .o files after repacking them into a dylib, we make
  # symlinks back to the originals. The symlinks are a no-op for stabs debugging,
  # so no need to conditionalize on OS version or debugging format.

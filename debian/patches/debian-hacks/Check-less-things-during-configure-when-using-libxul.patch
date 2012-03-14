@@ -9,10 +9,10 @@ we won't be building most of the toolkit.
  1 files changed, 25 insertions(+), 5 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 48327b8..3026be7 100644
+index 696f950..9695cf2 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4200,6 +4200,7 @@ AC_SUBST(LIBXUL_SDK)
+@@ -4251,6 +4251,7 @@ AC_SUBST(LIBXUL_SDK)
  
  if test -n "$LIBXUL_SDK"; then
      LIBXUL_DIST="$LIBXUL_SDK"
@@ -20,8 +20,8 @@ index 48327b8..3026be7 100644
  else
      LIBXUL_DIST="$MOZ_BUILD_ROOT/dist"
  fi
-@@ -4234,6 +4235,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
-                 AC_MSG_ERROR([system NSPR does not support PR_STATIC_ASSERT or including prtypes.h does not provide it]))
+@@ -4291,6 +4292,10 @@ if test -n "$MOZ_NATIVE_NSPR"; then
+                 AC_MSG_ERROR([system NSPR does not support PR_UINT64 or including prtypes.h does not provide it]))
      CFLAGS=$_SAVE_CFLAGS
  else
 +  if test -n "$LIBXUL_SDK"; then
@@ -31,7 +31,7 @@ index 48327b8..3026be7 100644
      if test "$OS_ARCH" = "WINNT"; then
          NSPR_CFLAGS="-I${LIBXUL_DIST}/include/nspr"
          if test -n "$GNU_CC"; then
-@@ -4245,6 +4250,7 @@ else
+@@ -4302,6 +4307,7 @@ else
          NSPR_CFLAGS='`$(LIBXUL_DIST)/sdk/bin/nspr-config --prefix='${LIBXUL_DIST}' --includedir='${LIBXUL_DIST}'/include/nspr --cflags`'
          NSPR_LIBS='`$(LIBXUL_DIST)/sdk/bin/nspr-config --prefix='${LIBXUL_DIST}' --libdir='${LIBXUL_DIST}'/lib --libs`'
      fi
@@ -39,7 +39,7 @@ index 48327b8..3026be7 100644
  fi
  
  dnl system libevent Support
-@@ -4945,6 +4951,7 @@ dnl ========================================================
+@@ -5030,6 +5036,7 @@ dnl ========================================================
  dnl = startup-notification support module
  dnl ========================================================
  
@@ -47,7 +47,7 @@ index 48327b8..3026be7 100644
  if test "$MOZ_ENABLE_GTK2"
  then
      MOZ_ENABLE_STARTUP_NOTIFICATION=
-@@ -4973,6 +4980,7 @@ then
+@@ -5058,6 +5065,7 @@ then
  
      TK_LIBS="$TK_LIBS $MOZ_STARTUP_NOTIFICATION_LIBS"
  fi
@@ -55,7 +55,7 @@ index 48327b8..3026be7 100644
  AC_SUBST(MOZ_ENABLE_STARTUP_NOTIFICATION)
  AC_SUBST(MOZ_STARTUP_NOTIFICATION_CFLAGS)
  AC_SUBST(MOZ_STARTUP_NOTIFICATION_LIBS)
-@@ -5070,6 +5078,12 @@ AC_SUBST(MOZ_QT_LIBS)
+@@ -5155,6 +5163,12 @@ AC_SUBST(MOZ_QT_LIBS)
  AC_SUBST(MOC)
  
  AC_SUBST(MOZ_DFB)
@@ -68,7 +68,7 @@ index 48327b8..3026be7 100644
  AC_SUBST(MOZ_X11)
  
  dnl ========================================================
-@@ -5155,7 +5169,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
+@@ -5240,7 +5254,7 @@ MOZ_ARG_DISABLE_BOOL(pango,
  dnl ========================================================
  dnl = Pango
  dnl ========================================================
@@ -77,7 +77,7 @@ index 48327b8..3026be7 100644
  then
      AC_SUBST(MOZ_PANGO)
  
-@@ -5196,6 +5210,7 @@ dnl ========================================================
+@@ -5281,6 +5295,7 @@ dnl ========================================================
  dnl = GnomeVFS, GIO and GConf support module
  dnl ========================================================
  
@@ -85,7 +85,7 @@ index 48327b8..3026be7 100644
  if test "$MOZ_X11"
  then
      dnl build the gnomevfs extension by default only when the
-@@ -5434,6 +5449,9 @@ AC_SUBST(MOZ_DBUS_LIBS)
+@@ -5519,6 +5534,9 @@ AC_SUBST(MOZ_DBUS_LIBS)
  AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
  AC_SUBST(MOZ_DBUS_GLIB_LIBS)
  
@@ -93,9 +93,9 @@ index 48327b8..3026be7 100644
 +
 +
  dnl ========================================================
- dnl = Build Personal Security Manager
+ dnl = Enable Android History instead of Places
  dnl ========================================================
-@@ -5806,6 +5824,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
+@@ -5901,6 +5919,7 @@ dnl = Check alsa availability on Linux if using sydneyaudio
  dnl ========================================================
  
  dnl If using sydneyaudio with Linux, ensure that the alsa library is available
@@ -103,7 +103,7 @@ index 48327b8..3026be7 100644
  if test -n "$MOZ_SYDNEYAUDIO"; then
     case "$target_os" in
  linux*)
-@@ -5815,6 +5834,7 @@ linux*)
+@@ -5910,6 +5929,7 @@ linux*)
        ;;
     esac
  fi
@@ -111,7 +111,7 @@ index 48327b8..3026be7 100644
  
  dnl ========================================================
  dnl Permissions System
-@@ -7055,7 +7075,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
+@@ -7164,7 +7184,7 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
      MOZ_MEMORY=1,
      MOZ_MEMORY=)
  
@@ -119,8 +119,8 @@ index 48327b8..3026be7 100644
 +if test "$NS_TRACE_MALLOC" || test "$LIBXUL_SDK"; then
      MOZ_MEMORY=
  fi
- 
-@@ -7930,7 +7950,7 @@ MOZ_ARG_HEADER(Standalone module options (Not for building Mozilla))
+ if test "$MOZ_DMD"; then
+@@ -8039,7 +8059,7 @@ MOZ_ARG_HEADER(Standalone module options (Not for building Mozilla))
  dnl Check for GLib.
  dnl ========================================================
  
@@ -129,7 +129,7 @@ index 48327b8..3026be7 100644
  if test -z "${GLIB_CFLAGS}" -o -z "${GLIB_LIBS}" ; then
      if test "$MOZ_ENABLE_GTK2" -o "$USE_ELF_DYNSTR_GC" ; then
          PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
-@@ -8605,7 +8625,7 @@ else
+@@ -8763,7 +8783,7 @@ else
  fi
  
  dnl Check for missing components
@@ -138,7 +138,7 @@ index 48327b8..3026be7 100644
  if test "$MOZ_X11"; then
      dnl ====================================================
      dnl = Check if X headers exist
-@@ -8644,7 +8664,7 @@ if test -n "$MOZ_WEBGL_GLX"; then
+@@ -8802,7 +8822,7 @@ if test -n "$MOZ_WEBGL_GLX"; then
  fi # MOZ_WEBGL_GLX
  fi # COMPILE_ENVIRONMENT
  

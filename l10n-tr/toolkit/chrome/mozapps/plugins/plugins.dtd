@@ -25,7 +25,7 @@
 <!ENTITY disabledPlugin                                      "Bu yan uygulama devre dışı.">
 <!ENTITY blockedPlugin.label                                 "Bu yan eklenti sizi korumak için engellendi.">
 
-<!ENTITY installPlugin                                       "Yan uygulama kur...">
+<!ENTITY installPlugin                                       "Yan uygulamayı kur…">
 <!ENTITY managePlugins                                       "Yan uygulamaları yönet...">
 
 <!-- LOCALIZATION NOTE (reloadPlugin.pre): include a trailing space as needed -->
@@ -34,8 +34,8 @@
 <!ENTITY reloadPlugin.pre                                    "">
 <!ENTITY reloadPlugin.middle                                 "sayfayı yeniden yükleyin">
 <!ENTITY reloadPlugin.post                                   ".">
-<!-- LOCALIZATION NOTE: report.* strings should be as short as possible, ideally 2-3 words. -->
-<!ENTITY report.checkbox                                     "…ve çöke raporu gönder">
+<!-- LOCALIZATION NOTE (report.please): This and the other report.* strings should be as short as possible, ideally 2-3 words. -->
+<!ENTITY report.please                                       "Çökme raporu gönder">
 <!ENTITY report.submitting                                   "Rapor gönderiliyor...">
 <!ENTITY report.submitted                                    "Çökme raporu gönderildi.">
 <!ENTITY report.disabled                                     "Çökme raporu gönderimi devre dışı.">

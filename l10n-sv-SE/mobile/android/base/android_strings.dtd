@@ -1,0 +1,109 @@
+
+<!ENTITY  splash_firstrun "Ställer in &brandShortName;…">
+
+<!ENTITY  no_space_to_start_error "Det saknas utrymme för &brandShortName; att starta.">
+<!ENTITY  error_loading_file "Ett fel uppstod vid inläsning av filer som krävs för att köra &brandShortName;">
+
+<!ENTITY  awesomebar_all_pages_title "Alla sidor">
+<!ENTITY  awesomebar_bookmarks_title "Bokmärken">
+<!ENTITY  awesomebar_history_title "Historik">
+<!ENTITY  awesomebar_search_engine "Sök efter ”&#037;s”">
+
+<!ENTITY  crash_reporter_title "&brandShortName; kraschrapportör">
+<!ENTITY  crash_message "&brandShortName; har kraschat. Dina flikar kommer att listas på sidan &brandShortName; Start när du startat om.">
+<!ENTITY  crash_help_message "Hjälp oss att lösa problemet!">
+<!ENTITY  crash_send_report_message "Skicka en kraschrapport till Mozilla">
+<!ENTITY  crash_include_url "Inkludera sidans adress">
+<!ENTITY  crash_close_label "Stäng">
+<!ENTITY  crash_restart_label "Starta om &brandShortName;">
+<!ENTITY  sending_crash_report "Skickar kraschrapport…">
+<!ENTITY  exit_label "Avsluta">
+<!ENTITY  continue_label "Fortsätt">
+
+<!ENTITY  launcher_shortcuts_title "&brandShortName; webbappar">
+<!ENTITY  launcher_shortcuts_empty "Hittade inga webbappar">
+
+<!ENTITY choose_file "Välj fil">
+
+<!ENTITY awesomebar_default_text "Ange sökord eller adress">
+
+<!ENTITY bookmark "Bokmärke">
+<!ENTITY bookmark_added "Bokmärkt">
+<!ENTITY bookmark_removed "Borttaget bokmärke">
+
+<!ENTITY history_today_section "Idag">
+<!ENTITY history_yesterday_section "Igår">
+<!ENTITY history_week_section "7 dagar sedan">
+<!ENTITY history_older_section "Äldre än 7 dagar">
+
+<!ENTITY reload "Uppdatera">
+<!ENTITY forward "Framåt">
+
+<!ENTITY new_tab "Ny flik">
+
+<!ENTITY settings "Inställningar">
+<!ENTITY settings_title "Inställningar">
+<!ENTITY pref_category_general "Allmänt">
+<!ENTITY pref_category_privacy "Sekretess och säkerhet">
+<!ENTITY pref_category_content "Innehåll">
+<!ENTITY pref_about_firefox "Om &brandShortName;">
+<!ENTITY pref_do_not_track "Be platser att inte spåra mig">
+<!ENTITY pref_telemetry "Skicka prestandadata">
+<!ENTITY pref_remember_signons "Spara lösenord">
+<!ENTITY pref_cookies "Aktivera kakor">
+<!ENTITY pref_char_encoding "Teckenkodning">
+<!ENTITY pref_char_encoding_on "Visa meny">
+<!ENTITY pref_char_encoding_off "Visa ingen meny">
+<!ENTITY pref_clear_history "Rensa historiken">
+<!ENTITY pref_clear_history_confirm "Webbläsarhistoriken kommer att tas bort">
+<!ENTITY pref_clear_private_data "Rensa känslig data">
+<!ENTITY pref_clear_private_data_confirm "Webbläsarinställningar, inklusive lösenord och kakor kommer att tas bort">
+<!ENTITY pref_plugins "Insticksmoduler">
+<!ENTITY pref_plugins_enabled "Aktiverade">
+<!ENTITY pref_plugins_tap_to_play "Tryck för att visa">
+<!ENTITY pref_plugins_disabled "Inaktiverade">
+<!ENTITY pref_text_size "Textstorlek">
+<!ENTITY pref_font_size_tiny "Pytteliten">
+<!ENTITY pref_font_size_small "Liten">
+<!ENTITY pref_font_size_medium "Normal">
+<!ENTITY pref_font_size_large "Stor">
+<!ENTITY pref_font_size_xlarge "Extra stor">
+<!ENTITY pref_use_master_password "Använd huvudlösenord">
+<!ENTITY pref_sync "Sync">
+
+<!ENTITY quit "Avsluta">
+
+<!ENTITY addons "Tillägg">
+<!ENTITY downloads "Filhämtningar">
+<!ENTITY char_encoding "Teckenkodning">
+
+<!ENTITY share "Dela">
+<!ENTITY save_as_pdf "Spara som PDF">
+
+<!ENTITY contextmenu_open_new_tab "Öppna i ny flik">
+<!ENTITY contextmenu_remove_bookmark "Ta bort">
+<!ENTITY contextmenu_add_to_launcher "Lägg till på startsidan">
+<!ENTITY contextmenu_share "Dela">
+
+<!ENTITY site_settings_title        "Rensa platsinställningar">
+<!ENTITY site_settings_cancel       "Avbryt">
+<!ENTITY site_settings_clear        "Rensa">
+<!ENTITY site_settings_no_settings  "Det finns inga inställningar att rensa.">
+
+<!ENTITY masterpassword_create_title "Skapa ett huvudlösenord">
+<!ENTITY masterpassword_remove_title "Ta bort huvudlösenord">
+<!ENTITY masterpassword_password "Lösenord">
+<!ENTITY masterpassword_confirm "Bekräfta lösenord">
+
+<!ENTITY button_ok "OK">
+<!ENTITY button_cancel "Avbryt">
+
+<!ENTITY abouthome_addons_title "Tillägg till &brandShortName;">
+<!ENTITY abouthome_addons_browse "Bläddra bland alla &brandShortName;-tillägg">
+<!ENTITY abouthome_last_tabs_title "Dina senaste flikar">
+<!ENTITY abouthome_last_tabs_open "Öppna alla flikar från sist">
+<!ENTITY abouthome_top_sites_title "Mest besökta">
+<!ENTITY abouthome_top_sites_browse "Bläddra bland de mest besökta">
+<!ENTITY abouthome_no_top_sites "Du har inga mest besökta platser ännu. Tryck på adressfältet för att börja surfa.">
+<!ENTITY abouthome_about_sync "Ställ in Firefox Sync för att få tillgång till bokmärken, historik och flikar från dina andra enheter">
+<!ENTITY abouthome_sync_bold_name "Firefox Sync">

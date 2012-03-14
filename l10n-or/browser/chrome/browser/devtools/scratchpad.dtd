@@ -24,10 +24,6 @@
 <!ENTITY openFileCmd.commandkey       "o">
 
 <!ENTITY saveFileCmd.label            "ସଂରକ୍ଷଣ କରନ୍ତୁ">
-<!ENTITY resetContext2.label          "ପ୍ରାଚଳଗୁଡ଼ିକୁ ପୁଣି ସେଟ କରନ୍ତୁ">
-
-<!ENTITY resetContext2.accesskey      "T">
-
 <!ENTITY saveFileCmd.accesskey        "S">
 <!ENTITY saveFileCmd.commandkey       "s">
 
@@ -122,4 +118,6 @@
   -  that appears when the Scratchpad's text area is empty and unfocused.
   -  It should be a one-line JavaScript comment, i.e., preceded by '//'
   -->
+<!ENTITY resetContext2.label          "ପ୍ରାଚଳଗୁଡ଼ିକୁ ପୁଣି ସେଟ କରନ୍ତୁ">
 
+<!ENTITY resetContext2.accesskey      "T">
