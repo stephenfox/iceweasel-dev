@@ -5,12 +5,10 @@ fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
 fixes/Bug-703633-TreePanel.jsm-uses-a-resource-url-that-ou.patch
 fixes/Bug-691898-Use-YARR-interpreter-instead-of-PCRE-on-p.patch
 fixes/Bug-722127-Bump-required-libvpx-version-to-1.0.0.-r-.patch
-fixes/Bug-723861-Ship-xpidllex.py-and-xpidlyacc.py.patch
 fixes/Bug-728229-Allow-to-build-with-system-python-ply-lib.patch
 fixes/Bug-720682-Don-t-crash-an-app-using-libxul-because-o.patch
 fixes/Bug-696636-Block-OpenGL-1-drivers-explicitly-to-stee.patch
 fixes/Load-dependent-libraries-with-their-real-path-to-avo.patch
-fixes/Bug-728656-Avoid-crashing-when-there-are-no-GL-exten.patch
 fixes/Bug-515232-Try-getting-general.useragent.locale-as-a.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch

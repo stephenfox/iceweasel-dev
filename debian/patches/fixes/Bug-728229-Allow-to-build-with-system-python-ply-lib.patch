@@ -23,7 +23,7 @@ index a168406..c3ced04 100644
  ifeq ($(HOST_OS_ARCH),WINNT)
  # Ensure invariants between GNU Make and pymake
 diff --git a/configure.in b/configure.in
-index 6c227d9..4fd15c2 100644
+index ee1bb50..48327b8 100644
 --- a/configure.in
 +++ b/configure.in
 @@ -1021,6 +1021,16 @@ if test -z "$PYTHON"; then

@@ -1,3 +1,13 @@
+iceweasel (10.0.3esr-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+  * Fixes for mfsa2012-{12-19}, also known as
+    CVE-2012-0454, CVE-2012-0455, CVE-2012-0456, CVE-2012-0457,
+    CVE-2012-0451, CVE-2012-0458, CVE-2012-0459, CVE-2012-0460,
+    CVE-2012-0461, CVE-2012-0462, CVE-2012-0464.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 14 Mar 2012 08:36:33 +0100
+
 iceweasel (10.0.2-1) unstable; urgency=low
 
   * New upstream release. Addresses CVE-2011-3026.
