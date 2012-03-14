@@ -1,12 +1,33 @@
-iceweasel (11.0-1) UNRELEASED; urgency=low
+iceweasel (11.0-1) experimental; urgency=low
 
   * New upstream release.
   * Fixes for mfsa2012-{12-19}, also known as
     CVE-2012-0454, CVE-2012-0455, CVE-2012-0456, CVE-2012-0457,
     CVE-2012-0451, CVE-2012-0458, CVE-2012-0459, CVE-2012-0460,
     CVE-2012-0461, CVE-2012-0462, CVE-2012-0464.
+  * debian/source.filter: Adjusted to upstream changes.
+  * debian/rules:
+    - Work around make-makefile brokenness.
+    - Define MOZ_PHOENIX when building. Tab closing animation end fails
+      because of some telemetry items that aren't defined in xulrunner,
+      because they are enclosed in an ifdef MOZ_PHOENIX.
+  * debian/l10n/*, debian/control: Refreshed.
+  * debian/xulrunner-GRE_VERSION.install.in: update.locale is now in omni.ja.
+  * debian/control*:
+    - Bump build dependency on libnss3-dev and libnspr4-dev.
+    - Remove forced version-dependency on libnss3-1d.
+  * debian/dh/dh_xulrunner.in: Adjust to upstream changes.
+  * debian/check_resources.overrides: Ignore Webapps.jsm import from apps.js.
 
- -- Mike Hommey <glandium@debian.org>  Wed, 14 Mar 2012 09:40:46 +0100
+  * toolkit/system/gnome/nsGSettingsService.cpp: Define
+    G_VARIANT_TYPE_STRING_ARRAY when building against older glib. bz#710972.
+  * netwerk/protocol/http/HttpChannelParent.*: Revert investigation patch for
+    bz#621446, which triggers an ICE on gcc 4.4.
+  * configure.in, toolkit/library/nsStaticXULComponents.cpp,
+    tools/profiler/Makefile.in, tools/profiler/sampler.h: Only build SPS on
+    supported platforms. bz#734335.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 14 Mar 2012 10:28:21 +0100
 
 iceweasel (10.0.3esr-1) unstable; urgency=low
 
