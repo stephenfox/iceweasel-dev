@@ -227,7 +227,8 @@ stamps/install-xulrunner:: build-xulrunner/debian/installer/package-manifest
 		MOZ_APP_BASE_VERSION=$(GRE_VERSION) \
 		MOZ_PKG_MANIFEST=$(CURDIR)/$< \
 		MOZ_NONLOCALIZED_PKG_LIST="xpcom xulrunner debian" \
-		MOZ_LOCALIZED_PKG_LIST=en-US
+		MOZ_LOCALIZED_PKG_LIST=en-US \
+		SIGN_NSS=
 
 	mv debian/tmp/usr/bin/xulrunner debian/tmp/usr/bin/xulrunner-$(GRE_VERSION)
 
