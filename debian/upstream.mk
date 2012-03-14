@@ -6,11 +6,10 @@
 # The VERSION_FILTER transforms upstream version patterns to versions
 # used in debian/changelog. Versions are to be transformed as follows:
 # 4.0      -> 4.0
-# 4.0pre   -> 4.0~pre
+# 4.0a1    -> 4.0~a1
 # 4.0b5    -> 4.0~b5
-# 4.0b5pre -> 4.0~b5~pre
 # That should ensure the proper ordering
-VERSION_FILTER := sed 's/\([0-9]\)\([a-z]\)/\1~\2/g'
+VERSION_FILTER := sed 's/\([0-9]\)\([ab]\)/\1~\2/g'
 UPSTREAM_VERSION := $(shell cat $(PRODUCT)/config/version.txt)
 GRE_SRCDIR := $(strip $(foreach dir,. mozilla,$(if $(wildcard $(dir)/config/milestone.pl),$(dir))))
 ifndef GRE_SRCDIR
@@ -38,7 +37,7 @@ UPSTREAM_RELEASE := $(firstword $(subst +, ,$(UPSTREAM_RELEASE)))
 # Check if the version in debian/changelog matches actual upstream version
 # as VERSION_FILTER transforms it.
 FILTERED_UPSTREAM_VERSION := $(shell echo $(UPSTREAM_VERSION) | $(VERSION_FILTER))
-ifneq ($(FILTERED_UPSTREAM_VERSION),$(firstword $(subst ~b, ,$(UPSTREAM_RELEASE))))
+ifneq ($(FILTERED_UPSTREAM_VERSION),$(subst esr,,$(firstword $(subst ~b, ,$(UPSTREAM_RELEASE)))))
 $(error Upstream version in debian/changelog ($(UPSTREAM_RELEASE)) does not match actual upstream version ($(FILTERED_UPSTREAM_VERSION)))
 endif
 
