@@ -1,12 +1,40 @@
-iceweasel (10.0.3esr-1) UNRELEASED; urgency=low
+iceweasel (10.0.3esr-1) unstable; urgency=low
 
   * New upstream release.
+    - Avoid crashing when there are no GL extensions reported by the GL
+      implementation. bz#728656. Closes: #656611.
   * Fixes for mfsa2012-{12-19}, also known as
     CVE-2012-0454, CVE-2012-0455, CVE-2012-0456, CVE-2012-0457,
     CVE-2012-0451, CVE-2012-0458, CVE-2012-0459, CVE-2012-0460,
     CVE-2012-0461, CVE-2012-0462, CVE-2012-0464.
+  * debian/control, debian/l10n/*, debian/rules: Modify the way we use
+    isoquery to get a language name out of iso 639 codes.
+  * debian/upstream.mk:
+    - Better detect beta version given for download.
+    - Allow to use with iceape and icedove.
+    - Support download ESR releases.
+  * debian/iceweasel-runner, debian/iceweasel.1,
+    debian/iceweasel.README.Debian, debian/iceweasel.install,
+    debian/iceweaselrc: Remove dsp wrapper glue.
+  * debian/rules, debian/iceweasel.install, debian/iceweasel.links.in:
+    Localize search plugins.
+  * debian/upstream.mk, debian/repack.py, debian/l10n.filter: Filter l10n
+    upstream tarballs such that they stay the same when there are no changes
+    besides tags.
+  * debian/rules: Don't sign NSS libraries, as this is done as part of libnss3
+    build process.
 
- -- Mike Hommey <glandium@debian.org>  Wed, 14 Mar 2012 08:36:33 +0100
+  * storage/src/mozStorageService.cpp: Don't crash an app using libxul because
+    of the lack of je_malloc_usable_size_in_advance. bz#720682. Closes: #660487.
+  * widget/src/xpwidgets/GfxInfoX11.*:
+    - Block OpenGL 1 drivers explicitly to steer clear of crashes. bz#696636.
+    - Block the Nouveau 3D driver with Mesa < 8.0.1. bz#729817.
+  * browser/components/dirprovider/DirectoryProvider.cpp: Try getting
+    general.useragent.locale as a complex value first. bz#515232.
+  * xpcom/glue/standalone/nsGlueLinkingDlopen.cpp: Avoid confusing gdb by
+    dependent libs being symbolic links.
+
+ -- Mike Hommey <glandium@debian.org>  Wed, 14 Mar 2012 08:57:15 +0100
 
 iceweasel (10.0.2-1) unstable; urgency=low
 
