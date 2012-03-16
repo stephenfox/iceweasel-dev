@@ -1,3 +1,10 @@
+iceweasel (11.0-2) experimental; urgency=low
+
+  * toolkit/library/Makefile.in: Fixup bz#734335 backport. Should fix all
+    FTBFSes.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 16 Mar 2012 08:35:43 +0100
+
 iceweasel (11.0-1) experimental; urgency=low
 
   * New upstream release.
