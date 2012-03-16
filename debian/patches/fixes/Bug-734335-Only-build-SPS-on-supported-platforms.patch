@@ -4,10 +4,11 @@ Subject: Bug 734335 - Only build SPS on supported platforms
 
 ---
  configure.in                              |   31 +++++++++++++++++++++++++---
+ toolkit/library/Makefile.in               |    2 +
  toolkit/library/nsStaticXULComponents.cpp |    8 ++++++-
  tools/profiler/Makefile.in                |    8 ++++--
  tools/profiler/sampler.h                  |    6 ++--
- 4 files changed, 42 insertions(+), 11 deletions(-)
+ 5 files changed, 44 insertions(+), 11 deletions(-)
 
 diff --git a/configure.in b/configure.in
 index 696f950..a9872a0 100644
@@ -51,6 +52,20 @@ index 696f950..a9872a0 100644
  if test -n "$MOZ_ENABLE_PROFILER_SPS"; then
      AC_DEFINE(MOZ_ENABLE_PROFILER_SPS)
  fi
+diff --git a/toolkit/library/Makefile.in b/toolkit/library/Makefile.in
+index 48e8fb4..91cf573 100644
+--- a/toolkit/library/Makefile.in
++++ b/toolkit/library/Makefile.in
+@@ -316,7 +316,9 @@ endif
+ 
+ STATIC_LIBS += thebes gl ycbcr
+ 
++ifdef MOZ_ENABLE_PROFILER_SPS
+ COMPONENT_LIBS += profiler
++endif
+ 
+ ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
+ COMPONENT_LIBS += gkwidget
 diff --git a/toolkit/library/nsStaticXULComponents.cpp b/toolkit/library/nsStaticXULComponents.cpp
 index 8a668b0..23a6489 100644
 --- a/toolkit/library/nsStaticXULComponents.cpp

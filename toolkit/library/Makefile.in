@@ -316,7 +316,9 @@ endif
 
 STATIC_LIBS += thebes gl ycbcr
 
+ifdef MOZ_ENABLE_PROFILER_SPS
 COMPONENT_LIBS += profiler
+endif
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += gkwidget
