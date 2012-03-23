@@ -1089,7 +1089,9 @@ static unsigned		ncpus;
  * controlling the malloc behavior are defined as compile-time constants
  * for best performance and cannot be altered at runtime.
  */
+#ifndef __ia64__
 #define MALLOC_STATIC_SIZES 1
+#endif
 
 #ifdef MALLOC_STATIC_SIZES
 

@@ -24,6 +24,7 @@ porting/Bug-698923-Don-t-require-16-bytes-alignment-for-VMFr.patch
 porting/Fix-GNU-non-Linux-failure-to-build-because-of-ipc-ch.patch
 porting/Bug-703833-Avoid-invalid-conversion-from-const-size_.patch
 porting/Bug-711353-Add-support-for-GNU-kFreeBSD-and-GNU-Hurd.patch
+porting/Don-t-hardcode-page-size-on-ia64.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch

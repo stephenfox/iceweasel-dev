@@ -1,0 +1,22 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Fri, 23 Mar 2012 09:57:04 +0100
+Subject: Don't hardcode page size on ia64
+
+---
+ memory/jemalloc/jemalloc.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
+index 8d0f2de..6afefc3 100644
+--- a/memory/jemalloc/jemalloc.c
++++ b/memory/jemalloc/jemalloc.c
+@@ -1089,7 +1089,9 @@ static unsigned		ncpus;
+  * controlling the malloc behavior are defined as compile-time constants
+  * for best performance and cannot be altered at runtime.
+  */
++#ifndef __ia64__
+ #define MALLOC_STATIC_SIZES 1
++#endif
+ 
+ #ifdef MALLOC_STATIC_SIZES
+ 
