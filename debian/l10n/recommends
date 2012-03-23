@@ -10,7 +10,7 @@ eo: myspell-eo
 es-ar: myspell-es
 es-es: myspell-es
 et: myspell-et
-fi: myspell-fi
+fi: xul-ext-mozvoikko
 fr: myspell-fr | myspell-fr-gut
 he: myspell-he
 hu: myspell-hu
