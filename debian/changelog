@@ -1,3 +1,19 @@
+iceweasel (11.0-3) experimental; urgency=low
+
+  * debian/extra-stuff/addonsInfo.js: Remove debugging info from
+    dump-addons-info output, and avoid failure on addons that don't have the
+    getResourceURI method (like personas).
+  * debian/duckduckgo.xml: Add t=debian to duckduckgo query url.
+  * debian/iceweasel.install, debian/iceweasel.links.in,
+    debian/iceweasel.preinst, debian/rules: Move search plugins under
+    /etc/iceweasel. Closes: #632698.
+  * debian/l10n/recommends: Recommend xul-ext-mozvoikko instead of myspell-fi
+    for -l10n-fi. Closes: #635361.
+
+  * memory/jemalloc/jemalloc.c: Don't hardcode page size on ia64.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 23 Mar 2012 13:22:46 +0100
+
 iceweasel (11.0-2) experimental; urgency=low
 
   * toolkit/library/Makefile.in: Fixup bz#734335 backport. Should fix all
