@@ -22,14 +22,18 @@ function dump_addons(out) {
     aAddons.forEach(function(extension) {
       if (extension.type == "plugin")
         return;
-      out.writeString("Name: " + extension.name + " " + extension.type + (extension instanceof Ci.nsIPluginTag) +"\n");
-      var location = extension.getResourceURI("").QueryInterface(Ci.nsIFileURL).file;
-      if (extension.scope == AddonManager.SCOPE_PROFILE)
-        out.writeString("Location: ${PROFILE_EXTENSIONS}/" +
-                        location.leafName + "\n");
-      else
-        out.writeString("Location: " + location.path + "\n");
-
+      out.writeString("Name: " + extension.name);
+      if (extension.type != "extension")
+        out.writeString(" " + extension.type);
+      out.writeString("\n");
+      if (extension.getResourceURI) {
+        var location = extension.getResourceURI("").QueryInterface(Ci.nsIFileURL).file;
+        if (extension.scope == AddonManager.SCOPE_PROFILE)
+          out.writeString("Location: ${PROFILE_EXTENSIONS}/" +
+                          location.leafName + "\n");
+        else
+          out.writeString("Location: " + location.path + "\n");
+      }
       out.writeString("Status: " + (extension.appDisabled ? "app-disabled" :
                                    (extension.userDisabled ? "user-disabled" :
                                    "enabled")) + "\n");
