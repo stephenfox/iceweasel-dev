@@ -2,7 +2,7 @@ debian/tmp/usr/lib/iceweasel/components usr/lib/iceweasel
 debian/iceweasel-xremote-client usr/lib/iceweasel
 
 debian/tmp/usr/lib/iceweasel/defaults/preferences usr/share/iceweasel/defaults
-debian/tmp/usr/lib/iceweasel/searchplugins/* usr/share/iceweasel/distribution/searchplugins/locale/en-US/
+debian/tmp/usr/lib/iceweasel/searchplugins/* etc/iceweasel/searchplugins/locale/en-US/
 debian/tmp/usr/lib/iceweasel/icons usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/chrome usr/share/iceweasel
 debian/tmp/usr/lib/iceweasel/modules usr/share/iceweasel
@@ -21,8 +21,8 @@ build-browser/debian/branding/mozicon128.png usr/share/iceweasel/icons/
 debian/iceweasel.js etc/iceweasel/pref
 debian/vendor.js usr/share/iceweasel/defaults/preferences
 
-debian/debsearch.xml usr/share/iceweasel/distribution/searchplugins/common
-debian/duckduckgo.xml usr/share/iceweasel/distribution/searchplugins/common
+debian/debsearch.xml etc/iceweasel/searchplugins/common
+debian/duckduckgo.xml etc/iceweasel/searchplugins/common
 
 debian/tmp/usr/lib/iceweasel/extensions/\{972ce4c6-7e08-4474-a285-3208198ce6fd\} usr/lib/iceweasel/extensions
 

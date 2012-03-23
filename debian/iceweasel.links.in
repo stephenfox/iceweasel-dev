@@ -7,7 +7,7 @@
 /etc/iceweasel/pref /usr/share/iceweasel/defaults/syspref
 /etc/iceweasel/profile /usr/share/iceweasel/defaults/profile
 
-/usr/share/iceweasel/distribution /usr/lib/iceweasel/distribution
+/etc/iceweasel/searchplugins /usr/lib/iceweasel/distribution/searchplugins
 /usr/share/iceweasel/icons /usr/lib/iceweasel/icons
 /usr/share/iceweasel/chrome /usr/lib/iceweasel/chrome
 /usr/share/iceweasel/defaults /usr/lib/iceweasel/defaults

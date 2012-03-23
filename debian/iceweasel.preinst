@@ -4,4 +4,8 @@ if [ "$1" = "upgrade" ] || [ "$1" = "install" ] ; then
     dpkg-divert --package iceweasel --divert /usr/bin/firefox.real --rename /usr/bin/firefox
 fi
 
+if [ "$1" = "upgrade" ] && [ -L /usr/lib/iceweasel/distribution ]; then
+    rm /usr/lib/iceweasel/distribution
+fi
+
 #DEBHELPER#
