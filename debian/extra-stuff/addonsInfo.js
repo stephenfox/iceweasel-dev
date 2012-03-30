@@ -1,5 +1,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
@@ -16,44 +17,52 @@ dumper.prototype = {
 };
 
 function dump_addons(out) {
+  var addons = false;
   AddonManager.getAllAddons(function(aAddons) {
-    aAddons.sort(compare);
-    out.writeString("-- Extensions information\n");
-    aAddons.forEach(function(extension) {
-      if (extension.type == "plugin")
-        return;
-      out.writeString("Name: " + extension.name);
-      if (extension.type != "extension")
-        out.writeString(" " + extension.type);
-      out.writeString("\n");
-      if (extension.getResourceURI) {
-        var location = extension.getResourceURI("").QueryInterface(Ci.nsIFileURL).file;
-        if (extension.scope == AddonManager.SCOPE_PROFILE)
-          out.writeString("Location: ${PROFILE_EXTENSIONS}/" +
-                          location.leafName + "\n");
-        else
-          out.writeString("Location: " + location.path + "\n");
-      }
-      out.writeString("Status: " + (extension.appDisabled ? "app-disabled" :
-                                   (extension.userDisabled ? "user-disabled" :
-                                   "enabled")) + "\n");
-      out.writeString("\n");
-    });
+    addons = aAddons;
+  });
 
-    var phs = Cc["@mozilla.org/plugin/host;1"]
-              .getService(Ci.nsIPluginHost);
-    var plugins = phs.getPluginTags({ });
-    plugins.sort(compare);
-    out.writeString("-- Plugins information\n");
-    plugins.forEach(function(plugin) {
-      out.writeString("Name: " + plugin.name +
-             (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
-      out.writeString("Location: " +
-             (plugin.fullpath ? plugin.fullpath : plugin.filename) + "\n");
-      out.writeString("Status: " + (plugin.disabled ? "disabled" : "enabled") +
-                      (plugin.blocklisted ? " blocklisted" : "") + "\n");
-      out.writeString("\n");
-    });
+  var thread = Services.tm.currentThread;
+  while (addons == false) {
+    thread.processNextEvent(true);
+  }
+
+  addons.sort(compare);
+  out.writeString("-- Extensions information\n");
+  addons.forEach(function(extension) {
+    if (extension.type == "plugin")
+      return;
+    out.writeString("Name: " + extension.name);
+    if (extension.type != "extension")
+      out.writeString(" " + extension.type);
+    out.writeString("\n");
+    if (extension.getResourceURI) {
+      var location = extension.getResourceURI("").QueryInterface(Ci.nsIFileURL).file;
+      if (extension.scope == AddonManager.SCOPE_PROFILE)
+        out.writeString("Location: ${PROFILE_EXTENSIONS}/" +
+                        location.leafName + "\n");
+      else
+        out.writeString("Location: " + location.path + "\n");
+    }
+    out.writeString("Status: " + (extension.appDisabled ? "app-disabled" :
+                                 (extension.userDisabled ? "user-disabled" :
+                                 "enabled")) + "\n");
+    out.writeString("\n");
+  });
+
+  var phs = Cc["@mozilla.org/plugin/host;1"]
+            .getService(Ci.nsIPluginHost);
+  var plugins = phs.getPluginTags({ });
+  plugins.sort(compare);
+  out.writeString("-- Plugins information\n");
+  plugins.forEach(function(plugin) {
+    out.writeString("Name: " + plugin.name +
+           (plugin.version ? " (" + plugin.version + ")" : "") + "\n");
+    out.writeString("Location: " +
+           (plugin.fullpath ? plugin.fullpath : plugin.filename) + "\n");
+    out.writeString("Status: " + (plugin.disabled ? "disabled" : "enabled") +
+                    (plugin.blocklisted ? " blocklisted" : "") + "\n");
+    out.writeString("\n");
   });
 }
 
@@ -87,6 +96,7 @@ addonsInfoHandler.prototype = {
       out = new dumper();
 
     dump_addons(out);
+    out.close();
   },
 
   classDescription: "addonsInfoHandler",
