@@ -38,7 +38,8 @@
 #include "nsIDirectoryService.h"
 #include "DirectoryProvider.h"
 
-#include "nsIFile.h"
+#include "nsIXULAppInfo.h"
+#include "nsILocalFile.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -166,13 +167,22 @@ AppendFileKey(const char *key, nsIProperties* aDirSvc,
 static void
 AppendDistroSearchDirs(nsIProperties* aDirSvc, nsCOMArray<nsIFile> &array)
 {
-  nsCOMPtr<nsIFile> searchPlugins;
-  nsresult rv = aDirSvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                             NS_GET_IID(nsIFile),
-                             getter_AddRefs(searchPlugins));
+  nsCOMPtr<nsILocalFile> searchPlugins;
+  nsresult rv = NS_NewLocalFile(NS_LITERAL_STRING("/etc"), false,
+                                getter_AddRefs(searchPlugins));
   if (NS_FAILED(rv))
     return;
-  searchPlugins->AppendNative(NS_LITERAL_CSTRING("distribution"));
+  nsCOMPtr<nsIXULAppInfo> appInfo = do_GetService("@mozilla.org/xre/app-info;1");
+  if (!appInfo)
+    return;
+
+  nsCAutoString name;
+  rv = appInfo->GetName(name);
+  if (NS_FAILED(rv))
+    return;
+  ToLowerCase(name);
+
+  searchPlugins->AppendNative(name);
   searchPlugins->AppendNative(NS_LITERAL_CSTRING("searchplugins"));
 
   bool exists;
