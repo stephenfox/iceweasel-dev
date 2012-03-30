@@ -1,3 +1,19 @@
+iceweasel (11.0-4) experimental; urgency=low
+
+  * debian/branding/content/Makefile.in: Work around imagemagick svg support
+    broken by latest librsvg2-bin.
+  * debian/vendor.js: Default to en-US searchplugins when locale's aren't
+    found. Closes: #665817.
+  * debian/iceweasel.links.in, debian/iceweasel.preinst: Don't create
+    /usr/lib/iceweasel/distribution/searchplugins symlink.
+  * debian/extra-stuff/addonsInfo.js: Synchronously get addons list.
+  * debian/branding/aboutIce.js: Use Services.jsm in aboutIce.js.
+
+  * browser/components/dirprovider/DirectoryProvider.cpp: Load distribution
+    search plugins from /etc/<appname>/searchplugins.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 30 Mar 2012 19:22:56 +0200
+
 iceweasel (11.0-3) experimental; urgency=low
 
   * debian/extra-stuff/addonsInfo.js: Remove debugging info from
