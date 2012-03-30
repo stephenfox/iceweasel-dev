@@ -21,7 +21,7 @@ about-logo.png: ../iceweasel_icon.svg
 	rsvg-convert -w 210 -h 210 -o $@ $<
 
 about-wordmark.png: wordmark.xsl ../iceweasel_logo.svg
-	xsltproc $^ | convert - -trim -resize 180x38\> -size 180x38 xc:transparent +swap -gravity center -composite $@
+	xsltproc $^ | rsvg-convert | convert - -trim -resize 180x38\> -size 180x38 xc:transparent +swap -gravity center -composite $@
 
 icon64.png: ../default64.png
 icon48.png: ../default48.png
