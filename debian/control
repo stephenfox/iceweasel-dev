@@ -45,7 +45,6 @@ Build-Depends: autotools-dev,
                imagemagick,
                librsvg2-bin,
                xsltproc,
-               lsb-release
 Build-Conflicts: graphicsmagick-imagemagick-compat,
                  liboss4-salsa-dev,
                  libhildonmime-dev,
