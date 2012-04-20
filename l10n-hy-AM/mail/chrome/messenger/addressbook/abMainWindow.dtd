@@ -111,14 +111,14 @@ because displayed names don't have the comma in between. -->
 <!ENTITY tasksMenu.accesskey                            "T">
 <!ENTITY messengerCmd.label                             "&amp; Նորություններ">
 <!ENTITY messengerCmd.accesskey                         "M">
-<!ENTITY messengerCmd.commandkey                        "&">
+<!ENTITY messengerCmd.commandkey                        "1">
 <!ENTITY searchAddressesCmd.label                       "Փնտրել հասցեներ...">
 <!ENTITY searchAddressesCmd.accesskey                   "S">
 <!ENTITY importCmd.label                                "Ներմուծել…">
 <!ENTITY importCmd.accesskey                            "I">
 <!ENTITY exportCmd.label                                "Արտահանել...">
 <!ENTITY exportCmd.accesskey                            "E">
-<!ENTITY preferencesCmd.label                           "Ընտրանքներ">
+<!ENTITY preferencesCmd.label                           "Ընտրանքներ...">
 <!ENTITY preferencesCmd.accesskey                       "O">
 <!ENTITY preferencesCmdUnix.label                       "Կարգավորումներ…">
 <!ENTITY preferencesCmdUnix.accesskey                   "n">
@@ -212,4 +212,3 @@ because displayed names don't have the comma in between. -->
 <!ENTITY minimizeWindow.key "Թ">
 <!ENTITY bringAllToFront.label "Բոլորից առջև">
 <!ENTITY zoomWindow.label "Խոշորացնել">
-

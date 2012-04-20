@@ -39,3 +39,23 @@
 <!ENTITY lightning.toolbar.task.name "Barra degli strumenti delle attività">
 <!ENTITY lightning.toolbar.task.accesskey "A">
 <!ENTITY lightning.toolbar.sync.label "Sincronizza">
+<!ENTITY lightning.toolbar.delete.label "Elimina">
+<!ENTITY lightning.toolbar.edit.label "Modifica">
+<!ENTITY lightning.toolbar.gototoday.label "Vai a Oggi">
+<!ENTITY lightning.toolbar.print.label "Stampa">
+<!ENTITY lightning.toolbar.mail.label "Posta">
+<!ENTITY lightning.toolbar.mail.accesskey "P">
+<!ENTITY lightning.toolbar.calendar.label "Calendario">
+<!ENTITY lightning.toolbar.calendar.tooltip "Passa alla scheda del calendario">
+<!ENTITY lightning.toolbar.task.label "Attività">
+<!ENTITY lightning.toolbar.task.tooltip "Passa alla scheda delle attività">
+<!ENTITY lightning.toolbar.newevent.label "Evento">
+<!ENTITY lightning.toolbar.newtask.label "Attività">
+<!ENTITY lightning.toolbar.day.label "Giorno">
+<!ENTITY lightning.toolbar.day.accesskey "G">
+<!ENTITY lightning.toolbar.week.label "Settimana">
+<!ENTITY lightning.toolbar.week.accesskey "S">
+<!ENTITY lightning.toolbar.multiweek.label "Multi-settimana">
+<!ENTITY lightning.toolbar.multiweek.accesskey "u">
+<!ENTITY lightning.toolbar.month.label "Mese">
+<!ENTITY lightning.toolbar.month.accesskey "M">

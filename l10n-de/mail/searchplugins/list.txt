@@ -1,5 +1,5 @@
 amazondotcom-de
-bing-de
+bing
 eBay-de
 twitter-de
 wikipedia-de

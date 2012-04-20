@@ -1,4 +1,4 @@
-<!ENTITY lookInMenuList.label   "Sprôwdzë w:">
+<!ENTITY lookInMenuList.label   "Sprawdzë w:">
 <!ENTITY lookInMenuList.accesskey   "S">
 <!ENTITY textInput.label        "Miono lopka">
 <!ENTITY textInput.accesskey        "n">
@@ -14,4 +14,4 @@
 
 <!ENTITY folderUp.tooltiptext   "Do górë">
 <!ENTITY folderHome.tooltiptext "Domôcy katalog">
-<!ENTITY folderNew.tooltiptext  "Ùsôdzë nowi katalog">
+<!ENTITY folderNew.tooltiptext  "Ùsadzë nowi katalog">

@@ -68,11 +68,13 @@
 <!ENTITY pasteCmd.accesskey "P">
 <!ENTITY pasteNoFormattingCmd.key "V">
 <!ENTITY pasteAsQuotationCmd.key "o">
+<!ENTITY editRewrapCmd.accesskey "w">
+<!ENTITY deleteCmd.label "刪除">
+<!ENTITY deleteCmd.accesskey "D">
 <!ENTITY editRewrapCmd.label "重新斷行">
 <!ENTITY editRewrapCmd.key "R">
-<!ENTITY editRewrapCmd.accesskey "w">
-<!ENTITY deleteCmd.label "刪除項目">
-<!ENTITY deleteCmd.accesskey "D">
+<!ENTITY renameAttachmentCmd.label "重新命名附件…">
+<!ENTITY renameAttachmentCmd.accesskey "e">
 <!ENTITY selectAllCmd.label "全選">
 <!ENTITY selectAllCmd.key "A">
 <!ENTITY selectAllCmd.accesskey "A"> 
@@ -243,7 +245,7 @@
 <!ENTITY spellCheckNoSuggestions.label "找不到任何建議">
 <!ENTITY spellCheckIgnoreWord.label "忽略單字">
 <!ENTITY spellCheckIgnoreWord.accesskey "I">
-<!ENTITY spellCheckAddToDictionary.label "加入字典">
+<!ENTITY spellCheckAddToDictionary.label "新增到字典">
 <!ENTITY spellCheckAddToDictionary.accesskey "n">
 <!ENTITY undo.label "復原">
 <!ENTITY undo.accesskey "U">
@@ -258,7 +260,7 @@
 
 <!ENTITY openAttachment.label "開啟">
 <!ENTITY openAttachment.accesskey "O">
-<!ENTITY delete.label "刪除項目">
+<!ENTITY delete.label "刪除">
 <!ENTITY delete.accesskey "D">
 <!ENTITY removeAttachment.label "移除附加檔案">
 <!ENTITY removeAttachment.accesskey "m">

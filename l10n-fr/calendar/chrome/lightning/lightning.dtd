@@ -74,30 +74,6 @@
 <!ENTITY lightning.menu.eventtask.label                "Événements et tâches">
 <!ENTITY lightning.menu.eventtask.accesskey            "v">
 
-<!-- Mode Toolbar -->
-<!ENTITY lightning.toolbar.mail.label         "Courrier">
-<!ENTITY lightning.toolbar.mail.accesskey     "C">
-<!ENTITY lightning.toolbar.calendar.label     "Agenda">
-<!ENTITY lightning.toolbar.calendar.tooltip   "Aller à l'onglet d'agenda">
-<!ENTITY lightning.toolbar.calendar.accesskey "A">
-<!ENTITY lightning.toolbar.task.label         "Tâches">
-<!ENTITY lightning.toolbar.task.tooltip       "Aller à l'onglet des tâches">
-<!ENTITY lightning.toolbar.task.accesskey     "T">
-
-<!-- Toolbar write button -->
-<!ENTITY lightning.toolbar.newevent.label     "Événement">
-<!ENTITY lightning.toolbar.newtask.label      "Tâche">
-
-<!-- Messenger Toolbar -->
-<!ENTITY lightning.toolbar.day.label "Journée">
-<!ENTITY lightning.toolbar.day.accesskey "J">
-<!ENTITY lightning.toolbar.week.label "Semaine">
-<!ENTITY lightning.toolbar.week.accesskey "S">
-<!ENTITY lightning.toolbar.multiweek.label "Multisemaine">
-<!ENTITY lightning.toolbar.multiweek.accesskey "a">
-<!ENTITY lightning.toolbar.month.label "Mois">
-<!ENTITY lightning.toolbar.month.accesskey "M">
-
 <!-- properties dialog, calendar creation wizard -->
 <!ENTITY lightning.calendarproperties.showevents.inagenda.label "Afficher les événements dans le panneau « Aujourd'hui »">
 <!ENTITY lightning.calendarproperties.showtasks.label           "Afficher les tâches dans le panneau « Aujourd'hui » et dans le mode « Tâche »">

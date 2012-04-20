@@ -22,9 +22,6 @@
 <!ENTITY importButton.accesskey     "ι">
 <!ENTITY importButton.commandkey    "i">
 
-
-
-
 <!ENTITY visibilityToggle.tooltip   "Εναλλαγή ορατότητας style sheet">
 <!ENTITY visibilityToggle.accesskey "ρ">
 
@@ -55,3 +52,5 @@
 
 <!-- LOCALIZATION NOTE  (closeCmd.key): Accel + this key closes the window. -->
 <!ENTITY closeCmd.key                  "W">
+
+

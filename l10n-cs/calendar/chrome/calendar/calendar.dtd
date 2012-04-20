@@ -64,6 +64,7 @@
 <!ENTITY calendar.events.filter.today.label "Dnešní události">
 <!ENTITY calendar.events.filter.future.label "Všechny budoucí události">
 <!ENTITY calendar.events.filter.current.label "Právě vybraný den">
+<!ENTITY calender.events.filter.currentview.label "Události v aktuálním pohledu">
 <!ENTITY calendar.events.filter.next7Days.label "Události příštích 7 dnů">
 <!ENTITY calendar.events.filter.next14Days.label "Události příštích 14 dnů">
 <!ENTITY calendar.events.filter.next31Days.label "Události příštích 31 dnů">
@@ -179,6 +180,10 @@
 <!ENTITY calendar.task.complete.button.tooltip "Označí úkol za dokončený">
 <!ENTITY calendar.task.priority.button.tooltip "Změní prioritu úkolu">
 
+<!ENTITY calendar.task.text-filter.textbox.emptytext.base "Filtrovat úkoly… #1">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.nonmac "&lt;Ctrl+Shift+K&gt;">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.mac "&lt;&#x21E7;&#x2318;K&gt;">
+
 <!-- Statusbar -->
 <!ENTITY statusText.label "Dokument: Hotovo">
 
@@ -213,6 +218,8 @@
 <!ENTITY calendar.context.progress.accesskey "P">
 <!ENTITY calendar.context.priority.label "Priorita">
 <!ENTITY calendar.context.priority.accesskey "r">
+<!ENTITY calendar.context.postpone.label "Odložit úkol">
+<!ENTITY calendar.context.postpone.accesskey "O">
 
 <!ENTITY percnt "&#38;#37;" ><!--=percent sign-->
 
@@ -238,6 +245,13 @@
 <!ENTITY priority.level.normal.accesskey "N">
 <!ENTITY priority.level.high "Vysoká">
 <!ENTITY priority.level.high.accesskey "V">
+
+<!ENTITY calendar.context.postpone.1hour.label "O 1 hodinu">
+<!ENTITY calendar.context.postpone.1hour.accesskey "h">
+<!ENTITY calendar.context.postpone.1day.label "O 1 den">
+<!ENTITY calendar.context.postpone.1day.accesskey "d">
+<!ENTITY calendar.context.postpone.1week.label "O 1 týden">
+<!ENTITY calendar.context.postpone.1week.accesskey "t">
 
 <!-- Task View -->
 <!-- Note that the above *.context.* strings are currently used for the other

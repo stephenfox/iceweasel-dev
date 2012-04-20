@@ -17,10 +17,13 @@
 <!ENTITY deleteCmd.label "Rëmôj">
 <!ENTITY deleteCmd.accesskey "R">
 
-<!ENTITY spellAddToDictionary.label "Dodôj do słowôrza">
+<!ENTITY spellAddToDictionary.label "Dodôj do słowarza">
 <!ENTITY spellAddToDictionary.accesskey "D">
-<!ENTITY spellCheckEnable.label "Sprôwdzë pisënk">
+<!ENTITY spellCheckEnable.label "Sprawdzë pisënk">
 <!ENTITY spellCheckEnable.accesskey "S">
-<!ENTITY spellNoSuggestions.label "(felënk sugestëji)">
+<!ENTITY spellNoSuggestions.label "(felënk sugestiów)">
 <!ENTITY spellDictionaries.label "Jãzëczi">
 <!ENTITY spellDictionaries.accesskey "J">
+
+<!ENTITY spellUndoAddToDictionary.accesskey "n"> 
+<!ENTITY spellUndoAddToDictionary.label "Copni dodôj do katalogù"> 

@@ -59,6 +59,7 @@
 <!ENTITY calendar.events.filter.today.label "Eventi di oggi">
 <!ENTITY calendar.events.filter.future.label "Tutti gli eventi futuri">
 <!ENTITY calendar.events.filter.current.label "Giorno selezionato">
+<!ENTITY calender.events.filter.currentview.label "Eventi nella vista corrente">
 <!ENTITY calendar.events.filter.next7Days.label "Eventi nei prossimi 7 giorni">
 <!ENTITY calendar.events.filter.next14Days.label "Eventi nei prossimi 14 giorni">
 <!ENTITY calendar.events.filter.next31Days.label "Eventi nei prossimi 31 giorni">
@@ -153,6 +154,9 @@
 <!ENTITY calendar.task.category.button.tooltip "Assegna una categoria alle attività">
 <!ENTITY calendar.task.complete.button.tooltip "Segna le attività selezionate come completate">
 <!ENTITY calendar.task.priority.button.tooltip "Cambia la priorità">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.base "Filtra attività… #1">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.nonmac "&lt;Ctrl+Shift+K&gt;">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.mac "&lt;⇧⌘K&gt;">
 <!ENTITY statusText.label "Documento: fatto">
 <!ENTITY calendar.context.modifyorviewitem.label "Apri">
 <!ENTITY calendar.context.modifyorviewitem.accesskey "A">
@@ -182,6 +186,8 @@
 <!ENTITY calendar.context.progress.accesskey "r">
 <!ENTITY calendar.context.priority.label "Priorità">
 <!ENTITY calendar.context.priority.accesskey "P">
+<!ENTITY calendar.context.postpone.label "Posponi attività">
+<!ENTITY calendar.context.postpone.accesskey "P">
 <!ENTITY percnt "&#037;">
 <!ENTITY calendar.context.markcompleted.label "Completata">
 <!ENTITY calendar.context.markcompleted.accesskey "o">
@@ -203,6 +209,12 @@
 <!ENTITY priority.level.normal.accesskey "N">
 <!ENTITY priority.level.high "Alta">
 <!ENTITY priority.level.high.accesskey "A">
+<!ENTITY calendar.context.postpone.1hour.label "1 ora">
+<!ENTITY calendar.context.postpone.1hour.accesskey "o">
+<!ENTITY calendar.context.postpone.1day.label "1 giorno">
+<!ENTITY calendar.context.postpone.1day.accesskey "n">
+<!ENTITY calendar.context.postpone.1week.label "1 settimana">
+<!ENTITY calendar.context.postpone.1week.accesskey "s">
 <!ENTITY calendar.taskview.delete.label "Elimina">
 <!ENTITY calendar.taskview.delete.accesskey "E">
 <!ENTITY calendar.context.newserver.label "Nuovo calendario…">
