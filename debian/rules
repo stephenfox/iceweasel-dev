@@ -1,9 +1,9 @@
 #!/usr/bin/make -f
 ifeq (,$(shell dh_testdir || echo no))
 include debian/make.mk
-DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
-DEB_BUILD_ARCH  ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
+$(call lazy,DEB_HOST_GNU_TYPE,$$(shell dpkg-architecture -qDEB_HOST_GNU_TYPE))
+$(call lazy,DEB_BUILD_GNU_TYPE,$$(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE))
+$(call lazy,DEB_BUILD_ARCH,$$(shell dpkg-architecture -qDEB_BUILD_ARCH))
 
 PYTHON := python -B
 
@@ -68,7 +68,8 @@ CXX := g++
 endif
 CXXFLAGS := $(CFLAGS)
 
-export CC CXX CFLAGS CXXFLAGS
+EXPORTS := CC CXX CFLAGS CXXFLAGS
+$(call lazy,CONFIGURE_ENV,$$(foreach export,$(EXPORTS),$$(export)="$$($$(export))"))
 
 GENERATED_FILES += debian/dh/dh_xulrunner.1
 
@@ -88,9 +89,9 @@ $(foreach f,$(IN_FILES),$(eval $(call preprocess, $(f))))
 GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
 debian/control: debian/rules debian/changelog debian/l10n/iceweasel-l10n.control
 
-L10N_PACKAGES = $(foreach lang,$(L10N_LANGS),$(shell echo iceweasel-l10n-$(lang) | tr A-Z a-z))
-L10N_PACKAGES_CONTROLS = $(foreach pkg,$(L10N_PACKAGES),debian/l10n/$(pkg).control)
-L10N_PACKAGES_DEPS = $(shell echo $(L10N_PACKAGES) | sed 's/ /, /g')
+$(call lazy,L10N_PACKAGES,$$(foreach lang,$$(L10N_LANGS),iceweasel-l10n-$$(call lc,$$(lang))))
+$(call lazy,L10N_PACKAGES_CONTROLS,$$(foreach pkg,$$(L10N_PACKAGES),debian/l10n/$$(pkg).control))
+$(call lazy,L10N_PACKAGES_DEPS,$$(shell echo $$(L10N_PACKAGES) | sed 's/ /, /g'))
 REMOVE_L10N_PACKAGES_CONTROLS = $(foreach ctrl,$(filter-out $(L10N_PACKAGES_CONTROLS),$(wildcard debian/l10n/iceweasel-l10n-*.control)),$(ctrl)-rm)
 
 $(REMOVE_L10N_PACKAGES_CONTROLS): %-rm:
@@ -135,6 +136,7 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	cd build-xulrunner && \
 	MOZCONFIG=$(CURDIR)/debian/xulrunner.mozconfig \
 	ASFLAGS="-g" \
+	$(CONFIGURE_ENV) \
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-default-mozilla-five-home=/usr/lib/xulrunner-$(GRE_VERSION)
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
@@ -172,6 +174,7 @@ stamps/configure-browser:: stamps/build-xulrunner-extra
 	$(if $(wildcard build-browser),,mkdir build-browser)
 	cd build-browser && \
 	MOZCONFIG=$(CURDIR)/debian/iceweasel.mozconfig \
+	$(CONFIGURE_ENV) \
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-system-libxul --with-system-nspr --with-system-nss
@@ -283,8 +286,8 @@ L10N_DH_INSTALL_STAMPS = $(foreach lang,$(L10N_LANGS),stamps/dh_install-l10n-$(l
 stamps/dh_install-l10n:: $(L10N_DH_INSTALL_STAMPS)
 
 $(L10N_DH_INSTALL_STAMPS):: stamps/dh_install-l10n-%: stamps/build-l10n-%
-	dh_install -piceweasel-l10n-$(shell echo $* | tr A-Z a-z) build-browser/dist/xpi/langpack-$*@iceweasel.mozilla.org.xpi usr/lib/iceweasel/extensions/
-	dh_install -piceweasel-l10n-$(shell echo $* | tr A-Z a-z) build-browser/dist/xpi-stage/locale-$*/searchplugins/* /etc/iceweasel/searchplugins/locale/$*/
+	dh_install -piceweasel-l10n-$(call lc,$*) build-browser/dist/xpi/langpack-$*@iceweasel.mozilla.org.xpi usr/lib/iceweasel/extensions/
+	dh_install -piceweasel-l10n-$(call lc,$*) build-browser/dist/xpi-stage/locale-$*/searchplugins/* /etc/iceweasel/searchplugins/locale/$*/
 
 stamps/dh_install:: debian/dh/dh_xulrunner debian/noinstall build-xulrunner/dist/bin/npapi_getinfo
 	awk '{print "debian/tmp/" $$1 }' < debian/noinstall | xargs rm -r

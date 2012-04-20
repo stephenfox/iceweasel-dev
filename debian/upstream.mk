@@ -10,7 +10,7 @@
 # 4.0b5    -> 4.0~b5
 # That should ensure the proper ordering
 VERSION_FILTER := sed 's/\([0-9]\)\([ab]\)/\1~\2/g'
-UPSTREAM_VERSION := $(shell cat $(PRODUCT)/config/version.txt)
+$(call lazy,UPSTREAM_VERSION,$$(shell cat $(PRODUCT)/config/version.txt))
 GRE_SRCDIR := $(strip $(foreach dir,. mozilla,$(if $(wildcard $(dir)/config/milestone.pl),$(dir))))
 ifndef GRE_SRCDIR
 $(error Could not determine the top directory for GRE codebase)
@@ -88,16 +88,16 @@ BASE_URL = ftp://ftp.mozilla.org/pub/mozilla.org/$(PRODUCT_NAME)/$(SOURCE_TYPE)
 
 L10N_FILTER = awk '(NF == 1 || /linux/) && $$1 != "en-US" { print $$1 }'
 ifneq ($(SOURCE_CHANNEL),$(REPO_PREFIX)-central)
-L10N_LANGS = $(shell $(L10N_FILTER) $(PRODUCT)/locales/shipped-locales)
+$(call lazy,L10N_LANGS,$$(shell $$(L10N_FILTER) $(PRODUCT)/locales/shipped-locales))
 endif
 ifeq ($(SOURCE_TYPE),releases)
 SOURCE_URL = $(BASE_URL)/$(SOURCE_VERSION)/source/$(PRODUCT_NAME)-$(SOURCE_VERSION).source.tar.bz2
-SOURCE_REV = $(shell echo $(PRODUCT_NAME) | tr a-z A-Z)_$(subst .,_,$(SOURCE_VERSION))_RELEASE
+SOURCE_REV = $(call uc,$(PRODUCT_NAME))_$(subst .,_,$(SOURCE_VERSION))_RELEASE
 L10N_REV = $(SOURCE_REV)
 SOURCE_REPO = http://hg.mozilla.org/releases/$(SOURCE_CHANNEL)
 else
 ifeq ($(SOURCE_TYPE),nightly)
-LATEST_NIGHTLY = $(if $(_LATEST_NIGHTLY),,$(eval _LATEST_NIGHTLY := $(shell $(PYTHON) debian/latest_nightly.py $(BASE_URL)/latest-$(SOURCE_CHANNEL))))$(_LATEST_NIGHTLY)
+$(call lazy,LATEST_NIGHTLY,$$(shell $$(PYTHON) debian/latest_nightly.py $(BASE_URL)/latest-$(SOURCE_CHANNEL)))
 SOURCE_BUILD_DATE = $(firstword $(LATEST_NIGHTLY))
 SOURCE_URL = $(subst /rev/,/archive/,$(word 2, $(LATEST_NIGHTLY))).tar.bz2
 SOURCE_REV = $(patsubst %.tar.bz2,%,$(notdir $(SOURCE_URL)))
@@ -109,7 +109,7 @@ endif
 ifneq (,$(filter download,$(MAKECMDGOALS)))
 ifneq ($(SOURCE_CHANNEL),$(REPO_PREFIX)-central)
 ifneq (,$(filter-out $(VERSION),$(UPSTREAM_RELEASE))$(filter $(SOURCE_CHANNEL),$(REPO_PREFIX)-aurora))
-L10N_LANGS := $(shell curl -s $(SOURCE_REPO)/raw-file/$(SOURCE_REV)/$(PRODUCT)/locales/shipped-locales | $(L10N_FILTER))
+$(call lazy,L10N_LANGS,$$(shell curl -s $(SOURCE_REPO)/raw-file/$(SOURCE_REV)/$(PRODUCT)/locales/shipped-locales | $$(L10N_FILTER)))
 endif
 L10N_TARBALLS = $(foreach lang,$(L10N_LANGS),$(SOURCE_TARBALL_LOCATION)/$(SOURCE_TARBALL:%.orig.tar.bz2=%.orig-l10n-$(lang).tar.bz2))
 endif
