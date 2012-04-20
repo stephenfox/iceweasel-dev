@@ -1,6 +1,10 @@
 #!/usr/bin/make -f
 ifeq (,$(shell dh_testdir || echo no))
 include debian/make.mk
+$(call lazy,DEB_CFLAGS_MAINT_STRIP,$$(shell DEB_BUILD_MAINT_OPTIONS=hardening=-all dpkg-buildflags --get CFLAGS))
+$(call lazy,CFLAGS,$$(shell DEB_BUILD_MAINT_OPTIONS=hardening=-relro DEB_CFLAGS_MAINT_STRIP="$$(DEB_CFLAGS_MAINT_STRIP)" dpkg-buildflags --get CFLAGS))
+$(call lazy,CPPFLAGS,$$(shell dpkg-buildflags --get CPPFLAGS))
+
 $(call lazy,DEB_HOST_GNU_TYPE,$$(shell dpkg-architecture -qDEB_HOST_GNU_TYPE))
 $(call lazy,DEB_BUILD_GNU_TYPE,$$(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE))
 $(call lazy,DEB_BUILD_ARCH,$$(shell dpkg-architecture -qDEB_BUILD_ARCH))
@@ -66,9 +70,9 @@ endif
 ifeq (default,$(origin CXX))
 CXX := g++
 endif
-CXXFLAGS := $(CFLAGS)
+CXXFLAGS = $(CFLAGS)
 
-EXPORTS := CC CXX CFLAGS CXXFLAGS
+EXPORTS := CC CXX CFLAGS CXXFLAGS CPPFLAGS
 $(call lazy,CONFIGURE_ENV,$$(foreach export,$(EXPORTS),$$(export)="$$($$(export))"))
 
 GENERATED_FILES += debian/dh/dh_xulrunner.1
