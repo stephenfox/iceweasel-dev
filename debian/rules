@@ -16,6 +16,7 @@ PRODUCT_NAME := firefox
 include debian/upstream.mk
 
 OFFICIAL_BRANDING := browser/branding/official
+BRANDING := debian/branding
 
 # Betas and Releases need to set MOZ_UA_BUILDID
 ifeq (,$(word 2,$(subst ~a, ,$(UPSTREAM_RELEASE))))
@@ -177,6 +178,7 @@ stamps/configure-browser:: stamps/build-xulrunner-extra
 	$(CONFIGURE_ENV) \
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
+		--with-branding=$(BRANDING) \
 		--with-system-libxul --with-system-nspr --with-system-nss
 	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-browser/config/autoconf.mk
 
