@@ -95,18 +95,10 @@ GENERATED_FILES += $(filter-out debian/control,$(PREPROCESSED_FILES))
 debian/control: debian/rules debian/changelog debian/l10n/iceweasel-l10n.control
 
 $(call lazy,L10N_PACKAGES,$$(foreach lang,$$(L10N_LANGS),iceweasel-l10n-$$(call lc,$$(lang))))
-$(call lazy,L10N_PACKAGES_CONTROLS,$$(foreach pkg,$$(L10N_PACKAGES),debian/l10n/$$(pkg).control))
 $(call lazy,L10N_PACKAGES_DEPS,$$(shell echo $$(L10N_PACKAGES) | sed 's/ /, /g'))
-REMOVE_L10N_PACKAGES_CONTROLS = $(foreach ctrl,$(filter-out $(L10N_PACKAGES_CONTROLS),$(wildcard debian/l10n/iceweasel-l10n-*.control)),$(ctrl)-rm)
 
-$(REMOVE_L10N_PACKAGES_CONTROLS): %-rm:
-	rm $*
-
-debian/l10n/iceweasel-l10n.control: $(L10N_PACKAGES_CONTROLS) $(REMOVE_L10N_PACKAGES_CONTROLS)
-	@($(foreach file,$(L10N_PACKAGES_CONTROLS),echo;echo "%include $(notdir $(file))";)) > $@
-
-$(L10N_PACKAGES_CONTROLS): debian/l10n/iceweasel-l10n-%.control: debian/l10n/iceweasel-l10n.control.in
-	$(PYTHON) config/Preprocessor.py --marker % -Fsubstitution -DL10N_LANG=$* -DL10N_LANGUAGE="${shell isoquery -n -i $(if $(shell isoquery -n -i 639-3 $(firstword $(subst -, ,$*)) 2> /dev/null),639-3,639) $(firstword $(subst -, ,$*)) | awk -F\\t '{print $$NF}' | awk -F' *[(;]' '{print $$1}' | awk -F', ' '$$2 {print $$2,$$1} !$$2 {print $$1}'}$(if $(word 2,$(subst -, ,$*)), ($(shell isoquery -n -i 3166 $(word 2,$(subst -, ,$*)) | awk -F[\\t,] '{print $$4}')))" -DL10N_RECOMMENDS="$(shell awk -F': *' '$$1 == "$*" {print $$2}' debian/l10n/recommends)" $< > $@
+debian/l10n/iceweasel-l10n.control: %: %.in
+	$(PYTHON) debian/l10n/gen $(L10N_LANGS) > $@
 
 DICT_DIR := /usr/share/hunspell
 

@@ -1,170 +1,425 @@
 
-%include iceweasel-l10n-af.control
-
-%include iceweasel-l10n-ak.control
-
-%include iceweasel-l10n-ar.control
-
-%include iceweasel-l10n-as.control
-
-%include iceweasel-l10n-ast.control
-
-%include iceweasel-l10n-be.control
-
-%include iceweasel-l10n-bg.control
-
-%include iceweasel-l10n-bn-bd.control
-
-%include iceweasel-l10n-bn-in.control
-
-%include iceweasel-l10n-br.control
-
-%include iceweasel-l10n-bs.control
-
-%include iceweasel-l10n-ca.control
-
-%include iceweasel-l10n-cs.control
-
-%include iceweasel-l10n-csb.control
-
-%include iceweasel-l10n-cy.control
-
-%include iceweasel-l10n-da.control
-
-%include iceweasel-l10n-de.control
-
-%include iceweasel-l10n-el.control
-
-%include iceweasel-l10n-en-gb.control
-
-%include iceweasel-l10n-en-za.control
-
-%include iceweasel-l10n-eo.control
-
-%include iceweasel-l10n-es-ar.control
-
-%include iceweasel-l10n-es-cl.control
-
-%include iceweasel-l10n-es-es.control
-
-%include iceweasel-l10n-es-mx.control
-
-%include iceweasel-l10n-et.control
-
-%include iceweasel-l10n-eu.control
-
-%include iceweasel-l10n-fa.control
-
-%include iceweasel-l10n-fi.control
-
-%include iceweasel-l10n-fr.control
-
-%include iceweasel-l10n-fy-nl.control
-
-%include iceweasel-l10n-ga-ie.control
-
-%include iceweasel-l10n-gd.control
-
-%include iceweasel-l10n-gl.control
-
-%include iceweasel-l10n-gu-in.control
-
-%include iceweasel-l10n-he.control
-
-%include iceweasel-l10n-hi-in.control
-
-%include iceweasel-l10n-hr.control
-
-%include iceweasel-l10n-hu.control
-
-%include iceweasel-l10n-hy-am.control
-
-%include iceweasel-l10n-id.control
-
-%include iceweasel-l10n-is.control
-
-%include iceweasel-l10n-it.control
-
-%include iceweasel-l10n-ja.control
-
-%include iceweasel-l10n-kk.control
-
-%include iceweasel-l10n-kn.control
-
-%include iceweasel-l10n-ko.control
-
-%include iceweasel-l10n-ku.control
-
-%include iceweasel-l10n-lg.control
-
-%include iceweasel-l10n-lij.control
-
-%include iceweasel-l10n-lt.control
-
-%include iceweasel-l10n-lv.control
-
-%include iceweasel-l10n-mai.control
-
-%include iceweasel-l10n-mk.control
-
-%include iceweasel-l10n-ml.control
-
-%include iceweasel-l10n-mr.control
-
-%include iceweasel-l10n-nb-no.control
-
-%include iceweasel-l10n-nl.control
-
-%include iceweasel-l10n-nn-no.control
-
-%include iceweasel-l10n-nso.control
-
-%include iceweasel-l10n-or.control
-
-%include iceweasel-l10n-pa-in.control
-
-%include iceweasel-l10n-pl.control
-
-%include iceweasel-l10n-pt-br.control
-
-%include iceweasel-l10n-pt-pt.control
-
-%include iceweasel-l10n-rm.control
-
-%include iceweasel-l10n-ro.control
-
-%include iceweasel-l10n-ru.control
-
-%include iceweasel-l10n-si.control
-
-%include iceweasel-l10n-sk.control
-
-%include iceweasel-l10n-sl.control
-
-%include iceweasel-l10n-son.control
-
-%include iceweasel-l10n-sq.control
-
-%include iceweasel-l10n-sr.control
-
-%include iceweasel-l10n-sv-se.control
-
-%include iceweasel-l10n-ta.control
-
-%include iceweasel-l10n-ta-lk.control
-
-%include iceweasel-l10n-te.control
-
-%include iceweasel-l10n-th.control
-
-%include iceweasel-l10n-tr.control
-
-%include iceweasel-l10n-uk.control
-
-%include iceweasel-l10n-vi.control
-
-%include iceweasel-l10n-zh-cn.control
-
-%include iceweasel-l10n-zh-tw.control
-
-%include iceweasel-l10n-zu.control
+%define L10N_LANG af
+%define L10N_LANGUAGE Afrikaans
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ak
+%define L10N_LANGUAGE Akan
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ar
+%define L10N_LANGUAGE Arabic
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG as
+%define L10N_LANGUAGE Assamese
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ast
+%define L10N_LANGUAGE Asturian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG be
+%define L10N_LANGUAGE Belarusian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG bg
+%define L10N_LANGUAGE Bulgarian
+%define L10N_RECOMMENDS myspell-bg
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG bn-bd
+%define L10N_LANGUAGE Bengali (Bangladesh)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG bn-in
+%define L10N_LANGUAGE Bengali (India)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG br
+%define L10N_LANGUAGE Breton
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG bs
+%define L10N_LANGUAGE Bosnian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ca
+%define L10N_LANGUAGE Catalan
+%define L10N_RECOMMENDS myspell-ca
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG cs
+%define L10N_LANGUAGE Czech
+%define L10N_RECOMMENDS myspell-cs-cz
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG csb
+%define L10N_LANGUAGE Kashubian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG cy
+%define L10N_LANGUAGE Welsh
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG da
+%define L10N_LANGUAGE Danish
+%define L10N_RECOMMENDS myspell-da
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG de
+%define L10N_LANGUAGE German
+%define L10N_RECOMMENDS myspell-de-de | myspell-de-at | myspell-de-ch
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG el
+%define L10N_LANGUAGE Modern Greek
+%define L10N_RECOMMENDS myspell-el-gr
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG en-gb
+%define L10N_LANGUAGE English (United Kingdom)
+%define L10N_RECOMMENDS myspell-en-gb | myspell-en-us
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG en-za
+%define L10N_LANGUAGE English (South Africa)
+%define L10N_RECOMMENDS myspell-en-gb | myspell-en-us
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG eo
+%define L10N_LANGUAGE Esperanto
+%define L10N_RECOMMENDS myspell-eo
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG es-ar
+%define L10N_LANGUAGE Spanish (Argentina)
+%define L10N_RECOMMENDS myspell-es
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG es-cl
+%define L10N_LANGUAGE Spanish (Chile)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG es-es
+%define L10N_LANGUAGE Spanish (Spain)
+%define L10N_RECOMMENDS myspell-es
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG es-mx
+%define L10N_LANGUAGE Spanish (Mexico)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG et
+%define L10N_LANGUAGE Estonian
+%define L10N_RECOMMENDS myspell-et
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG eu
+%define L10N_LANGUAGE Basque
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG fa
+%define L10N_LANGUAGE Persian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG fi
+%define L10N_LANGUAGE Finnish
+%define L10N_RECOMMENDS xul-ext-mozvoikko
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG fr
+%define L10N_LANGUAGE French
+%define L10N_RECOMMENDS myspell-fr | myspell-fr-gut
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG fy-nl
+%define L10N_LANGUAGE Western Frisian (Netherlands)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ga-ie
+%define L10N_LANGUAGE Irish (Ireland)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG gd
+%define L10N_LANGUAGE Scottish Gaelic
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG gl
+%define L10N_LANGUAGE Galician
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG gu-in
+%define L10N_LANGUAGE Gujarati (India)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG he
+%define L10N_LANGUAGE Hebrew
+%define L10N_RECOMMENDS myspell-he
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG hi-in
+%define L10N_LANGUAGE Hindi (India)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG hr
+%define L10N_LANGUAGE Croatian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG hu
+%define L10N_LANGUAGE Hungarian
+%define L10N_RECOMMENDS myspell-hu
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG hy-am
+%define L10N_LANGUAGE Armenian (Armenia)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG id
+%define L10N_LANGUAGE Indonesian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG is
+%define L10N_LANGUAGE Icelandic
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG it
+%define L10N_LANGUAGE Italian
+%define L10N_RECOMMENDS myspell-it
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ja
+%define L10N_LANGUAGE Japanese
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG kk
+%define L10N_LANGUAGE Kazakh
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG kn
+%define L10N_LANGUAGE Kannada
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ko
+%define L10N_LANGUAGE Korean
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ku
+%define L10N_LANGUAGE Kurdish
+%define L10N_RECOMMENDS myspell-ku
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG lg
+%define L10N_LANGUAGE Ganda
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG lij
+%define L10N_LANGUAGE Ligurian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG lt
+%define L10N_LANGUAGE Lithuanian
+%define L10N_RECOMMENDS myspell-lt
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG lv
+%define L10N_LANGUAGE Latvian
+%define L10N_RECOMMENDS myspell-lv
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG mai
+%define L10N_LANGUAGE Maithili
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG mk
+%define L10N_LANGUAGE Macedonian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ml
+%define L10N_LANGUAGE Malayalam
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG mr
+%define L10N_LANGUAGE Marathi
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG nb-no
+%define L10N_LANGUAGE Norwegian Bokmål (Norway)
+%define L10N_RECOMMENDS myspell-nb
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG nl
+%define L10N_LANGUAGE Dutch
+%define L10N_RECOMMENDS myspell-nl
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG nn-no
+%define L10N_LANGUAGE Norwegian Nynorsk (Norway)
+%define L10N_RECOMMENDS myspell-nn
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG nso
+%define L10N_LANGUAGE Northern Sotho
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG or
+%define L10N_LANGUAGE Oriya macrolanguage with constituent members Oriya [ory] and Sambalpuri [spv]
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG pa-in
+%define L10N_LANGUAGE Panjabi (India)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG pl
+%define L10N_LANGUAGE Polish
+%define L10N_RECOMMENDS myspell-pl
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG pt-br
+%define L10N_LANGUAGE Portuguese (Brazil)
+%define L10N_RECOMMENDS myspell-pt-br | myspell-pt
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG pt-pt
+%define L10N_LANGUAGE Portuguese (Portugal)
+%define L10N_RECOMMENDS myspell-pt-pt | myspell-pt
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG rm
+%define L10N_LANGUAGE Romansh
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ro
+%define L10N_LANGUAGE Romanian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ru
+%define L10N_LANGUAGE Russian
+%define L10N_RECOMMENDS myspell-ru
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG si
+%define L10N_LANGUAGE Sinhala
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG sk
+%define L10N_LANGUAGE Slovak
+%define L10N_RECOMMENDS myspell-sk
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG sl
+%define L10N_LANGUAGE Slovenian
+%define L10N_RECOMMENDS myspell-sl
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG son
+%define L10N_LANGUAGE Songhai languages
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG sq
+%define L10N_LANGUAGE Albanian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG sr
+%define L10N_LANGUAGE Serbian
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG sv-se
+%define L10N_LANGUAGE Swedish (Sweden)
+%define L10N_RECOMMENDS myspell-sv-se
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ta
+%define L10N_LANGUAGE Tamil
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG ta-lk
+%define L10N_LANGUAGE Tamil (Sri Lanka)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG te
+%define L10N_LANGUAGE Telugu
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG th
+%define L10N_LANGUAGE Thai
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG tr
+%define L10N_LANGUAGE Turkish
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG uk
+%define L10N_LANGUAGE Ukrainian
+%define L10N_RECOMMENDS myspell-uk
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG vi
+%define L10N_LANGUAGE Vietnamese
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG zh-cn
+%define L10N_LANGUAGE Chinese (China)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG zh-tw
+%define L10N_LANGUAGE Chinese (Taiwan)
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
+%define L10N_LANG zu
+%define L10N_LANGUAGE Zulu
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in

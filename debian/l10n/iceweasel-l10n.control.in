@@ -3,7 +3,9 @@ Architecture: all
 Section: localization
 Depends: ${misc:Depends},
          iceweasel (>= ${source:Version}), iceweasel (<< ${source:Version}.1~)
+%ifdef L10N_RECOMMENDS
 Recommends: @L10N_RECOMMENDS@
+%endif
 Description: @L10N_LANGUAGE@ language package for Iceweasel
  Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
  with support for modern web application technologies.
