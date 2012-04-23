@@ -1307,12 +1307,13 @@ public:
     XPCCallContext &GetXPCCallContext()
     {
         if (!mCcx) {
+            XPCCallContext *data = mData.addr();
             mCcxToDestroy = mCcx =
-                new (mData) XPCCallContext(mCallerLanguage, mCx,
-                                           mCallBeginRequest == CALL_BEGINREQUEST,
-                                           mObj,
-                                           mFlattenedJSObject, mWrapper,
-                                           mTearOff);
+                new (data) XPCCallContext(mCallerLanguage, mCx,
+                                          mCallBeginRequest == CALL_BEGINREQUEST,
+                                          mObj,
+                                          mFlattenedJSObject, mWrapper,
+                                          mTearOff);
             if (!mCcx->IsValid()) {
                 NS_ERROR("This is not supposed to fail!");
             }
@@ -1340,7 +1341,7 @@ private:
     JSObject *mFlattenedJSObject;
     XPCWrappedNative *mWrapper;
     XPCWrappedNativeTearOff *mTearOff;
-    char mData[sizeof(XPCCallContext)];
+    mozilla::AlignedStorage2<XPCCallContext> mData;
 };
 
 /***************************************************************************
