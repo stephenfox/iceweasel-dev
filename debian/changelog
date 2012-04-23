@@ -1,8 +1,39 @@
-iceweasel (12.0-1) UNRELEASED; urgency=low
+iceweasel (12.0-1) experimental; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2012-{20,22-24,26-33}, also known as
+    CVE-2012-0467, CVE-2012-0468, CVE-2012-0469, CVE-2012-0470,
+    CVE-2012-0471, CVE-2012-0473, CVE-2012-0474, CVE-2012-0475,
+    CVE-2012-0477, CVE-2012-0478, CVE-2011-3062, CVE-2011-1187,
+    CVE-2012-0479.
 
- -- Mike Hommey <glandium@debian.org>  Mon, 23 Apr 2012 19:06:04 +0200
+  * debian/control*: Bump libsqlite3-dev build dependency.
+  * debian/xulrunner.mozconfig: Use in-tree cairo until things settle down
+    for bz#722975.
+  * debian/rules:
+    - Remove update-settings.ini.
+    - Remove MOZ_PHOENIX define, it's not useful anymore.
+  * debian/make.mk, debian/rules, debian/upstream.mk: Avoid spawning shells
+    from debian/rules when possible.
+  * debian/rules, debian/control*:
+    - Remove special case for Lenny, it's not supported anymore.
+    - Build with hardening flags. Closes: #609975.
+  * debian/iceweasel.mozconfig, debian/rules: Move --with-branding option to
+    debian/rules.
+  * debian/control, debian/l10n, debian/rules: Simplify l10n control
+    generation.
+
+  * memory/jemalloc/jemalloc.c: Fix jemalloc mmap wrapper for s390. bz#747322.
+    Closes: #667901.
+  * toolkit/components/search/nsSearchService.js: Handle transition to
+    /etc/<appname>/searchplugins more gracefully. Closes: #666675.
+  * js/xpconnect/src/xpcprivate.h: Properly align XPCLazyCallContext::mData.
+    bz#747870. Closes: #669905.
+  * config/Preprocessor.py, config/tests/unit-Preprocessor.py,
+    js/src/config/Preprocessor.py: Use filters in #defines and #includes.
+    bz#508942.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 24 Apr 2012 08:21:07 +0200
 
 iceweasel (11.0-4) experimental; urgency=low
 
