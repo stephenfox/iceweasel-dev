@@ -7,7 +7,7 @@ Subject: Don't hardcode page size on ia64
  1 file changed, 2 insertions(+)
 
 diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
-index 8d0f2de..6afefc3 100644
+index ae73a1c..c9efccf 100644
 --- a/memory/jemalloc/jemalloc.c
 +++ b/memory/jemalloc/jemalloc.c
 @@ -1089,7 +1089,9 @@ static unsigned		ncpus;
