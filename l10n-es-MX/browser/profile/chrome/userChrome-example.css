@@ -1,16 +1,16 @@
 /*
- * Edita este fichero y copialo como userChrome.css en tu
+ * Edit this file and copy it as userChrome.css into your
  * profile-directory/chrome/
  */
 
 /*
- * Este fichero puede ser usado para personalizar la interfaz de usuario de Mozilla
- * Debes considerar usar !important en las reglas que quieres que sobreescriban
- * las configuraciones predeterminadas.
+ * This file can be used to customize the look of Mozilla's user interface
+ * You should consider using !important on rules which you want to
+ * override default settings.
  */
 
 /*
- * No remuevas la linea @namespace -- es requerida para el correcto funcionamientoc
+ * Do not remove the @namespace line -- it's required for correct functioning
  */
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"); /* set default namespace to XUL */
 

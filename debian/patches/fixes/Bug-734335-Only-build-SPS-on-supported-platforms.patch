@@ -3,18 +3,18 @@ Date: Fri, 9 Mar 2012 09:46:25 +0100
 Subject: Bug 734335 - Only build SPS on supported platforms
 
 ---
- configure.in                              |   31 +++++++++++++++++++++++++---
- toolkit/library/Makefile.in               |    2 +
- toolkit/library/nsStaticXULComponents.cpp |    8 ++++++-
- tools/profiler/Makefile.in                |    8 ++++--
- tools/profiler/sampler.h                  |    6 ++--
- 5 files changed, 44 insertions(+), 11 deletions(-)
+ configure.in                              |   31 +++++++++++++++++++++++++----
+ toolkit/library/Makefile.in               |    2 ++
+ toolkit/library/nsStaticXULComponents.cpp |    8 +++++++-
+ tools/profiler/Makefile.in                |    8 +++++---
+ tools/profiler/sampler.h                  |    2 +-
+ 5 files changed, 42 insertions(+), 9 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index 696f950..a9872a0 100644
+index 9163897..b688692 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -2163,10 +2163,33 @@ fi
+@@ -2134,10 +2134,33 @@ fi
  dnl ========================================================
  dnl SPS Profiler
  dnl ========================================================
@@ -53,10 +53,10 @@ index 696f950..a9872a0 100644
      AC_DEFINE(MOZ_ENABLE_PROFILER_SPS)
  fi
 diff --git a/toolkit/library/Makefile.in b/toolkit/library/Makefile.in
-index 48e8fb4..91cf573 100644
+index de8b643..f3ab749 100644
 --- a/toolkit/library/Makefile.in
 +++ b/toolkit/library/Makefile.in
-@@ -316,7 +316,9 @@ endif
+@@ -315,7 +315,9 @@ endif
  
  STATIC_LIBS += thebes gl ycbcr
  
@@ -65,12 +65,12 @@ index 48e8fb4..91cf573 100644
 +endif
  
  ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
- COMPONENT_LIBS += gkwidget
+ COMPONENT_LIBS += widget_windows
 diff --git a/toolkit/library/nsStaticXULComponents.cpp b/toolkit/library/nsStaticXULComponents.cpp
-index 8a668b0..23a6489 100644
+index e06951f..d5b6cd7 100644
 --- a/toolkit/library/nsStaticXULComponents.cpp
 +++ b/toolkit/library/nsStaticXULComponents.cpp
-@@ -205,6 +205,12 @@
+@@ -198,6 +198,12 @@
  #endif
  #endif
  
@@ -83,7 +83,7 @@ index 8a668b0..23a6489 100644
  #define XUL_MODULES                          \
      MODULE(nsUConvModule)                    \
      MODULE(nsI18nModule)                     \
-@@ -221,7 +227,7 @@
+@@ -214,7 +220,7 @@
      MODULE(nsWindowDataSourceModule)         \
      MODULE(nsParserModule)                   \
      MODULE(nsGfxModule)                      \
@@ -93,7 +93,7 @@ index 8a668b0..23a6489 100644
      MODULE(nsImageLib2Module)                \
      ICON_MODULE                              \
 diff --git a/tools/profiler/Makefile.in b/tools/profiler/Makefile.in
-index 9b43099..414ba5a 100644
+index 1befb6b..e67f715 100644
 --- a/tools/profiler/Makefile.in
 +++ b/tools/profiler/Makefile.in
 @@ -48,8 +48,10 @@ VPATH       = \
@@ -109,7 +109,7 @@ index 9b43099..414ba5a 100644
    sps_sampler.h \
    thread_helper.h \
    $(NULL)
-@@ -107,7 +109,7 @@ CPPSRCS += \
+@@ -114,7 +116,7 @@ CPPSRCS += \
    $(NULL)
  endif
  
@@ -119,26 +119,15 @@ index 9b43099..414ba5a 100644
  include $(topsrcdir)/config/rules.mk
  
 diff --git a/tools/profiler/sampler.h b/tools/profiler/sampler.h
-index e6d5bce..e8603ba 100644
+index 752d9fa..4f7a03a 100644
 --- a/tools/profiler/sampler.h
 +++ b/tools/profiler/sampler.h
-@@ -77,6 +77,9 @@
- #ifndef SAMPLER_H
+@@ -78,7 +78,7 @@
  #define SAMPLER_H
  
-+// Redefine the macros for platforms where SPS is supported.
+ // Redefine the macros for platforms where SPS is supported.
+-#if defined(ANDROID) || defined(__linux__) || defined(XP_MACOSX) || defined(XP_WIN)
 +#ifdef MOZ_ENABLE_PROFILER_SPS
-+
- #if defined(_MSC_VER)
- #define FULLFUNCTION __FUNCSIG__
- #elif (__GNUC__ >= 4)
-@@ -85,9 +88,6 @@
- #define FULLFUNCTION __FUNCTION__
- #endif
  
--// Redefine the macros for platforms where SPS is supported.
--#if defined(ANDROID) || defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
--
  #include "sps_sampler.h"
  
- #else

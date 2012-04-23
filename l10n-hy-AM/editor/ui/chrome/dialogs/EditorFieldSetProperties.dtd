@@ -49,3 +49,4 @@
 <!ENTITY AlignRight.label "Աջից">
 
 <!ENTITY RemoveFieldSet.label "Հեռացնել դաշտը">
+<!ENTITY RemoveFieldSet.accesskey "R">

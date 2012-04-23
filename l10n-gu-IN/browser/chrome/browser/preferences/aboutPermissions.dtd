@@ -22,9 +22,9 @@
 <!ENTITY password.manage                 "પાસવર્ડોને સંચાલિત કરો…">
 
 <!ENTITY cookie.label                    "કુકીઓ સુયોજિત કરો">
-<!ENTITY cookie.clear                    "કુકીઓ સાફ કરો">
 <!ENTITY cookie.manage                   "કુકીઓ સંચાલિત કરો…">
-<!ENTITY cookie.clearAll                 "બધી કુકીઓ સાફ કરો">
+<!ENTITY cookie.remove                   "કુકીઓ દૂર કરો">
+<!ENTITY cookie.removeAll                "બધી કુકીઓ દૂર કરો">
 
 <!ENTITY geo.label                       "સ્થાનને બીજા સાથે વહેંચો">
 

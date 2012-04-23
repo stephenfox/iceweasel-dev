@@ -6,13 +6,13 @@ It is better defined in the GRE provided by xulrunner-1.9
 ---
  browser/app/profile/firefox.js        |    1 -
  browser/locales/en-US/firefox-l10n.js |    1 -
- 2 files changed, 0 insertions(+), 2 deletions(-)
+ 2 files changed, 2 deletions(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 3fa0321..4a258fe 100644
+index 3d648dd..87d6089 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -230,7 +230,6 @@ pref("keyword.enabled", true);
+@@ -235,7 +235,6 @@ pref("keyword.enabled", true);
  // "use the search service's default engine"
  pref("keyword.URL", "");
  

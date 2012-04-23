@@ -52,12 +52,12 @@
 <!ENTITY viewBGImageCmd.accesskey "ф">
 <!ENTITY setWallpaperCmd.label "Усталяваць як шпалеры">
 <!ENTITY setWallpaperCmd.accesskey "ш">
-<!ENTITY bookmarkPageCmd.label "Дадаць закладку да гэтай старонкі">
-<!ENTITY bookmarkPageCmd.accesskey "С">
-<!ENTITY bookmarkLinkCmd.label "Дадаць закладку да гэтай спасылкі">
-<!ENTITY bookmarkLinkCmd.accesskey "і">
-<!ENTITY bookmarkFrameCmd.label "Дадаць закладку да гэтай рамкі">
-<!ENTITY bookmarkFrameCmd.accesskey "д">
+<!ENTITY bookmarkPageCmd.label "Закласці старонку…">
+<!ENTITY bookmarkPageCmd.accesskey "З">
+<!ENTITY bookmarkLinkCmd.label "Закласці спасылку…">
+<!ENTITY bookmarkLinkCmd.accesskey "с">
+<!ENTITY bookmarkFrameCmd.label "Закласці рамку…">
+<!ENTITY bookmarkFrameCmd.accesskey "р">
 <!ENTITY savePageAsCmd.label "Захаваць старонку як…">
 <!ENTITY savePageCmd.label "Захаваць старонку">
 <!ENTITY savePageCmd.accesskey "а">

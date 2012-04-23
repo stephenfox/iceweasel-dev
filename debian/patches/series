@@ -3,15 +3,10 @@ fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
 fixes/Bug-691898-Use-YARR-interpreter-instead-of-PCRE-on-p.patch
-fixes/Bug-722127-Bump-required-libvpx-version-to-1.0.0.-r-.patch
 fixes/Bug-728229-Allow-to-build-with-system-python-ply-lib.patch
 fixes/Bug-720682-Don-t-crash-an-app-using-libxul-because-o.patch
-fixes/Bug-696636-Block-OpenGL-1-drivers-explicitly-to-stee.patch
 fixes/Load-dependent-libraries-with-their-real-path-to-avo.patch
 fixes/Bug-515232-Try-getting-general.useragent.locale-as-a.patch
-fixes/Bug-729817-Block-the-Nouveau-3D-driver-as-it-s-insta.patch
-fixes/Bug-729817-Allow-the-Nouveau-driver-with-Mesa-8.0.1-.patch
-fixes/Bug-710972-Define-G_VARIANT_TYPE_STRING_ARRAY-when-b.patch
 fixes/Revert-investigation-patch-for-bug-621446.patch
 fixes/Bug-734335-Only-build-SPS-on-supported-platforms.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
@@ -23,7 +18,6 @@ porting/Allow-ipc-code-to-build-on-GNU-Hurd.patch
 porting/Bug-698923-Don-t-require-16-bytes-alignment-for-VMFr.patch
 porting/Fix-GNU-non-Linux-failure-to-build-because-of-ipc-ch.patch
 porting/Bug-703833-Avoid-invalid-conversion-from-const-size_.patch
-porting/Bug-711353-Add-support-for-GNU-kFreeBSD-and-GNU-Hurd.patch
 porting/Don-t-hardcode-page-size-on-ia64.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch

@@ -3,8 +3,8 @@ Date: Fri, 30 Mar 2012 15:44:54 +0200
 Subject: Load distribution search plugins from /etc/<appname>/searchplugins
 
 ---
- .../components/dirprovider/DirectoryProvider.cpp   |   22 ++++++++++++++-----
- 1 files changed, 16 insertions(+), 6 deletions(-)
+ .../components/dirprovider/DirectoryProvider.cpp   |   22 ++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
 
 diff --git a/browser/components/dirprovider/DirectoryProvider.cpp b/browser/components/dirprovider/DirectoryProvider.cpp
 index 5df1419..61c6090 100644

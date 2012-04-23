@@ -61,7 +61,7 @@ Depends: ${shlibs:Depends},
          fontconfig,
          procps,
          debianutils (>= 1.16),
-         xulrunner-11.0 (>= ${binary:Version})
+         xulrunner-12.0 (>= ${binary:Version})
 Suggests: ttf-lyx | latex-xft-fonts,
           xfonts-mathml,
           ttf-mathematica4.1,
@@ -79,20 +79,20 @@ Priority: extra
 Section: debug
 Depends: ${misc:Depends},
          iceweasel (= ${binary:Version}),
-         xulrunner-11.0-dbg
+         xulrunner-12.0-dbg
 Description: debugging symbols for iceweasel
  Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
  with support for modern web application technologies.
  .
  This package contains the debugging symbols for iceweasel.
 
-Package: xulrunner-11.0
+Package: xulrunner-12.0
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          libnspr4-0d (>> 4.7.1-1),
-         libmozjs11d (= ${binary:Version}),
+         libmozjs12d (= ${binary:Version}),
          libcairo2 (>= 1.8.8)
 Suggests: ${gnome:Depends}, libgnomeui-0, libcanberra0
 Conflicts: j2re1.4,
@@ -116,7 +116,7 @@ Description: XUL + XPCOM application runner
  This package also contains the Gecko engine library (libxul)
 Homepage: http://developer.mozilla.org/en/docs/XULRunner
 
-Package: libmozjs11d
+Package: libmozjs12d
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -131,7 +131,7 @@ Package: libmozjs-dev
 Section: libdevel
 Architecture: any
 Depends: ${misc:Depends},
-         libmozjs11d (= ${binary:Version}),
+         libmozjs12d (= ${binary:Version}),
          libnspr4-dev
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -142,11 +142,11 @@ Description: Development files for the Mozilla SpiderMonkey JavaScript library
  Mozilla SpiderMonkey JavaScript library.
 Homepage: http://www.mozilla.org/js/
 
-Package: libmozjs11d-dbg
+Package: libmozjs12d-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: libmozjs11d (= ${binary:Version}),
+Depends: libmozjs12d (= ${binary:Version}),
          ${misc:Depends}
 Description: Development files for the Mozilla SpiderMonkey JavaScript library
  This library provides the embeddable JavaScript/ECMAScript engine from
@@ -185,7 +185,7 @@ Architecture: any
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          python-ply,
-         xulrunner-11.0 (>= ${binary:Version}),
+         xulrunner-12.0 (>= ${binary:Version}),
          libnss3-dev,
          libnspr4-dev,
          libmozjs-dev (>= ${binary:Version})
@@ -205,12 +205,12 @@ Description: Development files for the Gecko engine library
  same form as the one you may find on mozilla.org in /usr/lib/xulrunner/sdk.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
-Package: xulrunner-11.0-dbg
+Package: xulrunner-12.0-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: xulrunner-11.0 (= ${binary:Version}),
-         libmozjs11d-dbg (= ${binary:Version}),
+Depends: xulrunner-12.0 (= ${binary:Version}),
+         libmozjs12d-dbg (= ${binary:Version}),
          ${misc:Depends}
 Description: Debugging symbols for the Gecko engine library
  This library provides an  API for XUL applications and Gecko embedders.
@@ -221,7 +221,7 @@ Description: Debugging symbols for the Gecko engine library
  support, XBL, XUL, SVG, XSLT, XML Extras (XMLHttpRequest and DOMParser),
  Web Services (SOAP), accessibility support, IPC services, gtkmozembed, etc.
  .
- This package provides the debugging symbols for the xulrunner-11.0
+ This package provides the debugging symbols for the xulrunner-12.0
  package.
 Homepage: http://wiki.mozilla.org/XUL:Lib_XUL
 
@@ -576,7 +576,7 @@ Architecture: all
 Section: localization
 Depends: ${misc:Depends},
          iceweasel (>= ${source:Version}), iceweasel (<< ${source:Version}.1~)
-Recommends: myspell-fi
+Recommends: xul-ext-mozvoikko
 Description: Finnish language package for Iceweasel
  Iceweasel is Firefox, rebranded. It is a powerful, extensible web browser
  with support for modern web application technologies.

@@ -8,8 +8,8 @@
 <!ENTITY closeTabCmd2.accesskey "D">
 <!ENTITY closeOtherTabsCmd2.label "Dún Cluaisíní Eile">
 <!ENTITY closeOtherTabsCmd2.accesskey "E">
-<!ENTITY recentlyClosedTabsCmd.label "Cluaisíní a Dúnadh le Déanaí">
-<!ENTITY recentlyClosedTabsCmd.accesskey "D">
+<!ENTITY recentlyClosedTabsCmd.label "Cluaisíní a Dúnadh Le Déanaí">
+<!ENTITY recentlyClosedTabsCmd.accesskey "C">
 
 <!ENTITY undoCloseTabCmd.commandkey "T">
 <!-- LOCALIZATION NOTE (moveToNewWindow.label):
@@ -333,6 +333,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY thisFolder.label "An Fillteán Seo">
 <!ENTITY thisFolder.accesskey "S">
 <!ENTITY goRecentlyClosedTabs.label "Cluaisíní a Dúnadh Le Déanaí">
+<!ENTITY goRecentlyClosedTabs.accesskey "C">
 <!ENTITY startPageCmd.label "Leathanaigh Tosaigh Ríomhphoist">
 <!ENTITY startPageCmd.accesskey "L">
 <!-- Message Menu -->
@@ -789,7 +790,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
      to get to the box faster.  If the global indexer is disabled, the search
      box will be collapsed and the user will never see this message.
      -->
-<!ENTITY searchAllMessages.label.base "Cuardaigh gach teachtaireacht… #1">
+<!ENTITY searchAllMessages.label.base "Cuardaigh… #1">
 <!-- LOCALIZATION NOTE (searchAllMessages.keyLabel.nonmac):
      The description of the key-binding to get into the global search box on
      windows and linux (which use the control key).  We use the key defined in

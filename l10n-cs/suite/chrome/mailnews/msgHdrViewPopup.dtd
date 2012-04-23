@@ -34,6 +34,7 @@
  the terms of any one of the MPL, the GPL or the LGPL.
 
  ***** END LICENSE BLOCK ***** -->
+
 <!-- Message Header View Popup -->
 <!ENTITY AddToAddressBook.label "Přidat do kontaktů">
 <!ENTITY AddToAddressBook.accesskey "P">
@@ -43,6 +44,10 @@
 <!ENTITY CopyEmailAddress.accesskey "K">
 <!ENTITY CreateFilterFrom.label "Vytvořit filtr z…">
 <!ENTITY CreateFilterFrom.accesskey "V">
+<!ENTITY openInBrowser.label "Otevřít v prohlížeči">
+<!ENTITY openInBrowser.accesskey "O">
+<!ENTITY bookmarkLinkCmd.label "Přidat odkaz do záložek…">
+<!ENTITY bookmarkLinkCmd.accesskey "P">
 <!ENTITY copyLinkCmd.label "Kopírovat adresu odkazu">
 <!ENTITY copyLinkCmd.accesskey "K">
 <!ENTITY CopyMessageId.label "Kopírovat Id zprávy">

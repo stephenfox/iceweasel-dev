@@ -21,15 +21,15 @@
 <!ENTITY pluginWizard.installPluginsPage.title               "Jinstalacjô wtëkôczów">
 <!ENTITY pluginWizard.installPluginsPage.description.label   "Program &brandShortName; jinstalëje wtëkôcze…">
 
-<!ENTITY pluginWizard.finalPage.description.label            "Program &brandShortName; skùńcza jinstalacjã felëjącëch wtëkôczów:">
+<!ENTITY pluginWizard.finalPage.description.label            "Program &brandShortName; skùńcził jinstalacjã felëjącëch wtëkôczów:">
 
 <!ENTITY pluginWizard.finalPage.moreInfo.label               "Dobëjë wicy wëdowiédzë ò wtëkôczach abò szëkôj rãczno za felëjącyma.">
-<!ENTITY pluginWizard.finalPage.restart.label                "Abë wtëkôcz bëł zrëszony, nót je zrëszenié program &brandShortName; znowa.">
+<!ENTITY pluginWizard.finalPage.restart.label                "Abë wtëkôcz bëł zrëszony, nót je zrëszëc program &brandShortName; znowa.">
 
 <!ENTITY missingPlugin                                       "Felëje wtëkôcza do wëskrzënieniô zamkłoscë.">
 <!ENTITY clickToPlayPlugin                                   "Klëkni tuwò, bë zrëszëc wtëkôcza.">
 <!ENTITY disabledPlugin                                      "Wtëkôcz je wëłączony.">
-<!ENTITY blockedPlugin.label                                 "Wtëkôcz zablowkòwóny dlô twòjegò bezpiekù.">
+<!ENTITY blockedPlugin.label                                 "Wtëkôcz zablowkòwóny dlô twòjégò bezpiekù.">
 
 <!ENTITY installPlugin                                       "Jinstalëje wtëkôcz…">
 <!ENTITY managePlugins                                       "Sprôwiôj wtëkôczama…">
@@ -38,11 +38,11 @@
 <!-- LOCALIZATION NOTE (reloadPlugin.middle): avoid leading/trailing spaces, this text is a link -->
 <!-- LOCALIZATION NOTE (reloadPlugin.post): include a starting space as needed -->
 <!ENTITY reloadPlugin.pre                                    "">
-<!ENTITY reloadPlugin.middle                                 "Zladëjë starnã znowa">
+<!ENTITY reloadPlugin.middle                                 "Zladëjë stronã znowa">
 <!ENTITY reloadPlugin.post                                   "spróbùjë znowa.">
 <!ENTITY report.submitting                                   "Sélanié repòrtu…">
 <!ENTITY report.submitted                                    "Rapòrt ò awari òstôł wësłóny.">
 <!ENTITY report.disabled                                     "Sélanié rapòrtów ò awariach je wëłączoné.">
-<!ENTITY report.failed                                       "Felënk pòddaniô.">
+<!ENTITY report.failed                                       "Felënk wësłaniô.">
 <!ENTITY report.unavailable                                  "Felënk przistãpnëch repòrtów.">
-<!ENTITY report.please "Sélôj rapòrt ò awarii">
+<!ENTITY report.please                                       "Sélôj rapòrt ò awarii">

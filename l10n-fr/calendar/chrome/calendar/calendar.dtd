@@ -64,6 +64,7 @@
 <!ENTITY calendar.events.filter.today.label "Événements du jour">
 <!ENTITY calendar.events.filter.future.label "Tous les événements futurs">
 <!ENTITY calendar.events.filter.current.label "Jour courant">
+<!ENTITY calender.events.filter.currentview.label "Événements dans la vue courante">
 <!ENTITY calendar.events.filter.next7Days.label "Événements des 7 prochains jours">
 <!ENTITY calendar.events.filter.next14Days.label "Événements des 14 prochains jours">
 <!ENTITY calendar.events.filter.next31Days.label "Événements des 31 prochains jours">
@@ -173,6 +174,10 @@
 <!ENTITY calendar.task.complete.button.tooltip "Marquer les tâches sélectionnées comme terminées">
 <!ENTITY calendar.task.priority.button.tooltip "Changer la priorité">
 
+<!ENTITY calendar.task.text-filter.textbox.emptytext.base "Filtrer les tâches… #1">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.nonmac "&lt;Ctrl+Maj+K&gt;">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.mac "&lt;&#x21E7;&#x2318;K&gt;">
+
 <!-- Statusbar -->
 <!ENTITY statusText.label            "Document : fait">
 
@@ -207,6 +212,8 @@
 <!ENTITY calendar.context.progress.accesskey          "P">
 <!ENTITY calendar.context.priority.label              "Priorité">
 <!ENTITY calendar.context.priority.accesskey          "r">
+<!ENTITY calendar.context.postpone.label              "Reporter la tâche">
+<!ENTITY calendar.context.postpone.accesskey          "e">
 
 <!ENTITY percnt "&#38;#37;" ><!--=percent sign-->
 
@@ -232,6 +239,13 @@
 <!ENTITY priority.level.normal.accesskey    "N">
 <!ENTITY priority.level.high                "Élevée">
 <!ENTITY priority.level.high.accesskey      "v">
+
+<!ENTITY calendar.context.postpone.1hour.label      "Une heure">
+<!ENTITY calendar.context.postpone.1hour.accesskey  "h">
+<!ENTITY calendar.context.postpone.1day.label       "Un jour">
+<!ENTITY calendar.context.postpone.1day.accesskey   "U">
+<!ENTITY calendar.context.postpone.1week.label      "Une semaine">
+<!ENTITY calendar.context.postpone.1week.accesskey  "s">
 
 <!-- Task View -->
 <!-- Note that the above *.context.* strings are currently used for the other

@@ -161,12 +161,8 @@ class Parser:
   def __iter__(self):
     contents = self.contents
     offset = 0
-    self.header = ''
+    self.header, offset = self.getHeader(contents, offset)
     self.footer = ''
-    h = self.reHeader.match(contents)
-    if h:
-      self.header = h.group()
-      offset = h.end()
     entity, offset = self.getEntity(contents, offset)
     while entity:
       yield entity
@@ -178,12 +174,18 @@ class Parser:
     if len(contents) > offset:
       yield Junk(contents, (offset, len(contents)))
     pass
+  def getHeader(self, contents, offset):
+    header = ''
+    h = self.reHeader.match(contents)
+    if h:
+      header = h.group()
+      offset = h.end()
+    return (header, offset)
   def getEntity(self, contents, offset):
     m = self.reKey.match(contents, offset)
     if m:
       offset = m.end()
-      entity = Entity(contents, self.postProcessValue,
-                      *[m.span(i) for i in xrange(7)])
+      entity = self.createEntity(contents, m)
       return (entity, offset)
     m = self.reKey.search(contents, offset)
     if m:
@@ -192,6 +194,9 @@ class Parser:
       junkend = m.start()
       return (Junk(contents, (offset, junkend)), junkend)
     return (None, offset)
+  def createEntity(self, contents, m):
+    return Entity(contents, self.postProcessValue,
+                  *[m.span(i) for i in xrange(7)])
 
 def getParser(path):
   for item in __constructors:
@@ -215,30 +220,28 @@ def getParser(path):
 
 
 class DTDParser(Parser):
-  def __init__(self):
-    # http://www.w3.org/TR/2006/REC-xml11-20060816/#NT-NameStartChar
-    #":" | [A-Z] | "_" | [a-z] |
-    # [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF]
-    # | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] |
-    # [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] |
-    # [#x10000-#xEFFFF]
-    CharMinusDash = u'\x09\x0A\x0D\u0020-\u002C\u002E-\uD7FF\uE000-\uFFFD'
-    XmlComment = '<!--(?:-?[%s])*?-->' % CharMinusDash
-    NameStartChar = u':A-Z_a-z\xC0-\xD6\xD8-\xF6\xF8-\u02FF' + \
-        u'\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF'+\
-        u'\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD'
-    # + \U00010000-\U000EFFFF seems to be unsupported in python
-    
-    # NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 |
-    #   [#x0300-#x036F] | [#x203F-#x2040]
-    NameChar = NameStartChar + ur'\-\.0-9' + u'\xB7\u0300-\u036F\u203F-\u2040'
-    Name = '[' + NameStartChar + '][' + NameChar + ']*'
-    self.reKey = re.compile('(?:(\s*)((?:' + XmlComment + '\s*)*)(<!ENTITY\s+(' + Name + ')\s+(\"[^\"]*\"|\'[^\']*\')\s*>)([ \t]*(?:' + XmlComment + '\s*)*\n?)?)')
-    # add BOM to DTDs, details in bug 435002
-    self.reHeader = re.compile(u'^\ufeff?(\s*<!--.*LICENSE BLOCK([^-]+-)*[^-]+-->)?')
-    self.reFooter = re.compile('\s*(<!--([^-]+-)*[^-]+-->\s*)*$')
-    self.rePE = re.compile('(?:(\s*)((?:' + XmlComment + '\s*)*)(<!ENTITY\s+%\s+(' + Name + ')\s+SYSTEM\s+(\"[^\"]*\"|\'[^\']*\')\s*>\s*%' + Name + ';)([ \t]*(?:' + XmlComment + '\s*)*\n?)?)')
-    Parser.__init__(self)
+  # http://www.w3.org/TR/2006/REC-xml11-20060816/#NT-NameStartChar
+  #":" | [A-Z] | "_" | [a-z] |
+  # [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF]
+  # | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] |
+  # [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] |
+  # [#x10000-#xEFFFF]
+  CharMinusDash = u'\x09\x0A\x0D\u0020-\u002C\u002E-\uD7FF\uE000-\uFFFD'
+  XmlComment = '<!--(?:-?[%s])*?-->' % CharMinusDash
+  NameStartChar = u':A-Z_a-z\xC0-\xD6\xD8-\xF6\xF8-\u02FF' + \
+      u'\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF'+\
+      u'\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD'
+  # + \U00010000-\U000EFFFF seems to be unsupported in python
+  
+  # NameChar ::= NameStartChar | "-" | "." | [0-9] | #xB7 |
+  #   [#x0300-#x036F] | [#x203F-#x2040]
+  NameChar = NameStartChar + ur'\-\.0-9' + u'\xB7\u0300-\u036F\u203F-\u2040'
+  Name = '[' + NameStartChar + '][' + NameChar + ']*'
+  reKey = re.compile('(?:(?P<pre>\s*)(?P<precomment>(?:' + XmlComment + '\s*)*)(?P<entity><!ENTITY\s+(?P<key>' + Name + ')\s+(?P<val>\"[^\"]*\"|\'[^\']*\'?)\s*>)(?P<post>[ \t]*(?:' + XmlComment + '\s*)*\n?)?)', re.DOTALL)
+  # add BOM to DTDs, details in bug 435002
+  reHeader = re.compile(u'^\ufeff?(\s*<!--.*(http://mozilla.org/MPL/2.0/|LICENSE BLOCK)([^-]+-)*[^-]+-->)?', re.S)
+  reFooter = re.compile('\s*(<!--([^-]+-)*[^-]+-->\s*)*$')
+  rePE = re.compile('(?:(\s*)((?:' + XmlComment + '\s*)*)(<!ENTITY\s+%\s+(' + Name + ')\s+SYSTEM\s+(\"[^\"]*\"|\'[^\']*\')\s*>\s*%' + Name + ';)([ \t]*(?:' + XmlComment + '\s*)*\n?)?)')
   def getEntity(self, contents, offset):
     '''
     Overload Parser.getEntity to special-case ParsedEntities.
@@ -255,23 +258,78 @@ class DTDParser(Parser):
         entity = Entity(contents, self.postProcessValue,
                         *[m.span(i) for i in xrange(7)])
     return (entity, inneroffset)
+  def createEntity(self, contents, m):
+    valspan = m.span('val')
+    valspan = (valspan[0]+1, valspan[1]-1)
+    return Entity(contents, self.postProcessValue, m.span(),
+                  m.span('pre'), m.span('precomment'),
+                  m.span('entity'), m.span('key'), valspan,
+                  m.span('post'))
 
 class PropertiesParser(Parser):
   def __init__(self):
-    self.reKey = re.compile('^(\s*)((?:[#!].*?\n\s*)*)(([^#!\s\n][^=:\n]*?)\s*[:=][ \t]*((?:[^\\\\]|\\\\.)*?))([ \t]*$\n?)',re.M|re.S)
-    self.reHeader = re.compile('^\s*([#!].*LICENSE BLOCK.*\s*)([#!].*\s*)*')
+    self.reKey = re.compile('^(\s*)((?:[#!].*?\n\s*)*)([^#!\s\n][^=:\n]*?)\s*[:=][ \t]*',re.M)
+    self.reHeader = re.compile('^\s*([#!].*\s*)+')
     self.reFooter = re.compile('\s*([#!].*\s*)*$')
-    self._post = re.compile('\\\\u([0-9a-fA-F]{4})')
+    self._escapedEnd = re.compile(r'\\+$')
+    self._trailingWS = re.compile(r'[ \t]*$')
+    self._post = re.compile('\\\\u([0-9a-fA-F]{0,4})')
+    self._multLine = re.compile('\\\\\n\s*', re.M)
+    self._back = re.compile('\\\\(.)')
     Parser.__init__(self)
   _arg_re = re.compile('%(?:(?P<cn>[0-9]+)\$)?(?P<width>[0-9]+)?(?:.(?P<pres>[0-9]+))?(?P<size>[hL]|(?:ll?))?(?P<type>[dciouxXefgpCSsn])')
+  def getHeader(self, contents, offset):
+    header = ''
+    h = self.reHeader.match(contents, offset)
+    if h:
+      candidate = h.group()
+      if 'http://mozilla.org/MPL/2.0/' in candidate or 'LICENSE BLOCK' in candidate:
+        header = candidate
+        offset = h.end()
+    return (header, offset)
+  def getEntity(self, contents, offset):
+    # overwritten to parse values line by line
+    m = self.reKey.match(contents, offset)
+    if m:
+      offset = m.end()
+      while True:
+        endval = nextline = contents.find('\n', offset)
+        if nextline == -1:
+          endval = offset = len(contents)
+          break
+        # is newline escaped?
+        _e = self._escapedEnd.search(contents, offset, nextline)
+        offset = nextline + 1
+        if _e is None:
+          break
+        # backslashes at end of line, if 2*n, not escaped
+        if len(_e.group()) % 2 == 0:
+          break;
+      # strip trailing whitespace
+      ws = self._trailingWS.search(contents, m.end(), offset)
+      if ws:
+        endval -= ws.end() - ws.start()
+      entity = Entity(contents, self.postProcessValue,
+                      (m.start(), offset),  # full span
+                      m.span(1),  # leading whitespan
+                      m.span(2),  # leading comment span
+                      (m.start(3), offset),  # entity def span
+                      m.span(3),  # key span
+                      (m.end(), endval),  # value span
+                      (offset, offset))  # post comment span, empty
+      return (entity, offset)
+    m = self.reKey.search(contents, offset)
+    if m:
+      # we didn't match, but search, so there's junk between offset
+      # and start. We'll match() on the next turn
+      junkend = m.start()
+      return (Junk(contents, (offset, junkend)), junkend)
+    return (None, offset)
   def postProcessValue(self, val):
-    m = self._post.search(val)
-    if not m:
-      return val
-    while m:
-      uChar = unichr(int(m.group(1), 16))
-      val = val.replace(m.group(), uChar)
-      m = self._post.search(val)
+    val = self._post.sub(lambda m: unichr(int(m.group(1), 16)), val)  # unicode escapes
+    val = self._multLine.sub('', val)  # multiline escapes
+    # ... and the rest
+    val = self._back.sub(lambda m: {'n': '\n', 'r': '\r', 't': '\t', '\\': '\\'}.get(m.group(1), m.group(1)), val)
     return val
 
 class DefinesParser(Parser):

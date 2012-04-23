@@ -18,9 +18,9 @@
 <!ENTITY view.sort.accesskey            "Z">
 <!ENTITY view.unsorted.label            "Niepòzortowóne">
 <!ENTITY view.unsorted.accesskey        "N">
-<!ENTITY view.sortAscending.label       "Czérënk zortowaniô: A > Z">
+<!ENTITY view.sortAscending.label       "Czerënk zortowaniô: A > Z">
 <!ENTITY view.sortAscending.accesskey   "A">
-<!ENTITY view.sortDescending.label      "Czérënk zortowaniô: Z > A">
+<!ENTITY view.sortDescending.label      "Czerënk zortowaniô: Z > A">
 <!ENTITY view.sortDescending.accesskey  "Z">
 
 <!ENTITY cmd.findInBookmarks.label      "Nalezë w załóżkach…">
@@ -28,23 +28,23 @@
 <!ENTITY cmd.findCurrent.label          "Nalezë w aktualny kòlekcji…">
 <!ENTITY cmd.findCurrent.accesskey      "k">
 
-<!ENTITY importBookmarksFromHTML.label     "Impòrtëjë załóżczi z HMTL…">
-<!ENTITY importBookmarksFromHTML.accesskey "I">
+<!ENTITY importBookmarksFromHTML.label     "Jimpòrtëjë załóżczi z HMTL…">
+<!ENTITY importBookmarksFromHTML.accesskey "J">
 <!ENTITY exportBookmarksToHTML.label       "Ekspòrtëje załóżczi HTML…">
 <!ENTITY exportBookmarksToHTML.accesskey   "E">
-<!ENTITY importOtherBrowser.label          "Impòrtëjë pòdôwczi z jinégò przezérnika…">
+<!ENTITY importOtherBrowser.label          "Jimpòrtëjë pòdôwczi z jinégò przezérnika…">
 <!ENTITY importOtherBrowser.accesskey      "p">
 
 <!ENTITY cmd.backup.label               "Zazychrowanié…">
 <!ENTITY cmd.backup.accesskey           "Z">
-<!ENTITY cmd.restore2.label             "Doprowôdzë nazôd">
+<!ENTITY cmd.restore2.label             "Doprowadzë nazôd">
 <!ENTITY cmd.restore2.accesskey         "D">
 <!ENTITY cmd.restoreFromFile.label      "Wëbierzë lopk…">
 <!ENTITY cmd.restoreFromFile.accesskey  "W">
 
-<!ENTITY cmd.bookmarkLink.label         "Dodôj nã starnã do załóżków…">
+<!ENTITY cmd.bookmarkLink.label         "Dodôj nã stronã do załóżków…">
 <!ENTITY cmd.bookmarkLink.accesskey     "D">
-<!ENTITY cmd.delete.label               "Rëmôj starnã">
+<!ENTITY cmd.delete.label               "Rëmôj stronã">
 <!ENTITY cmd.delete.accesskey           "R">
 <!ENTITY cmd.deleteDomainData.label     "Remôj całowną domenã">
 <!ENTITY cmd.deleteDomainData.accesskey "d">
@@ -81,13 +81,13 @@
 
 <!ENTITY col.name.label          "Miono">
 <!ENTITY col.tags.label          "Znakòwniczi">
-<!ENTITY col.url.label           "Adresa">
+<!ENTITY col.url.label           "Adres">
 <!ENTITY col.lastvisit.label     "Datum wizytë">
 <!ENTITY col.visitcount.label    "Wielëna wizytów">
 <!ENTITY col.keyword.label       "Kluczowé słowò">
 <!ENTITY col.description.label   "Òpisënk">
 <!ENTITY col.dateadded.label     "Dodóné">
-<!ENTITY col.lastmodified.label  "Slédno mòdifikacjô">
+<!ENTITY col.lastmodified.label  "Slédnô mòdifikacjô">
 
 <!ENTITY search.label                              "Szëkba:">
 <!ENTITY search.accesskey                          "S">
@@ -126,11 +126,11 @@
 <!ENTITY view.accesskey           "W">
 <!ENTITY byDate.label             "Wedle datuma">
 <!ENTITY byDate.accesskey         "d">
-<!ENTITY bySite.label             "Wedle starnë">
+<!ENTITY bySite.label             "Wedle stronë">
 <!ENTITY bySite.accesskey         "s">
 <!ENTITY byMostVisited.label      "Wedle nôbarżi òbzérónëch">
 <!ENTITY byMostVisited.accesskey  "n">
 <!ENTITY byLastVisited.label      "Wedle slédno òbzérónëch">
 <!ENTITY byLastVisited.accesskey  "l">
-<!ENTITY byDayAndSite.label       "Wedle datuma ë starnë">
+<!ENTITY byDayAndSite.label       "Wedle datuma ë stronë">
 <!ENTITY byDayAndSite.accesskey   "t">

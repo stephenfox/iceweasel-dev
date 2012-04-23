@@ -27,9 +27,7 @@
 
 <!ENTITY awesomebar_default_text "Wpisz zapytanie lub adres">
 
-<!ENTITY bookmarks_title "Zakładki">
-<!ENTITY bookmark_add "Dodaj zakładkę">
-<!ENTITY bookmark_remove "Usuń zakładkę">
+<!ENTITY bookmark "Dodaj zakładkę">
 <!ENTITY bookmark_added "Zakładka dodana">
 <!ENTITY bookmark_removed "Zakładka usunięta">
 
@@ -58,11 +56,12 @@
 <!ENTITY pref_clear_history_confirm "Czy usunąć historię przeglądania?">
 <!ENTITY pref_clear_private_data "Wyczyść dane prywatne">
 <!ENTITY pref_clear_private_data_confirm "Czy usunąć historię przeglądania i ustawienia, w tym zapamiętane hasła i ciasteczka?">
-<!ENTITY pref_enable_plugins "Wtyczki">
-<!ENTITY pref_enable_plugins_yes "Włączone">
-<!ENTITY pref_enable_plugins_tap_to_play "Dotknij, aby odtworzyć">
-<!ENTITY pref_enable_plugins_no "Wyłączone">
-<!ENTITY pref_font_size "Rozmiar tekstu">
+<!ENTITY pref_plugins "Wtyczki">
+<!ENTITY pref_plugins_enabled "Włączone">
+<!ENTITY pref_plugins_tap_to_play "Dotknij, aby odtworzyć">
+<!ENTITY pref_plugins_disabled "Wyłączone">
+<!ENTITY pref_text_size "Rozmiar tekstu">
+<!ENTITY pref_font_size_tiny "Bardzo mały">
 <!ENTITY pref_font_size_small "Mały">
 <!ENTITY pref_font_size_medium "Średni">
 <!ENTITY pref_font_size_large "Duży">
@@ -72,13 +71,13 @@
 <!ENTITY quit "Zakończ">
 
 <!ENTITY addons "Dodatki">
+<!ENTITY downloads "Pobrane pliki">
 
 <!ENTITY share "Udostępnij">
 <!ENTITY save_as_pdf "Zapisz jako PDF">
-<!ENTITY agent_request_desktop "Wyłącz wersję mobilną strony">
-<!ENTITY agent_request_mobile "Włącz wersję mobilną strony">
 
 <!ENTITY contextmenu_open_new_tab "Otwórz w nowej karcie">
+<!ENTITY contextmenu_remove_bookmark "Usuń zakładkę">
 <!ENTITY contextmenu_add_to_launcher "Dodaj do ekranu domowego">
 <!ENTITY contextmenu_share "Udostępnij">
 
@@ -94,3 +93,10 @@
 
 <!ENTITY button_ok "OK">
 <!ENTITY button_cancel "Anuluj">
+
+<!ENTITY abouthome_addons_title "Polecane dodatki">
+<!ENTITY abouthome_addons_browse "Zobacz wszystkie dostępne dodatki">
+<!ENTITY abouthome_last_tabs_title "Karty z ostatniej sesji">
+<!ENTITY abouthome_last_tabs_open "Otwórz wszystkie karty z ostatniej sesji">
+<!ENTITY abouthome_top_sites_title "Najczęstsze">
+<!ENTITY abouthome_top_sites_browse "Zobacz wszystkie">

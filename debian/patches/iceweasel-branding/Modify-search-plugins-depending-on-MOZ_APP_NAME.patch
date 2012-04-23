@@ -3,31 +3,23 @@ Date: Sat, 19 Feb 2011 11:04:53 +0100
 Subject: Modify search plugins depending on MOZ_APP_NAME
 
 ---
- browser/locales/Makefile.in                     |    9 +++++++--
+ browser/locales/Makefile.in                     |    1 +
  browser/locales/en-US/searchplugins/answers.xml |    2 +-
- browser/locales/en-US/searchplugins/google.xml  |    6 +++++-
- 3 files changed, 13 insertions(+), 4 deletions(-)
+ browser/locales/en-US/searchplugins/google.xml  |    8 ++++++++
+ 3 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
-index 9f7befb..e6422b8 100644
+index 9e89da6..45b158d 100644
 --- a/browser/locales/Makefile.in
 +++ b/browser/locales/Makefile.in
-@@ -162,8 +162,13 @@ install:: $(call MERGE_FILES,$(addprefix profile/chrome/,$(PROFILE_CHROME)))
+@@ -167,6 +167,7 @@ libs:: $(addsuffix .xml,$(SEARCH_PLUGINS))
+ 	for SEARCH_PLUGIN in $^; do\
+ 	  SEARCH_PLUGIN_BASE=`basename $$SEARCH_PLUGIN`;\
+ 	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
++        -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
+ 	    $$SEARCH_PLUGIN > $(FINAL_TARGET)/searchplugins/$$SEARCH_PLUGIN_BASE; \
+ 	done
  
- SEARCH_PLUGINS = $(shell cat $(call MERGE_FILE,/searchplugins/list.txt))
- 
--libs:: $(addsuffix .xml,$(SEARCH_PLUGINS))
--	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/searchplugins
-+$(FINAL_TARGET)/searchplugins/%: %
-+	$(SYSINSTALL) -D $(dir $@)
-+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-+	  -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
-+	  $< > $@
-+
-+libs:: $(addprefix $(FINAL_TARGET)/searchplugins/,$(addsuffix .xml,$(SEARCH_PLUGINS)))
- 
- install:: $(addsuffix .xml,$(SEARCH_PLUGINS))
- 	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/searchplugins
 diff --git a/browser/locales/en-US/searchplugins/answers.xml b/browser/locales/en-US/searchplugins/answers.xml
 index ea32303..2da83aa 100644
 --- a/browser/locales/en-US/searchplugins/answers.xml
@@ -41,10 +33,24 @@ index ea32303..2da83aa 100644
  <SearchForm>http://www.answers.com/</SearchForm>
  </SearchPlugin>
 diff --git a/browser/locales/en-US/searchplugins/google.xml b/browser/locales/en-US/searchplugins/google.xml
-index 1803902..8ea2079 100644
+index 7c9ff19..d2f086c 100644
 --- a/browser/locales/en-US/searchplugins/google.xml
 +++ b/browser/locales/en-US/searchplugins/google.xml
-@@ -3,7 +3,11 @@
+@@ -1,4 +1,5 @@
+ #define GOOGLE_PARAMS <Param name="q" value="{searchTerms}"/><Param name="ie" value="utf-8"/><Param name="oe" value="utf-8"/><Param name="aq" value="t"/><Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
++#if MOZ_APP_NAME==firefox
+ #if MOZ_UPDATE_CHANNEL == beta
+ #define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="firefox-beta" falseValue="firefox"/>
+ #elif MOZ_UPDATE_CHANNEL == aurora
+@@ -8,12 +9,19 @@
+ #else
+ #define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
+ #endif
++#else
++#define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="__MOZ_APP_NAME__-a" falseValue="__MOZ_APP_NAME__"/>
++#endif
+ <SearchPlugin xmlns="http://www.mozilla.org/2006/browser/search/">
+ <ShortName>Google</ShortName>
  <Description>Google Search</Description>
  <InputEncoding>UTF-8</InputEncoding>
  <Image width="16" height="16" type="image/x-icon">http://www.google.com/favicon.ico</Image>
@@ -54,14 +60,5 @@ index 1803902..8ea2079 100644
 +<Url type="application/x-suggestions+json" method="GET" template="http://suggestqueries.google.com/complete/search?output=firefox&amp;hl={moz:locale}&amp;q={searchTerms}"/>
 +#endif
  <Url type="text/html" method="GET" template="http://www.google.com/search">
-   <Param name="q" value="{searchTerms}"/>
-   <Param name="ie" value="utf-8"/>
-@@ -11,7 +15,7 @@
-   <Param name="aq" value="t"/>
-   <!-- Dynamic parameters -->
-   <Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
--  <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
-+#expand  <MozParam name="client" condition="defaultEngine" trueValue="__MOZ_APP_NAME__-a" falseValue="__MOZ_APP_NAME__"/>
- </Url>
- <SearchForm>http://www.google.com/</SearchForm>
- </SearchPlugin>
+ #expand   __GOOGLE_PARAMS__
+ #expand   __GOOGLE_CLIENT_PARAM__

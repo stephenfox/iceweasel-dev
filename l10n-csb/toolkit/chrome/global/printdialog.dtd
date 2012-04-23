@@ -16,9 +16,9 @@
 <!ENTITY printerInput.accesskey "M">
 
 <!ENTITY printrangeGroup.label "Òbjim drëkòwaniô">
-<!ENTITY allpagesRadio.label "Wszëtczé starnë">
+<!ENTITY allpagesRadio.label "Wszëtczé stronë">
 <!ENTITY allpagesRadio.accesskey "W">
-<!ENTITY rangeRadio.label  "Starnë">
+<!ENTITY rangeRadio.label  "stronë">
 <!ENTITY rangeRadio.accesskey  "S">
 <!ENTITY frompageInput.label  "òd">
 <!ENTITY frompageInput.accesskey  "d">
@@ -27,8 +27,8 @@
 <!ENTITY selectionRadio.label "Wëbiérk">
 <!ENTITY selectionRadio.accesskey "b">
 
-<!ENTITY copies.label "Kòpije">
-<!ENTITY numCopies.label "Wielëna kòpijów:">
+<!ENTITY copies.label "Kòpie">
+<!ENTITY numCopies.label "Wielëna kòpiów:">
 <!ENTITY numCopies.accesskey "l">
 
 <!ENTITY printframeGroup.label "Drëkùjë ramë">

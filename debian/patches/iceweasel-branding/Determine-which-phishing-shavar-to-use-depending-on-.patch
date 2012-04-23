@@ -4,17 +4,17 @@ Subject: Determine which phishing shavar to use depending on
  MOZ_OFFICIAL_BRANDING
 
 ---
- browser/app/Makefile.in                            |    4 ++++
- browser/app/profile/firefox.js                     |    4 ++++
- browser/components/safebrowsing/Makefile.in        |    4 ++++
- .../components/safebrowsing/content/application.js |    4 ++++
- 4 files changed, 16 insertions(+), 0 deletions(-)
+ browser/app/Makefile.in                                |    4 ++++
+ browser/app/profile/firefox.js                         |    4 ++++
+ browser/components/safebrowsing/Makefile.in            |    4 ++++
+ browser/components/safebrowsing/content/application.js |    4 ++++
+ 4 files changed, 16 insertions(+)
 
 diff --git a/browser/app/Makefile.in b/browser/app/Makefile.in
-index 7e4aeec..3ab899c 100644
+index d16f456..109f242 100644
 --- a/browser/app/Makefile.in
 +++ b/browser/app/Makefile.in
-@@ -168,6 +168,10 @@ endif # LIBXUL_SDK
+@@ -163,6 +163,10 @@ endif # LIBXUL_SDK
  
  DEFINES += -DFIREFOX_ICO=\"$(DIST)/branding/firefox.ico\" -DDOCUMENT_ICO=\"$(DIST)/branding/document.ico\"
  
@@ -26,10 +26,10 @@ index 7e4aeec..3ab899c 100644
  libs::
  	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(DIST)/bin/icons
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index dfe1994..3fa0321 100644
+index 0f78210..3d648dd 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -743,7 +743,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
+@@ -748,7 +748,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
  pref("urlclassifier.gethashnoise", 4);
  
  // The list of tables that use the gethash request to confirm partial results.

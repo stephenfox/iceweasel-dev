@@ -4,7 +4,7 @@ Subject: Place google and gmail before yandex
 
 ---
  .../chrome/browser-region/region.properties        |   26 ++++++++++----------
- 1 files changed, 13 insertions(+), 13 deletions(-)
+ 1 file changed, 13 insertions(+), 13 deletions(-)
 
 diff --git a/l10n-ru/browser/chrome/browser-region/region.properties b/l10n-ru/browser/chrome/browser-region/region.properties
 index 1081174..846684b 100644

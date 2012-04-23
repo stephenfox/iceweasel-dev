@@ -11,8 +11,6 @@
 <!ENTITY useCurrentPage.label      "વર્તમાન પાનું વાપરો">
 <!ENTITY useCurrentPage.accesskey  "C">
 <!ENTITY useMultiple.label         "વર્તમાન પાનાંઓ વાપરો">
-<!ENTITY useBookmark.label         "બુકમાર્ક વાપરો">
-<!ENTITY useBookmark.accesskey     "B">
 <!ENTITY restoreDefault.label      "મૂળભૂતમાં પુનઃસંગ્રહો">
 <!ENTITY restoreDefault.accesskey  "R">
 
@@ -37,3 +35,8 @@
 
 <!ENTITY manageAddonsDescWin.label     "તમારા એડ-ઓન માટેના વિકલ્પો બદલો">
 <!ENTITY manageAddonsDescUnix2.label   "તમારા એડ-ઓન માટેની પસંદગી બદલો">
+
+<!ENTITY chooseBookmark.label      "બુકમાર્ક વાપરો…">
+<!ENTITY chooseBookmark.accesskey  "B">
+<!ENTITY restoreOnDemand.label     "જ્યાં સુધી પસંદ નહિં થાય ત્યાં સુધી ટૅબ લાવશો નહિં">
+<!ENTITY restoreOnDemand.accesskey "l">

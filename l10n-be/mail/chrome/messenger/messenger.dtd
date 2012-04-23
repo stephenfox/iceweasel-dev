@@ -299,6 +299,7 @@
 <!ENTITY thisFolder.label "Гэтая папка">
 <!ENTITY thisFolder.accesskey "п">
 <!ENTITY goRecentlyClosedTabs.label "Нядаўна зачыненыя ўстаўкі">
+<!ENTITY goRecentlyClosedTabs.accesskey "Н">
 <!ENTITY startPageCmd.label "Пачатковая старонка Пошты">
 <!ENTITY startPageCmd.accesskey "П">
 <!ENTITY msgMenu.label "Ліст">

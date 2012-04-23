@@ -4,7 +4,7 @@ Subject: Don't hardcode page size on ia64
 
 ---
  memory/jemalloc/jemalloc.c |    2 ++
- 1 files changed, 2 insertions(+), 0 deletions(-)
+ 1 file changed, 2 insertions(+)
 
 diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
 index 8d0f2de..6afefc3 100644

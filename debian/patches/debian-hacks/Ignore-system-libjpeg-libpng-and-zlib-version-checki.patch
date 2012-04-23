@@ -7,13 +7,13 @@ internal version, which makes system library not used even though
 --with-system-* argument is given to configure.
 ---
  configure.in |    6 +++---
- 1 files changed, 3 insertions(+), 3 deletions(-)
+ 1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/configure.in b/configure.in
-index c5576f8..005d157 100644
+index f381e45..60d2847 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -4447,7 +4447,7 @@ else
+@@ -4418,7 +4418,7 @@ else
      AC_CHECK_LIB(jpeg, jpeg_destroy_compress, [SYSTEM_JPEG=1 JPEG_LIBS="-ljpeg $JPEG_LIBS"], SYSTEM_JPEG=, $JPEG_LIBS)
  fi
  
@@ -22,7 +22,7 @@ index c5576f8..005d157 100644
      LIBS="$JPEG_LIBS $LIBS"
      AC_TRY_COMPILE([ #include <stdio.h>
                       #include <sys/types.h>
-@@ -4487,7 +4487,7 @@ else
+@@ -4458,7 +4458,7 @@ else
      AC_CHECK_LIB(z, gzread, [SYSTEM_ZLIB=1 ZLIB_LIBS="-lz $ZLIB_LIBS"],
  	[SYSTEM_ZLIB= ZLIB_CFLAGS= ZLIB_LIBS=], $ZLIB_LIBS)
  fi
@@ -31,7 +31,7 @@ index c5576f8..005d157 100644
      LIBS="$ZLIB_LIBS $LIBS"
      AC_TRY_COMPILE([ #include <stdio.h>
                       #include <string.h>
-@@ -4567,7 +4567,7 @@ else
+@@ -4538,7 +4538,7 @@ else
                   AC_MSG_ERROR([--with-system-png won't work because the system's libpng doesn't have APNG support]),
                   $_SAVE_PNG_LIBS)
  fi

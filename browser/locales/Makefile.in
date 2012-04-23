@@ -162,16 +162,22 @@ install:: $(call MERGE_FILES,$(addprefix profile/chrome/,$(PROFILE_CHROME)))
 
 SEARCH_PLUGINS = $(shell cat $(call MERGE_FILE,/searchplugins/list.txt))
 
-$(FINAL_TARGET)/searchplugins/%: %
-	$(SYSINSTALL) -D $(dir $@)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-	  -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
-	  $< > $@
-
-libs:: $(addprefix $(FINAL_TARGET)/searchplugins/,$(addsuffix .xml,$(SEARCH_PLUGINS)))
+libs:: $(addsuffix .xml,$(SEARCH_PLUGINS))
+	$(NSINSTALL) -D $(FINAL_TARGET)/searchplugins
+	for SEARCH_PLUGIN in $^; do\
+	  SEARCH_PLUGIN_BASE=`basename $$SEARCH_PLUGIN`;\
+	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
+        -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
+	    $$SEARCH_PLUGIN > $(FINAL_TARGET)/searchplugins/$$SEARCH_PLUGIN_BASE; \
+	done
 
 install:: $(addsuffix .xml,$(SEARCH_PLUGINS))
-	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/searchplugins
+	$(NSINSTALL) -D $(DESTDIR)$(mozappdir)/searchplugins
+	for i in $^; do \
+	  SEARCH_PLUGIN_BASE=`basename $$SEARCH_PLUGIN`;\
+	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
+	    $$SEARCH_PLUGIN > $(DESTDIR)$(mozappdir)/searchplugins/$$SEARCH_PLUGIN_BASE; \
+	done
 
 
 libs-%:

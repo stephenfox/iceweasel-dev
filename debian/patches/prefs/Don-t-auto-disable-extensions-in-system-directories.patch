@@ -4,10 +4,10 @@ Subject: Don't auto-disable extensions in system directories
 
 ---
  browser/app/profile/firefox.js |    2 +-
- 1 files changed, 1 insertions(+), 1 deletions(-)
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 4a258fe..9443131 100644
+index 87d6089..72f8a53 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
 @@ -89,7 +89,7 @@ pref("extensions.hotfix.certs.1.sha1Fingerprint", "F1:DB:F9:6A:7B:B8:04:FA:48:3C

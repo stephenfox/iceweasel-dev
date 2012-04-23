@@ -7,10 +7,10 @@ Subject: Bug 728229 - Allow to build with system python ply library
  configure.in                    |   10 ++++++++++
  xpcom/idl-parser/Makefile.in    |    2 ++
  xpcom/typelib/xpidl/Makefile.in |    2 ++
- 4 files changed, 16 insertions(+), 0 deletions(-)
+ 4 files changed, 16 insertions(+)
 
 diff --git a/config/autoconf.mk.in b/config/autoconf.mk.in
-index c33816d..1afe63f 100644
+index 4f9d79d..e45b626 100644
 --- a/config/autoconf.mk.in
 +++ b/config/autoconf.mk.in
 @@ -697,6 +697,8 @@ JS_SHARED_LIBRARY = @JS_SHARED_LIBRARY@
@@ -23,10 +23,10 @@ index c33816d..1afe63f 100644
  ifeq ($(HOST_OS_ARCH),WINNT)
  # Ensure invariants between GNU Make and pymake
 diff --git a/configure.in b/configure.in
-index e74a470..696f950 100644
+index 03480f3..9163897 100644
 --- a/configure.in
 +++ b/configure.in
-@@ -1079,6 +1079,16 @@ if test -z "$PYTHON"; then
+@@ -1042,6 +1042,16 @@ if test -z "$PYTHON"; then
      AC_MSG_ERROR([python was not found in \$PATH])
  fi
  

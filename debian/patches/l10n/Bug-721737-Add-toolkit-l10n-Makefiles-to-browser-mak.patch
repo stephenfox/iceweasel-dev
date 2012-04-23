@@ -4,10 +4,10 @@ Subject: Bug 721737 - Add toolkit l10n Makefiles to browser/makefiles.sh
 
 ---
  browser/makefiles.sh |    6 ++++++
- 1 files changed, 6 insertions(+), 0 deletions(-)
+ 1 file changed, 6 insertions(+)
 
 diff --git a/browser/makefiles.sh b/browser/makefiles.sh
-index 7868af8..a2c4946 100644
+index c83ab5d..03be985 100644
 --- a/browser/makefiles.sh
 +++ b/browser/makefiles.sh
 @@ -85,6 +85,12 @@ browser/themes/Makefile

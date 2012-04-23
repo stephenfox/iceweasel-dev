@@ -2,7 +2,7 @@
 # Translator(s):
 #
 # Alexandru Szasz <alexxed@gmail.com>
-# Cristian Silaghi <stelistcristi@yahoo.com>
+# Cristian Silaghi <cristian.silaghi@mozilla.ro>
 #
 -->
 <!--
@@ -79,6 +79,26 @@
 <!ENTITY selectAllCmd.label           "Selectează tot">
 <!ENTITY selectAllCmd.key             "a">
 <!ENTITY selectAllCmd.accesskey       "a">
+
+<!ENTITY findCmd.label                "Găsește…">
+<!ENTITY findCmd.key                  "G">
+<!ENTITY findCmd.accesskey            "G">
+
+<!ENTITY findAgainCmd.label           "Găsește din nou…">
+<!-- LOCALIZATION NOTE (findAgainCmd.key): This key is used only on Macs.
+  -  Windows and Linux builds use the F3 key which is not localizable on purpose.
+  -->
+<!ENTITY findAgainCmd.key             "G">
+<!ENTITY findAgainCmd.accesskey       "G">
+<!-- LOCALIZATION NOTE (findPreviousCmd.key): This key is used only on Macs.
+  -  Windows and Linux builds use the Shift-F3 key which is not localizable on
+  -  purpose.
+  -->
+<!ENTITY findPreviousCmd.key          "G">
+
+<!ENTITY gotoLineCmd.label            "Sari la linia…">
+<!ENTITY gotoLineCmd.key              "l">
+<!ENTITY gotoLineCmd.accesskey        "l">
 
 <!ENTITY run.label                    "Rulează">
 <!ENTITY run.accesskey                "R">
