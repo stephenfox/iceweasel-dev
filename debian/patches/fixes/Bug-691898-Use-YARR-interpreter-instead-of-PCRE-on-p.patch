@@ -5,13 +5,14 @@ Subject: Bug 691898 - Use YARR interpreter instead of PCRE on platforms where
 
 ---
  js/src/Makefile.in           |   21 +++++++++++++--------
+ js/src/jsapi.cpp             |    4 ++++
  js/src/jscntxt.cpp           |    4 ++++
  js/src/jscntxt.h             |    6 ++++++
  js/src/vm/RegExpObject-inl.h |   28 ++++++----------------------
  js/src/vm/RegExpObject.cpp   |   37 -------------------------------------
  js/src/vm/RegExpObject.h     |   33 +++++++--------------------------
  js/src/yarr/wtfbridge.h      |    2 --
- 7 files changed, 36 insertions(+), 95 deletions(-)
+ 8 files changed, 40 insertions(+), 95 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
 index 7defb97..22120b7 100644
@@ -57,6 +58,30 @@ index 7defb97..22120b7 100644
  endif
  
  INCLUDES +=	-I$(srcdir)/assembler -I$(srcdir)/yarr
+diff --git a/js/src/jsapi.cpp b/js/src/jsapi.cpp
+index 92052a7..4f76197 100644
+--- a/js/src/jsapi.cpp
++++ b/js/src/jsapi.cpp
+@@ -699,7 +699,9 @@ JSRuntime::JSRuntime()
+     ownerThread_(NULL),
+ #endif
+     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
++#if ENABLE_ASSEMBLER
+     execAlloc_(NULL),
++#endif
+     bumpAlloc_(NULL),
+     repCache_(NULL),
+     interpreterFrames(NULL),
+@@ -841,7 +843,9 @@ JSRuntime::~JSRuntime()
+ {
+     JS_ASSERT(onOwnerThread());
+ 
++#if ENABLE_ASSEMBLER
+     delete_<JSC::ExecutableAllocator>(execAlloc_);
++#endif
+     delete_<WTF::BumpPointerAllocator>(bumpAlloc_);
+     JS_ASSERT(!repCache_);
+ 
 diff --git a/js/src/jscntxt.cpp b/js/src/jscntxt.cpp
 index 648fd49..090d9dd 100644
 --- a/js/src/jscntxt.cpp
