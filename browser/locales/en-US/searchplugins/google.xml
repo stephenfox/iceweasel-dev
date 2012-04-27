@@ -1,3 +1,4 @@
+#filter substitution
 #define GOOGLE_PARAMS <Param name="q" value="{searchTerms}"/><Param name="ie" value="utf-8"/><Param name="oe" value="utf-8"/><Param name="aq" value="t"/><Param name="rls" value="{moz:distributionID}:{moz:locale}:{moz:official}"/>
 #if MOZ_APP_NAME==firefox
 #if MOZ_UPDATE_CHANNEL == beta
@@ -10,7 +11,7 @@
 #define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
 #endif
 #else
-#define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="__MOZ_APP_NAME__-a" falseValue="__MOZ_APP_NAME__"/>
+#define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="@MOZ_APP_NAME@-a" falseValue="@MOZ_APP_NAME@"/>
 #endif
 <SearchPlugin xmlns="http://www.mozilla.org/2006/browser/search/">
 <ShortName>Google</ShortName>
