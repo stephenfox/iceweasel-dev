@@ -1,3 +1,13 @@
+iceweasel (12.0-3) experimental; urgency=low
+
+  * ipc/chromium/src/base/atomicops_internals_mips_gcc.h: Import
+    atomicops_internals_mips_gcc.h from protobuf. bz#749530.
+  * gfx/skia/include/core/SkPreConfig.h: Add support for GNU/kFreeBSD and Hurd
+    in SKIA. bz#749533.
+  * browser/locales/en-US/searchplugins/google.xml: Fix Google search plugin.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 27 Apr 2012 08:47:34 +0200
+
 iceweasel (12.0-2) experimental; urgency=low
 
   * js/src/jsapi.cpp: Fixup for bz691898. Should fix FTBFSes.
