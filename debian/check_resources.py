@@ -49,13 +49,16 @@ def files(dir):
     return files_from_manifest(manifest) + files_from_dir(dir, 'modules')
 
 def content(path):
-    if path.startswith('jar:'):
-        (jar, path) = split_jar_path(path)
-        zip = zipfile.ZipFile(jar, 'r')
-        file = zip.open(path, 'r')
-    else:
-        file = open(path, 'r')
-    return file.readlines()
+    try:
+        if path.startswith('jar:'):
+            (jar, path) = split_jar_path(path)
+            zip = zipfile.ZipFile(jar, 'r')
+            file = zip.open(path, 'r')
+        else:
+            file = open(path, 'r')
+        return file.readlines()
+    except:
+        return []
 
 def resolve(uri, appdir, xredir):
     (_, _, where, path) = uri.split('/', 3)
