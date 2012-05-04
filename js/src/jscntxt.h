@@ -221,24 +221,18 @@ struct JSRuntime
      * Both of these allocators are used for regular expression code which is shared at the
      * thread-data level.
      */
-#if ENABLE_ASSEMBLER
     JSC::ExecutableAllocator *execAlloc_;
-#endif
     WTF::BumpPointerAllocator *bumpAlloc_;
     js::RegExpPrivateCache *repCache_;
 
-#if ENABLE_ASSEMBLER
     JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
-#endif
     WTF::BumpPointerAllocator *createBumpPointerAllocator(JSContext *cx);
     js::RegExpPrivateCache *createRegExpPrivateCache(JSContext *cx);
 
   public:
-#if ENABLE_ASSEMBLER
     JSC::ExecutableAllocator *getExecutableAllocator(JSContext *cx) {
         return execAlloc_ ? execAlloc_ : createExecutableAllocator(cx);
     }
-#endif
     WTF::BumpPointerAllocator *getBumpPointerAllocator(JSContext *cx) {
         return bumpAlloc_ ? bumpAlloc_ : createBumpPointerAllocator(cx);
     }
