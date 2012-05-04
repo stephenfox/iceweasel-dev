@@ -1,3 +1,16 @@
+iceweasel (12.0-4) experimental; urgency=low
+
+  * memory/jemalloc/jemalloc.c: Don't hardcode page size on sparc.
+  * gfx/skia/include/core/SkPreConfig.h: Fixup for bz#749533 for Hurd.
+  * gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp,
+  * gfx/skia/src/opts/SkBlitRow_opts_arm.cpp: Various Skia fixes for ARMv4T
+    and ARMv6+. bz#751814.
+  * js/src/Makefile.in, js/src/assembler/jit/ExecutableAllocator.h,
+    js/src/jsapi.cpp, js/src/jscntxt.cpp, js/src/jscntxt.h: Refresh to use
+    the last version of bz#691898 + some cleanup.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 04 May 2012 09:11:59 +0200
+
 iceweasel (12.0-3) experimental; urgency=low
 
   * ipc/chromium/src/base/atomicops_internals_mips_gcc.h: Import
