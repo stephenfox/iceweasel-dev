@@ -4,145 +4,113 @@ Subject: Bug 691898 - Use YARR interpreter instead of PCRE on platforms where
  YARR JIT is not supported
 
 ---
- js/src/Makefile.in           |   21 +++++++++++++--------
- js/src/jsapi.cpp             |    4 ++++
- js/src/jscntxt.cpp           |    4 ++++
- js/src/jscntxt.h             |    6 ++++++
- js/src/vm/RegExpObject-inl.h |   28 ++++++----------------------
- js/src/vm/RegExpObject.cpp   |   37 -------------------------------------
- js/src/vm/RegExpObject.h     |   33 +++++++--------------------------
- js/src/yarr/wtfbridge.h      |    2 --
- 8 files changed, 40 insertions(+), 95 deletions(-)
+ js/src/Makefile.in                         |   43 +++++++++++-----------------
+ js/src/assembler/jit/ExecutableAllocator.h |    2 --
+ js/src/vm/RegExpObject-inl.h               |   28 ++++--------------
+ js/src/vm/RegExpObject.cpp                 |   37 ------------------------
+ js/src/vm/RegExpObject.h                   |   33 +++++----------------
+ js/src/yarr/wtfbridge.h                    |    2 --
+ 6 files changed, 29 insertions(+), 116 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 7defb97..22120b7 100644
+index 7defb97..e7a2eec 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -354,15 +354,20 @@ CPPSRCS += 	checks.cc \
+@@ -349,45 +349,20 @@ CPPSRCS += 	checks.cc \
+ # END enclude sources for V8 dtoa
+ #############################################
  
- ifeq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
- 
+-# For architectures without YARR JIT, PCRE is faster than the YARR
+-# interpreter (bug 684559).
+-
+-ifeq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
+-
 -VPATH +=        $(srcdir)/yarr/pcre \
-+VPATH +=        $(srcdir)/assembler \
-+                $(srcdir)/assembler/wtf \
-+                $(srcdir)/yarr \
- 		$(NULL)
- 
- CPPSRCS += \
+-		$(NULL)
+-
+-CPPSRCS += \
 -                pcre_compile.cpp \
 -                pcre_exec.cpp \
 -                pcre_tables.cpp \
 -                pcre_xclass.cpp \
 -                pcre_ucp_searchfuncs.cpp \
-+                Assertions.cpp \
-+                OSAllocatorOS2.cpp \
-+                OSAllocatorPosix.cpp \
-+                OSAllocatorWin.cpp \
-+                PageBlock.cpp \
-+                YarrInterpreter.cpp \
-+                YarrPattern.cpp \
-+                YarrSyntaxChecker.cpp \
- 		$(NULL)
- else
+-		$(NULL)
+-else
+-
+ ###############################################
+ # BEGIN include sources for the Nitro assembler
+ #
  
-@@ -896,10 +901,10 @@ endif
- # Needed to "configure" it correctly.  Unfortunately these
- # flags wind up being applied to all code in js/src, not just
- # the code in js/src/assembler.
--CXXFLAGS += -DUSE_SYSTEM_MALLOC=1 -DENABLE_ASSEMBLER=1
-+CXXFLAGS += -DUSE_SYSTEM_MALLOC=1
+-ENABLE_YARR_JIT = 1
+-
+ VPATH += 	$(srcdir)/assembler \
+ 		$(srcdir)/assembler/wtf \
+ 		$(srcdir)/assembler/jit \
+-		$(srcdir)/assembler/assembler \
+-		$(srcdir)/methodjit \
+ 		$(srcdir)/yarr \
+ 		$(NONE)
  
- ifneq (,$(ENABLE_YARR_JIT)$(ENABLE_METHODJIT))
--CXXFLAGS +=  -DENABLE_JIT=1
-+CXXFLAGS +=  -DENABLE_JIT=1 -DENABLE_ASSEMBLER=1
+ CPPSRCS += 	Assertions.cpp \
+ 		ExecutableAllocator.cpp \
+-		ARMAssembler.cpp \
+-		MacroAssemblerARM.cpp \
+-		MacroAssemblerX86Common.cpp \
+ 		PageBlock.cpp \
+ 		YarrInterpreter.cpp \
+-		YarrJIT.cpp \
+ 		YarrPattern.cpp \
+ 		YarrSyntaxChecker.cpp \
+ 		$(NONE)
+@@ -412,6 +387,19 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
+            $(NONE)
  endif
  
- INCLUDES +=	-I$(srcdir)/assembler -I$(srcdir)/yarr
-diff --git a/js/src/jsapi.cpp b/js/src/jsapi.cpp
-index 92052a7..4f76197 100644
---- a/js/src/jsapi.cpp
-+++ b/js/src/jsapi.cpp
-@@ -699,7 +699,9 @@ JSRuntime::JSRuntime()
-     ownerThread_(NULL),
++ifneq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
++ENABLE_YARR_JIT = 1
++
++VPATH +=	$(srcdir)/assembler/assembler \
++		$(srcdir)/methodjit \
++		$(NONE)
++
++CPPSRCS +=	ARMAssembler.cpp \
++		MacroAssemblerARM.cpp \
++		MacroAssemblerX86Common.cpp \
++		YarrJIT.cpp \
++		$(NONE)
++
+ ifeq (86, $(findstring 86,$(TARGET_CPU)))
+ ifeq (x86_64, $(TARGET_CPU))
+ #CPPSRCS		+= only_on_x86_64.cpp
+@@ -422,12 +410,13 @@ endif
+ ifeq (arm, $(TARGET_CPU))
+ #CPPSRCS		+= only_on_arm.cpp
+ endif
++
++endif
++
+ #
+ # END enclude sources for the Nitro assembler
+ #############################################
+ 
+-endif
+-
+ ifdef JS_HAS_CTYPES
+ VPATH += $(srcdir)/ctypes
+ 
+diff --git a/js/src/assembler/jit/ExecutableAllocator.h b/js/src/assembler/jit/ExecutableAllocator.h
+index f1cf9d2..53233bc 100644
+--- a/js/src/assembler/jit/ExecutableAllocator.h
++++ b/js/src/assembler/jit/ExecutableAllocator.h
+@@ -445,8 +445,6 @@ public:
+     {
+         sync_instruction_memory((caddr_t)code, size);
+     }
+-#else
+-    #error "The cacheFlush support is missing on this platform."
  #endif
-     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
-+#if ENABLE_ASSEMBLER
-     execAlloc_(NULL),
-+#endif
-     bumpAlloc_(NULL),
-     repCache_(NULL),
-     interpreterFrames(NULL),
-@@ -841,7 +843,9 @@ JSRuntime::~JSRuntime()
- {
-     JS_ASSERT(onOwnerThread());
  
-+#if ENABLE_ASSEMBLER
-     delete_<JSC::ExecutableAllocator>(execAlloc_);
-+#endif
-     delete_<WTF::BumpPointerAllocator>(bumpAlloc_);
-     JS_ASSERT(!repCache_);
- 
-diff --git a/js/src/jscntxt.cpp b/js/src/jscntxt.cpp
-index 648fd49..090d9dd 100644
---- a/js/src/jscntxt.cpp
-+++ b/js/src/jscntxt.cpp
-@@ -104,9 +104,11 @@ JSRuntime::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, s
- 
-     if (regexpCode) {
-         size_t method = 0, regexp = 0, unused = 0;
-+#if ENABLE_ASSEMBLER
-         if (execAlloc_)
-             execAlloc_->sizeOfCode(&method, &regexp, &unused);
-         JS_ASSERT(method == 0);     /* this execAlloc is only used for regexp code */
-+#endif
-         *regexpCode = regexp + unused;
-     }
- 
-@@ -124,6 +126,7 @@ JSRuntime::triggerOperationCallback()
-     JS_ATOMIC_SET(&interrupt, 1);
- }
- 
-+#if ENABLE_ASSEMBLER
- JSC::ExecutableAllocator *
- JSRuntime::createExecutableAllocator(JSContext *cx)
- {
-@@ -135,6 +138,7 @@ JSRuntime::createExecutableAllocator(JSContext *cx)
-         js_ReportOutOfMemory(cx);
-     return execAlloc_;
- }
-+#endif
- 
- WTF::BumpPointerAllocator *
- JSRuntime::createBumpPointerAllocator(JSContext *cx)
-diff --git a/js/src/jscntxt.h b/js/src/jscntxt.h
-index 3c18606..beb2207 100644
---- a/js/src/jscntxt.h
-+++ b/js/src/jscntxt.h
-@@ -221,18 +221,24 @@ struct JSRuntime
-      * Both of these allocators are used for regular expression code which is shared at the
-      * thread-data level.
-      */
-+#if ENABLE_ASSEMBLER
-     JSC::ExecutableAllocator *execAlloc_;
-+#endif
-     WTF::BumpPointerAllocator *bumpAlloc_;
-     js::RegExpPrivateCache *repCache_;
- 
-+#if ENABLE_ASSEMBLER
-     JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
-+#endif
-     WTF::BumpPointerAllocator *createBumpPointerAllocator(JSContext *cx);
-     js::RegExpPrivateCache *createRegExpPrivateCache(JSContext *cx);
- 
-   public:
-+#if ENABLE_ASSEMBLER
-     JSC::ExecutableAllocator *getExecutableAllocator(JSContext *cx) {
-         return execAlloc_ ? execAlloc_ : createExecutableAllocator(cx);
-     }
-+#endif
-     WTF::BumpPointerAllocator *getBumpPointerAllocator(JSContext *cx) {
-         return bumpAlloc_ ? bumpAlloc_ : createBumpPointerAllocator(cx);
-     }
+ private:
 diff --git a/js/src/vm/RegExpObject-inl.h b/js/src/vm/RegExpObject-inl.h
 index 3c134d4..0d989b9 100644
 --- a/js/src/vm/RegExpObject-inl.h
