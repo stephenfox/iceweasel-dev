@@ -54,10 +54,10 @@ Find a GRE with version <version> and print its path on stdout.
 Install a XUL application at the given destination, with the given directory name.
 .TP
 .B \-g, \-debug
-Starts Iceweasel through a debugger (gdb by default).
+Starts XULRunner through a debugger (gdb by default).
 .TP
 \fB\-\-debugger\fR \fIprogram\fR
-Use \fIprogram\fR as a debugger for Iceweasel. Implies \fB\-debug\fR.
+Use \fIprogram\fR as a debugger for XULRunner. Implies \fB\-debug\fR.
 
 .SH APP-FILE
 The app-file is a manifest, located at the root of the application and provides
