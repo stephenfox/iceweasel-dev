@@ -1,0 +1,63 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Fri, 4 May 2012 08:05:24 +0200
+Subject: Bug 751814 - Various Skia fixes for ARMv4T and ARMv6+
+
+---
+ gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp |   13 +++++++++++++
+ gfx/skia/src/opts/SkBlitRow_opts_arm.cpp         |    9 +++++++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp b/gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp
+index 20d62e1..e907dd8 100644
+--- a/gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp
++++ b/gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp
+@@ -11,6 +11,19 @@
+ #include "SkColorPriv.h"
+ #include "SkUtils.h"
+ 
++#if defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || \
++    defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || \
++    defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) || \
++    defined(__ARM_ARCH_6M__)
++# define __ARM_ARCH__ 6
++#endif
++
++#if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
++    defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
++    defined(__ARM_ARCH_7EM__) \
++# define __ARM_ARCH__ 7
++#endif
++
+ #if __ARM_ARCH__ >= 6 && !defined(SK_CPU_BENDIAN)
+ void SI8_D16_nofilter_DX_arm(
+     const SkBitmapProcState& s,
+diff --git a/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp b/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp
+index 722a036..42e74c3 100644
+--- a/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp
++++ b/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp
+@@ -671,8 +671,13 @@ static void __attribute((noinline,optimize("-fomit-frame-pointer"))) S32A_Blend_
+                   /* dst1_scale and dst2_scale*/
+                   "lsr    r9, r5, #24                \n\t" /* src >> 24 */
+                   "lsr    r10, r6, #24               \n\t" /* src >> 24 */
++#if defined(__ARM_ARCH_4T__) || defined(__ARM_ARCH_5T__)
++                  "mul    r9, r9, %[alpha]           \n\t" /* r9 = SkMulS16 r9 with src_scale */
++                  "mul    r10, r10, %[alpha]         \n\t" /* r10 = SkMulS16 r10 with src_scale */
++#else
+                   "smulbb r9, r9, %[alpha]           \n\t" /* r9 = SkMulS16 r9 with src_scale */
+                   "smulbb r10, r10, %[alpha]         \n\t" /* r10 = SkMulS16 r10 with src_scale */
++#endif
+                   "lsr    r9, r9, #8                 \n\t" /* r9 >> 8 */
+                   "lsr    r10, r10, #8               \n\t" /* r10 >> 8 */
+                   "rsb    r9, r9, #256               \n\t" /* dst1_scale = r9 = 255 - r9 + 1 */
+@@ -741,7 +746,11 @@ static void __attribute((noinline,optimize("-fomit-frame-pointer"))) S32A_Blend_
+ 
+                   "lsr    r6, r5, #24                \n\t" /* src >> 24 */
+                   "and    r8, r12, r5, lsr #8        \n\t" /* ag = r8 = r5 masked by r12 lsr by #8 */
++#if defined(__ARM_ARCH_4T__) || defined(__ARM_ARCH_5T__)
++                  "mul    r6, r6, %[alpha]           \n\t" /* r6 = SkMulS16 with src_scale */
++#else
+                   "smulbb r6, r6, %[alpha]           \n\t" /* r6 = SkMulS16 with src_scale */
++#endif
+                   "and    r9, r12, r5                \n\t" /* rb = r9 = r5 masked by r12 */
+                   "lsr    r6, r6, #8                 \n\t" /* r6 >> 8 */
+                   "mul    r8, r8, %[alpha]           \n\t" /* ag = r8 times scale */

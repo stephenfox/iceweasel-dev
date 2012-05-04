@@ -19,10 +19,11 @@ porting/Allow-ipc-code-to-build-on-GNU-Hurd.patch
 porting/Bug-698923-Don-t-require-16-bytes-alignment-for-VMFr.patch
 porting/Fix-GNU-non-Linux-failure-to-build-because-of-ipc-ch.patch
 porting/Bug-703833-Avoid-invalid-conversion-from-const-size_.patch
-porting/Don-t-hardcode-page-size-on-ia64.patch
+porting/Don-t-hardcode-page-size-on-ia64-and-sparc.patch
 porting/Bug-747870-Properly-align-XPCLazyCallContext-mData.-.patch
 porting/Bug-749530-Import-atomicops_internals_mips_gcc.h-fro.patch
 porting/Bug-749533-Add-support-for-GNU-kFreeBSD-and-Hurd-in-.patch
+porting/Bug-751814-Various-Skia-fixes-for-ARMv4T-and-ARMv6.patch
 prefs/Remove-general.useragent.locale-prefs-from-firefox-..patch
 prefs/Enable-intl.locale.matchOS-and-report-the-locale-cor.patch
 prefs/Set-javascript.options.showInConsole.patch
