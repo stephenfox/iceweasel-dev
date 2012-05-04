@@ -104,11 +104,9 @@ JSRuntime::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, s
 
     if (regexpCode) {
         size_t method = 0, regexp = 0, unused = 0;
-#if ENABLE_ASSEMBLER
         if (execAlloc_)
             execAlloc_->sizeOfCode(&method, &regexp, &unused);
         JS_ASSERT(method == 0);     /* this execAlloc is only used for regexp code */
-#endif
         *regexpCode = regexp + unused;
     }
 
@@ -126,7 +124,6 @@ JSRuntime::triggerOperationCallback()
     JS_ATOMIC_SET(&interrupt, 1);
 }
 
-#if ENABLE_ASSEMBLER
 JSC::ExecutableAllocator *
 JSRuntime::createExecutableAllocator(JSContext *cx)
 {
@@ -138,7 +135,6 @@ JSRuntime::createExecutableAllocator(JSContext *cx)
         js_ReportOutOfMemory(cx);
     return execAlloc_;
 }
-#endif
 
 WTF::BumpPointerAllocator *
 JSRuntime::createBumpPointerAllocator(JSContext *cx)
