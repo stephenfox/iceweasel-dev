@@ -1,3 +1,14 @@
+iceweasel (12.0-6) experimental; urgency=low
+
+  * ipc/chromium/src/base/file_util_linux.cc,
+    ipc/chromium/src/base/message_pump_libevent.cc,
+    ipc/chromium/src/base/time_posix.cc: gcc 4.7 build failures (missing
+    headers). bz#725655.
+  * layout/base/tests/TestPoisonArea.cpp: fix build failures with Clang and
+    GCC 4.7 in TestPoisonArea.cpp. bz#734490.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 11 May 2012 19:09:23 +0200
+
 iceweasel (12.0-5) experimental; urgency=low
 
   * debian/xulrunner-GRE_VERSION.1.in: Fix xulrunner-x.y manual page to say
