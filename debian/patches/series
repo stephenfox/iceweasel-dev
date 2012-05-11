@@ -10,6 +10,8 @@ fixes/Bug-515232-Try-getting-general.useragent.locale-as-a.patch
 fixes/Revert-investigation-patch-for-bug-621446.patch
 fixes/Bug-734335-Only-build-SPS-on-supported-platforms.patch
 fixes/Bug-747322-Fix-jemalloc-mmap-wrapper-for-s390x.patch
+fixes/Bug-725655-gcc-4.7-build-failures-missing-headers-.-.patch
+fixes/Bug-734490-fix-build-failures-with-Clang-and-GCC-4.7.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
