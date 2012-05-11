@@ -1,3 +1,15 @@
+iceweasel (12.0-5) experimental; urgency=low
+
+  * debian/xulrunner-GRE_VERSION.1.in: Fix xulrunner-x.y manual page to say
+    XULRunner instead of Iceweasel.
+
+  * gfx/skia/include/core/SkMath.h, gfx/skia/include/core/SkPostConfig.h,
+    gfx/skia/src/opts/SkBitmapProcState_opts_arm.cpp,
+    gfx/skia/src/opts/SkBlitRow_opts_arm.cpp: Fixup for bz#751814, and
+    refreshed as sent upstream. Should fix FTBFS on armel and armhf.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 11 May 2012 10:46:18 +0200
+
 iceweasel (12.0-4) experimental; urgency=low
 
   * memory/jemalloc/jemalloc.c: Don't hardcode page size on sparc.

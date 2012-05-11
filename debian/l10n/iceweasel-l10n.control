@@ -300,7 +300,7 @@
 %include iceweasel-l10n.control.in
 
 %define L10N_LANG or
-%define L10N_LANGUAGE Oriya macrolanguage with constituent members Oriya [ory] and Sambalpuri [spv]
+%define L10N_LANGUAGE Oriya macrolanguage
 %undef L10N_RECOMMENDS
 %include iceweasel-l10n.control.in
 
