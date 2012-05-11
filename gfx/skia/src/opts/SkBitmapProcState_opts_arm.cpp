@@ -11,20 +11,7 @@
 #include "SkColorPriv.h"
 #include "SkUtils.h"
 
-#if defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || \
-    defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || \
-    defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) || \
-    defined(__ARM_ARCH_6M__)
-# define __ARM_ARCH__ 6
-#endif
-
-#if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
-    defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
-    defined(__ARM_ARCH_7EM__) \
-# define __ARM_ARCH__ 7
-#endif
-
-#if __ARM_ARCH__ >= 6 && !defined(SK_CPU_BENDIAN)
+#if SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
 void SI8_D16_nofilter_DX_arm(
     const SkBitmapProcState& s,
     const uint32_t* SK_RESTRICT xy,
@@ -195,7 +182,7 @@ void SI8_opaque_D32_nofilter_DX_arm(const SkBitmapProcState& s,
 
     s.fBitmap->getColorTable()->unlockColors(false);
 }
-#endif //__ARM_ARCH__ >= 6 && !defined(SK_CPU_BENDIAN)
+#endif // SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -213,7 +200,7 @@ void SkBitmapProcState::platformProcs() {
 
     switch (fBitmap->config()) {
         case SkBitmap::kIndex8_Config:
-#if __ARM_ARCH__ >= 6 && !defined(SK_CPU_BENDIAN)
+#if SK_ARM_ARCH >= 6 && !defined(SK_CPU_BENDIAN)
             if (justDx && !doFilter) {
 #if 0   /* crashing on android device */
                 fSampleProc16 = SI8_D16_nofilter_DX_arm;
