@@ -1,3 +1,21 @@
+iceweasel (12.0-7) experimental; urgency=low
+
+  * debian/rules: Also set LDFLAGS from dpkg-buildflags (although in practice
+    it changes nothing because relro is disabled)
+  * debian/control*:
+    - Force build and runtime dependency on libsqlite3-0 >= 3.7.12-1~ for a
+      right value of SQLITE_MAX_SCHEMA_RETRY and SQLITE_MAX_DEFAULT_PAGE_SIZE.
+    - Suggest fonts-lyx. Closes: #673222.
+    - Make xulrunner-dbg depend on nspr and nss debug packages.
+  * debian/xulrunner-GRE_VERSION.links.in,
+    debian/xulrunner-GRE_VERSION.install.in: Move omni.ja to
+    /usr/lib/xulrunner-x.0 because it contains arch-depend data.
+  * debian/xulrunner.mozconfig: Use system cairo again.
+
+  * gfx/thebes/gfxPlatform.cpp: Make system cairo work again. bz#722975.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 17 May 2012 11:59:46 +0200
+
 iceweasel (12.0-6) experimental; urgency=low
 
   * ipc/chromium/src/base/file_util_linux.cc,
