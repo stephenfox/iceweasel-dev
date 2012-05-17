@@ -1,9 +1,12 @@
 #!/usr/bin/make -f
 ifeq (,$(shell dh_testdir || echo no))
 include debian/make.mk
-$(call lazy,DEB_CFLAGS_MAINT_STRIP,$$(shell DEB_BUILD_MAINT_OPTIONS=hardening=-all dpkg-buildflags --get CFLAGS))
-$(call lazy,CFLAGS,$$(shell DEB_BUILD_MAINT_OPTIONS=hardening=-relro DEB_CFLAGS_MAINT_STRIP="$$(DEB_CFLAGS_MAINT_STRIP)" dpkg-buildflags --get CFLAGS))
-$(call lazy,CPPFLAGS,$$(shell dpkg-buildflags --get CPPFLAGS))
+# Use dpkg-buildflags to get hardening flags, exclude non-hardening flags,
+# and disable read-only relocations.
+dpkg_buildflags = $(and $(1),$(shell DEB_BUILD_MAINT_OPTIONS=hardening=-relro DEB_CFLAGS_MAINT_STRIP="$(shell DEB_BUILD_MAINT_OPTIONS=hardening=-all dpkg-buildflags --get $(1))" dpkg-buildflags --get $(1)))
+$(call lazy,CFLAGS,$$(call dpkg_buildflags,CFLAGS))
+$(call lazy,CPPFLAGS,$$(call dpkg_buildflags,CPPFLAGS))
+$(call lazy,LDFLAGS,$$(call dpkg_buildflags,LDFLAGS))
 
 $(call lazy,DEB_HOST_GNU_TYPE,$$(shell dpkg-architecture -qDEB_HOST_GNU_TYPE))
 $(call lazy,DEB_BUILD_GNU_TYPE,$$(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE))
@@ -27,7 +30,7 @@ endif
 LIB_DIR := /usr/lib/iceweasel
 SHARE_DIR := /usr/share/iceweasel
 
-MAIN_LDFLAGS := -Wl,--as-needed
+LDFLAGS := -Wl,--as-needed
 
 AUTOCONF_DIRS := build/autoconf js/src/build/autoconf
 
@@ -130,8 +133,8 @@ stamps/configure-xulrunner:: stamps/prepare-configure
 	$(CONFIGURE_ENV) \
 	../configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr $(CONFIGURE_FLAGS) \
 		--with-default-mozilla-five-home=/usr/lib/xulrunner-$(GRE_VERSION)
-	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/config/autoconf.mk
-	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(LDFLAGS)|' build-xulrunner/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(LDFLAGS)|' build-xulrunner/js/src/config/autoconf.mk
 
 stamps/configure-check-xulrunner:: stamps/configure-xulrunner
 # Ensure --{with,enable}-system options properly set expected variables
@@ -170,7 +173,7 @@ stamps/configure-browser:: stamps/build-xulrunner-extra
 		--with-libxul-sdk=$(CURDIR)/build-xulrunner/dist \
 		--with-branding=$(BRANDING) \
 		--with-system-libxul --with-system-nspr --with-system-nss
-	sed -i '/^OS_LDFLAGS/s|=|& $(MAIN_LDFLAGS)|' build-browser/config/autoconf.mk
+	sed -i '/^OS_LDFLAGS/s|=|& $(LDFLAGS)|' build-browser/config/autoconf.mk
 
 stamps/build-browser:: stamps/configure-browser
 	dh_auto_build --builddirectory=build-browser
