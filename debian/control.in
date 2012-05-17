@@ -62,7 +62,7 @@ Depends: ${shlibs:Depends},
          debianutils (>= 1.16),
          xulrunner-@GRE_VERSION@ (>= ${binary:Version}),
          libsqlite3-0 (>= 3.7.12-1~)
-Suggests: ttf-lyx | latex-xft-fonts,
+Suggests: fonts-lyx | ttf-lyx | latex-xft-fonts,
           xfonts-mathml,
           ttf-mathematica4.1,
           mozplugger,
