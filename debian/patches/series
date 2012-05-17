@@ -12,6 +12,7 @@ fixes/Bug-734335-Only-build-SPS-on-supported-platforms.patch
 fixes/Bug-747322-Fix-jemalloc-mmap-wrapper-for-s390x.patch
 fixes/Bug-725655-gcc-4.7-build-failures-missing-headers-.-.patch
 fixes/Bug-734490-fix-build-failures-with-Clang-and-GCC-4.7.patch
+fixes/Bug-722975-Make-system-cairo-work-again.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
