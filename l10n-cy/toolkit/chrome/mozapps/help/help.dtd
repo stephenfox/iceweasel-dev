@@ -13,7 +13,7 @@
 <!ENTITY copyCmd.label                  "Copïo">
 <!ENTITY copyCmd.accesskey              "C">
 <!ENTITY selectAllCmd.label             "Dewis Popeth">
-<!ENTITY selectAllCmd.accesskey         "D">
+<!ENTITY selectAllCmd.accesskey         "P">
 <!ENTITY goBackCmd.commandkey           "[">
 <!ENTITY goForwardCmd.commandkey        "]">
 <!ENTITY homeButton.label               "Cartref">
@@ -25,18 +25,19 @@
 <!ENTITY search.emptytext               "Chwilio">
 <!ENTITY searchHeader.label             "Canlyniadau chwilio">
 <!ENTITY toctab.label                   "Cynnwys">
-<!ENTITY toctab.accesskey               "C">
-
+<!ENTITY toctab.accesskey               "y">
 <!-- LOCALIZATION NOTE :
 fullZoomEnlargeCmd.commandkey3, fullZoomReduceCmd.commandkey2 and
 fullZoomResetCmd.commandkey2 are alternative acceleration keys for zoom.
 If shift key is needed with your locale popular keyboard for them,
 you can use these alternative items. Otherwise, their values should be empty.  -->
 
+
 <!ENTITY fullZoomReduceCmd.commandkey   "-">
 <!ENTITY fullZoomReduceCmd.commandkey2  "">
 <!ENTITY fullZoomEnlargeCmd.commandkey  "+">
-<!ENTITY fullZoomEnlargeCmd.commandkey2 "="> <!-- + is above this key on many keyboards -->
+<!-- + is above this key on many keyboards -->
+<!ENTITY fullZoomEnlargeCmd.commandkey2 "="> 
 <!ENTITY fullZoomEnlargeCmd.commandkey3 "">
 <!ENTITY fullZoomResetCmd.commandkey    "0">
 <!ENTITY fullZoomResetCmd.commandkey2   "">
@@ -44,9 +45,9 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY helpSearch.commandkey          "k">
 
 <!ENTITY zLevel.label                   "Pob tro ar y Brig">
-<!ENTITY zLevel.accesskey               "t">
+<!ENTITY zLevel.accesskey               "B">
 
 <!ENTITY fullZoomReduceBtn.label        "Chwyddo Allan">
-<!ENTITY fullZoomReduceBtn.accesskey    "o">
+<!ENTITY fullZoomReduceBtn.accesskey    "A">
 <!ENTITY fullZoomEnlargeBtn.label       "Chwyddo Mewn">
-<!ENTITY fullZoomEnlargeBtn.accesskey   "C">
+<!ENTITY fullZoomEnlargeBtn.accesskey   "M">

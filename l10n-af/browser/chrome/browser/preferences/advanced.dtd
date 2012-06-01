@@ -68,7 +68,7 @@
 <!ENTITY updateAuto.accesskey            "I">
 <!ENTITY updateCheck.label               "Kontroleer vir bywerkings, maar laat my kies of ek dit wil installeer">
 <!ENTITY updateCheck.accesskey           "K">
-<!ENTITY updateManual.label              "Moet nooi kontroleer vir bywerkings nie (sekuriteitsrisiko)">
+<!ENTITY updateManual.label              "Moet nooit kontroleer vir bywerkings nie (sekuriteitsrisiko)">
 <!ENTITY updateManual.accesskey          "n">
 
 <!ENTITY updateAutoAddonWarn.label       "Waarsku my as dit enige van my byvoegings sal deaktiveer">
@@ -77,8 +77,8 @@
 <!ENTITY updateHistory.label             "Wys bywerkinggeskiedenis">
 <!ENTITY updateHistory.accesskey         "y">
 
-<!ENTITY useService.label                "Use a background service to install updates">
-<!ENTITY useService.accesskey            "b">
+<!ENTITY useService.label                "Gebruik 'n agtergronddiens om bywerkings te installeer">
+<!ENTITY useService.accesskey            "a">
 
 <!ENTITY updateOthers.label              "Werk outomaties by:">
 <!ENTITY enableSearchUpdate.label        "Soekenjins">

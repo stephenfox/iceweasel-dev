@@ -213,19 +213,30 @@ can reach it easily. -->
 <!ENTITY scratchpad.keycode           "VK_F4">
 <!ENTITY scratchpad.keytext           "F4">
 
-<!ENTITY inspectPanelTitle.label        "HTML">
-<!ENTITY inspectButton.label            "Lambula">
-<!ENTITY inspectButton.accesskey        "L">
 <!ENTITY inspectCloseButton.tooltiptext "Galawo Omukebezi">
-<!ENTITY inspect3DButton.label        "3D">
-<!ENTITY inspect3DButton.accesskey    "M">
+
+<!ENTITY inspectorHTMLCopyInner.label       "Koppa Inner HTML">
+<!ENTITY inspectorHTMLCopyInner.accesskey   "I">
+
+<!ENTITY inspectorHTMLCopyOuter.label       "Koppa Outer HTML">
+<!ENTITY inspectorHTMLCopyOuter.accesskey   "O">
+
+<!ENTITY inspectorHTMLDelete.label          "Sangula Kanodi">
+<!ENTITY inspectorHTMLDelete.accesskey      "S">
+<!-- LOCALIZATION NOTE (inspect3DViewButton.label): This button shows an
+  -  alternate view for the Inspector, creating a 3D visualization of the
+  -  webpage. -->
+
+<!ENTITY inspect3DViewButton.label     "Endabika mu 3D">
+<!ENTITY inspect3DViewButton.accesskey "b">
+
 <!ENTITY inspectStyleButton.label     "Nkola">
 <!ENTITY inspectStyleButton.accesskey "N">
 <!-- LOCALIZATION NOTE (styleeditor.label): This menu item label appears
   -  in the Tools menu. -->
 
-<!ENTITY styleeditor.label            "Style Editor">
-<!ENTITY styleeditor.accesskey        "y">
+<!ENTITY styleeditor.label            "Wokyusiza Enfanana">
+<!ENTITY styleeditor.accesskey        "k">
 <!ENTITY styleeditor.keycode          "VK_F7">
 <!ENTITY styleeditor.keytext          "F7">
 
@@ -595,3 +606,15 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 
 <!ENTITY addonBarCloseButton.tooltip  "Galawo Omuti gwe'byongerwako">
 <!ENTITY toggleAddonBarCmd.key        "/">
+<!-- LOCALIZATION NOTE (htmlPanel.label): This is a label for a button that
+activates the Web Developer->Inspect UI's HTML Tree Panel. -->
+
+<!ENTITY htmlPanel.label              "HTML">
+<!-- LOCALIZATION NOTE (htmlPanel.tooltiptext): The text that appears when a user
+hovers over the HTML panel's toolbar button. -->
+
+<!ENTITY htmlPanel.tooltiptext        "Omwaliro gwa HTML">
+<!-- LOCALIZATION NOTE (htmlPanel.accesskey): The key bound to the HTML panel's
+toolbar button -->
+
+<!ENTITY htmlPanel.accesskey          "H">

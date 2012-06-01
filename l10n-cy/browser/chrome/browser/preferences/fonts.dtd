@@ -1,5 +1,5 @@
 <!ENTITY  fontsDialog.title                       "Ffontiau">
-<!ENTITY  window.width                            "50em">
+<!ENTITY  window.width                            "39em">
 <!ENTITY  window.macWidth                         "43em">
 <!ENTITY  window.unixWidth                        "41em">
 
@@ -7,17 +7,17 @@
 <!ENTITY  language.accesskey                      "F">
 
 <!ENTITY  size.label                              "Maint:">
-<!ENTITY  sizeProportional.accesskey              "M">
+<!ENTITY  sizeProportional.accesskey              "z">
 <!ENTITY  sizeMonospace.accesskey                 "a">
 
 <!ENTITY  proportional.label                      "Cyfrannol:">
-<!ENTITY  proportional.accesskey                  "C">
+<!ENTITY  proportional.accesskey                  "y">
 
 <!ENTITY  serif.label                             "Serif:">
 <!ENTITY  serif.accesskey                         "S">
 <!ENTITY  sans-serif.label                        "Sans-serif:">
-<!ENTITY  sans-serif.accesskey                    "n">
-<!ENTITY  monospace.label                         "Monospace::">
+<!ENTITY  sans-serif.accesskey                    "a">
+<!ENTITY  monospace.label                         "Monospace:">
 <!ENTITY  monospace.accesskey                     "o">
 
 <!ENTITY  font.langGroup.latin1                   "Gorllewin">
@@ -54,10 +54,10 @@
 <!ENTITY  font.langGroup.tibetan                  "Tibeteg">
 <!-- Minimum font size -->
 <!ENTITY minSize.label                            "Lleiafswm maint ffont:">
-<!ENTITY minSize.accesskey                        "i">
+<!ENTITY minSize.accesskey                        "L">
 <!ENTITY minSize.none                             "Dim">
-
 <!-- default font type -->
+
 <!ENTITY  useDefaultFontSerif.label               "Serif">
 <!ENTITY  useDefaultFontSansSerif.label           "Sans Serif">
 
@@ -65,5 +65,5 @@
 <!ENTITY  allowPagesToUse.accesskey               "a">
 
 <!ENTITY languages.customize.Charset.grouplabel         "Nodau Amgodio">
-<!ENTITY languages.customize.DefaultCharset.label       "Amgodiad Nod Rhagosodedig">
+<!ENTITY languages.customize.DefaultCharset.label       "Amgodiad Nod Rhagosodedig:">
 <!ENTITY languages.customize.DefaultCharset.accesskey   "R">

@@ -36,13 +36,13 @@
    - ***** END LICENSE BLOCK ***** -->
 
 <!ENTITY advancedJSDialog.title         "Gosodiadau Java Uwch">
-<!ENTITY window.width                   "50em">
+<!ENTITY window.width                   "37em">
 
 <!ENTITY allowScripts.label             "Caniatáu sgriptiau i:">
 
-<!ENTITY moveResizeWindows.label        "Symud neu newid maint y ffenestri cyfredol">
-<!ENTITY moveResizeWindows.accesskey    "S">
+<!ENTITY moveResizePopupWindows.label     "Symud neu newid maint llamlenni">
+<!ENTITY moveResizePopupWindows.accesskey "S">
 <!ENTITY raiseLowerWindows.label        "Codi neu ostwng ffenestri">
-<!ENTITY raiseLowerWindows.accesskey    "C">
+<!ENTITY raiseLowerWindows.accesskey    "r">
 <!ENTITY disableContextMenus.label      "Analluogi neu newid dewislenni cyd-destun">
-<!ENTITY disableContextMenus.accesskey  "A">
+<!ENTITY disableContextMenus.accesskey  "d">

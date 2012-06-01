@@ -59,7 +59,7 @@
 <!ENTITY calendar.events.filter.today.label "Eventi di oggi">
 <!ENTITY calendar.events.filter.future.label "Tutti gli eventi futuri">
 <!ENTITY calendar.events.filter.current.label "Giorno selezionato">
-<!ENTITY calender.events.filter.currentview.label "Eventi nella vista corrente">
+<!ENTITY calendar.events.filter.currentview.label "Eventi nella vista corrente">
 <!ENTITY calendar.events.filter.next7Days.label "Eventi nei prossimi 7 giorni">
 <!ENTITY calendar.events.filter.next14Days.label "Eventi nei prossimi 14 giorni">
 <!ENTITY calendar.events.filter.next31Days.label "Eventi nei prossimi 31 giorni">
@@ -215,6 +215,8 @@
 <!ENTITY calendar.context.postpone.1day.accesskey "n">
 <!ENTITY calendar.context.postpone.1week.label "1 settimana">
 <!ENTITY calendar.context.postpone.1week.accesskey "s">
+<!ENTITY calendar.copylink.label "Copia indirizzo">
+<!ENTITY calendar.copylink.accesskey "z">
 <!ENTITY calendar.taskview.delete.label "Elimina">
 <!ENTITY calendar.taskview.delete.accesskey "E">
 <!ENTITY calendar.context.newserver.label "Nuovo calendario…">

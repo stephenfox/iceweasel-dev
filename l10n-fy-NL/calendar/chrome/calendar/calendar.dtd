@@ -64,6 +64,7 @@
 <!ENTITY calendar.events.filter.today.label "Barrens fan hjoed">
 <!ENTITY calendar.events.filter.future.label "Alle kommende barrens">
 <!ENTITY calendar.events.filter.current.label "No selektearre dei">
+<!ENTITY calendar.events.filter.currentview.label "Barrens yn aktuele byld">
 <!ENTITY calendar.events.filter.next7Days.label "Barrens yn de kommende 7 dagen">
 <!ENTITY calendar.events.filter.next14Days.label "Barrens yn de kommende 14 dagen">
 <!ENTITY calendar.events.filter.next31Days.label "Barrens yn de kommende 31 dagen">
@@ -179,6 +180,10 @@
 <!ENTITY calendar.task.complete.button.tooltip  "Selektearre taken as foltôge markearje">
 <!ENTITY calendar.task.priority.button.tooltip  "De prioriteit wizigje">
 
+<!ENTITY calendar.task.text-filter.textbox.emptytext.base            "Filter taken… #1">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.nonmac "&lt;Ctrl+Shift+K&gt;">
+<!ENTITY calendar.task.text-filter.textbox.emptytext.keylabel.mac    "&lt;&#x21E7;&#x2318;K&gt;">
+
 <!-- Statusbar -->
 <!ENTITY statusText.label            "Dokumint: Dien">
 
@@ -213,6 +218,8 @@
 <!ENTITY calendar.context.progress.accesskey          "r">
 <!ENTITY calendar.context.priority.label              "Prioriteit">
 <!ENTITY calendar.context.priority.accesskey          "P">
+<!ENTITY calendar.context.postpone.label              "Taak útstelle">
+<!ENTITY calendar.context.postpone.accesskey          "s">
 
 <!ENTITY percnt "&#38;#37;" ><!--=percent sign-->
 
@@ -238,6 +245,16 @@
 <!ENTITY priority.level.normal.accesskey    "N">
 <!ENTITY priority.level.high                "Heech">
 <!ENTITY priority.level.high.accesskey      "H">
+
+<!ENTITY calendar.context.postpone.1hour.label      "1 oere">
+<!ENTITY calendar.context.postpone.1hour.accesskey  "o">
+<!ENTITY calendar.context.postpone.1day.label       "1 dei">
+<!ENTITY calendar.context.postpone.1day.accesskey   "d">
+<!ENTITY calendar.context.postpone.1week.label      "1 wike">
+<!ENTITY calendar.context.postpone.1week.accesskey  "w">
+
+<!ENTITY calendar.copylink.label       "Keppelingslokaasje kopiearje">
+<!ENTITY calendar.copylink.accesskey   "k">
 
 <!-- Task View -->
 <!-- Note that the above *.context.* strings are currently used for the other
@@ -324,7 +341,7 @@
 <!ENTITY calendarproperties.firealarms.label 		"Alarmen toane">
 <!ENTITY calendarproperties.cache2.label    			"Buffer">
 <!ENTITY calendarproperties.enabled.label  			"Dizze aginda ynskeakelje">
-<!ENTITY calendarproperties.forceDisabled.label		"De útjouwer foar dizze aginda koe net fûn wurde. Dit bart faak as jo bepaalde útwreidings útskeakele of de-ynstallearre hawwe.">
+<!ENTITY calendarproperties.forceDisabled.label		"De útjouwer foar dizze aginda koe net fûn wurde. Dit bart faak as jo bepaalde útwreidingen útskeakele of de-ynstallearre hawwe.">
 <!ENTITY calendarproperties.unsubscribe.label		"Utskriuwe">
 <!ENTITY calendarproperties.unsubscribe.accesskey	"U">
 
@@ -352,7 +369,7 @@
 <!ENTITY calendar.print.custom.label "Oanpast datumberyk:">
 <!ENTITY calendar.print.from.label "Fan:">
 <!ENTITY calendar.print.to.label "Oant:">
-<!ENTITY calendar.print.settingsGroup.label "Ofdrukynstellings">
+<!ENTITY calendar.print.settingsGroup.label "Ofdrukynstellingen">
 <!ENTITY calendar.print.optionsGroup.label "Opsjes">
 <!ENTITY calendar.print.taskswithnoduedate.label "Taken sûnder eindatum">
 <!ENTITY calendar.print.completedtasks.label "Foltôge taken">

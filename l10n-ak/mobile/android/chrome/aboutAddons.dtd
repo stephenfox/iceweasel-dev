@@ -1,0 +1,8 @@
+<!ENTITY aboutAddons.title                      "Nkaho Hwɛsofo">
+<!ENTITY aboutAddons.header2                    "Your Add-ons">
+<!ENTITY aboutAddons.options                    "Nɔphyɛn">
+
+<!ENTITY addonAction.enable                     "Sɔ">
+<!ENTITY addonAction.disable                    "Dum">
+<!ENTITY addonAction.uninstall                  "Yi-instɔl">
+<!ENTITY addonAction.cancel                     "Twa-mu">

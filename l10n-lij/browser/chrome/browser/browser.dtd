@@ -213,9 +213,15 @@ can reach it easily. -->
 <!ENTITY scratchpad.keycode           "VK_F4">
 <!ENTITY scratchpad.keytext           "F4">
 
-<!ENTITY inspectPanelTitle.label        "HTML">
-<!ENTITY inspectButton.label            "Ispeçionn-a">
-<!ENTITY inspectButton.accesskey        "I">
+<!ENTITY inspectorHTMLCopyInner.label       "Còpia l'HTML estèrno">
+<!ENTITY inspectorHTMLCopyInner.accesskey   "e">
+
+<!ENTITY inspectorHTMLCopyOuter.label       "Còpia l'HTML intèrno">
+<!ENTITY inspectorHTMLCopyOuter.accesskey   "i">
+
+<!ENTITY inspectorHTMLDelete.label          "Scancélla gróppo">
+<!ENTITY inspectorHTMLDelete.accesskey      "S">
+
 <!ENTITY inspectCloseButton.tooltiptext "Særa l'ispetô">
 
 <!-- LOCALIZATION NOTE (inspect3DViewButton.label): This button shows an
@@ -347,9 +353,9 @@ can reach it easily. -->
 
 <!ENTITY tabView.commandkey           "e">
 
-<!ENTITY openLinkCmdInTab.label       "Àrvi in nêuvo féuggio">
+<!ENTITY openLinkCmdInTab.label       "Àrvi drénto nêuvo féuggio">
 <!ENTITY openLinkCmdInTab.accesskey   "v">
-<!ENTITY openLinkCmd.label            "Àrvi in nêuvo barcón">
+<!ENTITY openLinkCmd.label            "Àrvi drénto nêuvo barcón">
 <!ENTITY openLinkCmd.accesskey        "v">
 <!ENTITY openLinkCmdInCurrent.label     "Àrvi colegamento">
 <!ENTITY openLinkCmdInCurrent.accesskey "v">
@@ -575,7 +581,7 @@ The layout of the identity dialog prevents combining this into a single string w
 substitution variables.  If it is difficult to translate the sense of the string
 with that structure, consider a translation which ignores the preceding domain and
 just addresses the organization to follow, e.g. "This site is run by " -->
-<!ENTITY identity.runBy "che o l'è fæto da ">
+<!ENTITY identity.runBy "che o l'é fæto da ">
 
 <!ENTITY identity.moreInfoLinkText "Ciù informaçioìn…">
 
@@ -600,3 +606,12 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 <!ENTITY addonBarCloseButton.tooltip  "Særa a bâra do conponénte azónto">
 <!ENTITY toggleAddonBarCmd.key        "/">
 
+<!-- LOCALIZATION NOTE (htmlPanel.accesskey): The key bound to the HTML panel's
+toolbar button -->
+<!ENTITY htmlPanel.accesskey          "H">
+<!-- LOCALIZATION NOTE (htmlPanel.label): This is a label for a button that
+activates the Web Developer->Inspect UI's HTML Tree Panel. -->
+<!ENTITY htmlPanel.label              "HTML">
+<!-- LOCALIZATION NOTE (htmlPanel.tooltiptext): The text that appears when a user
+hovers over the HTML panel's toolbar button. -->
+<!ENTITY htmlPanel.tooltiptext        "Panéllo HTML">

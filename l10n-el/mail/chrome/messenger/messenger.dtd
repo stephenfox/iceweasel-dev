@@ -294,6 +294,7 @@
 <!ENTITY thisFolder.label "Αυτόν τον φάκελο">
 <!ENTITY thisFolder.accesskey "φ">
 <!ENTITY goRecentlyClosedTabs.label "Πρόσφατα κλεισμένες καρτέλες">
+<!ENTITY goRecentlyClosedTabs.accesskey "ι">
 <!ENTITY startPageCmd.label "Αρχική σελίδα αλληλογραφίας">
 <!ENTITY startPageCmd.accesskey "χ">
 <!ENTITY msgMenu.label "Μήνυμα">
@@ -707,7 +708,7 @@
 <!ENTITY hideOtherAppsCmdMac.commandkey "H">
 <!ENTITY hideOtherAppsCmdMac.modifiers "accel,alt">
 <!ENTITY showAllAppsCmdMac.label "Προβολή όλων">
-<!ENTITY bodyAllParts.label "Όλα τα ήμερη του κυρίως κειμένου">
+<!ENTITY bodyAllParts.label "Όλα τα μέρη του κυρίως κειμένου">
 <!ENTITY bodyAllParts.accesskey "λ">
 
 <!ENTITY deleteItem.title "Διαγραφή">

@@ -1,14 +1,13 @@
-<!ENTITY % brandDTD
-    SYSTEM "chrome://branding/locale/brand.dtd">
-  %brandDTD;
+<!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
+%brandDTD;
+<!ENTITY % syncBrandDTD SYSTEM "chrome://browser/locale/syncBrand.dtd">
+%syncBrandDTD;
 
 <!-- These strings are used in the about:home page -->
 
 <!ENTITY abouthome.pageTitle "Page de démarrage de &brandFullName;">
 
 <!ENTITY abouthome.searchEngineButton.label "Rechercher">
-
-<!ENTITY abouthome.aboutMozilla "À propos de Mozilla">
 
 <!-- LOCALIZATION NOTE (abouthome.defaultSnippet1.v1):
      text in <a/> will be linked to the Firefox features page on mozilla.com
@@ -19,5 +18,10 @@
 -->
 <!ENTITY abouthome.defaultSnippet2.v1 "Vous pouvez personnaliser Firefox exactement comme il vous plaît. <a>Faites votre choix parmi des milliers de modules complémentaires</a>.">
 
-<!ENTITY abouthome.syncSetup.label   "Configurer la synchronisation">
-<!ENTITY abouthome.pairDevice.label  "Associer un appareil">
+<!ENTITY abouthome.bookmarksButton.label "Marque-pages">
+<!ENTITY abouthome.historyButton.label   "Historique">
+<!ENTITY abouthome.settingsButton.label  "Paramètres">
+<!ENTITY abouthome.addonsButton.label    "Modules">
+<!ENTITY abouthome.appsButton.label      "Marketplace">
+<!ENTITY abouthome.downloadsButton.label "Téléchargements">
+<!ENTITY abouthome.syncButton.label      "&syncBrand.shortName.label;">

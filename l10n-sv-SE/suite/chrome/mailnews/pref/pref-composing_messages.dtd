@@ -59,15 +59,6 @@
 <!ENTITY wrapOutMsg.accesskey                 "l">
 <!ENTITY char.label                           "tecken">
 
-<!ENTITY spellingHeader.label                 "Stavning">
-<!ENTITY spellCheck.label                     "Stavningskontrollera innan meddelande skickas">
-<!ENTITY spellCheck.accesskey                 "a">
-<!ENTITY spellCheckInline.label               "Stavningskontrollera medan du skriver">
-<!ENTITY spellCheckInline.accesskey           "m">
-<!ENTITY languagePopup.label                  "Språk:">
-<!ENTITY languagePopup.accessKey              "å">
-<!ENTITY moreDictionaries.label               "Hämta fler ordlistor…">
-
 <!ENTITY defaultMessagesHeader.label          "Förinställningar för HTML-meddelanden">
 <!ENTITY font.label                           "Teckensnitt:">
 <!ENTITY font.accesskey                       "T">
@@ -78,3 +69,22 @@
 <!ENTITY bgColor.label                        "Bakgrund:">
 <!ENTITY bgColor.accesskey                    "B">
 
+<!ENTITY selectHeaderType.label               "Välj rubrik till ursprungsmeddelanden:">
+<!ENTITY selectHeaderType.accesskey           "r">
+<!ENTITY noReplyOption.label                  "Ingen rubrik">
+<!-- LOCALIZATION NOTE (authorWroteOption.label): this is tied to the 
+  mailnews.reply_header_authorwrote preference. [Author] needs to be 
+  translated. -->
+<!ENTITY authorWroteOption.label              "[Avsändare] skrev:">
+<!-- LOCALIZATION NOTE (onDateAuthorWroteOption.label): this is tied to the 
+  combination of the mailnews.reply_header_ondate(On [date]), 
+  mailnews.reply_header_separator (a comma in this case) and 
+  mailnews.reply_header_authorwrote([Author] wrote) preferences. [date] and 
+  [Author] need to be translated, and the correct  separator put in. -->
+<!ENTITY onDateAuthorWroteOption.label        "[Datum] skrev [avsändare]:">
+<!-- LOCALIZATION NOTE (authorWroteOnDateOption.label): this is tied to the 
+  combination of the mailnews.reply_header_authorwrote([Author] wrote), 
+  mailnews.reply_header_separator (a comma in this case), and 
+  mailnews.reply_header_ondate preferences(On [date]). [Author] and [date] 
+  need to be translated, and the correct separator put in. -->
+<!ENTITY authorWroteOnDateOption.label        "[Avsändare] skrev, den [datum]:">

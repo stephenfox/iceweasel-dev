@@ -58,15 +58,6 @@
 <!ENTITY wrapOutMsg.accesskey                 "W">
 <!ENTITY char.label                           "字符">
 
-<!ENTITY spellingHeader.label                 "拼写检查">
-<!ENTITY spellCheck.label                     "发送前进行拼写检查">
-<!ENTITY spellCheck.accesskey                 "C">
-<!ENTITY spellCheckInline.label               "输入时检查拼写">
-<!ENTITY spellCheckInline.accesskey           "e">
-<!ENTITY languagePopup.label                  "语言:">
-<!ENTITY languagePopup.accessKey              "g">
-<!ENTITY moreDictionaries.label               "下载更多字典…">
-
 <!ENTITY defaultMessagesHeader.label          "默认的HTML信息">
 <!ENTITY font.label                           "字体：">
 <!ENTITY font.accesskey                       "F">
@@ -76,3 +67,23 @@
 <!ENTITY fontColor.accesskey                  "T">
 <!ENTITY bgColor.label                        "背景：">
 <!ENTITY bgColor.accesskey                    "B">
+
+<!ENTITY selectHeaderType.label               "选择回复的信头类型：">
+<!ENTITY selectHeaderType.accesskey           "e">
+<!ENTITY noReplyOption.label                  "没有回复信头">
+<!-- LOCALIZATION NOTE (authorWroteOption.label): this is tied to the 
+  mailnews.reply_header_authorwrote preference. [Author] needs to be 
+  translated. -->
+<!ENTITY authorWroteOption.label              "[Author] 写道：">
+<!-- LOCALIZATION NOTE (onDateAuthorWroteOption.label): this is tied to the 
+  combination of the mailnews.reply_header_ondate(On [date]), 
+  mailnews.reply_header_separator (a comma in this case) and 
+  mailnews.reply_header_authorwrote([Author] wrote) preferences. [date] and 
+  [Author] need to be translated, and the correct  separator put in. -->
+<!ENTITY onDateAuthorWroteOption.label        "于 [date]，[author] 写道：">
+<!-- LOCALIZATION NOTE (authorWroteOnDateOption.label): this is tied to the 
+  combination of the mailnews.reply_header_authorwrote([Author] wrote), 
+  mailnews.reply_header_separator (a comma in this case), and 
+  mailnews.reply_header_ondate preferences(On [date]). [Author] and [date] 
+  need to be translated, and the correct separator put in. -->
+<!ENTITY authorWroteOnDateOption.label        "[Author] 写道，于 [date]：">

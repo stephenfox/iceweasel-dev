@@ -7,7 +7,6 @@
 <!ENTITY bottomLinks.rights         "అంతిమ వినియోగదారి హక్కులు">
 <!-- LOCALIZATION NOTE (community.creditsLink): This is a link title that links to about:credits. -->
 <!ENTITY community.creditsLink      "ప్రపంచవ్యాప్త సముదాయం">
-<!ENTITY community.end2             " ఇంటర్నెట్‌ను మరింత మెరుగుపరచుటకు కలిసి పనిచేయుచున్నాము. ఇంటర్నెట్ అనునది యెటువంటి ఆంక్షలు లేకుండా వోపెన్‌గా, అందరికి, అందుబాటులో వుండాలని మేము విశ్వసిస్తున్నాము.">
 <!ENTITY community.middle2          ", a ">
 <!-- LOCALIZATION NOTE (community.mozillaLink): This is a link title that links to http://www.mozilla.org/. -->
 <!ENTITY community.mozillaLink      "&vendorShortName;">
@@ -15,11 +14,11 @@
 <!ENTITY contribute.end             "">
 <!-- LOCALIZATION NOTE (contribute.getInvolvedLink): This is a link title that links to http://www.mozilla.org/contribute/. -->
 <!ENTITY contribute.getInvolvedLink "పాలుపంచుకోండి!">
-<!ENTITY contribute.start           "ఆసక్తిగా వున్నారా? ">
+<!ENTITY contribute.start           "ఆశక్తిగా వున్నారా? ">
 <!-- LOCALIZATION NOTE (update.adminDisabled): try to make the localized text short (see bug 596813 for screenshots). -->
 <!ENTITY update.adminDisabled       "నవీకరణలు మీ సిస్టమ్ నిర్వహణాధికారిచే అచేతనము చేయబడినవి">
 <!-- LOCALIZATION NOTE (update.checkingAddonCompat): try to make the localized text short (see bug 596813 for screenshots). -->
-<!ENTITY update.checkingAddonCompat "యాడ్-ఆన్ సారూప్యతను పరిశీలించుచున్నది…">
+<!ENTITY update.checkingAddonCompat "పొడిగింత సారూప్యతను పరిశీలించుచున్నది…">
 <!-- LOCALIZATION NOTE (update.checkingForUpdates): try to make the localized text short (see bug 596813 for screenshots). -->
 <!ENTITY update.checkingForUpdates  "నవీకరణల కొరకు పరిశీలించుచున్నది…">
 
@@ -56,3 +55,19 @@
 
 <!ENTITY channel.description.start  "మీరు ప్రస్తుతం">
 <!ENTITY channel.description.end    " నవీకరణ చానల్‌పై వున్నారు. ">
+<!ENTITY community.end3             "వెబ్‌ను అందరికీ అనుకూలంగా, అనువుగా వుంచేందుకు కలిసి పనిచేద్దాం.">
+
+<!-- LOCALIZATION NOTE (warningDesc.version): This is a warning about the experimental nature of Nightly and Aurora builds. It is only shown in those versions. -->
+<!ENTITY warningDesc.version        "&brandShortName; ప్రయోగాత్మకమైనది మరియు స్థిరంగా వుండకపోవచ్చు.">
+
+<!-- LOCALIZATION NOTE (warningDesc.telemetry): This is a notification that Nightly/Aurora builds automatically send Telemetry data back to Mozilla. It is only shown in those versions. "It" refers to brandShortName. -->
+<!ENTITY warningDesc.telemetry      "&brandShortName; ను వుత్తమమైనదిగా వుంచుటకు యిది పరీక్షించిన సమాచారంను &vendorShortName; కు పంపును.">
+
+<!ENTITY community.exp.start        "">
+<!-- LOCALIZATION NOTE (community.exp.mozillaLink): This is a link title that links to http://www.mozilla.org/. -->
+
+<!ENTITY community.exp.mozillaLink  "&vendorShortName;">
+<!ENTITY community.exp.middle       " ఒక ">
+<!-- LOCALIZATION NOTE (community.exp.creditslink): This is a link title that links to about:credits. -->
+<!ENTITY community.exp.creditsLink  "అంతర్జాతీయ సమూహం">
+<!ENTITY community.exp.end          " వెబ్‌ను అందరికీ అనుకూలంగా, అనువుగా వుంచేందుకు కలిసి పనిచేద్దాం.">

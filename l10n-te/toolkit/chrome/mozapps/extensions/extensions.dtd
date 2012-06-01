@@ -18,13 +18,13 @@
      to signify that an add-on is disabled, in the form
      "<Addon name> <1.0> (disabled)" -->
 <!ENTITY addon.disabled.postfix               "(అచేతనమైంది)">
-<!ENTITY addon.errorLoadingReleaseNotes.label "మన్నించాలి, విడుదల నోడ్స్ లోడవ్వుటలో దోషము వుంది.">
+<!ENTITY addon.errorLoadingReleaseNotes.label "మన్నించాలి, విడుదల నోట్స్ లోడవ్వుటలో దోషము వుంది.">
 <!ENTITY addon.homepage                       "నివాసపేజీ">
 <!ENTITY addon.includeUpdate.label            "నవీకరణనందు చేర్చుము">
 <!ENTITY addon.install.label                  "సంస్థాపించు">
 <!ENTITY addon.install.tooltip                "ఈ పొడిగింత సంస్థాపించుము">
 <!ENTITY addon.loadingReleaseNotes.label      "లోడవుచున్నది…">
-<!ENTITY addon.releaseNotes.label             "విడుదల నోడ్స్:">
+<!ENTITY addon.releaseNotes.label             "విడుదల నోట్స్:">
 <!ENTITY addon.restartNow.label               "ఇప్పుడు పునఃప్రారంభించు">
 <!ENTITY addon.undoAction.label               "చేయవద్దు">
 <!ENTITY addon.undoAction.tooltip             "ఈ చర్యను చేయవద్దు">
@@ -50,36 +50,36 @@
 <!ENTITY cmd.disableAddon.accesskey           "D">
 <!ENTITY cmd.disableAddon.label               "అచేతనపరచు">
 <!ENTITY cmd.disableTheme.accesskey           "W">
-<!ENTITY cmd.disableTheme.label               "ఐచ్చికశైలిని దరించుటను ఆపుము">
+<!ENTITY cmd.disableTheme.label               "ఐచ్ఛికశైలిని దరించుటను ఆపుము">
 <!ENTITY cmd.enableAddon.accesskey            "E">
 <!ENTITY cmd.enableAddon.label                "చేతనపరచు">
 <!ENTITY cmd.enableTheme.accesskey            "W">
-<!ENTITY cmd.enableTheme.label                "ఐచ్చికశైలిని దరించు">
+<!ENTITY cmd.enableTheme.label                "ఐచ్ఛికశైలిని దరించు">
 <!ENTITY cmd.findUpdates.accesskey            "F">
 <!ENTITY cmd.findUpdates.label                "నవీకరణలను కనుగొనుము">
 <!ENTITY cmd.forward.tooltip                  "ఒక పేజీ ముందుకు వెళ్ళు">
-<!ENTITY cmd.hideReleaseNotes.label           "విడుదల నోడ్స్ మరుగుపరచు">
-<!ENTITY cmd.hideReleaseNotes.tooltip         "ఈ నవీకరణ కొరకు విడుదల నోడ్స్ మరుగుపరచు">
+<!ENTITY cmd.hideReleaseNotes.label           "విడుదల నోట్స్ మరుగుపరచు">
+<!ENTITY cmd.hideReleaseNotes.tooltip         "ఈ నవీకరణ కొరకు విడుదల నోట్స్ మరుగుపరచు">
 <!ENTITY cmd.installAddon.accesskey           "I">
 <!ENTITY cmd.installAddon.label               "సంస్థాపించు">
 <!ENTITY cmd.preferencesUnix.accesskey        "P">
 <!ENTITY cmd.preferencesUnix.label            "అభీష్టాలు">
 <!ENTITY cmd.preferencesWin.accesskey         "O">
-<!ENTITY cmd.preferencesWin.label             "ఐచ్చికములు">
+<!ENTITY cmd.preferencesWin.label             "ఐచ్ఛికములు">
 <!ENTITY cmd.showDetails.accesskey            "S">
 <!ENTITY cmd.showDetails.label                "మరింత సమాచారమును చూపుము">
 <!ENTITY cmd.showPreferencesUnix.label        "అభీష్టాలు">
 <!ENTITY cmd.showPreferencesUnix.tooltip      "ఈ పొడిగింత యొక్క అభీష్టాలను మార్చుము">
-<!ENTITY cmd.showPreferencesWin.label         "ఐచ్చికములు">
-<!ENTITY cmd.showPreferencesWin.tooltip       "ఈ పొడిగింత యొక్క ఐచ్చికములను మార్చుము">
-<!ENTITY cmd.showReleaseNotes.label           "విడుదల నోడ్స్ చూపుము">
-<!ENTITY cmd.showReleaseNotes.tooltip         "ఈ నవీకరణ కొరకు విడుదల నోడ్స్ చూపుము">
+<!ENTITY cmd.showPreferencesWin.label         "ఐచ్ఛికములు">
+<!ENTITY cmd.showPreferencesWin.tooltip       "ఈ పొడిగింత యొక్క ఐచ్ఛికములను మార్చుము">
+<!ENTITY cmd.showReleaseNotes.label           "విడుదల నోట్స్ చూపుము">
+<!ENTITY cmd.showReleaseNotes.tooltip         "ఈ నవీకరణ కొరకు విడుదల నోట్స్ చూపుము">
 <!ENTITY cmd.uninstallAddon.accesskey         "R">
 <!ENTITY cmd.uninstallAddon.label             "తీసివేయి">
 <!ENTITY detail.checkForUpdates.accesskey     "F">
 <!ENTITY detail.checkForUpdates.label         "నవీకరణల కొరకు పరిశీలించుము">
 <!ENTITY detail.checkForUpdates.tooltip       "ఈ పొడిగింత కొరకు నవీకరణలను పరిశీలించుము">
-<!ENTITY detail.contributions.description     "ఈ పొడిగింత ను అభివృద్ది పరచినవారు దాని తదుపరి అభివృద్ది కొనసాగింపు కొరకు మీ నుండి కొద్ది మొత్తంలో సహాయంను కోరుచున్నారు.">
+<!ENTITY detail.contributions.description     "ఈ పొడిగింతను అభివృద్ది పరచినవారు దాని తదుపరి అభివృద్ది కొనసాగింపు కొరకు మీ నుండి కొద్ది మొత్తంలో సహాయంను కోరుచున్నారు.">
 <!ENTITY detail.creator.label                 "అభివృద్దికారి">
 <!ENTITY detail.home                          "నివాసపేజీ">
 <!ENTITY detail.homepage.label                "నివాసపేజీ">
@@ -90,8 +90,8 @@
 <!ENTITY detail.showPreferencesUnix.label     "అభీష్టాలు">
 <!ENTITY detail.showPreferencesUnix.tooltip   "ఈ పొడిగింత యొక్క అభీష్టాలను మార్చుము">
 <!ENTITY detail.showPreferencesWin.accesskey  "O">
-<!ENTITY detail.showPreferencesWin.label      "ఐచ్చికములు">
-<!ENTITY detail.showPreferencesWin.tooltip    "ఈ పొడిగింత యొక్క ఐచ్చికములను మార్చుము">
+<!ENTITY detail.showPreferencesWin.label      "ఐచ్ఛికములు">
+<!ENTITY detail.showPreferencesWin.tooltip    "ఈ పొడిగింత యొక్క ఐచ్ఛికములను మార్చుము">
 <!ENTITY detail.size                          "పరిమాణము">
 <!ENTITY detail.updateAutomatic.label         "పైన">
 <!ENTITY detail.updateAutomatic.tooltip       "నవీకరణలను స్వయంచాలకంగా సంస్థాపించుము">
@@ -101,8 +101,8 @@
 <!ENTITY detail.updateManual.tooltip          "నవీకరణలను స్వయంచాలకంగా సంస్థాపించవద్దు">
 <!ENTITY detail.updateType                    "స్వయంచాలక నవీకరణలు">
 <!ENTITY detail.version.label                 "వర్షన్">
-<!ENTITY discover.description2                "పొడిగింతలు అనునవి వాటి యొక్క ప్రమేయత్వముతో లేదా శైలితో మీరు &brandShortName; ను మీకు నప్పినవిధంగా మాలచుకొనుటకు దోహదపడు అనువర్తనములు. మీ స్వంత &brandShortName; తయారు చేసుకొనుటకు, సమయాన్ని-ఆదాచేసే పక్కపట్టీను ప్రయత్నించండి, వాతావరణం తెలుపుదానిని యత్నించండి, లేదా ఐచ్చికశైలి(థీమ్) వుపయోగించి చూడండి.">
-<!ENTITY discover.footer                      "మీరు యింటర్నెట్‌కు అనుసంధానమైనప్పుడు, యీ పేన్ మీకు కొన్ని మంచి మరియు పేరొందిన పొడిగింతలను మీరు ప్రయత్నించి చూడుటకు అందించును.">
+<!ENTITY discover.description2                "పొడిగింతలు అనునవి వాటి యొక్క ప్రమేయత్వముతో లేదా శైలితో మీరు &brandShortName; ను మీకు నప్పినవిధంగా మాలచుకొనుటకు దోహదపడు అనువర్తనములు. మీ స్వంత &brandShortName; తయారు చేసుకొనుటకు, సమయాన్ని-ఆదాచేసే పక్కపట్టీను ప్రయత్నించండి, వాతావరణం తెలుపుదానిని యత్నించండి, లేదా ఐచ్ఛికశైలి(థీమ్) వుపయోగించి చూడండి.">
+<!ENTITY discover.footer                      "మీరు అంతర్జాలమునకు అనుసంధానమైనప్పుడు, యీ పేన్ మీకు కొన్ని మంచి మరియు పేరొందిన పొడిగింతలను మీరు ప్రయత్నించి చూడుటకు అందించును.">
 <!ENTITY discover.title                       "పొడిగింతలు అంటే యేవి?">
 <!ENTITY installAddonFromFile.accesskey       "I">
 <!ENTITY installAddonFromFile.label           "ఫైలునుండి పొడిగింత సంస్థాపించుతాను…">
@@ -133,39 +133,37 @@
 <!ENTITY toolsMenu.tooltip                    "అన్ని పొడిగింతలు కొరకు సాధనములు">
 <!ENTITY updates.checkForUpdates.accesskey    "C">
 <!ENTITY updates.checkForUpdates.label        "నవీకరణల కొరకు పరిశీలించుము">
-<!ENTITY updates.downloaded.label             "మీ పొడిగింతలు నవీకరణలు డౌన్‌లోడైనవి.">
+<!ENTITY updates.downloaded.label             "మీ పొడిగింత నవీకరణలు డౌన్‌లోడైనవి.">
 <!ENTITY updates.installed.label              "మీ పొడిగింతలు నవీకరించబడెను.">
 <!ENTITY updates.manualUpdatesFound.label     "అందుబాటులోని నవీకరణలను దర్శించుము">
 <!ENTITY updates.noneFound.label              "ఏ నవీకరణలు కనబడలేదు">
 <!ENTITY updates.resetUpdatesToAutomatic.accesskey   "R">
-<!ENTITY updates.resetUpdatesToAutomatic.label       "స్వయంచాలకంగా నవీకరించుటకు అన్ని పొడిగింతలను తిరిగివుంచుము">
+<!ENTITY updates.resetUpdatesToAutomatic.label       "స్వయంచాలకంగా నవీకరించుటకు అన్ని పొడిగింతలును తిరిగివుంచుము">
 <!ENTITY updates.resetUpdatesToManual.accesskey      "R">
-<!ENTITY updates.resetUpdatesToManual.label          "మనవీయంగా నవీకరించుటకు అన్ని పొడిగింతలను తిరిగివుంచుము">
+<!ENTITY updates.resetUpdatesToManual.label          "మనవీయంగా నవీకరించుటకు అన్ని పొడిగింతలును తిరిగివుంచుము">
 <!ENTITY updates.restart.label                "సంస్థాపనను పూర్తిచేయుటకు పునఃప్రారంభించుము">
 <!ENTITY updates.updateAddonsAutomatically.accesskey "A">
-<!ENTITY updates.updateAddonsAutomatically.label     "పొడిగింతలు స్వయంచాలకంగా నవీకరించుము">
+<!ENTITY updates.updateAddonsAutomatically.label     "పొడిగింతలను స్వయంచాలకంగా నవీకరించుము">
 <!ENTITY updates.updateSelected.label         "నవీకరణలను సంస్థాపించుము">
 <!ENTITY updates.updateSelected.tooltip       "అందుబాటులోని నవీకరణలను యీ జాబితానందు సంస్థాపించుము">
-<!ENTITY updates.updating.label               "పొడిగింతలు నవీకరించుచున్నది">
+<!ENTITY updates.updating.label               "పొడిగింతలను నవీకరించుచున్నది">
 <!ENTITY updates.viewUpdates.accesskey        "V">
 <!ENTITY updates.viewUpdates.label            "ఇటీవలి నవీకరణలను దర్శించుము">
-
 <!ENTITY view.availableUpdates.label          "అందుబాటులోని నవీకరణలు">
 <!ENTITY view.discover.label                  "పొడిగింతలు పొందుము">
-
-
-
-
 <!ENTITY view.recentUpdates.label             "ఇటీవలి నవీకరణలు">
 <!ENTITY view.search.label                    "వెతుకు">
 <!ENTITY warning.checkcompatibility.enable.label   "చేతనపరచు">
 <!ENTITY warning.checkcompatibility.enable.tooltip "పొడిగింత సారూప్యతా పరిశీలనను చేతనపరచు">
 <!ENTITY warning.checkcompatibility.label          "పొడిగింత సారూప్యతా పరిశీలన అచేతనమైంది. మీరు సారూప్యతలేని పొడిగింతలు కలిగివుండ వచ్చును.">
-<!ENTITY warning.safemode.label                    "అన్ని పొడిగింతల సేఫ్ మోడ్ చేత అచేతనపరచ పడినవి.">
+<!ENTITY warning.safemode.label                    "అన్ని పొడిగింతలు సేఫ్ మోడ్ చేత అచేతనపరచ పడినవి.">
 <!ENTITY warning.updatesecurity.enable.label       "చేతనపరచు">
 <!ENTITY warning.updatesecurity.enable.tooltip     "పొడిగింత నవీకరణ రక్షణ పరిశీలనను చేతనముచేయి">
 <!ENTITY warning.updatesecurity.label              "పొడిగింత నవీకరణ రక్షణ పరిశీలన అచేతనమైంది. మీ జోక్యంలేకుండా నవీకరణలు జరుగవచ్చు.">
+<!ENTITY info.plugincheck.label                 "మీ చొప్పింతలు తాజాగా వున్నాయో లేదో చూడుము">
+<!ENTITY info.plugincheck.tooltip               "మీ చొప్పింతలు తాజాగా వున్నాయో లేదో చూడుము">
+<!-- LOCALIZATION NOTE (search.commandKey):
+The search command key should match findOnCmd.commandkey from browser.dtd -->
+<!ENTITY search.commandkey                    "f">
+<!ENTITY settings.path.button.label           "విహరించు…">
 
-<!ENTITY info.plugincheck.label                 "మీ ప్లగిన్లు తాజాగా వున్నాయో లేదో చూచుటకు పరిశీలించు">
-<!ENTITY info.plugincheck.tooltip               "మీ ప్లగిన్లు తాజాగా వున్నాయో లేదో చూచుటకు పరిశీలించు">
-<!ENTITY settings.path.button.label           "బ్రౌజ్…">
