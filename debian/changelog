@@ -1,8 +1,32 @@
-iceweasel (13.0-1) UNRELEASED; urgency=low
+iceweasel (13.0-1) experimental; urgency=low
 
   * New upstream release.
+  * Fixes for mfsa2012-{34,36-38,40}, also known as
+    CVE-2012-1938, CVE-2012-1937, CVE-2011-3101, CVE-2012-1944,
+    CVE-2012-1945, CVE-2012-1946, CVE-2012-1947, CVE-2012-1940,
+    CVE-2012-1941.
 
- -- Mike Hommey <glandium@debian.org>  Tue, 05 Jun 2012 08:36:14 +0200
+  * debian/check_resources.overrides: Remove now unused entries.
+  * debian/rules: Adjust mozjs includes copied in libmozjs-dev.
+  * debian/installer/Makefile.in: Use DEFINES from browser/installer to
+    build package manifests.
+  * debian/branding/Makefile.in, debian/extra-stuff/Makefile.in,
+    debian/installer/*: Remove build script compatibility with Firefox < 4.0.
+
+  * browser/components/migration/content/migration.js,
+    browser/components/migration/content/migration.xul,
+    browser/components/migration/src/BrowserProfileMigrators.manifest,
+    browser/components/migration/src/FirefoxProfileMigrator.js,
+    browser/components/migration/src/ProfileMigrator.js,
+    browser/locales/en-US/chrome/browser/migration/migration.dtd,
+    browser/locales/en-US/chrome/browser/migration/migration.properties,
+    l10n-*/browser/chrome/browser/migration/migration.properties,
+    toolkit/content/aboutSupport.js, toolkit/content/jar.mn,
+    toolkit/content/resetProfile.js, toolkit/profile/nsIProfileMigrator.idl,
+    toolkit/xre/nsAppRunner.cpp: Make the "Reset Firefox" feature more
+    generic. bz#756390. Closes: #673353.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 05 Jun 2012 09:31:15 +0200
 
 iceweasel (12.0-7) experimental; urgency=low
 
