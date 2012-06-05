@@ -448,7 +448,7 @@ FirefoxProfileMigrator.prototype = {
   ]),
 
   classDescription: "Firefox Profile Migrator",
-  contractID: "@mozilla.org/profile/migrator;1?app=browser&type=firefox",
+  contractID: "@mozilla.org/profile/migrator;1?app=browser&type=self",
   classID: Components.ID("{91185366-ba97-4438-acba-48deaca63386}")
 };
 

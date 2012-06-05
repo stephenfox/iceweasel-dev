@@ -314,7 +314,7 @@ var MigrationWizard = {
     }
 
     var bundle = document.getElementById("brandBundle");
-    // These strings don't exist when not using official branding. If that's
+    // These strings may not exist when not using official branding. If that's
     // the case, just skip this page.
     try {
       var pageTitle = bundle.getString("homePageMigrationPageTitle");
@@ -346,8 +346,8 @@ var MigrationWizard = {
       case "chrome":
         source = "sourceNameChrome";
         break;
-      case "firefox":
-        source = "sourceNameFirefox";
+      case "self":
+        source = "brand";
         break;
     }
 
@@ -357,8 +357,13 @@ var MigrationWizard = {
     var oldHomePageURL = this._migrator.sourceHomePageURL;
 
     if (oldHomePageURL && source) {
-      var bundle2 = document.getElementById("bundle");
-      var appName = bundle2.getString(source);
+      var appName;
+      if (source == "brand") {
+        appName = bundle.GetStringFromName("brandFullName");
+      } else {
+        var bundle2 = document.getElementById("bundle");
+        appName = bundle2.getString(source);
+      }
       var oldHomePageLabel = bundle.getFormattedString("homePageImport",
                                                        [appName]);
       var oldHomePage = document.getElementById("oldHomePage");

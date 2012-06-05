@@ -6,12 +6,10 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 // based on onImportItemsPageShow from migration.js
 function onResetProfileLoad() {
-#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
-#expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
   const MAX_MIGRATED_TYPES = 16;
 
   var migratedItems = document.getElementById("migratedItems");
-  var bundle = Services.strings.createBundle("chrome://" + MOZ_BUILD_APP +
+  var bundle = Services.strings.createBundle("chrome://browser" +
                                              "/locale/migration/migration.properties");
 
   // Loop over possible data to migrate to give the user a list of what will be preserved. This
@@ -21,7 +19,7 @@ function onResetProfileLoad() {
     var itemID = Math.pow(2, i);
     try {
       var checkbox = document.createElement("label");
-      checkbox.setAttribute("value", bundle.GetStringFromName(itemID + "_" + MOZ_APP_NAME));
+      checkbox.setAttribute("value", bundle.GetStringFromName(itemID + "_self"));
       migratedItems.appendChild(checkbox);
     } catch (x) {
       // Catch exceptions when the string for a data type doesn't exist because it's not migrated
