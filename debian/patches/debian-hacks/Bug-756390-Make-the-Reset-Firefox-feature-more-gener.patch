@@ -1,0 +1,2904 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Tue, 5 Jun 2012 08:57:06 +0200
+Subject: Bug 756390 - Make the "Reset Firefox" feature more generic
+
+---
+ browser/components/migration/content/migration.js       |   15 ++++++++++-----
+ browser/components/migration/content/migration.xul      |    2 +-
+ .../migration/src/BrowserProfileMigrators.manifest      |    2 +-
+ .../components/migration/src/FirefoxProfileMigrator.js  |    2 +-
+ browser/components/migration/src/ProfileMigrator.js     |    4 ++++
+ .../en-US/chrome/browser/migration/migration.dtd        |    2 --
+ .../en-US/chrome/browser/migration/migration.properties |   11 +++++------
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ .../chrome/browser/migration/migration.properties       |   10 +++++-----
+ toolkit/content/aboutSupport.js                         |    8 ++++----
+ toolkit/content/jar.mn                                  |    2 +-
+ toolkit/content/resetProfile.js                         |    6 ++----
+ toolkit/profile/nsIProfileMigrator.idl                  |   10 +++++++++-
+ toolkit/xre/nsAppRunner.cpp                             |    2 +-
+ 83 files changed, 394 insertions(+), 382 deletions(-)
+
+diff --git a/browser/components/migration/content/migration.js b/browser/components/migration/content/migration.js
+index ffb0c34..442a5ff 100644
+--- a/browser/components/migration/content/migration.js
++++ b/browser/components/migration/content/migration.js
+@@ -314,7 +314,7 @@ var MigrationWizard = {
+     }
+ 
+     var bundle = document.getElementById("brandBundle");
+-    // These strings don't exist when not using official branding. If that's
++    // These strings may not exist when not using official branding. If that's
+     // the case, just skip this page.
+     try {
+       var pageTitle = bundle.getString("homePageMigrationPageTitle");
+@@ -346,8 +346,8 @@ var MigrationWizard = {
+       case "chrome":
+         source = "sourceNameChrome";
+         break;
+-      case "firefox":
+-        source = "sourceNameFirefox";
++      case "self":
++        source = "brand";
+         break;
+     }
+ 
+@@ -357,8 +357,13 @@ var MigrationWizard = {
+     var oldHomePageURL = this._migrator.sourceHomePageURL;
+ 
+     if (oldHomePageURL && source) {
+-      var bundle2 = document.getElementById("bundle");
+-      var appName = bundle2.getString(source);
++      var appName;
++      if (source == "brand") {
++        appName = bundle.GetStringFromName("brandFullName");
++      } else {
++        var bundle2 = document.getElementById("bundle");
++        appName = bundle2.getString(source);
++      }
+       var oldHomePageLabel = bundle.getFormattedString("homePageImport",
+                                                        [appName]);
+       var oldHomePage = document.getElementById("oldHomePage");
+diff --git a/browser/components/migration/content/migration.xul b/browser/components/migration/content/migration.xul
+index f8653b1..f3ac62a 100644
+--- a/browser/components/migration/content/migration.xul
++++ b/browser/components/migration/content/migration.xul
+@@ -76,7 +76,7 @@
+ #endif
+ #endif
+       <radio id="chrome"    label="&importFromChrome.label;"    accesskey="&importFromChrome.accesskey;"/>
+-      <radio id="firefox"   label="&importFromFirefox.label;"   accesskey="&importFromFirefox.accesskey;"/>
++      <radio id="self"      hidden="true"/>
+       <radio id="fromfile"  label="&importFromHTMLFile.label;"  accesskey="&importFromHTMLFile.accesskey;" hidden="true"/>
+       <radio id="nothing"   label="&importFromNothing.label;"   accesskey="&importFromNothing.accesskey;" hidden="true"/>
+     </radiogroup>
+diff --git a/browser/components/migration/src/BrowserProfileMigrators.manifest b/browser/components/migration/src/BrowserProfileMigrators.manifest
+index f49e481..e490ddf 100644
+--- a/browser/components/migration/src/BrowserProfileMigrators.manifest
++++ b/browser/components/migration/src/BrowserProfileMigrators.manifest
+@@ -3,4 +3,4 @@ contract @mozilla.org/toolkit/profile-migrator;1 {6F8BB968-C14F-4D6F-9733-6C6737
+ component {4cec1de4-1671-4fc3-a53e-6c539dc77a26} ChromeProfileMigrator.js
+ contract @mozilla.org/profile/migrator;1?app=browser&type=chrome {4cec1de4-1671-4fc3-a53e-6c539dc77a26}
+ component {91185366-ba97-4438-acba-48deaca63386} FirefoxProfileMigrator.js
+-contract @mozilla.org/profile/migrator;1?app=browser&type=firefox {91185366-ba97-4438-acba-48deaca63386}
++contract @mozilla.org/profile/migrator;1?app=browser&type=self {91185366-ba97-4438-acba-48deaca63386}
+diff --git a/browser/components/migration/src/FirefoxProfileMigrator.js b/browser/components/migration/src/FirefoxProfileMigrator.js
+index 7b4a6e4..add5bc4 100644
+--- a/browser/components/migration/src/FirefoxProfileMigrator.js
++++ b/browser/components/migration/src/FirefoxProfileMigrator.js
+@@ -448,7 +448,7 @@ FirefoxProfileMigrator.prototype = {
+   ]),
+ 
+   classDescription: "Firefox Profile Migrator",
+-  contractID: "@mozilla.org/profile/migrator;1?app=browser&type=firefox",
++  contractID: "@mozilla.org/profile/migrator;1?app=browser&type=self",
+   classID: Components.ID("{91185366-ba97-4438-acba-48deaca63386}")
+ };
+ 
+diff --git a/browser/components/migration/src/ProfileMigrator.js b/browser/components/migration/src/ProfileMigrator.js
+index ea66675..fe4df10 100644
+--- a/browser/components/migration/src/ProfileMigrator.js
++++ b/browser/components/migration/src/ProfileMigrator.js
+@@ -51,6 +51,10 @@ ProfileMigrator.prototype = {
+                            params);
+   },
+ 
++  canMigrate: function PM__canMigrate(aMigratorKey) {
++    return "@mozilla.org/profile/migrator;1?app=browser&type=" + aMigratorKey in Cc;
++  },
++
+   _toCString: function PM__toCString(aStr) {
+     let cstr = Cc["@mozilla.org/supports-cstring;1"].
+                createInstance(Ci.nsISupportsCString);
+diff --git a/browser/locales/en-US/chrome/browser/migration/migration.dtd b/browser/locales/en-US/chrome/browser/migration/migration.dtd
+index 86e9d0b..8df7864 100644
+--- a/browser/locales/en-US/chrome/browser/migration/migration.dtd
++++ b/browser/locales/en-US/chrome/browser/migration/migration.dtd
+@@ -13,8 +13,6 @@
+ <!ENTITY importFromSafari.accesskey     "S">
+ <!ENTITY importFromChrome.label         "Chrome">
+ <!ENTITY importFromChrome.accesskey     "C">
+-<!ENTITY importFromFirefox.label        "Firefox">
+-<!ENTITY importFromFirefox.accesskey    "X">
+ <!ENTITY importFromHTMLFile.label       "From an HTML File">
+ <!ENTITY importFromHTMLFile.accesskey   "F">
+ 
+diff --git a/browser/locales/en-US/chrome/browser/migration/migration.properties b/browser/locales/en-US/chrome/browser/migration/migration.properties
+index 495ed78..0272654 100644
+--- a/browser/locales/en-US/chrome/browser/migration/migration.properties
++++ b/browser/locales/en-US/chrome/browser/migration/migration.properties
+@@ -4,7 +4,6 @@ profileName_format=%S %S
+ sourceNameIE=Internet Explorer
+ sourceNameSafari=Safari
+ sourceNameChrome=Google Chrome
+-sourceNameFirefox=Mozilla Firefox
+ 
+ importedBookmarksFolder=From %S
+ importedSearchURLsFolder=Keyword Searches (From %S)
+@@ -21,27 +20,27 @@ importedSafariBookmarks=From Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Browsing History
+ 4_safari=Browsing History
+ 4_chrome=Browsing History
+-4_firefox=Browsing History
++4_self=Browsing History
+ 
+ 8_ie=Saved Form History
+ 8_safari=Saved Form History
+ 8_chrome=Saved Form History
+-8_firefox=Saved Form History
++8_self=Saved Form History
+ 
+ 16_ie=Saved Passwords
+ 16_safari=Saved Passwords
+ 16_chrome=Saved Passwords
+-16_firefox=Saved Passwords
++16_self=Saved Passwords
+ 
+ 32_ie=Favorites
+ 32_safari=Bookmarks
+ 32_chrome=Bookmarks
+-32_firefox=Bookmarks
++32_self=Bookmarks
+ 
+ 64_ie=Other Data
+ 64_safari=Other Data
+diff --git a/l10n-af/browser/chrome/browser/migration/migration.properties b/l10n-af/browser/chrome/browser/migration/migration.properties
+index 7adc327..7f2967c 100644
+--- a/l10n-af/browser/chrome/browser/migration/migration.properties
++++ b/l10n-af/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Vanaf Safari
+ 2_ie=Koekies
+ 2_safari=Koekies
+ 2_chrome=Koekies
+-2_firefox=Koekies
++2_self=Koekies
+ 
+ 4_ie=Blaaiergeskiedenis
+ 4_safari=Blaaiergeskiedenis
+ 4_chrome=Blaaiergeskiedenis
+-4_firefox=Blaaiergeskiedenis
++4_self=Blaaiergeskiedenis
+ 
+ 8_ie=Gestoorde vormgeskiedenis
+ 8_safari=Gestoorde vormgeskiedenis
+ 8_chrome=Gestoorde vormgeskiedenis
+-8_firefox=Gestoorde vormgeskiedenis
++8_self=Gestoorde vormgeskiedenis
+ 
+ 16_ie=Gestoorde wagwoorde
+ 16_safari=Gestoorde wagwoorde
+ 16_chrome=Gestoorde wagwoorde
+-16_firefox=Gestoorde wagwoorde
++16_self=Gestoorde wagwoorde
+ 
+ 32_ie=Gunstelinge
+ 32_safari=Boekmerke
+ 32_chrome=Boekmerke
+-32_firefox=Boekmerke
++32_self=Boekmerke
+ 
+ 64_ie=Ander data
+ 64_safari=Ander data
+diff --git a/l10n-ak/browser/chrome/browser/migration/migration.properties b/l10n-ak/browser/chrome/browser/migration/migration.properties
+index 4f8cc20..11b902e 100644
+--- a/l10n-ak/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ak/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Efi Safari
+ 2_ie=nkuki
+ 2_safari=nkuki
+ 2_chrome=Nkuki
+-2_firefox=Nkuki
++2_self=Nkuki
+ 
+ 4_ie=Abrawse abakɔsɛm
+ 4_safari=Abrawse abakɔsɛm
+ 4_chrome=Abrawse abakɔsɛm
+-4_firefox=Abrawse abakɔsɛm
++4_self=Abrawse abakɔsɛm
+ 
+ 8_ie=Esie abakɔsɛm fɔɔm
+ 8_safari=Esie abakɔsɛm fɔɔm
+ 8_chrome=Fɔɔm abakɔsɛm a wɔde esie
+-8_firefox=Fɔɔm abakɔsɛm a wɔde esie
++8_self=Fɔɔm abakɔsɛm a wɔde esie
+ 
+ 16_ie=Ehintasɛmfua a wɔde esie
+ 16_safari=Ehintasɛmfua a wɔde esie
+ 16_chrome=Ehintasɛmfua a wɔde esie
+-16_firefox=Ehintasɛmfua a wɔde esie
++16_self=Ehintasɛmfua a wɔde esie
+ 
+ 32_ie=Apɛde soronko
+ 32_safari=Nbukmaak
+ 32_chrome=Mbukmaak
+-32_firefox=Mbukmaak
++32_self=Mbukmaak
+ 
+ 64_ie=Deta foforo
+ 64_safari=Deta foforo
+diff --git a/l10n-as/browser/chrome/browser/migration/migration.properties b/l10n-as/browser/chrome/browser/migration/migration.properties
+index 38f22d8..dff3b5e 100644
+--- a/l10n-as/browser/chrome/browser/migration/migration.properties
++++ b/l10n-as/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safari -ৰ পৰা
+ 2_ie=কুকিসমূহ
+ 2_safari=কুকিসমূহ
+ 2_chrome=কুকিসমূহ
+-2_firefox=কুকিসমূহ
++2_self=কুকিসমূহ
+ 
+ 4_ie=ব্ৰাউছ কৰাৰ ইতিহাস
+ 4_safari=ব্ৰাউছ কৰাৰ ইতিহাস
+ 4_chrome=ব্ৰাউছ কৰাৰ ইতিহাস
+-4_firefox=ব্ৰাউছ কৰাৰ ইতিহাস
++4_self=ব্ৰাউছ কৰাৰ ইতিহাস
+ 
+ 8_ie=সংৰক্ষিত ফৰ্মৰ ইতিহাস
+ 8_safari=সংৰক্ষিত ফৰ্মৰ ইতিহাস
+ 8_chrome=সংৰক্ষিত ফৰ্মৰ ইতিহাস
+-8_firefox=সংৰক্ষিত ফৰ্মৰ ইতিহাস
++8_self=সংৰক্ষিত ফৰ্মৰ ইতিহাস
+ 
+ 16_ie=সংৰক্ষিত পাছৱাৰ্ডসমূহ
+ 16_safari=সংৰক্ষিত পাছৱাৰ্ডসমূহ
+ 16_chrome=সংৰক্ষিত পাছৱাৰ্ডসমূহ
+-16_firefox=সংৰক্ষিত পাছৱাৰ্ডসমূহ
++16_self=সংৰক্ষিত পাছৱাৰ্ডসমূহ
+ 
+ 32_ie=পছন্দ
+ 32_safari=পত্ৰচিহ্নসমূহ
+ 32_chrome=পত্ৰচিহ্নসমূহ
+-32_firefox=পত্ৰচিহ্নসমূহ
++32_self=পত্ৰচিহ্নসমূহ
+ 
+ 64_ie=অন্য তথ্য
+ 64_safari=অন্য তথ্য
+diff --git a/l10n-ast/browser/chrome/browser/migration/migration.properties b/l10n-ast/browser/chrome/browser/migration/migration.properties
+index 837bea9..216e497 100644
+--- a/l10n-ast/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ast/browser/chrome/browser/migration/migration.properties
+@@ -22,27 +22,27 @@ importedSafariBookmarks=De Safari
+ 2_ie=Cookies
+ 2_chrome=Cookies
+ 2_safari=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Historial
+ 4_chrome=Historial
+ 4_safari=Historial
+-4_firefox=Historial
++4_self=Historial
+ 
+ 8_ie=Historial de formularios guardaos
+ 8_chrome=Historial de formularios guardaos
+ 8_safari=Historial de formularios guardaos
+-8_firefox=Historial de formularios guardaos
++8_self=Historial de formularios guardaos
+ 
+ 16_ie=Contraseñes guardaes
+ 16_chrome =Contraseñes guardaes
+ 16_safari=Contraseñes guardaes
+-16_firefox=Contraseñes guardaes
++16_self=Contraseñes guardaes
+ 
+ 32_ie=Favoritos
+ 32_chrome=Marcadores
+ 32_safari=Marcadores
+-32_firefox=Marcadores
++32_self=Marcadores
+ 
+ 64_ie=Otros datos
+ 64_chrome=Otros datos
+diff --git a/l10n-be/browser/chrome/browser/migration/migration.properties b/l10n-be/browser/chrome/browser/migration/migration.properties
+index c955a7c..b8633ed 100644
+--- a/l10n-be/browser/chrome/browser/migration/migration.properties
++++ b/l10n-be/browser/chrome/browser/migration/migration.properties
+@@ -14,23 +14,23 @@ importedSafariBookmarks = З Safari
+ 2_ie = Біркі
+ 2_safari = Біркі
+ 2_chrome = Біркі
+-2_firefox = Біркі
++2_self = Біркі
+ 4_ie = Гісторыя азірання
+ 4_safari = Гісторыя азірання
+ 4_chrome = Гісторыя азірання
+-4_firefox = Гісторыя азірання
++4_self = Гісторыя азірання
+ 8_ie = Захаваная гісторыя формаў
+ 8_safari = Захаваная гісторыя формаў
+ 8_chrome = Захаваная гісторыя формаў
+-8_firefox = Захаваная гісторыя формаў
++8_self = Захаваная гісторыя формаў
+ 16_ie = Захаваныя паролі
+ 16_safari = Захаваныя паролі
+ 16_chrome = Захаваныя паролі
+-16_firefox = Захаваныя паролі
++16_self = Захаваныя паролі
+ 32_ie = Улюбёнцы
+ 32_safari = Закладкі
+ 32_chrome = Закладкі
+-32_firefox = Закладкі
++32_self = Закладкі
+ 64_ie = Іншыя даныя
+ 64_safari = Іншыя даныя
+ 64_chrome = Іншыя здаткі
+diff --git a/l10n-br/browser/chrome/browser/migration/migration.properties b/l10n-br/browser/chrome/browser/migration/migration.properties
+index 2f97726..ed12d85 100644
+--- a/l10n-br/browser/chrome/browser/migration/migration.properties
++++ b/l10n-br/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Diouzh Safari
+ 2_ie=Toupinoù
+ 2_safari=Toupinoù
+ 2_chrome=Toupinoù
+-2_firefox=Toupinoù
++2_self=Toupinoù
+ 
+ 4_ie=Roll al lec'hiennoù bet gweladennet
+ 4_safari=Roll al lec'hiennoù bet gweladennet
+ 4_chrome=Roll al lec'hiennoù bet gweladennet
+-4_firefox=Roll al lec'hiennoù bet gweladennet
++4_self=Roll al lec'hiennoù bet gweladennet
+ 
+ 8_ie=Istor ar furmskrid bet enrollet
+ 8_safari=Istor ar furmskrid enrollet
+ 8_chrome=Istor ar furmskrid enrollet
+-8_firefox=Istor ar furmskrid enrollet
++8_self=Istor ar furmskrid enrollet
+ 
+ 16_ie=Gerioù-tremen enrollet
+ 16_safari=Gerioù-tremen enrollet
+ 16_chrome=Gerioù-tremen enrollet
+-16_firefox=Gerioù-tremen enrollet
++16_self=Gerioù-tremen enrollet
+ 
+ 32_ie=Ma re well ganin
+ 32_safari=Sinedoù
+ 32_chrome=Sinedoù
+-32_firefox=Sinedoù
++32_self=Sinedoù
+ 
+ 64_ie=Roadennoù all
+ 64_safari=Roadennoù all
+diff --git a/l10n-bs/browser/chrome/browser/migration/migration.properties b/l10n-bs/browser/chrome/browser/migration/migration.properties
+index 353ba4a..c6c9ecc 100644
+--- a/l10n-bs/browser/chrome/browser/migration/migration.properties
++++ b/l10n-bs/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Iz Safari
+ 2_ie=Kolačići
+ 2_safari=Kolačići
+ 2_chrome=Kolačići
+-2_firefox=Kolačići
++2_self=Kolačići
+ 
+ 4_ie=Historija surfanja
+ 4_safari=Historija surfanja
+ 4_chrome=Historija surfanja
+-4_firefox=Historija surfanja
++4_self=Historija surfanja
+ 
+ 8_ie=Historija spašenih formi
+ 8_safari=Historija spašenih formi
+ 8_chrome=Historija spašenih formi
+-8_firefox=Historija spašenih formi
++8_self=Historija spašenih formi
+ 
+ 16_ie=Spašene lozinke
+ 16_safari=Spašene lozinke
+ 16_chrome=Spašene lozinke
+-16_firefox=Spašene lozinke
++16_self=Spašene lozinke
+ 
+ 32_ie=Favoriti
+ 32_safari=Zabilješke
+ 32_chrome=Zabilješke
+-32_firefox=Zabilješke
++32_self=Zabilješke
+ 
+ 64_ie=Ostali podaci
+ 64_safari=Ostali podaci
+diff --git a/l10n-ca/browser/chrome/browser/migration/migration.properties b/l10n-ca/browser/chrome/browser/migration/migration.properties
+index 41ab5db..0e728e8 100644
+--- a/l10n-ca/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ca/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Del Safari
+ 2_ie=Galetes
+ 2_safari=Galetes
+ 2_chrome=Galetes
+-2_firefox=Galetes
++2_self=Galetes
+ 
+ 4_ie=Historial de navegació
+ 4_safari=Historial de navegació
+ 4_chrome=Historial de navegació
+-4_firefox=Historial de navegació
++4_self=Historial de navegació
+ 
+ 8_ie=Historial dels formularis desats
+ 8_safari=Historial dels formularis desats
+ 8_chrome=Historial dels formularis desats
+-8_firefox=Historial dels formularis desats
++8_self=Historial dels formularis desats
+ 
+ 16_ie=Contrasenyes desades
+ 16_safari=Contrasenyes desades
+ 16_chrome=Contrasenyes desades
+-16_firefox=Contrasenyes desades
++16_self=Contrasenyes desades
+ 
+ 32_ie=Preferits
+ 32_safari=Adreces d'interès
+ 32_chrome=Adreces d'interès
+-32_firefox=Adreces d'interès
++32_self=Adreces d'interès
+ 
+ 64_ie=Altres dades
+ 64_safari=Altres dades
+diff --git a/l10n-cs/browser/chrome/browser/migration/migration.properties b/l10n-cs/browser/chrome/browser/migration/migration.properties
+index 43c04f2..536c7e8 100644
+--- a/l10n-cs/browser/chrome/browser/migration/migration.properties
++++ b/l10n-cs/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Ze Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Historie
+ 4_safari=Historie
+ 4_chrome=Historie
+-4_firefox=Historie
++4_self=Historie
+ 
+ 8_ie=Uložené formuláře
+ 8_safari=Uložené formuláře
+ 8_chrome=Uložené formuláře
+-8_firefox=Uložené formuláře
++8_self=Uložené formuláře
+ 
+ 16_ie=Uložená hesla
+ 16_safari=Uložená hesla
+ 16_chrome=Uložená hesla
+-16_firefox=Uložená hesla
++16_self=Uložená hesla
+ 
+ 32_ie=Oblíbené
+ 32_safari=Záložky
+ 32_chrome=Záložky
+-32_firefox=Záložky
++32_self=Záložky
+ 
+ 64_ie=Ostatní data
+ 64_safari=Ostatní data
+diff --git a/l10n-csb/browser/chrome/browser/migration/migration.properties b/l10n-csb/browser/chrome/browser/migration/migration.properties
+index 95af29a..62ad81b 100644
+--- a/l10n-csb/browser/chrome/browser/migration/migration.properties
++++ b/l10n-csb/browser/chrome/browser/migration/migration.properties
+@@ -27,27 +27,27 @@ importedSafariBookmarks=Z Safari
+ 2_ie=Kùszczi
+ 2_safari=Kùszczi
+ 2_chrome=Kùszczi
+-2_firefox=Kùszczi
++2_self=Kùszczi
+ 
+ 4_ie=Historiô przezéraniô
+ 4_safari=Historiô przezéraniô
+ 4_chrome=Historiô przezéraniô
+-4_firefox=Historiô przezéraniô
++4_self=Historiô przezéraniô
+ 
+ 8_ie=Spamiãtóné z historii
+ 8_safari=Spamiãtóné z historii
+ 8_chrome=Spamiãtóné z historii
+-8_firefox=Spamiãtóné z historii
++8_self=Spamiãtóné z historii
+ 
+ 16_ie=Spamiãtóné parole
+ 16_safari=Spamiãtóné parole
+ 16_chrome=Spamiãtóné parole
+-16_firefox=Spamiãtóné parole
++16_self=Spamiãtóné parole
+ 
+ 32_ie=Ùlëbnicë
+ 32_safari=Załóżczi
+ 32_chrome=Załóżczi
+-32_firefox=Załóżczi
++32_self=Załóżczi
+ 
+ 64_ie=Jinszé pòdôwczi
+ 64_safari=Jinszé pòdôwczi
+diff --git a/l10n-cy/browser/chrome/browser/migration/migration.properties b/l10n-cy/browser/chrome/browser/migration/migration.properties
+index b08b7a1..b9608dd 100644
+--- a/l10n-cy/browser/chrome/browser/migration/migration.properties
++++ b/l10n-cy/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=O Safari
+ 2_ie=Cwcis
+ 2_safari=Cwcis
+ 2_chrome=Cwcis
+-2_firefox=Cwcis
++2_self=Cwcis
+ 
+ 4_ie=Hanes Pori
+ 4_safari=Hanes Pori
+ 4_chrome=Hanes Pori
+-4_firefox=Hanes Pori
++4_self=Hanes Pori
+ 
+ 8_ie=Hanes Ffurflenni a Gadwyd
+ 8_safari=Hanes Ffurflenni a Gadwyd
+ 8_chrome=Hanes Ffurflenni a Gadwyd
+-8_firefox=Hanes Ffurflenni a Gadwyd
++8_self=Hanes Ffurflenni a Gadwyd
+ 
+ 16_ie=Cyfrineiriau a Gadwyd
+ 16_safari=Cyfrineiriau a Gadwyd
+ 16_chrome=Cyfrineiriau a Gadwyd
+-16_firefox=Cyfrineiriau a Gadwyd
++16_self=Cyfrineiriau a Gadwyd
+ 
+ 32_ie=Ffefrynnau
+ 32_safari=Nodau Tudalen
+ 32_chrome=Nodau Tudalen
+-32_firefox=Nodau Tudalen
++32_self=Nodau Tudalen
+ 
+ 64_ie=Data Arall
+ 64_safari=Data Arall
+diff --git a/l10n-da/browser/chrome/browser/migration/migration.properties b/l10n-da/browser/chrome/browser/migration/migration.properties
+index 241cbfc..0ec4c37 100644
+--- a/l10n-da/browser/chrome/browser/migration/migration.properties
++++ b/l10n-da/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Fra Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Browserhistorik
+ 4_safari=Browserhistorik
+ 4_chrome=Browserhistorik
+-4_firefox=Browserhistorik
++4_self=Browserhistorik
+ 
+ 8_ie=Gemt formularhistorik
+ 8_safari=Gemt formularhistorik
+ 8_chrome=Gemt formularhistorik
+-8_firefox=Gemt formularhistorik
++8_self=Gemt formularhistorik
+ 
+ 16_ie=Gemte adgangskoder
+ 16_safari=Gemte adgangskoder
+ 16_chrome=Gemte adgangskoder
+-16_firefox=Gemte adgangskoder
++16_self=Gemte adgangskoder
+ 
+ 32_ie=Favoritter
+ 32_safari=Bogmærker
+ 32_chrome=Bogmærker
+-32_firefox=Bogmærker
++32_self=Bogmærker
+ 
+ 64_ie=Andre data
+ 64_safari=Andre data
+diff --git a/l10n-de/browser/chrome/browser/migration/migration.properties b/l10n-de/browser/chrome/browser/migration/migration.properties
+index 2301841..0c55d11 100644
+--- a/l10n-de/browser/chrome/browser/migration/migration.properties
++++ b/l10n-de/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Von Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Verlauf
+ 4_safari=Verlauf
+ 4_chrome=Browser-Verlauf
+-4_firefox=Browser-Chronik
++4_self=Browser-Chronik
+ 
+ 8_ie=Gespeicherte Formulardaten
+ 8_safari=Gespeicherte Formulardaten
+ 8_chrome=Gespeicherte Autofill-Formulardaten
+-8_firefox=Eingegebene Suchbegriffe & Formulardaten
++8_self=Eingegebene Suchbegriffe & Formulardaten
+ 
+ 16_ie=Gespeicherte Passwörter
+ 16_safari=Gespeicherte Passwörter
+ 16_chrome=Gespeicherte Passwörter
+-16_firefox=Gespeicherte Passwörter
++16_self=Gespeicherte Passwörter
+ 
+ 32_ie=Favoriten
+ 32_safari=Lesezeichen
+ 32_chrome=Lesezeichen
+-32_firefox=Lesezeichen
++32_self=Lesezeichen
+ 
+ 64_ie=Sonstige Daten
+ 64_safari=Sonstige Daten
+diff --git a/l10n-el/browser/chrome/browser/migration/migration.properties b/l10n-el/browser/chrome/browser/migration/migration.properties
+index c4b0855..ab80c84 100644
+--- a/l10n-el/browser/chrome/browser/migration/migration.properties
++++ b/l10n-el/browser/chrome/browser/migration/migration.properties
+@@ -35,9 +35,9 @@ importedSearchURLsFolder=Αναζητήσεις με λέξη-κλειδί (απ
+ 64_safari=Άλλα δεδομένα
+ 16_safari=Αποθηκευμένοι κωδικοί
+ 
+-16_firefox=Αποθηκευμένοι κωδικοί
+-2_firefox=Cookies
+-32_firefox=Σελιδοδείκτες
+-4_firefox=Ιστορικό περιήγησης
+-8_firefox=Ιστορικό αποθηκευμένων φορμών
++16_self=Αποθηκευμένοι κωδικοί
++2_self=Cookies
++32_self=Σελιδοδείκτες
++4_self=Ιστορικό περιήγησης
++8_self=Ιστορικό αποθηκευμένων φορμών
+ sourceNameFirefox=Mozilla Firefox
+diff --git a/l10n-en-GB/browser/chrome/browser/migration/migration.properties b/l10n-en-GB/browser/chrome/browser/migration/migration.properties
+index 8762242..0532633 100644
+--- a/l10n-en-GB/browser/chrome/browser/migration/migration.properties
++++ b/l10n-en-GB/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=From Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Browsing History
+ 4_safari=Browsing History
+ 4_chrome=Browsing History
+-4_firefox=Browsing History
++4_self=Browsing History
+ 
+ 8_ie=Saved Form History
+ 8_safari=Saved Form History
+ 8_chrome=Saved Form History
+-8_firefox=Saved Form History
++8_self=Saved Form History
+ 
+ 16_ie=Saved Passwords
+ 16_safari=Saved Passwords
+ 16_chrome=Saved Passwords
+-16_firefox=Saved Passwords
++16_self=Saved Passwords
+ 
+ 32_ie=Favourites
+ 32_safari=Bookmarks
+ 32_chrome=Bookmarks
+-32_firefox=Bookmarks
++32_self=Bookmarks
+ 
+ 64_ie=Other Data
+ 64_safari=Other Data
+diff --git a/l10n-en-ZA/browser/chrome/browser/migration/migration.properties b/l10n-en-ZA/browser/chrome/browser/migration/migration.properties
+index 8762242..0532633 100644
+--- a/l10n-en-ZA/browser/chrome/browser/migration/migration.properties
++++ b/l10n-en-ZA/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=From Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Browsing History
+ 4_safari=Browsing History
+ 4_chrome=Browsing History
+-4_firefox=Browsing History
++4_self=Browsing History
+ 
+ 8_ie=Saved Form History
+ 8_safari=Saved Form History
+ 8_chrome=Saved Form History
+-8_firefox=Saved Form History
++8_self=Saved Form History
+ 
+ 16_ie=Saved Passwords
+ 16_safari=Saved Passwords
+ 16_chrome=Saved Passwords
+-16_firefox=Saved Passwords
++16_self=Saved Passwords
+ 
+ 32_ie=Favourites
+ 32_safari=Bookmarks
+ 32_chrome=Bookmarks
+-32_firefox=Bookmarks
++32_self=Bookmarks
+ 
+ 64_ie=Other Data
+ 64_safari=Other Data
+diff --git a/l10n-eo/browser/chrome/browser/migration/migration.properties b/l10n-eo/browser/chrome/browser/migration/migration.properties
+index 82bc448..e916f91 100644
+--- a/l10n-eo/browser/chrome/browser/migration/migration.properties
++++ b/l10n-eo/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=De Safari
+ 2_ie=Kuketoj
+ 2_safari=Kuketoj
+ 2_chrome=Kuketoj
+-2_firefox=Kuketoj
++2_self=Kuketoj
+ 
+ 4_ie=Historio de retesplorado
+ 4_safari=Historio de retesplorado
+ 4_chrome=Historio de retesplorado
+-4_firefox=Historio de retesplorado
++4_self=Historio de retesplorado
+ 
+ 8_ie=Konservita historio de formularoj
+ 8_safari=Konservita historio de formularoj
+ 8_chrome=Konservita historio de formularoj
+-8_firefox=Konservita historio de formularoj
++8_self=Konservita historio de formularoj
+ 
+ 16_ie=Konservitaj pasvortoj
+ 16_safari=Konservitaj pasvortoj
+ 16_chrome=Konservitaj pasvortoj
+-16_firefox=Konservitaj pasvortoj
++16_self=Konservitaj pasvortoj
+ 
+ 32_ie=Plej ŝatataj
+ 32_safari=Legosignoj
+ 32_chrome=Legosignoj
+-32_firefox=Legosignoj
++32_self=Legosignoj
+ 
+ 64_ie=Aliaj datumoj
+ 64_safari=Aliaj datumoj
+diff --git a/l10n-es-AR/browser/chrome/browser/migration/migration.properties b/l10n-es-AR/browser/chrome/browser/migration/migration.properties
+index 7b094eb..8d90be4 100644
+--- a/l10n-es-AR/browser/chrome/browser/migration/migration.properties
++++ b/l10n-es-AR/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks = De Safari
+ 2_ie = Cookies
+ 2_safari = Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie = Historial de navegación
+ 4_safari = Historial de navegación
+ 4_chrome=Historial de navegación
+-4_firefox=Historial de navegación
++4_self=Historial de navegación
+ 
+ 8_ie = Historial de formularios guardados
+ 8_safari = Historial de formularios guardados
+ 8_chrome=Historial de formularios guardados
+-8_firefox=Historial de formularios guardados
++8_self=Historial de formularios guardados
+ 
+ 16_ie = Contraseñas guardadas
+ 16_safari = Contraseñas guardadas
+ 16_chrome=Contraseñas guardadas
+-16_firefox=Contraseñas guardadas
++16_self=Contraseñas guardadas
+ 
+ 32_ie = Favoritos
+ 32_safari = Marcadores
+ 32_chrome=Marcadores
+-32_firefox=Marcadores
++32_self=Marcadores
+ 
+ 64_ie = Otros datos
+ 64_safari = Otros datos
+diff --git a/l10n-es-CL/browser/chrome/browser/migration/migration.properties b/l10n-es-CL/browser/chrome/browser/migration/migration.properties
+index e7cc6c6..f9beed9 100644
+--- a/l10n-es-CL/browser/chrome/browser/migration/migration.properties
++++ b/l10n-es-CL/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=De Safari
+ 2_ie = Cookies
+ 2_safari = Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie = Historial de navegación
+ 4_safari = Historial de navegación
+ 4_chrome=Historial de navegación
+-4_firefox=Historial de navegación
++4_self=Historial de navegación
+ 
+ 8_ie = Historial de formularios guardados
+ 8_safari = Historial de formularios guardados
+ 8_chrome=Historial de formularios guardados
+-8_firefox=Historial de formularios guardados
++8_self=Historial de formularios guardados
+ 
+ 16_ie = Contraseñas guardadas
+ 16_safari=Contraseñas guardadas
+ 16_chrome=Contraseñas guardadas
+-16_firefox=Contraseñas guardadas
++16_self=Contraseñas guardadas
+ 
+ 32_ie=Favoritos
+ 32_safari=Marcadores
+ 32_chrome=Marcadores
+-32_firefox=Marcadores
++32_self=Marcadores
+ 
+ 64_ie=Otros datos
+ 64_safari=Otros datos
+diff --git a/l10n-es-ES/browser/chrome/browser/migration/migration.properties b/l10n-es-ES/browser/chrome/browser/migration/migration.properties
+index d1fd632..14fc77e 100644
+--- a/l10n-es-ES/browser/chrome/browser/migration/migration.properties
++++ b/l10n-es-ES/browser/chrome/browser/migration/migration.properties
+@@ -14,23 +14,23 @@ importedSafariBookmarks = De Safari
+ 2_ie = Cookies
+ 2_safari = Cookies
+ 2_chrome = Cookies
+-2_firefox = Cookies
++2_self = Cookies
+ 4_ie = Historial
+ 4_safari = Historial de navegación
+ 4_chrome = Historial de navegación
+-4_firefox = Historial de navegación
++4_self = Historial de navegación
+ 8_ie = Historial de formularios guardados
+ 8_safari = Historial de formularios guardados
+ 8_chrome = Historial de formularios guardados
+-8_firefox = Historial de formularios guardados
++8_self = Historial de formularios guardados
+ 16_ie = Contraseñas guardadas
+ 16_safari = Contraseñas guardadas
+ 16_chrome = Contraseñas guardadas
+-16_firefox = Contraseñas guardadas
++16_self = Contraseñas guardadas
+ 32_ie = Favoritos
+ 32_safari = Marcadores
+ 32_chrome = Marcadores
+-32_firefox = Marcadores
++32_self = Marcadores
+ 64_ie = Otros datos
+ 64_safari = Otros datos
+ 64_chrome = Otros datos
+diff --git a/l10n-es-MX/browser/chrome/browser/migration/migration.properties b/l10n-es-MX/browser/chrome/browser/migration/migration.properties
+index a006684..e6a8439 100644
+--- a/l10n-es-MX/browser/chrome/browser/migration/migration.properties
++++ b/l10n-es-MX/browser/chrome/browser/migration/migration.properties
+@@ -14,23 +14,23 @@ importedSafariBookmarks = De Safari
+ 2_ie = Cookies
+ 2_safari = Cookies
+ 2_chrome = Cookies
+-2_firefox = Cookies
++2_self = Cookies
+ 4_ie = Historial de navegación
+ 4_safari = Historial de navegación
+ 4_chrome = Historial de navegación
+-4_firefox = Historial de navegación
++4_self = Historial de navegación
+ 8_ie = Historial de formularios guardados
+ 8_safari = Historial de formularios guardados
+ 8_chrome = Historial de formularios guardados
+-8_firefox = Historial de formularios guardados
++8_self = Historial de formularios guardados
+ 16_ie = Contraseñas guardadas
+ 16_safari = Contraseñas guardadas
+ 16_chrome = Contraseñas guardadas
+-16_firefox = Contraseñas guardadas
++16_self = Contraseñas guardadas
+ 32_ie = Favoritos
+ 32_safari = Marcadores
+ 32_chrome = Marcadores
+-32_firefox = Marcadores
++32_self = Marcadores
+ 64_ie = Otros datos
+ 64_safari = Otros datos
+ 64_chrome = Otros datos
+diff --git a/l10n-et/browser/chrome/browser/migration/migration.properties b/l10n-et/browser/chrome/browser/migration/migration.properties
+index eb49ba6..d3ad547 100644
+--- a/l10n-et/browser/chrome/browser/migration/migration.properties
++++ b/l10n-et/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safarist
+ 2_ie=Küpsised
+ 2_safari=Küpsised
+ 2_chrome=Küpsised
+-2_firefox=Küpsised
++2_self=Küpsised
+ 
+ 4_ie=Brausimise ajalugu
+ 4_safari=Brausimise ajalugu
+ 4_chrome=Brausimise ajalugu
+-4_firefox=Brausimise ajalugu
++4_self=Brausimise ajalugu
+ 
+ 8_ie=Salvestatud vormide ajalugu
+ 8_safari=Salvestatud vormide ajalugu
+ 8_chrome=Salvestatud vormide ajalugu
+-8_firefox=Salvestatud vormide ajalugu
++8_self=Salvestatud vormide ajalugu
+ 
+ 16_ie=Salvestatud paroolid
+ 16_safari=Salvestatud paroolid
+ 16_chrome=Salvestatud paroolid
+-16_firefox=Salvestatud paroolid
++16_self=Salvestatud paroolid
+ 
+ 32_ie=Lemmikud
+ 32_safari=Järjehoidjad
+ 32_chrome=Järjehoidjad
+-32_firefox=Järjehoidjad
++32_self=Järjehoidjad
+ 
+ 64_ie=Muud andmed
+ 64_safari=Muud andmed
+diff --git a/l10n-eu/browser/chrome/browser/migration/migration.properties b/l10n-eu/browser/chrome/browser/migration/migration.properties
+index 65c3709..056552b 100644
+--- a/l10n-eu/browser/chrome/browser/migration/migration.properties
++++ b/l10n-eu/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safari-tik
+ 2_ie=Cookie-ak
+ 2_safari=Cookie-ak
+ 2_chrome=Cookie-ak
+-2_firefox=Cookie-ak
++2_self=Cookie-ak
+ 
+ 4_ie=Arakatze-historia
+ 4_safari=Arakatze-historia
+ 4_chrome=Arakatze-historia
+-4_firefox=Arakatze-historia
++4_self=Arakatze-historia
+ 
+ 8_ie=Gordetako inprimakien historia
+ 8_safari=Gordetako inprimakien historia
+ 8_chrome=Gordetako inprimakien historia
+-8_firefox=Gordetako inprimakien historia
++8_self=Gordetako inprimakien historia
+ 
+ 16_ie=Gordetako pasahitzak
+ 16_safari=Gordetako pasahitzak
+ 16_chrome=Gordetako pasahitzak
+-16_firefox=Gordetako pasahitzak
++16_self=Gordetako pasahitzak
+ 
+ 32_ie=Gogokoak
+ 32_safari=Laster-markak
+ 32_chrome=Laster-markak
+-32_firefox=Laster-markak
++32_self=Laster-markak
+ 
+ 64_ie=Bestelako datuak
+ 64_safari=Bestelako datuak
+diff --git a/l10n-fi/browser/chrome/browser/migration/migration.properties b/l10n-fi/browser/chrome/browser/migration/migration.properties
+index b950d15..4ca2ba4 100644
+--- a/l10n-fi/browser/chrome/browser/migration/migration.properties
++++ b/l10n-fi/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safarista
+ 2_ie=Evästeet
+ 2_safari=Evästeet
+ 2_chrome=Evästeet
+-2_firefox=Evästeet
++2_self=Evästeet
+ 
+ 4_ie=Sivuhistoria
+ 4_safari=Sivuhistoria
+ 4_chrome=Sivuhistoria
+-4_firefox=Sivuhistoria
++4_self=Sivuhistoria
+ 
+ 8_ie=Tallennetut lomaketiedot
+ 8_safari=Tallennetut lomaketiedot
+ 8_chrome=Tallennetut lomaketiedot
+-8_firefox=Tallennetut lomaketiedot
++8_self=Tallennetut lomaketiedot
+ 
+ 16_ie=Tallennetut salasanat
+ 16_safari=Tallennetut salasanat
+ 16_chrome=Tallennetut salasanat
+-16_firefox=Tallennetut salasanat
++16_self=Tallennetut salasanat
+ 
+ 32_ie=Suosikit
+ 32_safari=Kirjanmerkit
+ 32_chrome=Kirjanmerkit
+-32_firefox=Kirjanmerkit
++32_self=Kirjanmerkit
+ 
+ 64_ie=Muita tietoja
+ 64_safari=Muita tietoja
+diff --git a/l10n-fr/browser/chrome/browser/migration/migration.properties b/l10n-fr/browser/chrome/browser/migration/migration.properties
+index 9e31448..eecccc5 100644
+--- a/l10n-fr/browser/chrome/browser/migration/migration.properties
++++ b/l10n-fr/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Importé depuis Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Historique de navigation
+ 4_safari=Historique de navigation
+ 4_chrome=Historique de navigation
+-4_firefox=Historique
++4_self=Historique
+ 
+ 8_ie=Données de formulaires enregistrées
+ 8_safari=Données de formulaires enregistrées
+ 8_chrome=Données de formulaires enregistrées
+-8_firefox=Données de formulaires enregistrées
++8_self=Données de formulaires enregistrées
+ 
+ 16_ie=Mots de passe enregistrés
+ 16_safari=Mots de passe enregistrés
+ 16_chrome=Mots de passe enregistrés
+-16_firefox=Mots de passe enregistrés
++16_self=Mots de passe enregistrés
+ 
+ 32_ie=Favoris
+ 32_safari=Signets
+ 32_chrome=Favoris
+-32_firefox=Marque-pages
++32_self=Marque-pages
+ 
+ 64_ie=Autres données
+ 64_safari=Autres données
+diff --git a/l10n-fy-NL/browser/chrome/browser/migration/migration.properties b/l10n-fy-NL/browser/chrome/browser/migration/migration.properties
+index fb5745a..18db647 100644
+--- a/l10n-fy-NL/browser/chrome/browser/migration/migration.properties
++++ b/l10n-fy-NL/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Ut Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Skiednis
+ 4_safari=Skiednis
+ 4_chrome=Skiednis
+-4_firefox=Skiednis
++4_self=Skiednis
+ 
+ 8_ie=Bewarre formulierskiednis
+ 8_safari=Bewarre formulierskiednis
+ 8_chrome=Bewarre formulierskiednis
+-8_firefox=Bewarre formulierskiednis
++8_self=Bewarre formulierskiednis
+ 
+ 16_ie=Bewarre wachtwurden
+ 16_safari=Bewarre wachtwurden
+ 16_chrome=Bewarre wachtwurden
+-16_firefox=Bewarre wachtwurden
++16_self=Bewarre wachtwurden
+ 
+ 32_ie=Favorieten
+ 32_safari=Blêdwizers
+ 32_chrome=Blêdwizers
+-32_firefox=Blêdwizers
++32_self=Blêdwizers
+ 
+ 64_ie=Oare gegevens
+ 64_safari=Oare gegevens
+diff --git a/l10n-ga-IE/browser/chrome/browser/migration/migration.properties b/l10n-ga-IE/browser/chrome/browser/migration/migration.properties
+index 75cd340..fa85ecb 100644
+--- a/l10n-ga-IE/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ga-IE/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Ó Safari
+ 2_ie=Fianáin
+ 2_safari=Fianáin
+ 2_chrome=Fianáin
+-2_firefox=Fianáin
++2_self=Fianáin
+ 
+ 4_ie=Stair Bhrabhsála
+ 4_safari=Stair Bhrabhsála
+ 4_chrome=Stair Bhrabhsála
+-4_firefox=Stair Bhrabhsála
++4_self=Stair Bhrabhsála
+ 
+ 8_ie=Stair na Faisnéise Sábháilte ó Fhoirmeacha
+ 8_safari=Stair na Faisnéise Sábháilte ó Fhoirmeacha
+ 8_chrome=Stair na Faisnéise Sábháilte ó Fhoirmeacha
+-8_firefox=Stair na Faisnéise Sábháilte ó Fhoirmeacha
++8_self=Stair na Faisnéise Sábháilte ó Fhoirmeacha
+ 
+ 16_ie=Focail Fhaire a sábháladh
+ 16_safari=Focail Fhaire a sábháladh
+ 16_chrome=Focail Fhaire a sábháladh
+-16_firefox=Focail Fhaire a sábháladh
++16_self=Focail Fhaire a sábháladh
+ 
+ 32_ie=Ceanáin
+ 32_safari=Leabharmharcanna
+ 32_chrome=Leabharmharcanna
+-32_firefox=Leabharmharcanna
++32_self=Leabharmharcanna
+ 
+ 64_ie=Sonraí Eile
+ 64_safari=Sonraí Eile
+diff --git a/l10n-gd/browser/chrome/browser/migration/migration.properties b/l10n-gd/browser/chrome/browser/migration/migration.properties
+index e31c232..8538837 100644
+--- a/l10n-gd/browser/chrome/browser/migration/migration.properties
++++ b/l10n-gd/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=O Shafari
+ 2_ie=Briosgaidean
+ 2_safari=Briosgaidean
+ 2_chrome=Briosgaidean
+-2_firefox=Briosgaidean
++2_self=Briosgaidean
+ 
+ 4_ie=An eachdraidh brabhsaidh
+ 4_safari=An eachdraidh brabhsaidh
+ 4_chrome=Eachdraidh brabhsaidh
+-4_firefox=An eachdraidh brabhsaidh
++4_self=An eachdraidh brabhsaidh
+ 
+ 8_ie=Air a shàbhaladh on eachdraidh
+ 8_safari=Air a shàbhaladh on eachdraidh
+ 8_chrome=Air a shàbhaladh on eachdraidh
+-8_firefox=Air a shàbhaladh on eachdraidh
++8_self=Air a shàbhaladh on eachdraidh
+ 
+ 16_ie=Faclan-faire air an sàbhaladh
+ 16_safari=Faclan-faire air an sàbhaladh
+ 16_chrome=Faclan-faire air an sàbhaladh
+-16_firefox=Faclan-faire air an sàbhaladh
++16_self=Faclan-faire air an sàbhaladh
+ 
+ 32_ie=Annsachdan
+ 32_safari=Comharran-lìn
+ 32_chrome=Comharran-lìn
+-32_firefox=Comharran-lìn
++32_self=Comharran-lìn
+ 
+ 64_ie=Dàta eile
+ 64_safari=Dàta eile
+diff --git a/l10n-gu-IN/browser/chrome/browser/migration/migration.properties b/l10n-gu-IN/browser/chrome/browser/migration/migration.properties
+index 89f417b..ffab05e 100644
+--- a/l10n-gu-IN/browser/chrome/browser/migration/migration.properties
++++ b/l10n-gu-IN/browser/chrome/browser/migration/migration.properties
+@@ -22,27 +22,27 @@ importedSafariBookmarks=Safari માંથી
+ 2_ie=કુકીઓ
+ 2_safari=કુકીઓ
+ 2_chrome=કુકીઓ
+-2_firefox=કુકીઓ
++2_self=કુકીઓ
+ 
+ 4_ie=બ્રાઉઝ ઇતિહાસ
+ 4_safari=બ્રાઉઝ ઇતિહાસ
+ 4_chrome=બ્રાઉઝ ઇતિહાસ
+-4_firefox=બ્રાઉઝ ઇતિહાસ
++4_self=બ્રાઉઝ ઇતિહાસ
+ 
+ 8_ie=ઈતિહાસમાંથી સંગ્રહાયેલ
+ 8_safari=ઈતિહાસમાંથી સંગ્રહાયેલ
+ 8_chrome=ઈતિહાસમાંથી સંગ્રહાયેલ
+-8_firefox=ઈતિહાસમાંથી સંગ્રહાયેલ
++8_self=ઈતિહાસમાંથી સંગ્રહાયેલ
+ 
+ 16_ie=સંગ્રહાયેલ પાસવર્ડો
+ 16_safari=સંગ્રહાયેલ પાસવર્ડો
+ 16_chrome=સંગ્રહાયેલ પાસવર્ડો
+-16_firefox=સંગ્રહાયેલ પાસવર્ડો
++16_self=સંગ્રહાયેલ પાસવર્ડો
+ 
+ 32_ie=મનપસંદો
+ 32_safari=બુકમાર્કો
+ 32_chrome=બુકમાર્કો
+-32_firefox=બુકમાર્કો
++32_self=બુકમાર્કો
+ 
+ 64_ie=અન્ય માહિતી
+ 64_safari=અન્ય માહિતી
+diff --git a/l10n-he/browser/chrome/browser/migration/migration.properties b/l10n-he/browser/chrome/browser/migration/migration.properties
+index 78a8b68..3ad95cb 100644
+--- a/l10n-he/browser/chrome/browser/migration/migration.properties
++++ b/l10n-he/browser/chrome/browser/migration/migration.properties
+@@ -31,27 +31,27 @@ importedSafariBookmarks=מ־Safari
+ 2_ie=עוגיות
+ 2_safari=עוגיות
+ 2_chrome=עוגיות
+-2_firefox=עוגיות
++2_self=עוגיות
+ 
+ 4_ie=היסטוריית דפדוף
+ 4_safari=היסטוריית דפדוף
+ 4_chrome=היסטורית גלישה
+-4_firefox=היסטורית גלישה
++4_self=היסטורית גלישה
+ 
+ 8_ie=היסטוריית טפסים שמורים
+ 8_safari=היסטוריית טפסים שמורים
+ 8_chrome=היסטוריית טפסים שמורים
+-8_firefox=היסטוריית טפסים שמורים
++8_self=היסטוריית טפסים שמורים
+ 
+ 16_ie=ססמאות שמורות
+ 16_safari=ססמאות שמורות
+ 16_chrome=ססמאות שמורות
+-16_firefox=ססמאות שמורות
++16_self=ססמאות שמורות
+ 
+ 32_ie=מועדפים
+ 32_safari=סימניות
+ 32_chrome=סימניות
+-32_firefox=סימניות
++32_self=סימניות
+ 
+ 64_ie=מידע אחר
+ 64_safari=מידע אחר
+diff --git a/l10n-hi-IN/browser/chrome/browser/migration/migration.properties b/l10n-hi-IN/browser/chrome/browser/migration/migration.properties
+index 1beefe1..4e19169 100755
+--- a/l10n-hi-IN/browser/chrome/browser/migration/migration.properties
++++ b/l10n-hi-IN/browser/chrome/browser/migration/migration.properties
+@@ -71,21 +71,21 @@ importedSafariBookmarks=सफारी से
+ 
+ 
+ 16_chrome=सहेजा कूटशब्द
+-16_firefox=सहेजा कूटशब्द
++16_self=सहेजा कूटशब्द
+ 1_chrome=वरीयताएँ
+ 
+ 2_chrome=कुकीज
+-2_firefox=कुकीज
++2_self=कुकीज
+ 
+ 32_chrome=पुस्तचिह्न
+-32_firefox=पुस्तचिह्न
++32_self=पुस्तचिह्न
+ 
+ 4_chrome=ब्राउज़िंग इतिहास
+-4_firefox=ब्राउज़िंग इतिहास
++4_self=ब्राउज़िंग इतिहास
+ 64_chrome=अन्य आँकड़े
+ 
+ 8_chrome=इतिहास से सहेजा गया
+-8_firefox=इतिहास से सहेजा गया
++8_self=इतिहास से सहेजा गया
+ 
+ sourceNameChrome=गूगल क्रोम
+ sourceNameFirefox=मोज़िल्ला फ़ायरफ़ॉक्स
+diff --git a/l10n-hr/browser/chrome/browser/migration/migration.properties b/l10n-hr/browser/chrome/browser/migration/migration.properties
+index cab6a74..e3d7eb1 100644
+--- a/l10n-hr/browser/chrome/browser/migration/migration.properties
++++ b/l10n-hr/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Iz Safarija
+ 2_ie=Cookies
+ 2_safari=Kolačići
+ 2_chrome=Kolačići
+-2_firefox=Kolačići
++2_self=Kolačići
+ 
+ 4_ie=Povijest pretraživanja
+ 4_safari=Povijest pretraživanja
+ 4_chrome=Povijest pretraživanja
+-4_firefox=Povijest pretraživanja
++4_self=Povijest pretraživanja
+ 
+ 8_ie=Povijest spremljenih obrazaca
+ 8_safari=Povijest spremljenih obrazaca
+ 8_chrome=Povijest spremljenih obrazaca
+-8_firefox=Povijest spremljenih obrazaca
++8_self=Povijest spremljenih obrazaca
+ 
+ 16_ie=Spremljene lozinke
+ 16_safari=Spremljene lozinke
+ 16_chrome=Spremljene lozinke
+-16_firefox=Spremljene lozinke
++16_self=Spremljene lozinke
+ 
+ 32_ie=Favoriti
+ 32_safari=Zabilješke
+ 32_chrome=Zabilješke
+-32_firefox=Zabilješke
++32_self=Zabilješke
+ 
+ 64_ie=Ostali podaci
+ 64_safari=Ostali podaci
+diff --git a/l10n-hu/browser/chrome/browser/migration/migration.properties b/l10n-hu/browser/chrome/browser/migration/migration.properties
+index c4fddfb..41b1ddf 100644
+--- a/l10n-hu/browser/chrome/browser/migration/migration.properties
++++ b/l10n-hu/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safari könyvjelzők
+ 2_ie=Sütik
+ 2_safari=Sütik
+ 2_chrome=Sütik
+-2_firefox=Sütik
++2_self=Sütik
+ 
+ 4_ie=Böngészési előzmények
+ 4_safari=Böngészési előzmények
+ 4_chrome=Böngészési előzmények
+-4_firefox=Böngészési előzmények
++4_self=Böngészési előzmények
+ 
+ 8_ie=Mentett űrlapadatok
+ 8_safari=Mentett űrlapadatok
+ 8_chrome=Mentett űrlapadatok
+-8_firefox=Mentett űrlapadatok
++8_self=Mentett űrlapadatok
+ 
+ 16_ie=Mentett jelszavak
+ 16_safari=Mentett jelszavak
+ 16_chrome=Mentett jelszavak
+-16_firefox=Mentett jelszavak
++16_self=Mentett jelszavak
+ 
+ 32_ie=Kedvencek
+ 32_safari=Könyvjelzők
+ 32_chrome=Könyvjelzők
+-32_firefox=Könyvjelzők
++32_self=Könyvjelzők
+ 
+ 64_ie=További adatok
+ 64_safari=További adatok
+diff --git a/l10n-hy-AM/browser/chrome/browser/migration/migration.properties b/l10n-hy-AM/browser/chrome/browser/migration/migration.properties
+index 43bdb22..78be68e 100644
+--- a/l10n-hy-AM/browser/chrome/browser/migration/migration.properties
++++ b/l10n-hy-AM/browser/chrome/browser/migration/migration.properties
+@@ -59,27 +59,27 @@ importedSafariBookmarks=Safari - ից
+ 2_ie=Քուկիներ
+ 2_safari=Քուկիներ
+ 2_chrome=Քուկիներ
+-2_firefox=Cookie-ներ
++2_self=Cookie-ներ
+ 
+ 4_ie=Նավարկման Մատյան
+ 4_safari=Նավարկման Մատյան
+ 4_chrome=Հաճախումների Պատմությունը
+-4_firefox=Հաճախումների մատյան
++4_self=Հաճախումների մատյան
+ 
+ 8_ie=Պահպանված Մատյանից
+ 8_safari=Պահպանված Մատյանից
+ 8_chrome=Պահպանված Մատյանից
+-8_firefox=Պահպանված Մատյանից
++8_self=Պահպանված Մատյանից
+ 
+ 16_ie=Պահպանված Գաղտնաբառերը
+ 16_safari=Պահպանված Գաղտնաբառերը
+ 16_chrome=Պահպանված Գաղտնաբառերը
+-16_firefox=Պահպանված Գաղտնաբառերը
++16_self=Պահպանված Գաղտնաբառերը
+ 
+ 32_ie=Նախնտրելիներ
+ 32_safari=Էջանիշեր
+ 32_chrome=Էջանիշներ
+-32_firefox=Էջանիշներ
++32_self=Էջանիշներ
+ 
+ 64_ie=Այլ Տվյալներ
+ 64_safari=Այլ Տվյալներ
+diff --git a/l10n-id/browser/chrome/browser/migration/migration.properties b/l10n-id/browser/chrome/browser/migration/migration.properties
+index b3130af..38c8b3a 100644
+--- a/l10n-id/browser/chrome/browser/migration/migration.properties
++++ b/l10n-id/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Dari Safari
+ 2_ie=Kuki
+ 2_safari=Kuki
+ 2_chrome=Kuki
+-2_firefox=Kuki
++2_self=Kuki
+ 
+ 4_ie=Riwayat Jelajah Web
+ 4_safari=Riwayat Jelajah Web
+ 4_chrome=Riwayat Peramban
+-4_firefox=Riwayat Peramban
++4_self=Riwayat Peramban
+ 
+ 8_ie=Riwayat Form Tersimpan
+ 8_safari=Riwayat Form Tersimpan
+ 8_chrome=Riwayat Form Simpanan
+-8_firefox=Riwayat Form Simpanan
++8_self=Riwayat Form Simpanan
+ 
+ 16_ie=Sandi Tersimpan
+ 16_safari=Sandi Tersimpan
+ 16_chrome=Sandi Tersimpan
+-16_firefox=Sandi Tersimpan
++16_self=Sandi Tersimpan
+ 
+ 32_ie=Favorit
+ 32_safari=Bookmark
+ 32_chrome=Bookmark
+-32_firefox=Markah
++32_self=Markah
+ 
+ 64_ie=Data Lain
+ 64_safari=Data Lain
+diff --git a/l10n-is/browser/chrome/browser/migration/migration.properties b/l10n-is/browser/chrome/browser/migration/migration.properties
+index fe05a2a..f178fdc 100644
+--- a/l10n-is/browser/chrome/browser/migration/migration.properties
++++ b/l10n-is/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Frá Safari
+ 2_ie=Smákökur
+ 2_safari=Smákökur
+ 2_chrome=Smákökur
+-2_firefox=Smákökur
++2_self=Smákökur
+ 
+ 4_ie=Ferill vafra
+ 4_safari=Ferill vafra
+ 4_chrome=Ferill vafra
+-4_firefox=Ferill vafra
++4_self=Ferill vafra
+ 
+ 8_ie=Vistaðir eyðublaða ferlar
+ 8_safari=Vistaðir eyðublaða ferlar
+ 8_chrome=Vistaðir eyðublaða ferlar
+-8_firefox=Vistaðir eyðublaða ferlar
++8_self=Vistaðir eyðublaða ferlar
+ 
+ 16_ie=Vistuð lykilorð
+ 16_safari=Vistuð lykilorð
+ 16_chrome=Vistuð lykilorð
+-16_firefox=Vistuð lykilorð
++16_self=Vistuð lykilorð
+ 
+ 32_ie=Uppáhald
+ 32_safari=Bókamerki
+ 32_chrome=Bókamerki
+-32_firefox=Bókamerki
++32_self=Bókamerki
+ 
+ 64_ie=Önnur gögn
+ 64_safari=Önnur gögn
+diff --git a/l10n-it/browser/chrome/browser/migration/migration.properties b/l10n-it/browser/chrome/browser/migration/migration.properties
+index 3eae2a6..49bf931 100644
+--- a/l10n-it/browser/chrome/browser/migration/migration.properties
++++ b/l10n-it/browser/chrome/browser/migration/migration.properties
+@@ -14,23 +14,23 @@ importedSafariBookmarks = Da Safari
+ 2_ie = Cookie
+ 2_safari = Cookie
+ 2_chrome = Cookie
+-2_firefox = Cookie
++2_self = Cookie
+ 4_ie = Cronologia di navigazione
+ 4_safari = Cronologia di navigazione
+ 4_chrome = Cronologia di navigazione
+-4_firefox = Cronologia di navigazione
++4_self = Cronologia di navigazione
+ 8_ie = Dati salvati nei moduli
+ 8_safari = Dati salvati nei moduli
+ 8_chrome = Dati salvati nei moduli
+-8_firefox = Dati salvati nei moduli
++8_self = Dati salvati nei moduli
+ 16_ie = Password salvate
+ 16_safari = Password salvate
+ 16_chrome = Password salvate
+-16_firefox = Password salvate
++16_self = Password salvate
+ 32_ie = Preferiti
+ 32_safari = Preferiti
+ 32_chrome = Preferiti
+-32_firefox = Segnalibri
++32_self = Segnalibri
+ 64_ie = Altri dati
+ 64_safari = Altri dati
+ 64_chrome = Altri dati
+diff --git a/l10n-ja/browser/chrome/browser/migration/migration.properties b/l10n-ja/browser/chrome/browser/migration/migration.properties
+index d3af1b3..fd7c256 100644
+--- a/l10n-ja/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ja/browser/chrome/browser/migration/migration.properties
+@@ -21,28 +21,28 @@ importedSafariBookmarks		= Safari から
+ 2_ie		= Cookie
+ 2_safari	= Cookie
+ 2_chrome	= Cookie
+-2_firefox	= Cookie
++2_self	= Cookie
+ 
+ 4_ie		= 表示履歴
+ 4_safari	= 表示履歴
+ 4_chrome	= 表示履歴
+-4_firefox	= 表示履歴
++4_self	= 表示履歴
+ 
+ 8_ie		= 入力フォームの履歴
+ # (^^; オートコンプリート履歴、とすべきか？
+ 8_safari	= 入力フォームの履歴
+ 8_chrome	= 入力フォームの履歴
+-8_firefox	= 入力フォームの履歴
++8_self	= 入力フォームの履歴
+ 
+ 16_ie		= 保存されているパスワード
+ 16_safari	= 保存されているパスワード
+ 16_chrome	= 保存されているパスワード
+-16_firefox	= 保存されているパスワード
++16_self	= 保存されているパスワード
+ 
+ 32_ie		= お気に入り
+ 32_safari	= ブックマーク
+ 32_chrome	= ブックマーク
+-32_firefox	= ブックマーク
++32_self	= ブックマーク
+ 
+ 64_ie		= その他のデータ
+ 64_safari	= その他のデータ
+diff --git a/l10n-kk/browser/chrome/browser/migration/migration.properties b/l10n-kk/browser/chrome/browser/migration/migration.properties
+index 0e81298..40f3906 100644
+--- a/l10n-kk/browser/chrome/browser/migration/migration.properties
++++ b/l10n-kk/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safari-дан
+ 2_ie=Куки
+ 2_safari=Куки
+ 2_chrome=Куки
+-2_firefox=Куки
++2_self=Куки
+ 
+ 4_ie=Қаралған беттер тарихы
+ 4_safari=Қаралған беттер тарихы
+ 4_chrome=Қаралған беттер тарихы
+-4_firefox=Қаралған беттер тарихы
++4_self=Қаралған беттер тарихы
+ 
+ 8_ie=Сақталынған формалар тарихы
+ 8_safari=Сақталынған формалар тарихы
+ 8_chrome=Сақталынған формалар тарихы
+-8_firefox=Сақталынған формалар тарихы
++8_self=Сақталынған формалар тарихы
+ 
+ 16_ie=Сақталған парольдер
+ 16_safari=Сақталған парольдер
+ 16_chrome=Сақталған парольдер
+-16_firefox=Сақталған парольдер
++16_self=Сақталған парольдер
+ 
+ 32_ie=Таңдамалы
+ 32_safari=Бетбелгілер
+ 32_chrome=Бетбелгілер
+-32_firefox=Бетбелгілер
++32_self=Бетбелгілер
+ 
+ 64_ie=Басқа мәліметтер
+ 64_safari=Басқа мәліметтер
+diff --git a/l10n-km/browser/chrome/browser/migration/migration.properties b/l10n-km/browser/chrome/browser/migration/migration.properties
+index f6a4c7a..556ee84 100644
+--- a/l10n-km/browser/chrome/browser/migration/migration.properties
++++ b/l10n-km/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=ពី Safari
+ 2_ie=​ខូគី
+ 2_safari=​ខូគី
+ 2_chrome=ខូគី
+-2_firefox=ខូគី
++2_self=ខូគី
+ 
+ 4_ie=​ប្រវត្តិ​រក​មើល
+ 4_safari=​ប្រវត្តិ​រក​មើល
+ 4_chrome=​ប្រវត្តិ​រក​មើល
+-4_firefox=​ប្រវត្តិ​រក​មើល
++4_self=​ប្រវត្តិ​រក​មើល
+ 
+ 8_ie=ប្រវត្តិ​សំណុំ​បែបបទ​ដែល​បាន​រក្សាទុក
+ 8_safari=ប្រវត្តិ​សំណុំ​បែបបទ​ដែល​បាន​រក្សាទុក
+ 8_chrome=ប្រវត្តិ​សំណុំ​បែបបទ​ដែល​បាន​រក្សាទុក
+-8_firefox=ប្រវត្តិ​សំណុំ​បែបបទ​ដែល​បាន​រក្សាទុក
++8_self=ប្រវត្តិ​សំណុំ​បែបបទ​ដែល​បាន​រក្សាទុក
+ 
+ 16_ie=បាន​រក្សា​ទុក​ពាក្យ​សម្ងាត់​
+ 16_safari=បាន​រក្សា​ទុក​ពាក្យ​សម្ងាត់​
+ 16_chrome=​ពាក្យ​សម្ងាត់​ដែល​បាន​រក្សា​ទុក
+-16_firefox=​ពាក្យ​សម្ងាត់​ដែល​បាន​រក្សា​ទុក
++16_self=​ពាក្យ​សម្ងាត់​ដែល​បាន​រក្សា​ទុក
+ 
+ 32_ie=សំណព្វ
+ 32_safari=ចំណាំ
+ 32_chrome=ចំណាំ
+-32_firefox=ចំណាំ
++32_self=ចំណាំ
+ 
+ 64_ie=ទិន្នន័យ​ផ្សេងទៀត
+ 64_safari=ទិន្នន័យ​ផ្សេងទៀត
+diff --git a/l10n-kn/browser/chrome/browser/migration/migration.properties b/l10n-kn/browser/chrome/browser/migration/migration.properties
+index bb61712..22a8dd2 100644
+--- a/l10n-kn/browser/chrome/browser/migration/migration.properties
++++ b/l10n-kn/browser/chrome/browser/migration/migration.properties
+@@ -44,7 +44,7 @@ importedSafariBookmarks=ಸಫಾರಿಯಿಂದ
+ 2_safari=ಕುಕಿಗಳು
+ #2_macie=ಕುಕಿಗಳು
+ 2_chrome=ಕುಕಿಗಳು
+-2_firefox=ಕುಕಿಗಳು
++2_self=ಕುಕಿಗಳು
+ 
+ 
+ 4_ie=ಜಾಲವೀಕ್ಷಣಾ ಇತಿಹಾಸ
+@@ -55,7 +55,7 @@ importedSafariBookmarks=ಸಫಾರಿಯಿಂದ
+ 4_safari=ಜಾಲವೀಕ್ಷಣಾ ಇತಿಹಾಸ
+ #4_macie=ವೀಕ್ಷಣಾ ಇತಿಹಾಸ
+ 4_chrome=ಜಾಲವೀಕ್ಷಣಾ ಇತಿಹಾಸ
+-4_firefox=ಜಾಲವೀಕ್ಷಣಾ ಇತಿಹಾಸ
++4_self=ಜಾಲವೀಕ್ಷಣಾ ಇತಿಹಾಸ
+ 
+ 8_ie=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
+ #8_opera=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
+@@ -65,7 +65,7 @@ importedSafariBookmarks=ಸಫಾರಿಯಿಂದ
+ 8_safari=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
+ #8_macie=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
+ 8_chrome=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
+-8_firefox=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
++8_self=ಇತಿಹಾಸದಿಂದ ಉಳಿಸಲಾದ
+ 
+ 16_ie=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
+ #16_opera=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
+@@ -75,7 +75,7 @@ importedSafariBookmarks=ಸಫಾರಿಯಿಂದ
+ 16_safari=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
+ #16_macie=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
+ 16_chrome=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
+-16_firefox=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
++16_self=ಉಳಿಸಲಾದ ಗುಪ್ತಪದಗಳು
+ 
+ 32_ie=ಅಚ್ಚುಮೆಚ್ಚಿನವು
+ #32_opera=ಬುಕ್‌ಮಾರ್ಕುಗಳು
+@@ -85,7 +85,7 @@ importedSafariBookmarks=ಸಫಾರಿಯಿಂದ
+ 32_safari=ಬುಕ್‌ಮಾರ್ಕುಗಳು
+ #32_macie=ಅಚ್ಚುಮೆಚ್ಚಿನವು
+ 32_chrome=ಬುಕ್‌ಮಾರ್ಕುಗಳು
+-32_firefox=ಬುಕ್‌ಮಾರ್ಕುಗಳು
++32_self=ಬುಕ್‌ಮಾರ್ಕುಗಳು
+ 
+ 64_ie=ಇತರೆ ಮಾಹಿತಿ
+ #64_opera=ಇತರೆ ಮಾಹಿತಿ
+diff --git a/l10n-ko/browser/chrome/browser/migration/migration.properties b/l10n-ko/browser/chrome/browser/migration/migration.properties
+index 1bf6169..30a143e 100644
+--- a/l10n-ko/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ko/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safari로부터
+ 2_ie=쿠키
+ 2_safari=쿠키
+ 2_chrome=쿠키
+-2_firefox=쿠키
++2_self=쿠키
+ 
+ 4_ie=열어본 페이지 목록
+ 4_safari=방문 기록
+ 4_chrome=방문 기록
+-4_firefox=방문 기록
++4_self=방문 기록
+ 
+ 8_ie=저장된 폼 기록
+ 8_safari=웹 양식 자동 완성
+ 8_chrome=저장된 자동 완성 양식
+-8_firefox=저장된 폼 기록
++8_self=저장된 폼 기록
+ 
+ 16_ie=저장된 암호
+ 16_safari=저장된 암호
+ 16_chrome=저장된 암호
+-16_firefox=저장된 암호
++16_self=저장된 암호
+ 
+ 32_ie=즐겨찾기
+ 32_safari=북마크
+ 32_chrome=북마크
+-32_firefox=북마크
++32_self=북마크
+ 
+ 64_ie=기타 데이터
+ 64_safari=기타 데이터
+diff --git a/l10n-lg/browser/chrome/browser/migration/migration.properties b/l10n-lg/browser/chrome/browser/migration/migration.properties
+index 66ffe0c..7902911 100644
+--- a/l10n-lg/browser/chrome/browser/migration/migration.properties
++++ b/l10n-lg/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Kuva mu Safari
+ 2_ie=Kukki
+ 2_safari=Kukki
+ 2_chrome=Kukkizi
+-2_firefox=Kukki
++2_self=Kukki
+ 
+ 4_ie=Okulambula Ebyafayo
+ 4_safari=Okulambula Ebyafayo
+ 4_chrome=Ebifudeyo Mukunoonya
+-4_firefox=Ebifuddeyo Mukunoonya
++4_self=Ebifuddeyo Mukunoonya
+ 
+ 8_ie=Olugo oluterekwa ku Ebyafayo
+ 8_safari=Olugo Oluterekwa ku Ebyafayo
+ 8_chrome=Ebifudeyo ku Formu Ebiterekeddwa
+-8_firefox=Ebifudeyo ku Formu Ebiterekeddwa
++8_self=Ebifudeyo ku Formu Ebiterekeddwa
+ 
+ 16_ie=Obusumulizzo obu Terekedwa
+ 16_safari=Obusumulizzo obu Terekedwa
+ 16_chrome=Obusumulizzo Obuterekeddwa
+-16_firefox=Obusumuluzzo obu Terekedwa
++16_self=Obusumuluzzo obu Terekedwa
+ 
+ 32_ie=Ebyagalwa
+ 32_safari=Obulambe
+ 32_chrome=Obulambe
+-32_firefox=Obulambe
++32_self=Obulambe
+ 
+ 64_ie=Bwiino Omulala
+ 64_safari=Bwiino Omulala
+diff --git a/l10n-lij/browser/chrome/browser/migration/migration.properties b/l10n-lij/browser/chrome/browser/migration/migration.properties
+index f24285e..12d2eab 100644
+--- a/l10n-lij/browser/chrome/browser/migration/migration.properties
++++ b/l10n-lij/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Da Safari
+ 2_ie=Cookie
+ 2_safari=Cookie
+ 2_chrome=Cookie
+-2_firefox=Cookie
++2_self=Cookie
+ 
+ 4_ie=Stöia da navegaçión
+ 4_safari=Stöia da navegaçión
+ 4_chrome=Stöia da navegaçión
+-4_firefox=Stöia da navegaçión
++4_self=Stöia da navegaçión
+ 
+ 8_ie=Sarvòu da stöia
+ 8_safari=Sarvòu da stöia
+ 8_chrome=Sarvòu da stöia
+-8_firefox=Sarvòu da stöia
++8_self=Sarvòu da stöia
+ 
+ 16_ie=Paròlle segrétte sarvæ
+ 16_safari=Paròlle segrétte sarvæ
+ 16_chrome=Paròlle segrétte sarvæ
+-16_firefox=Paròlle segrétte sarvæ
++16_self=Paròlle segrétte sarvæ
+ 
+ 32_ie=Segnalìbbri
+ 32_safari=Segnalìbbri
+ 32_chrome=Segnalìbbri
+-32_firefox=Segnalìbbri
++32_self=Segnalìbbri
+ 
+ 64_ie=Âtri dæti
+ 64_safari=Âtri dæti
+diff --git a/l10n-lt/browser/chrome/browser/migration/migration.properties b/l10n-lt/browser/chrome/browser/migration/migration.properties
+index f75cb23..880475a 100644
+--- a/l10n-lt/browser/chrome/browser/migration/migration.properties
++++ b/l10n-lt/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Iš „Safari“
+ 2_ie=Slapukai
+ 2_safari=Slapukai
+ 2_chrome=Slapukai
+-2_firefox=Slapukai
++2_self=Slapukai
+ 
+ 4_ie=Naršymo retrospektyva
+ 4_safari=Naršymo žurnalas
+ 4_chrome=Naršymo istorija
+-4_firefox=Naršymo žurnalas
++4_self=Naršymo žurnalas
+ 
+ 8_ie=Įrašyti formų duomenys
+ 8_safari=Įrašyti formų duomenys
+ 8_chrome=Išsaugoti formų duomenys
+-8_firefox=Įrašyti formų duomenys
++8_self=Įrašyti formų duomenys
+ 
+ 16_ie=Įrašyti slaptažodžiai
+ 16_safari=Įrašyti slaptažodžiai
+ 16_chrome=Išsaugoti slaptažodžiai
+-16_firefox=Įrašyti slaptažodžiai
++16_self=Įrašyti slaptažodžiai
+ 
+ 32_ie=Parankiniai
+ 32_safari=Adresynas
+ 32_chrome=Žymės
+-32_firefox=Adresynas
++32_self=Adresynas
+ 
+ 64_ie=Kiti duomenys
+ 64_safari=Kiti duomenys
+diff --git a/l10n-lv/browser/chrome/browser/migration/migration.properties b/l10n-lv/browser/chrome/browser/migration/migration.properties
+index f59999c..505a551 100644
+--- a/l10n-lv/browser/chrome/browser/migration/migration.properties
++++ b/l10n-lv/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=No Safari
+ 2_ie=Sīkdatnes
+ 2_chrome=Sīkdatnes
+ 2_safari=Sīkdatnes
+-2_firefox=Sīkdatnes
++2_self=Sīkdatnes
+ 
+ 4_ie=Pārlūkošanas vēsture
+ 4_chrome=Pārlūkošanas vēsture
+ 4_safari=Pārlūkošanas vēsture
+-4_firefox=Pārlūkošanas vēsture
++4_self=Pārlūkošanas vēsture
+ 
+ 8_ie=Saglabātā formu vēsture
+ 8_chrome=Saglabātā formu vēsture
+ 8_safari=Saglabātā formu vēsture
+-8_firefox=Saglabātā formu vēsture
++8_self=Saglabātā formu vēsture
+ 
+ 16_ie=Saglabātās paroles
+ 16_chrome=Saglabātās paroles
+ 16_safari=Saglabātās paroles
+-16_firefox=Saglabātās paroles
++16_self=Saglabātās paroles
+ 
+ 32_ie=Izlases
+ 32_chrome=Grāmatzīmes
+ 32_safari=Grāmatzīmes
+-32_firefox=Grāmatzīmes
++32_self=Grāmatzīmes
+ 
+ 64_ie=Citi dati
+ 64_chrome=Citi dati
+diff --git a/l10n-mai/browser/chrome/browser/migration/migration.properties b/l10n-mai/browser/chrome/browser/migration/migration.properties
+index 444a9a4..7a0efaf 100755
+--- a/l10n-mai/browser/chrome/browser/migration/migration.properties
++++ b/l10n-mai/browser/chrome/browser/migration/migration.properties
+@@ -77,21 +77,21 @@ importedSafariBookmarks=सफारी सँ
+ 64_safari= आन आँकड़ा
+ 
+ 16_chrome=सहेजल गुड़किल्ली
+-16_firefox=सहेजल गुड़किल्ली
++16_self=सहेजल गुड़किल्ली
+ 1_chrome=वरीयताएँ
+ 
+ 2_chrome=कुकीज
+-2_firefox=कुकीज
++2_self=कुकीज
+ 
+ 32_chrome=पुस्तकचिह्न
+-32_firefox=पुस्तकचिह्न
++32_self=पुस्तकचिह्न
+ 
+ 4_chrome=ब्राउजिंग इतिहास
+-4_firefox=ब्राउजिंग इतिहास
++4_self=ब्राउजिंग इतिहास
+ 64_chrome=आन आँकड़ा
+ 
+ 8_chrome=इतिहास सँ सहेजल गेल
+-8_firefox=इतिहास सँ सहेजल गेल
++8_self=इतिहास सँ सहेजल गेल
+ 
+ sourceNameChrome=गूगल क्रोम
+ sourceNameFirefox=मोजिल्ला फायरफाक्स
+diff --git a/l10n-mr/browser/chrome/browser/migration/migration.properties b/l10n-mr/browser/chrome/browser/migration/migration.properties
+index d87934c..e8597fb 100644
+--- a/l10n-mr/browser/chrome/browser/migration/migration.properties
++++ b/l10n-mr/browser/chrome/browser/migration/migration.properties
+@@ -58,14 +58,14 @@ sourceNameChrome=गूगल क्रोम
+ sourceNameFirefox=मोझीला फायरफॉक्स
+ 1_chrome=पसंती
+ 2_chrome=कूकिज
+-2_firefox=कूकिज
++2_self=कूकिज
+ 4_chrome=ब्राउजिंग इतिहास
+-4_firefox=ब्राउजिंग इतिहास
++4_self=ब्राउजिंग इतिहास
+ 8_chrome=इतिहासातून साठवले
+-8_firefox=इतिहासातून साठवले
++8_self=इतिहासातून साठवले
+ 16_chrome=साठवलेले पासवर्डस्
+-16_firefox=साठवलेले पासवर्डस्
++16_self=साठवलेले पासवर्डस्
+ 32_chrome=वाचनखुणा
+-32_firefox=वाचनखुणा
++32_self=वाचनखुणा
+ 64_chrome=इतर डाटा
+ 
+diff --git a/l10n-nb-NO/browser/chrome/browser/migration/migration.properties b/l10n-nb-NO/browser/chrome/browser/migration/migration.properties
+index 2893624..a65228a 100644
+--- a/l10n-nb-NO/browser/chrome/browser/migration/migration.properties
++++ b/l10n-nb-NO/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Fra Safari
+ 2_ie=Infokapsler
+ 2_safari=Infokapsler
+ 2_chrome=Infokapsler
+-2_firefox=Infokapsler
++2_self=Infokapsler
+ 
+ 4_ie=Nettleserhistorikk
+ 4_safari=Nettleserhistorikk
+ 4_chrome=Nettleserhistorikk
+-4_firefox=Nettleserhistorikk
++4_self=Nettleserhistorikk
+ 
+ 8_ie=Historikk over lagrede skjemaer
+ 8_safari=Historikk over lagrede skjemaer
+ 8_chrome=Skjemahistorikk
+-8_firefox=Skjemahistorikk
++8_self=Skjemahistorikk
+ 
+ 16_ie=Lagrede passord
+ 16_safari=Lagrede passord
+ 16_chrome=Lagrede passord
+-16_firefox=Lagrede passord
++16_self=Lagrede passord
+ 
+ 32_ie=Favoritter
+ 32_safari=Bokmerker
+ 32_chrome=Bokmerker
+-32_firefox=Bokmerker
++32_self=Bokmerker
+ 
+ 64_ie=Andre data
+ 64_safari=Andre data
+diff --git a/l10n-nl/browser/chrome/browser/migration/migration.properties b/l10n-nl/browser/chrome/browser/migration/migration.properties
+index 984e234..0f85bf5 100644
+--- a/l10n-nl/browser/chrome/browser/migration/migration.properties
++++ b/l10n-nl/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Uit Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Geschiedenis
+ 4_safari=Geschiedenis
+ 4_chrome=Geschiedenis
+-4_firefox=Geschiedenis
++4_self=Geschiedenis
+ 
+ 8_ie=Opgeslagen formuliergeschiedenis
+ 8_safari=Opgeslagen formuliergeschiedenis
+ 8_chrome=Opgeslagen formuliergeschiedenis
+-8_firefox=Opgeslagen formuliergeschiedenis
++8_self=Opgeslagen formuliergeschiedenis
+ 
+ 16_ie=Opgeslagen wachtwoorden
+ 16_safari=Opgeslagen wachtwoorden
+ 16_chrome=Opgeslagen wachtwoorden
+-16_firefox=Opgeslagen wachtwoorden
++16_self=Opgeslagen wachtwoorden
+ 
+ 32_ie=Favorieten
+ 32_safari=Bladwijzers
+ 32_chrome=Bladwijzers
+-32_firefox=Bladwijzers
++32_self=Bladwijzers
+ 
+ 64_ie=Andere gegevens
+ 64_safari=Andere gegevens
+diff --git a/l10n-nn-NO/browser/chrome/browser/migration/migration.properties b/l10n-nn-NO/browser/chrome/browser/migration/migration.properties
+index 9a88bf1..d7fb409 100644
+--- a/l10n-nn-NO/browser/chrome/browser/migration/migration.properties
++++ b/l10n-nn-NO/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Frå Safari
+ 2_ie=Infokapslar
+ 2_safari=Infokapslar
+ 2_chrome=Infokapslar
+-2_firefox=Infokapslar
++2_self=Infokapslar
+ 
+ 4_ie=Nettlesarhistorikk
+ 4_safari=Nettlesarhistorikk
+ 4_chrome=Nettlesarhistorikk
+-4_firefox=Nettlesarhistorikk
++4_self=Nettlesarhistorikk
+ 
+ 8_ie=Historikk over lagra skjema
+ 8_safari=Historikk over lagra skjema
+ 8_chrome=Skjemahistorikk
+-8_firefox=Skjemahistorikk
++8_self=Skjemahistorikk
+ 
+ 16_ie=Lagra passord
+ 16_safari=Lagra passord
+ 16_chrome=Lagra passord
+-16_firefox=Lagra passord
++16_self=Lagra passord
+ 
+ 32_ie=Favorittar
+ 32_safari=Bokmerke
+ 32_chrome=Bokmerke
+-32_firefox=Bokmerke
++32_self=Bokmerke
+ 
+ 64_ie=Andre data
+ 64_safari=Andre data
+diff --git a/l10n-nso/browser/chrome/browser/migration/migration.properties b/l10n-nso/browser/chrome/browser/migration/migration.properties
+index d948759..a7fdd27 100644
+--- a/l10n-nso/browser/chrome/browser/migration/migration.properties
++++ b/l10n-nso/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Go tšwa go Safari
+ 2_ie=Dikhukhi
+ 2_safari=Dikhukhi
+ 2_chrome=Dikhukhi
+-2_firefox=Dikhukhi
++2_self=Dikhukhi
+ 
+ 4_ie=Histori ya go praosa
+ 4_safari=Histori ya go praosa
+ 4_chrome=Histori ya go praosa
+-4_firefox=Histori ya go praosa
++4_self=Histori ya go praosa
+ 
+ 8_ie=Histori ya foromo ye e bolokilwego
+ 8_safari=Histori ya foromo ye e bolokilwego
+ 8_chrome=Histori ya foromo ye e bolokilwego
+-8_firefox=Histori ya foromo ye e bolokilwego
++8_self=Histori ya foromo ye e bolokilwego
+ 
+ 16_ie=Mantšuphetišo ao a bolokilwego
+ 16_safari=Mantšuphetišo ao a bolokilwego
+ 16_chrome=Mantšuphetišo ao a bolokilwego
+-16_firefox=Mantšuphetišo ao a bolokilwego
++16_self=Mantšuphetišo ao a bolokilwego
+ 
+ 32_ie=Bomamoratwa
+ 32_safari=Dipukutshwayo
+ 32_chrome=Dipukutshwayo
+-32_firefox=Dipukutshwayo
++32_self=Dipukutshwayo
+ 
+ 64_ie=Tsebišo e nngwe
+ 64_safari=Tsebišo e nngwe
+diff --git a/l10n-or/browser/chrome/browser/migration/migration.properties b/l10n-or/browser/chrome/browser/migration/migration.properties
+index 0c87965..79c1b2c 100644
+--- a/l10n-or/browser/chrome/browser/migration/migration.properties
++++ b/l10n-or/browser/chrome/browser/migration/migration.properties
+@@ -50,16 +50,16 @@ importedSafariBookmarks=ସଫାରିରୁ
+ 64_safari=ଅନ୍ୟ ତଥ୍ୟ
+ 
+ 16_chrome=ସଂରକ୍ଷିତ ପ୍ରବେଶ ସଂକେତଗୁଡ଼ିକ
+-16_firefox=ସଂରକ୍ଷିତ ପ୍ରବେଶ ସଂକେତଗୁଡ଼ିକ
++16_self=ସଂରକ୍ଷିତ ପ୍ରବେଶ ସଂକେତଗୁଡ଼ିକ
+ 1_chrome=ପସନ୍ଦ
+ 2_chrome=କୁକି
+-2_firefox=କୁକି
++2_self=କୁକି
+ 32_chrome=ଚିହ୍ନିତ ସ୍ଥାନ
+-32_firefox=ଚିହ୍ନିତ ସ୍ଥାନ
++32_self=ଚିହ୍ନିତ ସ୍ଥାନ
+ 4_chrome=ବ୍ରାଉଜିଙ୍ଗ ପୁରୁଣା ତଥ୍ୟ
+-4_firefox=ବ୍ରାଉଜିଙ୍ଗ ପୁରୁଣା ତଥ୍ୟ
++4_self=ବ୍ରାଉଜିଙ୍ଗ ପୁରୁଣା ତଥ୍ୟ
+ 64_chrome=ଅନ୍ୟାନ୍ୟ ତଥ୍ୟ
+ 8_chrome=ପୁରୁଣା ତଥ୍ୟରୁ ସଂରକ୍ଷିତ
+-8_firefox=ପୁରୁଣା ତଥ୍ୟରୁ ସଂରକ୍ଷିତ
++8_self=ପୁରୁଣା ତଥ୍ୟରୁ ସଂରକ୍ଷିତ
+ sourceNameChrome=Google Chrome
+ sourceNameFirefox=Mozilla Firefox
+diff --git a/l10n-pl/browser/chrome/browser/migration/migration.properties b/l10n-pl/browser/chrome/browser/migration/migration.properties
+index 968afe6..39b8d5d 100644
+--- a/l10n-pl/browser/chrome/browser/migration/migration.properties
++++ b/l10n-pl/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Z Safari
+ 2_ie=Ciasteczka
+ 2_safari=Ciasteczka 
+ 2_chrome=Ciasteczka
+-2_firefox=Ciasteczka
++2_self=Ciasteczka
+ 
+ 4_ie=Historia
+ 4_safari=Historia
+ 4_chrome=Historia
+-4_firefox=Historia
++4_self=Historia
+ 
+ 8_ie=Zapamiętane dane formularzy
+ 8_safari=Zapamiętane dane formularzy
+ 8_chrome=Zapamiętane dane formularzy
+-8_firefox=Zapamiętane dane formularzy
++8_self=Zapamiętane dane formularzy
+ 
+ 16_ie=Zapamiętane hasła
+ 16_safari=Zapamiętane hasła
+ 16_chrome=Zapamiętane hasła
+-16_firefox=Zapamiętane hasła
++16_self=Zapamiętane hasła
+ 
+ 32_ie=Ulubione
+ 32_safari=Zakładki
+ 32_chrome=Zakładki
+-32_firefox=Zakładki
++32_self=Zakładki
+ 
+ 64_ie=Inne dane
+ 64_safari=Inne dane
+diff --git a/l10n-pt-BR/browser/chrome/browser/migration/migration.properties b/l10n-pt-BR/browser/chrome/browser/migration/migration.properties
+index 3ee5529..9eff426 100644
+--- a/l10n-pt-BR/browser/chrome/browser/migration/migration.properties
++++ b/l10n-pt-BR/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Importado do Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Histórico
+ 4_safari=Histórico
+ 4_chrome=Histórico
+-4_firefox=Histórico
++4_self=Histórico
+ 
+ 8_ie=Dados memorizados de formulários
+ 8_safari=Dados memorizados de formulários
+ 8_chrome=Dados memorizados de formulários
+-8_firefox=Dados memorizados de formulários
++8_self=Dados memorizados de formulários
+ 
+ 16_ie=Senhas memorizadas
+ 16_safari=Senhas memorizadas
+ 16_chrome=Senhas memorizadas
+-16_firefox=Senhas memorizadas
++16_self=Senhas memorizadas
+ 
+ 32_ie=Favoritos
+ 32_safari=Favoritos
+ 32_chrome=Favoritos
+-32_firefox=Favoritos
++32_self=Favoritos
+ 
+ 64_ie=Outras informações
+ 64_safari=Outras informações
+diff --git a/l10n-pt-PT/browser/chrome/browser/migration/migration.properties b/l10n-pt-PT/browser/chrome/browser/migration/migration.properties
+index ea1a951..17dab0b 100644
+--- a/l10n-pt-PT/browser/chrome/browser/migration/migration.properties
++++ b/l10n-pt-PT/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Do Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Histórico de navegação
+ 4_safari=Histórico de navegação
+ 4_chrome=Histórico de navegação
+-4_firefox=Histórico de navegação
++4_self=Histórico de navegação
+ 
+ 8_ie=Histórico de formulários memorizados
+ 8_safari=Histórico de formulários memorizados
+ 8_chrome=Histórico de formulários memorizados
+-8_firefox=Histórico de formulários memorizados
++8_self=Histórico de formulários memorizados
+ 
+ 16_ie=Senhas Guardadas
+ 16_safari=Senhas Guardadas
+ 16_chrome=Senhas Guardadas
+-16_firefox=Senhas Guardadas
++16_self=Senhas Guardadas
+ 
+ 32_ie=Favoritos
+ 32_safari=Marcadores
+ 32_chrome=Marcadores
+-32_firefox=Marcadores
++32_self=Marcadores
+ 
+ 64_ie=Outros dados
+ 64_safari=Outros dados
+diff --git a/l10n-rm/browser/chrome/browser/migration/migration.properties b/l10n-rm/browser/chrome/browser/migration/migration.properties
+index 0f4bae0..c7f5fdc 100644
+--- a/l10n-rm/browser/chrome/browser/migration/migration.properties
++++ b/l10n-rm/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Da Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=Cronologia
+ 4_safari=Cronologia
+ 4_chrome=Cronologia
+-4_firefox=Cronologia
++4_self=Cronologia
+ 
+ 8_ie=Datas da formular memorisadas
+ 8_safari=Datas da formular memorisadas
+ 8_chrome=Datas da formular memorisadas
+-8_firefox=Datas da formular memorisadas
++8_self=Datas da formular memorisadas
+ 
+ 16_ie=Pleds-clav memorisads
+ 16_safari=Pleds-clav memorisads
+ 16_chrome=Pleds-clav memorisads
+-16_firefox=Pleds-clav memorisads
++16_self=Pleds-clav memorisads
+ 
+ 32_ie=Favurits
+ 32_safari=Segnapaginas
+ 32_chrome=Segnapaginas
+-32_firefox=Segnapaginas
++32_self=Segnapaginas
+ 
+ 64_ie=Autras datas
+ 64_safari=Autras datas
+diff --git a/l10n-ro/browser/chrome/browser/migration/migration.properties b/l10n-ro/browser/chrome/browser/migration/migration.properties
+index ffb0e95..33c58e5 100644
+--- a/l10n-ro/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ro/browser/chrome/browser/migration/migration.properties
+@@ -33,27 +33,27 @@ importedSafariBookmarks=Din Safari
+ 2_ie=Cookie-uri
+ 2_safari=Cookie-uri
+ 2_chrome=Cookie-urile
+-2_firefox=Cookie-uri
++2_self=Cookie-uri
+ 
+ 4_ie=Istoric de navigare
+ 4_safari=Istoric de navigare
+ 4_chrome=Istoricul navigării
+-4_firefox=Istoricul navigării
++4_self=Istoricul navigării
+ 
+ 8_ie=Formulare salvate
+ 8_safari=Formulare salvate
+ 8_chrome=Formulare salvate
+-8_firefox=Formulare salvate
++8_self=Formulare salvate
+ 
+ 16_ie=Parole salvate
+ 16_safari=Parole salvate
+ 16_chrome=Parolele salvate
+-16_firefox=Parole salvate
++16_self=Parole salvate
+ 
+ 32_ie=Preferințe
+ 32_safari=Semne de carte
+ 32_chrome=Semne de carte
+-32_firefox=Semne de carte
++32_self=Semne de carte
+ 
+ 64_ie=Alte date
+ 64_safari=Alte date
+diff --git a/l10n-ru/browser/chrome/browser/migration/migration.properties b/l10n-ru/browser/chrome/browser/migration/migration.properties
+index 6853198..e7b6e0a 100644
+--- a/l10n-ru/browser/chrome/browser/migration/migration.properties
++++ b/l10n-ru/browser/chrome/browser/migration/migration.properties
+@@ -14,23 +14,23 @@ importedSafariBookmarks = Из Safari
+ 2_ie = Куки
+ 2_safari = Куки
+ 2_chrome = Куки
+-2_firefox = Куки
++2_self = Куки
+ 4_ie = Журнал посещений
+ 4_safari = Журнал посещений
+ 4_chrome = Журнал посещений
+-4_firefox = Журнал посещений
++4_self = Журнал посещений
+ 8_ie = Журнал сохранённых форм
+ 8_safari = Журнал сохранённых форм
+ 8_chrome = Журнал сохранённых форм
+-8_firefox = Журнал сохранённых форм
++8_self = Журнал сохранённых форм
+ 16_ie = Сохранённые пароли
+ 16_safari = Сохранённые пароли
+ 16_chrome = Сохранённые пароли
+-16_firefox = Сохранённые пароли
++16_self = Сохранённые пароли
+ 32_ie = Избранное
+ 32_safari = Закладки
+ 32_chrome = Закладки
+-32_firefox = Закладки
++32_self = Закладки
+ 64_ie = Другие данные
+ 64_safari = Другие данные
+ 64_chrome = Другие данные
+diff --git a/l10n-si/browser/chrome/browser/migration/migration.properties b/l10n-si/browser/chrome/browser/migration/migration.properties
+index ba9e29c..18e60ba 100644
+--- a/l10n-si/browser/chrome/browser/migration/migration.properties
++++ b/l10n-si/browser/chrome/browser/migration/migration.properties
+@@ -20,27 +20,27 @@ importedSafariBookmarks=Safari වෙතින්
+ 2_ie=කුකී
+ 2_chrome=කුකී
+ 2_safari=කුකී
+-2_firefox=කුකී
++2_self=කුකී
+ 
+ 4_ie=සැරිසර අතීතය
+ 4_chrome=සැරිසර අතීතය
+ 4_safari=සැරිසර අතීතය
+-4_firefox=සැරිසර අතීතය 
++4_self=සැරිසර අතීතය 
+ 
+ 8_ie=පෙරදෑ වලින් සුරැකූ
+ 8_chrome=පෙරදෑ වලින් සුරැකූ
+ 8_safari=පෙරදෑ වලින් සුරැකූ
+-8_firefox=පෙරදෑ වලින් සුරැකූ
++8_self=පෙරදෑ වලින් සුරැකූ
+ 
+ 16_ie=සුරැකූ රහස්පද
+ 16_chrome=සුරැකූ රහස්පද
+ 16_safari=සුරැකූ රහස්පද
+-16_firefox=සුරැකූ රහස්පද
++16_self=සුරැකූ රහස්පද
+ 
+ 32_ie=ප්‍රියතා
+ 32_chrome=පිටු සලකුණු
+ 32_safari=පිටු සලකුණු
+-32_firefox=පිටු සලකුණු
++32_self=පිටු සලකුණු
+ 
+ 64_ie=අනෙකුත් දත්ත
+ 64_chrome=අනෙකුත් දත්ත
+diff --git a/l10n-sk/browser/chrome/browser/migration/migration.properties b/l10n-sk/browser/chrome/browser/migration/migration.properties
+index ed12105..b08271b 100644
+--- a/l10n-sk/browser/chrome/browser/migration/migration.properties
++++ b/l10n-sk/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Zo Safari
+ 2_ie=Súbory cookies
+ 2_safari=Súbory cookies
+ 2_chrome=Súbory cookies
+-2_firefox=Súbory cookies
++2_self=Súbory cookies
+ 
+ 4_ie=História
+ 4_safari=História
+ 4_chrome=História prehliadania
+-4_firefox=História prehliadania
++4_self=História prehliadania
+ 
+ 8_ie=Údaje zadané do formulárov
+ 8_safari=Údaje zadané do formulárov
+ 8_chrome=Údaje zadané do formulárov
+-8_firefox=Údaje zadané do formulárov
++8_self=Údaje zadané do formulárov
+ 
+ 16_ie=Uložené heslá
+ 16_safari=Uložené heslá
+ 16_chrome=Uložené heslá
+-16_firefox=Uložené heslá
++16_self=Uložené heslá
+ 
+ 32_ie=Záložky
+ 32_safari=Záložky
+ 32_chrome=Záložky
+-32_firefox=Záložky
++32_self=Záložky
+ 
+ 64_ie=Iné údaje
+ 64_safari=Iné údaje
+diff --git a/l10n-sl/browser/chrome/browser/migration/migration.properties b/l10n-sl/browser/chrome/browser/migration/migration.properties
+index ff4fba8..09de5ae 100644
+--- a/l10n-sl/browser/chrome/browser/migration/migration.properties
++++ b/l10n-sl/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Iz Safarija
+ 2_ie=Piškoti
+ 2_safari=Piškoti
+ 2_chrome=Piškoti
+-2_firefox=Piškoti
++2_self=Piškoti
+ 
+ 4_ie=Zgodovina brskanja
+ 4_safari=Zgodovina brskanja
+ 4_chrome=Zgodovina brskanja
+-4_firefox=Zgodovina brskanja
++4_self=Zgodovina brskanja
+ 
+ 8_ie=Shranjeni obrazci
+ 8_safari=Shranjeni obrazci
+ 8_chrome=Shranjeni obrazci
+-8_firefox=Shranjeni obrazci
++8_self=Shranjeni obrazci
+ 
+ 16_ie=Shranjena gesla
+ 16_safari=Shranjena gesla
+ 16_chrome=Shranjena gesla
+-16_firefox=Shranjena gesla
++16_self=Shranjena gesla
+ 
+ 32_ie=Priljubljene
+ 32_safari=Zaznamki
+ 32_chrome=Zaznamki
+-32_firefox=Zaznamki
++32_self=Zaznamki
+ 
+ 64_ie=Ostali podatki
+ 64_safari=Ostali podatki
+diff --git a/l10n-son/browser/chrome/browser/migration/migration.properties b/l10n-son/browser/chrome/browser/migration/migration.properties
+index 786552c..c2b5f58 100644
+--- a/l10n-son/browser/chrome/browser/migration/migration.properties
++++ b/l10n-son/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Hun Safari ra
+ 2_ie=Aleewawey
+ 2_safari=Aleewawey
+ 2_chrome=Aleewawey
+-2_firefox=Aleewawey
++2_self=Aleewawey
+ 
+ 4_ie=Ceeciyan taariki
+ 4_safari=Ceeciyan taariki
+ 4_chrome=Ceeciyan taariki
+-4_firefox=Ceeciyan taariki
++4_self=Ceeciyan taariki
+ 
+ 8_ie=Takari gaabunte taariki
+ 8_safari=Takari gaabunte taariki
+ 8_chrome=Takari gaabunte taariki
+-8_firefox=Takari gaabunte taariki
++8_self=Takari gaabunte taariki
+ 
+ 16_ie=Šennikufal gaabuntey
+ 16_safari=Šennikufal gaabuntey
+ 16_chrome=Šennikufal gaabuntey
+-16_firefox=Šennikufal gaabuntey
++16_self=Šennikufal gaabuntey
+ 
+ 32_ie=Kaasey
+ 32_safari=Doo-šilbawey
+ 32_chrome=Doo-šilbawey
+-32_firefox=Doo-šilbawey
++32_self=Doo-šilbawey
+ 
+ 64_ie=Bayhaya taney
+ 64_safari=Bayhaya taney
+diff --git a/l10n-sq/browser/chrome/browser/migration/migration.properties b/l10n-sq/browser/chrome/browser/migration/migration.properties
+index 2aa572e..8937310 100755
+--- a/l10n-sq/browser/chrome/browser/migration/migration.properties
++++ b/l10n-sq/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Prej Safarit
+ 2_ie="Cookies"
+ 2_safari="Cookies"
+ 2_chrome="Cookies"
+-2_firefox="Cookies"
++2_self="Cookies"
+ 
+ 4_ie=Historik Shfletimi
+ 4_safari=Historik Shfletimi
+ 4_chrome=Historik Shfletimi
+-4_firefox=Historik Shfletimi
++4_self=Historik Shfletimi
+ 
+ 8_ie=Historik Formularësh të Ruajtur
+ 8_safari=Historik Formularësh të Ruajtur
+ 8_chrome=Historik Formularësh të Ruajtur
+-8_firefox=Historik Formularësh të Ruajtur
++8_self=Historik Formularësh të Ruajtur
+ 
+ 16_ie=Fjalëkalime të Ruajtur
+ 16_safari=Fjalëkalime të Ruajtur
+ 16_chrome=Fjalëkalime të Ruajtur
+-16_firefox=Fjalëkalime të Ruajtur
++16_self=Fjalëkalime të Ruajtur
+ 
+ 32_ie=Më të pëlqyerit
+ 32_safari=Faqerojtësa
+ 32_chrome=Faqerojtësa
+-32_firefox=Faqerojtësa
++32_self=Faqerojtësa
+ 
+ 64_ie=Të dhëna të Tjera
+ 64_safari=Të dhëna të Tjera
+diff --git a/l10n-sv-SE/browser/chrome/browser/migration/migration.properties b/l10n-sv-SE/browser/chrome/browser/migration/migration.properties
+index a616b75..54b75c9 100644
+--- a/l10n-sv-SE/browser/chrome/browser/migration/migration.properties
++++ b/l10n-sv-SE/browser/chrome/browser/migration/migration.properties
+@@ -50,27 +50,27 @@ importedSafariBookmarks=Från Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Kakor
++2_self=Kakor
+ 
+ 4_ie=Webbläsarhistorik
+ 4_safari=Webbläsarhistorik
+ 4_chrome=Webbhistorik
+-4_firefox=Webbläsarhistorik
++4_self=Webbläsarhistorik
+ 
+ 8_ie=Sparade formulärdata
+ 8_safari=Sparade formulärdata
+ 8_chrome=Sparade formulärdata
+-8_firefox=Sparade formulärdata
++8_self=Sparade formulärdata
+ 
+ 16_ie=Sparade lösenord
+ 16_safari=Sparade lösenord
+ 16_chrome=Sparade lösenord
+-16_firefox=Sparade lösenord
++16_self=Sparade lösenord
+ 
+ 32_ie=Favoriter
+ 32_safari=Bokmärken
+ 32_chrome=Bokmärken
+-32_firefox=Bokmärken
++32_self=Bokmärken
+ 
+ 64_ie=Annan data
+ 64_safari=Annan data
+diff --git a/l10n-te/browser/chrome/browser/migration/migration.properties b/l10n-te/browser/chrome/browser/migration/migration.properties
+index a2df652..de412a5 100755
+--- a/l10n-te/browser/chrome/browser/migration/migration.properties
++++ b/l10n-te/browser/chrome/browser/migration/migration.properties
+@@ -16,23 +16,23 @@ importedSafariBookmarks=సఫారీ నుండి
+ 2_ie=కుకీలు
+ 2_safari=కుకీలు
+ 2_chrome=కుకీలు
+-2_firefox=కుకీలు
++2_self=కుకీలు
+ 4_ie=అన్వేషించిన చరిత్ర
+ 4_safari=అన్వేషించిన చరిత్ర
+ 4_chrome=అన్వేషించిన చరిత్ర
+-4_firefox=అన్వేషించిన చరిత్ర
++4_self=అన్వేషించిన చరిత్ర
+ 8_ie=చరిత్ర నుండి భద్రపరచు
+ 8_safari=చరిత్ర నుండి భద్రపరచు
+ 8_chrome=చరిత్ర నుండి భద్రపరచు
+-8_firefox=చరిత్ర నుండి భద్రపరచు
++8_self=చరిత్ర నుండి భద్రపరచు
+ 16_ie=భద్రపరచిన సంకేతపదాలు
+ 16_safari=భద్రపరచిన సంకేతపదాలు
+ 16_chrome=భద్రపరచిన సంకేతపదాలు
+-16_firefox=భద్రపరచిన సంకేతపదాలు
++16_self=భద్రపరచిన సంకేతపదాలు
+ 32_ie=ప్రియాలు
+ 32_safari=ఇష్టాంశములు
+ 32_chrome=ఇష్టాంశములు
+-32_firefox=ఇష్టాంశములు
++32_self=ఇష్టాంశములు
+ 64_ie=ఇతర డాటా
+ 64_safari=ఇతర డాటా
+ 64_chrome=ఇతర డాటా
+diff --git a/l10n-th/browser/chrome/browser/migration/migration.properties b/l10n-th/browser/chrome/browser/migration/migration.properties
+index 58b4525..d462dd6 100644
+--- a/l10n-th/browser/chrome/browser/migration/migration.properties
++++ b/l10n-th/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=จาก Safari
+ 2_ie=คุกกี้
+ 2_safari=คุกกี้
+ 2_chrome=คุกกี้
+-2_firefox=คุกกี้
++2_self=คุกกี้
+ 
+ 4_ie=ประวัติการท่องเน็ต
+ 4_safari=ประวัติการท่องเน็ต
+ 4_chrome=ประวัติการท่องเน็ต
+-4_firefox=ประวัติการท่องเน็ต
++4_self=ประวัติการท่องเน็ต
+ 
+ 8_ie=ประวัติข้อมูลในฟอร์ม
+ 8_safari=ประวัติข้อมูลในฟอร์ม
+ 8_chrome=ประวัติข้อมูลในฟอร์ม
+-8_firefox=ประวัติข้อมูลในฟอร์ม
++8_self=ประวัติข้อมูลในฟอร์ม
+ 
+ 16_ie=รหัสผ่านที่บันทึกไว้
+ 16_safari=รหัสผ่านที่บันทึกไว้
+ 16_chrome=รหัสผ่านที่บันทึกไว้
+-16_firefox=รหัสผ่านที่บันทึกไว้
++16_self=รหัสผ่านที่บันทึกไว้
+ 
+ 32_ie=รายการโปรด
+ 32_safari=ที่คั่นหน้า
+ 32_chrome=ที่คั่นหน้า
+-32_firefox=ที่คั่นหน้า
++32_self=ที่คั่นหน้า
+ 
+ 64_ie=ข้อมูลอื่น ๆ
+ 64_safari=ข้อมูลอื่น ๆ
+diff --git a/l10n-tr/browser/chrome/browser/migration/migration.properties b/l10n-tr/browser/chrome/browser/migration/migration.properties
+index 0367830..594c375 100644
+--- a/l10n-tr/browser/chrome/browser/migration/migration.properties
++++ b/l10n-tr/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=Safari'den
+ 2_ie=Çerezler
+ 2_safari=Çerezler
+ 2_chrome=Çerezler
+-2_firefox=Çerezler
++2_self=Çerezler
+ 
+ 4_ie=Tarayıcı geçmişi
+ 4_safari=Tarayıcı geçmişi
+ 4_chrome=Tarama geçmişi
+-4_firefox=Tarama geçmişi
++4_self=Tarama geçmişi
+ 
+ 8_ie=Kayıtlı form geçmişi
+ 8_safari=Kayıtlı form geçmişi
+ 8_chrome=Kayıtlı form geçmişi
+-8_firefox=Kayıtlı form geçmişi
++8_self=Kayıtlı form geçmişi
+ 
+ 16_ie=Kayıtlı parolalar
+ 16_safari=Kayıtlı parolalar
+ 16_chrome=Kayıtlı parolalar
+-16_firefox=Kayıtlı parolalar
++16_self=Kayıtlı parolalar
+ 
+ 32_ie=Sık kullanılanlar
+ 32_safari=Yer imleri
+ 32_chrome=Yer işaretleri
+-32_firefox=Yer imleri
++32_self=Yer imleri
+ 
+ 64_ie=Diğer veriler
+ 64_safari=Diğer veriler
+diff --git a/l10n-uk/browser/chrome/browser/migration/migration.properties b/l10n-uk/browser/chrome/browser/migration/migration.properties
+index 7c6f642..6b7b075 100644
+--- a/l10n-uk/browser/chrome/browser/migration/migration.properties
++++ b/l10n-uk/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=З Safari
+ 2_ie=Файли Cookie
+ 2_safari=Куки
+ 2_chrome=Файли cookie
+-2_firefox=Куки
++2_self=Куки
+ 
+ 4_ie=Журнал
+ 4_safari=Журнал відвідувань
+ 4_chrome=Історію переглядів
+-4_firefox=Історію переглядів
++4_self=Історію переглядів
+ 
+ 8_ie=Журнал збережених форм
+ 8_safari=Журнал збережених форм
+ 8_chrome=Збережені дані форм
+-8_firefox=Збережені дані форм
++8_self=Збережені дані форм
+ 
+ 16_ie=Збережені паролі
+ 16_safari=Збережені паролі
+ 16_chrome=Збережені паролі
+-16_firefox=Збережені паролі
++16_self=Збережені паролі
+ 
+ 32_ie=Вибране
+ 32_safari=Закладки
+ 32_chrome=Закладки
+-32_firefox=Закладки
++32_self=Закладки
+ 
+ 64_ie=Інші дані
+ 64_safari=Інші дані
+diff --git a/l10n-zh-CN/browser/chrome/browser/migration/migration.properties b/l10n-zh-CN/browser/chrome/browser/migration/migration.properties
+index 3c61943..6446f6b 100644
+--- a/l10n-zh-CN/browser/chrome/browser/migration/migration.properties
++++ b/l10n-zh-CN/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=从 Safari
+ 2_ie=Cookies
+ 2_safari=Cookies
+ 2_chrome=Cookies
+-2_firefox=Cookies
++2_self=Cookies
+ 
+ 4_ie=浏览历史记录
+ 4_safari=浏览历史
+ 4_chrome=浏览历史记录
+-4_firefox=浏览历史
++4_self=浏览历史
+ 
+ 8_ie=已保存表单历史
+ 8_safari=已保存表单历史
+ 8_chrome=已保存表单历史
+-8_firefox=已保存表单历史
++8_self=已保存表单历史
+ 
+ 16_ie=已保存密码
+ 16_safari=已保存密码
+ 16_chrome=已保存的密码
+-16_firefox=已保存密码
++16_self=已保存密码
+ 
+ 32_ie=收藏夹
+ 32_safari=书签
+ 32_chrome=书签
+-32_firefox=书签
++32_self=书签
+ 
+ 64_ie=其他数据
+ 64_safari=其他数据
+diff --git a/l10n-zh-TW/browser/chrome/browser/migration/migration.properties b/l10n-zh-TW/browser/chrome/browser/migration/migration.properties
+index 25418d9..e79f7d0 100644
+--- a/l10n-zh-TW/browser/chrome/browser/migration/migration.properties
++++ b/l10n-zh-TW/browser/chrome/browser/migration/migration.properties
+@@ -21,27 +21,27 @@ importedSafariBookmarks=由 Safari
+ 2_ie=Cookie
+ 2_safari=Cookie
+ 2_chrome=Cookie
+-2_firefox=Cookie
++2_self=Cookie
+ 
+ 4_ie=瀏覽記錄
+ 4_safari=瀏覽記錄
+ 4_chrome=瀏覽記錄
+-4_firefox=瀏覽記錄
++4_self=瀏覽記錄
+ 
+ 8_ie=已存表單記錄
+ 8_safari=已存表單記錄
+ 8_chrome=已存表單記錄
+-8_firefox=已存表單記錄
++8_self=已存表單記錄
+ 
+ 16_ie=已存密碼
+ 16_safari=已存密碼
+ 16_chrome=已存密碼
+-16_firefox=已存密碼
++16_self=已存密碼
+ 
+ 32_ie=我的最愛
+ 32_safari=書籤
+ 32_chrome=書籤
+-32_firefox=書籤
++32_self=書籤
+ 
+ 64_ie=其他資料
+ 64_safari=其他資料
+diff --git a/toolkit/content/aboutSupport.js b/toolkit/content/aboutSupport.js
+index c86d80c..ff1ccfe 100644
+--- a/toolkit/content/aboutSupport.js
++++ b/toolkit/content/aboutSupport.js
+@@ -608,13 +608,13 @@ function populateResetBox() {
+                          .getService(Ci.nsIToolkitProfileService);
+   let currentProfileDir = Services.dirsvc.get("ProfD", Ci.nsIFile);
+ 
+-#expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
+-#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
+-
+   // Only show the reset box for the default profile if the self-migrator used for reset exists.
+   try {
+     if (!currentProfileDir.equals(profileService.selectedProfile.rootDir) ||
+-        !("@mozilla.org/profile/migrator;1?app=" + MOZ_BUILD_APP + "&type=" + MOZ_APP_NAME in Cc))
++        !("@mozilla.org/toolkit/profile-migrator;1" in Cc))
++      return;
++    let pm = Cc["@mozilla.org/toolkit/profile-migrator;1"].createInstance(Ci.nsIProfileMigrator);
++    if (!("canMigrate" in pm) || !pm.canMigrate("self"))
+       return;
+     document.getElementById("reset-box").style.visibility = "visible";
+   } catch (e) {
+diff --git a/toolkit/content/jar.mn b/toolkit/content/jar.mn
+index 6f0d2d6..da7342b 100644
+--- a/toolkit/content/jar.mn
++++ b/toolkit/content/jar.mn
+@@ -38,7 +38,7 @@ toolkit.jar:
+ +  content/global/mozilla.xhtml               (mozilla.xhtml)
+ *+ content/global/nsDragAndDrop.js            (nsDragAndDrop.js)
+    content/global/resetProfile.css            (resetProfile.css)
+-*  content/global/resetProfile.js             (resetProfile.js)
++   content/global/resetProfile.js             (resetProfile.js)
+ *  content/global/resetProfile.xul            (resetProfile.xul)
+ *  content/global/treeUtils.js                (treeUtils.js)
+ *+ content/global/viewZoomOverlay.js          (viewZoomOverlay.js)
+diff --git a/toolkit/content/resetProfile.js b/toolkit/content/resetProfile.js
+index 975a9ed..d8e46b1 100644
+--- a/toolkit/content/resetProfile.js
++++ b/toolkit/content/resetProfile.js
+@@ -6,12 +6,10 @@ Components.utils.import("resource://gre/modules/Services.jsm");
+ 
+ // based on onImportItemsPageShow from migration.js
+ function onResetProfileLoad() {
+-#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
+-#expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
+   const MAX_MIGRATED_TYPES = 16;
+ 
+   var migratedItems = document.getElementById("migratedItems");
+-  var bundle = Services.strings.createBundle("chrome://" + MOZ_BUILD_APP +
++  var bundle = Services.strings.createBundle("chrome://browser" +
+                                              "/locale/migration/migration.properties");
+ 
+   // Loop over possible data to migrate to give the user a list of what will be preserved. This
+@@ -21,7 +19,7 @@ function onResetProfileLoad() {
+     var itemID = Math.pow(2, i);
+     try {
+       var checkbox = document.createElement("label");
+-      checkbox.setAttribute("value", bundle.GetStringFromName(itemID + "_" + MOZ_APP_NAME));
++      checkbox.setAttribute("value", bundle.GetStringFromName(itemID + "_self"));
+       migratedItems.appendChild(checkbox);
+     } catch (x) {
+       // Catch exceptions when the string for a data type doesn't exist because it's not migrated
+diff --git a/toolkit/profile/nsIProfileMigrator.idl b/toolkit/profile/nsIProfileMigrator.idl
+index e941336..5b264af 100644
+--- a/toolkit/profile/nsIProfileMigrator.idl
++++ b/toolkit/profile/nsIProfileMigrator.idl
+@@ -69,7 +69,7 @@ interface nsIProfileStartup : nsISupports
+  * @client   Toolkit (Startup code)
+  * @obtainable service, contractid("@mozilla.org/toolkit/profile-migrator;1")
+  */
+-[scriptable, uuid(3df284a5-2258-4d46-a664-761ecdc04c22)]
++[scriptable, uuid(96d9ab66-082c-4a9e-82ad-f8c21b391342)]
+ interface nsIProfileMigrator : nsISupports 
+ {
+   /**
+@@ -92,6 +92,14 @@ interface nsIProfileMigrator : nsISupports
+    * @note The startup code ignores COM exceptions thrown from this method.
+    */
+   void migrate(in nsIProfileStartup aStartup, in ACString aKey);
++
++  /**
++   * Returns whether a given migration type is supported.
++   *
++   * @param  aKey   Migrator key
++   * @returns whether the migrator key is supported.
++   */
++  bool canMigrate(in ACString aKey);
+ };
+ 
+ %{C++
+diff --git a/toolkit/xre/nsAppRunner.cpp b/toolkit/xre/nsAppRunner.cpp
+index 32eef5c..dbe1580 100644
+--- a/toolkit/xre/nsAppRunner.cpp
++++ b/toolkit/xre/nsAppRunner.cpp
+@@ -3561,7 +3561,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
+             if (gDoProfileReset) {
+               // Automatically migrate from the current application if we just
+               // reset the profile.
+-              aKey = MOZ_APP_NAME;
++              aKey = "self";
+               pm->Migrate(&dirProvider, aKey);
+               // Set the new profile as the default after migration.
+               rv = SetCurrentProfileAsDefault(profileSvc, profD);

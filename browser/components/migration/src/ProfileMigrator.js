@@ -51,6 +51,10 @@ ProfileMigrator.prototype = {
                            params);
   },
 
+  canMigrate: function PM__canMigrate(aMigratorKey) {
+    return "@mozilla.org/profile/migrator;1?app=browser&type=" + aMigratorKey in Cc;
+  },
+
   _toCString: function PM__toCString(aStr) {
     let cstr = Cc["@mozilla.org/supports-cstring;1"].
                createInstance(Ci.nsISupportsCString);
