@@ -4,19 +4,19 @@ Subject: Bug 691898 - Use YARR interpreter instead of PCRE on platforms where
  YARR JIT is not supported
 
 ---
- js/src/Makefile.in                         |   43 +++++++++++-----------------
- js/src/assembler/jit/ExecutableAllocator.h |    2 --
- js/src/vm/RegExpObject-inl.h               |   28 ++++--------------
- js/src/vm/RegExpObject.cpp                 |   37 ------------------------
- js/src/vm/RegExpObject.h                   |   33 +++++----------------
- js/src/yarr/wtfbridge.h                    |    2 --
+ js/src/Makefile.in                         |   43 +++++++------------
+ js/src/assembler/jit/ExecutableAllocator.h |    2 -
+ js/src/vm/RegExpObject-inl.h               |    2 +
+ js/src/vm/RegExpObject.cpp                 |   63 ++--------------------------
+ js/src/vm/RegExpObject.h                   |   33 ++++-----------
+ js/src/yarr/wtfbridge.h                    |    2 -
  6 files changed, 29 insertions(+), 116 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 7defb97..e7a2eec 100644
+index 5c38969..fb42912 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -349,45 +349,20 @@ CPPSRCS += 	checks.cc \
+@@ -337,44 +337,19 @@ CPPSRCS += 	checks.cc \
  # END enclude sources for V8 dtoa
  #############################################
  
@@ -51,8 +51,7 @@ index 7defb97..e7a2eec 100644
  		$(srcdir)/yarr \
  		$(NONE)
  
- CPPSRCS += 	Assertions.cpp \
- 		ExecutableAllocator.cpp \
+ CPPSRCS += 	ExecutableAllocator.cpp \
 -		ARMAssembler.cpp \
 -		MacroAssemblerARM.cpp \
 -		MacroAssemblerX86Common.cpp \
@@ -62,7 +61,7 @@ index 7defb97..e7a2eec 100644
  		YarrPattern.cpp \
  		YarrSyntaxChecker.cpp \
  		$(NONE)
-@@ -412,6 +387,19 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
+@@ -399,6 +374,19 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
             $(NONE)
  endif
  
@@ -82,7 +81,7 @@ index 7defb97..e7a2eec 100644
  ifeq (86, $(findstring 86,$(TARGET_CPU)))
  ifeq (x86_64, $(TARGET_CPU))
  #CPPSRCS		+= only_on_x86_64.cpp
-@@ -422,12 +410,13 @@ endif
+@@ -409,12 +397,13 @@ endif
  ifeq (arm, $(TARGET_CPU))
  #CPPSRCS		+= only_on_arm.cpp
  endif
@@ -99,10 +98,10 @@ index 7defb97..e7a2eec 100644
  VPATH += $(srcdir)/ctypes
  
 diff --git a/js/src/assembler/jit/ExecutableAllocator.h b/js/src/assembler/jit/ExecutableAllocator.h
-index f1cf9d2..53233bc 100644
+index 25cf491..52c4b9b 100644
 --- a/js/src/assembler/jit/ExecutableAllocator.h
 +++ b/js/src/assembler/jit/ExecutableAllocator.h
-@@ -445,8 +445,6 @@ public:
+@@ -467,8 +467,6 @@ public:
      {
          sync_instruction_memory((caddr_t)code, size);
      }
@@ -112,105 +111,45 @@ index f1cf9d2..53233bc 100644
  
  private:
 diff --git a/js/src/vm/RegExpObject-inl.h b/js/src/vm/RegExpObject-inl.h
-index 3c134d4..0d989b9 100644
+index 12afce2..6ca34c5 100644
 --- a/js/src/vm/RegExpObject-inl.h
 +++ b/js/src/vm/RegExpObject-inl.h
-@@ -357,6 +357,7 @@ detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag
-     return RetType(priv);
+@@ -137,6 +137,7 @@ RegExpObject::setSticky(bool enabled)
+     setSlot(STICKY_FLAG_SLOT, BooleanValue(enabled));
  }
  
 +#if ENABLE_YARR_JIT
  /* This function should be deleted once bad Android platforms phase out. See bug 604774. */
  inline bool
- detail::RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
-@@ -367,12 +368,12 @@ detail::RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
+ detail::RegExpCode::isJITRuntimeEnabled(JSContext *cx)
+@@ -147,6 +148,7 @@ detail::RegExpCode::isJITRuntimeEnabled(JSContext *cx)
      return true;
  #endif
  }
 +#endif
  
  inline bool
- detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, TokenStream *ts,
-                                    uintN *parenCount, RegExpFlag flags)
- {
--#if ENABLE_YARR_JIT
-     /* Parse the pattern. */
-     ErrorCode yarrError;
-     YarrPattern yarrPattern(pattern, bool(flags & IgnoreCaseFlag), bool(flags & MultilineFlag),
-@@ -389,7 +390,7 @@ detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, Token
-      * case we have to bytecode compile it.
-      */
- 
--#ifdef JS_METHODJIT
-+#if ENABLE_YARR_JIT && defined(JS_METHODJIT)
-     if (isJITRuntimeEnabled(cx) && !yarrPattern.m_containsBackreferences) {
-         JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecutableAllocator(cx);
-         if (!execAlloc) {
-@@ -410,21 +411,11 @@ detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, Token
-         return false;
-     }
- 
-+#if ENABLE_YARR_JIT
-     codeBlock.setFallBack(true);
-+#endif
-     byteCode = byteCompile(yarrPattern, bumpAlloc).get();
-     return true;
--#else /* !defined(ENABLE_YARR_JIT) */
--    int error = 0;
--    compiled = jsRegExpCompile(pattern.chars(), pattern.length(),
--                  ignoreCase() ? JSRegExpIgnoreCase : JSRegExpDoNotIgnoreCase,
--                  multiline() ? JSRegExpMultiline : JSRegExpSingleLine,
--                  parenCount, &error);
--    if (error) {
--        reportPCREError(cx, error);
--        return false;
--    }
--    return true;
--#endif
- }
- 
- inline bool
-@@ -466,19 +457,12 @@ detail::RegExpPrivateCode::execute(JSContext *cx, const jschar *chars, size_t le
-     else
-         result = JSC::Yarr::execute(codeBlock, chars, start, length, output);
- #else
--    result = jsRegExpExecute(cx, compiled, chars, length, start, output, outputCount);
-+    result = JSC::Yarr::interpret(byteCode, chars, start, length, output);
- #endif
- 
-     if (result == -1)
-         return RegExpRunStatus_Success_NotFound;
- 
--#if !ENABLE_YARR_JIT
--    if (result < 0) {
--        reportPCREError(cx, result);
--        return RegExpRunStatus_Error;
--    }
--#endif
--
-     JS_ASSERT(result >= 0);
-     return RegExpRunStatus_Success;
- }
+ RegExpToShared(JSContext *cx, JSObject &obj, RegExpGuard *g)
 diff --git a/js/src/vm/RegExpObject.cpp b/js/src/vm/RegExpObject.cpp
-index 938981a..e266828 100644
+index 0176308..3ffdbbc 100644
 --- a/js/src/vm/RegExpObject.cpp
 +++ b/js/src/vm/RegExpObject.cpp
-@@ -392,7 +392,6 @@ Class js::RegExpClass = {
-     regexp_trace
- };
+@@ -167,7 +167,6 @@ MatchPairs::checkAgainst(size_t inputLength)
+ 
+ /* detail::RegExpCode */
  
 -#if ENABLE_YARR_JIT
  void
- RegExpPrivateCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
+ RegExpCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
  {
-@@ -424,42 +423,6 @@ RegExpPrivateCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode err
+@@ -199,46 +198,9 @@ RegExpCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
      }
  }
  
 -#else /* !ENABLE_YARR_JIT */
 -
 -void
--RegExpPrivateCode::reportPCREError(JSContext *cx, int error)
+-RegExpCode::reportPCREError(JSContext *cx, int error)
 -{
 -#define REPORT(msg_) \
 -    JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL, msg_); \
@@ -244,10 +183,68 @@ index 938981a..e266828 100644
 -#endif /* ENABLE_YARR_JIT */
 -
  bool
- js::ParseRegExpFlags(JSContext *cx, JSString *flagStr, RegExpFlag *flagsOut)
+ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount, RegExpFlag flags)
  {
+-#if ENABLE_YARR_JIT
+     /* Parse the pattern. */
+     ErrorCode yarrError;
+     YarrPattern yarrPattern(pattern, bool(flags & IgnoreCaseFlag), bool(flags & MultilineFlag),
+@@ -255,7 +217,7 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
+      * case we have to bytecode compile it.
+      */
+ 
+-#ifdef JS_METHODJIT
++#ifdef ENABLE_YARR_JIT && defined(JS_METHODJIT)
+     if (isJITRuntimeEnabled(cx) && !yarrPattern.m_containsBackreferences) {
+         JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecutableAllocator(cx);
+         if (!execAlloc) {
+@@ -276,21 +238,11 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
+         return false;
+     }
+ 
++#ifdef ENABLE_YARR_JIT
+     codeBlock.setFallBack(true);
++#endif
+     byteCode = byteCompile(yarrPattern, bumpAlloc).get();
+     return true;
+-#else /* !defined(ENABLE_YARR_JIT) */
+-    int error = 0;
+-    compiled = jsRegExpCompile(pattern.chars(), pattern.length(),
+-                  ignoreCase() ? JSRegExpIgnoreCase : JSRegExpDoNotIgnoreCase,
+-                  multiline() ? JSRegExpMultiline : JSRegExpSingleLine,
+-                  parenCount, &error);
+-    if (error) {
+-        reportPCREError(cx, error);
+-        return false;
+-    }
+-    return true;
+-#endif
+ }
+ 
+ RegExpRunStatus
+@@ -305,19 +257,12 @@ RegExpCode::execute(JSContext *cx, const jschar *chars, size_t length, size_t st
+     else
+         result = JSC::Yarr::execute(codeBlock, chars, start, length, output);
+ #else
+-    result = jsRegExpExecute(cx, compiled, chars, length, start, output, outputCount);
++    result = JSC::Yarr::interpret(byteCode, chars, start, length, output);
+ #endif
+ 
+     if (result == -1)
+         return RegExpRunStatus_Success_NotFound;
+ 
+-#if !ENABLE_YARR_JIT
+-    if (result < 0) {
+-        reportPCREError(cx, result);
+-        return RegExpRunStatus_Error;
+-    }
+-#endif
+-
+     JS_ASSERT(result >= 0);
+     return RegExpRunStatus_Success;
+ }
 diff --git a/js/src/vm/RegExpObject.h b/js/src/vm/RegExpObject.h
-index 5b92599..5ce9119 100644
+index ff888f0..2ad38f6 100644
 --- a/js/src/vm/RegExpObject.h
 +++ b/js/src/vm/RegExpObject.h
 @@ -51,10 +51,8 @@
@@ -260,11 +257,11 @@ index 5b92599..5ce9119 100644
  #endif
 +#include "yarr/YarrSyntaxChecker.h"
  
- namespace js {
+ /*
+  * JavaScript Regular Expressions
+@@ -112,68 +110,51 @@ namespace detail {
  
-@@ -242,68 +240,51 @@ static const jschar GreedyStarChars[] = {'.', '*'};
- /* Abstracts away the gross |RegExpPrivate| backend details. */
- class RegExpPrivateCode
+ class RegExpCode
  {
 -#if ENABLE_YARR_JIT
      typedef JSC::Yarr::BytecodePattern BytecodePattern;
@@ -284,7 +281,7 @@ index 5b92599..5ce9119 100644
 +    BytecodePattern *byteCode;
  
    public:
-     RegExpPrivateCode()
+     RegExpCode()
        :
  #if ENABLE_YARR_JIT
          codeBlock(),
@@ -295,7 +292,7 @@ index 5b92599..5ce9119 100644
 +        byteCode(NULL)
      { }
  
-     ~RegExpPrivateCode() {
+     ~RegExpCode() {
  #if ENABLE_YARR_JIT
          codeBlock.release();
 +#endif
@@ -336,7 +333,7 @@ index 5b92599..5ce9119 100644
 -#endif
      }
  
-     inline bool compile(JSContext *cx, JSLinearString &pattern, TokenStream *ts, uintN *parenCount,
+     bool compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount, RegExpFlag flags);
 diff --git a/js/src/yarr/wtfbridge.h b/js/src/yarr/wtfbridge.h
 index ac41d08..fb8eb86 100644
 --- a/js/src/yarr/wtfbridge.h

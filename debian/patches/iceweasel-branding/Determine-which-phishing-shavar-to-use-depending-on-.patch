@@ -11,12 +11,12 @@ Subject: Determine which phishing shavar to use depending on
  4 files changed, 16 insertions(+)
 
 diff --git a/browser/app/Makefile.in b/browser/app/Makefile.in
-index d16f456..109f242 100644
+index 954c71f..31a4d10 100644
 --- a/browser/app/Makefile.in
 +++ b/browser/app/Makefile.in
-@@ -163,6 +163,10 @@ endif # LIBXUL_SDK
+@@ -159,6 +159,10 @@ endif
  
- DEFINES += -DFIREFOX_ICO=\"$(DIST)/branding/firefox.ico\" -DDOCUMENT_ICO=\"$(DIST)/branding/document.ico\"
+ endif # LIBXUL_SDK
  
 +ifdef MOZ_OFFICIAL_BRANDING
 +DEFINES += -DMOZ_OFFICIAL_BRANDING
@@ -26,10 +26,10 @@ index d16f456..109f242 100644
  libs::
  	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(DIST)/bin/icons
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 0f78210..3d648dd 100644
+index 59ed9bd9..53256e9 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -748,7 +748,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
+@@ -755,7 +755,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
  pref("urlclassifier.gethashnoise", 4);
  
  // The list of tables that use the gethash request to confirm partial results.
@@ -42,10 +42,10 @@ index 0f78210..3d648dd 100644
  // If an urlclassifier table has not been updated in this number of seconds,
  // a gethash request will be forced to check that the result is still in
 diff --git a/browser/components/safebrowsing/Makefile.in b/browser/components/safebrowsing/Makefile.in
-index 2d526c2..3b6ca17 100644
+index 3833814..51b55df 100644
 --- a/browser/components/safebrowsing/Makefile.in
 +++ b/browser/components/safebrowsing/Makefile.in
-@@ -51,6 +51,10 @@ ifdef MOZILLA_OFFICIAL
+@@ -49,6 +49,10 @@ ifdef MOZILLA_OFFICIAL
  DEFINES += -DOFFICIAL_BUILD=1
  endif
  

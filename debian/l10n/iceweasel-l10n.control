@@ -224,6 +224,11 @@
 %undef L10N_RECOMMENDS
 %include iceweasel-l10n.control.in
 
+%define L10N_LANG km
+%define L10N_LANGUAGE Central Khmer
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
 %define L10N_LANG kn
 %define L10N_LANGUAGE Kannada
 %undef L10N_RECOMMENDS

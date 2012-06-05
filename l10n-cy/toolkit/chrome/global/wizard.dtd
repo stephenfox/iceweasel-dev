@@ -13,7 +13,7 @@
 <!ENTITY  button-cancel-unix.label     "Diddymu">
 
 <!ENTITY  button-back-win.label        "&lt; Nôl">
-<!ENTITY  button-back-win.accesskey    "N">
+<!ENTITY  button-back-win.accesskey    "l">
 <!ENTITY  button-next-win.label        "Nesaf &gt;">
 <!ENTITY  button-next-win.accesskey    "e">
 <!ENTITY  button-finish-win.label      "Gorffen">

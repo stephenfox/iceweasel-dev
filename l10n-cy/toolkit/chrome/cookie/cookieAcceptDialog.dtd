@@ -4,14 +4,13 @@
 <!ENTITY     props.path.label               "Llwybr:">
 <!ENTITY     props.secure.label             "Anfon am:">
 <!ENTITY     props.expires.label            "Daw i ben:">
-<!ENTITY     props.policy.label             "Polisi:"> 
 
 <!ENTITY     button.allow.label             "Caniatáu">
-<!ENTITY     button.allow.accesskey         "C">
+<!ENTITY     button.allow.accesskey         "a">
 <!ENTITY     button.session.label           "Caniatáu ar gyfer y Sesiwn">
 <!ENTITY     button.session.accesskey       "S">
 <!ENTITY     button.deny.label              "Gwrthod">
-<!ENTITY     button.deny.accesskey          "G">
+<!ENTITY     button.deny.accesskey          "d">
 
 <!ENTITY     dialog.title                   "Cadarnhau gosod cwci">
 <!ENTITY     dialog.remember.label          "Defnyddio fy newis ar gyfer yr holl gwcis o'r wefan hwn">

@@ -26,10 +26,10 @@ index 5889103..7a4b707 100644
          SkASSERT((int16_t)x == x);
          SkASSERT((int16_t)y == y);
 diff --git a/gfx/skia/include/core/SkPostConfig.h b/gfx/skia/include/core/SkPostConfig.h
-index edce334..0ccbb7a 100644
+index 0880c1e..dd8ff12 100644
 --- a/gfx/skia/include/core/SkPostConfig.h
 +++ b/gfx/skia/include/core/SkPostConfig.h
-@@ -296,3 +296,48 @@
+@@ -305,3 +305,48 @@
  #ifndef SK_ALLOW_STATIC_GLOBAL_INITIALIZERS
  #define SK_ALLOW_STATIC_GLOBAL_INITIALIZERS 1
  #endif

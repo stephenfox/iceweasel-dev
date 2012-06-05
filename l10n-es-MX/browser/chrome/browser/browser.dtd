@@ -51,7 +51,7 @@
 <!ENTITY addonBarCmd.label "Barra de complemento">
 <!ENTITY addonBarCmd.accesskey "A">
 <!ENTITY pageSourceCmd.label "Código fuente de esta página">
-<!ENTITY pageSourceCmd.accesskey "o">
+<!ENTITY pageSourceCmd.accesskey "c">
 <!ENTITY pageSourceCmd.commandkey "u">
 <!ENTITY pageInfoCmd.label "Información sobre esta página">
 <!ENTITY pageInfoCmd.accesskey "I">
@@ -105,7 +105,7 @@
 <!ENTITY throbberItem.title "Progreso">
 <!ENTITY bookmarksItem.title "Marcadores">
 <!ENTITY appMenuButton.label "Menú">
-<!ENTITY appMenuButton.tooltip "Abrir &brandShortName; menú">
+<!ENTITY appMenuButton.tooltip "Abrir menú &brandShortName;">
 <!ENTITY homeButton.label "Inicio">
 <!ENTITY tabGroupsButton.label "Pestañas Grupos">
 <!ENTITY tabGroupsButton.tooltip "Agrupa tus pestañas">
@@ -157,16 +157,19 @@
 <!ENTITY scratchpad.accesskey "s">
 <!ENTITY scratchpad.keycode "VK_F4">
 <!ENTITY scratchpad.keytext "F4">
-<!ENTITY inspectPanelTitle.label "HTML">
-<!ENTITY inspectButton.label "Inspector">
-<!ENTITY inspectButton.accesskey "I">
 <!ENTITY inspectCloseButton.tooltiptext "Cerrar Inspector">
-<!ENTITY inspect3DViewButton.label "3D View">
-<!ENTITY inspect3DViewButton.accesskey "W">
+<!ENTITY inspectorHTMLCopyInner.label "Copiar HTML interno">
+<!ENTITY inspectorHTMLCopyInner.accesskey "I">
+<!ENTITY inspectorHTMLCopyOuter.label "Copiar HTML externo">
+<!ENTITY inspectorHTMLCopyOuter.accesskey "e">
+<!ENTITY inspectorHTMLDelete.label "Borrar nodo">
+<!ENTITY inspectorHTMLDelete.accesskey "B">
+<!ENTITY inspect3DViewButton.label "Vista 3D">
+<!ENTITY inspect3DViewButton.accesskey "V">
 <!ENTITY inspectStyleButton.label "Estilo">
 <!ENTITY inspectStyleButton.accesskey "S">
-<!ENTITY styleeditor.label "Style Editor">
-<!ENTITY styleeditor.accesskey "y">
+<!ENTITY styleeditor.label "Editor de estilos">
+<!ENTITY styleeditor.accesskey "E">
 <!ENTITY styleeditor.keycode "VK_F7">
 <!ENTITY styleeditor.keytext "F7">
 <!ENTITY getMoreDevtoolsCmd.label "Conseguir más herramientas">
@@ -435,3 +438,6 @@
 <!ENTITY syncToolbarButton.label "Sync">
 <!ENTITY addonBarCloseButton.tooltip "Cerra la barra de complementos">
 <!ENTITY toggleAddonBarCmd.key "/">
+<!ENTITY htmlPanel.label "HTML">
+<!ENTITY htmlPanel.tooltiptext "Panel HTML">
+<!ENTITY htmlPanel.accesskey "H">

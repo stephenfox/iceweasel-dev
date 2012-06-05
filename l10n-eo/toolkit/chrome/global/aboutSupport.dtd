@@ -14,7 +14,13 @@
 <!ENTITY aboutSupport.appBasicsTitle "Bazaj programaj informoj">
 <!ENTITY aboutSupport.appBasicsName "Nomo">
 <!ENTITY aboutSupport.appBasicsVersion "Versio">
-<!ENTITY aboutSupport.appBasicsProfileDir "Profila dosierujo">
+
+<!ENTITY aboutSupport.appBasicsProfileDir "Dosierujo de profiloj">
+<!-- LOCALIZATION NOTE (aboutSupport.appBasicsProfileDirWinMac):
+This is the Windows- and Mac-specific variant of aboutSupport.appBasicsProfileDir.
+Windows/Mac use the term "Folder" instead of "Directory" -->
+<!ENTITY aboutSupport.appBasicsProfileDirWinMac "Dosierujo de profiloj">
+
 <!ENTITY aboutSupport.appBasicsEnabledPlugins "Aktivigitaj kromprogramoj">
 <!ENTITY aboutSupport.appBasicsBuildConfig "Agordoj de konstruado">
 <!ENTITY aboutSupport.appBasicsUserAgent "Agento de uzanto">
@@ -23,6 +29,13 @@
 
 <!ENTITY aboutSupport.showDir.label "Malfermi dosierujon">
 
+<!ENTITY aboutSupport.appBasicsEnabledPlugins "Aktivaj kromprogramoj">
+<!ENTITY aboutSupport.appBasicsBuildConfig "Agordoj de konstruado">
+<!ENTITY aboutSupport.appBasicsUserAgent "Agento de uzanto">
+<!ENTITY aboutSupport.appBasicsCrashIDs "Raportoj pri paneoj">
+<!ENTITY aboutSupport.appBasicsMemoryUse "Uzado de memoro">
+
+<!ENTITY aboutSupport.showDir.label "Open Directory">
 <!-- LOCALIZATION NOTE (aboutSupport.showMac.label): This is the Mac-specific
 variant of aboutSupport.showDir.label.  This allows us to use the preferred
 "Finder" terminology on Mac. -->
@@ -36,6 +49,11 @@ variant of aboutSupport.showDir.label. -->
 <!ENTITY aboutSupport.modifiedPrefsValue "Valoro">
 
 <!ENTITY aboutSupport.graphicsTitle "Grafikoj">
+
+<!ENTITY aboutSupport.jsTitle "JavaScript">
+<!ENTITY aboutSupport.jsIncrementalGC "Incremental GC">
+
+<!ENTITY aboutSupport.libraryVersionsTitle "Versio de bibliotekoj">
 
 <!ENTITY aboutSupport.installationHistoryTitle "Historio de instalado">
 <!ENTITY aboutSupport.updateHistoryTitle "Ĝisdatigi historion">

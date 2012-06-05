@@ -13,7 +13,7 @@
 -->
 <!ENTITY aboutDialog.title          "Ò programie &brandFullName;">
 <!-- LOCALIZATION NOTE (warningDesc.version): This is a warning about the experimental nature of Nightly and Aurora builds. It is only shown in those versions. -->
-<!ENTITY warningDesc.version        "&brandShortName; je eksperimentalną wersji ë mòże bëc niesztabilnô.">
+<!ENTITY warningDesc.version        "&brandShortName; je eksperimentalną wersją programù ë mòże bëc niesztabilnô.">
 
 <!ENTITY community.start2           "Program &brandShortName; je zaprojektowóny przez karno ">
 <!-- LOCALIZATION NOTE (community.mozillaLink): This is a link title that links to http://www.mozilla.org/. -->
@@ -22,13 +22,13 @@
 
 <!-- LOCALIZATION NOTE (community.exp.mozillaLink): This is a link title that links to http://www.mozilla.org/. -->
 <!ENTITY community.exp.mozillaLink  "&vendorShortName;">
-<!ENTITY community.exp.end " wëspółrobiącą bë Jinternet béł lepszi. Mómë wiarã, że Jnternet mùszi bëc òtemkłi, pùbliczny ë przistãpny dlô wszëtczich bez niżódnëch restrikcjów.">
+<!ENTITY community.exp.end " wëspółrobiącą bë Jinternet béł bëlniészi. Mómë wiarã, że Jnternet mùszi bëc òtemkłi, pùbliczny ë przistãpny dlô wszëtczich bez niżódnëch restrikcjów.">
 <!-- LOCALIZATION NOTE (community.creditsLink): This is a link title that links to about:credits. -->
 <!ENTITY community.exp.creditsLink "swiatowô spòlëznã">
 <!ENTITY community.creditsLink      "swiatowô spòlëznã">
-<!ENTITY community.end3             " wëspółrobiącą bë Jinternet béł lepszi. Mómë wiarã, że Jinternet mùszi bëc òtemkłi, pùbliczny ë przistãpny dlô wszëtczich bez niżódnëch restrikcjów.">
+<!ENTITY community.end3             " wëspółrobiącą bë Jinternet béł bëlniészi. Mómë wiarã, że Jinternet mùszi bëc òtemkłi, pùbliczny ë przistãpny dlô wszëtczich bez niżódnëch restrikcjów.">
 <!-- LOCALIZATION NOTE (warningDesc.telemetry): This is a notification that Nightly/Aurora builds automatically send Telemetry data back to Mozilla. It is only shown in those versions. "It" refers to brandShortName. -->
-<!ENTITY warningDesc.telemetry      "Automatno wësëłô jinfòrmacje do &vendorShortName; żebë pòmóc w ùlepszenim programù &brandShortName;.">
+<!ENTITY warningDesc.telemetry      "Automatno sélôj jinfòrmacje do karna &vendorShortName; żebë pòmóc w ùdobrzenim programù &brandShortName;.">
 
 <!-- LOCALIZATION NOTE (community.exp.*) This paragraph is shown in "experimental" builds, i.e. Nightly and Aurora builds, instead of the other "community.*" strings below. -->
 <!ENTITY community.exp.start        "">

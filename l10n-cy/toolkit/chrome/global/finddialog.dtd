@@ -4,11 +4,11 @@
 <!ENTITY findField.label "Canfod beth:">
 <!ENTITY findField.accesskey "b">
 <!ENTITY caseSensitiveCheckbox.label "Cydweddu Maint">
-<!ENTITY caseSensitiveCheckbox.accesskey "M">
+<!ENTITY caseSensitiveCheckbox.accesskey "C">
 <!ENTITY wrapCheckbox.label "Amlapio">
 <!ENTITY wrapCheckbox.accesskey "A">
 <!ENTITY findButton.label "Canfod nesaf">
-<!ENTITY findButton.accesskey "f">
+<!ENTITY findButton.accesskey "n">
 <!ENTITY cancelButton.label "Diddymu">
 <!ENTITY closeButton.label "Cau">
 <!ENTITY up.label "I fyny">

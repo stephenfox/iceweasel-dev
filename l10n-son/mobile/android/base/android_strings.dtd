@@ -1,5 +1,6 @@
 
-<!ENTITY  splash_firstrun "Ga &brandShortName;\u2026 kayandi">
+<!ENTITY  splash_settingup "War brandShortName; kayandi">
+<!ENTITY  splash_bookmarks_history "Ir goo ma war doo-šilbawey nda taarikoo taagandi, kaŋ ga hin ka too miniti foo cine.">
 
 <!ENTITY  no_space_to_start_error "Doo barantaa ši wasa &brandShortName; tunandiroo še.">
 <!ENTITY  error_loading_file "Firka foo bangay waati kaŋ a ceeci ka tukey zumandi kaŋ ka waažibi &brandShortName; dirandiroo še">
@@ -27,9 +28,13 @@
 
 <!ENTITY awesomebar_default_text "Ceeciyan wala aderesu dam">
 
+<!ENTITY remote_tabs "Nor loku cere-hangantey">
+<!ENTITY remote_tabs_show_all "Nor lokey kul cebe">
+
 <!ENTITY bookmark "Doo-šilbay">
 <!ENTITY bookmark_added "Doo-šilbay tontonandi">
 <!ENTITY bookmark_removed "Doo-šilbaa tuusandi">
+<!ENTITY bookmark_updated "Doo-šilbay taagante">
 
 <!ENTITY history_today_section "Hõ">
 <!ENTITY history_yesterday_section "Bi">
@@ -79,12 +84,19 @@
 <!ENTITY char_encoding "Harfu hawyan">
 
 <!ENTITY share "Žemna">
+<!ENTITY share_title "Žemna nda">
 <!ENTITY save_as_pdf "Gaabu sanda PDF">
 
 <!ENTITY contextmenu_open_new_tab "Feeri nor loku taaga ra">
 <!ENTITY contextmenu_remove_bookmark "Kaa">
 <!ENTITY contextmenu_add_to_launcher "Tonto šintin moo dijoo ga">
 <!ENTITY contextmenu_share "Žemna">
+<!ENTITY contextmenu_edit_bookmark "Fasal">
+
+<!ENTITY bookmark_edit_title "Doo-šilbaa fasal">
+<!ENTITY bookmark_edit_name "Maa">
+<!ENTITY bookmark_edit_location "Gorodoo">
+<!ENTITY bookmark_edit_keyword "Kufalkalima">
 
 <!ENTITY site_settings_title        "Nungoo kayandiyaney tuusu">
 <!ENTITY site_settings_cancel       "Naŋ">
@@ -108,3 +120,8 @@
 <!ENTITY abouthome_no_top_sites "War ši nungu kaasayaŋ kul jina. Tiira-maa žeeroo naagu ka naarumi šintin.">
 <!ENTITY abouthome_about_sync "Firefox Sync kayandi ka duu doo-šilbawey, taarikoo nda nor lokey war jinay taney ga">
 <!ENTITY abouthome_sync_bold_name "Firefox Sync">
+
+<!ENTITY filepicker_title "Tuku suuba">
+<!ENTITY filepicker_audio_title "Jinde foo suuba wal'a jiši">
+<!ENTITY filepicker_image_title "Bii foo suuba wal'a zaa">
+<!ENTITY filepicker_video_title "Widewo foo suuba wal'a zaa">

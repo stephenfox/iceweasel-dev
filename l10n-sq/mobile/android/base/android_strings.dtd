@@ -1,11 +1,10 @@
-<!ENTITY bookmark "Faqeruaje">
-<!ENTITY downloads "Shkarkime">
+<!ENTITY  splash_settingup "Rregullimi i &brandShortName;-it tuaj">
+<!ENTITY  splash_bookmarks_history "Po përditësojmë faqerojtësit dhe historikun tuaj, çka mund të marrë një a dy minuta.">
+
 <!ENTITY pref_plugins "Shtojca">
 <!ENTITY pref_plugins_enabled "Aktive">
 <!ENTITY pref_plugins_tap_to_play "Prekeni që të luhet">
 <!ENTITY pref_plugins_disabled "E çaktivizuar">
-
-<!ENTITY  splash_firstrun "Rregullimi i &brandShortName;-ut\u2026">
 
 <!ENTITY  no_space_to_start_error "Nuk ka vend të mjaftueshëm për nisjen e &brandShortName;-ut.">
 <!ENTITY  error_loading_file "Ndodhi një gabim kur po provohej të ngarkoheshin kartela të domosdoshme për xhirimin e &brandShortName;-ut">
@@ -33,8 +32,13 @@
 
 <!ENTITY awesomebar_default_text "Jepni Term Kërkimi ose Adresë">
 
+<!ENTITY remote_tabs "Skeda të Njëkohësuara">
+<!ENTITY remote_tabs_show_all "Shfaqi krejt skedat">
+
+<!ENTITY bookmark "Faqeruaje">
 <!ENTITY bookmark_added "Faqerojtësi u shtua">
 <!ENTITY bookmark_removed "Faqerojtësi u hoq">
+<!ENTITY bookmark_updated "Faqeruajtësi u përditësua">
 
 <!ENTITY history_today_section "Sot">
 <!ENTITY history_yesterday_section "Dje">
@@ -76,14 +80,24 @@
 <!ENTITY quit "Dil">
 
 <!ENTITY addons "Shtesa">
+<!ENTITY downloads "Shkarkime">
+<!ENTITY char_encoding "Kodim Shkronjash">
 
-<!ENTITY share "Ndaje me të tjerët">
+<!ENTITY share "Ndajeni me të tjerët">
+<!ENTITY share_title "Ndajeni me të tjerët përmes">
 <!ENTITY save_as_pdf "Ruaje si PDF">
 
 <!ENTITY contextmenu_open_new_tab "Hape në Skedë të Re">
 <!ENTITY contextmenu_remove_bookmark "Hiqe">
 <!ENTITY contextmenu_add_to_launcher "Shtoje te Skena Hyrëse">
 <!ENTITY contextmenu_share "Ndajeni me të tjerët">
+<!ENTITY contextmenu_edit_bookmark "Përpunojeni">
+
+<!ENTITY bookmark_edit_title "Përpunoni Faqerojtësin">
+<!ENTITY bookmark_edit_name "Emër">
+<!ENTITY bookmark_edit_location "Vend">
+<!ENTITY bookmark_edit_keyword "Fjalëkyç">
+
 
 <!ENTITY site_settings_title        "Pastroji Rregullimet për Site-e">
 <!ENTITY site_settings_cancel       "Anuloje">
@@ -102,8 +116,13 @@
 <!ENTITY abouthome_addons_browse "Shfletoni krejt shtesat për &brandShortName;">
 <!ENTITY abouthome_last_tabs_title "Skedat tuaja të herës së fundit">
 <!ENTITY abouthome_last_tabs_open "Hap krejt skedat e herës së fundit">
-<!ENTITY abouthome_top_sites_title "&quot;Site&quot;-et Kryesues">
-<!ENTITY abouthome_top_sites_browse "Shfletoni krejt &quot;site&quot;-et tuaj kryesues">
-<!ENTITY abouthome_no_top_sites "Nuk keni ende &quot;site&quot;-e kryesues. Që të filloni shfletimin prekni Shtyllën e Titullit.">
+<!ENTITY abouthome_top_sites_title "\&quot;Site\&quot;-et Kryesues">
+<!ENTITY abouthome_top_sites_browse "Shfletoni krejt \&quot;site\&quot;-et tuaj kryesues">
+<!ENTITY abouthome_no_top_sites "Nuk keni ende \&quot;site\&quot;-e kryesues. Që të filloni shfletimin prekni Shtyllën e Titullit.">
 <!ENTITY abouthome_about_sync "Rregulloni Firefox Sync-un që të mund të përdorni faqerojtësit, historikun dhe skedat prej pajisjeve tuaja të tjera">
 <!ENTITY abouthome_sync_bold_name "Firefox Sync">
+
+<!ENTITY filepicker_title "Zgjidhni Kartelë">
+<!ENTITY filepicker_audio_title "Zgjidhni ose regjistroni një tingull">
+<!ENTITY filepicker_image_title "Zgjidhni ose bëni një foto">
+<!ENTITY filepicker_video_title "Zgjidhni ose regjistroni një video">

@@ -7,7 +7,7 @@ Subject: Bug 747322 - Fix jemalloc mmap wrapper for s390x
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
-index 8d0f2de..ae73a1c 100644
+index be7f9a3..22dd22d 100644
 --- a/memory/jemalloc/jemalloc.c
 +++ b/memory/jemalloc/jemalloc.c
 @@ -403,9 +403,9 @@ void *_mmap(void *addr, size_t length, int prot, int flags,

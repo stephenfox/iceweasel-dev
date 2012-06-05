@@ -14,13 +14,13 @@
 
 <!-- New Account AND Existing Account -->
 <!ENTITY server.label               "सर्व्हर">
-<!ENTITY serverType.main.label      "&syncBrand.fullName.label; सर्व्हर">
-<!-- <!ENTITY serverType.custom.label    "पसंतीचे सर्व्हरचा वापर करा"> -->
-<!--
+<!-- 
+ <!ENTITY serverType.main.label      "&syncBrand.fullName.label; सर्व्हर">
+ <!ENTITY serverType.custom.label    "पसंतीचे सर्व्हरचा वापर करा">
  <!ENTITY signIn.account.label       "ईमेल पत्ता / वापरकर्त्याचे नाव">
+ <!ENTITY signIn.account.accesskey   "E">
+ <!ENTITY signIn.password.label      "पासवर्ड"> 
 -->
-<!-- <!ENTITY signIn.account.accesskey   "E">
-<!ENTITY signIn.password.label      "पासवर्ड"> -->
 <!ENTITY signIn.password.accesskey  "P">
 <!-- <!ENTITY signIn.serverURL.label     "सर्व्हर URL">
 <!ENTITY signIn.serverURL.accesskey "L"> -->
@@ -138,7 +138,11 @@
 
 <!-- New Account AND Existing Account -->
 <!ENTITY server.label               "सर्व्हर">
+
+<!--
 <!ENTITY serverType.main.label      "&syncBrand.fullName.label; सर्व्हर">
+-->
+
 <!ENTITY serverType.custom2.label   "पसंतीच्या सर्व्हरचा वापर करा…">
 <!ENTITY signIn.account2.label      "खाते">
 <!ENTITY signIn.account2.accesskey  "A">
@@ -276,4 +280,5 @@ Existing Account Page 1: Add Device (incl. Add a Device dialog strings)
 <!ENTITY engine.addons.label        "ॲडऑन्स्">
 <!ENTITY engine.addons.accesskey    "A">
 <!ENTITY setup.pickSetupType.description2 "स्वागत आहे, याअगोदर कधिही &syncBrand.fullName.label; याचा वापर न केले असल्यास, तुम्हाला नवीन खाते निर्माण करावे लागेल.">
+<!ENTITY serverType.default.label      "पूर्वनिर्धारीत: मोझिला &syncBrand.fullName.label; सर्व्हर">
 

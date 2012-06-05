@@ -1,5 +1,6 @@
 
-<!ENTITY  splash_firstrun "Ställer in &brandShortName;…">
+<!ENTITY  splash_settingup "Ställer in &brandShortName;">
+<!ENTITY  splash_bookmarks_history "Vi uppdaterar dina bokmärken och din historik, vilket ta någon minut.">
 
 <!ENTITY  no_space_to_start_error "Det saknas utrymme för &brandShortName; att starta.">
 <!ENTITY  error_loading_file "Ett fel uppstod vid inläsning av filer som krävs för att köra &brandShortName;">
@@ -27,9 +28,13 @@
 
 <!ENTITY awesomebar_default_text "Ange sökord eller adress">
 
+<!ENTITY remote_tabs "Synkade flikar">
+<!ENTITY remote_tabs_show_all "Visa alla flikar">
+
 <!ENTITY bookmark "Bokmärke">
 <!ENTITY bookmark_added "Bokmärkt">
 <!ENTITY bookmark_removed "Borttaget bokmärke">
+<!ENTITY bookmark_updated "Uppdaterat bokmärke">
 
 <!ENTITY history_today_section "Idag">
 <!ENTITY history_yesterday_section "Igår">
@@ -40,6 +45,7 @@
 <!ENTITY forward "Framåt">
 
 <!ENTITY new_tab "Ny flik">
+<!ENTITY new_tab_opened "Ny flik öppnades">
 
 <!ENTITY settings "Inställningar">
 <!ENTITY settings_title "Inställningar">
@@ -78,12 +84,19 @@
 <!ENTITY char_encoding "Teckenkodning">
 
 <!ENTITY share "Dela">
+<!ENTITY share_title "Dela via">
 <!ENTITY save_as_pdf "Spara som PDF">
 
 <!ENTITY contextmenu_open_new_tab "Öppna i ny flik">
 <!ENTITY contextmenu_remove_bookmark "Ta bort">
 <!ENTITY contextmenu_add_to_launcher "Lägg till på startsidan">
 <!ENTITY contextmenu_share "Dela">
+<!ENTITY contextmenu_edit_bookmark "Redigera">
+
+<!ENTITY bookmark_edit_title "Redigera bokmärke">
+<!ENTITY bookmark_edit_name "Namn">
+<!ENTITY bookmark_edit_location "Adress">
+<!ENTITY bookmark_edit_keyword "Nyckelord">
 
 <!ENTITY site_settings_title        "Rensa platsinställningar">
 <!ENTITY site_settings_cancel       "Avbryt">
@@ -107,3 +120,8 @@
 <!ENTITY abouthome_no_top_sites "Du har inga mest besökta platser ännu. Tryck på adressfältet för att börja surfa.">
 <!ENTITY abouthome_about_sync "Ställ in Firefox Sync för att få tillgång till bokmärken, historik och flikar från dina andra enheter">
 <!ENTITY abouthome_sync_bold_name "Firefox Sync">
+
+<!ENTITY filepicker_title "Välj fil">
+<!ENTITY filepicker_audio_title "Välj eller spela in ett ljud">
+<!ENTITY filepicker_image_title "Välj eller ta en bild">
+<!ENTITY filepicker_video_title "Välj eller spela in en video">

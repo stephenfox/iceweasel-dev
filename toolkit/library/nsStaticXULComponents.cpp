@@ -257,6 +257,7 @@
     MODULE(nsServicesCryptoModule)           \
     MOZ_APP_COMPONENT_MODULES                \
     MODULE(nsTelemetryModule)                \
+    MODULE(jsinspector)                      \
     MODULE(jsdebugger)                       \
     /* end of list */
 

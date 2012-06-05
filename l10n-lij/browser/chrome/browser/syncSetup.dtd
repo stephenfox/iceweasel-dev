@@ -12,7 +12,6 @@
 
 <!-- New Account AND Existing Account -->
 <!ENTITY server.label               "Server">
-<!ENTITY serverType.main.label      "Server &syncBrand.fullName.label;">
 <!ENTITY serverType.custom2.label   "Ûza in server personalizòu…">
 <!ENTITY signIn.account2.label      "Account">
 <!ENTITY signIn.account2.accesskey  "A">
@@ -107,4 +106,6 @@
 <!ENTITY setup.successPage.title "Instalaçión finîa">
 <!ENTITY changeOptions.label "Ti peu cangiâ ste inpostaçioìn chi sótta inte preferénse de Sync.">
 <!ENTITY continueUsing.label "Fòscia ti peu continoâ co-o &brandShortName;.">
+
+<!ENTITY serverType.default.label      "Predefinîo: Server &syncBrand.fullName.label; do Mozilla">
 

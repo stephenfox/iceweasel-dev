@@ -41,9 +41,9 @@
    -
    - ***** END LICENSE BLOCK ***** -->
 
-<!ENTITY event.title.label                  "Muuda elementi" >
+<!ENTITY event.title.label                  "Elemendi muutmine" >
 
-<!ENTITY event.dialog.keepDurationButton.tooltip   "Säilita lõppaja muutmisel kestus">
+<!ENTITY event.dialog.keepDurationButton.tooltip   "Lõppaja muutmisel säilitatakse kestus">
 <!ENTITY event.dialog.keepDurationButton.accesskey "u">
 
 <!ENTITY newevent.from.label                "Alates" >
@@ -136,9 +136,9 @@
 
 <!ENTITY  event.menu.options.label                            "Valikud">
 <!ENTITY  event.menu.options.accesskey                        "V">
-<!ENTITY  event.menu.options.attachments.label                "Kaasa veebileht…">
+<!ENTITY  event.menu.options.attachments.label                "Veebilehe kaasamine…">
 <!ENTITY  event.menu.options.attachments.accesskey            "b">
-<!ENTITY  event.menu.options.attendees.label                  "Kutsu osalejad…">
+<!ENTITY  event.menu.options.attendees.label                  "Osalejate kutsumine…">
 <!ENTITY  event.menu.options.attendees.accesskey              "o">
 <!ENTITY  event.menu.options.spellcheck.label                 "Kontrolli õigekirja…">
 <!ENTITY  event.menu.options.spellcheck.accesskey             "k">
@@ -146,8 +146,8 @@
 <!ENTITY  event.menu.options.inline.spellcheck.accesskey      "j">
 <!ENTITY  event.menu.options.link.label                       "Lisa viide…">
 <!ENTITY  event.menu.options.link.accesskey                   "L">
-<!ENTITY  event.menu.options.timezone.label                   "Ajavöönd">
-<!ENTITY  event.menu.options.timezone.accesskey               "n">
+<!ENTITY  event.menu.options.timezone2.label                  "Ajavööndite kuvamine">
+<!ENTITY  event.menu.options.timezone2.accesskey              "A">
 <!ENTITY  event.menu.options.priority2.label                  "Prioriteet">
 <!ENTITY  event.menu.options.priority2.accesskey              "P">
 <!ENTITY  event.menu.options.priority.notspecified.label      "Määramata">
@@ -289,7 +289,7 @@
 <!ENTITY event.recurrence.pattern.monthly.week.6.label  "reedel" >
 <!ENTITY event.recurrence.pattern.monthly.week.7.label  "laupäeval" >
 <!ENTITY event.recurrence.repeat.dayofmonth.label       "päeval">
-<!ENTITY event.recurrence.repeat.recur.label            "Kordub järgmistel päevadel">
+<!ENTITY event.recurrence.repeat.recur.label            "järgmistel päevadel">
 
 <!ENTITY event.recurrence.every.label                        "iga" >
 <!ENTITY repeat.units.years.both                             "aasta järel" >
@@ -345,15 +345,15 @@
 
 <!ENTITY event.recurrence.range.label                   "Kordumise ajavahemik">
 <!ENTITY event.recurrence.forever.label                 "Lõpu kuupäev puudub" >
-<!ENTITY event.recurrence.repeat.for.label              "Määra" >
-<!ENTITY event.recurrence.appointments.label            "kohtumine/st" >
-<!ENTITY event.repeat.until.label                       "Korda kuni" >
+<!ENTITY event.recurrence.repeat.for.label              "Kohtumisi kokku" >
+<!ENTITY event.recurrence.appointments.label            "" >
+<!ENTITY event.repeat.until.label                       "Korratakse kuni" >
 <!ENTITY event.recurrence.preview.label                 "Eelvaade">
 
 <!-- Attendees dialog -->
 <!ENTITY invite.title.label                     "Osalejate kutsumine">
-<!ENTITY event.organizer.label                  "Organiseerija">
-<!ENTITY event.freebusy.suggest.slot            "Paku aeg:">
+<!ENTITY event.organizer.label                  "Korraldaja">
+<!ENTITY event.freebusy.suggest.slot            "Aja pakkumine:">
 <!ENTITY event.freebusy.next.slot               "Järgmine aeg " >
 <!ENTITY event.freebusy.previous.slot           " Eelmine aeg" >
 <!ENTITY event.freebusy.zoom                    "Suurendamine/Vähendamine:">
@@ -368,7 +368,8 @@
 <!ENTITY event.attendee.role.nonparticipant     "Vaatleja">
 
 <!-- Timezone dialog -->
-<!ENTITY timezone.title.label            "Palun määra ajavöönd">
+<!ENTITY timezone.title.label            "Ajavööndi määramine">
+<!ENTITY event.timezone.custom.label     "Veel ajavööndeid…">
 
 <!-- Read-Only dialog -->
 <!ENTITY read.only.general.label         "Üldine">
@@ -380,7 +381,7 @@
 <!ENTITY read.only.repeat.label          "Kordumine:">
 <!ENTITY read.only.location.label        "Asukoht:">
 <!ENTITY read.only.category.label        "Kategooria:">
-<!ENTITY read.only.organizer.label       "Organiseerija:">
+<!ENTITY read.only.organizer.label       "Korraldaja:">
 <!ENTITY read.only.reply.label           "Vasta:">
 <!ENTITY read.only.accept.label          "Osalen">
 <!ENTITY read.only.decline.label         "Ei osale">

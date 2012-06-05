@@ -8,10 +8,10 @@ Subject: Bug 703833 - Avoid invalid conversion from 'const size_t*' to 'const
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/js/src/jsgc.cpp b/js/src/jsgc.cpp
-index 90fdff5..9ea0543 100644
+index 020c0d0..60f23ad 100644
 --- a/js/src/jsgc.cpp
 +++ b/js/src/jsgc.cpp
-@@ -1126,8 +1126,8 @@ MarkStackRangeConservatively(JSTracer *trc, Value *beginv, Value *endv)
+@@ -1184,8 +1184,8 @@ MarkStackRangeConservatively(JSTracer *trc, Value *beginv, Value *endv)
          ~AutoSkipChecking() { runtime->gcCheckCompartment = savedCompartment; }
      } as(trc->runtime);
  

@@ -3,14 +3,10 @@ fixes/Avoid-spurious-Run-items-in-application-handlers-con.patch
 fixes/Properly-launch-applications-set-in-HOME-.mailcap.patch
 fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
 fixes/Bug-691898-Use-YARR-interpreter-instead-of-PCRE-on-p.patch
-fixes/Bug-728229-Allow-to-build-with-system-python-ply-lib.patch
 fixes/Bug-720682-Don-t-crash-an-app-using-libxul-because-o.patch
 fixes/Load-dependent-libraries-with-their-real-path-to-avo.patch
-fixes/Bug-515232-Try-getting-general.useragent.locale-as-a.patch
 fixes/Revert-investigation-patch-for-bug-621446.patch
-fixes/Bug-734335-Only-build-SPS-on-supported-platforms.patch
 fixes/Bug-747322-Fix-jemalloc-mmap-wrapper-for-s390x.patch
-fixes/Bug-725655-gcc-4.7-build-failures-missing-headers-.-.patch
 fixes/Bug-734490-fix-build-failures-with-Clang-and-GCC-4.7.patch
 fixes/Bug-722975-Make-system-cairo-work-again.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
@@ -19,10 +15,9 @@ iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
 porting/Add-xptcall-support-for-SH4-processors.patch
 porting/Allow-ipc-code-to-build-on-GNU-kfreebsd.patch
 porting/Allow-ipc-code-to-build-on-GNU-Hurd.patch
-porting/Bug-698923-Don-t-require-16-bytes-alignment-for-VMFr.patch
 porting/Fix-GNU-non-Linux-failure-to-build-because-of-ipc-ch.patch
 porting/Bug-703833-Avoid-invalid-conversion-from-const-size_.patch
-porting/Don-t-hardcode-page-size-on-ia64-and-sparc.patch
+porting/Don-t-hardcode-page-size-on-ia64-or-sparc.patch
 porting/Bug-747870-Properly-align-XPCLazyCallContext-mData.-.patch
 porting/Bug-749530-Import-atomicops_internals_mips_gcc.h-fro.patch
 porting/Bug-749533-Add-support-for-GNU-kFreeBSD-and-Hurd-in-.patch
@@ -51,6 +46,5 @@ debian-hacks/Add-a-2-minutes-timeout-on-xpcshell-tests.patch
 debian-hacks/Load-distribution-search-plugins-from-etc-appname-se.patch
 debian-hacks/Handle-transition-to-etc-appname-searchplugins-more-.patch
 debian-hacks/Bug-508942-Use-Preprocessor.py-filters-in-defines-an.patch
-l10n/Bug-721737-Add-toolkit-l10n-Makefiles-to-browser-mak.patch
 l10n/Place-google-and-gmail-before-yandex.patch
 configure.patch

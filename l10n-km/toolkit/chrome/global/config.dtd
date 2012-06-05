@@ -1,0 +1,82 @@
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is mozilla.org configuration viewer.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 2002
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<!ENTITY window.title "អំពី ៖ កំណត់​រចនាសម្ព័ន្ធ">
+
+<!-- about:config warning page -->
+<!-- LOCALIZATION NOTE: aboutWarningTitle.label should be attention grabbing and playful -->
+<!ENTITY aboutWarningTitle.label "នេះ​អាច​បណ្ដាល​ឲ្យ​ការ​ធានា​របស់​អ្នក​ក្លាយ​ជា​មោឃៈ !">
+<!ENTITY aboutWarningText.label "ការ​ផ្លាស់ប្ដូរ​ការ​កំណត់​កម្រិត​ខ្ពស់​ទាំងនេះ អាច​បណ្ដាល​ឲ្យ​អន្តរាយ​ដល់​ស្ថិរភាព សុវត្ថិភាព និង​ប្រតិបត្តិការ​របស់​កម្មវិធី ។ អ្នក​គួរតែ​បន្ត​ក្នុង​ករណី​ដែល​អ្នក​ប្រាកដ​ពី​អ្វី​ដែល​អ្នក​កំពុង​ធ្វើ​តែប៉ុណ្ណោះ ។">
+<!ENTITY aboutWarningButton.label "ខ្ញុំ​នឹង​ប្រុងប្រយ័ត្ន ខ្ញុំ​សន្យា!">
+<!ENTITY aboutWarningCheckbox.label "បង្ហាញ​ការ​ព្រមាន​នេះ នៅ​ពេល​ក្រោយ​ទៀត">
+
+<!ENTITY searchPrefs.label "ស្វែងរក ៖">
+<!ENTITY searchPrefs.accesskey "ស">
+<!ENTITY focusSearch.key "r">
+
+<!-- Columns -->
+<!ENTITY prefColumn.label "ឈ្មោះ​ចំណូល​ចិត្ត">
+<!ENTITY lockColumn.label "ស្ថានភាព">
+<!ENTITY typeColumn.label "ប្រភេទ">
+<!ENTITY valueColumn.label "តម្លៃ">
+
+<!-- Tooltips -->
+<!ENTITY prefColumnHeader.tooltip "ចុច ​ដើម្បី​តម្រៀប"> 
+<!ENTITY columnChooser.tooltip "ចុ​ច ដើម្បីជ្រើស​ជួរ​ឈរ​ដែល​ត្រូវ​បង្ហាញ"> 
+
+<!-- Context Menu -->
+<!ENTITY copyPref.key "ច">
+<!ENTITY copyPref.label "ចម្លង">
+<!ENTITY copyPref.accesskey "ច">
+<!ENTITY copyName.label "ចម្លង​ឈ្មោះ">
+<!ENTITY copyName.accesskey "N">
+<!ENTITY copyValue.label "ចម្លង​តម្លៃ">
+<!ENTITY copyValue.accesskey "V">
+<!ENTITY modify.label "កែប្រែ">
+<!ENTITY modify.accesskey "M">
+<!ENTITY toggle.label "បិទបើក">
+<!ENTITY toggle.accesskey "T">
+<!ENTITY reset.label "កំណត់​ឡើង​វិញ">
+<!ENTITY reset.accesskey "R">
+<!ENTITY new.label "ថ្មី">
+<!ENTITY new.accesskey "w">
+<!ENTITY string.label "ខ្សែ​អក្សរ">
+<!ENTITY string.accesskey "S">
+<!ENTITY integer.label "ចំនួន​គត់">
+<!ENTITY integer.accesskey "I">
+<!ENTITY boolean.label "ប៊ូលីន">
+<!ENTITY boolean.accesskey "B">
+

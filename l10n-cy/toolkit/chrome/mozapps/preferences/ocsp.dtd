@@ -1,10 +1,10 @@
 <!ENTITY ocspDialog.title             "Dilysu Tystysgrif">
-<!ENTITY enableOCSP.label             "Defnyddiwch y Protocol Statws Tystysgrif Ar-lein (OCSP) i gadarnhau dilysrwydd presennol y tysytysgrifau ">
-<!ENTITY enableOCSP.accesskey         "D">
+<!ENTITY enableOCSP.label             "Defnyddiwch y Protocol Statws Tystysgrif Ar-lein (OCSP) i gadarnhau dilysrwydd presennol y tysytysgrifau">
+<!ENTITY enableOCSP.accesskey         "P">
 <!ENTITY certOCSP2.label              "Dilysu tystysgrifau os yw'n pennu gweinydd OCSP">
-<!ENTITY certOCSP2.accesskey          "i">
-<!ENTITY proxyOCSP2.label             "Dilysu pob tystysgrif sy'n defnyddio'r gweinydd canlynol:">
-<!ENTITY proxyOCSP2.accesskey         "l">
+<!ENTITY certOCSP2.accesskey          "g">
+<!ENTITY proxyOCSP2.label             "Dilysu pob tystysgrif sy'n defnyddio'r gweinydd OCSP canlynol:">
+<!ENTITY proxyOCSP2.accesskey         "D">
 <!ENTITY serviceURL.label             "URL Gwasanaeth:">
 <!ENTITY serviceURL.accesskey         "U">
 <!ENTITY signingCA.label              "Llofnodwr Ymateb:">

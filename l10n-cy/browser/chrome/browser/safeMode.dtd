@@ -37,7 +37,10 @@
    - ***** END LICENSE BLOCK ***** -->
 
 <!ENTITY safeModeDialog.title         "Modd Diogel &brandShortName;">
-<!ENTITY window.width                 "50em">
+<!ENTITY window.width                 "37em">
+
+<!ENTITY autoSafeModeIntro.label      "Caeodd &brandShortName; yn Annisgwyl wrth Gychwyn">
+<!ENTITY autoSafeModeDescription.label "Mae'n wir ddrwg gennym am yr anghyfleustra. Mae &brandShortName; nawr yn rhedeg yn y Modd Diogel, sy'n anablu dros dro eich gosodiadau cyfaddas, themâu ac estyniadau.">
 
 <!ENTITY safeModeDescription.label    "Mae &brandShortName; yn rhedeg yn y Modd Diogel, sy'n anablu dros dro eich gosodiadau cyfaddas personol, themâu ac estyniadau.">
 <!ENTITY safeModeDescription2.label   "Mae modd gwneud rhai neu'r holl newidiadau'n rhai parhaol:">
@@ -46,7 +49,7 @@
 <!ENTITY disableAddons.accesskey      "A">
 
 <!ENTITY resetToolbars.label          "Ailosod barau offer a rheolyddion">
-<!ENTITY resetToolbars.accesskey      "r">
+<!ENTITY resetToolbars.accesskey      "b">
 
 <!ENTITY deleteBookmarks.label        "Dileu pob nod tudalen ar wahân i'r rhai wrth gefn">
 <!ENTITY deleteBookmarks.accesskey    "b">
@@ -55,7 +58,7 @@
 <!ENTITY resetUserPrefs.accesskey     "p">
 
 <!ENTITY restoreSearch.label          "Adfer peiriannau chwilio arferol">
-<!ENTITY restoreSearch.accesskey      "d">
+<!ENTITY restoreSearch.accesskey      "A">
 
 <!ENTITY changeAndRestartButton.label "Gosod Newidiadau ac Ailgychwyn">
 <!ENTITY continueButton.label         "Parhau yn y Modd Diogel">

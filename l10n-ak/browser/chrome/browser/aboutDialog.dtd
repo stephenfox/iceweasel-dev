@@ -1,12 +1,26 @@
 <!ENTITY aboutDialog.title          "&brandFullName; Ho Nsɛm">
+<!-- LOCALIZATION NOTE (warningDesc.version): This is a warning about the experimental nature of Nightly and Aurora builds. It is only shown in those versions. -->
+
+<!ENTITY warningDesc.version        "Yɛ resɔ &brandShortName; ahwɛ nti ɛbɛtumi aba no sɛ ɔnngyina pintinn.">
+<!-- LOCALIZATION NOTE (warningDesc.telemetry): This is a notification that Nightly/Aurora builds automatically send Telemetry data back to Mozilla. It is only shown in those versions. "It" refers to brandShortName. -->
+<!ENTITY warningDesc.telemetry      "Ɔsoma tɛst infɔmehyɛn ma &vendorShortName; ama wɔaboa etu &brandShortName; mpon.">
+<!-- LOCALIZATION NOTE (community.exp.*) This paragraph is shown in "experimental" builds, i.e. Nightly and Aurora builds, instead of the other "community.*" strings below. -->
+
+<!ENTITY community.exp.start        "">
+<!-- LOCALIZATION NOTE (community.exp.mozillaLink): This is a link title that links to http://www.mozilla.org/. -->
+<!ENTITY community.exp.mozillaLink  "&vendorShortName;">
+<!ENTITY community.exp.middle       "yɛ">
+<!-- LOCALIZATION NOTE (community.exp.creditslink): This is a link title that links to about:credits. -->
+<!ENTITY community.exp.creditsLink  "wiase fɛkuw">
+<!ENTITY community.exp.end          "a wɔdi dwuma bɔ mu ma Wɛb no mu da hɔ ma obiara.">
 
 <!ENTITY community.start2           "&brandShortName; Eyi na osiesie no">
 <!-- LOCALIZATION NOTE (community.mozillaLink): This is a link title that links to http://www.mozilla.org/. -->
 <!ENTITY community.mozillaLink      "&vendorShortName;">
 <!ENTITY community.middle2          ", a ɛyɛ ">
 <!-- LOCALIZATION NOTE (community.creditsLink): This is a link title that links to about:credits. -->
-<!ENTITY community.creditsLink      "wiade fɛkuw">
-<!ENTITY community.end2             "reyɛ edwuma abɔ mu sɛ Intanɛt bɛyɛ yie. Yɛ gye di sɛ ɛwɔ sɛ Intanɛt da hɔ ma obiara na ɛwɔ sɛ obiara nya ho kwan a hwee nnsiw wɔn kwan.">
+<!ENTITY community.creditsLink      "wiase fɛkuw">
+<!ENTITY community.end3             "a wɔdi dwuma bɔ mu ma Wɛb no mu da hɔ ma obiara.">
 
 <!ENTITY contribute.start           "Ɛyɛ wo anigye anaa?">
 <!-- LOCALIZATION NOTE (contribute.getInvolvedLink): This is a link title that links to http://www.mozilla.org/contribute/. -->
@@ -17,7 +31,7 @@
 <!ENTITY bottomLinks.license        "Laesens ho infɔmehyɛn">
 <!-- LOCALIZATION NOTE (bottomLinks.rights): This is a link title that links to about:rights. -->
 
-<!ENTITY bottomLinks.rights         "Twa ɔdedifo mbra akwanya so">
+<!ENTITY bottomLinks.rights         "Dehye ne mbra-akwanya">
 <!-- LOCALIZATION NOTE (bottomLinks.privacy): This is a link title that links to http://www.mozilla.com/legal/privacy/. -->
 
 <!ENTITY bottomLinks.privacy        "Siesɛm mbra">
