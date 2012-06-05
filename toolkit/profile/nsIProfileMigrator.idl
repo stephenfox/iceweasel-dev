@@ -69,7 +69,7 @@ interface nsIProfileStartup : nsISupports
  * @client   Toolkit (Startup code)
  * @obtainable service, contractid("@mozilla.org/toolkit/profile-migrator;1")
  */
-[scriptable, uuid(3df284a5-2258-4d46-a664-761ecdc04c22)]
+[scriptable, uuid(96d9ab66-082c-4a9e-82ad-f8c21b391342)]
 interface nsIProfileMigrator : nsISupports 
 {
   /**
@@ -92,6 +92,14 @@ interface nsIProfileMigrator : nsISupports
    * @note The startup code ignores COM exceptions thrown from this method.
    */
   void migrate(in nsIProfileStartup aStartup, in ACString aKey);
+
+  /**
+   * Returns whether a given migration type is supported.
+   *
+   * @param  aKey   Migrator key
+   * @returns whether the migrator key is supported.
+   */
+  bool canMigrate(in ACString aKey);
 };
 
 %{C++

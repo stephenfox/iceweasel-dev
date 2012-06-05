@@ -403,11 +403,6 @@ let MigrationUtils = Object.freeze({
    * @see nsIStringBundle
    */
   getLocalizedString: function MU_getLocalizedString(aKey, aReplacements) {
-    const OVERRIDES = {
-      "4_firefox": "4_firefox_history_and_bookmarks"
-    };
-    aKey = OVERRIDES[aKey] || aKey;
-
     if (aReplacements === undefined)
       return getMigrationBundle().GetStringFromName(aKey);
     return getMigrationBundle().formatStringFromName(
@@ -619,6 +614,17 @@ let MigrationUtils = Object.freeze({
     params.appendElement(skipImportSourcePageBool, false);
 
     this.showMigrationWizard(null, params);
+  },
+
+  /**
+   * Returns whether a given migration type is supported.
+   *
+   * @param  aKey   Migrator key
+   * @returns whether the migrator key is supported.
+   */
+  canMigrate:
+  function MU_canMigrate(aMigratorKey) {
+    return "@mozilla.org/profile/migrator;1?app=browser&type=" + aMigratorKey in Cc;
   },
 
   /**

@@ -12,6 +12,7 @@ function ProfileMigrator() {
 
 ProfileMigrator.prototype = {
   migrate: MigrationUtils.startupMigration.bind(MigrationUtils),
+  canMigrate: MigrationUtils.canMigrate.bind(MigrationUtils),
   QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsIProfileMigrator]),
   classDescription: "Profile Migrator",
   contractID: "@mozilla.org/toolkit/profile-migrator;1",

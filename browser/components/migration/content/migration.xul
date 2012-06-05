@@ -74,7 +74,7 @@
 #elifdef XP_UNIX
       <radio id="chrome"    label="&importFromChrome.label;"    accesskey="&importFromChrome.accesskey;"/>
 #endif
-      <radio id="firefox"   label="&importFromFirefox.label;"   accesskey="&importFromFirefox.accesskey;"/>
+      <radio id="self"      hidden="true"/>
       <radio id="nothing"   label="&importFromNothing.label;"   accesskey="&importFromNothing.accesskey;" hidden="true"/>
     </radiogroup>
     <label id="noSources" hidden="true">&noMigrationSources.label;</label>

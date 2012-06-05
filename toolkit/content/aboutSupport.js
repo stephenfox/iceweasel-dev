@@ -616,13 +616,13 @@ function populateResetBox() {
                          .getService(Ci.nsIToolkitProfileService);
   let currentProfileDir = Services.dirsvc.get("ProfD", Ci.nsIFile);
 
-#expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
-#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
-
   // Only show the reset box for the default profile if the self-migrator used for reset exists.
   try {
     if (!currentProfileDir.equals(profileService.selectedProfile.rootDir) ||
-        !("@mozilla.org/profile/migrator;1?app=" + MOZ_BUILD_APP + "&type=" + MOZ_APP_NAME in Cc))
+        !("@mozilla.org/toolkit/profile-migrator;1" in Cc))
+      return;
+    let pm = Cc["@mozilla.org/toolkit/profile-migrator;1"].createInstance(Ci.nsIProfileMigrator);
+    if (!("canMigrate" in pm) || !pm.canMigrate("self"))
       return;
     document.getElementById("reset-box").style.visibility = "visible";
   } catch (e) {

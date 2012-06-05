@@ -6,6 +6,7 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 // based on onImportItemsPageShow from migration.js
 function onResetProfileLoad() {
+<<<<<<< HEAD
 #expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
 #expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
 
@@ -16,16 +17,22 @@ function onResetProfileLoad() {
     "8_" + MOZ_APP_NAME,  // Form History
     "2_" + MOZ_APP_NAME,  // Cookies
   ];
+=======
+  Components.utils.import("resource:///modules/MigrationUtils.jsm");
+  const MAX_MIGRATED_TYPES = 16;
+>>>>>>> Bug 756390 - Make the "Reset Firefox" feature more generic
 
   var migratedItems = document.getElementById("migratedItems");
-  var bundle = Services.strings.createBundle("chrome://" + MOZ_BUILD_APP +
-                                             "/locale/migration/migration.properties");
 
   // Loop over possible data to migrate to give the user a list of what will be preserved.
   for (var itemStringName of MIGRATED_TYPES) {
     try {
       var checkbox = document.createElement("label");
+<<<<<<< HEAD
       checkbox.setAttribute("value", bundle.GetStringFromName(itemStringName));
+=======
+      checkbox.setAttribute("value", MigrationUtils.getLocalizedString(itemID + "_self"));
+>>>>>>> Bug 756390 - Make the "Reset Firefox" feature more generic
       migratedItems.appendChild(checkbox);
     } catch (x) {
       // Catch exceptions when the string for a data type doesn't exist.
