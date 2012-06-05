@@ -3561,7 +3561,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             if (gDoProfileReset) {
               // Automatically migrate from the current application if we just
               // reset the profile.
-              aKey = MOZ_APP_NAME;
+              aKey = "self";
               pm->Migrate(&dirProvider, aKey);
               // Set the new profile as the default after migration.
               rv = SetCurrentProfileAsDefault(profileSvc, profD);
