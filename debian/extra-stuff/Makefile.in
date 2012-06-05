@@ -7,10 +7,7 @@ include $(DEPTH)/config/autoconf.mk
 
 PREF_JS_EXPORTS := places.js
 
-EXTRA_COMPONENTS := addonsInfo.js
-ifeq (,$(filter 1.9.%,$(GRE_VERSION)))
-EXTRA_COMPONENTS += $(EXTRA_COMPONENTS:%.js=%.manifest)
-endif
+EXTRA_COMPONENTS := addonsInfo.js addonsInfo.manifest
 
 include $(topsrcdir)/config/rules.mk
 

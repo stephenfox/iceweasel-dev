@@ -1,8 +1,6 @@
 [browser]
 bin/components/aboutIce.js
-#ifdef WITH_MANIFEST
 bin/components/aboutIce.manifest
-#endif
 bin/chrome/ice.manifest
 bin/chrome/ice@JAREXT@
 

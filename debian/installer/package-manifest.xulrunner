@@ -10,7 +10,5 @@ bin/xulrunner-stub
 [debian]
 bin/reportbug-helper-script
 bin/components/addonsInfo.js
-#ifdef WITH_MANIFEST
 bin/components/addonsInfo.manifest
-#endif
 bin/defaults/pref/places.js

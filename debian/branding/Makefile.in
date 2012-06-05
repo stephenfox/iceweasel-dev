@@ -18,10 +18,7 @@ DIRS = \
 PREF_JS_EXPORTS += $(srcdir)/firefox-branding.js
 
 ifndef BRANDING_TEST
-EXTRA_COMPONENTS := aboutIce.js
-ifeq (,$(filter 1.9.%,$(GRE_VERSION)))
-EXTRA_COMPONENTS += $(EXTRA_COMPONENTS:%.js=%.manifest)
-endif
+EXTRA_COMPONENTS := aboutIce.js aboutIce.manifest
 else
 DEFINES += -DBRANDING_TEST
 endif
