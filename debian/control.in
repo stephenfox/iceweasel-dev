@@ -62,9 +62,7 @@ Depends: ${shlibs:Depends},
          debianutils (>= 1.16),
          xulrunner-@GRE_VERSION@ (>= ${binary:Version}),
          libsqlite3-0 (>= 3.7.12-1~)
-Suggests: fonts-lyx | ttf-lyx | latex-xft-fonts,
-          xfonts-mathml,
-          ttf-mathematica4.1,
+Suggests: fonts-stix | otf-stix,
           mozplugger,
           libgssapi-krb5-2 | libkrb53
 Provides: www-browser,
