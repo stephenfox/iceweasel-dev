@@ -1,3 +1,11 @@
+iceweasel (13.0.1-2) experimental; urgency=low
+
+  * debian/control*: Change font suggestions for MathML. Closes: #679469.
+  * dom/ipc/Makefile.in, dom/ipc/PBrowser.ipdl, dom/ipc/TabMessageUtils.cpp:
+    Only export TabMessageUtils.h in mozilla/dom. bz#761082. Closes: #675920.
+
+ -- Mike Hommey <glandium@debian.org>  Fri, 29 Jun 2012 09:56:00 +0200
+
 iceweasel (13.0.1-1) experimental; urgency=low
 
   * New upstream release.
