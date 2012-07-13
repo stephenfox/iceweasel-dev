@@ -80,7 +80,7 @@
 <!ENTITY mediaSaveAs2.accesskey                        "e">
 <!ENTITY mediaPreview                                  "Meediafaili eelvaatlus:">
 
-<!ENTITY  feedTab                                      "Uudisvood">
+<!ENTITY  feedTab                                      "Uudistevood">
 <!ENTITY  feedTab.accesskey                            "U">
 <!ENTITY  feedSubscribe                                "Telli">
 <!ENTITY  feedSubscribe.accesskey                      "T">
@@ -97,7 +97,8 @@
 <!ENTITY  permPopup                                    "Hüpikakende avamine">
 <!ENTITY  permCookie                                   "Küpsiste salvestamine">
 <!ENTITY  permInstall                                  "Laienduste või teemade paigaldamine">
-<!ENTITY  permGeo                                      "Asukoht avaldatakse">
+<!ENTITY  permGeo                                      "Asukoha avaldamine">
+<!ENTITY  permPlugins                                  "Pluginate aktiveerimine">
 
 <!ENTITY  permIndexedDB                                "Võrguta režiimi kettakasutuse haldamine">
 <!ENTITY  permClearStorage                             "Kustuta andmed">

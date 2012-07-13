@@ -1,7 +1,7 @@
 <!ENTITY tracking.label                 "Traciaménto">
 
 <!ENTITY doNotTrack.label               "Dìnni a-i scîti che mi no véuggio êse traciòu">
-<!ENTITY doNotTrack.accesskey           "D">
+<!ENTITY doNotTrack.accesskey           "u">
 
 <!ENTITY  history.label                 "Stöia">
 
@@ -16,8 +16,8 @@
 <!ENTITY  locbar.nothing.label          "Nìnte">
 
 
-<!ENTITY  acceptCookies.label           "açetta i cookie da sti scîti">
-<!ENTITY  acceptCookies.accesskey       "a">
+<!ENTITY  acceptCookies.label           "açétta i cookie da sti scîti">
+<!ENTITY  acceptCookies.accesskey       "k">
 
 <!ENTITY  acceptThirdParty.label        "açetta i cookie de terçe parti">
 <!ENTITY  acceptThirdParty.accesskey    "c">
@@ -39,10 +39,10 @@
 <!ENTITY  historyHeader.pre.accesskey      "s">
 <!ENTITY  historyHeader.remember.label     "Aregòrda a stöia">
 <!ENTITY  historyHeader.dontremember.label "No aregordâ a stöia">
-<!ENTITY  historyHeader.custom.label       "Ûza e preferénse personalizæ pe a stöia">
+<!ENTITY  historyHeader.custom.label       "Adêuvia e preferénse personalizæ pe a stöia">
 <!ENTITY  historyHeader.post.label         "">
 
-<!ENTITY  rememberDescription.label      "O &brandShortName; o se aregordîa de teu navegaçioìn, descaregaménti e stöia de riçèrche, e in ciù o tégne i cookie da-i scîti che ti vixìti.">
+<!ENTITY  rememberDescription.label      "O &brandShortName; o s'aregordîa de teu navegaçioìn, descaregaménti e stöia de riçèrche, e in ciù o tégne i cookie da-i scîti che ti vìxiti.">
 
 <!-- LOCALIZATION NOTE (rememberActions.pre.label): include a trailing space as needed -->
 <!-- LOCALIZATION NOTE (rememberActions.middle.label): include a starting and trailing space as needed -->
@@ -65,10 +65,10 @@
 <!ENTITY  privateBrowsingPermanent2.accesskey "p">
 
 <!ENTITY  rememberHistory2.label      "Aregòrda da mæ stöia de navegaçión e descaregaménti">
-<!ENTITY  rememberHistory2.accesskey  "A">
+<!ENTITY  rememberHistory2.accesskey  "ç">
 
 <!ENTITY  rememberSearchForm.label       "Aregòrda e riçèrche e a stöia di mòduli">
-<!ENTITY  rememberSearchForm.accesskey   "A">
+<!ENTITY  rememberSearchForm.accesskey   "l">
 
 <!ENTITY  clearOnClose.label             "Scancélla a stöia quàndo o &brandShortName; o se særa">
 <!ENTITY  clearOnClose.accesskey         "r">

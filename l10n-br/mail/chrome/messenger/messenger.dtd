@@ -321,8 +321,8 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY prevUnreadMsgCmd.label "Kemennadenn ket lennet">
 <!ENTITY prevUnreadMsgCmd.accesskey "l">
 <!ENTITY prevUnreadMsgCmd.key "p">
-<!ENTITY goForwardCmd.label "Lakaat da dremen">
-<!ENTITY goForwardCmd.accesskey "k">
+<!ENTITY goForwardCmd.label "War-lerc'h">
+<!ENTITY goForwardCmd.accesskey "W">
 <!ENTITY goForwardCmd.commandKey "]">
 <!ENTITY goBackCmd.label "Kent">
 <!ENTITY goBackCmd.accesskey "K">
@@ -358,19 +358,19 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY replyMsgCmd.key  "r">
 <!ENTITY replySenderCmd.label "Respont d'ar c'haser hepken">
 <!ENTITY replySenderCmd.accesskey "R">
-<!ENTITY replyNewsgroupCmd.label "Respont d'ar strollad-keleier">
-<!ENTITY replyNewsgroupCmd.accesskey  "s">
+<!ENTITY replyNewsgroupCmd2.label "Respont d'ar strollad-keleier">
+<!ENTITY replyNewsgroupCmd2.accesskey  "s">
 <!ENTITY replyToAllMsgCmd.label "Respont d'an holl">
 <!ENTITY replyToAllMsgCmd.accesskey  "a">
 <!ENTITY replyToAllMsgCmd.key  "r">
 <!ENTITY replyToListMsgCmd.label "Respont d'ar roll">
 <!ENTITY replyToListMsgCmd.accesskey  "l">
 <!ENTITY replyToListMsgCmd.key  "l">
-<!ENTITY forwardMsgCmd.label "Lakaat da dremen">
-<!ENTITY forwardMsgCmd.accesskey "n">
+<!ENTITY forwardMsgCmd.label "Treuzkas">
+<!ENTITY forwardMsgCmd.accesskey "T">
 <!ENTITY forwardMsgCmd.key  "l">
-<!ENTITY forwardAsMenu.label "Lakaat da dremen dindan">
-<!ENTITY forwardAsMenu.accesskey "d">
+<!ENTITY forwardAsMenu.label "Treuzkas evel">
+<!ENTITY forwardAsMenu.accesskey "e">
 <!ENTITY forwardAsInline.label "A-steud">
 <!ENTITY forwardAsInline.accesskey "s">
 <!ENTITY forwardAsAttachmentCmd.label "Kenstagadurioù">
@@ -498,6 +498,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY importCmd.accesskey "n">
 <!ENTITY errorConsoleCmd.label "Penel ar fazioù">
 <!ENTITY errorConsoleCmd.accesskey "n">
+<!ENTITY errorConsoleCmd.commandkey "j">
 <!ENTITY accountManagerCmd.label "Arventennoù ar c'hontoù…">
 <!ENTITY accountManagerCmd.accesskey "A">
 <!-- LOCALIZATION NOTE (accountManagerCmdUnix.accesskey): belongs to accountManagerCmd.label,
@@ -510,7 +511,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY replyButton.label "Respont">
 <!ENTITY replyAllButton.label "Respont d'an holl">
 <!ENTITY replyListButton.label "Respont d'ar roll">
-<!ENTITY forwardButton.label "Lakaat da dremen">
+<!ENTITY forwardButton.label "Treuzkas">
 <!ENTITY fileButton.label "Restr">
 <!ENTITY archiveButton.label "Diellaouiñ">
 <!ENTITY nextButton.label "War-lerc'h">
@@ -520,7 +521,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY previousButtonToolbarItem.label "Anlennet kent">
 <!ENTITY previousMsgButton.label "Kent">
 <!ENTITY backButton1.label "Kent">
-<!ENTITY goForwardButton1.label "Lakaat da dremen">
+<!ENTITY goForwardButton1.label "War-lerc'h">
 <!ENTITY deleteItem.title "Dilemel">
 <!ENTITY deleteButton.label "Dilemel">
 <!ENTITY undeleteButton.label "Dizilemel">
@@ -549,7 +550,7 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY replyButton.tooltip "Respont d'ar gemennadenn-mañ">
 <!ENTITY replyAllButton.tooltip "Respont d'ar c'haser ha d'an holl zegemerien">
 <!ENTITY replyListButton.tooltip "Respont d'ar roll skignañ">
-<!ENTITY forwardButton.tooltip "Adkas ar gemennadenn diuzet">
+<!ENTITY forwardButton.tooltip "Treuzkas ar gemennadenn diuzet">
 <!ENTITY fileButton.tooltip "Leuniañ ar gemennadenn diuzet">
 <!ENTITY archiveButton.tooltip "Diellaouiñ ar c'hemennadennoù diuzet">
 <!ENTITY nextButton.tooltip "Mont d'ar gemennadenn anlennet war-lerc'h">
@@ -692,15 +693,15 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY contextArchive.accesskey "i">
 <!ENTITY contextReplySender.label "Respont d'ar c'haser hepken">
 <!ENTITY contextReplySender.accesskey "R">
-<!ENTITY contextReplyNewsgroup.label "Respont d'ar strollad-keleier">
-<!ENTITY contextReplyNewsgroup.accesskey "s">
+<!ENTITY contextReplyNewsgroup2.label "Respont d'ar strollad-keleier">
+<!ENTITY contextReplyNewsgroup2.accesskey "s">
 <!ENTITY contextReplyAll.label "Respont d'an holl">
 <!ENTITY contextReplyAll.accesskey "R">
 <!ENTITY contextReplyList.label "Respont d'ar roll">
 <!ENTITY contextReplyList.accesskey "l">
-<!ENTITY contextForward.label "Lakaat da dremen">
+<!ENTITY contextForward.label "Treuzkas">
 <!ENTITY contextForward.accesskey "e">
-<!ENTITY contextForwardAsAttachment.label "Kas en-dro evel kenstagadurioù">
+<!ENTITY contextForwardAsAttachment.label "Treuzkas evel kenstagadurioù">
 <!ENTITY contextForwardAsAttachment.accesskey "k">
 <!ENTITY contextMoveMsgMenu.label "Dilec'hiañ etrezek">
 <!ENTITY contextMoveMsgMenu.accesskey "D">

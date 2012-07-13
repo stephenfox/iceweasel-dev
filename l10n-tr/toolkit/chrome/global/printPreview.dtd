@@ -41,7 +41,7 @@
 <!ENTITY pageSetup.accesskey  "a">
 <!ENTITY page.label           "Sayfa:">
 <!ENTITY page.accesskey       "a">
-<!ENTITY of.label             " -> ">
+<!ENTITY of.label             " / ">
 <!ENTITY scale.label          "Ölçek:">
 <!ENTITY scale.accesskey      "k">
 <!ENTITY portrait.label       "Dikey">
@@ -63,8 +63,8 @@
 <!ENTITY p175.label           "&#037;175">
 <!ENTITY p200.label           "&#037;200">
 <!ENTITY Custom.label         "Özelleştir…">
-<!ENTITY ShrinkToFit.label    "Sayfaya göre ayarla">
-<!ENTITY customPrompt.title   "Büyült / Küçült…">
+<!ENTITY ShrinkToFit.label    "Kâğıda sığdır">
+<!ENTITY customPrompt.title   "Özel ölçek…">
 
 <!ENTITY homearrow.tooltip    "İlk sayfa">
 <!ENTITY endarrow.tooltip     "Son sayfa">

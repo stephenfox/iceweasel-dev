@@ -152,6 +152,8 @@
 <!ENTITY showMessengerToolbarCmd.accesskey "o">
 <!ENTITY showSearchToolbarCmd.label "Pasek narzędzi wyszukiwania">
 <!ENTITY showSearchToolbarCmd.accesskey "e">
+<!ENTITY showTabsToolbarCmd.label "Pasek kart">
+<!ENTITY showTabsToolbarCmd.accesskey "k">
 
 <!ENTITY messagePaneLayoutStyle.label "Układ">
 <!ENTITY messagePaneLayoutStyle.accesskey "U">
@@ -268,6 +270,10 @@
 <!ENTITY pageSourceCmd.key "u">
 
 <!ENTITY findCmd.label "Znajdź w tej wiadomości…">
+
+<!-- LOCALIZATION NOTE (quickFilterBar.show.key2):
+     This is the key used to show the Lightning quick filter bar. -->
+<!ENTITY quickFilterBar.show.key2 "K">
 
 <!-- Go Menu -->
 
@@ -445,7 +451,6 @@
 <!ENTITY deleteButton.label "Usuń">
 <!ENTITY undeleteButton.label "Przywróć">
 <!ENTITY markButton.label "Oznacz">
-<!ENTITY printButton.label "Drukuj">
 <!ENTITY stopButton.label "Zatrzymaj">
 <!ENTITY junkButton.label "Niechciana">
 <!ENTITY notJunkButton.label "Pożądana">
@@ -469,7 +474,6 @@
 <!ENTITY deleteButton.tooltip "Usuń wybraną wiadomość albo folder">
 <!ENTITY undeleteButton.tooltip "Przywróć usuniętą wiadomość">
 <!ENTITY markButton.tooltip "Oznacz wiadomości">
-<!ENTITY printButton.tooltip "Drukuj wiadomość">
 <!ENTITY stopButton.tooltip "Zatrzymaj bieżący transfer">
 <!ENTITY throbber.tooltip "&vendorShortName;PL! Otwórz naszą stronę!">
 <!ENTITY junkButton.tooltip "Oznacz wybraną wiadomość jako niechcianą">

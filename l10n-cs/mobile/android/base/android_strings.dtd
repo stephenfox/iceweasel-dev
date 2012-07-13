@@ -1,5 +1,6 @@
 
-<!ENTITY splash_firstrun "Nastavení &brandShortName;\u2026">
+<!ENTITY splash_settingup "Nastavení &brandShortName;">
+<!ENTITY splash_bookmarks_history "Záložky a historie jsou aktualizovány, což může chvilku trvat.">
 
 <!ENTITY no_space_to_start_error "&brandShortName; nemá dostatek místa pro své spuštění.">
 <!ENTITY error_loading_file "Při načítání souborů vyžadovaných aplikací &brandShortName; nastala chyba.">
@@ -27,9 +28,13 @@
 
 <!ENTITY awesomebar_default_text "Vložte hledání nebo adresu">
 
+<!ENTITY remote_tabs "Synchronizované panely">
+<!ENTITY remote_tabs_show_all "Zobrazit všechny panely">
+
 <!ENTITY bookmark "Záložky">
 <!ENTITY bookmark_added "Záložka přidána">
 <!ENTITY bookmark_removed "Záložka odebrána">
+<!ENTITY bookmark_updated "Záložka aktualizována">
 
 <!ENTITY history_today_section "Dnes">
 <!ENTITY history_yesterday_section "Včera">
@@ -40,6 +45,7 @@
 <!ENTITY forward "Vpřed">
 
 <!ENTITY new_tab "Nový panel">
+<!ENTITY new_tab_opened "Nový panel otevřen">
 
 <!ENTITY settings "Nastavení">
 <!ENTITY settings_title "Nastavení">
@@ -78,12 +84,19 @@
 <!ENTITY char_encoding "Znaková sada">
 
 <!ENTITY share "Sdílet">
+<!ENTITY share_title "Sdálet pomocí">
 <!ENTITY save_as_pdf "Uložit jako PDF">
 
 <!ENTITY contextmenu_open_new_tab "Otevřít v novém panelu">
 <!ENTITY contextmenu_remove_bookmark "Smazat">
 <!ENTITY contextmenu_add_to_launcher "Přidat na úvodní obrazovku">
 <!ENTITY contextmenu_share "Sdílet">
+<!ENTITY contextmenu_edit_bookmark "Upravit">
+
+<!ENTITY bookmark_edit_title "Upraviz záložku">
+<!ENTITY bookmark_edit_name "Název">
+<!ENTITY bookmark_edit_location "Umístění">
+<!ENTITY bookmark_edit_keyword "Klíčové slovo">
 
 <!ENTITY site_settings_title "Vymazat nastavení serveru">
 <!ENTITY site_settings_cancel "Zrušit">
@@ -107,3 +120,8 @@
 <!ENTITY abouthome_no_top_sites "Zatím nemáte žádné top stránky. Brouzdání začnete klepnutím na pole titulku.">
 <!ENTITY abouthome_about_sync "Nastavte si Firefox Sync a přistupujte ke svým záložkám, historii a panelům ze svých ostatních zařízení">
 <!ENTITY abouthome_sync_bold_name "Firefox Sync">
+
+<!ENTITY filepicker_title "Vyberte soubor">
+<!ENTITY filepicker_audio_title "Vyberte nebo nahrajte zvuk">
+<!ENTITY filepicker_image_title "Vyberte nebo vyfoťte obrázek">
+<!ENTITY filepicker_video_title "Vyberte nebo natočte video">

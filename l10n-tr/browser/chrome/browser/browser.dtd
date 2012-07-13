@@ -213,10 +213,16 @@ can reach it easily. -->
 <!ENTITY scratchpad.keycode           "VK_F4">
 <!ENTITY scratchpad.keytext           "F4">
 
-<!ENTITY inspectPanelTitle.label        "HTML">
-<!ENTITY inspectButton.label            "İncele">
-<!ENTITY inspectButton.accesskey        "c">
 <!ENTITY inspectCloseButton.tooltiptext "Denetçiyi kapat">
+
+<!ENTITY inspectorHTMLCopyInner.label       "İç HTML'i kopyala">
+<!ENTITY inspectorHTMLCopyInner.accesskey   "H">
+
+<!ENTITY inspectorHTMLCopyOuter.label       "Dış HTML'i kopyala">
+<!ENTITY inspectorHTMLCopyOuter.accesskey   "D">
+
+<!ENTITY inspectorHTMLDelete.label          "Düğümü sil">
+<!ENTITY inspectorHTMLDelete.accesskey      "s">
 
 <!-- LOCALIZATION NOTE (inspect3DViewButton.label): This button shows an
   -  alternate view for the Inspector, creating a 3D visualization of the
@@ -274,7 +280,7 @@ can reach it easily. -->
 <!ENTITY clearRecentHistory.label               "Yakın geçmişi temizle…">
 <!ENTITY clearRecentHistory.accesskey           "g">
 
-<!-- LOCALIZATION NOTE : These two strings can share an access key beause they never appear together on the menu -->
+<!-- LOCALIZATION NOTE : These two strings can share an access key because they never appear together on the menu -->
 <!ENTITY privateBrowsingCmd.start.label         "Gizli taramayı başlat">
 <!ENTITY privateBrowsingCmd.start.accesskey     "b">
 <!ENTITY privateBrowsingCmd.stop.label          "Gizli taramayı bitir">
@@ -599,4 +605,13 @@ just addresses the organization to follow, e.g. "This site is run by " -->
 
 <!ENTITY addonBarCloseButton.tooltip  "Eklenti çubuğunu kapat">
 <!ENTITY toggleAddonBarCmd.key        "/">
+
+<!-- LOCALIZATION NOTE (markupButton.arialabel): The markup button is the button
+located in front of the breadcrumbs display in the inspector toolbar. The button
+doesn't display any label, but exposes a label to screen-readers with "aria-label".
+-->
+<!ENTITY markupButton.arialabel          "İşaretleme">
+<!-- LOCALIZATION NOTE (markupButton.accesskey): The key bound to the Markup panel's
+toolbar button -->
+<!ENTITY markupButton.accesskey          "m">
 

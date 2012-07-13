@@ -45,7 +45,7 @@
 <!-- LOCALIZATION NOTE (permissions.header.start, permissions.header.end): These strings
      surround the host name of the site to make the header for the permissions page.
      example: "Permissions for mozilla.org" -->
-<!ENTITY header.site.start               "Permissions for">
+<!ENTITY header.site.start               "Թույլտվություն">
 <!ENTITY header.site.end                 "">
 
 <!ENTITY header.defaults                 "Պայմանական թույլտվություններ բոլոր կայքերի համար">
@@ -66,6 +66,8 @@
 <!ENTITY cookie.removeAll                "Ջնջել Բոլոր Պատրաստուքները">
 
 <!ENTITY geo.label                       "Հայտնել գտնվելու վայրը">
+
+<!ENTITY plugins.label                   "Պլագիններ">
 
 <!-- LOCALIZATION NOTE (indexedDB.label): This is describing indexedDB storage
      using the same language used for the permIndexedDB string in browser/pageInfo.dtd -->

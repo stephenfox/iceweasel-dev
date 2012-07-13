@@ -58,21 +58,32 @@
 <!ENTITY wrapOutMsg.accesskey                 "A">
 <!ENTITY char.label                           "caracteres">
 
-<!ENTITY spellingHeader.label                 "Ortografía">
-<!ENTITY spellCheck.label                     "Revisar a ortografía antes do envío">
-<!ENTITY spellCheck.accesskey                 "R">
-<!ENTITY spellCheckInline.label               "Revisar ortografía mentres se escribe">
-<!ENTITY spellCheckInline.accesskey           "e">
-<!ENTITY languagePopup.label                  "Idioma:">
-<!ENTITY languagePopup.accessKey              "g">
-<!ENTITY moreDictionaries.label               "Descargar máis dicionarios…">
-
 <!ENTITY defaultMessagesHeader.label          "Valores predeterminados para as mensaxes HTML">
 <!ENTITY font.label                           "Tipo de letra:">
-<!ENTITY font.accesskey                       "T">
+<!ENTITY font.accesskey                       "l">
 <!ENTITY size.label                           "Tamaño:">
-<!ENTITY size.accesskey                       "T">
+<!ENTITY size.accesskey                       "m">
 <!ENTITY fontColor.label                      "Texto:">
 <!ENTITY fontColor.accesskey                  "T">
 <!ENTITY bgColor.label                        "Fondo:">
 <!ENTITY bgColor.accesskey                    "F">
+
+<!ENTITY selectHeaderType.label               "Seleccione o tipo de cabeceira da resposta:">
+<!ENTITY selectHeaderType.accesskey           "e">
+<!ENTITY noReplyOption.label                  "Ningunha cabeceira na resposta">
+<!-- LOCALIZATION NOTE (authorWroteOption.label): this is tied to the 
+  mailnews.reply_header_authorwrote preference. [Author] needs to be 
+  translated. -->
+<!ENTITY authorWroteOption.label              "[Author] escribiu:">
+<!-- LOCALIZATION NOTE (onDateAuthorWroteOption.label): this is tied to the 
+  combination of the mailnews.reply_header_ondate(On [date]), 
+  mailnews.reply_header_separator (a comma in this case) and 
+  mailnews.reply_header_authorwrote([Author] wrote) preferences. [date] and 
+  [Author] need to be translated, and the correct  separator put in. -->
+<!ENTITY onDateAuthorWroteOption.label        "O [date], [author] escribiu:">
+<!-- LOCALIZATION NOTE (authorWroteOnDateOption.label): this is tied to the 
+  combination of the mailnews.reply_header_authorwrote([Author] wrote), 
+  mailnews.reply_header_separator (a comma in this case), and 
+  mailnews.reply_header_ondate preferences(On [date]). [Author] and [date] 
+  need to be translated, and the correct separator put in. -->
+<!ENTITY authorWroteOnDateOption.label        "[Author] escribiu, o [date]:">
