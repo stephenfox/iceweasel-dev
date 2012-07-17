@@ -1,8 +1,22 @@
-iceweasel (14.0.1-1) UNRELEASED; urgency=low
+iceweasel (14.0.1-1) experimental; urgency=high
 
   * New upstream release.
+  * Fixes for mfsa2012-{42-56}, also known as
+    CVE-2012-1948, CVE-2012-1950, CVE-2012-1951, CVE-2012-1954,
+    CVE-2012-1953, CVE-2012-1952, CVE-2012-1966, CVE-2012-1955,
+    CVE-2012-1957, CVE-2012-1958, CVE-2012-1959, CVE-2012-1960,
+    CVE-2012-1961, CVE-2012-1962, CVE-2012-1963, CVE-2012-1964,
+    CVE-2012-1965, CVE-2012-1967.
+  * debian/rules: Remove packager fatal warnings.
+  * debian/xulrunner-GRE_VERSION.install.in: Don't install run-mozilla.sh and
+    xpcshell in usr/lib/xulrunner-x.y. They are in the SDK, now.
+  * debian/check_resources.py: Allow missing manifests when checking
+    resources.
 
- -- Mike Hommey <glandium@debian.org>  Tue, 17 Jul 2012 12:06:16 +0200
+  * browser/installer/package-manifest.in: Install URL classifier components
+    when MOZ_URL_CLASSIFIER is set. bz#762617.
+
+ -- Mike Hommey <glandium@debian.org>  Tue, 17 Jul 2012 12:13:48 +0200
 
 iceweasel (13.0.1-2) experimental; urgency=low
 
