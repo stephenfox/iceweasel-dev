@@ -139,6 +139,11 @@
 %undef L10N_RECOMMENDS
 %include iceweasel-l10n.control.in
 
+%define L10N_LANG ff
+%define L10N_LANGUAGE Fulah
+%undef L10N_RECOMMENDS
+%include iceweasel-l10n.control.in
+
 %define L10N_LANG fi
 %define L10N_LANGUAGE Finnish
 %define L10N_RECOMMENDS xul-ext-mozvoikko
@@ -305,7 +310,7 @@
 %include iceweasel-l10n.control.in
 
 %define L10N_LANG or
-%define L10N_LANGUAGE Oriya macrolanguage
+%define L10N_LANGUAGE Oriya
 %undef L10N_RECOMMENDS
 %include iceweasel-l10n.control.in
 

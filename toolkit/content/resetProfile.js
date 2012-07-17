@@ -6,23 +6,37 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 // based on onImportItemsPageShow from migration.js
 function onResetProfileLoad() {
+<<<<<<< HEAD
+#expand const MOZ_BUILD_APP = "__MOZ_BUILD_APP__";
+#expand const MOZ_APP_NAME = "__MOZ_APP_NAME__";
+
+  // From migration.properties
+  const MIGRATED_TYPES = [
+    "4_" + MOZ_APP_NAME + "_history_and_bookmarks",
+    "16_" + MOZ_APP_NAME, // Passwords
+    "8_" + MOZ_APP_NAME,  // Form History
+    "2_" + MOZ_APP_NAME,  // Cookies
+  ];
+=======
+  Components.utils.import("resource:///modules/MigrationUtils.jsm");
   const MAX_MIGRATED_TYPES = 16;
+>>>>>>> Bug 756390 - Make the "Reset Firefox" feature more generic
 
   var migratedItems = document.getElementById("migratedItems");
-  var bundle = Services.strings.createBundle("chrome://browser" +
-                                             "/locale/migration/migration.properties");
 
-  // Loop over possible data to migrate to give the user a list of what will be preserved. This
-  // assumes that if the string for the data exists then it will be migrated since calling
-  // getMigrateData now won't give the correct result.
-  for (var i = 1; i < MAX_MIGRATED_TYPES; ++i) {
-    var itemID = Math.pow(2, i);
+  // Loop over possible data to migrate to give the user a list of what will be preserved.
+  for (var itemStringName of MIGRATED_TYPES) {
     try {
       var checkbox = document.createElement("label");
-      checkbox.setAttribute("value", bundle.GetStringFromName(itemID + "_self"));
+<<<<<<< HEAD
+      checkbox.setAttribute("value", bundle.GetStringFromName(itemStringName));
+=======
+      checkbox.setAttribute("value", MigrationUtils.getLocalizedString(itemID + "_self"));
+>>>>>>> Bug 756390 - Make the "Reset Firefox" feature more generic
       migratedItems.appendChild(checkbox);
     } catch (x) {
-      // Catch exceptions when the string for a data type doesn't exist because it's not migrated
+      // Catch exceptions when the string for a data type doesn't exist.
+      Components.utils.reportError(x);
     }
   }
 }

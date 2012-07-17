@@ -11,10 +11,10 @@ Closes: #577677
  3 files changed, 24 insertions(+)
 
 diff --git a/xpcom/base/nscore.h b/xpcom/base/nscore.h
-index 1da7038..9858dbf 100644
+index 17043a9..4c2f5e6 100644
 --- a/xpcom/base/nscore.h
 +++ b/xpcom/base/nscore.h
-@@ -376,6 +376,28 @@ typedef PRUint32 nsrefcnt;
+@@ -377,6 +377,28 @@ typedef PRUint32 nsrefcnt;
    #define HAVE_CPP_2BYTE_WCHAR_T
  #endif
  
@@ -44,7 +44,7 @@ index 1da7038..9858dbf 100644
  #define __PRUNICHAR__
    /* For now, don't use wchar_t on Unix because it breaks the Netscape
 diff --git a/xpcom/glue/nsStringAPI.h b/xpcom/glue/nsStringAPI.h
-index d9202d7..9ec4266 100644
+index 02baf75..616ce8c 100644
 --- a/xpcom/glue/nsStringAPI.h
 +++ b/xpcom/glue/nsStringAPI.h
 @@ -1111,6 +1111,7 @@ private:

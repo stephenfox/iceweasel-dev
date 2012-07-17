@@ -5,9 +5,6 @@ fixes/Fix-some-tests-using-CurProcD-where-GreD-should-be-u.patch
 fixes/Bug-691898-Use-YARR-interpreter-instead-of-PCRE-on-p.patch
 fixes/Bug-720682-Don-t-crash-an-app-using-libxul-because-o.patch
 fixes/Load-dependent-libraries-with-their-real-path-to-avo.patch
-fixes/Revert-investigation-patch-for-bug-621446.patch
-fixes/Bug-747322-Fix-jemalloc-mmap-wrapper-for-s390x.patch
-fixes/Bug-734490-fix-build-failures-with-Clang-and-GCC-4.7.patch
 fixes/Bug-722975-Make-system-cairo-work-again.patch
 fixes/Bug-761082-Only-export-TabMessageUtils.h-in-mozilla-.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
@@ -30,7 +27,6 @@ prefs/Set-DPI-to-system-settings.patch
 prefs/Don-t-auto-disable-extensions-in-system-directories.patch
 debian-hacks/Check-less-things-during-configure-when-using-libxul.patch
 debian-hacks/Avoid-wrong-sessionstore-data-to-keep-windows-out-of.patch
-debian-hacks/Avoid-libxpcom-being-excluded-from-linked-libraries-.patch
 debian-hacks/Don-t-build-example-component.patch
 debian-hacks/Don-t-install-system-profile.patch
 debian-hacks/Ignore-system-libjpeg-libpng-and-zlib-version-checki.patch

@@ -49,10 +49,8 @@ PARALLEL_DIRS = \
   stub \
   $(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
-ifdef MOZ_INSTALLER
+ifdef MAKENSISU
 DIRS += installer/windows
-endif
 endif
 
 ifeq ($(OS_ARCH),WINNT)

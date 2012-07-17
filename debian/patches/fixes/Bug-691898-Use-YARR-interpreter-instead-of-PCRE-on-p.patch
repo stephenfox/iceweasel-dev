@@ -13,12 +13,12 @@ Subject: Bug 691898 - Use YARR interpreter instead of PCRE on platforms where
  6 files changed, 29 insertions(+), 116 deletions(-)
 
 diff --git a/js/src/Makefile.in b/js/src/Makefile.in
-index 5c38969..fb42912 100644
+index 2a84a85..fc11efb 100644
 --- a/js/src/Makefile.in
 +++ b/js/src/Makefile.in
-@@ -337,44 +337,19 @@ CPPSRCS += 	checks.cc \
- # END enclude sources for V8 dtoa
- #############################################
+@@ -320,44 +320,19 @@ endif
+ 
+ endif
  
 -# For architectures without YARR JIT, PCRE is faster than the YARR
 -# interpreter (bug 684559).
@@ -61,7 +61,7 @@ index 5c38969..fb42912 100644
  		YarrPattern.cpp \
  		YarrSyntaxChecker.cpp \
  		$(NONE)
-@@ -399,6 +374,19 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
+@@ -382,6 +357,19 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
             $(NONE)
  endif
  
@@ -81,7 +81,7 @@ index 5c38969..fb42912 100644
  ifeq (86, $(findstring 86,$(TARGET_CPU)))
  ifeq (x86_64, $(TARGET_CPU))
  #CPPSRCS		+= only_on_x86_64.cpp
-@@ -409,12 +397,13 @@ endif
+@@ -392,12 +380,13 @@ endif
  ifeq (arm, $(TARGET_CPU))
  #CPPSRCS		+= only_on_arm.cpp
  endif
@@ -98,10 +98,10 @@ index 5c38969..fb42912 100644
  VPATH += $(srcdir)/ctypes
  
 diff --git a/js/src/assembler/jit/ExecutableAllocator.h b/js/src/assembler/jit/ExecutableAllocator.h
-index 25cf491..52c4b9b 100644
+index 1242100..c071c33 100644
 --- a/js/src/assembler/jit/ExecutableAllocator.h
 +++ b/js/src/assembler/jit/ExecutableAllocator.h
-@@ -467,8 +467,6 @@ public:
+@@ -468,8 +468,6 @@ public:
      {
          sync_instruction_memory((caddr_t)code, size);
      }
@@ -131,10 +131,10 @@ index 12afce2..6ca34c5 100644
  inline bool
  RegExpToShared(JSContext *cx, JSObject &obj, RegExpGuard *g)
 diff --git a/js/src/vm/RegExpObject.cpp b/js/src/vm/RegExpObject.cpp
-index 0176308..3ffdbbc 100644
+index 08086a3..5de1c42 100644
 --- a/js/src/vm/RegExpObject.cpp
 +++ b/js/src/vm/RegExpObject.cpp
-@@ -167,7 +167,6 @@ MatchPairs::checkAgainst(size_t inputLength)
+@@ -168,7 +168,6 @@ MatchPairs::checkAgainst(size_t inputLength)
  
  /* detail::RegExpCode */
  
@@ -142,7 +142,7 @@ index 0176308..3ffdbbc 100644
  void
  RegExpCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
  {
-@@ -199,46 +198,9 @@ RegExpCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
+@@ -200,46 +199,9 @@ RegExpCode::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
      }
  }
  
@@ -189,7 +189,7 @@ index 0176308..3ffdbbc 100644
      /* Parse the pattern. */
      ErrorCode yarrError;
      YarrPattern yarrPattern(pattern, bool(flags & IgnoreCaseFlag), bool(flags & MultilineFlag),
-@@ -255,7 +217,7 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
+@@ -256,7 +218,7 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
       * case we have to bytecode compile it.
       */
  
@@ -198,7 +198,7 @@ index 0176308..3ffdbbc 100644
      if (isJITRuntimeEnabled(cx) && !yarrPattern.m_containsBackreferences) {
          JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecutableAllocator(cx);
          if (!execAlloc) {
-@@ -276,21 +238,11 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
+@@ -277,21 +239,11 @@ RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount
          return false;
      }
  
@@ -222,7 +222,7 @@ index 0176308..3ffdbbc 100644
  }
  
  RegExpRunStatus
-@@ -305,19 +257,12 @@ RegExpCode::execute(JSContext *cx, const jschar *chars, size_t length, size_t st
+@@ -306,19 +258,12 @@ RegExpCode::execute(JSContext *cx, const jschar *chars, size_t length, size_t st
      else
          result = JSC::Yarr::execute(codeBlock, chars, start, length, output);
  #else
@@ -244,10 +244,10 @@ index 0176308..3ffdbbc 100644
      return RegExpRunStatus_Success;
  }
 diff --git a/js/src/vm/RegExpObject.h b/js/src/vm/RegExpObject.h
-index ff888f0..2ad38f6 100644
+index 0691626..b1b33fc 100644
 --- a/js/src/vm/RegExpObject.h
 +++ b/js/src/vm/RegExpObject.h
-@@ -51,10 +51,8 @@
+@@ -52,10 +52,8 @@
  #include "yarr/Yarr.h"
  #if ENABLE_YARR_JIT
  #include "yarr/YarrJIT.h"
@@ -259,7 +259,7 @@ index ff888f0..2ad38f6 100644
  
  /*
   * JavaScript Regular Expressions
-@@ -112,68 +110,51 @@ namespace detail {
+@@ -113,68 +111,51 @@ namespace detail {
  
  class RegExpCode
  {

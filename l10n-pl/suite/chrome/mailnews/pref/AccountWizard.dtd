@@ -32,22 +32,10 @@
 <!ENTITY emailLabel.label "Adres e-mail:">
 <!ENTITY emailLabel.accesskey "E">
 
-<!-- Entities for Server page -->
+<!-- Entities for Incoming Server page -->
 
-<!ENTITY serverTitle.label "Informacje o serwerze">
+<!ENTITY incomingTitle.label "Informacje o serwerze poczty przychodzącej">
 <!ENTITY incomingServerTypeDesc.label "Wybierz typ serwera poczty przychodzącej:">
-<!-- LOCALIZATION NOTE (incomingServerNameDesc.label) : Do not translate "&quot;pop.example.net&quot;" in below line -->
-<!ENTITY incomingServerNameDesc.label "Wprowadź nazwę serwera poczty przychodzącej (na przykład: &quot;mail.example.net&quot;):">
-<!ENTITY incomingServerLabel.label "Serwer poczty przychodzącej:">
-<!ENTITY incomingServerLabel.accesskey "S">
-<!-- LOCALIZATION NOTE (newsServerNameDesc.label) : Do not translate "NNTP" or the "&quot;" entities in below line -->
-<!ENTITY newsServerNameDesc.label 'Podaj adres serwera grup dyskusyjnych (NNTP) (na przykład: "news.netscape.net"):'>
-<!-- LOCALIZATION NOTE (smtpServerDesc.label) : Do not translate "SMTP" and "&quot;smtp.example.net&quot;" in below line -->
-<!ENTITY smtpServerDesc.label "Wprowadź nazwę serwera poczty wychodzącej (na przykład: &quot;smtp.example.net&quot;):">
-<!ENTITY smtpServerLabel.label "Serwer poczty wychodzącej (SMTP):">
-<!ENTITY smtpServerLabel.accesskey "o">
-<!ENTITY newsServerLabel.label "Serwer grup dyskusyjnych:">
-<!ENTITY newsServerLabel.accesskey "n">
 <!-- LOCALIZATION NOTE (imapType.label) : Do not translate "IMAP" in below line -->
 <!ENTITY imapType.label "Serwer IMAP">
 <!ENTITY imapType.accesskey "I">
@@ -58,39 +46,54 @@
 <!ENTITY portNum.accesskey "t">
 <!ENTITY defaultPortLabel.label "Domyślny:">
 <!ENTITY defaultPortValue.label "">
+<!-- LOCALIZATION NOTE (incomingServerNameDesc.label) : Do not translate "&quot;pop.example.net&quot;" in below line -->
+<!ENTITY incomingServer.description "Wprowadź nazwę serwera poczty przychodzącej (na przykład: „mail.example.net”).">
+<!ENTITY incomingServer.label "Serwer poczty przychodzącej:">
+<!ENTITY incomingServer.accesskey "s">
 <!ENTITY leaveMsgsOnSrvr.label "Pozostaw wiadomości na serwerze">
 <!ENTITY leaveMsgsOnSrvr.accesskey "P">
+<!-- LOCALIZATION NOTE (incomingUsername.description) : do not translate "&quot;jsmith&quot;" in below line -->
+<!ENTITY incomingUsername.description "Wprowadź, podaną przez dostawcę poczty, nazwę użytkownika (na przykład: „jkowalski”).">
+<!ENTITY incomingUsername.label "Nazwa użytkownika:">
+<!ENTITY incomingUsername.accesskey "u">
+<!-- LOCALIZATION NOTE (newsServerNameDesc.label) : Do not translate "NNTP" or the "&quot;" entities in below line -->
+<!ENTITY newsServerNameDesc.label 'Podaj adres serwera grup dyskusyjnych (NNTP) (na przykład: "news.netscape.net"):'>
+<!ENTITY newsServerLabel.label "Serwer grup dyskusyjnych:">
+<!ENTITY newsServerLabel.accesskey "n">
 
-<!-- LOCALIZATION NOTE (haveSmtp1.prefix and haveSmtp1.suffix2) : Do not translate "SMTP" and "&quot;" in
-     these variables. Also, translate haveSmtp1.prefix and haveSmtp1.suffix2 as a single sentence, inserting
-     text after the "&quot;" entity in haveSmtp1.suffix2, if required grammatically.
+<!-- Entities for Outgoing Server page -->
+
+<!ENTITY outgoingTitle.label "Informacje o serwerze poczty wychodzącej">
+<!-- LOCALIZATION NOTE (outgoingServer.description) : Do not translate "SMTP" and "&quot;smtp.example.net&quot;" in below line -->
+<!ENTITY outgoingServer.description "Wprowadź nazwę serwera poczty wychodzącej (SMTP) (na przykład: „smtp.example.net”).">
+<!ENTITY outgoingServer.label "Serwer poczty wychodzącej:">
+<!ENTITY outgoingServer.accesskey "w">
+<!ENTITY outgoingUsername.description "Wprowadź, podaną przez dostawcę poczty, nazwę użytkownika dla serwera poczty wychodzącej (zazwyczaj taką samą, jak dla serwera poczty przychodzącej).">
+<!ENTITY outgoingUsername.label "Nazwa użytkownika poczty wychodzącej:">
+<!ENTITY outgoingUsername.accesskey "u">
+
+<!-- LOCALIZATION NOTE (modifyOutgoing.suffix) : This string will be appended after each of
+     haveSmtp1.suffix3, haveSmtp2.suffix3, haveSmtp3.suffix3 .
+-->
+<!ENTITY modifyOutgoing.suffix "Ustawienia serwera poczty wychodzącej można zmienić w Konfiguracji kont Kuriera Poczty.">
+<!-- LOCALIZATION NOTE (haveSmtp1.prefix and haveSmtp1.suffix3) : Do not translate "SMTP" and "&quot;" in
+     these variables. Also, translate haveSmtp1.prefix and haveSmtp1.suffix3 as a single sentence, inserting
+     text after the "&quot;" entity in haveSmtp1.suffix3, if required grammatically.
 -->
 <!ENTITY haveSmtp1.prefix "Zostanie użyty domyślny serwer poczty wychodzącej (SMTP) - &quot;">
-<!ENTITY haveSmtp1.suffix2 "&quot;. Ustawienia serwera poczty wychodzącej można zmieniać za pomocą opcji dostępnych w oknie konfiguracji kont.">
-
-<!-- Entities for Login page -->
-
-<!ENTITY loginTitle.label "Nazwa użytkownika">
-<!ENTITY usernameDesc.label "Wprowadź nazwę użytkownika, która zostanie użyta podczas połączenia z serwerem poczty przychodzącej">
-<!-- LOCALIZATION NOTE (usernameExample.label) : do not translate "&quot;jsmith&quot;" in below line -->
-<!ENTITY usernameExample.label '(na przykład: "michalw").'>
-<!ENTITY usernameLabel.label "Nazwa użytkownika:">
-<!ENTITY usernameLabel.accesskey "U">
-<!ENTITY usernameSmtpDesc.label "Wprowadź nazwę użytkownika podaną przez usługodawcę, która zostanie użyta podczas połączenia z serwerem poczty wychodzącej (ta nazwa jest zazwyczaj identyczna z nazwą użytkownika serwera poczty przychodzącej).">
-<!ENTITY usernameSmtpLabel.label "Nazwa użytkownika:">
-<!ENTITY usernameSmtpLabel.accesskey "o">
-<!-- LOCALIZATION NOTE (haveSmtp2.prefix and haveSmtp2.suffix2) : Do not translate "SMTP" and "&quot;" in
-     these variables. Also, translate haveSmtp2.prefix and haveSmtp2.suffix2 as a single sentence, inserting
-     text after the "&quot;" entity in haveSmtp2.suffix2, if required grammatically.
+<!ENTITY haveSmtp1.suffix3 "”.">
+<!-- LOCALIZATION NOTE (haveSmtp2.prefix and haveSmtp2.suffix3) : Do not translate "SMTP" and "&quot;" in
+     these variables. Also, translate haveSmtp2.prefix and haveSmtp2.suffix3 as a single sentence, inserting
+     text after the "&quot;" entity in haveSmtp2.suffix3, if required grammatically.
 -->
 <!ENTITY haveSmtp2.prefix "Do wysyłania wiadomości z tego konta zostanie użyta nazwa użytkownika domyślnego serwera poczty wychodzącej (SMTP) - &quot;">
-<!ENTITY haveSmtp2.suffix2 "&quot;. Nazwę użytkownika oraz inne ustawienia serwera poczty wychodzącej można zmieniać za pomocą opcji dostępnych w oknie konfiguracji kont.">
-<!-- LOCALIZATION NOTE (haveSmtp3.prefix and haveSmtp3.suffix2) : Do not translate "SMTP" and "&quot;" in
-     these variables. Also, translate haveSmtp3.prefix and haveSmtp3.suffix2 as a single sentence, inserting
-     text after the "&quot;" entity in haveSmtp3.suffix2, if required grammatically.
+<!ENTITY haveSmtp2.suffix3 "”.">
+<!-- LOCALIZATION NOTE (haveSmtp3.prefix and haveSmtp3.suffix3) : Do not translate "SMTP" and "&quot;" in
+     these variables. Also, translate haveSmtp3.prefix and haveSmtp3.suffix3 as a single sentence, inserting
+     text after the "&quot;" entity in haveSmtp3.suffix3, if required grammatically.
 -->
 <!ENTITY haveSmtp3.prefix "Wprowadzone nazwy serwerów poczty wychodzącej i przychodzącej są takie same: &quot;">
-<!ENTITY haveSmtp3.suffix2 "&quot;. Powyższa nazwa użytkownika będzie używana również podczas wysyłania wiadomości. Nazwę użytkownika oraz inne ustawienia serwera poczty wychodzącej można zmieniać za pomocą opcji dostępnych w oknie konfiguracji kont.">
+<!ENTITY haveSmtp3.suffix3 "”. Powyższa nazwa użytkownika będzie używana również podczas wysyłania wiadomości.">
 
 <!-- Entities for Account name page -->
 

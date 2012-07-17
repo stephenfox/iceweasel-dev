@@ -147,10 +147,10 @@ CPPSRCS		= \
 		jswatchpoint.cpp \
 		jsweakmap.cpp \
 		jswrapper.cpp \
-		jsxdrapi.cpp \
 		jsxml.cpp \
 		prmjtime.cpp \
 		sharkctl.cpp \
+		ArgumentsObject.cpp \
 		ScopeObject.cpp \
 		Debugger.cpp \
 		GlobalObject.cpp \
@@ -177,6 +177,7 @@ CPPSRCS		= \
 		Statistics.cpp \
 		StringBuffer.cpp \
 		Unicode.cpp \
+		Xdr.cpp \
 		$(NULL)
 
 # Changes to internal header files, used externally, massively slow down
@@ -189,6 +190,7 @@ INSTALLED_HEADERS = \
 		jsalloc.h \
 		jsapi.h \
 		jsatom.h \
+		jsatom.tbl \
 		jsclass.h \
 		jsclist.h \
 		jsdbgapi.h \
@@ -204,12 +206,10 @@ INSTALLED_HEADERS = \
 		jsproto.tbl \
 		jsprvtd.h \
 		jspubtd.h \
-		jstypedarray.h \
 		jstypes.h \
 		jsutil.h \
 		jsversion.h \
 		jswrapper.h \
-		jsxdrapi.h \
 		jsval.h \
 		$(NULL)
 
@@ -226,6 +226,7 @@ EXPORTS_ds = \
 EXPORTS_gc = \
 		Statistics.h \
 		Barrier.h \
+		Root.h \
 		$(NULL)
 
 ######################################################
@@ -256,8 +257,9 @@ EXPORTS_js = \
 ###############################################
 # BEGIN include sources for low-level code shared with mfbt
 #
-VPATH += $(srcdir)/../../mfbt
-include $(srcdir)/../../mfbt/exported_headers.mk
+MFBT_ROOT = $(srcdir)/../../mfbt
+VPATH += $(MFBT_ROOT)
+include $(MFBT_ROOT)/exported_headers.mk
 
 ifdef ENABLE_METHODJIT
 
@@ -318,25 +320,6 @@ endif
 #############################################
 
 endif
-
-###############################################
-# BEGIN include sources for V8 dtoa
-#
-VPATH += 	$(srcdir)/v8-dtoa \
-		$(NONE)
-
-CPPSRCS += 	checks.cc \
-		conversions.cc \
-		diy-fp.cc \
-		v8-dtoa.cc \
-		fast-dtoa.cc \
-		platform.cc \
-		utils.cc \
-		$(NONE)
-
-#
-# END enclude sources for V8 dtoa
-#############################################
 
 ###############################################
 # BEGIN include sources for the Nitro assembler
@@ -440,6 +423,8 @@ endif
 
 endif # JS_HAS_CTYPES
 
+LOCAL_INCLUDES += -I$(MFBT_ROOT)/double-conversion
+
 ifdef HAVE_DTRACE
 INSTALLED_HEADERS += \
 		$(CURDIR)/javascript-trace.h \
@@ -483,7 +468,7 @@ include $(topsrcdir)/config/config.mk
 ifeq (,$(MOZ_GLUE_PROGRAM_LDFLAGS))
 # When building standalone, we need to include mfbt sources, and to declare
 # "exported" mfbt symbols on its behalf when we use its headers.
-include $(srcdir)/../../mfbt/sources.mk
+include $(MFBT_ROOT)/sources.mk
 DEFINES += -DIMPL_MFBT
 endif
 

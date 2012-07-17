@@ -45,7 +45,7 @@
 <!ENTITY asAttachment.accesskey "a">
 
 <!ENTITY replyQuoteInline.label "Podczas komponowania odpowiedzi cytuj załączniki pokazane w treści wiadomości">
-<!ENTITY replyQuoteInline.accesskey "c">
+<!ENTITY replyQuoteInline.accesskey "d">
 <!ENTITY warnOnSendAccelKey.label "Wymagaj potwierdzenia, gdy do wysłania wiadomości użyty został skrót klawiaturowy">
 <!ENTITY warnOnSendAccelKey.accesskey "C">
 <!-- LOCALIZATION NOTE (autoSave.label): This will concatenate with
@@ -58,21 +58,32 @@
 <!ENTITY wrapOutMsg.accesskey "w">
 <!ENTITY char.label "znaków">
 
-<!ENTITY spellingHeader.label "Pisownia">
-<!ENTITY spellCheck.label "Sprawdź pisownię przed wysłaniem wiadomości">
-<!ENTITY spellCheck.accesskey "S">
-<!ENTITY spellCheckInline.label "Sprawdzaj pisownię w trakcie tworzenia wiadomości">
-<!ENTITY spellCheckInline.accesskey "e">
-<!ENTITY languagePopup.label "Słownik:">
-<!ENTITY languagePopup.accessKey "S">
-<!ENTITY moreDictionaries.label "Pobierz więcej słowników…">
-
 <!ENTITY defaultMessagesHeader.label "Domyślne ustawienia wiadomości HTML">
 <!ENTITY font.label "Czcionka:">
 <!ENTITY font.accesskey "n">
 <!ENTITY size.label "Rozmiar:">
 <!ENTITY size.accesskey "R">
 <!ENTITY fontColor.label "Tekst:">
-<!ENTITY fontColor.accesskey "T">
+<!ENTITY fontColor.accesskey "s">
 <!ENTITY bgColor.label "Tło:">
 <!ENTITY bgColor.accesskey "T">
+
+<!ENTITY selectHeaderType.label "Wybierz typ nagłówka odpowiedzi:">
+<!ENTITY selectHeaderType.accesskey "y">
+<!ENTITY noReplyOption.label "Brak nagłówka odpowiedzi">
+<!-- LOCALIZATION NOTE (authorWroteOption.label): this is tied to the 
+  mailnews.reply_header_authorwrote preference. [Author] needs to be 
+  translated. -->
+<!ENTITY authorWroteOption.label "[Użytkownik] napisał:">
+<!-- LOCALIZATION NOTE (onDateAuthorWroteOption.label): this is tied to the 
+  combination of the mailnews.reply_header_ondate(On [date]), 
+  mailnews.reply_header_separator (a comma in this case) and 
+  mailnews.reply_header_authorwrote([Author] wrote) preferences. [date] and 
+  [Author] need to be translated, and the correct  separator put in. -->
+<!ENTITY onDateAuthorWroteOption.label "[Dnia] [użytkownik] napisał:">
+<!-- LOCALIZATION NOTE (authorWroteOnDateOption.label): this is tied to the 
+  combination of the mailnews.reply_header_authorwrote([Author] wrote), 
+  mailnews.reply_header_separator (a comma in this case), and 
+  mailnews.reply_header_ondate preferences(On [date]). [Author] and [date] 
+  need to be translated, and the correct separator put in. -->
+<!ENTITY authorWroteOnDateOption.label "[Użytkownik] napisał [dnia]:">

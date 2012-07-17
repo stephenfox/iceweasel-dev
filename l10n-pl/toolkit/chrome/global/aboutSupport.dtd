@@ -17,7 +17,12 @@
 <!ENTITY aboutSupport.appBasicsTitle "Informacje o aplikacji">
 <!ENTITY aboutSupport.appBasicsName "Nazwa">
 <!ENTITY aboutSupport.appBasicsVersion "Wersja">
-<!ENTITY aboutSupport.appBasicsProfileDir "Folder profilu">
+<!ENTITY aboutSupport.appBasicsProfileDir "Katalog profilu">
+<!-- LOCALIZATION NOTE (aboutSupport.appBasicsProfileDirWinMac):
+This is the Windows- and Mac-specific variant of aboutSupport.appBasicsProfileDir.
+Windows/Mac use the term "Folder" instead of "Directory" -->
+<!ENTITY aboutSupport.appBasicsProfileDirWinMac "Folder profilu">
+
 <!ENTITY aboutSupport.appBasicsEnabledPlugins "Włączone wtyczki">
 
 <!ENTITY aboutSupport.appBasicsBuildConfig "Konfiguracja kompilacji">
@@ -40,6 +45,10 @@ variant of aboutSupport.showDir.label. -->
 <!ENTITY aboutSupport.modifiedPrefsValue "Wartość">
 
 <!ENTITY aboutSupport.graphicsTitle "Grafika">
+<!ENTITY aboutSupport.jsTitle "JavaScript">
+<!ENTITY aboutSupport.jsIncrementalGC "Przyrostowy GC">
+
+<!ENTITY aboutSupport.libraryVersionsTitle "Wersje bibliotek">
 
 <!ENTITY aboutSupport.installationHistoryTitle "Historia instalacji">
 <!ENTITY aboutSupport.updateHistoryTitle "Historia aktualizacji">

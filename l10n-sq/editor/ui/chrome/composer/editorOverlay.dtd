@@ -37,15 +37,10 @@
 <!ENTITY insertHTMLCmd.accesskey "H">
 <!ENTITY insertCharsCmd.label "Shenja dhe Simbole…">
 <!ENTITY insertCharsCmd.accesskey "S">
-<!ENTITY insertBreakAllCmd.label "Ndërprerje Nën Figurë(at)">
+<!ENTITY insertBreakAllCmd.label "Ndërprerje Nën Figurë">
 <!ENTITY insertBreakAllCmd.accesskey "N">
 
 <!-- Used just in context popup. -->
-<!ENTITY spellCheckNoSuggestions.label "(Nuk u Gjetën Këshillime)">
-<!ENTITY spellCheckIgnoreWord.label "Shpërfille Fjalën">
-<!ENTITY spellCheckIgnoreWord.accesskey "S">
-<!ENTITY spellCheckAddToDictionary.label "Shtoje në Fjalor">
-<!ENTITY spellCheckAddToDictionary.accesskey "t">
 <!ENTITY createLinkCmd.label "Krijoni Lidhje…">
 <!ENTITY createLinkCmd.accesskey "K">
 <!ENTITY editLinkCmd.label "Përpunojeni Lidhjen në Hartues të Ri">

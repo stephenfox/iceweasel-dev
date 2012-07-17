@@ -110,10 +110,10 @@ index 20d62e1..deb1bfe 100644
  #if 0   /* crashing on android device */
                  fSampleProc16 = SI8_D16_nofilter_DX_arm;
 diff --git a/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp b/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp
-index 722a036..d728649 100644
+index 7e15df5..a2a43f8 100644
 --- a/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp
 +++ b/gfx/skia/src/opts/SkBlitRow_opts_arm.cpp
-@@ -671,8 +671,13 @@ static void __attribute((noinline,optimize("-fomit-frame-pointer"))) S32A_Blend_
+@@ -674,8 +674,13 @@ static void __attribute((noinline,optimize("-fomit-frame-pointer"))) S32A_Blend_
                    /* dst1_scale and dst2_scale*/
                    "lsr    r9, r5, #24                \n\t" /* src >> 24 */
                    "lsr    r10, r6, #24               \n\t" /* src >> 24 */
@@ -127,7 +127,7 @@ index 722a036..d728649 100644
                    "lsr    r9, r9, #8                 \n\t" /* r9 >> 8 */
                    "lsr    r10, r10, #8               \n\t" /* r10 >> 8 */
                    "rsb    r9, r9, #256               \n\t" /* dst1_scale = r9 = 255 - r9 + 1 */
-@@ -741,7 +746,11 @@ static void __attribute((noinline,optimize("-fomit-frame-pointer"))) S32A_Blend_
+@@ -744,7 +749,11 @@ static void __attribute((noinline,optimize("-fomit-frame-pointer"))) S32A_Blend_
  
                    "lsr    r6, r5, #24                \n\t" /* src >> 24 */
                    "and    r8, r12, r5, lsr #8        \n\t" /* ag = r8 = r5 masked by r12 lsr by #8 */

@@ -49,19 +49,19 @@
 <!ENTITY cutCmd.key                   "X">
 <!ENTITY cutCmd.accesskey             "И">
 
-<!ENTITY copyCmd.label                "Умножи">
+<!ENTITY copyCmd.label                "Копирај">
 <!ENTITY copyCmd.key                  "C">
-<!ENTITY copyCmd.accesskey            "У">
+<!ENTITY copyCmd.accesskey            "К">
 
 <!ENTITY pasteCmd.label               "Убаци">
 <!ENTITY pasteCmd.key                 "V">
 <!ENTITY pasteCmd.accesskey           "У">
 
 <!ENTITY selectAllCmd.label           "Изабери све">
-<!ENTITY selectAllCmd.key             "А">
+<!ENTITY selectAllCmd.key             "A">
 <!ENTITY selectAllCmd.accesskey       "И">
 
-<!ENTITY run.label                    "Покрену">
+<!ENTITY run.label                    "Покрени">
 <!ENTITY run.accesskey                "П">
 <!ENTITY run.key                      "r">
 
@@ -69,7 +69,7 @@
 <!ENTITY inspect.accesskey            "И">
 <!ENTITY inspect.key                  "i">
 
-<!ENTITY display.label                "Приказ">
+<!ENTITY display.label                "Прикажи">
 <!ENTITY display.accesskey            "П">
 <!ENTITY display.key                  "l">
 
@@ -98,13 +98,13 @@
 <!-- LOCALIZATION NOTE (resetContext.label): This command allows the developer
   -  to reset/clear the global object of the environment where the code executes.
   -->
-<!ENTITY resetContext.label           "Врати">
-<!ENTITY resetContext.accesskey       "В">
+<!ENTITY resetContext.label           "Ресет">
+<!ENTITY resetContext.accesskey       "Р">
 
 <!ENTITY executeMenu.label            "Изврши">
 <!ENTITY executeMenu.accesskey        "И">
 
-<!ENTITY toolsMenu.label              "Алати">
+<!ENTITY toolsMenu.label              "Алатке">
 <!ENTITY toolsMenu.accesskey          "А">
 
 <!ENTITY errorConsoleCmd.label        "Конзола за грешке">

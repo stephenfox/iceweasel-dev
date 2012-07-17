@@ -5,11 +5,11 @@ Subject: Modify search plugins depending on MOZ_APP_NAME
 ---
  browser/locales/Makefile.in                     |    1 +
  browser/locales/en-US/searchplugins/answers.xml |    2 +-
- browser/locales/en-US/searchplugins/google.xml  |    9 +++++++++
- 3 files changed, 11 insertions(+), 1 deletion(-)
+ browser/locales/en-US/searchplugins/google.xml  |    5 +++++
+ 3 files changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
-index 9e89da6..45b158d 100644
+index 340bb5f..dd0761f 100644
 --- a/browser/locales/Makefile.in
 +++ b/browser/locales/Makefile.in
 @@ -167,6 +167,7 @@ libs:: $(addsuffix .xml,$(SEARCH_PLUGINS))
@@ -33,7 +33,7 @@ index ea32303..2da83aa 100644
  <SearchForm>http://www.answers.com/</SearchForm>
  </SearchPlugin>
 diff --git a/browser/locales/en-US/searchplugins/google.xml b/browser/locales/en-US/searchplugins/google.xml
-index 7c9ff19..6ac6b69 100644
+index 1ccd459..b87c867 100644
 --- a/browser/locales/en-US/searchplugins/google.xml
 +++ b/browser/locales/en-US/searchplugins/google.xml
 @@ -1,4 +1,6 @@
@@ -43,7 +43,7 @@ index 7c9ff19..6ac6b69 100644
  #if MOZ_UPDATE_CHANNEL == beta
  #define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="firefox-beta" falseValue="firefox"/>
  #elif MOZ_UPDATE_CHANNEL == aurora
-@@ -8,12 +10,19 @@
+@@ -8,6 +10,9 @@
  #else
  #define GOOGLE_CLIENT_PARAM <MozParam name="client" condition="defaultEngine" trueValue="firefox-a" falseValue="firefox"/>
  #endif
@@ -53,13 +53,3 @@ index 7c9ff19..6ac6b69 100644
  <SearchPlugin xmlns="http://www.mozilla.org/2006/browser/search/">
  <ShortName>Google</ShortName>
  <Description>Google Search</Description>
- <InputEncoding>UTF-8</InputEncoding>
- <Image width="16" height="16" type="image/x-icon">http://www.google.com/favicon.ico</Image>
-+#if MOZ_APP_NAME==firefox
- <Url type="application/x-suggestions+json" method="GET" template="http://suggestqueries.google.com/complete/search?output=firefox&amp;client=firefox&amp;hl={moz:locale}&amp;q={searchTerms}"/>
-+#else
-+<Url type="application/x-suggestions+json" method="GET" template="http://suggestqueries.google.com/complete/search?output=firefox&amp;hl={moz:locale}&amp;q={searchTerms}"/>
-+#endif
- <Url type="text/html" method="GET" template="http://www.google.com/search">
- #expand   __GOOGLE_PARAMS__
- #expand   __GOOGLE_CLIENT_PARAM__

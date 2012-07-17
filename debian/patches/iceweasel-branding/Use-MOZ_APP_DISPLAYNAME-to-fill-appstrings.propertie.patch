@@ -8,7 +8,7 @@ Subject: Use MOZ_APP_DISPLAYNAME to fill appstrings.properties
  2 files changed, 12 insertions(+), 10 deletions(-)
 
 diff --git a/browser/locales/Makefile.in b/browser/locales/Makefile.in
-index aea19d4..9e89da6 100644
+index c5a09d2..340bb5f 100644
 --- a/browser/locales/Makefile.in
 +++ b/browser/locales/Makefile.in
 @@ -69,6 +69,8 @@ SUBMAKEFILES += \

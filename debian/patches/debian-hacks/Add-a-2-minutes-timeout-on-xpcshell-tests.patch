@@ -7,7 +7,7 @@ Subject: Add a 2 minutes timeout on xpcshell tests
  1 file changed, 16 insertions(+), 2 deletions(-)
 
 diff --git a/testing/xpcshell/runxpcshelltests.py b/testing/xpcshell/runxpcshelltests.py
-index 114807e..d47dae8 100644
+index a207767..b79ee4d 100644
 --- a/testing/xpcshell/runxpcshelltests.py
 +++ b/testing/xpcshell/runxpcshelltests.py
 @@ -38,7 +38,7 @@
@@ -19,7 +19,7 @@ index 114807e..d47dae8 100644
  import xml.dom.minidom
  from glob import glob
  from optparse import OptionParser
-@@ -663,7 +663,21 @@ class XPCShellTests(object):
+@@ -677,7 +677,21 @@ class XPCShellTests(object):
          # - don't move this line above launchProcess, or child will inherit the SIG_IGN
          signal.signal(signal.SIGINT, markGotSIGINT)
          # |stderr == None| as |pStderr| was either |None| or redirected to |stdout|.

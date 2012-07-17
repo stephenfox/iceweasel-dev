@@ -11,12 +11,12 @@ Subject: Determine which phishing shavar to use depending on
  4 files changed, 16 insertions(+)
 
 diff --git a/browser/app/Makefile.in b/browser/app/Makefile.in
-index 954c71f..31a4d10 100644
+index 33728ad..b9be2ef 100644
 --- a/browser/app/Makefile.in
 +++ b/browser/app/Makefile.in
-@@ -159,6 +159,10 @@ endif
+@@ -161,6 +161,10 @@ endif
  
- endif # LIBXUL_SDK
+ endif #} LIBXUL_SDK
  
 +ifdef MOZ_OFFICIAL_BRANDING
 +DEFINES += -DMOZ_OFFICIAL_BRANDING
@@ -26,10 +26,10 @@ index 954c71f..31a4d10 100644
  libs::
  	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(DIST)/bin/icons
 diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
-index 59ed9bd9..53256e9 100644
+index 6ef79ef..e00195a 100644
 --- a/browser/app/profile/firefox.js
 +++ b/browser/app/profile/firefox.js
-@@ -755,7 +755,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
+@@ -777,7 +777,11 @@ pref("urlclassifier.alternate_error_page", "blocked");
  pref("urlclassifier.gethashnoise", 4);
  
  // The list of tables that use the gethash request to confirm partial results.

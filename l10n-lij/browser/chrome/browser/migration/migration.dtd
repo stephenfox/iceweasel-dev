@@ -15,19 +15,18 @@
 <!ENTITY importFromChrome.accesskey     "C">
 <!ENTITY importFromFirefox.label        "Firefox">
 <!ENTITY importFromFirefox.accesskey    "X">
-<!ENTITY importFromHTMLFile.label       "Da un file HTML">
-<!ENTITY importFromHTMLFile.accesskey   "f">
+
 
 <!ENTITY noMigrationSources.label       "Nisciùnn-a aplicaçión che a contegne di segnalìbbri, stöia ò paròlle segrétte peu êse trovâ.">
 
 <!ENTITY importSource.title             "Inportaçión de preferénse e dæti">
 <!ENTITY importItems.title              "Ògétti da inportâ">
-<!ENTITY importItems.label              "Seleçionn-a i ògétti da inportâ:">
+<!ENTITY importItems.label              "Seleçiónn-a i ògétti da inportâ:">
 
 <!ENTITY migrating.title                "Inpòrto…">
 <!ENTITY migrating.label                "Sti ògétti son li pe êse inportæ…">
 
-<!ENTITY selectProfile.title            "Seleçionn-a profî">
+<!ENTITY selectProfile.title            "Seleçiónn-a profî">
 <!ENTITY selectProfile.label            "Sti profî se peuan inportâ da:">
 
 <!ENTITY done.title                     "Inportaçión terminâ">

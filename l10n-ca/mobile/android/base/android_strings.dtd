@@ -21,7 +21,7 @@
 <!ENTITY  exit_label "Surt">
 <!ENTITY  continue_label "Continua">
 
-<!ENTITY  launcher_shortcuts_title "&brandShortName; Aplicacions web">
+<!ENTITY  launcher_shortcuts_title "Aplicacions web del &brandShortName;">
 <!ENTITY  launcher_shortcuts_empty "No s\'ha trobat cap aplicació Web">
 
 <!ENTITY choose_file "Trieu un fitxer">
@@ -50,7 +50,7 @@
 <!ENTITY settings "Opcions">
 <!ENTITY settings_title "Opcions">
 <!ENTITY pref_category_general "General">
-<!ENTITY pref_category_privacy "Privacitat i seguretat">
+<!ENTITY pref_category_privacy "Privadesa i seguretat">
 <!ENTITY pref_category_content "Contingut">
 <!ENTITY pref_about_firefox "Quant al &brandShortName;">
 <!ENTITY pref_do_not_track "Indica que no em segueixin">
@@ -66,7 +66,7 @@
 <!ENTITY pref_clear_private_data_confirm "Es suprimiran les opcions de navegació incloses les contrasenyes i les galetes.">
 <!ENTITY pref_plugins "Connectors">
 <!ENTITY pref_plugins_enabled "Habilitat">
-<!ENTITY pref_plugins_tap_to_play "Toqueu-ho per engegar">
+<!ENTITY pref_plugins_tap_to_play "Toqueu per engegar">
 <!ENTITY pref_plugins_disabled "Inhabilitat">
 <!ENTITY pref_text_size "Mida de la lletra">
 <!ENTITY pref_font_size_tiny "Molt petita">

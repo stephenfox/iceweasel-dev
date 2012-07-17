@@ -57,6 +57,7 @@
 #include "nsIApplicationCacheService.h"
 #include "nsIOfflineCacheUpdate.h"
 #include "nsIRedirectChannelRegistrar.h"
+#include "prinit.h"
 
 namespace mozilla {
 namespace net {
@@ -66,6 +67,9 @@ HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
   , mStoredStatus(0)
   , mStoredProgress(0)
   , mStoredProgressMax(0)
+  , mSentRedirect1Begin(false)
+  , mSentRedirect1BeginFailed(false)
+  , mReceivedRedirect2Verify(false)
 {
   // Ensure gHttpHandler is initialized: we need the atom table up and running.
   nsIHttpProtocolHandler* handler;
@@ -327,6 +331,16 @@ HttpChannelParent::RecvUpdateAssociatedContentSecurity(const PRInt32& high,
   return true;
 }
 
+// Bug 621446 investigation, we don't want conditional PR_Aborts below to be
+// merged to a single address.
+#ifdef _MSC_VER
+#pragma warning(disable : 4068)
+#endif
+#ifdef ANDROID
+// Compiling this with GCC <= 4.4 fails with an internal compiler error
+#pragma GCC optimize ("O0")
+#endif
+
 bool
 HttpChannelParent::RecvRedirect2Verify(const nsresult& result, 
                                        const RequestHeaderTuples& changedHeaders)
@@ -344,10 +358,29 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
     }
   }
 
+  if (!mRedirectCallback) {
+    // Bug 621446 investigation (optimization turned off above)
+    if (mReceivedRedirect2Verify)
+      NS_RUNTIMEABORT("Duplicate fire");
+    if (mSentRedirect1BeginFailed)
+      NS_RUNTIMEABORT("Send to child failed");
+    if (mSentRedirect1Begin && NS_FAILED(result))
+      NS_RUNTIMEABORT("Redirect failed");
+    if (mSentRedirect1Begin && NS_SUCCEEDED(result))
+      NS_RUNTIMEABORT("Redirect succeeded");
+    if (!mRedirectChannel)
+      NS_RUNTIMEABORT("Missing redirect channel");
+  }
+
+  mReceivedRedirect2Verify = true;
+
   mRedirectCallback->OnRedirectVerifyCallback(result);
   mRedirectCallback = nsnull;
   return true;
 }
+
+// Bug 621446 investigation
+#pragma GCC reset_options
 
 bool
 HttpChannelParent::RecvDocumentChannelCleanup()
@@ -560,8 +593,14 @@ HttpChannelParent::StartRedirect(PRUint32 newChannelId,
                                    redirectFlags,
                                    responseHead ? *responseHead
                                                 : nsHttpResponseHead());
-  if (!result)
+  if (!result) {
+    // Bug 621446 investigation
+    mSentRedirect1BeginFailed = true;
     return NS_BINDING_ABORTED;
+  }
+
+  // Bug 621446 investigation
+  mSentRedirect1Begin = true;
 
   // Result is handled in RecvRedirect2Verify above
 

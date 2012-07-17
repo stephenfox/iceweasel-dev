@@ -65,6 +65,9 @@ void PlatformThread::Sleep(int duration_ms) {
     sleep_time = remaining;
 }
 
+#ifndef OS_MACOSX
+// Mac is implemented in platform_thread_mac.mm.
+
 // static
 void PlatformThread::SetName(const char* name) {
   // The POSIX standard does not provide for naming threads, and neither Linux
@@ -74,6 +77,7 @@ void PlatformThread::SetName(const char* name) {
   // TODO(darin): decide whether stuffing the name in TLS or other in-memory
   // structure would be useful for debugging or not.
 }
+#endif // !OS_MACOSX
 
 namespace {
 

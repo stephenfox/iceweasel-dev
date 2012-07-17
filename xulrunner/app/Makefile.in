@@ -65,6 +65,8 @@ ifdef TARGET_XPCOM_ABI
 DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
 endif
 
+DEFINES += -DXPCOM_GLUE
+STL_FLAGS=
 
 CPPSRCS = nsXULRunnerApp.cpp
 
@@ -72,6 +74,7 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/toolkit/xre \
   -I$(topsrcdir)/toolkit/profile \
   -I$(topsrcdir)/xpcom/base \
+  -I$(topsrcdir)/xpcom/build \
   $(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
@@ -80,11 +83,7 @@ endif
 
 LIBS += \
   $(EXTRA_DSO_LIBS) \
-  $(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
-  -Wl,--no-as-needed \
-  $(XPCOM_LIBS) \
-  -Wl,--as-needed \
-  $(NSPR_LIBS) \
+  $(XPCOM_STANDALONE_GLUE_LDOPTS) \
   $(NULL)
 
 ifndef MOZ_WINCONSOLE
@@ -228,7 +227,7 @@ clean clobber::
 	rm -rf $(DIST)/$(FRAMEWORK_NAME).framework
 endif
 
-README_FILE = $(topsrcdir)/README.txt
+README_FILE = $(srcdir)/../README.xulrunner
 
 libs::
 	$(INSTALL) $(IFLAGS1) $(README_FILE) $(DIST)/bin

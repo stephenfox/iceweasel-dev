@@ -7,10 +7,10 @@ Subject: Don't hardcode page size on ia64 or sparc
  1 file changed, 2 insertions(+)
 
 diff --git a/memory/jemalloc/jemalloc.c b/memory/jemalloc/jemalloc.c
-index 22dd22d..6c77cb2 100644
+index d175864..1e67b05 100644
 --- a/memory/jemalloc/jemalloc.c
 +++ b/memory/jemalloc/jemalloc.c
-@@ -1089,7 +1089,9 @@ static unsigned		ncpus;
+@@ -1091,7 +1091,9 @@ static unsigned		ncpus;
   * controlling the malloc behavior are defined as compile-time constants
   * for best performance and cannot be altered at runtime.
   */

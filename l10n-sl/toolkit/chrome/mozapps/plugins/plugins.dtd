@@ -21,8 +21,10 @@
 <!ENTITY pluginWizard.finalPage.restart.label "&brandShortName; morate ponovno zagnati, preden bodo novi vstavki začeli delovati.">
   
 <!ENTITY missingPlugin "Za prikaz te vsebine je potreben vstavek.">
-<!ENTITY clickToPlayPlugin                                   "Klikni za vklop vstavka.">
-<!ENTITY disabledPlugin                               "Ta vstavek je onemogočen.">
+<!-- LOCALIZATION NOTE (tapToPlayPlugin): Mobile (used for touch interfaces) only has one type of plugin possible. -->
+<!ENTITY tapToPlayPlugin                                     "Dotakni se za vklop vstavka.">
+<!ENTITY clickToPlayPlugins                                  "Klikni za vklop vstavkov.">
+<!ENTITY disabledPlugin                                      "Ta vstavek je onemogočen.">
 <!ENTITY blockedPlugin.label                                 "Ta vstavek je bil zavrnjen iz varnostnih razlogov.">
 
 <!ENTITY installPlugin                                       "Namesti vstavek …">

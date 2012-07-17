@@ -76,6 +76,6 @@ you can use these alternative items. Otherwise, their values should be empty.  -
 <!ENTITY goForwardCmd.commandKey "]">
 
 <!ENTITY copyLinkCmd.label "Copia la ubicació de l'enllaç">
-<!ENTITY copyLinkCmd.accesskey "L">
+<!ENTITY copyLinkCmd.accesskey "l">
 <!ENTITY copyEmailCmd.label "Copia l'adreça de correu electrònic">
-<!ENTITY copyEmailCmd.accesskey "E">
+<!ENTITY copyEmailCmd.accesskey "e">
