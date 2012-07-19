@@ -1,3 +1,11 @@
+iceweasel (14.0.1-2) experimental; urgency=low
+
+  * mfbt/double-conversion/utils.h: Declare double conversion correctness for
+    more architectures. bz#750620. Should fix FTBFSes on most (all?) Debian
+    architecures.
+
+ -- Mike Hommey <glandium@debian.org>  Thu, 19 Jul 2012 08:03:16 +0200
+
 iceweasel (14.0.1-1) experimental; urgency=high
 
   * New upstream release.
