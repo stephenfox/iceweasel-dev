@@ -1,0 +1,22 @@
+From: Mike Hommey <mh@glandium.org>
+Date: Thu, 7 Jun 2012 21:02:11 +0200
+Subject: Bug 762617 - Install URL classifier components when
+ MOZ_URL_CLASSIFIER is set
+
+---
+ browser/installer/package-manifest.in |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/browser/installer/package-manifest.in b/browser/installer/package-manifest.in
+index 683089d..98f093a 100644
+--- a/browser/installer/package-manifest.in
++++ b/browser/installer/package-manifest.in
+@@ -448,6 +448,8 @@
+ #ifdef MOZ_SAFE_BROWSING
+ @BINPATH@/components/nsSafebrowsingApplication.manifest
+ @BINPATH@/components/nsSafebrowsingApplication.js
++#endif
++#ifdef MOZ_URL_CLASSIFIER
+ @BINPATH@/components/nsURLClassifier.manifest
+ @BINPATH@/components/nsUrlClassifierHashCompleter.js
+ @BINPATH@/components/nsUrlClassifierListManager.js

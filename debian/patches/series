@@ -7,6 +7,7 @@ fixes/Bug-720682-Don-t-crash-an-app-using-libxul-because-o.patch
 fixes/Load-dependent-libraries-with-their-real-path-to-avo.patch
 fixes/Bug-722975-Make-system-cairo-work-again.patch
 fixes/Bug-761082-Only-export-TabMessageUtils.h-in-mozilla-.patch
+fixes/Bug-762617-Install-URL-classifier-components-when-MO.patch
 iceweasel-branding/Use-MOZ_APP_DISPLAYNAME-to-fill-appstrings.propertie.patch
 iceweasel-branding/Modify-search-plugins-depending-on-MOZ_APP_NAME.patch
 iceweasel-branding/Determine-which-phishing-shavar-to-use-depending-on-.patch
