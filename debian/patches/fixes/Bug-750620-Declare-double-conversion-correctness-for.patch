@@ -1,0 +1,70 @@
+From: Mike Hommey <mh+mozilla@glandium.org>
+Date: Tue, 22 May 2012 08:38:44 +0200
+Subject: Bug 750620 - Declare double conversion correctness for more
+ architectures. r=nfroyd
+
+---
+ mfbt/double-conversion/more-architectures.patch |   26 +++++++++++++++++++++++
+ mfbt/double-conversion/update.sh                |    1 +
+ mfbt/double-conversion/utils.h                  |    6 +++++-
+ 3 files changed, 32 insertions(+), 1 deletion(-)
+ create mode 100644 mfbt/double-conversion/more-architectures.patch
+
+diff --git a/mfbt/double-conversion/more-architectures.patch b/mfbt/double-conversion/more-architectures.patch
+new file mode 100644
+index 0000000..9a7a82f
+--- /dev/null
++++ b/mfbt/double-conversion/more-architectures.patch
+@@ -0,0 +1,26 @@
++diff --git a/mfbt/double-conversion/utils.h b/mfbt/double-conversion/utils.h
++--- a/mfbt/double-conversion/utils.h
+++++ b/mfbt/double-conversion/utils.h
++@@ -48,17 +48,21 @@
++ // An easy way to test if the floating-point operations are correct is to
++ // evaluate: 89255.0/1e22. If the floating-point stack is 64 bits wide then
++ // the result is equal to 89255e-22.
++ // The best way to test this, is to create a division-function and to compare
++ // the output of the division with the expected result. (Inlining must be
++ // disabled.)
++ // On Linux,x86 89255e-22 != Div_double(89255.0/1e22)
++ #if defined(_M_X64) || defined(__x86_64__) || \
++-    defined(__ARMEL__) || \
+++    defined(__ARMEL__) || defined(__avr32__) || \
+++    defined(__hppa__) || defined(__ia64__) || \
+++    defined(__mips__) || defined(__powerpc__) || \
+++    defined(__sparc__) || defined(__s390__) || \
+++    defined(__SH4__) || defined(__alpha__) || \
++     defined(_MIPS_ARCH_MIPS32R2)
++ #define DOUBLE_CONVERSION_CORRECT_DOUBLE_OPERATIONS 1
++ #elif defined(_M_IX86) || defined(__i386__)
++ #if defined(_WIN32)
++ // Windows uses a 64bit wide floating point stack.
++ #define DOUBLE_CONVERSION_CORRECT_DOUBLE_OPERATIONS 1
++ #else
++ #undef DOUBLE_CONVERSION_CORRECT_DOUBLE_OPERATIONS
+diff --git a/mfbt/double-conversion/update.sh b/mfbt/double-conversion/update.sh
+index 5f56df9..270fa96 100755
+--- a/mfbt/double-conversion/update.sh
++++ b/mfbt/double-conversion/update.sh
+@@ -14,3 +14,4 @@ cp $1/src/*.cc ./
+ 
+ patch -p3 < add-mfbt-api-markers.patch
+ patch -p3 < useStandardInteger.patch
++patch -p3 < more-architectures.patch
+diff --git a/mfbt/double-conversion/utils.h b/mfbt/double-conversion/utils.h
+index bdc7d4b..e02d72e 100644
+--- a/mfbt/double-conversion/utils.h
++++ b/mfbt/double-conversion/utils.h
+@@ -53,7 +53,11 @@
+ // disabled.)
+ // On Linux,x86 89255e-22 != Div_double(89255.0/1e22)
+ #if defined(_M_X64) || defined(__x86_64__) || \
+-    defined(__ARMEL__) || \
++    defined(__ARMEL__) || defined(__avr32__) || \
++    defined(__hppa__) || defined(__ia64__) || \
++    defined(__mips__) || defined(__powerpc__) || \
++    defined(__sparc__) || defined(__s390__) || \
++    defined(__SH4__) || defined(__alpha__) || \
+     defined(_MIPS_ARCH_MIPS32R2)
+ #define DOUBLE_CONVERSION_CORRECT_DOUBLE_OPERATIONS 1
+ #elif defined(_M_IX86) || defined(__i386__)
